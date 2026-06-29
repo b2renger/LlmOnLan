@@ -1,0 +1,19 @@
+# Normalize line endings: LF in the repo for all text, so build scripts that run
+# on macOS/Linux CI stay LF even when authored on Windows.
+* text=auto eol=lf
+
+# Shell scripts MUST be LF (they break with CRLF shebangs).
+*.sh   text eol=lf
+*.mjs  text eol=lf
+*.cjs  text eol=lf
+
+# Windows batch/PowerShell stay CRLF.
+*.bat  text eol=crlf
+*.cmd  text eol=crlf
+*.ps1  text eol=crlf
+
+# Binary assets — never touch.
+*.png  binary
+*.jpg  binary
+*.ico  binary
+*.icns binary
