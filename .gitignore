@@ -31,12 +31,15 @@ farm/.lol-id
 lol.config.json
 !farm/lol.config.example.json
 
-# --- OWUI / local data (must never be committed — see invariant #3) ---
+# --- OWUI / local data + secrets (must never be committed — see invariant #3) ---
 DATA_DIR/
 data/
 *.db
 *.sqlite
 *.sqlite3
+.webui_secret_key
+.webui-secret-key
+owui-data/
 
 # --- OS / editor cruft ---
 .DS_Store

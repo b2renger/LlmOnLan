@@ -9,22 +9,27 @@ import * as fs from 'fs';
 const isWin = process.platform === 'win32';
 const EXE = isWin ? 'open-webui.exe' : 'open-webui';
 
-// The Open WebUI sidecar executable + args. Order of resolution:
-//   1. $LOL_SIDECAR_CMD — explicit override (a path, or "py:<python>" form).
-//   2. Packaged: the bundled binary under process.resourcesPath/sidecar/.
+// The Open WebUI sidecar command + args. Order of resolution:
+//   1. $LOL_SIDECAR_CMD — explicit override (an executable path; e.g. a venv's
+//      open-webui console script). args defaults to ['serve'].
+//   2. Packaged: the bundled self-contained Python + launcher.py under
+//      resources/sidecar/ (produced by sidecar/build-sidecar).
 //   3. Dev: the repo's sidecar/.venv console script.
-// Returns { command, args } where args is the leading args BEFORE host/port.
+// `args` is the leading args BEFORE the supervisor appends --host/--port.
 export function resolveSidecarCommand(): { command: string; args: string[]; source: string } {
     const override = process.env.LOL_SIDECAR_CMD;
-    if (override) return { command: override, args: [], source: 'env' };
+    if (override) return { command: override, args: ['serve'], source: 'env' };
 
     if (app.isPackaged) {
-        // M5 packaging puts a self-contained executable here (see sidecar/).
-        const bundled = path.join(process.resourcesPath, 'sidecar', EXE);
-        return { command: bundled, args: ['serve'], source: 'packaged' };
+        // build-sidecar stages a relocatable standalone CPython + launcher.py;
+        // electron-builder copies it to resources/sidecar/. Run it as
+        //   <python> launcher.py serve --host --port
+        const root = path.join(process.resourcesPath, 'sidecar');
+        const py = isWin ? path.join(root, 'python', 'python.exe') : path.join(root, 'python', 'bin', 'python3');
+        return { command: py, args: [path.join(root, 'launcher.py'), 'serve'], source: 'packaged' };
     }
 
-    // Dev: the repo's venv. shell/ is app.getAppPath(); the repo root is its parent.
+    // Dev: the repo's venv console script. shell/ is app.getAppPath().
     const repoRoot = path.join(app.getAppPath(), '..');
     const devScript = isWin
         ? path.join(repoRoot, 'sidecar', '.venv', 'Scripts', EXE)

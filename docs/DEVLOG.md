@@ -6,6 +6,33 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-06-29 — M0 (sidecar packaging): bundle the pinned OWUI
+
+**What:** The build path that turns the pin into a self‑contained, shippable sidecar.
+- [`OPENWEBUI_VERSION`](../sidecar/OPENWEBUI_VERSION) `= 0.10.1` — the single source of truth.
+- [`launcher.py`](../sidecar/launcher.py) — drives OWUI's Typer app (`open_webui:app`) via argv, so the
+  invocation is **path‑independent** (no pip console‑script shebang that breaks once the installer
+  relocates the bundle). There is **no `python -m open_webui`** in 0.10.1, hence the launcher.
+- [`build-sidecar.mjs`](../sidecar/build-sidecar.mjs) (+ `.sh`/`.ps1` wrappers) — downloads a relocatable
+  **standalone CPython** (astral‑sh/python‑build‑standalone, latest release matched via the GitHub API
+  so no tag rots), `pip install open-webui==<pin>` into it, drops in `launcher.py`, and stages
+  `sidecar/build/sidecar/` (fixed name → same `extraResources from` on every OS). Chosen over PyInstaller
+  because OWUI's built SvelteKit frontend + data files + torch/chromadb make a one‑file build fragile;
+  a real interpreter with the package installed is the reliable path.
+- [`resolveSidecarCommand`](../shell/src/main/paths.ts) updated: packaged runs
+  `resources/sidecar/python(.exe) resources/sidecar/launcher.py serve --host --port`; dev keeps the
+  `.venv` console script.
+- [`sidecar/README.md`](../sidecar/README.md) documents the approach + the **upgrade test** (bump the
+  pin → re‑build → smoke; pass = no LOL code changed).
+
+**Tested:** the load‑bearing mechanism — **`python launcher.py serve` boots OWUI** (`/health` →
+`{"status":true}`) against the existing self‑contained Python — is verified. The full multi‑GB
+standalone‑Python bundle build (download + `pip install torch/…`) is heavy and runs on **CI / the build
+machine**, not in this session; the script is written to be CI‑run (it's exercised by the release
+workflow). This is the milestone the plan explicitly flags as a packaging spike.
+
+---
+
 ## 2026-06-29 — M4: Preferences (data folder + connection + startup/updates + about)
 
 **What:** A LOL‑owned, ComfyQ‑styled Preferences modal (the gear), with the four sections the plan
