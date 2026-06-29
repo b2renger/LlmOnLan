@@ -6,6 +6,34 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-06-29 — M3 (client half): LAN discovery + connection UX (no URL typed)
+
+**What:** The shell now finds the farm itself and points OWUI at it — zero config.
+- **Discovery module** ([discovery.ts](../shell/src/main/discovery.ts), ported from ComfyQ's desktop
+  discovery) — merges three sources into one farm map: (1) **UDP beacons** on `239.255.43.10:41998`,
+  (2) **subnet sweep** probing `GET /lol/self` (the broadcast‑blocked‑LAN fallback), (3) **manual
+  add‑by‑address**. Per‑farm staleness/TTL; de‑duped by farm `id` (survives DHCP IP changes).
+- **Auto‑connect** ([index.ts](../shell/src/main/index.js)) — on first run, OWUI's boot waits a short
+  grace period for discovery to surface a farm, then boots **pointed at the reachable LAN address**
+  (`http://<reach-host>:<proxyPort>/v1`); `onFarms` keeps it repointed as the LAN changes. Pick logic
+  is sticky (pinned choice → current‑if‑good → first healthy) to avoid flapping between equivalents.
+- **Connection UX** ([renderer](../shell/renderer/)) — the topbar status pill shows the connected farm
+  name (green) and opens a **connection popover**: the discovered‑servers list (health dot · source tag ·
+  `host:port · models` · active checkmark, click to switch), an **Add by address** field, an
+  **Auto‑search the subnet** toggle, and **Rescan** — mirroring ComfyQ's controls.
+- IPC + persistence: `get-farms`/`select-farm`/`add|remove-manual-peer`/`set-auto-scan`/`set-scan-range`/
+  `rescan`; manual peers, auto‑scan, scan range, and the pinned farm persist to shell settings;
+  `lastEndpoint` is remembered as the pre‑discovery fallback.
+
+**Tested — the actual app (see [docs/img/m3-discovery.png](img/m3-discovery.png)):** launched with **no
+`LOL_ENDPOINT`**. Logs show `[discovery] listening 239.255.43.10:41998` and the sidecar spawning with
+`endpoint=http://10.10.16.58:4000/v1` — i.e. it **discovered the farm and auto‑pointed OWUI at the LAN
+address** with nothing typed. The capture shows the pill reading **"Dev Box Farm"** and the popover
+listing it (BEACON source, `10.10.16.58:4000 · gemma4`, active ✓) with the add/rescan fallbacks. The
+sweep + manual‑add paths reuse the same `/lol/self` fetch verified in the M3 farm half.
+
+---
+
 ## 2026-06-29 — M0 + M1: Electron shell skeleton + config‑bridge (OWUI runs in the shell)
 
 **What:** Built the client shell (`shell/`, Electron + TypeScript) and proved the prime‑directive
