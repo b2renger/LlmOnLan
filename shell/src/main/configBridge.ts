@@ -54,7 +54,8 @@ export function buildSidecarEnv(input: SidecarEnvInput): Record<string, string> 
         ENABLE_PERSISTENT_CONFIG: 'false',
 
         // --- connection: talk ONLY to the farm's OpenAI-compatible endpoint ---
-        ENABLE_OPENAI_API: 'true',
+        // ENABLE_OPENAI_API is set below — true only when we have a farm endpoint,
+        // so a no-farm boot can't fall back to OWUI's default api.openai.com.
         ENABLE_OLLAMA_API: 'false',   // never hit Ollama directly; the farm fronts it
 
         // --- privacy: documents embed LOCALLY (default MiniLM); never to the farm ---
@@ -77,9 +78,14 @@ export function buildSidecarEnv(input: SidecarEnvInput): Record<string, string> 
     // setting the plural OPENAI_API_BASE_URLS — a config.py bug can reset the
     // singular back to the OpenAI default and mis-map keys↔URLs).
     if (input.endpoint) {
+        env.ENABLE_OPENAI_API = 'true';
         env.OPENAI_API_BASE_URL = input.endpoint;
         // OWUI requires a non-empty key string even for a keyless LAN proxy.
         env.OPENAI_API_KEY = input.apiKey || 'sk-lol-lan';
+    } else {
+        // No farm discovered yet → keep OWUI from reaching the public OpenAI API
+        // (its default base URL) while we wait. Privacy intent: only the farm.
+        env.ENABLE_OPENAI_API = 'false';
     }
 
     return env;

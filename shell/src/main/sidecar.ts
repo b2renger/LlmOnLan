@@ -22,7 +22,12 @@ export class SidecarSupervisor extends EventEmitter {
     private dataDir = '';
     private endpoint: string | null = null;
     private apiKey: string | null = null;
-    private stopping = false;
+    // Generation token: every start()/stop() bumps it, so an in-flight start()
+    // that was superseded (by a repoint/stop/crash-restart) aborts at its awaits
+    // instead of clobbering the newer child. The child 'exit' handler compares the
+    // exiting process by IDENTITY against this.child, so a late exit from an old
+    // child never triggers a spurious restart.
+    private gen = 0;
     private crashRestarts = 0;
     private state: SidecarState = { status: 'idle', url: null, dataDir: '', endpoint: null };
 
@@ -38,6 +43,7 @@ export class SidecarSupervisor extends EventEmitter {
         this.endpoint = opts.endpoint;
         this.dataDir = opts.dataDir;
         this.apiKey = opts.apiKey ?? null;
+        const myGen = ++this.gen;
 
         const { command, args, source } = resolveSidecarCommand();
         if (!sidecarExists(command)) {
@@ -48,7 +54,13 @@ export class SidecarSupervisor extends EventEmitter {
             return;
         }
 
+        // Reap any still-running child before spawning a new one — defends against
+        // a crash-restart racing a repoint, which would otherwise orphan a process.
+        if (this.child) { const old = this.child; this.child = null; await killTree(old.pid); }
+        if (myGen !== this.gen) return; // superseded while awaiting the kill
+
         this.port = await findFreePort(8080);
+        if (myGen !== this.gen) return;
         const url = `http://${HOST}:${this.port}`;
         this.setState({ status: 'starting', url: null, dataDir: this.dataDir, endpoint: this.endpoint, message: undefined });
 
@@ -64,7 +76,6 @@ export class SidecarSupervisor extends EventEmitter {
         const fullArgs = [...args, '--host', HOST, '--port', String(this.port)];
         console.log(`[sidecar] spawning (${source}): ${command} ${fullArgs.join(' ')}  DATA_DIR=${this.dataDir} endpoint=${this.endpoint}`);
 
-        this.stopping = false;
         const child = spawn(command, fullArgs, {
             windowsHide: true,
             detached: process.platform !== 'win32',
@@ -78,16 +89,17 @@ export class SidecarSupervisor extends EventEmitter {
         child.on('error', (e) => {
             this.setState({ status: 'error', message: `Failed to launch sidecar: ${e.message}` });
         });
-        child.on('exit', (code) => this.onChildExit(code));
+        // Compare by identity: only THIS child's unexpected exit matters.
+        child.on('exit', (code) => this.onChildExit(child, code));
 
         // Health-wait (first run downloads the embedding model → allow generous time).
         const healthy = await waitForHttp(`${url}${HEALTH_PATH}`, { timeoutMs: 180000, intervalMs: 1000 });
-        if (this.stopping) return;
+        if (myGen !== this.gen) return; // a newer start()/stop() superseded us
         if (healthy) {
             this.crashRestarts = 0;
             this.setState({ status: 'ready', url, message: undefined });
             console.log(`[sidecar] ready at ${url} (DATA_DIR=${this.dataDir})`);
-        } else if (this.child === child) {
+        } else {
             this.setState({ status: 'error', url: null, message: 'Open WebUI did not become healthy in time. See logs.' });
         }
     }
@@ -111,15 +123,18 @@ export class SidecarSupervisor extends EventEmitter {
     }
 
     async stop(opts: { keepState?: boolean } = {}): Promise<void> {
-        this.stopping = true;
+        this.gen++;                 // supersede any in-flight start()
         const child = this.child;
-        this.child = null;
+        this.child = null;          // null BEFORE killing so the exit event is ignored
         if (child) await killTree(child.pid);
         if (!opts.keepState) this.setState({ status: 'stopped', url: null });
     }
 
-    private onChildExit(code: number | null): void {
-        if (this.stopping || this.child === null) return; // intentional stop/restart
+    private onChildExit(child: ChildProcess, code: number | null): void {
+        // Ignore exits from a child that's already been replaced/stopped (we null
+        // this.child on stop/restart, so an intentional teardown never reaches here).
+        if (child !== this.child) return;
+        this.child = null;
         // Unexpected crash → bounded auto-restart so a transient failure self-heals.
         if (this.crashRestarts < MAX_CRASH_RESTARTS) {
             this.crashRestarts++;

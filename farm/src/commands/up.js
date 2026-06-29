@@ -201,13 +201,19 @@ async function run(args) {
     // Keep the advertised health honest: re-probe proxy + hosts periodically and
     // push a fresh beacon. Cheap (a few HTTP HEADs) and unref'd.
     const hosts = config.ollama.hosts.map(ollama.normalizeHost);
+    let healthInFlight = false; // skip a tick if the previous probe round is still running
     const healthTimer = setInterval(async () => {
-        liveHealth.proxyUp = await proxyApi.proxyLive(baseUrl);
-        const ups = await Promise.all(hosts.map((h) => ollama.version(h)));
-        liveHealth.hostsUp = ups.filter(Boolean).length;
-        const loadedLists = await Promise.all(hosts.map((h) => ollama.loadedModels(h)));
-        liveHealth.loaded = [...new Set(loadedLists.flat())];
-        if (beacon) beacon.kick();
+        if (healthInFlight) return;
+        healthInFlight = true;
+        try {
+            liveHealth.proxyUp = await proxyApi.proxyLive(baseUrl);
+            const ups = await Promise.all(hosts.map((h) => ollama.version(h)));
+            liveHealth.hostsUp = ups.filter(Boolean).length;
+            const loadedLists = await Promise.all(hosts.map((h) => ollama.loadedModels(h)));
+            liveHealth.loaded = [...new Set(loadedLists.flat())];
+            if (beacon) beacon.kick();
+        } catch { /* probes are already failure-tolerant; never throw from the timer */ }
+        finally { healthInFlight = false; }
     }, Math.max(10, config.beacon.intervalSec * 2) * 1000);
     if (healthTimer.unref) healthTimer.unref();
 
@@ -250,20 +256,21 @@ async function run(args) {
     process.on('SIGINT', () => shutdown('SIGINT'));
     process.on('SIGTERM', () => shutdown('SIGTERM'));
 
-    child.on('exit', (code) => {
+    child.on('exit', async (code) => {
         if (stopping) return;
-        // If the runtime file is already gone, `lol down` (from another shell)
-        // cleared it before killing us — an intentional stop, so exit quietly.
-        if (!readRuntime()) {
-            log.plain('');
-            log.ok('Farm stopped (via `lol down`).');
-            for (const pid of oll.spawnedPids) killTree(pid);
-            process.exit(0);
-        }
-        log.err(`LiteLLM exited unexpectedly (code ${code}). Shutting down the farm.`);
-        clearRuntime();
-        for (const pid of oll.spawnedPids) killTree(pid);
-        process.exit(code || 1);
+        stopping = true;
+        // Tear down everything we own BEFORE exiting (and AWAIT the Ollama kills so
+        // process.exit doesn't orphan a local Ollama this CLI started).
+        clearInterval(healthTimer);
+        if (beacon) beacon.stop();
+        try { selfServer.close(); } catch { /* already closed */ }
+        // If the runtime file is already gone, `lol down` (another shell) cleared
+        // it before killing us — an intentional stop, so exit quietly.
+        const intentional = !readRuntime();
+        if (intentional) { log.plain(''); log.ok('Farm stopped (via `lol down`).'); }
+        else { log.err(`LiteLLM exited unexpectedly (code ${code}). Shutting down the farm.`); clearRuntime(); }
+        for (const pid of oll.spawnedPids) await killTree(pid);
+        process.exit(intentional ? 0 : (code || 1));
     });
 
     // Keep the event loop alive.

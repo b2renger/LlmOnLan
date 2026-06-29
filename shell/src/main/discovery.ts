@@ -36,7 +36,9 @@ export class Discovery extends EventEmitter {
     private autoScan = true;
     private scanRange: ScanRange | null = null;
     private scanning = false;
+    private stopped = false;
     private timers: NodeJS.Timeout[] = [];
+    private reconnectTimer: NodeJS.Timeout | null = null;
 
     constructor(opts: { manualPeers?: string[]; autoScan?: boolean; scanRange?: ScanRange | null } = {}) {
         super();
@@ -47,6 +49,7 @@ export class Discovery extends EventEmitter {
 
     // ---- lifecycle ----
     start(): void {
+        this.stopped = false;
         this.startSocket();
         this.pollKnown();
         this.timers.push(setInterval(() => this.pollKnown(), POLL_MS));
@@ -55,8 +58,10 @@ export class Discovery extends EventEmitter {
         this.timers.push(setInterval(() => this.prune(), 5000));
     }
     stop(): void {
-        for (const t of this.timers) clearInterval(t as NodeJS.Timeout);
+        this.stopped = true; // in-flight sweep/pollKnown/socket-reconnect bail out
+        for (const t of this.timers) clearInterval(t as NodeJS.Timeout); // (clears setTimeout handles too)
         this.timers = [];
+        if (this.reconnectTimer) { clearTimeout(this.reconnectTimer); this.reconnectTimer = null; }
         if (this.socket) { try { this.socket.close(); } catch { /* ignore */ } this.socket = null; }
     }
 
@@ -161,13 +166,14 @@ export class Discovery extends EventEmitter {
     }
 
     private async pollKnown(): Promise<void> {
+        if (this.stopped) return;
         const manualHosts = new Set(this.manualPeers.map((e) => this.parseHost(e).host));
         const targets = new Set<string>([...this.manualPeers, ...this.discovered.keys()]);
         await Promise.all([...targets].map(async (entry) => {
             const { host, port } = this.parseHost(entry);
             if (!host) return;
             const snap = await this.fetchSelf(host, port, SCAN_TIMEOUT_MS);
-            if (snap) {
+            if (snap && !this.stopped) {
                 if (this.discovered.has(host)) this.discovered.set(host, Date.now());
                 this.merge(snap, host, manualHosts.has(host) ? 'added' : 'scan');
                 this.emitState();
@@ -176,17 +182,17 @@ export class Discovery extends EventEmitter {
     }
 
     private async sweep(): Promise<void> {
-        if (this.scanning || !this.autoScan) return;
+        if (this.scanning || !this.autoScan || this.stopped) return;
         const all = this.scanCandidates();
         if (!all.length) return;
         this.scanning = true; this.emitState();
         const manualHosts = new Set(this.manualPeers.map((e) => this.parseHost(e).host));
         let idx = 0;
         const worker = async () => {
-            while (idx < all.length) {
+            while (idx < all.length && !this.stopped) {
                 const host = all[idx++];
                 const snap = await this.fetchSelf(host, DEFAULT_HTTP_PORT, SCAN_TIMEOUT_MS);
-                if (snap) { this.discovered.set(host, Date.now()); this.merge(snap, host, manualHosts.has(host) ? 'added' : 'scan'); this.emitState(); }
+                if (snap && !this.stopped) { this.discovered.set(host, Date.now()); this.merge(snap, host, manualHosts.has(host) ? 'added' : 'scan'); this.emitState(); }
             }
         };
         await Promise.all(Array.from({ length: Math.min(SCAN_CONCURRENCY, all.length) }, worker));
@@ -194,9 +200,14 @@ export class Discovery extends EventEmitter {
     }
 
     private startSocket(): void {
+        if (this.stopped) return;
         const socket = dgram.createSocket({ type: 'udp4', reuseAddr: true });
-        socket.on('error', () => { try { socket.close(); } catch { /* ignore */ } setTimeout(() => this.startSocket(), 3000); });
+        socket.on('error', () => {
+            try { socket.close(); } catch { /* ignore */ }
+            if (!this.stopped) this.reconnectTimer = setTimeout(() => this.startSocket(), 3000);
+        });
         socket.on('message', (msg, rinfo) => {
+            if (this.stopped) return;
             let snap: FarmSnapshot;
             try { snap = JSON.parse(msg.toString()); } catch { return; }
             if (!snap || snap.v == null) return;

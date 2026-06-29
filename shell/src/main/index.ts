@@ -70,7 +70,9 @@ function onFarms(payload: { farms: DiscoveredFarm[] } & Record<string, unknown>)
         currentEndpoint = endpoint;
         activeFarmId = chosen.id;
         updateSettings({ lastEndpoint: endpoint });
-        sidecar.repoint(endpoint, chosen.requiresKey ? null : null);
+        // Keyless LAN proxy for now; a keyed farm (requiresKey) needs a key-entry
+        // UX we haven't built, so we don't send a (wrong) placeholder key.
+        sidecar.repoint(endpoint, null);
     }
 }
 
@@ -250,7 +252,9 @@ function registerIpc(): void {
             currentEndpoint = endpoint;
             activeFarmId = chosen.id;
             updateSettings({ lastEndpoint: endpoint });
-            sidecar.repoint(endpoint, chosen.requiresKey ? null : null);
+            // Keyless LAN proxy for now; a keyed farm (requiresKey) needs a key-entry
+        // UX we haven't built, so we don't send a (wrong) placeholder key.
+        sidecar.repoint(endpoint, null);
         }
         return chosen?.id ?? null;
     });

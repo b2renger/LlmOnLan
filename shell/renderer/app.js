@@ -173,13 +173,22 @@ function renderPill() {
 
 // ---- sidecar → webview + overlay ----
 let lastUrl = null;
+let pendingReload = false; // a (re)start happened → reload the webview once it's ready
 function renderSidecar() {
   const s = sidecarState;
   if (!s) return;
   renderPill();
+  if (s.status === 'starting' || s.status === 'restarting') pendingReload = true;
 
   if (s.status === 'ready' && s.url) {
-    if (s.url !== lastUrl) { lastUrl = s.url; els.webview.src = s.url; }
+    if (s.url !== lastUrl) {
+      lastUrl = s.url; els.webview.src = s.url; pendingReload = false;
+    } else if (pendingReload) {
+      // Same port reused after a repoint → src is unchanged, so force a reload to
+      // pick up the freshly-(re)started OWUI instead of leaving a stale page.
+      pendingReload = false;
+      try { els.webview.reload(); } catch { /* webview not ready */ }
+    }
     els.webview.classList.remove('hidden');
     els.overlay.classList.add('hidden');
     return;

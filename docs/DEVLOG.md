@@ -6,6 +6,36 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-06-29 — Adversarial review pass (correctness fixes)
+
+A fresh-eyes adversarial review of the highest-logic code (shell main process + farm CLI) surfaced
+real bugs; the genuine ones are fixed (the reviewer's "reviewed-OK / not-a-bug" items were left alone):
+- **Sidecar restart races (HIGH)** — a crash auto‑restart could race a `repoint()`/`stop()` and orphan
+  or duplicate an OWUI process. [sidecar.ts](../shell/src/main/sidecar.ts) now uses a **generation
+  counter** (every `start()`/`stop()` bumps it; an in‑flight `start()` aborts at its awaits when
+  superseded) + **child‑identity** comparison in the exit handler (only the current child's unexpected
+  exit restarts), and `start()` reaps any existing child before spawning.
+- **`lol down` orphaned a spawned Ollama (HIGH)** — [up.js](../farm/src/commands/up.js)'s child‑exit
+  handler killed `oll.spawnedPids` **without awaiting** before `process.exit`. Now it awaits the kills
+  and also tears down the health timer + beacon + self‑server first.
+- **Dead `requiresKey ? null : null` ternary** — [index.ts](../shell/src/main/index.js) cleaned up;
+  documented that keyed farms need a key‑entry UX we haven't built (so we don't send a wrong placeholder).
+- **Discovery kept working after `stop()`** — [discovery.ts](../shell/src/main/discovery.js) added a
+  `stopped` flag (checked in `sweep`/`pollKnown`/socket message) and tracks the socket‑reconnect timer so
+  a stopped Discovery can't re‑emit or leak a bound socket.
+- **No‑farm boot could reach public OpenAI** — [configBridge.ts](../shell/src/main/configBridge.js) now
+  sets `ENABLE_OPENAI_API=false` when there's no farm endpoint (privacy intent: only the farm).
+- **Stale webview after a same‑port repoint** — [app.js](../shell/renderer/app.js) forces a webview
+  reload on the restarting→ready transition even when the URL is unchanged.
+- **Overlapping health ticks** — up.js's health interval now skips a tick if the previous probe round is
+  still running.
+
+**Tested:** shell `tsc` clean; farm 10/10 unit tests; data‑migration 9/9; and a fresh smoke launch shows
+**no regression** — discovery → OWUI spawned at the discovered endpoint → ready, pill reads "Dev Box
+Farm" (active‑farm match intact after the lifecycle rewrite).
+
+---
+
 ## 2026-06-29 — M5: packaging + auto-update (electron-builder + GitHub Releases)
 
 **What:** The self‑updating, one‑click install path (ComfyQ recipe, with the brief's §6 corrections).
