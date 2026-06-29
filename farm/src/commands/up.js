@@ -15,6 +15,8 @@ const proxyApi = require('../proxy');
 const { loadConfig } = require('../config');
 const { writeLitellmConfig } = require('../litellm');
 const { buildSnapshot } = require('../snapshot');
+const { DiscoveryBeacon } = require('../beacon');
+const { startSelfServer } = require('../selfServer');
 const {
     readRuntime, writeRuntime, clearRuntime, isAlive, killTree, spawnLitellm,
 } = require('../proc');
@@ -170,9 +172,44 @@ async function run(args) {
     const served = await proxyApi.listProxyModels(baseUrl, config.proxy.masterKey);
     log.ok(`Proxy healthy — ${log.paint.bold('/v1/models')}: ${served.length ? served.join(', ') : '(none yet)'}`);
 
-    // 5. Discovery beacon — wired in M3. (Snapshot is already buildable.)
-    const snapshot = buildSnapshot(config, { proxyUp: true, hostsUp: oll.reachable.length, hostsTotal: config.ollama.hosts.length });
-    log.info(`Discovery beacon: ${log.paint.grey('enabled in M3')} (snapshot id ${snapshot.id.slice(0, 8)})`);
+    // 5. Discovery — UDP beacon + unicast /lol/self (both share ONE snapshot so
+    // they can't drift). liveHealth is refreshed on a timer below.
+    const liveHealth = {
+        proxyUp: true,
+        hostsUp: oll.reachable.length,
+        hostsTotal: config.ollama.hosts.length,
+        loaded: [],
+    };
+    const getSnapshot = () => buildSnapshot(config, liveHealth);
+    const snapshot = getSnapshot();
+
+    let beacon = null;
+    if (config.beacon.enabled) {
+        beacon = new DiscoveryBeacon({
+            group: config.beacon.group,
+            port: config.beacon.port,
+            intervalSec: config.beacon.intervalSec,
+            getSnapshot,
+        }).start();
+        log.ok(`Discovery beacon → multicast ${config.beacon.group}:${config.beacon.port} + broadcast, every ${config.beacon.intervalSec}s (id ${snapshot.id.slice(0, 8)})`);
+    } else {
+        log.info('Discovery beacon disabled (config.beacon.enabled=false).');
+    }
+    const selfServer = startSelfServer({ httpPort: config.beacon.httpPort, getSnapshot, host: config.proxy.host });
+    log.ok(`Unicast discovery → ${log.paint.grey(`http://<ip>:${config.beacon.httpPort}/lol/self`)}`);
+
+    // Keep the advertised health honest: re-probe proxy + hosts periodically and
+    // push a fresh beacon. Cheap (a few HTTP HEADs) and unref'd.
+    const hosts = config.ollama.hosts.map(ollama.normalizeHost);
+    const healthTimer = setInterval(async () => {
+        liveHealth.proxyUp = await proxyApi.proxyLive(baseUrl);
+        const ups = await Promise.all(hosts.map((h) => ollama.version(h)));
+        liveHealth.hostsUp = ups.filter(Boolean).length;
+        const loadedLists = await Promise.all(hosts.map((h) => ollama.loadedModels(h)));
+        liveHealth.loaded = [...new Set(loadedLists.flat())];
+        if (beacon) beacon.kick();
+    }, Math.max(10, config.beacon.intervalSec * 2) * 1000);
+    if (healthTimer.unref) healthTimer.unref();
 
     // 6. Record runtime so status/down work from another shell.
     writeRuntime({
@@ -201,6 +238,9 @@ async function run(args) {
         stopping = true;
         log.plain('');
         log.step(`Stopping (${sig}) …`);
+        clearInterval(healthTimer);
+        if (beacon) beacon.stop();
+        try { selfServer.close(); } catch { /* already closed */ }
         await killTree(child.pid);
         for (const pid of oll.spawnedPids) await killTree(pid);
         clearRuntime();

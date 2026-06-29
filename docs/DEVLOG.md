@@ -6,6 +6,33 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-06-29 — M3 (farm half): UDP discovery beacon + `/lol/self`
+
+**What:** The farm now announces itself on the LAN two ways, both fed by the one
+`buildSnapshot()` so they can't drift (mirroring ComfyQ).
+- **UDP beacon** ([beacon.js](../farm/src/beacon.js)) — adapted from ComfyQ's `beacon.js`. Every
+  `intervalSec` it sends the snapshot to the multicast group on each interface **+** each interface's
+  directed broadcast **+** the limited broadcast `255.255.255.255` (deduped), with
+  `setBroadcast(true)` + `setMulticastTTL(4)`. Group `239.255.43.10:41998` — distinct from ComfyQ.
+- **Unicast `/lol/self`** ([selfServer.js](../farm/src/selfServer.js)) — a tiny `http` server on
+  `41997` returning the snapshot JSON (CORS‑open). This is the fallback for managed/school Wi‑Fi that
+  blocks broadcast+multicast between clients (where the UDP beacon never arrives but unicast works) —
+  the shell's subnet sweep / "add by address" will probe it.
+- Wired both into `lol up` ([up.js](../farm/src/commands/up.js)): a shared `getSnapshot()` closure
+  over a `liveHealth` object that a 15s timer re‑probes (proxy liveness + per‑host reachability +
+  loaded models), then re‑kicks the beacon — so advertised health stays honest. `shutdown` stops the
+  beacon + self‑server + timer.
+
+**Tested:** built [tools/listen.js](../farm/tools/listen.js) (a standalone listener that also doubles
+as the reference for the shell's M3 client half). With `lol up` running: `GET /lol/self` returned the
+snapshot, and the UDP listener **received the beacon** from `10.10.16.58` with the full snapshot
+(`models=gemma4 healthy=true hostsUp=1/1`). Syntax‑checked all new modules; 10/10 unit tests still green.
+
+**Still pending for M3:** the client half (beacon listener + connection UX) lives in the shell, built
+alongside M0/M1.
+
+---
+
 ## 2026-06-29 — M2: the `lol` farm CLI (+ integration research)
 
 **What:** Built the whole farm backend (`farm/`) — a dependency‑light Node CLI that turns one
