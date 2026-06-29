@@ -12,6 +12,7 @@ import { defaultDataDir, bundledOwuiVersion } from './paths';
 import { SidecarSupervisor } from './sidecar';
 import { Discovery } from './discovery';
 import { moveDataDir, dirHasData } from './dataMigration';
+import { initAutoUpdate } from './updater';
 import { ShellSettings, DiscoveredFarm, ScanRange } from './types';
 
 app.setName('LlmOnLan');
@@ -233,7 +234,11 @@ function registerIpc(): void {
         return v;
     });
 
-    ipcMain.handle('set-auto-update', (_e, on: boolean) => updateSettings({ autoUpdate: !!on }).autoUpdate);
+    ipcMain.handle('set-auto-update', (_e, on: boolean) => {
+        const v = updateSettings({ autoUpdate: !!on }).autoUpdate;
+        if (v) initAutoUpdate(true); // start checking now if just enabled
+        return v;
+    });
 
     // User pins a specific farm → persist + repoint immediately.
     ipcMain.handle('select-farm', (_e, farmId: string | null) => {
@@ -303,6 +308,7 @@ app.whenReady().then(async () => {
 
     sidecar.on('state', pushSidecarState);
     maybeSmokeShot();
+    initAutoUpdate(settings.autoUpdate); // no-op in dev / when disabled
 
     // Start LAN discovery (beacon listener + sweep + manual peers).
     discovery = new Discovery({ manualPeers: settings.manualPeers, autoScan: settings.autoScan, scanRange: settings.scanRange });

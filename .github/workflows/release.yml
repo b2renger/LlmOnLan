@@ -1,0 +1,51 @@
+# Build + publish the LlmOnLan installers to GitHub Releases on a vX.Y.Z tag.
+# Each matrix job builds the bundled OWUI sidecar for ITS OS, then runs
+# electron-builder --publish always. See docs/INTEGRATION_BRIEF.md §6.
+
+name: release
+
+on:
+  push:
+    tags: ['v*']
+
+# Required so electron-builder can create the release (403s otherwise, even on a
+# public repo).
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # Build the self-contained Open WebUI sidecar for this OS (the heavy step:
+      # downloads a standalone CPython + pip-installs the pinned open-webui).
+      - name: Build OWUI sidecar
+        run: node sidecar/build-sidecar.mjs
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install shell deps
+        working-directory: shell
+        run: npm ci
+
+      - name: Build + publish installer
+        working-directory: shell
+        run: npx --no-install electron-builder --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Don't let a stray keychain cert hijack the macOS ad-hoc signing.
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'

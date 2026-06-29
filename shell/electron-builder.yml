@@ -1,0 +1,69 @@
+# electron-builder — packages the shell + the bundled OWUI sidecar into a
+# self-updating installer per OS, published to GitHub Releases (no paid signing).
+# See docs/INTEGRATION_BRIEF.md §6 for the verified recipe.
+
+appId: com.llmonlan.client
+productName: LlmOnLan
+
+# App sources (node_modules production deps — incl. electron-updater — are
+# included automatically; dev deps are pruned).
+files:
+  - build/**/*
+  - renderer/**/*
+  - assets/**/*
+  - package.json
+
+# The bundled, self-contained Open WebUI sidecar (sidecar/build-sidecar output).
+# extraResources copies it OUTSIDE app.asar (a binary can't be exec'd from inside
+# the asar) into resources/sidecar/, where resolveSidecarCommand() expects it.
+# Each CI matrix job builds the sidecar for its own OS first.
+extraResources:
+  - from: ../sidecar/build/sidecar
+    to: sidecar
+    filter: ["**/*"]
+
+directories:
+  output: dist
+  buildResources: assets
+
+# macOS only: ad-hoc codesign so Gatekeeper doesn't flag the app as "damaged".
+afterPack: scripts/afterPack.cjs
+
+# Self-update from GitHub Releases. releaseType:release so CI publishes a real
+# (non-draft, non-prerelease) release — the only kind electron-updater sees.
+publish:
+  provider: github
+  owner: b2renger
+  repo: LlmOnLan
+  releaseType: release
+
+win:
+  target: nsis
+  icon: assets/icon.png
+
+# NSIS per-user (perMachine:false) → electron-updater installs updates silently,
+# no UAC prompt. oneClick for a frictionless install.
+nsis:
+  oneClick: true
+  perMachine: false
+  allowToChangeInstallationDirectory: false
+
+mac:
+  category: public.app-category.productivity
+  icon: assets/icon.png
+  # dmg (download) + zip (REQUIRED for latest-mac.yml / Squirrel.Mac auto-update),
+  # both arches in one job so latest-mac.yml isn't overwritten.
+  target:
+    - target: dmg
+      arch: [arm64, x64]
+    - target: zip
+      arch: [arm64, x64]
+  # Ad-hoc signing (no Apple cert): builder skips signing, afterPack does it.
+  # hardenedRuntime:false — ad-hoc + hardened rejects the pre-signed Electron fw.
+  identity: null
+  hardenedRuntime: false
+
+linux:
+  target: AppImage
+  icon: assets/icon.png
+  category: Network

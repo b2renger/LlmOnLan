@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "description": "LlmOnLan — desktop client shell. Supervises a bundled, unmodified Open WebUI, discovers the LAN farm, and keeps all data local.",
   "license": "MIT",
+  "author": "b2renger",
   "private": true,
   "main": "build/main/index.js",
   "engines": {
@@ -13,11 +14,19 @@
     "watch": "tsc -w -p tsconfig.json",
     "start": "electron .",
     "dev": "npm run build && electron .",
-    "dist": "npm run build && electron-builder"
+    "dist": "npm run build && electron-builder",
+    "pack": "npm run build && electron-builder --dir",
+    "release:patch": "node scripts/release.mjs patch",
+    "release:minor": "node scripts/release.mjs minor",
+    "release:major": "node scripts/release.mjs major"
+  },
+  "dependencies": {
+    "electron-updater": "^6.6.2"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
     "electron": "^42.5.0",
+    "electron-builder": "^26.0.12",
     "typescript": "^5.7.2"
   }
 }

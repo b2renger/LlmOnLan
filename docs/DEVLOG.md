@@ -6,6 +6,37 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-06-29 — M5: packaging + auto-update (electron-builder + GitHub Releases)
+
+**What:** The self‑updating, one‑click install path (ComfyQ recipe, with the brief's §6 corrections).
+- [`electron-builder.yml`](../shell/electron-builder.yml) — `com.llmonlan.client` / **LlmOnLan**; the
+  bundled sidecar rides via **`extraResources`** (`../sidecar/build/sidecar` → `resources/sidecar/`,
+  outside `app.asar` so it's executable); **win** NSIS `oneClick` + `perMachine:false` (silent per‑user
+  updates, no UAC); **mac** `dmg` **+** `zip` for both arches (zip is required for Squirrel.Mac
+  auto‑update) with ad‑hoc signing (`identity:null`, `hardenedRuntime:false`); **linux** AppImage;
+  `publish: github b2renger/LlmOnLan releaseType:release`.
+- [`scripts/afterPack.cjs`](../shell/scripts/afterPack.cjs) — macOS ad‑hoc `codesign --sign -` so the
+  app isn't flagged "damaged" (no‑op elsewhere).
+- [`scripts/release.mjs`](../shell/scripts/release.mjs) — `npm version --no-git-tag-version`, then commits
+  ONLY the version files, makes an annotated `vX.Y.Z` tag, and pushes `--follow-tags` (the npm‑tagging‑is‑
+  unreliable workaround); guarded to `main` + a clean tree. `release:patch|minor|major` scripts.
+- [`updater.ts`](../shell/src/main/updater.js) — **electron‑updater 6.8.9** (a real runtime dep), wired
+  in `index.ts`: checks on launch when enabled + packaged, downloads in the background, installs on quit;
+  a no‑op in dev. The Preferences auto‑update toggle starts a check when flipped on.
+- [`.github/workflows/release.yml`](../.github/workflows/release.yml) — on a `v*` tag, matrix
+  `[windows, macos, ubuntu]` each builds the OWUI sidecar for its OS then runs
+  `electron-builder --publish always` (`contents: write`, `CSC_IDENTITY_AUTO_DISCOVERY=false`).
+
+**Tested:** `electron-updater@6.8.9` + `electron-builder@26.15.3` install clean (0 vulnerabilities); tsc
+builds with the updater wiring. **`electron-builder --dir`** (against a stub sidecar) **packaged a real
+`dist/win-unpacked/LlmOnLan.exe`** — confirming the config parses, the app packages, `afterPack` runs,
+and `extraResources` places the sidecar at exactly `resources/sidecar/{launcher.py, python/}` where
+`resolveSidecarCommand()` looks. `release.mjs`/`afterPack.cjs`/`build-sidecar.mjs` syntax‑check clean;
+`release.yml` is valid YAML. The full installer (NSIS/dmg/AppImage) + the publish‑to‑Releases +
+auto‑update cycle run in CI on a version tag — that's the upgrade test, not a single‑session step.
+
+---
+
 ## 2026-06-29 — M0 (sidecar packaging): bundle the pinned OWUI
 
 **What:** The build path that turns the pin into a self‑contained, shippable sidecar.
