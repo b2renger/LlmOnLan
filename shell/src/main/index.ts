@@ -4,13 +4,14 @@
 // sidecar (pointed at the farm via config-bridge), and loads it in a <webview>.
 // Discovery (M3) and full Preferences (M4) layer onto this skeleton.
 
-import { app, BrowserWindow, ipcMain, shell, nativeTheme } from 'electron';
+import { app, BrowserWindow, ipcMain, shell, nativeTheme, dialog } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
 import { loadSettings, updateSettings } from './store';
-import { defaultDataDir } from './paths';
+import { defaultDataDir, bundledOwuiVersion } from './paths';
 import { SidecarSupervisor } from './sidecar';
 import { Discovery } from './discovery';
+import { moveDataDir, dirHasData } from './dataMigration';
 import { ShellSettings, DiscoveredFarm, ScanRange } from './types';
 
 app.setName('LlmOnLan');
@@ -180,6 +181,60 @@ function registerIpc(): void {
     });
     ipcMain.handle('rescan', () => { discovery?.rescan(); return true; });
 
+    // --- preferences (M4) ---
+    ipcMain.handle('get-prefs', () => {
+        const s = loadSettings();
+        return {
+            dataDir: resolveDataDir(),
+            dataDirDefault: defaultDataDir(),
+            dataDirIsDefault: !s.dataDir,
+            theme: s.theme,
+            launchAtLogin: s.launchAtLogin,
+            autoUpdate: s.autoUpdate,
+            shellVersion: app.getVersion(),
+            owuiVersion: bundledOwuiVersion(),
+            scanRange: discovery?.getScanRange() ?? null,
+            manualPeers: discovery?.getManualPeers() ?? [],
+            autoScan: discovery?.getAutoScan() ?? true,
+            endpoint: currentEndpoint,
+        };
+    });
+
+    // Pick a new data folder. Returns { path, hasData } or { canceled: true }.
+    ipcMain.handle('choose-data-dir', async () => {
+        if (!win) return { canceled: true };
+        const res = await dialog.showOpenDialog(win, {
+            title: 'Choose a folder for your LlmOnLan data',
+            properties: ['openDirectory', 'createDirectory'],
+            defaultPath: resolveDataDir(),
+        });
+        if (res.canceled || !res.filePaths[0]) return { canceled: true };
+        const chosen = res.filePaths[0];
+        return { canceled: false, path: chosen, hasData: dirHasData(chosen), oldHasData: dirHasData(resolveDataDir()) };
+    });
+
+    // Apply a data-folder change. mode: 'move' (copy old→new) | 'fresh' (start empty).
+    ipcMain.handle('set-data-dir', async (_e, payload: { path: string; mode: 'move' | 'fresh' }) => {
+        const oldDir = resolveDataDir();
+        const newDir = payload.path;
+        if (!newDir || path.resolve(newDir) === path.resolve(oldDir)) return { ok: false, error: 'Same folder.' };
+        await sidecar.stop({ keepState: true });
+        let result: { ok: boolean; error?: string } = { ok: true };
+        if (payload.mode === 'move') result = moveDataDir(oldDir, newDir);
+        if (result.ok) updateSettings({ dataDir: newDir });
+        await sidecar.start({ endpoint: currentEndpoint, dataDir: result.ok ? newDir : oldDir });
+        return result;
+    });
+
+    ipcMain.handle('set-launch-at-login', (_e, on: boolean) => {
+        const v = !!on;
+        updateSettings({ launchAtLogin: v });
+        try { app.setLoginItemSettings({ openAtLogin: v }); } catch { /* unsupported platform */ }
+        return v;
+    });
+
+    ipcMain.handle('set-auto-update', (_e, on: boolean) => updateSettings({ autoUpdate: !!on }).autoUpdate);
+
     // User pins a specific farm → persist + repoint immediately.
     ipcMain.handle('select-farm', (_e, farmId: string | null) => {
         updateSettings({ selectedFarmId: farmId });
@@ -211,11 +266,13 @@ function maybeSmokeShot(): void {
         setTimeout(async () => {
             try {
                 if (win && !win.isDestroyed()) {
-                    // Optionally open the connection popover so the capture shows the
-                    // discovered-farms UI (M3 verification).
-                    if (process.env.LOL_SMOKE_POPOVER) {
-                        await win.webContents.executeJavaScript("document.getElementById('status').click()").catch(() => {});
-                        await new Promise((r) => setTimeout(r, 600));
+                    // Optionally click an element by id (e.g. open the connection
+                    // popover or the Preferences modal) before capturing — for
+                    // verifying specific UI in a smoke run.
+                    const clickId = process.env.LOL_SMOKE_CLICK || (process.env.LOL_SMOKE_POPOVER ? 'status' : '');
+                    if (clickId) {
+                        await win.webContents.executeJavaScript(`document.getElementById(${JSON.stringify(clickId)})?.click()`).catch(() => {});
+                        await new Promise((r) => setTimeout(r, 700));
                     }
                     const img = await win.capturePage();
                     fs.writeFileSync(out, img.toPNG());

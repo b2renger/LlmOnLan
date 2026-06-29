@@ -6,6 +6,34 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-06-29 — M4: Preferences (data folder + connection + startup/updates + about)
+
+**What:** A LOL‑owned, ComfyQ‑styled Preferences modal (the gear), with the four sections the plan
+calls for.
+- **Data location** — shows the current `DATA_DIR` (with a "(default)" tag), "Change folder…" via the
+  native `dialog.showOpenDialog`. On change, if the old folder has data, the user chooses **Move my
+  data** or **Start fresh**; the sidecar is stopped, the data copied (then the old removed), settings
+  updated, and the sidecar restarts pointed at the new folder.
+- **Connection** — auto‑search toggle, Rescan, a **subnet search‑range editor** (base + 3rd/4th octet
+  from–to, defaulting to the machine's own subnet), Add‑by‑address, and removable manual‑peer chips —
+  the richer counterpart to the topbar popover, all driving the M3 discovery module.
+- **Startup & updates** — launch‑at‑login (`app.setLoginItemSettings`), an auto‑update toggle (the
+  updater itself lands in M5), and version display.
+- **About** — LlmOnLan version (`app.getVersion()`) + bundled Open WebUI version (read from
+  `sidecar/OPENWEBUI_VERSION`, the single source of truth) + a "Powered by Open WebUI" link.
+- Main: new module [dataMigration.ts](../shell/src/main/dataMigration.ts) (transactional copy‑then‑remove,
+  reversible on failure, with self‑containment guards), `bundledOwuiVersion()` in paths, and IPC
+  `get-prefs`/`choose-data-dir`/`set-data-dir`/`set-launch-at-login`/`set-auto-update`.
+
+**Tested:** the modal renders all four sections (see [docs/img/m4-prefs.png](img/m4-prefs.png)) with the
+data path, the search range **auto‑detected as `10.10.16–17.1–254`** (correctly spanning this /23 LAN),
+versions (`v0.1.0` / `v0.10.1`), and the connected farm still shown in the pill. The data‑migration
+helper has a focused unit test — **9/9** covering copy‑to‑dest, nested files, src‑removed‑after‑move,
+copy‑leaves‑src, the refuse‑dest‑inside‑src guard, and empty‑src. (The folder *pick* itself is a native
+dialog, a manual interaction; the migration core that moves the data is what's unit‑tested.)
+
+---
+
 ## 2026-06-29 — M3 (client half): LAN discovery + connection UX (no URL typed)
 
 **What:** The shell now finds the farm itself and points OWUI at it — zero config.

@@ -50,7 +50,97 @@ $('theme-toggle').addEventListener('click', async () => {
   applyThemeClass((await window.lol.setTheme(next)).theme);
 });
 
-$('settings-btn').addEventListener('click', () => toast('Preferences — coming in M4'));
+// ---- preferences modal (M4) ----
+const prefs = {
+  backdrop: $('prefs-backdrop'), close: $('prefs-close'),
+  dataPath: $('data-path'), changeFolder: $('change-folder'),
+  movePanel: $('move-panel'), moveQ: $('move-q'), moveYes: $('move-yes'), moveFresh: $('move-fresh'), moveCancel: $('move-cancel'), moveStatus: $('move-status'),
+  autoScan: $('pref-auto-scan'), rescan: $('pref-rescan'),
+  base: $('range-base'), t0: $('range-t0'), t1: $('range-t1'), f0: $('range-f0'), f1: $('range-f1'), rangeApply: $('range-apply'),
+  addForm: $('pref-add-form'), addHost: $('pref-add-host'), chips: $('pref-chips'),
+  launch: $('pref-launch'), autoUpdate: $('pref-autoupdate'),
+  verShell: $('ver-shell'), verOwui: $('ver-owui'), owuiLink: $('owui-link'),
+};
+let pendingFolder = null;
+
+async function openPrefs() {
+  prefs.backdrop.classList.remove('hidden');
+  prefs.movePanel.classList.add('hidden');
+  await refreshPrefs();
+}
+function closePrefs() { prefs.backdrop.classList.add('hidden'); }
+
+async function refreshPrefs() {
+  const p = await window.lol.getPrefs();
+  prefs.dataPath.textContent = p.dataDir + (p.dataDirIsDefault ? '  (default)' : '');
+  prefs.autoScan.checked = !!p.autoScan;
+  prefs.launch.checked = !!p.launchAtLogin;
+  prefs.autoUpdate.checked = !!p.autoUpdate;
+  prefs.verShell.textContent = 'v' + p.shellVersion;
+  prefs.verOwui.textContent = 'v' + p.owuiVersion;
+  const r = p.scanRange || {};
+  prefs.base.value = r.base || '';
+  if (r.third) { prefs.t0.value = r.third[0]; prefs.t1.value = r.third[1]; }
+  if (r.fourth) { prefs.f0.value = r.fourth[0]; prefs.f1.value = r.fourth[1]; }
+  renderChips(p.manualPeers || []);
+}
+
+function renderChips(peers) {
+  prefs.chips.innerHTML = '';
+  for (const host of peers) {
+    const chip = document.createElement('span');
+    chip.className = 'chip-peer';
+    chip.innerHTML = `${esc(host)} <button class="chip-x" title="Remove">×</button>`;
+    chip.querySelector('.chip-x').onclick = async () => { renderChips(await window.lol.removeManualPeer(host)); };
+    prefs.chips.appendChild(chip);
+  }
+}
+
+$('settings-btn').addEventListener('click', openPrefs);
+prefs.close.addEventListener('click', closePrefs);
+prefs.backdrop.addEventListener('click', (e) => { if (e.target === prefs.backdrop) closePrefs(); });
+
+prefs.changeFolder.addEventListener('click', async () => {
+  const res = await window.lol.chooseDataDir();
+  if (res.canceled) return;
+  pendingFolder = res.path;
+  if (res.oldHasData) {
+    prefs.moveQ.textContent = `Move your existing data to “${res.path}”, or start fresh there?`;
+    prefs.moveStatus.textContent = '';
+    prefs.movePanel.classList.remove('hidden');
+  } else {
+    await applyFolder('fresh');
+  }
+});
+prefs.moveYes.addEventListener('click', () => applyFolder('move'));
+prefs.moveFresh.addEventListener('click', () => applyFolder('fresh'));
+prefs.moveCancel.addEventListener('click', () => { pendingFolder = null; prefs.movePanel.classList.add('hidden'); });
+
+async function applyFolder(mode) {
+  if (!pendingFolder) return;
+  prefs.moveStatus.textContent = mode === 'move' ? 'Moving data… (the chat will restart)' : 'Switching folder… (the chat will restart)';
+  const r = await window.lol.setDataDir({ path: pendingFolder, mode });
+  pendingFolder = null;
+  if (r.ok) { prefs.movePanel.classList.add('hidden'); toast(r.error || 'Data folder updated'); await refreshPrefs(); }
+  else { prefs.moveStatus.textContent = 'Could not change folder: ' + (r.error || 'unknown'); }
+}
+
+prefs.autoScan.addEventListener('change', () => window.lol.setAutoScan(prefs.autoScan.checked));
+prefs.rescan.addEventListener('click', () => { window.lol.rescan(); toast('Rescanning…'); });
+prefs.rangeApply.addEventListener('click', async () => {
+  await window.lol.setScanRange({ base: prefs.base.value, third: [prefs.t0.value, prefs.t1.value], fourth: [prefs.f0.value, prefs.f1.value] });
+  toast('Search range updated');
+});
+prefs.addForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const host = prefs.addHost.value.trim();
+  if (!host) return;
+  renderChips(await window.lol.addManualPeer(host));
+  prefs.addHost.value = '';
+});
+prefs.launch.addEventListener('change', () => window.lol.setLaunchAtLogin(prefs.launch.checked));
+prefs.autoUpdate.addEventListener('change', () => window.lol.setAutoUpdate(prefs.autoUpdate.checked));
+prefs.owuiLink.addEventListener('click', (e) => { e.preventDefault(); window.lol.openExternal('https://openwebui.com'); });
 
 // ---- toast ----
 let toastTimer = null;

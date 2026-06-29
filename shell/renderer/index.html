@@ -53,6 +53,83 @@
     </div>
   </div>
 
+  <!-- Preferences modal (M4) -->
+  <div class="modal-backdrop hidden" id="prefs-backdrop">
+    <div class="modal" id="prefs-modal">
+      <div class="modal-head">
+        <h2>Preferences</h2>
+        <button class="icon-btn" id="prefs-close" title="Close">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="modal-body">
+
+        <!-- Data location -->
+        <section class="pref-sec">
+          <h3>Data location</h3>
+          <p class="pref-hint">Every chat, document, and vector lives here, on this machine. Nothing is stored on the server.</p>
+          <div class="pref-row">
+            <code class="pathbox" id="data-path">—</code>
+            <button class="btn-ghost" id="change-folder">Change folder…</button>
+          </div>
+          <div class="pref-subpanel hidden" id="move-panel">
+            <p id="move-q">Move your existing data to the new folder?</p>
+            <div class="pref-actions">
+              <button class="btn-primary-sm" id="move-yes">Move my data</button>
+              <button class="btn-ghost" id="move-fresh">Start fresh</button>
+              <button class="btn-ghost" id="move-cancel">Cancel</button>
+            </div>
+            <p class="pref-hint" id="move-status"></p>
+          </div>
+        </section>
+
+        <!-- Connection -->
+        <section class="pref-sec">
+          <h3>Connection</h3>
+          <p class="pref-hint">Servers are found automatically. On networks that block discovery, add one by address or set the subnet search range.</p>
+          <div class="pref-row">
+            <label class="scan-toggle"><input type="checkbox" id="pref-auto-scan" /> Auto-search the subnet</label>
+            <button class="btn-ghost" id="pref-rescan">Rescan now</button>
+          </div>
+          <div class="range-row">
+            <span class="pref-label">Search range</span>
+            <input class="in-base" id="range-base" placeholder="10.10" spellcheck="false" />
+            <span class="dotsep">.</span>
+            <input class="in-oct" id="range-t0" /><span class="to">–</span><input class="in-oct" id="range-t1" />
+            <span class="dotsep">.</span>
+            <input class="in-oct" id="range-f0" /><span class="to">–</span><input class="in-oct" id="range-f1" />
+            <button class="btn-ghost" id="range-apply">Apply</button>
+          </div>
+          <div class="pref-row">
+            <form class="add-form" id="pref-add-form" style="flex:1">
+              <input id="pref-add-host" type="text" placeholder="Add by address — e.g. 10.10.16.5" spellcheck="false" />
+              <button class="btn-primary-sm" type="submit">Add</button>
+            </form>
+          </div>
+          <div class="peerchips" id="pref-chips"></div>
+        </section>
+
+        <!-- Startup & updates -->
+        <section class="pref-sec">
+          <h3>Startup &amp; updates</h3>
+          <div class="pref-row"><label class="scan-toggle"><input type="checkbox" id="pref-launch" /> Launch at login</label></div>
+          <div class="pref-row"><label class="scan-toggle"><input type="checkbox" id="pref-autoupdate" /> Install updates automatically</label></div>
+        </section>
+
+        <!-- About -->
+        <section class="pref-sec">
+          <h3>About</h3>
+          <div class="about-grid">
+            <span>LlmOnLan</span><span class="ver" id="ver-shell">—</span>
+            <span>Open WebUI (bundled)</span><span class="ver" id="ver-owui">—</span>
+          </div>
+          <p class="pref-hint">Chat experience <a href="#" id="owui-link">powered by Open WebUI</a>.</p>
+        </section>
+
+      </div>
+    </div>
+  </div>
+
   <!-- main: connection overlay over the embedded Open WebUI webview -->
   <div class="main">
     <div class="overlay" id="overlay">

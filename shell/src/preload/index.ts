@@ -23,6 +23,13 @@ contextBridge.exposeInMainWorld('lol', {
     setScanRange: (r: unknown) => ipcRenderer.invoke('set-scan-range', r),
     rescan: () => ipcRenderer.invoke('rescan'),
 
+    // Preferences (M4).
+    getPrefs: () => ipcRenderer.invoke('get-prefs'),
+    chooseDataDir: () => ipcRenderer.invoke('choose-data-dir'),
+    setDataDir: (payload: { path: string; mode: 'move' | 'fresh' }) => ipcRenderer.invoke('set-data-dir', payload),
+    setLaunchAtLogin: (on: boolean) => ipcRenderer.invoke('set-launch-at-login', on),
+    setAutoUpdate: (on: boolean) => ipcRenderer.invoke('set-auto-update', on),
+
     // Misc.
     openExternal: (url: string) => ipcRenderer.invoke('open-external', url),
     reloadWebview: () => ipcRenderer.invoke('reload-webview'),

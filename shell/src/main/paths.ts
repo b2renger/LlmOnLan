@@ -49,3 +49,15 @@ export function defaultDataDir(): string {
 export function settingsFile(): string {
     return path.join(app.getPath('userData'), 'shell-settings.json');
 }
+
+// The bundled Open WebUI version (the pin), read from sidecar/OPENWEBUI_VERSION —
+// the single source of truth. Dev: the repo's sidecar/. Packaged: resources/sidecar/.
+export function bundledOwuiVersion(): string {
+    const candidates = app.isPackaged
+        ? [path.join(process.resourcesPath, 'sidecar', 'OPENWEBUI_VERSION')]
+        : [path.join(app.getAppPath(), '..', 'sidecar', 'OPENWEBUI_VERSION')];
+    for (const c of candidates) {
+        try { const v = fs.readFileSync(c, 'utf8').trim(); if (v) return v; } catch { /* next */ }
+    }
+    return 'unknown';
+}
