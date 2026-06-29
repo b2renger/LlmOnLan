@@ -1,0 +1,17 @@
+/* ComfyQ visual tokens — applied to LOL's OWN chrome only (topbar, connection
+   screen, settings, toasts). The embedded Open WebUI keeps its native look; we
+   never inject CSS into it (invariants #1/#5). Mirrors CLAUDE.md exactly. */
+:root, :root.dark {
+  --bg:#09090b; --surface:#18181b; --surface-2:#1f1f23; --border:#27272a;
+  --text:#e4e4e7; --muted:#a1a1aa; --grey:#71717a;
+  --accent:#71717a; --accent-hover:#a1a1aa; --on-accent:#fafafa;
+  --green:#10b981; --blue:#71717a; --amber:#f59e0b; --danger:#ef4444;
+  color-scheme: dark;
+}
+:root.light {
+  --bg:#fafafa; --surface:#ffffff; --surface-2:#f4f4f5; --border:#e4e4e7;
+  --text:#18181b; --muted:#71717a; --grey:#a1a1aa;
+  --accent:#52525b; --accent-hover:#3f3f46; --on-accent:#fafafa;
+  --green:#16a34a; --blue:#52525b; --amber:#ca8a04; --danger:#dc2626;
+  color-scheme: light;
+}

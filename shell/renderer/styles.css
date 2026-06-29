@@ -1,0 +1,148 @@
+/* LOL shell chrome — ComfyQ conventions: Inter, 14px, 1px borders, radii
+   (cards 12 / panels 10 / buttons 8 / chips 7 / pills 999), accent hover via
+   brightness(1.08). Tokens live in tokens.css. */
+
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Inter', system-ui, Avenir, Helvetica, Arial, sans-serif;
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ---- topbar ---- */
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  flex: 0 0 auto;
+  -webkit-app-region: drag;            /* let the bar drag the window */
+}
+.topbar button, .topbar .status { -webkit-app-region: no-drag; }
+
+.brand { display: flex; align-items: center; gap: 10px; }
+.logo { width: 30px; height: 30px; border-radius: 8px; display: block; }
+.title { font-weight: 700; font-size: 15px; letter-spacing: -0.01em; }
+.title-sub { color: var(--muted); font-weight: 500; }
+
+.topbar-right { display: flex; align-items: center; gap: 10px; }
+
+/* connection status pill */
+.status {
+  display: inline-flex; align-items: center; gap: 7px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 4px 11px 4px 9px;
+  font-size: 12px; font-weight: 600;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--grey); flex: 0 0 auto; }
+.dot.ready   { background: var(--green); box-shadow: 0 0 0 3px color-mix(in srgb, var(--green) 22%, transparent); }
+.dot.busy    { background: var(--amber); box-shadow: 0 0 0 3px color-mix(in srgb, var(--amber) 22%, transparent); }
+.dot.error   { background: var(--danger); box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 22%, transparent); }
+.dot.idle    { background: var(--grey); }
+
+.icon-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  width: 32px; height: 32px;
+  border-radius: 8px;
+  cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.icon-btn:hover { color: var(--text); border-color: var(--accent); }
+.icon-btn svg { width: 17px; height: 17px; }
+
+/* theme toggle shows the icon for the mode you'd switch TO */
+.icon-sun { display: none; }
+.icon-moon { display: block; }
+:root.light .icon-moon { display: none; }
+:root.light .icon-sun { display: block; }
+
+/* ---- main area ---- */
+.main { position: relative; flex: 1 1 auto; min-height: 0; background: var(--bg); }
+webview { width: 100%; height: 100%; border: 0; display: block; background: var(--bg); }
+webview.hidden { display: none; }
+
+/* ---- connection overlay ---- */
+.overlay {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--bg);
+  z-index: 5;
+}
+.overlay.hidden { display: none; }
+.panel {
+  width: min(440px, 86%);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 28px 26px;
+  text-align: center;
+}
+.panel .big-dot {
+  width: 52px; height: 52px; border-radius: 50%;
+  margin: 0 auto 16px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+  color: var(--accent);
+}
+.panel .big-dot svg { width: 24px; height: 24px; }
+.panel h1 { font-size: 18px; margin: 0 0 6px; font-weight: 700; }
+.panel p { color: var(--muted); font-size: 13px; line-height: 1.5; margin: 0 0 4px; }
+.panel .detail { color: var(--grey); font-size: 12px; margin-top: 10px; white-space: pre-line; }
+
+.spinner {
+  width: 26px; height: 26px;
+  border: 3px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.btn {
+  appearance: none;
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: var(--on-accent);
+  font-weight: 600; font-size: 13px;
+  padding: 9px 16px;
+  border-radius: 8px;
+  cursor: pointer;
+  margin-top: 14px;
+}
+.btn:hover { filter: brightness(1.08); }
+.btn-ghost {
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+}
+.btn-ghost:hover { border-color: var(--accent); filter: none; }
+
+/* ---- toast ---- */
+.toast {
+  position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%);
+  background: var(--surface-2); border: 1px solid var(--border); color: var(--text);
+  padding: 8px 16px; border-radius: 8px; font-size: 13px;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.45);
+  z-index: 50; opacity: 0; transition: opacity 0.2s;
+}
+.toast.show { opacity: 1; }
+
+.hidden { display: none !important; }

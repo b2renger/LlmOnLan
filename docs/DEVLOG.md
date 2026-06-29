@@ -6,6 +6,52 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-06-29 — M0 + M1: Electron shell skeleton + config‑bridge (OWUI runs in the shell)
+
+**What:** Built the client shell (`shell/`, Electron + TypeScript) and proved the prime‑directive
+separation: an **unmodified** Open WebUI runs inside our chrome, pointed at the farm purely through
+env vars.
+- **Sidecar supervisor** ([sidecar.ts](../shell/src/main/sidecar.ts)) — spawns
+  `open-webui serve --host 127.0.0.1 --port <free>` with the config‑bridge env, health‑waits on
+  `/health`, auto‑restarts on crash (bounded), and `repoint()`s by restarting with a new endpoint.
+- **config‑bridge** ([configBridge.ts](../shell/src/main/configBridge.ts)) — the ONLY module that
+  knows OWUI's surface (M1). Strategy: **env‑authoritative** (`ENABLE_PERSISTENT_CONFIG=false`) so a
+  changed farm URL is honored every launch with no stale persisted URL winning; `ENABLE_OLLAMA_API=false`;
+  `DATA_DIR` local; default local embeddings (RAG engine unset); `WEBUI_AUTH=false`; telemetry off;
+  branding untouched. *(HF model cache left at its default `~/.cache/huggingface` — shared across data
+  folders so changing DATA_DIR doesn't re‑download the embedding model; still 100% local.)*
+- **Shell chrome** — `renderer/` topbar (logo + connection‑status pill + theme toggle + gear) over a
+  `<webview>` of the local OWUI, with a connection overlay until the sidecar is `ready`. ComfyQ
+  `tokens.css` (verbatim) + light/dark via `nativeTheme`. New LOL logo ([icon.svg](../shell/assets/icon.svg)
+  → `icon.png`, rendered via a headless‑Chromium screenshot): a chat bubble holding a LAN node‑graph.
+- **store.ts / paths.ts / util.ts** — JSON settings store, dev‑venv‑vs‑packaged sidecar resolution,
+  free‑port / tree‑kill / health‑poll helpers.
+
+**Tested — the actual app, end to end (see [docs/img/m0-shell.png](img/m0-shell.png)):** `tsc` builds
+clean; launched via a new `LOL_SMOKE_SHOT` hook (boot → wait for OWUI → capture the window → quit).
+The capture shows the LOL topbar (green **Ready** pill) over **Open WebUI 0.10.1 running unmodified in
+the webview**, its own branding intact. Logs confirm OWUI auto‑provisioned `admin@localhost`
+(`WEBUI_AUTH=false`), served its SvelteKit frontend, and ran `get_all_models()` against the configured
+farm endpoint. The earlier sidecar spike confirmed all user data (webui.db, `vector_db/chroma.sqlite3`,
+uploads) lands under the local `DATA_DIR` and embeddings load **locally** (MiniLM in‑process) —
+invariant #3.
+
+**M0 sidecar spike result:** `open-webui==0.10.1` installs on Python 3.12; the launch command is the
+console script `open-webui serve --host --port` (NOT `python -m open_webui`, which 0.10.1 doesn't
+expose; and `--port`, not a `PORT` env). It boots with the privacy env to `/health → {"status":true}`.
+
+**Bugs/gotchas fixed:**
+- **`ELECTRON_RUN_AS_NODE=1`** in this session's environment made Electron run as plain Node →
+  `require('electron')` returns a path string → `app` undefined. Launch with `env -u ELECTRON_RUN_AS_NODE`
+  (documented in the shell README).
+- Forced `PYTHONUTF8=1` for the OWUI child too (same Windows cp1252 class of bug as LiteLLM).
+
+**Decision — combined commit.** M0 (skeleton) and M1 (config‑bridge) ship together: the shell can't
+boot OWUI without the bridge providing its env, so splitting would leave a non‑functional intermediate.
+Both milestones' acceptance criteria are documented above.
+
+---
+
 ## 2026-06-29 — M3 (farm half): UDP discovery beacon + `/lol/self`
 
 **What:** The farm now announces itself on the LAN two ways, both fed by the one

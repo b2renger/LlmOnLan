@@ -1,0 +1,18 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- LlmOnLan mark: a chat bubble holding a small LAN node-graph -->
+  <rect width="512" height="512" rx="112" fill="#18181b"/>
+  <rect x="6" y="6" width="500" height="500" rx="106" fill="none" stroke="#27272a" stroke-width="12"/>
+  <!-- chat bubble -->
+  <path d="M150 132 H362 a44 44 0 0 1 44 44 V312 a44 44 0 0 1 -44 44 H236 l-66 56 V356 H150 a44 44 0 0 1 -44 -44 V176 a44 44 0 0 1 44 -44 Z"
+        fill="#1f1f23" stroke="#a1a1aa" stroke-width="14" stroke-linejoin="round"/>
+  <!-- LAN node graph inside the bubble: 3 nodes linked to a hub -->
+  <g stroke="#71717a" stroke-width="12" stroke-linecap="round">
+    <line x1="256" y1="244" x2="180" y2="196"/>
+    <line x1="256" y1="244" x2="332" y2="196"/>
+    <line x1="256" y1="244" x2="256" y2="312"/>
+  </g>
+  <circle cx="256" cy="244" r="26" fill="#e4e4e7"/>
+  <circle cx="180" cy="196" r="20" fill="#a1a1aa"/>
+  <circle cx="332" cy="196" r="20" fill="#a1a1aa"/>
+  <circle cx="256" cy="312" r="20" fill="#10b981"/>
+</svg>
