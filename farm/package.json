@@ -1,0 +1,22 @@
+{
+  "name": "@llmonlan/farm",
+  "version": "0.1.0",
+  "description": "lol — the LlmOnLan farm CLI: orchestrates Ollama + a generated LiteLLM proxy and a LAN discovery beacon from one declarative config.",
+  "license": "MIT",
+  "private": true,
+  "type": "commonjs",
+  "bin": {
+    "lol": "bin/lol.js"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "lol": "node bin/lol.js",
+    "test": "node test/run.js"
+  },
+  "dependencies": {
+    "js-yaml": "^4.1.0",
+    "zod": "^3.23.8"
+  }
+}

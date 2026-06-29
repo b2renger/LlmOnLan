@@ -1,0 +1,29 @@
+{
+  "name": "Studio Farm",
+  "beacon": {
+    "enabled": true,
+    "group": "239.255.43.10",
+    "port": 41998,
+    "intervalSec": 5,
+    "httpPort": 41997
+  },
+  "proxy": {
+    "port": 4000,
+    "host": "0.0.0.0",
+    "masterKey": null
+  },
+  "models": [
+    { "id": "gemma4:12b", "default": true }
+  ],
+  "ollama": {
+    "hosts": ["http://127.0.0.1:11434", "http://gpu-2.local:11434"],
+    "numParallel": 2,
+    "maxLoadedModels": 1,
+    "flashAttention": true
+  },
+  "litellm": {
+    "command": "litellm",
+    "extraArgs": [],
+    "provider": "ollama_chat"
+  }
+}

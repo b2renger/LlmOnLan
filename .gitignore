@@ -27,6 +27,7 @@ sidecar/openwebui-src/
 # --- Farm runtime (generated; never committed) ---
 farm/litellm/config.generated.yaml
 farm/.lol-runtime.json
+farm/.lol-id
 lol.config.json
 !farm/lol.config.example.json
 
