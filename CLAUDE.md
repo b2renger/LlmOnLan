@@ -14,6 +14,33 @@
 
 ---
 
+## Build status (2026-06-29) — M0–M5 implemented, single-machine verified
+
+The full plan is built and committed; the dated build log with how each piece was tested lives in
+[docs/DEVLOG.md](docs/DEVLOG.md), and the version-specific integration facts in
+[docs/INTEGRATION_BRIEF.md](docs/INTEGRATION_BRIEF.md). Snapshot:
+
+- **`farm/`** — the `lol` CLI works end-to-end (verified: `lol up` → real `/v1/chat/completions` via
+  LiteLLM→Ollama→gemma4; status/down; UDP beacon + `/lol/self` received by a listener). Pin facts:
+  **OWUI `0.10.1`** (Python 3.11/3.12, run via the `open-webui serve` console script). Beacon group
+  **`239.255.43.10:41998`** (+ httpPort `41997`), distinct from ComfyQ.
+- **`shell/`** (Electron + TS) — boots the **unmodified** OWUI sidecar (config-bridge =
+  env-authoritative, `ENABLE_PERSISTENT_CONFIG=false`), discovers the farm and auto-connects with **no
+  URL typed**, full Preferences (data folder + move/fresh migration, connection, startup/updates, about).
+  Verified via window captures in [docs/img/](docs/img/).
+- **`sidecar/`** — `build-sidecar` bundles a relocatable standalone CPython + OWUI + `launcher.py`;
+  `OPENWEBUI_VERSION` is the pin. The launcher mechanism is verified; the full multi-GB bundle build runs
+  in CI.
+- **packaging** — electron-builder + electron-updater + a GitHub Actions release matrix; config validated
+  via a `--dir` pack (real `LlmOnLan.exe`, sidecar placed via `extraResources`).
+
+**Still needs real-hardware verification** (see [docs/RIG_CHECKLIST.md](docs/RIG_CHECKLIST.md)):
+two-machine LAN discovery (beacon across APs / broadcast-blocked sweep), failover when an Ollama host
+dies mid-chat, the full installer build + a live GitHub-Release auto-update cycle on mac/win/linux, and
+the document-locality RAG test. When working here, keep honoring the **prime directive** below.
+
+---
+
 ## What we are building (three pieces)
 
 1. **`lol` — the farm CLI** (Node, npm‑style). Run on each GPU box (or one box). Reads a
