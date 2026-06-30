@@ -1,6 +1,6 @@
 {
   "name": "llmonlan-shell",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "LlmOnLan — desktop client shell. Supervises a bundled, unmodified Open WebUI, discovers the LAN farm, and keeps all data local.",
   "license": "MIT",
   "author": "b2renger",
