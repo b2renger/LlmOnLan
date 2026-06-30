@@ -6,6 +6,26 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-06-30 — Failover verified + LiteLLM router tuned for transparent failover
+
+Stood up a **two‑Ollama** farm to test load‑balancing + failover (the rig had a 96 GB GPU, so a second
+`ollama serve` on `:11435` held a second copy of `gemma4` easily).
+- **Load‑balancing:** the generated config produced two `gemma4` deployments (one per host); 8/8 chat
+  completions succeeded and **both** hosts loaded the model — LiteLLM's `simple-shuffle` spread the
+  traffic.
+- **Failover (first pass) found a real gap:** killing `:11435` mid‑operation gave **7/8** — one request
+  (and its retries) hit the dead host before the circuit‑breaker cooled it out, surfacing an
+  `APIConnectionError` to the caller. Not transparent enough.
+- **Fix → re‑verified:** tuned the generated `router_settings`
+  ([litellm.js](../farm/src/litellm.js)) — `num_retries 2→3`, `allowed_fails 2→1` (cool a dead host out
+  after a *single* failure), `cooldown_time 30→60`. Re‑ran the same kill‑a‑host test: **10/10
+  completions succeeded** — failover is now transparent (a node death is invisible to the user). 10/10
+  unit tests still pass.
+
+Ticks the RIG_CHECKLIST failover item.
+
+---
+
 ## 2026-06-30 — Rig verification: full chat E2E + document-locality (Playwright)
 
 Two of the biggest open [RIG_CHECKLIST](RIG_CHECKLIST.md) items, verified on the live stack by driving

@@ -17,8 +17,10 @@ risk; the build itself is implemented (see [DEVLOG.md](DEVLOG.md)).
 ## Farm robustness
 - [x] `lol up` → `/v1/models` + a real `/v1/chat/completions` (LiteLLM → Ollama → gemma4).
 - [x] `lol status` / `lol down` from a second shell; clean intentional-stop.
-- [ ] **Failover:** two Ollama hosts serving the same model; kill one mid-chat → LiteLLM routes around it
-      (router `allowed_fails`/`cooldown`). Size by concurrent in-flight generations, not headcount.
+- [x] **Failover:** two Ollama hosts (`:11434` + a 2nd on `:11435`) serving gemma4 → load-balanced
+      (both loaded; 8/8). Killing one mid-operation → **10/10** completions still succeed after tuning the
+      router (`num_retries:3`, `allowed_fails:1`, `cooldown:60`). Size by concurrent in-flight generations,
+      not headcount. *(Multi-physical-box still worth a real-LAN run; here both Ollamas were on one box.)*
 - [ ] `lol up` starting a **local Ollama** when none is running (the spawn path; here Ollama was already up).
 - [ ] `gemma4:12b` pull on a fresh box (the dev box already had a `gemma4` tag).
 

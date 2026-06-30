@@ -34,10 +34,15 @@ function buildLitellmConfig(config) {
         router_settings: {
             // simple-shuffle spreads load with no extra state; good default for a LAN.
             routing_strategy: 'simple-shuffle',
-            num_retries: 2,
-            // After this many fails a deployment is cooled down (failover).
-            allowed_fails: 2,
-            cooldown_time: 30,
+            // A failed call is retried on OTHER deployments of the same model, so a
+            // dead host is transparently routed around. 3 retries × N deployments
+            // gives a request a strong chance of landing on a healthy host.
+            num_retries: 3,
+            // Cool a deployment out of rotation after a SINGLE failure (fast
+            // failover when a node dies — minimizes user-visible errors) …
+            allowed_fails: 1,
+            // … and keep it out for a minute before retrying it.
+            cooldown_time: 60,
         },
         litellm_settings: {
             // Silently drop params a model doesn't support instead of erroring —
