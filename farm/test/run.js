@@ -66,6 +66,20 @@ test('generated yaml round-trips', () => {
     assert.deepEqual(parsed.model_list[0].model_name, c.models[0].id);
 });
 
+// ---- litellm command resolution (proc) -------------------------------------
+const { resolveLitellmCommand, venvLitellmPath } = require('../src/proc');
+
+test('resolveLitellmCommand honors an explicit litellm.command', () => {
+    const c = defaultConfig();
+    c.litellm.command = '/opt/litellm/bin/litellm';
+    assert.equal(resolveLitellmCommand(c), '/opt/litellm/bin/litellm');
+});
+
+test('resolveLitellmCommand defaults to the .venv litellm, else PATH', () => {
+    const c = defaultConfig(); // litellm.command defaults to 'litellm'
+    assert.equal(resolveLitellmCommand(c), venvLitellmPath() || 'litellm');
+});
+
 // ---- snapshot --------------------------------------------------------------
 const { buildSnapshot } = require('../src/snapshot');
 

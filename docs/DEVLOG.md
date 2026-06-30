@@ -6,6 +6,36 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-06-30 — Farm bootstrap: `lol install` (one command to set up, one to run)
+
+A fresh checkout on a GPU box was a multi-step manual setup (install Ollama, `pip install litellm`, point
+the config at the venv, pull models). Collapsed that into **one command to install, one to run**, the way
+the desktop client is one installer.
+
+- **`lol install`** ([farm/src/commands/install.js](../farm/src/commands/install.js)) — idempotent
+  bootstrap: (1) scaffold `lol.config.json` if absent; (2) install **Ollama** if missing —
+  `winget install Ollama.Ollama` on Windows, `brew install ollama` on macOS, the official `install.sh`
+  on Linux (detected as "present" if the CLI is on PATH or a local daemon answers, so it never reinstalls);
+  (3) create `farm/.venv` with the operator's Python 3.9–3.13 and `pip install "litellm[proxy]"`;
+  (4) pull every configured model over Ollama's HTTP API. Each step is skipped if already satisfied, and a
+  missing auto-installer (no winget/brew/curl/Python) prints the exact manual step instead of failing.
+- **`farm/.venv` is auto-used** ([farm/src/proc.js](../farm/src/proc.js) `resolveLitellmCommand`): with the
+  default `litellm.command:"litellm"`, the farm prefers `farm/.venv`'s litellm if `lol install` made one,
+  else falls back to PATH — so a fresh pull needs **no config editing**. An explicit absolute command still
+  wins.
+- **Wrapper scripts** for the literal two commands: [farm/install.ps1](../farm/install.ps1) /
+  [install.sh](../farm/install.sh) (`npm install` + `lol install`) and [farm/run.ps1](../farm/run.ps1) /
+  [run.sh](../farm/run.sh) (`lol up`). So a fresh GPU box is: `cd farm; ./install.ps1; ./run.ps1`.
+
+**Tested:** `lol install` on the dev box runs the full happy path idempotently (detects Ollama, the venv,
+and the pulled model — exit 0); `where`/`py -3.12` probes resolve (winget + Python 3.12 present); 16/16
+farm unit tests pass incl. two new ones for `resolveLitellmCommand` (explicit path wins; default →
+`.venv`-or-PATH). The actual installer invocations follow each tool's official method; the model-pull
+reuses the existing HTTP `pullModel`. Docs: [farm/README.md](../farm/README.md) gains a "Quick start
+(fresh pull) — two commands" section + a `lol install` breakdown.
+
+---
+
 ## 2026-06-30 — M5 release: published to GitHub Releases (v0.1.1 → v0.1.2, validated)
 
 First real packaged release — the "streamline testing with several clients + one GPU box" goal: install

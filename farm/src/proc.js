@@ -63,10 +63,29 @@ function resolveSpawn(command) {
     return { command, useShell };
 }
 
+// Path to a LiteLLM installed into the farm's own .venv (created by `lol install`),
+// or null if there isn't one.
+function venvLitellmPath() {
+    const venv = path.join(__dirname, '..', '.venv');
+    const p = process.platform === 'win32'
+        ? path.join(venv, 'Scripts', 'litellm.exe')
+        : path.join(venv, 'bin', 'litellm');
+    try { return fs.existsSync(p) ? p : null; } catch { return null; }
+}
+
+// What to actually launch LiteLLM with: an explicit litellm.command wins; else the
+// farm's .venv if `lol install` made one; else a bare `litellm` from PATH. So a
+// fresh pull works with the default config (litellm.command:"litellm") and no edit.
+function resolveLitellmCommand(config) {
+    const configured = config.litellm.command;
+    if (configured && configured !== 'litellm') return configured;
+    return venvLitellmPath() || 'litellm';
+}
+
 // Spawn LiteLLM: `<command> --config <yaml> --port <port> --host <host> [extra]`.
 // Returns the child process. Caller wires stdout/stderr/exit.
 function spawnLitellm(config, configYamlPath, { env = {} } = {}) {
-    const { command, useShell } = resolveSpawn(config.litellm.command);
+    const { command, useShell } = resolveSpawn(resolveLitellmCommand(config));
     const args = [
         '--config', configYamlPath,
         '--port', String(config.proxy.port),
@@ -101,5 +120,7 @@ module.exports = {
     isAlive,
     killTree,
     resolveSpawn,
+    venvLitellmPath,
+    resolveLitellmCommand,
     spawnLitellm,
 };

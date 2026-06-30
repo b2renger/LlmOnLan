@@ -8,6 +8,8 @@ const { PKG_VERSION } = require('../src/snapshot');
 const USAGE = `
 ${log.paint.bold('lol')} — the LlmOnLan farm CLI
 
+  ${log.paint.cyan('lol install')}             One-time bootstrap on a fresh pull: install Ollama
+                          + LiteLLM and pull the configured models.
   ${log.paint.cyan('lol init')} [--force]      Scaffold a lol.config.json here.
   ${log.paint.cyan('lol up')} | ${log.paint.cyan('serve')}        Ensure Ollama, pull models, generate+run the
                           LiteLLM proxy, start the discovery beacon (foreground).
@@ -37,6 +39,9 @@ async function main() {
 
     try {
         switch (cmd) {
+            case 'install':
+            case 'setup':
+                return await require('../src/commands/install').run(rest);
             case 'init':
                 return require('../src/commands/init').run(rest);
             case 'up':
