@@ -6,6 +6,40 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-06-30 — Small installer: download Open WebUI on first run + in-app updates
+
+The bundled-OWUI installer was ~740 MB (Win) / ~1.3 GB (Linux). Switched to a **small installer
+(~120 MB) that downloads the OWUI sidecar on first run**, plus in-app update buttons for both the app and
+the chat engine.
+
+- **Installer** ([shell/electron-builder.yml](../shell/electron-builder.yml)) — dropped `extraResources`
+  (the sidecar). win-unpacked fell from ~1.5 GB to **357 MB** (→ ~120 MB NSIS). Also set
+  `nsis.artifactName: ${productName}-Setup-${version}.${ext}` — electron-builder's default name has spaces
+  that GitHub turns into dots on upload (`LlmOnLan.Setup.0.1.3.exe`), which breaks electron-updater's
+  filename match in `latest.yml`.
+- **Sidecar as a release asset** ([.github/workflows/release.yml](../.github/workflows/release.yml)) — CI
+  still builds the per-OS sidecar, then packs it as `owui-sidecar-<platform>-<arch>.tar.gz` (+ a tiny
+  `owui-sidecar-manifest.json` with the OWUI version) and uploads it via `gh release upload`. (Bonus: this
+  also sidesteps the 2 GB asset limit that the bundled Linux AppImage kept hitting — the small AppImage and
+  the sidecar tarball are each well under it.)
+- **Download on first run** ([shell/src/main/sidecarManager.ts](../shell/src/main/sidecarManager.ts)) — a
+  packaged app with no `userData/sidecar` downloads the matching tarball (redirect-following `https`, byte
+  progress), extracts it with the system `tar` (relative paths to dodge the Windows drive-colon bug), and
+  swaps it into place. [paths.ts](../shell/src/main/paths.ts) `resolveSidecarCommand` now points at
+  `userData/sidecar` (packaged); the renderer shows a "Setting up the chat engine (~700 MB, one-time)"
+  progress overlay with a Retry on failure.
+- **In-app updates** ([Preferences](../shell/renderer/index.html)) — **Check for app updates**
+  ([updater.ts](../shell/src/main/updater.ts) `checkForAppUpdate`/`quitAndInstallUpdate`; downloads in the
+  background, "Restart & install" when ready) and **Check for chat-engine update** (compares the installed
+  OWUI version to the latest release's manifest; downloads a newer sidecar to `userData/sidecar.pending`,
+  applied on the next launch by `applyPendingSidecar()` so a running OWUI isn't disturbed — "Restart to
+  apply").
+
+**Tested:** tsc + renderer clean; the small `--dir` build has no `resources/sidecar` (357 MB). End-to-end
+first-run download verified against a real release asset (see below).
+
+---
+
 ## 2026-06-30 — Farm bootstrap: `lol install` (one command to set up, one to run)
 
 A fresh checkout on a GPU box was a multi-step manual setup (install Ollama, `pip install litellm`, point

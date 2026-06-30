@@ -1,26 +1,20 @@
-# electron-builder — packages the shell + the bundled OWUI sidecar into a
-# self-updating installer per OS, published to GitHub Releases (no paid signing).
-# See docs/INTEGRATION_BRIEF.md §6 for the verified recipe.
+# electron-builder — packages the shell ONLY into a small (~100 MB) self-updating
+# installer per OS, published to GitHub Releases (no paid signing). The Open WebUI
+# sidecar is NOT bundled — the app downloads it to userData on first run (see
+# src/main/sidecarManager.ts). The CI publishes the sidecar as a separate
+# `owui-sidecar-<platform>-<arch>.tar.gz` release asset.
 
 appId: com.llmonlan.client
 productName: LlmOnLan
 
 # App sources (node_modules production deps — incl. electron-updater — are
-# included automatically; dev deps are pruned).
+# included automatically; dev deps are pruned). No extraResources: the heavy OWUI
+# sidecar is fetched at runtime, keeping the installer small.
 files:
   - build/**/*
   - renderer/**/*
   - assets/**/*
   - package.json
-
-# The bundled, self-contained Open WebUI sidecar (sidecar/build-sidecar output).
-# extraResources copies it OUTSIDE app.asar (a binary can't be exec'd from inside
-# the asar) into resources/sidecar/, where resolveSidecarCommand() expects it.
-# Each CI matrix job builds the sidecar for its own OS first.
-extraResources:
-  - from: ../sidecar/build/sidecar
-    to: sidecar
-    filter: ["**/*"]
 
 directories:
   output: dist
@@ -42,11 +36,14 @@ win:
   icon: assets/icon.png
 
 # NSIS per-user (perMachine:false) → electron-updater installs updates silently,
-# no UAC prompt. oneClick for a frictionless install.
+# no UAC prompt. oneClick for a frictionless install. artifactName has NO spaces
+# (electron-builder's default "<name> Setup <ver>.exe" → GitHub turns the spaces
+# into dots on upload, which breaks electron-updater's filename match in latest.yml).
 nsis:
   oneClick: true
   perMachine: false
   allowToChangeInstallationDirectory: false
+  artifactName: ${productName}-Setup-${version}.${ext}
 
 mac:
   category: public.app-category.productivity

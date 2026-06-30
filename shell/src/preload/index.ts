@@ -30,8 +30,21 @@ contextBridge.exposeInMainWorld('lol', {
     setLaunchAtLogin: (on: boolean) => ipcRenderer.invoke('set-launch-at-login', on),
     setAutoUpdate: (on: boolean) => ipcRenderer.invoke('set-auto-update', on),
 
+    // Sidecar download (first run) + updates.
+    onSidecarInstall: (cb: (p: unknown) => void) => ipcRenderer.on('sidecar-install', (_e, p) => cb(p)),
+    installSidecar: () => ipcRenderer.invoke('install-sidecar'),
+    // App self-update (electron-updater).
+    checkAppUpdate: () => ipcRenderer.invoke('check-app-update'),
+    installAppUpdate: () => ipcRenderer.invoke('install-app-update'),
+    onAppUpdateDownloaded: (cb: (i: unknown) => void) => ipcRenderer.on('app-update-downloaded', (_e, i) => cb(i)),
+    // OWUI (chat engine) update — independent of the app binary.
+    checkOwuiUpdate: () => ipcRenderer.invoke('check-owui-update'),
+    downloadOwuiUpdate: () => ipcRenderer.invoke('download-owui-update'),
+    onOwuiUpdateProgress: (cb: (p: unknown) => void) => ipcRenderer.on('owui-update-progress', (_e, p) => cb(p)),
+
     // Misc.
     openExternal: (url: string) => ipcRenderer.invoke('open-external', url),
     reloadWebview: () => ipcRenderer.invoke('reload-webview'),
     restartSidecar: () => ipcRenderer.invoke('restart-sidecar'),
+    relaunch: () => ipcRenderer.invoke('relaunch-app'),
 });

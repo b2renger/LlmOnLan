@@ -8,11 +8,15 @@ import { app, BrowserWindow, ipcMain, shell, nativeTheme, dialog } from 'electro
 import * as path from 'path';
 import * as fs from 'fs';
 import { loadSettings, updateSettings } from './store';
-import { defaultDataDir, bundledOwuiVersion } from './paths';
+import { defaultDataDir, bundledOwuiVersion, sidecarRoot } from './paths';
 import { SidecarSupervisor } from './sidecar';
 import { Discovery } from './discovery';
 import { moveDataDir, dirHasData } from './dataMigration';
-import { initAutoUpdate } from './updater';
+import { initAutoUpdate, checkForAppUpdate, quitAndInstallUpdate, setUpdateNotifier } from './updater';
+import {
+    ensureSidecar, applyPendingSidecar, isSidecarInstalled,
+    checkOwuiUpdate, downloadOwuiUpdate, SidecarProgress,
+} from './sidecarManager';
 import { ShellSettings, DiscoveredFarm, ScanRange } from './types';
 
 app.setName('LlmOnLan');
@@ -98,6 +102,11 @@ function applyTheme(theme: ShellSettings['theme']): void {
 // --- renderer push ----------------------------------------------------------
 function pushSidecarState(): void {
     if (win && !win.isDestroyed()) win.webContents.send('sidecar-state', sidecar.getState());
+}
+
+// First-run / update download progress for the OWUI sidecar.
+function pushSidecarInstall(p: SidecarProgress): void {
+    if (win && !win.isDestroyed()) win.webContents.send('sidecar-install', p);
 }
 
 function createWindow(): void {
@@ -196,6 +205,7 @@ function registerIpc(): void {
             autoUpdate: s.autoUpdate,
             shellVersion: app.getVersion(),
             owuiVersion: bundledOwuiVersion(),
+            sidecarInstalled: isSidecarInstalled(),
             scanRange: discovery?.getScanRange() ?? null,
             manualPeers: discovery?.getManualPeers() ?? [],
             autoScan: discovery?.getAutoScan() ?? true,
@@ -241,6 +251,30 @@ function registerIpc(): void {
         if (v) initAutoUpdate(true); // start checking now if just enabled
         return v;
     });
+
+    // --- sidecar install + updates (small installer / download-on-first-run) ---
+    // Retry the first-run sidecar download (the install-error overlay's button),
+    // then resume the boot that was aborted (resolve endpoint + start OWUI).
+    ipcMain.handle('install-sidecar', async () => {
+        const res = await ensureSidecar(pushSidecarInstall);
+        if (!res.ok) return res;
+        let initial = resolveEndpoint();
+        if (!initial) initial = await waitForFirstFarm(4500);
+        currentEndpoint = initial;
+        booted = true;
+        sidecar.start({ endpoint: initial, dataDir: resolveDataDir() });
+        return res;
+    });
+    // App self-update (electron-updater). check → status; install → quitAndInstall.
+    ipcMain.handle('check-app-update', () => checkForAppUpdate());
+    ipcMain.handle('install-app-update', () => { quitAndInstallUpdate(); return true; });
+    // OWUI (sidecar) update — independent of the app binary. check → versions;
+    // download → stage to userData/sidecar.pending (applied on next launch).
+    ipcMain.handle('check-owui-update', () => checkOwuiUpdate());
+    ipcMain.handle('download-owui-update', () =>
+        downloadOwuiUpdate((p) => { if (win && !win.isDestroyed()) win.webContents.send('owui-update-progress', p); }));
+    // Relaunch the app (applies a staged OWUI update via applyPendingSidecar at boot).
+    ipcMain.handle('relaunch-app', () => { app.relaunch(); app.quit(); return true; });
 
     // User pins a specific farm → persist + repoint immediately.
     ipcMain.handle('select-farm', (_e, farmId: string | null) => {
@@ -312,12 +346,26 @@ app.whenReady().then(async () => {
 
     sidecar.on('state', pushSidecarState);
     maybeSmokeShot();
+
+    // Apply a staged OWUI update (downloaded last run) BEFORE anything uses the
+    // sidecar — the old OWUI is stopped now, so its files aren't locked (Windows).
+    applyPendingSidecar();
+
+    setUpdateNotifier((version) => { if (win && !win.isDestroyed()) win.webContents.send('app-update-downloaded', { version }); });
     initAutoUpdate(settings.autoUpdate); // no-op in dev / when disabled
 
     // Start LAN discovery (beacon listener + sweep + manual peers).
     discovery = new Discovery({ manualPeers: settings.manualPeers, autoScan: settings.autoScan, scanRange: settings.scanRange });
     discovery.on('farms', onFarms);
     discovery.start();
+
+    // First run of a packaged build: the OWUI sidecar isn't bundled — download it
+    // (with progress to the renderer) before starting it. Dev / already-installed
+    // returns immediately.
+    if (app.isPackaged && !isSidecarInstalled()) {
+        const res = await ensureSidecar(pushSidecarInstall);
+        if (!res.ok) return; // install-error overlay stays up; "Retry" re-runs install-sidecar
+    }
 
     // Decide the initial endpoint. If none known, give discovery a short grace
     // period to find a farm so we boot OWUI pointed at it the first time (no

@@ -60,6 +60,10 @@ const prefs = {
   addForm: $('pref-add-form'), addHost: $('pref-add-host'), chips: $('pref-chips'),
   launch: $('pref-launch'), autoUpdate: $('pref-autoupdate'),
   verShell: $('ver-shell'), verOwui: $('ver-owui'), owuiLink: $('owui-link'),
+  checkApp: $('check-app-update'), appStatus: $('app-update-status'),
+  appRestartRow: $('app-restart-row'), appRestart: $('app-update-restart'),
+  checkOwui: $('check-owui-update'), owuiStatus: $('owui-update-status'),
+  owuiRestartRow: $('owui-restart-row'), owuiRestart: $('owui-update-restart'),
 };
 let pendingFolder = null;
 
@@ -142,6 +146,47 @@ prefs.launch.addEventListener('change', () => window.lol.setLaunchAtLogin(prefs.
 prefs.autoUpdate.addEventListener('change', () => window.lol.setAutoUpdate(prefs.autoUpdate.checked));
 prefs.owuiLink.addEventListener('click', (e) => { e.preventDefault(); window.lol.openExternal('https://openwebui.com'); });
 
+// --- app self-update (electron-updater) ---
+prefs.checkApp.addEventListener('click', async () => {
+  prefs.checkApp.disabled = true;
+  prefs.appStatus.textContent = 'Checking…';
+  prefs.appRestartRow.classList.add('hidden');
+  try {
+    const r = await window.lol.checkAppUpdate();
+    if (r.error) prefs.appStatus.textContent = r.error;
+    else if (r.available) prefs.appStatus.textContent = `Update v${r.version} found — downloading in the background…`;
+    else prefs.appStatus.textContent = `You're on the latest version (v${r.current}).`;
+  } finally { prefs.checkApp.disabled = false; }
+});
+window.lol.onAppUpdateDownloaded((i) => {
+  prefs.appStatus.textContent = `Update v${i.version} is ready.`;
+  prefs.appRestartRow.classList.remove('hidden');
+});
+prefs.appRestart.addEventListener('click', () => window.lol.installAppUpdate());
+
+// --- OWUI (chat engine) update — independent of the app binary ---
+prefs.checkOwui.addEventListener('click', async () => {
+  prefs.checkOwui.disabled = true;
+  prefs.owuiStatus.textContent = 'Checking…';
+  prefs.owuiRestartRow.classList.add('hidden');
+  try {
+    const r = await window.lol.checkOwuiUpdate();
+    if (!r.latest) { prefs.owuiStatus.textContent = 'Could not check (only available in an installed build).'; return; }
+    if (!r.updateAvailable) { prefs.owuiStatus.textContent = `Chat engine is up to date (v${r.current}).`; return; }
+    prefs.owuiStatus.textContent = `v${r.latest} available — downloading…`;
+    const res = await window.lol.downloadOwuiUpdate();
+    if (!res.ok) { prefs.owuiStatus.textContent = 'Download failed: ' + (res.error || 'unknown'); return; }
+    prefs.owuiStatus.textContent = `v${res.version || r.latest} downloaded.`;
+    prefs.owuiRestartRow.classList.remove('hidden');
+  } finally { prefs.checkOwui.disabled = false; }
+});
+window.lol.onOwuiUpdateProgress((p) => {
+  if (p.phase === 'download' && p.receivedMB != null && p.totalMB) {
+    prefs.owuiStatus.textContent = `Downloading… ${p.receivedMB}/${p.totalMB} MB${p.percent != null ? ` (${p.percent}%)` : ''}`;
+  } else if (p.phase === 'extract') prefs.owuiStatus.textContent = 'Unpacking…';
+});
+prefs.owuiRestart.addEventListener('click', () => window.lol.relaunch());
+
 // ---- toast ----
 let toastTimer = null;
 function toast(msg) {
@@ -216,7 +261,46 @@ async function ensureAuthenticated() {
 }
 els.webview.addEventListener('did-finish-load', ensureAuthenticated);
 
+// ---- first-run / update download of the OWUI sidecar (not bundled in the
+// installer; fetched to userData on first launch) ----
+let installState = null; // {phase, percent, receivedMB, totalMB, message} while downloading
+function renderInstall() {
+  if (!installState) { renderSidecar(); return; }
+  els.webview.classList.add('hidden');
+  els.overlay.classList.remove('hidden');
+  els.panelActions.innerHTML = '';
+  if (installState.phase === 'error') {
+    els.panelIcon.innerHTML = ICON_ALERT;
+    els.panelTitle.textContent = 'Could not download the chat engine';
+    els.panelMsg.textContent = 'LlmOnLan needs to download Open WebUI once. Check your connection and retry.';
+    els.panelDetail.textContent = installState.message || '';
+    const retry = document.createElement('button');
+    retry.className = 'btn'; retry.textContent = 'Retry';
+    retry.onclick = () => { installState = { phase: 'check', message: 'Retrying…' }; renderInstall(); window.lol.installSidecar(); };
+    els.panelActions.appendChild(retry);
+    return;
+  }
+  els.panelIcon.innerHTML = '<div class="spinner"></div>';
+  els.panelTitle.textContent = 'Setting up the chat engine';
+  if (installState.phase === 'download') {
+    const pct = installState.percent;
+    els.panelMsg.textContent = 'Downloading Open WebUI — a one-time setup (~700 MB).';
+    els.panelDetail.textContent = (installState.receivedMB != null && installState.totalMB)
+      ? `${installState.receivedMB} / ${installState.totalMB} MB${pct != null ? `   ${pct}%` : ''}`
+      : (pct != null ? `${pct}%` : '');
+  } else if (installState.phase === 'extract') {
+    els.panelMsg.textContent = 'Unpacking the chat engine…'; els.panelDetail.textContent = '';
+  } else {
+    els.panelMsg.textContent = installState.message || 'Preparing…'; els.panelDetail.textContent = '';
+  }
+}
+window.lol.onSidecarInstall((p) => {
+  installState = (p && p.phase === 'done') ? null : p;
+  renderInstall();
+});
+
 function renderSidecar() {
+  if (installState) return; // the install overlay owns the screen until the download finishes
   const s = sidecarState;
   if (!s) return;
   renderPill();

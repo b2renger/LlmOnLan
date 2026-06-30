@@ -54,11 +54,25 @@ jobs:
           python-version: '3.12'
 
       # Build the self-contained Open WebUI sidecar for this OS (the heavy step:
-      # downloads a standalone CPython + pip-installs the pinned open-webui).
+      # downloads a standalone CPython + pip-installs the pinned open-webui). It is
+      # NO LONGER bundled into the installer — it's published as a separate release
+      # asset the app downloads on first run (keeps the installer ~100 MB).
       - name: Build OWUI sidecar
         run: node sidecar/build-sidecar.mjs
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Pack the sidecar as owui-sidecar-<platform>-<arch>.tar.gz + a tiny manifest
+      # (the OWUI version) for the app's download-on-first-run + OWUI-update flow.
+      - name: Package the OWUI sidecar
+        shell: bash
+        run: |
+          set -e
+          plat=$(node -e "process.stdout.write(process.platform+'-'+process.arch)")
+          ver=$(tr -d ' \r\n' < sidecar/OPENWEBUI_VERSION)
+          tar -czf "owui-sidecar-${plat}.tar.gz" -C sidecar/build/sidecar .
+          printf '{"owuiVersion":"%s"}\n' "$ver" > owui-sidecar-manifest.json
+          ls -la owui-sidecar-* | cat
 
       - name: Install shell deps
         working-directory: shell
@@ -86,14 +100,14 @@ jobs:
 
       # Upload with `gh` (no create-race) to the release create-release already made.
       # --clobber overwrites on a re-run; nullglob skips patterns this OS didn't build.
-      - name: Upload installers to the release
-        working-directory: shell
+      # Uploads the small installer + the sidecar tar.gz + the manifest.
+      - name: Upload to the release
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
         run: |
           shopt -s nullglob
-          files=(dist/*.exe dist/*.dmg dist/*.zip dist/*.AppImage dist/*.blockmap dist/latest*.yml)
+          files=(shell/dist/*.exe shell/dist/*.dmg shell/dist/*.zip shell/dist/*.AppImage shell/dist/*.blockmap shell/dist/latest*.yml owui-sidecar-*.tar.gz owui-sidecar-manifest.json)
           echo "Uploading ${#files[@]} file(s): ${files[*]}"
           gh release upload "$GITHUB_REF_NAME" "${files[@]}" --clobber

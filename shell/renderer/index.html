@@ -113,15 +113,29 @@
         <section class="pref-sec">
           <h3>Startup &amp; updates</h3>
           <div class="pref-row"><label class="scan-toggle"><input type="checkbox" id="pref-launch" /> Launch at login</label></div>
-          <div class="pref-row"><label class="scan-toggle"><input type="checkbox" id="pref-autoupdate" /> Install updates automatically</label></div>
+          <div class="pref-row"><label class="scan-toggle"><input type="checkbox" id="pref-autoupdate" /> Install app updates automatically</label></div>
+          <div class="pref-row">
+            <button class="btn-ghost" id="check-app-update">Check for app updates</button>
+            <span class="pref-hint" id="app-update-status"></span>
+          </div>
+          <div class="pref-row hidden" id="app-restart-row">
+            <button class="btn-primary-sm" id="app-update-restart">Restart &amp; install update</button>
+          </div>
         </section>
 
         <!-- About -->
         <section class="pref-sec">
           <h3>About</h3>
           <div class="about-grid">
-            <span>LlmOnLan</span><span class="ver" id="ver-shell">—</span>
-            <span>Open WebUI (bundled)</span><span class="ver" id="ver-owui">—</span>
+            <span>LlmOnLan (app)</span><span class="ver" id="ver-shell">—</span>
+            <span>Open WebUI (chat engine)</span><span class="ver" id="ver-owui">—</span>
+          </div>
+          <div class="pref-row">
+            <button class="btn-ghost" id="check-owui-update">Check for chat-engine update</button>
+            <span class="pref-hint" id="owui-update-status"></span>
+          </div>
+          <div class="pref-row hidden" id="owui-restart-row">
+            <button class="btn-primary-sm" id="owui-update-restart">Restart to apply</button>
           </div>
           <p class="pref-hint">Chat experience <a href="#" id="owui-link">powered by Open WebUI</a>.</p>
         </section>
