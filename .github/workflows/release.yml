@@ -42,6 +42,14 @@ jobs:
         working-directory: shell
         run: npm ci
 
+      # Compile TypeScript → shell/build/ BEFORE packaging. electron-builder is
+      # invoked directly (not via the `dist` npm script, which chains the build),
+      # so without this the app.asar ships without build/main/index.js and the
+      # packager fails its entry-file sanity check.
+      - name: Compile shell (tsc)
+        working-directory: shell
+        run: npm run build
+
       - name: Build + publish installer
         working-directory: shell
         run: npx --no-install electron-builder --publish always
