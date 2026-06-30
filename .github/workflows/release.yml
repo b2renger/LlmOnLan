@@ -72,10 +72,28 @@ jobs:
         working-directory: shell
         run: npm run build
 
-      - name: Build + publish installer
+      # Build the installers ONLY — do NOT let electron-builder publish. Its GitHub
+      # publisher races to create the release across its own parallel uploads (it
+      # ignores a pre-made published release and makes its own draft), producing
+      # DUPLICATE releases with assets split between them. `--publish never` still
+      # generates the latest*.yml auto-update manifests + blockmaps in dist/.
+      - name: Build installers
         working-directory: shell
-        run: npx --no-install electron-builder --publish always
+        run: npx --no-install electron-builder --publish never
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # Don't let a stray keychain cert hijack the macOS ad-hoc signing.
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+
+      # Upload with `gh` (no create-race) to the release create-release already made.
+      # --clobber overwrites on a re-run; nullglob skips patterns this OS didn't build.
+      - name: Upload installers to the release
+        working-directory: shell
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          shopt -s nullglob
+          files=(dist/*.exe dist/*.dmg dist/*.zip dist/*.AppImage dist/*.blockmap dist/latest*.yml)
+          echo "Uploading ${#files[@]} file(s): ${files[*]}"
+          gh release upload "$GITHUB_REF_NAME" "${files[@]}" --clobber
