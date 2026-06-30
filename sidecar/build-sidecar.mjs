@@ -92,8 +92,11 @@ async function main() {
         env: { ...process.env, PYTHONUTF8: '1' },
     });
 
-    // 3. drop in launcher.py (drives OWUI's Typer app; path-independent).
+    // 3. drop in launcher.py (drives OWUI's Typer app; path-independent) + the
+    // pin file, so the packaged About panel can read it (paths.bundledOwuiVersion
+    // reads resources/sidecar/OPENWEBUI_VERSION).
     fs.copyFileSync(path.join(__dirname, 'launcher.py'), path.join(outDir, 'launcher.py'));
+    fs.copyFileSync(path.join(__dirname, 'OPENWEBUI_VERSION'), path.join(outDir, 'OPENWEBUI_VERSION'));
 
     // 4. trim obvious build cruft to shrink the bundle.
     for (const junk of ['__pycache__', 'pip', 'setuptools']) {
