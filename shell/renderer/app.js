@@ -178,21 +178,36 @@ let pendingReload = false; // a (re)start happened → reload the webview once i
 // WEBUI_AUTH=false auto-login writes its token, so a fresh boot renders the
 // unauthenticated, minimal UI (sparse features) and chat 401s. localStorage is
 // per-origin and the sidecar uses a fresh port most launches, so this race bites
-// nearly every launch — not just the first. We keep the "starting" overlay up
-// until the token lands, then reload once so the SPA re-bootstraps fully
-// authenticated. webviewAuthed gates the reveal; authReloadPending guards against
-// reload loops within one OWUI instance. Both reset when the OWUI origin changes.
+// nearly every launch. We keep the "starting" overlay up until OWUI is *validly*
+// authenticated, then reveal. We VALIDATE the token (not just check it exists): a
+// stale token — signed by a previous WEBUI_SECRET_KEY, or for an OWUI DB that was
+// reset — leaves the SPA "logged in" while every call 401s (the exact broken-chat /
+// missing-features symptom). webviewAuthed gates the reveal; authReloads bounds the
+// retries so a never-authing OWUI can't loop forever. Both reset on origin change.
 let webviewAuthed = false;
-let authReloadPending = false;
+let authReloads = 0;
+const MAX_AUTH_RELOADS = 4;
 
 async function ensureAuthenticated() {
   try {
-    const hasToken = await els.webview.executeJavaScript('!!(window.localStorage && window.localStorage.token)');
-    if (hasToken) { webviewAuthed = true; renderSidecar(); return; }
-    if (authReloadPending) return; // already waited + reloaded once for this instance
-    authReloadPending = true;
-    // Wait (up to ~20s) for the auto-login token to persist, then reload once so
-    // OWUI re-reads it on boot and renders the full, authenticated UI.
+    // 'valid' → reveal. 'invalid' → drop the stale token so the reload re-runs
+    // auto-login. 'none'/'pending' → wait for the auto-login token, then reload once.
+    const status = await els.webview.executeJavaScript(`(async () => {
+      const t = window.localStorage && window.localStorage.token;
+      if (!t) return 'none';
+      try { const r = await fetch('/api/v1/auths/', { headers: { authorization: 'Bearer ' + t } });
+            return r.ok ? 'valid' : 'invalid'; }
+      catch { return 'pending'; }
+    })()`);
+    if (status === 'valid') { webviewAuthed = true; authReloads = 0; renderSidecar(); return; }
+    if (authReloads >= MAX_AUTH_RELOADS) { webviewAuthed = true; renderSidecar(); return; } // give up gating; show it
+    authReloads++;
+    if (status === 'invalid') {
+      await els.webview.executeJavaScript('try{window.localStorage.removeItem("token")}catch(e){}');
+      try { els.webview.reload(); } catch { /* webview not ready */ }
+      return;
+    }
+    // Wait (≤20s) for auto-login to persist a token, then reload so OWUI boots authed.
     await els.webview.executeJavaScript(
       '(async()=>{for(let i=0;i<80;i++){if(window.localStorage&&window.localStorage.token)return true;await new Promise(r=>setTimeout(r,250));}return false;})()'
     );
@@ -210,7 +225,7 @@ function renderSidecar() {
   if (s.status === 'ready' && s.url) {
     if (s.url !== lastUrl) {
       // New OWUI origin → reset the auth-bootstrap gate (fresh per-origin storage).
-      lastUrl = s.url; webviewAuthed = false; authReloadPending = false;
+      lastUrl = s.url; webviewAuthed = false; authReloads = 0;
       els.webview.src = s.url; pendingReload = false;
     } else if (pendingReload) {
       // Same port reused after a repoint → src is unchanged, so force a reload to
