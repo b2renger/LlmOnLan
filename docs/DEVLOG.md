@@ -6,7 +6,7 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
-## 2026-06-30 — M5 release: v0.1.1 published to GitHub Releases (validated end-to-end)
+## 2026-06-30 — M5 release: published to GitHub Releases (v0.1.1 → v0.1.2, validated)
 
 First real packaged release — the "streamline testing with several clients + one GPU box" goal: install
 the client on each machine, all pointing at the one farm, with **auto-update** from GitHub Releases.
@@ -31,10 +31,30 @@ the client on each machine, all pointing at the one farm, with **auto-update** f
    ([docs/img/packaged-app.png](img/packaged-app.png)). (`app-update.yml ENOENT` in a `--dir` pack is
    expected — that file is emitted by the NSIS target in CI, not `--dir` — and the updater catches it.)
 
-**Release flow:** `npm run release:patch` → bumps `shell/package.json` to 0.1.1, tags `v0.1.1`, pushes →
+**Release flow:** `npm run release:patch` → bumps `shell/package.json`, tags `vX.Y.Z`, pushes →
 `.github/workflows/release.yml` matrix (windows/macos/ubuntu) each builds its own sidecar then
 `electron-builder --publish always` to the GitHub Release. Clients with auto-update on (default) pull the
 next version from there. The chat-auth fix above ships in this release.
+
+**The real CI run then surfaced four more bugs (fixed; the local `--dir` pack couldn't catch any of them):**
+- **`release.mjs` ENOENT on Windows** — `execFileSync('npm', …)` can't spawn `npm.cmd` without a shell;
+  pass `shell:true` (git is a real `.exe`, unaffected).
+- **CI never compiled TypeScript** — the workflow ran `electron-builder` directly, not the `dist` script
+  that chains `npm run build`, so the app.asar shipped without `build/main/index.js` and every OS failed
+  the packager's entry-file sanity check. Added an explicit `npm run build` step. *(After this, Windows
+  built + published a working 741 MB installer + `latest.yml`.)*
+- **Linux AppImage > 2 GB** — on Linux `pip install torch` pulls the ~2 GB **CUDA** build (Windows/mac get
+  CPU-only), blowing past GitHub's 2 GB asset limit. `build-sidecar` now swaps in the CPU wheel on Linux
+  (`pip install torch --index-url …/cpu --force-reinstall --no-deps`; the client only needs CPU embeddings,
+  the GPU box runs the farm).
+- **macOS assets lost to a publish race** — all three matrix jobs ran in parallel and each did "create
+  release (doesn't exist)" at once; the race dropped the mac assets. Set `max-parallel:1` so the first job
+  creates the release and the rest upload into it. Also dropped the mac **x64** target — the sidecar is
+  built for the runner's arch (arm64), so an Intel dmg would ship an arm64 Python (re-add once
+  `build-sidecar` emits both arch bundles).
+
+So **v0.1.1** is the (Windows-only) first attempt; **v0.1.2** is the clean release with Windows (NSIS),
+macOS (arm64 dmg+zip), and Linux (AppImage) all published + their auto-update manifests.
 
 ---
 

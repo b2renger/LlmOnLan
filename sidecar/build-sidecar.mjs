@@ -99,6 +99,20 @@ async function main() {
         env: { ...process.env, PYTHONUTF8: '1' },
     });
 
+    // 2b. On Linux, pip's default `torch` is the ~2 GB CUDA build, which pushes the
+    // AppImage past GitHub's 2 GB release-asset limit. The client only needs torch
+    // for CPU embeddings (the GPU box runs the farm), so swap it for the CPU wheel
+    // from the PyTorch CPU index. --no-deps: torch's deps were just installed by
+    // open-webui, so this replaces only the torch binary and avoids resolving deps
+    // against the (torch-only) CPU index. Windows/macOS already get CPU torch.
+    if (process.platform === 'linux') {
+        log('replacing CUDA torch with the CPU wheel (Linux only — shrinks the AppImage) …');
+        execFileSync(py, ['-m', 'pip', 'install', '--no-warn-script-location', '--force-reinstall', '--no-deps', 'torch', '--index-url', 'https://download.pytorch.org/whl/cpu'], {
+            stdio: 'inherit',
+            env: { ...process.env, PYTHONUTF8: '1' },
+        });
+    }
+
     // 3. drop in launcher.py (drives OWUI's Typer app; path-independent) + the
     // pin file, so the packaged About panel can read it (paths.bundledOwuiVersion
     // reads resources/sidecar/OPENWEBUI_VERSION).

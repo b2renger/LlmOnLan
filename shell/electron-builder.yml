@@ -51,13 +51,15 @@ nsis:
 mac:
   category: public.app-category.productivity
   icon: assets/icon.png
-  # dmg (download) + zip (REQUIRED for latest-mac.yml / Squirrel.Mac auto-update),
-  # both arches in one job so latest-mac.yml isn't overwritten.
+  # dmg (download) + zip (REQUIRED for latest-mac.yml / Squirrel.Mac auto-update).
+  # arm64 ONLY: the bundled sidecar is built for the CI runner's arch (macos-latest
+  # is arm64), so an x64 dmg would ship an arm64 Python and break on Intel Macs.
+  # Re-add x64 once build-sidecar can produce both arch bundles.
   target:
     - target: dmg
-      arch: [arm64, x64]
+      arch: [arm64]
     - target: zip
-      arch: [arm64, x64]
+      arch: [arm64]
   # Ad-hoc signing (no Apple cert): builder skips signing, afterPack does it.
   # hardenedRuntime:false — ad-hoc + hardened rejects the pre-signed Electron fw.
   identity: null

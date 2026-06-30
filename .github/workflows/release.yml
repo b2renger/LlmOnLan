@@ -17,6 +17,12 @@ jobs:
   build:
     strategy:
       fail-fast: false
+      # Serialize: electron-builder's GitHub publisher isn't safe for concurrent
+      # jobs — running in parallel, all three did "create release (doesn't exist)"
+      # at once, which raced and dropped the macOS assets. With max-parallel:1 the
+      # first job creates the release and the rest upload their (distinctly named)
+      # assets into the existing one.
+      max-parallel: 1
       matrix:
         os: [windows-latest, macos-latest, ubuntu-latest]
     runs-on: ${{ matrix.os }}
