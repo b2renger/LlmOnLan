@@ -99,18 +99,30 @@ async function main() {
         env: { ...process.env, PYTHONUTF8: '1' },
     });
 
-    // 2b. On Linux, pip's default `torch` is the ~2 GB CUDA build, which pushes the
-    // AppImage past GitHub's 2 GB release-asset limit. The client only needs torch
-    // for CPU embeddings (the GPU box runs the farm), so swap it for the CPU wheel
-    // from the PyTorch CPU index. --no-deps: torch's deps were just installed by
-    // open-webui, so this replaces only the torch binary and avoids resolving deps
-    // against the (torch-only) CPU index. Windows/macOS already get CPU torch.
+    // 2b. On Linux, the PyPI `torch` is the CUDA build, which pulls ~3-4 GB of
+    // nvidia-*/cuda-toolkit wheels (cudnn, nccl, cublas, …) as DEPENDENCIES —
+    // blowing the AppImage past GitHub's 2 GB release-asset limit. The client only
+    // needs torch for CPU embeddings (the GPU box runs the farm), so on Linux:
+    //   (a) swap the torch binary for the CPU wheel (--no-deps: just the wheel), then
+    //   (b) uninstall the orphaned nvidia/cuda packages CPU torch never loads.
+    // Both are required: removing nvidia libs without (a) would break CUDA torch;
+    // (a) alone leaves the multi-GB nvidia deps behind (the v0.1.2 Linux failure).
+    // Windows/macOS get CPU torch by default, so this is Linux-only.
     if (process.platform === 'linux') {
-        log('replacing CUDA torch with the CPU wheel (Linux only — shrinks the AppImage) …');
-        execFileSync(py, ['-m', 'pip', 'install', '--no-warn-script-location', '--force-reinstall', '--no-deps', 'torch', '--index-url', 'https://download.pytorch.org/whl/cpu'], {
-            stdio: 'inherit',
-            env: { ...process.env, PYTHONUTF8: '1' },
-        });
+        const pyEnv = { stdio: 'inherit', env: { ...process.env, PYTHONUTF8: '1' } };
+        log('Linux: swapping CUDA torch → CPU wheel …');
+        execFileSync(py, ['-m', 'pip', 'install', '--no-warn-script-location', '--force-reinstall', '--no-deps', 'torch', '--index-url', 'https://download.pytorch.org/whl/cpu'], pyEnv);
+        log('Linux: removing the orphaned nvidia/cuda CUDA libraries …');
+        const frozen = execFileSync(py, ['-m', 'pip', 'freeze'], { encoding: 'utf8', env: { ...process.env, PYTHONUTF8: '1' } });
+        const cudaPkgs = frozen.split(/\r?\n/)
+            .map((l) => l.split(/[=@ <>!~]/)[0].trim())
+            .filter((n) => /^(nvidia-|cuda-)/i.test(n));
+        if (cudaPkgs.length) {
+            log(`  uninstalling ${cudaPkgs.length} packages (${cudaPkgs.slice(0, 3).join(', ')}…)`);
+            execFileSync(py, ['-m', 'pip', 'uninstall', '-y', ...cudaPkgs], pyEnv);
+        } else {
+            log('  (none found — torch may already be CPU-only)');
+        }
     }
 
     // 3. drop in launcher.py (drives OWUI's Typer app; path-independent) + the

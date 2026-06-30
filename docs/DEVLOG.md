@@ -36,7 +36,7 @@ reuses the existing HTTP `pullModel`. Docs: [farm/README.md](../farm/README.md) 
 
 ---
 
-## 2026-06-30 — M5 release: published to GitHub Releases (v0.1.1 → v0.1.2, validated)
+## 2026-06-30 — M5 release: published to GitHub Releases (v0.1.1 → v0.1.3, validated)
 
 First real packaged release — the "streamline testing with several clients + one GPU box" goal: install
 the client on each machine, all pointing at the one farm, with **auto-update** from GitHub Releases.
@@ -73,18 +73,21 @@ next version from there. The chat-auth fix above ships in this release.
   that chains `npm run build`, so the app.asar shipped without `build/main/index.js` and every OS failed
   the packager's entry-file sanity check. Added an explicit `npm run build` step. *(After this, Windows
   built + published a working 741 MB installer + `latest.yml`.)*
-- **Linux AppImage > 2 GB** — on Linux `pip install torch` pulls the ~2 GB **CUDA** build (Windows/mac get
-  CPU-only), blowing past GitHub's 2 GB asset limit. `build-sidecar` now swaps in the CPU wheel on Linux
-  (`pip install torch --index-url …/cpu --force-reinstall --no-deps`; the client only needs CPU embeddings,
-  the GPU box runs the farm).
+- **Linux AppImage > 2 GB** — on Linux the PyPI `torch` is the **CUDA** build, which pulls **~3–4 GB of
+  `nvidia-*`/`cuda-toolkit` wheels** (cudnn, nccl, cublas, …) as dependencies, blowing past GitHub's 2 GB
+  asset limit (Windows/mac get CPU torch by default). v0.1.2's first attempt swapped the torch *binary* for
+  the CPU wheel but `--no-deps` left the multi-GB nvidia packages behind — still > 2 GB. **v0.1.3** fixes it
+  for real: swap torch → CPU **and** `pip uninstall` the orphaned `nvidia-*`/`cuda-*` packages (CPU torch
+  never loads them). The client only needs CPU embeddings; the GPU box runs the farm.
 - **macOS assets lost to a publish race** — all three matrix jobs ran in parallel and each did "create
   release (doesn't exist)" at once; the race dropped the mac assets. Set `max-parallel:1` so the first job
   creates the release and the rest upload into it. Also dropped the mac **x64** target — the sidecar is
   built for the runner's arch (arm64), so an Intel dmg would ship an arm64 Python (re-add once
   `build-sidecar` emits both arch bundles).
 
-So **v0.1.1** is the (Windows-only) first attempt; **v0.1.2** is the clean release with Windows (NSIS),
-macOS (arm64 dmg+zip), and Linux (AppImage) all published + their auto-update manifests.
+So **v0.1.1** was the Windows-only first attempt; **v0.1.2** got Windows (NSIS) + macOS (arm64 dmg+zip)
+clean (the serialize fix landed the mac assets) but Linux still 2 GB; **v0.1.3** is the fully-green
+release — Windows, macOS, and Linux (AppImage) all published with their auto-update manifests.
 
 ---
 
