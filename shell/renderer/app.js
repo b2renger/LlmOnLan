@@ -174,6 +174,33 @@ function renderPill() {
 // ---- sidecar → webview + overlay ----
 let lastUrl = null;
 let pendingReload = false; // a (re)start happened → reload the webview once it's ready
+// OWUI auth-bootstrap: OWUI's SPA fetches /api/config and first-paints BEFORE the
+// WEBUI_AUTH=false auto-login writes its token, so a fresh boot renders the
+// unauthenticated, minimal UI (sparse features) and chat 401s. localStorage is
+// per-origin and the sidecar uses a fresh port most launches, so this race bites
+// nearly every launch — not just the first. We keep the "starting" overlay up
+// until the token lands, then reload once so the SPA re-bootstraps fully
+// authenticated. webviewAuthed gates the reveal; authReloadPending guards against
+// reload loops within one OWUI instance. Both reset when the OWUI origin changes.
+let webviewAuthed = false;
+let authReloadPending = false;
+
+async function ensureAuthenticated() {
+  try {
+    const hasToken = await els.webview.executeJavaScript('!!(window.localStorage && window.localStorage.token)');
+    if (hasToken) { webviewAuthed = true; renderSidecar(); return; }
+    if (authReloadPending) return; // already waited + reloaded once for this instance
+    authReloadPending = true;
+    // Wait (up to ~20s) for the auto-login token to persist, then reload once so
+    // OWUI re-reads it on boot and renders the full, authenticated UI.
+    await els.webview.executeJavaScript(
+      '(async()=>{for(let i=0;i<80;i++){if(window.localStorage&&window.localStorage.token)return true;await new Promise(r=>setTimeout(r,250));}return false;})()'
+    );
+    try { els.webview.reload(); } catch { /* webview not ready */ }
+  } catch { /* webview navigating / not attached yet */ }
+}
+els.webview.addEventListener('did-finish-load', ensureAuthenticated);
+
 function renderSidecar() {
   const s = sidecarState;
   if (!s) return;
@@ -182,15 +209,30 @@ function renderSidecar() {
 
   if (s.status === 'ready' && s.url) {
     if (s.url !== lastUrl) {
-      lastUrl = s.url; els.webview.src = s.url; pendingReload = false;
+      // New OWUI origin → reset the auth-bootstrap gate (fresh per-origin storage).
+      lastUrl = s.url; webviewAuthed = false; authReloadPending = false;
+      els.webview.src = s.url; pendingReload = false;
     } else if (pendingReload) {
       // Same port reused after a repoint → src is unchanged, so force a reload to
       // pick up the freshly-(re)started OWUI instead of leaving a stale page.
       pendingReload = false;
       try { els.webview.reload(); } catch { /* webview not ready */ }
     }
-    els.webview.classList.remove('hidden');
-    els.overlay.classList.add('hidden');
+    if (webviewAuthed) {
+      els.webview.classList.remove('hidden');
+      els.overlay.classList.add('hidden');
+    } else {
+      // OWUI is serving but its SPA hasn't signed in yet — keep the overlay up
+      // (ensureAuthenticated reveals it once the token lands) so the degraded,
+      // unauthenticated OWUI never flashes on screen.
+      els.webview.classList.add('hidden');
+      els.overlay.classList.remove('hidden');
+      els.panelActions.innerHTML = '';
+      els.panelIcon.innerHTML = '<div class="spinner"></div>';
+      els.panelTitle.textContent = 'Starting your local chat…';
+      els.panelMsg.textContent = 'Finishing sign-in to Open WebUI.';
+      els.panelDetail.textContent = '';
+    }
     return;
   }
 

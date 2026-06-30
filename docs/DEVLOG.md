@@ -6,6 +6,42 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-06-30 — Fix: embedded OWUI rendered unauthenticated (no chat stream, sparse features)
+
+**Symptom (reported):** the shell connects to a farm and the model is selectable, but **chat answers
+never stream back** and **many Open WebUI features are missing**.
+
+**Root cause (found via systematic debugging, evidence at every boundary):** the whole stack was
+healthy — the farm streams (`curl` to `:4000` ✅), and OWUI→farm→Ollama works end‑to‑end in a normal
+browser (Playwright drove a full streamed reply with all features ✅). The break was **webview‑specific
+and timing‑based**:
+- OWUI's SvelteKit SPA fetches `GET /api/config` and **first‑paints before** the `WEBUI_AUTH=false`
+  auto‑login writes its token. Unauthenticated, `/api/config` returns the **sparse** feature set
+  (7 keys vs 37) → "features missing", and any chat `POST /api/chat/completions` **401s** → "no answer".
+  Once the token lands, a single reload re‑bootstraps the SPA fully authenticated.
+- It bites **nearly every launch**, not just the first: `localStorage` is keyed by origin, and the
+  sidecar takes a **fresh ephemeral port** whenever its preferred `8080` is busy ([util.ts](../shell/src/main/util.ts)
+  `findFreePort`), so each boot is a new origin with empty storage that loses the race again. (A normal
+  browser happened to win the race, which is why it only reproduced inside the `<webview>`.)
+
+Proven with a minimal Electron `<webview>` harness: probe at first paint → `hasToken:false`, 7 features,
+chat `401`; after waiting for the token + **one reload** → `hasToken:true`, 37 features, chat `200` with
+streamed chunks.
+
+**Fix** ([shell/renderer/app.js](../shell/renderer/app.js)): keep the "Starting your local chat…" overlay
+up until OWUI is authenticated, never flashing the degraded UI. On the webview's `did-finish-load`,
+`ensureAuthenticated()` checks `localStorage.token`; if absent it waits (≤20 s) for the auto‑login token,
+then **reloads once**. A `webviewAuthed` gate drives the reveal and `authReloadPending` prevents reload
+loops; both reset when the OWUI origin changes (repoint / new port), so every fresh origin re‑bootstraps
+cleanly.
+
+**Tested:** the `<webview>` harness goes sparse→full + chat `200` after the reload; an isolated real‑app
+instance (own `--user-data-dir`, fresh partition → exercises the race) boots straight to the **full,
+authenticated** OWUI — "Bonjour, User", model picker, sidebar (chats/search/notes/workspace), voice — with
+no stuck overlay ([docs/img/owui-auth-fixed.png](img/owui-auth-fixed.png)). Renderer‑only change; no `tsc`.
+
+---
+
 ## 2026-06-30 — M6: farm health indicators (GPU/VRAM/RAM + live util)
 
 Richer health surfaced from the farm all the way to the client — the M6 "connection/health indicators +
