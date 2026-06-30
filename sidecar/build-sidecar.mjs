@@ -78,7 +78,14 @@ async function main() {
     const tarball = path.join(workDir, 'python.tar.gz');
     await download(url, tarball);
     log('extracting standalone Python …');
-    execFileSync('tar', ['-xzf', tarball, '-C', outDir], { stdio: 'inherit' }); // → <outDir>/python/
+    // Run tar with RELATIVE paths from workDir so no Windows drive-colon (C:\…)
+    // reaches it: GNU/MSYS tar otherwise reads `C:\path` as a remote `host:path`
+    // ("Cannot connect to C:"). Relative paths work for GNU tar and Windows'
+    // bundled bsdtar alike, so this is robust locally and on CI (windows-latest
+    // may have Git's GNU tar first on PATH).
+    const relTar = path.basename(tarball);                              // python.tar.gz (in workDir)
+    const relOut = path.relative(workDir, outDir).replace(/\\/g, '/');  // ../build/sidecar
+    execFileSync('tar', ['-xzf', relTar, '-C', relOut], { cwd: workDir, stdio: 'inherit' }); // → <outDir>/python/
 
     const py = process.platform === 'win32'
         ? path.join(outDir, 'python', 'python.exe')
