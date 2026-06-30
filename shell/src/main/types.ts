@@ -20,6 +20,15 @@ export interface FarmSnapshot {
         hostsTotal: number | null;
         loaded: string[];
     };
+    // Static hardware (M6) — null on a farm running an older build.
+    host?: { gpu: string; vramGb: number; ramGb: number; cpuCores: number } | null;
+    // Live usage (M6) — GPU util + VRAM + loaded models.
+    usage?: {
+        gpuUtil: number | null;
+        vramUsedGb: number | null;
+        vramTotalGb: number | null;
+        loaded: string[];
+    };
     ts: number;
 }
 

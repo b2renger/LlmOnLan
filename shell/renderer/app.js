@@ -239,11 +239,17 @@ function renderPopover() {
     row.className = 'farm' + (isActive ? ' active' : '');
     const dotCls = f.healthy && !f._stale ? 'ready' : (f._stale ? 'busy' : 'error');
     const models = (f.models || []).map((m) => m.id).join(', ') || 'no models';
+    // Live busy indicator (M6) on the always-visible meta line; GPU name on its
+    // own line below (both shown only if the farm advertises them).
+    const util = (f.usage && f.usage.gpuUtil != null) ? ` · ${f.usage.gpuUtil}% GPU` : '';
+    const hwLine = (f.host && f.host.gpu)
+      ? `<div class="farm-hw">${esc(f.host.gpu)} · ${f.host.vramGb}GB</div>` : '';
     row.innerHTML =
       `<span class="dot ${dotCls}"></span>` +
       `<div class="farm-main">` +
         `<div class="farm-name">${esc(f.name)} <span class="farm-src">${f._source}</span></div>` +
-        `<div class="farm-meta">${esc(f._host)}:${f.proxyPort} · ${esc(models)}</div>` +
+        `<div class="farm-meta">${esc(f._host)}:${f.proxyPort} · ${esc(models)}${util}</div>` +
+        hwLine +
       `</div>` +
       `<span class="farm-check">${isActive ? ICON_CHECK : ''}</span>`;
     row.onclick = () => { window.lol.selectFarm(f.id); toast(`Connecting to ${f.name}…`); };

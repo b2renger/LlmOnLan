@@ -6,6 +6,29 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-06-30 — M6: farm health indicators (GPU/VRAM/RAM + live util)
+
+Richer health surfaced from the farm all the way to the client — the M6 "connection/health indicators +
+richer `lol status`" goal.
+- **Farm** ([systemInfo.js](../farm/src/systemInfo.js)) — dependency‑free hardware detection: RAM/CPU
+  from `os`, GPU/VRAM from `nvidia-smi` (degrades to `Unknown GPU` on non‑NVIDIA boxes; swap in
+  `systeminformation` if AMD/Apple detection is ever needed). `detectHardware()` runs once at boot;
+  `gpuLiveStats()` (util% + VRAM used/total) is refreshed on the health timer.
+- **Snapshot** ([snapshot.js](../farm/src/snapshot.js)) now carries `host` `{gpu, vramGb, ramGb, cpuCores}`
+  + `usage` `{gpuUtil, vramUsedGb, vramTotalGb, loaded}` — flowing through the beacon + `/lol/self` to the
+  client with no schema migration (older farms simply omit them; the client treats them as optional).
+- **`lol status`** ([status.js](../farm/src/commands/status.js)) prints a Hardware line:
+  *NVIDIA RTX PRO 6000 Blackwell · 96GB VRAM · 126GB RAM · 32 cores · 1% util · 2/96GB VRAM used*.
+- **Shell** — the farm popover row shows the live busy indicator on the meta line (`gemma4 · 1% GPU`) +
+  the GPU name/VRAM beneath ([docs/img/m6-farm-health.png](img/m6-farm-health.png)). `FarmSnapshot` type
+  extended with optional `host`/`usage`.
+
+**Tested:** 14/14 farm unit tests (added snapshot host/usage + systemInfo tests; the runner now awaits
+async tests); `lol status` + `/lol/self` show the real hardware on the rig; the shell capture shows the
+farm card with `1% GPU` + the GPU name. Shell `tsc` clean.
+
+---
+
 ## 2026-06-30 — Failover verified + LiteLLM router tuned for transparent failover
 
 Stood up a **two‑Ollama** farm to test load‑balancing + failover (the rig had a 96 GB GPU, so a second

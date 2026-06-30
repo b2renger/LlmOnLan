@@ -6,10 +6,10 @@ const assert = require('assert');
 const yaml = require('js-yaml');
 
 let passed = 0;
-const test = (name, fn) => {
-    try { fn(); console.log(`  ok  ${name}`); passed++; }
-    catch (e) { console.error(`  FAIL ${name}\n       ${e.message}`); process.exitCode = 1; }
-};
+const tests = [];
+// Collect tests, then run them (awaiting each) in the IIFE at the bottom so async
+// test fns are handled correctly alongside the sync ones.
+const test = (name, fn) => tests.push({ name, fn });
 
 // ---- config ----------------------------------------------------------------
 const { defaultConfig, ConfigSchema } = require('../src/config');
@@ -95,6 +95,42 @@ test('hasModel tolerates implicit :latest', () => {
     assert.equal(ollama.hasModel(['gemma4:latest'], 'gemma4:12b'), false);
 });
 
+test('snapshot carries host hardware + usage when provided', () => {
+    const c = defaultConfig();
+    const s = buildSnapshot(c, {
+        proxyUp: true, hostsUp: 1, hostsTotal: 1, loaded: ['gemma4:latest'],
+        host: { gpu: 'RTX A6000', vramGb: 48, ramGb: 128, cpuCores: 32 },
+        gpu: { gpuUtil: 42, vramUsedGb: 10.5, vramTotalGb: 48 },
+    });
+    assert.equal(s.host.gpu, 'RTX A6000');
+    assert.equal(s.host.vramGb, 48);
+    assert.equal(s.usage.gpuUtil, 42);
+    assert.equal(s.usage.vramUsedGb, 10.5);
+    assert.deepEqual(s.usage.loaded, ['gemma4:latest']);
+});
+
+test('snapshot host/usage default to null/empty when absent', () => {
+    const s = buildSnapshot(defaultConfig(), { proxyUp: true, hostsUp: 1 });
+    assert.equal(s.host, null);
+    assert.equal(s.usage.gpuUtil, null);
+    assert.deepEqual(s.usage.loaded, []);
+});
+
+// ---- systemInfo ------------------------------------------------------------
+const { detectHardware, gpuLiveStats } = require('../src/systemInfo');
+
+test('detectHardware reports RAM + CPU cores (GPU may be Unknown without nvidia-smi)', async () => {
+    const hw = await detectHardware();
+    assert.ok(hw.ramGb > 0, 'ramGb > 0');
+    assert.ok(hw.cpuCores > 0, 'cpuCores > 0');
+    assert.equal(typeof hw.gpu, 'string');
+});
+
+test('gpuLiveStats returns the expected shape (nulls if no nvidia-smi)', async () => {
+    const g = await gpuLiveStats();
+    for (const k of ['gpuUtil', 'vramUsedGb', 'vramTotalGb']) assert.ok(k in g, k);
+});
+
 // ---- net -------------------------------------------------------------------
 const { broadcastAddr } = require('../src/net');
 
@@ -103,4 +139,10 @@ test('broadcastAddr honors the netmask (/23 → .17.255)', () => {
     assert.equal(broadcastAddr('192.168.1.20', '255.255.255.0'), '192.168.1.255');
 });
 
-console.log(`\n${passed} passed`);
+(async () => {
+    for (const { name, fn } of tests) {
+        try { await fn(); console.log(`  ok  ${name}`); passed++; }
+        catch (e) { console.error(`  FAIL ${name}\n       ${e.message}`); process.exitCode = 1; }
+    }
+    console.log(`\n${passed} passed`);
+})();

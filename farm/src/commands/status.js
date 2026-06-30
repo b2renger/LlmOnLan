@@ -6,6 +6,7 @@ const ollama = require('../ollama');
 const proxyApi = require('../proxy');
 const { loadConfig } = require('../config');
 const { readRuntime, isAlive } = require('../proc');
+const { detectHardware, gpuLiveStats } = require('../systemInfo');
 
 function hostLabel(h) { try { return new URL(h).host; } catch { return h; } }
 
@@ -15,6 +16,13 @@ async function run() {
     catch (e) { log.err(e.message); return 1; }
 
     log.info(`Status — ${log.paint.bold(config.name)}`);
+
+    // ---- Hardware ----
+    const [hw, gpu] = await Promise.all([detectHardware(), gpuLiveStats()]);
+    const gpuLive = gpu.gpuUtil != null
+        ? `   ${log.paint.cyan(`${gpu.gpuUtil}% util`)} · ${gpu.vramUsedGb}/${gpu.vramTotalGb}GB VRAM used`
+        : '';
+    log.plain(`  ${log.paint.bold('Hardware:')} ${hw.gpu} · ${hw.vramGb}GB VRAM · ${hw.ramGb}GB RAM · ${hw.cpuCores} cores${gpuLive}`);
 
     // ---- Ollama hosts ----
     const hosts = config.ollama.hosts.map(ollama.normalizeHost);

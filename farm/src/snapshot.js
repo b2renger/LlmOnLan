@@ -38,6 +38,15 @@ function buildSnapshot(config, health = {}) {
             hostsTotal: health.hostsTotal ?? config.ollama.hosts.length,
             loaded: health.loaded ?? [],
         },
+        // Static hardware (detected once at boot): { gpu, vramGb, ramGb, cpuCores }.
+        host: health.host || null,
+        // Live-ish usage (refreshed by the farm's health timer): GPU + loaded models.
+        usage: {
+            gpuUtil: health.gpu?.gpuUtil ?? null,
+            vramUsedGb: health.gpu?.vramUsedGb ?? null,
+            vramTotalGb: health.gpu?.vramTotalGb ?? null,
+            loaded: health.loaded ?? [],
+        },
         ts: Date.now(),
     };
 }

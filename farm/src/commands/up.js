@@ -15,6 +15,7 @@ const proxyApi = require('../proxy');
 const { loadConfig } = require('../config');
 const { writeLitellmConfig } = require('../litellm');
 const { buildSnapshot } = require('../snapshot');
+const { detectHardware, gpuLiveStats } = require('../systemInfo');
 const { DiscoveryBeacon } = require('../beacon');
 const { startSelfServer } = require('../selfServer');
 const {
@@ -179,7 +180,10 @@ async function run(args) {
         hostsUp: oll.reachable.length,
         hostsTotal: config.ollama.hosts.length,
         loaded: [],
+        host: await detectHardware(),   // static GPU/VRAM/RAM/cores (once at boot)
+        gpu: await gpuLiveStats(),       // live GPU util + VRAM (refreshed below)
     };
+    if (liveHealth.host) log.ok(`Hardware: ${log.paint.bold(liveHealth.host.gpu)} · ${liveHealth.host.vramGb}GB VRAM · ${liveHealth.host.ramGb}GB RAM · ${liveHealth.host.cpuCores} cores`);
     const getSnapshot = () => buildSnapshot(config, liveHealth);
     const snapshot = getSnapshot();
 
@@ -211,6 +215,7 @@ async function run(args) {
             liveHealth.hostsUp = ups.filter(Boolean).length;
             const loadedLists = await Promise.all(hosts.map((h) => ollama.loadedModels(h)));
             liveHealth.loaded = [...new Set(loadedLists.flat())];
+            liveHealth.gpu = await gpuLiveStats();
             if (beacon) beacon.kick();
         } catch { /* probes are already failure-tolerant; never throw from the timer */ }
         finally { healthInFlight = false; }

@@ -179,6 +179,7 @@ webview.hidden { display: none; }
 .farm-main { min-width: 0; flex: 1; }
 .farm-name { font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 6px; }
 .farm-meta { font-size: 11px; color: var(--muted); margin-top: 2px; font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.farm-hw { font-size: 11px; color: var(--grey); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .farm-src { font-size: 10px; color: var(--grey); border: 1px solid var(--border); border-radius: 5px; padding: 0 5px; text-transform: uppercase; letter-spacing: 0.03em; }
 .farm-check { color: var(--green); flex: 0 0 auto; width: 16px; }
 .farm-check svg { width: 16px; height: 16px; }
