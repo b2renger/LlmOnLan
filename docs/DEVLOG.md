@@ -36,7 +36,12 @@ the chat engine.
   apply").
 
 **Tested:** tsc + renderer clean; the small `--dir` build has no `resources/sidecar` (357 MB). End-to-end
-first-run download verified against a real release asset (see below).
+first-run download verified against a real release asset — a fresh-userData small build downloaded the
+778 MB sidecar, extracted it, ran OWUI from `userData/sidecar`, and reached the authenticated chat.
+**Shipped as v0.1.4** (single clean release, all 4 jobs green): installers `LlmOnLan-Setup-0.1.4.exe`
+**97 MB** / `…-arm64.dmg` 111 MB / `….AppImage` 120 MB (down from ~740 MB / ~1.3 GB), the per-OS
+`owui-sidecar-*.tar.gz` (777/702/1231 MB) + manifest, and `latest*.yml` whose `path` matches the
+hyphenated installer name (so electron-updater resolves it).
 
 ---
 
