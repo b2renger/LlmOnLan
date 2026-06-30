@@ -317,6 +317,14 @@ function maybeSmokeShot(): void {
                         await win.webContents.executeJavaScript(`document.getElementById(${JSON.stringify(clickId)})?.click()`).catch(() => {});
                         await new Promise((r) => setTimeout(r, 700));
                     }
+                    // Optionally resize before capturing — verifies the <webview>
+                    // re-layouts (the guest viewport must track the element on resize).
+                    const resize = process.env.LOL_SMOKE_RESIZE; // "WxH"
+                    if (resize && /^\d+x\d+$/.test(resize)) {
+                        const [w, h] = resize.split('x').map(Number);
+                        win.setContentSize(w, h);
+                        await new Promise((r) => setTimeout(r, 1800));
+                    }
                     const img = await win.capturePage();
                     fs.writeFileSync(out, img.toPNG());
                     console.log(`[smoke] captured window → ${out}`);

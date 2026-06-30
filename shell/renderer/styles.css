@@ -74,9 +74,14 @@ body {
 :root.light .icon-sun { display: block; }
 
 /* ---- main area ---- */
-.main { position: relative; flex: 1 1 auto; min-height: 0; background: var(--bg); }
-webview { width: 100%; height: 100%; border: 0; display: block; background: var(--bg); }
-webview.hidden { display: none; }
+/* The <webview> is sized via FLEX, not width/height:100%. With a percentage height
+   the webview ELEMENT fills .main but the embedded guest's viewport stays stuck at
+   its intrinsic ~150px (so OWUI renders cramped at the top with the element's
+   background showing below — and it never re-tracks a window resize). As a flex
+   child that stretches, the guest viewport correctly fills + resizes. */
+.main { position: relative; flex: 1 1 auto; min-height: 0; background: var(--bg); display: flex; }
+webview { flex: 1 1 auto; align-self: stretch; min-width: 0; border: 0; background: var(--bg); }
+webview.hidden { display: none !important; }
 
 /* ---- connection overlay ---- */
 .overlay {

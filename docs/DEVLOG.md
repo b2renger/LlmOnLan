@@ -6,6 +6,29 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-06-30 — Fix: OWUI cramped at the top with a black bar (webview not filling)
+
+**Symptom (reported, with a screenshot):** OWUI rendered squished into the top of the window with a large
+black area below — model picker + greeting + input crammed together, input not at the bottom.
+
+**Root cause (reproduced + measured):** the embedded `<webview>` was sized with `width/height:100%`. A
+harness that loads OWUI and resizes the window showed the precise failure: the **webview *element*** fills
+`.main` correctly (e.g. 745px → 355px on resize), but the **embedded guest's viewport stays stuck at its
+intrinsic 150px** — so OWUI lays out in a 150px-tall page and the element's background shows below it
+(the black bar). Percentage height on an Electron `<webview>` doesn't propagate to the guest viewport and
+never re-tracks a window resize; `position:absolute;inset:0` had the same flaw.
+
+**Fix** ([shell/renderer/styles.css](../shell/renderer/styles.css)): size the webview by **flex** instead
+— `.main { display:flex }` + `webview { flex:1 1 auto; align-self:stretch; min-width:0 }` (no
+width/height). With flex stretch the guest viewport tracks the element at every size (harness: guest
+innerHeight 745 → 355 = fills). The absolute overlay (`inset:0`) is out of flex flow, so it's unaffected.
+
+**Tested:** the resize harness goes from a 150px guest (black bar) to a fully-filling guest with flex; and
+a real packaged app launched + resized to a short window (added a `LOL_SMOKE_RESIZE` smoke option) renders
+OWUI filling the whole window, no black bar. Shipping as the next patch.
+
+---
+
 ## 2026-06-30 — Small installer: download Open WebUI on first run + in-app updates
 
 The bundled-OWUI installer was ~740 MB (Win) / ~1.3 GB (Linux). Switched to a **small installer
