@@ -33,7 +33,10 @@ const dirty = git(['status', '--porcelain', '--untracked-files=no']);
 if (dirty) { console.error('Working tree has tracked changes — commit or stash first:\n' + dirty); process.exit(1); }
 
 // 2. Bump version in shell/package.json (no git tag — we do it by hand).
-run('npm', ['version', type, '--no-git-tag-version'], { cwd: shellDir });
+// shell:true so this resolves `npm` → `npm.cmd` on Windows; modern Node refuses
+// to spawn a .cmd without a shell (and bare 'npm' isn't a real .exe), so without
+// this the release ENOENTs on Windows. git above is a real .exe, so it's fine.
+run('npm', ['version', type, '--no-git-tag-version'], { cwd: shellDir, shell: true });
 const pkg = JSON.parse(fs.readFileSync(path.join(shellDir, 'package.json'), 'utf8'));
 const version = pkg.version;
 const tag = `v${version}`;
