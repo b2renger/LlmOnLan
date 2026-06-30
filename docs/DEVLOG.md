@@ -6,6 +6,38 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-06-30 — M5 release: v0.1.1 published to GitHub Releases (validated end-to-end)
+
+First real packaged release — the "streamline testing with several clients + one GPU box" goal: install
+the client on each machine, all pointing at the one farm, with **auto-update** from GitHub Releases.
+
+**Two build fixes were needed before the first release could be trusted:**
+- **`OPENWEBUI_VERSION` wasn't staged into the bundle** — `paths.bundledOwuiVersion()` reads
+  `resources/sidecar/OPENWEBUI_VERSION` (About panel), but `build-sidecar` only copied `launcher.py` +
+  `python/`. Now copies the pin too.
+- **`tar` Windows drive-colon** — GNU/MSYS `tar` reads `C:\…\python.tar.gz` as a remote `host:path`
+  ("Cannot connect to C:"), so extraction failed wherever GNU tar is first on PATH (a CI windows-latest
+  risk too, since Git ships GNU tar). `build-sidecar` now runs `tar` from `workDir` with **relative**
+  paths, which both GNU tar and Windows' bundled bsdtar handle.
+
+**Validated locally before tagging (so the first public release isn't broken):**
+1. Built the full `win32-x64` sidecar — standalone CPython (python-build-standalone) + `open-webui==0.10.1`
+   (torch/chromadb/transformers, ~1.5 GB).
+2. Ran the bundle directly: `python launcher.py serve` → `/health 200`, `/api/config` `v0.10.1`.
+3. `electron-builder --dir` pack → launched the **packaged** `LlmOnLan.exe`: it resolved the bundled
+   sidecar (`[sidecar] spawning (packaged): …/resources/sidecar/python/python.exe …launcher.py serve`),
+   booted OWUI, and rendered the **authenticated** UI — the "What's new in Open WebUI" modal + full
+   sidebar (signed-in admin), confirming the auth-reveal fix in a real packaged build
+   ([docs/img/packaged-app.png](img/packaged-app.png)). (`app-update.yml ENOENT` in a `--dir` pack is
+   expected — that file is emitted by the NSIS target in CI, not `--dir` — and the updater catches it.)
+
+**Release flow:** `npm run release:patch` → bumps `shell/package.json` to 0.1.1, tags `v0.1.1`, pushes →
+`.github/workflows/release.yml` matrix (windows/macos/ubuntu) each builds its own sidecar then
+`electron-builder --publish always` to the GitHub Release. Clients with auto-update on (default) pull the
+next version from there. The chat-auth fix above ships in this release.
+
+---
+
 ## 2026-06-30 — Fix: embedded OWUI rendered unauthenticated (no chat stream, sparse features)
 
 **Symptom (reported):** the shell connects to a farm and the model is selectable, but **chat answers
