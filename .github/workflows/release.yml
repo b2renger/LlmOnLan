@@ -14,14 +14,30 @@ permissions:
   contents: write
 
 jobs:
+  # Pre-create the GitHub release so electron-builder only ever UPLOADS to it and
+  # never races to create it. electron-builder uploads a release's assets in
+  # parallel, and each upload that finds no release triggers its own "create
+  # release" — those raced (even within one job) and 422'd with already_exists,
+  # dropping assets (the macOS loss in v0.1.2, the Windows latest.yml loss in
+  # v0.1.3). With the release pre-made, every job/upload takes the upload-only path.
+  create-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ensure the release exists
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 \
+            || gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" \
+                 --notes "Automated release $GITHUB_REF_NAME." --verify-tag
+
   build:
+    needs: create-release
     strategy:
       fail-fast: false
-      # Serialize: electron-builder's GitHub publisher isn't safe for concurrent
-      # jobs — running in parallel, all three did "create release (doesn't exist)"
-      # at once, which raced and dropped the macOS assets. With max-parallel:1 the
-      # first job creates the release and the rest upload their (distinctly named)
-      # assets into the existing one.
+      # Belt-and-suspenders with the pre-created release: serialize so asset
+      # uploads never overlap across OSes either.
       max-parallel: 1
       matrix:
         os: [windows-latest, macos-latest, ubuntu-latest]

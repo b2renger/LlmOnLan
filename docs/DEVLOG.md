@@ -79,10 +79,13 @@ next version from there. The chat-auth fix above ships in this release.
   the CPU wheel but `--no-deps` left the multi-GB nvidia packages behind — still > 2 GB. **v0.1.3** fixes it
   for real: swap torch → CPU **and** `pip uninstall` the orphaned `nvidia-*`/`cuda-*` packages (CPU torch
   never loads them). The client only needs CPU embeddings; the GPU box runs the farm.
-- **macOS assets lost to a publish race** — all three matrix jobs ran in parallel and each did "create
-  release (doesn't exist)" at once; the race dropped the mac assets. Set `max-parallel:1` so the first job
-  creates the release and the rest upload into it. Also dropped the mac **x64** target — the sidecar is
-  built for the runner's arch (arm64), so an Intel dmg would ship an arm64 Python (re-add once
+- **Assets lost to a publish "create release" race** — electron-builder uploads a release's assets in
+  parallel and each upload that finds no release triggers its own create, which raced and 422'd with
+  `already_exists`, dropping assets. `max-parallel:1` fixed the *cross-job* race (v0.1.2 landed the mac
+  assets) but not the *intra-job* one (v0.1.3 Windows lost its `latest.yml`). The real fix: a **`create-release`
+  job that pre-makes the release** before the build matrix (`gh release create … --verify-tag`), so every
+  job/upload takes the upload-only path and never creates. Also dropped the mac **x64** target — the sidecar
+  is built for the runner's arch (arm64), so an Intel dmg would ship an arm64 Python (re-add once
   `build-sidecar` emits both arch bundles).
 
 So **v0.1.1** was the Windows-only first attempt; **v0.1.2** got Windows (NSIS) + macOS (arm64 dmg+zip)
