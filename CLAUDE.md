@@ -14,10 +14,11 @@
 
 ---
 
-## Build status (2026-06-29) — M0–M5 implemented, single-machine verified
+## Build status (2026-06-30) — M0–M6 implemented; live chat / RAG / failover verified
 
-The full plan is built and committed; the dated build log with how each piece was tested lives in
-[docs/DEVLOG.md](docs/DEVLOG.md), and the version-specific integration facts in
+The full plan (incl. the M6 health‑indicator polish) is built and committed; the dated build log with how
+each piece was tested lives in [docs/DEVLOG.md](docs/DEVLOG.md), the rig‑verification state in
+[docs/RIG_CHECKLIST.md](docs/RIG_CHECKLIST.md), and the version‑specific integration facts in
 [docs/INTEGRATION_BRIEF.md](docs/INTEGRATION_BRIEF.md). Snapshot:
 
 - **`farm/`** — the `lol` CLI works end-to-end (verified: `lol up` → real `/v1/chat/completions` via
@@ -33,11 +34,18 @@ The full plan is built and committed; the dated build log with how each piece wa
   in CI.
 - **packaging** — electron-builder + electron-updater + a GitHub Actions release matrix; config validated
   via a `--dir` pack (real `LlmOnLan.exe`, sidecar placed via `extraResources`).
+- **health (M6)** — the farm advertises `host` (GPU/VRAM/RAM/cores) + `usage` (live GPU util/VRAM) in the
+  snapshot; `lol status` and the shell's farm cards show it.
 
-**Still needs real-hardware verification** (see [docs/RIG_CHECKLIST.md](docs/RIG_CHECKLIST.md)):
-two-machine LAN discovery (beacon across APs / broadcast-blocked sweep), failover when an Ollama host
-dies mid-chat, the full installer build + a live GitHub-Release auto-update cycle on mac/win/linux, and
-the document-locality RAG test. When working here, keep honoring the **prime directive** below.
+**Verified on the live stack (single box, 2026-06-30):** a **full chat through the OWUI UI** (Playwright →
+streamed gemma4 reply); **document‑locality** (a doc embedded into the local Chroma with **zero
+`/v1/embeddings`** to the farm); **load‑balancing + transparent failover** across two Ollama hosts
+(killing one → 10/10 completions still succeed, after tuning the router).
+
+**Still needs real two‑machine / installer verification** (see [docs/RIG_CHECKLIST.md](docs/RIG_CHECKLIST.md)):
+discovery across *physical* boxes / broadcast‑blocked Wi‑Fi, the full installer build + a live
+GitHub‑Release auto‑update cycle on mac/win/linux (the upgrade test), and the data‑folder move via the
+native dialog. When working here, keep honoring the **prime directive** below.
 
 ---
 
