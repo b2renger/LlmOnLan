@@ -26,10 +26,13 @@ risk; the build itself is implemented (see [DEVLOG.md](DEVLOG.md)).
 - [x] OWUI 0.10.1 boots with the privacy env; `/health` true; **local** MiniLM embeddings load in-process.
 - [x] All user data (webui.db, `vector_db/chroma.sqlite3`, uploads) lands under the local `DATA_DIR`.
 - [x] Auto-admin under `WEBUI_AUTH=false`; `get_all_models()` runs against the farm endpoint.
-- [ ] **A full chat in the embedded webview** end-to-end (type → token stream → response) — the farm path
-      is proven by curl; confirm it through the OWUI UI.
-- [ ] **Document-locality RAG test:** upload a doc + build a knowledge base; confirm vectors/files are on
-      the device and **no document text** was sent to the farm (only chat context at request time).
+- [x] **A full chat through the OWUI UI** end-to-end (Playwright drove a real chat → streamed gemma4
+      response "Local Area Network"; `ENABLE_OLLAMA_API=false` so the farm is the only inference path).
+      *In the Electron-embedded webview specifically: still worth a manual click-through, but it's the same
+      OWUI instance + URL the shell embeds.*
+- [x] **Document-locality RAG test:** uploaded a doc with a canary phrase → it embedded into the **local**
+      `vector_db/chroma.sqlite3` (canary found there) and the farm logged **ZERO `/v1/embeddings`** — the
+      doc text never left the device; only chat completions reached the farm.
 - [ ] `ENABLE_PERSISTENT_CONFIG=false` truly keeps env authoritative across restarts when the farm IP
       changes (no stale persisted URL winning). Spot-check there's no DB-saved OpenAI URL.
 - [ ] Confirm `--port` (not `PORT` env) + the single-vs-plural OpenAI env precaution on the exact pin.

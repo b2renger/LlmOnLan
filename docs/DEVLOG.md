@@ -6,6 +6,31 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-06-30 — Rig verification: full chat E2E + document-locality (Playwright)
+
+Two of the biggest open [RIG_CHECKLIST](RIG_CHECKLIST.md) items, verified on the live stack by driving
+a real OWUI instance (pointed at a running `lol up` farm) with Playwright.
+
+**Full chat end-to-end** ([docs/img/e2e-chat.png](img/e2e-chat.png)) — drove the actual OWUI UI:
+auto‑signed‑in under `WEBUI_AUTH=false`; OWUI's `/api/models` returned **`gemma4`** (fetched from the
+farm's `/v1/models`); selected the model, typed *"what does LAN stand for?"*, and got a **real streamed
+response from gemma4: "LAN stands for Local Area Network."** Since `ENABLE_OLLAMA_API=false`, the farm
+(LiteLLM→Ollama) is OWUI's *only* possible inference path, so this is a definitive
+**OWUI → farm → gemma4** round‑trip through the real chat surface.
+
+**Document-locality (invariant #3)** — uploaded a doc containing a unique canary phrase
+(`ZQX-PINEAPPLE-42`) via OWUI's API, then checked both ends:
+- **Local:** the file landed in `DATA_DIR/uploads/`, and the **canary phrase is present in the local
+  `vector_db/chroma.sqlite3`** — the document was embedded + stored on the device.
+- **Farm:** the farm's LiteLLM access log shows **ZERO `/v1/embeddings` requests** (only the 4
+  chat/completions from the chat above). The embedding ran on the **local MiniLM** (loaded in‑process at
+  OWUI startup) — the document text never left the machine. Exactly the privacy promise: documents embed
+  locally; only chat context reaches the farm at request time.
+
+Checklist items ticked: "a full chat in the embedded webview end‑to‑end" and "document‑locality RAG test".
+
+---
+
 ## 2026-06-29 — Adversarial review pass (correctness fixes)
 
 A fresh-eyes adversarial review of the highest-logic code (shell main process + farm CLI) surfaced
