@@ -35,7 +35,7 @@ test('config rejects a non-url ollama host', () => {
 });
 
 // ---- litellm generation ----------------------------------------------------
-const { buildLitellmConfig, toYaml } = require('../src/litellm');
+const { buildLitellmConfig, toYaml, modelSupportsVision } = require('../src/litellm');
 
 test('litellm config = models × hosts deployments', () => {
     const c = defaultConfig();
@@ -64,6 +64,28 @@ test('generated yaml round-trips', () => {
     const doc = buildLitellmConfig(c);
     const parsed = yaml.load(toYaml(doc));
     assert.deepEqual(parsed.model_list[0].model_name, c.models[0].id);
+});
+
+test('vision-capable models are inferred from the tag', () => {
+    for (const id of ['gemma4:12b', 'gemma-4', 'llava:13b', 'llama3.2-vision', 'qwen2.5vl:7b', 'qwen2-vl', 'minicpm-v', 'moondream'])
+        assert.equal(modelSupportsVision({ id }), true, `${id} should be vision`);
+    for (const id of ['qwen2.5-coder:7b', 'llama3.1:8b', 'qwen3:8b', 'mistral:7b'])
+        assert.equal(modelSupportsVision({ id }), false, `${id} should be text-only`);
+});
+
+test('explicit vision flag overrides tag inference', () => {
+    assert.equal(modelSupportsVision({ id: 'qwen2.5-coder:7b', vision: true }), true);
+    assert.equal(modelSupportsVision({ id: 'gemma4:12b', vision: false }), false);
+});
+
+test('litellm flags supports_vision so the proxy keeps images (drop_params)', () => {
+    const c = defaultConfig();
+    c.models = [{ id: 'gemma4:12b', default: true }, { id: 'qwen2.5-coder:7b' }];
+    const doc = buildLitellmConfig(c);
+    const gemma = doc.model_list.find((d) => d.model_name === 'gemma4:12b');
+    const coder = doc.model_list.find((d) => d.model_name === 'qwen2.5-coder:7b');
+    assert.equal(gemma.model_info.supports_vision, true, 'gemma4 is multimodal');
+    assert.ok(!coder.model_info, 'a text-only model carries no vision flag');
 });
 
 // ---- litellm command resolution (proc) -------------------------------------

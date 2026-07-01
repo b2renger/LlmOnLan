@@ -17,6 +17,10 @@ const CONFIG_FILENAME = 'lol.config.json';
 const ModelSchema = z.object({
     id: z.string().min(1),              // ollama tag clients request, e.g. "gemma4:12b"
     default: z.boolean().optional(),    // marks the catalog default (informational)
+    // Force image support on/off. Omit to auto-infer from the tag (gemma4, llava,
+    // *-vl, *-vision, …). Drives `supports_vision` in the generated LiteLLM config
+    // so the proxy passes images through instead of dropping them.
+    vision: z.boolean().optional(),
 }).strict();
 
 const BeaconSchema = z.object({

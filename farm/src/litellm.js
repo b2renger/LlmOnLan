@@ -12,20 +12,42 @@ const fs = require('fs');
 const path = require('path');
 const yaml = require('js-yaml');
 
+// Model families that accept IMAGE input (Ollama multimodal). We flag these with
+// `model_info.supports_vision` below. Why it matters: with `drop_params: true`,
+// LiteLLM STRIPS the image_url content from a request bound for a model it thinks
+// is text-only (its cost map doesn't know our Ollama tags), so the picture never
+// reaches Ollama and the model "can't see" it — the classic OWUI+LiteLLM "image
+// attached but ignored" bug. Flagging vision keeps the images in the request.
+// Note gemma4 (all sizes) is natively multimodal, as are llava/*-vl/*-vision/etc.
+const VISION_MODEL_RX = /(gemma-?4|llava|bakllava|vision|qwen[\w.]*-?vl|[-_]vl(?:[:@\-]|$)|minicpm-?v|moondream|pixtral|internvl|cogvlm|smolvlm)/i;
+
+// Does this model take images? An explicit `vision: true|false` in the config
+// wins; otherwise infer from the tag so existing configs "just work".
+function modelSupportsVision(model) {
+    if (typeof model.vision === 'boolean') return model.vision;
+    return VISION_MODEL_RX.test(model.id);
+}
+
 // Build the config.yaml object (model_list × hosts + router/proxy settings).
 function buildLitellmConfig(config) {
     const provider = config.litellm.provider; // 'ollama_chat' | 'ollama'
     const model_list = [];
     for (const model of config.models) {
+        const visionCapable = modelSupportsVision(model);
         for (const host of config.ollama.hosts) {
-            model_list.push({
+            const entry = {
                 model_name: model.id,                      // what clients request
                 litellm_params: {
                     // ollama_chat = use Ollama's chat endpoint w/ proper templating.
                     model: `${provider}/${model.id}`,
                     api_base: host,
                 },
-            });
+            };
+            // Tell LiteLLM this deployment accepts images so drop_params doesn't
+            // strip them (see VISION_MODEL_RX above). Advertised on /v1/models too,
+            // which lets OWUI light up the image UI for the model.
+            if (visionCapable) entry.model_info = { supports_vision: true };
+            model_list.push(entry);
         }
     }
 
@@ -82,4 +104,4 @@ function writeLitellmConfig(config, outPath = generatedConfigPath()) {
     return outPath;
 }
 
-module.exports = { buildLitellmConfig, toYaml, generatedConfigPath, writeLitellmConfig };
+module.exports = { buildLitellmConfig, toYaml, generatedConfigPath, writeLitellmConfig, modelSupportsVision };
