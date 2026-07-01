@@ -62,6 +62,17 @@ export function buildSidecarEnv(input: SidecarEnvInput): Record<string, string> 
         // RAG_EMBEDDING_ENGINE is deliberately UNSET → in-process SentenceTransformers.
         // (Setting it to "ollama"/"openai" would ship document text off-device.)
 
+        // --- voice: fully LOCAL speech, no cloud (privacy + works on a closed LAN) ---
+        // Speech-to-text: OWUI's built-in faster-whisper runs on THIS machine's CPU.
+        // An empty AUDIO_STT_ENGINE selects that local engine (NOT OpenAI/cloud, and
+        // not the browser "Web Speech" API — which doesn't exist in Electron). We pin
+        // a small Whisper model so the one-time first-use download is quick.
+        AUDIO_STT_ENGINE: '',            // '' = local faster-whisper (never cloud)
+        WHISPER_MODEL: 'base',           // tiny|base|small — base ≈ 150 MB, good CPU speed
+        // Text-to-speech: empty engine = handled client-side by the browser's Web
+        // Speech voices (Chromium/OS voices) — offline, zero bundle cost, no farm hit.
+        AUDIO_TTS_ENGINE: '',
+
         // --- telemetry fully off ---
         ANONYMIZED_TELEMETRY: 'false',
         DO_NOT_TRACK: 'true',
