@@ -6,6 +6,37 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-07-01 (g) — Stable model alias: switch models without breaking OWUI chats
+
+**The (f) DEFAULT_MODELS fix didn't cure it — so I stopped guessing and tested the component directly.** A
+chat completion through the proxy for the model OWUI had (`ornith:35b`) returned **`Invalid model name`**,
+while `/v1/models` and `/lol/self` now showed a *different* model, **`qwen3.6:35b`** (which chatted fine). So
+the real cause, proven not inferred: **the operator switching the served model (via the picker) invalidates
+every OWUI chat pinned to the previous model id** — OWUI sends `model=<old id>` on each message, LiteLLM
+rejects it, OWUI makes you re-pick. DEFAULT_MODELS helps *new* chats but can't save a chat bound to a
+now-removed model.
+
+**Fix (owner chose "stable alias"): decouple the client-facing id from the Ollama tag.** New nullable config
+`modelAlias` ([config.js](../farm/src/config.js)); when set, the farm exposes **ONE fixed `model_name`** (e.g.
+`assistant`) backed by the default picked model — `servedEntries()` in [litellm.js](../farm/src/litellm.js)
+emits `model_name: assistant → ollama_chat/<real model>`, and [snapshot.js](../farm/src/snapshot.js) advertises
+`assistant` as the id. So OWUI chats bind to `assistant`, which never changes; **swap the underlying model with
+the `lol up` picker anytime and no chat breaks, no one re-picks.** Off by default (null → real names, unchanged
+for other setups); enable with `modelAlias` in config or `lol up --alias <name>` / `--no-alias`. Coordinator
+peer-matching keys on the served name too, so an aliased fleet shares the alias.
+
+**Client:** none needed — the v0.1.10 client already feeds the advertised default (now `assistant`) into OWUI's
+`DEFAULT_MODELS`, so it auto-selects the alias and follows it across restarts. Farm-only → reaches the box via
+`git pull` + restart.
+
+**Tested:** farm suite **31 pass** (alias collapses to one stable id backed by the default model; LiteLLM
+exposes the alias routed to the real model; snapshot advertises the alias and keeps it constant when the
+underlying model changes). Live preview off the box config: `model_name: assistant → ollama_chat/gemma4:12b`,
+beacon `[{id:"assistant",default:true}]`. **On-box:** `lol down` + `lol up`, pick a model, then start a **new**
+chat (old chats bound to `ornith`/`qwen3.6` real names stay broken — a one-time transition).
+
+---
+
 ## 2026-07-01 (f) — OWUI auto-selects the farm's model (fix: re-picking the model every message)
 
 **Symptom (reported):** after switching the served model (gemma4 → `ornith:35b` via the new picker), OWUI made
