@@ -6,6 +6,37 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-07-01 (c) — Multimodal verified + OWUI update procedure (the misleading toast)
+
+**Multimodal confirmed working on the box.** Proved the vision chain layer-by-layer with live tests on the
+dev/GPU box: `gemma4:12b` reports `vision` capability and describes a test image directly via Ollama; the
+*running* proxy (old `gemma4`, no flag) DROPPED the image ("Please provide the image"); a throwaway proxy on
+the regenerated config (`gemma4:12b` + `supports_vision`) DESCRIBED it ("a blue circle… on a red field").
+After `lol up` + updating a client to v0.1.7, **image description and webcam work by default** — the
+`DEFAULT_MODEL_METADATA` vision baseline flips OWUI on with no per-model toggle (owner-confirmed). Also
+pinned the farm to `gemma4:12b` (was `gemma4` → `:latest`) so the 12B multimodal build that fits the 4070 is
+what's served. Voice was already confirmed live.
+
+**The misleading OWUI update toast.** On startup OWUI popped "a new version (v0.10.2) is available" while our
+own **About → Check for chat-engine update** said "up to date (v0.10.1)." Both were right from their own
+vantage: the toast is OWUI's **built-in upstream check** (it queries the OWUI GitHub), whereas our button
+compares the installed sidecar to the OWUI version in **our latest release's** `owui-sidecar-manifest.json`
+(0.10.1, the sidecar we built + shipped). We manage OWUI by pinning + repackaging it as a sidecar tarball and
+updating through the app (sidecarManager: check → download to `.pending` → apply on next launch), so OWUI's
+own toast advertises versions we haven't packaged yet — contradicting our button.
+
+**Fix (two parts):**
+- **Single source of truth** ([configBridge.ts](../shell/src/main/configBridge.ts)): set
+  `ENABLE_VERSION_UPDATE_CHECK=false` so OWUI stops its upstream check/toast. The app's own update flow is now
+  the only OWUI-version signal the user sees.
+- **Bump the pin + prove the pipeline** ([sidecar/OPENWEBUI_VERSION](../sidecar/OPENWEBUI_VERSION)):
+  0.10.1 → **0.10.2** (verified on PyPI as latest; `requires_python >=3.11,<3.13` satisfied by our sidecar's
+  Python 3.12). Cutting the release rebuilds the sidecar tarball + manifest at 0.10.2, so existing clients'
+  **Check for chat-engine update** will see 0.10.2 > 0.10.1, download it, and apply it on restart — which
+  exercises the whole in-app OWUI update procedure end-to-end.
+
+---
+
 ## 2026-07-01 (b) — Vision, take 2: OWUI defaulted models to vision-OFF
 
 **Field report after v0.1.6:** voice mode worked (mic fix confirmed live), but attaching an image still got

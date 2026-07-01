@@ -53,6 +53,14 @@ export function buildSidecarEnv(input: SidecarEnvInput): Record<string, string> 
         // --- env is authoritative every launch (no stale persisted farm URL) ---
         ENABLE_PERSISTENT_CONFIG: 'false',
 
+        // --- OWUI version updates are OUR job, not OWUI's ---
+        // We pin + repackage OWUI as a sidecar tarball and ship updates through the
+        // app's own "Check for chat-engine update" (sidecarManager). OWUI's built-in
+        // upstream check would pop a "new version available" toast for releases we
+        // haven't packaged yet — which directly contradicts our up-to-date button and
+        // confused users. Turn it off so the app is the single source of truth.
+        ENABLE_VERSION_UPDATE_CHECK: 'false',
+
         // --- connection: talk ONLY to the farm's OpenAI-compatible endpoint ---
         // ENABLE_OPENAI_API is set below — true only when we have a farm endpoint,
         // so a no-farm boot can't fall back to OWUI's default api.openai.com.
