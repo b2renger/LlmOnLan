@@ -20,6 +20,41 @@ self‑updates on mac/win/linux. End‑user flow: install → open → chat. No 
 
 ---
 
+## Current status — shipped through v0.1.8 (2026‑07‑01)
+
+**M0–M5 are all shipped; the app is packaged and self‑updating on Windows/macOS/Linux.** This is the
+summary; the blow‑by‑blow (and every bug + fix) lives in [docs/DEVLOG.md](docs/DEVLOG.md).
+
+**Working end‑to‑end**
+- **Small installer** (~97 MB Win) that **downloads the OWUI sidecar on first run** (no longer bundled), then
+  **self‑updates** from GitHub Releases (electron‑updater). App at **v0.1.8**; OWUI pinned at **0.10.2**.
+- **Zero‑config connect**: UDP beacon + subnet sweep + manual add; the client auto‑points OWUI at a
+  discovered farm (sticky, with a last‑known‑good / env fallback).
+- **Farm**: `lol up` ensures Ollama, pulls the model, generates + runs the LiteLLM proxy, and beacons. Model
+  pinned to **`gemma4:12b`** — natively multimodal (vision + audio + tools) and fits a 12 GB RTX 4070.
+- **Full multimodal**: **image understanding** + **voice** (mic → local faster‑whisper STT → chat →
+  client‑side Web‑Speech TTS), all on the client, no cloud, no farm audio load. Vision is on by default.
+- **In‑app OWUI updates**: About → *Check for chat‑engine update* → download → apply on restart. The app is
+  the **single source of truth** for the OWUI version (OWUI's own upstream toast is disabled).
+
+**Troubles we hit + fixed** (each detailed in the DEVLOG)
+- **Chat auth race** — OWUI first‑painted before its auto‑login token landed (sparse features + 401 on chat)
+  → overlay‑until‑authed + token‑validated reload.
+- **Vision broke in *two* layers** — LiteLLM's `drop_params` silently **stripped images** from any model it
+  didn't know was vision‑capable (all our Ollama tags), *and* OWUI defaults OpenAI‑connection models to
+  **vision‑OFF** (so it sent a `<file>` RAG reference, not pixels). Fixed with per‑model `supports_vision` in
+  the generated LiteLLM config **and** `DEFAULT_MODEL_METADATA={"capabilities":{"vision":true}}`. Diagnosed
+  layer‑by‑layer on the box: Ollama saw the image, the old proxy dropped it, the fixed proxy described it.
+- **Voice did nothing** — the Electron `<webview>` was never granted microphone permission (Electron denies
+  media by default) → `setPermissionRequestHandler` on the OWUI partition.
+- **Misleading "new OWUI version" toast** — OWUI's built‑in *upstream* check disagreed with our "up to date"
+  button (which tracks the version *we* package) → `ENABLE_VERSION_UPDATE_CHECK=false`; we ship OWUI updates.
+- **Packaging/CI** — webview sized by flex not `%` (guest viewport stuck at 150 px → black bar); Linux CUDA
+  `torch` bloat (swap CPU wheel + drop nvidia deps); Windows `tar` drive‑colon; `npm version` skipping its
+  git tag; CI publish race → pre‑create release + `gh release upload --clobber`.
+
+---
+
 ## Architecture
 
 ```
@@ -133,6 +168,58 @@ self‑updates on mac/win/linux. End‑user flow: install → open → chat. No 
 ### M6 — Hardening & polish (optional / later)
 - Real Apple notarization + Windows signing (removes OS warnings); multi‑farm switching polish; connection/health
   indicators; richer `lol status`. **Out:** any shared/central knowledge base (conflicts with the local‑data invariant unless deliberately reconsidered).
+
+---
+
+## Load balancing across boxes & clients (how it works today, and the gap)
+
+There are **two independent layers** — keep them straight:
+
+**Layer 1 — within one farm, across Ollama hosts (works, with failover).**
+`lol.config.json`'s `ollama.hosts: [...]` can list many Ollama endpoints (the local box + remote GPU boxes).
+`writeLitellmConfig` emits one LiteLLM *deployment* per `model_name × host`; the router (`simple‑shuffle`)
+spreads each request randomly across them, retries on other deployments (`num_retries: 3`), and ejects a dead
+host for 60 s (`allowed_fails: 1`, `cooldown_time: 60`). So **one farm pointed at N Ollama boxes = real load
+balancing + HA**. Prereq: each remote box runs `ollama serve` bound to the LAN (`OLLAMA_HOST=0.0.0.0`) with the
+concurrency env set; `lol up` only auto‑starts a *local* Ollama, never a remote one.
+
+**Layer 2 — across independent farms, across clients (this is the gap).**
+If each GPU box runs its own `lol up`, every box is a *separate* farm with its own LiteLLM + beacon. The client
+picks **one** farm — pinned, else sticky‑current, else **first healthy** (`chooseActive` in
+[shell/src/main/index.ts](shell/src/main/index.ts)) — and sends all its traffic there. There is **no automatic
+spreading of clients across farms**: if every client discovers farms in the same order, they all land on the
+same "first healthy" one and saturate it while the others sit idle. The only control today is manually pinning
+each client to a different farm.
+
+**Capacity note.** One Ollama serves `OLLAMA_NUM_PARALLEL` (default **2**) concurrent generations before
+queueing; `OLLAMA_MAX_LOADED_MODELS=1`. A box's real ceiling is ~2 simultaneous chats — **size the fleet by
+concurrent in‑flight generations, not headcount**, and raise `numParallel` where VRAM allows.
+
+**Recommended today:** for multiple boxes, run **one coordinator farm** whose `ollama.hosts` lists every GPU
+box, and let all clients auto‑discover that single farm — LiteLLM then balances every request across the whole
+fleet with failover (Layer 1). Trade‑off: the coordinator box is a single point of coordination.
+
+## What's next (roadmap)
+
+Ordered roughly by value / effort:
+
+1. **Least‑loaded farm selection (client‑side) — closes the Layer‑2 gap cheaply.** The beacon already carries
+   per‑farm GPU util + loaded models + hosts‑up (`usage.gpuUtil`, `loaded`, `hostsUp`). Change `chooseActive`
+   from "first healthy" to "lowest‑loaded healthy," with hysteresis + a little jitter to avoid a herd effect.
+   No new infra; turns N independent farms into a self‑balancing pool.
+2. **Aggregator / orchestrator farm (stronger, optional).** `lol up --coordinator` auto‑populates
+   `ollama.hosts` from discovered peer farms so one LiteLLM balances the fleet centrally (the deferred
+   "orchestrator" role). More robust; adds a coordinator SPOF.
+3. **Fleet dashboard.** A read‑only view (ComfyQ‑Discovery‑style panel, or `lol status --fleet`) of every
+   farm — GPU util, loaded models, in‑flight, connected clients. The telemetry already ships in the beacon;
+   this just renders it. Invaluable once there are several boxes.
+4. **More models.** The catalog + beacon already support multiple models; add e.g. `qwen2.5‑coder` for code
+   and let users pick in OWUI. Mind `OLLAMA_MAX_LOADED_MODELS` / VRAM — model swaps cost latency.
+5. **Voice polish.** Optionally bundle a local neural TTS (Piper/Kokoro) for nicer voices than Web‑Speech;
+   surface the first‑run Whisper download; explore gemma4's native **audio** capability for spoken input.
+6. **Hardening (M6).** Apple notarization + Windows signing (kill SmartScreen/Gatekeeper warnings);
+   model keep‑warm to cut cold‑start; show the active farm + its load in the client UI; a real multi‑box load test.
+7. **Keyed farms.** If proxy auth is wanted, build the key‑entry UX (today a `requiresKey` farm gets a null key).
 
 ---
 

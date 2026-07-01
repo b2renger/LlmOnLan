@@ -41,7 +41,12 @@ rationale, and [`implementation_plan.md`](implementation_plan.md) for the milest
 
 ## Status
 
-Built milestone‑by‑milestone; progress is tracked in [`docs/DEVLOG.md`](docs/DEVLOG.md).
+**Shipped and self‑updating (v0.1.8, OWUI 0.10.2).** Milestones M0–M5 are done: small installer that
+downloads the OWUI sidecar on first run and auto‑updates from GitHub Releases; zero‑config LAN discovery;
+the `lol` farm serving **`gemma4:12b`**; and **full multimodal** — image understanding + voice (local
+Whisper speech‑to‑text, Web‑Speech text‑to‑speech), all on‑device. Progress, design decisions, and the
+debugging history are in [`docs/DEVLOG.md`](docs/DEVLOG.md); current state + roadmap (incl. multi‑box load
+balancing) in [`implementation_plan.md`](implementation_plan.md).
 
 ## Quick start (farm operator)
 
