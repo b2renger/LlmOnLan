@@ -38,6 +38,7 @@ export interface SidecarEnvInput {
     endpoint: string | null;   // the farm OpenAI base URL, e.g. http://10.0.0.5:4000/v1
     dataDir: string;
     apiKey?: string | null;    // farm master key, or null for an open LAN proxy
+    defaultModel?: string | null; // the farm's advertised default model → OWUI DEFAULT_MODELS
 }
 
 // Build the environment Open WebUI is launched with. This is the whole coupling.
@@ -113,6 +114,14 @@ export function buildSidecarEnv(input: SidecarEnvInput): Record<string, string> 
         env.OPENAI_API_BASE_URL = input.endpoint;
         // OWUI requires a non-empty key string even for a keyless LAN proxy.
         env.OPENAI_API_KEY = input.apiKey || 'sk-lol-lan';
+        // Pre-select the farm's model so OWUI always has a default selected. Without
+        // this, OWUI has no default over an OpenAI connection, so switching the served
+        // model (via the `lol up` picker) leaves chats with a stale/blank selection and
+        // the user must pick a model on every message. The client feeds the farm's own
+        // advertised default here, so OWUI auto-selects whatever the farm serves —
+        // env-authoritative each launch, and it re-applies when the model changes
+        // (the sidecar restarts on repoint).
+        if (input.defaultModel) env.DEFAULT_MODELS = input.defaultModel;
     } else {
         // No farm discovered yet → keep OWUI from reaching the public OpenAI API
         // (its default base URL) while we wait. Privacy intent: only the farm.

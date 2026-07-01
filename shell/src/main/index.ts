@@ -32,6 +32,7 @@ let discovery: Discovery | null = null;
 
 // The farm endpoint OWUI is currently pointed at, and which farm it is.
 let currentEndpoint: string | null = null;
+let currentModel: string | null = null; // the active farm's default model (→ OWUI DEFAULT_MODELS)
 let activeFarmId: string | null = null;
 let booted = false; // true once the initial sidecar start has been kicked off
 
@@ -52,6 +53,14 @@ function resolveDataDir(): string {
 // not its self-reported primary IP, which may be a different interface.
 function farmEndpoint(f: DiscoveredFarm): string {
     return `http://${f._host}:${f.proxyPort}/v1`;
+}
+
+// The farm's advertised default model (or its first) → OWUI's DEFAULT_MODELS, so
+// OWUI always auto-selects whatever the farm serves. null if the farm lists none.
+function farmDefaultModel(f: DiscoveredFarm | null): string | null {
+    const models = f?.models;
+    if (!Array.isArray(models) || !models.length) return null;
+    return (models.find((m) => m.default) || models[0])?.id || null;
 }
 
 // Load metric for a farm, from the telemetry the beacon already carries. Lower =
@@ -103,13 +112,16 @@ function onFarms(payload: { farms: DiscoveredFarm[] } & Record<string, unknown>)
     const chosen = chooseActive(payload.farms);
     if (!chosen) return;
     const endpoint = farmEndpoint(chosen);
-    if (endpoint !== currentEndpoint) {
+    const model = farmDefaultModel(chosen);
+    if (endpoint !== currentEndpoint || model !== currentModel) {
         currentEndpoint = endpoint;
+        currentModel = model;
         activeFarmId = chosen.id;
         updateSettings({ lastEndpoint: endpoint });
         // Keyless LAN proxy for now; a keyed farm (requiresKey) needs a key-entry
-        // UX we haven't built, so we don't send a (wrong) placeholder key.
-        sidecar.repoint(endpoint, null);
+        // UX we haven't built, so we don't send a (wrong) placeholder key. The farm's
+        // default model rides along so OWUI auto-selects it (no per-message picking).
+        sidecar.repoint(endpoint, null, model);
     }
 }
 
@@ -211,7 +223,7 @@ function registerIpc(): void {
     // Retry a failed/stopped sidecar (the connection screen's Retry button).
     ipcMain.handle('restart-sidecar', async () => {
         await sidecar.stop({ keepState: true });
-        await sidecar.start({ endpoint: currentEndpoint, dataDir: resolveDataDir() });
+        await sidecar.start({ endpoint: currentEndpoint, dataDir: resolveDataDir(), defaultModel: currentModel });
         return sidecar.getState();
     });
 
@@ -433,8 +445,11 @@ app.whenReady().then(async () => {
     let initial = resolveEndpoint();
     if (!initial) initial = await waitForFirstFarm(4500);
     currentEndpoint = initial;
+    // If discovery already identified the active farm, boot OWUI with its default
+    // model pre-selected (else onFarms sets it on the next beacon).
+    currentModel = farmDefaultModel(discovery?.getFarms().find((f) => f.id === activeFarmId) ?? null);
     booted = true;
-    sidecar.start({ endpoint: initial, dataDir: resolveDataDir() });
+    sidecar.start({ endpoint: initial, dataDir: resolveDataDir(), defaultModel: currentModel });
 
     app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
 });
