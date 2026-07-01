@@ -159,6 +159,33 @@ test('hasModel tolerates implicit :latest', () => {
     assert.equal(ollama.hasModel(['gemma4:latest'], 'gemma4:12b'), false);
 });
 
+// ---- model picker ----------------------------------------------------------
+const { parseModelFlag, selectModels } = require('../src/modelPicker');
+
+test('parseModelFlag reads --model / -m / --model= (comma lists)', () => {
+    assert.deepEqual(parseModelFlag(['--model', 'gemma4:12b']), ['gemma4:12b']);
+    assert.deepEqual(parseModelFlag(['-m', 'a,b,c']), ['a', 'b', 'c']);
+    assert.deepEqual(parseModelFlag(['--model=x']), ['x']);
+    assert.deepEqual(parseModelFlag(['up']), []);
+    assert.deepEqual(parseModelFlag(['--model', '--coordinator']), [], 'a following flag is not the value');
+});
+
+test('selectModels: --model wins with no prompt', async () => {
+    const got = await selectModels(defaultConfig(), [], ['--model', 'qwen3:8b']);
+    assert.deepEqual(got, [{ id: 'qwen3:8b', default: true }]);
+});
+
+test('selectModels: --no-pick keeps the config catalog', async () => {
+    const c = defaultConfig();
+    assert.deepEqual(await selectModels(c, [], ['--no-pick']), c.models);
+});
+
+test('selectModels: no reachable models / non-interactive keeps the config catalog', async () => {
+    // Empty host list → no installed models → config catalog (never prompts).
+    const c = defaultConfig();
+    assert.deepEqual(await selectModels(c, [], []), c.models);
+});
+
 test('snapshot carries host hardware + usage when provided', () => {
     const c = defaultConfig();
     const s = buildSnapshot(c, {

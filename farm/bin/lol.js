@@ -11,9 +11,12 @@ ${log.paint.bold('lol')} — the LlmOnLan farm CLI
   ${log.paint.cyan('lol install')}             One-time bootstrap on a fresh pull: install Ollama
                           + LiteLLM and pull the configured models.
   ${log.paint.cyan('lol init')} [--force]      Scaffold a lol.config.json here.
-  ${log.paint.cyan('lol up')} | ${log.paint.cyan('serve')}        Ensure Ollama, pull models, generate+run the
-                          LiteLLM proxy, start the discovery beacon (foreground).
-                          ${log.paint.grey('--coordinator')}  aggregate LAN peer farms into one
+  ${log.paint.cyan('lol up')} | ${log.paint.cyan('serve')}        Ensure Ollama, pick+pull model(s), generate+run
+                          the LiteLLM proxy, start the beacon (foreground).
+                          ${log.paint.grey('(prompts to choose an installed model; Enter = default)')}
+                          ${log.paint.grey('--model <id[,id]>')}  serve these, no prompt.
+                          ${log.paint.grey('--no-pick')}          skip the prompt, use the config catalog.
+                          ${log.paint.grey('--coordinator')}      aggregate LAN peer farms into one
                           balanced endpoint (clients prefer it).
   ${log.paint.cyan('lol down')}                Stop the proxy + beacon.
   ${log.paint.cyan('lol status')}              Health of each Ollama host + the proxy + loaded models.

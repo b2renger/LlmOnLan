@@ -74,6 +74,25 @@ async function listModels(baseUrl, timeoutMs = 4000) {
     }
 }
 
+// Like listModels but with per-model detail: { name, size (bytes), family, paramSize }.
+// Used by the `lol up` model picker to show sizes. [] if unreachable.
+async function listModelsDetailed(baseUrl, timeoutMs = 4000) {
+    try {
+        const { status, json } = await request('GET', baseUrl, '/api/tags', { timeoutMs });
+        if (status !== 200 || !json || !Array.isArray(json.models)) return [];
+        return json.models
+            .filter((m) => m && m.name)
+            .map((m) => ({
+                name: m.name,
+                size: m.size || 0,
+                family: m.details?.family || null,
+                paramSize: m.details?.parameter_size || null,
+            }));
+    } catch {
+        return [];
+    }
+}
+
 // Models currently loaded in VRAM on a host.
 async function loadedModels(baseUrl, timeoutMs = 4000) {
     try {
@@ -140,4 +159,4 @@ function pullModel(baseUrl, id, onLine = () => {}, timeoutMs = 30 * 60 * 1000) {
     });
 }
 
-module.exports = { normalizeHost, version, listModels, loadedModels, hasModel, pullModel, request };
+module.exports = { normalizeHost, version, listModels, listModelsDetailed, loadedModels, hasModel, pullModel, request };

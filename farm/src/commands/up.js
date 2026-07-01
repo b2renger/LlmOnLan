@@ -18,6 +18,7 @@ const { buildSnapshot } = require('../snapshot');
 const { detectHardware, gpuLiveStats } = require('../systemInfo');
 const { DiscoveryBeacon } = require('../beacon');
 const { PeerListener } = require('../peerListener');
+const { selectModels } = require('../modelPicker');
 const { farmId } = require('../identity');
 const { startSelfServer } = require('../selfServer');
 const {
@@ -171,7 +172,11 @@ async function run(args) {
     const oll = await ensureOllama(config);
     if (!oll) return 1;
 
-    // 2. Models
+    // 1b. Choose which installed model(s) to serve (interactive picker, or
+    //     --model / --no-pick / non-TTY → the configured catalog). Drives THIS run.
+    config.models = await selectModels(config, oll.reachable, args || []);
+
+    // 2. Models — pull any chosen model a host is missing (no-op for picked ones).
     await pullMissing(config, oll.reachable);
 
     // 3. (Coordinator) discover peer farms, then generate the LiteLLM config —
