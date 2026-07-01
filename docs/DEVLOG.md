@@ -6,6 +6,61 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-07-01 — Multimodal: image understanding + voice mode (STT/TTS)
+
+**Symptoms (reported):** attaching an image to a chat produced no description, and voice mode did nothing.
+
+**Root causes (traced through the stack, farm → LiteLLM → Ollama, and shell → webview → OWUI):**
+
+1. **Images silently dropped by the LiteLLM proxy.** The farm serves `gemma4`, which *is* natively
+   multimodal — so the model was never the problem. But the generated LiteLLM config
+   ([farm/src/litellm.js](../farm/src/litellm.js)) declared each model with only `model_name` +
+   `litellm_params` and **no `model_info`**, and `litellm_settings.drop_params: true` is on. LiteLLM's cost
+   map doesn't know our Ollama tags, so it treats the model as text-only and, with `drop_params`, **strips
+   the `image_url` content before forwarding to Ollama**. OWUI sent the picture; the proxy threw it away.
+   (This is the well-known OWUI + LiteLLM + Ollama "image attached but ignored" issue.)
+
+2. **Microphone never granted to the webview.** The Electron main process
+   ([shell/src/main/index.ts](../shell/src/main/index.ts)) created the OWUI `<webview>` (partition
+   `persist:owui`) but installed **no permission handler**. Electron denies camera/mic by default, so voice
+   mode's `getUserMedia()` was silently refused. (The origin itself is fine — OWUI loads from `127.0.0.1`,
+   a secure context, so the only block was the missing grant.)
+
+3. **No local speech engine configured.** [configBridge.ts](../shell/src/main/configBridge.ts) set no audio
+   env, so STT/TTS fell to OWUI defaults that expect a cloud key — dead on a closed LAN.
+
+**Fixes:**
+
+- **Vision passthrough** ([farm/src/litellm.js](../farm/src/litellm.js)): infer image support from the tag
+  (`gemma-4|llava|*-vl|*-vision|minicpm-v|moondream|…`, overridable by an explicit `vision:` on the model)
+  and emit `model_info: { supports_vision: true }` for those deployments. LiteLLM then keeps the images
+  *and* advertises the capability on `/v1/models` (so OWUI lights up the image UI). Added an optional
+  `vision` field to the model schema ([farm/src/config.js](../farm/src/config.js)). **Needs `lol up` on the
+  GPU box** to regenerate the config — it's derived, never hand-edited.
+- **Mic permission** ([shell/src/main/index.ts](../shell/src/main/index.ts)):
+  `configureWebviewPermissions()` sets a request + check handler on the `persist:owui` session that grants
+  **only** `media`/`audioCapture`/`videoCapture` (scoped to the OWUI partition, nothing app-wide).
+- **Local voice engines** ([configBridge.ts](../shell/src/main/configBridge.ts)): `AUDIO_STT_ENGINE=''` →
+  OWUI's built-in **faster-whisper on the client CPU** (offline; `WHISPER_MODEL=base` keeps the one-time
+  download ~150 MB); `AUDIO_TTS_ENGINE=''` → **client-side Web-Speech voices** (offline, zero bundle cost).
+  These are env-authoritative every launch (`ENABLE_PERSISTENT_CONFIG=false`), so they can't be un-set by a
+  stale persisted setting.
+- **Ship the STT dep** ([sidecar/build-sidecar.mjs](../sidecar/build-sidecar.mjs)): explicitly
+  `pip install faster-whisper` after OWUI (CTranslate2, not torch → no CUDA weight; a no-op if OWUI already
+  bundles it) so voice works even if OWUI makes audio an optional extra.
+
+**Tested:** farm unit tests extended (19 pass) — vision inferred from tag, explicit flag overrides,
+`supports_vision` present for `gemma4` and absent for `qwen2.5-coder`; shell `tsc --noEmit` clean. **Still to
+verify on the GPU box + a client build** (I can't reach the rig from here): (a) `lol up`, then attach an
+image and ask "describe this" → expect a real description; (b) a fresh client build → voice mode records
+(mic prompt), transcribes locally, and speaks the reply.
+
+**Note:** vision needs a client that talks to a farm running the regenerated config; voice needs a new
+client release (shell + sidecar changes). Both are LAN-local — no cloud, no farm audio load (STT/TTS run on
+the client).
+
+---
+
 ## 2026-06-30 — Fix: OWUI cramped at the top with a black bar (webview not filling)
 
 **Symptom (reported, with a screenshot):** OWUI rendered squished into the top of the window with a large
