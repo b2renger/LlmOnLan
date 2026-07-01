@@ -6,6 +6,45 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-07-01 (d) — Multi-box load balancing: least-loaded selection, coordinator farm, `lol fleet`
+
+Closed the Layer-2 gap from the plan (several GPU boxes + several clients → no automatic spreading). Three
+pieces, one design that unifies two deployment styles:
+
+- **#1 Least-loaded client selection** ([shell/src/main/index.ts](../shell/src/main/index.ts)) — `chooseActive`
+  no longer picks "first healthy"; a new `pickLeastLoaded` sorts by the GPU utilisation the beacon **already**
+  broadcasts (`usage.gpuUtil`; unknown → treated as mid-load) and **scatters ties randomly** within a 15-point
+  band so a fleet booting at once (all boxes idle) doesn't stampede one box. It runs **only when choosing** —
+  first connect / failover — so a healthy current farm stays sticky and we never repoint OWUI mid-session over
+  a load blip. Zero new infra: it turns N independent farms into a self-balancing pool.
+- **Peer discovery for the CLI** ([farm/src/peerListener.js](../farm/src/peerListener.js)) — the farm can now
+  *hear* other farms (it only sent beacons before). Mirrors the shell's discovery: UDP multicast + directed/
+  limited broadcast, **plus** a unicast `/lol/self` subnet sweep for broadcast-blocked Wi-Fi; peer registry
+  keyed by farm id, self excluded. Shared by the next two.
+- **#2 Coordinator farm** (`lol up --coordinator`, or `coordinator:true` in config) — at boot it discovers peer
+  farms and folds each into the generated LiteLLM config as an `openai/<model>` deployment of the same
+  `model_name` ([farm/src/litellm.js](../farm/src/litellm.js) `buildLitellmConfig(config, peers)`), so **one
+  endpoint shuffle-balances across the whole fleet** (each peer proxy then balances its own Ollama) with the
+  same failover. It advertises `coordinator:true` in its beacon; the client's `pickLeastLoaded` **prefers a
+  coordinator when one exists** — so with no coordinator clients balance client-side (#1), and with one present
+  they route through it (#2). Static at boot (a box added later → restart the coordinator); dynamic add is a
+  noted follow-up (a proxy restart mid-flight is disruptive, and live `/model/new` needs a master key that
+  would force keys on clients).
+- **#3 `lol fleet`** ([farm/src/commands/fleet.js](../farm/src/commands/fleet.js)) — listens + sweeps for ~7 s
+  and prints every farm on the LAN (this box + peers): health, GPU %, VRAM, hosts up, backends, loaded models,
+  model catalog, coordinator role, last-seen. The telemetry was already in the beacon; this renders it.
+
+**Capacity reminder unchanged:** one Ollama serves `OLLAMA_NUM_PARALLEL` (default 2) concurrent generations —
+size the fleet by in-flight generations, not headcount.
+
+**Tested:** farm suite 23 pass (peer aggregation adds openai deployments + preserves `supports_vision`; skips a
+peer that doesn't serve the model; coordinator config default false; snapshot carries `coordinator`/
+`deployments`). Shell `tsc` clean. `lol fleet` smoke-run on the box renders self correctly (hardware, 0% GPU,
+loaded/idle) and reports no peers on a single-farm LAN. Client change ships in the next release; the farm
+changes reach the boxes via `git pull`.
+
+---
+
 ## 2026-07-01 (c) — Multimodal verified + OWUI update procedure (the misleading toast)
 
 **Multimodal confirmed working on the box.** Proved the vision chain layer-by-layer with live tests on the

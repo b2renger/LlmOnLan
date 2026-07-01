@@ -201,25 +201,28 @@ fleet with failover (Layer 1). Trade‑off: the coordinator box is a single poin
 
 ## What's next (roadmap)
 
-Ordered roughly by value / effort:
+**✅ Shipped (2026‑07‑01) — multi‑box load balancing (was items 1–3):**
+1. **Least‑loaded client selection** — `pickLeastLoaded` (`shell/src/main/index.ts`) picks the lowest‑GPU‑util
+   healthy farm from the telemetry the beacon already carries, scattering ties randomly (15‑pt band) so a fleet
+   booting at once doesn't stampede one box. Only at connect/failover; a healthy current farm stays sticky.
+2. **Coordinator farm** — `lol up --coordinator` (or `coordinator:true`) discovers peers (new
+   `farm/src/peerListener.js`) and folds each into the LiteLLM config as an `openai/<model>` deployment, so one
+   endpoint balances the whole fleet; it advertises `coordinator:true` and clients prefer it. Static at boot.
+3. **`lol fleet`** — CLI view of every farm on the LAN (load, VRAM, hosts, backends, loaded models, role).
 
-1. **Least‑loaded farm selection (client‑side) — closes the Layer‑2 gap cheaply.** The beacon already carries
-   per‑farm GPU util + loaded models + hosts‑up (`usage.gpuUtil`, `loaded`, `hostsUp`). Change `chooseActive`
-   from "first healthy" to "lowest‑loaded healthy," with hysteresis + a little jitter to avoid a herd effect.
-   No new infra; turns N independent farms into a self‑balancing pool.
-2. **Aggregator / orchestrator farm (stronger, optional).** `lol up --coordinator` auto‑populates
-   `ollama.hosts` from discovered peer farms so one LiteLLM balances the fleet centrally (the deferred
-   "orchestrator" role). More robust; adds a coordinator SPOF.
-3. **Fleet dashboard.** A read‑only view (ComfyQ‑Discovery‑style panel, or `lol status --fleet`) of every
-   farm — GPU util, loaded models, in‑flight, connected clients. The telemetry already ships in the beacon;
-   this just renders it. Invaluable once there are several boxes.
+**Still open (ordered by value / effort):**
 4. **More models.** The catalog + beacon already support multiple models; add e.g. `qwen2.5‑coder` for code
    and let users pick in OWUI. Mind `OLLAMA_MAX_LOADED_MODELS` / VRAM — model swaps cost latency.
 5. **Voice polish.** Optionally bundle a local neural TTS (Piper/Kokoro) for nicer voices than Web‑Speech;
    surface the first‑run Whisper download; explore gemma4's native **audio** capability for spoken input.
-6. **Hardening (M6).** Apple notarization + Windows signing (kill SmartScreen/Gatekeeper warnings);
-   model keep‑warm to cut cold‑start; show the active farm + its load in the client UI; a real multi‑box load test.
-7. **Keyed farms.** If proxy auth is wanted, build the key‑entry UX (today a `requiresKey` farm gets a null key).
+6. **Dynamic coordinator membership.** Today the coordinator captures peers at boot (a box added later → restart).
+   Live add/remove needs either a debounced proxy restart or LiteLLM's `/model/new` admin API (which needs a
+   master key → would force keys on clients). Revisit if fleets churn often.
+7. **Fleet view in the client UI.** Surface the `coordinator` badge + per‑farm load in the connection screen
+   (the data's already on `DiscoveredFarm`); a GUI sibling to `lol fleet`.
+8. **Hardening (M6).** Apple notarization + Windows signing (kill SmartScreen/Gatekeeper warnings);
+   model keep‑warm to cut cold‑start; a real multi‑box load test.
+9. **Keyed farms.** If proxy auth is wanted, build the key‑entry UX (today a `requiresKey` farm gets a null key).
 
 ---
 
