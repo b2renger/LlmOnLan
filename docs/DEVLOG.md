@@ -6,6 +6,30 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-07-01 (e) — Choose the served model at `lol up` (installed-Ollama picker)
+
+`lol up` always served the fixed `config.models`. Now the operator can **pick which installed Ollama model(s)
+to serve at startup**, from what's actually on the box.
+
+- **New [farm/src/modelPicker.js](../farm/src/modelPicker.js)** — `selectModels(config, hosts, args)` resolves
+  the run's catalog: (1) `--model <id[,id]>` / `-m` → serve those, no prompt (pulls if absent); (2) `--no-pick`
+  / `--yes` / **no TTY** (scripts, CI, `npm run`) → `config.models` unchanged, so nothing existing breaks;
+  (3) otherwise an **interactive picker** — lists installed models with param + disk size (via new
+  `ollama.listModelsDetailed`, off `/api/tags`), defaulting to the config's default, Enter to accept, or a
+  number / comma-separated list.
+- **Wired into [up.js](../farm/src/commands/up.js)** right after Ollama is confirmed reachable and before the
+  pull/config steps: the choice replaces `config.models` **in memory** for this run, so it flows through the
+  pull, the generated LiteLLM routing, the beacon snapshot, and (coordinator) peer matching. `lol.config.json`
+  is left untouched — the persistent catalog is still managed with `lol models add/rm`.
+- Purely farm-side (no client change) → reaches the boxes via `git pull`, no release.
+
+**Tested:** farm suite 27 pass (`parseModelFlag` for `--model`/`-m`/`--model=`/comma-lists + not swallowing a
+following flag; `selectModels` honours `--model`, `--no-pick`, and the no-reachable-models/non-interactive
+fallback). Live: `installedModels` against the box's Ollama listed `gemma4:12b` (11.9B/7.6 GB),
+`gemma4:latest` (8.0B/9.6 GB), `ornith:9b` (9.0B/5.6 GB) with sizes.
+
+---
+
 ## 2026-07-01 (d) — Multi-box load balancing: least-loaded selection, coordinator farm, `lol fleet`
 
 Closed the Layer-2 gap from the plan (several GPU boxes + several clients → no automatic spreading). Three
