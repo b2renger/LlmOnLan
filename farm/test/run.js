@@ -35,7 +35,7 @@ test('config rejects a non-url ollama host', () => {
 });
 
 // ---- litellm generation ----------------------------------------------------
-const { buildLitellmConfig, toYaml, modelSupportsVision } = require('../src/litellm');
+const { buildLitellmConfig, toYaml, modelSupportsVision, servedEntries } = require('../src/litellm');
 
 test('litellm config = models × hosts deployments', () => {
     const c = defaultConfig();
@@ -114,6 +114,31 @@ test('coordinator skips a peer that does not serve the model', () => {
     const peers = [{ openaiBaseUrl: 'http://10.0.0.7:4000/v1', models: [{ id: 'llama3.1:8b' }] }];
     const deps = buildLitellmConfig(c, peers).model_list.filter((d) => d.model_name === 'gemma4:12b');
     assert.equal(deps.length, 1, 'only the local host; the peer serves a different model');
+});
+
+test('modelAlias config default is null', () => {
+    assert.equal(defaultConfig().modelAlias, null);
+});
+
+test('alias mode collapses to one stable id backed by the default model', () => {
+    const c = defaultConfig();
+    c.models = [{ id: 'qwen3.6:35b', default: true }, { id: 'gemma4:12b' }];
+    c.modelAlias = 'assistant';
+    const e = servedEntries(c);
+    assert.equal(e.length, 1);
+    assert.equal(e[0].servedName, 'assistant');
+    assert.equal(e[0].underlying, 'qwen3.6:35b', 'alias is backed by the default picked model');
+});
+
+test('alias mode: litellm exposes the alias as model_name, routed to the real model', () => {
+    const c = defaultConfig();
+    c.models = [{ id: 'qwen3.6:35b', default: true }];
+    c.ollama.hosts = ['http://127.0.0.1:11434'];
+    c.modelAlias = 'assistant';
+    const doc = buildLitellmConfig(c);
+    assert.equal(doc.model_list.length, 1);
+    assert.equal(doc.model_list[0].model_name, 'assistant', 'clients see the stable alias');
+    assert.equal(doc.model_list[0].litellm_params.model, 'ollama_chat/qwen3.6:35b', 'routed to the real model');
 });
 
 // ---- litellm command resolution (proc) -------------------------------------
@@ -205,6 +230,16 @@ test('snapshot host/usage default to null/empty when absent', () => {
     assert.equal(s.host, null);
     assert.equal(s.usage.gpuUtil, null);
     assert.deepEqual(s.usage.loaded, []);
+});
+
+test('alias mode: snapshot advertises the alias id, stable across model swaps', () => {
+    const c = defaultConfig();
+    c.modelAlias = 'assistant';
+    c.models = [{ id: 'qwen3.6:35b', default: true }];
+    assert.deepEqual(buildSnapshot(c, { proxyUp: true, hostsUp: 1 }).models, [{ id: 'assistant', default: true }]);
+    // switch the underlying model → the advertised id stays constant (chats don't break)
+    c.models = [{ id: 'gemma4:12b', default: true }];
+    assert.deepEqual(buildSnapshot(c, { proxyUp: true, hostsUp: 1 }).models, [{ id: 'assistant', default: true }]);
 });
 
 test('snapshot carries coordinator + deployments (default off)', () => {

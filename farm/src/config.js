@@ -67,6 +67,12 @@ const ConfigSchema = z.object({
     // Coordinator mode: aggregate LAN peer farms into one balanced endpoint that
     // clients prefer. Also settable per-run via `lol up --coordinator`.
     coordinator: z.boolean().default(false),
+    // Stable model alias: expose ONE fixed model id to clients regardless of which
+    // Ollama model is served behind it. Switching the served model (via the picker)
+    // then never breaks an existing OWUI chat, which is pinned to the model id.
+    // null/empty = off (clients see the real model names). Settable per-run via
+    // `lol up --alias <name>`. The alias is backed by the DEFAULT picked model.
+    modelAlias: z.string().nullable().default(null),
 }).strict();
 
 // ---- defaults --------------------------------------------------------------

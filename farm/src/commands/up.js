@@ -152,11 +152,25 @@ async function discoverPeers(config) {
     return peers;
 }
 
+// --alias <name> / --alias=name overrides the stable model alias for this run;
+// --no-alias disables it. undefined = not specified (keep config.modelAlias).
+function parseAliasFlag(args) {
+    for (let i = 0; i < args.length; i++) {
+        const a = args[i];
+        if (a === '--no-alias') return null;
+        if (a === '--alias') { const v = args[i + 1]; if (v && !v.startsWith('-')) return v.trim(); }
+        else if (a.startsWith('--alias=')) return a.slice('--alias='.length).trim();
+    }
+    return undefined;
+}
+
 async function run(args) {
     let config, configPath;
     try { ({ config, path: configPath } = loadConfig()); }
     catch (e) { log.err(e.message); return 1; }
     const coordinator = (args || []).includes('--coordinator') || config.coordinator === true;
+    const aliasArg = parseAliasFlag(args || []);
+    if (aliasArg !== undefined) config.modelAlias = aliasArg;
 
     // Refuse to double-start.
     const existing = readRuntime();
@@ -189,6 +203,11 @@ async function run(args) {
     const yamlPath = writeLitellmConfig(config, undefined, peers);
     const backends = config.ollama.hosts.length + peers.length;
     log.ok(`Generated LiteLLM routing → ${log.paint.grey(yamlPath)} (${config.models.length} model × ${config.ollama.hosts.length} host${peers.length ? ` + ${peers.length} peer` : ''} deployments)`);
+    const alias = (config.modelAlias || '').trim();
+    if (alias) {
+        const real = (config.models.find((m) => m.default) || config.models[0]).id;
+        log.ok(`Model alias: clients see ${log.paint.bold(`"${alias}"`)} → ${log.paint.bold(real)} (switch the model anytime without breaking chats)`);
+    }
 
     // 4. Start + health-wait the proxy.
     const baseUrl = `http://127.0.0.1:${config.proxy.port}`;

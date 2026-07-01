@@ -19,6 +19,14 @@ function buildSnapshot(config, health = {}) {
     const proxyPort = config.proxy.port;
     const primary = primaryAddress();
     const endpoint = `http://${primary}:${proxyPort}`;
+    // Advertise what clients actually SEE on /v1/models: in alias mode the fixed
+    // alias id (backed by the picked model); otherwise the real catalog. Keeping this
+    // aligned with the generated LiteLLM model_name is what makes the client's
+    // DEFAULT_MODELS + OWUI chats bind to a stable id across picker changes.
+    const alias = (config.modelAlias || '').trim();
+    const models = alias
+        ? [{ id: alias, default: true }]
+        : config.models.map((m) => ({ id: m.id, default: !!m.default }));
     return {
         v: 1,
         id: farmId(),
@@ -28,7 +36,7 @@ function buildSnapshot(config, health = {}) {
         endpoint,                                  // OpenAI root (LiteLLM serves /v1 + bare)
         openaiBaseUrl: `${endpoint}/v1`,           // exactly what OWUI's OPENAI_API_BASE_URL wants
         requiresKey: !!config.proxy.masterKey,
-        models: config.models.map((m) => ({ id: m.id, default: !!m.default })),
+        models,
         healthy: health.proxyUp !== false && (health.hostsUp == null || health.hostsUp > 0),
         version: PKG_VERSION,
         // Coordinator mode: this farm aggregates peers into one balanced proxy, so

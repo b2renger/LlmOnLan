@@ -16,6 +16,8 @@ ${log.paint.bold('lol')} — the LlmOnLan farm CLI
                           ${log.paint.grey('(prompts to choose an installed model; Enter = default)')}
                           ${log.paint.grey('--model <id[,id]>')}  serve these, no prompt.
                           ${log.paint.grey('--no-pick')}          skip the prompt, use the config catalog.
+                          ${log.paint.grey('--alias <name>')}      expose ONE fixed model id (e.g.
+                          "assistant") so switching models never breaks a chat.
                           ${log.paint.grey('--coordinator')}      aggregate LAN peer farms into one
                           balanced endpoint (clients prefer it).
   ${log.paint.cyan('lol down')}                Stop the proxy + beacon.

@@ -28,6 +28,19 @@ function modelSupportsVision(model) {
     return VISION_MODEL_RX.test(model.id);
 }
 
+// The client-facing served model(s): each is a { servedName, underlying, vision }.
+// In ALIAS mode (config.modelAlias set) there is ONE fixed servedName backed by the
+// default picked model — so the id clients (and their OWUI chats) bind to stays
+// constant across picker changes. Otherwise the real catalog (servedName == id).
+function servedEntries(config) {
+    const alias = (config.modelAlias || '').trim();
+    if (alias) {
+        const chosen = config.models.find((m) => m.default) || config.models[0];
+        return [{ servedName: alias, underlying: chosen.id, vision: modelSupportsVision(chosen) }];
+    }
+    return config.models.map((m) => ({ servedName: m.id, underlying: m.id, vision: modelSupportsVision(m) }));
+}
+
 // Build the config.yaml object (model_list × hosts + router/proxy settings).
 //
 // `peers` (coordinator mode) is a list of OTHER farms discovered on the LAN:
@@ -38,39 +51,40 @@ function modelSupportsVision(model) {
 function buildLitellmConfig(config, peers = []) {
     const provider = config.litellm.provider; // 'ollama_chat' | 'ollama'
     const model_list = [];
-    for (const model of config.models) {
-        const visionCapable = modelSupportsVision(model);
-        // Local Ollama deployments.
+    for (const { servedName, underlying, vision } of servedEntries(config)) {
+        // Local Ollama deployments. In alias mode `servedName` is the fixed alias and
+        // `underlying` is the real Ollama tag it routes to; otherwise they're equal.
         for (const host of config.ollama.hosts) {
             const entry = {
-                model_name: model.id,                      // what clients request
+                model_name: servedName,                    // what clients request (stable in alias mode)
                 litellm_params: {
                     // ollama_chat = use Ollama's chat endpoint w/ proper templating.
-                    model: `${provider}/${model.id}`,
+                    model: `${provider}/${underlying}`,
                     api_base: host,
                 },
             };
             // Tell LiteLLM this deployment accepts images so drop_params doesn't
             // strip them (see VISION_MODEL_RX above). Advertised on /v1/models too,
             // which lets OWUI light up the image UI for the model.
-            if (visionCapable) entry.model_info = { supports_vision: true };
+            if (vision) entry.model_info = { supports_vision: true };
             model_list.push(entry);
         }
         // Peer-farm deployments (coordinator mode): each peer's LiteLLM is an
-        // OpenAI-compatible endpoint. Only add peers that actually serve this model.
+        // OpenAI-compatible endpoint. Only add peers that serve this served name
+        // (in alias mode the fleet shares the alias).
         for (const peer of peers) {
             if (!peer || !peer.openaiBaseUrl) continue;
             const peerModels = new Set((peer.models || []).map((m) => (typeof m === 'string' ? m : m.id)));
-            if (peerModels.size && !peerModels.has(model.id)) continue;
+            if (peerModels.size && !peerModels.has(servedName)) continue;
             const entry = {
-                model_name: model.id,
+                model_name: servedName,
                 litellm_params: {
-                    model: `openai/${model.id}`,           // talk to the peer's OpenAI API
+                    model: `openai/${servedName}`,         // talk to the peer's OpenAI API
                     api_base: peer.openaiBaseUrl,          // http://<peer>:<port>/v1
                     api_key: peer.key || 'sk-lol-coordinator', // keyless peers ignore it
                 },
             };
-            if (visionCapable) entry.model_info = { supports_vision: true };
+            if (vision) entry.model_info = { supports_vision: true };
             model_list.push(entry);
         }
     }
@@ -129,4 +143,4 @@ function writeLitellmConfig(config, outPath = generatedConfigPath(), peers = [])
     return outPath;
 }
 
-module.exports = { buildLitellmConfig, toYaml, generatedConfigPath, writeLitellmConfig, modelSupportsVision };
+module.exports = { buildLitellmConfig, toYaml, generatedConfigPath, writeLitellmConfig, modelSupportsVision, servedEntries };
