@@ -99,6 +99,17 @@ async function main() {
         env: { ...process.env, PYTHONUTF8: '1' },
     });
 
+    // 2a. Local voice STT: OWUI transcribes speech with faster-whisper (CTranslate2,
+    // NOT torch — so this adds no CUDA weight). It's normally pulled in by OWUI, but
+    // recent releases make some audio deps optional; install it explicitly so voice
+    // mode works fully offline on a closed LAN regardless of OWUI's extras. A no-op
+    // ("already satisfied") when OWUI already bundles it.
+    log('pip install faster-whisper (local speech-to-text for voice mode) …');
+    execFileSync(py, ['-m', 'pip', 'install', '--no-warn-script-location', 'faster-whisper'], {
+        stdio: 'inherit',
+        env: { ...process.env, PYTHONUTF8: '1' },
+    });
+
     // 2b. On Linux, the PyPI `torch` is the CUDA build, which pulls ~3-4 GB of
     // nvidia-*/cuda-toolkit wheels (cudnn, nccl, cublas, …) as DEPENDENCIES —
     // blowing the AppImage past GitHub's 2 GB release-asset limit. The client only
