@@ -17,6 +17,8 @@ const { writeLitellmConfig } = require('../litellm');
 const { buildSnapshot } = require('../snapshot');
 const { detectHardware, gpuLiveStats } = require('../systemInfo');
 const { DiscoveryBeacon } = require('../beacon');
+const { PeerListener } = require('../peerListener');
+const { farmId } = require('../identity');
 const { startSelfServer } = require('../selfServer');
 const {
     readRuntime, writeRuntime, clearRuntime, isAlive, killTree, spawnLitellm,
@@ -120,10 +122,40 @@ async function pullMissing(config, reachable) {
     }
 }
 
+// Coordinator mode: listen briefly for peer farms on the LAN (beacons + a unicast
+// sweep) and return them as LiteLLM peer deployments. Static at boot — the fleet's
+// membership is captured once here; a box added later is picked up by restarting
+// the coordinator. Self is excluded by farm id.
+async function discoverPeers(config) {
+    const listener = new PeerListener({
+        group: config.beacon.group,
+        port: config.beacon.port,
+        httpPort: config.beacon.httpPort,
+        selfId: farmId(),
+    }).start();
+    log.step('Coordinator: discovering peer farms on the LAN …');
+    const windowMs = Math.max(6000, config.beacon.intervalSec * 2000 + 1500);
+    await Promise.all([
+        new Promise((r) => setTimeout(r, windowMs)),
+        listener.sweep().catch(() => {}),      // for broadcast-blocked LANs
+    ]);
+    const peers = listener.getPeers()
+        .filter((p) => p.snap.healthy !== false && !p.snap.coordinator) // skip other coordinators
+        .map((p) => ({
+            openaiBaseUrl: p.snap.openaiBaseUrl,
+            models: p.snap.models,
+            name: p.snap.name,
+            host: p.host,
+        }));
+    listener.stop();
+    return peers;
+}
+
 async function run(args) {
     let config, configPath;
     try { ({ config, path: configPath } = loadConfig()); }
     catch (e) { log.err(e.message); return 1; }
+    const coordinator = (args || []).includes('--coordinator') || config.coordinator === true;
 
     // Refuse to double-start.
     const existing = readRuntime();
@@ -142,9 +174,16 @@ async function run(args) {
     // 2. Models
     await pullMissing(config, oll.reachable);
 
-    // 3. Generate LiteLLM config from lol.config.json (routing is derived).
-    const yamlPath = writeLitellmConfig(config);
-    log.ok(`Generated LiteLLM routing → ${log.paint.grey(yamlPath)} (${config.models.length} model × ${config.ollama.hosts.length} host deployments)`);
+    // 3. (Coordinator) discover peer farms, then generate the LiteLLM config —
+    //    routing is derived from local Ollama hosts + any aggregated peers.
+    const peers = coordinator ? await discoverPeers(config) : [];
+    if (coordinator) {
+        if (peers.length) log.ok(`Coordinator: aggregating ${peers.length} peer farm(s) — ${peers.map((p) => p.name || p.host).join(', ')}`);
+        else log.warn('Coordinator: no peer farms found — serving local only. Start the peers first, then re-run to include them.');
+    }
+    const yamlPath = writeLitellmConfig(config, undefined, peers);
+    const backends = config.ollama.hosts.length + peers.length;
+    log.ok(`Generated LiteLLM routing → ${log.paint.grey(yamlPath)} (${config.models.length} model × ${config.ollama.hosts.length} host${peers.length ? ` + ${peers.length} peer` : ''} deployments)`);
 
     // 4. Start + health-wait the proxy.
     const baseUrl = `http://127.0.0.1:${config.proxy.port}`;
@@ -180,6 +219,8 @@ async function run(args) {
         hostsUp: oll.reachable.length,
         hostsTotal: config.ollama.hosts.length,
         loaded: [],
+        coordinator,                     // advertise the role so clients prefer us
+        deployments: backends,           // local hosts + aggregated peers
         host: await detectHardware(),   // static GPU/VRAM/RAM/cores (once at boot)
         gpu: await gpuLiveStats(),       // live GPU util + VRAM (refreshed below)
     };
@@ -236,8 +277,9 @@ async function run(args) {
     });
 
     log.plain('');
-    log.ok(`${log.paint.bold(config.name)} is up.`);
+    log.ok(`${log.paint.bold(config.name)} is up${coordinator ? ' (coordinator)' : ''}.`);
     log.plain(`     OpenAI endpoint : ${log.paint.cyan(snapshot.openaiBaseUrl)}`);
+    if (coordinator) log.plain(`     Coordinator     : balancing ${log.paint.bold(String(backends))} backend(s) — ${config.ollama.hosts.length} local host + ${peers.length} peer farm(s)`);
     log.plain(`     Reachable at    : ${snapshot.ips.map((ip) => `http://${ip}:${config.proxy.port}/v1`).join('  ')}`);
     log.plain(`     Stop with       : Ctrl-C   (or \`lol down\` from another shell)`);
     log.plain('');

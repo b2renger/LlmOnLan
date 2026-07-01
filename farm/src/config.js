@@ -64,6 +64,9 @@ const ConfigSchema = z.object({
     models: z.array(ModelSchema).min(1).default([{ id: 'gemma4:12b', default: true }]),
     ollama: OllamaSchema.default({}),
     litellm: LiteLLMSchema.default({}),
+    // Coordinator mode: aggregate LAN peer farms into one balanced endpoint that
+    // clients prefer. Also settable per-run via `lol up --coordinator`.
+    coordinator: z.boolean().default(false),
 }).strict();
 
 // ---- defaults --------------------------------------------------------------

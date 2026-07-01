@@ -88,6 +88,34 @@ test('litellm flags supports_vision so the proxy keeps images (drop_params)', ()
     assert.ok(!coder.model_info, 'a text-only model carries no vision flag');
 });
 
+test('coordinator config default is false', () => {
+    assert.equal(defaultConfig().coordinator, false);
+});
+
+test('coordinator aggregates peer farms as openai deployments', () => {
+    const c = defaultConfig();
+    c.models = [{ id: 'gemma4:12b', default: true }];
+    c.ollama.hosts = ['http://127.0.0.1:11434'];
+    const peers = [
+        { openaiBaseUrl: 'http://10.0.0.9:4000/v1', models: [{ id: 'gemma4:12b' }] },
+        { openaiBaseUrl: 'http://10.0.0.8:4000/v1', models: ['gemma4:12b'] }, // string form too
+    ];
+    const deps = buildLitellmConfig(c, peers).model_list.filter((d) => d.model_name === 'gemma4:12b');
+    assert.equal(deps.length, 3, '1 local + 2 peers all share the model_name → router balances');
+    const peerDep = deps.find((d) => d.litellm_params.api_base === 'http://10.0.0.9:4000/v1');
+    assert.equal(peerDep.litellm_params.model, 'openai/gemma4:12b', 'peer talks OpenAI, not ollama_chat');
+    assert.ok(peerDep.litellm_params.api_key, 'peer deployment carries a key string');
+    assert.equal(peerDep.model_info.supports_vision, true, 'vision preserved on peer deployments');
+});
+
+test('coordinator skips a peer that does not serve the model', () => {
+    const c = defaultConfig();
+    c.models = [{ id: 'gemma4:12b', default: true }];
+    const peers = [{ openaiBaseUrl: 'http://10.0.0.7:4000/v1', models: [{ id: 'llama3.1:8b' }] }];
+    const deps = buildLitellmConfig(c, peers).model_list.filter((d) => d.model_name === 'gemma4:12b');
+    assert.equal(deps.length, 1, 'only the local host; the peer serves a different model');
+});
+
 // ---- litellm command resolution (proc) -------------------------------------
 const { resolveLitellmCommand, venvLitellmPath } = require('../src/proc');
 
@@ -150,6 +178,16 @@ test('snapshot host/usage default to null/empty when absent', () => {
     assert.equal(s.host, null);
     assert.equal(s.usage.gpuUtil, null);
     assert.deepEqual(s.usage.loaded, []);
+});
+
+test('snapshot carries coordinator + deployments (default off)', () => {
+    const c = defaultConfig();
+    const coord = buildSnapshot(c, { proxyUp: true, hostsUp: 1, coordinator: true, deployments: 4 });
+    assert.equal(coord.coordinator, true);
+    assert.equal(coord.deployments, 4);
+    const plain = buildSnapshot(c, { proxyUp: true, hostsUp: 1 });
+    assert.equal(plain.coordinator, false);
+    assert.equal(plain.deployments, null);
 });
 
 // ---- systemInfo ------------------------------------------------------------

@@ -31,6 +31,13 @@ function buildSnapshot(config, health = {}) {
         models: config.models.map((m) => ({ id: m.id, default: !!m.default })),
         healthy: health.proxyUp !== false && (health.hostsUp == null || health.hostsUp > 0),
         version: PKG_VERSION,
+        // Coordinator mode: this farm aggregates peers into one balanced proxy, so
+        // clients should prefer it over the individual box-farms (see the shell's
+        // pickLeastLoaded). Absent/false on a normal single-box farm.
+        coordinator: !!health.coordinator,
+        // How many balanced deployments back this endpoint (local Ollama hosts +
+        // aggregated peers). Informational, for `lol fleet` / client cards.
+        deployments: health.deployments ?? null,
         // Per-host / proxy detail, useful for `lol status` and the client cards.
         health: {
             proxyUp: health.proxyUp ?? null,

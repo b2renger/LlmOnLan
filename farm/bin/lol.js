@@ -13,8 +13,12 @@ ${log.paint.bold('lol')} — the LlmOnLan farm CLI
   ${log.paint.cyan('lol init')} [--force]      Scaffold a lol.config.json here.
   ${log.paint.cyan('lol up')} | ${log.paint.cyan('serve')}        Ensure Ollama, pull models, generate+run the
                           LiteLLM proxy, start the discovery beacon (foreground).
+                          ${log.paint.grey('--coordinator')}  aggregate LAN peer farms into one
+                          balanced endpoint (clients prefer it).
   ${log.paint.cyan('lol down')}                Stop the proxy + beacon.
   ${log.paint.cyan('lol status')}              Health of each Ollama host + the proxy + loaded models.
+  ${log.paint.cyan('lol fleet')}               Show every farm on the LAN (this box + peers): load,
+                          VRAM, loaded models, roles.
   ${log.paint.cyan('lol models')} ls|add|rm|pull   Manage the served model catalog.
 
   -h, --help              Show this help.
@@ -52,6 +56,8 @@ async function main() {
                 return await require('../src/commands/down').run(rest);
             case 'status':
                 return await require('../src/commands/status').run(rest);
+            case 'fleet':
+                return await require('../src/commands/fleet').run(rest);
             case 'models':
                 return await require('../src/commands/models').run(rest);
             default:
