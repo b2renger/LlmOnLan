@@ -6,6 +6,19 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-07-01 (h) — Default the UI language to English
+
+The app came up in French because OWUI's i18n detector reads the webview's
+`navigator.language`, which is the OS locale. Set Chromium's locale to **en-US** via
+`app.commandLine.appendSwitch('lang', 'en-US')` ([index.ts](../shell/src/main/index.ts), before app
+`ready`) — that's what the frontend detector actually reads — plus `DEFAULT_LOCALE=en-US`
+([configBridge.ts](../shell/src/main/configBridge.ts)) as the backend fallback. It's a **default, not a
+lock**: a user who picks another language in OWUI's settings still wins (that choice caches in localStorage,
+which beats navigator). tsc clean; ships in the next client release. Note: an existing install that already
+cached French in localStorage keeps it until changed once in OWUI → Settings → General → Language.
+
+---
+
 ## 2026-07-01 (g) — Stable model alias: switch models without breaking OWUI chats
 
 **The (f) DEFAULT_MODELS fix didn't cure it — so I stopped guessing and tested the component directly.** A

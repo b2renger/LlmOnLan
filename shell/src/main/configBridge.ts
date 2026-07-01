@@ -94,6 +94,10 @@ export function buildSidecarEnv(input: SidecarEnvInput): Record<string, string> 
         // Speech voices (Chromium/OS voices) — offline, zero bundle cost, no farm hit.
         AUDIO_TTS_ENGINE: '',
 
+        // --- default UI language: English (backend fallback; the Chromium --lang
+        // switch in index.ts is what the frontend detector actually reads) ---
+        DEFAULT_LOCALE: 'en-US',
+
         // --- telemetry fully off ---
         ANONYMIZED_TELEMETRY: 'false',
         DO_NOT_TRACK: 'true',

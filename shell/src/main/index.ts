@@ -21,6 +21,13 @@ import { ShellSettings, DiscoveredFarm, ScanRange } from './types';
 
 app.setName('LlmOnLan');
 
+// Default the UI to English. OWUI's frontend picks its language from the webview's
+// navigator.language (the OS locale), so we set Chromium's locale to en-US — that
+// makes English the default the i18n detector sees. It's still only a DEFAULT: a
+// user who picks another language in OWUI's settings overrides it (that choice is
+// cached in localStorage, which beats navigator). Must be set before app 'ready'.
+app.commandLine.appendSwitch('lang', 'en-US');
+
 // Single-instance: a second launch focuses the existing window.
 if (!app.requestSingleInstanceLock()) {
     app.quit();
