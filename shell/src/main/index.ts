@@ -54,13 +54,46 @@ function farmEndpoint(f: DiscoveredFarm): string {
     return `http://${f._host}:${f.proxyPort}/v1`;
 }
 
+// Load metric for a farm, from the telemetry the beacon already carries. Lower =
+// more free. GPU utilisation (0–100) is the best proxy for "busy"; a farm that
+// doesn't report it (no nvidia-smi) is treated as mid-load so a box we CAN measure
+// and see idle beats an unknown one.
+function farmLoad(f: DiscoveredFarm): number {
+    const util = f.usage?.gpuUtil;
+    return typeof util === 'number' ? util : 50;
+}
+
+// Pick the least-loaded healthy farm, scattering ties randomly so a fleet of
+// clients booting at once doesn't stampede the same box (at cold start they all
+// see every box idle, so jitter spreads them). This runs only when we're actually
+// CHOOSING a farm — chooseActive keeps a healthy current farm sticky, so load-aware
+// selection never repoints OWUI mid-session (that churn would cost more than the
+// imbalance it fixes); it kicks in at first connect and on failover.
+//
+// If a coordinator farm is present it "absorbs" the fleet — we route through it
+// (it balances every request across the boxes centrally), so the candidate pool
+// is the coordinators. With no coordinator, the pool is all healthy farms and we
+// balance client-side. One rule cleanly covers both deployment styles.
+const LOAD_BAND = 15; // farms within 15 util-points of the minimum count as "equally free"
+function pickLeastLoaded(farms: DiscoveredFarm[]): DiscoveredFarm | null {
+    const healthy = farms.filter((x) => x.healthy && !x._stale);
+    if (!healthy.length) return null;
+    const coordinators = healthy.filter((x) => x.coordinator);
+    const pool = coordinators.length ? coordinators : healthy;
+    if (pool.length === 1) return pool[0];
+    const min = Math.min(...pool.map(farmLoad));
+    const contenders = pool.filter((x) => farmLoad(x) <= min + LOAD_BAND);
+    return contenders[Math.floor(Math.random() * contenders.length)];
+}
+
 // Pick the farm OWUI should use: the user's pinned choice, else the current one
-// if still good (sticky — avoids flapping between equivalents), else first healthy.
+// if still good (sticky — avoids flapping between equivalents), else the
+// least-loaded healthy farm (spreads a fleet of clients across the boxes).
 function chooseActive(farms: DiscoveredFarm[]): DiscoveredFarm | null {
     const sel = loadSettings().selectedFarmId;
     if (sel) { const f = farms.find((x) => x.id === sel && x.healthy && !x._stale); if (f) return f; }
     if (activeFarmId) { const f = farms.find((x) => x.id === activeFarmId && x.healthy && !x._stale); if (f) return f; }
-    return farms.find((x) => x.healthy && !x._stale) || null;
+    return pickLeastLoaded(farms);
 }
 
 // Discovery update → forward to the renderer + auto-connect to the active farm.

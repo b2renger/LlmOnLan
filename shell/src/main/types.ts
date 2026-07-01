@@ -29,6 +29,10 @@ export interface FarmSnapshot {
         vramTotalGb: number | null;
         loaded: string[];
     };
+    // Coordinator mode — this farm aggregates LAN peers into one balanced proxy,
+    // so clients prefer it over the individual box-farms. Absent on a plain farm.
+    coordinator?: boolean;
+    deployments?: number | null;   // balanced backends behind the endpoint (hosts + peers)
     ts: number;
 }
 
