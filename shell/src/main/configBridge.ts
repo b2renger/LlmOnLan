@@ -62,6 +62,18 @@ export function buildSidecarEnv(input: SidecarEnvInput): Record<string, string> 
         // RAG_EMBEDDING_ENGINE is deliberately UNSET → in-process SentenceTransformers.
         // (Setting it to "ollama"/"openai" would ship document text off-device.)
 
+        // --- vision: mark every model image-capable by default ---
+        // Over an OpenAI-style connection OWUI can't discover a model's capabilities
+        // (the farm's /v1/models lists names only), so it defaults vision OFF — and a
+        // vision-off model means OWUI neither sends attached images inline NOR enables
+        // the camera/webcam. That's why image description AND the webcam did nothing
+        // while the mic (capability-independent STT) worked. This baseline flips vision
+        // on for all models. The farm's per-model supports_vision still decides whether
+        // LiteLLM actually forwards the image to Ollama, so a text-only model simply has
+        // its image dropped at the proxy (harmless). Env-authoritative every launch, so
+        // it's zero-config across all clients — no per-model toggle to click.
+        DEFAULT_MODEL_METADATA: JSON.stringify({ capabilities: { vision: true } }),
+
         // --- voice: fully LOCAL speech, no cloud (privacy + works on a closed LAN) ---
         // Speech-to-text: OWUI's built-in faster-whisper runs on THIS machine's CPU.
         // An empty AUDIO_STT_ENGINE selects that local engine (NOT OpenAI/cloud, and

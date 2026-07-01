@@ -6,6 +6,32 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-07-01 (b) — Vision, take 2: OWUI defaulted models to vision-OFF
+
+**Field report after v0.1.6:** voice mode worked (mic fix confirmed live), but attaching an image still got
+"my interaction mode does not include vision processing capabilities," AND the **webcam** couldn't be
+accessed in call mode.
+
+**Root cause (the webcam clue nailed it):** the LiteLLM `supports_vision` fix (take 1) was necessary but
+not sufficient — it stops the *proxy* dropping images, but **OWUI wasn't sending them in the first place**.
+Over an OpenAI-style connection OWUI can't introspect a model's capabilities (the farm's `/v1/models`
+returns names only), so it defaults **vision OFF**, and a vision-off model means OWUI neither sends attached
+images inline NOR enables camera/webcam vision input. The mic worked because STT is capability-independent —
+which is exactly why voice was fine but *both* image and webcam failed. One gate, two symptoms.
+
+**Fix** ([configBridge.ts](../shell/src/main/configBridge.ts)): set OWUI's official
+`DEFAULT_MODEL_METADATA={"capabilities":{"vision":true}}` (a v0.10.0+ env; we pin 0.10.1). It's a baseline
+that flips vision on for every model, env-authoritative every launch (`ENABLE_PERSISTENT_CONFIG=false`), so
+it's **zero-config across all clients** — no per-model toggle to click on each machine. Harmless for
+text-only models: OWUI sends the image, but the farm's per-model `supports_vision` still gates whether
+LiteLLM forwards it to Ollama, so a text-only model just has its image dropped at the proxy.
+
+**Full working chain now:** OWUI (vision on → sends image_url + enables camera) → LiteLLM (supports_vision →
+forwards image) → Ollama (gemma4, multimodal → describes it). tsc clean. Needs a client release; the farm
+half still needs `lol up` on the box to regenerate the proxy config.
+
+---
+
 ## 2026-07-01 — Multimodal: image understanding + voice mode (STT/TTS)
 
 **Symptoms (reported):** attaching an image to a chat produced no description, and voice mode did nothing.
