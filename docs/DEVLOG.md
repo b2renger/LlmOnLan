@@ -6,6 +6,36 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-07-01 (f) — OWUI auto-selects the farm's model (fix: re-picking the model every message)
+
+**Symptom (reported):** after switching the served model (gemma4 → `ornith:35b` via the new picker), OWUI made
+the user pick the model on every message. Their hunch was a box-side signalling bug.
+
+**Investigation (box ruled out with evidence):** on the box, `/v1/models` returned `ornith:35b` on every poll
+(no flap), `/lol/self` showed `healthy=true`, one model, one IP, steady over 6 polls, and `lol fleet` found
+**one** farm on the LAN — so no model-list instability and no multi-farm switching by the v0.1.9 least-loaded
+client. The client also never told OWUI a model (a grep found only `DEFAULT_MODEL_METADATA`). So the model
+*signals* fine; what changed was *which* model.
+
+**Root cause:** OWUI had **no default model** over its OpenAI connection. With one steady model it happened to
+keep working; once the served model changed, OWUI's remembered selection went stale with nothing to fall back
+to → it prompts for a model. The box does advertise its default in the beacon (`models:[{id,default}]`), but
+the client wasn't using it.
+
+**Fix (client feeds the farm's model to OWUI):** the client now reads the active farm's advertised default
+model (`farmDefaultModel` in [index.ts](../shell/src/main/index.ts)) and sets OWUI's **`DEFAULT_MODELS`** via
+[configBridge](../shell/src/main/configBridge.ts), so OWUI auto-selects whatever the farm serves. Threaded
+through the sidecar supervisor ([sidecar.ts](../shell/src/main/sidecar.ts)): `start`/`repoint`/`setDataDir`/
+crash-restart all carry `defaultModel`, and it's part of `repoint`'s change-check so **switching the served
+model (same endpoint) still restarts OWUI to re-default it**. Env-authoritative each launch
+(`ENABLE_PERSISTENT_CONFIG=false`), so it tracks the farm with zero clicks. tsc clean.
+
+**Ships in the next client release; needs on-box confirmation** — I couldn't reproduce OWUI's UI from here, so
+if re-picking persists after updating, the next thing to check is whether a *new* chat also starts model-less
+(vs only pre-existing chats that stored the old model id).
+
+---
+
 ## 2026-07-01 (e) — Choose the served model at `lol up` (installed-Ollama picker)
 
 `lol up` always served the fixed `config.models`. Now the operator can **pick which installed Ollama model(s)
