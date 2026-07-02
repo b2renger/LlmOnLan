@@ -21,6 +21,10 @@ const ModelSchema = z.object({
     // *-vl, *-vision, …). Drives `supports_vision` in the generated LiteLLM config
     // so the proxy passes images through instead of dropping them.
     vision: z.boolean().optional(),
+    // Per-model stable alias — the id clients see for THIS model (a role name like
+    // "coder"). Chats bind to the alias, so the underlying model can be swapped
+    // without breaking them. The global `modelAlias` covers the default model.
+    alias: z.string().optional(),
 }).strict();
 
 const BeaconSchema = z.object({
@@ -46,6 +50,11 @@ const OllamaSchema = z.object({
     numParallel: z.number().int().positive().default(2),    // OLLAMA_NUM_PARALLEL
     maxLoadedModels: z.number().int().positive().default(1),// OLLAMA_MAX_LOADED_MODELS
     flashAttention: z.boolean().default(true),              // OLLAMA_FLASH_ATTENTION
+    // OLLAMA_KEEP_ALIVE — how long a model stays in VRAM after its last request.
+    // Ollama's own default (5m) means the first student after a pause eats a full
+    // model reload (~30–60s on a 35B). '-1' = keep loaded forever — the right call
+    // for a dedicated GPU box. Only applies to an Ollama that `lol` starts.
+    keepAlive: z.string().default('-1'),
 }).strict();
 
 const WebsearchSchema = z.object({

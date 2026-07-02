@@ -26,6 +26,8 @@ ${log.paint.bold('lol')} — the LlmOnLan farm CLI
   ${log.paint.cyan('lol status')}              Health of each Ollama host + the proxy + loaded models.
   ${log.paint.cyan('lol fleet')}               Show every farm on the LAN (this box + peers): load,
                           VRAM, loaded models, roles.
+  ${log.paint.cyan('lol bench')}               Load-test: N concurrent chats → first-token latency +
+                          tokens/s (--users N --rounds R --model id --url …).
   ${log.paint.cyan('lol models')} ls|add|rm|pull   Manage the served model catalog.
 
   -h, --help              Show this help.
@@ -65,6 +67,8 @@ async function main() {
                 return await require('../src/commands/status').run(rest);
             case 'fleet':
                 return await require('../src/commands/fleet').run(rest);
+            case 'bench':
+                return await require('../src/commands/bench').run(rest);
             case 'models':
                 return await require('../src/commands/models').run(rest);
             default:
