@@ -6,6 +6,30 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-07-02 (c) — Web search ON by default
+
+Web search was available but off — students had to find the toggle each chat. Making it default-on is a
+per-user setting, not an env: OWUI stores `settings.ui.webSearch = 'always'` (PR #9370; confirmed by grepping
+the installed frontend — `webSearch === 'always'` gates each message), and there is deliberately **no env
+var** for it (open feature request; a maintainer only offered a `/?web-search=true` URL param).
+
+**Fix** ([shell/renderer/app.js](../shell/renderer/app.js)): the auth-bootstrap already runs JS in the authed
+webview to validate the token; it now also **seeds the web-search default** from inside OWUI via its own API —
+`GET /api/config`, and if `features.enable_web_search` is true (which the client sets from the beacon's
+`searxngUrl`), `POST /api/v1/users/user/settings/update` with `{ ui: { …, webSearch: 'always',
+lolWebSearchSeeded: true } }`. Three properties: (1) **gated** on the farm actually hosting search, so we
+never force it on with no engine; (2) **one-time** via the `lolWebSearchSeeded` marker (`UserSettings.ui` is
+an `extra='allow'` dict, so the marker persists) — after the first seed we never touch it again, so a user
+who turns it off stays off; (3) if just set, one webview reload so the SPA's already-loaded `$settings` picks
+it up.
+
+**Verified end-to-end (not on faith):** ran the real client against the live farm, then read OWUI's SQLite
+directly — `user.settings.ui.webSearch = "always"` and `lolWebSearchSeeded = true`. That the seed fired at all
+proves `config.features.enable_web_search` was true (the exact flag name) and the settings API round-tripped.
+Renderer-only; ships in v0.1.14.
+
+---
+
 ## 2026-07-02 (b) — Adversarial review of the web-search batch → 5 fixes
 
 Ran a multi-agent adversarial review over the whole batch diff (4 review dimensions → each finding refuted by

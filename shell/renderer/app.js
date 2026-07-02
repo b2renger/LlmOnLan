@@ -236,6 +236,38 @@ let pendingReload = false; // a (re)start happened → reload the webview once i
 let webviewAuthed = false;
 let authReloads = 0;
 const MAX_AUTH_RELOADS = 4;
+let webSearchSeeded = false; // seed the web-search-on default at most once per session
+
+// Turn web search ON BY DEFAULT (the workshop wants it, and there's no OWUI env
+// for it — it's the per-user `webSearch:'always'` interface setting, PR #9370). We
+// set it via OWUI's own settings API from inside the authed webview, but ONLY when
+// the farm actually hosts web search (config.features.enable_web_search, which the
+// client sets from the beacon's searxngUrl) — else forcing it on would make every
+// message try to search with no engine. A `lolWebSearchSeeded` marker in the user
+// settings (ui is an extra='allow' dict) makes this a ONE-TIME default: after the
+// first seed we never touch it again, so a user who turns it off stays off.
+// Returns 'set' (just enabled it) | 'already' | 'na' (no web search / not authed).
+async function seedWebSearchDefault() {
+  try {
+    return await els.webview.executeJavaScript(`(async () => {
+      try {
+        const t = window.localStorage && window.localStorage.token; if (!t) return 'na';
+        const H = { authorization: 'Bearer ' + t };
+        const cfg = await (await fetch('/api/config')).json().catch(() => ({}));
+        if (!(cfg && cfg.features && cfg.features.enable_web_search)) return 'na';
+        const cur = await (await fetch('/api/v1/users/user/settings', { headers: H })).json().catch(() => null);
+        const ui = (cur && cur.ui) || {};
+        if (ui.lolWebSearchSeeded) return 'already';
+        ui.webSearch = 'always';
+        ui.lolWebSearchSeeded = true;
+        const r = await fetch('/api/v1/users/user/settings/update', {
+          method: 'POST', headers: { ...H, 'content-type': 'application/json' }, body: JSON.stringify({ ui })
+        });
+        return r.ok ? 'set' : 'na';
+      } catch (e) { return 'na'; }
+    })()`);
+  } catch { return 'na'; }
+}
 
 async function ensureAuthenticated() {
   try {
@@ -248,7 +280,18 @@ async function ensureAuthenticated() {
             return r.ok ? 'valid' : 'invalid'; }
       catch { return 'pending'; }
     })()`);
-    if (status === 'valid') { webviewAuthed = true; authReloads = 0; renderSidecar(); return; }
+    if (status === 'valid') {
+      webviewAuthed = true; authReloads = 0;
+      // First authed load per session: enable web search by default if the farm has
+      // it. If we just set it, reload once so the SPA picks up the fresh setting
+      // (its $settings was loaded before we wrote it); the marker then no-ops.
+      if (!webSearchSeeded) {
+        webSearchSeeded = true;
+        if ((await seedWebSearchDefault()) === 'set') { try { els.webview.reload(); } catch { /* not ready */ } return; }
+      }
+      renderSidecar();
+      return;
+    }
     if (authReloads >= MAX_AUTH_RELOADS) { webviewAuthed = true; renderSidecar(); return; } // give up gating; show it
     authReloads++;
     if (status === 'invalid') {
@@ -313,7 +356,7 @@ function renderSidecar() {
   if (s.status === 'ready' && s.url) {
     if (s.url !== lastUrl) {
       // New OWUI origin → reset the auth-bootstrap gate (fresh per-origin storage).
-      lastUrl = s.url; webviewAuthed = false; authReloads = 0;
+      lastUrl = s.url; webviewAuthed = false; authReloads = 0; webSearchSeeded = false;
       els.webview.src = s.url; pendingReload = false;
     } else if (pendingReload) {
       // Same port reused after a repoint → src is unchanged, so force a reload to
