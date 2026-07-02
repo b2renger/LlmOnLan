@@ -334,6 +334,28 @@ test('snapshot advertises searxngUrl only when enabled AND healthy', () => {
     assert.equal(off.searxngUrl, null, 'disabled → not advertised');
 });
 
+test('tts config defaults: off, port 8880, voice af_heart, model kokoro', () => {
+    const c = defaultConfig();
+    assert.equal(c.tts.enabled, false);
+    assert.equal(c.tts.port, 8880);
+    assert.equal(c.tts.voice, 'af_heart');
+    assert.equal(c.tts.model, 'kokoro');
+});
+
+test('snapshot advertises ttsUrl/voice/model only when enabled AND healthy', () => {
+    const c = defaultConfig();
+    c.tts.enabled = true;
+    const up = buildSnapshot(c, { proxyUp: true, hostsUp: 1, ttsUp: true });
+    assert.ok(up.ttsUrl && up.ttsUrl.endsWith(':8880/v1'), `got ${up.ttsUrl}`);   // /v1 for OWUI base URL
+    assert.equal(up.ttsVoice, 'af_heart');
+    assert.equal(up.ttsModel, 'kokoro');
+    const down = buildSnapshot(c, { proxyUp: true, hostsUp: 1, ttsUp: false });
+    assert.equal(down.ttsUrl, null, 'unhealthy → not advertised');
+    assert.equal(down.ttsVoice, null);
+    c.tts.enabled = false;
+    assert.equal(buildSnapshot(c, { proxyUp: true, hostsUp: 1, ttsUp: true }).ttsUrl, null, 'disabled → not advertised');
+});
+
 // ---- systemInfo ------------------------------------------------------------
 const { detectHardware, gpuLiveStats } = require('../src/systemInfo');
 

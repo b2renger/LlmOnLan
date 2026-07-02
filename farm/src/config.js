@@ -65,6 +65,17 @@ const WebsearchSchema = z.object({
     port: z.number().int().positive().default(8888),
 }).strict();
 
+const TtsSchema = z.object({
+    // One shared Kokoro-82M neural TTS on this box; clients discover it via the
+    // beacon (snapshot.ttsUrl) and OWUI uses it for read-aloud / voice output.
+    // `lol up` installs it on first run (own venv + GPU-agnostic torch under
+    // .kokoro/). Heavy install (multi-GB torch) — off by default.
+    enabled: z.boolean().default(false),
+    port: z.number().int().positive().default(8880),   // Kokoro-FastAPI default
+    voice: z.string().default('af_heart'),             // OWUI AUDIO_TTS_VOICE
+    model: z.string().default('kokoro'),               // OWUI AUDIO_TTS_MODEL
+}).strict();
+
 const LiteLLMSchema = z.object({
     // How to invoke LiteLLM. Default assumes `litellm` is on PATH; operators who
     // installed it into a venv point this at that venv's litellm[.exe].
@@ -82,6 +93,7 @@ const ConfigSchema = z.object({
     ollama: OllamaSchema.default({}),
     litellm: LiteLLMSchema.default({}),
     websearch: WebsearchSchema.default({}),
+    tts: TtsSchema.default({}),
     // Coordinator mode: aggregate LAN peer farms into one balanced endpoint that
     // clients prefer. Also settable per-run via `lol up --coordinator`.
     coordinator: z.boolean().default(false),

@@ -47,6 +47,14 @@ function buildSnapshot(config, health = {}) {
         searxngUrl: (config.websearch?.enabled && health.searxngUp)
             ? `http://${primary}:${config.websearch.port}`
             : null,
+        // Shared Kokoro TTS on this box (null when off/down). Clients set OWUI's
+        // AUDIO_TTS_* from these — neural read-aloud/voice with zero client setup.
+        // ttsUrl already includes /v1 (what AUDIO_TTS_OPENAI_API_BASE_URL wants).
+        ttsUrl: (config.tts?.enabled && health.ttsUp)
+            ? `http://${primary}:${config.tts.port}/v1`
+            : null,
+        ttsVoice: (config.tts?.enabled && health.ttsUp) ? config.tts.voice : null,
+        ttsModel: (config.tts?.enabled && health.ttsUp) ? config.tts.model : null,
         // How many balanced deployments back this endpoint (local Ollama hosts +
         // aggregated peers). Informational, for `lol fleet` / client cards.
         deployments: health.deployments ?? null,

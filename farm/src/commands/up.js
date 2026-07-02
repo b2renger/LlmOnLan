@@ -20,6 +20,7 @@ const { DiscoveryBeacon } = require('../beacon');
 const { PeerListener } = require('../peerListener');
 const { selectModels } = require('../modelPicker');
 const { ensureSearxng, spawnSearxng, waitForSearxng, searxngAlive } = require('../searxng');
+const { ensureKokoro, spawnKokoro, waitForKokoro, kokoroAlive } = require('../kokoro');
 const { farmId } = require('../identity');
 const { startSelfServer } = require('../selfServer');
 const {
@@ -178,6 +179,8 @@ async function run(args) {
     // Web search: config is the default, per-run flags override.
     if ((args || []).includes('--websearch')) config.websearch.enabled = true;
     if ((args || []).includes('--no-websearch')) config.websearch.enabled = false;
+    if ((args || []).includes('--tts')) config.tts.enabled = true;
+    if ((args || []).includes('--no-tts')) config.tts.enabled = false;
 
     // Refuse to double-start.
     const existing = readRuntime();
@@ -266,6 +269,29 @@ async function run(args) {
         }
     }
 
+    // 4c. Neural TTS (Kokoro) — one shared voice server for every client on the LAN.
+    // Auxiliary: any failure warns and the farm still comes up without voice output.
+    let kokoroChild = null;
+    let ttsUp = false;
+    if (config.tts.enabled) {
+        log.step(`Voice: preparing Kokoro TTS (port ${config.tts.port}) — first run installs it (multi-GB) …`);
+        if (await ensureKokoro()) {
+            kokoroChild = spawnKokoro(config);
+            kokoroChild.on('error', (e) => log.warn(`Kokoro failed to start: ${e.message}`));
+            kokoroChild.stdout.on('data', log.childPrefix('kokoro'));
+            kokoroChild.stderr.on('data', log.childPrefix('kokoro'));
+            const kx = await waitForKokoro(config.tts.port, config.tts.voice);
+            if (kx.up && kx.synthOk) {
+                ttsUp = true;
+                log.ok(`Kokoro TTS up (voice ${log.paint.bold(config.tts.voice)}) — clients get neural read-aloud automatically.`);
+            } else if (kx.up) {
+                log.err(`Kokoro is up but synthesis failed — voice/model/espeak issue. See the [kokoro] log above.`);
+            } else {
+                log.warn(`Kokoro did not become healthy on port ${config.tts.port} (busy port? warmup slow? see [kokoro] log). Continuing without voice.`);
+            }
+        }
+    }
+
     // 5. Discovery — UDP beacon + unicast /lol/self (both share ONE snapshot so
     // they can't drift). liveHealth is refreshed on a timer below.
     const liveHealth = {
@@ -276,6 +302,7 @@ async function run(args) {
         coordinator,                     // advertise the role so clients prefer us
         deployments: backends,           // local hosts + aggregated peers
         searxngUp,                       // advertise searxngUrl so clients get web search
+        ttsUp,                           // advertise ttsUrl so clients get neural voice
         host: await detectHardware(),   // static GPU/VRAM/RAM/cores (once at boot)
         gpu: await gpuLiveStats(),       // live GPU util + VRAM (refreshed below)
     };
@@ -308,6 +335,13 @@ async function run(args) {
             if (beacon) beacon.kick();
         });
     }
+    if (kokoroChild) {
+        kokoroChild.on('exit', (code) => {
+            if (liveHealth.ttsUp) log.warn(`Kokoro exited (code ${code}) — voice output is now unavailable to clients.`);
+            liveHealth.ttsUp = false;
+            if (beacon) beacon.kick();
+        });
+    }
 
     // Keep the advertised health honest: re-probe proxy + hosts periodically and
     // push a fresh beacon. Cheap (a few HTTP HEADs) and unref'd.
@@ -326,6 +360,7 @@ async function run(args) {
             // Only advertise SearXNG while it's actually answering (and was healthy
             // at boot) — so a crashed instance stops being advertised to clients.
             if (searxngChild) liveHealth.searxngUp = searxngUp && await searxngAlive(config.websearch.port);
+            if (kokoroChild) liveHealth.ttsUp = ttsUp && await kokoroAlive(config.tts.port);
             if (beacon) beacon.kick();
         } catch { /* probes are already failure-tolerant; never throw from the timer */ }
         finally { healthInFlight = false; }
@@ -336,6 +371,7 @@ async function run(args) {
     writeRuntime({
         litellmPid: child.pid,
         searxngPid: searxngChild ? searxngChild.pid : null,
+        kokoroPid: kokoroChild ? kokoroChild.pid : null,
         ollamaPids: oll.spawnedPids,
         proxyPort: config.proxy.port,
         endpoint: snapshot.endpoint,
@@ -366,6 +402,7 @@ async function run(args) {
         try { selfServer.close(); } catch { /* already closed */ }
         await killTree(child.pid);
         if (searxngChild) await killTree(searxngChild.pid);
+        if (kokoroChild) await killTree(kokoroChild.pid);
         for (const pid of oll.spawnedPids) await killTree(pid);
         clearRuntime();
         log.ok('Farm stopped.');
@@ -388,6 +425,7 @@ async function run(args) {
         if (intentional) { log.plain(''); log.ok('Farm stopped (via `lol down`).'); }
         else { log.err(`LiteLLM exited unexpectedly (code ${code}). Shutting down the farm.`); clearRuntime(); }
         if (searxngChild) await killTree(searxngChild.pid);
+        if (kokoroChild) await killTree(kokoroChild.pid);
         for (const pid of oll.spawnedPids) await killTree(pid);
         process.exit(intentional ? 0 : (code || 1));
     });

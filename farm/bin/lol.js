@@ -22,6 +22,8 @@ ${log.paint.bold('lol')} — the LlmOnLan farm CLI
                           balanced endpoint (clients prefer it).
                           ${log.paint.grey('--websearch')} | ${log.paint.grey('--no-websearch')}  host a shared SearXNG
                           so every client gets web search (installed on first use).
+                          ${log.paint.grey('--tts')} | ${log.paint.grey('--no-tts')}  host a shared Kokoro neural TTS so
+                          every client gets voice output (installed on first use).
   ${log.paint.cyan('lol down')}                Stop the proxy + beacon.
   ${log.paint.cyan('lol status')}              Health of each Ollama host + the proxy + loaded models.
   ${log.paint.cyan('lol fleet')}               Show every farm on the LAN (this box + peers): load,

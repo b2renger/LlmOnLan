@@ -29,6 +29,11 @@ async function run() {
         await killTree(rt.searxngPid);
         killed++;
     }
+    if (rt.kokoroPid && isAlive(rt.kokoroPid)) {
+        log.step(`Stopping Kokoro TTS (pid ${rt.kokoroPid}) …`);
+        await killTree(rt.kokoroPid);
+        killed++;
+    }
     for (const pid of rt.ollamaPids || []) {
         if (isAlive(pid)) {
             log.step(`Stopping Ollama we started (pid ${pid}) …`);
