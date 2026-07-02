@@ -41,6 +41,7 @@ let discovery: Discovery | null = null;
 let currentEndpoint: string | null = null;
 let currentModel: string | null = null; // the active farm's default model (→ OWUI DEFAULT_MODELS)
 let currentSearxng: string | null = null; // the active farm's SearXNG (→ OWUI web search)
+let currentTts: { url: string; voice: string; model: string } | null = null; // active farm's Kokoro (→ OWUI TTS)
 let activeFarmId: string | null = null;
 let booted = false; // true once the initial sidecar start has been kicked off
 
@@ -74,6 +75,12 @@ function farmDefaultModel(f: DiscoveredFarm | null): string | null {
 // The farm's shared SearXNG (→ OWUI web search); null when the farm doesn't host one.
 function farmSearxng(f: DiscoveredFarm | null): string | null {
     return f?.searxngUrl || null;
+}
+
+// The farm's shared Kokoro TTS (→ OWUI AUDIO_TTS_*); null when the farm doesn't host one.
+function farmTts(f: DiscoveredFarm | null): { url: string; voice: string; model: string } | null {
+    if (!f?.ttsUrl) return null;
+    return { url: f.ttsUrl, voice: f.ttsVoice || 'af_heart', model: f.ttsModel || 'kokoro' };
 }
 
 // Load metric for a farm, from the telemetry the beacon already carries. Lower =
@@ -127,17 +134,20 @@ function onFarms(payload: { farms: DiscoveredFarm[] } & Record<string, unknown>)
     const endpoint = farmEndpoint(chosen);
     const model = farmDefaultModel(chosen);
     const searxng = farmSearxng(chosen);
-    if (endpoint !== currentEndpoint || model !== currentModel || searxng !== currentSearxng) {
+    const tts = farmTts(chosen);
+    if (endpoint !== currentEndpoint || model !== currentModel || searxng !== currentSearxng
+        || JSON.stringify(tts) !== JSON.stringify(currentTts)) {
         currentEndpoint = endpoint;
         currentModel = model;
         currentSearxng = searxng;
+        currentTts = tts;
         activeFarmId = chosen.id;
         updateSettings({ lastEndpoint: endpoint });
         // Keyless LAN proxy for now; a keyed farm (requiresKey) needs a key-entry
         // UX we haven't built, so we don't send a (wrong) placeholder key. The farm's
-        // default model + SearXNG ride along so OWUI auto-selects the model and gets
-        // web search, both with zero clicks.
-        sidecar.repoint(endpoint, null, model, searxng);
+        // default model + SearXNG + TTS ride along so OWUI auto-selects the model and
+        // gets web search + neural voice, all with zero clicks.
+        sidecar.repoint(endpoint, null, model, searxng, tts);
     }
 }
 
@@ -239,7 +249,7 @@ function registerIpc(): void {
     // Retry a failed/stopped sidecar (the connection screen's Retry button).
     ipcMain.handle('restart-sidecar', async () => {
         await sidecar.stop({ keepState: true });
-        await sidecar.start({ endpoint: currentEndpoint, dataDir: resolveDataDir(), defaultModel: currentModel, searxngUrl: currentSearxng });
+        await sidecar.start({ endpoint: currentEndpoint, dataDir: resolveDataDir(), defaultModel: currentModel, searxngUrl: currentSearxng, tts: currentTts });
         return sidecar.getState();
     });
 
@@ -315,10 +325,10 @@ function registerIpc(): void {
         let result: { ok: boolean; error?: string } = { ok: true };
         if (payload.mode === 'move') result = moveDataDir(oldDir, newDir);
         if (result.ok) updateSettings({ dataDir: newDir });
-        // Re-thread the farm's model + SearXNG so a data-folder change doesn't drop
-        // web search / the default model (they'd reset to null otherwise, and the
-        // no-op change-check in onFarms would never repoint to restore them).
-        await sidecar.start({ endpoint: currentEndpoint, dataDir: result.ok ? newDir : oldDir, defaultModel: currentModel, searxngUrl: currentSearxng });
+        // Re-thread the farm's model + SearXNG + TTS so a data-folder change doesn't
+        // drop web search / the default model / voice (they'd reset to null otherwise,
+        // and the no-op change-check in onFarms would never repoint to restore them).
+        await sidecar.start({ endpoint: currentEndpoint, dataDir: result.ok ? newDir : oldDir, defaultModel: currentModel, searxngUrl: currentSearxng, tts: currentTts });
         return result;
     });
 
@@ -347,8 +357,9 @@ function registerIpc(): void {
         const activeNow = discovery?.getFarms().find((f) => f.id === activeFarmId) ?? null;
         currentModel = farmDefaultModel(activeNow);
         currentSearxng = farmSearxng(activeNow);
+        currentTts = farmTts(activeNow);
         booted = true;
-        sidecar.start({ endpoint: initial, dataDir: resolveDataDir(), defaultModel: currentModel, searxngUrl: currentSearxng });
+        sidecar.start({ endpoint: initial, dataDir: resolveDataDir(), defaultModel: currentModel, searxngUrl: currentSearxng, tts: currentTts });
         return res;
     });
     // App self-update (electron-updater). check → status; install → quitAndInstall.
@@ -372,13 +383,15 @@ function registerIpc(): void {
             currentEndpoint = endpoint;
             currentModel = farmDefaultModel(chosen);
             currentSearxng = farmSearxng(chosen);
+            currentTts = farmTts(chosen);
             activeFarmId = chosen.id;
             updateSettings({ lastEndpoint: endpoint });
             // Keyless LAN proxy for now; a keyed farm (requiresKey) needs a key-entry
             // UX we haven't built, so we don't send a (wrong) placeholder key. Thread
-            // the pinned farm's model + SearXNG so pinning doesn't drop DEFAULT_MODELS
-            // / web search (and leave the globals stale so onFarms never restores them).
-            sidecar.repoint(endpoint, null, currentModel, currentSearxng);
+            // the pinned farm's model + SearXNG + TTS so pinning doesn't drop
+            // DEFAULT_MODELS / web search / voice (and leave the globals stale so
+            // onFarms never restores them).
+            sidecar.repoint(endpoint, null, currentModel, currentSearxng, currentTts);
         }
         return chosen?.id ?? null;
     });
@@ -476,8 +489,9 @@ app.whenReady().then(async () => {
     const activeNow = discovery?.getFarms().find((f) => f.id === activeFarmId) ?? null;
     currentModel = farmDefaultModel(activeNow);
     currentSearxng = farmSearxng(activeNow);
+    currentTts = farmTts(activeNow);
     booted = true;
-    sidecar.start({ endpoint: initial, dataDir: resolveDataDir(), defaultModel: currentModel, searxngUrl: currentSearxng });
+    sidecar.start({ endpoint: initial, dataDir: resolveDataDir(), defaultModel: currentModel, searxngUrl: currentSearxng, tts: currentTts });
 
     app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
 });

@@ -36,6 +36,11 @@ export interface FarmSnapshot {
     // Shared SearXNG on the farm box (null/absent when off) — the client points
     // OWUI's web search at it, so every client gets search with zero setup.
     searxngUrl?: string | null;
+    // Shared Kokoro TTS on the farm box (null/absent when off) — the client points
+    // OWUI's AUDIO_TTS_* at it, so every client gets neural voice with zero setup.
+    ttsUrl?: string | null;   // already includes /v1 (OWUI's AUDIO_TTS_OPENAI_API_BASE_URL)
+    ttsVoice?: string | null;
+    ttsModel?: string | null;
     ts: number;
 }
 

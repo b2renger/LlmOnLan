@@ -40,6 +40,7 @@ export interface SidecarEnvInput {
     apiKey?: string | null;    // farm master key, or null for an open LAN proxy
     defaultModel?: string | null; // the farm's advertised default model → OWUI DEFAULT_MODELS
     searxngUrl?: string | null;   // the farm's shared SearXNG → OWUI web search
+    tts?: { url: string; voice: string; model: string } | null; // farm Kokoro → OWUI AUDIO_TTS_*
 }
 
 // Build the environment Open WebUI is launched with. This is the whole coupling.
@@ -147,6 +148,18 @@ export function buildSidecarEnv(input: SidecarEnvInput): Record<string, string> 
         env.SEARXNG_QUERY_URL = `${input.searxngUrl.replace(/\/+$/, '')}/search?q=<query>`;
         env.WEB_SEARCH_RESULT_COUNT = '3';
         env.WEB_SEARCH_CONCURRENT_REQUESTS = '10';
+    }
+
+    // Neural TTS — the farm hosts a shared Kokoro voice server and advertises it in
+    // the beacon; point OWUI's OpenAI-compatible TTS at it (overriding the empty
+    // client-side default above). No farm TTS → AUDIO_TTS_ENGINE stays '' (Web
+    // Speech), exactly as before. The URL already ends in /v1.
+    if (input.tts && input.tts.url) {
+        env.AUDIO_TTS_ENGINE = 'openai';
+        env.AUDIO_TTS_OPENAI_API_BASE_URL = input.tts.url;
+        env.AUDIO_TTS_OPENAI_API_KEY = 'sk-lol-tts';   // keyless LAN server; OWUI needs a non-empty key
+        env.AUDIO_TTS_MODEL = input.tts.model || 'kokoro';
+        env.AUDIO_TTS_VOICE = input.tts.voice || 'af_heart';
     }
 
     return env;
