@@ -68,12 +68,19 @@ npm link        # then just `lol <cmd>` anywhere
 |---|---|
 | `lol install` / `setup` | One‑time bootstrap: install Ollama + LiteLLM and pull the configured models. Idempotent. |
 | `lol init [--force]` | Scaffold a `lol.config.json` in the current directory. |
-| `lol up` / `lol serve` | Ensure Ollama, pull models, generate + run the LiteLLM proxy, start the beacon. Foreground; Ctrl‑C stops. |
-| `lol down` | Stop the proxy + beacon (and any Ollama this CLI started). |
+| `lol up` / `lol serve` | Ensure Ollama, **pick the model(s) to serve** (interactive, from what's installed; Enter = default), pull anything missing, generate + run the LiteLLM proxy, start SearXNG (if enabled) + the beacon. Foreground; Ctrl‑C stops. |
+| `lol down` | Stop the proxy + SearXNG + beacon (and any Ollama this CLI started). |
 | `lol status` | Health of each Ollama host + the proxy + which models are loaded. Works from any shell. |
+| `lol fleet` | Every farm on the LAN (this box + peers): health, GPU load, VRAM, loaded models, roles, search URL. |
+| `lol bench` | Load‑test before a workshop: N concurrent chats → first‑token latency (p50/p95) + tokens/s. `--users N --rounds R --model id --url …`. |
 | `lol models ls` | List configured models + presence on each host. |
 | `lol models add <id>` / `rm <id>` | Edit the served catalog (then `lol up`). |
 | `lol models pull` | Pull every configured model on every host. |
+
+**`lol up` flags:** `--model <id[=alias][,…]>` serve exactly these (no prompt; pulls if missing) ·
+`--no-pick` skip the prompt, use the config catalog · `--alias <name>` / `--no-alias` override the global
+model alias · `--coordinator` aggregate LAN peer farms into one balanced endpoint (clients prefer it) ·
+`--websearch` / `--no-websearch` override the SearXNG toggle.
 
 ## Config — `lol.config.json`
 
@@ -82,34 +89,56 @@ See [`lol.config.example.json`](lol.config.example.json). Shape:
 ```jsonc
 {
   "name": "Studio Farm",                       // friendly name shown in the client
+  "modelAlias": "assistant",                   // stable id clients see for the DEFAULT model (null = raw ids)
   "beacon": { "enabled": true, "group": "239.255.43.10", "port": 41998,
               "intervalSec": 5, "httpPort": 41997 },   // distinct from ComfyQ's 239.255.42.99
   "proxy":  { "port": 4000, "host": "0.0.0.0", "masterKey": null },
-  "models": [ { "id": "gemma4:12b", "default": true } ],
+  "models": [ { "id": "gemma4:12b", "default": true },
+              { "id": "qwen2.5-coder:14b", "alias": "coder" } ],  // per-model role alias
   "ollama": { "hosts": ["http://127.0.0.1:11434", "http://gpu-2.local:11434"],
-              "numParallel": 2, "maxLoadedModels": 1, "flashAttention": true },
-  "litellm": { "command": "litellm", "extraArgs": [], "provider": "ollama_chat" }
+              "numParallel": 2, "maxLoadedModels": 1, "flashAttention": true,
+              "keepAlive": "-1" },             // keep models warm in VRAM (no reload after idle)
+  "litellm": { "command": "litellm", "extraArgs": [], "provider": "ollama_chat" },
+  "websearch": { "enabled": true, "port": 8888 },   // shared SearXNG → clients get web search
+  "coordinator": false                          // aggregate LAN peers into one balanced endpoint
 }
 ```
 
-- **Model choice = edit `models`** (or `lol models add`) then `lol up`. Each Ollama host becomes a
-  deployment of the same `model_name`, so LiteLLM load‑balances + fails over automatically.
+- **Model choice = edit `models`** (or `lol models add`, or just answer the `lol up` picker) then
+  `lol up`. Each Ollama host becomes a deployment of the same `model_name`, so LiteLLM load‑balances +
+  fails over automatically.
+- **Model aliases (important for stable chats):** an OWUI chat binds to the model *id* it started with —
+  swap the served model and old chats break. With an alias (global `modelAlias` for the default model,
+  per‑model `alias` for others), clients see a **fixed id** ("assistant", "coder") and you can swap what's
+  behind it anytime (`lol up`, pick another model) without breaking a single chat.
+- **Web search:** `websearch.enabled` hosts **one shared [SearXNG](https://docs.searxng.org)** on this box
+  (installed automatically into `farm/.searxng/` on first `lol up` — delete that folder to uninstall).
+  Clients discover it via the beacon and OWUI's per‑message web‑search toggle just works, zero client
+  setup. Searches + page fetching run from each client; this box only hosts the metasearch engine.
+- **Multiple GPU boxes:** either list every box in `ollama.hosts` (one farm balances them all), or run
+  `lol up` per box and let clients auto‑spread (they pick the least‑loaded farm), or run one box with
+  `--coordinator` to aggregate the others behind a single endpoint that clients prefer.
 - **`proxy.masterKey`** — leave `null` for an open proxy on a trusted LAN, or set a key clients must
   send (`Authorization: Bearer <key>`).
 - **`litellm.command`** — leave it `"litellm"` and the farm auto‑uses `farm/.venv` if `lol install`
   made one, else `litellm` from PATH. Set an absolute path only to point at a LiteLLM elsewhere.
-- **Concurrency env** (`OLLAMA_NUM_PARALLEL`, …) only applies when Ollama *starts*. If the CLI starts a
-  local Ollama it sets them; if Ollama is already running, set them on that service and `lol status`
-  reflects them. The CLI prints the recommended values.
+- **Concurrency/keep‑warm env** (`OLLAMA_NUM_PARALLEL`, `OLLAMA_KEEP_ALIVE`, …) only applies when Ollama
+  *starts*. If the CLI starts a local Ollama it sets them; if Ollama is already running, set them on that
+  service. The CLI prints the recommended values. Sizing rule: one Ollama runs `numParallel` generations
+  at once (default 2) and queues the rest — check with `lol bench`.
 
 ## What `lol up` does, in order
 
-1. Ping each Ollama host (start a **local** one if it's down, with the concurrency env).
-2. Pull any configured model missing on a reachable host.
-3. Generate `litellm/config.generated.yaml` from the config (models × hosts → deployments).
-4. Spawn LiteLLM, wait for `/health/liveliness`, confirm `/v1/models`.
-5. (M3) Start the discovery beacon.
-6. Write `.lol-runtime.json` (so `status`/`down` work elsewhere) and supervise until Ctrl‑C.
+1. Ping each Ollama host (start a **local** one if it's down, with the concurrency/keep‑warm env).
+2. **Pick the model(s) to serve** — interactive from what's installed (Enter = default), or `--model` /
+   `--no-pick` / non‑TTY = the config catalog.
+3. Pull any picked model missing on a reachable host.
+4. (`--coordinator`) discover LAN peer farms and fold them into the routing.
+5. Generate `litellm/config.generated.yaml` (served names × hosts + peers → deployments).
+6. Spawn LiteLLM, wait for `/health/liveliness`, confirm `/v1/models`.
+7. (websearch) Install (first run) + spawn SearXNG, health‑wait `/healthz` + the JSON API.
+8. Start the discovery beacon (+ the unicast `/lol/self` endpoint).
+9. Write `.lol-runtime.json` (so `status`/`down` work elsewhere) and supervise until Ctrl‑C.
 
 ## Notes / gotchas
 

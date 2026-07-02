@@ -41,12 +41,14 @@ rationale, and [`implementation_plan.md`](implementation_plan.md) for the milest
 
 ## Status
 
-**Shipped and self‑updating (v0.1.8, OWUI 0.10.2).** Milestones M0–M5 are done: small installer that
-downloads the OWUI sidecar on first run and auto‑updates from GitHub Releases; zero‑config LAN discovery;
-the `lol` farm serving **`gemma4:12b`**; and **full multimodal** — image understanding + voice (local
-Whisper speech‑to‑text, Web‑Speech text‑to‑speech), all on‑device. Progress, design decisions, and the
-debugging history are in [`docs/DEVLOG.md`](docs/DEVLOG.md); current state + roadmap (incl. multi‑box load
-balancing) in [`implementation_plan.md`](implementation_plan.md).
+**Shipped and self‑updating (v0.1.12, OWUI 0.10.2).** Milestones M0–M5 are done, plus: **full
+multimodal** (image understanding + voice — local Whisper STT, Web‑Speech TTS, all on‑device); **web
+search** via a shared farm‑hosted [SearXNG](https://docs.searxng.org) (zero client setup, auto‑discovered);
+**multi‑box load balancing** (least‑loaded client selection, `--coordinator` aggregation, `lol fleet`);
+**stable model aliases** (swap the served model without breaking chats) with a startup **model picker**;
+and workshop tooling (`lol bench` load test, model keep‑warm). Progress, design decisions, and the
+debugging history are in [`docs/DEVLOG.md`](docs/DEVLOG.md); current state + roadmap in
+[`implementation_plan.md`](implementation_plan.md).
 
 ## Quick start (farm operator)
 

@@ -6,6 +6,48 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-07-02 — Web search on every client + fleet view + workshop tooling + multi-model aliases
+
+The batch completing the approved plan (SearXNG was the farm half, previous entry). Four pieces:
+
+**1. Client web search (ships in v0.1.12).** The client reads `searxngUrl` from the discovered farm and
+threads it through the sidecar exactly like `defaultModel` (start/repoint/setDataDir/crash-restart + the
+repoint change-check, so a farm toggling websearch repoints clients live). [configBridge](../shell/src/main/configBridge.ts)
+sets `ENABLE_WEB_SEARCH` / `WEB_SEARCH_ENGINE=searxng` / `SEARXNG_QUERY_URL=<url>/search?q=<query>` and adds
+the **`web_search` capability** to `DEFAULT_MODEL_METADATA` (same mechanism as the vision fix — it gates
+OWUI's per-message web-search toggle). No farm SearXNG → no env → feature hidden, exactly as before.
+
+**2. Fleet view in the client (v0.1.12).** Renderer-only: the connection popover's farm rows now show
+badges (source / **coordinator** / **web search**), the default-model star, and a live line (GPU% ·
+VRAM used/total · loaded models · backends · hosts up); the topbar pill appends the active farm's live GPU
+load ("Dev Box Farm · 1% GPU").
+
+**Proof for 1+2 (smoke screenshot against the live farm):** `[sidecar] repoint … (model null → assistant,
+search null → http://10.10.16.58:8888)` in the log — the real app picked BOTH up from the beacon — and the
+`LOL_SMOKE_POPOVER` capture shows the pill with live load + the farm card with BEACON/WEB SEARCH badges,
+`assistant ★`, `1% GPU · 15.7/96GB VRAM · loaded: gemma4:12b`, and the hardware line.
+
+**3. Workshop tooling (farm).** `ollama.keepAlive` (default **`-1`**) → `OLLAMA_KEEP_ALIVE` on any Ollama
+the CLI starts, so the model stays in VRAM instead of unloading after Ollama's 5-min default (the first
+student after a pause otherwise eats a ~30-60s 35B reload); advisory log for externally-started Ollamas.
+New **`lol bench`**: N concurrent **streaming** completions per round → per-request first-token latency
+(the perceived wait), tokens/s, aggregate + p50/p95. Live run on the box: 3 concurrent users → TTFT
+5.6-7.5s (cold), ~132 tok/s per user, 3/3 ok.
+
+**4. Multi-model aliases (farm).** `servedEntries()` no longer collapses to one model: every picked model
+serves, named by its per-model **`alias`** (role names: "coder"), else the global `modelAlias` (default
+model only), else the raw id. The **snapshot now derives from the same `servedEntries()`** as the LiteLLM
+generator, so routing and advertising can't drift. Picker syntax `--model id=alias,id2` attaches aliases;
+interactive picks keep config aliases. Docs refreshed (farm README commands/flags/config walkthrough, main
+README status, plan roadmap).
+
+**Tested:** farm suite **38 pass** (websearch defaults + settings gotchas, searxngUrl advertising, keepAlive
+default, multi-alias servedEntries/litellm/snapshot alignment, `id=alias` parsing); shell `tsc` clean;
+`lol bench` live; the smoke screenshot above. The farm on the box is running the full stack (assistant alias
++ SearXNG) right now.
+
+---
+
 ## 2026-07-01 (i) — Web search: one shared SearXNG on the farm, zero-setup for clients (farm half)
 
 Owner's top ask: **web search available by default in every client, via SearXNG**. Architecture: the search

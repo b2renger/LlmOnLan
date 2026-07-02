@@ -210,19 +210,26 @@ fleet with failover (Layer 1). Trade‑off: the coordinator box is a single poin
    endpoint balances the whole fleet; it advertises `coordinator:true` and clients prefer it. Static at boot.
 3. **`lol fleet`** — CLI view of every farm on the LAN (load, VRAM, hosts, backends, loaded models, role).
 
+**✅ Also shipped (2026‑07‑02) — the web‑search / workshop batch:**
+- **Web search (SearXNG)** — one shared instance per farm box (`websearch.enabled`; auto‑installed into
+  `farm/.searxng/` from a pinned tarball — git can't even check the repo out on NTFS), advertised as
+  `snapshot.searxngUrl`, auto‑wired into OWUI by the client (`SEARXNG_QUERY_URL` + the `web_search` model
+  capability). Verified end‑to‑end on the box.
+- **Model picker at `lol up`** (installed models, `--model id[=alias]`), **stable aliases** now **multi‑model**
+  (per‑model `alias` role names; global `modelAlias` covers the default; `servedEntries()` drives LiteLLM +
+  snapshot from one source), **model keep‑warm** (`ollama.keepAlive`, default `-1`), **`lol bench`**
+  (concurrent streaming chats → TTFT p50/p95 + tokens/s), **fleet view in the client** (badges + live
+  VRAM/load in the connection popover, load in the topbar pill).
+
 **Still open (ordered by value / effort):**
-4. **More models.** The catalog + beacon already support multiple models; add e.g. `qwen2.5‑coder` for code
-   and let users pick in OWUI. Mind `OLLAMA_MAX_LOADED_MODELS` / VRAM — model swaps cost latency.
-5. **Voice polish.** Optionally bundle a local neural TTS (Piper/Kokoro) for nicer voices than Web‑Speech;
+4. **Voice polish.** Optionally bundle a local neural TTS (Piper/Kokoro) for nicer voices than Web‑Speech;
    surface the first‑run Whisper download; explore gemma4's native **audio** capability for spoken input.
-6. **Dynamic coordinator membership.** Today the coordinator captures peers at boot (a box added later → restart).
+5. **Dynamic coordinator membership.** Today the coordinator captures peers at boot (a box added later → restart).
    Live add/remove needs either a debounced proxy restart or LiteLLM's `/model/new` admin API (which needs a
    master key → would force keys on clients). Revisit if fleets churn often.
-7. **Fleet view in the client UI.** Surface the `coordinator` badge + per‑farm load in the connection screen
-   (the data's already on `DiscoveredFarm`); a GUI sibling to `lol fleet`.
-8. **Hardening (M6).** Apple notarization + Windows signing (kill SmartScreen/Gatekeeper warnings);
-   model keep‑warm to cut cold‑start; a real multi‑box load test.
-9. **Keyed farms.** If proxy auth is wanted, build the key‑entry UX (today a `requiresKey` farm gets a null key).
+6. **Hardening (M6).** Apple notarization + Windows signing (kill SmartScreen/Gatekeeper warnings);
+   a real multi‑box load test with `lol bench`.
+7. **Keyed farms.** If proxy auth is wanted, build the key‑entry UX (today a `requiresKey` farm gets a null key).
 
 ---
 
