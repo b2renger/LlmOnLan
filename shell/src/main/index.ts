@@ -40,6 +40,7 @@ let discovery: Discovery | null = null;
 // The farm endpoint OWUI is currently pointed at, and which farm it is.
 let currentEndpoint: string | null = null;
 let currentModel: string | null = null; // the active farm's default model (→ OWUI DEFAULT_MODELS)
+let currentSearxng: string | null = null; // the active farm's SearXNG (→ OWUI web search)
 let activeFarmId: string | null = null;
 let booted = false; // true once the initial sidecar start has been kicked off
 
@@ -68,6 +69,11 @@ function farmDefaultModel(f: DiscoveredFarm | null): string | null {
     const models = f?.models;
     if (!Array.isArray(models) || !models.length) return null;
     return (models.find((m) => m.default) || models[0])?.id || null;
+}
+
+// The farm's shared SearXNG (→ OWUI web search); null when the farm doesn't host one.
+function farmSearxng(f: DiscoveredFarm | null): string | null {
+    return f?.searxngUrl || null;
 }
 
 // Load metric for a farm, from the telemetry the beacon already carries. Lower =
@@ -120,15 +126,18 @@ function onFarms(payload: { farms: DiscoveredFarm[] } & Record<string, unknown>)
     if (!chosen) return;
     const endpoint = farmEndpoint(chosen);
     const model = farmDefaultModel(chosen);
-    if (endpoint !== currentEndpoint || model !== currentModel) {
+    const searxng = farmSearxng(chosen);
+    if (endpoint !== currentEndpoint || model !== currentModel || searxng !== currentSearxng) {
         currentEndpoint = endpoint;
         currentModel = model;
+        currentSearxng = searxng;
         activeFarmId = chosen.id;
         updateSettings({ lastEndpoint: endpoint });
         // Keyless LAN proxy for now; a keyed farm (requiresKey) needs a key-entry
         // UX we haven't built, so we don't send a (wrong) placeholder key. The farm's
-        // default model rides along so OWUI auto-selects it (no per-message picking).
-        sidecar.repoint(endpoint, null, model);
+        // default model + SearXNG ride along so OWUI auto-selects the model and gets
+        // web search, both with zero clicks.
+        sidecar.repoint(endpoint, null, model, searxng);
     }
 }
 
@@ -230,7 +239,7 @@ function registerIpc(): void {
     // Retry a failed/stopped sidecar (the connection screen's Retry button).
     ipcMain.handle('restart-sidecar', async () => {
         await sidecar.stop({ keepState: true });
-        await sidecar.start({ endpoint: currentEndpoint, dataDir: resolveDataDir(), defaultModel: currentModel });
+        await sidecar.start({ endpoint: currentEndpoint, dataDir: resolveDataDir(), defaultModel: currentModel, searxngUrl: currentSearxng });
         return sidecar.getState();
     });
 
@@ -453,10 +462,12 @@ app.whenReady().then(async () => {
     if (!initial) initial = await waitForFirstFarm(4500);
     currentEndpoint = initial;
     // If discovery already identified the active farm, boot OWUI with its default
-    // model pre-selected (else onFarms sets it on the next beacon).
-    currentModel = farmDefaultModel(discovery?.getFarms().find((f) => f.id === activeFarmId) ?? null);
+    // model + SearXNG pre-wired (else onFarms sets them on the next beacon).
+    const activeNow = discovery?.getFarms().find((f) => f.id === activeFarmId) ?? null;
+    currentModel = farmDefaultModel(activeNow);
+    currentSearxng = farmSearxng(activeNow);
     booted = true;
-    sidecar.start({ endpoint: initial, dataDir: resolveDataDir(), defaultModel: currentModel });
+    sidecar.start({ endpoint: initial, dataDir: resolveDataDir(), defaultModel: currentModel, searxngUrl: currentSearxng });
 
     app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
 });

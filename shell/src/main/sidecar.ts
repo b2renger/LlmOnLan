@@ -23,6 +23,7 @@ export class SidecarSupervisor extends EventEmitter {
     private endpoint: string | null = null;
     private apiKey: string | null = null;
     private defaultModel: string | null = null; // farm's default model → OWUI DEFAULT_MODELS
+    private searxngUrl: string | null = null;   // farm's shared SearXNG → OWUI web search
     // Generation token: every start()/stop() bumps it, so an in-flight start()
     // that was superseded (by a repoint/stop/crash-restart) aborts at its awaits
     // instead of clobbering the newer child. The child 'exit' handler compares the
@@ -40,11 +41,12 @@ export class SidecarSupervisor extends EventEmitter {
     }
 
     // Start (or no-op if already running with the same endpoint+dataDir).
-    async start(opts: { endpoint: string | null; dataDir: string; apiKey?: string | null; defaultModel?: string | null }): Promise<void> {
+    async start(opts: { endpoint: string | null; dataDir: string; apiKey?: string | null; defaultModel?: string | null; searxngUrl?: string | null }): Promise<void> {
         this.endpoint = opts.endpoint;
         this.dataDir = opts.dataDir;
         this.apiKey = opts.apiKey ?? null;
         this.defaultModel = opts.defaultModel ?? null;
+        this.searxngUrl = opts.searxngUrl ?? null;
         const myGen = ++this.gen;
 
         const { command, args, source } = resolveSidecarCommand();
@@ -68,7 +70,7 @@ export class SidecarSupervisor extends EventEmitter {
 
         const env = {
             ...process.env,
-            ...buildSidecarEnv({ endpoint: this.endpoint, dataDir: this.dataDir, apiKey: this.apiKey, defaultModel: this.defaultModel }),
+            ...buildSidecarEnv({ endpoint: this.endpoint, dataDir: this.dataDir, apiKey: this.apiKey, defaultModel: this.defaultModel, searxngUrl: this.searxngUrl }),
             // OWUI logs Unicode (loguru/rich) → force UTF-8 so it doesn't crash a
             // Windows cp1252 console (same class of bug as LiteLLM's banner).
             PYTHONUTF8: '1',
@@ -106,16 +108,17 @@ export class SidecarSupervisor extends EventEmitter {
         }
     }
 
-    // Repoint at a different farm endpoint (and/or its default model). No-op if all
-    // unchanged; else restart so the env (OPENAI_API_BASE_URL / DEFAULT_MODELS) takes
-    // effect — env is authoritative (config-bridge). The model is in the change check
-    // so switching the served model (same endpoint) still restarts to re-default it.
-    async repoint(endpoint: string | null, apiKey: string | null = null, defaultModel: string | null = null): Promise<void> {
-        if (endpoint === this.endpoint && apiKey === this.apiKey && defaultModel === this.defaultModel) return;
-        console.log(`[sidecar] repoint ${this.endpoint} → ${endpoint} (model ${this.defaultModel} → ${defaultModel})`);
+    // Repoint at a different farm endpoint (and/or its default model / SearXNG).
+    // No-op if all unchanged; else restart so the env (OPENAI_API_BASE_URL /
+    // DEFAULT_MODELS / SEARXNG_QUERY_URL) takes effect — env is authoritative
+    // (config-bridge). Model + searxng are in the change check so switching either
+    // on the farm (same endpoint) still restarts to re-apply.
+    async repoint(endpoint: string | null, apiKey: string | null = null, defaultModel: string | null = null, searxngUrl: string | null = null): Promise<void> {
+        if (endpoint === this.endpoint && apiKey === this.apiKey && defaultModel === this.defaultModel && searxngUrl === this.searxngUrl) return;
+        console.log(`[sidecar] repoint ${this.endpoint} → ${endpoint} (model ${this.defaultModel} → ${defaultModel}, search ${this.searxngUrl} → ${searxngUrl})`);
         this.setState({ status: 'restarting', endpoint });
         await this.stop({ keepState: true });
-        await this.start({ endpoint, dataDir: this.dataDir, apiKey, defaultModel });
+        await this.start({ endpoint, dataDir: this.dataDir, apiKey, defaultModel, searxngUrl });
     }
 
     // Move to a new data folder (restart pointing at it).
@@ -123,7 +126,7 @@ export class SidecarSupervisor extends EventEmitter {
         if (dataDir === this.dataDir) return;
         this.setState({ status: 'restarting', dataDir });
         await this.stop({ keepState: true });
-        await this.start({ endpoint: this.endpoint, dataDir, apiKey: this.apiKey, defaultModel: this.defaultModel });
+        await this.start({ endpoint: this.endpoint, dataDir, apiKey: this.apiKey, defaultModel: this.defaultModel, searxngUrl: this.searxngUrl });
     }
 
     async stop(opts: { keepState?: boolean } = {}): Promise<void> {
@@ -144,7 +147,7 @@ export class SidecarSupervisor extends EventEmitter {
             this.crashRestarts++;
             console.warn(`[sidecar] exited (code ${code}); restart ${this.crashRestarts}/${MAX_CRASH_RESTARTS}`);
             this.setState({ status: 'restarting', url: null, message: `Sidecar restarted (${this.crashRestarts}/${MAX_CRASH_RESTARTS})` });
-            this.start({ endpoint: this.endpoint, dataDir: this.dataDir, apiKey: this.apiKey, defaultModel: this.defaultModel });
+            this.start({ endpoint: this.endpoint, dataDir: this.dataDir, apiKey: this.apiKey, defaultModel: this.defaultModel, searxngUrl: this.searxngUrl });
         } else {
             this.setState({ status: 'error', url: null, message: `Open WebUI keeps exiting (code ${code}). Check logs.` });
         }

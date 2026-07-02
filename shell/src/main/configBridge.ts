@@ -39,6 +39,7 @@ export interface SidecarEnvInput {
     dataDir: string;
     apiKey?: string | null;    // farm master key, or null for an open LAN proxy
     defaultModel?: string | null; // the farm's advertised default model → OWUI DEFAULT_MODELS
+    searxngUrl?: string | null;   // the farm's shared SearXNG → OWUI web search
 }
 
 // Build the environment Open WebUI is launched with. This is the whole coupling.
@@ -71,7 +72,7 @@ export function buildSidecarEnv(input: SidecarEnvInput): Record<string, string> 
         // RAG_EMBEDDING_ENGINE is deliberately UNSET → in-process SentenceTransformers.
         // (Setting it to "ollama"/"openai" would ship document text off-device.)
 
-        // --- vision: mark every model image-capable by default ---
+        // --- default model capabilities (vision, + web_search when the farm has it) ---
         // Over an OpenAI-style connection OWUI can't discover a model's capabilities
         // (the farm's /v1/models lists names only), so it defaults vision OFF — and a
         // vision-off model means OWUI neither sends attached images inline NOR enables
@@ -79,9 +80,12 @@ export function buildSidecarEnv(input: SidecarEnvInput): Record<string, string> 
         // while the mic (capability-independent STT) worked. This baseline flips vision
         // on for all models. The farm's per-model supports_vision still decides whether
         // LiteLLM actually forwards the image to Ollama, so a text-only model simply has
-        // its image dropped at the proxy (harmless). Env-authoritative every launch, so
-        // it's zero-config across all clients — no per-model toggle to click.
-        DEFAULT_MODEL_METADATA: JSON.stringify({ capabilities: { vision: true } }),
+        // its image dropped at the proxy (harmless). `web_search` gates OWUI's per-chat
+        // globe toggle the same way — on only when the farm hosts a SearXNG.
+        // Env-authoritative every launch, so it's zero-config across all clients.
+        DEFAULT_MODEL_METADATA: JSON.stringify({
+            capabilities: { vision: true, ...(input.searxngUrl ? { web_search: true } : {}) },
+        }),
 
         // --- voice: fully LOCAL speech, no cloud (privacy + works on a closed LAN) ---
         // Speech-to-text: OWUI's built-in faster-whisper runs on THIS machine's CPU.
@@ -130,6 +134,19 @@ export function buildSidecarEnv(input: SidecarEnvInput): Record<string, string> 
         // No farm discovered yet → keep OWUI from reaching the public OpenAI API
         // (its default base URL) while we wait. Privacy intent: only the farm.
         env.ENABLE_OPENAI_API = 'false';
+    }
+
+    // Web search — the farm hosts one shared SearXNG and advertises it in the
+    // beacon; point OWUI at it. The `/search?q=<query>` suffix is mandatory
+    // (OWUI substitutes <query>). Search runs from THIS machine: OWUI queries
+    // SearXNG, then fetches + locally embeds the result pages (data stays local).
+    // No searxngUrl → no env → the feature stays hidden, exactly as before.
+    if (input.searxngUrl) {
+        env.ENABLE_WEB_SEARCH = 'true';
+        env.WEB_SEARCH_ENGINE = 'searxng';
+        env.SEARXNG_QUERY_URL = `${input.searxngUrl.replace(/\/+$/, '')}/search?q=<query>`;
+        env.WEB_SEARCH_RESULT_COUNT = '3';
+        env.WEB_SEARCH_CONCURRENT_REQUESTS = '10';
     }
 
     return env;

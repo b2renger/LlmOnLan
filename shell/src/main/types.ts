@@ -33,6 +33,9 @@ export interface FarmSnapshot {
     // so clients prefer it over the individual box-farms. Absent on a plain farm.
     coordinator?: boolean;
     deployments?: number | null;   // balanced backends behind the endpoint (hosts + peers)
+    // Shared SearXNG on the farm box (null/absent when off) — the client points
+    // OWUI's web search at it, so every client gets search with zero setup.
+    searxngUrl?: string | null;
     ts: number;
 }
 

@@ -209,8 +209,12 @@ function renderPill() {
   else if (st === 'restarting') { cls = 'busy'; text = 'Reconnecting…'; }
   else if (st === 'ready') {
     const a = activeFarm();
-    if (a) { cls = 'ready'; text = a.name; }
-    else { cls = 'busy'; text = 'No server'; }
+    if (a) {
+      cls = 'ready';
+      // Live load next to the name — at-a-glance "how busy is my box".
+      const util = a.usage && a.usage.gpuUtil != null ? ` · ${a.usage.gpuUtil}% GPU` : '';
+      text = a.name + util;
+    } else { cls = 'busy'; text = 'No server'; }
   }
   els.statusDot.className = 'dot ' + cls;
   els.statusText.textContent = text;
@@ -379,17 +383,30 @@ function renderPopover() {
     const row = document.createElement('div');
     row.className = 'farm' + (isActive ? ' active' : '');
     const dotCls = f.healthy && !f._stale ? 'ready' : (f._stale ? 'busy' : 'error');
-    const models = (f.models || []).map((m) => m.id).join(', ') || 'no models';
-    // Live busy indicator (M6) on the always-visible meta line; GPU name on its
-    // own line below (both shown only if the farm advertises them).
-    const util = (f.usage && f.usage.gpuUtil != null) ? ` · ${f.usage.gpuUtil}% GPU` : '';
+    const models = (f.models || []).map((m) => m.id + (m.default ? ' ★' : '')).join(', ') || 'no models';
+    // Fleet view: everything the beacon tells us about the box, per row.
+    // Badges: how we found it + special roles.
+    const badges =
+      `<span class="farm-src">${f._source}</span>` +
+      (f.coordinator ? `<span class="farm-src farm-coord">coordinator</span>` : '') +
+      (f.searxngUrl ? `<span class="farm-src">web search</span>` : '');
+    // Live line: GPU util, VRAM used/total, loaded models, backends, hosts.
+    const u = f.usage || {};
+    const live = [];
+    if (u.gpuUtil != null) live.push(`${u.gpuUtil}% GPU`);
+    if (u.vramUsedGb != null && u.vramTotalGb != null) live.push(`${u.vramUsedGb}/${u.vramTotalGb}GB VRAM`);
+    if (u.loaded && u.loaded.length) live.push(`loaded: ${u.loaded.join(', ')}`);
+    if (f.deployments != null && f.deployments > 1) live.push(`${f.deployments} backends`);
+    if (f.health && f.health.hostsTotal > 1) live.push(`${f.health.hostsUp}/${f.health.hostsTotal} hosts`);
+    const liveLine = live.length ? `<div class="farm-hw">${esc(live.join(' · '))}</div>` : '';
     const hwLine = (f.host && f.host.gpu)
       ? `<div class="farm-hw">${esc(f.host.gpu)} · ${f.host.vramGb}GB</div>` : '';
     row.innerHTML =
       `<span class="dot ${dotCls}"></span>` +
       `<div class="farm-main">` +
-        `<div class="farm-name">${esc(f.name)} <span class="farm-src">${f._source}</span></div>` +
-        `<div class="farm-meta">${esc(f._host)}:${f.proxyPort} · ${esc(models)}${util}</div>` +
+        `<div class="farm-name">${esc(f.name)} ${badges}</div>` +
+        `<div class="farm-meta">${esc(f._host)}:${f.proxyPort} · ${esc(models)}</div>` +
+        liveLine +
         hwLine +
       `</div>` +
       `<span class="farm-check">${isActive ? ICON_CHECK : ''}</span>`;
