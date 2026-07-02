@@ -48,6 +48,7 @@ function renderFarm(snap, host, { self = false, ageMs = 0 } = {}) {
 
     const models = (snap.models || []).map((m) => m.id + (m.default ? ' (default)' : '')).join(', ');
     log.plain(`      models    ${models || log.paint.grey('none')}`);
+    if (snap.searxngUrl) log.plain(`      search    ${snap.searxngUrl} ${log.paint.grey('(SearXNG — clients get web search)')}`);
     if (!self) log.plain(log.paint.grey(`      seen ${Math.round(ageMs / 1000)}s ago via ${host}`));
     log.plain('');
 }

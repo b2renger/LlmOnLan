@@ -28,6 +28,7 @@ sidecar/openwebui-src/
 farm/litellm/config.generated.yaml
 farm/.lol-runtime.json
 farm/.lol-id
+farm/.searxng/
 lol.config.json
 !farm/lol.config.example.json
 

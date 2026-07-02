@@ -24,6 +24,11 @@ async function run() {
         await killTree(rt.litellmPid);
         killed++;
     }
+    if (rt.searxngPid && isAlive(rt.searxngPid)) {
+        log.step(`Stopping SearXNG (pid ${rt.searxngPid}) …`);
+        await killTree(rt.searxngPid);
+        killed++;
+    }
     for (const pid of rt.ollamaPids || []) {
         if (isAlive(pid)) {
             log.step(`Stopping Ollama we started (pid ${pid}) …`);

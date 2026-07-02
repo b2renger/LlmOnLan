@@ -48,6 +48,14 @@ const OllamaSchema = z.object({
     flashAttention: z.boolean().default(true),              // OLLAMA_FLASH_ATTENTION
 }).strict();
 
+const WebsearchSchema = z.object({
+    // One shared SearXNG metasearch instance on this box; clients discover it via
+    // the beacon (snapshot.searxngUrl) and OWUI uses it for per-message web search.
+    // `lol up` installs it on first run (git clone + its own venv under .searxng/).
+    enabled: z.boolean().default(false),
+    port: z.number().int().positive().default(8888),
+}).strict();
+
 const LiteLLMSchema = z.object({
     // How to invoke LiteLLM. Default assumes `litellm` is on PATH; operators who
     // installed it into a venv point this at that venv's litellm[.exe].
@@ -64,6 +72,7 @@ const ConfigSchema = z.object({
     models: z.array(ModelSchema).min(1).default([{ id: 'gemma4:12b', default: true }]),
     ollama: OllamaSchema.default({}),
     litellm: LiteLLMSchema.default({}),
+    websearch: WebsearchSchema.default({}),
     // Coordinator mode: aggregate LAN peer farms into one balanced endpoint that
     // clients prefer. Also settable per-run via `lol up --coordinator`.
     coordinator: z.boolean().default(false),

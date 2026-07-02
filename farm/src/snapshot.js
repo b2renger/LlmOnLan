@@ -43,6 +43,11 @@ function buildSnapshot(config, health = {}) {
         // clients should prefer it over the individual box-farms (see the shell's
         // pickLeastLoaded). Absent/false on a normal single-box farm.
         coordinator: !!health.coordinator,
+        // Shared SearXNG metasearch on this box (null when off/down). Clients set
+        // OWUI's SEARXNG_QUERY_URL from this — web search with zero client setup.
+        searxngUrl: (config.websearch?.enabled && health.searxngUp)
+            ? `http://${primary}:${config.websearch.port}`
+            : null,
         // How many balanced deployments back this endpoint (local Ollama hosts +
         // aggregated peers). Informational, for `lol fleet` / client cards.
         deployments: health.deployments ?? null,

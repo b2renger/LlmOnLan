@@ -6,6 +6,46 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-07-01 (i) — Web search: one shared SearXNG on the farm, zero-setup for clients (farm half)
+
+Owner's top ask: **web search available by default in every client, via SearXNG**. Architecture: the search
+*feature* runs client-side (each OWUI queries the engine and fetches/embeds result pages locally — the
+local-data invariant holds), but **SearXNG itself is ONE shared instance on the farm box**, orchestrated by
+`lol` and advertised through the beacon (`snapshot.searxngUrl`) so clients auto-configure with zero setup.
+
+**Farm implementation** (new [farm/src/searxng.js](../farm/src/searxng.js)): config block
+`websearch: { enabled (default false), port (8888) }` + `lol up --websearch/--no-websearch`. First run
+installs SearXNG: **source tarball at a pinned commit SHA** (the repo has no tags) → own venv (SearXNG
+`==`-pins httpx/flask/jinja2, which would fight LiteLLM in the shared venv) → `pip install -r
+requirements.txt` **then** the editable install → generated `settings.yml` (random secret — the webapp
+refuses the default; `formats: [html, json]` — OWUI 403s without json; `limiter: false` — skips the Valkey
+dependency on a trusted LAN). Runs as a sibling child of LiteLLM (`<venv python> -m searx.webapp`, bound
+0.0.0.0), health-waited on `/healthz` + a one-shot `format=json` probe, pid in `.lol-runtime.json`, killed by
+`lol down`/shutdown. **Auxiliary by design**: any install/boot failure warns and the farm still comes up.
+`lol fleet` shows the search URL.
+
+**Three real Windows walls hit live, all fixed:**
+1. **Git can't check out the searxng repo on NTFS at all** — it ships uwsgi/nginx templates named
+   `searxng.conf:socket` (colons are invalid on Windows). Sparse checkout didn't dodge it either. Fix: fetch
+   the **GitHub tarball** and extract with `--exclude "*/utils/*"` — the bad files are never written, and the
+   git prerequisite disappears entirely.
+2. **pip metadata generation crashed** (`ModuleNotFoundError: msgspec`): SearXNG's `setup.py` imports
+   `searx/__init__.py` at build time, so `requirements.txt` must be installed **before** the package.
+3. **`import pwd` crash at boot** — `searx/valkeydb.py` imports the POSIX-only `pwd` module top-level, though
+   it's only used in a valkey-error log line (a path we never exercise: no valkey, limiter off). Fix:
+   `patchWindowsCompat()` rewrites it to a conditional import after extraction (editable install → live);
+   idempotent, no-op if upstream fixes it.
+
+**Verified on the box**: install completes; `python -m searx.webapp` boots on native Windows; `/healthz` 200;
+`/search?q=…&format=json` 200 with **16 real results** for a test query. Farm suite **34 pass** (websearch
+defaults, settings.yml content incl. the json-format gotcha, `searxngUrl` advertised only when enabled AND
+healthy). Enabled in the dev box's `lol.config.json`; `farm/.searxng/` gitignored.
+
+**Client half** (next commit): read `searxngUrl` from the discovered farm → OWUI env
+(`ENABLE_WEB_SEARCH`/`WEB_SEARCH_ENGINE=searxng`/`SEARXNG_QUERY_URL`) + the `web_search` model capability.
+
+---
+
 ## 2026-07-01 (h) — Default the UI language to English
 
 The app came up in French because OWUI's i18n detector reads the webview's

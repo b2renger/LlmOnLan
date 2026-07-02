@@ -252,6 +252,37 @@ test('snapshot carries coordinator + deployments (default off)', () => {
     assert.equal(plain.deployments, null);
 });
 
+// ---- websearch (SearXNG) -----------------------------------------------------
+const { buildSettingsYaml } = require('../src/searxng');
+
+test('websearch config defaults: off, port 8888', () => {
+    const c = defaultConfig();
+    assert.equal(c.websearch.enabled, false);
+    assert.equal(c.websearch.port, 8888);
+});
+
+test('searxng settings.yml has json format + a real secret + limiter off', () => {
+    const yml = yaml.load(buildSettingsYaml('a'.repeat(64)));
+    assert.equal(yml.use_default_settings, true);
+    assert.deepEqual(yml.search.formats.sort(), ['html', 'json'], 'json format is the OWUI-403 gotcha');
+    assert.equal(yml.server.secret_key, 'a'.repeat(64));
+    assert.notEqual(yml.server.secret_key, 'ultrasecretkey', 'webapp exits on the default key');
+    assert.equal(yml.server.limiter, false, 'trusted LAN — no Valkey dependency');
+    assert.equal(yml.server.public_instance, false);
+});
+
+test('snapshot advertises searxngUrl only when enabled AND healthy', () => {
+    const c = defaultConfig();
+    c.websearch.enabled = true;
+    const up = buildSnapshot(c, { proxyUp: true, hostsUp: 1, searxngUp: true });
+    assert.ok(up.searxngUrl && up.searxngUrl.endsWith(':8888'), `got ${up.searxngUrl}`);
+    const down = buildSnapshot(c, { proxyUp: true, hostsUp: 1, searxngUp: false });
+    assert.equal(down.searxngUrl, null, 'unhealthy → not advertised');
+    c.websearch.enabled = false;
+    const off = buildSnapshot(c, { proxyUp: true, hostsUp: 1, searxngUp: true });
+    assert.equal(off.searxngUrl, null, 'disabled → not advertised');
+});
+
 // ---- systemInfo ------------------------------------------------------------
 const { detectHardware, gpuLiveStats } = require('../src/systemInfo');
 

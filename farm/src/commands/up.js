@@ -19,6 +19,7 @@ const { detectHardware, gpuLiveStats } = require('../systemInfo');
 const { DiscoveryBeacon } = require('../beacon');
 const { PeerListener } = require('../peerListener');
 const { selectModels } = require('../modelPicker');
+const { ensureSearxng, spawnSearxng, waitForSearxng } = require('../searxng');
 const { farmId } = require('../identity');
 const { startSelfServer } = require('../selfServer');
 const {
@@ -171,6 +172,9 @@ async function run(args) {
     const coordinator = (args || []).includes('--coordinator') || config.coordinator === true;
     const aliasArg = parseAliasFlag(args || []);
     if (aliasArg !== undefined) config.modelAlias = aliasArg;
+    // Web search: config is the default, per-run flags override.
+    if ((args || []).includes('--websearch')) config.websearch.enabled = true;
+    if ((args || []).includes('--no-websearch')) config.websearch.enabled = false;
 
     // Refuse to double-start.
     const existing = readRuntime();
@@ -236,6 +240,29 @@ async function run(args) {
     const served = await proxyApi.listProxyModels(baseUrl, config.proxy.masterKey);
     log.ok(`Proxy healthy — ${log.paint.bold('/v1/models')}: ${served.length ? served.join(', ') : '(none yet)'}`);
 
+    // 4b. Web search (SearXNG) — one shared instance for every client on the LAN.
+    // Auxiliary: any failure warns and the farm still comes up without it.
+    let searxngChild = null;
+    let searxngUp = false;
+    if (config.websearch.enabled) {
+        log.step(`Web search: preparing SearXNG (port ${config.websearch.port}) …`);
+        if (await ensureSearxng()) {
+            searxngChild = spawnSearxng(config);
+            searxngChild.on('error', (e) => log.warn(`SearXNG failed to start: ${e.message}`));
+            searxngChild.stdout.on('data', log.childPrefix('searxng'));
+            searxngChild.stderr.on('data', log.childPrefix('searxng'));
+            const sx = await waitForSearxng(config.websearch.port);
+            if (sx.up && sx.jsonOk) {
+                searxngUp = true;
+                log.ok(`SearXNG up — clients get web search automatically (first 0.0.0.0 bind may show a Windows Firewall prompt: allow it).`);
+            } else if (sx.up && !sx.jsonOk) {
+                log.err(`SearXNG is up but the JSON API is off (OWUI would get 403) — delete ${log.paint.grey('farm/.searxng/settings.yml')} and re-run \`lol up\`.`);
+            } else {
+                log.warn(`SearXNG did not become healthy on port ${config.websearch.port} (busy port? see the [searxng] log above). Continuing without web search.`);
+            }
+        }
+    }
+
     // 5. Discovery — UDP beacon + unicast /lol/self (both share ONE snapshot so
     // they can't drift). liveHealth is refreshed on a timer below.
     const liveHealth = {
@@ -245,6 +272,7 @@ async function run(args) {
         loaded: [],
         coordinator,                     // advertise the role so clients prefer us
         deployments: backends,           // local hosts + aggregated peers
+        searxngUp,                       // advertise searxngUrl so clients get web search
         host: await detectHardware(),   // static GPU/VRAM/RAM/cores (once at boot)
         gpu: await gpuLiveStats(),       // live GPU util + VRAM (refreshed below)
     };
@@ -290,6 +318,7 @@ async function run(args) {
     // 6. Record runtime so status/down work from another shell.
     writeRuntime({
         litellmPid: child.pid,
+        searxngPid: searxngChild ? searxngChild.pid : null,
         ollamaPids: oll.spawnedPids,
         proxyPort: config.proxy.port,
         endpoint: snapshot.endpoint,
@@ -319,6 +348,7 @@ async function run(args) {
         if (beacon) beacon.stop();
         try { selfServer.close(); } catch { /* already closed */ }
         await killTree(child.pid);
+        if (searxngChild) await killTree(searxngChild.pid);
         for (const pid of oll.spawnedPids) await killTree(pid);
         clearRuntime();
         log.ok('Farm stopped.');
@@ -340,6 +370,7 @@ async function run(args) {
         const intentional = !readRuntime();
         if (intentional) { log.plain(''); log.ok('Farm stopped (via `lol down`).'); }
         else { log.err(`LiteLLM exited unexpectedly (code ${code}). Shutting down the farm.`); clearRuntime(); }
+        if (searxngChild) await killTree(searxngChild.pid);
         for (const pid of oll.spawnedPids) await killTree(pid);
         process.exit(intentional ? 0 : (code || 1));
     });
