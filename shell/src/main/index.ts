@@ -315,7 +315,10 @@ function registerIpc(): void {
         let result: { ok: boolean; error?: string } = { ok: true };
         if (payload.mode === 'move') result = moveDataDir(oldDir, newDir);
         if (result.ok) updateSettings({ dataDir: newDir });
-        await sidecar.start({ endpoint: currentEndpoint, dataDir: result.ok ? newDir : oldDir });
+        // Re-thread the farm's model + SearXNG so a data-folder change doesn't drop
+        // web search / the default model (they'd reset to null otherwise, and the
+        // no-op change-check in onFarms would never repoint to restore them).
+        await sidecar.start({ endpoint: currentEndpoint, dataDir: result.ok ? newDir : oldDir, defaultModel: currentModel, searxngUrl: currentSearxng });
         return result;
     });
 
@@ -341,8 +344,11 @@ function registerIpc(): void {
         let initial = resolveEndpoint();
         if (!initial) initial = await waitForFirstFarm(4500);
         currentEndpoint = initial;
+        const activeNow = discovery?.getFarms().find((f) => f.id === activeFarmId) ?? null;
+        currentModel = farmDefaultModel(activeNow);
+        currentSearxng = farmSearxng(activeNow);
         booted = true;
-        sidecar.start({ endpoint: initial, dataDir: resolveDataDir() });
+        sidecar.start({ endpoint: initial, dataDir: resolveDataDir(), defaultModel: currentModel, searxngUrl: currentSearxng });
         return res;
     });
     // App self-update (electron-updater). check → status; install → quitAndInstall.
@@ -364,11 +370,15 @@ function registerIpc(): void {
         if (chosen) {
             const endpoint = farmEndpoint(chosen);
             currentEndpoint = endpoint;
+            currentModel = farmDefaultModel(chosen);
+            currentSearxng = farmSearxng(chosen);
             activeFarmId = chosen.id;
             updateSettings({ lastEndpoint: endpoint });
             // Keyless LAN proxy for now; a keyed farm (requiresKey) needs a key-entry
-        // UX we haven't built, so we don't send a (wrong) placeholder key.
-        sidecar.repoint(endpoint, null);
+            // UX we haven't built, so we don't send a (wrong) placeholder key. Thread
+            // the pinned farm's model + SearXNG so pinning doesn't drop DEFAULT_MODELS
+            // / web search (and leave the globals stale so onFarms never restores them).
+            sidecar.repoint(endpoint, null, currentModel, currentSearxng);
         }
         return chosen?.id ?? null;
     });
