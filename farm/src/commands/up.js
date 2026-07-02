@@ -19,7 +19,7 @@ const { detectHardware, gpuLiveStats } = require('../systemInfo');
 const { DiscoveryBeacon } = require('../beacon');
 const { PeerListener } = require('../peerListener');
 const { selectModels } = require('../modelPicker');
-const { ensureSearxng, spawnSearxng, waitForSearxng } = require('../searxng');
+const { ensureSearxng, spawnSearxng, waitForSearxng, searxngAlive } = require('../searxng');
 const { farmId } = require('../identity');
 const { startSelfServer } = require('../selfServer');
 const {
@@ -298,6 +298,17 @@ async function run(args) {
     const selfServer = startSelfServer({ httpPort: config.beacon.httpPort, getSnapshot, host: config.proxy.host });
     log.ok(`Unicast discovery → ${log.paint.grey(`http://<ip>:${config.beacon.httpPort}/lol/self`)}`);
 
+    // If SearXNG dies after boot, stop advertising it immediately (auxiliary — the
+    // farm stays up; clients then cleanly disable web search). The health timer
+    // below also re-probes it, catching a hung-but-not-exited instance.
+    if (searxngChild) {
+        searxngChild.on('exit', (code) => {
+            if (liveHealth.searxngUp) log.warn(`SearXNG exited (code ${code}) — web search is now unavailable to clients.`);
+            liveHealth.searxngUp = false;
+            if (beacon) beacon.kick();
+        });
+    }
+
     // Keep the advertised health honest: re-probe proxy + hosts periodically and
     // push a fresh beacon. Cheap (a few HTTP HEADs) and unref'd.
     const hosts = config.ollama.hosts.map(ollama.normalizeHost);
@@ -312,6 +323,9 @@ async function run(args) {
             const loadedLists = await Promise.all(hosts.map((h) => ollama.loadedModels(h)));
             liveHealth.loaded = [...new Set(loadedLists.flat())];
             liveHealth.gpu = await gpuLiveStats();
+            // Only advertise SearXNG while it's actually answering (and was healthy
+            // at boot) — so a crashed instance stops being advertised to clients.
+            if (searxngChild) liveHealth.searxngUp = searxngUp && await searxngAlive(config.websearch.port);
             if (beacon) beacon.kick();
         } catch { /* probes are already failure-tolerant; never throw from the timer */ }
         finally { healthInFlight = false; }

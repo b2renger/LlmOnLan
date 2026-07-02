@@ -65,8 +65,9 @@ function defaultIndex(installed, config) {
     return idx >= 0 ? idx : 0;
 }
 
-// Build a catalog entry for a picked model id, carrying the config's alias for
-// that id when one exists (so an interactive pick keeps role names). An explicit
+// Build a catalog entry for a picked model id, carrying over the config's per-id
+// settings (alias, explicit vision flag) so a pick doesn't drop them — selectModels
+// REPLACES config.models wholesale, so anything not copied here is lost. An explicit
 // `id=alias` spec (from --model) wins over the config alias.
 function toEntry(config, spec, isDefault) {
     const [id, alias] = String(spec).split('=').map((s) => s.trim());
@@ -74,6 +75,9 @@ function toEntry(config, spec, isDefault) {
     const entry = { id, default: isDefault };
     const a = alias || cfg?.alias;
     if (a) entry.alias = a;
+    // Preserve an explicit vision:true/false (needed for models the tag-regex can't
+    // infer — else images get silently dropped at the proxy).
+    if (typeof cfg?.vision === 'boolean') entry.vision = cfg.vision;
     return entry;
 }
 

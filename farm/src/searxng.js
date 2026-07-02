@@ -33,7 +33,8 @@ const { execSync, spawn } = require('child_process');
 const log = require('./log');
 
 // Master HEAD at integration time (2026-07-01), smoke-tested on the dev box.
-// Bump deliberately: change the SHA, delete .searxng/.installed-sha, re-run.
+// Bump deliberately: change this constant and re-run `lol up` — the next run
+// re-fetches + reinstalls the new source automatically (no manual file deletion).
 const PINNED_SHA = '0f9e30e3f9229015df8e9df2ea63a338a81b931a';
 const REPO_URL = 'https://github.com/searxng/searxng';
 
@@ -42,7 +43,8 @@ const ROOT = path.join(__dirname, '..', '.searxng');
 const SRC = path.join(ROOT, 'src');
 const VENV = path.join(ROOT, 'venv');
 const SETTINGS = path.join(ROOT, 'settings.yml');
-const SHA_FILE = path.join(ROOT, '.installed-sha');
+const SHA_FILE = path.join(ROOT, '.installed-sha'); // what's actually pip-installed
+const SRC_SHA_FILE = path.join(ROOT, '.src-sha');   // what's actually extracted in src/
 
 function venvPython() {
     return IS_WIN ? path.join(VENV, 'Scripts', 'python.exe') : path.join(VENV, 'bin', 'python');
@@ -95,10 +97,17 @@ function writeSettingsIfMissing() {
     log.ok(`SearXNG settings → ${log.paint.grey(SETTINGS)}`);
 }
 
+function readTrim(p) {
+    try { return fs.readFileSync(p, 'utf8').trim(); } catch { return null; }
+}
+
+// Installed AND matching the pin: the venv exists, the source is still on disk,
+// and what's recorded as installed is exactly PINNED_SHA (a master-fallback stamp
+// won't match, so a later run re-attempts the pin).
 function installed() {
-    try {
-        return fs.existsSync(venvPython()) && fs.readFileSync(SHA_FILE, 'utf8').trim() === PINNED_SHA;
-    } catch { return false; }
+    return fs.existsSync(venvPython())
+        && fs.existsSync(path.join(SRC, 'searx'))
+        && readTrim(SHA_FILE) === PINNED_SHA;
 }
 
 // Download a URL to a file (redirect-following; GitHub /archive/ redirects to
@@ -143,10 +152,13 @@ async function ensureSearxng() {
     }
 
     try {
-        // 1. Source tarball at the pinned SHA, extracted WITHOUT utils/ (its
-        //    colon-named files are invalid on NTFS — see the header). Relative
-        //    paths + cwd for tar, per this repo's Windows drive-colon convention.
-        if (!fs.existsSync(path.join(SRC, 'searx'))) {
+        // What the source on disk currently is (null if none / different).
+        let fetchedSha = PINNED_SHA;
+        // 1. Fetch the source UNLESS an already-extracted tree matches the pin.
+        //    Guard on the recorded src SHA, NOT mere existence — otherwise bumping
+        //    PINNED_SHA would silently reuse the old commit's tree. Extracted
+        //    WITHOUT utils/ (its colon-named files are invalid on NTFS — see header).
+        if (!fs.existsSync(path.join(SRC, 'searx')) || readTrim(SRC_SHA_FILE) !== PINNED_SHA) {
             log.step(`Downloading SearXNG source @ ${PINNED_SHA.slice(0, 10)} …`);
             fs.rmSync(SRC, { recursive: true, force: true });
             fs.mkdirSync(SRC, { recursive: true });
@@ -156,10 +168,14 @@ async function ensureSearxng() {
             } catch (e) {
                 log.warn(`Pinned-SHA tarball failed (${e.message}) — falling back to master.`);
                 await download(`${REPO_URL}/archive/refs/heads/master.tar.gz`, tarball);
+                fetchedSha = null; // moving master — must never satisfy the pin
             }
             sh(`tar -xzf searxng-src.tar.gz -C src --strip-components=1 --exclude "*/utils/*"`, { cwd: ROOT });
             fs.rmSync(tarball, { force: true });
             if (!fs.existsSync(path.join(SRC, 'searx'))) throw new Error('extraction produced no searx/ package');
+            // Record what we actually extracted BEFORE pip, so a later pip failure
+            // + re-run reuses this tree instead of re-downloading.
+            fs.writeFileSync(SRC_SHA_FILE, (fetchedSha || 'master') + '\n', 'utf8');
         }
         patchWindowsCompat();
 
@@ -186,7 +202,11 @@ async function ensureSearxng() {
             sh(`"${vpy}" -m pip install -q --use-pep517 --no-build-isolation "${SRC}"`, { cwd: SRC });
         }
 
-        fs.writeFileSync(SHA_FILE, PINNED_SHA + '\n', 'utf8');
+        // Stamp what's ACTUALLY installed — the extracted source's SHA, not the pin
+        // unconditionally. A master fallback records 'master', which installed()
+        // won't accept, so a later `lol up` re-attempts the pin instead of falsely
+        // reporting it satisfied.
+        fs.writeFileSync(SHA_FILE, (readTrim(SRC_SHA_FILE) || 'master') + '\n', 'utf8');
         log.ok(`SearXNG installed → ${log.paint.grey(ROOT)}`);
         return true;
     } catch (e) {
@@ -241,4 +261,9 @@ async function waitForSearxng(port, timeoutMs = 60000) {
     return { up: false, jsonOk: false };
 }
 
-module.exports = { ensureSearxng, spawnSearxng, waitForSearxng, buildSettingsYaml, PINNED_SHA };
+// Single quick liveness probe (for the farm's health timer) — did /healthz answer?
+async function searxngAlive(port) {
+    return (await get(`http://127.0.0.1:${port}/healthz`)) === 200;
+}
+
+module.exports = { ensureSearxng, spawnSearxng, waitForSearxng, searxngAlive, buildSettingsYaml, PINNED_SHA };

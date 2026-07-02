@@ -156,6 +156,17 @@ test('multi-alias flows into litellm model_names and the snapshot', () => {
     assert.deepEqual(snap.models, [{ id: 'assistant', default: true }, { id: 'coder', default: false }]);
 });
 
+test('a picked model keeps its config explicit vision flag (not just alias)', async () => {
+    const c = defaultConfig();
+    c.models = [{ id: 'my-multimodal:latest', vision: true, alias: 'assistant', default: true }];
+    const got = await selectModels(c, [], ['--model', 'my-multimodal:latest']);
+    assert.equal(got[0].vision, true, 'explicit vision survives the pick (else images get dropped)');
+    assert.equal(got[0].alias, 'assistant');
+    // and it flows to supports_vision even though the tag regex can't infer it
+    const dep = buildLitellmConfig({ ...c, models: got }).model_list[0];
+    assert.equal(dep.model_info.supports_vision, true);
+});
+
 test('--model id=alias attaches the alias; interactive picks keep config aliases', async () => {
     const c = defaultConfig();
     c.models = [{ id: 'qwen2.5-coder:14b', alias: 'coder', default: true }];
