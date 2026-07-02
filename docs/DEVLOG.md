@@ -6,6 +6,50 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-07-03 — Neural TTS: shared Kokoro on the farm (the "nicer voices" upgrade)
+
+Replaced OWUI's robotic Web-Speech voices with **Kokoro-82M** neural TTS, hosted once on the farm box and
+auto-wired into every client — same beacon pattern as SearXNG (STT stays client-local via Whisper; TTS only
+re-synthesizes the farm-generated response, so farm-hosting leaks nothing new and gets GPU speed with zero
+per-client weight). Off by default (heavy install).
+
+**Design (a Plan agent researched it; the decisive call is GPU-agnostic):** use **Kokoro-FastAPI (PyTorch)**,
+NOT the ONNX path — `onnxruntime-gpu` has no Blackwell sm_120 kernels, so it would run the flagship box on CPU,
+whereas **`torch==2.8.0+cu128` carries BOTH Ada (sm_89: 4070/4090) AND Blackwell (sm_120) in one wheel** →
+"install once, runs on the whole fleet" (and CPU-torch fallback for GPU-less boxes). espeak-ng needs **no
+native install**: the `espeakng-loader` pip dep ships the shared library; we point `PHONEMIZER_ESPEAK_LIBRARY`
+at it.
+
+**Live-proven on the box, every link:** installed Kokoro-FastAPI v0.5.0 from a source tarball into its own
+venv (torch cu128 auto-selected via `nvidia-smi`, model .pth from the stable v0.1.4 asset, 67 voices ship in
+the tarball) → `torch.cuda.is_available()` **True on the Blackwell** → the server boots on native Windows and
+`POST /v1/audio/speech` returns a **valid 23 KB MP3 on GPU**. Then `lol up` with the new wiring spawns it and
+`/lol/self` advertises `ttsUrl=…:8880/v1` + `ttsVoice`/`ttsModel`. Finally, a standalone OWUI given the exact
+client env (`AUDIO_TTS_ENGINE=openai` + that base URL) **proxied read-aloud to Kokoro — 28 KB MP3 via OWUI**.
+So farm advertises → client sets `AUDIO_TTS_*` → OWUI plays Kokoro audio, confirmed end-to-end.
+
+**Farm** ([farm/src/kokoro.js](../farm/src/kokoro.js), new — mirrors searxng.js with the SearXNG-review
+idempotence lessons baked in: `.installed-tag`/`.src-tag` markers, GPU auto-detect + a post-install
+`cuda.is_available()` check that falls back to `USE_GPU=false`): `ensureKokoro`/`spawnKokoro`/`waitForKokoro`
+(health + a real synthesis probe)/`kokoroAlive`. Wired into [up.js](../farm/src/commands/up.js) as a sibling
+child (health-wait, pid in `.lol-runtime.json`, `child.on('exit')` clears `ttsUp` + kicks the beacon, health
+timer re-probes, killTree on shutdown + in [down.js](../farm/src/commands/down.js)); config `tts:{enabled,
+port:8880, voice:'af_heart', model:'kokoro'}` + `lol up --tts/--no-tts`; snapshot advertises
+`ttsUrl`/`ttsVoice`/`ttsModel` gated on `enabled && ttsUp`; `lol fleet` shows it.
+
+**Client** — thread the farm's TTS through the sidecar exactly like `searxngUrl` (a `{url,voice,model}` object
+through start/repoint/setDataDir/crash-restart + the repoint change-check + **all six** index.ts call sites —
+the two the last review caught for searxng included). [configBridge](../shell/src/main/configBridge.ts) sets
+`AUDIO_TTS_ENGINE=openai` + base URL + model + voice when the farm has TTS (overriding the empty client-side
+default); no farm TTS → unchanged (Web Speech).
+
+**Tested:** farm suite 41 pass (tts config defaults + snapshot gating); shell `tsc` clean; the full live chain
+above. Enabled on the dev box; `farm/.kokoro/` gitignored. Farm-side reaches boxes via `git pull` + the
+first-run install; client ships in the next release. GPU-agnostic claim: Blackwell proven live; the same cu128
+wheel officially carries Ada sm_89, so 4090/4070 are covered (a real-box smoke is still worth doing).
+
+---
+
 ## 2026-07-02 (c) — Web search ON by default
 
 Web search was available but off — students had to find the toggle each chat. Making it default-on is a
