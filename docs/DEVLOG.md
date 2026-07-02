@@ -6,6 +6,43 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-07-02 (b) — Adversarial review of the web-search batch → 5 fixes
+
+Ran a multi-agent adversarial review over the whole batch diff (4 review dimensions → each finding refuted by
+an independent verifier). It **refuted 4** plausible-but-wrong findings (bench SSE parser drops the last
+frame — no, LiteLLM SSE always ends with a blank line; percentile off-by-one — a convention, not a bug;
+tokens/s clamp poisons the median — median is outlier-robust; alias-collision misrouting — not reachable on a
+realistic config) and **confirmed 5**, now fixed:
+
+- **HIGH — [index.ts](../shell/src/main/index.ts) `set-data-dir`**: changing the data folder called
+  `sidecar.start()` without `defaultModel`/`searxngUrl`, so both reset to null → **web search + the default
+  model silently died** with no self-heal (the module globals stayed set, so `onFarms`' change-check never
+  repointed to restore them). Now threads both; same fix applied to `install-sidecar` (same class).
+- **MED — [index.ts](../shell/src/main/index.ts) `select-farm`**: pinning a farm called
+  `repoint(endpoint, null)` and never updated `currentModel`/`currentSearxng`, so it dropped `DEFAULT_MODELS`
+  (re-introducing the every-message model re-pick) with no recovery. Now passes the pinned farm's model +
+  SearXNG and updates the globals.
+- **MED — [searxng.js](../farm/src/searxng.js)** SHA-pin idempotence: the source re-fetch was guarded on the
+  src tree merely *existing*, while `.installed-sha` was stamped with `PINNED_SHA` unconditionally — so
+  **bumping the pin silently kept running the old commit** (and the master fallback lied that the pin was
+  satisfied). Now a `.src-sha` marker records what's actually extracted (re-fetch when it ≠ the pin), and
+  `.installed-sha` records what's actually installed (a master fallback stores `master`, which never
+  satisfies the pin, so a later run re-attempts it). Bumping is now just "change the constant + re-run".
+- **LOW — [up.js](../farm/src/commands/up.js)** SearXNG staleness: `searxngUp` was captured once at boot and
+  never refreshed, so a SearXNG that crashed mid-session kept being advertised (clients' web search then
+  fails silently). Now the health timer re-probes `/healthz` (new `searxngAlive()`), and a `child.on('exit')`
+  flips it off immediately + kicks the beacon.
+- **LOW — [modelPicker.js](../farm/src/modelPicker.js)** `toEntry` carried a picked model's config `alias`
+  but not its explicit `vision` flag; since `selectModels` REPLACES `config.models`, picking a model with
+  `vision:true` (id the tag-regex can't infer) dropped it → images silently stripped at the proxy. Now
+  carried (with a regression test).
+
+**Verified:** farm suite **39 pass** (+ the vision-flag regression); shell `tsc` clean; `ensureSearxng()`
+idempotent on the live install (40 ms, no reinstall). Shell fixes ship in v0.1.13; farm fixes reach boxes via
+`git pull`.
+
+---
+
 ## 2026-07-02 — Web search on every client + fleet view + workshop tooling + multi-model aliases
 
 The batch completing the approved plan (SearXNG was the farm half, previous entry). Four pieces:
