@@ -28,17 +28,23 @@ function modelSupportsVision(model) {
     return VISION_MODEL_RX.test(model.id);
 }
 
-// The client-facing served model(s): each is a { servedName, underlying, vision }.
-// In ALIAS mode (config.modelAlias set) there is ONE fixed servedName backed by the
-// default picked model — so the id clients (and their OWUI chats) bind to stays
-// constant across picker changes. Otherwise the real catalog (servedName == id).
+// The client-facing served model(s): each is { servedName, underlying, vision,
+// isDefault }. EVERY model in the run's catalog is served; the name clients see:
+//   • the model's own `alias` when set (multi-role: assistant / coder / …),
+//   • else, for the DEFAULT model, the global `modelAlias` when set,
+//   • else the raw Ollama id.
+// Aliases decouple the id an OWUI chat binds to from the Ollama tag behind it, so
+// swapping the underlying model (via the picker) never breaks a chat. Shared by
+// the LiteLLM generator AND the snapshot so routing and advertising can't drift.
 function servedEntries(config) {
-    const alias = (config.modelAlias || '').trim();
-    if (alias) {
-        const chosen = config.models.find((m) => m.default) || config.models[0];
-        return [{ servedName: alias, underlying: chosen.id, vision: modelSupportsVision(chosen) }];
-    }
-    return config.models.map((m) => ({ servedName: m.id, underlying: m.id, vision: modelSupportsVision(m) }));
+    const globalAlias = (config.modelAlias || '').trim();
+    const hasDefault = config.models.some((m) => m.default);
+    return config.models.map((m, i) => {
+        const isDefault = !!m.default || (!hasDefault && i === 0);
+        const ownAlias = (m.alias || '').trim();
+        const servedName = ownAlias || (isDefault && globalAlias ? globalAlias : m.id);
+        return { servedName, underlying: m.id, vision: modelSupportsVision(m), isDefault };
+    });
 }
 
 // Build the config.yaml object (model_list × hosts + router/proxy settings).

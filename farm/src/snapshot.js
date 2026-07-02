@@ -9,6 +9,7 @@
 //                requiresKey, models, healthy, version, ts }
 
 const { lanAddresses, primaryAddress } = require('./net');
+const { servedEntries } = require('./litellm');
 const { farmId } = require('./identity');
 
 const PKG_VERSION = require('../package.json').version;
@@ -19,14 +20,12 @@ function buildSnapshot(config, health = {}) {
     const proxyPort = config.proxy.port;
     const primary = primaryAddress();
     const endpoint = `http://${primary}:${proxyPort}`;
-    // Advertise what clients actually SEE on /v1/models: in alias mode the fixed
-    // alias id (backed by the picked model); otherwise the real catalog. Keeping this
-    // aligned with the generated LiteLLM model_name is what makes the client's
-    // DEFAULT_MODELS + OWUI chats bind to a stable id across picker changes.
-    const alias = (config.modelAlias || '').trim();
-    const models = alias
-        ? [{ id: alias, default: true }]
-        : config.models.map((m) => ({ id: m.id, default: !!m.default }));
+    // Advertise what clients actually SEE on /v1/models — the SERVED names (per-
+    // model alias / global modelAlias / raw id), derived from the same
+    // servedEntries() that generates the LiteLLM routing, so advertising and
+    // routing can't drift. Stable alias ids are what let OWUI chats survive
+    // underlying-model swaps.
+    const models = servedEntries(config).map((e) => ({ id: e.servedName, default: e.isDefault }));
     return {
         v: 1,
         id: farmId(),

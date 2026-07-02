@@ -65,12 +65,24 @@ function defaultIndex(installed, config) {
     return idx >= 0 ? idx : 0;
 }
 
+// Build a catalog entry for a picked model id, carrying the config's alias for
+// that id when one exists (so an interactive pick keeps role names). An explicit
+// `id=alias` spec (from --model) wins over the config alias.
+function toEntry(config, spec, isDefault) {
+    const [id, alias] = String(spec).split('=').map((s) => s.trim());
+    const cfg = config.models.find((m) => m.id === id);
+    const entry = { id, default: isDefault };
+    const a = alias || cfg?.alias;
+    if (a) entry.alias = a;
+    return entry;
+}
+
 // Resolve the models to serve. May prompt. `hosts` = reachable Ollama base URLs.
 async function selectModels(config, hosts, args = []) {
     const explicit = parseModelFlag(args);
     if (explicit.length) {
         log.info(`Serving model(s) from --model: ${log.paint.bold(explicit.join(', '))}`);
-        return explicit.map((id, i) => ({ id, default: i === 0 }));
+        return explicit.map((spec, i) => toEntry(config, spec, i === 0));
     }
     if (wantsNoPick(args) || !process.stdin.isTTY) {
         return config.models; // non-interactive → keep the configured catalog
@@ -93,17 +105,17 @@ async function selectModels(config, hosts, args = []) {
     });
     const ans = (await prompt(`\n  Model(s) to serve [${defIdx + 1}] — number, or comma-separated: `)).trim();
 
-    if (!ans) return [{ id: installed[defIdx].name, default: true }];
+    if (!ans) return [toEntry(config, installed[defIdx].name, true)];
     const picks = [...new Set(
         ans.split(',').map((s) => parseInt(s.trim(), 10)).filter((n) => Number.isInteger(n) && n >= 1 && n <= installed.length)
     )];
     if (!picks.length) {
         log.warn(`No valid choice — serving the default (${installed[defIdx].name}).`);
-        return [{ id: installed[defIdx].name, default: true }];
+        return [toEntry(config, installed[defIdx].name, true)];
     }
     const chosen = picks.map((n) => installed[n - 1].name);
     log.ok(`Serving: ${log.paint.bold(chosen.join(', '))}`);
-    return chosen.map((id, i) => ({ id, default: i === 0 }));
+    return chosen.map((id, i) => toEntry(config, id, i === 0));
 }
 
 module.exports = { selectModels, installedModels, parseModelFlag, wantsNoPick };

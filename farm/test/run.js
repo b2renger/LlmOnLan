@@ -120,14 +120,50 @@ test('modelAlias config default is null', () => {
     assert.equal(defaultConfig().modelAlias, null);
 });
 
-test('alias mode collapses to one stable id backed by the default model', () => {
+test('global modelAlias renames the DEFAULT model; other picked models still serve', () => {
     const c = defaultConfig();
     c.models = [{ id: 'qwen3.6:35b', default: true }, { id: 'gemma4:12b' }];
     c.modelAlias = 'assistant';
     const e = servedEntries(c);
-    assert.equal(e.length, 1);
-    assert.equal(e[0].servedName, 'assistant');
+    assert.equal(e.length, 2, 'multi-pick no longer collapses to one');
+    assert.deepEqual(e.map((x) => x.servedName), ['assistant', 'gemma4:12b']);
     assert.equal(e[0].underlying, 'qwen3.6:35b', 'alias is backed by the default picked model');
+    assert.equal(e[0].isDefault, true);
+});
+
+test('per-model alias serves role names; wins over the global alias', () => {
+    const c = defaultConfig();
+    c.modelAlias = 'assistant';
+    c.models = [
+        { id: 'gemma4:12b', default: true },                     // → global alias
+        { id: 'qwen2.5-coder:14b', alias: 'coder' },             // → own alias
+    ];
+    const e = servedEntries(c);
+    assert.deepEqual(e.map((x) => x.servedName), ['assistant', 'coder']);
+    c.models[0].alias = 'chat';                                  // own alias beats global
+    assert.equal(servedEntries(c)[0].servedName, 'chat');
+});
+
+test('multi-alias flows into litellm model_names and the snapshot', () => {
+    const c = defaultConfig();
+    c.models = [
+        { id: 'gemma4:12b', default: true, alias: 'assistant' },
+        { id: 'qwen2.5-coder:14b', alias: 'coder' },
+    ];
+    const names = buildLitellmConfig(c).model_list.map((d) => d.model_name);
+    assert.deepEqual(names, ['assistant', 'coder']);
+    const snap = buildSnapshot(c, { proxyUp: true, hostsUp: 1 });
+    assert.deepEqual(snap.models, [{ id: 'assistant', default: true }, { id: 'coder', default: false }]);
+});
+
+test('--model id=alias attaches the alias; interactive picks keep config aliases', async () => {
+    const c = defaultConfig();
+    c.models = [{ id: 'qwen2.5-coder:14b', alias: 'coder', default: true }];
+    const got = await selectModels(c, [], ['--model', 'qwen3:8b=assistant,qwen2.5-coder:14b']);
+    assert.deepEqual(got, [
+        { id: 'qwen3:8b', default: true, alias: 'assistant' },    // explicit =alias
+        { id: 'qwen2.5-coder:14b', default: false, alias: 'coder' }, // config alias kept
+    ]);
 });
 
 test('alias mode: litellm exposes the alias as model_name, routed to the real model', () => {
@@ -259,6 +295,10 @@ test('websearch config defaults: off, port 8888', () => {
     const c = defaultConfig();
     assert.equal(c.websearch.enabled, false);
     assert.equal(c.websearch.port, 8888);
+});
+
+test('ollama keepAlive defaults to -1 (keep the model warm)', () => {
+    assert.equal(defaultConfig().ollama.keepAlive, '-1');
 });
 
 test('searxng settings.yml has json format + a real secret + limiter off', () => {
