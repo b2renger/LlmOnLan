@@ -277,11 +277,18 @@ async function run(args) {
         log.step(`Voice: preparing Kokoro TTS (port ${config.tts.port}) — first run installs it (multi-GB) …`);
         if (await ensureKokoro()) {
             kokoroChild = spawnKokoro(config);
+            // If OUR uvicorn exits during startup (e.g. the port is squatted by an
+            // orphaned Kokoro), don't advertise — the squatter would answer /health
+            // and we'd hand clients a server we can't manage or shut down.
+            let kokoroExited = false;
+            kokoroChild.on('exit', () => { kokoroExited = true; });
             kokoroChild.on('error', (e) => log.warn(`Kokoro failed to start: ${e.message}`));
             kokoroChild.stdout.on('data', log.childPrefix('kokoro'));
             kokoroChild.stderr.on('data', log.childPrefix('kokoro'));
             const kx = await waitForKokoro(config.tts.port, config.tts.voice);
-            if (kx.up && kx.synthOk) {
+            if (kokoroExited) {
+                log.warn(`Kokoro exited during startup (port ${config.tts.port} already in use? see the [kokoro] log above). Continuing without voice.`);
+            } else if (kx.up && kx.synthOk) {
                 ttsUp = true;
                 log.ok(`Kokoro TTS up (voice ${log.paint.bold(config.tts.voice)}) — clients get neural read-aloud automatically.`);
             } else if (kx.up) {

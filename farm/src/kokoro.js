@@ -84,11 +84,29 @@ function installed() {
         && readTrim(TAG_FILE) === PINNED_TAG;
 }
 
+// The GPU/CPU backend for the CURRENT hardware: a real cuda.is_available() check
+// (against the installed torch) when an NVIDIA GPU is present, else CPU. Cheap
+// enough to run every `lol up` so a driver change self-heals.
+function currentBackend() {
+    if (!gpuPresent()) return 'cpu';
+    const avail = shCapture(`"${venvPython()}" -c "import torch;print(torch.cuda.is_available())"`);
+    return avail === 'True' ? 'gpu' : 'cpu';
+}
+
 // Idempotent setup: source tarball (pinned tag) + venv + torch (gpu/cpu) + the
 // Kokoro stack + model weights. Returns true when ready to spawn; false (warned)
 // when the farm should come up WITHOUT TTS.
 async function ensureKokoro() {
-    if (installed()) return true;
+    if (installed()) {
+        // Re-verify GPU/CPU each run — a box that lost CUDA (driver update/rollback)
+        // falls back to CPU instead of USE_GPU=true hard-failing synthesis.
+        const b = currentBackend();
+        if (b !== readTrim(BACKEND_FILE)) {
+            fs.writeFileSync(BACKEND_FILE, b + '\n', 'utf8');
+            log.info(`Kokoro backend updated → ${b.toUpperCase()} (hardware/driver changed).`);
+        }
+        return true;
+    }
 
     const py = findPython();
     if (!py) {
@@ -144,12 +162,8 @@ async function ensureKokoro() {
 
         // 6. Confirm CUDA actually engages (driver may be too old for cu128) → pick
         //    the runtime backend. GPU-torch still runs on CPU with USE_GPU=false.
-        let backend = 'cpu';
-        if (gpu) {
-            const avail = shCapture(`"${vpy}" -c "import torch;print(torch.cuda.is_available())"`);
-            backend = avail === 'True' ? 'gpu' : 'cpu';
-            if (backend === 'cpu') log.warn('NVIDIA GPU present but CUDA 12.8 unavailable (driver too old?) — Kokoro will run on CPU.');
-        }
+        const backend = currentBackend();
+        if (gpu && backend === 'cpu') log.warn('NVIDIA GPU present but CUDA 12.8 unavailable (driver too old?) — Kokoro will run on CPU.');
         fs.writeFileSync(BACKEND_FILE, backend + '\n', 'utf8');
         fs.writeFileSync(TAG_FILE, PINNED_TAG + '\n', 'utf8');
         log.ok(`Kokoro TTS installed → ${log.paint.grey(ROOT)} (${backend.toUpperCase()})`);
