@@ -170,8 +170,18 @@ prefs.blender.addEventListener('change', async () => {
   const st = await window.lol.setBlenderEnabled(on);
   setBlenderStatus(st, on);
 });
-// Live install/start progress (and the OWUI restart it triggers) while the panel is open.
-window.lol.onBlenderState((s) => setBlenderStatus(s, s && s.enabled));
+// Live install/start progress while the panel is open, and — the important part —
+// register/unregister the Blender tool server with OWUI as mcpo comes up/down.
+window.lol.onBlenderState(async (s) => {
+  setBlenderStatus(s, s && s.enabled);
+  if (!s) return;
+  if (s.status === 'ready') {
+    await maybeSeedBlender();                 // mcpo up → add the tool server (once)
+  } else if (s.status === 'stopped') {
+    blenderSeeded = false;                    // allow re-seed if it comes back
+    if (webviewAuthed) { try { await unseedBlenderToolServer(); } catch { /* ignore */ } }
+  }
+});
 prefs.owuiLink.addEventListener('click', (e) => { e.preventDefault(); window.lol.openExternal('https://openwebui.com'); });
 
 // --- app self-update (electron-updater) ---
@@ -265,6 +275,7 @@ let webviewAuthed = false;
 let authReloads = 0;
 const MAX_AUTH_RELOADS = 4;
 let webSearchSeeded = false; // seed the web-search-on default at most once per session
+let blenderSeeded = false;   // register the Blender tool server with OWUI at most once per session
 
 // Turn web search ON BY DEFAULT (the workshop wants it, and there's no OWUI env
 // for it — it's the per-user `webSearch:'always'` interface setting, PR #9370). We
@@ -297,6 +308,76 @@ async function seedWebSearchDefault() {
   } catch { return 'na'; }
 }
 
+// Register the LOCAL Blender tool server (our mcpo) with OWUI through its SUPPORTED
+// API — the same call the admin UI's "verify & save" makes. We do NOT use the
+// TOOL_SERVER_CONNECTIONS env var: it's a PersistentConfig and OWUI doesn't reliably
+// surface env-configured tool servers (upstream issue #18140). Runs inside the authed
+// webview (localStorage.token) exactly like seedWebSearchDefault. Idempotent: keyed by
+// info.id === 'lol-blender', it replaces our entry and leaves any others untouched.
+// Returns 'set' | 'already' | 'na' | 'err:<code>'.
+async function seedBlenderToolServer(url, key) {
+  try {
+    return await els.webview.executeJavaScript(`(async () => {
+      try {
+        const t = window.localStorage && window.localStorage.token; if (!t) return 'na';
+        const H = { authorization: 'Bearer ' + t };
+        const url = ${JSON.stringify(url)}, key = ${JSON.stringify(key)};
+        const conn = { url, path: 'openapi.json', type: 'openapi', auth_type: 'bearer', key,
+          config: { enable: true },
+          info: { id: 'lol-blender', name: 'Blender', description: 'Control Blender running on this machine.' } };
+        const cur = await (await fetch('/api/v1/configs/tool_servers', { headers: H })).json().catch(() => null);
+        const list = (cur && Array.isArray(cur.TOOL_SERVER_CONNECTIONS)) ? cur.TOOL_SERVER_CONNECTIONS
+                   : (Array.isArray(cur) ? cur : []);
+        const mine = list.find(c => c && c.info && c.info.id === 'lol-blender');
+        if (mine && mine.url === url && mine.key === key) return 'already';
+        const others = list.filter(c => !(c && c.info && c.info.id === 'lol-blender'));
+        const r = await fetch('/api/v1/configs/tool_servers', {
+          method: 'POST', headers: { ...H, 'content-type': 'application/json' },
+          body: JSON.stringify({ TOOL_SERVER_CONNECTIONS: [...others, conn] })
+        });
+        return r.ok ? 'set' : ('err:' + r.status);
+      } catch (e) { return 'err:' + ((e && e.message) || 'x'); }
+    })()`);
+  } catch { return 'na'; }
+}
+
+// Remove our Blender tool server from OWUI (when the user turns the feature off).
+async function unseedBlenderToolServer() {
+  try {
+    return await els.webview.executeJavaScript(`(async () => {
+      try {
+        const t = window.localStorage && window.localStorage.token; if (!t) return 'na';
+        const H = { authorization: 'Bearer ' + t };
+        const cur = await (await fetch('/api/v1/configs/tool_servers', { headers: H })).json().catch(() => null);
+        const list = (cur && Array.isArray(cur.TOOL_SERVER_CONNECTIONS)) ? cur.TOOL_SERVER_CONNECTIONS
+                   : (Array.isArray(cur) ? cur : []);
+        const others = list.filter(c => !(c && c.info && c.info.id === 'lol-blender'));
+        if (others.length === list.length) return 'already';
+        const r = await fetch('/api/v1/configs/tool_servers', {
+          method: 'POST', headers: { ...H, 'content-type': 'application/json' },
+          body: JSON.stringify({ TOOL_SERVER_CONNECTIONS: others })
+        });
+        return r.ok ? 'removed' : ('err:' + r.status);
+      } catch (e) { return 'err:' + ((e && e.message) || 'x'); }
+    })()`);
+  } catch { return 'na'; }
+}
+
+// Seed the Blender tool server once per session, if the local mcpo is ready and the
+// webview is authed. Called on auth success AND when mcpo reports 'ready' (whichever
+// is later — on first launch mcpo installs for ~1 min, so it's usually the latter).
+// Returns true if it registered + kicked a reload (so callers can bail).
+async function maybeSeedBlender() {
+  if (blenderSeeded || !webviewAuthed) return false;
+  let conn = null;
+  try { conn = await window.lol.getBlenderConnection(); } catch { conn = null; }
+  if (!conn || !conn.url) return false; // mcpo not ready yet — retry on its 'ready' push
+  blenderSeeded = true;
+  const res = await seedBlenderToolServer(conn.url, conn.apiKey);
+  if (res === 'set') { try { els.webview.reload(); } catch { /* not ready */ } return true; }
+  return false;
+}
+
 async function ensureAuthenticated() {
   try {
     // 'valid' → reveal. 'invalid' → drop the stale token so the reload re-runs
@@ -317,6 +398,9 @@ async function ensureAuthenticated() {
         webSearchSeeded = true;
         if ((await seedWebSearchDefault()) === 'set') { try { els.webview.reload(); } catch { /* not ready */ } return; }
       }
+      // Register the local Blender tool server if mcpo is already up (else its
+      // 'ready' push seeds it later). A 'set' reloads to surface the new tools.
+      if (await maybeSeedBlender()) return;
       renderSidecar();
       return;
     }
@@ -384,7 +468,7 @@ function renderSidecar() {
   if (s.status === 'ready' && s.url) {
     if (s.url !== lastUrl) {
       // New OWUI origin → reset the auth-bootstrap gate (fresh per-origin storage).
-      lastUrl = s.url; webviewAuthed = false; authReloads = 0; webSearchSeeded = false;
+      lastUrl = s.url; webviewAuthed = false; authReloads = 0; webSearchSeeded = false; blenderSeeded = false;
       els.webview.src = s.url; pendingReload = false;
     } else if (pendingReload) {
       // Same port reused after a repoint → src is unchanged, so force a reload to

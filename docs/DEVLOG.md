@@ -6,6 +6,43 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-07-03 — Blender tools: fix the OWUI wiring + make it default-on
+
+Field report from the rig: the Blender tools **didn't show up in OWUI**, and the Settings toggle was
+friction the owner didn't want — it should be **on by default**, with OWUI configured automatically so the
+user only starts Blender. Both were real; the first was my mistake.
+
+**Root cause (verified against OWUI's own source, not guessed).** I wired the tool server via the
+`TOOL_SERVER_CONNECTIONS` **env var**. That's a *PersistentConfig*, and OWUI does **not** reliably surface
+env-configured tool servers — an OWUI maintainer says so outright in
+[issue #18140](https://github.com/open-webui/open-webui/issues/18140) ("editing directly is not a supported
+method"). So the connection never became usable tools. The **supported** path is the one the admin UI's
+*verify & save* uses: `POST /api/v1/configs/tool_servers` with `{ TOOL_SERVER_CONNECTIONS: [...] }`
+(confirmed by reading the v0.10.2 SPA's own `setToolServerConnections` in `src/lib/apis/configs`).
+
+**Fix.** Register the tool server through that API from the **authed webview**, mirroring the existing
+`seedWebSearchDefault()` (reads `localStorage.token`, POSTs with `Authorization: Bearer`). New
+`seedBlenderToolServer()` / `unseedBlenderToolServer()` / `maybeSeedBlender()` in
+[app.js](../shell/renderer/app.js): once per session, keyed by `info.id === 'lol-blender'` (idempotent,
+leaves any other tool servers untouched), fired when the webview is authed **and** the local mcpo reports
+`ready` (on first launch mcpo installs for ~1 min, so it's usually the mcpo-ready push that seeds), then a
+one-shot webview reload surfaces the tools. Removed on disable. **Dropped the env approach entirely** —
+`configBridge` no longer emits `TOOL_SERVER_CONNECTIONS`, and the `mcpo` threading through the sidecar
+start/repoint was reverted (toggling Blender no longer restarts OWUI — the tool server is added/removed via
+the live API). New `get-blender-connection` IPC gives the renderer mcpo's url + bearer key.
+
+**Default-on.** `blenderMcp` now defaults `true` ([store.ts](../shell/src/main/store.ts)); boot brings mcpo
+up in the background. The Settings toggle stays as an **off** switch.
+
+**Auth chain verified from source (the thing most likely to 401 silently):** OWUI sends `auth_type:'bearer'`
++ `key`; mcpo's `get_verify_api_key` uses `HTTPBearer` and checks `token == api_key` — so
+`Authorization: Bearer <key>` matches. Without `--strict-auth`, tool routes are key-protected (per-route
+`Depends`) while `/openapi.json` stays public, so OWUI can fetch the spec unauthenticated and authorize the
+calls. **Verified headless:** tsc clean; `node --check app.js`; endpoint + body shape match the v0.10.2 SPA;
+mcpo bearer check read from its source. **Rig-check:** the actual OWUI round-trip (tools appear + a cube
+lands) — still needs the GUI + Blender, but the wiring is now OWUI's supported path, not the unsupported env.
+Ships as v0.1.17.
+
 ## 2026-07-03 — Control Blender from the chat (local MCP tools, opt-in)
 
 Let the assistant drive **Blender running on the user's own machine** — create objects, run Python in

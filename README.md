@@ -81,30 +81,31 @@ See [`shell/README.md`](shell/README.md) and [`sidecar/README.md`](sidecar/READM
 ## Assistant tools — control Blender (optional)
 
 The chat can drive **Blender running on the same machine as the client** — create objects, run Python in
-Blender, inspect the scene — over the [Model Context Protocol](https://modelcontextprotocol.io). The client
-makes Open WebUI turnkey; **you** own the Blender side. Nothing is exposed to the network and OWUI is never
-modified: the client runs a **local** MCP→OpenAPI proxy ([`mcpo`](https://github.com/open-webui/mcpo)) in
-front of the [BlenderMCP](https://github.com/ahujasid/blender-mcp) server and points OWUI at it through the
-`TOOL_SERVER_CONNECTIONS` env var.
+Blender, inspect the scene — over the [Model Context Protocol](https://modelcontextprotocol.io). It's **on
+by default and configured automatically**: the client runs a **local** MCP→OpenAPI proxy
+([`mcpo`](https://github.com/open-webui/mcpo)) in front of the
+[BlenderMCP](https://github.com/ahujasid/blender-mcp) server and registers it with Open WebUI through OWUI's
+own supported API (`POST /api/v1/configs/tool_servers`, the call the admin UI's *verify & save* makes — not
+the `TOOL_SERVER_CONNECTIONS` env var, which OWUI doesn't reliably surface). Nothing is exposed to the
+network and OWUI is never modified. **You only set up Blender.**
 
 **Topology:** Blender + the LOL client run on the **user's own machine**; the GPU farm is unchanged, and
 each person controls their own Blender.
 
-### 1. Turn it on (in the client)
-
-Settings (⚙) → **Assistant tools** → **Enable Blender tools**. The first enable installs a small local
-helper into a private venv (~1 min, needs internet); when it says **Ready**, the Blender tools are in chat.
-The toggle is remembered across restarts.
-
-### 2. Set up Blender (your side, once)
+### Set up Blender (your side, once)
 
 1. Install the **BlenderMCP** add‑on — from [github.com/ahujasid/blender-mcp](https://github.com/ahujasid/blender-mcp)
    download the add‑on `.py`, then in Blender go **Edit ▸ Preferences ▸ Add‑ons ▸ Install…**, pick the file, and tick it on.
 2. In the 3D viewport press **N** → open the **BlenderMCP** tab → **Connect / Start MCP Server**.
 3. In the chat, ask e.g. *“add a red cube and a sun lamp,”* or *“what's in the current scene?”*
 
-Blender must be **open with the server started** for a tool call to succeed; otherwise the tools still show
-but a call replies that it can't reach Blender (harmless — start Blender and retry).
+That's it — the client already wired Open WebUI to the tools. Blender must be **open with the server
+started** for a tool call to succeed; otherwise the tools still show but a call replies that it can't reach
+Blender (harmless — start Blender and retry). The **first client launch** installs a small local helper
+(~1 min, needs internet); after that it starts instantly.
+
+To turn the feature **off** (e.g. on a machine without Blender): Settings (⚙) → **Assistant tools** →
+uncheck **Blender tools**.
 
 ### Requirements & safety
 

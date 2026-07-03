@@ -16,7 +16,7 @@ const DEFAULTS: ShellSettings = {
     lastEndpoint: null,
     launchAtLogin: false,
     autoUpdate: true,
-    blenderMcp: false,
+    blenderMcp: true,   // Blender assistant tools on by default (installs mcpo on first boot)
 };
 
 let cache: ShellSettings | null = null;

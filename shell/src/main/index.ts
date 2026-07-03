@@ -44,7 +44,6 @@ let currentEndpoint: string | null = null;
 let currentModel: string | null = null; // the active farm's default model (→ OWUI DEFAULT_MODELS)
 let currentSearxng: string | null = null; // the active farm's SearXNG (→ OWUI web search)
 let currentTts: { url: string; voice: string; model: string } | null = null; // active farm's Kokoro (→ OWUI TTS)
-let currentMcpo: { url: string; apiKey: string } | null = null; // local Blender tools (→ OWUI TOOL_SERVER_CONNECTIONS)
 let activeFarmId: string | null = null;
 let booted = false; // true once the initial sidecar start has been kicked off
 
@@ -149,23 +148,18 @@ function onFarms(payload: { farms: DiscoveredFarm[] } & Record<string, unknown>)
         // Keyless LAN proxy for now; a keyed farm (requiresKey) needs a key-entry
         // UX we haven't built, so we don't send a (wrong) placeholder key. The farm's
         // default model + SearXNG + TTS ride along so OWUI auto-selects the model and
-        // gets web search + neural voice, all with zero clicks. currentMcpo (local
-        // Blender tools) rides along too so a farm change never drops the tool server.
-        sidecar.repoint(endpoint, null, model, searxng, tts, currentMcpo);
+        // gets web search + neural voice, all with zero clicks.
+        sidecar.repoint(endpoint, null, model, searxng, tts);
     }
 }
 
-// Local Blender assistant-tools server (mcpo) state → forward to the renderer, and
-// when its connection actually changes (came up / went down), repoint OWUI so the
-// TOOL_SERVER_CONNECTIONS env is (re)applied. The URL is local + stable, so this
-// fires on real transitions only, never on a heartbeat — no OWUI restart churn.
+// Local Blender assistant-tools server (mcpo) state → forward to the renderer. The
+// renderer registers/unregisters the tool server via OWUI's SUPPORTED API (POST
+// /api/v1/configs/tool_servers) from the authed webview when this reports ready /
+// stopped — the sidecar is NOT restarted (env-configured tool servers are
+// unreliable upstream; see configBridge + app.js seedBlenderToolServer).
 function onMcpoState(s: McpoState): void {
     if (win && !win.isDestroyed()) win.webContents.send('blender-state', { ...s, enabled: mcpo.isEnabled() });
-    const conn = mcpo.getConnection();
-    if (JSON.stringify(conn) === JSON.stringify(currentMcpo)) return;
-    currentMcpo = conn;
-    if (!booted) return; // the initial boot start() threads currentMcpo itself
-    sidecar.repoint(currentEndpoint, null, currentModel, currentSearxng, currentTts, currentMcpo);
 }
 
 // Wait up to ms for discovery to surface a healthy farm; return its endpoint.
@@ -266,7 +260,7 @@ function registerIpc(): void {
     // Retry a failed/stopped sidecar (the connection screen's Retry button).
     ipcMain.handle('restart-sidecar', async () => {
         await sidecar.stop({ keepState: true });
-        await sidecar.start({ endpoint: currentEndpoint, dataDir: resolveDataDir(), defaultModel: currentModel, searxngUrl: currentSearxng, tts: currentTts, mcpo: currentMcpo });
+        await sidecar.start({ endpoint: currentEndpoint, dataDir: resolveDataDir(), defaultModel: currentModel, searxngUrl: currentSearxng, tts: currentTts });
         return sidecar.getState();
     });
 
@@ -275,6 +269,9 @@ function registerIpc(): void {
     // Blender MCP server to OWUI. Non-blocking: the install/start progress streams
     // to the renderer over 'blender-state', and onMcpoState repoints OWUI when ready.
     ipcMain.handle('get-blender-state', () => ({ ...mcpo.getState(), enabled: mcpo.isEnabled() }));
+    // The renderer registers the tool server with OWUI itself (authed webview API);
+    // it needs the local mcpo url + bearer key. Null until mcpo is ready.
+    ipcMain.handle('get-blender-connection', () => mcpo.getConnection());
     ipcMain.handle('set-blender-enabled', (_e, on: boolean) => {
         const v = !!on;
         updateSettings({ blenderMcp: v });
@@ -359,7 +356,7 @@ function registerIpc(): void {
         // Re-thread the farm's model + SearXNG + TTS so a data-folder change doesn't
         // drop web search / the default model / voice (they'd reset to null otherwise,
         // and the no-op change-check in onFarms would never repoint to restore them).
-        await sidecar.start({ endpoint: currentEndpoint, dataDir: result.ok ? newDir : oldDir, defaultModel: currentModel, searxngUrl: currentSearxng, tts: currentTts, mcpo: currentMcpo });
+        await sidecar.start({ endpoint: currentEndpoint, dataDir: result.ok ? newDir : oldDir, defaultModel: currentModel, searxngUrl: currentSearxng, tts: currentTts });
         return result;
     });
 
@@ -390,7 +387,7 @@ function registerIpc(): void {
         currentSearxng = farmSearxng(activeNow);
         currentTts = farmTts(activeNow);
         booted = true;
-        sidecar.start({ endpoint: initial, dataDir: resolveDataDir(), defaultModel: currentModel, searxngUrl: currentSearxng, tts: currentTts, mcpo: currentMcpo });
+        sidecar.start({ endpoint: initial, dataDir: resolveDataDir(), defaultModel: currentModel, searxngUrl: currentSearxng, tts: currentTts });
         return res;
     });
     // App self-update (electron-updater). check → status; install → quitAndInstall.
@@ -422,7 +419,7 @@ function registerIpc(): void {
             // the pinned farm's model + SearXNG + TTS so pinning doesn't drop
             // DEFAULT_MODELS / web search / voice (and leave the globals stale so
             // onFarms never restores them).
-            sidecar.repoint(endpoint, null, currentModel, currentSearxng, currentTts, currentMcpo);
+            sidecar.repoint(endpoint, null, currentModel, currentSearxng, currentTts);
         }
         return chosen?.id ?? null;
     });
@@ -523,11 +520,12 @@ app.whenReady().then(async () => {
     currentSearxng = farmSearxng(activeNow);
     currentTts = farmTts(activeNow);
     booted = true;
-    sidecar.start({ endpoint: initial, dataDir: resolveDataDir(), defaultModel: currentModel, searxngUrl: currentSearxng, tts: currentTts, mcpo: currentMcpo });
+    sidecar.start({ endpoint: initial, dataDir: resolveDataDir(), defaultModel: currentModel, searxngUrl: currentSearxng, tts: currentTts });
 
-    // If the user left the local Blender tools on, bring mcpo up in the background;
-    // onMcpoState repoints OWUI to add the tool server once it's ready (one restart,
-    // only when enabled — same shape as discovery repointing after boot).
+    // Blender assistant tools are ON by default: bring mcpo up in the background
+    // (first launch installs it, ~1 min). When it's ready the renderer registers the
+    // tool server with OWUI via its API — no sidecar restart. Disabled only if the
+    // user turned it off in Settings.
     if (settings.blenderMcp) mcpo.setEnabled(true);
 
     app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });

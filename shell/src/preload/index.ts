@@ -25,6 +25,7 @@ contextBridge.exposeInMainWorld('lol', {
 
     // Local Blender assistant-tools server (mcpo).
     getBlenderState: () => ipcRenderer.invoke('get-blender-state'),
+    getBlenderConnection: () => ipcRenderer.invoke('get-blender-connection'),
     setBlenderEnabled: (on: boolean) => ipcRenderer.invoke('set-blender-enabled', on),
     onBlenderState: (cb: (s: unknown) => void) => ipcRenderer.on('blender-state', (_e, s) => cb(s)),
 

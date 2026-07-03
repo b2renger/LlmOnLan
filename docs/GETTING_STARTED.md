@@ -125,13 +125,11 @@ npm run dev            # builds + launches the app against the discovered farm
 
 ---
 
-## Optional — control Blender from the chat
+## Control Blender from the chat (on by default)
 
 The assistant can drive **Blender running on your own machine** (create objects, run scripts, inspect the
-scene). The client handles the Open WebUI side; you handle Blender.
-
-**In the client** — Settings (⚙) → **Assistant tools** → **Enable Blender tools**. The first time, this
-installs a small local helper (~1 min, needs internet). When it says *Ready*, the chat has the Blender tools.
+scene). This is **on by default and configured for you** — the client runs a local helper and registers it
+with Open WebUI automatically. **You only set up Blender.**
 
 **In Blender (your side, once):**
 1. Install the **BlenderMCP** add-on (from [github.com/ahujasid/blender-mcp](https://github.com/ahujasid/blender-mcp) — download the add-on `.py`, then Blender ▸ Edit ▸ Preferences ▸ Add-ons ▸ Install, and tick it on).
@@ -139,9 +137,11 @@ installs a small local helper (~1 min, needs internet). When it says *Ready*, th
 3. In the chat, ask something like *“add a red cube and a sun lamp.”*
 
 **Notes:**
+- The **first client launch** installs a small local helper (~1 min, needs internet); after that it's instant.
 - It only works while **Blender is open with the MCP server started** — otherwise the tools are listed but a call returns a "can't reach Blender" message.
-- Use a model that's **good at tool calling** (e.g. a Qwen or Llama tool-tuned model). `gemma4:12b` is weak at tools, so results will be hit-or-miss with it.
-- **Privacy & safety:** the tool server runs on **localhost only** (never exposed to the LAN) and the Blender helper's telemetry is turned **off**. Note it can run arbitrary Python inside Blender, so treat it like any automation on your own scene.
+- Use a model that's **good at tool calling** (e.g. a Qwen or Llama tool-tuned model). `gemma4:12b` is weak at tools, so results will be hit-or-miss with it. In OWUI, if the model chats but never calls a tool, set its **Function Calling** mode to **Native**.
+- **Privacy & safety:** the tool server runs on **localhost only** (never exposed to the LAN) and the Blender helper's telemetry is turned **off**. It can run arbitrary Python inside Blender, so treat it like any automation on your own scene.
+- Don't use Blender? Turn it off in Settings (⚙) ▸ **Assistant tools** ▸ uncheck **Blender tools**.
 
 ## 4. Multiple GPU boxes (a first look)
 
