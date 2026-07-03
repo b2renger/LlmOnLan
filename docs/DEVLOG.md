@@ -6,6 +6,29 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-07-03 — Blender tools: the ACTUAL fix — select the tool server (ui.tools), not just register it
+
+An adversarial multi-agent audit of v0.1.19 against OWUI v0.10.2 source (5 agents, one per claim) caught a
+**blocking bug before the rig test**: writing `settings.toolServers` makes a tool server **available** but
+never **selected**, and OWUI only sends **selected** direct servers to the model. Cited: `Chat.svelte:157` +
+`447-453` (a new chat's `selectedToolIds` seeds from `$settings.tools` == `ui.tools`, **never** from
+`ui.toolServers`), `Chat.svelte:2521-2569` (the request's `tool_servers` is filtered to selected ids),
+`middleware.py:2715` (backend registers only servers present in the payload). So the completion's
+`tool_servers` was empty → the model got zero Blender tools → *"which 3D software are you using?"*.
+
+**Fix:** the seed now also writes the **selection** — appends `'direct_server:<idx>'` to `ui.tools` (idx =
+position among `config.enable` tool servers), which OWUI uses to seed each new chat. `unseed` prunes it
+(shifting higher indices down). **Dropped** the `function_calling='native'` write — the audit proved native
+is OWUI's **default** (the mode gate is `!= 'legacy'`), so it was a no-op; and if native tool-calls prove
+unreliable for qwen3 via LiteLLM→Ollama, the fallback is **`legacy`** (prompt injection), *not* native.
+
+Audit **CONFIRMED** (no change): the connection shape (gate is `config.enable`; no top-level `type`;
+leading-slash `path`), and that `ui.{toolServers,tools,params}` persist (WEBUI_AUTH=false → admin bypasses
+the `settings.interface` / `features.direct_tool_servers` gates that would otherwise strip `toolServers`). It
+also flagged that **Test connection verifies availability plumbing only** — it can't see selection, call-time
+bearer auth (`/openapi.json` is public, so the key isn't checked at test time), or the function_calling mode.
+Ships as v0.1.20.
+
 ## 2026-07-03 — Blender tools: register as a USER tool server (auto-attach) + Test button
 
 Rig report: tools "installed" but the model had **none** — it replied "which 3D software are you using?".

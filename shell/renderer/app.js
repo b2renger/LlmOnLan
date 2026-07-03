@@ -330,13 +330,18 @@ async function seedWebSearchDefault() {
 }
 
 // Register the LOCAL Blender tool server (our mcpo) with OWUI as a USER tool server
-// (settings.toolServers) — NOT a global/admin one. Global tool servers are hidden
-// behind the chat "+" menu and must be toggled on per-chat (OWUI issue #18074), so
-// the model never saw them; USER tool servers attach to every chat automatically.
-// Runs inside the authed webview like seedWebSearchDefault (the user settings live
-// under the `ui` object; the frontend $settings maps to it). Also defaults Function
-// Calling to 'native' (only if unset) so a tool-capable model actually calls the
-// tools. Idempotent, keyed by info.id === 'lol-blender'. Returns 'set'|'already'|'na'|'err:<code>'.
+// AND select it, so a tool-capable model actually receives it. Two distinct steps
+// (verified against OWUI v0.10.2 source — an adversarial audit caught that step 2 is
+// required and was missing):
+//   1) AVAILABILITY — append our connection to settings.toolServers (ui.toolServers).
+//   2) SELECTION — add 'direct_server:<idx>' to settings.tools (ui.tools). OWUI seeds
+//      each new chat's selectedToolIds from $settings.tools; ONLY selected direct
+//      servers are put in the completion's tool_servers (Chat.svelte). Availability
+//      alone (ui.toolServers) is NEVER auto-selected, so the model would get nothing.
+// idx = position among ENABLED tool servers (getToolServersData filters config.enable).
+// We do NOT touch function_calling: OWUI already defaults to native (the mode gate is
+// `!= 'legacy'`), so setting it was a no-op. Runs in the authed webview like
+// seedWebSearchDefault. Idempotent, keyed by info.id. Returns 'set'|'already'|'na'|'err:<code>'.
 async function seedBlenderToolServer(url, key) {
   try {
     return await els.webview.executeJavaScript(`(async () => {
@@ -344,19 +349,27 @@ async function seedBlenderToolServer(url, key) {
         const t = window.localStorage && window.localStorage.token; if (!t) return 'na';
         const H = { authorization: 'Bearer ' + t };
         const url = ${JSON.stringify(url)}, key = ${JSON.stringify(key)};
+        const ID = 'lol-blender';
         const conn = { url, path: '/openapi.json', auth_type: 'bearer', key, config: { enable: true },
-          info: { id: 'lol-blender', name: 'Blender', description: 'Control Blender running on this machine.' } };
+          info: { id: ID, name: 'Blender', description: 'Control Blender running on this machine.' } };
         const cur = await (await fetch('/api/v1/users/user/settings', { headers: H })).json().catch(() => null);
         const ui = (cur && cur.ui) || {};
         const list = Array.isArray(ui.toolServers) ? ui.toolServers : [];
-        const mine = list.find(c => c && c.info && c.info.id === 'lol-blender');
         let changed = false;
+        // 1) availability
+        const mine = list.find(c => c && c.info && c.info.id === ID);
         if (!(mine && mine.url === url && mine.key === key)) {
-          ui.toolServers = [...list.filter(c => !(c && c.info && c.info.id === 'lol-blender')), conn];
+          ui.toolServers = [...list.filter(c => !(c && c.info && c.info.id === ID)), conn];
           changed = true;
+        } else { ui.toolServers = list; }
+        // 2) selection (the fix): put 'direct_server:<idx>' into ui.tools
+        const enabled = (ui.toolServers || []).filter(c => c && c.config && c.config.enable);
+        const idx = enabled.findIndex(c => c && c.info && c.info.id === ID);
+        if (idx >= 0) {
+          const sel = 'direct_server:' + idx;
+          const tools = Array.isArray(ui.tools) ? ui.tools : [];
+          if (!tools.includes(sel)) { ui.tools = [...tools, sel]; changed = true; }
         }
-        ui.params = ui.params || {};
-        if (!ui.params.function_calling) { ui.params.function_calling = 'native'; changed = true; }
         if (!changed) return 'already';
         const r = await fetch('/api/v1/users/user/settings/update', {
           method: 'POST', headers: { ...H, 'content-type': 'application/json' }, body: JSON.stringify({ ui })
@@ -367,19 +380,32 @@ async function seedBlenderToolServer(url, key) {
   } catch { return 'na'; }
 }
 
-// Remove our Blender tool server from OWUI's user settings (feature turned off).
+// Remove our Blender tool server + its selection from OWUI's user settings (off).
+// Also shifts any higher direct_server indices down by one (removing our entry
+// changes the enabled-server ordering the indices refer to).
 async function unseedBlenderToolServer() {
   try {
     return await els.webview.executeJavaScript(`(async () => {
       try {
         const t = window.localStorage && window.localStorage.token; if (!t) return 'na';
         const H = { authorization: 'Bearer ' + t };
+        const ID = 'lol-blender';
         const cur = await (await fetch('/api/v1/users/user/settings', { headers: H })).json().catch(() => null);
         const ui = (cur && cur.ui) || {};
         const list = Array.isArray(ui.toolServers) ? ui.toolServers : [];
-        const others = list.filter(c => !(c && c.info && c.info.id === 'lol-blender'));
+        const oldIdx = list.filter(c => c && c.config && c.config.enable).findIndex(c => c && c.info && c.info.id === ID);
+        const others = list.filter(c => !(c && c.info && c.info.id === ID));
         if (others.length === list.length) return 'already';
         ui.toolServers = others;
+        if (Array.isArray(ui.tools) && oldIdx >= 0) {
+          ui.tools = ui.tools.filter(x => x !== 'direct_server:' + oldIdx).map(x => {
+            if (typeof x === 'string' && x.indexOf('direct_server:') === 0) {
+              const n = parseInt(x.slice(14), 10);
+              if (n > oldIdx) return 'direct_server:' + (n - 1);
+            }
+            return x;
+          });
+        }
         const r = await fetch('/api/v1/users/user/settings/update', {
           method: 'POST', headers: { ...H, 'content-type': 'application/json' }, body: JSON.stringify({ ui })
         });
