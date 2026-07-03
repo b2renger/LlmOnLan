@@ -198,6 +198,29 @@ async function pullModels(config) {
     }
 }
 
+// --- 5. web search (SearXNG) ------------------------------------------------
+
+// Pre-install the shared SearXNG metasearch when enabled (the default) so the
+// first `lol up` starts instantly instead of stalling on a first-run install.
+// Idempotent + non-fatal: SearXNG is auxiliary, so a hiccup here just means
+// `lol up` retries and the farm still serves chat. TTS is deliberately NOT
+// pre-installed here — it's off by default and its torch download is multi-GB;
+// `lol up` installs it lazily if an operator turns it on.
+async function ensureWebsearch(config) {
+    if (!config.websearch || !config.websearch.enabled) {
+        log.info('Disabled (set websearch.enabled:true to host shared web search for clients).');
+        return;
+    }
+    try {
+        const { ensureSearxng } = require('../searxng');
+        const ok = await ensureSearxng();
+        if (ok) log.ok('SearXNG ready — every client gets web search, zero setup.');
+        else log.warn('Web search not set up yet — `lol up` will retry on first run.');
+    } catch (e) {
+        log.warn(`Web search setup skipped — ${e.message}. \`lol up\` will retry.`);
+    }
+}
+
 // --- orchestrate ------------------------------------------------------------
 
 async function run() {
@@ -218,6 +241,10 @@ async function run() {
     log.plain('');
     log.info('Models …');
     await pullModels(config);
+
+    log.plain('');
+    log.info('Web search …');
+    await ensureWebsearch(config);
 
     log.plain('');
     if (litellmOk) {

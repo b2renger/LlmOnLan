@@ -38,13 +38,16 @@ cd farm
 This installs the CLI's Node deps, then runs `lol install`, which:
 - installs **Ollama** (winget on Windows / brew on macOS / the official script on Linux),
 - creates a local Python venv with **LiteLLM**,
-- **pulls the default model** (`gemma4:12b`) — this can be several GB on first run.
+- **pulls the default model** (`gemma4:12b`) — this can be several GB on first run,
+- sets up **shared web search** (SearXNG) — **on by default**, so every client that connects gets web search with zero setup.
+
+So a fresh install already gives you a working farm with the model downloaded and web search ready — no config editing required. (Neural **voice** is the one extra you opt into — see below — because its install is multi-GB.)
 
 > Prefer the CLI directly? `node bin/lol.js install` does the same. `npm link` in `farm/` puts `lol` on your PATH so it's just `lol install`.
 
 ### Configure (optional but recommended)
 
-`lol install` scaffolds a **`farm/lol.config.json`** (see [`lol.config.example.json`](../farm/lol.config.example.json) for the shape). Edit it to taste — the interesting knobs:
+The defaults already give you a working farm (model + web search). `lol install` scaffolds a **`farm/lol.config.json`** (see [`lol.config.example.json`](../farm/lol.config.example.json) for the shape) — edit it only if you want to change the defaults. The interesting knobs:
 
 ```jsonc
 {
@@ -53,14 +56,15 @@ This installs the CLI's Node deps, then runs `lol install`, which:
                                          //   underneath anytime without breaking existing chats
   "models": [ { "id": "gemma4:12b", "default": true },
               { "id": "qwen2.5-coder:14b", "alias": "coder" } ],  // per-model role name
-  "websearch": { "enabled": true, "port": 8888 },   // shared SearXNG → web search on every client
-  "tts":       { "enabled": true, "port": 8880, "voice": "af_heart", "model": "kokoro" }, // neural voice
+  "websearch": { "enabled": true, "port": 8888 },   // ON by default → web search on every client
+                                                    //   (set enabled:false to turn it off)
+  "tts":       { "enabled": true, "port": 8880, "voice": "af_heart", "model": "kokoro" }, // opt-in neural voice
   "ollama":    { "hosts": ["http://127.0.0.1:11434"], "numParallel": 2, "keepAlive": "-1" },
   "coordinator": false                   // for multi-box: aggregate LAN peers behind one endpoint
 }
 ```
 
-You don't have to enable web search or TTS — leave them out and it's a plain chat farm. See the full reference in [`farm/README.md`](../farm/README.md).
+**Web search is on by default** — turn it off with `"websearch": { "enabled": false }` (or `lol up --no-websearch`). **Voice (TTS) is off by default** because its install is multi-GB; enable it with `"tts": { "enabled": true }`. See the full reference in [`farm/README.md`](../farm/README.md).
 
 ### Run it
 

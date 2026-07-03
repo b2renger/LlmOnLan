@@ -25,5 +25,15 @@
     "command": "litellm",
     "extraArgs": [],
     "provider": "ollama_chat"
+  },
+  "websearch": {
+    "enabled": true,
+    "port": 8888
+  },
+  "tts": {
+    "enabled": false,
+    "port": 8880,
+    "voice": "af_heart",
+    "model": "kokoro"
   }
 }

@@ -66,7 +66,7 @@ npm link        # then just `lol <cmd>` anywhere
 
 | Command | Does |
 |---|---|
-| `lol install` / `setup` | One‑time bootstrap: install Ollama + LiteLLM and pull the configured models. Idempotent. |
+| `lol install` / `setup` | One‑time bootstrap: install Ollama + LiteLLM, pull the configured models, and set up shared web search (SearXNG, on by default). Idempotent. |
 | `lol init [--force]` | Scaffold a `lol.config.json` in the current directory. |
 | `lol up` / `lol serve` | Ensure Ollama, **pick the model(s) to serve** (interactive, from what's installed; Enter = default), pull anything missing, generate + run the LiteLLM proxy, start SearXNG (if enabled) + the beacon. Foreground; Ctrl‑C stops. |
 | `lol down` | Stop the proxy + SearXNG + beacon (and any Ollama this CLI started). |
@@ -111,10 +111,12 @@ See [`lol.config.example.json`](lol.config.example.json). Shape:
   swap the served model and old chats break. With an alias (global `modelAlias` for the default model,
   per‑model `alias` for others), clients see a **fixed id** ("assistant", "coder") and you can swap what's
   behind it anytime (`lol up`, pick another model) without breaking a single chat.
-- **Web search:** `websearch.enabled` hosts **one shared [SearXNG](https://docs.searxng.org)** on this box
-  (installed automatically into `farm/.searxng/` on first `lol up` — delete that folder to uninstall).
+- **Web search (ON by default):** `websearch.enabled` defaults to **`true`**, so a fresh farm hosts
+  **one shared [SearXNG](https://docs.searxng.org)** on this box with no config edits. It's installed into
+  `farm/.searxng/` at `lol install` time (and re‑checked on `lol up`; delete that folder to uninstall).
   Clients discover it via the beacon and OWUI's per‑message web‑search toggle just works, zero client
-  setup. Searches + page fetching run from each client; this box only hosts the metasearch engine.
+  setup. Searches + page fetching run from each client; this box only hosts the metasearch engine. Turn it
+  off with `"websearch": { "enabled": false }` or `lol up --no-websearch`.
 - **Multiple GPU boxes:** either list every box in `ollama.hosts` (one farm balances them all), or run
   `lol up` per box and let clients auto‑spread (they pick the least‑loaded farm), or run one box with
   `--coordinator` to aggregate the others behind a single endpoint that clients prefer.
@@ -136,7 +138,7 @@ See [`lol.config.example.json`](lol.config.example.json). Shape:
 4. (`--coordinator`) discover LAN peer farms and fold them into the routing.
 5. Generate `litellm/config.generated.yaml` (served names × hosts + peers → deployments).
 6. Spawn LiteLLM, wait for `/health/liveliness`, confirm `/v1/models`.
-7. (websearch) Install (first run) + spawn SearXNG, health‑wait `/healthz` + the JSON API.
+7. (websearch, on by default) Ensure SearXNG is installed (normally already done at `lol install`; installs here if missing) + spawn it, health‑wait `/healthz` + the JSON API.
 8. Start the discovery beacon (+ the unicast `/lol/self` endpoint).
 9. Write `.lol-runtime.json` (so `status`/`down` work elsewhere) and supervise until Ctrl‑C.
 

@@ -302,9 +302,9 @@ test('snapshot carries coordinator + deployments (default off)', () => {
 // ---- websearch (SearXNG) -----------------------------------------------------
 const { buildSettingsYaml } = require('../src/searxng');
 
-test('websearch config defaults: off, port 8888', () => {
+test('websearch config defaults: ON, port 8888', () => {
     const c = defaultConfig();
-    assert.equal(c.websearch.enabled, false);
+    assert.equal(c.websearch.enabled, true);   // on by default — a fresh farm gets web search
     assert.equal(c.websearch.port, 8888);
 });
 

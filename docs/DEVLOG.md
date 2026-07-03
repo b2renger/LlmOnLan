@@ -6,6 +6,28 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-07-03 — Web search is now ON by default (set up at farm install)
+
+Owner call: a fresh farm should give clients web search with **no config editing** — the same way it already
+auto-pulls `gemma4:12b`. Two changes make "on the farm install, download the model **and** activate web search"
+literally true:
+
+1. **`websearch.enabled` now defaults to `true`** ([farm/src/config.js](../farm/src/config.js)). The scaffold
+   `lol install` writes (from `defaultConfig()`) therefore shows `websearch:{enabled:true,port:8888}` explicitly,
+   and any config that omits the block inherits on. Opt out with `"websearch":{"enabled":false}` or
+   `lol up --no-websearch`. (TTS stays **off** by default — its torch install is multi-GB and the owner only
+   asked for web search on.)
+2. **SearXNG is pre-installed at `lol install`**, not lazily on first `lol up`
+   ([farm/src/commands/install.js](../farm/src/commands/install.js) → new `ensureWebsearch(config)` step). It's
+   the existing idempotent `ensureSearxng()`, gated on the now-default-on flag and **non-fatal** (auxiliary — a
+   hiccup just warns and `lol up` retries; chat still serves). So the first `lol up` starts instantly instead of
+   stalling on a first-run source-tarball + venv + pip install.
+
+**Verified:** `node farm/test/run.js` green (the `websearch config defaults` test now asserts `enabled===true`;
+the snapshot gating test still toggles explicitly, unaffected). Example config + [GETTING_STARTED.md](GETTING_STARTED.md)
++ [farm/README.md](../farm/README.md) updated so the docs no longer read "optionally flip on web search." No client
+change — the client already auto-wires web search whenever the farm advertises `searxngUrl`.
+
 ## 2026-07-03 — Neural TTS: shared Kokoro on the farm (the "nicer voices" upgrade)
 
 Replaced OWUI's robotic Web-Speech voices with **Kokoro-82M** neural TTS, hosted once on the farm box and

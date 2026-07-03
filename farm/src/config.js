@@ -60,8 +60,10 @@ const OllamaSchema = z.object({
 const WebsearchSchema = z.object({
     // One shared SearXNG metasearch instance on this box; clients discover it via
     // the beacon (snapshot.searxngUrl) and OWUI uses it for per-message web search.
-    // `lol up` installs it on first run (git clone + its own venv under .searxng/).
-    enabled: z.boolean().default(false),
+    // `lol up` installs it on first run (source tarball + its own venv under
+    // .searxng/). ON BY DEFAULT — a fresh farm gets web search automatically (set
+    // enabled:false to opt out). The install is small; failure is non-fatal.
+    enabled: z.boolean().default(true),
     port: z.number().int().positive().default(8888),
 }).strict();
 
