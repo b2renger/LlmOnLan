@@ -9,6 +9,9 @@ LlmOnLan is a sibling of [ComfyQ](https://github.com/b2renger/ComfyQ): same visu
 same Electron/auto‑update conventions, same dependency‑free UDP discovery. Where ComfyQ schedules
 ComfyUI workflows, LOL gives a workshop a private, local‑first chat assistant.
 
+> **New here? Start with [docs/GETTING_STARTED.md](docs/GETTING_STARTED.md)** — clone, set up a farm on a GPU
+> box, install the client app, and connect. The quick starts below are the short version.
+
 ```
   ┌──────────────── your machine ────────────────┐        ┌──────── LAN ────────┐
   │  LOL shell (Electron) — ComfyQ-styled chrome  │        │  lol CLI on GPU box │
