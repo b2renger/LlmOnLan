@@ -23,6 +23,11 @@ contextBridge.exposeInMainWorld('lol', {
     setScanRange: (r: unknown) => ipcRenderer.invoke('set-scan-range', r),
     rescan: () => ipcRenderer.invoke('rescan'),
 
+    // Local Blender assistant-tools server (mcpo).
+    getBlenderState: () => ipcRenderer.invoke('get-blender-state'),
+    setBlenderEnabled: (on: boolean) => ipcRenderer.invoke('set-blender-enabled', on),
+    onBlenderState: (cb: (s: unknown) => void) => ipcRenderer.on('blender-state', (_e, s) => cb(s)),
+
     // Preferences (M4).
     getPrefs: () => ipcRenderer.invoke('get-prefs'),
     chooseDataDir: () => ipcRenderer.invoke('choose-data-dir'),

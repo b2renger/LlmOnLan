@@ -59,6 +59,7 @@ const prefs = {
   base: $('range-base'), t0: $('range-t0'), t1: $('range-t1'), f0: $('range-f0'), f1: $('range-f1'), rangeApply: $('range-apply'),
   addForm: $('pref-add-form'), addHost: $('pref-add-host'), chips: $('pref-chips'),
   launch: $('pref-launch'), autoUpdate: $('pref-autoupdate'),
+  blender: $('pref-blender'), blenderStatus: $('pref-blender-status'),
   verShell: $('ver-shell'), verOwui: $('ver-owui'), owuiLink: $('owui-link'),
   checkApp: $('check-app-update'), appStatus: $('app-update-status'),
   appRestartRow: $('app-restart-row'), appRestart: $('app-update-restart'),
@@ -80,6 +81,8 @@ async function refreshPrefs() {
   prefs.autoScan.checked = !!p.autoScan;
   prefs.launch.checked = !!p.launchAtLogin;
   prefs.autoUpdate.checked = !!p.autoUpdate;
+  prefs.blender.checked = !!p.blenderMcp;
+  setBlenderStatus(p.blenderState, p.blenderMcp);
   prefs.verShell.textContent = 'v' + p.shellVersion;
   prefs.verOwui.textContent = 'v' + p.owuiVersion;
   const r = p.scanRange || {};
@@ -98,6 +101,23 @@ function renderChips(peers) {
     chip.querySelector('.chip-x').onclick = async () => { renderChips(await window.lol.removeManualPeer(host)); };
     prefs.chips.appendChild(chip);
   }
+}
+
+// Short human line for the Blender assistant-tools toggle (install/run state).
+function setBlenderStatus(state, enabled) {
+  const el = prefs.blenderStatus;
+  if (!el) return;
+  const s = state || {};
+  let msg = '';
+  if (enabled) {
+    if (s.status === 'installing') msg = s.message || 'Installing… (first time only)';
+    else if (s.status === 'starting') msg = 'Starting…';
+    else if (s.status === 'ready') msg = 'Ready — now start the MCP server in Blender.';
+    else if (s.status === 'error') msg = s.message || 'Could not start the Blender tools.';
+    else msg = 'Starting…';
+  }
+  el.textContent = msg;
+  el.classList.toggle('err', s.status === 'error');
 }
 
 $('settings-btn').addEventListener('click', openPrefs);
@@ -144,6 +164,14 @@ prefs.addForm.addEventListener('submit', async (e) => {
 });
 prefs.launch.addEventListener('change', () => window.lol.setLaunchAtLogin(prefs.launch.checked));
 prefs.autoUpdate.addEventListener('change', () => window.lol.setAutoUpdate(prefs.autoUpdate.checked));
+prefs.blender.addEventListener('change', async () => {
+  const on = prefs.blender.checked;
+  setBlenderStatus({ status: on ? 'starting' : 'stopped' }, on);
+  const st = await window.lol.setBlenderEnabled(on);
+  setBlenderStatus(st, on);
+});
+// Live install/start progress (and the OWUI restart it triggers) while the panel is open.
+window.lol.onBlenderState((s) => setBlenderStatus(s, s && s.enabled));
 prefs.owuiLink.addEventListener('click', (e) => { e.preventDefault(); window.lol.openExternal('https://openwebui.com'); });
 
 // --- app self-update (electron-updater) ---

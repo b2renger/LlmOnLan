@@ -41,6 +41,7 @@ export interface SidecarEnvInput {
     defaultModel?: string | null; // the farm's advertised default model → OWUI DEFAULT_MODELS
     searxngUrl?: string | null;   // the farm's shared SearXNG → OWUI web search
     tts?: { url: string; voice: string; model: string } | null; // farm Kokoro → OWUI AUDIO_TTS_*
+    mcpo?: { url: string; apiKey: string } | null; // LOCAL Blender tools (mcpo) → OWUI TOOL_SERVER_CONNECTIONS
 }
 
 // Build the environment Open WebUI is launched with. This is the whole coupling.
@@ -160,6 +161,27 @@ export function buildSidecarEnv(input: SidecarEnvInput): Record<string, string> 
         env.AUDIO_TTS_OPENAI_API_KEY = 'sk-lol-tts';   // keyless LAN server; OWUI needs a non-empty key
         env.AUDIO_TTS_MODEL = input.tts.model || 'kokoro';
         env.AUDIO_TTS_VOICE = input.tts.voice || 'af_heart';
+    }
+
+    // Assistant tools — a LOCAL mcpo server (managed by mcpoSupervisor) exposes the
+    // Blender MCP server as an OpenAPI tool server; register it so OWUI shows the
+    // Blender tools in chat. ENABLE_PERSISTENT_CONFIG=false makes this env the
+    // authority every launch (an admin-UI edit would otherwise win + go stale). The
+    // url is 127.0.0.1 (localhost-only, this machine drives its own Blender); the
+    // bearer key gates mcpo's tool calls (it's not exposed on the LAN). No mcpo →
+    // no env → the feature stays hidden, exactly as before.
+    if (input.mcpo && input.mcpo.url) {
+        env.TOOL_SERVER_CONNECTIONS = JSON.stringify([{
+            type: 'openapi',
+            url: input.mcpo.url,
+            spec_type: 'url',
+            spec: '',
+            path: 'openapi.json',
+            auth_type: 'bearer',
+            key: input.mcpo.apiKey,
+            config: { enable: true },
+            info: { id: 'blender-mcp', name: 'Blender', description: 'Control Blender on this machine.' },
+        }]);
     }
 
     return env;

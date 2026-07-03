@@ -16,6 +16,7 @@ const DEFAULTS: ShellSettings = {
     lastEndpoint: null,
     launchAtLogin: false,
     autoUpdate: true,
+    blenderMcp: false,
 };
 
 let cache: ShellSettings | null = null;

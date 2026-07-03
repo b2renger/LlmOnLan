@@ -68,6 +68,14 @@ export interface ScanRange {
     fourth: [number, number];
 }
 
+// Local "assistant tools" server (mcpo wrapping the Blender MCP server) lifecycle.
+export type McpoStatus = 'idle' | 'installing' | 'starting' | 'ready' | 'stopped' | 'error';
+export interface McpoState {
+    status: McpoStatus;
+    url: string | null;        // http://127.0.0.1:<port> once ready
+    message?: string;          // human-readable detail (install progress / error)
+}
+
 export interface ShellSettings {
     dataDir: string | null;            // null => default per-user app-data path
     theme: 'dark' | 'light' | 'system';
@@ -78,4 +86,5 @@ export interface ShellSettings {
     lastEndpoint: string | null;       // last-known-good openaiBaseUrl (fallback before discovery)
     launchAtLogin: boolean;
     autoUpdate: boolean;
+    blenderMcp: boolean;               // local Blender assistant-tools server (mcpo) on/off
 }

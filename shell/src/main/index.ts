@@ -10,6 +10,7 @@ import * as fs from 'fs';
 import { loadSettings, updateSettings } from './store';
 import { defaultDataDir, bundledOwuiVersion, sidecarRoot } from './paths';
 import { SidecarSupervisor } from './sidecar';
+import { McpoSupervisor } from './mcpoSupervisor';
 import { Discovery } from './discovery';
 import { moveDataDir, dirHasData } from './dataMigration';
 import { initAutoUpdate, checkForAppUpdate, quitAndInstallUpdate, setUpdateNotifier } from './updater';
@@ -17,7 +18,7 @@ import {
     ensureSidecar, applyPendingSidecar, isSidecarInstalled,
     checkOwuiUpdate, downloadOwuiUpdate, SidecarProgress,
 } from './sidecarManager';
-import { ShellSettings, DiscoveredFarm, ScanRange } from './types';
+import { ShellSettings, DiscoveredFarm, ScanRange, McpoState } from './types';
 
 app.setName('LlmOnLan');
 
@@ -35,6 +36,7 @@ if (!app.requestSingleInstanceLock()) {
 
 let win: BrowserWindow | null = null;
 const sidecar = new SidecarSupervisor();
+const mcpo = new McpoSupervisor(); // local Blender assistant-tools server (opt-in)
 let discovery: Discovery | null = null;
 
 // The farm endpoint OWUI is currently pointed at, and which farm it is.
@@ -42,6 +44,7 @@ let currentEndpoint: string | null = null;
 let currentModel: string | null = null; // the active farm's default model (→ OWUI DEFAULT_MODELS)
 let currentSearxng: string | null = null; // the active farm's SearXNG (→ OWUI web search)
 let currentTts: { url: string; voice: string; model: string } | null = null; // active farm's Kokoro (→ OWUI TTS)
+let currentMcpo: { url: string; apiKey: string } | null = null; // local Blender tools (→ OWUI TOOL_SERVER_CONNECTIONS)
 let activeFarmId: string | null = null;
 let booted = false; // true once the initial sidecar start has been kicked off
 
@@ -146,9 +149,23 @@ function onFarms(payload: { farms: DiscoveredFarm[] } & Record<string, unknown>)
         // Keyless LAN proxy for now; a keyed farm (requiresKey) needs a key-entry
         // UX we haven't built, so we don't send a (wrong) placeholder key. The farm's
         // default model + SearXNG + TTS ride along so OWUI auto-selects the model and
-        // gets web search + neural voice, all with zero clicks.
-        sidecar.repoint(endpoint, null, model, searxng, tts);
+        // gets web search + neural voice, all with zero clicks. currentMcpo (local
+        // Blender tools) rides along too so a farm change never drops the tool server.
+        sidecar.repoint(endpoint, null, model, searxng, tts, currentMcpo);
     }
+}
+
+// Local Blender assistant-tools server (mcpo) state → forward to the renderer, and
+// when its connection actually changes (came up / went down), repoint OWUI so the
+// TOOL_SERVER_CONNECTIONS env is (re)applied. The URL is local + stable, so this
+// fires on real transitions only, never on a heartbeat — no OWUI restart churn.
+function onMcpoState(s: McpoState): void {
+    if (win && !win.isDestroyed()) win.webContents.send('blender-state', { ...s, enabled: mcpo.isEnabled() });
+    const conn = mcpo.getConnection();
+    if (JSON.stringify(conn) === JSON.stringify(currentMcpo)) return;
+    currentMcpo = conn;
+    if (!booted) return; // the initial boot start() threads currentMcpo itself
+    sidecar.repoint(currentEndpoint, null, currentModel, currentSearxng, currentTts, currentMcpo);
 }
 
 // Wait up to ms for discovery to surface a healthy farm; return its endpoint.
@@ -249,8 +266,20 @@ function registerIpc(): void {
     // Retry a failed/stopped sidecar (the connection screen's Retry button).
     ipcMain.handle('restart-sidecar', async () => {
         await sidecar.stop({ keepState: true });
-        await sidecar.start({ endpoint: currentEndpoint, dataDir: resolveDataDir(), defaultModel: currentModel, searxngUrl: currentSearxng, tts: currentTts });
+        await sidecar.start({ endpoint: currentEndpoint, dataDir: resolveDataDir(), defaultModel: currentModel, searxngUrl: currentSearxng, tts: currentTts, mcpo: currentMcpo });
         return sidecar.getState();
+    });
+
+    // --- local Blender assistant-tools server (mcpo) ---
+    // Toggling this installs (first time) + runs a local mcpo that exposes the
+    // Blender MCP server to OWUI. Non-blocking: the install/start progress streams
+    // to the renderer over 'blender-state', and onMcpoState repoints OWUI when ready.
+    ipcMain.handle('get-blender-state', () => ({ ...mcpo.getState(), enabled: mcpo.isEnabled() }));
+    ipcMain.handle('set-blender-enabled', (_e, on: boolean) => {
+        const v = !!on;
+        updateSettings({ blenderMcp: v });
+        mcpo.setEnabled(v);
+        return { ...mcpo.getState(), enabled: v };
     });
 
     // --- discovery (M3) ---
@@ -300,6 +329,8 @@ function registerIpc(): void {
             manualPeers: discovery?.getManualPeers() ?? [],
             autoScan: discovery?.getAutoScan() ?? true,
             endpoint: currentEndpoint,
+            blenderMcp: s.blenderMcp,
+            blenderState: mcpo.getState(),
         };
     });
 
@@ -328,7 +359,7 @@ function registerIpc(): void {
         // Re-thread the farm's model + SearXNG + TTS so a data-folder change doesn't
         // drop web search / the default model / voice (they'd reset to null otherwise,
         // and the no-op change-check in onFarms would never repoint to restore them).
-        await sidecar.start({ endpoint: currentEndpoint, dataDir: result.ok ? newDir : oldDir, defaultModel: currentModel, searxngUrl: currentSearxng, tts: currentTts });
+        await sidecar.start({ endpoint: currentEndpoint, dataDir: result.ok ? newDir : oldDir, defaultModel: currentModel, searxngUrl: currentSearxng, tts: currentTts, mcpo: currentMcpo });
         return result;
     });
 
@@ -359,7 +390,7 @@ function registerIpc(): void {
         currentSearxng = farmSearxng(activeNow);
         currentTts = farmTts(activeNow);
         booted = true;
-        sidecar.start({ endpoint: initial, dataDir: resolveDataDir(), defaultModel: currentModel, searxngUrl: currentSearxng, tts: currentTts });
+        sidecar.start({ endpoint: initial, dataDir: resolveDataDir(), defaultModel: currentModel, searxngUrl: currentSearxng, tts: currentTts, mcpo: currentMcpo });
         return res;
     });
     // App self-update (electron-updater). check → status; install → quitAndInstall.
@@ -391,7 +422,7 @@ function registerIpc(): void {
             // the pinned farm's model + SearXNG + TTS so pinning doesn't drop
             // DEFAULT_MODELS / web search / voice (and leave the globals stale so
             // onFarms never restores them).
-            sidecar.repoint(endpoint, null, currentModel, currentSearxng, currentTts);
+            sidecar.repoint(endpoint, null, currentModel, currentSearxng, currentTts, currentMcpo);
         }
         return chosen?.id ?? null;
     });
@@ -456,6 +487,7 @@ app.whenReady().then(async () => {
     createWindow();
 
     sidecar.on('state', pushSidecarState);
+    mcpo.on('state', onMcpoState);
     maybeSmokeShot();
 
     // Apply a staged OWUI update (downloaded last run) BEFORE anything uses the
@@ -491,7 +523,12 @@ app.whenReady().then(async () => {
     currentSearxng = farmSearxng(activeNow);
     currentTts = farmTts(activeNow);
     booted = true;
-    sidecar.start({ endpoint: initial, dataDir: resolveDataDir(), defaultModel: currentModel, searxngUrl: currentSearxng, tts: currentTts });
+    sidecar.start({ endpoint: initial, dataDir: resolveDataDir(), defaultModel: currentModel, searxngUrl: currentSearxng, tts: currentTts, mcpo: currentMcpo });
+
+    // If the user left the local Blender tools on, bring mcpo up in the background;
+    // onMcpoState repoints OWUI to add the tool server once it's ready (one restart,
+    // only when enabled — same shape as discovery repointing after boot).
+    if (settings.blenderMcp) mcpo.setEnabled(true);
 
     app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
 });
@@ -502,7 +539,7 @@ app.on('before-quit', async (e) => {
     quitting = true;
     e.preventDefault();
     discovery?.stop();
-    await sidecar.stop();
+    await Promise.allSettled([sidecar.stop(), mcpo.stop()]);
     app.exit(0);
 });
 

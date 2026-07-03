@@ -56,6 +56,30 @@ export function sidecarExists(command: string): boolean {
     try { return fs.existsSync(command); } catch { return false; }
 }
 
+// The base Python interpreter (WITH pip) we build the MCP-tools venv from. It's
+// the same relocatable standalone CPython the OWUI sidecar runs on (packaged), or
+// the repo's sidecar venv (dev) — both ship pip, so `-m venv` + `-m pip install`
+// work with no system Python. Returns the path even if not-yet-present (the caller
+// checks existence and falls back to a PATH python). $LOL_MCP_PYTHON overrides.
+export function resolveSidecarPython(): string {
+    if (process.env.LOL_MCP_PYTHON) return process.env.LOL_MCP_PYTHON;
+    if (app.isPackaged) {
+        const root = sidecarRoot();
+        return isWin ? path.join(root, 'python', 'python.exe') : path.join(root, 'python', 'bin', 'python3');
+    }
+    const repoRoot = path.join(app.getAppPath(), '..');
+    return isWin
+        ? path.join(repoRoot, 'sidecar', '.venv', 'Scripts', 'python.exe')
+        : path.join(repoRoot, 'sidecar', '.venv', 'bin', 'python');
+}
+
+// Where the client-side MCP tooling lives: a dedicated venv (mcpo + the Blender
+// MCP server) + an install marker, kept OUT of the OWUI sidecar's env so it can't
+// perturb OWUI's deps. `rm -rf` this dir is a full uninstall. Per-user + writable.
+export function mcpToolsDir(): string {
+    return path.join(app.getPath('userData'), 'mcp-tools');
+}
+
 // Default per-user DATA_DIR (all OWUI user data lives here unless the user picks
 // another folder). Under Electron's userData so it's per-user + writable.
 export function defaultDataDir(): string {

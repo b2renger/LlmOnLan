@@ -6,6 +6,50 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-07-03 — Control Blender from the chat (local MCP tools, opt-in)
+
+Let the assistant drive **Blender running on the user's own machine** — create objects, run Python in
+Blender, inspect the scene — while keeping the invariants: **OWUI stays unmodified** (pure env wiring) and
+**nothing is exposed to the network** (localhost only). The user owns the Blender side (install the
+BlenderMCP add-on + Start its server); we make OWUI turnkey — one toggle in Settings.
+
+**How it works.** OWUI added native MCP (streamable-HTTP) support, and it also consumes **OpenAPI tool
+servers** via `TOOL_SERVER_CONNECTIONS`. The Blender MCP server (`blender-mcp`) is stdio, so we front it
+with OWUI's own **`mcpo`** proxy (stdio→OpenAPI). A new **client-side supervisor**
+([shell/src/main/mcpoSupervisor.ts](../shell/src/main/mcpoSupervisor.ts), mirroring the OWUI
+SidecarSupervisor) installs both into a **dedicated venv** under `userData/mcp-tools/` (reusing the
+sidecar's bundled standalone CPython — it ships pip — so no new runtime; kept out of the OWUI env so it
+can't perturb it) **on first activation** (opt-in, like the farm's SearXNG/Kokoro), then runs
+`mcpo --host 127.0.0.1 --api-key <random> -- blender-mcp` and health-waits `/openapi.json`.
+[configBridge.ts](../shell/src/main/configBridge.ts) injects `TOOL_SERVER_CONNECTIONS` pointing at it
+(`ENABLE_PERSISTENT_CONFIG=false` keeps env authoritative every launch); the mcpo connection is threaded
+through the sidecar exactly like the farm's SearXNG/TTS (all six start/repoint sites) so a farm change
+never drops the tool server. Toggle + status live in **Settings → Assistant tools**
+([index.ts](../shell/src/main/index.ts) IPC `get/set-blender-enabled` + a `blender-state` push;
+[preload](../shell/src/preload/index.ts); [renderer](../shell/renderer/app.js)); persisted as
+`blenderMcp` in shell-settings.
+
+**A live spike before writing a line hardened the design + caught two things a "ship on faith" path would
+have missed** (all re-verified against the compiled supervisor end-to-end):
+- **mcpo defaults to bind `0.0.0.0`.** Since `execute_blender_code` is arbitrary code execution, we bind
+  **`127.0.0.1` + a random `--api-key`** (this machine drives its own Blender; OWUI sends the key via the
+  connection). Confirmed: mcpo logs "API Key: Provided", server reachable only on loopback.
+- **blender-mcp phones home** — it POSTs telemetry to a Supabase endpoint. Source-verified the opt-out and
+  set **`DISABLE_TELEMETRY=true`** in the child env; the run now logs
+  `Telemetry disabled via environment variable` and makes no such POST. Honors the privacy invariant.
+- **The tool schema serves even with Blender down** (blender-mcp connects per-call, lazily) → the tool
+  server registers immediately, so the user can flip the toggle first and Start Blender whenever.
+
+**Verified (headless, on this box):** `tsc` clean; a stubbed-electron unit check that `configBridge` emits
+`TOOL_SERVER_CONNECTIONS` **only** when mcpo is present, with the exact OWUI shape; and a full drive of the
+**real compiled `McpoSupervisor`** — venv create → pip install mcpo+blender-mcp → spawn (localhost+key+
+telemetry-off, all confirmed in the log) → `GET /openapi.json` 200 → `getConnection()` → `stop()` cleans
+up. **Rig-checks (need a GUI / Blender):** (1) the Blender tools actually appear + are callable in an OWUI
+chat via env-injected `TOOL_SERVER_CONNECTIONS` (watch for OWUI's "verify & save" quirk — should be moot
+with persistent-config off); (2) a real round-trip with Blender + the BlenderMCP add-on running; (3)
+**tool-calling model** — `gemma4:12b` is weak at tools; serve a tool-capable model (Qwen2.5/3, Llama 3.x)
+for usable results. Not released yet — dev-run (`cd shell && npm run dev`) to try it.
+
 ## 2026-07-03 — Web search is now ON by default (set up at farm install)
 
 Owner call: a fresh farm should give clients web search with **no config editing** — the same way it already

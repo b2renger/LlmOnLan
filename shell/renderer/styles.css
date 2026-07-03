@@ -243,6 +243,7 @@ webview.hidden { display: none !important; }
 .pref-sec h3 { margin: 0 0 4px; font-size: 13px; font-weight: 700; }
 .pref-hint { margin: 0 0 10px; font-size: 12px; color: var(--muted); line-height: 1.5; }
 .pref-hint a { color: var(--accent-hover); }
+.pref-hint.err { color: var(--danger); }
 .pref-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 8px; }
 .pref-label { font-size: 12px; color: var(--muted); min-width: 92px; }
 
