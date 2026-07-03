@@ -153,7 +153,10 @@ test('multi-alias flows into litellm model_names and the snapshot', () => {
     const names = buildLitellmConfig(c).model_list.map((d) => d.model_name);
     assert.deepEqual(names, ['assistant', 'coder']);
     const snap = buildSnapshot(c, { proxyUp: true, hostsUp: 1 });
-    assert.deepEqual(snap.models, [{ id: 'assistant', default: true }, { id: 'coder', default: false }]);
+    assert.deepEqual(snap.models, [
+        { id: 'assistant', underlying: 'gemma4:12b', default: true },
+        { id: 'coder', underlying: 'qwen2.5-coder:14b', default: false },
+    ]);
 });
 
 test('a picked model keeps its config explicit vision flag (not just alias)', async () => {
@@ -283,10 +286,11 @@ test('alias mode: snapshot advertises the alias id, stable across model swaps', 
     const c = defaultConfig();
     c.modelAlias = 'assistant';
     c.models = [{ id: 'qwen3.6:35b', default: true }];
-    assert.deepEqual(buildSnapshot(c, { proxyUp: true, hostsUp: 1 }).models, [{ id: 'assistant', default: true }]);
-    // switch the underlying model → the advertised id stays constant (chats don't break)
+    assert.deepEqual(buildSnapshot(c, { proxyUp: true, hostsUp: 1 }).models, [{ id: 'assistant', underlying: 'qwen3.6:35b', default: true }]);
+    // switch the underlying model → the advertised alias id stays constant (chats
+    // don't break), but `underlying` reflects the real model now running.
     c.models = [{ id: 'gemma4:12b', default: true }];
-    assert.deepEqual(buildSnapshot(c, { proxyUp: true, hostsUp: 1 }).models, [{ id: 'assistant', default: true }]);
+    assert.deepEqual(buildSnapshot(c, { proxyUp: true, hostsUp: 1 }).models, [{ id: 'assistant', underlying: 'gemma4:12b', default: true }]);
 });
 
 test('snapshot carries coordinator + deployments (default off)', () => {

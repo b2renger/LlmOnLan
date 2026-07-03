@@ -241,6 +241,11 @@ webview.hidden { display: none !important; }
 .pref-sec { padding: 16px 0; border-bottom: 1px solid var(--border); }
 .pref-sec:last-child { border-bottom: 0; }
 .pref-sec h3 { margin: 0 0 4px; font-size: 13px; font-weight: 700; }
+.badge-exp {
+  font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
+  vertical-align: middle; margin-left: 6px; padding: 2px 6px; border-radius: 999px;
+  color: var(--accent-hover); border: 1px solid var(--border); background: var(--bg);
+}
 .pref-hint { margin: 0 0 10px; font-size: 12px; color: var(--muted); line-height: 1.5; }
 .pref-hint a { color: var(--accent-hover); }
 .pref-hint.err { color: var(--danger); }

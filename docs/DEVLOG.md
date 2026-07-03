@@ -6,6 +6,28 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-07-03 — MCP marked experimental · model-per-box in the fleet view · OWUI clipboard fix
+
+Three small UX items:
+- **OWUI copy buttons now reach the system clipboard.** In the Electron webview,
+  `navigator.clipboard.writeText` requests the `clipboard-sanitized-write` permission,
+  which our `persist:owui` handlers were denying (they only allowed media/mic — so
+  copy silently failed). Added `clipboard-read` + `clipboard-sanitized-write` to
+  `OWUI_ALLOWED_PERMS` ([index.ts](../shell/src/main/index.ts); both the request and
+  check handlers already share the set, which Electron requires for clipboard).
+- **Fleet view shows the real model per box.** The snapshot's `models` advertised only
+  the SERVED name — the alias (e.g. "assistant"), identical on every box. Added
+  `underlying` (the real Ollama model behind the alias, from `servedEntries`) to each
+  `models` entry ([snapshot.js](../farm/src/snapshot.js)); the connection popover now
+  renders "assistant (qwen3.6:30b) ★" ([app.js](../shell/renderer/app.js)). Backward
+  compatible (falls back to the served id if `underlying` is absent). Needs the farm
+  updated (git pull + `lol up`) to populate it.
+- **Blender assistant tools labelled "experimental"** in Settings (badge + hint) — its
+  reliability depends on the model and the user's Blender setup.
+
+Client ships **v0.1.21**; the model-per-box display lights up once the farm is on the
+new snapshot (git pull). farm tests 41 pass; tsc clean.
+
 ## 2026-07-03 — Blender tools: the ACTUAL fix — select the tool server (ui.tools), not just register it
 
 An adversarial multi-agent audit of v0.1.19 against OWUI v0.10.2 source (5 agents, one per claim) caught a

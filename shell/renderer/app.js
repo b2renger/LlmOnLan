@@ -590,7 +590,13 @@ function renderPopover() {
     const row = document.createElement('div');
     row.className = 'farm' + (isActive ? ' active' : '');
     const dotCls = f.healthy && !f._stale ? 'ready' : (f._stale ? 'busy' : 'error');
-    const models = (f.models || []).map((m) => m.id + (m.default ? ' ★' : '')).join(', ') || 'no models';
+    // Show the served name AND the real model behind it (alias mode), so each box
+    // reveals what model it actually runs — e.g. "assistant (qwen3.6:30b) ★". The
+    // whole string is esc()'d where it's rendered below, so keep raw here.
+    const models = (f.models || []).map((m) => {
+      const real = m.underlying && m.underlying !== m.id ? ` (${m.underlying})` : '';
+      return m.id + real + (m.default ? ' ★' : '');
+    }).join(', ') || 'no models';
     // Fleet view: everything the beacon tells us about the box, per row.
     // Badges: how we found it + special roles.
     const badges =

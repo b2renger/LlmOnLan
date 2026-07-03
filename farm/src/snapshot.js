@@ -25,7 +25,10 @@ function buildSnapshot(config, health = {}) {
     // servedEntries() that generates the LiteLLM routing, so advertising and
     // routing can't drift. Stable alias ids are what let OWUI chats survive
     // underlying-model swaps.
-    const models = servedEntries(config).map((e) => ({ id: e.servedName, default: e.isDefault }));
+    // `id` is the SERVED name (alias in alias mode); `underlying` is the real Ollama
+    // model behind it, so the client can show "what model actually runs on this box"
+    // even when every box shares one alias like "assistant".
+    const models = servedEntries(config).map((e) => ({ id: e.servedName, underlying: e.underlying, default: e.isDefault }));
     return {
         v: 1,
         id: farmId(),

@@ -11,7 +11,7 @@ export interface FarmSnapshot {
     endpoint: string;        // http://<ip>:<proxyPort>
     openaiBaseUrl: string;   // http://<ip>:<proxyPort>/v1  — exactly what OWUI wants
     requiresKey: boolean;
-    models: { id: string; default?: boolean }[];
+    models: { id: string; default?: boolean; underlying?: string }[];
     healthy: boolean;
     version: string;
     health?: {

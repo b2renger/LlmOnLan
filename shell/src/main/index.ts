@@ -221,14 +221,18 @@ function createWindow(): void {
     });
 }
 
-// Grant the embedded OWUI <webview> the device permissions its voice features
-// need — chiefly the MICROPHONE (voice / "call" mode calls getUserMedia). Electron
-// DENIES camera/mic by default unless the app explicitly allows it, which is why
-// voice mode silently did nothing. The webview runs on the `persist:owui`
-// partition and loads OWUI from loopback (127.0.0.1 = a secure context, so
-// getUserMedia is otherwise permitted); we scope the grant to that partition and
-// only to media (mic/camera) so we're not opening every permission app-wide.
-const OWUI_ALLOWED_PERMS = new Set(['media', 'audioCapture', 'videoCapture']);
+// Grant the embedded OWUI <webview> the permissions it needs. Electron DENIES these
+// by default for a partition, which is why (a) voice mode silently did nothing —
+// the MICROPHONE (getUserMedia) was blocked — and (b) OWUI's "copy" buttons didn't
+// reach the system clipboard: `navigator.clipboard.writeText` requests the
+// `clipboard-sanitized-write` permission, which our handler was refusing. The
+// webview runs on the `persist:owui` partition over loopback (127.0.0.1 = a secure
+// context), so these APIs are otherwise available; we scope the grant to that
+// partition and to this explicit allow-list, not app-wide.
+const OWUI_ALLOWED_PERMS = new Set([
+    'media', 'audioCapture', 'videoCapture',      // voice / camera
+    'clipboard-read', 'clipboard-sanitized-write', // OWUI copy buttons → system clipboard
+]);
 function configureWebviewPermissions(): void {
     const ses = session.fromPartition('persist:owui');
     ses.setPermissionRequestHandler((_wc, permission, callback) => {
