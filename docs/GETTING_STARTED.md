@@ -140,6 +140,7 @@ with Open WebUI automatically. **You only set up Blender.**
 - The **first client launch** installs a small local helper (~1 min, needs internet); after that it's instant.
 - It only works while **Blender is open with the MCP server started** — otherwise the tools are listed but a call returns a "can't reach Blender" message.
 - **Port:** the add-on talks on a socket port (default **9876**, shown in its panel). If yours shows a different number, set the same value in Settings (⚙) ▸ **Assistant tools** ▸ **Blender port** — a mismatch here is the usual cause of "could not connect."
+- **Test connection** (Settings ▸ Assistant tools) checks both hops at once: the local helper, and whether Blender is actually listening on the port. Use it to tell "helper not up" from "Blender not started / wrong port."
 - Use a model that's **good at tool calling** (e.g. a Qwen or Llama tool-tuned model). `gemma4:12b` is weak at tools, so results will be hit-or-miss with it. In OWUI, if the model chats but never calls a tool, set its **Function Calling** mode to **Native**.
 - **Privacy & safety:** the tool server runs on **localhost only** (never exposed to the LAN) and the Blender helper's telemetry is turned **off**. It can run arbitrary Python inside Blender, so treat it like any automation on your own scene.
 - Don't use Blender? Turn it off in Settings (⚙) ▸ **Assistant tools** ▸ uncheck **Blender tools**.

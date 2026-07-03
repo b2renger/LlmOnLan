@@ -38,6 +38,21 @@ export function killTree(pid: number | undefined): Promise<void> {
     });
 }
 
+// Can we open a TCP connection to host:port within timeoutMs? Used to test whether
+// the BlenderMCP add-on's socket is actually listening (the "could not connect" hop).
+export function tcpProbe(host: string, port: number, timeoutMs = 1500): Promise<boolean> {
+    return new Promise((resolve) => {
+        const sock = new net.Socket();
+        let settled = false;
+        const finish = (ok: boolean) => { if (settled) return; settled = true; try { sock.destroy(); } catch { /* ignore */ } resolve(ok); };
+        sock.setTimeout(timeoutMs);
+        sock.once('connect', () => finish(true));
+        sock.once('timeout', () => finish(false));
+        sock.once('error', () => finish(false));
+        try { sock.connect(port, host); } catch { finish(false); }
+    });
+}
+
 export interface HttpResult { status: number; body: string }
 
 // Minimal HTTP GET with timeout. Resolves { status, body }; rejects on error.

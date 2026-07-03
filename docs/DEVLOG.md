@@ -6,6 +6,28 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-07-03 — Blender tools: register as a USER tool server (auto-attach) + Test button
+
+Rig report: tools "installed" but the model had **none** — it replied "which 3D software are you using?".
+Root cause, confirmed from OWUI docs + [issue #18074](https://github.com/open-webui/open-webui/issues/18074):
+I registered the server via the **global/admin** config (`POST /api/v1/configs/tool_servers`). **Global tool
+servers are hidden behind the chat "+" menu and must be toggled on per-chat** — they don't auto-attach.
+**User** tool servers (`settings.toolServers`) attach to every chat automatically. I seeded it in the wrong
+place.
+
+**Fix:** seed the connection into the user's `settings.toolServers` instead — via
+`/api/v1/users/user/settings/update` (the same authed-webview path as `seedWebSearchDefault`), shape per the
+v0.10.2 frontend (`{ url, auth_type:'bearer', key, path:'/openapi.json', config:{enable:true},
+info:{id:'lol-blender'} }`). Also default the model's **Function Calling to `native`**
+(`ui.params.function_calling`, only if unset) — needed for a model to actually emit tool calls for external
+tools. Applied once per session; the old global registration self-clears (env-authoritative → not reloaded).
+
+**Also — the requested "Test connection" button** (Settings ▸ Assistant tools). It probes **both hops**:
+GET the local mcpo `/openapi.json` (helper up + tool count) and a **TCP connect to 127.0.0.1:BLENDER_PORT**
+(is the add-on actually listening?), so a failure reads as "helper ✗" vs "Blender ✗ on port N" at a glance.
+New `test-blender-connection` IPC + `tcpProbe()` util. Verified headless: `tcpProbe` returns true on a
+listening port, false on a closed one; tsc clean; `node --check app.js`. Ships as v0.1.19.
+
 ## 2026-07-03 — Blender tools: make the add-on socket port (BLENDER_PORT) configurable
 
 Rig feedback: the tools were now visible (checkbox present, add-on installed) but still **"could not

@@ -59,7 +59,7 @@ const prefs = {
   base: $('range-base'), t0: $('range-t0'), t1: $('range-t1'), f0: $('range-f0'), f1: $('range-f1'), rangeApply: $('range-apply'),
   addForm: $('pref-add-form'), addHost: $('pref-add-host'), chips: $('pref-chips'),
   launch: $('pref-launch'), autoUpdate: $('pref-autoupdate'),
-  blender: $('pref-blender'), blenderStatus: $('pref-blender-status'), blenderPort: $('pref-blender-port'),
+  blender: $('pref-blender'), blenderStatus: $('pref-blender-status'), blenderPort: $('pref-blender-port'), blenderTest: $('pref-blender-test'),
   verShell: $('ver-shell'), verOwui: $('ver-owui'), owuiLink: $('owui-link'),
   checkApp: $('check-app-update'), appStatus: $('app-update-status'),
   appRestartRow: $('app-restart-row'), appRestart: $('app-update-restart'),
@@ -174,6 +174,19 @@ prefs.blender.addEventListener('change', async () => {
 prefs.blenderPort.addEventListener('change', () => {
   const p = parseInt(prefs.blenderPort.value, 10);
   if (p >= 1 && p <= 65535) window.lol.setBlenderPort(p); // restarts mcpo on the new port
+});
+prefs.blenderTest.addEventListener('click', async () => {
+  const el = prefs.blenderStatus;
+  el.classList.remove('err');
+  el.textContent = 'Testing…';
+  const r = await window.lol.testBlenderConnection();
+  if (!r.enabled) { el.textContent = 'Blender tools are off — enable them first.'; el.classList.add('err'); return; }
+  const proxy = r.mcpoUp ? `helper ✓${r.toolCount ? ` (${r.toolCount} tools)` : ''}` : 'helper ✗ (still starting?)';
+  const blender = r.blenderReachable
+    ? `Blender ✓ on port ${r.port}`
+    : `Blender ✗ — nothing listening on port ${r.port} (start the MCP server in Blender, or fix the port)`;
+  el.textContent = `${proxy} · ${blender}`;
+  el.classList.toggle('err', !r.mcpoUp || !r.blenderReachable);
 });
 // Live install/start progress while the panel is open, and — the important part —
 // register/unregister the Blender tool server with OWUI as mcpo comes up/down.
@@ -316,13 +329,14 @@ async function seedWebSearchDefault() {
   } catch { return 'na'; }
 }
 
-// Register the LOCAL Blender tool server (our mcpo) with OWUI through its SUPPORTED
-// API — the same call the admin UI's "verify & save" makes. We do NOT use the
-// TOOL_SERVER_CONNECTIONS env var: it's a PersistentConfig and OWUI doesn't reliably
-// surface env-configured tool servers (upstream issue #18140). Runs inside the authed
-// webview (localStorage.token) exactly like seedWebSearchDefault. Idempotent: keyed by
-// info.id === 'lol-blender', it replaces our entry and leaves any others untouched.
-// Returns 'set' | 'already' | 'na' | 'err:<code>'.
+// Register the LOCAL Blender tool server (our mcpo) with OWUI as a USER tool server
+// (settings.toolServers) — NOT a global/admin one. Global tool servers are hidden
+// behind the chat "+" menu and must be toggled on per-chat (OWUI issue #18074), so
+// the model never saw them; USER tool servers attach to every chat automatically.
+// Runs inside the authed webview like seedWebSearchDefault (the user settings live
+// under the `ui` object; the frontend $settings maps to it). Also defaults Function
+// Calling to 'native' (only if unset) so a tool-capable model actually calls the
+// tools. Idempotent, keyed by info.id === 'lol-blender'. Returns 'set'|'already'|'na'|'err:<code>'.
 async function seedBlenderToolServer(url, key) {
   try {
     return await els.webview.executeJavaScript(`(async () => {
@@ -330,18 +344,22 @@ async function seedBlenderToolServer(url, key) {
         const t = window.localStorage && window.localStorage.token; if (!t) return 'na';
         const H = { authorization: 'Bearer ' + t };
         const url = ${JSON.stringify(url)}, key = ${JSON.stringify(key)};
-        const conn = { url, path: 'openapi.json', type: 'openapi', auth_type: 'bearer', key,
-          config: { enable: true },
+        const conn = { url, path: '/openapi.json', auth_type: 'bearer', key, config: { enable: true },
           info: { id: 'lol-blender', name: 'Blender', description: 'Control Blender running on this machine.' } };
-        const cur = await (await fetch('/api/v1/configs/tool_servers', { headers: H })).json().catch(() => null);
-        const list = (cur && Array.isArray(cur.TOOL_SERVER_CONNECTIONS)) ? cur.TOOL_SERVER_CONNECTIONS
-                   : (Array.isArray(cur) ? cur : []);
+        const cur = await (await fetch('/api/v1/users/user/settings', { headers: H })).json().catch(() => null);
+        const ui = (cur && cur.ui) || {};
+        const list = Array.isArray(ui.toolServers) ? ui.toolServers : [];
         const mine = list.find(c => c && c.info && c.info.id === 'lol-blender');
-        if (mine && mine.url === url && mine.key === key) return 'already';
-        const others = list.filter(c => !(c && c.info && c.info.id === 'lol-blender'));
-        const r = await fetch('/api/v1/configs/tool_servers', {
-          method: 'POST', headers: { ...H, 'content-type': 'application/json' },
-          body: JSON.stringify({ TOOL_SERVER_CONNECTIONS: [...others, conn] })
+        let changed = false;
+        if (!(mine && mine.url === url && mine.key === key)) {
+          ui.toolServers = [...list.filter(c => !(c && c.info && c.info.id === 'lol-blender')), conn];
+          changed = true;
+        }
+        ui.params = ui.params || {};
+        if (!ui.params.function_calling) { ui.params.function_calling = 'native'; changed = true; }
+        if (!changed) return 'already';
+        const r = await fetch('/api/v1/users/user/settings/update', {
+          method: 'POST', headers: { ...H, 'content-type': 'application/json' }, body: JSON.stringify({ ui })
         });
         return r.ok ? 'set' : ('err:' + r.status);
       } catch (e) { return 'err:' + ((e && e.message) || 'x'); }
@@ -349,21 +367,21 @@ async function seedBlenderToolServer(url, key) {
   } catch { return 'na'; }
 }
 
-// Remove our Blender tool server from OWUI (when the user turns the feature off).
+// Remove our Blender tool server from OWUI's user settings (feature turned off).
 async function unseedBlenderToolServer() {
   try {
     return await els.webview.executeJavaScript(`(async () => {
       try {
         const t = window.localStorage && window.localStorage.token; if (!t) return 'na';
         const H = { authorization: 'Bearer ' + t };
-        const cur = await (await fetch('/api/v1/configs/tool_servers', { headers: H })).json().catch(() => null);
-        const list = (cur && Array.isArray(cur.TOOL_SERVER_CONNECTIONS)) ? cur.TOOL_SERVER_CONNECTIONS
-                   : (Array.isArray(cur) ? cur : []);
+        const cur = await (await fetch('/api/v1/users/user/settings', { headers: H })).json().catch(() => null);
+        const ui = (cur && cur.ui) || {};
+        const list = Array.isArray(ui.toolServers) ? ui.toolServers : [];
         const others = list.filter(c => !(c && c.info && c.info.id === 'lol-blender'));
         if (others.length === list.length) return 'already';
-        const r = await fetch('/api/v1/configs/tool_servers', {
-          method: 'POST', headers: { ...H, 'content-type': 'application/json' },
-          body: JSON.stringify({ TOOL_SERVER_CONNECTIONS: others })
+        ui.toolServers = others;
+        const r = await fetch('/api/v1/users/user/settings/update', {
+          method: 'POST', headers: { ...H, 'content-type': 'application/json' }, body: JSON.stringify({ ui })
         });
         return r.ok ? 'removed' : ('err:' + r.status);
       } catch (e) { return 'err:' + ((e && e.message) || 'x'); }

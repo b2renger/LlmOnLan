@@ -11,6 +11,7 @@ import { loadSettings, updateSettings } from './store';
 import { defaultDataDir, bundledOwuiVersion, sidecarRoot } from './paths';
 import { SidecarSupervisor } from './sidecar';
 import { McpoSupervisor } from './mcpoSupervisor';
+import { httpGet, tcpProbe } from './util';
 import { Discovery } from './discovery';
 import { moveDataDir, dirHasData } from './dataMigration';
 import { initAutoUpdate, checkForAppUpdate, quitAndInstallUpdate, setUpdateNotifier } from './updater';
@@ -285,6 +286,23 @@ function registerIpc(): void {
         updateSettings({ blenderPort: p });
         mcpo.setBlenderPort(p);
         return p;
+    });
+    // Test the two hops: (1) the local mcpo proxy serves its OpenAPI spec (tools),
+    // (2) something is actually listening on the Blender add-on socket port. Lets the
+    // user tell "proxy not up" from "Blender add-on not started / wrong port" at a glance.
+    ipcMain.handle('test-blender-connection', async () => {
+        const port = mcpo.getBlenderPort();
+        const conn = mcpo.getConnection();
+        let mcpoUp = false, toolCount = 0;
+        if (conn) {
+            try {
+                const r = await httpGet(`${conn.url}/openapi.json`, 2500);
+                mcpoUp = r.status === 200;
+                if (mcpoUp) { try { toolCount = Object.keys(JSON.parse(r.body).paths || {}).length; } catch { /* not JSON */ } }
+            } catch { /* mcpoUp stays false */ }
+        }
+        const blenderReachable = await tcpProbe('127.0.0.1', port, 1500);
+        return { mcpoUp, blenderReachable, port, toolCount, enabled: mcpo.isEnabled() };
     });
 
     // --- discovery (M3) ---

@@ -28,6 +28,7 @@ contextBridge.exposeInMainWorld('lol', {
     getBlenderConnection: () => ipcRenderer.invoke('get-blender-connection'),
     setBlenderEnabled: (on: boolean) => ipcRenderer.invoke('set-blender-enabled', on),
     setBlenderPort: (port: number) => ipcRenderer.invoke('set-blender-port', port),
+    testBlenderConnection: () => ipcRenderer.invoke('test-blender-connection'),
     onBlenderState: (cb: (s: unknown) => void) => ipcRenderer.on('blender-state', (_e, s) => cb(s)),
 
     // Preferences (M4).
