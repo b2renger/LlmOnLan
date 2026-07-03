@@ -17,6 +17,7 @@ const DEFAULTS: ShellSettings = {
     launchAtLogin: false,
     autoUpdate: true,
     blenderMcp: true,   // Blender assistant tools on by default (installs mcpo on first boot)
+    blenderPort: 9876,  // BlenderMCP add-on's default socket port (what its panel shows)
 };
 
 let cache: ShellSettings | null = null;

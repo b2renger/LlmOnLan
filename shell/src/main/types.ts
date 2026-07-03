@@ -87,4 +87,5 @@ export interface ShellSettings {
     launchAtLogin: boolean;
     autoUpdate: boolean;
     blenderMcp: boolean;               // local Blender assistant-tools server (mcpo) on/off
+    blenderPort: number;               // BlenderMCP add-on socket port (BLENDER_PORT; default 9876)
 }

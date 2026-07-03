@@ -6,6 +6,27 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-07-03 — Blender tools: make the add-on socket port (BLENDER_PORT) configurable
+
+Rig feedback: the tools were now visible (checkbox present, add-on installed) but still **"could not
+connect" to Blender**. Root cause is the *second* port in the chain. There are two: (1) **mcpo's OpenAPI
+port** (OWUI ↔ proxy — auto-assigned, internal, never touched); (2) **BLENDER_PORT** — blender-mcp ↔ the
+BlenderMCP add-on socket, default **9876**, and exactly the number the add-on panel shows. I'd hardcoded
+(2), so if the add-on runs on any other port, blender-mcp (stuck on 9876) never reaches it.
+
+**Fix:** a **Blender port** setting (Settings ▸ Assistant tools; `shell-settings.blenderPort`, default
+9876). `mcpoSupervisor` now spawns blender-mcp with `BLENDER_HOST=127.0.0.1` + `BLENDER_PORT=<setting>`;
+`setBlenderPort()` restarts mcpo when it changes (env is fixed at spawn), and the renderer re-registers the
+tool server if the proxy port shifted on restart (`blenderSeeded` resets on any non-ready transition). New
+`set-blender-port` IPC + preload; `get-blender-state`/`get-prefs` carry the port; a number input in the
+settings panel.
+
+**Verified end-to-end (not on faith):** drove the real mcpo+blender-mcp with `BLENDER_PORT=9999` against a
+dummy TCP listener — blender-mcp logged `Connected to Blender at 127.0.0.1:9999` (not 9876), and the dummy
+saw the connection, proving the env threads supervisor → mcpo → the blender-mcp subprocess (mcpo does pass
+its env down). Also confirms blender-mcp connects at **startup**, so once the add-on is running on the
+matching port it links immediately. tsc clean; `node --check app.js`. Ships as v0.1.18.
+
 ## 2026-07-03 — Blender tools: fix the OWUI wiring + make it default-on
 
 Field report from the rig: the Blender tools **didn't show up in OWUI**, and the Settings toggle was

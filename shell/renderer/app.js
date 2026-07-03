@@ -59,7 +59,7 @@ const prefs = {
   base: $('range-base'), t0: $('range-t0'), t1: $('range-t1'), f0: $('range-f0'), f1: $('range-f1'), rangeApply: $('range-apply'),
   addForm: $('pref-add-form'), addHost: $('pref-add-host'), chips: $('pref-chips'),
   launch: $('pref-launch'), autoUpdate: $('pref-autoupdate'),
-  blender: $('pref-blender'), blenderStatus: $('pref-blender-status'),
+  blender: $('pref-blender'), blenderStatus: $('pref-blender-status'), blenderPort: $('pref-blender-port'),
   verShell: $('ver-shell'), verOwui: $('ver-owui'), owuiLink: $('owui-link'),
   checkApp: $('check-app-update'), appStatus: $('app-update-status'),
   appRestartRow: $('app-restart-row'), appRestart: $('app-update-restart'),
@@ -82,6 +82,7 @@ async function refreshPrefs() {
   prefs.launch.checked = !!p.launchAtLogin;
   prefs.autoUpdate.checked = !!p.autoUpdate;
   prefs.blender.checked = !!p.blenderMcp;
+  prefs.blenderPort.value = p.blenderPort || 9876;
   setBlenderStatus(p.blenderState, p.blenderMcp);
   prefs.verShell.textContent = 'v' + p.shellVersion;
   prefs.verOwui.textContent = 'v' + p.owuiVersion;
@@ -170,6 +171,10 @@ prefs.blender.addEventListener('change', async () => {
   const st = await window.lol.setBlenderEnabled(on);
   setBlenderStatus(st, on);
 });
+prefs.blenderPort.addEventListener('change', () => {
+  const p = parseInt(prefs.blenderPort.value, 10);
+  if (p >= 1 && p <= 65535) window.lol.setBlenderPort(p); // restarts mcpo on the new port
+});
 // Live install/start progress while the panel is open, and — the important part —
 // register/unregister the Blender tool server with OWUI as mcpo comes up/down.
 window.lol.onBlenderState(async (s) => {
@@ -177,9 +182,12 @@ window.lol.onBlenderState(async (s) => {
   if (!s) return;
   if (s.status === 'ready') {
     await maybeSeedBlender();                 // mcpo up → add the tool server (once)
-  } else if (s.status === 'stopped') {
-    blenderSeeded = false;                    // allow re-seed if it comes back
-    if (webviewAuthed) { try { await unseedBlenderToolServer(); } catch { /* ignore */ } }
+  } else {
+    // installing / starting / stopped / error: a (re)start is coming (e.g. a port
+    // change) or it stopped — allow a fresh seed when ready again (the proxy port
+    // may differ on restart), and remove the tool server if it's actually off.
+    blenderSeeded = false;
+    if (s.status === 'stopped' && webviewAuthed) { try { await unseedBlenderToolServer(); } catch { /* ignore */ } }
   }
 });
 prefs.owuiLink.addEventListener('click', (e) => { e.preventDefault(); window.lol.openExternal('https://openwebui.com'); });

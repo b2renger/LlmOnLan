@@ -272,6 +272,10 @@ webview.hidden { display: none !important; }
 }
 .range-row .dotsep { color: var(--muted); font-weight: 700; }
 .range-row .to { color: var(--muted); font-size: 12px; }
+.in-port {
+  width: 84px; background: var(--bg); border: 1px solid var(--border); border-radius: 7px;
+  padding: 6px 8px; color: var(--text); font-family: inherit; font-size: 13px;
+}
 
 .peerchips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
 .chip-peer {

@@ -104,6 +104,10 @@ started** for a tool call to succeed; otherwise the tools still show but a call 
 Blender (harmless — start Blender and retry). The **first client launch** installs a small local helper
 (~1 min, needs internet); after that it starts instantly.
 
+**Port:** the add‑on uses a socket port (default **9876**, shown in its panel). If yours differs, set the
+same number in Settings (⚙) → **Assistant tools** → **Blender port** — a mismatch is the usual cause of
+"could not connect."
+
 To turn the feature **off** (e.g. on a machine without Blender): Settings (⚙) → **Assistant tools** →
 uncheck **Blender tools**.
 

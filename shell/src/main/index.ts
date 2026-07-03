@@ -268,7 +268,7 @@ function registerIpc(): void {
     // Toggling this installs (first time) + runs a local mcpo that exposes the
     // Blender MCP server to OWUI. Non-blocking: the install/start progress streams
     // to the renderer over 'blender-state', and onMcpoState repoints OWUI when ready.
-    ipcMain.handle('get-blender-state', () => ({ ...mcpo.getState(), enabled: mcpo.isEnabled() }));
+    ipcMain.handle('get-blender-state', () => ({ ...mcpo.getState(), enabled: mcpo.isEnabled(), blenderPort: mcpo.getBlenderPort() }));
     // The renderer registers the tool server with OWUI itself (authed webview API);
     // it needs the local mcpo url + bearer key. Null until mcpo is ready.
     ipcMain.handle('get-blender-connection', () => mcpo.getConnection());
@@ -277,6 +277,14 @@ function registerIpc(): void {
         updateSettings({ blenderMcp: v });
         mcpo.setEnabled(v);
         return { ...mcpo.getState(), enabled: v };
+    });
+    // Change the Blender add-on socket port (must match the number the add-on shows).
+    // Persists + restarts mcpo so blender-mcp reconnects on the new BLENDER_PORT.
+    ipcMain.handle('set-blender-port', (_e, port: number) => {
+        const p = Math.max(1, Math.min(65535, Math.floor(Number(port)) || 9876));
+        updateSettings({ blenderPort: p });
+        mcpo.setBlenderPort(p);
+        return p;
     });
 
     // --- discovery (M3) ---
@@ -327,6 +335,7 @@ function registerIpc(): void {
             autoScan: discovery?.getAutoScan() ?? true,
             endpoint: currentEndpoint,
             blenderMcp: s.blenderMcp,
+            blenderPort: s.blenderPort,
             blenderState: mcpo.getState(),
         };
     });
@@ -526,6 +535,7 @@ app.whenReady().then(async () => {
     // (first launch installs it, ~1 min). When it's ready the renderer registers the
     // tool server with OWUI via its API — no sidecar restart. Disabled only if the
     // user turned it off in Settings.
+    mcpo.setBlenderPort(settings.blenderPort);
     if (settings.blenderMcp) mcpo.setEnabled(true);
 
     app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });

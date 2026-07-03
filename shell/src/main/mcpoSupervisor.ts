@@ -89,10 +89,24 @@ export class McpoSupervisor extends EventEmitter {
     // the OWUI SidecarSupervisor).
     private gen = 0;
     private crashRestarts = 0;
+    // The Blender add-on's socket port (BLENDER_PORT). blender-mcp connects to Blender
+    // at 127.0.0.1:<this>; it must match the number the BlenderMCP add-on panel shows.
+    private blenderPort = 9876;
     private state: McpoState = { status: 'idle', url: null };
 
     getState(): McpoState { return this.state; }
     isEnabled(): boolean { return this.enabled; }
+    getBlenderPort(): number { return this.blenderPort; }
+
+    // Change the Blender socket port. The env is fixed at spawn, so a change while
+    // running restarts mcpo (start() reaps the old child) to re-point blender-mcp.
+    setBlenderPort(port: number): void {
+        const p = Number(port);
+        const next = Number.isFinite(p) && p >= 1 && p <= 65535 ? Math.floor(p) : 9876;
+        if (next === this.blenderPort) return;
+        this.blenderPort = next;
+        if (this.enabled) this.start();   // respawn with the new BLENDER_PORT
+    }
 
     // The tool-server connection config-bridge injects — null unless actually ready.
     getConnection(): { url: string; apiKey: string } | null {
@@ -156,6 +170,10 @@ export class McpoSupervisor extends EventEmitter {
         const args = ['--host', HOST, '--port', String(this.port), '--api-key', this.apiKey, '--', venvBin('blender-mcp')];
         const env = {
             ...process.env,
+            // Which Blender to drive: this machine's BlenderMCP add-on socket. The port
+            // is user-configurable (Settings) so it can match what the add-on panel shows.
+            BLENDER_HOST: '127.0.0.1',
+            BLENDER_PORT: String(this.blenderPort),
             // Privacy: stop blender-mcp's telemetry POSTs (all three aliases it checks).
             DISABLE_TELEMETRY: 'true', BLENDER_MCP_DISABLE_TELEMETRY: 'true', MCP_DISABLE_TELEMETRY: 'true',
             // Same UTF-8 guard the OWUI/LiteLLM children use against a cp1252 console.

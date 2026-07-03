@@ -117,6 +117,11 @@
             <label class="scan-toggle"><input type="checkbox" id="pref-blender" /> Blender tools</label>
             <span class="pref-hint" id="pref-blender-status"></span>
           </div>
+          <div class="pref-row">
+            <label class="pref-label" for="pref-blender-port">Blender port</label>
+            <input id="pref-blender-port" type="number" min="1" max="65535" class="in-port" />
+            <span class="pref-hint">Must match the port the <strong>BlenderMCP</strong> add-on panel shows (default 9876).</span>
+          </div>
           <p class="pref-hint">You only need to set up <strong>Blender</strong>: install the <strong>BlenderMCP</strong> add-on, open its panel (sidebar ▸ BlenderMCP) and click <strong>Connect / Start MCP Server</strong> — then ask, e.g. “add a red cube and a sun lamp.” Works best with a tool-calling model (Qwen / Llama); gemma is weak at tools. Uncheck to turn the tools off if you don't use Blender.</p>
         </section>
 
