@@ -44,14 +44,16 @@ rationale, and [`implementation_plan.md`](implementation_plan.md) for the milest
 
 ## Status
 
-**Shipped and self‑updating (v0.1.12, OWUI 0.10.2).** Milestones M0–M5 are done, plus: **full
-multimodal** (image understanding + voice — local Whisper STT, Web‑Speech TTS, all on‑device); **web
-search** via a shared farm‑hosted [SearXNG](https://docs.searxng.org) (zero client setup, auto‑discovered);
-**multi‑box load balancing** (least‑loaded client selection, `--coordinator` aggregation, `lol fleet`);
-**stable model aliases** (swap the served model without breaking chats) with a startup **model picker**;
-and workshop tooling (`lol bench` load test, model keep‑warm). Progress, design decisions, and the
-debugging history are in [`docs/DEVLOG.md`](docs/DEVLOG.md); current state + roadmap in
-[`implementation_plan.md`](implementation_plan.md).
+**Shipped and self‑updating (v0.1.16, OWUI 0.10.2).** Milestones M0–M5 are done, plus: **full
+multimodal** (image understanding + voice — local Whisper STT, on‑device); **web search** via a shared
+farm‑hosted [SearXNG](https://docs.searxng.org), **on by default**, zero client setup, auto‑discovered;
+**neural voice** via a shared farm‑hosted [Kokoro](https://github.com/remsky/Kokoro-FastAPI) TTS (opt‑in);
+**assistant tools** — drive a local **[Blender](#assistant-tools--control-blender-optional)** over MCP,
+opt‑in per client ([how‑to below](#assistant-tools--control-blender-optional)); **multi‑box load
+balancing** (least‑loaded client selection, `--coordinator` aggregation, `lol fleet`); **stable model
+aliases** (swap the served model without breaking chats) with a startup **model picker**; and workshop
+tooling (`lol bench` load test, model keep‑warm). Progress, design decisions, and the debugging history are
+in [`docs/DEVLOG.md`](docs/DEVLOG.md); current state + roadmap in [`implementation_plan.md`](implementation_plan.md).
 
 ## Quick start (farm operator)
 
@@ -75,6 +77,44 @@ npm run dev                    # boots the shell + OWUI sidecar, loads it in a w
 ```
 
 See [`shell/README.md`](shell/README.md) and [`sidecar/README.md`](sidecar/README.md).
+
+## Assistant tools — control Blender (optional)
+
+The chat can drive **Blender running on the same machine as the client** — create objects, run Python in
+Blender, inspect the scene — over the [Model Context Protocol](https://modelcontextprotocol.io). The client
+makes Open WebUI turnkey; **you** own the Blender side. Nothing is exposed to the network and OWUI is never
+modified: the client runs a **local** MCP→OpenAPI proxy ([`mcpo`](https://github.com/open-webui/mcpo)) in
+front of the [BlenderMCP](https://github.com/ahujasid/blender-mcp) server and points OWUI at it through the
+`TOOL_SERVER_CONNECTIONS` env var.
+
+**Topology:** Blender + the LOL client run on the **user's own machine**; the GPU farm is unchanged, and
+each person controls their own Blender.
+
+### 1. Turn it on (in the client)
+
+Settings (⚙) → **Assistant tools** → **Enable Blender tools**. The first enable installs a small local
+helper into a private venv (~1 min, needs internet); when it says **Ready**, the Blender tools are in chat.
+The toggle is remembered across restarts.
+
+### 2. Set up Blender (your side, once)
+
+1. Install the **BlenderMCP** add‑on — from [github.com/ahujasid/blender-mcp](https://github.com/ahujasid/blender-mcp)
+   download the add‑on `.py`, then in Blender go **Edit ▸ Preferences ▸ Add‑ons ▸ Install…**, pick the file, and tick it on.
+2. In the 3D viewport press **N** → open the **BlenderMCP** tab → **Connect / Start MCP Server**.
+3. In the chat, ask e.g. *“add a red cube and a sun lamp,”* or *“what's in the current scene?”*
+
+Blender must be **open with the server started** for a tool call to succeed; otherwise the tools still show
+but a call replies that it can't reach Blender (harmless — start Blender and retry).
+
+### Requirements & safety
+
+- **Use a tool‑calling model.** Blender control is only as good as the model's function‑calling. `gemma4:12b`
+  is weak at tools — serve a tool‑tuned model (e.g. a **Qwen 2.5/3** or **Llama 3.x**) from the farm
+  (`lol up`, pick it) for usable results.
+- **Local & private.** The tool server binds to `127.0.0.1` only (never the LAN), behind a random key, and
+  BlenderMCP's telemetry is disabled. It can run arbitrary Python inside Blender, so treat it like any
+  script you'd run on your own scene.
+- Fuller walkthrough: [`docs/GETTING_STARTED.md`](docs/GETTING_STARTED.md#optional--control-blender-from-the-chat).
 
 ## License
 
