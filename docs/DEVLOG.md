@@ -6,6 +6,35 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-07-05 — Admin panel: connected-clients presence (count, idle time, versions)
+
+The panel now answers "who's actually using this farm right now?". The farm's Node
+process never sees chat traffic (LiteLLM proxies it), so presence comes from the
+clients: a **heartbeat**, mirroring ComfyQ's `usersConnected`/`idleSec` usage block.
+
+- **Client → farm heartbeat.** Every 10 s the shell fire-and-forget POSTs
+  `/lol/client-ping` on its ACTIVE farm's `httpPort` with `{ id, name, platform,
+  version, idleSec }` ([index.ts](../shell/src/main/index.ts) `startClientHeartbeat`):
+  `id` is a stable per-install UUID persisted in settings (`clientId`); `idleSec` is
+  Electron `powerMonitor.getSystemIdleTime()` — machine-wide input idle, i.e. "is a
+  human at that seat", not just "is the app open". 3 s abort timeout, `unref`'d timer,
+  never throws; farms without `httpPort` are skipped, an old farm 404s harmlessly.
+- **Farm side.** `POST /lol/client-ping` is an **open** route ([selfServer.js](../farm/src/selfServer.js))
+  like `/lol/self` — clients don't hold the admin token; the handler
+  ([up.js](../farm/src/commands/up.js) `onClientPing`) length-caps every field,
+  bounds the map at 200 entries, and normalizes the `::ffff:` IPv4-mapped remote IP.
+  Entries are **TTL-filtered at read time** (fresh = seen ≤ 30 s ago, no sweeper);
+  a closed client vanishes within ~30 s. `getAdminState` returns the full list
+  (sorted most-active first); `liveHealth.clientsConnected` (updated per ping + each
+  health tick so it decays) rides the snapshot as **`usage.clients`**.
+- **UI.** The admin page gets a **Clients (N)** card — hostname, IP · platform ·
+  version, and an "active now" (input < 60 s ago) vs "idle 12m" badge; the fleet
+  popover's live line adds "N clients". Old-farm/old-client combos degrade to
+  null/absent everywhere.
+- **Tests** (54): the ping route is open + forwards body/remote-IP + 400s malformed
+  JSON without reaching the handler; `usage.clients` mirrors `clientsConnected` and
+  is null on the old-farm shape.
+
 ## 2026-07-04 — Farm admin, Phase 4: the client honors the farm's plugin world
 
 Closes the plan — the desktop client now consumes what the farm advertises, and the

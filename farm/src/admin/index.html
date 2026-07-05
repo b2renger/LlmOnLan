@@ -68,6 +68,12 @@ function toast(msg) {
   clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 2600);
 }
 function gb(bytes) { return bytes ? (bytes / 1e9).toFixed(1) + ' GB' : ''; }
+function dur(sec) {
+  if (sec == null) return '';
+  if (sec < 60) return sec + 's';
+  if (sec < 3600) return Math.floor(sec / 60) + 'm';
+  return Math.floor(sec / 3600) + 'h ' + Math.floor((sec % 3600) / 60) + 'm';
+}
 function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
 
 async function api(path, opts = {}) {
@@ -127,6 +133,20 @@ function render(s) {
     + `<div class="meta">runs on each user's machine · ${blenderOn ? 'recommended to the fleet' : 'not recommended'}</div></span>`
     + `<span class="badges"><button class="${blenderOn ? 'stop' : 'start'}" data-ract="${blenderOn ? 'off' : 'on'}" data-id="blender">${blenderOn ? 'Un-recommend' : 'Recommend'}</button></span></div>`;
 
+  // Connected desktop clients (heartbeat-driven; gone ≈30 s after a client closes).
+  // "active" = input within the last minute on that machine, else how long it's idle.
+  const clients = s.clients || [];
+  const clientRows = clients.length ? clients.map((c) => {
+    const active = c.idleSec != null && c.idleSec < 60;
+    const meta = [c.ip, c.platform, c.version ? 'v' + c.version : '']
+      .filter(Boolean).map(esc).join(' · ');
+    const state = c.idleSec == null ? 'connected' : (active ? 'active now' : 'idle ' + dur(c.idleSec));
+    return `<div class="row"><span class="dot${active ? ' served' : ''}"></span>`
+      + `<span><div class="mname">${esc(c.name || c.ip || c.id)}</div>`
+      + `<div class="meta">${meta}</div></span>`
+      + `<span class="badges"><span class="badge${active ? ' on' : ''}">${esc(state)}</span></span></div>`;
+  }).join('') : '<div class="empty">No clients connected right now (clients need app ≥ 0.1.23 to report presence).</div>';
+
   const models = (s.models || []).slice().sort((a, b) => Number(b.served) - Number(a.served) || a.id.localeCompare(b.id));
   const rows = models.length ? models.map((m) => {
     const dotCls = 'dot' + (m.served ? ' served' : '') + (m.loaded ? ' loaded' : '');
@@ -148,6 +168,7 @@ function render(s) {
     `<header class="top"><h1>lol <span class="lol">${esc(s.name || 'farm')}</span></h1></header>`
     + `<p class="sub">${esc(s.modelAlias ? 'Clients see the alias "' + s.modelAlias + '" for the default model. Changes reflect on clients within a few seconds.' : 'Manage the models + plugins this farm serves. Changes reflect on clients within a few seconds.')}</p>`
     + `<div class="card"><h2>Farm</h2><div class="health">${healthBits}</div></div>`
+    + `<div class="card"><h2>Clients (${clients.length})</h2>${clientRows}</div>`
     + `<div class="card"><h2>Models</h2>${rows}</div>`
     + `<div class="card"><h2>Plugins</h2>${pluginRows}${blenderRow}</div>`;
 

@@ -608,6 +608,7 @@ function renderPopover() {
     const live = [];
     if (u.gpuUtil != null) live.push(`${u.gpuUtil}% GPU`);
     if (u.vramUsedGb != null && u.vramTotalGb != null) live.push(`${u.vramUsedGb}/${u.vramTotalGb}GB VRAM`);
+    if (u.clients != null && u.clients > 0) live.push(`${u.clients} client${u.clients > 1 ? 's' : ''}`);
     if (u.loaded && u.loaded.length) live.push(`loaded: ${u.loaded.join(', ')}`);
     if (f.deployments != null && f.deployments > 1) live.push(`${f.deployments} backends`);
     if (f.health && f.health.hostsTotal > 1) live.push(`${f.health.hostsUp}/${f.health.hostsTotal} hosts`);

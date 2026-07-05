@@ -7,6 +7,7 @@ import { settingsFile } from './paths';
 import { ShellSettings } from './types';
 
 const DEFAULTS: ShellSettings = {
+    clientId: null,     // generated on first heartbeat (index.ts getClientId) and persisted
     dataDir: null,
     theme: 'system',
     manualPeers: [],

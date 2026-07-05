@@ -29,6 +29,7 @@ export interface FarmSnapshot {
         vramUsedGb: number | null;
         vramTotalGb: number | null;
         loaded: string[];
+        clients?: number | null;   // desktop clients heartbeating this farm (absent on older farms)
     };
     // Coordinator mode — this farm aggregates LAN peers into one balanced proxy,
     // so clients prefer it over the individual box-farms. Absent on a plain farm.
@@ -88,6 +89,7 @@ export interface McpoState {
 }
 
 export interface ShellSettings {
+    clientId: string | null;           // stable per-install id for the farm presence heartbeat (generated once)
     dataDir: string | null;            // null => default per-user app-data path
     theme: 'dark' | 'light' | 'system';
     manualPeers: string[];             // host[:httpPort] entries for broadcast-blocked LANs

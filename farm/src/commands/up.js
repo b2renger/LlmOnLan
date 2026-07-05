@@ -303,6 +303,7 @@ async function run(args) {
         extractUp: svcById.ocr.up,       // advertise extract{} so clients get document OCR
         extractKey: svcById.ocr.up ? svcById.ocr.ctx.key : null, // bearer OWUI's loader must send
         plugins: pluginsSummary(services, config), // generic map for the admin page + clients
+        clientsConnected: 0,             // desktop clients heartbeating us (see onClientPing)
         host: await detectHardware(),   // static GPU/VRAM/RAM/cores (once at boot)
         gpu: await gpuLiveStats(),       // live GPU util + VRAM (refreshed below)
     };
@@ -333,7 +334,54 @@ async function run(args) {
         setPlugin: async () => ({ ok: false, error: 'farm still starting' }),
         recommendClientPlugin: () => ({ ok: false, error: 'farm still starting' }),
     };
-    const selfServer = startSelfServer({ httpPort: config.beacon.httpPort, getSnapshot, host: config.proxy.host, control, adminToken });
+
+    // Connected desktop clients — each shell POSTs /lol/client-ping every ~10 s with
+    // { id, name, platform, version, idleSec } (open route, trusted LAN — the farm's
+    // Node process never sees chat traffic, LiteLLM does, so presence comes from the
+    // clients). Entries are TTL-filtered at READ time (no sweeper): a closed client
+    // vanishes from the panel within ~30 s. `idleSec` is the client's system-wide
+    // input idle (Electron powerMonitor) — "is a human at that machine".
+    const clients = new Map();
+    const CLIENT_TTL_MS = 30000;
+    const freshClients = () => {
+        const now = Date.now();
+        for (const [id, c] of clients) if (now - c.lastSeen > 10 * CLIENT_TTL_MS) clients.delete(id); // GC the long-gone
+        return [...clients.entries()]
+            .filter(([, c]) => now - c.lastSeen <= CLIENT_TTL_MS)
+            .map(([id, c]) => ({ id, ...c, lastSeenSec: Math.round((now - c.lastSeen) / 1000) }))
+            .sort((a, b) => (a.idleSec ?? Infinity) - (b.idleSec ?? Infinity));
+    };
+    const strCap = (v, max) => String(v == null ? '' : v).slice(0, max).trim();
+    function onClientPing(body, ip) {
+        if (!body || typeof body !== 'object') return { ok: false };
+        const id = strCap(body.id, 64);
+        if (!id) return { ok: false };
+        if (!clients.has(id) && clients.size >= 200) {
+            // Map full (garbage-flood cap). Don't just reject the newcomer — that would
+            // let 200 junk ids lock every NEW real client out of presence. Free the
+            // non-fresh slots first (they're already invisible in the UI), and if a
+            // flood of still-live ids fills it anyway, evict the oldest: an actively-
+            // heartbeating real client always wins a slot.
+            const now = Date.now();
+            for (const [cid, c] of clients) if (now - c.lastSeen > CLIENT_TTL_MS) clients.delete(cid);
+            if (clients.size >= 200) {
+                let oldest = null;
+                for (const [cid, c] of clients) if (!oldest || c.lastSeen < oldest[1]) oldest = [cid, c.lastSeen];
+                if (oldest) clients.delete(oldest[0]);
+            }
+        }
+        clients.set(id, {
+            name: strCap(body.name, 64) || null,
+            platform: strCap(body.platform, 16) || null,
+            version: strCap(body.version, 32) || null,
+            idleSec: Number.isFinite(body.idleSec) ? Math.max(0, Math.round(body.idleSec)) : null,
+            ip: strCap(ip, 64).replace(/^::ffff:/, '') || null,
+            lastSeen: Date.now(),
+        });
+        liveHealth.clientsConnected = freshClients().length;
+        return { ok: true };
+    }
+    const selfServer = startSelfServer({ httpPort: config.beacon.httpPort, getSnapshot, host: config.proxy.host, control, adminToken, onClientPing });
     log.ok(`Unicast discovery → ${log.paint.grey(`http://<ip>:${config.beacon.httpPort}/lol/self`)}`);
     log.ok(`Admin panel → ${log.paint.grey(`http://<ip>:${config.beacon.httpPort}/lol/admin`)} ${log.paint.grey('(token in the startup banner)')}`);
 
@@ -387,6 +435,7 @@ async function run(args) {
             // re-probed to flip its stale advertisement off (probe() handles the null child).
             for (const svc of services) { if (svc.wasUp) liveHealth[svc.healthKey] = await svc.probe(config); }
             liveHealth.plugins = pluginsSummary(services, config);
+            liveHealth.clientsConnected = freshClients().length; // decay the count when pings stop
             if (beacon) beacon.kick();
         } catch { /* probes are already failure-tolerant; never throw from the timer */ }
         finally { healthInFlight = false; }
@@ -578,6 +627,7 @@ async function run(args) {
             modelAlias: (config.modelAlias || '').trim() || null,
             plugins: pluginsSummary(services, config),
             recommendedClientPlugins: config.recommendedClientPlugins || [],
+            clients: freshClients(),   // desktop clients heartbeating us (most-active first)
             health: {
                 hostsUp: liveHealth.hostsUp, hostsTotal: config.ollama.hosts.length,
                 gpu: liveHealth.gpu || null, host: liveHealth.host || null, proxyUp: liveHealth.proxyUp !== false,

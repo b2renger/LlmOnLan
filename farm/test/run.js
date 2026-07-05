@@ -472,6 +472,42 @@ test('selfServer: /lol/self open; admin routes gated by the bearer token', async
     }
 });
 
+test('selfServer: /lol/client-ping is open, forwards body + remote ip; bad json → 400', async () => {
+    const pings = [];
+    const server = startSelfServer({
+        httpPort: 0, getSnapshot: () => ({}), host: '127.0.0.1',
+        control: {}, adminToken: 'secret',
+        onClientPing: (body, ip) => { pings.push({ body, ip }); return { ok: true }; },
+    });
+    await new Promise((r) => { if (server.listening) r(); else server.once('listening', r); });
+    const base = `http://127.0.0.1:${server.address().port}`;
+    try {
+        // Open route — a desktop client has no admin token.
+        const r = await fetch(`${base}/lol/client-ping`, {
+            method: 'POST', headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ id: 'c1', name: 'desk-01', platform: 'win32', version: '0.1.23', idleSec: 12 }),
+        });
+        assert.equal(r.status, 200, 'ping is open (no token)');
+        assert.equal((await r.json()).ok, true);
+        assert.equal(pings.length, 1);
+        assert.equal(pings[0].body.id, 'c1');
+        assert.equal(pings[0].body.idleSec, 12);
+        assert.ok(pings[0].ip.includes('127.0.0.1'), `remote ip captured (got ${pings[0].ip})`);
+        // Malformed JSON → 400, handler never called.
+        const bad = await fetch(`${base}/lol/client-ping`, { method: 'POST', body: '{nope' });
+        assert.equal(bad.status, 400);
+        assert.equal(pings.length, 1, 'bad json never reaches onClientPing');
+    } finally {
+        server.close();
+    }
+});
+
+test('snapshot usage.clients mirrors clientsConnected (null on older farms)', () => {
+    const c = defaultConfig();
+    assert.equal(buildSnapshot(c, { proxyUp: true, clientsConnected: 3 }).usage.clients, 3);
+    assert.equal(buildSnapshot(c, { proxyUp: true }).usage.clients, null, 'absent → null (old-farm shape)');
+});
+
 // ---- plugin registry -------------------------------------------------------
 const { makeServices, pluginsSummary, FarmService } = require('../src/plugins/registry');
 

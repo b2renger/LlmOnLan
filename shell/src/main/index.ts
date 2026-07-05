@@ -4,9 +4,11 @@
 // sidecar (pointed at the farm via config-bridge), and loads it in a <webview>.
 // Discovery (M3) and full Preferences (M4) layer onto this skeleton.
 
-import { app, BrowserWindow, ipcMain, shell, nativeTheme, dialog, session } from 'electron';
+import { app, BrowserWindow, ipcMain, shell, nativeTheme, dialog, session, powerMonitor } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
+import * as os from 'os';
+import { randomUUID } from 'crypto';
 import { loadSettings, updateSettings } from './store';
 import { defaultDataDir, bundledOwuiVersion, sidecarRoot } from './paths';
 import { SidecarSupervisor } from './sidecar';
@@ -92,6 +94,45 @@ function farmTts(f: DiscoveredFarm | null): { url: string; voice: string; model:
 function farmExtract(f: DiscoveredFarm | null): { url: string; key: string } | null {
     if (!f?.extract?.url || !f.extract.key) return null;
     return { url: f.extract.url, key: f.extract.key };
+}
+
+// Stable per-install id for the farm presence heartbeat — generated once, persisted.
+function getClientId(): string {
+    const s = loadSettings();
+    if (s.clientId) return s.clientId;
+    const id = randomUUID();
+    updateSettings({ clientId: id });
+    return id;
+}
+
+// Presence heartbeat → the ACTIVE farm's admin panel ("who's connected, how idle").
+// Every 10 s, fire-and-forget POST to the farm's open /lol/client-ping with a stable
+// id, hostname, platform, app version and the machine's input-idle seconds
+// (powerMonitor — "is a human at this machine", not just "is the app open"). Farms
+// without httpPort (pre-admin builds) are skipped; an old farm that has httpPort but
+// no route just 404s harmlessly. Must never throw or block anything.
+function startClientHeartbeat(): void {
+    const timer = setInterval(() => {
+        try {
+            const farm = discovery?.getFarms().find((f) => f.id === activeFarmId) ?? null;
+            if (!farm || !farm.httpPort || farm._stale) return;
+            const ctl = new AbortController();
+            const t = setTimeout(() => ctl.abort(), 3000);
+            fetch(`http://${farm._host}:${farm.httpPort}/lol/client-ping`, {
+                method: 'POST',
+                headers: { 'content-type': 'application/json' },
+                body: JSON.stringify({
+                    id: getClientId(),
+                    name: os.hostname(),
+                    platform: process.platform,
+                    version: app.getVersion(),
+                    idleSec: powerMonitor.getSystemIdleTime(),
+                }),
+                signal: ctl.signal,
+            }).catch(() => {}).finally(() => clearTimeout(t));
+        } catch { /* presence is best-effort — never let it break the app */ }
+    }, 10000);
+    timer.unref();
 }
 
 // Auto-apply the active farm's CLIENT-side plugin recommendations (e.g. Blender). A
@@ -560,6 +601,7 @@ app.whenReady().then(async () => {
     discovery = new Discovery({ manualPeers: settings.manualPeers, autoScan: settings.autoScan, scanRange: settings.scanRange });
     discovery.on('farms', onFarms);
     discovery.start();
+    startClientHeartbeat(); // presence pings to the active farm's admin panel
 
     // First run of a packaged build: the OWUI sidecar isn't bundled — download it
     // (with progress to the renderer) before starting it. Dev / already-installed

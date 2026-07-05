@@ -131,7 +131,9 @@ See [`lol.config.example.json`](lol.config.example.json). Shape:
   `.odt`/`.epub`/`.rtf`) at the cost of a multi‑GB torch install. Delete `farm/.extract/` to uninstall.
 - **Admin panel (live control of a running farm):** while `lol up` runs, open
   `http://<box>:41997/lol/admin` (the beacon `httpPort`) from any browser on the LAN — or click **"Manage
-  this farm"** in the desktop client's fleet popover. It can **start/stop served models** (adds/removes them
+  this farm"** in the desktop client's fleet popover. It shows the **connected clients** (hostname, IP,
+  app version, and how long each machine has been idle — clients report presence every ~10 s and drop off
+  ~30 s after closing), and can **start/stop served models** (adds/removes them
   from the proxy + warms/evicts VRAM; the proxy bounces for a few seconds) and **enable/disable the farm
   plugins** (web search / voice / OCR) live, plus recommend the client‑side Blender plugin to the fleet —
   clients pick every change up within ~5 s. Auth: the **admin token printed in the `lol up` banner**

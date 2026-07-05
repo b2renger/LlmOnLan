@@ -93,6 +93,8 @@ function buildSnapshot(config, health = {}) {
             vramUsedGb: health.gpu?.vramUsedGb ?? null,
             vramTotalGb: health.gpu?.vramTotalGb ?? null,
             loaded: health.loaded ?? [],
+            // Desktop clients currently heartbeating this farm (POST /lol/client-ping).
+            clients: health.clientsConnected ?? null,
         },
         ts: Date.now(),
     };

@@ -53,7 +53,7 @@ function sendJson(res, status, obj) {
     res.end(JSON.stringify(obj));
 }
 
-function startSelfServer({ httpPort, getSnapshot, host = '0.0.0.0', control = null, adminToken = null }) {
+function startSelfServer({ httpPort, getSnapshot, host = '0.0.0.0', control = null, adminToken = null, onClientPing = null }) {
     const server = http.createServer(async (req, res) => {
         const pathOnly = (req.url || '').split('?')[0].replace(/\/+$/, '') || '/';
         const method = req.method || 'GET';
@@ -65,6 +65,17 @@ function startSelfServer({ httpPort, getSnapshot, host = '0.0.0.0', control = nu
             catch { res.writeHead(500); return res.end('{"error":"snapshot"}'); }
             res.writeHead(200, { 'content-type': 'application/json', 'access-control-allow-origin': '*', 'cache-control': 'no-store' });
             return res.end(body);
+        }
+
+        // Desktop-client presence heartbeat (open, like /lol/self — trusted LAN; the
+        // handler caps/sanitizes every field and bounds the map). The shell POSTs
+        // { id, name, platform, version, idleSec } every ~10 s; feeds the admin
+        // panel's Clients card + the snapshot's usage.clients count.
+        if (method === 'POST' && pathOnly === '/lol/client-ping') {
+            if (!onClientPing) return sendJson(res, 404, { error: 'not supported' });
+            const body = await readJson(req, 4096);
+            if (!body) return sendJson(res, 400, { error: 'bad json' });
+            return sendJson(res, 200, onClientPing(body, (req.socket && req.socket.remoteAddress) || ''));
         }
 
         // Admin page (open — it prompts for the token client-side).
