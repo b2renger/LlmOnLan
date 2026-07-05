@@ -55,6 +55,14 @@ const OllamaSchema = z.object({
     // model reload (~30–60s on a 35B). '-1' = keep loaded forever — the right call
     // for a dedicated GPU box. Only applies to an Ollama that `lol` starts.
     keepAlive: z.string().default('-1'),
+    // OLLAMA_CONTEXT_LENGTH — the default context window (num_ctx) for served
+    // models. Ollama's own default (4096 tokens) silently TRUNCATES longer
+    // prompts — with the client's whole-document mode a 6-page PDF already
+    // overflows it, which looks like "the model ignored half my document"
+    // (rig-verified). 16384 fits workshop docs; lower it on small-VRAM GPUs
+    // (KV cache grows with context × numParallel). Only applies to an Ollama
+    // that `lol` starts — set it on the service otherwise (the CLI prints it).
+    contextLength: z.number().int().positive().default(16384),
 }).strict();
 
 const WebsearchSchema = z.object({

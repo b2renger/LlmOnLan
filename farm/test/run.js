@@ -315,6 +315,9 @@ test('websearch config defaults: ON, port 8888', () => {
 
 test('ollama keepAlive defaults to -1 (keep the model warm)', () => {
     assert.equal(defaultConfig().ollama.keepAlive, '-1');
+    // Whole-document chat needs a real context window — Ollama's 4096 default
+    // silently truncates a 6-page PDF injected via the client's full-context mode.
+    assert.equal(defaultConfig().ollama.contextLength, 16384);
 });
 
 test('searxng settings.yml has json format + a real secret + limiter off', () => {

@@ -58,6 +58,8 @@ function spawnLocalOllama(config, baseUrl) {
         OLLAMA_FLASH_ATTENTION: config.ollama.flashAttention ? '1' : '0',
         // Keep the model warm in VRAM (no reload after idle) — see config.keepAlive.
         OLLAMA_KEEP_ALIVE: config.ollama.keepAlive,
+        // Context window big enough for whole-document chat — see config.contextLength.
+        OLLAMA_CONTEXT_LENGTH: String(config.ollama.contextLength),
     };
     try {
         const u = new URL(baseUrl);
@@ -111,11 +113,12 @@ async function ensureOllama(config) {
     const alreadyUp = reachable.filter((h) => !spawnedPids.length || !isLocalHost(h));
     if (alreadyUp.length) {
         log.info(
-            `Note: set on each Ollama service to apply concurrency/keep-warm — ` +
+            `Note: set on each Ollama service to apply concurrency/keep-warm/context — ` +
             `OLLAMA_NUM_PARALLEL=${config.ollama.numParallel} ` +
             `OLLAMA_MAX_LOADED_MODELS=${config.ollama.maxLoadedModels} ` +
             `OLLAMA_FLASH_ATTENTION=${config.ollama.flashAttention ? 1 : 0} ` +
-            `OLLAMA_KEEP_ALIVE=${config.ollama.keepAlive}`
+            `OLLAMA_KEEP_ALIVE=${config.ollama.keepAlive} ` +
+            `OLLAMA_CONTEXT_LENGTH=${config.ollama.contextLength}`
         );
     }
     return { reachable, spawnedPids };

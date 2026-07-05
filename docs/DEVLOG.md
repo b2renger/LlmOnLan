@@ -6,6 +6,32 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-07-05 d — Whole-document answers: RAG full-context + Ollama context window
+
+The definitive OCR-"missing content" diagnosis, from a real rig transcript: a
+6-page Amazon invoice, "list ALL items purchased" → the answer listed 4 of ~9
+products yet quoted content from pages 1, 2, 5 AND 6. Extraction was therefore
+complete (all pages indexed) — **retrieval** was the bottleneck: OWUI sends only
+the RAG_TOP_K (default **3**) best-matching chunks to the model, and a
+whole-document ask deterministically misses whatever chunks don't match the
+query. No extraction improvement can ever fix that class of question.
+
+- **Client ([configBridge.ts](../shell/src/main/configBridge.ts)):**
+  `RAG_FULL_CONTEXT=true` — verified in the pinned 0.10.2 source
+  (retrieval/utils.py): full_context swaps the top-k query for
+  `get_all_items_from_collections`, i.e. the model receives the ENTIRE extracted
+  document. Right default for a workshop (small docs, whole-doc questions
+  dominate). Known trade-off: a large attached knowledge collection is injected
+  whole too — revisit if workshops grow big knowledge bases.
+- **Farm ([config.js](../farm/src/config.js) / [up.js](../farm/src/commands/up.js)):**
+  new `ollama.contextLength` (default **16384**) → `OLLAMA_CONTEXT_LENGTH` on
+  Ollamas the CLI starts + added to the recommended-env note for external ones.
+  Without it, Ollama's 4096-token default **silently truncates** the injected
+  document and re-creates the exact same "missed half my PDF" symptom with a
+  different cause. Lower it on small-VRAM GPUs (KV cache ∝ context × numParallel).
+- Both halves are needed together: full context without the window = truncation;
+  the window without full context = top-3 chunks.
+
 ## 2026-07-05 c — Blender opt-in + [Page N] markers (rig feedback round 2)
 
 - **Blender assistant tools are now OPT-IN** (owner call): `blenderMcp` defaults to

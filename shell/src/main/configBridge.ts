@@ -74,6 +74,20 @@ export function buildSidecarEnv(input: SidecarEnvInput): Record<string, string> 
         // RAG_EMBEDDING_ENGINE is deliberately UNSET → in-process SentenceTransformers.
         // (Setting it to "ollama"/"openai" would ship document text off-device.)
 
+        // --- documents: answer from the WHOLE document, not top-k chunks ---
+        // OWUI's default retrieval sends only the RAG_TOP_K (3!) best-matching
+        // chunks to the model, so whole-document asks ("list ALL items in this
+        // invoice") deterministically miss content that doesn't match the query —
+        // rig-verified: a 6-page invoice answered from 3 chunks listed 4 of 9
+        // products. Workshop docs are small and whole-doc questions dominate, so
+        // full-context mode (inject the entire extracted text, skip retrieval) is
+        // the right default here. Trade-off: a LARGE attached knowledge collection
+        // is injected whole too — revisit if workshops grow big knowledge bases.
+        // Needs a model context that fits a document: the farm raises Ollama's
+        // num_ctx via OLLAMA_CONTEXT_LENGTH (ollama.contextLength, default 16384),
+        // else Ollama's 4096 default silently truncates and re-creates the bug.
+        RAG_FULL_CONTEXT: 'true',
+
         // --- default model capabilities (vision, + web_search when the farm has it) ---
         // Over an OpenAI-style connection OWUI can't discover a model's capabilities
         // (the farm's /v1/models lists names only), so it defaults vision OFF — and a
