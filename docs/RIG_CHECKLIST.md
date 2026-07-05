@@ -19,13 +19,14 @@ risk; the build itself is implemented (see [DEVLOG.md](DEVLOG.md)).
 - [x] `lol status` / `lol down` from a second shell; clean intentional-stop.
 - [x] **Failover:** two Ollama hosts (`:11434` + a 2nd on `:11435`) serving gemma4 → load-balanced
       (both loaded; 8/8). Killing one mid-operation → **10/10** completions still succeed after tuning the
-      router (`num_retries:3`, `allowed_fails:1`, `cooldown:60`). Size by concurrent in-flight generations,
+      router (`num_retries:3`, `allowed_fails:1`, `cooldown_time:60`). Size by concurrent in-flight generations,
       not headcount. *(Multi-physical-box still worth a real-LAN run; here both Ollamas were on one box.)*
 - [ ] `lol up` starting a **local Ollama** when none is running (the spawn path; here Ollama was already up).
 - [ ] `gemma4:12b` pull on a fresh box (the dev box already had a `gemma4` tag).
 
 ## Open WebUI integration (re-verify per pin — see INTEGRATION_BRIEF §7)
-- [x] OWUI 0.10.1 boots with the privacy env; `/health` true; **local** MiniLM embeddings load in-process.
+- [x] OWUI boots with the privacy env; `/health` true; **local** MiniLM embeddings load in-process.
+      *(Verified at 0.10.1; the current pin is **0.10.2** — re-verify pin-sensitive checks per the section rule.)*
 - [x] All user data (webui.db, `vector_db/chroma.sqlite3`, uploads) lands under the local `DATA_DIR`.
 - [x] Auto-admin under `WEBUI_AUTH=false`; `get_all_models()` runs against the farm endpoint.
 - [x] **A full chat through the OWUI UI** end-to-end (Playwright drove a real chat → streamed gemma4
@@ -46,18 +47,37 @@ risk; the build itself is implemented (see [DEVLOG.md](DEVLOG.md)).
 - [ ] Cross-volume move (e.g. C: → D:) with a non-trivial `vector_db`.
 
 ## Packaging + auto-update (CI + real OSes) — the upgrade test
-- [x] `electron-builder --dir` packs a real `LlmOnLan.exe`; `extraResources` places the sidecar at
-      `resources/sidecar/`.
-- [ ] **Full installers** built by CI on a `v*` tag: NSIS (win), dmg+zip (mac arm64+x64), AppImage (linux),
-      each bundling the real multi-GB OWUI sidecar.
+- [x] `electron-builder --dir` packs a real `LlmOnLan.exe` (~100 MB, **no sidecar bundled**); the sidecar
+      is downloaded to `userData/sidecar` on first run from the release's
+      `owui-sidecar-<platform>-<arch>.tar.gz` asset (`sidecarManager.ts`).
+- [ ] **Full installers** built by CI on a `v*` tag: NSIS (win), dmg+zip (mac **arm64 only** — x64 pending
+      multi-arch sidecar builds), AppImage (linux); each release also carries the sidecar tarball assets
+      the app downloads on first run.
 - [ ] **Auto-update cycle:** install `vX.Y.Z`, publish `vX.Y.(Z+1)`, confirm the installed app self-updates
       on next launch — per OS. Windows: silent, no UAC (rides on NSIS `perMachine:false`). macOS: ad-hoc
       signing is the weak link — **validate on real Macs** (zip target present for Squirrel.Mac). Linux:
       AppImage must be launched as an AppImage.
 - [ ] **The upgrade test:** bump `sidecar/OPENWEBUI_VERSION`, rebuild the sidecar, run the smoke test —
       pass = **no LOL code changed** and everything works. A failure is a separation defect to redesign.
-- [ ] First-run model download (~90 MB MiniLM) latency on a fresh install; unsigned-app OS warnings
-      (SmartScreen / Gatekeeper right-click→Open) documented for users.
+- [ ] First-run downloads on a fresh install: the OWUI sidecar tarball (hundreds of MB, to
+      `userData/sidecar`) then the ~90 MB MiniLM embedding model — measure combined latency + the
+      download-progress UX; unsigned-app OS warnings (SmartScreen / Gatekeeper right-click→Open)
+      documented for users.
+
+## Admin panel + plugins + presence (shipped 2026-07-03→05; needs a two-machine pass)
+- [ ] **Admin panel** from a second machine: open `http://<box>:41997/lol/admin`, paste the banner token →
+      start/stop a model (appears/disappears in a client's picker ~5 s later), **Make default**, change the
+      **context window** (brief proxy blip; `lol status` still healthy), wrong token → rejected.
+- [ ] **Plugins live-toggle:** disable/enable web search + OCR from the panel → clients lose/gain the
+      feature (their OWUI restarts, ~30 s); a killed plugin process shows "down" within ~10 s.
+- [ ] **OCR on a fresh box:** first `lol install`/`lol up` bootstraps `farm/.extract/` (needs Python
+      3.10–3.13); upload a scanned PDF + a photo in a client → transcribed; the farm logs one
+      `[extract] <file>: N page(s) → …` line per document; a text+image PDF shows `text+vision` pages
+      and `[Page N]` markers in the extracted text.
+- [ ] **Client presence:** two shells (≥0.1.23) → both appear in the panel's Clients section with
+      hostname/version/idle; quitting one removes it within ~30 s; the popover shows "N clients".
+- [ ] **Blender recommendation:** Recommend from the panel → a client that never touched the toggle
+      enables it; a client that explicitly disabled it is left alone.
 
 ## Dev-environment gotchas already found
 - LiteLLM + OWUI children are spawned with `PYTHONUTF8=1` (Windows cp1252 banner/log crash).

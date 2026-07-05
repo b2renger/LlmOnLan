@@ -20,14 +20,14 @@ self‑updates on mac/win/linux. End‑user flow: install → open → chat. No 
 
 ---
 
-## Current status — shipped through v0.1.8 (2026‑07‑01)
+## Current status — shipped through v0.1.25 (2026‑07‑05)
 
 **M0–M5 are all shipped; the app is packaged and self‑updating on Windows/macOS/Linux.** This is the
 summary; the blow‑by‑blow (and every bug + fix) lives in [docs/DEVLOG.md](docs/DEVLOG.md).
 
 **Working end‑to‑end**
 - **Small installer** (~97 MB Win) that **downloads the OWUI sidecar on first run** (no longer bundled), then
-  **self‑updates** from GitHub Releases (electron‑updater). App at **v0.1.8**; OWUI pinned at **0.10.2**.
+  **self‑updates** from GitHub Releases (electron‑updater). App at **v0.1.25**; OWUI pinned at **0.10.2**.
 - **Zero‑config connect**: UDP beacon + subnet sweep + manual add; the client auto‑points OWUI at a
   discovered farm (sticky, with a last‑known‑good / env fallback).
 - **Farm**: `lol up` ensures Ollama, pulls the model, generates + runs the LiteLLM proxy, and beacons. Model
@@ -221,9 +221,27 @@ fleet with failover (Layer 1). Trade‑off: the coordinator box is a single poin
   (concurrent streaming chats → TTFT p50/p95 + tokens/s), **fleet view in the client** (badges + live
   VRAM/load in the connection popover, load in the topbar pill).
 
+**✅ Also shipped (2026‑07‑03 → 05) — the admin / plugins / documents batch:**
+- **Farm admin panel** — `http://<box>:41997/lol/admin` (bearer token printed by `lol up`;
+  `config.admin.token`): start/stop served models (guarded LiteLLM bounce + rollback), **Make default**,
+  a live **context‑window** selector, plugin enable/disable, **Recommend Blender** to the fleet, and a
+  collapsible **Clients** list. Panel changes are ephemeral; lol.config.json persists.
+- **Plugin registry** (`farm/src/plugins/registry.js`) — web search / voice / OCR behind one FarmService
+  orchestration (boot, live toggles, health, teardown, snapshot).
+- **Document OCR, ON by default** — `farm/src/pysvc` (vendored Ollama‑OCR + FastAPI, OWUI External
+  Document Loader contract): hybrid per‑page PDF routing (text layer / vision / text+vision), `[Page N]`
+  markers, one `[extract]` log line per document. **Neural voice shipped too** (Kokoro‑82M farm plugin,
+  `farm/src/kokoro.js`, off by default — closes the old "Voice polish" TTS item).
+- **Whole‑document answers** — client sets `RAG_FULL_CONTEXT=true`; farm serves a matching window via
+  `ollama.contextLength` (default 16384 → `OLLAMA_CONTEXT_LENGTH` + per‑deployment `num_ctx`).
+- **Connected‑client presence** — the shell heartbeats `POST /lol/client-ping` every 10 s
+  (id/hostname/platform/version/idleSec); admin Clients card + `usage.clients` in the snapshot.
+- **Blender/mcpo flipped to opt‑in** on the client (off by default since v0.1.24; farm recommendation can
+  enable it for non‑explicit users).
+
 **Still open (ordered by value / effort):**
-4. **Voice polish.** Optionally bundle a local neural TTS (Piper/Kokoro) for nicer voices than Web‑Speech;
-   surface the first‑run Whisper download; explore gemma4's native **audio** capability for spoken input.
+4. **Voice polish (rest).** Surface the first‑run Whisper download; explore gemma4's native **audio**
+   capability for spoken input. (The neural‑TTS half shipped — Kokoro farm plugin, above.)
 5. **Dynamic coordinator membership.** Today the coordinator captures peers at boot (a box added later → restart).
    Live add/remove needs either a debounced proxy restart or LiteLLM's `/model/new` admin API (which needs a
    master key → would force keys on clients). Revisit if fleets churn often.

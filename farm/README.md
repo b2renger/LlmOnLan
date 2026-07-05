@@ -66,10 +66,10 @@ npm link        # then just `lol <cmd>` anywhere
 
 | Command | Does |
 |---|---|
-| `lol install` / `setup` | One‑time bootstrap: install Ollama + LiteLLM, pull the configured models, and set up shared web search (SearXNG, on by default). Idempotent. |
+| `lol install` / `setup` | One‑time bootstrap: install Ollama + LiteLLM, pull the configured models, and set up shared web search (SearXNG) + document OCR (both on by default). Idempotent. |
 | `lol init [--force]` | Scaffold a `lol.config.json` in the current directory. |
 | `lol up` / `lol serve` | Ensure Ollama, **pick the model(s) to serve** (interactive, from what's installed; Enter = default), pull anything missing, generate + run the LiteLLM proxy, start SearXNG + OCR (if enabled) + the beacon. Foreground; Ctrl‑C stops. |
-| `lol down` | Stop the proxy + SearXNG + OCR + beacon (and any Ollama this CLI started). |
+| `lol down` | Stop the proxy + SearXNG + TTS + OCR + beacon (and any Ollama this CLI started). |
 | `lol status` | Health of each Ollama host + the proxy + which models are loaded. Works from any shell. |
 | `lol fleet` | Every farm on the LAN (this box + peers): health, GPU load, VRAM, loaded models, roles, search URL. |
 | `lol bench` | Load‑test before a workshop: N concurrent chats → first‑token latency (p50/p95) + tokens/s. `--users N --rounds R --model id --url …`. |
@@ -80,7 +80,8 @@ npm link        # then just `lol <cmd>` anywhere
 **`lol up` flags:** `--model <id[=alias][,…]>` serve exactly these (no prompt; pulls if missing) ·
 `--no-pick` skip the prompt, use the config catalog · `--alias <name>` / `--no-alias` override the global
 model alias · `--coordinator` aggregate LAN peer farms into one balanced endpoint (clients prefer it) ·
-`--websearch` / `--no-websearch` override the SearXNG toggle · `--ocr` / `--no-ocr` override the document‑OCR toggle.
+`--websearch` / `--no-websearch` override the SearXNG toggle · `--tts` / `--no-tts` override the Kokoro
+voice toggle (off by default) · `--ocr` / `--no-ocr` override the document‑OCR toggle (on by default).
 
 ## Config — `lol.config.json`
 
@@ -101,8 +102,10 @@ See [`lol.config.example.json`](lol.config.example.json). Shape:
               "contextLength": 16384 },        // num_ctx — fits whole-document chat; lower on small GPUs
   "litellm": { "command": "litellm", "extraArgs": [], "provider": "ollama_chat" },
   "websearch": { "enabled": true, "port": 8888 },   // shared SearXNG → clients get web search
-  "ocr": { "enabled": false, "port": 8890,           // shared document OCR → clients get scanned-doc/image OCR
-           "model": null, "format": "markdown",       // null = served default vision model; markdown|text|json|…
+  "tts": { "enabled": false, "port": 8880,            // shared Kokoro voice (off by default — multi-GB install)
+           "voice": "af_heart", "model": "kokoro" },
+  "ocr": { "enabled": true, "port": 8890,             // shared document OCR (ON by default) — omit `model` to
+           "format": "markdown",                       // auto-use the served default vision model; markdown|text|…
            "pdfEngine": "auto", "docling": false },    // auto: text layer / vision / hybrid on mixed pages; docling adds office formats
   "coordinator": false                          // aggregate LAN peers into one balanced endpoint
 }
@@ -125,8 +128,8 @@ See [`lol.config.example.json`](lol.config.example.json). Shape:
   box, so clients get scanned‑document + image OCR with zero setup — OWUI uses it as its content‑extraction
   engine, routing images + scanned PDFs to a **vision model on this box's Ollama**
   ([Ollama‑OCR](https://github.com/imanoop7/Ollama-OCR), vendored) and born‑digital docs/PDFs to fast local
-  extraction. Installed into `farm/.extract/` on first use (torch‑free; reuses the vision model you already
-  serve — `ocr.model` overrides which). Note it routes *all* of OWUI's document ingestion through the farm —
+  extraction. Installed into `farm/.extract/` at `lol install` time, re-checked on `lol up` (torch‑free;
+  reuses the vision model you already serve — `ocr.model` overrides which). Note it routes *all* of OWUI's document ingestion through the farm —
   opt a box out with `"ocr": { "enabled": false }` or `lol up --no-ocr`. The light path covers
   images/PDF/docx/pptx/xlsx/text, and `"docling": true` adds the rest (legacy `.doc`/`.ppt`/`.xls`,
   `.odt`/`.epub`/`.rtf`) at the cost of a multi‑GB torch install. Delete `farm/.extract/` to uninstall.

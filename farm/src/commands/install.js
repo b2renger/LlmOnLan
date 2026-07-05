@@ -223,8 +223,9 @@ async function ensureWebsearch(config) {
 
 // --- 6. OCR / document extraction -------------------------------------------
 
-// Pre-install the shared OCR service ONLY when enabled (it's off by default — it
-// reroutes ALL of OWUI's document ingestion through the farm). Idempotent +
+// Pre-install the shared OCR service when enabled (ON by default since 2026-07-05 —
+// document upload is a core workshop flow; it reroutes ALL of OWUI's document
+// ingestion through the farm, so a box opts out via ocr.enabled:false). Idempotent +
 // non-fatal, like web search; `lol up` installs it lazily otherwise.
 async function ensureOcr(config) {
     if (!config.ocr || !config.ocr.enabled) {

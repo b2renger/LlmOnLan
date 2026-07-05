@@ -1,6 +1,8 @@
 # Build + publish the LlmOnLan installers to GitHub Releases on a vX.Y.Z tag.
-# Each matrix job builds the bundled OWUI sidecar for ITS OS, then runs
-# electron-builder --publish always. See docs/INTEGRATION_BRIEF.md §6.
+# Each matrix job builds the OWUI sidecar tarball for ITS OS, runs
+# electron-builder --publish never, and uploads everything into a pre-created
+# release via `gh release upload --clobber` (electron-builder's own GitHub
+# publisher raced parallel uploads — see INTEGRATION_BRIEF §6's superseded note).
 
 name: release
 

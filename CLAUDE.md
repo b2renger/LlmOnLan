@@ -14,28 +14,39 @@
 
 ---
 
-## Build status (2026-06-30) — M0–M6 implemented; live chat / RAG / failover verified
+## Build status (2026-07-05) — M0–M6 + farm admin/plugins shipped; client at v0.1.25
 
-The full plan (incl. the M6 health‑indicator polish) is built and committed; the dated build log with how
+The full plan is built, released and in multi-user testing; the dated build log with how
 each piece was tested lives in [docs/DEVLOG.md](docs/DEVLOG.md), the rig‑verification state in
 [docs/RIG_CHECKLIST.md](docs/RIG_CHECKLIST.md), and the version‑specific integration facts in
-[docs/INTEGRATION_BRIEF.md](docs/INTEGRATION_BRIEF.md). Snapshot:
+[docs/INTEGRATION_BRIEF.md](docs/INTEGRATION_BRIEF.md) (a dated snapshot — the pin has since moved).
+Snapshot:
 
 - **`farm/`** — the `lol` CLI works end-to-end (verified: `lol up` → real `/v1/chat/completions` via
   LiteLLM→Ollama→gemma4; status/down; UDP beacon + `/lol/self` received by a listener). Pin facts:
-  **OWUI `0.10.1`** (Python 3.11/3.12, run via the `open-webui serve` console script). Beacon group
-  **`239.255.43.10:41998`** (+ httpPort `41997`), distinct from ComfyQ.
-- **`shell/`** (Electron + TS) — boots the **unmodified** OWUI sidecar (config-bridge =
+  **OWUI `0.10.2`** (Python 3.11/3.12, run via the `open-webui serve` console script). Beacon group
+  **`239.255.43.10:41998`** (+ httpPort `41997`), distinct from ComfyQ. On top: an **admin panel** at
+  `http://<box>:41997/lol/admin` (bearer token printed by `lol up`; `config.admin.token`) with a live
+  control API — model start/stop, "Make default", a context-window selector, plugin toggles, Blender
+  fleet recommendation, connected-clients list; a **plugin registry** (`farm/src/plugins/registry.js`)
+  orchestrating web search (SearXNG, ON), document OCR (`farm/src/pysvc` + `extract.js`, ON — hybrid
+  text/vision PDF extraction), and Kokoro TTS (off); `ollama.contextLength` (default 16384) applied via
+  `OLLAMA_CONTEXT_LENGTH` **and** per-deployment `num_ctx` in the generated LiteLLM routing; coordinator
+  mode + `lol fleet`/`lol bench`/`lol install`; a stable **model alias** + interactive picker in `lol up`.
+- **`shell/`** (Electron + TS, **v0.1.25**) — boots the **unmodified** OWUI sidecar (config-bridge =
   env-authoritative, `ENABLE_PERSISTENT_CONFIG=false`), discovers the farm and auto-connects with **no
   URL typed**, full Preferences (data folder + move/fresh migration, connection, startup/updates, about).
-  Verified via window captures in [docs/img/](docs/img/).
+  Whole-document RAG (`RAG_FULL_CONTEXT=true`); presence heartbeats to the farm (`POST /lol/client-ping`
+  every 10 s: id/hostname/platform/version/idleSec); Blender/mcpo assistant tools are **opt-in** (off by
+  default since v0.1.24; a farm recommendation can enable them for non-explicit users).
 - **`sidecar/`** — `build-sidecar` bundles a relocatable standalone CPython + OWUI + `launcher.py`;
-  `OPENWEBUI_VERSION` is the pin. The launcher mechanism is verified; the full multi-GB bundle build runs
-  in CI.
-- **packaging** — electron-builder + electron-updater + a GitHub Actions release matrix; config validated
-  via a `--dir` pack (real `LlmOnLan.exe`, sidecar placed via `extraResources`).
-- **health (M6)** — the farm advertises `host` (GPU/VRAM/RAM/cores) + `usage` (live GPU util/VRAM) in the
-  snapshot; `lol status` and the shell's farm cards show it.
+  `OPENWEBUI_VERSION` is the pin. NOT bundled into the installer — CI publishes it as
+  `owui-sidecar-<platform>-<arch>.tar.gz` release assets and the packaged shell downloads it to
+  `userData/sidecar` on first run (`sidecarManager.ts`).
+- **packaging** — electron-builder + electron-updater + a GitHub Actions release matrix; live
+  auto-update verified across releases (v0.1.x series).
+- **health (M6)** — the farm advertises `host` (GPU/VRAM/RAM/cores) + `usage` (live GPU util/VRAM +
+  connected clients) in the snapshot; `lol status`, the admin panel and the shell's farm cards show it.
 
 **Verified on the live stack (single box, 2026-06-30):** a **full chat through the OWUI UI** (Playwright →
 streamed gemma4 reply); **document‑locality** (a doc embedded into the local Chroma with **zero
@@ -93,30 +104,39 @@ If a task seems to require breaking one of these, **stop and flag it**.
 | Direction | Mechanism | Notes |
 |---|---|---|
 | Lifecycle | Shell spawns the OWUI sidecar as a child process and supervises it. | Shell = process manager + window. |
-| Config → OWUI | Env vars at launch (first‑run seed) **+** admin REST API after boot (reconcile the discovered endpoint each launch). | See gotchas below. |
+| Config → OWUI | Env vars at **every** launch, made authoritative by `ENABLE_PERSISTENT_CONFIG=false` — repointing the farm restarts the sidecar with new env. One exception: the opt‑in Blender tool server is registered from the authed webview via `POST /api/v1/configs/tool_servers` (its env is unsupported upstream). | See gotchas below. |
 | Data | `DATA_DIR` → the user's chosen local folder; default local embeddings; telemetry off. | Enforces invariant #3. |
-| Net out of OWUI | Only to the discovered farm endpoint, for chat completions. | Embeddings stay local. |
+| Net out of OWUI | Chat completions to the farm endpoint; plus, when the farm advertises them: SearXNG queries (then direct page fetches), Kokoro TTS requests, and uploaded‑file bytes to the farm OCR extractor. | Embeddings always stay local. |
 | Everything else | None. OWUI is a black box. | No DB poking, no template/CSS edits, no internal imports. |
 
-### Verified OWUI config surface (re‑verify per pinned version in M1)
+### Verified OWUI config surface (re‑verify per pinned version; authoritative list = `shell/src/main/configBridge.ts`)
 
-Connection: `OPENAI_API_BASE_URL` + `OPENAI_API_KEY` (preferred — the farm is OpenAI‑compatible
-via LiteLLM), or `OLLAMA_BASE_URLS` (space‑separated) if pointing at Ollama directly.
+Connection: `OPENAI_API_BASE_URL` + `OPENAI_API_KEY` (the farm is OpenAI‑compatible via LiteLLM;
+`ENABLE_OLLAMA_API=false` so OWUI never talks to Ollama directly). The shipped env surface also carries:
+`DEFAULT_MODELS` (farm's advertised default) + `DEFAULT_MODEL_METADATA` (vision on; `web_search` when the
+farm hosts SearXNG), `RAG_FULL_CONTEXT=true` (whole‑document answers, not top‑k chunks),
+`ENABLE_WEB_SEARCH`/`WEB_SEARCH_ENGINE=searxng`/`SEARXNG_QUERY_URL`, `AUDIO_STT_ENGINE=''` +
+`WHISPER_MODEL=base` (local STT), `AUDIO_TTS_*` (farm Kokoro when advertised),
+`CONTENT_EXTRACTION_ENGINE=external` + `EXTERNAL_DOCUMENT_LOADER_URL/_API_KEY` (farm OCR),
+`ENABLE_VERSION_UPDATE_CHECK=false`, `DEFAULT_LOCALE`.
 
 - **Gotcha #1 — persisted URLs beat env.** Connection URLs saved via the admin UI go to OWUI's DB
-  and **take precedence over env on later starts.** To keep the *discovered* endpoint authoritative
-  (the IP can change via DHCP): preferred = seed via env on first run + reconcile via the **admin
-  REST API** each launch (surgical). Blunt fallbacks: `ENABLE_PERSISTENT_CONFIG=false` (env always
-  wins, globally) or `RESET_CONFIG_ON_START=true`. Validate the admin endpoint + auth flow (esp.
-  under `WEBUI_AUTH=false`) for the pin. Ref: https://docs.openwebui.com/reference/env-configuration/
+  and **take precedence over env on later starts.** The shipped strategy: `ENABLE_PERSISTENT_CONFIG=false`
+  — env is authoritative on **every** launch, so repointing the farm is just a sidecar restart with new
+  env, and no stale persisted URL can win. (The admin REST API is deliberately NOT used for endpoint
+  reconciliation — it's session‑only while persistence is off; its one shipped use is registering the
+  opt‑in Blender tool server from the authed webview.) Ref: https://docs.openwebui.com/reference/env-configuration/
 - **Gotcha #2 — JSON config env.** `OPENAI_API_CONFIGS`/`OLLAMA_API_CONFIGS` historically weren't
   parsed from env at startup (open‑webui#19017). Use the simple `*_BASE_URL(S)` env as the seed.
 
 Data locality:
 - `DATA_DIR` → user‑chosen local folder (all persistent data lives here).
 - **Keep default local embeddings** (`RAG_EMBEDDING_MODEL=sentence-transformers/all-MiniLM-L6-v2`,
-  cached under `DATA_DIR`). Do **NOT** set `RAG_EMBEDDING_ENGINE=ollama` — that would ship document
-  text to the farm. With the default, documents never leave the device.
+  cached in the default HF_HOME — `~/.cache/huggingface`, deliberately NOT under `DATA_DIR` so a
+  data‑folder move never re‑downloads it). Do **NOT** set `RAG_EMBEDDING_ENGINE=ollama` — that would
+  ship document text to the farm for **embedding**. (Distinct from extraction: with the default‑on farm
+  OCR, an uploaded file's raw bytes DO transit to the trusted‑LAN farm for text extraction; the
+  extracted text then embeds locally.)
 - **Single worker** (default). Default Chroma is a local SQLite client that is not fork‑safe — never
   raise worker/replica counts in the client.
 
@@ -166,8 +186,8 @@ Notes:
   routing; it's derived from `lol.config.json`.
 - Model choice = edit `models` (or `lol models add`) + `lol up`. Clients see the catalog via the
   endpoint's `/v1/models`; OWUI's model picker handles per‑chat selection.
-- Prereqs (documented in `server/README`): Ollama installed per box; LiteLLM available (pip/binary).
-  The CLI spawns/supervises them; it doesn't reimplement them.
+- Prereqs (documented in `farm/README.md`): Ollama installed per box; LiteLLM available (pip/binary) —
+  `lol install` bootstraps both. The CLI spawns/supervises them; it doesn't reimplement them.
 - The beacon is adapted from ComfyQ's `server/federation/beacon.js` (see Discovery).
 
 ---
@@ -196,7 +216,8 @@ config‑bridge (the only module that knows OWUI's config surface), and the shel
 - **About** — LlmOnLan version, bundled Open WebUI version, and explicit "Powered by Open WebUI"
   attribution + link.
 
-Model selection is intentionally **not** here — the farm catalog is set by the `lol` CLI, and per‑chat
+Model selection is intentionally **not** here — the served catalog lives farm‑side (lol.config.json, the
+`lol up` interactive picker, or live via the admin panel at `http://<box>:41997/lol/admin`), and per‑chat
 model choice lives in Open WebUI's own picker.
 
 ---
@@ -207,8 +228,10 @@ Adapted from ComfyQ's `beacon.js`. The **farm** broadcasts; the **client** liste
 mDNS because ComfyQ proved multicast alone is flaky across consumer APs, and this is dependency‑free
 (Node `dgram`).
 
-- **Farm side (`lol` CLI):** every `intervalSec` (default 5s) send a small JSON snapshot
-  `{ name, endpoint, proxyPort, models, healthy, version }` to **(a)** a multicast group, **(b)** each
+- **Farm side (`lol` CLI):** every `intervalSec` (default 5s) send a small JSON snapshot (see
+  `farm/src/snapshot.js` for the full shape — id/name/endpoint/openaiBaseUrl/httpPort/models/healthy/
+  coordinator, plus searxngUrl/ttsUrl/extract, plugins, recommendedClientPlugins, host/usage) to
+  **(a)** a multicast group, **(b)** each
   interface's **directed broadcast** (e.g. `10.10.16.255`), and **(c)** the limited broadcast
   `255.255.255.255`, deduped. `setBroadcast(true)`, `setMulticastTTL(4)`. Directed broadcast is what
   makes same‑subnet clients actually see the farm.
@@ -255,7 +278,7 @@ mode you'd switch *to*. Icons: inline Lucide‑style SVG (moon/sun, gear), no ic
 
 ## Electron packaging & auto‑update (adopt ComfyQ's recipe verbatim)
 
-Stack: **electron‑builder** (^25) + **electron‑updater** (^6) + Electron ^42, Node 22. Self‑updating on
+Stack: **electron‑builder** (^26) + **electron‑updater** (^6) + Electron ^42, Node ≥20. Self‑updating on
 mac/win/linux from **GitHub Releases**, no paid certificates (ad‑hoc mac signing).
 
 Release flow (in `shell/`):
@@ -270,7 +293,7 @@ Release flow (in `shell/`):
 ```yaml
 appId: com.llmonlan.client
 productName: LlmOnLan
-files: [main.js, preload.js, renderer/**, assets/**]   # plus the bundled OWUI sidecar
+files: [main.js, preload.js, renderer/**, assets/**]   # NO sidecar bundled — downloaded on first run
 directories: { output: dist }
 afterPack: scripts/afterPack.cjs          # ad-hoc code-signs the macOS .app (no Apple cert)
 publish:
@@ -291,8 +314,11 @@ nsis:  { oneClick: true, perMachine: false }   # per-user → silent updates, no
 ```
 
 CI `.github/workflows/release.yml`: on `v*` tag → matrix `[windows-latest, macos-latest, ubuntu-latest]`
-→ `npm ci` in `shell/` → `npx --no-install electron-builder --publish always` with
-`GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}` (public repo → updater needs no token).
+(`max-parallel: 1`) → `npm ci` in `shell/` → the release is **pre‑created with `gh release create`**,
+built with `electron-builder --publish never`, and every artifact uploaded via
+`gh release upload --clobber` — electron‑builder's own GitHub publisher raced its parallel uploads
+(422 already_exists, dropped assets), so it's deliberately not used for publishing. The sidecar tarballs
+ride the same release. Public repo → the updater needs no token.
 
 `scripts/afterPack.cjs` (macOS only): `codesign --force --deep --sign - <App>.app` so Apple Silicon
 doesn't report the unsigned app as "damaged"; not notarized → first‑launch shows the gentler
@@ -319,8 +345,10 @@ LlmOnLan/
     OPENWEBUI_VERSION    #   single source of truth for the pin
     build-sidecar.*      #   fetches OWUI at the pin + bundles a self-contained executable
   farm/                  # the `lol` CLI (Node) + beacon — the backend, NOT shipped to clients
-    bin/lol              #   CLI entry
-    beacon.js            #   adapted from ComfyQ server/federation/beacon.js
+    bin/lol.js           #   CLI entry
+    src/                 #   beacon.js, selfServer.js (+ admin/ panel page), snapshot.js,
+                         #   plugins/ (registry), pysvc/ (OCR service), extract.js,
+                         #   litellm.js/ollama.js, commands/ (up/down/install/...)
     litellm/             #   generated config.yaml lives here at runtime
     README.md            #   prereqs (Ollama, LiteLLM) + usage
   .github/workflows/release.yml
@@ -335,11 +363,13 @@ LlmOnLan/
 
 - **On the device:** every conversation, folder, prompt, document, and RAG vector (under `DATA_DIR`);
   embeddings computed locally.
-- **Over the network:** only the chat context for a single completion, to the discovered farm endpoint.
-  The farm is stateless.
-- **Never sent anywhere:** documents for embedding (local model) and telemetry (off).
+- **Over the network (all to the trusted‑LAN farm, which stores nothing):** the chat context per
+  completion; web‑search queries to the farm's SearXNG (result pages are then fetched directly);
+  TTS requests when the farm hosts Kokoro; and — with the default‑on farm OCR — an uploaded file's raw
+  bytes, for text **extraction only** (the extracted text embeds locally).
+- **Never sent anywhere:** documents for **embedding** (local model) and telemetry (off).
 
-If a feature would move stored data off the device or send document contents to the farm, it breaks the
+If a feature would move *stored* data off the device or persist anything server‑side, it breaks the
 promise — flag it.
 
 ---
@@ -347,10 +377,12 @@ promise — flag it.
 ## Conventions & guardrails
 
 **Do:** keep first‑party code in `shell/` and `farm/`; treat OWUI as an external product configured from
-outside; re‑verify the config surface on each version bump; prefer the admin API for surgical config and
-env for first‑run seeds; default to local‑only; apply ComfyQ tokens to shell surfaces only.
+outside; re‑verify the config surface on each version bump; keep env authoritative every launch
+(`ENABLE_PERSISTENT_CONFIG=false` — the admin API only for what env can't do, e.g. tool servers);
+default to local‑only; apply ComfyQ tokens to shell surfaces only.
 
-**Don't:** edit/fork/patch OWUI source; store user data server‑side or send documents to the farm; rebrand
+**Don't:** edit/fork/patch OWUI source; store user data server‑side or send documents to the farm for
+*embedding* (extraction via the farm OCR is the sanctioned exception — nothing is stored); rebrand
 or hide Open WebUI; inject CSS into the OWUI webview; enable OWUI's built‑in local inference; raise
 client worker counts; reimplement features OWUI already has; reuse ComfyQ's multicast port (pick a distinct one).
 

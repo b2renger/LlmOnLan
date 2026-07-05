@@ -6,7 +6,7 @@ that enforces prime‑directive invariant #1 structurally.
 
 ## The pin
 
-[`OPENWEBUI_VERSION`](OPENWEBUI_VERSION) is the **single source of truth** — currently `0.10.1`
+[`OPENWEBUI_VERSION`](OPENWEBUI_VERSION) is the **single source of truth** — currently `0.10.2`
 (Python 3.11/3.12; launched via the `open-webui serve` console entry, not `python -m`). The shell's
 About panel reads this file.
 
@@ -28,14 +28,18 @@ path‑independent (no pip console‑script shebang that breaks once the install
 node build-sidecar.mjs          # or ./build-sidecar.sh  (mac/linux)  /  ./build-sidecar.ps1 (win)
 ```
 
-Produces `sidecar/build/<platform>-<arch>/` = `python/` + `launcher.py`. electron‑builder's
-`extraResources` copies that to `resources/sidecar/` in the packaged app; the shell then runs
-`resources/sidecar/python(.exe) resources/sidecar/launcher.py serve --host 127.0.0.1 --port <free>`
+Produces `sidecar/build/sidecar/` = `python/` + `launcher.py` + a copied `OPENWEBUI_VERSION`. The
+sidecar is **not bundled into the installer**: CI tars that folder into
+`owui-sidecar-<platform>-<arch>.tar.gz` release assets (+ `owui-sidecar-manifest.json`), and the
+packaged shell **downloads and extracts it to `userData/sidecar/` on first run** (with staged
+apply-after-restart updates — [`shell/src/main/sidecarManager.ts`](../shell/src/main/sidecarManager.ts)),
+then runs `<userData>/sidecar/python(.exe) launcher.py serve --host 127.0.0.1 --port <free>`
 ([`shell/src/main/paths.ts`](../shell/src/main/paths.ts) `resolveSidecarCommand`).
 
 > **Heavy:** a few GB (torch is the bulk) — inherent to local embeddings (invariant #3, documents never
-> leave the device). The build runs on the build machine / CI, not the user's. First app run downloads
-> the ~90 MB MiniLM embedding model once (to the user's HF cache).
+> leave the device). The build runs on the build machine / CI, not the user's; the installer stays small
+> (~100 MB). A user's first run downloads the sidecar tarball (hundreds of MB) plus the ~90 MB MiniLM
+> embedding model once (to the user's HF cache).
 
 ## Dev (no bundle needed)
 

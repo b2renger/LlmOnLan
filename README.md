@@ -44,7 +44,7 @@ rationale, and [`implementation_plan.md`](implementation_plan.md) for the milest
 
 ## Status
 
-**Shipped and self‑updating (v0.1.16, OWUI 0.10.2).** Milestones M0–M5 are done, plus: **full
+**Shipped and self‑updating (v0.1.25, OWUI 0.10.2).** Milestones M0–M5 are done, plus: **full
 multimodal** (image understanding + voice — local Whisper STT, on‑device); **web search** via a shared
 farm‑hosted [SearXNG](https://docs.searxng.org), **on by default**, zero client setup, auto‑discovered;
 **neural voice** via a shared farm‑hosted [Kokoro](https://github.com/remsky/Kokoro-FastAPI) TTS (opt‑in);
@@ -53,7 +53,10 @@ vision‑model OCR for images + scanned PDFs, **on by default**, [details below]
 **assistant tools** — drive a local **[Blender](#assistant-tools--control-blender-optional)** over MCP,
 opt‑in per client ([how‑to below](#assistant-tools--control-blender-optional)); **multi‑box load
 balancing** (least‑loaded client selection, `--coordinator` aggregation, `lol fleet`); **stable model
-aliases** (swap the served model without breaking chats) with a startup **model picker**; and workshop
+aliases** (swap the served model without breaking chats) with a startup **model picker**; a **farm admin
+panel** at `http://<box>:41997/lol/admin` (token printed by `lol up`) — start/stop served models, set the
+default model, adjust the context window live, toggle the web‑search / voice / OCR plugins, recommend
+Blender to the fleet, and see connected clients with idle times; and workshop
 tooling (`lol bench` load test, model keep‑warm). Progress, design decisions, and the debugging history are
 in [`docs/DEVLOG.md`](docs/DEVLOG.md); current state + roadmap in [`implementation_plan.md`](implementation_plan.md).
 
@@ -102,7 +105,7 @@ wired — a chat "tool" can't see uploads.
 "ocr": {
   "enabled": true,
   "port": 8890,
-  "model": null,          // null = use the farm's served default vision model (e.g. gemma4:12b)
+  // "model": "gemma4:12b", // omit `model` to auto-use the farm's served default vision model
   "format": "markdown",   // markdown | text | json | structured | key_value | table
   "pdfEngine": "auto",    // auto = text layer / vision‑OCR / BOTH on mixed text+image pages; vision | text
   "preprocess": false,    // cv2 binarization (usually worse for a vision LLM — leave off)
@@ -124,35 +127,39 @@ search); embedding still happens on the client.
 ## Assistant tools — control Blender (optional)
 
 The chat can drive **Blender running on the same machine as the client** — create objects, run Python in
-Blender, inspect the scene — over the [Model Context Protocol](https://modelcontextprotocol.io). It's **on
-by default and configured automatically**: the client runs a **local** MCP→OpenAPI proxy
+Blender, inspect the scene — over the [Model Context Protocol](https://modelcontextprotocol.io). It's
+**opt‑in per client** (off by default): tick Settings (⚙) → **Assistant tools** → **Blender tools** and the
+client configures everything automatically — it runs a **local** MCP→OpenAPI proxy
 ([`mcpo`](https://github.com/open-webui/mcpo)) in front of the
 [BlenderMCP](https://github.com/ahujasid/blender-mcp) server and registers it with Open WebUI through OWUI's
 own supported API (`POST /api/v1/configs/tool_servers`, the call the admin UI's *verify & save* makes — not
 the `TOOL_SERVER_CONNECTIONS` env var, which OWUI doesn't reliably surface). Nothing is exposed to the
-network and OWUI is never modified. **You only set up Blender.**
+network and OWUI is never modified. **You only enable the toggle and set up Blender.** (A farm operator can
+also **recommend** Blender to the whole fleet from the admin panel — clients that never made an explicit
+choice then enable it automatically.)
 
 **Topology:** Blender + the LOL client run on the **user's own machine**; the GPU farm is unchanged, and
 each person controls their own Blender.
 
 ### Set up Blender (your side, once)
 
-1. Install the **BlenderMCP** add‑on — from [github.com/ahujasid/blender-mcp](https://github.com/ahujasid/blender-mcp)
+1. Turn the feature on: Settings (⚙) → **Assistant tools** → check **Blender tools**.
+2. Install the **BlenderMCP** add‑on — from [github.com/ahujasid/blender-mcp](https://github.com/ahujasid/blender-mcp)
    download the add‑on `.py`, then in Blender go **Edit ▸ Preferences ▸ Add‑ons ▸ Install…**, pick the file, and tick it on.
-2. In the 3D viewport press **N** → open the **BlenderMCP** tab → **Connect / Start MCP Server**.
-3. In the chat, ask e.g. *“add a red cube and a sun lamp,”* or *“what's in the current scene?”*
+3. In the 3D viewport press **N** → open the **BlenderMCP** tab → **Connect / Start MCP Server**.
+4. In the chat, ask e.g. *“add a red cube and a sun lamp,”* or *“what's in the current scene?”*
 
 That's it — the client already wired Open WebUI to the tools. Blender must be **open with the server
 started** for a tool call to succeed; otherwise the tools still show but a call replies that it can't reach
-Blender (harmless — start Blender and retry). The **first client launch** installs a small local helper
-(~1 min, needs internet); after that it starts instantly.
+Blender (harmless — start Blender and retry). The **first time you enable Blender tools** the client
+installs a small local helper (~1 min, needs internet); after that it starts instantly.
 
 **Port:** the add‑on uses a socket port (default **9876**, shown in its panel). If yours differs, set the
 same number in Settings (⚙) → **Assistant tools** → **Blender port** — a mismatch is the usual cause of
 "could not connect."
 
-To turn the feature **off** (e.g. on a machine without Blender): Settings (⚙) → **Assistant tools** →
-uncheck **Blender tools**.
+To turn the feature back **off**: Settings (⚙) → **Assistant tools** → uncheck **Blender tools** (your
+explicit choice always wins over a farm recommendation).
 
 ### Requirements & safety
 
@@ -162,7 +169,7 @@ uncheck **Blender tools**.
 - **Local & private.** The tool server binds to `127.0.0.1` only (never the LAN), behind a random key, and
   BlenderMCP's telemetry is disabled. It can run arbitrary Python inside Blender, so treat it like any
   script you'd run on your own scene.
-- Fuller walkthrough: [`docs/GETTING_STARTED.md`](docs/GETTING_STARTED.md#optional--control-blender-from-the-chat).
+- Fuller walkthrough: [`docs/GETTING_STARTED.md`](docs/GETTING_STARTED.md#control-blender-from-the-chat-opt-in).
 
 ## License
 

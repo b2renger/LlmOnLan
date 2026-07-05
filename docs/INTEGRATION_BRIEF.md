@@ -25,6 +25,10 @@
 | **Default bind** | host `0.0.0.0`, port `8080` |
 | **Override host/port** | CLI flags only: `open-webui serve --host 0.0.0.0 --port 8080`. **The `PORT` env var is NOT honored by `open-webui serve`** — use `--port` |
 
+> **NOTE (post-brief):** the live pin has since moved to **0.10.2** — `sidecar/OPENWEBUI_VERSION` is the
+> single source of truth. The 0.10.1 facts here (Python range, console script, `--port`, license rider,
+> External Document Loader contract) were re-verified to hold on 0.10.2.
+
 **Conservative fallback:** v0.10.1 and v0.10.0 both shipped 2026-06-29 (brand-new); v0.10.1 is a single-bug fix on 0.10.0 ("shared-folder read-only chats no longer sign users out"). If you want a release with settling time, the prior stable is **v0.9.6** (2026-06-01). Recommended pin remains **v0.10.1**.
 
 **Licensing — no obligation for this project:** v0.10.1 is BSD-3-Clause + a branding/attribution rider (added in v0.6.6). The rider restricts removing/altering Open WebUI branding above 50 end users / rolling 30 days. **Because LlmOnLan vendors Open WebUI UNMODIFIED with branding intact, the rider imposes no obligation at any scale.** Keep the branding intact and you stay fully compliant.
@@ -192,7 +196,11 @@ general_settings:
 - Set OWUI's sidecar env at spawn time **and** keep `ENABLE_PERSISTENT_CONFIG=false` (§2) so the env-driven endpoint isn't "ignored" after first run.
 > Confidence: **high** (pattern + `extraResources` mechanics). Sources: `electron.build/docs/contents/`, `electron/electron#17074`.
 
-> **Note for this codebase:** the existing `desktop/` workspace (ComfyQ Discovery) uses a **vanilla HTML/JS renderer, no bundler**. LlmOnLan is a separate Electron app; the PyInstaller+sidecar packaging above is new surface for it and not present in the ComfyQ desktop app.
+> **Note:** the `desktop/` workspace referenced here (a vanilla HTML/JS renderer, no bundler) is the
+> **sibling ComfyQ repo's** app that this brief was benchmarked against — it does not exist in LlmOnLan,
+> whose Electron client is `shell/`. The PyInstaller+sidecar packaging above was ultimately superseded by
+> the standalone-CPython, download-on-first-run sidecar (`sidecar/build-sidecar.mjs` +
+> `shell/src/main/sidecarManager.ts`).
 
 ---
 
@@ -210,6 +218,11 @@ The CLAUDE.md mentions Electron **^42** (good) and treats `electron-builder` as 
 ### GitHub Releases self-update recipe (no paid code-signing)
 - **Publish provider:** `build.publish = { provider:'github', owner, repo, releaseType:'release'|'prerelease'|'draft' }`. electron-builder **creates a DRAFT by default**; **the updater only sees PUBLISHED (non-draft, non-prerelease) releases** (`/releases/latest`). Canonical flow: publish as draft → QA → flip to published. Set `releaseType:'release'` for CI to publish immediately.
 - **CI:** matrix `[windows-latest, macos-latest, ubuntu-latest]`, each runs `npx electron-builder --publish always` with `env: GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}`. **MUST grant `permissions: contents: write`** or release-create 403s even on a public repo.
+  **SUPERSEDED in practice:** electron-builder's GitHub publisher raced its own parallel uploads
+  (duplicate/draft releases, 422 `already_exists`, dropped assets in v0.1.2/v0.1.3) — the shipped
+  `.github/workflows/release.yml` pre-creates the release with `gh release create`, builds with
+  `--publish never` (which still emits the `latest*.yml` manifests), and uploads via
+  `gh release upload --clobber`, with `max-parallel: 1`.
 - **Windows (NSIS):** **`perMachine:false`** (per-user, no admin) → electron-updater applies updates **silently, no UAC**. This is the load-bearing setting. No cert needed for updates; unsigned `.exe` triggers SmartScreen "Unknown publisher" on **first** download only (in-app updates don't re-trigger it).
 - **Linux:** **AppImage** is the auto-updatable target (generates `latest-linux.yml`, no signing). Caveat: the AppImage must be **launched as an AppImage** or the updater logs "APPIMAGE env is not defined".
 - **macOS — the one hard signing constraint:**

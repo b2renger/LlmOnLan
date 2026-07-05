@@ -2,7 +2,7 @@
 
 LlmOnLan has **two pieces**:
 
-- **The farm** — the `lol` CLI running on one or more **GPU boxes**. It serves the model(s) over the LAN and (optionally) hosts shared **web search** and **neural voice**, and it **broadcasts itself** so clients find it automatically.
+- **The farm** — the `lol` CLI running on one or more **GPU boxes**. It serves the model(s) over the LAN, hosts shared **web search** and **document OCR** (and, opt-in, **neural voice**), and **broadcasts itself** so clients find it automatically.
 - **The client app** — a desktop app (bundled, unmodified Open WebUI) that people install on their laptops. It **auto-discovers the farm** on the same network — no URL, no config — and keeps all chat data on their own machine.
 
 You set up the farm once per GPU box, and everyone else just installs the client app.
@@ -39,9 +39,10 @@ This installs the CLI's Node deps, then runs `lol install`, which:
 - installs **Ollama** (winget on Windows / brew on macOS / the official script on Linux),
 - creates a local Python venv with **LiteLLM**,
 - **pulls the default model** (`gemma4:12b`) — this can be several GB on first run,
-- sets up **shared web search** (SearXNG) — **on by default**, so every client that connects gets web search with zero setup.
+- sets up **shared web search** (SearXNG) — **on by default**, so every client that connects gets web search with zero setup,
+- sets up **shared document OCR** — **on by default**: scanned PDFs and photographed documents become readable + searchable in every client's chat (a small torch-free Python service that reuses the vision model you already serve).
 
-So a fresh install already gives you a working farm with the model downloaded and web search ready — no config editing required. (Neural **voice** is the one extra you opt into — see below — because its install is multi-GB.)
+So a fresh install already gives you a working farm with the model downloaded and web search + document OCR ready — no config editing required. (Neural **voice** is the one extra you opt into — see below — because its install is multi-GB.)
 
 > Prefer the CLI directly? `node bin/lol.js install` does the same. `npm link` in `farm/` puts `lol` on your PATH so it's just `lol install`.
 
@@ -59,12 +60,14 @@ The defaults already give you a working farm (model + web search). `lol install`
   "websearch": { "enabled": true, "port": 8888 },   // ON by default → web search on every client
                                                     //   (set enabled:false to turn it off)
   "tts":       { "enabled": true, "port": 8880, "voice": "af_heart", "model": "kokoro" }, // opt-in neural voice
-  "ollama":    { "hosts": ["http://127.0.0.1:11434"], "numParallel": 2, "keepAlive": "-1" },
+  "ocr":       { "enabled": true, "port": 8890 },   // ON by default → scanned docs/images readable on every client
+  "ollama":    { "hosts": ["http://127.0.0.1:11434"], "numParallel": 2, "keepAlive": "-1",
+                 "contextLength": 16384 },          // how much text a model considers at once (whole documents)
   "coordinator": false                   // for multi-box: aggregate LAN peers behind one endpoint
 }
 ```
 
-**Web search is on by default** — turn it off with `"websearch": { "enabled": false }` (or `lol up --no-websearch`). **Voice (TTS) is off by default** because its install is multi-GB; enable it with `"tts": { "enabled": true }`. See the full reference in [`farm/README.md`](../farm/README.md).
+**Web search and document OCR are on by default** — turn them off with `"websearch"/"ocr": { "enabled": false }` (or `lol up --no-websearch` / `--no-ocr`). **Voice (TTS) is off by default** because its install is multi-GB; enable it with `"tts": { "enabled": true }`. See the full reference in [`farm/README.md`](../farm/README.md).
 
 ### Run it
 
@@ -76,7 +79,7 @@ On start, `lol up`:
 1. ensures Ollama is up,
 2. **prompts you to pick which installed model(s) to serve** (press Enter for the default; or `lol up --model gemma4:12b --no-pick` to skip the prompt),
 3. generates + runs the **LiteLLM proxy**,
-4. if enabled, **installs (first run) and starts SearXNG + Kokoro voice**,
+4. if enabled, **installs (first run) and starts SearXNG + document OCR + Kokoro voice**,
 5. starts the **discovery beacon** so clients find it.
 
 > **First run of web search / voice installs them.** SearXNG is small. **Kokoro voice pulls a multi-GB PyTorch build** — expect a few minutes the first time (it auto-detects your GPU: 4070/4090/Blackwell all work, and it falls back to CPU). Everything is auxiliary — if an install fails, the farm still comes up without that feature.
@@ -89,6 +92,13 @@ lol fleet      # every farm on the LAN (this box + peers): load, VRAM, model, se
 ```
 
 When it's up you'll see the OpenAI endpoint (`http://<box-ip>:4000/v1`) and, if enabled, the search/voice URLs.
+
+The banner also prints the **admin panel** URL — `http://<box-ip>:41997/lol/admin` — plus an access
+**token** (regenerated each run; set a fixed one with `"admin": { "token": "…" }` in `lol.config.json`).
+From any browser on the LAN you can **start/stop served models**, **pick the default model**, **change the
+context window**, **toggle the web search / voice / OCR plugins live**, **recommend the Blender tools to
+the fleet**, and **see connected clients** (who's on, how idle). Panel changes are live but revert on a
+farm restart — persist real decisions in `lol.config.json`.
 
 > **Firewall:** the first time the farm (and SearXNG/Kokoro) binds to the network, Windows may prompt to allow it — **allow it** so clients can reach it.
 
@@ -121,15 +131,18 @@ npm run dev            # builds + launches the app against the discovered farm
 - **Model** — pick it in the top-left dropdown. With a `modelAlias` set, everyone sees a stable name (e.g. `assistant`) that keeps working even when you swap the underlying model.
 - **Web search** — if the farm hosts it, it's **on by default**; just ask something current and it searches + cites pages.
 - **Voice** — click the microphone to talk (allow the mic prompt the first time). Speech-to-text runs **on your laptop** (Whisper); read-aloud uses the farm's **Kokoro** neural voice if enabled, otherwise your OS voices.
-- All your chats, uploads, and documents stay **on your machine**.
+- **Documents** — attach a PDF or a photo of a document and ask about it. Scanned pages and images are OCR'd by the farm's vision model; answers use the **whole document**, not just snippets.
+- All your chats and documents stay **on your machine** (with farm OCR on, an uploaded file's bytes transit to the trusted-LAN farm for text extraction; nothing is stored there).
 
 ---
 
-## Control Blender from the chat (on by default)
+## Control Blender from the chat (opt-in)
 
 The assistant can drive **Blender running on your own machine** (create objects, run scripts, inspect the
-scene). This is **on by default and configured for you** — the client runs a local helper and registers it
-with Open WebUI automatically. **You only set up Blender.**
+scene). This is **opt-in, off by default**: turn it on in Settings (⚙) ▸ **Assistant tools** ▸ check
+**Blender tools**, and the client configures everything else automatically — it runs a local helper and
+registers it with Open WebUI for you. (A farm admin can also **recommend** it to the whole fleet from the
+admin panel; clients that never made an explicit choice then enable it automatically.)
 
 **In Blender (your side, once):**
 1. Install the **BlenderMCP** add-on (from [github.com/ahujasid/blender-mcp](https://github.com/ahujasid/blender-mcp) — download the add-on `.py`, then Blender ▸ Edit ▸ Preferences ▸ Add-ons ▸ Install, and tick it on).
@@ -137,13 +150,13 @@ with Open WebUI automatically. **You only set up Blender.**
 3. In the chat, ask something like *“add a red cube and a sun lamp.”*
 
 **Notes:**
-- The **first client launch** installs a small local helper (~1 min, needs internet); after that it's instant.
+- **Enabling Blender tools the first time** installs a small local helper (~1 min, needs internet); after that it's instant.
 - It only works while **Blender is open with the MCP server started** — otherwise the tools are listed but a call returns a "can't reach Blender" message.
 - **Port:** the add-on talks on a socket port (default **9876**, shown in its panel). If yours shows a different number, set the same value in Settings (⚙) ▸ **Assistant tools** ▸ **Blender port** — a mismatch here is the usual cause of "could not connect."
 - **Test connection** (Settings ▸ Assistant tools) checks both hops at once: the local helper, and whether Blender is actually listening on the port. Use it to tell "helper not up" from "Blender not started / wrong port."
 - Use a model that's **good at tool calling** (e.g. a Qwen or Llama tool-tuned model). `gemma4:12b` is weak at tools, so results will be hit-or-miss with it. OWUI defaults to **Native** tool calling; if the model chats but never calls a tool, try switching **Function Calling** to **Legacy** (Chat Controls → Advanced Params) — some models served via Ollama need the prompt-based path.
 - **Privacy & safety:** the tool server runs on **localhost only** (never exposed to the LAN) and the Blender helper's telemetry is turned **off**. It can run arbitrary Python inside Blender, so treat it like any automation on your own scene.
-- Don't use Blender? Turn it off in Settings (⚙) ▸ **Assistant tools** ▸ uncheck **Blender tools**.
+- Changed your mind? Uncheck **Blender tools** in the same place — your explicit choice always wins over a farm recommendation.
 
 ## 4. Multiple GPU boxes (a first look)
 

@@ -6,6 +6,37 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-07-05 g — Documentation audit: every doc verified against the code (48 fixes)
+
+Wrap-up pass: a 9-agent audit checked every claim in every doc file against the
+current source; 48 confirmed discrepancies fixed across README.md, farm/README.md,
+shell/README.md, sidecar/README.md, CLAUDE.md, implementation_plan.md,
+GETTING_STARTED.md, RIG_CHECKLIST.md and INTEGRATION_BRIEF.md. The load-bearing ones:
+
+- **Two copy-paste-breaking config snippets**: `"ocr": { "model": null }` fails zod
+  validation (the schema is `.optional()`, not `.nullable()` — the key must be
+  omitted); farm/README's shape block still showed `ocr.enabled:false`.
+- **Blender sections taught the pre-opt-in behavior** (README + GETTING_STARTED:
+  "on by default", helper installs "on first launch", only an opt-OUT instruction) —
+  rewritten for the v0.1.24 opt-in default, including the farm-recommendation path.
+- **The whole admin panel was undocumented** outside farm/README — added to README's
+  Status list, GETTING_STARTED's operator walkthrough, CLAUDE.md's build status, and
+  implementation_plan's shipped roadmap; RIG_CHECKLIST gained Admin/Plugins/Presence
+  test sections.
+- **CLAUDE.md's integration contract described the road not taken** (env-seed +
+  admin-REST reconcile; "documents never leave the device"; snapshot/env lists at
+  half their real size; `server/README`; electron-builder ^25/Node 22) — rewritten
+  to the shipped env-authoritative strategy, the real net/privacy boundary (farm OCR
+  receives upload bytes for extraction only), the full env surface, and current pins.
+- **sidecar/README + RIG_CHECKLIST described the abandoned extraResources bundling**
+  — now: CI publishes owui-sidecar tarball assets, the app downloads to
+  userData/sidecar on first run; mac builds are arm64-only.
+- **Stale versions everywhere**: v0.1.16/v0.1.8 → v0.1.25; OWUI 0.10.1 → 0.10.2
+  (INTEGRATION_BRIEF, a dated snapshot, got superseded-notes instead of rewrites —
+  incl. the --publish-always CI recipe that release.yml deliberately abandoned).
+- Two stale **code comments** fixed along the way: install.js's "OCR off by default"
+  and release.yml's "--publish always" header.
+
 ## 2026-07-05 f — Admin panel: Clients section moved below Models/Plugins, collapsible
 
 Owner feedback: the Clients list is monitoring, not control — it now sits LAST
