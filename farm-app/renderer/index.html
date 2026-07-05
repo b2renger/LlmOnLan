@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="Content-Security-Policy"
+          content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; frame-src http://127.0.0.1:*; connect-src http://127.0.0.1:*" />
+    <title>LlmOnLan Farm</title>
+    <link rel="stylesheet" href="tokens.css" />
+    <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+    <!-- Header (shared across screens) -->
+    <header class="topbar">
+        <div class="brand">
+            <img class="logo" src="../assets/icon.png" alt="" />
+            <span class="brand-name">LlmOnLan <span class="brand-accent">Farm</span></span>
+        </div>
+        <div class="topbar-right">
+            <div id="running-chrome" class="running-chrome hidden">
+                <span id="status" class="status">
+                    <span class="dot" id="status-dot"></span>
+                    <span id="status-text">Starting…</span>
+                </span>
+                <button id="btn-toggle" class="btn btn-sm">Stop</button>
+                <button id="btn-settings" class="btn btn-icon" title="Settings">⚙</button>
+            </div>
+            <button id="btn-theme" class="btn btn-icon" title="Toggle light/dark">◐</button>
+        </div>
+    </header>
+
+    <!-- 1. Welcome / first run -->
+    <main id="screen-welcome" class="screen hidden">
+        <div class="card welcome-card">
+            <img class="welcome-logo" src="../assets/icon.png" alt="" />
+            <h1>Run an AI farm on this machine</h1>
+            <p class="lead">
+                This turns this computer into a private LlmOnLan server for your network.
+                Everything installs itself — no terminal, no setup.
+            </p>
+            <ul class="feature-list">
+                <li>Downloads its own AI engine (Ollama) and helpers</li>
+                <li>Pulls the <strong>gemma4:12b</strong> model (~8&nbsp;GB)</li>
+                <li>Serves chat, web search &amp; document reading to everyone on the LAN</li>
+                <li>Managed from the built-in admin panel</li>
+            </ul>
+            <div id="ram-warning" class="warn hidden"></div>
+            <button id="btn-setup" class="btn btn-primary btn-lg">Set up this farm</button>
+            <p class="fineprint">First-time setup needs an internet connection and can take a while.</p>
+        </div>
+    </main>
+
+    <!-- 2. Setup wizard -->
+    <main id="screen-setup" class="screen hidden">
+        <div class="card setup-card">
+            <h1>Setting up your farm</h1>
+            <p class="lead" id="setup-sub">This runs once. Leave the app open while it works.</p>
+            <ul id="phase-list" class="phase-list"></ul>
+            <div id="setup-error" class="error-banner hidden">
+                <span id="setup-error-msg"></span>
+                <button id="btn-retry" class="btn btn-sm">Retry</button>
+            </div>
+            <details class="log-details">
+                <summary>Show log</summary>
+                <pre id="setup-log" class="log"></pre>
+            </details>
+        </div>
+    </main>
+
+    <!-- 3. Running -->
+    <main id="screen-running" class="screen hidden">
+        <div id="lan-bar" class="lan-bar hidden">
+            <span class="lan-label">Clients on this network connect automatically. OpenAI endpoint:</span>
+            <code id="lan-url" class="lan-url">—</code>
+            <button id="btn-copy-lan" class="btn btn-xs">Copy</button>
+        </div>
+        <div id="farm-overlay" class="farm-overlay">
+            <div class="spinner"></div>
+            <p id="overlay-msg">Starting the farm…</p>
+            <button id="btn-overlay-action" class="btn btn-sm hidden"></button>
+        </div>
+        <webview id="admin" class="admin-webview hidden" partition="persist:lol-admin"></webview>
+    </main>
+
+    <!-- Settings drawer -->
+    <aside id="settings-panel" class="settings-panel hidden">
+        <div class="settings-head">
+            <h2>Settings</h2>
+            <button id="btn-settings-close" class="btn btn-icon">✕</button>
+        </div>
+        <div class="settings-body">
+            <label class="row"><span>Theme</span>
+                <select id="sel-theme">
+                    <option value="system">System</option>
+                    <option value="dark">Dark</option>
+                    <option value="light">Light</option>
+                </select>
+            </label>
+            <label class="row"><span>Launch at login</span>
+                <input type="checkbox" id="chk-launch" />
+            </label>
+            <label class="row"><span>Automatic updates</span>
+                <input type="checkbox" id="chk-autoupdate" />
+            </label>
+            <div class="row"><span>App version</span><span id="app-version" class="muted">—</span></div>
+            <div class="row"><button id="btn-check-update" class="btn btn-sm">Check for updates</button></div>
+            <div id="update-status" class="muted small"></div>
+            <div class="row"><button id="btn-open-logs" class="btn btn-sm">Open data &amp; logs folder</button></div>
+        </div>
+    </aside>
+
+    <div id="toast" class="toast hidden"></div>
+
+    <script src="app.js"></script>
+</body>
+</html>

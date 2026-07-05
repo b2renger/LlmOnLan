@@ -1,0 +1,100 @@
+# electron-builder — packages the LlmOnLan Farm app into a small self-updating
+# installer per OS, published to GitHub Releases (no paid signing). Unlike the
+# client (shell/), this app DOES ship an extraResource: the pure-JS `lol` farm
+# code (tiny). The heavy runtime (portable CPython + Ollama + the gemma4:12b model)
+# is downloaded to userData on first run by the setup wizard — see
+# src/main/runtimeManager.ts + installer.ts — so the installer stays ~100 MB.
+
+appId: com.llmonlan.farm
+productName: LlmOnLan Farm
+
+# App sources (production node_modules — incl. electron-updater — are included
+# automatically; dev deps are pruned).
+files:
+  - build/**/*
+  - renderer/**/*
+  - assets/**/*
+  - package.json
+
+# The <webview> preload (seeds the admin token into localStorage) is loaded as a
+# file:// URL; unpack it so it's a real on-disk file, not read from inside app.asar
+# (webview preload resolution from asar is fragile across Electron versions).
+asarUnpack:
+  - renderer/webviewPreload.js
+
+# Bundle the farm CLI into the app. It's pure-JS (js-yaml/zod/argparse — no native
+# modules), so it rides along with no ABI rebuild. First-run copies resources/farm
+# → userData/farm (writable) and runs it from there (the farm writes .venv/.searxng/
+# .extract/.lol-runtime.json INSIDE its own dir, which a read-only asar forbids).
+# We EXCLUDE the on-box runtime dirs (a dev checkout's venvs) + the generated LiteLLM
+# config so a developer's local `lol up` state never ships in the installer.
+extraResources:
+  - from: ../farm
+    to: farm
+    filter:
+      - "**/*"
+      - "!.venv/**"
+      - "!.searxng/**"
+      - "!.extract/**"
+      - "!.kokoro/**"
+      - "!.lol-runtime.json"
+      - "!.lol-id"
+      - "!lol.config.json"
+      - "!litellm/config.generated.yaml"
+
+directories:
+  output: dist
+  buildResources: assets
+
+# macOS only: ad-hoc codesign so Gatekeeper doesn't flag the app as "damaged".
+afterPack: scripts/afterPack.cjs
+
+# Self-update from GitHub Releases on a DISTINCT channel so the two apps in this one
+# repo never collide: this app publishes farm.yml / farm-mac.yml / farm-linux.yml
+# (channel: farm) and the client publishes latest*.yml — each updater only reads its
+# own channel file. releaseType:release so CI publishes a real (non-draft) release.
+publish:
+  provider: github
+  owner: b2renger
+  repo: LlmOnLan
+  channel: farm
+  releaseType: release
+
+# NSIS per-user (perMachine:false) → electron-updater installs updates silently, no
+# UAC prompt. Space-free artifactName (GitHub turns spaces into dots on upload, which
+# breaks electron-updater's filename match against farm.yml).
+win:
+  target: nsis
+  icon: assets/icon.png
+nsis:
+  oneClick: true
+  perMachine: false
+  allowToChangeInstallationDirectory: false
+  artifactName: LlmOnLan-Farm-Setup-${version}.${ext}
+
+# arm64 ONLY (Apple Silicon, M1+). The runtime is downloaded per-arch at first run,
+# so there's no arch-specific payload in the installer, but gemma4:12b wants ≥16 GB
+# unified memory — the wizard warns below that. dmg (download) + zip (REQUIRED for
+# latest-mac.yml / Squirrel.Mac). Ad-hoc signed (identity:null + afterPack).
+mac:
+  category: public.app-category.developer-tools
+  icon: assets/icon.png
+  target:
+    - target: dmg
+      arch: [arm64]
+    - target: zip
+      arch: [arm64]
+  identity: null
+  hardenedRuntime: false
+  artifactName: LlmOnLan-Farm-${version}-${arch}.${ext}
+
+# arm64 AppImage for the NVIDIA DGX Spark (linux arm64) — a natural always-on host.
+# Built natively on a ubuntu-24.04-arm runner (no cross-compile). FUSE 2 is needed to
+# run an AppImage (or --appimage-extract-and-run as the FUSE-free fallback).
+linux:
+  target:
+    - target: AppImage
+      arch: [arm64]
+  icon: assets/icon.png
+  category: Network
+  artifactName: LlmOnLan-Farm-${version}-${arch}.${ext}

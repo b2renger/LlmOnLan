@@ -1,0 +1,90 @@
+# Build + publish the LlmOnLan Farm installers to GitHub Releases on a farm-vX.Y.Z
+# tag. Sibling of release.yml (the client), kept on a DISTINCT tag prefix + a distinct
+# electron-updater channel (farm.yml) so the two apps in this one repo never collide.
+#
+# Unlike the client, there is NO heavy sidecar-build step: the Farm app ships the
+# pure-JS farm code as an extraResource and downloads the runtime (Python + Ollama +
+# the model) on the user's box at first run. We DO `npm ci` in farm/ first so its
+# node_modules (js-yaml/zod) are present for electron-builder to bundle.
+
+name: release-farm
+
+on:
+  push:
+    tags: ['farm-v*']
+
+# Required so `gh release` can create/upload on a public repo.
+permissions:
+  contents: write
+
+jobs:
+  # Pre-create the release so every job/upload only ever UPLOADS to it (electron-
+  # builder's own publisher races parallel creates — we use `gh` + --publish never).
+  create-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ensure the release exists
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 \
+            || gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" \
+                 --notes "Automated Farm release $GITHUB_REF_NAME." --verify-tag
+
+  build:
+    needs: create-release
+    strategy:
+      fail-fast: false
+      max-parallel: 1   # serialize uploads so assets never overlap across OSes
+      matrix:
+        include:
+          - os: windows-latest      # Windows + NVIDIA (x64)
+          - os: macos-latest        # Apple Silicon (arm64)
+          - os: ubuntu-24.04-arm    # NVIDIA DGX Spark (linux arm64) — free public-repo arm64 runner
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # Install the farm CLI's own deps so its node_modules (pure-JS: js-yaml/zod)
+      # ride along in the app's extraResources bundle.
+      - name: Install farm deps
+        working-directory: farm
+        run: npm ci --omit=dev
+
+      - name: Install farm-app deps
+        working-directory: farm-app
+        run: npm ci
+
+      # Compile TypeScript → farm-app/build/ BEFORE packaging (electron-builder is
+      # invoked directly, not via the `dist` script that chains the build).
+      - name: Compile farm-app (tsc)
+        working-directory: farm-app
+        run: npm run build
+
+      # Build the installers ONLY (its latest*.yml / farm*.yml auto-update manifests
+      # are still generated in dist/). Do NOT let electron-builder publish (it races
+      # to create the release across its own parallel uploads).
+      - name: Build installers
+        working-directory: farm-app
+        run: npx --no-install electron-builder --publish never
+        env:
+          # Don't let a stray keychain cert hijack the macOS ad-hoc signing.
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+
+      # Upload with `gh` (no create-race). --clobber overwrites on a re-run; nullglob
+      # skips patterns this OS didn't build. Uploads installers + the farm*.yml manifests.
+      - name: Upload to the release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          shopt -s nullglob
+          files=(farm-app/dist/*.exe farm-app/dist/*.dmg farm-app/dist/*.zip farm-app/dist/*.AppImage farm-app/dist/*.blockmap farm-app/dist/farm*.yml)
+          echo "Uploading ${#files[@]} file(s): ${files[*]}"
+          gh release upload "$GITHUB_REF_NAME" "${files[@]}" --clobber

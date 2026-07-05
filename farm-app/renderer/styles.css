@@ -1,0 +1,119 @@
+/* LlmOnLan Farm — app chrome. Uses the shared zinc tokens (tokens.css) so it matches
+   the client shell + ComfyQ. The embedded admin panel keeps its own look. */
+
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size: 14px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+.hidden { display: none !important; }
+.muted { color: var(--muted); }
+.small { font-size: 12px; }
+code { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
+
+/* --- topbar --------------------------------------------------------------- */
+.topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 14px; border-bottom: 1px solid var(--border); background: var(--surface);
+    -webkit-app-region: drag; user-select: none; flex: 0 0 auto;
+}
+.topbar button, .topbar select { -webkit-app-region: no-drag; }
+.brand { display: flex; align-items: center; gap: 9px; }
+.logo { width: 22px; height: 22px; border-radius: 5px; }
+.brand-name { font-weight: 600; letter-spacing: .2px; }
+.brand-accent { color: var(--muted); font-weight: 500; }
+.topbar-right { display: flex; align-items: center; gap: 10px; }
+.running-chrome { display: flex; align-items: center; gap: 10px; }
+
+.status { display: flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--muted); }
+.dot { width: 9px; height: 9px; border-radius: 50%; background: var(--grey); box-shadow: 0 0 0 3px color-mix(in srgb, var(--grey) 25%, transparent); }
+.dot.ready { background: var(--green); box-shadow: 0 0 0 3px color-mix(in srgb, var(--green) 25%, transparent); }
+.dot.busy { background: var(--amber); box-shadow: 0 0 0 3px color-mix(in srgb, var(--amber) 25%, transparent); }
+.dot.error { background: var(--danger); box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 25%, transparent); }
+
+/* --- buttons -------------------------------------------------------------- */
+.btn {
+    font: inherit; cursor: pointer; border-radius: 8px; border: 1px solid var(--border);
+    background: var(--surface-2); color: var(--text); padding: 7px 13px; transition: background .12s, border-color .12s;
+}
+.btn:hover { background: var(--border); }
+.btn:disabled { opacity: .5; cursor: default; }
+.btn-primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 600; }
+.btn-primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+.btn-lg { padding: 11px 22px; font-size: 15px; border-radius: 10px; }
+.btn-sm { padding: 5px 11px; font-size: 12.5px; }
+.btn-xs { padding: 3px 9px; font-size: 11.5px; border-radius: 6px; }
+.btn-icon { padding: 6px 9px; line-height: 1; }
+
+/* --- screens -------------------------------------------------------------- */
+.screen { flex: 1 1 auto; min-height: 0; overflow: auto; }
+#screen-welcome, #screen-setup { display: flex; align-items: center; justify-content: center; padding: 32px; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 30px 34px; }
+.welcome-card { max-width: 520px; text-align: center; }
+.welcome-logo { width: 60px; height: 60px; border-radius: 14px; margin-bottom: 6px; }
+h1 { font-size: 22px; margin: 8px 0 6px; }
+.lead { color: var(--muted); line-height: 1.5; margin: 0 0 18px; }
+.feature-list { text-align: left; margin: 0 auto 20px; max-width: 400px; padding-left: 20px; line-height: 1.9; color: var(--text); }
+.fineprint { color: var(--grey); font-size: 12px; margin-top: 14px; }
+.warn { background: color-mix(in srgb, var(--amber) 14%, transparent); border: 1px solid color-mix(in srgb, var(--amber) 40%, transparent);
+    color: var(--text); border-radius: 9px; padding: 10px 13px; margin-bottom: 16px; font-size: 13px; text-align: left; }
+
+/* --- setup wizard --------------------------------------------------------- */
+.setup-card { max-width: 560px; width: 100%; }
+.phase-list { list-style: none; margin: 20px 0 8px; padding: 0; }
+.phase { display: flex; align-items: flex-start; gap: 12px; padding: 11px 0; border-bottom: 1px solid var(--border); }
+.phase:last-child { border-bottom: none; }
+.phase-icon { flex: 0 0 22px; width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+    font-size: 13px; border: 2px solid var(--border); color: var(--muted); margin-top: 1px; }
+.phase.active .phase-icon { border-color: var(--accent); color: var(--accent); }
+.phase.done .phase-icon { background: var(--green); border-color: var(--green); color: var(--on-accent); }
+.phase.error .phase-icon { background: var(--danger); border-color: var(--danger); color: var(--on-accent); }
+.phase-body { flex: 1 1 auto; min-width: 0; }
+.phase-label { font-weight: 550; }
+.phase.pending .phase-label { color: var(--muted); }
+.phase-detail { color: var(--muted); font-size: 12px; margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.progress { height: 6px; border-radius: 4px; background: var(--surface-2); margin-top: 7px; overflow: hidden; }
+.progress > span { display: block; height: 100%; background: var(--accent); width: 0; transition: width .2s; }
+.spin { animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.error-banner { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 14px;
+    background: color-mix(in srgb, var(--danger) 12%, transparent); border: 1px solid color-mix(in srgb, var(--danger) 40%, transparent);
+    border-radius: 9px; padding: 10px 13px; font-size: 13px; }
+.log-details { margin-top: 16px; }
+.log-details summary { cursor: pointer; color: var(--muted); font-size: 12.5px; }
+.log { max-height: 200px; overflow: auto; background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+    padding: 10px; margin-top: 8px; font-size: 11.5px; color: var(--muted); white-space: pre-wrap; word-break: break-word; }
+
+/* --- running -------------------------------------------------------------- */
+#screen-running { display: flex; flex-direction: column; padding: 0; }
+.lan-bar { display: flex; align-items: center; gap: 9px; padding: 7px 14px; background: var(--surface); border-bottom: 1px solid var(--border);
+    font-size: 12.5px; color: var(--muted); flex: 0 0 auto; }
+.lan-url { color: var(--text); background: var(--surface-2); padding: 2px 7px; border-radius: 6px; }
+.farm-overlay { flex: 1 1 auto; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; color: var(--muted); }
+.farm-overlay.hidden { display: none; }
+.spinner { width: 34px; height: 34px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 1s linear infinite; }
+.admin-webview { flex: 1 1 auto; width: 100%; border: none; }
+.admin-webview:not(.hidden) { display: flex; }
+
+/* --- settings drawer ------------------------------------------------------ */
+.settings-panel { position: fixed; top: 0; right: 0; width: 340px; height: 100%; background: var(--surface);
+    border-left: 1px solid var(--border); box-shadow: -8px 0 24px rgba(0,0,0,.25); z-index: 20; display: flex; flex-direction: column; }
+.settings-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; border-bottom: 1px solid var(--border); }
+.settings-head h2 { font-size: 16px; margin: 0; }
+.settings-body { padding: 8px 16px; overflow: auto; }
+.settings-body .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 11px 0; border-bottom: 1px solid var(--border); }
+.settings-body .row:last-child { border-bottom: none; }
+.settings-body select, .settings-body input[type=checkbox] { -webkit-app-region: no-drag; }
+select { font: inherit; background: var(--surface-2); color: var(--text); border: 1px solid var(--border); border-radius: 7px; padding: 5px 8px; }
+
+/* --- toast ---------------------------------------------------------------- */
+.toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--surface-2);
+    border: 1px solid var(--border); color: var(--text); padding: 10px 16px; border-radius: 9px; font-size: 13px; z-index: 30;
+    box-shadow: 0 6px 20px rgba(0,0,0,.3); }
