@@ -6,6 +6,15 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-07-05 f — Admin panel: Clients section moved below Models/Plugins, collapsible
+
+Owner feedback: the Clients list is monitoring, not control — it now sits LAST
+(Farm → Models → Plugins → Clients) and is a `<details>` collapsible, default
+collapsed, with the count still visible in the summary ("Clients (3)"). The 5s
+poll rebuilds the DOM, so the open/closed state lives in a JS variable +
+localStorage (`lolClientsOpen`) and is re-applied on every render — a naive
+`<details>` would snap shut at each refresh.
+
 ## 2026-07-05 e — Admin panel: default model + live context window; OCR on by default
 
 Rig-feedback round 3, all farm-side (`git pull` only, no client release):

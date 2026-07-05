@@ -49,6 +49,9 @@
   #toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 8px 14px; font-size: 13px; opacity: 0; transition: opacity .2s; pointer-events: none; max-width: 90vw; }
   #toast.show { opacity: 1; }
   .empty { color: var(--muted); font-size: 13px; padding: 8px 0; }
+  details summary { cursor: pointer; user-select: none; color: var(--muted); }
+  details summary h2 { display: inline-block; margin: 0; }
+  details[open] summary { margin-bottom: 10px; }
 </style>
 </head>
 <body>
@@ -63,6 +66,9 @@ const app = $('#app');
 let token = localStorage.getItem('lolAdminToken') || '';
 let busy = false;      // an action (start/stop) is in flight — pause polling + block clicks
 let lastState = null;
+// The Clients section is collapsible; the 5s poll rebuilds the DOM, so its
+// open/closed state lives here (and in localStorage) instead of in the element.
+let clientsOpen = localStorage.getItem('lolClientsOpen') === '1';
 
 function toast(msg) {
   const t = $('#toast'); t.textContent = msg; t.classList.add('show');
@@ -185,9 +191,9 @@ function render(s) {
     `<header class="top"><h1>lol <span class="lol">${esc(s.name || 'farm')}</span></h1></header>`
     + `<p class="sub">${esc(s.modelAlias ? 'Clients see the alias "' + s.modelAlias + '" for the default model. Changes reflect on clients within a few seconds.' : 'Manage the models + plugins this farm serves. Changes reflect on clients within a few seconds.')}</p>`
     + `<div class="card"><h2>Farm</h2><div class="health">${healthBits}</div>${ctxRow}</div>`
-    + `<div class="card"><h2>Clients (${clients.length})</h2>${clientRows}</div>`
     + `<div class="card"><h2>Models</h2>${rows}</div>`
-    + `<div class="card"><h2>Plugins</h2>${pluginRows}${blenderRow}</div>`;
+    + `<div class="card"><h2>Plugins</h2>${pluginRows}${blenderRow}</div>`
+    + `<div class="card"><details id="clients-d"${clientsOpen ? ' open' : ''}><summary><h2>Clients (${clients.length})</h2></summary>${clientRows}</details></div>`;
 
   app.querySelectorAll('button[data-act]').forEach((b) => { b.onclick = () => act(b.dataset.act, b.dataset.id, b); });
   app.querySelectorAll('button[data-dact]').forEach((b) => { b.onclick = () => defaultAct(b.dataset.id, b); });
@@ -195,6 +201,8 @@ function render(s) {
   app.querySelectorAll('button[data-ract]').forEach((b) => { b.onclick = () => recommendAct(b.dataset.ract, b.dataset.id, b); });
   const ctxApply = $('#ctx-apply');
   if (ctxApply) ctxApply.onclick = () => contextAct(parseInt($('#ctx-sel').value, 10), ctxApply);
+  const cd = $('#clients-d');
+  if (cd) cd.addEventListener('toggle', () => { clientsOpen = cd.open; localStorage.setItem('lolClientsOpen', cd.open ? '1' : '0'); });
 }
 
 // Promote a served model to the fleet default (clients' OWUI auto-selects it).
