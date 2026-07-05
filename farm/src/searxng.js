@@ -86,6 +86,11 @@ function buildSettingsYaml(secretKey) {
         '  formats:                # json is REQUIRED for Open WebUI (else 403)',
         '    - html',
         '    - json',
+        'engines:                  # onion (Tor) engines need a Tor proxy we do not run —',
+        '  - name: ahmia           # disable them so they stop erroring at boot',
+        '    disabled: true',
+        '  - name: torch',
+        '    disabled: true',
         '',
     ].join('\n');
 }
@@ -138,12 +143,51 @@ function patchWindowsCompat() {
     } catch { /* file moved upstream — the boot health-wait will surface it */ }
 }
 
+// Windows Python's `zoneinfo` ships no IANA tz database, so SearXNG engines that do
+// ZoneInfo("Asia/Shanghai") (bilibili, …) throw `ModuleNotFoundError: tzdata` and dump
+// a full traceback at boot. The `tzdata` pip package provides the data. One-time,
+// marker-guarded so it doesn't re-pip every `lol up`; non-fatal.
+function ensureTzdata() {
+    if (!IS_WIN) return;
+    const marker = path.join(ROOT, '.tzdata-ok');
+    if (fs.existsSync(marker)) return;
+    try {
+        sh(`"${venvPython()}" -m pip install -q tzdata`);
+        fs.writeFileSync(marker, 'ok\n', 'utf8');
+        log.ok('SearXNG: installed tzdata (fixes the Windows zoneinfo traceback).');
+    } catch { /* only affects a couple of tz-dependent engines — non-fatal */ }
+}
+
+// buildSettingsYaml disables the onion (Tor) engines, but writeSettingsIfMissing
+// only writes a FRESH file — a box that ran an older `lol up` already has a
+// settings.yml WITHOUT that block, so ahmia/torch keep erroring at boot. Append the
+// disable block to such a file (idempotent: skipped once present, and only if the
+// file has no `engines:` key yet so we never create a duplicate mapping key).
+function ensureEnginesDisabled() {
+    try {
+        const src = fs.readFileSync(SETTINGS, 'utf8');
+        if (/^engines:/m.test(src) || src.includes('name: ahmia')) return; // already has an engines block
+        const block = [
+            '',
+            'engines:                  # onion (Tor) engines need a Tor proxy we do not run —',
+            '  - name: ahmia           # disable them so they stop erroring at boot',
+            '    disabled: true',
+            '  - name: torch',
+            '    disabled: true',
+            '',
+        ].join('\n');
+        fs.writeFileSync(SETTINGS, src.replace(/\s*$/, '\n') + block, 'utf8');
+        log.ok('SearXNG: disabled the onion engines in the existing settings.yml (quiets boot errors).');
+    } catch { /* no settings file yet (fresh install writes the block itself) — non-fatal */ }
+}
+
 // Idempotent setup: source tarball (pinned SHA) + venv + pip install + settings.
 // Returns true when SearXNG is ready to spawn; false (with warnings) when the
 // farm should come up WITHOUT websearch (missing python/tar, install failure).
 async function ensureSearxng() {
     writeSettingsIfMissing();
-    if (installed()) { patchWindowsCompat(); return true; }
+    ensureEnginesDisabled();
+    if (installed()) { patchWindowsCompat(); ensureTzdata(); return true; }
 
     const py = findPython();
     if (!py) {
@@ -207,6 +251,7 @@ async function ensureSearxng() {
         // won't accept, so a later `lol up` re-attempts the pin instead of falsely
         // reporting it satisfied.
         fs.writeFileSync(SHA_FILE, (readTrim(SRC_SHA_FILE) || 'master') + '\n', 'utf8');
+        ensureTzdata();
         log.ok(`SearXNG installed → ${log.paint.grey(ROOT)}`);
         return true;
     } catch (e) {

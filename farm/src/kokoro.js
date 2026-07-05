@@ -195,6 +195,10 @@ function spawnKokoro(config) {
             ...process.env,
             USE_GPU: backend === 'gpu' ? 'true' : 'false',
             USE_ONNX: 'false',
+            // Kokoro-FastAPI defaults to DEBUG (per-request path scans + audio-chunk
+            // shapes → a wall of log lines). A shared voice server doesn't need that;
+            // WARNING keeps the [kokoro] prefix quiet (errors still surface).
+            API_LOG_LEVEL: 'WARNING',
             PROJECT_ROOT: SRC,
             PYTHONPATH: `${SRC}${path.delimiter}${path.join(SRC, 'api')}`,
             MODEL_DIR: 'src/models',
