@@ -67,6 +67,14 @@ function buildLitellmConfig(config, peers = []) {
                     // ollama_chat = use Ollama's chat endpoint w/ proper templating.
                     model: `${provider}/${underlying}`,
                     api_base: host,
+                    // Per-request context window (→ Ollama options.num_ctx; verified to
+                    // survive drop_params in the pinned LiteLLM). This is what makes
+                    // config.ollama.contextLength apply on EVERY host — the
+                    // OLLAMA_CONTEXT_LENGTH env only reaches Ollamas this CLI starts —
+                    // and what lets the admin panel change it live (proxy bounce).
+                    // Without it, Ollama's 4096 default silently truncates long
+                    // prompts (whole-document chat = "the model ignored half my PDF").
+                    num_ctx: config.ollama.contextLength,
                 },
             };
             // Tell LiteLLM this deployment accepts images so drop_params doesn't

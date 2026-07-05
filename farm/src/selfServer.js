@@ -103,6 +103,18 @@ function startSelfServer({ httpPort, getSnapshot, host = '0.0.0.0', control = nu
                     if (!body) return sendJson(res, 400, { error: 'bad json' });
                     return sendJson(res, 200, await control.stopModel(body.id));
                 }
+                // Make a served model the fleet default (drives clients' DEFAULT_MODELS).
+                if (method === 'POST' && pathOnly === '/lol/admin/model/default') {
+                    const body = await readJson(req);
+                    if (!body) return sendJson(res, 400, { error: 'bad json' });
+                    return sendJson(res, 200, await control.setDefaultModel(body.id));
+                }
+                // Change the model context window (num_ctx) live: POST {tokens}.
+                if (method === 'POST' && pathOnly === '/lol/admin/context') {
+                    const body = await readJson(req);
+                    if (!body) return sendJson(res, 400, { error: 'bad json' });
+                    return sendJson(res, 200, await control.setContextLength(body.tokens));
+                }
                 // Toggle a farm plugin: POST /lol/admin/plugin/<id>/enable|disable
                 const pm = /^\/lol\/admin\/plugin\/([^/]+)\/(enable|disable)$/.exec(pathOnly);
                 if (method === 'POST' && pm) {

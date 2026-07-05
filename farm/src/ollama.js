@@ -107,10 +107,14 @@ async function loadedModels(baseUrl, timeoutMs = 4000) {
 // Warm a model into VRAM (admin "start" — so the first real request isn't slow).
 // A zero-token generate with keep_alive loads + pins it. Best-effort: resolves
 // true/false, never throws. Ollama's own MAX_LOADED_MODELS governs eviction of others.
-async function warmModel(baseUrl, id, keepAlive = '-1', timeoutMs = 120000) {
+// `numCtx` loads it with the SAME context window LiteLLM requests (num_ctx in the
+// routing) — warming without it would load a 4096-ctx instance that the first real
+// request immediately reloads at the bigger window, defeating the warm-up.
+async function warmModel(baseUrl, id, keepAlive = '-1', numCtx = null, timeoutMs = 120000) {
     try {
-        const { status } = await request('POST', baseUrl, '/api/generate',
-            { body: { model: id, prompt: '', stream: false, keep_alive: keepAlive }, timeoutMs });
+        const body = { model: id, prompt: '', stream: false, keep_alive: keepAlive };
+        if (numCtx) body.options = { num_ctx: numCtx };
+        const { status } = await request('POST', baseUrl, '/api/generate', { body, timeoutMs });
         return status === 200;
     } catch { return false; }
 }

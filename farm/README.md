@@ -121,13 +121,13 @@ See [`lol.config.example.json`](lol.config.example.json). Shape:
   Clients discover it via the beacon and OWUI's per‑message web‑search toggle just works, zero client
   setup. Searches + page fetching run from each client; this box only hosts the metasearch engine. Turn it
   off with `"websearch": { "enabled": false }` or `lol up --no-websearch`.
-- **Document OCR (OFF by default):** set `"ocr": { "enabled": true }` (or `lol up --ocr`) to host **one shared
-  OCR / document‑extraction service** on this box. Clients then get scanned‑document + image OCR with zero
-  setup — OWUI uses it as its content‑extraction engine, routing images + scanned PDFs to a **vision model on
-  this box's Ollama** ([Ollama‑OCR](https://github.com/imanoop7/Ollama-OCR), vendored) and born‑digital
-  docs/PDFs to fast local extraction. Installed into `farm/.extract/` on first use (torch‑free; reuses the
-  vision model you already serve — `ocr.model` overrides which). It's **off by default because enabling it
-  routes *all* of OWUI's document ingestion through the farm**; the light path covers
+- **Document OCR (ON by default):** the farm hosts **one shared OCR / document‑extraction service** on this
+  box, so clients get scanned‑document + image OCR with zero setup — OWUI uses it as its content‑extraction
+  engine, routing images + scanned PDFs to a **vision model on this box's Ollama**
+  ([Ollama‑OCR](https://github.com/imanoop7/Ollama-OCR), vendored) and born‑digital docs/PDFs to fast local
+  extraction. Installed into `farm/.extract/` on first use (torch‑free; reuses the vision model you already
+  serve — `ocr.model` overrides which). Note it routes *all* of OWUI's document ingestion through the farm —
+  opt a box out with `"ocr": { "enabled": false }` or `lol up --no-ocr`. The light path covers
   images/PDF/docx/pptx/xlsx/text, and `"docling": true` adds the rest (legacy `.doc`/`.ppt`/`.xls`,
   `.odt`/`.epub`/`.rtf`) at the cost of a multi‑GB torch install. Delete `farm/.extract/` to uninstall.
 - **Admin panel (live control of a running farm):** while `lol up` runs, open
@@ -135,7 +135,9 @@ See [`lol.config.example.json`](lol.config.example.json). Shape:
   this farm"** in the desktop client's fleet popover. It shows the **connected clients** (hostname, IP,
   app version, and how long each machine has been idle — clients report presence every ~10 s and drop off
   ~30 s after closing), and can **start/stop served models** (adds/removes them
-  from the proxy + warms/evicts VRAM; the proxy bounces for a few seconds) and **enable/disable the farm
+  from the proxy + warms/evicts VRAM; the proxy bounces for a few seconds), **set the default model** (what
+  every client's OWUI auto‑selects), **change the context window** (num_ctx presets 4k–64k; rides the LiteLLM
+  routing so it applies on every host, brief proxy blip), and **enable/disable the farm
   plugins** (web search / voice / OCR) live, plus recommend the client‑side Blender plugin to the fleet —
   clients pick every change up within ~5 s. Auth: the **admin token printed in the `lol up` banner**
   (regenerated each run; set `"admin": { "token": "…" }` in `lol.config.json` for a fixed one). Everything

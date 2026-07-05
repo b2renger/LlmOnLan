@@ -49,7 +49,7 @@ multimodal** (image understanding + voice — local Whisper STT, on‑device); *
 farm‑hosted [SearXNG](https://docs.searxng.org), **on by default**, zero client setup, auto‑discovered;
 **neural voice** via a shared farm‑hosted [Kokoro](https://github.com/remsky/Kokoro-FastAPI) TTS (opt‑in);
 **document OCR** — a shared farm‑hosted extraction service ([Ollama‑OCR](https://github.com/imanoop7/Ollama-OCR)
-vision‑model OCR for images + scanned PDFs, opt‑in, [how‑to below](#document-ocr-optional));
+vision‑model OCR for images + scanned PDFs, **on by default**, [details below](#document-ocr-optional));
 **assistant tools** — drive a local **[Blender](#assistant-tools--control-blender-optional)** over MCP,
 opt‑in per client ([how‑to below](#assistant-tools--control-blender-optional)); **multi‑box load
 balancing** (least‑loaded client selection, `--coordinator` aggregation, `lol fleet`); **stable model
@@ -94,9 +94,9 @@ pages → a vision model** on the farm's local Ollama (via the vendored
 extraction**. This is the only OWUI surface that receives an uploaded file's bytes, so it's how OCR must be
 wired — a chat "tool" can't see uploads.
 
-**Turn it on (farm operator):** set `"ocr": { "enabled": true }` in `lol.config.json` (or `lol up --ocr`). The
-first run installs a small Python service into `farm/.extract/` (torch‑free — it reuses the vision model you
-already serve). The client needs nothing.
+**On by default (farm operator):** the first `lol up` installs a small Python service into `farm/.extract/`
+(torch‑free — it reuses the vision model you already serve). The client needs nothing. Opt a box out with
+`"ocr": { "enabled": false }` (or `lol up --no-ocr`), or toggle it live from the admin panel.
 
 ```jsonc
 "ocr": {
@@ -119,7 +119,7 @@ text plus a vision pass over the page — so figures aren't dropped (vector‑dr
 images; use `"pdfEngine": "vision"` for those). Each processed document logs one `[extract]` summary line on
 the farm (pages, per‑engine routing, chars, seconds) — that line is the proof OWUI is using the farm OCR.
 The uploaded file transits to the trusted‑LAN farm for extraction (same boundary as web
-search); embedding still happens on the client. Off by default.
+search); embedding still happens on the client.
 
 ## Assistant tools — control Blender (optional)
 

@@ -48,6 +48,9 @@ test('litellm config = models × hosts deployments', () => {
     assert.equal(gemma.length, 2);
     assert.equal(gemma[0].litellm_params.model, 'ollama_chat/gemma4:12b');
     assert.ok(['http://a:11434', 'http://b:11434'].includes(gemma[0].litellm_params.api_base));
+    // Context window rides the routing (→ Ollama options.num_ctx on EVERY host) —
+    // this is what makes ollama.contextLength apply per request + panel-adjustable.
+    assert.equal(gemma[0].litellm_params.num_ctx, 16384);
     assert.equal(doc.router_settings.routing_strategy, 'simple-shuffle');
     assert.equal(doc.litellm_settings.telemetry, false);
 });
@@ -371,9 +374,9 @@ test('snapshot advertises ttsUrl/voice/model only when enabled AND healthy', () 
 const { resolveOcrModel } = require('../src/commands/up');
 const { depsSignature } = require('../src/extract');
 
-test('ocr config defaults: off, port 8890, markdown/auto, preprocess+docling off', () => {
+test('ocr config defaults: ON, port 8890, markdown/auto, preprocess+docling off', () => {
     const c = defaultConfig();
-    assert.equal(c.ocr.enabled, false);   // off by default — reroutes all OWUI ingestion through the farm
+    assert.equal(c.ocr.enabled, true);    // ON by default (owner call 2026-07-05) — document upload is a core workshop flow
     assert.equal(c.ocr.port, 8890);
     assert.equal(c.ocr.format, 'markdown');
     assert.equal(c.ocr.pdfEngine, 'auto');
@@ -441,6 +444,8 @@ test('selfServer: /lol/self open; admin routes gated by the bearer token', async
         getAdminState: async () => ({ name: 'T', models: [{ id: 'a', served: true }] }),
         startModel: async (id) => { calls.push(['start', id]); return { ok: true, servedModels: ['a', id] }; },
         stopModel: async (id) => { calls.push(['stop', id]); return { ok: true, servedModels: [] }; },
+        setDefaultModel: async (id) => { calls.push(['default', id]); return { ok: true, defaultModel: id }; },
+        setContextLength: async (n) => { calls.push(['context', n]); return { ok: true, contextLength: n }; },
         setPlugin: async (id, on) => { calls.push(['plugin', id, on]); return { ok: true, enabled: on }; },
         recommendClientPlugin: (id, on) => { calls.push(['recommend', id, on]); return { ok: true }; },
     };
@@ -469,7 +474,12 @@ test('selfServer: /lol/self open; admin routes gated by the bearer token', async
         assert.equal((await (await fetch(`${base}/lol/admin/plugin/websearch/disable`, { method: 'POST', headers: H })).json()).enabled, false);
         const rc = await fetch(`${base}/lol/admin/plugin/recommend`, { method: 'POST', headers: { ...H, 'content-type': 'application/json' }, body: '{"id":"blender","on":true}' });
         assert.equal(rc.status, 200);
-        assert.deepEqual(calls.slice(1), [['plugin', 'ocr', true], ['plugin', 'websearch', false], ['recommend', 'blender', true]]);
+        // default-model + context routes: token-gated, route to the right control fn
+        assert.equal((await fetch(`${base}/lol/admin/model/default`, { method: 'POST', body: '{"id":"a"}' })).status, 401, 'default needs a token');
+        assert.equal((await (await fetch(`${base}/lol/admin/model/default`, { method: 'POST', headers: { ...H, 'content-type': 'application/json' }, body: '{"id":"a"}' })).json()).defaultModel, 'a');
+        assert.equal((await fetch(`${base}/lol/admin/context`, { method: 'POST', body: '{"tokens":32768}' })).status, 401, 'context needs a token');
+        assert.equal((await (await fetch(`${base}/lol/admin/context`, { method: 'POST', headers: { ...H, 'content-type': 'application/json' }, body: '{"tokens":32768}' })).json()).contextLength, 32768);
+        assert.deepEqual(calls.slice(1), [['plugin', 'ocr', true], ['plugin', 'websearch', false], ['recommend', 'blender', true], ['default', 'a'], ['context', 32768]]);
     } finally {
         server.close();
     }
@@ -514,12 +524,13 @@ test('snapshot usage.clients mirrors clientsConnected (null on older farms)', ()
 // ---- plugin registry -------------------------------------------------------
 const { makeServices, pluginsSummary, FarmService } = require('../src/plugins/registry');
 
-test('registry: three farm services, config-gated (websearch on, tts/ocr off)', () => {
+test('registry: three farm services, config-gated (websearch+ocr on, tts off)', () => {
     const c = defaultConfig();
     const svcs = makeServices();
     assert.deepEqual(svcs.map((s) => s.id), ['websearch', 'tts', 'ocr']);
     assert.equal(svcs.find((s) => s.id === 'websearch').enabled(c), true);
     assert.equal(svcs.find((s) => s.id === 'tts').enabled(c), false);
+    assert.equal(svcs.find((s) => s.id === 'ocr').enabled(c), true, 'OCR on by default (owner call)');
     const sum = pluginsSummary(svcs, c);
     assert.equal(sum.websearch.enabled, true);
     assert.equal(sum.websearch.healthy, false, 'not started → not healthy');

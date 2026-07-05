@@ -583,7 +583,7 @@ async function run(args) {
         if (!(await applyModels(config.models.concat([{ id }])))) {
             return { ok: false, error: 'The proxy did not come back — reverted to the previous model set.', servedModels: servedIdList() };
         }
-        for (const h of oll.reachable.filter(isLocalHost)) ollama.warmModel(h, id, config.ollama.keepAlive).catch(() => {});
+        for (const h of oll.reachable.filter(isLocalHost)) ollama.warmModel(h, id, config.ollama.keepAlive, config.ollama.contextLength).catch(() => {});
         if (beacon) beacon.kick();
         return { ok: true, servedModels: servedIdList() };
     }
@@ -628,6 +628,7 @@ async function run(args) {
             })),
             servedNames: servedEntries(config).map((e) => e.servedName),
             modelAlias: (config.modelAlias || '').trim() || null,
+            contextLength: config.ollama.contextLength,
             plugins: pluginsSummary(services, config),
             recommendedClientPlugins: config.recommendedClientPlugins || [],
             clients: freshClients(),   // desktop clients heartbeating us (most-active first)
@@ -636,6 +637,55 @@ async function run(args) {
                 gpu: liveHealth.gpu || null, host: liveHealth.host || null, proxyUp: liveHealth.proxyUp !== false,
             },
         };
+    }
+
+    // Make a served model the DEFAULT: drives the snapshot's models[].default, which
+    // every client feeds to OWUI as DEFAULT_MODELS (auto-selected model) — so this is
+    // "pick what the fleet chats with by default". The proxy only needs a bounce in
+    // global-alias mode (the alias binds to the default's underlying model); otherwise
+    // the generated routing is unchanged and only the beacon needs a kick.
+    async function setDefaultModel(id) {
+        id = String(id || '').trim();
+        const target = config.models.find((m) => norm(m.id) === norm(id));
+        if (!target) return { ok: false, error: `"${id}" isn't a served model — start it first.`, servedModels: servedIdList() };
+        if (target.default) return { ok: true, already: true, defaultModel: target.id };
+        const next = config.models.map((m) => ({ ...m, default: norm(m.id) === norm(id) }));
+        if ((config.modelAlias || '').trim()) {
+            // Alias mode: the alias re-binds to the new default → routing changes.
+            if (!(await applyModels(next))) {
+                return { ok: false, error: 'The proxy did not come back — kept the previous default.', servedModels: servedIdList() };
+            }
+        } else {
+            config.models = next;
+        }
+        for (const h of oll.reachable.filter(isLocalHost)) ollama.warmModel(h, target.id, config.ollama.keepAlive, config.ollama.contextLength).catch(() => {});
+        if (beacon) beacon.kick();
+        return { ok: true, defaultModel: target.id, servedModels: servedIdList() };
+    }
+
+    // Change the model context window (num_ctx) live: it rides the generated LiteLLM
+    // routing (litellm.js injects it per deployment), so applying = regenerate +
+    // bounce the proxy — same guarded machinery as a model change, same rollback.
+    // Ephemeral like every panel change; persist via ollama.contextLength in
+    // lol.config.json. Ollama reloads a model on first request at a new num_ctx, so
+    // the default model is re-warmed at the new size to hide that latency.
+    async function setContextLength(tokens) {
+        const n = Math.round(Number(tokens));
+        if (!Number.isFinite(n) || n < 2048 || n > 262144) {
+            return { ok: false, error: 'Context must be between 2048 and 262144 tokens.', contextLength: config.ollama.contextLength };
+        }
+        if (n === config.ollama.contextLength) return { ok: true, already: true, contextLength: n };
+        const before = config.ollama.contextLength;
+        config.ollama.contextLength = n;
+        if (!(await restartProxy())) {
+            config.ollama.contextLength = before;          // revert
+            await restartProxy();                          // it was healthy before → restore it
+            return { ok: false, error: 'The proxy did not come back — kept the previous context size.', contextLength: before };
+        }
+        const def = (config.models.find((m) => m.default) || config.models[0] || {}).id;
+        if (def) for (const h of oll.reachable.filter(isLocalHost)) ollama.warmModel(h, def, config.ollama.keepAlive, n).catch(() => {});
+        if (beacon) beacon.kick();
+        return { ok: true, contextLength: n };
     }
 
     // Toggle a FARM plugin (web search / voice / OCR) live: spawn or kill its service child,
@@ -688,6 +738,8 @@ async function run(args) {
         getAdminState,                                     // read-only — no lock needed
         startModel: (id) => serialize(() => startModel(id)),
         stopModel: (id) => serialize(() => stopModel(id)),
+        setDefaultModel: (id) => serialize(() => setDefaultModel(id)),
+        setContextLength: (n) => serialize(() => setContextLength(n)),
         setPlugin: (id, on) => serialize(() => setPlugin(id, on)),
         recommendClientPlugin,                             // trivial array mutation + kick
     });

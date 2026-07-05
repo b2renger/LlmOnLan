@@ -91,9 +91,11 @@ const OcrSchema = z.object({
     // discover it via the beacon (snapshot.extract) and OWUI uses it as its
     // CONTENT_EXTRACTION_ENGINE=external loader — so every uploaded image / scanned
     // PDF is OCR'd (RAG-searchable AND transcribable) with zero client setup. `lol
-    // up` installs it on first run (own venv under .extract/). OFF by default (it
-    // reroutes ALL of OWUI's document ingestion through the farm; opt in per box).
-    enabled: z.boolean().default(false),
+    // up` installs it on first run (own venv under .extract/, torch-free). ON by
+    // default (owner call 2026-07-05 after rig testing — document upload is a core
+    // workshop flow); it reroutes ALL of OWUI's document ingestion through the
+    // farm, so set enabled:false to opt a box out.
+    enabled: z.boolean().default(true),
     port: z.number().int().positive().default(8890),
     // Vision model Ollama-OCR drives (a real Ollama tag, e.g. gemma4:12b). Omit to
     // auto-use the farm's served default vision model (see resolveOcrModel in up.js).

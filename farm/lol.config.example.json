@@ -37,7 +37,7 @@
     "model": "kokoro"
   },
   "ocr": {
-    "enabled": false,
+    "enabled": true,
     "port": 8890,
     "format": "markdown",
     "pdfEngine": "auto",

@@ -34,6 +34,7 @@
   .badge.on { color: var(--text); border-color: var(--accent2); }
   .badge.star { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 40%, var(--border)); }
   button { font: inherit; cursor: pointer; border-radius: 8px; border: 1px solid var(--border); background: var(--surface2); color: var(--text); padding: 5px 12px; min-width: 74px; }
+  select { font: inherit; cursor: pointer; border-radius: 8px; border: 1px solid var(--border); background: var(--surface2); color: var(--text); padding: 5px 8px; }
   button:hover { border-color: var(--accent2); }
   button:disabled { opacity: .5; cursor: default; }
   button.start { border-color: color-mix(in srgb, var(--ok) 45%, var(--border)); }
@@ -156,25 +157,72 @@ function render(s) {
       m.loaded ? '<span class="badge on">in VRAM</span>' : '',
       m.served ? '<span class="badge on">serving</span>' : '<span class="badge">idle</span>',
     ].filter(Boolean).join('');
+    // A served, non-default model can be promoted to the fleet default (what every
+    // client's OWUI auto-selects). Only served models qualify — start it first.
+    const defBtn = m.served && !m.isDefault
+      ? `<button data-dact="default" data-id="${esc(m.id)}" title="Every client's OWUI auto-selects this model">Make default</button>` : '';
     const btn = m.served
       ? `<button class="stop" data-act="stop" data-id="${esc(m.id)}">Stop</button>`
       : `<button class="start" data-act="start" data-id="${esc(m.id)}">Start</button>`;
     return `<div class="row"><span class="${dotCls}"></span>`
       + `<span><div class="mname">${esc(m.id)}</div>${meta ? `<div class="meta">${esc(meta)}</div>` : ''}</span>`
-      + `<span class="badges">${badges}${btn}</span></div>`;
+      + `<span class="badges">${badges}${defBtn}${btn}</span></div>`;
   }).join('') : '<div class="empty">No models installed on any reachable host.</div>';
+
+  // Context window (num_ctx): served per-request via the LiteLLM routing, so a
+  // change bounces the proxy (~seconds) — pick from presets or keep a custom value.
+  const CTX_OPTS = [4096, 8192, 16384, 32768, 65536];
+  const ctxNow = s.contextLength || null;
+  const ctxOpts = (ctxNow && !CTX_OPTS.includes(ctxNow) ? [ctxNow, ...CTX_OPTS] : CTX_OPTS)
+    .map((v) => `<option value="${v}"${v === ctxNow ? ' selected' : ''}>${v % 1024 === 0 ? (v / 1024) + 'k' : v} tokens</option>`).join('');
+  const ctxRow = ctxNow
+    ? `<div class="row"><span></span><span><div class="mname">Context window</div>`
+      + `<div class="meta">how much text a model can consider at once — bigger fits whole documents, costs VRAM · applies in seconds (brief proxy blip)</div></span>`
+      + `<span class="badges"><select id="ctx-sel">${ctxOpts}</select><button id="ctx-apply">Apply</button></span></div>`
+    : '';
 
   app.innerHTML =
     `<header class="top"><h1>lol <span class="lol">${esc(s.name || 'farm')}</span></h1></header>`
     + `<p class="sub">${esc(s.modelAlias ? 'Clients see the alias "' + s.modelAlias + '" for the default model. Changes reflect on clients within a few seconds.' : 'Manage the models + plugins this farm serves. Changes reflect on clients within a few seconds.')}</p>`
-    + `<div class="card"><h2>Farm</h2><div class="health">${healthBits}</div></div>`
+    + `<div class="card"><h2>Farm</h2><div class="health">${healthBits}</div>${ctxRow}</div>`
     + `<div class="card"><h2>Clients (${clients.length})</h2>${clientRows}</div>`
     + `<div class="card"><h2>Models</h2>${rows}</div>`
     + `<div class="card"><h2>Plugins</h2>${pluginRows}${blenderRow}</div>`;
 
   app.querySelectorAll('button[data-act]').forEach((b) => { b.onclick = () => act(b.dataset.act, b.dataset.id, b); });
+  app.querySelectorAll('button[data-dact]').forEach((b) => { b.onclick = () => defaultAct(b.dataset.id, b); });
   app.querySelectorAll('button[data-pact]').forEach((b) => { b.onclick = () => pluginAct(b.dataset.pact, b.dataset.id, b); });
   app.querySelectorAll('button[data-ract]').forEach((b) => { b.onclick = () => recommendAct(b.dataset.ract, b.dataset.id, b); });
+  const ctxApply = $('#ctx-apply');
+  if (ctxApply) ctxApply.onclick = () => contextAct(parseInt($('#ctx-sel').value, 10), ctxApply);
+}
+
+// Promote a served model to the fleet default (clients' OWUI auto-selects it).
+async function defaultAct(id, btn) {
+  if (busy) return;
+  busy = true; btn.disabled = true; btn.textContent = '…';
+  try {
+    const r = await api('/lol/admin/model/default', { method: 'POST', body: JSON.stringify({ id }) });
+    if (!r.ok) toast(r.error || 'Action failed');
+    else toast(id + ' is now the default model');
+  } catch (e) {
+    if (e.unauthorized) { logout('Session expired — re-enter the token.'); return; }
+    toast('Error: ' + (e.message || e));
+  } finally { busy = false; await refresh(); }
+}
+
+// Apply a new context window (bounces the proxy — a few seconds).
+async function contextAct(tokens, btn) {
+  if (busy || !tokens) return;
+  busy = true; btn.disabled = true; btn.textContent = '…';
+  try {
+    const r = await api('/lol/admin/context', { method: 'POST', body: JSON.stringify({ tokens }) });
+    if (!r.ok) toast(r.error || 'Action failed');
+    else toast(r.already ? 'Context unchanged' : 'Context window set to ' + r.contextLength + ' tokens');
+  } catch (e) {
+    if (e.unauthorized) { logout('Session expired — re-enter the token.'); return; }
+    toast('Error: ' + (e.message || e));
+  } finally { busy = false; await refresh(); }
 }
 
 // Toggle a farm plugin on/off (spawns/kills the service — can take a few seconds).

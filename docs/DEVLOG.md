@@ -6,6 +6,38 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-07-05 e — Admin panel: default model + live context window; OCR on by default
+
+Rig-feedback round 3, all farm-side (`git pull` only, no client release):
+
+- **Context window is now a real server-side setting.** `ollama.contextLength`
+  additionally rides the generated LiteLLM routing as a per-deployment `num_ctx`
+  ([litellm.js](../farm/src/litellm.js)) — **empirically verified** against the
+  pinned LiteLLM (`get_optional_params(..., num_ctx=16384, drop_params=True)`
+  keeps it; the ollama_chat transform puts optional_params into `options`). That
+  makes it apply on EVERY host (the `OLLAMA_CONTEXT_LENGTH` env only reaches
+  Ollamas the CLI starts, and stays as the belt for direct-Ollama callers), and
+  makes it live-changeable: the admin panel's Farm card gets a **Context window**
+  preset selector (4k–64k) → `POST /lol/admin/context {tokens}` →
+  `control.setContextLength` (validated 2048–262144, serialized, restartProxy
+  with rollback, re-warms the default model at the new size — Ollama reloads a
+  model when num_ctx changes, and `warmModel` now passes `options.num_ctx` so
+  the warm instance matches what LiteLLM will request).
+- **Default model from the panel.** "Make default" on any served model →
+  `POST /lol/admin/model/default {id}` → `control.setDefaultModel`: flips the
+  `default` flag immutably; bounces the proxy ONLY in global-alias mode (the
+  alias binds to the default's underlying — otherwise the routing is unchanged
+  and only the beacon kicks). Clients pick it up via `models[].default` →
+  `DEFAULT_MODELS` (OWUI restarts, auto-selects the new default).
+- **OCR is ON by default** (owner call after rig testing — document upload is a
+  core workshop flow): `OcrSchema.enabled` true, example config + READMEs +
+  tests updated. First `lol up` installs the torch-free venv; opt out per box
+  with `ocr.enabled:false` / `--no-ocr`. TTS was already off by default (the
+  test box has it enabled in its own lol.config.json — config, not code).
+- Panel changes remain ephemeral (restart reverts to lol.config.json) — persist
+  real decisions there. Tests: 54 (litellm num_ctx injection, both new routes'
+  auth + dispatch, registry/config default flips).
+
 ## 2026-07-05 d — Whole-document answers: RAG full-context + Ollama context window
 
 The definitive OCR-"missing content" diagnosis, from a real rig transcript: a
