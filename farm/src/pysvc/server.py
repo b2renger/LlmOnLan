@@ -31,8 +31,10 @@ Env (set by farm/src/extract.js spawnExtract):
   OCR_MODEL        vision model tag for Ollama-OCR (e.g. gemma4:12b)
   OCR_OLLAMA_URL   the local Ollama NATIVE generate endpoint (…:11434/api/generate)
   OCR_FORMAT       markdown|text|json|structured|key_value|table (default markdown)
-  OCR_PDF_ENGINE   auto|vision|text (default auto: per page, text layer if present
-                   else vision OCR)
+  OCR_PDF_ENGINE   auto|vision|text (default auto: per page — a substantial text
+                   layer is used as-is, a page without one is vision-OCR'd, and a
+                   text page that ALSO carries big raster images gets a HYBRID
+                   text+vision pass so figures/diagrams aren't silently dropped)
   OCR_PREPROCESS   "1" to enable Ollama-OCR's cv2 binarization (default off — a raw
                    image usually reads better on a vision LLM)
   OCR_DOCLING      "1" to route non-image docs through Docling (must be installed)
@@ -41,6 +43,7 @@ Env (set by farm/src/extract.js spawnExtract):
 import os
 import re
 import hmac
+import time
 import shutil
 import tempfile
 import urllib.parse
@@ -176,9 +179,40 @@ def _ocr_image(path):
     return res
 
 
+# `auto` PDF routing: a page with fewer text-layer chars than this is treated as
+# scanned (vision OCR); a page above it that still carries big raster images gets a
+# HYBRID pass (text layer + vision) so figures/diagrams aren't silently dropped —
+# the failure mode that plain "text layer wins" had on design docs/slides.
+PDF_MIN_TEXT_CHARS = 32
+PDF_HYBRID_IMG_COVERAGE = 0.2   # ≥20% of the page area under raster images → hybrid
+
+
+def _image_coverage(page):
+    """Fraction of the page area covered by raster images (0..1). Vector-drawn
+    charts aren't images and don't count — force OCR_PDF_ENGINE=vision for those."""
+    try:
+        area = page.rect.get_area()
+        if not area:
+            return 0.0
+        covered = sum((pymupdf.Rect(im["bbox"]) & page.rect).get_area()
+                      for im in page.get_image_info())
+        return min(1.0, covered / area)
+    except Exception:
+        return 0.0
+
+
+def _render_page(page, workdir, i):
+    pix = page.get_pixmap(matrix=pymupdf.Matrix(2, 2))  # ~144 DPI
+    png = os.path.join(workdir, f"page{i}.png")
+    pix.save(png)
+    return png
+
+
 def _extract_pdf(src, filename, workdir):
-    """Per page: use the embedded text layer when present (born-digital), else
-    rasterize at ~144 DPI and vision-OCR (scanned). OCR_PDF_ENGINE forces the choice."""
+    """Per page: the embedded text layer when it's substantial (born-digital),
+    vision OCR when it isn't (scanned), and BOTH when a real text layer coexists
+    with large images (the text alone would drop the figures). OCR_PDF_ENGINE
+    forces text-only or vision-only."""
     doc = pymupdf.open(src)
     out = []
     try:
@@ -186,16 +220,26 @@ def _extract_pdf(src, filename, workdir):
             page = doc[i]
             text = page.get_text("text").strip()
             if OCR_PDF_ENGINE == "text":
-                use_vision = False
+                mode = "text"
             elif OCR_PDF_ENGINE == "vision":
-                use_vision = True
-            else:  # auto
-                use_vision = not text
-            if use_vision:
-                pix = page.get_pixmap(matrix=pymupdf.Matrix(2, 2))
-                png = os.path.join(workdir, f"page{i}.png")
-                pix.save(png)
-                out.append(_page(_ocr_image(png), i + 1, filename, "vision"))
+                mode = "vision"
+            elif len(text) < PDF_MIN_TEXT_CHARS:   # auto: no real text layer → scanned
+                mode = "vision"
+            elif _image_coverage(page) >= PDF_HYBRID_IMG_COVERAGE:
+                mode = "hybrid"
+            else:
+                mode = "text"
+            if mode == "vision":
+                out.append(_page(_ocr_image(_render_page(page, workdir, i)), i + 1, filename, "vision"))
+            elif mode == "hybrid":
+                # A vision failure here only loses the figure text — keep the page's
+                # text layer rather than failing the whole document.
+                try:
+                    ocr = _ocr_image(_render_page(page, workdir, i))
+                    out.append(_page(f"{text}\n\n[Page image content]\n{ocr}", i + 1, filename, "text+vision"))
+                except HTTPException as e:
+                    print(f"page {i + 1}: hybrid vision pass failed ({e.detail}); kept the text layer", flush=True)
+                    out.append(_page(text, i + 1, filename, "text"))
             else:
                 out.append(_page(text, i + 1, filename, "text"))
     finally:
@@ -269,7 +313,20 @@ async def process(request: Request):
     content_type = request.headers.get("content-type", "")
     # OCR / extraction is blocking (HTTP to Ollama, cv2, pymupdf) — run it off the
     # event loop so concurrent uploads don't serialize on the single async worker.
-    return await run_in_threadpool(_extract, body, filename, content_type)
+    t0 = time.monotonic()
+    pages = await run_in_threadpool(_extract, body, filename, content_type)
+    # One summary line per document in the farm log ([extract] prefix added by the
+    # supervisor) — the operator's proof that OWUI is routed here at all, and the
+    # first thing to read when an extraction "missed" content: it shows how each
+    # page was handled (text layer / vision OCR / hybrid).
+    engines = {}
+    chars = 0
+    for p in pages:
+        engines[p["metadata"].get("engine", "?")] = engines.get(p["metadata"].get("engine", "?"), 0) + 1
+        chars += len(p.get("page_content") or "")
+    summary = " + ".join(f"{n} {e}" for e, n in sorted(engines.items()))
+    print(f"{filename}: {len(pages)} page(s) → {summary} · {chars} chars · {time.monotonic() - t0:.1f}s", flush=True)
+    return pages
 
 
 if __name__ == "__main__":

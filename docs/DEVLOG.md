@@ -6,6 +6,36 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-07-05 b — OCR: hybrid PDF extraction + per-document logging (rig feedback)
+
+First rig test surfaced two OCR problems: "I can't tell if I'm using the farm OCR
+or OWUI's built-in one", and "it clearly missed a lot of elements in my pdf".
+
+- **Root cause of the missing content:** `auto` routed any page with a text layer
+  to text-layer-only extraction (`use_vision = not text`) — so a design-style PDF
+  (text + big images/figures) kept its paragraphs but silently dropped everything
+  drawn inside the images. Only fully image-only pages ever reached the vision model.
+- **Fix — hybrid `auto` ([server.py](../farm/src/pysvc/server.py) `_extract_pdf`):**
+  per page, `auto` now routes three ways: `< 32` text-layer chars → **vision**
+  (scanned); a real text layer with **raster images covering ≥ 20 %** of the page
+  (`page.get_image_info()` bbox areas) → **hybrid** — the text layer PLUS a vision
+  pass appended under a `[Page image content]` marker (`engine: "text+vision"`);
+  else **text** (born-digital stays fast, no vision calls). A hybrid vision failure
+  degrades to the text layer with a log line (a pure-vision page failing still 502s —
+  no silent empty pages). Caveat: vector-drawn charts aren't raster images and aren't
+  detected — `"pdfEngine": "vision"` covers those. Safe on the OWUI side: its
+  ExternalDocumentLoader `requests.put` has **no timeout** (verified in the pinned
+  0.10.2 source), so slow multi-page hybrid docs can't get cut off mid-extraction.
+- **Fix — visibility:** every processed document now logs ONE summary line on the
+  farm console: `[extract] deck.pdf: 12 page(s) → 4 text + 8 text+vision · 9k chars
+  · 41.3s` — the operator's proof that OWUI is routed to the farm at all, and the
+  first thing to read when an extraction looks incomplete (shows per-page routing).
+- **Verified** against the real service in the local `.extract` venv (Ollama call
+  mocked): a synthetic 3-page PDF (pure text / text+large image / image-only) routes
+  `text / text+vision / vision`; the hybrid page carries BOTH the text layer and the
+  vision output; vision failure degrades hybrid but 502s pure-vision.
+- Farm-side only — clients need nothing (`git pull` + restart `lol up` on the box).
+
 ## 2026-07-05 — Admin panel: connected-clients presence (count, idle time, versions)
 
 The panel now answers "who's actually using this farm right now?". The farm's Node

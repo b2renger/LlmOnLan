@@ -102,7 +102,7 @@ See [`lol.config.example.json`](lol.config.example.json). Shape:
   "websearch": { "enabled": true, "port": 8888 },   // shared SearXNG → clients get web search
   "ocr": { "enabled": false, "port": 8890,           // shared document OCR → clients get scanned-doc/image OCR
            "model": null, "format": "markdown",       // null = served default vision model; markdown|text|json|…
-           "pdfEngine": "auto", "docling": false },    // auto text-layer-else-vision; docling=true adds office formats
+           "pdfEngine": "auto", "docling": false },    // auto: text layer / vision / hybrid on mixed pages; docling adds office formats
   "coordinator": false                          // aggregate LAN peers into one balanced endpoint
 }
 ```

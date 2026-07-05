@@ -104,7 +104,7 @@ already serve). The client needs nothing.
   "port": 8890,
   "model": null,          // null = use the farm's served default vision model (e.g. gemma4:12b)
   "format": "markdown",   // markdown | text | json | structured | key_value | table
-  "pdfEngine": "auto",    // auto = text layer if present, else vision‑OCR the page; vision | text
+  "pdfEngine": "auto",    // auto = text layer / vision‑OCR / BOTH on mixed text+image pages; vision | text
   "preprocess": false,    // cv2 binarization (usually worse for a vision LLM — leave off)
   "docling": false        // true = also install Docling for office formats (pptx/xlsx…); heavy (torch)
 }
@@ -114,7 +114,11 @@ already serve). The client needs nothing.
 images, PDFs, `.docx`/`.pptx`/`.xlsx`, and plain text/HTML; legacy binary Office (`.doc`/`.ppt`/`.xls`) and
 `.odt`/`.epub`/`.rtf` need `"docling": true` (a multi‑GB install).
 Multi‑page scanned PDFs are N vision‑model passes, so they're slower than born‑digital PDFs (which use the
-embedded text). The uploaded file transits to the trusted‑LAN farm for extraction (same boundary as web
+embedded text); pages that mix a text layer with **large images** (slides, design docs) get **both** — the
+text plus a vision pass over the page — so figures aren't dropped (vector‑drawn charts aren't detected as
+images; use `"pdfEngine": "vision"` for those). Each processed document logs one `[extract]` summary line on
+the farm (pages, per‑engine routing, chars, seconds) — that line is the proof OWUI is using the farm OCR.
+The uploaded file transits to the trusted‑LAN farm for extraction (same boundary as web
 search); embedding still happens on the client. Off by default.
 
 ## Assistant tools — control Blender (optional)
