@@ -627,12 +627,19 @@ app.whenReady().then(async () => {
     booted = true;
     sidecar.start({ endpoint: initial, dataDir: resolveDataDir(), defaultModel: currentModel, searxngUrl: currentSearxng, tts: currentTts, extract: currentExtract });
 
-    // Blender assistant tools are ON by default: bring mcpo up in the background
-    // (first launch installs it, ~1 min). When it's ready the renderer registers the
-    // tool server with OWUI via its API — no sidecar restart. Disabled only if the
-    // user turned it off in Settings.
+    // Blender assistant tools are OPT-IN (off by default since v0.1.24): enabling it
+    // in Settings — or a farm recommendation — brings mcpo up in the background
+    // (first launch installs it, ~1 min); when ready the renderer registers the tool
+    // server with OWUI via its API — no sidecar restart. One-time migration: installs
+    // that carry the old on-by-default WITHOUT an explicit user choice
+    // (blenderMcpUserSet=false) adopt the new default; an explicit choice is kept.
+    let blenderOn = settings.blenderMcp;
+    if (blenderOn && !settings.blenderMcpUserSet) {
+        updateSettings({ blenderMcp: false });
+        blenderOn = false;
+    }
     mcpo.setBlenderPort(settings.blenderPort);
-    if (settings.blenderMcp) mcpo.setEnabled(true);
+    if (blenderOn) mcpo.setEnabled(true);
 
     app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
 });

@@ -6,6 +6,31 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-07-05 c — Blender opt-in + [Page N] markers (rig feedback round 2)
+
+- **Blender assistant tools are now OPT-IN** (owner call): `blenderMcp` defaults to
+  `false` ([store.ts](../shell/src/main/store.ts)). One-time migration in
+  [index.ts](../shell/src/main/index.ts): an install carrying the old on-by-default
+  WITHOUT an explicit user choice (`blenderMcpUserSet=false`) adopts the new
+  default; an explicit toggle is kept either way. A farm *recommendation* can still
+  enable it for non-explicit users (that path is unchanged — it's now the way an
+  operator turns Blender on fleet-wide). No stale OWUI tool-server risk: the
+  tool_servers list is PersistentConfig and we run ENABLE_PERSISTENT_CONFIG=false,
+  so it resets every OWUI boot and only re-seeds while mcpo is actually up.
+- **TTS**: nothing to change in code — farm Kokoro (`tts.enabled`) has always
+  defaulted to false; the test box simply has it enabled in its lol.config.json.
+  With no farm TTS, OWUI's read-aloud button remains with the browser/OS voice:
+  AUDIO_TTS_ENGINE has no "off" value in 0.10.2 (checked config.py + routers/audio.py
+  — '' selects the client-side Web Speech engine) and the button is OWUI frontend
+  behavior we don't modify (invariant #1).
+- **OCR multi-page**: extraction loops every page (proven locally), but pages
+  carried no visible/matchable label — one text blob in OWUI's preview, and
+  "what's on page 5?" had nothing for RAG to retrieve. Multi-page PDFs now prefix
+  each page with **`[Page N]`** ([server.py](../farm/src/pysvc/server.py)); the
+  `[extract]` log line's "N page(s)" count is the ground truth when a document
+  still looks under-analysed (if the count is right and answers still miss
+  content, that's RAG top-k retrieval, not extraction).
+
 ## 2026-07-05 b — OCR: hybrid PDF extraction + per-document logging (rig feedback)
 
 First rig test surfaced two OCR problems: "I can't tell if I'm using the farm OCR
