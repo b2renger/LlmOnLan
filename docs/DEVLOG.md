@@ -6,6 +6,73 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-07-05 h — LlmOnLan Farm app: a self-installing desktop installer for the GPU box
+
+A new **`farm-app/`** Electron workspace — a downloadable, self-updating installer that
+turns any target GPU box into a running farm with **zero terminal, zero prerequisites**.
+Sibling of the client `shell/`: same electron-builder / electron-updater / ad-hoc-mac-sign
+recipe, but its process supervisor points at `lol up` instead of the OWUI sidecar. Targets
+**Windows + NVIDIA (x64)**, **macOS Apple Silicon (arm64, ≥16 GB)**, and the **NVIDIA DGX
+Spark (linux arm64)**.
+
+**Architecture.** Small installer (~100 MB); the heavy runtime downloads on first run.
+A setup wizard runs five idempotent/resumable phases (`src/main/installer.ts`):
+1. **runtime** (`runtimeManager.ts`) — downloads a relocatable standalone **CPython**
+   (python-build-standalone, same triples as `sidecar/build-sidecar.mjs`, incl.
+   `aarch64-unknown-linux-gnu` for the DGX) + the **Ollama** archive for this OS/arch, into
+   `userData/farm-runtime/`. Ollama asset names verified against ollama/ollama v0.31.1
+   (`ollama-windows-amd64.zip`, `ollama-darwin.tgz`, `ollama-linux-arm64.tar.zst`); the
+   resolved binary paths are recorded in `farm-runtime/runtime.json` (paths.ts reads it) so
+   per-platform archive-layout differences don't matter.
+2. **farm** — copies the bundled farm code (an electron-builder `extraResources` bundle) to a
+   **writable** `userData/farm` (the farm writes its `.venv`/`.searxng`/`.extract`/
+   `.lol-runtime.json` inside its own dir, which read-only app resources forbid) + writes
+   `lol.config.json` (gemma4:12b default, a pinned random admin token).
+3. **model** — `ollama pull gemma4:12b` (~8 GB) with a **real % bar** (own NDJSON reader off
+   `completed/total`; the farm's `ollama.js` only forwards status text), under an app-owned
+   Ollama that is **stopped before launch** so `lol up` owns Ollama with the right 16k-context
+   env (a reused bare Ollama would default to a 4096 context that truncates documents).
+4. **deps** — `lol install` (spawned as an Electron-as-Node child) builds the LiteLLM/SearXNG/
+   OCR venvs; it reuses the pulled model (skips a re-pull) and the bundled Python.
+5. **launch** — `FarmSupervisor` (`farmSupervisor.ts`, the SidecarSupervisor pattern) spawns
+   `lol up --no-pick` as an Electron-as-Node child with the bundled python+ollama on `PATH` +
+   `$LOL_PYTHON` set; health-waits `http://127.0.0.1:41997/lol/self`; bounded crash-restart;
+   killTree on quit.
+
+**Steady state:** the window IS the farm **admin panel** — `/lol/admin` in a `<webview>`, the
+pinned token seeded into `localStorage` via a webview preload that reads it from the URL hash
+(no prompt). Thin chrome: status dot, Start/Stop, the LAN endpoint (`http://<ip>:4000/v1`,
+copyable), settings (theme / launch-at-login / auto-update), self-update. 2nd+ launch skips the
+wizard and auto-starts.
+
+**Farm-side change (small, shared):** a new `farm/src/python.js` `resolvePython()` honors
+`$LOL_PYTHON` so the bundled interpreter is chosen **deterministically** (a stray system
+`py -3.12` can't win the venv builds); wired into the four `findPython` sites (`commands/
+install.js`, `searxng.js`, `kokoro.js`, `extract.js`). Behavior is byte-identical when
+`$LOL_PYTHON` is unset — each site keeps its own ladder + accepted-version test. All **54 farm
+tests still pass**.
+
+**Packaging + CI:** `electron-builder.yml` (`appId com.llmonlan.farm`, the farm `extraResources`
+bundle, `publish.channel: farm` → `farm.yml`/`farm-mac.yml`/`farm-linux.yml` so it never
+collides with the client's `latest.yml`, win NSIS one-click, mac dmg+zip arm64 ad-hoc-signed,
+**linux AppImage arm64** for the DGX). New `.github/workflows/release-farm.yml` triggers on
+**`farm-v*`** tags, matrix `windows-latest` + `macos-latest` + **`ubuntu-24.04-arm`** (free
+public-repo arm64 runner, native — no cross-compile), `npm ci` in `farm/` first so its pure-JS
+node_modules ride along. `scripts/release.mjs` tags `farm-vX.Y.Z`.
+
+**Verified (this box):** `npm install` (0 vulnerabilities), `tsc` build clean, `node --check` on
+the renderer/preload + the four edited farm modules, `resolvePython` unit-checked (ladder
+fallback / bogus-forced fallback / valid-forced wins), 54 farm tests green, and a real **Electron
+boot** — the window opens to the welcome screen with no crashes/errors (only the benign
+allowpopups warning, since removed).
+
+**Residual risk (validate on release #1):** electron-updater channel resolution in a shared repo
+— confirm the farm updater reads the newest `farm-v*` release's `farm.yml` and ignores the
+client's `v*`/`latest.yml`. **Not yet run:** the packaged installers, a clean-box first-run wizard
+(no system Python/Ollama), and the DGX arm64 build. See RIG_CHECKLIST → "Farm app install".
+
+---
+
 ## 2026-07-05 g — Documentation audit: every doc verified against the code (48 fixes)
 
 Wrap-up pass: a 9-agent audit checked every claim in every doc file against the

@@ -23,11 +23,12 @@ ComfyUI workflows, LOL gives a workshop a private, local‑first chat assistant.
   └────────────────────────────────────────────────┘        └─────────────────┘
 ```
 
-## The three pieces
+## The pieces
 
 | Piece | What it is | Where |
 |---|---|---|
 | **`lol`** — farm CLI | Node CLI. Reads `lol.config.json`; ensures Ollama, generates + runs a LiteLLM proxy (one OpenAI‑compatible, load‑balanced endpoint), runs a UDP discovery beacon. **Where models are chosen.** | [`farm/`](farm/) |
+| **Farm app** | Electron installer that runs the `lol` farm for a non‑technical operator: on first run it downloads its own Ollama + Python, pulls gemma4:12b, and hands over the farm **admin panel**. Self‑updating. | [`farm-app/`](farm-app/) |
 | **Client shell** | Electron + TypeScript. Supervises the bundled Open WebUI, discovers the farm, points OWUI at it, stores all data in a user‑chosen local folder. Owns the topbar / settings / connection screen. | [`shell/`](shell/) |
 | **Open WebUI sidecar** | Vendored, version‑pinned, **unmodified**. We inherit all its features and never edit its source. | [`sidecar/`](sidecar/) |
 
@@ -60,7 +61,18 @@ Blender to the fleet, and see connected clients with idle times; and workshop
 tooling (`lol bench` load test, model keep‑warm). Progress, design decisions, and the debugging history are
 in [`docs/DEVLOG.md`](docs/DEVLOG.md); current state + roadmap in [`implementation_plan.md`](implementation_plan.md).
 
-## Quick start (farm operator)
+## Run a farm — the desktop app (recommended, zero setup)
+
+The easiest way to host a farm is the **[LlmOnLan Farm app](farm-app/)** — a downloadable,
+self-updating installer that turns a GPU box into a running farm with **no terminal and no
+prerequisites**. On first launch a wizard downloads its own Ollama + Python, pulls
+**gemma4:12b**, builds the service venvs, and starts the farm; from then on the window IS the
+farm's **admin panel**. Targets **Windows + NVIDIA**, **macOS Apple Silicon (≥16 GB)**, and the
+**NVIDIA DGX Spark** (linux arm64). See [`farm-app/README.md`](farm-app/README.md).
+
+## Quick start (farm operator, CLI)
+
+Prefer the terminal? The `lol` CLI is the same farm the app manages:
 
 ```bash
 cd farm
@@ -71,7 +83,7 @@ node bin/lol.js status         # health of hosts + proxy + loaded models
 ```
 
 Prereqs: [Ollama](https://ollama.com) and [LiteLLM](https://docs.litellm.ai) installed on the GPU
-box(es). See [`farm/README.md`](farm/README.md).
+box(es) (or `lol install` sets them up). See [`farm/README.md`](farm/README.md).
 
 ## Quick start (client, dev)
 

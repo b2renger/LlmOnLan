@@ -64,6 +64,31 @@ risk; the build itself is implemented (see [DEVLOG.md](DEVLOG.md)).
       download-progress UX; unsigned-app OS warnings (SmartScreen / Gatekeeper right-click→Open)
       documented for users.
 
+## Farm app install (new 2026-07-05 h — needs a clean-box first-run pass per OS)
+The desktop installer that runs the farm for a non-technical operator (`farm-app/`). Everything
+here is **residual risk** — verified so far only at the code level (tsc/tests/`resolvePython`) + a
+dev Electron boot to the welcome screen on the dev box.
+- [x] Dev boot: `npm run dev` opens the window to the welcome screen with no crashes (env
+      `ELECTRON_RUN_AS_NODE` unset; `node node_modules/electron/install.js` if the binary postinstall was skipped).
+- [ ] **Clean box, no system Python/Ollama (the real test):** first-run wizard completes all five phases —
+      runtime download (Python + Ollama), farm copy, gemma4:12b pull (~8 GB, real % bar), `lol install`
+      venvs, launch → `/lol/self` healthy → the admin panel loads **unlocked** (token auto-seeded).
+- [ ] **`$LOL_PYTHON` determinism:** the venvs are built by the **bundled** interpreter even when a system
+      `py -3.12`/`python3` is also on PATH (check the `.venv`/`.searxng`/`.extract` python).
+- [ ] **Ollama lifecycle:** the app-owned Ollama used for the pull is stopped before launch, and `lol up`
+      starts its own with `OLLAMA_CONTEXT_LENGTH=16384` (a whole-document chat isn't truncated).
+- [ ] **Start/Stop + crash-restart:** the chrome Stop/Start toggles the farm; `taskkill` the `lol up` tree →
+      bounded auto-restart; quitting the app reaps LiteLLM/Ollama (no orphans).
+- [ ] **A client connects:** a second machine's LlmOnLan **client** auto-discovers this farm and chats.
+- [ ] **Per-OS installers** (CI on a `farm-v*` tag): NSIS (win x64), dmg+zip (mac arm64, ad-hoc), AppImage
+      (linux **arm64** — the DGX). SmartScreen/Gatekeeper unsigned warnings documented for the operator.
+- [ ] **DGX Spark:** the arm64 AppImage runs on the Spark; the plain `ollama-linux-arm64` archive loads
+      gemma4:12b on the GB10 GPU (vs. the `-jetpack5/6` variants); FUSE present or `--appimage-extract-and-run`.
+- [ ] **Low-RAM Mac:** a <16 GB Mac shows the wizard's memory **warning** but still proceeds.
+- [ ] **★ Auto-update channel (the load-bearing packaging risk):** publish `farm-v0.0.1`, install, publish
+      `farm-v0.0.2` → the app self-updates via the **`farm`** channel (`farm.yml`) and does **not** confuse
+      itself with the client's `v*`/`latest.yml` releases in the same repo.
+
 ## Admin panel + plugins + presence (shipped 2026-07-03→05; needs a two-machine pass)
 - [ ] **Admin panel** from a second machine: open `http://<box>:41997/lol/admin`, paste the banner token →
       start/stop a model (appears/disappears in a client's picker ~5 s later), **Make default**, change the

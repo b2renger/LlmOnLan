@@ -6,6 +6,12 @@ inference farm: it ensures [Ollama](https://ollama.com) is up, pulls the configu
 endpoint), runs the proxy, and (from M3) broadcasts a UDP discovery beacon. Model choice lives in the
 config — the CLI never hand‑edits routing.
 
+> **Not comfortable in a terminal?** The **[LlmOnLan Farm app](../farm-app/)** is a downloadable,
+> self‑updating installer that runs this exact CLI for you — it downloads its own Ollama + Python,
+> pulls gemma4:12b, and gives you the admin panel, with zero prerequisites. This README is for driving
+> the farm directly (or understanding what the app does under the hood). The app sets `$LOL_PYTHON`
+> so the venv builds below use its bundled interpreter.
+
 ## Quick start (fresh pull) — two commands
 
 On a GPU box with a fresh checkout, the **only** prerequisite is **[Node ≥ 20](https://nodejs.org)**.
