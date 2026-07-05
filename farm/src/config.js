@@ -104,6 +104,15 @@ const OcrSchema = z.object({
     docling: z.boolean().default(false),
 }).strict();
 
+const AdminSchema = z.object({
+    // Shared secret for the live control API (start/stop models, toggle plugins) that
+    // the farm-served admin page at http://<box>:<httpPort>/lol/admin uses. null → `lol
+    // up` generates an ephemeral token each run and prints it (paste it into the page).
+    // Read-only GET /lol/self + the admin page HTML stay open; only /lol/admin/state +
+    // the POST control routes require `Authorization: Bearer <token>`.
+    token: z.string().nullable().default(null),
+}).strict();
+
 const LiteLLMSchema = z.object({
     // How to invoke LiteLLM. Default assumes `litellm` is on PATH; operators who
     // installed it into a venv point this at that venv's litellm[.exe].
@@ -123,6 +132,7 @@ const ConfigSchema = z.object({
     websearch: WebsearchSchema.default({}),
     tts: TtsSchema.default({}),
     ocr: OcrSchema.default({}),
+    admin: AdminSchema.default({}),
     // Coordinator mode: aggregate LAN peer farms into one balanced endpoint that
     // clients prefer. Also settable per-run via `lol up --coordinator`.
     coordinator: z.boolean().default(false),
@@ -132,6 +142,10 @@ const ConfigSchema = z.object({
     // null/empty = off (clients see the real model names). Settable per-run via
     // `lol up --alias <name>`. The alias is backed by the DEFAULT picked model.
     modelAlias: z.string().nullable().default(null),
+    // Client-side plugins (e.g. "blender") the farm RECOMMENDS to connected clients —
+    // the farm can't run a per-client plugin, only advertise it; each client auto-applies
+    // what it can. Set live via the admin panel (control.recommendClientPlugin).
+    recommendedClientPlugins: z.array(z.string()).default([]),
 }).strict();
 
 // ---- defaults --------------------------------------------------------------

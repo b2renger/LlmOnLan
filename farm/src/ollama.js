@@ -104,6 +104,27 @@ async function loadedModels(baseUrl, timeoutMs = 4000) {
     }
 }
 
+// Warm a model into VRAM (admin "start" — so the first real request isn't slow).
+// A zero-token generate with keep_alive loads + pins it. Best-effort: resolves
+// true/false, never throws. Ollama's own MAX_LOADED_MODELS governs eviction of others.
+async function warmModel(baseUrl, id, keepAlive = '-1', timeoutMs = 120000) {
+    try {
+        const { status } = await request('POST', baseUrl, '/api/generate',
+            { body: { model: id, prompt: '', stream: false, keep_alive: keepAlive }, timeoutMs });
+        return status === 200;
+    } catch { return false; }
+}
+
+// Evict a model from VRAM (admin "stop" — frees GPU memory). keep_alive:0 tells
+// Ollama to unload it immediately. Best-effort; resolves true/false, never throws.
+async function evictModel(baseUrl, id, timeoutMs = 10000) {
+    try {
+        const { status } = await request('POST', baseUrl, '/api/generate',
+            { body: { model: id, prompt: '', stream: false, keep_alive: 0 }, timeoutMs });
+        return status === 200;
+    } catch { return false; }
+}
+
 // True if a host already has the given model (tolerant of an implicit :latest).
 function hasModel(present, id) {
     if (present.includes(id)) return true;
@@ -159,4 +180,4 @@ function pullModel(baseUrl, id, onLine = () => {}, timeoutMs = 30 * 60 * 1000) {
     });
 }
 
-module.exports = { normalizeHost, version, listModels, listModelsDetailed, loadedModels, hasModel, pullModel, request };
+module.exports = { normalizeHost, version, listModels, listModelsDetailed, loadedModels, warmModel, evictModel, hasModel, pullModel, request };

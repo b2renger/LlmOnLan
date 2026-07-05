@@ -6,6 +6,210 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-07-04 — Farm admin, Phase 4: the client honors the farm's plugin world
+
+Closes the plan — the desktop client now consumes what the farm advertises, and the
+Blender *recommend* toggle (inert since P3) does something.
+
+- **Farm advertises its admin port.** `snapshot.js` adds `httpPort` (`config.beacon.httpPort`),
+  so a client can build the admin URL `http://<host>:<httpPort>/lol/admin` (the snapshot only had
+  `proxyPort` before).
+- **"Manage this farm" button.** [app.js](../shell/renderer/app.js) `renderPopover` gives each
+  discovered farm (that advertises `httpPort`) a button that `openExternal`s its admin page — the
+  desktop app gets an admin entry with **zero UI rebuild** (it just opens the farm-served page). The
+  button `stopPropagation`s so it doesn't also trigger the row's select-farm.
+- **Unified plugin surfacing.** Each farm row now shows its **on** plugins (search / voice / OCR, from
+  `snapshot.plugins`) and its **recommendations** (`recommendedClientPlugins`, e.g. "recommends: Blender
+  tools"). Farm plugins + the client's own Blender toggle (in Preferences, `[this PC]`) are the two
+  halves of the unified model.
+- **Client auto-applies recommendations.** New `applyFarmRecommendations(farm)` in
+  [index.ts](../shell/src/main/index.ts) (called from `onFarms`, independent of the endpoint
+  change-check): if the active farm recommends `blender` **and** the user hasn't made an explicit choice
+  (`blenderMcpUserSet`) **and** mcpo isn't already on → enable it. It only ever turns a client plugin ON
+  and never auto-disables (the user may rely on it); `set-blender-enabled` now records
+  `blenderMcpUserSet:true` so a manual choice always wins. New `ShellSettings.blenderMcpUserSet`
+  ([store.ts](../shell/src/main/store.ts), default false). Since Blender is on-by-default, this is a
+  no-op today in practice — it's the correct, future-proof mechanism (and the surfacing is the visible
+  win). `FarmSnapshot` gained `httpPort`/`plugins`/`recommendedClientPlugins` ([types.ts](../shell/src/main/types.ts)).
+
+**Verified:** 52 farm tests pass (snapshot now asserts `httpPort`); `tsc --noEmit` clean; renderer
+`node --check` clean. **Whole 4-phase plan now built** (admin control API + live model start/stop; farm-
+plugin registry + live plugin toggles; the admin page; client integration). **Pending rig test** of P4
+(open a client → fleet popover shows the farm's plugins + "Manage this farm"; recommend Blender in the
+admin page → confirm a client with no explicit Blender choice honors it). Needs the farm on the new code
+(`git pull` + `lol up`) so it advertises `httpPort`/`plugins`/`recommendedClientPlugins`, and a client
+rebuild. Not released.
+
+## 2026-07-04 — Farm admin, Phase 2+3: a farm-plugin registry + live plugin toggles in the page
+
+Turned the three copy-pasted farm-service boot blocks (SearXNG / Kokoro / lol-extract) into a **plugin registry**
+and wired the admin panel to **toggle plugins on/off live**, reflected on clients.
+
+**Registry ([farm/src/plugins/registry.js](../farm/src/plugins/registry.js)).** A `FarmService` descriptor per
+service that **delegates to the unchanged `searxng.js`/`kokoro.js`/`extract.js`** — the install/spawn/health
+internals (rig-verified) are untouched; only the *orchestration* is unified. Each instance owns its child +
+up-state + per-run ctx (the OCR bearer key). `start()` returns a `{ok, level, message}` the caller logs, so the
+exact per-service wording is preserved. One `child.on('exit')` does double duty: flags a startup death, and
+(once up) fires `onDown` (advertise-off). [up.js](../farm/src/commands/up.js) now iterates the registry for
+boot, the health-timer re-probe, teardown (both shutdown paths), and the runtime pid record — the ~12
+per-service touch-points collapsed to one descriptor. Snapshot back-compat is exact: the bespoke
+`searxngUrl`/`ttsUrl`/`extract` fields still come from the same named `liveHealth` flags (set from
+`svcById.<id>.up`), so [snapshot.js](../farm/src/snapshot.js) is unchanged there; it just **adds** a generic
+`plugins: {id:{label,runsOn,enabled,healthy}}` map + `recommendedClientPlugins`.
+
+**Live toggles.** `control.setPlugin(id, on)` spawns/kills a service child at runtime (`bringUp`/`bringDown`,
+sharing the boot wiring), flips `config.<id>.enabled` (ephemeral, like model changes), and kicks the beacon so
+clients pick up the change — a **new OCR toggle mints a fresh bearer key** so clients repoint. `setPlugin` is
+serialized on the same `mutating` chain as `startModel`/`stopModel` (no racing a proxy restart).
+`control.recommendClientPlugin('blender', on)` sets `config.recommendedClientPlugins` — the farm can't run a
+per-client plugin, only advertise it. New routes in [selfServer.js](../farm/src/selfServer.js):
+`POST /lol/admin/plugin/<id>/{enable,disable}` + `POST /lol/admin/plugin/recommend` (token-gated).
+
+**Admin page ([farm/src/admin/index.html](../farm/src/admin/index.html)).** A **Plugins** card: each farm
+plugin (Web search / Voice / OCR) has an Enable/Disable button + live status; Blender shows a **Recommend to
+fleet** toggle labeled `[client]` (it runs on each user's machine — the farm only recommends it). One mental
+model, honest about who executes what.
+
+**Verified:** 52 farm tests pass — adds registry ids/gating, a `FarmService` lifecycle test (start→up, probe
+reflects alive, child-exit fires onDown), `recommendedClientPlugins` default + snapshot advertisement, and the
+plugin-toggle/recommend routes reaching a mock control (token-gated). `node --check` on every touched module +
+the admin page's inline script. An **adversarial review** of the boot refactor caught 3 real defects (all
+fixed): (1) a **self-heal regression** — the health timer guarded on `svc.pid`, which is null after a child
+dies, so a plugin that crashed in the boot window (between the sync liveHealth capture and `onDown` being
+wired, across the `detectHardware`/`gpuLiveStats` awaits) would be advertised dead forever; now guards on
+`svc.wasUp` so `probe()` re-flips it (the old code self-healed because its guard was a never-nulled child ref);
+(2) `setPlugin` turning a plugin ON that came up **alive-but-unhealthy** (SearXNG JSON off / Kokoro synth fail)
+left the child orphaned → now tears it down + rolls back; (3) OCR `makeCtx` built the Ollama URL from raw
+`config.ollama.hosts` instead of the normalized/reachable list. The exit-listener double-duty, TDZ/ordering,
+`setPlugin` serialization, and snapshot parity were reviewed and **confirmed correct**. **Deferred to Phase
+4 (client):** the desktop app auto-applying a farm's Blender *recommendation*, a unified plugins view, and a
+"Manage this farm" button opening the admin page — so today the farm plugin toggles (search/voice/OCR) work
+end-to-end, but the Blender *recommend* toggle is inert until P4 lands. Not released.
+
+## 2026-07-04 — Startup-log noise triage (surfaced during admin-panel rig testing)
+
+Rig test of the admin panel confirmed **everything works** (LiteLLM serving, SearXNG JSON 200, Kokoro healthy,
+admin start/stop of `qwen3.6:35b` verified live) — but `lol up` prints a wall of `[litellm]`/`[searxng]`/
+`[kokoro]` child-process log lines, one an alarming full traceback. Triaged all of it; **zero critical** — every
+service is healthy. Fixed the two that were genuinely worth it:
+- **SearXNG `ModuleNotFoundError: tzdata` traceback.** Windows Python's `zoneinfo` ships no IANA tz DB, so the
+  `bilibili` engine's `ZoneInfo("Asia/Shanghai")` throws + dumps a full traceback at boot. New `ensureTzdata()`
+  in [searxng.js](../farm/src/searxng.js) pip-installs `tzdata` (marker-guarded `.tzdata-ok`, so it applies once
+  to an already-installed `.searxng/` without a full reinstall). Same class of Windows gotcha as the existing
+  `import pwd` shim.
+- **Kokoro logging at DEBUG** (per-request path scans + audio-chunk shapes = most of the volume). Set
+  `API_LOG_LEVEL=WARNING` in `spawnKokoro` env ([kokoro.js](../farm/src/kokoro.js)) — confirmed the env name
+  against the vendored `main.py:26` (`os.getenv("API_LOG_LEVEL", "DEBUG")`). Applies on the next `lol up`.
+- **SearXNG onion engines** (`ahmia`, `torch`) error at boot because they need a Tor proxy we don't run —
+  disabled them in the generated `settings.yml` ([buildSettingsYaml](../farm/src/searxng.js)); takes effect on a
+  settings regen (`del farm\.searxng\settings.yml`).
+**Assessed as benign, left alone:** LiteLLM cost-map warning (no $ tracking on a LAN) + its banner/access logs;
+Kokoro's pydub-ffmpeg + torch deprecation warnings (synthesis works); SearXNG `limiter.toml missing` +
+per-request `X-Forwarded-For` (limiter is off — trusted LAN). 49 farm tests pass (adds an onion-engines-disabled
+assertion to the settings test).
+
+## 2026-07-04 — Farm admin panel, Phase 1: live model start/stop over a token-gated control API
+
+First slice of a planned farm **admin panel** (start/stop models + toggle plugins, reflected on clients). Today
+the farm is read-only — `GET /lol/self` + a one-way UDP beacon — so this is a **net-new authenticated control
+API living inside the long-lived `lol up` process** (the only holder of live state). Delivered: **start/stop a
+served model from a farm-served web page, reflected on every connected client within ~5s.**
+
+**Decision that shaped it — LiteLLM has no live model API here.** Verified against the installed **litellm
+1.90.0**: `POST /model/new` does `if prisma_client is None: raise HTTPException(500, "No DB Connected")`
+([model_management_endpoints.py:1344](../farm/.venv/Lib/site-packages/litellm/proxy/management_endpoints/model_management_endpoints.py)) — the runtime add/delete-model routes **require a Postgres/Prisma DB**, which the config-only workshop farm
+deliberately doesn't run. So changing the served set = **regenerate `config.generated.yaml` + bounce the
+LiteLLM child in place** (`restartProxy`). Brief blip (in-flight requests drop for the few seconds it restarts)
+— acceptable for an infrequent admin action; documented.
+
+**Farm side.** New `AdminSchema` (`admin.token`, [config.js](../farm/src/config.js)) — null → `lol up`
+generates an ephemeral token per run and prints it in the banner. [selfServer.js](../farm/src/selfServer.js)
+grew from "only `GET /lol/self`" into a small router: `GET /lol/admin` serves a **self-contained static admin
+page** ([farm/src/admin/index.html](../farm/src/admin/index.html), zinc-themed, no bundler); `GET
+/lol/admin/state` + the `POST /lol/admin/model/{start,stop}` routes require `Authorization: Bearer <token>`
+(constant-time compare, length-checked); `GET /lol/self` stays open. [up.js](../farm/src/commands/up.js) builds
+a `control` closure (`getAdminState`/`startModel`/`stopModel`) bound to the live `config`/`liveHealth`/`child`/
+`beacon` and hands it to selfServer. **The restart is crash-safe:** `child` became a `let`, the proxy-exit
+handler is a named `onProxyExit(c, code)` guarded by `restartingProxy` (deliberate bounce) + identity (`c !==
+child`, a superseded old child) so a control-triggered restart never triggers the farm-teardown path;
+`writeRuntimeState()` re-records the NEW pid so `lol down` from another shell still targets the live proxy.
+"Start" = add to the in-memory catalog + `warmModel` (Ollama `/api/generate keep_alive:-1`); "stop" = remove +
+`evictModel` (`keep_alive:0`) — new helpers in [ollama.js](../farm/src/ollama.js). Guards: can't stop the last
+model; stopping the default promotes a new one; start validates the model is installed on a reachable host.
+Catalog changes are **ephemeral** (in-memory, matching the `lol up` picker which deliberately never persists).
+Every change ends with `beacon.kick()` → the snapshot already advertises `servedEntries(config)`, so clients
+repoint and OWUI's `/v1/models` reflects it with zero client code.
+
+**Verified:** 49 farm tests pass (adds: admin token default + strict-reject; an **integration test** that spins
+up selfServer with a mock control and asserts `/lol/self` is open, the admin page serves, and every
+`/lol/admin/*` route is 401 without/with a wrong token and only reaches `control` with the right one);
+`node --check` on all touched modules. An **adversarial review** of the restart state-machine caught 5 real
+bugs (all fixed): a failed restart could leave a **zombie proxy** + stale pid → now `applyModels` rolls back
+to the last-good set and `restartProxy` kills a proxy that never came up; the child-**identity guard was dead
+code** (a bare `onProxyExit(child,…)` reads the `let` at call time) → now `bindProxyExit(c)` captures the
+instance; a **SIGINT mid-restart** could orphan a fresh proxy → `restartProxy` checks `stopping` before spawn +
+after health-wait; the runtime **pid was recorded too late** for a concurrent `lol down` → now written
+immediately after spawn; and **concurrent admin calls** could race the shared `restartingProxy` and tear the
+farm down → start/stop are **serialized** on one in-flight chain. Auth + the empty-`control` startup window
+were reviewed and confirmed safe. **Pending rig test** (`lol up` → open `http://<box>:41997/lol/admin`,
+enter the token → Start a model → it appears in a client's OWUI picker + `ollama ps` shows it warmed → Stop →
+gone + evicted, without tearing the farm down). **Next phases (planned, not built):** P2 farm-plugin registry +
+live plugin toggles; P3 the full page (plugin toggles + fleet); P4 client honors farm plugin *recommendations*
+(e.g. Blender) + a unified plugins view. Not released.
+
+## 2026-07-04 — Document OCR: one shared farm-side extraction service (Ollama-OCR + optional Docling)
+
+Added **OCR / document extraction** as a shared farm service, discovered + wired exactly like SearXNG and
+Kokoro (beacon → client env, zero client setup). **Why this shape:** an adversarial source-check against
+**OWUI v0.10.2** proved the tempting "Ollama-OCR as a tool the model calls" design is **impossible** — external
+OpenAPI tool servers receive **only the model's JSON args**, never the uploaded file bytes
+(`utils/tools.py` `execute_tool_server` sends `params=kwargs`, `extra_params={}`; only *native* tools get
+`__files__` via `middleware.py:2680`). The **only** OWUI surface that receives an uploaded file is the
+**content-extraction engine**, and there's exactly **one** slot. So both goals the owner asked for
+("searchable scanned docs" **and** "vision-model OCR transcripts") funnel through **one** farm service that
+OWUI sees as `CONTENT_EXTRACTION_ENGINE=external` and which **routes internally**.
+
+**Farm side** — new `farm/src/extract.js` (clone of `searxng.js`: own venv under `.extract/`, `ensureExtract`
+/`spawnExtract`/`waitForExtract`/`extractAlive`) runs `farm/src/pysvc/server.py`, a small **FastAPI**
+implementing OWUI's **verified** External Document Loader contract: `PUT /process` with the **raw file bytes**
+as the body, `Authorization: Bearer <key>`, `X-Filename`, → returns a JSON **list** of
+`{page_content, metadata:{page}}`. Router: **images + scanned/image-only PDF pages → Ollama-OCR** (a vision
+model on the farm's **local** Ollama `/api/generate`); **born-digital PDFs / docx / text/html → fast local
+extraction** (PyMuPDF/python-docx); **office formats via Docling** when `ocr.docling:true`. Ollama-OCR's
+`OCRProcessor` is **vendored** into `farm/src/pysvc/ocr_processor.py` (MIT, see `LICENSE-ollama-ocr`; debug
+prints stripped) rather than `pip install ollama-ocr` — that package pulls `python-magic` (native libmagic; a
+Windows landmine) + streamlit + transformers, none of which the core path needs. Default install is
+**torch-free** (fastapi/uvicorn/requests/pymupdf/opencv-headless/numpy/python-docx/tqdm) and **reuses the
+farm's already-loaded vision model** (no new 8 GB pull) — the OCR model defaults to the served default vision
+model's real Ollama tag via `resolveOcrModel` (config `ocr.model` overrides). Docling is the heavy opt-in
+(torch + models). Lifecycle mirrors SearXNG/Kokoro exactly: `OcrSchema` in `config.js` (**off by default** — it
+reroutes all of OWUI's document ingestion through the farm), `--ocr/--no-ocr` run-flags, per-run bearer key
+(`crypto.randomBytes`) advertised in the snapshot only when `enabled && extractUp && extractKey`, `extractPid`
+recorded + tree-killed in both `up.js` shutdown paths and `down.js`, health-timer re-probe + advertise-off on
+exit, `depsSignature` install marker (a docling toggle forces reinstall), and `lol install` pre-installs only
+when enabled.
+
+**Client side is pure env** (no renderer seeding, unlike Blender): `extract:{url,key}` threaded through
+`types.ts` → `index.ts` (`farmExtract`, `onFarms`/`select-farm`/`set-data-dir`/`restart`/boot) → `sidecar.ts`
+(start/repoint change-check/setDataDir/crash-restart) → `configBridge.ts`, which sets
+`CONTENT_EXTRACTION_ENGINE=external` + `EXTERNAL_DOCUMENT_LOADER_URL` (loader **base**; OWUI appends `/process`)
++ `EXTERNAL_DOCUMENT_LOADER_API_KEY`. Absent farm OCR → nothing set → OWUI's built-in default extractor,
+byte-for-byte as before. The raw file transits to the trusted-LAN farm for extraction (that's where the GPU is,
+same boundary as SearXNG receiving queries); embedding still happens locally (`RAG_EMBEDDING_ENGINE` stays
+unset).
+
+**Trade-off (documented):** with `external` engine on, ALL uploads route through our service; the light path
+covers images/PDF/docx/pptx/xlsx/text/html, and only legacy binary Office (`.doc`/`.ppt`/`.xls`) +
+`.odt`/`.epub`/`.rtf` `415` unless `ocr.docling` is on. **Two robustness fixes from an adversarial review**
+(4 dimensions × verify): (1) the vendored Ollama-OCR `requests.post` had **no timeout** — a stalled Ollama
+would hold a Starlette threadpool worker forever and, at enough concurrency, stall all `/process` uploads;
+added `request_timeout=(10, 600)` (env `OCR_HTTP_TIMEOUT`) so a hang surfaces as a 502 and frees the worker.
+(2) office formats OWUI extracted natively would `415` under the external engine — added light `python-pptx`
+/`openpyxl` extractors so `.pptx`/`.xlsx` keep working without Docling. **Verified:** farm tests **46 pass**
+(config defaults, strict-enum reject, snapshot advertise/omit, `resolveOcrModel`, depsSignature); `tsc
+--noEmit` clean; `py_compile` clean; all edited modules load. **Pending live rig test** (`lol up --ocr` →
+`/health` 200 → hand-crafted `PUT /process` with a JPG/scanned-PDF/docx → OWUI upload E2E). Not yet released.
+
 ## 2026-07-03 — MCP marked experimental · model-per-box in the fleet view · OWUI clipboard fix
 
 Three small UX items:

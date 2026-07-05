@@ -8,19 +8,19 @@
 // work from another shell.
 
 const os = require('os');
+const crypto = require('crypto');
 const { spawn } = require('child_process');
 const log = require('../log');
 const ollama = require('../ollama');
 const proxyApi = require('../proxy');
 const { loadConfig } = require('../config');
-const { writeLitellmConfig } = require('../litellm');
+const { writeLitellmConfig, servedEntries } = require('../litellm');
 const { buildSnapshot } = require('../snapshot');
 const { detectHardware, gpuLiveStats } = require('../systemInfo');
 const { DiscoveryBeacon } = require('../beacon');
 const { PeerListener } = require('../peerListener');
 const { selectModels } = require('../modelPicker');
-const { ensureSearxng, spawnSearxng, waitForSearxng, searxngAlive } = require('../searxng');
-const { ensureKokoro, spawnKokoro, waitForKokoro, kokoroAlive } = require('../kokoro');
+const { makeServices, pluginsSummary } = require('../plugins/registry');
 const { farmId } = require('../identity');
 const { startSelfServer } = require('../selfServer');
 const {
@@ -31,6 +31,21 @@ const LOCAL_RX = /^(127\.0\.0\.1|localhost|::1|0\.0\.0\.0)$/i;
 
 function isLocalHost(baseUrl) {
     try { return LOCAL_RX.test(new URL(baseUrl).hostname); } catch { return false; }
+}
+
+// The vision model the OCR service drives: an explicit config.ocr.model wins; else
+// the served DEFAULT model if it's vision-capable; else any served vision model;
+// else the default (so it at least runs — a text-only model just OCRs poorly). This
+// is the real Ollama tag (`underlying`), since Ollama-OCR hits raw Ollama, not the
+// alias-fronted proxy.
+function resolveOcrModel(config) {
+    if (config.ocr.model) return config.ocr.model;
+    const entries = servedEntries(config);
+    const pick = entries.find((e) => e.isDefault && e.vision)
+        || entries.find((e) => e.vision)
+        || entries.find((e) => e.isDefault)
+        || entries[0];
+    return pick ? pick.underlying : (config.models[0] && config.models[0].id);
 }
 
 // Spawn a local `ollama serve` with the configured concurrency env. Returns the
@@ -181,6 +196,12 @@ async function run(args) {
     if ((args || []).includes('--no-websearch')) config.websearch.enabled = false;
     if ((args || []).includes('--tts')) config.tts.enabled = true;
     if ((args || []).includes('--no-tts')) config.tts.enabled = false;
+    if ((args || []).includes('--ocr')) config.ocr.enabled = true;
+    if ((args || []).includes('--no-ocr')) config.ocr.enabled = false;
+    // Admin control token (start/stop models, toggle plugins from the /lol/admin page).
+    // Ephemeral per run when unset — printed in the banner so the operator can paste it.
+    if (!config.admin.token) config.admin.token = crypto.randomBytes(24).toString('hex');
+    const adminToken = config.admin.token;
 
     // Refuse to double-start.
     const existing = readRuntime();
@@ -222,7 +243,14 @@ async function run(args) {
     // 4. Start + health-wait the proxy.
     const baseUrl = `http://127.0.0.1:${config.proxy.port}`;
     log.step(`Starting LiteLLM proxy on ${config.proxy.host}:${config.proxy.port} …`);
-    const child = spawnLitellm(config, yamlPath);
+    // `child` is a `let` so the admin control API can bounce the proxy in place
+    // (restartProxy below) to change the served model set without a full `lol up`.
+    let child = spawnLitellm(config, yamlPath);
+    let restartingProxy = false;   // true while restartProxy() deliberately bounces LiteLLM
+    const wireProxyIo = (c) => {
+        c.stdout.on('data', log.childPrefix('litellm'));
+        c.stderr.on('data', log.childPrefix('litellm'));
+    };
     let spawnFailed = false;
     child.on('error', (e) => {
         spawnFailed = true;
@@ -232,8 +260,7 @@ async function run(args) {
             log.err(`Failed to start LiteLLM: ${e.message}`);
         }
     });
-    child.stdout.on('data', log.childPrefix('litellm'));
-    child.stderr.on('data', log.childPrefix('litellm'));
+    wireProxyIo(child);
 
     const up = await proxyApi.waitForProxy(baseUrl, { timeoutMs: 90000 });
     if (spawnFailed) return 1;
@@ -246,61 +273,24 @@ async function run(args) {
     const served = await proxyApi.listProxyModels(baseUrl, config.proxy.masterKey);
     log.ok(`Proxy healthy — ${log.paint.bold('/v1/models')}: ${served.length ? served.join(', ') : '(none yet)'}`);
 
-    // 4b. Web search (SearXNG) — one shared instance for every client on the LAN.
-    // Auxiliary: any failure warns and the farm still comes up without it.
-    let searxngChild = null;
-    let searxngUp = false;
-    if (config.websearch.enabled) {
-        log.step(`Web search: preparing SearXNG (port ${config.websearch.port}) …`);
-        if (await ensureSearxng()) {
-            searxngChild = spawnSearxng(config);
-            searxngChild.on('error', (e) => log.warn(`SearXNG failed to start: ${e.message}`));
-            searxngChild.stdout.on('data', log.childPrefix('searxng'));
-            searxngChild.stderr.on('data', log.childPrefix('searxng'));
-            const sx = await waitForSearxng(config.websearch.port);
-            if (sx.up && sx.jsonOk) {
-                searxngUp = true;
-                log.ok(`SearXNG up — clients get web search automatically (first 0.0.0.0 bind may show a Windows Firewall prompt: allow it).`);
-            } else if (sx.up && !sx.jsonOk) {
-                log.err(`SearXNG is up but the JSON API is off (OWUI would get 403) — delete ${log.paint.grey('farm/.searxng/settings.yml')} and re-run \`lol up\`.`);
-            } else {
-                log.warn(`SearXNG did not become healthy on port ${config.websearch.port} (busy port? see the [searxng] log above). Continuing without web search.`);
-            }
-        }
-    }
-
-    // 4c. Neural TTS (Kokoro) — one shared voice server for every client on the LAN.
-    // Auxiliary: any failure warns and the farm still comes up without voice output.
-    let kokoroChild = null;
-    let ttsUp = false;
-    if (config.tts.enabled) {
-        log.step(`Voice: preparing Kokoro TTS (port ${config.tts.port}) — first run installs it (multi-GB) …`);
-        if (await ensureKokoro()) {
-            kokoroChild = spawnKokoro(config);
-            // If OUR uvicorn exits during startup (e.g. the port is squatted by an
-            // orphaned Kokoro), don't advertise — the squatter would answer /health
-            // and we'd hand clients a server we can't manage or shut down.
-            let kokoroExited = false;
-            kokoroChild.on('exit', () => { kokoroExited = true; });
-            kokoroChild.on('error', (e) => log.warn(`Kokoro failed to start: ${e.message}`));
-            kokoroChild.stdout.on('data', log.childPrefix('kokoro'));
-            kokoroChild.stderr.on('data', log.childPrefix('kokoro'));
-            const kx = await waitForKokoro(config.tts.port, config.tts.voice);
-            if (kokoroExited) {
-                log.warn(`Kokoro exited during startup (port ${config.tts.port} already in use? see the [kokoro] log above). Continuing without voice.`);
-            } else if (kx.up && kx.synthOk) {
-                ttsUp = true;
-                log.ok(`Kokoro TTS up (voice ${log.paint.bold(config.tts.voice)}) — clients get neural read-aloud automatically.`);
-            } else if (kx.up) {
-                log.err(`Kokoro is up but synthesis failed — voice/model/espeak issue. See the [kokoro] log above.`);
-            } else {
-                log.warn(`Kokoro did not become healthy on port ${config.tts.port} (busy port? warmup slow? see [kokoro] log). Continuing without voice.`);
-            }
-        }
+    // 4b. Farm-side plugins (web search / voice / OCR) — one shared instance each for the
+    // whole LAN, spawned + health-waited here and advertised in the snapshot. All three run
+    // through the plugin registry so boot, live toggling (control.setPlugin), the health
+    // timer, and teardown share ONE path. Auxiliary: a failure warns and the farm still
+    // comes up without that plugin. (Client-side plugins like Blender aren't here — the
+    // farm only recommends them via config.recommendedClientPlugins.)
+    const services = makeServices();
+    const svcById = Object.fromEntries(services.map((s) => [s.id, s]));
+    const pluginRuntime = { log, crypto, resolveOcrModel, isLocalHost, reachable: oll.reachable };
+    for (const svc of services) {
+        if (!svc.enabled(config)) continue;
+        const res = await svc.start(config, pluginRuntime);
+        if (res && res.level && res.message) log[res.level](res.message);
     }
 
     // 5. Discovery — UDP beacon + unicast /lol/self (both share ONE snapshot so
-    // they can't drift). liveHealth is refreshed on a timer below.
+    // they can't drift). liveHealth is refreshed on a timer below. The plugin flags are
+    // read from the service instances (bespoke keys kept for snapshot back-compat).
     const liveHealth = {
         proxyUp: true,
         hostsUp: oll.reachable.length,
@@ -308,8 +298,11 @@ async function run(args) {
         loaded: [],
         coordinator,                     // advertise the role so clients prefer us
         deployments: backends,           // local hosts + aggregated peers
-        searxngUp,                       // advertise searxngUrl so clients get web search
-        ttsUp,                           // advertise ttsUrl so clients get neural voice
+        searxngUp: svcById.websearch.up, // advertise searxngUrl so clients get web search
+        ttsUp: svcById.tts.up,           // advertise ttsUrl so clients get neural voice
+        extractUp: svcById.ocr.up,       // advertise extract{} so clients get document OCR
+        extractKey: svcById.ocr.up ? svcById.ocr.ctx.key : null, // bearer OWUI's loader must send
+        plugins: pluginsSummary(services, config), // generic map for the admin page + clients
         host: await detectHardware(),   // static GPU/VRAM/RAM/cores (once at boot)
         gpu: await gpuLiveStats(),       // live GPU util + VRAM (refreshed below)
     };
@@ -329,25 +322,49 @@ async function run(args) {
     } else {
         log.info('Discovery beacon disabled (config.beacon.enabled=false).');
     }
-    const selfServer = startSelfServer({ httpPort: config.beacon.httpPort, getSnapshot, host: config.proxy.host });
+    // The admin control API is populated with the real functions below; selfServer only
+    // calls control.* at REQUEST time (after startup completes — there is no `await`
+    // between here and the Object.assign), so late assignment is safe. The stub methods
+    // are belt-and-suspenders in case a future edit inserts an await into that span.
+    const control = {
+        getAdminState: async () => ({ error: 'starting' }),
+        startModel: async () => ({ ok: false, error: 'farm still starting' }),
+        stopModel: async () => ({ ok: false, error: 'farm still starting' }),
+        setPlugin: async () => ({ ok: false, error: 'farm still starting' }),
+        recommendClientPlugin: () => ({ ok: false, error: 'farm still starting' }),
+    };
+    const selfServer = startSelfServer({ httpPort: config.beacon.httpPort, getSnapshot, host: config.proxy.host, control, adminToken });
     log.ok(`Unicast discovery → ${log.paint.grey(`http://<ip>:${config.beacon.httpPort}/lol/self`)}`);
+    log.ok(`Admin panel → ${log.paint.grey(`http://<ip>:${config.beacon.httpPort}/lol/admin`)} ${log.paint.grey('(token in the startup banner)')}`);
 
     // If SearXNG dies after boot, stop advertising it immediately (auxiliary — the
     // farm stays up; clients then cleanly disable web search). The health timer
     // below also re-probes it, catching a hung-but-not-exited instance.
-    if (searxngChild) {
-        searxngChild.on('exit', (code) => {
-            if (liveHealth.searxngUp) log.warn(`SearXNG exited (code ${code}) — web search is now unavailable to clients.`);
-            liveHealth.searxngUp = false;
+    // Advertise-off: if a running plugin's child later exits, stop advertising it + kick.
+    // bringUp/bringDown reuse the same liveHealth wiring so live toggles (control.setPlugin)
+    // and boot behave identically.
+    const refreshPluginHealth = () => { liveHealth.plugins = pluginsSummary(services, config); };
+    const applyPluginHealth = (svc) => {
+        liveHealth[svc.healthKey] = svc.up;
+        if (svc.id === 'ocr') liveHealth.extractKey = svc.up ? svc.ctx.key : null;
+        refreshPluginHealth();
+    };
+    for (const svc of services) {
+        svc.onDown = (s) => {
+            log.warn(`${s.label} exited — no longer available to clients.`);
+            applyPluginHealth(s);
             if (beacon) beacon.kick();
-        });
+        };
     }
-    if (kokoroChild) {
-        kokoroChild.on('exit', (code) => {
-            if (liveHealth.ttsUp) log.warn(`Kokoro exited (code ${code}) — voice output is now unavailable to clients.`);
-            liveHealth.ttsUp = false;
-            if (beacon) beacon.kick();
-        });
+    async function bringUp(svc) {
+        const res = await svc.start(config, pluginRuntime);
+        if (res && res.level && res.message) log[res.level](res.message);
+        applyPluginHealth(svc);
+        return svc.up;
+    }
+    async function bringDown(svc) {
+        await svc.stop();
+        applyPluginHealth(svc);
     }
 
     // Keep the advertised health honest: re-probe proxy + hosts periodically and
@@ -364,36 +381,45 @@ async function run(args) {
             const loadedLists = await Promise.all(hosts.map((h) => ollama.loadedModels(h)));
             liveHealth.loaded = [...new Set(loadedLists.flat())];
             liveHealth.gpu = await gpuLiveStats();
-            // Only advertise SearXNG while it's actually answering (and was healthy
-            // at boot) — so a crashed instance stops being advertised to clients.
-            if (searxngChild) liveHealth.searxngUp = searxngUp && await searxngAlive(config.websearch.port);
-            if (kokoroChild) liveHealth.ttsUp = ttsUp && await kokoroAlive(config.tts.port);
+            // Only advertise a plugin while it's actually answering (and it came up) — so a
+            // crashed/hung instance stops being advertised to clients. Guard on `wasUp`, NOT
+            // `pid`: a child that died between boot and now has a null pid but must still be
+            // re-probed to flip its stale advertisement off (probe() handles the null child).
+            for (const svc of services) { if (svc.wasUp) liveHealth[svc.healthKey] = await svc.probe(config); }
+            liveHealth.plugins = pluginsSummary(services, config);
             if (beacon) beacon.kick();
         } catch { /* probes are already failure-tolerant; never throw from the timer */ }
         finally { healthInFlight = false; }
     }, Math.max(10, config.beacon.intervalSec * 2) * 1000);
     if (healthTimer.unref) healthTimer.unref();
 
-    // 6. Record runtime so status/down work from another shell.
-    writeRuntime({
+    // 6. Record runtime so status/down work from another shell. Wrapped so a live
+    //    proxy restart (control.restartProxy) can refresh the recorded litellmPid —
+    //    otherwise `lol down` from another shell would kill the stale (old) pid and
+    //    leave the bounced LiteLLM running.
+    const startedAt = Date.now();
+    const writeRuntimeState = () => writeRuntime({
         litellmPid: child.pid,
-        searxngPid: searxngChild ? searxngChild.pid : null,
-        kokoroPid: kokoroChild ? kokoroChild.pid : null,
+        searxngPid: svcById.websearch.pid,
+        kokoroPid: svcById.tts.pid,
+        extractPid: svcById.ocr.pid,
         ollamaPids: oll.spawnedPids,
         proxyPort: config.proxy.port,
         endpoint: snapshot.endpoint,
         openaiBaseUrl: snapshot.openaiBaseUrl,
         configPath,
         farmId: snapshot.id,
-        startedAt: Date.now(),
+        startedAt,
         host: os.hostname(),
     });
+    writeRuntimeState();
 
     log.plain('');
     log.ok(`${log.paint.bold(config.name)} is up${coordinator ? ' (coordinator)' : ''}.`);
     log.plain(`     OpenAI endpoint : ${log.paint.cyan(snapshot.openaiBaseUrl)}`);
     if (coordinator) log.plain(`     Coordinator     : balancing ${log.paint.bold(String(backends))} backend(s) — ${config.ollama.hosts.length} local host + ${peers.length} peer farm(s)`);
     log.plain(`     Reachable at    : ${snapshot.ips.map((ip) => `http://${ip}:${config.proxy.port}/v1`).join('  ')}`);
+    log.plain(`     Admin panel     : ${log.paint.cyan(`http://${snapshot.ips[0] || '127.0.0.1'}:${config.beacon.httpPort}/lol/admin`)}   token ${log.paint.bold(adminToken)}`);
     log.plain(`     Stop with       : Ctrl-C   (or \`lol down\` from another shell)`);
     log.plain('');
 
@@ -408,8 +434,7 @@ async function run(args) {
         if (beacon) beacon.stop();
         try { selfServer.close(); } catch { /* already closed */ }
         await killTree(child.pid);
-        if (searxngChild) await killTree(searxngChild.pid);
-        if (kokoroChild) await killTree(kokoroChild.pid);
+        for (const svc of services) { if (svc.pid) await killTree(svc.pid); }
         for (const pid of oll.spawnedPids) await killTree(pid);
         clearRuntime();
         log.ok('Farm stopped.');
@@ -418,8 +443,12 @@ async function run(args) {
     process.on('SIGINT', () => shutdown('SIGINT'));
     process.on('SIGTERM', () => shutdown('SIGTERM'));
 
-    child.on('exit', async (code) => {
-        if (stopping) return;
+    // The proxy-exit handler is NAMED so a deliberate restart (restartProxy, below)
+    // can bounce LiteLLM without this treating it as a crash and tearing the farm down.
+    // Guards: `restartingProxy` (we're deliberately bouncing) and identity (`c !== child`,
+    // a superseded old child) both suppress the teardown.
+    const onProxyExit = async (c, code) => {
+        if (restartingProxy || c !== child || stopping) return;
         stopping = true;
         // Tear down everything we own BEFORE exiting (and AWAIT the Ollama kills so
         // process.exit doesn't orphan a local Ollama this CLI started).
@@ -431,14 +460,187 @@ async function run(args) {
         const intentional = !readRuntime();
         if (intentional) { log.plain(''); log.ok('Farm stopped (via `lol down`).'); }
         else { log.err(`LiteLLM exited unexpectedly (code ${code}). Shutting down the farm.`); clearRuntime(); }
-        if (searxngChild) await killTree(searxngChild.pid);
-        if (kokoroChild) await killTree(kokoroChild.pid);
+        for (const svc of services) { if (svc.pid) await killTree(svc.pid); }
         for (const pid of oll.spawnedPids) await killTree(pid);
         process.exit(intentional ? 0 : (code || 1));
+    };
+    // Bind the exit handler capturing the SPECIFIC child instance (`c`), so onProxyExit's
+    // identity guard (`c !== child`) can actually tell a superseded old child from the
+    // current one — a bare `onProxyExit(child, …)` would read the `let` at call time and
+    // always see the current child, defeating the guard.
+    const bindProxyExit = (c) => c.on('exit', (code) => onProxyExit(c, code));
+    bindProxyExit(child);
+
+    // --- live admin control (start/stop models) ---------------------------------
+    // Regenerate the LiteLLM routing for the current in-memory config.models and bounce
+    // the proxy child in place. LiteLLM here is config-only (no DB), so its /model/new
+    // admin route is unavailable — a restart is the reliable way to change the served
+    // set. Brief blip: in-flight requests drop during the few seconds it takes to come
+    // back. Guarded by restartingProxy so onProxyExit doesn't tear the farm down.
+    // Returns true ONLY when the new proxy actually became healthy.
+    async function restartProxy() {
+        if (stopping) return false;
+        restartingProxy = true;
+        try {
+            writeLitellmConfig(config, yamlPath, peers);
+            await killTree(child.pid);
+            if (stopping) return false;                    // a signal landed during the kill → don't spawn an orphan
+            const nc = spawnLitellm(config, yamlPath);
+            let ncExited = false;
+            nc.on('error', () => { /* a failed spawn surfaces via waitForProxy below */ });
+            // Records a startup death AND (once healthy + current) supervises like the
+            // initial child. Suppressed while restartingProxy / superseded (identity).
+            nc.on('exit', (code) => { ncExited = true; onProxyExit(nc, code); });
+            wireProxyIo(nc);
+            child = nc;
+            writeRuntimeState();                           // record the new pid immediately so `lol down` targets it
+            const ok = await proxyApi.waitForProxy(baseUrl, { timeoutMs: 90000 });
+            if (stopping) return false;
+            if (!ok || ncExited) {                         // the new proxy never came up — don't leave a zombie
+                log.err('Proxy restart failed — the new LiteLLM did not become healthy.');
+                await killTree(nc.pid);
+                return false;
+            }
+            return true;
+        } finally {
+            restartingProxy = false;
+        }
+    }
+
+    // Apply an in-memory config.models change + bounce the proxy; on failure ROLL BACK to
+    // the previous set and restore the last-known-good proxy (a failed model change must
+    // never leave the farm without a working proxy). EPHEMERAL — never writes
+    // lol.config.json (matches the `lol up` picker, which deliberately doesn't persist).
+    async function applyModels(next) {
+        const before = config.models;
+        config.models = next;
+        if (await restartProxy()) return true;
+        config.models = before;                            // revert
+        await restartProxy();                              // it was healthy before → restore it
+        return false;
+    }
+    const norm = (s) => String(s || '').replace(/:latest$/, '');   // gemma4 ≡ gemma4:latest
+    const servedIdList = () => config.models.map((m) => m.id);
+
+    async function startModel(id) {
+        id = String(id || '').trim();
+        if (!id) return { ok: false, error: 'No model id.' };
+        if (config.models.some((m) => norm(m.id) === norm(id))) return { ok: true, already: true, servedModels: servedIdList() };
+        const present = (await Promise.all(oll.reachable.map((h) => ollama.listModels(h)))).flat();
+        if (!ollama.hasModel(present, id)) return { ok: false, error: `"${id}" isn't installed on any reachable host — pull it first.` };
+        if (!(await applyModels(config.models.concat([{ id }])))) {
+            return { ok: false, error: 'The proxy did not come back — reverted to the previous model set.', servedModels: servedIdList() };
+        }
+        for (const h of oll.reachable.filter(isLocalHost)) ollama.warmModel(h, id, config.ollama.keepAlive).catch(() => {});
+        if (beacon) beacon.kick();
+        return { ok: true, servedModels: servedIdList() };
+    }
+    async function stopModel(id) {
+        id = String(id || '').trim();
+        const idx = config.models.findIndex((m) => norm(m.id) === norm(id));
+        if (idx < 0) return { ok: true, already: true, servedModels: servedIdList() };
+        if (config.models.length <= 1) return { ok: false, error: 'Cannot stop the last served model.' };
+        const removed = config.models[idx];
+        const next = config.models.slice();
+        next.splice(idx, 1);
+        // Promote a new default without mutating the shared entry object (rollback safety).
+        if (removed.default && !next.some((m) => m.default)) next[0] = { ...next[0], default: true };
+        if (!(await applyModels(next))) {
+            return { ok: false, error: 'The proxy did not come back — reverted to the previous model set.', servedModels: servedIdList() };
+        }
+        for (const h of oll.reachable.filter(isLocalHost)) ollama.evictModel(h, removed.id).catch(() => {});
+        if (beacon) beacon.kick();
+        return { ok: true, servedModels: servedIdList() };
+    }
+
+    // A richer view than the discovery snapshot: installed models per host (with sizes),
+    // which are served, which are loaded in VRAM, + host/plugin health. Drives the page.
+    async function getAdminState() {
+        const perHost = await Promise.all(hosts.map(async (h) => ({
+            installed: await ollama.listModelsDetailed(h),
+            loaded: await ollama.loadedModels(h),
+        })));
+        const installed = new Map();
+        for (const ph of perHost) for (const m of ph.installed) if (!installed.has(m.name)) installed.set(m.name, m);
+        const loaded = [...new Set(perHost.flatMap((ph) => ph.loaded))];
+        // Match on the normalized id (gemma4 ≡ gemma4:latest) so an untagged config
+        // entry still flags the fully-tagged Ollama name as served/default — same
+        // tolerance startModel/stopModel use, so the page shows the right Start/Stop.
+        const servedIds = new Set(config.models.map((m) => norm(m.id)));
+        const defaultId = norm((config.models.find((m) => m.default) || config.models[0] || {}).id || null);
+        return {
+            name: config.name,
+            models: [...installed.values()].map((m) => ({
+                id: m.name, size: m.size, family: m.family, paramSize: m.paramSize,
+                served: servedIds.has(norm(m.name)), loaded: loaded.includes(m.name), isDefault: norm(m.name) === defaultId,
+            })),
+            servedNames: servedEntries(config).map((e) => e.servedName),
+            modelAlias: (config.modelAlias || '').trim() || null,
+            plugins: pluginsSummary(services, config),
+            recommendedClientPlugins: config.recommendedClientPlugins || [],
+            health: {
+                hostsUp: liveHealth.hostsUp, hostsTotal: config.ollama.hosts.length,
+                gpu: liveHealth.gpu || null, host: liveHealth.host || null, proxyUp: liveHealth.proxyUp !== false,
+            },
+        };
+    }
+
+    // Toggle a FARM plugin (web search / voice / OCR) live: spawn or kill its service child,
+    // reflect into liveHealth, kick the beacon so clients pick up the change. Ephemeral (the
+    // config.<plugin>.enabled flip isn't persisted — matches the model-change philosophy).
+    async function setPlugin(id, on) {
+        const svc = svcById[id];
+        if (!svc) return { ok: false, error: `Unknown plugin "${id}".` };
+        on = !!on;
+        config[svc.configKey].enabled = on;
+        if (on) {
+            if (svc.pid) return { ok: true, already: true, enabled: true, healthy: svc.up };
+            await bringUp(svc);
+            if (!svc.up) {
+                // Came up unhealthy (e.g. SearXNG's JSON API off / Kokoro synth failed) but the
+                // child may still be ALIVE — tear it down so we don't leak an unmanaged process,
+                // then roll back the intent.
+                config[svc.configKey].enabled = false;
+                await bringDown(svc);
+                writeRuntimeState();
+                return { ok: false, error: `${svc.label} did not come up — see the farm log.` };
+            }
+        } else {
+            await bringDown(svc);
+        }
+        writeRuntimeState();       // service pids changed → keep `lol down` accurate
+        if (beacon) beacon.kick();
+        return { ok: true, enabled: on, healthy: svc.up };
+    }
+    // Recommend (or un-recommend) a CLIENT-side plugin (e.g. "blender") to the fleet — the
+    // farm can't run it, only advertise the intent; clients auto-apply what they can.
+    function recommendClientPlugin(id, on) {
+        id = String(id || '').trim();
+        if (!id) return { ok: false, error: 'No plugin id.' };
+        const set = new Set(config.recommendedClientPlugins || []);
+        if (on) set.add(id); else set.delete(id);
+        config.recommendedClientPlugins = [...set];
+        if (beacon) beacon.kick();
+        return { ok: true, recommendedClientPlugins: config.recommendedClientPlugins };
+    }
+
+    // Serialize mutations: the admin page's client-side `busy` flag doesn't bind a second
+    // browser tab, another device sharing the token, or a curl script, and two overlapping
+    // restarts share `restartingProxy` — one's finally clears it while the other is still
+    // mid-restart, which could unmask onProxyExit and tear the farm down. A single in-flight
+    // chain makes start/stop/plugin-toggle atomic regardless of how many callers hit at once.
+    let mutating = Promise.resolve();
+    const serialize = (fn) => { const p = mutating.then(fn, fn); mutating = p.catch(() => {}); return p; };
+    Object.assign(control, {
+        getAdminState,                                     // read-only — no lock needed
+        startModel: (id) => serialize(() => startModel(id)),
+        stopModel: (id) => serialize(() => stopModel(id)),
+        setPlugin: (id, on) => serialize(() => setPlugin(id, on)),
+        recommendClientPlugin,                             // trivial array mutation + kick
     });
 
     // Keep the event loop alive.
     return new Promise(() => {});
 }
 
-module.exports = { run };
+module.exports = { run, resolveOcrModel };

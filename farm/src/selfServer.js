@@ -1,33 +1,120 @@
-// Unicast discovery fallback — GET /lol/self → the snapshot JSON.
+// Unicast discovery fallback + the farm ADMIN control API, on one built-in http
+// server (no framework). Routes:
+//   GET  /lol/self               → the discovery snapshot JSON (open; CORS *)
+//   GET  /lol/admin              → the static admin page (open — it's just HTML/JS)
+//   GET  /lol/admin/state        → richer admin view (token)   → control.getAdminState()
+//   POST /lol/admin/model/start  → serve + warm a model (token) → control.startModel(id)
+//   POST /lol/admin/model/stop   → unserve + evict a model (token) → control.stopModel(id)
 //
-// On managed/school Wi-Fi, client isolation drops broadcast + multicast between
-// clients (so the UDP beacon never arrives) even though unicast HTTP works fine.
-// The shell's subnet sweep / "add by address" probes THIS endpoint to find the
-// farm. Mirrors ComfyQ's GET /federation/self. Built-in http, no framework.
+// `GET /lol/self` is the unicast discovery path (mirrors ComfyQ's /federation/self):
+// on managed Wi-Fi, client isolation drops broadcast+multicast so the UDP beacon
+// never arrives even though unicast HTTP works — the shell's subnet sweep probes it.
+// The admin routes MUTATE the live farm, so every one except the open page requires
+// `Authorization: Bearer <adminToken>` (the token `lol up` prints). The whole server
+// binds `config.proxy.host` (0.0.0.0), so the token is what gates control on the LAN.
 
 const http = require('http');
+const fs = require('fs');
+const path = require('path');
+const crypto = require('crypto');
 
-function startSelfServer({ httpPort, getSnapshot, host = '0.0.0.0' }) {
-    const server = http.createServer((req, res) => {
-        const pathOnly = (req.url || '').split('?')[0];
-        if (req.method === 'GET' && (pathOnly === '/lol/self' || pathOnly === '/lol/self/')) {
+const ADMIN_PAGE = path.join(__dirname, 'admin', 'index.html');
+let _pageCache = null;
+function adminPage() {
+    if (_pageCache == null) {
+        try { _pageCache = fs.readFileSync(ADMIN_PAGE, 'utf8'); }
+        catch { _pageCache = '<!doctype html><meta charset="utf-8"><title>lol admin</title><p>Admin page missing.</p>'; }
+    }
+    return _pageCache;
+}
+
+// Constant-time bearer check against the admin token.
+function authOk(req, adminToken) {
+    if (!adminToken) return false;
+    const h = req.headers['authorization'] || '';
+    const m = /^Bearer\s+(.+)$/i.exec(h);
+    if (!m) return false;
+    const a = Buffer.from(m[1]);
+    const b = Buffer.from(adminToken);
+    return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+
+function readJson(req, limit = 1 << 20) {
+    return new Promise((resolve) => {
+        let buf = '';
+        req.on('data', (c) => { buf += c; if (buf.length > limit) { buf = ''; req.destroy(); resolve(null); } });
+        req.on('end', () => { try { resolve(buf ? JSON.parse(buf) : {}); } catch { resolve(null); } });
+        req.on('error', () => resolve(null));
+    });
+}
+
+function sendJson(res, status, obj) {
+    res.writeHead(status, { 'content-type': 'application/json', 'cache-control': 'no-store' });
+    res.end(JSON.stringify(obj));
+}
+
+function startSelfServer({ httpPort, getSnapshot, host = '0.0.0.0', control = null, adminToken = null }) {
+    const server = http.createServer(async (req, res) => {
+        const pathOnly = (req.url || '').split('?')[0].replace(/\/+$/, '') || '/';
+        const method = req.method || 'GET';
+
+        // Discovery snapshot (open, cross-origin fetchable).
+        if (method === 'GET' && (pathOnly === '/lol/self')) {
             let body;
             try { body = JSON.stringify(getSnapshot()); }
             catch { res.writeHead(500); return res.end('{"error":"snapshot"}'); }
-            res.writeHead(200, {
-                'content-type': 'application/json',
-                // Allow an Electron/browser client to fetch this cross-origin.
-                'access-control-allow-origin': '*',
-                'cache-control': 'no-store',
-            });
+            res.writeHead(200, { 'content-type': 'application/json', 'access-control-allow-origin': '*', 'cache-control': 'no-store' });
             return res.end(body);
         }
+
+        // Admin page (open — it prompts for the token client-side).
+        if (method === 'GET' && pathOnly === '/lol/admin') {
+            if (!control) { res.writeHead(404); return res.end('admin disabled'); }
+            res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' });
+            return res.end(adminPage());
+        }
+
+        // Everything below is admin control — token required.
+        if (pathOnly.startsWith('/lol/admin/')) {
+            if (!control) return sendJson(res, 404, { error: 'admin disabled' });
+            if (!authOk(req, adminToken)) return sendJson(res, 401, { error: 'unauthorized' });
+            try {
+                if (method === 'GET' && pathOnly === '/lol/admin/state') {
+                    return sendJson(res, 200, await control.getAdminState());
+                }
+                if (method === 'POST' && pathOnly === '/lol/admin/model/start') {
+                    const body = await readJson(req);
+                    if (!body) return sendJson(res, 400, { error: 'bad json' });
+                    return sendJson(res, 200, await control.startModel(body.id));
+                }
+                if (method === 'POST' && pathOnly === '/lol/admin/model/stop') {
+                    const body = await readJson(req);
+                    if (!body) return sendJson(res, 400, { error: 'bad json' });
+                    return sendJson(res, 200, await control.stopModel(body.id));
+                }
+                // Toggle a farm plugin: POST /lol/admin/plugin/<id>/enable|disable
+                const pm = /^\/lol\/admin\/plugin\/([^/]+)\/(enable|disable)$/.exec(pathOnly);
+                if (method === 'POST' && pm) {
+                    return sendJson(res, 200, await control.setPlugin(decodeURIComponent(pm[1]), pm[2] === 'enable'));
+                }
+                // Recommend a client-side plugin to the fleet: POST /lol/admin/plugin/recommend {id,on}
+                if (method === 'POST' && pathOnly === '/lol/admin/plugin/recommend') {
+                    const body = await readJson(req);
+                    if (!body) return sendJson(res, 400, { error: 'bad json' });
+                    return sendJson(res, 200, await control.recommendClientPlugin(body.id, !!body.on));
+                }
+            } catch (e) {
+                return sendJson(res, 500, { error: String((e && e.message) || e) });
+            }
+            return sendJson(res, 404, { error: 'not found' });
+        }
+
         res.writeHead(404, { 'content-type': 'text/plain' });
         res.end('not found');
     });
 
     server.on('error', (e) => {
-        console.warn(`[self] HTTP server error on :${httpPort} — ${e.message} (unicast discovery fallback disabled)`);
+        console.warn(`[self] HTTP server error on :${httpPort} — ${e.message} (unicast discovery + admin disabled)`);
     });
     server.listen(httpPort, host);
     return server;

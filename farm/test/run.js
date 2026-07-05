@@ -214,6 +214,7 @@ test('snapshot carries the discovery contract', () => {
     assert.equal(s.v, 1);
     assert.ok(s.id && s.id.length >= 8);
     assert.equal(s.proxyPort, 4000);
+    assert.equal(s.httpPort, 41997, 'admin/discovery port advertised for the admin page URL');
     assert.ok(s.openaiBaseUrl.endsWith(':4000/v1'));
     assert.equal(s.requiresKey, false);
     assert.equal(s.healthy, true);
@@ -324,6 +325,9 @@ test('searxng settings.yml has json format + a real secret + limiter off', () =>
     assert.notEqual(yml.server.secret_key, 'ultrasecretkey', 'webapp exits on the default key');
     assert.equal(yml.server.limiter, false, 'trusted LAN — no Valkey dependency');
     assert.equal(yml.server.public_instance, false);
+    // onion (Tor) engines are disabled so they don't error at boot without a Tor proxy
+    const disabled = new Set((yml.engines || []).filter((e) => e.disabled).map((e) => e.name));
+    assert.ok(disabled.has('ahmia') && disabled.has('torch'), 'onion engines disabled');
 });
 
 test('snapshot advertises searxngUrl only when enabled AND healthy', () => {
@@ -358,6 +362,170 @@ test('snapshot advertises ttsUrl/voice/model only when enabled AND healthy', () 
     assert.equal(down.ttsVoice, null);
     c.tts.enabled = false;
     assert.equal(buildSnapshot(c, { proxyUp: true, hostsUp: 1, ttsUp: true }).ttsUrl, null, 'disabled → not advertised');
+});
+
+// ---- ocr (document extraction) ---------------------------------------------
+const { resolveOcrModel } = require('../src/commands/up');
+const { depsSignature } = require('../src/extract');
+
+test('ocr config defaults: off, port 8890, markdown/auto, preprocess+docling off', () => {
+    const c = defaultConfig();
+    assert.equal(c.ocr.enabled, false);   // off by default — reroutes all OWUI ingestion through the farm
+    assert.equal(c.ocr.port, 8890);
+    assert.equal(c.ocr.format, 'markdown');
+    assert.equal(c.ocr.pdfEngine, 'auto');
+    assert.equal(c.ocr.preprocess, false);
+    assert.equal(c.ocr.docling, false);
+    assert.equal(c.ocr.model, undefined); // omitted → auto-picked from served vision model
+});
+
+test('ocr rejects a bad format / pdfEngine (strict enum)', () => {
+    assert.equal(ConfigSchema.safeParse({ ocr: { format: 'yaml' } }).success, false);
+    assert.equal(ConfigSchema.safeParse({ ocr: { pdfEngine: 'ocr' } }).success, false);
+});
+
+test('snapshot advertises extract{url,key} only when enabled AND healthy AND keyed', () => {
+    const c = defaultConfig();
+    c.ocr.enabled = true;
+    const up = buildSnapshot(c, { proxyUp: true, hostsUp: 1, extractUp: true, extractKey: 'k123' });
+    assert.ok(up.extract && up.extract.url.endsWith(':8890'), `got ${JSON.stringify(up.extract)}`);
+    assert.equal(up.extract.key, 'k123');
+    assert.ok(!up.extract.url.endsWith('/process'), 'url is the loader BASE — OWUI appends /process');
+    const down = buildSnapshot(c, { proxyUp: true, hostsUp: 1, extractUp: false, extractKey: 'k123' });
+    assert.equal(down.extract, null, 'unhealthy → not advertised');
+    const noKey = buildSnapshot(c, { proxyUp: true, hostsUp: 1, extractUp: true });
+    assert.equal(noKey.extract, null, 'no key → not advertised (OWUI loader mandates a key)');
+    c.ocr.enabled = false;
+    assert.equal(buildSnapshot(c, { proxyUp: true, hostsUp: 1, extractUp: true, extractKey: 'k' }).extract, null, 'disabled → not advertised');
+});
+
+test('resolveOcrModel: explicit model wins; else the served default vision model', () => {
+    const c = defaultConfig();
+    c.ocr.model = 'llama3.2-vision:11b';
+    assert.equal(resolveOcrModel(c), 'llama3.2-vision:11b', 'explicit wins');
+    delete c.ocr.model;
+    c.models = [{ id: 'gemma4:12b', default: true }];
+    assert.equal(resolveOcrModel(c), 'gemma4:12b', 'default is vision-capable → used');
+    // A text-only default + a vision second → OCR uses the vision one (real Ollama tag).
+    c.models = [{ id: 'qwen3:8b', default: true }, { id: 'llava:13b' }];
+    assert.equal(resolveOcrModel(c), 'llava:13b');
+    // Alias mode: OCR needs the underlying Ollama tag, not the alias clients see.
+    c.models = [{ id: 'gemma4:12b', default: true, alias: 'assistant' }];
+    assert.equal(resolveOcrModel(c), 'gemma4:12b', 'underlying tag, not the alias');
+});
+
+test('extract depsSignature flips with the docling flag (forces reinstall)', () => {
+    const off = depsSignature({ ocr: { docling: false } });
+    const on = depsSignature({ ocr: { docling: true } });
+    assert.notEqual(off, on, 'toggling docling must invalidate the install marker');
+});
+
+// ---- admin control API (selfServer) ----------------------------------------
+const { startSelfServer } = require('../src/selfServer');
+
+test('admin config default: token null', () => {
+    assert.equal(defaultConfig().admin.token, null);
+});
+
+test('config rejects unknown admin keys (strict)', () => {
+    assert.equal(ConfigSchema.safeParse({ admin: { bogus: 1 } }).success, false);
+});
+
+test('selfServer: /lol/self open; admin routes gated by the bearer token', async () => {
+    const snap = { v: 1, name: 'T', models: [] };
+    const calls = [];
+    const control = {
+        getAdminState: async () => ({ name: 'T', models: [{ id: 'a', served: true }] }),
+        startModel: async (id) => { calls.push(['start', id]); return { ok: true, servedModels: ['a', id] }; },
+        stopModel: async (id) => { calls.push(['stop', id]); return { ok: true, servedModels: [] }; },
+        setPlugin: async (id, on) => { calls.push(['plugin', id, on]); return { ok: true, enabled: on }; },
+        recommendClientPlugin: (id, on) => { calls.push(['recommend', id, on]); return { ok: true }; },
+    };
+    const server = startSelfServer({ httpPort: 0, getSnapshot: () => snap, host: '127.0.0.1', control, adminToken: 'secret' });
+    await new Promise((r) => { if (server.listening) r(); else server.once('listening', r); });
+    const base = `http://127.0.0.1:${server.address().port}`;
+    const H = { authorization: 'Bearer secret' };
+    try {
+        assert.equal((await fetch(`${base}/lol/self`)).status, 200, '/lol/self open');
+        assert.equal((await fetch(`${base}/lol/admin`)).status, 200, 'admin page open');
+        assert.equal((await fetch(`${base}/lol/admin/state`)).status, 401, 'state needs a token');
+        assert.equal((await fetch(`${base}/lol/admin/state`, { headers: { authorization: 'Bearer nope' } })).status, 401, 'wrong token → 401');
+        const st = await fetch(`${base}/lol/admin/state`, { headers: H });
+        assert.equal(st.status, 200);
+        assert.equal((await st.json()).models[0].id, 'a');
+        // a mutation without the token must NOT reach control
+        assert.equal((await fetch(`${base}/lol/admin/model/start`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{"id":"x"}' })).status, 401);
+        assert.deepEqual(calls, [], 'unauthorized POST never called control');
+        const r = await fetch(`${base}/lol/admin/model/start`, { method: 'POST', headers: { ...H, 'content-type': 'application/json' }, body: '{"id":"x"}' });
+        assert.equal(r.status, 200);
+        assert.deepEqual((await r.json()).servedModels, ['a', 'x']);
+        assert.deepEqual(calls, [['start', 'x']], 'authorized POST reached control.startModel');
+        // plugin toggle + recommend routes: token-gated, and route to the right control fn
+        assert.equal((await fetch(`${base}/lol/admin/plugin/ocr/enable`, { method: 'POST' })).status, 401, 'plugin toggle needs a token');
+        assert.equal((await (await fetch(`${base}/lol/admin/plugin/ocr/enable`, { method: 'POST', headers: H })).json()).enabled, true);
+        assert.equal((await (await fetch(`${base}/lol/admin/plugin/websearch/disable`, { method: 'POST', headers: H })).json()).enabled, false);
+        const rc = await fetch(`${base}/lol/admin/plugin/recommend`, { method: 'POST', headers: { ...H, 'content-type': 'application/json' }, body: '{"id":"blender","on":true}' });
+        assert.equal(rc.status, 200);
+        assert.deepEqual(calls.slice(1), [['plugin', 'ocr', true], ['plugin', 'websearch', false], ['recommend', 'blender', true]]);
+    } finally {
+        server.close();
+    }
+});
+
+// ---- plugin registry -------------------------------------------------------
+const { makeServices, pluginsSummary, FarmService } = require('../src/plugins/registry');
+
+test('registry: three farm services, config-gated (websearch on, tts/ocr off)', () => {
+    const c = defaultConfig();
+    const svcs = makeServices();
+    assert.deepEqual(svcs.map((s) => s.id), ['websearch', 'tts', 'ocr']);
+    assert.equal(svcs.find((s) => s.id === 'websearch').enabled(c), true);
+    assert.equal(svcs.find((s) => s.id === 'tts').enabled(c), false);
+    const sum = pluginsSummary(svcs, c);
+    assert.equal(sum.websearch.enabled, true);
+    assert.equal(sum.websearch.healthy, false, 'not started → not healthy');
+    assert.equal(sum.websearch.runsOn, 'farm');
+});
+
+test('FarmService: start→up, probe reflects alive, child-exit fires onDown', async () => {
+    const { EventEmitter } = require('events');
+    const child = Object.assign(new EventEmitter(), { stdout: new EventEmitter(), stderr: new EventEmitter(), pid: 2000000001 });
+    let aliveVal = true;
+    const desc = {
+        id: 'x', label: 'X', logPrefix: 'x', configKey: 'websearch', healthKey: 'searxngUp', runsOn: 'farm',
+        enabled: () => true, port: () => 9,
+        ensure: async () => true, spawn: () => child,
+        waitReady: async () => ({ ok: true, level: 'ok', message: 'up' }),
+        alive: async () => aliveVal,
+    };
+    const log = { step() {}, ok() {}, warn() {}, err() {}, childPrefix: () => () => {} };
+    const svc = new FarmService(desc);
+    const res = await svc.start(defaultConfig(), { log });
+    assert.equal(res.ok, true);
+    assert.equal(svc.up, true);
+    assert.equal(svc.pid, 2000000001);
+    assert.equal(await svc.probe(defaultConfig()), true, 'alive → up');
+    aliveVal = false;
+    assert.equal(await svc.probe(defaultConfig()), false, 'not answering → not up');
+    aliveVal = true; svc.up = true; svc.wasUp = true;   // re-up for the exit test
+    let downFired = false;
+    svc.onDown = () => { downFired = true; };
+    child.emit('exit', 0);
+    assert.equal(svc.up, false, 'child exit clears up');
+    assert.equal(svc.pid, null, 'child cleared');
+    assert.equal(downFired, true, 'onDown fired on a running child exit');
+});
+
+test('recommendedClientPlugins default is empty; snapshot advertises plugins + recommendations', () => {
+    assert.deepEqual(defaultConfig().recommendedClientPlugins, []);
+    const c = defaultConfig();
+    c.recommendedClientPlugins = ['blender'];
+    const s = buildSnapshot(c, { proxyUp: true, hostsUp: 1, plugins: { websearch: { enabled: true, healthy: true } } });
+    assert.deepEqual(s.recommendedClientPlugins, ['blender']);
+    assert.equal(s.plugins.websearch.healthy, true);
+    const s2 = buildSnapshot(defaultConfig(), { proxyUp: true, hostsUp: 1 });
+    assert.deepEqual(s2.plugins, {}, 'no plugins → empty map');
+    assert.deepEqual(s2.recommendedClientPlugins, []);
 });
 
 // ---- systemInfo ------------------------------------------------------------

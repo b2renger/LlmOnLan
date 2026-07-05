@@ -7,6 +7,7 @@ export interface FarmSnapshot {
     id: string;
     name: string;
     proxyPort: number;
+    httpPort?: number;       // admin/discovery HTTP port → the /lol/admin page lives here
     ips: string[];
     endpoint: string;        // http://<ip>:<proxyPort>
     openaiBaseUrl: string;   // http://<ip>:<proxyPort>/v1  — exactly what OWUI wants
@@ -46,6 +47,11 @@ export interface FarmSnapshot {
     // at it, so every client gets scanned-doc + image OCR with zero setup. `url` is
     // the loader BASE (OWUI appends /process); `key` is the bearer OWUI must send.
     extract?: { url: string; key: string } | null;
+    // Farm-side plugin state (web search / voice / OCR): { id: {label, runsOn, enabled, healthy} }.
+    plugins?: Record<string, { label?: string; runsOn?: string; enabled?: boolean; healthy?: boolean }>;
+    // Client-side plugins (e.g. "blender") the farm RECOMMENDS — the client auto-applies
+    // what it can run (see applyFarmRecommendations); the farm can't run them itself.
+    recommendedClientPlugins?: string[];
     ts: number;
 }
 
@@ -92,5 +98,6 @@ export interface ShellSettings {
     launchAtLogin: boolean;
     autoUpdate: boolean;
     blenderMcp: boolean;               // local Blender assistant-tools server (mcpo) on/off
+    blenderMcpUserSet: boolean;        // user toggled Blender explicitly → farm recommendations won't override
     blenderPort: number;               // BlenderMCP add-on socket port (BLENDER_PORT; default 9876)
 }

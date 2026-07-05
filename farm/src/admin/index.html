@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>lol · farm admin</title>
+<style>
+  :root {
+    --bg: #09090b; --surface: #18181b; --surface2: #1f1f23; --border: #27272a;
+    --text: #fafafa; --muted: #a1a1aa; --accent: #52525b; --accent2: #71717a;
+    --ok: #22c55e; --warn: #eab308; --err: #ef4444; --off: #3f3f46;
+    font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-size: 14px; line-height: 1.5; }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 24px 20px 64px; }
+  header.top { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 4px; }
+  h1 { font-size: 20px; margin: 0; font-weight: 650; }
+  h1 .lol { color: var(--muted); font-weight: 500; }
+  .sub { color: var(--muted); font-size: 12.5px; margin: 2px 0 18px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; margin-bottom: 16px; }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 10px; font-weight: 600; }
+  .health { display: flex; flex-wrap: wrap; gap: 8px 18px; font-size: 12.5px; color: var(--muted); }
+  .health b { color: var(--text); font-weight: 600; }
+  .row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px solid var(--border); }
+  .row:first-of-type { border-top: none; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--off); flex: 0 0 auto; }
+  .dot.served { background: var(--ok); }
+  .dot.loaded { box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok) 25%, transparent); }
+  .mname { font-weight: 600; }
+  .meta { color: var(--muted); font-size: 12px; }
+  .badges { display: flex; gap: 6px; margin-left: auto; align-items: center; }
+  .badge { font-size: 11px; padding: 1px 7px; border-radius: 999px; border: 1px solid var(--border); color: var(--muted); }
+  .badge.on { color: var(--text); border-color: var(--accent2); }
+  .badge.star { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 40%, var(--border)); }
+  button { font: inherit; cursor: pointer; border-radius: 8px; border: 1px solid var(--border); background: var(--surface2); color: var(--text); padding: 5px 12px; min-width: 74px; }
+  button:hover { border-color: var(--accent2); }
+  button:disabled { opacity: .5; cursor: default; }
+  button.start { border-color: color-mix(in srgb, var(--ok) 45%, var(--border)); }
+  button.stop  { border-color: color-mix(in srgb, var(--err) 40%, var(--border)); }
+  .plug { display: inline-flex; align-items: center; gap: 6px; margin-right: 16px; font-size: 12.5px; color: var(--muted); }
+  .plug .dot { width: 7px; height: 7px; }
+  .plug .dot.up { background: var(--ok); } .plug .dot.down { background: var(--off); }
+  .token-panel { max-width: 420px; margin: 40px auto; text-align: center; }
+  .token-panel input { width: 100%; padding: 9px 11px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font: inherit; margin: 12px 0; }
+  .token-panel .hint { color: var(--muted); font-size: 12.5px; }
+  .token-panel .err { color: var(--err); }
+  #toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 8px 14px; font-size: 13px; opacity: 0; transition: opacity .2s; pointer-events: none; max-width: 90vw; }
+  #toast.show { opacity: 1; }
+  .empty { color: var(--muted); font-size: 13px; padding: 8px 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div id="app"></div>
+</div>
+<div id="toast"></div>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const app = $('#app');
+let token = localStorage.getItem('lolAdminToken') || '';
+let busy = false;      // an action (start/stop) is in flight — pause polling + block clicks
+let lastState = null;
+
+function toast(msg) {
+  const t = $('#toast'); t.textContent = msg; t.classList.add('show');
+  clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 2600);
+}
+function gb(bytes) { return bytes ? (bytes / 1e9).toFixed(1) + ' GB' : ''; }
+function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+
+async function api(path, opts = {}) {
+  const headers = { 'Authorization': 'Bearer ' + token };
+  if (opts.body) headers['content-type'] = 'application/json';
+  const res = await fetch(path, { ...opts, headers });
+  if (res.status === 401) { const e = new Error('unauthorized'); e.unauthorized = true; throw e; }
+  return res.json();
+}
+
+function tokenPanel(errMsg) {
+  app.innerHTML =
+    '<div class="token-panel"><h1>lol <span class="lol">farm admin</span></h1>'
+    + '<p class="hint">Enter the admin token printed in the farm\'s startup banner.</p>'
+    + (errMsg ? '<p class="err">' + esc(errMsg) + '</p>' : '')
+    + '<input id="tok" type="password" placeholder="admin token" autocomplete="off" />'
+    + '<button id="tok-go">Unlock</button></div>';
+  const go = () => { const v = $('#tok').value.trim(); if (!v) return; token = v; localStorage.setItem('lolAdminToken', v); refresh(); };
+  $('#tok-go').onclick = go;
+  $('#tok').addEventListener('keydown', (e) => { if (e.key === 'Enter') go(); });
+  $('#tok').focus();
+}
+
+function render(s) {
+  lastState = s;
+  const h = s.health || {};
+  const gpu = h.gpu || {};
+  const host = h.host || {};
+  const healthBits = [
+    `Hosts <b>${h.hostsUp ?? '?'}/${h.hostsTotal ?? '?'}</b>`,
+    `Proxy <b>${h.proxyUp ? 'up' : 'down'}</b>`,
+    host.gpu ? `GPU <b>${esc(host.gpu)}</b>` : '',
+    gpu.gpuUtil != null ? `Util <b>${gpu.gpuUtil}%</b>` : '',
+    (gpu.vramUsedGb != null && gpu.vramTotalGb != null) ? `VRAM <b>${gpu.vramUsedGb}/${gpu.vramTotalGb} GB</b>` : '',
+  ].filter(Boolean).join('');
+
+  // Farm plugins — live enable/disable toggles.
+  const plugins = s.plugins || {};
+  const pluginRows = Object.keys(plugins).map((k) => {
+    const p = plugins[k] || {};
+    const on = !!p.enabled;
+    const dotCls = 'dot' + (on && p.healthy ? ' served' : '');
+    const state = !on ? 'off' : (p.healthy ? 'on' : 'starting…');
+    const btn = on
+      ? `<button class="stop" data-pact="disable" data-id="${esc(k)}">Disable</button>`
+      : `<button class="start" data-pact="enable" data-id="${esc(k)}">Enable</button>`;
+    return `<div class="row"><span class="${dotCls}"></span>`
+      + `<span><div class="mname">${esc(p.label || k)} <span class="badge">farm</span></div>`
+      + `<div class="meta">runs on this box · ${state}</div></span>`
+      + `<span class="badges">${btn}</span></div>`;
+  }).join('');
+  // Client-side plugin (Blender) — the farm can only RECOMMEND it to the fleet.
+  const recommended = new Set(s.recommendedClientPlugins || []);
+  const blenderOn = recommended.has('blender');
+  const blenderRow = `<div class="row"><span class="dot${blenderOn ? ' served' : ''}"></span>`
+    + `<span><div class="mname">Blender tools <span class="badge">client</span></div>`
+    + `<div class="meta">runs on each user's machine · ${blenderOn ? 'recommended to the fleet' : 'not recommended'}</div></span>`
+    + `<span class="badges"><button class="${blenderOn ? 'stop' : 'start'}" data-ract="${blenderOn ? 'off' : 'on'}" data-id="blender">${blenderOn ? 'Un-recommend' : 'Recommend'}</button></span></div>`;
+
+  const models = (s.models || []).slice().sort((a, b) => Number(b.served) - Number(a.served) || a.id.localeCompare(b.id));
+  const rows = models.length ? models.map((m) => {
+    const dotCls = 'dot' + (m.served ? ' served' : '') + (m.loaded ? ' loaded' : '');
+    const meta = [gb(m.size), m.paramSize].filter(Boolean).join(' · ');
+    const badges = [
+      m.isDefault ? '<span class="badge star">★ default</span>' : '',
+      m.loaded ? '<span class="badge on">in VRAM</span>' : '',
+      m.served ? '<span class="badge on">serving</span>' : '<span class="badge">idle</span>',
+    ].filter(Boolean).join('');
+    const btn = m.served
+      ? `<button class="stop" data-act="stop" data-id="${esc(m.id)}">Stop</button>`
+      : `<button class="start" data-act="start" data-id="${esc(m.id)}">Start</button>`;
+    return `<div class="row"><span class="${dotCls}"></span>`
+      + `<span><div class="mname">${esc(m.id)}</div>${meta ? `<div class="meta">${esc(meta)}</div>` : ''}</span>`
+      + `<span class="badges">${badges}${btn}</span></div>`;
+  }).join('') : '<div class="empty">No models installed on any reachable host.</div>';
+
+  app.innerHTML =
+    `<header class="top"><h1>lol <span class="lol">${esc(s.name || 'farm')}</span></h1></header>`
+    + `<p class="sub">${esc(s.modelAlias ? 'Clients see the alias "' + s.modelAlias + '" for the default model. Changes reflect on clients within a few seconds.' : 'Manage the models + plugins this farm serves. Changes reflect on clients within a few seconds.')}</p>`
+    + `<div class="card"><h2>Farm</h2><div class="health">${healthBits}</div></div>`
+    + `<div class="card"><h2>Models</h2>${rows}</div>`
+    + `<div class="card"><h2>Plugins</h2>${pluginRows}${blenderRow}</div>`;
+
+  app.querySelectorAll('button[data-act]').forEach((b) => { b.onclick = () => act(b.dataset.act, b.dataset.id, b); });
+  app.querySelectorAll('button[data-pact]').forEach((b) => { b.onclick = () => pluginAct(b.dataset.pact, b.dataset.id, b); });
+  app.querySelectorAll('button[data-ract]').forEach((b) => { b.onclick = () => recommendAct(b.dataset.ract, b.dataset.id, b); });
+}
+
+// Toggle a farm plugin on/off (spawns/kills the service — can take a few seconds).
+async function pluginAct(kind, id, btn) {
+  if (busy) return;
+  busy = true; btn.disabled = true; btn.textContent = '…';
+  try {
+    const r = await api('/lol/admin/plugin/' + encodeURIComponent(id) + '/' + kind, { method: 'POST' });
+    if (!r.ok) toast(r.error || 'Action failed');
+    else toast((kind === 'enable' ? 'Enabled ' : 'Disabled ') + id);
+  } catch (e) {
+    if (e.unauthorized) { logout('Session expired — re-enter the token.'); return; }
+    toast('Error: ' + (e.message || e));
+  } finally { busy = false; await refresh(); }
+}
+
+// Recommend / un-recommend a client-side plugin (Blender) to the fleet (fast — just advertises).
+async function recommendAct(kind, id, btn) {
+  if (busy) return;
+  busy = true; btn.disabled = true; btn.textContent = '…';
+  try {
+    await api('/lol/admin/plugin/recommend', { method: 'POST', body: JSON.stringify({ id, on: kind === 'on' }) });
+    toast(kind === 'on' ? 'Recommended ' + id + ' to the fleet' : 'Un-recommended ' + id);
+  } catch (e) {
+    if (e.unauthorized) { logout('Session expired — re-enter the token.'); return; }
+    toast('Error: ' + (e.message || e));
+  } finally { busy = false; await refresh(); }
+}
+
+async function act(kind, id, btn) {
+  if (busy) return;
+  busy = true; btn.disabled = true; btn.textContent = '…';
+  try {
+    const r = await api('/lol/admin/model/' + kind, { method: 'POST', body: JSON.stringify({ id }) });
+    if (!r.ok) toast(r.error || 'Action failed');
+    else toast((kind === 'start' ? 'Started ' : 'Stopped ') + id);
+  } catch (e) {
+    if (e.unauthorized) { logout('Session expired — re-enter the token.'); return; }
+    toast('Error: ' + (e.message || e));
+  } finally {
+    busy = false;
+    await refresh();
+  }
+}
+
+function logout(msg) { localStorage.removeItem('lolAdminToken'); token = ''; tokenPanel(msg); }
+
+async function refresh() {
+  if (!token) { tokenPanel(); return; }
+  try {
+    const s = await api('/lol/admin/state');
+    render(s);
+  } catch (e) {
+    if (e.unauthorized) { logout('Wrong token.'); return; }
+    app.innerHTML = '<div class="empty">Could not reach the farm control API. Is <code>lol up</code> running? ' + esc(e.message || '') + '</div>';
+  }
+}
+
+setInterval(() => { if (!busy && token) refresh(); }, 5000);
+refresh();
+</script>
+</body>
+</html>

@@ -34,6 +34,9 @@ function buildSnapshot(config, health = {}) {
         id: farmId(),
         name: config.name,
         proxyPort,
+        // The admin/control HTTP port (GET /lol/self + the /lol/admin page live here), so a
+        // client can open the panel at http://<host>:<httpPort>/lol/admin.
+        httpPort: config.beacon.httpPort,
         ips,
         endpoint,                                  // OpenAI root (LiteLLM serves /v1 + bare)
         openaiBaseUrl: `${endpoint}/v1`,           // exactly what OWUI's OPENAI_API_BASE_URL wants
@@ -65,6 +68,13 @@ function buildSnapshot(config, health = {}) {
         extract: (config.ocr?.enabled && health.extractUp && health.extractKey)
             ? { url: `http://${primary}:${config.ocr.port}`, key: health.extractKey }
             : null,
+        // Farm-side plugin state (web search / voice / OCR): { id: {label, runsOn, enabled,
+        // healthy} }. Bespoke fields above (searxngUrl/ttsUrl/extract) stay for back-compat;
+        // this is the generic map the admin page + clients read.
+        plugins: health.plugins || {},
+        // Client-side plugins (e.g. "blender") the farm RECOMMENDS — clients auto-apply what
+        // they can run. The farm can't toggle a per-client plugin, only advertise the intent.
+        recommendedClientPlugins: Array.isArray(config.recommendedClientPlugins) ? config.recommendedClientPlugins : [],
         // How many balanced deployments back this endpoint (local Ollama hosts +
         // aggregated peers). Informational, for `lol fleet` / client cards.
         deployments: health.deployments ?? null,

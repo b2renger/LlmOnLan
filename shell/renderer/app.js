@@ -614,6 +614,16 @@ function renderPopover() {
     const liveLine = live.length ? `<div class="farm-hw">${esc(live.join(' · '))}</div>` : '';
     const hwLine = (f.host && f.host.gpu)
       ? `<div class="farm-hw">${esc(f.host.gpu)} · ${f.host.vramGb}GB</div>` : '';
+    // Farm plugins that are ON (search / voice / OCR) + client-plugin recommendations.
+    const plugs = f.plugins || {};
+    const onPlugs = Object.keys(plugs).filter((k) => plugs[k] && plugs[k].enabled)
+      .map((k) => (plugs[k].label || k) + (plugs[k].healthy ? '' : ' (starting)'));
+    const plugLine = onPlugs.length ? `<div class="farm-hw">plugins: ${esc(onPlugs.join(' · '))}</div>` : '';
+    const REC_LABEL = { blender: 'Blender tools' };
+    const recs = (f.recommendedClientPlugins || []).map((r) => REC_LABEL[r] || r);
+    const recLine = recs.length ? `<div class="farm-hw">recommends: ${esc(recs.join(', '))}</div>` : '';
+    // "Manage this farm" opens the farm-served admin page (needs the farm's admin port).
+    const manageBtn = f.httpPort ? `<button class="farm-manage" data-manage="${esc(f._host)}:${f.httpPort}">Manage this farm ↗</button>` : '';
     row.innerHTML =
       `<span class="dot ${dotCls}"></span>` +
       `<div class="farm-main">` +
@@ -621,9 +631,14 @@ function renderPopover() {
         `<div class="farm-meta">${esc(f._host)}:${f.proxyPort} · ${esc(models)}</div>` +
         liveLine +
         hwLine +
+        plugLine +
+        recLine +
+        manageBtn +
       `</div>` +
       `<span class="farm-check">${isActive ? ICON_CHECK : ''}</span>`;
     row.onclick = () => { window.lol.selectFarm(f.id); toast(`Connecting to ${f.name}…`); };
+    const mBtn = row.querySelector('button.farm-manage');
+    if (mBtn) mBtn.onclick = (e) => { e.stopPropagation(); window.lol.openExternal(`http://${mBtn.dataset.manage}/lol/admin`); };
     els.farmList.appendChild(row);
   }
 }

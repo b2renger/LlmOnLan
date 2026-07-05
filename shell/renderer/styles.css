@@ -189,6 +189,9 @@ webview.hidden { display: none !important; }
 .farm-coord { color: var(--green); border-color: var(--green); }
 .farm-check { color: var(--green); flex: 0 0 auto; width: 16px; }
 .farm-check svg { width: 16px; height: 16px; }
+.farm-manage { margin-top: 6px; font: inherit; font-size: 11px; cursor: pointer; color: var(--text);
+  background: transparent; border: 1px solid var(--border); border-radius: 6px; padding: 3px 8px; }
+.farm-manage:hover { border-color: var(--grey); }
 
 .pop-empty { font-size: 12px; color: var(--muted); line-height: 1.5; padding: 10px 4px; }
 .pop-empty code { background: var(--surface-2); border: 1px solid var(--border); border-radius: 5px; padding: 1px 5px; font-size: 11px; }

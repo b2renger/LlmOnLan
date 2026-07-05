@@ -50,3 +50,7 @@ Thumbs.db
 .idea/
 .vscode/
 *.tmp
+
+# --- stray root lockfile (there is NO root package.json — an accidental npm
+# run at the repo root keeps regenerating an empty package-lock.json) ---
+/package-lock.json

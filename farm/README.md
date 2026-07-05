@@ -129,6 +129,15 @@ See [`lol.config.example.json`](lol.config.example.json). Shape:
   routes *all* of OWUI's document ingestion through the farm**; the light path covers
   images/PDF/docx/pptx/xlsx/text, and `"docling": true` adds the rest (legacy `.doc`/`.ppt`/`.xls`,
   `.odt`/`.epub`/`.rtf`) at the cost of a multi‑GB torch install. Delete `farm/.extract/` to uninstall.
+- **Admin panel (live control of a running farm):** while `lol up` runs, open
+  `http://<box>:41997/lol/admin` (the beacon `httpPort`) from any browser on the LAN — or click **"Manage
+  this farm"** in the desktop client's fleet popover. It can **start/stop served models** (adds/removes them
+  from the proxy + warms/evicts VRAM; the proxy bounces for a few seconds) and **enable/disable the farm
+  plugins** (web search / voice / OCR) live, plus recommend the client‑side Blender plugin to the fleet —
+  clients pick every change up within ~5 s. Auth: the **admin token printed in the `lol up` banner**
+  (regenerated each run; set `"admin": { "token": "…" }` in `lol.config.json` for a fixed one). Everything
+  the panel changes is **ephemeral** — a farm restart reverts to `lol.config.json`, so persist real
+  decisions there.
 - **Multiple GPU boxes:** either list every box in `ollama.hosts` (one farm balances them all), or run
   `lol up` per box and let clients auto‑spread (they pick the least‑loaded farm), or run one box with
   `--coordinator` to aggregate the others behind a single endpoint that clients prefer.

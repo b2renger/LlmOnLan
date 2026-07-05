@@ -94,6 +94,19 @@ function farmExtract(f: DiscoveredFarm | null): { url: string; key: string } | n
     return { url: f.extract.url, key: f.extract.key };
 }
 
+// Auto-apply the active farm's CLIENT-side plugin recommendations (e.g. Blender). A
+// recommendation is a positive hint: we only ever turn a client plugin ON, and never
+// override an explicit per-machine choice (blenderMcpUserSet), and never auto-disable —
+// the user may rely on it. The farm can't run a per-client plugin, only recommend it.
+function applyFarmRecommendations(farm: DiscoveredFarm | null): void {
+    const recs = Array.isArray(farm?.recommendedClientPlugins) ? farm!.recommendedClientPlugins! : [];
+    const s = loadSettings();
+    if (recs.includes('blender') && !s.blenderMcpUserSet && !mcpo.isEnabled()) {
+        updateSettings({ blenderMcp: true });
+        mcpo.setEnabled(true);
+    }
+}
+
 // Load metric for a farm, from the telemetry the beacon already carries. Lower =
 // more free. GPU utilisation (0–100) is the best proxy for "busy"; a farm that
 // doesn't report it (no nvidia-smi) is treated as mid-load so a box we CAN measure
@@ -142,6 +155,9 @@ function onFarms(payload: { farms: DiscoveredFarm[] } & Record<string, unknown>)
     if (!booted || process.env.LOL_ENDPOINT) return; // pinned endpoint: discovery is informational only
     const chosen = chooseActive(payload.farms);
     if (!chosen) return;
+    // Honor the farm's client-plugin recommendations (Blender) — independent of the
+    // endpoint change-check below, since recommendations can change on a stable endpoint.
+    applyFarmRecommendations(chosen);
     const endpoint = farmEndpoint(chosen);
     const model = farmDefaultModel(chosen);
     const searxng = farmSearxng(chosen);
@@ -290,7 +306,8 @@ function registerIpc(): void {
     ipcMain.handle('get-blender-connection', () => mcpo.getConnection());
     ipcMain.handle('set-blender-enabled', (_e, on: boolean) => {
         const v = !!on;
-        updateSettings({ blenderMcp: v });
+        // Mark it a user choice so a farm's Blender recommendation won't override it.
+        updateSettings({ blenderMcp: v, blenderMcpUserSet: true });
         mcpo.setEnabled(v);
         return { ...mcpo.getState(), enabled: v };
     });
