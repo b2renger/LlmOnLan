@@ -30,6 +30,7 @@ farm/.lol-runtime.json
 farm/.lol-id
 farm/.searxng/
 farm/.kokoro/
+farm/.extract/
 lol.config.json
 !farm/lol.config.example.json
 
