@@ -221,6 +221,26 @@ async function ensureWebsearch(config) {
     }
 }
 
+// --- 6. OCR / document extraction -------------------------------------------
+
+// Pre-install the shared OCR service ONLY when enabled (it's off by default — it
+// reroutes ALL of OWUI's document ingestion through the farm). Idempotent +
+// non-fatal, like web search; `lol up` installs it lazily otherwise.
+async function ensureOcr(config) {
+    if (!config.ocr || !config.ocr.enabled) {
+        log.info('Disabled (set ocr.enabled:true to host shared document OCR for clients).');
+        return;
+    }
+    try {
+        const { ensureExtract } = require('../extract');
+        const ok = await ensureExtract(config);
+        if (ok) log.ok('OCR service ready — every client gets scanned-doc + image OCR, zero setup.');
+        else log.warn('OCR not set up yet — `lol up` will retry on first run.');
+    } catch (e) {
+        log.warn(`OCR setup skipped — ${e.message}. \`lol up\` will retry.`);
+    }
+}
+
 // --- orchestrate ------------------------------------------------------------
 
 async function run() {
@@ -245,6 +265,10 @@ async function run() {
     log.plain('');
     log.info('Web search …');
     await ensureWebsearch(config);
+
+    log.plain('');
+    log.info('OCR …');
+    await ensureOcr(config);
 
     log.plain('');
     if (litellmOk) {

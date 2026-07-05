@@ -34,6 +34,11 @@ async function run() {
         await killTree(rt.kokoroPid);
         killed++;
     }
+    if (rt.extractPid && isAlive(rt.extractPid)) {
+        log.step(`Stopping OCR service (pid ${rt.extractPid}) …`);
+        await killTree(rt.extractPid);
+        killed++;
+    }
     for (const pid of rt.ollamaPids || []) {
         if (isAlive(pid)) {
             log.step(`Stopping Ollama we started (pid ${pid}) …`);

@@ -41,6 +41,7 @@ export interface SidecarEnvInput {
     defaultModel?: string | null; // the farm's advertised default model → OWUI DEFAULT_MODELS
     searxngUrl?: string | null;   // the farm's shared SearXNG → OWUI web search
     tts?: { url: string; voice: string; model: string } | null; // farm Kokoro → OWUI AUDIO_TTS_*
+    extract?: { url: string; key: string } | null; // farm lol-extract → OWUI external document loader (OCR)
 }
 
 // Build the environment Open WebUI is launched with. This is the whole coupling.
@@ -160,6 +161,23 @@ export function buildSidecarEnv(input: SidecarEnvInput): Record<string, string> 
         env.AUDIO_TTS_OPENAI_API_KEY = 'sk-lol-tts';   // keyless LAN server; OWUI needs a non-empty key
         env.AUDIO_TTS_MODEL = input.tts.model || 'kokoro';
         env.AUDIO_TTS_VOICE = input.tts.voice || 'af_heart';
+    }
+
+    // Document OCR — the farm hosts one shared "lol-extract" service and advertises
+    // it in the beacon; point OWUI's content-extraction engine at it so every
+    // uploaded image / scanned PDF is OCR'd (searchable AND transcribable) with zero
+    // client setup. This is the ONLY OWUI surface that receives an uploaded file's
+    // bytes (external tool servers never do — verified against OWUI 0.10.2), so both
+    // the RAG and vision-transcript goals funnel through this one engine. OWUI does
+    // PUT <url>/process itself; the loader requires BOTH a url AND a non-empty key.
+    // The raw file transits to the trusted-LAN farm for extraction (that's where the
+    // GPU/vision model is), same trust boundary as SearXNG receiving queries;
+    // embedding still happens locally (RAG_EMBEDDING_ENGINE stays unset). No farm OCR
+    // → nothing set → OWUI's built-in default extractor, exactly as before.
+    if (input.extract && input.extract.url) {
+        env.CONTENT_EXTRACTION_ENGINE = 'external';
+        env.EXTERNAL_DOCUMENT_LOADER_URL = input.extract.url.replace(/\/+$/, '');
+        env.EXTERNAL_DOCUMENT_LOADER_API_KEY = input.extract.key || 'sk-lol-ocr';
     }
 
     // NOTE: the local Blender assistant-tools server (mcpo) is NOT wired here.

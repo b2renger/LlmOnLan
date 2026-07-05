@@ -35,5 +35,13 @@
     "port": 8880,
     "voice": "af_heart",
     "model": "kokoro"
+  },
+  "ocr": {
+    "enabled": false,
+    "port": 8890,
+    "format": "markdown",
+    "pdfEngine": "auto",
+    "preprocess": false,
+    "docling": false
   }
 }

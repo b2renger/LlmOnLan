@@ -41,6 +41,11 @@ export interface FarmSnapshot {
     ttsUrl?: string | null;   // already includes /v1 (OWUI's AUDIO_TTS_OPENAI_API_BASE_URL)
     ttsVoice?: string | null;
     ttsModel?: string | null;
+    // Shared OCR / document-extraction on the farm box (null/absent when off) — the
+    // client points OWUI's CONTENT_EXTRACTION_ENGINE=external + EXTERNAL_DOCUMENT_LOADER_*
+    // at it, so every client gets scanned-doc + image OCR with zero setup. `url` is
+    // the loader BASE (OWUI appends /process); `key` is the bearer OWUI must send.
+    extract?: { url: string; key: string } | null;
     ts: number;
 }
 

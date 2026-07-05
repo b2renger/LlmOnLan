@@ -78,6 +78,32 @@ const TtsSchema = z.object({
     model: z.string().default('kokoro'),               // OWUI AUDIO_TTS_MODEL
 }).strict();
 
+const OcrSchema = z.object({
+    // One shared "lol-extract" document-extraction service on this box; clients
+    // discover it via the beacon (snapshot.extract) and OWUI uses it as its
+    // CONTENT_EXTRACTION_ENGINE=external loader — so every uploaded image / scanned
+    // PDF is OCR'd (RAG-searchable AND transcribable) with zero client setup. `lol
+    // up` installs it on first run (own venv under .extract/). OFF by default (it
+    // reroutes ALL of OWUI's document ingestion through the farm; opt in per box).
+    enabled: z.boolean().default(false),
+    port: z.number().int().positive().default(8890),
+    // Vision model Ollama-OCR drives (a real Ollama tag, e.g. gemma4:12b). Omit to
+    // auto-use the farm's served default vision model (see resolveOcrModel in up.js).
+    model: z.string().optional(),
+    // Ollama-OCR output format for the vision path.
+    format: z.enum(['markdown', 'text', 'json', 'structured', 'key_value', 'table']).default('markdown'),
+    // PDF handling: auto = text layer when present, else vision-OCR the page image;
+    // vision = always OCR every page; text = never OCR (embedded text only).
+    pdfEngine: z.enum(['auto', 'vision', 'text']).default('auto'),
+    // Ollama-OCR's cv2 binarization. Off by default — a raw image usually reads
+    // better on a vision LLM than a harshly thresholded one.
+    preprocess: z.boolean().default(false),
+    // Route non-image docs through Docling for richer office/table fidelity. Heavy
+    // install (torch + models, multi-GB), so off by default — the light extractors
+    // (PyMuPDF/python-docx) cover pdf/docx/text without it.
+    docling: z.boolean().default(false),
+}).strict();
+
 const LiteLLMSchema = z.object({
     // How to invoke LiteLLM. Default assumes `litellm` is on PATH; operators who
     // installed it into a venv point this at that venv's litellm[.exe].
@@ -96,6 +122,7 @@ const ConfigSchema = z.object({
     litellm: LiteLLMSchema.default({}),
     websearch: WebsearchSchema.default({}),
     tts: TtsSchema.default({}),
+    ocr: OcrSchema.default({}),
     // Coordinator mode: aggregate LAN peer farms into one balanced endpoint that
     // clients prefer. Also settable per-run via `lol up --coordinator`.
     coordinator: z.boolean().default(false),

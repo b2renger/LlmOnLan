@@ -68,8 +68,8 @@ npm link        # then just `lol <cmd>` anywhere
 |---|---|
 | `lol install` / `setup` | One‑time bootstrap: install Ollama + LiteLLM, pull the configured models, and set up shared web search (SearXNG, on by default). Idempotent. |
 | `lol init [--force]` | Scaffold a `lol.config.json` in the current directory. |
-| `lol up` / `lol serve` | Ensure Ollama, **pick the model(s) to serve** (interactive, from what's installed; Enter = default), pull anything missing, generate + run the LiteLLM proxy, start SearXNG (if enabled) + the beacon. Foreground; Ctrl‑C stops. |
-| `lol down` | Stop the proxy + SearXNG + beacon (and any Ollama this CLI started). |
+| `lol up` / `lol serve` | Ensure Ollama, **pick the model(s) to serve** (interactive, from what's installed; Enter = default), pull anything missing, generate + run the LiteLLM proxy, start SearXNG + OCR (if enabled) + the beacon. Foreground; Ctrl‑C stops. |
+| `lol down` | Stop the proxy + SearXNG + OCR + beacon (and any Ollama this CLI started). |
 | `lol status` | Health of each Ollama host + the proxy + which models are loaded. Works from any shell. |
 | `lol fleet` | Every farm on the LAN (this box + peers): health, GPU load, VRAM, loaded models, roles, search URL. |
 | `lol bench` | Load‑test before a workshop: N concurrent chats → first‑token latency (p50/p95) + tokens/s. `--users N --rounds R --model id --url …`. |
@@ -80,7 +80,7 @@ npm link        # then just `lol <cmd>` anywhere
 **`lol up` flags:** `--model <id[=alias][,…]>` serve exactly these (no prompt; pulls if missing) ·
 `--no-pick` skip the prompt, use the config catalog · `--alias <name>` / `--no-alias` override the global
 model alias · `--coordinator` aggregate LAN peer farms into one balanced endpoint (clients prefer it) ·
-`--websearch` / `--no-websearch` override the SearXNG toggle.
+`--websearch` / `--no-websearch` override the SearXNG toggle · `--ocr` / `--no-ocr` override the document‑OCR toggle.
 
 ## Config — `lol.config.json`
 
@@ -100,6 +100,9 @@ See [`lol.config.example.json`](lol.config.example.json). Shape:
               "keepAlive": "-1" },             // keep models warm in VRAM (no reload after idle)
   "litellm": { "command": "litellm", "extraArgs": [], "provider": "ollama_chat" },
   "websearch": { "enabled": true, "port": 8888 },   // shared SearXNG → clients get web search
+  "ocr": { "enabled": false, "port": 8890,           // shared document OCR → clients get scanned-doc/image OCR
+           "model": null, "format": "markdown",       // null = served default vision model; markdown|text|json|…
+           "pdfEngine": "auto", "docling": false },    // auto text-layer-else-vision; docling=true adds office formats
   "coordinator": false                          // aggregate LAN peers into one balanced endpoint
 }
 ```
@@ -117,6 +120,15 @@ See [`lol.config.example.json`](lol.config.example.json). Shape:
   Clients discover it via the beacon and OWUI's per‑message web‑search toggle just works, zero client
   setup. Searches + page fetching run from each client; this box only hosts the metasearch engine. Turn it
   off with `"websearch": { "enabled": false }` or `lol up --no-websearch`.
+- **Document OCR (OFF by default):** set `"ocr": { "enabled": true }` (or `lol up --ocr`) to host **one shared
+  OCR / document‑extraction service** on this box. Clients then get scanned‑document + image OCR with zero
+  setup — OWUI uses it as its content‑extraction engine, routing images + scanned PDFs to a **vision model on
+  this box's Ollama** ([Ollama‑OCR](https://github.com/imanoop7/Ollama-OCR), vendored) and born‑digital
+  docs/PDFs to fast local extraction. Installed into `farm/.extract/` on first use (torch‑free; reuses the
+  vision model you already serve — `ocr.model` overrides which). It's **off by default because enabling it
+  routes *all* of OWUI's document ingestion through the farm**; the light path covers
+  images/PDF/docx/pptx/xlsx/text, and `"docling": true` adds the rest (legacy `.doc`/`.ppt`/`.xls`,
+  `.odt`/`.epub`/`.rtf`) at the cost of a multi‑GB torch install. Delete `farm/.extract/` to uninstall.
 - **Multiple GPU boxes:** either list every box in `ollama.hosts` (one farm balances them all), or run
   `lol up` per box and let clients auto‑spread (they pick the least‑loaded farm), or run one box with
   `--coordinator` to aggregate the others behind a single endpoint that clients prefer.

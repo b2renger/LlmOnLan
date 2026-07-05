@@ -58,6 +58,13 @@ function buildSnapshot(config, health = {}) {
             : null,
         ttsVoice: (config.tts?.enabled && health.ttsUp) ? config.tts.voice : null,
         ttsModel: (config.tts?.enabled && health.ttsUp) ? config.tts.model : null,
+        // Shared OCR / document-extraction on this box (null when off/down). Clients
+        // set OWUI's CONTENT_EXTRACTION_ENGINE=external + EXTERNAL_DOCUMENT_LOADER_URL
+        // from `url` and the required key from `key` — scanned-doc + image OCR with
+        // zero client setup. `url` is the loader BASE (OWUI appends /process itself).
+        extract: (config.ocr?.enabled && health.extractUp && health.extractKey)
+            ? { url: `http://${primary}:${config.ocr.port}`, key: health.extractKey }
+            : null,
         // How many balanced deployments back this endpoint (local Ollama hosts +
         // aggregated peers). Informational, for `lol fleet` / client cards.
         deployments: health.deployments ?? null,

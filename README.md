@@ -48,6 +48,8 @@ rationale, and [`implementation_plan.md`](implementation_plan.md) for the milest
 multimodal** (image understanding + voice — local Whisper STT, on‑device); **web search** via a shared
 farm‑hosted [SearXNG](https://docs.searxng.org), **on by default**, zero client setup, auto‑discovered;
 **neural voice** via a shared farm‑hosted [Kokoro](https://github.com/remsky/Kokoro-FastAPI) TTS (opt‑in);
+**document OCR** — a shared farm‑hosted extraction service ([Ollama‑OCR](https://github.com/imanoop7/Ollama-OCR)
+vision‑model OCR for images + scanned PDFs, opt‑in, [how‑to below](#document-ocr-optional));
 **assistant tools** — drive a local **[Blender](#assistant-tools--control-blender-optional)** over MCP,
 opt‑in per client ([how‑to below](#assistant-tools--control-blender-optional)); **multi‑box load
 balancing** (least‑loaded client selection, `--coordinator` aggregation, `lol fleet`); **stable model
@@ -77,6 +79,43 @@ npm run dev                    # boots the shell + OWUI sidecar, loads it in a w
 ```
 
 See [`shell/README.md`](shell/README.md) and [`sidecar/README.md`](sidecar/README.md).
+
+## Document OCR (optional)
+
+Turn on OCR and every client can upload an **image or a scanned PDF** and have its text extracted — both
+**searchable** (ask questions about the document) and **transcribable** (ask for the full text back). It runs
+as **one shared service on the farm box** (that's where the GPU + vision model already are) and every client
+picks it up automatically over the beacon — no client setup.
+
+**How it works:** the service ([`farm/src/pysvc/server.py`](farm/src/pysvc/server.py)) is what Open WebUI calls
+its **external content‑extraction engine**. On each uploaded file it routes: **images + scanned/image‑only PDF
+pages → a vision model** on the farm's local Ollama (via the vendored
+[Ollama‑OCR](https://github.com/imanoop7/Ollama-OCR), MIT); **born‑digital PDFs / Word / text → fast local
+extraction**. This is the only OWUI surface that receives an uploaded file's bytes, so it's how OCR must be
+wired — a chat "tool" can't see uploads.
+
+**Turn it on (farm operator):** set `"ocr": { "enabled": true }` in `lol.config.json` (or `lol up --ocr`). The
+first run installs a small Python service into `farm/.extract/` (torch‑free — it reuses the vision model you
+already serve). The client needs nothing.
+
+```jsonc
+"ocr": {
+  "enabled": true,
+  "port": 8890,
+  "model": null,          // null = use the farm's served default vision model (e.g. gemma4:12b)
+  "format": "markdown",   // markdown | text | json | structured | key_value | table
+  "pdfEngine": "auto",    // auto = text layer if present, else vision‑OCR the page; vision | text
+  "preprocess": false,    // cv2 binarization (usually worse for a vision LLM — leave off)
+  "docling": false        // true = also install Docling for office formats (pptx/xlsx…); heavy (torch)
+}
+```
+
+**Notes.** Enabling OCR routes **all** of OWUI's document ingestion through the farm — the light path handles
+images, PDFs, `.docx`/`.pptx`/`.xlsx`, and plain text/HTML; legacy binary Office (`.doc`/`.ppt`/`.xls`) and
+`.odt`/`.epub`/`.rtf` need `"docling": true` (a multi‑GB install).
+Multi‑page scanned PDFs are N vision‑model passes, so they're slower than born‑digital PDFs (which use the
+embedded text). The uploaded file transits to the trusted‑LAN farm for extraction (same boundary as web
+search); embedding still happens on the client. Off by default.
 
 ## Assistant tools — control Blender (optional)
 
