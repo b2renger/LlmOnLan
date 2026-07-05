@@ -216,6 +216,12 @@ def _extract_pdf(src, filename, workdir):
     doc = pymupdf.open(src)
     out = []
     try:
+        # Multi-page docs get a "[Page N]" header on every page's content: it makes
+        # per-page coverage VISIBLE in OWUI's extracted-text preview, and it lets a
+        # page-targeted question ("what's on page 5?") actually retrieve that page's
+        # chunks — page numbers otherwise exist only in metadata RAG can't match on.
+        multi = doc.page_count > 1
+        label = (lambda i, c: f"[Page {i + 1}]\n{c}") if multi else (lambda i, c: c)
         for i in range(doc.page_count):
             page = doc[i]
             text = page.get_text("text").strip()
@@ -230,18 +236,18 @@ def _extract_pdf(src, filename, workdir):
             else:
                 mode = "text"
             if mode == "vision":
-                out.append(_page(_ocr_image(_render_page(page, workdir, i)), i + 1, filename, "vision"))
+                out.append(_page(label(i, _ocr_image(_render_page(page, workdir, i))), i + 1, filename, "vision"))
             elif mode == "hybrid":
                 # A vision failure here only loses the figure text — keep the page's
                 # text layer rather than failing the whole document.
                 try:
                     ocr = _ocr_image(_render_page(page, workdir, i))
-                    out.append(_page(f"{text}\n\n[Page image content]\n{ocr}", i + 1, filename, "text+vision"))
+                    out.append(_page(label(i, f"{text}\n\n[Page image content]\n{ocr}"), i + 1, filename, "text+vision"))
                 except HTTPException as e:
                     print(f"page {i + 1}: hybrid vision pass failed ({e.detail}); kept the text layer", flush=True)
-                    out.append(_page(text, i + 1, filename, "text"))
+                    out.append(_page(label(i, text), i + 1, filename, "text"))
             else:
-                out.append(_page(text, i + 1, filename, "text"))
+                out.append(_page(label(i, text), i + 1, filename, "text"))
     finally:
         doc.close()
     return out or [_page("", 1, filename, "text")]
