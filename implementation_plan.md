@@ -240,14 +240,21 @@ fleet with failover (Layer 1). Trade‑off: the coordinator box is a single poin
   enable it for non‑explicit users).
 
 **Still open (ordered by value / effort):**
-4. **Voice polish (rest).** Surface the first‑run Whisper download; explore gemma4's native **audio**
+4. **ComfyQ media generation (designed, not built).** Let a chat user generate images/video/audio via
+   ComfyQ workflows on the LAN: the farm discovers running ComfyQ boxes (their `/federation/self` beacon),
+   an operator toggles which served workflows to expose in the admin panel, and clients gain a
+   `generate_*` tool in OWUI that renders the result inline (OpenAPI tool server on the farm's `:41997` +
+   an iframe-HTML media channel). v1 = text-driven; Phase 2 = Flux.2 image editing (with/without a
+   reference image). Owner decisions locked (farm-hosted broker, a new `POST /federation/generate` REST
+   route in ComfyQ, text-first). **Full design + build order:** [docs/COMFYQ_MEDIA_PLAN.md](docs/COMFYQ_MEDIA_PLAN.md).
+5. **Voice polish (rest).** Surface the first‑run Whisper download; explore gemma4's native **audio**
    capability for spoken input. (The neural‑TTS half shipped — Kokoro farm plugin, above.)
-5. **Dynamic coordinator membership.** Today the coordinator captures peers at boot (a box added later → restart).
+6. **Dynamic coordinator membership.** Today the coordinator captures peers at boot (a box added later → restart).
    Live add/remove needs either a debounced proxy restart or LiteLLM's `/model/new` admin API (which needs a
    master key → would force keys on clients). Revisit if fleets churn often.
-6. **Hardening (M6).** Apple notarization + Windows signing (kill SmartScreen/Gatekeeper warnings);
+7. **Hardening (M6).** Apple notarization + Windows signing (kill SmartScreen/Gatekeeper warnings);
    a real multi‑box load test with `lol bench`.
-7. **Keyed farms.** If proxy auth is wanted, build the key‑entry UX (today a `requiresKey` farm gets a null key).
+8. **Keyed farms.** If proxy auth is wanted, build the key‑entry UX (today a `requiresKey` farm gets a null key).
 
 ---
 
