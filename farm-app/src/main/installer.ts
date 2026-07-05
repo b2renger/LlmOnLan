@@ -98,16 +98,32 @@ function copyFarm(): void {
     });
 }
 
-function writeFarmConfig(adminToken: string): void {
-    // Minimal — the farm's zod schema fills every other default (SearXNG/OCR on,
-    // TTS off, ports, context length 16384, the beacon, …). We pin only the served
-    // model (gemma4:12b default) and the admin token.
+// `share` picks the network posture: private (false) binds the proxy + discovery to
+// 127.0.0.1 and turns the beacon OFF (no other machine can reach/use the farm);
+// shared (true) binds 0.0.0.0 + advertises via the beacon. Everything else is left to
+// the farm's zod defaults (SearXNG/OCR on, TTS off, ports, 16k context).
+export function writeFarmConfig(adminToken: string, share: boolean): void {
     const config = {
         name: `${require('os').hostname()} Farm`,
         models: [{ id: MODEL_ID, default: true }],
         admin: { token: adminToken },
+        beacon: { enabled: share },
+        proxy: { host: share ? '0.0.0.0' : '127.0.0.1' },
     };
     fs.writeFileSync(farmConfigFile(), JSON.stringify(config, null, 2) + '\n', 'utf8');
+}
+
+// Live toggle: patch ONLY the share-relevant fields in an existing lol.config.json,
+// preserving everything else. No-op if the config doesn't exist yet (first-run
+// writeFarmConfig handles that). Takes effect on the next `lol up` (the bind address
+// + beacon are read at boot), so the caller restarts the farm.
+export function setShareMode(share: boolean): void {
+    if (!fs.existsSync(farmConfigFile())) return;
+    let cfg: any;
+    try { cfg = JSON.parse(fs.readFileSync(farmConfigFile(), 'utf8')); } catch { return; }
+    cfg.beacon = { ...(cfg.beacon || {}), enabled: share };
+    cfg.proxy = { ...(cfg.proxy || {}), host: share ? '0.0.0.0' : '127.0.0.1' };
+    fs.writeFileSync(farmConfigFile(), JSON.stringify(cfg, null, 2) + '\n', 'utf8');
 }
 
 // --- app-owned Ollama for the model pull ------------------------------------
@@ -240,7 +256,7 @@ export async function runSetup(emit: Emit, doLaunch: () => Promise<void>): Promi
         ph.start('farm');
         ph.log('[farm] copying farm code to a writable location…');
         copyFarm();
-        writeFarmConfig(adminToken);
+        writeFarmConfig(adminToken, loadSettings().shareWithNetwork); // private by default
         if (!fs.existsSync(lolEntry())) throw new Error('farm copy did not produce bin/lol.js');
         ph.done('farm');
 

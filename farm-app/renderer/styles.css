@@ -111,6 +111,9 @@ h1 { font-size: 22px; margin: 8px 0 6px; }
 .settings-body .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 11px 0; border-bottom: 1px solid var(--border); }
 .settings-body .row:last-child { border-bottom: none; }
 .settings-body select, .settings-body input[type=checkbox] { -webkit-app-region: no-drag; }
+.share-block { padding: 6px 0 12px; border-bottom: 1px solid var(--border); }
+.share-block .row { border-bottom: none; padding: 8px 0 2px; }
+.share-hint { margin: 2px 0 0; line-height: 1.5; }
 select { font: inherit; background: var(--surface-2); color: var(--text); border: 1px solid var(--border); border-radius: 7px; padding: 5px 8px; }
 
 /* --- toast ---------------------------------------------------------------- */

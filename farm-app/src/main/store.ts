@@ -13,6 +13,7 @@ const DEFAULTS: FarmSettings = {
     theme: 'system',
     launchAtLogin: false,
     autoUpdate: true,
+    shareWithNetwork: false, // private by default — only this machine can use the farm
 };
 
 let cache: FarmSettings | null = null;

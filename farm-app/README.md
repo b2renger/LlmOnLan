@@ -30,9 +30,26 @@ running screen (and auto-starts the farm).
 The window IS the farm's admin panel — `http://127.0.0.1:41997/lol/admin` in a
 `<webview>`, with the admin token auto-seeded into `localStorage` (via a webview
 preload reading it from the URL hash) so it unlocks with no prompt. Thin app chrome
-adds: a **status dot**, **Start/Stop**, the **LAN endpoint** clients connect to
-(`http://<lan-ip>:4000/v1`, copyable), **Settings** (theme, launch-at-login,
-auto-update), and **self-update**.
+adds: a **status dot**, **Start/Stop**, a **privacy line** (private vs. the shared
+LAN endpoint), **Settings** (share compute, theme, launch-at-login, auto-update), and
+**self-update**.
+
+## Private by default (share compute is opt-in)
+
+Out of the box the farm is **fully private**: the LiteLLM proxy + discovery bind
+`127.0.0.1` only and the UDP beacon is off, so **no other machine can reach or use it**
+— not by direct IP, not by subnet scan. You run models for your own machine and nobody
+else spends your GPU.
+
+Flip **Settings → Share compute with the network** to advertise as a compute box: the
+farm rebinds to `0.0.0.0` + starts the beacon, so LlmOnLan clients on the LAN discover
+and use it. Toggling restarts the farm (the bind address + beacon are read at boot).
+The posture maps to the farm's own `proxy.host` + `beacon.enabled` config, so CLI
+users get the same control by editing `lol.config.json`.
+
+> Note: while private, your *own* other devices can't reach it either (it's localhost-
+> only). "Share" opens it to everyone on the LAN — there's no per-device allow-list yet
+> (that needs the farm's `proxy.masterKey` plus a key-entry screen in the client).
 
 ## Why bundled Python + Ollama on PATH
 

@@ -79,7 +79,14 @@ dev Electron boot to the welcome screen on the dev box.
       starts its own with `OLLAMA_CONTEXT_LENGTH=16384` (a whole-document chat isn't truncated).
 - [ ] **Start/Stop + crash-restart:** the chrome Stop/Start toggles the farm; `taskkill` the `lol up` tree →
       bounded auto-restart; quitting the app reaps LiteLLM/Ollama (no orphans).
-- [ ] **A client connects:** a second machine's LlmOnLan **client** auto-discovers this farm and chats.
+- [ ] **Private by default (the compute-privacy toggle):** fresh install → a second machine
+      **cannot** reach the farm — `curl http://<box>:4000/v1/models` refuses AND the client's subnet
+      scan does NOT find it (localhost bind + no beacon). Flip **Settings → Share compute** → the farm
+      restarts, the second machine now reaches the proxy and the client auto-discovers it; flip back →
+      it disappears + refuses again. The chrome shows 🔒 private vs. the shared endpoint.
+- [ ] **Upgrade migration:** a farm installed while the app defaulted to shared (farm-v0.0.1) → after
+      updating, boot enforces private (the box stops being reachable until the operator opts in).
+- [ ] **A client connects:** with sharing ON, a second machine's LlmOnLan **client** auto-discovers this farm and chats.
 - [ ] **Per-OS installers** (CI on a `farm-v*` tag): NSIS (win x64), dmg+zip (mac arm64, ad-hoc), AppImage
       (linux **arm64** — the DGX). SmartScreen/Gatekeeper unsigned warnings documented for the operator.
 - [ ] **DGX Spark:** the arm64 AppImage runs on the Spark; the plain `ollama-linux-arm64` archive loads

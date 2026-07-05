@@ -16,7 +16,7 @@ import * as url from 'url';
 import { loadSettings, updateSettings } from './store';
 import { runtimeReady } from './runtimeManager';
 import { farmInstalled } from './paths';
-import { runSetup } from './installer';
+import { runSetup, setShareMode } from './installer';
 import { FarmSupervisor } from './farmSupervisor';
 import { initAutoUpdate, checkForAppUpdate, quitAndInstallUpdate, setUpdateNotifier } from './updater';
 import { FarmSettings, FarmState, SetupProgress } from './types';
@@ -106,6 +106,7 @@ function currentPrefs() {
         theme: s.theme,
         launchAtLogin: s.launchAtLogin,
         autoUpdate: s.autoUpdate,
+        shareWithNetwork: s.shareWithNetwork,
         appVersion: app.getVersion(),
         platform: process.platform,
         arch: process.arch,
@@ -166,6 +167,21 @@ function registerIpc(): void {
         return v;
     });
 
+    // Share the farm's compute with the LAN (default off = fully private: localhost
+    // bind + no beacon). Rewrites lol.config.json's beacon/proxy and restarts the
+    // farm so the new bind address + beacon take effect (they're read at `lol up` boot).
+    ipcMain.handle('set-share-network', async (_e, on: boolean) => {
+        const share = !!on;
+        updateSettings({ shareWithNetwork: share });
+        setShareMode(share);
+        const st = supervisor.getState().status;
+        if (st === 'ready' || st === 'starting' || st === 'restarting') {
+            await supervisor.stop({ keepState: true });
+            await supervisor.start();
+        }
+        return { share, farmState: supervisor.getState() };
+    });
+
     // App self-update.
     ipcMain.handle('check-app-update', () => checkForAppUpdate());
     ipcMain.handle('install-app-update', () => { quitAndInstallUpdate(); return true; });
@@ -198,6 +214,7 @@ app.whenReady().then(() => {
     // watches farm-state go starting → ready). A missing runtime/farm copy (e.g. a
     // wiped userData) falls back to the wizard.
     if (settings.installed && runtimeReady() && farmInstalled()) {
+        setShareMode(settings.shareWithNetwork); // enforce the persisted posture (also migrates a pre-toggle 0.0.0.0 config to private)
         supervisor.start();
     } else if (settings.installed) {
         // Marked installed but the on-disk runtime is gone — re-run setup.

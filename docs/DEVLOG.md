@@ -6,6 +6,33 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-07-05 i — Farm app: private by default + a "share compute" toggle
+
+The Farm app now defaults to **fully private** and makes sharing compute an explicit
+opt-in — an operator serving models for their own machine shouldn't have strangers
+spending their GPU. New `FarmSettings.shareWithNetwork` (default **false**):
+
+- **Private (default):** `writeFarmConfig` pins `proxy.host:"127.0.0.1"` +
+  `beacon.enabled:false`, so the LiteLLM proxy + `/lol/self` bind localhost only and no
+  beacon is sent. Other machines can't reach OR use the farm — critically, **not even by
+  subnet scan** (the LlmOnLan client auto-probes `/lol/self`, so merely silencing the
+  beacon would NOT have protected the compute; the localhost bind is what actually does).
+- **Shared (toggle on):** rebinds `0.0.0.0` + `beacon.enabled:true` → advertises as a
+  compute box; clients discover + use it.
+
+Wiring: a **Share compute with the network** toggle in the app's Settings drawer +
+a privacy line in the chrome (🔒 private vs. the shared endpoint). Flipping it rewrites
+`lol.config.json` (`setShareMode`, a minimal beacon/proxy patch that preserves the rest)
+and **restarts the farm** (bind address + beacon are read at `lol up` boot). Boot also
+enforces the persisted posture via `setShareMode`, which **migrates** an older
+0.0.0.0/beacon-on config to private on upgrade. No farm-side code change — it drives the
+CLI's existing `proxy.host` + `beacon.enabled`, so terminal users get the same control.
+
+Verified: tsc clean, renderer boots with no console errors. (This flips the app's
+previous default from shared → private; farm-v0.0.1 shipped shared.)
+
+---
+
 ## 2026-07-05 h — LlmOnLan Farm app: a self-installing desktop installer for the GPU box
 
 A new **`farm-app/`** Electron workspace — a downloadable, self-updating installer that

@@ -8,6 +8,7 @@ const PHASE_ICON = { pending: '', active: '<span class="spin">◜</span>', done:
 let theme = 'system';
 let webviewLoaded = false;
 let installed = false;
+let shareWithNetwork = false;
 
 // --- theme ------------------------------------------------------------------
 
@@ -131,11 +132,23 @@ function renderFarmState(s) {
     toggle.textContent = running ? 'Stop' : 'Start';
     toggle.disabled = s.status === 'starting' || s.status === 'restarting';
 
-    // LAN address.
+    // LAN address / privacy posture (only meaningful once the farm is up).
     const lanBar = $('#lan-bar');
-    if (s.lanUrls && s.lanUrls.length) {
-        $('#lan-url').textContent = s.lanUrls[0];
+    const lanUrlEl = $('#lan-url');
+    const copyBtn = $('#btn-copy-lan');
+    if (s.status === 'ready') {
         lanBar.classList.remove('hidden');
+        if (shareWithNetwork && s.lanUrls && s.lanUrls.length) {
+            $('.lan-label').textContent = 'Sharing compute — clients on this network connect automatically. OpenAI endpoint:';
+            lanUrlEl.textContent = s.lanUrls[0];
+            lanUrlEl.classList.remove('hidden');
+            copyBtn.classList.remove('hidden');
+        } else {
+            // Private (or shared but no LAN address yet): don't invite connections.
+            $('.lan-label').textContent = '🔒 Private — only this machine can use this farm. Turn on “Share compute” in Settings to serve the network.';
+            lanUrlEl.classList.add('hidden');
+            copyBtn.classList.add('hidden');
+        }
     } else {
         lanBar.classList.add('hidden');
     }
@@ -175,13 +188,28 @@ function goRunning() {
 function openSettings() { $('#settings-panel').classList.remove('hidden'); }
 function closeSettings() { $('#settings-panel').classList.add('hidden'); }
 
+function updateShareHint() {
+    $('#share-hint').textContent = shareWithNetwork
+        ? 'On — other people on this network can discover and use this machine for AI compute.'
+        : 'Off — the farm is private to this machine. No one else on the network can reach or use it.';
+}
+
 function wireSettings(prefs) {
     $('#sel-theme').value = prefs.theme;
     $('#chk-launch').checked = !!prefs.launchAtLogin;
     $('#chk-autoupdate').checked = !!prefs.autoUpdate;
+    $('#chk-share').checked = shareWithNetwork;
+    updateShareHint();
     $('#app-version').textContent = 'v' + prefs.appVersion;
 
     $('#sel-theme').addEventListener('change', (e) => setTheme(e.target.value));
+    $('#chk-share').addEventListener('change', async (e) => {
+        shareWithNetwork = e.target.checked;
+        updateShareHint();
+        toast(shareWithNetwork ? 'Sharing with the network — restarting the farm…' : 'Going private — restarting the farm…');
+        const r = await window.farm.setShareNetwork(shareWithNetwork);
+        if (r && r.farmState) renderFarmState(r.farmState);
+    });
     $('#chk-launch').addEventListener('change', (e) => window.farm.setLaunchAtLogin(e.target.checked));
     $('#chk-autoupdate').addEventListener('change', (e) => window.farm.setAutoUpdate(e.target.checked));
     $('#btn-open-logs').addEventListener('click', () => window.farm.openLogs());
@@ -206,6 +234,7 @@ async function boot() {
     const prefs = init.prefs;
     installed = prefs.installed;
     theme = prefs.theme;
+    shareWithNetwork = !!prefs.shareWithNetwork;
     applyThemeClass(theme);
     wireSettings(prefs);
 

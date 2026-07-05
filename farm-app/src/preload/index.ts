@@ -24,6 +24,7 @@ contextBridge.exposeInMainWorld('farm', {
     setTheme: (theme: 'dark' | 'light' | 'system') => ipcRenderer.invoke('set-theme', theme),
     setLaunchAtLogin: (on: boolean) => ipcRenderer.invoke('set-launch-at-login', on),
     setAutoUpdate: (on: boolean) => ipcRenderer.invoke('set-auto-update', on),
+    setShareNetwork: (on: boolean) => ipcRenderer.invoke('set-share-network', on),
 
     // App self-update.
     checkAppUpdate: () => ipcRenderer.invoke('check-app-update'),
