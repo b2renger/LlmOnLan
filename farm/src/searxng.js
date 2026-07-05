@@ -31,6 +31,7 @@ const http = require('http');
 const crypto = require('crypto');
 const { execSync, spawn } = require('child_process');
 const log = require('./log');
+const { resolvePython } = require('./python');
 
 // Master HEAD at integration time (2026-07-01), smoke-tested on the dev box.
 // Bump deliberately: change this constant and re-run `lol up` — the next run
@@ -56,16 +57,13 @@ function shCapture(cmd) {
     catch { return null; }
 }
 
-// Find a usable Python (same ladder as `lol install`'s LiteLLM venv).
+// Find a usable Python (same ladder as `lol install`'s LiteLLM venv). Honors
+// $LOL_PYTHON (the desktop Farm app's bundled interpreter) via the shared resolver.
 function findPython() {
     const candidates = IS_WIN
         ? ['py -3.12', 'py -3.11', 'py -3', 'python', 'python3']
         : ['python3.12', 'python3.11', 'python3', 'python'];
-    for (const c of candidates) {
-        const v = shCapture(`${c} --version`);
-        if (v && /Python 3\.(10|11|12|13)\b/.test(v)) return { cmd: c, version: v };
-    }
-    return null;
+    return resolvePython(candidates, (v) => /Python 3\.(10|11|12|13)\b/.test(v));
 }
 
 // The minimal settings.yml body. Exported for tests. Port/bind deliberately

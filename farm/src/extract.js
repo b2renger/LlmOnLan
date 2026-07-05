@@ -20,6 +20,7 @@ const path = require('path');
 const http = require('http');
 const { execSync, spawn } = require('child_process');
 const log = require('./log');
+const { resolvePython } = require('./python');
 
 const IS_WIN = process.platform === 'win32';
 const ROOT = path.join(__dirname, '..', '.extract');   // farm/.extract
@@ -42,16 +43,13 @@ function shCapture(cmd) {
 }
 function readTrim(p) { try { return fs.readFileSync(p, 'utf8').trim(); } catch { return null; } }
 
-// Same Python ladder as the LiteLLM / SearXNG venvs.
+// Same Python ladder as the LiteLLM / SearXNG venvs. Honors $LOL_PYTHON (the Farm
+// app's bundled interpreter) via the shared resolver.
 function findPython() {
     const candidates = IS_WIN
         ? ['py -3.12', 'py -3.11', 'py -3', 'python', 'python3']
         : ['python3.12', 'python3.11', 'python3', 'python'];
-    for (const c of candidates) {
-        const v = shCapture(`${c} --version`);
-        if (v && /Python 3\.(10|11|12|13)\b/.test(v)) return { cmd: c, version: v };
-    }
-    return null;
+    return resolvePython(candidates, (v) => /Python 3\.(10|11|12|13)\b/.test(v));
 }
 
 // A signature of what SHOULD be installed. Changing the docling flag changes it, so

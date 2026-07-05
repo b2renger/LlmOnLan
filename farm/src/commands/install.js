@@ -22,6 +22,7 @@ const { execSync, spawn } = require('child_process');
 const log = require('../log');
 const ollama = require('../ollama');
 const { venvLitellmPath } = require('../proc');
+const { resolvePython } = require('../python');
 const {
     CONFIG_FILENAME, defaultConfig, writeConfig, loadConfig, resolveConfigPath, configExists,
 } = require('../config');
@@ -110,16 +111,13 @@ function installOllama() {
 
 // --- 3. LiteLLM venv --------------------------------------------------------
 
-// Find a usable Python 3.9–3.13 interpreter command, or null.
+// Find a usable Python 3.9–3.13 interpreter command, or null. Honors $LOL_PYTHON
+// (the desktop Farm app's bundled interpreter) via the shared resolver.
 function findPython() {
     const candidates = IS_WIN
         ? ['py -3.12', 'py -3.11', 'py -3', 'python', 'python3']
         : ['python3.12', 'python3.11', 'python3', 'python'];
-    for (const c of candidates) {
-        const v = shCapture(`${c} --version`);
-        if (v && /Python 3\.(9|10|11|12|13)\b/.test(v)) return { cmd: c, version: v };
-    }
-    return null;
+    return resolvePython(candidates, (v) => /Python 3\.(9|10|11|12|13)\b/.test(v));
 }
 
 function venvPython() {

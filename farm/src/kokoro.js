@@ -23,6 +23,7 @@ const path = require('path');
 const http = require('http');
 const { execSync, spawn } = require('child_process');
 const log = require('./log');
+const { resolvePython } = require('./python');
 
 // Bump deliberately: change the tag and re-run `lol up` — the next run re-fetches
 // + reinstalls automatically (guarded by the .src-tag / .installed-tag markers).
@@ -51,15 +52,12 @@ function shCapture(cmd) {
 function readTrim(p) { try { return fs.readFileSync(p, 'utf8').trim(); } catch { return null; } }
 
 // Kokoro pins requires-python >=3.10; kokoro 0.9.4 dislikes 3.13 — prefer 3.12.
+// Honors $LOL_PYTHON (the Farm app's bundled 3.12) via the shared resolver.
 function findPython() {
     const candidates = IS_WIN
         ? ['py -3.12', 'py -3.11', 'py -3.10', 'python', 'python3']
         : ['python3.12', 'python3.11', 'python3.10', 'python3', 'python'];
-    for (const c of candidates) {
-        const v = shCapture(`${c} --version`);
-        if (v && /Python 3\.(10|11|12)\b/.test(v)) return { cmd: c, version: v };
-    }
-    return null;
+    return resolvePython(candidates, (v) => /Python 3\.(10|11|12)\b/.test(v));
 }
 
 // Is an NVIDIA GPU present? (picks the cu128 torch wheel; else CPU torch.)
