@@ -1,6 +1,6 @@
 {
   "name": "llmonlan-farm-app",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "LlmOnLan Farm — a self-installing desktop app that turns a GPU box into a running farm (bundled Ollama + Python + the lol server) with zero terminal.",
   "license": "MIT",
   "author": "b2renger",
