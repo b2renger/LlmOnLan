@@ -6,6 +6,28 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-07-06 f — copyFarm choked on node_modules/.bin symlinks (blocked (e))
+
+The propagation from (e) silently failed on the DGX: the boot log showed
+`[farm] code refresh failed: ENOENT: no such file or directory, stat
+'.../farm/node_modules/.bin/js-yaml'`. `refreshFarmCodeIfUpdated` fired correctly, but
+`copyFarm`'s `fs.cpSync` **throws re-copying the `node_modules/.bin` CLI symlinks over an
+existing tree** (npm makes those symlinks on Linux; a dereferencing copy stat-follows a
+now-dangling one). So the version was never stamped and the farm code never refreshed —
+`NVIDIA GB10 · 0GB VRAM` persisted through the 0.0.7 update even though the fix was in the
+bundle. (The earlier local test missed it because it copied into a *fresh* dest, not over
+an existing install — fixed the test too.)
+
+Fix ([installer.ts](../farm-app/src/main/installer.ts) `copyFarm`): **skip
+`node_modules/.bin`** (CLI symlinks the farm never uses — it `require()`s the packages
+directly) + `verbatimSymlinks: true` + explicit `force: true`. Verified with a re-copy test
+over a pre-populated dest: no throw, `systemInfo.js` refreshes, `.venv`/config preserved,
+`js-yaml` package still copied. So on the 0.0.8 update the DGX's farm code finally refreshes
+and VRAM reads the unified 122 GB. (Good news from the same log: the free-port fix works —
+SearXNG bound 38989, OCR 43989, both healthy.)
+
+---
+
 ## 2026-07-06 e — Farm-code updates now reach an already-installed farm
 
 Caught while shipping (d): the setup wizard copies the bundled farm → `userData/farm`

@@ -86,12 +86,21 @@ function copyFarm(): void {
     fs.mkdirSync(farmRoot(), { recursive: true });
     fs.cpSync(src, farmRoot(), {
         recursive: true,
+        force: true,
+        // Copy symlinks AS symlinks (don't dereference) — belt-and-suspenders against
+        // node_modules symlinks that a dereferencing copy would stat-follow.
+        verbatimSymlinks: true,
         // Skip the on-box runtime/state dirs (a dev checkout's) + the generated proxy config.
         filter: (from) => {
             const rel = path.relative(src, from);
             if (!rel) return true;
             const top = rel.split(path.sep)[0];
             if (FARM_COPY_SKIP.has(top)) return false;
+            // Skip node_modules/.bin — CLI symlinks the farm never uses (it require()s the
+            // packages directly). cpSync throws re-copying them over an existing tree
+            // ("ENOENT stat .../node_modules/.bin/js-yaml"), which was silently blocking every
+            // farm-code refresh on an update (DGX VRAM fix never landed until this).
+            if (/(^|[\\/])\.bin([\\/]|$)/.test(rel)) return false;
             if (rel.replace(/\\/g, '/') === 'litellm/config.generated.yaml') return false;
             return true;
         },
