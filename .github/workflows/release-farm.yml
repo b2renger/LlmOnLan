@@ -23,13 +23,19 @@ jobs:
   create-release:
     runs-on: ubuntu-latest
     steps:
+      # --prerelease is LOAD-BEARING while the farm shares this repo with the client:
+      # GitHub's /releases/latest (what electron-updater resolves) returns the newest
+      # NON-prerelease release. If a farm release were "latest", the CLIENT updater would
+      # find farm.yml instead of its latest.yml and 404 (and vice-versa). Marking farm
+      # releases prerelease keeps the client's v* release as GitHub's "latest". The farm
+      # app's own auto-update then needs a separate releases repo (see DEVLOG 2026-07-06 b).
       - name: Ensure the release exists
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
         run: |
           gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 \
-            || gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" \
+            || gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --prerelease \
                  --notes "Automated Farm release $GITHUB_REF_NAME." --verify-tag
 
   build:

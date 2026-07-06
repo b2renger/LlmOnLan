@@ -6,6 +6,36 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-07-06 b — Farm releases broke the CLIENT's auto-update (shared release page)
+
+Publishing the farm to the SAME GitHub repo as the client broke the **client's**
+auto-update. Root cause: electron-updater (default `allowPrerelease:false`) resolves
+updates via GitHub's **`/releases/latest`**, which returns the newest **non-prerelease**
+release. Once `farm-v0.0.3` shipped it became GitHub's "Latest" — so a client updater hit
+the farm release, looked for its `latest.yml` there, found only `farm.yml`, and 404'd.
+It's a see-saw: whichever app released most recently owns "latest" and the other breaks.
+The `channel: farm` vs `latest` split controls the FILE NAME but NOT which release
+`/releases/latest` returns, so it doesn't prevent the collision. (Verified via
+`gh api repos/b2renger/LlmOnLan/releases/latest` → `farm-v0.0.3`.)
+
+**Immediate fix (done):** marked `farm-v0.0.1/2/3` as **prereleases** → `/releases/latest`
+reverts to `v0.1.25` (client's, which has `latest.yml`) → client auto-update restored.
+**CI hardened:** `release-farm.yml` now creates farm releases with `--prerelease` so a
+future `farm-v*` can't re-take "latest". Consequence: while the farm shares this repo, the
+**farm app's own auto-update is off** (its updater also uses `/releases/latest` → the
+client release → no `farm.yml`), so farm updates are manual for now.
+
+**Durable fix (needs a decision + a GitHub action):** give the farm its **own releases
+repo** (e.g. `b2renger/LlmOnLan-Farm`) so each app's `/releases/latest` is unambiguous.
+Requires a new repo + a PAT secret for cross-repo publishing from Actions (GITHUB_TOKEN is
+scoped to the workflow's repo). A one-repo auto-update for the farm isn't achievable
+cleanly: electron-updater parses the git TAG as semver, so the farm's `farm-v*` tags are
+unparseable on the prerelease/atom path, and a shared `v*` namespace would collide with the
+client. Separate repo is the standard resolution (the Phase-F plan pre-identified it as the
+fallback). Deferred pending the owner's call (separate-repo auto-update vs. manual farm updates).
+
+---
+
 ## 2026-07-06 a — Farm app hotfix: ship the farm's node_modules (js-yaml/zod)
 
 **Critical packaging bug — every packaged build (farm-v0.0.1/0.0.2, all OSes) failed
