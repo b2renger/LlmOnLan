@@ -2,7 +2,24 @@
 // (used to wait on the farm's /lol/self endpoint).
 
 import * as http from 'http';
+import * as net from 'net';
 import { execFile } from 'child_process';
+
+// Is `preferred` bindable on `host`? If so return it; else return an OS-assigned free
+// port. Used to route the farm's plugins (SearXNG/OCR) off a taken port (e.g. 8888,
+// JupyterLab's default on a DGX). We check on 0.0.0.0 so a conflict on any interface
+// (incl. a 127.0.0.1-only listener) is detected before the plugin tries to bind.
+export function findFreePort(preferred: number, host = '0.0.0.0'): Promise<number> {
+    return new Promise((resolve) => {
+        const srv = net.createServer();
+        srv.once('error', () => {
+            const s2 = net.createServer();
+            s2.once('error', () => resolve(preferred)); // couldn't get any → let the plugin surface it
+            s2.listen(0, host, () => { const p = (s2.address() as net.AddressInfo).port; s2.close(() => resolve(p)); });
+        });
+        srv.listen(preferred, host, () => { const p = (srv.address() as net.AddressInfo).port; srv.close(() => resolve(p)); });
+    });
+}
 
 // Tree-kill a pid + children (LiteLLM's uvicorn workers, a spawned Ollama, etc.),
 // cross-platform. The farm's `lol up` supervises its own children, so killing the

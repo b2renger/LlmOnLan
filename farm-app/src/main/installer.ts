@@ -25,7 +25,7 @@ import {
 } from './paths';
 import { loadSettings, updateSettings } from './store';
 import { ensureRuntime } from './runtimeManager';
-import { killTree } from './util';
+import { killTree, findFreePort } from './util';
 import { SetupPhase, SetupPhaseId, SetupProgress, DownloadProgress } from './types';
 
 const MODEL_ID = 'gemma4:12b';
@@ -111,6 +111,29 @@ export function writeFarmConfig(adminToken: string, share: boolean): void {
         proxy: { host: share ? '0.0.0.0' : '127.0.0.1' },
     };
     fs.writeFileSync(farmConfigFile(), JSON.stringify(config, null, 2) + '\n', 'utf8');
+}
+
+// Route the farm's plugins off taken ports before launch. SearXNG (default 8888 —
+// JupyterLab's port, commonly occupied on a DGX) and the OCR service (8890) both fail
+// hard with "address already in use" if their port is taken, which disables the plugin.
+// We check each and, if occupied, patch lol.config.json to a free port; the client
+// adapts automatically because the port is advertised in the beacon snapshot. Called
+// before every farm start. No-op when the defaults are free (the common case).
+export async function ensurePluginPorts(): Promise<void> {
+    if (!fs.existsSync(farmConfigFile())) return;
+    let cfg: any;
+    try { cfg = JSON.parse(fs.readFileSync(farmConfigFile(), 'utf8')); } catch { return; }
+    let changed = false;
+    for (const [key, def] of [['websearch', 8888], ['ocr', 8890]] as [string, number][]) {
+        const wanted = (cfg[key] && cfg[key].port) || def;
+        const free = await findFreePort(wanted);
+        if (free !== wanted) {
+            cfg[key] = { ...(cfg[key] || {}), port: free };
+            changed = true;
+            console.log(`[ports] ${key}: ${wanted} is in use — using ${free} instead`);
+        }
+    }
+    if (changed) fs.writeFileSync(farmConfigFile(), JSON.stringify(cfg, null, 2) + '\n', 'utf8');
 }
 
 // Live toggle: patch ONLY the share-relevant fields in an existing lol.config.json,

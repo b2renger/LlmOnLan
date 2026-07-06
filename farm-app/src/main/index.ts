@@ -16,7 +16,7 @@ import * as url from 'url';
 import { loadSettings, updateSettings } from './store';
 import { runtimeReady } from './runtimeManager';
 import { farmInstalled } from './paths';
-import { runSetup, setShareMode } from './installer';
+import { runSetup, setShareMode, ensurePluginPorts } from './installer';
 import { FarmSupervisor } from './farmSupervisor';
 import { initUpdateCheck, checkFarmUpdate, setUpdateNotifier } from './updater';
 import { FarmSettings, FarmState, SetupProgress } from './types';
@@ -29,6 +29,12 @@ if (!app.requestSingleInstanceLock()) app.quit();
 let win: BrowserWindow | null = null;
 const supervisor = new FarmSupervisor();
 let setupRunning = false;
+
+// Start the farm, first routing its plugins off any taken ports (e.g. 8888/Jupyter).
+async function startFarm(): Promise<void> {
+    await ensurePluginPorts();
+    await supervisor.start();
+}
 
 // --- renderer push ----------------------------------------------------------
 
@@ -135,7 +141,7 @@ function registerIpc(): void {
         try {
             const res = await runSetup(pushSetupProgress, async () => {
                 updateSettings({ installed: true }); // all downloads done — mark it before launch
-                await supervisor.start();
+                await startFarm();
                 if (supervisor.getState().status !== 'ready') {
                     throw new Error(supervisor.getState().message || 'The farm did not start.');
                 }
@@ -147,7 +153,7 @@ function registerIpc(): void {
     });
 
     // Start/Stop the farm from the running screen.
-    ipcMain.handle('farm-start', async () => { await supervisor.start(); return supervisor.getState(); });
+    ipcMain.handle('farm-start', async () => { await startFarm(); return supervisor.getState(); });
     ipcMain.handle('farm-stop', async () => { await supervisor.stop(); return supervisor.getState(); });
     ipcMain.handle('refresh-lan', async () => { await supervisor.refreshLan(); return supervisor.getState(); });
 
@@ -177,7 +183,7 @@ function registerIpc(): void {
         const st = supervisor.getState().status;
         if (st === 'ready' || st === 'starting' || st === 'restarting') {
             await supervisor.stop({ keepState: true });
-            await supervisor.start();
+            await startFarm();
         }
         return { share, farmState: supervisor.getState() };
     });
@@ -215,7 +221,7 @@ app.whenReady().then(() => {
     // wiped userData) falls back to the wizard.
     if (settings.installed && runtimeReady() && farmInstalled()) {
         setShareMode(settings.shareWithNetwork); // enforce the persisted posture (also migrates a pre-toggle 0.0.0.0 config to private)
-        supervisor.start();
+        startFarm();
     } else if (settings.installed) {
         // Marked installed but the on-disk runtime is gone — re-run setup.
         updateSettings({ installed: false });

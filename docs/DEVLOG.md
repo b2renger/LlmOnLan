@@ -6,6 +6,30 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-07-06 c — Farm app: auto-pick free ports for SearXNG/OCR (DGX port clash)
+
+On the DGX Spark, web search + document OCR never came up: the client showed no Web
+Search toggle. Diagnosed from the farm's terminal log (`./LlmOnLan-Farm-*.AppImage`
+run in a shell): **not an arm64 issue** — both plugins install + start fine, but fail
+to BIND their ports: SearXNG `Address already in use ... Port 8888`, OCR `[Errno 98] ...
+('0.0.0.0', 8890): address already in use`. **8888 is JupyterLab's default port**, which
+the NVIDIA DGX stack runs; 8890 was likely a leftover from an earlier run. The farm then
+disables a plugin that dies during startup (SearXNG → snapshot `enabled:false`) or marks
+it unhealthy if it dies just after (OCR → `enabled:true, healthy:false`) — which is
+exactly the state `/lol/self` reported. Chat was unaffected (Ollama/LiteLLM on 11434/4000).
+
+Fix (farm-app, no farm-side change): new `ensurePluginPorts()` runs before every farm
+start — it checks `websearch.port` (8888) and `ocr.port` (8890) with `findFreePort()`
+(added to util.ts; binds-tests on 0.0.0.0 so a conflict on any interface is caught) and,
+if taken, patches `lol.config.json` to a free port. The client adapts automatically since
+the port rides in the beacon snapshot (`searxngUrl`/`extract.url`). Wired into all start
+paths via a `startFarm()` helper (boot, setup launch, Start button, share toggle). No-op
+when the defaults are free. Verified: `findFreePort(occupied)` reroutes, `findFreePort(free)`
+keeps. **Follow-ups noted:** plugin child-process cleanup (orphans can accumulate on repeated
+restarts — a free port sidesteps but doesn't reap them) and the GB10 "0GB VRAM" detection.
+
+---
+
 ## 2026-07-06 b — Farm releases broke the CLIENT's auto-update (shared release page)
 
 Publishing the farm to the SAME GitHub repo as the client broke the **client's**
