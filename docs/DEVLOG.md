@@ -6,6 +6,29 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-07-06 a — Farm app hotfix: ship the farm's node_modules (js-yaml/zod)
+
+**Critical packaging bug — every packaged build (farm-v0.0.1/0.0.2, all OSes) failed
+the setup wizard's "deps" phase** with `Cannot find module 'js-yaml'`. Surfaced on the
+DGX Spark first, but platform-independent. Root cause: **electron-builder HARD-EXCLUDES
+any directory named `node_modules` while walking an `extraResources` `from` dir** — a
+documented behavior (it assumes node_modules is handled via the app's own dependency
+mechanism). Proven locally: with the filter removed entirely, electron-builder still
+copied `.extract/venv/**` but never `node_modules`. So the bundled `resources/farm` had
+`src/`/`bin/` but no `node_modules`, `copyFarm` faithfully copied that, and `lol` (which
+`require`s js-yaml/zod) crashed. Dev (`npm run dev`) was unaffected because it reads the
+real `farm/node_modules`, which is why it wasn't caught pre-release.
+
+Fix: a **second `extraResources` entry** with `from: ../farm/node_modules` →
+`to: farm/node_modules`. When `node_modules` is the walk ROOT (not a subdir encountered
+mid-walk) the exclusion doesn't apply, so it copies. Verified by a local `--dir` pack:
+`resources/farm/node_modules` now contains `js-yaml` + `zod` + `argparse` (js-yaml's
+transitive dep). CI's `npm ci --omit=dev` in `farm/` already populates node_modules
+before packaging, so this ships correctly. No other farm deps exist (package.json lists
+only those two), so this fully unblocks the deps phase.
+
+---
+
 ## 2026-07-05 i — Farm app: private by default + a "share compute" toggle
 
 The Farm app now defaults to **fully private** and makes sharing compute an explicit

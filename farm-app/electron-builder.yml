@@ -41,6 +41,12 @@ extraResources:
       - "!.lol-id"
       - "!lol.config.json"
       - "!litellm/config.generated.yaml"
+  # electron-builder HARD-EXCLUDES any dir named node_modules encountered while
+  # walking an extraResources `from` — so the farm's pure-JS deps (js-yaml/zod) never
+  # shipped, and `lol` crashed with "Cannot find module 'js-yaml'". Copy node_modules
+  # via its OWN entry (node_modules as the walk ROOT), which the exclusion doesn't hit.
+  - from: ../farm/node_modules
+    to: farm/node_modules
 
 directories:
   output: dist
