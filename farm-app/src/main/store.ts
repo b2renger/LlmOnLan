@@ -8,6 +8,7 @@ import { FarmSettings } from './types';
 
 const DEFAULTS: FarmSettings = {
     installed: false,
+    farmCodeVersion: null,
     adminToken: null,
     dataDir: null,
     theme: 'system',

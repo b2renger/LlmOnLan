@@ -44,6 +44,7 @@ export interface DownloadProgress {
 
 export interface FarmSettings {
     installed: boolean;            // first-run setup completed → skip the wizard
+    farmCodeVersion: string | null; // app version whose farm code is in userData/farm (re-copy on update)
     adminToken: string | null;     // the pinned admin token written into lol.config.json
     dataDir: string | null;        // reserved: a custom farm data folder (null => userData/farm)
     theme: 'dark' | 'light' | 'system';

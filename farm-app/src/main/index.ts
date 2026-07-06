@@ -16,7 +16,7 @@ import * as url from 'url';
 import { loadSettings, updateSettings } from './store';
 import { runtimeReady } from './runtimeManager';
 import { farmInstalled } from './paths';
-import { runSetup, setShareMode, ensurePluginPorts } from './installer';
+import { runSetup, setShareMode, ensurePluginPorts, refreshFarmCodeIfUpdated } from './installer';
 import { reapStaleFarm } from './farmProcess';
 import { FarmSupervisor } from './farmSupervisor';
 import { initUpdateCheck, checkFarmUpdate, setUpdateNotifier } from './updater';
@@ -144,7 +144,9 @@ function registerIpc(): void {
         setupRunning = true;
         try {
             const res = await runSetup(pushSetupProgress, async () => {
-                updateSettings({ installed: true }); // all downloads done — mark it before launch
+                // Mark installed + stamp the farm-code version (setup just copied the current
+                // bundle) so the next boot doesn't needlessly re-copy.
+                updateSettings({ installed: true, farmCodeVersion: app.getVersion() });
                 await startFarm();
                 if (supervisor.getState().status !== 'ready') {
                     throw new Error(supervisor.getState().message || 'The farm did not start.');
@@ -224,6 +226,7 @@ app.whenReady().then(() => {
     // watches farm-state go starting → ready). A missing runtime/farm copy (e.g. a
     // wiped userData) falls back to the wizard.
     if (settings.installed && runtimeReady() && farmInstalled()) {
+        refreshFarmCodeIfUpdated(app.getVersion()); // propagate farm-side fixes on an app update
         setShareMode(settings.shareWithNetwork); // enforce the persisted posture (also migrates a pre-toggle 0.0.0.0 config to private)
         startFarm();
     } else if (settings.installed) {

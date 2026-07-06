@@ -102,7 +102,7 @@ function copyFarm(): void {
 // 127.0.0.1 and turns the beacon OFF (no other machine can reach/use the farm);
 // shared (true) binds 0.0.0.0 + advertises via the beacon. Everything else is left to
 // the farm's zod defaults (SearXNG/OCR on, TTS off, ports, 16k context).
-export function writeFarmConfig(adminToken: string, share: boolean): void {
+function writeFarmConfig(adminToken: string, share: boolean): void {
     const config = {
         name: `${require('os').hostname()} Farm`,
         models: [{ id: MODEL_ID, default: true }],
@@ -111,6 +111,23 @@ export function writeFarmConfig(adminToken: string, share: boolean): void {
         proxy: { host: share ? '0.0.0.0' : '127.0.0.1' },
     };
     fs.writeFileSync(farmConfigFile(), JSON.stringify(config, null, 2) + '\n', 'utf8');
+}
+
+// Setup runs ONCE, but the bundled farm code changes with every app update — so re-copy
+// it over userData/farm when the app version differs from what we last copied. copyFarm's
+// skip-list preserves the built venvs (.venv/.searxng/.extract), lol.config.json, and the
+// runtime state, so this refreshes ONLY the code (src/bin/node_modules). Without this, a
+// farm-side fix shipped in an app update would never reach an already-installed farm.
+export function refreshFarmCodeIfUpdated(appVersion: string): void {
+    if (!fs.existsSync(lolEntry())) return; // not installed yet — setup will copy it
+    if (loadSettings().farmCodeVersion === appVersion) return;
+    try {
+        copyFarm();
+        updateSettings({ farmCodeVersion: appVersion });
+        console.log(`[farm] refreshed farm code to app v${appVersion}`);
+    } catch (e) {
+        console.warn('[farm] code refresh failed:', (e as Error).message);
+    }
 }
 
 // Route the farm's plugins off taken ports before launch. SearXNG (default 8888 —

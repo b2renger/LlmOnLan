@@ -6,6 +6,24 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-07-06 e — Farm-code updates now reach an already-installed farm
+
+Caught while shipping (d): the setup wizard copies the bundled farm → `userData/farm`
+**once**, and subsequent launches skip setup — so a **farm-side fix in an app update would
+never reach an installed farm** (only the app's own compiled main process updates). That
+would have made (d)'s VRAM + reap fixes (and the earlier `resolvePython`/plugin fixes)
+dead-on-arrival for anyone updating rather than reinstalling.
+
+Fix: `refreshFarmCodeIfUpdated(appVersion)` ([installer.ts](../farm-app/src/main/installer.ts))
+runs on the installed-boot path — if the app version differs from the `farmCodeVersion`
+recorded in settings, it re-runs `copyFarm()` (whose skip-list preserves the built venvs,
+`lol.config.json`, and runtime state, so ONLY `src`/`bin`/`node_modules` refresh) and stamps
+the new version. A fresh setup stamps the version too, so there's no redundant first-boot
+copy. Net: updating the Farm app now propagates farm-side fixes to `userData/farm` on next
+launch. (So the DGX gets the VRAM + reap fixes just by updating to this build.)
+
+---
+
 ## 2026-07-06 d — GB10 unified-memory VRAM + orphaned-plugin reaping
 
 The two follow-ups from entry (c), after web search was confirmed working on the Spark.
