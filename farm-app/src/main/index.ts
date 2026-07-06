@@ -18,7 +18,7 @@ import { runtimeReady } from './runtimeManager';
 import { farmInstalled } from './paths';
 import { runSetup, setShareMode } from './installer';
 import { FarmSupervisor } from './farmSupervisor';
-import { initAutoUpdate, checkForAppUpdate, quitAndInstallUpdate, setUpdateNotifier } from './updater';
+import { initUpdateCheck, checkFarmUpdate, setUpdateNotifier } from './updater';
 import { FarmSettings, FarmState, SetupProgress } from './types';
 
 app.setName('LlmOnLan Farm');
@@ -163,7 +163,7 @@ function registerIpc(): void {
     });
     ipcMain.handle('set-auto-update', (_e, on: boolean) => {
         const v = updateSettings({ autoUpdate: !!on }).autoUpdate;
-        if (v) initAutoUpdate(true);
+        if (v) initUpdateCheck(true);
         return v;
     });
 
@@ -182,9 +182,9 @@ function registerIpc(): void {
         return { share, farmState: supervisor.getState() };
     });
 
-    // App self-update.
-    ipcMain.handle('check-app-update', () => checkForAppUpdate());
-    ipcMain.handle('install-app-update', () => { quitAndInstallUpdate(); return true; });
+    // App update — MANUAL (see updater.ts): report whether a newer farm-v* release
+    // exists; the renderer opens the download page (no in-place install in a shared repo).
+    ipcMain.handle('check-app-update', () => checkFarmUpdate());
     ipcMain.handle('relaunch-app', () => { app.relaunch(); app.quit(); return true; });
 
     // Misc.
@@ -207,8 +207,8 @@ app.whenReady().then(() => {
     createWindow();
 
     supervisor.on('state', pushFarmState);
-    setUpdateNotifier((version) => send('app-update-downloaded', { version }));
-    initAutoUpdate(settings.autoUpdate);
+    setUpdateNotifier((info) => send('update-available', info));
+    initUpdateCheck(settings.autoUpdate);
 
     // Already set up → auto-start the farm (the renderer shows the running screen and
     // watches farm-state go starting → ready). A missing runtime/farm copy (e.g. a

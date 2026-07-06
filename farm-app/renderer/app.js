@@ -214,12 +214,23 @@ function wireSettings(prefs) {
     $('#chk-autoupdate').addEventListener('change', (e) => window.farm.setAutoUpdate(e.target.checked));
     $('#btn-open-logs').addEventListener('click', () => window.farm.openLogs());
     $('#btn-check-update').addEventListener('click', async () => {
-        $('#update-status').textContent = 'Checking…';
+        const b = $('#btn-check-update');
+        b.textContent = 'Checking…'; b.disabled = true;
         const r = await window.farm.checkAppUpdate();
-        if (r.error) $('#update-status').textContent = r.error;
-        else if (r.available) $('#update-status').textContent = `Update v${r.version} downloading — you'll be prompted to restart.`;
+        b.disabled = false; b.textContent = 'Check for updates';
+        if (r.error) $('#update-status').textContent = `Couldn't check: ${r.error}`;
+        else if (r.updateAvailable && r.url) showUpdateAvailable(r.latest, r.url);
         else $('#update-status').textContent = `Up to date (v${r.current}).`;
     });
+}
+
+// Manual updates: flip the button into a "Download vX" that opens the release page.
+function showUpdateAvailable(version, url) {
+    $('#update-status').textContent = `Version ${version} is available.`;
+    const b = $('#btn-check-update');
+    b.textContent = `Download v${version}`;
+    b.disabled = false;
+    b.onclick = () => window.farm.openExternal(url);
 }
 
 // --- helpers ----------------------------------------------------------------
@@ -248,11 +259,9 @@ async function boot() {
     // Live pushes.
     window.farm.onSetupProgress(onSetupProgress);
     window.farm.onFarmState(renderFarmState);
-    window.farm.onAppUpdateDownloaded((i) => {
-        toast(`Update v${i.version} ready — restart to apply.`);
-        const b = $('#btn-check-update');
-        b.textContent = 'Restart to update';
-        b.onclick = () => window.farm.installAppUpdate();
+    window.farm.onUpdateAvailable((i) => {
+        toast(`A new version (v${i.version}) is available — open Settings to download.`);
+        showUpdateAvailable(i.version, i.url);
     });
 
     // Wiring.

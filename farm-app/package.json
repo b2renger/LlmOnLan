@@ -20,9 +20,7 @@
     "release:minor": "node scripts/release.mjs minor",
     "release:major": "node scripts/release.mjs major"
   },
-  "dependencies": {
-    "electron-updater": "^6.6.2"
-  },
+  "dependencies": {},
   "devDependencies": {
     "@types/node": "^22.10.0",
     "electron": "^42.5.0",

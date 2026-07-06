@@ -32,7 +32,19 @@ scoped to the workflow's repo). A one-repo auto-update for the farm isn't achiev
 cleanly: electron-updater parses the git TAG as semver, so the farm's `farm-v*` tags are
 unparseable on the prerelease/atom path, and a shared `v*` namespace would collide with the
 client. Separate repo is the standard resolution (the Phase-F plan pre-identified it as the
-fallback). Deferred pending the owner's call (separate-repo auto-update vs. manual farm updates).
+fallback).
+
+**Owner's call: manual farm updates (zero new infra).** So electron-updater is now dead
+weight for the farm (it can't resolve in the shared repo) — **removed as a dependency**
+(farm-app runtime deps are now empty). `updater.ts` rewritten to a MANUAL check: a plain
+GitHub-API query for the newest `farm-v*` release (prereleases included), semver-compared
+to `app.getVersion()`; if newer, the renderer shows a non-silent notice and the "Check for
+updates" button flips to **"Download vX"** which opens the release page (`shell.openExternal`)
+— the operator downloads the new installer. Checked once on launch (when notifications are on)
++ on demand. IPC `install-app-update`/`onAppUpdateDownloaded` removed; `check-app-update` now
+returns `{current, latest, updateAvailable, url}`. If the farm later gets its own releases
+repo, restoring true auto-update is a small change (re-add electron-updater + point `publish`
+at the new repo).
 
 ---
 

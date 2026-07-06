@@ -1,67 +1,88 @@
-// Auto-update via electron-updater (GitHub Releases, the `farm` channel — baked into
-// the build's app-update.yml from electron-builder.yml's publish.channel, so this
-// updater only ever reads farm.yml and ignores the client app's latest.yml in the
-// same repo). Auto-checks on launch when enabled (no-op in dev). Downloads in the
-// background and installs on quit — a farm host shouldn't be interrupted mid-serve.
+// Update check — MANUAL, not electron-updater. The farm app shares its GitHub repo
+// with the client, so electron-updater's /releases/latest resolution can't be used
+// (a farm release would either be "latest" and break the client, or be a prerelease
+// and be invisible to the updater — see DEVLOG 2026-07-06 b). Instead we query the
+// GitHub API for the newest `farm-v*` release (prereleases included), compare versions,
+// and point the operator at the download page. There is no in-place install — the
+// operator downloads the new installer.
 
 import { app } from 'electron';
+import * as https from 'https';
 
-type AutoUpdater = typeof import('electron-updater').autoUpdater;
+const REPO = process.env.LOL_RELEASE_REPO || 'b2renger/LlmOnLan';
+const TAG_PREFIX = 'farm-v';
+const UA = 'LlmOnLan-Farm-app';
 
-let autoUpdater: AutoUpdater | null = null;
-let wired = false;
-let started = false;
-let onDownloaded: ((version: string) => void) | null = null;
+export interface UpdateInfo { version: string; url: string }
+export interface UpdateCheck { current: string; latest?: string; updateAvailable: boolean; url?: string; error?: string }
 
-// Renderer is notified when a downloaded update is ready to install.
-export function setUpdateNotifier(cb: (version: string) => void): void { onDownloaded = cb; }
+let onAvailable: ((info: UpdateInfo) => void) | null = null;
+let checked = false;
 
-function getUpdater(): AutoUpdater | null {
-    if (autoUpdater) return autoUpdater;
-    try { ({ autoUpdater } = require('electron-updater')); } // lazy: dev may prune it
-    catch (e) { console.warn('[updater] electron-updater unavailable:', (e as Error).message); return null; }
-    return autoUpdater;
+export function setUpdateNotifier(cb: (info: UpdateInfo) => void): void { onAvailable = cb; }
+
+// --- GitHub JSON (redirect-following) ---------------------------------------
+
+function ghJson(apiPath: string, redirects = 0): Promise<any> {
+    return new Promise((resolve, reject) => {
+        if (redirects > 5) return reject(new Error('too many redirects'));
+        https.get(`https://api.github.com${apiPath}`, { headers: { 'user-agent': UA, accept: 'application/vnd.github+json' } }, (res) => {
+            const loc = res.headers.location;
+            if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && loc) {
+                res.resume();
+                // location may be an absolute URL; strip the origin for the recursive call.
+                const path = loc.replace(/^https:\/\/api\.github\.com/, '');
+                return ghJson(path, redirects + 1).then(resolve, reject);
+            }
+            let buf = '';
+            res.on('data', (c) => { buf += c; });
+            res.on('end', () => {
+                if (res.statusCode !== 200) return reject(new Error(`GitHub API ${res.statusCode}`));
+                try { resolve(JSON.parse(buf)); } catch (e) { reject(e as Error); }
+            });
+        }).on('error', reject);
+    });
 }
 
-function wire(u: AutoUpdater): void {
-    if (wired) return;
-    wired = true;
-    u.autoDownload = true;
-    u.autoInstallOnAppQuit = true;
-    u.on('error', (e) => console.warn('[updater] error:', e?.message || e));
-    u.on('checking-for-update', () => console.log('[updater] checking…'));
-    u.on('update-available', (i) => console.log(`[updater] update available: v${i.version}`));
-    u.on('update-not-available', () => console.log('[updater] up to date'));
-    u.on('update-downloaded', (i) => { console.log(`[updater] v${i.version} downloaded`); onDownloaded?.(i.version); });
+// --- version helpers --------------------------------------------------------
+
+function parseVer(s: string): [number, number, number] | null {
+    const m = s.match(/(\d+)\.(\d+)\.(\d+)/);
+    return m ? [Number(m[1]), Number(m[2]), Number(m[3])] : null;
+}
+function cmp(a: [number, number, number], b: [number, number, number]): number {
+    for (let i = 0; i < 3; i++) { if (a[i] !== b[i]) return a[i] - b[i]; }
+    return 0;
 }
 
-export function initAutoUpdate(enabled: boolean): void {
-    if (started || !enabled || !app.isPackaged) return;
-    const u = getUpdater();
-    if (!u) return;
-    started = true;
-    wire(u);
-    u.checkForUpdates().catch((e) => console.warn('[updater] check failed:', e?.message || e));
-}
+// --- public API -------------------------------------------------------------
 
-// Manual check — returns whether a newer app version is available.
-export async function checkForAppUpdate(): Promise<{ current: string; available: boolean; version?: string; error?: string }> {
+// Query the newest farm-v* release (prereleases included) and compare to this app.
+export async function checkFarmUpdate(): Promise<UpdateCheck> {
     const current = app.getVersion();
-    if (!app.isPackaged) return { current, available: false, error: 'Updates only apply to an installed build.' };
-    const u = getUpdater();
-    if (!u) return { current, available: false, error: 'Updater unavailable.' };
-    wire(u);
+    const cur = parseVer(current) || [0, 0, 0];
     try {
-        const r = await u.checkForUpdates(); // autoDownload:true → downloads in the background if newer
-        const v = r?.updateInfo?.version;
-        return { current, available: !!(v && v !== current), version: v };
+        const releases = await ghJson(`/repos/${REPO}/releases?per_page=30`);
+        let best: { v: [number, number, number]; tag: string; url: string } | null = null;
+        for (const r of releases || []) {
+            const tag: string = r.tag_name || '';
+            if (!tag.startsWith(TAG_PREFIX)) continue;
+            const v = parseVer(tag);
+            if (!v) continue;
+            if (!best || cmp(v, best.v) > 0) best = { v, tag, url: r.html_url };
+        }
+        if (!best) return { current, updateAvailable: false };
+        return { current, latest: best.tag.slice(TAG_PREFIX.length), updateAvailable: cmp(best.v, cur) > 0, url: best.url };
     } catch (e: any) {
-        return { current, available: false, error: e?.message || String(e) };
+        return { current, updateAvailable: false, error: e?.message || String(e) };
     }
 }
 
-export function quitAndInstallUpdate(): void {
-    const u = getUpdater();
-    if (!u) return;
-    try { u.quitAndInstall(); } catch (e) { console.warn('[updater] quitAndInstall failed:', (e as Error).message); }
+// On launch (packaged only), check once and notify the renderer if newer.
+export function initUpdateCheck(enabled: boolean): void {
+    if (checked || !enabled || !app.isPackaged) return;
+    checked = true;
+    checkFarmUpdate().then((r) => {
+        if (r.updateAvailable && r.latest && r.url) onAvailable?.({ version: r.latest, url: r.url });
+    }).catch(() => { /* offline / rate-limited — silent */ });
 }

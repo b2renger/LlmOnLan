@@ -26,11 +26,11 @@ contextBridge.exposeInMainWorld('farm', {
     setAutoUpdate: (on: boolean) => ipcRenderer.invoke('set-auto-update', on),
     setShareNetwork: (on: boolean) => ipcRenderer.invoke('set-share-network', on),
 
-    // App self-update.
+    // App update — manual (checks GitHub for a newer farm-v* release; download is
+    // opened in the browser via openExternal, no in-place install).
     checkAppUpdate: () => ipcRenderer.invoke('check-app-update'),
-    installAppUpdate: () => ipcRenderer.invoke('install-app-update'),
     relaunch: () => ipcRenderer.invoke('relaunch-app'),
-    onAppUpdateDownloaded: (cb: (i: unknown) => void) => ipcRenderer.on('app-update-downloaded', (_e, i) => cb(i)),
+    onUpdateAvailable: (cb: (i: unknown) => void) => ipcRenderer.on('update-available', (_e, i) => cb(i)),
 
     // Misc.
     openExternal: (url: string) => ipcRenderer.invoke('open-external', url),

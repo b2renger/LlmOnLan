@@ -6,8 +6,9 @@ A downloadable desktop app that turns a GPU box into a running LlmOnLan farm wit
 operator the existing **admin panel** as its window.
 
 It's the operator-facing sibling of the client [`shell/`](../shell/): same Electron /
-electron-builder / electron-updater recipe, but its process supervisor points at
-`lol up` instead of the Open WebUI sidecar.
+electron-builder packaging recipe, but its process supervisor points at `lol up`
+instead of the Open WebUI sidecar. **Updates are manual** (a notice + a Download
+button), not auto-installed — see "Updates" below.
 
 ## What it does on first run
 
@@ -31,8 +32,7 @@ The window IS the farm's admin panel — `http://127.0.0.1:41997/lol/admin` in a
 `<webview>`, with the admin token auto-seeded into `localStorage` (via a webview
 preload reading it from the URL hash) so it unlocks with no prompt. Thin app chrome
 adds: a **status dot**, **Start/Stop**, a **privacy line** (private vs. the shared
-LAN endpoint), **Settings** (share compute, theme, launch-at-login, auto-update), and
-**self-update**.
+LAN endpoint), and **Settings** (share compute, theme, launch-at-login, update check).
 
 ## Private by default (share compute is opt-in)
 
@@ -89,22 +89,31 @@ bundled runtime.
 - `npm run dist` — installers for the current OS.
 - `npm run release:patch` (or `:minor`/`:major`) — bumps the version, tags
   **`farm-vX.Y.Z`**, pushes; [`.github/workflows/release-farm.yml`](../.github/workflows/release-farm.yml)
-  builds Windows (x64) / macOS (arm64) / Linux arm64 (DGX) and publishes to GitHub
-  Releases on the **`farm`** electron-updater channel (`farm.yml`), distinct from the
-  client's `latest.yml` so the two apps in this one repo never collide.
+  builds Windows (x64) / macOS (arm64) / Linux arm64 (DGX) and publishes them to the
+  repo's GitHub Releases as a **prerelease** (see "Updates").
+
+## Updates (manual)
+
+The farm shares its GitHub repo with the client, and electron-updater resolves updates
+via GitHub's `/releases/latest` — so a farm release becoming "latest" would break the
+**client's** auto-update (it'd find `farm.yml` instead of `latest.yml`), and vice-versa.
+There's no clean one-repo fix (electron-updater parses the git tag as semver, so `farm-v*`
+tags don't work on the prerelease path). So:
+
+- Farm releases are published as **prereleases** → the client's `v*` release stays
+  GitHub's "latest", keeping client auto-update working.
+- The farm app does **not** auto-install. On launch (and via **Settings → Check for
+  updates**) it queries the GitHub API for the newest `farm-v*` release; if newer, it shows
+  a notice and a **Download vX** button that opens the release page. The operator downloads
+  the new installer. (electron-updater was removed — the app has no runtime deps.)
+
+To restore true auto-update later, give the farm its **own releases repo** and re-add
+electron-updater pointed at it (a small change).
 
 ## Platform notes
 
 | Target | Status | Notes |
 |---|---|---|
-| **Windows + NVIDIA (x64)** | primary | bundled Ollama uses CUDA; per-user one-click NSIS → silent auto-update. First download trips SmartScreen (unsigned). |
+| **Windows + NVIDIA (x64)** | primary | bundled Ollama uses CUDA; per-user one-click NSIS. First download trips SmartScreen (unsigned). |
 | **macOS Apple Silicon (arm64)** | supported | ad-hoc signed (right-click → Open on first launch). gemma4:12b wants ≥16 GB unified memory — the wizard **warns** below that, doesn't block. |
 | **NVIDIA DGX Spark (linux arm64)** | supported | AppImage built on `ubuntu-24.04-arm`; a natural always-on host (enable launch-at-login). Needs FUSE (`--appimage-extract-and-run` is the FUSE-free fallback). |
-
-## Known risk (validate on the first release)
-
-electron-updater channel resolution in a **shared repo**: the client publishes `v*`
-releases (with `latest.yml`) and this app publishes `farm-v*` releases (with
-`farm.yml`). The `channel: farm` config makes this updater read `farm.yml`; confirm on
-the first packaged `farm-v*` release that it finds the newest **farm** release and
-ignores the client's. Fallback if it mis-resolves: a dedicated updates-only feed.
