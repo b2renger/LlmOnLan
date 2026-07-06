@@ -17,6 +17,7 @@ import { loadSettings, updateSettings } from './store';
 import { runtimeReady } from './runtimeManager';
 import { farmInstalled } from './paths';
 import { runSetup, setShareMode, ensurePluginPorts } from './installer';
+import { reapStaleFarm } from './farmProcess';
 import { FarmSupervisor } from './farmSupervisor';
 import { initUpdateCheck, checkFarmUpdate, setUpdateNotifier } from './updater';
 import { FarmSettings, FarmState, SetupProgress } from './types';
@@ -30,8 +31,11 @@ let win: BrowserWindow | null = null;
 const supervisor = new FarmSupervisor();
 let setupRunning = false;
 
-// Start the farm, first routing its plugins off any taken ports (e.g. 8888/Jupyter).
+// Start the farm: reap any leftover processes from a prior run, route the plugins off
+// taken ports (e.g. 8888/Jupyter), then start. Reaping first frees ports the last run's
+// orphans may still hold, so ensurePluginPorts can keep the defaults.
 async function startFarm(): Promise<void> {
+    await reapStaleFarm();
     await ensurePluginPorts();
     await supervisor.start();
 }

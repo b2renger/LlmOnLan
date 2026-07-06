@@ -14,6 +14,7 @@ import { spawn, ChildProcess } from 'child_process';
 import * as path from 'path';
 import { farmRoot, lolEntry, bundledPython, pythonDir, ollamaDir } from './paths';
 import { killTree, waitForHttp, httpGetJson } from './util';
+import { reapStaleFarm } from './farmProcess';
 import { FarmState } from './types';
 
 // The farm's admin/discovery HTTP port (config.beacon.httpPort default). The farm
@@ -103,6 +104,9 @@ export class FarmSupervisor extends EventEmitter {
         const child = this.child;
         this.child = null;          // null BEFORE killing so the exit event is ignored
         if (child) await killTree(child.pid);
+        // `lol up`'s plugins spawn detached, so the group-kill above may miss them and its
+        // own graceful teardown can race our SIGKILL — reap any survivors by recorded PID.
+        await reapStaleFarm();
         if (!opts.keepState) this.setState({ status: 'stopped', adminUrl: null, selfUrl: null });
     }
 

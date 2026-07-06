@@ -28,6 +28,12 @@ async function detectHardware() {
         const [name, memMb] = (out.split(/\r?\n/)[0] || '').split(',').map((s) => (s || '').trim());
         if (name) { gpu = name; vramGb = Math.round((Number(memMb) || 0) / 1024); }
     }
+    // Unified-memory GPUs (NVIDIA GB10/Grace-Blackwell in the DGX Spark, Jetson,
+    // integrated) share system RAM and report memory.total as 0/[N/A] via nvidia-smi —
+    // so a detected GPU with 0 "VRAM" really has the whole RAM pool available. Report
+    // that instead of a misleading "0 GB". (Guarded on a real GPU name so a box with no
+    // nvidia-smi still reports vramGb:0.)
+    if (gpu !== 'Unknown GPU' && vramGb === 0) vramGb = ramGb;
     return { gpu, vramGb, ramGb, cpuCores };
 }
 
@@ -41,10 +47,14 @@ async function gpuLiveStats() {
     );
     if (!out) return { gpuUtil: null, vramUsedGb: null, vramTotalGb: null };
     const [util, used, total] = (out.split(/\r?\n/)[0] || '').split(',').map((s) => Number((s || '').trim()));
+    // Unified-memory GPUs report memory.total as 0 (see detectHardware) — fall back to
+    // the system RAM pool so the card shows the real capacity, not "0 GB".
+    const ramGb = Math.round(os.totalmem() / (1024 ** 3));
+    const totalGb = Number.isFinite(total) && total > 0 ? Math.round(total / 1024) : ramGb;
     return {
         gpuUtil: Number.isFinite(util) ? util : null,
         vramUsedGb: Number.isFinite(used) ? Math.round((used / 1024) * 10) / 10 : null,
-        vramTotalGb: Number.isFinite(total) ? Math.round(total / 1024) : null,
+        vramTotalGb: totalGb,
     };
 }
 

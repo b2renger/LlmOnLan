@@ -212,7 +212,16 @@ async function run(args) {
         log.err(`Farm already running (LiteLLM pid ${existing.litellmPid}, ${existing.endpoint}). Run \`lol down\` first.`);
         return 1;
     }
-    if (existing) clearRuntime(); // stale
+    if (existing) {
+        // Stale run (its LiteLLM is gone). Reap any of ITS children that outlived it: the
+        // SearXNG/Kokoro/OCR plugins spawn detached (their own process group), so a crash or
+        // hard-kill of the previous `lol up` can orphan them still holding their ports —
+        // which would then block THIS run's plugins from binding. Best-effort per pid.
+        for (const pid of [existing.searxngPid, existing.kokoroPid, existing.extractPid, ...(existing.ollamaPids || [])]) {
+            if (pid && isAlive(pid)) { try { await killTree(pid); } catch { /* already gone */ } }
+        }
+        clearRuntime();
+    }
 
     log.info(`Bringing up ${log.paint.bold(config.name)} …`);
 

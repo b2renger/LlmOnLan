@@ -6,6 +6,36 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-07-06 d — GB10 unified-memory VRAM + orphaned-plugin reaping
+
+The two follow-ups from entry (c), after web search was confirmed working on the Spark.
+
+**(1) GB10 "0GB VRAM".** `nvidia-smi --query-gpu=memory.total` returns 0/[N/A] on the
+DGX Spark's GB10 (Grace-Blackwell unified memory — no dedicated VRAM), so the card showed
+"0GB VRAM". Fix ([systemInfo.js](../farm/src/systemInfo.js)): a detected GPU reporting 0
+memory is treated as unified and reports the **system RAM pool** as its usable memory
+(`detectHardware` static + `gpuLiveStats` live total). Guarded on a real GPU name, so a
+box with no nvidia-smi still reports `vramGb:0` (the CI test stays green). GB10 now shows
+~122 GB.
+
+**(2) Orphaned plugins.** The SearXNG/Kokoro/OCR plugins spawn `detached: !IS_WIN` (own
+process group), so a group-kill of `lol up` — or the app being force-quit / Ctrl-C'd in a
+terminal — orphans them still holding their ports (8888/8890), which then blocks the next
+run (and was compounding the DGX port clash). Two fixes:
+- **Farm ([up.js](../farm/src/commands/up.js)):** when clearing a *stale* runtime (its
+  LiteLLM is gone), reap the recorded plugin/Ollama PIDs that outlived it before starting.
+  Helps CLI users + is defense-in-depth.
+- **Farm app (new [farmProcess.ts](../farm-app/src/main/farmProcess.ts) `reapStaleFarm()`):**
+  before every start (in `startFarm`, ahead of `ensurePluginPorts`) AND after `supervisor.stop()`,
+  read `<farm>/.lol-runtime.json` and kill any still-alive recorded PIDs — including a live
+  LiteLLM (so a fresh app process doesn't hit `lol up`'s "already running" refuse → crash-loop).
+  Reaping before `ensurePluginPorts` frees ports the orphans held, so the defaults can be kept.
+
+Verified: farm-app tsc clean, 54 farm tests green, `findFreePort`/reap logic exercised,
+app boots clean.
+
+---
+
 ## 2026-07-06 c — Farm app: auto-pick free ports for SearXNG/OCR (DGX port clash)
 
 On the DGX Spark, web search + document OCR never came up: the client showed no Web
