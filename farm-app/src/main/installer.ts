@@ -17,7 +17,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as http from 'http';
-import { spawn, ChildProcess } from 'child_process';
+import { spawn, ChildProcess, execFileSync } from 'child_process';
 import { randomBytes } from 'crypto';
 import {
     farmRoot, farmConfigFile, lolEntry, bundledFarmSource,
@@ -132,10 +132,27 @@ export function refreshFarmCodeIfUpdated(appVersion: string): void {
     if (loadSettings().farmCodeVersion === appVersion) return;
     try {
         copyFarm();
+        repairLitellmVenv(); // farm-side pip fixes (fastapi pin) reach an installed venv here
         updateSettings({ farmCodeVersion: appVersion });
         console.log(`[farm] refreshed farm code to app v${appVersion}`);
     } catch (e) {
         console.warn('[farm] code refresh failed:', (e as Error).message);
+    }
+}
+
+// The farm's LiteLLM venv is built ONCE at setup and never touched by a code refresh, so a
+// dependency fix (the fastapi<0.116 pin — litellm 1.97.0 crashes on startup under a newer
+// fastapi that dropped get_flat_dependant) wouldn't otherwise reach an already-installed
+// farm. Enforce the pin here on an app update. Idempotent + fast when satisfied; best-effort.
+function repairLitellmVenv(): void {
+    const isWin = process.platform === 'win32';
+    const venvPy = path.join(farmRoot(), '.venv', isWin ? 'Scripts' : 'bin', isWin ? 'python.exe' : 'python');
+    if (!fs.existsSync(venvPy)) return; // no venv yet — fresh setup builds it with the pin
+    try {
+        execFileSync(venvPy, ['-m', 'pip', 'install', 'fastapi<0.116'], { stdio: 'ignore', timeout: 180000 });
+        console.log('[farm] enforced litellm venv fastapi pin');
+    } catch (e) {
+        console.warn('[farm] litellm venv repair skipped:', (e as Error).message);
     }
 }
 

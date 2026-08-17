@@ -126,8 +126,23 @@ function venvPython() {
         : path.join(VENV_DIR, 'bin', 'python');
 }
 
+// litellm 1.97.0's fastapi range is too loose: pip can resolve fastapi ≥0.116, which
+// removed the internal `get_flat_dependant` that litellm's proxy imports → the proxy
+// crashes on startup (`ImportError: cannot import name 'get_flat_dependant'`) and the farm
+// never comes up. Constrain fastapi to a compatible version. Bump deliberately alongside
+// litellm. (Rig-hit on Windows 2026-07-06; the DGX escaped it only by installing when an
+// older fastapi was still latest.)
+const FASTAPI_PIN = 'fastapi<0.116';
+
 function ensureLitellm() {
-    if (venvLitellmPath()) { log.ok(`LiteLLM venv ready: ${log.paint.grey(VENV_DIR)}`); return true; }
+    if (venvLitellmPath()) {
+        // Repair a drifted venv (an older install may have pulled an incompatible fastapi):
+        // enforce the pin. Idempotent + fast when already satisfied; best-effort if offline.
+        try { sh(`"${venvPython()}" -m pip install "${FASTAPI_PIN}"`); }
+        catch { log.warn('Could not verify the LiteLLM fastapi pin (offline?) — proxy may need `lol install` re-run if it fails to start.'); }
+        log.ok(`LiteLLM venv ready: ${log.paint.grey(VENV_DIR)}`);
+        return true;
+    }
 
     const py = findPython();
     if (!py) {
@@ -140,7 +155,7 @@ function ensureLitellm() {
     const vpy = venvPython();
     log.step('Installing litellm[proxy] (this can take a minute) …');
     sh(`"${vpy}" -m pip install --upgrade pip`);
-    sh(`"${vpy}" -m pip install "litellm[proxy]"`);
+    sh(`"${vpy}" -m pip install "litellm[proxy]" "${FASTAPI_PIN}"`);
     if (!venvLitellmPath()) { log.err('LiteLLM did not land in the venv as expected.'); return false; }
     log.ok(`LiteLLM installed → ${log.paint.grey(VENV_DIR)}`);
     return true;

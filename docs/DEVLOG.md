@@ -6,6 +6,34 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-07-06 g — LiteLLM venv broke on Windows (fastapi too new) — pin + repair
+
+The Farm app on Windows "didn't start". Captured the farm boot from source (the packaged
+GUI swallows console): the app + main process start fine, but **`lol up`'s LiteLLM crashes
+on startup**:
+`ImportError: cannot import name 'get_flat_dependant' from 'fastapi.dependencies.utils'`.
+Not a 0.0.8 bug — the venv has **litellm 1.97.0 + fastapi 0.141.1**, and litellm 1.97.0
+imports `get_flat_dependant`, which fastapi ≥0.116 removed. litellm's fastapi range is too
+loose, so `pip install litellm[proxy]` (unpinned, in `install.js`) let pip pull the newer
+fastapi. The DGX escaped it only by installing when an older fastapi was still latest.
+Confirmed the fix live on the box: `pip install "fastapi==0.115.6"` → LiteLLM imports →
+`/lol/self` 200 → a real `/v1/chat/completions` returns 200.
+
+Two-part durable fix:
+- **Prevent (farm [install.js](../farm/src/commands/install.js) `ensureLitellm`):** install
+  `litellm[proxy]` with `fastapi<0.116`, and — since the venv is built once — **also enforce
+  the pin on an existing venv** when `lol install` re-runs (idempotent/best-effort).
+- **Reach installed boxes (farm-app [installer.ts](../farm-app/src/main/installer.ts)):** the
+  venv is never touched by a code refresh, so `refreshFarmCodeIfUpdated` now also runs
+  `repairLitellmVenv()` (`<venv python> -m pip install fastapi<0.116`) on an app update —
+  so updating the app fixes a drifted venv without a full re-install. Fast no-op when satisfied.
+
+So updating to 0.0.9 repairs any box with the bad combo; fresh installs get the pin. (This
+is the venv analogue of entry (e)'s code-propagation — farm-side pip fixes now reach installed
+farms on update, not just fresh setups.)
+
+---
+
 ## 2026-07-06 f — copyFarm choked on node_modules/.bin symlinks (blocked (e))
 
 The propagation from (e) silently failed on the DGX: the boot log showed
