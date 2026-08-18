@@ -125,8 +125,17 @@ async function extractArchive(archive: string, destDir: string): Promise<void> {
     const stage = destDir + '.stage';
     fs.rmSync(stage, { recursive: true, force: true });
     fs.mkdirSync(stage, { recursive: true });
-    const relStage = path.relative(workDir, stage).replace(/\\/g, '/') || '.';
-    await execFileP('tar', [...flags, relArc, '-C', relStage], { cwd: workDir });
+    // Windows needs RELATIVE paths (GNU tar reads `C:\…` as a remote host:path); POSIX
+    // uses ABSOLUTE. A relative traversal is unsafe on macOS when the two paths straddle a
+    // symlinked prefix (/var → /private/var): tar resolves its cwd to the real path while
+    // path.relative() is lexical, so the `..` count comes out short. (Bit the client shell's
+    // sidecar download — see shell/src/main/sidecarManager.ts.)
+    if (process.platform === 'win32') {
+        const relStage = path.relative(workDir, stage).replace(/\\/g, '/') || '.';
+        await execFileP('tar', [...flags, relArc, '-C', relStage], { cwd: workDir });
+    } else {
+        await execFileP('tar', [...flags, archive, '-C', stage]);
+    }
 
     // If the archive was a single wrapping dir, promote it; else use the staging dir.
     const entries = fs.readdirSync(stage, { withFileTypes: true });

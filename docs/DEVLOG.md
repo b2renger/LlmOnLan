@@ -6,6 +6,32 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-07-06 h — CLIENT: sidecar download failed on macOS (/var symlink vs relative tar)
+
+The client shell's first-run download failed on macOS with *"Could not download the chat
+engine"*:
+`tar: could not chdir to '../../../../../Users/<user>/Library/Application Support/LlmOnLan/sidecar.stage'`.
+
+Root cause: `installFrom` ([sidecarManager.ts](../shell/src/main/sidecarManager.ts)) extracted
+with **relative** paths — a deliberate WINDOWS workaround (GNU tar, often first on PATH via
+Git, reads an absolute `C:\…` as a remote `host:path` → "Cannot connect to C:"). But macOS's
+temp dir lives under **`/var`, a symlink to `/private/var`**: `path.relative()` computes the
+traversal **lexically** from `/var/folders/…`, while tar resolves its cwd to the **real**
+`/private/var/folders/…` — so the `../../../../..` hops land one level short, at `/private`,
+producing the nonexistent `/private/Users/…`. Linux was unaffected (no symlinked temp
+prefix); Windows was fine (short traversal within the same drive).
+
+Fix: split by platform — RELATIVE on `win32` (the workaround is genuinely needed there),
+**ABSOLUTE everywhere else**. Verified with a real tar harness: on Windows the absolute form
+fails with `Cannot connect to C:` (proving the relative branch must stay) while the relative
+form extracts; and the macOS path math reproduces exactly — relative resolves to
+`/private/Users/…` ≠ the intended dest. The identical latent pattern in the farm app's
+`extractArchive` ([runtimeManager.ts](../farm-app/src/main/runtimeManager.ts)) was fixed the
+same way (currently safe there — its tarball sits inside userData, so no `/var` straddle —
+but it was one path change from the same trap).
+
+---
+
 ## 2026-07-06 g — LiteLLM venv broke on Windows (fastapi too new) — pin + repair
 
 The Farm app on Windows "didn't start". Captured the farm boot from source (the packaged

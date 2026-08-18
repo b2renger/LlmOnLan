@@ -104,9 +104,8 @@ async function findSidecarAsset(tagOrLatest: string): Promise<FoundAsset | null>
 }
 
 // Download <tarball-url> and extract it into destDir (replacing it atomically).
-// Extraction uses the system `tar` with RELATIVE paths from the tarball's dir, so
-// a Windows absolute path (C:\…) never reaches GNU tar (which reads it as a remote
-// host:path); both GNU tar and Windows' bundled bsdtar handle relative paths.
+// Extraction is platform-split (see the tar call below): RELATIVE paths on Windows,
+// ABSOLUTE paths everywhere else.
 async function installFrom(url: string, destDir: string, onProgress?: ProgressCb): Promise<void> {
     const tmp = path.join(app.getPath('temp'), `lol-sidecar-${process.pid}-${Date.now()}.tar.gz`);
     onProgress?.({ phase: 'download', message: 'Downloading the chat engine…', percent: 0 });
@@ -120,12 +119,20 @@ async function installFrom(url: string, destDir: string, onProgress?: ProgressCb
     const stage = destDir + '.stage';
     fs.rmSync(stage, { recursive: true, force: true });
     fs.mkdirSync(stage, { recursive: true });
-    // tar with RELATIVE paths from the tarball's dir (Windows GNU tar reads C:\ as
-    // a remote host:path otherwise).
-    const workDir = path.dirname(tmp);
-    const relTar = path.basename(tmp);
-    const relDest = path.relative(workDir, stage).replace(/\\/g, '/') || '.';
-    await execFileP('tar', ['-xzf', relTar, '-C', relDest], { cwd: workDir });
+    // Windows: RELATIVE paths from the tarball's dir, because GNU tar (often first on
+    // PATH via Git) reads an absolute `C:\…` as a remote `host:path` ("Cannot connect to C:").
+    // POSIX: ABSOLUTE paths. The relative form BROKE macOS — the temp dir is under /var,
+    // a symlink to /private/var, so tar resolves its cwd to the real /private/var/… while
+    // path.relative() computed the traversal lexically from /var/…; the `../../../../..`
+    // then landed one level short (/private/Users/… → "tar: could not chdir").
+    if (process.platform === 'win32') {
+        const workDir = path.dirname(tmp);
+        const relTar = path.basename(tmp);
+        const relDest = path.relative(workDir, stage).replace(/\\/g, '/') || '.';
+        await execFileP('tar', ['-xzf', relTar, '-C', relDest], { cwd: workDir });
+    } else {
+        await execFileP('tar', ['-xzf', tmp, '-C', stage]);
+    }
     fs.rmSync(destDir, { recursive: true, force: true });
     fs.renameSync(stage, destDir);
     fs.rmSync(tmp, { force: true });
