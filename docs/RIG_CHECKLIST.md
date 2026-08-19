@@ -50,9 +50,16 @@ risk; the build itself is implemented (see [DEVLOG.md](DEVLOG.md)).
 - [x] `electron-builder --dir` packs a real `LlmOnLan.exe` (~100 MB, **no sidecar bundled**); the sidecar
       is downloaded to `userData/sidecar` on first run from the release's
       `owui-sidecar-<platform>-<arch>.tar.gz` asset (`sidecarManager.ts`).
-- [ ] **Full installers** built by CI on a `v*` tag: NSIS (win), dmg+zip (mac **arm64 only** — x64 pending
-      multi-arch sidecar builds), AppImage (linux); each release also carries the sidecar tarball assets
-      the app downloads on first run.
+- [ ] **Full installers** built by CI on a `v*` tag: NSIS (win), dmg+zip (mac **arm64 + x64**),
+      AppImage (linux); each release also carries the sidecar tarball assets the app downloads on
+      first run (`darwin-arm64`, `darwin-x64`, `win32-x64`, `linux-x64`).
+- [ ] **★ Intel Mac (x64), new 2026-08-19 — needs a real pre-2020 Mac:** the `macos-15-intel` CI job
+      publishes `owui-sidecar-darwin-x64.tar.gz`; install the **x64** dmg on an Intel Mac → first run
+      downloads that tarball → OWUI boots and a chat works. **Watch the embeddings:** macOS-Intel torch
+      tops out at **2.2.2** (PyTorch shipped no x86_64 mac wheels after it), which pip resolves via
+      `sentence-transformers`' loose `torch>=1.11.0` — so local RAG embedding is the thing most likely
+      to break. Also confirm the OS version: Electron needs a recent macOS, and ComfyQ's ad-hoc-signed
+      Intel builds failed on **macOS 11 Big Sur** while working on **12+**.
 - [ ] **Auto-update cycle:** install `vX.Y.Z`, publish `vX.Y.(Z+1)`, confirm the installed app self-updates
       on next launch — per OS. Windows: silent, no UAC (rides on NSIS `perMachine:false`). macOS: ad-hoc
       signing is the weak link — **validate on real Macs** (zip target present for Squirrel.Mac). Linux:
@@ -76,7 +83,7 @@ dev Electron boot to the welcome screen on the dev box.
 - [ ] **`$LOL_PYTHON` determinism:** the venvs are built by the **bundled** interpreter even when a system
       `py -3.12`/`python3` is also on PATH (check the `.venv`/`.searxng`/`.extract` python).
 - [ ] **Ollama lifecycle:** the app-owned Ollama used for the pull is stopped before launch, and `lol up`
-      starts its own with `OLLAMA_CONTEXT_LENGTH=16384` (a whole-document chat isn't truncated).
+      starts its own with `OLLAMA_CONTEXT_LENGTH=65536` (a whole-document chat isn't truncated).
 - [ ] **Start/Stop + crash-restart:** the chrome Stop/Start toggles the farm; `taskkill` the `lol up` tree →
       bounded auto-restart; quitting the app reaps LiteLLM/Ollama (no orphans).
 - [ ] **Private by default (the compute-privacy toggle):** fresh install → a second machine

@@ -6,6 +6,54 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-08-19 — Max context for RAG (measured) + Intel-Mac client builds
+
+**1. Context window raised — with real numbers, not a guess.** The project's point is RAG
+through OWUI, so the context window is the lever that matters. Measured on the dev box
+(RTX PRO 6000, Ollama 0.32) by loading each model at increasing `num_ctx` and reading
+`/api/ps size_vram` — Ollama **preallocates the whole KV cache at load**, confirmed by then
+filling 77k real tokens and seeing **zero** further growth:
+
+| model | 8k | 32k | 128k | 256k |
+|---|---|---|---|---|
+| `gemma4:12b` | 7.8 GB | 7.8 GB | 8.8 GB | **9.3 GB** |
+| `qwen3.8` (27B) | 16.2 GB | 16.3 GB | 17.2 GB | **17.6 GB** |
+
+i.e. going from 8k to the **full 256k costs ~1.5 GB** — the old "KV grows linearly with
+context" intuition doesn't hold for these architectures (sliding-window on gemma4, grouped
+KV `head_count_kv:4` on qwen3.x). Both report `context_length = 262144` as their native max,
+which is also `setContextLength`'s server-side cap. Changes:
+- Farm default `ollama.contextLength` **16384 → 65536** ([config.js](../farm/src/config.js)),
+  with the measurements recorded inline. Two tests asserted the old default — updated (54 pass).
+- Admin panel `CTX_OPTS` gained **131072 + 262144** — the UI previously capped at 65536, so
+  the models' max wasn't even reachable ([admin/index.html](../farm/src/admin/index.html)).
+- Farm app: a **persistent** Context window selector (Settings). The admin panel's change is
+  deliberately ephemeral (resets on `lol up`); this writes `ollama.contextLength` into
+  `lol.config.json` (`setContextLength`, enforced on boot like the share toggle) and restarts
+  the farm. Verified the whole chain: patcher → zod validates → generated LiteLLM routing
+  carries `num_ctx: 262144` (it rides the routing, so it applies on **every** host regardless
+  of who started Ollama).
+
+**2. Intel-Mac (x64) client builds.** Some users are on pre-Apple-Silicon Macs. The x64 target
+was excluded with a comment claiming the *bundled* sidecar forced one arch — **stale**: the
+sidecar hasn't been bundled since the small-installer change; it's downloaded per
+platform-arch on first run (`owui-sidecar-darwin-x64.tar.gz`). Real requirement = publish that
+tarball. Changes: `shell/electron-builder.yml` mac arch → **[arm64, x64]** (one arm64 runner
+packages both — the shell has no native deps — so a single correct `latest-mac.yml` is emitted),
+and a new **`macos-15-intel`** matrix job that builds *only* the x64 sidecar (`macos-13` is
+retired; a second packaging job would clobber `latest-mac.yml` with a single-arch manifest, so
+its packaging steps are `if: !matrix.sidecarOnly`; the upload step's `nullglob` already handles
+the reduced file set).
+
+Feasibility was checked against PyPI before committing, because it nearly didn't work:
+**PyTorch's last macOS-x86_64 wheel is 2.2.2** (arm64 is at 2.13). It's viable only because
+OWUI 0.10.2 doesn't pin torch directly — `sentence-transformers==5.5.1` asks for
+`torch>=1.11.0` (transformers' `>=2.4` is extras-only), and a `cp312` x86_64 wheel exists for
+2.2.2. So Intel Macs will run OWUI on a 2024-era torch: **flagged in RIG_CHECKLIST as the
+most likely runtime failure** (local embeddings), needing a real Intel Mac to confirm.
+
+---
+
 ## 2026-07-06 h — CLIENT: sidecar download failed on macOS (/var symlink vs relative tar)
 
 The client shell's first-run download failed on macOS with *"Could not download the chat

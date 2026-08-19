@@ -49,14 +49,17 @@ mac:
   category: public.app-category.productivity
   icon: assets/icon.png
   # dmg (download) + zip (REQUIRED for latest-mac.yml / Squirrel.Mac auto-update).
-  # arm64 ONLY: the bundled sidecar is built for the CI runner's arch (macos-latest
-  # is arm64), so an x64 dmg would ship an arm64 Python and break on Intel Macs.
-  # Re-add x64 once build-sidecar can produce both arch bundles.
+  # BOTH arm64 (Apple Silicon) and x64 (pre-2020 Intel Macs). The old "arm64 only"
+  # constraint — that the BUNDLED sidecar was built for the CI runner's arch — no longer
+  # applies: the sidecar isn't bundled, it's downloaded per-platform-arch on first run
+  # (sidecarManager.assetName → owui-sidecar-darwin-x64.tar.gz), and CI builds that x64
+  # tarball on a macos-*-intel runner. The shell has no native deps, so one arm64 runner
+  # packages both arches (and emits ONE latest-mac.yml covering them).
   target:
     - target: dmg
-      arch: [arm64]
+      arch: [arm64, x64]
     - target: zip
-      arch: [arm64]
+      arch: [arm64, x64]
   # Ad-hoc signing (no Apple cert): builder skips signing, afterPack does it.
   # hardenedRuntime:false — ad-hoc + hardened rejects the pre-signed Electron fw.
   identity: null

@@ -42,7 +42,17 @@ jobs:
       # uploads never overlap across OSes either.
       max-parallel: 1
       matrix:
-        os: [windows-latest, macos-latest, ubuntu-latest]
+        include:
+          - os: windows-latest
+          - os: macos-latest      # Apple Silicon: builds the arm64 sidecar AND both mac installers
+          - os: ubuntu-latest
+          # Intel Mac (pre-2020) support: this job builds ONLY the darwin-x64 sidecar
+          # tarball the app downloads on first run. It deliberately skips packaging —
+          # macos-latest already produces both mac installers, so a second packaging job
+          # would clobber latest-mac.yml with a single-arch manifest.
+          # (macos-13 was retired; macos-15-intel is the current Intel label.)
+          - os: macos-15-intel
+            sidecarOnly: true
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -77,6 +87,7 @@ jobs:
           ls -la owui-sidecar-* | cat
 
       - name: Install shell deps
+        if: ${{ !matrix.sidecarOnly }}
         working-directory: shell
         run: npm ci
 
@@ -85,6 +96,7 @@ jobs:
       # so without this the app.asar ships without build/main/index.js and the
       # packager fails its entry-file sanity check.
       - name: Compile shell (tsc)
+        if: ${{ !matrix.sidecarOnly }}
         working-directory: shell
         run: npm run build
 
@@ -94,6 +106,7 @@ jobs:
       # DUPLICATE releases with assets split between them. `--publish never` still
       # generates the latest*.yml auto-update manifests + blockmaps in dist/.
       - name: Build installers
+        if: ${{ !matrix.sidecarOnly }}
         working-directory: shell
         run: npx --no-install electron-builder --publish never
         env:
