@@ -126,13 +126,21 @@ function venvPython() {
         : path.join(VENV_DIR, 'bin', 'python');
 }
 
-// litellm 1.97.0's fastapi range is too loose: pip can resolve fastapi ≥0.116, which
-// removed the internal `get_flat_dependant` that litellm's proxy imports → the proxy
-// crashes on startup (`ImportError: cannot import name 'get_flat_dependant'`) and the farm
-// never comes up. Constrain fastapi to a compatible version. Bump deliberately alongside
-// litellm. (Rig-hit on Windows 2026-07-06; the DGX escaped it only by installing when an
-// older fastapi was still latest.)
-const FASTAPI_PIN = 'fastapi<0.116';
+// litellm 1.97.0's proxy imports fastapi's internal `get_flat_dependant`, which fastapi
+// REMOVED in 0.140.7 — so an unconstrained install picks a newer fastapi and the proxy
+// dies on startup with `ImportError: cannot import name 'get_flat_dependant'` (the farm
+// then never comes up).
+//
+// The bound must stay INSIDE litellm[proxy]'s own declared `fastapi<1.0,>=0.136.3`. An
+// earlier attempt used `fastapi<0.116`, which contradicts that floor: pip could not
+// satisfy both, backtracked through litellm versions hunting for one that accepted it,
+// reached 1.93.0 (source-only on Windows) and tried to COMPILE it → "Rust not found" →
+// fresh installs failed outright (rig-hit 2026-08-19). `<0.140.7` is the newest bound
+// that satisfies litellm's floor AND keeps the symbol — verified in a clean venv:
+// litellm 1.97.0 + fastapi 0.140.6 + starlette 1.6.0, and `import
+// litellm.proxy.proxy_server` succeeds with no dependency conflicts.
+// Re-derive this bound when bumping litellm.
+const FASTAPI_PIN = 'fastapi>=0.136.3,<0.140.7';
 
 function ensureLitellm() {
     if (venvLitellmPath()) {

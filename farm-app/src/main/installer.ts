@@ -154,15 +154,21 @@ export function refreshFarmCodeIfUpdated(appVersion: string): void {
 }
 
 // The farm's LiteLLM venv is built ONCE at setup and never touched by a code refresh, so a
-// dependency fix (the fastapi<0.116 pin — litellm 1.97.0 crashes on startup under a newer
-// fastapi that dropped get_flat_dependant) wouldn't otherwise reach an already-installed
-// farm. Enforce the pin here on an app update. Idempotent + fast when satisfied; best-effort.
+// dependency fix wouldn't otherwise reach an already-installed farm. Enforce the fastapi
+// bound here on an app update. See farm/src/commands/install.js FASTAPI_PIN for the full
+// rationale — litellm 1.97.0's proxy needs fastapi's `get_flat_dependant`, removed in
+// 0.140.7, and the bound must stay inside litellm's own `>=0.136.3` floor (a previous
+// `<0.116` fought that floor and made pip try to source-build litellm).
+// Also repairs a venv left on the earlier over-tight pin (it upgrades fastapi/starlette
+// back into litellm's declared range). Idempotent + fast when satisfied; best-effort.
+const FASTAPI_PIN = 'fastapi>=0.136.3,<0.140.7';
+
 function repairLitellmVenv(): void {
     const isWin = process.platform === 'win32';
     const venvPy = path.join(farmRoot(), '.venv', isWin ? 'Scripts' : 'bin', isWin ? 'python.exe' : 'python');
     if (!fs.existsSync(venvPy)) return; // no venv yet — fresh setup builds it with the pin
     try {
-        execFileSync(venvPy, ['-m', 'pip', 'install', 'fastapi<0.116'], { stdio: 'ignore', timeout: 180000 });
+        execFileSync(venvPy, ['-m', 'pip', 'install', FASTAPI_PIN], { stdio: 'ignore', timeout: 180000 });
         console.log('[farm] enforced litellm venv fastapi pin');
     } catch (e) {
         console.warn('[farm] litellm venv repair skipped:', (e as Error).message);

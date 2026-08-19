@@ -6,6 +6,41 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-08-19 b — The fastapi pin broke FRESH installs (my bug) — corrected bound
+
+Entry (g)'s `fastapi<0.116` pin fixed the *symptom* on an already-built venv but **broke
+every fresh install**. Reported from a clean Windows box: `lol install` ran, then pip spent
+minutes backtracking through litellm versions and finally tried to **compile litellm 1.93.0
+from source** → `Rust not found` → install failed.
+
+Root cause (my error): **`litellm[proxy]` 1.97.0 itself declares `fastapi<1.0,>=0.136.3`.**
+`<0.116` contradicts that floor, so the resolver had no solution with the newest litellm and
+walked backwards until it hit a version with no Windows wheel. My original "fix" only worked
+because I applied it to an *existing* venv in a second pip call, where pip permits the
+downgrade with a warning — it never had to solve both constraints at once.
+
+Corrected by finding the bound empirically (script: download each fastapi in litellm's range,
+unzip, grep `dependencies/utils.py` for the symbol): **`get_flat_dependant` was removed in
+fastapi 0.140.7**, so the newest compatible bound is **`fastapi>=0.136.3,<0.140.7`** — inside
+litellm's declared range, so the resolver has a solution. Verified in a clean venv built with
+the bundled Python:
+
+    pip install "litellm[proxy]" "fastapi>=0.136.3,<0.140.7"   → exit 0, no backtracking
+    litellm 1.97.0 · fastapi 0.140.6 · starlette 1.6.0
+    import litellm.proxy.proxy_server                          → OK
+
+The lower bound is load-bearing for **repair** too: with a bare `<0.140.7` the fix is a no-op
+on a venv stuck at the old 0.115.6 (already satisfied), leaving it functional-but-fragile —
+below litellm's floor with a stale starlette that breaks `sse-starlette`. With the floor, the
+repair actively upgrades: verified on the dev box 0.115.6 → 0.140.6 (starlette 0.41.3 → 1.6.0),
+and `pip check` went from conflicts to **"No broken requirements found"**.
+
+Both sites updated (`install.js` FASTAPI_PIN + farm-app `repairLitellmVenv`), so an app update
+heals an existing box and fresh installs resolve first time. **farm-v0.0.9 / v0.0.10 ship the
+broken pin and cannot complete a fresh install — use 0.0.11+.**
+
+---
+
 ## 2026-08-19 — Max context for RAG (measured) + Intel-Mac client builds
 
 **1. Context window raised — with real numbers, not a guess.** The project's point is RAG
