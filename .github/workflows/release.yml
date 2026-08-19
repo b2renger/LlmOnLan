@@ -44,15 +44,16 @@ jobs:
       matrix:
         include:
           - os: windows-latest
-          - os: macos-latest      # Apple Silicon: builds the arm64 sidecar AND both mac installers
+          - os: macos-latest      # Apple Silicon (arm64)
           - os: ubuntu-latest
-          # Intel Mac (pre-2020) support: this job builds ONLY the darwin-x64 sidecar
-          # tarball the app downloads on first run. It deliberately skips packaging —
-          # macos-latest already produces both mac installers, so a second packaging job
-          # would clobber latest-mac.yml with a single-arch manifest.
-          # (macos-13 was retired; macos-15-intel is the current Intel label.)
-          - os: macos-15-intel
-            sidecarOnly: true
+          # NOTE — Intel Mac (x64) is NOT built, and the blocker is upstream: OWUI 0.10.2
+          # pins `onnxruntime==1.26.0` whose last macOS-x86_64 wheel was 1.23.2, so the
+          # sidecar can't even pip-install on an Intel runner (tried on macos-15-intel at
+          # v0.1.27 — it failed exactly there). The `sidecarOnly` matrix flag + its step
+          # guards below are kept so re-enabling is a one-line change if OWUI ever relaxes
+          # that pin:  - os: macos-15-intel
+          #              sidecarOnly: true
+          # (and re-add x64 to shell/electron-builder.yml's mac target).
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4

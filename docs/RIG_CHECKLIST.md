@@ -50,16 +50,19 @@ risk; the build itself is implemented (see [DEVLOG.md](DEVLOG.md)).
 - [x] `electron-builder --dir` packs a real `LlmOnLan.exe` (~100 MB, **no sidecar bundled**); the sidecar
       is downloaded to `userData/sidecar` on first run from the release's
       `owui-sidecar-<platform>-<arch>.tar.gz` asset (`sidecarManager.ts`).
-- [ ] **Full installers** built by CI on a `v*` tag: NSIS (win), dmg+zip (mac **arm64 + x64**),
-      AppImage (linux); each release also carries the sidecar tarball assets the app downloads on
-      first run (`darwin-arm64`, `darwin-x64`, `win32-x64`, `linux-x64`).
-- [ ] **★ Intel Mac (x64), new 2026-08-19 — needs a real pre-2020 Mac:** the `macos-15-intel` CI job
-      publishes `owui-sidecar-darwin-x64.tar.gz`; install the **x64** dmg on an Intel Mac → first run
-      downloads that tarball → OWUI boots and a chat works. **Watch the embeddings:** macOS-Intel torch
-      tops out at **2.2.2** (PyTorch shipped no x86_64 mac wheels after it), which pip resolves via
-      `sentence-transformers`' loose `torch>=1.11.0` — so local RAG embedding is the thing most likely
-      to break. Also confirm the OS version: Electron needs a recent macOS, and ComfyQ's ad-hoc-signed
-      Intel builds failed on **macOS 11 Big Sur** while working on **12+**.
+- [ ] **Full installers** built by CI on a `v*` tag: NSIS (win), dmg+zip (mac **arm64 only** — see
+      the Intel note), AppImage (linux); each release also carries the sidecar tarball assets the app
+      downloads on first run (`darwin-arm64`, `win32-x64`, `linux-x64`).
+- **Intel Mac (x64): NOT SUPPORTED — blocked upstream, don't retry without checking this first.**
+      OWUI 0.10.2 pins `onnxruntime==1.26.0`; onnxruntime's last macOS-x86_64 wheel was **1.23.2**, so
+      the sidecar can't pip-install on an Intel Mac at all (tried on `macos-15-intel`, v0.1.27).
+      Re-check on an OWUI bump with:
+      `pip index versions onnxruntime` on an Intel Mac, or the pinned OWUI's `onnxruntime` constraint.
+      If it ever resolves: re-add `x64` to `shell/electron-builder.yml`'s mac target + the
+      `macos-15-intel` matrix entry (its `sidecarOnly` guards are still in the workflow). **Never ship
+      an x64 installer without the matching `owui-sidecar-darwin-x64.tar.gz`** — the app dead-ends on
+      first run. (Secondary risk if it's ever unblocked: macOS-Intel torch tops out at 2.2.2, so local
+      embeddings are the next thing to verify; and ad-hoc-signed Intel builds need macOS **12+**.)
 - [ ] **Auto-update cycle:** install `vX.Y.Z`, publish `vX.Y.(Z+1)`, confirm the installed app self-updates
       on next launch — per OS. Windows: silent, no UAC (rides on NSIS `perMachine:false`). macOS: ad-hoc
       signing is the weak link — **validate on real Macs** (zip target present for Squirrel.Mac). Linux:

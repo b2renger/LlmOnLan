@@ -34,23 +34,35 @@ which is also `setContextLength`'s server-side cap. Changes:
   carries `num_ctx: 262144` (it rides the routing, so it applies on **every** host regardless
   of who started Ollama).
 
-**2. Intel-Mac (x64) client builds.** Some users are on pre-Apple-Silicon Macs. The x64 target
-was excluded with a comment claiming the *bundled* sidecar forced one arch — **stale**: the
-sidecar hasn't been bundled since the small-installer change; it's downloaded per
-platform-arch on first run (`owui-sidecar-darwin-x64.tar.gz`). Real requirement = publish that
-tarball. Changes: `shell/electron-builder.yml` mac arch → **[arm64, x64]** (one arm64 runner
-packages both — the shell has no native deps — so a single correct `latest-mac.yml` is emitted),
-and a new **`macos-15-intel`** matrix job that builds *only* the x64 sidecar (`macos-13` is
-retired; a second packaging job would clobber `latest-mac.yml` with a single-arch manifest, so
-its packaging steps are `if: !matrix.sidecarOnly`; the upload step's `nullglob` already handles
-the reduced file set).
+**2. Intel-Mac (x64) client builds — ATTEMPTED, BLOCKED UPSTREAM, reverted.** Some users are
+on pre-Apple-Silicon Macs. The old x64 exclusion blamed the *bundled* sidecar — that reason
+was **stale** (the sidecar is downloaded per platform-arch now, so the real requirement is
+just publishing `owui-sidecar-darwin-x64.tar.gz`). Pre-flight against PyPI cleared the risk I
+expected — PyTorch's last macOS-x86_64 wheel is 2.2.2, but OWUI doesn't pin torch directly and
+`sentence-transformers` accepts `torch>=1.11.0`, with a cp312 x86_64 wheel available.
 
-Feasibility was checked against PyPI before committing, because it nearly didn't work:
-**PyTorch's last macOS-x86_64 wheel is 2.2.2** (arm64 is at 2.13). It's viable only because
-OWUI 0.10.2 doesn't pin torch directly — `sentence-transformers==5.5.1` asks for
-`torch>=1.11.0` (transformers' `>=2.4` is extras-only), and a `cp312` x86_64 wheel exists for
-2.2.2. So Intel Macs will run OWUI on a 2024-era torch: **flagged in RIG_CHECKLIST as the
-most likely runtime failure** (local embeddings), needing a real Intel Mac to confirm.
+So it was implemented (mac arch `[arm64, x64]` + a `macos-15-intel` sidecar-only CI job;
+`macos-13` is retired) and released as v0.1.27 — where the Intel job **failed on a dependency
+I hadn't checked**:
+
+```
+ERROR: Could not find a version that satisfies the requirement onnxruntime==1.26.0
+       (from versions: 1.17.0 … 1.23.2)
+```
+
+**OWUI 0.10.2 pins `onnxruntime==1.26.0` exactly, and onnxruntime's last macOS-x86_64 wheel
+was 1.23.2** (arm64 is at 1.29.0). `pip install open-webui==0.10.2` therefore cannot resolve
+on any Intel Mac. Not fixable on our side: patching OWUI's dependency metadata would violate
+prime directive #1 (vendored + **UNMODIFIED**), and pinning OWUI back to a release old enough
+to want onnxruntime ≤1.23.2 would downgrade every other client.
+
+**Reverted** to mac `arm64` only + the Intel CI job removed (the `sidecarOnly` flag and its
+step guards are KEPT, so re-enabling is a two-line change if OWUI ever relaxes the pin).
+Critically, v0.1.27 had already published an **x64 dmg/zip with no matching x64 sidecar** —
+an Intel user installing `LlmOnLan-0.1.27.dmg` (the un-suffixed name they'd click first) would
+hit the very "Could not download the chat engine" dead end this release was meant to fix. Those
+four x64 assets were **deleted from the release**; the arm64/win/linux assets (which carry the
+`/var`-symlink tar fix from entry (h)) are untouched and working.
 
 ---
 
