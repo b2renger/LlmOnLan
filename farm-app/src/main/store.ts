@@ -14,6 +14,7 @@ const DEFAULTS: FarmSettings = {
     theme: 'system',
     launchAtLogin: false,
     autoUpdate: true,
+    contextLength: 65536,    // matches the farm's own default; raise to 262144 for max-RAG
     shareWithNetwork: false, // private by default — only this machine can use the farm
 };
 

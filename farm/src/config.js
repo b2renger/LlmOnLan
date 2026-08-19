@@ -59,10 +59,23 @@ const OllamaSchema = z.object({
     // models. Ollama's own default (4096 tokens) silently TRUNCATES longer
     // prompts — with the client's whole-document mode a 6-page PDF already
     // overflows it, which looks like "the model ignored half my document"
-    // (rig-verified). 16384 fits workshop docs; lower it on small-VRAM GPUs
-    // (KV cache grows with context × numParallel). Only applies to an Ollama
-    // that `lol` starts — set it on the service otherwise (the CLI prints it).
-    contextLength: z.number().int().positive().default(16384),
+    // (rig-verified).
+    //
+    // 65536 is the RAG-friendly default (raised from 16384, 2026-08-19). The KV
+    // cost is far smaller than the old "grows linearly with context" rule of
+    // thumb suggests, because the models we serve use sliding-window / grouped
+    // attention — MEASURED on an RTX PRO 6000 (Ollama 0.32, whole KV preallocated
+    // at load):
+    //     gemma4:12b      7.8 GB @ 8k → 8.8 GB @ 128k → 9.3 GB @ 256k
+    //     qwen3.8 (27B)  16.2 GB @ 8k → 17.2 GB @ 128k → 17.6 GB @ 256k
+    // i.e. ~1.5 GB to go from 8k to the full 256k. Both models' native maximum is
+    // 262144, which is also this field's practical ceiling (see the admin panel).
+    // Raise it per-box (admin panel = live, this field = persistent); lower it only
+    // on a small-VRAM GPU or for a dense/full-attention model, where KV really does
+    // scale with context × numParallel. Only applies to an Ollama that `lol` starts
+    // — but num_ctx also rides the generated LiteLLM routing, which applies on EVERY
+    // host regardless of who started it.
+    contextLength: z.number().int().positive().default(65536),
 }).strict();
 
 const WebsearchSchema = z.object({

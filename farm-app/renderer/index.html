@@ -94,6 +94,18 @@
                 </label>
                 <p id="share-hint" class="muted small share-hint"></p>
             </div>
+            <div class="share-block">
+                <label class="row"><span><strong>Context window</strong></span>
+                    <select id="sel-context">
+                        <option value="16384">16k tokens</option>
+                        <option value="32768">32k tokens</option>
+                        <option value="65536">64k tokens</option>
+                        <option value="131072">128k tokens</option>
+                        <option value="262144">256k tokens (max)</option>
+                    </select>
+                </label>
+                <p class="muted small share-hint">How much of a document the AI reads at once. Bigger is better for document Q&amp;A; costs some VRAM. Changing this restarts the farm.</p>
+            </div>
             <label class="row"><span>Theme</span>
                 <select id="sel-theme">
                     <option value="system">System</option>

@@ -62,7 +62,7 @@ The defaults already give you a working farm (model + web search). `lol install`
   "tts":       { "enabled": true, "port": 8880, "voice": "af_heart", "model": "kokoro" }, // opt-in neural voice
   "ocr":       { "enabled": true, "port": 8890 },   // ON by default → scanned docs/images readable on every client
   "ollama":    { "hosts": ["http://127.0.0.1:11434"], "numParallel": 2, "keepAlive": "-1",
-                 "contextLength": 16384 },          // how much text a model considers at once (whole documents)
+                 "contextLength": 65536 },          // how much text a model considers at once (whole docs; max 262144)
   "coordinator": false                   // for multi-box: aggregate LAN peers behind one endpoint
 }
 ```

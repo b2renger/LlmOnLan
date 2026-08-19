@@ -16,7 +16,7 @@ import * as url from 'url';
 import { loadSettings, updateSettings } from './store';
 import { runtimeReady } from './runtimeManager';
 import { farmInstalled } from './paths';
-import { runSetup, setShareMode, ensurePluginPorts, refreshFarmCodeIfUpdated } from './installer';
+import { runSetup, setShareMode, setContextLength, ensurePluginPorts, refreshFarmCodeIfUpdated } from './installer';
 import { reapStaleFarm } from './farmProcess';
 import { FarmSupervisor } from './farmSupervisor';
 import { initUpdateCheck, checkFarmUpdate, setUpdateNotifier } from './updater';
@@ -117,6 +117,7 @@ function currentPrefs() {
         launchAtLogin: s.launchAtLogin,
         autoUpdate: s.autoUpdate,
         shareWithNetwork: s.shareWithNetwork,
+        contextLength: s.contextLength,
         appVersion: app.getVersion(),
         platform: process.platform,
         arch: process.arch,
@@ -179,6 +180,21 @@ function registerIpc(): void {
         return v;
     });
 
+    // Model context window (num_ctx), persisted into lol.config.json. Restarts the farm
+    // so the regenerated LiteLLM routing carries the new num_ctx. Clamped to the farm's
+    // own accepted range (2048–262144, the models' native max).
+    ipcMain.handle('set-context-length', async (_e, tokens: number) => {
+        const n = Math.max(2048, Math.min(262144, Math.round(Number(tokens)) || 65536));
+        updateSettings({ contextLength: n });
+        setContextLength(n);
+        const st = supervisor.getState().status;
+        if (st === 'ready' || st === 'starting' || st === 'restarting') {
+            await supervisor.stop({ keepState: true });
+            await startFarm();
+        }
+        return { contextLength: n, farmState: supervisor.getState() };
+    });
+
     // Share the farm's compute with the LAN (default off = fully private: localhost
     // bind + no beacon). Rewrites lol.config.json's beacon/proxy and restarts the
     // farm so the new bind address + beacon take effect (they're read at `lol up` boot).
@@ -228,6 +244,7 @@ app.whenReady().then(() => {
     if (settings.installed && runtimeReady() && farmInstalled()) {
         refreshFarmCodeIfUpdated(app.getVersion()); // propagate farm-side fixes on an app update
         setShareMode(settings.shareWithNetwork); // enforce the persisted posture (also migrates a pre-toggle 0.0.0.0 config to private)
+        setContextLength(settings.contextLength); // ditto for the persisted context window
         startFarm();
     } else if (settings.installed) {
         // Marked installed but the on-disk runtime is gone — re-run setup.

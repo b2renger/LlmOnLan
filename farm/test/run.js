@@ -50,7 +50,7 @@ test('litellm config = models × hosts deployments', () => {
     assert.ok(['http://a:11434', 'http://b:11434'].includes(gemma[0].litellm_params.api_base));
     // Context window rides the routing (→ Ollama options.num_ctx on EVERY host) —
     // this is what makes ollama.contextLength apply per request + panel-adjustable.
-    assert.equal(gemma[0].litellm_params.num_ctx, 16384);
+    assert.equal(gemma[0].litellm_params.num_ctx, 65536);
     assert.equal(doc.router_settings.routing_strategy, 'simple-shuffle');
     assert.equal(doc.litellm_settings.telemetry, false);
 });
@@ -320,7 +320,9 @@ test('ollama keepAlive defaults to -1 (keep the model warm)', () => {
     assert.equal(defaultConfig().ollama.keepAlive, '-1');
     // Whole-document chat needs a real context window — Ollama's 4096 default
     // silently truncates a 6-page PDF injected via the client's full-context mode.
-    assert.equal(defaultConfig().ollama.contextLength, 16384);
+    // Raised 16384 → 65536 (2026-08-19) after measuring the real KV cost: the served
+    // models use sliding-window / grouped attention, so 8k→256k costs only ~1.5 GB.
+    assert.equal(defaultConfig().ollama.contextLength, 65536);
 });
 
 test('searxng settings.yml has json format + a real secret + limiter off', () => {

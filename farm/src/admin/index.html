@@ -177,7 +177,12 @@ function render(s) {
 
   // Context window (num_ctx): served per-request via the LiteLLM routing, so a
   // change bounces the proxy (~seconds) — pick from presets or keep a custom value.
-  const CTX_OPTS = [4096, 8192, 16384, 32768, 65536];
+  // 131072 + 262144 included: 262144 is the native max of the models we serve
+  // (gemma4, qwen3.x) AND the server-side cap in setContextLength. Their KV cost is
+  // modest (sliding-window / grouped attention — gemma4:12b 9.3GB and qwen3.8-27B
+  // 17.6GB at the full 256k, measured), so "max it for RAG" is a real option on a
+  // big-VRAM box. On a small GPU stay lower — Ollama will offload and crawl.
+  const CTX_OPTS = [4096, 8192, 16384, 32768, 65536, 131072, 262144];
   const ctxNow = s.contextLength || null;
   const ctxOpts = (ctxNow && !CTX_OPTS.includes(ctxNow) ? [ctxNow, ...CTX_OPTS] : CTX_OPTS)
     .map((v) => `<option value="${v}"${v === ctxNow ? ' selected' : ''}>${v % 1024 === 0 ? (v / 1024) + 'k' : v} tokens</option>`).join('');

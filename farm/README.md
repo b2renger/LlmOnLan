@@ -105,7 +105,7 @@ See [`lol.config.example.json`](lol.config.example.json). Shape:
   "ollama": { "hosts": ["http://127.0.0.1:11434", "http://gpu-2.local:11434"],
               "numParallel": 2, "maxLoadedModels": 1, "flashAttention": true,
               "keepAlive": "-1",               // keep models warm in VRAM (no reload after idle)
-              "contextLength": 16384 },        // num_ctx — fits whole-document chat; lower on small GPUs
+              "contextLength": 65536 },        // num_ctx — whole-document chat; up to 262144; lower on small GPUs
   "litellm": { "command": "litellm", "extraArgs": [], "provider": "ollama_chat" },
   "websearch": { "enabled": true, "port": 8888 },   // shared SearXNG → clients get web search
   "tts": { "enabled": false, "port": 8880,            // shared Kokoro voice (off by default — multi-GB install)

@@ -111,15 +111,28 @@ function copyFarm(): void {
 // 127.0.0.1 and turns the beacon OFF (no other machine can reach/use the farm);
 // shared (true) binds 0.0.0.0 + advertises via the beacon. Everything else is left to
 // the farm's zod defaults (SearXNG/OCR on, TTS off, ports, 16k context).
-function writeFarmConfig(adminToken: string, share: boolean): void {
+function writeFarmConfig(adminToken: string, share: boolean, contextLength: number): void {
     const config = {
         name: `${require('os').hostname()} Farm`,
         models: [{ id: MODEL_ID, default: true }],
         admin: { token: adminToken },
         beacon: { enabled: share },
         proxy: { host: share ? '0.0.0.0' : '127.0.0.1' },
+        ollama: { contextLength },
     };
     fs.writeFileSync(farmConfigFile(), JSON.stringify(config, null, 2) + '\n', 'utf8');
+}
+
+// Persist the model context window (num_ctx) into lol.config.json. Unlike the admin
+// panel's live change — which is deliberately ephemeral and resets on the next `lol up`
+// — this survives restarts. Takes effect on the next farm start (num_ctx rides the
+// generated LiteLLM routing), so the caller restarts the farm.
+export function setContextLength(tokens: number): void {
+    if (!fs.existsSync(farmConfigFile())) return;
+    let cfg: any;
+    try { cfg = JSON.parse(fs.readFileSync(farmConfigFile(), 'utf8')); } catch { return; }
+    cfg.ollama = { ...(cfg.ollama || {}), contextLength: tokens };
+    fs.writeFileSync(farmConfigFile(), JSON.stringify(cfg, null, 2) + '\n', 'utf8');
 }
 
 // Setup runs ONCE, but the bundled farm code changes with every app update — so re-copy
@@ -322,7 +335,8 @@ export async function runSetup(emit: Emit, doLaunch: () => Promise<void>): Promi
         ph.start('farm');
         ph.log('[farm] copying farm code to a writable location…');
         copyFarm();
-        writeFarmConfig(adminToken, loadSettings().shareWithNetwork); // private by default
+        const s0 = loadSettings();
+        writeFarmConfig(adminToken, s0.shareWithNetwork, s0.contextLength); // private by default
         if (!fs.existsSync(lolEntry())) throw new Error('farm copy did not produce bin/lol.js');
         ph.done('farm');
 

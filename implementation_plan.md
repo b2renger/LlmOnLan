@@ -233,7 +233,7 @@ fleet with failover (Layer 1). Trade‑off: the coordinator box is a single poin
   markers, one `[extract]` log line per document. **Neural voice shipped too** (Kokoro‑82M farm plugin,
   `farm/src/kokoro.js`, off by default — closes the old "Voice polish" TTS item).
 - **Whole‑document answers** — client sets `RAG_FULL_CONTEXT=true`; farm serves a matching window via
-  `ollama.contextLength` (default 16384 → `OLLAMA_CONTEXT_LENGTH` + per‑deployment `num_ctx`).
+  `ollama.contextLength` (default 65536, max 262144 → `OLLAMA_CONTEXT_LENGTH` + per‑deployment `num_ctx`).
 - **Connected‑client presence** — the shell heartbeats `POST /lol/client-ping` every 10 s
   (id/hostname/platform/version/idleSec); admin Clients card + `usage.clients` in the snapshot.
 - **Blender/mcpo flipped to opt‑in** on the client (off by default since v0.1.24; farm recommendation can

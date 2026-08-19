@@ -199,10 +199,19 @@ function wireSettings(prefs) {
     $('#chk-launch').checked = !!prefs.launchAtLogin;
     $('#chk-autoupdate').checked = !!prefs.autoUpdate;
     $('#chk-share').checked = shareWithNetwork;
+    $('#sel-context').value = String(prefs.contextLength || 65536);
     updateShareHint();
     $('#app-version').textContent = 'v' + prefs.appVersion;
 
     $('#sel-theme').addEventListener('change', (e) => setTheme(e.target.value));
+    $('#sel-context').addEventListener('change', async (e) => {
+        const tokens = Number(e.target.value);
+        e.target.disabled = true;
+        toast('Applying the new context window — restarting the farm…');
+        const r = await window.farm.setContextLength(tokens);
+        e.target.disabled = false;
+        if (r && r.farmState) renderFarmState(r.farmState);
+    });
     $('#chk-share').addEventListener('change', async (e) => {
         shareWithNetwork = e.target.checked;
         updateShareHint();

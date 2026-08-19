@@ -30,7 +30,7 @@ Snapshot:
   control API — model start/stop, "Make default", a context-window selector, plugin toggles, Blender
   fleet recommendation, connected-clients list; a **plugin registry** (`farm/src/plugins/registry.js`)
   orchestrating web search (SearXNG, ON), document OCR (`farm/src/pysvc` + `extract.js`, ON — hybrid
-  text/vision PDF extraction), and Kokoro TTS (off); `ollama.contextLength` (default 16384) applied via
+  text/vision PDF extraction), and Kokoro TTS (off); `ollama.contextLength` (default 65536; max 262144) applied via
   `OLLAMA_CONTEXT_LENGTH` **and** per-deployment `num_ctx` in the generated LiteLLM routing; coordinator
   mode + `lol fleet`/`lol bench`/`lol install`; a stable **model alias** + interactive picker in `lol up`.
 - **`shell/`** (Electron + TS, **v0.1.25**) — boots the **unmodified** OWUI sidecar (config-bridge =

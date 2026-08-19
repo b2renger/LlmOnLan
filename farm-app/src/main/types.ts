@@ -50,6 +50,11 @@ export interface FarmSettings {
     theme: 'dark' | 'light' | 'system';
     launchAtLogin: boolean;
     autoUpdate: boolean;
+    // Model context window (num_ctx) written into lol.config.json's ollama.contextLength
+    // — persistent, unlike the admin panel's live change (which resets on restart).
+    // Bigger = more of a document considered at once (the point of RAG); 262144 is the
+    // native max of gemma4 / qwen3.x and the farm's cap.
+    contextLength: number;
     // Share this farm's compute with the LAN. OFF by default = fully private: the
     // proxy + discovery bind 127.0.0.1 only and the beacon is off, so no other
     // machine can reach or use it (even by direct IP / subnet scan). ON = bind
