@@ -59,7 +59,16 @@ const LADDER = [
     { q: 'UD-Q8_K_XL', gb: 31.5 },
 ];
 const LOADED_EXTRA_GB = 1.2;    // mmproj + KV + runtime, at ctx 8192
-const DESKTOP_RESERVE_GB = 1.0; // VRAM the OS/desktop holds
+// VRAM the OS/desktop/compositor holds and Ollama will not touch. 1.8 GB is
+// CALIBRATED against measured spills, not guessed — with this value the fit rule
+// below predicts all four observed outcomes correctly:
+//   3070   8GB : IQ1_S     6.19+1.2=7.39 > 6.2  -> spilled (26%/74% CPU/GPU)  OK
+//   4070Ti 12GB: IQ1_M     6.73+1.2=7.93 < 10.2 -> 100% GPU                   OK
+//   4070Ti 12GB: IQ2_S     8.37+1.2=9.57 < 10.2 -> 100% GPU                   OK
+//   4070Ti 12GB: Q2_K_XL   9.83+1.2=11.0 > 10.2 -> spilled (24%/76% CPU/GPU)  OK
+// A Windows desktop with a browser open is the expensive case; a headless Linux
+// box gets more, so pass --vram to override upward there.
+const DESKTOP_RESERVE_GB = 1.8;
 
 // ------------------------------------------------------------------- prompts
 // Short and varied: speed is comparable across quants only if the work is identical,
@@ -472,7 +481,14 @@ function toMarkdown(out) {
         picked = fits.slice(-CFG.maxQuants).map((e) => e.q);
     }
     if (!picked.length) {
-        log('\n! No quant in the ladder fits ' + vram + ' GB. Use a smaller model.');
+        log('\n! No quant of ' + CFG.repo + ' fits in ' + vram + ' GB.');
+        log('  Even the smallest rung (' + LADDER[0].q + ', ' + LADDER[0].gb + ' GB) needs about ' +
+            (LADDER[0].gb + LOADED_EXTRA_GB).toFixed(1) + ' GB resident, and this card can offer ~' +
+            (vram - DESKTOP_RESERVE_GB).toFixed(1) + ' GB.');
+        log('  Measured on an RTX 3070 (8 GB): it loads but runs 26%/74% CPU/GPU at 8.4 tok/s -- unusable.');
+        log('  This tier needs a SMALLER MODEL, not a smaller quant. Try --repo with a 12B-class');
+        log('  model at a mid quant, which will be both faster and more accurate than a spilled 27B.');
+        log('  To measure the spill anyway: --quants ' + LADDER[0].q);
         process.exit(1);
     }
 
