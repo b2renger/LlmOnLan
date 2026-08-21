@@ -465,11 +465,6 @@ async function benchQuant(quant, ctx, mtp) {
 
     const good = rec.runs.filter((x) => !x.error);
     if (good.length) {
-        const tps = rateRuns.map((x) => x.tokPerSec).sort((a, b) => a - b);
-        const ttf = good.map((x) => x.ttftMs).sort((a, b) => a - b);
-        const med = (a) => a[Math.floor(a.length / 2)];
-        const scored = good.filter((x) => x.pass === true || x.pass === false);
-        const inconclusive = good.filter((x) => x.pass === null).length;
         // Throughput from a handful of tokens is meaningless: with TTFT ~0.5s, a 2-token
         // answer computes as ~2 tok/s while the model is genuinely running at ~51. Observed
         // on `arith`, which sometimes replies with just a number. Rates are therefore taken
@@ -479,6 +474,12 @@ async function benchQuant(quant, ctx, mtp) {
         const forRate = good.filter((x) => x.tokens >= RATE_MIN_TOKENS);
         const rateRuns = forRate.length ? forRate : good;
         rec.shortAnswers = good.length - forRate.length;
+
+        const tps = rateRuns.map((x) => x.tokPerSec).sort((a, b) => a - b);
+        const ttf = good.map((x) => x.ttftMs).sort((a, b) => a - b);
+        const med = (a) => a[Math.floor(a.length / 2)];
+        const scored = good.filter((x) => x.pass === true || x.pass === false);
+        const inconclusive = good.filter((x) => x.pass === null).length;
         rec.summary = {
             n: good.length,
             tokPerSecMedian: med(tps),
