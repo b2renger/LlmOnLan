@@ -1,0 +1,577 @@
+{
+  "startedAt": "2026-08-21T07:57:46.544Z",
+  "finishedAt": "2026-08-21T08:23:06.913Z",
+  "rig": {
+    "hostname": "AN-VR-01",
+    "platform": "win32 10.0.26200",
+    "cpuCores": 24,
+    "cpuModel": "13th Gen Intel(R) Core(TM) i7-13700",
+    "ramGb": 64,
+    "gpu": "NVIDIA GeForce RTX 4070 Ti",
+    "vramGb": 12,
+    "driver": "610.88",
+    "ollamaVersion": "0.32.14",
+    "node": "v24.14.0"
+  },
+  "config": {
+    "repo": "hf.co/unsloth/Qwen3.8-27B-GGUF",
+    "ctx": 8192,
+    "maxTokens": 300,
+    "repeats": 2,
+    "maxQuants": 4,
+    "mtp": true,
+    "thinking": false,
+    "dryRun": false,
+    "cleanup": false,
+    "quants": null,
+    "vramGb": null,
+    "prompts": [
+      {
+        "id": "science",
+        "text": "Explain in about 150 words why the sky is blue."
+      },
+      {
+        "id": "reasoning",
+        "text": "A farmer has 17 sheep. All but 9 die. How many are left? Show your reasoning step by step, then give the final answer."
+      },
+      {
+        "id": "code",
+        "text": "Write a Python function that returns the nth Fibonacci number using memoization. Include a short docstring. Code only, no explanation."
+      },
+      {
+        "id": "french",
+        "text": "Explique en 150 mots environ le fonctionnement d une imprimante 3D a depot de filament."
+      },
+      {
+        "id": "format",
+        "text": "List exactly 5 differences between TCP and UDP. One line each, no preamble, no conclusion."
+      }
+    ]
+  },
+  "results": [
+    {
+      "quant": "UD-IQ1_M",
+      "tag": "hf.co/unsloth/Qwen3.8-27B-GGUF:UD-IQ1_M",
+      "localModel": "qb-ud-iq1-m",
+      "ok": true,
+      "error": null,
+      "runs": [
+        {
+          "promptId": "science",
+          "repeat": 1,
+          "ttftMs": 537,
+          "totalMs": 3212,
+          "tokens": 144,
+          "tokPerSec": 53.8,
+          "answer": "The reason the sky is blue is a phenomenon known as **Rayleigh scattering**. When sunlight reaches the upper atmosphere, it interacts with the air molecules. Unlike larger particles that scatter all wavelengths of light, these tiny molecules scatter the shorter, blue wavelengths of the visible light spectrum much more effectively than the longer, red wavelengths. This effect, known as Rayleigh scattering, causes the shorter blue wavelengths to be scattered more strongly than the longer red wavelengths. When you look at the sky, the light reaching your eyes is predominantly the scattered blue light, which is why the sky appears blue. This is why the sun appears yellow or orange when viewed from the surface of the Earth, as the longer wavelengths are scattered less effectively.",
+          "reasoning": null
+        },
+        {
+          "promptId": "reasoning",
+          "repeat": 1,
+          "ttftMs": 539,
+          "totalMs": 2647,
+          "tokens": 114,
+          "tokPerSec": 54.1,
+          "answer": "**Step-by-step reasoning:**\n\n1.  **Initial count:** The farmer starts with a total of **17** sheep.\n2.  **The event:** The problem states that \"all but 9\" die.\n3.  **Interpretation:** The phrase \"all but 9\" means that 9 sheep survive and the rest die.\n4.  **Result:** Since 9 sheep are explicitly stated to survive (not die), the number of sheep left is 9.\n\n**Final Answer:**\n**9**",
+          "reasoning": null
+        },
+        {
+          "promptId": "code",
+          "repeat": 1,
+          "ttftMs": 536,
+          "totalMs": 2684,
+          "tokens": 116,
+          "tokPerSec": 54,
+          "answer": "```python\ndef fib(n):\n    \"\"\"Return the nth Fibonacci number using memoization.\"\"\"\n    memo = {}\n    def helper(k):\n        if k in memo:\n            return memo[k]\n        if k < 0:\n            return 0\n        if k == 0:\n            return 0\n        if k == 1:\n            return 1\n        memo[k] = helper(k - 1) + helper(k - 2)\n        return memo[k]\n    return helper(n)\n```",
+          "reasoning": null
+        },
+        {
+          "promptId": "french",
+          "repeat": 1,
+          "ttftMs": 553,
+          "totalMs": 6138,
+          "tokens": 300,
+          "tokPerSec": 53.7,
+          "answer": "Voici l'explication demandée (environ 150 mots) :\n\nUne imprimante 3D fonctionne par le principe de **fourniture de filaments** (FDM) ou, plus spécifiquement, **dépôt de filaments** (FDM). Le processus commence par la numérisation d'un modèle 3D (STL) qui est converti en trames de couches fines.\n\nLe cœur du système est l'extrudeur qui pousse le filament fondu à travers le buse (nozzle). Le filament (souvent en PLA ou ABS) est chauffé par un bloc chauffé (hotend) qui le transforme en un fluide thermoplasique. Ce flux est ensuite déposé sur la plaque de construction (build plate) en couches successives.\n\nChaque couche est une section horizontale de l'objet final. Pour assurer l'adhésion, le filament est fondu et déposé par le buse, qui se déplace selon des trajectoires définies par le logiciel. La géométrie de la pièce est construite en superposant ces couches.\n\nLa qualité de l'objet final dépend de la précision du dépôt, du débit de flux du filament, et de la température de fusion. La géométrie de la pièce est construite en superposant ces couches. La géométrie de la pièce est constr",
+          "reasoning": null
+        },
+        {
+          "promptId": "format",
+          "repeat": 1,
+          "ttftMs": 521,
+          "totalMs": 1971,
+          "tokens": 78,
+          "tokPerSec": 53.8,
+          "answer": "TCP is connection-oriented, while UDP is connectionless.\nTCP guarantees ordered data delivery, whereas UDP offers no delivery guarantees.\nTCP uses flow control and congestion control, while UDP has no built-in flow control.\nTCP has a maximum payload size limit, whereas UDP can carry variable-length messages.\nTCP headers are 20 bytes, while UDP headers are 8 bytes.",
+          "reasoning": null
+        },
+        {
+          "promptId": "science",
+          "repeat": 2,
+          "ttftMs": 530,
+          "totalMs": 3069,
+          "tokens": 137,
+          "tokPerSec": 54,
+          "answer": "The reason the sky appears blue is primarily due to a phenomenon called **Rayleigh scattering**. When sunlight enters the atmosphere, it encounters molecules and particles in the air. The atmosphere acts as a giant prism, scattering the shorter wavelengths of light (blue and violet) more effectively than the longer wavelengths (red, orange, and yellow).\n\nThis scattering effect is why the sky appears blue during the day. As the sun sets, the path through the atmosphere becomes longer, allowing the red and orange wavelengths to dominate, creating the beautiful sunset colors we observe. This process is a result of the interaction between sunlight and the Earth's atmosphere, a natural phenomenon that has been studied for centuries.",
+          "reasoning": null
+        },
+        {
+          "promptId": "reasoning",
+          "repeat": 2,
+          "ttftMs": 514,
+          "totalMs": 2909,
+          "tokens": 129,
+          "tokPerSec": 53.9,
+          "answer": "Here is the step-by-step reasoning:\n\n1.  **Identify the initial number:** The farmer starts with 17 sheep.\n2.  **Analyze the condition:** The phrase \"All but 9 die\" means that 9 sheep survive and the rest die.\n3.  **Calculate the survivors:** Since 9 sheep are left, the number of sheep remaining is 9.\n4.  **Verify the math:** The number of sheep that died is $17 - 9 = 8$. So, 8 died, and 9 are left.\n\n**Final Answer:**\n9",
+          "reasoning": null
+        },
+        {
+          "promptId": "code",
+          "repeat": 2,
+          "ttftMs": 576,
+          "totalMs": 2465,
+          "tokens": 102,
+          "tokPerSec": 54,
+          "answer": "```python\ndef fib(n):\n    \"\"\"Return the nth Fibonacci number using memoization.\"\"\"\n    memo = {}\n    \n    def fib_helper(n):\n        if n in memo:\n            return memo[n]\n        if n < 2:\n            memo[n] = n\n        else:\n            memo[n] = fib_helper(n - 1) + fib_helper(n - 2)\n        return memo[n]\n    \n    return fib_helper(n)\n```",
+          "reasoning": null
+        },
+        {
+          "promptId": "french",
+          "repeat": 2,
+          "ttftMs": 559,
+          "totalMs": 4855,
+          "tokens": 230,
+          "tokPerSec": 53.5,
+          "answer": "Voici le fonctionnement d'une imprimante 3D à dépôt de filament (FDM) :\n\nL'imprimante FDM (Fused Deposition Modeling) fonctionne par dépôt de filaments. Un filiment fondu (souvent en plastique thermoplastique) est extrudé par une buse chauffée à haute température. Le processus commence par la fusion du filament dans la chambre de fusion. La tête de dépôt (souvent un outil rotatif) dépose le filiment fondu en couches successives, suivant le modèle 3D. Le dépôt se fait par des passes de fusion, où le filament est déposé en spirales concentriques. La structure est construite couche par couche, selon le profil de la pièce. L'usinage par dépôt est un procédé de fabrication additive, où le filiment est déposé en couches successives, et le procédé est un procédé de fabrication additive. Le filiment est déposé en couches successives, et le procédé est un procédé de fabrication additive. Le filiment est déposé en couches successives, et le procédé est un procédé de fabrication additive.",
+          "reasoning": null
+        },
+        {
+          "promptId": "format",
+          "repeat": 2,
+          "ttftMs": 562,
+          "totalMs": 2815,
+          "tokens": 121,
+          "tokPerSec": 53.7,
+          "answer": "1. TCP is connection-oriented and establishes a session before data transfer, while UDP is connectionless and sends data without a prior handshake.\n2. TCP provides reliable, ordered data delivery, whereas UDP offers best-effort delivery with no guarantee of packet order or completeness.\n3. TCP uses flow control and congestion control mechanisms, while UDP has no built-in mechanism for regulating data rate.\n4. TCP supports both reliable and ordered data transmission, while UDP is strictly best-effort with no such guarantees.\n5. TCP is a connection-based protocol, whereas UDP is a connectionless protocol.",
+          "reasoning": null
+        }
+      ],
+      "gpu": {
+        "n": 64,
+        "utilMean": 84,
+        "utilMax": 98,
+        "vramPeakGb": 8.65,
+        "vramMeanGb": 8.65
+      },
+      "ps": {
+        "processor": "100% GPU",
+        "sizeText": "7.4 GB",
+        "context": 8192,
+        "raw": "qb-ud-iq1-m:latest    ab522ad17d0a    7.4 GB    100% GPU     8192       4 minutes from now"
+      },
+      "fullGpu": true,
+      "summary": {
+        "n": 10,
+        "tokPerSecMedian": 53.9,
+        "tokPerSecMin": 53.5,
+        "tokPerSecMax": 54.1,
+        "ttftMedianMs": 539,
+        "totalTokens": 1471
+      }
+    },
+    {
+      "quant": "UD-IQ2_XXS",
+      "tag": "hf.co/unsloth/Qwen3.8-27B-GGUF:UD-IQ2_XXS",
+      "localModel": "qb-ud-iq2-xxs",
+      "ok": true,
+      "error": null,
+      "runs": [
+        {
+          "promptId": "science",
+          "repeat": 1,
+          "ttftMs": 543,
+          "totalMs": 4328,
+          "tokens": 193,
+          "tokPerSec": 51,
+          "answer": "The sky appears blue due to a phenomenon known as Rayleigh scattering. As sunlight enters the atmosphere, it collides with gases and other particles, causing the light to scatter in many directions. Because blue light has a shorter wavelength than red or yellow light, it scatters more efficiently through the atmosphere.\n\nSpecifically, the molecules in the air scatter blue light about four times as effectively as they do red light. When you look at the sky, you are seeing this scattered blue light. However, the sky isn't a uniform blue; it is often lighter near the horizon and darker at the zenith because the path of the light through the atmosphere is shorter near the horizon.\n\nThe intensity of the blue color depends on the time of day and the season. At sunrise and sunset, the sky is often orange or red because the light has to travel through more of the atmosphere, and the shorter-wavelength blue light is scattered away before it reaches your eyes.",
+          "reasoning": null
+        },
+        {
+          "promptId": "reasoning",
+          "repeat": 1,
+          "ttftMs": 523,
+          "totalMs": 2602,
+          "tokens": 106,
+          "tokPerSec": 51,
+          "answer": "To determine the number of sheep remaining, we can break down the problem logically:\n\n1.  **Initial Count:** The farmer starts with 17 sheep.\n2.  **The Condition:** The phrase \"All but 9\" means that every sheep *except* 9 of them died.\n3.  **Calculation:** If 9 sheep did not die, they are the ones that are left.\n\nTherefore, the number of sheep left is **9**.\n\n**Final Answer:** 9",
+          "reasoning": null
+        },
+        {
+          "promptId": "code",
+          "repeat": 1,
+          "ttftMs": 526,
+          "totalMs": 2507,
+          "tokens": 101,
+          "tokPerSec": 51,
+          "answer": "```python\ndef fibonacci(n: int) -> int:\n    \"\"\"Return the nth Fibonacci number using memoization.\"\"\"\n    memo = {}\n    def fib(k):\n        if k in memo:\n            return memo[k]\n        if k <= 1:\n            memo[k] = k\n        else:\n            memo[k] = fib(k - 1) + fib(k - 2)\n        return memo[k]\n    return fib(n)\n```",
+          "reasoning": null
+        },
+        {
+          "promptId": "french",
+          "repeat": 1,
+          "ttftMs": 522,
+          "totalMs": 5519,
+          "tokens": 253,
+          "tokPerSec": 50.6,
+          "answer": "Le fonctionnement d'une imprimante 3D à dépot de filament (FDM, ou FFF) repose sur le principe de la fabrication additive. Le processus commence par l'extrusion d'un filin thermoplastique (comme le PLA ou le PETG) qui est fondu dans un extrudeur chauffé par un bloc chauffant. Ce matériau fondu est ensuite déposé couche par couche sur une plateau de construction, généralement en plastique ou en verre.\n\nL'ensemble du processus est piloté par un système d'électronique qui lit un fichier G-code. Ce fichier, généré par un logiciel de tranchage, définit la géométrie de l'objet en fines couches (généralement de 0,1 à 0,3 mm). La tête d'extrusion, contrôlée par des moteurs pas-à-pas sur des axes X, Y et Z, dépose le filin fondu avec une grande précision. À la fin de chaque couche, la plateforme descend (ou la tête monte) pour laisser l'espace nécessaire pour la couche suivante. Ce processus est répété jusqu'à la fin du modèle, créant ainsi un objet solide à partir de son propre profil.",
+          "reasoning": null
+        },
+        {
+          "promptId": "format",
+          "repeat": 1,
+          "ttftMs": 549,
+          "totalMs": 2372,
+          "tokens": 93,
+          "tokPerSec": 51,
+          "answer": "- TCP provides connection-oriented, reliable communication, whereas UDP is connectionless and best-effort.\n- TCP uses a 3-way handshake to establish sessions, while UDP requires no handshake.\n- TCP guarantees ordered delivery of segments, whereas UDP offers no ordering guarantee.\n- TCP uses flow control and congestion control mechanisms, while UDP does not.\n- TCP is a stream protocol (byte-oriented), whereas UDP is a datagram protocol (message-oriented).",
+          "reasoning": null
+        },
+        {
+          "promptId": "science",
+          "repeat": 2,
+          "ttftMs": 518,
+          "totalMs": 4353,
+          "tokens": 195,
+          "tokPerSec": 50.8,
+          "answer": "The sky appears blue due to a phenomenon known as Rayleigh scattering. When sunlight enters the atmosphere, it collides with gas molecules and tiny particles. These interactions scatter the shorter wavelengths of visible light—specifically blue and violet—more frequently than the longer red wavelengths. Because the blue light is scattered in all directions and reaches our eyes, the sky appears blue to the human eye.\n\nThis effect is also why sunsets appear red or orange; as the sun lowers, light travels through more atmosphere, scattering away the blue light and leaving the longer red wavelengths to dominate. While the sky is blue during the day, it can shift to orange or red during sunrise and sunset. The color of the sky can also vary depending on atmospheric conditions like humidity, pollution, or the presence of dust and aerosols, which can cause the sky to appear more muted or grayish. Overall, the sky's color is a result of the interaction between sunlight and Earth's atmosphere.",
+          "reasoning": null
+        },
+        {
+          "promptId": "reasoning",
+          "repeat": 2,
+          "ttftMs": 545,
+          "totalMs": 4506,
+          "tokens": 201,
+          "tokPerSec": 50.7,
+          "answer": "To determine how many sheep are left, we need to analyze the statement \"All but 9 die.\"\n\n1.  **Identify the total number of sheep:** The farmer starts with 17 sheep.\n2.  **Identify the survivors:** The phrase \"All but 9\" means that 9 sheep did not die. In other words, 9 sheep survived.\n3.  **Determine the number left:** The question asks how many are \"left.\" In this context, \"left\" refers to the sheep that are still alive.\n4.  **Calculation:** Since 9 sheep survived, 9 sheep are left.\n\n**Step-by-step reasoning:**\n*   Total sheep = 17\n*   Sheep that died = Total - Survivors = $17 - 9 = 8$\n*   Sheep that are left (alive) = 9\n\n**Final Answer:**\nThere are **9** sheep left.",
+          "reasoning": null
+        },
+        {
+          "promptId": "code",
+          "repeat": 2,
+          "ttftMs": 562,
+          "totalMs": 2249,
+          "tokens": 86,
+          "tokPerSec": 51,
+          "answer": "```python\ndef fibonacci(n, memo={}):\n    \"\"\"Return the nth Fibonacci number using memoization.\"\"\"\n    if n in memo:\n        return memo[n]\n    if n < 2:\n        memo[n] = n\n    else:\n        memo[n] = fibonacci(n - 1, memo) + fibonacci(n - 2, memo)\n    return memo[n]\n```",
+          "reasoning": null
+        },
+        {
+          "promptId": "french",
+          "repeat": 2,
+          "ttftMs": 552,
+          "totalMs": 3206,
+          "tokens": 135,
+          "tokPerSec": 50.9,
+          "answer": "Le fonctionnement d'une imprimante 3D à dépôt de filament, ou FDM (Fused Filament Fabrication), repose sur la fusion de la matière première. Un filinent thermoplastique, souvent en PLA ou ABS, est chauffé par une buse de température élevée jusqu'à ce qu'il devienne mou. Ce filinent est ensuite extrudé couche par couche, selon les instructions du fichier numérique, pour former un objet solide. La précision du mouvement est assurée par des moteurs pas-à-pas. Une fois le filinent refroidi, il devient rigide, permettant la création d'une structure tridimensionnelle.",
+          "reasoning": null
+        },
+        {
+          "promptId": "format",
+          "repeat": 2,
+          "ttftMs": 526,
+          "totalMs": 3622,
+          "tokens": 157,
+          "tokPerSec": 50.7,
+          "answer": "- TCP is a connection-oriented protocol that establishes a reliable session before data transfer, whereas UDP is connectionless and sends data packets without prior connection setup.\n- TCP guarantees reliable delivery of data through acknowledgments and retransmission, while UDP provides no guarantee of delivery, ordering, or integrity.\n- TCP uses a 20-byte header for connection management and flow control, whereas UDP uses an 8-byte header for basic datagram routing.\n- TCP supports full-duplex, ordered byte streams with congestion control, while UDP supports unidirectional or bidirectional datagram transmission without ordering.\n- TCP is optimized for high-latency, high-reliability applications like web browsing, while UDP is optimized for low-latency, real-time applications like video streaming.",
+          "reasoning": null
+        }
+      ],
+      "gpu": {
+        "n": 69,
+        "utilMean": 85,
+        "utilMax": 98,
+        "vramPeakGb": 9.15,
+        "vramMeanGb": 9.15
+      },
+      "ps": {
+        "processor": "100% GPU",
+        "sizeText": "7.9 GB",
+        "context": 8192,
+        "raw": "qb-ud-iq2-xxs:latest    cbf0eb5b7f2e    7.9 GB    100% GPU     8192       4 minutes from now"
+      },
+      "fullGpu": true,
+      "summary": {
+        "n": 10,
+        "tokPerSecMedian": 51,
+        "tokPerSecMin": 50.6,
+        "tokPerSecMax": 51,
+        "ttftMedianMs": 543,
+        "totalTokens": 1520
+      }
+    },
+    {
+      "quant": "UD-IQ2_S",
+      "tag": "hf.co/unsloth/Qwen3.8-27B-GGUF:UD-IQ2_S",
+      "localModel": "qb-ud-iq2-s",
+      "ok": true,
+      "error": null,
+      "runs": [
+        {
+          "promptId": "science",
+          "repeat": 1,
+          "ttftMs": 543,
+          "totalMs": 4666,
+          "tokens": 188,
+          "tokPerSec": 45.6,
+          "answer": "The sky appears blue due to a phenomenon known as Rayleigh scattering. Sunlight, which is actually white, enters the Earth's atmosphere and interacts with gas molecules (mainly nitrogen and oxygen). These molecules scatter shorter wavelengths of light, such as blue and violet, much more effectively than longer wavelengths like red or orange.\n\nWhile violet light is scattered even more strongly than blue, the human eye is less sensitive to violet, and our perception blends the scattered blue light with the less-scattered green and yellow light to create the characteristic azure hue we see. If the sun were closer to us or if the atmosphere were different, the color might appear different, but under standard conditions, the preferential scattering of short-wavelength light makes the sky blue. This same process is why sunsets appear red or orange; the light travels through more of the atmosphere, scattering away the blue light and leaving the longer red wavelengths to reach our eyes.",
+          "reasoning": null
+        },
+        {
+          "promptId": "reasoning",
+          "repeat": 1,
+          "ttftMs": 523,
+          "totalMs": 7122,
+          "tokens": 300,
+          "tokPerSec": 45.5,
+          "answer": "To determine how many sheep are left, we need to carefully analyze the wording of the problem.\n\n1.  **Initial Count**: The farmer starts with 17 sheep.\n2.  **The Event**: The statement says \"All but 9 die.\"\n    *   This phrasing implies that 9 sheep survived and the rest died.\n    *   Alternatively, it could be interpreted as \"9 sheep died,\" but the standard grammatical interpretation of \"All but [number]\" means \"Everything except [number].\"\n    *   Let's look at the structure: \"All [sheep] but [9 sheep] die.\" This means the 9 sheep did **not** die. The other sheep (17 - 9 = 8) died.\n    *   Therefore, the 9 sheep are the ones that are still alive.\n\nLet's double-check the logic:\n*   Total sheep = 17.\n*   \"All but 9 die\" means 9 sheep remain alive.\n*   The sheep that died = Total - Survivors = 17 - 9 = 8 sheep died.\n*   The question asks: \"How many are left?\"\n*   \"Left\" in this context refers to the surviving sheep.\n\nTherefore, the number of sheep left is 9.\n\n**Step-by-Step Reasoning:**\n1.  Start with the total number of sheep: 1",
+          "reasoning": null
+        },
+        {
+          "promptId": "code",
+          "repeat": 1,
+          "ttftMs": 535,
+          "totalMs": 2701,
+          "tokens": 99,
+          "tokPerSec": 45.7,
+          "answer": "```python\ndef fib(n: int, memo: dict = None) -> int:\n    \"\"\"Return the nth Fibonacci number using memoization.\"\"\"\n    if memo is None:\n        memo = {}\n    if n <= 1:\n        return n\n    if n in memo:\n        return memo[n]\n    memo[n] = fib(n - 1, memo) + fib(n - 2, memo)\n    return memo[n]\n```",
+          "reasoning": null
+        },
+        {
+          "promptId": "french",
+          "repeat": 1,
+          "ttftMs": 544,
+          "totalMs": 7153,
+          "tokens": 300,
+          "tokPerSec": 45.4,
+          "answer": "Une imprimante 3D à dépôt de filament (FDM) fonctionne principalement par extrusion. Le processus commence avec l'alimentation d'un bobineur de filaments thermoplastiques, comme du PLA ou du PETG, qui sont généralement enroulés sur un spool. Ce filament est ensuite tiré par un système d'engrenages, le « drive », vers le cœur de l'imprimante.\n\nLà, le filament passe à travers un bloc chauffant, ou hot-end, qui le fond à haute température pour le rendre mou et fluide. Une buse, souvent en laiton ou en acier, pousse le matériau fondu à travers un petit orifice. Ce processus de fusion et d'extrusion se fait couche par couche.\n\nLe cœur de l'imprimante, appelé le « hot-end », est composé d'un bloc chauffant et d'une buse. Le filament est tiré par un moteur pas-à-pas et des engrenages vers le cœur de l'imprimante. Le filament passe à travers un bloc chauffant, ou hot-end, qui le fond à haute température pour le rendre mou et fluide. Une buse, souvent en laiton ou en acier, pousse le matériau fondu à travers un petit orifice. Ce processus de fusion et d'extrusion se fait couche par couche.\n\nLe plateau d'impression, ou plateau, est la surface sur laquelle l'imprim",
+          "reasoning": null
+        },
+        {
+          "promptId": "format",
+          "repeat": 1,
+          "ttftMs": 523,
+          "totalMs": 2631,
+          "tokens": 96,
+          "tokPerSec": 45.5,
+          "answer": "TCP is connection-oriented, requiring a handshake to establish a session before data transfer.\nUDP is connectionless, sending data packets without establishing a prior connection.\nTCP provides reliable delivery with acknowledgments and retransmission of lost packets.\nUDP offers no guarantees of delivery, order, or duplicate prevention.\nTCP uses a sliding window mechanism for flow control to prevent overwhelming the receiver.\nUDP has no built-in flow control mechanism, relying on the application layer for regulation.",
+          "reasoning": null
+        },
+        {
+          "promptId": "science",
+          "repeat": 2,
+          "ttftMs": 561,
+          "totalMs": 4780,
+          "tokens": 192,
+          "tokPerSec": 45.5,
+          "answer": "The sky appears blue due to a phenomenon known as Rayleigh scattering. Sunlight enters the Earth's atmosphere and interacts with gases like nitrogen and oxygen. These molecules are much smaller than the wavelengths of visible light, causing them to scatter shorter wavelengths (blue and violet) much more effectively than longer wavelengths (red and orange).\n\nWhile violet light is actually scattered more efficiently than blue, our eyes are less sensitive to violet, and some of the violet light is absorbed by the upper atmosphere. Consequently, blue light dominates our perception. This scattered blue light is then scattered in all directions, making the sky appear blue to us. In contrast, the sun itself appears white or yellow because it contains all colors of visible light, and the less scattered red light reaches us directly. At sunrise and sunset, when the sun is lower on the horizon, the light travels through more of the atmosphere, scattering away the blue light and leaving the red and orange hues we see.",
+          "reasoning": null
+        },
+        {
+          "promptId": "reasoning",
+          "repeat": 2,
+          "ttftMs": 548,
+          "totalMs": 4863,
+          "tokens": 196,
+          "tokPerSec": 45.4,
+          "answer": "To solve this problem, we can break it down into simple steps.\n\n**Step 1: Identify the total number of sheep.**\nThe problem states that the farmer starts with 17 sheep.\n\n**Step 2: Identify the number of sheep that die.**\nThe problem states that \"all but 9\" die. This means that 9 sheep survive.\n\n**Step 3: Calculate the number of sheep left.**\nSince \"all but 9\" die, the 9 sheep that did not die are the ones remaining.\n\nAlternatively, you can calculate it by subtracting the survivors from the total:\n*   Total sheep: 17\n*   Sheep that died: $17 - 9 = 8$\n*   Sheep left (survivors): $17 - 8 = 9$\n\nBoth methods confirm that the number of sheep left is 9.\n\n**Final Answer:**\n9",
+          "reasoning": null
+        },
+        {
+          "promptId": "code",
+          "repeat": 2,
+          "ttftMs": 525,
+          "totalMs": 2260,
+          "tokens": 79,
+          "tokPerSec": 45.5,
+          "answer": "```python\ndef fibonacci(n, memo={}):\n    \"\"\"Return the nth Fibonacci number using memoization.\"\"\"\n    if n <= 1:\n        return n\n    if n in memo:\n        return memo[n]\n    memo[n] = fibonacci(n - 1, memo) + fibonacci(n - 2, memo)\n    return memo[n]\n```",
+          "reasoning": null
+        },
+        {
+          "promptId": "french",
+          "repeat": 2,
+          "ttftMs": 553,
+          "totalMs": 6452,
+          "tokens": 268,
+          "tokPerSec": 45.4,
+          "answer": "Le fonctionnement d'une imprimante 3D à dépôt de filament repose sur la technologie de fusion et d'extrusion (FDM). Le processus commence par la modélisation numérique de l'objet, qui est ensuite découpé en fines couches horizontales via un logiciel de tranchage.\n\nL'imprimante se déplace alors sur deux axes principaux (X et Y) pour positionner le chariot d'extrusion, tandis que le plateau d'impression se déplace verticalement (Z) pour empiler les couches. Le filament, généralement un thermoplastique comme le PLA, est alimenté par un moteur pas-à-pas vers un extrudeur. Ce dernier comprime le matériau dans un tuyère chauffé à haute température (souvent entre 180 et 250 °C), le ramollissant pour le rendre fluide.\n\nLe liquide est ensuite déposé couche par couche sur le plateau. La solidification rapide du matériau permet aux couches de se lier chimiquement (par adhésion moléculaire) et physiquement (par friction). Ce processus itératif, répété des centaines de fois, permet de construire l'objet tridimensionnel couche après couche, avec une précision qui dépend de la qualité du matériel et du logiciel.",
+          "reasoning": null
+        },
+        {
+          "promptId": "format",
+          "repeat": 2,
+          "ttftMs": 519,
+          "totalMs": 2644,
+          "tokens": 97,
+          "tokPerSec": 45.6,
+          "answer": "TCP uses a three-way handshake to establish a connection before data transfer, while UDP is connectionless.\nTCP guarantees reliable, ordered delivery of data through sequence numbers and acknowledgments.\nUDP does not guarantee delivery or order, and does not require acknowledgments.\nTCP uses a sliding window mechanism for flow control, whereas UDP has no built-in flow control.\nTCP provides error checking and retransmission for lost segments, while UDP relies on the application layer for error handling.",
+          "reasoning": null
+        }
+      ],
+      "gpu": {
+        "n": 89,
+        "utilMean": 89,
+        "utilMax": 98,
+        "vramPeakGb": 10.18,
+        "vramMeanGb": 10.18
+      },
+      "ps": {
+        "processor": "100% GPU",
+        "sizeText": "9.0 GB",
+        "context": 8192,
+        "raw": "qb-ud-iq2-s:latest    109832027dc8    9.0 GB    100% GPU     8192       4 minutes from now"
+      },
+      "fullGpu": true,
+      "summary": {
+        "n": 10,
+        "tokPerSecMedian": 45.5,
+        "tokPerSecMin": 45.4,
+        "tokPerSecMax": 45.7,
+        "ttftMedianMs": 543,
+        "totalTokens": 1815
+      }
+    },
+    {
+      "quant": "UD-Q2_K_XL",
+      "tag": "hf.co/unsloth/Qwen3.8-27B-GGUF:UD-Q2_K_XL",
+      "localModel": "qb-ud-q2-k-xl",
+      "ok": true,
+      "error": null,
+      "runs": [
+        {
+          "promptId": "science",
+          "repeat": 1,
+          "ttftMs": 1711,
+          "totalMs": 26886,
+          "tokens": 163,
+          "tokPerSec": 6.5,
+          "answer": "The sky appears blue due to a phenomenon called Rayleigh scattering. Sunlight enters the Earth's atmosphere and is scattered by gases and small particles in the air. Blue light travels in shorter, higher-frequency waves, so it is scattered more than other colors because it hits more frequently with the molecules in the atmosphere.\n\nWhen sunlight hits the atmosphere, the shorter wavelengths—blue and violet—scatter in all directions, while the longer wavelengths—red, orange, and yellow—scatter much less. Violet is scattered even more than blue, but our eyes are more sensitive to blue light, and our brains interpret this combination as blue. If the sky were just blue, it would be a simple result of physics; however, the specific interaction between light wavelengths and atmospheric molecules creates the vibrant blue we see during the day.",
+          "reasoning": null
+        },
+        {
+          "promptId": "reasoning",
+          "repeat": 1,
+          "ttftMs": 1106,
+          "totalMs": 18452,
+          "tokens": 149,
+          "tokPerSec": 8.6,
+          "answer": "This is a classic riddle that relies on reading comprehension and logic rather than simple arithmetic. Here is the step-by-step reasoning:\n\n1.  **Analyze the total population**: The farmer starts with a total of 17 sheep.\n2.  **Analyze the condition**: The phrase \"All but 9 die\" means that every sheep died *except* for 9 of them.\n3.  **Determine the survivors**: The 9 sheep that did not die are the ones that remain alive.\n4.  **Calculate the final count**: Therefore, the number of sheep left alive is exactly the number specified in the exception.\n\n**Final Answer:**\nThere are **9** sheep left.",
+          "reasoning": null
+        },
+        {
+          "promptId": "code",
+          "repeat": 1,
+          "ttftMs": 1095,
+          "totalMs": 9171,
+          "tokens": 93,
+          "tokPerSec": 11.5,
+          "answer": "```python\ndef fib(n, memo={}):\n    \"\"\"Return the nth Fibonacci number using memoization.\"\"\"\n    if n < 0:\n        raise ValueError(\"n must be non-negative\")\n    if n <= 1:\n        return n\n    if n not in memo:\n        memo[n] = fib(n - 1, memo) + fib(n - 2, memo)\n    return memo[n]\n```",
+          "reasoning": null
+        },
+        {
+          "promptId": "french",
+          "repeat": 1,
+          "ttftMs": 2703,
+          "totalMs": 36401,
+          "tokens": 203,
+          "tokPerSec": 6,
+          "answer": "L'imprimante 3D à dépôt de filament, ou FDM (Fused Deposition Modeling), fonctionne par l'empilement successif de couches minuscules de matière. Le processus commence par la conversion d'un modèle numérique 3D en tranches horizontales via un logiciel de tranchage. L'imprimante est équipée d'une buse chauffante, généralement en laiton, qui fond le filament plastique (comme le PLA ou l'ABS) alimenté par des pincers. Cette buse, guidée par des moteurs pas-à-pas sur des axes X, Y et Z, dépose le matériau fondu couche par couche sur une plate-forme. Chaque couche adhère à la précédente, créant progressivement l'objet physique. Ce procédé additive permet de réaliser des pièces complexes avec précision, tout en minimisant le gaspillage de matière, offrant une solution économique et flexible pour le prototypage et la fabrication de pièces fonctionnelles.",
+          "reasoning": null
+        },
+        {
+          "promptId": "format",
+          "repeat": 1,
+          "ttftMs": 2609,
+          "totalMs": 22010,
+          "tokens": 137,
+          "tokPerSec": 7.1,
+          "answer": "1. TCP is a connection-oriented protocol that establishes a handshake before data transfer, while UDP is connectionless and sends data without prior setup.\n2. TCP guarantees reliable, in-order delivery of data segments, whereas UDP offers no guarantee of delivery or ordering.\n3. TCP uses flow control and congestion avoidance mechanisms to prevent network overload, while UDP transmits packets at the rate the application generates them.\n4. TCP provides built-in error detection and retransmission of lost segments, while UDP relies on the application layer for error handling.\n5. TCP has higher overhead due to headers and acknowledgments, while UDP has minimal overhead and is faster for time-sensitive data.",
+          "reasoning": null
+        },
+        {
+          "promptId": "science",
+          "repeat": 2,
+          "ttftMs": 2212,
+          "totalMs": 29461,
+          "tokens": 178,
+          "tokPerSec": 6.5,
+          "answer": "The sky appears blue due to a phenomenon known as Rayleigh scattering. Sunlight enters the atmosphere and interacts with gas molecules and small particles. While sunlight appears white, it is actually a mixture of all visible light colors, each with a different wavelength. Shorter wavelengths, such as blue and violet, scatter more easily off these atmospheric molecules than longer wavelengths like red or orange.\n\nAlthough violet light scatters even more than blue, human eyes are less sensitive to violet, and our brains interpret the scattered light as blue. During the day, the sun is high, so light travels through a relatively thin layer of atmosphere, resulting in a predominantly blue sky. At sunrise or sunset, sunlight travels through a thicker layer of atmosphere, scattering away most blue light and leaving the reds and oranges visible. Thus, the combination of molecular scattering and human perception creates the familiar blue hue we observe.",
+          "reasoning": null
+        },
+        {
+          "promptId": "reasoning",
+          "repeat": 2,
+          "ttftMs": 1031,
+          "totalMs": 28851,
+          "tokens": 250,
+          "tokPerSec": 9,
+          "answer": "This is a classic riddle that relies on careful reading of the phrasing rather than simple arithmetic.\n\n**Step-by-Step Reasoning:**\n\n1.  **Analyze the initial condition:** The farmer starts with 17 sheep.\n2.  **Analyze the event:** The statement says, \"All but 9 die.\"\n3.  **Interpret the phrase \"All but 9\":** This phrase means that every sheep died *except* for 9 of them. It does not mean \"All of them died, and then 9 died\" or \"All of them died, leaving 9 alive.\" It specifically identifies the group that survived.\n4.  **Calculate the survivors:** If all the sheep died except for 9, then exactly 9 sheep remained alive.\n5.  **Verify the logic:**\n    *   Total sheep = 17\n    *   Sheep that died = $17 - 9 = 8$\n    *   Sheep that lived = 9\n    *   The statement \"All but 9 die\" is consistent with 8 dying and 9 living.\n\n**Conclusion:**\n\nThere are **9** sheep left.",
+          "reasoning": null
+        },
+        {
+          "promptId": "code",
+          "repeat": 2,
+          "ttftMs": 809,
+          "totalMs": 8243,
+          "tokens": 79,
+          "tokPerSec": 10.6,
+          "answer": "```python\ndef fib(n, memo={}):\n    \"\"\"Return the nth Fibonacci number using memoization.\"\"\"\n    if n in memo:\n        return memo[n]\n    if n <= 1:\n        return n\n    memo[n] = fib(n - 1, memo) + fib(n - 2, memo)\n    return memo[n]\n```",
+          "reasoning": null
+        },
+        {
+          "promptId": "french",
+          "repeat": 2,
+          "ttftMs": 2763,
+          "totalMs": 43153,
+          "tokens": 230,
+          "tokPerSec": 5.7,
+          "answer": "Une imprimante 3D à dépôt de filament, ou FDM (Fused Deposition Modeling), fabrique des objets par ajout de matière couche par couche. Le processus commence par un fichier numérique (gcode) généré via une tranchette. Le filament thermoplastique, souvent en PLA ou ABS, est alimenté par un extrudeur qui le pousse vers une buse chauffante. À l'intérieur de la buse, le plastique fond et devient liquide. La tête d'impression dépose ce fil fondu sur le plateau de construction, formant une fine ligne. Une fois la couche solidifiée, la tête se déplace pour tracer le profil suivant, avant que le plateau ne descende d'un pas précis pour permettre la pose de la couche supérieure. Ce cycle se répète des milliers de fois jusqu'à l'achèvement de la pièce. Le résultat est un objet solide, dont la résistance dépend de l'orientation, de la densité de remplissage et de la température de fusion, offrant une grande flexibilité pour le prototypage et la production d'objets sur mesure.",
+          "reasoning": null
+        },
+        {
+          "promptId": "format",
+          "repeat": 2,
+          "ttftMs": 2607,
+          "totalMs": 15026,
+          "tokens": 85,
+          "tokPerSec": 6.8,
+          "answer": "TCP is connection-oriented, while UDP is connectionless.\nTCP guarantees reliable, in-order delivery of data, whereas UDP offers no such guarantees.\nTCP uses a three-way handshake to establish a session, but UDP sends packets immediately.\nTCP includes flow control and congestion management mechanisms, which UDP lacks.\nTCP headers are larger (20-60 bytes) compared to UDP's fixed 8-byte header.",
+          "reasoning": null
+        }
+      ],
+      "gpu": {
+        "n": 467,
+        "utilMean": 22,
+        "utilMax": 99,
+        "vramPeakGb": 10.18,
+        "vramMeanGb": 10.17
+      },
+      "ps": {
+        "processor": "24%/76% CPU/GPU",
+        "sizeText": "11 GB",
+        "context": 8192,
+        "raw": "qb-ud-q2-k-xl:latest    36a6a96a7a34    11 GB    24%/76% CPU/GPU    8192       4 minutes from now"
+      },
+      "fullGpu": false,
+      "summary": {
+        "n": 10,
+        "tokPerSecMedian": 7.1,
+        "tokPerSecMin": 5.7,
+        "tokPerSecMax": 11.5,
+        "ttftMedianMs": 2212,
+        "totalTokens": 1567
+      }
+    }
+  ]
+}
