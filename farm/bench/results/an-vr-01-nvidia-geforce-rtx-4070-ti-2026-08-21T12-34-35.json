@@ -1,0 +1,455 @@
+{
+  "startedAt": "2026-08-21T12:34:35.295Z",
+  "finishedAt": "2026-08-21T12:35:30.776Z",
+  "rig": {
+    "hostname": "AN-VR-01",
+    "platform": "win32 10.0.26200",
+    "cpuCores": 24,
+    "cpuModel": "13th Gen Intel(R) Core(TM) i7-13700",
+    "ramGb": 64,
+    "gpu": "NVIDIA GeForce RTX 4070 Ti",
+    "vramGb": 12,
+    "driver": "610.88",
+    "ollamaVersion": "0.32.14",
+    "node": "v24.14.0"
+  },
+  "config": {
+    "repo": "hf.co/unsloth/Qwen3.8-27B-GGUF",
+    "ctxList": [
+      16384,
+      32768
+    ],
+    "maxTokens": 700,
+    "repeats": 2,
+    "maxQuants": 4,
+    "mtpList": [
+      true
+    ],
+    "promptSet": "hard",
+    "thinking": false,
+    "dryRun": false,
+    "cleanup": false,
+    "quants": "UD-IQ2_XXS",
+    "vramGb": null,
+    "prompts": [
+      {
+        "id": "arith",
+        "text": "Compute (47 * 83) - (19 * 23) + (1500 / 12). Show each intermediate result on one short line each, no LaTeX and no explanation. Put the final numeric answer alone on the last line.",
+        "graded": true
+      },
+      {
+        "id": "json",
+        "text": "Return ONLY a JSON object. No markdown fence, no prose, no explanation. Exactly these keys: \"name\" (a string), \"ports\" (an array of exactly 3 integers), \"active\" (a boolean).",
+        "graded": true
+      },
+      {
+        "id": "constraints",
+        "text": "Write exactly 4 lines. Line 1 must start with the letter A, line 2 with B, line 3 with C, line 4 with D. Each line must be fewer than 40 characters. Use no punctuation anywhere. Output only the 4 lines.",
+        "graded": true
+      },
+      {
+        "id": "recall",
+        "text": "What is the default TCP port for PostgreSQL, and what is the default TCP port for Redis? Answer with just the two numbers separated by a comma, nothing else.",
+        "graded": true
+      },
+      {
+        "id": "french",
+        "text": "Explique en francais, en 120 mots environ, la difference entre la memoire VRAM et la memoire RAM systeme pour l inference d un modele de langage. Reponds uniquement en francais.",
+        "graded": true
+      },
+      {
+        "id": "code-edge",
+        "text": "Write a Python function parse_range(s) that returns [3,4,5,6,7] for '3-7', returns [5] for '5', and raises ValueError for anything else. Code only, no explanation.",
+        "graded": true
+      }
+    ]
+  },
+  "results": [
+    {
+      "quant": "UD-IQ2_XXS",
+      "ctx": 16384,
+      "mtp": true,
+      "tag": "hf.co/unsloth/Qwen3.8-27B-GGUF:UD-IQ2_XXS",
+      "localModel": "qb-ud-iq2-xxs-c16384-mtp",
+      "ok": true,
+      "error": null,
+      "runs": [
+        {
+          "promptId": "arith",
+          "repeat": 1,
+          "ttftMs": 551,
+          "totalMs": 551,
+          "tokens": 1,
+          "truncated": false,
+          "tokPerSec": 1.8,
+          "answer": "",
+          "reasoning": null,
+          "pass": false,
+          "checkNote": "3901-437+125=3589"
+        },
+        {
+          "promptId": "json",
+          "repeat": 1,
+          "ttftMs": 564,
+          "totalMs": 1142,
+          "tokens": 30,
+          "truncated": false,
+          "tokPerSec": 51.9,
+          "answer": "{\"name\": \"example\", \"ports\": [80, 443, 8080], \"active\": true}",
+          "reasoning": null,
+          "pass": true,
+          "checkNote": "valid"
+        },
+        {
+          "promptId": "constraints",
+          "repeat": 1,
+          "ttftMs": 544,
+          "totalMs": 907,
+          "tokens": 19,
+          "truncated": false,
+          "tokPerSec": 52.3,
+          "answer": "A bird flies high\nB is the second letter\nC is close\nD is down",
+          "reasoning": null,
+          "pass": true,
+          "checkNote": "all 4 constraints held"
+        },
+        {
+          "promptId": "recall",
+          "repeat": 1,
+          "ttftMs": 527,
+          "totalMs": 729,
+          "tokens": 11,
+          "truncated": false,
+          "tokPerSec": 54.5,
+          "answer": "5432, 6379",
+          "reasoning": null,
+          "pass": true,
+          "checkNote": "both correct"
+        },
+        {
+          "promptId": "french",
+          "repeat": 1,
+          "ttftMs": 543,
+          "totalMs": 3457,
+          "tokens": 148,
+          "truncated": false,
+          "tokPerSec": 50.8,
+          "answer": "La VRAM, dédiée au GPU, offre une bande passante massive pour traiter les matrices de poids, accélérant ainsi les opérations de calcul intensives. La RAM système, gérée par le CPU, sert de mémoire de base pour les tâches logiques générales. Pour l'inférence, la VRAM stocke les poids du modèle et les activations pour un accès ultra-rapide. La RAM système, quant à elle, gère le flux d'entrée et la mémoire de contexte. Utiliser la VRAM pour les calculs matriciels évite le goulot d'étranglement de latence, permettant des débits de génération de texte bien supérieurs à ceux obtenus via la seule mémoire système.",
+          "reasoning": null,
+          "pass": true,
+          "checkNote": "24 french markers"
+        },
+        {
+          "promptId": "code-edge",
+          "repeat": 1,
+          "ttftMs": 544,
+          "totalMs": 4659,
+          "tokens": 209,
+          "truncated": false,
+          "tokPerSec": 50.8,
+          "answer": "```python\ndef parse_range(s):\n    if not isinstance(s, str):\n        raise ValueError(\"Input must be a string\")\n    \n    s = s.strip()\n    if not s:\n        raise ValueError(\"Empty string\")\n    \n    # Try to parse as a range \"a-b\"\n    if '-' in s:\n        parts = s.split('-')\n        if len(parts) != 2:\n            raise ValueError(\"Invalid range format\")\n        a, b = parts\n        if not a.isdigit() or not b.isdigit():\n            raise ValueError(\"Non-numeric values in range\")\n        start, end = int(a), int(b)\n        if end < start:\n            raise ValueError(\"End must be greater than start\")\n        return list(range(start, end + 1))\n    \n    # Try to parse as a single number\n    if s.isdigit():\n        return [int(s)]\n    \n    raise ValueError(\"Invalid input format\")\n```",
+          "reasoning": null,
+          "pass": true,
+          "checkNote": "3/3 structural markers (def, ValueError, range)"
+        },
+        {
+          "promptId": "arith",
+          "repeat": 2,
+          "ttftMs": 525,
+          "totalMs": 525,
+          "tokens": 1,
+          "truncated": false,
+          "tokPerSec": 1.9,
+          "answer": "",
+          "reasoning": null,
+          "pass": false,
+          "checkNote": "3901-437+125=3589"
+        },
+        {
+          "promptId": "json",
+          "repeat": 2,
+          "ttftMs": 570,
+          "totalMs": 1029,
+          "tokens": 24,
+          "truncated": false,
+          "tokPerSec": 52.3,
+          "answer": "{\"name\":\"example\",\"ports\":[80,443,8080],\"active\":true}",
+          "reasoning": null,
+          "pass": true,
+          "checkNote": "valid"
+        },
+        {
+          "promptId": "constraints",
+          "repeat": 2,
+          "ttftMs": 539,
+          "totalMs": 1021,
+          "tokens": 25,
+          "truncated": false,
+          "tokPerSec": 51.9,
+          "answer": "A bird flies high\nBells ring loud and clear\nCats sleep in the sun\nDogs run far away",
+          "reasoning": null,
+          "pass": true,
+          "checkNote": "all 4 constraints held"
+        },
+        {
+          "promptId": "recall",
+          "repeat": 2,
+          "ttftMs": 555,
+          "totalMs": 740,
+          "tokens": 10,
+          "truncated": false,
+          "tokPerSec": 54.1,
+          "answer": "5432,6379",
+          "reasoning": null,
+          "pass": true,
+          "checkNote": "both correct"
+        },
+        {
+          "promptId": "french",
+          "repeat": 2,
+          "ttftMs": 543,
+          "totalMs": 3311,
+          "tokens": 141,
+          "truncated": false,
+          "tokPerSec": 50.9,
+          "answer": "La VRAM est une mémoire dédiée au GPU, offrant une bande passante élevée et une latence minimale. Pour l'inférence d un modèle de langage, elle stocke les poids et les activations des couches de transformation. En revanche, la RAM système (CPU) sert de mémoire de masse pour les données d'entrée et de sortie. Bien que la VRAM permette des calculs parallèles massifs, la RAM système gère la logique séquentielle et l'interface utilisateur. Utiliser la RAM système pour l'inférence entraîne des goulfs de performance dus aux temps d'attente, tandis que la VRAM assure une exécution fluide et rapide.",
+          "reasoning": null,
+          "pass": true,
+          "checkNote": "25 french markers"
+        },
+        {
+          "promptId": "code-edge",
+          "repeat": 2,
+          "ttftMs": 537,
+          "totalMs": 3817,
+          "tokens": 167,
+          "truncated": false,
+          "tokPerSec": 50.9,
+          "answer": "```python\ndef parse_range(s):\n    s = s.strip()\n    if '-' in s:\n        parts = s.split('-')\n        if len(parts) != 2:\n            raise ValueError(\"Invalid range format\")\n        a, b = parts\n        a = a.strip()\n        b = b.strip()\n        try:\n            start = int(a)\n            end = int(b)\n        except ValueError:\n            raise ValueError(\"Invalid number format\")\n        if start > end:\n            raise ValueError(\"Invalid range\")\n        return list(range(start, end + 1))\n    else:\n        try:\n            val = int(s)\n        except ValueError:\n            raise ValueError(\"Invalid number format\")\n        return [val]\n```",
+          "reasoning": null,
+          "pass": true,
+          "checkNote": "3/3 structural markers (def, ValueError, range)"
+        }
+      ],
+      "gpu": {
+        "n": 43,
+        "utilMean": 72,
+        "utilMax": 98,
+        "vramPeakGb": 9.68,
+        "vramMeanGb": 9.68
+      },
+      "ps": {
+        "processor": "100% GPU",
+        "sizeText": "8.5 GB",
+        "context": 16384,
+        "raw": "qb-ud-iq2-xxs-c16384-mtp:latest    787cb1a4e1d8    8.5 GB    100% GPU     16384      4 minutes from now"
+      },
+      "fullGpu": true,
+      "summary": {
+        "n": 12,
+        "tokPerSecMedian": 51.9,
+        "tokPerSecMin": 1.8,
+        "tokPerSecMax": 54.5,
+        "ttftMedianMs": 544,
+        "totalTokens": 786,
+        "graded": 12,
+        "passed": 10,
+        "inconclusive": 0,
+        "scorePct": 83
+      }
+    },
+    {
+      "quant": "UD-IQ2_XXS",
+      "ctx": 32768,
+      "mtp": true,
+      "tag": "hf.co/unsloth/Qwen3.8-27B-GGUF:UD-IQ2_XXS",
+      "localModel": "qb-ud-iq2-xxs-c32768-mtp",
+      "ok": true,
+      "error": null,
+      "runs": [
+        {
+          "promptId": "arith",
+          "repeat": 1,
+          "ttftMs": 528,
+          "totalMs": 907,
+          "tokens": 20,
+          "truncated": false,
+          "tokPerSec": 52.8,
+          "answer": "391\n437\n125\n391\n437",
+          "reasoning": null,
+          "pass": false,
+          "checkNote": "3901-437+125=3589"
+        },
+        {
+          "promptId": "json",
+          "repeat": 1,
+          "ttftMs": 556,
+          "totalMs": 1014,
+          "tokens": 24,
+          "truncated": false,
+          "tokPerSec": 52.4,
+          "answer": "{\"name\":\"example\",\"ports\":[80,443,8080],\"active\":true}",
+          "reasoning": null,
+          "pass": true,
+          "checkNote": "valid"
+        },
+        {
+          "promptId": "constraints",
+          "repeat": 1,
+          "ttftMs": 520,
+          "totalMs": 1199,
+          "tokens": 35,
+          "truncated": false,
+          "tokPerSec": 51.5,
+          "answer": "A bird flies high in the sky\nB is the second letter of the alphabet\nC is the third letter of the alphabet\nD is the fourth letter of the alphabet",
+          "reasoning": null,
+          "pass": true,
+          "checkNote": "all 4 constraints held"
+        },
+        {
+          "promptId": "recall",
+          "repeat": 1,
+          "ttftMs": 508,
+          "totalMs": 713,
+          "tokens": 11,
+          "truncated": false,
+          "tokPerSec": 53.7,
+          "answer": "5432, 6379",
+          "reasoning": null,
+          "pass": true,
+          "checkNote": "both correct"
+        },
+        {
+          "promptId": "french",
+          "repeat": 1,
+          "ttftMs": 538,
+          "totalMs": 4054,
+          "tokens": 179,
+          "truncated": false,
+          "tokPerSec": 50.9,
+          "answer": "La VRAM, dédiée au GPU, offre une bande passante élevée pour les opérations massivement parallèles, permettant d'accelérer le calcul des produits de matrices (GEMM) nécessaires à l'inférence. La RAM système, gérée par le CPU, a une bande passante inférieure et une latence supérieure, limitant la vitesse d'exécution.\n\nPour un modèle de langage, la VRAM stocke les poids et les activations sur la carte graphique, réduisant le temps de réponse et la latence par token. La RAM système, quant à elle, stocke les poids sur le processeur, ralentissant considérablement l'inférence. En somme, la VRAM optimise la vitesse de calcul, tandis que la RAM système offre une capacité de stockage plus grande, mais au prix d'une performance nettement inférieure.",
+          "reasoning": null,
+          "pass": true,
+          "checkNote": "32 french markers"
+        },
+        {
+          "promptId": "code-edge",
+          "repeat": 1,
+          "ttftMs": 537,
+          "totalMs": 3422,
+          "tokens": 147,
+          "truncated": false,
+          "tokPerSec": 51,
+          "answer": "```python\ndef parse_range(s):\n    if s.isdigit():\n        return [int(s)]\n    if '-' in s:\n        parts = s.split('-')\n        if len(parts) != 2:\n            raise ValueError(\"Invalid range format\")\n        start, end = parts\n        if not start.isdigit() or not end.isdigit():\n            raise ValueError(\"Invalid range format\")\n        start_val = int(start)\n        end_val = int(end)\n        if start_val > end_val:\n            raise ValueError(\"Invalid range: start greater than end\")\n        return list(range(start_val, end_val + 1))\n    raise ValueError(\"Invalid range format\")\n```",
+          "reasoning": null,
+          "pass": true,
+          "checkNote": "3/3 structural markers (def, ValueError, range)"
+        },
+        {
+          "promptId": "arith",
+          "repeat": 2,
+          "ttftMs": 510,
+          "totalMs": 1859,
+          "tokens": 69,
+          "truncated": false,
+          "tokPerSec": 51.1,
+          "answer": "47 * 83 = 3901\n19 * 23 = 437\n1500 / 12 = 125\n3901 - 437 + 125\n3464 + 125\n3589",
+          "reasoning": null,
+          "pass": true,
+          "checkNote": "3901-437+125=3589"
+        },
+        {
+          "promptId": "json",
+          "repeat": 2,
+          "ttftMs": 560,
+          "totalMs": 1139,
+          "tokens": 30,
+          "truncated": false,
+          "tokPerSec": 51.8,
+          "answer": "{\"name\": \"example\", \"ports\": [80, 443, 3000], \"active\": true}",
+          "reasoning": null,
+          "pass": true,
+          "checkNote": "valid"
+        },
+        {
+          "promptId": "constraints",
+          "repeat": 2,
+          "ttftMs": 541,
+          "totalMs": 1261,
+          "tokens": 37,
+          "truncated": false,
+          "tokPerSec": 51.4,
+          "answer": "A quick brown fox jumps over the lazy dog\nB is for big and bold and bright\nC is for calm and cool and clear\nD is for deep and dark and done",
+          "reasoning": null,
+          "pass": false,
+          "checkNote": "line 1 is 41 chars"
+        },
+        {
+          "promptId": "recall",
+          "repeat": 2,
+          "ttftMs": 535,
+          "totalMs": 721,
+          "tokens": 10,
+          "truncated": false,
+          "tokPerSec": 53.8,
+          "answer": "5432,6379",
+          "reasoning": null,
+          "pass": true,
+          "checkNote": "both correct"
+        },
+        {
+          "promptId": "french",
+          "repeat": 2,
+          "ttftMs": 589,
+          "totalMs": 3740,
+          "tokens": 160,
+          "truncated": false,
+          "tokPerSec": 50.8,
+          "answer": "La VRAM, dédiée au GPU, offre une bande passante élevée et une latence minimale, permettant le calcul massif des matrices nécessaires pour l'inférence. La RAM système, plus lente et partagée avec le CPU, sert de repli ou de stockage intermédiaire. Pour les modèles de langage, la VRAM est cruciale pour charger les poids et exécuter les opérations de matrice en parallèle. Sans elle, l'inférence devient un goulot d'étranglement critique. La RAM système ne peut remplacer cette vitesse de calcul, mais elle peut stocker le contexte ou les données d'entrée. En somme, la VRAM accélère le calcul vectoriel, tandis que la RAM système gère la mémoire générale et la communication des données.",
+          "reasoning": null,
+          "pass": true,
+          "checkNote": "30 french markers"
+        },
+        {
+          "promptId": "code-edge",
+          "repeat": 2,
+          "ttftMs": 527,
+          "totalMs": 3341,
+          "tokens": 143,
+          "truncated": false,
+          "tokPerSec": 50.8,
+          "answer": "```python\ndef parse_range(s):\n    if '-' in s:\n        parts = s.split('-')\n        if len(parts) != 2:\n            raise ValueError(\"Invalid range format\")\n        try:\n            start, end = int(parts[0]), int(parts[1])\n            if start >= end:\n                raise ValueError(\"Invalid range: start must be less than end\")\n            return list(range(start, end + 1))\n        except ValueError:\n            raise ValueError(\"Invalid range format\")\n    else:\n        if s.isdigit():\n            return [int(s)]\n        else:\n            raise ValueError(\"Invalid range format\")\n```",
+          "reasoning": null,
+          "pass": true,
+          "checkNote": "3/3 structural markers (def, ValueError, range)"
+        }
+      ],
+      "gpu": {
+        "n": 45,
+        "utilMean": 74,
+        "utilMax": 98,
+        "vramPeakGb": 10.7,
+        "vramMeanGb": 10.7
+      },
+      "ps": {
+        "processor": "100% GPU",
+        "sizeText": "9.6 GB",
+        "context": 32768,
+        "raw": "qb-ud-iq2-xxs-c32768-mtp:latest    f77198a62cc1    9.6 GB    100% GPU     32768      4 minutes from now"
+      },
+      "fullGpu": true,
+      "summary": {
+        "n": 12,
+        "tokPerSecMedian": 51.5,
+        "tokPerSecMin": 50.8,
+        "tokPerSecMax": 53.8,
+        "ttftMedianMs": 537,
+        "totalTokens": 865,
+        "graded": 12,
+        "passed": 10,
+        "inconclusive": 0,
+        "scorePct": 83
+      }
+    }
+  ]
+}
