@@ -166,28 +166,43 @@ const ConfigSchema = z.object({
     name: z.string().default('LlmOnLan Farm'),
     beacon: BeaconSchema.default({}),
     proxy: ProxySchema.default({}),
-    // Default catalog for the 12 GB cards this farm targets (benchmarks + method in
-    // farm/bench/). Two models, only ONE of which is ever resident:
+    // What this farm SERVES. Everything here becomes a LiteLLM deployment and is
+    // advertised to clients, so a client CAN select it — and on a single-GPU box
+    // selecting a second model evicts the first. That makes this list a farm-admin
+    // decision and never a client one: whatever is listed here, any client can cause
+    // to load. Keep it to ONE model unless the box genuinely has VRAM for more.
     //
-    //   gemma4:12b            the DEFAULT — smaller, what clients open on.
-    //   qwen3.8-27b-iq2xxs    the heavy option, pulled and served but not loaded
-    //                         until something actually asks for it.
-    //
-    // Nothing is warmed by `lol up`, so listing the 27B here costs disk, not VRAM.
-    // It loads on first request and then — with maxLoadedModels 1 and keepAlive -1 —
-    // EVICTS gemma and squats until someone switches back. That reload is ~15-30s
-    // on a 4070. Unavoidable on 12 GB: 8.6 + 7.6 GB cannot be co-resident.
-    //
-    // The 27B quant is UD-IQ2_XXS by measurement: 51.5 tok/s fully GPU-resident on a
-    // 4070 Ti and 90% on the graded quality suite pooled over 126 attempts —
-    // statistically tied with the larger UD-IQ2_S (91%) while ~10% faster and 1.1 GB
-    // smaller. Do NOT "optimise" it downward: the smaller quants measured FASTER but
-    // much worse (UD-IQ1_M 81%, computes 47*83 as 3941; UD-IQ1_S 63%, loses code
-    // generation entirely) — the fastest quant is the most damaged one. Bigger fails
-    // differently: UD-Q2_K_XL needs 11 GB, spills, and costs 6.4x. On a big-VRAM box
-    // swap in a higher quant and raise ollama.contextLength.
+    // The admin panel mutates this at runtime (startModel/stopModel regenerate the
+    // routing and warm/evict), which is the supported way to change what runs. For
+    // models kept ready but deliberately NOT served, see `preinstall` below.
     models: z.array(ModelSchema).min(1).default([
         { id: 'gemma4:12b', default: true },
+    ]),
+
+    // Models to DOWNLOAD but NOT serve. `lol install` and `lol up` pull and derive
+    // these exactly like served ones, so they sit on disk ready to start — but they
+    // get no LiteLLM deployment and are absent from the discovery snapshot, so no
+    // client can see or select one, and therefore no client can trigger a model swap
+    // on the farm. Starting one is the farm admin's call, from the admin panel (which
+    // lists everything installed on the host); startModel picks the full definition up
+    // from here, so alias/vision/params survive rather than degrading to a bare id.
+    //
+    // The default entry is the measured pick for the 12 GB cards this farm targets
+    // (method and data in farm/bench/, on the bench/quant-ladder branch): Qwen3.8-27B
+    // at Unsloth UD-IQ2_XXS — 51.5 tok/s fully GPU-resident on a 4070 Ti and 90% on
+    // the graded quality suite pooled over 126 attempts, statistically tied with the
+    // larger UD-IQ2_S (91%) while ~10% faster and 1.1 GB smaller.
+    //
+    // Do NOT "optimise" it downward: the smaller quants measured FASTER but much worse
+    // (UD-IQ1_M 81%, computes 47*83 as 3941; UD-IQ1_S 63%, loses code generation
+    // entirely) — the fastest quant is the most damaged one. Bigger fails differently:
+    // UD-Q2_K_XL needs 11 GB, spills to CPU, and costs 6.4x. On a big-VRAM box swap in
+    // a higher quant and raise ollama.contextLength.
+    //
+    // NOTE on a 12 GB card this and gemma4:12b cannot be co-resident (8.6 + 7.6 GB),
+    // so starting it from the panel means stopping gemma — deliberately the admin's
+    // decision, not a side effect of someone's model picker.
+    preinstall: z.array(ModelSchema).default([
         {
             id: 'qwen3.8-27b-iq2xxs',
             source: 'hf.co/unsloth/Qwen3.8-27B-GGUF:UD-IQ2_XXS',

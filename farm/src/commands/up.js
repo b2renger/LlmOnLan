@@ -127,7 +127,10 @@ async function ensureOllama(config) {
 async function pullMissing(config, reachable) {
     for (const host of reachable) {
         const present = await ollama.listModels(host);
-        for (const m of config.models) {
+        // Served models AND preinstalled ones: `preinstall` must be on disk so the
+        // admin can start it from the panel without a download, but it is NOT served
+        // (no LiteLLM deployment, absent from the snapshot) so no client can select it.
+        for (const m of config.models.concat(config.preinstall || [])) {
             const label = (() => { try { return new URL(host).host; } catch { return host; } })();
             // What actually has to be downloaded: the upstream `source` when the
             // model is derived, otherwise the id itself.
@@ -610,7 +613,13 @@ async function run(args) {
         if (config.models.some((m) => norm(m.id) === norm(id))) return { ok: true, already: true, servedModels: servedIdList() };
         const present = (await Promise.all(oll.reachable.map((h) => ollama.listModels(h)))).flat();
         if (!ollama.hasModel(present, id)) return { ok: false, error: `"${id}" isn't installed on any reachable host — pull it first.` };
-        if (!(await applyModels(config.models.concat([{ id }])))) {
+        // Prefer the full definition from `preinstall` over a bare { id }: it carries
+        // the stable alias (so chats bind to "reasoning", not the quant-specific id),
+        // the explicit vision flag, and the params. Starting a preinstalled model from
+        // the panel should serve it exactly as configured, not a degraded version.
+        const known = (config.preinstall || []).find((m) => norm(m.id) === norm(id));
+        const entry = known ? { ...known } : { id };
+        if (!(await applyModels(config.models.concat([entry])))) {
             return { ok: false, error: 'The proxy did not come back — reverted to the previous model set.', servedModels: servedIdList() };
         }
         for (const h of oll.reachable.filter(isLocalHost)) ollama.warmModel(h, id, config.ollama.keepAlive, config.ollama.contextLength).catch(() => {});

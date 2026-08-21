@@ -202,7 +202,10 @@ async function pullModels(config) {
         return;
     }
     const present = await ollama.listModels(local);
-    for (const m of config.models) {
+    // Served models AND preinstalled ones — `preinstall` exists precisely so a heavy
+    // model is on disk and startable by the farm admin without a download, while
+    // staying invisible to clients until the admin serves it.
+    for (const m of config.models.concat(config.preinstall || [])) {
         // A derived model (see ModelSchema.source) is pulled by its UPSTREAM tag —
         // `m.id` is the local name we create afterwards and does not exist on any
         // registry, so pulling it would 404.

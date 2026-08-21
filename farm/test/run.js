@@ -608,6 +608,48 @@ test('broadcastAddr honors the netmask (/23 → .17.255)', () => {
     assert.equal(broadcastAddr('192.168.1.20', '255.255.255.0'), '192.168.1.255');
 });
 
+// ---- preinstall: installed but NOT served ----------------------------------
+// The invariant: a client must never be able to change what the farm is running.
+// Anything in `models` is a LiteLLM deployment and is advertised, so a client can
+// select it — and on a single-GPU box that EVICTS whatever was loaded. Heavy models
+// therefore live in `preinstall`: on disk, startable by the farm admin, invisible to
+// clients until the admin serves them.
+test('preinstall models are pulled but never served or advertised', () => {
+    const c = defaultConfig();
+    assert.ok(c.preinstall.length >= 1, 'a heavy model is preinstalled by default');
+    const hidden = c.preinstall[0];
+
+    const deployed = buildLitellmConfig(c).model_list.map((d) => d.model_name);
+    assert.ok(!deployed.includes(hidden.id), 'no LiteLLM deployment for a preinstalled model');
+    assert.ok(!deployed.includes(hidden.alias), 'not reachable via its alias either');
+
+    const snap = buildSnapshot(c, { proxyUp: true, hostsUp: 1, hostsTotal: 1 });
+    const advertised = snap.models.flatMap((m) => [m.id, m.underlying]);
+    assert.ok(!advertised.includes(hidden.id), 'absent from the discovery snapshot');
+});
+
+test('the default farm serves exactly one model', () => {
+    // One GPU, one served model: a second entry here is a second thing any client
+    // could load, which is the farm admin's decision to make explicitly.
+    const c = defaultConfig();
+    assert.equal(c.models.length, 1);
+    assert.equal(c.models[0].id, 'gemma4:12b');
+    assert.equal(c.models[0].default, true);
+});
+
+test('a preinstalled model keeps its alias when the admin starts it', () => {
+    // startModel() merges the preinstall definition rather than pushing a bare { id },
+    // so a chat binds to the stable role name and survives a later re-quantisation.
+    const c = defaultConfig();
+    const hidden = c.preinstall[0];
+    assert.equal(hidden.alias, 'reasoning');
+    const started = Object.assign({}, c);
+    started.models = c.models.concat([{ ...hidden }]);
+    const names = servedEntries(started).map((e) => e.servedName);
+    assert.ok(names.includes('reasoning'), 'served under its alias, not the quant-specific id');
+    assert.ok(!names.includes(hidden.id), 'the raw derived id is not what clients bind to');
+});
+
 (async () => {
     for (const { name, fn } of tests) {
         try { await fn(); console.log(`  ok  ${name}`); passed++; }
