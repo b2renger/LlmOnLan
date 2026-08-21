@@ -50,7 +50,7 @@ test('litellm config = models × hosts deployments', () => {
     assert.ok(['http://a:11434', 'http://b:11434'].includes(gemma[0].litellm_params.api_base));
     // Context window rides the routing (→ Ollama options.num_ctx on EVERY host) —
     // this is what makes ollama.contextLength apply per request + panel-adjustable.
-    assert.equal(gemma[0].litellm_params.num_ctx, 65536);
+    assert.equal(gemma[0].litellm_params.num_ctx, 16384);
     assert.equal(doc.router_settings.routing_strategy, 'simple-shuffle');
     assert.equal(doc.litellm_settings.telemetry, false);
 });
@@ -221,7 +221,11 @@ test('snapshot carries the discovery contract', () => {
     assert.ok(s.openaiBaseUrl.endsWith(':4000/v1'));
     assert.equal(s.requiresKey, false);
     assert.equal(s.healthy, true);
-    assert.deepEqual(s.models.map((m) => m.id), c.models.map((m) => m.id));
+    // The snapshot advertises SERVED names (aliases when set), with the real ollama
+    // tag alongside as `underlying`. Asserting both pins the alias contract — a chat
+    // binds to the served name, so it must stay stable while `underlying` changes.
+    assert.deepEqual(s.models.map((m) => m.id), servedEntries(c).map((e) => e.servedName));
+    assert.deepEqual(s.models.map((m) => m.underlying), c.models.map((m) => m.id));
 });
 
 // ---- ollama helpers --------------------------------------------------------
@@ -320,9 +324,10 @@ test('ollama keepAlive defaults to -1 (keep the model warm)', () => {
     assert.equal(defaultConfig().ollama.keepAlive, '-1');
     // Whole-document chat needs a real context window — Ollama's 4096 default
     // silently truncates a 6-page PDF injected via the client's full-context mode.
-    // Raised 16384 → 65536 (2026-08-19) after measuring the real KV cost: the served
-    // models use sliding-window / grouped attention, so 8k→256k costs only ~1.5 GB.
-    assert.equal(defaultConfig().ollama.contextLength, 65536);
+    // LOWERED 65536 → 16384 (2026-08-21): 65536 was measured on a 96 GB box and
+    // SPILLS on the 12 GB cards this farm targets, costing 5x. See the field comment
+    // in config.js for the per-context VRAM measurements on a 4070 Ti.
+    assert.equal(defaultConfig().ollama.contextLength, 16384);
 });
 
 test('searxng settings.yml has json format + a real secret + limiter off', () => {

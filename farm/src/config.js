@@ -166,30 +166,37 @@ const ConfigSchema = z.object({
     name: z.string().default('LlmOnLan Farm'),
     beacon: BeaconSchema.default({}),
     proxy: ProxySchema.default({}),
-    // Default catalog, chosen by measurement for the 12 GB cards this farm targets
-    // (benchmarks + method in farm/bench/). Qwen3.8-27B at Unsloth's UD-IQ2_XXS is
-    // the pick: 51.5 tok/s fully GPU-resident on a 4070 Ti, and 90% on the graded
-    // quality suite pooled over 126 attempts — statistically tied with the larger
-    // UD-IQ2_S (91%) while being ~10% faster and 1.1 GB smaller.
+    // Default catalog for the 12 GB cards this farm targets (benchmarks + method in
+    // farm/bench/). Two models, only ONE of which is ever resident:
     //
-    // Do NOT "optimise" this downward. Smaller quants measured FASTER but much
-    // worse: UD-IQ1_M 81% (it computes 47*83 as 3941) and UD-IQ1_S 63% (it loses
-    // code generation entirely). The fastest quant here is the most damaged one.
-    // Bigger does not work either — UD-Q2_K_XL needs 11 GB and spills on a 12 GB
-    // card, costing 6.4x. On a big-VRAM box, replace this with a higher quant.
+    //   gemma4:12b            the DEFAULT — smaller, what clients open on.
+    //   qwen3.8-27b-iq2xxs    the heavy option, pulled and served but not loaded
+    //                         until something actually asks for it.
     //
-    // gemma4:12b rides along as a lighter second option. NOTE it will not be
-    // co-resident with the 27B on a 12 GB card (8.5 + 7.6 GB > 12), and
-    // maxLoadedModels is 1, so switching between them costs a full reload.
+    // Nothing is warmed by `lol up`, so listing the 27B here costs disk, not VRAM.
+    // It loads on first request and then — with maxLoadedModels 1 and keepAlive -1 —
+    // EVICTS gemma and squats until someone switches back. That reload is ~15-30s
+    // on a 4070. Unavoidable on 12 GB: 8.6 + 7.6 GB cannot be co-resident.
+    //
+    // The 27B quant is UD-IQ2_XXS by measurement: 51.5 tok/s fully GPU-resident on a
+    // 4070 Ti and 90% on the graded quality suite pooled over 126 attempts —
+    // statistically tied with the larger UD-IQ2_S (91%) while ~10% faster and 1.1 GB
+    // smaller. Do NOT "optimise" it downward: the smaller quants measured FASTER but
+    // much worse (UD-IQ1_M 81%, computes 47*83 as 3941; UD-IQ1_S 63%, loses code
+    // generation entirely) — the fastest quant is the most damaged one. Bigger fails
+    // differently: UD-Q2_K_XL needs 11 GB, spills, and costs 6.4x. On a big-VRAM box
+    // swap in a higher quant and raise ollama.contextLength.
     models: z.array(ModelSchema).min(1).default([
+        { id: 'gemma4:12b', default: true },
         {
             id: 'qwen3.8-27b-iq2xxs',
             source: 'hf.co/unsloth/Qwen3.8-27B-GGUF:UD-IQ2_XXS',
             params: { draft_num_predict: 4 },   // MTP speculative decoding, ~1.8x
             vision: true,                        // multimodal; tag alone does not reveal it
-            default: true,
+            // Stable role name so a chat bound to it survives a quant change. Without
+            // this, clients bind to "qwen3.8-27b-iq2xxs" and re-quantising breaks them.
+            alias: 'reasoning',
         },
-        { id: 'gemma4:12b' },
     ]),
     ollama: OllamaSchema.default({}),
     litellm: LiteLLMSchema.default({}),
