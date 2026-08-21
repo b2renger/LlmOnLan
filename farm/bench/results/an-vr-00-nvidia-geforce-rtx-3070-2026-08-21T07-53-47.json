@@ -1,0 +1,184 @@
+{
+  "startedAt": "2026-08-21T07:53:47.676Z",
+  "finishedAt": "2026-08-21T08:03:59.312Z",
+  "rig": {
+    "hostname": "AN-VR-00",
+    "platform": "win32 10.0.26200",
+    "cpuCores": 16,
+    "cpuModel": "11th Gen Intel(R) Core(TM) i7-11700 @ 2.50GHz",
+    "ramGb": 32,
+    "gpu": "NVIDIA GeForce RTX 3070",
+    "vramGb": 8,
+    "driver": "591.74",
+    "ollamaVersion": "0.32.14",
+    "node": "v24.14.0"
+  },
+  "config": {
+    "repo": "hf.co/unsloth/Qwen3.8-27B-GGUF",
+    "ctx": 8192,
+    "maxTokens": 300,
+    "repeats": 2,
+    "maxQuants": 4,
+    "mtp": true,
+    "thinking": false,
+    "dryRun": false,
+    "cleanup": false,
+    "quants": null,
+    "vramGb": null,
+    "prompts": [
+      {
+        "id": "science",
+        "text": "Explain in about 150 words why the sky is blue."
+      },
+      {
+        "id": "reasoning",
+        "text": "A farmer has 17 sheep. All but 9 die. How many are left? Show your reasoning step by step, then give the final answer."
+      },
+      {
+        "id": "code",
+        "text": "Write a Python function that returns the nth Fibonacci number using memoization. Include a short docstring. Code only, no explanation."
+      },
+      {
+        "id": "french",
+        "text": "Explique en 150 mots environ le fonctionnement d une imprimante 3D a depot de filament."
+      },
+      {
+        "id": "format",
+        "text": "List exactly 5 differences between TCP and UDP. One line each, no preamble, no conclusion."
+      }
+    ]
+  },
+  "results": [
+    {
+      "quant": "UD-IQ1_S",
+      "tag": "hf.co/unsloth/Qwen3.8-27B-GGUF:UD-IQ1_S",
+      "localModel": "qb-ud-iq1-s",
+      "ok": true,
+      "error": null,
+      "runs": [
+        {
+          "promptId": "science",
+          "repeat": 1,
+          "ttftMs": 1983,
+          "totalMs": 37526,
+          "tokens": 300,
+          "tokPerSec": 8.4,
+          "answer": "The sky appears blue due to the scattering of sunlight by the atmosphere. Sunlight is composed of many colors, and when it enters the atmosphere, the gases, dust, and other particles scatter the light in all directions. This is known as scattering. The scattering is not uniform; it is more likely for shorter wavelengths (blue light) than for longer wavelengths (red light). As a result, the blue light is scattered more than the red light. This is why the sky appears blue. The blue light is scattered more, and the red light is scattered less. The blue light is scattered more, and the red light is scattered less. The blue light is scattered more, and the red light is scattered less. The blue light is scattered more, and the red light is scattered less.\n\nThe sky appears blue due to the scattering of sunlight by the atmosphere. Sunlight is composed of many colors, and when it enters the atmosphere, the gases, dust, and other particles scatter the light in all directions. This is known as scattering. The scattering is not uniform; it is more likely for shorter wavelengths (blue light) than for longer wavelengths (red light). As a result, the blue light is scattered more than the red light. This is why the sky appears blue. The blue light is scattered more, and the red light is scattered less. The blue light is scattered more, and the red light is scattered less. The blue light is scattered more, and the red light is scattered",
+          "reasoning": null
+        },
+        {
+          "promptId": "reasoning",
+          "repeat": 1,
+          "ttftMs": 1012,
+          "totalMs": 16847,
+          "tokens": 139,
+          "tokPerSec": 8.8,
+          "answer": "Let's think about this. The problem states that a farmer has 17 sheep, and then says \"All but 9 die.\" This means that 9 sheep are still alive (or \"left\"), and the rest die. So the number of sheep left is 9.\n\nBut let me reason through it more carefully:\n\n- The farmer has 17 sheep.\n- \"All but 9 die\" means that 9 sheep do **not** die (they survive), and the remaining 17 - 9 = 8 sheep die.\n- So the number of sheep left (alive) is 9.\n\nFinal answer: **9**",
+          "reasoning": null
+        },
+        {
+          "promptId": "code",
+          "repeat": 1,
+          "ttftMs": 899,
+          "totalMs": 9677,
+          "tokens": 77,
+          "tokPerSec": 8.8,
+          "answer": "```python\ndef fib(n):\n    \"\"\"Returns the nth Fibonacci number using memoization.\"\"\"\n    memo = {0: 0, 1: 1}\n    for i in range(2, n + 1):\n        memo[i] = memo[i - 1] + memo[i - 2]\n    return memo[n]\n```",
+          "reasoning": null
+        },
+        {
+          "promptId": "french",
+          "repeat": 1,
+          "ttftMs": 2798,
+          "totalMs": 22499,
+          "tokens": 167,
+          "tokPerSec": 8.5,
+          "answer": "L'imprimante 3D à dépôt de filament (FDM) fonctionne selon le principe de la fusion et du dépôt. Le matériau, souvent une solution polymère (comme le PEG-DA) ou un pré-polymère, est d'abord mélangé avec des réactifs chimiques. Ce mélange est ensuite chargé dans la chambre d'extrusion.\n\nL'extrusion se fait à travers une buse, où le polymère est fondu sous pression. Le polymère fondu est ensuite extrudé dans un moule en forme d'anneau. Ce moule est ensuite refroidi et polymérisé.\n\nLa structure finale est polymérisée dans un moule en forme d'anneau, ce qui donne un polymère à structure polymérisée.",
+          "reasoning": null
+        },
+        {
+          "promptId": "format",
+          "repeat": 1,
+          "ttftMs": 2595,
+          "totalMs": 38847,
+          "tokens": 300,
+          "tokPerSec": 8.3,
+          "answer": "1. TCP is connection-oriented, while UDP is connectionless.\n2. TCP provides reliable delivery, whereas UDP offers best-effort delivery.\n4. TCP uses flow control, while UDP does not.\n5. TCP is connection-oriented, and UDP is connectionless.\n\nWait, let me re-read the prompt. \"List exactly 5 differences between TCP and UDP. One line each, no preamble, no conclusion.\"\n\nOkay, 5 differences, one line each. Let me list 5 differences:\n\n1. TCP is connection-oriented, UDP is connectionless.\n2. TCP provides reliable delivery, UDP is best-effort.\n3. TCP uses flow control, UDP does not.\n4. TCP is connection-oriented, UDP is connectionless.\n\nWait, I'm repeating myself. Let me think of 5 distinct differences:\n\n1. TCP is connection-oriented, UDP is connectionless.\n2. TCP provides reliable delivery, UDP is best-effert.\n3. TCP uses flow control, UDP does not.\n4. TCP is connection-oriented, UDP is connectionless.\n\nHmm, I keep repeating. Let me think of 5 distinct differences:\n\n1. TCP is connection-oriented, UDP is connectionless.\n2. TCP provides reliable delivery, UDP is best-effort.\n3. TCP uses flow control, UDP does not.\n4. TCP is connection-oriented, UDP is connectionless.\n\nWait, I'm stuck",
+          "reasoning": null
+        },
+        {
+          "promptId": "science",
+          "repeat": 2,
+          "ttftMs": 2329,
+          "totalMs": 29306,
+          "tokens": 219,
+          "tokPerSec": 8.1,
+          "answer": "The sky appears blue due to the interaction between sunlight and the atmosphere, primarily explained by the scattering of light. When sunlight enters the Earth's atmosphere, it interacts with molecules and small particles. The atmosphere acts as a filter, scattering the light. This scattering process is known as Rayleigh scattering, where smaller particles preferentially scatter shorter wavelengths. As a result, the blue light, which has a shorter wavelength, is scattered more efficiently than the red light. This leads to a concentration of blue light in the sky, making it appear blue.\n\nHowever, it's important to note that the sky is not purely blue. The scattering of light also causes a phenomenon known as the Tyndall effect, where the blue light is scattered in all directions. This results in a mixture of blue and white light, giving the sky its characteristic hue. The exact color of the sky depends on the amount of scattering and the relative proportions of the different colors. Thus, while the sky appears blue, it is actually a combination of various shades of blue and white, creating a complex and dynamic visual experience.",
+          "reasoning": null
+        },
+        {
+          "promptId": "reasoning",
+          "repeat": 2,
+          "ttftMs": 1061,
+          "totalMs": 16798,
+          "tokens": 132,
+          "tokPerSec": 8.4,
+          "answer": "1. **Understand the problem**: The farmer has 17 sheep. All but 9 die. We are asked to determine how many are left.\n\n2. **Interpret the statement**: “All but 9 die” means that 9 sheep are left (alive), and the rest die.\n\n3. **Calculate the number of sheep left**:\n   - Total sheep = 17\n   - Number of sheep left = 9\n   - Therefore, the number of sheep that died = 17 - 9 = 8\n\n4. **Final answer**: The number of sheep left is 9.",
+          "reasoning": null
+        },
+        {
+          "promptId": "code",
+          "repeat": 2,
+          "ttftMs": 739,
+          "totalMs": 10208,
+          "tokens": 77,
+          "tokPerSec": 8.1,
+          "answer": "```python\ndef fib(n):\n    \"\"\"Returns the nth Fibonacci number using memoization.\"\"\"\n    memo = {0: 0, 1: 1}\n    for i in range(2, n + 1):\n        memo[i] = memo[i - 1] + memo[i - 2]\n    return memo[n]\n```",
+          "reasoning": null
+        },
+        {
+          "promptId": "french",
+          "repeat": 2,
+          "ttftMs": 2919,
+          "totalMs": 14706,
+          "tokens": 99,
+          "tokPerSec": 8.4,
+          "answer": "L'imprimante 3D à dépôt de filament, aussi appelée imprimante de dépôt de filament, est un type d'imprimante FDM (Fused Deposition Modeling) qui utilise une buse pour déposer un fil de matière fondu (souvent un polymère thermoplastique) sur un plateau de dépôt (plateau) pour former une couche de matériau fondu. Le plateau de dépôt (plate) est une surface où le fil est déposé et refroidi.",
+          "reasoning": null
+        },
+        {
+          "promptId": "format",
+          "repeat": 2,
+          "ttftMs": 2789,
+          "totalMs": 16320,
+          "tokens": 113,
+          "tokPerSec": 8.4,
+          "answer": "1. TCP provides reliable, connection-oriented communication, while UDP provides best-effort, connectionless communication.\n2. TCP guarantees delivery of data in order, whereas UDP does not guarantee delivery or ordering.\n3. TCP establishes a connection state before transferring data, while UDP has no connection state.\n4. TCP is generally used for reliable, high-priority applications, whereas UDP is used for best-effet, high-speed applications.\n5. TCP is a transport layer protocol that provides reliability, whereas UDP is a transport layer protocol that provides speed.",
+          "reasoning": null
+        }
+      ],
+      "gpu": {
+        "n": 418,
+        "utilMean": 29,
+        "utilMax": 55,
+        "vramPeakGb": 6.71,
+        "vramMeanGb": 6.71
+      },
+      "ps": {
+        "processor": "26%/74% CPU/GPU",
+        "sizeText": "7.4 GB",
+        "context": 8192,
+        "raw": "qb-ud-iq1-s:latest    130757783d09    7.4 GB    26%/74% CPU/GPU    8192       4 minutes from now"
+      },
+      "fullGpu": false,
+      "summary": {
+        "n": 10,
+        "tokPerSecMedian": 8.4,
+        "tokPerSecMin": 8.1,
+        "tokPerSecMax": 8.8,
+        "ttftMedianMs": 2329,
+        "totalTokens": 1623
+      }
+    }
+  ]
+}
