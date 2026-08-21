@@ -94,6 +94,52 @@ Written to `results/<host>-<gpu>-<timestamp>.{md,json}`:
 Results are committed to the repo on purpose: run this on each rig, push, and the whole
 fleet's numbers sit side by side.
 
+## Sharing results between rigs
+
+Result files are small (~50 KB per run) and named `<host>-<gpu>-<timestamp>`, so two rigs
+never write the same filename and their commits merge cleanly.
+
+**On each rig, after the run:**
+
+```bash
+cd LlmOnLan
+git add farm/bench/results
+git commit -m "bench: results from 4070ti"
+git pull --rebase origin bench/quant-ladder   # required — another rig may have pushed first
+git push origin bench/quant-ladder
+```
+
+The `pull --rebase` is the only step people skip and the only one that causes trouble: without
+it a second rig gets rejected as non-fast-forward. Since each rig adds distinct files, the
+rebase is always clean.
+
+**First time on a fresh machine**, git needs an identity and credentials:
+
+```bash
+git config --global user.name  "your name"
+git config --global user.email "you@example.com"
+
+gh auth login && gh auth setup-git    # easiest; or let Git Credential Manager
+                                      # open a browser on first push
+```
+
+**No-git fallback.** The two files are tiny — copy them off by any means (USB, email, Slack)
+into `farm/bench/results/` on a machine that can push, then commit from there. Nothing in the
+report depends on where it was committed from; the rig identity is inside the file.
+
+**Then aggregate everything:**
+
+```bash
+git pull
+node summarize.mjs          # one table across every rig
+node summarize.mjs --md     # markdown, for pasting into an issue
+node summarize.mjs --all    # include spilled rows (hidden by default)
+```
+
+`summarize.mjs` reads every `results/*.json`, hides rows that spilled to CPU (their timings
+measure offload, not the quant), and prints the fastest fully-resident quant per rig — which
+is the actual thing we're trying to learn.
+
 ## Reading the results
 
 - **Ignore any row not marked `100% GPU`.** Those measure CPU offload.
