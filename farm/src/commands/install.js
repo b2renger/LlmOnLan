@@ -203,18 +203,41 @@ async function pullModels(config) {
     }
     const present = await ollama.listModels(local);
     for (const m of config.models) {
-        if (ollama.hasModel(present, m.id)) { log.ok(`${m.id} already present.`); continue; }
-        log.step(`Pulling ${log.paint.bold(m.id)} (first pull can be slow) …`);
-        try {
-            let last = '';
-            await ollama.pullModel(local, m.id, (s) => {
-                if (s !== last) { last = s; process.stdout.write(`\r${log.paint.grey('[pull]')} ${s}            `); }
-            });
-            process.stdout.write('\n');
-            log.ok(`${m.id} ready.`);
-        } catch (e) {
-            process.stdout.write('\n');
-            log.warn(`Could not pull ${m.id} — ${e.message}. \`lol up\` will retry.`);
+        // A derived model (see ModelSchema.source) is pulled by its UPSTREAM tag —
+        // `m.id` is the local name we create afterwards and does not exist on any
+        // registry, so pulling it would 404.
+        const upstream = m.source || m.id;
+        if (!ollama.hasModel(present, upstream)) {
+            log.step(`Pulling ${log.paint.bold(upstream)} (first pull can be slow) …`);
+            try {
+                let last = '';
+                await ollama.pullModel(local, upstream, (s) => {
+                    if (s !== last) { last = s; process.stdout.write(`\r${log.paint.grey('[pull]')} ${s}            `); }
+                });
+                process.stdout.write('\n');
+                log.ok(`${upstream} ready.`);
+            } catch (e) {
+                process.stdout.write('\n');
+                log.warn(`Could not pull ${upstream} — ${e.message}. \`lol up\` will retry.`);
+                continue;
+            }
+        } else {
+            log.ok(`${upstream} already present.`);
+        }
+
+        // Bake in the Modelfile PARAMETERs the upstream pull does not carry — above
+        // all draft_num_predict (MTP), worth ~1.8x. `lol up` re-derives on every run
+        // to track contextLength; doing it here too means the box is ready to serve
+        // at full speed straight after `lol install`, with no first-run penalty.
+        if (m.source) {
+            const params = Object.assign({ num_ctx: config.ollama.contextLength }, m.params || {});
+            try {
+                await ollama.createModel(local, m.id, m.source, params);
+                const shown = Object.entries(params).map(([k, v]) => `${k}=${v}`).join(' ');
+                log.ok(`${log.paint.bold(m.id)} derived from ${m.source} ${log.paint.grey(`(${shown})`)}`);
+            } catch (e) {
+                log.warn(`Could not derive ${m.id} — ${e.message}. \`lol up\` will retry.`);
+            }
         }
     }
 }
