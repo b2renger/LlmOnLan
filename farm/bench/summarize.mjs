@@ -125,15 +125,15 @@ if (hidden) console.log(hidden + ' row(s) hidden because the model spilled to CP
 //
 // Ranked on QUALITY FIRST, speed only as the tie-break. Ranking on speed alone
 // recommended UD-IQ1_S on the 4070 Ti at 58 tok/s — the single worst option
-// measured (63% pooled quality; it loses code generation entirely). The fastest
-// quant is routinely the most damaged one, so a speed-only headline actively
-// misleads. Quality is pooled across every run of that (rig, quant) since a
-// single n=3 pass swings by up to 17 points at temperature 0.7.
+// measured (63% pooled; it loses code generation entirely, 0/3). The fastest quant
+// is routinely the most damaged one, so a speed-only headline actively misleads.
+//
 // Quality is pooled GLOBALLY per quant, across every rig that ran it — the same
 // GGUF produces the same output distribution on any card, so a 4070 Ti sample and
 // a 96GB sample are samples of one thing. Pooling per rig instead let a single
 // lucky 16/18 promote UD-IQ1_M above UD-IQ2_XXS on one box, when its pooled score
-// across both machines is 81% vs 92% and it cannot reliably multiply.
+// across both machines is 81% vs 90%. That matters because one n=3 pass swings by
+// up to 17 points at temperature 0.7.
 const qualityByQuant = new Map();
 for (const r of rows) {           // includes spilled rows: spilling breaks speed, not correctness
     if (!r.graded) continue;
