@@ -121,16 +121,60 @@ console.log('');
 console.log(files.length + ' result file(s) across ' + rigs.size + ' rig(s).');
 if (hidden) console.log(hidden + ' row(s) hidden because the model spilled to CPU (--all to show).');
 
-// Per-rig winner: the fastest quant that stayed fully resident. This is the
-// actual deliverable — what each box should serve.
-const byRig = new Map();
+// Per-rig recommendation: what each box should actually serve.
+//
+// Ranked on QUALITY FIRST, speed only as the tie-break. Ranking on speed alone
+// recommended UD-IQ1_S on the 4070 Ti at 58 tok/s — the single worst option
+// measured (63% pooled quality; it loses code generation entirely). The fastest
+// quant is routinely the most damaged one, so a speed-only headline actively
+// misleads. Quality is pooled across every run of that (rig, quant) since a
+// single n=3 pass swings by up to 17 points at temperature 0.7.
+// Quality is pooled GLOBALLY per quant, across every rig that ran it — the same
+// GGUF produces the same output distribution on any card, so a 4070 Ti sample and
+// a 96GB sample are samples of one thing. Pooling per rig instead let a single
+// lucky 16/18 promote UD-IQ1_M above UD-IQ2_XXS on one box, when its pooled score
+// across both machines is 81% vs 92% and it cannot reliably multiply.
+const qualityByQuant = new Map();
+for (const r of rows) {           // includes spilled rows: spilling breaks speed, not correctness
+    if (!r.graded) continue;
+    const q = qualityByQuant.get(r.quant) || { passed: 0, graded: 0 };
+    q.passed += r.passed; q.graded += r.graded;
+    qualityByQuant.set(r.quant, q);
+}
+const scoreOf = (quant) => {
+    const q = qualityByQuant.get(quant);
+    return q && q.graded ? Math.round((q.passed / q.graded) * 100) : null;
+};
+
+// Speed is per (rig, quant) and must come from fully-resident rows only.
+const byRigQuant = new Map();
 for (const r of rows.filter((x) => x.fullGpu)) {
-    if (!byRig.has(r.rig) || byRig.get(r.rig).tps < r.tps) byRig.set(r.rig, r);
+    const k = r.rig + '|' + r.quant;
+    const cur = byRigQuant.get(k) || { rig: r.rig, quant: r.quant, best: r };
+    if (r.tps > cur.best.tps) cur.best = r;
+    byRigQuant.set(k, cur);
+}
+const byRig = new Map();
+for (const c of byRigQuant.values()) {
+    const q = qualityByQuant.get(c.quant);
+    c.scorePct = scoreOf(c.quant);
+    c.passed = q ? q.passed : null;
+    c.graded = q ? q.graded : null;
+    const prev = byRig.get(c.rig);
+    if (!prev) { byRig.set(c.rig, c); continue; }
+    // Quality wins outright; only a near-tie (<=5 points, within sampling noise at
+    // n=3 and temperature 0.7) is broken by speed.
+    const a = c.scorePct == null ? -1 : c.scorePct;
+    const b = prev.scorePct == null ? -1 : prev.scorePct;
+    if (a - b > 5 || (Math.abs(a - b) <= 5 && c.best.tps > prev.best.tps)) byRig.set(c.rig, c);
 }
 if (byRig.size) {
     console.log('');
-    console.log('Fastest fully-resident quant per rig:');
-    for (const [rig, r] of byRig) {
-        console.log('  ' + rig.padEnd(16) + r.quant.padEnd(13) + r.tps + ' tok/s  (ctx ' + r.ctx + ', MTP ' + (r.mtp ? 'on' : 'off') + ')');
+    console.log('Recommended per rig (best quality; speed breaks ties within 5 points):');
+    for (const [rig, c] of byRig) {
+        console.log('  ' + rig.padEnd(16) + c.quant.padEnd(13) +
+            String(c.best.tps).padStart(6) + ' tok/s  ctx ' + String(c.best.ctx).padEnd(7) +
+            (c.scorePct == null ? 'quality not measured' : 'quality ' + c.passed + '/' + c.graded + ' (' + c.scorePct + '%)'));
     }
+    console.log('  (speed-only ranking would pick the most damaged quant — see --all for every row)');
 }
