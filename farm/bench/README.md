@@ -66,15 +66,48 @@ including one marginal rung so the cliff gets located rather than guessed.
 |---|---|---|
 | `--quants A,B` | auto | Test specific rungs; skips auto-selection and the big downloads |
 | `--vram N` | detected | Override detected VRAM (simulate another card's *selection*) |
-| `--ctx N` | `8192` | Context window. Raise to check whether KV pushes you over the cliff |
-| `--max-tokens N` | `300` | Longer answers = better quality comparison, slower runs |
-| `--repeats N` | `2` | Timing passes per prompt |
+| `--ctx N[,N]` | `8192` | **List.** Sweeps each context. Use your real serving value |
+| `--mtp on,off` | `on` | **List.** Sweeps `draft_num_predict 4` on/off |
+| `--prompts SET` | `quick` | `quick` (fast, easy), `hard` (graded, discriminating), `all` |
+| `--max-tokens N` | 300 / 700 | Defaults higher for `hard`, whose answers are far more verbose |
+| `--repeats N` | `2` | Passes per prompt. With `hard` this becomes the pass-rate denominator |
 | `--max-quants N` | `4` | How many rungs to auto-select |
-| `--no-mtp` | off | Disable `draft_num_predict 4` |
+| `--no-mtp` | off | Shorthand for `--mtp off` |
 | `--thinking` | off | Leave reasoning on (better answers, noisier timings) |
 | `--dry-run` | off | Print the plan and exit |
 | `--cleanup` | off | Remove derived `qb-*` models afterward (keeps pulled quants) |
-| `--repo R` | `hf.co/unsloth/Qwen3.8-27B-GGUF` | Benchmark a different model |
+| `--repo R` | `hf.co/unsloth/Qwen3.8-27B-GGUF` | Benchmark a different model. Auto-selection assumes the Qwen3.8-27B size ladder, so pass `--quants` too |
+
+`--ctx` and `--mtp` take lists and the run sweeps their **cross product** with the quants.
+That matters because on a tight card these knobs are not independent: KV at a larger context
+eats the headroom that decides whether a quant fits at all, and MTP's draft head costs VRAM
+to buy throughput. `--quants A,B --ctx 8192,65536 --mtp on,off` is 8 configs.
+
+## Measuring quality, not vibes
+
+`--prompts hard` runs six prompts chosen to break damaged quants, most carrying an automatic
+check, so quality comes out as a **pass rate** rather than an impression:
+
+| Prompt | Tests | Check |
+|---|---|---|
+| `arith` | multi-step arithmetic (errors compound) | final answer is 3589 |
+| `json` | strict structured output | parses + exact schema |
+| `constraints` | 4 simultaneous format rules | all 4 held |
+| `recall` | precise factual recall | 5432 and 6379 both present |
+| `french` | non-English fluency (degrades first) | French marker density |
+| `code-edge` | edge-case handling | structural markers present |
+
+The `quick` set is deliberately kept for speed runs, but **it cannot discriminate quants** —
+on a 4070 Ti every rung from IQ1_M to Q2_K_XL solved its riddle and produced a sane list.
+
+**Truncated answers score as inconclusive (`?`), never as failures.** An answer cut off at
+`--max-tokens` may have been on its way to being right — observed with `arith` producing
+correct intermediates (3901, 437, 125, 3464) and running out before writing 3589. Counting
+that as wrong would penalise verbosity instead of measuring capability.
+
+> **Quality does not need the target rig.** The same GGUF produces the same output
+> distribution on any card, so quality can be screened on whatever machine is fastest and
+> only the *speed* sweep has to run on the rig you're choosing for.
 
 Downloads are cached by Ollama, so re-runs are fast. To test only the interesting rungs on a
 12 GB card and skip ~22 GB of downloads:

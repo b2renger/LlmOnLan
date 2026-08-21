@@ -62,8 +62,13 @@ for (const f of files) {
             ttft: r.summary ? Math.round(r.summary.ttftMedianMs) : null,
             util: r.gpu ? r.gpu.utilMean : null,
             vramPeak: r.gpu ? r.gpu.vramPeakGb : null,
-            ctx: cfg.ctx,
-            mtp: cfg.mtp,
+            // ctx/MTP moved from run-level config to per-result when sweeping landed.
+            // Fall back to the old location so previously committed results still read.
+            ctx: r.ctx != null ? r.ctx : cfg.ctx,
+            mtp: r.mtp != null ? r.mtp : cfg.mtp,
+            score: r.summary && r.summary.scorePct != null ? r.summary.scorePct : null,
+            passed: r.summary ? r.summary.passed : null,
+            graded: r.summary ? r.summary.graded : null,
             when: (d.startedAt || '').slice(0, 16).replace('T', ' '),
         });
     }
@@ -75,11 +80,13 @@ const hidden = rows.length - shown.length;
 // Group by rig, and inside a rig order by speed so the winner is the top line.
 shown.sort((a, b) => (a.rig === b.rig ? b.tps - a.tps : a.rig.localeCompare(b.rig)));
 
-const H = ['Rig', 'GPU (VRAM)', 'Quant', 'Resident', 'GPU?', 'tok/s', 'range', 'TTFT', 'util', 'VRAM pk', 'ctx', 'MTP'];
+const H = ['Rig', 'GPU (VRAM)', 'Quant', 'ctx', 'MTP', 'Resident', 'GPU?', 'tok/s', 'range', 'TTFT', 'util', 'VRAM pk', 'quality'];
 const fmt = (r) => [
     r.rig,
     r.gpu.replace(/^NVIDIA\s+/, '').replace(/\s+(Workstation Edition|Laptop GPU)$/, '') + ' (' + r.vramGb + 'GB)',
     r.quant,
+    String(r.ctx),
+    r.mtp ? 'on' : 'off',
     r.resident,
     r.fullGpu ? 'yes' : 'SPILLED',
     r.tps == null ? '?' : String(r.tps),
@@ -87,8 +94,7 @@ const fmt = (r) => [
     r.ttft == null ? '?' : (r.ttft / 1000).toFixed(2) + 's',
     r.util == null ? '?' : r.util + '%',
     r.vramPeak == null ? '?' : r.vramPeak + 'GB',
-    String(r.ctx),
-    r.mtp ? 'on' : 'off',
+    r.score == null ? '-' : r.passed + '/' + r.graded + ' (' + r.score + '%)',
 ];
 
 const table = shown.map(fmt);

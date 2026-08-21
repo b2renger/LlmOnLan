@@ -71,15 +71,96 @@ const LOADED_EXTRA_GB = 1.2;    // mmproj + KV + runtime, at ctx 8192
 const DESKTOP_RESERVE_GB = 1.8;
 
 // ------------------------------------------------------------------- prompts
-// Short and varied: speed is comparable across quants only if the work is identical,
-// and answer QUALITY across quants is the other half of the evaluation.
-const PROMPTS = [
-    { id: 'science', text: 'Explain in about 150 words why the sky is blue.' },
-    { id: 'reasoning', text: 'A farmer has 17 sheep. All but 9 die. How many are left? Show your reasoning step by step, then give the final answer.' },
-    { id: 'code', text: 'Write a Python function that returns the nth Fibonacci number using memoization. Include a short docstring. Code only, no explanation.' },
-    { id: 'french', text: 'Explique en 150 mots environ le fonctionnement d une imprimante 3D a depot de filament.' },
-    { id: 'format', text: 'List exactly 5 differences between TCP and UDP. One line each, no preamble, no conclusion.' },
-];
+// Speed is comparable across quants only if the work is identical; answer QUALITY is
+// the other half of the evaluation.
+//
+// The `quick` set turned out to be TOO EASY to discriminate low-bit quants — on a
+// 4070 Ti every rung from IQ1_M to Q2_K_XL solved the sheep riddle and produced a
+// sane TCP/UDP list. The `hard` set below is built to break damaged quants, and most
+// of its prompts carry a `check()` so quality becomes a measured pass-rate rather
+// than an impression. Known first casualties of aggressive quantization: multi-step
+// arithmetic (errors compound), strict structured output, several simultaneous
+// format constraints, precise factual recall, and non-English fluency.
+const PROMPT_SETS = {
+    quick: [
+        { id: 'science', text: 'Explain in about 150 words why the sky is blue.' },
+        { id: 'reasoning', text: 'A farmer has 17 sheep. All but 9 die. How many are left? Show your reasoning step by step, then give the final answer.' },
+        { id: 'code', text: 'Write a Python function that returns the nth Fibonacci number using memoization. Include a short docstring. Code only, no explanation.' },
+        { id: 'french', text: 'Explique en 150 mots environ le fonctionnement d une imprimante 3D a depot de filament.' },
+        { id: 'format', text: 'List exactly 5 differences between TCP and UDP. One line each, no preamble, no conclusion.' },
+    ],
+    hard: [
+        {
+            // Errors compound across three sub-results, so a damaged quant rarely lands exactly.
+            id: 'arith',
+            text: 'Compute (47 * 83) - (19 * 23) + (1500 / 12). Show each intermediate result on one short line each, no LaTeX and no explanation. Put the final numeric answer alone on the last line.',
+            check: (a) => ({ pass: /\b3589\b/.test(a), note: '3901-437+125=3589' }),
+        },
+        {
+            // Strict structured output degrades early and is trivially verifiable.
+            id: 'json',
+            text: 'Return ONLY a JSON object. No markdown fence, no prose, no explanation. Exactly these keys: "name" (a string), "ports" (an array of exactly 3 integers), "active" (a boolean).',
+            check: (a) => {
+                const s = a.replace(/^\s*```(?:json)?/i, '').replace(/```\s*$/, '').trim();
+                try {
+                    const o = JSON.parse(s);
+                    const ok = o && typeof o.name === 'string'
+                        && Array.isArray(o.ports) && o.ports.length === 3 && o.ports.every((n) => Number.isInteger(n))
+                        && typeof o.active === 'boolean';
+                    return { pass: !!ok, note: ok ? 'valid' : 'parsed but wrong shape' };
+                } catch {
+                    return { pass: false, note: 'not parseable JSON' };
+                }
+            },
+        },
+        {
+            // Four simultaneous constraints. Low-bit quants typically satisfy 2-3 of them.
+            id: 'constraints',
+            text: 'Write exactly 4 lines. Line 1 must start with the letter A, line 2 with B, line 3 with C, line 4 with D. Each line must be fewer than 40 characters. Use no punctuation anywhere. Output only the 4 lines.',
+            check: (a) => {
+                const lines = a.trim().split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+                if (lines.length !== 4) return { pass: false, note: lines.length + ' lines, expected 4' };
+                const letters = ['A', 'B', 'C', 'D'];
+                for (let i = 0; i < 4; i++) {
+                    if (!lines[i].toUpperCase().startsWith(letters[i])) return { pass: false, note: 'line ' + (i + 1) + ' does not start with ' + letters[i] };
+                    if (lines[i].length >= 40) return { pass: false, note: 'line ' + (i + 1) + ' is ' + lines[i].length + ' chars' };
+                    if (/[.,;:!?'"()\-]/.test(lines[i])) return { pass: false, note: 'punctuation on line ' + (i + 1) };
+                }
+                return { pass: true, note: 'all 4 constraints held' };
+            },
+        },
+        {
+            // Precise recall — damaged weights blur specific numbers first.
+            id: 'recall',
+            text: 'What is the default TCP port for PostgreSQL, and what is the default TCP port for Redis? Answer with just the two numbers separated by a comma, nothing else.',
+            check: (a) => {
+                const pg = /\b5432\b/.test(a), rd = /\b6379\b/.test(a);
+                return { pass: pg && rd, note: (pg ? '' : 'missing 5432 ') + (rd ? '' : 'missing 6379') || 'both correct' };
+            },
+        },
+        {
+            // Non-English fluency degrades before English does, and this fleet is French.
+            id: 'french',
+            text: "Explique en francais, en 120 mots environ, la difference entre la memoire VRAM et la memoire RAM systeme pour l inference d un modele de langage. Reponds uniquement en francais.",
+            check: (a) => {
+                const markers = (a.toLowerCase().match(/\b(le|la|les|des|une|est|pour|dans|avec|que|qui|plus|sur|cette|donc)\b/g) || []).length;
+                return { pass: markers >= 6, note: markers + ' french markers' };
+            },
+        },
+        {
+            // Edge-case handling. Structural check only — model-generated code is never executed.
+            id: 'code-edge',
+            text: "Write a Python function parse_range(s) that returns [3,4,5,6,7] for '3-7', returns [5] for '5', and raises ValueError for anything else. Code only, no explanation.",
+            check: (a) => {
+                const hasDef = /def\s+parse_range\s*\(/.test(a);
+                const hasErr = /ValueError/.test(a);
+                const hasRange = /range\s*\(/.test(a);
+                const n = [hasDef, hasErr, hasRange].filter(Boolean).length;
+                return { pass: n === 3, note: n + '/3 structural markers (def, ValueError, range)' };
+            },
+        },
+    ],
+};
 
 // ---------------------------------------------------------------------- args
 const A = process.argv.slice(2);
@@ -89,19 +170,43 @@ const arg = (n, d) => {
     return i >= 0 && A[i + 1] !== undefined ? A[i + 1] : d;
 };
 
+// --ctx and --mtp accept COMMA-SEPARATED LISTS, and the run sweeps their cross product
+// with the quant list. That matters because on a tight card the answer to "which quant"
+// changes with context (KV eats the headroom) and with MTP (the draft head costs VRAM
+// but buys throughput) — those are not independent knobs, so they have to be swept, not
+// assumed.
+const parseCtxList = (s) => String(s).split(',').map((x) => parseInt(x.trim(), 10)).filter((n) => Number.isFinite(n) && n > 0);
+const parseMtpList = (s) => String(s).split(',').map((x) => x.trim().toLowerCase()).filter(Boolean).map((x) => x === 'on' || x === 'true' || x === '1');
+
+// The `hard` prompts are answered far more verbosely (step-by-step arithmetic in
+// LaTeX, etc.), so they need a bigger token budget than `quick` or answers get cut
+// off mid-derivation and the graders see truncation rather than capability.
+const promptSet = arg('--prompts', 'quick');
+const defaultMaxTokens = promptSet === 'quick' ? '300' : '700';
+
 const CFG = {
     repo: arg('--repo', 'hf.co/unsloth/Qwen3.8-27B-GGUF'),
-    ctx: parseInt(arg('--ctx', '8192'), 10),
-    maxTokens: parseInt(arg('--max-tokens', '300'), 10),
+    ctxList: parseCtxList(arg('--ctx', '8192')),
+    maxTokens: parseInt(arg('--max-tokens', defaultMaxTokens), 10),
     repeats: parseInt(arg('--repeats', '2'), 10),
     maxQuants: parseInt(arg('--max-quants', '4'), 10),
-    mtp: !has('--no-mtp'),
+    mtpList: has('--no-mtp') ? [false] : parseMtpList(arg('--mtp', 'on')),
+    promptSet,
     thinking: has('--thinking'),
     dryRun: has('--dry-run'),
     cleanup: has('--cleanup'),
     quants: arg('--quants', null),
     vramGb: arg('--vram', null) ? parseFloat(arg('--vram', null)) : null,
 };
+
+if (!CFG.ctxList.length) CFG.ctxList = [8192];
+if (!CFG.mtpList.length) CFG.mtpList = [true];
+
+const PROMPTS = CFG.promptSet === 'all'
+    ? PROMPT_SETS.quick.concat(PROMPT_SETS.hard)
+    : (PROMPT_SETS[CFG.promptSet] || PROMPT_SETS.quick);
+// Functions do not survive JSON, so persist prompts as plain data.
+const PROMPTS_META = PROMPTS.map((p) => ({ id: p.id, text: p.text, graded: typeof p.check === 'function' }));
 
 const log = (s = '') => process.stdout.write(s + '\n');
 const ESC = String.fromCharCode(27);
@@ -275,6 +380,11 @@ async function runPrompt(model, prompt) {
         ttftMs: ttft === null ? total : ttft,
         totalMs: total,
         tokens: tok,
+        // Hitting the cap means the answer was cut off mid-thought. A grader must not
+        // score that as WRONG — the model may have been on its way to the right answer
+        // (observed: correct intermediates 3901/437/125/3464, truncated before "3589").
+        // Otherwise verbose configs get penalised for being verbose, not for being wrong.
+        truncated: tok >= CFG.maxTokens,
         tokPerSec: Math.round((tok / Math.max(0.001, (total - (ttft || 0)) / 1000)) * 10) / 10,
         answer: content,
         reasoning: reasoning || null,
@@ -282,12 +392,14 @@ async function runPrompt(model, prompt) {
 }
 
 // --------------------------------------------------------------- per-quant run
-async function benchQuant(quant) {
+async function benchQuant(quant, ctx, mtp) {
     const tag = CFG.repo + ':' + quant;
-    const local = 'qb-' + quant.toLowerCase().replace(/[^a-z0-9]+/g, '-');
-    const rec = { quant, tag, localModel: local, ok: false, error: null, runs: [], gpu: null, ps: null, fullGpu: false };
+    // The local name encodes ctx and MTP so sweeping never reuses a stale build.
+    const local = 'qb-' + quant.toLowerCase().replace(/[^a-z0-9]+/g, '-') + '-c' + ctx + (mtp ? '-mtp' : '-nomtp');
+    const label = quant + '  [ctx ' + ctx + ', MTP ' + (mtp ? 'on' : 'off') + ']';
+    const rec = { quant, ctx, mtp, tag, localModel: local, ok: false, error: null, runs: [], gpu: null, ps: null, fullGpu: false };
 
-    log('\n' + bold('-- ' + quant));
+    log('\n' + bold('-- ' + label));
     log(dim('   pulling ' + tag + ' (skipped if already present)'));
     if ((await sh('ollama', ['pull', tag], 0)) === null) {
         rec.error = 'pull failed';
@@ -295,9 +407,9 @@ async function benchQuant(quant) {
         return rec;
     }
 
-    // Rebuild the derived model every run so ctx/MTP always match the current flags.
-    const mf = ['FROM ' + tag, 'PARAMETER num_ctx ' + CFG.ctx];
-    if (CFG.mtp) mf.push('PARAMETER draft_num_predict 4'); // MTP speculative decoding
+    // Rebuild the derived model every run so ctx/MTP always match this sweep point.
+    const mf = ['FROM ' + tag, 'PARAMETER num_ctx ' + ctx];
+    if (mtp) mf.push('PARAMETER draft_num_predict 4'); // MTP speculative decoding
     const mfPath = join(HERE, '.Modelfile.' + local);
     writeFileSync(mfPath, mf.join('\n') + '\n', 'utf8');
     if ((await sh('ollama', ['create', local, '-f', mfPath], 0)) === null) {
@@ -327,9 +439,20 @@ async function benchQuant(quant) {
         for (const p of PROMPTS) {
             try {
                 const out = await runPrompt(local, p.text);
-                rec.runs.push(Object.assign({ promptId: p.id, repeat: r + 1 }, out));
+                // Grade objectively where the prompt defines a check. A guard around
+                // check() keeps a thrown matcher from killing the whole sweep.
+                let graded = null;
+                if (typeof p.check === 'function') {
+                    try { graded = p.check(out.answer || ''); }
+                    catch (e) { graded = { pass: false, note: 'check threw: ' + e.message }; }
+                    // A failure on a truncated answer is INCONCLUSIVE, not a failure:
+                    // pass=null drops it from the score instead of counting against it.
+                    if (!graded.pass && out.truncated) graded = { pass: null, note: 'inconclusive: hit max_tokens (' + out.tokens + ')' };
+                }
+                rec.runs.push(Object.assign({ promptId: p.id, repeat: r + 1 }, out, graded ? { pass: graded.pass, checkNote: graded.note } : {}));
                 if (r === 0) {
-                    log(dim('   ' + p.id.padEnd(10) + String(out.tokPerSec).padStart(7) + ' tok/s   ttft ' + (out.ttftMs / 1000).toFixed(2) + 's'));
+                    const mark = !graded ? '' : graded.pass === null ? '  ????' : graded.pass ? '  PASS' : '  FAIL';
+                    log(dim('   ' + p.id.padEnd(12) + String(out.tokPerSec).padStart(7) + ' tok/s   ttft ' + (out.ttftMs / 1000).toFixed(2) + 's' + mark));
                 }
             } catch (e) {
                 rec.runs.push({ promptId: p.id, repeat: r + 1, error: e.message });
@@ -345,6 +468,8 @@ async function benchQuant(quant) {
         const tps = good.map((x) => x.tokPerSec).sort((a, b) => a - b);
         const ttf = good.map((x) => x.ttftMs).sort((a, b) => a - b);
         const med = (a) => a[Math.floor(a.length / 2)];
+        const scored = good.filter((x) => x.pass === true || x.pass === false);
+        const inconclusive = good.filter((x) => x.pass === null).length;
         rec.summary = {
             n: good.length,
             tokPerSecMedian: med(tps),
@@ -352,12 +477,19 @@ async function benchQuant(quant) {
             tokPerSecMax: tps[tps.length - 1],
             ttftMedianMs: med(ttf),
             totalTokens: good.reduce((s, x) => s + x.tokens, 0),
+            // Quality as a measured pass-rate over every graded attempt, not an impression.
+            graded: scored.length,
+            passed: scored.filter((x) => x.pass).length,
+            inconclusive,
+            scorePct: scored.length ? Math.round((scored.filter((x) => x.pass).length / scored.length) * 100) : null,
         };
         rec.ok = true;
         log('   ' + bold(rec.summary.tokPerSecMedian + ' tok/s median') +
             ' - ttft ' + (rec.summary.ttftMedianMs / 1000).toFixed(2) + 's' +
             ' - GPU ' + rec.gpu.utilMean + '% avg' +
-            ' - VRAM peak ' + rec.gpu.vramPeakGb + 'GB');
+            ' - VRAM peak ' + rec.gpu.vramPeakGb + 'GB' +
+            (rec.summary.scorePct === null ? '' : ' - quality ' + bold(rec.summary.passed + '/' + rec.summary.graded) + ' (' + rec.summary.scorePct + '%)') +
+            (rec.summary.inconclusive ? dim(' - ' + rec.summary.inconclusive + ' inconclusive (truncated)') : ''));
     }
 
     await sh('ollama', ['stop', local], 30000);
@@ -375,28 +507,55 @@ function toMarkdown(out) {
     L.push('');
     L.push('- **Rig**: ' + rig.hostname + ' - ' + rig.gpu + ' (' + rig.vramGb + ' GB) - ' + rig.cpuCores + ' cores - ' + rig.ramGb + ' GB RAM');
     L.push('- **Software**: Ollama ' + (rig.ollamaVersion || '?') + ' - driver ' + (rig.driver || '?') + ' - Node ' + rig.node + ' - ' + rig.platform);
-    L.push('- **Settings**: repo `' + cfg.repo + '` - ctx ' + cfg.ctx + ' - max_tokens ' + cfg.maxTokens + ' - repeats ' + cfg.repeats + ' - MTP ' + (cfg.mtp ? 'on' : 'off') + ' - thinking ' + (cfg.thinking ? 'on' : 'off'));
+    L.push('- **Settings**: repo `' + cfg.repo + '` - prompts `' + cfg.promptSet + '` - max_tokens ' + cfg.maxTokens + ' - repeats ' + cfg.repeats + ' - thinking ' + (cfg.thinking ? 'on' : 'off'));
+    L.push('- **Sweep**: ctx ' + (cfg.ctxList || []).join(', ') + ' x MTP ' + (cfg.mtpList || []).map((m) => (m ? 'on' : 'off')).join(', '));
     L.push('- **Run**: ' + out.startedAt);
     L.push('');
     L.push('## Speed');
     L.push('');
-    L.push('| Quant | Resident | 100% GPU? | tok/s median | tok/s range | TTFT p50 | GPU util avg | VRAM peak |');
-    L.push('|---|---|---|---|---|---|---|---|');
+    L.push('| Quant | ctx | MTP | Resident | 100% GPU? | tok/s median | tok/s range | TTFT p50 | GPU util | VRAM peak | Quality |');
+    L.push('|---|---|---|---|---|---|---|---|---|---|---|');
     for (const r of results) {
         if (!r.ok) {
-            L.push('| ' + r.quant + ' | - | - | **failed** | ' + (r.error || '') + ' | | | |');
+            L.push('| ' + r.quant + ' | ' + r.ctx + ' | ' + (r.mtp ? 'on' : 'off') + ' | - | - | **failed** | ' + (r.error || '') + ' | | | | |');
             continue;
         }
         L.push('| ' + r.quant +
+            ' | ' + r.ctx +
+            ' | ' + (r.mtp ? 'on' : 'off') +
             ' | ' + (r.ps.sizeText || '?') +
             ' | ' + (r.fullGpu ? 'yes' : '**NO - spilled**') +
             ' | **' + r.summary.tokPerSecMedian + '**' +
             ' | ' + r.summary.tokPerSecMin + '-' + r.summary.tokPerSecMax +
             ' | ' + (r.summary.ttftMedianMs / 1000).toFixed(2) + 's' +
             ' | ' + r.gpu.utilMean + '%' +
-            ' | ' + r.gpu.vramPeakGb + ' GB |');
+            ' | ' + r.gpu.vramPeakGb + ' GB' +
+            ' | ' + (r.summary.scorePct === null ? '-' : r.summary.passed + '/' + r.summary.graded + ' (' + r.summary.scorePct + '%)') + ' |');
     }
     L.push('');
+
+    // Per-prompt pass/fail grid: which capability each config actually loses.
+    const gradedIds = (cfg.prompts || []).filter((p) => p.graded).map((p) => p.id);
+    if (gradedIds.length && results.some((r) => r.ok && r.summary.graded)) {
+        L.push('## Quality by prompt (pass rate over ' + cfg.repeats + ' repeats)');
+        L.push('');
+        L.push('| Config | ' + gradedIds.join(' | ') + ' | total |');
+        L.push('|---|' + gradedIds.map(() => '---').join('|') + '|---|');
+        for (const r of results) {
+            if (!r.ok || !r.summary.graded) continue;
+            const cells = gradedIds.map((id) => {
+                const all = r.runs.filter((x) => x.promptId === id && 'pass' in x);
+                const runs = all.filter((x) => x.pass === true || x.pass === false);
+                const inc = all.filter((x) => x.pass === null).length;
+                if (!runs.length) return inc ? '? x' + inc : '-';
+                const p = runs.filter((x) => x.pass).length;
+                return p + '/' + runs.length + (inc ? ' (+' + inc + '?)' : '');
+            });
+            L.push('| ' + r.quant + ' ctx' + r.ctx + ' mtp' + (r.mtp ? 'on' : 'off') + (r.fullGpu ? '' : ' **(spilled)**') +
+                ' | ' + cells.join(' | ') + ' | **' + r.summary.scorePct + '%** |');
+        }
+        L.push('');
+    }
 
     const spilled = results.filter((r) => r.ok && !r.fullGpu);
     if (spilled.length) {
@@ -405,7 +564,11 @@ function toMarkdown(out) {
     }
     const winner = results.filter((r) => r.ok && r.fullGpu).sort((a, b) => b.summary.tokPerSecMedian - a.summary.tokPerSecMedian)[0];
     if (winner) {
-        L.push('**Fastest quant that fully fits: `' + winner.quant + '` at ' + winner.summary.tokPerSecMedian + ' tok/s.**');
+        L.push('**Fastest config that fully fits: `' + winner.quant + '` at ctx ' + winner.ctx + ', MTP ' + (winner.mtp ? 'on' : 'off') +
+            ' - ' + winner.summary.tokPerSecMedian + ' tok/s' +
+            (winner.summary.scorePct === null ? '' : ', quality ' + winner.summary.scorePct + '%') + '.**');
+        L.push('');
+        L.push('> Fastest is not automatically best: check the quality column before choosing. A config that is 15% quicker but drops a graded capability is the wrong trade for an assistant.');
         L.push('');
     }
 
@@ -420,7 +583,9 @@ function toMarkdown(out) {
             if (!r.ok) continue;
             const first = r.runs.find((x) => x.promptId === p.id && !x.error);
             if (!first) continue;
-            L.push('**' + r.quant + '** - ' + first.tokPerSec + ' tok/s, ' + first.tokens + ' tokens');
+            const verdict = typeof first.pass === 'boolean' ? (first.pass ? ' - **PASS**' : ' - **FAIL** (' + (first.checkNote || '') + ')') : '';
+            L.push('**' + r.quant + '** [ctx ' + r.ctx + ', MTP ' + (r.mtp ? 'on' : 'off') + ']' +
+                ' - ' + first.tokPerSec + ' tok/s, ' + first.tokens + ' tokens' + verdict);
             L.push('');
             // Four-backtick fences: answers routinely CONTAIN triple-backtick code
             // blocks, which would close a three-backtick fence early and mangle the
@@ -494,9 +659,12 @@ function toMarkdown(out) {
 
     const sizeOf = (q) => (LADDER.find((e) => e.q === q) || {}).gb || 0;
     const totalGb = picked.reduce((s, q) => s + sizeOf(q), 0);
+    const points = picked.length * CFG.ctxList.length * CFG.mtpList.length;
+    const graded = PROMPTS.filter((p) => typeof p.check === 'function').length;
     log('\n  Plan: ' + bold(picked.join(', ')));
-    log('  Download if absent: ~' + totalGb.toFixed(1) + ' GB - ' + PROMPTS.length + ' prompts x ' + CFG.repeats + ' repeats x ' + picked.length + ' quants');
-    log('  ctx ' + CFG.ctx + ' - max_tokens ' + CFG.maxTokens + ' - MTP ' + (CFG.mtp ? 'on' : 'off') + ' - thinking ' + (CFG.thinking ? 'on' : 'off'));
+    log('  Sweep: ' + points + ' config(s) = ' + picked.length + ' quant x ' + CFG.ctxList.length + ' ctx (' + CFG.ctxList.join(', ') + ') x ' + CFG.mtpList.length + ' MTP (' + CFG.mtpList.map((m) => (m ? 'on' : 'off')).join(', ') + ')');
+    log('  Download if absent: ~' + totalGb.toFixed(1) + ' GB - ' + PROMPTS.length + ' prompts (' + CFG.promptSet + ', ' + graded + ' graded) x ' + CFG.repeats + ' repeats');
+    log('  max_tokens ' + CFG.maxTokens + ' - thinking ' + (CFG.thinking ? 'on' : 'off'));
     if (CFG.dryRun) {
         log('\n  --dry-run: nothing downloaded or changed.');
         process.exit(0);
@@ -504,13 +672,19 @@ function toMarkdown(out) {
 
     const startedAt = new Date().toISOString();
     const results = [];
-    for (const q of picked) results.push(await benchQuant(q));
+    for (const q of picked) {
+        for (const ctx of CFG.ctxList) {
+            for (const mtp of CFG.mtpList) {
+                results.push(await benchQuant(q, ctx, mtp));
+            }
+        }
+    }
 
     const out = {
         startedAt,
         finishedAt: new Date().toISOString(),
         rig,
-        config: Object.assign({}, CFG, { prompts: PROMPTS }),
+        config: Object.assign({}, CFG, { prompts: PROMPTS_META }),
         results,
     };
     const dir = join(HERE, 'results');
@@ -523,9 +697,16 @@ function toMarkdown(out) {
 
     log('\n' + bold('Done.'));
     const ok = results.filter((r) => r.ok && r.fullGpu).sort((a, b) => b.summary.tokPerSecMedian - a.summary.tokPerSecMedian);
-    if (ok.length) log('  Fastest fully-resident quant: ' + bold(ok[0].quant) + ' @ ' + ok[0].summary.tokPerSecMedian + ' tok/s');
+    if (ok.length) {
+        log('  Fully-resident configs, fastest first:');
+        for (const r of ok) {
+            log('    ' + r.quant.padEnd(12) + 'ctx ' + String(r.ctx).padEnd(7) + 'MTP ' + (r.mtp ? 'on ' : 'off') +
+                String(r.summary.tokPerSecMedian).padStart(8) + ' tok/s' +
+                (r.summary.scorePct === null ? '' : '   quality ' + r.summary.passed + '/' + r.summary.graded + ' (' + r.summary.scorePct + '%)'));
+        }
+    }
     const bad = results.filter((r) => r.ok && !r.fullGpu);
-    if (bad.length) log('  Spilled to CPU (excluded): ' + bad.map((r) => r.quant).join(', '));
+    if (bad.length) log('  Spilled to CPU (excluded): ' + bad.map((r) => r.quant + '@ctx' + r.ctx).join(', '));
     log('  ' + base + '.md');
     log('  ' + base + '.json');
 
