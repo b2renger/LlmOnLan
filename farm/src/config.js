@@ -17,6 +17,17 @@ const CONFIG_FILENAME = 'lol.config.json';
 const ModelSchema = z.object({
     id: z.string().min(1),              // ollama tag clients request, e.g. "gemma4:12b"
     default: z.boolean().optional(),    // marks the catalog default (informational)
+    // Upstream tag to pull and derive `id` from, e.g. a Hugging Face GGUF:
+    //   "hf.co/unsloth/Qwen3.8-27B-GGUF:UD-IQ2_XXS"
+    // When set, `lol up` pulls THIS and then creates `id` from it with `params`
+    // applied. Omit for a plain library model, where `id` is pulled directly.
+    source: z.string().optional(),
+    // Ollama Modelfile PARAMETERs baked into the derived model. Only meaningful
+    // with `source`. This is how an HF-pulled quant gets the launch parameters an
+    // Ollama library model ships with — above all `draft_num_predict`, which turns
+    // on Qwen3.8's built-in MTP head and is worth ~1.8x throughput. A bare hf.co
+    // pull has none of them, which is a silent halving of speed.
+    params: z.record(z.union([z.string(), z.number(), z.boolean()])).optional(),
     // Force image support on/off. Omit to auto-infer from the tag (gemma4, llava,
     // *-vl, *-vision, …). Drives `supports_vision` in the generated LiteLLM config
     // so the proxy passes images through instead of dropping them.
@@ -61,21 +72,27 @@ const OllamaSchema = z.object({
     // overflows it, which looks like "the model ignored half my document"
     // (rig-verified).
     //
-    // 65536 is the RAG-friendly default (raised from 16384, 2026-08-19). The KV
-    // cost is far smaller than the old "grows linearly with context" rule of
-    // thumb suggests, because the models we serve use sliding-window / grouped
-    // attention — MEASURED on an RTX PRO 6000 (Ollama 0.32, whole KV preallocated
-    // at load):
-    //     gemma4:12b      7.8 GB @ 8k → 8.8 GB @ 128k → 9.3 GB @ 256k
-    //     qwen3.8 (27B)  16.2 GB @ 8k → 17.2 GB @ 128k → 17.6 GB @ 256k
-    // i.e. ~1.5 GB to go from 8k to the full 256k. Both models' native maximum is
-    // 262144, which is also this field's practical ceiling (see the admin panel).
-    // Raise it per-box (admin panel = live, this field = persistent); lower it only
-    // on a small-VRAM GPU or for a dense/full-attention model, where KV really does
-    // scale with context × numParallel. Only applies to an Ollama that `lol` starts
-    // — but num_ctx also rides the generated LiteLLM routing, which applies on EVERY
-    // host regardless of who started it.
-    contextLength: z.number().int().positive().default(65536),
+    // 16384 (LOWERED from 65536, 2026-08-21). The previous default was measured on
+    // a 96 GB RTX PRO 6000 and does not survive on the 12 GB cards this farm
+    // actually runs on. MEASURED on an RTX 4070 Ti (12 GB) serving
+    // Qwen3.8-27B UD-IQ2_XXS, whole KV preallocated at load:
+    //     ctx  8192 ->  9.18 GB peak, 100% GPU, 51.8 tok/s
+    //     ctx 16384 ->  9.68 GB peak, 100% GPU, 51.5 tok/s   <-- this default
+    //     ctx 32768 -> 10.70 GB peak, 100% GPU, 51.4 tok/s   (zero margin)
+    //     ctx 65536 -> SPILLED to CPU, ~10 tok/s             (5x slower)
+    // The usable ceiling on a 12 GB card is ~10.7 GB, so 32768 fits with NO room
+    // for the desktop — one browser window tips it into offload. 16384 keeps ~1 GB
+    // of margin at identical throughput, because context is nearly free in speed
+    // terms and costs only VRAM.
+    //
+    // IMPORTANT: raise this on a big-VRAM box (admin panel = live, this field =
+    // persistent). It is farm-GLOBAL but VRAM is per-host, so a mixed fleet is
+    // currently served by whichever single value is set here — on a 96 GB box the
+    // model's native 262144 maximum is reachable and this default wastes it.
+    // Only applies to an Ollama that `lol` starts — but num_ctx also rides the
+    // generated LiteLLM routing, which applies on EVERY host regardless of who
+    // started it, and is what actually decides whether a client request spills.
+    contextLength: z.number().int().positive().default(16384),
 }).strict();
 
 const WebsearchSchema = z.object({
@@ -149,7 +166,31 @@ const ConfigSchema = z.object({
     name: z.string().default('LlmOnLan Farm'),
     beacon: BeaconSchema.default({}),
     proxy: ProxySchema.default({}),
-    models: z.array(ModelSchema).min(1).default([{ id: 'gemma4:12b', default: true }]),
+    // Default catalog, chosen by measurement for the 12 GB cards this farm targets
+    // (benchmarks + method in farm/bench/). Qwen3.8-27B at Unsloth's UD-IQ2_XXS is
+    // the pick: 51.5 tok/s fully GPU-resident on a 4070 Ti, and 90% on the graded
+    // quality suite pooled over 126 attempts — statistically tied with the larger
+    // UD-IQ2_S (91%) while being ~10% faster and 1.1 GB smaller.
+    //
+    // Do NOT "optimise" this downward. Smaller quants measured FASTER but much
+    // worse: UD-IQ1_M 81% (it computes 47*83 as 3941) and UD-IQ1_S 63% (it loses
+    // code generation entirely). The fastest quant here is the most damaged one.
+    // Bigger does not work either — UD-Q2_K_XL needs 11 GB and spills on a 12 GB
+    // card, costing 6.4x. On a big-VRAM box, replace this with a higher quant.
+    //
+    // gemma4:12b rides along as a lighter second option. NOTE it will not be
+    // co-resident with the 27B on a 12 GB card (8.5 + 7.6 GB > 12), and
+    // maxLoadedModels is 1, so switching between them costs a full reload.
+    models: z.array(ModelSchema).min(1).default([
+        {
+            id: 'qwen3.8-27b-iq2xxs',
+            source: 'hf.co/unsloth/Qwen3.8-27B-GGUF:UD-IQ2_XXS',
+            params: { draft_num_predict: 4 },   // MTP speculative decoding, ~1.8x
+            vision: true,                        // multimodal; tag alone does not reveal it
+            default: true,
+        },
+        { id: 'gemma4:12b' },
+    ]),
     ollama: OllamaSchema.default({}),
     litellm: LiteLLMSchema.default({}),
     websearch: WebsearchSchema.default({}),

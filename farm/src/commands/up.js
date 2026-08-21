@@ -128,19 +128,40 @@ async function pullMissing(config, reachable) {
     for (const host of reachable) {
         const present = await ollama.listModels(host);
         for (const m of config.models) {
-            if (ollama.hasModel(present, m.id)) continue;
             const label = (() => { try { return new URL(host).host; } catch { return host; } })();
-            log.step(`${label}: pulling ${log.paint.bold(m.id)} (first run can be slow) …`);
-            try {
-                let last = '';
-                await ollama.pullModel(host, m.id, (s) => {
-                    if (s !== last) { last = s; process.stdout.write(`\r${log.paint.grey(`[${label}]`)} ${s}            `); }
-                });
-                process.stdout.write('\n');
-                log.ok(`${label}: ${m.id} ready.`);
-            } catch (e) {
-                process.stdout.write('\n');
-                log.warn(`${label}: could not pull ${m.id} — ${e.message}`);
+            // What actually has to be downloaded: the upstream `source` when the
+            // model is derived, otherwise the id itself.
+            const upstream = m.source || m.id;
+            if (!ollama.hasModel(present, upstream)) {
+                log.step(`${label}: pulling ${log.paint.bold(upstream)} (first run can be slow) …`);
+                try {
+                    let last = '';
+                    await ollama.pullModel(host, upstream, (s) => {
+                        if (s !== last) { last = s; process.stdout.write(`\r${log.paint.grey(`[${label}]`)} ${s}            `); }
+                    });
+                    process.stdout.write('\n');
+                    log.ok(`${label}: ${upstream} ready.`);
+                } catch (e) {
+                    process.stdout.write('\n');
+                    log.warn(`${label}: could not pull ${upstream} — ${e.message}`);
+                    continue;
+                }
+            }
+
+            // Derived models are (re)created on EVERY `lol up`, even when they already
+            // exist, so num_ctx tracks config.ollama.contextLength instead of going
+            // stale after the operator changes it. Creating from an already-present
+            // source is a manifest write — cheap, no re-download.
+            if (m.source) {
+                const params = Object.assign({ num_ctx: config.ollama.contextLength }, m.params || {});
+                try {
+                    await ollama.createModel(host, m.id, m.source, params);
+                    const shown = Object.entries(params).map(([k, v]) => `${k}=${v}`).join(' ');
+                    log.ok(`${label}: ${log.paint.bold(m.id)} derived from ${m.source} ${log.paint.grey(`(${shown})`)}`);
+                } catch (e) {
+                    log.warn(`${label}: could not derive ${m.id} from ${m.source} — ${e.message}`);
+                    log.warn(`${label}: ${log.paint.bold('MTP/context parameters are NOT applied')} — expect roughly half the expected throughput.`);
+                }
             }
         }
     }

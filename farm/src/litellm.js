@@ -19,7 +19,11 @@ const yaml = require('js-yaml');
 // reaches Ollama and the model "can't see" it — the classic OWUI+LiteLLM "image
 // attached but ignored" bug. Flagging vision keeps the images in the request.
 // Note gemma4 (all sizes) is natively multimodal, as are llava/*-vl/*-vision/etc.
-const VISION_MODEL_RX = /(gemma-?4|llava|bakllava|vision|qwen[\w.]*-?vl|[-_]vl(?:[:@\-]|$)|minicpm-?v|moondream|pixtral|internvl|cogvlm|smolvlm)/i;
+// Note qwen3.8 (all sizes) is natively multimodal — text/image/video — but its tag
+// contains no "vl"/"vision" marker, so it needs an explicit pattern here or images
+// get silently stripped. That also covers derived local names like
+// "qwen3.8-27b-iq2xxs" and HF tags like "hf.co/unsloth/Qwen3.8-27B-GGUF:UD-IQ2_XXS".
+const VISION_MODEL_RX = /(gemma-?4|llava|bakllava|vision|qwen[\w.]*-?vl|qwen-?3\.?8|[-_]vl(?:[:@\-]|$)|minicpm-?v|moondream|pixtral|internvl|cogvlm|smolvlm)/i;
 
 // Does this model take images? An explicit `vision: true|false` in the config
 // wins; otherwise infer from the tag so existing configs "just work".
