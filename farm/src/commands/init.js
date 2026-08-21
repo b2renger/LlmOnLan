@@ -24,9 +24,12 @@ function run(args) {
     log.ok(`Wrote ${log.paint.bold(target)}`);
     log.plain('');
     log.plain('  Next:');
-    log.plain(`    1. Edit ${CONFIG_FILENAME} — set ${log.paint.bold('ollama.hosts')} and ${log.paint.bold('models')}.`);
+    log.plain(`    1. Edit ${CONFIG_FILENAME} — set ${log.paint.bold('ollama.hosts')} if you have more than this box.`);
     log.plain(`    2. Make sure Ollama is running on each host and LiteLLM is installed.`);
     log.plain(`    3. ${log.paint.cyan('lol up')}  — pull models, generate+run the proxy, start the beacon.`);
+    log.plain('');
+    log.plain(`  ${log.paint.grey('models + ollama.contextLength are preset for 12 GB cards (4070-class), measured')}`);
+    log.plain(`  ${log.paint.grey('in farm/bench/. On a big-VRAM box raise contextLength and pick a higher quant.')}`);
     log.plain('');
     return 0;
 }

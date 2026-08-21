@@ -184,4 +184,58 @@ function pullModel(baseUrl, id, onLine = () => {}, timeoutMs = 30 * 60 * 1000) {
     });
 }
 
-module.exports = { normalizeHost, version, listModels, listModelsDetailed, loadedModels, warmModel, evictModel, hasModel, pullModel, request };
+// Derive a local model from another one, applying Modelfile PARAMETERs.
+//
+// Why this exists: a raw `hf.co/...` pull carries the WEIGHTS but none of the
+// launch parameters Ollama's own library models ship with. The one that matters is
+// `draft_num_predict`, which enables Qwen3.8's built-in MTP (multi-token
+// prediction) head — measured at ~1.8x throughput on an RTX PRO 6000 (73 -> 132
+// tok/s). Serving an HF tag directly silently forfeits that, so the CLI creates a
+// derived model with the parameters applied and serves THAT.
+//
+// Uses POST /api/create (NDJSON stream) rather than the `ollama create` CLI so it
+// works against remote hosts, consistent with the rest of this module.
+function createModel(baseUrl, name, from, parameters = {}, timeoutMs = 10 * 60 * 1000) {
+    return new Promise((resolve, reject) => {
+        const u = new URL('/api/create', baseUrl);
+        const data = Buffer.from(JSON.stringify({ model: name, from, parameters, stream: true }));
+        const req = http.request(
+            {
+                method: 'POST',
+                hostname: u.hostname,
+                port: u.port,
+                path: u.pathname,
+                timeout: timeoutMs,
+                headers: { 'content-type': 'application/json', 'content-length': data.length },
+            },
+            (res) => {
+                let buf = '';
+                let failed = null;
+                res.on('data', (chunk) => {
+                    buf += chunk;
+                    let nl;
+                    while ((nl = buf.indexOf('\n')) >= 0) {
+                        const line = buf.slice(0, nl).trim();
+                        buf = buf.slice(nl + 1);
+                        if (!line) continue;
+                        try {
+                            const obj = JSON.parse(line);
+                            if (obj.error) failed = obj.error;
+                        } catch { /* ignore partial */ }
+                    }
+                });
+                res.on('end', () => {
+                    if (failed) return reject(new Error(failed));
+                    if (res.statusCode !== 200) return reject(new Error(`create HTTP ${res.statusCode}`));
+                    resolve(true);
+                });
+            }
+        );
+        req.on('timeout', () => req.destroy(new Error(`create timeout after ${timeoutMs}ms`)));
+        req.on('error', reject);
+        req.write(data);
+        req.end();
+    });
+}
+
+module.exports = { normalizeHost, version, listModels, listModelsDetailed, loadedModels, warmModel, evictModel, hasModel, pullModel, createModel, request };
