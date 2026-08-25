@@ -4,6 +4,9 @@
 const $ = (id) => document.getElementById(id);
 const root = document.documentElement;
 
+// This build ships without Open WebUI — see src/main/clientMode.ts.
+const NO_OWUI = true;
+
 const els = {
   status: $('status'),
   statusDot: $('status-dot'),
@@ -512,6 +515,21 @@ window.lol.onSidecarInstall((p) => {
 
 function renderSidecar() {
   if (installState) return; // the install overlay owns the screen until the download finishes
+  // No-OWUI build: there is no sidecar to wait for, so the overlay reflects whether
+  // a FARM has been found. Everything below this point is OWUI lifecycle.
+  if (NO_OWUI) {
+    renderPill();
+    const haveFarm = !!(window.__lolFarm && window.__lolFarm.openaiBaseUrl);
+    els.overlay.classList.toggle('hidden', haveFarm);
+    if (!haveFarm) {
+      els.panelIcon.innerHTML = ICON_PLUG;
+      els.panelTitle.textContent = 'Looking for your server…';
+      els.panelMsg.textContent = 'Searching the local network for a LlmOnLan farm.';
+      els.panelDetail.textContent = '';
+      els.panelActions.innerHTML = '';
+    }
+    return;
+  }
   const s = sidecarState;
   if (!s) return;
   renderPill();
@@ -691,21 +709,13 @@ function publishFarm() {
   if (window.__lolChatRefresh) window.__lolChatRefresh();
 }
 
+// This build has no Open WebUI: LOL Chat is the only surface, so there is no
+// toggle and no webview to reveal. The overlay is driven by FARM connectivity
+// instead of sidecar state — there is no sidecar to wait for.
 (() => {
-  const btn = $('view-toggle');
   const chat = $('lolchat');
-  if (!btn || !chat) return;
-  let chatMode = false;
-  btn.addEventListener('click', () => {
-    chatMode = !chatMode;
-    chat.classList.toggle('hidden', !chatMode);
-    // The webview keeps running underneath; hiding it preserves the OWUI session
-    // so switching back is instant and never re-authenticates.
-    if (els.webview) els.webview.classList.toggle('hidden', chatMode);
-    btn.textContent = chatMode ? 'LOL Chat' : 'Open WebUI';
-    if (chatMode) publishFarm();
-  });
-  // Keep the endpoint fresh while the farm is being (re)selected.
+  if (!chat) return;
+  chat.classList.remove('hidden');
   setInterval(publishFarm, 4000);
   publishFarm();
 })();

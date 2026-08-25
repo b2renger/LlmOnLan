@@ -122,7 +122,12 @@ const OllamaSchema = z.object({
 // Ollama, and LiteLLM fronts it as an OpenAI deployment — so the client is
 // unchanged and cannot tell which backend answered.
 const LlamacppSchema = z.object({
-    enabled: z.boolean().default(false),
+    // ON by default in this build: it ships the llama.cpp backend as THE backend,
+    // paired with a client that has no Open WebUI. Ollama still runs (gemma4 stays
+    // served for anything that asks for it), but the alias clients actually use is
+    // answered by llama-server, which is the only configuration measured that gets
+    // speculative decoding onto a 12 GB card.
+    enabled: z.boolean().default(true),
     host: z.string().default('127.0.0.1'),   // LiteLLM is the only thing that talks to it
     port: z.number().int().positive().default(8081),
     // The served name clients request. Matches `modelAlias` so swapping backends does

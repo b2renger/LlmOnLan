@@ -39,6 +39,7 @@ const { buildLitellmConfig, toYaml, modelSupportsVision, servedEntries } = requi
 
 test('litellm config = models × hosts deployments', () => {
     const c = defaultConfig();
+    c.llamacpp.enabled = false;   // this test pins the Ollama routing path
     c.models = [{ id: 'gemma4:12b', default: true }, { id: 'qwen3:8b' }];
     c.ollama.hosts = ['http://a:11434', 'http://b:11434'];
     const doc = buildLitellmConfig(c);
@@ -64,6 +65,7 @@ test('litellm master_key only present when configured', () => {
 
 test('generated yaml round-trips', () => {
     const c = defaultConfig();
+    c.llamacpp.enabled = false;   // this test pins the Ollama routing path
     const doc = buildLitellmConfig(c);
     const parsed = yaml.load(toYaml(doc));
     assert.deepEqual(parsed.model_list[0].model_name, c.models[0].id);
@@ -185,6 +187,7 @@ test('--model id=alias attaches the alias; interactive picks keep config aliases
 
 test('alias mode: litellm exposes the alias as model_name, routed to the real model', () => {
     const c = defaultConfig();
+    c.llamacpp.enabled = false;   // this test pins the Ollama routing path
     c.models = [{ id: 'qwen3.6:35b', default: true }];
     c.ollama.hosts = ['http://127.0.0.1:11434'];
     c.modelAlias = 'assistant';
@@ -675,11 +678,16 @@ test('draft modules cache to a stable, gitignored path', () => {
 // ---- llama.cpp backend ------------------------------------------------------
 const llamacpp = require('../src/llamacpp');
 
-test('llamacpp backend is off by default (Ollama stays the default path)', () => {
+test('llamacpp backend is ON by default in this build', () => {
+    // This branch ships llama.cpp AS the backend, paired with a client that has no
+    // Open WebUI — so unlike farm/llamacpp-backend, it is not opt-in here.
     const c = defaultConfig();
-    assert.equal(c.llamacpp.enabled, false);
-    const deployed = buildLitellmConfig(c).model_list.map((d) => d.litellm_params.model);
-    assert.ok(deployed.every((m) => m.startsWith('ollama_chat/')), 'no openai/ deployment while off');
+    assert.equal(c.llamacpp.enabled, true);
+    c.modelAlias = 'assistant';
+    const deployed = buildLitellmConfig(c).model_list;
+    const alias = deployed.filter((d) => d.model_name === 'assistant');
+    assert.equal(alias.length, 1, 'llama-server owns the alias outright');
+    assert.equal(alias[0].litellm_params.model, 'openai/assistant');
 });
 
 test('enabling llamacpp REPLACES the ollama deployment for its alias', () => {
