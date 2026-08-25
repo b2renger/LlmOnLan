@@ -39,6 +39,11 @@ async function run() {
         await killTree(rt.extractPid);
         killed++;
     }
+    if (rt.llamacppPid && isAlive(rt.llamacppPid)) {
+        log.step(`Stopping llama.cpp backend (pid ${rt.llamacppPid}) …`);
+        await killTree(rt.llamacppPid);
+        killed++;
+    }
     for (const pid of rt.ollamaPids || []) {
         if (isAlive(pid)) {
             log.step(`Stopping Ollama we started (pid ${pid}) …`);

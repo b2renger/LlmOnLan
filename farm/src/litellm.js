@@ -61,7 +61,31 @@ function servedEntries(config) {
 function buildLitellmConfig(config, peers = []) {
     const provider = config.litellm.provider; // 'ollama_chat' | 'ollama'
     const model_list = [];
+
+    // llama.cpp backend: one OpenAI-compatible deployment, exactly the shape already
+    // used for peer farms. It REPLACES the Ollama deployments for its alias rather
+    // than sitting alongside them — mixing the two behind one model_name would let
+    // the router shuffle between backends mid-conversation.
+    const lc = config.llamacpp || {};
+    if (lc.enabled) {
+        const host = lc.host === '0.0.0.0' ? '127.0.0.1' : lc.host;
+        const entry = {
+            model_name: lc.alias,
+            litellm_params: {
+                model: `openai/${lc.alias}`,
+                api_base: `http://${host}:${lc.port}/v1`,
+                api_key: 'sk-lol-llamacpp',   // llama-server is keyless; LiteLLM wants a value
+            },
+            // Qwen3.8 is multimodal and the tag carries no marker, so flag it or
+            // drop_params strips the images.
+            model_info: { supports_vision: true },
+        };
+        model_list.push(entry);
+    }
+
     for (const { servedName, underlying, vision } of servedEntries(config)) {
+        // Do not also emit Ollama deployments for a name the llama.cpp backend owns.
+        if (lc.enabled && servedName === lc.alias) continue;
         // Local Ollama deployments. In alias mode `servedName` is the fixed alias and
         // `underlying` is the real Ollama tag it routes to; otherwise they're equal.
         for (const host of config.ollama.hosts) {

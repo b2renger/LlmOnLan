@@ -12,6 +12,7 @@ const crypto = require('crypto');
 const { spawn } = require('child_process');
 const log = require('../log');
 const ollama = require('../ollama');
+const llamacpp = require('../llamacpp');
 const proxyApi = require('../proxy');
 const { loadConfig } = require('../config');
 const { writeLitellmConfig, servedEntries } = require('../litellm');
@@ -266,7 +267,7 @@ async function run(args) {
         // SearXNG/Kokoro/OCR plugins spawn detached (their own process group), so a crash or
         // hard-kill of the previous `lol up` can orphan them still holding their ports —
         // which would then block THIS run's plugins from binding. Best-effort per pid.
-        for (const pid of [existing.searxngPid, existing.kokoroPid, existing.extractPid, ...(existing.ollamaPids || [])]) {
+        for (const pid of [existing.searxngPid, existing.kokoroPid, existing.extractPid, existing.llamacppPid, ...(existing.ollamaPids || [])]) {
             if (pid && isAlive(pid)) { try { await killTree(pid); } catch { /* already gone */ } }
         }
         clearRuntime();
@@ -284,6 +285,52 @@ async function run(args) {
 
     // 2. Models — pull any chosen model a host is missing (no-op for picked ones).
     await pullMissing(config, oll.reachable);
+
+    // 2b. llama.cpp backend (opt-in). Runs INSTEAD of Ollama for its alias — LiteLLM
+    //     skips the Ollama deployments for that model_name — because it is the only
+    //     way to get speculative decoding on a 12 GB card (see LlamacppSchema).
+    //     The client is unaffected: llama-server is OpenAI-compatible behind LiteLLM.
+    let llamacppChild = null;
+    if (config.llamacpp.enabled) {
+        const binDir = config.llamacpp.binDir;
+        if (!binDir) {
+            log.step('llama.cpp backend: ensuring binaries …');
+            const got = await llamacpp.ensureLlamacpp((what, pct) => {
+                process.stdout.write(`\r${log.paint.grey('[llama.cpp]')} ${what} ${pct}%   `);
+            });
+            process.stdout.write('\n');
+            if (!got.ok) {
+                log.err(`llama.cpp backend: ${got.message}`);
+                log.err('Set llamacpp.enabled=false to fall back to Ollama, or set llamacpp.binDir.');
+                return 1;
+            }
+            log.ok(`llama.cpp ${llamacpp.PINNED_BUILD} ${got.cached ? 'ready' : 'installed'}.`);
+        } else if (!llamacpp.installed(binDir)) {
+            log.err(`llama.cpp backend: no llama-server in ${binDir}.`);
+            return 1;
+        }
+
+        log.step('llama.cpp backend: ensuring model weights …');
+        const mdl = await llamacpp.ensureModel(config, (what, pct) => {
+            process.stdout.write(`\r${log.paint.grey('[llama.cpp]')} ${what} ${pct}%   `);
+        });
+        process.stdout.write('\n');
+        if (!mdl.ok) { log.err(`llama.cpp backend: ${mdl.message}`); return 1; }
+        log.ok(`Model ${mdl.cached ? 'cached' : 'downloaded'} ${log.paint.grey(mdl.modelPath)}`);
+
+        llamacppChild = llamacpp.spawnLlamacpp(config, mdl.modelPath, mdl.mmprojPath, binDir);
+        llamacppChild.stdout.on('data', log.childPrefix('llama.cpp'));
+        llamacppChild.stderr.on('data', log.childPrefix('llama.cpp'));
+        log.step(`llama.cpp serving ${log.paint.bold(config.llamacpp.alias)} on :${config.llamacpp.port} — loading …`);
+        if (!(await llamacpp.waitForLlamacpp(config.llamacpp.port))) {
+            log.err('llama.cpp did not become healthy. Common cause: `mtp: true` on a quant whose');
+            log.err('MTP head was stripped (anything under UD-Q2_K_XL) — it exits with');
+            log.err('"model doesn\'t contain MTP layers". Use an MTP-capable quant or set mtp:false.');
+            try { llamacppChild.kill(); } catch { /* already gone */ }
+            return 1;
+        }
+        log.ok(`llama.cpp backend healthy on :${config.llamacpp.port} ${log.paint.grey(`(${config.llamacpp.kvCacheType} KV, MTP ${config.llamacpp.mtp ? 'on' : 'off'})`)}`);
+    }
 
     // 3. (Coordinator) discover peer farms, then generate the LiteLLM config —
     //    routing is derived from local Ollama hosts + any aggregated peers.
@@ -514,6 +561,7 @@ async function run(args) {
         kokoroPid: svcById.tts.pid,
         extractPid: svcById.ocr.pid,
         ollamaPids: oll.spawnedPids,
+        llamacppPid: llamacppChild ? llamacppChild.pid : null,
         proxyPort: config.proxy.port,
         endpoint: snapshot.endpoint,
         openaiBaseUrl: snapshot.openaiBaseUrl,
@@ -545,6 +593,7 @@ async function run(args) {
         try { selfServer.close(); } catch { /* already closed */ }
         await killTree(child.pid);
         for (const svc of services) { if (svc.pid) await killTree(svc.pid); }
+        if (llamacppChild && llamacppChild.pid) await killTree(llamacppChild.pid);
         for (const pid of oll.spawnedPids) await killTree(pid);
         clearRuntime();
         log.ok('Farm stopped.');

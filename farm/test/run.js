@@ -39,6 +39,7 @@ const { buildLitellmConfig, toYaml, modelSupportsVision, servedEntries } = requi
 
 test('litellm config = models × hosts deployments', () => {
     const c = defaultConfig();
+    c.llamacpp.enabled = false;   // this test pins the Ollama routing path
     c.models = [{ id: 'gemma4:12b', default: true }, { id: 'qwen3:8b' }];
     c.ollama.hosts = ['http://a:11434', 'http://b:11434'];
     const doc = buildLitellmConfig(c);
@@ -64,6 +65,7 @@ test('litellm master_key only present when configured', () => {
 
 test('generated yaml round-trips', () => {
     const c = defaultConfig();
+    c.llamacpp.enabled = false;   // this test pins the Ollama routing path
     const doc = buildLitellmConfig(c);
     const parsed = yaml.load(toYaml(doc));
     assert.deepEqual(parsed.model_list[0].model_name, c.models[0].id);
@@ -185,6 +187,7 @@ test('--model id=alias attaches the alias; interactive picks keep config aliases
 
 test('alias mode: litellm exposes the alias as model_name, routed to the real model', () => {
     const c = defaultConfig();
+    c.llamacpp.enabled = false;   // this test pins the Ollama routing path
     c.models = [{ id: 'qwen3.6:35b', default: true }];
     c.ollama.hosts = ['http://127.0.0.1:11434'];
     c.modelAlias = 'assistant';
@@ -670,6 +673,59 @@ test('draft modules cache to a stable, gitignored path', () => {
     assert.equal(ollama.draftPathFor(url), ollama.draftPathFor(url), 'deterministic');
     assert.equal(path.basename(ollama.draftPathFor(url)), 'mtp-Qwen3.8-27B-Q4_0.gguf');
     assert.equal(path.basename(path.dirname(ollama.draftPathFor(url))), '.models');
+});
+
+// ---- llama.cpp backend ------------------------------------------------------
+const llamacpp = require('../src/llamacpp');
+
+test('llamacpp backend is ON by default in this build', () => {
+    // This branch ships llama.cpp AS the backend, paired with a client that has no
+    // Open WebUI — so unlike farm/llamacpp-backend, it is not opt-in here.
+    const c = defaultConfig();
+    assert.equal(c.llamacpp.enabled, true);
+    c.modelAlias = 'assistant';
+    const deployed = buildLitellmConfig(c).model_list;
+    const alias = deployed.filter((d) => d.model_name === 'assistant');
+    assert.equal(alias.length, 1, 'llama-server owns the alias outright');
+    assert.equal(alias[0].litellm_params.model, 'openai/assistant');
+});
+
+test('enabling llamacpp REPLACES the ollama deployment for its alias', () => {
+    // Both behind one model_name would let the router shuffle backends mid-chat.
+    const c = defaultConfig();
+    c.modelAlias = 'assistant';
+    c.llamacpp.enabled = true;
+    const list = buildLitellmConfig(c).model_list;
+    const forAlias = list.filter((d) => d.model_name === 'assistant');
+    assert.equal(forAlias.length, 1, 'exactly one deployment owns the alias');
+    assert.equal(forAlias[0].litellm_params.model, 'openai/assistant');
+    assert.match(forAlias[0].litellm_params.api_base, /:8081\/v1$/);
+    assert.equal(forAlias[0].model_info.supports_vision, true, 'else drop_params strips images');
+});
+
+test('llama-server argv carries the measured recipe', () => {
+    // These flags are the whole reason this backend exists: quantized KV is what
+    // makes an MTP-capable quant fit in 12 GB, and draft-mtp is the speculative
+    // decoding Ollama cannot give us there.
+    const c = defaultConfig();
+    const a = llamacpp.argsFor(c, 'M.gguf', 'P.gguf').join(' ');
+    assert.match(a, /--spec-type draft-mtp/);
+    assert.match(a, /--cache-type-k q4_0 --cache-type-v q4_0/);
+    assert.match(a, /-fa 1/);
+    assert.match(a, /--n-gpu-layers 999/);
+    assert.match(a, /--mmproj P\.gguf/);
+});
+
+test('llamacpp knobs can be turned off individually', () => {
+    const c = defaultConfig();
+    c.llamacpp.mtp = false;
+    c.llamacpp.kvCacheType = 'f16';
+    c.llamacpp.flashAttention = false;
+    const a = llamacpp.argsFor(c, 'M.gguf', null).join(' ');
+    assert.ok(!a.includes('draft-mtp'));
+    assert.ok(!a.includes('--cache-type-k'), 'f16 means no KV quantization flags');
+    assert.ok(!a.includes('-fa 1'));
+    assert.ok(!a.includes('--mmproj'));
 });
 
 (async () => {

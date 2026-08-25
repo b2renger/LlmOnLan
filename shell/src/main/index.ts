@@ -17,6 +17,7 @@ import { httpGet, tcpProbe } from './util';
 import { Discovery } from './discovery';
 import { moveDataDir, dirHasData } from './dataMigration';
 import { initAutoUpdate, checkForAppUpdate, quitAndInstallUpdate, setUpdateNotifier } from './updater';
+import { OWUI_ENABLED } from './clientMode';
 import {
     ensureSidecar, applyPendingSidecar, isSidecarInstalled,
     checkOwuiUpdate, downloadOwuiUpdate, SidecarProgress,
@@ -592,7 +593,8 @@ app.whenReady().then(async () => {
 
     // Apply a staged OWUI update (downloaded last run) BEFORE anything uses the
     // sidecar — the old OWUI is stopped now, so its files aren't locked (Windows).
-    applyPendingSidecar();
+    // No sidecar in this build — nothing staged, nothing to apply.
+    if (OWUI_ENABLED) applyPendingSidecar();
 
     setUpdateNotifier((version) => { if (win && !win.isDestroyed()) win.webContents.send('app-update-downloaded', { version }); });
     initAutoUpdate(settings.autoUpdate); // no-op in dev / when disabled
@@ -606,7 +608,9 @@ app.whenReady().then(async () => {
     // First run of a packaged build: the OWUI sidecar isn't bundled — download it
     // (with progress to the renderer) before starting it. Dev / already-installed
     // returns immediately.
-    if (app.isPackaged && !isSidecarInstalled()) {
+    // Skipped entirely when OWUI is not part of this build: no several-hundred-MB
+    // sidecar download on first run, which is most of the client's install weight.
+    if (OWUI_ENABLED && app.isPackaged && !isSidecarInstalled()) {
         const res = await ensureSidecar(pushSidecarInstall);
         if (!res.ok) return; // install-error overlay stays up; "Retry" re-runs install-sidecar
     }
@@ -625,7 +629,13 @@ app.whenReady().then(async () => {
     currentTts = farmTts(activeNow);
     currentExtract = farmExtract(activeNow);
     booted = true;
-    sidecar.start({ endpoint: initial, dataDir: resolveDataDir(), defaultModel: currentModel, searxngUrl: currentSearxng, tts: currentTts, extract: currentExtract });
+    // LOL Chat talks straight to the farm's OpenAI endpoint, so there is no local
+    // process to supervise — discovery alone is enough to be usable.
+    if (OWUI_ENABLED) {
+        sidecar.start({ endpoint: initial, dataDir: resolveDataDir(), defaultModel: currentModel, searxngUrl: currentSearxng, tts: currentTts, extract: currentExtract });
+    } else {
+        pushSidecarState();
+    }
 
     // Blender assistant tools are OPT-IN (off by default since v0.1.24): enabling it
     // in Settings — or a farm recommendation — brings mcpo up in the background

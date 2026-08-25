@@ -4,6 +4,9 @@
 const $ = (id) => document.getElementById(id);
 const root = document.documentElement;
 
+// This build ships without Open WebUI — see src/main/clientMode.ts.
+const NO_OWUI = true;
+
 const els = {
   status: $('status'),
   statusDot: $('status-dot'),
@@ -512,6 +515,21 @@ window.lol.onSidecarInstall((p) => {
 
 function renderSidecar() {
   if (installState) return; // the install overlay owns the screen until the download finishes
+  // No-OWUI build: there is no sidecar to wait for, so the overlay reflects whether
+  // a FARM has been found. Everything below this point is OWUI lifecycle.
+  if (NO_OWUI) {
+    renderPill();
+    const haveFarm = !!(window.__lolFarm && window.__lolFarm.openaiBaseUrl);
+    els.overlay.classList.toggle('hidden', haveFarm);
+    if (!haveFarm) {
+      els.panelIcon.innerHTML = ICON_PLUG;
+      els.panelTitle.textContent = 'Looking for your server…';
+      els.panelMsg.textContent = 'Searching the local network for a LlmOnLan farm.';
+      els.panelDetail.textContent = '';
+      els.panelActions.innerHTML = '';
+    }
+    return;
+  }
   const s = sidecarState;
   if (!s) return;
   renderPill();
@@ -678,3 +696,26 @@ initTheme();
 window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', () => {
   window.lol.getSettings().then((s) => { if (s.theme === 'system') applyThemeClass('system'); });
 });
+
+// ---- LOL Chat: alternative view to the OWUI webview -------------------------
+// The chat surface talks straight to the farm's OpenAI endpoint, so it needs the
+// endpoint the sidecar is currently pointed at. Published on `window` rather than
+// re-derived in chat.js so there is exactly one source of truth for "which farm".
+function publishFarm() {
+  const f = activeFarm();
+  window.__lolFarm = f
+    ? { name: f.name, openaiBaseUrl: farmEndpoint(f) }
+    : (sidecarState && sidecarState.endpoint ? { name: 'farm', openaiBaseUrl: sidecarState.endpoint } : null);
+  if (window.__lolChatRefresh) window.__lolChatRefresh();
+}
+
+// This build has no Open WebUI: LOL Chat is the only surface, so there is no
+// toggle and no webview to reveal. The overlay is driven by FARM connectivity
+// instead of sidecar state — there is no sidecar to wait for.
+(() => {
+  const chat = $('lolchat');
+  if (!chat) return;
+  chat.classList.remove('hidden');
+  setInterval(publishFarm, 4000);
+  publishFarm();
+})();

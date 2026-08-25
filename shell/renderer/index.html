@@ -167,16 +167,45 @@
       <div class="panel" id="panel">
         <div class="big-dot" id="panel-icon"><div class="spinner" id="spinner"></div></div>
         <h1 id="panel-title">Starting your local chat…</h1>
-        <p id="panel-msg">Open WebUI is starting on your machine.</p>
+        <p id="panel-msg">Looking for a farm on your network…</p>
         <p class="detail" id="panel-detail"></p>
         <div id="panel-actions"></div>
       </div>
     </div>
-    <webview id="owui" class="hidden" partition="persist:owui" allowpopups></webview>
+    <!-- Inert. This build never starts the OWUI sidecar (src/main/clientMode.ts),
+         so this element is never given a src and never loads anything. It exists
+         only so the OWUI code paths in app.js bind without throwing — guarding
+         ~15 call sites would be a far larger diff than one dormant element. -->
+    <webview id="owui" class="hidden" partition="persist:owui"></webview>
+
+    <!-- LOL Chat: an alternative, Studio-style surface. Hidden unless toggled.
+         Deliberately minimal — see renderer/chat.js for what it is NOT. -->
+    <section id="lolchat">
+      <aside class="chat-side">
+        <button class="btn-accent chat-new" id="chat-new">New chat</button>
+        <div class="chat-threads" id="chat-threads"></div>
+      </aside>
+      <div class="chat-main">
+        <div class="chat-topline">
+          <select id="chat-model" class="chat-model" title="Model served by the farm"></select>
+        </div>
+        <div class="chat-messages" id="chat-messages"></div>
+        <div class="chat-empty" id="chat-empty">
+          <p>Chat directly with the farm.</p>
+          <p class="detail">No documents, no knowledge bases &mdash; those live in Open WebUI.</p>
+        </div>
+        <form class="chat-form" id="chat-form">
+          <textarea id="chat-input" rows="1" placeholder="Ask something&hellip;  (Enter to send, Shift+Enter for a new line)" spellcheck="false"></textarea>
+          <button class="btn-accent" id="chat-send" type="submit">Send</button>
+          <button class="btn-ghost hidden" id="chat-stop" type="button">Stop</button>
+        </form>
+      </div>
+    </section>
   </div>
 
   <div class="toast" id="toast"></div>
 
   <script src="app.js"></script>
+  <script src="chat.js"></script>
 </body>
 </html>
