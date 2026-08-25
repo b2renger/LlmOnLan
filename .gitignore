@@ -1,4 +1,4 @@
-# --- Node ---
+﻿# --- Node ---
 node_modules/
 npm-debug.log*
 yarn-error.log*
@@ -35,10 +35,12 @@ farm/.models/
 lol.config.json
 !farm/lol.config.example.json
 
-# --- OWUI / local data + secrets (must never be committed — see invariant #3) ---
+# --- OWUI / local data + secrets (must never be committed â€” see invariant #3) ---
 DATA_DIR/
 data/
 *.db
+*.db-shm
+*.db-wal
 *.sqlite
 *.sqlite3
 .webui_secret_key
@@ -53,6 +55,6 @@ Thumbs.db
 .vscode/
 *.tmp
 
-# --- stray root lockfile (there is NO root package.json — an accidental npm
+# --- stray root lockfile (there is NO root package.json â€” an accidental npm
 # run at the repo root keeps regenerating an empty package-lock.json) ---
 /package-lock.json

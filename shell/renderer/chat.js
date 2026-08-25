@@ -129,21 +129,39 @@
         el.msgs.scrollTop = el.msgs.scrollHeight;
     }
 
+    // The endpoint the current <select> options were fetched from. publishFarm()
+    // re-runs every few seconds; refetching only when the farm changed (or the last
+    // fetch failed) means a failed farm self-heals on the next tick while a user's
+    // explicit model choice is never reset mid-session.
+    let modelsFrom = null;
+
     async function refreshModels() {
         const base = endpoint();
-        el.model.innerHTML = '';
         if (!base) {
-            el.model.appendChild(new Option('no farm', ''));
+            modelsFrom = null;
+            el.model.replaceChildren(new Option('no farm', ''));
             return;
         }
+        if (base === modelsFrom && el.model.value) return;
         try {
             const r = await fetch(base + '/models');
             const j = await r.json();
             const ids = (j.data || []).map((m) => m.id);
-            for (const id of ids) el.model.appendChild(new Option(id, id));
-            if (!ids.length) el.model.appendChild(new Option('no models', ''));
+            if (!ids.length) {
+                modelsFrom = null;
+                el.model.replaceChildren(new Option('no models', ''));
+                return;
+            }
+            const prev = el.model.value;
+            el.model.replaceChildren(...ids.map((id) => new Option(id, id)));
+            // Keep the user's pick if still served; else the farm's advertised
+            // default (the model the farm actually wants clients on); else first.
+            const def = (window.__lolFarm && window.__lolFarm.defaultModel) || null;
+            el.model.value = ids.includes(prev) ? prev : (ids.includes(def) ? def : ids[0]);
+            modelsFrom = base;
         } catch {
-            el.model.appendChild(new Option('unreachable', ''));
+            modelsFrom = null; // retry on the next publishFarm tick
+            el.model.replaceChildren(new Option('unreachable', ''));
         }
     }
 
@@ -167,7 +185,42 @@
         abort = new AbortController();
         setBusy(true);
         const t0 = performance.now();
-        let ttft = null, tokens = 0;
+        let ttft = null, tokens = 0, deltas = 0;
+
+        // Incremental streaming render. The full renderMessages() is O(whole thread)
+        // and calling it per token stalls the renderer at 100+ tok/s — the read loop
+        // shares the main thread, so the DOM work throttles the stream itself and
+        // the UI feels far slower than the farm is. Instead: render the thread once
+        // (renderMessages above), then update ONLY the last row's bodies, at most
+        // once per animation frame.
+        const live = { row: el.msgs.lastElementChild, details: null, reasoningBody: null, contentBody: null, raf: 0 };
+        const paint = () => {
+            live.raf = 0;
+            if (!live.row || !live.row.isConnected) return;
+            // Only follow the stream when the user is already at the bottom —
+            // never yank the view away from someone reading scrollback.
+            const pinned = el.msgs.scrollHeight - el.msgs.scrollTop - el.msgs.clientHeight < 48;
+            if (assistant.reasoning) {
+                if (!live.details) {
+                    live.details = document.createElement('details');
+                    live.details.className = 'chat-reasoning';
+                    const s = document.createElement('summary');
+                    s.textContent = 'reasoning';
+                    live.details.appendChild(s);
+                    live.reasoningBody = document.createElement('div');
+                    live.details.appendChild(live.reasoningBody);
+                    live.row.prepend(live.details);
+                }
+                live.reasoningBody.replaceChildren(renderBody(assistant.reasoning));
+            }
+            if (!live.contentBody) {
+                live.contentBody = document.createElement('div');
+                live.row.appendChild(live.contentBody);
+            }
+            live.contentBody.replaceChildren(renderBody(assistant.content || ''));
+            if (pinned) el.msgs.scrollTop = el.msgs.scrollHeight;
+        };
+        const schedule = () => { if (!live.raf) live.raf = requestAnimationFrame(paint); };
 
         try {
             const res = await fetch(base + '/chat/completions', {
@@ -205,16 +258,22 @@
                     const r = d.reasoning || d.reasoning_content || '';
                     if (d.content) assistant.content += d.content;
                     if (r) assistant.reasoning += r;
-                    if ((d.content || r) && ttft === null) ttft = performance.now() - t0;
-                    renderMessages();
+                    if (d.content || r) {
+                        deltas += 1;
+                        if (ttft === null) ttft = performance.now() - t0;
+                        schedule();
+                    }
                 }
             }
             const total = (performance.now() - t0) / 1000;
             const gen = Math.max(0.001, total - (ttft || 0) / 1000);
+            // No usage in the stream (proxy/backend dependent) → ~1 token per delta.
+            if (!tokens) tokens = deltas;
             if (tokens) assistant.stats = `${tokens} tok · ${(tokens / gen).toFixed(1)} tok/s · first token ${((ttft || 0) / 1000).toFixed(2)}s`;
         } catch (e) {
             if (e.name !== 'AbortError') assistant.content += `\n\n[error: ${e.message}]`;
         } finally {
+            if (live.raf) cancelAnimationFrame(live.raf);
             if (!assistant.reasoning) delete assistant.reasoning;
             abort = null;
             setBusy(false);
@@ -241,8 +300,15 @@
     el.stop.addEventListener('click', () => { if (abort) abort.abort(); });
     el.newBtn.addEventListener('click', newThread);
 
-    // app.js calls this when the view is shown or the farm changes.
-    window.__lolChatRefresh = () => { refreshModels(); renderThreads(); renderMessages(); };
+    // app.js calls this when the view is shown or the farm changes — and every few
+    // seconds from its publishFarm interval. While a reply is streaming, the live
+    // row owns the DOM: a full re-render here would orphan the node the stream is
+    // painting into, so skip it (the finally{} above re-renders when the stream
+    // ends). refreshModels is safe either way — it no-ops unless the farm changed.
+    window.__lolChatRefresh = () => {
+        refreshModels();
+        if (!abort) { renderThreads(); renderMessages(); }
+    };
 
     renderThreads();
     renderMessages();

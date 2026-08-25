@@ -6,6 +6,67 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-08-25 — v0.1.29 "unreachable": CSP blocked LOL Chat entirely + the farm advertised the wrong default
+
+Owner report on the studio fleet: the v0.1.29 client shows the model dropdown as **"unreachable"**
+and every send fails with **"[error: Failed to fetch]"** — while the pill happily shows the farm
+connected. And inference through LOL "is not really usable" versus Unsloth Studio running
+`UD-IQ2_S` on the same class of box.
+
+**Root causes (three independent ones stacked):**
+
+1. **The renderer CSP had no `connect-src`** ([index.html](../shell/renderer/index.html)), so
+   `connect-src` fell back to `default-src 'self'` — and a `file://` page's `'self'` never matches
+   `http://<farm>:4000`. Every `fetch()` LOL Chat makes was blocked by Chromium before it left the
+   process. This never bit before because the OWUI build's traffic goes sidecar-side; LOL Chat is
+   the first renderer code to call the farm directly, and the pill stays green because the UDP
+   beacon arrives in the MAIN process. Fix: `connect-src 'self' http: https:` (the farm address is
+   discovered at runtime, so it cannot be listed literally). CORS is fine once CSP allows the
+   request — the pinned LiteLLM defaults to `allow_origins ["*"]` (verified in the venv source).
+
+2. **The snapshot advertised the wrong default model when llamacpp is enabled**
+   ([snapshot.js](../farm/src/snapshot.js)). `buildSnapshot` only mapped `config.models`, so the
+   default advertised to clients stayed `gemma4:12b`-via-Ollama while the llama.cpp backend served
+   `assistant` — the ONLY configuration measured fast on 12 GB (154.8 tok/s). Worse than a wrong
+   label: a client following the advertised default loads a SECOND model into a card llama-server
+   already fills (~10.6 GB), guaranteeing spill. Now the llamacpp alias is advertised first and
+   default (underlying = the GGUF basename), Ollama models stay selectable but never default; the
+   shell publishes `defaultModel` through `window.__lolFarm` and the picker preselects it. New
+   test pins the contract (64 pass).
+
+3. **The chat surface re-rendered the ENTIRE thread on every streamed token**
+   ([chat.js](../shell/renderer/chat.js)) — O(thread) DOM rebuild per delta, on the same thread as
+   the stream reader, so at 100+ tok/s the renderer throttles the stream it is displaying. Now the
+   thread renders once per send and only the live row's bodies update, at most once per animation
+   frame; auto-scroll only when already at the bottom; the 4-second `publishFarm` tick no longer
+   rebuilds the DOM mid-stream (it used to orphan the streaming row) and no longer resets the model
+   dropdown (models refetch only when the endpoint changes or the last fetch failed).
+
+Plus two no-OWUI-build bugs found while verifying: **repoint still booted the OWUI sidecar** (on a
+machine upgraded from ≤0.1.28 the sidecar is installed, so v0.1.29 silently ran a whole Python+OWUI
+stack nothing uses) — `sidecar.pointTo()` now records the endpoint state-only; and the **overlay
+could stick over a working chat** (it is farm-driven in this build but was only re-evaluated on
+sidecar events) — `publishFarm`/`onFarms` now re-evaluate it.
+
+**Tested** with a new dependency-free E2E harness ([shell/test/](../shell/test/)): `mock-farm.js`
+(UDP beacon + OpenAI streaming endpoint, `--coordinator` to outrank real LAN farms) +
+`e2e.js` (drives the real Electron app over CDP). Full chain green: discovery → overlay clears →
+models fetched → `assistant` preselected → **1000 tokens streamed at 286 tok/s, TTFT 0.03 s**,
+stats row rendered. The render path is no longer the bottleneck at any speed the farm can produce.
+
+**Measured live against the real farm** (AN-VR-01, farm-v0.0.14 line, Ollama serving
+`hf.co/…:UD-IQ2_XXS` + the separate draft module): the fixed client connected and streamed fine —
+at **4.4 tok/s with a 17.4 s first token**. That is the farm-side config the config comments
+already predict spills on 12 GB (`IQ2_XXS + draft ≈ 11.0 GB > ~10.7 GB usable`). So the
+"Unsloth Studio is fast, LOL is not" gap is the FARM build, not the client: AN-VR-01 needs the
+farm-v0.0.15 line (llama.cpp backend, UD-Q2_K_XL + q4_0 KV + MTP ≈ 10.6 GB resident,
+154.8 tok/s / 0.13 s TTFT measured) with fix #2 above so clients actually land on it.
+
+Dev note: VS Code's integrated shell exports `ELECTRON_RUN_AS_NODE`; unset it before
+`npx electron .` or the app dies at `app.setName` running as plain Node.
+
+---
+
 ## 2026-08-19 b — The fastapi pin broke FRESH installs (my bug) — corrected bound
 
 Entry (g)'s `fastapi<0.116` pin fixed the *symptom* on an already-built venv but **broke

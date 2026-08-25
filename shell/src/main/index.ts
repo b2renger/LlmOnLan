@@ -219,7 +219,10 @@ function onFarms(payload: { farms: DiscoveredFarm[] } & Record<string, unknown>)
         // UX we haven't built, so we don't send a (wrong) placeholder key. The farm's
         // default model + SearXNG + TTS + OCR ride along so OWUI auto-selects the model
         // and gets web search + neural voice + document OCR, all with zero clicks.
-        sidecar.repoint(endpoint, null, model, searxng, tts, extract);
+        // No-OWUI build: record the endpoint only — repoint would (re)start the OWUI
+        // sidecar, which this build must never run even where one is installed.
+        if (OWUI_ENABLED) sidecar.repoint(endpoint, null, model, searxng, tts, extract);
+        else sidecar.pointTo(endpoint);
     }
 }
 
@@ -634,7 +637,7 @@ app.whenReady().then(async () => {
     if (OWUI_ENABLED) {
         sidecar.start({ endpoint: initial, dataDir: resolveDataDir(), defaultModel: currentModel, searxngUrl: currentSearxng, tts: currentTts, extract: currentExtract });
     } else {
-        pushSidecarState();
+        sidecar.pointTo(initial);
     }
 
     // Blender assistant tools are OPT-IN (off by default since v0.1.24): enabling it

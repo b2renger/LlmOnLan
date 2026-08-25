@@ -2,8 +2,12 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
+  <!-- connect-src is load-bearing: without it, fetch() falls back to default-src
+       'self' and LOL Chat's direct calls to the farm's LAN endpoint are BLOCKED
+       (dropdown shows "unreachable", sends fail with "Failed to fetch"). The farm
+       address is discovered at runtime, so it cannot be listed literally. -->
   <meta http-equiv="Content-Security-Policy"
-        content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self';" />
+        content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self' http: https:;" />
   <title>LlmOnLan</title>
   <link rel="stylesheet" href="tokens.css" />
   <link rel="stylesheet" href="styles.css" />

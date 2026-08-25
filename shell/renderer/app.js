@@ -689,7 +689,7 @@ els.rescanBtn.addEventListener('click', () => { window.lol.rescan(); toast('Resc
 
 // ---- wire IPC ----
 window.lol.onSidecarState((s) => { sidecarState = s; renderSidecar(); if (!els.popover.classList.contains('hidden')) renderPopover(); });
-window.lol.onFarms((data) => { farmState = data; renderPill(); if (!els.popover.classList.contains('hidden')) renderPopover(); });
+window.lol.onFarms((data) => { farmState = data; if (NO_OWUI) publishFarm(); renderPill(); if (!els.popover.classList.contains('hidden')) renderPopover(); });
 window.lol.getSidecarState().then((s) => { sidecarState = s; renderSidecar(); });
 window.lol.getFarms().then((data) => { farmState = data; renderPill(); });
 initTheme();
@@ -703,10 +703,21 @@ window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', ()
 // re-derived in chat.js so there is exactly one source of truth for "which farm".
 function publishFarm() {
   const f = activeFarm();
+  // The farm's advertised default (snapshot.models[].default) rides along so the
+  // chat's model picker auto-selects what the farm wants clients on — with the
+  // llama.cpp backend that is the alias it serves, not an Ollama model that would
+  // fight it for VRAM.
+  const defaultModel = f && Array.isArray(f.models) && f.models.length
+    ? ((f.models.find((m) => m.default) || f.models[0]).id || null)
+    : null;
   window.__lolFarm = f
-    ? { name: f.name, openaiBaseUrl: farmEndpoint(f) }
-    : (sidecarState && sidecarState.endpoint ? { name: 'farm', openaiBaseUrl: sidecarState.endpoint } : null);
+    ? { name: f.name, openaiBaseUrl: farmEndpoint(f), defaultModel }
+    : (sidecarState && sidecarState.endpoint ? { name: 'farm', openaiBaseUrl: sidecarState.endpoint, defaultModel: null } : null);
   if (window.__lolChatRefresh) window.__lolChatRefresh();
+  // The overlay is FARM-driven in this build, but renderSidecar used to run only
+  // on sidecar events — which can all have fired before discovery found anything,
+  // leaving the "Looking for your server…" overlay stuck over a working chat.
+  if (NO_OWUI) renderSidecar();
 }
 
 // This build has no Open WebUI: LOL Chat is the only surface, so there is no

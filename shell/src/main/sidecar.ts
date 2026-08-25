@@ -112,6 +112,18 @@ export class SidecarSupervisor extends EventEmitter {
         }
     }
 
+    // No-OWUI build: record the chosen farm endpoint WITHOUT starting any process.
+    // repoint() would stop/start the OWUI sidecar — on a machine upgraded from an
+    // OWUI build that sidecar is still installed, so repointing silently boots a
+    // whole Python+OWUI stack nothing uses; on a fresh install it just errors.
+    // Going straight to 'ready' keeps the renderer's pill/overlay logic unchanged
+    // (the farm name shows as soon as a farm is chosen).
+    pointTo(endpoint: string | null): void {
+        if (endpoint === this.endpoint && this.state.status === 'ready') return;
+        this.endpoint = endpoint;
+        this.setState({ status: 'ready', url: null, endpoint });
+    }
+
     // Repoint at a different farm endpoint (and/or its default model / SearXNG).
     // No-op if all unchanged; else restart so the env (OPENAI_API_BASE_URL /
     // DEFAULT_MODELS / SEARXNG_QUERY_URL) takes effect — env is authoritative
