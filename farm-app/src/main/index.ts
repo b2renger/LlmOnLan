@@ -16,7 +16,7 @@ import * as url from 'url';
 import { loadSettings, updateSettings } from './store';
 import { runtimeReady } from './runtimeManager';
 import { farmInstalled } from './paths';
-import { runSetup, setShareMode, setContextLength, ensurePluginPorts, refreshFarmCodeIfUpdated } from './installer';
+import { runSetup, setShareMode, setContextLength, setModelName, ensurePluginPorts, refreshFarmCodeIfUpdated } from './installer';
 import { reapStaleFarm } from './farmProcess';
 import { FarmSupervisor } from './farmSupervisor';
 import { initUpdateCheck, checkFarmUpdate, setUpdateNotifier } from './updater';
@@ -117,6 +117,7 @@ function currentPrefs() {
         launchAtLogin: s.launchAtLogin,
         autoUpdate: s.autoUpdate,
         shareWithNetwork: s.shareWithNetwork,
+        modelName: s.modelName,
         contextLength: s.contextLength,
         appVersion: app.getVersion(),
         platform: process.platform,
@@ -195,6 +196,21 @@ function registerIpc(): void {
         return { contextLength: n, farmState: supervisor.getState() };
     });
 
+    // The model NAME advertised to end users (the served alias — what OWUI's picker
+    // and /v1/models show). Persisted into lol.config.json + enforced on boot, like
+    // the context window. Restarts the farm so the routing + beacon carry it.
+    ipcMain.handle('set-model-name', async (_e, name: string | null) => {
+        const clean = (typeof name === 'string' ? name : '').replace(/[\r\n\t]/g, ' ').trim().slice(0, 48) || null;
+        updateSettings({ modelName: clean });
+        setModelName(clean);
+        const st = supervisor.getState().status;
+        if (st === 'ready' || st === 'starting' || st === 'restarting') {
+            await supervisor.stop({ keepState: true });
+            await startFarm();
+        }
+        return { modelName: clean, farmState: supervisor.getState() };
+    });
+
     // Share the farm's compute with the LAN (default off = fully private: localhost
     // bind + no beacon). Rewrites lol.config.json's beacon/proxy and restarts the
     // farm so the new bind address + beacon take effect (they're read at `lol up` boot).
@@ -245,6 +261,7 @@ app.whenReady().then(() => {
         refreshFarmCodeIfUpdated(app.getVersion()); // propagate farm-side fixes on an app update
         setShareMode(settings.shareWithNetwork); // enforce the persisted posture (also migrates a pre-toggle 0.0.0.0 config to private)
         setContextLength(settings.contextLength); // ditto for the persisted context window
+        setModelName(settings.modelName);         // ditto for the advertised model name
         startFarm();
     } else if (settings.installed) {
         // Marked installed but the on-disk runtime is gone — re-run setup.

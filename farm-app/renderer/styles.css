@@ -115,6 +115,9 @@ h1 { font-size: 22px; margin: 8px 0 6px; }
 .share-block .row { border-bottom: none; padding: 8px 0 2px; }
 .share-hint { margin: 2px 0 0; line-height: 1.5; }
 select { font: inherit; background: var(--surface-2); color: var(--text); border: 1px solid var(--border); border-radius: 7px; padding: 5px 8px; }
+.name-row { display: flex; gap: 6px; align-items: center; }
+.name-row input[type=text] { font: inherit; background: var(--surface-2); color: var(--text); border: 1px solid var(--border);
+    border-radius: 7px; padding: 5px 8px; width: 130px; -webkit-app-region: no-drag; }
 
 /* --- toast ---------------------------------------------------------------- */
 .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--surface-2);

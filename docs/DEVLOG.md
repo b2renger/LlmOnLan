@@ -6,6 +6,34 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-08-25 d — the advertised model name is the owner's choice (farm-app Settings)
+
+Owner ask: the name users see in the model picker should be a hand-chosen string — not
+"assistant"/"reasoning" and not a checkpoint id like `Qwen3.8-27B-UD-IQ2_S`.
+
+The wire mechanism already existed (the served ALIAS — `llamacpp.alias`, per-model `alias`,
+global `modelAlias`); what was missing was an owner-facing control. Over an OpenAI connection the
+id from `/v1/models` IS what pickers display, so renaming the alias is the only clean lever —
+there is no separate display-name channel to an unmodified OWUI.
+
+**Farm app**: a **Model name** field in Settings (mirrors the context-window pattern exactly):
+`set-model-name` IPC → persisted in farm-settings → `setModelName()` patches `lol.config.json`
+(`llamacpp.alias` when the llama.cpp backend is on — the default — else `modelAlias`, so the
+string survives a backend switch) → farm restart; enforced on every boot like the share toggle
+and context window. Empty clears back to the farm default. Sanitized (control chars stripped,
+48-char cap); unicode fine (« Génie du studio » asserted). The checkpoint remains visible to
+clients as the snapshot's `underlying`, so "what actually runs" is not hidden — only the label is
+friendly. Caveat stated in the UI: renaming changes the model id, so existing chats ask to
+re-select the model; new chats are unaffected.
+
+**Verified offline against the farm's own chain** (scratch harness): patched config → zod parses
+→ LiteLLM `model_name` carries the custom string → snapshot advertises it as the default with the
+gguf basename as `underlying`; clearing restores 'assistant'; the llamacpp-off path lands on
+`modelAlias`. farm-app tsc clean; farm suite 64 pass. No client change needed — the name rides
+the beacon into DEFAULT_MODELS and both pickers (client v0.1.31's repoint applies it).
+
+---
+
 ## 2026-08-25 c — UD-IQ2_S as the served quant · OWUI client back, boots ONCE, TTFT unblocked
 
 Owner asks after testing the new farm: (1) richer startup feedback (what IS it doing, so a hang is

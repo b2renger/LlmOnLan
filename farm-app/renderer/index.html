@@ -95,6 +95,15 @@
                 <p id="share-hint" class="muted small share-hint"></p>
             </div>
             <div class="share-block">
+                <label class="row"><span><strong>Model name</strong></span>
+                    <span class="name-row">
+                        <input type="text" id="in-model-name" placeholder="assistant" maxlength="48" spellcheck="false" />
+                        <button class="btn btn-sm" id="btn-model-name">Apply</button>
+                    </span>
+                </label>
+                <p class="muted small share-hint">The name users see in the model picker — instead of "assistant" or the checkpoint's technical name. Renaming restarts the farm, and existing chats will ask to re-select the model. Leave empty for the default.</p>
+            </div>
+            <div class="share-block">
                 <label class="row"><span><strong>Context window</strong></span>
                     <select id="sel-context">
                         <option value="16384">16k tokens</option>
