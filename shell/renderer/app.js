@@ -678,3 +678,34 @@ initTheme();
 window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', () => {
   window.lol.getSettings().then((s) => { if (s.theme === 'system') applyThemeClass('system'); });
 });
+
+// ---- LOL Chat: alternative view to the OWUI webview -------------------------
+// The chat surface talks straight to the farm's OpenAI endpoint, so it needs the
+// endpoint the sidecar is currently pointed at. Published on `window` rather than
+// re-derived in chat.js so there is exactly one source of truth for "which farm".
+function publishFarm() {
+  const f = activeFarm();
+  window.__lolFarm = f
+    ? { name: f.name, openaiBaseUrl: farmEndpoint(f) }
+    : (sidecarState && sidecarState.endpoint ? { name: 'farm', openaiBaseUrl: sidecarState.endpoint } : null);
+  if (window.__lolChatRefresh) window.__lolChatRefresh();
+}
+
+(() => {
+  const btn = $('view-toggle');
+  const chat = $('lolchat');
+  if (!btn || !chat) return;
+  let chatMode = false;
+  btn.addEventListener('click', () => {
+    chatMode = !chatMode;
+    chat.classList.toggle('hidden', !chatMode);
+    // The webview keeps running underneath; hiding it preserves the OWUI session
+    // so switching back is instant and never re-authenticates.
+    if (els.webview) els.webview.classList.toggle('hidden', chatMode);
+    btn.textContent = chatMode ? 'LOL Chat' : 'Open WebUI';
+    if (chatMode) publishFarm();
+  });
+  // Keep the endpoint fresh while the farm is being (re)selected.
+  setInterval(publishFarm, 4000);
+  publishFarm();
+})();
