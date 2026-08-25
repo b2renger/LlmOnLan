@@ -9,6 +9,10 @@
 // Ref: github.com/ollama/ollama/blob/main/docs/api.md
 
 const http = require('http');
+const https = require('https');
+const fs = require('fs');
+const path = require('path');
+const { execFile } = require('child_process');
 const { URL } = require('url');
 
 // Normalize a host entry to a base URL string (adds default port/scheme).
@@ -238,4 +242,90 @@ function createModel(baseUrl, name, from, parameters = {}, timeoutMs = 10 * 60 *
     });
 }
 
-module.exports = { normalizeHost, version, listModels, listModelsDetailed, loadedModels, warmModel, evictModel, hasModel, pullModel, createModel, request };
+// Where separate draft/MTP modules are cached. Gitignored; safe to delete (it is
+// re-downloaded on the next install/up).
+function draftDir() {
+    return path.join(__dirname, '..', '.models');
+}
+
+// Local path a draft URL caches to. Stable, so a second run is a no-op.
+function draftPathFor(url) {
+    const name = decodeURIComponent(new URL(url).pathname.split('/').pop() || 'draft.gguf');
+    return path.join(draftDir(), name.replace(/[^A-Za-z0-9._-]/g, '_'));
+}
+
+// Fetch a draft module over HTTPS, following redirects (Hugging Face `resolve/`
+// URLs redirect to a CDN). Skips the download when the file is already cached.
+// `onProgress(pct, mb)` is called as bytes arrive.
+function downloadDraft(url, onProgress = () => {}, timeoutMs = 30 * 60 * 1000) {
+    const dest = draftPathFor(url);
+    if (fs.existsSync(dest) && fs.statSync(dest).size > 0) return Promise.resolve({ path: dest, cached: true });
+    fs.mkdirSync(draftDir(), { recursive: true });
+    const tmp = dest + '.part';
+
+    const get = (u, redirectsLeft) => new Promise((resolve, reject) => {
+        if (redirectsLeft < 0) return reject(new Error('too many redirects'));
+        const req = https.get(u, { timeout: timeoutMs }, (res) => {
+            if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+                res.resume();
+                const next = new URL(res.headers.location, u).toString();
+                return resolve(get(next, redirectsLeft - 1));
+            }
+            if (res.statusCode !== 200) {
+                res.resume();
+                return reject(new Error(`download HTTP ${res.statusCode}`));
+            }
+            const total = Number(res.headers['content-length']) || 0;
+            let seen = 0;
+            let lastPct = -1;
+            const out = fs.createWriteStream(tmp);
+            res.on('data', (c) => {
+                seen += c.length;
+                // Only report when the whole percent CHANGES. Firing per chunk emits
+                // tens of thousands of lines for a multi-GB file.
+                const pct = total ? Math.floor((seen / total) * 100) : 0;
+                if (pct !== lastPct) { lastPct = pct; onProgress(pct, seen / 1024 / 1024); }
+            });
+            res.pipe(out);
+            out.on('finish', () => out.close(() => {
+                fs.renameSync(tmp, dest);          // atomic: a killed download never looks complete
+                resolve({ path: dest, cached: false });
+            }));
+            out.on('error', reject);
+        });
+        req.on('timeout', () => req.destroy(new Error('download timeout')));
+        req.on('error', reject);
+    });
+
+    return get(url, 5).catch((e) => {
+        try { fs.unlinkSync(tmp); } catch { /* nothing to clean */ }
+        throw e;
+    });
+}
+
+// Create a derived model WITH a separate draft module attached.
+//
+// This is the one place the CLI is used instead of the REST API, and it is forced:
+// /api/create silently DROPS a `draft` field (verified on Ollama 0.32.15 — it
+// returns success and no DRAFT line appears in the result), and the Modelfile
+// `DRAFT` instruction resolves its argument as a path on the machine running
+// ollama. Consequence: draft modules only work on a LOCAL host. Remote hosts fall
+// back to createModel() and simply run without speculative decoding.
+function createModelWithDraft(name, from, draftFile, parameters = {}, timeoutMs = 10 * 60 * 1000) {
+    return new Promise((resolve, reject) => {
+        const lines = [`FROM ${from}`, `DRAFT ${draftFile}`];
+        for (const [k, v] of Object.entries(parameters)) lines.push(`PARAMETER ${k} ${v}`);
+        fs.mkdirSync(draftDir(), { recursive: true });
+        const mfPath = path.join(draftDir(), `.Modelfile.${name.replace(/[^A-Za-z0-9._-]/g, '_')}`);
+        fs.writeFileSync(mfPath, lines.join('\n') + '\n', 'utf8');
+        execFile('ollama', ['create', name, '-f', mfPath], { timeout: timeoutMs, windowsHide: true }, (err, stdout, stderr) => {
+            if (err) return reject(new Error(String(stderr || err.message).trim().split('\n').pop()));
+            resolve(true);
+        });
+    });
+}
+
+module.exports = {
+    normalizeHost, version, listModels, listModelsDetailed, loadedModels, warmModel, evictModel,
+    hasModel, pullModel, createModel, createModelWithDraft, downloadDraft, draftPathFor, draftDir, request,
+};

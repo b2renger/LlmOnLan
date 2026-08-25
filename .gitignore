@@ -31,6 +31,7 @@ farm/.lol-id
 farm/.searxng/
 farm/.kokoro/
 farm/.extract/
+farm/.models/
 lol.config.json
 !farm/lol.config.example.json
 

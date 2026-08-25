@@ -650,6 +650,28 @@ test('a preinstalled model keeps its alias when the admin starts it', () => {
     assert.ok(!names.includes(hidden.id), 'the raw derived id is not what clients bind to');
 });
 
+test('the preinstalled quant carries a separate draft/MTP module', () => {
+    // Unsloth strips the built-in MTP head from every quant under UD-Q2_K_XL to save
+    // ~500MB, so UD-IQ2_XXS has ZERO nextn tensors and `draft_num_predict` alone is
+    // inert. The separate module is what makes speculative decoding work at all here.
+    const c = defaultConfig();
+    const m = c.preinstall[0];
+    assert.ok(m.draft, 'a draft module URL is configured');
+    assert.match(m.draft, /^https:\/\//, 'fetched over https, not an ollama pull');
+    assert.match(m.draft, /mtp-.*\.gguf$/i);
+    assert.equal(m.params.draft_num_predict, 4, 'and the parameter that drives it');
+});
+
+test('draft modules cache to a stable, gitignored path', () => {
+    // Stable so a second install is a no-op rather than a re-download. Compared via
+    // path parts rather than a regex so it holds on both Windows and POSIX.
+    const path = require('path');
+    const url = 'https://example.com/x/MTP/mtp-Qwen3.8-27B-Q4_0.gguf';
+    assert.equal(ollama.draftPathFor(url), ollama.draftPathFor(url), 'deterministic');
+    assert.equal(path.basename(ollama.draftPathFor(url)), 'mtp-Qwen3.8-27B-Q4_0.gguf');
+    assert.equal(path.basename(path.dirname(ollama.draftPathFor(url))), '.models');
+});
+
 (async () => {
     for (const { name, fn } of tests) {
         try { await fn(); console.log(`  ok  ${name}`); passed++; }
