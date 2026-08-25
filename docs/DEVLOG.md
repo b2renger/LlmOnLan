@@ -6,6 +6,43 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-08-25 f — icons v2, forged by a blind-critic loop
+
+Owner ask: iterate the icons against an agnostic critic agent until (1) client vs farm is clear
+and (2) the product reads as an AI chat app over a LAN — both inferred from the icons alone.
+
+**Protocol:** fresh subagent critics with zero design context, neutral file names (no
+"client"/"farm" in paths), A/B order swapped between critics to cancel position bias. Each round:
+blind product guess → role assignment with confidence → scores → minimal fixes.
+
+**Round 1 (the (e) beacon pair, hue-only split): FAIL.** The two critics *split* on which app was
+which (one said green=server, the other green=client, low confidence — "the pair encodes no role
+information"), and both read the product as a casting/hotspot tool: the mark was pixel-for-pixel
+the stock OS broadcast glyph. Convergent fixes: an ownable center element; separate by tile
+LUMINANCE, not stroke hue.
+
+**Revision:** shared mark = chat bubble with a four-point AI sparkle knocked out, flanked by two
+signal arcs (chat + AI + LAN in one glyph); **client** = white mark on a SOLID emerald tile (the
+messaging-app costume — the one you'd open to chat), **farm** = emerald mark on the dark
+machine-room tile.
+
+**Round 2 (two fresh critics, orders swapped): PASS.** Both guessed, first try, "a self-hosted /
+local-network AI chat assistant — a client you chat in plus a server broadcasting the AI service
+on the LAN," and both assigned roles correctly (medium / medium-high confidence). Applied their
+nits: sparkle arms opened + bubble enlarged (48 px counterform), farm tile lifted off dark
+taskbars (lighter top stop + stronger keyline), tail shortened clear of the left arc.
+
+**Round 3 (final fresh critic): SHIP** — same correct product + role reads, tell-apart 8/10
+including a value-contrast (colorblind-safe) pass; one flag: the bright green + white bubble sat
+"uncomfortably close to WhatsApp's parking spot" at 48 px → client field deepened to dark emerald
+(#0ea371→#064e3b), clearly off WhatsApp's leaf green.
+
+Suggestions deliberately NOT taken (they break the one-shared-mark / palette constraints):
+per-role inner glyphs, arcs only on the server, amber/cyan server hues. Files:
+`shell/assets/icon.{svg,png}`, `farm-app/assets/icon.{svg,png}` — same install surfaces as (e).
+
+---
+
 ## 2026-08-25 e — new app icons: one beacon mark, client in zinc, farm in emerald
 
 Owner ask: modern/elegant/simple icons, and the client and farm apps must be distinguishable at a

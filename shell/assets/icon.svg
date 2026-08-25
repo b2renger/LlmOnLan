@@ -1,23 +1,28 @@
-<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <!-- LlmOnLan mark: a live LAN broadcast — one node, arcs radiating both ways.
-       Client = zinc/white mark; the farm app ships the same mark in emerald. -->
+﻿<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- LlmOnLan CLIENT: an AI chat bubble (sparkle knocked out) radiating over the
+       LAN (side arcs). Solid emerald tile + white mark = the messaging-app
+       convention for "the app you chat in"; the farm ships the SAME mark in
+       emerald on a dark machine-room tile. -->
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1024" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#26262b"/>
-      <stop offset="1" stop-color="#0b0b0d"/>
+      <stop offset="0" stop-color="#0ea371"/>
+      <stop offset="1" stop-color="#064e3b"/>
     </linearGradient>
-    <linearGradient id="mark" x1="512" y1="180" x2="512" y2="844" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#fafafa"/>
-      <stop offset="1" stop-color="#c2c2cb"/>
-    </linearGradient>
+    <mask id="spark" maskUnits="userSpaceOnUse" x="0" y="0" width="1024" height="1024">
+      <rect width="1024" height="1024" fill="#ffffff"/>
+      <path d="M512 398 Q533 481 616 502 Q533 523 512 606 Q491 523 408 502 Q491 481 512 398 Z" fill="#000000"/>
+    </mask>
   </defs>
   <rect width="1024" height="1024" rx="230" fill="url(#bg)"/>
-  <rect x="7" y="7" width="1010" height="1010" rx="223" fill="none" stroke="#ffffff" stroke-opacity="0.07" stroke-width="14"/>
-  <g stroke="url(#mark)" stroke-width="74" stroke-linecap="round" fill="none">
-    <path d="M 646 378 A 190 190 0 0 1 646 646"/>
-    <path d="M 378 378 A 190 190 0 0 0 378 646"/>
-    <path d="M 745 279 A 330 330 0 0 1 745 745"/>
-    <path d="M 279 279 A 330 330 0 0 0 279 745"/>
+  <rect x="7" y="7" width="1010" height="1010" rx="223" fill="none" stroke="#ffffff" stroke-opacity="0.12" stroke-width="14"/>
+  <!-- chat bubble + tail, AI sparkle cut out -->
+  <g fill="#fafafa" mask="url(#spark)">
+    <rect x="330" y="344" width="364" height="316" rx="96"/>
+    <path d="M442 652 C422 700 404 718 386 730 C438 716 488 690 528 654 Z"/>
   </g>
-  <circle cx="512" cy="512" r="78" fill="url(#mark)"/>
+  <!-- LAN signal arcs -->
+  <g stroke="#fafafa" stroke-width="84" stroke-linecap="round" fill="none">
+    <path d="M 772 297 A 330 330 0 0 1 772 703"/>
+    <path d="M 252 297 A 330 330 0 0 0 252 703"/>
+  </g>
 </svg>
