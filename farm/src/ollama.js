@@ -328,4 +328,8 @@ function createModelWithDraft(name, from, draftFile, parameters = {}, timeoutMs 
 module.exports = {
     normalizeHost, version, listModels, listModelsDetailed, loadedModels, warmModel, evictModel,
     hasModel, pullModel, createModel, createModelWithDraft, downloadDraft, draftPathFor, draftDir, request,
+    // Same fetcher under names that read correctly at the other call sites: the
+    // llama.cpp backend uses it for full model weights and release archives, not
+    // just draft modules.
+    downloadGguf: downloadDraft, ggufPathFor: draftPathFor, modelsDir: draftDir,
 };

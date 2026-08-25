@@ -109,6 +109,49 @@ const OllamaSchema = z.object({
     contextLength: z.number().int().positive().default(16384),
 }).strict();
 
+// llama.cpp (`llama-server`) as an ALTERNATIVE backend to Ollama, opt-in per farm.
+//
+// The reason it exists is speculative decoding on a 12 GB card. Measured on the
+// fleet's hardware, no Ollama configuration gets both MTP and a resident model:
+//   UD-IQ2_XXS            ~9.9 GB, fits — but its MTP head is STRIPPED by Unsloth
+//   UD-IQ2_XXS + module  ~11.0 GB, spills
+//   UD-Q2_K_XL (Ollama)   ~11   GB, spills — KV quantization does not engage
+//   UD-Q2_K_XL (llama.cpp, q4_0 KV, MTP)  ~10.6 GB, FITS — 154.8 tok/s, 0.13s TTFT
+//
+// When enabled, `lol up` runs llama-server INSTEAD of routing that model through
+// Ollama, and LiteLLM fronts it as an OpenAI deployment — so the client is
+// unchanged and cannot tell which backend answered.
+const LlamacppSchema = z.object({
+    enabled: z.boolean().default(false),
+    host: z.string().default('127.0.0.1'),   // LiteLLM is the only thing that talks to it
+    port: z.number().int().positive().default(8081),
+    // The served name clients request. Matches `modelAlias` so swapping backends does
+    // not break chats bound to the alias.
+    alias: z.string().default('assistant'),
+    // https URL of the .gguf to serve. MUST be a quant that still carries its MTP head
+    // (UD-Q2_K_XL and above) if `mtp` is on — llama-server refuses to start otherwise,
+    // with "model doesn't contain MTP layers".
+    model: z.string().url().nullable().default(
+        'https://huggingface.co/unsloth/Qwen3.8-27B-GGUF/resolve/main/Qwen3.8-27B-UD-Q2_K_XL.gguf'
+    ),
+    // Vision projector. Qwen3.8 is multimodal; without this it is text-only.
+    mmproj: z.string().url().nullable().default(
+        'https://huggingface.co/unsloth/Qwen3.8-27B-GGUF/resolve/main/mmproj-F16.gguf'
+    ),
+    contextLength: z.number().int().positive().default(16384),
+    ngl: z.number().int().default(999),          // offload everything; partial = the cliff
+    parallel: z.number().int().positive().default(1),
+    flashAttention: z.boolean().default(true),   // required for KV quantization
+    // q4_0 KV is what makes an MTP-capable quant fit in 12 GB. 'f16' disables it.
+    kvCacheType: z.enum(['q4_0', 'q8_0', 'f16']).default('q4_0'),
+    mtp: z.boolean().default(true),              // --spec-type draft-mtp
+    draftNMax: z.number().int().positive().default(2),
+    // Point at an existing llama.cpp install instead of the bootstrapped one. Required
+    // on platforms with no prebuilt asset (anything but win-x64 today).
+    binDir: z.string().nullable().default(null),
+    extraArgs: z.array(z.string()).default([]),
+}).strict();
+
 const WebsearchSchema = z.object({
     // One shared SearXNG metasearch instance on this box; clients discover it via
     // the beacon (snapshot.searxngUrl) and OWUI uses it for per-message web search.
@@ -244,6 +287,7 @@ const ConfigSchema = z.object({
         },
     ]),
     ollama: OllamaSchema.default({}),
+    llamacpp: LlamacppSchema.default({}),
     litellm: LiteLLMSchema.default({}),
     websearch: WebsearchSchema.default({}),
     tts: TtsSchema.default({}),

@@ -672,6 +672,54 @@ test('draft modules cache to a stable, gitignored path', () => {
     assert.equal(path.basename(path.dirname(ollama.draftPathFor(url))), '.models');
 });
 
+// ---- llama.cpp backend ------------------------------------------------------
+const llamacpp = require('../src/llamacpp');
+
+test('llamacpp backend is off by default (Ollama stays the default path)', () => {
+    const c = defaultConfig();
+    assert.equal(c.llamacpp.enabled, false);
+    const deployed = buildLitellmConfig(c).model_list.map((d) => d.litellm_params.model);
+    assert.ok(deployed.every((m) => m.startsWith('ollama_chat/')), 'no openai/ deployment while off');
+});
+
+test('enabling llamacpp REPLACES the ollama deployment for its alias', () => {
+    // Both behind one model_name would let the router shuffle backends mid-chat.
+    const c = defaultConfig();
+    c.modelAlias = 'assistant';
+    c.llamacpp.enabled = true;
+    const list = buildLitellmConfig(c).model_list;
+    const forAlias = list.filter((d) => d.model_name === 'assistant');
+    assert.equal(forAlias.length, 1, 'exactly one deployment owns the alias');
+    assert.equal(forAlias[0].litellm_params.model, 'openai/assistant');
+    assert.match(forAlias[0].litellm_params.api_base, /:8081\/v1$/);
+    assert.equal(forAlias[0].model_info.supports_vision, true, 'else drop_params strips images');
+});
+
+test('llama-server argv carries the measured recipe', () => {
+    // These flags are the whole reason this backend exists: quantized KV is what
+    // makes an MTP-capable quant fit in 12 GB, and draft-mtp is the speculative
+    // decoding Ollama cannot give us there.
+    const c = defaultConfig();
+    const a = llamacpp.argsFor(c, 'M.gguf', 'P.gguf').join(' ');
+    assert.match(a, /--spec-type draft-mtp/);
+    assert.match(a, /--cache-type-k q4_0 --cache-type-v q4_0/);
+    assert.match(a, /-fa 1/);
+    assert.match(a, /--n-gpu-layers 999/);
+    assert.match(a, /--mmproj P\.gguf/);
+});
+
+test('llamacpp knobs can be turned off individually', () => {
+    const c = defaultConfig();
+    c.llamacpp.mtp = false;
+    c.llamacpp.kvCacheType = 'f16';
+    c.llamacpp.flashAttention = false;
+    const a = llamacpp.argsFor(c, 'M.gguf', null).join(' ');
+    assert.ok(!a.includes('draft-mtp'));
+    assert.ok(!a.includes('--cache-type-k'), 'f16 means no KV quantization flags');
+    assert.ok(!a.includes('-fa 1'));
+    assert.ok(!a.includes('--mmproj'));
+});
+
 (async () => {
     for (const { name, fn } of tests) {
         try { await fn(); console.log(`  ok  ${name}`); passed++; }
