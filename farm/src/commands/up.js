@@ -157,10 +157,35 @@ async function pullMissing(config, reachable) {
             // source is a manifest write — cheap, no re-download.
             if (m.source) {
                 const params = Object.assign({ num_ctx: config.ollama.contextLength }, m.params || {});
+                const shown = Object.entries(params).map(([k, v]) => `${k}=${v}`).join(' ');
+
+                // A separate draft/MTP module needs the CLI and a local file path, so it
+                // is only attachable on a local host (see ollama.createModelWithDraft).
+                let draftFile = null;
+                if (m.draft && isLocalHost(host)) {
+                    try {
+                        const got = await ollama.downloadDraft(m.draft, (pct) => {
+                            process.stdout.write(`\r${log.paint.grey(`[${label}]`)} draft module ${pct}%   `);
+                        });
+                        if (!got.cached) process.stdout.write('\n');
+                        draftFile = got.path;
+                        log.ok(`${label}: draft module ${got.cached ? 'cached' : 'downloaded'} ${log.paint.grey(got.path)}`);
+                    } catch (e) {
+                        process.stdout.write('\n');
+                        log.warn(`${label}: draft module download failed — ${e.message}. Continuing without speculative decoding.`);
+                    }
+                } else if (m.draft) {
+                    log.warn(`${label}: remote host — a draft module cannot be attached (Ollama's REST create drops it). Serving without speculative decoding.`);
+                }
+
                 try {
-                    await ollama.createModel(host, m.id, m.source, params);
-                    const shown = Object.entries(params).map(([k, v]) => `${k}=${v}`).join(' ');
-                    log.ok(`${label}: ${log.paint.bold(m.id)} derived from ${m.source} ${log.paint.grey(`(${shown})`)}`);
+                    if (draftFile) {
+                        await ollama.createModelWithDraft(m.id, m.source, draftFile, params);
+                        log.ok(`${label}: ${log.paint.bold(m.id)} derived from ${m.source} ${log.paint.grey(`(+draft, ${shown})`)}`);
+                    } else {
+                        await ollama.createModel(host, m.id, m.source, params);
+                        log.ok(`${label}: ${log.paint.bold(m.id)} derived from ${m.source} ${log.paint.grey(`(${shown})`)}`);
+                    }
                 } catch (e) {
                     log.warn(`${label}: could not derive ${m.id} from ${m.source} — ${e.message}`);
                     log.warn(`${label}: ${log.paint.bold('MTP/context parameters are NOT applied')} — expect roughly half the expected throughput.`);

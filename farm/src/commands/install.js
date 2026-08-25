@@ -234,10 +234,34 @@ async function pullModels(config) {
         // at full speed straight after `lol install`, with no first-run penalty.
         if (m.source) {
             const params = Object.assign({ num_ctx: config.ollama.contextLength }, m.params || {});
+            const shown = Object.entries(params).map(([k, v]) => `${k}=${v}`).join(' ');
+
+            // `lol install` only ever targets the local Ollama, so a draft module is
+            // always attachable here (unlike `lol up`, which may face remote hosts).
+            let draftFile = null;
+            if (m.draft) {
+                log.step(`Fetching the draft/MTP module for ${log.paint.bold(m.id)} …`);
+                try {
+                    const got = await ollama.downloadDraft(m.draft, (pct) => {
+                        process.stdout.write(`\r${log.paint.grey('[draft]')} ${pct}%   `);
+                    });
+                    if (!got.cached) process.stdout.write('\n');
+                    draftFile = got.path;
+                    log.ok(`Draft module ${got.cached ? 'already cached' : 'downloaded'}.`);
+                } catch (e) {
+                    process.stdout.write('\n');
+                    log.warn(`Draft module download failed — ${e.message}. Continuing without speculative decoding.`);
+                }
+            }
+
             try {
-                await ollama.createModel(local, m.id, m.source, params);
-                const shown = Object.entries(params).map(([k, v]) => `${k}=${v}`).join(' ');
-                log.ok(`${log.paint.bold(m.id)} derived from ${m.source} ${log.paint.grey(`(${shown})`)}`);
+                if (draftFile) {
+                    await ollama.createModelWithDraft(m.id, m.source, draftFile, params);
+                    log.ok(`${log.paint.bold(m.id)} derived from ${m.source} ${log.paint.grey(`(+draft, ${shown})`)}`);
+                } else {
+                    await ollama.createModel(local, m.id, m.source, params);
+                    log.ok(`${log.paint.bold(m.id)} derived from ${m.source} ${log.paint.grey(`(${shown})`)}`);
+                }
             } catch (e) {
                 log.warn(`Could not derive ${m.id} — ${e.message}. \`lol up\` will retry.`);
             }

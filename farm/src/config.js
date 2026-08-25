@@ -28,6 +28,20 @@ const ModelSchema = z.object({
     // on Qwen3.8's built-in MTP head and is worth ~1.8x throughput. A bare hf.co
     // pull has none of them, which is a silent halving of speed.
     params: z.record(z.union([z.string(), z.number(), z.boolean()])).optional(),
+    // HTTPS URL of a separate DRAFT (speculative-decoding) module to attach.
+    //
+    // Needed because Unsloth strips the built-in MTP head from every quant under
+    // UD-Q2_K_XL to save ~500 MB, and ships it as a standalone file instead. Without
+    // it a small quant silently gets NO speculative decoding: `draft_num_predict`
+    // is accepted and ignored, because there are no `nextn` tensors to drive.
+    //
+    // Downloaded to farm/.models/ (an ollama `hf.co/...` pull cannot address a file
+    // inside a repo SUBFOLDER, which is where the module lives), then wired in via the
+    // Modelfile `DRAFT` instruction. LOCAL HOSTS ONLY: Ollama's REST /api/create
+    // silently drops a `draft` field — verified on 0.32.15, it returns success and no
+    // DRAFT line appears — and the DRAFT instruction resolves its argument as a file
+    // path on the machine running ollama. So this is applied via the CLI.
+    draft: z.string().url().optional(),
     // Force image support on/off. Omit to auto-infer from the tag (gemma4, llava,
     // *-vl, *-vision, …). Drives `supports_vision` in the generated LiteLLM config
     // so the proxy passes images through instead of dropping them.
@@ -206,7 +220,23 @@ const ConfigSchema = z.object({
         {
             id: 'qwen3.8-27b-iq2xxs',
             source: 'hf.co/unsloth/Qwen3.8-27B-GGUF:UD-IQ2_XXS',
-            params: { draft_num_predict: 4 },   // MTP speculative decoding, ~1.8x
+            // UD-IQ2_XXS is 7.27 GB — below Unsloth's UD-Q2_K_XL cutoff, so its MTP
+            // head is STRIPPED (verified: 0 `nextn` tensors, vs 4 in Q2_K_XL/IQ3_XXS
+            // /the ollama library build). `draft_num_predict` alone is therefore inert
+            // here; the separate module below is what actually makes it do anything.
+            draft: 'https://huggingface.co/unsloth/Qwen3.8-27B-GGUF/resolve/main/MTP/mtp-Qwen3.8-27B-Q4_0.gguf',
+            // MEASURED on an RTX PRO 6000, total GPU memory less the ~1.6 GB desktop:
+            //     IQ2_XXS alone,        ctx 16384 :  ~9.9 GB
+            //     IQ2_XXS + draft,      ctx  8192 : ~11.0 GB
+            //     IQ2_XXS + draft,      ctx 16384 : ~11.3 GB
+            // The module is 1.3 GB on disk (not the ~500 MB the docs suggest), which
+            // gives back almost the entire 1.5 GB that IQ2_XXS saved over UD-Q2_K_XL.
+            // A 4070-class card tops out around 10.7 GB, so this is EXPECTED TO SPILL
+            // there — num_ctx is pinned to 8192 to give it the best chance. Verify with
+            // `ollama ps`: anything other than "100% GPU" means it did not fit, and the
+            // MTP-capable UD-Q2_K_XL via a llama.cpp backend (quantized KV, ~10.6 GB)
+            // is the configuration that does.
+            params: { draft_num_predict: 4, num_ctx: 8192 },
             vision: true,                        // multimodal; tag alone does not reveal it
             // Stable role name so a chat bound to it survives a quant change. Without
             // this, clients bind to "qwen3.8-27b-iq2xxs" and re-quantising breaks them.
