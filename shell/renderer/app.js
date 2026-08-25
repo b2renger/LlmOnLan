@@ -4,8 +4,9 @@
 const $ = (id) => document.getElementById(id);
 const root = document.documentElement;
 
-// This build ships without Open WebUI — see src/main/clientMode.ts.
-const NO_OWUI = true;
+// Must match OWUI_ENABLED in src/main/clientMode.ts (this is its inverse):
+// main gates the sidecar lifecycle, this gates which surface drives the overlay.
+const NO_OWUI = false;
 
 const els = {
   status: $('status'),
@@ -720,13 +721,22 @@ function publishFarm() {
   if (NO_OWUI) renderSidecar();
 }
 
-// This build has no Open WebUI: LOL Chat is the only surface, so there is no
-// toggle and no webview to reveal. The overlay is driven by FARM connectivity
-// instead of sidecar state — there is no sidecar to wait for.
+// OWUI is the primary surface; the topbar toggle switches the main area to LOL
+// Chat (the Studio-style fast view) and back. The webview keeps running while
+// hidden, so switching back is instant and never re-authenticates.
 (() => {
+  const btn = $('view-toggle');
   const chat = $('lolchat');
-  if (!chat) return;
-  chat.classList.remove('hidden');
+  if (!btn || !chat) return;
+  let chatMode = false;
+  btn.addEventListener('click', () => {
+    chatMode = !chatMode;
+    chat.classList.toggle('hidden', !chatMode);
+    if (els.webview) els.webview.classList.toggle('hidden', chatMode);
+    btn.textContent = chatMode ? 'LOL Chat' : 'Open WebUI';
+    if (chatMode) publishFarm();
+  });
+  // Keep the endpoint fresh while the farm is being (re)selected.
   setInterval(publishFarm, 4000);
   publishFarm();
 })();

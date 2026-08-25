@@ -97,6 +97,15 @@ export interface ShellSettings {
     scanRange: ScanRange | null;
     selectedFarmId: string | null;     // user's pinned farm choice when several are found
     lastEndpoint: string | null;       // last-known-good openaiBaseUrl (fallback before discovery)
+    // Last-known farm context, persisted with lastEndpoint. Seeds the FIRST sidecar
+    // boot when the beacon hasn't arrived yet: without it the boot starts OWUI with
+    // model/searxng/tts/extract = null, and the first beacon then forces a repoint —
+    // a full second OWUI boot on nearly every cold launch (~20-40s of "starting").
+    // With it, an unchanged farm makes the repoint a no-op and OWUI boots ONCE.
+    lastFarmModel: string | null;
+    lastFarmSearxng: string | null;
+    lastFarmTts: { url: string; voice: string; model: string } | null;
+    lastFarmExtract: { url: string; key: string } | null;
     launchAtLogin: boolean;
     autoUpdate: boolean;
     blenderMcp: boolean;               // local Blender assistant-tools server (mcpo) on/off

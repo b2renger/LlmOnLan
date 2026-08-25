@@ -114,6 +114,23 @@ export function buildSidecarEnv(input: SidecarEnvInput): Record<string, string> 
         // Speech voices (Chromium/OS voices) — offline, zero bundle cost, no farm hit.
         AUDIO_TTS_ENGINE: '',
 
+        // --- keep the farm's inference slot for the USER's message (TTFT) ---
+        // OWUI quietly runs EXTRA LLM calls around a chat, all against the same farm
+        // endpoint. The farm's llama-server runs ONE inference slot
+        // (llamacpp.parallel=1), so any background call still in flight makes the
+        // user's next completion QUEUE behind it — felt as a long time-to-first-token
+        // that LOL Chat (which sends only the completion) never showed. In the pinned
+        // 0.10.2, follow-up-question generation and tag generation are default-ON and
+        // fire after EVERY response — exactly when the user is typing their next
+        // message. Off. Autocomplete is default-OFF in 0.10.2; pinned off so a future
+        // pin bump can't silently re-enable per-keystroke completions. Title
+        // generation stays ON: once per chat, a few tokens, and it's what names chats
+        // in the sidebar. (Env names verified against the pinned OWUI's config.py;
+        // ENABLE_PERSISTENT_CONFIG=false makes env authoritative.)
+        ENABLE_AUTOCOMPLETE_GENERATION: 'false',
+        ENABLE_FOLLOW_UP_GENERATION: 'false',
+        ENABLE_TAGS_GENERATION: 'false',
+
         // --- default UI language: English (backend fallback; the Chromium --lang
         // switch in index.ts is what the frontend detector actually reads) ---
         DEFAULT_LOCALE: 'en-US',

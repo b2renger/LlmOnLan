@@ -188,6 +188,15 @@ function chooseActive(farms: DiscoveredFarm[]): DiscoveredFarm | null {
     const sel = loadSettings().selectedFarmId;
     if (sel) { const f = farms.find((x) => x.id === sel && x.healthy && !x._stale); if (f) return f; }
     if (activeFarmId) { const f = farms.find((x) => x.id === activeFarmId && x.healthy && !x._stale); if (f) return f; }
+    // Cold boot on a multi-farm LAN: stay with LAST session's farm while it's
+    // healthy. The boot sidecar was already started against its endpoint
+    // (lastEndpoint), so re-rolling the load dice here would repoint — a full
+    // second OWUI boot — for no gain. Load-aware spreading still applies to
+    // first-ever connects and to failover (this farm gone/unhealthy).
+    if (currentEndpoint) {
+        const f = farms.find((x) => x.healthy && !x._stale && farmEndpoint(x) === currentEndpoint);
+        if (f) return f;
+    }
     return pickLeastLoaded(farms);
 }
 
@@ -214,7 +223,10 @@ function onFarms(payload: { farms: DiscoveredFarm[] } & Record<string, unknown>)
         currentTts = tts;
         currentExtract = extract;
         activeFarmId = chosen.id;
-        updateSettings({ lastEndpoint: endpoint });
+        // Persist the whole farm context, not just the endpoint — it seeds the next
+        // cold launch so the first sidecar boot is already correctly configured and
+        // the first beacon doesn't force a restart (see ShellSettings.lastFarmModel).
+        updateSettings({ lastEndpoint: endpoint, lastFarmModel: model, lastFarmSearxng: searxng, lastFarmTts: tts, lastFarmExtract: extract });
         // Keyless LAN proxy for now; a keyed farm (requiresKey) needs a key-entry
         // UX we haven't built, so we don't send a (wrong) placeholder key. The farm's
         // default model + SearXNG + TTS + OCR ride along so OWUI auto-selects the model
@@ -625,12 +637,17 @@ app.whenReady().then(async () => {
     if (!initial) initial = await waitForFirstFarm(4500);
     currentEndpoint = initial;
     // If discovery already identified the active farm, boot OWUI with its default
-    // model + SearXNG pre-wired (else onFarms sets them on the next beacon).
+    // model + SearXNG pre-wired. Otherwise fall back to the PERSISTED context from
+    // the last session (saved alongside lastEndpoint): booting with nulls here
+    // guaranteed the first beacon differed from current*, which forced a repoint —
+    // i.e. a full second OWUI boot on nearly every cold launch. With the persisted
+    // context, an unchanged farm confirms what we booted with and OWUI starts ONCE;
+    // a genuinely changed farm still repoints exactly as before.
     const activeNow = discovery?.getFarms().find((f) => f.id === activeFarmId) ?? null;
-    currentModel = farmDefaultModel(activeNow);
-    currentSearxng = farmSearxng(activeNow);
-    currentTts = farmTts(activeNow);
-    currentExtract = farmExtract(activeNow);
+    currentModel = activeNow ? farmDefaultModel(activeNow) : settings.lastFarmModel;
+    currentSearxng = activeNow ? farmSearxng(activeNow) : settings.lastFarmSearxng;
+    currentTts = activeNow ? farmTts(activeNow) : settings.lastFarmTts;
+    currentExtract = activeNow ? farmExtract(activeNow) : settings.lastFarmExtract;
     booted = true;
     // LOL Chat talks straight to the farm's OpenAI endpoint, so there is no local
     // process to supervise — discovery alone is enough to be usable.

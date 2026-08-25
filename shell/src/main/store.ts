@@ -15,6 +15,10 @@ const DEFAULTS: ShellSettings = {
     scanRange: null,
     selectedFarmId: null,
     lastEndpoint: null,
+    lastFarmModel: null,
+    lastFarmSearxng: null,
+    lastFarmTts: null,
+    lastFarmExtract: null,
     launchAtLogin: false,
     autoUpdate: true,
     blenderMcp: false,  // Blender assistant tools are OPT-IN (owner call 2026-07-05; was on by default before v0.1.24)

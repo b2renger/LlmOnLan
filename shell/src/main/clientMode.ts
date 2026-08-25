@@ -1,27 +1,21 @@
 // Which client surface this build ships.
 //
 // ---------------------------------------------------------------------------
-// This branch ships WITHOUT Open WebUI. That is a deliberate product experiment,
-// not a cleanup, and it costs real features — everything below is provided by
-// OWUI and simply does not exist in this build:
+// v0.1.29 shipped WITHOUT Open WebUI as a product experiment (LOL Chat only).
+// The verdict (owner, 2026-08-25): the OWUI features are wanted back — RAG /
+// knowledge bases, document upload + farm OCR, web search, voice, chat history,
+// folders, prompts — so OWUI is the primary surface again. LOL Chat remains as
+// the topbar-toggle alternative view (see renderer/chat.js), unchanged from the
+// studio test build.
 //
-//   • whole-document chat / RAG (RAG_FULL_CONTEXT) and knowledge bases
-//   • document upload, and therefore the farm's OCR extraction path
-//   • the farm's SearXNG web search wiring
-//   • Kokoro TTS and local Whisper STT
-//   • the Blender/mcpo tool-server integration (registered via OWUI's API)
-//   • chat history, folders, prompts, and the model picker
-//
-// LOL Chat replaces only the chat surface itself. Data locality (invariant #3)
-// still holds — conversations live in localStorage on the user's machine — but
-// DATA_DIR, the data-folder move, and the whole sidecar lifecycle become inert.
-//
-// Keep this as ONE constant so the diff against the OWUI build stays small and
-// this is revertible by flipping a boolean rather than unpicking a fork.
+// Keep this as ONE constant so the no-OWUI build stays a boolean flip away.
+// NOTE the renderer has a matching `NO_OWUI` const at the top of
+// renderer/app.js — the two must be flipped TOGETHER (main gates the sidecar
+// lifecycle; the renderer gates which surface drives the overlay).
 // ---------------------------------------------------------------------------
 
-export const OWUI_ENABLED = false;
+export const OWUI_ENABLED = true;
 
-// Human-readable label used in overlay copy so the connection screen does not
-// promise a sidecar that will never start.
+// Human-readable label used in overlay copy so the connection screen matches
+// what this build actually starts.
 export const CLIENT_SURFACE = OWUI_ENABLED ? 'Open WebUI' : 'LOL Chat';

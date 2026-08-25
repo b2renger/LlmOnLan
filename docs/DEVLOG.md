@@ -6,6 +6,57 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-08-25 c — UD-IQ2_S as the served quant · OWUI client back, boots ONCE, TTFT unblocked
+
+Owner asks after testing the new farm: (1) richer startup feedback (what IS it doing, so a hang is
+distinguishable), and the served quant changed to **UD-IQ2_S**; (2) the client back to **Open
+WebUI** for its features, but with better launch time and time-to-first-token. Shipped as client
+v0.1.31 + farm-v0.0.17.
+
+**Farm — quant** ([config.js](../farm/src/config.js)): `llamacpp.model` default is now
+`Qwen3.8-27B-UD-IQ2_S.gguf` (7.8 GB, HEAD-verified) — the owner's pick after A/B-ing Unsloth
+Studio on this exact quant; 91% on the graded suite (tied with Q2_K_XL) and fully resident on
+12 GB with real headroom. Consequence: Unsloth STRIPS the MTP head below UD-Q2_K_XL, so
+**`mtp` now defaults false** (llama-server exits "model doesn't contain MTP layers" otherwise);
+it stays an opt-in for Q2_K_XL-and-above. **Live-validated on the dev box** with the exact
+shipped argv: healthy start, **109.3 tok/s generation, 310 tok/s prompt, 0.23 s TTFT** (RTX PRO
+6000; fleet 4070s will be lower but far above the old 4.4).
+
+**Farm — startup feedback** ([farmSupervisor.ts](../farm-app/src/main/farmSupervisor.ts)): the
+overlay now mirrors `lol up`'s own narration — step lines ("Starting LiteLLM …") when quiet,
+download-progress lines ("[llama.cpp] model weights — 43%", ollama pulls, draft modules) when
+active — so a working bootstrap and a hang look different. (Builds on entry (b)'s activity-aware
+health wait.)
+
+**Client — OWUI restored** ([clientMode.ts](../shell/src/main/clientMode.ts) `OWUI_ENABLED=true`
++ renderer `NO_OWUI=false`): all OWUI features return; LOL Chat stays behind the topbar toggle
+(studio-build behavior, incl. `allowpopups` back on the webview).
+
+**Client — launch time**: on nearly every cold launch OWUI booted **TWICE** — the boot started
+the sidecar with model/searxng/tts/extract = null (beacon not yet received), then the first
+beacon differed → repoint → full second boot. Two changes: the farm context persists in settings
+alongside `lastEndpoint` and seeds the boot; and `chooseActive` now stays with last session's
+farm at cold boot while it's healthy (on a multi-farm LAN the load-scatter re-roll used to pick a
+different box → guaranteed repoint; spreading still applies to first connects and failover).
+**Verified in dev**: run 1 = spawn → repoint → spawn (the old pathology, then it persists
+context); run 2 = **exactly one spawn, zero repoints**.
+
+**Client — TTFT** ([configBridge.ts](../shell/src/main/configBridge.ts)): OWUI runs extra LLM
+calls against the same farm endpoint, and llama-server has ONE slot (`parallel=1`) — any of them
+in flight queues the user's completion. In the pinned 0.10.2, follow-up-question and tag
+generation are default-ON and fire after EVERY response, exactly when the user types their next
+message → `ENABLE_FOLLOW_UP_GENERATION=false`, `ENABLE_TAGS_GENERATION=false`, and
+`ENABLE_AUTOCOMPLETE_GENERATION` pinned false (already 0.10.2's default; a pin bump must not
+silently re-enable per-keystroke completions). Title generation stays on (once per chat, names
+the sidebar). Env names verified in the installed sidecar's `config.py`.
+
+**Harness** ([shell/test/e2e.js](../shell/test/e2e.js)): updated for the OWUI build — clicks the
+toggle to reach LOL Chat, and the client is pinned to the mock via `LOL_ENDPOINT` (the new
+cold-boot stickiness beats even a coordinator mock, by design). Green: farm discovered, models
+fetched, `assistant` preselected, 1000 tokens at 287.7 tok/s. Farm suite 64 pass; both tscs clean.
+
+---
+
 ## 2026-08-25 b — farm-v0.0.15 "does not start": first-boot bootstrap vs a 3-minute health timeout
 
 Owner report, both on a 4070 box and on the dev box: the updated Farm app "does not start".
