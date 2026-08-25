@@ -151,6 +151,7 @@ test('per-model alias serves role names; wins over the global alias', () => {
 
 test('multi-alias flows into litellm model_names and the snapshot', () => {
     const c = defaultConfig();
+    c.llamacpp.enabled = false;   // this test pins the Ollama alias path
     c.models = [
         { id: 'gemma4:12b', default: true, alias: 'assistant' },
         { id: 'qwen2.5-coder:14b', alias: 'coder' },
@@ -216,6 +217,7 @@ const { buildSnapshot } = require('../src/snapshot');
 
 test('snapshot carries the discovery contract', () => {
     const c = defaultConfig();
+    c.llamacpp.enabled = false;   // Ollama-only path; llamacpp advertising has its own test
     const s = buildSnapshot(c, { proxyUp: true, hostsUp: 1, hostsTotal: 1 });
     assert.equal(s.v, 1);
     assert.ok(s.id && s.id.length >= 8);
@@ -295,6 +297,7 @@ test('snapshot host/usage default to null/empty when absent', () => {
 
 test('alias mode: snapshot advertises the alias id, stable across model swaps', () => {
     const c = defaultConfig();
+    c.llamacpp.enabled = false;   // this test pins the Ollama alias path
     c.modelAlias = 'assistant';
     c.models = [{ id: 'qwen3.6:35b', default: true }];
     assert.deepEqual(buildSnapshot(c, { proxyUp: true, hostsUp: 1 }).models, [{ id: 'assistant', underlying: 'qwen3.6:35b', default: true }]);
@@ -302,6 +305,21 @@ test('alias mode: snapshot advertises the alias id, stable across model swaps', 
     // don't break), but `underlying` reflects the real model now running.
     c.models = [{ id: 'gemma4:12b', default: true }];
     assert.deepEqual(buildSnapshot(c, { proxyUp: true, hostsUp: 1 }).models, [{ id: 'assistant', underlying: 'gemma4:12b', default: true }]);
+});
+
+test('llamacpp backend: snapshot advertises its alias as the DEFAULT model', () => {
+    const c = defaultConfig();   // llamacpp.enabled defaults true in this build
+    const s = buildSnapshot(c, { proxyUp: true, hostsUp: 1 });
+    // The llama.cpp deployment owns its alias in the LiteLLM routing, so the
+    // advertisement must match — above all `default`, which is what clients
+    // auto-select. A gemma4-default here would steer every client onto Ollama
+    // while llama-server holds the VRAM (overcommit → paging → crawl).
+    assert.equal(s.models[0].id, 'assistant');
+    assert.equal(s.models[0].default, true, 'clients must auto-select the llama.cpp path');
+    assert.equal(s.models[0].underlying, 'Qwen3.8-27B-UD-Q2_K_XL', 'gguf basename as underlying');
+    const gemma = s.models.find((m) => m.id === 'gemma4:12b');
+    assert.ok(gemma, 'Ollama models stay selectable');
+    assert.equal(gemma.default, false, '… but never default while llamacpp owns the alias');
 });
 
 test('snapshot carries coordinator + deployments (default off)', () => {

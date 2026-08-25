@@ -14,6 +14,22 @@ const { farmId } = require('./identity');
 
 const PKG_VERSION = require('../package.json').version;
 
+// The llama.cpp backend's advertised entry, or null when disabled. `underlying`
+// is the GGUF's basename so client cards can show the real weights even though
+// every box shares an alias like "assistant".
+function llamacppServedModel(config) {
+    const lc = config.llamacpp || {};
+    if (!lc.enabled) return null;
+    let underlying = 'llama.cpp';
+    if (lc.model) {
+        try {
+            underlying = decodeURIComponent(new URL(lc.model).pathname.split('/').pop() || '')
+                .replace(/\.gguf$/i, '') || 'llama.cpp';
+        } catch { /* not a URL — keep the generic label */ }
+    }
+    return { id: lc.alias, underlying, default: true };
+}
+
 // `health` is { proxyUp, hostsUp, hostsTotal, loaded } as gathered by status/up.
 function buildSnapshot(config, health = {}) {
     const ips = lanAddresses();
@@ -28,7 +44,19 @@ function buildSnapshot(config, health = {}) {
     // `id` is the SERVED name (alias in alias mode); `underlying` is the real Ollama
     // model behind it, so the client can show "what model actually runs on this box"
     // even when every box shares one alias like "assistant".
-    const models = servedEntries(config).map((e) => ({ id: e.servedName, underlying: e.underlying, default: e.isDefault }));
+    //
+    // When the llama.cpp backend is enabled it OWNS its alias in the generated
+    // LiteLLM routing (buildLitellmConfig), so it must own it here too — above all
+    // `default`, which is what OWUI's DEFAULT_MODELS and LOL Chat's picker
+    // auto-select. Advertising an Ollama model as default while llama-server holds
+    // ~10.6 GB of a 12 GB card sends every client to a second model that cannot fit
+    // — VRAM overcommit, WDDM paging, tokens crawl. Ollama models stay selectable,
+    // but never default while llamacpp is on.
+    const lcModel = llamacppServedModel(config);
+    const models = servedEntries(config)
+        .filter((e) => !(lcModel && e.servedName === lcModel.id))
+        .map((e) => ({ id: e.servedName, underlying: e.underlying, default: lcModel ? false : e.isDefault }));
+    if (lcModel) models.unshift(lcModel);
     return {
         v: 1,
         id: farmId(),
