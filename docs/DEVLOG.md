@@ -6,6 +6,42 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-08-25 b — farm-v0.0.15 "does not start": first-boot bootstrap vs a 3-minute health timeout
+
+Owner report, both on a 4070 box and on the dev box: the updated Farm app "does not start".
+
+**What was actually happening** (read live off the dev box while it was "broken"): the update had
+refreshed the farm code, `lol up` was running fine, and it was **~15 minutes into downloading the
+llama.cpp backend** — the pinned build + CUDA runtime (~0.5 GB) and the UD-Q2_K_XL weights
+(~10.6 GB at ~13 MB/s) — which all has to land before the proxy can exist. Meanwhile
+[farmSupervisor.ts](../farm-app/src/main/farmSupervisor.ts) gave `/lol/self` a fixed **180 s** to
+answer, declared "The farm did not become healthy in time", and the overlay showed Error while the
+child kept downloading behind it. Worse, the overlay's "Start the farm" button calls `start()`,
+which **kills the child and restarts the whole download from zero** (the downloader is atomic but
+has no resume). So the failure was pure UX: a silent multi-GB bootstrap presented as a dead farm.
+
+Three changes:
+
+1. **Supervisor health-wait is now ACTIVITY-aware** — keep waiting as long as the child produces
+   output (downloads print per-percent lines); fail only after 5 *silent* minutes, or a 2 h hard
+   cap. A genuinely wedged farm still errors; a busy one no longer does.
+2. **Bootstrap progress reaches the overlay** — the supervisor parses the child's
+   `[llama.cpp] <what> <pct>%` lines (ANSI/`\r` stripped) into `state.message`, and the renderer
+   shows it while starting: "First start: fetching model weights — 43%" instead of a bare
+   "Starting the farm…".
+3. **`lol install` pre-fetches the llama.cpp backend** ([install.js](../farm/src/commands/install.js),
+   mirroring the SearXNG/OCR pre-install pattern, idempotent + non-fatal) — so on a FRESH install
+   the wizard's deps phase absorbs the download instead of the first `lol up`.
+
+**Verified**: farm suite 64 pass; farm-app tsc clean. The dev box's stuck-looking install was left
+untouched and completed on its own once the download finished — confirming the farm itself was
+never broken (see the live health check in this entry's release). Driver note for the fleet: the
+pinned llama.cpp build is `cuda-13.3` — boxes need an NVIDIA driver new enough for the CUDA 13.x
+runtime (the dev box's 596.36 is fine; check `nvidia-smi` on the 4070 boxes if llama-server fails
+to init CUDA after the download).
+
+---
+
 ## 2026-08-25 — v0.1.29 "unreachable": CSP blocked LOL Chat entirely + the farm advertised the wrong default
 
 Owner report on the studio fleet: the v0.1.29 client shows the model dropdown as **"unreachable"**

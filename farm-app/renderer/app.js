@@ -164,9 +164,12 @@ function renderFarmState(s) {
         wv.classList.add('hidden');
         overlay.classList.remove('hidden');
         $('.spinner').style.display = (s.status === 'starting' || s.status === 'restarting') ? '' : 'none';
+        // While starting, prefer the supervisor's live message — the first boot
+        // after an install/update downloads multi-GB weights, and the supervisor
+        // streams "First start: fetching model weights — 43%" through `message`.
         const msg = s.status === 'stopped' ? 'The farm is stopped.'
             : s.status === 'error' ? (s.message || 'The farm hit an error.')
-            : 'Starting the farm…';
+            : (s.message || 'Starting the farm…');
         $('#overlay-msg').textContent = msg;
         const action = $('#btn-overlay-action');
         if (s.status === 'stopped' || s.status === 'error') {

@@ -269,6 +269,41 @@ async function pullModels(config) {
     }
 }
 
+// --- 4b. llama.cpp backend ---------------------------------------------------
+
+// Pre-fetch the llama.cpp backend when enabled (the default in this build): the
+// pinned llama-server build + CUDA runtime (~0.5 GB) and the model weights
+// (~10.6 GB). Without this, the FIRST `lol up` sits inside a multi-GB download
+// before the proxy can exist — from the desktop app that read as "the farm does
+// not start". Idempotent + non-fatal, like web search: `lol up` retries anything
+// still missing.
+async function ensureLlamacppBackend(config) {
+    if (!config.llamacpp || !config.llamacpp.enabled) {
+        log.info('Disabled (set llamacpp.enabled:true to serve via llama-server).');
+        return;
+    }
+    const llamacpp = require('../llamacpp');
+    try {
+        if (!config.llamacpp.binDir) {
+            const got = await llamacpp.ensureLlamacpp((what, pct) => {
+                process.stdout.write(`\r${log.paint.grey('[llama.cpp]')} ${what} ${pct}%   `);
+            });
+            process.stdout.write('\n');
+            if (!got.ok) { log.warn(`llama.cpp not set up — ${got.message}`); return; }
+            log.ok(`llama.cpp ${llamacpp.PINNED_BUILD} ${got.cached ? 'already installed' : 'installed'}.`);
+        }
+        const mdl = await llamacpp.ensureModel(config, (what, pct) => {
+            process.stdout.write(`\r${log.paint.grey('[llama.cpp]')} ${what} ${pct}%   `);
+        });
+        process.stdout.write('\n');
+        if (!mdl.ok) { log.warn(`Model weights not fetched — ${mdl.message} \`lol up\` will retry.`); return; }
+        log.ok(`Weights ${mdl.cached ? 'already cached' : 'downloaded'} ${log.paint.grey(mdl.modelPath)}`);
+    } catch (e) {
+        process.stdout.write('\n');
+        log.warn(`llama.cpp setup skipped — ${e.message}. \`lol up\` will retry.`);
+    }
+}
+
 // --- 5. web search (SearXNG) ------------------------------------------------
 
 // Pre-install the shared SearXNG metasearch when enabled (the default) so the
@@ -333,6 +368,10 @@ async function run() {
     log.plain('');
     log.info('Models …');
     await pullModels(config);
+
+    log.plain('');
+    log.info('llama.cpp backend …');
+    await ensureLlamacppBackend(config);
 
     log.plain('');
     log.info('Web search …');

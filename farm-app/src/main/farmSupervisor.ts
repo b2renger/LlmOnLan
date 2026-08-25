@@ -30,6 +30,8 @@ export class FarmSupervisor extends EventEmitter {
     private gen = 0;
     private crashRestarts = 0;
     private state: FarmState = { status: 'idle', adminUrl: null, selfUrl: null, lanUrls: [] };
+    // Last time the child produced ANY output — the health-wait's liveness signal.
+    private lastActivity = 0;
 
     getState(): FarmState { return this.state; }
 
@@ -77,15 +79,25 @@ export class FarmSupervisor extends EventEmitter {
             stdio: ['ignore', 'pipe', 'pipe'],
         });
         this.child = child;
+        this.lastActivity = Date.now();
         child.stdout?.on('data', (d) => this.logChild(d));
         child.stderr?.on('data', (d) => this.logChild(d));
         child.on('error', (e) => this.setState({ status: 'error', message: `Failed to launch the farm: ${e.message}` }));
         child.on('exit', (code) => this.onChildExit(child, code));
 
         // Health-wait: /lol/self answers once the proxy is healthy + the discovery
-        // server is up (near the end of `lol up`). First run also warms the model, so
-        // allow generous time.
-        const healthy = await waitForHttp(this.selfUrl(), { timeoutMs: 180000, intervalMs: 1200 });
+        // server is up (near the end of `lol up`).
+        //
+        // ACTIVITY-aware, not a fixed timeout: the first `lol up` after an install or
+        // update can legitimately run for tens of minutes — with the llama.cpp backend
+        // it downloads the pinned build + CUDA runtime (~0.5 GB) and the model weights
+        // (~10.6 GB) before the proxy can exist. The old fixed 3-minute wait branded
+        // exactly that bootstrap "did not become healthy" while the child kept
+        // downloading behind the error screen — and the overlay's "Start the farm"
+        // button would then kill it and restart the download from zero. So: keep
+        // waiting as long as the child keeps producing output (downloads print
+        // per-percent progress); fail only after 5 SILENT minutes, or a 2 h hard cap.
+        const healthy = await this.waitHealthy(myGen);
         if (myGen !== this.gen) return; // superseded by a newer start()/stop()
         if (healthy) {
             this.crashRestarts = 0;
@@ -95,8 +107,19 @@ export class FarmSupervisor extends EventEmitter {
             this.setState({ status: 'ready', adminUrl: this.adminUrl(), selfUrl: this.selfUrl(), lanUrls, message: undefined });
             console.log(`[farm] ready — admin ${this.adminUrl()} · LAN ${lanUrls.join('  ') || '(no LAN address)'}`);
         } else {
-            this.setState({ status: 'error', message: 'The farm did not become healthy in time. See the log.' });
+            this.setState({ status: 'error', message: 'The farm did not become healthy — no progress for 5 minutes. See the log.' });
         }
+    }
+
+    private async waitHealthy(myGen: number): Promise<boolean> {
+        const INACTIVITY_MS = 5 * 60 * 1000;
+        const deadline = Date.now() + 2 * 60 * 60 * 1000;
+        while (Date.now() < deadline) {
+            if (myGen !== this.gen) return false;
+            if (await waitForHttp(this.selfUrl(), { timeoutMs: 1200, intervalMs: 1200 })) return true;
+            if (Date.now() - this.lastActivity > INACTIVITY_MS) return false;
+        }
+        return false;
     }
 
     async stop(opts: { keepState?: boolean } = {}): Promise<void> {
@@ -133,7 +156,21 @@ export class FarmSupervisor extends EventEmitter {
     }
 
     private logChild(d: Buffer): void {
+        this.lastActivity = Date.now();
         const text = d.toString();
         for (const line of text.split(/\r?\n/)) if (line.trim()) console.log(`[lol] ${line}`);
+        // Surface bootstrap progress on the overlay while starting: `lol up` prints
+        // `[llama.cpp] <what> <pct>%` (\r-updated, ANSI-colored) while it fetches the
+        // backend + weights — without this the user stares at a bare "Starting…" for
+        // a multi-GB download and reasonably concludes the farm is dead.
+        if (this.state.status !== 'starting' && this.state.status !== 'restarting') return;
+        const plain = text.replace(/\x1b\[[0-9;]*m/g, '');
+        const matches = [...plain.matchAll(/\[llama\.cpp\]\s*([^\r\n%]*?)\s*(\d{1,3})%/g)];
+        const last = matches[matches.length - 1];
+        if (last) {
+            const what = last[1].trim() === 'model' ? 'model weights' : last[1].trim();
+            const msg = `First start: fetching ${what} — ${last[2]}%`;
+            if (msg !== this.state.message) this.setState({ message: msg });
+        }
     }
 }
