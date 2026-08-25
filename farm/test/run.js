@@ -316,7 +316,7 @@ test('llamacpp backend: snapshot advertises its alias as the DEFAULT model', () 
     // while llama-server holds the VRAM (overcommit → paging → crawl).
     assert.equal(s.models[0].id, 'assistant');
     assert.equal(s.models[0].default, true, 'clients must auto-select the llama.cpp path');
-    assert.equal(s.models[0].underlying, 'Qwen3.8-27B-UD-Q2_K_XL', 'gguf basename as underlying');
+    assert.equal(s.models[0].underlying, 'Qwen3.8-27B-UD-IQ2_S', 'gguf basename as underlying');
     const gemma = s.models.find((m) => m.id === 'gemma4:12b');
     assert.ok(gemma, 'Ollama models stay selectable');
     assert.equal(gemma.default, false, '… but never default while llamacpp owns the alias');
@@ -722,16 +722,19 @@ test('enabling llamacpp REPLACES the ollama deployment for its alias', () => {
 });
 
 test('llama-server argv carries the measured recipe', () => {
-    // These flags are the whole reason this backend exists: quantized KV is what
-    // makes an MTP-capable quant fit in 12 GB, and draft-mtp is the speculative
-    // decoding Ollama cannot give us there.
     const c = defaultConfig();
     const a = llamacpp.argsFor(c, 'M.gguf', 'P.gguf').join(' ');
-    assert.match(a, /--spec-type draft-mtp/);
+    // Default quant is UD-IQ2_S, whose MTP head Unsloth STRIPS — draft-mtp on it
+    // makes llama-server exit ("model doesn't contain MTP layers"), so the default
+    // argv must NOT carry it.
+    assert.ok(!a.includes('draft-mtp'), 'mtp stays off for a stripped-head quant');
     assert.match(a, /--cache-type-k q4_0 --cache-type-v q4_0/);
     assert.match(a, /-fa 1/);
     assert.match(a, /--n-gpu-layers 999/);
     assert.match(a, /--mmproj P\.gguf/);
+    // MTP stays available as an opt-in for UD-Q2_K_XL-and-above quants.
+    c.llamacpp.mtp = true;
+    assert.match(llamacpp.argsFor(c, 'M.gguf', null).join(' '), /--spec-type draft-mtp/);
 });
 
 test('llamacpp knobs can be turned off individually', () => {

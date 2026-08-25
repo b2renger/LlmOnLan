@@ -136,8 +136,15 @@ const LlamacppSchema = z.object({
     // https URL of the .gguf to serve. MUST be a quant that still carries its MTP head
     // (UD-Q2_K_XL and above) if `mtp` is on — llama-server refuses to start otherwise,
     // with "model doesn't contain MTP layers".
+    //
+    // UD-IQ2_S (7.8 GB): the owner's pick (2026-08-25) after A/B-ing against Unsloth
+    // Studio running this exact quant. On the graded quality suite it scored 91% —
+    // statistically tied with UD-Q2_K_XL — and at 7.8 GB it sits fully resident on a
+    // 12 GB card with real headroom (~9 GB with q4_0 KV @16k), where Q2_K_XL's
+    // ~10.6 GB left none for the desktop. The trade: Unsloth strips the MTP head
+    // below UD-Q2_K_XL, so `mtp` MUST stay false with this quant (see below).
     model: z.string().url().nullable().default(
-        'https://huggingface.co/unsloth/Qwen3.8-27B-GGUF/resolve/main/Qwen3.8-27B-UD-Q2_K_XL.gguf'
+        'https://huggingface.co/unsloth/Qwen3.8-27B-GGUF/resolve/main/Qwen3.8-27B-UD-IQ2_S.gguf'
     ),
     // Vision projector. Qwen3.8 is multimodal; without this it is text-only.
     mmproj: z.string().url().nullable().default(
@@ -147,9 +154,14 @@ const LlamacppSchema = z.object({
     ngl: z.number().int().default(999),          // offload everything; partial = the cliff
     parallel: z.number().int().positive().default(1),
     flashAttention: z.boolean().default(true),   // required for KV quantization
-    // q4_0 KV is what makes an MTP-capable quant fit in 12 GB. 'f16' disables it.
+    // q4_0 KV keeps the cache small (and is what an MTP-capable quant needs to fit
+    // in 12 GB). 'f16' disables it.
     kvCacheType: z.enum(['q4_0', 'q8_0', 'f16']).default('q4_0'),
-    mtp: z.boolean().default(true),              // --spec-type draft-mtp
+    // OFF by default: the default UD-IQ2_S quant has its MTP head STRIPPED (Unsloth
+    // strips everything under UD-Q2_K_XL), and llama-server exits with "model
+    // doesn't contain MTP layers" when asked for draft-mtp on such a quant. Opt-in
+    // only alongside a UD-Q2_K_XL-or-above `model`.
+    mtp: z.boolean().default(false),             // --spec-type draft-mtp
     draftNMax: z.number().int().positive().default(2),
     // Point at an existing llama.cpp install instead of the bootstrapped one. Required
     // on platforms with no prebuilt asset (anything but win-x64 today).

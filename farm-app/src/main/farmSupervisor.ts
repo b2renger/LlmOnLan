@@ -159,18 +159,27 @@ export class FarmSupervisor extends EventEmitter {
         this.lastActivity = Date.now();
         const text = d.toString();
         for (const line of text.split(/\r?\n/)) if (line.trim()) console.log(`[lol] ${line}`);
-        // Surface bootstrap progress on the overlay while starting: `lol up` prints
-        // `[llama.cpp] <what> <pct>%` (\r-updated, ANSI-colored) while it fetches the
-        // backend + weights — without this the user stares at a bare "Starting…" for
-        // a multi-GB download and reasonably concludes the farm is dead.
+        // Surface what `lol up` is doing on the overlay while starting, so the user
+        // can tell a working bootstrap from a hang:
+        //   • download-progress lines — "[llama.cpp] model 43%", "[gemma4:12b]
+        //     pulling … 45%", "[…] draft module 12%" (\r-updated; ANSI is stripped,
+        //     though the pipe already disables color) — win when present;
+        //   • otherwise the farm's own step lines — "lol › Starting LiteLLM …".
+        // Without this the overlay says a bare "Starting…" through multi-GB
+        // downloads, which reads as a dead farm.
         if (this.state.status !== 'starting' && this.state.status !== 'restarting') return;
         const plain = text.replace(/\x1b\[[0-9;]*m/g, '');
-        const matches = [...plain.matchAll(/\[llama\.cpp\]\s*([^\r\n%]*?)\s*(\d{1,3})%/g)];
-        const last = matches[matches.length - 1];
-        if (last) {
-            const what = last[1].trim() === 'model' ? 'model weights' : last[1].trim();
-            const msg = `First start: fetching ${what} — ${last[2]}%`;
-            if (msg !== this.state.message) this.setState({ message: msg });
+        let msg: string | null = null;
+        const pcts = [...plain.matchAll(/\[([^\]\r\n]+)\]\s*([^\r\n]*?)\s*(\d{1,3})%/g)];
+        const pct = pcts[pcts.length - 1];
+        if (pct) {
+            const what = pct[2].trim() === 'model' ? 'model weights' : pct[2].trim();
+            msg = `${pct[1]}: ${what || 'downloading'} — ${pct[3]}%`;
+        } else {
+            const steps = [...plain.matchAll(/^lol\s+[›✓!✗]\s+(.+?)\s*$/gmu)];
+            const st = steps[steps.length - 1];
+            if (st) msg = st[1];
         }
+        if (msg && msg !== this.state.message) this.setState({ message: msg });
     }
 }
