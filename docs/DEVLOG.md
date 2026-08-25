@@ -6,6 +6,27 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-08-25 e — new app icons: one beacon mark, client in zinc, farm in emerald
+
+Owner ask: modern/elegant/simple icons, and the client and farm apps must be distinguishable at a
+glance (both shipped a byte-identical icon).
+
+New mark: a **live LAN broadcast** — a center node with two arcs radiating each side, ((•)) — the
+UDP beacon that defines the product, replacing the busier chat-bubble + node-graph. Hand-authored
+SVG (1024 viewBox), soft vertical tile gradient + a faint inner rim, round-capped strokes.
+One geometry, two colorways: **client** = zinc-white mark on the ComfyQ dark tile; **farm** =
+emerald (#4ade80→#059669, the palette's "serving" green) on a subtly green-tinted tile, so the
+two also separate at 16 px where stroke hue alone wouldn't. First beacon-arc draft read as the
+RSS logo (dot + corner arcs) — scrapped for the symmetric form.
+
+Rendered to 1024-px PNGs with sharp (scratch tooling, not a repo dep) and visually checked at 512
+and 48 px. Files: `shell/assets/icon.{svg,png}` (SVG doubles as the topbar logo) and
+`farm-app/assets/icon.{svg,png}` (PNG doubles as the app's welcome/topbar logo); electron-builder
+derives ico/icns from the 1024 PNGs at package time, so the installers and taskbar/dock pick the
+split up on the next release of each app.
+
+---
+
 ## 2026-08-25 d — the advertised model name is the owner's choice (farm-app Settings)
 
 Owner ask: the name users see in the model picker should be a hand-chosen string — not

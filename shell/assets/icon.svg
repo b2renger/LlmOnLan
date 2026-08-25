@@ -1,18 +1,23 @@
-<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <!-- LlmOnLan mark: a chat bubble holding a small LAN node-graph -->
-  <rect width="512" height="512" rx="112" fill="#18181b"/>
-  <rect x="6" y="6" width="500" height="500" rx="106" fill="none" stroke="#27272a" stroke-width="12"/>
-  <!-- chat bubble -->
-  <path d="M150 132 H362 a44 44 0 0 1 44 44 V312 a44 44 0 0 1 -44 44 H236 l-66 56 V356 H150 a44 44 0 0 1 -44 -44 V176 a44 44 0 0 1 44 -44 Z"
-        fill="#1f1f23" stroke="#a1a1aa" stroke-width="14" stroke-linejoin="round"/>
-  <!-- LAN node graph inside the bubble: 3 nodes linked to a hub -->
-  <g stroke="#71717a" stroke-width="12" stroke-linecap="round">
-    <line x1="256" y1="244" x2="180" y2="196"/>
-    <line x1="256" y1="244" x2="332" y2="196"/>
-    <line x1="256" y1="244" x2="256" y2="312"/>
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- LlmOnLan mark: a live LAN broadcast — one node, arcs radiating both ways.
+       Client = zinc/white mark; the farm app ships the same mark in emerald. -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1024" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#26262b"/>
+      <stop offset="1" stop-color="#0b0b0d"/>
+    </linearGradient>
+    <linearGradient id="mark" x1="512" y1="180" x2="512" y2="844" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#fafafa"/>
+      <stop offset="1" stop-color="#c2c2cb"/>
+    </linearGradient>
+  </defs>
+  <rect width="1024" height="1024" rx="230" fill="url(#bg)"/>
+  <rect x="7" y="7" width="1010" height="1010" rx="223" fill="none" stroke="#ffffff" stroke-opacity="0.07" stroke-width="14"/>
+  <g stroke="url(#mark)" stroke-width="74" stroke-linecap="round" fill="none">
+    <path d="M 646 378 A 190 190 0 0 1 646 646"/>
+    <path d="M 378 378 A 190 190 0 0 0 378 646"/>
+    <path d="M 745 279 A 330 330 0 0 1 745 745"/>
+    <path d="M 279 279 A 330 330 0 0 0 279 745"/>
   </g>
-  <circle cx="256" cy="244" r="26" fill="#e4e4e7"/>
-  <circle cx="180" cy="196" r="20" fill="#a1a1aa"/>
-  <circle cx="332" cy="196" r="20" fill="#a1a1aa"/>
-  <circle cx="256" cy="312" r="20" fill="#10b981"/>
+  <circle cx="512" cy="512" r="78" fill="url(#mark)"/>
 </svg>
