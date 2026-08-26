@@ -1,0 +1,99 @@
+# Build llama-server for linux-arm64 + CUDA (the DGX Spark: GB10, sm_121) and
+# publish it on this repo's releases under the tag `llamacpp-<build>`.
+#
+# Why this exists: ggml-org ships no linux-arm64 CUDA prebuilt, and the Spark must
+# work OUT OF THE BOX — no compiler, no Docker, nothing to build on the machine.
+# The farm's assetsFor() (farm/src/llamacpp.js) downloads exactly the tarball this
+# workflow produces; if the tarball is absent or broken, `lol up` falls back to the
+# Ollama engine with the reason in the panel, so a failed build here degrades, it
+# never breaks a farm.
+#
+# The tarball is SELF-CONTAINED: llama-server (static ggml/llama) + the CUDA
+# runtime .so it links (cudart/cublas/cublasLt), RPATH set to $ORIGIN — the box
+# needs only the NVIDIA driver, which DGX OS ships.
+#
+# The build number must match farm/src/llamacpp.js PINNED_BUILD. Bumping the pin =
+# edit both, run this workflow, then release the farm.
+
+name: build-llamacpp-arm64
+
+on:
+  workflow_dispatch:
+  push:
+    paths: ['.github/workflows/build-llamacpp-arm64.yml']
+    branches: [main]
+
+env:
+  LLAMACPP_BUILD: b10516        # keep in lockstep with farm/src/llamacpp.js PINNED_BUILD
+  CUDA_ARCHS: "121"             # GB10 (DGX Spark) is sm_121; single arch keeps the build ~fast
+
+permissions:
+  contents: write               # gh release create/upload
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04-arm   # GitHub's free arm64 runners (public repos)
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install CUDA toolchain (sbsa) + build deps
+        run: |
+          set -e
+          df -h /
+          wget -q https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/sbsa/cuda-keyring_1.1-1_all.deb
+          sudo dpkg -i cuda-keyring_1.1-1_all.deb
+          sudo apt-get update -qq
+          # Minimal CUDA pieces, not the full ~9 GB toolkit: compiler, cudart,
+          # cublas (ggml links it), driver stubs (ggml's VMM pool links libcuda).
+          sudo apt-get install -y -qq cmake build-essential patchelf \
+            cuda-compiler-13-0 cuda-cudart-dev-13-0 libcublas-dev-13-0 \
+            cuda-driver-dev-13-0 cuda-profiler-api-13-0
+          echo "/usr/local/cuda/bin" >> "$GITHUB_PATH"
+          df -h /
+
+      - name: Fetch llama.cpp at the pinned build
+        run: git clone --depth 1 --branch "$LLAMACPP_BUILD" https://github.com/ggml-org/llama.cpp
+
+      - name: Build llama-server (CUDA, sm_${{ env.CUDA_ARCHS }})
+        run: |
+          set -e
+          cd llama.cpp
+          cmake -B build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DGGML_CUDA=ON \
+            -DCMAKE_CUDA_ARCHITECTURES="$CUDA_ARCHS" \
+            -DBUILD_SHARED_LIBS=OFF \
+            -DGGML_NATIVE=OFF \
+            -DLLAMA_CURL=OFF
+          cmake --build build --target llama-server -j "$(nproc)"
+
+      - name: Package (self-contained, RPATH $ORIGIN)
+        run: |
+          set -e
+          mkdir -p pkg
+          cp llama.cpp/build/bin/llama-server pkg/
+          CUDA_LIB=/usr/local/cuda/targets/sbsa-linux/lib
+          cp -a "$CUDA_LIB"/libcudart.so*   pkg/ || true
+          cp -a "$CUDA_LIB"/libcublas.so*   pkg/
+          cp -a "$CUDA_LIB"/libcublasLt.so* pkg/
+          patchelf --set-rpath '$ORIGIN' pkg/llama-server
+          # Every linked lib must resolve from the package alone (libcuda comes from
+          # the box's driver — expected unresolved on a GPU-less runner, so allow it).
+          cd pkg && ldd ./llama-server | tee /tmp/ldd.txt
+          if grep 'not found' /tmp/ldd.txt | grep -v libcuda.so; then
+            echo '::error::unresolved libraries in the package'; exit 1
+          fi
+          cd .. && tar czf "llama-${LLAMACPP_BUILD}-bin-linux-cuda-arm64.tar.gz" -C pkg .
+          ls -lh llama-*.tar.gz
+
+      - name: Publish to the llamacpp-${{ env.LLAMACPP_BUILD }} release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          TAG="llamacpp-$LLAMACPP_BUILD"
+          gh release view "$TAG" >/dev/null 2>&1 || \
+            gh release create "$TAG" --title "llama.cpp $LLAMACPP_BUILD binaries" \
+              --notes "Farm-consumed llama.cpp builds for platforms ggml-org does not ship. Produced by build-llamacpp-arm64.yml; downloaded automatically by the farm's llama.cpp bootstrap."
+          gh release upload "$TAG" "llama-${LLAMACPP_BUILD}-bin-linux-cuda-arm64.tar.gz" --clobber
