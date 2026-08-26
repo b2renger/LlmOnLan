@@ -1,7 +1,7 @@
 // E2E for the no-OWUI shell: drives the REAL app over CDP against test/mock-farm.js.
 // Verifies the whole chain a user hits: UDP discovery → overlay clears → model list
 // fetched from the farm (the renderer CSP must allow LAN connect) → the farm's
-// advertised default preselected → a chat streams to completion at 250+ tok/s with
+// advertised default preselected → a chat streams to completion above the >150 tok/s
 // the stats line rendered.
 //
 // Flow (from shell/):

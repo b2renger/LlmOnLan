@@ -1,9 +1,9 @@
 # LlmOnLan Farm — the self-installing farm app
 
 A downloadable desktop app that turns a GPU box into a running LlmOnLan farm with
-**zero terminal and zero prerequisites**. It installs its own Ollama + Python, pulls
-**gemma4:12b**, runs the [`lol`](../farm/) farm as a managed process, and gives the
-operator the existing **admin panel** as its window.
+**zero terminal and zero prerequisites**. It installs its own Ollama + Python, fetches
+the inference backend and the model weights, runs the [`lol`](../farm/) farm as a
+managed process, and gives the operator the existing **admin panel** as its window.
 
 It's the operator-facing sibling of the client [`shell/`](../shell/): same Electron /
 electron-builder packaging recipe, but its process supervisor points at `lol up`
@@ -18,13 +18,25 @@ A setup wizard runs once (needs internet), with a phase checklist + progress + a
 |---|---|---|
 | **Runtime** | Downloads a relocatable standalone **CPython** ([python-build-standalone](https://github.com/astral-sh/python-build-standalone)) + the **Ollama** binary for this OS/arch. | `userData/farm-runtime/{python,ollama}` |
 | **Farm code** | Copies the bundled farm CLI to a **writable** location + writes `lol.config.json` (gemma4:12b default, a pinned admin token). | `userData/farm/` |
-| **Model** | `ollama pull gemma4:12b` (~8 GB) with a real % bar (an app-owned Ollama). | Ollama's model store |
-| **Services** | `lol install` builds the LiteLLM / SearXNG / OCR venvs (it reuses the pulled model + the bundled Python via `$LOL_PYTHON`). | `userData/farm/.venv` · `.searxng` · `.extract` |
+| **Model** | `ollama pull gemma4:12b` (~8 GB) with a real % bar (an app-owned Ollama) — the catalog + OCR vision model. | Ollama's model store |
+| **Services** | `lol install` builds the LiteLLM / SearXNG / OCR venvs **and pre-fetches the llama.cpp backend**: the pinned `llama-server` + CUDA runtime, plus the `.gguf` weights of the model everyone chats with (~8.7 GB). | `userData/farm/.venv` · `.searxng` · `.extract` · `.llamacpp` · `.models` |
+| **Staged model** | The same step also pulls the `preinstall` model + its draft module (~8.6 GB) — kept ready for the admin panel to start on demand, never served automatically. | Ollama's model store · `.models` |
 | **Launch** | Starts `lol up`, health-waits `http://127.0.0.1:41997/lol/self`. | — |
 
 Every phase is **idempotent + resumable** — a Retry after a failure only redoes
 what's missing. On the 2nd+ launch it skips the wizard and goes straight to the
 running screen (and auto-starts the farm).
+
+> **The first run is big: ~28 GB and typically 30–45 minutes**
+> ([breakdown](../docs/GETTING_STARTED.md#first-run-download-both-routes)). The start screen narrates
+> what `lol up` is doing — step lines ("Starting LiteLLM …") and live download
+> progress ("First start: fetching model weights — 43%") — so a working bootstrap is
+> distinguishable from a hang. The supervisor waits as long as the farm keeps making
+> progress and only errors after **5 silent minutes**. **Don't press "Start the farm"
+> while a download is running** — that kills it and restarts the download from zero.
+>
+> An app **update** that changes the served checkpoint re-downloads the new weights on
+> the next boot, with the same progress line.
 
 ## Steady state
 
@@ -32,7 +44,43 @@ The window IS the farm's admin panel — `http://127.0.0.1:41997/lol/admin` in a
 `<webview>`, with the admin token auto-seeded into `localStorage` (via a webview
 preload reading it from the URL hash) so it unlocks with no prompt. Thin app chrome
 adds: a **status dot**, **Start/Stop**, a **privacy line** (private vs. the shared
-LAN endpoint), and **Settings** (share compute, theme, launch-at-login, update check).
+LAN endpoint), and **Settings** (model name, share compute, context window, theme,
+launch-at-login, update check, and **Open data & logs folder**).
+
+## Settings ▸ Model name — what users see in the picker
+
+The model id clients receive *is* the name their picker shows (over an OpenAI-style
+connection there's no separate display-name channel), so this field renames the served
+alias. Type e.g. `Studio Assistant` → **Apply**; the farm restarts and every client
+picks the new name up within seconds. Empty restores the default (`assistant`).
+
+It writes `llamacpp.alias` in `lol.config.json` — or the global `modelAlias` if the
+llama.cpp backend is off — so the same name survives a backend switch, and it is
+re-applied on every boot. The real checkpoint stays visible to clients as the beacon's
+`underlying` field: only the label is friendly, not the truth.
+
+> **Caveat:** it changes the model **id**, so chats a user started under the old name
+> will ask them to re-select the model. New chats are unaffected. Pick the name once,
+> early.
+
+> **Settings ▸ Context window is Ollama-side.** It writes `ollama.contextLength`, which
+> sizes the Ollama models — it does **not** resize `llama-server`, whose window is
+> `llamacpp.contextLength` (edit `userData/farm/lol.config.json` and restart). Same
+> caveat as the admin panel's context control — see
+> [`farm/README.md`](../farm/README.md#live-from-the-admin-panel).
+
+## Serving more than one person at a time
+
+The farm answers **one request at a time** out of the box (`llamacpp.parallel: 1`), so a second
+person's question waits for the first answer. **There is no setting for this in the app yet.** To
+change it: **Settings ▸ Open data & logs folder** → open `farm/lol.config.json` → in the `llamacpp`
+block set e.g. `"parallel": 4, "contextLength": 65536` (raise both — llama.cpp splits the window
+across slots) → **Stop** then **Start** the farm. Sizing table + VRAM budget:
+[`farm/README.md`](../farm/README.md#multiple-users--capacity).
+
+> Also note **Settings ▸ Context window defaults to 64k**, which applies to the *Ollama* models
+> (including the OCR vision model). On a 12 GB card that is measured to spill to CPU — lower it to
+> 16k–32k there.
 
 ## Private by default (share compute is opt-in)
 
@@ -59,7 +107,8 @@ users get the same control by editing `lol.config.json`.
   chosen deterministically (a stray system `py -3.12` can't win the venv builds).
 - The bundled Ollama dir is prepended to `PATH`, so `lol install`'s `onPath('ollama')`
   check finds it and skips winget/brew/curl, and `lol up` spawns *that* Ollama (with
-  the right concurrency + 16k context env).
+  the right concurrency + context env — the app writes `ollama.contextLength` from its
+  own Settings, default 64k).
 
 The farm code writes its venvs + runtime state **inside its own dir**, so it's copied
 to `userData/farm` (writable) rather than run from the read-only app resources.

@@ -215,7 +215,7 @@ export function buildSidecarEnv(input: SidecarEnvInput): Record<string, string> 
     // TOOL_SERVER_CONNECTIONS is a PersistentConfig and OWUI does not reliably surface
     // env-configured tool servers (upstream issue #18140 — env is "not a supported
     // method"). Instead the renderer registers the tool server through OWUI's own
-    // supported API (POST /api/v1/configs/tool_servers) from the authed webview, the
+    // supported user-settings API (POST /api/v1/users/user/settings/update) from the authed webview, the
     // same way seedWebSearchDefault() sets the web-search default — see app.js.
 
     return env;

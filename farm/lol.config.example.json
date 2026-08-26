@@ -12,14 +12,31 @@
     "host": "0.0.0.0",
     "masterKey": null
   },
+  "llamacpp": {
+    "enabled": true,
+    "alias": "assistant",
+    "model": "https://huggingface.co/unsloth/Qwen3.8-27B-GGUF/resolve/main/Qwen3.8-27B-UD-IQ2_S.gguf",
+    "mmproj": "https://huggingface.co/unsloth/Qwen3.8-27B-GGUF/resolve/main/mmproj-F16.gguf",
+    "contextLength": 16384,
+    "parallel": 1,
+    "kvCacheType": "q4_0",
+    "flashAttention": true,
+    "ngl": 999,
+    "mtp": false,
+    "port": 8081,
+    "binDir": null,
+    "extraArgs": []
+  },
   "models": [
     { "id": "gemma4:12b", "default": true }
   ],
   "ollama": {
-    "hosts": ["http://127.0.0.1:11434", "http://gpu-2.local:11434"],
+    "hosts": ["http://127.0.0.1:11434"],
     "numParallel": 2,
     "maxLoadedModels": 1,
-    "flashAttention": true
+    "flashAttention": true,
+    "keepAlive": "-1",
+    "contextLength": 16384
   },
   "litellm": {
     "command": "litellm",
@@ -43,5 +60,10 @@
     "pdfEngine": "auto",
     "preprocess": false,
     "docling": false
-  }
+  },
+  "admin": {
+    "token": null
+  },
+  "modelAlias": null,
+  "coordinator": false
 }

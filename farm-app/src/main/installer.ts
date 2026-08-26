@@ -110,7 +110,8 @@ function copyFarm(): void {
 // `share` picks the network posture: private (false) binds the proxy + discovery to
 // 127.0.0.1 and turns the beacon OFF (no other machine can reach/use the farm);
 // shared (true) binds 0.0.0.0 + advertises via the beacon. Everything else is left to
-// the farm's zod defaults (SearXNG/OCR on, TTS off, ports, 16k context).
+// the farm's zod defaults (SearXNG/OCR on, TTS off, ports, the llamacpp backend).
+// NOTE contextLength here is the APP's own default (65536), not the farm's 16384.
 function writeFarmConfig(adminToken: string, share: boolean, contextLength: number): void {
     const config = {
         name: `${require('os').hostname()} Farm`,

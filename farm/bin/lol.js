@@ -15,7 +15,8 @@ ${log.paint.bold('lol')} — the LlmOnLan farm CLI
                           the LiteLLM proxy, start the beacon (foreground).
                           ${log.paint.grey('(prompts to choose an installed model; Enter = default)')}
                           ${log.paint.grey('--model <id[,id]>')}  serve these, no prompt.
-                          ${log.paint.grey('--no-pick')}          skip the prompt, use the config catalog.
+                          ${log.paint.grey('--no-pick')}          skip the prompt, serve the config catalog
+                          (needed after adding a model). Also --yes, -y.
                           ${log.paint.grey('--alias <name>')}      expose ONE fixed model id (e.g.
                           "assistant") so switching models never breaks a chat.
                           ${log.paint.grey('--coordinator')}      aggregate LAN peer farms into one
@@ -24,7 +25,10 @@ ${log.paint.bold('lol')} — the LlmOnLan farm CLI
                           so every client gets web search (installed on first use).
                           ${log.paint.grey('--tts')} | ${log.paint.grey('--no-tts')}  host a shared Kokoro neural TTS so
                           every client gets voice output (installed on first use).
-  ${log.paint.cyan('lol down')}                Stop the proxy + beacon.
+                          ${log.paint.grey('--ocr')} | ${log.paint.grey('--no-ocr')}  host shared document OCR so every
+                          client can read scanned docs (on by default).
+                          ${log.paint.grey('--no-alias')}         ignore the configured model alias.
+  ${log.paint.cyan('lol down')}                Stop the proxy + llama-server + plugins + beacon.
   ${log.paint.cyan('lol status')}              Health of each Ollama host + the proxy + loaded models.
   ${log.paint.cyan('lol fleet')}               Show every farm on the LAN (this box + peers): load,
                           VRAM, loaded models, roles.

@@ -32,6 +32,7 @@ farm/.searxng/
 farm/.kokoro/
 farm/.extract/
 farm/.models/
+farm/.llamacpp/
 lol.config.json
 !farm/lol.config.example.json
 

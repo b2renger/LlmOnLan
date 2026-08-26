@@ -11,6 +11,7 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "test": "node test/e2e.js",
     "watch": "tsc -w -p tsconfig.json",
     "start": "electron .",
     "dev": "npm run build && electron .",

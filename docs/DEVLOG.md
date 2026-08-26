@@ -6,6 +6,65 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-08-25 g — documentation brought back to the code, via a blind fact-checking loop
+
+The docs had drifted a full product generation behind (v0.1.25 / gemma4-on-Ollama era) while the code
+moved to a two-engine farm, an OWUI client with LOL Chat, and an owner-settable model name. Owner ask:
+document **the new backend, multi-user management, and how to add models**, and iterate against an
+agnostic critic until the docs match the codebase.
+
+**Method.** Three rounds of subagent critics with **no context from me** — each read the *code* as
+ground truth and was told the docs are not authoritative. Round 1: two fact-checkers (farm side /
+client side). Round 2: an adversarial checker that **executed** the documented recipes against the real
+modules, plus a usability reviewer reading as three personas. Round 3: a final acceptance audit.
+Scores moved **6/10 → 8/10 → 8.5/10 accuracy**, ending at *"trustworthy to follow unsupervised"*, 5/5
+operator tasks succeeding from the docs alone.
+
+**What the loop caught that a self-review would not have** (each verified in code before fixing):
+
+- **A config example that silently deletes a model.** `farm/README.md` showed `modelAlias: "assistant"`,
+  which collides with `llamacpp.alias`: `litellm.js:88` skips the Ollama deployment and `snapshot.js`
+  drops it, so `gemma4:12b` vanished from routing *and* the beacon with no warning. Round 2 then showed
+  the same silent loss via a **per-model `alias`** — the warning now covers both, with a table.
+- **The documented way to add a model didn't serve it.** `lol models add X` then plain `lol up`:
+  the picker **replaces** the catalog (`up.js:284` + `modelPicker.js:112`), so pressing Enter serves
+  only the default and drops the addition. Docs now say `--no-pick`; the CLI's own hint said the wrong
+  thing too and was fixed at the source (`models.js`).
+- **A "safe shapes" VRAM table that wasn't.** Farm OCR loads `gemma4:12b` (~7.6 GB) onto the same GPU on
+  the first document upload, so on a 12 GB card *no* row also fits it. Now stated with four remedies,
+  in both the farm README and — the round-3 top fix — attached to GETTING_STARTED's capacity table,
+  where it connects to §7's "it got slow and stayed slow" symptom.
+- **Three docs and two code comments named the wrong API.** The Blender tool server registers via
+  `POST /api/v1/users/user/settings/update` (`app.js:378`), never `/api/v1/configs/tool_servers`. And the
+  "one non-env exception" is **two**: the client also silently sets OWUI's web search to *always*.
+- **The Farm app was called "self-updating"** in the root README while `farm-app/src/main/updater.ts` is
+  explicitly manual — the failure mode being farms drifting behind an auto-updating client fleet.
+- **Prerequisites lied.** `farm/README.md` claimed Node was the *only* prerequisite; without Python,
+  `lol install` stops at "Bootstrap incomplete" and there is no proxy.
+- **`farm/.llamacpp/` was not gitignored** — a few hundred MB of CUDA runtime one `git add -A` away.
+- **Download budget was wrong everywhere** (~20 GB). The `preinstall` default (~8.6 GB) applies even to
+  configs that omit the key — verified — so the real figure is **~28 GB**, now one table both routes cite.
+
+**New documentation** (the three asked-for topics): `farm/README.md` gained **Backends** (which engine
+owns which model_name, the quant↔`mtp` rule), **Adding or changing models** (llama.cpp path, Ollama
+path, admin-panel path, and what each *cannot* do), and **Multiple users & capacity** — including the
+empirically verified fact that llama.cpp **splits `--ctx-size` across `--parallel` slots**
+(`--ctx-size 16384 --parallel 2` → `n_ctx_slot = 8192`, read off the pinned binary), a VRAM budget
+table, and the honest framing that "multi-user" here is capacity, not accounts. `GETTING_STARTED` was
+restructured into **two labelled routes** (the Farm app — whose download link existed nowhere — and the
+CLI), and gained a group-capacity callout, an **"If it's slow"** triage section, a **glossary**, and a
+**"farm won't start"** symptom table.
+
+**Also documented honestly rather than hidden:** with the llama.cpp backend on (the default), the admin
+panel's *"Make default"* and both context-window controls (panel and Farm app) do **not** affect the
+model clients actually chat with — they are Ollama-side. Worth fixing in code later; the docs say so now.
+
+**Verified after every round:** 64 farm tests, the example config validates against the real zod schema,
+both TypeScript projects compile, `lol --help` parses, and a link-checker confirms **30/30**
+cross-document anchors resolve.
+
+---
+
 ## 2026-08-25 f — icons v2, forged by a blind-critic loop
 
 Owner ask: iterate the icons against an agnostic critic agent until (1) client vs farm is clear

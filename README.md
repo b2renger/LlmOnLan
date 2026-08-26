@@ -2,8 +2,8 @@
 
 > A desktop client + a LAN inference farm. The client bundles a **pinned, unmodified
 > [Open WebUI](https://github.com/open-webui/open-webui)** and auto‑connects to the farm so
-> anyone on the office Wi‑Fi can chat with a local model (`gemma4:12b`) with **zero setup**.
-> All data stays on the user's machine.
+> anyone on the office Wi‑Fi can chat with a local model with **zero setup** — no URL, no account,
+> no Docker. All data stays on the user's machine.
 
 LlmOnLan is a sibling of [ComfyQ](https://github.com/b2renger/ComfyQ): same visual language,
 same Electron/auto‑update conventions, same dependency‑free UDP discovery. Where ComfyQ schedules
@@ -13,22 +13,28 @@ ComfyUI workflows, LOL gives a workshop a private, local‑first chat assistant.
 > box, install the client app, and connect. The quick starts below are the short version.
 
 ```
-  ┌──────────────── your machine ────────────────┐        ┌──────── LAN ────────┐
-  │  LOL shell (Electron) — ComfyQ-styled chrome  │        │  lol CLI on GPU box │
-  │   topbar · settings · connection screen       │        │   UDP beacon ──┐    │
-  │   ┌─ <webview> ─ Open WebUI (pinned, UNMOD) ─┐ │  chat  │   LiteLLM proxy │   │
-  │   │  all chats / docs / RAG vectors live     │◄├────────┤   ├ Ollama #1    │   │
-  │   │  HERE, in a folder you choose (DATA_DIR) │ │ only   │   └ Ollama #N    │   │
-  │   └──────────────────────────────────────────┘ │        │  (gemma4:12b)   │   │
-  └────────────────────────────────────────────────┘        └─────────────────┘
+  ┌──────────────── your machine ─────────────────┐      ┌─────────── GPU box (LAN) ───────────┐
+  │  LOL shell (Electron) — ComfyQ-styled chrome  │      │  lol farm  ·  UDP beacon ──┐        │
+  │   topbar · settings · connection screen       │      │                            │        │
+  │   ┌─ <webview> ─ Open WebUI (pinned, UNMOD) ─┐│ chat │   LiteLLM proxy (one OpenAI endpoint)│
+  │   │  all chats / docs / RAG vectors live     ││◄─────┤    ├─ llama-server  → the default    │
+  │   │  HERE, in a folder you choose (DATA_DIR) ││ only │    │                  model (alias)  │
+  │   └──────────────────────────────────────────┘│      │    └─ Ollama #1..#N → extra models,  │
+  │   └─ or LOL Chat (topbar toggle, minimal UI) ─┘│      │                       OCR vision    │
+  └───────────────────────────────────────────────┘      └──────────────────────────────────────┘
 ```
+
+**Two inference engines, one endpoint.** `llama-server` serves the single model everyone chats with
+(fastest path on a 12 GB card); Ollama serves the extra catalog + the OCR vision model. LiteLLM fronts
+both, so the client sees one OpenAI‑compatible endpoint and never knows which answered. Details:
+[`farm/README.md` ▸ Backends](farm/README.md#backends--llamacpp-default-and-ollama).
 
 ## The pieces
 
 | Piece | What it is | Where |
 |---|---|---|
-| **`lol`** — farm CLI | Node CLI. Reads `lol.config.json`; ensures Ollama, generates + runs a LiteLLM proxy (one OpenAI‑compatible, load‑balanced endpoint), runs a UDP discovery beacon. **Where models are chosen.** | [`farm/`](farm/) |
-| **Farm app** | Electron installer that runs the `lol` farm for a non‑technical operator: on first run it downloads its own Ollama + Python, pulls gemma4:12b, and hands over the farm **admin panel**. Self‑updating. | [`farm-app/`](farm-app/) |
+| **`lol`** — farm CLI | Node CLI. Reads `lol.config.json`; runs **llama.cpp + Ollama**, generates + runs a LiteLLM proxy (one OpenAI‑compatible, load‑balanced endpoint), runs a UDP discovery beacon. **Where models are chosen.** | [`farm/`](farm/) |
+| **Farm app** | Electron installer that runs the `lol` farm for a non‑technical operator: on first run it downloads its own Ollama + Python + the inference backend and weights, then hands over the farm **admin panel**. Settings carry the **model name users see**, the share‑with‑LAN toggle, and the context window. **Update checks are manual** (a notice + a Download button — no in‑place install). | [`farm-app/`](farm-app/) |
 | **Client shell** | Electron + TypeScript. Supervises the bundled Open WebUI, discovers the farm, points OWUI at it, stores all data in a user‑chosen local folder. Owns the topbar / settings / connection screen. | [`shell/`](shell/) |
 | **Open WebUI sidecar** | Vendored, version‑pinned, **unmodified**. We inherit all its features and never edit its source. | [`sidecar/`](sidecar/) |
 
@@ -45,30 +51,48 @@ rationale, and [`implementation_plan.md`](implementation_plan.md) for the milest
 
 ## Status
 
-**Shipped and self‑updating (v0.1.25, OWUI 0.10.2).** Milestones M0–M5 are done, plus: **full
-multimodal** (image understanding + voice — local Whisper STT, on‑device); **web search** via a shared
-farm‑hosted [SearXNG](https://docs.searxng.org), **on by default**, zero client setup, auto‑discovered;
-**neural voice** via a shared farm‑hosted [Kokoro](https://github.com/remsky/Kokoro-FastAPI) TTS (opt‑in);
-**document OCR** — a shared farm‑hosted extraction service ([Ollama‑OCR](https://github.com/imanoop7/Ollama-OCR)
-vision‑model OCR for images + scanned PDFs, **on by default**, [details below](#document-ocr-optional));
-**assistant tools** — drive a local **[Blender](#assistant-tools--control-blender-optional)** over MCP,
-opt‑in per client ([how‑to below](#assistant-tools--control-blender-optional)); **multi‑box load
-balancing** (least‑loaded client selection, `--coordinator` aggregation, `lol fleet`); **stable model
-aliases** (swap the served model without breaking chats) with a startup **model picker**; a **farm admin
-panel** at `http://<box>:41997/lol/admin` (token printed by `lol up`) — start/stop served models, set the
-default model, adjust the context window live, toggle the web‑search / voice / OCR plugins, recommend
-Blender to the fleet, and see connected clients with idle times; and workshop
-tooling (`lol bench` load test, model keep‑warm). Progress, design decisions, and the debugging history are
-in [`docs/DEVLOG.md`](docs/DEVLOG.md); current state + roadmap in [`implementation_plan.md`](implementation_plan.md).
+**Shipped — client `v0.1.33` (self‑updating), Farm app `farm-v0.0.20` (manual update check), OWUI `0.10.2`.**
+
+*Chat + farm* — a **two‑engine farm**: [llama.cpp](farm/README.md#backends--llamacpp-default-and-ollama)
+(`llama-server`) serves the one model everyone chats with, Ollama serves the extra catalog and the OCR
+vision model, both behind a single load‑balanced LiteLLM endpoint. **Stable model aliases** mean the
+operator can swap the checkpoint underneath without breaking a single existing chat, and can
+[**name the model users see**](farm-app/README.md) from the Farm app's Settings. The client is the
+bundled, unmodified **Open WebUI**, with a topbar toggle to **LOL Chat** — a minimal, Studio‑style chat
+surface that talks straight to the farm.
+
+*Features* — **full multimodal** (image understanding + voice; Whisper STT runs on‑device); **web
+search** via a shared farm‑hosted [SearXNG](https://docs.searxng.org) (**on by default**, zero client
+setup); **neural voice** via farm‑hosted [Kokoro](https://github.com/remsky/Kokoro-FastAPI) TTS
+(opt‑in); **document OCR** — a shared farm service ([Ollama‑OCR](https://github.com/imanoop7/Ollama-OCR)
+for images + scanned PDFs, **on by default**, [details below](#document-ocr-optional)); **assistant
+tools** — drive a local **[Blender](#assistant-tools--control-blender-optional)** over MCP (opt‑in per
+client); **multi‑box load balancing** (least‑loaded selection, `--coordinator` aggregation, `lol fleet`).
+
+*Operating it* — a **farm admin panel** at `http://<box>:41997/lol/admin` (token printed by `lol up`):
+start/stop Ollama models, toggle the web‑search / voice / OCR plugins, recommend Blender to the fleet,
+and see **connected clients** with idle times. Plus workshop tooling (`lol bench` load test, model
+keep‑warm) and [capacity guidance](farm/README.md#multiple-users--capacity) for a room full of people.
+
+Progress, design decisions, and the debugging history are in [`docs/DEVLOG.md`](docs/DEVLOG.md); current
+state + roadmap in [`implementation_plan.md`](implementation_plan.md).
 
 ## Run a farm — the desktop app (recommended, zero setup)
 
-The easiest way to host a farm is the **[LlmOnLan Farm app](farm-app/)** — a downloadable,
-self-updating installer that turns a GPU box into a running farm with **no terminal and no
-prerequisites**. On first launch a wizard downloads its own Ollama + Python, pulls
-**gemma4:12b**, builds the service venvs, and starts the farm; from then on the window IS the
-farm's **admin panel**. Targets **Windows + NVIDIA**, **macOS Apple Silicon (≥16 GB)**, and the
+The easiest way to host a farm is the **[LlmOnLan Farm app](farm-app/)** — a downloadable
+installer that turns a GPU box into a running farm with **no terminal and no
+prerequisites**. (Its **update checks are manual**: it tells you a new build exists and links the
+download — unlike the client, it never installs one for you. Check it after each client release so the
+farm doesn't drift behind the fleet.) On first launch a wizard downloads its own Ollama + Python, the model weights and
+the llama.cpp backend, builds the service venvs, and starts the farm — budget **~28 GB of downloads
+and 30–45 minutes** on that first run ([breakdown](docs/GETTING_STARTED.md#first-run-download-both-routes)); from then on the window IS the farm's **admin panel**. Targets **Windows + NVIDIA**, **macOS Apple Silicon (≥16 GB)**, and the
 **NVIDIA DGX Spark** (linux arm64). See [`farm-app/README.md`](farm-app/README.md).
+
+> **Serving a group?** A farm answers **one request at a time** by default. Raise `llamacpp.parallel`
+> (and `contextLength` with it) before a workshop — the sizing table is in
+> [`docs/GETTING_STARTED.md` ▸ capacity](docs/GETTING_STARTED.md#4-a-room-full-of-people-capacity--multiple-gpu-boxes),
+> the full reference in [`farm/README.md`](farm/README.md#multiple-users--capacity). It is a config edit,
+> not a Farm-app setting, today.
 
 ## Quick start (farm operator, CLI)
 
@@ -78,12 +102,15 @@ Prefer the terminal? The `lol` CLI is the same farm the app manages:
 cd farm
 npm install
 node bin/lol.js init           # scaffold lol.config.json
-node bin/lol.js up             # ensure Ollama, generate+run LiteLLM, start the beacon
+node bin/lol.js install        # Ollama + LiteLLM + models + the llama.cpp backend (several GB, once)
+node bin/lol.js up             # start the engines + LiteLLM + the beacon
 node bin/lol.js status         # health of hosts + proxy + loaded models
 ```
 
-Prereqs: [Ollama](https://ollama.com) and [LiteLLM](https://docs.litellm.ai) installed on the GPU
-box(es) (or `lol install` sets them up). See [`farm/README.md`](farm/README.md).
+Prereqs: **Node ≥ 20** and a Python 3.9–3.13 — `lol install` sets up everything else (Ollama, LiteLLM,
+the llama.cpp backend, the models). Then: [Backends](farm/README.md#backends--llamacpp-default-and-ollama)
+· [Adding or changing models](farm/README.md#adding-or-changing-models) ·
+[Multiple users & capacity](farm/README.md#multiple-users--capacity).
 
 ## Quick start (client, dev)
 
@@ -93,7 +120,8 @@ npm install
 npm run dev                    # boots the shell + OWUI sidecar, loads it in a webview
 ```
 
-See [`shell/README.md`](shell/README.md) and [`sidecar/README.md`](sidecar/README.md).
+Needs the sidecar venv (`sidecar/.venv`) and a farm on the LAN (or `LOL_ENDPOINT=…`). See
+[`shell/README.md`](shell/README.md) and [`sidecar/README.md`](sidecar/README.md).
 
 ## Document OCR (optional)
 
@@ -143,10 +171,10 @@ Blender, inspect the scene — over the [Model Context Protocol](https://modelco
 **opt‑in per client** (off by default): tick Settings (⚙) → **Assistant tools** → **Blender tools** and the
 client configures everything automatically — it runs a **local** MCP→OpenAPI proxy
 ([`mcpo`](https://github.com/open-webui/mcpo)) in front of the
-[BlenderMCP](https://github.com/ahujasid/blender-mcp) server and registers it with Open WebUI through OWUI's
-own supported API (`POST /api/v1/configs/tool_servers`, the call the admin UI's *verify & save* makes — not
-the `TOOL_SERVER_CONNECTIONS` env var, which OWUI doesn't reliably surface). Nothing is exposed to the
-network and OWUI is never modified. **You only enable the toggle and set up Blender.** (A farm operator can
+[BlenderMCP](https://github.com/ahujasid/blender-mcp) server and registers it through OWUI's own
+supported **user‑settings API** (`POST /api/v1/users/user/settings/update`, appending to
+`ui.toolServers` and selecting it via `ui.tools`) — not the `TOOL_SERVER_CONNECTIONS` env var, which
+OWUI doesn't reliably surface. Nothing is exposed to the network and OWUI is never modified. **You only enable the toggle and set up Blender.** (A farm operator can
 also **recommend** Blender to the whole fleet from the admin panel — clients that never made an explicit
 choice then enable it automatically.)
 
@@ -155,23 +183,9 @@ each person controls their own Blender.
 
 ### Set up Blender (your side, once)
 
-1. Turn the feature on: Settings (⚙) → **Assistant tools** → check **Blender tools**.
-2. Install the **BlenderMCP** add‑on — from [github.com/ahujasid/blender-mcp](https://github.com/ahujasid/blender-mcp)
-   download the add‑on `.py`, then in Blender go **Edit ▸ Preferences ▸ Add‑ons ▸ Install…**, pick the file, and tick it on.
-3. In the 3D viewport press **N** → open the **BlenderMCP** tab → **Connect / Start MCP Server**.
-4. In the chat, ask e.g. *“add a red cube and a sun lamp,”* or *“what's in the current scene?”*
-
-That's it — the client already wired Open WebUI to the tools. Blender must be **open with the server
-started** for a tool call to succeed; otherwise the tools still show but a call replies that it can't reach
-Blender (harmless — start Blender and retry). The **first time you enable Blender tools** the client
-installs a small local helper (~1 min, needs internet); after that it starts instantly.
-
-**Port:** the add‑on uses a socket port (default **9876**, shown in its panel). If yours differs, set the
-same number in Settings (⚙) → **Assistant tools** → **Blender port** — a mismatch is the usual cause of
-"could not connect."
-
-To turn the feature back **off**: Settings (⚙) → **Assistant tools** → uncheck **Blender tools** (your
-explicit choice always wins over a farm recommendation).
+Three steps — enable the toggle, install the **BlenderMCP** add‑on, start its server — then ask the chat
+for a red cube. The **step‑by‑step walkthrough, the port setting, and the troubleshooting live in one
+place**: [`docs/GETTING_STARTED.md` ▸ Control Blender from the chat](docs/GETTING_STARTED.md#control-blender-from-the-chat-opt-in).
 
 ### Requirements & safety
 

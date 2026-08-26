@@ -2,7 +2,7 @@
 
 > **LlmOnLan** (short: **LOL**) is a desktop client + a LAN inference farm. The client
 > bundles a **pinned, unmodified Open WebUI** and auto‑connects to the farm so a person on
-> the office Wi‑Fi can chat with `gemma4:12b` with zero setup. All data stays on the user's
+> the office Wi‑Fi can chat with a local model with zero setup. All data stays on the user's
 > machine.
 >
 > We do **not** hide that the chat UI is Open WebUI. The window chrome is LOL‑branded; the
@@ -14,7 +14,7 @@
 
 ---
 
-## Build status (2026-07-05) — M0–M6 + farm admin/plugins shipped; client at v0.1.25
+## Build status (2026-08-25) — client `v0.1.33` · Farm app `farm-v0.0.20` · OWUI `0.10.2`
 
 The full plan is built, released and in multi-user testing; the dated build log with how
 each piece was tested lives in [docs/DEVLOG.md](docs/DEVLOG.md), the rig‑verification state in
@@ -23,22 +23,40 @@ each piece was tested lives in [docs/DEVLOG.md](docs/DEVLOG.md), the rig‑verif
 Snapshot:
 
 - **`farm/`** — the `lol` CLI works end-to-end (verified: `lol up` → real `/v1/chat/completions` via
-  LiteLLM→Ollama→gemma4; status/down; UDP beacon + `/lol/self` received by a listener). Pin facts:
+  LiteLLM→backend; status/down; UDP beacon + `/lol/self` received by a listener). **TWO inference
+  engines behind one LiteLLM endpoint:** `llamacpp` (`llama-server`, **enabled by default**) serves
+  ONE model — `llamacpp.model`, a .gguf URL, default Unsloth **Qwen3.8-27B-UD-IQ2_S** — under
+  `llamacpp.alias` (default `assistant`), and **owns that alias**: the generated routing skips Ollama
+  deployments with the same `model_name`, and `snapshot.js` advertises it as the fleet **default**
+  (Ollama models stay selectable, never default). `mtp` (`--spec-type draft-mtp`) defaults **false** —
+  Unsloth strips the MTP head below UD-Q2_K_XL and llama-server then refuses to start. Ollama still
+  serves `models` (`gemma4:12b`) + the OCR vision model. Pin facts:
   **OWUI `0.10.2`** (Python 3.11/3.12, run via the `open-webui serve` console script). Beacon group
   **`239.255.43.10:41998`** (+ httpPort `41997`), distinct from ComfyQ. On top: an **admin panel** at
   `http://<box>:41997/lol/admin` (bearer token printed by `lol up`; `config.admin.token`) with a live
   control API — model start/stop, "Make default", a context-window selector, plugin toggles, Blender
   fleet recommendation, connected-clients list; a **plugin registry** (`farm/src/plugins/registry.js`)
   orchestrating web search (SearXNG, ON), document OCR (`farm/src/pysvc` + `extract.js`, ON — hybrid
-  text/vision PDF extraction), and Kokoro TTS (off); `ollama.contextLength` (default 65536; max 262144) applied via
-  `OLLAMA_CONTEXT_LENGTH` **and** per-deployment `num_ctx` in the generated LiteLLM routing; coordinator
-  mode + `lol fleet`/`lol bench`/`lol install`; a stable **model alias** + interactive picker in `lol up`.
-- **`shell/`** (Electron + TS, **v0.1.25**) — boots the **unmodified** OWUI sidecar (config-bridge =
+  text/vision PDF extraction), and Kokoro TTS (off); `ollama.contextLength` (default **16384** — 65536
+  spilled on the fleet's 12 GB cards; max 262144) applied via `OLLAMA_CONTEXT_LENGTH` **and**
+  per-deployment `num_ctx` in the generated LiteLLM routing — **note this is Ollama-side only**, so the
+  admin panel's context selector and the Farm app's Settings do NOT resize `llama-server`
+  (`llamacpp.contextLength`, default 16384, which llama.cpp **splits across `llamacpp.parallel` slots**
+  — verified: `--ctx-size 16384 --parallel 2` → `n_ctx_slot = 8192`); coordinator mode +
+  `lol fleet`/`lol bench`/`lol install` (which pre-fetches the llama.cpp build + weights); a stable
+  **model alias** + interactive picker in `lol up`.
+- **`shell/`** (Electron + TS, **v0.1.33**) — boots the **unmodified** OWUI sidecar (config-bridge =
   env-authoritative, `ENABLE_PERSISTENT_CONFIG=false`), discovers the farm and auto-connects with **no
   URL typed**, full Preferences (data folder + move/fresh migration, connection, startup/updates, about).
   Whole-document RAG (`RAG_FULL_CONTEXT=true`); presence heartbeats to the farm (`POST /lol/client-ping`
   every 10 s: id/hostname/platform/version/idleSec); Blender/mcpo assistant tools are **opt-in** (off by
-  default since v0.1.24; a farm recommendation can enable them for non-explicit users).
+  default since v0.1.24; a farm recommendation can enable them for non-explicit users). Two surfaces:
+  OWUI + **LOL Chat** (`renderer/chat.js`, farm-direct, localStorage-only) behind a topbar toggle;
+  which one ships is `src/main/clientMode.ts` `OWUI_ENABLED` (+ the renderer's `NO_OWUI` — flip both).
+  Perf invariants worth keeping: the renderer CSP MUST carry `connect-src` (else LOL Chat cannot reach
+  the LAN farm at all), the farm context is persisted so a cold launch spawns the sidecar **once**, and
+  OWUI's follow-up/tags/autocomplete generation is disabled so background calls can't queue ahead of the
+  user on llama-server's single slot. E2E harness: `shell/test/` (mock farm + CDP driver).
 - **`sidecar/`** — `build-sidecar` bundles a relocatable standalone CPython + OWUI + `launcher.py`;
   `OPENWEBUI_VERSION` is the pin. NOT bundled into the installer — CI publishes it as
   `owui-sidecar-<platform>-<arch>.tar.gz` release assets and the packaged shell downloads it to
@@ -60,7 +78,7 @@ native dialog. When working here, keep honoring the **prime directive** below.
 
 ---
 
-## What we are building (three pieces)
+## What we are building (four pieces)
 
 1. **`lol` — the farm CLI** (Node, npm‑style). Run on each GPU box (or one box). Reads a
    declarative `lol.config.json`, then launches/configures Ollama, generates and runs a
@@ -71,6 +89,11 @@ native dialog. When working here, keep honoring the **prime directive** below.
    sidecar, discovers the farm on the LAN, points Open WebUI at it, and stores all data in a
    user‑chosen local folder. Owns the topbar, settings/preferences, and the connection screen.
 3. **Open WebUI** — vendored, version‑pinned, **unmodified**. We inherit all its features.
+4. **The Farm app** (`farm-app/`, Electron) — the operator-facing sibling of the client: it installs
+   its own Ollama + Python + backend + weights, supervises `lol up`, and shows the admin panel as its
+   window. Settings write into `lol.config.json` (model name → `llamacpp.alias`, share-with-LAN →
+   `proxy.host`/`beacon.enabled`, context window → `ollama.contextLength`) and restart the farm.
+   Released on `farm-v*` tags; **update checks are manual** (no electron-updater).
 
 End‑user experience: install one app → open it → chatting in seconds. No URL, no account
 ceremony, no Docker.
@@ -104,7 +127,7 @@ If a task seems to require breaking one of these, **stop and flag it**.
 | Direction | Mechanism | Notes |
 |---|---|---|
 | Lifecycle | Shell spawns the OWUI sidecar as a child process and supervises it. | Shell = process manager + window. |
-| Config → OWUI | Env vars at **every** launch, made authoritative by `ENABLE_PERSISTENT_CONFIG=false` — repointing the farm restarts the sidecar with new env. One exception: the opt‑in Blender tool server is registered from the authed webview via `POST /api/v1/configs/tool_servers` (its env is unsupported upstream). | See gotchas below. |
+| Config → OWUI | Env vars at **every** launch, made authoritative by `ENABLE_PERSISTENT_CONFIG=false` — repointing the farm restarts the sidecar with new env. **Two exceptions**, both written from the authed webview via OWUI's user‑settings API `POST /api/v1/users/user/settings/update`: web search defaulted ON (`ui.webSearch='always'`, one‑time via a `lolWebSearchSeeded` marker) and the opt‑in Blender tool server (`ui.toolServers` + `ui.tools`). Neither has a usable env. | See gotchas below. |
 | Data | `DATA_DIR` → the user's chosen local folder; default local embeddings; telemetry off. | Enforces invariant #3. |
 | Net out of OWUI | Chat completions to the farm endpoint; plus, when the farm advertises them: SearXNG queries (then direct page fetches), Kokoro TTS requests, and uploaded‑file bytes to the farm OCR extractor. | Embeddings always stay local. |
 | Everything else | None. OWUI is a black box. | No DB poking, no template/CSS edits, no internal imports. |
@@ -118,7 +141,11 @@ farm hosts SearXNG), `RAG_FULL_CONTEXT=true` (whole‑document answers, not top�
 `ENABLE_WEB_SEARCH`/`WEB_SEARCH_ENGINE=searxng`/`SEARXNG_QUERY_URL`, `AUDIO_STT_ENGINE=''` +
 `WHISPER_MODEL=base` (local STT), `AUDIO_TTS_*` (farm Kokoro when advertised),
 `CONTENT_EXTRACTION_ENGINE=external` + `EXTERNAL_DOCUMENT_LOADER_URL/_API_KEY` (farm OCR),
-`ENABLE_VERSION_UPDATE_CHECK=false`, `DEFAULT_LOCALE`.
+`ENABLE_VERSION_UPDATE_CHECK=false`, `DEFAULT_LOCALE`, `ENABLE_OPENAI_API` (true only with a farm — a
+no‑farm boot must not fall back to api.openai.com), `WEB_SEARCH_RESULT_COUNT`/`_CONCURRENT_REQUESTS`,
+and the **TTFT trio** `ENABLE_FOLLOW_UP_GENERATION`/`ENABLE_TAGS_GENERATION`/`ENABLE_AUTOCOMPLETE_GENERATION`
+= `false` (OWUI's background calls would otherwise queue ahead of the user on llama‑server's single slot;
+title generation stays ON).
 
 - **Gotcha #1 — persisted URLs beat env.** Connection URLs saved via the admin UI go to OWUI's DB
   and **take precedence over env on later starts.** The shipped strategy: `ENABLE_PERSISTENT_CONFIG=false`
@@ -131,7 +158,8 @@ farm hosts SearXNG), `RAG_FULL_CONTEXT=true` (whole‑document answers, not top�
 
 Data locality:
 - `DATA_DIR` → user‑chosen local folder (all persistent data lives here).
-- **Keep default local embeddings** (`RAG_EMBEDDING_MODEL=sentence-transformers/all-MiniLM-L6-v2`,
+- **Keep default local embeddings** — we set **neither** `RAG_EMBEDDING_ENGINE` **nor**
+  `RAG_EMBEDDING_MODEL`, so OWUI's in‑process default applies (`all-MiniLM-L6-v2`,
   cached in the default HF_HOME — `~/.cache/huggingface`, deliberately NOT under `DATA_DIR` so a
   data‑folder move never re‑downloads it). Do **NOT** set `RAG_EMBEDDING_ENGINE=ollama` — that would
   ship document text to the farm for **embedding**. (Distinct from extraction: with the default‑on farm
@@ -158,16 +186,32 @@ declarative config; the CLI orchestrates everything from it.
   "name": "Studio Farm",                 // friendly name shown in the client
   "beacon": { "enabled": true, "group": "239.255.43.10", "port": 41998, "intervalSec": 5 },
   "proxy":  { "port": 4000 },            // LiteLLM OpenAI-compatible endpoint
-  "models": [
+  // The DEFAULT backend: ONE model, served as `alias`, advertised as the fleet default.
+  "llamacpp": {
+    "enabled": true,
+    "alias": "assistant",                // the id clients see + auto-select
+    "model": "https://huggingface.co/unsloth/Qwen3.8-27B-GGUF/resolve/main/Qwen3.8-27B-UD-IQ2_S.gguf",
+    "contextLength": 16384,              // SPLIT across `parallel` slots
+    "parallel": 1,                       // concurrent slots — the multi-user knob
+    "kvCacheType": "q4_0", "mtp": false  // mtp needs a UD-Q2_K_XL+ quant
+  },
+  "models": [                            // Ollama catalog: selectable, never default while llamacpp is on
     { "id": "gemma4:12b", "default": true }
   ],
   "ollama": {
     "hosts": ["http://127.0.0.1:11434", "http://gpu-2.local:11434"],
     "numParallel": 2,                    // OLLAMA_NUM_PARALLEL per host
     "maxLoadedModels": 1,
-    "flashAttention": true
-  }
+    "flashAttention": true,
+    "contextLength": 16384               // Ollama-side only — does NOT resize llama-server
+  },
+  "websearch": { "enabled": true },      // SearXNG, ON   |  "tts": { "enabled": false }  Kokoro, off
+  "ocr": { "enabled": true },            // farm OCR, ON — loads a vision model on Ollama
+  "preinstall": [ /* staged, never served */ ],
+  "admin": { "token": null }
 }
+
+Full reference + the alias-collision rule: [farm/README.md](farm/README.md#config--lolconfigjson).
 ```
 
 CLI commands:
@@ -178,7 +222,9 @@ CLI commands:
 | `lol up` / `lol serve` | Ensure each Ollama host is reachable, pull configured models, generate the LiteLLM config from `lol.config.json`, start LiteLLM, start the discovery beacon. |
 | `lol models ls` / `lol models add <id>` / `lol models pull` | Manage the served model catalog (wraps `ollama pull` on each host). |
 | `lol status` | Health of each Ollama host + the proxy + which models are loaded. |
-| `lol down` | Stop the proxy + beacon. |
+| `lol down` | Stop the proxy + `llama-server` + SearXNG/TTS/OCR + beacon (and any Ollama it started). |
+| `lol install` | One-time bootstrap: Ollama + LiteLLM venv + models + the llama.cpp build/weights + the plugin venvs. Idempotent. |
+| `lol fleet` / `lol bench` | Every farm on the LAN; load-test N concurrent chats before a workshop. |
 
 Notes:
 - The CLI **generates** the LiteLLM `config.yaml` (each Ollama host becomes a deployment of the
@@ -204,15 +250,17 @@ Main‑process responsibilities: sidecar supervisor (start/health‑wait/restart
 config‑bridge (the only module that knows OWUI's config surface), and the shell config store
 (`electron-store` or a JSON in `userData`). The renderer is thin — chrome + the webview + settings UI.
 
-**Preferences panel** (LOL‑owned, ComfyQ‑styled), sections:
+**Preferences panel** (LOL‑owned, ComfyQ‑styled), sections (data location · connection · **assistant
+tools** · startup & updates · about):
 - **Data location** — show the current `DATA_DIR`; "Change folder…" (Electron `dialog.showOpenDialog`).
   On change: offer to **move existing data** to the new folder or start fresh, then restart the sidecar
   pointing at the new `DATA_DIR`. Default to a sensible per‑user app‑data path.
 - **Connection** — auto‑discovered farm(s) with status dots; a manual "Add by address" field +
   chips (ComfyQ pattern); a "Refresh / rescan" button; optional subnet "search range". Lets the user
   pick which farm if several are found.
-- **Startup & updates** — launch at login; auto‑update channel/toggle (electron‑updater); show
-  current shell version + bundled Open WebUI version.
+- **Assistant tools** — the opt‑in Blender/mcpo toggle, a "Test connection" button (checks both the
+  local helper and whether Blender is listening), and the BlenderMCP socket port.
+- **Startup & updates** — launch at login; auto‑update channel/toggle (electron‑updater).
 - **About** — LlmOnLan version, bundled Open WebUI version, and explicit "Powered by Open WebUI"
   attribution + link.
 
@@ -293,19 +341,19 @@ Release flow (in `shell/`):
 ```yaml
 appId: com.llmonlan.client
 productName: LlmOnLan
-files: [main.js, preload.js, renderer/**, assets/**]   # NO sidecar bundled — downloaded on first run
+files: [build/**/*, renderer/**/*, assets/**/*, package.json]   # NO sidecar bundled — downloaded on first run
 directories: { output: dist }
 afterPack: scripts/afterPack.cjs          # ad-hoc code-signs the macOS .app (no Apple cert)
 publish:
   provider: github
-  owner: <your-org>
+  owner: b2renger
   repo: LlmOnLan
   releaseType: release                    # drafts are ignored by the updater
 win:   { target: nsis, icon: assets/icon.png }
 mac:
-  target:
-    - { target: dmg, arch: [arm64, x64] }
-    - { target: zip, arch: [arm64, x64] } # zip REQUIRED for latest-mac.yml (auto-update)
+  target:                                 # arm64 ONLY — OWUI 0.10.2 pins onnxruntime==1.26.0,
+    - { target: dmg, arch: [arm64] }      #   whose last macOS-x86_64 wheel was 1.23.2, so an Intel
+    - { target: zip, arch: [arm64] }      #   build cannot resolve. zip REQUIRED for latest-mac.yml.
   identity: null                          # electron-builder skips signing; afterPack does ad-hoc
   hardenedRuntime: false                  # ad-hoc + hardened fails to launch
   icon: assets/icon.png
@@ -335,12 +383,19 @@ doesn't report the unsigned app as "damaged"; not notarized → first‑launch s
 ```
 LlmOnLan/
   shell/                 # Electron + TypeScript — first-party client code
-    main/                #   supervisor, discovery (beacon listener), config-bridge, store
-    preload/
-    renderer/            #   topbar + webview host + settings UI; tokens.css (ComfyQ palette)
+    src/main/            #   supervisor, discovery (beacon listener), config-bridge, store,
+                         #   clientMode.ts (which surface ships), sidecarManager, updater, mcpo
+    src/preload/
+    renderer/            #   topbar + webview host + settings UI; chat.js (LOL Chat);
+                         #   tokens.css (ComfyQ palette)
+    test/                #   mock-farm.js + e2e.js (drives the real app over CDP)
     assets/              #   icon.png / icon.svg
     scripts/             #   release.mjs, afterPack.cjs (adapted from ComfyQ)
     electron-builder.yml
+  farm-app/              # the operator-facing Farm app (Electron) — installs + supervises `lol`
+    src/main/            #   installer (setup wizard), farmSupervisor, runtimeManager, updater
+    renderer/            #   status chrome + Settings + the admin panel in a <webview>
+    electron-builder.yml #   ships `../farm` as an extraResource; tags are `farm-v*`
   sidecar/               # packaging of the pinned, UNMODIFIED Open WebUI
     OPENWEBUI_VERSION    #   single source of truth for the pin
     build-sidecar.*      #   fetches OWUI at the pin + bundles a self-contained executable
@@ -351,7 +406,9 @@ LlmOnLan/
                          #   litellm.js/ollama.js, commands/ (up/down/install/...)
     litellm/             #   generated config.yaml lives here at runtime
     README.md            #   prereqs (Ollama, LiteLLM) + usage
-  .github/workflows/release.yml
+  docs/                  # DEVLOG (dated build log), GETTING_STARTED, RIG_CHECKLIST, …
+  .github/workflows/release.yml        # client, on `v*` tags
+  .github/workflows/release-farm.yml   # Farm app, on `farm-v*` tags
   CLAUDE.md
   implementation_plan.md
 ```

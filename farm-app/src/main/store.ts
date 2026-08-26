@@ -15,7 +15,7 @@ const DEFAULTS: FarmSettings = {
     launchAtLogin: false,
     autoUpdate: true,
     modelName: null,         // advertised model name; null = the farm's default alias
-    contextLength: 65536,    // matches the farm's own default; raise to 262144 for max-RAG
+    contextLength: 65536,    // the APP's default (the farm's own schema default is 16384); max 262144
     shareWithNetwork: false, // private by default — only this machine can use the farm
 };
 

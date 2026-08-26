@@ -240,7 +240,7 @@ function onFarms(payload: { farms: DiscoveredFarm[] } & Record<string, unknown>)
 
 // Local Blender assistant-tools server (mcpo) state → forward to the renderer. The
 // renderer registers/unregisters the tool server via OWUI's SUPPORTED API (POST
-// /api/v1/configs/tool_servers) from the authed webview when this reports ready /
+// /api/v1/users/user/settings/update, writing ui.toolServers) from the authed webview when ready /
 // stopped — the sidecar is NOT restarted (env-configured tool servers are
 // unreliable upstream; see configBridge + app.js seedBlenderToolServer).
 function onMcpoState(s: McpoState): void {

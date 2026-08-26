@@ -1,7 +1,7 @@
 // `lol models ls|add|rm|pull` — manage the served model catalog.
 //
 //   ls              list configured models + presence on each Ollama host
-//   add <id>        add a model id to the config (then `lol up` to serve it)
+//   add <id>        add a model id to the config (then `lol up --no-pick` to serve it)
 //   rm  <id>        remove a model id from the config
 //   pull            pull every configured model on every host (wraps /api/pull)
 
@@ -57,7 +57,7 @@ function add(id) {
     if (config.models.some((m) => m.id === id)) { log.warn(`${id} is already in the catalog.`); return 0; }
     config.models.push({ id });
     writeConfig(p, config);
-    log.ok(`Added ${log.paint.bold(id)}. Run ${log.paint.cyan('lol up')} (or ${log.paint.cyan('lol models pull')}) to serve it.`);
+    log.ok(`Added ${log.paint.bold(id)}. Run ${log.paint.cyan('lol up --no-pick')} to serve it \n     ${log.paint.grey('(plain `lol up` prompts, and Enter serves only the default — dropping this one).')}`);
     return 0;
 }
 
