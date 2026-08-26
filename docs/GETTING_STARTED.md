@@ -422,6 +422,24 @@ Work down this list — the first two causes account for most reports.
 
 ---
 
+## Known rough edges (v1)
+
+Four behaviors the v1 acceptance audit chose to ship **documented** rather than blocked on:
+
+- **A very slow first install can show an error over a working farm.** The wizard gives up after
+  5 silent minutes but keeps the bootstrap running; if it then finishes, the running screen is fine
+  but the wizard's error stays. On a slow connection: wait it out or restart the app — clicking
+  **Retry** there bounces a farm that may already be serving (~1–2 min of downtime).
+- **After the operator changes the farm password**, already-connected clients keep a green pill while
+  their chats fail, until each person re-enters the password on the farm's card (click the pill →
+  the farm list). The app forgets the stale password by itself; it just can't know the new one.
+- **A hiccuping farm can log a client out of its password** (the client treats "the farm answered
+  but not OK" as "wrong password"). Re-entering the same password fixes it.
+- **One password per farm.** A fleet of separately-passworded farms means entering each box's
+  password by hand, and a coordinator skips passworded peers. To keep automatic spreading on a
+  passworded fleet, run it as ONE farm (all boxes in `ollama.hosts`, one password) or
+  coordinator + open peers on a trusted LAN.
+
 ## Glossary
 
 Terms that show up in the config and in this guide.

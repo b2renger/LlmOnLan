@@ -292,6 +292,26 @@ fleet with failover (Layer 1). Trade‑off: the coordinator box is a single poin
 - **Platform fallback**: llama.cpp unavailable or failed at boot → serve via Ollama with the reason on
   the panel's Backend card (the DGX Spark linux‑arm64 hard-exit is gone).
 
+**✅ Also shipped (2026‑08‑26 c) — the v1 audit loop (three blind critic rounds → READY WITH NOTES):**
+- **Round 1 (code/architecture)** found a CRITICAL shipped-that-hour regression (the `extract()` rename
+  broke every fresh Windows llama.cpp install), unsupervised llama-server, and a control-plane
+  concurrency hole. All CRITICAL/HIGH/MEDIUM fixed + live-verified (engine kill → auto-recovery in ~7 s).
+- **Round 2 (UX/docs + fix verification)** confirmed round 1 held, then took apart the password's client
+  edges (data-folder move, rotation, the passworded-LAN dead end) and the Farm app's failure story
+  (no log file existed; error screens masked live farms; stalled downloads froze forever). All seven
+  HIGH+ fixed; twelve doc self-contradictions deleted.
+- **Round 3 (acceptance)**: 8/8 requirements MET; verdict **READY WITH NOTES** (the four notes are in
+  GETTING_STARTED ▸ Known rough edges).
+- **V1 features shipped inside the loop**: auto‑max context (GGUF‑derived geometry; per-box maximum),
+  the DGX Spark llama.cpp tarball built by our own CI (`llamacpp-b10516` release, verified downloadable),
+  the ComfyQ-style farm password end to end, capacity-aware client selection, runtime version pins.
+
+**v1.1 backlog (from the acceptance audit):** fleet-shared password (coordinator through keyed peers);
+carry the advertised name on boot/crash fallback; repoint on key-change without endpoint change;
+`reapStaleFarm` must skip the live supervised child; reset crashRestarts + uncap late recovery;
+`renderFarmState` screen switching; pre-header download timeout; the `up.js` extraction refactor;
+Ollama-engine auto context; per-host slots on multi-host farms.
+
 ## Cross‑cutting risks & mitigations
 
 - **OWUI config‑surface drift across versions.** → Re‑verify on every bump; coupling only via env + admin API; the upgrade test catches breakage.

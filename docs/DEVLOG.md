@@ -6,6 +6,90 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-08-26 c — v1: three blind audit rounds to READY, and the features that make it a cluster
+
+Owner call: the POC is good — audit code + UX with an agnostic critic loop until it is satisfied, and
+fold in four requirements: **maximum context per model per box**, **llama.cpp on the DGX Spark with
+nothing to build**, **a ComfyQ-style farm password**, and **load spreading without users picking boxes**.
+
+### The features (built first, so the critics could audit them)
+
+- **Auto-max context** (`llamacpp.contextLength: "auto"`, the new default): at every model load the farm
+  reads the model's **native maximum and KV-cache geometry from the .gguf header itself**
+  (`farm/src/gguf.js` — ~60 lines of GGUF parsing; the computed rate for Qwen3.8-27B is 1.208 GB/16k,
+  matching the fleet's measured 1.2 exactly) and serves min(native, VRAM budget). A 4070 lands ~36k, a
+  4080 ~78k, the Spark the full 262k — live-verified: `auto → 262144 (model max 262144, budget for
+  96 GB)`. Fit refusals and the boot clamp now use per-model geometry instead of one measured constant.
+- **The Spark, out of the box**: ggml-org ships no linux-arm64 CUDA build, so **our CI builds one**
+  (`build-llamacpp-arm64.yml`: GitHub's free arm64 runners + the CUDA 13 sbsa toolchain, sm_121,
+  self-contained tarball with cudart/cublas and RPATH `$ORIGIN`). Green on the first run (14m33s);
+  published as `llamacpp-b10516/llama-b10516-bin-linux-cuda-arm64.tar.gz`; `assetsFor()` downloads
+  exactly that name on linux-arm64. A missing/broken tarball still degrades to the Ollama fallback.
+- **Farm password** (ComfyQ model): panel ▸ Backend ▸ *Farm password* → LiteLLM `master_key` (live, with
+  rollback); the beacon advertises `requiresKey`; the client shows a 🔒 card, **verifies the typed
+  password against the real endpoint before storing it**, remembers it per farm, threads it into OWUI's
+  env and LOL Chat's fetches, and excludes locked farms from auto-connect. Live-verified: keyless and
+  wrong-key refused, correct key 200, clear/set round-trip. (LiteLLM without a DB rejects wrong keys
+  with 400/500, not clean 401s — the client treats "answered but not OK" as not-accepted.)
+- **Selection by slots**: `farmLoad` prefers slot occupancy (clients/slots) over GPU%, and the round-2
+  exclusivity bug that made a **llama.cpp coordinator aggregate zero peers** (the peer loop lived inside
+  the skipped Ollama loop) is fixed with a test.
+- **Reproducible installs**: the Farm app's Ollama + Python are version-pinned (latest-fallback logged).
+
+### The loop
+
+**Round 1 — code & architecture (blind).** Verdict NOT READY, and it earned it: a **CRITICAL regression
+I had shipped an hour earlier** — the `unzip`→`extract` rename left two `zipPath` references, so every
+FRESH Windows install of llama.cpp threw and silently fell back to Ollama; the cached `.llamacpp/` on
+this box masked it. Also: llama-server had **no crash supervision** (a mid-run death left LiteLLM routing
+chats into a dead port while the beacon said healthy) and the job routes **bypassed the mutation lock**
+their own comment warned about. Everything CRITICAL/HIGH/MEDIUM was fixed: `extract()` is exported and
+exercised by a real-zip test; llama-server has an exit handler → healthy:false + one rate-limited
+restart → Ollama fallback (live-verified: killed the verify farm's llama-server, recovered in ~7 s,
+completion 200 after); one serialize chain covers jobs AND quick ops; startup failures fail in seconds
+not five minutes; downloads verify content-length before the cache rename; keep-warm rides the LiteLLM
+routing per-request (a fallback farm no longer reloads the model after every pause). The fix round
+itself shipped a TDZ crash (`liveHealth` from `startLlamacpp` at boot) — caught by the live test, fixed
+with a late-bound box.
+
+**Round 2 — fix verification + UX (blind).** Confirmed round 1 holds ("could not construct a concurrent
+restartProxy"); called the farm side v1-shippable; then took apart the **password's client edges** — the
+popover rebuilt itself per beacon (~3×/s on a fleet), wiping the password mid-typing; a data-folder move
+dropped the key (round 1 had patched a lookalike handler); rotation was never detected on the active
+farm; a passworded-only LAN read "No server" — and the **Farm app's failure story**: every error said
+"see the log" and **no log file existed** (packaged apps swallow console.log); the wizard's phase 5 was
+a blind spinner while gigabytes downloaded; a stalled socket froze the installer forever; the error
+overlay could mask a live farm whose only button killed it. All seven HIGH+ fixed (`farm.log` under
+userData; give-up keeps watching and self-clears; 60 s stall timeout; typing guard; verify-on-every-
+beacon; "Server needs a password — click here" pill; Stop confirms; panel webview retries; the admin
+token visible in Settings), plus the cheap MEDIUMs (select-guard, de-secure confirm, engine-switch
+confirm, toast collisions, Automatic gated to llama.cpp) and **twelve documentation self-contradictions**
+deleted — several still described pre-exclusivity behavior or denied features that ship.
+
+**Round 3 — acceptance (blind).** All round-2 fixes verified holding (including the subtle ones: the
+late-recovery watcher's gen-guards, the boot-window pickup no-op'ing after an Ollama fallback). New
+findings: nothing that loses data or strands a farm — four ship-with notes, now documented in
+GETTING_STARTED ▸ *Known rough edges (v1)*. Scorecard: **8/8 requirements MET**. Verdict:
+**READY WITH NOTES**, with the workshop topology guidance (a passworded fleet should run as one farm or
+coordinator + open peers).
+
+### Owner questions, answered in the report
+
+DeepSeek-style serving is datacenter-scale MoE machinery — the per-box equivalents (speculative
+decoding, KV quantization, right-sized context, slots) are already in; DeepSeek *models* are a
+paste-a-URL experiment on the Spark now that the library takes any .gguf. Load sharing without choosing:
+already the default (least-loaded auto-selection, now slot-aware) — one shared alias + a coordinator
+makes the fleet one endpoint. Password: shipped, above.
+
+### Verified
+
+87 farm unit tests (16 added across the loop), both tsc projects clean, 31/31 doc anchors, the panel and
+client render harnesses green across engine/locked/busy/degraded states, and live on this box: auto
+context resolution, the password round-trip, and the llama-server kill → auto-recovery. The Spark
+tarball's exact download URL answers 200 with a valid gzip magic.
+
+---
+
 ## 2026-08-26 b — one engine at a time, a performance monitor, and two fleet incidents fixed at the root
 
 First multi-machine test of farm-v0.0.21 came back with five reports: the llama.cpp/Ollama split reads
