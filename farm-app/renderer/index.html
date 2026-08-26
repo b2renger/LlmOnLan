@@ -69,7 +69,7 @@
     <!-- 3. Running -->
     <main id="screen-running" class="screen hidden">
         <div id="lan-bar" class="lan-bar hidden">
-            <span class="lan-label">Clients on this network connect automatically. OpenAI endpoint:</span>
+            <span class="lan-label">Clients on this network connect automatically. Chat endpoint (OpenAI-compatible, for scripts):</span>
             <code id="lan-url" class="lan-url">—</code>
             <button id="btn-copy-lan" class="btn btn-xs">Copy</button>
         </div>
@@ -115,6 +115,8 @@
             <label class="row"><span>Notify me about updates</span>
                 <input type="checkbox" id="chk-autoupdate" />
             </label>
+            <div class="row"><span>Panel access token</span><span class="name-row"><span id="admin-token" class="muted mono">—</span><button id="btn-copy-token" class="btn btn-xs">Copy</button></span></div>
+            <p class="muted small share-hint">To run this farm from another computer's browser: open the panel address shown on the main screen and paste this token.</p>
             <div class="row"><span>App version</span><span id="app-version" class="muted">—</span></div>
             <div class="row"><button id="btn-check-update" class="btn btn-sm">Check for updates</button></div>
             <div id="update-status" class="muted small"></div>

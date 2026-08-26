@@ -411,7 +411,13 @@ function render(s) {
   app.querySelectorAll('button[data-dact]').forEach((b) => { b.onclick = () => defaultAct(b.dataset.id, b); });
   app.querySelectorAll('button[data-pact]').forEach((b) => { b.onclick = () => pluginAct(b.dataset.pact, b.dataset.id, b); });
   app.querySelectorAll('button[data-ract]').forEach((b) => { b.onclick = () => recommendAct(b.dataset.ract, b.dataset.id, b); });
-  app.querySelectorAll('button[data-engine]').forEach((b) => { b.onclick = () => post('/lol/admin/backend', { engine: b.dataset.engine }, b, 'Switching backend…'); });
+  app.querySelectorAll('button[data-engine]').forEach((b) => {
+    b.onclick = () => {
+      // A switch reloads the model: ~a minute of downtime for everyone connected.
+      if (!confirm('Switch the serving engine? The model reloads — about a minute, and anyone connected waits.')) return;
+      post('/lol/admin/backend', { engine: b.dataset.engine }, b, 'Switching backend…');
+    };
+  });
   app.querySelectorAll('button[data-lcuse]').forEach((b) => { b.onclick = () => post('/lol/admin/llamacpp/model', { id: b.dataset.lcuse }, b, 'Loading the model…'); });
   app.querySelectorAll('button[data-lcdel]').forEach((b) => { b.onclick = () => post('/lol/admin/llamacpp/library/remove', { id: b.dataset.lcdel }, b, 'Removed'); });
   app.querySelectorAll('button[data-olrm]').forEach((b) => {
@@ -422,7 +428,13 @@ function render(s) {
   // The password field is the one Apply that must also accept EMPTY (= clear it),
   // so it can't use bindApply's non-empty guard.
   const secApply = $('#sec-apply');
-  if (secApply) secApply.onclick = () => post('/lol/admin/security', { password: $('#sec-in').value }, secApply, 'Applying…');
+  if (secApply) secApply.onclick = () => {
+    const v = $('#sec-in').value;
+    // An empty Apply REMOVES the password — an easy slip to make while the
+    // field shows only dots. Deleting a model confirms; de-securing must too.
+    if (!v.trim() && lastState && lastState.requiresKey && !confirm('Remove the farm password? Anyone on the network can then use this farm.')) return;
+    post('/lol/admin/security', { password: v }, secApply, 'Applying…');
+  };
   bindApply('#lc-add', '#lc-url', (v) => post('/lol/admin/llamacpp/library/add', { url: v }, $('#lc-add'), 'Added to the library'));
   bindApply('#ol-pull', '#ol-id', (v) => post('/lol/admin/ollama/pull', { id: v }, $('#ol-pull'), 'Downloading…'));
   const slotsApply = $('#slots-apply');
@@ -455,7 +467,10 @@ function ctxOptions(cfg, resolved, fit) {
   const now = typeof cfg === 'number' ? cfg : null;
   const list = (now && !OPTS.includes(now)) ? [now, ...OPTS] : OPTS;
   const max = fit && fit.maxContext != null ? fit.maxContext : null;
-  const auto = `<option value="auto"${cfg === 'auto' ? ' selected' : ''}>Automatic — the most this GPU holds${resolved ? ` (now ${fmtK(resolved)})` : ''}</option>`;
+  // fit === null means the OLLAMA engine is serving (see the call site): auto
+  // sizing is a llama.cpp feature and offering it here only produced an error
+  // toast — so there it is simply not on the menu.
+  const auto = fit == null ? '' : `<option value="auto"${cfg === 'auto' ? ' selected' : ''}>Automatic — the most this GPU holds${resolved ? ` (now ${fmtK(resolved)})` : ''}</option>`;
   return auto + list.map((v) => {
     const over = max != null && v > max && v !== now;
     const label = fmtK(v) + ' tokens' + (over ? ` — won\u2019t fit (${fit.vramGb} GB GPU)` : '');
@@ -485,7 +500,7 @@ async function post(path, body, btn, okMsg) {
     if (r && r.ok === false) toast(r.error || 'Action failed');
     else if (r && r.started) toast(okMsg || 'Started');
     else toast((r && r.message) || okMsg || 'Done');
-    if (r && r.warning) toast(r.warning);
+    if (r && r.warning) setTimeout(() => toast(r.warning), 2800);   // after the result toast, not over it
   } catch (e) {
     if (e.unauthorized) { logout('Session expired — re-enter the token.'); return; }
     toast('Error: ' + (e.message || e));
@@ -569,7 +584,10 @@ function logout(msg) { localStorage.removeItem('lolAdminToken'); token = ''; tok
 // out from under the operator every 5 seconds.
 async function refresh(force) {
   if (!token) { tokenPanel(); return; }
-  if (!force && document.activeElement && document.activeElement.tagName === 'INPUT') return;
+  // …or a SELECT: the context/slots dropdowns are exactly where an operator
+  // lingers reading the "won't fit" labels, and the 5 s poll snapped them shut.
+  const tag = !force && document.activeElement ? document.activeElement.tagName : null;
+  if (tag === 'INPUT' || tag === 'SELECT') return;
   try {
     const s = await api('/lol/admin/state');
     render(s);

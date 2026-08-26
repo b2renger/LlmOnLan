@@ -214,7 +214,8 @@ const LlamacppSchema = z.object({
     mtp: z.boolean().default(false),             // --spec-type draft-mtp
     draftNMax: z.number().int().positive().default(2),
     // Point at an existing llama.cpp install instead of the bootstrapped one. Required
-    // on platforms with no prebuilt asset (anything but win-x64 today).
+    // on platforms with no prebuilt asset (win-x64 and linux-arm64 have prebuilts;
+    // everything else falls back to the Ollama engine unless binDir is set).
     binDir: z.string().nullable().default(null),
     extraArgs: z.array(z.string()).default([]),
 }).strict();

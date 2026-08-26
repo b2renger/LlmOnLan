@@ -1758,8 +1758,8 @@ async function run(args) {
         // swap behind a download would hide it from the operator for minutes.
         setBackend,
         setLlamacppModel,
-        addLibraryModel: (e) => serialize(() => addLibraryModel(e)),
-        removeLibraryModel: (id) => serialize(() => removeLibraryModel(id)),
+        addLibraryModel: (e) => busy() ? busyErr() : serialize(() => addLibraryModel(e)),
+        removeLibraryModel: (id) => busy() ? busyErr() : serialize(() => removeLibraryModel(id)),
         setSlots,
         setAdvertisedName,
         setFarmPassword,
@@ -1767,6 +1767,11 @@ async function run(args) {
         removeOllamaModel,
     });
     engineDownBox.fn = onEngineDown;   // serialize + liveHealth exist now — arm supervision
+    // If llama-server died DURING the boot window (between its health-OK and
+    // this line — proxy/plugin startup can take a minute), the exit handler
+    // found fn null and only cleared llamacppChild. Handle it now instead of
+    // advertising unhealthy forever with no restart and no reason.
+    if (config.llamacpp.enabled && !llamacppChild) onEngineDown(-1);
     engineDownBox.markUp = () => { liveHealth.engineUp = true; if (beacon) beacon.kick(); };
 
     // Keep the event loop alive.

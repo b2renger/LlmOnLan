@@ -118,6 +118,16 @@ async function ensureWebview() {
     const w = await window.farm.getAdminWebview();
     if (!w) return;
     const wv = $('#admin');
+    // One failed first load (panel still binding, a paused laptop waking) used
+    // to leave a permanently dead pane — the webview never retries by itself.
+    if (!wv.dataset.failWired) {
+        wv.dataset.failWired = '1';
+        wv.addEventListener('did-fail-load', (e) => {
+            if (e.errorCode === -3) return;   // ERR_ABORTED — navigation churn, not a failure
+            webviewLoaded = false;
+            setTimeout(() => { ensureWebview(); }, 2000);
+        });
+    }
     wv.setAttribute('preload', w.preloadUrl);
     wv.setAttribute('src', w.url);
     webviewLoaded = true;
@@ -204,6 +214,8 @@ function wireSettings(prefs) {
     $('#chk-share').checked = shareWithNetwork;
     updateShareHint();
     $('#app-version').textContent = 'v' + prefs.appVersion;
+    $('#admin-token').textContent = prefs.adminToken ? prefs.adminToken.slice(0, 8) + '…' : '—';
+    $('#btn-copy-token').onclick = () => { if (prefs.adminToken) { window.farm.copyText(prefs.adminToken); toast('Token copied.'); } };
 
     $('#sel-theme').addEventListener('change', (e) => setTheme(e.target.value));
     // Model name, context window and capacity moved to the farm panel (the main
@@ -279,9 +291,12 @@ async function boot() {
     });
     $('#btn-settings').addEventListener('click', openSettings);
     $('#btn-settings-close').addEventListener('click', closeSettings);
+    // Stopping kills every connected user's chat mid-sentence — one accidental
+    // click should not do that silently (hence the confirm below).
     $('#btn-toggle').addEventListener('click', async () => {
         const s = await window.farm.getFarmState();
         const running = s.status === 'ready' || s.status === 'starting' || s.status === 'restarting';
+        if (running && !confirm('Stop the farm? Everyone connected loses their chat mid-answer.')) return;
         renderFarmState(await (running ? window.farm.farmStop() : window.farm.farmStart()));
     });
     $('#btn-overlay-action').addEventListener('click', async () => renderFarmState(await window.farm.farmStart()));

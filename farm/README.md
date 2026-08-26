@@ -94,7 +94,7 @@ npm link        # then just `lol <cmd>` anywhere
 | `lol fleet` | Every farm on the LAN (this box + peers): health, GPU load, VRAM, loaded models, roles, search URL. |
 | `lol bench` | Load‑test before a workshop: N concurrent chats → first‑token latency (p50/p95) + tokens/s. `--users N --rounds R --model id --url …`. |
 | `lol models ls` | List configured models + presence on each host. |
-| `lol models add <id>` / `rm <id>` | Edit the served catalog, then run **`lol up --no-pick`** — plain `lol up` prompts, and pressing Enter serves only the default, dropping what you just added. There is no alias flag: to give the model a stable role name, add `"alias": "…"` to its entry in `models` by hand. |
+| `lol models add <id>` / `rm <id>` | Edit the served catalog, then run **`lol up --no-pick`** — on the OLLAMA engine, plain `lol up` prompts and pressing Enter serves only the default, dropping what you just added (with llama.cpp serving there is no prompt: the catalog is standby). There is no alias flag: to give the model a stable role name, add `"alias": "…"` to its entry in `models` by hand. |
 | `lol models pull` | Pull every configured model on every host. |
 
 **`lol up` flags:** `--model <id[=alias][,…]>` (also `-m`, `--model=…`) serve exactly these (no prompt;
@@ -105,7 +105,7 @@ voice toggle (off by default) · `--ocr` / `--no-ocr` override the document‑OC
 
 ## Backends — llama.cpp (default) and Ollama
 
-A farm can serve models through **two** engines at once. Knowing which one answers a given request is
+A farm knows **two** engines — and serves through **one at a time**. Knowing which one is serving is
 the thing to understand before changing models or sizing for a group.
 
 | | **llama.cpp** (`llama-server`) | **Ollama** |
@@ -124,8 +124,8 @@ client picking an Ollama model next to a resident llama-server overcommitted VRA
 advertised **name survives the switch** (it is copied between `llamacpp.alias` and `modelAlias`), so
 existing chats keep working either way.
 
-**If llama.cpp cannot start, the farm does not die.** No prebuilt exists for this platform (anything
-but win-x64 today — the DGX Spark is linux-arm64), the download failed, the weights would not load:
+**If llama.cpp cannot start, the farm does not die.** No prebuilt exists for this platform (prebuilts
+cover win-x64 and linux-arm64/the Spark today), the download failed, the weights would not load:
 `lol up` logs the reason, **falls back to the Ollama engine for the run**, and the panel shows why on
 the Backend card. The config keeps `llamacpp.enabled`, so a later boot (or a `binDir` pointing at a
 hand-built llama.cpp) picks the fast engine back up.
@@ -246,7 +246,7 @@ lol models pull                      # pull everything configured, on every host
 lol up --no-pick                     # serve EVERYTHING in `models` (see the warning)
 ```
 
-> **⚠ `lol up`'s picker REPLACES the catalog for that run.** On a terminal, plain `lol up` prompts, and
+> **⚠ `lol up`'s picker (OLLAMA engine only — no prompt while llama.cpp serves) REPLACES the catalog for that run.** On a terminal, plain `lol up` prompts, and
 > pressing Enter serves **only the default model** — silently dropping the model you just added. Use
 > `lol up --no-pick` (alias `--yes` / `-y`) to serve the configured `models`, or answer the prompt with
 > every number you want (e.g. `1,3`). Whatever you pick at the prompt is **ephemeral**; it is not written
@@ -376,8 +376,8 @@ card in the desktop client shows the same, turning amber once a box is full. It 
 person: each client is a single-user app whose chats, documents and RAG vectors live on that person's own
 machine (the farm stores nothing). "Multi-user" is purely a **capacity** question — plus, if you want the
 box reachable at all, `proxy.host` / `beacon.enabled` (the Farm app's *Share compute with the network*
-toggle). `proxy.masterKey` can gate the endpoint with a bearer key, but the desktop client has no
-key-entry screen yet, so a keyed farm is for CLI/API clients only.
+toggle). `proxy.masterKey` is the shared **farm password** — see the next section; the desktop client prompts
+for it once per farm and remembers it.
 
 ## Password-protecting a farm
 
@@ -444,19 +444,12 @@ nothing. Shape:
 }
 ```
 
-> **⚠ No Ollama model may be served under `llamacpp.alias`** — not via the global `modelAlias`, and not
-> via a per-model `"alias"`. The llama.cpp backend owns its alias: the generated routing skips every
-> Ollama deployment with that `model_name` and the beacon drops it too, so the colliding model
-> **silently disappears from the fleet**, with no warning. Verified both ways:
->
-> | you set | what vanishes |
-> |---|---|
-> | `"modelAlias": "assistant"` | the default Ollama model (`gemma4:12b`) |
-> | `models: [{ id: "qwen2.5-coder:14b", alias: "assistant" }]` | that model |
->
-> Leave `modelAlias: null` while llama.cpp is on (it only names the default *Ollama* model, which
-> matters when `llamacpp.enabled` is `false`), and give per-model aliases distinct names (`coder`,
-> `vision`, …). Renaming `llamacpp.alias` itself is safe — just don't rename it *onto* one of these.
+> **Alias hygiene.** While llama.cpp serves, NO Ollama model is routed or advertised at all (one
+> engine at a time), so alias collisions cannot drop anything *today*. They still matter the moment
+> you switch to the Ollama engine: the advertised name travels between `llamacpp.alias` and the
+> global `modelAlias` automatically (`carryNameAcross`), and a per-model `"alias"` equal to that
+> name would then shadow it. Keep per-model aliases distinct (`coder`, `vision`, …) and let the
+> panel manage the advertised name.
 
 **`llamacpp.library`** is the list of `.gguf`s the panel offers under *Use this*, so an operator can
 switch weights without hunting for URLs. Each entry is
@@ -527,7 +520,7 @@ nothing. It ships with the three quants measured on this project's 12 GB hardwar
 3. Pull any picked model missing on a reachable host.
 4. (llama.cpp, on by default) Ensure the pinned `llama-server` build + CUDA runtime, ensure the `.gguf`
    weights + projector (**downloads several GB on a first run** — normally already done at
-   `lol install`), spawn it, and health‑wait `/health`. A start failure here is fatal and names the
+   `lol install`), spawn it, and health‑wait `/health`. A start failure here falls back to the Ollama engine (the panel shows why) and names the
    likely cause (see the quant ↔ `mtp` rule).
 5. (`--coordinator`) discover LAN peer farms and fold them into the routing.
 6. Generate `litellm/config.generated.yaml` (llama.cpp deployment + served names × hosts + peers).

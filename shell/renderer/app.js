@@ -272,7 +272,12 @@ function renderPill() {
   else if (st === 'restarting') { cls = 'busy'; text = 'Reconnecting…'; }
   else if (st === 'ready') {
     const a = activeFarm();
-    if (a) {
+    // A LAN whose only farm is password-protected used to read "No server" — a
+    // dead end for a student who has the password in hand. Name the situation
+    // and point at the fix.
+    const locked = !a && farmState.farms.some((f) => f.requiresKey && !f._hasKey && !f._stale);
+    if (locked) { cls = 'busy'; text = 'Server needs a password — click here'; }
+    else if (a) {
       cls = 'ready';
       // Live load next to the name — at-a-glance "how busy is my box". Slots beat
       // GPU% for that: a person reads "2/2" as "expect to wait", where 100% GPU is
@@ -290,6 +295,11 @@ function renderPill() {
         cls = 'busy';
         text = `${a.name} · ${a.busy.label}…`;
       }
+      // The engine-down signal (snapshot.healthy=false) and beacon silence must
+      // reach the ONE trust indicator users look at — a dead farm stayed a green
+      // pill for up to 120 s otherwise.
+      if (a._stale) { cls = 'busy'; text = `${a.name} · not responding…`; }
+      else if (a.healthy === false) { cls = 'error'; text = `${a.name} · problem on the server`; }
     } else { cls = 'busy'; text = 'No server'; }
   }
   els.statusDot.className = 'dot ' + cls;
@@ -697,13 +707,13 @@ function renderPopover() {
       `<div class="farm-main">` +
         `<div class="farm-name">${esc(f.name)} ${badges}</div>` +
         `<div class="farm-meta">${esc(f._host)}:${f.proxyPort} · ${esc(models)}</div>` +
+        keyRow +   // the ONE actionable element on a locked card goes first, not under telemetry
         busyLine +
         capLine +
         liveLine +
         hwLine +
         plugLine +
         recLine +
-        keyRow +
         manageBtn +
       `</div>` +
       `<span class="farm-check">${isActive ? ICON_CHECK : ''}</span>`;

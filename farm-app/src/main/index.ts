@@ -122,6 +122,10 @@ function currentPrefs() {
         arch: process.arch,
         ramGb: Math.round(os.totalmem() / 1e9),
         hostname: os.hostname(),
+        // For driving the panel from another browser on the LAN (headless boxes):
+        // the token is the panel's login. It lives in this box's own config — only
+        // the operator at this machine can read it here.
+        adminToken: s.adminToken,
     };
 }
 
@@ -143,7 +147,14 @@ function registerIpc(): void {
         if (setupRunning) return { ok: false, error: 'Setup already running.' };
         setupRunning = true;
         try {
-            const res = await runSetup(pushSetupProgress, async () => {
+            const res = await runSetup(pushSetupProgress, async (onDetail?: (msg: string) => void) => {
+                // Relay the supervisor's startup narration (download percentages,
+                // step names) into the wizard while the launch phase runs.
+                const relay = (st: FarmState) => {
+                    if (onDetail && st.message && (st.status === 'starting' || st.status === 'restarting')) onDetail(st.message);
+                };
+                supervisor.on('state', relay);
+                try {
                 // Mark installed + stamp the farm-code version (setup just copied the current
                 // bundle) so the next boot doesn't needlessly re-copy.
                 updateSettings({ installed: true, farmCodeVersion: app.getVersion() });
@@ -151,6 +162,7 @@ function registerIpc(): void {
                 if (supervisor.getState().status !== 'ready') {
                     throw new Error(supervisor.getState().message || 'The farm did not start.');
                 }
+                } finally { supervisor.off('state', relay); }
             });
             return res;
         } finally {

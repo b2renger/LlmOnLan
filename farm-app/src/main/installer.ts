@@ -309,7 +309,7 @@ function runLolInstall(onLine: (line: string) => void): Promise<void> {
 // wizard still drives the checklist's launch phase. Returns the pinned admin token
 // on success. Idempotent + resumable: every phase skips work already done, so a Retry
 // after a failure only redoes what's missing.
-export async function runSetup(emit: Emit, doLaunch: () => Promise<void>): Promise<{ ok: boolean; adminToken?: string; error?: string }> {
+export async function runSetup(emit: Emit, doLaunch: (onDetail?: (msg: string) => void) => Promise<void>): Promise<{ ok: boolean; adminToken?: string; error?: string }> {
     const ph = new Phases(emit);
     const adminToken = ensureAdminToken();
     let ownedOllama: ChildProcess | null = null;
@@ -363,7 +363,10 @@ export async function runSetup(emit: Emit, doLaunch: () => Promise<void>): Promi
         if (ownedOllama) { await killTree(ownedOllama.pid); ownedOllama = null; }
         ph.start('launch');
         ph.log('[launch] starting the farm…');
-        await doLaunch();
+        // The launch can legitimately download gigabytes (a deferred llama.cpp
+        // weights fetch lands exactly here) — a blind spinner read as a hang.
+        // The caller relays the supervisor's narration into this phase's detail.
+        await doLaunch((msg) => ph.detail('launch', msg));
         ph.done('launch');
         ph.installed();
 

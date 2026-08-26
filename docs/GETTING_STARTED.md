@@ -76,7 +76,7 @@ cd LlmOnLan
 - **[Python 3.9–3.13](https://python.org)** — for the LiteLLM proxy, the **default-on** web search and document OCR, and (if you enable it) voice. `lol install` will **not** install Python for you. On Windows, `py -3.12` works after installing Python.
 - **[git](https://git-scm.com)** (you already used it to clone).
 - **[Ollama](https://ollama.com)**, **LiteLLM** and the **llama.cpp** backend are installed **for you** by the next step.
-- **GPU:** the shipped defaults target an **NVIDIA card with ≥ 12 GB VRAM**. The automatic llama.cpp bootstrap is **Windows x64 + NVIDIA**; on macOS/Linux, install llama.cpp yourself and point `llamacpp.binDir` at it (or set `"llamacpp": { "enabled": false }` to run on Ollama alone).
+- **GPU:** the shipped defaults target an **NVIDIA card with ≥ 12 GB VRAM**. The llama.cpp bootstrap is automatic on **Windows x64 + NVIDIA** and on the **DGX Spark** (linux-arm64 — our CI publishes the binary). Anywhere else the farm serves via **Ollama automatically** (no config edit needed); installing llama.cpp yourself and setting `llamacpp.binDir` re-enables the fast engine.
 
 ### Bootstrap (one command)
 
@@ -108,7 +108,7 @@ The defaults already give you a working farm (model + web search). `lol install`
   "llamacpp": {                          // the model EVERYONE chats with (default backend)
     "alias": "assistant",                //   the name users see — rename it to anything you like
     "model": "https://…/Qwen3.8-27B-GGUF/resolve/main/Qwen3.8-27B-UD-IQ2_S.gguf",
-    "contextLength": 16384,              //   window, SPLIT across the slots below
+    "contextLength": "auto",             //   DEFAULT: the largest that fits this GPU (a number pins it); SPLIT across the slots below
     "parallel": 1                        //   how many people it answers at once — see §4
   },
   "modelAlias": null,                    // stable id for the default OLLAMA model (used when
@@ -153,8 +153,9 @@ lol fleet      # every farm on the LAN (this box + peers): load, VRAM, model, se
 ```
 
 When it's up you'll see the OpenAI endpoint (`http://<box-ip>:4000/v1`) and, if enabled, the search/voice URLs.
-Clients auto-select the llama.cpp model, advertised under its alias (`assistant` unless you renamed it);
-the Ollama models stay available in the picker. Confirm what's actually served with
+Clients auto-select the llama.cpp model, advertised under its alias (`assistant` unless you renamed
+it) — with llama.cpp serving it is the **only** model clients see (one engine at a time; the Ollama
+catalog is standby). Confirm what's actually served with
 `curl http://<box-ip>:4000/v1/models`.
 
 The banner also prints the **admin panel** URL — `http://<box-ip>:41997/lol/admin` — plus an access
@@ -373,7 +374,7 @@ context each"). Raise the context window alongside it if you need both — and c
 **Manage the Ollama catalog.** *Models · Ollama* ▸ **Download a model** → an Ollama tag such as
 `qwen2.5-coder:14b`. These serve (and appear in users’ pickers) **when Ollama is the selected
 engine**; while llama.cpp is the engine the card reads *standby*. **Delete** removes one from the box. From the
-CLI: `lol models add <tag>` then **`lol up --no-pick`** (plain `lol up` prompts, and pressing Enter serves
+CLI: `lol models add <tag>` then **`lol up --no-pick`** (on the Ollama engine, plain `lol up` prompts and Enter serves
 only the default — dropping what you just added). Recipes for both paths:
 [`farm/README.md` ▸ Adding or changing models](../farm/README.md#adding-or-changing-models).
 

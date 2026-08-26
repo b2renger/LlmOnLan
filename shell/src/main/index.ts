@@ -260,6 +260,14 @@ function onFarms(payload: { farms: DiscoveredFarm[] } & Record<string, unknown>)
     if (!booted || process.env.LOL_ENDPOINT) return; // pinned endpoint: discovery is informational only
     const chosen = chooseActive(payload.farms);
     if (!chosen) return;
+    // Rotation detection must not hide inside the endpoint-CHANGED branch: the
+    // operator rotating the password changes nothing in that comparison, and the
+    // stored key silently 401-loops. Verify on every beacon — verifyStoredFarmKey
+    // rate-limits itself to one probe per farm per minute.
+    {
+        const k = farmKey(chosen as { id: string; requiresKey?: boolean });
+        if (k) verifyStoredFarmKey(chosen as DiscoveredFarm, k);
+    }
     // Honor the farm's client-plugin recommendations (Blender) — independent of the
     // endpoint change-check below, since recommendations can change on a stable endpoint.
     applyFarmRecommendations(chosen);
@@ -571,7 +579,13 @@ function registerIpc(): void {
         // doesn't drop web search / the default model / voice / OCR (they'd reset to
         // null otherwise, and the no-op change-check in onFarms would never repoint to
         // restore them).
-        await sidecar.start({ endpoint: currentEndpoint, dataDir: result.ok ? newDir : oldDir, defaultModel: currentModel, searxngUrl: currentSearxng, tts: currentTts, extract: currentExtract });
+        // apiKey rides along or a keyed farm 401-loops after the move — sidecar.start
+        // NULLS any field not passed (audit round 2 caught this handler missing it).
+        const moveKey = (() => {
+            const f = discovery?.getFarms().find((x) => x.id === activeFarmId) ?? null;
+            return f ? farmKey(f as { id: string; requiresKey?: boolean }) : loadSettings().lastFarmKey;
+        })();
+        await sidecar.start({ endpoint: currentEndpoint, dataDir: result.ok ? newDir : oldDir, apiKey: moveKey, defaultModel: currentModel, searxngUrl: currentSearxng, tts: currentTts, extract: currentExtract });
         return result;
     });
 

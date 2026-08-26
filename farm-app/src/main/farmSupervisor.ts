@@ -15,6 +15,7 @@ import * as path from 'path';
 import { farmRoot, lolEntry, bundledPython, pythonDir, ollamaDir } from './paths';
 import { killTree, waitForHttp, httpGetJson } from './util';
 import { reapStaleFarm } from './farmProcess';
+import { appendFarmLog } from './farmLog';
 import { FarmState } from './types';
 
 // The farm's admin/discovery HTTP port (config.beacon.httpPort default). The farm
@@ -97,6 +98,7 @@ export class FarmSupervisor extends EventEmitter {
         // button would then kill it and restart the download from zero. So: keep
         // waiting as long as the child keeps producing output (downloads print
         // per-percent progress); fail only after 5 SILENT minutes, or a 2 h hard cap.
+        this.startedWaitAt = Date.now();
         const healthy = await this.waitHealthy(myGen);
         if (myGen !== this.gen) return; // superseded by a newer start()/stop()
         if (healthy) {
@@ -107,7 +109,36 @@ export class FarmSupervisor extends EventEmitter {
             this.setState({ status: 'ready', adminUrl: this.adminUrl(), selfUrl: this.selfUrl(), lanUrls, message: undefined });
             console.log(`[farm] ready — admin ${this.adminUrl()} · LAN ${lanUrls.join('  ') || '(no LAN address)'}`);
         } else {
-            this.setState({ status: 'error', message: 'The farm did not become healthy — no progress for 5 minutes. See the log.' });
+            const capped = Date.now() - this.startedWaitAt > 2 * 60 * 60 * 1000 - 5000;
+            this.setState({
+                status: 'error',
+                message: capped
+                    ? 'The farm has been starting for 2 hours — something is wrong. See farm.log in the data folder (Settings ▸ Open data & logs folder).'
+                    : 'The farm stopped making progress for 5 minutes. It may still recover — this screen clears itself if it does. See farm.log in the data folder.',
+            });
+            // Do NOT abandon the child: a farm that was merely slow used to become
+            // healthy BEHIND this error screen, where the only button killed it and
+            // restarted the multi-GB bootstrap from zero. Keep watching; self-clear.
+            void this.watchForLateRecovery(myGen);
+        }
+    }
+
+    private startedWaitAt = 0;
+
+    // After the health-wait gave up: the child is still running on purpose.
+    // If it turns healthy later, clear the error screen ourselves.
+    private async watchForLateRecovery(myGen: number): Promise<void> {
+        for (let i = 0; i < 60 * 60; i++) {   // up to another hour, 6 s cadence
+            await new Promise((r) => setTimeout(r, 6000));
+            if (myGen !== this.gen) return;              // superseded
+            if (!this.child) return;                     // it exited — onChildExit owns it
+            if (await waitForHttp(this.selfUrl(), { timeoutMs: 1500, intervalMs: 1500 })) {
+                const snap = await httpGetJson<SelfSnapshot>(this.selfUrl());
+                const proxyPort = snap?.proxyPort || 4000;
+                const lanUrls = (snap?.ips || []).map((ip) => `http://${ip}:${proxyPort}/v1`);
+                this.setState({ status: 'ready', adminUrl: this.adminUrl(), selfUrl: this.selfUrl(), lanUrls, message: undefined });
+                return;
+            }
         }
     }
 
@@ -159,6 +190,11 @@ export class FarmSupervisor extends EventEmitter {
         this.lastActivity = Date.now();
         const text = d.toString();
         for (const line of text.split(/\r?\n/)) if (line.trim()) console.log(`[lol] ${line}`);
+        // Into the REAL log file too — every error screen says "see the log", and
+        // in a packaged app console.log goes nowhere. Settings ▸ Open data & logs
+        // folder opens the directory this lands in (audit: operators dead-ended
+        // with literally nothing to read or paste).
+        appendFarmLog(text);
         // Surface what `lol up` is doing on the overlay while starting, so the user
         // can tell a working bootstrap from a hang:
         //   • download-progress lines — "[llama.cpp] model 43%", "[gemma4:12b]

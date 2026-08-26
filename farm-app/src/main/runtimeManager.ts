@@ -97,10 +97,12 @@ async function ghLatestAssets(repo: string): Promise<{ tag: string; assets: { na
 }
 
 // Stream a (large) file to disk, following redirects, reporting bytes.
+// A STALLED socket (Wi-Fi drop that never RSTs) used to freeze the wizard forever
+// with no cancel; 60 s without a byte now fails the download so the phase can retry.
 function downloadTo(url: string, dest: string, onBytes?: (recv: number, total: number) => void, redirects = 0): Promise<void> {
     return new Promise((resolve, reject) => {
         if (redirects > 6) return reject(new Error('too many redirects'));
-        https.get(url, { headers: { 'user-agent': UA } }, (res) => {
+        const req = https.get(url, { headers: { 'user-agent': UA } }, (res) => {
             const loc = res.headers.location;
             if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && loc) {
                 res.resume();
@@ -110,12 +112,22 @@ function downloadTo(url: string, dest: string, onBytes?: (recv: number, total: n
             const total = Number(res.headers['content-length'] || 0);
             let recv = 0;
             const out = fs.createWriteStream(dest);
-            res.on('data', (c) => { recv += c.length; if (onBytes) onBytes(recv, total); });
-            res.on('error', reject);
-            out.on('error', reject);
-            out.on('finish', () => out.close(() => resolve()));
+            // 60 s without a single byte = a stalled socket, not a slow one.
+            let stall: NodeJS.Timeout | null = null;
+            const rearm = () => {
+                if (stall) clearTimeout(stall);
+                stall = setTimeout(() => {
+                    req.destroy(new Error(`download stalled (no data for 60 s) for ${path.basename(dest)} — check the connection and retry`));
+                }, 60000);
+            };
+            rearm();
+            res.on('data', (c) => { recv += c.length; rearm(); if (onBytes) onBytes(recv, total); });
+            res.on('error', (e) => { if (stall) clearTimeout(stall); reject(e); });
+            out.on('error', (e) => { if (stall) clearTimeout(stall); reject(e); });
+            out.on('finish', () => { if (stall) clearTimeout(stall); out.close(() => resolve()); });
             res.pipe(out);
-        }).on('error', reject);
+        });
+        req.on('error', reject);
     });
 }
 

@@ -123,3 +123,6 @@ select { font: inherit; background: var(--surface-2); color: var(--text); border
 .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--surface-2);
     border: 1px solid var(--border); color: var(--text); padding: 10px 16px; border-radius: 9px; font-size: 13px; z-index: 30;
     box-shadow: 0 6px 20px rgba(0,0,0,.3); }
+
+/* The panel token in Settings — read/compare as a code string. */
+.mono { font-family: ui-monospace, Consolas, monospace; font-size: 12px; }
