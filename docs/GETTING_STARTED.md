@@ -351,17 +351,20 @@ usual causes:
   needs and llama-server refuses to start. Picking a library entry handles this for you.
   See [the quant rule](../farm/README.md#backends--llamacpp-default-and-ollama).
 
-**Switch engine.** *Backend* ▸ the two buttons. **llama.cpp** serves one model as fast as this hardware
-can; **Ollama** serves the catalog below it, so people can choose between several models. About a minute
-either way.
+**Switch engine.** *Backend* ▸ the two buttons. **One engine serves at a time**: llama.cpp serves its
+one model as fast as the hardware can; Ollama serves the catalog below it, so people can choose between
+several models. The other side goes **standby** — greyed out in the panel, invisible to clients. The
+model name carries across, so existing chats keep working. About a minute either way. While it runs,
+every client shows "*switching…*" instead of an error.
 
 **Serve more people at once.** *Backend* ▸ **People served at once**. On llama.cpp the context window is
 **split** across slots, so the panel tells you what each user actually gets ("2 slots, 8192 tokens of
 context each"). Raise the context window alongside it if you need both — and check it still fits VRAM:
 [`farm/README.md` ▸ Multiple users & capacity](../farm/README.md#multiple-users--capacity).
 
-**Offer extra models in the picker.** *Models · Ollama* ▸ **Download a model** → an Ollama tag such as
-`qwen2.5-coder:14b`. It is pulled and offered to clients. **Delete** removes one from the box. From the
+**Manage the Ollama catalog.** *Models · Ollama* ▸ **Download a model** → an Ollama tag such as
+`qwen2.5-coder:14b`. These serve (and appear in users’ pickers) **when Ollama is the selected
+engine**; while llama.cpp is the engine the card reads *standby*. **Delete** removes one from the box. From the
 CLI: `lol models add <tag>` then **`lol up --no-pick`** (plain `lol up` prompts, and pressing Enter serves
 only the default — dropping what you just added). Recipes for both paths:
 [`farm/README.md` ▸ Adding or changing models](../farm/README.md#adding-or-changing-models).

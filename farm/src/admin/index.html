@@ -78,6 +78,14 @@
   .bar > i { display: block; height: 100%; background: var(--accent2); transition: width .3s; }
   .bar > i.indet { animation: sweep 1.4s ease-in-out infinite; transform-origin: left; }
   @keyframes sweep { 0% { transform: scaleX(.15); } 50% { transform: scaleX(.6); } 100% { transform: scaleX(.15); } }
+  /* Performance card: recent tok/s as a tiny bar history. */
+  .perfnum { font-size: 26px; font-weight: 650; letter-spacing: -.01em; }
+  .perfnum small { font-size: 13px; color: var(--muted); font-weight: 500; }
+  .spark { display: flex; align-items: flex-end; gap: 2px; height: 38px; margin: 8px 0 2px; }
+  .spark i { flex: 1; min-width: 3px; background: var(--accent2); border-radius: 2px 2px 0 0; }
+  .spark i.z { background: var(--surface2); }
+  .warnline { color: var(--warn); font-size: 12.5px; padding: 4px 0; }
+  .warnline b { color: var(--warn); }
   @media (max-width: 620px) { .engines { grid-template-columns: 1fr; } .badges { flex-wrap: wrap; } }
 </style>
 </head>
@@ -163,20 +171,32 @@ function render(s) {
   const slotLine = be.slots > 1
     ? `${be.slots} people at once · ${fmtK(perSlot)} of context each`
     : `1 person at a time · ${fmtK(perSlot)} of context`;
-  const engineBtn = (id, title, sub, active) =>
-    `<button class="engine${active ? ' active' : ''}" data-engine="${id}"${active || jobRunning ? ' disabled' : ''}>`
+  const engineBtn = (id, title, sub, active, blocked) =>
+    `<button class="engine${active ? ' active' : ''}" data-engine="${id}"${active || jobRunning || blocked ? ' disabled' : ''}>`
     + `<div class="mname">${title}${active ? ' <span class="badge on">running</span>' : ''}</div>`
     + `<div class="meta">${sub}</div></button>`;
 
+  const lcAvailable = s.llamacppAvailable !== false;
+  // The engine can have FALLEN BACK at boot (weights failed to fetch, platform
+  // unsupported): the farm serves with Ollama and this is the only place the
+  // operator learns why — the run itself looks healthy.
+  const bootErr = s.llamacppBootError
+    ? `<div class="warnline">llama.cpp could not start — ${esc(s.llamacppBootError)}</div>`
+    : '';
   const backendCard =
     `<div class="card">`
     + `<h2>Backend</h2>`
+    + bootErr
     + `<div class="hero"><div class="hero-name">${esc(be.alias || '—')}</div>`
     + `<div class="hero-meta">${esc(engineName)} · ${esc(be.model || '—')}</div>`
     + `<div class="hero-meta">${esc(slotLine)}${cap.clients != null ? ` · <b>${cap.clients}</b> connected now` : ''}</div></div>`
     + `<div class="engines">`
-    + engineBtn('llamacpp', 'llama.cpp', 'One model, fastest. Speculative decoding, quantised KV cache.', be.engine === 'llama.cpp')
-    + engineBtn('ollama', 'Ollama', 'The catalog below. Several models to choose from, slower.', be.engine !== 'llama.cpp')
+    + engineBtn('llamacpp', 'llama.cpp',
+        lcAvailable
+          ? 'One model, fastest. Speculative decoding, quantised KV cache.'
+          : 'Not available on this machine — no prebuilt llama.cpp for this platform. Install it yourself and set llamacpp.binDir.',
+        be.engine === 'llama.cpp', !lcAvailable)
+    + engineBtn('ollama', 'Ollama', 'The models below. Several to choose from, slower.', be.engine !== 'llama.cpp')
     + `</div>`
     + `<div class="hint">Switching reloads the model — about a minute, or longer if the weights still have to download.</div>`
 
@@ -201,9 +221,47 @@ function render(s) {
     + `<div class="row"><span></span><span><div class="mname">Context window</div>`
     + `<div class="meta">how much text the model reads at once — bigger fits whole documents, costs VRAM${
         be.slots > 1 ? ` · shared across ${be.slots} slots, so each user gets ${fmtK(perSlot)}` : ''}</div></span>`
-    + `<span class="badges"><select id="ctx-sel">${ctxOptions(be.contextLength)}</select>`
+    + `<span class="badges"><select id="ctx-sel">${ctxOptions(be.contextLength, be.engine === 'llama.cpp' ? s.fit : null)}</select>`
     + `<button id="ctx-apply"${jobRunning ? ' disabled' : ''}>Apply</button></span></div>`
     + `</div>`;
+
+  // --- performance ---------------------------------------------------------------
+  // What the box is actually doing: measured tok/s while generating (from
+  // llama-server's own counters — wall-clock averages would understate), load,
+  // and the warnings that would have named the live incident: VRAM full at idle.
+  const perf = s.perf || null;
+  const hist = s.perfHistory || [];
+  const hmax = Math.max(1, ...hist.map((x) => x.gen || 0));
+  const spark = hist.length
+    ? `<div class="spark" title="generation speed, last ${hist.length} samples">${hist.map((x) =>
+        `<i${x.gen ? '' : ' class="z"'} style="height:${Math.max(6, Math.round(((x.gen || 0) / hmax) * 100))}%"></i>`).join('')}</div>`
+    : '';
+  const g = (s.health && s.health.gpu) || {};
+  const vramFrac = (g.vramUsedGb != null && g.vramTotalGb) ? g.vramUsedGb / g.vramTotalGb : null;
+  const idle = g.gpuUtil != null && g.gpuUtil < 10;
+  const loadedOll = (s.models || []).filter((m) => m.loaded).map((m) => m.id);
+  const perfWarns = [];
+  if (be.engine === 'llama.cpp' && vramFrac != null && vramFrac > 0.94 && idle)
+    perfWarns.push('GPU memory is nearly full while idle — the context window is probably larger than this card holds. Lower it above.');
+  if (be.engine === 'llama.cpp' && perf && perf.lastGenTokSec != null && perf.lastGenTokSec < 15)
+    perfWarns.push(`Generating at ${perf.lastGenTokSec} tok/s — far below what this hardware should do. GPU memory is likely overcommitted (context too large, another model loaded, or another app on the GPU).`);
+  if (be.engine === 'llama.cpp' && loadedOll.length)
+    perfWarns.push(`Also in GPU memory: ${loadedOll.join(', ')} (document reading — freed automatically when the GPU is idle and full).`);
+  const perfBits = [
+    perf && perf.busySlots != null ? `Generating now <b>${perf.busySlots}/${perf.totalSlots}</b>` : '',
+    perf && perf.queued ? `Waiting <b>${perf.queued}</b>` : '',
+    perf && perf.kvUsed != null ? `Context memory used <b>${Math.round(perf.kvUsed * 100)}%</b>` : '',
+    (g.vramUsedGb != null && g.vramTotalGb != null) ? `VRAM <b>${g.vramUsedGb}/${g.vramTotalGb} GB</b>` : '',
+    g.gpuUtil != null ? `GPU <b>${g.gpuUtil}%</b>` : '',
+  ].filter(Boolean).join('');
+  const perfCard = be.engine === 'llama.cpp'
+    ? `<div class="card"><h2>Performance</h2>`
+      + `<div class="perfnum">${perf && perf.lastGenTokSec != null ? perf.lastGenTokSec : '—'} <small>tok/s while generating${perf && perf.lastActiveTs ? '' : ' · no traffic measured yet'}</small></div>`
+      + `<div class="health">${perfBits}</div>`
+      + spark
+      + perfWarns.map((w) => `<div class="warnline">⚠ ${esc(w)}</div>`).join('')
+      + `</div>`
+    : '';
 
   // --- the llama.cpp model library ---------------------------------------------
   // "How do I put a different model on the farm?" had no answer in any UI: the
@@ -231,31 +289,36 @@ function render(s) {
     : '';
 
   // --- Ollama catalog ------------------------------------------------------------
+  const lcOn = be.engine === 'llama.cpp';
   const models = (s.models || []).slice().sort((a, b) => Number(b.served) - Number(a.served) || a.id.localeCompare(b.id));
   const rows = models.length ? models.map((m) => {
     const dotCls = 'dot' + (m.served ? ' served' : '') + (m.loaded ? ' loaded' : '');
     const meta = [gb(m.size), m.paramSize].filter(Boolean).join(' · ');
+    const isOcr = s.ocrModel && m.id.replace(/:latest$/, '') === String(s.ocrModel).replace(/:latest$/, '');
     const badges = [
-      m.isDefault && be.engine !== 'llama.cpp' ? '<span class="badge star">★ default</span>' : '',
+      m.isDefault && !lcOn ? '<span class="badge star">★ default</span>' : '',
+      isOcr ? '<span class="badge">document reading</span>' : '',
       m.loaded ? '<span class="badge on">in VRAM</span>' : '',
-      m.served ? '<span class="badge on">offered</span>' : '<span class="badge">idle</span>',
+      lcOn ? '' : (m.served ? '<span class="badge on">offered</span>' : '<span class="badge">idle</span>'),
     ].filter(Boolean).join('');
     // Promoting to default is meaningless while llama.cpp owns the alias clients
     // auto-select — so the button is hidden there rather than lying about its effect.
-    const defBtn = m.served && !m.isDefault && be.engine !== 'llama.cpp'
+    const defBtn = m.served && !m.isDefault && !lcOn
       ? `<button data-dact="default" data-id="${esc(m.id)}" title="Every client auto-selects this model">Make default</button>` : '';
-    const btn = m.served
+    // Offer/Stop change what OLLAMA serves — meaningless while llama.cpp is the
+    // engine (nothing here is routed), so they are hidden rather than left lying.
+    const btn = lcOn ? '' : (m.served
       ? `<button class="stop" data-act="stop" data-id="${esc(m.id)}">Stop</button>`
-      : `<button class="start" data-act="start" data-id="${esc(m.id)}">Offer</button>`;
-    const del = `<button class="stop" data-olrm="${esc(m.id)}" title="Delete the weights from this box"${jobRunning ? ' disabled' : ''}>Delete</button>`;
+      : `<button class="start" data-act="start" data-id="${esc(m.id)}">Offer</button>`);
+    const del = isOcr ? '' : `<button class="stop" data-olrm="${esc(m.id)}" title="Delete the weights from this box"${jobRunning ? ' disabled' : ''}>Delete</button>`;
     return `<div class="row"><span class="${dotCls}"></span>`
       + `<span><div class="mname">${esc(m.id)}</div>${meta ? `<div class="meta">${esc(meta)}</div>` : ''}</span>`
       + `<span class="badges">${badges}${defBtn}${btn}${del}</span></div>`;
   }).join('') : '<div class="empty">No models installed on any reachable host.</div>';
 
-  const ollamaCard = `<div class="card"><h2>Models · Ollama</h2>`
-    + `<div class="hint">${be.engine === 'llama.cpp'
-        ? 'Extra models users can pick by hand. The default everyone gets is the llama.cpp one above.'
+  const ollamaCard = `<div class="card"><h2>Models · Ollama${lcOn ? ' <span class="badge">standby</span>' : ''}</h2>`
+    + `<div class="hint">${lcOn
+        ? '<b>Not served right now</b> — one engine at a time, and llama.cpp is serving. These stay installed for an engine switch, and document reading uses its model from here.'
         : 'These are what this farm serves. The ★ one is what clients auto-select.'}</div>`
     + rows
     + `<div class="row"><span></span><span><div class="mname">Download a model</div>`
@@ -319,6 +382,7 @@ function render(s) {
     + `<p class="sub">Everything here applies to the running farm and is remembered across restarts.</p>`
     + jobBar
     + backendCard
+    + perfCard
     + libCard
     + ollamaCard
     + `<div class="card"><h2>Plugins</h2>${pluginRows}${blenderRow}</div>`
@@ -351,10 +415,18 @@ function render(s) {
 // Context presets. 262144 is the native max of the models we serve AND the farm's own
 // server-side cap; the small end matters on a 12 GB card, where too large a window is
 // how a farm ends up offloading to CPU and crawling.
-function ctxOptions(now) {
+// `fit` (when the farm can compute it) disables the sizes this GPU cannot hold —
+// the alternative was learned the hard way: a 256k option picked on a 12 GB card
+// "worked", overcommitted into system RAM, and served a few tokens a second.
+function ctxOptions(now, fit) {
   const OPTS = [4096, 8192, 16384, 32768, 65536, 131072, 262144];
   const list = (now && !OPTS.includes(now)) ? [now, ...OPTS] : OPTS;
-  return list.map((v) => `<option value="${v}"${v === now ? ' selected' : ''}>${fmtK(v)} tokens</option>`).join('');
+  const max = fit && fit.maxContext != null ? fit.maxContext : null;
+  return list.map((v) => {
+    const over = max != null && v > max && v !== now;
+    const label = fmtK(v) + ' tokens' + (over ? ` — won\u2019t fit (${fit.vramGb} GB GPU)` : '');
+    return `<option value="${v}"${v === now ? ' selected' : ''}${over ? ' disabled' : ''}>${label}</option>`;
+  }).join('');
 }
 function fmtK(n) { return !n ? '—' : (n % 1024 === 0 ? (n / 1024) + 'k' : String(n)); }
 

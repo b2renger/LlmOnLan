@@ -19,6 +19,8 @@ const { writeLitellmConfig, servedEntries } = require('../litellm');
 const { buildSnapshot, backendInfo } = require('../snapshot');
 const { patchSection, patchConfigFile } = require('../configFile');
 const { detectHardware, gpuLiveStats } = require('../systemInfo');
+const perfMod = require('../perf');
+const fsMod = require('fs');
 const { DiscoveryBeacon } = require('../beacon');
 const { PeerListener } = require('../peerListener');
 const { selectModels } = require('../modelPicker');
@@ -63,8 +65,13 @@ function spawnLocalOllama(config, baseUrl) {
         OLLAMA_NUM_PARALLEL: String(config.ollama.numParallel),
         OLLAMA_MAX_LOADED_MODELS: String(config.ollama.maxLoadedModels),
         OLLAMA_FLASH_ATTENTION: config.ollama.flashAttention ? '1' : '0',
-        // Keep the model warm in VRAM (no reload after idle) — see config.keepAlive.
-        OLLAMA_KEEP_ALIVE: config.ollama.keepAlive,
+        // Keep-warm policy depends on WHICH engine serves. Ollama engine: the
+        // configured keepAlive ('-1' = forever — right for a dedicated box). But when
+        // llama.cpp is the engine, the only Ollama user is the OCR plugin, and a
+        // vision model pinned forever ('-1') next to a resident llama-server is how a
+        // 12 GB card ends up paging every token. 5 minutes: hot across a document
+        // batch, gone before it starves chat.
+        OLLAMA_KEEP_ALIVE: config.llamacpp.enabled ? '5m' : config.ollama.keepAlive,
         // Context window big enough for whole-document chat — see config.contextLength.
         OLLAMA_CONTEXT_LENGTH: String(config.ollama.contextLength),
     };
@@ -281,18 +288,74 @@ async function run(args) {
 
     log.info(`Bringing up ${log.paint.bold(config.name)} …`);
 
+    // 0b. Detect hardware FIRST — the llama.cpp VRAM budget needs it before spawn
+    //     (it used to be detected only when the snapshot was built, long after).
+    const hw = await detectHardware();
+
+    // 0c. Can this platform run the llama.cpp engine at all? No prebuilt asset and
+    //     no binDir means the answer is no (linux-arm64 — the DGX Spark — today), and
+    //     the farm must FALL BACK to the Ollama engine instead of exiting: this exact
+    //     hard-exit is what made the DGX box "not launch at all". In-memory only —
+    //     the operator's config keeps llamacpp.enabled, so a later build (or a binDir)
+    //     re-enables it without anyone re-editing anything.
+    let llamacppBootError = null;
+    if (config.llamacpp.enabled && !config.llamacpp.binDir && !llamacpp.installed() && !llamacpp.supported()) {
+        llamacppBootError = `No prebuilt llama.cpp for ${process.platform}/${process.arch} — serving with Ollama. ` +
+            'Install llama.cpp yourself and set llamacpp.binDir to use the llama.cpp engine.';
+        log.warn(llamacppBootError);
+        config.llamacpp.enabled = false;
+    }
+
     // 1. Ollama
     const oll = await ensureOllama(config);
     if (!oll) return 1;
 
     // 1b. Choose which installed model(s) to serve (interactive picker, or
     //     --model / --no-pick / non-TTY → the configured catalog). Drives THIS run.
-    config.models = await selectModels(config, oll.reachable, args || []);
+    // The interactive picker chooses what OLLAMA serves. With the llama.cpp engine
+    // on, the catalog is standby inventory (nothing in it is routed), so prompting
+    // "which models to serve" would promise something the run will not do.
+    if (!config.llamacpp.enabled) {
+        config.models = await selectModels(config, oll.reachable, args || []);
+    }
 
     // 2. Models — pull any chosen model a host is missing (no-op for picked ones).
     await pullMissing(config, oll.reachable);
 
     let llamacppChild = null;
+    // The .gguf actually loaded (set by startLlamacpp) — fs.statSync on it is the
+    // honest weights size the VRAM budget wants.
+    let lastModelPath = null;
+
+    // VRAM budget for the CURRENT llama.cpp shape (or a would-be context size).
+    // null when it cannot be computed — no GPU detected, or weights not on disk yet.
+    // On unified-memory boxes (DGX Spark) detectHardware reports the RAM pool, so
+    // the budget is generous there rather than wrongly restrictive.
+    function computeFit(atContext) {
+        try {
+            const mp = (lastModelPath && fsMod.existsSync(lastModelPath))
+                ? lastModelPath
+                : (config.llamacpp.model ? ollama.ggufPathFor(config.llamacpp.model) : null);
+            if (!mp || !fsMod.existsSync(mp)) return null;
+            const weightsGb = fsMod.statSync(mp).size / 1e9;
+            let mmprojGb = 0;
+            if (config.llamacpp.mmproj) {
+                const pp = ollama.ggufPathFor(config.llamacpp.mmproj);
+                mmprojGb = (pp && fsMod.existsSync(pp)) ? fsMod.statSync(pp).size / 1e9 : 0.8;
+            }
+            const budget = perfMod.fitBudget({
+                vramGb: hw && hw.vramGb, weightsGb, mmprojGb,
+                kvCacheType: config.llamacpp.kvCacheType,
+                contextLength: atContext ?? config.llamacpp.contextLength,
+            });
+            return {
+                ...budget,
+                vramGb: (hw && hw.vramGb) || null,
+                weightsGb: Math.round(weightsGb * 10) / 10,
+                kvCacheType: config.llamacpp.kvCacheType,
+            };
+        } catch { return null; }
+    }
 
     // Bring llama-server up for the CURRENT in-memory config: binaries, then weights,
     // then spawn + health-wait. Factored out of the boot path because every live change
@@ -323,6 +386,23 @@ async function run(args) {
             return { ok: false, message: `Could not fetch llama.cpp or its weights: ${(e && e.message) || e}` };
         }
         if (!mdl.ok) return { ok: false, message: mdl.message };
+        lastModelPath = mdl.modelPath;
+
+        // VRAM clamp, BEFORE spawn. llama-server does not refuse a shape that
+        // overflows VRAM — Windows overcommits into system RAM and the box "works"
+        // at a few tok/s. Live case: a 256k context saved from the panel onto a
+        // 12 GB card left it at 11.6/12 GB *idle*, paging every token. If the
+        // persisted context cannot fit, serve the largest that does — and persist
+        // the clamp, because the broken value came from the panel in the first
+        // place and would otherwise bite again on every boot.
+        const fit = computeFit();
+        if (fit && fit.maxContext != null && fit.fits === false && fit.maxContext >= 4096
+            && config.llamacpp.contextLength > fit.maxContext) {
+            const wanted = config.llamacpp.contextLength;
+            log.err(`Context ${wanted} needs ~${fit.needGb} GB — this GPU has ${fit.vramGb} GB. Clamping to ${fit.maxContext}.`);
+            const warn = persistLlamacpp({ contextLength: fit.maxContext });
+            if (warn) log.warn(warn.trim());
+        }
 
         const child = llamacpp.spawnLlamacpp(config, mdl.modelPath, mdl.mmprojPath, binDir);
         child.stdout.on('data', log.childPrefix('llama.cpp'));
@@ -370,9 +450,16 @@ async function run(args) {
         });
         process.stdout.write('');
         if (!r.ok) {
+            // Do NOT exit. A farm that dies because its accelerator failed serves
+            // nobody; one that falls back to Ollama serves everyone, slower, and
+            // says why (the panel shows this reason on the Backend card). In-memory
+            // only — the operator's config keeps llamacpp.enabled, so the next boot
+            // retries (a transient download failure heals itself).
+            llamacppBootError = r.message;
             log.err(`llama.cpp backend: ${r.message}`);
-            log.err('Set llamacpp.enabled=false to fall back to Ollama, or fix the model/binDir.');
-            return 1;
+            log.warn('Falling back to the OLLAMA engine for this run.');
+            config.llamacpp.enabled = false;
+            await stopLlamacpp();
         }
     }
 
@@ -456,10 +543,22 @@ async function run(args) {
         extractKey: svcById.ocr.up ? svcById.ocr.ctx.key : null, // bearer OWUI's loader must send
         plugins: pluginsSummary(services, config), // generic map for the admin page + clients
         clientsConnected: 0,             // desktop clients heartbeating us (see onClientPing)
-        host: await detectHardware(),   // static GPU/VRAM/RAM/cores (once at boot)
+        host: hw,                        // static GPU/VRAM/RAM/cores (detected at boot)
         gpu: await gpuLiveStats(),       // live GPU util + VRAM (refreshed below)
+        perf: null,                      // measured throughput (health timer, llama.cpp engine)
     };
     if (liveHealth.host) log.ok(`Hardware: ${log.paint.bold(liveHealth.host.gpu)} · ${liveHealth.host.vramGb}GB VRAM · ${liveHealth.host.ramGb}GB RAM · ${liveHealth.host.cpuCores} cores`);
+    // The in-flight admin job rides the snapshot as `busy` so clients can explain a
+    // bouncing proxy ("switching models…") instead of showing a raw error. jobBox is
+    // indirection: the job system is defined further down, but the beacon can tick
+    // before that code runs — a thunk that answers null until wired is TDZ-safe.
+    const jobBox = { view: null };
+    liveHealth.getJob = () => {
+        const j = jobBox.view ? jobBox.view() : null;
+        // Only the ACTIVE job is "busy" — a finished one lingers for the panel, but
+        // clients must not keep saying "switching" after it is done.
+        return j && !j.done ? { kind: j.kind, label: j.label, message: j.message, percent: j.percent } : null;
+    };
     const getSnapshot = () => buildSnapshot(config, liveHealth);
     const snapshot = getSnapshot();
 
@@ -580,6 +679,41 @@ async function run(args) {
     // Keep the advertised health honest: re-probe proxy + hosts periodically and
     // push a fresh beacon. Cheap (a few HTTP HEADs) and unref'd.
     const hosts = config.ollama.hosts.map(ollama.normalizeHost);
+
+    // --- measured performance (llama.cpp engine) --------------------------------
+    // Scrape llama-server's /metrics each tick and derive TRUE tok/s while
+    // generating (delta tokens / delta of the engine's own generating-seconds
+    // counter — wall-clock would average in idle time and read misleadingly low).
+    // `last` keeps the most recent ACTIVE rate sticky, so the panel can answer
+    // "how fast was it just now" even between requests. History feeds a sparkline.
+    let perfPrev = null;
+    const perfHistory = [];
+    let perfLast = { genTokSec: null, promptTokSec: null, ts: null };
+    async function samplePerf() {
+        if (!config.llamacpp.enabled || !llamacppChild) { perfPrev = null; return null; }
+        const m = await llamacpp.fetchMetrics(config.llamacpp.port);
+        if (!m) return liveHealth.perf; // one failed scrape must not blank the panel
+        const cur = perfMod.metricsSample(m, Date.now());
+        const rates = perfMod.sampleRates(perfPrev, cur);
+        perfPrev = cur;
+        if (rates && !rates.reset && rates.genTokSec != null) {
+            perfLast = { genTokSec: rates.genTokSec, promptTokSec: rates.promptTokSec, ts: cur.ts };
+        }
+        perfHistory.push({ t: cur.ts, gen: (rates && !rates.reset && rates.genTokSec) || 0 });
+        if (perfHistory.length > 40) perfHistory.shift();
+        return {
+            engine: 'llama.cpp',
+            genTokSec: (rates && !rates.reset) ? rates.genTokSec : null,   // this window
+            lastGenTokSec: perfLast.genTokSec,                             // sticky
+            lastPromptTokSec: perfLast.promptTokSec,
+            lastActiveTs: perfLast.ts,
+            busySlots: cur.busy,
+            totalSlots: Math.max(1, config.llamacpp.parallel || 1),
+            queued: cur.queued,
+            kvUsed: cur.kvUsed,
+        };
+    }
+
     let healthInFlight = false; // skip a tick if the previous probe round is still running
     const healthTimer = setInterval(async () => {
         if (healthInFlight) return;
@@ -598,6 +732,23 @@ async function run(args) {
             for (const svc of services) { if (svc.wasUp) liveHealth[svc.healthKey] = await svc.probe(config); }
             liveHealth.plugins = pluginsSummary(services, config);
             liveHealth.clientsConnected = freshClients().length; // decay the count when pings stop
+            liveHealth.perf = await samplePerf();
+            // While llama.cpp is the engine, an Ollama model left in VRAM (OCR with
+            // keep-alive) starves it — the live incident was a 12 GB card paging with
+            // both resident. Evict only when the GPU is idle and nearly full, so a
+            // running extraction or generation is never yanked mid-flight.
+            if (perfMod.shouldEvictOllama({
+                llamacppOn: !!(config.llamacpp.enabled && llamacppChild),
+                vramUsedGb: liveHealth.gpu && liveHealth.gpu.vramUsedGb,
+                vramTotalGb: liveHealth.gpu && liveHealth.gpu.vramTotalGb,
+                gpuUtil: liveHealth.gpu && liveHealth.gpu.gpuUtil,
+                loadedCount: liveHealth.loaded.length,
+            })) {
+                log.warn(`GPU nearly full — freeing ${liveHealth.loaded.join(', ')} from VRAM (document reading reloads it on demand).`);
+                for (const h of hosts.filter(isLocalHost)) {
+                    for (const m of liveHealth.loaded) ollama.evictModel(h, m).catch(() => {});
+                }
+            }
             if (beacon) beacon.kick();
         } catch { /* probes are already failure-tolerant; never throw from the timer */ }
         finally { healthInFlight = false; }
@@ -827,6 +978,19 @@ async function run(args) {
             },
             // Advisory capacity — see the snapshot. Nothing is refused past `slots`.
             capacity: { slots: backendInfo(config, liveHealth).slots, clients: freshClients().length },
+            // The VRAM budget for the current shape — the panel disables context
+            // options that cannot fit instead of offering 256k on a 12 GB card.
+            fit: config.llamacpp.enabled ? computeFit() : null,
+            // Measured throughput + a short history for the panel's sparkline.
+            perf: liveHealth.perf,
+            perfHistory,
+            // Which Ollama model document reading drives (shown as a badge, and why
+            // Delete refuses it) — null when OCR is off.
+            ocrModel: config.ocr.enabled ? resolveOcrModel(config) : null,
+            // Whether the llama.cpp engine is even possible here, and why it fell
+            // back at boot if it did. The panel disables the engine button on these.
+            llamacppAvailable: llamacpp.installed(config.llamacpp.binDir) || llamacpp.supported(),
+            llamacppBootError,
             // The one long operation that can be in flight (model download, backend
             // switch, reload). The panel polls this endpoint anyway, so progress
             // rides along rather than needing a socket.
@@ -886,6 +1050,21 @@ async function run(args) {
 
         if (config.llamacpp.enabled) {
             if (want === config.llamacpp.contextLength) return { ok: true, already: true, contextLength: want };
+            // Refuse a size the GPU cannot hold. llama-server would not refuse it —
+            // Windows overcommits into system RAM and the farm "works" at a few
+            // tok/s (the AN-VR-01 incident: 256k saved onto a 12 GB card). Skipped
+            // when the budget is unknowable (no GPU detected / unified memory).
+            const fitAt = computeFit(want);
+            if (fitAt && fitAt.fits === false && fitAt.maxContext != null) {
+                return {
+                    ok: false,
+                    error: `${want} tokens of context needs ~${fitAt.needGb} GB — this GPU has ${fitAt.vramGb} GB. ` +
+                        (fitAt.maxContext >= 4096
+                            ? `The largest that fits is ${fitAt.maxContext}.`
+                            : `This model barely fits at all — use a smaller quant.`),
+                    contextLength: config.llamacpp.contextLength,
+                };
+            }
             const before = config.llamacpp.contextLength;
             const perSlot = Math.floor(want / Math.max(1, config.llamacpp.parallel));
             return runJob('context', `Setting the context window to ${want} tokens`, async (progress) => {
@@ -1000,6 +1179,7 @@ async function run(args) {
         percent: job.percent, done: job.done, ok: job.ok, error: job.error,
         startedAt: job.startedAt, finishedAt: job.finishedAt || null,
     });
+    jobBox.view = jobView;   // from here on, the snapshot can report `busy`
     const busy = () => !!(job && !job.done);
     const busyErr = () => ({ ok: false, error: `The farm is busy: ${job.label}. Wait for it to finish.`, job: jobView() });
     let jobSeq = 0;
@@ -1011,6 +1191,10 @@ async function run(args) {
             startedAt: Date.now(), finishedAt: null,
         };
         job = j;
+        // Tell the fleet NOW, not at the next 10 s health tick: clients switch to
+        // "the server is switching models…" before the proxy bounce can surface as
+        // a raw connection error in someone's chat.
+        if (beacon) beacon.kick();
         log.step(`${label} …`);
         const progress = (message, percent) => {
             if (job !== j) return;                       // superseded — never write into a stale job
@@ -1159,7 +1343,13 @@ async function run(args) {
                 catch (e) { return { ok: false, error: `${r.error} Rolling back ALSO failed (${(e && e.message) || e}) — restart the farm.` }; }
                 return { ok: false, error: `${r.error} Rolled back to the previous model.` };
             }
-            return { ok: true, message: `Now serving ${label}.${mtpNote}${warn || ''}` };
+            // The swap succeeded — but "loaded" is not "fits": an oversized model
+            // pages instead of failing. Say so while the operator is still looking.
+            const f = computeFit();
+            const tight = (f && f.fits === false)
+                ? ` ⚠ This shape needs ~${f.needGb} GB of the GPU's ${f.vramGb} GB — expect it to run slowly.`
+                : '';
+            return { ok: true, message: `Now serving ${label}.${mtpNote}${tight}${warn || ''}` };
         });
     }
 

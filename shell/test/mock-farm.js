@@ -39,6 +39,7 @@ const snapshot = () => JSON.stringify({
         contextLength: 16384, contextPerSlot: 8192, slots: 2, mtp: true, kvCacheType: 'q4_0',
     },
     capacity: { slots: 2, clients: 1 },
+    busy: null,   // set to { label, message, percent } to exercise the switching UI
     ts: Date.now(),
 });
 

@@ -88,6 +88,7 @@ test('explicit vision flag overrides tag inference', () => {
 
 test('litellm flags supports_vision so the proxy keeps images (drop_params)', () => {
     const c = defaultConfig();
+    c.llamacpp.enabled = false;   // these exercise the OLLAMA engine's routing
     c.models = [{ id: 'gemma4:12b', default: true }, { id: 'qwen2.5-coder:7b' }];
     const doc = buildLitellmConfig(c);
     const gemma = doc.model_list.find((d) => d.model_name === 'gemma4:12b');
@@ -102,6 +103,7 @@ test('coordinator config default is false', () => {
 
 test('coordinator aggregates peer farms as openai deployments', () => {
     const c = defaultConfig();
+    c.llamacpp.enabled = false;   // these exercise the OLLAMA engine's routing
     c.models = [{ id: 'gemma4:12b', default: true }];
     c.ollama.hosts = ['http://127.0.0.1:11434'];
     const peers = [
@@ -118,6 +120,7 @@ test('coordinator aggregates peer farms as openai deployments', () => {
 
 test('coordinator skips a peer that does not serve the model', () => {
     const c = defaultConfig();
+    c.llamacpp.enabled = false;   // Ollama-engine routing
     c.models = [{ id: 'gemma4:12b', default: true }];
     const peers = [{ openaiBaseUrl: 'http://10.0.0.7:4000/v1', models: [{ id: 'llama3.1:8b' }] }];
     const deps = buildLitellmConfig(c, peers).model_list.filter((d) => d.model_name === 'gemma4:12b');
@@ -310,19 +313,22 @@ test('alias mode: snapshot advertises the alias id, stable across model swaps', 
     assert.deepEqual(buildSnapshot(c, { proxyUp: true, hostsUp: 1 }).models, [{ id: 'assistant', underlying: 'gemma4:12b', default: true }]);
 });
 
-test('llamacpp backend: snapshot advertises its alias as the DEFAULT model', () => {
+test('llamacpp backend: its alias is the ONLY advertised model (one engine at a time)', () => {
     const c = defaultConfig();   // llamacpp.enabled defaults true in this build
     const s = buildSnapshot(c, { proxyUp: true, hostsUp: 1 });
-    // The llama.cpp deployment owns its alias in the LiteLLM routing, so the
-    // advertisement must match — above all `default`, which is what clients
-    // auto-select. A gemma4-default here would steer every client onto Ollama
-    // while llama-server holds the VRAM (overcommit → paging → crawl).
+    // Owner decision (2026-08-26): the engines are EXCLUSIVE. Advertising the
+    // Ollama catalog alongside read as "both are running", and a client picking an
+    // Ollama model while llama-server held ~9 GB of a 12 GB card overcommitted
+    // VRAM and crawled. The catalog is standby inventory now — advertised only
+    // when the Ollama engine is the one serving.
+    assert.equal(s.models.length, 1, 'exactly the llama.cpp alias');
     assert.equal(s.models[0].id, 'assistant');
-    assert.equal(s.models[0].default, true, 'clients must auto-select the llama.cpp path');
+    assert.equal(s.models[0].default, true);
     assert.equal(s.models[0].underlying, 'Qwen3.8-27B-UD-IQ2_S', 'gguf basename as underlying');
-    const gemma = s.models.find((m) => m.id === 'gemma4:12b');
-    assert.ok(gemma, 'Ollama models stay selectable');
-    assert.equal(gemma.default, false, '… but never default while llamacpp owns the alias');
+
+    c.llamacpp.enabled = false;
+    const o = buildSnapshot(c, { proxyUp: true, hostsUp: 1 });
+    assert.ok(o.models.some((m) => m.id === 'gemma4:12b'), 'Ollama engine advertises the catalog');
 });
 
 test('snapshot carries coordinator + deployments (default off)', () => {
@@ -711,17 +717,18 @@ test('llamacpp backend is ON by default in this build', () => {
     assert.equal(alias[0].litellm_params.model, 'openai/assistant');
 });
 
-test('enabling llamacpp REPLACES the ollama deployment for its alias', () => {
-    // Both behind one model_name would let the router shuffle backends mid-chat.
+test('llamacpp engine: NO local Ollama deployments at all — peers still aggregate', () => {
     const c = defaultConfig();
-    c.modelAlias = 'assistant';
-    c.llamacpp.enabled = true;
-    const list = buildLitellmConfig(c).model_list;
-    const forAlias = list.filter((d) => d.model_name === 'assistant');
-    assert.equal(forAlias.length, 1, 'exactly one deployment owns the alias');
-    assert.equal(forAlias[0].litellm_params.model, 'openai/assistant');
-    assert.match(forAlias[0].litellm_params.api_base, /:8081\/v1$/);
-    assert.equal(forAlias[0].model_info.supports_vision, true, 'else drop_params strips images');
+    c.models = [{ id: 'gemma4:12b', default: true }, { id: 'qwen2.5-coder:7b' }];
+    const doc = buildLitellmConfig(c);
+    assert.equal(doc.model_list.length, 1, 'one engine at a time');
+    assert.equal(doc.model_list[0].model_name, c.llamacpp.alias);
+    assert.ok(doc.model_list[0].litellm_params.model.startsWith('openai/'), 'llama-server speaks OpenAI');
+    // A coordinator in llama.cpp mode still fronts its PEERS — exclusivity is
+    // about this box's two local engines, not about the fleet.
+    const peers = [{ openaiBaseUrl: 'http://10.0.0.9:4000/v1', models: ['assistant'] }];
+    const withPeers = buildLitellmConfig(c, peers);
+    assert.ok(withPeers.model_list.some((d) => d.litellm_params.api_base === 'http://10.0.0.9:4000/v1'), 'peer deployment present');
 });
 
 test('llama-server argv carries the measured recipe', () => {
@@ -788,7 +795,9 @@ test('capacity is advisory: slots + who is on the box right now', () => {
     const c = defaultConfig();
     c.llamacpp.parallel = 2;
     const snap = buildSnapshot(c, { clientsConnected: 3 });
-    assert.deepEqual(snap.capacity, { slots: 2, clients: 3 }, 'over-capacity is reported, never refused');
+    assert.equal(snap.capacity.slots, 2);
+    assert.equal(snap.capacity.clients, 3, 'over-capacity is reported, never refused');
+    assert.equal(snap.capacity.busy, null, 'no engine metrics yet → busy unknown, not 0');
     // A farm with no client-ping support must not invent a client count.
     assert.equal(buildSnapshot(c, {}).capacity.clients, 0);
 });
@@ -896,6 +905,83 @@ test('selfServer routes every backend/model control, all behind the token', asyn
         assert.equal(calls[3][1].id, 'q', 'the whole body reaches setLlamacppModel (id OR url)');
         assert.equal(calls[6][1], 'gemma4:12b');
     } finally { server.close(); }
+});
+
+// ---- switching feedback + performance + fit (2026-08-26) --------------------
+const perfMod = require('../src/perf');
+
+test('snapshot carries the in-flight admin job as `busy` (live thunk, active only)', () => {
+    const c = defaultConfig();
+    const job = { kind: 'model', label: 'Loading X', message: 'downloading', percent: 40, done: false };
+    const s1 = buildSnapshot(c, { getJob: () => ({ kind: job.kind, label: job.label, message: job.message, percent: job.percent }) });
+    assert.equal(s1.busy.label, 'Loading X');
+    assert.equal(s1.busy.percent, 40);
+    const s2 = buildSnapshot(c, { getJob: () => null });
+    assert.equal(s2.busy, null, 'no job → busy null');
+    const s3 = buildSnapshot(c, {});
+    assert.equal(s3.busy, null, 'older farms without the thunk stay well-formed');
+});
+
+test('perf: prometheus parse + true tok/s while generating (not wall-clock)', () => {
+    const text = [
+        '# HELP llamacpp:tokens_predicted_total x',
+        'llamacpp:tokens_predicted_total 1000',
+        'llamacpp:tokens_predicted_seconds_total 10',
+        'llamacpp:prompt_tokens_total 400',
+        'llamacpp:prompt_seconds_total 2',
+        'llamacpp:requests_processing 1',
+        'llamacpp:requests_deferred 2',
+        'llamacpp:kv_cache_usage_ratio 0.25',
+    ].join('\n');
+    const m = perfMod.parsePrometheus(text);
+    assert.equal(m['llamacpp:tokens_predicted_total'], 1000);
+    const prev = perfMod.metricsSample(m, 0);
+    // 60 s of wall clock later, but only 2 s were spent generating 100 tokens:
+    // the honest rate is 50 tok/s, not 100/60.
+    const m2 = { ...m, 'llamacpp:tokens_predicted_total': 1100, 'llamacpp:tokens_predicted_seconds_total': 12 };
+    const cur = perfMod.metricsSample(m2, 60000);
+    const r = perfMod.sampleRates(prev, cur);
+    assert.equal(r.genTokSec, 50);
+    assert.equal(prev.queued, 2);
+    // A restarted llama-server resets its counters — the stale baseline must be
+    // flagged, not reported as a huge negative rate.
+    const r2 = perfMod.sampleRates(cur, perfMod.metricsSample({ 'llamacpp:tokens_predicted_total': 5, 'llamacpp:tokens_predicted_seconds_total': 1 }, 70000));
+    assert.equal(r2.reset, true);
+});
+
+test('fitBudget: refuses the exact shape that took AN-VR-01 down', () => {
+    // The live incident: 256k context saved from the panel onto a 12 GB card.
+    // llama-server "worked" (Windows overcommits) at a few tok/s.
+    const bad = perfMod.fitBudget({ vramGb: 12, weightsGb: 6.9, mmprojGb: 0.8, kvCacheType: 'q4_0', contextLength: 262144 });
+    assert.equal(bad.fits, false);
+    assert.ok(bad.needGb > 20, '256k of q4_0 KV is ~19 GB on its own');
+    assert.ok(bad.maxContext >= 16384 && bad.maxContext < 65536, 'a sane ceiling for 12 GB');
+    const ok = perfMod.fitBudget({ vramGb: 12, weightsGb: 6.9, mmprojGb: 0.8, kvCacheType: 'q4_0', contextLength: 16384 });
+    assert.equal(ok.fits, true, 'the shipped default fits the fleet card');
+    // Unknown VRAM (unified memory, no nvidia-smi) → NO verdict, never a refusal.
+    const unknown = perfMod.fitBudget({ vramGb: 0, weightsGb: 6.9, contextLength: 262144 });
+    assert.equal(unknown.fits, null);
+    assert.equal(unknown.maxContext, null);
+});
+
+test('shouldEvictOllama: only under pressure, only when idle, only llama.cpp engine', () => {
+    const base = { llamacppOn: true, vramUsedGb: 11.5, vramTotalGb: 12, gpuUtil: 3, loadedCount: 1 };
+    assert.equal(perfMod.shouldEvictOllama(base), true, 'full + idle + loaded → evict');
+    assert.equal(perfMod.shouldEvictOllama({ ...base, gpuUtil: 80 }), false, 'never mid-generation/extraction');
+    assert.equal(perfMod.shouldEvictOllama({ ...base, vramUsedGb: 8 }), false, 'no pressure → leave it warm');
+    assert.equal(perfMod.shouldEvictOllama({ ...base, llamacppOn: false }), false, 'Ollama engine keeps its own models');
+    assert.equal(perfMod.shouldEvictOllama({ ...base, loadedCount: 0 }), false);
+    assert.equal(perfMod.shouldEvictOllama({ ...base, vramTotalGb: 0 }), false, 'unknown VRAM → hands off');
+});
+
+test('llama-server argv exposes /metrics for the performance monitor', () => {
+    const c = defaultConfig();
+    assert.ok(llamacpp.argsFor(c, 'M.gguf', null).includes('--metrics'));
+});
+
+test('llamacpp.supported() answers whether a prebuilt exists for THIS platform', () => {
+    const expect = process.platform === 'win32' && process.arch === 'x64';
+    assert.equal(llamacpp.supported(), expect, 'only win-x64 has an auto-fetchable build today — everything else must fall back to Ollama, not die');
 });
 
 (async () => {

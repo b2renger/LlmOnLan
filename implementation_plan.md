@@ -278,6 +278,20 @@ fleet with failover (Layer 1). Trade‑off: the coordinator box is a single poin
   controls, and it no longer re-applies its own stored values at boot (which silently overwrote the
   panel's on every launch).
 
+**✅ Also shipped (2026‑08‑26 b) — one engine at a time + the farm watches itself:**
+- **Exclusive engines** (owner decision): while llama.cpp serves, no local Ollama model is routed or
+  advertised — the catalog is standby (panel greys it; Download/Delete only). Peers still aggregate,
+  and the advertised name carries across a switch.
+- **VRAM budget** (`farm/src/perf.js`): real weights + measured KV rate vs detected VRAM. The panel
+  disables context sizes that cannot fit, the API refuses them, and boot **clamps + persists** an
+  oversized saved value — the AN‑VR‑01 incident (256k saved onto 12 GB, box paging at idle) self‑heals.
+- **Performance card**: true tok/s while generating (llama-server `--metrics`), slots busy/queued, KV
+  usage, sparkline, plain-language warnings; pressure auto-evict of the OCR model; OCR keep-alive 5m.
+- **`busy` in the snapshot**: clients show "switching models…" (pill / farm card / LOL Chat) instead
+  of raw connection errors while the proxy bounces.
+- **Platform fallback**: llama.cpp unavailable or failed at boot → serve via Ollama with the reason on
+  the panel's Backend card (the DGX Spark linux‑arm64 hard-exit is gone).
+
 ## Cross‑cutting risks & mitigations
 
 - **OWUI config‑surface drift across versions.** → Re‑verify on every bump; coupling only via env + admin API; the upgrade test catches breakage.

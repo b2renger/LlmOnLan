@@ -282,6 +282,14 @@ function renderPill() {
         ? ` · ${cap.clients || 0}/${cap.slots}`
         : (a.usage && a.usage.gpuUtil != null ? ` · ${a.usage.gpuUtil}% GPU` : '');
       text = a.name + load;
+      // The farm advertises its in-flight admin job (model download, backend
+      // switch) as `busy`. While one runs the proxy can bounce — without this the
+      // pill (and the user's mental model) flips to "broken" for something the
+      // operator did on purpose. Say what is happening instead.
+      if (a.busy && a.busy.label) {
+        cls = 'busy';
+        text = `${a.name} · ${a.busy.label}…`;
+      }
     } else { cls = 'busy'; text = 'No server'; }
   }
   els.statusDot.className = 'dot ' + cls;
@@ -653,6 +661,11 @@ function renderPopover() {
     const loadCls = cap.slots != null && (cap.clients || 0) >= cap.slots ? ' farm-busy' : '';
     const capLine = (slotLine || beLine)
       ? `<div class="farm-hw${loadCls}">${esc([slotLine, beLine].filter(Boolean).join(' · '))}</div>` : '';
+    // The in-flight admin job, with its progress — so "the farm went quiet" has a
+    // visible reason on the card the user is already looking at.
+    const busyLine = f.busy && f.busy.label
+      ? `<div class="farm-hw farm-busy">⏳ ${esc(f.busy.label)}${f.busy.percent != null ? ` · ${f.busy.percent}%` : ''}${f.busy.message ? ` — ${esc(f.busy.message)}` : ''}</div>`
+      : '';
     const hwLine = (f.host && f.host.gpu)
       ? `<div class="farm-hw">${esc(f.host.gpu)} · ${f.host.vramGb}GB</div>` : '';
     // Farm plugins that are ON (search / voice / OCR) + client-plugin recommendations.
@@ -670,6 +683,7 @@ function renderPopover() {
       `<div class="farm-main">` +
         `<div class="farm-name">${esc(f.name)} ${badges}</div>` +
         `<div class="farm-meta">${esc(f._host)}:${f.proxyPort} · ${esc(models)}</div>` +
+        busyLine +
         capLine +
         liveLine +
         hwLine +
@@ -734,7 +748,7 @@ function publishFarm() {
     ? ((f.models.find((m) => m.default) || f.models[0]).id || null)
     : null;
   window.__lolFarm = f
-    ? { name: f.name, openaiBaseUrl: farmEndpoint(f), defaultModel }
+    ? { name: f.name, openaiBaseUrl: farmEndpoint(f), defaultModel, busy: f.busy || null }
     : (sidecarState && sidecarState.endpoint ? { name: 'farm', openaiBaseUrl: sidecarState.endpoint, defaultModel: null } : null);
   if (window.__lolChatRefresh) window.__lolChatRefresh();
   // The overlay is FARM-driven in this build, but renderSidecar used to run only

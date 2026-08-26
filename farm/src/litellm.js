@@ -63,9 +63,13 @@ function buildLitellmConfig(config, peers = []) {
     const model_list = [];
 
     // llama.cpp backend: one OpenAI-compatible deployment, exactly the shape already
-    // used for peer farms. It REPLACES the Ollama deployments for its alias rather
-    // than sitting alongside them — mixing the two behind one model_name would let
-    // the router shuffle between backends mid-conversation.
+    // used for peer farms. The engines are EXCLUSIVE: while llama.cpp serves, NO
+    // local Ollama deployment is emitted at all (owner decision, 2026-08-26 — one
+    // engine at a time). It is also what a small GPU needs: a client picking an
+    // Ollama model while llama-server holds ~9 GB of a 12 GB card overcommits VRAM
+    // and everything crawls. The catalog stays in the config as STANDBY inventory —
+    // served the moment the engine is switched — and the OCR plugin still drives its
+    // vision model over raw Ollama (that path never went through this routing).
     const lc = config.llamacpp || {};
     if (lc.enabled) {
         const host = lc.host === '0.0.0.0' ? '127.0.0.1' : lc.host;
@@ -84,8 +88,8 @@ function buildLitellmConfig(config, peers = []) {
     }
 
     for (const { servedName, underlying, vision } of servedEntries(config)) {
-        // Do not also emit Ollama deployments for a name the llama.cpp backend owns.
-        if (lc.enabled && servedName === lc.alias) continue;
+        // One engine at a time — see the note above.
+        if (lc.enabled) continue;
         // Local Ollama deployments. In alias mode `servedName` is the fixed alias and
         // `underlying` is the real Ollama tag it routes to; otherwise they're equal.
         for (const host of config.ollama.hosts) {

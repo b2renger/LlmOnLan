@@ -174,6 +174,21 @@
     async function send(text) {
         const base = endpoint();
         if (!base) return;
+        // The farm mid-model-switch bounces its proxy; a send would come back as a
+        // bare network error. Answer in the chat with the actual reason instead —
+        // the farm advertises the running job (label/percent) on the beacon.
+        const farmBusy = window.__lolFarm && window.__lolFarm.busy;
+        if (farmBusy && farmBusy.label) {
+            const t0 = active() || (newThread(), active());
+            t0.messages.push({ role: 'user', content: text });
+            t0.messages.push({
+                role: 'assistant',
+                content: `⏳ The server is busy: ${farmBusy.label}${farmBusy.percent != null ? ` (${farmBusy.percent}%)` : ''}. Try again in a moment.`,
+                reasoning: '',
+            });
+            save(); renderThreads(); renderMessages();
+            return;
+        }
         let t = active();
         if (!t) { newThread(); t = active(); }
         t.messages.push({ role: 'user', content: text });
@@ -271,7 +286,12 @@
             if (!tokens) tokens = deltas;
             if (tokens) assistant.stats = `${tokens} tok · ${(tokens / gen).toFixed(1)} tok/s · first token ${((ttft || 0) / 1000).toFixed(2)}s`;
         } catch (e) {
-            if (e.name !== 'AbortError') assistant.content += `\n\n[error: ${e.message}]`;
+            if (e.name !== 'AbortError') {
+                const nowBusy = window.__lolFarm && window.__lolFarm.busy;
+                assistant.content += (nowBusy && nowBusy.label)
+                    ? `\n\n⏳ The server is busy: ${nowBusy.label}. Try again in a moment.`
+                    : `\n\n[error: ${e.message}]`;
+            }
         } finally {
             if (live.raf) cancelAnimationFrame(live.raf);
             if (!assistant.reasoning) delete assistant.reasoning;

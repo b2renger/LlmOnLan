@@ -6,6 +6,87 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-08-26 b — one engine at a time, a performance monitor, and two fleet incidents fixed at the root
+
+First multi-machine test of farm-v0.0.21 came back with five reports: the llama.cpp/Ollama split reads
+as *both running* in the panel; the farm needs a real performance monitor; clients need feedback while
+the farm switches models; **AN-VR-01 is "back to too slow"**; and **the DGX Spark farm does not launch
+at all**.
+
+### The two incidents, diagnosed live before touching code
+
+- **AN-VR-01** answered `/lol/self` from here: `contextLength: 262144` — someone had picked **256k on
+  the 12 GB card** from the new context selector, and the box sat at **11.6/12 GB VRAM at idle**
+  (gpuUtil 0). llama-server does not refuse a shape that overflows VRAM: Windows WDDM overcommits into
+  system RAM, so it "works" while paging every token over PCIe. The selector offered 256k with no
+  warning, and the value persisted.
+- **DGX Spark** is linux-arm64: `assetsFor()` has no prebuilt llama.cpp there, and with
+  `llamacpp.enabled` defaulting true, `lol up` hit `return 1` — the farm *exited* because an optional
+  accelerator was unavailable. That is "does not launch at all".
+
+### One engine at a time (owner decision)
+
+`buildLitellmConfig` emits **no local Ollama deployments while llama.cpp is enabled** (peers still
+aggregate — exclusivity is about this box's two engines, not the fleet), and the snapshot advertises
+**only the llama.cpp alias**. The catalog becomes *standby inventory*: greyed in the panel with
+Download/Delete only, ready for an engine switch, and still backing document OCR (which talks raw
+Ollama, never the proxy). This also closes an overcommit hole: a client picking gemma4:12b next to a
+resident llama-server was the other way a 12 GB card ended up paging. `carryNameAcross` keeps the
+advertised name across the switch, verified live in both directions.
+
+### The VRAM budget (`farm/src/perf.js` · `fitBudget`)
+
+Weights (statted from the real `.gguf` on disk) + measured KV rate (q4_0 ≈ 1.2 GB per 16k total
+context) + overhead vs detected VRAM. Three enforcement points: the panel **disables** context options
+that cannot fit ("won't fit (12 GB GPU)"), `setContextLength` **refuses** with the largest size that
+does, and boot **clamps a persisted size that no longer fits — and saves the clamp** (the broken value
+came from the panel; leaving it re-bites every boot). Unknown VRAM (unified memory — the DGX; no
+nvidia-smi) → no verdict, never a false refusal. Unit-tested against AN-VR-01's exact numbers: 256k =
+~28 GB on a card with 12; max ≈ 36k. **AN-VR-01 heals itself on update**: boot clamps 262144 → ~36k.
+
+### The performance monitor
+
+llama-server now runs with `--metrics`; the health timer derives **true tok/s while generating** —
+delta tokens over the engine's own generating-seconds counter, not wall clock, which averages in idle
+time and lies low. The panel's **Performance card** shows the sticky last-active rate, slots busy,
+requests waiting, KV usage, VRAM/GPU, a sparkline, and plain-language warnings for the two silent
+failure modes: *VRAM nearly full at idle* (context too large — the AN-VR-01 signature) and *generating
+far below hardware speed*. Counter resets (a model swap restarts llama-server) are detected, not
+reported as negative rates. Also under pressure: with llama.cpp serving and the GPU idle+full, a loaded
+Ollama model (OCR's, kept alive) is **auto-evicted**, and the spawned Ollama's keep-alive drops from
+`-1` to `5m` while llama.cpp is the engine — a vision model pinned forever next to llama-server was
+plausibly the *other* AN-VR-01 slowdown.
+
+### "Switching models" is now a state clients understand
+
+The in-flight admin job rides the snapshot as `busy` (a live thunk — every beacon tick sees fresh
+progress; kicked the moment a job *starts*). The client pill shows "*{farm} · Loading Qwen3.8 27B…*"
+instead of flipping to broken while the proxy bounces, the farm card carries the job + percent, and LOL
+Chat answers a send with "⏳ the server is busy: … try again in a moment" — both pre-send and when a
+stream dies mid-switch — instead of `[error: Failed to fetch]`.
+
+### The DGX fix
+
+Any llama.cpp boot failure — unsupported platform (pre-checked before Ollama even spawns), failed
+download, weights that will not load — logs the reason, **falls back to the Ollama engine for the run**,
+and surfaces why on the panel's Backend card (button disabled with the reason when the platform can
+never do it). In-memory only: the config keeps `llamacpp.enabled`, so a transient failure heals on the
+next boot and a hand-built `binDir` re-enables the fast engine. Verified live by pointing `binDir` at a
+nonexistent directory: the farm came up healthy on Ollama with the reason in the panel — the exact
+shape that previously exited.
+
+### Verified
+
+78 farm unit tests (10 new/updated). Live, against an isolated second farm on this box (llama.cpp
+engine, real weights): exclusivity on `/v1/models` and the snapshot; a real completion appearing in the
+perf monitor (~sticky tok/s + sparkline history); `busy` visible mid-job and gone after; engine switch
+Ollama→llama.cpp→back with name continuity; the DGX fallback booting healthy. The panel rendered from
+the live admin state in four shapes (llama.cpp, the 12 GB oversized-context shape with all three
+warnings firing, the DGX shape, mid-download job bar); the client card rendered with busy/capacity/
+old-farm fallbacks. Both tsc projects clean; 30/30 doc anchors resolve.
+
+---
+
 ## 2026-08-26 — the farm becomes operable: backend, models and capacity move into the panel
 
 Owner feedback after running the fleet: *"the separation between the ollama backend and the llama.cpp

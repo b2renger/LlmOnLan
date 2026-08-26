@@ -53,6 +53,14 @@ function assetsFor() {
     return null;
 }
 
+// Whether this platform can get llama-server WITHOUT operator work: a prebuilt
+// asset exists to download. When false (and no binDir), `lol up` must fall back
+// to the Ollama engine instead of dying — a farm that refuses to start because an
+// optional accelerator is unavailable is what took the DGX Spark fleet box down.
+function supported() {
+    return assetsFor() !== null;
+}
+
 function installedBuild() {
     try { return fs.readFileSync(BUILD_FILE, 'utf8').trim(); } catch { return null; }
 }
@@ -119,6 +127,7 @@ function argsFor(config, modelPath, mmprojPath) {
         '--parallel', String(c.parallel),
         '--jinja',        // use the GGUF's embedded chat template
         '--no-webui',     // LiteLLM fronts it; nothing should hit it directly
+        '--metrics',      // Prometheus /metrics — the farm's performance monitor reads it
     ];
     // Flash attention: required for KV-cache quantization, and worth a large TTFT
     // improvement on its own (0.55s -> 0.22s measured on a 4070 Ti).
@@ -189,6 +198,14 @@ async function waitForLlamacpp(port, timeoutMs = 300000) {
     return false;
 }
 
+// Scrape llama-server's /metrics (enabled via --metrics in argsFor). Returns the
+// parsed { name: value } map, or null when the server is down/not serving them.
+async function fetchMetrics(port, timeoutMs = 3000) {
+    const r = await get(`http://127.0.0.1:${port}/metrics`, timeoutMs);
+    if (!r || r.status !== 200) return null;
+    return require('./perf').parsePrometheus(r.body);
+}
+
 // The OpenAI base URL LiteLLM should point at.
 function baseUrl(config) {
     const host = config.llamacpp.host === '0.0.0.0' ? '127.0.0.1' : config.llamacpp.host;
@@ -197,6 +214,6 @@ function baseUrl(config) {
 
 module.exports = {
     PINNED_BUILD, ROOT, BIN_DIR,
-    ensureLlamacpp, ensureModel, spawnLlamacpp, waitForLlamacpp, llamacppAlive,
+    ensureLlamacpp, ensureModel, spawnLlamacpp, waitForLlamacpp, llamacppAlive, fetchMetrics, supported,
     argsFor, baseUrl, installed, installedBuild, serverBin,
 };

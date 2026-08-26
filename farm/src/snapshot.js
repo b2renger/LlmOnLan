@@ -101,11 +101,15 @@ function buildSnapshot(config, health = {}) {
     // servedEntries() in Ollama mode, which is not free to do twice per beacon tick.
     let _backend = null;
     const backend = () => (_backend || (_backend = backendInfo(config, health)));
+    // ONE engine at a time (owner decision, 2026-08-26): while llama.cpp serves,
+    // its alias is the ONLY advertised model — the Ollama catalog is standby
+    // inventory, not routed and not shown to clients (it used to stay selectable,
+    // which read as "both engines are running" and let a picked Ollama model
+    // overcommit a 12 GB card already holding llama-server).
     const lcModel = llamacppServedModel(config);
-    const models = servedEntries(config)
-        .filter((e) => !(lcModel && e.servedName === lcModel.id))
-        .map((e) => ({ id: e.servedName, underlying: e.underlying, default: lcModel ? false : e.isDefault }));
-    if (lcModel) models.unshift(lcModel);
+    const models = lcModel
+        ? [lcModel]
+        : servedEntries(config).map((e) => ({ id: e.servedName, underlying: e.underlying, default: e.isDefault }));
     return {
         v: 1,
         id: farmId(),
@@ -181,7 +185,23 @@ function buildSnapshot(config, health = {}) {
         // Deliberately ADVISORY: nothing refuses a client past `slots`, because a farm
         // that turned people away would be worse than one that queues them. The client
         // renders "2 of 2 slots in use" so the next person can choose another box.
-        capacity: { slots: backend().slots, clients: health.clientsConnected ?? 0 },
+        capacity: {
+            slots: backend().slots,
+            clients: health.clientsConnected ?? 0,
+            // Live load when the engine reports it (llama.cpp /metrics): requests
+            // generating right now, and requests waiting for a slot.
+            busy: health.perf?.busySlots ?? null,
+            queued: health.perf?.queued ?? null,
+        },
+        // The one long admin operation in flight (model download / backend switch /
+        // reload), or null. Clients read it to say "the server is switching models —
+        // a moment" instead of surfacing a raw connection error while the proxy
+        // bounces. health.getJob is a thunk so every beacon tick sees live progress.
+        busy: (typeof health.getJob === 'function' ? health.getJob() : null) || null,
+        // Measured performance (llama.cpp engine only): true tok/s while generating,
+        // sticky last-active rate, prompt speed, KV usage. null on Ollama or before
+        // the first sample. The panel renders it; `lol status` and clients may too.
+        perf: health.perf || null,
         ts: Date.now(),
     };
 }

@@ -26,9 +26,12 @@ Snapshot:
   LiteLLM→backend; status/down; UDP beacon + `/lol/self` received by a listener). **TWO inference
   engines behind one LiteLLM endpoint:** `llamacpp` (`llama-server`, **enabled by default**) serves
   ONE model — `llamacpp.model`, a .gguf URL, default Unsloth **Qwen3.8-27B-UD-IQ2_S** — under
-  `llamacpp.alias` (default `assistant`), and **owns that alias**: the generated routing skips Ollama
-  deployments with the same `model_name`, and `snapshot.js` advertises it as the fleet **default**
-  (Ollama models stay selectable, never default). `mtp` (`--spec-type draft-mtp`) defaults **false** —
+  `llamacpp.alias` (default `assistant`). **The engines are EXCLUSIVE** (owner decision 2026-08-26):
+  while llama.cpp serves, NO local Ollama deployment is routed or advertised — the catalog is standby
+  inventory for an engine switch, and the OCR vision model (which talks raw Ollama, never the proxy).
+  The advertised name carries across a switch (`carryNameAcross`), so chats survive it. On platforms
+  with no prebuilt llama.cpp (linux-arm64 — the DGX Spark) or any llama.cpp boot failure, `lol up`
+  **falls back to the Ollama engine with the reason in the panel** instead of exiting. `mtp` (`--spec-type draft-mtp`) defaults **false** —
   Unsloth strips the MTP head below UD-Q2_K_XL and llama-server then refuses to start. Ollama still
   serves `models` (`gemma4:12b`) + the OCR vision model. Pin facts:
   **OWUI `0.10.2`** (Python 3.11/3.12, run via the `open-webui serve` console script). Beacon group
@@ -197,11 +200,11 @@ declarative config; the CLI orchestrates everything from it.
     "enabled": true,
     "alias": "assistant",                // the id clients see + auto-select
     "model": "https://huggingface.co/unsloth/Qwen3.8-27B-GGUF/resolve/main/Qwen3.8-27B-UD-IQ2_S.gguf",
-    "contextLength": 16384,              // SPLIT across `parallel` slots
-    "parallel": 1,                       // concurrent slots — the multi-user knob
+    "contextLength": 16384,              // SPLIT across `parallel` slots; the farm CLAMPS a size
+    "parallel": 1,                       //   that cannot fit VRAM (measured q4_0 ≈ 1.2 GB per 16k)
     "kvCacheType": "q4_0", "mtp": false  // mtp needs a UD-Q2_K_XL+ quant
   },
-  "models": [                            // Ollama catalog: selectable, never default while llamacpp is on
+  "models": [                            // Ollama catalog: STANDBY while llamacpp serves (one engine at a time)
     { "id": "gemma4:12b", "default": true }
   ],
   "ollama": {

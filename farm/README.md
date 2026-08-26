@@ -111,15 +111,24 @@ the thing to understand before changing models or sizing for a group.
 | | **llama.cpp** (`llama-server`) | **Ollama** |
 |---|---|---|
 | On by default | **yes** (`llamacpp.enabled: true`) | yes |
-| Serves | **exactly one** model — `llamacpp.model`, a `.gguf` URL | every entry in `models` |
+| Serves | **exactly one** model — `llamacpp.model`, a `.gguf` URL | every entry in `models` — **only while it is the selected engine** |
 | Client-facing name | `llamacpp.alias` (default `assistant`) | each model's `alias`, else its raw id |
-| Auto-selected by clients? | **yes**, while enabled | no — selectable, never default while llama.cpp is on |
+| Visible to clients? | **yes** — the only model, while it is the engine | only when Ollama is the engine — otherwise **standby** (not routed, not advertised) |
 | Why it exists | explicit KV-cache quantization + flash attention, so a good quant stays fully GPU-resident on a 12 GB card (Ollama spills there) | multi-model catalog, load balancing across boxes, the OCR vision model |
 
-Both sit behind the same LiteLLM proxy, so clients see one OpenAI endpoint and cannot tell which engine
-answered. When llama.cpp is enabled it **takes over its alias**: the generated routing skips any Ollama
-deployment with the same `model_name`, because mixing engines behind one name would let the router
-shuffle backends mid-conversation.
+Both live behind the same LiteLLM proxy, but **one engine serves at a time**: while llama.cpp is the
+engine, its alias is the only model routed or advertised, and the Ollama catalog is **standby** —
+installed and ready for an engine switch, and used internally by document OCR (which talks raw Ollama,
+never the proxy). Two engines advertising at once read as "both are running", and on a 12 GB card a
+client picking an Ollama model next to a resident llama-server overcommitted VRAM and crawled. The
+advertised **name survives the switch** (it is copied between `llamacpp.alias` and `modelAlias`), so
+existing chats keep working either way.
+
+**If llama.cpp cannot start, the farm does not die.** No prebuilt exists for this platform (anything
+but win-x64 today — the DGX Spark is linux-arm64), the download failed, the weights would not load:
+`lol up` logs the reason, **falls back to the Ollama engine for the run**, and the panel shows why on
+the Backend card. The config keeps `llamacpp.enabled`, so a later boot (or a `binDir` pointing at a
+hand-built llama.cpp) picks the fast engine back up.
 
 **What `lol up` bootstraps for it** (win-x64 with NVIDIA, automatic): the pinned `llama-server` build
 plus the matching CUDA runtime into `farm/.llamacpp/`, then the weights + vision projector into
@@ -211,11 +220,12 @@ Renaming reloads the model and takes a few seconds. **Existing chats will ask to
 because their bound id no longer exists; new chats are unaffected. That is the cost of the rename being
 real rather than cosmetic.
 
-### Extra models in the picker (Ollama path)
+### The Ollama catalog (served when Ollama is the engine)
 
-These are ordinary Ollama tags. Several can be served at once and are load-balanced across
-`ollama.hosts`. While llama.cpp is on they are **selectable but never the default** — users pick them by
-hand from the model list.
+These are ordinary Ollama tags. When **Ollama is the selected engine** they are what the farm serves —
+several at once, load-balanced across `ollama.hosts`. While llama.cpp is the engine they are
+**standby**: kept installed (the panel shows them greyed with Download/Delete only) so an engine
+switch is instant, and so document OCR has its vision model.
 
 **From the panel** — the *Models · Ollama* card:
 
@@ -309,7 +319,15 @@ the shape that worked.
 | 16 GB | `parallel: 4, contextLength: 65536` (4 × 16k) | ~12.6 GB |
 | 24 GB+ | `parallel: 8, contextLength: 131072` (8 × 16k) | ~17.4 GB |
 
-Verify rather than trust the table: `nvidia-smi` after load, and `lol status`. A workshop where people
+You mostly do not have to do this arithmetic any more: the panel **computes the budget from the real
+weights on disk and the detected VRAM** — context sizes that cannot fit are disabled in the selector
+("won’t fit (12 GB GPU)"), an over-size request is refused with the largest size that does fit, and a
+persisted config that no longer fits is **clamped at boot** (loudly, and saved). This exists because a
+256k window saved onto a 12 GB card "worked" — Windows overcommits GPU memory into system RAM — and
+served a few tokens a second until someone guessed why. The **Performance card** is the other half:
+measured tok/s while generating (from llama-server’s own counters), slots busy, requests waiting, KV
+usage, and plain-language warnings for the two silent failure modes (VRAM full at idle; generating far
+below hardware speed). Verify rather than trust the table: `nvidia-smi` after load, and `lol status`. A workshop where people
 type in bursts is usually happier with `parallel: 2-4`; a single power user is better off with `1` and a
 big window.
 
