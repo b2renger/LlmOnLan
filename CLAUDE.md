@@ -34,15 +34,19 @@ Snapshot:
   **OWUI `0.10.2`** (Python 3.11/3.12, run via the `open-webui serve` console script). Beacon group
   **`239.255.43.10:41998`** (+ httpPort `41997`), distinct from ComfyQ. On top: an **admin panel** at
   `http://<box>:41997/lol/admin` (bearer token printed by `lol up`; `config.admin.token`) with a live
-  control API — model start/stop, "Make default", a context-window selector, plugin toggles, Blender
-  fleet recommendation, connected-clients list; a **plugin registry** (`farm/src/plugins/registry.js`)
+  control API — **backend switch (llama.cpp ↔ Ollama), a `.gguf` model library (add by URL / Use this,
+  with rollback), the advertised model name, slots (`llamacpp.parallel`), a context selector that
+  targets the serving engine**, Ollama pull/offer/delete + "Make default", plugin toggles, Blender fleet
+  recommendation, and a connected-clients list against the slot count. Everything but the plugin toggles
+  **persists to `lol.config.json`** (`farm/src/configFile.js`); long fetches run as a single job whose
+  progress the panel polls; a **plugin registry** (`farm/src/plugins/registry.js`)
   orchestrating web search (SearXNG, ON), document OCR (`farm/src/pysvc` + `extract.js`, ON — hybrid
   text/vision PDF extraction), and Kokoro TTS (off); `ollama.contextLength` (default **16384** — 65536
   spilled on the fleet's 12 GB cards; max 262144) applied via `OLLAMA_CONTEXT_LENGTH` **and**
-  per-deployment `num_ctx` in the generated LiteLLM routing — **note this is Ollama-side only**, so the
-  admin panel's context selector and the Farm app's Settings do NOT resize `llama-server`
-  (`llamacpp.contextLength`, default 16384, which llama.cpp **splits across `llamacpp.parallel` slots**
-  — verified: `--ctx-size 16384 --parallel 2` → `n_ctx_slot = 8192`); coordinator mode +
+  per-deployment `num_ctx` in the generated LiteLLM routing. The panel's context control routes to
+  **whichever engine is serving**, so on a default farm it sets `llamacpp.contextLength` (default 16384,
+  which llama.cpp **splits across `llamacpp.parallel` slots** — verified: `--ctx-size 16384 --parallel 2`
+  → `n_ctx_slot = 8192`); coordinator mode +
   `lol fleet`/`lol bench`/`lol install` (which pre-fetches the llama.cpp build + weights); a stable
   **model alias** + interactive picker in `lol up`.
 - **`shell/`** (Electron + TS, **v0.1.33**) — boots the **unmodified** OWUI sidecar (config-bridge =
@@ -91,8 +95,10 @@ native dialog. When working here, keep honoring the **prime directive** below.
 3. **Open WebUI** — vendored, version‑pinned, **unmodified**. We inherit all its features.
 4. **The Farm app** (`farm-app/`, Electron) — the operator-facing sibling of the client: it installs
    its own Ollama + Python + backend + weights, supervises `lol up`, and shows the admin panel as its
-   window. Settings write into `lol.config.json` (model name → `llamacpp.alias`, share-with-LAN →
-   `proxy.host`/`beacon.enabled`, context window → `ollama.contextLength`) and restart the farm.
+   window — which is where the model, its name and the capacity are run. Its own Settings drawer holds
+   only app-level things (share-with-LAN → `proxy.host`/`beacon.enabled`, theme, launch-at-login,
+   updates, logs folder); it deliberately no longer re-applies model settings at boot, which used to
+   overwrite the panel's.
    Released on `farm-v*` tags; **update checks are manual** (no electron-updater).
 
 End‑user experience: install one app → open it → chatting in seconds. No URL, no account
@@ -203,7 +209,7 @@ declarative config; the CLI orchestrates everything from it.
     "numParallel": 2,                    // OLLAMA_NUM_PARALLEL per host
     "maxLoadedModels": 1,
     "flashAttention": true,
-    "contextLength": 16384               // Ollama-side only — does NOT resize llama-server
+    "contextLength": 16384               // Ollama-side; llama.cpp has its own, above
   },
   "websearch": { "enabled": true },      // SearXNG, ON   |  "tts": { "enabled": false }  Kokoro, off
   "ocr": { "enabled": true },            // farm OCR, ON — loads a vision model on Ollama

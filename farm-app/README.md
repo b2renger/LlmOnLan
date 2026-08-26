@@ -44,43 +44,43 @@ The window IS the farm's admin panel — `http://127.0.0.1:41997/lol/admin` in a
 `<webview>`, with the admin token auto-seeded into `localStorage` (via a webview
 preload reading it from the URL hash) so it unlocks with no prompt. Thin app chrome
 adds: a **status dot**, **Start/Stop**, a **privacy line** (private vs. the shared
-LAN endpoint), and **Settings** (model name, share compute, context window, theme,
-launch-at-login, update check, and **Open data & logs folder**).
+LAN endpoint), and **Settings** (share compute, theme, launch-at-login, update check,
+and **Open data & logs folder**) — the model itself is run from the panel below.
 
-## Settings ▸ Model name — what users see in the picker
+## The model, its name, and capacity — in the panel, not in Settings
 
-The model id clients receive *is* the name their picker shows (over an OpenAI-style
-connection there's no separate display-name channel), so this field renames the served
-alias. Type e.g. `Studio Assistant` → **Apply**; the farm restarts and every client
-picks the new name up within seconds. Empty restores the default (`assistant`).
+All of it lives in the window itself: the panel opens on a **Backend** card carrying the engine
+switch, the `.gguf` in use, **Name users see**, **People served at once**, and the **context window**.
+Each applies live — no farm restart — and is written back to `lol.config.json`.
 
-It writes `llamacpp.alias` in `lol.config.json` — or the global `modelAlias` if the
-llama.cpp backend is off — so the same name survives a backend switch, and it is
-re-applied on every boot. The real checkpoint stays visible to clients as the beacon's
-`underlying` field: only the label is friendly, not the truth.
+These used to be split between Settings and the panel, in two half-versions that could disagree: the
+app re-applied its own stored values on every launch, so a rename done in the panel came back wrong
+after the next restart. Settings now holds only what belongs to the *app* (share-with-network, theme,
+launch-at-login, updates, logs folder).
 
-> **Caveat:** it changes the model **id**, so chats a user started under the old name
-> will ask them to re-select the model. New chats are unaffected. Pick the name once,
-> early.
+**Naming.** The model id clients receive *is* the name their picker shows — over an OpenAI-style
+connection there's no separate display-name channel — so this renames the served alias
+(`llamacpp.alias`, or the global `modelAlias` when the llama.cpp backend is off, so the same name
+survives a backend switch). The real checkpoint stays visible to clients as the beacon's `underlying`
+field: only the label is friendly, not the truth.
 
-> **Settings ▸ Context window is Ollama-side.** It writes `ollama.contextLength`, which
-> sizes the Ollama models — it does **not** resize `llama-server`, whose window is
-> `llamacpp.contextLength` (edit `userData/farm/lol.config.json` and restart). Same
-> caveat as the admin panel's context control — see
-> [`farm/README.md`](../farm/README.md#live-from-the-admin-panel).
-
+> **Caveat:** it changes the model **id**, so chats a user started under the old name will ask them to
+> re-select the model. New chats are unaffected. Pick the name once, early.
 ## Serving more than one person at a time
 
 The farm answers **one request at a time** out of the box (`llamacpp.parallel: 1`), so a second
-person's question waits for the first answer. **There is no setting for this in the app yet.** To
-change it: **Settings ▸ Open data & logs folder** → open `farm/lol.config.json` → in the `llamacpp`
-block set e.g. `"parallel": 4, "contextLength": 65536` (raise both — llama.cpp splits the window
-across slots) → **Stop** then **Start** the farm. Sizing table + VRAM budget:
+person's question waits for the first answer. Raise it in the panel: *Backend* ▸ **People served at
+once**. llama.cpp **splits its context window across slots**, so the panel states what each user
+actually gets, and you usually want to raise the **context window** alongside it — then check the
+total still fits VRAM. Sizing table + budget:
 [`farm/README.md`](../farm/README.md#multiple-users--capacity).
 
-> Also note **Settings ▸ Context window defaults to 64k**, which applies to the *Ollama* models
-> (including the OCR vision model). On a 12 GB card that is measured to spill to CPU — lower it to
-> 16k–32k there.
+Every client shows how full each box is ("1 of 2 slots in use"), so people can spread themselves
+across boxes without being told to.
+
+> A fresh install starts at a **16k** context window, which is what this project measured as safe on a
+> 12 GB card. (It used to seed 64k — a figure measured on a 96 GB box, which spills to CPU and runs
+> ~5x slower on 12 GB.) Raise it in the panel on hardware that can hold it.
 
 ## Private by default (share compute is opt-in)
 

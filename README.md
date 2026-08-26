@@ -34,7 +34,7 @@ both, so the client sees one OpenAI‑compatible endpoint and never knows which 
 | Piece | What it is | Where |
 |---|---|---|
 | **`lol`** — farm CLI | Node CLI. Reads `lol.config.json`; runs **llama.cpp + Ollama**, generates + runs a LiteLLM proxy (one OpenAI‑compatible, load‑balanced endpoint), runs a UDP discovery beacon. **Where models are chosen.** | [`farm/`](farm/) |
-| **Farm app** | Electron installer that runs the `lol` farm for a non‑technical operator: on first run it downloads its own Ollama + Python + the inference backend and weights, then hands over the farm **admin panel**. Settings carry the **model name users see**, the share‑with‑LAN toggle, and the context window. **Update checks are manual** (a notice + a Download button — no in‑place install). | [`farm-app/`](farm-app/) |
+| **Farm app** | Electron installer that runs the `lol` farm for a non‑technical operator: on first run it downloads its own Ollama + Python + the inference backend and weights, then hands over the farm **panel** (where the model, its name and the capacity are run). Its own Settings carry the share‑with‑LAN toggle, theme, launch‑at‑login and updates. **Update checks are manual** (a notice + a Download button — no in‑place install). | [`farm-app/`](farm-app/) |
 | **Client shell** | Electron + TypeScript. Supervises the bundled Open WebUI, discovers the farm, points OWUI at it, stores all data in a user‑chosen local folder. Owns the topbar / settings / connection screen. | [`shell/`](shell/) |
 | **Open WebUI sidecar** | Vendored, version‑pinned, **unmodified**. We inherit all its features and never edit its source. | [`sidecar/`](sidecar/) |
 
@@ -69,10 +69,14 @@ for images + scanned PDFs, **on by default**, [details below](#document-ocr-opti
 tools** — drive a local **[Blender](#assistant-tools--control-blender-optional)** over MCP (opt‑in per
 client); **multi‑box load balancing** (least‑loaded selection, `--coordinator` aggregation, `lol fleet`).
 
-*Operating it* — a **farm admin panel** at `http://<box>:41997/lol/admin` (token printed by `lol up`):
-start/stop Ollama models, toggle the web‑search / voice / OCR plugins, recommend Blender to the fleet,
-and see **connected clients** with idle times. Plus workshop tooling (`lol bench` load test, model
-keep‑warm) and [capacity guidance](farm/README.md#multiple-users--capacity) for a room full of people.
+*Operating it* — a **farm panel** at `http://<box>:41997/lol/admin` (token printed by `lol up`; the Farm
+app shows it as its own window). It is where the farm is run: **switch engine** (llama.cpp ↔ Ollama),
+pick the served `.gguf` from a **model library** you can add any URL to, set the **name users see** and
+the **context window**, choose **how many people it serves at once**, download / offer / delete Ollama
+models, toggle the web‑search / voice / OCR plugins, recommend Blender to the fleet, and see
+**connected clients** against the slot count. Changes apply live and are written back to
+`lol.config.json`. Plus workshop tooling (`lol bench` load test, model keep‑warm) and
+[capacity guidance](farm/README.md#multiple-users--capacity) for a room full of people.
 
 Progress, design decisions, and the debugging history are in [`docs/DEVLOG.md`](docs/DEVLOG.md); current
 state + roadmap in [`implementation_plan.md`](implementation_plan.md).

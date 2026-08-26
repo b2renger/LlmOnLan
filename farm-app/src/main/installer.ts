@@ -111,7 +111,7 @@ function copyFarm(): void {
 // 127.0.0.1 and turns the beacon OFF (no other machine can reach/use the farm);
 // shared (true) binds 0.0.0.0 + advertises via the beacon. Everything else is left to
 // the farm's zod defaults (SearXNG/OCR on, TTS off, ports, the llamacpp backend).
-// NOTE contextLength here is the APP's own default (65536), not the farm's 16384.
+// contextLength seeds ollama.contextLength on first run; after that the farm panel owns it.
 function writeFarmConfig(adminToken: string, share: boolean, contextLength: number): void {
     const config = {
         name: `${require('os').hostname()} Farm`,
@@ -124,42 +124,11 @@ function writeFarmConfig(adminToken: string, share: boolean, contextLength: numb
     fs.writeFileSync(farmConfigFile(), JSON.stringify(config, null, 2) + '\n', 'utf8');
 }
 
-// Persist the model context window (num_ctx) into lol.config.json. Unlike the admin
-// panel's live change — which is deliberately ephemeral and resets on the next `lol up`
-// — this survives restarts. Takes effect on the next farm start (num_ctx rides the
-// generated LiteLLM routing), so the caller restarts the farm.
-export function setContextLength(tokens: number): void {
-    if (!fs.existsSync(farmConfigFile())) return;
-    let cfg: any;
-    try { cfg = JSON.parse(fs.readFileSync(farmConfigFile(), 'utf8')); } catch { return; }
-    cfg.ollama = { ...(cfg.ollama || {}), contextLength: tokens };
-    fs.writeFileSync(farmConfigFile(), JSON.stringify(cfg, null, 2) + '\n', 'utf8');
-}
-
-// Persist the model name ADVERTISED to end users into lol.config.json. This is the
-// served alias — the model id clients see and request — not a cosmetic label: over
-// an OpenAI connection the id from /v1/models IS what pickers display, so renaming
-// the alias is the only clean way to control what users read. Written to
-// llamacpp.alias when the llama.cpp backend is on (the default; absent = enabled),
-// else to the global modelAlias, so the same string survives a backend switch.
-// null/empty clears back to the farm's defaults. The caller restarts the farm —
-// the alias rides the generated LiteLLM routing and the beacon snapshot.
-export function setModelName(name: string | null): void {
-    if (!fs.existsSync(farmConfigFile())) return;
-    let cfg: any;
-    try { cfg = JSON.parse(fs.readFileSync(farmConfigFile(), 'utf8')); } catch { return; }
-    const clean = (name || '').replace(/[\r\n\t]/g, ' ').trim().slice(0, 48) || null;
-    const llamacppOn = cfg.llamacpp?.enabled !== false; // matches the schema default
-    if (clean) {
-        if (llamacppOn) cfg.llamacpp = { ...(cfg.llamacpp || {}), alias: clean };
-        else cfg.modelAlias = clean;
-    } else {
-        if (cfg.llamacpp && 'alias' in cfg.llamacpp) delete cfg.llamacpp.alias;
-        cfg.modelAlias = null;
-    }
-    fs.writeFileSync(farmConfigFile(), JSON.stringify(cfg, null, 2) + '\n', 'utf8');
-}
-
+// The model name and context window used to be written here too. They moved into the
+// farm itself (farm/src/commands/up.js control API), which is the only place that
+// knows WHICH ENGINE is serving — llama-server takes its context and alias as argv and
+// splits the context across slots; Ollama takes num_ctx per request. Writing the file
+// from out here could only ever guess, and guessed wrong on the default backend.
 // Setup runs ONCE, but the bundled farm code changes with every app update — so re-copy
 // it over userData/farm when the app version differs from what we last copied. copyFarm's
 // skip-list preserves the built venvs (.venv/.searxng/.extract), lol.config.json, and the

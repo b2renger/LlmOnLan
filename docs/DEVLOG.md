@@ -6,6 +6,95 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-08-26 — the farm becomes operable: backend, models and capacity move into the panel
+
+Owner feedback after running the fleet: *"the separation between the ollama backend and the llama.cpp
+backend is not clear in the farm UI"* — plus five specifics (no advertised-name setting to be found, no
+README answer for downloading a new llama.cpp model, no way to see or switch the running backend, no way
+to add/remove models, no multi-user support) and one client-side ask: **show how many people are on each
+box, out of how many it can serve** — *"1 of 2 slots is occupied"*.
+
+The root cause behind most of it was the same: **the panel was an Ollama console** — installed tags,
+served flags, a context selector — on a farm whose default model is served by **llama.cpp** and appears
+in none of those lists. And what little existed was split across two surfaces that disagreed.
+
+### What the panel is now
+
+It opens on a **Backend** card: the name users see, the engine behind it, the real `.gguf`, and
+`N slots · M tokens of context each`. Under that: llama.cpp ↔ Ollama as two buttons, a **model library**
+you add `.gguf` URLs to (**Use this** downloads and serves, with progress), the **advertised name**,
+**People served at once**, and a context window that targets whichever engine is serving. The Ollama card
+gained **Download** / **Delete**. `farm/src/configFile.js` writes every one of them back to
+`lol.config.json` — patching *raw* JSON, never the parsed config, so the operator's file doesn't get
+today's schema defaults frozen into it.
+
+Long fetches run as a **single job** (`runJob`): the route returns at once with a job id and the panel —
+already polling `/lol/admin/state` — renders progress, polling at 1 s instead of 5 s while one runs.
+Strictly one at a time, refused rather than queued, because two model reloads racing is how a farm ends
+up with no backend.
+
+### Three bugs found on the way, each worse than the missing feature
+
+1. **A failed model swap bricked the farm.** Verified live: point `llamacpp.model` at a 404 and
+   `downloadGguf` *rejects* rather than returning, so it escaped `startLlamacpp`'s `{ ok, message }`
+   contract, blew past the rollback, and left llama.cpp enabled with no `llama-server` and a dead URL
+   persisted. Fixed at the root (`startLlamacpp` catches) plus a `try/catch` around the swap's reload —
+   a farm bricked by a typo is unrecoverable *from the panel*, because the panel is served by the farm.
+   Re-verified: the swap now fails, says `download HTTP 401`, reloads the previous weights, and clients
+   keep being served.
+2. **The Farm app overwrote the panel on every launch.** `app.whenReady` re-applied `setContextLength`
+   and `setModelName` from the *app's own store*, so a rename done in the panel came back wrong after the
+   next app restart. Removed; `lol.config.json` is the single source of truth.
+3. **The advertised name did not survive a backend switch.** The two engines keep it on different keys
+   (`llamacpp.alias` vs the global `modelAlias`) and the name IS the model id clients bind to — so
+   switching silently renamed the model and would have asked every open chat to re-pick.
+   `carryNameAcross()` moves it, and clears `modelAlias` when going *to* llama.cpp, because a colliding
+   Ollama deployment is skipped in the generated routing and that model would vanish from the picker
+   unannounced.
+
+### Two inert controls, fixed rather than documented
+
+The previous docs pass flagged both as "worth fixing in code later":
+
+- **The context window** wrote `ollama.contextLength` only — nothing on a default farm. It now routes to
+  the serving engine, and the panel states the arithmetic (llama.cpp **splits** `--ctx-size` across
+  slots, so 2 slots of 16384 means 8192 each).
+- **"Make default"** couldn't change what clients auto-select while llama.cpp owns the alias. The button
+  is now hidden in that mode instead of lying.
+
+### Capacity, on both ends
+
+`capacity: { slots, clients }` rides the beacon (`llamacpp.parallel`, or `numParallel × reachable hosts`
+for Ollama). The panel's Clients card and every farm card in the desktop client read *"1 of 2 slots in
+use"*, amber when full, and the topbar pill shows `2/2` — which beats `100% GPU` for the question a
+person is actually asking, since 100% GPU is just what a healthy box looks like mid-answer. Deliberately
+**advisory**: nothing refuses a client past `slots`, so a full box means "expect to wait", and the point
+of showing it is that the next person picks another box.
+
+### The Farm app stopped competing
+
+Its Settings drawer had half-versions of Model name and Context window — which is *why* the owner
+couldn't find the naming field: two places, neither findable. Both rows (and their IPC, preload and
+installer paths) are gone; Settings holds app-level things only and points at the panel, which is the
+app's own main window.
+
+### Verified
+
+- **73 farm unit tests** (9 new: backend/capacity advertisement, the ctx-split arithmetic per engine, the
+  library schema, `configFile` round-trip preserving unknown keys and *not* materializing defaults, and
+  every new admin route being token-gated).
+- **A live farm.** Ran a second, isolated farm (own ports, beacon off, plugins off) alongside the one
+  actually serving users on this box, and drove the real HTTP API: state shape → rename → `/v1/models`
+  shows it → persisted; library add/remove incl. refusing a non-`.gguf` and a duplicate; slots; **live
+  backend switch to llama.cpp and back**; context window reaching `llamacpp.contextLength`; the bad-URL
+  rollback; and name continuity across a switch in both directions. All green.
+- **The panel itself rendered** against that farm's real `/lol/admin/state` in a DOM stub, in both engine
+  modes, asserting every control is present and that no `undefined`/`NaN` leaks into the page.
+- Both TypeScript projects clean; the example config validates against the real schema; 30/30
+  cross-document anchors resolve.
+
+---
+
 ## 2026-08-25 g — documentation brought back to the code, via a blind fact-checking loop
 
 The docs had drifted a full product generation behind (v0.1.25 / gemma4-on-Ollama era) while the code

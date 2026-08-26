@@ -13,21 +13,66 @@ const { servedEntries } = require('./litellm');
 const { farmId } = require('./identity');
 
 const PKG_VERSION = require('../package.json').version;
+const GGUF_EXT = new RegExp(String.raw`\.gguf$`, 'i');
 
-// The llama.cpp backend's advertised entry, or null when disabled. `underlying`
-// is the GGUF's basename so client cards can show the real weights even though
-// every box shares an alias like "assistant".
+// The GGUF's basename, so a client card can show the real weights even though
+// every box shares an alias like "assistant". Falls back to a generic label when
+// `model` is unset or not a URL (an operator can point llamacpp.model at a path).
+function ggufName(url) {
+    if (!url) return 'llama.cpp';
+    try {
+        const base = decodeURIComponent(new URL(url).pathname.split('/').pop() || '');
+        return base.replace(GGUF_EXT, '') || 'llama.cpp';
+    } catch { return 'llama.cpp'; }   // not a URL — keep the generic label
+}
+
+// The llama.cpp backend's advertised entry, or null when disabled.
 function llamacppServedModel(config) {
     const lc = config.llamacpp || {};
     if (!lc.enabled) return null;
-    let underlying = 'llama.cpp';
-    if (lc.model) {
-        try {
-            underlying = decodeURIComponent(new URL(lc.model).pathname.split('/').pop() || '')
-                .replace(/\.gguf$/i, '') || 'llama.cpp';
-        } catch { /* not a URL — keep the generic label */ }
+    return { id: lc.alias, underlying: ggufName(lc.model), default: true };
+}
+
+// Which engine actually answers the model clients auto-select, and how many people
+// it can answer AT ONCE. Both were previously invisible: the snapshot carried a
+// model id and nothing about what was behind it, so neither a client nor the admin
+// panel could tell a llama.cpp farm from an Ollama one — or say "this box is full".
+//
+// Slots differ per engine, and the difference is not cosmetic:
+//   • llama.cpp — `parallel` slots, and --ctx-size is SPLIT across them (verified:
+//     --ctx-size 16384 --parallel 2 -> n_ctx_slot 8192). Raising slots therefore
+//     SHRINKS every user's context window, so contextPerSlot is what a user gets.
+//   • Ollama — numParallel requests per host, so capacity scales with reachable
+//     hosts and each request keeps the full num_ctx.
+function backendInfo(config, health = {}) {
+    const lc = config.llamacpp || {};
+    if (lc.enabled) {
+        const slots = Math.max(1, lc.parallel || 1);
+        return {
+            engine: 'llama.cpp',
+            alias: lc.alias,
+            model: ggufName(lc.model),
+            contextLength: lc.contextLength,
+            contextPerSlot: Math.floor((lc.contextLength || 0) / slots),
+            slots,
+            mtp: !!lc.mtp,
+            kvCacheType: lc.kvCacheType || 'f16',
+        };
     }
-    return { id: lc.alias, underlying, default: true };
+    const entries = servedEntries(config);
+    const def = entries.find((e) => e.isDefault) || entries[0] || {};
+    const hosts = health.hostsUp || config.ollama.hosts.length || 1;
+    const slots = Math.max(1, (config.ollama.numParallel || 1) * hosts);
+    return {
+        engine: 'ollama',
+        alias: def.servedName || null,
+        model: def.underlying || null,
+        contextLength: config.ollama.contextLength,
+        contextPerSlot: config.ollama.contextLength,   // Ollama does not split its context
+        slots,
+        mtp: false,
+        kvCacheType: 'f16',
+    };
 }
 
 // `health` is { proxyUp, hostsUp, hostsTotal, loaded } as gathered by status/up.
@@ -52,6 +97,10 @@ function buildSnapshot(config, health = {}) {
     // ~10.6 GB of a 12 GB card sends every client to a second model that cannot fit
     // — VRAM overcommit, WDDM paging, tokens crawl. Ollama models stay selectable,
     // but never default while llamacpp is on.
+    // One computation, two readers (`backend` + `capacity`) — backendInfo walks
+    // servedEntries() in Ollama mode, which is not free to do twice per beacon tick.
+    let _backend = null;
+    const backend = () => (_backend || (_backend = backendInfo(config, health)));
     const lcModel = llamacppServedModel(config);
     const models = servedEntries(config)
         .filter((e) => !(lcModel && e.servedName === lcModel.id))
@@ -124,8 +173,17 @@ function buildSnapshot(config, health = {}) {
             // Desktop clients currently heartbeating this farm (POST /lol/client-ping).
             clients: health.clientsConnected ?? null,
         },
+        // Which engine answers, on what weights — so a client card can say
+        // "llama.cpp · Qwen3.8-27B-UD-IQ2_S" instead of repeating the alias back at
+        // the user, and so the admin panel can show which backend is live.
+        backend: backend(),
+        // How many people this box serves at once, vs how many are on it right now.
+        // Deliberately ADVISORY: nothing refuses a client past `slots`, because a farm
+        // that turned people away would be worse than one that queues them. The client
+        // renders "2 of 2 slots in use" so the next person can choose another box.
+        capacity: { slots: backend().slots, clients: health.clientsConnected ?? 0 },
         ts: Date.now(),
     };
 }
 
-module.exports = { buildSnapshot, PKG_VERSION };
+module.exports = { buildSnapshot, backendInfo, ggufName, PKG_VERSION };

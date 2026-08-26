@@ -16,7 +16,7 @@ import * as url from 'url';
 import { loadSettings, updateSettings } from './store';
 import { runtimeReady } from './runtimeManager';
 import { farmInstalled } from './paths';
-import { runSetup, setShareMode, setContextLength, setModelName, ensurePluginPorts, refreshFarmCodeIfUpdated } from './installer';
+import { runSetup, setShareMode, ensurePluginPorts, refreshFarmCodeIfUpdated } from './installer';
 import { reapStaleFarm } from './farmProcess';
 import { FarmSupervisor } from './farmSupervisor';
 import { initUpdateCheck, checkFarmUpdate, setUpdateNotifier } from './updater';
@@ -117,8 +117,6 @@ function currentPrefs() {
         launchAtLogin: s.launchAtLogin,
         autoUpdate: s.autoUpdate,
         shareWithNetwork: s.shareWithNetwork,
-        modelName: s.modelName,
-        contextLength: s.contextLength,
         appVersion: app.getVersion(),
         platform: process.platform,
         arch: process.arch,
@@ -181,35 +179,11 @@ function registerIpc(): void {
         return v;
     });
 
-    // Model context window (num_ctx), persisted into lol.config.json. Restarts the farm
-    // so the regenerated LiteLLM routing carries the new num_ctx. Clamped to the farm's
-    // own accepted range (2048–262144, the models' native max).
-    ipcMain.handle('set-context-length', async (_e, tokens: number) => {
-        const n = Math.max(2048, Math.min(262144, Math.round(Number(tokens)) || 65536));
-        updateSettings({ contextLength: n });
-        setContextLength(n);
-        const st = supervisor.getState().status;
-        if (st === 'ready' || st === 'starting' || st === 'restarting') {
-            await supervisor.stop({ keepState: true });
-            await startFarm();
-        }
-        return { contextLength: n, farmState: supervisor.getState() };
-    });
-
-    // The model NAME advertised to end users (the served alias — what OWUI's picker
-    // and /v1/models show). Persisted into lol.config.json + enforced on boot, like
-    // the context window. Restarts the farm so the routing + beacon carry it.
-    ipcMain.handle('set-model-name', async (_e, name: string | null) => {
-        const clean = (typeof name === 'string' ? name : '').replace(/[\r\n\t]/g, ' ').trim().slice(0, 48) || null;
-        updateSettings({ modelName: clean });
-        setModelName(clean);
-        const st = supervisor.getState().status;
-        if (st === 'ready' || st === 'starting' || st === 'restarting') {
-            await supervisor.stop({ keepState: true });
-            await startFarm();
-        }
-        return { modelName: clean, farmState: supervisor.getState() };
-    });
+    // The model name, context window and capacity are NOT here. They live in the farm
+    // panel (this app's main window), next to the backend they act on: the panel knows
+    // which engine is serving, applies them live rather than restarting the farm for
+    // each one, and is reachable from any browser on the LAN. Two half-implementations
+    // in two drawers is why the model name was unfindable.
 
     // Share the farm's compute with the LAN (default off = fully private: localhost
     // bind + no beacon). Rewrites lol.config.json's beacon/proxy and restarts the
@@ -260,8 +234,11 @@ app.whenReady().then(() => {
     if (settings.installed && runtimeReady() && farmInstalled()) {
         refreshFarmCodeIfUpdated(app.getVersion()); // propagate farm-side fixes on an app update
         setShareMode(settings.shareWithNetwork); // enforce the persisted posture (also migrates a pre-toggle 0.0.0.0 config to private)
-        setContextLength(settings.contextLength); // ditto for the persisted context window
-        setModelName(settings.modelName);         // ditto for the advertised model name
+        // The context window and model name are NOT re-enforced here any more. They used
+        // to be, from this app's own store — which meant every app launch silently
+        // overwrote whatever the farm panel had set, so an operator who renamed the model
+        // in the panel found the old name back after the next restart. lol.config.json is
+        // the single source of truth for both now, and the panel writes it directly.
         startFarm();
     } else if (settings.installed) {
         // Marked installed but the on-disk runtime is gone — re-run setup.

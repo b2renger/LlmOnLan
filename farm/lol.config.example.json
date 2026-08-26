@@ -23,6 +23,17 @@
     "flashAttention": true,
     "ngl": 999,
     "mtp": false,
+    "library": [
+      {
+        "id": "qwen3.8-27b-ud-iq2_s",
+        "label": "Qwen3.8 27B · UD-IQ2_S",
+        "url": "https://huggingface.co/unsloth/Qwen3.8-27B-GGUF/resolve/main/Qwen3.8-27B-UD-IQ2_S.gguf",
+        "mmproj": "https://huggingface.co/unsloth/Qwen3.8-27B-GGUF/resolve/main/mmproj-F16.gguf",
+        "sizeGb": 7.8,
+        "mtp": false,
+        "note": "Default. Best speed/quality on a 12 GB card, with headroom to spare."
+      }
+    ],
     "port": 8081,
     "binDir": null,
     "extraArgs": []

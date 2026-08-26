@@ -142,6 +142,21 @@ function hasModel(present, id) {
 
 // Pull a model on a host, streaming progress lines to onLine(statusText).
 // Resolves true on success, throws on failure. /api/pull streams NDJSON.
+// Delete a model from a host, freeing its disk. The counterpart to pullModel and
+// the reason the admin panel can offer "Remove": without it an operator who tried
+// three 20 GB models has no way back short of a terminal, and the box fills up.
+// 404 counts as success — the goal state is "not there", and Ollama 404s a delete
+// of an already-absent tag.
+async function deleteModel(baseUrl, id, timeoutMs = 60000) {
+    try {
+        const r = await request('DELETE', baseUrl, '/api/delete', { body: { model: id }, timeoutMs });
+        if (r.status === 200 || r.status === 404) return { ok: true };
+        return { ok: false, error: (r.json && r.json.error) || `HTTP ${r.status}` };
+    } catch (e) {
+        return { ok: false, error: String((e && e.message) || e) };
+    }
+}
+
 function pullModel(baseUrl, id, onLine = () => {}, timeoutMs = 30 * 60 * 1000) {
     return new Promise((resolve, reject) => {
         const u = new URL('/api/pull', baseUrl);
@@ -327,7 +342,7 @@ function createModelWithDraft(name, from, draftFile, parameters = {}, timeoutMs 
 
 module.exports = {
     normalizeHost, version, listModels, listModelsDetailed, loadedModels, warmModel, evictModel,
-    hasModel, pullModel, createModel, createModelWithDraft, downloadDraft, draftPathFor, draftDir, request,
+    hasModel, pullModel, deleteModel, createModel, createModelWithDraft, downloadDraft, draftPathFor, draftDir, request,
     // Same fetcher under names that read correctly at the other call sites: the
     // llama.cpp backend uses it for full model weights and release archives, not
     // just draft modules.

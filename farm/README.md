@@ -127,8 +127,19 @@ plus the matching CUDA runtime into `farm/.llamacpp/`, then the weights + vision
 stall on it later. On any other platform, install llama.cpp yourself and point `llamacpp.binDir` at the
 folder holding `llama-server`; the farm says so rather than failing obscurely.
 
-**Turning it off** — `"llamacpp": { "enabled": false }`. Ollama then serves everything, and the global
-`modelAlias` (not `llamacpp.alias`) names the default model.
+**Which one is running, and switching between them.** The admin panel
+(`http://<box>:41997/lol/admin`, and the Farm app's own window) opens on a **Backend** card that
+names the model users see, the engine behind it, the actual `.gguf` or Ollama tag, and how many
+people it serves at once. The two engines are a pair of buttons; picking the other one reloads the
+model and regenerates the routing, in about a minute. It is also written to `lol.config.json`, so it
+survives a restart.
+
+Clients see the same thing from the outside: each farm card in the desktop app shows
+`llama.cpp · Qwen3.8-27B-UD-IQ2_S` under the farm name, so a user can tell two boxes apart without
+asking anyone.
+
+**From the config** — `"llamacpp": { "enabled": false }`. Ollama then serves everything, and the
+global `modelAlias` (not `llamacpp.alias`) names the default model.
 
 > **Quant ↔ `mtp` rule.** `mtp: true` adds `--spec-type draft-mtp` (speculative decoding via the GGUF's
 > built-in MTP head). Unsloth **strips that head** from every quant below `UD-Q2_K_XL`, and llama-server
@@ -138,11 +149,32 @@ folder holding `llama-server`; the farm says so rather than failing obscurely.
 
 ## Adding or changing models
 
-Which path you want depends on which engine should serve it.
+**The panel is the normal way.** Open `http://<box>:41997/lol/admin` (the Farm app shows it as its own
+window) and everything below is a click — applied live, and written back to `lol.config.json` so it
+survives a restart. Editing the config by hand still works and is documented under each heading, but you
+only need it for a farm you administer over SSH.
 
-### The model everyone gets (llama.cpp path)
+### Which model everyone gets (llama.cpp path)
 
-Point `llamacpp.model` at a different `.gguf` URL and restart the farm:
+This is the model clients auto-select — the one that matters. It is a single `.gguf`.
+
+**From the panel** — the *Model · llama.cpp* card lists a **library** of `.gguf`s the farm knows about:
+
+1. **Add a model**: paste the link to a `.gguf` and press **Add**. On Hugging Face that is the file's
+   *download* link — the `…/resolve/main/….gguf` one, not the page you were reading it from. Adding only
+   remembers it; nothing is downloaded yet.
+2. **Use this** on any entry downloads it (progress is shown — a first fetch is several GB and several
+   minutes) and reloads llama-server onto it.
+3. **Remove** drops an entry from the list. The one currently serving can't be removed; switch first.
+
+The library ships with the three quants this project has measured on 12 GB cards, so on that hardware you
+can switch between them without hunting for URLs.
+
+If the new weights fail to load — a wrong URL, a file that isn't a GGUF, something too big for the card —
+**the farm rolls back to the model that was working** and tells you why. It will not leave you with a
+farm that has no backend, which matters because the panel is served *by* the farm.
+
+**From the config** — set `llamacpp.model` (and `llamacpp.mmproj`) and restart:
 
 ```jsonc
 "llamacpp": {
@@ -152,20 +184,48 @@ Point `llamacpp.model` at a different `.gguf` URL and restart the farm:
 }
 ```
 
-`lol up` downloads it to `farm/.models/` (cached — swapping back later is instant) and serves it under
-the same alias, so **existing chats keep working**: clients bind to the alias, not to the checkpoint.
-**`mmproj` must be the projector for that model family** — it's passed straight to `--mmproj`, so a
-mismatched one fails at load; take it from the same repo as the weights, or set it `null` for text-only.
-Old `.gguf`s stay in `farm/.models/` at ~8 GB each: delete the ones you're done with (and
-`farm/.llamacpp/` to force a fresh backend download).
-Sizing rule of thumb: weights + KV cache must fit VRAM with room for the desktop, and `ngl` is
-all-or-nothing here — a model that doesn't fit spills to CPU and collapses to a few tokens/s.
-Set `mmproj` to `null` for a text-only model.
+Either way the file is cached in `farm/.models/`, so switching **back** later is instant, and the model
+keeps serving under the same alias — **existing chats keep working**, because clients bind to the alias,
+not to the checkpoint.
+
+Three things to get right when choosing weights:
+
+- **`mmproj` must be the projector for that model family.** It goes straight to `--mmproj`, so a
+  mismatched one fails at load. Take it from the same repo as the weights, or leave it empty for a
+  text-only model.
+- **Weights + KV cache must fit VRAM**, with room for the desktop. `ngl` is all-or-nothing here: a model
+  that doesn't fit spills to CPU and collapses to a few tokens/s. See
+  [Multiple users & capacity](#multiple-users--capacity) for the budget.
+- **The quant ↔ `mtp` rule** above. Picking a library entry handles this for you — the farm turns MTP off
+  automatically when you switch to a quant whose MTP head was stripped, rather than failing to boot.
+
+Old `.gguf`s stay in `farm/.models/` at several GB each; delete the ones you're done with by hand.
+
+### The name users see
+
+Over an OpenAI connection, the model **id** is what a picker displays — so the name is the served alias,
+not a label bolted on top. Set it in the panel's *Backend* card (**Name users see** → Apply), or as
+`llamacpp.alias` in the config (`modelAlias` when the llama.cpp backend is off).
+
+Renaming reloads the model and takes a few seconds. **Existing chats will ask to re-select the model**,
+because their bound id no longer exists; new chats are unaffected. That is the cost of the rename being
+real rather than cosmetic.
 
 ### Extra models in the picker (Ollama path)
 
-These are ordinary Ollama tags — several can be served at once and are load-balanced across
-`ollama.hosts`:
+These are ordinary Ollama tags. Several can be served at once and are load-balanced across
+`ollama.hosts`. While llama.cpp is on they are **selectable but never the default** — users pick them by
+hand from the model list.
+
+**From the panel** — the *Models · Ollama* card:
+
+- **Download a model**: type an Ollama tag (`gemma4:12b`, `qwen3.8:14b`) and press Download. It is pulled
+  onto every local host and immediately offered to clients.
+- **Offer / Stop**: whether clients can select an already-downloaded model.
+- **Delete**: removes the weights from the box. Refused for the last model in the catalog, and for the
+  model document OCR is using.
+
+**From the CLI:**
 
 ```bash
 lol models add qwen2.5-coder:14b     # add to the served catalog
@@ -177,11 +237,11 @@ lol up --no-pick                     # serve EVERYTHING in `models` (see the war
 > **⚠ `lol up`'s picker REPLACES the catalog for that run.** On a terminal, plain `lol up` prompts, and
 > pressing Enter serves **only the default model** — silently dropping the model you just added. Use
 > `lol up --no-pick` (alias `--yes` / `-y`) to serve the configured `models`, or answer the prompt with
-> every number you want (e.g. `1,3`). Whatever you pick is **ephemeral** — it is never written back to
-> `lol.config.json`, so `models` stays the source of truth. (If the configured default isn't installed on
-> the box, Enter falls back to the first installed model.)
+> every number you want (e.g. `1,3`). Whatever you pick at the prompt is **ephemeral**; it is not written
+> back to `lol.config.json`. (If the configured default isn't installed on the box, Enter falls back to
+> the first installed model.)
 
-or edit `models` directly, giving each a stable role name:
+Or edit `models` directly, giving each a stable role name:
 
 ```jsonc
 "models": [
@@ -198,27 +258,23 @@ speculative-decoding module) — see the annotated `preinstall` entry in [`src/c
 
 **`preinstall` — staged but not served.** Entries here are **pulled by `lol install` and `lol up` like
 served models**, but get no routing and are absent from the beacon: no client can see or select one, so
-no client can trigger a model swap on your GPU. It's how you keep a model *ready* for the admin panel to
-start on demand (the panel picks up its full definition, so alias/vision/params survive). Note the
-shipped default `preinstall` — a Qwen3.8-27B UD-IQ2_XXS **plus its draft module, ~8.6 GB** — is part of
-why the first bootstrap is large; empty it (`"preinstall": []`) if you don't want it on disk.
+no client can trigger a model swap on your GPU. It's how you keep a model *ready* for the panel to start
+on demand (the panel picks up its full definition, so alias/vision/params survive). Note the shipped
+default `preinstall` — a Qwen3.8-27B UD-IQ2_XXS **plus its draft module, ~8.6 GB** — is part of why the
+first bootstrap is large; empty it (`"preinstall": []`) if you don't want it on disk.
 
-### Live, from the admin panel
+### What the panel changes, and what it does not
 
-While the farm runs, `http://<box>:41997/lol/admin` can start/stop served models, "Make default", and
-change the context window without editing files. **These controls are Ollama-side.** On a default farm
-(llama.cpp on) that means:
+Everything in the panel applies to the **running** farm and is written back to `lol.config.json`, so it
+survives a restart. Two exceptions, both deliberate:
 
-- **starting/stopping Ollama models works** — they appear in / disappear from every client's picker;
-- **"Make default" does not change what clients auto-select** — the llama.cpp alias is advertised as the
-  default for as long as that backend is enabled;
-- **"Context window" changes `ollama.contextLength` only** — it does not resize llama-server, whose
-  window is `llamacpp.contextLength` (a config edit + restart).
+- **Plugin toggles** (web search / OCR / voice) are for this session only.
+- **Ollama's own slot count** needs a farm restart to take effect, because `OLLAMA_NUM_PARALLEL` is read
+  by Ollama at startup. The panel says so when you change it.
 
-There is **no live control for llama.cpp at all** — no start/stop, resize, or swap. The model everyone
-chats with is config-file-only: edit `lol.config.json` and restart the farm.
-
-Panel changes are **ephemeral** — a restart reverts to `lol.config.json`, so persist real decisions there.
+Only **one** long operation runs at a time — a download, a backend switch, a reload. Everything else is
+refused with *"the farm is busy"* rather than queued, because two model reloads racing is how a farm ends
+up with no backend at all.
 
 ## Multiple users & capacity
 
@@ -236,6 +292,12 @@ verified on the pinned build:
 So for N concurrent users at the same usable window, raise **both**: `parallel: N` **and**
 `contextLength: N × (the per-user window you want)` — then check the total still fits VRAM, because the
 KV cache is allocated in full at load.
+
+Both are panel controls — *Backend* → **People served at once** and **Context window** — and the panel
+spells out the arithmetic as you change them ("2 slots, 8192 tokens of context each"), which is the
+part that is easy to get wrong. Each applies live, reloading the model, and is written back to
+`lol.config.json`. If the new shape does not fit VRAM the model fails to load and the farm reverts to
+the shape that worked.
 
 **Budgeting VRAM.** For the shipped quant, weights are ~7.8 GB and quantized (`q4_0`) KV runs
 **~1.2 GB per 16k of total `contextLength`** — so `parallel: 4, contextLength: 65536` lands around
@@ -276,6 +338,12 @@ hostname, platform, app version, idle seconds). The admin panel's **Clients** ca
 times, and it rides the beacon as `usage.clients` — so you can see who is actually on a box before
 restarting it. Machines drop off ~30 s after the app closes.
 
+That count is also published against the slot count as `capacity: { slots, clients }`, which is what
+lets both ends show occupancy: the panel's Clients card reads *"1 of 2 slots in use"*, and every farm
+card in the desktop client shows the same, turning amber once a box is full. It is deliberately
+**advisory** — the farm never turns anyone away past `slots`, it queues them — so a full box means
+"expect to wait", and the point of showing it is that the next person can pick a different box.
+
 **What multi-user does *not* mean here.** There are no farm-side accounts and nothing to administer per
 person: each client is a single-user app whose chats, documents and RAG vectors live on that person's own
 machine (the farm stores nothing). "Multi-user" is purely a **capacity** question — plus, if you want the
@@ -309,6 +377,7 @@ nothing. Shape:
                 "flashAttention": true, "ngl": 999,
                 "mtp": false,                  // needs a UD-Q2_K_XL+ quant — see the rule above
                 "draftNMax": 2,                // with mtp on: tokens drafted per step
+                "library": [ /* … */ ],        // the .gguf choices the panel offers (see below)
                 "host": "127.0.0.1",           // LiteLLM is the only thing that talks to it
                 "port": 8081, "binDir": null, "extraArgs": [] },
   "preinstall": [ /* … */ ],                   // models DOWNLOADED but never served (staged for the
@@ -345,6 +414,14 @@ nothing. Shape:
 > matters when `llamacpp.enabled` is `false`), and give per-model aliases distinct names (`coder`,
 > `vision`, …). Renaming `llamacpp.alias` itself is safe — just don't rename it *onto* one of these.
 
+**`llamacpp.library`** is the list of `.gguf`s the panel offers under *Use this*, so an operator can
+switch weights without hunting for URLs. Each entry is
+`{ id, label, url, mmproj, sizeGb, mtp, note }` — only `id`, `label` and `url` are required. `mtp` marks
+a quant that still carries its MTP head; it defaults to `false`, the safe direction, because the farm
+reads it to decide whether it must turn speculative decoding **off** when you switch onto that model.
+The list is only a menu: `llamacpp.model` is what is actually served, and adding an entry downloads
+nothing. It ships with the three quants measured on this project's 12 GB hardware; replace it freely.
+
 > **`ollama.contextLength` is farm-global but VRAM is per-host.** A mixed fleet is served by whichever
 > single value is set here, and it rides the generated routing (`num_ctx` per deployment), so it applies
 > even on hosts this CLI never started.
@@ -372,22 +449,19 @@ nothing. Shape:
   opt a box out with `"ocr": { "enabled": false }` or `lol up --no-ocr`. The light path covers
   images/PDF/docx/pptx/xlsx/text, and `"docling": true` adds the rest (legacy `.doc`/`.ppt`/`.xls`,
   `.odt`/`.epub`/`.rtf`) at the cost of a multi‑GB torch install. Delete `farm/.extract/` to uninstall.
-- **Admin panel (live control of a running farm):** while `lol up` runs, open
-  `http://<box>:41997/lol/admin` (the beacon `httpPort`) from any browser on the LAN — or click **"Manage
-  this farm"** in the desktop client's fleet popover. It shows the **connected clients** (hostname, IP,
-  app version, and how long each machine has been idle — clients report presence every ~10 s and drop off
-  ~30 s after closing), and can **start/stop served models** (adds/removes them
-  from the proxy + warms/evicts VRAM; the proxy bounces for a few seconds), **set the default model** (what
-  every client's OWUI auto‑selects), **change the context window** (num_ctx presets 4k–**256k**; rides the LiteLLM
-  routing so it applies on every host, brief proxy blip), and **enable/disable the farm
-  plugins** (web search / voice / OCR) live, plus recommend the client‑side Blender plugin to the fleet —
-  clients pick every change up within ~5 s. **These controls are Ollama‑side** — with the llama.cpp
-  backend on (the default), "Make default" and the context selector don't touch the model clients
-  actually chat with; see [Live, from the admin panel](#live-from-the-admin-panel). Auth: the **admin
-  token printed in the `lol up` banner**
-  (regenerated each run; set `"admin": { "token": "…" }` in `lol.config.json` for a fixed one). Everything
-  the panel changes is **ephemeral** — a farm restart reverts to `lol.config.json`, so persist real
-  decisions there.
+- **Admin panel (running the farm):** while `lol up` runs, open `http://<box>:41997/lol/admin` (the
+  beacon `httpPort`) from any browser on the LAN — or click **"Manage this farm"** in the desktop
+  client's fleet popover. The Farm app shows the same page as its own window. It is where the farm is
+  run: which **engine** serves and which `.gguf` it loads, the **name users see**, **how many people**
+  it serves at once, the **context window** (applied to whichever engine is serving), the **Ollama
+  catalog** (download / offer / delete / make default), the **plugins** (web search / voice / OCR) and
+  the Blender recommendation, and the **connected clients** (hostname, IP, app version, idle time —
+  clients report presence every ~10 s and drop off ~30 s after closing), against the slot count.
+  Clients pick every change up within ~5 s. Everything except the plugin toggles is **written back to**
+  `lol.config.json`, so it survives a restart; see
+  [What the panel changes, and what it does not](#what-the-panel-changes-and-what-it-does-not).
+  Auth: the **admin token printed in the `lol up` banner** (regenerated each run; set
+  `"admin": { "token": "…" }` in `lol.config.json` for a fixed one).
 - **Multiple GPU boxes:** either list every box in `ollama.hosts` (one farm balances them all), or run
   `lol up` per box and let clients auto‑spread (they pick the least‑loaded farm), or run one box with
   `--coordinator` to aggregate the others behind a single endpoint that clients prefer.

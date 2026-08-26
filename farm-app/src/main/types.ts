@@ -50,17 +50,9 @@ export interface FarmSettings {
     theme: 'dark' | 'light' | 'system';
     launchAtLogin: boolean;
     autoUpdate: boolean;
-    // The model NAME advertised to end users — the served alias, i.e. the model id
-    // clients see and request (OWUI's picker, /v1/models, LOL Chat's dropdown).
-    // Written into lol.config.json (llamacpp.alias, or modelAlias when the llama.cpp
-    // backend is off) and enforced on boot like the context window. null = the
-    // farm's default ('assistant'). Renaming changes the model id, so clients'
-    // EXISTING chats ask to re-select the model; new chats are unaffected.
-    modelName: string | null;
-    // Model context window (num_ctx) written into lol.config.json's ollama.contextLength
-    // — persistent, unlike the admin panel's live change (which resets on restart).
-    // Bigger = more of a document considered at once (the point of RAG); 262144 is the
-    // native max of gemma4 / qwen3.x and the farm's cap.
+    // Seeds ollama.contextLength when the farm config is FIRST written. After that the
+    // farm panel owns the context window (and routes it to whichever engine is serving),
+    // so this is not re-applied on later boots — doing so used to overwrite the panel.
     contextLength: number;
     // Share this farm's compute with the LAN. OFF by default = fully private: the
     // proxy + discovery bind 127.0.0.1 only and the beacon is off, so no other

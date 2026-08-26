@@ -52,6 +52,33 @@
   details summary { cursor: pointer; user-select: none; color: var(--muted); }
   details summary h2 { display: inline-block; margin: 0; }
   details[open] summary { margin-bottom: 10px; }
+  /* The backend headline: the answer to "what am I serving, on what engine". */
+  .hero { padding: 2px 0 12px; }
+  .hero-name { font-size: 22px; font-weight: 650; letter-spacing: -.01em; }
+  .hero-meta { color: var(--muted); font-size: 12.5px; }
+  .hero-meta b { color: var(--text); }
+  .engines { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 4px 0 8px; }
+  .engine { text-align: left; padding: 10px 12px; min-width: 0; background: var(--surface2); }
+  .engine .meta { margin-top: 2px; }
+  .engine.active { border-color: color-mix(in srgb, var(--ok) 45%, var(--border)); background: color-mix(in srgb, var(--ok) 7%, var(--surface2)); opacity: 1; }
+  .engine:disabled { cursor: default; }
+  .engine:not(.active):disabled { opacity: .5; }
+  .hint { color: var(--muted); font-size: 12px; padding: 2px 0 8px; }
+  .hint b { color: var(--text); font-weight: 600; }
+  input[type=text] { font: inherit; border-radius: 8px; border: 1px solid var(--border); background: var(--surface2); color: var(--text); padding: 5px 9px; min-width: 190px; }
+  input[type=text]:focus { outline: none; border-color: var(--accent2); }
+  .badges input[type=text] { min-width: 220px; }
+  /* Long jobs (a model download is minutes) need to look like progress, not a hang. */
+  .jobbar { background: var(--surface); border: 1px solid color-mix(in srgb, var(--accent2) 45%, var(--border)); border-radius: 12px; padding: 10px 14px; margin-bottom: 16px; }
+  .jobbar.done { border-color: color-mix(in srgb, var(--ok) 45%, var(--border)); }
+  .jobbar.failed { border-color: color-mix(in srgb, var(--err) 45%, var(--border)); }
+  .jobtop { display: flex; justify-content: space-between; gap: 14px; font-size: 12.5px; }
+  .jobtop span { color: var(--muted); text-align: right; }
+  .bar { height: 5px; border-radius: 999px; background: var(--surface2); overflow: hidden; margin-top: 8px; }
+  .bar > i { display: block; height: 100%; background: var(--accent2); transition: width .3s; }
+  .bar > i.indet { animation: sweep 1.4s ease-in-out infinite; transform-origin: left; }
+  @keyframes sweep { 0% { transform: scaleX(.15); } 50% { transform: scaleX(.6); } 100% { transform: scaleX(.15); } }
+  @media (max-width: 620px) { .engines { grid-template-columns: 1fr; } .badges { flex-wrap: wrap; } }
 </style>
 </head>
 <body>
@@ -109,6 +136,135 @@ function render(s) {
   const h = s.health || {};
   const gpu = h.gpu || {};
   const host = h.host || {};
+  const be = s.backend || {};
+  const lc = s.llamacpp || {};
+  const cap = s.capacity || {};
+  const job = s.job || null;
+  const jobRunning = !!(job && !job.done);
+
+  // --- the running job ---------------------------------------------------------
+  // Switching backend or model means downloading and reloading gigabytes; without
+  // this the panel looked frozen for ten minutes and an operator would reasonably
+  // conclude the farm had hung and restart it mid-download.
+  const jobBar = job
+    ? `<div class="jobbar${job.done ? (job.ok ? ' done' : ' failed') : ''}">`
+      + `<div class="jobtop"><b>${esc(job.label)}</b><span>${esc(job.done ? (job.ok ? 'done' : (job.error || 'failed')) : job.message)}</span></div>`
+      + (jobRunning
+        ? `<div class="bar"><i style="width:${job.percent == null ? 100 : job.percent}%"${job.percent == null ? ' class="indet"' : ''}></i></div>`
+        : '')
+      + '</div>'
+    : '';
+
+  // --- backend ------------------------------------------------------------------
+  // The headline answers the two questions the panel never used to: what is users'
+  // model actually called, and which engine is behind it.
+  const engineName = be.engine === 'llama.cpp' ? 'llama.cpp' : 'Ollama';
+  const perSlot = be.contextPerSlot || be.contextLength || 0;
+  const slotLine = be.slots > 1
+    ? `${be.slots} people at once · ${fmtK(perSlot)} of context each`
+    : `1 person at a time · ${fmtK(perSlot)} of context`;
+  const engineBtn = (id, title, sub, active) =>
+    `<button class="engine${active ? ' active' : ''}" data-engine="${id}"${active || jobRunning ? ' disabled' : ''}>`
+    + `<div class="mname">${title}${active ? ' <span class="badge on">running</span>' : ''}</div>`
+    + `<div class="meta">${sub}</div></button>`;
+
+  const backendCard =
+    `<div class="card">`
+    + `<h2>Backend</h2>`
+    + `<div class="hero"><div class="hero-name">${esc(be.alias || '—')}</div>`
+    + `<div class="hero-meta">${esc(engineName)} · ${esc(be.model || '—')}</div>`
+    + `<div class="hero-meta">${esc(slotLine)}${cap.clients != null ? ` · <b>${cap.clients}</b> connected now` : ''}</div></div>`
+    + `<div class="engines">`
+    + engineBtn('llamacpp', 'llama.cpp', 'One model, fastest. Speculative decoding, quantised KV cache.', be.engine === 'llama.cpp')
+    + engineBtn('ollama', 'Ollama', 'The catalog below. Several models to choose from, slower.', be.engine !== 'llama.cpp')
+    + `</div>`
+    + `<div class="hint">Switching reloads the model — about a minute, or longer if the weights still have to download.</div>`
+
+    // The advertised name. This is the single thing the owner asked for and could
+    // not find: it lives on the served alias, so it belongs next to the backend.
+    + `<div class="row"><span></span><span><div class="mname">Name users see</div>`
+    + `<div class="meta">what appears in the model picker — not the checkpoint's technical name</div></span>`
+    + `<span class="badges"><input id="name-in" type="text" maxlength="48" spellcheck="false" value="${esc(be.alias || '')}" />`
+    + `<button id="name-apply"${jobRunning ? ' disabled' : ''}>Apply</button></span></div>`
+
+    // Capacity. The knob that decides whether a workshop works, previously reachable
+    // only by hand-editing lol.config.json.
+    + `<div class="row"><span></span><span><div class="mname">People served at once</div>`
+    + `<div class="meta">${be.engine === 'llama.cpp'
+        ? 'llama.cpp splits its context window across slots, so more slots means less context each'
+        : 'requests Ollama runs in parallel per host — needs a farm restart'}</div></span>`
+    + `<span class="badges"><select id="slots-sel">${
+        [1, 2, 3, 4, 6, 8].map((v) => `<option value="${v}"${v === be.slots ? ' selected' : ''}>${v}</option>`).join('')
+      }</select><button id="slots-apply"${jobRunning ? ' disabled' : ''}>Apply</button></span></div>`
+
+    // Context window — now honest about which engine it hits.
+    + `<div class="row"><span></span><span><div class="mname">Context window</div>`
+    + `<div class="meta">how much text the model reads at once — bigger fits whole documents, costs VRAM${
+        be.slots > 1 ? ` · shared across ${be.slots} slots, so each user gets ${fmtK(perSlot)}` : ''}</div></span>`
+    + `<span class="badges"><select id="ctx-sel">${ctxOptions(be.contextLength)}</select>`
+    + `<button id="ctx-apply"${jobRunning ? ' disabled' : ''}>Apply</button></span></div>`
+    + `</div>`;
+
+  // --- the llama.cpp model library ---------------------------------------------
+  // "How do I put a different model on the farm?" had no answer in any UI: the
+  // weights are a URL in a config file. They are a list here, and the list is
+  // additive — any .gguf URL works.
+  const libCard = be.engine === 'llama.cpp'
+    ? `<div class="card"><h2>Model · llama.cpp</h2>`
+      + ((lc.library || []).map((e) => {
+          const active = e.url === lc.model;
+          const meta = [e.sizeGb ? e.sizeGb + ' GB' : '', e.mtp ? 'has MTP head' : '', e.note].filter(Boolean).join(' · ');
+          return `<div class="row"><span class="dot${active ? ' served' : ''}"></span>`
+            + `<span><div class="mname">${esc(e.label)}${active ? ' <span class="badge on">serving</span>' : ''}</div>`
+            + `<div class="meta">${esc(meta)}</div></span>`
+            + `<span class="badges">`
+            + (active ? '' : `<button class="start" data-lcuse="${esc(e.id)}"${jobRunning ? ' disabled' : ''}>Use this</button>`)
+            + (active ? '' : `<button class="stop" data-lcdel="${esc(e.id)}"${jobRunning ? ' disabled' : ''}>Remove</button>`)
+            + `</span></div>`;
+        }).join('') || '<div class="empty">No models in the library.</div>')
+      + `<div class="row"><span></span><span><div class="mname">Add a model</div>`
+      + `<div class="meta">paste the link to a .gguf file — on HuggingFace, the file's <b>download</b> link (…/resolve/main/….gguf)</div></span></span>`
+      + `<span class="badges"><input id="lc-url" type="text" placeholder="https://huggingface.co/…/model.gguf" spellcheck="false" />`
+      + `<button id="lc-add"${jobRunning ? ' disabled' : ''}>Add</button></span></div>`
+      + `<div class="hint">Adding only remembers it. Press <b>Use this</b> to download and serve it — that can take a while on a first use.</div>`
+      + `</div>`
+    : '';
+
+  // --- Ollama catalog ------------------------------------------------------------
+  const models = (s.models || []).slice().sort((a, b) => Number(b.served) - Number(a.served) || a.id.localeCompare(b.id));
+  const rows = models.length ? models.map((m) => {
+    const dotCls = 'dot' + (m.served ? ' served' : '') + (m.loaded ? ' loaded' : '');
+    const meta = [gb(m.size), m.paramSize].filter(Boolean).join(' · ');
+    const badges = [
+      m.isDefault && be.engine !== 'llama.cpp' ? '<span class="badge star">★ default</span>' : '',
+      m.loaded ? '<span class="badge on">in VRAM</span>' : '',
+      m.served ? '<span class="badge on">offered</span>' : '<span class="badge">idle</span>',
+    ].filter(Boolean).join('');
+    // Promoting to default is meaningless while llama.cpp owns the alias clients
+    // auto-select — so the button is hidden there rather than lying about its effect.
+    const defBtn = m.served && !m.isDefault && be.engine !== 'llama.cpp'
+      ? `<button data-dact="default" data-id="${esc(m.id)}" title="Every client auto-selects this model">Make default</button>` : '';
+    const btn = m.served
+      ? `<button class="stop" data-act="stop" data-id="${esc(m.id)}">Stop</button>`
+      : `<button class="start" data-act="start" data-id="${esc(m.id)}">Offer</button>`;
+    const del = `<button class="stop" data-olrm="${esc(m.id)}" title="Delete the weights from this box"${jobRunning ? ' disabled' : ''}>Delete</button>`;
+    return `<div class="row"><span class="${dotCls}"></span>`
+      + `<span><div class="mname">${esc(m.id)}</div>${meta ? `<div class="meta">${esc(meta)}</div>` : ''}</span>`
+      + `<span class="badges">${badges}${defBtn}${btn}${del}</span></div>`;
+  }).join('') : '<div class="empty">No models installed on any reachable host.</div>';
+
+  const ollamaCard = `<div class="card"><h2>Models · Ollama</h2>`
+    + `<div class="hint">${be.engine === 'llama.cpp'
+        ? 'Extra models users can pick by hand. The default everyone gets is the llama.cpp one above.'
+        : 'These are what this farm serves. The ★ one is what clients auto-select.'}</div>`
+    + rows
+    + `<div class="row"><span></span><span><div class="mname">Download a model</div>`
+    + `<div class="meta">an Ollama model name, e.g. <b>gemma4:12b</b> or <b>qwen3.8:14b</b> — it is downloaded and offered to clients</div></span>`
+    + `<span class="badges"><input id="ol-id" type="text" placeholder="gemma4:12b" spellcheck="false" />`
+    + `<button id="ol-pull"${jobRunning ? ' disabled' : ''}>Download</button></span></div>`
+    + `</div>`;
+
+  // --- farm health --------------------------------------------------------------
   const healthBits = [
     `Hosts <b>${h.hostsUp ?? '?'}/${h.hostsTotal ?? '?'}</b>`,
     `Proxy <b>${h.proxyUp ? 'up' : 'down'}</b>`,
@@ -154,62 +310,81 @@ function render(s) {
       + `<span class="badges"><span class="badge${active ? ' on' : ''}">${esc(state)}</span></span></div>`;
   }).join('') : '<div class="empty">No clients connected right now (clients need app ≥ 0.1.23 to report presence).</div>';
 
-  const models = (s.models || []).slice().sort((a, b) => Number(b.served) - Number(a.served) || a.id.localeCompare(b.id));
-  const rows = models.length ? models.map((m) => {
-    const dotCls = 'dot' + (m.served ? ' served' : '') + (m.loaded ? ' loaded' : '');
-    const meta = [gb(m.size), m.paramSize].filter(Boolean).join(' · ');
-    const badges = [
-      m.isDefault ? '<span class="badge star">★ default</span>' : '',
-      m.loaded ? '<span class="badge on">in VRAM</span>' : '',
-      m.served ? '<span class="badge on">serving</span>' : '<span class="badge">idle</span>',
-    ].filter(Boolean).join('');
-    // A served, non-default model can be promoted to the fleet default (what every
-    // client's OWUI auto-selects). Only served models qualify — start it first.
-    const defBtn = m.served && !m.isDefault
-      ? `<button data-dact="default" data-id="${esc(m.id)}" title="Every client's OWUI auto-selects this model">Make default</button>` : '';
-    const btn = m.served
-      ? `<button class="stop" data-act="stop" data-id="${esc(m.id)}">Stop</button>`
-      : `<button class="start" data-act="start" data-id="${esc(m.id)}">Start</button>`;
-    return `<div class="row"><span class="${dotCls}"></span>`
-      + `<span><div class="mname">${esc(m.id)}</div>${meta ? `<div class="meta">${esc(meta)}</div>` : ''}</span>`
-      + `<span class="badges">${badges}${defBtn}${btn}</span></div>`;
-  }).join('') : '<div class="empty">No models installed on any reachable host.</div>';
-
-  // Context window (num_ctx): served per-request via the LiteLLM routing, so a
-  // change bounces the proxy (~seconds) — pick from presets or keep a custom value.
-  // 131072 + 262144 included: 262144 is the native max of the models we serve
-  // (gemma4, qwen3.x) AND the server-side cap in setContextLength. Their KV cost is
-  // modest (sliding-window / grouped attention — gemma4:12b 9.3GB and qwen3.8-27B
-  // 17.6GB at the full 256k, measured), so "max it for RAG" is a real option on a
-  // big-VRAM box. On a small GPU stay lower — Ollama will offload and crawl.
-  const CTX_OPTS = [4096, 8192, 16384, 32768, 65536, 131072, 262144];
-  const ctxNow = s.contextLength || null;
-  const ctxOpts = (ctxNow && !CTX_OPTS.includes(ctxNow) ? [ctxNow, ...CTX_OPTS] : CTX_OPTS)
-    .map((v) => `<option value="${v}"${v === ctxNow ? ' selected' : ''}>${v % 1024 === 0 ? (v / 1024) + 'k' : v} tokens</option>`).join('');
-  const ctxRow = ctxNow
-    ? `<div class="row"><span></span><span><div class="mname">Context window</div>`
-      + `<div class="meta">how much text a model can consider at once — bigger fits whole documents, costs VRAM · applies in seconds (brief proxy blip)</div></span>`
-      + `<span class="badges"><select id="ctx-sel">${ctxOpts}</select><button id="ctx-apply">Apply</button></span></div>`
+  const capLabel = cap.slots != null
+    ? ` — ${cap.clients} of ${cap.slots} slot${cap.slots > 1 ? 's' : ''} in use`
     : '';
 
   app.innerHTML =
     `<header class="top"><h1>lol <span class="lol">${esc(s.name || 'farm')}</span></h1></header>`
-    + `<p class="sub">${esc(s.modelAlias ? 'Clients see the alias "' + s.modelAlias + '" for the default model. Changes reflect on clients within a few seconds.' : 'Manage the models + plugins this farm serves. Changes reflect on clients within a few seconds.')}</p>`
-    + `<div class="card"><h2>Farm</h2><div class="health">${healthBits}</div>${ctxRow}</div>`
-    + `<div class="card"><h2>Models</h2>${rows}</div>`
+    + `<p class="sub">Everything here applies to the running farm and is remembered across restarts.</p>`
+    + jobBar
+    + backendCard
+    + libCard
+    + ollamaCard
     + `<div class="card"><h2>Plugins</h2>${pluginRows}${blenderRow}</div>`
-    + `<div class="card"><details id="clients-d"${clientsOpen ? ' open' : ''}><summary><h2>Clients (${clients.length})</h2></summary>${clientRows}</details></div>`;
+    + `<div class="card"><details id="clients-d"${clientsOpen ? ' open' : ''}><summary><h2>Clients (${clients.length})${capLabel}</h2></summary>${clientRows}</details></div>`
+    + `<div class="card"><h2>This box</h2><div class="health">${healthBits}</div></div>`;
 
   app.querySelectorAll('button[data-act]').forEach((b) => { b.onclick = () => act(b.dataset.act, b.dataset.id, b); });
   app.querySelectorAll('button[data-dact]').forEach((b) => { b.onclick = () => defaultAct(b.dataset.id, b); });
   app.querySelectorAll('button[data-pact]').forEach((b) => { b.onclick = () => pluginAct(b.dataset.pact, b.dataset.id, b); });
   app.querySelectorAll('button[data-ract]').forEach((b) => { b.onclick = () => recommendAct(b.dataset.ract, b.dataset.id, b); });
+  app.querySelectorAll('button[data-engine]').forEach((b) => { b.onclick = () => post('/lol/admin/backend', { engine: b.dataset.engine }, b, 'Switching backend…'); });
+  app.querySelectorAll('button[data-lcuse]').forEach((b) => { b.onclick = () => post('/lol/admin/llamacpp/model', { id: b.dataset.lcuse }, b, 'Loading the model…'); });
+  app.querySelectorAll('button[data-lcdel]').forEach((b) => { b.onclick = () => post('/lol/admin/llamacpp/library/remove', { id: b.dataset.lcdel }, b, 'Removed'); });
+  app.querySelectorAll('button[data-olrm]').forEach((b) => {
+    b.onclick = () => { if (confirm('Delete ' + b.dataset.olrm + ' from this box? The files are removed.')) post('/lol/admin/ollama/remove', { id: b.dataset.olrm }, b, 'Removing…'); };
+  });
+
+  bindApply('#name-apply', '#name-in', (v) => post('/lol/admin/name', { name: v }, $('#name-apply'), 'Renaming…'));
+  bindApply('#lc-add', '#lc-url', (v) => post('/lol/admin/llamacpp/library/add', { url: v }, $('#lc-add'), 'Added to the library'));
+  bindApply('#ol-pull', '#ol-id', (v) => post('/lol/admin/ollama/pull', { id: v }, $('#ol-pull'), 'Downloading…'));
+  const slotsApply = $('#slots-apply');
+  if (slotsApply) slotsApply.onclick = () => post('/lol/admin/slots', { slots: parseInt($('#slots-sel').value, 10) }, slotsApply, 'Applying…');
   const ctxApply = $('#ctx-apply');
-  if (ctxApply) ctxApply.onclick = () => contextAct(parseInt($('#ctx-sel').value, 10), ctxApply);
+  if (ctxApply) ctxApply.onclick = () => post('/lol/admin/context', { tokens: parseInt($('#ctx-sel').value, 10) }, ctxApply, 'Applying…');
+
   const cd = $('#clients-d');
   if (cd) cd.addEventListener('toggle', () => { clientsOpen = cd.open; localStorage.setItem('lolClientsOpen', cd.open ? '1' : '0'); });
 }
 
+// Context presets. 262144 is the native max of the models we serve AND the farm's own
+// server-side cap; the small end matters on a 12 GB card, where too large a window is
+// how a farm ends up offloading to CPU and crawling.
+function ctxOptions(now) {
+  const OPTS = [4096, 8192, 16384, 32768, 65536, 131072, 262144];
+  const list = (now && !OPTS.includes(now)) ? [now, ...OPTS] : OPTS;
+  return list.map((v) => `<option value="${v}"${v === now ? ' selected' : ''}>${fmtK(v)} tokens</option>`).join('');
+}
+function fmtK(n) { return !n ? '—' : (n % 1024 === 0 ? (n / 1024) + 'k' : String(n)); }
+
+// Wire an Apply button + its text field: Enter submits, an empty value is a no-op.
+function bindApply(btnSel, inputSel, run) {
+  const btn = $(btnSel); const input = $(inputSel);
+  if (!btn || !input) return;
+  const go = () => { const v = input.value.trim(); if (v) run(v); };
+  btn.onclick = go;
+  input.onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); go(); } };
+}
+
+// One POST helper for every control that returns { ok, error, message, job }. Jobs
+// report through /lol/admin/state, so a started job just needs an immediate refresh
+// to put its progress bar on screen.
+async function post(path, body, btn, okMsg) {
+  if (busy) return;
+  busy = true;
+  if (btn) { btn.disabled = true; btn.dataset.was = btn.textContent; btn.textContent = '…'; }
+  try {
+    const r = await api(path, { method: 'POST', body: JSON.stringify(body) });
+    if (r && r.ok === false) toast(r.error || 'Action failed');
+    else if (r && r.started) toast(okMsg || 'Started');
+    else toast((r && r.message) || okMsg || 'Done');
+    if (r && r.warning) toast(r.warning);
+  } catch (e) {
+    if (e.unauthorized) { logout('Session expired — re-enter the token.'); return; }
+    toast('Error: ' + (e.message || e));
+  } finally { busy = false; await refresh(true); }
+}
 // Promote a served model to the fleet default (clients' OWUI auto-selects it).
 async function defaultAct(id, btn) {
   if (busy) return;
@@ -283,8 +458,12 @@ async function act(kind, id, btn) {
 
 function logout(msg) { localStorage.removeItem('lolAdminToken'); token = ''; tokenPanel(msg); }
 
-async function refresh() {
+// `force` = a real action just happened, so render even mid-typing. The poll
+// rebuilds innerHTML wholesale, which would otherwise wipe a half-typed model URL
+// out from under the operator every 5 seconds.
+async function refresh(force) {
   if (!token) { tokenPanel(); return; }
+  if (!force && document.activeElement && document.activeElement.tagName === 'INPUT') return;
   try {
     const s = await api('/lol/admin/state');
     render(s);
@@ -294,7 +473,13 @@ async function refresh() {
   }
 }
 
-setInterval(() => { if (!busy && token) refresh(); }, 5000);
+// 5 s idle; 1 s while a job runs so the progress bar actually moves.
+let tick = 0;
+setInterval(() => {
+  if (busy || !token) return;
+  const running = lastState && lastState.job && !lastState.job.done;
+  if (running || ++tick >= 5) { tick = 0; refresh(); }
+}, 1000);
 refresh();
 </script>
 </body>

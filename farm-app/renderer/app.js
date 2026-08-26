@@ -202,34 +202,13 @@ function wireSettings(prefs) {
     $('#chk-launch').checked = !!prefs.launchAtLogin;
     $('#chk-autoupdate').checked = !!prefs.autoUpdate;
     $('#chk-share').checked = shareWithNetwork;
-    $('#sel-context').value = String(prefs.contextLength || 65536);
-    $('#in-model-name').value = prefs.modelName || '';
     updateShareHint();
     $('#app-version').textContent = 'v' + prefs.appVersion;
 
     $('#sel-theme').addEventListener('change', (e) => setTheme(e.target.value));
-    $('#sel-context').addEventListener('change', async (e) => {
-        const tokens = Number(e.target.value);
-        e.target.disabled = true;
-        toast('Applying the new context window — restarting the farm…');
-        const r = await window.farm.setContextLength(tokens);
-        e.target.disabled = false;
-        if (r && r.farmState) renderFarmState(r.farmState);
-    });
-    $('#btn-model-name').addEventListener('click', async () => {
-        const btn = $('#btn-model-name');
-        const name = $('#in-model-name').value.trim();
-        btn.disabled = true;
-        toast(name ? `Renaming the model to “${name}” — restarting the farm…` : 'Restoring the default model name — restarting the farm…');
-        const r = await window.farm.setModelName(name || null);
-        btn.disabled = false;
-        if (r) $('#in-model-name').value = r.modelName || '';
-        if (r && r.farmState) renderFarmState(r.farmState);
-    });
-    // Enter in the field = Apply (it's a text input inside a label, so guard submit-ish behavior).
-    $('#in-model-name').addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') { e.preventDefault(); $('#btn-model-name').click(); }
-    });
+    // Model name, context window and capacity moved to the farm panel (the main
+    // window): they belong next to the backend they act on, and the panel applies
+    // them live instead of restarting the farm for each one.
     $('#chk-share').addEventListener('change', async (e) => {
         shareWithNetwork = e.target.checked;
         updateShareHint();

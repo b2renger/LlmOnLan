@@ -1,6 +1,7 @@
 // E2E for the no-OWUI shell: drives the REAL app over CDP against test/mock-farm.js.
 // Verifies the whole chain a user hits: UDP discovery → overlay clears → model list
-// fetched from the farm (the renderer CSP must allow LAN connect) → the farm's
+// fetched from the farm (the renderer CSP must allow LAN connect) → capacity rendered
+// on the farm card and the topbar pill → the farm's
 // advertised default preselected → a chat streams to completion above the >150 tok/s
 // the stats line rendered.
 //
@@ -80,6 +81,21 @@ async function main() {
     // exercises the chat path on a box without it (we drive the DOM via JS, so a
     // visible overlay doesn't block the interaction).
     if (!state.overlayHidden) console.warn('[cdp] WARN: overlay still up (sidecar not ready?) — continuing');
+
+    // 1b. capacity reaches the UI: the pill shows "<farm> · 1/2" and the farm card
+    //     says how full the box is. Reading it from the DOM (not the snapshot) is the
+    //     point — the fields existing on the wire proved nothing about them rendering.
+    const capacity = await evalJs(`({
+        pill: document.getElementById('status-text').textContent,
+        cards: [...document.querySelectorAll('.farm .farm-hw')].map(n => n.textContent),
+    })`);
+    console.log('[cdp] capacity:', JSON.stringify(capacity));
+    if (!capacity.cards.some((t) => /1 of 2 slots in use/.test(t))) {
+        throw new Error('farm card does not show slot occupancy: ' + JSON.stringify(capacity.cards));
+    }
+    if (!capacity.cards.some((t) => /llama\.cpp/.test(t))) {
+        throw new Error('farm card does not show which engine serves: ' + JSON.stringify(capacity.cards));
+    }
 
     // OWUI is the primary surface; LOL Chat sits behind the topbar toggle.
     await evalJs(`(() => {

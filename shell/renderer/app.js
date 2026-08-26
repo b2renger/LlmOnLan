@@ -274,9 +274,14 @@ function renderPill() {
     const a = activeFarm();
     if (a) {
       cls = 'ready';
-      // Live load next to the name — at-a-glance "how busy is my box".
-      const util = a.usage && a.usage.gpuUtil != null ? ` · ${a.usage.gpuUtil}% GPU` : '';
-      text = a.name + util;
+      // Live load next to the name — at-a-glance "how busy is my box". Slots beat
+      // GPU% for that: a person reads "2/2" as "expect to wait", where 100% GPU is
+      // just what a healthy box looks like mid-answer.
+      const cap = a.capacity || {};
+      const load = cap.slots != null
+        ? ` · ${cap.clients || 0}/${cap.slots}`
+        : (a.usage && a.usage.gpuUtil != null ? ` · ${a.usage.gpuUtil}% GPU` : '');
+      text = a.name + load;
     } else { cls = 'busy'; text = 'No server'; }
   }
   els.statusDot.className = 'dot ' + cls;
@@ -627,11 +632,27 @@ function renderPopover() {
     const live = [];
     if (u.gpuUtil != null) live.push(`${u.gpuUtil}% GPU`);
     if (u.vramUsedGb != null && u.vramTotalGb != null) live.push(`${u.vramUsedGb}/${u.vramTotalGb}GB VRAM`);
-    if (u.clients != null && u.clients > 0) live.push(`${u.clients} client${u.clients > 1 ? 's' : ''}`);
     if (u.loaded && u.loaded.length) live.push(`loaded: ${u.loaded.join(', ')}`);
     if (f.deployments != null && f.deployments > 1) live.push(`${f.deployments} backends`);
     if (f.health && f.health.hostsTotal > 1) live.push(`${f.health.hostsUp}/${f.health.hostsTotal} hosts`);
     const liveLine = live.length ? `<div class="farm-hw">${esc(live.join(' · '))}</div>` : '';
+    // How busy this box is, in the terms a person actually decides on: how many
+    // people it can serve at once and how many are on it now. ADVISORY — the farm
+    // never refuses anyone past `slots`, it queues them, so a full box means "expect
+    // to wait", not "you can't". Older farms send no `capacity`, so fall back to the
+    // bare client count rather than inventing a denominator.
+    const cap = f.capacity || {};
+    const slotLine = cap.slots != null
+      ? `${cap.clients || 0} of ${cap.slots} slot${cap.slots > 1 ? 's' : ''} in use`
+      : (u.clients ? `${u.clients} connected` : '');
+    // What actually answers here: the engine + the real weights behind the alias.
+    const be = f.backend || null;
+    const beLine = be && be.engine
+      ? `${be.engine}${be.model ? ' · ' + be.model : ''}`
+      : '';
+    const loadCls = cap.slots != null && (cap.clients || 0) >= cap.slots ? ' farm-busy' : '';
+    const capLine = (slotLine || beLine)
+      ? `<div class="farm-hw${loadCls}">${esc([slotLine, beLine].filter(Boolean).join(' · '))}</div>` : '';
     const hwLine = (f.host && f.host.gpu)
       ? `<div class="farm-hw">${esc(f.host.gpu)} · ${f.host.vramGb}GB</div>` : '';
     // Farm plugins that are ON (search / voice / OCR) + client-plugin recommendations.
@@ -649,6 +670,7 @@ function renderPopover() {
       `<div class="farm-main">` +
         `<div class="farm-name">${esc(f.name)} ${badges}</div>` +
         `<div class="farm-meta">${esc(f._host)}:${f.proxyPort} · ${esc(models)}</div>` +
+        capLine +
         liveLine +
         hwLine +
         plugLine +

@@ -5,6 +5,14 @@
 //   GET  /lol/admin/state        → richer admin view (token)   → control.getAdminState()
 //   POST /lol/admin/model/start  → serve + warm a model (token) → control.startModel(id)
 //   POST /lol/admin/model/stop   → unserve + evict a model (token) → control.stopModel(id)
+//   POST /lol/admin/backend      → switch inference engine (token)
+//   POST /lol/admin/name         → the model name users see (token)
+//   POST /lol/admin/slots        → how many people served at once (token)
+//   POST /lol/admin/llamacpp/model          → load another .gguf (token)
+//   POST /lol/admin/llamacpp/library/add    → add a .gguf to the library (token)
+//   POST /lol/admin/llamacpp/library/remove → drop one from the library (token)
+//   POST /lol/admin/ollama/pull   → download an Ollama model (token)
+//   POST /lol/admin/ollama/remove → delete an Ollama model (token)
 //
 // `GET /lol/self` is the unicast discovery path (mirrors ComfyQ's /federation/self):
 // on managed Wi-Fi, client isolation drops broadcast+multicast so the UDP beacon
@@ -114,6 +122,27 @@ function startSelfServer({ httpPort, getSnapshot, host = '0.0.0.0', control = nu
                     const body = await readJson(req);
                     if (!body) return sendJson(res, 400, { error: 'bad json' });
                     return sendJson(res, 200, await control.setContextLength(body.tokens));
+                }
+                // --- backend + model management -------------------------------
+                // These change what the farm SERVES, not just what it serves right
+                // now: each persists into lol.config.json. The ones that reload a
+                // model return immediately with a job id — the panel polls
+                // /lol/admin/state for progress rather than holding a request open
+                // across a multi-gigabyte download.
+                const POSTS = {
+                    '/lol/admin/backend': (b) => control.setBackend(b.engine),
+                    '/lol/admin/name': (b) => control.setAdvertisedName(b.name),
+                    '/lol/admin/slots': (b) => control.setSlots(b.slots),
+                    '/lol/admin/llamacpp/model': (b) => control.setLlamacppModel(b),
+                    '/lol/admin/llamacpp/library/add': (b) => control.addLibraryModel(b),
+                    '/lol/admin/llamacpp/library/remove': (b) => control.removeLibraryModel(b.id),
+                    '/lol/admin/ollama/pull': (b) => control.pullOllamaModel(b.id),
+                    '/lol/admin/ollama/remove': (b) => control.removeOllamaModel(b.id),
+                };
+                if (method === 'POST' && POSTS[pathOnly]) {
+                    const body = await readJson(req);
+                    if (!body) return sendJson(res, 400, { error: 'bad json' });
+                    return sendJson(res, 200, await POSTS[pathOnly](body));
                 }
                 // Toggle a farm plugin: POST /lol/admin/plugin/<id>/enable|disable
                 const pm = /^\/lol\/admin\/plugin\/([^/]+)\/(enable|disable)$/.exec(pathOnly);

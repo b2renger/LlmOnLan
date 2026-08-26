@@ -150,6 +150,50 @@ const LlamacppSchema = z.object({
     mmproj: z.string().url().nullable().default(
         'https://huggingface.co/unsloth/Qwen3.8-27B-GGUF/resolve/main/mmproj-F16.gguf'
     ),
+    // The MODEL LIBRARY the operator picks from in the admin panel: every entry is a
+    // .gguf the farm knows how to fetch and serve. `model` above is which one is
+    // ACTIVE; switching = point `model` (and `mmproj`) at another entry's urls.
+    // Adding a model is adding an entry — any HuggingFace .gguf resolve/ URL works,
+    // which is why this is a plain list and not a closed enum.
+    //
+    // The three defaults are the quants this project has actually MEASURED on the
+    // fleet's 12 GB cards (see the `model` comment above and llamacpp.js's header);
+    // `mtp` marks the ones that still carry their NextN head, because turning
+    // llamacpp.mtp on against a stripped quant makes llama-server refuse to boot.
+    library: z.array(z.object({
+        id: z.string(),                              // stable key (also the radio value in the panel)
+        label: z.string(),                           // what the operator reads
+        url: z.string().url(),
+        mmproj: z.string().url().nullable().default(null),   // vision projector, if the model is multimodal
+        sizeGb: z.number().nullable().default(null),         // download + resident size, for the VRAM hint
+        mtp: z.boolean().default(false),             // quant still has its MTP head → llamacpp.mtp may be on
+        note: z.string().default(''),
+    }).strict()).default([
+        {
+            id: 'qwen3.8-27b-ud-iq2_s',
+            label: 'Qwen3.8 27B · UD-IQ2_S',
+            url: 'https://huggingface.co/unsloth/Qwen3.8-27B-GGUF/resolve/main/Qwen3.8-27B-UD-IQ2_S.gguf',
+            mmproj: 'https://huggingface.co/unsloth/Qwen3.8-27B-GGUF/resolve/main/mmproj-F16.gguf',
+            sizeGb: 7.8, mtp: false,
+            note: 'Default. Best speed/quality on a 12 GB card, with headroom to spare.',
+        },
+        {
+            id: 'qwen3.8-27b-ud-iq2_xxs',
+            label: 'Qwen3.8 27B · UD-IQ2_XXS',
+            url: 'https://huggingface.co/unsloth/Qwen3.8-27B-GGUF/resolve/main/Qwen3.8-27B-UD-IQ2_XXS.gguf',
+            mmproj: 'https://huggingface.co/unsloth/Qwen3.8-27B-GGUF/resolve/main/mmproj-F16.gguf',
+            sizeGb: 6.9, mtp: false,
+            note: 'Smallest. Leaves the most VRAM for extra slots or a second model.',
+        },
+        {
+            id: 'qwen3.8-27b-ud-q2_k_xl',
+            label: 'Qwen3.8 27B · UD-Q2_K_XL',
+            url: 'https://huggingface.co/unsloth/Qwen3.8-27B-GGUF/resolve/main/Qwen3.8-27B-UD-Q2_K_XL.gguf',
+            mmproj: 'https://huggingface.co/unsloth/Qwen3.8-27B-GGUF/resolve/main/mmproj-F16.gguf',
+            sizeGb: 10.6, mtp: true,
+            note: 'Highest quality of the three, and the only one that can use MTP — but it fills a 12 GB card.',
+        },
+    ]),
     contextLength: z.number().int().positive().default(16384),
     ngl: z.number().int().default(999),          // offload everything; partial = the cliff
     parallel: z.number().int().positive().default(1),

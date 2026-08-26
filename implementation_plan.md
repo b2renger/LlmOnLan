@@ -225,7 +225,8 @@ fleet with failover (Layer 1). Trade‑off: the coordinator box is a single poin
 - **Farm admin panel** — `http://<box>:41997/lol/admin` (bearer token printed by `lol up`;
   `config.admin.token`): start/stop served models (guarded LiteLLM bounce + rollback), **Make default**,
   a live **context‑window** selector, plugin enable/disable, **Recommend Blender** to the fleet, and a
-  collapsible **Clients** list. Panel changes are ephemeral; lol.config.json persists.
+  collapsible **Clients** list. Panel changes were ephemeral at this point; lol.config.json persisted.
+  (Superseded by the 2026‑08‑26 batch below — the panel now writes back and owns the backend too.)
 - **Plugin registry** (`farm/src/plugins/registry.js`) — web search / voice / OCR behind one FarmService
   orchestration (boot, live toggles, health, teardown, snapshot).
 - **Document OCR, ON by default** — `farm/src/pysvc` (vendored Ollama‑OCR + FastAPI, OWUI External
@@ -257,6 +258,25 @@ fleet with failover (Layer 1). Trade‑off: the coordinator box is a single poin
 8. **Keyed farms.** If proxy auth is wanted, build the key‑entry UX (today a `requiresKey` farm gets a null key).
 
 ---
+
+**✅ Also shipped (2026‑08‑26) — the farm becomes operable without a config file:**
+- **The two engines are visible and switchable.** The panel opens on a **Backend** card naming the
+  model users see, the engine behind it, the real `.gguf`/tag, and the slot count; llama.cpp ↔ Ollama
+  is two buttons. The beacon carries `backend` + `capacity`, so client cards show it too.
+- **A `.gguf` model library** (`llamacpp.library`) — add any URL, **Use this** to download and serve,
+  with progress and **rollback to the last working model** if the new weights fail.
+- **The advertised name** is a panel field, and now **carries across a backend switch** (the two
+  engines keep it on different keys, so it used to silently rename the model and break open chats).
+- **Capacity** — `llamacpp.parallel` is a control ("People served at once"), stated together with what
+  it does to each user's context window. Clients and the panel both show *"N of M slots in use"*.
+- **Ollama catalog management** — download / offer / delete, from the panel.
+- **Panel changes persist** to `lol.config.json` (`farm/src/configFile.js`, raw-JSON patching so schema
+  defaults are never frozen into the operator's file). Plugin toggles stay session-only.
+- **The context window reaches the engine that is serving** — it previously wrote `ollama.contextLength`
+  only, doing nothing on a default farm. Same fix in the Farm app.
+- **The Farm app stopped competing with the panel**: its Settings drawer no longer duplicates the model
+  controls, and it no longer re-applies its own stored values at boot (which silently overwrote the
+  panel's on every launch).
 
 ## Cross‑cutting risks & mitigations
 

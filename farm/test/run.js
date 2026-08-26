@@ -4,6 +4,9 @@
 
 const assert = require('assert');
 const yaml = require('js-yaml');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
 
 let passed = 0;
 const tests = [];
@@ -747,6 +750,152 @@ test('llamacpp knobs can be turned off individually', () => {
     assert.ok(!a.includes('--cache-type-k'), 'f16 means no KV quantization flags');
     assert.ok(!a.includes('-fa 1'));
     assert.ok(!a.includes('--mmproj'));
+});
+
+
+// ---- backend visibility + capacity -----------------------------------------
+const { backendInfo, ggufName } = require('../src/snapshot');
+
+test('snapshot advertises WHICH engine serves, and on what weights', () => {
+    const c = defaultConfig();
+    const snap = buildSnapshot(c, { clientsConnected: 1 });
+    assert.equal(snap.backend.engine, 'llama.cpp');
+    assert.equal(snap.backend.alias, c.llamacpp.alias);
+    assert.equal(snap.backend.model, 'Qwen3.8-27B-UD-IQ2_S', 'the .gguf basename, not the alias');
+
+    c.llamacpp.enabled = false;
+    const oll = buildSnapshot(c, { hostsUp: 1 });
+    assert.equal(oll.backend.engine, 'ollama');
+    assert.equal(oll.backend.model, c.models[0].id);
+});
+
+test('llama.cpp SPLITS its context across slots; Ollama does not', () => {
+    const c = defaultConfig();
+    c.llamacpp.contextLength = 16384;
+    c.llamacpp.parallel = 2;
+    const be = backendInfo(c, {});
+    assert.equal(be.slots, 2);
+    assert.equal(be.contextPerSlot, 8192, '--ctx-size 16384 --parallel 2 -> n_ctx_slot 8192');
+
+    c.llamacpp.enabled = false;
+    c.ollama.numParallel = 2;
+    const o = backendInfo(c, { hostsUp: 3 });
+    assert.equal(o.slots, 6, 'numParallel x reachable hosts');
+    assert.equal(o.contextPerSlot, c.ollama.contextLength, 'every Ollama request keeps the full window');
+});
+
+test('capacity is advisory: slots + who is on the box right now', () => {
+    const c = defaultConfig();
+    c.llamacpp.parallel = 2;
+    const snap = buildSnapshot(c, { clientsConnected: 3 });
+    assert.deepEqual(snap.capacity, { slots: 2, clients: 3 }, 'over-capacity is reported, never refused');
+    // A farm with no client-ping support must not invent a client count.
+    assert.equal(buildSnapshot(c, {}).capacity.clients, 0);
+});
+
+test('ggufName survives a non-URL model path', () => {
+    assert.equal(ggufName('https://h.co/r/resolve/main/Qwen3.8-27B-UD-IQ2_S.gguf'), 'Qwen3.8-27B-UD-IQ2_S');
+    assert.equal(ggufName('/local/path/model.gguf'), 'llama.cpp');
+    assert.equal(ggufName(null), 'llama.cpp');
+});
+
+// ---- the model library ------------------------------------------------------
+test('llamacpp.library ships the measured quants, and the active model is one of them', () => {
+    const c = defaultConfig();
+    const lib = c.llamacpp.library;
+    assert.ok(lib.length >= 3, 'a library to choose from');
+    assert.ok(lib.every((e) => e.id && e.label && e.url), 'every entry is selectable + readable');
+    assert.ok(lib.some((e) => e.url === c.llamacpp.model), 'the served model appears in the library');
+    // The MTP flag is what stops llama-server refusing to boot on a stripped quant.
+    const active = lib.find((e) => e.url === c.llamacpp.model);
+    assert.equal(active.mtp, false);
+    assert.equal(c.llamacpp.mtp, false, 'the default quant has no MTP head, so MTP is off');
+});
+
+test('a library entry can be added by URL alone (strict schema, sane defaults)', () => {
+    const r = ConfigSchema.safeParse({
+        llamacpp: { library: [{ id: 'x', label: 'X', url: 'https://h.co/x.gguf' }] },
+    });
+    assert.equal(r.success, true);
+    const e = r.data.llamacpp.library[0];
+    assert.equal(e.mmproj, null);
+    assert.equal(e.sizeGb, null);
+    assert.equal(e.mtp, false, 'unknown quants are assumed MTP-less — the safe direction');
+});
+
+// ---- persisting panel changes ----------------------------------------------
+const { patchSection, patchConfigFile, readRawConfig } = require('../src/configFile');
+
+test('patchSection edits one section and leaves the rest of the file alone', () => {
+    const f = path.join(os.tmpdir(), `lol-cfgtest-${process.pid}.json`);
+    fs.writeFileSync(f, JSON.stringify({ name: 'Mine', ollama: { hosts: ['http://a:11434'] }, custom: 42 }));
+    try {
+        assert.equal(patchSection(f, 'llamacpp', { alias: 'studio' }).ok, true);
+        const raw = readRawConfig(f);
+        assert.equal(raw.llamacpp.alias, 'studio');
+        assert.equal(raw.custom, 42, 'unknown keys survive');
+        assert.deepEqual(raw.ollama.hosts, ['http://a:11434'], 'other sections untouched');
+        // It must NOT materialize schema defaults into the operator's file — that would
+        // freeze today's defaults and opt them out of tomorrow's.
+        assert.equal('models' in raw, false);
+        assert.equal('parallel' in raw.llamacpp, false);
+        // undefined deletes, which is how "back to the farm default" is expressed.
+        patchSection(f, 'llamacpp', { alias: undefined });
+        assert.equal('alias' in readRawConfig(f).llamacpp, false);
+    } finally { fs.unlinkSync(f); }
+});
+
+test('a patch of a missing/unreadable config fails softly (never throws)', () => {
+    const missing = path.join(os.tmpdir(), `lol-nope-${process.pid}.json`);
+    assert.equal(patchSection(missing, 'llamacpp', { alias: 'x' }).ok, false);
+    assert.equal(patchConfigFile(null, (r) => r).ok, false);
+});
+
+// ---- the admin routes the panel drives -------------------------------------
+test('selfServer routes every backend/model control, all behind the token', async () => {
+    const calls = [];
+    const rec = (k) => (...a) => { calls.push([k, ...a]); return { ok: true }; };
+    const control = {
+        getAdminState: async () => ({}),
+        setBackend: rec('backend'),
+        setAdvertisedName: rec('name'),
+        setSlots: rec('slots'),
+        setLlamacppModel: rec('lcmodel'),
+        addLibraryModel: rec('libadd'),
+        removeLibraryModel: rec('librm'),
+        pullOllamaModel: rec('pull'),
+        removeOllamaModel: rec('olrm'),
+    };
+    const server = startSelfServer({ httpPort: 0, getSnapshot: () => ({}), host: '127.0.0.1', control, adminToken: 'secret' });
+    await new Promise((r) => { if (server.listening) r(); else server.once('listening', r); });
+    const base = `http://127.0.0.1:${server.address().port}`;
+    const post = (p, body, tok = 'secret') => fetch(base + p, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', authorization: `Bearer ${tok}` },
+        body: JSON.stringify(body),
+    });
+    try {
+        // Every mutation must be gated — these change what the whole LAN is served.
+        assert.equal((await post('/lol/admin/backend', { engine: 'ollama' }, 'nope')).status, 401);
+        assert.equal(calls.length, 0, 'an unauthorized call must not reach control');
+
+        assert.equal((await post('/lol/admin/backend', { engine: 'ollama' })).status, 200);
+        await post('/lol/admin/name', { name: 'Studio' });
+        await post('/lol/admin/slots', { slots: 4 });
+        await post('/lol/admin/llamacpp/model', { id: 'q' });
+        await post('/lol/admin/llamacpp/library/add', { url: 'https://h.co/x.gguf' });
+        await post('/lol/admin/llamacpp/library/remove', { id: 'q' });
+        await post('/lol/admin/ollama/pull', { id: 'gemma4:12b' });
+        await post('/lol/admin/ollama/remove', { id: 'gemma4:12b' });
+
+        assert.deepEqual(calls.map((c) => c[0]),
+            ['backend', 'name', 'slots', 'lcmodel', 'libadd', 'librm', 'pull', 'olrm']);
+        assert.equal(calls[0][1], 'ollama');
+        assert.equal(calls[1][1], 'Studio');
+        assert.equal(calls[2][1], 4);
+        assert.equal(calls[3][1].id, 'q', 'the whole body reaches setLlamacppModel (id OR url)');
+        assert.equal(calls[6][1], 'gemma4:12b');
+    } finally { server.close(); }
 });
 
 (async () => {

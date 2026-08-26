@@ -31,6 +31,14 @@ const snapshot = () => JSON.stringify({
     health: { proxyUp: true, hostsUp: 1, hostsTotal: 1, loaded: [] },
     host: { gpu: 'Mock RTX', vramGb: 12, ramGb: 64, cpuCores: 16 },
     usage: { gpuUtil: 3, vramUsedGb: 10.6, vramTotalGb: 12, loaded: [], clients: 0 },
+    // What the client renders as "llama.cpp · <weights>" and "N of M slots in use".
+    // A farm that predates these sends neither, and the client falls back to a bare
+    // client count — worth keeping in mind when changing the farm card.
+    backend: {
+        engine: 'llama.cpp', alias: 'assistant', model: 'Qwen3.8-27B-UD-Q2_K_XL',
+        contextLength: 16384, contextPerSlot: 8192, slots: 2, mtp: true, kvCacheType: 'q4_0',
+    },
+    capacity: { slots: 2, clients: 1 },
     ts: Date.now(),
 });
 

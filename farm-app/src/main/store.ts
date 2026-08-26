@@ -14,8 +14,10 @@ const DEFAULTS: FarmSettings = {
     theme: 'system',
     launchAtLogin: false,
     autoUpdate: true,
-    modelName: null,         // advertised model name; null = the farm's default alias
-    contextLength: 65536,    // the APP's default (the farm's own schema default is 16384); max 262144
+    // Seeds the FIRST farm config only; the panel owns it afterwards. 16384 matches the
+    // farm's own measured default — the app used to seed 65536, a figure measured on a
+    // 96 GB box that SPILLS to CPU (5x slower) on the 12 GB cards this fleet runs.
+    contextLength: 16384,
     shareWithNetwork: false, // private by default — only this machine can use the farm
 };
 

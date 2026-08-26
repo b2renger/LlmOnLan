@@ -38,10 +38,10 @@
                 Everything installs itself — no terminal, no setup.
             </p>
             <ul class="feature-list">
-                <li>Downloads its own AI engine (Ollama) and helpers</li>
-                <li>Pulls the <strong>gemma4:12b</strong> model (~8&nbsp;GB)</li>
+                <li>Downloads its own AI engines (llama.cpp + Ollama) and helpers</li>
+                <li>Fetches the models it serves — around <strong>28&nbsp;GB</strong> in total</li>
                 <li>Serves chat, web search &amp; document reading to everyone on the LAN</li>
-                <li>Managed from the built-in admin panel</li>
+                <li>Managed from the built-in panel: model, capacity, plugins</li>
             </ul>
             <div id="ram-warning" class="warn hidden"></div>
             <button id="btn-setup" class="btn btn-primary btn-lg">Set up this farm</button>
@@ -95,25 +95,12 @@
                 <p id="share-hint" class="muted small share-hint"></p>
             </div>
             <div class="share-block">
-                <label class="row"><span><strong>Model name</strong></span>
-                    <span class="name-row">
-                        <input type="text" id="in-model-name" placeholder="assistant" maxlength="48" spellcheck="false" />
-                        <button class="btn btn-sm" id="btn-model-name">Apply</button>
-                    </span>
-                </label>
-                <p class="muted small share-hint">The name users see in the model picker — instead of "assistant" or the checkpoint's technical name. Renaming restarts the farm, and existing chats will ask to re-select the model. Leave empty for the default.</p>
-            </div>
-            <div class="share-block">
-                <label class="row"><span><strong>Context window</strong></span>
-                    <select id="sel-context">
-                        <option value="16384">16k tokens</option>
-                        <option value="32768">32k tokens</option>
-                        <option value="65536">64k tokens</option>
-                        <option value="131072">128k tokens</option>
-                        <option value="262144">256k tokens (max)</option>
-                    </select>
-                </label>
-                <p class="muted small share-hint">How much of a document the AI reads at once. Bigger is better for document Q&amp;A; costs some VRAM. Changing this restarts the farm.</p>
+                <div class="row"><span><strong>Model &amp; capacity</strong></span></div>
+                <p class="muted small share-hint">
+                    Which engine runs, which model it serves, the name users see, how many
+                    people it serves at once and the context window all live in the farm panel —
+                    the main window behind this drawer. They apply live, and are remembered.
+                </p>
             </div>
             <label class="row"><span>Theme</span>
                 <select id="sel-theme">

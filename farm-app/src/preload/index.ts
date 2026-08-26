@@ -25,8 +25,6 @@ contextBridge.exposeInMainWorld('farm', {
     setLaunchAtLogin: (on: boolean) => ipcRenderer.invoke('set-launch-at-login', on),
     setAutoUpdate: (on: boolean) => ipcRenderer.invoke('set-auto-update', on),
     setShareNetwork: (on: boolean) => ipcRenderer.invoke('set-share-network', on),
-    setContextLength: (tokens: number) => ipcRenderer.invoke('set-context-length', tokens),
-    setModelName: (name: string | null) => ipcRenderer.invoke('set-model-name', name),
 
     // App update — manual (checks GitHub for a newer farm-v* release; download is
     // opened in the browser via openExternal, no in-place install).
