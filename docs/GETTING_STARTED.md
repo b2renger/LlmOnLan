@@ -357,6 +357,14 @@ several models. The other side goes **standby** — greyed out in the panel, inv
 model name carries across, so existing chats keep working. About a minute either way. While it runs,
 every client shows "*switching…*" instead of an error.
 
+**Context window.** Leave it on **Automatic** (the default): each box serves the largest context
+its GPU holds for the current model — a 12 GB card lands around 36k, a 16 GB card near 78k, the
+Spark gets the model's full native window. Pick a number only to trade context for more slots.
+
+**Password-protect the farm.** *Backend* ▸ **Farm password** → Apply. Every client then asks for
+it once (with a 🔒 on the farm card) and remembers it. Empty + Apply removes it. Details:
+[`farm/README.md` ▸ Password-protecting a farm](../farm/README.md#password-protecting-a-farm).
+
 **Serve more people at once.** *Backend* ▸ **People served at once**. On llama.cpp the context window is
 **split** across slots, so the panel tells you what each user actually gets ("2 slots, 8192 tokens of
 context each"). Raise the context window alongside it if you need both — and check it still fits VRAM:

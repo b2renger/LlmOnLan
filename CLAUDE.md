@@ -31,7 +31,13 @@ Snapshot:
   inventory for an engine switch, and the OCR vision model (which talks raw Ollama, never the proxy).
   The advertised name carries across a switch (`carryNameAcross`), so chats survive it. On platforms
   with no prebuilt llama.cpp (linux-arm64 — the DGX Spark) or any llama.cpp boot failure, `lol up`
-  **falls back to the Ollama engine with the reason in the panel** instead of exiting. `mtp` (`--spec-type draft-mtp`) defaults **false** —
+  **falls back to the Ollama engine with the reason in the panel** instead of exiting — and linux-arm64
+  now HAS a prebuilt: our CI (`build-llamacpp-arm64.yml`) publishes a self-contained llama-server
+  tarball on the `llamacpp-<build>` release tag, which `assetsFor()` downloads on the Spark.
+  `llamacpp.contextLength` defaults to **'auto'** — min(model native max, VRAM budget), both read from
+  the real files (`farm/src/gguf.js`). `proxy.masterKey` = the shared **farm password** (panel-settable;
+  clients prompt once, verify, remember per farm; discovery + the admin token stay separate).
+  `mtp` (`--spec-type draft-mtp`) defaults **false** —
   Unsloth strips the MTP head below UD-Q2_K_XL and llama-server then refuses to start. Ollama still
   serves `models` (`gemma4:12b`) + the OCR vision model. Pin facts:
   **OWUI `0.10.2`** (Python 3.11/3.12, run via the `open-webui serve` console script). Beacon group

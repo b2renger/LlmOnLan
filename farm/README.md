@@ -130,7 +130,9 @@ but win-x64 today — the DGX Spark is linux-arm64), the download failed, the we
 the Backend card. The config keeps `llamacpp.enabled`, so a later boot (or a `binDir` pointing at a
 hand-built llama.cpp) picks the fast engine back up.
 
-**What `lol up` bootstraps for it** (win-x64 with NVIDIA, automatic): the pinned `llama-server` build
+**What `lol up` bootstraps for it** (automatic on win-x64 with NVIDIA **and on the DGX Spark** —
+linux-arm64 has no upstream prebuilt, so our own CI builds one and the farm downloads it from this
+repo's `llamacpp-<build>` release; nothing to compile, no Docker): the pinned `llama-server` build
 plus the matching CUDA runtime into `farm/.llamacpp/`, then the weights + vision projector into
 `farm/.models/`. That is a **multi-GB first run** — `lol install` pre-fetches it so `lol up` doesn't
 stall on it later. On any other platform, install llama.cpp yourself and point `llamacpp.binDir` at the
@@ -319,7 +321,15 @@ the shape that worked.
 | 16 GB | `parallel: 4, contextLength: 65536` (4 × 16k) | ~12.6 GB |
 | 24 GB+ | `parallel: 8, contextLength: 131072` (8 × 16k) | ~17.4 GB |
 
-You mostly do not have to do this arithmetic any more: the panel **computes the budget from the real
+**The context window is automatic by default** (`llamacpp.contextLength: "auto"`): at every model
+load the farm reads the model's **native maximum** and its **KV-cache geometry from the .gguf
+header itself** (`farm/src/gguf.js` — the computed rate matches the fleet's measured 1.2 GB/16k
+exactly), measures the GPU, and serves **the largest context that fits**:
+min(native max, VRAM budget). A 4070 gets ~36k, a 4080 ~78k, the DGX Spark the full native window
+— each box its own maximum, which is what thinking models and whole-document RAG want. Pin a
+number in the panel only when you need to trade context for slots.
+
+You mostly do not have to do the arithmetic yourself even then: the panel **computes the budget from the real
 weights on disk and the detected VRAM** — context sizes that cannot fit are disabled in the selector
 ("won’t fit (12 GB GPU)"), an over-size request is refused with the largest size that does fit, and a
 persisted config that no longer fits is **clamped at boot** (loudly, and saved). This exists because a
@@ -369,6 +379,22 @@ box reachable at all, `proxy.host` / `beacon.enabled` (the Farm app's *Share com
 toggle). `proxy.masterKey` can gate the endpoint with a bearer key, but the desktop client has no
 key-entry screen yet, so a keyed farm is for CLI/API clients only.
 
+## Password-protecting a farm
+
+One shared password for everyone (the ComfyQ model — nothing fancy, no accounts):
+
+1. Panel ▸ *Backend* ▸ **Farm password** → type one → Apply (a few seconds; the proxy restarts).
+   Apply with the field empty to remove it. Or set `proxy.masterKey` in `lol.config.json`.
+2. Every client then shows the farm with a 🔒 and asks for the password **once**, verifies it
+   against the farm before saving, and remembers it per farm. Wrong password = an immediate
+   "not accepted", never a broken chat.
+
+What it protects: **every `/v1` route** — chat, models, everything the proxy serves (it becomes
+LiteLLM's `master_key`). What stays open, deliberately: discovery (`/lol/self`, the beacon) so
+clients can *find* the farm and ask for the password, `/health/liveliness` (the farm's own health
+checks), and the admin panel's own **token** gate, which is separate and unchanged. This is a
+trusted-LAN convenience lock, not hardened auth: traffic is plain HTTP on your own network.
+
 ## Config — `lol.config.json`
 
 The CLI reads **`farm/lol.config.json`** (or `./lol.config.json` in your CWD) — `lol install` / `lol init`
@@ -389,7 +415,7 @@ nothing. Shape:
                 "alias": "assistant",          // the name clients see and auto-select
                 "model": "https://huggingface.co/unsloth/Qwen3.8-27B-GGUF/resolve/main/Qwen3.8-27B-UD-IQ2_S.gguf",
                 "mmproj": "https://huggingface.co/unsloth/Qwen3.8-27B-GGUF/resolve/main/mmproj-F16.gguf",
-                "contextLength": 16384,        // llama-server's window — SPLIT across `parallel` slots
+                "contextLength": "auto",       // DEFAULT: the largest that fits (or a number) — SPLIT across `parallel` slots
                 "parallel": 1,                 // concurrent slots; see "Multiple users & capacity"
                 "kvCacheType": "q4_0",         // quantized KV — what makes a good quant fit 12 GB
                 "flashAttention": true, "ngl": 999,
