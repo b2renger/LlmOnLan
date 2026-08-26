@@ -185,6 +185,12 @@ webview.hidden { display: none !important; }
 .farm-name { font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 6px; }
 .farm-meta { font-size: 11px; color: var(--muted); margin-top: 2px; font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .farm-hw { font-size: 11px; color: var(--grey); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Inline password prompt on a locked farm card. */
+.farm-keyrow { display: flex; gap: 6px; margin-top: 6px; }
+.farm-keyrow input { flex: 1; min-width: 0; font: inherit; font-size: 12px; padding: 4px 8px; border-radius: 7px; border: 1px solid var(--border); background: var(--surface-2); color: var(--text); }
+.farm-keyrow button { font: inherit; font-size: 12px; padding: 4px 10px; border-radius: 7px; border: 1px solid var(--border); background: var(--surface-2); color: var(--text); cursor: pointer; }
+.farm-keyrow button:hover { border-color: var(--accent-hover); }
+
 /* Every slot taken. Amber, not red: the box still works, it just queues you. */
 .farm-hw.farm-busy { color: var(--amber); }
 .farm-src { font-size: 10px; color: var(--grey); border: 1px solid var(--border); border-radius: 5px; padding: 0 5px; text-transform: uppercase; letter-spacing: 0.03em; }

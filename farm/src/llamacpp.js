@@ -39,16 +39,34 @@ function serverBin() {
     return path.join(BIN_DIR, IS_WIN ? 'llama-server.exe' : 'llama-server');
 }
 
-// Which release assets this platform needs. Windows/x64 with NVIDIA is the fleet's
-// case and the only one we bootstrap automatically; elsewhere the operator installs
-// llama.cpp themselves and points `llamacpp.binDir` at it, which is a supported path
-// rather than a failure.
+// Which release assets this platform needs, and from WHERE. Windows/x64 comes from
+// ggml-org's own releases. linux-arm64 — the DGX Spark (GB10, sm_121) — has no
+// upstream prebuilt, so OUR CI builds it (.github/workflows/build-llamacpp-arm64.yml,
+// GitHub's arm64 runners + the CUDA sbsa toolchain) and publishes it on this repo's
+// releases under the `llamacpp-<build>` tag: the Spark installs out of the box, no
+// compiler, no Docker. Anything else: the operator installs llama.cpp themselves and
+// points `llamacpp.binDir` at it — a supported path, and `lol up` falls back to the
+// Ollama engine rather than failing when they have not.
+const GGML_BASE = `https://github.com/ggml-org/llama.cpp/releases/download/${PINNED_BUILD}`;
+const OUR_BASE = `https://github.com/b2renger/LlmOnLan/releases/download/llamacpp-${PINNED_BUILD}`;
 function assetsFor() {
     if (IS_WIN && process.arch === 'x64') {
-        return [
-            `llama-${PINNED_BUILD}-bin-win-${CUDA_TAG}-x64.zip`,
-            `cudart-llama-bin-win-${CUDA_TAG}-x64.zip`,   // CUDA runtime DLLs
-        ];
+        return {
+            base: GGML_BASE,
+            files: [
+                `llama-${PINNED_BUILD}-bin-win-${CUDA_TAG}-x64.zip`,
+                `cudart-llama-bin-win-${CUDA_TAG}-x64.zip`,   // CUDA runtime DLLs
+            ],
+        };
+    }
+    if (process.platform === 'linux' && process.arch === 'arm64') {
+        return {
+            base: OUR_BASE,
+            // Self-contained: llama-server + the CUDA runtime .so it links, RPATH
+            // $ORIGIN — no toolkit assumed on the box. tar.gz because `unzip` is
+            // not guaranteed on a fresh DGX OS; tar always is.
+            files: [`llama-${PINNED_BUILD}-bin-linux-cuda-arm64.tar.gz`],
+        };
     }
     return null;
 }
@@ -70,10 +88,15 @@ function installed(binDirOverride) {
     return fs.existsSync(bin);
 }
 
-// Extract a zip using whatever the platform ships — no archive dependency, matching
-// the rest of the farm's zero-extra-deps posture.
-function unzip(zipPath, destDir) {
+// Extract an archive using whatever the platform ships — no archive dependency,
+// matching the rest of the farm's zero-extra-deps posture. tar.gz is the linux
+// format (tar is always present; unzip is not); zip is the Windows one.
+function extract(archivePath, destDir) {
     fs.mkdirSync(destDir, { recursive: true });
+    if (/\.tar\.gz$/i.test(archivePath)) {
+        execFileSync('tar', ['xzf', archivePath, '-C', destDir], { stdio: 'ignore' });
+        return;
+    }
     if (IS_WIN) {
         execFileSync('powershell', [
             '-NoProfile', '-NonInteractive', '-Command',
@@ -99,16 +122,19 @@ async function ensureLlamacpp(onProgress = () => {}) {
         };
     }
     fs.mkdirSync(ROOT, { recursive: true });
-    const base = `https://github.com/ggml-org/llama.cpp/releases/download/${PINNED_BUILD}`;
-    for (const asset of assets) {
+
+    for (const asset of assets.files) {
         onProgress(`fetching ${asset}`, 0);
-        // Both assets extract into the SAME bin dir: the cudart zip carries the CUDA
-        // DLLs that llama-server.exe loads from alongside itself.
-        const got = await downloadGguf(`${base}/${asset}`, (pct) => onProgress(asset, pct));
-        unzip(got.path, BIN_DIR);
+        // Every asset extracts into the SAME bin dir: on Windows the cudart zip
+        // carries the CUDA DLLs llama-server.exe loads from alongside itself; the
+        // linux tarball is already self-contained.
+        const got = await downloadGguf(`${assets.base}/${asset}`, (pct) => onProgress(asset, pct));
+        extract(got.path, BIN_DIR);
     }
+    // tar -C preserves modes, but belt-and-braces on the one bit that matters.
+    if (!IS_WIN) { try { fs.chmodSync(serverBin(), 0o755); } catch { /* missing → caught below */ } }
     if (!installed()) {
-        return { ok: false, message: `Extracted ${assets.join(' + ')} but ${serverBin()} is missing.` };
+        return { ok: false, message: `Extracted ${assets.files.join(' + ')} but ${serverBin()} is missing.` };
     }
     fs.writeFileSync(BUILD_FILE, PINNED_BUILD, 'utf8');
     return { ok: true, cached: false, binDir: BIN_DIR };
@@ -122,7 +148,9 @@ function argsFor(config, modelPath, mmprojPath) {
         '--alias', c.alias || 'assistant',
         '--host', c.host,
         '--port', String(c.port),
-        '--ctx-size', String(c.contextLength),
+        // contextResolved is set by `lol up` before spawn ('auto' → the computed
+        // max, numbers → clamped-if-needed); the raw config value may be 'auto'.
+        '--ctx-size', String(c.contextResolved ?? c.contextLength),
         '--n-gpu-layers', String(c.ngl),
         '--parallel', String(c.parallel),
         '--jinja',        // use the GGUF's embedded chat template

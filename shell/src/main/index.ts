@@ -153,7 +153,27 @@ function applyFarmRecommendations(farm: DiscoveredFarm | null): void {
 // more free. GPU utilisation (0–100) is the best proxy for "busy"; a farm that
 // doesn't report it (no nvidia-smi) is treated as mid-load so a box we CAN measure
 // and see idle beats an unknown one.
+// The stored password for a keyed farm (null when open, or none entered yet).
+function farmKey(f: { id: string; requiresKey?: boolean } | null): string | null {
+    if (!f || !f.requiresKey) return null;
+    return loadSettings().farmKeys?.[f.id] || null;
+}
+
+// A farm we cannot AUTHENTICATE to is not a candidate for auto-connect —
+// pointing OWUI at it would just loop 401s. It stays in the list with a lock;
+// entering its password there makes it eligible.
+function farmUsable(f: DiscoveredFarm): boolean {
+    return !(f as { requiresKey?: boolean }).requiresKey || !!farmKey(f as { id: string; requiresKey?: boolean });
+}
+
 function farmLoad(f: DiscoveredFarm): number {
+    // Slot occupancy beats GPU%: clients/slots is "how many people are ahead of
+    // you", where a busy GPU is just a healthy box mid-answer. Old farms without
+    // `capacity` keep the util heuristic.
+    const cap = (f as { capacity?: { slots?: number; clients?: number } }).capacity;
+    if (cap && typeof cap.slots === 'number' && cap.slots > 0) {
+        return Math.min(100, Math.round(((cap.clients || 0) / cap.slots) * 100));
+    }
     const util = f.usage?.gpuUtil;
     return typeof util === 'number' ? util : 50;
 }
@@ -171,7 +191,7 @@ function farmLoad(f: DiscoveredFarm): number {
 // balance client-side. One rule cleanly covers both deployment styles.
 const LOAD_BAND = 15; // farms within 15 util-points of the minimum count as "equally free"
 function pickLeastLoaded(farms: DiscoveredFarm[]): DiscoveredFarm | null {
-    const healthy = farms.filter((x) => x.healthy && !x._stale);
+    const healthy = farms.filter((x) => x.healthy && !x._stale && farmUsable(x));
     if (!healthy.length) return null;
     const coordinators = healthy.filter((x) => x.coordinator);
     const pool = coordinators.length ? coordinators : healthy;
@@ -202,7 +222,18 @@ function chooseActive(farms: DiscoveredFarm[]): DiscoveredFarm | null {
 
 // Discovery update → forward to the renderer + auto-connect to the active farm.
 function onFarms(payload: { farms: DiscoveredFarm[] } & Record<string, unknown>): void {
-    if (win && !win.isDestroyed()) win.webContents.send('farms', payload);
+    // Decorate for the renderer: which keyed farms already have a stored password
+    // (the card shows a lock + input for the others), and the key itself so LOL
+    // Chat can authenticate its direct fetches. Same-user process boundary — the
+    // password was typed in this very app.
+    const decorated = {
+        ...payload,
+        farms: payload.farms.map((f) => {
+            const k = farmKey(f as { id: string; requiresKey?: boolean });
+            return { ...f, _hasKey: !!k, _key: k };
+        }),
+    };
+    if (win && !win.isDestroyed()) win.webContents.send('farms', decorated);
     if (!booted || process.env.LOL_ENDPOINT) return; // pinned endpoint: discovery is informational only
     const chosen = chooseActive(payload.farms);
     if (!chosen) return;
@@ -226,14 +257,15 @@ function onFarms(payload: { farms: DiscoveredFarm[] } & Record<string, unknown>)
         // Persist the whole farm context, not just the endpoint — it seeds the next
         // cold launch so the first sidecar boot is already correctly configured and
         // the first beacon doesn't force a restart (see ShellSettings.lastFarmModel).
-        updateSettings({ lastEndpoint: endpoint, lastFarmModel: model, lastFarmSearxng: searxng, lastFarmTts: tts, lastFarmExtract: extract });
+        const key = farmKey(chosen as { id: string; requiresKey?: boolean });
+        updateSettings({ lastEndpoint: endpoint, lastFarmKey: key, lastFarmModel: model, lastFarmSearxng: searxng, lastFarmTts: tts, lastFarmExtract: extract });
         // Keyless LAN proxy for now; a keyed farm (requiresKey) needs a key-entry
         // UX we haven't built, so we don't send a (wrong) placeholder key. The farm's
         // default model + SearXNG + TTS + OCR ride along so OWUI auto-selects the model
         // and gets web search + neural voice + document OCR, all with zero clicks.
         // No-OWUI build: record the endpoint only — repoint would (re)start the OWUI
         // sidecar, which this build must never run even where one is installed.
-        if (OWUI_ENABLED) sidecar.repoint(endpoint, null, model, searxng, tts, extract);
+        if (OWUI_ENABLED) sidecar.repoint(endpoint, key, model, searxng, tts, extract);
         else sidecar.pointTo(endpoint);
     }
 }
@@ -396,7 +428,10 @@ function registerIpc(): void {
 
     // --- discovery (M3) ---
     ipcMain.handle('get-farms', () => ({
-        farms: discovery?.getFarms() ?? [],
+        farms: (discovery?.getFarms() ?? []).map((f) => {
+            const k = farmKey(f as { id: string; requiresKey?: boolean });
+            return { ...f, _hasKey: !!k, _key: k };
+        }),
         manualPeers: discovery?.getManualPeers() ?? [],
         autoScan: discovery?.getAutoScan() ?? true,
         scanRange: discovery?.getScanRange() ?? null,
@@ -423,6 +458,36 @@ function registerIpc(): void {
         return v;
     });
     ipcMain.handle('rescan', () => { discovery?.rescan(); return true; });
+
+    // Enter a keyed farm's password: VERIFY it against the real endpoint first
+    // (a stored-but-wrong password would 401-loop OWUI), store it per farm, then
+    // make the farm immediately eligible — selected if the user asked for it.
+    ipcMain.handle('set-farm-key', async (_e, payload: { farmId: string; key: string }) => {
+        const f = (discovery?.getFarms() ?? []).find((x) => x.id === payload?.farmId);
+        if (!f) return { ok: false, error: 'Farm not found — is it still on the network?' };
+        const key = String(payload.key || '').trim();
+        if (!key) return { ok: false, error: 'Enter the password.' };
+        try {
+            const ctrl = new AbortController();
+            const t = setTimeout(() => ctrl.abort(), 5000);
+            const res = await fetch(`${farmEndpoint(f)}/models`, {
+                headers: { authorization: `Bearer ${key}` }, signal: ctrl.signal,
+            });
+            clearTimeout(t);
+            // LiteLLM without a DB cannot answer a clean 401 for a wrong key — it
+            // tries to look the token up as a virtual key and fails with 400/500
+            // (verified live). So: exactly 200 with the key = accepted; anything
+            // else on a farm that ANSWERS = the password was not accepted.
+            if (!res.ok) return { ok: false, error: 'That password was not accepted.' };
+        } catch {
+            return { ok: false, error: 'Could not reach the farm to check the password.' };
+        }
+        const s = loadSettings();
+        updateSettings({ farmKeys: { ...(s.farmKeys || {}), [f.id]: key } });
+        // Re-run selection so the newly-usable farm connects without another click.
+        if (discovery) onFarms({ farms: discovery.getFarms() });
+        return { ok: true };
+    });
 
     // --- preferences (M4) ---
     ipcMain.handle('get-prefs', () => {
@@ -505,7 +570,13 @@ function registerIpc(): void {
         currentTts = farmTts(activeNow);
         currentExtract = farmExtract(activeNow);
         booted = true;
-        sidecar.start({ endpoint: initial, dataDir: resolveDataDir(), defaultModel: currentModel, searxngUrl: currentSearxng, tts: currentTts, extract: currentExtract });
+        sidecar.start({
+            endpoint: initial, dataDir: resolveDataDir(),
+            // Same key logic as the cold boot — a keyed farm must come back
+            // authenticated after a data-folder move too.
+            apiKey: activeNow ? farmKey(activeNow as { id: string; requiresKey?: boolean }) : loadSettings().lastFarmKey,
+            defaultModel: currentModel, searxngUrl: currentSearxng, tts: currentTts, extract: currentExtract,
+        });
         return res;
     });
     // App self-update (electron-updater). check → status; install → quitAndInstall.
@@ -538,7 +609,7 @@ function registerIpc(): void {
             // the pinned farm's model + SearXNG + TTS + OCR so pinning doesn't drop
             // DEFAULT_MODELS / web search / voice / OCR (and leave the globals stale so
             // onFarms never restores them).
-            sidecar.repoint(endpoint, null, currentModel, currentSearxng, currentTts, currentExtract);
+            sidecar.repoint(endpoint, farmKey(chosen as { id: string; requiresKey?: boolean }), currentModel, currentSearxng, currentTts, currentExtract);
         }
         return chosen?.id ?? null;
     });
@@ -652,7 +723,13 @@ app.whenReady().then(async () => {
     // LOL Chat talks straight to the farm's OpenAI endpoint, so there is no local
     // process to supervise — discovery alone is enough to be usable.
     if (OWUI_ENABLED) {
-        sidecar.start({ endpoint: initial, dataDir: resolveDataDir(), defaultModel: currentModel, searxngUrl: currentSearxng, tts: currentTts, extract: currentExtract });
+        sidecar.start({
+            endpoint: initial, dataDir: resolveDataDir(),
+            // The cold-boot seed rides with lastEndpoint: a keyed farm boots
+            // authenticated instead of 401-looping until the first beacon.
+            apiKey: activeNow ? farmKey(activeNow as { id: string; requiresKey?: boolean }) : settings.lastFarmKey,
+            defaultModel: currentModel, searxngUrl: currentSearxng, tts: currentTts, extract: currentExtract,
+        });
     } else {
         sidecar.pointTo(initial);
     }

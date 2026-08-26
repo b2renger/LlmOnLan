@@ -82,15 +82,18 @@ const MARGIN_GB = 0.4;     // desktop / driver headroom — the difference betwe
 // Returns { needGb, budgetGb, maxContext, fits } — maxContext in 4096 steps, ≥ 4096
 // whenever the weights themselves fit (a model too big for ANY context reports
 // maxContext 0).
-function fitBudget({ vramGb, weightsGb, mmprojGb = 0, kvCacheType = 'q4_0', contextLength = 16384 }) {
-    const rate = KV_GB_PER_16K[kvCacheType] || KV_GB_PER_16K.f16;
+function fitBudget({ vramGb, weightsGb, mmprojGb = 0, kvCacheType = 'q4_0', contextLength = 16384, kvRate = null }) {
+    // `kvRate` (GB per 16k) computed from the model's OWN header (gguf.js) beats
+    // the table — the table is the shipped model's measurement, wrong for models
+    // an operator adds by URL.
+    const rate = kvRate || KV_GB_PER_16K[kvCacheType] || KV_GB_PER_16K.f16;
     const kvGb = (contextLength / 16384) * rate;
     const needGb = round1((weightsGb || 0) + (mmprojGb || 0) + OVERHEAD_GB + kvGb);
     if (!vramGb || !weightsGb) return { needGb, budgetGb: null, maxContext: null, fits: null };
     const budgetGb = round1(vramGb - MARGIN_GB - weightsGb - (mmprojGb || 0) - OVERHEAD_GB);
     const rawMax = Math.floor(((budgetGb / rate) * 16384) / 4096) * 4096;
     const maxContext = rawMax >= 4096 ? rawMax : 0;
-    return { needGb, budgetGb, maxContext, fits: needGb <= vramGb - MARGIN_GB };
+    return { needGb, budgetGb, maxContext, fits: needGb <= vramGb - MARGIN_GB, kvRate: round1(rate * 100) / 100 };
 }
 
 function round1(n) { return Math.round(n * 10) / 10; }

@@ -20,6 +20,7 @@ const { buildSnapshot, backendInfo } = require('../snapshot');
 const { patchSection, patchConfigFile } = require('../configFile');
 const { detectHardware, gpuLiveStats } = require('../systemInfo');
 const perfMod = require('../perf');
+const ggufMod = require('../gguf');
 const fsMod = require('fs');
 const { DiscoveryBeacon } = require('../beacon');
 const { PeerListener } = require('../peerListener');
@@ -331,25 +332,49 @@ async function run(args) {
     // null when it cannot be computed — no GPU detected, or weights not on disk yet.
     // On unified-memory boxes (DGX Spark) detectHardware reports the RAM pool, so
     // the budget is generous there rather than wrongly restrictive.
+    // GGUF metadata (native context max + KV geometry), cached per file — a parse
+    // is ~1 ms but computeFit runs on every adminState poll.
+    let metaCache = { path: null, meta: null };
+    function modelMeta(mp) {
+        if (metaCache.path !== mp) metaCache = { path: mp, meta: ggufMod.readGgufMeta(mp) };
+        return metaCache.meta;
+    }
+
     function computeFit(atContext) {
         try {
             const mp = (lastModelPath && fsMod.existsSync(lastModelPath))
                 ? lastModelPath
                 : (config.llamacpp.model ? ollama.ggufPathFor(config.llamacpp.model) : null);
             if (!mp || !fsMod.existsSync(mp)) return null;
+            const meta = modelMeta(mp);
             const weightsGb = fsMod.statSync(mp).size / 1e9;
             let mmprojGb = 0;
             if (config.llamacpp.mmproj) {
                 const pp = ollama.ggufPathFor(config.llamacpp.mmproj);
                 mmprojGb = (pp && fsMod.existsSync(pp)) ? fsMod.statSync(pp).size / 1e9 : 0.8;
             }
+            const cfgCtx = config.llamacpp.contextLength;
+            const at = atContext
+                ?? config.llamacpp.contextResolved
+                ?? (typeof cfgCtx === 'number' ? cfgCtx : 16384);
+            const nativeMax = (meta && meta.contextLength) || null;
             const budget = perfMod.fitBudget({
                 vramGb: hw && hw.vramGb, weightsGb, mmprojGb,
                 kvCacheType: config.llamacpp.kvCacheType,
-                contextLength: atContext ?? config.llamacpp.contextLength,
+                contextLength: at,
+                // The model's own KV geometry when the header carries it — exact,
+                // where the table is one measured family.
+                kvRate: ggufMod.kvGbPer16k(meta, config.llamacpp.kvCacheType),
             });
+            // "Max that fits" is also capped by what the model was TRAINED at —
+            // llama-server will run past n_ctx_train, silently degrading.
+            const maxContext = budget.maxContext != null && nativeMax
+                ? Math.min(budget.maxContext, nativeMax)
+                : (budget.maxContext ?? nativeMax);
             return {
                 ...budget,
+                maxContext,
+                nativeMax,
                 vramGb: (hw && hw.vramGb) || null,
                 weightsGb: Math.round(weightsGb * 10) / 10,
                 kvCacheType: config.llamacpp.kvCacheType,
@@ -388,22 +413,34 @@ async function run(args) {
         if (!mdl.ok) return { ok: false, message: mdl.message };
         lastModelPath = mdl.modelPath;
 
-        // VRAM clamp, BEFORE spawn. llama-server does not refuse a shape that
-        // overflows VRAM — Windows overcommits into system RAM and the box "works"
-        // at a few tok/s. Live case: a 256k context saved from the panel onto a
-        // 12 GB card left it at 11.6/12 GB *idle*, paging every token. If the
-        // persisted context cannot fit, serve the largest that does — and persist
-        // the clamp, because the broken value came from the panel in the first
-        // place and would otherwise bite again on every boot.
-        const fit = computeFit();
-        if (fit && fit.maxContext != null && fit.fits === false && fit.maxContext >= 4096
-            && config.llamacpp.contextLength > fit.maxContext) {
-            const wanted = config.llamacpp.contextLength;
-            log.err(`Context ${wanted} needs ~${fit.needGb} GB — this GPU has ${fit.vramGb} GB. Clamping to ${fit.maxContext}.`);
-            const warn = persistLlamacpp({ contextLength: fit.maxContext });
-            if (warn) log.warn(warn.trim());
+        // Resolve the context window BEFORE spawn — llama-server takes it as argv
+        // and does not refuse a shape that overflows VRAM (Windows overcommits into
+        // system RAM and the box "works" at a few tok/s; live case: 256k saved from
+        // the panel onto a 12 GB card, 11.6/12 GB used at idle).
+        //
+        //   'auto' (the default) → the LARGEST context this box can hold:
+        //     min(model native max, what fits VRAM), both read from the real files.
+        //   a number → honored, clamped (and the clamp persisted) if it cannot fit.
+        const fit = computeFit(16384);   // maxContext is independent of the request
+        if (config.llamacpp.contextLength === 'auto') {
+            let target = (fit && fit.maxContext) || 16384;
+            target = Math.max(4096, target);
+            config.llamacpp.contextResolved = target;
+            const why = [
+                fit && fit.nativeMax ? `model max ${fit.nativeMax}` : 'model max unknown',
+                fit && fit.vramGb ? `budget for ${fit.vramGb} GB` : null,
+            ].filter(Boolean).join(', ');
+            log.ok(`Context: auto → ${log.paint.bold(String(target))} tokens ${log.paint.grey(`(${why})`)}`);
+        } else {
+            let target = config.llamacpp.contextLength;
+            if (fit && fit.maxContext != null && fit.maxContext >= 4096 && target > fit.maxContext) {
+                log.err(`Context ${target} needs ~${computeFit(target).needGb} GB — this GPU has ${fit.vramGb} GB. Clamping to ${fit.maxContext}.`);
+                const warn = persistLlamacpp({ contextLength: fit.maxContext });
+                if (warn) log.warn(warn.trim());
+                target = fit.maxContext;
+            }
+            config.llamacpp.contextResolved = target;
         }
-
         const child = llamacpp.spawnLlamacpp(config, mdl.modelPath, mdl.mmprojPath, binDir);
         child.stdout.on('data', log.childPrefix('llama.cpp'));
         child.stderr.on('data', log.childPrefix('llama.cpp'));
@@ -590,6 +627,7 @@ async function run(args) {
         removeLibraryModel: async () => ({ ok: false, error: 'farm still starting' }),
         setSlots: async () => ({ ok: false, error: 'farm still starting' }),
         setAdvertisedName: async () => ({ ok: false, error: 'farm still starting' }),
+        setFarmPassword: async () => ({ ok: false, error: 'farm still starting' }),
         pullOllamaModel: async () => ({ ok: false, error: 'farm still starting' }),
         removeOllamaModel: async () => ({ ok: false, error: 'farm still starting' }),
         setContextLength: async () => ({ ok: false, error: 'farm still starting' }),
@@ -965,7 +1003,8 @@ async function run(args) {
                 model: config.llamacpp.model,
                 mmproj: config.llamacpp.mmproj,
                 library: config.llamacpp.library || [],
-                contextLength: config.llamacpp.contextLength,
+                contextLength: config.llamacpp.contextLength,        // number, or 'auto'
+                contextResolved: config.llamacpp.contextResolved ?? null, // what actually serves
                 parallel: config.llamacpp.parallel,
                 kvCacheType: config.llamacpp.kvCacheType,
                 mtp: !!config.llamacpp.mtp,
@@ -991,6 +1030,8 @@ async function run(args) {
             // back at boot if it did. The panel disables the engine button on these.
             llamacppAvailable: llamacpp.installed(config.llamacpp.binDir) || llamacpp.supported(),
             llamacppBootError,
+            // Whether a shared password gates the proxy (the panel shows set/clear).
+            requiresKey: !!config.proxy.masterKey,
             // The one long operation that can be in flight (model download, backend
             // switch, reload). The panel polls this endpoint anyway, so progress
             // rides along rather than needing a socket.
@@ -1042,6 +1083,24 @@ async function run(args) {
     //   • Ollama — num_ctx rides the generated routing, so a proxy bounce is enough and
     //     every request keeps the full window.
     function setContextLength(tokens) {
+        // 'auto' = the largest context this box can hold for the current model,
+        // recomputed at every model load — the right choice on every card at once,
+        // and the default. A number pins it.
+        if (tokens === 'auto') {
+            if (busy()) return busyErr();
+            if (!config.llamacpp.enabled) return { ok: false, error: 'Automatic context sizing needs the llama.cpp engine.' };
+            if (config.llamacpp.contextLength === 'auto') return { ok: true, already: true, contextLength: 'auto' };
+            return runJob('context', 'Setting the context window to automatic', async (progress) => {
+                const warn = persistLlamacpp({ contextLength: 'auto' });
+                const r = await reloadLlamacpp(progress);
+                if (!r.ok) {
+                    persistLlamacpp({ contextLength: config.llamacpp.contextResolved || 16384 });
+                    await reloadLlamacpp(() => {});
+                    return { ok: false, error: `${r.error} Kept the previous size.` };
+                }
+                return { ok: true, message: `Context is automatic — currently ${config.llamacpp.contextResolved} tokens on this GPU.${warn || ''}` };
+            });
+        }
         const want = Math.round(Number(tokens));
         if (!Number.isFinite(want) || want < 2048 || want > 262144) {
             return { ok: false, error: 'Context must be between 2048 and 262144 tokens.', contextLength: config.ollama.contextLength };
@@ -1466,6 +1525,33 @@ async function run(args) {
         });
     }
 
+    // Shared farm password (ComfyQ-style): one string everyone on the LAN types
+    // once. It becomes LiteLLM's master_key, which gates every /v1 route — chat,
+    // models, everything — while /health/liveliness stays open (the farm's own
+    // health checks and discovery must keep working). Clients learn from the
+    // beacon's requiresKey that a password is needed and prompt for it.
+    // Empty/null clears it. Persisted; a proxy bounce applies it.
+    function setFarmPassword(password) {
+        if (busy()) return busyErr();
+        const clean = String(password == null ? '' : password).trim().slice(0, 128) || null;
+        if ((config.proxy.masterKey || null) === clean) return { ok: true, already: true, requiresKey: !!clean };
+        const before = config.proxy.masterKey || null;
+        return runJob('security', clean ? 'Setting the farm password' : 'Removing the farm password', async () => {
+            config.proxy.masterKey = clean;
+            const warn = persist('proxy', { masterKey: clean ?? undefined });
+            if (!(await restartProxy())) {
+                config.proxy.masterKey = before;
+                persist('proxy', { masterKey: before ?? undefined });
+                await restartProxy();
+                return { ok: false, error: 'The proxy did not come back — kept the previous setting.' };
+            }
+            if (beacon) beacon.kick();
+            return { ok: true, message: clean
+                ? `Password set. Clients now ask for it before connecting.${warn || ''}`
+                : `Password removed — the farm is open to the LAN again.${warn || ''}` };
+        });
+    }
+
     // --- Ollama catalog management -----------------------------------------------
     // Download a model onto every LOCAL host. Remote hosts are deliberately untouched:
     // this CLI does not own them, and quietly filling someone else's disk is worse than
@@ -1559,6 +1645,7 @@ async function run(args) {
         removeLibraryModel: (id) => serialize(() => removeLibraryModel(id)),
         setSlots,
         setAdvertisedName,
+        setFarmPassword,
         pullOllamaModel,
         removeOllamaModel,
     });

@@ -19,6 +19,8 @@ const DEFAULTS: ShellSettings = {
     lastFarmSearxng: null,
     lastFarmTts: null,
     lastFarmExtract: null,
+    farmKeys: {},       // per-farm shared passwords (farm id → password)
+    lastFarmKey: null,
     launchAtLogin: false,
     autoUpdate: true,
     blenderMcp: false,  // Blender assistant tools are OPT-IN (owner call 2026-07-05; was on by default before v0.1.24)

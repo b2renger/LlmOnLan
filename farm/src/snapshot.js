@@ -48,12 +48,17 @@ function backendInfo(config, health = {}) {
     const lc = config.llamacpp || {};
     if (lc.enabled) {
         const slots = Math.max(1, lc.parallel || 1);
+        // 'auto' resolves at model load (lol up sets contextResolved); until then
+        // report null rather than the string — arithmetic consumers must never
+        // see 'auto'.
+        const ctx = lc.contextResolved ?? (typeof lc.contextLength === 'number' ? lc.contextLength : null);
         return {
             engine: 'llama.cpp',
             alias: lc.alias,
             model: ggufName(lc.model),
-            contextLength: lc.contextLength,
-            contextPerSlot: Math.floor((lc.contextLength || 0) / slots),
+            contextLength: ctx,
+            contextAuto: lc.contextLength === 'auto',
+            contextPerSlot: ctx != null ? Math.floor(ctx / slots) : null,
             slots,
             mtp: !!lc.mtp,
             kvCacheType: lc.kvCacheType || 'f16',

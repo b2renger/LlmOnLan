@@ -33,6 +33,12 @@
     // The farm endpoint app.js is currently pointing the sidecar at. Published on
     // window rather than re-derived here so there is exactly one source of truth.
     const endpoint = () => (window.__lolFarm && window.__lolFarm.openaiBaseUrl) || null;
+    // A password-protected farm wants its key on EVERY request; open farms get
+    // no header at all (LiteLLM without master_key ignores it either way).
+    const authHeaders = () => {
+        const k = window.__lolFarm && window.__lolFarm.apiKey;
+        return k ? { authorization: `Bearer ${k}` } : {};
+    };
 
     let threads = load();
     let activeId = threads[0] ? threads[0].id : null;
@@ -144,7 +150,7 @@
         }
         if (base === modelsFrom && el.model.value) return;
         try {
-            const r = await fetch(base + '/models');
+            const r = await fetch(base + '/models', { headers: authHeaders() });
             const j = await r.json();
             const ids = (j.data || []).map((m) => m.id);
             if (!ids.length) {
@@ -240,7 +246,7 @@
         try {
             const res = await fetch(base + '/chat/completions', {
                 method: 'POST',
-                headers: { 'content-type': 'application/json' },
+                headers: { 'content-type': 'application/json', ...authHeaders() },
                 signal: abort.signal,
                 body: JSON.stringify({
                     model: el.model.value,

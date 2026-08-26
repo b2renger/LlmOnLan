@@ -634,7 +634,8 @@ function renderPopover() {
     const badges =
       `<span class="farm-src">${f._source}</span>` +
       (f.coordinator ? `<span class="farm-src farm-coord">coordinator</span>` : '') +
-      (f.searxngUrl ? `<span class="farm-src">web search</span>` : '');
+      (f.searxngUrl ? `<span class="farm-src">web search</span>` : '') +
+      (f.requiresKey ? `<span class="farm-src">🔒${f._hasKey ? '' : ' password needed'}</span>` : '');
     // Live line: GPU util, VRAM used/total, loaded models, backends, hosts.
     const u = f.usage || {};
     const live = [];
@@ -678,6 +679,13 @@ function renderPopover() {
     const recLine = recs.length ? `<div class="farm-hw">recommends: ${esc(recs.join(', '))}</div>` : '';
     // "Manage this farm" opens the farm-served admin page (needs the farm's admin port).
     const manageBtn = f.httpPort ? `<button class="farm-manage" data-manage="${esc(f._host)}:${f.httpPort}">Manage this farm ↗</button>` : '';
+    // A keyed farm without its password cannot be used — the card itself asks.
+    // Verified in the MAIN process against the real endpoint before storing, so a
+    // wrong password is a toast, never a stored 401-loop.
+    const needsKey = !!(f.requiresKey && !f._hasKey);
+    const keyRow = needsKey
+      ? `<div class="farm-keyrow"><input type="password" class="farm-key-in" placeholder="farm password" spellcheck="false" /><button class="farm-key-go" data-keyfarm="${esc(f.id)}">Connect</button></div>`
+      : '';
     row.innerHTML =
       `<span class="dot ${dotCls}"></span>` +
       `<div class="farm-main">` +
@@ -689,10 +697,33 @@ function renderPopover() {
         hwLine +
         plugLine +
         recLine +
+        keyRow +
         manageBtn +
       `</div>` +
       `<span class="farm-check">${isActive ? ICON_CHECK : ''}</span>`;
-    row.onclick = () => { window.lol.selectFarm(f.id); toast(`Connecting to ${f.name}…`); };
+    row.onclick = () => {
+      if (needsKey) { const inp = row.querySelector('.farm-key-in'); if (inp) inp.focus(); return; }
+      window.lol.selectFarm(f.id); toast(`Connecting to ${f.name}…`);
+    };
+    const keyGo = row.querySelector('button.farm-key-go');
+    if (keyGo) {
+      const submitKey = async (e) => {
+        e.stopPropagation();
+        const inp = row.querySelector('.farm-key-in');
+        const v = (inp && inp.value || '').trim();
+        if (!v) { if (inp) inp.focus(); return; }
+        keyGo.disabled = true; keyGo.textContent = '…';
+        const r = await window.lol.setFarmKey(f.id, v);
+        if (r && r.ok) { toast(`Connected to ${f.name}`); window.lol.selectFarm(f.id); }
+        else { toast((r && r.error) || 'Wrong password'); keyGo.disabled = false; keyGo.textContent = 'Connect'; if (inp) { inp.select(); inp.focus(); } }
+      };
+      keyGo.onclick = submitKey;
+      const inp = row.querySelector('.farm-key-in');
+      if (inp) {
+        inp.onclick = (e) => e.stopPropagation();
+        inp.onkeydown = (e) => { if (e.key === 'Enter') submitKey(e); };
+      }
+    }
     const mBtn = row.querySelector('button.farm-manage');
     if (mBtn) mBtn.onclick = (e) => { e.stopPropagation(); window.lol.openExternal(`http://${mBtn.dataset.manage}/lol/admin`); };
     els.farmList.appendChild(row);
@@ -748,7 +779,7 @@ function publishFarm() {
     ? ((f.models.find((m) => m.default) || f.models[0]).id || null)
     : null;
   window.__lolFarm = f
-    ? { name: f.name, openaiBaseUrl: farmEndpoint(f), defaultModel, busy: f.busy || null }
+    ? { name: f.name, openaiBaseUrl: farmEndpoint(f), defaultModel, busy: f.busy || null, apiKey: f._key || null }
     : (sidecarState && sidecarState.endpoint ? { name: 'farm', openaiBaseUrl: sidecarState.endpoint, defaultModel: null } : null);
   if (window.__lolChatRefresh) window.__lolChatRefresh();
   // The overlay is FARM-driven in this build, but renderSidecar used to run only

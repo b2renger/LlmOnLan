@@ -194,7 +194,13 @@ const LlamacppSchema = z.object({
             note: 'Highest quality of the three, and the only one that can use MTP — but it fills a 12 GB card.',
         },
     ]),
-    contextLength: z.number().int().positive().default(16384),
+    // 'auto' (the default): serve the LARGEST context this box can hold —
+    // min(the model's native max, what fits VRAM), both read from the .gguf and
+    // the detected GPU at start. Thinking models and whole-document RAG want all
+    // the context they can get, and a fixed number is wrong on every card at
+    // once: 16384 wastes a 96 GB box, 65536 cripples a 12 GB one. A number pins
+    // it explicitly (still clamped if it cannot fit).
+    contextLength: z.union([z.literal('auto'), z.number().int().positive()]).default('auto'),
     ngl: z.number().int().default(999),          // offload everything; partial = the cliff
     parallel: z.number().int().positive().default(1),
     flashAttention: z.boolean().default(true),   // required for KV quantization

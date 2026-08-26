@@ -17,6 +17,7 @@ contextBridge.exposeInMainWorld('lol', {
     onFarms: (cb: (data: unknown) => void) => ipcRenderer.on('farms', (_e, data) => cb(data)),
     getFarms: () => ipcRenderer.invoke('get-farms'),
     selectFarm: (id: string | null) => ipcRenderer.invoke('select-farm', id),
+    setFarmKey: (farmId: string, key: string) => ipcRenderer.invoke('set-farm-key', { farmId, key }),
     addManualPeer: (host: string) => ipcRenderer.invoke('add-manual-peer', host),
     removeManualPeer: (host: string) => ipcRenderer.invoke('remove-manual-peer', host),
     setAutoScan: (on: boolean) => ipcRenderer.invoke('set-auto-scan', on),

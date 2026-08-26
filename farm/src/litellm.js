@@ -85,6 +85,26 @@ function buildLitellmConfig(config, peers = []) {
             model_info: { supports_vision: true },
         };
         model_list.push(entry);
+        // Coordinator peers STILL aggregate in llama.cpp mode — exclusivity is about
+        // this box's two local engines, not the fleet. The fleet shares one alias, so
+        // peers serving it become extra deployments of the same model_name and the
+        // router balances across boxes. (Without this, a llama.cpp coordinator
+        // aggregated nobody: the peer loop below lives inside the Ollama loop that
+        // exclusivity skips — found by the exclusivity test, fixed here.)
+        for (const peer of peers) {
+            if (!peer || !peer.openaiBaseUrl) continue;
+            const peerModels = new Set((peer.models || []).map((m) => (typeof m === 'string' ? m : m.id)));
+            if (peerModels.size && !peerModels.has(lc.alias)) continue;
+            model_list.push({
+                model_name: lc.alias,
+                litellm_params: {
+                    model: `openai/${lc.alias}`,
+                    api_base: peer.openaiBaseUrl,
+                    api_key: peer.key || 'sk-lol-coordinator',
+                },
+                model_info: { supports_vision: true },
+            });
+        }
     }
 
     for (const { servedName, underlying, vision } of servedEntries(config)) {

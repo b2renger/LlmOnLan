@@ -217,11 +217,23 @@ function render(s) {
         [1, 2, 3, 4, 6, 8].map((v) => `<option value="${v}"${v === be.slots ? ' selected' : ''}>${v}</option>`).join('')
       }</select><button id="slots-apply"${jobRunning ? ' disabled' : ''}>Apply</button></span></div>`
 
+    // The shared farm password (ComfyQ-style). One string for everyone; clients
+    // prompt for it when the beacon says requiresKey. Setting/clearing bounces
+    // the proxy for a few seconds.
+    + `<div class="row"><span></span><span><div class="mname">Farm password</div>
+    <div class="meta">${s.requiresKey
+        ? '<b>Set.</b> Everyone must enter it once in their app. Apply an empty field to remove it.'
+        : 'Not set — anyone on the network can use this farm. Type one to require it.'}</div></span>
+    <span class="badges"><input id="sec-in" type="password" placeholder="${s.requiresKey ? '••••••••' : 'choose a password'}" maxlength="128" spellcheck="false" autocomplete="new-password" />
+    <button id="sec-apply"${jobRunning ? ' disabled' : ''}>Apply</button></span></div>`
+
     // Context window — now honest about which engine it hits.
     + `<div class="row"><span></span><span><div class="mname">Context window</div>`
     + `<div class="meta">how much text the model reads at once — bigger fits whole documents, costs VRAM${
         be.slots > 1 ? ` · shared across ${be.slots} slots, so each user gets ${fmtK(perSlot)}` : ''}</div></span>`
-    + `<span class="badges"><select id="ctx-sel">${ctxOptions(be.contextLength, be.engine === 'llama.cpp' ? s.fit : null)}</select>`
+    + `<span class="badges"><select id="ctx-sel">${be.engine === 'llama.cpp'
+        ? ctxOptions(lc.contextLength, lc.contextResolved || be.contextLength, s.fit)
+        : ctxOptions(be.contextLength, be.contextLength, null)}</select>`
     + `<button id="ctx-apply"${jobRunning ? ' disabled' : ''}>Apply</button></span></div>`
     + `</div>`;
 
@@ -401,12 +413,19 @@ function render(s) {
   });
 
   bindApply('#name-apply', '#name-in', (v) => post('/lol/admin/name', { name: v }, $('#name-apply'), 'Renaming…'));
+  // The password field is the one Apply that must also accept EMPTY (= clear it),
+  // so it can't use bindApply's non-empty guard.
+  const secApply = $('#sec-apply');
+  if (secApply) secApply.onclick = () => post('/lol/admin/security', { password: $('#sec-in').value }, secApply, 'Applying…');
   bindApply('#lc-add', '#lc-url', (v) => post('/lol/admin/llamacpp/library/add', { url: v }, $('#lc-add'), 'Added to the library'));
   bindApply('#ol-pull', '#ol-id', (v) => post('/lol/admin/ollama/pull', { id: v }, $('#ol-pull'), 'Downloading…'));
   const slotsApply = $('#slots-apply');
   if (slotsApply) slotsApply.onclick = () => post('/lol/admin/slots', { slots: parseInt($('#slots-sel').value, 10) }, slotsApply, 'Applying…');
   const ctxApply = $('#ctx-apply');
-  if (ctxApply) ctxApply.onclick = () => post('/lol/admin/context', { tokens: parseInt($('#ctx-sel').value, 10) }, ctxApply, 'Applying…');
+  if (ctxApply) ctxApply.onclick = () => {
+    const v = $('#ctx-sel').value;
+    post('/lol/admin/context', { tokens: v === 'auto' ? 'auto' : parseInt(v, 10) }, ctxApply, 'Applying…');
+  };
 
   const cd = $('#clients-d');
   if (cd) cd.addEventListener('toggle', () => { clientsOpen = cd.open; localStorage.setItem('lolClientsOpen', cd.open ? '1' : '0'); });
@@ -418,11 +437,20 @@ function render(s) {
 // `fit` (when the farm can compute it) disables the sizes this GPU cannot hold —
 // the alternative was learned the hard way: a 256k option picked on a 12 GB card
 // "worked", overcommitted into system RAM, and served a few tokens a second.
-function ctxOptions(now, fit) {
+// `cfg` is what the config SAYS (a number, or 'auto'); `resolved` is what actually
+// serves right now. Automatic is the default and the recommended state: the farm
+// re-computes the largest context that fits — min(model native max, VRAM budget) —
+// at every model load, so a 12 GB box and a 96 GB box each get their own maximum.
+// `fit` disables the numeric sizes this GPU cannot hold — learned the hard way:
+// a 256k option picked on a 12 GB card "worked", overcommitted into system RAM,
+// and served a few tokens a second.
+function ctxOptions(cfg, resolved, fit) {
   const OPTS = [4096, 8192, 16384, 32768, 65536, 131072, 262144];
+  const now = typeof cfg === 'number' ? cfg : null;
   const list = (now && !OPTS.includes(now)) ? [now, ...OPTS] : OPTS;
   const max = fit && fit.maxContext != null ? fit.maxContext : null;
-  return list.map((v) => {
+  const auto = `<option value="auto"${cfg === 'auto' ? ' selected' : ''}>Automatic — the most this GPU holds${resolved ? ` (now ${fmtK(resolved)})` : ''}</option>`;
+  return auto + list.map((v) => {
     const over = max != null && v > max && v !== now;
     const label = fmtK(v) + ' tokens' + (over ? ` — won\u2019t fit (${fit.vramGb} GB GPU)` : '');
     return `<option value="${v}"${v === now ? ' selected' : ''}${over ? ' disabled' : ''}>${label}</option>`;

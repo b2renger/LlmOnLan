@@ -106,6 +106,10 @@ export interface ShellSettings {
     lastFarmSearxng: string | null;
     lastFarmTts: { url: string; voice: string; model: string } | null;
     lastFarmExtract: { url: string; key: string } | null;
+    // Per-farm shared passwords (ComfyQ-style), keyed by farm id — entered once
+    // in the farm list, verified against the endpoint before being stored.
+    farmKeys: Record<string, string>;
+    lastFarmKey: string | null;        // rides with lastEndpoint for the cold-boot seed
     launchAtLogin: boolean;
     autoUpdate: boolean;
     blenderMcp: boolean;               // local Blender assistant-tools server (mcpo) on/off
