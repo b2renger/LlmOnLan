@@ -128,7 +128,13 @@ function buildSnapshot(config, health = {}) {
         openaiBaseUrl: `${endpoint}/v1`,           // exactly what OWUI's OPENAI_API_BASE_URL wants
         requiresKey: !!config.proxy.masterKey,
         models,
-        healthy: health.proxyUp !== false && (health.hostsUp == null || health.hostsUp > 0),
+        // A dead ENGINE is an unhealthy farm: with llama.cpp serving, Ollama hosts
+        // being up is irrelevant — clients must fail over when llama-server dies,
+        // not keep sending chats into a proxy that routes to a corpse. engineUp is
+        // null/absent on Ollama-engine farms and old callers (treated as fine).
+        healthy: health.proxyUp !== false
+            && (health.hostsUp == null || health.hostsUp > 0)
+            && health.engineUp !== false,
         version: PKG_VERSION,
         // Coordinator mode: this farm aggregates peers into one balanced proxy, so
         // clients should prefer it over the individual box-farms (see the shell's

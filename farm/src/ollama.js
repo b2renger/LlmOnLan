@@ -303,6 +303,15 @@ function downloadDraft(url, onProgress = () => {}, timeoutMs = 30 * 60 * 1000) {
             });
             res.pipe(out);
             out.on('finish', () => out.close(() => {
+                // 'finish' also fires on a cleanly-truncated response (server hung
+                // up mid-body) — without this check a half .gguf got renamed into
+                // the cache and poisoned it until someone deleted it by hand:
+                // llama-server fails to load it, the farm falls back to Ollama, and
+                // every retry "finds" the cached file.
+                if (total && seen !== total) {
+                    try { fs.unlinkSync(tmp); } catch { /* best-effort */ }
+                    return reject(new Error(`download truncated: got ${seen} of ${total} bytes`));
+                }
                 fs.renameSync(tmp, dest);          // atomic: a killed download never looks complete
                 resolve({ path: dest, cached: false });
             }));

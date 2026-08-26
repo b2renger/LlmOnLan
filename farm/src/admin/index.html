@@ -222,8 +222,8 @@ function render(s) {
     // the proxy for a few seconds.
     + `<div class="row"><span></span><span><div class="mname">Farm password</div>
     <div class="meta">${s.requiresKey
-        ? '<b>Set.</b> Everyone must enter it once in their app. Apply an empty field to remove it.'
-        : 'Not set — anyone on the network can use this farm. Type one to require it.'}</div></span>
+        ? '<b>Set.</b> Protects chat (everything on /v1). Web search, document reading and discovery stay open on the LAN. Apply an empty field to remove it.'
+        : 'Not set — anyone on the network can use this farm. Type one to require it (protects chat; web search / document reading / discovery stay open).'}</div></span>
     <span class="badges"><input id="sec-in" type="password" placeholder="${s.requiresKey ? '••••••••' : 'choose a password'}" maxlength="128" spellcheck="false" autocomplete="new-password" />
     <button id="sec-apply"${jobRunning ? ' disabled' : ''}>Apply</button></span></div>`
 
@@ -257,6 +257,12 @@ function render(s) {
     perfWarns.push('GPU memory is nearly full while idle — the context window is probably larger than this card holds. Lower it above.');
   if (be.engine === 'llama.cpp' && perf && perf.lastGenTokSec != null && perf.lastGenTokSec < 15)
     perfWarns.push(`Generating at ${perf.lastGenTokSec} tok/s — far below what this hardware should do. GPU memory is likely overcommitted (context too large, another model loaded, or another app on the GPU).`);
+  // Decision (audit 2026-08-26): auto-context deliberately fills the card, and the
+  // OCR vision model (~7.6 GB) cannot ALSO fit on a 12/16 GB GPU — reserving room
+  // for it would collapse chat context to nothing, which is the wrong trade. So the
+  // contention is surfaced instead of hidden, and the pressure-evict cleans up.
+  if (be.engine === 'llama.cpp' && s.ocrModel && s.fit && s.fit.vramGb && s.fit.needGb + 6 > s.fit.vramGb)
+    perfWarns.push(`Document reading shares this GPU and its vision model cannot fit next to the chat model — extractions will run slowly and be unloaded afterwards. For heavy document use: a bigger card, or OCR off on this box.`);
   if (be.engine === 'llama.cpp' && loadedOll.length)
     perfWarns.push(`Also in GPU memory: ${loadedOll.join(', ')} (document reading — freed automatically when the GPU is idle and full).`);
   const perfBits = [

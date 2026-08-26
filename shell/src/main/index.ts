@@ -166,6 +166,29 @@ function farmUsable(f: DiscoveredFarm): boolean {
     return !(f as { requiresKey?: boolean }).requiresKey || !!farmKey(f as { id: string; requiresKey?: boolean });
 }
 
+// Async check that a stored farm password still works; wrong → forget it, so
+// selection skips the farm and its card re-prompts. Rate-limited per farm so
+// the beacon cadence cannot turn this into a request storm.
+const keyCheckAt = new Map<string, number>();
+function verifyStoredFarmKey(f: DiscoveredFarm, key: string): void {
+    const last = keyCheckAt.get(f.id) || 0;
+    if (Date.now() - last < 60000) return;
+    keyCheckAt.set(f.id, Date.now());
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 5000);
+    fetch(`${farmEndpoint(f)}/models`, { headers: { authorization: `Bearer ${key}` }, signal: ctrl.signal })
+        .then((res) => {
+            if (res.ok) return;
+            const s = loadSettings();
+            const next = { ...(s.farmKeys || {}) };
+            delete next[f.id];
+            updateSettings({ farmKeys: next, lastFarmKey: s.lastFarmKey === key ? null : s.lastFarmKey });
+            if (discovery) onFarms({ farms: discovery.getFarms() });
+        })
+        .catch(() => { /* unreachable ≠ wrong password — keep the key */ })
+        .finally(() => clearTimeout(t));
+}
+
 function farmLoad(f: DiscoveredFarm): number {
     // Slot occupancy beats GPU%: clients/slots is "how many people are ahead of
     // you", where a busy GPU is just a healthy box mid-answer. Old farms without
@@ -258,9 +281,14 @@ function onFarms(payload: { farms: DiscoveredFarm[] } & Record<string, unknown>)
         // cold launch so the first sidecar boot is already correctly configured and
         // the first beacon doesn't force a restart (see ShellSettings.lastFarmModel).
         const key = farmKey(chosen as { id: string; requiresKey?: boolean });
+        // A stored password can go STALE (the operator rotated it). Left alone,
+        // the farm still counts as usable, OWUI 401-loops, and the card shows an
+        // unlocked farm with no way to re-enter — so verify on connect, and on
+        // failure drop the key: the farm falls out of auto-connect and its card
+        // grows the password prompt again. Fire-and-forget; never blocks connect.
+        if (key) verifyStoredFarmKey(chosen as DiscoveredFarm, key);
         updateSettings({ lastEndpoint: endpoint, lastFarmKey: key, lastFarmModel: model, lastFarmSearxng: searxng, lastFarmTts: tts, lastFarmExtract: extract });
-        // Keyless LAN proxy for now; a keyed farm (requiresKey) needs a key-entry
-        // UX we haven't built, so we don't send a (wrong) placeholder key. The farm's
+        // A keyed farm connects with its stored password (farmKey); an open farm sends none. The
         // default model + SearXNG + TTS + OCR ride along so OWUI auto-selects the model
         // and gets web search + neural voice + document OCR, all with zero clicks.
         // No-OWUI build: record the endpoint only — repoint would (re)start the OWUI
@@ -380,8 +408,13 @@ function registerIpc(): void {
 
     // Retry a failed/stopped sidecar (the connection screen's Retry button).
     ipcMain.handle('restart-sidecar', async () => {
+        // Preserve the farm password across a manual Retry — start() without
+        // apiKey nulls it and a keyed farm then 401-loops (the change-check in
+        // onFarms compares globals that did not change, so nothing self-heals).
+        const activeF = discovery?.getFarms().find((f) => f.id === activeFarmId) ?? null;
+        const retryKey = activeF ? farmKey(activeF as { id: string; requiresKey?: boolean }) : loadSettings().lastFarmKey;
         await sidecar.stop({ keepState: true });
-        await sidecar.start({ endpoint: currentEndpoint, dataDir: resolveDataDir(), defaultModel: currentModel, searxngUrl: currentSearxng, tts: currentTts, extract: currentExtract });
+        await sidecar.start({ endpoint: currentEndpoint, dataDir: resolveDataDir(), apiKey: retryKey, defaultModel: currentModel, searxngUrl: currentSearxng, tts: currentTts, extract: currentExtract });
         return sidecar.getState();
     });
 
@@ -604,8 +637,7 @@ function registerIpc(): void {
             currentExtract = farmExtract(chosen);
             activeFarmId = chosen.id;
             updateSettings({ lastEndpoint: endpoint });
-            // Keyless LAN proxy for now; a keyed farm (requiresKey) needs a key-entry
-            // UX we haven't built, so we don't send a (wrong) placeholder key. Thread
+            // A keyed farm connects with its stored password (farmKey); an open farm sends none. Thread
             // the pinned farm's model + SearXNG + TTS + OCR so pinning doesn't drop
             // DEFAULT_MODELS / web search / voice / OCR (and leave the globals stale so
             // onFarms never restores them).

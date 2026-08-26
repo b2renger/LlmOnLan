@@ -100,10 +100,10 @@ function extract(archivePath, destDir) {
     if (IS_WIN) {
         execFileSync('powershell', [
             '-NoProfile', '-NonInteractive', '-Command',
-            `Expand-Archive -LiteralPath '${zipPath}' -DestinationPath '${destDir}' -Force`,
+            `Expand-Archive -LiteralPath '${archivePath}' -DestinationPath '${destDir}' -Force`,
         ], { stdio: 'ignore', windowsHide: true });
     } else {
-        execFileSync('unzip', ['-oq', zipPath, '-d', destDir], { stdio: 'ignore' });
+        execFileSync('unzip', ['-oq', archivePath, '-d', destDir], { stdio: 'ignore' });
     }
 }
 
@@ -217,9 +217,14 @@ async function llamacppAlive(port, timeoutMs = 4000) {
 }
 
 // Loading a 9 GB model onto a GPU takes a while; poll rather than guess.
-async function waitForLlamacpp(port, timeoutMs = 300000) {
+// `isDead` (optional) short-circuits the wait: a llama-server that EXITED in its
+// first second (mtp on a stripped quant, bad argv) used to still burn the full
+// 5-minute timeout before the caller could roll back — in the Farm app that read
+// as a hang.
+async function waitForLlamacpp(port, timeoutMs = 300000, isDead = () => false) {
     const deadline = Date.now() + timeoutMs;
     while (Date.now() < deadline) {
+        if (isDead()) return false;
         if (await llamacppAlive(port, 3000)) return true;
         await new Promise((r) => setTimeout(r, 2000));
     }
@@ -241,6 +246,7 @@ function baseUrl(config) {
 }
 
 module.exports = {
+    extract,   // exported for the extraction smoke test — the zipPath regression shipped because nothing exercised this
     PINNED_BUILD, ROOT, BIN_DIR,
     ensureLlamacpp, ensureModel, spawnLlamacpp, waitForLlamacpp, llamacppAlive, fetchMetrics, supported,
     argsFor, baseUrl, installed, installedBuild, serverBin,

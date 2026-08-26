@@ -20,7 +20,7 @@ name: build-llamacpp-arm64
 on:
   workflow_dispatch:
   push:
-    paths: ['.github/workflows/build-llamacpp-arm64.yml']
+    paths: ['.github/workflows/build-llamacpp-arm64.yml', 'farm/src/llamacpp.js']   # a PINNED_BUILD bump must rebuild the Spark binary
     branches: [main]
 
 env:

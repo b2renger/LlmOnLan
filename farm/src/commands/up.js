@@ -99,6 +99,7 @@ async function ensureOllama(config) {
     const hosts = config.ollama.hosts.map(ollama.normalizeHost);
     const reachable = [];
     const spawnedPids = [];
+    const spawnedHosts = new Set();   // exactly which local hosts THIS run started
 
     for (const host of hosts) {
         let v = await ollama.version(host);
@@ -107,6 +108,7 @@ async function ensureOllama(config) {
             const pid = spawnLocalOllama(config, host);
             if (pid) {
                 spawnedPids.push(pid);
+                spawnedHosts.add(host);
                 // Wait up to ~15s for it to answer.
                 for (let i = 0; i < 20 && !v; i++) {
                     await new Promise((r) => setTimeout(r, 750));
@@ -125,7 +127,9 @@ async function ensureOllama(config) {
 
     // Concurrency env only takes effect when Ollama STARTS. If a host was already
     // up, we can't change it — surface the recommended values instead of lying.
-    const alreadyUp = reachable.filter((h) => !spawnedPids.length || !isLocalHost(h));
+    // Per-host: spawning ONE local Ollama must not mute the advice for the OTHER
+    // hosts that were already running with whatever env they were started with.
+    const alreadyUp = reachable.filter((h) => !spawnedHosts.has(h));
     if (alreadyUp.length) {
         log.info(
             `Note: set on each Ollama service to apply concurrency/keep-warm/context — ` +
@@ -227,8 +231,16 @@ async function discoverPeers(config) {
         new Promise((r) => setTimeout(r, windowMs)),
         listener.sweep().catch(() => {}),      // for broadcast-blocked LANs
     ]);
+    const skippedKeyed = listener.getPeers().filter((p) => p.snap.requiresKey);
+    if (skippedKeyed.length) {
+        // The router would send every request with a placeholder key and the peer
+        // would reject each one — a permanently failing deployment that just adds
+        // retry latency. Until a fleet key exists, a passworded farm stays its own
+        // island and the coordinator says so instead of shipping a broken pool.
+        log.warn(`Coordinator: skipping password-protected peer(s): ${skippedKeyed.map((p) => p.snap.name || p.host).join(', ')}.`);
+    }
     const peers = listener.getPeers()
-        .filter((p) => p.snap.healthy !== false && !p.snap.coordinator) // skip other coordinators
+        .filter((p) => p.snap.healthy !== false && !p.snap.coordinator && !p.snap.requiresKey)
         .map((p) => ({
             openaiBaseUrl: p.snap.openaiBaseUrl,
             models: p.snap.models,
@@ -324,6 +336,12 @@ async function run(args) {
     await pullMissing(config, oll.reachable);
 
     let llamacppChild = null;
+    // Crash supervision is LATE-BOUND: the exit handler can fire during boot
+    // (llama-server dies in its first second — the mtp-on-stripped-quant case),
+    // before serialize/liveHealth exist. Until fn is assigned (end of the control
+    // block), an unexpected exit is handled by the boot path itself: waitForLlamacpp
+    // sees exited=true and fails fast into the normal rollback/fallback.
+    const engineDownBox = { fn: null, markUp: null };
     // The .gguf actually loaded (set by startLlamacpp) — fs.statSync on it is the
     // honest weights size the VRAM budget wants.
     let lastModelPath = null;
@@ -445,9 +463,21 @@ async function run(args) {
         child.stdout.on('data', log.childPrefix('llama.cpp'));
         child.stderr.on('data', log.childPrefix('llama.cpp'));
         llamacppChild = child;
+        // Crash supervision. The identity guard makes intentional stops silent:
+        // stopLlamacpp nulls llamacppChild BEFORE killing, so by the time exit
+        // fires the child is no longer "current". Anything else is a mid-run death
+        // (OOM, driver reset) that used to leave LiteLLM routing every chat into a
+        // dead :8081 while the beacon kept saying healthy.
+        let exited = false;
+        child.once('exit', (code) => {
+            exited = true;
+            if (llamacppChild !== child) return;   // superseded or stopped on purpose
+            llamacppChild = null;
+            if (engineDownBox.fn) engineDownBox.fn(code);
+        });
         onProgress('loading onto the GPU', null);
         log.step(`llama.cpp serving ${log.paint.bold(config.llamacpp.alias)} on :${config.llamacpp.port} — loading …`);
-        if (!(await llamacpp.waitForLlamacpp(config.llamacpp.port))) {
+        if (!(await llamacpp.waitForLlamacpp(config.llamacpp.port, 300000, () => exited))) {
             await stopLlamacpp();
             return {
                 ok: false,
@@ -457,7 +487,48 @@ async function run(args) {
             };
         }
         log.ok(`llama.cpp backend healthy on :${config.llamacpp.port} ${log.paint.grey(`(${config.llamacpp.kvCacheType} KV, MTP ${config.llamacpp.mtp ? 'on' : 'off'})`)}`);
+        // liveHealth does not exist yet during BOOT (TDZ — this exact line crashed
+        // the farm live); the box thunk is armed once it does. The liveHealth
+        // literal itself seeds engineUp for the boot case.
+        if (engineDownBox.markUp) engineDownBox.markUp();
         return { ok: true, modelPath: mdl.modelPath, cached: mdl.cached };
+    }
+
+    // A mid-run llama-server death: try ONE restart (transient driver hiccup);
+    // if that fails or it dies again within 5 minutes, fall back to the Ollama
+    // engine so the farm keeps serving — and in BOTH windows tell the fleet
+    // immediately: engineUp flips snapshot.healthy so clients fail over instead
+    // of erroring into a dead port. Deliberately not a job (no operator asked).
+    let lastEngineRestart = 0;
+    function onEngineDown(code) {
+        if (stopping) return;
+        log.err(`llama-server exited unexpectedly (code ${code}).`);
+        liveHealth.engineUp = false;
+        if (beacon) beacon.kick();
+        const recent = Date.now() - lastEngineRestart < 5 * 60 * 1000;
+        lastEngineRestart = Date.now();
+        serialize(async () => {
+            if (stopping || llamacppChild) return;     // already handled/replaced
+            if (!recent) {
+                log.step('Restarting llama-server …');
+                const r = await startLlamacpp(() => {});
+                if (r.ok) {
+                    liveHealth.engineUp = true;
+                    if (beacon) beacon.kick();
+                    log.ok('llama-server recovered.');
+                    return;
+                }
+                llamacppBootError = r.message;
+            } else {
+                llamacppBootError = 'llama-server crashed twice in 5 minutes.';
+            }
+            log.warn(`${llamacppBootError} Falling back to the OLLAMA engine.`);
+            config.llamacpp.enabled = false;
+            await stopLlamacpp();
+            liveHealth.engineUp = null;                // no engine to be down now
+            await restartProxy();
+            if (beacon) beacon.kick();
+        });
     }
 
     // Stop llama-server and WAIT for its port to actually free. The wait is the point:
@@ -583,6 +654,9 @@ async function run(args) {
         host: hw,                        // static GPU/VRAM/RAM/cores (detected at boot)
         gpu: await gpuLiveStats(),       // live GPU util + VRAM (refreshed below)
         perf: null,                      // measured throughput (health timer, llama.cpp engine)
+        // Boot outcome: llamacppChild exists iff the engine came up (fallback
+        // cleared it). null = not the engine (Ollama mode / old farms).
+        engineUp: config.llamacpp.enabled ? !!llamacppChild : null,
     };
     if (liveHealth.host) log.ok(`Hardware: ${log.paint.bold(liveHealth.host.gpu)} · ${liveHealth.host.vramGb}GB VRAM · ${liveHealth.host.ramGb}GB RAM · ${liveHealth.host.cpuCores} cores`);
     // The in-flight admin job rides the snapshot as `busy` so clients can explain a
@@ -1261,8 +1335,13 @@ async function run(args) {
             j.percent = (typeof percent === 'number' && Number.isFinite(percent))
                 ? Math.max(0, Math.min(100, Math.round(percent))) : null;
         };
+        // The job body runs INSIDE the same serialize chain as the quick ops
+        // (start/stop/plugin/default): two admin tabs used to be able to run
+        // startModel's restartProxy concurrently with a backend switch's — the
+        // interleaved kill/spawn could tear the whole farm down (the exact hazard
+        // the serialize comment documents, which these routes then bypassed).
         Promise.resolve()
-            .then(() => fn(progress))
+            .then(() => serialize(() => fn(progress)))
             .then((res) => {
                 j.ok = !(res && res.ok === false);
                 j.error = (res && res.error) || null;
@@ -1310,12 +1389,28 @@ async function run(args) {
         if (!!config.llamacpp.enabled === on) return { ok: true, already: true, engine: want };
         if (busy()) return busyErr();
         return runJob('backend', on ? 'Switching to llama.cpp' : 'Switching to Ollama', async (progress) => {
+            // carryNameAcross MOVES the advertised name between llamacpp.alias and
+            // the global modelAlias (memory + disk). A failed switch must put BOTH
+            // back — restoring only `enabled` used to leave modelAlias nulled on
+            // disk, so the recovered Ollama routing served raw ids and every chat
+            // bound to the alias broke, surviving reboots.
+            const before = {
+                lcAlias: config.llamacpp.alias,
+                globalAlias: config.modelAlias || null,
+            };
+            const restoreNames = () => {
+                config.llamacpp.alias = before.lcAlias;
+                config.modelAlias = before.globalAlias;
+                persistLlamacpp({ alias: before.lcAlias });
+                patchConfigFile(configPath, (raw) => { raw.modelAlias = before.globalAlias; return raw; });
+            };
             const warn = persistLlamacpp({ enabled: on });
             carryNameAcross(on);
             if (on) {
                 const r = await startLlamacpp(progress);
                 if (!r.ok) {
                     persistLlamacpp({ enabled: false });     // roll the intent back with the state
+                    restoreNames();
                     await restartProxy();
                     return { ok: false, error: r.message };
                 }
@@ -1324,7 +1419,19 @@ async function run(args) {
                 await stopLlamacpp();
             }
             progress('reloading routing', null);
-            if (!(await restartProxy())) return { ok: false, error: 'The proxy did not come back.' };
+            if (!(await restartProxy())) {
+                // A farm with no proxy serves NOBODY — undo the whole switch and
+                // bring the previous engine's routing back rather than returning
+                // an error over a dead endpoint.
+                progress('proxy failed — undoing the switch', null);
+                persistLlamacpp({ enabled: !on });
+                restoreNames();
+                if (!on) { await startLlamacpp(() => {}).catch(() => null); }
+                else { await stopLlamacpp(); }
+                await restartProxy();
+                if (beacon) beacon.kick();
+                return { ok: false, error: 'The proxy did not come back — the switch was undone.' };
+            }
             if (beacon) beacon.kick();
             return { ok: true, message: `${on ? 'llama.cpp' : 'Ollama'} is now serving.${warn || ''}` };
         });
@@ -1474,7 +1581,10 @@ async function run(args) {
         }
         if (want === config.llamacpp.parallel) return { ok: true, already: true, slots: want };
         const before = config.llamacpp.parallel;
-        const perSlot = Math.floor(config.llamacpp.contextLength / want);
+        // contextLength may be 'auto' — the resolved number is what users get.
+        const ctxNum = config.llamacpp.contextResolved
+            ?? (typeof config.llamacpp.contextLength === 'number' ? config.llamacpp.contextLength : 16384);
+        const perSlot = Math.floor(ctxNum / want);
         return runJob('slots', `Serving ${want} at a time`, async (progress) => {
             const warn = persistLlamacpp({ parallel: want });
             const r = await reloadLlamacpp(progress);
@@ -1504,6 +1614,9 @@ async function run(args) {
             return runJob('name', `Renaming the model to "${clean}"`, async () => {
                 if (!(await restartProxy())) {
                     config.modelAlias = before;
+                    // Revert the FILE too — memory and disk disagreeing until the next
+                    // reboot is how names silently change overnight.
+                    patchConfigFile(configPath, (raw) => { raw.modelAlias = before; return raw; });
                     await restartProxy();
                     return { ok: false, error: 'The proxy did not come back — kept the previous name.' };
                 }
@@ -1629,12 +1742,16 @@ async function run(args) {
     const serialize = (fn) => { const p = mutating.then(fn, fn); mutating = p.catch(() => {}); return p; };
     Object.assign(control, {
         getAdminState,                                     // read-only — no lock needed
-        startModel: (id) => serialize(() => startModel(id)),
-        stopModel: (id) => serialize(() => stopModel(id)),
-        setDefaultModel: (id) => serialize(() => setDefaultModel(id)),
-        setContextLength: (n) => serialize(() => setContextLength(n)),
-        setPlugin: (id, on) => serialize(() => setPlugin(id, on)),
+        // Quick ops: refuse while a JOB runs (its model reload owns the farm),
+        // then take the same serialize chain the job bodies run in. One lock,
+        // one rule, no interleaved proxy restarts.
+        startModel: (id) => busy() ? busyErr() : serialize(() => startModel(id)),
+        stopModel: (id) => busy() ? busyErr() : serialize(() => stopModel(id)),
+        setDefaultModel: (id) => busy() ? busyErr() : serialize(() => setDefaultModel(id)),
+        setContextLength: (n) => setContextLength(n),   // guards busy() itself (auto + numeric paths)
+        setPlugin: (id, on) => busy() ? busyErr() : serialize(() => setPlugin(id, on)),
         recommendClientPlugin,                             // trivial array mutation + kick
+        // (engine supervision arms here — see engineDownBox)
         // Structural changes: these persist to lol.config.json and (except the two
         // library edits) run as a JOB, because they reload a model. They guard on
         // `busy` themselves, so they are registered unserialized — queueing a model
@@ -1649,6 +1766,8 @@ async function run(args) {
         pullOllamaModel,
         removeOllamaModel,
     });
+    engineDownBox.fn = onEngineDown;   // serialize + liveHealth exist now — arm supervision
+    engineDownBox.markUp = () => { liveHealth.engineUp = true; if (beacon) beacon.kick(); };
 
     // Keep the event loop alive.
     return new Promise(() => {});

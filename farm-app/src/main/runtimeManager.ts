@@ -67,7 +67,26 @@ function httpGet(url: string, redirects = 0): Promise<{ status: number; body: st
     });
 }
 
+// Runtime pins — fleet installs must be REPRODUCIBLE. 'Latest' meant an upstream
+// release day could break every new farm install at once (and did make installs
+// unpredictable across the fleet). Bumping = edit here, test one box, roll out.
+// If a pinned release disappears (repos do prune), we fall back to latest with a
+// loud log rather than dead-ending the installer.
+const RUNTIME_PINS: Record<string, string> = {
+    'ollama/ollama': 'v0.33.0',
+    'astral-sh/python-build-standalone': '20260825',
+};
+
 async function ghLatestAssets(repo: string): Promise<{ tag: string; assets: { name: string; url: string }[] }> {
+    const pin = RUNTIME_PINS[repo];
+    if (pin) {
+        const r = await httpGet(`https://api.github.com/repos/${repo}/releases/tags/${pin}`);
+        if (r.status === 200) {
+            const rel = JSON.parse(r.body);
+            return { tag: rel.tag_name || pin, assets: (rel.assets || []).map((a: any) => ({ name: a.name, url: a.browser_download_url })) };
+        }
+        console.warn(`[runtime] pinned ${repo}@${pin} not found (HTTP ${r.status}) — falling back to latest`);
+    }
     const { status, body } = await httpGet(`https://api.github.com/repos/${repo}/releases/latest`);
     if (status !== 200) throw new Error(`GitHub API ${status} for ${repo} latest release`);
     const rel = JSON.parse(body);

@@ -608,6 +608,12 @@ function renderSidecar() {
 
 // ---- connection popover ----
 function renderPopover() {
+  // Never rebuild the list under someone TYPING A PASSWORD: farms events land
+  // per received beacon (a 13-box fleet ≈ several per second), and innerHTML
+  // rebuilds wipe focus and the typed characters — password entry was
+  // impossible exactly where it matters. The next event after blur repaints.
+  const ae = document.activeElement;
+  if (ae && ae.classList && ae.classList.contains('farm-key-in')) return;
   // scanning / count line
   const n = farmState.farms.length;
   els.popScan.textContent = farmState.scanning ? 'scanning…' : (n ? `${n} found` : '');

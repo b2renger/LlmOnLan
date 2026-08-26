@@ -80,10 +80,10 @@ function buildLitellmConfig(config, peers = []) {
                 api_base: `http://${host}:${lc.port}/v1`,
                 api_key: 'sk-lol-llamacpp',   // llama-server is keyless; LiteLLM wants a value
             },
-            // Qwen3.8 is multimodal and the tag carries no marker, so flag it or
-            // drop_params strips the images.
-            model_info: { supports_vision: true },
         };
+        // Vision only when the model actually HAS a projector — a text-only .gguf
+        // flagged as vision makes OWUI offer image upload that then fails.
+        if (lc.mmproj) entry.model_info = { supports_vision: true };
         model_list.push(entry);
         // Coordinator peers STILL aggregate in llama.cpp mode — exclusivity is about
         // this box's two local engines, not the fleet. The fleet shares one alias, so
@@ -127,6 +127,12 @@ function buildLitellmConfig(config, peers = []) {
                     // Without it, Ollama's 4096 default silently truncates long
                     // prompts (whole-document chat = "the model ignored half my PDF").
                     num_ctx: config.ollama.contextLength,
+                    // Keep-warm rides EVERY request (Ollama honors per-request
+                    // keep_alive over its server default). Without this, any user
+                    // request reset the model's expiry to the server default — after
+                    // a llama.cpp→Ollama fallback that default is 5m, and every user
+                    // after a pause ate a 30-60 s model reload.
+                    keep_alive: config.ollama.keepAlive,
                 },
             };
             // Tell LiteLLM this deployment accepts images so drop_params doesn't

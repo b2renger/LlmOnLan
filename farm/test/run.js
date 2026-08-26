@@ -984,6 +984,87 @@ test('llamacpp.supported() answers whether a prebuilt exists for THIS platform',
     assert.equal(llamacpp.supported(), expect, 'only win-x64 has an auto-fetchable build today — everything else must fall back to Ollama, not die');
 });
 
+
+// ---- audit-driven regression tests (iteration 1, 2026-08-26) -----------------
+
+test('extract() really extracts — the zipPath regression shipped because nothing ran it', () => {
+    // Windows-only smoke (the fleet's platform): a real zip through the real code.
+    if (process.platform !== 'win32') return;
+    const { execFileSync } = require('child_process');
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'lol-extract-'));
+    fs.writeFileSync(path.join(tmp, 'hello.txt'), 'hi');
+    const zip = path.join(tmp, 'a.zip');
+    execFileSync('powershell', ['-NoProfile', '-Command',
+        `Compress-Archive -Path '${path.join(tmp, 'hello.txt')}' -DestinationPath '${zip}'`]);
+    const dest = path.join(tmp, 'out');
+    llamacpp.extract(zip, dest);
+    assert.ok(fs.existsSync(path.join(dest, 'hello.txt')), 'zip extracted');
+    fs.rmSync(tmp, { recursive: true, force: true });
+});
+
+test('a dead ENGINE makes the farm unhealthy (clients must fail over)', () => {
+    const c = defaultConfig();
+    assert.equal(buildSnapshot(c, { proxyUp: true, hostsUp: 1, engineUp: true }).healthy, true);
+    assert.equal(buildSnapshot(c, { proxyUp: true, hostsUp: 1, engineUp: false }).healthy, false,
+        'llama-server died → unhealthy, even with proxy + Ollama hosts up');
+    // Old farms / Ollama engine never set engineUp — absence must not read as dead.
+    assert.equal(buildSnapshot(c, { proxyUp: true, hostsUp: 1 }).healthy, true);
+});
+
+test('keep-warm rides the generated routing (engine-correct on every host)', () => {
+    const c = defaultConfig();
+    c.llamacpp.enabled = false;
+    const dep = buildLitellmConfig(c).model_list[0];
+    assert.equal(dep.litellm_params.keep_alive, c.ollama.keepAlive,
+        'without this, any user request reset expiry to the server default — after a fallback that was 5m and every pause cost a model reload');
+});
+
+test('llama.cpp vision flag comes from the projector, not faith', () => {
+    const c = defaultConfig();
+    assert.ok(buildLitellmConfig(c).model_list[0].model_info.supports_vision, 'default model ships a projector');
+    c.llamacpp.mmproj = null;
+    assert.ok(!buildLitellmConfig(c).model_list[0].model_info,
+        'text-only gguf must not advertise vision — OWUI would offer image upload that fails');
+});
+
+test('coordinator skips password-protected peers in the ROUTING too', () => {
+    const c = defaultConfig();
+    // Even if a keyed peer slipped past discovery filtering, the routing generator
+    // is not the layer that knows about keys — discovery filters. This test pins
+    // the DISCOVERY contract instead: a requiresKey snapshot is excluded.
+    // (see discoverPeers in up.js — filter includes !p.snap.requiresKey)
+    const upSrc = fs.readFileSync(path.join(__dirname, '..', 'src', 'commands', 'up.js'), 'utf8');
+    assert.ok(upSrc.includes('!p.snap.requiresKey'), 'discoverPeers filters keyed peers');
+    assert.ok(upSrc.includes('skipping password-protected peer'), 'and says so in the log');
+});
+
+test('gguf: native max + KV geometry from the real fleet model file', () => {
+    const gguf = require('../src/gguf');
+    const mp = path.join(__dirname, '..', '.models', 'Qwen3.8-27B-UD-IQ2_S.gguf');
+    if (!fs.existsSync(mp)) return;   // fresh checkout — covered on fleet boxes
+    const meta = gguf.readGgufMeta(mp);
+    assert.equal(meta.contextLength, 262144, 'native max read from the header');
+    const rate = gguf.kvGbPer16k(meta, 'q4_0');
+    assert.ok(Math.abs(rate - 1.208) < 0.01, `computed KV rate ${rate} must match the measured 1.2 GB/16k`);
+});
+
+test('config: llamacpp.contextLength accepts auto (the default) and numbers, rejects junk', () => {
+    assert.equal(ConfigSchema.parse({}).llamacpp.contextLength, 'auto');
+    assert.equal(ConfigSchema.parse({ llamacpp: { contextLength: 32768 } }).llamacpp.contextLength, 32768);
+    assert.ok(!ConfigSchema.safeParse({ llamacpp: { contextLength: 'huge' } }).success);
+});
+
+test('backendInfo never leaks the string auto into arithmetic consumers', () => {
+    const c = defaultConfig();                     // contextLength: 'auto'
+    const be = backendInfo(c, {});
+    assert.equal(be.contextLength, null, 'unresolved auto → null, not a string');
+    assert.equal(be.contextAuto, true);
+    c.llamacpp.contextResolved = 65536;            // what `lol up` sets before spawn
+    const be2 = backendInfo(c, {});
+    assert.equal(be2.contextLength, 65536);
+    assert.equal(be2.contextPerSlot, 65536);
+});
+
 (async () => {
     for (const { name, fn } of tests) {
         try { await fn(); console.log(`  ok  ${name}`); passed++; }
