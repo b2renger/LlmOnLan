@@ -49,6 +49,7 @@ let currentModel: string | null = null; // the active farm's default model (→ 
 let currentSearxng: string | null = null; // the active farm's SearXNG (→ OWUI web search)
 let currentTts: { url: string; voice: string; model: string } | null = null; // active farm's Kokoro (→ OWUI TTS)
 let currentExtract: { url: string; key: string } | null = null; // active farm's lol-extract (→ OWUI OCR loader)
+let currentCtxPerSlot: number | null = null; // active farm's per-slot context (→ whole-doc vs top-k RAG)
 let activeFarmId: string | null = null;
 let booted = false; // true once the initial sidecar start has been kicked off
 
@@ -95,6 +96,15 @@ function farmTts(f: DiscoveredFarm | null): { url: string; voice: string; model:
 function farmExtract(f: DiscoveredFarm | null): { url: string; key: string } | null {
     if (!f?.extract?.url || !f.extract.key) return null;
     return { url: f.extract.url, key: f.extract.key };
+}
+
+// The context window ONE chat gets on this farm (llama.cpp splits --ctx-size across
+// slots; Ollama's num_ctx is already per-request). Drives the whole-document vs
+// top-k RAG choice in configBridge. Null on farms older than farm-v0.0.22 — the
+// bridge then keeps the historic whole-document default.
+function farmCtxPerSlot(f: DiscoveredFarm | null): number | null {
+    const v = f?.backend?.contextPerSlot;
+    return typeof v === 'number' && v > 0 ? v : null;
 }
 
 // Stable per-install id for the farm presence heartbeat — generated once, persisted.
@@ -276,14 +286,17 @@ function onFarms(payload: { farms: DiscoveredFarm[] } & Record<string, unknown>)
     const searxng = farmSearxng(chosen);
     const tts = farmTts(chosen);
     const extract = farmExtract(chosen);
+    const ctxPerSlot = farmCtxPerSlot(chosen);
     if (endpoint !== currentEndpoint || model !== currentModel || searxng !== currentSearxng
         || JSON.stringify(tts) !== JSON.stringify(currentTts)
-        || JSON.stringify(extract) !== JSON.stringify(currentExtract)) {
+        || JSON.stringify(extract) !== JSON.stringify(currentExtract)
+        || ctxPerSlot !== currentCtxPerSlot) {
         currentEndpoint = endpoint;
         currentModel = model;
         currentSearxng = searxng;
         currentTts = tts;
         currentExtract = extract;
+        currentCtxPerSlot = ctxPerSlot;
         activeFarmId = chosen.id;
         // Persist the whole farm context, not just the endpoint — it seeds the next
         // cold launch so the first sidecar boot is already correctly configured and
@@ -295,13 +308,13 @@ function onFarms(payload: { farms: DiscoveredFarm[] } & Record<string, unknown>)
         // failure drop the key: the farm falls out of auto-connect and its card
         // grows the password prompt again. Fire-and-forget; never blocks connect.
         if (key) verifyStoredFarmKey(chosen as DiscoveredFarm, key);
-        updateSettings({ lastEndpoint: endpoint, lastFarmKey: key, lastFarmModel: model, lastFarmSearxng: searxng, lastFarmTts: tts, lastFarmExtract: extract });
+        updateSettings({ lastEndpoint: endpoint, lastFarmKey: key, lastFarmModel: model, lastFarmSearxng: searxng, lastFarmTts: tts, lastFarmExtract: extract, lastFarmCtxPerSlot: ctxPerSlot });
         // A keyed farm connects with its stored password (farmKey); an open farm sends none. The
         // default model + SearXNG + TTS + OCR ride along so OWUI auto-selects the model
         // and gets web search + neural voice + document OCR, all with zero clicks.
         // No-OWUI build: record the endpoint only — repoint would (re)start the OWUI
         // sidecar, which this build must never run even where one is installed.
-        if (OWUI_ENABLED) sidecar.repoint(endpoint, key, model, searxng, tts, extract);
+        if (OWUI_ENABLED) sidecar.repoint(endpoint, key, model, searxng, tts, extract, ctxPerSlot);
         else sidecar.pointTo(endpoint);
     }
 }
@@ -422,7 +435,7 @@ function registerIpc(): void {
         const activeF = discovery?.getFarms().find((f) => f.id === activeFarmId) ?? null;
         const retryKey = activeF ? farmKey(activeF as { id: string; requiresKey?: boolean }) : loadSettings().lastFarmKey;
         await sidecar.stop({ keepState: true });
-        await sidecar.start({ endpoint: currentEndpoint, dataDir: resolveDataDir(), apiKey: retryKey, defaultModel: currentModel, searxngUrl: currentSearxng, tts: currentTts, extract: currentExtract });
+        await sidecar.start({ endpoint: currentEndpoint, dataDir: resolveDataDir(), apiKey: retryKey, defaultModel: currentModel, searxngUrl: currentSearxng, tts: currentTts, extract: currentExtract, contextPerSlot: currentCtxPerSlot });
         return sidecar.getState();
     });
 
@@ -585,7 +598,7 @@ function registerIpc(): void {
             const f = discovery?.getFarms().find((x) => x.id === activeFarmId) ?? null;
             return f ? farmKey(f as { id: string; requiresKey?: boolean }) : loadSettings().lastFarmKey;
         })();
-        await sidecar.start({ endpoint: currentEndpoint, dataDir: result.ok ? newDir : oldDir, apiKey: moveKey, defaultModel: currentModel, searxngUrl: currentSearxng, tts: currentTts, extract: currentExtract });
+        await sidecar.start({ endpoint: currentEndpoint, dataDir: result.ok ? newDir : oldDir, apiKey: moveKey, defaultModel: currentModel, searxngUrl: currentSearxng, tts: currentTts, extract: currentExtract, contextPerSlot: currentCtxPerSlot });
         return result;
     });
 
@@ -616,13 +629,14 @@ function registerIpc(): void {
         currentSearxng = farmSearxng(activeNow);
         currentTts = farmTts(activeNow);
         currentExtract = farmExtract(activeNow);
+        currentCtxPerSlot = farmCtxPerSlot(activeNow);
         booted = true;
         sidecar.start({
             endpoint: initial, dataDir: resolveDataDir(),
             // Same key logic as the cold boot — a keyed farm must come back
             // authenticated after a data-folder move too.
             apiKey: activeNow ? farmKey(activeNow as { id: string; requiresKey?: boolean }) : loadSettings().lastFarmKey,
-            defaultModel: currentModel, searxngUrl: currentSearxng, tts: currentTts, extract: currentExtract,
+            defaultModel: currentModel, searxngUrl: currentSearxng, tts: currentTts, extract: currentExtract, contextPerSlot: currentCtxPerSlot,
         });
         return res;
     });
@@ -649,13 +663,14 @@ function registerIpc(): void {
             currentSearxng = farmSearxng(chosen);
             currentTts = farmTts(chosen);
             currentExtract = farmExtract(chosen);
+            currentCtxPerSlot = farmCtxPerSlot(chosen);
             activeFarmId = chosen.id;
             updateSettings({ lastEndpoint: endpoint });
             // A keyed farm connects with its stored password (farmKey); an open farm sends none. Thread
             // the pinned farm's model + SearXNG + TTS + OCR so pinning doesn't drop
             // DEFAULT_MODELS / web search / voice / OCR (and leave the globals stale so
             // onFarms never restores them).
-            sidecar.repoint(endpoint, farmKey(chosen as { id: string; requiresKey?: boolean }), currentModel, currentSearxng, currentTts, currentExtract);
+            sidecar.repoint(endpoint, farmKey(chosen as { id: string; requiresKey?: boolean }), currentModel, currentSearxng, currentTts, currentExtract, currentCtxPerSlot);
         }
         return chosen?.id ?? null;
     });
@@ -765,6 +780,7 @@ app.whenReady().then(async () => {
     currentSearxng = activeNow ? farmSearxng(activeNow) : settings.lastFarmSearxng;
     currentTts = activeNow ? farmTts(activeNow) : settings.lastFarmTts;
     currentExtract = activeNow ? farmExtract(activeNow) : settings.lastFarmExtract;
+    currentCtxPerSlot = activeNow ? farmCtxPerSlot(activeNow) : settings.lastFarmCtxPerSlot;
     booted = true;
     // LOL Chat talks straight to the farm's OpenAI endpoint, so there is no local
     // process to supervise — discovery alone is enough to be usable.
@@ -774,7 +790,7 @@ app.whenReady().then(async () => {
             // The cold-boot seed rides with lastEndpoint: a keyed farm boots
             // authenticated instead of 401-looping until the first beacon.
             apiKey: activeNow ? farmKey(activeNow as { id: string; requiresKey?: boolean }) : settings.lastFarmKey,
-            defaultModel: currentModel, searxngUrl: currentSearxng, tts: currentTts, extract: currentExtract,
+            defaultModel: currentModel, searxngUrl: currentSearxng, tts: currentTts, extract: currentExtract, contextPerSlot: currentCtxPerSlot,
         });
     } else {
         sidecar.pointTo(initial);

@@ -108,15 +108,58 @@ async function loadedModels(baseUrl, timeoutMs = 4000) {
     }
 }
 
+// The model's native maximum context, from /api/show's GGUF header echo
+// (`<arch>.context_length`). Returns { architecture, contextLength } with nulls
+// where the header doesn't carry the key; null if the host/model is unreachable.
+// Deliberately does NOT return KV geometry: sliding-window architectures (Gemma)
+// make the naive KV estimate several times too high — context auto-sizing PROBES
+// the real load instead (see resolveOllamaContext in up.js).
+async function showModel(baseUrl, id, timeoutMs = 15000) {
+    try {
+        const { status, json } = await request('POST', baseUrl, '/api/show', { body: { model: id }, timeoutMs });
+        if (status !== 200 || !json) return null;
+        const mi = json.model_info || {};
+        const arch = mi['general.architecture'] || (json.details && json.details.family) || null;
+        const ctx = arch != null ? mi[`${arch}.context_length`] : null;
+        return {
+            architecture: arch || null,
+            contextLength: typeof ctx === 'number' && ctx > 0 ? ctx : null,
+        };
+    } catch { return null; }
+}
+
+// Loaded models WITH memory placement: [{ name, size, sizeVram }]. size is the
+// total the model needs at its current num_ctx; sizeVram is the part that made it
+// into VRAM — sizeVram < size means Ollama spilled layers to system RAM (the
+// "works at a few tok/s" failure). Empty array when unreachable.
+async function psModels(baseUrl, timeoutMs = 4000) {
+    try {
+        const { status, json } = await request('GET', baseUrl, '/api/ps', { timeoutMs });
+        if (status !== 200 || !json || !Array.isArray(json.models)) return [];
+        return json.models
+            .filter((m) => m && m.name)
+            .map((m) => ({ name: m.name, size: m.size || 0, sizeVram: m.size_vram || 0 }));
+    } catch { return []; }
+}
+
 // Warm a model into VRAM (admin "start" — so the first real request isn't slow).
 // A zero-token generate with keep_alive loads + pins it. Best-effort: resolves
 // true/false, never throws. Ollama's own MAX_LOADED_MODELS governs eviction of others.
 // `numCtx` loads it with the SAME context window LiteLLM requests (num_ctx in the
 // routing) — warming without it would load a 4096-ctx instance that the first real
 // request immediately reloads at the bigger window, defeating the warm-up.
+// Ollama's REQUEST-level keep_alive is Go's api.Duration: a JSON NUMBER is seconds
+// (negative = forever) but a JSON STRING must carry a unit ("5m") — a bare "-1"
+// string fails with `time: missing unit in duration "-1"`. The ENV var
+// OLLAMA_KEEP_ALIVE does accept "-1" (its parser falls back to plain numbers),
+// which is why the config keeps the string spelling. Coerce at the request edge.
+function keepAliveValue(v) {
+    return /^-?\d+(\.\d+)?$/.test(String(v).trim()) ? Number(v) : v;
+}
+
 async function warmModel(baseUrl, id, keepAlive = '-1', numCtx = null, timeoutMs = 120000) {
     try {
-        const body = { model: id, prompt: '', stream: false, keep_alive: keepAlive };
+        const body = { model: id, prompt: '', stream: false, keep_alive: keepAliveValue(keepAlive) };
         if (numCtx) body.options = { num_ctx: numCtx };
         const { status } = await request('POST', baseUrl, '/api/generate', { body, timeoutMs });
         return status === 200;
@@ -352,6 +395,7 @@ function createModelWithDraft(name, from, draftFile, parameters = {}, timeoutMs 
 module.exports = {
     normalizeHost, version, listModels, listModelsDetailed, loadedModels, warmModel, evictModel,
     hasModel, pullModel, deleteModel, createModel, createModelWithDraft, downloadDraft, draftPathFor, draftDir, request,
+    keepAliveValue, showModel, psModels,
     // Same fetcher under names that read correctly at the other call sites: the
     // llama.cpp backend uses it for full model weights and release archives, not
     // just draft modules.

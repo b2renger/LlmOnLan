@@ -48,6 +48,10 @@ export interface FarmSnapshot {
     // at it, so every client gets scanned-doc + image OCR with zero setup. `url` is
     // the loader BASE (OWUI appends /process); `key` is the bearer OWUI must send.
     extract?: { url: string; key: string } | null;
+    // Serving engine + context geometry (absent on farms older than farm-v0.0.22).
+    // contextPerSlot is what ONE chat can actually hold — the client picks
+    // whole-document vs top-k RAG from it (configBridge FULL_CONTEXT_MIN_CTX).
+    backend?: { engine?: string; contextLength?: number | null; contextPerSlot?: number | null; slots?: number } | null;
     // Farm-side plugin state (web search / voice / OCR): { id: {label, runsOn, enabled, healthy} }.
     plugins?: Record<string, { label?: string; runsOn?: string; enabled?: boolean; healthy?: boolean }>;
     // Client-side plugins (e.g. "blender") the farm RECOMMENDS — the client auto-applies
@@ -106,6 +110,7 @@ export interface ShellSettings {
     lastFarmSearxng: string | null;
     lastFarmTts: { url: string; voice: string; model: string } | null;
     lastFarmExtract: { url: string; key: string } | null;
+    lastFarmCtxPerSlot: number | null;
     // Per-farm shared passwords (ComfyQ-style), keyed by farm id — entered once
     // in the farm list, verified against the endpoint before being stored.
     farmKeys: Record<string, string>;

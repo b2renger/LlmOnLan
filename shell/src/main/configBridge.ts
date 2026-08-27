@@ -42,10 +42,24 @@ export interface SidecarEnvInput {
     searxngUrl?: string | null;   // the farm's shared SearXNG → OWUI web search
     tts?: { url: string; voice: string; model: string } | null; // farm Kokoro → OWUI AUDIO_TTS_*
     extract?: { url: string; key: string } | null; // farm lol-extract → OWUI external document loader (OCR)
+    contextPerSlot?: number | null; // farm's per-slot context window (snapshot backend.contextPerSlot) → RAG mode
 }
+
+// Whole-document RAG needs the whole document to FIT. Below this per-slot context
+// the farm can't hold a typical attachment + the answer, so injecting full text
+// turns "attach a webpage" into a hard ContextWindowExceededError (llama.cpp) or a
+// silently beheaded prompt (Ollama keeps the tail, drops the system prompt).
+// 24k ≈ a 60-80 KB document with room to answer — matrix-verified on the 16k farm,
+// where a 41k-token attachment errored in full mode and answered in retrieval mode.
+export const FULL_CONTEXT_MIN_CTX = 24576;
 
 // Build the environment Open WebUI is launched with. This is the whole coupling.
 export function buildSidecarEnv(input: SidecarEnvInput): Record<string, string> {
+    // Adaptive retrieval mode: whole-document injection on farms with room for it,
+    // classic top-k retrieval on small-context farms (16k default fleets). An old
+    // farm that doesn't advertise backend.contextPerSlot keeps the historic
+    // whole-document behavior.
+    const fullContext = input.contextPerSlot == null || input.contextPerSlot >= FULL_CONTEXT_MIN_CTX;
     const env: Record<string, string> = {
         // --- data locality (invariant #3): everything lives under DATA_DIR ---
         DATA_DIR: input.dataDir,
@@ -83,10 +97,33 @@ export function buildSidecarEnv(input: SidecarEnvInput): Record<string, string> 
         // full-context mode (inject the entire extracted text, skip retrieval) is
         // the right default here. Trade-off: a LARGE attached knowledge collection
         // is injected whole too — revisit if workshops grow big knowledge bases.
-        // Needs a model context that fits a document: the farm raises Ollama's
-        // num_ctx via OLLAMA_CONTEXT_LENGTH (ollama.contextLength, default 16384),
-        // else Ollama's 4096 default silently truncates and re-creates the bug.
-        RAG_FULL_CONTEXT: 'true',
+        // Needs a model context that fits a document — which is exactly what the
+        // farm's advertised contextPerSlot tells us, hence the adaptive gate above.
+        RAG_FULL_CONTEXT: fullContext ? 'true' : 'false',
+        // Only read in retrieval mode (full-context ignores k). OWUI's default of 3
+        // chunks was the original "listed 4 of 9 products" bug; 8 chunks ≈ 2-3k
+        // tokens — comfortably inside even a 8k slot, and much better recall.
+        RAG_TOP_K: '8',
+
+        // --- attach webpage must work on a LAN-first product ---
+        // OWUI's web loader refuses URLs that resolve to private addresses (SSRF
+        // guard for hosted multi-user deployments — matrix-verified: attaching any
+        // intranet page fails with a generic "Error querying knowledge base"). This
+        // app IS the LAN: the farm, the wiki, the dashboards people want to attach
+        // all live on private IPs, the app is single-user, and OWUI only ever binds
+        // 127.0.0.1. Allow local fetches.
+        ENABLE_LOCAL_WEB_FETCH: 'true',
+
+        // --- attached files must not cost a hidden second completion ---
+        // With files attached, OWUI first asks the model to write retrieval queries
+        // (ENABLE_RETRIEVAL_QUERY_GENERATION, default ON) — a full extra LLM call
+        // on the farm's inference slot BEFORE the real answer (matrix-verified: 13
+        // farm completions for 7 chats). In full-context mode the generated queries
+        // are never used; in retrieval mode OWUI falls back to embedding the user's
+        // message itself, which is the standard RAG pattern anyway. Same class of
+        // fix as the follow-up/tags trio below. (ENABLE_SEARCH_QUERY_GENERATION is
+        // a separate flag and stays ON — web search genuinely needs it.)
+        ENABLE_RETRIEVAL_QUERY_GENERATION: 'false',
 
         // --- default model capabilities (vision, + web_search when the farm has it) ---
         // Over an OpenAI-style connection OWUI can't discover a model's capabilities

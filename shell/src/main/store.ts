@@ -19,6 +19,7 @@ const DEFAULTS: ShellSettings = {
     lastFarmSearxng: null,
     lastFarmTts: null,
     lastFarmExtract: null,
+    lastFarmCtxPerSlot: null,
     farmKeys: {},       // per-farm shared passwords (farm id → password)
     lastFarmKey: null,
     launchAtLogin: false,

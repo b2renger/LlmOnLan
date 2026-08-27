@@ -40,6 +40,16 @@ function modelSupportsVision(model) {
 // Aliases decouple the id an OWUI chat binds to from the Ollama tag behind it, so
 // swapping the underlying model (via the picker) never breaks a chat. Shared by
 // the LiteLLM generator AND the snapshot so routing and advertising can't drift.
+// Ollama's per-request keep_alive is Go's api.Duration: a JSON NUMBER is seconds
+// (negative = keep forever), a JSON STRING must carry a unit ("5m"). The config
+// keeps it a string because OLLAMA_KEEP_ALIVE (env) takes the same spelling — but
+// emitting a bare numeric string ("-1") into the routing made Ollama reject EVERY
+// completion with `time: missing unit in duration "-1"`. Coerce numeric spellings
+// to numbers; pass real durations ("5m", "2h") through.
+function keepAliveValue(v) {
+    return /^-?\d+(\.\d+)?$/.test(String(v).trim()) ? Number(v) : v;
+}
+
 function servedEntries(config) {
     const globalAlias = (config.modelAlias || '').trim();
     const hasDefault = config.models.some((m) => m.default);
@@ -126,13 +136,17 @@ function buildLitellmConfig(config, peers = []) {
                     // and what lets the admin panel change it live (proxy bounce).
                     // Without it, Ollama's 4096 default silently truncates long
                     // prompts (whole-document chat = "the model ignored half my PDF").
-                    num_ctx: config.ollama.contextLength,
+                    // 'auto' is resolved to contextResolved before this runs (up.js
+                    // resolveOllamaContext); the floor covers a config regenerated
+                    // before resolution (never ship the string into the routing).
+                    num_ctx: config.ollama.contextResolved
+                        ?? (typeof config.ollama.contextLength === 'number' ? config.ollama.contextLength : 16384),
                     // Keep-warm rides EVERY request (Ollama honors per-request
                     // keep_alive over its server default). Without this, any user
                     // request reset the model's expiry to the server default — after
                     // a llama.cpp→Ollama fallback that default is 5m, and every user
                     // after a pause ate a 30-60 s model reload.
-                    keep_alive: config.ollama.keepAlive,
+                    keep_alive: keepAliveValue(config.ollama.keepAlive),
                 },
             };
             // Tell LiteLLM this deployment accepts images so drop_params doesn't

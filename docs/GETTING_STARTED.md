@@ -120,7 +120,7 @@ The defaults already give you a working farm (model + web search). `lol install`
   "tts":       { "enabled": false, "port": 8880, "voice": "af_heart", "model": "kokoro" }, // set true to opt in
   "ocr":       { "enabled": true, "port": 8890 },   // ON by default → scanned docs/images readable on every client
   "ollama":    { "hosts": ["http://127.0.0.1:11434"], "numParallel": 2, "keepAlive": "-1",
-                 "contextLength": 16384 },          // window for the OLLAMA models (max 262144).
+                 "contextLength": "auto" },         // window for the OLLAMA models — probed per box (a number pins it).
                                                     //   Measured: 65536 spills on a 12 GB card —
                                                     //   raise it on a big-VRAM box
   "coordinator": false                   // for multi-box: aggregate LAN peers behind one endpoint
@@ -358,9 +358,17 @@ several models. The other side goes **standby** — greyed out in the panel, inv
 model name carries across, so existing chats keep working. About a minute either way. While it runs,
 every client shows "*switching…*" instead of an error.
 
-**Context window.** Leave it on **Automatic** (the default): each box serves the largest context
-its GPU holds for the current model — a 12 GB card lands around 36k, a 16 GB card near 78k, the
-Spark gets the model's full native window. Pick a number only to trade context for more slots.
+**Context window.** Leave it on **Automatic** (the default, on **both engines**): each box serves
+the largest context it holds for the current model — a 12 GB card lands around 36k, a 16 GB card
+near 78k, the Spark gets the model's full native window. On the Ollama engine the farm *measures*
+instead of computing (it loads the model once, checks nothing spilled to system RAM, and remembers
+the answer — e.g. gemma4:12b probes straight to its native 262k on a big card). Pick a number only
+to trade context for more slots.
+
+**Attachments follow the context.** Clients read the farm's per-chat window from the beacon: with
+**24k or more** they inject attached documents *whole* (best answers); under that they fall back to
+classic top-passages retrieval so a big attachment can never overflow the model and error out.
+More context on the farm = better document answers on every client, automatically.
 
 **Password-protect the farm.** *Backend* ▸ **Farm password** → Apply. Every client then asks for
 it once (with a 🔒 on the farm card) and remembers it. Empty + Apply removes it. Details:

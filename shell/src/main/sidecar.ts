@@ -26,6 +26,7 @@ export class SidecarSupervisor extends EventEmitter {
     private searxngUrl: string | null = null;   // farm's shared SearXNG → OWUI web search
     private tts: { url: string; voice: string; model: string } | null = null; // farm Kokoro → OWUI AUDIO_TTS_*
     private extract: { url: string; key: string } | null = null; // farm lol-extract → OWUI external document loader (OCR)
+    private contextPerSlot: number | null = null; // farm's per-slot context → whole-doc vs top-k RAG mode
     // Generation token: every start()/stop() bumps it, so an in-flight start()
     // that was superseded (by a repoint/stop/crash-restart) aborts at its awaits
     // instead of clobbering the newer child. The child 'exit' handler compares the
@@ -43,7 +44,7 @@ export class SidecarSupervisor extends EventEmitter {
     }
 
     // Start (or no-op if already running with the same endpoint+dataDir).
-    async start(opts: { endpoint: string | null; dataDir: string; apiKey?: string | null; defaultModel?: string | null; searxngUrl?: string | null; tts?: { url: string; voice: string; model: string } | null; extract?: { url: string; key: string } | null }): Promise<void> {
+    async start(opts: { endpoint: string | null; dataDir: string; apiKey?: string | null; defaultModel?: string | null; searxngUrl?: string | null; tts?: { url: string; voice: string; model: string } | null; extract?: { url: string; key: string } | null; contextPerSlot?: number | null }): Promise<void> {
         this.endpoint = opts.endpoint;
         this.dataDir = opts.dataDir;
         this.apiKey = opts.apiKey ?? null;
@@ -51,6 +52,7 @@ export class SidecarSupervisor extends EventEmitter {
         this.searxngUrl = opts.searxngUrl ?? null;
         this.tts = opts.tts ?? null;
         this.extract = opts.extract ?? null;
+        this.contextPerSlot = opts.contextPerSlot ?? null;
         const myGen = ++this.gen;
 
         const { command, args, source } = resolveSidecarCommand();
@@ -74,7 +76,7 @@ export class SidecarSupervisor extends EventEmitter {
 
         const env = {
             ...process.env,
-            ...buildSidecarEnv({ endpoint: this.endpoint, dataDir: this.dataDir, apiKey: this.apiKey, defaultModel: this.defaultModel, searxngUrl: this.searxngUrl, tts: this.tts, extract: this.extract }),
+            ...buildSidecarEnv({ endpoint: this.endpoint, dataDir: this.dataDir, apiKey: this.apiKey, defaultModel: this.defaultModel, searxngUrl: this.searxngUrl, tts: this.tts, extract: this.extract, contextPerSlot: this.contextPerSlot }),
             // OWUI logs Unicode (loguru/rich) → force UTF-8 so it doesn't crash a
             // Windows cp1252 console (same class of bug as LiteLLM's banner).
             PYTHONUTF8: '1',
@@ -129,14 +131,15 @@ export class SidecarSupervisor extends EventEmitter {
     // DEFAULT_MODELS / SEARXNG_QUERY_URL) takes effect — env is authoritative
     // (config-bridge). Model + searxng are in the change check so switching either
     // on the farm (same endpoint) still restarts to re-apply.
-    async repoint(endpoint: string | null, apiKey: string | null = null, defaultModel: string | null = null, searxngUrl: string | null = null, tts: { url: string; voice: string; model: string } | null = null, extract: { url: string; key: string } | null = null): Promise<void> {
+    async repoint(endpoint: string | null, apiKey: string | null = null, defaultModel: string | null = null, searxngUrl: string | null = null, tts: { url: string; voice: string; model: string } | null = null, extract: { url: string; key: string } | null = null, contextPerSlot: number | null = null): Promise<void> {
         if (endpoint === this.endpoint && apiKey === this.apiKey && defaultModel === this.defaultModel
             && searxngUrl === this.searxngUrl && JSON.stringify(tts) === JSON.stringify(this.tts)
-            && JSON.stringify(extract) === JSON.stringify(this.extract)) return;
-        console.log(`[sidecar] repoint ${this.endpoint} → ${endpoint} (model ${this.defaultModel} → ${defaultModel}, search ${this.searxngUrl} → ${searxngUrl}, tts ${this.tts?.url} → ${tts?.url}, ocr ${this.extract?.url} → ${extract?.url})`);
+            && JSON.stringify(extract) === JSON.stringify(this.extract)
+            && contextPerSlot === this.contextPerSlot) return;
+        console.log(`[sidecar] repoint ${this.endpoint} → ${endpoint} (model ${this.defaultModel} → ${defaultModel}, search ${this.searxngUrl} → ${searxngUrl}, tts ${this.tts?.url} → ${tts?.url}, ocr ${this.extract?.url} → ${extract?.url}, ctx/slot ${this.contextPerSlot} → ${contextPerSlot})`);
         this.setState({ status: 'restarting', endpoint });
         await this.stop({ keepState: true });
-        await this.start({ endpoint, dataDir: this.dataDir, apiKey, defaultModel, searxngUrl, tts, extract });
+        await this.start({ endpoint, dataDir: this.dataDir, apiKey, defaultModel, searxngUrl, tts, extract, contextPerSlot });
     }
 
     // Move to a new data folder (restart pointing at it).
@@ -144,7 +147,7 @@ export class SidecarSupervisor extends EventEmitter {
         if (dataDir === this.dataDir) return;
         this.setState({ status: 'restarting', dataDir });
         await this.stop({ keepState: true });
-        await this.start({ endpoint: this.endpoint, dataDir, apiKey: this.apiKey, defaultModel: this.defaultModel, searxngUrl: this.searxngUrl, tts: this.tts, extract: this.extract });
+        await this.start({ endpoint: this.endpoint, dataDir, apiKey: this.apiKey, defaultModel: this.defaultModel, searxngUrl: this.searxngUrl, tts: this.tts, extract: this.extract, contextPerSlot: this.contextPerSlot });
     }
 
     async stop(opts: { keepState?: boolean } = {}): Promise<void> {

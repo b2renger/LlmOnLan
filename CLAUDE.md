@@ -50,18 +50,25 @@ Snapshot:
   **persists to `lol.config.json`** (`farm/src/configFile.js`); long fetches run as a single job whose
   progress the panel polls; a **plugin registry** (`farm/src/plugins/registry.js`)
   orchestrating web search (SearXNG, ON), document OCR (`farm/src/pysvc` + `extract.js`, ON — hybrid
-  text/vision PDF extraction), and Kokoro TTS (off); `ollama.contextLength` (default **16384** — 65536
-  spilled on the fleet's 12 GB cards; max 262144) applied via `OLLAMA_CONTEXT_LENGTH` **and**
-  per-deployment `num_ctx` in the generated LiteLLM routing. The panel's context control routes to
-  **whichever engine is serving**, so on a default farm it sets `llamacpp.contextLength` (default 16384,
-  which llama.cpp **splits across `llamacpp.parallel` slots** — verified: `--ctx-size 16384 --parallel 2`
-  → `n_ctx_slot = 8192`); coordinator mode +
+  text/vision PDF extraction), and Kokoro TTS (off); `ollama.contextLength` (default **'auto'** — the
+  farm PROBES the largest num_ctx that stays fully in VRAM: loads the default model at a VRAM-tiered
+  candidate, checks `/api/ps` for spill, caches per (model, VRAM, parallel); floor 16384, the measured-
+  safe value; per-arch KV math is deliberately NOT used — Gemma's sliding-window layers make it wildly
+  over-estimate, and gemma4:12b really holds its native 262144 on a 96 GB card) applied via
+  per-deployment `num_ctx` in the generated LiteLLM routing (+ `OLLAMA_CONTEXT_LENGTH` seed). Per-request
+  `keep_alive` in that routing MUST be a number — the string `'-1'` is refused by Ollama
+  (`time: missing unit in duration`) and broke every Ollama-engine chat until `keepAliveValue()` coerced
+  it. The panel's context control routes to **whichever engine is serving** and offers Automatic on both
+  (llama.cpp splits `contextLength` across `llamacpp.parallel` slots — verified:
+  `--ctx-size 16384 --parallel 2` → `n_ctx_slot = 8192`; Ollama's window is per request); coordinator mode +
   `lol fleet`/`lol bench`/`lol install` (which pre-fetches the llama.cpp build + weights); a stable
   **model alias** + interactive picker in `lol up`.
 - **`shell/`** (Electron + TS, **v0.1.33**) — boots the **unmodified** OWUI sidecar (config-bridge =
   env-authoritative, `ENABLE_PERSISTENT_CONFIG=false`), discovers the farm and auto-connects with **no
   URL typed**, full Preferences (data folder + move/fresh migration, connection, startup/updates, about).
-  Whole-document RAG (`RAG_FULL_CONTEXT=true`); presence heartbeats to the farm (`POST /lol/client-ping`
+  **Adaptive RAG**: whole-document injection (`RAG_FULL_CONTEXT=true`) on farms advertising
+  `backend.contextPerSlot ≥ 24576`, classic top-k (`RAG_TOP_K=8`) below — so a 16k farm can't
+  context-overflow on an attachment; presence heartbeats to the farm (`POST /lol/client-ping`
   every 10 s: id/hostname/platform/version/idleSec); Blender/mcpo assistant tools are **opt-in** (off by
   default since v0.1.24; a farm recommendation can enable them for non-explicit users). Two surfaces:
   OWUI + **LOL Chat** (`renderer/chat.js`, farm-direct, localStorage-only) behind a topbar toggle;
@@ -152,8 +159,13 @@ If a task seems to require breaking one of these, **stop and flag it**.
 Connection: `OPENAI_API_BASE_URL` + `OPENAI_API_KEY` (the farm is OpenAI‑compatible via LiteLLM;
 `ENABLE_OLLAMA_API=false` so OWUI never talks to Ollama directly). The shipped env surface also carries:
 `DEFAULT_MODELS` (farm's advertised default) + `DEFAULT_MODEL_METADATA` (vision on; `web_search` when the
-farm hosts SearXNG), `RAG_FULL_CONTEXT=true` (whole‑document answers, not top‑k chunks),
-`ENABLE_WEB_SEARCH`/`WEB_SEARCH_ENGINE=searxng`/`SEARXNG_QUERY_URL`, `AUDIO_STT_ENGINE=''` +
+farm hosts SearXNG), `RAG_FULL_CONTEXT` (**adaptive**: 'true' — whole‑document answers — when the farm's
+`backend.contextPerSlot` ≥ 24576 or unknown, 'false' + `RAG_TOP_K=8` on small‑context farms, where full
+injection produced hard ContextWindowExceededErrors), `ENABLE_LOCAL_WEB_FETCH=true` (OWUI's SSRF guard
+otherwise refuses attaching any LAN/intranet page — matrix‑verified), `ENABLE_RETRIEVAL_QUERY_GENERATION=false`
+(with files attached OWUI otherwise runs a hidden extra LLM call whose output full‑context mode never uses;
+`ENABLE_SEARCH_QUERY_GENERATION` stays on), `ENABLE_WEB_SEARCH`/`WEB_SEARCH_ENGINE=searxng`/`SEARXNG_QUERY_URL`,
+`AUDIO_STT_ENGINE=''` +
 `WHISPER_MODEL=base` (local STT), `AUDIO_TTS_*` (farm Kokoro when advertised),
 `CONTENT_EXTRACTION_ENGINE=external` + `EXTERNAL_DOCUMENT_LOADER_URL/_API_KEY` (farm OCR),
 `ENABLE_VERSION_UPDATE_CHECK=false`, `DEFAULT_LOCALE`, `ENABLE_OPENAI_API` (true only with a farm — a
@@ -218,7 +230,7 @@ declarative config; the CLI orchestrates everything from it.
     "numParallel": 2,                    // OLLAMA_NUM_PARALLEL per host
     "maxLoadedModels": 1,
     "flashAttention": true,
-    "contextLength": 16384               // Ollama-side; llama.cpp has its own, above
+    "contextLength": "auto"              // Ollama-side (probed per box); llama.cpp has its own, above
   },
   "websearch": { "enabled": true },      // SearXNG, ON   |  "tts": { "enabled": false }  Kokoro, off
   "ocr": { "enabled": true },            // farm OCR, ON — loads a vision model on Ollama

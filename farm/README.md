@@ -329,6 +329,15 @@ min(native max, VRAM budget). A 4070 gets ~36k, a 4080 ~78k, the DGX Spark the f
 — each box its own maximum, which is what thinking models and whole-document RAG want. Pin a
 number in the panel only when you need to trade context for slots.
 
+**The Ollama engine sizes automatically too** (`ollama.contextLength: "auto"`, the default): GGUF
+math is unreliable for its zoo of architectures (Gemma's sliding-window layers make the naive KV
+estimate several times too high), so the farm **measures instead** — it loads the default model at a
+VRAM-tiered candidate, asks `/api/ps` whether any of it landed in system RAM, steps down if so, and
+**caches the verdict** per (model, VRAM, parallel) so the one-or-two model loads are paid once per
+box, not per boot. Verified: gemma4:12b on a 96 GB box probes straight to its native **262144**
+(fully in VRAM — that sliding window makes its KV tiny), while the floor is the measured-safe 16384.
+The probe doubles as the warm-up. `Automatic` in the panel's context selector works on both engines.
+
 You mostly do not have to do the arithmetic yourself even then: the panel **computes the budget from the real
 weights on disk and the detected VRAM** — context sizes that cannot fit are disabled in the selector
 ("won’t fit (12 GB GPU)"), an over-size request is refused with the largest size that does fit, and a
@@ -431,8 +440,8 @@ nothing. Shape:
   "ollama": { "hosts": ["http://127.0.0.1:11434"],   // add more boxes ONLY if they're really up
               "numParallel": 2, "maxLoadedModels": 1, "flashAttention": true,
               "keepAlive": "-1",               // keep models warm in VRAM (no reload after idle)
-              "contextLength": 16384 },        // num_ctx for OLLAMA models; up to 262144. Measured: 65536
-                                               //   spills on a 12 GB card — raise it on a big-VRAM box
+              "contextLength": "auto" },       // num_ctx for OLLAMA models. DEFAULT "auto": probed per
+                                               //   box (largest that stays in VRAM, floor 16384) — a number pins it
   "litellm": { "command": "litellm", "extraArgs": [], "provider": "ollama_chat" },
   "websearch": { "enabled": true, "port": 8888 },   // shared SearXNG → clients get web search
   "tts": { "enabled": false, "port": 8880,            // shared Kokoro voice (off by default — multi-GB install)

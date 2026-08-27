@@ -306,11 +306,20 @@ fleet with failover (Layer 1). Trade‑off: the coordinator box is a single poin
   the DGX Spark llama.cpp tarball built by our own CI (`llamacpp-b10516` release, verified downloadable),
   the ComfyQ-style farm password end to end, capacity-aware client selection, runtime version pins.
 
+**✅ Also shipped (2026‑08‑27) — the attach matrix (see DEVLOG):** every OWUI attach feature
+live-verified on BOTH engines (15/15 × 2). Found + fixed: the Ollama engine could not chat at all
+(`keep_alive: "-1"` string refused by Go's duration parser — shipped in 0.0.22, masked by the
+llama.cpp default); LAN webpages refused by OWUI's SSRF guard (`ENABLE_LOCAL_WEB_FETCH=true` now
+shipped); oversized attachments hard-erroring (client now adapts RAG mode to the farm's advertised
+`contextPerSlot`: whole-document ≥ 24576, top-k below); a hidden per-attachment LLM call
+(`ENABLE_RETRIEVAL_QUERY_GENERATION=false`, ~4 s TTFT back). **Ollama-engine auto context** landed
+(probe-once-with-cache — gemma4:12b resolves to native 262144 on 96 GB), closing that backlog item.
+
 **v1.1 backlog (from the acceptance audit):** fleet-shared password (coordinator through keyed peers);
 carry the advertised name on boot/crash fallback; repoint on key-change without endpoint change;
 `reapStaleFarm` must skip the live supervised child; reset crashRestarts + uncap late recovery;
 `renderFarmState` screen switching; pre-header download timeout; the `up.js` extraction refactor;
-Ollama-engine auto context; per-host slots on multi-host farms.
+per-host slots on multi-host farms.
 
 ## Cross‑cutting risks & mitigations
 

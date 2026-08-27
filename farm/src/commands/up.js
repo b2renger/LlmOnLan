@@ -22,6 +22,7 @@ const { detectHardware, gpuLiveStats } = require('../systemInfo');
 const perfMod = require('../perf');
 const ggufMod = require('../gguf');
 const fsMod = require('fs');
+const pathMod = require('path');
 const { DiscoveryBeacon } = require('../beacon');
 const { PeerListener } = require('../peerListener');
 const { selectModels } = require('../modelPicker');
@@ -74,7 +75,10 @@ function spawnLocalOllama(config, baseUrl) {
         // batch, gone before it starves chat.
         OLLAMA_KEEP_ALIVE: config.llamacpp.enabled ? '5m' : config.ollama.keepAlive,
         // Context window big enough for whole-document chat — see config.contextLength.
-        OLLAMA_CONTEXT_LENGTH: String(config.ollama.contextLength),
+        // 'auto' resolves AFTER Ollama is up (resolveOllamaContext probes the real
+        // load), so the env seed is the proven floor; the resolved value rides
+        // num_ctx on every routed request, which is what governs served context.
+        OLLAMA_CONTEXT_LENGTH: String(typeof config.ollama.contextLength === 'number' ? config.ollama.contextLength : 16384),
     };
     try {
         const u = new URL(baseUrl);
@@ -137,7 +141,7 @@ async function ensureOllama(config) {
             `OLLAMA_MAX_LOADED_MODELS=${config.ollama.maxLoadedModels} ` +
             `OLLAMA_FLASH_ATTENTION=${config.ollama.flashAttention ? 1 : 0} ` +
             `OLLAMA_KEEP_ALIVE=${config.ollama.keepAlive} ` +
-            `OLLAMA_CONTEXT_LENGTH=${config.ollama.contextLength}`
+            `OLLAMA_CONTEXT_LENGTH=${typeof config.ollama.contextLength === 'number' ? config.ollama.contextLength : 16384}`
         );
     }
     return { reachable, spawnedPids };
@@ -400,6 +404,80 @@ async function run(args) {
         } catch { return null; }
     }
 
+    // ---- Ollama-engine context auto-sizing --------------------------------
+    // The numeric context the Ollama engine serves RIGHT NOW (resolved 'auto', or
+    // the pinned number). Falls back to 16384 — the measured-safe default — until
+    // 'auto' has resolved, and during a crash-fallback, where probing would delay
+    // recovery (the next full boot probes properly).
+    function ollamaCtxNum() {
+        return config.ollama.contextResolved
+            ?? (typeof config.ollama.contextLength === 'number' ? config.ollama.contextLength : 16384);
+    }
+
+    function dropOllamaCtxCache() {
+        try { fsMod.unlinkSync(pathMod.join(ollama.modelsDir(), 'ollama-ctx.json')); } catch { /* absent */ }
+    }
+
+    // Resolve config.ollama.contextLength === 'auto' to the LARGEST num_ctx that
+    // keeps the default model fully in VRAM on this box. llama.cpp gets this from
+    // GGUF math (computeFit); here that math is unreliable — sliding-window
+    // architectures (Gemma) make the naive KV estimate several times too high — so
+    // the farm MEASURES instead: load the model at a VRAM-tiered candidate, read
+    // /api/ps, and step down when size_vram < size (layers landed in system RAM =
+    // the "few tok/s" AN-VR-01 failure). The verdict is cached per (model, VRAM,
+    // parallel) next to the weights, so the probe cost — one or two model loads —
+    // is paid once per box, not per boot. The probe doubles as the warm-up: it
+    // leaves the model loaded at the size that will serve.
+    async function resolveOllamaContext(progress = () => {}) {
+        const cl = config.ollama.contextLength;
+        if (typeof cl === 'number') { config.ollama.contextResolved = cl; return cl; }
+        const def = (config.models.find((m) => m.default) || config.models[0] || {}).id;
+        const host = (oll.reachable || []).filter(isLocalHost)[0] || (oll.reachable || [])[0] || null;
+        if (!def || !host) { config.ollama.contextResolved = 16384; return 16384; }
+        const vram = (hw && hw.vramGb) || null;
+        const cacheFile = pathMod.join(ollama.modelsDir(), 'ollama-ctx.json');
+        const cacheKey = `${def}|${vram ?? '?'}|${config.ollama.numParallel}`;
+        let cache = {};
+        try { cache = JSON.parse(fsMod.readFileSync(cacheFile, 'utf8')) || {}; } catch { /* first probe */ }
+        if (typeof cache[cacheKey] === 'number') {
+            config.ollama.contextResolved = cache[cacheKey];
+            log.ok(`Context: auto → ${log.paint.bold(String(cache[cacheKey]))} tokens ${log.paint.grey(`(cached probe: ${def} on this box)`)}`);
+            return cache[cacheKey];
+        }
+        const meta = await ollama.showModel(host, def);
+        const native = (meta && meta.contextLength) || null;
+        // Candidate ladder, entered by VRAM tier so a typical box probes once or
+        // twice. 16384 is accepted WITHOUT a probe — it is the measured-safe floor
+        // this farm shipped with (see OllamaSchema.contextLength).
+        const LADDER = [262144, 131072, 65536, 32768, 16384];
+        const start = vram == null ? 2 : vram >= 80 ? 0 : vram >= 28 ? 2 : 3;
+        let candidates = LADDER.slice(start).filter((c) => native == null || c <= native);
+        if (!candidates.length) candidates = [Math.max(4096, native || 16384)];
+        let resolved = candidates[candidates.length - 1];
+        for (const c of candidates) {
+            if (c <= 16384) { resolved = c; break; }
+            progress(`probing a ${c}-token window`, null);
+            const warmed = await ollama.warmModel(host, def, config.ollama.keepAlive, c, 300000);
+            if (!warmed) continue;                       // load refused / timed out → try smaller
+            const ps = await ollama.psModels(host);
+            const bare = def.split(':')[0];
+            const entry = ps.find((m) => m.name === def || m.name === `${def}:latest` || m.name.split(':')[0] === bare);
+            if (entry && entry.size > 0 && entry.sizeVram >= entry.size) { resolved = c; break; }
+        }
+        config.ollama.contextResolved = resolved;
+        cache[cacheKey] = resolved;
+        try { fsMod.writeFileSync(cacheFile, JSON.stringify(cache, null, 2)); } catch { /* best-effort cache */ }
+        const why = [
+            native ? `model max ${native}` : 'model max unknown',
+            vram ? `probed on ${vram} GB` : 'probed',
+        ].join(', ');
+        log.ok(`Context: auto → ${log.paint.bold(String(resolved))} tokens ${log.paint.grey(`(${why})`)}`);
+        // If the fitting candidate wasn't the last thing loaded, re-warm at the
+        // size that will actually serve (fire-and-forget).
+        ollama.warmModel(host, def, config.ollama.keepAlive, resolved).catch(() => {});
+        return resolved;
+    }
+
     // Bring llama-server up for the CURRENT in-memory config: binaries, then weights,
     // then spawn + health-wait. Factored out of the boot path because every live change
     // that touches the model has to redo exactly this — switching backend, swapping the
@@ -569,6 +647,14 @@ async function run(args) {
             config.llamacpp.enabled = false;
             await stopLlamacpp();
         }
+    }
+
+    // 2c. Ollama-engine context: with llama.cpp serving, no local Ollama is routed,
+    //     so sizing would probe (and load a model) for nothing. When Ollama IS the
+    //     engine — configured, unsupported platform, or boot fallback — resolve
+    //     'auto' BEFORE the routing is generated so num_ctx carries the real number.
+    if (!config.llamacpp.enabled) {
+        await resolveOllamaContext((what) => log.step(`Context: ${what} …`));
     }
 
     // 3. (Coordinator) discover peer farms, then generate the LiteLLM config —
@@ -1017,7 +1103,7 @@ async function run(args) {
         if (!(await applyModels(config.models.concat([entry])))) {
             return { ok: false, error: 'The proxy did not come back — reverted to the previous model set.', servedModels: servedIdList() };
         }
-        for (const h of oll.reachable.filter(isLocalHost)) ollama.warmModel(h, id, config.ollama.keepAlive, config.ollama.contextLength).catch(() => {});
+        for (const h of oll.reachable.filter(isLocalHost)) ollama.warmModel(h, id, config.ollama.keepAlive, ollamaCtxNum()).catch(() => {});
         const warn = persistModels();
         if (beacon) beacon.kick();
         return { ok: true, servedModels: servedIdList(), warning: warn || null };
@@ -1087,7 +1173,8 @@ async function run(args) {
             ollama: {
                 hosts: config.ollama.hosts,
                 numParallel: config.ollama.numParallel,
-                contextLength: config.ollama.contextLength,
+                contextLength: config.ollama.contextLength,        // number, or 'auto'
+                contextResolved: config.ollama.contextResolved ?? null, // what actually serves
             },
             // Advisory capacity — see the snapshot. Nothing is refused past `slots`.
             capacity: { slots: backendInfo(config, liveHealth).slots, clients: freshClients().length },
@@ -1139,7 +1226,7 @@ async function run(args) {
         } else {
             config.models = next;
         }
-        for (const h of oll.reachable.filter(isLocalHost)) ollama.warmModel(h, target.id, config.ollama.keepAlive, config.ollama.contextLength).catch(() => {});
+        for (const h of oll.reachable.filter(isLocalHost)) ollama.warmModel(h, target.id, config.ollama.keepAlive, ollamaCtxNum()).catch(() => {});
         const warn = persistModels();
         if (beacon) beacon.kick();
         return { ok: true, defaultModel: target.id, servedModels: servedIdList(), warning: warn || null };
@@ -1162,17 +1249,40 @@ async function run(args) {
         // and the default. A number pins it.
         if (tokens === 'auto') {
             if (busy()) return busyErr();
-            if (!config.llamacpp.enabled) return { ok: false, error: 'Automatic context sizing needs the llama.cpp engine.' };
-            if (config.llamacpp.contextLength === 'auto') return { ok: true, already: true, contextLength: 'auto' };
+            if (config.llamacpp.enabled) {
+                if (config.llamacpp.contextLength === 'auto') return { ok: true, already: true, contextLength: 'auto' };
+                return runJob('context', 'Setting the context window to automatic', async (progress) => {
+                    const warn = persistLlamacpp({ contextLength: 'auto' });
+                    const r = await reloadLlamacpp(progress);
+                    if (!r.ok) {
+                        persistLlamacpp({ contextLength: config.llamacpp.contextResolved || 16384 });
+                        await reloadLlamacpp(() => {});
+                        return { ok: false, error: `${r.error} Kept the previous size.` };
+                    }
+                    return { ok: true, message: `Context is automatic — currently ${config.llamacpp.contextResolved} tokens on this GPU.${warn || ''}` };
+                });
+            }
+            // Ollama engine: persist 'auto', drop the cached probe verdict so the
+            // sizing is re-measured (the operator is asking for a fresh answer),
+            // then bounce the proxy so num_ctx carries the resolved number.
+            if (config.ollama.contextLength === 'auto') return { ok: true, already: true, contextLength: 'auto' };
+            const beforeCl = config.ollama.contextLength;
+            const beforeResolved = config.ollama.contextResolved ?? null;
             return runJob('context', 'Setting the context window to automatic', async (progress) => {
-                const warn = persistLlamacpp({ contextLength: 'auto' });
-                const r = await reloadLlamacpp(progress);
-                if (!r.ok) {
-                    persistLlamacpp({ contextLength: config.llamacpp.contextResolved || 16384 });
-                    await reloadLlamacpp(() => {});
-                    return { ok: false, error: `${r.error} Kept the previous size.` };
+                config.ollama.contextLength = 'auto';
+                config.ollama.contextResolved = null;
+                const warn = persist('ollama', { contextLength: 'auto' });
+                dropOllamaCtxCache();
+                await resolveOllamaContext(progress);
+                if (!(await restartProxy())) {
+                    config.ollama.contextLength = beforeCl;
+                    config.ollama.contextResolved = beforeResolved ?? (typeof beforeCl === 'number' ? beforeCl : null);
+                    persist('ollama', { contextLength: beforeCl });
+                    await restartProxy();
+                    return { ok: false, error: 'The proxy did not come back — kept the previous context size.' };
                 }
-                return { ok: true, message: `Context is automatic — currently ${config.llamacpp.contextResolved} tokens on this GPU.${warn || ''}` };
+                if (beacon) beacon.kick();
+                return { ok: true, message: `Context is automatic — currently ${config.ollama.contextResolved} tokens on this box.${warn || ''}` };
             });
         }
         const want = Math.round(Number(tokens));
@@ -1202,15 +1312,24 @@ async function run(args) {
             const perSlot = Math.floor(want / Math.max(1, config.llamacpp.parallel));
             return runJob('context', `Setting the context window to ${want} tokens`, async (progress) => {
                 const warn = persistLlamacpp({ contextLength: want });
-                // Keep Ollama in step so a later backend switch does not silently drop
-                // back to the old window.
-                config.ollama.contextLength = want;
-                persist('ollama', { contextLength: want });
+                // Keep a PINNED Ollama size in step so a later backend switch does
+                // not silently drop back to the old window. An 'auto' Ollama stays
+                // auto — the switch re-probes for its own engine, which beats
+                // inheriting llama.cpp's number (different KV economics).
+                const ollamaPinned = typeof config.ollama.contextLength === 'number';
+                if (ollamaPinned) {
+                    config.ollama.contextLength = want;
+                    config.ollama.contextResolved = want;
+                    persist('ollama', { contextLength: want });
+                }
                 const r = await reloadLlamacpp(progress);
                 if (!r.ok) {
                     persistLlamacpp({ contextLength: before });
-                    config.ollama.contextLength = before;
-                    persist('ollama', { contextLength: before });
+                    if (ollamaPinned) {
+                        config.ollama.contextLength = before;
+                        config.ollama.contextResolved = before;
+                        persist('ollama', { contextLength: before });
+                    }
                     await reloadLlamacpp(() => {});
                     return { ok: false, error: `${r.error} Kept ${before} tokens. A too-large window is the usual cause — it must fit in VRAM alongside the weights.` };
                 }
@@ -1221,11 +1340,14 @@ async function run(args) {
 
         if (want === config.ollama.contextLength) return { ok: true, already: true, contextLength: want };
         const before = config.ollama.contextLength;
+        const beforeResolved = config.ollama.contextResolved ?? null;
         config.ollama.contextLength = want;
+        config.ollama.contextResolved = want;
         const warn = persist('ollama', { contextLength: want });
         return runJob('context', `Setting the context window to ${want} tokens`, async () => {
             if (!(await restartProxy())) {
                 config.ollama.contextLength = before;          // revert
+                config.ollama.contextResolved = beforeResolved ?? (typeof before === 'number' ? before : null);
                 persist('ollama', { contextLength: before });
                 await restartProxy();                          // it was healthy before → restore it
                 return { ok: false, error: 'The proxy did not come back — kept the previous context size.' };
@@ -1417,6 +1539,10 @@ async function run(args) {
             } else {
                 progress('stopping llama.cpp', null);
                 await stopLlamacpp();
+                // Size the Ollama engine's context before its routing is generated
+                // ('auto' probes once and caches — instant on later switches).
+                progress('sizing the context window', null);
+                await resolveOllamaContext(progress);
             }
             progress('reloading routing', null);
             if (!(await restartProxy())) {

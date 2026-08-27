@@ -354,10 +354,42 @@ test('ollama keepAlive defaults to -1 (keep the model warm)', () => {
     assert.equal(defaultConfig().ollama.keepAlive, '-1');
     // Whole-document chat needs a real context window — Ollama's 4096 default
     // silently truncates a 6-page PDF injected via the client's full-context mode.
-    // LOWERED 65536 → 16384 (2026-08-21): 65536 was measured on a 96 GB box and
-    // SPILLS on the 12 GB cards this farm targets, costing 5x. See the field comment
-    // in config.js for the per-context VRAM measurements on a 4070 Ti.
-    assert.equal(defaultConfig().ollama.contextLength, 16384);
+    // 'auto' (since farm-v0.0.24): probed per box — the largest num_ctx that stays
+    // fully in VRAM, floor 16384 (the measured-safe value 2026-08-21). A number
+    // still pins it. See the field comment in config.js.
+    assert.equal(defaultConfig().ollama.contextLength, 'auto');
+    assert.equal(ConfigSchema.parse({ ollama: { contextLength: 32768 } }).ollama.contextLength, 32768);
+    assert.throws(() => ConfigSchema.parse({ ollama: { contextLength: 'max' } }));
+});
+
+test('ollama keep_alive reaches the ROUTING as a number — the string "-1" broke every chat', () => {
+    // Go's api.Duration: JSON number = seconds (negative = forever), JSON string
+    // needs a unit. keep_alive:"-1" made Ollama answer `time: missing unit in
+    // duration "-1"` on EVERY completion — the whole Ollama engine was down and
+    // nothing here noticed, because the old test only checked the key existed.
+    const { keepAliveValue } = require('../src/ollama');
+    assert.strictEqual(keepAliveValue('-1'), -1);
+    assert.strictEqual(keepAliveValue('0'), 0);
+    assert.strictEqual(keepAliveValue('300'), 300);
+    assert.strictEqual(keepAliveValue('5m'), '5m', 'real durations pass through');
+    const c = defaultConfig();
+    c.llamacpp.enabled = false;
+    const doc = buildLitellmConfig(c);
+    const dep = doc.model_list.find((e) => String(e.litellm_params.model).startsWith('ollama'));
+    assert.strictEqual(typeof dep.litellm_params.keep_alive, 'number', 'routing must carry a number');
+    assert.strictEqual(dep.litellm_params.keep_alive, -1);
+    c.ollama.keepAlive = '5m';
+    const dep2 = buildLitellmConfig(c).model_list.find((e) => String(e.litellm_params.model).startsWith('ollama'));
+    assert.strictEqual(dep2.litellm_params.keep_alive, '5m');
+});
+
+test('ollama auto context: num_ctx floors at 16384 until resolved, then follows the probe', () => {
+    const c = defaultConfig();               // ollama.contextLength = 'auto'
+    c.llamacpp.enabled = false;
+    const dep = () => buildLitellmConfig(c).model_list.find((e) => String(e.litellm_params.model).startsWith('ollama'));
+    assert.strictEqual(dep().litellm_params.num_ctx, 16384, 'never ship the string, never ship 4096');
+    c.ollama.contextResolved = 65536;        // what resolveOllamaContext probed
+    assert.strictEqual(dep().litellm_params.num_ctx, 65536);
 });
 
 test('searxng settings.yml has json format + a real secret + limiter off', () => {
@@ -786,9 +818,21 @@ test('llama.cpp SPLITS its context across slots; Ollama does not', () => {
 
     c.llamacpp.enabled = false;
     c.ollama.numParallel = 2;
+    c.ollama.contextLength = 24576;          // pinned
     const o = backendInfo(c, { hostsUp: 3 });
     assert.equal(o.slots, 6, 'numParallel x reachable hosts');
-    assert.equal(o.contextPerSlot, c.ollama.contextLength, 'every Ollama request keeps the full window');
+    assert.equal(o.contextPerSlot, 24576, 'every Ollama request keeps the full window');
+    assert.equal(o.contextAuto, false);
+
+    // 'auto' (the default) must never leak the string: null until the probe
+    // resolves it, then the resolved number — flagged so clients/panel can say so.
+    c.ollama.contextLength = 'auto';
+    const unresolved = backendInfo(c, { hostsUp: 3 });
+    assert.strictEqual(unresolved.contextLength, null);
+    assert.strictEqual(unresolved.contextPerSlot, null);
+    assert.equal(unresolved.contextAuto, true);
+    c.ollama.contextResolved = 65536;
+    assert.equal(backendInfo(c, { hostsUp: 3 }).contextPerSlot, 65536);
 });
 
 test('capacity is advisory: slots + who is on the box right now', () => {

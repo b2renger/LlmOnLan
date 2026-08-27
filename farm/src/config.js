@@ -99,14 +99,19 @@ const OllamaSchema = z.object({
     // of margin at identical throughput, because context is nearly free in speed
     // terms and costs only VRAM.
     //
-    // IMPORTANT: raise this on a big-VRAM box (admin panel = live, this field =
-    // persistent). It is farm-GLOBAL but VRAM is per-host, so a mixed fleet is
-    // currently served by whichever single value is set here — on a 96 GB box the
-    // model's native 262144 maximum is reachable and this default wastes it.
-    // Only applies to an Ollama that `lol` starts — but num_ctx also rides the
-    // generated LiteLLM routing, which applies on EVERY host regardless of who
-    // started it, and is what actually decides whether a client request spills.
-    contextLength: z.number().int().positive().default(16384),
+    // 'auto' (the DEFAULT since farm-v0.0.24) sizes it per box instead: the farm
+    // loads the default model at a VRAM-tiered candidate, asks /api/ps whether any
+    // of it landed in system RAM, steps down if so, and CACHES the verdict per
+    // (model, VRAM, parallel) — measuring beats modeling here because per-arch KV
+    // math is unreliable (Gemma's sliding-window layers make the naive estimate
+    // several times too high). Worst case resolves to the proven 16384. A number
+    // pins it exactly as before.
+    //
+    // It is farm-GLOBAL but VRAM is per-host, so a mixed fleet is probed on the
+    // box running `lol up` — num_ctx rides the generated LiteLLM routing, which
+    // applies on EVERY host regardless of who started it, and is what actually
+    // decides whether a client request spills.
+    contextLength: z.union([z.literal('auto'), z.number().int().positive()]).default('auto'),
 }).strict();
 
 // llama.cpp (`llama-server`) as an ALTERNATIVE backend to Ollama, opt-in per farm.

@@ -68,12 +68,17 @@ function backendInfo(config, health = {}) {
     const def = entries.find((e) => e.isDefault) || entries[0] || {};
     const hosts = health.hostsUp || config.ollama.hosts.length || 1;
     const slots = Math.max(1, (config.ollama.numParallel || 1) * hosts);
+    // 'auto' resolves at engine start (up.js resolveOllamaContext probes the real
+    // load); until then the numeric value is unknown — never leak the string.
+    const octx = config.ollama.contextResolved
+        ?? (typeof config.ollama.contextLength === 'number' ? config.ollama.contextLength : null);
     return {
         engine: 'ollama',
         alias: def.servedName || null,
         model: def.underlying || null,
-        contextLength: config.ollama.contextLength,
-        contextPerSlot: config.ollama.contextLength,   // Ollama does not split its context
+        contextLength: octx,
+        contextAuto: config.ollama.contextLength === 'auto',
+        contextPerSlot: octx,   // Ollama does not split its context
         slots,
         mtp: false,
         kvCacheType: 'f16',

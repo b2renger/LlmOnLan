@@ -233,7 +233,7 @@ function render(s) {
         be.slots > 1 ? ` · shared across ${be.slots} slots, so each user gets ${fmtK(perSlot)}` : ''}</div></span>`
     + `<span class="badges"><select id="ctx-sel">${be.engine === 'llama.cpp'
         ? ctxOptions(lc.contextLength, lc.contextResolved || be.contextLength, s.fit)
-        : ctxOptions(be.contextLength, be.contextLength, null)}</select>`
+        : ctxOptions((s.ollama && s.ollama.contextLength) ?? be.contextLength, be.contextLength, null)}</select>`
     + `<button id="ctx-apply"${jobRunning ? ' disabled' : ''}>Apply</button></span></div>`
     + `</div>`;
 
@@ -467,10 +467,11 @@ function ctxOptions(cfg, resolved, fit) {
   const now = typeof cfg === 'number' ? cfg : null;
   const list = (now && !OPTS.includes(now)) ? [now, ...OPTS] : OPTS;
   const max = fit && fit.maxContext != null ? fit.maxContext : null;
-  // fit === null means the OLLAMA engine is serving (see the call site): auto
-  // sizing is a llama.cpp feature and offering it here only produced an error
-  // toast — so there it is simply not on the menu.
-  const auto = fit == null ? '' : `<option value="auto"${cfg === 'auto' ? ' selected' : ''}>Automatic — the most this GPU holds${resolved ? ` (now ${fmtK(resolved)})` : ''}</option>`;
+  // Both engines size automatically now: llama.cpp from the GGUF's own geometry
+  // (fit), Ollama by probing the real load once and caching the verdict — so
+  // Automatic is always on the menu. fit === null (Ollama serving) just means the
+  // numeric options can't be pre-disabled; the probe/pin protects the choice.
+  const auto = `<option value="auto"${cfg === 'auto' ? ' selected' : ''}>Automatic — the most this ${fit == null ? 'box' : 'GPU'} holds${resolved ? ` (now ${fmtK(resolved)})` : ''}</option>`;
   return auto + list.map((v) => {
     const over = max != null && v > max && v !== now;
     const label = fmtK(v) + ' tokens' + (over ? ` — won\u2019t fit (${fit.vramGb} GB GPU)` : '');

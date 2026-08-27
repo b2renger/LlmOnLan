@@ -6,6 +6,69 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-08-27 — the attach matrix: every OWUI attach feature, live, on BOTH engines
+
+Owner ask: "we need more context by default", and verify that **attach webpage / attach files /
+attach images / attach notes / attach knowledge / reference chat / upload files** work on both
+backends. Built a live rig on the dev box (isolated verify-farm on :4091/:41991 + a real OWUI 0.10.2
+sidecar on :8090 launched with the exact configBridge env, driven through OWUI's own REST API with
+sentinel-fact assets: txt/md/docx/pdf/png/oversized log) and ran a 15-test matrix per engine.
+
+### What the matrix caught
+
+- **CRITICAL — the Ollama engine could not chat at all.** Every completion failed with
+  `time: missing unit in duration "-1"`: the per-deployment `keep_alive` I added for keep-warm
+  (farm-v0.0.22) ships the config string `'-1'` into JSON, and Ollama's `api.Duration` accepts that
+  spelling only from the ENV var, not a request. `warmModel` had the same bug — keep-warm had been
+  silently failing (best-effort catch) since it shipped. Nothing noticed because the default engine is
+  llama.cpp and the old test only asserted the KEY existed. Fixed with `keepAliveValue()` (numeric
+  strings → numbers, real durations pass through) at both edges + a routing-level regression test;
+  proven live both ways against the daemon (string → error, number → completion).
+- **Attach webpage refused every LAN page** on both engines: OWUI's SSRF guard
+  (`ENABLE_LOCAL_WEB_FETCH`, default false) blocks private IPs — on a LAN-first product, the farm
+  panel, the wiki, the dashboards are all private IPs. Client now sets it true (single-user app,
+  OWUI bound to 127.0.0.1, trusted-LAN posture).
+- **An oversized attachment hard-errored on llama.cpp** (raw `litellm.ContextWindowExceededError`
+  toast at 41k tokens into a 16k window) **and silently beheaded the prompt on Ollama** (kept the
+  tail, dropped the front — answered the final-line question, would have lost the system prompt).
+- **Every file-attached chat cost a hidden second LLM call**: OWUI's retrieval query generation
+  (default on) runs before the real answer — 13 farm completions for 7 chats — and full-context mode
+  never uses its output. On the fleet's single-slot llama-server that is pure TTFT.
+
+### The fixes
+
+- **Farm — `ollama.contextLength: "auto"` is the new default** ("more context by default", now on
+  both engines). llama.cpp keeps its GGUF-math auto; for Ollama the math is a trap — Gemma's
+  sliding-window layers make the naive KV estimate several times too high — so the farm **probes**:
+  load the default model at a VRAM-tiered candidate, read `/api/ps`, step down if `size_vram < size`,
+  cache per (model, VRAM, parallel) next to the weights (floor = the measured-safe 16384; the probe
+  doubles as the warm-up). Live: gemma4:12b on the 96 GB box probed straight to its **native 262144,
+  fully in VRAM** — the panel's Automatic option now works on both engines, and a cached probe makes
+  the next boot/switch instant.
+- **Client — adaptive RAG from the beacon**: `backend.contextPerSlot` now threads through discovery →
+  settings persistence → configBridge. ≥ 24576 (or an old farm that doesn't advertise it) →
+  whole-document mode as before; below → `RAG_FULL_CONTEXT=false` + `RAG_TOP_K=8`, so a small-context
+  farm answers from the best passages instead of erroring. Plus `ENABLE_LOCAL_WEB_FETCH=true` and
+  `ENABLE_RETRIEVAL_QUERY_GENERATION=false` (search query generation stays on — web search needs it).
+
+### Verified
+
+Final matrix **15/15 on llama.cpp and 15/15 on Ollama** (was 13/15 and 7/15): LAN + public webpage
+attach, all five upload types extracted (including PNG → farm OCR "ZEBRA CODE 9481" and a text-layer
+PDF), file/note/knowledge/reference-chat answers with the right sentinel facts, images answered by
+BOTH engines (the default llama.cpp model ships its mmproj; gemma4 is vision-native), and the 41k-token
+attachment answering via retrieval where it used to 400. Attached-chat latency dropped from 5–9 s to
+1.1–2.7 s with the hidden query-gen call gone. 89 farm unit tests green (4 new: keep_alive coercion at
+the routing level, num_ctx floor under unresolved auto, snapshot never leaking the 'auto' string,
+schema round-trip), both tsc projects clean. Teardown verified: live farm healthy throughout, runtime
+file restored, probe model evicted.
+
+One honest nuance, documented in GETTING_STARTED: in retrieval mode a "what's on the LAST line of
+this huge file" question depends on the retriever surfacing that chunk — graceful, not guaranteed.
+Whole-document quality needs context, which is exactly why the farm now maximizes it per box.
+
+---
+
 ## 2026-08-26 c — v1: three blind audit rounds to READY, and the features that make it a cluster
 
 Owner call: the POC is good — audit code + UX with an agnostic critic loop until it is satisfied, and
