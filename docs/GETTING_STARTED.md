@@ -2,7 +2,7 @@
 
 LlmOnLan has **two pieces**:
 
-- **The farm** — the `lol` CLI (or the Farm app) running on one or more **GPU boxes**. It serves the model(s) over the LAN — through **llama.cpp** for the model everyone chats with and **Ollama** for the extra catalog — hosts shared **web search** and **document OCR** (and, opt-in, **neural voice**), and **broadcasts itself** so clients find it automatically.
+- **The farm** — the `lol` CLI (or the Farm app) running on one or more **GPU boxes**. It serves the model(s) over the LAN — through **Ollama** by default (`gemma4:12b` with its full **262k context**, vision included) or the opt-in **llama.cpp** speed engine — hosts shared **web search** and **document OCR** (and, opt-in, **neural voice**), and **broadcasts itself** so clients find it automatically.
 - **The client app** — a desktop app (bundled, unmodified Open WebUI) that people install on their laptops. It **auto-discovers the farm** on the same network — no URL, no config — and keeps all chat data on their own machine.
 
 You set up the farm once per GPU box, and everyone else just installs the client app.
@@ -21,11 +21,11 @@ You set up the farm once per GPU box, and everyone else just installs the client
 
 | What | Size |
 |---|---|
-| The chat model's weights (`llamacpp.model`, + vision projector) | ~8.7 GB |
-| `gemma4:12b` — the picker catalog + the OCR vision model | ~8 GB |
+| `gemma4:12b` — the chat model everyone gets (vision included; also drives OCR) | ~8 GB |
 | The staged `preinstall` model + its draft module (on by default) | ~8.6 GB |
-| llama.cpp build + CUDA runtime, LiteLLM / SearXNG / OCR venvs | ~2 GB |
-| **Total, one time** | **~28 GB, 30–45 min** on a normal office line |
+| LiteLLM / SearXNG / OCR venvs | ~1 GB |
+| **Total, one time** | **~18 GB, 20–30 min** on a normal office line |
+| *Only if you enable the llama.cpp engine:* its build + CUDA runtime + `.gguf` weights | *+~10 GB, fetched at enable time* |
 
 Everything is cached afterwards.
 
@@ -58,9 +58,9 @@ Run it and follow the wizard; leave the window open — that *is* the farm. Full
 > narrates each step and shows download percentages. **Do not press "Start the farm" while a download
 > is running** — that kills it and starts the download over.
 
-Then jump to **[§4](#4-a-room-full-of-people-capacity--multiple-gpu-boxes)** if more than one person
-will use it — the default serves **one person at a time**, and raising that is a control in the panel
-(*Backend* ▸ **People served at once**).
+Then jump to **[§4](#4-a-room-full-of-people-capacity--multiple-gpu-boxes)** if a group will use it —
+the default (gemma4 on Ollama) serves **two people at a time** per box, and that number is a control
+in the panel (*Backend* ▸ **People served at once**).
 
 ### Route B — the `lol` CLI
 
@@ -88,9 +88,9 @@ cd farm
 This installs the CLI's Node deps, then runs `lol install`, which:
 - installs **Ollama** (winget on Windows / brew on macOS / the official script on Linux),
 - creates a local Python venv with **LiteLLM**,
-- **pulls the Ollama models** in your config (`gemma4:12b` by default) — several GB on first run,
-- **fetches the llama.cpp backend** — the pinned `llama-server` build + CUDA runtime, plus the `.gguf`
-  weights of the model everyone will chat with (~8 GB) — so the first `lol up` doesn't stall on it,
+- **pulls the Ollama models** in your config (`gemma4:12b` by default — the model everyone chats with) — several GB on first run,
+- **fetches the llama.cpp backend** *only if you enabled it* (`llamacpp.enabled: true`) — the pinned
+  `llama-server` build + CUDA runtime + `.gguf` weights — so the first `lol up` doesn't stall on it,
 - sets up **shared web search** (SearXNG) — **on by default**, so every client that connects gets web search with zero setup,
 - sets up **shared document OCR** — **on by default**: scanned PDFs and photographed documents become readable + searchable in every client's chat (a small torch-free Python service that reuses the vision model you already serve).
 
@@ -105,7 +105,8 @@ The defaults already give you a working farm (model + web search). `lol install`
 ```jsonc
 {
   "name": "Studio Farm",                 // shown in the client
-  "llamacpp": {                          // the model EVERYONE chats with (default backend)
+  "llamacpp": {                          // the OPT-IN speed engine (off by default —
+    "enabled": true,                     //   the default farm serves gemma4:12b on Ollama at 262k context)
     "alias": "assistant",                //   the name users see — rename it to anything you like
     "model": "https://…/Qwen3.8-27B-GGUF/resolve/main/Qwen3.8-27B-UD-IQ2_S.gguf",
     "contextLength": "auto",             //   DEFAULT: the largest that fits this GPU (a number pins it); SPLIT across the slots below
@@ -350,7 +351,7 @@ usual causes:
   text-only model.
 - **MTP only works on `UD-Q2_K_XL`-or-above quants.** Below that Unsloth strips the head the feature
   needs and llama-server refuses to start. Picking a library entry handles this for you.
-  See [the quant rule](../farm/README.md#backends--llamacpp-default-and-ollama).
+  See [the quant rule](../farm/README.md#backends--ollama-default-and-llamacpp).
 
 **Switch engine.** *Backend* ▸ the two buttons. **One engine serves at a time**: llama.cpp serves its
 one model as fast as the hardware can; Ollama serves the catalog below it, so people can choose between

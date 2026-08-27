@@ -103,7 +103,9 @@ export class SidecarSupervisor extends EventEmitter {
         child.on('exit', (code) => this.onChildExit(child, code));
 
         // Health-wait (first run downloads the embedding model → allow generous time).
-        const healthy = await waitForHttp(`${url}${HEALTH_PATH}`, { timeoutMs: 180000, intervalMs: 1000 });
+        // 300 ms polling: OWUI comes up between polls, so a coarse interval adds
+        // its own tail latency to every boot the user is staring at.
+        const healthy = await waitForHttp(`${url}${HEALTH_PATH}`, { timeoutMs: 180000, intervalMs: 300 });
         if (myGen !== this.gen) return; // a newer start()/stop() superseded us
         if (healthy) {
             this.crashRestarts = 0;
@@ -136,6 +138,20 @@ export class SidecarSupervisor extends EventEmitter {
             && searxngUrl === this.searxngUrl && JSON.stringify(tts) === JSON.stringify(this.tts)
             && JSON.stringify(extract) === JSON.stringify(this.extract)
             && contextPerSlot === this.contextPerSlot) return;
+        // A restart costs a full OWUI boot (~10-30 s of Python imports), so restart
+        // only when the EFFECTIVE launch env differs — not when an input differs.
+        // E.g. the farm growing its context 65536 → 131072 changes contextPerSlot
+        // but not the RAG mode it selects, so the running sidecar is already
+        // correct; adopt the new inputs and keep it alive.
+        const oldEnv = buildSidecarEnv({ endpoint: this.endpoint, dataDir: this.dataDir, apiKey: this.apiKey, defaultModel: this.defaultModel, searxngUrl: this.searxngUrl, tts: this.tts, extract: this.extract, contextPerSlot: this.contextPerSlot });
+        const newEnv = buildSidecarEnv({ endpoint, dataDir: this.dataDir, apiKey, defaultModel, searxngUrl, tts, extract, contextPerSlot });
+        if (this.child && JSON.stringify(oldEnv) === JSON.stringify(newEnv)) {
+            this.endpoint = endpoint; this.apiKey = apiKey; this.defaultModel = defaultModel;
+            this.searxngUrl = searxngUrl; this.tts = tts; this.extract = extract;
+            this.contextPerSlot = contextPerSlot;
+            console.log(`[sidecar] repoint: inputs changed but the launch env is identical — keeping the running sidecar (ctx/slot now ${contextPerSlot})`);
+            return;
+        }
         console.log(`[sidecar] repoint ${this.endpoint} → ${endpoint} (model ${this.defaultModel} → ${defaultModel}, search ${this.searxngUrl} → ${searxngUrl}, tts ${this.tts?.url} → ${tts?.url}, ocr ${this.extract?.url} → ${extract?.url}, ctx/slot ${this.contextPerSlot} → ${contextPerSlot})`);
         this.setState({ status: 'restarting', endpoint });
         await this.stop({ keepState: true });

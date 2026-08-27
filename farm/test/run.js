@@ -314,7 +314,8 @@ test('alias mode: snapshot advertises the alias id, stable across model swaps', 
 });
 
 test('llamacpp backend: its alias is the ONLY advertised model (one engine at a time)', () => {
-    const c = defaultConfig();   // llamacpp.enabled defaults true in this build
+    const c = defaultConfig();
+    c.llamacpp.enabled = true;   // llamacpp is opt-in since the gemma4-on-Ollama default
     const s = buildSnapshot(c, { proxyUp: true, hostsUp: 1 });
     // Owner decision (2026-08-26): the engines are EXCLUSIVE. Advertising the
     // Ollama catalog alongside read as "both are running", and a client picking an
@@ -737,20 +738,25 @@ test('draft modules cache to a stable, gitignored path', () => {
 // ---- llama.cpp backend ------------------------------------------------------
 const llamacpp = require('../src/llamacpp');
 
-test('llamacpp backend is ON by default in this build', () => {
-    // This branch ships llama.cpp AS the backend, paired with a client that has no
-    // Open WebUI — so unlike farm/llamacpp-backend, it is not opt-in here.
+test('gemma4:12b on Ollama is the DEFAULT engine in this build', () => {
+    // Owner decision (2026-08-27): gemma4's sliding-window attention holds its
+    // native 262144 context in ~10 GB (probed live), where the llama.cpp Qwen
+    // setup caps at ~36k on a 4070 — and max context is what thinking models +
+    // whole-document RAG need. llama.cpp stays one panel click away.
     const c = defaultConfig();
-    assert.equal(c.llamacpp.enabled, true);
-    c.modelAlias = 'assistant';
+    assert.equal(c.llamacpp.enabled, false, 'llama.cpp is opt-in now');
+    assert.equal(c.models[0].id, 'gemma4:12b');
+    assert.equal(c.ollama.contextLength, 'auto', 'context is probed per box');
     const deployed = buildLitellmConfig(c).model_list;
-    const alias = deployed.filter((d) => d.model_name === 'assistant');
-    assert.equal(alias.length, 1, 'llama-server owns the alias outright');
-    assert.equal(alias[0].litellm_params.model, 'openai/assistant');
+    assert.equal(deployed.length, 1, 'one engine at a time — the Ollama deployment');
+    assert.ok(deployed[0].litellm_params.model.startsWith('ollama'), 'served by Ollama');
+    assert.ok(deployed[0].model_info && deployed[0].model_info.supports_vision,
+        'gemma4 is vision-native — images work out of the box');
 });
 
 test('llamacpp engine: NO local Ollama deployments at all — peers still aggregate', () => {
     const c = defaultConfig();
+    c.llamacpp.enabled = true;
     c.models = [{ id: 'gemma4:12b', default: true }, { id: 'qwen2.5-coder:7b' }];
     const doc = buildLitellmConfig(c);
     assert.equal(doc.model_list.length, 1, 'one engine at a time');
@@ -797,6 +803,7 @@ const { backendInfo, ggufName } = require('../src/snapshot');
 
 test('snapshot advertises WHICH engine serves, and on what weights', () => {
     const c = defaultConfig();
+    c.llamacpp.enabled = true;
     const snap = buildSnapshot(c, { clientsConnected: 1 });
     assert.equal(snap.backend.engine, 'llama.cpp');
     assert.equal(snap.backend.alias, c.llamacpp.alias);
@@ -810,6 +817,7 @@ test('snapshot advertises WHICH engine serves, and on what weights', () => {
 
 test('llama.cpp SPLITS its context across slots; Ollama does not', () => {
     const c = defaultConfig();
+    c.llamacpp.enabled = true;
     c.llamacpp.contextLength = 16384;
     c.llamacpp.parallel = 2;
     const be = backendInfo(c, {});
@@ -1065,6 +1073,7 @@ test('keep-warm rides the generated routing (engine-correct on every host)', () 
 
 test('llama.cpp vision flag comes from the projector, not faith', () => {
     const c = defaultConfig();
+    c.llamacpp.enabled = true;
     assert.ok(buildLitellmConfig(c).model_list[0].model_info.supports_vision, 'default model ships a projector');
     c.llamacpp.mmproj = null;
     assert.ok(!buildLitellmConfig(c).model_list[0].model_info,
@@ -1100,6 +1109,7 @@ test('config: llamacpp.contextLength accepts auto (the default) and numbers, rej
 
 test('backendInfo never leaks the string auto into arithmetic consumers', () => {
     const c = defaultConfig();                     // contextLength: 'auto'
+    c.llamacpp.enabled = true;
     const be = backendInfo(c, {});
     assert.equal(be.contextLength, null, 'unresolved auto → null, not a string');
     assert.equal(be.contextAuto, true);

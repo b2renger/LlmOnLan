@@ -45,6 +45,21 @@ export interface SidecarEnvInput {
     contextPerSlot?: number | null; // farm's per-slot context window (snapshot backend.contextPerSlot) → RAG mode
 }
 
+// True when every Hugging Face model OWUI might fetch at runtime is already in
+// the default HF cache (~/.cache/huggingface/hub): MiniLM (embeddings) and
+// faster-whisper base (STT, WHISPER_MODEL below). Gates HF_HUB_OFFLINE.
+function hfModelsCached(): boolean {
+    const hub = path.join(require('os').homedir(), '.cache', 'huggingface', 'hub');
+    const cached = (dir: string): boolean => {
+        try {
+            const snaps = path.join(hub, dir, 'snapshots');
+            return fs.readdirSync(snaps).some((d) => fs.readdirSync(path.join(snaps, d)).length > 0);
+        } catch { return false; }
+    };
+    return cached('models--sentence-transformers--all-MiniLM-L6-v2')
+        && cached('models--Systran--faster-whisper-base');
+}
+
 // Whole-document RAG needs the whole document to FIT. Below this per-slot context
 // the farm can't hold a typical attachment + the answer, so injecting full text
 // turns "attach a webpage" into a hard ContextWindowExceededError (llama.cpp) or a
@@ -183,6 +198,18 @@ export function buildSidecarEnv(input: SidecarEnvInput): Record<string, string> 
         // doesn't trigger a re-download or a huge cache copy. It's still 100% local;
         // only its location differs from the CLAUDE.md "cached under DATA_DIR" note.
     };
+
+    // --- boot time + offline resilience: skip the per-boot Hugging Face check ---
+    // OWUI's startup asks huggingface.co for the embedding model's latest revision
+    // even when it is fully cached (boot-profiled). Online that's a wasted round
+    // trip; on a closed/flaky LAN it is a hang waiting to happen. Once BOTH models
+    // OWUI might pull at runtime are cached — MiniLM (embeddings, loaded at boot)
+    // and faster-whisper base (STT, loaded on first mic use) — go hub-offline.
+    // While either is missing the flag stays off so the one-time download works —
+    // the etag timeout below then keeps a dead internet from stalling those
+    // metadata checks for more than a moment (downloads are unaffected).
+    if (hfModelsCached()) env.HF_HUB_OFFLINE = '1';
+    else env.HF_HUB_ETAG_TIMEOUT = '2';
 
     // Point at the farm. Set ONLY the singular pair (the brief warns against also
     // setting the plural OPENAI_API_BASE_URLS — a config.py bug can reset the

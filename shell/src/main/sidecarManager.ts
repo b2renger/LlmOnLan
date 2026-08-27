@@ -13,7 +13,8 @@ import { app } from 'electron';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as https from 'https';
-import { execFile } from 'child_process';
+import { execFile, spawn } from 'child_process';
+import * as os from 'os';
 import { promisify } from 'util';
 import { sidecarRoot, sidecarInstalled, bundledOwuiVersion } from './paths';
 
@@ -136,6 +137,28 @@ async function installFrom(url: string, destDir: string, onProgress?: ProgressCb
     fs.rmSync(destDir, { recursive: true, force: true });
     fs.renameSync(stage, destDir);
     fs.rmSync(tmp, { force: true });
+    precompileSidecar(destDir);
+}
+
+// Precompile the freshly-unpacked tree to bytecode in the background. Python only
+// writes a module's .pyc the first time it imports it, so without this the tree's
+// first boot pays parse+compile for thousands of files on top of cold-disk reads —
+// a large share of the "way too long" first launch. One low-priority pass now
+// means the next boot of this tree (the first launch, or the restart that applies
+// a staged update — .pyc validation is mtime/size-based, so the pending→live
+// rename keeps them valid) starts from bytecode. Best-effort: a failure just
+// leaves the old behavior.
+function precompileSidecar(destDir: string): void {
+    try {
+        const py = process.platform === 'win32'
+            ? path.join(destDir, 'python', 'python.exe')
+            : path.join(destDir, 'python', 'bin', 'python3');
+        if (!fs.existsSync(py)) return;
+        const child = spawn(py, ['-m', 'compileall', '-q', '-j', '0', path.join(destDir, 'python')],
+            { stdio: 'ignore', windowsHide: true });
+        child.on('error', () => { /* best-effort */ });
+        try { if (child.pid) os.setPriority(child.pid, 19); } catch { /* not critical */ }
+    } catch { /* best-effort */ }
 }
 
 // --- public API -------------------------------------------------------------

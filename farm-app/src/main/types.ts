@@ -53,7 +53,9 @@ export interface FarmSettings {
     // Seeds ollama.contextLength when the farm config is FIRST written. After that the
     // farm panel owns the context window (and routes it to whichever engine is serving),
     // so this is not re-applied on later boots — doing so used to overwrite the panel.
-    contextLength: number;
+    // 'auto' (the default since the gemma4-on-Ollama default): the farm probes the
+    // largest window that stays fully in VRAM and caches the verdict per box.
+    contextLength: number | 'auto';
     // Share this farm's compute with the LAN. OFF by default = fully private: the
     // proxy + discovery bind 127.0.0.1 only and the beacon is off, so no other
     // machine can reach or use it (even by direct IP / subnet scan). ON = bind

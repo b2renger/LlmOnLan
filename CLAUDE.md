@@ -24,11 +24,15 @@ Snapshot:
 
 - **`farm/`** — the `lol` CLI works end-to-end (verified: `lol up` → real `/v1/chat/completions` via
   LiteLLM→backend; status/down; UDP beacon + `/lol/self` received by a listener). **TWO inference
-  engines behind one LiteLLM endpoint:** `llamacpp` (`llama-server`, **enabled by default**) serves
-  ONE model — `llamacpp.model`, a .gguf URL, default Unsloth **Qwen3.8-27B-UD-IQ2_S** — under
-  `llamacpp.alias` (default `assistant`). **The engines are EXCLUSIVE** (owner decision 2026-08-26):
-  while llama.cpp serves, NO local Ollama deployment is routed or advertised — the catalog is standby
-  inventory for an engine switch, and the OCR vision model (which talks raw Ollama, never the proxy).
+  engines behind one LiteLLM endpoint**, and the DEFAULT (owner decision 2026-08-27) is the **Ollama
+  engine serving `gemma4:12b` at its native 262144 context** — gemma4's sliding-window attention holds
+  262k of KV in ~10 GB total (probed live, fully in VRAM), it is vision-native, and one model covers
+  chat + the OCR plugin. `llamacpp` (`llama-server`, now **opt-in**) serves ONE model —
+  `llamacpp.model`, a .gguf URL, default Unsloth **Qwen3.8-27B-UD-IQ2_S** — under `llamacpp.alias`
+  (default `assistant`); it remains the speed pick (speculative decoding) for models without cheap KV.
+  **The engines are EXCLUSIVE** (owner decision 2026-08-26): while llama.cpp serves, NO local Ollama
+  deployment is routed or advertised — the catalog is standby inventory for an engine switch, and the
+  OCR vision model (which talks raw Ollama, never the proxy).
   The advertised name carries across a switch (`carryNameAcross`), so chats survive it. On platforms
   with no prebuilt llama.cpp (linux-arm64 — the DGX Spark) or any llama.cpp boot failure, `lol up`
   **falls back to the Ollama engine with the reason in the panel** instead of exiting — and linux-arm64
@@ -38,8 +42,7 @@ Snapshot:
   the real files (`farm/src/gguf.js`). `proxy.masterKey` = the shared **farm password** (panel-settable;
   clients prompt once, verify, remember per farm; discovery + the admin token stay separate).
   `mtp` (`--spec-type draft-mtp`) defaults **false** —
-  Unsloth strips the MTP head below UD-Q2_K_XL and llama-server then refuses to start. Ollama still
-  serves `models` (`gemma4:12b`) + the OCR vision model. Pin facts:
+  Unsloth strips the MTP head below UD-Q2_K_XL and llama-server then refuses to start. Pin facts:
   **OWUI `0.10.2`** (Python 3.11/3.12, run via the `open-webui serve` console script). Beacon group
   **`239.255.43.10:41998`** (+ httpPort `41997`), distinct from ComfyQ. On top: an **admin panel** at
   `http://<box>:41997/lol/admin` (bearer token printed by `lol up`; `config.admin.token`) with a live
@@ -51,10 +54,11 @@ Snapshot:
   progress the panel polls; a **plugin registry** (`farm/src/plugins/registry.js`)
   orchestrating web search (SearXNG, ON), document OCR (`farm/src/pysvc` + `extract.js`, ON — hybrid
   text/vision PDF extraction), and Kokoro TTS (off); `ollama.contextLength` (default **'auto'** — the
-  farm PROBES the largest num_ctx that stays fully in VRAM: loads the default model at a VRAM-tiered
-  candidate, checks `/api/ps` for spill, caches per (model, VRAM, parallel); floor 16384, the measured-
-  safe value; per-arch KV math is deliberately NOT used — Gemma's sliding-window layers make it wildly
-  over-estimate, and gemma4:12b really holds its native 262144 on a 96 GB card) applied via
+  farm MEASURES the largest num_ctx that stays fully in VRAM: loads the default model at 16k and 32k,
+  takes the per-token slope from `/api/ps`, aims at min(native, budget, 262144) and VERIFIES with one
+  more load, stepping down if any of it spilled; the verdict caches per (model, VRAM, parallel); floor
+  16384; per-arch KV math is deliberately NOT used — Gemma's sliding-window layers make it wildly
+  over-estimate, and gemma4:12b really holds its native 262144 in ~10 GB) applied via
   per-deployment `num_ctx` in the generated LiteLLM routing (+ `OLLAMA_CONTEXT_LENGTH` seed). Per-request
   `keep_alive` in that routing MUST be a number — the string `'-1'` is refused by Ollama
   (`time: missing unit in duration`) and broke every Ollama-engine chat until `keepAliveValue()` coerced
@@ -76,7 +80,13 @@ Snapshot:
   Perf invariants worth keeping: the renderer CSP MUST carry `connect-src` (else LOL Chat cannot reach
   the LAN farm at all), the farm context is persisted so a cold launch spawns the sidecar **once**, and
   OWUI's follow-up/tags/autocomplete generation is disabled so background calls can't queue ahead of the
-  user on llama-server's single slot. E2E harness: `shell/test/` (mock farm + CDP driver).
+  user on llama-server's single slot. **Boot time** (the OWUI boot is ~10 s warm, dominated by OWUI's
+  own Python import chain — untouchable): `repoint` restarts ONLY when the effective launch env differs
+  (not when an input differs), `sidecarManager` precompiles the freshly-unpacked tree to bytecode in the
+  background (a fresh install otherwise pays parse+compile for ~27k files on first launch),
+  `HF_HUB_OFFLINE=1` when MiniLM + whisper-base are cached (OWUI otherwise asks huggingface.co on every
+  boot — a hang on a closed LAN; `HF_HUB_ETAG_TIMEOUT=2` until then), health polling at 300 ms.
+  E2E harness: `shell/test/` (mock farm + CDP driver).
 - **`sidecar/`** — `build-sidecar` bundles a relocatable standalone CPython + OWUI + `launcher.py`;
   `OPENWEBUI_VERSION` is the pin. NOT bundled into the installer — CI publishes it as
   `owui-sidecar-<platform>-<arch>.tar.gz` release assets and the packaged shell downloads it to
@@ -213,7 +223,8 @@ declarative config; the CLI orchestrates everything from it.
   "name": "Studio Farm",                 // friendly name shown in the client
   "beacon": { "enabled": true, "group": "239.255.43.10", "port": 41998, "intervalSec": 5 },
   "proxy":  { "port": 4000 },            // LiteLLM OpenAI-compatible endpoint
-  // The DEFAULT backend: ONE model, served as `alias`, advertised as the fleet default.
+  // The OPT-IN speed engine (default false since 2026-08-27 — the default farm serves
+  // gemma4:12b on Ollama at auto context): ONE model, served as `alias`.
   "llamacpp": {
     "enabled": true,
     "alias": "assistant",                // the id clients see + auto-select
@@ -222,7 +233,7 @@ declarative config; the CLI orchestrates everything from it.
     "parallel": 1,                       //   that cannot fit VRAM (measured q4_0 ≈ 1.2 GB per 16k)
     "kvCacheType": "q4_0", "mtp": false  // mtp needs a UD-Q2_K_XL+ quant
   },
-  "models": [                            // Ollama catalog: STANDBY while llamacpp serves (one engine at a time)
+  "models": [                            // Ollama catalog (THE default engine's serving set; standby while llamacpp serves)
     { "id": "gemma4:12b", "default": true }
   ],
   "ollama": {

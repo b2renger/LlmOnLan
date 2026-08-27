@@ -446,23 +446,64 @@ async function run(args) {
         }
         const meta = await ollama.showModel(host, def);
         const native = (meta && meta.contextLength) || null;
-        // Candidate ladder, entered by VRAM tier so a typical box probes once or
-        // twice. 16384 is accepted WITHOUT a probe — it is the measured-safe floor
-        // this farm shipped with (see OllamaSchema.contextLength).
-        const LADDER = [262144, 131072, 65536, 32768, 16384];
-        const start = vram == null ? 2 : vram >= 80 ? 0 : vram >= 28 ? 2 : 3;
-        let candidates = LADDER.slice(start).filter((c) => native == null || c <= native);
-        if (!candidates.length) candidates = [Math.max(4096, native || 16384)];
-        let resolved = candidates[candidates.length - 1];
-        for (const c of candidates) {
-            if (c <= 16384) { resolved = c; break; }
-            progress(`probing a ${c}-token window`, null);
-            const warmed = await ollama.warmModel(host, def, config.ollama.keepAlive, c, 300000);
-            if (!warmed) continue;                       // load refused / timed out → try smaller
+        // Load the model at a given num_ctx and report Ollama's REAL memory verdict.
+        const psSizeAt = async (ctx) => {
+            const warmed = await ollama.warmModel(host, def, config.ollama.keepAlive, ctx, 300000);
+            if (!warmed) return null;
             const ps = await ollama.psModels(host);
             const bare = def.split(':')[0];
             const entry = ps.find((m) => m.name === def || m.name === `${def}:latest` || m.name.split(':')[0] === bare);
-            if (entry && entry.size > 0 && entry.sizeVram >= entry.size) { resolved = c; break; }
+            return entry && entry.size > 0 ? entry : null;
+        };
+        const fits = (p) => p != null && p.sizeVram >= p.size;
+        const step = (n) => Math.floor(n / 4096) * 4096;
+        // Two-point measurement: the model's REAL memory at 16k and 32k gives the
+        // per-token KV slope (sliding-window layers are saturated well before 16k,
+        // so the tail is linear), and the largest window inside the VRAM budget
+        // follows. A verify-load at the target catches anything the line missed —
+        // Ollama's own placement is always the referee, never the arithmetic.
+        // Ceiling 262144 (panel bound); ~8% VRAM headroom for the desktop.
+        const cap = Math.max(16384, Math.min(native || 262144, 262144));
+        const budget = vram != null ? (vram - Math.max(1, vram * 0.08)) * 1e9 : null;
+        let resolved = 16384;
+        progress('measuring the model at 16k', null);
+        const p1 = await psSizeAt(16384);
+        if (!fits(p1)) {
+            // Even the shipped floor spills here (big model, small card) — walk down.
+            for (const c of [8192, 4096]) {
+                progress(`measuring the model at ${c}`, null);
+                if (fits(await psSizeAt(c))) { resolved = c; break; }
+                resolved = 4096;
+            }
+        } else if (cap > 16384) {
+            let target = null;
+            if (budget != null) {
+                progress('measuring the model at 32k', null);
+                const p2 = await psSizeAt(32768);
+                if (fits(p2)) {
+                    const rate = Math.max(0, (p2.size - p1.size) / 16384);   // bytes per token
+                    const base = p1.size - rate * 16384;
+                    target = rate > 0 ? step((budget - base) / rate) : cap;
+                    target = Math.max(16384, Math.min(cap, target));
+                    if (target === 32768) { target = null; resolved = 32768; }
+                } else {
+                    target = null;                                          // 32k spills → keep 16k
+                }
+            } else {
+                target = cap;   // unified/unknown memory: aim at the cap, let the verify decide
+            }
+            if (target != null && target > 16384) {
+                progress(`verifying a ${target}-token window`, null);
+                if (fits(await psSizeAt(target))) resolved = target;
+                else {
+                    // The line missed — one conservative halving, then the floor.
+                    const half = Math.max(16384, step(target / 2));
+                    if (half > 16384) {
+                        progress(`verifying a ${half}-token window`, null);
+                        if (fits(await psSizeAt(half))) resolved = half;
+                    }
+                }
+            }
         }
         config.ollama.contextResolved = resolved;
         cache[cacheKey] = resolved;

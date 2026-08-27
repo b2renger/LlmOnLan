@@ -6,6 +6,60 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-08-27 b — gemma4:12b on Ollama at 262k is the new default, and the client boots leaner
+
+Owner calls: **serve gemma4:12b by default on Ollama with a 256k window**, and **cut the client's
+OWUI load time**.
+
+### The default flip (`llamacpp.enabled` now defaults false)
+
+The attach matrix earlier today surfaced the reason this is right: gemma4's sliding-window attention
+holds its **native 262144 context in ~10 GB total** (probed live, fully in VRAM), it is vision-native,
+and one model covers chat AND the OCR plugin — where the llama.cpp Qwen3.8-27B setup caps at ~36k on a
+4070. Max context is what thinking models + whole-document RAG want; llama.cpp stays one panel click
+away as the speed engine. Because fleet configs mostly omit `llamacpp.enabled`, the next farm update
+flips them to the new default — intended: that IS the rollout. `lol install` already skips the
+llama.cpp build + weights when the engine is off, so a fresh install drops from ~28 GB to ~18 GB.
+
+The tier-ladder probe from this morning would have left small cards at 16384, so it became a
+**two-point measurement**: load the model at 16k and 32k, take the per-token KV slope from `/api/ps`
+(sliding-window layers are saturated well before 16k, so the tail is linear), aim at
+min(native, VRAM−8%, 262144), and VERIFY with one more load — Ollama's own memory placement is always
+the referee, never the arithmetic. Below-floor cards walk down 8192→4096 instead of spilling. Verified
+out-of-the-box on this box with a minimal config (nothing but name/ports/token): `measuring at 16k →
+measuring at 32k → verifying 262144 → auto → 262144`, snapshot advertising
+`engine ollama, gemma4:12b, contextPerSlot 262144, slots 2` — and a 24k-token prompt with the sentinel
+on its FIRST line answered correctly (the exact thing a small window truncates away first). The
+adaptive-RAG client sees 262144 ≥ 24576 and keeps whole-document mode everywhere the default lands.
+
+### Client boot time
+
+Profiled the sidecar cold: **~11 s warm, 27 s+ semi-cold** to the first HTTP 200 — dominated by OWUI's
+own Python import chain (~10 s: langchain → sentence-transformers → transformers), which invariant #1
+forbids touching. What the shell owns, it now does:
+
+- **`repoint` restarts only when the effective launch env differs** — it builds the old and new env and
+  compares, instead of comparing inputs. The farm growing its context 65k→131k (or any input churn that
+  lands on the same env) no longer costs a full OWUI reboot mid-session.
+- **`sidecarManager` precompiles the freshly-unpacked tree to bytecode** (background, lowest priority)
+  after the first-run download AND after staging an update — a fresh install otherwise pays
+  parse+compile for ~27k files on its very first boot, which is exactly the launch new users judge.
+  (.pyc validation is mtime/size-based, so the pending→live rename keeps them valid.)
+- **`HF_HUB_OFFLINE=1` once MiniLM + whisper-base are cached** — OWUI otherwise asks huggingface.co for
+  the embedding model's revision on EVERY boot (boot-profiled): a wasted round trip online, a hang on a
+  closed LAN. Until both are cached the flag stays off (first downloads must work) and
+  `HF_HUB_ETAG_TIMEOUT=2` caps the stall instead. Offline boot verified live: 10.3 s, zero
+  huggingface.co requests, embeddings loaded from cache.
+- **Health polling 1000 ms → 300 ms** — the coarse interval added its own tail to every boot.
+
+### Verified
+
+All-defaults farm live on this box (engine, name, probe, long-context completion, teardown clean, live
+farm untouched); 89 farm tests (7 rewritten for the new default, all green); shell + farm-app tsc
+clean; offline sidecar boot clean.
+
+---
+
 ## 2026-08-27 — the attach matrix: every OWUI attach feature, live, on BOTH engines
 
 Owner ask: "we need more context by default", and verify that **attach webpage / attach files /

@@ -127,12 +127,15 @@ const OllamaSchema = z.object({
 // Ollama, and LiteLLM fronts it as an OpenAI deployment — so the client is
 // unchanged and cannot tell which backend answered.
 const LlamacppSchema = z.object({
-    // ON by default in this build: it ships the llama.cpp backend as THE backend,
-    // paired with a client that has no Open WebUI. Ollama still runs (gemma4 stays
-    // served for anything that asks for it), but the alias clients actually use is
-    // answered by llama-server, which is the only configuration measured that gets
-    // speculative decoding onto a 12 GB card.
-    enabled: z.boolean().default(true),
+    // OFF by default (owner decision 2026-08-27): the default farm serves
+    // **gemma4:12b on the Ollama engine at its native 262144 context** — its
+    // sliding-window attention makes 262k of KV fit in ~10 GB total (probed live:
+    // size 10.0 GB fully in VRAM on the fleet's cards), where the llama.cpp
+    // Qwen3.8-27B setup caps at ~36k on a 4070. Max context beats raw tok/s for
+    // thinking models + whole-document RAG, and gemma4 is vision-native (one model
+    // serves chat AND the OCR plugin). llama.cpp remains one panel click away —
+    // still the speed pick for models without cheap KV.
+    enabled: z.boolean().default(false),
     host: z.string().default('127.0.0.1'),   // LiteLLM is the only thing that talks to it
     port: z.number().int().positive().default(8081),
     // The served name clients request. Matches `modelAlias` so swapping backends does

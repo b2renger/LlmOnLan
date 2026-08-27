@@ -112,7 +112,7 @@ function copyFarm(): void {
 // shared (true) binds 0.0.0.0 + advertises via the beacon. Everything else is left to
 // the farm's zod defaults (SearXNG/OCR on, TTS off, ports, the llamacpp backend).
 // contextLength seeds ollama.contextLength on first run; after that the farm panel owns it.
-function writeFarmConfig(adminToken: string, share: boolean, contextLength: number): void {
+function writeFarmConfig(adminToken: string, share: boolean, contextLength: number | 'auto'): void {
     const config = {
         name: `${require('os').hostname()} Farm`,
         models: [{ id: MODEL_ID, default: true }],

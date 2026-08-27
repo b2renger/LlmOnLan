@@ -1,14 +1,15 @@
 # `lol` — the LlmOnLan farm CLI
 
 A small Node CLI that turns one declarative `lol.config.json` into a running, LAN‑discoverable
-inference farm. It brings up the inference engines — **[llama.cpp](https://github.com/ggml-org/llama.cpp)**
-(`llama-server`, the default backend for the model everyone chats with) and
-**[Ollama](https://ollama.com)** (the multi‑model catalog) — **generates** a
+inference farm. It brings up the inference engines — **[Ollama](https://ollama.com)** (the multi‑model
+catalog, and the **default backend** — serving `gemma4:12b` at its native 262k context out of the box)
+and **[llama.cpp](https://github.com/ggml-org/llama.cpp)** (`llama-server`, the opt‑in speed engine) —
+**generates** a
 [LiteLLM](https://docs.litellm.ai) proxy config that fronts both as one OpenAI‑compatible,
 load‑balanced endpoint, runs the proxy, and broadcasts a UDP discovery beacon so clients find it with
 no URL typed. Model choice lives in the config — the CLI never hand‑edits routing.
 
-> **New to the two‑engine setup?** Read [Backends](#backends--llamacpp-default-and-ollama) first — it
+> **New to the two‑engine setup?** Read [Backends](#backends--ollama-default-and-llamacpp) first — it
 > decides where you add a model and what a client actually gets.
 
 > **Not comfortable in a terminal?** The **[LlmOnLan Farm app](../farm-app/)** is a downloadable
@@ -103,14 +104,14 @@ model alias · `--coordinator` aggregate LAN peer farms into one balanced endpoi
 `--websearch` / `--no-websearch` override the SearXNG toggle · `--tts` / `--no-tts` override the Kokoro
 voice toggle (off by default) · `--ocr` / `--no-ocr` override the document‑OCR toggle (on by default).
 
-## Backends — llama.cpp (default) and Ollama
+## Backends — Ollama (default) and llama.cpp
 
 A farm knows **two** engines — and serves through **one at a time**. Knowing which one is serving is
 the thing to understand before changing models or sizing for a group.
 
 | | **llama.cpp** (`llama-server`) | **Ollama** |
 |---|---|---|
-| On by default | **yes** (`llamacpp.enabled: true`) | yes |
+| On by default | no — opt-in (`llamacpp.enabled: true`) | **yes — the default engine** (gemma4:12b at its native 262k context) |
 | Serves | **exactly one** model — `llamacpp.model`, a `.gguf` URL | every entry in `models` — **only while it is the selected engine** |
 | Client-facing name | `llamacpp.alias` (default `assistant`) | each model's `alias`, else its raw id |
 | Visible to clients? | **yes** — the only model, while it is the engine | only when Ollama is the engine — otherwise **standby** (not routed, not advertised) |
@@ -420,7 +421,7 @@ nothing. Shape:
   "proxy":  { "port": 4000, "host": "0.0.0.0", "masterKey": null },
   "models": [ { "id": "gemma4:12b", "default": true },
               { "id": "qwen2.5-coder:14b", "alias": "coder" } ],  // per-model role alias
-  "llamacpp": { "enabled": true,               // DEFAULT backend — serves ONE model as `alias`
+  "llamacpp": { "enabled": true,               // OPT-IN speed engine (default false) — serves ONE model as `alias`
                 "alias": "assistant",          // the name clients see and auto-select
                 "model": "https://huggingface.co/unsloth/Qwen3.8-27B-GGUF/resolve/main/Qwen3.8-27B-UD-IQ2_S.gguf",
                 "mmproj": "https://huggingface.co/unsloth/Qwen3.8-27B-GGUF/resolve/main/mmproj-F16.gguf",
