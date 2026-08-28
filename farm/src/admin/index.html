@@ -329,9 +329,16 @@ function render(s) {
       ? `<button class="stop" data-act="stop" data-id="${esc(m.id)}">Stop</button>`
       : `<button class="start" data-act="start" data-id="${esc(m.id)}">Offer</button>`);
     const del = isOcr ? '' : `<button class="stop" data-olrm="${esc(m.id)}" title="Delete the weights from this box"${jobRunning ? ' disabled' : ''}>Delete</button>`;
+    // Each served model can carry its own advertised name (checkpoint id by
+    // default, admin-overridable — setModelAlias). Renamed rows lead with the
+    // name users see; the checkpoint id moves into the meta line.
+    const renamed = m.servedAs && m.servedAs !== m.id;
+    const rnBtn = m.served
+      ? `<button data-rn="${esc(m.id)}" data-cur="${esc(m.servedAs || m.id)}" title="The name users see for this model"${jobRunning ? ' disabled' : ''}>Rename</button>` : '';
+    const metaLine = [renamed ? `checkpoint ${m.id}` : '', meta].filter(Boolean).join(' · ');
     return `<div class="row"><span class="${dotCls}"></span>`
-      + `<span><div class="mname">${esc(m.id)}</div>${meta ? `<div class="meta">${esc(meta)}</div>` : ''}</span>`
-      + `<span class="badges">${badges}${defBtn}${btn}${del}</span></div>`;
+      + `<span><div class="mname">${esc(renamed ? m.servedAs : m.id)}</div>${metaLine ? `<div class="meta">${esc(metaLine)}</div>` : ''}</span>`
+      + `<span class="badges">${badges}${defBtn}${rnBtn}${btn}${del}</span></div>`;
   }).join('') : '<div class="empty">No models installed on any reachable host.</div>';
 
   const ollamaCard = `<div class="card"><h2>Models · Ollama${lcOn ? ' <span class="badge">standby</span>' : ''}</h2>`
@@ -420,6 +427,13 @@ function render(s) {
   });
   app.querySelectorAll('button[data-lcuse]').forEach((b) => { b.onclick = () => post('/lol/admin/llamacpp/model', { id: b.dataset.lcuse }, b, 'Loading the model…'); });
   app.querySelectorAll('button[data-lcdel]').forEach((b) => { b.onclick = () => post('/lol/admin/llamacpp/library/remove', { id: b.dataset.lcdel }, b, 'Removed'); });
+  app.querySelectorAll('button[data-rn]').forEach((b) => {
+    b.onclick = () => {
+      const v = prompt('Name users see for ' + b.dataset.rn + ' (empty = back to the checkpoint name):', b.dataset.cur || b.dataset.rn);
+      if (v === null) return;   // cancelled
+      post('/lol/admin/model/alias', { id: b.dataset.rn, alias: v.trim() }, b, 'Renaming…');
+    };
+  });
   app.querySelectorAll('button[data-olrm]').forEach((b) => {
     b.onclick = () => { if (confirm('Delete ' + b.dataset.olrm + ' from this box? The files are removed.')) post('/lol/admin/ollama/remove', { id: b.dataset.olrm }, b, 'Removing…'); };
   });
@@ -441,7 +455,11 @@ function render(s) {
   if (slotsApply) slotsApply.onclick = () => post('/lol/admin/slots', { slots: parseInt($('#slots-sel').value, 10) }, slotsApply, 'Applying…');
   const ctxApply = $('#ctx-apply');
   if (ctxApply) ctxApply.onclick = () => {
-    const v = $('#ctx-sel').value;
+    const sel = $('#ctx-sel');
+    const v = sel.value;
+    const opt = sel.selectedOptions && sel.selectedOptions[0];
+    if (opt && opt.dataset.over === '1'
+        && !confirm('This is more than the GPU should hold — part of the model will spill into system RAM and answers slow to a few tokens per second. Serve it anyway?')) return;
     post('/lol/admin/context', { tokens: v === 'auto' ? 'auto' : parseInt(v, 10) }, ctxApply, 'Applying…');
   };
 
@@ -472,10 +490,13 @@ function ctxOptions(cfg, resolved, fit) {
   // Automatic is always on the menu. fit === null (Ollama serving) just means the
   // numeric options can't be pre-disabled; the probe/pin protects the choice.
   const auto = `<option value="auto"${cfg === 'auto' ? ' selected' : ''}>Automatic — the most this ${fit == null ? 'box' : 'GPU'} holds${resolved ? ` (now ${fmtK(resolved)})` : ''}</option>`;
+  // Oversized options are ADVERTISED as too much but stay selectable (owner call
+  // 2026-08-28): the admin may deliberately trade speed for window. The apply
+  // handler confirms before sending one of these.
   return auto + list.map((v) => {
-    const over = max != null && v > max && v !== now;
-    const label = fmtK(v) + ' tokens' + (over ? ` — won\u2019t fit (${fit.vramGb} GB GPU)` : '');
-    return `<option value="${v}"${v === now ? ' selected' : ''}${over ? ' disabled' : ''}>${label}</option>`;
+    const over = max != null && v > max;
+    const label = fmtK(v) + ' tokens' + (over ? ` — more than this ${fit.vramGb} GB GPU holds (slows to a crawl)` : '');
+    return `<option value="${v}"${v === now ? ' selected' : ''}${over ? ' data-over="1"' : ''}>${label}</option>`;
   }).join('');
 }
 function fmtK(n) { return !n ? '—' : (n % 1024 === 0 ? (n / 1024) + 'k' : String(n)); }

@@ -332,10 +332,13 @@ The panel opens on a **Backend** card that answers the two questions that used t
 what users' model is called, and which engine is behind it.
 
 **Rename what users see.** *Backend* ▸ **Name users see** → type e.g. `Studio Assistant` → Apply.
-`assistant` is only a default. Because the name *is* the model id that clients request, renaming takes a
-few seconds (the model reloads) and chats started under the old name will ask their user to re-pick the
-model; new chats are unaffected. Don't reuse a name an Ollama model already answers to — the collision
-makes that model [silently vanish](../farm/README.md#config--lolconfigjson).
+Because the name *is* the model id that clients request, renaming takes a few seconds and chats started
+under the old name will ask their user to re-pick the model; new chats are unaffected.
+
+**Name each model.** Every model in *Models · Ollama* is offered under its **checkpoint name**
+(e.g. `gemma4:12b`) until you press its **Rename** button — give each one whatever people should see
+(`tutor`, `coder`, …); empty puts the checkpoint name back. Duplicates are refused (the name is the id
+clients request).
 
 **Swap the model everyone gets.** *Model · llama.cpp* ▸ pick an entry and press **Use this**. To serve
 something not in the list, paste a `.gguf` link into **Add a model** first — on Hugging Face that is the

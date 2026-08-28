@@ -133,6 +133,7 @@ function startSelfServer({ httpPort, getSnapshot, host = '0.0.0.0', control = nu
                 const POSTS = {
                     '/lol/admin/backend': (b) => control.setBackend(b.engine),
                     '/lol/admin/name': (b) => control.setAdvertisedName(b.name),
+                    '/lol/admin/model/alias': (b) => control.setModelAlias(b.id, b.alias),
                     '/lol/admin/security': (b) => control.setFarmPassword(b.password),
                     '/lol/admin/slots': (b) => control.setSlots(b.slots),
                     '/lol/admin/llamacpp/model': (b) => control.setLlamacppModel(b),

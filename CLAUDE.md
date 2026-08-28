@@ -229,7 +229,7 @@ declarative config; the CLI orchestrates everything from it.
     "enabled": true,
     "alias": "assistant",                // the id clients see + auto-select
     "model": "https://huggingface.co/unsloth/Qwen3.8-27B-GGUF/resolve/main/Qwen3.8-27B-UD-IQ2_S.gguf",
-    "contextLength": 16384,              // SPLIT across `parallel` slots; the farm CLAMPS a size
+    "contextLength": 16384,              // SPLIT across `parallel` slots; an over-size WARNS loudly
     "parallel": 1,                       //   that cannot fit VRAM (measured q4_0 ≈ 1.2 GB per 16k)
     "kvCacheType": "q4_0", "mtp": false  // mtp needs a UD-Q2_K_XL+ quant
   },

@@ -340,9 +340,11 @@ box, not per boot. Verified: gemma4:12b on a 96 GB box probes straight to its na
 The probe doubles as the warm-up. `Automatic` in the panel's context selector works on both engines.
 
 You mostly do not have to do the arithmetic yourself even then: the panel **computes the budget from the real
-weights on disk and the detected VRAM** — context sizes that cannot fit are disabled in the selector
-("won’t fit (12 GB GPU)"), an over-size request is refused with the largest size that does fit, and a
-persisted config that no longer fits is **clamped at boot** (loudly, and saved). This exists because a
+weights on disk and the detected VRAM** — context sizes past the budget are **advertised as too much**
+("more than this 12 GB GPU holds — slows to a crawl") but stay selectable: the panel asks for a
+confirmation, the applied result spells out the trade, and a persisted over-size is **honored at boot
+with a loud warning** rather than clamped (owner call 2026-08-28 — the admin may deliberately trade
+speed for window). The warnings exist because a
 256k window saved onto a 12 GB card "worked" — Windows overcommits GPU memory into system RAM — and
 served a few tokens a second until someone guessed why. The **Performance card** is the other half:
 measured tok/s while generating (from llama-server’s own counters), slots busy, requests waiting, KV
@@ -454,12 +456,15 @@ nothing. Shape:
 }
 ```
 
-> **Alias hygiene.** While llama.cpp serves, NO Ollama model is routed or advertised at all (one
-> engine at a time), so alias collisions cannot drop anything *today*. They still matter the moment
-> you switch to the Ollama engine: the advertised name travels between `llamacpp.alias` and the
-> global `modelAlias` automatically (`carryNameAcross`), and a per-model `"alias"` equal to that
-> name would then shadow it. Keep per-model aliases distinct (`coder`, `vision`, …) and let the
-> panel manage the advertised name.
+> **Per-model names.** Every downloaded model is advertised under its **checkpoint id** unless you
+> rename it: each served row in the panel's *Models · Ollama* card has a **Rename** button (empty =
+> back to the checkpoint name), which writes the per-model `"alias"` in `models` and enforces
+> uniqueness — the name IS the id clients request, so a duplicate would silently merge two models
+> into one route. Precedence: a per-model alias > the global `modelAlias` (which only names the
+> default model, and is what the Backend card's big **Name users see** control sets — using that
+> control clears a per-model override on the default, so the most recent rename always wins). On an
+> engine switch the advertised name still travels between `llamacpp.alias` and `modelAlias`
+> automatically (`carryNameAcross`).
 
 **`llamacpp.library`** is the list of `.gguf`s the panel offers under *Use this*, so an operator can
 switch weights without hunting for URLs. Each entry is

@@ -569,12 +569,14 @@ async function run(args) {
             ].filter(Boolean).join(', ');
             log.ok(`Context: auto → ${log.paint.bold(String(target))} tokens ${log.paint.grey(`(${why})`)}`);
         } else {
-            let target = config.llamacpp.contextLength;
+            const target = config.llamacpp.contextLength;
+            // A pinned number that overflows VRAM is HONORED, loudly (owner call
+            // 2026-08-28: the admin may deliberately trade speed for window — the
+            // boot used to clamp+persist, which silently undid that choice).
             if (fit && fit.maxContext != null && fit.maxContext >= 4096 && target > fit.maxContext) {
-                log.err(`Context ${target} needs ~${computeFit(target).needGb} GB — this GPU has ${fit.vramGb} GB. Clamping to ${fit.maxContext}.`);
-                const warn = persistLlamacpp({ contextLength: fit.maxContext });
-                if (warn) log.warn(warn.trim());
-                target = fit.maxContext;
+                log.warn(`Context ${target} needs ~${computeFit(target).needGb} GB — this GPU has ${fit.vramGb} GB. ` +
+                    `Honoring it (explicitly configured), but part of the model will live in system RAM: expect a few tokens/second. ` +
+                    `${fit.maxContext} is the largest that fits; "auto" picks it for you.`);
             }
             config.llamacpp.contextResolved = target;
         }
@@ -828,6 +830,7 @@ async function run(args) {
         removeLibraryModel: async () => ({ ok: false, error: 'farm still starting' }),
         setSlots: async () => ({ ok: false, error: 'farm still starting' }),
         setAdvertisedName: async () => ({ ok: false, error: 'farm still starting' }),
+        setModelAlias: async () => ({ ok: false, error: 'farm still starting' }),
         setFarmPassword: async () => ({ ok: false, error: 'farm still starting' }),
         pullOllamaModel: async () => ({ ok: false, error: 'farm still starting' }),
         removeOllamaModel: async () => ({ ok: false, error: 'farm still starting' }),
@@ -1183,11 +1186,16 @@ async function run(args) {
         // tolerance startModel/stopModel use, so the page shows the right Start/Stop.
         const servedIds = new Set(config.models.map((m) => norm(m.id)));
         const defaultId = norm((config.models.find((m) => m.default) || config.models[0] || {}).id || null);
+        // What each served model is ADVERTISED as (per-model alias > global alias
+        // for the default > the checkpoint id) — the panel shows it and offers a
+        // per-model Rename (setModelAlias).
+        const servedAsBy = new Map(servedEntries(config).map((e) => [norm(e.underlying), e.servedName]));
         return {
             name: config.name,
             models: [...installed.values()].map((m) => ({
                 id: m.name, size: m.size, family: m.family, paramSize: m.paramSize,
                 served: servedIds.has(norm(m.name)), loaded: loaded.includes(m.name), isDefault: norm(m.name) === defaultId,
+                servedAs: servedAsBy.get(norm(m.name)) || null,
             })),
             servedNames: servedEntries(config).map((e) => e.servedName),
             modelAlias: (config.modelAlias || '').trim() || null,
@@ -1219,7 +1227,7 @@ async function run(args) {
             },
             // Advisory capacity — see the snapshot. Nothing is refused past `slots`.
             capacity: { slots: backendInfo(config, liveHealth).slots, clients: freshClients().length },
-            // The VRAM budget for the current shape — the panel disables context
+            // The VRAM budget for the current shape — the panel flags context
             // options that cannot fit instead of offering 256k on a 12 GB card.
             fit: config.llamacpp.enabled ? computeFit() : null,
             // Measured throughput + a short history for the panel's sparkline.
@@ -1334,21 +1342,15 @@ async function run(args) {
 
         if (config.llamacpp.enabled) {
             if (want === config.llamacpp.contextLength) return { ok: true, already: true, contextLength: want };
-            // Refuse a size the GPU cannot hold. llama-server would not refuse it —
-            // Windows overcommits into system RAM and the farm "works" at a few
-            // tok/s (the AN-VR-01 incident: 256k saved onto a 12 GB card). Skipped
-            // when the budget is unknowable (no GPU detected / unified memory).
+            // A size the GPU cannot hold is ADVISORY, not blocked (owner call
+            // 2026-08-28): llama-server won't refuse it — Windows overcommits into
+            // system RAM and the farm "works" at a few tok/s (the AN-VR-01
+            // incident) — so the panel warns + confirms, and the applied result
+            // says exactly what was traded. The admin's explicit choice is honored.
             const fitAt = computeFit(want);
-            if (fitAt && fitAt.fits === false && fitAt.maxContext != null) {
-                return {
-                    ok: false,
-                    error: `${want} tokens of context needs ~${fitAt.needGb} GB — this GPU has ${fitAt.vramGb} GB. ` +
-                        (fitAt.maxContext >= 4096
-                            ? `The largest that fits is ${fitAt.maxContext}.`
-                            : `This model barely fits at all — use a smaller quant.`),
-                    contextLength: config.llamacpp.contextLength,
-                };
-            }
+            const overWarn = (fitAt && fitAt.fits === false && fitAt.maxContext != null)
+                ? ` ⚠ ${want} tokens needs ~${fitAt.needGb} GB — this GPU has ${fitAt.vramGb} GB, so part of the model now lives in system RAM. Expect a few tokens/second${fitAt.maxContext >= 4096 ? `; ${fitAt.maxContext} is the largest that fits` : ''}.`
+                : '';
             const before = config.llamacpp.contextLength;
             const perSlot = Math.floor(want / Math.max(1, config.llamacpp.parallel));
             return runJob('context', `Setting the context window to ${want} tokens`, async (progress) => {
@@ -1375,7 +1377,7 @@ async function run(args) {
                     return { ok: false, error: `${r.error} Kept ${before} tokens. A too-large window is the usual cause — it must fit in VRAM alongside the weights.` };
                 }
                 const each = config.llamacpp.parallel > 1 ? ` (${perSlot} per slot across ${config.llamacpp.parallel} slots)` : '';
-                return { ok: true, message: `Context window is ${want} tokens${each}.${warn || ''}` };
+                return { ok: true, message: `Context window is ${want} tokens${each}.${overWarn}${warn || ''}` };
             });
         }
 
@@ -1776,11 +1778,19 @@ async function run(args) {
             // Ollama side: the global alias re-binds the routing; no model reload needed.
             if (clean === (config.modelAlias || '')) return { ok: true, already: true, name: clean };
             const before = config.modelAlias;
+            // A per-model alias on the DEFAULT model outranks modelAlias in the
+            // routing (servedEntries), so left in place it would silently swallow
+            // this rename. The most recent action wins: clear it.
+            const defEntry = config.models.find((m) => m.default) || config.models[0];
+            const defAliasBefore = defEntry && (defEntry.alias || '').trim() || null;
+            if (defEntry && defAliasBefore) delete defEntry.alias;
             config.modelAlias = clean;
             const saved = patchConfigFile(configPath, (raw) => { raw.modelAlias = clean; return raw; });
+            if (defAliasBefore) persistModels();
             return runJob('name', `Renaming the model to "${clean}"`, async () => {
                 if (!(await restartProxy())) {
                     config.modelAlias = before;
+                    if (defEntry && defAliasBefore) { defEntry.alias = defAliasBefore; persistModels(); }
                     // Revert the FILE too — memory and disk disagreeing until the next
                     // reboot is how names silently change overnight.
                     patchConfigFile(configPath, (raw) => { raw.modelAlias = before; return raw; });
@@ -1802,6 +1812,50 @@ async function run(args) {
                 return { ok: false, error: `${r.error} Kept the previous name.` };
             }
             return { ok: true, message: `Users now see "${clean}". Existing chats will ask to re-select the model.${warn || ''}` };
+        });
+    }
+
+    // Per-model advertised name (Ollama catalog). Every downloaded model defaults
+    // to its checkpoint id; the admin can override each one (owner call 2026-08-28).
+    // A per-model alias WINS over the global modelAlias in the routing
+    // (servedEntries), so renaming the default model here also renames what
+    // clients auto-select. Empty clears the override — back to the checkpoint name.
+    function setModelAlias(id, alias) {
+        if (busy()) return busyErr();
+        const entry = config.models.find((m) => norm(m.id) === norm(id));
+        if (!entry) return { ok: false, error: `"${id}" is not in the served catalog — Offer it first.` };
+        const clean = String(alias == null ? '' : alias).replace(/[\r\n\t]/g, ' ').trim().slice(0, 48) || null;
+        if (clean && NAME_BAD_RX.test(clean)) return { ok: false, error: 'Use letters, numbers, spaces and . - + : only.' };
+        if (clean) {
+            // The name IS the id clients request — a duplicate silently merges two
+            // models into one route (the alias-hygiene rule, enforced here).
+            const taken = config.models.some((m) => m !== entry && ((m.alias || '').trim() || m.id) === clean)
+                || (config.llamacpp.enabled && clean === config.llamacpp.alias)
+                || (!entry.default && clean === (config.modelAlias || '').trim());
+            if (taken) return { ok: false, error: `"${clean}" is already another model's name.` };
+        }
+        if (((entry.alias || '').trim() || null) === clean) return { ok: true, already: true };
+        const before = (entry.alias || '').trim() || null;
+        const apply = (v) => { if (v) entry.alias = v; else delete entry.alias; };
+        // Standby catalog (llama.cpp serving): nothing here is routed, so persist
+        // without bouncing the proxy — the name applies on the next engine switch.
+        if (config.llamacpp.enabled) {
+            apply(clean);
+            const warn = persistModels();
+            if (beacon) beacon.kick();
+            return { ok: true, message: `"${entry.id}" will be offered as "${clean || entry.id}" when Ollama serves.${warn || ''}` };
+        }
+        return runJob('name', clean ? `Renaming ${entry.id} to "${clean}"` : `Renaming ${entry.id} back to its checkpoint name`, async () => {
+            apply(clean);
+            const warn = persistModels();
+            if (!(await restartProxy())) {
+                apply(before);
+                persistModels();
+                await restartProxy();
+                return { ok: false, error: 'The proxy did not come back — kept the previous name.' };
+            }
+            if (beacon) beacon.kick();
+            return { ok: true, message: `Users now see "${clean || entry.id}".${entry.default ? ' Existing chats will ask to re-select the model.' : ''}${warn || ''}`, servedModels: servedIdList() };
         });
     }
 
@@ -1929,6 +1983,7 @@ async function run(args) {
         removeLibraryModel: (id) => busy() ? busyErr() : serialize(() => removeLibraryModel(id)),
         setSlots,
         setAdvertisedName,
+        setModelAlias,
         setFarmPassword,
         pullOllamaModel,
         removeOllamaModel,

@@ -926,6 +926,7 @@ test('selfServer routes every backend/model control, all behind the token', asyn
         removeLibraryModel: rec('librm'),
         pullOllamaModel: rec('pull'),
         removeOllamaModel: rec('olrm'),
+        setModelAlias: rec('malias'),
     };
     const server = startSelfServer({ httpPort: 0, getSnapshot: () => ({}), host: '127.0.0.1', control, adminToken: 'secret' });
     await new Promise((r) => { if (server.listening) r(); else server.once('listening', r); });
@@ -948,15 +949,32 @@ test('selfServer routes every backend/model control, all behind the token', asyn
         await post('/lol/admin/llamacpp/library/remove', { id: 'q' });
         await post('/lol/admin/ollama/pull', { id: 'gemma4:12b' });
         await post('/lol/admin/ollama/remove', { id: 'gemma4:12b' });
+        await post('/lol/admin/model/alias', { id: 'gemma4:12b', alias: 'tutor' });
 
         assert.deepEqual(calls.map((c) => c[0]),
-            ['backend', 'name', 'slots', 'lcmodel', 'libadd', 'librm', 'pull', 'olrm']);
+            ['backend', 'name', 'slots', 'lcmodel', 'libadd', 'librm', 'pull', 'olrm', 'malias']);
         assert.equal(calls[0][1], 'ollama');
         assert.equal(calls[1][1], 'Studio');
         assert.equal(calls[2][1], 4);
         assert.equal(calls[3][1].id, 'q', 'the whole body reaches setLlamacppModel (id OR url)');
         assert.equal(calls[6][1], 'gemma4:12b');
+        assert.deepEqual(calls[8].slice(1), ['gemma4:12b', 'tutor'], 'id + alias reach setModelAlias');
     } finally { server.close(); }
+});
+
+test('per-model alias outranks the global modelAlias; unnamed models keep their checkpoint id', () => {
+    // Owner call 2026-08-28: every downloaded model defaults to its checkpoint
+    // name; the admin can override each one (the panel's per-model Rename).
+    const c = defaultConfig();
+    c.llamacpp.enabled = false;
+    c.models = [{ id: 'gemma4:12b', default: true }, { id: 'qwen2.5-coder:14b' }];
+    c.modelAlias = 'assistant';
+    let names = servedEntries(c).map((e) => e.servedName);
+    assert.deepEqual(names, ['assistant', 'qwen2.5-coder:14b'], 'global alias names the default; the rest keep their id');
+    c.models[0].alias = 'tutor';                       // per-model rename of the default
+    c.models[1].alias = 'coder';
+    names = servedEntries(c).map((e) => e.servedName);
+    assert.deepEqual(names, ['tutor', 'coder'], 'a per-model alias wins over the global one');
 });
 
 // ---- switching feedback + performance + fit (2026-08-26) --------------------

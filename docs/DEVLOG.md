@@ -6,6 +6,34 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-08-28 — the admin outranks the guardrails: advisory context + per-model names
+
+Two owner calls from testing farm-v0.0.24:
+
+- **Oversized context is advised against, never blocked.** The panel's selector used to DISABLE
+  sizes past the VRAM budget, `setContextLength` refused them, and the boot CLAMPED a persisted
+  over-size (and saved the clamp — silently undoing the admin's choice). All three are now advisory:
+  the option reads "more than this 12 GB GPU holds (slows to a crawl)" but stays selectable, Apply
+  asks for one confirmation, the applied result spells out the trade (`⚠ 262144 tokens needs ~20 GB —
+  this GPU has 12 GB…`), and boot honors an explicitly configured over-size with a loud warning
+  instead of clamping. The AN-VR-01 lesson stays encoded in the warnings; the decision belongs to
+  whoever runs the farm.
+- **Every downloaded model gets its own name.** Each served row in *Models · Ollama* has a
+  **Rename** button: models default to their checkpoint id, the admin overrides per model
+  (`setModelAlias`, `POST /lol/admin/model/alias`), empty restores the checkpoint name. Uniqueness is
+  enforced — the name IS the id clients request, so a duplicate would silently merge two routes.
+  Precedence made deterministic: per-model alias > global `modelAlias`, and the Backend card's big
+  "Name users see" now clears a per-model override on the default model so the most recent rename
+  always wins. On the llama.cpp engine renames persist without bouncing the proxy (standby catalog —
+  nothing routed to interrupt).
+
+Live-verified on an isolated farm: rename `gemma4:12b` → `tutor` (snapshot + `/v1/models` + a
+completion under the new name), `servedAs` in the panel state, busy-guard during a pull job, empty
+alias → checkpoint name restored and the override gone from disk. ctxOptions render harness: oversized
+options flagged `data-over`, zero `disabled` attributes. 90 farm tests (route + precedence added).
+
+---
+
 ## 2026-08-27 b — gemma4:12b on Ollama at 262k is the new default, and the client boots leaner
 
 Owner calls: **serve gemma4:12b by default on Ollama with a 256k window**, and **cut the client's
