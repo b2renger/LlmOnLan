@@ -6,6 +6,27 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-08-28 d — the download progress nobody could see
+
+Owner ran the Qwen Flash split download on the live box (farm 0.0.25) and reported **no feedback**
+— while `/lol/self` showed the job running fine (`model part 2/3 … 8%`). The progress existed; it
+was just invisible. Two causes, both fixed:
+
+- **The job bar rendered off-screen.** It sits at the top of the panel page, but the operator is
+  scrolled down at the model library — the card whose *Use this* button started the job. The bar is
+  now `position: sticky`, so it pins to the viewport top from anywhere on the page.
+- **llama.cpp downloads reported a bare per-part percent** — the bar restarted at 0% three times
+  with no byte counts (the Ollama pull path got bytes in 0.0.25; this path didn't). `downloadGguf`
+  now passes `(pct, seenBytes, totalBytes)` through, and `ensureModel` prices the whole shard set
+  up front with one HEAD per part (verified live against the Qwen repo: 0.01 + 50.0 + 22.5 =
+  72.5 GB — shard 1 is 10.9 MB of metadata), so the job reads as ONE download:
+  `model part 2/3 — 31.2 / 72.5 GB` with an overall percent that never restarts. HEADs are skipped
+  when every shard is already cached — on a closed LAN they'd stall every boot for their timeout.
+
+91 farm tests still green. Ships as farm-v0.0.26.
+
+---
+
 ## 2026-08-28 c — split GGUFs, visible downloads, and the pull dead-end signposted
 
 Owner tried Qwen3.8-Flash-Next (UD-IQ1_S — a 72.5 GB, three-part split GGUF) and hit two walls:

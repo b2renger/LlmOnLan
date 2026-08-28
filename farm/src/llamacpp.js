@@ -20,9 +20,10 @@
 const fs = require('fs');
 const path = require('path');
 const http = require('http');
+const https = require('https');
 const os = require('os');
 const { spawn, execFileSync } = require('child_process');
-const { downloadGguf } = require('./ollama');
+const { downloadGguf, ggufPathFor } = require('./ollama');
 
 // Pinned llama.cpp build. `--spec-type draft-mtp` (the flag that activates a GGUF's
 // built-in NextN/MTP head) landed in PR #22673; this build has it — verified by
@@ -219,22 +220,64 @@ function weightsBytesFor(modelPath) {
     return total;
 }
 
+// Total bytes a URL serves (HEAD, following redirects), or 0 when the host won't
+// say — used to price a multi-shard download BEFORE it starts, so progress can
+// read as ONE download ("part 2/3 — 31.2 / 72.5 GB", overall percent) instead of
+// a bar that silently restarts at 0% for every shard.
+function headSize(url, redirectsLeft = 5, timeoutMs = 10000) {
+    return new Promise((resolve) => {
+        if (redirectsLeft < 0) return resolve(0);
+        const req = https.request(url, { method: 'HEAD', timeout: timeoutMs }, (res) => {
+            res.resume();
+            if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+                return resolve(headSize(new URL(res.headers.location, url).toString(), redirectsLeft - 1, timeoutMs));
+            }
+            resolve(res.statusCode === 200 ? (Number(res.headers['content-length']) || 0) : 0);
+        });
+        req.on('timeout', () => req.destroy());   // destroy fires 'error' → resolve(0)
+        req.on('error', () => resolve(0));
+        req.end();
+    });
+}
+
+const gb = (bytes) => (bytes / 1e9).toFixed(1);
+
 async function ensureModel(config, onProgress = () => {}) {
     const c = config.llamacpp;
     if (!c.model) return { ok: false, message: 'llamacpp.model is not set (an https URL to a .gguf).' };
     const parts = shardUrls(c.model);
     let model;
     if (parts) {
+        // Preflight the shard sizes only when something actually needs fetching —
+        // on a closed LAN the HEADs would otherwise stall every cached boot for
+        // their full timeout.
+        const anyMissing = parts.some((u) => {
+            try { return !(fs.statSync(ggufPathFor(u)).size > 0); } catch { return true; }
+        });
+        const sizes = anyMissing ? await Promise.all(parts.map((u) => headSize(u))) : [];
+        const totalAll = sizes.length && sizes.every((n) => n > 0) ? sizes.reduce((a, b) => a + b, 0) : 0;
+        let doneBytes = 0;   // completed shards, so the count never jumps backwards
         let first = null;
         let allCached = true;
         for (let i = 0; i < parts.length; i++) {
-            const got = await downloadGguf(parts[i], (pct) => onProgress(`model part ${i + 1}/${parts.length}`, pct));
+            const partLabel = `model part ${i + 1}/${parts.length}`;
+            const got = await downloadGguf(parts[i], (pct, seen = 0) => {
+                if (totalAll) {
+                    const overall = doneBytes + seen;
+                    onProgress(`${partLabel} — ${gb(overall)} / ${gb(totalAll)} GB`,
+                        Math.min(99, Math.floor((overall / totalAll) * 100)));
+                } else {
+                    onProgress(seen ? `${partLabel} — ${gb(seen)} GB` : partLabel, pct);
+                }
+            });
+            try { doneBytes += fs.statSync(got.path).size; } catch { doneBytes += sizes[i] || 0; }
             if (i === 0) first = got;
             if (!got.cached) allCached = false;
         }
         model = { path: first.path, cached: allCached };
     } else {
-        model = await downloadGguf(c.model, (pct) => onProgress('model', pct));
+        model = await downloadGguf(c.model, (pct, seen = 0, total = 0) =>
+            onProgress(total ? `model — ${gb(seen)} / ${gb(total)} GB` : 'model', pct));
     }
     let mmproj = null;
     if (c.mmproj) mmproj = (await downloadGguf(c.mmproj, (pct) => onProgress('mmproj', pct))).path;

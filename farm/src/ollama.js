@@ -342,7 +342,7 @@ function downloadDraft(url, onProgress = () => {}, timeoutMs = 30 * 60 * 1000) {
                 // Only report when the whole percent CHANGES. Firing per chunk emits
                 // tens of thousands of lines for a multi-GB file.
                 const pct = total ? Math.floor((seen / total) * 100) : 0;
-                if (pct !== lastPct) { lastPct = pct; onProgress(pct, seen / 1024 / 1024); }
+                if (pct !== lastPct) { lastPct = pct; onProgress(pct, seen, total); }
             });
             res.pipe(out);
             out.on('finish', () => out.close(() => {
