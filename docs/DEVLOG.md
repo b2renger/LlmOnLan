@@ -6,6 +6,35 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-08-28 b — reopening the client is instant: the chat engine stays warm
+
+Owner report: ~20 s to the OWUI interface on a laptop. The floor is OWUI's own Python boot
+(~10 s on a fast desktop, worse on laptops with active AV) — invariant #1 forbids touching it, and
+v0.1.37 already stripped everything the shell added on top. So the remaining win is **not paying that
+boot on every open**:
+
+- **Keep-warm (default on).** Closing the window now hides the app to a tray icon instead of
+  quitting; the OWUI sidecar keeps running, so reopening — from the tray, the taskbar, or launching
+  the app again (single-instance surfaces the hidden window) — is **instant**. The tray's
+  *Quit (stops the chat engine)* is the real exit; `app.quit()` sets the quitting flag in
+  `before-quit` before any window-close event fires, so real quits (updater restart, relaunch)
+  pass the close-handler untouched. Preferences ▸ Startup gains the toggle; off = classic
+  close-means-quit.
+- **Launch at login now registers with `--hidden`** (honored only while keep-warm is on): the engine
+  boots silently at login, so the FIRST open of the day is instant too.
+
+The cold boot itself still costs what OWUI costs — one boot per login instead of one per open is the
+deal. (Ops note for slow laptops: an antivirus exclusion for the app's sidecar folder is the last
+big lever; ~27k Python files get scanned per cold start.)
+
+Verified: shell tsc clean; close/quit paths traced (close→hide gated on !quitting + keepEngineWarm;
+window-all-closed guarded for destroy paths; activate/second-instance re-show the hidden window).
+The CDP e2e cannot run on this box (owner's client holds the packaged instance; documented practice),
+so the tray flow needs one manual pass on a test machine: close window → tray present → reopen
+instant → tray Quit really stops the engine.
+
+---
+
 ## 2026-08-28 — the admin outranks the guardrails: advisory context + per-model names
 
 Two owner calls from testing farm-v0.0.24:

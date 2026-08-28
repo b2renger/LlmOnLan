@@ -85,7 +85,11 @@ Snapshot:
   (not when an input differs), `sidecarManager` precompiles the freshly-unpacked tree to bytecode in the
   background (a fresh install otherwise pays parse+compile for ~27k files on first launch),
   `HF_HUB_OFFLINE=1` when MiniLM + whisper-base are cached (OWUI otherwise asks huggingface.co on every
-  boot — a hang on a closed LAN; `HF_HUB_ETAG_TIMEOUT=2` until then), health polling at 300 ms.
+  boot — a hang on a closed LAN; `HF_HUB_ETAG_TIMEOUT=2` until then), health polling at 300 ms, and —
+  the one that makes reopens INSTANT — **keep-warm** (`keepEngineWarm`, default on): closing the window
+  hides to a tray instead of quitting, so the sidecar stays served; real quit is the tray's Quit (the
+  `quitting` flag set in before-quit lets it pass the close-handler), and launch-at-login registers
+  with `--hidden` so the engine boots before the user first clicks the app.
   E2E harness: `shell/test/` (mock farm + CDP driver).
 - **`sidecar/`** — `build-sidecar` bundles a relocatable standalone CPython + OWUI + `launcher.py`;
   `OPENWEBUI_VERSION` is the pin. NOT bundled into the installer — CI publishes it as

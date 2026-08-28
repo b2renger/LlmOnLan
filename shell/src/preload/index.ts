@@ -37,6 +37,7 @@ contextBridge.exposeInMainWorld('lol', {
     chooseDataDir: () => ipcRenderer.invoke('choose-data-dir'),
     setDataDir: (payload: { path: string; mode: 'move' | 'fresh' }) => ipcRenderer.invoke('set-data-dir', payload),
     setLaunchAtLogin: (on: boolean) => ipcRenderer.invoke('set-launch-at-login', on),
+    setKeepEngineWarm: (on: boolean) => ipcRenderer.invoke('set-keep-engine-warm', on),
     setAutoUpdate: (on: boolean) => ipcRenderer.invoke('set-auto-update', on),
 
     // Sidecar download (first run) + updates.

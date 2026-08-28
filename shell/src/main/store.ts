@@ -24,6 +24,7 @@ const DEFAULTS: ShellSettings = {
     lastFarmKey: null,
     launchAtLogin: false,
     autoUpdate: true,
+    keepEngineWarm: true,
     blenderMcp: false,  // Blender assistant tools are OPT-IN (owner call 2026-07-05; was on by default before v0.1.24)
     blenderMcpUserSet: false, // true once the user toggled Blender explicitly → farm recommendations won't override
     blenderPort: 9876,  // BlenderMCP add-on's default socket port (what its panel shows)

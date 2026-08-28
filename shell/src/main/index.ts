@@ -4,7 +4,7 @@
 // sidecar (pointed at the farm via config-bridge), and loads it in a <webview>.
 // Discovery (M3) and full Preferences (M4) layer onto this skeleton.
 
-import { app, BrowserWindow, ipcMain, shell, nativeTheme, dialog, session, powerMonitor } from 'electron';
+import { app, BrowserWindow, ipcMain, shell, nativeTheme, dialog, session, powerMonitor, Tray, Menu } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
@@ -358,6 +358,10 @@ function pushSidecarInstall(p: SidecarProgress): void {
 }
 
 function createWindow(): void {
+    // Launched at login with --hidden (and keep-warm on): boot the chat engine
+    // silently in the background — by the time the user opens the window, the
+    // ~20 s OWUI boot has already happened.
+    const startHidden = process.argv.includes('--hidden') && OWUI_ENABLED && loadSettings().keepEngineWarm;
     win = new BrowserWindow({
         width: 1280,
         height: 860,
@@ -366,6 +370,7 @@ function createWindow(): void {
         backgroundColor: '#09090b',
         title: 'LlmOnLan',
         icon: path.join(app.getAppPath(), 'assets', 'icon.png'),
+        show: !startHidden,
         webPreferences: {
             preload: path.join(__dirname, '..', 'preload', 'index.js'),
             contextIsolation: true,
@@ -377,6 +382,17 @@ function createWindow(): void {
     win.loadFile(path.join(app.getAppPath(), 'renderer', 'index.html'));
     win.webContents.on('did-finish-load', pushSidecarState);
     configureWebviewPermissions();
+    // Closing the window keeps the chat engine WARM (keepEngineWarm, default on):
+    // the ~20 s OWUI boot is the single biggest thing users wait on, and hiding
+    // instead of quitting makes every reopen instant. The tray icon is the way
+    // back in (and the way to really quit). app.quit() sets `quitting` in
+    // before-quit BEFORE any close event fires, so real quits pass through.
+    win.on('close', (e) => {
+        if (!quitting && OWUI_ENABLED && loadSettings().keepEngineWarm) {
+            e.preventDefault();
+            win?.hide();
+        }
+    });
 
     // Keep external links (OWUI "Powered by" etc.) in the system browser, not in
     // a new Electron window.
@@ -553,6 +569,7 @@ function registerIpc(): void {
             theme: s.theme,
             launchAtLogin: s.launchAtLogin,
             autoUpdate: s.autoUpdate,
+            keepEngineWarm: s.keepEngineWarm,
             shellVersion: app.getVersion(),
             owuiVersion: bundledOwuiVersion(),
             sidecarInstalled: isSidecarInstalled(),
@@ -605,7 +622,17 @@ function registerIpc(): void {
     ipcMain.handle('set-launch-at-login', (_e, on: boolean) => {
         const v = !!on;
         updateSettings({ launchAtLogin: v });
-        try { app.setLoginItemSettings({ openAtLogin: v }); } catch { /* unsupported platform */ }
+        // --hidden makes a login start boot the chat engine in the BACKGROUND (no
+        // window) — combined with keep-warm, OWUI is already served before the
+        // user first clicks the app. Honored only while keepEngineWarm is on
+        // (see createWindow), so turning keep-warm off restores a visible start.
+        try { app.setLoginItemSettings({ openAtLogin: v, openAsHidden: true, args: ['--hidden'] }); } catch { /* unsupported platform */ }
+        return v;
+    });
+
+    // Keep the chat engine running when the window closes (reopen is instant).
+    ipcMain.handle('set-keep-engine-warm', (_e, on: boolean) => {
+        const v = updateSettings({ keepEngineWarm: !!on }).keepEngineWarm;
         return v;
     });
 
@@ -725,14 +752,34 @@ function maybeSmokeShot(): void {
 
 // --- lifecycle --------------------------------------------------------------
 app.on('second-instance', () => {
-    if (win) { if (win.isMinimized()) win.restore(); win.focus(); }
+    // Second launch while we run hidden in the background: surface the window.
+    if (win) { win.show(); if (win.isMinimized()) win.restore(); win.focus(); }
 });
+
+// Tray icon — the way back into a window that closed to the background, and the
+// way to REALLY quit (which stops the chat engine). Only for OWUI builds: the
+// keep-warm behavior exists for the sidecar's sake.
+let tray: Tray | null = null;
+function createTray(): void {
+    if (tray || !OWUI_ENABLED) return;
+    try {
+        tray = new Tray(path.join(app.getAppPath(), 'assets', 'icon.png'));
+        tray.setToolTip('LlmOnLan — chat engine running');
+        tray.setContextMenu(Menu.buildFromTemplate([
+            { label: 'Open LlmOnLan', click: () => { if (win) { win.show(); win.focus(); } } },
+            { type: 'separator' },
+            { label: 'Quit (stops the chat engine)', click: () => app.quit() },
+        ]));
+        tray.on('click', () => { if (win) { win.show(); win.focus(); } });
+    } catch { tray = null; /* no tray support — close falls through to quit via keepEngineWarm check */ }
+}
 
 app.whenReady().then(async () => {
     const settings = loadSettings();
     applyTheme(settings.theme);
     registerIpc();
     createWindow();
+    createTray();
 
     sidecar.on('state', pushSidecarState);
     mcpo.on('state', onMcpoState);
@@ -810,7 +857,10 @@ app.whenReady().then(async () => {
     mcpo.setBlenderPort(settings.blenderPort);
     if (blenderOn) mcpo.setEnabled(true);
 
-    app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
+    app.on('activate', () => {
+        if (BrowserWindow.getAllWindows().length === 0) createWindow();
+        else if (win) { win.show(); win.focus(); }   // hidden-to-tray → dock/taskbar click reopens
+    });
 });
 
 let quitting = false;
@@ -824,5 +874,7 @@ app.on('before-quit', async (e) => {
 });
 
 app.on('window-all-closed', () => {
-    if (process.platform !== 'darwin') app.quit();
+    // With keep-warm on, a "closed" window is only hidden and this never fires;
+    // the guard covers destroy paths so a warm engine is never orphaned windowless.
+    if (process.platform !== 'darwin' && !(OWUI_ENABLED && loadSettings().keepEngineWarm)) app.quit();
 });
