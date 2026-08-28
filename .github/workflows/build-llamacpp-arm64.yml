@@ -93,7 +93,11 @@ jobs:
         run: |
           set -e
           TAG="llamacpp-$LLAMACPP_BUILD"
+          # --prerelease is LOAD-BEARING: a full release here becomes GitHub's
+          # "latest" and the client's electron-updater then 404s looking for
+          # latest.yml on it (live failure 2026-08-28, llamacpp-b10670). Binary
+          # side-channels must never outrank the client releases.
           gh release view "$TAG" >/dev/null 2>&1 || \
-            gh release create "$TAG" --title "llama.cpp $LLAMACPP_BUILD binaries" \
+            gh release create "$TAG" --prerelease --title "llama.cpp $LLAMACPP_BUILD binaries" \
               --notes "Farm-consumed llama.cpp builds for platforms ggml-org does not ship. Produced by build-llamacpp-arm64.yml; downloaded automatically by the farm's llama.cpp bootstrap."
           gh release upload "$TAG" "llama-${LLAMACPP_BUILD}-bin-linux-cuda-arm64.tar.gz" --clobber
