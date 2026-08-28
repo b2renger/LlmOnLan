@@ -393,9 +393,11 @@ publish:
   releaseType: release                    # drafts are ignored by the updater
 win:   { target: nsis, icon: assets/icon.png }
 mac:
-  target:                                 # arm64 ONLY — OWUI 0.10.2 pins onnxruntime==1.26.0,
-    - { target: dmg, arch: [arm64] }      #   whose last macOS-x86_64 wheel was 1.23.2, so an Intel
-    - { target: zip, arch: [arm64] }      #   build cannot resolve. zip REQUIRED for latest-mac.yml.
+  target:                                 # arm64 + x64. Intel needs ONE packaging substitution
+    - { target: dmg, arch: [arm64, x64] } #   (darwin-x64 sidecar ships onnxruntime 1.23.2, the last
+    - { target: zip, arch: [arm64, x64] } #   Intel wheel — owner decision 2026-08-28; all other
+                                          #   platforms keep OWUI's exact pins). Intel macs need
+                                          #   macOS 14+. zip REQUIRED for latest-mac.yml.
   identity: null                          # electron-builder skips signing; afterPack does ad-hoc
   hardenedRuntime: false                  # ad-hoc + hardened fails to launch
   icon: assets/icon.png

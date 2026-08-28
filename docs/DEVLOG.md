@@ -6,6 +6,36 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-08-28 f — the Intel mac client, unblocked by one wheel
+
+Owner asked for an Intel-mac client build. The recorded blocker: OWUI pins
+`onnxruntime==1.26.0`, whose last macOS-x86_64 wheel is **1.23.2** — the macos-15-intel CI
+job tried at v0.1.27 died exactly there, and the repo concluded "must NOT ship". Re-audited
+before accepting that: ALL 110 of OWUI 0.10.2's direct pins were checked against PyPI for
+Intel-mac wheels (onnxruntime is the only true blocker — brotlicffi builds from sdist,
+mariadb is extras-gated), and a full cross-platform resolution (`uv pip compile
+--python-platform x86_64-apple-darwin`, macOS 14 baseline) succeeds with onnxruntime
+overridden to 1.23.2: torch lands on 2.2.2 (the last Intel torch — satisfies
+sentence-transformers 5.5.1 / accelerate 1.13.0 on its own), ctranslate2 4.8.1, opencv's
+Intel wheel is tagged macosx_14_0 (→ Intel macs need Sonoma+).
+
+**Owner decision (2026-08-28, explicit):** ship Intel with the substitution, ONLY on Intel —
+every other platform keeps OWUI's exact pin set, byte-for-byte the same build as before.
+Implementation: `build-sidecar.mjs` grows a darwin-x64-only branch (open-webui `--no-deps`,
+then its own Requires-Dist with the one pin rewritten — with a hard `die()` if the rewrite
+ever finds nothing to rewrite); the `macos-15-intel` sidecarOnly matrix job is re-enabled
+(builds only `owui-sidecar-darwin-x64.tar.gz`); electron-builder's mac arch list gains x64
+(the Intel installers cross-package on the arm64 runner; latest-mac.yml carries both zips and
+electron-updater picks by arch). The shell needed zero changes — it already requests
+`owui-sidecar-<platform>-<arch>` from its own release tag. Blast radius of the substitution
+in our config: rapidocr OCR fallback + chroma's unused ONNX embedder; embeddings are torch,
+STT is ctranslate2, extraction is the farm OCR.
+
+Verification pending the release build: the Intel job's pip install is the real test, and a
+human boot on an actual Intel mac is the acceptance.
+
+---
+
 ## 2026-08-28 e — Qwen Flash needs a llama.cpp born yesterday (pin b10516 → b10670)
 
 The owner's 72.5 GB Qwen Flash download completed, llama-server refused it, and the panel

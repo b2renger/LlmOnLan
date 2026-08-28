@@ -50,19 +50,19 @@ mac:
   icon: assets/icon.png
   # dmg (download) + zip (REQUIRED for latest-mac.yml / Squirrel.Mac auto-update).
   #
-  # arm64 ONLY — and this time the blocker is UPSTREAM, not ours (the old "the bundled
-  # sidecar is single-arch" reason was stale; the sidecar is downloaded per-arch now).
-  # Open WebUI 0.10.2 pins `onnxruntime==1.26.0`, and onnxruntime shipped its LAST
-  # macOS-x86_64 wheel at **1.23.2** — so `pip install open-webui==0.10.2` simply cannot
-  # resolve on an Intel Mac (verified: the macos-15-intel CI job failed exactly there).
-  # Without that sidecar an x64 installer is a dead end ("Could not download the chat
-  # engine"), so we must NOT ship one. Revisit only if OWUI relaxes the pin or drops
-  # onnxruntime; patching OWUI's deps would violate prime directive #1 (UNMODIFIED).
+  # arm64 + x64. Intel is back (owner decision 2026-08-28): the blocker was OWUI's
+  # `onnxruntime==1.26.0` pin (last Intel-mac wheel: 1.23.2), now handled by
+  # build-sidecar.mjs's darwin-x64-ONLY install path, which substitutes 1.23.2 on
+  # that one platform — every other platform keeps OWUI's exact pins. The x64
+  # installers cross-package on the arm64 runner; the x64 SIDECAR builds natively
+  # on the macos-15-intel sidecarOnly CI job. latest-mac.yml lists both arch zips
+  # and electron-updater picks by process.arch. Note the Intel sidecar's opencv
+  # wheel is tagged macosx_14_0 — Intel macs need macOS 14+ (Sonoma).
   target:
     - target: dmg
-      arch: [arm64]
+      arch: [arm64, x64]
     - target: zip
-      arch: [arm64]
+      arch: [arm64, x64]
   # Ad-hoc signing (no Apple cert): builder skips signing, afterPack does it.
   # hardenedRuntime:false — ad-hoc + hardened rejects the pre-signed Electron fw.
   identity: null

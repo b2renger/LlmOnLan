@@ -93,11 +93,41 @@ async function main() {
     if (!fs.existsSync(py)) die(`extracted python not found at ${py}`);
 
     // 2. install the pinned, UNMODIFIED Open WebUI into that Python.
-    log(`pip install open-webui==${OWUI_VERSION} (heavy — torch/chromadb/transformers) …`);
-    execFileSync(py, ['-m', 'pip', 'install', '--no-warn-script-location', `open-webui==${OWUI_VERSION}`], {
-        stdio: 'inherit',
-        env: { ...process.env, PYTHONUTF8: '1' },
-    });
+    //
+    // darwin-x64 (Intel mac) ONLY: one packaging substitution, decided by the owner
+    // 2026-08-28. OWUI pins `onnxruntime==1.26.0`, and onnxruntime shipped its LAST
+    // macOS-x86_64 wheel at 1.23.2 — the pin cannot resolve on Intel, period. pip
+    // has no override mechanism, so: install open-webui --no-deps, then install its
+    // own Requires-Dist list with that single pin rewritten. OWUI's source stays
+    // byte-identical (prime directive #1 is about source; this swaps one third-party
+    // wheel in OUR bundle), and in our config onnxruntime only backs the rapidocr
+    // OCR fallback + chroma's unused ONNX embedder — embeddings run on torch (the
+    // resolver picks 2.2.2, the last Intel-mac torch, on its own). Every OTHER
+    // platform takes the plain-install path below: OWUI's exact pin set, untouched.
+    const env = { ...process.env, PYTHONUTF8: '1' };
+    if (key === 'darwin-x64') {
+        const ONNX_INTEL = 'onnxruntime==1.23.2';
+        log(`pip install open-webui==${OWUI_VERSION} --no-deps (Intel mac: onnxruntime pin rewritten) …`);
+        execFileSync(py, ['-m', 'pip', 'install', '--no-warn-script-location', '--no-deps', `open-webui==${OWUI_VERSION}`], { stdio: 'inherit', env });
+        const reqs = execFileSync(py, ['-c', [
+            'import importlib.metadata as m',
+            "rs = [r for r in (m.requires('open-webui') or []) if 'extra ==' not in r]",
+            `rs = ['${ONNX_INTEL}' if r.split(';')[0].strip().startswith('onnxruntime==') else r for r in rs]`,
+            "print('\\n'.join(rs))",
+        ].join('\n')], { encoding: 'utf8', env });
+        if (!reqs.includes(ONNX_INTEL)) {
+            die('darwin-x64: expected to rewrite an onnxruntime pin in OWUI\'s metadata and found none — '
+                + 're-check whether the pin moved or Intel wheels exist again; do not ship untested.');
+        }
+        const reqFile = path.join(workDir, 'requirements-darwin-x64.txt');
+        fs.writeFileSync(reqFile, reqs);
+        log(`pip install OWUI's dependency list with onnxruntime → 1.23.2 (pip will WARN about the `
+            + `open-webui==… ↔ onnxruntime mismatch — expected and deliberate) …`);
+        execFileSync(py, ['-m', 'pip', 'install', '--no-warn-script-location', '-r', reqFile], { stdio: 'inherit', env });
+    } else {
+        log(`pip install open-webui==${OWUI_VERSION} (heavy — torch/chromadb/transformers) …`);
+        execFileSync(py, ['-m', 'pip', 'install', '--no-warn-script-location', `open-webui==${OWUI_VERSION}`], { stdio: 'inherit', env });
+    }
 
     // 2a. Local voice STT: OWUI transcribes speech with faster-whisper (CTranslate2,
     // NOT torch — so this adds no CUDA weight). It's normally pulled in by OWUI, but

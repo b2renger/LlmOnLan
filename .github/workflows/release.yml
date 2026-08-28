@@ -44,16 +44,17 @@ jobs:
       matrix:
         include:
           - os: windows-latest
-          - os: macos-latest      # Apple Silicon (arm64)
+          - os: macos-latest      # Apple Silicon (arm64) — ALSO cross-packages the x64 mac
+                                  # installers (electron-builder.yml mac arch list)
           - os: ubuntu-latest
-          # NOTE — Intel Mac (x64) is NOT built, and the blocker is upstream: OWUI 0.10.2
-          # pins `onnxruntime==1.26.0` whose last macOS-x86_64 wheel was 1.23.2, so the
-          # sidecar can't even pip-install on an Intel runner (tried on macos-15-intel at
-          # v0.1.27 — it failed exactly there). The `sidecarOnly` matrix flag + its step
-          # guards below are kept so re-enabling is a one-line change if OWUI ever relaxes
-          # that pin:  - os: macos-15-intel
-          #              sidecarOnly: true
-          # (and re-add x64 to shell/electron-builder.yml's mac target).
+          # Intel Mac: builds ONLY the darwin-x64 sidecar (the installers come from the
+          # macos-latest job above). The old blocker — OWUI pins `onnxruntime==1.26.0`,
+          # whose last macOS-x86_64 wheel was 1.23.2, so the pin can't resolve on Intel
+          # (this exact job failed there at v0.1.27) — is now handled by build-sidecar.mjs's
+          # darwin-x64-ONLY install path, which substitutes onnxruntime 1.23.2 (owner
+          # decision 2026-08-28; every other platform keeps OWUI's exact pin set).
+          - os: macos-15-intel
+            sidecarOnly: true
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
