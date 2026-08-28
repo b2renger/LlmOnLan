@@ -106,6 +106,12 @@ async function main() {
     // platform takes the plain-install path below: OWUI's exact pin set, untouched.
     const env = { ...process.env, PYTHONUTF8: '1' };
     if (key === 'darwin-x64') {
+        // brotlicffi has no Intel-mac wheel and builds from sdist here. The
+        // standalone CPython's sysconfig bakes AR=<pbs build path>/llvm-ar, which
+        // does not exist on this machine — the compile succeeded and the archive
+        // step died exactly there on the first CI run. distutils lets the
+        // environment override it; the system `ar` archives fine.
+        if (!env.AR) env.AR = 'ar';
         const ONNX_INTEL = 'onnxruntime==1.23.2';
         log(`pip install open-webui==${OWUI_VERSION} --no-deps (Intel mac: onnxruntime pin rewritten) …`);
         execFileSync(py, ['-m', 'pip', 'install', '--no-warn-script-location', '--no-deps', `open-webui==${OWUI_VERSION}`], { stdio: 'inherit', env });

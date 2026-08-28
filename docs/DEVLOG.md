@@ -34,6 +34,15 @@ STT is ctranslate2, extraction is the farm OCR.
 Verification pending the release build: the Intel job's pip install is the real test, and a
 human boot on an actual Intel mac is the acceptance.
 
+**First run (v0.1.39) found the one flagged risk for real:** brotlicffi (no Intel wheel) built
+from sdist, compiled every object, then died archiving — the standalone CPython's sysconfig
+bakes `AR=<pbs build path>/llvm-ar`, a path that only existed on python-build-standalone's own
+build machine. Fix: `AR=ar` in the darwin-x64 install env (distutils honors the override), so
+brotlicffi stays at OWUI's exact pinned version, built with the system archiver. v0.1.39 still
+shipped complete for win/arm64-mac/linux — including the Intel *installers* and a
+latest-mac.yml listing both arches — only the Intel sidecar tarball was missing; v0.1.40
+closes the set.
+
 ---
 
 ## 2026-08-28 e — Qwen Flash needs a llama.cpp born yesterday (pin b10516 → b10670)
