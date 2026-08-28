@@ -299,7 +299,7 @@ function render(s) {
             + `</span></div>`;
         }).join('') || '<div class="empty">No models in the library.</div>')
       + `<div class="row"><span></span><span><div class="mname">Add a model</div>`
-      + `<div class="meta">paste the link to a .gguf file — on HuggingFace, the file's <b>download</b> link (…/resolve/main/….gguf)</div></span></span>`
+      + `<div class="meta">paste the link to a .gguf file — on HuggingFace, the file's <b>download</b> link (…/resolve/main/….gguf). Split models (…-00001-of-00003.gguf) work too: paste any part, all parts are fetched</div></span></span>`
       + `<span class="badges"><input id="lc-url" type="text" placeholder="https://huggingface.co/…/model.gguf" spellcheck="false" />`
       + `<button id="lc-add"${jobRunning ? ' disabled' : ''}>Add</button></span></div>`
       + `<div class="hint">Adding only remembers it. Press <b>Use this</b> to download and serve it — that can take a while on a first use.</div>`

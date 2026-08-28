@@ -177,10 +177,65 @@ function argsFor(config, modelPath, mmprojPath) {
 
 // Fetch the model (and optional vision projector) named in the config, caching to
 // farm/.models/. Returns absolute paths.
+// Sharded GGUF: big models ship split as `name-00001-of-0000N.gguf`. llama-server
+// loads shard 1 and finds the siblings in the same directory by itself — no merge
+// step — so "ensure the model" for a split URL means: normalize ANY pasted shard
+// URL to the full set, download every shard, and hand back shard 1's path.
+// (Ollama's registry refuses sharded HF repos outright, which is why the library
+// is the path that can actually serve these.)
+const SHARD_RX = /-(\d{5})-of-(\d{5})\.gguf$/i;
+
+// All sibling URLs (1..N) for a sharded .gguf URL, or null for a single file.
+function shardUrls(url) {
+    const m = String(url || '').match(SHARD_RX);
+    if (!m) return null;
+    const count = parseInt(m[2], 10);
+    if (!count || count > 99) return null;
+    return Array.from({ length: count }, (_, i) =>
+        String(url).replace(SHARD_RX, `-${String(i + 1).padStart(5, '0')}-of-${m[2]}.gguf`));
+}
+
+// Shard 1's URL for any pasted part; single-file URLs pass through.
+function normalizeModelUrl(url) {
+    const parts = shardUrls(url);
+    return parts ? parts[0] : url;
+}
+
+// The TRUE weights size on disk: a split model's shard 1 can be a few MB of
+// metadata while the real tensors sit in its siblings — statting only the path
+// llama-server is pointed at would wreck the VRAM budget.
+function weightsBytesFor(modelPath) {
+    let total = 0;
+    try { total = fs.statSync(modelPath).size; } catch { return 0; }
+    const base = path.basename(modelPath);
+    const m = base.match(SHARD_RX);
+    if (!m) return total;
+    const count = parseInt(m[2], 10);
+    for (let i = 1; i <= count; i++) {
+        const sib = path.join(path.dirname(modelPath), base.replace(SHARD_RX, `-${String(i).padStart(5, '0')}-of-${m[2]}.gguf`));
+        if (sib === modelPath) continue;
+        try { total += fs.statSync(sib).size; } catch { /* missing shard — the load will say so */ }
+    }
+    return total;
+}
+
 async function ensureModel(config, onProgress = () => {}) {
     const c = config.llamacpp;
     if (!c.model) return { ok: false, message: 'llamacpp.model is not set (an https URL to a .gguf).' };
-    const model = await downloadGguf(c.model, (pct) => onProgress('model', pct));
+    const parts = shardUrls(c.model);
+    let model;
+    if (parts) {
+        let first = null;
+        let allCached = true;
+        for (let i = 0; i < parts.length; i++) {
+            const got = await downloadGguf(parts[i], (pct) => onProgress(`model part ${i + 1}/${parts.length}`, pct));
+            if (i === 0) first = got;
+            if (!got.cached) allCached = false;
+        }
+        model = { path: first.path, cached: allCached };
+    } else {
+        model = await downloadGguf(c.model, (pct) => onProgress('model', pct));
+    }
     let mmproj = null;
     if (c.mmproj) mmproj = (await downloadGguf(c.mmproj, (pct) => onProgress('mmproj', pct))).path;
     return { ok: true, modelPath: model.path, mmprojPath: mmproj, cached: model.cached };
@@ -250,4 +305,5 @@ module.exports = {
     PINNED_BUILD, ROOT, BIN_DIR,
     ensureLlamacpp, ensureModel, spawnLlamacpp, waitForLlamacpp, llamacppAlive, fetchMetrics, supported,
     argsFor, baseUrl, installed, installedBuild, serverBin,
+    shardUrls, normalizeModelUrl, weightsBytesFor,
 };

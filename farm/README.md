@@ -174,9 +174,13 @@ This is the model clients auto-select — the one that matters. It is a single `
 
 1. **Add a model**: paste the link to a `.gguf` and press **Add**. On Hugging Face that is the file's
    *download* link — the `…/resolve/main/….gguf` one, not the page you were reading it from. Adding only
-   remembers it; nothing is downloaded yet.
-2. **Use this** on any entry downloads it (progress is shown — a first fetch is several GB and several
-   minutes) and reloads llama-server onto it.
+   remembers it; nothing is downloaded yet. **Split models work too** (very large models ship as
+   `…-00001-of-00003.gguf` parts): paste *any* part's link — the farm fetches **all** parts and
+   llama-server assembles them at load (no merge step). Note this is the ONLY route for split models:
+   Ollama's registry refuses sharded Hugging Face repos outright (`ollama pull hf.co/…` errors), so
+   they can't land in the Ollama catalog.
+2. **Use this** on any entry downloads it (progress is shown per part — a first fetch is several GB
+   and several minutes) and reloads llama-server onto it.
 3. **Remove** drops an entry from the list. The one currently serving can't be removed; switch first.
 
 The library ships with the three quants this project has measured on 12 GB cards, so on that hardware you

@@ -22,7 +22,8 @@ function ggufName(url) {
     if (!url) return 'llama.cpp';
     try {
         const base = decodeURIComponent(new URL(url).pathname.split('/').pop() || '');
-        return base.replace(GGUF_EXT, '') || 'llama.cpp';
+        // A split model's basename carries its shard index — not part of the name.
+        return base.replace(GGUF_EXT, '').replace(/-\d{5}-of-\d{5}$/, '') || 'llama.cpp';
     } catch { return 'llama.cpp'; }   // not a URL — keep the generic label
 }
 

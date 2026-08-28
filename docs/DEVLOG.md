@@ -6,6 +6,32 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-08-28 c — split GGUFs, visible downloads, and the pull dead-end signposted
+
+Owner tried Qwen3.8-Flash-Next (UD-IQ1_S — a 72.5 GB, three-part split GGUF) and hit two walls:
+no visible download progress, and Ollama's registry refusing the repo outright
+(`pull model manifest: 400 … sharded GGUF`).
+
+- **Split GGUF support in the llama.cpp library.** Paste ANY part's URL into *Add a model* — the
+  farm normalizes to the full shard set (`shardUrls`/`normalizeModelUrl`), downloads every part with
+  per-part progress (`model part 2/3 … 41%`), and points llama-server at shard 1, which assembles
+  its siblings natively (no merge step). The VRAM budget now sums ALL shards on disk
+  (`weightsBytesFor`) — shard 1 of a split model can be 10 MB of metadata while 72 GB of tensors sit
+  in its siblings, and statting only shard 1 would have wrecked the fit math. The advertised name
+  drops the `-00001-of-00003` suffix.
+- **Ollama pulls now show bytes, not just a bar** (`downloading 4.2 / 72.5 GB`) — the difference
+  between "is anything happening?" and watching it happen. And when a pull fails BECAUSE the repo is
+  sharded, the error now says where to go: *use Model · llama.cpp ▸ Add a model — the farm fetches
+  all parts*. (The owner's pull died at the manifest stage, before any bytes moved — that's why
+  there was "no progress" to show.)
+- **Bug found on the way:** `pullOllamaModel`'s post-download warm-up still passed
+  `config.ollama.contextLength` — the string `'auto'` since 0.0.24 — as `num_ctx`, so every
+  panel-downloaded model's warm-up silently failed (best-effort catch). Now `ollamaCtxNum()`.
+
+91 farm tests (split-model suite added: any-part normalization, shard-sum weights, name cosmetics).
+
+---
+
 ## 2026-08-28 b — reopening the client is instant: the chat engine stays warm
 
 Owner report: ~20 s to the OWUI interface on a laptop. The floor is OWUI's own Python boot

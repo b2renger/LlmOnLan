@@ -366,10 +366,12 @@ async function run(args) {
         try {
             const mp = (lastModelPath && fsMod.existsSync(lastModelPath))
                 ? lastModelPath
-                : (config.llamacpp.model ? ollama.ggufPathFor(config.llamacpp.model) : null);
+                : (config.llamacpp.model ? ollama.ggufPathFor(llamacpp.normalizeModelUrl(config.llamacpp.model)) : null);
             if (!mp || !fsMod.existsSync(mp)) return null;
             const meta = modelMeta(mp);
-            const weightsGb = fsMod.statSync(mp).size / 1e9;
+            // Split models: shard 1 (what llama-server is pointed at) can be a few
+            // MB of metadata — the budget needs the sum of ALL shards on disk.
+            const weightsGb = llamacpp.weightsBytesFor(mp) / 1e9;
             let mmprojGb = 0;
             if (config.llamacpp.mmproj) {
                 const pp = ollama.ggufPathFor(config.llamacpp.mmproj);
@@ -1902,10 +1904,22 @@ async function run(args) {
                 await ollama.pullModel(h, want, (line) => {
                     if (!line || typeof line !== 'object') return;
                     if (line.error) failed = line.error;
+                    // Show BYTES, not just a bar — "4.2 / 72.5 GB" is the difference
+                    // between "is anything happening?" and watching it happen.
                     const pct = (line.total > 0 && line.completed >= 0) ? (line.completed / line.total) * 100 : null;
-                    progress(line.status || 'downloading', pct);
+                    const bytes = line.total > 0
+                        ? ` ${((line.completed || 0) / 1e9).toFixed(1)} / ${(line.total / 1e9).toFixed(1)} GB`
+                        : '';
+                    progress(`${line.status || 'downloading'}${bytes}`, pct);
                 }).catch((e) => { failed = String((e && e.message) || e); });
-                if (failed) return { ok: false, error: `Could not pull "${want}": ${failed}` };
+                if (failed) {
+                    // Ollama's registry refuses split GGUF repos outright — point the
+                    // operator at the path that CAN serve them instead of dead-ending.
+                    const hint = /sharded/i.test(failed)
+                        ? ' This repo is a SPLIT .gguf, which Ollama cannot pull. Use Model · llama.cpp ▸ Add a model with the file\'s download URL instead — the farm fetches all parts.'
+                        : '';
+                    return { ok: false, error: `Could not pull "${want}": ${failed}${hint}` };
+                }
             }
             // Serve it too — an "add a model" that leaves the model invisible to clients
             // is not what anyone means by adding a model.
@@ -1915,7 +1929,7 @@ async function run(args) {
                 }
             }
             const warn = persistModels();
-            for (const h of targets) ollama.warmModel(h, want, config.ollama.keepAlive, config.ollama.contextLength).catch(() => {});
+            for (const h of targets) ollama.warmModel(h, want, config.ollama.keepAlive, ollamaCtxNum()).catch(() => {});
             if (beacon) beacon.kick();
             return { ok: true, message: `${want} downloaded and served.${warn || ''}` };
         });

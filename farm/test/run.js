@@ -977,6 +977,37 @@ test('per-model alias outranks the global modelAlias; unnamed models keep their 
     assert.deepEqual(names, ['tutor', 'coder'], 'a per-model alias wins over the global one');
 });
 
+test('sharded GGUF: any part URL resolves to the full set; weights sum ALL shards', () => {
+    const lc = require('../src/llamacpp');
+    const os = require('os');
+    const pathMod = require('path');
+    const base = 'https://huggingface.co/unsloth/Qwen3.8-Flash-Next-GGUF/resolve/main/UD-IQ1_S/Qwen3.8-Flash-Next-UD-IQ1_S';
+    // Pasting part 2 (or 3) must still yield shard 1 as the entry point + all siblings.
+    const parts = lc.shardUrls(base + '-00002-of-00003.gguf');
+    assert.equal(parts.length, 3);
+    assert.ok(parts[0].endsWith('-00001-of-00003.gguf'));
+    assert.ok(parts[2].endsWith('-00003-of-00003.gguf'));
+    assert.equal(lc.normalizeModelUrl(base + '-00003-of-00003.gguf'), parts[0]);
+    // Single files pass through untouched.
+    assert.equal(lc.shardUrls('https://x/y/model.gguf'), null);
+    assert.equal(lc.normalizeModelUrl('https://x/y/model.gguf'), 'https://x/y/model.gguf');
+
+    // The VRAM budget must see the SUM of the shards — shard 1 of a split model
+    // can be a few MB of metadata while the tensors live in its siblings.
+    const dir = fs.mkdtempSync(pathMod.join(os.tmpdir(), 'lol-shards-'));
+    const mk = (name, bytes) => fs.writeFileSync(pathMod.join(dir, name), Buffer.alloc(bytes));
+    mk('m-00001-of-00003.gguf', 10);
+    mk('m-00002-of-00003.gguf', 5000);
+    mk('m-00003-of-00003.gguf', 2000);
+    assert.equal(lc.weightsBytesFor(pathMod.join(dir, 'm-00001-of-00003.gguf')), 7010);
+    mk('single.gguf', 123);
+    assert.equal(lc.weightsBytesFor(pathMod.join(dir, 'single.gguf')), 123);
+    fs.rmSync(dir, { recursive: true, force: true });
+
+    // The advertised name drops the shard index (cosmetic, but it IS the label).
+    assert.equal(ggufName(base + '-00001-of-00003.gguf'), 'Qwen3.8-Flash-Next-UD-IQ1_S');
+});
+
 // ---- switching feedback + performance + fit (2026-08-26) --------------------
 const perfMod = require('../src/perf');
 
