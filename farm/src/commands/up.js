@@ -583,8 +583,22 @@ async function run(args) {
             config.llamacpp.contextResolved = target;
         }
         const child = llamacpp.spawnLlamacpp(config, mdl.modelPath, mdl.mmprojPath, binDir);
-        child.stdout.on('data', log.childPrefix('llama.cpp'));
-        child.stderr.on('data', log.childPrefix('llama.cpp'));
+        // Keep the child's recent lines so a startup death can QUOTE the real error
+        // (explainEngineFailure) instead of guessing at the cause.
+        const lastLines = [];
+        const tapLines = () => {
+            const fwd = log.childPrefix('llama.cpp');
+            return (d) => {
+                fwd(d);
+                for (const l of String(d).split(/\r?\n/)) {
+                    if (!l.trim()) continue;
+                    lastLines.push(l);
+                    if (lastLines.length > 80) lastLines.shift();
+                }
+            };
+        };
+        child.stdout.on('data', tapLines());
+        child.stderr.on('data', tapLines());
         llamacppChild = child;
         // Crash supervision. The identity guard makes intentional stops silent:
         // stopLlamacpp nulls llamacppChild BEFORE killing, so by the time exit
@@ -602,12 +616,7 @@ async function run(args) {
         log.step(`llama.cpp serving ${log.paint.bold(config.llamacpp.alias)} on :${config.llamacpp.port} — loading …`);
         if (!(await llamacpp.waitForLlamacpp(config.llamacpp.port, 300000, () => exited))) {
             await stopLlamacpp();
-            return {
-                ok: false,
-                message: 'llama.cpp did not become healthy. The usual cause is mtp:true on a quant whose '
-                    + 'MTP head was stripped (anything under UD-Q2_K_XL) — it exits with "model doesn\'t '
-                    + 'contain MTP layers". Use an MTP-capable quant or turn MTP off.',
-            };
+            return { ok: false, message: llamacpp.explainEngineFailure(lastLines) };
         }
         log.ok(`llama.cpp backend healthy on :${config.llamacpp.port} ${log.paint.grey(`(${config.llamacpp.kvCacheType} KV, MTP ${config.llamacpp.mtp ? 'on' : 'off'})`)}`);
         // liveHealth does not exist yet during BOOT (TDZ — this exact line crashed

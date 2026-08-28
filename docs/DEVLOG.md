@@ -6,6 +6,33 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-08-28 e — Qwen Flash needs a llama.cpp born yesterday (pin b10516 → b10670)
+
+The owner's 72.5 GB Qwen Flash download completed, llama-server refused it, and the panel
+blamed... MTP, on a config where MTP is off. The farm log had the truth:
+`unknown model architecture: 'qwen4exp'` — support for Qwen3.8-Flash-Next landed in llama.cpp
+**the day before** (ggml-org PR #27742, 2026-08-27); our pin b10516 predates it. The rollback
+machinery worked exactly as designed (the box came back serving the previous model), but the
+error message was a guess presented as a diagnosis. Two fixes:
+
+- **Pin bump b10516 → b10670** (first build verified to carry `qwen4exp`) — checked against the
+  tag before bumping: the `win-cuda-13.3` assets exist under the names `assetsFor()` expects, and
+  every flag `argsFor()` passes is still in `common/arg.cpp` (including `--spec-type` and the
+  deprecated-but-accepted `--no-webui`). `LLAMACPP_BUILD` in `build-llamacpp-arm64.yml` bumped in
+  lockstep; pushing the pin auto-triggers the Spark tarball rebuild (the workflow watches
+  `farm/src/llamacpp.js`). On an installed farm the binary upgrade is automatic: `.installed-build`
+  mismatches the new pin → re-download; `.models`/`.llamacpp` live outside the app-update copy, so
+  the 72.5 GB already on the box survives.
+- **Engine failures now quote llama-server's dying breath.** `startLlamacpp` keeps the child's
+  last 80 output lines; `explainEngineFailure` (llamacpp.js, unit-tested) names an unknown
+  architecture ("newer than the farm's llama.cpp build — needs a farm update"), keeps the targeted
+  MTP explanation for actual MTP deaths, and otherwise quotes the last real `E`-lines verbatim.
+  The always-MTP canned message is gone.
+
+92 farm tests. Ships as farm-v0.0.26 (with 2026-08-28 d).
+
+---
+
 ## 2026-08-28 d — the download progress nobody could see
 
 Owner ran the Qwen Flash split download on the live box (farm 0.0.25) and reported **no feedback**

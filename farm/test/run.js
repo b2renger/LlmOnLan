@@ -1085,6 +1085,26 @@ test('llamacpp.supported() answers whether a prebuilt exists for THIS platform',
     assert.equal(llamacpp.supported(), expect, 'only win-x64 has an auto-fetchable build today — everything else must fall back to Ollama, not die');
 });
 
+test('engine failure explains the REAL error, not a canned MTP guess', () => {
+    // The live 2026-08-28 case: a too-new architecture, MTP off — the old message
+    // blamed MTP anyway.
+    const qwen = llamacpp.explainEngineFailure([
+        "0.00.291.396 E llama_model_load: error loading model: unknown model architecture: 'qwen4exp'",
+        '0.00.291.403 E llama_model_load_from_file_impl: failed to load model',
+    ]);
+    assert.ok(qwen.includes("'qwen4exp'"), 'names the unknown architecture');
+    assert.ok(qwen.includes(llamacpp.PINNED_BUILD), 'names the build that is too old');
+    assert.ok(!/MTP/.test(qwen), 'does not blame MTP for an architecture problem');
+    // The MTP case still gets its targeted explanation.
+    const mtp = llamacpp.explainEngineFailure(["E model doesn't contain MTP layers"]);
+    assert.ok(/MTP/.test(mtp) && /turn MTP off/.test(mtp));
+    // Unrecognized errors are quoted verbatim instead of guessed at.
+    const other = llamacpp.explainEngineFailure(['I srv init: fine', 'E cuda: out of memory']);
+    assert.ok(other.includes('out of memory'));
+    // Nothing captured (instant spawn failure) still yields a pointer, not a guess.
+    assert.ok(/farm log/.test(llamacpp.explainEngineFailure([])));
+});
+
 
 // ---- audit-driven regression tests (iteration 1, 2026-08-26) -----------------
 

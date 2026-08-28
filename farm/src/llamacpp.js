@@ -25,10 +25,16 @@ const os = require('os');
 const { spawn, execFileSync } = require('child_process');
 const { downloadGguf, ggufPathFor } = require('./ollama');
 
-// Pinned llama.cpp build. `--spec-type draft-mtp` (the flag that activates a GGUF's
-// built-in NextN/MTP head) landed in PR #22673; this build has it — verified by
-// `llama-server --help`.
-const PINNED_BUILD = 'b10516';
+// Pinned llama.cpp build. b10670 (2026-08-28) is the first pin that knows the
+// 'qwen4exp' architecture (Qwen3.8-Flash-Next, ggml-org PR #27742, landed
+// 2026-08-27) — the previous pin b10516 refused those GGUFs with "unknown model
+// architecture" AFTER the full 72.5 GB download. Verified against the tag before
+// bumping: the win-cuda-13.3 assets exist under the expected names, and every
+// flag argsFor() passes is still in common/arg.cpp (--spec-type — the MTP
+// activator from PR #22673 — --no-webui, --metrics, --cache-type-k/v, --alias,
+// --jinja, --mmproj). A bump here must ride with LLAMACPP_BUILD in
+// .github/workflows/build-llamacpp-arm64.yml (the Spark tarball).
+const PINNED_BUILD = 'b10670';
 const CUDA_TAG = 'cuda-13.3';   // sm_120/Blackwell needs CUDA >= 12.8; 13.3 covers 40-series too
 
 const ROOT = path.join(__dirname, '..', '.llamacpp');
@@ -343,10 +349,34 @@ function baseUrl(config) {
     return `http://${host}:${config.llamacpp.port}/v1`;
 }
 
+// Turn llama-server's dying breath into an actionable message. The generic
+// "did not become healthy" used to GUESS — it blamed MTP for everything. Live
+// case (2026-08-28): a too-new model ('qwen4exp' on a pin that predates it)
+// reported to the operator as an MTP problem, on a config where MTP was off.
+// Quote the real error; keep the known causes as targeted explanations.
+function explainEngineFailure(lines) {
+    // llama.cpp tags error lines with a bare `E` level marker ("0.00.291.396 E
+    // llama_model_load: …") — some of them ("out of memory") carry no keyword.
+    const errs = (lines || []).filter((l) => /(^|\s)E\s/.test(l) || /error|failed|doesn't contain|unknown/i.test(l));
+    const arch = errs.map((l) => String(l).match(/unknown model architecture: '([^']+)'/)).find(Boolean);
+    if (arch) {
+        return `This model's architecture ('${arch[1]}') is newer than the farm's llama.cpp build (${PINNED_BUILD}) — `
+            + 'it needs a farm update with a newer pin. Until then, pick a different model.';
+    }
+    if (errs.some((l) => /doesn't contain MTP layers/i.test(l))) {
+        return 'This quant has no MTP head (Unsloth strips it below UD-Q2_K_XL) — turn MTP off or use an MTP-capable quant.';
+    }
+    const tail = errs.slice(-2).map((l) => String(l).trim()).join(' · ');
+    return tail
+        ? `llama.cpp did not become healthy — its last error: ${tail}`
+        : 'llama.cpp did not become healthy and printed no error line — see the farm log.';
+}
+
 module.exports = {
     extract,   // exported for the extraction smoke test — the zipPath regression shipped because nothing exercised this
     PINNED_BUILD, ROOT, BIN_DIR,
     ensureLlamacpp, ensureModel, spawnLlamacpp, waitForLlamacpp, llamacppAlive, fetchMetrics, supported,
     argsFor, baseUrl, installed, installedBuild, serverBin,
     shardUrls, normalizeModelUrl, weightsBytesFor,
+    explainEngineFailure,
 };
