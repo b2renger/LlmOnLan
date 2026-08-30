@@ -131,6 +131,14 @@ const KV_BYTES_PER_EL = { q4_0: 4.5 / 8, q8_0: 8.5 / 8, f16: 2 };
 // fleet's measurement: Qwen3.8-27B (64 layers × 8 kv heads × 128 dim, q4_0)
 // → 1.2 GB per 16k, exactly what was measured on the 4070 Ti. Returns null when
 // the header lacks the geometry — callers keep their measured constant.
+//
+// KNOWN over-estimate on hybrid linear-attention models (qwen4exp — Qwen Flash):
+// most of their layers keep a small CONSTANT state instead of per-token KV, so
+// pricing every layer as full attention overshoots several-fold. Deliberately
+// left conservative: for the fleet's Qwen Flash the formula still clears the
+// model's native 262144 on a 96 GB card (2 kv heads make KV cheap anyway), and
+// erring small never spills a GPU. Revisit only if a hybrid model's auto context
+// ever comes out visibly under what the box holds.
 function kvGbPer16k(meta, kvCacheType = 'q4_0') {
     if (!meta || !meta.blockCount) return null;
     const headDim = meta.keyLength

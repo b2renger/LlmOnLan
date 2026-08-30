@@ -177,6 +177,15 @@ function argsFor(config, modelPath, mmprojPath) {
     // "model doesn't contain MTP layers" rather than silently running slow, which is
     // the better failure and why we do not paper over it.
     if (c.mtp) args.push('--spec-type', 'draft-mtp', '--spec-draft-n-max', String(c.draftNMax));
+    // KV-chunk reuse across turns. Off by llama-server default, which means a slot
+    // only reuses its cache on an EXACT prefix match — and OWUI chats interleaved
+    // across users lose that constantly, so every follow-up reprocessed the whole
+    // history (a 100k-token code chat = tens of seconds of prompt work per turn).
+    // With it, llama-server splices matching KV chunks (min 256 tokens) and only
+    // the new tail is processed; similarity-based slot routing (on by default)
+    // sends a returning chat back to the slot that still holds its cache.
+    // Speculative decoding paths conflict with cache shifting — skip when MTP is on.
+    if (!c.mtp) args.push('--cache-reuse', '256');
     if (mmprojPath) args.push('--mmproj', mmprojPath);
     if (Array.isArray(c.extraArgs)) args.push(...c.extraArgs);
     return args;

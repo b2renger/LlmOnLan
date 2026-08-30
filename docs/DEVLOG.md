@@ -6,7 +6,26 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
-## 2026-08-28 f — the Intel mac client, unblocked by one wheel
+## 2026-08-30 — code chats want context: the window was a panel click, the speed was a flag
+
+Owner report: "I lack context for code" on the client. Diagnosis on the live 96 GB box:
+Qwen Flash serving with **131072 pinned manually** (halved to 65536/user across 2 slots) while
+**37 GiB of VRAM sat free** — and the model's header says native 262144 with only 2 KV heads
+(~0.45 GB per 16k at q4_0, so the FULL native window costs ~7 GB). Automatic would pick
+262144 → 131072/user. The fix for the window is a panel action, not code.
+
+The code change is the other half of the ask — **context caching**:
+- `--cache-reuse 256` added to the llama-server argv (skipped under MTP, which conflicts with
+  cache shifting). llama-server's default reuses a slot's KV only on an EXACT prefix match, and
+  interleaved OWUI chats break that constantly — every follow-up turn reprocessed the entire
+  history (a 100k-token code chat = tens of seconds of prompt work per turn). With chunked
+  reuse + the default similarity slot routing, a returning chat lands on the slot that still
+  holds its cache and only the new tail is processed.
+- `kvGbPer16k` documented as a KNOWN over-estimate on hybrid linear-attention models
+  (qwen4exp): it prices every layer as full attention. Deliberately left conservative — for
+  the fleet's model it still clears native max on 96 GB, and erring small never spills.
+
+93 farm tests (argv asserts cache-reuse present, and absent under MTP).
 
 Owner asked for an Intel-mac client build. The recorded blocker: OWUI pins
 `onnxruntime==1.26.0`, whose last macOS-x86_64 wheel is **1.23.2** — the macos-15-intel CI

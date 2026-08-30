@@ -1080,6 +1080,15 @@ test('llama-server argv exposes /metrics for the performance monitor', () => {
     assert.ok(llamacpp.argsFor(c, 'M.gguf', null).includes('--metrics'));
 });
 
+test('KV cache-reuse rides the argv — except under MTP, which conflicts', () => {
+    const c = defaultConfig();
+    const args = llamacpp.argsFor(c, 'M.gguf', null);
+    const i = args.indexOf('--cache-reuse');
+    assert.ok(i >= 0 && args[i + 1] === '256', 'follow-up turns must not reprocess the whole history');
+    c.llamacpp.mtp = true;
+    assert.ok(!llamacpp.argsFor(c, 'M.gguf', null).includes('--cache-reuse'), 'speculative decoding conflicts with cache shifting');
+});
+
 test('llamacpp.supported() answers whether a prebuilt exists for THIS platform', () => {
     const expect = process.platform === 'win32' && process.arch === 'x64';
     assert.equal(llamacpp.supported(), expect, 'only win-x64 has an auto-fetchable build today — everything else must fall back to Ollama, not die');
