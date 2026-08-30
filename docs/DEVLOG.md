@@ -6,6 +6,31 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-08-30 b — KV cache as a first-class concern, both engines, all models
+
+Follow-up owner directive: "improve KV cache support server side for llama.cpp and ollama
+with all models — we need to work on bigger things with more context." Three changes:
+
+- **llama.cpp: `--cache-ram` sized from the box** (`llamacpp.cacheRam`, default 'auto' =
+  RAM/4 clamped to 8–32 GiB; 0 disables, −1 unlimited). llama-server's RAM prompt-cache
+  (default 8 GiB ≈ three 100k-token chats at q4_0) snapshots evicted slot KV to system RAM
+  and restores it when that chat returns — the difference between a returning code chat
+  answering immediately and it re-processing its whole history first. b10670 also defaults
+  to 32 context checkpoints/slot, which is what makes restore work on SWA/hybrid models
+  (gemma's sliding window, qwen4exp's linear layers) — left at upstream defaults.
+- **Ollama: `OLLAMA_KV_CACHE_TYPE=q8_0` by default** (`ollama.kvCacheType`; f16/q8_0/q4_0,
+  gated on flashAttention, only reaches an Ollama the farm starts — the already-running-
+  daemon advice line now includes it). Halves KV vs f16 near-losslessly → every model holds
+  ~twice the context in the same VRAM, and the auto-context probe MEASURES the bigger
+  window rather than trusting the math — its cache key now includes kvCacheType so a
+  verdict probed under one cache type is never served under another.
+- **Live box**: context set back to Automatic via the admin API (was hand-pinned 131072 →
+  65536/user with 37 GiB idle); auto resolves to the model's native 262144 → 131072/user.
+
+94 farm tests. Ships as farm-v0.0.27 with 2026-08-30 a.
+
+---
+
 ## 2026-08-30 — code chats want context: the window was a panel click, the speed was a flag
 
 Owner report: "I lack context for code" on the client. Diagnosis on the live 96 GB box:

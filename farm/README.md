@@ -434,6 +434,8 @@ nothing. Shape:
                 "contextLength": "auto",       // DEFAULT: the largest that fits (or a number) — SPLIT across `parallel` slots
                 "parallel": 1,                 // concurrent slots; see "Multiple users & capacity"
                 "kvCacheType": "q4_0",         // quantized KV — what makes a good quant fit 12 GB
+                "cacheRam": "auto",            // host-RAM prompt cache (MiB): returning chats restore their
+                                               //   KV instead of re-processing; auto = RAM/4, 8–32 GiB
                 "flashAttention": true, "ngl": 999,
                 "mtp": false,                  // needs a UD-Q2_K_XL+ quant — see the rule above
                 "draftNMax": 2,                // with mtp on: tokens drafted per step
@@ -446,6 +448,9 @@ nothing. Shape:
                                                //   ["blender"] — clients auto-apply what they can run
   "ollama": { "hosts": ["http://127.0.0.1:11434"],   // add more boxes ONLY if they're really up
               "numParallel": 2, "maxLoadedModels": 1, "flashAttention": true,
+              "kvCacheType": "q8_0",           // quantized KV (DEFAULT q8_0): ~twice the context in the
+                                               //   same VRAM, near-lossless; needs flashAttention; only
+                                               //   applies to an Ollama the farm starts
               "keepAlive": "-1",               // keep models warm in VRAM (no reload after idle)
               "contextLength": "auto" },       // num_ctx for OLLAMA models. DEFAULT "auto": probed per
                                                //   box (largest that stays in VRAM, floor 16384) — a number pins it

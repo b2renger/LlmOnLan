@@ -245,6 +245,7 @@ declarative config; the CLI orchestrates everything from it.
     "numParallel": 2,                    // OLLAMA_NUM_PARALLEL per host
     "maxLoadedModels": 1,
     "flashAttention": true,
+    "kvCacheType": "q8_0",               // quantized KV: ~2× context in the same VRAM (probe re-measures)
     "contextLength": "auto"              // Ollama-side (probed per box); llama.cpp has its own, above
   },
   "websearch": { "enabled": true },      // SearXNG, ON   |  "tts": { "enabled": false }  Kokoro, off

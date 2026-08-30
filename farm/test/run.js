@@ -1080,6 +1080,22 @@ test('llama-server argv exposes /metrics for the performance monitor', () => {
     assert.ok(llamacpp.argsFor(c, 'M.gguf', null).includes('--metrics'));
 });
 
+test('KV cache defaults: Ollama q8_0 (flash-attention gated), llama.cpp RAM cache auto-sized', () => {
+    const c = defaultConfig();
+    assert.equal(c.ollama.kvCacheType, 'q8_0', 'quantized KV = twice the context in the same VRAM, on by default');
+    assert.equal(c.llamacpp.cacheRam, 'auto');
+    assert.equal(ConfigSchema.safeParse({ ollama: { kvCacheType: 'q5_1' } }).success, false, 'only f16/q8_0/q4_0 are valid');
+    // argv: auto sizes from system RAM within [8192, 32768]; explicit values pass through.
+    const args = llamacpp.argsFor(c, 'M.gguf', null);
+    const i = args.indexOf('--cache-ram');
+    assert.ok(i >= 0, 'RAM prompt cache must be sized explicitly');
+    const mib = parseInt(args[i + 1], 10);
+    assert.ok(mib >= 8192 && mib <= 32768, `auto cache-ram out of range: ${mib}`);
+    c.llamacpp.cacheRam = 0;
+    const off = llamacpp.argsFor(c, 'M.gguf', null);
+    assert.equal(off[off.indexOf('--cache-ram') + 1], '0', 'cacheRam 0 must disable, not fall back to auto');
+});
+
 test('KV cache-reuse rides the argv — except under MTP, which conflicts', () => {
     const c = defaultConfig();
     const args = llamacpp.argsFor(c, 'M.gguf', null);

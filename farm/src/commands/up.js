@@ -67,6 +67,11 @@ function spawnLocalOllama(config, baseUrl) {
         OLLAMA_NUM_PARALLEL: String(config.ollama.numParallel),
         OLLAMA_MAX_LOADED_MODELS: String(config.ollama.maxLoadedModels),
         OLLAMA_FLASH_ATTENTION: config.ollama.flashAttention ? '1' : '0',
+        // Quantized KV (q8_0 default): every model holds ~twice the context in the
+        // same VRAM, and the auto-context probe then MEASURES that bigger window.
+        // Needs flash attention — never set it without.
+        ...(config.ollama.flashAttention && config.ollama.kvCacheType && config.ollama.kvCacheType !== 'f16'
+            ? { OLLAMA_KV_CACHE_TYPE: config.ollama.kvCacheType } : {}),
         // Keep-warm policy depends on WHICH engine serves. Ollama engine: the
         // configured keepAlive ('-1' = forever — right for a dedicated box). But when
         // llama.cpp is the engine, the only Ollama user is the OCR plugin, and a
@@ -140,6 +145,8 @@ async function ensureOllama(config) {
             `OLLAMA_NUM_PARALLEL=${config.ollama.numParallel} ` +
             `OLLAMA_MAX_LOADED_MODELS=${config.ollama.maxLoadedModels} ` +
             `OLLAMA_FLASH_ATTENTION=${config.ollama.flashAttention ? 1 : 0} ` +
+            (config.ollama.flashAttention && config.ollama.kvCacheType && config.ollama.kvCacheType !== 'f16'
+                ? `OLLAMA_KV_CACHE_TYPE=${config.ollama.kvCacheType} ` : '') +
             `OLLAMA_KEEP_ALIVE=${config.ollama.keepAlive} ` +
             `OLLAMA_CONTEXT_LENGTH=${typeof config.ollama.contextLength === 'number' ? config.ollama.contextLength : 16384}`
         );
@@ -438,7 +445,9 @@ async function run(args) {
         if (!def || !host) { config.ollama.contextResolved = 16384; return 16384; }
         const vram = (hw && hw.vramGb) || null;
         const cacheFile = pathMod.join(ollama.modelsDir(), 'ollama-ctx.json');
-        const cacheKey = `${def}|${vram ?? '?'}|${config.ollama.numParallel}`;
+        // kvCacheType is part of the key: q8_0 halves the per-token cost, so a
+        // verdict probed under one cache type must never be served under another.
+        const cacheKey = `${def}|${vram ?? '?'}|${config.ollama.numParallel}|${config.ollama.kvCacheType || 'f16'}`;
         let cache = {};
         try { cache = JSON.parse(fsMod.readFileSync(cacheFile, 'utf8')) || {}; } catch { /* first probe */ }
         if (typeof cache[cacheKey] === 'number') {

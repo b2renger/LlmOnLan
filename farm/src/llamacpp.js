@@ -186,6 +186,16 @@ function argsFor(config, modelPath, mmprojPath) {
     // sends a returning chat back to the slot that still holds its cache.
     // Speculative decoding paths conflict with cache shifting — skip when MTP is on.
     if (!c.mtp) args.push('--cache-reuse', '256');
+    // Host-RAM prompt cache: when another chat takes a slot, the evicted KV is
+    // snapshotted to system RAM and restored when the first chat returns —
+    // without it the return pays full re-processing (tens of seconds at 100k
+    // tokens). llama-server's own default is 8 GiB ≈ three big code chats; a farm
+    // serves more people than that, so 'auto' sizes it to a quarter of the box's
+    // RAM (floor 8 GiB, cap 32 GiB).
+    const cram = (c.cacheRam === 'auto' || c.cacheRam == null)
+        ? Math.min(32768, Math.max(8192, Math.floor(os.totalmem() / 1048576 / 4)))
+        : c.cacheRam;
+    args.push('--cache-ram', String(cram));
     if (mmprojPath) args.push('--mmproj', mmprojPath);
     if (Array.isArray(c.extraArgs)) args.push(...c.extraArgs);
     return args;

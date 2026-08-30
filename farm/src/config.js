@@ -75,6 +75,13 @@ const OllamaSchema = z.object({
     numParallel: z.number().int().positive().default(2),    // OLLAMA_NUM_PARALLEL
     maxLoadedModels: z.number().int().positive().default(1),// OLLAMA_MAX_LOADED_MODELS
     flashAttention: z.boolean().default(true),              // OLLAMA_FLASH_ATTENTION
+    // OLLAMA_KV_CACHE_TYPE — quantized KV cache. q8_0 (the default here) halves the
+    // cache vs Ollama's own f16 with no perceptible quality cost, so every model
+    // holds roughly TWICE the context in the same VRAM (the auto-context probe then
+    // MEASURES the bigger window instead of trusting this claim). Needs flash
+    // attention (default on); ignored when flashAttention is false. Only applies to
+    // an Ollama this CLI starts — an already-running daemon keeps its own setting.
+    kvCacheType: z.enum(['f16', 'q8_0', 'q4_0']).default('q8_0'),
     // OLLAMA_KEEP_ALIVE — how long a model stays in VRAM after its last request.
     // Ollama's own default (5m) means the first student after a pause eats a full
     // model reload (~30–60s on a 35B). '-1' = keep loaded forever — the right call
@@ -215,6 +222,11 @@ const LlamacppSchema = z.object({
     // q4_0 KV keeps the cache small (and is what an MTP-capable quant needs to fit
     // in 12 GB). 'f16' disables it.
     kvCacheType: z.enum(['q4_0', 'q8_0', 'f16']).default('q4_0'),
+    // --cache-ram — host-RAM prompt cache (MiB): evicted slot KV is snapshotted to
+    // system RAM and restored when that chat returns, instead of re-processing the
+    // whole history. 'auto' = a quarter of system RAM (floor 8 GiB, cap 32 GiB);
+    // a number pins it; 0 disables; -1 = unlimited.
+    cacheRam: z.union([z.literal('auto'), z.number().int().min(-1)]).default('auto'),
     // OFF by default: the default UD-IQ2_S quant has its MTP head STRIPPED (Unsloth
     // strips everything under UD-Q2_K_XL), and llama-server exits with "model
     // doesn't contain MTP layers" when asked for draft-mtp on such a quant. Opt-in
