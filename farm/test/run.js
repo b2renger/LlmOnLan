@@ -1096,6 +1096,39 @@ test('KV cache defaults: Ollama q8_0 (flash-attention gated), llama.cpp RAM cach
     assert.equal(off[off.indexOf('--cache-ram') + 1], '0', 'cacheRam 0 must disable, not fall back to auto');
 });
 
+test('panel context dropdown adapts to the model: 1M offers 1M, 32k stops at 32k', () => {
+    const html = fs.readFileSync(path.join(__dirname, '..', 'src', 'admin', 'index.html'), 'utf8');
+    const start = html.indexOf('function ctxOptions');
+    const end = html.indexOf('function bindApply');
+    assert.ok(start > 0 && end > start, 'panel source moved — update the extraction anchors');
+    const ctx = { out: null };
+    // eslint-disable-next-line no-new-func
+    new Function('ctx', html.slice(start, end) + '; ctx.out = { ctxOptions, fmtK };')(ctx);
+    const { ctxOptions, fmtK } = ctx.out;
+    const values = (s) => [...s.matchAll(/value="(\d+)"/g)].map((m) => parseInt(m[1], 10));
+
+    // 1M-native model (the live nemotron ask): doubled steps + the max itself.
+    const big = ctxOptions('auto', 262144, null, 1048576);
+    const bv = values(big);
+    assert.ok(bv.includes(524288) && bv.includes(1048576), `1M model must offer 512k and 1M, got ${bv}`);
+    assert.ok(big.includes('everything this model can read'), 'the model-max option says what it is');
+    assert.ok(big.includes('1M tokens'), 'fmtK renders 1M, not 1024k');
+
+    // Small-native model: never offer windows it cannot read.
+    const small = values(ctxOptions('auto', 16384, null, 32768));
+    assert.equal(Math.max(...small), 32768, `32k model must stop at 32k, got ${small}`);
+
+    // Native unknown (probe pending): the base list, top 262144.
+    const base = values(ctxOptions('auto', null, null, null));
+    assert.equal(Math.max(...base), 262144);
+
+    // VRAM advisories still ride along: options past fit.maxContext are flagged, not dropped.
+    const flagged = ctxOptions('auto', null, { maxContext: 65536, vramGb: 12 }, 1048576);
+    assert.ok(/data-over="1"[^>]*>131072|value="131072"[^>]*data-over="1"/.test(flagged.replace(/\n/g, '')), 'oversized options carry the advisory flag');
+    assert.ok(!flagged.includes('disabled'), 'advisory, never disabled');
+    assert.equal(fmtK(524288), '512k');
+});
+
 test('KV cache-reuse rides the argv — except under MTP, which conflicts', () => {
     const c = defaultConfig();
     const args = llamacpp.argsFor(c, 'M.gguf', null);

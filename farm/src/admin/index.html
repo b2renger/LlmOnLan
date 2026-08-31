@@ -235,8 +235,8 @@ function render(s) {
     + `<div class="meta">how much text the model reads at once — bigger fits whole documents, costs VRAM${
         be.slots > 1 ? ` · shared across ${be.slots} slots, so each user gets ${fmtK(perSlot)}` : ''}</div></span>`
     + `<span class="badges"><select id="ctx-sel">${be.engine === 'llama.cpp'
-        ? ctxOptions(lc.contextLength, lc.contextResolved || be.contextLength, s.fit)
-        : ctxOptions((s.ollama && s.ollama.contextLength) ?? be.contextLength, be.contextLength, null)}</select>`
+        ? ctxOptions(lc.contextLength, lc.contextResolved || be.contextLength, s.fit, s.fit && s.fit.nativeMax)
+        : ctxOptions((s.ollama && s.ollama.contextLength) ?? be.contextLength, be.contextLength, null, s.ollama && s.ollama.nativeMax)}</select>`
     + `<button id="ctx-apply"${jobRunning ? ' disabled' : ''}>Apply</button></span></div>`
     + `</div>`;
 
@@ -483,10 +483,19 @@ function render(s) {
 // `fit` disables the numeric sizes this GPU cannot hold — learned the hard way:
 // a 256k option picked on a 12 GB card "worked", overcommitted into system RAM,
 // and served a few tokens a second.
-function ctxOptions(cfg, resolved, fit) {
-  const OPTS = [4096, 8192, 16384, 32768, 65536, 131072, 262144];
+function ctxOptions(cfg, resolved, fit, nativeMax) {
+  // The list ADAPTS to the serving model (owner ask 2026-08-31): a 1M-native
+  // model extends past the base presets by doubling and always offers its own
+  // max as the top option; a 32k-native model stops at 32k instead of offering
+  // windows it cannot read. No native known (probe pending) → the base list.
+  const BASE = [4096, 8192, 16384, 32768, 65536, 131072, 262144];
+  const top = nativeMax || 262144;
+  const opts = BASE.filter((v) => v <= top);
+  let dbl = 262144;
+  while (dbl * 2 < top) { dbl *= 2; if (!opts.includes(dbl)) opts.push(dbl); }
+  if (!opts.includes(top)) opts.push(top);
   const now = typeof cfg === 'number' ? cfg : null;
-  const list = (now && !OPTS.includes(now)) ? [now, ...OPTS] : OPTS;
+  const list = (now && !opts.includes(now)) ? [now, ...opts].sort((a, b) => a - b) : opts;
   const max = fit && fit.maxContext != null ? fit.maxContext : null;
   // Both engines size automatically now: llama.cpp from the GGUF's own geometry
   // (fit), Ollama by probing the real load once and caching the verdict — so
@@ -498,11 +507,17 @@ function ctxOptions(cfg, resolved, fit) {
   // handler confirms before sending one of these.
   return auto + list.map((v) => {
     const over = max != null && v > max;
-    const label = fmtK(v) + ' tokens' + (over ? ` — more than this ${fit.vramGb} GB GPU holds (slows to a crawl)` : '');
+    const label = fmtK(v) + ' tokens'
+      + (nativeMax && v === nativeMax ? ' — everything this model can read' : '')
+      + (over ? ` — more than this ${fit.vramGb} GB GPU holds (slows to a crawl)` : '');
     return `<option value="${v}"${v === now ? ' selected' : ''}${over ? ' data-over="1"' : ''}>${label}</option>`;
   }).join('');
 }
-function fmtK(n) { return !n ? '—' : (n % 1024 === 0 ? (n / 1024) + 'k' : String(n)); }
+function fmtK(n) {
+  if (!n) return '—';
+  if (n % 1048576 === 0) return (n / 1048576) + 'M';
+  return n % 1024 === 0 ? (n / 1024) + 'k' : String(n);
+}
 
 // Wire an Apply button + its text field: Enter submits, an empty value is a no-op.
 function bindApply(btnSel, inputSel, run) {

@@ -6,6 +6,30 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-08-31 — the context dropdown follows the model (1M-native models, un-capped)
+
+Owner is trying `nemotron-3.5-lightning:30b` (1M-native) and asked that the context dropdown
+adapt to the selected model and always offer its max. The 262144 assumption lived in THREE
+places, each of which would have silently halved-or-worse a long-context model:
+
+- **The probe ceiling** (`resolveOllamaContext`): aimed at min(native, budget, **262144**) —
+  now min(native, budget); the budget line + verify-load keep refereeing, so "auto" on a
+  1M-native model can resolve to whatever the VRAM actually holds.
+- **The apply validation** (`setContextLength`): hard-refused anything above 262144 — the
+  dropdown could never have applied 1M. Upper bound is now the serving model's own native
+  max when known (llama.cpp: from the GGUF fit; Ollama: a lazily-memoized `/api/show` probe
+  exposed as `adminState.ollama.nativeMax`), else a generous typo-catcher (4M).
+- **The panel list** (`ctxOptions`): hardcoded presets ending at 262144 — now adapts BOTH
+  ways: extends past 262144 by doubling up to the model's max and always offers the max
+  itself ("everything this model can read", fmtK renders 1M); a 32k-native model stops at
+  32k instead of offering windows it cannot read. VRAM advisories unchanged (flag, never
+  disable). The native max is fetched off the panel poll, memoized per model.
+
+95 farm tests (the panel functions are now extracted from the HTML and exercised directly:
+1M offers 512k+1M, 32k stops at 32k, advisory flags intact). Ships as farm-v0.0.28.
+
+---
+
 ## 2026-08-30 b — KV cache as a first-class concern, both engines, all models
 
 Follow-up owner directive: "improve KV cache support server side for llama.cpp and ollama

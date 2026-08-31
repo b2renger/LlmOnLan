@@ -427,6 +427,27 @@ async function run(args) {
         try { fsMod.unlinkSync(pathMod.join(ollama.modelsDir(), 'ollama-ctx.json')); } catch { /* absent */ }
     }
 
+    // Native context max of the DEFAULT Ollama model — the panel's context
+    // dropdown adapts to it (a 1M-native model must OFFER 1M; a 32k model must
+    // not offer 262k). showModel is a network call and adminState polls every
+    // 1-5 s, so this memoizes per model id and refreshes in the background: the
+    // poll that changes the default gets null, the next one gets the answer.
+    const ollamaNative = { id: null, max: null, inflight: false };
+    function ollamaNativeMax() {
+        const def = (config.models.find((m) => m.default) || config.models[0] || {}).id || null;
+        if (!def) return null;
+        if (ollamaNative.id === def) return ollamaNative.max;
+        if (!ollamaNative.inflight) {
+            ollamaNative.inflight = true;
+            const host = (oll.reachable || []).filter(isLocalHost)[0] || (oll.reachable || [])[0] || null;
+            (host ? ollama.showModel(host, def) : Promise.resolve(null))
+                .then((meta) => { ollamaNative.id = def; ollamaNative.max = (meta && meta.contextLength) || null; })
+                .catch(() => { ollamaNative.id = def; ollamaNative.max = null; })
+                .finally(() => { ollamaNative.inflight = false; });
+        }
+        return ollamaNative.id === def ? ollamaNative.max : null;
+    }
+
     // Resolve config.ollama.contextLength === 'auto' to the LARGEST num_ctx that
     // keeps the default model fully in VRAM on this box. llama.cpp gets this from
     // GGUF math (computeFit); here that math is unreliable — sliding-window
@@ -457,6 +478,7 @@ async function run(args) {
         }
         const meta = await ollama.showModel(host, def);
         const native = (meta && meta.contextLength) || null;
+        ollamaNative.id = def; ollamaNative.max = native;   // seed the panel's dropdown memo
         // Load the model at a given num_ctx and report Ollama's REAL memory verdict.
         const psSizeAt = async (ctx) => {
             const warmed = await ollama.warmModel(host, def, config.ollama.keepAlive, ctx, 300000);
@@ -473,8 +495,10 @@ async function run(args) {
         // so the tail is linear), and the largest window inside the VRAM budget
         // follows. A verify-load at the target catches anything the line missed —
         // Ollama's own placement is always the referee, never the arithmetic.
-        // Ceiling 262144 (panel bound); ~8% VRAM headroom for the desktop.
-        const cap = Math.max(16384, Math.min(native || 262144, 262144));
+        // Ceiling = the MODEL'S OWN max (the old hard 262144 quietly halved every
+        // long-context model — live case: a 1M-native model); ~8% VRAM headroom
+        // for the desktop. The budget line + verify-load still referee.
+        const cap = Math.max(16384, native || 262144);
         const budget = vram != null ? (vram - Math.max(1, vram * 0.08)) * 1e9 : null;
         let resolved = 16384;
         progress('measuring the model at 16k', null);
@@ -1244,6 +1268,9 @@ async function run(args) {
                 numParallel: config.ollama.numParallel,
                 contextLength: config.ollama.contextLength,        // number, or 'auto'
                 contextResolved: config.ollama.contextResolved ?? null, // what actually serves
+                // The default model's own context max (lazily probed) — the panel's
+                // dropdown adapts its options to it. null until the probe answers.
+                nativeMax: ollamaNativeMax(),
             },
             // Advisory capacity — see the snapshot. Nothing is refused past `slots`.
             capacity: { slots: backendInfo(config, liveHealth).slots, clients: freshClients().length },
@@ -1355,8 +1382,20 @@ async function run(args) {
             });
         }
         const want = Math.round(Number(tokens));
-        if (!Number.isFinite(want) || want < 2048 || want > 262144) {
-            return { ok: false, error: 'Context must be between 2048 and 262144 tokens.', contextLength: config.ollama.contextLength };
+        // Upper bound = the serving model's own native max when known (what the
+        // dropdown offers); else a generous typo-catcher. The old hard 262144
+        // refused every long-context model — live case: a 1M-native model whose
+        // panel could never apply what the model supports.
+        const nativeCap = config.llamacpp.enabled
+            ? (((computeFit() || {}).nativeMax) || null)
+            : ollamaNativeMax();
+        const hardCap = nativeCap || 4194304;
+        if (!Number.isFinite(want) || want < 2048 || want > hardCap) {
+            return {
+                ok: false,
+                error: `Context must be between 2048 and ${hardCap} tokens${nativeCap ? " (this model's maximum)" : ''}.`,
+                contextLength: config.ollama.contextLength,
+            };
         }
         if (busy()) return busyErr();
 
