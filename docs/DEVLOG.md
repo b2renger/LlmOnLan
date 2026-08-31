@@ -6,6 +6,21 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-08-31 b — "the download hangs" (it didn't) + Make-default now re-probes auto context
+
+Owner report: the nemotron pull "hangs" in the panel. It didn't — `ollama list` showed the
+25 GB model installed and LiteLLM serving it; the tail of a big pull is Ollama's sha256
+verify (byte counter sits still for a minute+), and the panel had gone stale after. But
+walking their NEXT click found a real gap: **setDefaultModel did not re-run the auto-context
+probe.** The probe verdict is cached per model, so a new default served at the PREVIOUS
+model's num_ctx until the next farm restart — nemotron's 1M experiment would have silently
+run at gemma's 262144. Make-default under auto context is now a job: re-probe (which warms
+the new model), re-route, report "context sized to N tokens on this box".
+
+95 farm tests. Ships as farm-v0.0.29.
+
+---
+
 ## 2026-08-31 — the context dropdown follows the model (1M-native models, un-capped)
 
 Owner is trying `nemotron-3.5-lightning:30b` (1M-native) and asked that the context dropdown

@@ -1325,6 +1325,26 @@ async function run(args) {
         for (const h of oll.reachable.filter(isLocalHost)) ollama.warmModel(h, target.id, config.ollama.keepAlive, ollamaCtxNum()).catch(() => {});
         const warn = persistModels();
         if (beacon) beacon.kick();
+        // A new default under AUTO context must be RE-PROBED now, not at the next
+        // boot: the cached verdict is keyed per model, so until then every request
+        // rides the PREVIOUS model's num_ctx — a quarter window for a long-context
+        // model (live case: nemotron 1M behind gemma's 262144), or a spill for a
+        // heavier one. The probe warms the new model as a side effect.
+        if (!config.llamacpp.enabled && config.ollama.contextLength === 'auto' && !busy()) {
+            return runJob('context', `Sizing the context window for ${target.id}`, async (progress) => {
+                config.ollama.contextResolved = null;
+                await resolveOllamaContext(progress);
+                if (!(await restartProxy())) {
+                    return { ok: false, error: 'The proxy did not come back after re-sizing the context — restart the farm.', defaultModel: target.id };
+                }
+                if (beacon) beacon.kick();
+                return {
+                    ok: true,
+                    message: `${target.id} is the default — context sized to ${config.ollama.contextResolved} tokens on this box.`,
+                    defaultModel: target.id, servedModels: servedIdList(), warning: warn || null,
+                };
+            });
+        }
         return { ok: true, defaultModel: target.id, servedModels: servedIdList(), warning: warn || null };
     }
 
