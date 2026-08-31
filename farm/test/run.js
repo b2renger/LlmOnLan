@@ -927,6 +927,7 @@ test('selfServer routes every backend/model control, all behind the token', asyn
         pullOllamaModel: rec('pull'),
         removeOllamaModel: rec('olrm'),
         setModelAlias: rec('malias'),
+        applyFarmSettings: rec('apply'),
     };
     const server = startSelfServer({ httpPort: 0, getSnapshot: () => ({}), host: '127.0.0.1', control, adminToken: 'secret' });
     await new Promise((r) => { if (server.listening) r(); else server.once('listening', r); });
@@ -950,9 +951,11 @@ test('selfServer routes every backend/model control, all behind the token', asyn
         await post('/lol/admin/ollama/pull', { id: 'gemma4:12b' });
         await post('/lol/admin/ollama/remove', { id: 'gemma4:12b' });
         await post('/lol/admin/model/alias', { id: 'gemma4:12b', alias: 'tutor' });
+        await post('/lol/admin/apply', { name: 'Studio', slots: 2, context: 'auto' });
 
         assert.deepEqual(calls.map((c) => c[0]),
-            ['backend', 'name', 'slots', 'lcmodel', 'libadd', 'librm', 'pull', 'olrm', 'malias']);
+            ['backend', 'name', 'slots', 'lcmodel', 'libadd', 'librm', 'pull', 'olrm', 'malias', 'apply']);
+        assert.deepEqual(calls[9][1], { name: 'Studio', slots: 2, context: 'auto' }, 'the whole change set reaches applyFarmSettings');
         assert.equal(calls[0][1], 'ollama');
         assert.equal(calls[1][1], 'Studio');
         assert.equal(calls[2][1], 4);

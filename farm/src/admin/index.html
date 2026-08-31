@@ -203,12 +203,14 @@ function render(s) {
     + `</div>`
     + `<div class="hint">Switching reloads the model — about a minute, or longer if the weights still have to download.</div>`
 
-    // The advertised name. This is the single thing the owner asked for and could
-    // not find: it lives on the served alias, so it belongs next to the backend.
-    + `<div class="row"><span></span><span><div class="mname">Name users see</div>`
-    + `<div class="meta">what appears in the model picker — not the checkpoint's technical name</div></span>`
-    + `<span class="badges"><input id="name-in" type="text" maxlength="48" spellcheck="false" value="${esc(be.alias || '')}" />`
-    + `<button id="name-apply"${jobRunning ? ' disabled' : ''}>Apply</button></span></div>`
+    // The advertised name — llama.cpp only: it IS that engine's one served alias.
+    // On the Ollama engine names live on the model rows (per-model Rename); a
+    // global field here silently fought them (owner report 2026-08-31).
+    + (be.engine === 'llama.cpp'
+      ? `<div class="row"><span></span><span><div class="mname">Name users see</div>`
+        + `<div class="meta">what appears in the model picker — not the checkpoint's technical name</div></span>`
+        + `<span class="badges"><input id="name-in" type="text" maxlength="48" spellcheck="false" value="${esc(be.alias || '')}" data-orig="${esc(be.alias || '')}" /></span></div>`
+      : '')
 
     // Capacity. The knob that decides whether a workshop works, previously reachable
     // only by hand-editing lol.config.json.
@@ -216,9 +218,9 @@ function render(s) {
     + `<div class="meta">${be.engine === 'llama.cpp'
         ? 'llama.cpp splits its context window across slots, so more slots means less context each'
         : 'requests Ollama runs in parallel per host — needs a farm restart'}</div></span>`
-    + `<span class="badges"><select id="slots-sel">${
+    + `<span class="badges"><select id="slots-sel" data-orig="${be.slots}">${
         [1, 2, 3, 4, 6, 8].map((v) => `<option value="${v}"${v === be.slots ? ' selected' : ''}>${v}</option>`).join('')
-      }</select><button id="slots-apply"${jobRunning ? ' disabled' : ''}>Apply</button></span></div>`
+      }</select></span></div>`
 
     // The shared farm password (ComfyQ-style). One string for everyone; clients
     // prompt for it when the beacon says requiresKey. Setting/clearing bounces
@@ -227,17 +229,24 @@ function render(s) {
     <div class="meta">${s.requiresKey
         ? '<b>Set.</b> Protects chat (everything on /v1). Web search, document reading and discovery stay open on the LAN. Apply an empty field to remove it.'
         : 'Not set — anyone on the network can use this farm. Type one to require it (protects chat; web search / document reading / discovery stay open).'}</div></span>
-    <span class="badges"><input id="sec-in" type="password" placeholder="${s.requiresKey ? '••••••••' : 'choose a password'}" maxlength="128" spellcheck="false" autocomplete="new-password" />
-    <button id="sec-apply"${jobRunning ? ' disabled' : ''}>Apply</button></span></div>`
+    <span class="badges"><input id="sec-in" type="password" placeholder="${s.requiresKey ? '••••••••' : 'choose a password'}" maxlength="128" spellcheck="false" autocomplete="new-password" data-orig="" />${
+      s.requiresKey ? `<button id="sec-clear" class="stop"${jobRunning ? ' disabled' : ''}>Remove</button>` : ''}</span></div>`
 
     // Context window — now honest about which engine it hits.
     + `<div class="row"><span></span><span><div class="mname">Context window</div>`
     + `<div class="meta">how much text the model reads at once — bigger fits whole documents, costs VRAM${
-        be.slots > 1 ? ` · shared across ${be.slots} slots, so each user gets ${fmtK(perSlot)}` : ''}</div></span>`
-    + `<span class="badges"><select id="ctx-sel">${be.engine === 'llama.cpp'
+        be.engine === 'llama.cpp'
+          ? (be.slots > 1 ? ` · shared across ${be.slots} slots, so each user gets ${fmtK(perSlot)}` : '')
+          : ' · every request gets the full window'}</div></span>`
+    + `<span class="badges"><select id="ctx-sel" data-orig="${esc(String((be.engine === 'llama.cpp' ? lc.contextLength : (s.ollama && s.ollama.contextLength)) ?? 'auto'))}">${be.engine === 'llama.cpp'
         ? ctxOptions(lc.contextLength, lc.contextResolved || be.contextLength, s.fit, s.fit && s.fit.nativeMax)
-        : ctxOptions((s.ollama && s.ollama.contextLength) ?? be.contextLength, be.contextLength, null, s.ollama && s.ollama.nativeMax)}</select>`
-    + `<button id="ctx-apply"${jobRunning ? ' disabled' : ''}>Apply</button></span></div>`
+        : ctxOptions((s.ollama && s.ollama.contextLength) ?? be.contextLength, be.contextLength, null, s.ollama && s.ollama.nativeMax)}</select></span></div>`
+
+    // ONE Apply for everything above (owner ask 2026-08-31): each setting used to
+    // carry its own button, and each press restarted the server — four restarts to
+    // change four things. Edits are collected and applied together in one restart.
+    + `<div class="row"><span></span><span><div class="meta">Changes above apply together — one restart for all of them.</div></span>`
+    + `<span class="badges"><button id="settings-apply"${jobRunning ? ' disabled' : ''}>Apply changes</button></span></div>`
     + `</div>`;
 
   // --- performance ---------------------------------------------------------------
@@ -430,40 +439,63 @@ function render(s) {
   });
   app.querySelectorAll('button[data-lcuse]').forEach((b) => { b.onclick = () => post('/lol/admin/llamacpp/model', { id: b.dataset.lcuse }, b, 'Loading the model…'); });
   app.querySelectorAll('button[data-lcdel]').forEach((b) => { b.onclick = () => post('/lol/admin/llamacpp/library/remove', { id: b.dataset.lcdel }, b, 'Removed'); });
+  // Inline rename editor. window.prompt() is NOT supported inside Electron (the
+  // Farm app's window) — it throws, which read as "the button does nothing"
+  // (owner report 2026-08-31). The name cell becomes an input with Save/Cancel.
   app.querySelectorAll('button[data-rn]').forEach((b) => {
     b.onclick = () => {
-      const v = prompt('Name users see for ' + b.dataset.rn + ' (empty = back to the checkpoint name):', b.dataset.cur || b.dataset.rn);
-      if (v === null) return;   // cancelled
-      post('/lol/admin/model/alias', { id: b.dataset.rn, alias: v.trim() }, b, 'Renaming…');
+      const row = b.closest('.row');
+      const cell = row && row.querySelector('.mname');
+      if (!cell || cell.querySelector('input')) return;
+      const cur = b.dataset.cur || b.dataset.rn;
+      cell.innerHTML = `<input type="text" maxlength="48" spellcheck="false" value="${esc(cur)}" style="min-width:170px" />`
+        + ` <button data-rnsave class="start" style="min-width:0">Save</button>`
+        + ` <button data-rncancel style="min-width:0">Cancel</button>`;
+      const inp = cell.querySelector('input');
+      const save = () => post('/lol/admin/model/alias', { id: b.dataset.rn, alias: inp.value.trim() }, b, 'Renaming…');
+      cell.querySelector('[data-rnsave]').onclick = save;
+      cell.querySelector('[data-rncancel]').onclick = () => refresh(true);
+      inp.onkeydown = (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); save(); }
+        if (e.key === 'Escape') refresh(true);
+      };
+      inp.focus(); inp.select();
     };
   });
   app.querySelectorAll('button[data-olrm]').forEach((b) => {
     b.onclick = () => { if (confirm('Delete ' + b.dataset.olrm + ' from this box? The files are removed.')) post('/lol/admin/ollama/remove', { id: b.dataset.olrm }, b, 'Removing…'); };
   });
 
-  bindApply('#name-apply', '#name-in', (v) => post('/lol/admin/name', { name: v }, $('#name-apply'), 'Renaming…'));
-  // The password field is the one Apply that must also accept EMPTY (= clear it),
-  // so it can't use bindApply's non-empty guard.
-  const secApply = $('#sec-apply');
-  if (secApply) secApply.onclick = () => {
-    const v = $('#sec-in').value;
-    // An empty Apply REMOVES the password — an easy slip to make while the
-    // field shows only dots. Deleting a model confirms; de-securing must too.
-    if (!v.trim() && lastState && lastState.requiresKey && !confirm('Remove the farm password? Anyone on the network can then use this farm.')) return;
-    post('/lol/admin/security', { password: v }, secApply, 'Applying…');
-  };
   bindApply('#lc-add', '#lc-url', (v) => post('/lol/admin/llamacpp/library/add', { url: v }, $('#lc-add'), 'Added to the library'));
   bindApply('#ol-pull', '#ol-id', (v) => post('/lol/admin/ollama/pull', { id: v }, $('#ol-pull'), 'Downloading…'));
-  const slotsApply = $('#slots-apply');
-  if (slotsApply) slotsApply.onclick = () => post('/lol/admin/slots', { slots: parseInt($('#slots-sel').value, 10) }, slotsApply, 'Applying…');
-  const ctxApply = $('#ctx-apply');
-  if (ctxApply) ctxApply.onclick = () => {
-    const sel = $('#ctx-sel');
-    const v = sel.value;
-    const opt = sel.selectedOptions && sel.selectedOptions[0];
-    if (opt && opt.dataset.over === '1'
-        && !confirm('This is more than the GPU should hold — part of the model will spill into system RAM and answers slow to a few tokens per second. Serve it anyway?')) return;
-    post('/lol/admin/context', { tokens: v === 'auto' ? 'auto' : parseInt(v, 10) }, ctxApply, 'Applying…');
+
+  // The settings block applies as ONE change set — a single restart instead of
+  // one per field. Only fields that differ from their rendered value are sent.
+  const settingsApply = $('#settings-apply');
+  if (settingsApply) settingsApply.onclick = () => {
+    const payload = {};
+    const nameIn = $('#name-in');
+    if (nameIn && nameIn.value.trim() && nameIn.value.trim() !== nameIn.dataset.orig) payload.name = nameIn.value.trim();
+    const slotsSel = $('#slots-sel');
+    if (slotsSel && slotsSel.value !== slotsSel.dataset.orig) payload.slots = parseInt(slotsSel.value, 10);
+    const secIn = $('#sec-in');
+    if (secIn && secIn.value.trim()) payload.password = secIn.value;
+    const ctxSel = $('#ctx-sel');
+    if (ctxSel && ctxSel.value !== ctxSel.dataset.orig) {
+      const opt = ctxSel.selectedOptions && ctxSel.selectedOptions[0];
+      if (opt && opt.dataset.over === '1'
+          && !confirm('This is more than the GPU should hold — part of the model will spill into system RAM and answers slow to a few tokens per second. Serve it anyway?')) return;
+      payload.context = ctxSel.value === 'auto' ? 'auto' : parseInt(ctxSel.value, 10);
+    }
+    if (!Object.keys(payload).length) { toast('Nothing changed.'); return; }
+    post('/lol/admin/apply', payload, settingsApply, 'Applying…');
+  };
+  // Clearing the password stays its own confirmed action — an empty field in the
+  // batch means "unchanged", never "remove".
+  const secClear = $('#sec-clear');
+  if (secClear) secClear.onclick = () => {
+    if (!confirm('Remove the farm password? Anyone on the network can then use this farm.')) return;
+    post('/lol/admin/security', { password: '' }, secClear, 'Removing…');
   };
 
   const cd = $('#clients-d');
@@ -622,12 +654,24 @@ function logout(msg) { localStorage.removeItem('lolAdminToken'); token = ''; tok
 // `force` = a real action just happened, so render even mid-typing. The poll
 // rebuilds innerHTML wholesale, which would otherwise wipe a half-typed model URL
 // out from under the operator every 5 seconds.
+// Un-applied edits in the settings block. The poll must not re-render over them:
+// with one Apply for the whole block, edits legitimately sit in the page across
+// several poll ticks before the operator presses it.
+function settingsDirty() {
+  if ((($('#sec-in') || {}).value || '') !== '') return true;
+  return ['#name-in', '#slots-sel', '#ctx-sel'].some((sel) => {
+    const el = $(sel);
+    return el && el.dataset.orig != null && el.value !== el.dataset.orig;
+  });
+}
+
 async function refresh(force) {
   if (!token) { tokenPanel(); return; }
   // …or a SELECT: the context/slots dropdowns are exactly where an operator
   // lingers reading the "won't fit" labels, and the 5 s poll snapped them shut.
   const tag = !force && document.activeElement ? document.activeElement.tagName : null;
   if (tag === 'INPUT' || tag === 'SELECT') return;
+  if (!force && settingsDirty()) return;
   try {
     const s = await api('/lol/admin/state');
     render(s);

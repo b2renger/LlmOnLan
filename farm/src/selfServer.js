@@ -139,6 +139,8 @@ function startSelfServer({ httpPort, getSnapshot, host = '0.0.0.0', control = nu
                     '/lol/admin/llamacpp/model': (b) => control.setLlamacppModel(b),
                     '/lol/admin/llamacpp/library/add': (b) => control.addLibraryModel(b),
                     '/lol/admin/llamacpp/library/remove': (b) => control.removeLibraryModel(b.id),
+                    // One Apply for the settings block: {name?, slots?, password?, context?} in one restart.
+                    '/lol/admin/apply': (b) => control.applyFarmSettings(b),
                     '/lol/admin/ollama/pull': (b) => control.pullOllamaModel(b.id),
                     '/lol/admin/ollama/remove': (b) => control.removeOllamaModel(b.id),
                 };

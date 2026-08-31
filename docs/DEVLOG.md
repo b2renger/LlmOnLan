@@ -6,6 +6,34 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-08-31 c — Rename that renames, one Apply for the settings block
+
+Two owner reports from the panel on the live box:
+
+- **"Rename doesn't do anything."** It called `window.prompt()` — which Electron does not
+  support (throws), and the panel lives inside the Farm app's Electron window. Worked in a
+  browser tab, silently died in the app. Replaced with an inline editor (the name cell
+  becomes an input with Save/Cancel, Enter/Escape bound). Also resolved the conceptual
+  clash the owner named: the global "Name users see" row now renders ONLY on the llama.cpp
+  engine (where it is that engine's one served alias); on Ollama, names live on the model
+  rows — one place, per model.
+- **One Apply for the settings block.** Name / slots / password / context each had their own
+  Apply, each with its own restart — four restarts to change four things. New
+  `POST /lol/admin/apply` (`applyFarmSettings`): validates the whole change set up front,
+  applies it in ONE job with ONE restart chain (llama.cpp: a single engine reload carries
+  alias+slots+context and the proxy bounce carries the password; Ollama: a single proxy
+  bounce carries everything, with the auto-context re-probe inline when asked), full revert
+  on failure. The panel collects edits (poll no longer re-renders over a dirty form), sends
+  only what changed, and keeps the oversized-context confirm. Password: empty field in the
+  batch means "unchanged" — clearing stays its own confirmed Remove button. The individual
+  routes remain for API compatibility.
+- Also fixed on sight: the context row claimed "shared across N slots" on the Ollama engine
+  — that is llama.cpp's split; Ollama gives every request the full window, and now says so.
+
+95 farm tests (the /lol/admin/apply route + payload pass-through covered). farm-v0.0.30.
+
+---
+
 ## 2026-08-31 b — "the download hangs" (it didn't) + Make-default now re-probes auto context
 
 Owner report: the nemotron pull "hangs" in the panel. It didn't — `ollama list` showed the

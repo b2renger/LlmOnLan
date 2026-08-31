@@ -1965,6 +1965,137 @@ async function run(args) {
         });
     }
 
+    // ONE Apply for the settings block (owner ask 2026-08-31): name + slots +
+    // password + context used to be four buttons, each with its own restart — four
+    // model reloads to change four things. This applies whatever subset the panel
+    // sends in ONE job with ONE restart chain. Field semantics match the individual
+    // controls exactly (which stay, for API compatibility and the password-clear
+    // flow). `password` here only SETS — clearing keeps its own confirmed control.
+    function applyFarmSettings(body = {}) {
+        if (busy()) return busyErr();
+        const lcMode = !!config.llamacpp.enabled;
+        // Validate everything BEFORE touching anything; normalize no-ops to null.
+        let name = null;
+        if (body.name != null && String(body.name).trim() !== '') {
+            name = String(body.name).replace(/[\r\n\t]/g, ' ').trim().slice(0, 48);
+            if (NAME_BAD_RX.test(name)) return { ok: false, error: 'Name: use letters, numbers, spaces and . - + : only.' };
+            if (name === (lcMode ? config.llamacpp.alias : (config.modelAlias || ''))) name = null;
+        }
+        let slots = null;
+        if (body.slots != null) {
+            slots = Math.round(Number(body.slots));
+            if (!Number.isFinite(slots) || slots < 1 || slots > 16) return { ok: false, error: 'Slots must be between 1 and 16.' };
+            if (slots === (lcMode ? config.llamacpp.parallel : config.ollama.numParallel)) slots = null;
+        }
+        let password;   // undefined = untouched
+        if (typeof body.password === 'string' && body.password.trim() !== '') {
+            password = body.password.trim().slice(0, 128);
+            if ((config.proxy.masterKey || null) === password) password = undefined;
+        }
+        let context = null;   // 'auto' | number | null
+        if (body.context != null) {
+            const curCl = lcMode ? config.llamacpp.contextLength : config.ollama.contextLength;
+            if (body.context === 'auto') {
+                context = curCl === 'auto' ? null : 'auto';
+            } else {
+                const want = Math.round(Number(body.context));
+                const nativeCap = lcMode ? (((computeFit() || {}).nativeMax) || null) : ollamaNativeMax();
+                const hardCap = nativeCap || 4194304;
+                if (!Number.isFinite(want) || want < 2048 || want > hardCap) {
+                    return { ok: false, error: `Context must be between 2048 and ${hardCap} tokens${nativeCap ? " (this model's maximum)" : ''}.` };
+                }
+                context = want === curCl ? null : want;
+            }
+        }
+        if (name == null && slots == null && password === undefined && context == null) {
+            return { ok: true, already: true, message: 'Nothing changed.' };
+        }
+        return runJob('settings', 'Applying the farm settings', async (progress) => {
+            const applied = [];
+            if (lcMode) {
+                const beforeLc = { alias: config.llamacpp.alias, parallel: config.llamacpp.parallel, contextLength: config.llamacpp.contextLength };
+                const beforePw = config.proxy.masterKey || null;
+                const patch = {};
+                if (name != null) { patch.alias = name; applied.push(`name "${name}"`); }
+                if (slots != null) { patch.parallel = slots; applied.push(`${slots} slot(s)`); }
+                if (context != null) { patch.contextLength = context; applied.push(context === 'auto' ? 'context automatic' : `context ${context}`); }
+                if (password !== undefined) { config.proxy.masterKey = password; persist('proxy', { masterKey: password }); applied.push('password set'); }
+                if (Object.keys(patch).length) persistLlamacpp(patch);
+                let ok, err;
+                if (Object.keys(patch).length) {
+                    const r = await reloadLlamacpp(progress);   // reload covers alias/slots/ctx AND bounces the proxy (password rides along)
+                    ok = r.ok; err = r.error;
+                } else {
+                    ok = await restartProxy(); err = 'The proxy did not come back.';
+                }
+                if (!ok) {
+                    persistLlamacpp(beforeLc);
+                    config.proxy.masterKey = beforePw;
+                    persist('proxy', { masterKey: beforePw ?? undefined });
+                    if (Object.keys(patch).length) await reloadLlamacpp(() => {}); else await restartProxy();
+                    return { ok: false, error: `${err} Reverted — nothing changed.` };
+                }
+                if (beacon) beacon.kick();
+                return { ok: true, message: `Applied in one restart: ${applied.join(' · ')}.` };
+            }
+            // Ollama engine: everything lands in the routing → ONE proxy bounce.
+            const before = {
+                modelAlias: config.modelAlias, numParallel: config.ollama.numParallel,
+                cl: config.ollama.contextLength, res: config.ollama.contextResolved ?? null,
+                pw: config.proxy.masterKey || null,
+            };
+            const defEntry = config.models.find((m) => m.default) || config.models[0];
+            const defAliasBefore = (defEntry && (defEntry.alias || '').trim()) || null;
+            let needsFarmRestart = false;
+            if (name != null) {
+                // A per-model alias on the default outranks modelAlias — latest rename wins.
+                if (defEntry && defAliasBefore) { delete defEntry.alias; persistModels(); }
+                config.modelAlias = name;
+                patchConfigFile(configPath, (raw) => { raw.modelAlias = name; return raw; });
+                applied.push(`name "${name}"`);
+            }
+            if (slots != null) {
+                config.ollama.numParallel = slots;
+                persist('ollama', { numParallel: slots });
+                needsFarmRestart = true;
+                applied.push(`${slots} at once (after a farm restart)`);
+            }
+            if (password !== undefined) { config.proxy.masterKey = password; persist('proxy', { masterKey: password }); applied.push('password set'); }
+            if (context != null) {
+                if (context === 'auto') {
+                    config.ollama.contextLength = 'auto';
+                    config.ollama.contextResolved = null;
+                    persist('ollama', { contextLength: 'auto' });
+                    dropOllamaCtxCache();
+                    await resolveOllamaContext(progress);
+                    applied.push(`context automatic (now ${config.ollama.contextResolved})`);
+                } else {
+                    config.ollama.contextLength = context;
+                    config.ollama.contextResolved = context;
+                    persist('ollama', { contextLength: context });
+                    applied.push(`context ${context}`);
+                }
+            }
+            progress('reloading routing', null);
+            if (!(await restartProxy())) {
+                config.modelAlias = before.modelAlias;
+                if (defEntry && defAliasBefore) { defEntry.alias = defAliasBefore; persistModels(); }
+                patchConfigFile(configPath, (raw) => { raw.modelAlias = before.modelAlias; return raw; });
+                config.ollama.numParallel = before.numParallel;
+                persist('ollama', { numParallel: before.numParallel });
+                config.proxy.masterKey = before.pw;
+                persist('proxy', { masterKey: before.pw ?? undefined });
+                config.ollama.contextLength = before.cl;
+                config.ollama.contextResolved = before.res;
+                persist('ollama', { contextLength: before.cl });
+                await restartProxy();
+                return { ok: false, error: 'The proxy did not come back — reverted everything.' };
+            }
+            if (beacon) beacon.kick();
+            return { ok: true, needsFarmRestart, message: `Applied in one restart: ${applied.join(' · ')}.` };
+        });
+    }
+
     // --- Ollama catalog management -----------------------------------------------
     // Download a model onto every LOCAL host. Remote hosts are deliberately untouched:
     // this CLI does not own them, and quietly filling someone else's disk is worse than
@@ -2076,6 +2207,7 @@ async function run(args) {
         setAdvertisedName,
         setModelAlias,
         setFarmPassword,
+        applyFarmSettings,
         pullOllamaModel,
         removeOllamaModel,
     });
