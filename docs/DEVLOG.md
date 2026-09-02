@@ -6,6 +6,39 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-09-02 c — two-box verification sweep (A6000 + Spark), and the stale-pin bug it caught
+
+Owner asked for real tests, no guessing, across the A6000 (10.10.16.58) and the Spark
+(10.10.17.242). Everything below was MEASURED live:
+
+- **Deployments**: A6000 on farm 0.0.31 (farmCodeVersion in farm-settings.json; settings.yml
+  carries `lol-settings v2` + mojeek/qwant/bing). Spark confirmed on 0.0.31 via its SearXNG
+  `/config` (same engine set). Both healthy, both advertising websearch + OCR.
+- **Web search, end to end**: 2 queries per box → **10 results each** (was 1 pre-fix). Caveat
+  measured honestly: all 10 came from **bing**; qwant suspended itself immediately, mojeek
+  slow/empty, DDG/Startpage/Brave still on CAPTCHA cooldown (they self-heal). Functional but
+  single-engine-dependent — watch it. Result-page fetch leg verified (top hit, HTTP 200).
+- **Serving**: real completions through both proxies — `FARM-OK` from each, ~1–2.3 s warm.
+  (First attempt with max_tokens 40 returned empty content — the thinking budget; with 500,
+  content + reasoning_content both present. Expected model behavior, not a farm fault.)
+- **OCR**: `/health` ok on both extractors (model qwen3.8:latest).
+- **Discovery**: 15 s beacon listen on the A6000 heard ONLY the local farm — broadcast/
+  multicast does not cross the 10.10.16.x ↔ 10.10.17.x boundary (unicast does, both ways).
+  Cross-subnet farms need the client's search range or add-by-address. Infrastructure, not
+  code; recorded in memory.
+- **THE BUG**: both boxes serve qwen3.8:latest at **1048576 pinned — its native max is
+  262144** (`/api/show`, arch qwen35). The 1M pin was made while a 1M-native model was the
+  default; switching the default back kept the stale pin (the 0.0.29 re-probe only covers
+  AUTO mode). Fixed: a default-model switch under a PINNED context now checks the new
+  model's native max and clamps a pin that exceeds it, loudly ("the old pin belonged to the
+  previous model"); a pin below native is kept. The panel's nativeMax memo is refreshed on
+  the spot. Ships as farm-v0.0.32; the live boxes need the operator to re-pick (262144 or
+  Automatic) or to re-trigger Make default after updating.
+
+95 farm tests.
+
+---
+
 ## 2026-09-02 b — mac auto-update deadlocked by keep-warm ("the button does nothing")
 
 Owner report from an Apple Silicon client: "Restart and reinstall" does nothing. Root cause

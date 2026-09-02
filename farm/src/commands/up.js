@@ -1325,6 +1325,38 @@ async function run(args) {
         for (const h of oll.reachable.filter(isLocalHost)) ollama.warmModel(h, target.id, config.ollama.keepAlive, ollamaCtxNum()).catch(() => {});
         const warn = persistModels();
         if (beacon) beacon.kick();
+        // A PINNED window belongs to the model it was pinned FOR. Live case
+        // (2026-09-02, found by testing, on BOTH boxes): 1048576 pinned while a
+        // 1M-native model was the default, then the default switched to a
+        // 262144-native model — every request kept riding the stale 1M num_ctx,
+        // 4× past what the new model was trained on, silently degrading answers.
+        // On a switch, clamp a pin that exceeds the NEW default's native max, and
+        // say so; a pin below native is a legitimate choice and is kept.
+        if (!config.llamacpp.enabled && typeof config.ollama.contextLength === 'number' && !busy()) {
+            const pinned = config.ollama.contextLength;
+            return runJob('context', `Checking ${target.id}'s context limit`, async (progress) => {
+                const h2 = (oll.reachable || []).filter(isLocalHost)[0] || (oll.reachable || [])[0] || null;
+                const meta = h2 ? await ollama.showModel(h2, target.id).catch(() => null) : null;
+                const native = (meta && meta.contextLength) || null;
+                ollamaNative.id = target.id; ollamaNative.max = native;   // keep the panel's dropdown honest immediately
+                if (!(native && pinned > native)) {
+                    return { ok: true, message: `${target.id} is the default.`, defaultModel: target.id, servedModels: servedIdList(), warning: warn || null };
+                }
+                config.ollama.contextLength = native;
+                config.ollama.contextResolved = native;
+                persist('ollama', { contextLength: native });
+                progress('reloading routing', null);
+                if (!(await restartProxy())) {
+                    return { ok: false, error: 'The proxy did not come back after adjusting the context — restart the farm.', defaultModel: target.id };
+                }
+                if (beacon) beacon.kick();
+                return {
+                    ok: true,
+                    message: `${target.id} is the default — context lowered ${pinned} → ${native}: the old pin belonged to the previous model and exceeds what this one was trained on.`,
+                    defaultModel: target.id, servedModels: servedIdList(), warning: warn || null,
+                };
+            });
+        }
         // A new default under AUTO context must be RE-PROBED now, not at the next
         // boot: the cached verdict is keyed per model, so until then every request
         // rides the PREVIOUS model's num_ctx — a quarter window for a long-context
