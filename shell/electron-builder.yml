@@ -43,7 +43,11 @@ nsis:
   oneClick: true
   perMachine: false
   allowToChangeInstallationDirectory: false
-  artifactName: ${productName}-Setup-${version}.${ext}
+  # Every artifact says WHICH machine it is for (owner ask 2026-09-02, after an
+  # x64 AppImage was run on the arm64 Spark): windows-x64 / mac-arm64 (Apple
+  # Silicon) / mac-x64 (Intel) / linux-x64 / linux-arm64. Still no spaces (GitHub
+  # would dot them and break the updater's filename match).
+  artifactName: ${productName}-Setup-${version}-windows-x64.${ext}
 
 mac:
   category: public.app-category.productivity
@@ -63,6 +67,8 @@ mac:
       arch: [arm64, x64]
     - target: zip
       arch: [arm64, x64]
+  # mac-arm64 = Apple Silicon, mac-x64 = Intel (macOS 14+).
+  artifactName: ${productName}-${version}-mac-${arch}.${ext}
   # Ad-hoc signing (no Apple cert): builder skips signing, afterPack does it.
   # hardenedRuntime:false — ad-hoc + hardened rejects the pre-signed Electron fw.
   identity: null
@@ -72,3 +78,5 @@ linux:
   target: AppImage
   icon: assets/icon.png
   category: Network
+  # linux-x64 (x86 PCs) / linux-arm64 (DGX Spark) — each CI job builds its host arch.
+  artifactName: ${productName}-${version}-linux-${arch}.${ext}

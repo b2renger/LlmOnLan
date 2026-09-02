@@ -6,6 +6,31 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-09-02 — the Spark as a client (linux-arm64), platform-tagged installers, live search
+
+Three owner reports:
+
+- **"Exec format error" running the client on the DGX Spark** — correct diagnosis: the only
+  Linux client build was x86_64. New `ubuntu-24.04-arm` matrix job builds the linux-arm64
+  client AND the linux-arm64 OWUI sidecar natively (electron-builder and build-sidecar both
+  target their host arch; electron-updater on arm64 reads its own latest-linux-arm64.yml).
+- **Platform-tagged artifact names** (v0.1.41 on): `-windows-x64.exe`, `-mac-arm64.dmg`
+  (Apple Silicon), `-mac-x64.dmg` (Intel, macOS 14+), `-linux-x64.AppImage`,
+  `-linux-arm64.AppImage`. Safe for the updater because names come from electron-builder
+  templates, so every latest*.yml references the new names consistently; the release body
+  now carries a which-file-for-which-machine table.
+- **"Web search does not work"** — it answered HTTP 200 with ONE Wikipedia hit: on a busy
+  single-IP box the stock SearXNG engine set had DDG (CAPTCHA), Startpage (CAPTCHA) and
+  Brave (too many requests) suspended AT ONCE. The generated settings.yml now also enables
+  the scrape-tolerant engines (mojeek — own crawler, qwant, bing) so suspensions of the
+  defaults never zero out results, with a `lol-settings v2` marker + upgrade path that
+  rewrites only OUR generated file (a hand-edited settings.yml is untouched; the secret is
+  preserved). Suspended engines self-heal on their own cooldown.
+
+95 farm tests. Farm side ships as farm-v0.0.31; client side as v0.1.41.
+
+---
+
 ## 2026-08-31 c — Rename that renames, one Apply for the settings block
 
 Two owner reports from the panel on the live box:

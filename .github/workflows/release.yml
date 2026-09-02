@@ -30,9 +30,22 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
         run: |
-          gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 \
-            || gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" \
-                 --notes "Automated release $GITHUB_REF_NAME." --verify-tag
+          if ! gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            {
+              echo "Pick the installer for your machine:"
+              echo ""
+              echo "| file | machine |"
+              echo "|---|---|"
+              echo "| \`-windows-x64.exe\` | Windows PCs |"
+              echo "| \`-mac-arm64.dmg\` | Apple Silicon Macs (M1 and later) |"
+              echo "| \`-mac-x64.dmg\` | Intel Macs (needs macOS 14+) |"
+              echo "| \`-linux-x64.AppImage\` | x86 Linux PCs |"
+              echo "| \`-linux-arm64.AppImage\` | ARM Linux (DGX Spark) |"
+              echo ""
+              echo "The \`owui-sidecar-*\` archives download automatically on first run — never needed by hand."
+            } > /tmp/notes.md
+            gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes-file /tmp/notes.md --verify-tag
+          fi
 
   build:
     needs: create-release
@@ -46,7 +59,11 @@ jobs:
           - os: windows-latest
           - os: macos-latest      # Apple Silicon (arm64) — ALSO cross-packages the x64 mac
                                   # installers (electron-builder.yml mac arch list)
-          - os: ubuntu-latest
+          - os: ubuntu-latest     # linux-x64 client + sidecar
+          - os: ubuntu-24.04-arm  # linux-arm64 client + sidecar (the DGX Spark as a CLIENT —
+                                  # an x64 AppImage there dies with "Exec format error";
+                                  # electron-builder + build-sidecar both build their host arch,
+                                  # and electron-updater reads its own latest-linux-arm64.yml)
           # Intel Mac: builds ONLY the darwin-x64 sidecar (the installers come from the
           # macos-latest job above). The old blocker — OWUI pins `onnxruntime==1.26.0`,
           # whose last macOS-x86_64 wheel was 1.23.2, so the pin can't resolve on Intel

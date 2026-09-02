@@ -404,6 +404,11 @@ test('searxng settings.yml has json format + a real secret + limiter off', () =>
     // onion (Tor) engines are disabled so they don't error at boot without a Tor proxy
     const disabled = new Set((yml.engines || []).filter((e) => e.disabled).map((e) => e.name));
     assert.ok(disabled.has('ahmia') && disabled.has('torch'), 'onion engines disabled');
+    // Scrape-tolerant engines are ON — with only the stock set, DDG+Startpage+Brave
+    // all CAPTCHA'd at once on the live box and search returned one Wikipedia hit.
+    const enabled = new Set((yml.engines || []).filter((e) => e.disabled === false).map((e) => e.name));
+    for (const e of ['mojeek', 'qwant', 'bing']) assert.ok(enabled.has(e), `${e} must back up the CAPTCHA-prone defaults`);
+    assert.match(buildSettingsYaml('a'), /lol-settings v2/, 'version marker drives the upgrade path');
 });
 
 test('snapshot advertises searxngUrl only when enabled AND healthy', () => {
