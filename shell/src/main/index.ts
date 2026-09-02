@@ -387,8 +387,12 @@ function createWindow(): void {
     // instead of quitting makes every reopen instant. The tray icon is the way
     // back in (and the way to really quit). app.quit() sets `quitting` in
     // before-quit BEFORE any close event fires, so real quits pass through.
+    // `installingUpdate` covers the one quit that does NOT: macOS Squirrel's
+    // quitAndInstall closes all windows BEFORE app.quit(), so without it the
+    // hide-to-tray swallowed the close and "Restart and reinstall" deadlocked
+    // (live mac report, 2026-09-02).
     win.on('close', (e) => {
-        if (!quitting && OWUI_ENABLED && loadSettings().keepEngineWarm) {
+        if (!quitting && !installingUpdate && OWUI_ENABLED && loadSettings().keepEngineWarm) {
             e.preventDefault();
             win?.hide();
         }
@@ -669,7 +673,11 @@ function registerIpc(): void {
     });
     // App self-update (electron-updater). check → status; install → quitAndInstall.
     ipcMain.handle('check-app-update', () => checkForAppUpdate());
-    ipcMain.handle('install-app-update', () => { quitAndInstallUpdate(); return true; });
+    // The flag must flip BEFORE quitAndInstall: on macOS the native updater closes
+    // the windows first, and the keep-warm close handler must let them go. Never
+    // reset — if the install errors, the next window close quits fully, which is
+    // the safe direction (a half-armed installer should not sit behind a tray).
+    ipcMain.handle('install-app-update', () => { installingUpdate = true; quitAndInstallUpdate(); return true; });
     // OWUI (sidecar) update — independent of the app binary. check → versions;
     // download → stage to userData/sidecar.pending (applied on next launch).
     ipcMain.handle('check-owui-update', () => checkOwuiUpdate());
@@ -864,6 +872,11 @@ app.whenReady().then(async () => {
 });
 
 let quitting = false;
+// Set when the user pressed "Restart and reinstall" — lets the keep-warm close
+// handler release the windows for the macOS updater (see win.on('close')).
+// Deliberately separate from `quitting`: presetting THAT would skip the
+// before-quit sidecar/mcpo cleanup below.
+let installingUpdate = false;
 app.on('before-quit', async (e) => {
     if (quitting) return;
     quitting = true;

@@ -6,6 +6,27 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-09-02 b — mac auto-update deadlocked by keep-warm ("the button does nothing")
+
+Owner report from an Apple Silicon client: "Restart and reinstall" does nothing. Root cause
+is an interaction shipped in v0.1.38: macOS Squirrel's `quitAndInstall()` **closes all
+windows first** and only calls `app.quit()` once they are closed — but the keep-warm close
+handler intercepts window close (the `quitting` flag is only set in `before-quit`, which
+never fires here) and hides to tray instead. The window "closes" into the tray, Squirrel
+waits forever, the install never runs. Windows/Linux were unaffected (their updater path
+goes through `app.quit()` directly).
+
+Fix: an `installingUpdate` flag set in the install IPC BEFORE `quitAndInstall()`, consulted
+by the close handler alongside `quitting`. Deliberately a separate flag — presetting
+`quitting` would have skipped the before-quit sidecar/mcpo cleanup. Never reset: if the
+install errors, the next window close quits fully, the safe direction. v0.1.42.
+
+Caveat flagged to the owner: this fixes the deadlock; whether Squirrel then accepts the
+AD-HOC signature end-to-end is exactly what their retest verifies (the recipe's claim, never
+rig-verified on mac until now — RIG_CHECKLIST has carried this item since the start).
+
+---
+
 ## 2026-09-02 — the Spark as a client (linux-arm64), platform-tagged installers, live search
 
 Three owner reports:
