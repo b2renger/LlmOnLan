@@ -6,6 +6,35 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-09-03 — the Spark client vs its own farm: Docker's bridge in the beacon
+
+Owner symptom: the client ON the Spark oscillates Connecting/Reconnecting against the farm
+on the SAME machine, while remote clients connect to that farm fine and the Spark client
+connects to remote farms fine. Diagnosed with live probes, not guesses:
+
+- "Reconnecting…" maps to sidecar status `restarting` — the OWUI engine was restart-looping,
+  not the network failing. The Spark's advertised snapshot was measured rock-stable (30
+  polls, 0 changes), self-connect via both the LAN IP and loopback verified working by the
+  owner — and then the tell: the local client listed its farm at **172.22.0.1:4000** (a
+  Docker compose bridge) while remote clients list 10.10.17.242.
+- Root cause, code-confirmed: `ipv4Interfaces()` includes every non-internal IPv4 — Docker
+  bridges too — so the beacon also broadcast on `br-<hash>`, and the client's beacon handler
+  adopted each packet's SOURCE address as the farm's host. On the farm's own machine the
+  loopback copies arrive stamped per-interface → the host flapped between 172.22.0.1 and
+  10.10.17.242 every tick → env-diff repoint → engine restart, forever. Remote machines only
+  ever receive the LAN copy. Bonus landmine: `primaryAddress()` = first interface — had
+  Docker sorted first, the advertised endpoint itself would have broken for everyone.
+- Fix, both ends: farm-side, `isVirtualIfaceName()` filters docker/br-<hex>/veth/virbr/
+  vmnet/vboxnet/lxc/cni/podman/tailscale/wg/vEthernet from `ipv4Interfaces()` (plain `br0`
+  — a real server bridge — deliberately NOT matched), so the beacon, the snapshot's ips and
+  primaryAddress all stop seeing container networks. Client-side, the beacon handler now
+  trusts the farm's ADVERTISED endpoint host over the packet's source (identical values for
+  any packet that crossed the network; the flap collapses even against un-updated farms).
+
+96 farm tests (interface classifier covered). farm-v0.0.33 + v0.1.43.
+
+---
+
 ## 2026-09-02 c — two-box verification sweep (A6000 + Spark), and the stale-pin bug it caught
 
 Owner asked for real tests, no guessing, across the A6000 (10.10.16.58) and the Spark

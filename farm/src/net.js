@@ -2,13 +2,28 @@
 
 const os = require('os');
 
-// Every non-internal IPv4 this machine is reachable on, with netmask + the
+// Container/VM/VPN bridges are NOT the LAN. On the DGX Spark, Docker's compose
+// bridge (172.22.0.1, iface `br-<hash>`) was non-internal, so the beacon also
+// broadcast on it — and the client running ON that box received copies of the
+// beacon sourced from 172.22.0.1, flapped its farm endpoint between that and
+// the real LAN address every tick, and restarted its OWUI engine forever
+// (live 2026-09-03: the "client can't connect to the farm on the same
+// machine" report). Plain `br0` (a real bridged NIC on servers) is deliberately
+// NOT matched — only compose's `br-<hex>` shape is.
+const VIRTUAL_IFACE_RX = /^(docker|br-[0-9a-f]|veth|virbr|vmnet|vboxnet|lxc|lxd|cni|flannel|podman|tailscale|zt|wg|vEthernet)/i;
+function isVirtualIfaceName(name) {
+    return VIRTUAL_IFACE_RX.test(String(name || ''));
+}
+
+// Every LAN-facing IPv4 this machine is reachable on, with netmask + the
 // directed broadcast address for that interface. (Same logic as ComfyQ's
-// federation/systemInfo.lanAddresses + beacon.broadcastAddr.)
+// federation/systemInfo.lanAddresses + beacon.broadcastAddr, plus the virtual-
+// interface filter above.)
 function ipv4Interfaces() {
     const out = [];
     const ifs = os.networkInterfaces();
     for (const name of Object.keys(ifs)) {
+        if (isVirtualIfaceName(name)) continue;
         for (const i of ifs[name] || []) {
             if (i.family !== 'IPv4' || i.internal) continue;
             out.push({
@@ -46,4 +61,4 @@ function primaryAddress() {
     return lanAddresses()[0] || '127.0.0.1';
 }
 
-module.exports = { ipv4Interfaces, lanAddresses, broadcastAddr, primaryAddress };
+module.exports = { ipv4Interfaces, lanAddresses, broadcastAddr, primaryAddress, isVirtualIfaceName };

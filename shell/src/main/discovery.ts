@@ -160,6 +160,15 @@ export class Discovery extends EventEmitter {
         });
     }
 
+    // The host the farm itself advertises (its `endpoint` is built farm-side from
+    // its primary LAN address), or null when absent/unparsable.
+    private endpointHost(snap: FarmSnapshot): string | null {
+        try {
+            const u = new URL((snap as { endpoint?: string }).endpoint || '');
+            return u.hostname || null;
+        } catch { return null; }
+    }
+
     private merge(snap: FarmSnapshot, host: string, source: PeerRec['source']): void {
         const id = snap.id || `${host}:${snap.proxyPort || ''}`;
         this.peers.set(id, { snap, host, lastSeen: Date.now(), source });
@@ -211,7 +220,15 @@ export class Discovery extends EventEmitter {
             let snap: FarmSnapshot;
             try { snap = JSON.parse(msg.toString()); } catch { return; }
             if (!snap || snap.v == null) return;
-            this.merge(snap, rinfo.address, 'beacon');
+            // The farm's ADVERTISED endpoint beats the packet's source address.
+            // A beacon fans out on every interface, and on a machine running both
+            // client and farm the loopback copies arrive stamped with whatever
+            // interface each send used — on the DGX Spark that included Docker's
+            // bridge (172.22.0.1), so the farm's host flapped between that and
+            // the real LAN IP every tick and each flap restarted the OWUI engine
+            // ("Connecting/Reconnecting forever", live 2026-09-03). For packets
+            // that crossed the network the two values are identical anyway.
+            this.merge(snap, this.endpointHost(snap) || rinfo.address, 'beacon');
             this.emitState();
         });
         socket.bind(PORT, () => {

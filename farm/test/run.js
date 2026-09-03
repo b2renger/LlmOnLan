@@ -1104,6 +1104,19 @@ test('KV cache defaults: Ollama q8_0 (flash-attention gated), llama.cpp RAM cach
     assert.equal(off[off.indexOf('--cache-ram') + 1], '0', 'cacheRam 0 must disable, not fall back to auto');
 });
 
+test('virtual interfaces never reach the beacon or the advertised addresses', () => {
+    // Live 2026-09-03: Docker's compose bridge (br-<hash>, 172.22.0.1) got
+    // beaconed on, and the client on the same box flapped its farm endpoint
+    // between the bridge and the real LAN IP — restarting its engine forever.
+    const { isVirtualIfaceName } = require('../src/net');
+    for (const bad of ['docker0', 'br-1a2bc3d4', 'veth1ab', 'virbr0', 'vmnet8', 'vboxnet0', 'tailscale0', 'wg0', 'vEthernet (WSL)', 'podman1']) {
+        assert.ok(isVirtualIfaceName(bad), `${bad} must be filtered`);
+    }
+    for (const good of ['eno1', 'eth0', 'wlan0', 'en0', 'Ethernet', 'Wi-Fi', 'br0', 'bridge0']) {
+        assert.ok(!isVirtualIfaceName(good), `${good} is a real NIC (plain br0 is a server bridge, not compose's br-<hex>)`);
+    }
+});
+
 test('panel context dropdown adapts to the model: 1M offers 1M, 32k stops at 32k', () => {
     const html = fs.readFileSync(path.join(__dirname, '..', 'src', 'admin', 'index.html'), 'utf8');
     const start = html.indexOf('function ctxOptions');
