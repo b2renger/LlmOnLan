@@ -974,7 +974,7 @@ async function run(args) {
     // "how fast was it just now" even between requests. History feeds a sparkline.
     let perfPrev = null;
     const perfHistory = [];
-    let perfLast = { genTokSec: null, promptTokSec: null, ts: null };
+    let perfLast = { genTokSec: null, promptTokSec: null, cacheHitRatio: null, ts: null };
     async function samplePerf() {
         if (!config.llamacpp.enabled || !llamacppChild) { perfPrev = null; return null; }
         const m = await llamacpp.fetchMetrics(config.llamacpp.port);
@@ -983,7 +983,14 @@ async function run(args) {
         const rates = perfMod.sampleRates(perfPrev, cur);
         perfPrev = cur;
         if (rates && !rates.reset && rates.genTokSec != null) {
-            perfLast = { genTokSec: rates.genTokSec, promptTokSec: rates.promptTokSec, ts: cur.ts };
+            perfLast = {
+                genTokSec: rates.genTokSec,
+                promptTokSec: rates.promptTokSec,
+                // Sticky like the speeds: the ratio of the LAST active window is
+                // what answers "did that turn hit the cache" between requests.
+                cacheHitRatio: rates.cacheHitRatio ?? perfLast.cacheHitRatio,
+                ts: cur.ts,
+            };
         }
         perfHistory.push({ t: cur.ts, gen: (rates && !rates.reset && rates.genTokSec) || 0 });
         if (perfHistory.length > 40) perfHistory.shift();
@@ -992,11 +999,12 @@ async function run(args) {
             genTokSec: (rates && !rates.reset) ? rates.genTokSec : null,   // this window
             lastGenTokSec: perfLast.genTokSec,                             // sticky
             lastPromptTokSec: perfLast.promptTokSec,
+            lastCacheHitRatio: perfLast.cacheHitRatio,                     // 0..1, null = no data yet
             lastActiveTs: perfLast.ts,
             busySlots: cur.busy,
             totalSlots: Math.max(1, config.llamacpp.parallel || 1),
             queued: cur.queued,
-            kvUsed: cur.kvUsed,
+            kvUsed: cur.kvUsed,   // null on b10670+ (upstream dropped the metric)
         };
     }
 

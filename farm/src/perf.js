@@ -40,8 +40,15 @@ function metricsSample(m, ts) {
         predSec: m['llamacpp:tokens_predicted_seconds_total'] ?? null,
         promptTok: m['llamacpp:prompt_tokens_total'] ?? null,
         promptSec: m['llamacpp:prompt_seconds_total'] ?? null,
+        // Prompt tokens served FROM the KV cache instead of being re-processed —
+        // b10670's own counter, and the direct proof of whether cache-reuse /
+        // cache-ram / slot routing are earning their keep. Verified live: a
+        // repeated 3182-token prompt showed processed=518, cached=2666.
+        cachedTok: m['llamacpp:prompt_tokens_cached_total'] ?? null,
         busy: m['llamacpp:requests_processing'] ?? 0,
         queued: m['llamacpp:requests_deferred'] ?? 0,
+        // Gone in b10670 (metric was dropped upstream); kept for older builds an
+        // operator points binDir at. Consumers must treat null as "unknown".
         kvUsed: m['llamacpp:kv_cache_usage_ratio'] ?? null,
     };
 }
@@ -57,11 +64,19 @@ function sampleRates(prev, cur) {
     const dTok = cur.predTok - prev.predTok;
     const dSec = (cur.predSec ?? 0) - (prev.predSec ?? 0);
     if (dTok < 0 || dSec < 0) return { reset: true };          // counter reset (restart)
-    const out = { reset: false, genTokSec: null, promptTokSec: null, genTokens: dTok };
+    const out = { reset: false, genTokSec: null, promptTokSec: null, genTokens: dTok, cacheHitRatio: null };
     if (dTok > 0 && dSec > 0.05) out.genTokSec = Math.round((dTok / dSec) * 10) / 10;
     const dpTok = (cur.promptTok ?? 0) - (prev.promptTok ?? 0);
     const dpSec = (cur.promptSec ?? 0) - (prev.promptSec ?? 0);
     if (dpTok > 0 && dpSec > 0.05) out.promptTokSec = Math.round(dpTok / dpSec);
+    // Cache effectiveness over the window: of every prompt token that arrived,
+    // how many were answered from the KV cache instead of re-processed. 1.0 =
+    // follow-up turns cost only their new tail; ~0 with long chats = every turn
+    // re-reads the whole history (what the cache work exists to prevent).
+    const dcTok = (cur.cachedTok ?? 0) - (prev.cachedTok ?? 0);
+    if (cur.cachedTok != null && dcTok >= 0 && dpTok >= 0 && dcTok + dpTok > 0) {
+        out.cacheHitRatio = Math.round((dcTok / (dcTok + dpTok)) * 100) / 100;
+    }
     return out;
 }
 

@@ -196,6 +196,15 @@ function argsFor(config, modelPath, mmprojPath) {
         ? Math.min(32768, Math.max(8192, Math.floor(os.totalmem() / 1048576 / 4)))
         : c.cacheRam;
     args.push('--cache-ram', String(cram));
+    // ONE shared KV pool across slots (default) instead of the hard ctx/parallel
+    // split — a solo user gets the FULL window; concurrent users share. Verified
+    // live 2026-09-03: n_ctx_slot = full ctx, an over-split-size prompt served,
+    // cache-reuse still hit underneath it.
+    if (c.kvUnified !== false) args.push('--kv-unified');
+    // Route a returning chat to the slot that still holds ITS cache. The upstream
+    // default (0.1) is nearly indiscriminate — a chat could land on a slot with a
+    // barely-matching cache and reprocess everything our cache work tried to save.
+    args.push('--slot-prompt-similarity', '0.4');
     if (mmprojPath) args.push('--mmproj', mmprojPath);
     if (Array.isArray(c.extraArgs)) args.push(...c.extraArgs);
     return args;

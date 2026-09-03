@@ -172,7 +172,9 @@ function render(s) {
   const engineName = be.engine === 'llama.cpp' ? 'llama.cpp' : 'Ollama';
   const perSlot = be.contextPerSlot || be.contextLength || 0;
   const slotLine = be.slots > 1
-    ? `${be.slots} people at once · ${fmtK(perSlot)} of context each`
+    ? (be.kvUnified
+        ? `${be.slots} people at once · up to ${fmtK(be.contextLength)} of context (shared pool, ${fmtK(perSlot)} guaranteed)`
+        : `${be.slots} people at once · ${fmtK(perSlot)} of context each`)
     : `1 person at a time · ${fmtK(perSlot)} of context`;
   const engineBtn = (id, title, sub, active, blocked) =>
     `<button class="engine${active ? ' active' : ''}" data-engine="${id}"${active || jobRunning || blocked ? ' disabled' : ''}>`
@@ -216,7 +218,9 @@ function render(s) {
     // only by hand-editing lol.config.json.
     + `<div class="row"><span></span><span><div class="mname">People served at once</div>`
     + `<div class="meta">${be.engine === 'llama.cpp'
-        ? 'llama.cpp splits its context window across slots, so more slots means less context each'
+        ? (be.kvUnified
+            ? 'slots share one context pool — a person alone gets the whole window, people arriving share it'
+            : 'llama.cpp splits its context window across slots, so more slots means less context each')
         : 'requests Ollama runs in parallel per host — needs a farm restart'}</div></span>`
     + `<span class="badges"><select id="slots-sel" data-orig="${be.slots}">${
         [1, 2, 3, 4, 6, 8].map((v) => `<option value="${v}"${v === be.slots ? ' selected' : ''}>${v}</option>`).join('')
@@ -236,7 +240,9 @@ function render(s) {
     + `<div class="row"><span></span><span><div class="mname">Context window</div>`
     + `<div class="meta">how much text the model reads at once — bigger fits whole documents, costs VRAM${
         be.engine === 'llama.cpp'
-          ? (be.slots > 1 ? ` · shared across ${be.slots} slots, so each user gets ${fmtK(perSlot)}` : '')
+          ? (be.kvUnified
+              ? ` · one shared pool: the full ${fmtK(be.contextLength)} when alone, ${fmtK(perSlot)} guaranteed with ${be.slots} at once`
+              : (be.slots > 1 ? ` · shared across ${be.slots} slots, so each user gets ${fmtK(perSlot)}` : ''))
           : ' · every request gets the full window'}</div></span>`
     + `<span class="badges"><select id="ctx-sel" data-orig="${esc(String((be.engine === 'llama.cpp' ? lc.contextLength : (s.ollama && s.ollama.contextLength)) ?? 'auto'))}">${be.engine === 'llama.cpp'
         ? ctxOptions(lc.contextLength, lc.contextResolved || be.contextLength, s.fit, s.fit && s.fit.nativeMax)
@@ -280,6 +286,13 @@ function render(s) {
   const perfBits = [
     perf && perf.busySlots != null ? `Generating now <b>${perf.busySlots}/${perf.totalSlots}</b>` : '',
     perf && perf.queued ? `Waiting <b>${perf.queued}</b>` : '',
+    // Reading speed (prefill) — was measured all along, never shown.
+    perf && perf.lastPromptTokSec != null ? `Reading <b>${perf.lastPromptTokSec} tok/s</b>` : '',
+    // Cache effectiveness: of the prompt tokens in the last active window, how
+    // many came from the KV cache instead of being re-read. High = follow-up
+    // turns cost only their new text; low on long chats = every turn re-reads
+    // the whole history.
+    perf && perf.lastCacheHitRatio != null ? `Context cache hits <b>${Math.round(perf.lastCacheHitRatio * 100)}%</b>` : '',
     perf && perf.kvUsed != null ? `Context memory used <b>${Math.round(perf.kvUsed * 100)}%</b>` : '',
     (g.vramUsedGb != null && g.vramTotalGb != null) ? `VRAM <b>${g.vramUsedGb}/${g.vramTotalGb} GB</b>` : '',
     g.gpuUtil != null ? `GPU <b>${g.gpuUtil}%</b>` : '',

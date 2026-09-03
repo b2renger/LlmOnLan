@@ -1150,6 +1150,36 @@ test('panel context dropdown adapts to the model: 1M offers 1M, 32k stops at 32k
     assert.equal(fmtK(524288), '512k');
 });
 
+test('unified KV pool + strict slot routing ride the argv (verified live 2026-09-03)', () => {
+    const c = defaultConfig();
+    const args = llamacpp.argsFor(c, 'M.gguf', null);
+    assert.ok(args.includes('--kv-unified'), 'solo user must get the FULL window (n_ctx_slot = ctx, measured)');
+    const i = args.indexOf('--slot-prompt-similarity');
+    assert.ok(i >= 0 && args[i + 1] === '0.4', 'upstream default 0.1 routes chats onto barely-matching caches');
+    c.llamacpp.kvUnified = false;
+    assert.ok(!llamacpp.argsFor(c, 'M.gguf', null).includes('--kv-unified'), 'kvUnified:false restores the hard split');
+});
+
+test('cacheHitRatio: cached vs processed prompt tokens between two samples', () => {
+    const { metricsSample, sampleRates } = require('../src/perf');
+    const mk = (pred, predSec, prompt, cached) => metricsSample({
+        'llamacpp:tokens_predicted_total': pred, 'llamacpp:tokens_predicted_seconds_total': predSec,
+        'llamacpp:prompt_tokens_total': prompt, 'llamacpp:prompt_seconds_total': predSec,
+        'llamacpp:prompt_tokens_cached_total': cached,
+    }, Date.now());
+    // The live measurement: repeated 3182-token prompt → processed 518, cached 2666.
+    const r = sampleRates(mk(100, 10, 3182, 0), mk(140, 12, 3700, 2666));
+    assert.equal(r.cacheHitRatio, 0.84, `84% of the window's prompt tokens came from cache, got ${r.cacheHitRatio}`);
+    // No prompt traffic in the window → null, never NaN or 0-pretending-to-be-data.
+    const idle = sampleRates(mk(100, 10, 3182, 500), mk(120, 11, 3182, 500));
+    assert.equal(idle.cacheHitRatio, null);
+    // Old builds without the counter → null (kvUsed already handles absence the same way).
+    const old = sampleRates(
+        metricsSample({ 'llamacpp:tokens_predicted_total': 1, 'llamacpp:tokens_predicted_seconds_total': 1, 'llamacpp:prompt_tokens_total': 10 }, 1),
+        metricsSample({ 'llamacpp:tokens_predicted_total': 2, 'llamacpp:tokens_predicted_seconds_total': 2, 'llamacpp:prompt_tokens_total': 30 }, 2));
+    assert.equal(old.cacheHitRatio, null);
+});
+
 test('KV cache-reuse rides the argv — except under MTP, which conflicts', () => {
     const c = defaultConfig();
     const args = llamacpp.argsFor(c, 'M.gguf', null);

@@ -227,6 +227,13 @@ const LlamacppSchema = z.object({
     // whole history. 'auto' = a quarter of system RAM (floor 8 GiB, cap 32 GiB);
     // a number pins it; 0 disables; -1 = unlimited.
     cacheRam: z.union([z.literal('auto'), z.number().int().min(-1)]).default('auto'),
+    // --kv-unified — ONE shared KV pool across all slots instead of a hard
+    // ctx/parallel split: a person alone on the box gets the FULL window, people
+    // arriving share the pool dynamically. Verified live (2026-09-03, b10670,
+    // --ctx-size 32768 --parallel 2): n_ctx_slot = 32768 (not 16384), an
+    // 18,780-token prompt served fine, and --cache-reuse still hit (84% of a
+    // repeated prompt came from cache). false = the old even split.
+    kvUnified: z.boolean().default(true),
     // OFF by default: the default UD-IQ2_S quant has its MTP head STRIPPED (Unsloth
     // strips everything under UD-Q2_K_XL), and llama-server exits with "model
     // doesn't contain MTP layers" when asked for draft-mtp on such a quant. Opt-in

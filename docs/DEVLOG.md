@@ -6,6 +6,39 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-09-03 b — unified KV pool, strict cache routing, and the numbers to prove it
+
+Owner directive: keep optimizing context + KV cache. Second wave, llama.cpp-engine (owner
+scoped it there — Ollama's cache has no upstream knobs — and chose to stay within native
+trained windows, no YaRN experiment). Every claim below was verified on an ISOLATED
+llama-server (port 8093, cached Qwen3.8-27B UD-IQ2_S, live farm untouched) BEFORE the
+default was committed:
+
+- **`--kv-unified` (llamacpp.kvUnified, default true)** — ONE shared KV pool across slots
+  instead of the hard ctx/parallel split. Measured with `--ctx-size 32768 --parallel 2`:
+  `n_ctx_slot = 32768` (not 16384), and an **18,780-token prompt** served fine — past the
+  old per-slot ceiling. A solo coder now gets the FULL window; concurrent users share the
+  pool. `contextPerSlot` in the snapshot deliberately stays ctx/slots — the guaranteed
+  floor the client's RAG gate keys on; a promise that evaporates when a second person
+  arrives is not a window to plan around. Panel copy updated (headline, slots row, context
+  row: "the full N when alone, M guaranteed with K at once").
+- **`--slot-prompt-similarity 0.4`** — upstream default 0.1 routes a returning chat onto a
+  slot whose cache barely matches, reprocessing everything cache-reuse saved.
+- **Cache-reuse verified UNDER kv-unified**: repeated 3182-token prompt → second turn
+  processed 518, served **2666 from cache** (84%), 1.2 s → 0.4 s.
+- **Cache telemetry** — b10670 exposes `prompt_tokens_cached_total` (found on the live
+  /metrics scrape; there is NO requests_total, and `kv_cache_usage_ratio` was DROPPED
+  upstream, so the panel's "Context memory used" has been silently null since the b10670
+  pin — kept null-safe for older builds). New windowed `cacheHitRatio` in perf.js
+  (Δcached / (Δcached + Δprocessed), unit-tested with the live numbers), sticky
+  `lastCacheHitRatio` in liveHealth.perf, and the panel now renders **Reading tok/s**
+  (measured all along, never shown) + **Context cache hits N%**.
+
+98 farm tests. Ships as farm-v0.0.34. To benefit for code work, switch the box's engine to
+llama.cpp; the Ollama engine is unchanged.
+
+---
+
 ## 2026-09-03 — the Spark client vs its own farm: Docker's bridge in the beacon
 
 Owner symptom: the client ON the Spark oscillates Connecting/Reconnecting against the farm

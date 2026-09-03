@@ -59,7 +59,13 @@ function backendInfo(config, health = {}) {
             model: ggufName(lc.model),
             contextLength: ctx,
             contextAuto: lc.contextLength === 'auto',
+            // With the unified KV pool this is the GUARANTEED floor under full
+            // contention — a solo user can use the whole contextLength. Kept as
+            // the floor deliberately: the client's RAG gate keys on it, and a
+            // promise that evaporates when a second person arrives is not a
+            // window a client should plan around.
             contextPerSlot: ctx != null ? Math.floor(ctx / slots) : null,
+            kvUnified: lc.kvUnified !== false,
             slots,
             mtp: !!lc.mtp,
             kvCacheType: lc.kvCacheType || 'f16',

@@ -431,8 +431,11 @@ nothing. Shape:
                 "alias": "assistant",          // the name clients see and auto-select
                 "model": "https://huggingface.co/unsloth/Qwen3.8-27B-GGUF/resolve/main/Qwen3.8-27B-UD-IQ2_S.gguf",
                 "mmproj": "https://huggingface.co/unsloth/Qwen3.8-27B-GGUF/resolve/main/mmproj-F16.gguf",
-                "contextLength": "auto",       // DEFAULT: the largest that fits (or a number) — SPLIT across `parallel` slots
+                "contextLength": "auto",       // DEFAULT: the largest that fits (or a number)
                 "parallel": 1,                 // concurrent slots; see "Multiple users & capacity"
+                "kvUnified": true,             // ONE shared context pool across slots: a person alone gets
+                                               //   the FULL window, people arriving share it dynamically
+                                               //   (false = the old hard contextLength/parallel split)
                 "kvCacheType": "q4_0",         // quantized KV — what makes a good quant fit 12 GB
                 "cacheRam": "auto",            // host-RAM prompt cache (MiB): returning chats restore their
                                                //   KV instead of re-processing; auto = RAM/4, 8–32 GiB
