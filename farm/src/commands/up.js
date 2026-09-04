@@ -29,6 +29,7 @@ const { selectModels } = require('../modelPicker');
 const { makeServices, pluginsSummary } = require('../plugins/registry');
 const { farmId } = require('../identity');
 const { startSelfServer } = require('../selfServer');
+const { createSeats, startSeatGate } = require('../seats');
 const {
     readRuntime, writeRuntime, clearRuntime, isAlive, killTree, spawnLitellm,
 } = require('../proc');
@@ -760,12 +761,23 @@ async function run(args) {
         log.ok(`Model alias: clients see ${log.paint.bold(`"${alias}"`)} → ${log.paint.bold(real)} (switch the model anytime without breaking chats)`);
     }
 
-    // 4. Start + health-wait the proxy.
-    const baseUrl = `http://127.0.0.1:${config.proxy.port}`;
-    log.step(`Starting LiteLLM proxy on ${config.proxy.host}:${config.proxy.port} …`);
+    // 4. Start + health-wait the proxy. With the seat gate on (default), the
+    // public proxy.port is the farm's OWN listener (src/seats.js) and LiteLLM
+    // binds loopback-only one port up — that puts the farm's Node process in
+    // the serving path, which is the only place "idle people don't hold seats"
+    // can actually be ENFORCED (presence pings can't block anything). Gate off
+    // → LiteLLM binds the public port directly, exactly as before.
+    const seatGateOn = config.proxy.seatGate !== false;
+    const internalPort = seatGateOn ? (config.proxy.internalPort || config.proxy.port + 1) : config.proxy.port;
+    const litellmBind = seatGateOn ? { port: internalPort, host: '127.0.0.1' } : {};
+    // baseUrl is the farm's OWN LiteLLM check path — always talk to LiteLLM
+    // directly, not through the gate (health checks must not consume seats and
+    // must see LiteLLM itself, not the gate's 502 while it restarts).
+    const baseUrl = `http://127.0.0.1:${internalPort}`;
+    log.step(`Starting LiteLLM proxy on ${config.proxy.host}:${config.proxy.port} …${seatGateOn ? log.paint.grey(` (seat gate on — LiteLLM on loopback :${internalPort})`) : ''}`);
     // `child` is a `let` so the admin control API can bounce the proxy in place
     // (restartProxy below) to change the served model set without a full `lol up`.
-    let child = spawnLitellm(config, yamlPath);
+    let child = spawnLitellm(config, yamlPath, litellmBind);
     let restartingProxy = false;   // true while restartProxy() deliberately bounces LiteLLM
     const wireProxyIo = (c) => {
         c.stdout.on('data', log.childPrefix('litellm'));
@@ -832,6 +844,34 @@ async function run(args) {
         engineUp: config.llamacpp.enabled ? !!llamacppChild : null,
     };
     if (liveHealth.host) log.ok(`Hardware: ${log.paint.bold(liveHealth.host.gpu)} · ${liveHealth.host.vramGb}GB VRAM · ${liveHealth.host.ramGb}GB RAM · ${liveHealth.host.cpuCores} cores`);
+
+    // 5a. The seat gate — the public listener in front of LiteLLM (see the
+    // seatGateOn block above and src/seats.js). Started BEFORE the beacon so
+    // the endpoint the farm advertises is never a dead port. Capacity and the
+    // idle timeout are thunks: a panel slot change applies to the gate live.
+    let seats = null;
+    let seatGateServer = null;
+    if (seatGateOn) {
+        seats = createSeats({
+            capacity: () => backendInfo(config, liveHealth).slots,
+            idleReleaseSec: () => config.proxy.seatIdleSec || 900,
+        });
+        try {
+            seatGateServer = await startSeatGate({
+                host: config.proxy.host,
+                port: config.proxy.port,
+                upstreamPort: internalPort,
+                seats,
+                idleReleaseSec: () => config.proxy.seatIdleSec || 900,
+            });
+        } catch (e) {
+            log.err(`Seat gate could not bind ${config.proxy.host}:${config.proxy.port} (${e.code || e.message}). Is another farm running?`);
+            await killTree(child.pid);
+            return 1;
+        }
+        liveHealth.getSeats = () => seats.view();
+        log.ok(`Seat gate on — ${log.paint.bold(String(backendInfo(config, liveHealth).slots))} seat(s), idle release after ${Math.round((config.proxy.seatIdleSec || 900) / 60)} min (proxy.seatIdleSec)`);
+    }
     // The in-flight admin job rides the snapshot as `busy` so clients can explain a
     // bouncing proxy ("switching models…") instead of showing a raw error. jobBox is
     // indirection: the job system is defined further down, but the beacon can tick
@@ -1090,6 +1130,7 @@ async function run(args) {
         clearInterval(healthTimer);
         if (beacon) beacon.stop();
         try { selfServer.close(); } catch { /* already closed */ }
+        try { if (seatGateServer) seatGateServer.close(); } catch { /* already closed */ }
         await killTree(child.pid);
         for (const svc of services) { if (svc.pid) await killTree(svc.pid); }
         if (llamacppChild && llamacppChild.pid) await killTree(llamacppChild.pid);
@@ -1113,6 +1154,7 @@ async function run(args) {
         clearInterval(healthTimer);
         if (beacon) beacon.stop();
         try { selfServer.close(); } catch { /* already closed */ }
+        try { if (seatGateServer) seatGateServer.close(); } catch { /* already closed */ }
         // If the runtime file is already gone, `lol down` (another shell) cleared
         // it before killing us — an intentional stop, so exit quietly.
         const intentional = !readRuntime();
@@ -1143,7 +1185,7 @@ async function run(args) {
             writeLitellmConfig(config, yamlPath, peers);
             await killTree(child.pid);
             if (stopping) return false;                    // a signal landed during the kill → don't spawn an orphan
-            const nc = spawnLitellm(config, yamlPath);
+            const nc = spawnLitellm(config, yamlPath, litellmBind);
             let ncExited = false;
             nc.on('error', () => { /* a failed spawn surfaces via waitForProxy below */ });
             // Records a startup death AND (once healthy + current) supervises like the
@@ -1280,8 +1322,14 @@ async function run(args) {
                 // dropdown adapts its options to it. null until the probe answers.
                 nativeMax: ollamaNativeMax(),
             },
-            // Advisory capacity — see the snapshot. Nothing is refused past `slots`.
-            capacity: { slots: backendInfo(config, liveHealth).slots, clients: freshClients().length },
+            // Slots is advisory in the snapshot; SEATS are the enforced side (the
+            // gate in front of LiteLLM — null when proxy.seatGate is off).
+            capacity: {
+                slots: backendInfo(config, liveHealth).slots,
+                clients: freshClients().length,
+                seats: seats ? seats.view() : null,
+                seatIdleSec: seats ? (config.proxy.seatIdleSec || 900) : null,
+            },
             // The VRAM budget for the current shape — the panel flags context
             // options that cannot fit instead of offering 256k on a 12 GB card.
             fit: config.llamacpp.enabled ? computeFit() : null,

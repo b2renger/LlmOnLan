@@ -41,6 +41,10 @@ Snapshot:
   `llamacpp.contextLength` defaults to **'auto'** — min(model native max, VRAM budget), both read from
   the real files (`farm/src/gguf.js`). `proxy.masterKey` = the shared **farm password** (panel-settable;
   clients prompt once, verify, remember per farm; discovery + the admin token stay separate).
+  **Seat gate** (2026-09-04, `proxy.seatGate` default true): the public `proxy.port` is the farm's own
+  streaming listener (`farm/src/seats.js`) with LiteLLM loopback-only behind it — an IP's completions
+  claim/refresh a seat (capacity = the engine's slots), a seat idle `proxy.seatIdleSec` (900 s) frees,
+  and a generation on a full farm gets an explicit 429 instead of queueing behind idlers.
   `mtp` (`--spec-type draft-mtp`) defaults **false** —
   Unsloth strips the MTP head below UD-Q2_K_XL and llama-server then refuses to start. Pin facts:
   **OWUI `0.10.2`** (Python 3.11/3.12, run via the `open-webui serve` console script). Beacon group
@@ -85,11 +89,11 @@ Snapshot:
   (not when an input differs), `sidecarManager` precompiles the freshly-unpacked tree to bytecode in the
   background (a fresh install otherwise pays parse+compile for ~27k files on first launch),
   `HF_HUB_OFFLINE=1` when MiniLM + whisper-base are cached (OWUI otherwise asks huggingface.co on every
-  boot — a hang on a closed LAN; `HF_HUB_ETAG_TIMEOUT=2` until then), health polling at 300 ms, and —
-  the one that makes reopens INSTANT — **keep-warm** (`keepEngineWarm`, default on): closing the window
-  hides to a tray instead of quitting, so the sidecar stays served; real quit is the tray's Quit (the
-  `quitting` flag set in before-quit lets it pass the close-handler), and launch-at-login registers
-  with `--hidden` so the engine boots before the user first clicks the app.
+  boot — a hang on a closed LAN; `HF_HUB_ETAG_TIMEOUT=2` until then), and health polling at 300 ms.
+  **Close means close** (owner decision 2026-09-04, replacing the keep-warm/tray behavior of
+  v0.1.x–v0.1.43): the window's X quits EVERYTHING on all platforms (mac included — deliberate
+  convention break) — a hidden-but-warm client kept heartbeating the farm and held a seat while
+  nobody used it. Reopening pays the OWUI boot again; accepted cost.
   E2E harness: `shell/test/` (mock farm + CDP driver).
 - **`sidecar/`** — `build-sidecar` bundles a relocatable standalone CPython + OWUI + `launcher.py`;
   `OPENWEBUI_VERSION` is the pin. NOT bundled into the installer — CI publishes it as

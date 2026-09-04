@@ -205,12 +205,15 @@ function buildSnapshot(config, health = {}) {
         // the user, and so the admin panel can show which backend is live.
         backend: backend(),
         // How many people this box serves at once, vs how many are on it right now.
-        // Deliberately ADVISORY: nothing refuses a client past `slots`, because a farm
-        // that turned people away would be worse than one that queues them. The client
-        // renders "2 of 2 slots in use" so the next person can choose another box.
+        // `slots` stays advisory for CONNECTED clients — but since the seat gate
+        // (2026-09-04) generation itself is enforced: an IP idle past the gate's
+        // timeout frees its seat, and a new generation on a full farm gets a clear
+        // 429 instead of silently queueing behind idlers. `seatsUsed` is the live
+        // enforced count (null = gate off / old farm).
         capacity: {
             slots: backend().slots,
             clients: health.clientsConnected ?? 0,
+            seatsUsed: (typeof health.getSeats === 'function' ? (health.getSeats() || []).length : null),
             // Live load when the engine reports it (llama.cpp /metrics): requests
             // generating right now, and requests waiting for a slot.
             busy: health.perf?.busySlots ?? null,

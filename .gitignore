@@ -48,6 +48,9 @@ data/
 .webui-secret-key
 owui-data/
 
+# --- Local working notes (owner ask 2026-09-04: documented, but out of the repo) ---
+docs/PAIR-POOLED-NOTES.md
+
 # --- OS / editor cruft ---
 .DS_Store
 Thumbs.db

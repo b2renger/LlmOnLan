@@ -6,6 +6,48 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-09-04 c — the seat gate: idle people stop holding the farm
+
+Owner: a client left connected "holds a slot while not using the model — incompatible with
+the way we want our system to work"; enforce an inactivity disconnection — idlers keep
+reading old chats/notes (all client-local anyway) but must find a free seat to GENERATE.
+
+The blocker: the farm's Node process never saw chat traffic (completions went straight to
+LiteLLM), so nothing could enforce anything. **Change** (`farm/src/seats.js` + up.js): the
+public `proxy.port` becomes the farm's own streaming pass-through listener and LiteLLM binds
+**loopback-only** on `internalPort` (default port+1). Seats are IP-keyed: a gated completion
+POST claims/refreshes a seat; capacity = the engine's "people served at once" (live thunk, so
+panel slot changes apply); a seat idle past `proxy.seatIdleSec` (default 900 s) is reclaimed
+lazily; in-flight streams are never reaped; when full, a new IP gets an OpenAI-style **429**
+(`lol_seats_full`, human message OWUI displays). GET /v1/models & health pass ungated. Panel
+Clients card + `/lol/self` `capacity.seatsUsed` show the enforced count. `proxy.seatGate:
+false` restores the old direct bind. Known coarse edges (documented in seats.js): one IP =
+one seat, a coordinator peer counts as one seat, the engine's own port bypasses (trusted LAN).
+
+**Verified on an isolated farm** (vfarm4, gate 0.0.0.0:4091 / LiteLLM 127.0.0.1:4092 per
+netstat, runtime parked, num_ctx matched to live): completion through the gate answered
+`SEAT-GATE-OK`; a second source IP (the box's LAN address) against the 1-seat farm got the
+429; admin state showed the seat (`{ip:"127.0.0.1", inFlight:0}`), `/lol/self` `seatsUsed:1`;
+SSE streamed 75 incremental chunks (first at 562 ms — the gate does not buffer); `lol down`
+left no 4091/4092 listeners; live farm on :4000 untouched throughout. 103 farm tests
+(5 new: registry lifecycle, in-flight protection, gated-path matrix, stream/429 through a
+real gate against a mock upstream).
+
+## 2026-09-04 b — close means close (client)
+
+Owner: clicking the X must close EVERYTHING — no tray, no background sidecar; a hidden-but-
+warm client kept heartbeating the farm and looked like a connected user holding a seat.
+Removed keep-warm/hide-to-tray wholesale (`shell/src/main/index.ts`, prefs UI, store,
+preload): close falls through to window-all-closed → app.quit() → before-quit stops
+sidecar+mcpo gracefully, ALL platforms (deliberate break from the mac stay-running
+convention). Launch-at-login re-registers without `--hidden` (migration in whenReady — a
+hidden start with no tray would be unreachable); the `installingUpdate` Squirrel workaround
+became moot and was removed. Cost accepted by the owner: reopening pays the OWUI boot again.
+Pairs with the seat gate above: closed clients now actually disappear (presence TTL ≈30 s)
+and their seat frees after the idle window.
+
+---
+
 ## 2026-09-04 — live-load routing (the PAIR idea, inside our own router)
 
 Owner looked at NVIDIA's Personal AI Router (PAIR, Apache-2.0) and asked to adopt "the routing

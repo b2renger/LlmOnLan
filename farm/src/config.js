@@ -68,6 +68,16 @@ const ProxySchema = z.object({
     // Optional shared secret. If set, clients (and OWUI) must send it as the API key.
     // null/absent => open proxy for a trusted LAN (simplest for a workshop).
     masterKey: z.string().nullable().optional(),
+    // Seat gate (owner ask 2026-09-04): the public `port` becomes the farm's own
+    // Node listener and LiteLLM binds loopback-only behind it, so the farm can
+    // ENFORCE who generates. An IP that hasn't generated for seatIdleSec frees
+    // its seat; when every seat (= the engine's "people served at once") is
+    // held, a new generation gets a clear 429 instead of silently queueing
+    // behind idlers. Reading old chats / notes never touches the proxy, so an
+    // evicted idler only loses starting NEW generations while the farm is full.
+    seatGate: z.boolean().default(true),
+    seatIdleSec: z.number().int().min(60).default(900),          // 15 min of no generation → seat frees
+    internalPort: z.number().int().positive().nullable().default(null), // LiteLLM's loopback port behind the gate (default: port + 1)
 }).strict();
 
 const OllamaSchema = z.object({

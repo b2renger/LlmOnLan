@@ -84,12 +84,14 @@ function resolveLitellmCommand(config) {
 
 // Spawn LiteLLM: `<command> --config <yaml> --port <port> --host <host> [extra]`.
 // Returns the child process. Caller wires stdout/stderr/exit.
-function spawnLitellm(config, configYamlPath, { env = {} } = {}) {
+// port/host override the config binding — with the seat gate on, LiteLLM binds
+// loopback-only behind the farm's own listener on the public proxy.port.
+function spawnLitellm(config, configYamlPath, { env = {}, port = null, host = null } = {}) {
     const { command, useShell } = resolveSpawn(resolveLitellmCommand(config));
     const args = [
         '--config', configYamlPath,
-        '--port', String(config.proxy.port),
-        '--host', config.proxy.host,
+        '--port', String(port ?? config.proxy.port),
+        '--host', host ?? config.proxy.host,
         ...config.litellm.extraArgs,
     ];
     const child = spawn(command, args, {

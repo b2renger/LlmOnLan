@@ -531,6 +531,17 @@ nothing. It ships with the three quants measured on this project's 12 GB hardwar
   `--coordinator` to aggregate the others behind a single endpoint that clients prefer.
 - **`proxy.masterKey`** — leave `null` for an open proxy on a trusted LAN, or set a key clients must
   send (`Authorization: Bearer <key>`).
+- **`proxy.seatGate`** (default `true`) — the public `proxy.port` is the farm's own listener and
+  LiteLLM binds loopback-only behind it (`proxy.internalPort`, default port+1), so the farm can
+  ENFORCE who generates: an IP's first completion claims a **seat** (capacity = the engine's
+  "people served at once"), every completion refreshes it, and a seat with no generation for
+  **`proxy.seatIdleSec`** (default 900 = 15 min) frees for the next person. A generation on a full
+  farm gets a clear 429 ("All N seats are in use…") instead of silently queueing behind idlers.
+  Reading old chats, notes and menus never touches the proxy (client-local by design), so an
+  evicted idler only loses starting NEW generations while the farm is full. `/v1/models`, health
+  checks and the panel pass ungated. Coarse by design: one IP = one seat; a coordinator peer farm
+  counts as one seat on this box (its own gate does the per-user work). `false` restores the old
+  direct LiteLLM bind.
 - **`litellm.command`** — leave it `"litellm"` and the farm auto‑uses `farm/.venv` if `lol install`
   made one, else `litellm` from PATH. Set an absolute path only to point at a LiteLLM elsewhere.
 - **Concurrency/keep‑warm env** (`OLLAMA_NUM_PARALLEL`, `OLLAMA_KEEP_ALIVE`, …) only applies when Ollama

@@ -423,8 +423,17 @@ function render(s) {
       + `<span class="badges"><span class="badge${active ? ' on' : ''}">${esc(state)}</span></span></div>`;
   }).join('') : '<div class="empty">No clients connected right now (clients need app ≥ 0.1.23 to report presence).</div>';
 
-  const capLabel = cap.slots != null
-    ? ` — ${cap.clients} of ${cap.slots} slot${cap.slots > 1 ? 's' : ''} in use`
+  // Seats = the ENFORCED side (the gate in front of the proxy): who may
+  // generate right now. Clients below stay the heartbeat view (who has the
+  // app open). Old farms / gate off → cap.seats is null and the label falls
+  // back to the advisory slot count.
+  const capLabel = Array.isArray(cap.seats)
+    ? ` — ${cap.seats.length} of ${cap.slots} seat${cap.slots > 1 ? 's' : ''} in use`
+    : (cap.slots != null ? ` — ${cap.clients} of ${cap.slots} slot${cap.slots > 1 ? 's' : ''} in use` : '');
+  const seatRows = Array.isArray(cap.seats)
+    ? `<div class="meta" style="margin:4px 0 8px">${cap.seats.length
+        ? 'Generation seats: ' + cap.seats.map((x) => esc(`${x.ip}${x.inFlight ? ' (generating)' : (x.idleSec != null ? ' (idle ' + dur(x.idleSec) + ')' : '')}`)).join(', ') + ' — '
+        : 'No generation seats in use. '}A seat frees after ${Math.round((cap.seatIdleSec || 900) / 60)} min without generating; reading old chats never takes one.</div>`
     : '';
 
   app.innerHTML =
@@ -436,7 +445,7 @@ function render(s) {
     + libCard
     + ollamaCard
     + `<div class="card"><h2>Plugins</h2>${pluginRows}${blenderRow}</div>`
-    + `<div class="card"><details id="clients-d"${clientsOpen ? ' open' : ''}><summary><h2>Clients (${clients.length})${capLabel}</h2></summary>${clientRows}</details></div>`
+    + `<div class="card"><details id="clients-d"${clientsOpen ? ' open' : ''}><summary><h2>Clients (${clients.length})${capLabel}</h2></summary>${seatRows}${clientRows}</details></div>`
     + `<div class="card"><h2>This box</h2><div class="health">${healthBits}</div></div>`;
 
   app.querySelectorAll('button[data-act]').forEach((b) => { b.onclick = () => act(b.dataset.act, b.dataset.id, b); });

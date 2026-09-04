@@ -1299,6 +1299,111 @@ test('backendInfo never leaks the string auto into arithmetic consumers', () => 
     assert.equal(be2.contextPerSlot, 65536);
 });
 
+// ---- seat gate (src/seats.js) ----------------------------------------------
+const seatsMod = require('../src/seats');
+
+test('config: seat gate defaults on, 15 min idle release, loopback port derivable', () => {
+    const c = ConfigSchema.parse({});
+    assert.equal(c.proxy.seatGate, true);
+    assert.equal(c.proxy.seatIdleSec, 900);
+    assert.equal(c.proxy.internalPort, null);      // up.js derives proxy.port + 1
+    assert.ok(!ConfigSchema.safeParse({ proxy: { seatIdleSec: 5 } }).success, 'sub-minute release rejected');
+});
+
+test('seats: admit/refresh/full/idle-release lifecycle', () => {
+    let t = 1000000;
+    const s = seatsMod.createSeats({ capacity: () => 2, idleReleaseSec: () => 600, now: () => t });
+    assert.equal(s.admit('10.0.0.1').ok, true, 'first IP takes seat 1');
+    s.release('10.0.0.1');
+    assert.equal(s.admit('::ffff:10.0.0.1').ok, true, 'v4-mapped spelling is the SAME seat');
+    s.release('10.0.0.1');
+    assert.equal(s.admit('10.0.0.2').ok, true, 'second IP takes seat 2');
+    s.release('10.0.0.2');
+    const refused = s.admit('10.0.0.3');
+    assert.equal(refused.ok, false, 'third IP refused while both seats fresh');
+    assert.equal(refused.cap, 2);
+    t += 601 * 1000;                               // both idle past the release window
+    assert.equal(s.admit('10.0.0.3').ok, true, 'idle seats were reclaimed');
+    assert.equal(s.view().length, 1, 'only the newcomer holds a seat now');
+});
+
+test('seats: an in-flight generation is never reaped, however long it streams', () => {
+    let t = 1000000;
+    const s = seatsMod.createSeats({ capacity: () => 1, idleReleaseSec: () => 600, now: () => t });
+    assert.equal(s.admit('10.0.0.1').ok, true);    // held: no release() yet — still streaming
+    t += 3600 * 1000;                              // an hour later
+    assert.equal(s.admit('10.0.0.2').ok, false, 'streaming holder still owns the seat');
+    s.release('10.0.0.1');
+    t += 601 * 1000;
+    assert.equal(s.admit('10.0.0.2').ok, true, 'released + idle → reclaimed');
+});
+
+test('seats: only completion POSTs are gated', () => {
+    assert.equal(seatsMod.isGated('POST', '/v1/chat/completions'), true);
+    assert.equal(seatsMod.isGated('POST', '/v1/chat/completions?x=1'), true);
+    assert.equal(seatsMod.isGated('POST', '/chat/completions'), true);
+    assert.equal(seatsMod.isGated('POST', '/v1/completions'), true);
+    assert.equal(seatsMod.isGated('GET', '/v1/chat/completions'), false);
+    assert.equal(seatsMod.isGated('GET', '/v1/models'), false);
+    assert.equal(seatsMod.isGated('POST', '/v1/models'), false);
+    assert.equal(seatsMod.isGated('POST', '/v1/embeddings'), false);
+});
+
+test('seat gate: streams pass through, ungated GETs skip admit, full farm gets the OpenAI-style 429', async () => {
+    const http = require('http');
+    // Mock LiteLLM: echoes the path; the completions route streams two chunks.
+    const upstream = http.createServer((req, res) => {
+        if (req.url.startsWith('/v1/chat/completions')) {
+            res.writeHead(200, { 'content-type': 'text/event-stream' });
+            res.write('data: chunk1\n\n');
+            setTimeout(() => { res.write('data: chunk2\n\n'); res.end(); }, 30);
+        } else {
+            res.writeHead(200, { 'content-type': 'application/json' });
+            res.end(JSON.stringify({ path: req.url }));
+        }
+    });
+    await new Promise((r) => upstream.listen(0, '127.0.0.1', r));
+    const upPort = upstream.address().port;
+    let admits = 0; let releases = 0; let full = false;
+    const seats = {   // scriptable registry: loopback tests can't vary source IPs
+        admit: () => { admits++; return full ? { ok: false, cap: 2, used: 2 } : { ok: true, cap: 2, used: 1 }; },
+        release: () => { releases++; },
+        view: () => [],
+    };
+    const gate = await seatsMod.startSeatGate({ host: '127.0.0.1', port: 0, upstreamPort: upPort, seats, idleReleaseSec: () => 900 });
+    const gatePort = gate.address().port;
+    const fetchRaw = (method, p, body) => new Promise((resolve, reject) => {
+        const req = http.request({ host: '127.0.0.1', port: gatePort, method, path: p, headers: { 'content-type': 'application/json' } }, (res) => {
+            let buf = '';
+            res.on('data', (c) => { buf += c; });
+            res.on('end', () => resolve({ status: res.statusCode, body: buf }));
+        });
+        req.on('error', reject);
+        if (body) req.write(body);
+        req.end();
+    });
+    try {
+        const models = await fetchRaw('GET', '/v1/models');
+        assert.equal(models.status, 200);
+        assert.equal(admits, 0, 'GET /v1/models must not consume a seat');
+        const gen = await fetchRaw('POST', '/v1/chat/completions', '{"messages":[]}');
+        assert.equal(gen.status, 200);
+        assert.ok(gen.body.includes('chunk1') && gen.body.includes('chunk2'), 'streamed chunks pass through the gate');
+        assert.equal(admits, 1);
+        assert.equal(releases, 1, 'seat released when the stream finished');
+        full = true;
+        const refused = await fetchRaw('POST', '/v1/chat/completions', '{"messages":[]}');
+        assert.equal(refused.status, 429);
+        const err = JSON.parse(refused.body).error;
+        assert.equal(err.code, 'lol_seats_full');
+        assert.ok(/seats on this server are in use/.test(err.message), 'human-readable refusal (OWUI shows error.message)');
+        assert.equal(releases, 1, 'a refused request releases nothing');
+    } finally {
+        gate.close();
+        upstream.close();
+    }
+});
+
 (async () => {
     for (const { name, fn } of tests) {
         try { await fn(); console.log(`  ok  ${name}`); passed++; }
