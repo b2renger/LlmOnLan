@@ -178,8 +178,15 @@ function buildLitellmConfig(config, peers = []) {
     const doc = {
         model_list,
         router_settings: {
-            // simple-shuffle spreads load with no extra state; good default for a LAN.
-            routing_strategy: 'simple-shuffle',
+            // least-busy routes each request to the deployment with the fewest
+            // IN-FLIGHT calls — for GPU inference, active requests ARE the live
+            // load, so a box mid-generation stops receiving new work while an
+            // idle box does (the PAIR-style live routing, owner ask 2026-09-04,
+            // without leaving LiteLLM where num_ctx/keep_alive/aliasing live).
+            // In-memory state — correct for our single proxy instance per farm.
+            // Only matters with 2+ deployments (multi ollama.hosts / coordinator
+            // peers); with one deployment it degenerates to what shuffle did.
+            routing_strategy: 'least-busy',
             // A failed call is retried on OTHER deployments of the same model, so a
             // dead host is transparently routed around. 3 retries × N deployments
             // gives a request a strong chance of landing on a healthy host.

@@ -55,7 +55,9 @@ test('litellm config = models × hosts deployments', () => {
     // Context window rides the routing (→ Ollama options.num_ctx on EVERY host) —
     // this is what makes ollama.contextLength apply per request + panel-adjustable.
     assert.equal(gemma[0].litellm_params.num_ctx, 16384);
-    assert.equal(doc.router_settings.routing_strategy, 'simple-shuffle');
+    // least-busy = live-load routing: a box mid-generation stops receiving new
+    // work while an idle deployment takes it (the PAIR idea, inside LiteLLM).
+    assert.equal(doc.router_settings.routing_strategy, 'least-busy');
     assert.equal(doc.litellm_settings.telemetry, false);
 });
 

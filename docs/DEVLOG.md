@@ -6,6 +6,33 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-09-04 — live-load routing (the PAIR idea, inside our own router)
+
+Owner looked at NVIDIA's Personal AI Router (PAIR, Apache-2.0) and asked to adopt "the routing
+on live GPU thing". Assessment first: PAIR is a request-level router over Ollama/LM Studio
+nodes — no VRAM pooling, no model sharding (their own docs) — i.e. the architecture LOL
+already ships (LiteLLM deployments over `ollama.hosts` + coordinator mode + beacon discovery).
+Installing PAIR would BYPASS LiteLLM and lose per-request `num_ctx`/`keep_alive`/aliasing —
+the whole context/KV control surface. So: no PAIR install; its one good idea lands in our
+generated router instead.
+
+**Change**: `router_settings.routing_strategy` `simple-shuffle` → **`least-busy`** — each
+request goes to the deployment with the fewest IN-FLIGHT calls (for GPU inference, active
+requests ARE the live load; in-memory state is correct for our one proxy per farm). Failover
+knobs unchanged. Only matters with 2+ deployments; with one it degenerates to shuffle.
+
+**Verified on an isolated farm** (scratch cwd, port 4091, beacon off, runtime file parked,
+context pinned to the live daemon's 262144 so the shared Ollama never reloaded under real
+users): the pinned LiteLLM ACCEPTS the strategy, boots, and served a completion
+(`LEAST-BUSY-OK`); live farm confirmed undisturbed after teardown. Gotcha refreshed the hard
+way: PowerShell 5.1's `-Encoding utf8` writes a BOM and lol.config.json parsing rejects it.
+
+98 farm tests. farm-v0.0.35. To actually feel it: put several boxes behind ONE farm
+(`ollama.hosts` with the same model tag, or coordinator mode) — solo requests are unchanged;
+parallel/multi-user load fans out to whichever GPU is idle.
+
+---
+
 ## 2026-09-03 b — unified KV pool, strict cache routing, and the numbers to prove it
 
 Owner directive: keep optimizing context + KV cache. Second wave, llama.cpp-engine (owner
