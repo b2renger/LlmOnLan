@@ -117,10 +117,6 @@ export interface ShellSettings {
     lastFarmKey: string | null;        // rides with lastEndpoint for the cold-boot seed
     launchAtLogin: boolean;
     autoUpdate: boolean;
-    // Keep the OWUI sidecar running when the window closes (close = hide to tray).
-    // The ~20 s OWUI boot is the biggest wait in the product; warm reopens are
-    // instant. Off = classic close-means-quit.
-    keepEngineWarm: boolean;
     blenderMcp: boolean;               // local Blender assistant-tools server (mcpo) on/off
     blenderMcpUserSet: boolean;        // user toggled Blender explicitly → farm recommendations won't override
     blenderPort: number;               // BlenderMCP add-on socket port (BLENDER_PORT; default 9876)

@@ -4,7 +4,7 @@
 // sidecar (pointed at the farm via config-bridge), and loads it in a <webview>.
 // Discovery (M3) and full Preferences (M4) layer onto this skeleton.
 
-import { app, BrowserWindow, ipcMain, shell, nativeTheme, dialog, session, powerMonitor, Tray, Menu } from 'electron';
+import { app, BrowserWindow, ipcMain, shell, nativeTheme, dialog, session, powerMonitor } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
@@ -358,10 +358,6 @@ function pushSidecarInstall(p: SidecarProgress): void {
 }
 
 function createWindow(): void {
-    // Launched at login with --hidden (and keep-warm on): boot the chat engine
-    // silently in the background — by the time the user opens the window, the
-    // ~20 s OWUI boot has already happened.
-    const startHidden = process.argv.includes('--hidden') && OWUI_ENABLED && loadSettings().keepEngineWarm;
     win = new BrowserWindow({
         width: 1280,
         height: 860,
@@ -370,7 +366,7 @@ function createWindow(): void {
         backgroundColor: '#09090b',
         title: 'LlmOnLan',
         icon: path.join(app.getAppPath(), 'assets', 'icon.png'),
-        show: !startHidden,
+        show: true,
         webPreferences: {
             preload: path.join(__dirname, '..', 'preload', 'index.js'),
             contextIsolation: true,
@@ -382,21 +378,14 @@ function createWindow(): void {
     win.loadFile(path.join(app.getAppPath(), 'renderer', 'index.html'));
     win.webContents.on('did-finish-load', pushSidecarState);
     configureWebviewPermissions();
-    // Closing the window keeps the chat engine WARM (keepEngineWarm, default on):
-    // the ~20 s OWUI boot is the single biggest thing users wait on, and hiding
-    // instead of quitting makes every reopen instant. The tray icon is the way
-    // back in (and the way to really quit). app.quit() sets `quitting` in
-    // before-quit BEFORE any close event fires, so real quits pass through.
-    // `installingUpdate` covers the one quit that does NOT: macOS Squirrel's
-    // quitAndInstall closes all windows BEFORE app.quit(), so without it the
-    // hide-to-tray swallowed the close and "Restart and reinstall" deadlocked
-    // (live mac report, 2026-09-02).
-    win.on('close', (e) => {
-        if (!quitting && !installingUpdate && OWUI_ENABLED && loadSettings().keepEngineWarm) {
-            e.preventDefault();
-            win?.hide();
-        }
-    });
+    // Closing the window closes EVERYTHING (owner decision 2026-09-04): no
+    // hide-to-tray, no background sidecar, no lingering farm presence. A client
+    // that keeps heartbeating after "close" still looks connected on the farm
+    // and holds a seat other people could use — incompatible with how the farm
+    // shares slots. The close falls through to window-all-closed → app.quit()
+    // → before-quit, which stops the sidecar/mcpo gracefully (data flushed)
+    // before the process exits. (This replaces the keep-warm/tray behavior that
+    // shipped v0.1.x–v0.1.43; reopening now pays the ~10-20 s OWUI boot again.)
 
     // Keep external links (OWUI "Powered by" etc.) in the system browser, not in
     // a new Electron window.
@@ -573,7 +562,6 @@ function registerIpc(): void {
             theme: s.theme,
             launchAtLogin: s.launchAtLogin,
             autoUpdate: s.autoUpdate,
-            keepEngineWarm: s.keepEngineWarm,
             shellVersion: app.getVersion(),
             owuiVersion: bundledOwuiVersion(),
             sidecarInstalled: isSidecarInstalled(),
@@ -626,17 +614,9 @@ function registerIpc(): void {
     ipcMain.handle('set-launch-at-login', (_e, on: boolean) => {
         const v = !!on;
         updateSettings({ launchAtLogin: v });
-        // --hidden makes a login start boot the chat engine in the BACKGROUND (no
-        // window) — combined with keep-warm, OWUI is already served before the
-        // user first clicks the app. Honored only while keepEngineWarm is on
-        // (see createWindow), so turning keep-warm off restores a visible start.
-        try { app.setLoginItemSettings({ openAtLogin: v, openAsHidden: true, args: ['--hidden'] }); } catch { /* unsupported platform */ }
-        return v;
-    });
-
-    // Keep the chat engine running when the window closes (reopen is instant).
-    ipcMain.handle('set-keep-engine-warm', (_e, on: boolean) => {
-        const v = updateSettings({ keepEngineWarm: !!on }).keepEngineWarm;
+        // A login start opens the window normally. (--hidden/openAsHidden died
+        // with keep-warm: a hidden window with no tray would be unreachable.)
+        try { app.setLoginItemSettings({ openAtLogin: v }); } catch { /* unsupported platform */ }
         return v;
     });
 
@@ -673,11 +653,10 @@ function registerIpc(): void {
     });
     // App self-update (electron-updater). check → status; install → quitAndInstall.
     ipcMain.handle('check-app-update', () => checkForAppUpdate());
-    // The flag must flip BEFORE quitAndInstall: on macOS the native updater closes
-    // the windows first, and the keep-warm close handler must let them go. Never
-    // reset — if the install errors, the next window close quits fully, which is
-    // the safe direction (a half-armed installer should not sit behind a tray).
-    ipcMain.handle('install-app-update', () => { installingUpdate = true; quitAndInstallUpdate(); return true; });
+    // macOS Squirrel closes the windows before quitting; with close-means-quit
+    // there is no close interception left to swallow them (the old keep-warm
+    // handler once deadlocked "Restart and reinstall" — live mac report 2026-09-02).
+    ipcMain.handle('install-app-update', () => { quitAndInstallUpdate(); return true; });
     // OWUI (sidecar) update — independent of the app binary. check → versions;
     // download → stage to userData/sidecar.pending (applied on next launch).
     ipcMain.handle('check-owui-update', () => checkOwuiUpdate());
@@ -760,34 +739,23 @@ function maybeSmokeShot(): void {
 
 // --- lifecycle --------------------------------------------------------------
 app.on('second-instance', () => {
-    // Second launch while we run hidden in the background: surface the window.
+    // Second launch: surface the existing window instead of a second process.
     if (win) { win.show(); if (win.isMinimized()) win.restore(); win.focus(); }
 });
-
-// Tray icon — the way back into a window that closed to the background, and the
-// way to REALLY quit (which stops the chat engine). Only for OWUI builds: the
-// keep-warm behavior exists for the sidecar's sake.
-let tray: Tray | null = null;
-function createTray(): void {
-    if (tray || !OWUI_ENABLED) return;
-    try {
-        tray = new Tray(path.join(app.getAppPath(), 'assets', 'icon.png'));
-        tray.setToolTip('LlmOnLan — chat engine running');
-        tray.setContextMenu(Menu.buildFromTemplate([
-            { label: 'Open LlmOnLan', click: () => { if (win) { win.show(); win.focus(); } } },
-            { type: 'separator' },
-            { label: 'Quit (stops the chat engine)', click: () => app.quit() },
-        ]));
-        tray.on('click', () => { if (win) { win.show(); win.focus(); } });
-    } catch { tray = null; /* no tray support — close falls through to quit via keepEngineWarm check */ }
-}
 
 app.whenReady().then(async () => {
     const settings = loadSettings();
     applyTheme(settings.theme);
     registerIpc();
     createWindow();
-    createTray();
+
+    // Migration from the keep-warm era: installs that enabled launch-at-login
+    // before v0.1.44 registered the login item with `--hidden`/openAsHidden —
+    // with no tray, a hidden login start would be an unreachable window.
+    // Re-register plainly so a login start opens visible.
+    if (settings.launchAtLogin) {
+        try { app.setLoginItemSettings({ openAtLogin: true }); } catch { /* unsupported platform */ }
+    }
 
     sidecar.on('state', pushSidecarState);
     mcpo.on('state', onMcpoState);
@@ -867,16 +835,11 @@ app.whenReady().then(async () => {
 
     app.on('activate', () => {
         if (BrowserWindow.getAllWindows().length === 0) createWindow();
-        else if (win) { win.show(); win.focus(); }   // hidden-to-tray → dock/taskbar click reopens
+        else if (win) { win.show(); win.focus(); }
     });
 });
 
 let quitting = false;
-// Set when the user pressed "Restart and reinstall" — lets the keep-warm close
-// handler release the windows for the macOS updater (see win.on('close')).
-// Deliberately separate from `quitting`: presetting THAT would skip the
-// before-quit sidecar/mcpo cleanup below.
-let installingUpdate = false;
 app.on('before-quit', async (e) => {
     if (quitting) return;
     quitting = true;
@@ -887,7 +850,9 @@ app.on('before-quit', async (e) => {
 });
 
 app.on('window-all-closed', () => {
-    // With keep-warm on, a "closed" window is only hidden and this never fires;
-    // the guard covers destroy paths so a warm engine is never orphaned windowless.
-    if (process.platform !== 'darwin' && !(OWUI_ENABLED && loadSettings().keepEngineWarm)) app.quit();
+    // ALL platforms, macOS included (a deliberate break from the mac convention,
+    // owner decision 2026-09-04): a windowless app still running the sidecar
+    // keeps heartbeating the farm and looks like a connected user holding a
+    // seat. Close = everything stops (before-quit above does the cleanup).
+    app.quit();
 });

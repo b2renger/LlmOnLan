@@ -62,7 +62,7 @@ const prefs = {
   autoScan: $('pref-auto-scan'), rescan: $('pref-rescan'),
   base: $('range-base'), t0: $('range-t0'), t1: $('range-t1'), f0: $('range-f0'), f1: $('range-f1'), rangeApply: $('range-apply'),
   addForm: $('pref-add-form'), addHost: $('pref-add-host'), chips: $('pref-chips'),
-  launch: $('pref-launch'), autoUpdate: $('pref-autoupdate'), keepWarm: $('pref-keepwarm'),
+  launch: $('pref-launch'), autoUpdate: $('pref-autoupdate'),
   blender: $('pref-blender'), blenderStatus: $('pref-blender-status'), blenderPort: $('pref-blender-port'), blenderTest: $('pref-blender-test'),
   verShell: $('ver-shell'), verOwui: $('ver-owui'), owuiLink: $('owui-link'),
   checkApp: $('check-app-update'), appStatus: $('app-update-status'),
@@ -84,7 +84,6 @@ async function refreshPrefs() {
   prefs.dataPath.textContent = p.dataDir + (p.dataDirIsDefault ? '  (default)' : '');
   prefs.autoScan.checked = !!p.autoScan;
   prefs.launch.checked = !!p.launchAtLogin;
-  if (prefs.keepWarm) prefs.keepWarm.checked = p.keepEngineWarm !== false;
   prefs.autoUpdate.checked = !!p.autoUpdate;
   prefs.blender.checked = !!p.blenderMcp;
   prefs.blenderPort.value = p.blenderPort || 9876;
@@ -170,7 +169,6 @@ prefs.addForm.addEventListener('submit', async (e) => {
 });
 prefs.launch.addEventListener('change', () => window.lol.setLaunchAtLogin(prefs.launch.checked));
 prefs.autoUpdate.addEventListener('change', () => window.lol.setAutoUpdate(prefs.autoUpdate.checked));
-if (prefs.keepWarm) prefs.keepWarm.addEventListener('change', () => window.lol.setKeepEngineWarm(prefs.keepWarm.checked));
 prefs.blender.addEventListener('change', async () => {
   const on = prefs.blender.checked;
   setBlenderStatus({ status: on ? 'starting' : 'stopped' }, on);
