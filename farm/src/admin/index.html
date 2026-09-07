@@ -169,7 +169,16 @@ function render(s) {
   // --- backend ------------------------------------------------------------------
   // The headline answers the two questions the panel never used to: what is users'
   // model actually called, and which engine is behind it.
-  const engineName = be.engine === 'llama.cpp' ? 'llama.cpp' : 'Ollama';
+  const engineName = be.engine === 'llama.cpp' ? 'llama.cpp' : (be.engine === 'external' ? 'External server' : 'Ollama');
+  // An operator-run backend (vLLM/SGLang/…): the farm routes to it but never
+  // started it, so none of the engine controls below apply — say so plainly
+  // rather than offering switches that would fight the config file.
+  const externalRow = be.engine === 'external'
+    ? `<div class="warnline">Serving through an external OpenAI-compatible server at <b>${esc(be.baseUrl || '')}</b>. `
+      + `This farm routes to it and never starts, stops or configures it — the model, its context and its concurrency `
+      + `are whatever that server was launched with (declared in <b>lol.config.json</b> under <b>external</b>). `
+      + `Set <b>external.enabled=false</b> and restart the farm to go back to the built-in engines.</div>`
+    : '';
   const perSlot = be.contextPerSlot || be.contextLength || 0;
   const slotLine = be.slots > 1
     ? (be.kvUnified
@@ -192,6 +201,7 @@ function render(s) {
     `<div class="card">`
     + `<h2>Backend</h2>`
     + bootErr
+    + externalRow
     + `<div class="hero"><div class="hero-name">${esc(be.alias || '—')}</div>`
     + `<div class="hero-meta">${esc(engineName)} · ${esc(be.model || '—')}</div>`
     + `<div class="hero-meta">${esc(slotLine)}${cap.clients != null ? ` · <b>${cap.clients}</b> connected now` : ''}</div></div>`
@@ -200,10 +210,17 @@ function render(s) {
         lcAvailable
           ? 'One model, fastest. Speculative decoding, quantised KV cache.'
           : 'Not available on this machine — no prebuilt llama.cpp for this platform. Install it yourself and set llamacpp.binDir.',
-        be.engine === 'llama.cpp', !lcAvailable)
-    + engineBtn('ollama', 'Ollama', 'The models below. Several to choose from, slower.', be.engine !== 'llama.cpp')
+        be.engine === 'llama.cpp', !lcAvailable || be.engine === 'external')
+    // `active` must be an explicit equality, not "not llama.cpp": with the
+    // external engine serving, neither built-in is running and marking Ollama
+    // "running" would be a straight lie on the one card that answers "what is
+    // actually serving". Both are blocked while external owns the box.
+    + engineBtn('ollama', 'Ollama', 'The models below. Several to choose from, slower.',
+        be.engine === 'ollama', be.engine === 'external')
     + `</div>`
-    + `<div class="hint">Switching reloads the model — about a minute, or longer if the weights still have to download.</div>`
+    + `<div class="hint">${be.engine === 'external'
+        ? 'Engine switching is off while an external server is configured — change <b>external.enabled</b> in lol.config.json and restart the farm.'
+        : 'Switching reloads the model — about a minute, or longer if the weights still have to download.'}</div>`
 
     // The advertised name — llama.cpp only: it IS that engine's one served alias.
     // On the Ollama engine names live on the model rows (per-model Rename); a

@@ -8,6 +8,8 @@
 // work from another shell.
 
 const os = require('os');
+const http = require('http');
+const https = require('https');
 const crypto = require('crypto');
 const { spawn } = require('child_process');
 const log = require('../log');
@@ -103,6 +105,32 @@ function spawnLocalOllama(config, baseUrl) {
     } catch {
         return null;
     }
+}
+
+// Is the operator-run OpenAI-compatible backend answering? GET {baseUrl}/models
+// is the one call every such server implements (vLLM, SGLang, llama-server,
+// TensorRT-LLM's OpenAI shim). Short timeout: this runs on the health tick.
+function externalAlive(ex, timeoutMs = 4000) {
+    return new Promise((resolve) => {
+        let url;
+        try { url = new URL(`${String(ex.baseUrl).replace(/\/+$/, '')}/models`); }
+        catch { return resolve(false); }
+        const mod = url.protocol === 'https:' ? https : http;
+        const req = mod.request(url, {
+            method: 'GET',
+            timeout: timeoutMs,
+            headers: ex.apiKey ? { authorization: `Bearer ${ex.apiKey}` } : {},
+        }, (res) => {
+            res.resume();
+            // 2xx = serving. 401/403 = it IS there and our key is wrong — a
+            // different problem, and reporting "down" would send the operator
+            // hunting the wrong thing, so treat reachability as the question here.
+            resolve((res.statusCode >= 200 && res.statusCode < 300) || res.statusCode === 401 || res.statusCode === 403);
+        });
+        req.on('timeout', () => { req.destroy(); resolve(false); });
+        req.on('error', () => resolve(false));
+        req.end();
+    });
 }
 
 async function ensureOllama(config) {
@@ -332,6 +360,27 @@ async function run(args) {
     //     hard-exit is what made the DGX box "not launch at all". In-memory only —
     //     the operator's config keeps llamacpp.enabled, so a later build (or a binDir)
     //     re-enables it without anyone re-editing anything.
+    // 0c-bis. External engine (vLLM/SGLang/… — see ExternalSchema). We do not run
+    //     it, so the only question at boot is whether it ANSWERS. If it does it
+    //     takes the box (exclusive, so llama.cpp stands down); if it does not, fall
+    //     back exactly like a failed llama.cpp boot rather than refusing to start —
+    //     a farm that dies because an operator-run backend is down serves nobody.
+    let externalBootError = null;
+    if (config.external.enabled) {
+        const ok = await externalAlive(config.external);
+        if (ok) {
+            log.ok(`External engine: ${log.paint.bold(config.external.alias)} via ${log.paint.cyan(config.external.baseUrl)} ${log.paint.grey('(operator-run — this farm routes to it, never restarts it)')}`);
+            if (config.llamacpp.enabled) {
+                log.info('llama.cpp stands down — one engine at a time.');
+                config.llamacpp.enabled = false;
+            }
+        } else {
+            externalBootError = `External engine at ${config.external.baseUrl} is not answering — serving with the built-in engine instead. Start it and re-run \`lol up\` (or restart the farm) to use it.`;
+            log.warn(externalBootError);
+            config.external.enabled = false;
+        }
+    }
+
     let llamacppBootError = null;
     if (config.llamacpp.enabled && !config.llamacpp.binDir && !llamacpp.installed() && !llamacpp.supported()) {
         llamacppBootError = `No prebuilt llama.cpp for ${process.platform}/${process.arch} — serving with Ollama. ` +
@@ -349,7 +398,7 @@ async function run(args) {
     // The interactive picker chooses what OLLAMA serves. With the llama.cpp engine
     // on, the catalog is standby inventory (nothing in it is routed), so prompting
     // "which models to serve" would promise something the run will not do.
-    if (!config.llamacpp.enabled) {
+    if (!config.llamacpp.enabled && !config.external.enabled) {
         config.models = await selectModels(config, oll.reachable, args || []);
     }
 
@@ -750,7 +799,7 @@ async function run(args) {
     //     so sizing would probe (and load a model) for nothing. When Ollama IS the
     //     engine — configured, unsupported platform, or boot fallback — resolve
     //     'auto' BEFORE the routing is generated so num_ctx carries the real number.
-    if (!config.llamacpp.enabled) {
+    if (!config.llamacpp.enabled && !config.external.enabled) {
         await resolveOllamaContext((what) => log.step(`Context: ${what} …`));
     }
 
@@ -854,8 +903,13 @@ async function run(args) {
         gpu: await gpuLiveStats(),       // live GPU util + VRAM (refreshed below)
         perf: null,                      // measured throughput (health timer, llama.cpp engine)
         // Boot outcome: llamacppChild exists iff the engine came up (fallback
-        // cleared it). null = not the engine (Ollama mode / old farms).
-        engineUp: config.llamacpp.enabled ? !!llamacppChild : null,
+        // cleared it). null = not the engine (Ollama mode / old farms). For the
+        // external engine, `true` here — boot already probed it, and the health
+        // tick below keeps it current so a backend that dies flips the farm
+        // unhealthy and clients fail over (same contract as llama-server).
+        engineUp: config.external.enabled ? true : (config.llamacpp.enabled ? !!llamacppChild : null),
+        // Why the configured engine is not the one serving (panel shows it).
+        engineFallbackReason: externalBootError || null,
     };
     if (liveHealth.host) log.ok(`Hardware: ${log.paint.bold(liveHealth.host.gpu)} · ${liveHealth.host.vramGb}GB VRAM · ${liveHealth.host.ramGb}GB RAM · ${liveHealth.host.cpuCores} cores`);
 
@@ -1073,6 +1127,19 @@ async function run(args) {
             const loadedLists = await Promise.all(hosts.map((h) => ollama.loadedModels(h)));
             liveHealth.loaded = [...new Set(loadedLists.flat())];
             liveHealth.gpu = await gpuLiveStats();
+            // The external backend is not our child — there is no exit event to
+            // catch, so polling is the only way to know it died. Flipping engineUp
+            // makes snapshot.healthy false and clients fail over to another farm.
+            if (config.external.enabled) {
+                const alive = await externalAlive(config.external);
+                if (alive !== liveHealth.engineUp) {
+                    log[alive ? 'ok' : 'err'](alive
+                        ? `External engine at ${config.external.baseUrl} is back.`
+                        : `External engine at ${config.external.baseUrl} stopped answering — this farm is now unhealthy so clients fail over.`);
+                    liveHealth.engineUp = alive;
+                    if (beacon) beacon.kick();
+                }
+            }
             // Only advertise a plugin while it's actually answering (and it came up) — so a
             // crashed/hung instance stops being advertised to clients. Guard on `wasUp`, NOT
             // `pid`: a child that died between boot and now has a null pid but must still be

@@ -41,6 +41,12 @@ Snapshot:
   `llamacpp.contextLength` defaults to **'auto'** — min(model native max, VRAM budget), both read from
   the real files (`farm/src/gguf.js`). `proxy.masterKey` = the shared **farm password** (panel-settable;
   clients prompt once, verify, remember per farm; discovery + the admin token stay separate).
+  A THIRD engine exists for stacks we can never bundle: **`external`** (2026-09-07, off by default) routes
+  to an OpenAI-compatible server the operator runs — vLLM/SGLang/TensorRT-LLM — exclusive like llama.cpp,
+  health-polled via `GET {baseUrl}/models` (unreachable at boot → fall back; dies later → farm unhealthy,
+  clients fail over). The farm NEVER installs/starts/restarts it; `contextLength`/`parallel` are operator
+  DECLARATIONS (no portable endpoint reports them) that size the client RAG gate and the seat count.
+  Config-file only — no panel switch.
   **Seat gate** (2026-09-04, `proxy.seatGate` default true): the public `proxy.port` is the farm's own
   streaming listener (`farm/src/seats.js`) with LiteLLM loopback-only behind it — an IP's completions
   claim/refresh a seat (capacity = the engine's slots), a seat idle `proxy.seatIdleSec` (900 s) frees,

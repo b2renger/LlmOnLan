@@ -1318,6 +1318,67 @@ test('backendInfo never asserts Ollama settings it cannot verify', () => {
     assert.equal(backendInfo(lc, {}).slotsVerified, true, 'we spawn llama-server ourselves');
 });
 
+// ---- external engine (vLLM/SGLang/… — a server we route to but never run) ---
+test('external engine config defaults: off, keyless, declared capacity', () => {
+    const c = ConfigSchema.parse({});
+    assert.equal(c.external.enabled, false, 'must never hijack an existing farm');
+    assert.equal(c.external.alias, 'assistant');
+    assert.equal(c.external.model, null, 'null = pass the alias through unchanged');
+    assert.equal(c.external.apiKey, null);
+    assert.equal(c.external.vision, false);
+    assert.ok(!ConfigSchema.safeParse({ external: { baseUrl: 'not-a-url' } }).success);
+    assert.ok(!ConfigSchema.safeParse({ external: { nope: 1 } }).success, 'strict');
+});
+
+test('external engine is exclusive: it alone is routed, peers still aggregate', () => {
+    const c = defaultConfig();
+    c.external.enabled = true;
+    c.external.alias = 'assistant';
+    c.external.baseUrl = 'http://127.0.0.1:8000/v1';
+    c.external.model = 'deepseek-v4-flash-0731';
+    c.llamacpp.enabled = true;              // both on → external wins, llama.cpp stands down
+    const doc = buildLitellmConfig(c, [{ openaiBaseUrl: 'http://10.0.0.9:4000/v1', models: ['assistant'] }]);
+    const names = doc.model_list.map((m) => m.model_name);
+    assert.deepEqual([...new Set(names)], ['assistant'], 'nothing but the external alias is served');
+    const local = doc.model_list[0];
+    assert.equal(local.litellm_params.model, 'openai/deepseek-v4-flash-0731', 'backend is asked for ITS id');
+    assert.equal(local.litellm_params.api_base, 'http://127.0.0.1:8000/v1');
+    assert.equal(doc.model_list.length, 2, 'local + the peer that serves the alias');
+    assert.equal(doc.model_list[1].litellm_params.api_base, 'http://10.0.0.9:4000/v1');
+    // No Ollama deployment may survive — one engine at a time.
+    assert.equal(doc.model_list.some((m) => /ollama/.test(m.litellm_params.model)), false);
+});
+
+test('external engine: alias passes through when no backend model id is set', () => {
+    const c = defaultConfig();
+    c.external.enabled = true;
+    c.external.alias = 'assistant';
+    const doc = buildLitellmConfig(c, []);
+    assert.equal(doc.model_list[0].litellm_params.model, 'openai/assistant');
+    assert.equal(doc.model_list[0].litellm_params.api_key, 'sk-lol-external', 'keyless backends still need a value');
+});
+
+test('external engine: snapshot advertises it, and never claims to have measured it', () => {
+    const c = defaultConfig();
+    c.external.enabled = true;
+    c.external.label = 'DeepSeek v4 Flash (vLLM)';
+    c.external.contextLength = 384000;
+    c.external.parallel = 8;
+    const be = backendInfo(c, {});
+    assert.equal(be.engine, 'external');
+    assert.equal(be.model, 'DeepSeek v4 Flash (vLLM)');
+    assert.equal(be.contextLength, 384000);
+    assert.equal(be.contextPerSlot, 384000, 'these servers do not split the window across slots');
+    assert.equal(be.slots, 8);
+    assert.equal(be.slotsVerified, false, 'declared by the operator, not measured');
+    const snap = buildSnapshot(c, { endpoint: 'http://10.0.0.5:4000', id: 'x', engineUp: true });
+    assert.deepEqual(snap.models.map((m) => m.id), ['assistant'], 'clients see the alias only');
+    assert.equal(snap.models[0].underlying, 'DeepSeek v4 Flash (vLLM)', 'the label, not a .gguf name');
+    assert.equal(snap.healthy, true);
+    // A backend that stops answering must make the farm unhealthy so clients move.
+    assert.equal(buildSnapshot(c, { endpoint: 'http://10.0.0.5:4000', id: 'x', engineUp: false }).healthy, false);
+});
+
 // ---- seat gate (src/seats.js) ----------------------------------------------
 const seatsMod = require('../src/seats');
 

@@ -531,6 +531,28 @@ nothing. It ships with the three quants measured on this project's 12 GB hardwar
   `--coordinator` to aggregate the others behind a single endpoint that clients prefer.
 - **`proxy.masterKey`** — leave `null` for an open proxy on a trusted LAN, or set a key clients must
   send (`Authorization: Bearer <key>`).
+- **`external`** — route to an OpenAI-compatible server the farm does **not** run (vLLM, SGLang,
+  TensorRT-LLM, a llama-server you started yourself). A third engine, exclusive like llama.cpp: while
+  it serves, no local Ollama deployment is routed or advertised. Use it for stacks we can never bundle
+  — a Docker vLLM recipe, or NVFP4 W4A4 weights (vLLM/SGLang-only, Blackwell). Example:
+  ```json
+  "external": {
+    "enabled": true,
+    "alias": "assistant",                       // what clients see and auto-select
+    "baseUrl": "http://127.0.0.1:8000/v1",      // include /v1
+    "model": "deepseek-v4-flash-0731",          // null = send the alias through unchanged
+    "apiKey": null,                             // most local servers are keyless
+    "contextLength": 384000, "parallel": 8,     // DECLARED — the farm cannot read these back
+    "vision": false, "label": "DeepSeek v4 Flash (vLLM)"
+  }
+  ```
+  The farm does everything **around** the model — discovery, the seat gate, the shared password, OWUI
+  wiring, web search, the panel — and never installs, starts, restarts or configures the server. It
+  polls `GET {baseUrl}/models`: unreachable at boot → it falls back to the built-in engine with the
+  reason in the panel; dying later → the farm goes unhealthy so clients fail over, exactly like a dead
+  llama-server. `contextLength`/`parallel` are declarations, not measurements (no portable endpoint
+  reports them), and they size the client's whole-document gate and the seat count — so get them right.
+  There is no panel switch for this one: set `enabled` in `lol.config.json` and restart the farm.
 - **`proxy.seatGate`** (default `true`) — the public `proxy.port` is the farm's own listener and
   LiteLLM binds loopback-only behind it (`proxy.internalPort`, default port+1), so the farm can
   ENFORCE who generates: an IP's first completion claims a **seat** (capacity = the engine's

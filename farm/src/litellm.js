@@ -80,8 +80,48 @@ function buildLitellmConfig(config, peers = []) {
     // and everything crawls. The catalog stays in the config as STANDBY inventory —
     // served the moment the engine is switched — and the OCR plugin still drives its
     // vision model over raw Ollama (that path never went through this routing).
+    // External engine (vLLM/SGLang/… — a server the operator runs, not us). Same
+    // deployment shape as llama.cpp below; it just points off-box-or-off-port
+    // instead of at a child we spawned. Exclusive for the same reason: two engines
+    // sharing one GPU overcommit VRAM and everything crawls.
+    const ex = config.external || {};
+    if (ex.enabled) {
+        const entry = {
+            model_name: ex.alias,
+            litellm_params: {
+                // `model` is what the BACKEND is asked for; model_name is what clients
+                // request. null = pass the alias through (a server started with
+                // --served-model-name <alias> already answers to it).
+                model: `openai/${ex.model || ex.alias}`,
+                api_base: ex.baseUrl,
+                api_key: ex.apiKey || 'sk-lol-external',   // keyless servers ignore it
+            },
+        };
+        // No projector to inspect and no portable capability endpoint — the operator
+        // declares it (config.external.vision). Flagging a text-only model as vision
+        // makes OWUI offer an image upload that then fails.
+        if (ex.vision) entry.model_info = { supports_vision: true };
+        model_list.push(entry);
+        // Peers still aggregate: exclusivity is about this box's engines, not the
+        // fleet (same rule as the llama.cpp branch — see the note there).
+        for (const peer of peers) {
+            if (!peer || !peer.openaiBaseUrl) continue;
+            const peerModels = new Set((peer.models || []).map((m) => (typeof m === 'string' ? m : m.id)));
+            if (peerModels.size && !peerModels.has(ex.alias)) continue;
+            model_list.push({
+                model_name: ex.alias,
+                litellm_params: {
+                    model: `openai/${ex.alias}`,
+                    api_base: peer.openaiBaseUrl,
+                    api_key: peer.key || 'sk-lol-coordinator',
+                },
+                ...(ex.vision ? { model_info: { supports_vision: true } } : {}),
+            });
+        }
+    }
+
     const lc = config.llamacpp || {};
-    if (lc.enabled) {
+    if (lc.enabled && !ex.enabled) {
         const host = lc.host === '0.0.0.0' ? '127.0.0.1' : lc.host;
         const entry = {
             model_name: lc.alias,
@@ -118,8 +158,9 @@ function buildLitellmConfig(config, peers = []) {
     }
 
     for (const { servedName, underlying, vision } of servedEntries(config)) {
-        // One engine at a time — see the note above.
-        if (lc.enabled) continue;
+        // One engine at a time — see the note above. Either non-Ollama engine
+        // suppresses the whole local catalog (it stays standby inventory).
+        if (lc.enabled || ex.enabled) continue;
         // Local Ollama deployments. In alias mode `servedName` is the fixed alias and
         // `underlying` is the real Ollama tag it routes to; otherwise they're equal.
         for (const host of config.ollama.hosts) {

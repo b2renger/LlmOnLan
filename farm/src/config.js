@@ -257,6 +257,48 @@ const LlamacppSchema = z.object({
     extraArgs: z.array(z.string()).default([]),
 }).strict();
 
+// A THIRD engine the farm routes to but does NOT run: any OpenAI-compatible
+// server the operator started themselves — vLLM, SGLang, TensorRT-LLM, an
+// llama-server on another port. Added 2026-09-07 for two asks that turned out to
+// be the same feature: DeepSeek v4 Flash on a DGX Spark (vLLM + a GB10 kernel
+// stack we can never bundle) and NVFP4 W4A4 weights (vLLM/SGLang-only, ~2.5x on
+// the Blackwell boxes). Both expose /v1 — which is exactly the deployment shape
+// the llama.cpp branch of litellm.js already emits.
+//
+// The farm's job here is everything AROUND the model: discovery, the seat gate,
+// the shared password, OWUI wiring, web search, the panel. It never installs,
+// spawns, restarts or supervises the server — a dead backend makes the farm
+// unhealthy and clients fail over, exactly like a dead llama-server. That
+// division is deliberate: these stacks are Docker/venv installs with their own
+// lifecycles, and pretending to own them is how a farm ends up half-managing
+// something it cannot fix.
+const ExternalSchema = z.object({
+    // Exclusive like llama.cpp: while this serves, NO local Ollama deployment is
+    // routed or advertised (one engine at a time — owner decision 2026-08-26).
+    enabled: z.boolean().default(false),
+    // The id clients see and auto-select. Independent of whatever the backend
+    // calls its model, so switching backends never breaks an existing OWUI chat.
+    alias: z.string().default('assistant'),
+    // The backend's OpenAI base, INCLUDING /v1 (e.g. http://127.0.0.1:8000/v1).
+    baseUrl: z.string().url().default('http://127.0.0.1:8000/v1'),
+    // The model id to request FROM the backend. null = send our alias through
+    // unchanged (right when the backend was started with --served-model-name).
+    model: z.string().nullable().default(null),
+    // Sent as the bearer to the backend. Most local servers are keyless.
+    apiKey: z.string().nullable().default(null),
+    // What the operator started the server with. The farm cannot read these back
+    // (there is no portable endpoint for either), so they are DECLARATIONS used to
+    // advertise capacity + context to clients — the client's RAG gate keys on
+    // contextLength, and the seat gate sizes itself on parallel. Wrong values here
+    // mis-size both, which is why the panel labels them as declared, not measured.
+    contextLength: z.number().int().positive().default(32768),
+    parallel: z.number().int().positive().default(4),   // vLLM handles real concurrency
+    // Does it accept images? No probe exists, so declare it.
+    vision: z.boolean().default(false),
+    // Shown in the panel + client cards instead of a .gguf filename.
+    label: z.string().nullable().default(null),
+}).strict();
+
 const WebsearchSchema = z.object({
     // One shared SearXNG metasearch instance on this box; clients discover it via
     // the beacon (snapshot.searxngUrl) and OWUI uses it for per-message web search.
@@ -393,6 +435,9 @@ const ConfigSchema = z.object({
     ]),
     ollama: OllamaSchema.default({}),
     llamacpp: LlamacppSchema.default({}),
+    // Route to an OpenAI-compatible server we do NOT run (vLLM/SGLang/…). Outranks
+    // both built-in engines when enabled — see ExternalSchema.
+    external: ExternalSchema.default({}),
     litellm: LiteLLMSchema.default({}),
     websearch: WebsearchSchema.default({}),
     tts: TtsSchema.default({}),

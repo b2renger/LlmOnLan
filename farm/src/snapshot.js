@@ -28,7 +28,11 @@ function ggufName(url) {
 }
 
 // The llama.cpp backend's advertised entry, or null when disabled.
+// The single advertised model when a non-Ollama engine serves. External outranks
+// llama.cpp (same precedence as the routing in litellm.js and backendInfo below).
 function llamacppServedModel(config) {
+    const ex = config.external || {};
+    if (ex.enabled) return { id: ex.alias, underlying: ex.label || ex.model || ex.alias, default: true };
     const lc = config.llamacpp || {};
     if (!lc.enabled) return null;
     return { id: lc.alias, underlying: ggufName(lc.model), default: true };
@@ -46,6 +50,30 @@ function llamacppServedModel(config) {
 //   • Ollama — numParallel requests per host, so capacity scales with reachable
 //     hosts and each request keeps the full num_ctx.
 function backendInfo(config, health = {}) {
+    // External engine outranks both built-ins (it is exclusive in the routing too).
+    // Everything here is DECLARED by the operator, not measured: we did not start
+    // the server and neither vLLM nor SGLang exposes its context/concurrency in a
+    // portable way. So slotsVerified is false — same honesty rule as an Ollama
+    // daemon we did not start.
+    const ex = config.external || {};
+    if (ex.enabled) {
+        const slots = Math.max(1, ex.parallel || 1);
+        return {
+            engine: 'external',
+            alias: ex.alias,
+            model: ex.label || ex.model || ex.alias,
+            baseUrl: ex.baseUrl,
+            contextLength: ex.contextLength ?? null,
+            contextAuto: false,
+            // These servers manage their own KV pool per request — a client gets the
+            // declared window, it is not divided the way llama.cpp splits slots.
+            contextPerSlot: ex.contextLength ?? null,
+            slots,
+            slotsVerified: false,
+            mtp: false,
+            kvCacheType: null,
+        };
+    }
     const lc = config.llamacpp || {};
     if (lc.enabled) {
         const slots = Math.max(1, lc.parallel || 1);
