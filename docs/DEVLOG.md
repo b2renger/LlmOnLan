@@ -6,6 +6,87 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-09-07 c — NVFP4 measured: +45% prompt processing on Blackwell, generation flat
+
+Owner asked whether Unsloth's MTP and NVFP4 pages offer anything for our chain. MTP: already
+implemented correctly (`--spec-type draft-mtp --spec-draft-n-max`, library flags which quants keep
+the head) — nothing to gain but tuning `draftNMax` (their page says test 1–6; we ship 2). NVFP4: their
+page says vLLM/SGLang only, **which is out of date** — `GGML_TYPE_NVFP4` landed in llama.cpp around
+March–April 2026 with a Blackwell tensor-core path. Verified in our own binaries rather than trusting
+the write-up: `ggml-cuda.dll`/`ggml-base.dll` carry the type, and so does **Ollama 0.32.14's bundled
+ggml** — so this is available on the DEFAULT engine, not only the opt-in one.
+
+**Measured** on AN-A6000PRO (RTX PRO 6000 Blackwell, compute 12.0), llama.cpp b10670, `-ngl 99 -fa 1`,
+size-matched to within 1.2% — `Qwen3.8-27B-NVFP4-MTP-LOW` (14.46 GiB, confirmed **448 `nvfp4`
+tensors**; its `general.file_type` mislabels itself "Q8_0", which is why the tensor list, not the
+label, is the check) vs `Qwen3.8-27B-UD-Q4_K_S` (14.29 GiB):
+
+| test | NVFP4 | Q4_K_S | delta |
+|---|---|---|---|
+| pp2048 (prefill) | 5978.45 ± 10.77 t/s | 4122.35 ± 5.51 t/s | **+45.0%** |
+| pp8192 (prefill) | 5823.33 t/s | 3987.68 t/s | **+46.0%** |
+| tg128 (generation) | 83.40 ± 0.14 t/s | 82.91 ± 0.12 t/s | +0.6% (flat) |
+
+Exactly the reported profile (+43–68% prefill, generation unchanged), and it holds at the longer
+prompt. That profile is the useful one for us: prefill is what a long code chat pays on every cache
+miss, which is the cost the whole 0.0.27–0.0.34 KV/cache line of work has been chipping at.
+
+Shipped as a library entry (`qwen3.8-27b-nvfp4-mtp`), deliberately **not** the default: it needs a
+16 GB+ Blackwell card while the default must work on the fleet's 12 GB ones, and on Ada/Ampere the
+file loads with none of the speed-up. It carries an MTP head too, so `llamacpp.mtp` can ride along.
+
+## 2026-09-07 b — external engine: route to a vLLM/SGLang server we do not run
+
+Two owner asks collapsed into one feature. (1) DeepSeek v4 Flash on a DGX Spark — vLLM plus the
+SparkInfer GB10 kernel stack in a Docker image, which we can never bundle. (2) Unsloth's NVFP4
+page: W4A4 weights claiming ~2.5x, **vLLM/SGLang only**. Both speak OpenAI `/v1`, which is exactly
+the deployment shape `litellm.js` already emits for llama.cpp.
+
+`config.external` is a third engine, **exclusive** like llama.cpp (no local Ollama deployment routed
+or advertised; llama.cpp stands down). The farm does everything AROUND the model — discovery, seat
+gate, shared password, OWUI wiring, web search, panel — and never installs, starts, restarts or
+configures the server: these stacks have their own Docker/venv lifecycles and half-managing one is
+worse than not managing it. Liveness = `GET {baseUrl}/models` (401/403 counts as alive — it IS
+there, the key is just wrong). Unreachable at boot → fall back to the built-in engine with the reason
+in the panel; dying later → `engineUp` flips, farm goes unhealthy, clients fail over — same contract
+as a dead llama-server. `contextLength`/`parallel` are operator DECLARATIONS (nothing portable
+reports them) and they size the client's RAG gate and the seat count, so `slotsVerified:false` and the
+panel labels them as declared. Config-file only; the panel's engine switcher is disabled and says why.
+
+**Verified end to end** against a mock OpenAI backend on an isolated farm (vfarm5, port 4093, beacon
+off): boot chose external and stood llama.cpp down; `/v1/models` advertised `assistant` alone; a
+completion returned `EXTERNAL-OK asked=deepseek-v4-flash-0731` — the alias→backend-id rewrite reached
+the backend while the client still saw `assistant`; snapshot carried engine `external`, the label,
+384000 ctx, 8 slots, `slotsVerified:false`; the seat gate sized itself from `external.parallel`;
+killing the backend flipped `healthy` false within one health tick. Live farm untouched. 108 tests.
+
+## 2026-09-07 a — the farm stops asserting Ollama settings it cannot verify
+
+Audit finding while checking Unsloth's MTP/NVFP4 pages against our stack. Ollama's concurrency and KV
+env (`OLLAMA_NUM_PARALLEL`, `_KV_CACHE_TYPE`, `_FLASH_ATTENTION`) only applies **when the daemon
+starts**. On the dev box Ollama runs as a pre-existing service, so none of it ever reached the daemon —
+yet `backendInfo()` echoed the config back as fact and hardcoded `kvCacheType: 'f16'` regardless, so
+the panel could not have shown the gap either.
+
+Measured, not assumed: `OLLAMA_*` unset at machine and user scope; server.log shows `K (f16), V (f16)`
+against our `q8_0` default, and **`n_slots = 1`** against our advertised `slots: 2`. Since farm-v0.0.36
+the **seat gate sizes itself on that slot count** — so it was admitting a second person the engine
+could not serve in parallel, and their request queued invisibly inside Ollama, which is precisely what
+the gate exists to prevent.
+
+Fix: `slotsVerified` on `backendInfo()` (false for a daemon we did not start, true for llama.cpp which
+we spawn ourselves), `kvCacheType` null instead of a hardcoded lie, the boot note upgraded to a WARNING
+naming the hosts and the exact env line, and the panel saying it under the seat count. Slots stay
+config-derived and seats keep using them **on purpose** — refusing people on a pessimistic guess is
+worse than the queueing it would avoid. Two related findings recorded but not acted on: `q8_0` would
+free only ~3.5 GB of 96 here (nemotron-3.5-lightning is hybrid-attention — 1M ctx costs just 7 GB of
+KV), and flash attention is already on by default in Ollama 0.32.14 (`flash_attn = auto`).
+
+Also confirmed live while testing: the seat gate is running in production — the Farm app's `lol`
+(pid 38424) owns `0.0.0.0:4000` with LiteLLM behind it on `127.0.0.1:4001`.
+
+---
+
 ## 2026-09-04 c — the seat gate: idle people stop holding the farm
 
 Owner: a client left connected "holds a slot while not using the model — incompatible with

@@ -878,6 +878,14 @@ test('llamacpp.library ships the measured quants, and the active model is one of
     const active = lib.find((e) => e.url === c.llamacpp.model);
     assert.equal(active.mtp, false);
     assert.equal(c.llamacpp.mtp, false, 'the default quant has no MTP head, so MTP is off');
+    // The NVFP4 entry (measured +45% prefill on Blackwell 2026-09-07) must stay
+    // opt-in and must never become the default: it needs a 16 GB+ Blackwell card,
+    // while the default has to work on the fleet's 12 GB ones.
+    const nv = lib.find((e) => e.id === 'qwen3.8-27b-nvfp4-mtp');
+    assert.ok(nv, 'the measured NVFP4 quant is offered');
+    assert.notEqual(nv.url, c.llamacpp.model, 'offered, never the default');
+    assert.ok(nv.sizeGb > 12, 'sized honestly — it does not fit a 12 GB card');
+    assert.match(nv.note, /Blackwell/, 'the hardware caveat is in the text the operator reads');
 });
 
 test('a library entry can be added by URL alone (strict schema, sane defaults)', () => {

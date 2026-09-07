@@ -218,6 +218,26 @@ const LlamacppSchema = z.object({
             sizeGb: 10.6, mtp: true,
             note: 'Highest quality of the three, and the only one that can use MTP — but it fills a 12 GB card.',
         },
+        {
+            // MEASURED on this fleet 2026-09-07 (RTX PRO 6000 Blackwell, b10670,
+            // -fa 1 -ngl 99, size-matched against Qwen3.8-27B-UD-Q4_K_S 14.29 GiB):
+            //   prefill pp2048  5978 vs 4122 t/s  (+45%)
+            //   prefill pp8192  5823 vs 3988 t/s  (+46%)
+            //   generate tg128  83.4 vs 82.9 t/s  (+0.6%, i.e. unchanged)
+            // That profile is the whole point: NVFP4 buys PROMPT PROCESSING, which
+            // is what a long code chat pays on every cache miss — not tok/s.
+            // Blackwell ONLY for the win (sm_120/sm_121: RTX 50-series, RTX PRO
+            // 6000, DGX Spark). It LOADS on Ada/Ampere but with no native path,
+            // so those cards get the file size and none of the speed.
+            // 4-bit weights and 27B params: this needs a 16 GB+ card, unlike the
+            // three 12 GB-class quants above.
+            id: 'qwen3.8-27b-nvfp4-mtp',
+            label: 'Qwen3.8 27B · NVFP4 + MTP (Blackwell)',
+            url: 'https://huggingface.co/esatapedico/Qwen3.8-27B-NVFP4-MTP-GGUF/resolve/main/Qwen3.8-27B-NVFP4-MTP-LOW.gguf',
+            mmproj: 'https://huggingface.co/esatapedico/Qwen3.8-27B-NVFP4-MTP-GGUF/resolve/main/mmproj-BF16.gguf',
+            sizeGb: 14.5, mtp: true,
+            note: 'Blackwell cards only (50-series, RTX PRO 6000, DGX Spark): ~45% faster prompt processing, same generation speed. Carries an MTP head too. Needs a 16 GB+ card; on older cards it runs with none of the speed-up.',
+        },
     ]),
     // 'auto' (the default): serve the LARGEST context this box can hold —
     // min(the model's native max, what fits VRAM), both read from the .gguf and
