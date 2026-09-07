@@ -430,6 +430,16 @@ function render(s) {
   const capLabel = Array.isArray(cap.seats)
     ? ` — ${cap.seats.length} of ${cap.slots} seat${cap.slots > 1 ? 's' : ''} in use`
     : (cap.slots != null ? ` — ${cap.clients} of ${cap.slots} slot${cap.slots > 1 ? 's' : ''} in use` : '');
+  // Ollama started by somebody else = our concurrency/KV env never applied, so
+  // the slot (and therefore seat) count is a wish, not a measurement. Say so
+  // where the number is shown, with the exact line that makes it true.
+  const unverifiedRow = (cap.slotsVerified === false)
+    ? `<div class="row"><span class="dot"></span><span><div class="mname">Capacity is unverified</div>`
+      + `<div class="meta">Ollama on ${esc((cap.unmanagedHosts || []).join(', ') || 'this box')} was already running when the farm started, `
+      + `so the farm's concurrency and KV settings never reached it — the ${cap.slots} seat${cap.slots > 1 ? 's' : ''} above `
+      + `${cap.slots > 1 ? 'are' : 'is'} what the config asked for, not what the engine does. `
+      + `Set <b>${esc(cap.ollamaEnvAdvice || '')}</b> on the Ollama service and restart it, or let the farm start Ollama itself.</div></span></div>`
+    : '';
   const seatRows = Array.isArray(cap.seats)
     ? `<div class="meta" style="margin:4px 0 8px">${cap.seats.length
         ? 'Generation seats: ' + cap.seats.map((x) => esc(`${x.ip}${x.inFlight ? ' (generating)' : (x.idleSec != null ? ' (idle ' + dur(x.idleSec) + ')' : '')}`)).join(', ') + ' — '
@@ -445,7 +455,7 @@ function render(s) {
     + libCard
     + ollamaCard
     + `<div class="card"><h2>Plugins</h2>${pluginRows}${blenderRow}</div>`
-    + `<div class="card"><details id="clients-d"${clientsOpen ? ' open' : ''}><summary><h2>Clients (${clients.length})${capLabel}</h2></summary>${seatRows}${clientRows}</details></div>`
+    + `<div class="card"><details id="clients-d"${clientsOpen ? ' open' : ''}><summary><h2>Clients (${clients.length})${capLabel}</h2></summary>${seatRows}${unverifiedRow}${clientRows}</details></div>`
     + `<div class="card"><h2>This box</h2><div class="health">${healthBits}</div></div>`;
 
   app.querySelectorAll('button[data-act]').forEach((b) => { b.onclick = () => act(b.dataset.act, b.dataset.id, b); });

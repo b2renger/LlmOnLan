@@ -1299,6 +1299,25 @@ test('backendInfo never leaks the string auto into arithmetic consumers', () => 
     assert.equal(be2.contextPerSlot, 65536);
 });
 
+test('backendInfo never asserts Ollama settings it cannot verify', () => {
+    const c = defaultConfig();                       // kvCacheType q8_0, numParallel 2
+    // Daemon we started: our env applied, so the config IS the truth.
+    const managed = backendInfo(c, { hostsUp: 1, ollamaManaged: true });
+    assert.equal(managed.kvCacheType, 'q8_0');
+    assert.equal(managed.slotsVerified, true);
+    assert.equal(managed.slots, 2);
+    // Daemon somebody else started: same numbers requested, but unverifiable.
+    // The live 2026-09-07 case — advertised q8_0/2 while it ran f16/n_slots=1.
+    const foreign = backendInfo(c, { hostsUp: 1, ollamaManaged: false });
+    assert.equal(foreign.kvCacheType, null, 'unknown KV type must be null, never a hardcoded f16');
+    assert.equal(foreign.slotsVerified, false);
+    assert.equal(foreign.slots, 2, 'still reported (seats keep using it) — but flagged');
+    // Old callers / llama.cpp are unaffected.
+    assert.equal(backendInfo(c, {}).slotsVerified, true, 'absent flag = assume managed');
+    const lc = defaultConfig(); lc.llamacpp.enabled = true;
+    assert.equal(backendInfo(lc, {}).slotsVerified, true, 'we spawn llama-server ourselves');
+});
+
 // ---- seat gate (src/seats.js) ----------------------------------------------
 const seatsMod = require('../src/seats');
 

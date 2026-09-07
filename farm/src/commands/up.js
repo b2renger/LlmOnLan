@@ -141,9 +141,18 @@ async function ensureOllama(config) {
     // hosts that were already running with whatever env they were started with.
     const alreadyUp = reachable.filter((h) => !spawnedHosts.has(h));
     if (alreadyUp.length) {
-        log.info(
-            `Note: set on each Ollama service to apply concurrency/keep-warm/context — ` +
-            `OLLAMA_NUM_PARALLEL=${config.ollama.numParallel} ` +
+        // WARN, not info: until 2026-09-07 this was a note nobody acted on, while
+        // the farm went on advertising the configured numbers as if they applied.
+        // On the dev box that meant "2 slots, q8_0 KV" advertised against a daemon
+        // running n_slots=1 and f16 — and the seat gate then sized itself on the 2.
+        // The snapshot now reports slotsVerified:false for exactly this case.
+        log.warn(
+            `Ollama was ALREADY RUNNING on ${alreadyUp.join(', ')} — this farm did not start it, so its ` +
+            `concurrency/KV settings below are NOT applied (capacity + seats are unverified). ` +
+            `Set these on the Ollama service and restart it to make them real:`
+        );
+        log.plain(
+            `     OLLAMA_NUM_PARALLEL=${config.ollama.numParallel} ` +
             `OLLAMA_MAX_LOADED_MODELS=${config.ollama.maxLoadedModels} ` +
             `OLLAMA_FLASH_ATTENTION=${config.ollama.flashAttention ? 1 : 0} ` +
             (config.ollama.flashAttention && config.ollama.kvCacheType && config.ollama.kvCacheType !== 'f16'
@@ -152,7 +161,7 @@ async function ensureOllama(config) {
             `OLLAMA_CONTEXT_LENGTH=${typeof config.ollama.contextLength === 'number' ? config.ollama.contextLength : 16384}`
         );
     }
-    return { reachable, spawnedPids };
+    return { reachable, spawnedPids, unmanagedHosts: alreadyUp };
 }
 
 async function pullMissing(config, reachable) {
@@ -836,6 +845,11 @@ async function run(args) {
         extractKey: svcById.ocr.up ? svcById.ocr.ctx.key : null, // bearer OWUI's loader must send
         plugins: pluginsSummary(services, config), // generic map for the admin page + clients
         clientsConnected: 0,             // desktop clients heartbeating us (see onClientPing)
+        // false when ANY reachable Ollama was already running before this farm
+        // started: its concurrency/KV env is then whatever that service was
+        // launched with, not our config, so backendInfo must not assert ours.
+        ollamaManaged: !(oll.unmanagedHosts || []).length,
+        ollamaUnmanagedHosts: oll.unmanagedHosts || [],
         host: hw,                        // static GPU/VRAM/RAM/cores (detected at boot)
         gpu: await gpuLiveStats(),       // live GPU util + VRAM (refreshed below)
         perf: null,                      // measured throughput (health timer, llama.cpp engine)
@@ -1329,6 +1343,18 @@ async function run(args) {
                 clients: freshClients().length,
                 seats: seats ? seats.view() : null,
                 seatIdleSec: seats ? (config.proxy.seatIdleSec || 900) : null,
+                // false = the slot count (and therefore the seat count) is what the
+                // config asked for, not what the engine does — an Ollama daemon we
+                // did not start ignores our env. The panel explains + shows the fix.
+                slotsVerified: backendInfo(config, liveHealth).slotsVerified !== false,
+                unmanagedHosts: liveHealth.ollamaUnmanagedHosts || [],
+                ollamaEnvAdvice: (liveHealth.ollamaUnmanagedHosts || []).length ? [
+                    `OLLAMA_NUM_PARALLEL=${config.ollama.numParallel}`,
+                    `OLLAMA_MAX_LOADED_MODELS=${config.ollama.maxLoadedModels}`,
+                    `OLLAMA_FLASH_ATTENTION=${config.ollama.flashAttention ? 1 : 0}`,
+                    ...(config.ollama.flashAttention && config.ollama.kvCacheType && config.ollama.kvCacheType !== 'f16'
+                        ? [`OLLAMA_KV_CACHE_TYPE=${config.ollama.kvCacheType}`] : []),
+                ].join(' ') : null,
             },
             // The VRAM budget for the current shape — the panel flags context
             // options that cannot fit instead of offering 256k on a 12 GB card.

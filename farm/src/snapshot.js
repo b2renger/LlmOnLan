@@ -67,6 +67,9 @@ function backendInfo(config, health = {}) {
             contextPerSlot: ctx != null ? Math.floor(ctx / slots) : null,
             kvUnified: lc.kvUnified !== false,
             slots,
+            // We spawn llama-server ourselves with this exact argv, so unlike the
+            // Ollama branch below these are facts, not hopes.
+            slotsVerified: true,
             mtp: !!lc.mtp,
             kvCacheType: lc.kvCacheType || 'f16',
         };
@@ -79,6 +82,15 @@ function backendInfo(config, health = {}) {
     // load); until then the numeric value is unknown — never leak the string.
     const octx = config.ollama.contextResolved
         ?? (typeof config.ollama.contextLength === 'number' ? config.ollama.contextLength : null);
+    // Ollama's concurrency + KV env (OLLAMA_NUM_PARALLEL / _KV_CACHE_TYPE /
+    // _FLASH_ATTENTION) only takes effect when the DAEMON STARTS. So the farm can
+    // only assert these for a daemon it started itself: when Ollama was already
+    // running as somebody's service, the config is aspirational and echoing it
+    // back as fact is a lie the panel then repeats. Found live 2026-09-07 on the
+    // dev box — the farm advertised q8_0 KV and 2 slots while the daemon actually
+    // ran f16 with n_slots=1, and the seat gate was sizing itself on that 2.
+    // `health.ollamaManaged` undefined (old callers, tests) = assume managed.
+    const managed = health.ollamaManaged !== false;
     return {
         engine: 'ollama',
         alias: def.servedName || null,
@@ -87,8 +99,13 @@ function backendInfo(config, health = {}) {
         contextAuto: config.ollama.contextLength === 'auto',
         contextPerSlot: octx,   // Ollama does not split its context
         slots,
+        // false = `slots` is what the config ASKED for, not what the daemon does.
+        // Deliberately still reported (and still used for seats): refusing people
+        // on a pessimistic guess is worse than the queueing it would prevent —
+        // the panel shows the caveat and the exact env line to make it true.
+        slotsVerified: managed,
         mtp: false,
-        kvCacheType: 'f16',
+        kvCacheType: managed ? (config.ollama.kvCacheType || 'f16') : null,
     };
 }
 
