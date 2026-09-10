@@ -1,7 +1,7 @@
 {
   "name": "llmonlan-shell",
-  "version": "0.1.44",
-  "description": "LlmOnLan \u2014 desktop client shell. Supervises a bundled, unmodified Open WebUI, discovers the LAN farm, and keeps all data local.",
+  "version": "0.1.45",
+  "description": "LlmOnLan — desktop client shell. Supervises a bundled, unmodified Open WebUI, discovers the LAN farm, and keeps all data local.",
   "license": "MIT",
   "author": "b2renger",
   "private": true,
