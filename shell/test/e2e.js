@@ -82,16 +82,24 @@ async function main() {
     // visible overlay doesn't block the interaction).
     if (!state.overlayHidden) console.warn('[cdp] WARN: overlay still up (sidecar not ready?) — continuing');
 
-    // 1b. capacity reaches the UI: the pill shows "<farm> · 1/2" and the farm card
-    //     says how full the box is. Reading it from the DOM (not the snapshot) is the
+    // 1b. capacity reaches the UI: the pill shows free SEATS and the farm card says
+    //     how full the box is. Reading it from the DOM (not the snapshot) is the
     //     point — the fields existing on the wire proved nothing about them rendering.
+    //     The mock advertises slots 2 / seatsUsed 1 / clients 3, so seats and
+    //     presence differ and the card must report both without conflating them.
     const capacity = await evalJs(`({
         pill: document.getElementById('status-text').textContent,
         cards: [...document.querySelectorAll('.farm .farm-hw')].map(n => n.textContent),
     })`);
     console.log('[cdp] capacity:', JSON.stringify(capacity));
-    if (!capacity.cards.some((t) => /1 of 2 slots in use/.test(t))) {
-        throw new Error('farm card does not show slot occupancy: ' + JSON.stringify(capacity.cards));
+    if (!capacity.cards.some((t) => /1 of 2 seats free/.test(t))) {
+        throw new Error('farm card does not show seat availability: ' + JSON.stringify(capacity.cards));
+    }
+    if (!capacity.cards.some((t) => /3 connected/.test(t))) {
+        throw new Error('farm card conflates seats with connected clients: ' + JSON.stringify(capacity.cards));
+    }
+    if (!/1\/2 free/.test(capacity.pill)) {
+        throw new Error('topbar pill does not show free seats: ' + capacity.pill);
     }
     if (!capacity.cards.some((t) => /llama\.cpp/.test(t))) {
         throw new Error('farm card does not show which engine serves: ' + JSON.stringify(capacity.cards));

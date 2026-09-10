@@ -6,6 +6,62 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-09-10 b — confirm-then-quit, a guaranteed exit, and seats instead of guesses
+
+Owner: on Windows the X sends the app to the system tray instead of quitting; wanted a
+confirmation, nothing in the tray, no background tasks. Plus: the farm state and slot
+occupancy need a better information system and refresh rate.
+
+**On the tray**, being straight about it: there is none to remove. v0.1.44 deleted the `Tray`,
+the hide-on-close handler and `keepEngineWarm` outright, `shell/build` is gitignored so CI
+always compiles fresh, and the compiled output carries zero `Tray` references. The installed
+build on the dev box is already 0.1.44. The behaviour described is v0.1.43's, which an
+already-running process keeps until it is relaunched — auto-update replaces the files, not the
+live process. So what was actionable here was the rest of the sentence, and one real defect it
+pointed at.
+
+**Confirmation on close.** `win.on('close')` now asks — "This stops the chat engine and frees
+your seat on the server. Your chats and documents stay on this machine." — with Quit/Cancel.
+Skipped for quits the user already confirmed elsewhere (`quitConfirmed`, set by the updater's
+Restart & install and by the OWUI-update relaunch), so those never double-prompt.
+
+**A guaranteed exit — the real defect.** `before-quit` called `e.preventDefault()` and then
+awaited `Promise.allSettled([sidecar.stop(), mcpo.stop()])` with no bound. `killTree` on
+Windows resolves from a `taskkill` callback, so anything that wedges there (an unkillable
+python child, a stuck driver call) meant `app.exit(0)` was never reached and the process stayed
+**alive with no window** — from the outside, indistinguishable from an app that refuses to
+quit, and exactly the "continuing background task" the owner wanted gone. The cleanup now
+races a 4 s deadline and the process exits either way: try to be clean, but always exit.
+
+**Seats, not connected clients.** The client was reporting `capacity.clients / slots` as slot
+occupancy — and since the seat gate (farm-v0.0.36) that is misleading in both directions: a
+person connected and reading old chats holds no seat, while the number that actually decides
+whether their next message is answered or 429'd is `seatsUsed`. The card's own comment still
+claimed the farm "never refuses anyone past slots, it queues them", which the gate made false.
+Now: free seats lead in the topbar pill (`· 1/2 free`) and on the card (`1 of 2 seats free ·
+3 connected`), a full farm says *when* one frees (`all 2 seats busy — one frees after 15 min
+idle`) rather than reading as permanently shut, queued generations surface when the engine
+reports them, and amber means "no seat to take" rather than "busy GPU". Farms older than the
+gate send `seatsUsed: null` and keep the old advisory wording, because those really do queue.
+The arithmetic moved into three shared helpers (`readCapacity`/`capacityPill`/`capacityText`)
+after the pill and the card were briefly computing it separately — they must never disagree.
+The farm now also advertises `capacity.seatIdleSec` so the client can name the timeout instead
+of hardcoding it.
+
+**Refresh rate.** The active farm — the only one whose numbers gate what the user can do right
+now — is polled every **2 s** (`ACTIVE_POLL_MS`) on its own timer, separate from the 5 s sweep
+of every known farm, because 2 s across all farms would multiply LAN chatter for numbers nobody
+is reading. `activeFarmId` assignments route through one `setActiveFarm()` so discovery's fast
+poll always follows the farm in use. Staleness dropped 30 s → **12 s** (≈ two missed polls), so
+a farm that dies is flagged in seconds rather than looking healthy for half a minute.
+
+New: `shell/test/unit.js` + `npm run test:unit` — the shell had no runner that works on a
+machine already running the client (e2e.js needs Electron and the single-instance lock blocks
+it). 5 tests over the capacity copy: seat-vs-presence, the full-farm wording, queue surfacing,
+the pre-gate fallback, and singular/plural on a one-seat farm. The mock farm advertises
+`slots 2 / seatsUsed 1 / clients 3` so seats and presence deliberately differ, and e2e asserts
+both appear. 112 farm tests still green.
+
 ## 2026-09-10 — the Ollama download bar never worked at all
 
 Owner, mid-download in the Farm app: "I am not satisfied with the level of user feedback

@@ -259,6 +259,10 @@ function buildSnapshot(config, health = {}) {
             slots: backend().slots,
             clients: health.clientsConnected ?? 0,
             seatsUsed: (typeof health.getSeats === 'function' ? (health.getSeats() || []).length : null),
+            // How long a seat survives without a generation. A client showing
+            // "all seats in use" is only useful if it can also say when one frees
+            // — otherwise a full farm looks permanently shut.
+            seatIdleSec: (typeof health.getSeats === 'function' ? (config.proxy.seatIdleSec || 900) : null),
             // Live load when the engine reports it (llama.cpp /metrics): requests
             // generating right now, and requests waiting for a slot.
             busy: health.perf?.busySlots ?? null,

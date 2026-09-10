@@ -279,14 +279,17 @@ function renderPill() {
     if (locked) { cls = 'busy'; text = 'Server needs a password — click here'; }
     else if (a) {
       cls = 'ready';
-      // Live load next to the name — at-a-glance "how busy is my box". Slots beat
-      // GPU% for that: a person reads "2/2" as "expect to wait", where 100% GPU is
-      // just what a healthy box looks like mid-answer.
-      const cap = a.capacity || {};
-      const load = cap.slots != null
-        ? ` · ${cap.clients || 0}/${cap.slots}`
-        : (a.usage && a.usage.gpuUtil != null ? ` · ${a.usage.gpuUtil}% GPU` : '');
-      text = a.name + load;
+      // Live load next to the name — at-a-glance "can I send a message right now".
+      // Free SEATS, not connected clients: since the seat gate a full farm refuses
+      // the next generation, so "0 free" is the one number that changes what the
+      // user can do. GPU% is the fallback for farms too old to report either
+      // (it looks alarming at 100% while being exactly what a healthy box does
+      // mid-answer, which is why it lost the top spot).
+      const capInfo = readCapacity(a);
+      text = a.name + capacityPill(capInfo);
+      // A farm with no free seat is not broken, but it will refuse the next
+      // message — amber says "wait" without saying "error".
+      if (capInfo.seatsKnown && capInfo.full) cls = 'busy';
       // The farm advertises its in-flight admin job (model download, backend
       // switch) as `busy`. While one runs the proxy can bounce — without this the
       // pill (and the user's mental model) flips to "broken" for something the
@@ -304,6 +307,65 @@ function renderPill() {
   }
   els.statusDot.className = 'dot ' + cls;
   els.statusText.textContent = text;
+}
+
+// ---- farm capacity, read once ------------------------------------------------
+// The topbar pill and the farm card both answer "can I send a message right now",
+// so they read capacity through here rather than each doing their own arithmetic
+// (they disagreed the moment seats arrived).
+//
+// Two different numbers, and conflating them was actively misleading: a SEAT is
+// the right to generate — farm-v0.0.36+ ENFORCES it, refusing past `slots` with a
+// 429 instead of quietly queueing — while `clients` is merely who has the app
+// open. Someone connected and reading old chats holds no seat. Seats decide
+// whether the next message is answered, so seats lead. Farms older than the seat
+// gate send seatsUsed: null; those really do queue, so they keep the old wording.
+function readCapacity(f) {
+  const cap = (f && f.capacity) || {};
+  const u = (f && f.usage) || {};
+  const seatsKnown = cap.seatsUsed != null && cap.slots != null;
+  const free = seatsKnown ? Math.max(0, cap.slots - cap.seatsUsed) : null;
+  return {
+    seatsKnown,
+    free,
+    slots: cap.slots != null ? cap.slots : null,
+    clients: cap.clients != null ? cap.clients : (u.clients != null ? u.clients : null),
+    seatsUsed: cap.seatsUsed != null ? cap.seatsUsed : null,
+    queued: cap.queued || null,
+    idleMin: cap.seatIdleSec ? Math.round(cap.seatIdleSec / 60) : null,
+    full: seatsKnown ? free === 0 : (cap.slots != null && (cap.clients || 0) >= cap.slots),
+    gpuUtil: u.gpuUtil != null ? u.gpuUtil : null,
+  };
+}
+
+// The short suffix beside the farm name in the topbar. Free seats, because that
+// is the only figure that changes what the user can do next. GPU% is the fallback
+// for farms too old to report capacity — it looks alarming at 100% while being
+// exactly what a healthy box does mid-answer, which is why it lost the top spot.
+function capacityPill(c) {
+  if (c.seatsKnown) return ` · ${c.free}/${c.slots} free`;
+  if (c.slots != null) return ` · ${c.clients || 0}/${c.slots}`;
+  return c.gpuUtil != null ? ` · ${c.gpuUtil}% GPU` : '';
+}
+
+// The card's capacity line, as plain language.
+function capacityText(c) {
+  const bits = [];
+  if (c.seatsKnown) {
+    // A full farm must say when it frees, or it reads as permanently shut.
+    bits.push(c.free === 0
+      ? `all ${c.slots} seat${c.slots > 1 ? 's' : ''} busy${c.idleMin ? ` — one frees after ${c.idleMin} min idle` : ''}`
+      : `${c.free} of ${c.slots} seat${c.slots > 1 ? 's' : ''} free`);
+    // Presence is secondary, and only worth saying when it differs from the seat
+    // count — otherwise it just repeats the line above.
+    if (c.clients && c.clients !== c.seatsUsed) bits.push(`${c.clients} connected`);
+  } else if (c.slots != null) {
+    bits.push(`${c.clients || 0} of ${c.slots} slot${c.slots > 1 ? 's' : ''} in use`);
+  } else if (c.clients) {
+    bits.push(`${c.clients} connected`);
+  }
+  if (c.queued) bits.push(`${c.queued} waiting`);
+  return bits;
 }
 
 // ---- sidecar → webview + overlay ----
@@ -661,23 +723,17 @@ function renderPopover() {
     if (f.deployments != null && f.deployments > 1) live.push(`${f.deployments} backends`);
     if (f.health && f.health.hostsTotal > 1) live.push(`${f.health.hostsUp}/${f.health.hostsTotal} hosts`);
     const liveLine = live.length ? `<div class="farm-hw">${esc(live.join(' · '))}</div>` : '';
-    // How busy this box is, in the terms a person actually decides on: how many
-    // people it can serve at once and how many are on it now. ADVISORY — the farm
-    // never refuses anyone past `slots`, it queues them, so a full box means "expect
-    // to wait", not "you can't". Older farms send no `capacity`, so fall back to the
-    // bare client count rather than inventing a denominator.
-    const cap = f.capacity || {};
-    const slotLine = cap.slots != null
-      ? `${cap.clients || 0} of ${cap.slots} slot${cap.slots > 1 ? 's' : ''} in use`
-      : (u.clients ? `${u.clients} connected` : '');
+    const capInfo = readCapacity(f);
     // What actually answers here: the engine + the real weights behind the alias.
     const be = f.backend || null;
     const beLine = be && be.engine
       ? `${be.engine}${be.model ? ' · ' + be.model : ''}`
       : '';
-    const loadCls = cap.slots != null && (cap.clients || 0) >= cap.slots ? ' farm-busy' : '';
-    const capLine = (slotLine || beLine)
-      ? `<div class="farm-hw${loadCls}">${esc([slotLine, beLine].filter(Boolean).join(' · '))}</div>` : '';
+    // Amber only when it actually affects the user: no seat to take.
+    const loadCls = capInfo.full ? ' farm-busy' : '';
+    const capBits = capacityText(capInfo).concat(beLine ? [beLine] : []);
+    const capLine = capBits.length
+      ? `<div class="farm-hw${loadCls}">${esc(capBits.join(' · '))}</div>` : '';
     // The in-flight admin job, with its progress — so "the farm went quiet" has a
     // visible reason on the card the user is already looking at.
     const busyLine = f.busy && f.busy.label

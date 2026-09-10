@@ -18,12 +18,22 @@ const PORT = Number(process.env.LOL_FED_PORT || 41998);
 const DEFAULT_HTTP_PORT = Number(process.env.LOL_FED_HTTP_PORT || 41997);
 
 const POLL_MS = 5_000;          // refresh known farms (manual + discovered)
+// The ACTIVE farm gets polled harder than the rest (owner ask 2026-09-10: the
+// state and slot occupancy need a better refresh). It is the only farm whose
+// numbers gate what the user can do right now — since the seat gate, "are there
+// free seats" decides whether their next message is answered or refused — and
+// /lol/self is a few hundred bytes, so 2 s of it is nothing next to the value of
+// not deciding on 5-second-old capacity.
+const ACTIVE_POLL_MS = 2_000;
 const SCAN_MS = 60_000;         // full sweep cadence
 const SCAN_CONCURRENCY = 48;
 const SCAN_TIMEOUT_MS = 1500;
 const MAX_SCAN_HOSTS = 4096;
 const DISCOVERED_TTL = 90_000;  // stop polling an auto-found host unseen this long
-const STALE_MS = 30_000;
+// 12 s ≈ two missed active polls (or two missed 5 s beacons), so a farm that
+// dies is flagged in the UI within seconds instead of looking healthy for half
+// a minute. Was 30 s, which outlasted most people's patience with a dead box.
+const STALE_MS = 12_000;
 const DROP_MS = 120_000;
 
 interface PeerRec { snap: FarmSnapshot; host: string; lastSeen: number; source: 'beacon' | 'scan' | 'added'; }
@@ -37,6 +47,7 @@ export class Discovery extends EventEmitter {
     private scanRange: ScanRange | null = null;
     private scanning = false;
     private stopped = false;
+    private activeId: string | null = null;   // the farm the fast poll targets
     private timers: NodeJS.Timeout[] = [];
     private reconnectTimer: NodeJS.Timeout | null = null;
 
@@ -53,6 +64,7 @@ export class Discovery extends EventEmitter {
         this.startSocket();
         this.pollKnown();
         this.timers.push(setInterval(() => this.pollKnown(), POLL_MS));
+        this.timers.push(setInterval(() => this.pollActive(), ACTIVE_POLL_MS));
         this.timers.push(setTimeout(() => this.sweep(), 800));
         this.timers.push(setInterval(() => this.sweep(), SCAN_MS));
         this.timers.push(setInterval(() => this.prune(), 5000));
@@ -172,6 +184,27 @@ export class Discovery extends EventEmitter {
     private merge(snap: FarmSnapshot, host: string, source: PeerRec['source']): void {
         const id = snap.id || `${host}:${snap.proxyPort || ''}`;
         this.peers.set(id, { snap, host, lastSeen: Date.now(), source });
+    }
+
+    // Which farm the client is actually using. Set by the main process whenever the
+    // active farm changes; null disables the fast poll.
+    setActiveFarm(id: string | null): void {
+        this.activeId = id;
+    }
+
+    // Re-read just the active farm, often. Deliberately separate from pollKnown:
+    // sweeping every known farm at 2 s would multiply LAN chatter for farms whose
+    // numbers nobody is looking at.
+    private async pollActive(): Promise<void> {
+        if (this.stopped || !this.activeId) return;
+        const rec = this.peers.get(this.activeId);
+        if (!rec) return;
+        const { host, port } = this.parseHost(`${rec.host}:${rec.snap.httpPort || DEFAULT_HTTP_PORT}`);
+        if (!host) return;
+        const snap = await this.fetchSelf(host, port, SCAN_TIMEOUT_MS);
+        if (!snap || this.stopped) return;                  // staleness is handled by prune()
+        this.merge(snap, host, rec.source);
+        this.emitState();
     }
 
     private async pollKnown(): Promise<void> {

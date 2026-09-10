@@ -38,7 +38,10 @@ const snapshot = () => JSON.stringify({
         engine: 'llama.cpp', alias: 'assistant', model: 'Qwen3.8-27B-UD-Q2_K_XL',
         contextLength: 16384, contextPerSlot: 8192, slots: 2, mtp: true, kvCacheType: 'q4_0',
     },
-    capacity: { slots: 2, clients: 1 },
+    // Seat-gate shape (farm-v0.0.36+): seatsUsed is the ENFORCED count, clients is
+    // merely who has the app open, and they differ on purpose here so the client's
+    // "1 of 2 seats free · 3 connected" path is exercised rather than the legacy one.
+    capacity: { slots: 2, clients: 3, seatsUsed: 1, seatIdleSec: 900 },
     busy: null,   // set to { label, message, percent } to exercise the switching UI
     ts: Date.now(),
 });

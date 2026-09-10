@@ -53,6 +53,14 @@ let currentCtxPerSlot: number | null = null; // active farm's per-slot context (
 let activeFarmId: string | null = null;
 let booted = false; // true once the initial sidecar start has been kicked off
 
+// Single place that records which farm is active, so discovery's fast poll always
+// follows it (see ACTIVE_POLL_MS). Assigning activeFarmId directly is how the two
+// drifted apart before.
+function setActiveFarm(id: string | null): void {
+    activeFarmId = id;
+    discovery?.setActiveFarm(id);
+}
+
 // --- endpoint + data-dir resolution -----------------------------------------
 // The initial endpoint to boot OWUI with, BEFORE discovery refines it: an env
 // pin, then last-known-good. Otherwise null → wait briefly for discovery to find
@@ -297,7 +305,7 @@ function onFarms(payload: { farms: DiscoveredFarm[] } & Record<string, unknown>)
         currentTts = tts;
         currentExtract = extract;
         currentCtxPerSlot = ctxPerSlot;
-        activeFarmId = chosen.id;
+        setActiveFarm(chosen.id);
         // Persist the whole farm context, not just the endpoint — it seeds the next
         // cold launch so the first sidecar boot is already correctly configured and
         // the first beacon doesn't force a restart (see ShellSettings.lastFarmModel).
@@ -334,7 +342,7 @@ function waitForFirstFarm(ms: number): Promise<string | null> {
         const t0 = Date.now();
         const tick = () => {
             const f = discovery ? chooseActive(discovery.getFarms()) : null;
-            if (f) { activeFarmId = f.id; return resolve(farmEndpoint(f)); }
+            if (f) { setActiveFarm(f.id); return resolve(farmEndpoint(f)); }
             if (Date.now() - t0 > ms) return resolve(null);
             setTimeout(tick, 300);
         };
@@ -386,6 +394,32 @@ function createWindow(): void {
     // → before-quit, which stops the sidecar/mcpo gracefully (data flushed)
     // before the process exits. (This replaces the keep-warm/tray behavior that
     // shipped v0.1.x–v0.1.43; reopening now pays the ~10-20 s OWUI boot again.)
+    //
+    // And ASK first (owner ask 2026-09-10). Quitting is now genuinely
+    // destructive of time — the next launch pays the OWUI boot again — so the X
+    // deserves the same confirmation any other irreversible button would get.
+    // The prompt is skipped for quits the user already confirmed elsewhere
+    // (the updater's "Restart & install", the OWUI-update relaunch).
+    win.on('close', (e) => {
+        if (quitting || quitConfirmed || !win) return;
+        e.preventDefault();
+        const { response } = dialog.showMessageBoxSync
+            ? { response: dialog.showMessageBoxSync(win, {
+                type: 'question',
+                buttons: ['Quit', 'Cancel'],
+                defaultId: 0,
+                cancelId: 1,
+                title: 'Quit LlmOnLan',
+                message: 'Quit LlmOnLan?',
+                detail: 'This stops the chat engine and frees your seat on the server. '
+                    + 'Your chats and documents stay on this machine. Opening the app again takes a few seconds while the engine restarts.',
+                noLink: true,
+            }) }
+            : { response: 0 };
+        if (response !== 0) return;      // Cancel — stay open, nothing stopped
+        quitConfirmed = true;
+        app.quit();                      // → before-quit does the cleanup
+    });
 
     // Keep external links (OWUI "Powered by" etc.) in the system browser, not in
     // a new Electron window.
@@ -656,14 +690,14 @@ function registerIpc(): void {
     // macOS Squirrel closes the windows before quitting; with close-means-quit
     // there is no close interception left to swallow them (the old keep-warm
     // handler once deadlocked "Restart and reinstall" — live mac report 2026-09-02).
-    ipcMain.handle('install-app-update', () => { quitAndInstallUpdate(); return true; });
+    ipcMain.handle('install-app-update', () => { quitConfirmed = true; quitAndInstallUpdate(); return true; });
     // OWUI (sidecar) update — independent of the app binary. check → versions;
     // download → stage to userData/sidecar.pending (applied on next launch).
     ipcMain.handle('check-owui-update', () => checkOwuiUpdate());
     ipcMain.handle('download-owui-update', () =>
         downloadOwuiUpdate((p) => { if (win && !win.isDestroyed()) win.webContents.send('owui-update-progress', p); }));
     // Relaunch the app (applies a staged OWUI update via applyPendingSidecar at boot).
-    ipcMain.handle('relaunch-app', () => { app.relaunch(); app.quit(); return true; });
+    ipcMain.handle('relaunch-app', () => { quitConfirmed = true; app.relaunch(); app.quit(); return true; });
 
     // User pins a specific farm → persist + repoint immediately.
     ipcMain.handle('select-farm', (_e, farmId: string | null) => {
@@ -678,7 +712,7 @@ function registerIpc(): void {
             currentTts = farmTts(chosen);
             currentExtract = farmExtract(chosen);
             currentCtxPerSlot = farmCtxPerSlot(chosen);
-            activeFarmId = chosen.id;
+            setActiveFarm(chosen.id);
             updateSettings({ lastEndpoint: endpoint });
             // A keyed farm connects with its stored password (farmKey); an open farm sends none. Thread
             // the pinned farm's model + SearXNG + TTS + OCR so pinning doesn't drop
@@ -840,12 +874,24 @@ app.whenReady().then(async () => {
 });
 
 let quitting = false;
+// Set once the user has said yes (or a flow that already asked is quitting), so
+// the close handler does not ask a second time on the way out.
+let quitConfirmed = false;
 app.on('before-quit', async (e) => {
     if (quitting) return;
     quitting = true;
     e.preventDefault();
     discovery?.stop();
-    await Promise.allSettled([sidecar.stop(), mcpo.stop()]);
+    // A guaranteed exit. This used to be a bare `await` on the cleanup, which is
+    // fine until it is not: killTree resolves from a taskkill callback, and
+    // anything that wedges there (an unkillable python child, a stuck driver
+    // call) left the process ALIVE with no window — indistinguishable, from the
+    // outside, from the app refusing to quit. Try to stop cleanly, but exit
+    // either way: a lingering background process is the exact thing the owner
+    // asked to be rid of (2026-09-10).
+    const cleanup = Promise.allSettled([sidecar.stop(), mcpo.stop()]);
+    const deadline = new Promise((r) => setTimeout(r, 4000));
+    await Promise.race([cleanup, deadline]);
     app.exit(0);
 });
 
