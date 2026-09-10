@@ -89,9 +89,16 @@ async function pull() {
             if (ollama.hasModel(present, m.id)) { log.ok(`${label}: ${m.id} already present.`); continue; }
             log.step(`${label}: pulling ${log.paint.bold(m.id)} …`);
             try {
-                let last = '';
-                await ollama.pullModel(host, m.id, (s) => {
-                    if (s !== last) { last = s; process.stdout.write(`\r${log.paint.grey(`[${label}]`)} ${s}            `); }
+                let last = ''; let lastAt = 0;
+                await ollama.pullModel(host, m.id, (o) => {
+                    // pullModel emits the PARSED object now, so format it here — and
+                    // throttle: with byte counts the text changes on every chunk.
+                    const s = ollama.pullProgressText(o);
+                    const now = Date.now();
+                    if (s !== last && now - lastAt >= 400) {
+                        last = s; lastAt = now;
+                        process.stdout.write(`\r${log.paint.grey(`[${label}]`)} ${s}            `);
+                    }
                 });
                 process.stdout.write('\n');
                 log.ok(`${label}: ${m.id} pulled.`);

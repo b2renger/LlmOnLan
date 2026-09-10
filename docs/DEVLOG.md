@@ -6,6 +6,49 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-09-10 — the Ollama download bar never worked at all
+
+Owner, mid-download in the Farm app: "I am not satisfied with the level of user feedback
+provided in the progress of the download". Investigating found something worse than thin
+feedback — the Ollama pull reported **nothing**, ever, and had not since the panel shipped.
+
+`ollama.pullModel()` handed its callback `obj.status` (a **string**), and only when the
+status **changed**. Two consequences compounded: `total`/`completed`/`digest` never left the
+function, so byte progress was structurally impossible; and because the status does not
+change while one layer downloads for minutes, nothing was emitted at all. The panel's job
+handler then began `if (typeof line !== 'object') return;` — dead code against a string — so
+every line was discarded. Reproduced before touching anything: pulling `qwen3:0.6b` through
+the panel API sat on `starting …` for **87 seconds**, start to finish.
+
+Fixed at the source: `pullModel` emits the **parsed object on every line**. The three console
+callers (`lol up`, `lol install`, `lol models pull`) dedupe on a new shared
+`pullProgressText()` and throttle to 400 ms, so they gained byte progress too — verified in
+the boot log counting `0.0/0.5 GB (0%)` up through `(99%)` where it used to print one phase
+line per layer.
+
+Then the feedback itself, in the panel:
+- **Aggregate across layers.** Ollama reports per digest, so a naive bar restarts at zero for
+  every layer and the byte figure is that layer's. The job now sums every digest seen — the
+  same shape the split-GGUF path already used. Measured over a real pull: **largest backwards
+  jump in the percentage = 0 points**.
+- **Speed and time remaining**, derived in `runJob` from one rate meter per job (EWMA, ≥1 s
+  samples, never negative on a byte-count reset) — so llama.cpp weight fetches get them for
+  free from the same code, and no producer has to know about rates.
+- **No raw digests.** `pullPhase()` maps Ollama's statuses to what is actually happening;
+  `pulling 8934d96d3f08` — the most frequent and least meaningful string it emits — becomes
+  "downloading". A test asserts no hash or digest can reach the UI.
+- **Nothing stale.** Once the bytes are in, speed and countdown are dropped rather than left
+  decaying (a finished download reading `15 MB/s · a few seconds left` looked stuck), and the
+  proxy-restart tail is named "adding it to the served models" instead of inheriting the last
+  download phase.
+- **Honest words.** ETA bands were retuned after watching 42 s render as "a few seconds left".
+
+Live result, pulling `llama3.2:1b` through the panel API at 1 s polling — what the operator
+now sees under the bar: `74% | downloading | 975 MB of 1.3 GB · 24 MB/s · about a minute
+left`. 112 farm tests (5 new: the callback contract against a mock NDJSON server, digest
+leakage, the rate meter's three edge cases, panel number formatting). Live farm untouched;
+all testing on an isolated farm (vfarm6, port 4095, beacon off).
+
 ## 2026-09-07 c — NVFP4 measured: +45% prompt processing on Blackwell, generation flat
 
 Owner asked whether Unsloth's MTP and NVFP4 pages offer anything for our chain. MTP: already

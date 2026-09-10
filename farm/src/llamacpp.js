@@ -298,10 +298,15 @@ async function ensureModel(config, onProgress = () => {}) {
             const got = await downloadGguf(parts[i], (pct, seen = 0) => {
                 if (totalAll) {
                     const overall = doneBytes + seen;
+                    // Third arg = the same byte counts as structured data: the job's
+                    // rate meter turns them into speed + time remaining, which is
+                    // what a 30 GB fetch actually needs to look alive.
                     onProgress(`${partLabel} — ${gb(overall)} / ${gb(totalAll)} GB`,
-                        Math.min(99, Math.floor((overall / totalAll) * 100)));
+                        Math.min(99, Math.floor((overall / totalAll) * 100)),
+                        { bytes: overall, total: totalAll });
                 } else {
-                    onProgress(seen ? `${partLabel} — ${gb(seen)} GB` : partLabel, pct);
+                    onProgress(seen ? `${partLabel} — ${gb(seen)} GB` : partLabel, pct,
+                        seen ? { bytes: seen, total: null } : null);
                 }
             });
             try { doneBytes += fs.statSync(got.path).size; } catch { doneBytes += sizes[i] || 0; }
@@ -311,7 +316,8 @@ async function ensureModel(config, onProgress = () => {}) {
         model = { path: first.path, cached: allCached };
     } else {
         model = await downloadGguf(c.model, (pct, seen = 0, total = 0) =>
-            onProgress(total ? `model — ${gb(seen)} / ${gb(total)} GB` : 'model', pct));
+            onProgress(total ? `model — ${gb(seen)} / ${gb(total)} GB` : 'model', pct,
+                seen ? { bytes: seen, total: total || null } : null));
     }
     let mmproj = null;
     if (c.mmproj) mmproj = (await downloadGguf(c.mmproj, (pct) => onProgress('mmproj', pct))).path;

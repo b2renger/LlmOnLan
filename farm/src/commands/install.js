@@ -213,9 +213,16 @@ async function pullModels(config) {
         if (!ollama.hasModel(present, upstream)) {
             log.step(`Pulling ${log.paint.bold(upstream)} (first pull can be slow) …`);
             try {
-                let last = '';
-                await ollama.pullModel(local, upstream, (s) => {
-                    if (s !== last) { last = s; process.stdout.write(`\r${log.paint.grey('[pull]')} ${s}            `); }
+                let last = ''; let lastAt = 0;
+                await ollama.pullModel(local, upstream, (o) => {
+                    // pullModel emits the PARSED object now, so format it here — and
+                    // throttle: with byte counts the text changes on every chunk.
+                    const s = ollama.pullProgressText(o);
+                    const now = Date.now();
+                    if (s !== last && now - lastAt >= 400) {
+                        last = s; lastAt = now;
+                        process.stdout.write(`\r${log.paint.grey('[pull]')} ${s}            `);
+                    }
                 });
                 process.stdout.write('\n');
                 log.ok(`${upstream} ready.`);

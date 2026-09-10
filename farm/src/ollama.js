@@ -200,6 +200,20 @@ async function deleteModel(baseUrl, id, timeoutMs = 60000) {
     }
 }
 
+// One console-ready line for an /api/pull progress object: the phase, plus how
+// far through the current layer when it reports a size. The CLI pull paths print
+// this; the admin panel builds a richer version from the same fields. Shared so
+// the three console callers cannot drift from each other.
+function pullProgressText(obj) {
+    if (!obj || typeof obj !== 'object') return String(obj == null ? '' : obj);
+    const s = obj.status || '';
+    if (obj.total > 0 && obj.completed >= 0) {
+        const pct = Math.floor((obj.completed / obj.total) * 100);
+        return `${s} — ${(obj.completed / 1e9).toFixed(1)}/${(obj.total / 1e9).toFixed(1)} GB (${pct}%)`;
+    }
+    return s;
+}
+
 function pullModel(baseUrl, id, onLine = () => {}, timeoutMs = 30 * 60 * 1000) {
     return new Promise((resolve, reject) => {
         const u = new URL('/api/pull', baseUrl);
@@ -215,7 +229,6 @@ function pullModel(baseUrl, id, onLine = () => {}, timeoutMs = 30 * 60 * 1000) {
             },
             (res) => {
                 let buf = '';
-                let lastStatus = '';
                 let failed = null;
                 res.on('data', (chunk) => {
                     buf += chunk;
@@ -227,8 +240,18 @@ function pullModel(baseUrl, id, onLine = () => {}, timeoutMs = 30 * 60 * 1000) {
                         try {
                             const obj = JSON.parse(line);
                             if (obj.error) { failed = obj.error; continue; }
-                            const s = obj.status || '';
-                            if (s && s !== lastStatus) { lastStatus = s; onLine(s); }
+                            // Hand callers the PARSED OBJECT, on every line.
+                            //
+                            // This used to pass `obj.status` (a string) and only when the
+                            // status CHANGED, which made byte progress structurally
+                            // impossible: total/completed/digest never left this function,
+                            // and while one layer downloads for minutes the status does not
+                            // change, so nothing was emitted at all. The admin panel's pull
+                            // bar therefore sat on 'starting …' for whole multi-GB downloads
+                            // (owner report 2026-09-10; reproduced as 87 s of silence
+                            // pulling qwen3:0.6b). Console callers that want one line per
+                            // phase dedupe on pullProgressText() themselves.
+                            onLine(obj);
                         } catch { /* ignore partial */ }
                     }
                 });
@@ -394,7 +417,7 @@ function createModelWithDraft(name, from, draftFile, parameters = {}, timeoutMs 
 
 module.exports = {
     normalizeHost, version, listModels, listModelsDetailed, loadedModels, warmModel, evictModel,
-    hasModel, pullModel, deleteModel, createModel, createModelWithDraft, downloadDraft, draftPathFor, draftDir, request,
+    hasModel, pullModel, pullProgressText, deleteModel, createModel, createModelWithDraft, downloadDraft, draftPathFor, draftDir, request,
     keepAliveValue, showModel, psModels,
     // Same fetcher under names that read correctly at the other call sites: the
     // llama.cpp backend uses it for full model weights and release archives, not

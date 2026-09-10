@@ -76,6 +76,7 @@
   .jobbar.done { border-color: color-mix(in srgb, var(--ok) 45%, var(--border)); }
   .jobbar.failed { border-color: color-mix(in srgb, var(--err) 45%, var(--border)); }
   .jobtop { display: flex; justify-content: space-between; gap: 14px; font-size: 12.5px; }
+  .jobmeta { margin-top: 6px; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
   .jobtop span { color: var(--muted); text-align: right; }
   .bar { height: 5px; border-radius: 999px; background: var(--surface2); overflow: hidden; margin-top: 8px; }
   .bar > i { display: block; height: 100%; background: var(--accent2); transition: width .3s; }
@@ -113,6 +114,30 @@ function toast(msg) {
   clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 2600);
 }
 function gb(bytes) { return bytes ? (bytes / 1e9).toFixed(1) + ' GB' : ''; }
+// Downloads span a 600 MB projector and a 70 GB model, so the unit has to follow
+// the number - '0.6 GB' hides progress that 600 MB shows.
+function sizeOf(bytes) {
+  if (!bytes && bytes !== 0) return '';
+  if (bytes < 1e9) return Math.round(bytes / 1e6) + ' MB';
+  return (bytes / 1e9).toFixed(1) + ' GB';
+}
+function rateOf(bps) {
+  if (!bps) return '';
+  return bps < 1e9 ? Math.round(bps / 1e6) + ' MB/s' : (bps / 1e9).toFixed(1) + ' GB/s';
+}
+// 'about 6 min left' beats '361s': the operator is deciding whether to wait or
+// go do something else, and that decision needs a rounded number, not precision.
+function etaOf(sec) {
+  if (sec == null || sec < 0) return '';
+  // Bands chosen so the words are never a worse estimate than the number: 42 s
+  // read as 'a few seconds left' during testing, which is simply untrue.
+  if (sec < 15) return 'a few seconds left';
+  if (sec < 45) return 'less than a minute left';
+  if (sec < 90) return 'about a minute left';
+  if (sec < 3600) return 'about ' + Math.round(sec / 60) + ' min left';
+  const h = Math.floor(sec / 3600), m = Math.round((sec % 3600) / 60);
+  return 'about ' + h + 'h' + (m ? ' ' + m + 'm' : '') + ' left';
+}
 function dur(sec) {
   if (sec == null) return '';
   if (sec < 60) return sec + 's';
@@ -157,11 +182,26 @@ function render(s) {
   // Switching backend or model means downloading and reloading gigabytes; without
   // this the panel looked frozen for ten minutes and an operator would reasonably
   // conclude the farm had hung and restart it mid-download.
+  // The numbers line under the bar. A percentage alone left the operator asking
+  // "is this moving at all?" through a 30 GB pull (owner report 2026-09-10), and
+  // Ollama's own per-layer figures made it look like it kept restarting. This
+  // shows the aggregate: how far, how fast, how much longer.
+  const jobBits = [];
+  if (jobRunning) {
+    if (job.bytes != null && job.total) jobBits.push(`<b>${esc(sizeOf(job.bytes))}</b> of ${esc(sizeOf(job.total))}`);
+    else if (job.bytes != null) jobBits.push(`<b>${esc(sizeOf(job.bytes))}</b> so far`);
+    if (job.bytesPerSec) jobBits.push(esc(rateOf(job.bytesPerSec)));
+    if (job.etaSec != null) jobBits.push(esc(etaOf(job.etaSec)));
+    // Elapsed is the honest fallback while a phase reports no bytes at all
+    // (reading the index, verifying, saving) - it still proves time is passing.
+    if (!jobBits.length && job.startedAt) jobBits.push('running for ' + esc(dur(Math.round((Date.now() - job.startedAt) / 1000))));
+  }
   const jobBar = job
     ? `<div class="jobbar${job.done ? (job.ok ? ' done' : ' failed') : ''}">`
-      + `<div class="jobtop"><b>${esc(job.label)}</b><span>${esc(job.done ? (job.ok ? 'done' : (job.error || 'failed')) : job.message)}</span></div>`
+      + `<div class="jobtop"><b>${esc(job.label)}</b><span>${esc(job.done ? (job.ok ? 'done' : (job.error || 'failed')) : job.message)}${jobRunning && job.percent != null ? ' · ' + job.percent + '%' : ''}</span></div>`
       + (jobRunning
         ? `<div class="bar"><i style="width:${job.percent == null ? 100 : job.percent}%"${job.percent == null ? ' class="indet"' : ''}></i></div>`
+          + (jobBits.length ? `<div class="jobmeta">${jobBits.join(' · ')}</div>` : '')
         : '')
       + '</div>'
     : '';

@@ -133,6 +133,51 @@ function externalAlive(ex, timeoutMs = 4000) {
     });
 }
 
+// Download-rate meter for long fetches. A percentage alone cannot answer the
+// question an operator actually has after two minutes of staring at a bar —
+// "is this moving, and how long more?" — so every byte-producing job feeds one
+// of these and the panel renders speed + ETA from it.
+// Smoothed over a short window (EWMA over ~5 s of samples) because raw
+// instantaneous rates from a chunked HTTP stream swing wildly and a number that
+// flickers between 3 and 400 MB/s reads as broken, not informative.
+function makeRateMeter(smoothing = 0.25) {
+    let lastAt = 0;
+    let lastBytes = 0;
+    let bps = null;
+    return {
+        sample(bytes) {
+            const now = Date.now();
+            if (!lastAt) { lastAt = now; lastBytes = bytes; return { bytesPerSec: null }; }
+            const dt = (now - lastAt) / 1000;
+            if (dt < 1) return { bytesPerSec: bps };   // sample at most once a second
+            const db = bytes - lastBytes;
+            lastAt = now; lastBytes = bytes;
+            // A restart (new host, layer re-count) can make bytes go backwards;
+            // don't emit a negative rate, just wait for the next sample.
+            if (db < 0) return { bytesPerSec: bps };
+            const inst = db / dt;
+            bps = (bps == null) ? inst : (bps * (1 - smoothing) + inst * smoothing);
+            return { bytesPerSec: bps };
+        },
+    };
+}
+
+// Ollama /api/pull status -> something worth showing a person. Its raw statuses
+// are 'pulling manifest', 'pulling <12-hex-digest>', 'verifying sha256 digest',
+// 'writing manifest', 'success' — the digest one is both the most common and the
+// least meaningful, so it never reaches the UI.
+function pullPhase(status) {
+    const s = String(status || '').toLowerCase();
+    if (!s) return 'downloading';
+    if (/^pulling manifest/.test(s)) return 'reading the model index';
+    if (/^pulling/.test(s)) return 'downloading';
+    if (/verifying/.test(s)) return 'checking the download is intact';
+    if (/writing manifest/.test(s)) return 'saving';
+    if (/^success/.test(s)) return 'finishing up';
+    if (/using existing|already exists/.test(s)) return 'already on disk';
+    return s.slice(0, 60);
+}
+
 async function ensureOllama(config) {
     const hosts = config.ollama.hosts.map(ollama.normalizeHost);
     const reachable = [];
@@ -206,9 +251,16 @@ async function pullMissing(config, reachable) {
             if (!ollama.hasModel(present, upstream)) {
                 log.step(`${label}: pulling ${log.paint.bold(upstream)} (first run can be slow) …`);
                 try {
-                    let last = '';
-                    await ollama.pullModel(host, upstream, (s) => {
-                        if (s !== last) { last = s; process.stdout.write(`\r${log.paint.grey(`[${label}]`)} ${s}            `); }
+                    let last = ''; let lastAt = 0;
+                    await ollama.pullModel(host, upstream, (o) => {
+                        // pullModel emits the PARSED object now, so format it here — and
+                        // throttle: with byte counts the text changes on every chunk.
+                        const s = ollama.pullProgressText(o);
+                        const now = Date.now();
+                        if (s !== last && now - lastAt >= 400) {
+                            last = s; lastAt = now;
+                            process.stdout.write(`\r${log.paint.grey(`[${label}]`)} ${s}            `);
+                        }
                     });
                     process.stdout.write('\n');
                     log.ok(`${label}: ${upstream} ready.`);
@@ -1736,6 +1788,11 @@ async function run(args) {
         id: job.id, kind: job.kind, label: job.label, message: job.message,
         percent: job.percent, done: job.done, ok: job.ok, error: job.error,
         startedAt: job.startedAt, finishedAt: job.finishedAt || null,
+        // Structured progress, so the panel renders numbers instead of parsing a
+        // sentence: bytes done / total, live speed, seconds remaining. null on
+        // jobs that move no bytes (a proxy bounce, an engine switch).
+        bytes: job.bytes ?? null, total: job.total ?? null,
+        bytesPerSec: job.bytesPerSec ?? null, etaSec: job.etaSec ?? null,
     });
     jobBox.view = jobView;   // from here on, the snapshot can report `busy`
     const busy = () => !!(job && !job.done);
@@ -1747,6 +1804,7 @@ async function run(args) {
             id: `${Date.now().toString(36)}-${++jobSeq}`, kind, label,
             message: 'starting …', percent: null, done: false, ok: null, error: null,
             startedAt: Date.now(), finishedAt: null,
+            bytes: null, total: null, bytesPerSec: null, etaSec: null,
         };
         job = j;
         // Tell the fleet NOW, not at the next 10 s health tick: clients switch to
@@ -1754,11 +1812,37 @@ async function run(args) {
         // a raw connection error in someone's chat.
         if (beacon) beacon.kick();
         log.step(`${label} …`);
-        const progress = (message, percent) => {
+        // `detail` (optional) carries { bytes, total } for jobs that download.
+        // Kept a separate argument so the dozens of existing progress('x', pct)
+        // calls stay valid — a job that moves no bytes simply never passes it.
+        // Speed and ETA are derived HERE, from one meter per job, so every
+        // download path (Ollama pull, llama.cpp weights, shards) reports them
+        // identically and none of them has to know about rates.
+        const meter = makeRateMeter();
+        const progress = (message, percent, detail = null) => {
             if (job !== j) return;                       // superseded — never write into a stale job
             j.message = String(message == null ? '' : message).slice(0, 200);
             j.percent = (typeof percent === 'number' && Number.isFinite(percent))
                 ? Math.max(0, Math.min(100, Math.round(percent))) : null;
+            if (detail && detail.bytes != null) {
+                j.bytes = detail.bytes;
+                j.total = detail.total ?? null;
+                const moreToCome = j.total == null || j.total > j.bytes;
+                // Once the bytes are all in, a speed and a countdown are noise at
+                // best and a lie at worst — the remaining phases (verifying,
+                // saving, restarting the proxy) move no bytes, and a decaying
+                // "15 MB/s · a few seconds left" made a finished download look
+                // stuck. Keep the totals, drop the motion numbers.
+                j.bytesPerSec = moreToCome ? meter.sample(detail.bytes).bytesPerSec : null;
+                j.etaSec = (j.bytesPerSec && moreToCome)
+                    ? Math.round((j.total - j.bytes) / j.bytesPerSec) : null;
+            } else {
+                // A phase that reports no bytes at all (a proxy bounce, a model
+                // load): whatever rate we last measured belongs to the previous
+                // phase, so stop showing it rather than let it go stale.
+                j.bytesPerSec = null;
+                j.etaSec = null;
+            }
         };
         // The job body runs INSIDE the same serialize chain as the quick ops
         // (start/stop/plugin/default): two admin tabs used to be able to run
@@ -2288,18 +2372,34 @@ async function run(args) {
         const targets = oll.reachable.filter(isLocalHost);
         if (!targets.length) return { ok: false, error: 'No local Ollama host to pull onto.' };
         return runJob('pull', `Downloading ${want}`, async (progress) => {
-            for (const h of targets) {
+            for (let hi = 0; hi < targets.length; hi++) {
+                const h = targets[hi];
                 let failed = null;
+                // /api/pull reports progress PER LAYER (one blob per digest), and
+                // passing that straight through is what made this feel broken: the
+                // bar restarted from zero at every layer and the byte figure was
+                // that layer's, so a 30 GB pull looked like it kept starting over
+                // (owner report 2026-09-10). Aggregate instead — sum every digest
+                // seen so far — the same shape the split-GGUF path already uses.
+                // Ollama only reveals a layer when it starts, so the denominator can
+                // grow; the weights blob dominates, so in practice it settles after
+                // the first one. The rate meter is what answers "is it moving?".
+                const layers = new Map();   // digest -> { total, completed }
+                const hostPrefix = targets.length > 1 ? `box ${hi + 1}/${targets.length}: ` : '';
                 await ollama.pullModel(h, want, (line) => {
                     if (!line || typeof line !== 'object') return;
                     if (line.error) failed = line.error;
-                    // Show BYTES, not just a bar — "4.2 / 72.5 GB" is the difference
-                    // between "is anything happening?" and watching it happen.
-                    const pct = (line.total > 0 && line.completed >= 0) ? (line.completed / line.total) * 100 : null;
-                    const bytes = line.total > 0
-                        ? ` ${((line.completed || 0) / 1e9).toFixed(1)} / ${(line.total / 1e9).toFixed(1)} GB`
-                        : '';
-                    progress(`${line.status || 'downloading'}${bytes}`, pct);
+                    if (line.digest && line.total > 0) {
+                        layers.set(line.digest, { total: line.total, completed: Math.max(0, line.completed || 0) });
+                    }
+                    let done = 0; let total = 0;
+                    for (const l of layers.values()) { done += l.completed; total += l.total; }
+                    const pct = total > 0 ? (done / total) * 100 : null;
+                    // Never echo a raw digest ("pulling 8934d96d3f08" means nothing to
+                    // the person waiting) — name the phase and let the numbers carry
+                    // the detail.
+                    progress(`${hostPrefix}${pullPhase(line.status)}`, pct,
+                        total > 0 ? { bytes: done, total } : null);
                 }).catch((e) => { failed = String((e && e.message) || e); });
                 if (failed) {
                     // Ollama's registry refuses split GGUF repos outright — point the
@@ -2311,7 +2411,10 @@ async function run(args) {
                 }
             }
             // Serve it too — an "add a model" that leaves the model invisible to clients
-            // is not what anyone means by adding a model.
+            // is not what anyone means by adding a model. This restarts the proxy, so
+            // say so: it is the several-second tail an operator otherwise reads as a
+            // hang right after the bar hits 100%.
+            progress('adding it to the served models', null);
             if (!config.models.some((m) => norm(m.id) === norm(want))) {
                 if (!(await applyModels(config.models.concat([{ id: want }])))) {
                     return { ok: false, error: `Downloaded ${want}, but the proxy did not come back — it is not being served.` };
@@ -2404,4 +2507,7 @@ async function run(args) {
     return new Promise(() => {});
 }
 
-module.exports = { run, resolveOcrModel };
+// makeRateMeter/pullPhase are exported for the tests: both encode judgements that
+// are easy to break silently (a negative rate after a restart, a raw digest
+// leaking into the UI) and neither is reachable through `run`.
+module.exports = { run, resolveOcrModel, makeRateMeter, pullPhase };

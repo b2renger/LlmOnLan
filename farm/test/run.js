@@ -1326,6 +1326,97 @@ test('backendInfo never asserts Ollama settings it cannot verify', () => {
     assert.equal(backendInfo(lc, {}).slotsVerified, true, 'we spawn llama-server ourselves');
 });
 
+// ---- download progress feedback (owner report 2026-09-10) -------------------
+const upMod = require('../src/commands/up');
+
+test('pullModel hands callers the PARSED object on every line, not a status string', async () => {
+    // The regression this locks: pullModel used to emit obj.status (a string) and
+    // only when the status CHANGED, so total/completed/digest never reached the
+    // caller and a long single-layer download emitted nothing at all — the admin
+    // panel's pull bar sat on 'starting …' for the whole download.
+    const http = require('http');
+    const srv = http.createServer((req, res) => {
+        res.writeHead(200, { 'content-type': 'application/x-ndjson' });
+        // Two progress lines with the SAME status — the old code emitted one.
+        res.write(JSON.stringify({ status: 'pulling manifest' }) + '\n');
+        res.write(JSON.stringify({ status: 'pulling abc123', digest: 'sha256:abc123', total: 1000, completed: 100 }) + '\n');
+        res.write(JSON.stringify({ status: 'pulling abc123', digest: 'sha256:abc123', total: 1000, completed: 600 }) + '\n');
+        res.write(JSON.stringify({ status: 'success' }) + '\n');
+        res.end();
+    });
+    await new Promise((r) => srv.listen(0, '127.0.0.1', r));
+    const seen = [];
+    try {
+        await ollama.pullModel(`http://127.0.0.1:${srv.address().port}`, 'x:1b', (o) => seen.push(o));
+    } finally { srv.close(); }
+    assert.equal(seen.length, 4, 'every line reaches the caller, including repeats of one status');
+    assert.ok(seen.every((o) => o && typeof o === 'object'), 'objects, never strings');
+    assert.equal(seen[1].completed, 100);
+    assert.equal(seen[2].completed, 600, 'byte progress within ONE layer must get through');
+    assert.equal(seen[1].digest, 'sha256:abc123', 'digest reaches the caller so layers can be summed');
+    // And the console formatter turns that into something readable.
+    assert.match(ollama.pullProgressText(seen[2]), /0\.0\/0\.0 GB \(60%\)/);
+    assert.equal(ollama.pullProgressText(seen[0]), 'pulling manifest', 'no byte suffix without a size');
+});
+
+test('pullPhase never leaks a raw digest into the UI', () => {
+    // The status an operator sees most often is 'pulling <digest>' — the least
+    // meaningful string Ollama emits. That must never reach the panel.
+    assert.equal(upMod.pullPhase('pulling 8934d96d3f08'), 'downloading');
+    assert.equal(upMod.pullPhase('pulling manifest'), 'reading the model index');
+    assert.equal(upMod.pullPhase('verifying sha256 digest'), 'checking the download is intact');
+    assert.equal(upMod.pullPhase('writing manifest'), 'saving');
+    assert.equal(upMod.pullPhase('success'), 'finishing up');
+    assert.equal(upMod.pullPhase(''), 'downloading');
+    for (const raw of ['pulling 8934d96d3f08', 'pulling manifest', 'verifying sha256 digest']) {
+        assert.ok(!/[0-9a-f]{8}|sha256/.test(upMod.pullPhase(raw)), `digest/hash leaked for "${raw}"`);
+    }
+});
+
+test('makeRateMeter: samples at most once a second, smooths, never goes negative', () => {
+    const m = upMod.makeRateMeter();
+    let t = 1_000_000;
+    const realNow = Date.now;
+    Date.now = () => t;
+    try {
+        assert.equal(m.sample(0).bytesPerSec, null, 'no rate from a single sample');
+        t += 500;
+        assert.equal(m.sample(50e6).bytesPerSec, null, 'under 1 s is ignored — a chunked stream would swing wildly');
+        t += 600;                                  // 1.1 s since the first sample
+        const r1 = m.sample(110e6).bytesPerSec;    // 110 MB in 1.1 s = 100 MB/s
+        assert.ok(r1 > 90e6 && r1 < 110e6, `first rate ~100 MB/s, got ${r1}`);
+        // A restart (next host, layer recount) can move the byte count backwards.
+        // That must not produce a negative speed — it keeps the last known rate.
+        t += 1000;
+        const r2 = m.sample(10e6).bytesPerSec;
+        assert.ok(r2 > 0, `backwards bytes must not yield a negative rate, got ${r2}`);
+    } finally {
+        Date.now = realNow;
+    }
+});
+
+test('panel formats download numbers for a person, not a debugger', () => {
+    const html = fs.readFileSync(path.join(__dirname, '..', 'src', 'admin', 'index.html'), 'utf8');
+    const start = html.indexOf('function sizeOf');
+    const end = html.indexOf('function esc');
+    assert.ok(start > 0 && end > start, 'panel source moved — update the extraction anchors');
+    const ctx = {};
+    new Function('ctx', html.slice(start, end) + '; ctx.out = { sizeOf, rateOf, etaOf };')(ctx);
+    const { sizeOf, rateOf, etaOf } = ctx.out;
+    // The unit has to follow the number: a 600 MB projector shown as '0.6 GB'
+    // hides the progress it is meant to prove.
+    assert.equal(sizeOf(600e6), '600 MB');
+    assert.equal(sizeOf(14.46e9), '14.5 GB');
+    assert.equal(rateOf(48e6), '48 MB/s');
+    // ETA is for deciding whether to wait — rounded words, never raw seconds.
+    assert.equal(etaOf(10), 'a few seconds left');
+    assert.equal(etaOf(42), 'less than a minute left', '42 s is not "a few seconds" — that read as a lie in testing');
+    assert.equal(etaOf(70), 'about a minute left');
+    assert.equal(etaOf(360), 'about 6 min left');
+    assert.match(etaOf(7500), /^about 2h/);
+    assert.equal(etaOf(null), '');
+});
+
 // ---- external engine (vLLM/SGLang/… — a server we route to but never run) ---
 test('external engine config defaults: off, keyless, declared capacity', () => {
     const c = ConfigSchema.parse({});
