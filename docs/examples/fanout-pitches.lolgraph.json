@@ -1,0 +1,96 @@
+{
+  "lolgraph": 1,
+  "title": "Fan-out pitches",
+  "view": {
+    "x": 0,
+    "y": 0,
+    "zoom": 1
+  },
+  "settings": {},
+  "parts": [
+    {
+      "id": "p1",
+      "type": "note",
+      "x": 80,
+      "y": 80,
+      "w": 220,
+      "h": 140,
+      "settings": {
+        "text": "A lamp that gets brighter the longer the room stays quiet\nA VR piece you can only finish with a stranger\nA projection that redraws itself from the weather outside\nA printer that only prints what nobody read\nA room-scale map of the building as it was ten years ago\nA speaker that plays the sound of the room an hour ago"
+      }
+    },
+    {
+      "id": "p2",
+      "type": "split",
+      "x": 400,
+      "y": 80,
+      "w": 250,
+      "h": 180,
+      "settings": {
+        "mode": "lines",
+        "separator": ",",
+        "limit": 0
+      }
+    },
+    {
+      "id": "p3",
+      "type": "ask",
+      "x": 730,
+      "y": 80,
+      "w": 300,
+      "h": 220,
+      "settings": {
+        "instruction": "Write one paragraph pitching this idea to a gallery: what the visitor does, what they see, and why it is worth making. Four sentences at most. No heading, no bullet points.",
+        "model": "",
+        "shape": "text",
+        "schema": ""
+      }
+    },
+    {
+      "id": "p4",
+      "type": "collect",
+      "x": 1110,
+      "y": 80,
+      "w": 260,
+      "h": 160,
+      "settings": {
+        "mode": "numbered",
+        "template": "{item}",
+        "separator": "\n"
+      }
+    },
+    {
+      "id": "p5",
+      "type": "file",
+      "x": 1450,
+      "y": 80,
+      "w": 260,
+      "h": 170,
+      "settings": {
+        "path": "out/pitches.md"
+      }
+    }
+  ],
+  "wires": [
+    {
+      "from": "p1",
+      "to": "p2",
+      "port": "text"
+    },
+    {
+      "from": "p2",
+      "to": "p3",
+      "port": "context"
+    },
+    {
+      "from": "p3",
+      "to": "p4",
+      "port": "items"
+    },
+    {
+      "from": "p4",
+      "to": "p5",
+      "port": "in"
+    }
+  ]
+}
