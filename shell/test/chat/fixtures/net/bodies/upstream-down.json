@@ -1,0 +1,7 @@
+{
+  "error": {
+    "message": "The model server is not answering (it may be restarting) — try again in a few seconds.",
+    "type": "api_error",
+    "code": "lol_upstream_down"
+  }
+}

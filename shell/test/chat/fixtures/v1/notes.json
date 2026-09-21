@@ -1,0 +1,45 @@
+[
+  {
+    "id": "1789000900000aaaaa",
+    "title": "Busy before sending",
+    "messages": [
+      {
+        "role": "user",
+        "content": "go"
+      },
+      {
+        "role": "assistant",
+        "content": "⏳ The server is busy: loading gemma4:12b (42%). Try again in a moment.",
+        "reasoning": ""
+      }
+    ]
+  },
+  {
+    "id": "1789000800000bbbbb",
+    "title": "Error tail",
+    "messages": [
+      {
+        "role": "user",
+        "content": "go"
+      },
+      {
+        "role": "assistant",
+        "content": "Half an answer\n\n[error: HTTP 500]"
+      }
+    ]
+  },
+  {
+    "id": "1789000700000ccccc",
+    "title": "Busy tail",
+    "messages": [
+      {
+        "role": "user",
+        "content": "go"
+      },
+      {
+        "role": "assistant",
+        "content": "Half an answer\n\n⏳ The server is busy: switching model. Try again in a moment."
+      }
+    ]
+  }
+]

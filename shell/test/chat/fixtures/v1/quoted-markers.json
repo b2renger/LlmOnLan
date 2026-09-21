@@ -1,0 +1,44 @@
+[
+  {
+    "id": "1789000600000ddddd",
+    "title": "Quotes an error line",
+    "messages": [
+      {
+        "role": "user",
+        "content": "what does the log mean?"
+      },
+      {
+        "role": "assistant",
+        "content": "The log says:\n\n[error: connection refused]\n\nwhich means the port is closed. Restart the farm and retry."
+      }
+    ]
+  },
+  {
+    "id": "1789000500000eeeee",
+    "title": "Quotes the busy note",
+    "messages": [
+      {
+        "role": "user",
+        "content": "what is that message?"
+      },
+      {
+        "role": "assistant",
+        "content": "It prints\n\n⏳ The server is busy: switching model. Try again in a moment.\nwhen the farm is mid-switch, so just wait."
+      }
+    ]
+  },
+  {
+    "id": "1789000400000fffff",
+    "title": "Quoted then really failed",
+    "messages": [
+      {
+        "role": "user",
+        "content": "explain, then keep going"
+      },
+      {
+        "role": "assistant",
+        "content": "You will see\n\n[error: quota]\n\nin the log. Now, the actual\n\n[error: HTTP 500]"
+      }
+    ]
+  }
+]

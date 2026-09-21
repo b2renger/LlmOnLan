@@ -1,0 +1,457 @@
+{
+ "blank-ends-list": [
+  {
+   "type": "list",
+   "ordered": false,
+   "start": 1,
+   "items": [
+    {
+     "task": null,
+     "blocks": [
+      {
+       "type": "paragraph",
+       "text": "a"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "type": "list",
+   "ordered": false,
+   "start": 1,
+   "items": [
+    {
+     "task": null,
+     "blocks": [
+      {
+       "type": "paragraph",
+       "text": "b"
+      }
+     ]
+    }
+   ]
+  }
+ ],
+ "two-ordered-lists": [
+  {
+   "type": "list",
+   "ordered": true,
+   "start": 1,
+   "items": [
+    {
+     "task": null,
+     "blocks": [
+      {
+       "type": "paragraph",
+       "text": "a"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "type": "list",
+   "ordered": true,
+   "start": 2,
+   "items": [
+    {
+     "task": null,
+     "blocks": [
+      {
+       "type": "paragraph",
+       "text": "b"
+      }
+     ]
+    }
+   ]
+  }
+ ],
+ "setext-underline-stays-a-paragraph": [
+  {
+   "type": "paragraph",
+   "text": "text\n==="
+  }
+ ],
+ "hr-closes-the-paragraph": [
+  {
+   "type": "paragraph",
+   "text": "text"
+  },
+  {
+   "type": "hr"
+  }
+ ],
+ "fence-in-list-item": [
+  {
+   "type": "list",
+   "ordered": false,
+   "start": 1,
+   "items": [
+    {
+     "task": null,
+     "blocks": [
+      {
+       "type": "paragraph",
+       "text": "item"
+      },
+      {
+       "type": "code",
+       "lang": "js",
+       "code": "a\n\nb",
+       "fence": "`",
+       "closed": true
+      }
+     ]
+    },
+    {
+     "task": null,
+     "blocks": [
+      {
+       "type": "paragraph",
+       "text": "next"
+      }
+     ]
+    }
+   ]
+  }
+ ],
+ "inline-cap-2001": [
+  {
+   "type": "paragraph",
+   "text": "An opener whose closer is further than 2,000 characters away stays literal, so this whole\nparagraph is one text run: the assertion lives in md.test.mjs because the cap is an inline rule."
+  }
+ ],
+ "table-needs-a-delimiter-row": [
+  {
+   "type": "paragraph",
+   "text": "| a | b |\n| c | d |"
+  }
+ ],
+ "table": [
+  {
+   "type": "table",
+   "align": [
+    "left",
+    "right",
+    "center"
+   ],
+   "header": [
+    "a",
+    "b",
+    "c"
+   ],
+   "rows": [
+    [
+     "1",
+     "2",
+     "3"
+    ],
+    [
+     "4",
+     "5",
+     "6"
+    ]
+   ]
+  }
+ ],
+ "blank-ends-the-table": [
+  {
+   "type": "table",
+   "align": [
+    null,
+    null
+   ],
+   "header": [
+    "a",
+    "b"
+   ],
+   "rows": [
+    [
+     "1",
+     "2"
+    ]
+   ]
+  },
+  {
+   "type": "paragraph",
+   "text": "after"
+  }
+ ],
+ "no-lazy-continuation-out-of-a-quote": [
+  {
+   "type": "quote",
+   "blocks": [
+    {
+     "type": "paragraph",
+     "text": "quote"
+    }
+   ]
+  },
+  {
+   "type": "paragraph",
+   "text": "not quote"
+  }
+ ],
+ "nested-quotes": [
+  {
+   "type": "quote",
+   "blocks": [
+    {
+     "type": "paragraph",
+     "text": "one"
+    },
+    {
+     "type": "quote",
+     "blocks": [
+      {
+       "type": "paragraph",
+       "text": "two"
+      }
+     ]
+    },
+    {
+     "type": "paragraph",
+     "text": "back"
+    }
+   ]
+  }
+ ],
+ "task-items": [
+  {
+   "type": "list",
+   "ordered": false,
+   "start": 1,
+   "items": [
+    {
+     "task": false,
+     "blocks": [
+      {
+       "type": "paragraph",
+       "text": "open"
+      }
+     ]
+    },
+    {
+     "task": true,
+     "blocks": [
+      {
+       "type": "paragraph",
+       "text": "done"
+      }
+     ]
+    },
+    {
+     "task": null,
+     "blocks": [
+      {
+       "type": "paragraph",
+       "text": "plain"
+      }
+     ]
+    }
+   ]
+  }
+ ],
+ "hr-beats-a-list-marker": [
+  {
+   "type": "hr"
+  }
+ ],
+ "heading-forms": [
+  {
+   "type": "paragraph",
+   "text": "#nospace"
+  },
+  {
+   "type": "heading",
+   "level": 3,
+   "text": "with closers"
+  },
+  {
+   "type": "heading",
+   "level": 3,
+   "text": ""
+  }
+ ],
+ "raw-html-is-text": [
+  {
+   "type": "paragraph",
+   "text": "<div class=\"x\">hello</div>"
+  }
+ ],
+ "tilde-fence-with-info": [
+  {
+   "type": "code",
+   "lang": "python",
+   "code": "a = 1",
+   "fence": "~",
+   "closed": true
+  }
+ ],
+ "nested-list-by-content-column": [
+  {
+   "type": "list",
+   "ordered": false,
+   "start": 1,
+   "items": [
+    {
+     "task": null,
+     "blocks": [
+      {
+       "type": "paragraph",
+       "text": "outer"
+      },
+      {
+       "type": "list",
+       "ordered": false,
+       "start": 1,
+       "items": [
+        {
+         "task": null,
+         "blocks": [
+          {
+           "type": "paragraph",
+           "text": "inner"
+          },
+          {
+           "type": "list",
+           "ordered": false,
+           "start": 1,
+           "items": [
+            {
+             "task": null,
+             "blocks": [
+              {
+               "type": "paragraph",
+               "text": "deepest"
+              }
+             ]
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "task": null,
+     "blocks": [
+      {
+       "type": "paragraph",
+       "text": "second outer"
+      }
+     ]
+    }
+   ]
+  }
+ ],
+ "ordered-markers": [
+  {
+   "type": "list",
+   "ordered": true,
+   "start": 9,
+   "items": [
+    {
+     "task": null,
+     "blocks": [
+      {
+       "type": "paragraph",
+       "text": "nine"
+      }
+     ]
+    },
+    {
+     "task": null,
+     "blocks": [
+      {
+       "type": "paragraph",
+       "text": "ten"
+      }
+     ]
+    }
+   ]
+  }
+ ],
+ "unclosed-fence": [
+  {
+   "type": "code",
+   "lang": "js",
+   "code": "let a = 1;",
+   "fence": "`",
+   "closed": false
+  }
+ ],
+ "four-spaces-is-a-paragraph": [
+  {
+   "type": "paragraph",
+   "text": "not indented code"
+  }
+ ],
+ "paragraph-then-fence": [
+  {
+   "type": "paragraph",
+   "text": "text right above"
+  },
+  {
+   "type": "code",
+   "lang": "js",
+   "code": "a",
+   "fence": "`",
+   "closed": true
+  }
+ ],
+ "empty": [],
+ "blank-line-then-indented-fence": [
+  {
+   "type": "list",
+   "ordered": true,
+   "start": 1,
+   "items": [
+    {
+     "task": null,
+     "blocks": [
+      {
+       "type": "paragraph",
+       "text": "Install it:"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "type": "code",
+   "lang": "bash",
+   "code": "npm i thing\nnpm run build",
+   "fence": "`",
+   "closed": true
+  },
+  {
+   "type": "list",
+   "ordered": true,
+   "start": 2,
+   "items": [
+    {
+     "task": null,
+     "blocks": [
+      {
+       "type": "paragraph",
+       "text": "Done."
+      }
+     ]
+    }
+   ]
+  }
+ ],
+ "top-level-indented-fence": [
+  {
+   "type": "code",
+   "lang": "js",
+   "code": "a",
+   "fence": "`",
+   "closed": true
+  }
+ ]
+}

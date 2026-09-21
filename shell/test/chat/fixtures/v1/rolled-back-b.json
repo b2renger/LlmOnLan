@@ -1,0 +1,20 @@
+[
+  {
+    "id": "1789001000000rrrrr",
+    "title": "Rollback",
+    "messages": [
+      {
+        "role": "user",
+        "content": "first question"
+      },
+      {
+        "role": "assistant",
+        "content": "first answer"
+      },
+      {
+        "role": "user",
+        "content": "one more question"
+      }
+    ]
+  }
+]

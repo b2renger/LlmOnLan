@@ -6,6 +6,1582 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-09-16 — LOL Chat vNext **C3: the Computer computes, draws, writes files and travels**
+
+The Computer stops needing the model for everything. `Code` runs real JavaScript in a sandbox for
+nothing, `Render` turns a value into a picture, `File` writes into the thread's own project folder,
+a graph leaves the machine as a `.lolgraph.json` and comes back the same graph, and **Tidy** lays a
+mess out left to right. Spec: `docs/LOLCHAT_COMPUTER_SPEC.md` §8 step 4; contracts frozen at the
+kickoff in `docs/LOLCHAT_PLAN.md` §2.6 **BJ**, landing notes in **BK**. Three builders in parallel
+(sandbox · parts · canvas) plus this landing.
+
+**The sandbox is a module, not a graph feature** (`renderer/chat/sandbox/`, its object frozen as
+`API_KEYS.sandbox`): one iframe per panel, `sandbox="allow-scripts"` with no `allow-same-origin`, a
+per-frame 16-byte nonce, `event.source` + nonce + protocol validation (there is **no origin to
+check** — `event.origin` is the string `'null'` from a `file:` parent, measured at the kickoff, so
+origin checks are banned), ten dropped messages in a row tear the frame down, and a ping watchdog
+rebuilds a frame that stopped answering. `compute`/`computed` returns a value as a **JSON string** so
+the host can cap the bytes (1 MB) before it parses anything; `run`/`ran` is the visual path;
+`snapshot` photographs the first canvas, or the DOM through an SVG `foreignObject`. The S2 vibecode
+bench will call the same object — nothing under `sandbox/` knows what a part or a value is.
+
+**What the guest cannot do, measured in real Electron with the shipped CSP** (scenario
+`c3-sandbox-isolation`): `localStorage` / `sessionStorage` / `indexedDB` / `document.cookie` /
+`parent.document` / `parent.lol` / `top.location` all `SecurityError`; `window.lol` absent; `fetch`
+to the mock farm's own loopback port and to `file:` both rejected; XHR, `<img src=file:>`,
+`<script src=file:>` and a WebSocket to the mock all refused — **and the mock's request log gained
+zero rows.** `c3-sandbox-navigate`: `top.location` blocked, `window.open` returns null, the app window
+never moved, and what answers on the protocol afterwards is still our runner. The release gate,
+`c3-sandbox-hang`: with the guest in `for(;;)`, the host painted **121 frames with a worst gap of
+17 ms**, the watchdog said *"did not answer in time"*, rebuilt with a fresh nonce, did **not** replay
+the sketch, and the sandbox computed 2+2 again.
+
+**Vendored libraries, measured** (`sandbox/lib/`, owner decision): **three.js r160** 669 884 B (MIT) ·
+**p5.js 1.11.13** 1 063 246 B (LGPL-2.1) · **matter.js 0.20.0** 83 476 B (MIT) = **1 816 606 bytes,
+1.73 MB of the 2.0 MB budget**, plus **26 653 bytes of licences** against a 40 KB budget. Each is a
+byte-identical upstream build with its licence file beside it, pinned by sha256 in the lint's
+`LIB_MANIFEST` (rule 14 re-measures the budget on every run, so going over is a gate failure, not a
+packaging-day discovery). Nothing is fetched at runtime: the guest loads **nothing at all** — every
+library arrives as text over `postMessage`. three.js is pinned at r160 because it is the **last
+release line shipping a UMD build**; everything newer is ESM-only and the guest cannot import from
+disk. **p5.js's LGPL-2.1 obligation is recorded for the packaging/licence page**: shipped verbatim
+with its licence, and replaceable through a project's own `lib/p5.js` (`libs.mjs` takes a project
+override ahead of the vendored build and the panel says which one ran) — that override *is* the
+relink freedom.
+
+**Three parts.** `Code` marshals every port to plain arrays (`inputs.in` is an **array**, an unwired
+port is `[]`, `inputs.item` carries the fan position), computes with a 5 s cap, coerces the returned
+JSON by the frozen `fromPlain` rule (`null` / `undefined` / `NaN` **fail visibly**, BG-5), and reports
+a thrown error as a sentence naming the **reader's** line with every `file:`/Windows path scrubbed
+out — with a clickable *Line N* chip in the editor that drops the moment the part runs. `Render` draws
+SVG **without** the sandbox (an SVG is already a picture — sanitised: `script`, `foreignObject`, `on*`
+and external refs removed, `data:` and `#refs` kept, so the exported bytes are what was shown), and
+lays markdown/HTML out through the panel's one guest, bounded and refused over 1 MB. Markdown becomes
+HTML through **our** parsers, so the model can never open a tag. `File` writes one project per thread,
+picks text vs binary from the value and the extension, and sends the path **exactly as typed** — the
+main process refuses `..`, proven on disk (`c3-parts-file-escape-is-refused-in-the-main-process`:
+four escape attempts, nothing written outside the project root). All three **decline to fan** (BJ-9):
+arithmetic over forty items is one program, not forty.
+
+**Sharing and tidy.** `graph/tidy.mjs` is a real pure layout — longest-path layering with a
+cycle-safe fallback, one barycentre pass for row order taken from the LEFT column (which is what makes
+it idempotent), grid-snapped, and returning the **same object** when nothing moved, so a second press
+is not an undo entry. Export writes `<slug>-<date>.lolgraph.json` through `ui/transfer.mjs`'s existing
+door (used, never edited) behind a popover whose one checkbox decides whether cached values ride
+along; import comes from the button **or a file dropped on the canvas** (a dragenter/dragleave depth
+count, opened only for drags carrying files, and `stopPropagation` only once a file is in hand, so the
+composer's own drop guard is untouched). An import is **one** `session.apply` — one undo entry for the
+whole file — asks first when the canvas is not empty, and always reports: not-JSON, not-a-graph and
+newer-version each get their own sentence, and a partly-readable file says what it lost in words. The
+round trip is asserted to carry **no threadId, no apiKey, no Bearer, no http, no clientId**.
+
+**What the landing wired, fixed and amended:**
+- **the code bridge ships.** *Send to the Computer* on a JavaScript fence needs a way to place a part,
+  which only the panel has: `graph/panel.mjs` now installs it in `create()` and takes it off in
+  `destroy()`, placing the part **centred** in the view rather than at a fixed corner. New scenario
+  `c3-landing-code-bridge-ships` installs nothing of its own and proves the shipped rows: 0 before the
+  panel, 1 open, 0 closed, 1 re-opened, with the fence body across and the markers stripped.
+- **the human's Run re-arms the rebuild ladder** (C3-U1's contract request). Three rebuilds in a
+  minute leave the sandbox quiet, and the host cannot tell a human's Run from an automatic re-run — so
+  the panel's Run spends the one `rearm`, and parts never do. `c3-landing-run-rearms-a-quiet-sandbox`
+  drives runaway loops until the ladder blocks, proves **a part asking politely is refused**, then
+  presses Run and watches the graph compute again.
+- **two visual defects the screenshots caught, not the tests.** `.graph-part-body` was a *block* box,
+  so a part root saying `flex: 1` stretched against nothing: the Code editor rendered **one line tall**
+  inside a 200 px part. And the toolbar, four controls heavier since C3, squeezed *Add a part* into
+  three lines and clipped the zoom readout at the panel edge; the row now wraps and buttons keep their
+  label on one line — which then pushed the 240 px export popover off the window, so it anchors to the
+  button's right edge. `c3-shots-{dark,light}` measure all of it (editor height, tile pixels, popover
+  inside the viewport, no part spilling its own frame) before photographing anything.
+- **the harness's main-process logs are now per scenario.** `downloads` / `shellCalls` /
+  `windowOpens` are one array per electron process, appended to for the whole run, so
+  `h.downloads()[0]` was the first download of the **run** — and `p2-export-import` read
+  `c3-canvas`'s earlier `.lolgraph.json` and reported *"the file says which format it is: got
+  undefined"*. `run.js` now marks each log where the scenario begins and the readers slice from there.
+  The product was never wrong; the gate was.
+- **one test amended, never loosened** (the BG-16 / BI-7 precedent):
+  `c3-parts-code-arrives-from-the-conversation` installed its own bridge, which the shipped one now
+  refuses as a duplicate. It drives the shipped rows instead and asserts the guard C3-U2 built — a
+  second install is refused with a warning and leaves the live one alone, rather than throwing inside
+  the registry and taking the panel with it.
+- the loader's phase string is `C3`; the catalogue is the eleven parts in palette order and the loader
+  still carries **one** Computer row (`c3-landing-catalogue-and-loader`) — the sandbox is imported by
+  its consumers, never installed as a feature.
+
+**Gates at the landing (slot 0):** `chat-unit` **915 passed / 0 failed** · `unit.js` **5 passed** ·
+`chat-lint` **0 violations over 132 files**, self-test **24/24** (rule 14's sha256 branch ran against
+real vendored bytes for the first time) · `chat-scope` **clean** · harness `--strict`
+**193 passed / 0 failed** · `--strict --phase perf` **9 passed / 0 failed** (500 parts still pan at
+60 fps with the new parts in the tree). What a harness cannot prove is now in
+`docs/LOLCHAT_RIG_CHECKLIST.md` §15: a real disk, a real second machine, a library drawing with the
+Wi-Fi **off**, and a `.lolgraph.json` carried between two laptops.
+
+---
+
+## 2026-09-16 — LOL Chat vNext **C3 fix round**: a sanitiser that only looked like one, and a suspend nobody called
+
+Four reviewer findings against the landed C3. All four reproduced; both majors were real, and each
+fix has a gate that fails without it.
+
+**1. `sanitizeSvg` was a regex scrub, and its output is written to disk** (`graph/parts/render.mjs`,
+major). The old function deleted dangerous shapes from the source string and handed the REST back
+verbatim. Five shapes walked through it with `removed === []`: an unterminated `<script>` (every
+delete-the-tag regex needs a closing tag; a parser runs an unclosed script to EOF), an **unquoted**
+`href=` (the reference rule only matched quotes), SMIL's `<set attributeName="href" to="…">` (never
+modelled), `@import` inside a `<style>` (a NETWORK fetch the `url(…)` rule could not see — LOCAL
+ONLY), and an unterminated `<foreignObject>`. This is not a containment question: Render(svg) →
+File('out/x.svg') writes those bytes into the thread's project, and the reader double-clicks them
+into a browser with none of the guest's CSP.
+Fixed by folding in the module BK-10c reserved: **`design/svg-sanitize.mjs`** (PURE, in the lint's
+pure-module list) — an XML tokenizer, an element/attribute **allow-list**, a CSS filter that sees
+`@import` and `url()`, and a re-serialiser. What comes out is bytes *we* wrote from a tree we
+understood, and a document that is not well-formed is **refused with a reason** rather than patched
+(an `image/svg+xml` file has to be well-formed XML to be a picture at all, so this is the same
+verdict a browser's `<parsererror>` gives). `render.mjs` keeps the name and delegates.
+`shell/test/chat/unit/design-svg.test.mjs` (10 cases) carries the five shapes, plus the picture that
+must survive intact — `fill="url(#g)"`, a gradient, an inline `data:image/png`, re-escaped text.
+
+**2. The sandbox's suspend path was dead code** (`graph/panel.mjs`, major). `sandbox.hide()` shipped
+documented ("the sketch stops now, the watchdog stops now, the frame goes after a grace") and
+**nothing in the product called it**: the panel's `hide()` hook ran only `runner.stop()`, which
+aborts a request still in FLIGHT. A Code or Render part whose run already finished leaves live
+timers and rafs in the guest (it resets on boot/run/stop/dispose, never on a panel flip), so a p5
+draw loop kept painting — and the 1 Hz watchdog kept pinging it — for as long as the app stayed open
+with nobody looking. The panel now calls `session.sandboxNow().hide()`. The new scenario
+`c3-landing-hiding-the-chat-suspends-the-guest` goes through the **product**: `workGraceMs` is set to
+a minute so the workbench cannot tear the panel down first, the chat surface is hidden, and the
+guest's iframe must really be gone while the panel instance is still alive. Verified to FAIL with
+the one line removed (`waitFor timed out after 20000 ms`).
+
+**3. Import had no size cap, and export spread two open bags** (`graph/{serialize,canvas}.mjs`,
+`ui/transfer.mjs`, minor). A `.lolgraph.json` comes from someone else's machine **by design** and
+`values:true` keeps every cached image data URL verbatim: a few hundred megabytes were read, parsed
+and written into IndexedDB, leaving the thread's graph unloadable. Now `MAX_IMPORT_BYTES` (8 MB) is
+checked at **read time** in both doors (the drop handler on `file.size`, the picker on `maxBytes`)
+and again in `fromText`, and each imported `part.value` over `MAX_VALUE_BYTES` (1 MB, a Render
+tile's ceiling) is dropped with `part:value-too-big` so the part arrives ready to re-run.
+On export, `toJson` now copies part settings **key by key from the spec's `defaults()`** (the header
+promised field-by-field; line 45 was `{...d.settings}`), doc settings from an allow-list that is
+deliberately EMPTY, and `from-thread.messageId` — an id minted in the sender's own history — never
+travels.
+
+**4. `sandbox.stop()` stranded the in-flight request** (`sandbox/host.mjs`, minor). `stop()` posted
+`stop` to a guest that answers nothing, so a waiting `ask()` sat until its own timer fired and the
+`{timeout:true}` sent `compute()`/`run()` into `onStall()`: a torn-down frame, a "the preview was
+restarted" note, and one of the three rungs of the 60 s rebuild ladder — for a stop the caller asked
+for. `stop()` and `hide()` now settle every outstanding request as **aborted** (`boot`/`libs`
+excepted, so a stop cannot fail a boot in flight), the way the abort-signal path always did. No
+shipped caller hits it today, but `stop` is on the frozen `API_KEYS.sandbox` the S2 bench is told to
+use. Also in the same file's neighbourhood: `projectsPath.ts`'s RESERVED set was missing **CONIN$ /
+CONOUT$** — `$` is a legal filename character, so `write(id, 'conout$.md')` succeeded.
+
+**Gates after the fix round (slot 0):** `chat-unit` **931 passed / 0 failed** · `unit.js` **5
+passed** · `chat-lint` **0 violations over 133 files** · `chat-scope` **clean** · harness `--strict`
+**194 passed / 0 failed** · `--strict --phase perf` **9 passed / 0 failed** (500 parts: build 57 ms,
+pan work p50 1.40 ms, frame p50 16.7 ms). Light + dark C3 screenshots re-read after the change:
+canvas, parts and the export popover unchanged and inside the viewport.
+
+---
+
+## 2026-09-16 — LOL Chat vNext **C2 fix round**: the fan that never let go of the thread, and the record that vanished on reload
+
+Seven reviewer findings against the landed C2. Every one reproduced first; both majors were real,
+and each is fixed at the root with a gate that fails without the fix.
+
+**1. A fan of FREE parts never yielded, and nothing bounded the item count** (`graph/runner.mjs`,
+major). The item loop's only suspension point was `await spec.run(...)`, and for a part that makes no
+farm call that promise resolves on the **microtask** queue — so the whole fan ran inside ONE macrotask
+with a `patchPart` (and a synchronous canvas sync) per item. A timer scheduled *before* `run()` did not
+fire until the fan was over: the `7/40` badge could not paint, Stop could not be clicked, and the
+reader's own chat was frozen. It is reachable with shipped parts and no farm at all — `Split`'s input
+accepts `text`, so Note → Split(lines) → Split fans once per line of a pasted document. The
+generation cap could not help: it counts generations, and a free fan spends none. Two fixes:
+- the run hands the main thread back on a **time slice** (`YIELD_SLICE_MS = 8`, a real `setTimeout`
+  macrotask, measured on `Date.now()` so a frozen test clock cannot defeat it), in the item loop and
+  between parts — and the per-item record is now written **once a slice** instead of once an item,
+  which is also what a repaint can actually show. A ten-thousand-item fan used to queue ten thousand
+  graph-row writes and ten thousand DOM passes; it now writes about a dozen;
+- the reader's cap is the **item ceiling** as well as the generation budget (`pref:computeMaxItems`
+  is, after all, named for items). A fan with more items than the cap is refused **before the part
+  runs** — never a silent slice of the first N — with `capped {cap, spent: 0, stopped, items,
+  raiseTo}`, its own banner (*"One part would run 5 times / Your cap is 2 items a run, so nothing ran.
+  Raising it to 5 runs them all."*) and a raise button that asks for exactly enough. The mid-fan stop
+  is unchanged for the case it was written for: several parts together exhausting the budget.
+*Measured:* new perf scenario **`perf-graph-fan`** fans a free part over **10 000 items**: 66 ms, a
+longest main-thread block of **21 ms** against a 100 ms budget, and a timer scheduled before the run
+firing during it. Unit test `a fan of FREE items hands the main thread back while it runs` fails with
+the slice disabled.
+
+**2. `fanout` was persisted and then stripped on reload** (`graph/model.mjs`, major). `patchPart`
+sanitised the record on the way in and `store.put` wrote it, but `normalisePart` rebuilt each part
+from a field list that never mentioned it — so after a reload a part painted *"0.1s · 50 tokens ·
+5 calls"* while the three items that failed had silently vanished: no badge, no list, no record of
+what to re-run. That is the quiet loss §1.2 bans, on the one field C2 exists to produce. There is now
+ONE `normaliseFanout()` used by both directions, and a test that round-trips a record through
+`normaliseDoc` and asserts it comes back beside `stats`.
+
+**3. A model-written regular expression ran unbounded over reader text** (`graph/parts/filter.mjs`,
+minor). `Filter`'s `criterion` port accepts `text`, so an Ask part's output wired straight into a
+`matches` pattern: `new RegExp(source,'i').test(s)` has no timeout, and a nested quantifier
+(`(a+)+$`) backtracks for ever with Stop unclickable. A **wired** criterion is now refused by name in
+`matches` mode (the pattern belongs in the box, where a person can see it), patterns are checked for
+length and nested quantifiers before they compile, and Filter's internal loops yield on the same
+slice as the runner (`parts/common.mjs` `slicer()`).
+
+**4. The kept per-item failures are bounded** (`graph/fanout.mjs`, minor). `MAX_ITEM_ERRORS = 50`,
+with the overflow counted in a new `hidden` field, so a two-thousand-item fan that fails no longer
+writes two thousand messages into the graph row (the canvas paints five either way).
+
+**5. The cap field's async seed could overwrite what the reader just typed** (`graph/canvas.mjs`,
+minor). The mount-time `kvGet` guarded only `destroyed`: a value committed before it resolved was
+repainted with the old stored number, leaving the field and the store disagreeing and the next run
+using the store's. The decision is now a pure, tested rule — `acceptSeed(stored, {destroyed, edited,
+focused})`.
+
+**6. `fromJson` scrubbed state/error/stats but not `fanout`** (`graph/serialize.mjs`, minor). Inert
+only because the reload path dropped the field — i.e. two defects cancelling, and fixing #2 made this
+one live. `delete next.fanout`, with the import test asserting all four runtime fields.
+
+**7. Split/Filter duplicates were charged as separate generations** (`graph/{values,fanout}.mjs`,
+`parts/repeat.mjs`, minor). The fan salted *every* repeated item so it became a second real
+generation. True for `Repeat`, whose copies are the point; false for two identical lines out of a
+pasted document, which are one question charged twice and two units off a cap of fifty. Only the
+producer knows, so only the producer says so: `listOf(items, {repeats: true})`, which `Repeat` alone
+passes (and which survives a reload). Salting follows the flag.
+
+**Contract changes this round** (both frozen-shape edits, both landed with their tests): the per-item
+record gained `hidden`, and a `capped` report gained `items` / `raiseTo` when an item ceiling — rather
+than the generation budget — is what stopped the run.
+
+**One harness flake made deterministic, not loosened.** `c2-fanout-yields-to-a-person` read the
+mock's `closedEarly` flag once; Chromium can hold a cancelled stream's socket open for a moment to
+drain it, so under a full-suite load the flag arrived after the read (it passed alone and in
+`--phase c2`, failed twice in the full run). The scenario now waits for the close it already claimed
+must happen — the claim is unchanged.
+
+**Tested** (slot 0, integrator): `chat-unit` **843 passed / 0 failed** · `unit.js` **5 passed** ·
+`chat-lint` **0 violations over 115 files** · `chat-scope` **clean** · harness `--strict`
+**166 passed / 0 failed** · `--strict --phase perf` **9 passed / 0 failed** (the new `perf-graph-fan`
+beside `perf-graph-500` and `perf-graph-run`). Both themes re-photographed and looked at — the item
+ceiling's banner is a title and a body, and reads correctly in light and dark.
+
+---
+
+## 2026-09-16 — LOL Chat vNext **C2: fan-out, the rest of the parts, and the cap that keeps a colleague's chat fast**
+
+The Computer stops being a three-part demo. One graph now runs over dozens of items, says which of
+them failed, says what it cost, and refuses to spend the farm quietly. Spec: `docs/LOLCHAT_COMPUTER_SPEC.md`
+§2/§3/§8 step 3; contracts frozen at the kickoff in `docs/LOLCHAT_PLAN.md` §2.6 **BH**. Three builders
+in parallel (engine · parts · bridges) plus this landing.
+
+**Fan-out (`graph/fanout.mjs` + a rewritten `graph/runner.mjs`).** A `list` arriving at a port that
+accepts `text` runs the part once per item; every other input broadcasts; the output is the successes
+**in order** as a `list`; the fan **propagates** until a port that accepts `list` (Collect) joins it
+back. Exactly one input may fan — two at once is refused in words (`parts.errFanoutMany`) rather than
+zipped, because a zip that drops the tail of the longer list is the silent loss §1.2 bans. An empty
+list fans zero times and is `done`, not an error. Verified end to end against the mock: Note → Split →
+Ask → Collect makes **exactly five completions, each carrying its own item, in order**.
+
+**One bad item never kills the run.** Each part carries a runtime `fanout {n, done, ok, failed,
+errors[{i,message}]}`, patched after **every** item so the `7/40` badge is live progress and not an
+end-of-run summary. A part is `done` when at least one item succeeded and `error` only when every one
+failed. `stats` gained `calls`.
+
+**The cap moved into the metered ask wrapper** (BH-4), because a `Split` decides its item count and a
+model-mode `Filter` spends N generations inside one part, both only at run time. The wrapper throws on
+the call that would exceed `pref:computeMaxItems` (default 50); the interrupted part goes back to
+*Needs a re-run*, everything finished keeps its value, and the report carries `{cap, spent, stopped}`.
+Two accounting decisions the addendum did not spell out and that the landing keeps: **a cache hit
+spends no cap**, and a refusal that took no seat (busy / aborted / no farm) spends none either. That
+is what makes "raise the cap and finish" cost only the items that were never asked — measured in
+`c2-canvas-cap-banner-raises-and-finishes`: capped at 2 of 5, raise, **five POSTs in total, not
+seven**.
+
+**Five new parts.** `Split` (five modes, refuses a split that fits nothing), `Repeat` (N items that
+become N *real* generations via `planFan().saltFor(i)` → `app.ask.text({cacheSalt})`, so four
+identical prompts are four answers and not one answer shown four times), `Filter` (three deterministic
+modes that spend nothing plus a model mode that spends one cheap yes/no per item and caches by item),
+`From thread` (last answer / last question / a chosen message, refusing with `parts.errNoMessage` when
+there is none) and `To thread` (one message through `repo.appendMessage` + `app.view.upsert` +
+`EV.MESSAGE_PUT` — the same three steps the controller takes, never by touching the DOM). `To thread`
+is also the first part with `output: null`, which BH-6 made legal.
+
+**The value inspector moved into the conversation column** (`graph/inspect.mjs`, C1's second carried
+request). It is a direct child of the chat column inserted immediately before the composer — never
+inside `#chat-messages`, which thread-view owns — closes on its own button, on `Escape` (without
+stopping a run), on a thread change and on panel destroy.
+
+**Landed at the integration (canvas, panel, strings, CSS).** The `7/40` badge in a part's head; the
+per-item failures as a readable list under the part's value; the cost line carrying its call count
+(`0.1s · 104 tokens · 5 calls`) and deliberately *not* saying "1 calls" for a single call; the cap
+banner over the canvas with its one **Raise the cap for this run** button (twice the cap it stopped
+at, never "unlimited"); the stored cap as a **toolbar field** — the only place the preference changes,
+no settings section touched; the Stop button counting items while a part fans; and
+`state().parts[]` republishing `error` / `stats` / `fanout` **without** the debug door's frozen key
+list moving.
+
+**Three things the landing's own screenshots caught**, none of which a passing test would have:
+- a per-item failure read *"Item 4: The farm refused: The farm could not answer: …"* — two prefixes
+  around one sentence. `parts.errFarm` now passes the spine's sentence through (it already names the
+  farm), with `errFarmSilent` for the only case that needs words of its own;
+- `graph.itemError` and `parts.itemError` were the same sentence under two keys. The canvas now
+  paints per-item failures with `parts.itemError`, the one the parts that loop internally already use;
+- the cap banner was one run-on line. It is a title and a body now.
+Also deleted at the landing: `parts.errFanout` ("A list arrived where one value was expected"), dead
+since the runner stopped refusing a fanning port anywhere, and a duplicate `graph.cost` key where the
+later definition had been silently winning.
+
+**Tested** (slot 0, integrator): `chat-unit` **833 passed / 0 failed** · `unit.js` **5 passed** ·
+`chat-lint` **0 violations over 115 files** · `chat-scope` **clean over 264 paths** · harness
+`--strict` **166 passed / 0 failed** (24 in the `c2` phase, six of them the new `c2-canvas-*`, plus two `c2-shots-*`) ·
+`--strict --phase perf` **8 passed / 0 failed** — `perf-graph-run` still 1000 parts in ~56 ms with a
+**0 ms** longest main-thread block, so per-item patching cost the canvas nothing. Both themes
+photographed and looked at (`c2-shots-{dark,light}-{fan,cap}`).
+
+**Still eyes-on** (see `docs/LOLCHAT_RIG_CHECKLIST.md` §13): a forty-item fan on the real model —
+nobody has yet watched a real fan repaint, or timed one, on a slow machine; whether the cap default of
+50 is the right number for this farm; and `To thread`'s one known gap, below.
+
+**Known gap, flagged not fixed.** `To thread` appends a message that is in the store and on screen but
+missing from the **next turn's** context until the thread is re-selected: the controller's in-memory
+`cur.path` is never refreshed, and a fix needs a controller door (`controller.noteAppended(msg)`) that
+belongs to no C2 unit. Written down here rather than papered over.
+
+---
+
+## 2026-09-16 — LOL Chat vNext **C1 fix round**: the Run that re-drew the world, and the picker that never heard the farm arrive
+
+Six reviewer findings against the landed C1. Every one reproduced first; the two majors were real and
+are fixed at the root, each with a gate that would have caught it.
+
+**1. Every runtime patch re-rendered the WHOLE canvas** (`graph/canvas.mjs`, major). `patchPart`
+already names the one part that changed — the canvas discarded `ev.ids` and fell through to
+`render()`, which is `syncBox` over every box plus `inst.update(part)` (two `querySelector` calls per
+Ask, per render). The runner makes ~3 patches per part, so one Run over N parts was ~3N full renders
+of N boxes, synchronously, **before the first byte went to the farm**. The session handler now routes
+`type:'part'` to a narrow `syncOnly(ev.ids)` (falling back to the full render if an id has no box —
+that is a SET change wearing a patch's clothes), and the runner's up-front `queued` marking and its
+leftover cleanup each became ONE write through a new `session.patchParts(ids, fields)` door.
+*Measured:* new perf scenario **`perf-graph-run`** presses Run on 1000 Notes (Notes compute locally,
+so it measures the canvas, not the farm): **0.06 ms/part, 59 ms total, longest main-thread block 0 ms**
+against a 0.4 ms/part budget. With the narrow path disabled the same fixture measures **1.54 ms/part**
+and the gate fails — the gate bites.
+
+**2. Ask's model picker never heard about models the farm published later** (`graph/parts/ask.mjs`,
+major). `modelOptions(app)` read `app.farm.get().models` exactly once, when the box was built, and
+`update()` only re-picked the current value. The farm is discovered *asynchronously after boot*, so
+"cold launch → open the Computer on a saved graph → the farm arrives two seconds later" left every
+Ask box offering nothing but **Automatic** for the life of the panel — recoverable only by tearing
+the panel down (switch tabs and wait out the workbench's 10 s grace). Ask now rebuilds its options
+when a cheap signature of the catalogue moved, keeping the selection via `setPicked`; and the canvas
+subscribes to `EV.FARM_CHANGE` (only when `models` is among the changed fields) to re-sync its boxes.
+New scenario **`c1-landing-model-picker-refresh`**: place an Ask, publish two more models through the
+real `app.farm.update`, assert the option count grew by two and the selection survived (4 → 6, still
+on `mock-echo`).
+
+**3. A re-entrant `run()` claimed the run had been cancelled** (`graph/runner.mjs`, minor). It
+returned a fabricated report with `cancelled: true`, so `debug.run(opts)` — the exact door C2's
+per-part Re-run will call — would announce *"Stopped. Finished parts kept their values."* about a run
+that never began. The refusal now says `busy: true` with `cancelled: false`; the panel has a branch
+for it. A `cancelled` report can only come from a real abort.
+
+**4. The two stateful C1 modules had no unit tests at all** (minor). Added
+**`graph-runner.test.mjs`** (9 tests) and **`graph-store.test.mjs`** (8 tests), both driving the real
+modules against fakes in Node — the interleavings a scenario structurally cannot schedule: the cap
+arithmetic (it counts *generations* and stops, never truncates), our Stop reporting `cancelled` vs
+the governor's 'busy' reporting `yielded`, a failed part blocking exactly its downstream, leftover
+`queued` parts coming back `stale`, re-entrancy, the 500 ms debounce coalescing 200 edits into one
+write, two overlapping flushes writing both docs in order, and `pending()` staying true through the
+in-flight write.
+
+**5. `session.inspect()` put a whole text value in the DOM uncapped** (`graph/panel.mjs`, minor).
+`json`/`list`/`image` were capped at 4000 chars; `text` — the shape Ask produces, i.e. a whole model
+answer — was inserted in full. Every kind is now capped at the same `VALUE_CAP`, with text keeping
+its line breaks and a `graph.valueMore` line saying how much was left out.
+
+**6. `load()` took `rows[0]` from an unordered index scan** (`graph/store.mjs`, minor). `listGraphs`
+is a `threadId` index scan, so its order is the index's. One row per thread is the C1 invariant, but
+the moment a second exists (a crash between the fresh-doc write and the next save, or C2's
+multi-graph) the panel opened an arbitrary one — the same "a graph that lost its parts" failure the
+landing had just fixed, arriving by another door. Rows are now sorted by `updatedAt` desc. Separately
+`pending()` went false while a write was still in flight; it now includes `inFlight`.
+
+**Gates (slot 0):** `chat-unit` **758 passed / 0 failed**, `unit.js` **5 passed**, `chat-lint`
+**0 violations over 107 files**, `chat-scope` **clean**, harness `--strict` **140 passed / 0 failed**,
+`--strict --phase perf` **8 passed / 0 failed**. Light + dark shots of the Computer re-checked.
+
+---
+
+## 2026-09-16 — LOL Chat vNext **C1 landed**: the Computer, a visual program beside the chat
+
+Phase C1 of [LOLCHAT_COMPUTER_SPEC.md](LOLCHAT_COMPUTER_SPEC.md) is in the tree and green. Three
+builders worked in parallel on frozen seams (plan §2.6 **BG**) and the landing wired them together:
+a `computer` panel in the workbench rail that holds a canvas of **parts** wired into a graph, with
+**Run**, **Stop**, undo/redo, pan/zoom/fit, and one graph persisted per thread in the `graphs` store.
+C1's part types are **Note** (literal text), **Ask** (one farm generation through the S0 ask spine)
+and **Collect** (join a list back into one value); fan-out, Split/Filter/Repeat and the thread parts
+are C2, Code/Render/File and export/import are C3.
+
+**What each unit shipped.** C1-U1 the pure engine — `graph/{model,topo,values,undo,serialize}.mjs`,
+every mutation returning a new document, seven frozen wire refusals decided in one place, a `runSet`
+rule that makes a 30-part graph cost **one** generation after a typo fix, `normaliseDoc` as the
+crash-safe read gate (a part left `running` by a crash comes back `stale` with its partial value),
+and the `lolgraph` file format with its round trip. C1-U2 the canvas + panel — DOM parts in ONE
+transformed layer over ONE SVG wire layer, selection/drag/marquee/keyboard/clipboard, the 500 ms
+debounced store, and the `window.LolChat.debug.computer` door the harness drives. C1-U3 the runner +
+parts — serial execution in `runSet` order, every thinking part through `app.ask` at
+`priority:'background'` with the run's AbortSignal (never `app.ask.queue`, which would drop the 5th
+part of a graph), per-part cost, error containment (a failed part leaves its downstream `stale` and
+the rest of the run still executes), Stop (the in-flight part returns to `stale`, finished values
+kept) and the yield path (a governor-aborted ask is not an error: the run ends `yielded` and the next
+Run picks it up).
+
+**Measured, not asserted:** 500 parts + 250 wires build in **55 ms** (budget 1500), pan work p95
+**3.5 ms** (budget 16), inter-frame p50 16.7 ms — 60 fps with 0 transformed parts and the wire paths
+reused rather than rebuilt.
+
+### Four defects the landing found, each fixed at the root with a test
+
+**1. A panel opened on a brand-new thread was handed `thread: null` forever** (`ui/workbench.mjs`).
+§2.6 AP.1 starts a fresh thread with the workbench closed and `thread = null`, and no second
+`THREAD_SELECTED` ever arrives for it — so *start a chat, then open the panel*, the most ordinary
+route there is, gave every panel a null thread for the rest of its life. Each panel was re-deriving
+the thread itself to survive. The workbench now resolves the row lazily when a panel is instantiated
+and **tells** the live panel (`ensureThread()`, epoch-guarded like `onThreadSelected`). New scenario
+`c1-landing-thread-handoff` asserts a probe panel really sees the live thread id.
+
+**2. Two attaches in flight could leave a thread with two graph rows — and lose the parts**
+(`graph/panel.mjs`). Fixing (1) made a second `attach()` ordinary, and the session's guard was about
+the *intent* ("same thread") rather than the *document*: the newcomer returned early AND cancelled
+the in-flight load by epoch, leaving the panel with no document at all. Worse, `store.load()` WRITES
+a fresh document for a thread that has no row, so two concurrent loads created two rows and the next
+visit could pick the empty one — a graph that silently lost its parts (reproduced 2 runs in 3). Two
+guards now: "already on this thread" counts only once the doc is really loaded, and an attach to the
+thread an attach is already loading stands aside. The scenario asserts **one** graph row per thread
+with the placed part still in it.
+
+**3. The "place a part" hint was painted over every graph** (`css/graph.css`). The canvas hides it
+with `empty.hidden = true`, and an author `display:flex` **beats** the UA sheet's
+`[hidden] { display: none }` — so the hint sat over the canvas whatever was on it. One
+`#lolchat .graph-empty[hidden] { display: none }` rule; caught by the new screenshot scenario
+asserting the hint's computed display, not its presence.
+
+**4. Ask's model picker showed a blank line while running on a real model**
+(`graph/parts/common.mjs`). The options come from `app.farm.get().models`; a `select.value = v` that
+matches no option (a cold caps list, or a model the farm has not advertised) leaves the picker empty
+while the part happily asks that model. `setPicked()` now adds the missing option rather than
+silently showing nothing — a picker must not lie about what will be asked. `c1-shots` asserts every
+picker on Ask shows something, and that the one showing `mock-echo` is the model that ran.
+
+### Integrator changes at the landing
+
+- `core/types.mjs` (additive, BG-10): `RunReport` gains `yielded` / `capped {cap, stopped}` / `cycle`
+  and the run options gain `maxItems?` — the three outcomes the runner already returns and the panel
+  reads; `PartSpec.inputs[].required` is now in the typedef the runner already honours.
+- `strings/graph.en.mjs` + `graph/panel.mjs`: a yield and a cap are run outcomes of their own and
+  were announcing as "Nothing to run". Added `graph.runBusy` and `graph.runCapped`, with
+  `c1-landing-run-sentences` guarding that both resolve and read differently. The **"raise the cap
+  for this run"** button stays with C2, which owns `pref:computeMaxItems`.
+- New integrator scenarios: `c1-shots.mjs` (the surface in both themes, split and work widths, with
+  machine assertions: parts inside the canvas box, no transform on a part, wires with real geometry,
+  the state as text next to the colour) and `c1-landing.mjs` (the two seams above). Fit is taken
+  **after** the 160 ms column transition — a fit measured mid-transition photographed a 29 % zoom.
+- The workbench's `.chat-work-panel` host keeps its `min-height: 100%` / auto height; the Computer
+  gives its own host a definite height, scoped by `[data-panel="computer"]`. That is the house
+  pattern for a full-height panel until a phase needs it for everyone.
+
+**Not done, deliberately:** `app.ask` still has no `temperature` / thinking pass-through, so Ask
+ships neither control (their strings are registered for the day it lands — a C2 kickoff decision);
+`PartSpec.output` is static, so an Ask set to `list` feeding a text port is refused at run time
+rather than at wire time (C2 wants `outputFor(part)`); the value inspector is a popover, not the
+chat-column inspector (C2).
+
+**Gates (slot 0, after every change above):** `chat-unit` **741 passed / 0 failed**, `unit.js`
+**5 passed**, `chat-lint` **0 violations over 107 files**, `chat-scope` **clean**, harness
+`--strict` **139 passed / 0 failed**, `--strict --phase perf` **7 passed / 0 failed**.
+Human-rig items for the Computer are in [LOLCHAT_RIG_CHECKLIST.md](LOLCHAT_RIG_CHECKLIST.md).
+
+---
+
+## 2026-09-16 — LOL Chat vNext **S0 fix round**: the background lane that was not a lane, and a migration nobody had ever run
+
+One review pass over the S0 landing, five majors and two minors. All seven are resolved below; six
+were fixed at the root with a test that would have caught them, one was reclassified (the queue chip
+was not "enforced later" — it was built).
+
+**1. The background lane had no cap** (`net/governor.mjs`, major). `acquire('background')` checked
+`foreground === 'idle' && freeSeat()` and then added to an unbounded Set. `freeSeat()` reads the
+FARM_TICK snapshot, which does not move between two calls in the same frame — so five asks fired in
+one `Promise.all` all saw the same spare seat and **five generations went out on a two-seat farm**.
+The governor's own header says it is "the single place that says no". Fixed by making the lane a
+single file: `BACKGROUND_LIMIT = 1`, checked in both `canStart` and `acquire`. The seat count is the
+FARM's arithmetic, not ours — a seat the snapshot still calls free may already be ours — and a
+fan-out belongs in `app.ask.queue`, which is serial by construction. The governor unit test that
+asserted "two summarisers may share the spare seat" was the old contract and is now the new one; the
+new ask test fires five concurrent background asks and asserts `farm.stats().maxInFlight === 1` with
+the other four refused `busy`, never silent.
+
+**2. The renderer could overwrite or delete `project.json`** (`shell/src/main/projects.ts` +
+`projects/memory.mjs`, major). `target()` validated the metadata file like any other `.json`; only
+`walk()`'s `isMeta()` filter knew it was special. One `write(id,'project.json',…)` — through the
+very file-writing path a model-named target flows down — flipped `autoApply`/`autoFix` **on**,
+against the owner decision that both are off by default and opt-in per project; one
+`remove(id,'project.json')` made the project vanish from `list()`, in a module whose own comment
+promises a click in our UI is never how a sketch disappears. Fixed by RESERVING the name in
+`target()` (new `mutate` flag: write/writeBinary/remove refuse with `E_PATH`, read still allowed) and
+mirroring it in the memory backend, which studio plan §4 requires to answer identically. A nested
+`lib/project.json` is an ordinary file and stays writable. Covered in both `projects-api` (real temp
+root, compiled output) and `projects-bridge` (memory backend).
+
+**3. The sandbox navigation veto allowlisted a substring** (`shell/src/main/index.ts`, major).
+`/sandbox[\/]runner\.html/.test(url)` matched **any** URL containing that text — including
+`file:///…/LOL Studio Projects/<id>/sandbox/runner.html`, which is an accepted two-segment `.html`
+path the projects API will happily write. Latent until S2 ships the subframe, but the veto is the
+whole sandbox boundary. Fixed by resolving the runner once at wire-up
+(`pathToFileURL(app.getAppPath() + '/renderer/sandbox/runner.html')`) and comparing for equality
+after stripping query and hash. `shell/test/chat-harness/main.cjs` mirrors the exact-match rule so
+the harness can never show a friendlier boundary than production.
+
+**4. A finished batch's `cancel()` killed the NEXT batch** (`app/ask.mjs`, major). `queue()` returned
+`{cancel, state}` closing over module-level state with no batch identity, so a stale handle aborted a
+run somebody else had just started, and a stale `state()` reported that run's progress as its own.
+For the Computer panel — one handle per graph run — that is a silent kill. Fixed with an epoch per
+batch: `cancel()` no-ops when it does not match the running batch, and `state()` returns its own
+batch's frozen final state. `QUEUE_CANCEL_EVENT` stays the global door.
+
+**5. The v1 → v2 IndexedDB upgrade had never been run** (`state/schema.mjs`, major). `DB_VERSION`
+went to 2 and two stores were added; every harness scenario that opens the real database creates a
+FRESH profile, so only the `oldVersion === 0` path was ever exercised. Every user on shipped v0.1.45
+has a v1 database holding their chats, and nothing proved opening it at v2 kept them. The code read
+correct — a migration is the one thing you do not ship on a code read. Both tests studio plan §3.6.1
+names now exist: `store-v2.test.mjs` drives `upgrade(db, oldVersion, tx)` against a fake IDB (fresh,
+v1→v2, an interrupted half-made store, an already-v2 open, and no-transaction), and the harness
+scenario **`s0-store-v2`** opens `lol-chat` at version 1 BY HAND with the five v1 stores, writes a
+thread + two messages + a kv row, reloads, and asserts the thread, its messages, its parent chain and
+the kv row survive, `repo.mode === 'idb'`, the database is at version 2, and `graphs`/`projects` exist
+and are writable through their indexes. (The seeding boot runs with `forceMemoryStore` so the app's
+own connection cannot block the version change.)
+
+**6. `queue()` truncated a batch silently** (minor). `items.slice(0, queueMax)` with no signal: a
+caller fanning out 10 nodes could not tell "all 10 done" from "6 dropped on the floor", because the
+only readable field, `done`, is also what a partially-cancelled batch reports. `truncated` now rides
+in the QueueState, the `ask:queue` bus event and the result.
+
+**7. S0-U3 shipped after all — `app.ask.queue` no longer runs invisibly** (minor, reclassified).
+The landing disclosed that the queue chip was not built and studio plan §3.5.4's "nothing starts a
+batch without a visible queue chip" was therefore unsatisfiable. Rather than enforce a rule about a
+missing file, the file was written: **`ui/queue.mjs`** (a chip over the bottom-left of the chat area:
+label + `i/n`, the batch-limit note, and a Cancel that EMITS `ask:queue:cancel` rather than holding a
+handle — so a stale reference cannot exist here by construction), `strings/queue.en.mjs`, a real
+`css/queue.css`, and the `queue` loader row back in `main.mjs` verbatim where the landing left its
+gravestone. It registers in `CANCEL_HANDLERS`, which is how Escape reaches a background batch. New
+harness scenario **`s0-queue-chip`** drives it in the real DOM, including the batch-limit note, and
+photographs it in both themes. The photographs earned their keep once more: mounted on `app.root`
+the chip floated over the **sidebar**, near Settings; it is mounted into `.chat-main` (already
+`position: relative`) so it sits over the conversation, just above the composer, in every width
+state.
+
+**Also**: the strict harness now repeats every failure by name in a final `[run] FAILED (n):` block.
+The reviewer measured one red run in six with the scenario name lost to the scrollback; a flake you
+cannot name is a flake nobody chases. (The flake itself did not reproduce here and is still open —
+RIG_CHECKLIST §12.)
+
+**Gates at slot 0 after the fixes:** `chat-unit` **624 passed / 0 failed** · `unit.js` **5 passed** ·
+`chat-lint` **0 violations over 89 files** · `chat-scope` **clean** · harness `--strict` **120 passed
+/ 0 failed** · `--strict --phase perf` **6 passed / 0 failed**.
+
+---
+
+## 2026-09-16 — LOL Chat vNext **S0 landed**: the Studio rails (workbench column, ask spine, projects API)
+
+S0 is the foundation the Computer panel (docs/LOLCHAT_COMPUTER_SPEC.md) and the later benches are
+built on: a workbench column that hosts panels, a one-shot typed model call, and a scratch-projects
+API in main. Three of the four planned units shipped. Gates at slot 0 after the landing:
+`chat-unit` **612 passed / 0 failed** · `unit.js` **5 passed** · `chat-lint` **0 violations over 87
+files** · `chat-scope` **clean, 209 paths** · harness `--strict` **118 passed / 0 failed** ·
+`--strict --phase perf` **6 passed / 0 failed** (medians 1260-1788 render tok/s, p95 0.4-1.5 ms).
+Light and dark screenshots taken and read by eye; two layout bugs they caught are fixed below.
+
+**What landed.**
+- **The workbench (S0-U1)** — `ui/workbench.mjs` publishes `app.work` = {open, close, current, width,
+  panels, request, on} and hosts the `WORKBENCH_PANELS` registry slot, read at render time so a panel
+  registered after boot appears without the workbench being told. Three width states (chat / split /
+  work) with the frozen DOM contract: a `role=tablist` rail, a radiogroup width control, roving
+  tabindex, one live-region line per change. The split fraction is dragged with a grip and persisted
+  in `kv ui:workWidth`; `Ctrl+\` cycles, `Ctrl+1..4` open the n-th panel. Exactly one panel is ever
+  live: switching calls `hide()` then `destroy()` before the next `create()`, hiding the chat
+  suspends and, after a 10 s grace, destroys. A thread reopens the workbench it was left with
+  (`thread.studio`, merged and clamped by the pure `app/studio-state.mjs`).
+- **The ask spine (S0-U2)** — `app/ask.mjs` publishes `app.ask` = {json, text, queue, mode, vision}:
+  one typed model call with the schema → prompt → text ladder, the working rung remembered per farm
+  in kv, governor etiquette, foreground/background priority, abort, per-call stats and an
+  input-hash cache. `app/json.mjs` is the pure extract/validate/coerce/promptFor half;
+  `app/caps.mjs` makes the ONE `/model_group/info` GET that answers "can this model see images".
+- **Scratch projects (S0-U4)** — the sanctioned main/preload carve-out: `projectsPath.ts` (pure path
+  validator) and `projects.ts` (a lazy root under `<dataDir>/LOL Studio Projects`, `project.json`
+  per folder with no central index, `lstat` of every path component so a junction stops the call,
+  atomic tmp+fsync+rename with a retry ladder, quotas, a write-rate bucket, nothing thrown across
+  IPC), 15 typed `ipcMain` handlers inside a marked region of `index.ts`, and exactly one additive
+  `projects` property in the preload. `projects/bridge.mjs` is the only `window.lol` consumer and
+  degrades to an in-memory store, with a visible notice, on a client whose preload has no `projects`.
+  **No execution primitive of any kind**: reveal is `showItemInFolder`, open is `openPath`, and
+  there is no `vscode://`.
+
+**S0-U3 (the queue chip) did NOT ship** — three builders ran this round. The loader row `queue` was
+removed from `main.mjs` rather than left pointing at a missing file (a feature row with no file fails
+`--strict` for the whole suite); it goes back verbatim when `ui/queue.mjs` lands. Everything the unit
+needs is in the tree: `app/ask.mjs` already emits `'ask:queue'` and accepts `'ask:queue:cancel'`,
+`API_KEYS.queue` is frozen, `css/queue.css` is still imported as a stub. The consequence to respect
+is that studio plan §3.5.4's "nothing starts a batch without a visible queue chip" is not satisfiable
+yet: a panel wanting a batch lands with S0-U3 or shows its own progress.
+
+**The screenshots earned their keep — two layout bugs, both invisible to the existing assertions.**
+1. **The panel column rendered 1px wide in the `work` state.** `work` (and the <900px split) takes
+   `.chat-main` out of flow with `position:absolute`; grid auto-placement then slid `.chat-work`
+   itself into the vacated second track, which in those states is `0px`. `s0-workbench` measured the
+   grid TRACK (1024px) and stayed green while the actual panel was one pixel of border with its body
+   overflowing. Fixed by pinning the two ends (`.chat-side` → column 1, `.chat-work` → column 3).
+   `.chat-main` is deliberately NOT pinned: pinning it makes its grid area the containing block once
+   it is absolutely positioned, and the docked composer then measures `left:240px` from the
+   zero-width second track — which is exactly what the first fix attempt did, visible as a composer
+   bar starting 240px too far right.
+2. **The composer collapsed in the `split` state.** The context meter's content min-width is ~190px
+   and it does not shrink, so in a ~440px chat column the textarea was squeezed to 134px and wrapped
+   its placeholder over four lines. Fixed for the split state only: the composer row wraps, the
+   textarea takes the whole first line, meter and Send sit under it. `field-sizing: content`'s
+   vertical autogrow and the chat-only look are untouched.
+
+**Other landing work.** `h0-no-real-lol` now allows exactly `['getBlenderConnection','projects']` and
+pins the 15 projects method names against the real preload, so a sixteenth method added without a
+review turns that scenario red. The mock finally honours BD-11: `scenario-models.js` reads the schema
+out of the PROMPT as well as out of `response_format` (the fence decision still keys off
+`response_format` alone, so the drop and prompt rungs still exercise the client's fence extractor).
+`core/types.mjs` gained three optional fields (`AskResult.cached`, `AskResult.errors`,
+`QueueState.refused`/`.stalled`). `app/caps.mjs` was ratified onto chat-lint rule 11's allow list —
+the studio plan names that file as the one place the capability GET may live. A new
+integrator-owned `s0-shots.mjs` photographs the workbench in both themes and asserts what a
+screenshot cannot: the tab is selected, the width radios agree with the state, the split column stays
+inside its 320px/70% clamp, the conversation keeps a readable column, and nothing scrolls sideways.
+The full list of ratifications is plan §2.6 **BE**; the rig items are RIG_CHECKLIST §12.
+
+**Not proven here (rig work).** Every S0 test ran against the mock: the ask spine has never met a
+real LiteLLM `drop_params` or a real `gemma4:12b`, no file has ever been written to a real OneDrive
+or antivirus-scanned data folder, nothing has actually been opened in Explorer, and the drag has only
+been driven by synthetic pointer events.
+
+## 2026-09-15 — LOL Chat vNext **P2 fix round 2**: the answer that streamed into the wrong chat, and the chat that collapsed when you pressed Regenerate
+
+A second review of the P2 landing filed 12 findings (2 blockers, 4 majors, 6 minors). **All 12
+reproduced and all 12 are fixed at the root**; each carries a test that would have caught it. Gates
+re-run at slot 0 after the last fix: `chat-unit` **472 passed / 0 failed** · `unit.js` **5 passed** ·
+`chat-lint` **0 violations / 74 files** · `chat-scope` **clean, 179 paths** · harness `--strict`
+**101 passed / 0 failed** · `--strict --phase perf` **6 passed / 0 failed** (medians 1270–1788 render
+tok/s, p95 0.5–1.6 ms). Light and dark screenshots re-taken and read by eye: the only visual change
+is the composer while a seat is being waited for, and it is the change that was asked for.
+
+**BLOCKER — a seat-wait resend streamed its answer into whatever chat was open.** §2.6 AU.4 froze
+"a feature that paints a message the reader may have navigated away from guards its `view.upsert`",
+and `seat-wait.mjs`'s own `paint()` got that guard at the P2 landing — but `controller.generate()`,
+the one place the wait actually generates from, did not. Ask in chat A on a full farm, start chat B,
+let the seat free: the reply to A's question opened a stream in B and painted there for as long as
+the answer took (minutes, on a real farm), vanishing only when the post-stream `refreshView()`
+rebuilt B's path. The store was always right; the screen was not. The same path dropped busy /
+password local notes into the wrong chat. Fix: one `onScreen(threadId)` predicate in the controller
+guards `upsert`, `beginStream`, both settle-path `upsert`s and `localNote()`; off screen `stream`
+stays null and the finalize tail writes nothing (the checkpoints and the finalize still land, so the
+answer is there when the reader comes back). New scenario **`p2-seat-wait-elsewhere`** drives the
+whole thing through the real mock — wait in A, open B, free the seat, then sample B's DOM every
+200 ms until the answer really is arriving, asserting **zero rows** each time — and it was verified
+to FAIL (`["…:streaming"]: got 1, want 0`) against the unguarded controller before the fix.
+
+**BLOCKER — Regenerate / Edit moved the persisted head BEFORE asking the governor, then were
+refused.** Both write first on purpose (the branch point must be on screen before the new answer
+streams into it), and `generate()` is where the governor is first consulted. With the slot busy — a
+running stream, or a **seat wait, which holds it** — `acquire` returned null, the controller toasted
+"A reply is already running", and nothing put the head back: a four-message chat collapsed to its
+first question, with no sibling switcher to escape and no explanation. `editUser` additionally left
+an orphan user turn in the store. Easily reachable, because the row actions gate only on the ROW's
+own status, so every older answer still offers Regenerate while something streams. Fix:
+`regenerate()` and `editUser()` ask `gov.canStart('foreground')` (false for both 'streaming' and
+'held') before any write, and again after their store read; `continue.mjs`'s `isStreaming()` guard
+was widened the same way. `fork()` is deliberately NOT gated — it writes a new thread and never
+generates. Two unit cases in `branching.test.mjs` hold the governor and assert `thread.headId` is
+unchanged, no message was written, no request left the machine, and the toast says what the hold IS.
+
+**MAJOR — the composer never told the reader a seat was being waited for.** `gov.hold()` emits
+GOV_CHANGE, the composer turned that into `setBusy(true)`, and `setBusy` **hid Send** — so the
+"Waiting for a seat…" label §4 P2-U1 asks for was written to a button nobody could see. The composer
+row was indistinguishable from a streaming one, and pressing Enter answered "A reply is already
+running", which is false: nothing is running, the client is queued. Fix, recorded as §2.6 BB.2: the
+composer distinguishes `held` from `streaming` — held keeps Send on screen, disabled, wearing its
+holder's label, beside Stop — and a hold now carries its own sentence (`gov.hold(who, {note})`,
+`gov.holdNote()`), which a refused submit shows instead of the generic one. `p2-seat-wait` asserts
+the visible label and that the refusal says "seat" and not "already running"; the screenshot shows a
+greyed **Waiting for a seat…** next to **Stop**.
+
+**MAJOR — after five refused resends the client stopped waiting but the row kept saying it was.**
+`seatDecision` returns `'manual'` at `MAX_ATTEMPTS`, after which only Try now moves anything — but
+`refreshNote()` recomposed the same "Waiting for a seat — 2/2 in use." on every snapshot, for up to
+the full 15-minute give-up window. Five lost jitter races is ordinary on a 4–6 person farm, i.e.
+exactly the situation this unit exists for. Fix: `composeNote(w, caps)` composes from the stored
+sources (§2.6 AZ.1) **and** the attempt count, adding `etiquette.waitingManual` at the cap and
+`etiquette.waitingUnknown` for the other 'manual' branch (a farm that reports no seats at all, which
+was silent for the same reason). A pure table plus an end-to-end case that drives five refusals and
+asserts the note changes **exactly once**, at the fifth, and is stable on both sides of it.
+
+**MAJOR — a duplicate id in an imported file silently dropped messages and re-parented the rest.**
+The id maps were keyed by the file's own id and minted once per distinct key, so both occurrences of
+a repeated id resolved to the SAME new id and the second record overwrote the first — with the toast
+still reporting every record imported. (Reproduced: 4 messages in, 3 in the store, "FIRST ANSWER"
+re-parented onto the second question.) Fix: ids are minted **per record**; the reference maps stay
+first-wins (a `parentId` can only mean one record) and every repeat is reported by index.
+
+**MAJOR — nothing closed the inline editor on a thread switch.** Its header claimed Escape and a
+thread switch closed it; `closeEdit()` had exactly two callers, neither of them a thread switch.
+`showPath()` removes the row on any repaint, so the reader's half-typed edit went into a detached
+node with no warning — and `isEditing()`, which trusted its own handle, stayed **true for the rest of
+the session**, permanently disabling the ArrowUp "edit your last message" shortcut. Fix:
+`ui/message-actions.mjs` closes the editor on `EV.THREAD_SELECTED`, and `isEditing()` is now DOM
+truth (`open.row.isConnected`), so any repaint that drops the row heals it. `p2-edit` opens the
+editor, types, switches away and back, and asserts the editor is gone AND ArrowUp still fires.
+
+**Minors, all fixed.** `release(holder)` force-idled a STREAMING slot and seat-wait called it from
+its `STREAM_END` listener, i.e. before the controller's own `finally`: the governor advertised a free
+slot and the composer swapped Stop back to Send mid-finalize — `release()` is now a no-op while
+streaming (only the closure `acquire()` returned ends a stream). · `cancelHold()` had no production
+caller at all (Stop goes through CANCEL_HANDLERS) and is **deleted** along with `hold()`'s `{cancel}`
+argument: one cancel door, noted in §2.6 BB.3 so P3 does not re-add the other. · `remapParts` copied
+every part field verbatim, contradicting the module's own whitelist promise and feeding P3's
+image/doc renderers — parts now go through `PART_FIELDS` per type, unknown types are dropped with an
+error, and search results are whitelisted too. · The strip's model field was missing for up to a
+publish interval (4 s) after every launch because a programmatic `picker.set()` fires no 'change':
+the picker now dispatches a `lolchat:model` CustomEvent on `#chat-model` and the strip listens for it
+(EV stays frozen, §3.2). · `'perf'` left `BUDGET_FIELDS`, so a stranger's reply finishing on a shared
+farm no longer rebuilds an idle reader's whole request preview (perf feeds only a figure read live at
+submit time). · Typing cost a `THREADS_CHANGED` — a full sidebar `listThreads()` and a header
+re-read — twice a second for `thread.draft`, which nothing renders: `repo.updateThread` took a third
+argument, `{silent: true}`, and `drafts.mjs` uses it. · Search re-cursored the entire message store on
+every debounced keystroke (~140 ms at 12k messages by that file's own measurement); a longer needle
+can only match where the shorter one did, so the hits are kept and re-filtered, with a full scan only
+when the needle is not an extension or the store moved under the cache. A unit case proves narrowing
+and scanning agree on both the rows and the snippet.
+
+**Not done, deliberately** (raised in `docs/LOLCHAT_DISCUSS.md` as D-P2FIX2 for P3): caching the
+built path between previews. The other half of the typing-cost finding wants `controller.preview()`
+to stop re-reading the whole path every 250 ms; that needs a repo write counter the controller can
+key a cache on, which is a §3.4 contract change and not something a fix round should invent under a
+landing gate.
+
+---
+
+## 2026-09-15 — LOL Chat vNext **P2 fix round 1**: the waiting note that grew for ever, and the row that came back from the dead
+
+A review of the P2 landing filed 10 findings (1 blocker, 4 majors, 5 minors). **Nine reproduced and
+were fixed at the root; one is rejected with evidence.** Each fix carries a test that would have
+caught it. Gates re-run at slot 0 after the last fix: `chat-unit` **462 passed / 0 failed** ·
+`unit.js` **5 passed** · `chat-lint` **0 violations / 74 files** (+ `--self-test` 15/15) ·
+`chat-scope` **clean, 177 paths** · harness `--strict` **100 passed / 0 failed** ·
+`--strict --phase perf` **6 passed / 0 failed** (medians 1526–1788 render tok/s, p95 0.5–1.2 ms).
+
+**BLOCKER — the waiting note re-appended the seat sentence on every farm tick.** `refreshNote()`
+recomposed with `waitingNote(w.msg.error, caps())`, and `waitingNote` read `err.message` — which by
+then WAS the composed note. So each snapshot glued another "Waiting for a seat — 2/2 in use." onto
+the end, and the equality guard on the next line could never fire. In the app that is one append and
+one `repo.putMessage` per farm publish: ~4 s apart, 15 minutes of give-up → **~225 copies of the
+sentence (~7.6 kB) in one row**, repainted every time (`revOf` includes `error.message`). Fix: the
+farm's OWN sentence is kept verbatim on the wait record (`w.farmText`, also mirrored as
+`error.farmMessage`) and `waitingNote(farm, caps)` now takes a STRING — feeding the note back in is
+no longer expressible. Covered three ways: a pure idempotence table, a unit test asserting the stored
+note is **byte-identical after ten ticks** (and that the view was not repainted), and `p2-seat-wait`
+now compares the note with `eq` instead of `includes` after its 5 s of full farm. Every existing
+assertion used `includes`, which is exactly why nothing saw it.
+
+**MAJOR — deleting a seat-waiting row wedged the composer, then resurrected the message.**
+`realTurn()` counted `status:'waiting'` as a real turn, so Delete and Fork sat beside Try now /
+Cancel. Deleting left the governor **held on a message that no longer existed** (Send gone, Stop
+showing, for ever), and when a seat freed `resend()` generated into the captured object and
+`paint()`'s `putMessage` wrote the deleted row back — a reader's delete undone, and a generation
+fired into it. Fixed in both halves: `message-actions.mjs` excludes `'waiting'` from `realTurn()`
+(the row offers only its own two actions), and `seat-wait.mjs` stopped trusting the object it
+captured — one `stillThere()` re-read per snapshot (the store emits no per-message event, §3.2),
+also before `resend()` and before the cancel repaint; a row or thread that is gone `abandon()`s the
+wait and releases the hold. The snapshot pass is now a single re-entrancy-guarded `onSnapshot()`, and
+`resend()` claims `w.resending` **before** its first await, so two snapshots cannot both send.
+New scenario `p2-seat-wait-deleted` plus two unit tests.
+
+**MAJOR — "Export all chats" wrote the chats that were meant to vanish.** `exportAll()` started from
+`repo.listThreads()`, which merges the ephemeral backend — so one click put a sensitive one-off on
+disk, and `parseImport` (which forces `ephemeral:false`) turned it back into a permanent chat on
+re-import. Neither was told to the reader. `collectExportAll()` now filters them and reports how many
+it skipped; the toast says "… — N temporary chat(s) left out". The per-thread … menu still exports
+one, because that is an explicit choice about a named conversation. New scenario
+`p2-export-skips-ephemeral` (the ephemeral chat's text must not appear in the file bytes). Filed as
+DISCUSS **D-U6** in case a checkbox is wanted instead.
+
+**MAJOR — an import could plant a 'waiting' row with no waiter.** `MESSAGE_FIELDS` copied `status`
+verbatim, so a hand-written file re-opened the §2.6 AU.3 defect the landing had just closed in
+`repo.recoverInterrupted`: Try now / Cancel with nothing behind either, or a row that streams for
+ever. A missing `status` also silently removed Regenerate from that row. `importStatus()` now coerces
+anything that is not a settled value (`done|error|aborted|interrupted|local`) — `waiting` and
+`streaming` become `interrupted`, a missing one becomes `done` (or `error` when the file carried an
+error object), exactly as the boot recovery does. Unit test with eight hand-written rows.
+
+**MAJOR — the waiting row's Try now / Cancel were invisible until hover** (DISCUSS D-U3, settled).
+The one row whose entire purpose is a decision showed, to a reader who does not hover, a bordered
+paragraph saying the farm is full and no way to act on it — visible in `p2-shots-waiting.png`.
+`css/thread.css` now pins `opacity: 1` for `data-status='waiting'` and `'error'`, gives the waiting
+buttons a real button skin, and pulses the note's left edge on 1.8 s (dropped under
+`prefers-reduced-motion`) so a fifteen-minute wait does not read as a dead thread. Asserted by
+computed style in `p2-seat-wait-deleted`; both shots re-taken and looked at.
+
+**MINORS.** The meter popover printed `allowances + images` as its Attachments row, but
+`ctx/tokens.mjs` already charges `IMAGE_TOKENS` inside `estimateMessage` — the column summed to ~2×
+its own Total the moment a message carried an image; it prints `allowances` alone now, with a unit
+test pinning `total` as the five rows the popover shows. `setOutsideContext()` nulled **every** row's
+`rev` on every recompute (a 250 ms draft debounce, and `FARM_CHANGE` on `perf`, which moves on nearly
+every publish), re-running `parseBlocks` over the whole thread for a set that was almost always
+identical; it diffs now. The strip's model field was bound only to the farm's clock, so it disagreed
+with the picker beside it for up to 4 s after a deliberate switch — it listens to the select and to
+`THREAD_SELECTED` too (asserted with the farm **paused**, so only the picker can drive it), and the
+headline shots now show the complete strip. `ui/notify.mjs`'s two private class names had no CSS at
+all, making Notifications the one unstyled block in the settings popover — `css/strip.css` now
+mirrors `.chat-ctx-row` / `.chat-ctx-help`. And a notification for a chat with no title announced
+itself as "**Notifications**" (it shared the settings heading's key); it has its own string now.
+
+**REJECTED — "`lastSent` survives a pipeline throw, so the next reply calibrates against the wrong
+request".** The stale value is real, the consequence is not: `budget-trim` runs inside
+`buildRequest()` on **every** real `generate()` (controller.mjs:421, `preview: false`), and
+`calibrateFrom` is only ever reached from that same generation's `onDone` — so the next reply's own
+characters have already overwritten `lastSent` before anything reads it. No path reaches `onDone`
+without having run the transform. The one-line clear on `EV.STREAM_END` was kept anyway (it is free,
+and it stops a dead sample from outliving its generation), but no wrong `tokRatio` was reachable and
+no test claims otherwise.
+
+**Rig items added** (§3 and §8): a five-minute seat wait on a real full farm (the note must not grow,
+and the two buttons must be visible without hovering); deleting the thread under a pending wait;
+Export all with a temporary chat open; and importing a hand-edited file whose `status` says
+`waiting`/`streaming`.
+
+**Not run on this box:** `shell/test/e2e.js` and anything against the live farm. Nothing was
+committed: the work stays in the working tree.
+
+---
+
+## 2026-09-15 — LOL Chat vNext **P2 landed**: the farm is honest about seats and context, and a chat is a tree
+
+Branch `lolchat/vnext`, phase **P2** of [LOLCHAT_PLAN.md](LOLCHAT_PLAN.md) (§4 P2). Eleven new
+feature modules behind the loader rows §2.6 AA froze at the kickoff, all present, so `--strict` is
+green again — and from this phase on `--strict` **and** `--phase perf` are both landing gates.
+
+**What P2 ships** (four units; per-unit specs in §4 P2):
+- **Farm etiquette (P2-U1).** A seat-gate 429 is no longer "[error: HTTP 429]": the reply row becomes
+  a **waiting row** carrying the farm's own sentence plus "Waiting for a seat — 2/2 in use", with Try
+  now and Cancel, while the governor is HELD so Send refuses and Stop cancels. Nothing retries on a
+  timer: `seatDecision()` is a pure function evaluated on every farm snapshot (give-up → attempts cap
+  → seats unknown → nobody looking → jittered schedule → resend), so a minimised or hidden window
+  never takes a seat. Plus the one-line **farm strip** under the topline (model, engine, seats, GPU,
+  tok/s, "farm silent", "password needed"), desktop **notifications** for long replies finished while
+  unfocused, and the governor's background-request policy (a background acquire needs a spare seat
+  and an idle foreground, and a foreground acquire aborts every in-flight background one).
+- **Context budget (P2-U2).** A local estimator (CJK/kana/Hangul weighted, calibrated per model from
+  the farm's own `usage` with an EMA), a **meter** in the composer row (`~409 / 16.4k` + an
+  "advertised" pill, breakdown popover), a **cost gate** that arms Send on a fingerprint for 10 s
+  when a prompt is expensive and BLOCKS what cannot fit at all, whole-turn **trimming** that keeps
+  the system prompt, pinned messages and the newest turn, and **pin/unpin** per message. The trimmed
+  rows dim (`.chat-outside`).
+- **The conversation tree (P2-U3).** Regenerate (and "Regenerate with… More creative / More
+  precise"), edit-and-resend, `◀ 2/2 ▶` sibling switching, fork, delete-subtree — every one of them
+  writes a new node and moves `thread.headId`, so nothing is ever overwritten and the older answer
+  survives a reload. **Continue** discovers per model whether a prefill works (first-chunk abort
+  before a single character is painted, then a retry with a trailing user turn, verdict remembered in
+  kv). Plus per-thread drafts, the thread header (rename, system prompt) and one document-level
+  keyboard layer.
+- **The library (P2-U4).** Date groups with Pinned on top, diacritic-folded search over titles AND
+  message bodies with snippets, the row … menu (rename / pin / export .md / export .lolchat.json /
+  delete), ephemeral chats that never touch IndexedDB, export/import (import is always a COPY: every
+  id re-minted, every reference rewritten, `imported:true`), and the settings popover that hosts
+  every feature's section.
+
+**Gates at slot 0** (all re-run after the landing fixes below):
+`chat-unit` **455 passed / 0 failed / 0 skipped** · `unit.js` **5 passed** · `chat-lint`
+**0 violations / 74 files** (+ `--self-test` 15/15) · `chat-scope` **clean, 177 paths** ·
+harness `--strict` **98 passed / 0 failed** (h0 12, p0 8, p1 49, p2 29) ·
+`--strict --phase perf` **6 passed / 0 failed** (median 1260–1813 render tok/s, p95 0.5–1.8 ms —
+the strip, the meter and the tree cost nothing measurable).
+
+**`transform-order.test.mjs` reports 0 skipped for the first time.** The §2.6 AH file now runs all
+four cases against the REAL modules through `controller.preview()`: `params-resolve` (call > thread >
+recipe), `thread-system` (byte-stable override, later stages may only append), and the two the
+landing added — **`budget-trim` reserves the RESOLVED `max_tokens`** (the same thread previewed with
+`max_tokens: 3000` drops strictly more history than with `64`, and trimmed + sent is the same
+conversation both times) and **`regenerate-with` travels as the CALL layer** (the built-in options
+are read off `REGENERATE_OPTIONS` rather than retyped, so the test cannot drift from the popover).
+
+**Two scenarios were red for the whole phase; neither was "someone's bug to fix in their own file".**
+1. `p1-errors` died on `mock-429` with "Cannot read properties of null (reading 'error')" — because
+   seats_full is now a *waiting* row that HOLDS the governor, so the scenario's next four sends were
+   refused and its `lastRecord()` read an empty new thread. The P1 scenario now asserts the P2
+   behaviour in its own block (waiting row, the farm's sentence verbatim, `kind === 'seats_full'`)
+   and cancels with Stop before the loop.
+2. `p1-stick-bottom` failed deterministically on "the stream already overflows the box (200 px)": its
+   `waitFor` accepted `scrollable >= 200` and the next line asserted `> 200`, and
+   `contain-intrinsic-size: auto 200px` makes exactly 200 a plateau the poll now lands on (the strip
+   and the meter shortened the box by 27 px). One character: the poll demands `> 200`.
+
+**Three real defects the landing found while diagnosing them** (all fixed, all covered):
+- **A seat wait painted into whatever chat you had moved to.** `seat-wait`'s `paint()` called
+  `view.upsert(msg)` unguarded, so clicking New chat while waiting put the waiting row in the new,
+  empty conversation. It now paints only when `msg.threadId === app.state.threadId`.
+- **A cancelled seat wait lost its reason on screen.** `thread-view.fill()` rendered the generic
+  "You stopped this reply." for `status:'aborted'` and never `msg.error.message`, so the store knew
+  why and the reader did not. It now prefers the message and falls back to the generic sentence for
+  an ordinary Stop (`p2-seat-wait-cancel` asserts the row, not just the record).
+- **A client closed while waiting reopened with dead buttons.** `repo.recoverInterrupted()` mapped
+  only `'streaming'` → `'interrupted'`; a `'waiting'` row came back with Try now / Cancel and no
+  waiter behind them. It now recovers `'waiting'` too, keeping `error` so the row still says why.
+
+**And two the screenshots found.** The landing's look-at-it step is a scenario again —
+`p2-shots-{dark,light}` (strip, thread header with its System prompt chip, meter in the composer row,
+Pinned + Today groups, the action row) and `p2-shots-waiting` (the waiting row and the settings
+popover), each asserting what a reviewer would check by eye before saving the PNG. Looking at them:
+the **Notifications checkbox was the only blue pixel in the app** — an unstyled `input[type=checkbox]`
+paints the UA's own accent, a colour literal `chat-lint` rule 3 cannot see; `css/base.css` now sets
+`accent-color: var(--accent)` for checkboxes and radios under `#lolchat`/`.chat-layer`. And the
+**About section sat in the middle** of the settings popover (order 90, with Context and Notifications
+at 300): About is the footer of that popover and every later phase adds a section, so it moved to
+900, and the two 300s were spread (Context 300, Notifications 320).
+
+**Contracts frozen at the landing:** §2.6 **AQ–AY** — the additive `gateVerdict(reserve)` /
+`meta.reserve|over|ratio` / `app.<feature>` surfaces; the correction of §4 P2-U2's arithmetically
+impossible cost-gate numbers (an 8,192-token farm cannot *confirm* a 40k-character paste, it must
+block); the inline editor as a `data-editing` child rather than a class; the continue retry being
+issued after `generate()` settles (the governor releases in the controller's `finally`, *after*
+`onDone`); the four seats_full fills above; the `<dialog>.close()`-is-a-queued-task fact that makes a
+click in the next beat land on the modal; the settings-order rule; and the P2 baseline numbers.
+
+**Asked, not decided** (DISCUSS §U, new): the sidebar's month headings come from the platform
+(French on this box) while the fixed ones are English; "Bring over 1 remaining chats first" is not
+plural-safe; the waiting row's two buttons are hover-revealed like every other message action;
+`continueMode` is filed under the model that wrote the partial; and a non-seat-gate 429 is retried up
+to five times, one per farm tick. D-C5 now records what `<a download>` actually did here: the
+object-URL path IS the real one on Electron 42.5.1/Windows (a 3 kB `.lolchat.json` reached the disk
+and was re-imported), so the `data:` and clipboard fallbacks are shipped but exercised by nothing.
+
+**Rig items added** (§3 and §8 of [LOLCHAT_RIG_CHECKLIST.md](LOLCHAT_RIG_CHECKLIST.md)): a seat wait
+across a thread switch; a seat wait across a QUIT (it must come back interrupted, not waiting); a
+cancelled wait still saying why on screen; and one manual **Import chats…** run, because a native
+file chooser is the one control the harness must never click.
+
+**Not run on this box:** `shell/test/e2e.js` (needs the mock's beacon; this machine runs the
+production farm and the owner's client) and anything against the live farm — every measurement above
+is the mock. Nothing was committed: the phase's work stays in the working tree.
+
+---
+
+## 2026-09-15 — LOL Chat vNext **P1 fix round 2**: three majors, nine minors, and a lint rule for NUL bytes
+
+A second review of the P1 landing filed 14 findings (4 majors — two of them the same bug filed twice —
+and 10 minors, one pair also duplicated): 12 distinct. All reproduced, all fixed at the root, each with
+a test that would have caught it. Nothing was rejected. Gates re-run at slot 0 after the last fix:
+`chat-unit` **337/337** · `unit.js` **5/5** · `chat-lint` **0 violations / 49 files** (+ `--self-test`
+**15/15**) · `chat-scope` **clean, 135 paths** · harness `--strict` **69/69** ·
+`--strict --phase perf` **6/6** (medians 1523–1532 stats tok/s, p95 0.5–1.8 ms).
+
+**MAJOR — `<think>…</think>` was stripped out of ANY content, including inside code fences.**
+`net/delta.mjs` split on the tag wherever it appeared, so the model's own text was DELETED from the
+message and from storage: *"The `<think>` tag is used by some models. `</think>` closes it."* was stored
+as *"The `` closes it."*, a fenced EXAMPLE of a thinking block became an empty fence, and a stream cut
+before its `</think>` became an empty body behind a collapsed "Thought". v0.1.45 only ever read the
+`reasoning`/`reasoning_content` delta FIELDS, so this was a vNext regression — and an LLM-tooling
+audience asks about thinking tags. The split is now **head-only and once**: the tag opens a reasoning
+block only while everything seen so far is whitespace, the parser disarms for good as soon as real
+content lands or the block closes, and `end()` hands an **unclosed** block back to the content. Seven
+new delta tests (mid-sentence, inside a fence at every split offset, unclosed, a second block, delta-
+field reasoning untouched). Cost of the rule, deliberately accepted: a model that emits a SECOND think
+block mid-answer shows its tags as text.
+
+**MAJOR — deleting a chat while its reply streamed left the generation running.** The farm kept
+generating (holding the seat the seat gate gave this client) for an answer nobody could read, the
+governor stayed `streaming` so the composer refused every later send with "A reply is already running",
+and `onCheckpoint` re-inserted the assistant record AFTER the cascade — a permanently orphaned
+`status:'streaming'` row that the next boot's `recoverInterrupted` turned into an interrupted reply in a
+thread with no row. Three layers now: the sidebar calls the controller's new `abortThread(id)` before
+`deleteThread` and awaits the generation settling (**contract amendment, additive**: §3.4 and
+`API_KEYS.controller` carry `abortThread`); the controller also watches `THREADS_CHANGED{delete}` and
+marks the running generation dead, so a delete from anywhere aborts the request and makes checkpoint and
+finalize no-ops; and `repo.deleteThread` cancels any checkpoint already on its 1 s timer. New scenario
+**`p1-delete-streaming`** (closedEarly on the wire, governor idle, 0 orphan messages, the next chat still
+works) + three controller unit tests and two sidebar ones.
+
+**MAJOR — a held model pick leaked onto every existing thread.** The P1 fix round stopped the WRITE
+(`THREAD_SELECTED.created`), but `applySelection()` still consulted `heldPick` BEFORE `caps.defaultModel`
+for any thread: opening an old chat SHOWED the held pick and `composer.getDraft()` SENT it, while the
+thread record still said `modelSource:null` — so the next launch silently reverted the same conversation
+to the farm default. The window is real, not theoretical: `main.mjs` reopens `ui:lastThreadId` only after
+`repo.ready`, so `threadId` is null for the first hundreds of ms of every boot. The pick is now consulted
+only while there is no thread at all, and dropped when an existing thread is opened. `p1-held-pick` grew
+the half it was missing: the `<select>` value **and** the model on the wire for a send into the reopened
+chat.
+
+**Minors.** (1) A throw after `beginStream()` (a rejecting `repo.finalize`) left the row permanently
+`streaming` and un-repaintable — `ensureRow()` skips a row a stream owns; `stream` is hoisted above the
+try, the catch ends it, and the catch's own `finalize` can no longer throw a second time. (2) `generate()`
+with no farm at all built a request against `null/chat/completions` and blamed the network; it now writes
+a local "No farm yet" note and sends nothing, like the key-missing path. (3) `generate()`'s finally forced
+Send back over a governor a handler deliberately left `held` (§3.6.2, the P2 seat-wait re-arm): busy is now
+DERIVED from `gov.state()`. (4) `ui:reasoningOpen` grew without bound; it is trimmed to §3.7's last 200
+ids on write and on read. (5) The jank gate filtered LoAF entries on `start >= t0`, which by construction
+dropped the frame containing `requestSubmit` — the most expensive frame of a generation; it now filters on
+OVERLAP, and the medians duly show that one ~250–290 ms frame (budget 2). (6) Three raw NUL bytes in
+`state/migrate-v0.mjs` made the file BINARY to grep/ripgrep, which silently skipped the one module that
+touches the user's v1 history; they are `\u0000` escapes now, and **chat-lint rule 8** refuses any C0
+byte in the tree (self-test case included). (7) `describe()` preferred the farm's sentence for `auth`, so a
+refused password showed LiteLLM's jargon ("Invalid proxy server token passed. Received Key=…") and dropped
+the only line that says where to fix it; our sentence leads, the farm's follows in brackets. (8) A draft
+chip's `aria-label` replaced its file name with the word "Options" for screen-reader users; the chip keeps
+its name (`aria-haspopup="menu"`), and the popover menu carries "<file> — Options". (9) §3.8's
+PageUp/ArrowUp/Home unstick was unreachable — the listener sat on `#chat-messages`, which has no tabindex
+and is never the active element, while focus is in the composer after every generate; it listens on the
+document now, and `p1-stick-bottom` presses PageUp for real.
+
+**Light theme: panels that read as panels.** ComfyQ's palette steps `--surface` 15/255 from `--bg` in the
+dark theme but only 5/255 in the light one, so code fences, notes and the user bubble melted into the
+page (visible in `p1-shots-light`). Two derived tokens (`--chat-panel`, `--chat-bubble`) in `css/base.css`
+keep the palette untouched and give the light theme a real step (~11 and ~19/255); dark is unchanged.
+`p1-shots` now measures the step and fails below 8. Screenshots re-taken in both themes and looked at.
+
+---
+
+## 2026-09-15 — LOL Chat vNext **P1 fix round**: two blockers off the rig, three majors, eight minors
+
+Review of the P1 landing filed 15 findings (2 blockers, 4 majors, 9 minors) — 13 distinct, two were
+filed twice. All were reproduced and fixed at the root, each with a test that would have caught it. Gates re-run at slot 0 after the last
+fix: `chat-unit` **323/323** · `unit.js` **5/5** · `chat-lint` **0 violations / 49 files** ·
+`chat-scope` **clean, 135 paths** · harness `--strict` **68/68** · `--strict --phase perf` **6/6**.
+
+**BLOCKER — every row carried an empty `.chat-stats`, which breaks `e2e.js`.** `buildRow()` built the
+node unconditionally and `beginStream()` only added a `hidden` CLASS, so `querySelector('.chat-stats')`
+matched from the instant the assistant row appeared. `shell/test/e2e.js` is frozen byte-identical
+(§2.5) and detects "the reply finished" by **existence** (`done: !!stats`), then parses the text — so
+its 1 Hz poll would have read an empty node ~1 s into a ~3.3 s stream and failed with
+`stats line malformed:` on **every** run. v0.1.45 appended the node only when stats existed. `.chat-stats`
+(and `.chat-msg-note`, same shape) are now attached only while they carry text (`setStats`/`setNote` in
+thread-view). The harness's own `waitReply` requires non-empty TEXT, which is why no gate saw it; new
+scenario **`p1-stats-presence`** asserts e2e.js's weaker predicate from inside the harness.
+`e2e.js` itself still has to run on a box where the mock may beacon (rig checklist §0) — it cannot run
+on this machine.
+
+**BLOCKER — every user message was rendered twice.** `fill()` painted the user's text parts into
+`.chat-msg-parts` through `PART_RENDERERS` **and** then painted `msg.content` into `.chat-body`:
+`innerText` read `"hello there\n\nhello there"`, visible in a screenshot. §3.5 makes `.chat-msg-parts`
+the user surface (P3 hangs image/doc chips there), so the body is now assistant-only — a user row whose
+parts rendered gets an empty, hidden `.chat-body`. `p1-store-ui`'s `messages()` helper read the user
+text OUT of `.chat-body`, which is how the duplication got baked into p1-persist/p1-migrate-ui; it now
+falls back to `.chat-msg-parts`, and `p1-stats-presence` asserts the sentence appears exactly once.
+
+**MAJOR — a model pick with no thread open was written onto the next EXISTING thread.** §3.10 says a
+held pick "rides on the draft and is applied to the thread created by that send"; the picker applied it
+on the next `THREAD_SELECTED` of any kind, and a cold boot with history selects nothing — so one click
+in the sidebar pinned an old chat to a model it never used, with `modelSource:'user'`, which rule 1
+then honours forever. `controller.newThread()` now emits `THREAD_SELECTED {threadId, created: true}`
+(**contract amendment**, additive; `selectThread` still emits `{threadId}`), and the picker writes a
+held pick only when `created` is set. New scenario **`p1-held-pick`** + a controller unit test.
+
+**MAJOR — switching threads mid-stream froze that reply forever.** `showPath()` removed and forgot
+every row not in the new path, but the handle `beginStream()` returns closes over the row OBJECT: it
+went on painting a detached node, and coming back rebuilt a fresh row from the store's checkpoint —
+`data-status="streaming"`, no stats, and nothing in P1 ever refreshed it (`refreshView()` only runs
+with a SIBLINGS provider). A streaming row now stays in the map while detached (the stream keeps
+painting it, returning re-attaches it live), `ensureRow` refuses to repaint a row a stream owns, and
+`end()` drops the row if it is still off-screen. New scenario **`p1-switch-midstream`** (start
+`mock-slow`, leave, come back, assert the text grew and the row settles with stats).
+
+**MAJOR — a returning reader landed on an empty screen.** v0.1.45 opened the newest chat at every
+launch (`chat.js:44`); vNext selected nothing and never read or wrote §3.7's `ui:lastThreadId`, which
+no unit had been given. Since v0.1.45's "close means close" a relaunch is the every-day experience.
+`main.mjs` now writes `ui:lastThreadId` on `THREAD_SELECTED` and, after `recoverInterrupted()`,
+reopens it (falling back to the newest thread) — only when nothing is open, checked again after the
+`listThreads()` await so an immediate send wins. `p1-persist` asserted the blank boot as intended
+behaviour (`'a fresh boot selects nothing on its own'`); that assertion is flipped to parity.
+
+**Minors.** (1) `generate()` acquired the governor OUTSIDE the try/finally that releases it: a throw
+from `caps()`/`modelInfo()`/`appendMessage()` left the foreground slot held for the session, so the
+composer refused every later send until a reload — everything after `acquire()` is now inside the try,
+and the catch copes with a throw that beat the placeholder. (2) The farm-busy note stuttered
+("The server is busy — ⏳ The server is busy: …"): `noteFor` drops the title when the body already
+contains it. (3) The sidebar cursored the WHOLE message store on every render (~12 µs/record, three
+renders per send); the scan is now a boot/store-mode job plus the explicit `render({rescan: true})`
+main.mjs makes after recovery, with the live `MESSAGE_PUT` listener unchanged. (4) `meta.budget` is
+**decided** to be the token COUNT, not the `FarmCaps.budget` object (the §3.9 meter reads `source` off
+the caps) — the controller passes `c.budget.tokens`, matching the JSDoc, pinned by a unit test before
+P2-U2 codes against it. (5) `upsert()` passed `siblings: null` and wiped a row's branch bar; it now
+passes the last map `showPath` was given. (6) The jank gate observed long-animation-frames with
+`buffered: true`, counting ~1,000 ms frames from BEFORE the measured stream (five of six fixtures
+reported one); entries are now filtered to `[requestSubmit, last paint]` — the same runs now report
+0–1 real frames of ~290 ms. (7) Enter during a running reply was silently swallowed; the composer
+toasts "A reply is already running." (rate-limited to once per 3 s). (8) `debug.paintStats()`'s sample
+array grew without bound; it is a 2,000-sample ring buffer.
+
+Screenshots re-taken light + dark through the harness and looked at: the user bubble appears once, the
+stats line reads `1000 tok · 284.7 tok/s · first token 0.02s`, and nothing else moved.
+
+---
+
+## 2026-09-15 — LOL Chat vNext **P1 landed**: `chat.js` is gone, the modules are the chat
+
+Branch `lolchat/vnext`. This is the cut-over. `shell/renderer/chat.js` (the 15 kB v1 surface) is
+**deleted**, `index.html` loads `<script type="module" src="chat/main.mjs">` after `app.js` and links
+`chat/chat.css`, the `#lolchat` section is now just the fallback paragraph the skeleton replaces, and
+`styles.css` keeps only `.viewtoggle` + `.hidden` (57 lines of LOL Chat rules removed; the CSP meta is
+byte-identical, as `chat-scope.js` checks). Every P1 loader row has a real file behind it, so
+`--strict` is green for the first time.
+
+**What P1 ships** (four units, all four green; the per-unit specs are §4 P1 of LOLCHAT_PLAN.md): a WHATWG SSE reader
+and delta parser, readable farm errors (seat gate, upstream down, key, context overflow, in-stream,
+reset), a request builder that can never leak `num_ctx` or a reasoning field back to the farm, the
+single-flight governor; the controller, composer and the farm-honest model picker; the thread view,
+the streaming markdown renderer with code chrome (copy / wrap / language / SVG preview) and
+refresh-proof scroll, reasoning and selection; the sidebar, `<dialog>`/Popover dialogs and the store
+banners over the IndexedDB repo with v1 migration and crash checkpoints.
+
+**Gates at slot 0** (all re-run after every fix below):
+`chat-unit` **319/319** · `unit.js` **5/5** · `chat-lint` **0 violations / 49 files** (+ `--self-test`
+14/14) · `chat-scope` **clean, 135 paths** · harness `--strict` **65/65** (h0 12, p0 8, p1 45) ·
+`--strict --phase perf` **6/6**.
+
+**The harness was measuring a window that never painted.** `h0-raf-runs` failed 3 cold runs out of 4
+at 1 rAF/s — §2.6 T had filed that as "intermittent"; it was the normal case, and the passes were the
+accident. A `show:false` BrowserWindow has no on-screen surface, so Chromium produces no compositor
+frames and rAF falls back to a ~1 Hz idle timer. Command-line switches
+(`--disable-renderer-backgrounding`, `--disable-backgrounding-occluded-windows`,
+`--disable-background-timer-throttling`) and `Page.setWebLifecycleState{active}` changed nothing; a
+**CDP screencast** (`Page.startScreencast`, 64×64 jpeg q10, every frame acked) gives the window a
+frame consumer and puts it back on the display cadence — **61–62 rAF/s, every run**. `run.js` now
+starts that pump right after the CDP attach. Two things fall out of it: `h.screenshot()` works in a
+hidden window (`Page.captureScreenshot` used to never resolve, §2.6 G), and the perf group no longer
+needs `--show` — P1-U3's blocking request to change the gate to `--strict --phase perf --show` is
+declined as unnecessary. Hidden perf medians: **1523–1635 stats tok/s**, p95 **0.5–1.7 ms**, 83–340
+real paints per fixture, against the 150 tok/s parity bar and the 4 ms budget.
+
+**Two bugs only the screenshots could find.** The landing's look-at-it step is now a scenario,
+`p1-shots-{dark,light}`, which builds a chat with two threads, a settled reasoning block, prose, a
+table and three fenced blocks, photographs it in both themes and asserts what a reviewer would check
+by eye (no sideways scroll, the code header laid out, the two themes really different, the parity
+stats format on screen). Looking at the first pair:
+1. **`el.hidden = true` hid nothing.** The UA sheet's `[hidden] { display: none }` loses to any author
+   rule that sets `display` on the same element, so `render/code.mjs`'s SVG preview pane sat under the
+   code **with the Code tab selected**. `p1-svg-preview` never noticed: it asserted the `hidden`
+   *property*. `css/base.css` now carries `#lolchat [hidden], .chat-layer [hidden] { display: none
+   !important; }`, so components may keep using `el.hidden`.
+2. **A model picked right after "New chat" was reverted to the farm default** — below.
+
+**The picker lost the user's pick for up to 4 seconds.** `newThread()` emits `THREAD_SELECTED`, and
+the picker's handler asynchronously re-applies the §3.10 rule. A change in the same beat wrote
+`{model, modelSource:'user'}` with an un-awaited `void repo.updateThread(…)`, so the re-apply read a
+thread still on the farm default and put the `<select>` back — leaving the thread record saying one
+model while the next send asked for another. The picker keeps a `pendingPick {threadId, model}` now,
+honoured by `applySelection()` until the store write lands. This was also the whole story behind a
+flaky `p1-errors`: it was sending to `assistant`, getting a clean 1000-token reply and reading an
+empty error note; and it took 24–28 s because every iteration waited out a farm tick inside
+`pickModel`. It now takes **4.3 s**. Regression: `p1-new-thread-pick`, three rounds, asserting the
+model in the mock's wire log, the `<select>` 400 ms later and the message's model stamp — **3/3 red**
+with the fix reverted, green with it.
+
+Also corrected at the landing: the two "reds" §2.6 U handed the units were both wrong diagnoses (the
+busy note and the migrated sidebar were fine; both scenarios were reading `.chat-body` for a
+`status:'local'` message, whose body is deliberately empty — §3.5). See §2.6 V–Z for the full landing
+addenda, including the two browser facts a future scenario needs (a synthetic `Escape` never reaches a
+`<dialog>` close watcher; `dialogs.popover` hands the builder the popover's own root).
+
+**Not run on this box:** `shell/test/e2e.js` — it needs the mock's beacon, and this machine runs the
+production farm and the owner's real client. It stays on the rig checklist §0 (CI or a spare machine
+with `LOL_MOCK_BEACON_OK=1`). Nothing was committed: the phase's work stays in the working tree.
+
+---
+
+## 2026-09-15 — LOL Chat vNext P0 review round 2: the parsers are now bounded, not just correct
+
+Branch `lolchat/vnext`, still **P0**, still nothing user-visible (`index.html`, `styles.css`, `app.js`
+and `e2e.js` byte-unchanged). Ten more findings; every one reproduced with a measurement before it was
+touched, and none of them was a correctness bug in the grammar — nine were about **work** and **what
+the tests actually prove**.
+
+**The blocker: `createInlineStream` was cubic on a delimiter run.** The backtick and `* _ ~` run
+counters in `md-inline.mjs` were uncapped, so every position of a run re-counted the whole run
+(O(n²) per `tokenize`), and `createInlineStream` re-tokenises from `safeEnd` on every feed — which for
+a run never advances. Measured on the old code, feeding `'`'.repeat(N)` one character at a time:
+N=1,000 **350 ms**, 2,000 **2,753 ms**, 3,000 **9,273 ms**, 5,000 **42,666 ms**; at the mock's own 4-char
+chunking `'*'.repeat(4000)` cost **1,390 ms** against 11 ms for the same length of plain text. This is
+the path §3.8 assigns to the open paragraph and P1-U3 drives once per animation frame, so a stuck model
+emitting a run of backticks or asterisks froze the renderer that also owns the chat. Three changes:
+`skipCode` counts the run once and returns `-run` so callers step over a literal run in ONE move;
+`findCloser` counts a delimiter run only on the paths that then skip past it (amortised O(1));
+and a run longer than **`TICK_MAX` (32)** backticks is literal by definition and consumed whole.
+After: N=3,000 at 1-char chunks is **11 ms** (was 9,273), `'*'.repeat(4000)` is **1 ms**.
+
+Making `safeEnd` advance inside a delimiter run needed a second, subtler change: a node's *end* is a
+safe commit point only if its extent can no longer move. `emit()` now takes a **`settled`** flag and an
+unsettled node calls `block()`. An adversarial differential fuzz (40,000 seeds × 6 chunkings over an
+atom grammar of runs, half-written URLs and escapes) found two real divergences on the way —
+a still-growing literal backtick run, and a span whose closer a LATER backtick can steal by opening a
+code span across it — and now reports **0 divergences**. It is committed as
+`md.test.mjs: adversarial inline fuzz` (1,200 docs × 3 chunkings); the friendly word-grammar fuzz that
+was already there produces no delimiter runs at all and could never have caught any of this.
+
+**Three majors in the block parser.**
+1. **The fence-character scan was uncapped**, so `'`'.repeat(20000)` scanned **2,502× the line** with a
+   worst per-feed overhead of **20,002** characters (the budget is 2,100) — 4,477 feeds violated the
+   per-feed bound, and the existing "an ambiguous run stays bounded" test proved the bound for `-`,
+   the one delimiter that WAS capped, and for none of the ones that were not. Both the opener and
+   `matchFenceClose` now cap at `HR_LIMIT` like `hrScan`, and a longer run is paragraph text. After:
+   **1.45× / 259**, identical to `-`. The test now loops over all five of `-`, `_`, `*`, backtick and `~` at 1- and 4-char chunks.
+2. **`debug.scanned` under-reported the open-table-row branch by ~80×**, so the work gate certified a
+   bound the code did not have: streaming a 20,000-character cell cost **1,013 ms** of real work while
+   reporting a worst per-feed overhead of **20 characters** and a 4.00× total — passing both assertions
+   comfortably. The row is now split by a **resumable** splitter that bills what it inspects straight to
+   `debug.scanned` (a cell boundary before the last pipe cannot move as the line grows), and the 'row'
+   plan joins 'para'/'code' in the overlay's plan cache. After: **8 ms**, 2.00×, worst 20 — honestly.
+   A fuzz pins the incremental splitter against `splitCells` on 20,000 adversarial rows (escaped pipes,
+   NBSP, tabs): 0 divergences.
+3. **An indented fence kept its indentation in the code text.** `parseBlocks('1. Install it:\n\n   ```bash\n   npm i thing\n   ```')`
+   returned code `"   npm i thing"` — the single most common shape a model produces for "numbered steps
+   with a code block" (the blank line closes the list by design, the fence re-opens at top level still
+   indented to the item's old content column, and nothing stripped it). Every such answer rendered with
+   a hanging indent, and P1-U3's copy-code button would have put broken — for Python, unrunnable — text
+   on the clipboard. `analyze` now records the fence opener's own indent and `execute` de-indents each
+   content line by it, deterministically per line, so `end()` still deep-equals `parseBlocks()`. Two new
+   `gfm-cases` (`blank-line-then-indented-fence`, `top-level-indented-fence`) with the de-indented
+   golden JSON.
+
+**The minors.**
+- `indexNodes` walked the tree **recursively**: a chat thread is a chain, so depth == message count, and
+  it threw `RangeError` at 6,000 messages — which `repo.getPath` swallowed into an empty thread rather
+  than an error anyone could see. It is an explicit stack now; `tree.test.mjs` indexes a 10,000-deep
+  chain.
+- `h.screenshot()`'s run-wide "no screenshots" memo latched on **any** error, not just the 6 s hidden-
+  window timeout, so one transient CDP failure under `--show` silently turned every later call into a
+  no-op — and nothing asserted a PNG was ever written, so `p0-skeleton-dark/light` passed identically
+  either way. The memo now latches only on the timeout; `p0-skeleton` requires a >1 kB image when
+  `run.js` was started with `--show` (`h.show` is new).
+- `p0-store-late-idb`'s check that `main.mjs` re-runs its §3.1 step-12 block after a late IndexedDB
+  attach was **vacuous** (`!!window.LolChat.migration`, which is assigned unconditionally and never
+  nulled). It now seeds the 3-thread v1 fixture, captures the pre-attach verdict
+  (`{status:'skipped', reason:'memory'}` — a memory store never migrates) and asserts the post-attach
+  promise is a DIFFERENT settlement, `{status:'done', imported:3}`, with the v1 key intact.
+- The production loader-failure path — banner + disabled composer — had **never run**: `h0-loader`
+  forces `allowFakes:true` in both of its reloads. New scenario **`h0-loader-production`** covers it
+  (`skipModules:['repo'], allowFakes:false`): the banner is present, carries `role="alert"`, shows the
+  rendered string and not the key, names `repo`, and the composer is locked. Writing it exposed the
+  thing the finding predicted: `migrate` has `fake:null` and therefore `faked:false`, so a missing
+  `migrate` — which the chat survives fine — would have raised the banner. `brokenComponents` is now
+  filtered by COMPONENTS membership, and the same scenario asserts the survivable case stays quiet.
+- `test/chat/README.md` §5 documented an escape hatch the mock refuses (`--http-port 41997` is on the
+  forbidden list and fails on every machine). The sentence is replaced with the truth — 41987 everywhere,
+  CI included — and `mock.test.mjs` asserts 41997 is refused even with `LOL_MOCK_BEACON_OK=1`.
+- `safeHref`'s refusal of a still-decoding href is the right security call, but it is also a false
+  negative for a URL copied out of already-escaped HTML (`?q=1&amp;amp;b=2` renders as plain text).
+  Kept — percent-encoding the surviving `&` would silently rewrite a value we cannot prove the author
+  meant — and now **documented** in the module header, on the function, and at the `link()` caller, with
+  a note for P3's SearXNG/citation URLs.
+
+**Gates after the round** (slot 0, all green): `node shell/test/chat-unit.js` **149 passed, 0 failed**
+(was 145 — four new tests, one rewritten), `node shell/test/unit.js` **5 passed**,
+`node shell/test/chat-lint.js` **22 files / 0 violations**, `node shell/test/chat-scope.js`
+**82 changed paths, scope clean**, `node shell/test/chat-harness/run.js --strict --slot 0`
+**20 passed, 0 failed** (the new `h0-loader-production`), `--strict --phase perf` still empty in P0.
+Light and dark screenshots re-taken with `--show` and looked at (13,788 / 13,683 bytes): sidebar left at
+its declared width, composer pinned, empty state centred, both palettes the ComfyQ tokens.
+
+**UNVERIFIED after this round:** a pure backtick run is still O(n²) in character comparisons (21 ms for
+4,000 characters; bounded only by a wall clock in the gate — see DISCUSS **D-M7**), and none of this has
+run against a real farm's streaming, only the mock's 1–12-char chunking.
+
+---
+
+## 2026-09-15 — LOL Chat vNext P0 review round 1: two blockers, one major, seven minors
+
+Branch `lolchat/vnext`, still **P0**, still nothing user-visible. The reviewers went at the landed P0
+tree and found twelve things; each was reproduced before it was touched.
+
+**The two blockers.**
+1. **The rewritten mock silently broke the frozen `e2e.js`.** `shell/test/mock/state.js` shipped
+   `capacity: {slots:2, clients:1, seatsUsed:1}`; the old `mock-farm.js` deliberately advertised
+   **`clients: 3`** so seats and presence differ and `app.js:361` emits the "3 connected" bit. With both
+   at 1 that bit is never rendered and `e2e.js:98` — byte-frozen, and the only test that guards "seats
+   are not conflated with connected clients" — would throw on every run. The default is restored
+   (`usage.clients` back to 0 with it) and `mock.test.mjs` now asserts `clients !== seatsUsed` on the
+   default snapshot, so it cannot be re-broken quietly. A scenario that wants them equal says so with
+   `POST /mock/state`.
+2. **The v1 migration truncated any answer that QUOTED an error line.** `classifyV1Content` searched
+   with `indexOf` for `\n\n[error: ` anywhere in the text, so
+   `"The log says:\n\n[error: connection refused]\n\nwhich means…"` migrated as content `"The log says:"`
+   with `status:'error'` — the rest of the sentence gone from the record entirely, and the turn dropped
+   from the history `draftFromPath` sends. Permanent, silent loss of real history at upgrade time. Both
+   markers are APPENDED by `chat.js:296-299`, so both are now matched only at the END (the `[error: …]`
+   bracket must close the message; the busy sentence must be the last line). New fixture
+   `fixtures/v1/quoted-markers.json` + a test that fails on the old code.
+
+**The major: `repo.runTx` was atomic on memory and not on IndexedDB.** `inTx()` awaited the callback
+and never aborted when it threw, and IndexedDB auto-commits: a probe in a packed asar put two rows,
+threw, and both rows were **committed** (`txOutcome: complete`). The v1 import is one transaction that
+writes a thread and then its messages; a failure between them would have left the thread committed
+without its messages, `kv.v1RawHash` unwritten, and the next boot's `findLegacy` would match the
+half-imported thread and skip it forever — a permanently empty chat whose only real copy is the
+localStorage key. `inTx` now aborts on a throwing callback and swallows the transaction's abort
+rejection (which was also surfacing as an "Uncaught (in promise)" renderer error). Proven by the new
+`p0-store-tx-atomic` scenario against the REAL IndexedDB — it fails on the old code with the row still
+present, which no memory-backend unit test could ever have shown.
+
+**The minors, all fixed.**
+- `safeHref` validated `probe` (decoded up to four times) and returned `once` (decoded once):
+  `&amp;#104;ttps://evil/x` passed the http check and went into the DOM as a **relative** url resolving
+  against `file://`. Not exploitable — no input made `once` a dangerous scheme — but "validate X, emit Y"
+  is the exact shape the function exists to prevent. A still-encoded href is now refused outright, the
+  dead leading-backslash check is gone, and `dom.test.mjs` asserts both the new rejections and that
+  `safeHref` is idempotent on what it returns.
+- `repo.runTx` writes bypassed the replay **journal**, so anything written through it in `pending`/
+  `memory` mode would be dropped at a late IndexedDB attach. Nothing lost data today (its only caller is
+  gated on `mode === 'idb'`), but it is part of the frozen §3.4 API that P2+ codes against. Its writes
+  are now journalled — only after the transaction commits, so a rolled-back one journals nothing.
+- The work-count gate ran only at 4-char chunks. Re-measured at 1/2/4/8: `table-300.md`
+  **4.02× / 2.54× / 1.80× / 1.43×** (the partial-line overlay re-scans the open table row), `mixed`
+  1.75×→1.27×, `nested-fence` 1.90×→1.39×, `paragraph-20k`/`reasoning-40k` 1.00×. The 3× total is
+  therefore **chunking-dependent**; a second test pins the 1-char case at 4.5×, and the header now says
+  that the chunking-INDEPENDENT bound is the per-feed `scanned ≤ newChars + 2100` (worst single feed
+  measured: 56 chars of overhead), which is what actually bounds a frame. The mock streams `mock-md` in
+  1–12-char chunks, so P1's render gate must use the 1-char number.
+- `p0-store-migrate`'s "the same page does not re-run it" check re-awaited the already-settled promise
+  and could not fail. It now calls `migrate.migrateV1(…)` again for real and asserts `already` with an
+  unchanged thread count.
+- `css/base.css` scoped **every** rule under `#lolchat`, so P1-U4's dialogs/popovers/toasts would have
+  rendered unstyled the moment they mounted on `document.body` to escape the `overflow-y:auto` clipping.
+  The shared primitives (`.btn-accent`, `.btn-ghost`, `.chat-icon`, `.visually-hidden`, `.hidden`,
+  `:focus-visible`, border-box, reduced-motion) are now published under `.chat-layer` as well, and the
+  file header states the rule: a node outside `#lolchat` MUST carry `.chat-layer`. Recorded in DISCUSS
+  for the P1 kickoff.
+- `.chat-empty` was positioned with hard-coded `46px/96px` insets that encode today's topline and a
+  one-row composer. With a banner, a strip and a grown textarea the empty state slides behind the
+  composer. It now tracks `#chat-messages` exactly with **CSS anchor positioning**
+  (`anchor-name`/`position-anchor`, supported in this Electron's Chromium 148; the old insets stay as
+  the fallback), and `p0-skeleton-dark` grows the banner, the strip, a tray chip and the textarea to
+  200 px and re-runs the whole geometry check. The old CSS fails that check by 30 px.
+- `h.screenshot()` burned a fixed 6 s per call in the default hidden run (18 s of a 26 s suite) and left
+  one CDP request pending each time. The verdict is now remembered for the run: the first timeout sets
+  it, every later call answers immediately with the same note.
+- `core/fakes.mjs` (612 lines of development-only code — a second repo, view, composer and SSE
+  streamer) was a **static** import in `main.mjs`, so production fetched, parsed and ran it on every
+  boot, and any top-level error in it would have taken the whole mount down. It is now
+  `await import()`ed only behind `flags.allowFakes`; `core.test.mjs` asserts that from the source.
+  **This amends plan §3.1**, which listed fakes among the static core imports.
+- The asar probe existed only as scratchpad code plus DEVLOG prose. It is now
+  **`node shell/test/asar-probe.js`**: it packs a 10-file fixture with the vendored `@electron/asar`,
+  reads the CSP **out of `renderer/index.html`** so it cannot drift, runs a hidden Electron window on it
+  and prints the same `PROBE_RESULT` line, exiting non-zero if the loader assumption ever stops holding.
+  Re-run at this round: `{"classicRan":true,"moduleRan":true,"staticImport":true,"dynamic":[{"ok":true,
+  "value":"dyn-ok"},{"ok":false,"missing":"Failed to fetch dynamically imported module: …/app.asar/
+  sub/nope.mjs"}],"cssImportApplied":true,"ua":"Electron/42.5.1"}` — §3.1 still stands. Rig item C-21 is
+  now answerable in 20 seconds.
+
+**Gates after the round** (slot 0, all green): `chat-unit.js` **145 passed, 0 failed** (was 140 — five
+new tests), `unit.js` **5 passed**, `chat-lint.js` **22 files / 0 violations** (`--self-test` 12 cases),
+`chat-scope.js` **82 changed paths, scope clean** (`--self-test` 12 cases),
+`run.js --strict --phase h0` **11 passed**, `--strict --phase p0` **8 passed** (the new
+`p0-store-tx-atomic`), `--strict` over everything **19 passed, 0 failed**, `--strict --phase perf` still
+empty in P0, and `node shell/test/asar-probe.js` **exit 0**. Light and dark screenshots re-taken with
+`--show` and looked at: the empty state sits centred in the messages pane, the composer is pinned, both
+palettes are the ComfyQ tokens. Nothing outside the LOL Chat scope was touched, and
+`index.html` / `styles.css` / `app.js` / `e2e.js` remain byte-unchanged.
+
+---
+
+## 2026-09-15 — LOL Chat vNext P0 landing: rails, mock, harness, markdown core, store
+
+Branch `lolchat/vnext`, phase **P0** of [LOLCHAT_PLAN.md](LOLCHAT_PLAN.md) — the four units landed and
+the integrator wired and gated them. **Still nothing user-visible:** `index.html`, `styles.css` and
+`app.js` are byte-unchanged, `chat.js` still ships, and `chat/main.mjs` is reached only by the chat
+harness page. P0 buys the rails everything after it stands on.
+
+**What shipped.**
+- **P0-U1 — the mock farm** (`shell/test/mock/{index,state,proxy,scenario-models,services,seats-body}.js`,
+  `mock-farm.js` now a thin CLI). Every P0 scenario model, the seat-gate 429 with the farm's own text,
+  the keyed listener, the `/mock/*` control API — and the beacon behind a **double** gate
+  (`LOL_MOCK_BEACON_OK=1` **and** no `--no-beacon`, with `require('dgram')` itself inside that branch).
+- **P0-U2 — the chat-only Electron harness and the two static gates** (`shell/test/chat-harness/**`,
+  `chat-lint.js`, `chat-scope.js`): a fresh mkdtemp profile, a `page.html` whose CSP is byte-identical to
+  `renderer/index.html`, the real `publishFarm` **extracted from `app.js` by text anchors** (no copy to
+  drift), the whole `h` API, port **slots** and a preflight that aborts without killing anything.
+- **P0-U3 — the markdown core** (`render/{md-block,md-inline,dom}.mjs`, pure): the restricted grammar, a
+  line-incremental stream parser whose committed blocks are frozen forever, and an allowlist DOM builder
+  (no `innerHTML`, `http(s)` links only, markdown images become link chips).
+- **P0-U4 — the store** (`state/{schema,backend-idb,backend-memory,repo,tree,migrate-v0}.mjs`): a
+  synchronous-write repo over IndexedDB with the pending → memory → **late attach** path, crash
+  checkpoints, ephemeral threads, and the non-destructive v1 merge migration.
+- **Landing wiring.** The loader table already carried `repo` and `migrate`; `--strict` (no fakes) loads
+  both for real, so the wiring is proven rather than asserted. `chat.css`/`css/base.css` and the §3.5
+  skeleton needed no change — the new `p0-skeleton-{dark,light}` scenario measures them instead.
+
+**How it was tested** (every command run at the landing, slot 0):
+
+| Gate | Result |
+|---|---|
+| `node shell/test/chat-unit.js` | **140 passed, 0 failed** (core 20, mock 17, bridge 8, md/dom/mdwork 39, repo/tree/migrate 56) |
+| `node shell/test/unit.js` | **5 passed** (the existing app.js capacity tests, untouched) |
+| `node shell/test/chat-lint.js` / `--self-test` | **22 files, 0 violations** / **12 cases** |
+| `node shell/test/chat-scope.js` / `--self-test` | **80 changed paths, scope clean** / **12 cases** |
+| `node shell/test/chat-harness/run.js --strict --phase h0` | **11 passed, 0 failed** |
+| `node shell/test/chat-harness/run.js --strict --phase p0` | **7 passed, 0 failed** |
+| `node shell/test/chat-harness/run.js --strict` (everything) | **18 passed, 0 failed** |
+| `node shell/test/chat-harness/run.js --strict --phase perf` | empty in P0 — the perf group joins at P1 |
+
+**The asar probe, re-run at the landing** (the kickoff's result was reproduced independently, because a
+loader nobody re-checks is a loader nobody trusts): `@electron/asar`-packed app, Electron **42.5.1**,
+`loadFile()`, the byte-identical renderer CSP → the classic `<script>` ran first, the module script with
+static `.mjs` imports loaded, **`import(m.path)` from a MODULES-shaped table resolved inside the asar**
+and its export was callable, a missing path rejected with `Failed to fetch dynamically imported module:
+file:///…/app.asar/sub/nope.mjs`, and CSS `@import` from a `<link>`ed stylesheet applied. **§3.1 stands;
+no static-import fallback.** Recorded in DISCUSS D-P3.
+
+**Screenshots, looked at.** `run.js --only p0-skeleton-dark,p0-skeleton-light --show` writes
+`chat-harness/generated/shots/*.png` (a hidden window cannot be captured at all — see below). Both
+themes render the skeleton correctly: 240 px sidebar with **New chat**, the model select on the topline,
+the empty state centred, the composer pinned to the bottom with the textarea and **Send**, no page
+scrollbars. Dark paints `bg #09090b` / `surface #18181b` / `text #e4e4e7`, light `#fafafa` / `#ffffff` /
+`#18181b` — the ComfyQ tokens, not literals. The geometry is not left to the eye: the scenario asserts
+the sidebar edge and width, the main column offset, the composer's bottom against the viewport, the
+messages pane not overlapping it, and that no string renders as a raw `core.*` key.
+
+**Four bugs fixed at the landing** (all found by running the suite, not by reading it):
+1. **The mock's port guard skipped ports it wasn't about to bind.** `--slot 244` computes `keyed=8890`
+   (a live-farm port) and, with no `--key`, the mock started anyway. It now refuses every **configured**
+   port, with a regression test. (Slots are single-digit in practice; the guard has to hold anyway.)
+2. **`state.streamRate` could not actually override a model's pacing** — `pace()` took the model's own
+   `opts` first, so the 40k-char `reasoning-40k` fixture always streamed for ~24 s and timed out its unit
+   test as soon as P0-U3's fixtures landed. State now wins, which is what §2.3 always promised; default
+   pacing (~330 deltas/s, above the farm's real 154.8 tok/s) is unchanged for the P1 perf scenarios.
+3. **Screenshots were deleted by teardown** — they were written inside the mkdtemp userData. They now go
+   to `chat-harness/generated/shots/` (gitignored), with `--shots <dir>` to override.
+4. `core/types.mjs` now records what the units froze: the repo's **test-only seams**
+   (`openPersistent`, injected `setTimeout`/`clearTimeout`), that `createThread`/`appendMessage` return
+   the **live** record the controller mutates while streaming (reads return copies, and `core/fakes.mjs`
+   clones — a real difference when coding against the fake), and that `Block`/`Inline` live in the
+   markdown modules, not here.
+
+**Decisions and precisions frozen** (plan §2.6 G): `h.screenshot()` returns `null` with a note in a
+hidden window — `Page.captureScreenshot` never resolves there on Electron 42.5.1, so landings shoot with
+`--show`; `chat-lint` rule 5's `t(` check reads comment-stripped source and skips `core/i18n.mjs` (the
+module that defines `t`); scenarios may declare `needsMock` / `allowFailedModules` / `judge()`;
+`/mock/log` answers a bare array and `/mock/warnings` is new; `mock-length` continues `tokN` → `tok{N+1}`;
+an unknown model id is a 400 and `POST /v1/embeddings` is a **418** — a prime-directive tripwire, since
+documents must never leave the machine for embedding. `migrate-v0` maps the v1 `[error: …]` tail to
+`stream_error` and the `⏳ busy` tail to `upstream_down`, and **`removeV1Copy` refuses to delete a v1 key
+whose JSON does not parse** (without that check, `v1Status`'s `pending === 0` would have authorised
+deleting unreadable history).
+
+**UNVERIFIED after P0** (the honest list):
+- **Nothing ran in the real client.** Everything above is the harness Electron on this box against the
+  mock; `index.html` does not load `main.mjs` until the P1 landing. The packaged-installer path is a rig
+  item (checklist §1, DISCUSS D-P3) — the asar probe is a synthetic app, not our installer.
+- **No beacon packet was ever sent.** Every beacon test used a `dgram.createSocket` spy whose socket
+  refuses to send. The legacy `e2e.js` flow (mock `--coordinator` + `LOL_MOCK_BEACON_OK=1`) must run in
+  CI or on a spare machine — never here, where the owner's real client would follow it.
+- **No completion reached a real farm.** No chat, no seat taken, nothing sent to AN-A6000PRO.
+- **The store's IndexedDB behaviour is Chromium-only evidence**, and no attachment `Blob` has been
+  round-tripped through IDB yet (P3). `navigator.storage.persist()` is called once; its verdict is not
+  asserted.
+- **`mock-slow`, the download path, the `windowOpens` IPC handler, `--keep` and the perf group's
+  median/`judge()` plumbing are written but unexercised** — P1/P2 scenarios are their first real use.
+- **The markdown core has never rendered in a real browser**: `dom.mjs` was proven against the unit
+  DOM shim only. P1-U3's `p1-xss` scenario is the real-DOM check.
+- The work-count budget is enforced at the plan's 4-char chunking (worst fixture 1.80× of 3×); at 1-char
+  chunks `table-300.md` reaches **4.02×** (re-measured at the fix round, where it became a gate of its
+  own at 4.5× — see the entry above), which real 3–6-char SSE deltas never hit.
+
+---
+
+## 2026-09-15 — LOL Chat vNext P0 kickoff: the module rails, frozen
+
+Branch `lolchat/vnext`, phase **P0** of [LOLCHAT_PLAN.md](LOLCHAT_PLAN.md). This is the integrator
+**kickoff**: the contracts the four P0 units code against in parallel. **Nothing user-visible
+changed** — `index.html` still loads the old `chat.js`, and `chat/main.mjs` is reached only by the
+chat harness page (which P0-U2 is building).
+
+**The asar probe (kickoff item 1) — the dynamic-import loader stands.** The plan's §3.1 loader hangs
+on one unverified fact: does `import(m.path)` from a table work from inside a packed `app.asar`?
+Probe: `@electron/asar`-packed app, Electron **42.5.1** (`shell/node_modules/electron`), hidden
+window, `loadFile()` on an `index.html` carrying the **byte-identical** renderer CSP
+(`default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self';
+connect-src 'self' http: https:;`). All five things the loader needs hold inside the asar:
+
+| Probed | Result |
+|---|---|
+| classic `<script>` runs before the module script | yes (`window.__classicRan` seen by the module) |
+| `<script type="module">` with a static `.mjs` import | loads |
+| `import('./sub/mod-dyn.mjs')` from a MODULES-shaped table | resolves, export callable |
+| `import()` of a **missing** path | rejects with `Failed to fetch dynamically imported module` — the loader's failure path, not a hang |
+| CSS `@import` from a `<link>`ed stylesheet | applies (`rgb(1, 2, 3)` computed) |
+
+So §3.1's static-import fallback is **not** needed and is not taken; DISCUSS D-P3 can be closed as
+verified on Electron 42.5.1 (re-probe on the next Electron bump).
+
+**What the kickoff froze.** `shell/renderer/chat/`:
+- `core/env.mjs` (flags snapshot + offsettable clock + seedable mulberry32), `core/ids.mjs` (17-char
+  time-sortable ids, FNV-1a `hash`), `core/events.mjs` (`EV` + a synchronous bus that isolates a
+  throwing listener), `core/registry.mjs` (the 21 `SLOTS`, ordered `(order ?? 500, id)`, duplicate ids
+  throw), `core/i18n.mjs` (`registerStrings`/`t`/`missingKeys`), `core/app.mjs`, and `core/types.mjs`
+  — JSDoc for every §3.3 record plus a runtime `API_KEYS` map that pins each component's key list.
+- `core/fakes.mjs`: development stand-ins for all nine components, each matching `API_KEYS` — including
+  a ~130-line `controller` fake that really streams SSE from the mock, so a unit can run harness
+  scenarios before its dependencies land.
+- `ui/layout.mjs`: the §3.5 skeleton (every `e2e.js`/D-4 id and class), the document drop guard
+  (`preventDefault` only — it must never stop propagation, or `#lolchat` intake stops receiving drops)
+  and the inline-SVG `icon()` helper.
+- `main.mjs`: the loader and the 12-step mount. P0 table = `repo`, `migrate`. A failed **component**
+  gets its fake under `flags.allowFakes` (harness) or raises the "Part of LOL Chat failed to load"
+  banner in production; a failed **feature** is skipped with one warning — one broken feature can
+  never blank the chat again.
+- `css/base.css` + `chat.css` (the `@import` list): the `#lolchat` grid, the previously missing
+  `.btn-accent`, focus rings, `.visually-hidden`, reduced-motion. ComfyQ tokens only, no colour literal.
+- `strings/core.en.mjs`.
+
+**Tests.** `shell/test/chat-unit.js` — the dependency-free runner (Node ≥ 22) with the `__chatTestDom`
+shim (elements, text nodes with `appendData`, `classList`/`dataset`, a small `querySelector`, and
+`serialize()`), plus `shell/test/chat/unit/core.test.mjs`. `node shell/test/chat-unit.js` → **20
+passed, 0 failed**: id ordering and FNV-1a vectors, bus snapshot semantics, registry ordering and
+duplicate rejection, i18n placeholders/plurals/missing keys, every fake against `API_KEYS`, the fake
+repo's tree behaviour, `FARM_TICK` on every update vs `FARM_CHANGE` only on a real change, the
+skeleton's ids/classes, the drop guard proving it never stops propagation, and the pure-module import
+trap. `node shell/test/unit.js` (the existing app.js capacity tests) → **5 passed**, unchanged.
+
+**Also frozen, as plan §2.6** (workflow precisions the four units need): harness **port slots**
+(`--slot n` offsets CDP 9333 / proxy 4009 / keyed 4010 / services 4011 / self 41987 by `20n`, with the
+forbidden live-farm ports still refused) so parallel builders never collide on this box; how
+`chat-scope.js` reads an **uncommitted** branch; the complete `PURE_MODULES` list for `chat-lint.js`,
+including the P1–P4 paths that don't exist yet; and what `h0-loader` skips in P0.
+
+**A second probe: `main.mjs` actually mounts.** Nobody had ever run the loader, and the harness that
+will run it is itself being built, so the kickoff drove it directly: the real `chat/` tree copied into
+a scratchpad Electron app, same CSP, same `tokens.css`/`styles.css`/`chat/chat.css` link order, hidden
+window, `state/repo.mjs` and `state/migrate-v0.mjs` deliberately absent (P0-U4 has not written them).
+Both runs are green:
+- **with `allowFakes`** (the harness's default): `LolChat.ready`, the fallback `<p>` replaced by the
+  full §3.5 skeleton (every id and class present, `.chat-jump` last inside `#chat-messages`), `base.css`
+  applied through the `@import` (`#lolchat` computes to `grid`, `.btn-accent` to an 8 px radius), the two
+  missing modules recorded in `LolChat.failed` (`repo` faked, `migrate` not — it has no fake), the eight
+  components that have no table row yet listed in `LolChat.fakes`, `__lolChatRefresh()` publishing a farm
+  and emitting exactly one `FARM_TICK`, no loader banner, and `LolChat.migration` resolving
+  `{status:'skipped', reason:'memory'}`.
+- **without flags** (the production path): the same skeleton, one `console.warn` per missing component,
+  the "Part of LOL Chat failed to load (repo, migrate)." banner in `.chat-banner`, and the composer
+  disabled — a broken install degrades instead of blanking.
+
+One fact fell out of it, now recorded in §2.6 F: in a `show:false` BrowserWindow
+`document.visibilityState` is **`'visible'`**, so the harness cannot get the "not looked at" path for
+free — a scenario must force it with `h.setPageVisible(false)`.
+
+**UNVERIFIED at kickoff** (P0 units and landing close these): no harness, lint or scope gate exists
+yet (P0-U2), so only the two unit runners above were run; nothing rendered in a real window; the mock
+farm is still the legacy one and **must not** be started with `LOL_MOCK_BEACON_OK` on this box.
+
 ## 2026-09-10 b — confirm-then-quit, a guaranteed exit, and seats instead of guesses
 
 Owner: on Windows the X sends the app to the system tray instead of quitting; wanted a

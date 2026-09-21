@@ -1,0 +1,8 @@
+{
+  "error": {
+    "message": "Authentication Error, Invalid proxy server token passed. Received Key=None, Expected Key=sk-…",
+    "type": "auth_error",
+    "param": "None",
+    "code": "400"
+  }
+}

@@ -1,0 +1,42 @@
+[
+  {
+    "id": "1789000300000abcde",
+    "title": "Rig notes",
+    "messages": [
+      {
+        "role": "user",
+        "content": "What GPU does the farm have?"
+      },
+      {
+        "role": "assistant",
+        "content": "An RTX A6000 Pro.",
+        "stats": "128 tok · 42.0 tok/s · first token 0.31s"
+      }
+    ]
+  },
+  {
+    "id": "1789000200000fghij",
+    "title": "Kitchen table",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Suggest a dinner"
+      },
+      {
+        "role": "assistant",
+        "content": "Pasta, obviously.",
+        "reasoning": "thinking about pasta"
+      }
+    ]
+  },
+  {
+    "id": "1789000100000klmno",
+    "title": "",
+    "messages": [
+      {
+        "role": "user",
+        "content": "hello"
+      }
+    ]
+  }
+]

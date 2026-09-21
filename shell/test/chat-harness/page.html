@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="utf-8" />
+  <!-- BYTE-IDENTICAL to the CSP meta in shell/renderer/index.html (h0-csp-identical compares the
+       two files). If the shell's CSP changes, copy it here in the same edit: a harness that runs
+       under a laxer policy than production proves nothing. -->
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self' http: https:;" />
+  <title>LOL Chat harness</title>
+  <link rel="stylesheet" href="../../renderer/tokens.css" />
+  <link rel="stylesheet" href="../../renderer/styles.css" />
+  <link rel="stylesheet" href="../../renderer/chat/chat.css" />
+</head>
+<body>
+  <main class="main"><section id="lolchat"><p class="chat-fallback">LOL Chat failed to load</p></section></main>
+  <!-- Order matters and mirrors index.html: classic scripts first (the bridge, then the extracted
+       app.js slice), the ES module last — it is deferred, so window.__lolChatTestFlags is already
+       set when chat/main.mjs runs. -->
+  <script src="harness-bridge.js"></script>
+  <script src="generated/app-bridge.js"></script>
+  <script type="module" src="../../renderer/chat/main.mjs"></script>
+</body>
+</html>

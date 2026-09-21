@@ -1,0 +1,18 @@
+[
+  {
+    "id": "1789000500000eeeee",
+    "title": "Reasoning",
+    "messages": [
+      {
+        "role": "user",
+        "content": "why?"
+      },
+      {
+        "role": "assistant",
+        "content": "Because.",
+        "reasoning": "step 1\nstep 2",
+        "stats": "56 tok · 12.5 tok/s · first token 0.90s"
+      }
+    ]
+  }
+]
