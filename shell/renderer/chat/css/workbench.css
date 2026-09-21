@@ -1,0 +1,161 @@
+/* css/workbench.css — the third column (S0-U1, studio plan §3.5.1). Owned by ui/workbench.mjs.
+   ComfyQ tokens only: no colour literals (lint rule 3).
+
+   The grid itself lives in css/base.css:
+       grid-template-columns: 240px minmax(0, 1fr) var(--chat-work-w, 0px)
+   and the workbench sets `--chat-work-w` (0px / the clamped split width) plus ONE state class on
+   #lolchat: .chat-w-chat | .chat-w-split | .chat-w-work. The `work` state is the only one that
+   needs a different track list, so it is the only one that overrides the grid here. */
+
+#lolchat { transition: grid-template-columns 160ms ease; }
+
+/* ---- the column ---------------------------------------------------------------------------- */
+
+#lolchat .chat-work {
+  position: relative;
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  min-width: 0; min-height: 0;
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+}
+
+/* ---- the tab rail -------------------------------------------------------------------------- */
+
+#lolchat .chat-work-rail {
+  display: flex; align-items: stretch; gap: 4px;
+  padding: 6px 8px 0 8px;
+  overflow-x: auto; scrollbar-width: thin;
+}
+#lolchat .chat-work-rail:empty { display: none; }
+
+#lolchat .chat-work-tab {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 10px;
+  border: 1px solid transparent; border-bottom: none;
+  border-radius: 7px 7px 0 0;
+  background: transparent; color: var(--muted);
+  font: inherit; font-size: 13px; line-height: 1.2;
+  white-space: nowrap; cursor: pointer;
+}
+#lolchat .chat-work-tab:hover { color: var(--text); background: var(--surface-2); }
+#lolchat .chat-work-tab.is-live {
+  color: var(--text);
+  background: var(--chat-panel);
+  border-color: var(--border);
+}
+#lolchat .chat-work-tab[aria-disabled='true'] { opacity: .5; cursor: default; }
+#lolchat .chat-work-tab[aria-disabled='true']:hover { background: transparent; color: var(--muted); }
+#lolchat .chat-work-tab .chat-icon { flex: none; }
+#lolchat .chat-work-tab-label { overflow: hidden; text-overflow: ellipsis; }
+
+/* ---- the head: the panel title and the width control ---------------------------------------- */
+
+#lolchat .chat-work-head {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+  background: var(--chat-panel);
+}
+#lolchat .chat-work-title {
+  flex: 1; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: 13px; font-weight: 600; color: var(--text);
+}
+#lolchat .chat-work-widths {
+  display: inline-flex; flex: none;
+  border: 1px solid var(--border); border-radius: 999px; overflow: hidden;
+  background: var(--surface-2);
+}
+#lolchat .chat-work-width {
+  padding: 3px 10px;
+  border: none; background: transparent; color: var(--muted);
+  font: inherit; font-size: 12px; line-height: 1.5; cursor: pointer;
+}
+#lolchat .chat-work-width:hover { color: var(--text); }
+#lolchat .chat-work-width.is-on {
+  background: var(--accent); color: var(--on-accent);
+}
+
+/* ---- the body: the ONE node a panel owns ---------------------------------------------------- */
+
+#lolchat .chat-work-body {
+  min-width: 0; min-height: 0;
+  overflow: auto;
+  background: var(--bg);
+}
+#lolchat .chat-work-panel { display: block; min-width: 0; min-height: 100%; }
+
+/* ---- the drag handle ------------------------------------------------------------------------ */
+
+#lolchat .chat-work-grip {
+  position: absolute; top: 0; bottom: 0; left: -3px;
+  width: 7px; z-index: 5;
+  cursor: col-resize;
+  touch-action: none;
+  background: transparent;
+}
+#lolchat .chat-work-grip:hover,
+#lolchat .chat-work-grip.is-dragging,
+#lolchat .chat-work-grip:focus-visible {
+  background: color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+/* ---- the `work` state: the panel takes the room, the composer docks under it ------------------ */
+
+#lolchat.chat-w-work { grid-template-columns: 240px 0px minmax(0, 1fr); }
+#lolchat.chat-w-work .chat-main {
+  position: absolute; left: 240px; right: 0; bottom: 0; z-index: 4;
+  padding: 0;
+  background: var(--chat-panel);
+  border-top: 1px solid var(--border);
+}
+#lolchat.chat-w-work .chat-main > :not(.chat-form) { display: none !important; }
+#lolchat.chat-w-work .chat-main .chat-composer-above:empty,
+#lolchat.chat-w-work .chat-main .chat-composer-tray:empty { display: none; }
+#lolchat.chat-w-work .chat-work-body { padding-bottom: 72px; }
+#lolchat.chat-w-work .chat-work-grip { display: none; }
+
+/* Under 900px a 320px panel beside a 300px chat is neither (studio plan §3.5.1): the split state
+   renders exactly like `work`. The STATE is untouched — widen the window and the split returns. */
+@media (max-width: 899px) {
+  #lolchat.chat-w-split { grid-template-columns: 240px 0px minmax(0, 1fr); }
+  #lolchat.chat-w-split .chat-main {
+    position: absolute; left: 240px; right: 0; bottom: 0; z-index: 4;
+    padding: 0;
+    background: var(--chat-panel);
+    border-top: 1px solid var(--border);
+  }
+  #lolchat.chat-w-split .chat-main > :not(.chat-form) { display: none !important; }
+  #lolchat.chat-w-split .chat-work-body { padding-bottom: 72px; }
+  #lolchat.chat-w-split .chat-work-grip { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #lolchat { transition: none; }
+}
+
+/* ---- S0 LANDING (integrator, not S0-U1): the composer in a split column --------------------- */
+/* In `split` the chat column is ~440px and the composer row cannot hold its four items on one
+   line: the context meter's content min-width is ~190px and it does not shrink, so the textarea
+   was squeezed to 134px and wrapped its placeholder over four lines (seen in s0-shots-dark-split
+   at the S0 landing). Below the split, the row WRAPS: the textarea takes the whole first line and
+   the tools / meter / Send sit under it. `field-sizing: content`'s vertical autogrow is untouched,
+   and the chat-only look P1/P2 shipped is untouched — this is the split state alone (in `work` the
+   row is full width again and behaves as before). */
+#lolchat.chat-w-split .chat-composer-row { flex-wrap: wrap; }
+#lolchat.chat-w-split .chat-form textarea { flex: 1 0 100%; }
+#lolchat.chat-w-split .chat-composer-row > .chat-composer-meter { margin-left: auto; }
+
+/* ---- S0 LANDING (integrator, not S0-U1): pin the column, don't let auto-placement move it ----- */
+/* The `work` state (and the <900px split, which renders like it) takes `.chat-main` OUT of flow
+   with `position: absolute`. Grid auto-placement then slides the NEXT in-flow item — `.chat-work`
+   itself — into the vacated second track, which in those states is `0px`: the panel rendered 1px
+   wide with its body overflowing (measured in s0-shots-dark, work state: tracks
+   "240px 0px 1024px", .chat-work width 1px). s0-workbench only measured the TRACK, so it stayed
+   green. Explicit placement fixes it in every state and costs nothing in the others. */
+/* Only the two ENDS are pinned: `.chat-main` is left to auto-placement on purpose — pinning it
+   would make the grid area its containing block once it goes `position: absolute`, and the docked
+   composer would then measure its left:240 from the (zero-width) second track. */
+#lolchat .chat-side { grid-column: 1; }
+#lolchat .chat-work { grid-column: 3; }

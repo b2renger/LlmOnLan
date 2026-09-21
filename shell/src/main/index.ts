@@ -9,6 +9,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
 import { randomUUID } from 'crypto';
+import { pathToFileURL } from 'url';
 import { loadSettings, updateSettings } from './store';
 import { defaultDataDir, bundledOwuiVersion, sidecarRoot } from './paths';
 import { SidecarSupervisor } from './sidecar';
@@ -385,6 +386,24 @@ function createWindow(): void {
     win.removeMenu();
     win.loadFile(path.join(app.getAppPath(), 'renderer', 'index.html'));
     win.webContents.on('did-finish-load', pushSidecarState);
+
+    // ---- LOL Studio (S0) ---- (navigation veto; mirrored in shell/test/chat-harness/main.cjs)
+    // The sandbox runner (S2) is a SUBFRAME: it may load itself once and must never navigate
+    // again, whatever the guest code tries. The app's own main-frame navigation is unaffected.
+    //
+    // EXACT MATCH, not a substring test (S0 review, finding 3). A regex over the whole URL also
+    // matched .../LOL Studio Projects/<id>/sandbox/runner.html — a two-segment .html path the
+    // projects API happily writes — so a project could host its own "runner" and the veto would
+    // wave it through. Only the app's own file is allowed, compared after query/hash are stripped.
+    const RUNNER_URL = pathToFileURL(path.join(app.getAppPath(), 'renderer', 'chat', 'sandbox', 'runner.html')).href;
+    const bareUrl = (u: string) => u.split('#')[0].split('?')[0];
+    win.webContents.on('will-frame-navigate', (e) => {
+        if (e.isMainFrame) return;
+        if (bareUrl(String(e.url || '')) === RUNNER_URL) return;
+        e.preventDefault();
+    });
+    // ---- /LOL Studio ----
+
     configureWebviewPermissions();
     // Closing the window closes EVERYTHING (owner decision 2026-09-04): no
     // hide-to-tray, no background sidecar, no lingering farm presence. A client
@@ -466,6 +485,65 @@ function registerIpc(): void {
         if (typeof url === 'string' && /^https?:\/\//i.test(url)) return shell.openExternal(url);
         return false;
     });
+
+    // ---- LOL Studio (S0) ---- (the scratch-projects API, studio plan 3.8; reviewed separately)
+    // The projects root is computed HERE, in main, from the shell's own data folder: the renderer
+    // never sends an absolute path and only ever learns the string back from root()/path(), for
+    // display and "Copy path". The API is re-created when the user moves the data folder, so the
+    // projects follow it without a relaunch.
+    //
+    // Every handler checks arity and argument TYPES before the call, so a compromised renderer
+    // still cannot hand write() a number. What is deliberately NOT here: any absolute path as an
+    // input, directory creation/removal as such, openExternal, vscode://, child_process, watching.
+    const { createProjectsApi } = require('./projects') as typeof import('./projects');
+    type ProjectsApi = ReturnType<typeof createProjectsApi>;
+    let projectsApi: ProjectsApi | null = null;
+    let projectsRoot = '';
+    function projects(): ProjectsApi {
+        const rootDir = path.join(resolveDataDir(), 'LOL Studio Projects');
+        if (!projectsApi || projectsRoot !== rootDir) {
+            projectsRoot = rootDir;
+            projectsApi = createProjectsApi({
+                rootDir,
+                shellApi: {
+                    showItemInFolder: (target: string) => shell.showItemInFolder(target),
+                    openPath: (target: string) => shell.openPath(target),
+                },
+            });
+        }
+        return projectsApi;
+    }
+    const badArgs = Promise.resolve({ ok: false, code: 'E_PATH', message: 'bad arguments' });
+    const isStr = (v: unknown): v is string => typeof v === 'string';
+    const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object';
+
+    ipcMain.handle('lol:projects:root', () => projects().root());
+    ipcMain.handle('lol:projects:list', () => projects().list());
+    ipcMain.handle('lol:projects:create', (_e, input: unknown) => (
+        isObj(input) && isStr(input.name) && isStr(input.kind)
+            ? projects().create(input as never) : badArgs));
+    ipcMain.handle('lol:projects:meta', (_e, id: unknown) => (isStr(id) ? projects().meta(id) : badArgs));
+    ipcMain.handle('lol:projects:update', (_e, id: unknown, patch: unknown) => (
+        isStr(id) && isObj(patch) ? projects().update(id, patch as never) : badArgs));
+    ipcMain.handle('lol:projects:forget', (_e, id: unknown) => (isStr(id) ? projects().forget(id) : badArgs));
+    ipcMain.handle('lol:projects:listFiles', (_e, id: unknown) => (isStr(id) ? projects().listFiles(id) : badArgs));
+    ipcMain.handle('lol:projects:read', (_e, id: unknown, rel: unknown) => (
+        isStr(id) && isStr(rel) ? projects().read(id, rel) : badArgs));
+    ipcMain.handle('lol:projects:readBinary', (_e, id: unknown, rel: unknown) => (
+        isStr(id) && isStr(rel) ? projects().readBinary(id, rel) : badArgs));
+    ipcMain.handle('lol:projects:write', (_e, id: unknown, rel: unknown, text: unknown, o: unknown) => {
+        if (!isStr(id) || !isStr(rel) || !isStr(text)) return badArgs;
+        const ifMtime = isObj(o) && typeof o.ifMtime === 'number' ? o.ifMtime : undefined;
+        return projects().write(id, rel, text, ifMtime === undefined ? undefined : { ifMtime });
+    });
+    ipcMain.handle('lol:projects:writeBinary', (_e, id: unknown, rel: unknown, base64: unknown) => (
+        isStr(id) && isStr(rel) && isStr(base64) ? projects().writeBinary(id, rel, base64) : badArgs));
+    ipcMain.handle('lol:projects:remove', (_e, id: unknown, rel: unknown) => (
+        isStr(id) && isStr(rel) ? projects().remove(id, rel) : badArgs));
+    ipcMain.handle('lol:projects:reveal', (_e, id: unknown) => (isStr(id) ? projects().reveal(id) : badArgs));
+    ipcMain.handle('lol:projects:open', (_e, id: unknown) => (isStr(id) ? projects().open(id) : badArgs));
+    ipcMain.handle('lol:projects:path', (_e, id: unknown) => (isStr(id) ? projects().path(id) : badArgs));
+    // ---- /LOL Studio ----
 
     // Manual reload of the embedded OWUI (e.g. after a repoint).
     ipcMain.handle('reload-webview', () => { pushSidecarState(); return true; });

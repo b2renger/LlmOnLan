@@ -1,0 +1,59 @@
+/* queue.css — owned by S0-U3 (ui/queue.mjs): the batch queue chip.
+
+   Scope: `#lolchat .chat-queue-chip` and its children only. ComfyQ tokens only — no colour
+   literals (chat-lint rule 3).
+
+   The chip floats over the bottom-left of the chat area rather than taking a layout region: a
+   batch is transient, and nothing else in the column may reflow when one starts. `[hidden]` is
+   already `display:none !important` from the host reset, so the module only toggles `el.hidden`. */
+
+#lolchat .chat-queue-chip {
+  position: absolute;
+  left: 16px;
+  bottom: 84px;
+  z-index: 6;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: calc(100% - 32px);
+  padding: 6px 8px 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 12px;
+  line-height: 1;
+  box-shadow: 0 2px 10px color-mix(in srgb, var(--bg) 60%, transparent);
+}
+
+#lolchat .chat-queue-chip .chat-queue-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#lolchat .chat-queue-chip .chat-queue-note {
+  color: var(--amber);
+  white-space: nowrap;
+}
+
+#lolchat .chat-queue-chip.is-stopping .chat-queue-text { color: var(--muted); }
+
+#lolchat .chat-queue-chip .chat-queue-cancel {
+  appearance: none;
+  height: 22px;
+  padding: 0 9px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--muted);
+  font-family: inherit;
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+#lolchat .chat-queue-chip .chat-queue-cancel:hover {
+  color: var(--text);
+  border-color: var(--accent-hover);
+}

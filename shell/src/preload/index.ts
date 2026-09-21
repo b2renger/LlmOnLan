@@ -56,4 +56,28 @@ contextBridge.exposeInMainWorld('lol', {
     reloadWebview: () => ipcRenderer.invoke('reload-webview'),
     restartSidecar: () => ipcRenderer.invoke('restart-sidecar'),
     relaunch: () => ipcRenderer.invoke('relaunch-app'),
+    projects: {
+        // The scratch-projects API (studio plan §3.8): ONE additive property, every method a thin
+        // ipcRenderer.invoke that resolves to {ok:true,...} or {ok:false,code,message} — nothing
+        // throws across the bridge. No event channels and no on* subscriptions: the renderer polls
+        // on its own actions, and there is no watcher. The renderer never sends an absolute path;
+        // `id` always comes from create()/list(), `rel` is always relative and re-validated in main.
+        root: () => ipcRenderer.invoke('lol:projects:root'),
+        list: () => ipcRenderer.invoke('lol:projects:list'),
+        create: (input: unknown) => ipcRenderer.invoke('lol:projects:create', input),
+        meta: (id: string) => ipcRenderer.invoke('lol:projects:meta', id),
+        update: (id: string, patch: unknown) => ipcRenderer.invoke('lol:projects:update', id, patch),
+        forget: (id: string) => ipcRenderer.invoke('lol:projects:forget', id),
+        listFiles: (id: string) => ipcRenderer.invoke('lol:projects:listFiles', id),
+        read: (id: string, rel: string) => ipcRenderer.invoke('lol:projects:read', id, rel),
+        readBinary: (id: string, rel: string) => ipcRenderer.invoke('lol:projects:readBinary', id, rel),
+        write: (id: string, rel: string, text: string, o?: unknown) =>
+            ipcRenderer.invoke('lol:projects:write', id, rel, text, o),
+        writeBinary: (id: string, rel: string, base64: string) =>
+            ipcRenderer.invoke('lol:projects:writeBinary', id, rel, base64),
+        remove: (id: string, rel: string) => ipcRenderer.invoke('lol:projects:remove', id, rel),
+        reveal: (id: string) => ipcRenderer.invoke('lol:projects:reveal', id),
+        open: (id: string) => ipcRenderer.invoke('lol:projects:open', id),
+        path: (id: string) => ipcRenderer.invoke('lol:projects:path', id),
+    },
 });
