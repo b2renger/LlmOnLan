@@ -31,4 +31,10 @@ registerStrings('studio', {
   // The Computer panel (docs/LOLCHAT_COMPUTER_SPEC.md) is the first real panel; it registers itself
   // in the next phase. Its label lives here so the rail and the string gate are ready for it.
   panelComputer: 'Computer',
+
+  // The header button. The rail lives INSIDE the workbench column, which is 0px wide while the
+  // workbench is closed — so with only the rail, a shut workbench can be opened by keyboard alone
+  // (Ctrl+\ / Ctrl+1..4). The owner opened the client and could not find the Computer at all.
+  headerOpen: 'Open {panel}',
+  headerClose: 'Close {panel}',
 });

@@ -684,6 +684,57 @@ export function install(app) {
 
   app.work = api;
 
+  // ---- the way IN ------------------------------------------------------------------------------
+  // The rail is inside the work column, so while the workbench is closed it has zero width and the
+  // only openers are the shortcuts. That made the Computer invisible to the first person who ran
+  // the client. One button in the thread header, listed by the header host on every render, is the
+  // visible door: it opens the panel you used last (or the first available one) and closes the live
+  // one. It renders nothing at all when no panel is registered, so a build without panels is
+  // unchanged.
+  // The header host rebuilds its row on ITS own events, not on ours, so one subscription for the
+  // life of the app keeps whichever button is currently mounted in step — no per-node observers.
+  const HEADER_HINT = { on: 'studio.headerClose', off: 'studio.headerOpen' };
+
+  function syncHeaderButton() {
+    const b = app.root && app.root.querySelector('[data-workbench-toggle]');
+    if (!b) return;
+    const on = !!openId;
+    const id = b.getAttribute('data-workbench-toggle') || '';
+    const p = entry(on ? openId : id) || entry(id);
+    b.classList.toggle('on', on);
+    b.setAttribute('aria-pressed', on ? 'true' : 'false');
+    b.title = t(HEADER_HINT[on ? 'on' : 'off'], { panel: p ? p.label : t('studio.bodyLabel') });
+  }
+  api.on(syncHeaderButton);
+
+  app.registry.add(SLOTS.THREAD_HEADER, {
+    id: 'workbench',
+    order: 300,
+    render() {
+      const list = items().filter((p) => p.available);
+      if (!list.length) return null;
+      const target = list.find((p) => p.id === (openId || lastPanelKv)) || list[0];
+      const live = !!openId && list.some((p) => p.id === openId);
+      const b = el('button', {
+        type: 'button',
+        class: live ? 'chat-header-work on' : 'chat-header-work',
+        'data-workbench-toggle': target.id,
+        'aria-pressed': live ? 'true' : 'false',
+        title: t(HEADER_HINT[live ? 'on' : 'off'], { panel: target.label }),
+      });
+      b.appendChild(icon(typeof target.item.icon === 'string' && target.item.icon ? target.item.icon : DEFAULT_ICON));
+      const label = el('span');
+      label.textContent = target.label;
+      b.appendChild(label);
+      b.addEventListener('click', () => {
+        if (openId) close();
+        else open(target.id);
+        syncHeaderButton();
+      });
+      return b;
+    },
+  });
+
   const debug = window.LolChat && window.LolChat.debug;
   if (debug) {
     debug.work = {

@@ -159,3 +159,16 @@
    composer would then measure its left:240 from the (zero-width) second track. */
 #lolchat .chat-side { grid-column: 1; }
 #lolchat .chat-work { grid-column: 3; }
+
+/* The header button: the visible door into the workbench. The rail is inside the work column, so
+   while the workbench is closed the rail has no width and only the shortcuts could open it. Sits in
+   the thread header beside the title and the system-prompt button, and matches them. */
+#lolchat .chat-header-work {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: transparent; color: var(--muted);
+  border: 1px solid var(--border); border-radius: 7px;
+  padding: 4px 9px; font: inherit; font-size: 12px; cursor: pointer;
+}
+#lolchat .chat-header-work:hover { color: var(--text); background: var(--surface-2); }
+#lolchat .chat-header-work.on { color: var(--text); background: var(--surface-2); border-color: var(--accent); }
+#lolchat .chat-header-work .chat-icon { flex: none; opacity: .85; }
