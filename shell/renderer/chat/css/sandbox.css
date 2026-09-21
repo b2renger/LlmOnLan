@@ -1,0 +1,40 @@
+/* The sandbox host's chrome. C3-U1 owns this file and REPLACES it wholesale (plan §2.6 BJ).
+   ComfyQ tokens only — no colour literals (lint rule 3).
+
+   The iframe itself is visually inert: the Computer shows a SNAPSHOT of what the guest drew, not
+   a live frame, so there is at most one iframe in the process and the canvas never pans 500 live
+   documents. It still has to be laid out (an off-screen frame with no size rasterises nothing),
+   so it lives at a fixed small size, clipped, behind the canvas. */
+
+.sandbox-mount {
+  position: absolute;
+  left: -20000px;
+  top: 0;
+  width: 640px;
+  height: 480px;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.sandbox-frame {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: var(--surface);
+  color-scheme: light dark;
+}
+
+/* The one row the reader sees when the guest misbehaves (§3.7.4). */
+.sandbox-note {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.sandbox-note[data-level='error'] { color: var(--danger); }

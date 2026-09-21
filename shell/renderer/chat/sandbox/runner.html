@@ -1,0 +1,414 @@
+<!doctype html>
+<!-- The sandbox guest. Loaded ONLY by sandbox/host.mjs into an iframe with
+     sandbox="allow-scripts" (no allow-same-origin, ever) - the opaque origin is what gives a
+     generated infinite loop its own process, so it costs the host ~12 ms instead of freezing the
+     client that holds the user's chats. The main process vetoes every other subframe navigation
+     (shell/src/main/index.ts, mirrored in shell/test/chat-harness/main.cjs).
+     The CSP below is BYTE-FROZEN: lint rule 9 compares it to RUNNER_CSP in sandbox/protocol.mjs.
+     Nothing here loads from disk or from a network: the sketch, the vendored libraries and the
+     project's own lib/ files all arrive as TEXT over postMessage and are evaluated inline.
+     Rules 1 and 2 of the chat lint do not apply to this file (it IS the containment boundary, so
+     innerHTML and eval are its job); every other rule does.
+     Owner: C3-U1. Studio plan 3.7, protocol table 3.7.2. -->
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval' blob:; style-src 'unsafe-inline'; img-src data: blob:; media-src data: blob:; connect-src 'none'; frame-src 'none'; child-src blob:; worker-src blob:; font-src data:; form-action 'none'; base-uri 'none'">
+<style>html,body{margin:0;padding:0;height:100%;background:transparent;overflow:hidden}#root{width:100%;height:100%;position:relative}#root>canvas{display:block}</style>
+<div id="root"></div>
+<script>
+(function () {
+  'use strict';
+
+  // ---- protocol (mirrors sandbox/protocol.mjs; this file cannot import - default-src 'none') ---
+  var V = 1;
+  var CMDS = ['boot', 'libs', 'run', 'compute', 'params', 'snapshot', 'stop', 'ping', 'dispose'];
+  var RUN_KINDS = ['canvas', 'dom', 'three', 'p5', 'svg'];
+  var tok = null;
+  var root = document.getElementById('root');
+  var styleEl = document.createElement('style');
+  document.head.appendChild(styleEl);
+  var limits = { maxLogs: 200, maxErrors: 20, logBytes: 2048, resultBytes: 1024 * 1024, maxPx: 1024 };
+  var logsLeft = 0, errsLeft = 0, logsDropped = 0, errsDropped = 0;
+  var params = {};
+  var onParams = [];
+
+  function send(kind, payload) {
+    var msg = { v: V, tok: tok || '', kind: kind };
+    for (var k in payload) if (Object.prototype.hasOwnProperty.call(payload, k)) msg[k] = payload[k];
+    try { parent.postMessage(msg, '*'); } catch (e) { /* the host went away */ }
+  }
+
+  // Stacks are sanitised HERE so no file:/blob: path can ever travel back into the host UI or
+  // into a prompt sent to the farm (studio plan 3.7.3).
+  function clean(s) {
+    return String(s === null || s === undefined ? '' : s)
+      .replace(/(?:file|blob|data):[^\s)]*/g, 'sketch.js')
+      .slice(0, 4096);
+  }
+
+  // ---- line numbers ----------------------------------------------------------------------------
+  // A `new Function` body's stack lines are offset by the wrapper the engine writes around it
+  // ("function anonymous(lol\n) {"). The offset is MEASURED once at boot rather than assumed, so an
+  // engine bump shifts nothing: a sketch that throws on its line 7 reports line 7.
+  var LINE_OFFSET = 3;
+  function stackLine(stack) {
+    var m = /<anonymous>:(\d+):(\d+)/.exec(String(stack || ''));
+    if (!m) return null;
+    return { line: Number(m[1]), col: Number(m[2]) };
+  }
+  (function measure() {
+    try {
+      // The `throw` sits on line 2 of the body, exactly where a sketch's line 1 will sit
+      // (both are preceded by the same one prologue line the guest prepends).
+      new Function('"use strict";\nthrow new Error("probe");')();
+    } catch (e) {
+      var at = stackLine(e && e.stack);
+      if (at) LINE_OFFSET = at.line - 1;
+    }
+  }());
+
+  function errOf(e, phase) {
+    if (!e) return null;
+    var at = stackLine(e && e.stack);
+    return {
+      message: clean(e.message !== undefined && e.message !== null ? e.message : e),
+      stack: clean(e && e.stack ? e.stack : ''),
+      line: at ? Math.max(0, at.line - LINE_OFFSET) : 0,
+      col: at ? at.col : 0,
+      phase: phase || 'run'
+    };
+  }
+
+  function report(phase, e, at) {
+    if (errsLeft <= 0) { errsDropped++; return; }
+    errsLeft--;
+    var info = errOf(e, phase) || { message: clean(e), stack: '', line: 0, col: 0 };
+    if (at && at.line) { info.line = Math.max(0, at.line - LINE_OFFSET); info.col = at.col || 0; }
+    send('error', {
+      phase: phase, message: info.message, stack: info.stack,
+      line: info.line, col: info.col, n: errsLeft === 0 ? errsDropped + 1 : 0
+    });
+  }
+
+  // ---- reset bookkeeping: everything the guest issued, so `run`/`stop` can take it all back ----
+  // `tracking` is off while a LIBRARY is being evaluated: a library's own boot-time listeners and
+  // timers belong to the library, not to the sketch, and must survive the next run's reset (p5
+  // installs several). They die with the frame, which is the only lifetime a library has.
+  var tracking = true;
+  var rafs = [], timers = [], workers = [], listeners = [], audios = [], sketches = [];
+  var _raf = window.requestAnimationFrame, _caf = window.cancelAnimationFrame;
+  var _st = window.setTimeout, _si = window.setInterval;
+  var _ct = window.clearTimeout, _ci = window.clearInterval;
+  window.requestAnimationFrame = function (fn) {
+    var h = _raf.call(window, fn);
+    if (tracking) rafs.push(h);
+    return h;
+  };
+  window.setTimeout = function (fn, ms) {
+    var h = _st.call(window, fn, ms);
+    if (tracking) timers.push(['t', h]);
+    return h;
+  };
+  window.setInterval = function (fn, ms) {
+    var h = _si.call(window, fn, ms);
+    if (tracking) timers.push(['i', h]);
+    return h;
+  };
+  var _Worker = window.Worker;
+  if (_Worker) {
+    window.Worker = function (u, o) {
+      var w = new _Worker(u, o);
+      if (tracking) workers.push(w);
+      return w;
+    };
+  }
+  var _AC = window.AudioContext || window.webkitAudioContext;
+  if (_AC) {
+    window.AudioContext = function (o) {
+      var c = new _AC(o);
+      if (tracking) audios.push(c);
+      return c;
+    };
+    window.webkitAudioContext = window.AudioContext;
+  }
+  var _addWin = window.addEventListener;
+  var _addDoc = document.addEventListener;
+  window.addEventListener = function (type, fn, o) {
+    if (tracking) listeners.push([window, type, fn, o]);
+    return _addWin.call(window, type, fn, o);
+  };
+  document.addEventListener = function (type, fn, o) {
+    if (tracking) listeners.push([document, type, fn, o]);
+    return _addDoc.call(document, type, fn, o);
+  };
+
+  function reset() {
+    var i;
+    for (i = 0; i < sketches.length; i++) { try { sketches[i].remove(); } catch (e) { /* gone */ } }
+    for (i = 0; i < rafs.length; i++) { try { _caf.call(window, rafs[i]); } catch (e) { /* gone */ } }
+    for (i = 0; i < timers.length; i++) {
+      try { (timers[i][0] === 't' ? _ct : _ci).call(window, timers[i][1]); } catch (e) { /* gone */ }
+    }
+    for (i = 0; i < workers.length; i++) { try { workers[i].terminate(); } catch (e) { /* gone */ } }
+    for (i = 0; i < listeners.length; i++) {
+      try { listeners[i][0].removeEventListener(listeners[i][1], listeners[i][2], listeners[i][3]); } catch (e) { /* gone */ }
+    }
+    for (i = 0; i < audios.length; i++) { try { audios[i].close(); } catch (e) { /* gone */ } }
+    rafs = []; timers = []; workers = []; listeners = []; audios = []; sketches = [];
+    params = {}; onParams = [];
+    try { root.replaceChildren(); } catch (e) { root.textContent = ''; }
+    styleEl.textContent = '';
+    logsLeft = limits.maxLogs; errsLeft = limits.maxErrors;
+    logsDropped = 0; errsDropped = 0;
+  }
+
+  // ---- console capture -------------------------------------------------------------------------
+  function preview(v, depth) {
+    if (v === null) return 'null';
+    if (v === undefined) return 'undefined';
+    var t = typeof v;
+    if (t === 'string') return v;
+    if (t === 'number' || t === 'boolean') return String(v);
+    if (t === 'function') return 'function ' + (v.name || '');
+    if (t === 'symbol' || t === 'bigint') return String(v);
+    if (v instanceof Error) return String(v.name + ': ' + v.message);
+    if (depth <= 0) return Array.isArray(v) ? '[Array(' + v.length + ')]' : '[object]';
+    var parts = [], k;
+    if (Array.isArray(v)) {
+      for (k = 0; k < v.length && k < 20; k++) parts.push(preview(v[k], depth - 1));
+      if (v.length > 20) parts.push('+' + (v.length - 20) + ' more');
+      return '[' + parts.join(', ') + ']';
+    }
+    if (v && v.nodeType) return '<' + String(v.nodeName || 'node').toLowerCase() + '>';
+    var n = 0;
+    for (k in v) {
+      if (!Object.prototype.hasOwnProperty.call(v, k)) continue;
+      if (++n > 20) { parts.push('...'); break; }
+      try { parts.push(k + ': ' + preview(v[k], depth - 1)); } catch (e) { parts.push(k + ': ?'); }
+    }
+    return '{' + parts.join(', ') + '}';
+  }
+
+  ['log', 'info', 'warn', 'error'].forEach(function (level) {
+    var orig = console[level];
+    console[level] = function () {
+      if (logsLeft > 0) {
+        logsLeft--;
+        var parts = [];
+        for (var i = 0; i < arguments.length; i++) {
+          try { parts.push(preview(arguments[i], 2)); } catch (e) { parts.push('?'); }
+        }
+        send('log', {
+          level: level,
+          text: parts.join(' ').slice(0, limits.logBytes),
+          n: logsLeft === 0 ? logsDropped + 1 : 0
+        });
+      } else {
+        logsDropped++;
+      }
+      try { orig.apply(console, arguments); } catch (e) { /* no devtools */ }
+    };
+  });
+
+  window.onerror = function (m, src, line, col, e) {
+    report('runtime', e || { message: m }, { line: line, col: col });
+    return true;
+  };
+  window.onunhandledrejection = function (ev) { report('rejection', ev && ev.reason); };
+
+  // ---- run ------------------------------------------------------------------------------------
+  function defaultHtml(kind) {
+    if (kind === 'canvas' || kind === 'three') return '<canvas></canvas>';
+    return '';
+  }
+
+  function fitCanvas(c) {
+    var w = Math.max(1, Math.round(root.clientWidth || 640));
+    var h = Math.max(1, Math.round(root.clientHeight || 480));
+    if (!c.getAttribute('width')) c.width = w;
+    if (!c.getAttribute('height')) c.height = h;
+    c.style.width = '100%';
+    c.style.height = '100%';
+  }
+
+  function makeApi(kind) {
+    var canvas = root.querySelector('canvas');
+    if (canvas) fitCanvas(canvas);
+    return {
+      kind: kind,
+      root: root,
+      canvas: canvas,
+      params: params,
+      size: { w: root.clientWidth || 640, h: root.clientHeight || 480 },
+      log: function () { console.log.apply(console, arguments); },
+      onParams: function (fn) { if (typeof fn === 'function') onParams.push(fn); }
+    };
+  }
+
+  function startP5(value) {
+    if (typeof window.p5 !== 'function') return;
+    var made = null;
+    if (typeof value === 'function') made = new window.p5(value, root);
+    else if (typeof window.setup === 'function' || typeof window.draw === 'function') made = new window.p5(undefined, root);
+    if (made) sketches.push(made);
+  }
+
+  function doRun(msg) {
+    reset();
+    var kind = RUN_KINDS.indexOf(String(msg.kind || '')) >= 0 ? String(msg.kind) : 'dom';
+    var t0 = Date.now();
+    try {
+      // The guest MAY innerHTML: it is the containment boundary. `params.source` is the shape the
+      // Render part uses for markdown/SVG it has already turned into HTML.
+      var html = msg.html;
+      if (!html && msg.params && typeof msg.params.source === 'string') html = msg.params.source;
+      root.innerHTML = html ? String(html) : defaultHtml(kind);
+      styleEl.textContent = String(msg.css || '');
+      params = msg.params && typeof msg.params === 'object' ? msg.params : {};
+      var api = makeApi(kind);
+      var code = String(msg.code || '');
+      var value;
+      if (code.trim()) {
+        var fn = new Function('lol', '"use strict";\n' + code);
+        value = fn(api);
+      }
+      if (kind === 'p5') startP5(value);
+      send('ran', { id: msg.id, ok: true, ms: Date.now() - t0, error: null });
+    } catch (e) {
+      send('ran', { id: msg.id, ok: false, ms: Date.now() - t0, error: errOf(e, 'run') });
+    }
+  }
+
+  function doCompute(msg) {
+    var t0 = Date.now();
+    var done = function (ok, json, error) {
+      send('computed', { id: msg.id, ok: ok, ms: Date.now() - t0, json: json, error: error });
+    };
+    try {
+      var fn = new Function('inputs', 'lol', '"use strict";\n' + String(msg.code || ''));
+      var out = fn(msg.inputs || {}, { log: function () { console.log.apply(console, arguments); } });
+      Promise.resolve(out).then(function (value) {
+        var json = null;
+        try { json = value === undefined ? null : JSON.stringify(value); }
+        catch (e) { done(false, null, errOf(new Error('the result cannot be turned into JSON'), 'compute')); return; }
+        if (json !== null && json.length > limits.resultBytes) {
+          done(false, null, errOf(new Error('the result is too large'), 'compute'));
+          return;
+        }
+        done(true, json === undefined ? null : json, null);
+      }, function (e) { done(false, null, errOf(e, 'compute')); });
+    } catch (e) {
+      done(false, null, errOf(e, 'compute'));
+    }
+  }
+
+  // ---- snapshot --------------------------------------------------------------------------------
+  function scaled(w, h, maxPx) {
+    var longest = Math.max(w, h);
+    if (!longest) return { w: 1, h: 1 };
+    var k = longest > maxPx ? maxPx / longest : 1;
+    return { w: Math.max(1, Math.round(w * k)), h: Math.max(1, Math.round(h * k)) };
+  }
+
+  function sendFrame(id, source, w, h, maxPx) {
+    var to = scaled(w, h, maxPx);
+    var out = document.createElement('canvas');
+    out.width = to.w; out.height = to.h;
+    var ctx = out.getContext('2d');
+    ctx.drawImage(source, 0, 0, to.w, to.h);
+    send('frame', { id: id, dataUrl: out.toDataURL('image/png'), w: to.w, h: to.h });
+  }
+
+  // A WebGL canvas (three.js) is only readable if it still holds its drawing buffer: the host asks
+  // for the snapshot right after the run, and a sketch that needs to be photographed later should
+  // create its renderer with `preserveDrawingBuffer: true`. A 2D canvas has no such rule.
+  function doSnapshot(msg) {
+    var maxPx = Math.min(Number(msg.maxPx) || limits.maxPx, 4096);
+    var canvas = root.querySelector('canvas');
+    try {
+      if (canvas && canvas.width && canvas.height) {
+        sendFrame(msg.id, canvas, canvas.width, canvas.height, maxPx);
+        return;
+      }
+    } catch (e) {
+      send('ran', { id: msg.id, ok: false, ms: 0, error: errOf(e, 'run') });
+      return;
+    }
+    // No canvas: rasterise the DOM through an SVG foreignObject data: URL (img-src data: is the
+    // only image source the CSP allows, and a data: URL cannot taint the output canvas).
+    var w = Math.max(1, root.clientWidth || 640);
+    var h = Math.max(1, root.clientHeight || 480);
+    try {
+      var clone = root.cloneNode(true);
+      clone.setAttribute('xmlns', 'http://www.w3.org/1999/xhtml');
+      var body = new XMLSerializer().serializeToString(clone);
+      var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + w + '" height="' + h + '">'
+        + '<foreignObject width="100%" height="100%">'
+        + '<style xmlns="http://www.w3.org/1999/xhtml">' + String(styleEl.textContent || '').replace(/[<&]/g, ' ') + '</style>'
+        + body + '</foreignObject></svg>';
+      var img = new Image();
+      img.onload = function () {
+        try { sendFrame(msg.id, img, w, h, maxPx); }
+        catch (e) { send('ran', { id: msg.id, ok: false, ms: 0, error: errOf(e, 'run') }); }
+      };
+      img.onerror = function () {
+        send('ran', { id: msg.id, ok: false, ms: 0, error: errOf(new Error('there is nothing to photograph'), 'run') });
+      };
+      img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+    } catch (e) {
+      send('ran', { id: msg.id, ok: false, ms: 0, error: errOf(e, 'run') });
+    }
+  }
+
+  // ---- commands --------------------------------------------------------------------------------
+  function handle(msg) {
+    var cmd = msg.cmd;
+    if (cmd === 'boot') {
+      tok = String(msg.tok || '');
+      if (msg.limits) for (var k in msg.limits) limits[k] = msg.limits[k];
+      reset();
+      send('ready', { ua: 'runner' });
+      return;
+    }
+    if (cmd === 'ping') { send('pong', { seq: msg.seq }); return; }
+    if (cmd === 'stop') { reset(); return; }
+    if (cmd === 'dispose') { reset(); send('bye', {}); return; }
+    if (cmd === 'params') {
+      var values = msg.values && typeof msg.values === 'object' ? msg.values : {};
+      for (var p in values) if (Object.prototype.hasOwnProperty.call(values, p)) params[p] = values[p];
+      for (var i = 0; i < onParams.length; i++) {
+        try { onParams[i](params); } catch (e) { report('runtime', e); }
+      }
+      return;
+    }
+    if (cmd === 'libs') {
+      var results = [];
+      var libs = Array.isArray(msg.libs) ? msg.libs : [];
+      tracking = false;                       // a library's own listeners live as long as the frame
+      for (var j = 0; j < libs.length; j++) {
+        try {
+          (0, eval)(String(libs[j].source));
+          results.push({ name: libs[j].name, ok: true, error: null });
+        } catch (e) {
+          results.push({ name: libs[j].name, ok: false, error: clean(e && e.message) });
+        }
+      }
+      tracking = true;
+      send('libsDone', { results: results });
+      return;
+    }
+    if (cmd === 'compute') { doCompute(msg); return; }
+    if (cmd === 'run') { doRun(msg); return; }
+    if (cmd === 'snapshot') { doSnapshot(msg); }
+  }
+
+  _addWin.call(window, 'message', function (e) {
+    if (e.source !== window.parent) return;
+    var msg = e.data;
+    if (!msg || typeof msg !== 'object' || msg.v !== V) return;
+    if (CMDS.indexOf(msg.cmd) < 0) return;
+    if (tok === null) { if (msg.cmd !== 'boot') return; }
+    else if (String(msg.tok || '') !== tok) return;
+    try { handle(msg); } catch (err) { report('run', err); }
+  });
+}());
+</script>

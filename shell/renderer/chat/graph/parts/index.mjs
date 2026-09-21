@@ -1,0 +1,42 @@
+// @ts-check
+// The part catalogue: the ONE place that knows which part types exist (plan §2.6 BG-5).
+//
+// C1 shipped three: Note (a literal), Ask (the farm call) and Collect (the join). C2 adds Split,
+// Repeat, Filter, From thread and To thread; C3 adds Code, Render, File — and Image/Look, which
+// wait on P3's attachment intake (BH-10). A new part
+// is a new file next to these plus one row in `partSpecs()` — nothing else in the Computer knows a
+// part type by name, which is the property that keeps C2 and C3 from touching the engine.
+//
+// The strings file is imported HERE, before any spec is built, because `PartSpec.label` is resolved
+// through `t()` at module load (BG-5).
+
+import '../../strings/parts.en.mjs';
+import { note } from './note.mjs';
+import { ask } from './ask.mjs';
+import { collect } from './collect.mjs';
+// C2 (§2.6 BH-1): the fan-out family and the two bridges to the conversation. The rows are here
+// from the C2 kickoff so no two builders contend for this file; C2-U3 replaces each part FILE
+// wholesale (BH-9), never this catalogue.
+import { splitPart } from './split.mjs';
+import { repeat } from './repeat.mjs';
+import { filter } from './filter.mjs';
+import { fromThread } from './from-thread.mjs';
+import { toThread } from './to-thread.mjs';
+// C3 (§2.6 BJ): the sandbox parts and the one that leaves the graph. Same rule as C2 — the rows
+// are here from the C3 kickoff so no two builders contend for this file; C3-U2 replaces each part
+// FILE wholesale, never this catalogue.
+import { code } from './code.mjs';
+import { render } from './render.mjs';
+import { file } from './file.mjs';
+
+/** @typedef {import('../../core/types.mjs').PartSpec} PartSpec */
+
+/** The catalogue, in palette order. @returns {PartSpec[]} */
+export function partSpecs() {
+  return [note, fromThread, ask, splitPart, repeat, filter, code, collect, render, file, toThread];
+}
+
+/** @returns {Map<string, PartSpec>} */
+export function specMap() {
+  return new Map(partSpecs().map((s) => [s.type, s]));
+}

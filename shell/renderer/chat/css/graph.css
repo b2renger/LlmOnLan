@@ -1,0 +1,708 @@
+/* graph.css — the Computer panel's canvas (C1-U2). C1-U3 owns only the `.graph-part-body`
+   interiors of its own parts and asks for a rule outside one through the integrator.
+
+   Scope: `#lolchat .graph` and its children only. ComfyQ tokens only — no colour literals
+   (chat-lint rule 3). The class contract is frozen in LOLCHAT_PLAN.md §2.6 BG-8:
+
+     .graph                 the panel root (the element the workbench handed us)
+     .graph-toolbar         Run / Stop / Add / undo / zoom
+     .graph-canvas          the clipped viewport; owns pan/zoom input
+     .graph-layer           the ONE transformed layer that holds every part
+     .graph-wires           the single SVG layer, under .graph-layer
+     .graph-part            [data-type] [data-state] [aria-selected]
+     .graph-part-head       title + state label (state reads as colour AND text)
+     .graph-part-body       the part's own render() target
+     .graph-port            [data-port] [data-dir="in"|"out"]
+     .graph-value           the truncated preview; click opens it
+     .graph-marquee         the rubber-band selection rectangle
+     .graph-empty           the "place a part" hint
+
+   PERF NOTE: only `.graph-layer` and the svg's `<g>` are ever transformed. Parts are positioned
+   with left/top, which the compositor never has to re-evaluate while the layer moves — that is
+   what makes 500 parts pan at 60 fps (scenario perf-graph). Do not add a transform to .graph-part. */
+
+/* The workbench's panel host is `display:block; min-height:100%` with an AUTO height (§2.6 BD-8),
+   so a `height:100%` child resolves against auto and collapses to nothing — a canvas 0 px tall that
+   still paints its parts outside itself. The Computer's host therefore gets a definite height and
+   becomes the containing block for the canvas, which then fills it. Scoped to this panel's own host
+   by `[data-panel="computer"]`: it changes nothing for anybody else's panel. */
+#lolchat .chat-work-panel[data-panel="computer"] {
+  position: relative;
+  height: 100%;
+}
+
+#lolchat .graph {
+  position: absolute;
+  inset: 0;
+  --graph-head-h: 28px;
+  --graph-grid: 20px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+  font-size: 13px;
+  color: var(--text);
+}
+
+/* ---- toolbar ---------------------------------------------------------------------------- */
+
+#lolchat .graph-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+#lolchat .graph-btn {
+  appearance: none;
+  font: inherit;
+  padding: 4px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  cursor: pointer;
+}
+
+#lolchat .graph-btn:hover:not(:disabled) { filter: brightness(1.08); }
+#lolchat .graph-btn:disabled { opacity: 0.45; cursor: default; }
+
+#lolchat .graph-run {
+  background: var(--accent);
+  color: var(--on-accent);
+  border-color: var(--accent);
+}
+
+#lolchat .graph-stop { border-color: var(--amber); }
+
+#lolchat .graph-add-wrap { position: relative; }
+
+#lolchat .graph-add-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 160px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--bg) 60%, transparent);
+}
+
+#lolchat .graph-add-item {
+  appearance: none;
+  font: inherit;
+  text-align: left;
+  padding: 5px 8px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+}
+
+#lolchat .graph-add-item:hover { background: var(--surface-2); }
+
+#lolchat .graph-zoom {
+  margin-left: auto;
+  padding: 0 4px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- viewport --------------------------------------------------------------------------- */
+
+#lolchat .graph-canvas {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  outline: none;
+  background:
+    radial-gradient(circle at 1px 1px, color-mix(in srgb, var(--border) 90%, transparent) 1px, transparent 1px)
+    0 0 / var(--graph-grid) var(--graph-grid),
+    var(--bg);
+  touch-action: none;
+  cursor: default;
+}
+
+#lolchat .graph-canvas:focus-visible { box-shadow: inset 0 0 0 2px var(--accent); }
+#lolchat .graph-canvas.graph-panning { cursor: grab; }
+#lolchat .graph-canvas.graph-wiring { cursor: crosshair; }
+
+#lolchat .graph-wires {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+#lolchat .graph-wire {
+  fill: none;
+  stroke: var(--grey);
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+#lolchat .graph-wire[data-selected="true"] { stroke: var(--accent-hover); stroke-width: 3; }
+#lolchat .graph-wire-preview { stroke: var(--accent-hover); stroke-dasharray: 5 4; }
+
+#lolchat .graph-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 0;
+  transform-origin: 0 0;
+  will-change: transform;
+  pointer-events: none;
+}
+
+#lolchat .graph-marquee {
+  position: absolute;
+  border: 1px dashed var(--accent-hover);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  pointer-events: none;
+}
+
+#lolchat .graph-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: 16px;
+  text-align: center;
+  color: var(--muted);
+  pointer-events: none;
+}
+
+/* C1 landing: the canvas hides this hint with `empty.hidden = true`, and an author `display:flex`
+   BEATS the UA sheet's `[hidden] { display: none }` — so the "place a part" hint stayed painted
+   across every graph that had parts. Any rule that gives an element a display must say this. */
+#lolchat .graph-empty[hidden] { display: none; }
+
+/* ---- a part ----------------------------------------------------------------------------- */
+
+#lolchat .graph-part {
+  position: absolute;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  pointer-events: auto;
+  cursor: grab;
+  user-select: none;
+}
+
+#lolchat .graph-part:focus { outline: 2px solid var(--accent-hover); outline-offset: 2px; }
+#lolchat .graph-part:focus-visible { outline: 2px solid var(--accent-hover); outline-offset: 2px; }
+
+#lolchat .graph-part[aria-selected="true"] {
+  border-color: var(--accent-hover);
+  box-shadow: 0 0 0 1px var(--accent-hover);
+}
+
+#lolchat .graph-part-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  box-sizing: border-box;
+  height: var(--graph-head-h);
+  padding: 0 10px;
+  border-bottom: 1px solid var(--border);
+  border-radius: 12px 12px 0 0;
+  background: var(--surface-2);
+}
+
+#lolchat .graph-part-title {
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#lolchat .graph-part-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+#lolchat .graph-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--grey);
+}
+
+#lolchat .graph-part[data-state="stale"] .graph-dot { background: var(--amber); }
+#lolchat .graph-part[data-state="queued"] .graph-dot { background: var(--blue); }
+#lolchat .graph-part[data-state="running"] .graph-dot {
+  background: var(--accent-hover);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-hover) 35%, transparent);
+}
+#lolchat .graph-part[data-state="done"] .graph-dot {
+  background: var(--green);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--green) 30%, transparent);
+}
+#lolchat .graph-part[data-state="error"] .graph-dot { background: var(--danger); }
+#lolchat .graph-part[data-state="error"] { border-color: var(--danger); }
+
+#lolchat .graph-part-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 8px 10px;
+  cursor: auto;
+}
+
+#lolchat .graph-part-body textarea,
+#lolchat .graph-part-body input,
+#lolchat .graph-part-body select {
+  width: 100%;
+  box-sizing: border-box;
+  font: inherit;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-2);
+  color: var(--text);
+  resize: none;
+}
+
+#lolchat .graph-part-error {
+  margin: 0 10px 8px;
+  padding: 5px 8px;
+  border-radius: 8px;
+  font-size: 11px;
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+}
+
+#lolchat .graph-part-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px 8px;
+  min-height: 0;
+}
+
+#lolchat .graph-value {
+  appearance: none;
+  font: inherit;
+  font-size: 11px;
+  text-align: left;
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface-2);
+  color: var(--text);
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#lolchat .graph-value:hover { filter: brightness(1.08); }
+
+#lolchat .graph-cost {
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- ports ------------------------------------------------------------------------------ */
+
+#lolchat .graph-port {
+  position: absolute;
+  width: 11px;
+  height: 11px;
+  margin-top: -6px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-2);
+  cursor: crosshair;
+}
+
+#lolchat .graph-port[data-dir="in"] { left: -6px; }
+#lolchat .graph-port[data-dir="out"] { right: -6px; background: var(--accent); border-color: var(--accent); }
+#lolchat .graph-port:hover { box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 35%, transparent); }
+
+/* ---- the value popover ------------------------------------------------------------------ */
+
+#lolchat .graph-value-title { margin: 0 0 6px; font-size: 12px; color: var(--muted); }
+
+#lolchat .graph-value-full {
+  margin: 0;
+  max-width: 48ch;
+  max-height: 40vh;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 12px;
+  color: var(--text);
+}
+
+/* ---------------------------------------------------------------------------------------------
+   C2 (§2.6 BH-7) — fan-out, the cap and the chat-column inspector. KICKOFF STUBS: the class
+   contract as rules that already paint something sane; C2-U2 owns every one of them from here.
+
+     .graph-part-fanout     the `7/40` badge on a fanned part (in .graph-part-head)
+     .graph-part-cost       `2.4s · 812 tokens` on a done part
+     .graph-item-errors     the per-item failures under a part's value preview
+     .graph-cap             the cap banner over the canvas + its "raise for this run" button
+     .graph-inspect         the value inspector, a CHILD OF .chat-main inserted before the
+                            composer form — NEVER a child of #chat-messages (thread-view owns
+                            that subtree, §2.6 AE)
+   --------------------------------------------------------------------------------------------- */
+
+#lolchat .graph-part-fanout {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+#lolchat .graph-part-cost { font-size: 11px; color: var(--grey); }
+
+#lolchat .graph-item-errors {
+  margin: 4px 0 0;
+  padding: 0 0 0 14px;
+  font-size: 11px;
+  color: var(--danger);
+  max-height: 64px;
+  overflow: auto;
+}
+
+#lolchat .graph-cap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 12px;
+}
+
+#lolchat .graph-inspect {
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  padding: 10px 12px;
+  max-height: 40vh;
+  overflow: auto;
+}
+
+#lolchat .graph-inspect-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+#lolchat .graph-inspect-body {
+  margin: 6px 0 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 13px;
+}
+
+/* ---------------------------------------------------------------------------------------------
+   C2 LANDING — the rules the kickoff stubs did not cover: the cap FIELD in the toolbar (the only
+   place `pref:computeMaxItems` changes, §2.6 BH-4), the banner's raise button, one per-item
+   failure line, and the three classes the new parts paint (`40 items`, a text field, a checkbox).
+   --------------------------------------------------------------------------------------------- */
+
+#lolchat .graph-cap {
+  flex: 0 0 auto;
+  margin: 8px 8px 0;
+}
+
+#lolchat .graph-cap-text { flex: 1 1 auto; min-width: 0; }
+
+#lolchat .graph-cap-raise { flex: 0 0 auto; }
+
+#lolchat .graph-cap-field {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+#lolchat .graph-cap-input {
+  width: 56px;
+  font: inherit;
+  font-size: 11px;
+  padding: 3px 6px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface-2);
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+#lolchat .graph-item-errors { list-style: disc; }
+#lolchat .graph-item-error { margin: 1px 0; }
+
+/* The parts' own controls (Split / Repeat / Filter / From thread), styled here because the canvas
+   owns the sheet — `.graph-part-items` is the "40 items" count line under the settings. */
+#lolchat .graph-part-items {
+  margin: 4px 0 0;
+  font-size: 11px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+#lolchat .graph-part-input {
+  width: 100%;
+  box-sizing: border-box;
+  font: inherit;
+  font-size: 12px;
+  padding: 4px 7px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+#lolchat .graph-part-input:focus-visible { outline: 2px solid var(--accent-hover); outline-offset: 1px; }
+
+#lolchat .graph-part-check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+#lolchat .graph-part-check input { accent-color: var(--accent-hover); margin: 0; }
+
+#lolchat .graph-cap-title { display: block; font-weight: 600; }
+#lolchat .graph-cap-body { display: block; color: var(--muted); margin-top: 1px; }
+
+/* ---- C3 (§2.6 BJ): the sandbox parts, the file part, tidy and the drop target. Kickoff stubs —
+   C3-U2 owns the three part classes, C3-U3 owns .graph-drop and the toolbar rows. */
+
+#lolchat .graph-code { display: flex; flex-direction: column; gap: 4px; min-height: 0; flex: 1; }
+
+/* The editor points at the line that broke: a chip under the code, not a second copy of the
+   sentence the canvas already shows on the part. */
+#lolchat .graph-code-line {
+  align-self: flex-start;
+  font: inherit;
+  font-size: 11px;
+  padding: 1px 7px;
+  border: 1px solid var(--danger);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--danger) 14%, transparent);
+  color: var(--text);
+  cursor: pointer;
+}
+
+#lolchat .graph-code-text {
+  flex: 1;
+  width: 100%;
+  box-sizing: border-box;
+  resize: none;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--bg);
+  color: var(--text);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+  line-height: 1.45;
+  padding: 6px 7px;
+  tab-size: 2;
+}
+
+#lolchat .graph-render { display: flex; flex-direction: column; gap: 6px; min-height: 0; flex: 1; }
+
+#lolchat .graph-render-tile {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  object-fit: contain;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface-2);
+}
+
+/* Render: the size row only the laid-out modes show, and the two save buttons. */
+#lolchat .graph-render-size { display: flex; gap: 6px; }
+#lolchat .graph-render-size .graph-part-field { flex: 1; min-width: 0; }
+#lolchat .graph-render-tools { display: flex; gap: 6px; flex-wrap: wrap; }
+
+#lolchat .graph-render-save {
+  font: inherit;
+  font-size: 11px;
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface-2);
+  color: var(--text);
+  cursor: pointer;
+}
+
+#lolchat .graph-render-save:hover { border-color: var(--accent-hover); }
+
+#lolchat .graph-file { display: flex; flex-direction: column; gap: 6px; min-height: 0; }
+#lolchat .graph-file-wrote { word-break: break-all; }
+
+#lolchat .graph-file-reveal {
+  align-self: flex-start;
+  font: inherit;
+  font-size: 11px;
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface-2);
+  color: var(--text);
+  cursor: pointer;
+}
+
+#lolchat .graph-file-reveal:hover { border-color: var(--accent-hover); }
+
+#lolchat .graph-file-path {
+  width: 100%;
+  box-sizing: border-box;
+  font: inherit;
+  font-size: 12px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  padding: 4px 7px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+/* The canvas while a .lolgraph.json file is over it. State reads as a label too, never colour
+   alone (spec §4). */
+#lolchat .graph-drop {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px dashed var(--accent-hover);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--surface) 80%, transparent);
+  color: var(--text);
+  font-size: 13px;
+  z-index: 3;
+}
+
+/* ---- C3-U3: tidy, the export popover and the drop target ----------------------------------
+
+     .graph-tidy            the layout button (never automatic — it only ever runs on a press)
+     .graph-export-menu     the popover under Export…: what goes in the file
+     .graph-import          Import… (the file picker half)
+     .graph-drop            the overlay shown while a drag carrying FILES is over the canvas
+
+   The overlay is a child of .graph-canvas and is hidden unless a file drag is over it, so it can
+   never swallow a pointer gesture — dragging a part is not an HTML5 drag and never un-hides it. */
+
+#lolchat .graph-export-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 240px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--bg) 60%, transparent);
+}
+
+#lolchat .graph-export-values {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  line-height: 1.35;
+  cursor: pointer;
+}
+
+#lolchat .graph-export-values-input { margin: 2px 0 0; flex: 0 0 auto; }
+
+#lolchat .graph-export-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+#lolchat .graph-export-save { align-self: flex-start; }
+
+#lolchat .graph-drop {
+  position: absolute;
+  inset: 8px;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  border: 2px dashed var(--accent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  pointer-events: none;                 /* the drag events belong to .graph-canvas, not to this */
+}
+
+#lolchat .graph-drop[hidden] { display: none; }
+
+#lolchat .graph-drop-text {
+  margin: 0;
+  color: var(--text);
+  font-size: 14px;
+  text-align: center;
+}
+
+/* ---------------------------------------------------------------------------------------------
+   C3 landing (integrator). `.graph-part-body` is a BLOCK box, so a part root that says `flex: 1`
+   was stretching against nothing: the Code editor rendered one line tall inside a 200 px part and
+   the Render tile shrank to its picture (caught by c3-shots' measurements, not by a thumbnail).
+   The body becomes a flex column — every part root is a single wrapper, so nothing else moves —
+   and the two C3 roots that want the whole body say so.
+   --------------------------------------------------------------------------------------------- */
+#lolchat .graph-part-body { display: flex; flex-direction: column; }
+#lolchat .graph-part-body > .graph-code,
+#lolchat .graph-part-body > .graph-render { height: 100%; }
+
+/* The toolbar carries four more controls since C3 (Tidy / Export… / Import… beside Run, Add a
+   part, Undo, Redo, Fit, the cap field and the zoom readout). In a split column that row no
+   longer fits: flex shrank the buttons until "Add a part" wrapped into three lines and the zoom
+   readout was clipped by the panel edge (both visible in the C3 shots). Buttons keep their label
+   on one line and the row wraps instead. */
+#lolchat .graph-toolbar { flex-wrap: wrap; row-gap: 6px; }
+#lolchat .graph-btn { white-space: nowrap; flex: 0 0 auto; }
+
+/* The export popover is 240 px wide and Export… sits near the right end of a wrapped toolbar, so
+   a left-anchored popover hung off the window edge in a split column (measured in the C3 shots:
+   x 1042 + 240 > 1264). Anchor it to the button's RIGHT edge instead — it opens inward from
+   wherever the button ended up. */
+#lolchat .graph-export-menu { left: auto; right: 0; }
