@@ -1,0 +1,61 @@
+/* dialogs.css — owned by P1-U4 (plan §4 P1). The modal <dialog>, the Popover-API panel and the
+   toast stack. The modal/popover roots live on <body> (top layer), so they are styled through the
+   `.chat-layer` escape hatch css/base.css publishes; the toast stack is inside #lolchat.
+   ComfyQ tokens only — no colour literals. */
+
+/* ---- modal ------------------------------------------------------------------------------ */
+.chat-layer.chat-dialog {
+  margin: auto; padding: 0; width: min(420px, calc(100vw - 32px));
+  background: var(--surface); color: var(--text);
+  border: 1px solid var(--border); border-radius: 12px;
+  box-shadow: 0 18px 48px color-mix(in srgb, var(--bg) 62%, transparent);
+  font-family: 'Inter', system-ui, Avenir, Helvetica, Arial, sans-serif;
+  font-size: 14px; -webkit-font-smoothing: antialiased;
+}
+.chat-layer.chat-dialog::backdrop { background: color-mix(in srgb, var(--bg) 66%, transparent); }
+
+.chat-layer .chat-dialog-form { display: flex; flex-direction: column; gap: 12px; padding: 16px; margin: 0; }
+.chat-layer .chat-dialog-head:empty { display: none; }
+.chat-layer .chat-dialog-title { margin: 0; font-size: 14.5px; font-weight: 600; color: var(--text); }
+.chat-layer .chat-dialog-body { display: flex; flex-direction: column; gap: 10px; }
+.chat-layer .chat-dialog-body:empty { display: none; }
+.chat-layer .chat-dialog-text { margin: 0; font-size: 13px; line-height: 1.5; color: var(--muted); }
+.chat-layer .chat-dialog-input {
+  width: 100%; background: var(--surface-2); color: var(--text);
+  border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px;
+  font-family: inherit; font-size: 13.5px;
+}
+.chat-layer .chat-dialog-input:focus { outline: none; border-color: var(--accent); }
+.chat-layer .chat-dialog-foot { display: flex; justify-content: flex-end; gap: 8px; }
+.chat-layer .chat-dialog-ok.chat-dialog-danger {
+  background: var(--danger); border-color: var(--danger); color: var(--on-accent);
+}
+
+/* ---- popover ---------------------------------------------------------------------------- */
+.chat-layer.chat-popover {
+  position: fixed; inset: auto; margin: 0; padding: 5px;
+  background: var(--surface); color: var(--text);
+  border: 1px solid var(--border); border-radius: 10px;
+  box-shadow: 0 12px 32px color-mix(in srgb, var(--bg) 58%, transparent);
+  font-family: 'Inter', system-ui, Avenir, Helvetica, Arial, sans-serif;
+  font-size: 13px;
+}
+/* Fallback for a renderer without the Popover API: show it as a plain fixed panel. */
+.chat-layer.chat-popover.chat-popover-open { display: block; }
+
+/* ---- toasts (inside #lolchat) ------------------------------------------------------------ */
+#lolchat .chat-toasts {
+  position: absolute; right: 16px; bottom: 96px; z-index: 5;
+  display: flex; flex-direction: column; gap: 6px; align-items: flex-end;
+  pointer-events: none;
+}
+#lolchat .chat-toast {
+  pointer-events: auto; cursor: pointer;
+  max-width: 340px; padding: 8px 12px; border-radius: 8px;
+  background: var(--surface-2); color: var(--text);
+  border: 1px solid var(--border);
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--bg) 55%, transparent);
+  font-size: 12.5px; line-height: 1.45;
+}
+#lolchat .chat-toast-error { border-color: color-mix(in srgb, var(--danger) 45%, var(--border)); }
+#lolchat .chat-toast-success { border-color: color-mix(in srgb, var(--green) 45%, var(--border)); }

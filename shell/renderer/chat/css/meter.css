@@ -1,0 +1,105 @@
+/* meter.css — owned by P2-U2. The context budget meter in the composer row (ui/meter.mjs) and the
+   breakdown popover it opens.
+
+   The composer row's LAYOUT (`.chat-composer-meter`, its font and alignment) lives in base.css and
+   is not repeated here; this file styles what the meter puts INSIDE that region.
+
+   ComfyQ tokens only — no colour literals (chat-lint rule 3). Three states, and only three:
+   --green under 75 % of the window, --amber above it, --danger when the prompt plus the reply's
+   reserve would not fit at all. The trimmed-row look (`.chat-outside`) is P1-U3's, in thread.css. */
+
+/* With no farm the meter hides itself (`el.hidden`), and the region it lives in must not keep
+   holding the composer row's gap open — base.css only collapses the region when it is `:empty`. */
+#lolchat .chat-composer-meter:has(> .chat-meter[hidden]) { display: none; }
+
+/* ---- the button ---------------------------------------------------------------------------- */
+#lolchat .chat-meter {
+  appearance: none;
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 26px; padding: 0 7px; border-radius: 7px; cursor: pointer;
+  font-family: inherit; font-size: 11px; line-height: 1;
+  font-variant-numeric: tabular-nums;
+  background: transparent; color: var(--grey);
+  border: 1px solid transparent;
+}
+#lolchat .chat-meter:hover { color: var(--text); border-color: var(--border); background: var(--surface-2); }
+#lolchat .chat-meter:focus-visible { outline: 2px solid var(--accent-hover); outline-offset: 1px; }
+
+/* ---- the bar ------------------------------------------------------------------------------- */
+#lolchat .chat-meter-bar {
+  position: relative; display: inline-block;
+  width: 44px; height: 5px; border-radius: 999px;
+  background: color-mix(in srgb, var(--border) 80%, transparent);
+  overflow: hidden;
+}
+#lolchat .chat-meter-fill {
+  position: absolute; inset: 0 auto 0 0;
+  width: 0; border-radius: 999px;
+  background: var(--green);
+  transition: width 120ms linear;
+}
+#lolchat .chat-meter.is-warn .chat-meter-fill { background: var(--amber); }
+#lolchat .chat-meter.is-over .chat-meter-fill { background: var(--danger); }
+#lolchat .chat-meter.is-over { color: var(--danger); }
+#lolchat .chat-meter.is-warn { color: var(--amber); }
+
+#lolchat .chat-meter-text { white-space: nowrap; }
+#lolchat .chat-meter-src {
+  padding: 1px 4px; border-radius: 999px;
+  font-size: 9.5px; letter-spacing: 0.02em; text-transform: lowercase;
+  color: var(--grey); background: var(--surface-2); border: 1px solid var(--border);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #lolchat .chat-meter-fill { transition: none; }
+}
+
+/* ---- the breakdown popover ------------------------------------------------------------------
+   The popover root is the shared `.chat-layer.chat-popover` (dialogs.css); this is its content. */
+.chat-layer .chat-meter-break {
+  min-width: 232px; max-width: 320px; padding: 6px 8px 4px;
+  font-variant-numeric: tabular-nums;
+}
+.chat-layer .chat-meter-title {
+  margin-bottom: 6px; font-size: 12px; font-weight: 600; color: var(--text);
+}
+.chat-layer .chat-meter-row {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 16px;
+  padding: 2px 0; font-size: 12px; color: var(--muted);
+}
+.chat-layer .chat-meter-row.is-total {
+  margin-top: 4px; padding-top: 5px;
+  border-top: 1px solid var(--border);
+  color: var(--text); font-weight: 600;
+}
+.chat-layer .chat-meter-key { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chat-layer .chat-meter-val { flex: none; color: var(--text); }
+.chat-layer .chat-meter-note {
+  margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--border);
+}
+.chat-layer .chat-meter-line {
+  margin: 0 0 4px; font-size: 11.5px; line-height: 1.4; color: var(--grey);
+}
+.chat-layer .chat-meter-line:last-child { margin-bottom: 0; }
+
+/* ---- the Context settings section (SETTINGS_SECTIONS, rendered by P2-U4's gear popover) ------ */
+.chat-layer .chat-ctx-row,
+#lolchat .chat-ctx-row {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  font-size: 12.5px; color: var(--text);
+}
+.chat-layer .chat-ctx-label,
+#lolchat .chat-ctx-label { color: var(--muted); }
+.chat-layer .chat-ctx-input,
+#lolchat .chat-ctx-input {
+  width: 92px; height: 28px; padding: 0 7px; border-radius: 8px;
+  font-family: inherit; font-size: 12.5px; font-variant-numeric: tabular-nums;
+  background: var(--surface-2); color: var(--text); border: 1px solid var(--border);
+}
+.chat-layer .chat-ctx-unit,
+#lolchat .chat-ctx-unit { color: var(--grey); font-size: 11.5px; }
+.chat-layer .chat-ctx-help,
+#lolchat .chat-ctx-help {
+  margin: 5px 0 0; max-width: 320px;
+  font-size: 11.5px; line-height: 1.4; color: var(--grey);
+}

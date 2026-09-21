@@ -11,6 +11,7 @@
   <title>LlmOnLan</title>
   <link rel="stylesheet" href="tokens.css" />
   <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="chat/chat.css" />
 </head>
 <body>
   <!-- topbar: logo · connection status · theme toggle · settings gear -->
@@ -181,33 +182,16 @@
     <webview id="owui" class="hidden" partition="persist:owui" allowpopups></webview>
 
     <!-- LOL Chat: an alternative, Studio-style surface. Hidden unless toggled.
-         Deliberately minimal — see renderer/chat.js for what it is NOT. -->
+         The skeleton DOM is built at runtime by renderer/chat/ui/layout.mjs (plan §3.5); the
+         paragraph below is only what a reader sees if chat/main.mjs never runs. -->
     <section id="lolchat" class="hidden">
-      <aside class="chat-side">
-        <button class="btn-accent chat-new" id="chat-new">New chat</button>
-        <div class="chat-threads" id="chat-threads"></div>
-      </aside>
-      <div class="chat-main">
-        <div class="chat-topline">
-          <select id="chat-model" class="chat-model" title="Model served by the farm"></select>
-        </div>
-        <div class="chat-messages" id="chat-messages"></div>
-        <div class="chat-empty" id="chat-empty">
-          <p>Chat directly with the farm.</p>
-          <p class="detail">No documents, no knowledge bases &mdash; those live in Open WebUI.</p>
-        </div>
-        <form class="chat-form" id="chat-form">
-          <textarea id="chat-input" rows="1" placeholder="Ask something&hellip;  (Enter to send, Shift+Enter for a new line)" spellcheck="false"></textarea>
-          <button class="btn-accent" id="chat-send" type="submit">Send</button>
-          <button class="btn-ghost hidden" id="chat-stop" type="button">Stop</button>
-        </form>
-      </div>
+      <p class="chat-fallback">LOL Chat failed to load — see the developer console.</p>
     </section>
   </div>
 
   <div class="toast" id="toast"></div>
 
   <script src="app.js"></script>
-  <script src="chat.js"></script>
+  <script type="module" src="chat/main.mjs"></script>
 </body>
 </html>

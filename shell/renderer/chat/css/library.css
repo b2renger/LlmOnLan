@@ -1,0 +1,125 @@
+/* library.css — the sidebar library, settings and transfer surfaces (P2-U4).
+   Scope: the search field in els.sideTools, search results, the thread-row … menu, the ephemeral
+   marker, inline rename, and the settings popover in els.sideFoot. The row chrome itself (rows,
+   group headings, skeletons, the hover ×, the ⌄ menu) stays in sidebar.css.
+   ComfyQ tokens only — no colour literals. */
+
+/* ---- search ------------------------------------------------------------------------------ */
+#lolchat .chat-side-tools { padding: 0 2px 6px; }
+
+#lolchat .chat-search { position: relative; display: flex; align-items: center; }
+
+#lolchat .chat-search-input {
+  width: 100%; min-width: 0;
+  background: var(--surface-2); color: var(--text);
+  border: 1px solid var(--border); border-radius: 8px;
+  padding: 6px 24px 6px 9px;
+  font-family: inherit; font-size: 12.5px; line-height: 1.3;
+}
+#lolchat .chat-search-input::placeholder { color: var(--grey); }
+#lolchat .chat-search-input:focus-visible { outline: none; border-color: var(--accent-hover); }
+/* The UA's own search affordances duplicate the × we draw ourselves. */
+#lolchat .chat-search-input::-webkit-search-cancel-button { appearance: none; }
+
+#lolchat .chat-search-clear {
+  position: absolute; right: 3px; top: 50%; transform: translateY(-50%);
+  width: 18px; height: 18px; padding: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: transparent; border: 0; border-radius: 5px;
+  color: var(--muted); font-family: inherit; font-size: 14px; line-height: 1; cursor: pointer;
+}
+#lolchat .chat-search-clear:hover { color: var(--text); background: var(--surface-2); }
+
+#lolchat .chat-search-empty {
+  padding: 10px 9px; color: var(--grey); font-size: 12px; line-height: 1.4;
+}
+
+/* ---- a search result (a row plus the line it was found in) -------------------------------- */
+#lolchat .chat-result .chat-thread {
+  flex-direction: column; align-items: stretch; gap: 2px;
+  padding: 7px 9px;
+}
+#lolchat .chat-result-snippet {
+  display: block; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  color: var(--grey); font-size: 11.5px; line-height: 1.35;
+}
+#lolchat .chat-result .chat-thread:hover .chat-result-snippet { color: var(--muted); }
+
+/* ---- the row … menu (it shares the right gutter with the hover ×) -------------------------- */
+#lolchat .chat-thread { padding-right: 46px; }
+
+#lolchat .chat-thread-more {
+  position: absolute; right: 24px; top: 50%; transform: translateY(-50%);
+  width: 18px; height: 18px; padding: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: transparent; border: 0; border-radius: 5px;
+  color: var(--muted); cursor: pointer; opacity: 0;
+}
+#lolchat .chat-thread-row:hover .chat-thread-more,
+#lolchat .chat-thread-row:focus-within .chat-thread-more { opacity: .65; }
+#lolchat .chat-thread-more:hover { opacity: 1; color: var(--text); background: var(--surface-2); }
+
+/* A result row has no hover buttons: it is a pointer into a conversation, not the conversation. */
+#lolchat .chat-result .chat-thread-more,
+#lolchat .chat-result .chat-thread-x { display: none; }
+#lolchat .chat-result .chat-thread { padding-right: 9px; }
+
+/* ---- ephemeral ---------------------------------------------------------------------------- */
+#lolchat .chat-thread-eye { flex: none; display: flex; align-items: center; color: var(--amber); }
+#lolchat .chat-thread-row.ephemeral .chat-thread-title { font-style: italic; }
+
+/* ---- inline rename ------------------------------------------------------------------------ */
+#lolchat .chat-thread-rename {
+  flex: 1; min-width: 0;
+  background: var(--surface); color: var(--text);
+  border: 1px solid var(--accent-hover); border-radius: 7px;
+  padding: 6px 9px;
+  font-family: inherit; font-size: 13px; line-height: 1.3;
+}
+#lolchat .chat-thread-rename:focus-visible { outline: none; }
+#lolchat .chat-thread-row.renaming .chat-thread-more,
+#lolchat .chat-thread-row.renaming .chat-thread-x { display: none; }
+
+/* ---- the settings gear -------------------------------------------------------------------- */
+/* base.css already gives the foot its top border and padding-top; this only pulls the gear's own
+   box in line with the rows above it. */
+#lolchat .chat-side-foot { padding-left: 0; padding-right: 0; }
+
+#lolchat .chat-settings-gear {
+  width: 100%;
+  display: flex; align-items: center; gap: 7px;
+  background: transparent; color: var(--muted);
+  border: 1px solid transparent; border-radius: 7px;
+  padding: 7px 9px;
+  font-family: inherit; font-size: 12.5px; line-height: 1.3; cursor: pointer;
+}
+#lolchat .chat-settings-gear:hover { background: var(--surface-2); color: var(--text); }
+
+/* ---- the settings popover (the panel chrome itself lives in dialogs.css) -------------------- */
+.chat-layer.chat-settings {
+  display: flex; flex-direction: column; gap: 14px;
+  min-width: 270px; max-width: 340px;
+  /* Every feature may add a section (P3 tools, P4 recipes), so the panel has to be able to run out
+     of room without running off the screen. */
+  max-height: 72vh; overflow-y: auto;
+}
+.chat-layer .chat-settings-section { display: flex; flex-direction: column; gap: 6px; }
+.chat-layer .chat-settings-title {
+  margin: 0;
+  font-size: 10.5px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--grey);
+}
+.chat-layer .chat-settings-body { display: flex; flex-direction: column; gap: 6px; }
+.chat-layer .chat-settings-line { margin: 0; color: var(--text); font-size: 12.5px; line-height: 1.4; }
+.chat-layer .chat-settings-detail { margin: 0; color: var(--muted); font-size: 11.5px; line-height: 1.45; }
+.chat-layer .chat-settings-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px; }
+.chat-layer .chat-settings-actions button {
+  appearance: none;
+  background: var(--surface-2); color: var(--text);
+  border: 1px solid var(--border); border-radius: 8px;
+  padding: 6px 10px;
+  font-family: inherit; font-size: 12px; line-height: 1.2; cursor: pointer;
+}
+.chat-layer .chat-settings-actions button:hover { border-color: var(--accent-hover); }
+.chat-layer .chat-settings-actions button[disabled] { opacity: .55; cursor: default; }

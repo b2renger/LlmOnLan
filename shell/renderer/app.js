@@ -851,7 +851,26 @@ function publishFarm() {
     ? ((f.models.find((m) => m.default) || f.models[0]).id || null)
     : null;
   window.__lolFarm = f
-    ? { name: f.name, openaiBaseUrl: farmEndpoint(f), defaultModel, busy: f.busy || null, apiKey: f._key || null }
+    // LOL Chat vNext needs more of the snapshot than the endpoint: the served catalog for its
+    // picker, the backend's context-per-slot for its budget meter, the seat counts for the seat
+    // gate, and the plugin URLs. Every field below is ADDITIVE and read off the same main-shaped
+    // farm object; the OWUI path never looks at window.__lolFarm.
+    ? {
+      name: f.name, openaiBaseUrl: farmEndpoint(f), defaultModel, busy: f.busy || null, apiKey: f._key || null,
+      id: f.id || null, requiresKey: !!f.requiresKey, healthy: f.healthy !== false,
+      stale: !!f._stale, lastSeen: f._lastSeen || null, host: f._host || null, httpPort: f.httpPort || null,
+      models: Array.isArray(f.models) ? f.models.map((m) => ({ id: m.id, underlying: m.underlying || null, default: !!m.default })) : [],
+      backend: f.backend ? {
+        engine: f.backend.engine || null, alias: f.backend.alias || null,
+        contextLength: f.backend.contextLength ?? null, contextPerSlot: f.backend.contextPerSlot ?? null,
+        slots: f.backend.slots ?? null,
+      } : null,
+      capacity: f.capacity || null, perf: f.perf || null,
+      usage: f.usage ? { gpuUtil: f.usage.gpuUtil ?? null } : null,
+      searxngUrl: f.searxngUrl || null,
+      ttsUrl: f.ttsUrl || null, ttsVoice: f.ttsVoice || 'af_heart', ttsModel: f.ttsModel || 'kokoro',
+      extract: f.extract && f.extract.url && f.extract.key ? { url: f.extract.url, key: f.extract.key } : null,
+    }
     : (sidecarState && sidecarState.endpoint ? { name: 'farm', openaiBaseUrl: sidecarState.endpoint, defaultModel: null } : null);
   if (window.__lolChatRefresh) window.__lolChatRefresh();
   // The overlay is FARM-driven in this build, but renderSidecar used to run only

@@ -1,0 +1,217 @@
+/* thread.css — the message list (P1-U3). Rows, reasoning, notes, stats, the branch bar.
+
+   Scoped under #lolchat like every other chat sheet; ComfyQ tokens only, tints via color-mix().
+   The rendered markdown INSIDE .chat-body is markdown.css's business — this file stops at the
+   row.
+
+   Two rules here are not cosmetic:
+   - `content-visibility:auto` + `contain-intrinsic-size` on .chat-msg (plan §3.8) is what keeps a
+     500-row thread paintable: rows outside the viewport are not laid out at all, and the
+     intrinsic size keeps the scrollbar honest while they are skipped.
+   - `overflow-anchor:none` on the rows plus a zero-height .chat-anchor sentinel at the end of the
+     list: Chromium's own scroll anchoring fights the stick-to-bottom logic (it pins the scroll to
+     a row that is GROWING, so the view drifts upward mid-stream). The sentinel is what the
+     IntersectionObserver in render/thread-view.mjs watches. */
+
+/* ---- rows ------------------------------------------------------------------------------- */
+
+#lolchat .chat-msg {
+  max-width: 780px;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--text);
+  overflow-anchor: none;
+  content-visibility: auto;
+  contain-intrinsic-size: auto 200px;
+}
+#lolchat .chat-msg.user {
+  align-self: flex-end;
+  background: var(--chat-bubble);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 9px 13px;
+}
+#lolchat .chat-msg.assistant { align-self: flex-start; width: 100%; }
+
+/* A row the next request cannot afford to send (P2 setOutsideContext) stays readable but recedes. */
+#lolchat .chat-msg.chat-outside { opacity: .5; }
+
+/* scrollToMessage({flash}) */
+#lolchat .chat-msg.chat-flash {
+  animation: chat-flash 900ms ease-out 1;
+  border-radius: 12px;
+}
+@keyframes chat-flash {
+  from { background: color-mix(in srgb, var(--accent) 28%, transparent); }
+  to   { background: transparent; }
+}
+
+/* The stick-to-bottom sentinel: present, observable, and invisible. */
+#lolchat .chat-anchor {
+  flex: none;
+  height: 1px;
+  margin-top: -1px;
+  pointer-events: none;
+}
+
+/* ---- user parts ------------------------------------------------------------------------- */
+
+#lolchat .chat-msg-parts:empty { display: none; }
+#lolchat .chat-msg-parts { display: flex; flex-direction: column; gap: 8px; }
+#lolchat .chat-part-text { white-space: normal; word-break: break-word; }
+
+/* ---- reasoning -------------------------------------------------------------------------- */
+
+#lolchat .chat-reasoning {
+  margin-bottom: 8px;
+  font-size: 12.5px;
+  color: var(--muted);
+  border-left: 2px solid var(--border);
+  padding-left: 9px;
+}
+#lolchat .chat-reasoning summary {
+  cursor: pointer;
+  color: var(--grey);
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+#lolchat .chat-reasoning summary::-webkit-details-marker { display: none; }
+#lolchat .chat-reasoning summary::before {
+  content: '▸';
+  font-size: 10px;
+  color: var(--grey);
+}
+#lolchat .chat-reasoning[open] summary::before { content: '▾'; }
+#lolchat .chat-reasoning summary:hover { color: var(--text); }
+/* one text node, grown with appendData: pre-wrap is what makes it readable without markdown */
+#lolchat .chat-reasoning-body {
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin-top: 5px;
+  max-height: 340px;
+  overflow-y: auto;
+  color: var(--muted);
+}
+
+/* ---- notes ------------------------------------------------------------------------------ */
+
+#lolchat .chat-msg-note {
+  margin-top: 6px;
+  font-size: 12.5px;
+  color: var(--muted);
+  background: var(--chat-panel);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--grey);
+  border-radius: 8px;
+  padding: 7px 10px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+#lolchat .chat-msg[data-status='error'] .chat-msg-note {
+  border-left-color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 10%, var(--surface));
+}
+#lolchat .chat-msg[data-status='interrupted'] .chat-msg-note,
+#lolchat .chat-msg[data-status='aborted'] .chat-msg-note { border-left-color: var(--amber); }
+#lolchat .chat-msg[data-status='local'] .chat-msg-note,
+#lolchat .chat-msg[data-status='waiting'] .chat-msg-note { border-left-color: var(--accent); }
+/* A seat wait can last fifteen minutes. Without motion it is indistinguishable from a thread that
+   finished with bad news, so the note's own edge breathes — no extra node, no layout. */
+#lolchat .chat-msg[data-status='waiting'] .chat-msg-note {
+  animation: chat-waiting 1.8s ease-in-out infinite;
+}
+@keyframes chat-waiting {
+  0%, 100% { border-left-color: var(--grey); }
+  50% { border-left-color: var(--accent-hover); }
+}
+@media (prefers-reduced-motion: reduce) {
+  #lolchat .chat-msg[data-status='waiting'] .chat-msg-note { animation: none; }
+}
+
+/* A streaming row's body gets a caret so an empty first second does not look broken. */
+#lolchat .chat-msg[aria-busy='true'] .chat-body::after {
+  content: '';
+  display: inline-block;
+  width: 7px; height: 14px;
+  vertical-align: text-bottom;
+  margin-left: 2px;
+  background: var(--accent-hover);
+  animation: chat-caret 1s steps(2, start) infinite;
+}
+@keyframes chat-caret { to { visibility: hidden; } }
+
+/* ---- foot: branch bar, stats, actions ---------------------------------------------------- */
+
+/* The foot holds three children that hide themselves when empty, so the row itself must also
+   disappear when all three are — otherwise every message pays 5px of margin for nothing. */
+#lolchat .chat-msg-foot {
+  display: none;
+  align-items: center;
+  gap: 10px;
+  margin-top: 5px;
+}
+#lolchat .chat-msg-foot:has(> *:not(:empty)) { display: flex; }
+
+#lolchat .chat-branch:empty, #lolchat .chat-actions:empty, #lolchat .chat-stats:empty { display: none; }
+
+#lolchat .chat-branch { display: flex; align-items: center; gap: 2px; }
+#lolchat .chat-branch-btn {
+  appearance: none;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: var(--grey);
+  font-family: inherit;
+  font-size: 11px;
+  line-height: 1;
+  padding: 3px 5px;
+  cursor: pointer;
+}
+#lolchat .chat-branch-btn:hover:not(:disabled) { color: var(--text); border-color: var(--border); }
+#lolchat .chat-branch-btn:disabled { opacity: .35; cursor: default; }
+#lolchat .chat-branch-at { font-size: 11px; color: var(--grey); font-variant-numeric: tabular-nums; }
+
+#lolchat .chat-stats {
+  font-size: 11px;
+  color: var(--grey);
+  font-variant-numeric: tabular-nums;
+}
+
+#lolchat .chat-actions { display: flex; align-items: center; gap: 2px; margin-left: auto; opacity: 0; }
+#lolchat .chat-msg:hover .chat-actions,
+#lolchat .chat-actions:focus-within { opacity: 1; }
+/* Two states where the actions ARE the message: a seat wait whose whole point is Try now / Cancel,
+   and a failed reply whose only way forward is Regenerate. Hidden until hover, the waiting row read
+   as a dead-end box that says the farm is full and offers nothing (P2 review). */
+#lolchat .chat-msg[data-status='waiting'] .chat-actions,
+#lolchat .chat-msg[data-status='error'] .chat-actions { opacity: 1; }
+/* …and on a waiting row they must read as buttons, not as the ambient 11px grey the hover-only
+   actions can afford to be: they are the only way out of a wait that may last fifteen minutes. */
+#lolchat .chat-msg[data-status='waiting'] .chat-action {
+  color: var(--text);
+  border-color: var(--border);
+  background: var(--surface-2);
+}
+#lolchat .chat-msg[data-status='waiting'] .chat-action:hover { border-color: var(--accent-hover); }
+#lolchat .chat-action {
+  appearance: none;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: var(--grey);
+  font-family: inherit;
+  font-size: 11px;
+  line-height: 1;
+  padding: 4px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+}
+#lolchat .chat-action:hover { color: var(--text); border-color: var(--border); background: var(--surface-2); }
+
+/* A touch device never hovers: keep the actions visible there rather than unreachable. */
+@media (hover: none) {
+  #lolchat .chat-actions { opacity: 1; }
+}

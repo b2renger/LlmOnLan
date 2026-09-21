@@ -1,0 +1,558 @@
+// @ts-check
+// Shared types for LOL Chat. JSDoc only — nothing compiles this; it DOCUMENTS the contract
+// (plan §3.3 / §3.4, frozen at P0 kickoff; later changes are contract changes noted in DEVLOG).
+// PURE: its only runtime exports are TYPES_VERSION and API_KEYS (frozen key lists).
+
+// ---------------------------------------------------------------------------------------------
+// Farm
+// ---------------------------------------------------------------------------------------------
+
+/** What app.js publishes as `window.__lolFarm` (every field after apiKey is optional; P1 kickoff
+ *  adds them additively inside publishFarm()).
+ * @typedef {{ name, openaiBaseUrl, defaultModel, busy, apiKey,
+ *   id?, requiresKey?, healthy?, stale?, lastSeen?, host?, httpPort?,
+ *   models?: {id, underlying, default}[],
+ *   backend?: {engine, alias, contextLength, contextPerSlot, slots} | null,
+ *   capacity?: {slots, clients, seatsUsed, seatIdleSec, busy?, queued?} | null,
+ *   perf?: object|null, usage?: {gpuUtil}|null, searxngUrl?, ttsUrl?, ttsVoice?, ttsModel?,
+ *   extract?: {url, key}|null }} FarmBridge
+ */
+
+/** Normalised farm capabilities (net/farm.mjs capsFromBridge). `present:false` = no farm.
+ * @typedef {{ present, id, name, baseUrl, proxyRoot, apiKey, requiresKey, keyMissing, healthy, stale, lastSeen,
+ *   defaultModel, models: {id, underlying, default}[], engine: 'ollama'|'llama.cpp'|'external'|null,
+ *   budget: {tokens, advertised, source: 'advertised'|'default'},
+ *   seats: {used, slots, clients, idleSec}|null, busy: {label, percent}|null, perf, gpuUtil,
+ *   search: {url}|null, tts: {url, voice, model}|null, ocr: {url, key}|null }} FarmCaps
+ */
+
+// ---------------------------------------------------------------------------------------------
+// Records (IndexedDB `lol-chat` v1, plan §3.7)
+// ---------------------------------------------------------------------------------------------
+
+/** @typedef {{ id, title, titleSource: 'auto'|'user', createdAt, updatedAt, headId, pinned, ephemeral,
+ *   recipeId, systemOverride, params: Params|null, model: string|null, modelSource: 'user'|null,
+ *   farmId, draft, imported?: boolean, legacyId?: string, legacyHash?: string,
+ *   studio?: StudioState }} Thread
+ */
+
+/** @typedef {{type:'text', text} | {type:'image', attId} | {type:'doc', attId, pages: [number, number][]|null}
+ *   | {type:'search', query, results: {n, title, url, snippet}[], error?}
+ *   | {type:'blender', kind: 'scene'|'viewport', attId}} Part
+ */
+
+/** @typedef {{ id, threadId, parentId: string|null, role: 'user'|'assistant', createdAt, updatedAt,
+ *   parts: Part[], content: string, reasoning: string|null, reasoningMs: number|null, sawToolCalls: boolean,
+ *   model, underlying, farmName, farmId, params: Params|null, recipeId, vars?: object,
+ *   stats: {promptTokens, completionTokens, ttftMs, tokPerSec, finishReason, text}|null,
+ *   status: 'streaming'|'done'|'aborted'|'error'|'interrupted'|'waiting'|'local',
+ *   error: {kind, code, message, retryAfter}|null, pinned: boolean, structuredState?: object }} Message
+ */
+
+/** @typedef {{ id, threadId, name, mime, size, sha256, blob: Blob|null, width?, height?, thumbDataUrl?,
+ *   text?, pages?: {page, text}[], extractEngine?: 'local'|'farm-ocr'|'blender', status: 'ready'|'extracting'|'error', error? }} Attachment
+ */
+
+/** @typedef {{ temperature?, top_p?, max_tokens?, seed?, stop?: string[] }} Params */
+
+/** @typedef {{ lolrecipe: 1, id, name, trigger, description?, system?, template?, vars?, params?,
+ *   output?: {render: 'markdown'|'cards'|'table', schema?}, builtin?: boolean, imported?: boolean, updatedAt? }} Recipe
+ *   (added at P4 kickoff; the `recipes` store exists from v1)
+ */
+
+// ---------------------------------------------------------------------------------------------
+// Send pipeline (plan §3.6)
+// ---------------------------------------------------------------------------------------------
+
+/** @typedef {{ text, parts: Part[], model, recipeId?, vars?, params?, flags?: {search?: boolean} }} Draft */
+
+/** @typedef {{ model, system: string|null, systemAppend: string[],
+ *   messages: {msgId, role: 'user'|'assistant', pinned,
+ *              blocks: ({type:'text', text, tag: 'user'|'doc'|'search'|'scene'|'assistant'|'continue'} | {type:'image', attId, dataUrl?})[] }[],
+ *   paramLayers: {recipe: Params, thread: Params, call: Params}, params: Params,
+ *   responseFormat: object|null, mode: 'new'|'continue',
+ *   meta: {engine, budget, estimate, trimmedIds: string[], newTurnEstimate, allowances: {id, tokens}[]} }} RequestDraft
+ */
+
+/** @typedef {{ app: App, thread: Thread, draft: Draft|null, attachments: (id: string) => Promise<Attachment|null>, caps: FarmCaps, preview: boolean }} TransformCtx */
+
+/** @typedef {{ status: 'done'|'aborted'|'error', abortedBy: 'user'|'observer'|null, content, reasoning, reasoningMs,
+ *   usage, finishReason, ttftMs, durationMs, tokPerSec, error: ClassifiedError|null }} GenerationResult
+ */
+
+/** @typedef {{ kind: 'seats_full'|'upstream_down'|'auth'|'key_missing'|'context_overflow'|'vision_unsupported'|'stream_error'|'network'|'aborted'|'http',
+ *   status, code, message, farmMessage, retryAfter }} ClassifiedError
+ */
+
+// Markdown shapes (Block, Inline) are NOT duplicated here: they are JSDoc in their own modules,
+// render/md-block.mjs and render/md-inline.mjs, which are their single source of truth.
+//
+// ---------------------------------------------------------------------------------------------
+// Components (plan §3.4). Factories are called by main.mjs ONLY; see main.mjs COMPONENTS.
+// ---------------------------------------------------------------------------------------------
+
+/** state/repo.mjs — `openRepoSync(opts) -> Repo`. The extra options after timeoutMs are the P0
+ *  kickoff's precision of §3.4 (main.mjs passes them; all optional so Node tests can omit them):
+ * @typedef {{ idbName?: string, forceMemory?: boolean, timeoutMs?: number,
+ *   idbOpenDelayMs?: number,              // flags.idbOpenDelayMs (delay before indexedDB.open)
+ *   bus?: import('./events.mjs').Bus|null, // emits STORE_MODE / STORE_ERROR / THREADS_CHANGED
+ *   now?: () => number,                    // core/env now
+ *   newId?: () => string,                  // core/ids newId bound to env now/rng
+ *   indexedDB?: IDBFactory|null,           // default globalThis.indexedDB (tests inject a fake)
+ *   // TEST-ONLY seams (P0 landing; main.mjs never passes them):
+ *   openPersistent?: (o: any) => any,      // the persistent-backend factory — Node tests pass a memory
+ *                                          //   backend, or a scripted slow/failing `ready` to drive
+ *                                          //   the pending → memory → idb path without a fake IDB
+ *   setTimeout?: (fn: Function, ms: number) => any,   // injected clock: the checkpoint throttle
+ *   clearTimeout?: (h: any) => void,                  //   and the open timeout use these
+ * }} RepoOptions
+ */
+
+/** @typedef {{
+ *   mode: 'pending'|'idb'|'memory'|'memory-final', ready: Promise<void>,
+ *   listThreads(): Promise<Thread[]>,
+ *   getThread(id: string): Promise<Thread|null>,
+ *   // createThread and appendMessage return the LIVE record the repo wrote, NOT a copy: the
+ *   // controller mutates it while streaming and hands the same object to checkpoint/finalize
+ *   // (every backend write snapshots it). Reads (getThread/getMessages/getPath) return copies.
+ *   // core/fakes.mjs' repo clones instead — a visible difference when coding against the fake.
+ *   createThread(init?: Partial<Thread>): Thread,
+ *   updateThread(id: string, patch: Partial<Thread>, opts?: {silent?: boolean}): Promise<Thread|null>,
+ *   deleteThread(id: string): Promise<void>,
+ *   getMessages(threadId: string): Promise<Message[]>,
+ *   getPath(threadId: string, headId?: string|null): Promise<Message[]>,
+ *   appendMessage(threadId: string, partial: Partial<Message>): Message,
+ *   putMessage(msg: Message): Promise<void>,
+ *   checkpoint(msg: Message): void,
+ *   finalize(msg: Message): Promise<void>,
+ *   deleteSubtree(messageId: string): Promise<{removed: string[], headId: string|null}>,
+ *   scanMessages(visitor: (m: Message) => boolean|void): Promise<void>,
+ *   putAttachment(att: Attachment): Promise<string>,
+ *   getAttachment(id: string): Promise<Attachment|null>,
+ *   listAttachments(threadId: string): Promise<Attachment[]>,
+ *   deleteAttachment(id: string): Promise<void>,
+ *   listRecipes(): Promise<Recipe[]>, putRecipe(r: Recipe): Promise<void>, deleteRecipe(id: string): Promise<void>,
+ *   findLegacy(legacyId: string, legacyHash: string): Promise<Thread|null>,
+ *   kvGet(key: string, fallback?: any): Promise<any>, kvSet(key: string, value: any): Promise<void>,
+ *   recoverInterrupted(): Promise<number>,
+ *   flush(): Promise<void>, estimate(): Promise<{usage: number, quota: number}|null>,
+ *   runTx(stores: string[], mode: 'readonly'|'readwrite', fn: (tx: any) => any): Promise<any>,
+ *   debug: {journalLength(): number, persistentIds(): string[]},
+ * }} Repo
+ */
+
+/** net/farm.mjs — createFarmModel(app)
+ * @typedef {{ update(bridge: FarmBridge|null): void, get(): FarmCaps, headers(): Record<string, string>,
+ *   fetchModels(opts?: {force?: boolean}): Promise<{ids: string[], state: 'ok'|'no-farm'|'no-models'|'unreachable'|'auth'}>,
+ *   modelInfo(id: string): any, setCapResolver(fn: Function): void, cap(underlying: string, name: string): 'yes'|'no'|'unknown' }} FarmModel
+ */
+
+/** net/governor.mjs — createGovernor(app)
+ * @typedef {{ canStart(kind: string): boolean, acquire(kind: string, opts?: {holder?: string, abort?: Function}): (() => void)|null,
+ *   hold(holder: string, opts?: {note?: string}): void, holdNote(): string|null, release(holder: string): void,
+ *   state(): {foreground: 'idle'|'streaming'|'held', holder: string|null}, onChange(fn: Function): () => void }} Governor
+ */
+
+/** app/controller.mjs — createController(app)
+ * @typedef {{ newThread(init?: Partial<Thread>): Thread, selectThread(id: string|null): Promise<void>|void,
+ *   current(): {thread: Thread|null, path: Message[]},
+ *   send(draft: Draft): Promise<void>,
+ *   generate(opts: {threadId: string, parentId: string|null, into?: Message, mode?: 'new'|'continue', model?: string,
+ *     params?: Params, recipeId?: string, extraBlocks?: RequestBlock[], extraTurns?: ExtraTurn[],
+ *     holder?: string, noImages?: boolean}): Promise<GenerationResult|null>,
+ *   preview(opts?: {draft?: Draft, threadId?: string, parentId?: string|null, mode?: 'new'|'continue'}): Promise<RequestDraft>,
+ *   stop(): void, isStreaming(): boolean, abortThread(threadId: string|null): Promise<boolean>,
+ *   refreshView(): Promise<void>|void }} Controller
+ */
+
+/** One wire turn appended to a request but never stored (P2 kickoff, §2.6 AC). `extraBlocks` can
+ *  only grow the LAST message of the path; an extra TURN is its own message, which is what the
+ *  continue fallback's trailing user block has to be. It reaches the wire with `msgId: null`, and
+ *  budget-trim never drops a message whose msgId is null.
+ * @typedef {{ role?: 'user'|'assistant', blocks: RequestBlock[] }} ExtraTurn
+ */
+
+/** A block inside RequestDraft.messages[].blocks.
+ * @typedef {{type: 'text', text: string, tag: 'user'|'doc'|'search'|'scene'|'assistant'|'continue'}
+ *   | {type: 'image', attId: string, dataUrl?: string}} RequestBlock
+ */
+
+/** render/thread-view.mjs — createThreadView(app, els.messages)
+ * @typedef {{ showPath(thread: Thread|null, path: Message[], opts?: {siblings?: Map<string, {position: number, count: number}>}): void,
+ *   upsert(msg: Message): void, remove(ids: string[]): void,
+ *   beginStream(msgId: string): {paint(content: string, reasoning: string|null): void, setStatus(status: string): void, end(msg: Message): void},
+ *   scrollToMessage(id: string, opts?: {flash?: boolean}): void, isStuck(): boolean, setOutsideContext(ids: Set<string>): void,
+ *   rowOf(id: string): HTMLElement|null,
+ *   debug: {paintStats(): {count: number, p50: number, p95: number, max: number}, renderOneShot(markdown: string): HTMLElement} }} ThreadView
+ */
+
+/** ui/composer.mjs — createComposer(app, els)
+ * @typedef {{ getDraft(): Draft, setText(s: string): void, insertText(s: string): void, clear(): void, focus(): void,
+ *   addPart(part: Part, opts: {label: string, thumbDataUrl?: string, status?: string}): string,
+ *   updatePart(key: string, patch: object): void, removePart(key: string): void,
+ *   setBusy(state: any): void, setSendState(s: {label: string, disabled?: boolean, armed?: boolean}): void, isLocked(): boolean,
+ *   region(name: 'above'|'tray'|'tools'|'meter'): HTMLElement, on(ev: 'input'|'submit', fn: Function): () => void }} Composer
+ */
+
+/** ui/model-picker.mjs — createModelPicker(app, els.model)
+ * @typedef {{ value(): string, set(id: string, opts?: {byUser?: boolean}): void, refresh(opts?: {force?: boolean}): Promise<void>|void }} ModelPicker
+ */
+
+/** ui/sidebar.mjs — createSidebar(app, els.list)
+ * @typedef {{ render(opts?: {rescan?: boolean}): void, highlight(threadId: string|null): void }} Sidebar
+ *   `render()` repaints from the thread list; `render({rescan:true})` ALSO re-cursors the message
+ *   store for the per-thread dots (P1 fix round, DISCUSS D-M10.2 — main.mjs asks for it once, after
+ *   recoverInterrupted). A caller that passes nothing costs nothing.
+ */
+
+/** ui/dialogs.mjs — createDialogs(app)
+ * @typedef {{ confirm(o: {title: string, body?: string, ok?: string, danger?: boolean}): Promise<boolean>,
+ *   prompt(o: {title: string, value?: string, placeholder?: string}): Promise<string|null>,
+ *   popover(anchorEl: HTMLElement, build: (el: HTMLElement) => void): {close(): void},
+ *   toast(text: string, opts?: {kind?: 'info'|'warn'|'error'}): void }} Dialogs
+ */
+
+// ---------------------------------------------------------------------------------------------
+// App, layout, loader
+// ---------------------------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------------------------
+// Studio (S0 kickoff; studio plan §3.3, trimmed to what the Computer + benches actually use —
+// the S1 map typedefs are NOT here, S1 having been replaced by docs/LOLCHAT_COMPUTER_SPEC.md).
+// ---------------------------------------------------------------------------------------------
+
+/** thread.studio — per-thread workbench state (pure merge/clamp lives in app/studio-state.mjs).
+ * @typedef {{ panel: string|null, width: 'chat'|'split'|'work', graphId: string|null,
+ *   projectId: string|null, boardId: string|null, updatedAt: number }} StudioState
+ */
+
+/** @typedef {{ autoApply: boolean, autoFix: boolean, editPolicy: 'auto'|'whole'|'anchored' }} ProjectSettings */
+
+/** A scratch project. Authoritative on disk (project.json); mirrored in the `projects` store.
+ * @typedef {{ id, name, kind: 'canvas'|'dom'|'three'|'p5'|'svg'|'board', createdAt, updatedAt,
+ *   settings: ProjectSettings, hidden?: boolean }} ProjectMeta
+ */
+
+/** A `projects` row: the local mirror that ties a project to a thread. Files never live here.
+ * @typedef {{ id, threadId: string|null, name, kind, createdAt, updatedAt }} ProjectRef */
+
+/** One row of the `graphs` store (one graph per thread; the Computer panel owns the shape).
+ * @typedef {{ id, threadId, title, createdAt, updatedAt, rev, parts: GraphPart[], wires: GraphWire[],
+ *   settings: object, view: {x, y, zoom} }} GraphDoc
+ */
+
+// ---------------------------------------------------------------------------------------------
+// The Computer panel (C1 kickoff; docs/LOLCHAT_COMPUTER_SPEC.md §2-§4, frozen in §2.6 BG).
+// Nothing here is read by any pre-C1 module: the whole block is additive.
+// ---------------------------------------------------------------------------------------------
+
+/** A value travelling a wire. Typed but forgiving (spec §2): a mismatch is a visible error on the
+ * part, never a silent coercion.
+ * @typedef {{ kind: 'text'|'image'|'list'|'json'|'file', data: any }} GraphValue */
+
+/** One part on the canvas. `settings` is the part type's own; `value`/`state`/`error`/`stats`/
+ * `fanout` are RUNTIME fields, written only through the session's patchPart() and never undoable.
+ * `fanout` is C2's per-item record (§2.6 BH-3): how many items a fanned run had, how many finished,
+ * and the message of every item that failed — which is what makes "one bad item never kills the
+ * run" visible rather than merely true.
+ * @typedef {{ id, type, x, y, w, h, settings: object, value: GraphValue|null,
+ *   state: 'idle'|'stale'|'queued'|'running'|'done'|'error', error: string|null,
+ *   stats: {ms: number, tokens: number, calls?: number}|null,
+ *   fanout?: {n: number, done: number, ok: number, failed: number,
+ *     errors: {i: number, message: string}[]}|null }} GraphPart */
+
+/** One wire: a part's single output into ONE named input port of another. Several wires into the
+ * same port are legal and arrive as an ordered list.
+ * @typedef {{ id, from: string, to: string, port: string }} GraphWire */
+
+/** A part type. The catalogue (graph/parts/index.mjs) is the only place these are constructed.
+ * `run()` throws an Error to fail the part; the message is what the canvas shows.
+ * @typedef {{ type: string, label: string, order?: number, thinks?: boolean,
+ *   size?: {w: number, h: number},
+ *   inputs: {name: string, label: string, accepts: string[], many?: boolean, required?: boolean}[],
+ *   output: 'text'|'image'|'list'|'json'|'file'|null,
+ *   defaults(): object,
+ *   render(host: HTMLElement, part: GraphPart, ctx: PartCtx): {update(part: GraphPart): void, destroy(): void},
+ *   run(input: RunInput): Promise<GraphValue|null>,   // null ONLY when `output` is null (BH-6)
+ *   settings?(host: HTMLElement, part: GraphPart, ctx: PartCtx): {update(part: GraphPart): void, destroy(): void}
+ * }} PartSpec */
+
+/** What a part's render()/settings() may do to the document. `update` patches settings (and marks
+ * the part stale); `commit` closes one undo entry around the edits since the last commit.
+ * @typedef {{ update(patch: object): void, commit(label: string): void, open(value: GraphValue): void,
+ *   app: any, part: GraphPart }} PartCtx */
+
+/** What the runner hands a part's run(). `inputs` is keyed by port name, in wire order.
+ * `item` is set ONLY while the part is running per item of a fan-out (C2, §2.6 BH-2): `i` is the
+ * zero-based item index, `n` the item count. A part that varies its output per item (Ask under a
+ * Repeat) reads it; every other part ignores it and behaves exactly as it does on one value.
+ * `sandbox` (C3, §2.6 BJ) resolves the panel's ONE sandbox host, or null when this build has
+ * none. `Code`/`Render` call it; every other part ignores it and never pays for an iframe.
+ * @typedef {{ part: GraphPart, inputs: Record<string, GraphValue[]>, app: any, ask: any,
+ *   signal: AbortSignal, thread: Thread|null, cache: boolean,
+ *   item?: {i: number, n: number}|null,
+ *   sandbox?: (() => Promise<SandboxHost|null>)|null }} RunInput */
+
+/** The sandbox host (sandbox/host.mjs), frozen at the C3 kickoff and shared with the S2 bench.
+ * `compute` is the deterministic path (a value comes back as JSON); `run` + `snapshot` are the
+ * visual one (the guest paints, the host captures a PNG). Neither ever throws: a failure is an
+ * `ok:false` with a sentence, because a part must be able to SHOW what went wrong.
+ * @typedef {{
+ *   mount(el: HTMLElement): void,
+ *   state(): 'idle'|'booting'|'ready'|'running'|'stalled'|'disabled',
+ *   ready(): Promise<boolean>,
+ *   logs(): {level: string, text: string}[],
+ *   errors(): any[],
+ *   runs(): number,
+ *   compute(req: {code: string, inputs?: object, timeoutMs?: number, signal?: AbortSignal}):
+ *     Promise<{ok: boolean, ms: number, json: string|null, error: any}>,
+ *   run(req: {code: string, kind: string, params?: object, html?: string, css?: string, libs?: string[]}):
+ *     Promise<{ok: boolean, ms: number, error: any}>,
+ *   snapshot(o?: {maxPx?: number}): Promise<{dataUrl: string, w: number, h: number}|null>,
+ *   params(values: object): void,
+ *   stop(): void, hide(): void, destroy(): void,
+ *   on(fn: (ev: any) => void): () => void,
+ *   debug(): object
+ * }} SandboxHost */
+
+/** graph/fanout.mjs (C2-U1, PURE): what one part's inputs mean for one run (§2.6 BH-2).
+ * `single` = run once with `inputs`; `fan` = run `n` times with `inputsFor(i)`; `refuse` = two
+ * ports fan at once, which the part reports as an error instead of guessing a pairing.
+ * @typedef {{ kind: 'single' }
+ *   | {kind: 'fan', port: string, n: number, inputsFor(i: number): Record<string, GraphValue[]>,
+ *      saltFor(i: number): number|null}
+ *   | {kind: 'refuse', reason: 'many'}} FanPlan */
+
+/** What one Run returns (and what the canvas reports). `skipped` counts parts the run could not
+ * reach — a part downstream of a failure included.
+ * @typedef {{ ran: number, skipped: number, errors: {partId: string, message: string}[],
+ *   cancelled: boolean, ms: number,
+ *   yielded?: boolean, capped?: {cap: number, spent: number, stopped: number}|null,
+ *   cycle?: boolean, busy?: boolean, generations?: number }} RunReport
+ *
+ * C1 landing, additive (all three set by graph/runner.mjs, all three read by graph/panel.mjs):
+ *   yielded  the governor gave the seat back to the human mid-run. NOT an error and NOT a cancel:
+ *            the part that was running is `stale` and the next Run picks it up (§3.5.4 etiquette).
+ *   capped   the run stopped AT the generation cap (`pref:computeMaxItems`, default 50) with
+ *            `stopped` parts still to run. C2 owns the cap's UI; C1 only reports it.
+ *   cycle    defensive: order() refused the doc, so the run executed nothing.
+ * The run OPTIONS gained `maxItems?: number` alongside `only`/`cache` — "raise the cap for this
+ * run only", the door C2's button calls. */
+
+/** The result of one app.ask call. `ok:false` ALWAYS carries an error — never a silent empty.
+ * @typedef {{ ok: boolean, value: any, mode: 'schema'|'prompt'|'text', raw: string,
+ *   usage: object|null, ms: number,
+ *   error: {kind: 'busy'|'no_farm'|'no_vision'|'empty'|'invalid'|'aborted'|'farm', message: string}|null,
+ *   cached?: boolean, errors?: string[] }} AskResult
+ *
+ * S0 landing, additive (both optional, both set by app/ask.mjs):
+ *   cached  an in-memory hit on the input hash — no seat was taken. A Retry passes `cache:false`.
+ *   errors  the validate() messages behind an `invalid` result, so a panel can say WHICH field
+ *           was missing instead of "the model answered the wrong shape".
+ */
+
+/** app.ask.queue / app.queue.state() — the running batch, as the chip renders it.
+ * `refused` = a second batch was asked for while one was running (one batch at a time, per window);
+ * `stalled` = 5 EV.FARM_TICK retries exhausted, the farm stayed busy. Both are S0-landing additive.
+ * `truncated` = items dropped because the batch was longer than `pref:queueMax` — 0 normally, and
+ * never silent: a caller that fans out 10 nodes must be able to tell 10 done from 6 dropped.
+ * @typedef {{ label: string, i: number, n: number, running: boolean, cancelled: boolean,
+ *   truncated: number, refused?: boolean, stalled?: boolean }} QueueState */
+
+/** @typedef {{ name, code: string, lang: string, from: 'model'|'user'|'template' }} Revision */
+/** @typedef {{ id, label, type: 'number'|'color'|'boolean'|'select', value, min?, max?, step?, options? }} Knob */
+
+/** A workbench panel instance (studio plan §3.5.2). The workbench owns els.workBody; a panel owns
+ * only the element it is handed.
+ * @typedef {{ show(ctx: {thread: Thread|null, studio: StudioState}): void, hide(): void,
+ *   destroy(): void, onThread(ctx: {thread: Thread|null, studio: StudioState}): void,
+ *   debug?: any }} PanelInstance
+ */
+
+/** ui/layout.mjs buildLayout(root) → Els (plan §3.5)
+ * @typedef {{ root: HTMLElement, side: HTMLElement, sideHead: HTMLElement, newBtn: HTMLButtonElement,
+ *   sideTools: HTMLElement, list: HTMLElement, sideFoot: HTMLElement, main: HTMLElement,
+ *   banner: HTMLElement, topline: HTMLElement, header: HTMLElement, model: HTMLSelectElement,
+ *   strip: HTMLElement, messages: HTMLElement, jump: HTMLButtonElement, empty: HTMLElement,
+ *   form: HTMLFormElement, above: HTMLElement, tray: HTMLElement, tools: HTMLElement,
+ *   input: HTMLTextAreaElement, meter: HTMLElement, send: HTMLButtonElement, stop: HTMLButtonElement,
+ *   live: HTMLElement,
+ *   work: HTMLElement, workRail: HTMLElement, workHead: HTMLElement, workBody: HTMLElement }} Els
+ */
+
+/** core/app.mjs createApp({root, els}) → App. Component fields start null; main.mjs fills them.
+ * @typedef {{
+ *   root: HTMLElement, els: Els,
+ *   bus: import('./events.mjs').Bus, registry: import('./registry.mjs').Registry,
+ *   EV: typeof import('./events.mjs').EV, SLOTS: typeof import('./registry.mjs').SLOTS,
+ *   t: typeof import('./i18n.mjs').t,
+ *   flags: import('./env.mjs').Flags, now: () => number, rng: () => number, newId: () => string,
+ *   state: {threadId: string|null, visible: boolean, pageVisible: boolean, storeMode: 'pending'|'idb'|'memory'|'memory-final'},
+ *   repo: Repo|null, farm: FarmModel|null, gov: Governor|null, dialogs: Dialogs|null, view: ThreadView|null,
+ *   sidebar: Sidebar|null, composer: Composer|null, picker: ModelPicker|null, controller: Controller|null,
+ *   modules: Record<string, any>,   // loaded module namespaces by loader key (features may read siblings)
+ *   [feature: string]: any,         // features may attach their own API (e.g. app.branching)
+ * }} App
+ */
+
+/** One loader table row (main.mjs MODULES).
+ * @typedef {{ key: string, path: string, role: 'component'|'feature', fake: string|null, phase: string }} ModuleRow
+ */
+
+/** `window.LolChat.failed[key]`
+ * @typedef {{ key: string, path: string, role: 'component'|'feature', error: string, faked: boolean }} LoadFailure
+ */
+
+/** `window.LolChat`
+ * @typedef {{ ready: boolean, version: string, app: App|null, failed: Record<string, LoadFailure>,
+ *   fakes: string[], migration: Promise<any>|null, debug: Record<string, any> }} LolChatGlobal
+ */
+
+/** state/migrate-v0.mjs — `migrateV1({repo, storage, now, bus?})`. `bus` is the P0 kickoff's precision
+ *  of §3.4: when given, migrateV1 emits THREADS_CHANGED{reason:'migrate', ids} itself after importing
+ *  (main.mjs passes app.bus and does NOT emit it). Node tests may omit it.
+ * @typedef {{ repo: Repo, storage: {getItem(k: string): string|null, setItem(k: string, v: string): void, removeItem(k: string): void},
+ *   now?: () => number, bus?: import('./events.mjs').Bus|null }} MigrateOptions
+ */
+
+// ---------------------------------------------------------------------------------------------
+// P2 shapes (farm etiquette, context budget, tree, transfer) — added at the P2 kickoff
+// ---------------------------------------------------------------------------------------------
+
+/** app/seat-wait.mjs — the pure decision run on EVERY FARM_TICK and FARM_CHANGE (§4 P2-U1).
+ *  'resend' send again now · 'schedule' arm a jittered resend · 'wait' do nothing (not looked at,
+ *  any schedule dropped) · 'giveup' stop waiting, turn the note into an error · 'manual' only the
+ *  Try now button can move it.
+ * @typedef {{ caps: FarmCaps|null, visible: boolean, pageVisible: boolean, waitingSince: number,
+ *   now: number, attempts: number, scheduledAt: number|null }} SeatDecisionInput
+ * @typedef {'resend'|'schedule'|'wait'|'giveup'|'manual'} SeatDecision
+ */
+
+/** ctx/budget.mjs — planTrim()'s verdict. `keptIds`/`droppedIds` hold RequestDraft message ids;
+ *  a message with `msgId === null` (an ExtraTurn) is never dropped and never listed.
+ * @typedef {{ keptIds: string[], droppedIds: string[], total: number, over: boolean }} TrimPlan
+ */
+
+/** ctx/budget.mjs — gateVerdict(). 'confirm' = the second click sends; 'block' = it cannot fit.
+ * @typedef {{ kind: 'ok'|'confirm'|'block', seconds: number|null }} GateVerdict
+ */
+
+/** app/branching.mjs — attached as `app.branching` by its install(app) (§4 P2-U3).
+ * @typedef {{ regenerate(msg: Message, opts?: {params?: Params, recipeId?: string}): Promise<any>,
+ *   editUser(msg: Message, text: string): Promise<any>,
+ *   switchSibling(msgId: string, dir: -1|1): Promise<void>,
+ *   fork(msg: Message): Promise<Thread|null>,
+ *   deleteSubtree(msg: Message): Promise<boolean> }} Branching
+ */
+
+/** app/transfer-format.mjs — the export envelope. `lolchat` is the format version and is 1.
+ * @typedef {{ lolchat: 1, exportedAt: number, app: string, threads: Thread[], messages: Message[],
+ *   attachments: (Omit<Attachment, 'blob'> & {blob: undefined, blobBase64?: string})[] }} TransferBundle
+ * @typedef {{ threads: Thread[], messages: Message[], attachments: Attachment[], errors: string[] }} ParsedImport
+ */
+
+// ---------------------------------------------------------------------------------------------
+// kv keys (plan §3.7). The `kv` store is a flat string→JSON map shared by every unit, so the key
+// SPELLINGS are contract, not convention: harness scenarios assert them literally (p2-calibrate
+// reads `tokRatio:Qwen3.8-27B-UD-Q2_K_XL`). Build them with KV_KEYS rather than by hand.
+//
+//   schemaVersion            number   the record schema (1)                            P0-U4
+//   v1RawHash                string   hash of the migrated localStorage blob           P0-U4
+//   persistRequested         boolean  navigator.storage.persist() was called once      P0-U4
+//   ui:lastThreadId          string   the thread to reselect at boot                   P1
+//   ui:reasoningOpen         string[] the last 200 message ids with reasoning open      P1-U3
+//   ui:wrap                  boolean  code blocks wrap                                 P1-U3
+//   ui:search:<threadId>     string   an in-thread find box query                      P4
+//   tokRatio:<underlying>    number   chars-per-token EMA, calibrated from usage       P2-U2
+//   promptTokSec:<farmId>    number   prompt tokens/second EMA (the cost gate's 's')   P2-U2
+//   pref:gateThreshold       number   tokens above which the gate asks (default 16000) P2-U2
+//   pref:notify              boolean  desktop notification on a long finished reply    P2-U1
+//   continueMode:<underlying> 'prefill'|'userTurn'  what Continue does on this model    P2-U3
+//   cap:<farmId>:<underlying>:vision  'yes'|'no'   remembered vision verdict            P3-U1
+//   structuredMode:<farmId>:<underlying> 'json'|'prompt'                                P4-U2
+//   ttsFormat                string   the audio format Kokoro accepted                 P4-U4
+//
+// There is deliberately NO global last-model key (§3.10): a new thread always starts on the farm
+// default.
+/** @type {Readonly<Record<string, any>>} */
+export const KV_KEYS = Object.freeze({
+  schemaVersion: 'schemaVersion',
+  v1RawHash: 'v1RawHash',
+  persistRequested: 'persistRequested',
+  lastThreadId: 'ui:lastThreadId',
+  reasoningOpen: 'ui:reasoningOpen',
+  wrap: 'ui:wrap',
+  prefNotify: 'pref:notify',
+  prefGateThreshold: 'pref:gateThreshold',
+  ttsFormat: 'ttsFormat',
+  /** @param {string} underlying */ tokRatio: (underlying) => `tokRatio:${underlying}`,
+  /** @param {string} farmId */ promptTokSec: (farmId) => `promptTokSec:${farmId}`,
+  /** @param {string} underlying */ continueMode: (underlying) => `continueMode:${underlying}`,
+  /** @param {string} farmId @param {string} underlying */ vision: (farmId, underlying) => `cap:${farmId}:${underlying}:vision`,
+  /** @param {string} farmId @param {string} underlying */ structuredMode: (farmId, underlying) => `structuredMode:${farmId}:${underlying}`,
+  /** @param {string} threadId */ threadSearch: (threadId) => `ui:search:${threadId}`,
+  // Studio (S0 kickoff; studio plan §3.6.4). `pref:mapLayout` is NOT here — S1 was cancelled.
+  workWidth: 'ui:workWidth',               // the split width, as a fraction string (S0-U1)
+  workPanel: 'ui:workPanel',               // the last panel opened, for a brand-new thread (S0-U1)
+  prefQueueMax: 'pref:queueMax',           // batch size cap, default 4 (S0-U3)
+  prefComputeMaxItems: 'pref:computeMaxItems', // the Computer's generation cap, default 50 (C2)
+  /** @param {string} underlying */ editPolicy: (underlying) => `editPolicy:${underlying}`,
+  /** @param {string} underlying */ anchorStats: (underlying) => `anchorStats:${underlying}`,
+});
+
+export const TYPES_VERSION = 1;
+
+/**
+ * Runtime key lists of the §3.4 component APIs (the only runtime export of this file besides
+ * TYPES_VERSION). core.test.mjs checks the fakes against them; unit tests of the real modules
+ * should check their factories' return values against the same lists.
+ */
+export const API_KEYS = Object.freeze({
+  repo: Object.freeze([
+    'mode', 'ready', 'listThreads', 'getThread', 'createThread', 'updateThread', 'deleteThread',
+    'getMessages', 'getPath', 'appendMessage', 'putMessage', 'checkpoint', 'finalize', 'deleteSubtree',
+    'scanMessages', 'putAttachment', 'getAttachment', 'listAttachments', 'deleteAttachment',
+    'listRecipes', 'putRecipe', 'deleteRecipe', 'findLegacy', 'kvGet', 'kvSet', 'recoverInterrupted',
+    'flush', 'estimate', 'runTx', 'debug',
+    // S0 kickoff (studio plan §3.6.2), with `maps` renamed `graphs` for the Computer panel.
+    'listGraphs', 'getGraph', 'putGraph', 'deleteGraph',
+    'listProjectRefs', 'getProjectRef', 'putProjectRef', 'deleteProjectRef',
+  ]),
+  repoDebug: Object.freeze(['journalLength', 'persistentIds']),
+  farm: Object.freeze(['update', 'get', 'headers', 'fetchModels', 'modelInfo', 'setCapResolver', 'cap']),
+  gov: Object.freeze(['canStart', 'acquire', 'hold', 'release', 'state', 'onChange']),
+  controller: Object.freeze(['newThread', 'selectThread', 'current', 'send', 'generate', 'preview', 'stop', 'isStreaming', 'abortThread', 'refreshView']),
+  view: Object.freeze(['showPath', 'upsert', 'remove', 'beginStream', 'scrollToMessage', 'isStuck', 'setOutsideContext', 'rowOf', 'debug']),
+  composer: Object.freeze(['getDraft', 'setText', 'insertText', 'clear', 'focus', 'addPart', 'updatePart', 'removePart', 'setBusy', 'setSendState', 'isLocked', 'region', 'on']),
+  picker: Object.freeze(['value', 'set', 'refresh']),
+  sidebar: Object.freeze(['render', 'highlight']),
+  dialogs: Object.freeze(['confirm', 'prompt', 'popover', 'toast']),
+  // P2-U3 attaches this one to `app.branching` from its install(app); there is no fake for it
+  // (features have fake:null), so the list is checked by branching.test.mjs, not by core.test.mjs.
+  branching: Object.freeze(['regenerate', 'editUser', 'switchSibling', 'fork', 'deleteSubtree']),
+  // S0 features, published on `app` by their own install() (§2.6 AQ). Checked by each unit's own
+  // test, not by core.test.mjs: features have fake:null.
+  work: Object.freeze(['open', 'close', 'current', 'width', 'panels', 'request', 'on']),
+  ask: Object.freeze(['json', 'text', 'queue', 'mode', 'vision']),
+  queue: Object.freeze(['state', 'cancel', 'on']),
+  projects: Object.freeze([
+    'kind', 'root', 'list', 'create', 'meta', 'update', 'forget', 'listFiles', 'read', 'readBinary',
+    'write', 'writeBinary', 'remove', 'reveal', 'open', 'path',
+  ]),
+  // C1: the Computer panel publishes NOTHING on `app` — it is a workbench panel, reached through
+  // app.work. This is its PanelInstance.debug, which the workbench exposes at
+  // window.LolChat.debug.computer and h.graph drives (§2.6 BG-9). Checked by C1-U2's own test.
+  graphDebug: Object.freeze([
+    'doc', 'state', 'session', 'place', 'remove', 'wire', 'unwire', 'select', 'move', 'setSettings',
+    'run', 'stop', 'running', 'undo', 'redo', 'view', 'fit', 'save',
+    // C3 (§2.6 BJ): tidy, the sharing story and the live sandbox's state. Added with their stub
+    // bodies at the kickoff so the door and this list never disagree mid-phase.
+    'tidy', 'exportText', 'importText', 'sandbox',
+  ]),
+  // C3: the sandbox host (sandbox/host.mjs). ONE per panel; the S2 vibecode bench uses the same
+  // object, which is why the key list lives here and not with the Computer's own keys.
+  sandbox: Object.freeze([
+    'mount', 'state', 'ready', 'logs', 'errors', 'runs', 'compute', 'run', 'snapshot', 'params',
+    'stop', 'hide', 'destroy', 'on', 'debug',
+  ]),
+});
