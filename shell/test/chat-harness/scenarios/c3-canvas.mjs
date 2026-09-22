@@ -19,10 +19,10 @@
 
 const FARM_ERRORS = [/Failed to load resource/, /net::ERR_/];
 
-/** Fail loudly when the panel was faked — a green run would otherwise mean nothing. */
+/** Fail loudly when the Computer was faked — a green run would otherwise mean nothing. */
 const requireReal = (/** @type {any} */ h) => h.eval(() => {
-    const failed = (window.LolChat && window.LolChat.failed) || {};
-    if (failed.computer) throw new Error(`C3-U3 needs the REAL graph/panel.mjs: ${failed.computer.error}`);
+    const failed = (window.LolComputer && window.LolComputer.failed) || {};
+    if (failed.host) throw new Error(`C3-U3 needs the REAL computer/host.mjs: ${failed.host.error}`);
     return true;
 });
 
@@ -36,8 +36,8 @@ async function open(/** @type {any} */ h) {
     await h.submit('a thread to share a program from');
     await h.waitReply();
     const state = await h.graph.open();
-    h.eq(state.panel, 'computer', 'the rail opened the Computer');
-    await h.waitFor(() => (window.LolChat.debug.computer.doc().threadId ? true : null));
+    h.eq(state.computer, true, 'the rail opened the Computer');
+    await h.waitFor(() => ((window.LolComputer.debug.computer.doc() || {}).id ? true : null));
 }
 
 /** Note → Split → Ask → Collect, at deliberately scattered coordinates. */
@@ -59,7 +59,7 @@ async function build(/** @type {any} */ h) {
 /** The graph as a SHAPE: no ids, so two documents can be compared across an import. */
 async function shape(/** @type {any} */ h) {
     return h.eval(() => {
-        const doc = window.LolChat.debug.computer.doc();
+        const doc = window.LolComputer.debug.computer.doc();
         const type = (/** @type {string} */ id) => {
             const p = doc.parts.find((/** @type {any} */ q) => q.id === id);
             return p ? p.type : '?';
@@ -75,7 +75,7 @@ async function shape(/** @type {any} */ h) {
 /** Every part's position, by id. */
 const places = (/** @type {any} */ h) => h.eval(() => {
     /** @type {any} */ const out = {};
-    for (const p of window.LolChat.debug.computer.doc().parts) out[p.id] = `${p.x},${p.y}`;
+    for (const p of window.LolComputer.debug.computer.doc().parts) out[p.id] = `${p.x},${p.y}`;
     return out;
 });
 
@@ -88,7 +88,7 @@ async function clearGraph(/** @type {any} */ h) {
 
 /** Start an import WITHOUT awaiting it, so the scenario can answer its dialog. */
 const startImport = (/** @type {any} */ h, /** @type {string} */ text) => h.eval((s) => {
-    /** @type {any} */ (window).__c3import = window.LolChat.debug.computer.importText(s);
+    /** @type {any} */ (window).__c3import = window.LolComputer.debug.computer.importText(s);
     return true;
 }, text);
 const awaitImport = (/** @type {any} */ h) => h.eval(() => /** @type {any} */ (window).__c3import);
@@ -139,8 +139,8 @@ export default [
             // Waited for, not read once: the wire layer paints on the canvas's single rAF, so a
             // bare read here races the frame rather than testing anything (seen failing 1 run in 3).
             const dom = await h.waitFor(() => {
-                const svg = document.querySelector('#lolchat .graph-wires');
-                const parts = document.querySelectorAll('#lolchat .graph-part').length;
+                const svg = document.querySelector('#lolcomputer .graph-wires');
+                const parts = document.querySelectorAll('#lolcomputer .graph-part').length;
                 const wires = svg ? svg.querySelectorAll('path').length : 0;
                 return parts === 4 && wires === 3 ? { parts, wires } : null;
             });
@@ -160,26 +160,26 @@ export default [
             await build(h);
 
             await h.eval(() => {
-                const menu = document.querySelector('#lolchat .graph-export-menu');
+                const menu = document.querySelector('#lolcomputer .graph-export-menu');
                 if (!menu || !menu.hidden) throw new Error('the export popover is open before anybody asked');
                 return true;
             });
-            await h.click('#lolchat .graph-export');
+            await h.click('#lolcomputer .graph-export');
             const menu = await h.eval(() => {
-                const m = document.querySelector('#lolchat .graph-export-menu');
+                const m = document.querySelector('#lolcomputer .graph-export-menu');
                 return {
                     hidden: !m || m.hidden,
                     values: !!(m && m.querySelector('.graph-export-values-input')),
-                    expanded: (document.querySelector('#lolchat .graph-export') || { getAttribute: () => '' }).getAttribute('aria-expanded'),
+                    expanded: (document.querySelector('#lolcomputer .graph-export') || { getAttribute: () => '' }).getAttribute('aria-expanded'),
                 };
             });
             h.eq(menu.hidden, false, 'Export… opens its popover');
             h.eq(menu.values, true, 'and asks whether the cached values go in the file');
             h.eq(menu.expanded, 'true', 'aria-expanded follows it');
 
-            await h.click('#lolchat .graph-export-save');
+            await h.click('#lolcomputer .graph-export-save');
             const said = await h.waitFor(() => {
-                const live = document.querySelector('#lolchat .graph-live');
+                const live = document.querySelector('#lolcomputer .graph-live');
                 const text = live ? live.textContent || '' : '';
                 return /lolgraph\.json/.test(text) ? text : null;
             });
@@ -190,7 +190,7 @@ export default [
             else h.note('no will-download fired for the object-URL anchor; the live region is the assertion');
 
             const menuAfter = await h.eval(() => {
-                const m = document.querySelector('#lolchat .graph-export-menu');
+                const m = document.querySelector('#lolcomputer .graph-export-menu');
                 return !m || m.hidden;
             });
             h.eq(menuAfter, true, 'and the popover closes behind it');
@@ -314,22 +314,22 @@ export default [
             await clearGraph(h);
 
             h.eq(await h.eval(() => {
-                const el = document.querySelector('#lolchat .graph-drop');
+                const el = document.querySelector('#lolcomputer .graph-drop');
                 return !el || el.hidden;
             }), true, 'the drop overlay is invisible at rest');
 
             const base64 = Buffer.from(text, 'utf8').toString('base64');
-            const res = await h.drop('#lolchat .graph-canvas', [
+            const res = await h.drop('#lolcomputer .graph-canvas', [
                 { name: 'shared.lolgraph.json', mime: 'application/json', base64 },
             ]);
             h.eq(res.files, 1, 'the drag really carried a file');
             h.eq(res.defaultPrevented, true, 'the canvas handled the drop rather than the browser');
 
-            await h.waitFor(() => (window.LolChat.debug.computer.doc().parts.length === 4 ? true : null));
+            await h.waitFor(() => (window.LolComputer.debug.computer.doc().parts.length === 4 ? true : null));
             const after = await shape(h);
             h.eq(JSON.stringify(after.parts), JSON.stringify(before.parts), 'the dropped file opened here');
             h.eq(await h.eval(() => {
-                const el = document.querySelector('#lolchat .graph-drop');
+                const el = document.querySelector('#lolcomputer .graph-drop');
                 return !el || el.hidden;
             }), true, 'and the overlay went away behind it');
 
@@ -362,9 +362,9 @@ export default [
                 'building and wiring a graph never moves anything by itself');
 
             const undoBefore = (await h.graph.state()).undo.past;
-            await h.click('#lolchat .graph-tidy');
+            await h.click('#lolcomputer .graph-tidy');
             await h.waitFor(() => {
-                const live = document.querySelector('#lolchat .graph-live');
+                const live = document.querySelector('#lolcomputer .graph-live');
                 return live && /\d/.test(live.textContent || '') ? true : null;
             });
             const moved = await places(h);
@@ -376,7 +376,7 @@ export default [
 
             // Left to right, in wire order.
             const xs = await h.eval((a) => {
-                const doc = window.LolChat.debug.computer.doc();
+                const doc = window.LolComputer.debug.computer.doc();
                 /** @type {any} */ const by = {};
                 for (const p of doc.parts) by[p.id] = p.x;
                 return [by[a.note], by[a.split], by[a.ask], by[a.collect]];
@@ -385,7 +385,7 @@ export default [
                 `the graph reads left to right after tidy: ${xs.join(' < ')}`);
 
             // Stable: a second press moves nothing and is not an undo entry.
-            await h.click('#lolchat .graph-tidy');
+            await h.click('#lolcomputer .graph-tidy');
             h.eq((await h.graph.state()).said, await str(h, 'graph.tidyNothing'), 'a tidy graph says so');
             h.eq(JSON.stringify(await places(h)), JSON.stringify(moved), 'and nothing moved again');
             h.eq((await h.graph.state()).undo.past, undoBefore + 1, 'nor was anything pushed onto undo');

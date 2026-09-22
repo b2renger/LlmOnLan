@@ -2,6 +2,7 @@
 // fakes' API surfaces against §3.4, the fake repo's tree behaviour, the skeleton layout and the
 // drop guard (on the DOM shim), and the pure-module import trap.
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import { newId, hash } from '../../../renderer/chat/core/ids.mjs';
 import { EV, createBus } from '../../../renderer/chat/core/events.mjs';
 import { SLOTS, createRegistry } from '../../../renderer/chat/core/registry.mjs';
@@ -172,6 +173,36 @@ export default (test) => {
       'listProjectRefs', 'getProjectRef', 'putProjectRef', 'deleteProjectRef'];
     assert.deepEqual([...API_KEYS.repo].sort(), plan.slice().sort());
   });
+  // K1 landing (COMPUTER_PLAN §11): the two coherence facts the landing is asked to ASSERT rather
+  // than merely do, so neither can rot silently.
+  test('API_KEYS.computerDebug is graphDebug plus exactly docId and open', () => {
+    const graph = [...API_KEYS.graphDebug];
+    const computer = [...API_KEYS.computerDebug];
+    for (const key of graph) {
+      assert.ok(computer.includes(key), `the Computer's door dropped ${key}, which graphDebug froze`);
+    }
+    assert.deepEqual(computer.filter((k) => !graph.includes(k)).sort(), ['docId', 'open'],
+      'the standalone surface added a key without freezing it here');
+    assert.equal(new Set(computer).size, computer.length, 'a key is listed twice');
+  });
+
+  test('css/graph.css is re-scoped to both surfaces: 106 selectors, and none left behind', () => {
+    // The K1 kickoff's ONE mechanical edit (§3.2): `#lolchat ` -> `:is(#lolchat, #lolcomputer) `.
+    // The count is asserted because the rewrite is what makes the SAME canvas paint on the new
+    // surface; a rule missed here is a piece of the Computer that is simply invisible. The two
+    // remaining `#lolchat ` hits are in the file's own header comment, explaining the rewrite.
+    const css = fs.readFileSync(new URL('../../../renderer/chat/css/graph.css', import.meta.url), 'utf8');
+    const scoped = css.match(/:is\(#lolchat, #lolcomputer\) /g) || [];
+    assert.equal(scoped.length, 106, `the graph.css re-scope is ${scoped.length} selectors, not 106`);
+    const body = css.replace(/\/\*[\s\S]*?\*\//g, '');
+    assert.equal((body.match(/#lolchat /g) || []).length, 0,
+      'a `#lolchat ` selector survived the re-scope: that rule paints in the chat and nowhere else');
+    // base.css and sandbox.css are deliberately NOT rewritten (§3.2): `.chat-layer` is what makes
+    // `.hidden` work outside #lolchat, and sandbox.css never had a #lolchat selector at all.
+    const sandbox = fs.readFileSync(new URL('../../../renderer/chat/css/sandbox.css', import.meta.url), 'utf8');
+    assert.equal((sandbox.match(/#lolchat/g) || []).length, 0, 'sandbox.css grew a #lolchat selector');
+  });
+
   test('fake repo API surface matches §3.4 by key list', () => {
     const repo = fakes.repo({});
     assert.deepEqual(Object.keys(repo).sort(), [...API_KEYS.repo].sort());

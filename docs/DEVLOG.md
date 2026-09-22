@@ -6,6 +6,122 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-09-22 — LOL Chat vNext **K1: the Computer becomes the third surface, with a library**
+
+The Computer stops being a panel inside one conversation and becomes a **top-level surface of its
+own**, chosen from the topbar next to Open WebUI and LOL Chat, with a **library of graph documents**
+instead of one graph per chat. Plan: `docs/COMPUTER_PLAN.md` (revision 2) §2 surface plumbing, §3
+module layout, §11 K1. Three builders in parallel (surface/spine · library/migration · run bar,
+drawer, legacy demotion) plus this landing.
+
+**What a user gets.** Open the client, press **Computer**, and the canvas is the whole window: a
+library sidebar on the left (＋ New, search, rename, duplicate, Export…, Import…, delete), a run bar
+across the top (Run all · Stop · N parts · N generations · the cap meter · zoom · ?), the canvas in
+the middle and a drawer on the right for reading one value at a time. The graphs they built inside
+chats are **copied** into the library at first launch, once, by a stable derived id — the chat keeps
+its own copy and deleting the chat does not delete the graph. Relaunching reopens the document they
+left. All eleven parts still work, run, export and import; a document belongs to nobody but itself.
+
+**Two apps, one spine.** `#lolcomputer` builds its **own** `App` (`computer/main.mjs` + `boot.mjs`),
+because `app/ask.mjs` refuses with `busy` when `app.state.visible` is false and the chat is always
+hidden while the Computer is shown — one shared app would have made every Computer model call fail.
+`repo`, `farm` and `gov` are shared instances (one IndexedDB connection, one snapshot and capability
+cache, one governor so the seat etiquette still holds); `bus`, `registry`, `dialogs` and the `ask`
+install are per surface, with `FARM_CHANGE`/`FARM_TICK`/`GOV_CHANGE` mirrored onto whichever bus did
+not emit them. The `visible` rule is `shown || runner.executing()` — a run parked on a Dialog does
+**not** hold a seat open.
+
+**One line in a shared file, deliberately** (`net/governor.mjs`): `freeSeat()` returned **false** when
+the farm advertised no seats, and every graph run is background — so on an older farm build, an
+`external` engine, or before the first snapshot arrives, the Computer could never run at all. Seats
+unknown now allows the ONE background slot. `BACKGROUND_LIMIT = 1` still bounds the client to one
+background request, `canStart('background')` still requires an idle foreground, and a human pressing
+Send still aborts it. Proved by `k1-surface-no-seats` against a mock farm advertising no seats, and by
+two new `governor.test.mjs` cases.
+
+**Deleted at this landing**, with the panel that owned them: `graph/panel.mjs`, `graph/store.mjs`
+(whose `!doc.threadId` early return was the bug that made a library document persist nothing),
+`chat/unit/graph-store.test.mjs` (re-expressed against `computer/docstore.mjs`), the `computer` row in
+`chat/main.mjs` — **the chat no longer loads any of the graph tree** — and `installCodeBridge` with
+its `CODE_DECORATORS`/`MESSAGE_ACTIONS` rows and the three fence helpers that only served it.
+`from-thread`/`to-thread` are **demoted, not deleted**: out of `partSpecs()` (the ＋ menu a reader
+picks from, now nine), still in `specMap()` (what the engine can LOAD, still eleven), wearing a
+`legacy` badge and refusing in one sentence, so a migrated graph opens instead of tripping
+`part:unknown-type`. `session.thread()` survives as a shim returning `null`, which is what leaves
+`runner.mjs` untouched.
+
+**Two real defects the landing found and fixed.** (1) The ＋ menu was built from `specMap()`, so the
+demoted parts were still on offer — it reads `partSpecs()` now. (2) `computer/layout.mjs` called the
+canvas MOUNT `.graph` and `createCanvas` builds its own `.graph` inside it: two nested canvases, and
+every `#lolcomputer .graph` rule and count saw double. The mount is `.comp-canvas`.
+Also re-homed: `graph/panel.mjs`'s `hide()` had no successor, so a sandbox left running in a hidden
+surface burned a CPU for nobody. `computer/main.mjs` now stops the run, suspends the guest and saves
+on the same class flip the `visible` rule watches.
+
+**THE HARNESS RE-POINT, AND THREE RETIRED GUARANTEES (COMPUTER_PLAN §3.7).** `h.graph.*` — ~470 call
+sites across 15 scenario files — is now an **alias of `h.computer`**, so every C1/C2/C3 scenario drives
+the standalone surface through `window.LolComputer.debug.computer` and `#lolcomputer .graph-*`.
+`h.work('computer')` became `h.view('computer')`; `h.ask.log()` merges both surfaces' ask logs.
+This is the one place in this build where frozen guarantees stop being tested, and they are named
+here as `docs/LOLCHAT_PLAN.md` §2.6's single sanctioned exception to *amended, never loosened*:
+
+- **BH-1** — `From thread` reads the conversation the reader is looking at.
+- **BH-6** — `To thread` lands in the transcript, safely rendered, and survives a reload.
+- **BH-7** — the chat-fence bridge ("Send to the Computer") places a Code part.
+
+All three describe a Computer that lived inside a conversation. BH-7's code is deleted outright;
+BH-1 and BH-6's parts are demoted. `c2-bridges` keeps one scenario in their place — the two are out
+of the palette but still loadable — and `c3-parts` keeps the half of the deleted bridge scenario that
+was never about the chat: a Code part computes the right answer and spends nothing at the farm.
+Everything else was **amended, not dropped**: `c1-canvas-lifecycle` now says two library documents
+keep their own parts and hiding the surface does not destroy it; `c1-landing` now asserts the surface
+lands on **exactly one** document (the host and the library each used to create one, so a fresh client
+got two untitled graphs — measured during K1); `c2-canvas`'s inspector scenario keeps the hard
+boundary (never inside `#chat-messages`, Escape is not Stop) and moves the rest to the drawer;
+`c4-header-door` registers its own panel so the workbench door stays tested now that the chat ships
+no panels; the three `*-shots` files photograph the Computer's own frame instead of the workbench
+column. One flake was fixed honestly rather than weakened: `c1-run-yields-to-a-person` read the mock's
+`closedEarly` once, a tick before the server saw the socket close (2 of 3 runs failed at ~3.9 s while
+the one that passed took 7.8 s); the observation now waits, the assertion is unchanged.
+
+`API_KEYS.computerDebug` is frozen in `core/types.mjs`: `graphDebug` verbatim plus `docId` and `open`.
+The `css/graph.css` re-scope is **106 hits** of `#lolchat ` becoming `:is(#lolchat, #lolcomputer) `,
+count asserted; `base.css` and `sandbox.css` are untouched, because `<section id="lolcomputer"
+class="chat-layer">` is what makes `.hidden` work outside `#lolchat`.
+
+**Gates** (slot 0, all green): chat-unit **971 passed**, unit **5 passed**, chat-lint **148 files /
+0 violations**, chat-scope **clean**, harness `--strict` **211 passed** (197 at the K1 baseline,
++18 new K1 scenarios, −4 retired with the bridges), perf `--strict --phase perf` **9 passed**
+(perf-graph-500 build 57 ms · work p95 6.7 ms · 0 transformed parts; perf-graph-run 0.21 ms/part;
+perf-graph-fan 0.010 ms/item). Screenshots taken and LOOKED AT in both themes — which is how the
+stale library card was caught: it read "0 parts · never run" beside a three-part graph, because the
+card came from the store's last debounced write. The open card takes its numbers from the live
+session now (`computer/library.mjs`, `syncOpenMeta`).
+
+**Two load-sensitive assertions fixed, neither weakened.** `s0-workbench-open` read the grid tracks
+the instant the WORK track passed its threshold, a frame before the CHAT track finished collapsing
+on the same 160 ms transition (one failure in a 211-scenario run at 500.391 px, green on every
+isolated re-run); it waits for the state it asserts, and now also checks the work width really
+exceeds the split width, which the early read had been hiding.
+
+**One visual debt K1 ships with, written down for K4-U3's look pass (§9).** The run bar and the
+canvas's own toolbar sit one above the other, so there are two Run buttons, two zoom readouts
+(100% vs 96%) and both a `Cap 50` field and a `5 / 50` meter on screen at once. Every one of those
+is correct and tested; together they read as two toolbars. Resolving it means taking Run, zoom and
+the cap out of `graph/canvas.mjs`'s toolbar, which is the shared engine and is asserted by a dozen
+C1–C3 scenarios — a look pass, not a landing edit. Two smaller ones from the same screenshots: the
+canvas does not re-fit when the drawer opens, so parts can end up clipped behind it; and the drawer
+opens at a width that suits a long value rather than a short one (it is resizable and remembered).
+
+**Rig items this phase adds** (nothing the harness page can reach — it has no topbar, no `.viewseg`
+and no `<webview>`, and never loads `app.js`): the segmented control itself and its `aria-pressed`;
+the OWUI webview surviving a switch to the Computer and back without re-authenticating;
+`localStorage['lol:view']` landing you where you left; the `#overlay` fix of §2.2a during OWUI's ~10 s
+boot; the drawer and sidebar grips under a real mouse with pointer capture; and the migration against
+a real client's own chat graphs.
+
+---
+
 ## 2026-09-16 — LOL Chat vNext **C3: the Computer computes, draws, writes files and travels**
 
 The Computer stops needing the model for everything. `Code` runs real JavaScript in a sandbox for

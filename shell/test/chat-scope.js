@@ -26,9 +26,9 @@ const IGNORED_PATHS = new Set(['arm-list.txt', 'owui-arm.tar.gz']);
 const ALLOWED = [
     { re: /^shell\/renderer\/chat\/.+/, why: 'the new chat tree' },
     { re: /^shell\/renderer\/chat\.js$/, why: 'the old chat surface (deletion only, P1 landing)', deleteOnly: true },
-    { re: /^shell\/renderer\/index\.html$/, why: 'the #lolchat section and the chat script/link tags', checkCsp: true },
-    { re: /^shell\/renderer\/styles\.css$/, why: 'removing the LOL Chat block' },
-    { re: /^shell\/renderer\/app\.js$/, why: 'additive __lolFarm fields inside publishFarm()', checkPublishFarm: true },
+    { re: /^shell\/renderer\/index\.html$/, why: 'the #lolchat/#lolcomputer sections, the .viewseg control and the chat/computer script+link tags', checkCsp: true },
+    { re: /^shell\/renderer\/styles\.css$/, why: 'the LOL Chat block, .viewseg, #lolcomputer and the body[data-view] overrides (K1 §2.2a)' },
+    { re: /^shell\/renderer\/app\.js$/, why: 'additive __lolFarm fields inside publishFarm(), plus the surface-switch IIFE (K1 §1.1)', checkPublishFarm: true },
     { re: /^shell\/test\/.+/, why: 'tests and the harness', checkE2e: true },
     // S0 kickoff (studio plan 2.5): the scratch-projects carve-out, and EXACTLY this carve-out.
     // Everything else under shell/src/** is still out of scope. The two new .ts files the phase
@@ -127,6 +127,22 @@ function publishFarmSpan(src) {
     return [start + 1, lines.length];
 }
 
+/**
+ * The SECOND allowed app.js span (K1 kickoff, COMPUTER_PLAN §1.1): the surface-switch IIFE, from
+ * the literal anchor comment to end of file. The three-way switch cannot live inside publishFarm,
+ * and the whole IIFE is rewritten (not extended), so removals are allowed inside it — and ONLY
+ * inside it. The anchor is a literal, so the span cannot be widened by renaming anything.
+ * `renderSidecar` and `publishFarm` both sit ABOVE it and stay out of bounds.
+ * @returns {[number, number]|null}
+ */
+const TOGGLE_ANCHOR = '// OWUI is the primary surface; the topbar toggle switches the main area to LOL';
+function toggleSpan(src) {
+    const lines = src.split('\n');
+    const start = lines.findIndex((l) => l.trim() === TOGGLE_ANCHOR);
+    if (start < 0) return null;
+    return [start + 1, lines.length];
+}
+
 /** The `window.__lolFarm = f … ;` statement span (the one literal that may be rewritten). */
 function lolFarmLiteralSpan(src) {
     const lines = src.split('\n');
@@ -147,6 +163,8 @@ function checkAppJs(io, file) {
     const span = publishFarmSpan(base);
     if (!span) return ['cannot find `function publishFarm(` in the base version of app.js'];
     const literal = lolFarmLiteralSpan(base) || [0, -1];
+    const toggle = toggleSpan(base) || [0, -1];
+    const inToggle = (n) => n >= toggle[0] && n <= toggle[1];
 
     const diff = io.diff(file) || '';
     const hunkRe = /^@@ -(\d+)(?:,(\d+))? \+\d+(?:,\d+)? @@/;
@@ -161,8 +179,10 @@ function checkAppJs(io, file) {
             const len = m[2] === undefined ? 1 : Number(m[2]);
             const from = oldLine;
             const to = oldLine + Math.max(len - 1, 0);
-            if (to < span[0] || from > span[1]) {
-                out.push(`hunk at old lines ${from}-${to} is OUTSIDE function publishFarm (lines ${span[0]}-${span[1]})`);
+            const inPublish = !(to < span[0] || from > span[1]);
+            const inSwitch = !(to < toggle[0] || from > toggle[1]);
+            if (!inPublish && !inSwitch) {
+                out.push(`hunk at old lines ${from}-${to} is OUTSIDE function publishFarm (lines ${span[0]}-${span[1]}) and outside the surface-switch IIFE (lines ${toggle[0]}-${toggle[1]})`);
             }
             continue;
         }
@@ -170,7 +190,7 @@ function checkAppJs(io, file) {
         if (line.startsWith('+++') || line.startsWith('---')) continue;
         if (line.startsWith('-')) {
             const inLiteral = oldLine >= literal[0] && oldLine <= literal[1];
-            if (!inLiteral) {
+            if (!inLiteral && !inToggle(oldLine)) {
                 out.push(`hunk removes a line outside the \`window.__lolFarm = f\` literal (old line ${oldLine}): ${line.slice(1).trim().slice(0, 60)}`);
             }
             oldLine++;
@@ -345,6 +365,13 @@ const FAKE_APP_JS = [
     '  if (window.__lolChatRefresh) window.__lolChatRefresh();',            // 10
     '}',                                                                    // 11
     '',                                                                     // 12
+    // The K1 second span: the surface-switch IIFE, anchored on the literal comment below.
+    '// OWUI is the primary surface; the topbar toggle switches the main area to LOL',  // 13
+    '// Chat or the Computer and back.',                                    // 14
+    '(() => {',                                                             // 15
+    "  const chat = $('lolchat');",                                         // 16
+    '  if (!chat) return;',                                                 // 17
+    '})();',                                                                // 18
 ].join('\n');
 
 function selfTest() {
@@ -420,6 +447,29 @@ function selfTest() {
             '@@ -10 +10 @@', '-  if (window.__lolChatRefresh) window.__lolChatRefresh();',
             '+  if (window.__lolChatRefresh) setTimeout(window.__lolChatRefresh, 0);'].join('\n'),
     })), /removes a line outside/);
+
+    // 3b. the K1 second span (COMPUTER_PLAN §1.1): the surface-switch IIFE may be rewritten
+    // wholesale — added AND removed lines — because the three-way switch replaces the two-way one.
+    expectClean('rewriting the surface-switch IIFE is allowed', checkScope(io({
+        changed: ['shell/renderer/app.js'],
+        readBase: () => FAKE_APP_JS,
+        readWork: () => FAKE_APP_JS,
+        diff: () => ['--- a/shell/renderer/app.js', '+++ b/shell/renderer/app.js',
+            '@@ -16,2 +16,3 @@', "-  const chat = $('lolchat');", '-  if (!chat) return;',
+            "+  const chat = $('lolchat');", "+  const computer = $('lolcomputer');",
+            '+  if (!chat || !computer) return;'].join('\n'),
+    })));
+
+    // …and the span really does STOP at the anchor: a hunk above publishFarm is still flagged,
+    // which is the whole point of naming a second span instead of widening the first.
+    expectFlag('a hunk above publishFarm is still flagged with the second span in place', checkScope(io({
+        changed: ['shell/renderer/app.js'],
+        readBase: () => FAKE_APP_JS,
+        readWork: () => FAKE_APP_JS,
+        diff: () => ['--- a/shell/renderer/app.js', '+++ b/shell/renderer/app.js',
+            '@@ -2,2 +2,2 @@', '-function renderPill() {', '+function renderPill(x) {',
+            "   els.pill.textContent = 'x';"].join('\n'),
+    })), /OUTSIDE function publishFarm/);
 
     // 4. an e2e.js edit
     expectFlag('an e2e.js edit is flagged', checkScope(io({
@@ -556,7 +606,7 @@ function main() {
     return violations.length ? 1 : 0;
 }
 
-module.exports = { checkScope, publishFarmSpan, lolFarmLiteralSpan, markedSpans, projectsPropSpan, ALLOWED };
+module.exports = { checkScope, publishFarmSpan, toggleSpan, lolFarmLiteralSpan, markedSpans, projectsPropSpan, ALLOWED };
 
 if (require.main === module) {
     process.exit(main());

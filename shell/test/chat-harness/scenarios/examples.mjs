@@ -72,8 +72,8 @@ async function open(/** @type {any} */ h) {
     });
     await h.mock.reset();                       // every count below is about the GRAPH
     const state = await h.graph.open();
-    h.eq(state.panel, 'computer', 'the Computer panel is the one the rail opened');
-    await h.waitFor(() => (window.LolChat.debug.computer.doc().threadId ? true : null));
+    h.eq(state.computer, true, 'the Computer panel is the one the rail opened');
+    await h.waitFor(() => ((window.LolComputer.debug.computer.doc() || {}).id ? true : null));
 }
 
 /**
@@ -180,7 +180,7 @@ export default [
             h.assert(String(draw.value.data.source).includes('Palette contrast'),
                 'and the sheet it was drawn from is the swatch sheet');
             const painted = await h.eval(() => {
-                const img = document.querySelector('#lolchat .graph-part img, #lolchat .graph-part canvas');
+                const img = document.querySelector('#lolcomputer .graph-part img, #lolcomputer .graph-part canvas');
                 return !!img;
             });
             h.assert(painted, 'the tile is on the canvas, not just in the document');

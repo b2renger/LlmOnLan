@@ -1,0 +1,123 @@
+/* computer-drawer.css — the right-hand drawer: the value inspector, and (K2-U3) the Sent/Got/Cost
+   transcript. OWNED BY K1-U3, extended by K2-U3 (COMPUTER_PLAN §3.6, §8.1).
+   ComfyQ tokens only — no colour literals (chat-lint rule 3).
+
+   The drawer's PLACE in the frame is css/computer-shell.css's grid. The one thing this sheet says
+   about the frame is the rule below: the drawer's width is DRAGGED, so the column has to size to
+   whatever `computer/drawer.mjs` put in its inline style (clamped 280–720 px, remembered in kv).
+   The shell sheet's collapsed-to-0px rule for the hidden state still stands. */
+
+#lolcomputer:has(.comp-drawer:not(.hidden)) {
+  grid-template-columns: var(--comp-side-w) minmax(0, 1fr) max-content;
+}
+
+#lolcomputer .comp-drawer {
+  position: relative;
+  width: var(--comp-drawer-w);
+  max-width: 80vw;
+  overflow: hidden;
+}
+
+/* ---- the grip ---------------------------------------------------------------------------------
+   A 6 px strip on the drawer's leading edge. It is deliberately wider than the 1 px border it sits
+   on: a resize handle you have to hunt for is a resize handle nobody finds. */
+#lolcomputer .comp-drawer-grip {
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 6px;
+  cursor: col-resize;
+  touch-action: none;
+  z-index: 2;
+}
+#lolcomputer .comp-drawer-grip:hover,
+#lolcomputer .comp-drawer-grip:active {
+  background: color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+/* ---- the chrome ------------------------------------------------------------------------------ */
+#lolcomputer .comp-drawer-head {
+  flex: 0 0 auto;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px 0 12px;
+}
+
+#lolcomputer .comp-drawer-close {
+  appearance: none;
+  font: inherit;
+  font-size: 12px;
+  padding: 3px 10px;
+  border: 1px solid var(--comp-line);
+  border-radius: var(--comp-r-btn);
+  background: var(--comp-panel-2);
+  color: var(--muted);
+  cursor: pointer;
+}
+#lolcomputer .comp-drawer-close:hover { color: var(--text); }
+#lolcomputer .comp-drawer-close:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+/* ---- the value -------------------------------------------------------------------------------
+   graph/inspect.mjs renders its own `.graph-inspect` section in here (its hosted mode: heading and
+   body, no close button, no Escape handler — this drawer owns both). css/graph.css already styles
+   that section for the chat column; the overrides below are what a COLUMN needs that a strip above
+   a composer did not: full height, and a body that scrolls rather than capping itself. */
+#lolcomputer .comp-drawer-mount {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 6px 12px 12px;
+}
+
+/* css/graph.css sized this section for a strip above a composer: 40vh tall, its own padding and a
+   top border. In a column none of that is right, and the three overrides are what "the drawer
+   hosts it" means. (Specificity: two classes under the id beats `:is(#lolchat, #lolcomputer)`, so
+   this wins whatever order the sheets land in.) */
+#lolcomputer .comp-drawer-mount .graph-inspect {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none;
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  overflow: hidden;
+}
+
+#lolcomputer .comp-drawer-mount .graph-inspect-head { padding: 0 0 8px; }
+#lolcomputer .comp-drawer-mount .graph-inspect-head h3 {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+#lolcomputer .comp-drawer-mount .graph-inspect-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none;
+  overflow: auto;
+  margin: 0;
+  padding: 10px;
+  border: 1px solid var(--comp-line);
+  border-radius: var(--comp-r-panel);
+  background: var(--comp-panel-2);
+  color: var(--text);
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* The drawer with nothing in it says what it is for, rather than showing a blank column the
+   reader cannot tell from a broken one (§1.2). */
+#lolcomputer .comp-drawer-empty {
+  margin: 0;
+  padding: 12px;
+  color: var(--muted);
+  font-size: 12px;
+}

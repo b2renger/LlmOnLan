@@ -1,0 +1,106 @@
+/* computer-runbar.css — Run all · Stop · the counts · the cap meter · zoom · ?
+   OWNED BY K1-U3, extended by K3-U3 (the plan range and the waits counter)
+   (COMPUTER_PLAN §3.6, §8.3). ComfyQ tokens only — no colour literals (chat-lint rule 3).
+   The run bar's PLACE in the frame belongs to css/computer-shell.css. */
+
+/* ---- the two buttons -------------------------------------------------------------------------
+   Run all is the accent button; Stop takes its place rather than sitting beside it, so the bar
+   never offers two ways to think about a run that is already going. */
+#lolcomputer .comp-run-all,
+#lolcomputer .comp-run-stop,
+#lolcomputer .comp-run-zoom,
+#lolcomputer .comp-run-help {
+  appearance: none;
+  font: inherit;
+  font-size: 12px;
+  line-height: 1;
+  padding: 6px 12px;
+  border: 1px solid var(--comp-line);
+  border-radius: var(--comp-r-btn);
+  background: var(--comp-panel-2);
+  color: var(--text);
+  cursor: pointer;
+}
+
+#lolcomputer .comp-run-all {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+  font-weight: 600;
+}
+#lolcomputer .comp-run-all:hover:not(:disabled) { filter: brightness(1.08); }
+#lolcomputer .comp-run-all:disabled { opacity: 0.5; cursor: default; }
+
+#lolcomputer .comp-run-stop {
+  border-color: color-mix(in srgb, var(--danger) 55%, var(--comp-line));
+  color: var(--danger);
+}
+#lolcomputer .comp-run-stop:hover { background: color-mix(in srgb, var(--danger) 14%, var(--comp-panel-2)); }
+
+#lolcomputer .comp-run-all:focus-visible,
+#lolcomputer .comp-run-stop:focus-visible,
+#lolcomputer .comp-run-zoom:focus-visible,
+#lolcomputer .comp-run-help:focus-visible { outline: 2px solid var(--accent-hover); outline-offset: 1px; }
+
+/* ---- the counts ------------------------------------------------------------------------------
+   Tabular numerals: a count that shifts sideways every time a digit changes reads as flicker, and
+   these two change on every part of every run. */
+#lolcomputer .comp-run-counts {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#lolcomputer .comp-run-parts { color: var(--text); }
+
+/* The cap as a spent/limit meter (§8.3). Amber past 80 % — the ONE place in the bar that changes
+   colour, so it means something when it does. */
+#lolcomputer .comp-run-cap {
+  padding: 3px 8px;
+  border: 1px solid var(--comp-line);
+  border-radius: var(--comp-r-chip);
+  background: var(--comp-panel-2);
+}
+#lolcomputer .comp-run-cap[data-amber='true'] {
+  border-color: color-mix(in srgb, var(--amber) 60%, var(--comp-line));
+  background: color-mix(in srgb, var(--amber) 16%, var(--comp-panel-2));
+  color: var(--text);
+}
+
+/* ---- zoom and the `?` ------------------------------------------------------------------------ */
+#lolcomputer .comp-run-zoom {
+  margin-left: auto;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  min-width: 56px;
+  text-align: center;
+}
+
+#lolcomputer .comp-run-help {
+  width: 26px;
+  padding: 6px 0;
+  border-radius: 999px;
+  color: var(--muted);
+  text-align: center;
+}
+#lolcomputer .comp-run-help:disabled { opacity: 0.45; cursor: default; }
+
+/* ---- what the bar says -----------------------------------------------------------------------
+   One line, after a run that had nothing to do. It is `role=status`, so a screen reader hears it
+   without the focus moving. */
+#lolcomputer .comp-run-status {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+#lolcomputer .comp-run-status:empty { display: none; }

@@ -49,12 +49,34 @@ export default (test) => {
     assert.ok(gov.acquire('foreground', {}), 'the slot is usable again');
   });
 
-  test('background is refused when the farm advertises no seats at all', () => {
+  // K1 (COMPUTER_PLAN §3.5), the one amendment to this file. This case used to assert the
+  // opposite — "seats unknown → never background". Every graph run is background, and on a farm
+  // with no seat gate (an older farm build, an `external` engine, a snapshot that has not arrived
+  // yet) that rule meant the Computer could never run at all. Amended, not loosened: the three
+  // guards that make background polite are all still here, and the next two cases prove it.
+  test('seats unknown: the ONE background slot is allowed, and a second is still refused', () => {
+    const { app } = stubApp();                       // no farm at all — a boot before discovery
+    const gov = createGovernor(app);
+    assert.equal(gov.canStart('background'), true);
+    const first = gov.acquire('background', { holder: 'graph' });
+    assert.equal(typeof first, 'function', 'the one background slot is available');
+    assert.equal(gov.canStart('background'), false, 'BACKGROUND_LIMIT = 1 still bounds it');
+    assert.equal(gov.acquire('background', { holder: 'graph2' }), null);
+    assert.deepEqual(gov.state(), { foreground: 'idle', holder: null }, 'background never moves the foreground slot');
+    first();
+    assert.equal(gov.canStart('background'), true, 'releasing gives the slot back');
+  });
+
+  test('seats unknown: a foreground Send still aborts the background call', () => {
     const { app } = stubApp();
     const gov = createGovernor(app);
-    assert.equal(gov.canStart('background'), false);
-    assert.equal(gov.acquire('background', { holder: 'title' }), null);
-    assert.deepEqual(gov.state(), { foreground: 'idle', holder: null }, 'a refusal changes nothing');
+    let aborted = 0;
+    const release = gov.acquire('background', { holder: 'graph', abort: () => { aborted++; } });
+    assert.equal(typeof release, 'function');
+    const fg = gov.acquire('foreground', { holder: 'send' });
+    assert.equal(typeof fg, 'function', 'the reader always wins');
+    assert.equal(aborted, 1, 'the in-flight background acquisition was aborted');
+    assert.equal(gov.canStart('background'), false, 'and the foreground is no longer idle');
   });
 
   test('background needs a FREE seat: a full farm refuses, a spare one allows', () => {

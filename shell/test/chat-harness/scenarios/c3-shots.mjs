@@ -23,8 +23,8 @@ const FARM_ERRORS = [/Failed to load resource/, /net::ERR_/];
 const SOURCE = '# Open day\n\n- the small kiln\n- the big kiln\n';
 
 const requireReal = (/** @type {any} */ h) => h.eval(() => {
-    const failed = (window.LolChat && window.LolChat.failed) || {};
-    const missing = ['computer', 'work'].filter((k) => failed[k]);
+    const failed = (window.LolComputer && window.LolComputer.failed) || {};   // K1: the Computer's own loader
+    const missing = ['host', 'library'].filter((k) => failed[k]);
     if (missing.length) throw new Error('c3-shots needs the REAL modules, but the loader dropped: ' + missing.join(', '));
     return true;
 });
@@ -37,8 +37,8 @@ async function buildScene(/** @type {any} */ h) {
     await h.submit('Write the open-day list into the project.');
     await h.waitReply();
     const state = await h.graph.open();
-    h.eq(state.panel, 'computer', 'the rail did not open the Computer');
-    await h.waitFor(() => (window.LolChat.debug.computer.doc().threadId ? true : null));
+    h.eq(state.computer, true, 'the rail did not open the Computer');
+    await h.waitFor(() => ((window.LolComputer.debug.computer.doc() || {}).id ? true : null));
 
     // Laid out so the four frames do not overlap at their own default widths — an overlap hides
     // the wires and the values this picture exists to show.
@@ -59,13 +59,15 @@ async function buildScene(/** @type {any} */ h) {
     return { note, code, draw, write };
 }
 
-/** Take the column to `mode`, let the 160 ms grid transition finish, and only then fit. */
+/** K1 landing (§3.7): there is no workbench column any more — one surface, one width. `mode` is
+ * kept as a label so every call site reads unchanged; the wait is still real, because Fit measures
+ * `canvas.clientWidth` and a fit taken before the layout settles photographs the wrong zoom. */
 async function settle(/** @type {any} */ h, /** @type {string} */ mode, /** @type {number} */ minWidth) {
-    await h.width(mode);
+    await h.view('computer');
     await h.waitFor((want) => {
-        const body = document.querySelector('.chat-work-body');
-        return body && body.getBoundingClientRect().width >= want ? true : null;
-    }, { args: [minWidth], timeout: 8000 });
+        const el = document.querySelector('#lolcomputer .graph-canvas');
+        return el && el.getBoundingClientRect().width >= want ? true : null;
+    }, { args: [Math.min(minWidth, 320)], timeout: 8000 });
     await new Promise((r) => setTimeout(r, 300));
     const view = await h.graph.call('fit');
     await new Promise((r) => setTimeout(r, 150));
@@ -86,7 +88,7 @@ const inspect = () => {
         return r.width > 0 && r.height > 0 && getComputedStyle(el).visibility !== 'hidden';
     };
     const text = (/** @type {any} */ el) => ((el && el.textContent) || '').replace(/\s+/g, ' ').trim();
-    const partOf = (/** @type {string} */ type) => q('#lolchat .graph-part[data-type="' + type + '"]');
+    const partOf = (/** @type {string} */ type) => q('#lolcomputer .graph-part[data-type="' + type + '"]');
     /** Does the part's CONTENT stay inside its own frame? The ports straddle the edge on purpose
      *  (that is what makes them grabbable), so they are not content. */
     const spill = (/** @type {any} */ el) => {
@@ -110,8 +112,8 @@ const inspect = () => {
     const img = tile && tile.tagName === 'IMG' && !(/** @type {any} */ (tile).hidden) ? tile : null;
     return {
         theme: document.documentElement.className,
-        canvasRect: rect(q('#lolchat .graph-canvas')),
-        parts: Array.from(document.querySelectorAll('#lolchat .graph-part')).map((el) => ({
+        canvasRect: rect(q('#lolcomputer .graph-canvas')),
+        parts: Array.from(document.querySelectorAll('#lolcomputer .graph-part')).map((el) => ({
             type: el.getAttribute('data-type'),
             state: el.getAttribute('data-state'),
             rect: rect(el),
@@ -153,22 +155,22 @@ const inspect = () => {
             revealSeen: seen(fileEl.querySelector('.graph-file-reveal')),
         } : null,
         toolbar: {
-            tidy: text(q('#lolchat .graph-tidy')),
-            tidySeen: seen(q('#lolchat .graph-tidy')),
-            exportBtn: text(q('#lolchat .graph-export')),
-            exportSeen: seen(q('#lolchat .graph-export')),
-            importBtn: text(q('#lolchat .graph-import')),
-            importSeen: seen(q('#lolchat .graph-import')),
-            expanded: (q('#lolchat .graph-export') || { getAttribute: () => null }).getAttribute('aria-expanded'),
+            tidy: text(q('#lolcomputer .graph-tidy')),
+            tidySeen: seen(q('#lolcomputer .graph-tidy')),
+            exportBtn: text(q('#lolcomputer .graph-export')),
+            exportSeen: seen(q('#lolcomputer .graph-export')),
+            importBtn: text(q('#lolcomputer .graph-import')),
+            importSeen: seen(q('#lolcomputer .graph-import')),
+            expanded: (q('#lolcomputer .graph-export') || { getAttribute: () => null }).getAttribute('aria-expanded'),
         },
         popover: {
-            seen: seen(q('#lolchat .graph-export-menu')),
-            rect: rect(q('#lolchat .graph-export-menu')),
-            values: text(q('#lolchat .graph-export-values')),
-            note: text(q('#lolchat .graph-export-note')),
-            save: text(q('#lolchat .graph-export-save')),
+            seen: seen(q('#lolcomputer .graph-export-menu')),
+            rect: rect(q('#lolcomputer .graph-export-menu')),
+            values: text(q('#lolcomputer .graph-export-values')),
+            note: text(q('#lolcomputer .graph-export-note')),
+            save: text(q('#lolcomputer .graph-export-save')),
         },
-        wires: Array.from(document.querySelectorAll('#lolchat .graph-wires path')).map((p) => (p.getAttribute('d') || '').slice(0, 20)),
+        wires: Array.from(document.querySelectorAll('#lolcomputer .graph-wires path')).map((p) => (p.getAttribute('d') || '').slice(0, 20)),
         docScrollX: document.documentElement.scrollWidth,
         viewportW: window.innerWidth,
         viewportH: window.innerHeight,
@@ -259,9 +261,9 @@ async function shootTheme(/** @type {any} */ h, /** @type {string} */ theme) {
     await shoot(h, 'c3-shots-' + theme + '-parts');
 
     // The export popover, over the same canvas.
-    await h.click('#lolchat .graph-export');
+    await h.click('#lolcomputer .graph-export');
     await h.waitFor(() => {
-        const el = /** @type {any} */ (document.querySelector('#lolchat .graph-export-menu'));
+        const el = /** @type {any} */ (document.querySelector('#lolcomputer .graph-export-menu'));
         return el && !el.hidden ? true : null;
     }, { timeout: 8000 });
     await new Promise((r) => setTimeout(r, 120));

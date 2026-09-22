@@ -19,10 +19,10 @@
 // enforced, so the first background caller cannot invent a friendlier one:
 //   - background is allowed ONLY when the farm actually advertises a free seat
 //     (`caps.seats && used < slots`), the foreground is idle, and NOTHING ELSE IS ALREADY IN THE
-//     BACKGROUND LANE (one at a time — see BACKGROUND_LIMIT). Seats unknown = no background:
-//     on a farm with no seat gate we cannot tell a spare seat from the user's own, and the TTFT
-//     trio in the OWUI config bridge was disabled for exactly this reason — background calls
-//     queueing ahead of the user on llama-server's single slot.
+//     BACKGROUND LANE (one at a time — see BACKGROUND_LIMIT). Seats UNKNOWN allow the one slot
+//     (K1, COMPUTER_PLAN §3.5): a farm with no seat gate would otherwise mean the Computer could
+//     never run at all. It stays politer than the foreground lane, which would block a colleague
+//     instead of yielding to them.
 //   - the user always wins: a successful `acquire('foreground')` ABORTS every in-flight background
 //     acquisition through the `abort` callback it registered, and forgets it.
 // A background acquisition never changes `state()` — the foreground slot is what the composer and
@@ -50,7 +50,14 @@ export function createGovernor(app) {
   function freeSeat() {
     const caps = app && app.farm && typeof app.farm.get === 'function' ? app.farm.get() : null;
     const seats = caps && caps.seats;
-    if (!seats) return false;                            // seats unknown → never background
+    // K1 (COMPUTER_PLAN §3.5), was `return false`. Seats UNKNOWN now allows the ONE background
+    // slot. Every graph run is background, and a farm that advertises no seats — an older farm
+    // build, an `external` engine, a snapshot that has not arrived yet — used to mean the Computer
+    // could never run at all. This stays the polite choice: BACKGROUND_LIMIT = 1 still bounds the
+    // client to one background request in flight, canStart('background') still requires
+    // `foreground === 'idle'`, and a foreground Send still aborts every background call. The
+    // reader always wins, unchanged.
+    if (!seats) return true;
     return Number(seats.used) < Number(seats.slots);
   }
 

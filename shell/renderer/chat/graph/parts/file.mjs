@@ -24,10 +24,16 @@ import { t } from '../../core/i18n.mjs';
 export const DEFAULT_PATH = 'out/value.md';
 
 /**
- * The scratch project that belongs to this thread, created on first write. One project per thread,
+ * The scratch project that belongs to this graph, created on first write. One project per OWNER,
  * mirrored in the repo's `projects` store so the next run finds the same folder (studio plan
- * §3.6.2). The mirror is queried by threadId and the row is checked again here: an id that no
- * longer resolves (the folder was deleted by hand) must mean a NEW project, not a dead write.
+ * §3.6.2). The mirror is queried by the owner's id and the row is checked again here: an id that
+ * no longer resolves (the folder was deleted by hand) must mean a NEW project, not a dead write.
+ *
+ * K1 (COMPUTER_PLAN §11, K1-U1): the owner is the LIBRARY DOCUMENT, not the thread — a graph on
+ * the standalone surface has no thread, and keying the folder by graph id is also what makes
+ * "duplicate this graph" give you a fresh folder instead of writing over the original's files.
+ * `ownerOf()` below picks it; this function still takes a plain `{id, title}` and is still called
+ * with a thread by the chat's panel until the K1 landing deletes it.
  * @param {any} app @param {any} thread @returns {Promise<{ok: boolean, id: string, message: string}>}
  */
 export async function threadProject(app, thread) {
@@ -46,6 +52,24 @@ export async function threadProject(app, thread) {
   const now = app.now ? app.now() : Date.now();
   await app.repo.putProjectRef({ id: made.project.id, threadId: thread.id, name, kind: 'dom', createdAt: now, updatedAt: now });
   return { ok: true, id: made.project.id, message: '' };
+}
+
+/**
+ * Whose folder this part writes into: the open LIBRARY DOCUMENT when the Computer surface is the
+ * one running (K1), and otherwise the thread the chat's panel attached to. Two ids can never
+ * collide — a graph id names no thread — so a chat's folder and a graph's folder stay apart, and
+ * `repo.deleteThread`'s cascade cannot take a library graph's project ref with it.
+ * @param {any} input the runner's part input @returns {{id: string, title: string}|null}
+ */
+export function ownerOf(input) {
+  const host = input && input.app && input.app.host;
+  const session = host && host.session;
+  const id = session && typeof session.docId === 'function' ? session.docId() : null;
+  if (id) {
+    const doc = typeof session.doc === 'function' ? session.doc() : null;
+    return { id, title: String((doc && doc.title) || '') };
+  }
+  return (input && input.thread) || null;
 }
 
 /** `out/names.md` -> `.md`. Lower-case, and '' when there is none. @param {string} rel */
@@ -190,7 +214,7 @@ export const file = /** @type {any} */ ({
     const payload = payloadFor(values, rel);
     if (!payload.ok) throw partFail(payloadMessage(payload.why), payload.why === 'empty' ? 'empty' : 'invalid');
 
-    const project = await threadProject(input.app, input.thread);
+    const project = await threadProject(input.app, ownerOf(input));
     if (!project.ok) throw partFail(project.message, 'part');
 
     const projects = input.app.projects;

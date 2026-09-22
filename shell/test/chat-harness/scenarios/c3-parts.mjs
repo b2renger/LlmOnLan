@@ -33,7 +33,7 @@ async function open(/** @type {any} */ h) {
     });
     await h.mock.reset();                       // every count below is about the GRAPH
     await h.graph.open();
-    await h.waitFor(() => (window.LolChat.debug.computer.doc().threadId ? true : null));
+    await h.waitFor(() => ((window.LolComputer.debug.computer.doc() || {}).id ? true : null));
 }
 
 /** The live parts, by id — off the DOC, where the runner writes value/state/error. */
@@ -141,7 +141,7 @@ export default [
 
             // The editor's chip is in the DOM, pointing at that line.
             const chip = await h.eval(() => {
-                const el = document.querySelector('#lolchat .graph-code-line');
+                const el = document.querySelector('#lolcomputer .graph-code-line');
                 return el ? { hidden: !!el.hidden, text: el.textContent } : null;
             });
             h.assert(chip && !chip.hidden, `the editor points at the line: ${JSON.stringify(chip)}`);
@@ -153,7 +153,7 @@ export default [
             const fixed = await parts(h);
             h.eq(String(fixed[code].value.data), 'PARIS');
             const gone = await h.eval(() => {
-                const el = document.querySelector('#lolchat .graph-code-line');
+                const el = document.querySelector('#lolcomputer .graph-code-line');
                 return el ? !!el.hidden : true;
             });
             h.eq(gone, true, 'and the line chip is gone with the error');
@@ -216,12 +216,12 @@ export default [
             h.eq([value.data.w, value.data.h].join('x'), '120x60', 'the picture kept its own size');
 
             const tile = await h.eval(() => {
-                const el = document.querySelector('#lolchat .graph-render-tile');
+                const el = document.querySelector('#lolcomputer .graph-render-tile');
                 return el ? { hidden: !!el.hidden, src: String(el.getAttribute('src') || '').slice(0, 24) } : null;
             });
             h.assert(tile && !tile.hidden && tile.src.startsWith('data:image/svg'), `the canvas paints it: ${JSON.stringify(tile)}`);
 
-            const saves = await h.eval(() => Array.from(document.querySelectorAll('#lolchat .graph-render-save'))
+            const saves = await h.eval(() => Array.from(document.querySelectorAll('#lolcomputer .graph-render-save'))
                 .map((b) => ({ label: b.textContent, hidden: !!b.hidden })));
             h.assert(saves.some((b) => !b.hidden), `an export is offered: ${JSON.stringify(saves)}`);
 
@@ -300,8 +300,8 @@ export default [
 
             // The part says where it went, and offers to reveal it.
             const shown = await h.eval(() => {
-                const line = document.querySelector('#lolchat .graph-file-wrote');
-                const btn = document.querySelector('#lolchat .graph-file-reveal');
+                const line = document.querySelector('#lolcomputer .graph-file-wrote');
+                const btn = document.querySelector('#lolcomputer .graph-file-reveal');
                 return { line: line ? { hidden: !!line.hidden, text: line.textContent } : null, reveal: btn ? !btn.hidden : false };
             });
             h.eq(shown.line.hidden, false, 'the path is on the part');
@@ -361,61 +361,32 @@ export default [
     },
 
     {
-        name: 'c3-parts-code-arrives-from-the-conversation',
+        name: 'c3-parts-code-runs-for-nothing',
         needsMock: true,
         allowConsoleErrors: FARM_ERRORS,
-        // The bridge: a JavaScript fence in a message becomes a Code part carrying that code.
-        // AMENDED AT THE C3 LANDING (the BG-16 / BI-7 precedent, not a loosening): the panel now
-        // installs the bridge itself with its own placer, so this scenario drives the SHIPPED rows
-        // instead of installing a second copy — and asserts the guard C3-U2 built, that a second
-        // install is refused and leaves the live one alone rather than throwing inside the registry.
+        // AMENDED AT THE K1 LANDING (COMPUTER_PLAN §3.7). This was
+        // `c3-parts-code-arrives-from-the-conversation`: a JavaScript fence in a chat message
+        // became a Code part through `installCodeBridge`. The Computer is not a panel inside a
+        // conversation any more, so there is nowhere for a fence button to place a part and the
+        // bridge is deleted — guarantee BH-7 leaves the suite by decision, named in the DEVLOG.
+        // What survives is the half that was never about the chat at all, and that the deleted
+        // scenario was the only one asserting end to end: a Code part fed a real value computes
+        // the right answer and spends NOTHING at the farm.
         async run(h) {
             await open(h);
-            const out = await h.eval(async () => {
-                const app = window.LolChat.app;
-                const mod = await import('../../renderer/chat/graph/parts/code.mjs');
-                const off = mod.installCodeBridge(app, { place: () => ({ id: 'never-used' }) });
-                const message = {
-                    id: 'm-fence',
-                    role: 'assistant',
-                    content: 'Try this:\n```js\nconst ns = inputs.in[0].split(",").map(Number);\nns.reduce((a, b) => a + b, 0)\n```\n',
-                };
-                const actions = app.registry.list(app.SLOTS.MESSAGE_ACTIONS).filter((a) => a.id === 'code-to-computer');
-                const decorators = app.registry.list(app.SLOTS.CODE_DECORATORS).filter((d) => d.id === 'code-to-computer');
-                const visible = actions.length ? actions[0].visible(message, {}) : false;
-                const placed = actions.length ? await actions[0].run(message, app) : null;
-                off();                                    // the refused install's off() is a no-op
-                return {
-                    actions: actions.length,
-                    decorators: decorators.length,
-                    visible,
-                    placed: placed ? placed.id : null,
-                    stillThere: app.registry.list(app.SLOTS.MESSAGE_ACTIONS).filter((a) => a.id === 'code-to-computer').length,
-                };
+            const code = await h.graph.place('code', 40, 40);
+            await h.graph.set(code, {
+                code: 'const ns = inputs.in[0].split(",").map(Number); return ns.reduce((a, b) => a + b, 0);',
             });
-
-            h.eq(out.actions, 1, 'the message action is registered exactly once, by the panel');
-            h.eq(out.decorators, 1, 'and so is the fence button');
-            h.eq(out.visible, true, 'it offers itself on a message that carries JavaScript');
-            h.assert(out.placed, 'a Code part was placed');
-            h.assert(out.placed !== 'never-used', 'the refused second install served the click');
-            h.eq(out.stillThere, 1, 'the shipped bridge must survive a refused second install');
-
-            const live = await parts(h);
-            const placed = live[out.placed];
-            h.eq(placed.type, 'code');
-            h.assert(String(placed.settings.code).includes('reduce'), `the fence came across: ${placed.settings.code}`);
-            h.assert(/return .*reduce/.test(String(placed.settings.code)),
-                `and it RETURNS, so it can run: ${placed.settings.code}`);
-
-            // And it really runs, on real input, for nothing.
             const note = await h.graph.place('note', 40, 260);
             await h.graph.set(note, { text: '1,2,3' });
-            h.eq((await h.graph.wire(note, out.placed, 'in')).ok, true);
+            h.eq((await h.graph.wire(note, code, 'in')).ok, true, 'Note feeds Code');
+
+            await h.mock.reset();
             const report = await h.graph.run();
-            h.eq(report.errors.length, 0, `the sent code ran: ${JSON.stringify(report.errors)}`);
+            h.eq(report.errors.length, 0, `the code ran: ${JSON.stringify(report.errors)}`);
             const after = await parts(h);
-            h.eq(Number(after[out.placed].value.data), 6, 'and computed the sum');
+            h.eq(Number(after[code].value.data), 6, 'and computed the sum');
             h.eq((await h.mock.log({ path: COMPLETIONS })).length, 0, 'without asking the farm anything');
         },
     },

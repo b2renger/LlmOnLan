@@ -71,13 +71,50 @@ export function headingText(opts) {
 /**
  * The inspector for one panel instance. It owns exactly one element, and only ever while it is
  * open.
+ *
+ * K1-U3 (COMPUTER_PLAN §3.2, §8.1) adds the SECOND argument and nothing else: a HOST to render
+ * into. The Computer has no conversation column — its reading surface is `computer/drawer.mjs` —
+ * so the drawer hands its own mount element here and the pure `bodyText`/`headingText` above are
+ * reused verbatim rather than copied.
+ *
+ *   createInspector(app)                       the chat column, byte-for-byte the C2 behaviour
+ *   createInspector(app, el)                   render into `el`
+ *   createInspector(app, {el, onClose})        …and tell the host when the value went away
+ *
+ * Hosted mode differs in exactly two ways, both because the DRAWER owns the chrome:
+ *   - no close button in the head (the drawer's own Close is the one, and there must not be two);
+ *   - no Escape handler on the section. The drawer consumes Escape for the whole ladder of §8.1,
+ *     and two handlers would mean the first one to see the key decides — the bug BH-7 warns about.
+ * Everything a reader sees of the VALUE — heading, body, cap, empty — is identical.
+ *
  * @param {any} app
+ * @param {HTMLElement|{el?: HTMLElement|null, onClose?: () => void}|(() => HTMLElement|null)} [host]
  */
-export function createInspector(app) {
+export function createInspector(app, host) {
   /** @type {any} */ let el = null;
+  /** True while show() is replacing the open value: a replacement is not a close (§8.1, one at a
+   * time), and the host must not be told to shut itself between the two. */
+  let replacing = false;
 
-  /** Where the inspector goes: inside the conversation column, above the composer. */
+  const hosted = host !== undefined && host !== null;
+  /** @returns {any} */
+  const hostEl = () => {
+    if (!hosted) return null;
+    if (typeof host === 'function') return host() || null;
+    if (/** @type {any} */ (host).nodeType) return host;
+    return /** @type {any} */ (host).el || null;
+  };
+  const onClose = hosted && host && typeof (/** @type {any} */ (host).onClose) === 'function'
+    ? /** @type {any} */ (host).onClose
+    : null;
+
+  /** Where the inspector goes: the host when there is one, else the conversation column above the
+   * composer. */
   function slot() {
+    if (hosted) {
+      const h = hostEl();
+      return h ? { host: h } : null;
+    }
     const els = app && app.els;
     const main = els && els.main;
     const form = els && els.form;
@@ -90,6 +127,9 @@ export function createInspector(app) {
     const node = el;
     el = null;
     try { node.remove(); } catch (err) { void err; }
+    if (onClose && !replacing) {
+      try { onClose(); } catch (err) { console.error('[lolcomputer] inspector host close threw', err); }
+    }
     return true;
   }
 
@@ -102,7 +142,8 @@ export function createInspector(app) {
   function show(value, opts) {
     const where = slot();
     if (!where) return null;
-    close();
+    replacing = true;
+    try { close(); } finally { replacing = false; }
 
     const node = document.createElement('section');
     node.className = 'graph-inspect';
@@ -113,12 +154,16 @@ export function createInspector(app) {
     head.className = 'graph-inspect-head';
     const title = document.createElement('h3');
     title.textContent = headingText(opts || {});
-    const shut = document.createElement('button');
-    shut.type = 'button';
-    shut.className = 'graph-btn';
-    shut.textContent = t('graph.inspectClose');
-    shut.addEventListener('click', () => close());
-    head.append(title, shut);
+    /** @type {any} */ let shut = null;
+    if (!hosted) {
+      shut = document.createElement('button');
+      shut.type = 'button';
+      shut.className = 'graph-btn';
+      shut.textContent = t('graph.inspectClose');
+      shut.addEventListener('click', () => close());
+    }
+    head.append(title);
+    if (shut) head.appendChild(shut);
 
     const body = document.createElement('pre');
     body.className = 'graph-inspect-body';
@@ -129,20 +174,24 @@ export function createInspector(app) {
 
     // Escape closes THIS, and stops there. ui/shortcuts.mjs reads Escape on `document` as
     // "stop the reply / cancel the run"; a reader closing a value they are reading is not asking
-    // for the run to end (BH-7).
-    node.addEventListener('keydown', (/** @type {any} */ e) => {
-      if (!e || e.key !== 'Escape') return;
-      e.preventDefault();
-      e.stopPropagation();
-      close();
-    });
+    // for the run to end (BH-7). HOSTED: the drawer owns Escape for the whole §8.1 ladder, so
+    // there is exactly one handler for the key on that surface too.
+    if (!hosted) {
+      node.addEventListener('keydown', (/** @type {any} */ e) => {
+        if (!e || e.key !== 'Escape') return;
+        e.preventDefault();
+        e.stopPropagation();
+        close();
+      });
+    }
 
     node.append(head, body);
-    where.main.insertBefore(node, where.form);
+    if (where.host) where.host.appendChild(node);
+    else where.main.insertBefore(node, where.form);
     el = node;
     // Focus the close button so the Escape above actually lands here, and so the keyboard can get
     // out of the inspector the same way it got in.
-    try { shut.focus(); } catch (err) { void err; }
+    if (shut) { try { shut.focus(); } catch (err) { void err; } }
     return node;
   }
 

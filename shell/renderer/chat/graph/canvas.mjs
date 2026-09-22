@@ -16,6 +16,7 @@
 import { t } from '../core/i18n.mjs';
 import { KV_KEYS } from '../core/types.mjs';
 import { EV } from '../core/events.mjs';
+import { partSpecs } from './parts/index.mjs';
 import { addPart, addWire, movePart, removeParts, removeWire, setSettings } from './model.mjs';
 import { preview } from './values.mjs';
 import { createWireLayer, portOffsetY, portPoint, wireAt, SNAP_PX } from './wires.mjs';
@@ -250,6 +251,17 @@ export function createCanvas(o) {
   const app = session.app;
   const specs = session.specs;
 
+  /**
+   * "Is there somewhere to put this?" (COMPUTER_PLAN §3.2, K1-U1 + the K1 landing).
+   *
+   * A graph used to belong to a THREAD; on the standalone surface it belongs to a LIBRARY
+   * DOCUMENT, so the question the canvas asks before it places, pastes or enables its toolbar is
+   * `session.docId()`. The `session.thread()` half of this line existed only while the chat's
+   * panel still mounted the same canvas with a session that had no `docId()`; `graph/panel.mjs`
+   * is deleted, so it is gone too.
+   */
+  const hasDoc = () => !!session.docId();
+
   // ---- DOM -------------------------------------------------------------------------------------
   const root = el('div', 'graph');
   const toolbar = el('div', 'graph-toolbar');
@@ -416,7 +428,12 @@ export function createCanvas(o) {
   function closeAddMenu() { addMenu.hidden = true; addBtn.setAttribute('aria-expanded', 'false'); }
   function closeExportMenu() { exportMenu.hidden = true; exportBtn.setAttribute('aria-expanded', 'false'); }
 
-  for (const spec of Array.from(specs.values()).sort((/** @type {any} */ a, /** @type {any} */ b) => (a.order || 0) - (b.order || 0))) {
+  // The ＋ menu is the PALETTE — `partSpecs()` — and NOT everything the engine can load. K1
+  // demoted `from-thread`/`to-thread` to legacy (COMPUTER_PLAN §3.2): a migrated graph still opens
+  // one and it still says why it cannot run, but nobody may place a NEW one, so it must not be on
+  // offer here. `specs` (the session's `specMap()`) stays the set the canvas RENDERS and wires.
+  const palette = partSpecs().filter((/** @type {any} */ s) => specs.has(s.type));
+  for (const spec of palette.sort((/** @type {any} */ a, /** @type {any} */ b) => (a.order || 0) - (b.order || 0))) {
     const item = button('graph-add-item', spec.label);
     item.dataset.type = spec.type;
     item.addEventListener('click', () => { closeAddMenu(); placeCentred(spec.type); });
@@ -526,7 +543,7 @@ export function createCanvas(o) {
 
   /** @param {string} type @param {number} wx @param {number} wy */
   function placeAt(type, wx, wy) {
-    if (!session.thread()) return null;
+    if (!hasDoc()) return null;
     const out = addPart(session.doc(), { type, x: snap(wx), y: snap(wy) }, { specs, newId: app.newId, now: app.now });
     if (!out.part) return null;
     session.apply(out.doc, { label: 'place' });
@@ -626,7 +643,7 @@ export function createCanvas(o) {
   /** @param {string} text @returns {string[]} the ids of the pasted parts */
   function pasteText(text) {
     const payload = fromClipboard(text);
-    if (!payload || !session.thread()) { announce(t('graph.saidNothingToPaste')); return []; }
+    if (!payload || !hasDoc()) { announce(t('graph.saidNothingToPaste')); return []; }
     let doc = session.doc();
     /** @type {Map<number, string>} */ const minted = new Map();
     for (const p of payload.parts) {
@@ -686,8 +703,8 @@ export function createCanvas(o) {
   async function doExport(opts = {}) {
     const doc = session.doc();
     const values = opts.values !== undefined ? !!opts.values : !!valuesInput.checked;
-    const thread = session.thread();
-    const title = doc.title || (thread && thread.title) || '';
+    // K1: a library document has no thread, so its own title is the only one there is.
+    const title = doc.title || '';
     const name = `${slugify(title || 'graph')}-${stampOf(app)}${FILE_SUFFIX}`;
     const text = toText(doc, { values, title, specs });
     /** @type {any} */ let out = null;
@@ -730,10 +747,6 @@ export function createCanvas(o) {
    */
   async function importText(text, o = {}) {
     const nothing = { ok: false, parts: 0, wires: 0, errors: /** @type {string[]} */ ([]), message: '' };
-    if (!session.thread()) {
-      announce(t('graph.noThread'));
-      return { ...nothing, message: t('graph.noThread') };
-    }
     const before = session.doc();
     if (before.parts.length && o.confirm !== false) {
       const dialogs = app && app.dialogs;
@@ -1001,11 +1014,11 @@ export function createCanvas(o) {
       boxes.delete(id);
       editing.delete(id);
     }
-    const hasThread = !!session.thread();
-    empty.textContent = hasThread ? t('graph.empty') : t('graph.noThread');
+    const open = hasDoc();
+    empty.textContent = open ? t('graph.empty') : t('graph.noDoc');
     empty.hidden = doc.parts.length > 0;
-    addBtn.disabled = !hasThread;
-    runBtn.disabled = !hasThread;
+    addBtn.disabled = !open;
+    runBtn.disabled = !open;
     const depth = session.undoDepth() || { past: 0, future: 0 };
     undoBtn.disabled = !depth.past;
     redoBtn.disabled = !depth.future;

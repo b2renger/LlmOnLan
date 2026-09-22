@@ -152,9 +152,19 @@ export default [
             await cycle(h);                                    // split → work
             state = await h.workState();
             h.eq(state.width, 'work');
-            const workCols = await waitColumn(h, 'gt', splitPx + 20);
-            h.note(`work column: ${Math.round(workCols.px)}px`);
-            h.eq(workCols.cols[1], 0, 'the chat column is collapsed in the work state');
+            await waitColumn(h, 'gt', splitPx + 20);
+            // The two tracks move on the SAME 160 ms grid transition, and `waitColumn` returns the
+            // instant the work track passes its threshold — which can be a frame before the chat
+            // track has finished collapsing (seen once in a 211-scenario run: 500.391 px, and green
+            // on every isolated re-run). Wait for the state this line is about, then assert it.
+            const collapsed = await h.waitFor(() => {
+                const cols = getComputedStyle(document.getElementById('lolchat')).gridTemplateColumns.split(/\s+/);
+                return (parseFloat(cols[1]) || 0) === 0 ? cols.map((c) => parseFloat(c) || 0) : null;
+            }, { timeout: 5000 });
+            h.eq(collapsed[1], 0, 'the chat column is collapsed in the work state');
+            h.note(`work column: ${Math.round(collapsed[collapsed.length - 1])}px`);
+            h.assert(collapsed[collapsed.length - 1] > splitPx + 20,
+                `the work width is no wider than the split width: ${Math.round(collapsed[collapsed.length - 1])}px vs ${Math.round(splitPx)}px`);
             h.assert(await h.eval(() => {
                 const form = document.getElementById('chat-form');
                 return !!form && form.getBoundingClientRect().height > 0;

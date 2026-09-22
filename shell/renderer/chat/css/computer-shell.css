@@ -1,0 +1,63 @@
+/* computer-shell.css — the Computer's frame (K1 kickoff, integrator-owned).
+   COMPUTER_PLAN §3.4 / §3.6. It owns the THREE-COLUMN frame and nothing inside it: the library's
+   cards are css/computer-library.css (K1-U2), the run bar's controls computer-runbar.css and the
+   drawer's contents computer-drawer.css (K1-U3). ComfyQ tokens only — no colour literals. */
+
+#lolcomputer {
+  display: grid;
+  grid-template-columns: var(--comp-side-w) minmax(0, 1fr) var(--comp-drawer-w);
+  grid-template-rows: minmax(0, 1fr);
+  background: var(--comp-ground);
+  color: var(--text);
+  font-family: 'Inter', system-ui, Avenir, Helvetica, Arial, sans-serif;
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+}
+/* The drawer column collapses to nothing until K1-U3 opens it. */
+#lolcomputer:has(.comp-drawer.hidden) { grid-template-columns: var(--comp-side-w) minmax(0, 1fr) 0px; }
+
+/* The loader banner sits across the top of the surface, above the grid. */
+#lolcomputer .comp-banner {
+  grid-column: 1 / -1;
+  position: absolute; left: 0; right: 0; top: 0; z-index: 5;
+}
+#lolcomputer .comp-banner:empty { display: none; }
+#lolcomputer .comp-banner-loader {
+  padding: 8px 12px;
+  background: color-mix(in srgb, var(--danger) 16%, var(--surface));
+  border-bottom: 1px solid var(--border);
+  color: var(--text); font-size: 13px;
+}
+
+/* ---- the library sidebar (frame only) ---- */
+#lolcomputer .comp-side {
+  display: flex; flex-direction: column; min-width: 0; min-height: 0;
+  background: var(--comp-panel);
+  border-right: 1px solid var(--comp-line);
+}
+#lolcomputer .comp-side-head { flex: 0 0 auto; padding: 10px; border-bottom: 1px solid var(--comp-line); }
+#lolcomputer .comp-list { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 8px; }
+#lolcomputer .comp-shelves { flex: 0 0 auto; border-top: 1px solid var(--comp-line); padding: 6px 8px; }
+
+/* ---- the canvas column ---- */
+#lolcomputer .comp-main {
+  position: relative;
+  display: flex; flex-direction: column; min-width: 0; min-height: 0;
+}
+#lolcomputer .comp-runbar {
+  flex: 0 0 auto; min-height: var(--comp-runbar-h);
+  display: flex; align-items: center; gap: 8px; padding: 0 10px;
+  background: var(--comp-panel);
+  border-bottom: 1px solid var(--comp-line);
+}
+/* Where the canvas sits. `.comp-canvas` is the MOUNT layout.mjs makes; `.graph` is the canvas's
+   own root, built inside it by graph/canvas.mjs, and css/graph.css owns everything within that. */
+#lolcomputer .comp-canvas { flex: 1 1 auto; min-height: 0; min-width: 0; position: relative; }
+#lolcomputer .comp-rail { position: absolute; left: 12px; bottom: 12px; z-index: 4; }
+
+/* ---- the drawer ---- */
+#lolcomputer .comp-drawer {
+  display: flex; flex-direction: column; min-width: 0; min-height: 0;
+  background: var(--comp-panel);
+  border-left: 1px solid var(--comp-line);
+}

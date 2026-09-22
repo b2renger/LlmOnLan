@@ -313,9 +313,28 @@ webview.hidden { display: none !important; }
    switches between Open WebUI and LOL Chat lives here, because it is shell chrome.
    ComfyQ tokens only — no colour literals; nothing is ever injected into the Open
    WebUI webview. */
-.viewtoggle {
-  background: var(--surface-2); color: var(--muted); border: 1px solid var(--border);
-  border-radius: 7px; padding: 5px 10px; font-size: 12px; cursor: pointer;
-  font-family: inherit; margin-right: 6px;
+/* The surface segmented control (K1, COMPUTER_PLAN §2.1): three ghost buttons on --surface-2, the
+   pressed one on --accent. It replaces the two-state .viewtoggle button. */
+.viewseg {
+  display: inline-flex; gap: 2px; margin-right: 6px; padding: 2px;
+  background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px;
 }
-.viewtoggle:hover { color: var(--text); border-color: var(--accent); }
+.viewseg-btn {
+  background: transparent; color: var(--muted); border: 0;
+  border-radius: 6px; padding: 4px 9px; font-size: 12px; cursor: pointer; font-family: inherit;
+}
+.viewseg-btn:hover { color: var(--text); }
+.viewseg-btn[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); }
+.viewseg-btn.hidden { display: none; }
+
+/* The Computer surface fills .main beside #lolchat. `.chat-layer .hidden` comes from
+   chat/css/base.css; this pair is about the section itself. */
+#lolcomputer { display: flex; flex: 1 1 auto; min-width: 0; position: absolute; inset: 0; }
+#lolcomputer.hidden { display: none !important; }
+
+/* COMPUTER_PLAN §2.2a — renderSidecar() owns #overlay and #owui and knows nothing about views, so
+   during OWUI's ~10 s boot its "Starting Open WebUI…" overlay would sit on top of whichever other
+   surface is showing, and the next renderSidecar() would un-hide the webview over it. One
+   declaration fixes it for both non-OWUI surfaces without editing renderSidecar. */
+body[data-view="chat"] #overlay, body[data-view="computer"] #overlay,
+body[data-view="chat"] #owui, body[data-view="computer"] #owui { display: none !important; }

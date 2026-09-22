@@ -437,54 +437,135 @@ function createHelpers(ctx) {
             };
         }),
 
-        // ---- the Computer panel (C1) ---------------------------------------------------------
-        // Everything goes through window.LolChat.debug.computer, which the workbench publishes from
-        // the live PanelInstance.debug (§2.6 BD-8). Keys are frozen as API_KEYS.graphDebug.
-        graph: {
-            /** Open the panel through the rail. → the workbench state */
-            open: () => h.work('computer'),
+        // ---- h.graph: an ALIAS of h.computer (K1 landing, COMPUTER_PLAN §3.7) ---------------
+        // It used to be its own namespace, pointed at `window.LolChat.debug.computer` (the
+        // workbench panel) and `#lolchat .graph-*`. `graph/panel.mjs` is deleted, so the panel it
+        // drove does not exist: the ~470 existing `h.graph.*` call sites in the C1/C2/C3 scenarios
+        // now drive the STANDALONE surface, which is the whole point of the re-point pass. The
+        // alias is installed just below the object literal, where `h.computer` is defined.
+
+        // ---- the Computer, the standalone surface (K1 kickoff, COMPUTER_PLAN §2.1/§2.4) -------
+        // The harness page has NO topbar: no .viewseg, no <webview>, and app.js is never loaded.
+        // So h.view() does the one thing the page can do — flip the two sections' classes, exactly
+        // as app.js's show() does — and returns what is showing. Everything about the segmented
+        // control itself is a rig item, not a harness assertion.
+        //
+        // h.computer.* is h.graph.* pointed at window.LolComputer.debug.computer and
+        // `#lolcomputer .graph-*`. Both namespaces coexist during K1 so the ~470 existing h.graph
+        // call sites keep driving the chat's panel while the units build; at the K1 LANDING the
+        // panel is deleted and `h.graph` becomes an ALIAS of `h.computer` (§3.7), which is why
+        // every K1 scenario is written against h.computer from the start.
+
+        /**
+         * Show one surface. name: 'chat' | 'computer' | 'owui' (owui hides both sections here).
+         * Waits for window.LolComputer.ready when switching to the Computer.
+         * @returns {Promise<{view: string, chat: boolean, computer: boolean}>}
+         */
+        async view(name) {
+            const want = name === undefined ? 'chat' : String(name);
+            await evalFn((v) => {
+                const chat = document.getElementById('lolchat');
+                const computer = document.getElementById('lolcomputer');
+                if (!chat || !computer) throw new Error('h.view: page.html is missing #lolchat or #lolcomputer');
+                chat.classList.toggle('hidden', v !== 'chat');
+                computer.classList.toggle('hidden', v !== 'computer');
+                document.body.dataset.view = v;
+                return true;
+            }, want);
+            if (want === 'computer') {
+                await waitFor(() => !!(window.LolComputer && window.LolComputer.ready));
+            }
+            return evalFn(() => ({
+                view: document.body.dataset.view || '',
+                chat: !document.getElementById('lolchat').classList.contains('hidden'),
+                computer: !document.getElementById('lolcomputer').classList.contains('hidden'),
+            }));
+        },
+
+        computer: {
+            /** Show the Computer surface. → {view, chat, computer} */
+            open: () => h.view('computer'),
             /** @param {string} name @param {any[]} args one debug method, by name */
             call: (name, ...args) => evalFn((n, a) => {
-                const dbg = window.LolChat && window.LolChat.debug && window.LolChat.debug.computer;
-                if (!dbg) throw new Error('no window.LolChat.debug.computer: the Computer panel is not open');
+                const dbg = window.LolComputer && window.LolComputer.debug && window.LolComputer.debug.computer;
+                if (!dbg) throw new Error('no window.LolComputer.debug.computer: the Computer has not mounted');
                 if (typeof dbg[n] !== 'function') throw new Error(`debug.computer has no ${n}()`);
                 return dbg[n](...a);
             }, name, args),
-            doc: () => h.graph.call('doc'),
-            state: () => h.graph.call('state'),
-            place: (type, x, y) => h.graph.call('place', type, x, y),
-            remove: (ids) => h.graph.call('remove', ids),
-            wire: (from, to, port) => h.graph.call('wire', from, to, port),
-            unwire: (id) => h.graph.call('unwire', id),
-            select: (ids) => h.graph.call('select', ids),
-            move: (id, x, y) => h.graph.call('move', id, x, y),
-            set: (id, patch) => h.graph.call('setSettings', id, patch),
-            run: (opts) => h.graph.call('run', opts || {}),
-            stop: () => h.graph.call('stop'),
-            running: () => h.graph.call('running'),
-            undo: () => h.graph.call('undo'),
-            redo: () => h.graph.call('redo'),
-            save: () => h.graph.call('save'),
-            /** What is actually in the DOM, so a scenario can tell the model from the picture. */
-            dom: () => evalFn(() => {
-                const layer = document.querySelector('#lolchat .graph-layer');
-                const svg = document.querySelector('#lolchat .graph-wires');
+            doc: () => h.computer.call('doc'),
+            state: () => h.computer.call('state'),
+            place: (type, x, y) => h.computer.call('place', type, x, y),
+            remove: (ids) => h.computer.call('remove', ids),
+            wire: (from, to, port) => h.computer.call('wire', from, to, port),
+            unwire: (id) => h.computer.call('unwire', id),
+            select: (ids) => h.computer.call('select', ids),
+            move: (id, x, y) => h.computer.call('move', id, x, y),
+            set: (id, patch) => h.computer.call('setSettings', id, patch),
+            run: (opts) => h.computer.call('run', opts || {}),
+            stop: () => h.computer.call('stop'),
+            running: () => h.computer.call('running'),
+            undo: () => h.computer.call('undo'),
+            redo: () => h.computer.call('redo'),
+            save: () => h.computer.call('save'),
+            tidy: () => h.computer.call('tidy'),
+            exportText: (o) => h.computer.call('exportText', o || {}),
+            importText: (text, o) => h.computer.call('importText', text, o || {}),
+            /** What the two Apps share, and what they must not (COMPUTER_PLAN §2.3). */
+            spine: () => evalFn(() => {
+                const chat = window.LolChat && window.LolChat.app;
+                const comp = window.LolComputer && window.LolComputer.app;
                 return {
-                    root: !!document.querySelector('#lolchat .graph'),
-                    parts: document.querySelectorAll('#lolchat .graph-part').length,
+                    ready: !!(window.LolComputer && window.LolComputer.ready),
+                    failed: Object.keys((window.LolComputer && window.LolComputer.failed) || {}),
+                    sameApp: !!chat && chat === comp,
+                    sameRepo: !!chat && !!comp && chat.repo === comp.repo,
+                    sameFarm: !!chat && !!comp && chat.farm === comp.farm,
+                    sameGov: !!chat && !!comp && chat.gov === comp.gov,
+                    sameBus: !!chat && !!comp && chat.bus === comp.bus,
+                    visible: !!(comp && comp.state && comp.state.visible),
+                };
+            }),
+            /** The migration verdict (§7.2). */
+            migration: () => evalFn(() => (window.LolComputer && window.LolComputer.migration) || null),
+            /** What is actually in the DOM on the Computer surface. */
+            dom: () => evalFn(() => {
+                const layer = document.querySelector('#lolcomputer .graph-layer');
+                const svg = document.querySelector('#lolcomputer .graph-wires');
+                return {
+                    root: !!document.querySelector('#lolcomputer .graph'),
+                    side: !!document.querySelector('#lolcomputer .comp-side'),
+                    runbar: !!document.querySelector('#lolcomputer .comp-runbar'),
+                    drawer: !!document.querySelector('#lolcomputer .comp-drawer'),
+                    hidden: document.getElementById('lolcomputer').classList.contains('hidden'),
+                    chatHidden: document.getElementById('lolchat').classList.contains('hidden'),
+                    chatPresent: !!document.getElementById('lolchat'),
+                    parts: document.querySelectorAll('#lolcomputer .graph-part').length,
                     wires: svg ? svg.querySelectorAll('path').length : 0,
                     transform: layer ? getComputedStyle(layer).transform : '',
-                    states: Array.from(document.querySelectorAll('#lolchat .graph-part'))
+                    states: Array.from(document.querySelectorAll('#lolcomputer .graph-part'))
                         .map((el) => el.getAttribute('data-state')),
                 };
             }),
         },
 
         ask: {
-            /** The ask spine's completed calls: [{task, mode, ok, ms, model}] (app/ask.mjs debug). */
+            /**
+             * The ask spine's completed calls: [{task, mode, ok, ms, model}] (app/ask.mjs debug).
+             *
+             * K1 landing: there are TWO ask installs now, one per surface (COMPUTER_PLAN §2.3 —
+             * `ask` reads its own app's `state.visible`, so it cannot be shared). A graph run's
+             * calls land on the COMPUTER's log; a chat turn's on the chat's. Every existing caller
+             * means "what did this client ask the farm", so both are merged — the chat's rows
+             * first, then the Computer's, each in its own order (the rows carry no timestamp) —
+             * and every row carries `surface` for a scenario that needs to tell them apart.
+             */
             log: () => evalFn(() => {
-                const dbg = window.LolChat && window.LolChat.debug && window.LolChat.debug.ask;
-                return dbg && typeof dbg.log === 'function' ? dbg.log() : [];
+                const read = (/** @type {any} */ root, /** @type {string} */ surface) => {
+                    const dbg = root && root.debug && root.debug.ask;
+                    const rows = dbg && typeof dbg.log === 'function' ? dbg.log() : [];
+                    return rows.map((/** @type {any} */ r) => Object.assign({ surface }, r));
+                };
+                return read(window.LolChat, 'chat').concat(read(window.LolComputer, 'computer'));
             }),
         },
 
@@ -580,6 +661,10 @@ function createHelpers(ctx) {
             return true;
         },
     };
+    // §3.7: h.graph IS h.computer. One object, two names, so no scenario had to be rewritten
+    // call-by-call and no assertion changed meaning without being read.
+    h.graph = h.computer;
+
     return h;
 }
 

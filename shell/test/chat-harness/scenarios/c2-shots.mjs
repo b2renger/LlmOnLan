@@ -21,8 +21,8 @@ const FARM_ERRORS = [/Failed to load resource/, /net::ERR_/];
 const ITEMS = ['apple', 'banana', 'cherry', 'pear', 'plum'];
 
 const requireReal = (/** @type {any} */ h) => h.eval(() => {
-    const failed = (window.LolChat && window.LolChat.failed) || {};
-    const missing = ['computer', 'ask', 'work'].filter((k) => failed[k]);
+    const failed = (window.LolComputer && window.LolComputer.failed) || {};   // K1: the Computer's own loader
+    const missing = ['host', 'ask', 'library'].filter((k) => failed[k]);
     if (missing.length) throw new Error('c2-shots needs the REAL modules, but the loader dropped: ' + missing.join(', '));
     return true;
 });
@@ -40,8 +40,8 @@ async function buildScene(/** @type {any} */ h) {
         return app.controller.selectThread(rows[0].id);
     });
     const state = await h.graph.open();
-    h.eq(state.panel, 'computer', 'the rail opened the Computer panel');
-    await h.waitFor(() => (window.LolChat.debug.computer.doc().threadId ? true : null));
+    h.eq(state.computer, true, 'the rail opened the Computer panel');
+    await h.waitFor(() => ((window.LolComputer.debug.computer.doc() || {}).id ? true : null));
 
     // Laid out so the four frames do not overlap at their own default widths — an overlap hides
     // the wires and the badges this picture exists to show.
@@ -64,13 +64,15 @@ async function buildScene(/** @type {any} */ h) {
     return { note, split, ask, collect };
 }
 
-/** Take the column to `mode`, let the 160 ms grid transition finish, and only then fit. */
+/** K1 landing (§3.7): there is no workbench column any more — one surface, one width. `mode` is
+ * kept as a label so every call site reads unchanged; the wait is still real, because Fit measures
+ * `canvas.clientWidth` and a fit taken before the layout settles photographs the wrong zoom. */
 async function settle(/** @type {any} */ h, /** @type {string} */ mode, /** @type {number} */ minWidth) {
-    await h.width(mode);
+    await h.view('computer');
     await h.waitFor((want) => {
-        const body = document.querySelector('.chat-work-body');
-        return body && body.getBoundingClientRect().width >= want ? true : null;
-    }, { args: [minWidth], timeout: 8000 });
+        const el = document.querySelector('#lolcomputer .graph-canvas');
+        return el && el.getBoundingClientRect().width >= want ? true : null;
+    }, { args: [Math.min(minWidth, 320)], timeout: 8000 });
     await new Promise((r) => setTimeout(r, 300));
     const view = await h.graph.call('fit');
     await new Promise((r) => setTimeout(r, 120));
@@ -90,15 +92,15 @@ const inspect = () => {
         const r = el.getBoundingClientRect();
         return r.width > 0 && r.height > 0 && getComputedStyle(el).visibility !== 'hidden';
     };
-    const askNode = q('#lolchat .graph-part[data-type="ask"]');
-    const inspectEl = q('#lolchat .graph-inspect');
-    const cap = q('#lolchat .graph-cap');
-    const capInput = /** @type {any} */ (q('#lolchat .graph-cap-input'));
+    const askNode = q('#lolcomputer .graph-part[data-type="ask"]');
+    const inspectEl = q('#lolcomputer .graph-inspect');
+    const cap = q('#lolcomputer .graph-cap');
+    const capInput = /** @type {any} */ (q('#lolcomputer .graph-cap-input'));
     const text = (/** @type {any} */ el) => ((el && el.textContent) || '').replace(/\s+/g, ' ').trim();
     return {
         theme: document.documentElement.className,
-        canvasRect: rect(q('#lolchat .graph-canvas')),
-        parts: Array.from(document.querySelectorAll('#lolchat .graph-part')).map((el) => ({
+        canvasRect: rect(q('#lolcomputer .graph-canvas')),
+        parts: Array.from(document.querySelectorAll('#lolcomputer .graph-part')).map((el) => ({
             type: el.getAttribute('data-type'),
             state: el.getAttribute('data-state'),
             rect: rect(el),
@@ -114,9 +116,9 @@ const inspect = () => {
         } : null,
         inspector: inspectEl ? {
             rect: rect(inspectEl),
-            beforeComposer: inspectEl.nextElementSibling === q('#chat-form'),
+            inDrawer: !!inspectEl.closest('.comp-drawer'),
             insideMessages: !!(q('#chat-messages') && /** @type {any} */ (q('#chat-messages')).contains(inspectEl)),
-            insidePanel: !!inspectEl.closest('.graph'),
+            onCanvas: !!inspectEl.closest('.graph-layer'),
             body: text(inspectEl.querySelector('.graph-inspect-body')).slice(0, 60),
             head: text(inspectEl.querySelector('.graph-inspect-head')),
         } : null,
@@ -124,11 +126,11 @@ const inspect = () => {
             seen: seen(cap),
             rect: rect(cap),
             text: text(cap),
-            button: text(q('#lolchat .graph-cap-raise')),
+            button: text(q('#lolcomputer .graph-cap-raise')),
             field: capInput ? capInput.value : null,
             fieldSeen: seen(capInput),
         },
-        wires: Array.from(document.querySelectorAll('#lolchat .graph-wires path')).map((p) => (p.getAttribute('d') || '').slice(0, 20)),
+        wires: Array.from(document.querySelectorAll('#lolcomputer .graph-wires path')).map((p) => (p.getAttribute('d') || '').slice(0, 20)),
         messagesRect: rect(q('#chat-messages')),
         formRect: rect(q('#chat-form')),
         docScrollX: document.documentElement.scrollWidth,
@@ -165,14 +167,18 @@ function checkFan(/** @type {any} */ h, /** @type {any} */ m) {
     h.assert(/^Item 4: \S/.test(m.ask.itemErrors[0]),
         'the failure must name its item by number AND say what went wrong, got "' + m.ask.itemErrors[0] + '"');
 
+    // K1 landing: BH-7 put the inspector in the conversation column. There is no conversation
+    // column beside the canvas now — the value is read in the Computer's own drawer (§8.1).
     h.assert(m.inspector, 'the value inspector is not in the DOM');
     h.eq(m.inspector.insideMessages, false, 'the inspector drifted inside #chat-messages (§2.6 AE)');
-    h.eq(m.inspector.insidePanel, false, 'the inspector is inside the panel — BH-7 puts it in the column');
-    h.eq(m.inspector.beforeComposer, true, 'the inspector is not immediately above the composer');
+    h.eq(m.inspector.onCanvas, false, 'the inspector is dropped on the canvas, on top of the graph');
+    h.eq(m.inspector.inDrawer, true, 'the inspector is not in the drawer');
     h.assert(m.inspector.rect.h > 30, 'the inspector collapsed to ' + m.inspector.rect.h + ' px');
     h.assert(m.inspector.body.length > 0, 'the inspector shows no value at all');
     h.assert(m.inspector.head.length > 0, 'the inspector has no heading, so nothing says what it is');
-    h.assert(m.messagesRect.w > 280, 'the conversation was squeezed to ' + m.messagesRect.w + ' px');
+    // K1 landing: the chat is hidden behind the Computer, so there is no conversation column to
+    // measure here. What must hold is that the drawer did not eat the canvas.
+    h.assert(m.canvasRect && m.canvasRect.w > 300, 'the drawer squeezed the canvas to ' + (m.canvasRect && m.canvasRect.w) + ' px');
 }
 
 /** The cap picture: the banner and the one button out of it. */
@@ -208,8 +214,8 @@ async function shootTheme(/** @type {any} */ h, /** @type {string} */ theme) {
     await new Promise((r) => setTimeout(r, 120));
 
     // Open the value in the conversation column — the surface BH-7 moved there.
-    await h.click(`#lolchat .graph-part[data-id="${ids.collect}"] .graph-value`);
-    await h.waitFor(() => (document.querySelector('#lolchat .graph-inspect') ? true : null), { timeout: 10000 });
+    await h.click(`#lolcomputer .graph-part[data-id="${ids.collect}"] .graph-value`);
+    await h.waitFor(() => (document.querySelector('#lolcomputer .graph-inspect') ? true : null), { timeout: 10000 });
     await new Promise((r) => setTimeout(r, 120));
 
     const fan = await h.eval(inspect);
@@ -221,7 +227,7 @@ async function shootTheme(/** @type {any} */ h, /** @type {string} */ theme) {
 
     // Now the cap: close the inspector, make the graph stale and run it on a cap of two.
     await h.eval(() => {
-        const el = /** @type {any} */ (document.querySelector('#lolchat .graph-inspect'));
+        const el = /** @type {any} */ (document.querySelector('#lolcomputer .graph-inspect'));
         if (el) el.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
         return true;
     });

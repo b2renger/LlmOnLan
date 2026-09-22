@@ -6,7 +6,9 @@ import { registerStrings } from '../core/i18n.mjs';
 registerStrings('graph', {
   panelLabel: 'Computer',
   empty: 'Place a part to start. Wire it up, then press Run.',
-  noThread: 'Open a chat to build a program — a graph belongs to a conversation.',
+  // K1 landing: a graph no longer belongs to a conversation, it belongs to a LIBRARY DOCUMENT.
+  // (`noThread` was 'Open a chat to build a program…'; the Computer has no chat to open.)
+  noDoc: 'Open a graph from the library, or press ＋ New, to start building.',
 
   // toolbar
   run: 'Run',

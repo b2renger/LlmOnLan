@@ -539,15 +539,26 @@ export const API_KEYS = Object.freeze({
     'kind', 'root', 'list', 'create', 'meta', 'update', 'forget', 'listFiles', 'read', 'readBinary',
     'write', 'writeBinary', 'remove', 'reveal', 'open', 'path',
   ]),
-  // C1: the Computer panel publishes NOTHING on `app` — it is a workbench panel, reached through
-  // app.work. This is its PanelInstance.debug, which the workbench exposes at
-  // window.LolChat.debug.computer and h.graph drives (§2.6 BG-9). Checked by C1-U2's own test.
+  // C1: the canvas/session debug door, frozen at C1 as the workbench panel's PanelInstance.debug
+  // (§2.6 BG-9). The panel is gone (K1), but this list is still the door's SPINE: `computerDebug`
+  // below is defined as exactly this plus what the standalone surface added.
   graphDebug: Object.freeze([
     'doc', 'state', 'session', 'place', 'remove', 'wire', 'unwire', 'select', 'move', 'setSettings',
     'run', 'stop', 'running', 'undo', 'redo', 'view', 'fit', 'save',
     // C3 (§2.6 BJ): tidy, the sharing story and the live sandbox's state. Added with their stub
     // bodies at the kickoff so the door and this list never disagree mid-phase.
     'tidy', 'exportText', 'importText', 'sandbox',
+  ]),
+  // K1 (COMPUTER_PLAN §2.4/§8.2): the STANDALONE Computer's debug door, published at
+  // window.LolComputer.debug.computer. It is `graphDebug` verbatim plus the two questions a
+  // library document made askable — `docId()` (which document is open) and `open(id)` (open
+  // another one). Frozen here, at the K1 landing, so the door and the harness cannot drift; a
+  // later phase that adds a key adds it HERE in the same commit.
+  computerDebug: Object.freeze([
+    'doc', 'state', 'session', 'place', 'remove', 'wire', 'unwire', 'select', 'move', 'setSettings',
+    'run', 'stop', 'running', 'undo', 'redo', 'view', 'fit', 'save',
+    'tidy', 'exportText', 'importText', 'sandbox',
+    'docId', 'open',
   ]),
   // C3: the sandbox host (sandbox/host.mjs). ONE per panel; the S2 vibecode bench uses the same
   // object, which is why the key list lives here and not with the Computer's own keys.

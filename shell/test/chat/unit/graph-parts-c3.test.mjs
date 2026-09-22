@@ -21,7 +21,7 @@ import { specMap } from '../../../renderer/chat/graph/parts/index.mjs';
 import { createRegistry, SLOTS } from '../../../renderer/chat/core/registry.mjs';
 import {
   DEFAULT_CODE, marshalInputs, hasListInput, coerceResult, sanitizeErrorText, errorLine,
-  codeFailure, looksLikeJs, codeFromFence, firstJsFence, installCodeBridge, errorHint, setErrorHint,
+  codeFailure, errorHint, setErrorHint,
 } from '../../../renderer/chat/graph/parts/code.mjs';
 import {
   RENDER_MODES, markdownToHtml, sanitizeSvg, svgDataUrl, svgSize, readSettings, escapeHtml,
@@ -291,83 +291,10 @@ export default (test) => {
     assert.equal(body({ in: [] }), '', 'nothing wired is not a crash');
   });
 
-  // ----------------------------------------------------------------- Code: the bridge from a chat
-
-  test('which fences are offered to the Computer', () => {
-    assert.equal(looksLikeJs('js', 'x'), true);
-    assert.equal(looksLikeJs('JavaScript', 'x'), true);
-    assert.equal(looksLikeJs('python', 'def f(): pass'), false);
-    assert.equal(looksLikeJs('json', '{"a":1}'), false, 'json is data, not a program');
-    assert.equal(looksLikeJs('', 'const total = rows.length;'), true, 'an unlabelled fence that reads like code');
-    assert.equal(looksLikeJs('', 'Paris\nRome'), false, 'an unlabelled fence that is output');
-  });
-
-  test('a fence becomes something that RETURNS, and an explicit return is left alone', () => {
-    assert.equal(codeFromFence('const total = 1 + 1;\ntotal'), 'const total = 1 + 1;\nreturn total;');
-    assert.equal(codeFromFence('return 1;'), 'return 1;');
-    assert.equal(codeFromFence('function f() {\n  return 2;\n}'), 'function f() {\n  return 2;\n}',
-      'a trailing brace is not an expression to return');
-    assert.equal(codeFromFence('const a = 1;'), 'const a = 1;', 'a trailing statement is left as it is');
-    assert.equal(codeFromFence('   '), DEFAULT_CODE, 'an empty fence gets the starting body');
-  });
-
-  test('the first JavaScript fence in a message is the one that is sent', () => {
-    const msg = {
-      content: 'Here is the shape:\n```json\n{"a":1}\n```\nand the code:\n```js\nconst a = 1;\na\n```\n',
-    };
-    const fence = firstJsFence(msg);
-    assert.equal(fence.lang, 'js');
-    assert.equal(fence.code, 'const a = 1;\na');
-    assert.equal(firstJsFence({ content: 'no fences here' }), null);
-    assert.equal(firstJsFence({ parts: [{ type: 'text', text: '```js\nconst b = 2;\nb\n```' }] }).lang, 'js',
-      'a message held as parts reads the same');
-  });
-
-  test('the bridge registers a fence button and a message action, and neither exists without a placer', async () => {
-    await withDom(async () => {
-      /** @type {any[]} */ const placed = [];
-      const registry = createRegistry();
-      /** @type {any} */ const app = {
-        registry,
-        SLOTS,
-        dialogs: { toast: () => {} },
-      };
-      const off = installCodeBridge(app, { place: (o) => { placed.push(o); return { id: 'p9' }; } });
-      const decorators = registry.list(SLOTS.CODE_DECORATORS);
-      const actions = registry.list(SLOTS.MESSAGE_ACTIONS);
-      assert.equal(decorators.length, 1);
-      assert.equal(actions.length, 1);
-
-      const info = { lang: 'js', code: 'const a = 1;\na', final: true };
-      assert.equal(decorators[0].match(info), true);
-      assert.equal(decorators[0].match({ ...info, final: false }), false, 'a fence still streaming is never decorated');
-
-      const fig = document.createElement('figure');
-      decorators[0].decorate(fig, info, app);
-      const btn = fig.querySelector('button');
-      assert.ok(btn, 'the button is in the figure');
-      assert.equal(btn.textContent, t('parts.codeSend'));
-      btn.dispatchEvent({ type: 'click', preventDefault() {}, stopPropagation() {} });
-      await Promise.resolve();
-      await Promise.resolve();
-      assert.deepEqual(placed[0], { code: 'const a = 1;\nreturn a;', lang: 'js' },
-        'the fence arrived as something that returns');
-
-      assert.equal(actions[0].visible({ content: '```js\nconst a = 1;\na\n```' }), true);
-      assert.equal(actions[0].visible({ content: 'plain words' }), false);
-      await actions[0].run({ content: '```js\nconst c = 3;\nc\n```' }, app);
-      assert.equal(placed.length, 2, 'the message action sends the same way the button does');
-
-      off();
-      assert.equal(registry.list(SLOTS.CODE_DECORATORS).length, 0, 'and both come back off together');
-      assert.equal(registry.list(SLOTS.MESSAGE_ACTIONS).length, 0);
-
-      const none = createRegistry();
-      installCodeBridge({ registry: none, SLOTS }, /** @type {any} */ ({}));
-      assert.equal(none.list(SLOTS.CODE_DECORATORS).length, 0,
-        'with nowhere to put the part, no button is offered at all');
-    });
-  });
+  // The bridge from a chat fence to a Code part went out at the K1 landing with the panel that
+  // placed its parts (COMPUTER_PLAN §3.2). `looksLikeJs`, `codeFromFence`, `firstJsFence` and
+  // `installCodeBridge` are deleted from graph/parts/code.mjs, so the four tests that covered them
+  // are deleted here. The Code PART itself is unchanged and every other test in this file stands.
 
   test('the editor points at the failing line and forgets it when the part succeeds', async () => {
     await withDom(async () => {

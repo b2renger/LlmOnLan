@@ -52,7 +52,7 @@ import { t } from './core/i18n.mjs';
 import { buildLayout, installDropGuard } from './ui/layout.mjs';
 import './strings/core.en.mjs';
 
-const PHASE = 'C3';
+const PHASE = 'K1';
 const LAST_THREAD_KEY = 'ui:lastThreadId';       // §3.7; written on THREAD_SELECTED, read at boot
 
 /** @type {import('./core/types.mjs').ModuleRow[]} */
@@ -102,12 +102,10 @@ const MODULES = [
   { key: 'queue',      path: './ui/queue.mjs',          role: 'feature',   fake: null,         phase: 'S0' },
   { key: 'caps',       path: './app/caps.mjs',          role: 'feature',   fake: null,         phase: 'S0' },
   { key: 'projects',   path: './projects/bridge.mjs',   role: 'feature',   fake: null,         phase: 'S0' },
-  // C1 (the Computer panel, docs/LOLCHAT_COMPUTER_SPEC.md). ONE row: `graph/panel.mjs` registers
-  // the WORKBENCH_PANELS item and owns the session; everything else the phase writes
-  // (graph/{model,topo,values,undo,serialize,canvas,wires,store,runner}.mjs, graph/parts/*,
-  // strings/{graph,parts}.en.mjs) is a LEAF imported by its own consumer (§2.6 AB), so a typo in
-  // one of them surfaces as this feature failing to load and costs only the panel.
-  { key: 'computer',   path: './graph/panel.mjs',       role: 'feature',   fake: null,         phase: 'C1' },
+  // C1's `computer` row is GONE (K1 landing, COMPUTER_PLAN §11). The Computer stopped being a
+  // workbench panel and became the third top-level surface: `graph/panel.mjs` and `graph/store.mjs`
+  // are deleted, and `chat/computer/main.mjs` — its own loader, its own App — mounts `#lolcomputer`
+  // from its own <script type="module"> in index.html. The chat no longer loads any of graph/**.
   // LEAVES WITH NO ROW (§2.6 I, extended for P2 by §2.6 AB): a module that no unit installs on its
   // own — ctx/{tokens,budget}.mjs (← app/context.mjs), ui/meter.mjs (← app/context.mjs),
   // ui/edit-inline.mjs (← ui/message-actions.mjs + ui/shortcuts.mjs), ui/transfer.mjs +

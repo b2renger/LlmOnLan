@@ -31,12 +31,22 @@ import { file } from './file.mjs';
 
 /** @typedef {import('../../core/types.mjs').PartSpec} PartSpec */
 
-/** The catalogue, in palette order. @returns {PartSpec[]} */
+/**
+ * LEGACY (K1 landing, COMPUTER_PLAN §3.2). `from-thread` and `to-thread` existed to move text
+ * between a graph and the conversation that owned it. A library document has no conversation, so
+ * the two are OUT of the palette — a reader can no longer place one — but they stay in `specMap()`
+ * so a MIGRATED graph that contains one still loads instead of tripping `part:unknown-type`. They
+ * render a `legacy` badge and `run()` refuses in one sentence (graph/parts/{from,to}-thread.mjs).
+ * @type {PartSpec[]}
+ */
+const LEGACY = [fromThread, toThread];
+
+/** The catalogue, in palette order — what the ＋ menu offers. @returns {PartSpec[]} */
 export function partSpecs() {
-  return [note, fromThread, ask, splitPart, repeat, filter, code, collect, render, file, toThread];
+  return [note, ask, splitPart, repeat, filter, code, collect, render, file];
 }
 
-/** @returns {Map<string, PartSpec>} */
+/** Every type the engine can LOAD: the palette plus the legacy parts. @returns {Map<string, PartSpec>} */
 export function specMap() {
-  return new Map(partSpecs().map((s) => [s.type, s]));
+  return new Map([...partSpecs(), ...LEGACY].map((s) => [s.type, s]));
 }

@@ -22,8 +22,8 @@ const ITEMS = ['apple', 'banana', 'cherry', 'pear', 'plum'];
 
 /** Fail loudly when the panel or the spine was faked — a green run would otherwise mean nothing. */
 const requireReal = (/** @type {any} */ h) => h.eval(() => {
-    const failed = (window.LolChat && window.LolChat.failed) || {};
-    const missing = ['computer', 'ask'].filter((k) => failed[k]);
+    const failed = (window.LolComputer && window.LolComputer.failed) || {};   // K1: the Computer's own loader
+    const missing = ['host', 'ask'].filter((k) => failed[k]);
     if (missing.length) throw new Error(`C2 canvas needs the REAL modules, the loader dropped: ${missing.join(', ')}`);
     return true;
 });
@@ -56,8 +56,8 @@ async function open(/** @type {any} */ h) {
     });
     await h.mock.reset();                       // every count below is about the GRAPH
     const state = await h.graph.open();
-    h.eq(state.panel, 'computer', 'the rail opened the Computer');
-    await h.waitFor(() => (window.LolChat.debug.computer.doc().threadId ? true : null));
+    h.eq(state.computer, true, 'the rail opened the Computer');
+    await h.waitFor(() => ((window.LolComputer.debug.computer.doc() || {}).id ? true : null));
 }
 
 /** Note -> Split -> Ask -> Collect: the shape a reader actually builds. */
@@ -79,7 +79,7 @@ async function build(/** @type {any} */ h, /** @type {any} */ o = {}) {
 
 /** What ONE part's box really shows, read out of the live DOM. */
 const boxOf = (/** @type {any} */ h, /** @type {string} */ id) => h.eval((partId) => {
-    const node = document.querySelector(`#lolchat .graph-part[data-id="${partId}"]`);
+    const node = document.querySelector(`#lolcomputer .graph-part[data-id="${partId}"]`);
     if (!node) return null;
     /** @param {string} sel */
     const one = (sel) => {
@@ -101,9 +101,9 @@ const boxOf = (/** @type {any} */ h, /** @type {string} */ id) => h.eval((partId
 
 /** The cap banner and the cap field, as the DOM has them. */
 const capBanner = (/** @type {any} */ h) => h.eval(() => {
-    const el = /** @type {any} */ (document.querySelector('#lolchat .graph-cap'));
-    const btn = /** @type {any} */ (document.querySelector('#lolchat .graph-cap-raise'));
-    const field = /** @type {any} */ (document.querySelector('#lolchat .graph-cap-input'));
+    const el = /** @type {any} */ (document.querySelector('#lolcomputer .graph-cap'));
+    const btn = /** @type {any} */ (document.querySelector('#lolcomputer .graph-cap-raise'));
+    const field = /** @type {any} */ (document.querySelector('#lolcomputer .graph-cap-input'));
     return {
         present: !!el,
         hidden: el ? !!el.hidden : true,
@@ -117,7 +117,7 @@ const capBanner = (/** @type {any} */ h) => h.eval(() => {
 
 /** Start a run WITHOUT awaiting it, so the scenario can watch it happen. */
 const startRun = (/** @type {any} */ h, /** @type {any} */ opts) => h.eval((o) => {
-    /** @type {any} */ (window).__c2canvasRun = window.LolChat.debug.computer.run(o || {});
+    /** @type {any} */ (window).__c2canvasRun = window.LolComputer.debug.computer.run(o || {});
     return true;
 }, opts || null);
 const awaitRun = (/** @type {any} */ h) => h.eval(() => /** @type {any} */ (window).__c2canvasRun);
@@ -234,7 +234,7 @@ export default [
             h.eq(shown.fieldValue, '50', 'a run-only raise never moved the stored preference');
 
             // A real click, and it must FINISH the work at twice the cap it stopped at.
-            await h.click('#lolchat .graph-cap-raise');
+            await h.click('#lolcomputer .graph-cap-raise');
             await poll(h, async () => ((await h.graph.running()) === false ? true : null), 'the raised run to end');
             await poll(h, async () => {
                 const box = await boxOf(h, ids.collect);
@@ -260,7 +260,7 @@ export default [
             await build(h);
 
             await h.eval(() => {
-                const el = /** @type {any} */ (document.querySelector('#lolchat .graph-cap-input'));
+                const el = /** @type {any} */ (document.querySelector('#lolcomputer .graph-cap-input'));
                 el.value = '3';
                 el.dispatchEvent(new Event('change', { bubbles: true }));
                 return true;
@@ -278,8 +278,8 @@ export default [
                 'and the farm was never touched — the field really is what governs the run');
 
             // A freshly mounted panel re-seeds the field from the store.
-            await h.work('computer');                       // the live tab toggles shut
-            await h.work('computer');                       // and back open: a NEW canvas
+            await h.view('computer');                       // the live tab toggles shut
+            await h.view('computer');                       // and back open: a NEW canvas
             await poll(h, async () => {
                 const b = await capBanner(h);
                 return b.fieldValue === '3' ? true : null;
@@ -288,51 +288,63 @@ export default [
     },
 
     {
-        name: 'c2-canvas-inspector-in-the-chat-column',
+        name: 'c2-canvas-inspector-is-never-in-the-chat',
         needsMock: true,
         allowConsoleErrors: FARM_ERRORS,
-        // BH-7: the value is read in the conversation column, above the composer — and NEVER as a
-        // foreign node inside #chat-messages, which thread-view owns and re-renders.
+        // AMENDED AT THE K1 LANDING (COMPUTER_PLAN §3.7). BH-7 read "the value is read in the
+        // conversation column, above the composer". There is no conversation column beside the
+        // canvas any more: the Computer is its own surface and the value opens in ITS drawer
+        // (`k1-runbar-drawer` proves the drawer's own behaviour — one value at a time, a real
+        // width, the grip). What survives here is the half that is still a HARD boundary and that
+        // no other scenario watches: a value the reader opens must never become a foreign node
+        // inside `#chat-messages`, which thread-view owns and re-renders, and closing it must
+        // never read as "stop the run".
         async run(h) {
             await open(h);
             const ids = await build(h, { items: ['one', 'two'] });
             await h.graph.run();
 
-            await h.click(`#lolchat .graph-part[data-id="${ids.collect}"] .graph-value`);
+            await h.click(`#lolcomputer .graph-part[data-id="${ids.collect}"] .graph-value`);
             const placed = await h.waitFor(() => {
-                const el = document.querySelector('#lolchat .graph-inspect');
+                const el = document.querySelector('#lolcomputer .graph-inspect');
                 if (!el) return null;
-                const form = document.getElementById('chat-form');
                 const messages = document.getElementById('chat-messages');
+                const chat = document.getElementById('lolchat');
                 return {
-                    beforeComposer: el.nextElementSibling === form,
                     insideMessages: !!(messages && messages.contains(el)),
-                    insidePanel: !!el.closest('.graph'),
+                    insideChat: !!(chat && chat.contains(el)),
+                    inDrawer: !!el.closest('.comp-drawer'),
+                    onCanvas: !!el.closest('.graph-layer'),
                     body: (el.textContent || '').trim(),
-                    count: document.querySelectorAll('#lolchat .graph-inspect').length,
+                    count: document.querySelectorAll('.graph-inspect').length,
                 };
             }, { timeout: 15000 });
             h.eq(placed.insideMessages, false, 'NEVER inside #chat-messages (§2.6 AE: thread-view owns that subtree)');
-            h.eq(placed.insidePanel, false, 'and not in the panel either — the column is where reading happens');
-            h.eq(placed.beforeComposer, true, 'it sits immediately before the composer');
-            h.eq(placed.count, 1, 'one inspector at a time');
+            h.eq(placed.insideChat, false, 'and never anywhere in the chat surface at all');
+            h.eq(placed.inDrawer, true, "the value is read in the Computer's own drawer");
+            h.eq(placed.onCanvas, false, 'and not dropped on the canvas on top of the graph');
+            h.eq(placed.count, 1, 'one inspector at a time, on either surface');
             h.eq(placed.body.includes('one'), true, `showing the value it was opened on, got "${placed.body.slice(0, 80)}"`);
 
             // Escape closes it, and nothing upstream may read that as "stop the run".
             await h.eval(() => {
-                const el = /** @type {any} */ (document.querySelector('#lolchat .graph-inspect'));
+                const el = /** @type {any} */ (document.querySelector('#lolcomputer .comp-drawer'));
                 el.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
                 return true;
             });
-            await h.waitFor(() => (document.querySelector('#lolchat .graph-inspect') ? null : true));
+            await h.waitFor(() => (document.querySelector('#lolcomputer .graph-inspect') ? null : true));
             h.eq(await h.graph.running(), false, 'no run was started, and none was stopped');
 
-            // Opened again and then destroyed with the panel: the column is left as it was found.
-            await h.click(`#lolchat .graph-part[data-id="${ids.collect}"] .graph-value`);
-            await h.waitFor(() => (document.querySelector('#lolchat .graph-inspect') ? true : null));
-            await h.work('computer');                      // toggles the panel shut → destroy()
-            await h.waitFor(() => (document.querySelector('#lolchat .graph-inspect') ? null : true), { timeout: 15000 });
-            h.eq(await h.eval(() => !!document.querySelector('#lolchat .graph')), false, 'and the panel itself is gone');
+            // Opened again and then the surface is hidden: the chat it goes back to is untouched.
+            await h.click(`#lolcomputer .graph-part[data-id="${ids.collect}"] .graph-value`);
+            await h.waitFor(() => (document.querySelector('#lolcomputer .graph-inspect') ? true : null));
+            await h.view('chat');
+            const chat = await h.eval(() => ({
+                inspectors: document.querySelectorAll('#lolchat .graph-inspect').length,
+                canvases: document.querySelectorAll('#lolchat .graph').length,
+            }));
+            h.eq(chat.inspectors, 0, 'the chat has an inspector in it');
+            h.eq(chat.canvases, 0, 'and a canvas');
         },
     },
 
@@ -344,8 +356,8 @@ export default [
         // the door is a phase whose scenarios stop proving what they claim to.
         async run(h) {
             await open(h);
-            const got = await h.eval(() => Object.keys(window.LolChat.debug.computer).sort());
-            h.eq(got, [...API_KEYS.graphDebug].sort(), 'the debug door is still exactly the frozen key list (BG-9)');
+            const got = await h.eval(() => Object.keys(window.LolComputer.debug.computer).sort());
+            h.eq(got, [...API_KEYS.computerDebug].sort(), 'the debug door is still exactly the frozen key list (BG-9 + K1)');
 
             const ids = await build(h, { items: ['solo'] });
             await h.graph.run();

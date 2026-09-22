@@ -660,7 +660,16 @@ export function install(app) {
   app.ask = api;
 
   // `app.LolChat` is not reachable from here: the debug bag main.mjs published is the door (BD-9).
-  const bag = typeof window !== 'undefined' && window.LolChat ? window.LolChat.debug : null;
+  //
+  // K1 (COMPUTER_PLAN §2.3): there are now TWO surfaces and each installs its OWN ask, so that
+  // `ask` reads its own app's `state.visible`. Publish into the bag of the surface that owns THIS
+  // app — matched by identity, not by name — or the Computer's install silently replaces the
+  // chat's door with an empty log (it did: c1-run-three-parts and s0-ask-schema both went to
+  // "the ask spine saw one call: got 0" the moment the third surface mounted).
+  const g = typeof window !== 'undefined'
+    ? ((window.LolComputer && window.LolComputer.app === app) ? window.LolComputer : window.LolChat)
+    : null;
+  const bag = g ? g.debug : null;
   if (bag) bag.ask = debug;
 
   return api;

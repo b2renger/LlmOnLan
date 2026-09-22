@@ -1,0 +1,167 @@
+/* computer-library.css — the document sidebar's head, cards, row actions and drag handle.
+   OWNED BY K1-U2 (COMPUTER_PLAN §3.6). The FRAME (#lolcomputer .comp-side / .comp-side-head /
+   .comp-list) belongs to css/computer-shell.css and is not redefined here; the one exception is
+   `position: relative` on .comp-side, which the drag handle this sheet owns needs as its
+   containing block (#lolcomputer is a grid, so it is not one).
+   ComfyQ tokens only — no colour literals (chat-lint rule 3). */
+
+#lolcomputer .comp-side { position: relative; }
+
+/* ---- the head ---- */
+#lolcomputer .comp-side-title {
+  font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase;
+  color: var(--muted);
+  margin: 0 0 8px;
+}
+#lolcomputer .comp-side-row { display: flex; gap: 6px; margin-bottom: 8px; }
+
+#lolcomputer .comp-btn {
+  flex: 1 1 auto;
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid var(--comp-line);
+  border-radius: var(--comp-r-btn);
+  background: var(--comp-panel-2);
+  color: var(--text);
+  font: inherit; font-size: 13px;
+  cursor: pointer;
+}
+#lolcomputer .comp-btn:hover { border-color: var(--accent-hover); }
+#lolcomputer .comp-btn:focus-visible { outline: 2px solid var(--accent-hover); outline-offset: 1px; }
+#lolcomputer .comp-btn-accent {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+}
+#lolcomputer .comp-btn-accent:hover { filter: brightness(1.08); }
+
+#lolcomputer .comp-search {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 30px;
+  padding: 0 8px;
+  border: 1px solid var(--comp-line);
+  border-radius: var(--comp-r-btn);
+  background: var(--comp-ground);
+  color: var(--text);
+  font: inherit; font-size: 13px;
+}
+#lolcomputer .comp-search:focus-visible { outline: 2px solid var(--accent-hover); outline-offset: 1px; }
+
+/* The polite live region: read by screen readers, never a layout jump. */
+#lolcomputer .comp-live {
+  position: absolute;
+  width: 1px; height: 1px;
+  margin: -1px; padding: 0; border: 0;
+  overflow: hidden; clip-path: inset(50%);
+}
+
+/* ---- the drag handle ---- */
+#lolcomputer .comp-side-grip {
+  position: absolute; top: 0; right: -3px; bottom: 0;
+  width: 6px;
+  cursor: col-resize;
+  touch-action: none;
+  z-index: 3;
+}
+#lolcomputer .comp-side-grip:hover { background: color-mix(in srgb, var(--accent-hover) 40%, transparent); }
+
+/* ---- the cards ---- */
+#lolcomputer .comp-empty {
+  margin: 12px 4px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+#lolcomputer .comp-card {
+  border: 1px solid var(--comp-line);
+  border-radius: var(--comp-r-card);
+  background: var(--comp-panel-2);
+  margin-bottom: 6px;
+  overflow: hidden;
+}
+#lolcomputer .comp-card:hover { border-color: var(--accent-hover); }
+#lolcomputer .comp-card[data-open='true'] {
+  border-color: var(--accent-hover);
+  background: color-mix(in srgb, var(--accent) 14%, var(--comp-panel-2));
+}
+
+#lolcomputer .comp-card-open {
+  display: flex; flex-direction: column; gap: 3px;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 10px 6px;
+  border: 0; background: none;
+  color: inherit; font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+#lolcomputer .comp-card-open:focus-visible { outline: 2px solid var(--accent-hover); outline-offset: -2px; }
+#lolcomputer .comp-card-title {
+  font-size: 13px; font-weight: 600;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+#lolcomputer .comp-card-meta { font-size: 11px; color: var(--muted); }
+
+/* The actions stay out of the way until the card is hovered or something in it has focus — a
+   library of thirty graphs should read as titles, not as a wall of buttons. Keyboard users get
+   them from :focus-within, so they are never unreachable. */
+#lolcomputer .comp-card-acts {
+  display: flex; flex-wrap: wrap; gap: 4px;
+  padding: 0 8px 8px;
+  opacity: 0;
+}
+#lolcomputer .comp-card:hover .comp-card-acts,
+#lolcomputer .comp-card:focus-within .comp-card-acts { opacity: 1; }
+
+#lolcomputer .comp-card-act {
+  padding: 2px 7px;
+  border: 1px solid var(--comp-line);
+  border-radius: var(--comp-r-chip);
+  background: var(--comp-panel);
+  color: var(--muted);
+  font: inherit; font-size: 11px;
+  cursor: pointer;
+}
+#lolcomputer .comp-card-act:hover { color: var(--text); border-color: var(--accent-hover); }
+#lolcomputer .comp-card-act[data-act='delete']:hover {
+  color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 60%, var(--comp-line));
+}
+#lolcomputer .comp-card-act:focus-visible { outline: 2px solid var(--accent-hover); outline-offset: 1px; }
+
+/* ---- inline rename ---- */
+#lolcomputer .comp-rename { padding: 0 8px 8px; }
+#lolcomputer .comp-rename-input {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 28px;
+  padding: 0 8px;
+  border: 1px solid var(--accent-hover);
+  border-radius: var(--comp-r-btn);
+  background: var(--comp-ground);
+  color: var(--text);
+  font: inherit; font-size: 13px;
+}
+
+/* ---- the Export… popover's one checkbox (§7.6) ---- */
+.comp-export-opt {
+  display: flex; align-items: center; gap: 6px;
+  margin-bottom: 8px;
+  font-size: 13px;
+  cursor: pointer;
+}
+/* The popover is a light-dismiss element on <body> (ui/dialogs.mjs), so it is NOT inside
+   #lolcomputer and the prefixed button rules above do not reach it. */
+.chat-popover .comp-btn {
+  min-height: 30px;
+  padding: 0 12px;
+  border: 1px solid var(--accent);
+  border-radius: var(--comp-r-btn, 8px);
+  background: var(--accent);
+  color: var(--on-accent);
+  font: inherit; font-size: 13px;
+  cursor: pointer;
+}
+.chat-popover .comp-btn:hover { filter: brightness(1.08); }

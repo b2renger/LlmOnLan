@@ -17,8 +17,8 @@ import path from 'node:path';
 const FARM_ERRORS = [/Failed to load resource/, /net::ERR_/];
 
 const requireReal = (/** @type {any} */ h) => h.eval(() => {
-    const failed = (window.LolChat && window.LolChat.failed) || {};
-    const missing = ['computer', 'ask', 'work'].filter((k) => failed[k]);
+    const failed = (window.LolComputer && window.LolComputer.failed) || {};   // K1: the Computer's own loader
+    const missing = ['host', 'ask', 'library'].filter((k) => failed[k]);
     if (missing.length) throw new Error('c1-shots needs the REAL modules, but the loader dropped: ' + missing.join(', '));
     return true;
 });
@@ -36,8 +36,8 @@ async function buildScene(/** @type {any} */ h) {
         return app.controller.selectThread(rows[0].id);
     });
     const state = await h.graph.open();
-    h.eq(state.panel, 'computer', 'the rail opened the Computer panel');
-    await h.waitFor(() => (window.LolChat.debug.computer.doc().threadId ? true : null));
+    h.eq(state.computer, true, 'the rail opened the Computer panel');
+    await h.waitFor(() => ((window.LolComputer.debug.computer.doc() || {}).id ? true : null));
 
     // Laid out so the three frames do not overlap at their own default sizes (Note 220, Ask 300,
     // Collect 260 wide) — an overlap hides the very wires this picture exists to show.
@@ -56,18 +56,21 @@ async function buildScene(/** @type {any} */ h) {
 }
 
 /**
- * Take the column to `mode`, WAIT for the 160 ms grid transition to finish, and only then fit.
- * Fitting first is what made the first version of this picture photograph a 29 % zoom: fitView
- * measures `canvas.clientWidth`, so a fit taken mid-transition zooms to a column that no longer
- * exists and nobody ever presses Fit again.
+ * AMENDED AT THE K1 LANDING (COMPUTER_PLAN §3.7). This used to take the WORKBENCH COLUMN to
+ * `mode` ('split' / 'work') through `h.width()` and wait for `.chat-work-body` to grow, because
+ * the canvas lived in a resizable third column and a fit taken mid-transition photographed a 29 %
+ * zoom. The Computer is a full surface now: there is one width, it is the window's, and the only
+ * thing still worth doing is letting the layout settle before Fit measures `canvas.clientWidth`.
+ * The `mode` and `minWidth` arguments are kept so every call site reads unchanged; `mode` is only
+ * a label in the picture's note.
  * @returns {Promise<number>} the zoom the canvas settled at
  */
 async function settle(/** @type {any} */ h, /** @type {string} */ mode, /** @type {number} */ minWidth) {
-    await h.width(mode);
+    await h.view('computer');
     await h.waitFor((want) => {
-        const body = document.querySelector('.chat-work-body');
-        return body && body.getBoundingClientRect().width >= want ? true : null;
-    }, { args: [minWidth], timeout: 8000 });
+        const el = document.querySelector('#lolcomputer .graph-canvas');
+        return el && el.getBoundingClientRect().width >= want ? true : null;
+    }, { args: [Math.min(minWidth, 320)], timeout: 8000 });
     await new Promise((r) => setTimeout(r, 300));
     const view = await h.graph.call('fit');
     await new Promise((r) => setTimeout(r, 120));
@@ -81,17 +84,22 @@ const inspect = () => {
         const r = el.getBoundingClientRect();
         return { x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height) };
     };
-    const canvas = q('#lolchat .graph-canvas');
-    const svg = q('#lolchat .graph-wires');
-    const parts = Array.from(document.querySelectorAll('#lolchat .graph-part'));
-    const toolbar = q('#lolchat .graph-toolbar');
+    const canvas = q('#lolcomputer .graph-canvas');
+    const svg = q('#lolcomputer .graph-wires');
+    const parts = Array.from(document.querySelectorAll('#lolcomputer .graph-part'));
+    const toolbar = q('#lolcomputer .graph-toolbar');
     return {
         theme: document.documentElement.className,
-        tabs: Array.from(document.querySelectorAll('.chat-work-rail [role="tab"]')).map((t) => ({
-            panel: t.getAttribute('data-panel'),
-            label: (t.textContent || '').trim(),
-            selected: t.getAttribute('aria-selected'),
-        })),
+        // K1 landing: there is no workbench rail to photograph. What replaces "the Computer tab is
+        // selected" is "the Computer SURFACE is the one showing and the chat is not" — the state
+        // app.js's show() puts the page in. The segmented control itself is a rig item (§13.1): the
+        // harness page has no topbar.
+        surface: {
+            computerShown: !document.getElementById('lolcomputer').classList.contains('hidden'),
+            chatShown: !document.getElementById('lolchat').classList.contains('hidden'),
+            side: !!q('#lolcomputer .comp-side'),
+            runbar: !!q('#lolcomputer .comp-runbar'),
+        },
         toolbar: toolbar ? Array.from(toolbar.querySelectorAll('button')).map((b) => (b.textContent || '').trim()).filter(Boolean) : [],
         toolbarRect: rect(toolbar),
         canvasRect: rect(canvas),
@@ -117,11 +125,10 @@ const inspect = () => {
         wires: svg ? Array.from(svg.querySelectorAll('path')).map((p) => (p.getAttribute('d') || '').slice(0, 24)) : [],
         // The hint ELEMENT always exists; what matters is whether it is painted over the graph.
         empty: (() => {
-            const e = q('#lolchat .graph-empty');
+            const e = q('#lolcomputer .graph-empty');
             return e ? getComputedStyle(e).display !== 'none' : false;
         })(),
-        messagesRect: rect(q('#chat-messages')),
-        formRect: rect(q('#chat-form')),
+        sideRect: rect(q('#lolcomputer .comp-side')),
         docScrollX: document.documentElement.scrollWidth,
         viewportW: window.innerWidth,
         viewportH: window.innerHeight,
@@ -130,10 +137,10 @@ const inspect = () => {
 
 function check(/** @type {any} */ h, /** @type {any} */ m, /** @type {string} */ theme, /** @type {string} */ mode) {
     h.eq(m.theme, theme, 'the <html> class did not switch');
-    const tab = m.tabs.filter((/** @type {any} */ t) => t.panel === 'computer');
-    h.eq(tab.length, 1, 'the rail should show the Computer tab (' + JSON.stringify(m.tabs) + ')');
-    h.eq(tab[0].selected, 'true', 'the Computer tab is not the selected one');
-    h.assert(tab[0].label.length > 0, 'the Computer tab has no label');
+    h.eq(m.surface.computerShown, true, 'the Computer surface is not the one showing');
+    h.eq(m.surface.chatShown, false, 'the chat is still showing under the Computer');
+    h.eq(m.surface.side, true, 'the library sidebar is missing from the picture');
+    h.eq(m.surface.runbar, true, 'the run bar is missing from the picture');
     h.assert(m.toolbar.length >= 2, 'the toolbar has no buttons (' + JSON.stringify(m.toolbar) + ')');
     h.assert(m.toolbarRect && m.toolbarRect.h > 20, 'the toolbar is not a row (' + JSON.stringify(m.toolbarRect) + ')');
 
@@ -168,11 +175,16 @@ function check(/** @type {any} */ h, /** @type {any} */ m, /** @type {string} */
     h.eq(m.wires.length, 2, 'two wires should be drawn (' + JSON.stringify(m.wires) + ')');
     for (const d of m.wires) h.assert(/^M\s*-?\d/.test(d), 'a wire path has no geometry: "' + d + '"');
 
-    // The frozen layout still holds around the panel. In the `work` width the conversation is
-    // deliberately gone, so only split can ask about it.
-    if (mode === 'split') h.assert(m.messagesRect.w > 280, 'the conversation was squeezed to ' + m.messagesRect.w + ' px');
+    // K1 landing: this used to check the CONVERSATION column beside the panel, which is what the
+    // `split` width was for. The Computer is a full surface and the chat is hidden behind it, so
+    // what the picture must still show is the Computer's own frame: a sidebar you can read, a
+    // canvas that is most of the window, and nothing hanging off the side of the page. `mode` is
+    // now only the label the shot is filed under.
+    void mode;
+    h.assert(m.sideRect && m.sideRect.w > 150, 'the library sidebar is only ' + (m.sideRect && m.sideRect.w) + ' px wide');
+    h.assert(m.canvasRect.w > 400, 'the canvas is only ' + m.canvasRect.w + ' px wide');
     h.assert(m.docScrollX <= m.viewportW, 'the page scrolls sideways (' + m.docScrollX + ' > ' + m.viewportW + ')');
-    h.assert(m.formRect.y + m.formRect.h <= m.viewportH + 1, 'the composer is not inside the viewport');
+    h.assert(m.canvasRect.y + m.canvasRect.h <= m.viewportH + 1, 'the canvas runs off the bottom of the viewport');
 }
 
 async function shoot(/** @type {any} */ h, /** @type {string} */ name) {

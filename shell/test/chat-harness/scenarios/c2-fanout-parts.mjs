@@ -21,8 +21,8 @@ const FARM_ERRORS = [/Failed to load resource/, /net::ERR_/];
 
 /** Fail loudly when this unit's modules were replaced by fakes or skipped. */
 const requireReal = (/** @type {any} */ h) => h.eval(() => {
-    const failed = (window.LolChat && window.LolChat.failed) || {};
-    const missing = ['computer', 'ask'].filter((k) => failed[k]);
+    const failed = (window.LolComputer && window.LolComputer.failed) || {};   // K1: the Computer's own loader
+    const missing = ['host', 'ask'].filter((k) => failed[k]);
     if (missing.length) {
         throw new Error(`C2-U2 needs the REAL modules, but the loader dropped: ${missing.map((k) => `${k} (${failed[k].error})`).join('; ')}`);
     }
@@ -56,7 +56,7 @@ async function open(/** @type {any} */ h) {
     });
     await h.mock.reset();                       // every count below is about the GRAPH
     await h.graph.open();
-    await h.waitFor(() => (window.LolChat.debug.computer.doc().threadId ? true : null));
+    await h.waitFor(() => ((window.LolComputer.debug.computer.doc() || {}).id ? true : null));
 }
 
 /** The live parts, by id — off the DOC, which is where the runner writes value/state/error/fanout.

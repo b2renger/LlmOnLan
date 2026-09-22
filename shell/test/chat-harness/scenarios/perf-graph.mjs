@@ -34,19 +34,20 @@ const FAN_ITEMS = 10000;           // the fan fixture: one part run 10000 times,
 
 const FARM_ERRORS = [/Failed to load resource/, /net::ERR_/];
 
-/** Fail loudly if the panel is faked — every number below would be a lie. */
+/** Fail loudly if the Computer is faked — every number below would be a lie. */
 const requireReal = async (/** @type {any} */ h) => {
     await h.waitFor(() => (window.LolChat && window.LolChat.ready ? true : null));
+    await h.waitFor(() => (window.LolComputer && window.LolComputer.ready ? true : null));
     await h.eval(() => {
-        const failed = (window.LolChat && window.LolChat.failed) || {};
-        if (failed.computer) throw new Error(`perf-graph needs the REAL graph/panel.mjs: ${failed.computer.error}`);
+        const failed = (window.LolComputer && window.LolComputer.failed) || {};
+        if (failed.host) throw new Error(`perf-graph needs the REAL computer/host.mjs: ${failed.host.error}`);
         return true;
     });
 };
 
 /** Everything timed happens INSIDE the page: a CDP round trip is 1-3 ms, the same order as a frame. */
 const measure = (/** @type {any} */ h) => h.eval(async (cfg) => {
-    const dbg = window.LolChat.debug.computer;
+    const dbg = window.LolComputer.debug.computer;
     const session = dbg.session();
     const app = session.app;
     const frame = () => new Promise((done) => requestAnimationFrame(done));
@@ -84,15 +85,15 @@ const measure = (/** @type {any} */ h) => h.eval(async (cfg) => {
     for (let guard = 0; guard < 240; guard++) {
         // eslint-disable-next-line no-await-in-loop
         await frame();
-        painted = document.querySelectorAll('#lolchat .graph-part').length;
-        paths = document.querySelectorAll('#lolchat .graph-wires path').length;
+        painted = document.querySelectorAll('#lolcomputer .graph-part').length;
+        paths = document.querySelectorAll('#lolcomputer .graph-wires path').length;
         if (painted >= cfg.PARTS && paths >= cfg.WIRES) break;
     }
     const buildMs = performance.now() - buildStart;
 
-    const layer = document.querySelector('#lolchat .graph-layer');
-    const svgGroup = document.querySelector('#lolchat .graph-wires g');
-    const firstPaths = Array.from(document.querySelectorAll('#lolchat .graph-wires path'));
+    const layer = document.querySelector('#lolcomputer .graph-layer');
+    const svgGroup = document.querySelector('#lolcomputer .graph-wires g');
+    const firstPaths = Array.from(document.querySelectorAll('#lolcomputer .graph-wires path'));
 
     // ---- pan: 60 frames, one step each --------------------------------------------------------
     dbg.view({ x: 0, y: 0, zoom: 1 });
@@ -119,8 +120,8 @@ const measure = (/** @type {any} */ h) => h.eval(async (cfg) => {
         const sorted = xs.slice().sort((a, b) => a - b);
         return sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * p))];
     };
-    const samePaths = Array.from(document.querySelectorAll('#lolchat .graph-wires path'));
-    const transformed = Array.from(document.querySelectorAll('#lolchat .graph-part'))
+    const samePaths = Array.from(document.querySelectorAll('#lolcomputer .graph-wires path'));
+    const transformed = Array.from(document.querySelectorAll('#lolcomputer .graph-part'))
         .filter((el) => getComputedStyle(el).transform !== 'none').length;
 
     return {
@@ -154,7 +155,7 @@ const measure = (/** @type {any} */ h) => h.eval(async (cfg) => {
  * stretch in which the window could not have answered the reader at all.
  */
 const measureRun = (/** @type {any} */ h) => h.eval(async (cfg) => {
-    const dbg = window.LolChat.debug.computer;
+    const dbg = window.LolComputer.debug.computer;
     const session = dbg.session();
     const app = session.app;
     const frame = () => new Promise((done) => requestAnimationFrame(done));
@@ -183,7 +184,7 @@ const measureRun = (/** @type {any} */ h) => h.eval(async (cfg) => {
     for (let guard = 0; guard < 240; guard++) {
         // eslint-disable-next-line no-await-in-loop
         await frame();
-        painted = document.querySelectorAll('#lolchat .graph-part').length;
+        painted = document.querySelectorAll('#lolcomputer .graph-part').length;
         if (painted >= cfg.RUN_PARTS) break;
     }
 
@@ -202,7 +203,7 @@ const measureRun = (/** @type {any} */ h) => h.eval(async (cfg) => {
     clearInterval(timer);
     await frame();
 
-    const done = Array.from(document.querySelectorAll('#lolchat .graph-part'))
+    const done = Array.from(document.querySelectorAll('#lolcomputer .graph-part'))
         .filter((el) => el.dataset.state === 'done').length;
     return {
         parts: painted,
@@ -224,7 +225,7 @@ const measureRun = (/** @type {any} */ h) => h.eval(async (cfg) => {
  * clicked. `blockMs` — the longest gap between two 10 ms timer ticks — is the whole measurement.
  */
 const measureFan = (/** @type {any} */ h) => h.eval(async (cfg) => {
-    const dbg = window.LolChat.debug.computer;
+    const dbg = window.LolComputer.debug.computer;
     const session = dbg.session();
     const app = session.app;
     const frame = () => new Promise((done) => requestAnimationFrame(done));
@@ -264,7 +265,7 @@ const measureFan = (/** @type {any} */ h) => h.eval(async (cfg) => {
     for (let guard = 0; guard < 120; guard++) {
         // eslint-disable-next-line no-await-in-loop
         await frame();
-        if (document.querySelectorAll('#lolchat .graph-part').length >= 3) break;
+        if (document.querySelectorAll('#lolcomputer .graph-part').length >= 3) break;
     }
 
     let worst = 0;
@@ -284,7 +285,7 @@ const measureFan = (/** @type {any} */ h) => h.eval(async (cfg) => {
     await frame();
 
     const fanned = session.doc().parts.find((p) => p.id === two.id);
-    const badge = document.querySelector('#lolchat .graph-part[data-id="' + two.id + '"] .graph-part-fanout');
+    const badge = document.querySelector('#lolcomputer .graph-part[data-id="' + two.id + '"] .graph-part-fanout');
     return {
         items: fanned && fanned.fanout ? fanned.fanout.n : -1,
         ok: fanned && fanned.fanout ? fanned.fanout.ok : -1,
@@ -311,11 +312,10 @@ export default [
             await requireReal(h);
             await h.submit('a graph with five hundred parts');
             await h.waitReply();
-            const state = await h.workState();
-            if (state.panel !== 'computer') await h.work('computer');
+            await h.view('computer');
             await h.waitFor(() => {
-                const dbg = window.LolChat && window.LolChat.debug && window.LolChat.debug.computer;
-                return dbg && dbg.state().threadId ? true : null;
+                const dbg = window.LolComputer && window.LolComputer.debug && window.LolComputer.debug.computer;
+                return dbg && dbg.state().docId ? true : null;
             }, { timeout: 15000 });
 
             const m = await measure(h);
@@ -349,11 +349,10 @@ export default [
             await requireReal(h);
             await h.submit('a graph with five hundred parts to run');
             await h.waitReply();
-            const state = await h.workState();
-            if (state.panel !== 'computer') await h.work('computer');
+            await h.view('computer');
             await h.waitFor(() => {
-                const dbg = window.LolChat && window.LolChat.debug && window.LolChat.debug.computer;
-                return dbg && dbg.state().threadId ? true : null;
+                const dbg = window.LolComputer && window.LolComputer.debug && window.LolComputer.debug.computer;
+                return dbg && dbg.state().docId ? true : null;
             }, { timeout: 15000 });
 
             const m = await measureRun(h);
@@ -385,11 +384,10 @@ export default [
             await requireReal(h);
             await h.submit('a graph that fans one part over three thousand items');
             await h.waitReply();
-            const state = await h.workState();
-            if (state.panel !== 'computer') await h.work('computer');
+            await h.view('computer');
             await h.waitFor(() => {
-                const dbg = window.LolChat && window.LolChat.debug && window.LolChat.debug.computer;
-                return dbg && dbg.state().threadId ? true : null;
+                const dbg = window.LolComputer && window.LolComputer.debug && window.LolComputer.debug.computer;
+                return dbg && dbg.state().docId ? true : null;
             }, { timeout: 15000 });
 
             const m = await measureFan(h);

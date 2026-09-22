@@ -10,7 +10,7 @@
 //     invariant the 500-part perf scenario then measures;
 //   - that the graph survives a reload and follows the thread it belongs to;
 //   - that a destroyed panel leaves no DOM, no debug door and no listener behind;
-//   - that `API_KEYS.graphDebug` and the live door are the same eighteen names.
+//   - that `API_KEYS.computerDebug` and the live door are the same names (K1: graphDebug + two).
 //
 // Every gesture here is a real PointerEvent on a real element at a real client coordinate: a test
 // that called the debug door for everything would pass with the pointer code deleted.
@@ -22,12 +22,13 @@ const FARM_ERRORS = [/Failed to load resource/, /net::ERR_/];
 /** Fail loudly when the panel is faked or absent — a green run would otherwise mean nothing. */
 const requireReal = async (/** @type {any} */ h) => {
     await h.waitFor(() => (window.LolChat && window.LolChat.ready ? true : null));
+    await h.waitFor(() => (window.LolComputer && window.LolComputer.ready ? true : null));
     await h.eval(() => {
-        const failed = (window.LolChat && window.LolChat.failed) || {};
-        if (failed.computer) throw new Error(`C1-U2 needs the REAL graph/panel.mjs: ${failed.computer.error}`);
-        const app = window.LolChat.app;
-        const ids = app.registry.list(app.SLOTS.WORKBENCH_PANELS).map((/** @type {any} */ p) => p.id);
-        if (ids.indexOf('computer') < 0) throw new Error(`the Computer panel never registered: rail has ${ids.join(',') || '(nothing)'}`);
+        // K1: the Computer is its own surface with its own loader, so "is it real?" is asked of
+        // window.LolComputer, not of a workbench panel that no longer exists.
+        const failed = (window.LolComputer && window.LolComputer.failed) || {};
+        if (failed.host) throw new Error(`C1-U2 needs the REAL computer/host.mjs: ${failed.host.error}`);
+        if (!document.querySelector('#lolcomputer .graph')) throw new Error('the Computer canvas never mounted');
         return true;
     });
 };
@@ -41,29 +42,28 @@ const newThread = async (/** @type {any} */ h, /** @type {string} */ text) => {
 
 /** Open the Computer panel through the rail — WITHOUT toggling it shut when it is already open. */
 const openGraph = async (/** @type {any} */ h) => {
-    const state = await h.workState();
-    if (state.panel !== 'computer') await h.work('computer');
+    await h.view('computer');
     return h.waitFor(() => {
-        const dbg = window.LolChat && window.LolChat.debug && window.LolChat.debug.computer;
+        const dbg = window.LolComputer && window.LolComputer.debug && window.LolComputer.debug.computer;
         if (!dbg) return null;
         const s = dbg.state();
-        return s.threadId ? s : null;
+        return s.docId ? s : null;
     }, { timeout: 15000 });
 };
 
 /** The page-side gesture kit: real PointerEvents at coordinates derived from the live view. */
 const installGestures = (/** @type {any} */ h) => h.eval(() => {
     const g = {
-        canvas: () => document.querySelector('#lolchat .graph-canvas'),
-        view: () => window.LolChat.debug.computer.view(),
+        canvas: () => document.querySelector('#lolcomputer .graph-canvas'),
+        view: () => window.LolComputer.debug.computer.view(),
         /** world point → client point, through the canvas rect and the live pan/zoom */
         client(wx, wy) {
             const r = g.canvas().getBoundingClientRect();
             const v = g.view();
             return { x: r.left + wx * v.zoom + v.x, y: r.top + wy * v.zoom + v.y };
         },
-        part: (id) => document.querySelector(`#lolchat .graph-part[data-id="${id}"]`),
-        port: (id, port, dir) => document.querySelector(`#lolchat .graph-part[data-id="${id}"] .graph-port[data-port="${port}"][data-dir="${dir}"]`),
+        part: (id) => document.querySelector(`#lolcomputer .graph-part[data-id="${id}"]`),
+        port: (id, port, dir) => document.querySelector(`#lolcomputer .graph-part[data-id="${id}"] .graph-port[data-port="${port}"][data-dir="${dir}"]`),
         fire(type, target, pt, opts) {
             const init = Object.assign({
                 bubbles: true, cancelable: true, composed: true, pointerId: 1, isPrimary: true,
@@ -99,7 +99,7 @@ const installGestures = (/** @type {any} */ h) => h.eval(() => {
         },
         /** The midpoint of a wire's DRAWN path, in world units — where a reader would click it. */
         wireMid(index) {
-            const path = document.querySelectorAll('#lolchat .graph-wires path')[index || 0];
+            const path = document.querySelectorAll('#lolcomputer .graph-wires path')[index || 0];
             if (!path) throw new Error('no wire path in the svg');
             const p = path.getPointAtLength(path.getTotalLength() / 2);
             return { x: p.x, y: p.y };
@@ -107,7 +107,7 @@ const installGestures = (/** @type {any} */ h) => h.eval(() => {
         /** Let the canvas's ONE rAF run before reading the picture. */
         frame: () => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))),
         said: () => {
-            const el = document.querySelector('#lolchat .graph-live');
+            const el = document.querySelector('#lolcomputer .graph-live');
             return el ? (el.textContent || '').trim() : '';
         },
     };
@@ -118,11 +118,11 @@ const installGestures = (/** @type {any} */ h) => h.eval(() => {
 /** What the DOM really shows, next to what the model says. */
 const picture = (/** @type {any} */ h) => h.eval(async () => {
     await new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)));
-    const layer = document.querySelector('#lolchat .graph-layer');
-    const svg = document.querySelector('#lolchat .graph-wires');
-    const parts = Array.from(document.querySelectorAll('#lolchat .graph-part'));
+    const layer = document.querySelector('#lolcomputer .graph-layer');
+    const svg = document.querySelector('#lolcomputer .graph-wires');
+    const parts = Array.from(document.querySelectorAll('#lolcomputer .graph-part'));
     return {
-        root: !!document.querySelector('#lolchat .graph'),
+        root: !!document.querySelector('#lolcomputer .graph'),
         parts: parts.length,
         wires: svg ? svg.querySelectorAll('path').length : 0,
         layerTransform: layer ? getComputedStyle(layer).transform : '',
@@ -136,29 +136,15 @@ const picture = (/** @type {any} */ h) => h.eval(async () => {
         }),
         selected: parts.filter((el) => el.getAttribute('aria-selected') === 'true').map((el) => el.dataset.id),
         empty: (() => {
-            const e = document.querySelector('#lolchat .graph-empty');
+            const e = document.querySelector('#lolcomputer .graph-empty');
             return e ? !e.hidden : false;
         })(),
     };
 });
 
 /** Register a second, throwaway panel so switching away DESTROYS the Computer at once (no grace). */
-const installProbe = (/** @type {any} */ h) => h.eval(() => {
-    const app = window.LolChat.app;
-    app.registry.add(app.SLOTS.WORKBENCH_PANELS, {
-        id: 'c1probe',
-        order: 900,
-        label: 'Probe',
-        defaultWidth: 'split',
-        create(host) {
-            const p = document.createElement('p');
-            p.textContent = 'probe';
-            host.appendChild(p);
-            return { show() { }, hide() { }, destroy() { host.replaceChildren(); }, onThread() { } };
-        },
-    });
-    return true;
-});
+// (The `c1probe` workbench panel that used to live here went with c1-canvas-lifecycle's panel
+// half at the K1 landing: there is no panel to switch away FROM any more.)
 
 export default [
     {
@@ -178,8 +164,8 @@ export default [
             h.eq(shot.empty, true, 'an empty graph says so');
 
             // Place through the toolbar's Add menu — the reader's real route.
-            await h.click('#lolchat .graph-add');
-            await h.click('#lolchat .graph-add-item[data-type="note"]');
+            await h.click('#lolcomputer .graph-add');
+            await h.click('#lolcomputer .graph-add-item[data-type="note"]');
             let state = await h.graph.state();
             h.eq(state.parts.length, 1, 'the Add menu placed a Note');
             h.eq(state.parts[0].type, 'note');
@@ -323,7 +309,7 @@ export default [
             // Click the wire at its midpoint — geometry, not a fat invisible second path.
             const hit = await h.eval(async () => {
                 const g = window.__g;
-                const dbg = window.LolChat.debug.computer;
+                const dbg = window.LolComputer.debug.computer;
                 await g.frame();
                 const pt = g.client(g.wireMid(0).x, g.wireMid(0).y);
                 g.fire('pointerdown', g.canvas(), pt);
@@ -332,7 +318,7 @@ export default [
             });
             h.eq(hit.length, 1, 'clicking the wire selected it');
 
-            await h.key('#lolchat .graph-canvas', 'Delete');
+            await h.key('#lolcomputer .graph-canvas', 'Delete');
             let state = await h.graph.state();
             h.eq(state.wires.length, 0, 'Delete removed the selected wire');
             h.eq(state.parts.length, 2, 'and left both parts alone');
@@ -347,7 +333,7 @@ export default [
                 const a = g.client(-40, -40);
                 const b = g.client(900, 400);
                 g.drag(g.canvas(), a, b, { steps: 6 });
-                return window.LolChat.debug.computer.state().selected;
+                return window.LolComputer.debug.computer.state().selected;
             });
             h.eq(selected.length, 2, 'the marquee took both parts');
             h.eq((await picture(h)).selected.length, 2, 'and both boxes show it');
@@ -374,7 +360,7 @@ export default [
                 'one undo puts the whole group back');
             await h.graph.select([note, ask]);
 
-            await h.key('#lolchat .graph-canvas', 'Delete');
+            await h.key('#lolcomputer .graph-canvas', 'Delete');
             state = await h.graph.state();
             h.eq(state.parts.length, 0, 'Delete removed the selection');
             h.eq(state.wires.length, 0, 'and the wire that hung off them');
@@ -408,7 +394,7 @@ export default [
             // wheel pan
             await h.eval(() => { window.__g.wheel({ x: 200, y: 200 }, 120, 80, false); return true; });
             const panned = await h.waitFor((s) => {
-                const v = window.LolChat.debug.computer.view();
+                const v = window.LolComputer.debug.computer.view();
                 return v.x !== s.x ? v : null;
             }, { args: [start] });
             h.eq(panned.x, start.x - 120, 'the wheel panned by exactly its delta');
@@ -418,7 +404,7 @@ export default [
             // ctrl+wheel zoom about the cursor
             await h.eval(() => { window.__g.wheel({ x: 300, y: 150 }, 0, -200, true); return true; });
             const zoomed = await h.waitFor((s) => {
-                const v = window.LolChat.debug.computer.view();
+                const v = window.LolComputer.debug.computer.view();
                 return v.zoom !== s.zoom ? v : null;
             }, { args: [panned] });
             h.assert(zoomed.zoom > panned.zoom, `ctrl+wheel zoomed in: ${zoomed.zoom}`);
@@ -447,7 +433,7 @@ export default [
                 return true;
             });
             const floor = await h.waitFor(() => {
-                const v = window.LolChat.debug.computer.view();
+                const v = window.LolComputer.debug.computer.view();
                 return v.zoom <= 0.26 ? v : null;
             });
             h.eq(floor.zoom, 0.25, 'zoom clamps at the floor instead of vanishing');
@@ -457,9 +443,9 @@ export default [
             h.assert(fitted.zoom > 0.25 && fitted.zoom <= 1, `fit chose a legible zoom: ${fitted.zoom}`);
             const onScreen = await h.eval(async () => {
                 await window.__g.frame();
-                const canvas = document.querySelector('#lolchat .graph-canvas');
+                const canvas = document.querySelector('#lolcomputer .graph-canvas');
                 const r = canvas.getBoundingClientRect();
-                return Array.from(document.querySelectorAll('#lolchat .graph-part')).map((el) => {
+                return Array.from(document.querySelectorAll('#lolcomputer .graph-part')).map((el) => {
                     const b = el.getBoundingClientRect();
                     return {
                         id: el.dataset.id,
@@ -483,7 +469,7 @@ export default [
                 return true;
             });
             const afterPan = await h.waitFor((b) => {
-                const v = window.LolChat.debug.computer.view();
+                const v = window.LolComputer.debug.computer.view();
                 return v.x !== b.x ? v : null;
             }, { args: [beforePan] });
             h.assert(Math.abs(afterPan.x - (beforePan.x + 60)) < 0.5 && Math.abs(afterPan.y - (beforePan.y + 30)) < 0.5,
@@ -517,7 +503,7 @@ export default [
 
             // every part is reachable by keyboard and shows a focus ring
             const focus = await h.eval((id) => {
-                const el = document.querySelector(`#lolchat .graph-part[data-id="${id}"]`);
+                const el = document.querySelector(`#lolcomputer .graph-part[data-id="${id}"]`);
                 el.focus();
                 const style = getComputedStyle(el);
                 const out = {
@@ -545,7 +531,7 @@ export default [
                         Array.from(document.styleSheets).forEach(walk);
                         return found;
                     })(),
-                    selected: window.LolChat.debug.computer.state().selected,
+                    selected: window.LolComputer.debug.computer.state().selected,
                 };
                 out.ring = out.rings.length > 0 && out.rings.every((r) => /\d/.test(r.outline) && r.outline.indexOf('none') < 0);
                 return out;
@@ -557,8 +543,8 @@ export default [
             // rule exists in the stylesheet we load and really paints a ring.
             h.eq(focus.ring, true, `graph.css must give a focused part a visible outline: ${JSON.stringify(focus.rings)}`);
 
-            await h.key(`#lolchat .graph-part[data-id="${note}"]`, 'ArrowRight');
-            await h.key(`#lolchat .graph-part[data-id="${note}"]`, 'ArrowDown');
+            await h.key(`#lolcomputer .graph-part[data-id="${note}"]`, 'ArrowRight');
+            await h.key(`#lolcomputer .graph-part[data-id="${note}"]`, 'ArrowDown');
             let state = await h.graph.state();
             let p = state.parts.find((/** @type {any} */ q) => q.id === note);
             h.eq({ x: p.x, y: p.y }, { x: 110, y: 110 },
@@ -567,14 +553,14 @@ export default [
             const said = await h.eval(() => window.__g.said());
             h.assert(said.length > 0, 'and the live region said so');
 
-            await h.key(`#lolchat .graph-part[data-id="${note}"]`, 'ArrowLeft', { shift: true });
+            await h.key(`#lolcomputer .graph-part[data-id="${note}"]`, 'ArrowLeft', { shift: true });
             state = await h.graph.state();
             p = state.parts.find((/** @type {any} */ q) => q.id === note);
             h.eq(p.x, 109, 'shift+arrow is the one-pixel nudge');
 
             // typing in a Note must not be eaten by the canvas shortcuts
             const typed = await h.eval((id) => {
-                const area = document.querySelector(`#lolchat .graph-part[data-id="${id}"] textarea`);
+                const area = document.querySelector(`#lolcomputer .graph-part[data-id="${id}"] textarea`);
                 if (!area) throw new Error('the Note part has no textarea to type in');
                 area.focus();
                 const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value');
@@ -582,7 +568,7 @@ export default [
                 area.dispatchEvent(new Event('input', { bubbles: true }));
                 area.dispatchEvent(new KeyboardEvent('keydown', { key: 'f', bubbles: true, cancelable: true }));
                 area.dispatchEvent(new KeyboardEvent('keydown', { key: 'Delete', bubbles: true, cancelable: true }));
-                return { value: area.value, parts: window.LolChat.debug.computer.state().parts.length };
+                return { value: area.value, parts: window.LolComputer.debug.computer.state().parts.length };
             }, note);
             h.eq(typed.parts, 2, 'Delete inside a textarea must not delete the part');
             h.eq(typed.value, 'ffff');
@@ -591,24 +577,24 @@ export default [
 
             // select all → copy → paste
             const clip = await h.eval(() => {
-                const canvas = document.querySelector('#lolchat .graph-canvas');
+                const canvas = document.querySelector('#lolcomputer .graph-canvas');
                 canvas.focus();
                 canvas.dispatchEvent(new KeyboardEvent('keydown', { key: 'a', ctrlKey: true, bubbles: true, cancelable: true }));
                 const dt = new DataTransfer();
                 const ev = new ClipboardEvent('copy', { clipboardData: dt, bubbles: true, cancelable: true });
                 canvas.dispatchEvent(ev);
-                return { text: dt.getData('text/plain'), selected: window.LolChat.debug.computer.state().selected.length };
+                return { text: dt.getData('text/plain'), selected: window.LolComputer.debug.computer.state().selected.length };
             });
             h.eq(clip.selected, 2, 'ctrl+a selected every part');
             h.assert(clip.text.indexOf('"lolgraph":1') > 0, `copy put our format on the clipboard: ${clip.text.slice(0, 60)}`);
             h.assert(clip.text.indexOf('ffff') > 0, 'including the settings the reader typed');
 
             const pasted = await h.eval((text) => {
-                const canvas = document.querySelector('#lolchat .graph-canvas');
+                const canvas = document.querySelector('#lolcomputer .graph-canvas');
                 const dt = new DataTransfer();
                 dt.setData('text/plain', text);
                 canvas.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }));
-                return window.LolChat.debug.computer.state();
+                return window.LolComputer.debug.computer.state();
             }, clip.text);
             h.eq(pasted.parts.length, 4, 'paste added a copy of the selection');
             h.eq(pasted.wires.length, 2, 'and re-made the wire between the copies');
@@ -621,12 +607,12 @@ export default [
 
             // pasting something that is not ours changes nothing
             const untouched = await h.eval(() => {
-                const canvas = document.querySelector('#lolchat .graph-canvas');
+                const canvas = document.querySelector('#lolcomputer .graph-canvas');
                 const dt = new DataTransfer();
                 dt.setData('text/plain', 'just some text a reader copied from a chat');
                 const ev = new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true });
                 canvas.dispatchEvent(ev);
-                return { parts: window.LolChat.debug.computer.state().parts.length, prevented: ev.defaultPrevented };
+                return { parts: window.LolComputer.debug.computer.state().parts.length, prevented: ev.defaultPrevented };
             });
             h.eq(untouched.parts, 4, 'a foreign clipboard is left alone');
             h.eq(untouched.prevented, false, 'and the event is not swallowed');
@@ -637,70 +623,79 @@ export default [
         name: 'c1-canvas-lifecycle',
         needsMock: true,
         allowConsoleErrors: FARM_ERRORS,
-        // The panel follows the thread, and a destroyed panel leaves nothing behind.
+        // AMENDED AT THE K1 LANDING (COMPUTER_PLAN §3.7). This used to read "the panel follows the
+        // thread, and a destroyed panel leaves nothing behind". Both halves were about a workbench
+        // panel that no longer exists: a graph belongs to a LIBRARY DOCUMENT now, and the surface
+        // is never destroyed — it is hidden. The two facts worth keeping, re-expressed:
+        //   1. two documents keep their own parts, and opening one repaints the canvas as its own;
+        //   2. hiding the surface and showing it again leaves the canvas whole, with no second
+        //      canvas, no lost listener and the same document open.
         run: async (h) => {
             await requireReal(h);
-            await installProbe(h);
-            const first = await newThread(h, 'thread one');
+            await newThread(h, 'a thread that owns nothing now');
             await openGraph(h);
+
+            const first = await h.graph.call('docId');
+            h.assert(!!first, 'the Computer opened a document of its own');
             const note = await h.graph.place('note', 60, 60);
-            h.assert(!!note, 'placed a part in the first thread');
+            h.assert(!!note, 'placed a part in the first document');
             await h.graph.save();
 
-            // A second thread gets its OWN, empty graph.
-            const second = await newThread(h, 'thread two');
-            h.assert(second !== first, 'a new thread');
-            await openGraph(h);
+            // A second document starts EMPTY — it is not a view of the first.
+            const second = await h.eval(async () => {
+                const dbg = window.LolComputer.debug.computer;
+                const row = await window.LolComputer.app.host.store.create({ title: 'the second document' });
+                await dbg.open(row.id);
+                return row.id;
+            });
+            h.assert(second !== first, 'a second library document');
             let state = await h.waitFor((id) => {
-                const s = window.LolChat.debug.computer.state();
-                return s.threadId === id ? s : null;
+                const s = window.LolComputer.debug.computer.state();
+                return s.docId === id ? s : null;
             }, { args: [second], timeout: 15000 });
-            h.eq(state.parts.length, 0, "a new thread starts with an empty canvas, not the other thread's");
-            const noteTwo = await h.graph.place('ask', 200, 200);
+            h.eq(state.parts.length, 0, "a new document starts with an empty canvas, not the other document's");
+            const askTwo = await h.graph.place('ask', 200, 200);
             await h.graph.save();
+            h.eq((await picture(h)).parts, 1, 'and the canvas painted the new document, not the old one');
 
-            // …and going back brings the first one's graph back.
-            await h.eval((id) => window.LolChat.app.controller.selectThread(id), first);
+            // …and opening the first one again brings ITS graph back.
+            await h.eval((id) => window.LolComputer.debug.computer.open(id), first);
             state = await h.waitFor((id) => {
-                const s = window.LolChat.debug.computer.state();
-                return s.threadId === id ? s : null;
+                const s = window.LolComputer.debug.computer.state();
+                return s.docId === id ? s : null;
             }, { args: [first], timeout: 15000 });
-            h.eq(state.parts.length, 1, 'the first thread kept its own graph');
+            h.eq(state.parts.length, 1, 'the first document kept its own graph');
             h.eq(state.parts[0].id, note);
             h.eq(state.parts[0].type, 'note');
             h.eq((await picture(h)).parts, 1, 'and the canvas repainted it');
-            h.assert(noteTwo !== note, 'the two graphs are different documents');
+            h.assert(askTwo !== note, 'the two graphs are different documents');
 
-            // Switching to another panel destroys this one at once — and it leaves nothing.
-            await h.work('c1probe');
-            const gone = await h.waitFor(() => {
-                const dbg = window.LolChat.debug || {};
-                return dbg.computer === undefined ? {
-                    roots: document.querySelectorAll('#lolchat .graph').length,
-                    parts: document.querySelectorAll('#lolchat .graph-part').length,
-                } : null;
-            });
-            h.eq(gone.roots, 0, 'the destroyed panel took its DOM with it');
-            h.eq(gone.parts, 0, 'including every part box');
-
-            // Nothing it left behind still listens.
-            const quiet = await h.eval(() => {
+            // Hiding the surface does NOT destroy it (§2.2: the canvas is never torn down), and
+            // keys that land while it is hidden reach nothing and throw nothing.
+            await h.view('chat');
+            const hidden = await h.eval(() => {
                 document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Delete', bubbles: true, cancelable: true }));
                 document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'f', bubbles: true, cancelable: true }));
-                return true;
+                return {
+                    roots: document.querySelectorAll('#lolcomputer .graph').length,
+                    parts: document.querySelectorAll('#lolcomputer .graph-part').length,
+                    door: !!(window.LolComputer.debug && window.LolComputer.debug.computer),
+                };
             });
-            h.eq(quiet, true, 'keys after a destroy reach nothing and throw nothing');
+            h.eq(hidden.door, true, 'the debug door survives being hidden');
+            h.eq(hidden.parts, 1, 'and so does the part box — hidden is not destroyed');
 
-            // Coming back re-creates it from the store, unchanged.
-            await h.work('computer');
+            // Coming back shows the same document, and exactly one canvas.
+            await h.view('computer');
             const back = await h.waitFor((id) => {
-                const dbg = window.LolChat.debug && window.LolChat.debug.computer;
+                const dbg = window.LolComputer.debug && window.LolComputer.debug.computer;
                 if (!dbg) return null;
                 const s = dbg.state();
-                return s.threadId === id ? s : null;
+                return s.docId === id ? s : null;
             }, { args: [first], timeout: 15000 });
-            h.eq(back.parts.length, 1, 'the graph came back from the store');
+            h.eq(back.parts.length, 1, 'the same document is still open');
             h.eq(back.parts[0].id, note);
+            h.eq(hidden.roots, 1, 'there is one canvas, not a second one mounted on the way back');
         },
     },
 
@@ -715,11 +710,12 @@ export default [
             await newThread(h, 'graph contract');
             await openGraph(h);
 
-            const got = await h.eval(() => Object.keys(window.LolChat.debug.computer).sort());
-            h.eq(got, [...API_KEYS.graphDebug].sort(), 'the debug door is exactly the frozen key list (BG-9)');
+            const got = await h.eval(() => Object.keys(window.LolComputer.debug.computer).sort());
+            h.eq(got, [...API_KEYS.computerDebug].sort(),
+                'the debug door is exactly the frozen key list (BG-9, extended by K1 with docId + open)');
 
             const dom = await h.eval(() => {
-                const root = document.querySelector('#lolchat .graph');
+                const root = document.querySelector('#lolcomputer .graph');
                 const canvas = root.querySelector('.graph-canvas');
                 const svg = canvas.querySelector('.graph-wires');
                 const layer = canvas.querySelector('.graph-layer');
@@ -753,9 +749,9 @@ export default [
             for (const state of states) {
                 // eslint-disable-next-line no-await-in-loop
                 const row = await h.eval((args) => {
-                    const dbg = window.LolChat.debug.computer;
+                    const dbg = window.LolComputer.debug.computer;
                     dbg.session().patchPart(args.id, { state: args.state });
-                    const el = document.querySelector(`#lolchat .graph-part[data-id="${args.id}"]`);
+                    const el = document.querySelector(`#lolcomputer .graph-part[data-id="${args.id}"]`);
                     const dot = el.querySelector('.graph-dot');
                     const label = el.querySelector('.graph-state-label');
                     return {
@@ -775,9 +771,9 @@ export default [
 
             // a value preview is a button that opens the value
             const shown = await h.eval((partId) => {
-                const dbg = window.LolChat.debug.computer;
+                const dbg = window.LolComputer.debug.computer;
                 dbg.session().patchPart(partId, { state: 'done', value: { kind: 'text', data: 'the answer' } });
-                const el = document.querySelector(`#lolchat .graph-part[data-id="${partId}"] .graph-value`);
+                const el = document.querySelector(`#lolcomputer .graph-part[data-id="${partId}"] .graph-value`);
                 return { hidden: el.hidden, text: el.textContent, tag: el.tagName };
             }, id);
             h.eq(shown.hidden, false, 'a done part shows its value');

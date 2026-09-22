@@ -8,7 +8,7 @@
 // governor really hands the seat to a human who starts typing. So every assertion here counts POSTs
 // in the mock's log or reads their bodies — never "it eventually returned something".
 //
-// The graph is driven through `window.LolChat.debug.computer` (h.graph), which BG-9 freezes as the
+// The graph is driven through `window.LolComputer.debug.computer` (h.graph), which BG-9 freezes as the
 // door a scenario uses. The CANVAS (what is painted for each of those parts) is C1-U2's
 // scenarios/c1-canvas.mjs; the part BODIES are unit-tested against the runner's DOM shim.
 
@@ -19,12 +19,13 @@ const FARM_ERRORS = [/Failed to load resource/, /net::ERR_/];
 
 /** Fail loudly when this unit's modules were replaced by fakes or skipped. */
 const requireReal = (/** @type {any} */ h) => h.eval(() => {
-    const failed = (window.LolChat && window.LolChat.failed) || {};
-    const missing = ['computer', 'ask'].filter((k) => failed[k]);
+    // K1: the graph's modules are loaded by the COMPUTER's loader now, not the chat's.
+    const failed = (window.LolComputer && window.LolComputer.failed) || {};
+    const missing = ['host', 'ask'].filter((k) => failed[k]);
     if (missing.length) {
         throw new Error(`C1-U3 needs the REAL modules, but the loader dropped: ${missing.map((k) => `${k} (${failed[k].error})`).join('; ')}`);
     }
-    if (!window.LolChat.app.ask) throw new Error('app.ask was never published');
+    if (!window.LolComputer.app.ask) throw new Error('the Computer app.ask was never published');
     return true;
 });
 
@@ -68,10 +69,10 @@ async function open(/** @type {any} */ h) {
     });
     await h.mock.reset();                       // every count below is about the GRAPH
     const state = await h.graph.open();
-    h.eq(state.panel, 'computer', 'the Computer panel is the one the rail opened');
+    h.eq(state.computer, true, 'the Computer panel is the one the rail opened');
     // attach() is async: the panel has no graph — and refuses to place — until this thread's
     // document has been loaded or created.
-    await h.waitFor(() => (window.LolChat.debug.computer.doc().threadId ? true : null));
+    await h.waitFor(() => ((window.LolComputer.debug.computer.doc() || {}).id ? true : null));
     return state;
 }
 
@@ -111,7 +112,7 @@ async function waitForPost(/** @type {any} */ h, /** @type {string} */ model) {
 
 /** Start a run WITHOUT awaiting it (so the scenario can interrupt it), then await it later. */
 const startRun = (/** @type {any} */ h) => h.eval(() => {
-    /** @type {any} */ (window).__c1run = window.LolChat.debug.computer.run();
+    /** @type {any} */ (window).__c1run = window.LolComputer.debug.computer.run();
     return true;
 });
 const awaitRun = (/** @type {any} */ h) => h.eval(() => /** @type {any} */ (window).__c1run);
@@ -291,7 +292,17 @@ export default [
             h.eq(report.errors.length, 0, 'a yield is not a failure');
             h.eq(report.cancelled, false, 'and it was not the reader pressing Stop');
 
-            const graphPosts = await posts(h, 'mock-slow');
+            // `closedEarly` is the MOCK's own observation, made when the server sees the socket
+            // close — which happens a tick or two after the client aborts. Reading the log once,
+            // straight after the run's promise settles, is a race the scenario loses whenever the
+            // machine is quick (measured at the K1 landing: 2 runs in 3 failed at ~3.9 s and the
+            // one that passed took 7.8 s). The GUARANTEE is unchanged — exactly one attempt, and
+            // the governor cut it — only the observation now waits for the server to notice.
+            let graphPosts = await posts(h, 'mock-slow');
+            for (let i = 0; i < 60 && !(graphPosts[0] && graphPosts[0].closedEarly); i++) {
+                await h.sleep(50);
+                graphPosts = await posts(h, 'mock-slow');
+            }
             h.eq(graphPosts.length, 1, 'the graph made exactly one attempt');
             h.eq(graphPosts[0].closedEarly, true, 'which the governor cut the moment Send was pressed');
 

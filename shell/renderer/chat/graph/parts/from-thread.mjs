@@ -16,10 +16,19 @@
 //   - the message carries no text          parts.errEmptyMessage
 // Images are deliberately NOT pulled here: P3's attachment intake has not landed, so `Look` and
 // image values are deferred out of C2 (BH-10). This part answers `text`.
+//
+// LEGACY AT K1 (COMPUTER_PLAN §3.2, §11 K1-U3). The Computer is its own surface now and has no
+// conversation to read, so this part is out of `partSpecs()`'s palette — you cannot place a new
+// one — and stays in `specMap()` only so a MIGRATED graph that already contains one opens instead
+// of tripping `part:unknown-type`. It therefore has to explain itself on the canvas: a `legacy`
+// badge with the one sentence that says what to do about it. The refusal in run() is unchanged
+// (`parts.errNoThread`) — it was already the right sentence, and the chat panel still has threads
+// until the K1 landing deletes it.
 
 import { valueOf } from '../values.mjs';
 import { t } from '../../core/i18n.mjs';
 import { pickerRow, setPicked, partFail } from './common.mjs';
+import '../../strings/computer.en.mjs';
 
 /** @typedef {import('../../core/types.mjs').PartSpec} PartSpec */
 
@@ -118,7 +127,17 @@ export const fromThread = /** @type {any} */ ({
     hint.className = 'graph-part-note';
     hint.textContent = t('parts.fromThreadHint');
 
-    host.replaceChildren(source, chooser, hint);
+    // The legacy strip (K1-U3). `.graph-part-error` is the already-styled "this cannot run, here
+    // is why" strip — which is exactly what this is, permanently, on the standalone surface.
+    const legacy = document.createElement('p');
+    legacy.className = 'graph-part-error graph-part-legacy';
+    const tag = document.createElement('strong');
+    tag.textContent = t('computer.legacyBadge');
+    const why = document.createElement('span');
+    why.textContent = ` ${t('computer.legacyNoThread')}`;
+    legacy.append(tag, why);
+
+    host.replaceChildren(legacy, source, chooser, hint);
 
     /** Fill the chooser from the thread the reader is actually on. */
     async function load() {

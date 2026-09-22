@@ -11,14 +11,27 @@
   <link rel="stylesheet" href="../../renderer/tokens.css" />
   <link rel="stylesheet" href="../../renderer/styles.css" />
   <link rel="stylesheet" href="../../renderer/chat/chat.css" />
+  <link rel="stylesheet" href="../../renderer/chat/computer/computer.css" />
 </head>
 <body>
-  <main class="main"><section id="lolchat"><p class="chat-fallback">LOL Chat failed to load</p></section></main>
+  <!-- Two surfaces, mirroring index.html (K1, COMPUTER_PLAN §2.1). `class="chat-layer"` on
+       #lolcomputer is LOAD-BEARING: css/base.css:37 publishes `.chat-layer .hidden` and without it
+       nothing inside the Computer honours `.hidden`.
+       There is NO topbar, no .viewseg and no <webview> here, and app.js is never loaded — only the
+       publishFarm slice in generated/app-bridge.js. So h.view() flips the two section classes by
+       hand; the segmented control, aria-pressed, the webview's survival and
+       localStorage['lol:view'] are RIG items (§13), not harness assertions. -->
+  <main class="main">
+    <section id="lolchat"><p class="chat-fallback">LOL Chat failed to load</p></section>
+    <section id="lolcomputer" class="chat-layer hidden"><p class="chat-fallback">The Computer failed to load</p></section>
+  </main>
   <!-- Order matters and mirrors index.html: classic scripts first (the bridge, then the extracted
-       app.js slice), the ES module last — it is deferred, so window.__lolChatTestFlags is already
-       set when chat/main.mjs runs. -->
+       app.js slice), the ES modules last — they are deferred, so window.__lolChatTestFlags is
+       already set when chat/main.mjs runs, and chat/main.mjs evaluates before computer/main.mjs
+       (which waits on the chat's spine). -->
   <script src="harness-bridge.js"></script>
   <script src="generated/app-bridge.js"></script>
   <script type="module" src="../../renderer/chat/main.mjs"></script>
+  <script type="module" src="../../renderer/chat/computer/main.mjs"></script>
 </body>
 </html>

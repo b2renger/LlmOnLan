@@ -178,12 +178,9 @@ registerStrings('parts', {
   errFileNoProjects: 'This build cannot reach the project folder, so nothing was written.',
   errFileWrite: 'The file was not written: {message}',
 
-  // C3-U2's own keys. `codeSend*` is the bridge from the conversation (a JavaScript fence becomes
-  // a Code part); `codeLine*` is the editor pointing at the line that broke.
-  codeSend: 'Send to the Computer',
-  codeSendTitle: 'Open the Computer with this code in a Code part',
-  codeSent: 'Added to the Computer as a Code part.',
-  codeSendFailed: 'The Computer could not take that code.',
+  // C3-U2's own keys. The four `codeSend*` keys went out at the K1 landing with the chat-fence
+  // bridge (COMPUTER_PLAN §3.2): the Computer is a surface now, not a panel inside a conversation.
+  // `codeLine*` is the editor pointing at the line that broke, and stays.
   codeLineChip: 'Line {line}',
   codeLineTitle: 'Show the line that failed',
   renderNothingYet: 'Nothing drawn yet. Run to draw it.',

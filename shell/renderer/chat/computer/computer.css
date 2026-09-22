@@ -1,0 +1,26 @@
+/* computer.css — the Computer surface's entry sheet (integrator-owned: @imports, NOTHING else).
+   COMPUTER_PLAN §3.6. One stylesheet per unit; a unit REPLACES its own sheet wholesale and never
+   touches this file or another unit's.
+
+   It deliberately does NOT import chat.css: the composer/thread/sidebar rules are dead weight
+   here. The three sheets the Computer shares with the chat — css/base.css (the `.chat-layer`
+   escape hatch, `.hidden`, the buttons), css/graph.css (the canvas, re-scoped to
+   `:is(#lolchat, #lolcomputer)` at the K1 kickoff) and css/sandbox.css (no #lolchat selectors at
+   all) — are already loaded by chat.css's <link> in index.html and the harness page, once.
+
+   Each file below is a kickoff stub until its unit lands; the @import must exist from the start,
+   because a 404 on an @import is a console network error and would fail every harness scenario. */
+
+/* K1, integrator: the kind colours, sticky tints, radii, the grid. */
+@import url('../css/computer-tokens.css');
+/* K1, integrator: #lolcomputer, .comp-side, .comp-main, .comp-drawer layout. */
+@import url('../css/computer-shell.css');
+/* K1-U2 */
+@import url('../css/computer-library.css');
+/* K1-U3, extended by K3-U3 */
+@import url('../css/computer-runbar.css');
+/* K1-U3, extended by K2-U3 */
+@import url('../css/computer-drawer.css');
+/* K2-U3, K3-U2/U3, K4-U2/U3 and K5-U1 add their own @import lines at their kickoffs:
+   computer-transcript.css, computer-parts.css, computer-states.css, computer-look.css,
+   computer-rail.css. */

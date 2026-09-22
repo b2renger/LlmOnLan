@@ -15,10 +15,15 @@
 // It has NO output (`output: null`), which is the one case where run() may resolve to null (BH-6):
 // posting is the effect, and inventing a value to satisfy the runner would put a copy of the
 // message on the canvas as if it were a result.
+//
+// LEGACY AT K1 (COMPUTER_PLAN §3.2, §11 K1-U3): same demotion as From thread — out of the palette,
+// still in `specMap()` for migrated graphs, a `legacy` badge that says what to do about it, and
+// `run()`'s existing one-sentence refusal when there is no conversation to post into.
 
 import { t } from '../../core/i18n.mjs';
 import { EV } from '../../core/events.mjs';
 import { textOf, pickerRow, partFail } from './common.mjs';
+import '../../strings/computer.en.mjs';
 
 /** @typedef {import('../../core/types.mjs').PartSpec} PartSpec */
 
@@ -91,7 +96,17 @@ export const toThread = /** @type {any} */ ({
     const note = document.createElement('p');
     note.className = 'graph-part-note';
 
-    host.replaceChildren(role, prefix.row, note);
+    // The legacy strip (K1-U3) — see the header. `.graph-part-note` keeps saying what the part
+    // does; this says why it no longer can.
+    const legacy = document.createElement('p');
+    legacy.className = 'graph-part-error graph-part-legacy';
+    const tag = document.createElement('strong');
+    tag.textContent = t('computer.legacyBadge');
+    const why = document.createElement('span');
+    why.textContent = ` ${t('computer.legacyNoThread')}`;
+    legacy.append(tag, why);
+
+    host.replaceChildren(legacy, role, prefix.row, note);
 
     /** The one thing this part can say about itself: whether it has posted yet. @param {any} p */
     function paint(p) { note.textContent = p.state === 'done' ? t('parts.toThreadPosted') : t('parts.toThreadHint'); }

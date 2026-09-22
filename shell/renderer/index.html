@@ -12,6 +12,7 @@
   <link rel="stylesheet" href="tokens.css" />
   <link rel="stylesheet" href="styles.css" />
   <link rel="stylesheet" href="chat/chat.css" />
+  <link rel="stylesheet" href="chat/computer/computer.css" />
 </head>
 <body>
   <!-- topbar: logo · connection status · theme toggle · settings gear -->
@@ -27,7 +28,14 @@
         <span class="dot idle" id="status-dot"></span>
         <span id="status-text">Starting…</span>
       </button>
-      <button class="viewtoggle" id="view-toggle" title="Switch between Open WebUI and LOL Chat">Open WebUI</button>
+      <!-- Three surfaces since K1 (docs/COMPUTER_PLAN.md §2.1). Every button carries data-view;
+           app.js's switch reads that attribute and nothing else, so adding a fourth surface is a
+           button plus a section. -->
+      <div class="viewseg" id="view-seg" role="group" aria-label="Surface">
+        <button class="viewseg-btn" id="view-owui" data-view="owui" aria-pressed="true">Open WebUI</button>
+        <button class="viewseg-btn" id="view-chat" data-view="chat" aria-pressed="false">LOL Chat</button>
+        <button class="viewseg-btn" id="view-computer" data-view="computer" aria-pressed="false">Computer</button>
+      </div>
       <button class="icon-btn" id="theme-toggle" title="Toggle theme" aria-label="Toggle theme">
         <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
         <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
@@ -187,11 +195,21 @@
     <section id="lolchat" class="hidden">
       <p class="chat-fallback">LOL Chat failed to load — see the developer console.</p>
     </section>
+
+    <!-- The Computer: the third surface (docs/COMPUTER_PLAN.md §2.1). `class="chat-layer"` is
+         LOAD-BEARING, not decoration: css/base.css:19,20,37 publish the shared primitives and,
+         critically, `.chat-layer .hidden { display:none !important }` under that class. Without
+         it nothing inside this section honours `.hidden`. The skeleton DOM is built at runtime by
+         chat/computer/layout.mjs. -->
+    <section id="lolcomputer" class="chat-layer hidden">
+      <p class="chat-fallback">The Computer failed to load — see the developer console.</p>
+    </section>
   </div>
 
   <div class="toast" id="toast"></div>
 
   <script src="app.js"></script>
   <script type="module" src="chat/main.mjs"></script>
+  <script type="module" src="chat/computer/main.mjs"></script>
 </body>
 </html>

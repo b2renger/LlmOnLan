@@ -23,8 +23,8 @@ const ITEMS = ['apple', 'banana', 'cherry', 'pear', 'plum'];
 
 /** Fail loudly when this unit's modules were replaced by fakes or skipped. */
 const requireReal = (/** @type {any} */ h) => h.eval(() => {
-    const failed = (window.LolChat && window.LolChat.failed) || {};
-    const missing = ['computer', 'ask'].filter((k) => failed[k]);
+    const failed = (window.LolComputer && window.LolComputer.failed) || {};   // K1: the Computer's own loader
+    const missing = ['host', 'ask'].filter((k) => failed[k]);
     if (missing.length) {
         throw new Error(`C2-U1 needs the REAL modules, but the loader dropped: ${missing.map((k) => `${k} (${failed[k].error})`).join('; ')}`);
     }
@@ -76,8 +76,8 @@ async function open(/** @type {any} */ h) {
     });
     await h.mock.reset();                       // every count below is about the GRAPH
     const state = await h.graph.open();
-    h.eq(state.panel, 'computer', 'the Computer panel is the one the rail opened');
-    await h.waitFor(() => (window.LolChat.debug.computer.doc().threadId ? true : null));
+    h.eq(state.computer, true, 'the Computer panel is the one the rail opened');
+    await h.waitFor(() => ((window.LolComputer.debug.computer.doc() || {}).id ? true : null));
 }
 
 /**
@@ -126,7 +126,7 @@ async function waitForPosts(/** @type {any} */ h, /** @type {string} */ model, /
 
 /** Start a run WITHOUT awaiting it (so the scenario can interrupt it), then await it later. */
 const startRun = (/** @type {any} */ h) => h.eval(() => {
-    /** @type {any} */ (window).__c2run = window.LolChat.debug.computer.run();
+    /** @type {any} */ (window).__c2run = window.LolComputer.debug.computer.run();
     return true;
 });
 const awaitRun = (/** @type {any} */ h) => h.eval(() => /** @type {any} */ (window).__c2run);

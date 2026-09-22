@@ -274,7 +274,9 @@ export function pickImportFile(o = {}) {
   return new Promise((resolve) => {
     const input = /** @type {HTMLInputElement} */ (h('input'));
     input.type = 'file';
-    input.accept = '.json,.lolchat.json,application/json';
+    // `.lolgraph.json` joins the list at K1 (COMPUTER_PLAN §7.6): the Computer's library imports
+    // graph files through this same picker, and without it the OS dialog greys them out.
+    input.accept = '.json,.lolchat.json,.lolgraph.json,application/json';
     input.style.display = 'none';
     document.body.appendChild(input);
 

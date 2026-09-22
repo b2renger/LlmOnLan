@@ -92,11 +92,16 @@ export default (test) => {
 
   test('the catalogue is exactly the shipped parts, each a complete PartSpec', () => {
     // C3 kickoff (plan §2.6 BJ, amending BH-1): the catalogue is the ONE place a part type
-    // exists, and it now holds C1's three, C2's five and C3's three, in palette order. Image and
-    // Look still wait on P3's attachment intake (BH-10).
+    // exists. K1 landing (COMPUTER_PLAN §3.2) DEMOTES two of them: `from-thread` and `to-thread`
+    // move out of `partSpecs()` — the palette a reader picks from — and stay in `specMap()`, the
+    // set the engine can LOAD, so a graph migrated out of an old chat still opens. Nine in the
+    // palette; eleven loadable. Image and Look still wait on P3's attachment intake (BH-10).
     assert.deepEqual(partSpecs().map((s) => s.type),
-      ['note', 'from-thread', 'ask', 'split', 'repeat', 'filter', 'code', 'collect', 'render', 'file', 'to-thread']);
-    for (const spec of partSpecs()) {
+      ['note', 'ask', 'split', 'repeat', 'filter', 'code', 'collect', 'render', 'file']);
+    assert.deepEqual([...specMap().keys()].sort(),
+      ['ask', 'code', 'collect', 'file', 'filter', 'from-thread', 'note', 'render', 'repeat', 'split', 'to-thread'],
+      'a legacy part left specMap() too — a migrated graph would trip part:unknown-type');
+    for (const spec of [...specMap().values()]) {
       assert.equal(typeof spec.label, 'string', `${spec.type} has a resolved label`);
       assert.notEqual(spec.label, '', `${spec.type}'s label is not empty`);
       assert.ok(Array.isArray(spec.inputs), `${spec.type} declares inputs`);
@@ -107,8 +112,9 @@ export default (test) => {
     }
     // `thinks` is what the cap counts (BG-5). Ask always generates; Filter does in model mode.
     assert.deepEqual(partSpecs().filter((s) => s.thinks).map((s) => s.type), ['ask', 'filter']);
-    // Exactly one part has no output: To thread, whose result IS the conversation (BH-6).
-    assert.deepEqual(partSpecs().filter((s) => s.output === null).map((s) => s.type), ['to-thread']);
+    // Exactly one part has no output: To thread, whose result WAS the conversation (BH-6) and is
+    // now a legacy part that refuses — it is reachable through specMap(), never the palette.
+    assert.deepEqual([...specMap().values()].filter((s) => s.output === null).map((s) => s.type), ['to-thread']);
   });
 
   // ---- values --------------------------------------------------------------------------------

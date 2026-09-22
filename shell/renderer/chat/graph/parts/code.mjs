@@ -4,12 +4,9 @@
 // belong: a model that sorts forty items is forty chances to drop one, and it costs a generation.
 //
 // What this file owns:
-//   - the PART: ports that take a list WHOLE (BJ-9), the plain-value boundary in both directions,
-//     an editor, and a failure that says WHICH LINE broke;
-//   - the BRIDGE from the conversation: a `code.decorators` button on every JavaScript fence and a
-//     `message.actions` entry, both of which drop that code into a new Code part. Registered by
-//     `installCodeBridge(app, {place})` — it needs a way to PUT a part on the canvas, which only
-//     the Computer panel has, so the panel passes one in (contract request at the C3 landing).
+//   - the PART, and only the PART: ports that take a list WHOLE (BJ-9), the plain-value boundary in
+//     both directions, an editor, and a failure that says WHICH LINE broke. The bridge from the
+//     conversation went out at the K1 landing with the panel that placed its parts (see below).
 //
 // The line number is the one piece of state that does not fit the frozen runtime fields
 // (value/state/error/stats/fanout are the whole of what a part may write, BG-5). It is a render
@@ -149,147 +146,15 @@ export function codeFailure(error, code, listArrived) {
 }
 
 // ---------------------------------------------------------------------------------------------
-// the bridge from the conversation: a fence becomes a Code part
+// THE BRIDGE FROM THE CONVERSATION IS GONE (K1 landing, COMPUTER_PLAN §3.2).
 // ---------------------------------------------------------------------------------------------
-
-/** The registry id both affordances share: one feature, one identity, one unregister. */
-const BRIDGE_ID = 'code-to-computer';
-
-/** Fences we offer the button on. A `js` fence is the obvious one; `json` is data, not code. */
-const JS_LANGS = new Set(['js', 'jsx', 'javascript', 'mjs', 'node', 'ts', 'typescript']);
-
-/** @param {string} lang @param {string} code @returns {boolean} */
-export function looksLikeJs(lang, code) {
-  const l = String(lang || '').toLowerCase();
-  if (JS_LANGS.has(l)) return true;
-  if (l) return false;
-  // An unlabelled fence: only offer it when it reads like a program rather than like output.
-  const body = String(code || '');
-  return /\b(?:function|const|let|var|return)\b/.test(body) && body.trim().length > 12;
-}
-
-/**
- * The model writes `const total = rows.reduce(...)`; this turns it into something that RUNS over
- * the graph's values. A fence rarely ends in a `return`, so one is offered when there is none —
- * the reader sees the edit in the editor and owns it from there.
- * @param {string} code @returns {string}
- */
-export function codeFromFence(code) {
-  const body = String(code || '').replace(/\r\n?/g, '\n').trim();
-  if (!body) return DEFAULT_CODE;
-  if (/(^|\n)\s*return\b/.test(body)) return body;
-  const lines = body.split('\n');
-  let i = lines.length - 1;
-  while (i >= 0 && !lines[i].trim()) i--;
-  const last = i >= 0 ? lines[i].trim() : '';
-  // A trailing EXPRESSION (`total`, `rows.map(f)`) is what the reader meant to see; a trailing
-  // statement or a closing brace is not something we may rewrite.
-  if (last && !/[;{}]$/.test(last) && !/^(?:const|let|var|function|class|if|for|while|switch|try|else|return)\b/.test(last)) {
-    lines.splice(i, 1, `return ${last};`);
-    return lines.join('\n');
-  }
-  return body;
-}
-
-/** @param {any} msg @returns {string} */
-function textOfMessage(msg) {
-  if (!msg) return '';
-  if (typeof msg.content === 'string' && msg.content) return msg.content;
-  const parts = Array.isArray(msg.parts) ? msg.parts : [];
-  return parts
-    .filter((/** @type {any} */ p) => p && p.type === 'text')
-    .map((/** @type {any} */ p) => String(p.text || ''))
-    .join('\n');
-}
-
-/** The first fenced JavaScript block in a message's text. @param {any} msg
- * @returns {{lang: string, code: string}|null} */
-export function firstJsFence(msg) {
-  const text = textOfMessage(msg);
-  const fence = /(?:^|\n)```([^\n`]*)\n([\s\S]*?)(?:\n```|$)/g;
-  let m;
-  while ((m = fence.exec(text))) {
-    const lang = String(m[1] || '').trim().split(/\s+/)[0];
-    const body = String(m[2] || '');
-    if (looksLikeJs(lang, body)) return { lang, code: body };
-  }
-  return null;
-}
-
-/**
- * Register the two affordances. `place({code, lang})` is what actually puts a Code part on the
- * canvas — the Computer panel owns that, so it passes one in; with no placer NOTHING is registered
- * (a button that cannot deliver is worse than no button, §1.2).
- * @param {any} app @param {{place: (o: {code: string, lang: string}) => any}} o
- * @returns {() => void} unregister
- */
-export function installCodeBridge(app, o) {
-  const place = o && typeof o.place === 'function' ? o.place : null;
-  if (!app || !app.registry || !place) return () => {};
-  // The panel is created and destroyed as the reader opens and closes it, and the registry THROWS
-  // on a second item with the same id (that is its contract: a feature installed twice is a bug).
-  // A second install means the first was never taken off — say so, and leave the live one alone
-  // rather than killing the panel that is opening.
-  if (app.registry.list(app.SLOTS.CODE_DECORATORS).some((/** @type {any} */ d) => d && d.id === BRIDGE_ID)) {
-    console.warn('[lolchat] the Code bridge is already installed; the panel did not take it off');
-    return () => {};
-  }
-
-  const send = async (/** @type {string} */ source, /** @type {string} */ lang) => {
-    const body = codeFromFence(source);
-    let out = null;
-    try {
-      out = await place({ code: body, lang: String(lang || '') });
-    } catch (err) {
-      console.error('[lolchat] sending a code block to the Computer threw', err);
-    }
-    if (app.dialogs && typeof app.dialogs.toast === 'function') {
-      if (out) app.dialogs.toast(t('parts.codeSent'), { kind: 'success' });
-      else app.dialogs.toast(t('parts.codeSendFailed'), { kind: 'error' });
-    }
-    return out || null;
-  };
-
-  /** @type {Function[]} */ const offs = [];
-  offs.push(app.registry.add(app.SLOTS.CODE_DECORATORS, {
-    id: BRIDGE_ID,
-    order: 300,
-    /** @param {{lang: string, code: string, final: boolean}} info */
-    match: (info) => !!info.final && looksLikeJs(info.lang, info.code),
-    /** @param {HTMLElement} fig @param {{lang: string, code: string}} info */
-    decorate(fig, info) {
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'chat-code-btn chat-code-computer';
-      btn.textContent = t('parts.codeSend');
-      btn.title = t('parts.codeSendTitle');
-      btn.addEventListener('click', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        void send(info.code, info.lang);
-      });
-      const tools = fig.querySelector('.chat-code-tools');
-      if (tools) tools.appendChild(btn);
-      else fig.insertBefore(btn, fig.firstChild);
-    },
-  }));
-
-  offs.push(app.registry.add(app.SLOTS.MESSAGE_ACTIONS, {
-    id: BRIDGE_ID,
-    order: 620,
-    icon: 'M4 5h6v6H4zM14 13h6v6h-6zM10 8h4M16 11v2',
-    label: t('parts.codeSend'),
-    /** @param {any} msg */
-    visible: (msg) => firstJsFence(msg) !== null,
-    /** @param {any} msg */
-    run: (msg) => {
-      const fence = firstJsFence(msg);
-      return fence ? send(fence.code, fence.lang) : null;
-    },
-  }));
-
-  return () => { for (const off of offs) { try { off(); } catch { /* already gone */ } } };
-}
+// `installCodeBridge(app, {place})` registered a "Send to the Computer" button on every JavaScript
+// fence and a matching message action, and the Computer PANEL passed in the placer. The Computer is
+// no longer a panel inside a conversation: it is the third top-level surface, with its own library
+// of documents and no chat message in sight. There is nothing for a fence button to place into, so
+// the two registry rows (CODE_DECORATORS + MESSAGE_ACTIONS, id `code-to-computer`) and the three
+// fence helpers that only served them (`looksLikeJs`, `codeFromFence`, `firstJsFence`) are deleted
+// rather than left dangling. The Code PART below is untouched; it is reached by placing one.
 
 // ---------------------------------------------------------------------------------------------
 // the part

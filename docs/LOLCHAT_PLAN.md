@@ -2327,6 +2327,202 @@ below is in the working tree and green at slot 0 (BK-9).
   hook now calls `session.sandboxNow().hide()` — a panel that does not suspend its sandbox is a bug,
   not a style choice.
 
+---
+
+### 2.6.K1 — K1 kickoff freeze (the Computer as a third surface)
+
+*Addendum to §2.6, written at the K1 kickoff (2026-09-22). `docs/COMPUTER_PLAN.md` is authoritative
+for the K-phases; this section freezes the seams BETWEEN the three K1 units and records the two
+places where the plan's own ordering had to be resolved. Everything below is already in the tree —
+a builder can import it, call it and run against it right now.*
+
+**KA-1. What the kickoff landed, and what it deliberately did not.**
+
+| Landed at the kickoff | File |
+|---|---|
+| `.viewseg` segmented control (3 buttons, `data-view`), `<section id="lolcomputer" class="chat-layer hidden">`, the `computer.css` link and the third module script. **CSP meta byte-identical.** | `shell/renderer/index.html` |
+| The three-way surface switch, `document.body.dataset.view`, `localStorage['lol:view']`. The anchor comment line is byte-identical; the null guard is kept; `publishFarm` and `renderSidecar` are untouched. | `shell/renderer/app.js` |
+| `.viewseg`/`.viewseg-btn`, `#lolcomputer`, and the `body[data-view]` overlay/webview overrides of COMPUTER_PLAN §2.2a. | `shell/renderer/styles.css` |
+| The **second allowed `app.js` span** + 2 self-test cases (21 total, was 19). | `shell/test/chat-scope.js` |
+| The CSS re-scope: `#lolchat ` → `:is(#lolchat, #lolcomputer) `, **106 hits**, 0 `#lolchat` left. `base.css`/`sandbox.css` untouched. | `chat/css/graph.css` |
+| The loader, the spine, the skeleton, the `visible` predicate, the entry sheet, the two integrator sheets. | `chat/computer/{main,boot,layout,visible}.mjs`, `chat/computer/computer.css`, `chat/css/computer-{tokens,shell}.css` |
+| Working stubs (each unit REPLACES its own file wholesale). | `chat/computer/{host,library,migrate,docstore,drawer,runbar}.mjs`, `chat/css/computer-{library,runbar,drawer}.css` |
+| The `computer.*` namespace, with its per-unit key prefixes. | `chat/strings/computer.en.mjs` |
+| The `freeSeat()` amendment + 2 governor cases. | `chat/net/governor.mjs`, `test/chat/unit/governor.test.mjs` |
+| `#lolcomputer` + the third script; `h.view(name)` and the whole `h.computer.*` namespace. | `test/chat-harness/{page.html,helpers.js}` |
+
+**Deferred to the K1 LANDING, on purpose** (COMPUTER_PLAN §11 lists them under "kickoff", but each
+one turns a green gate red for every builder for the whole night, which is precisely what a kickoff
+exists to prevent — §0.4). The landing already rewrites every file involved:
+
+1. **Removing the `computer` row from `chat/main.mjs`** and deleting `graph/panel.mjs` /
+   `graph/store.mjs`. Until the landing the chat's Computer panel still exists, so the 15 existing
+   scenario files and `h.graph.*` keep passing untouched.
+2. **`PHASE = 'K1'` in `chat/main.mjs`.** `c3-landing.mjs:240` asserts `LolChat.version ===
+   'vnext-c3'`; the landing re-points that file anyway.
+3. **Demoting `from-thread`/`to-thread` out of `partSpecs()`'s palette order.** Two assertions name
+   the 11-part order verbatim — `test/chat/unit/graph-parts.test.mjs:97-98` and
+   `scenarios/c3-landing.mjs:17 PALETTE` — and both are amended in the same landing edit. They stay
+   in `specMap()` throughout, so nothing a unit does depends on the palette.
+4. **Re-pointing `h.graph.*`** (§3.7). See KA-7.
+
+**KA-2. The two Apps, and the three things they share.** `computer/boot.mjs` exports
+`spine(computerApp) → Promise<{repo, farm, gov, owner:'chat'|'computer', mirror}>` and publishes the
+same promise as `window.__lolSpine`.
+
+- It waits up to **8000 ms** (polled every 25 ms, and it stops early once `LolChat.ready` is true)
+  for the chat to publish `app.repo && app.farm && app.gov`, then adopts all three — `owner:'chat'`.
+- If the chat never gets there, it builds the spine itself from the same factories against the
+  Computer's own App and installs `app/caps.mjs` there — `owner:'computer'`. **The Computer must not
+  die because the chat did.**
+- `mirrorBus(src, dst)` re-emits exactly `[EV.GOV_CHANGE, EV.FARM_CHANGE, EV.FARM_TICK]`
+  (exported as `MIRRORED`) with a re-entrancy guard, and is installed chat-bus → computer-bus only
+  in the `owner:'chat'` branch (in the other branch farm and gov already emit on our bus).
+- **`caps` has no loader row and is installed exactly once.** When the chat is alive its own `caps`
+  row did it, on the SHARED farm; a second install would overwrite the resolver and double the
+  `/model_group/info` GET.
+- `installDropGuard(document)` is called once here. It is idempotent per document, so the chat's
+  call and this one cannot fight.
+
+**KA-3. The Computer's loader table** (`computer/main.mjs`, integrator-owned, same contract as
+`chat/main.mjs`: `{key, path, role, fake, phase}`, dynamic `import()`, `flags.skipModules`).
+
+| key | path | role | factory / install | slot |
+|---|---|---|---|---|
+| `dialogs` | `../ui/dialogs.mjs` | component | `createDialogs(app)` | `app.dialogs` |
+| `host` | `./host.mjs` | component | `createHost(app, els)` | `app.host` |
+| `library` | `./library.mjs` | component | `createLibrary(app, els)` | `app.library` |
+| `migrate` | `./migrate.mjs` | component (`fake:null`, no COMPONENTS row — survivable, stays quiet) | `migrateGraphsV1({repo, now})` | — |
+| `ask` | `../app/ask.mjs` | feature | `install(app)` | `app.ask` |
+| `projects` | `../projects/bridge.mjs` | feature | `install(app)` | `app.projects` |
+| `drawer` | `./drawer.mjs` | feature | `install(app)` | `app.drawer` |
+| `runbar` | `./runbar.mjs` | feature | `install(app)` | `app.runbar` |
+
+There is **no fakes table**: `core/fakes.mjs` fakes the CHAT's components, and a missing Computer
+component is a loader failure the banner names (`computer.loaderFailed`).
+
+**KA-4. The seam signatures, frozen.** A unit may add keys; it may not change these.
+
+```js
+// computer/host.mjs — K1-U1
+createHost(app, els) -> {
+  session, canvas, runner,          // runner.on(fn) is what drives the `visible` rule
+  open(graphId) -> Promise,         // load a library document into the session
+  close() -> Promise,               // flush, then stop accepting writes
+  debug,                            // API_KEYS.graphDebug verbatim; main.mjs publishes it as
+}                                   //   window.LolComputer.debug.computer
+
+// computer/docstore.mjs — K1-U1 (a LEAF: no loader row, static-imported by host.mjs)
+createDocStore({app, specs, debounceMs?}) -> {
+  load(graphId) -> Promise<{doc, dropped, created}>,
+  put(doc), flush() -> Promise, list() -> Promise<GraphDoc[]>,
+  create({title}) -> Promise<GraphDoc>, rename(id, title) -> Promise,
+  duplicate(id) -> Promise<string>, remove(id) -> Promise,
+  pending() -> boolean, writes() -> number, destroy(),
+}
+export const SAVE_DEBOUNCE_MS = 500;
+
+// computer/library.mjs — K1-U2
+createLibrary(app, els) -> {
+  start() -> Promise,               // main.mjs calls this AFTER LolComputer.migration resolves
+  render() -> Promise, open(graphId) -> Promise,
+  create({title}) -> Promise<string>,
+  debug,                            // optional; published as window.LolComputer.debug.library
+}
+
+// computer/migrate.mjs — K1-U2
+migrateGraphsV1({repo, now}) -> Promise<{
+  status: 'done'|'already'|'none'|'failed'|'skipped', imported: number, skipped: number, reason?: string,
+}>
+
+// computer/drawer.mjs, computer/runbar.mjs — K1-U3 (features)
+install(app) -> void, publishing app.drawer = {open(value, opts), close(), isOpen()}
+                  and app.runbar = {render(), setRunning(state)}
+```
+
+**`session.thread()` is a compat shim returning `null`, not a deletion** — `runner.mjs:371` passes
+`thread:` into every `spec.run()` and would otherwise make every part run throw. `session.docId()`
+is the new question the three surviving `canvas.mjs` sites ask (`:529` copy, `:629` paste, `:1004`
+toolbar); the export (`:689`) and import (`:733`) guards are **deleted**, because a library document
+has no thread and K1-U2's export/import acceptance depends on their absence.
+
+**KA-5. The skeleton and `els`, frozen** (`computer/layout.mjs`, integrator-owned,
+`buildComputerLayout(root)`):
+
+```
+els = {root, side, sideHead, list, shelves, main, runbar, canvas, drawer, rail, banner}
+#lolcomputer > .comp-banner | .comp-side(.comp-side-head .comp-list .comp-shelves)
+             | .comp-main(.comp-runbar .graph .comp-rail) | .comp-drawer
+```
+
+`.graph` is the canvas's own root, markup **unchanged** from the panel. A unit that needs another
+node creates it inside its own element. `ui/layout.mjs`'s `buildLayout` is the chat's and is not
+reused.
+
+**KA-5b. The re-scope does not move specificity.** `:is()` takes the specificity of its most
+specific argument, and both arguments here are ids, so every rewritten selector keeps the exact
+weight it had. Nothing in `graph.css` needed reordering, and a unit that adds a rule writes
+`:is(#lolchat, #lolcomputer) .graph-…` to match — until the K1 landing deletes the panel, after
+which `#lolcomputer` alone would do and the `:is()` is simply harmless.
+
+**KA-6. One stylesheet per unit.** `computer/computer.css` is `@import`s and nothing else, and it
+deliberately does **not** import `chat.css`. The three shared sheets — `css/base.css` (the
+`.chat-layer` escape hatch and `.hidden`), `css/graph.css` (re-scoped) and `css/sandbox.css` (zero
+`#lolchat` selectors) — are already loaded once by `chat.css`'s own `<link>` in `index.html` and in
+the harness page. Order: `computer-tokens` (integrator) → `computer-shell` (integrator) →
+`computer-library` (K1-U2) → `computer-runbar` (K1-U3) → `computer-drawer` (K1-U3). A unit never
+touches `computer.css` and never touches another unit's sheet. `computer-tokens.css` freezes the
+variable NAMES every later sheet reads (`--comp-kind-*`, `--comp-state-*`, `--comp-r-*`,
+`--comp-side-w`, `--comp-drawer-w`, `--comp-runbar-h`); K4-U3's look pass may re-balance the values.
+
+**KA-7. The harness: `h.computer` now, `h.graph` at the landing.** COMPUTER_PLAN §11 item 9 asks the
+kickoff to re-point `h.graph.*`; §3.7 makes the ~470-call-site re-point a landing task. Resolved in
+favour of the landing, with one change that makes it nearly free:
+
+- **`h.computer.*` is the permanent name** and lands now: `open/call/doc/state/place/remove/wire/
+  unwire/select/move/set/run/stop/running/undo/redo/save/tidy/exportText/importText/dom`, plus two
+  of its own — `h.computer.spine()` (`{ready, failed, sameApp, sameRepo, sameFarm, sameGov, sameBus,
+  visible}`) and `h.computer.migration()`. It resolves `window.LolComputer.debug.computer` and probes
+  `#lolcomputer .graph-*`.
+- **Every K1 scenario is written against `h.computer`.** `h.graph.*` keeps driving the chat's panel
+  until the landing, so nothing regresses while three builders work in one tree.
+- **At the landing `h.graph` becomes an alias of `h.computer`.** The ~470-site pass is then only
+  `h.work('computer')` → `h.view('computer')` and `#lolchat .graph-*` → `#lolcomputer .graph-*`.
+- **`h.view(name)`** flips the two sections' classes exactly as `app.js`'s `show()` does, stamps
+  `document.body.dataset.view`, waits for `window.LolComputer.ready` on `'computer'`, and returns
+  `{view, chat, computer}`. It is the only thing the harness page can do: that page has **no topbar,
+  no `.viewseg`, no `<webview>`**, and never loads `app.js`. The segments, `aria-pressed`, the
+  webview's survival and `localStorage['lol:view']` are **rig items, not harness assertions**.
+
+**KA-8. The mock needs no change for the no-seats farm.** `mock/state.js`'s `capacity` merges with
+"nulls replace", `snapshot()` passes it straight through, and `net/farm.mjs` maps a null `capacity`
+to `seats: null`. So `k1-surface-no-seats` is `await h.mock.state({ capacity: null })` and nothing
+else.
+
+**KA-9. The governor amendment, and the one case it amends.** `freeSeat()` now returns **true** when
+the farm advertises no seats (`net/governor.mjs`). `BACKGROUND_LIMIT = 1`, the `foreground === 'idle'`
+requirement and the abort-on-Send all stand, and two new cases in `chat/unit/governor.test.mjs`
+prove it. The existing case *"background is refused when the farm advertises no seats at all"* is
+**amended, not deleted**: it asserted the rule this amendment reverses, and it now reads *"seats
+unknown: the ONE background slot is allowed, and a second is still refused"*. This is the only
+§2.6 guarantee K1's kickoff changes; the three that K1's **landing** retires (BH-1, BH-6, BH-7, with
+`c2-bridges`) are recorded there and in the DEVLOG.
+
+**KA-10. One shared file amended beyond the plan's list: `app/ask.mjs`'s debug door.** `install(app)`
+published `window.LolChat.debug.ask` unconditionally, so the Computer's own `ask` install replaced
+the chat's door with its own empty log the moment the third surface mounted — `c1-run-three-parts`
+and `s0-ask-schema` both failed with *"the ask spine saw one call: got 0"*. The fix is three lines
+and matches the owning surface **by identity** (`window.LolComputer.app === app`), never by name or
+by DOM id. No API changed; `API_KEYS.ask` is untouched. Any future module that publishes into a
+surface's debug bag must pick the bag the same way — `app/caps.mjs` is already safe because caps is
+installed exactly once (KA-2), and `ui/workbench.mjs` is chat-only.
+
+**KA-11. Gate deltas this kickoff introduces** (so a builder knows what a clean tree looks like):
+`chat-unit` **932** (was 931: one amended case became two), `chat-lint` **150 files / 0 violations**
+(was 133), `chat-scope` clean with **21** self-test cases (was 19), harness `--strict` **197**,
+perf **9** — both unchanged, because the Computer surface mounts on every harness page but no
+existing scenario looks at it.
+
 
 ## 3. Architecture and contracts
 

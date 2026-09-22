@@ -1,99 +1,55 @@
 // @ts-check
-// The C1 landing's own seams (integrator-owned): the two things that only broke once a REAL panel
-// was registered into the workbench, and the two run outcomes that had no sentence.
+// The C1 landing's own seams (integrator-owned), AMENDED AT THE K1 LANDING (COMPUTER_PLAN §3.7).
 //
-// 1. THE BRAND-NEW-THREAD HANDOFF. §2.6 AP.1 starts a fresh thread with the workbench closed and
-//    `thread = null`, and no second THREAD_SELECTED ever arrives for it — so "start a chat, then
-//    open a panel", the most ordinary route there is, handed every panel `ctx.thread === null` for
-//    the rest of its life. The workbench now resolves the row lazily and tells the live panel. The
-//    fix also exposed a race in the Computer's own attach() (two attaches in flight cancelled each
-//    other and left the panel with no document at all), so this scenario asserts BOTH: a probe
-//    panel is told the real thread, and the Computer really lands on that thread's graph.
+// 1. WHICH DOCUMENT THE SURFACE LANDS ON, AND HOW MANY IT MAKES. The C1 version of this scenario
+//    was "the brand-new-thread handoff": §2.6 AP.1 started a fresh thread with the workbench
+//    closed, and a panel opened afterwards was handed `ctx.thread === null` for the rest of its
+//    life. There is no workbench and no per-thread graph any more, so that guarantee is retired
+//    with the panel. What replaced it is the SAME CLASS OF BUG on the new surface, and it was
+//    really measured during K1: the host opens a document at boot (last id -> newest row -> a new
+//    one) and the library used to open one too, so a fresh client ended up with TWO untitled
+//    documents. This scenario asserts the surface lands on exactly one document, that it is
+//    placeable straight away, and that the library holds ONE row for it — not two.
 // 2. THE RUN SENTENCES. A yield and a generation cap are run outcomes of their own; both used to
-//    announce as `graph.runNothing`. The strings exist and the panel branches on them.
+//    announce as `graph.runNothing`. The strings exist and the run branches on them.
+// 3. THE MODEL PICKER GOING STALE (see the scenario's own note).
 
 const FARM_ERRORS = [/Failed to load resource/, /net::ERR_/];
 
-/** A panel that records the thread id it is handed, every time it is handed one. */
-const installProbe = (/** @type {any} */ h) => h.eval(() => {
-    const app = window.LolChat.app;
-    /** @type {any} */ (window).__probe = { seen: [] };
-    app.registry.add(app.SLOTS.WORKBENCH_PANELS, {
-        id: 'probe',
-        order: 900,
-        label: 'Probe',
-        defaultWidth: 'split',
-        available: () => true,
-        create(/** @type {any} */ host) {
-            const p = document.createElement('p');
-            p.textContent = 'probe';
-            host.appendChild(p);
-            const seen = (/** @type {any} */ ctx) => {
-                /** @type {any} */ (window).__probe.seen.push(ctx && ctx.thread ? ctx.thread.id : null);
-            };
-            return {
-                show(/** @type {any} */ ctx) { seen(ctx); },
-                hide() { },
-                destroy() { host.replaceChildren(); },
-                onThread(/** @type {any} */ ctx) { seen(ctx); },
-            };
-        },
-    });
-    return true;
-});
-
 export default [
     {
-        name: 'c1-landing-thread-handoff',
+        name: 'c1-landing-one-document',
         needsMock: true,
         timeoutMs: 120000,
         allowConsoleErrors: FARM_ERRORS,
         run: async (/** @type {any} */ h) => {
             await h.fresh();
             await h.waitFor(() => (window.LolChat && window.LolChat.ready ? true : null));
-            await installProbe(h);
 
-            // A brand-new thread, created by the composer — NOT selected from the sidebar.
-            await h.submit('a thread nobody has opened a panel on yet');
-            await h.waitReply();
-            const threadId = await h.eval(() => window.LolChat.app.state.threadId);
-            h.assert(!!threadId, 'the composer did not put a thread id in app.state');
-
-            // A panel opened now must be told about that thread, not about null.
-            await h.work('probe');
-            const seen = await h.waitFor((want) => {
-                const p = /** @type {any} */ (window).__probe;
-                return p && p.seen.indexOf(want) >= 0 ? p.seen.slice() : null;
-            }, { args: [threadId], timeout: 15000 });
-            h.assert(seen.indexOf(threadId) >= 0,
-                'the workbench never handed the panel the live thread (' + JSON.stringify(seen) + ')');
-
-            // And the real panel lands on that thread's graph, with no attach race losing the doc.
-            await h.work('computer');
-            const doc = await h.waitFor((want) => {
-                const dbg = window.LolChat && window.LolChat.debug && window.LolChat.debug.computer;
+            // A brand-new client: nothing in the library, no last-opened marker.
+            await h.view('computer');
+            const doc = await h.waitFor(() => {
+                const dbg = window.LolComputer && window.LolComputer.debug && window.LolComputer.debug.computer;
                 if (!dbg) return null;
                 const d = dbg.doc();
-                return d && d.threadId === want ? d : null;
-            }, { args: [threadId], timeout: 15000 });
-            h.eq(doc.threadId, threadId, 'the Computer attached to a different thread');
-            h.eq(doc.parts.length, 0, 'a fresh thread should open an empty graph');
+                return d && d.id ? d : null;
+            }, { timeout: 15000 });
+            h.eq(doc.threadId, null, 'a library document belongs to no conversation');
+            h.eq(doc.parts.length, 0, 'a fresh client opens an empty document');
 
-            // The graph is placeable straight away — the point of having a thread at all.
+            // It is placeable straight away — the point of landing on a document at all.
             const id = await h.graph.place('note', 40, 40);
-            h.assert(!!id, 'a panel that knows its thread must be able to place a part');
+            h.assert(!!id, 'the surface must be able to place a part the moment it is shown');
             await h.graph.save();
 
-            // ONE row per thread. Two attaches in flight used to each create and write their own
-            // document for a thread that had none, and the next visit could load the empty one —
-            // a graph that silently lost its parts. The handoff above is exactly what makes two
-            // attaches ordinary, so the invariant is asserted right here.
-            const rows = await h.eval((want) => window.LolChat.app.repo.listGraphs(want)
-                .then((/** @type {any[]} */ r) => r.map((/** @type {any} */ g) => ({ id: g.id, parts: g.parts.length }))), threadId);
-            h.eq(rows.length, 1, 'this thread has ' + rows.length + ' graph rows: ' + JSON.stringify(rows));
+            // ONE row. The host and the library each used to create their own, and the next launch
+            // could reopen the empty one — a graph that silently lost its parts.
+            const rows = await h.eval(() => window.LolComputer.app.host.store.list()
+                .then((/** @type {any[]} */ r) => r.map((/** @type {any} */ g) => ({ id: g.id, parts: g.parts.length }))));
+            h.eq(rows.length, 1, 'the library has ' + rows.length + ' documents after one launch: ' + JSON.stringify(rows));
+            h.eq(rows[0].id, doc.id, 'and it is the one that is open');
             h.eq(rows[0].parts, 1, 'the saved row lost the part that was placed');
-            h.note('handoff: panel saw ' + JSON.stringify(seen) + ' · graph on ' + doc.threadId
-                + ' · rows ' + JSON.stringify(rows));
+            h.note('landing: opened ' + doc.id + ' · rows ' + JSON.stringify(rows));
         },
     },
     {
@@ -145,14 +101,14 @@ export default [
                 return app.controller.selectThread(rows[0].id);
             });
             await h.graph.open();
-            await h.waitFor(() => (window.LolChat.debug.computer.doc().threadId ? true : null));
+            await h.waitFor(() => ((window.LolComputer.debug.computer.doc() || {}).id ? true : null));
 
             const ask = await h.graph.place('ask', 40, 40);
             h.assert(!!ask, 'an Ask part was placed');
             await h.graph.set(ask, { instruction: 'anything', model: 'mock-echo' });
 
             const before = await h.eval(() => {
-                const sel = /** @type {any} */ (document.querySelector('#lolchat .graph-part[data-type="ask"] .graph-part-select'));
+                const sel = /** @type {any} */ (document.querySelector('#lolcomputer .graph-part[data-type="ask"] .graph-part-select'));
                 if (!sel) throw new Error('the Ask box has no model picker');
                 return { n: sel.options.length, value: sel.value };
             });
@@ -168,7 +124,7 @@ export default [
             });
 
             const after = await h.waitFor(() => {
-                const sel = /** @type {any} */ (document.querySelector('#lolchat .graph-part[data-type="ask"] .graph-part-select'));
+                const sel = /** @type {any} */ (document.querySelector('#lolcomputer .graph-part[data-type="ask"] .graph-part-select'));
                 if (!sel) return null;
                 const values = Array.prototype.map.call(sel.options, (/** @type {any} */ o) => o.value);
                 return values.indexOf('late-arrival-a') >= 0

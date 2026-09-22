@@ -2,96 +2,21 @@
 // The C3 landing's own seam (integrator-owned, like c1-landing.mjs): the ONE wire the phase needed
 // in a shared file, and the two coherence facts a landing is for.
 //
-// 1. THE CODE BRIDGE SHIPS. C3-U2 built "Send to the Computer" (a button on a JavaScript fence and
-//    a message action) but `installCodeBridge` registers NOTHING without a placer, and only the
-//    panel can place a part. c3-parts proves the affordance by installing its OWN placer; this
-//    scenario installs nothing at all and asserts the SHIPPED app has it — the panel wires it in
-//    `create()` and takes it off in `destroy()`. A bridge registered twice, or left behind when the
-//    panel closes, is exactly the failure a landing is for.
-// 2. THE CATALOGUE IS ELEVEN, IN PALETTE ORDER (BJ-1), and the loader still has ONE Computer row
-//    (BG-2) — the sandbox is imported by its consumers, never installed as a feature.
+// 1. (RETIRED AT THE K1 LANDING.) "THE CODE BRIDGE SHIPS" proved that the shipped panel registered
+//    "Send to the Computer" on every JavaScript fence and took it off again when it closed. The
+//    Computer is not a panel inside a conversation any more, so there is nothing for a fence button
+//    to place into: `installCodeBridge` and its two registry rows are deleted, and guarantee BH-7
+//    leaves the suite by decision (COMPUTER_PLAN §3.7, named in the DEVLOG).
+// 2. THE CATALOGUE IS NINE, IN PALETTE ORDER (BJ-1, amended at K1: `from-thread` and `to-thread`
+//    are demoted to legacy and leave the palette while staying in `specMap()`), and the CHAT no
+//    longer loads the graph tree at all — the sandbox's iframe only exists once the Computer's own
+//    surface has asked for one.
 
 const FARM_ERRORS = [/Failed to load resource/, /net::ERR_/];
-const BRIDGE_ID = 'code-to-computer';
-
-const PALETTE = ['note', 'from-thread', 'ask', 'split', 'repeat', 'filter', 'code', 'collect', 'render', 'file', 'to-thread'];
-
-/** The registry rows the bridge owns, counted in both slots. */
-const bridgeRows = (/** @type {any} */ h) => h.eval((id) => {
-    const app = window.LolChat.app;
-    const list = (/** @type {string} */ slot) => app.registry.list(slot).filter((/** @type {any} */ x) => x && x.id === id);
-    return { actions: list(app.SLOTS.MESSAGE_ACTIONS).length, decorators: list(app.SLOTS.CODE_DECORATORS).length };
-}, BRIDGE_ID);
+const PALETTE = ['note', 'ask', 'split', 'repeat', 'filter', 'code', 'collect', 'render', 'file'];
+const LEGACY = ['from-thread', 'to-thread'];
 
 export default [
-    {
-        name: 'c3-landing-code-bridge-ships',
-        needsMock: true,
-        timeoutMs: 120000,
-        allowConsoleErrors: FARM_ERRORS,
-        run: async (/** @type {any} */ h) => {
-            await h.fresh();
-            await h.waitFor(() => (window.LolChat && window.LolChat.ready ? true : null));
-
-            // Before the panel is ever opened there is no bridge: nothing can place a part yet, and
-            // a button that cannot deliver is worse than no button.
-            const closed = await bridgeRows(h);
-            h.eq(closed.actions, 0, 'the message action exists before any Computer panel does');
-            h.eq(closed.decorators, 0, 'the fence decorator exists before any Computer panel does');
-
-            await h.submit('a thread for the landing');
-            await h.waitReply();
-            const state = await h.graph.open();
-            h.eq(state.panel, 'computer', 'the rail did not open the Computer');
-            await h.waitFor(() => (window.LolChat.debug.computer.doc().threadId ? true : null));
-
-            const open = await bridgeRows(h);
-            h.eq(open.actions, 1, 'the shipped panel did not register the message action');
-            h.eq(open.decorators, 1, 'the shipped panel did not register the fence decorator');
-
-            // The action really places a Code part carrying the fence body. No placer of the
-            // scenario's own — this is the app's wiring.
-            const before = (await h.graph.doc()).parts.length;
-            const placed = await h.eval(async () => {
-                const app = window.LolChat.app;
-                const action = app.registry.list(app.SLOTS.MESSAGE_ACTIONS)
-                    .find((/** @type {any} */ a) => a.id === 'code-to-computer');
-                const message = {
-                    id: 'm-land',
-                    role: 'assistant',
-                    content: 'Here:\n```js\nreturn inputs.in.length;\n```\n',
-                };
-                const visible = action.visible(message, {});
-                const out = await action.run(message, app);
-                return { visible, id: out && out.id ? out.id : null };
-            });
-            h.eq(placed.visible, true, 'a reply carrying a JavaScript fence did not offer the action');
-            h.assert(!!placed.id, 'the action placed nothing');
-
-            const doc = await h.graph.doc();
-            h.eq(doc.parts.length, before + 1, 'exactly one part should have arrived');
-            const part = doc.parts.find((/** @type {any} */ p) => p.id === placed.id);
-            h.assert(part && part.type === 'code', 'what arrived is not a Code part: ' + (part && part.type));
-            h.assert(String(part.settings.code).includes('inputs.in.length'),
-                'the fence body did not travel: ' + JSON.stringify(part.settings.code));
-            h.assert(!String(part.settings.code).includes('```'), 'the fence markers travelled with it');
-
-            // Close the panel: the bridge goes with it, and re-opening installs exactly one again
-            // (a second install would throw inside the registry and take the panel with it).
-            await h.work(null);
-            await h.waitFor(() => (window.LolChat.debug.computer ? null : true), { timeout: 8000 });
-            const gone = await bridgeRows(h);
-            h.eq(gone.actions, 0, 'the message action outlived the panel that can serve it');
-            h.eq(gone.decorators, 0, 'the fence decorator outlived the panel');
-
-            await h.graph.open();
-            await h.waitFor(() => (window.LolChat.debug.computer ? true : null));
-            const again = await bridgeRows(h);
-            h.eq(again.actions, 1, 're-opening the panel left ' + again.actions + ' message actions');
-            h.eq(again.decorators, 1, 're-opening the panel left ' + again.decorators + ' decorators');
-            h.note('bridge rows: closed 0 · open 1 · closed 0 · re-opened 1');
-        },
-    },
     {
         // C3-U1's contract request, resolved in the panel: the rebuild ladder goes quiet after
         // three rebuilds in a minute and only an explicit re-arm brings it back — and the host
@@ -107,7 +32,7 @@ export default [
             await h.submit('a thread whose code keeps looping');
             await h.waitReply();
             await h.graph.open();
-            await h.waitFor(() => (window.LolChat.debug.computer.doc().threadId ? true : null));
+            await h.waitFor(() => ((window.LolComputer.debug.computer.doc() || {}).id ? true : null));
 
             const note = await h.graph.place('note', 40, 40);
             const code = await h.graph.place('code', 340, 40);
@@ -122,7 +47,7 @@ export default [
             for (let i = 0; i < 5 && !(quiet && quiet.blocked); i += 1) {
                 await h.graph.run();
                 quiet = await h.waitFor(() => {
-                    const dbg = window.LolChat.debug.computer.sandbox();
+                    const dbg = window.LolComputer.debug.computer.sandbox();
                     return dbg.state === 'booting' ? null : dbg;
                 }, { timeout: 20000 });
             }
@@ -133,7 +58,7 @@ export default [
             // A part asking on its own must NOT bring it back — that is the whole point of the
             // ladder. Ask exactly as a part does, with no rearm, and expect a refusal.
             const partTry = await h.eval(async () => {
-                const sb = window.LolChat.debug.computer.session().sandboxNow();
+                const sb = window.LolComputer.debug.computer.session().sandboxNow();
                 const out = await sb.compute({ code: 'return 1;', timeoutMs: 2000 });
                 return { ok: out.ok, state: sb.state() };
             });
@@ -164,10 +89,11 @@ export default [
         // by hand; this one goes through the product: hide the chat surface, and the guest process
         // must really go.
         //
-        // `workGraceMs` is set LONGER than the sandbox's own 10 s grace on purpose: otherwise the
-        // workbench would destroy the whole panel first and the iframe would vanish for a reason
-        // that proves nothing.
-        name: 'c3-landing-hiding-the-chat-suspends-the-guest',
+        // `workGraceMs` used to be set LONGER than the sandbox's own 10 s grace so the workbench
+        // could not destroy the panel first and make the iframe vanish for a reason that proves
+        // nothing. The Computer is never destroyed now — it is hidden — so the flag is kept only
+        // because the chat's workbench still reads it, and the grace that matters is the guest's.
+        name: 'c3-landing-hiding-the-computer-suspends-the-guest',
         needsMock: true,
         timeoutMs: 180000,
         allowConsoleErrors: FARM_ERRORS,
@@ -177,7 +103,7 @@ export default [
             await h.submit('a thread with something running in it');
             await h.waitReply();
             await h.graph.open();
-            await h.waitFor(() => (window.LolChat.debug.computer.doc().threadId ? true : null));
+            await h.waitFor(() => ((window.LolComputer.debug.computer.doc() || {}).id ? true : null));
 
             // A part that FINISHES and leaves work behind — the exact case runner.stop() cannot
             // touch, because there is no request in flight to abort.
@@ -193,29 +119,30 @@ export default [
             h.eq(await h.eval(() => document.querySelectorAll('iframe').length), 1, 'the guest is up');
             h.eq((await h.graph.call('sandbox')).framed, true, 'and the host agrees it has a frame');
 
-            // Nobody is looking any more.
-            await h.eval(() => { document.getElementById('lolchat').classList.add('hidden'); return true; });
+            // Nobody is looking any more. K1 landing: it is the COMPUTER's own section that is
+            // hidden now — the sandbox belongs to that surface, not to the chat.
+            await h.view('chat');
 
             // The panel is SUSPENDED, not destroyed (workGraceMs is a minute), so anything still
             // running in the guest is running for no one.
-            await h.waitFor(() => (window.LolChat.debug.computer ? true : null));
+            await h.waitFor(() => (window.LolComputer.debug.computer ? true : null));
             await h.waitFor(() => (document.querySelectorAll('iframe').length === 0 ? true : null),
                 { timeout: 20000 });
-            h.assert(await h.eval(() => !!window.LolChat.debug.computer),
+            h.assert(await h.eval(() => !!window.LolComputer.debug.computer),
                 'the panel instance was torn down instead — this proves nothing about hide()');
             const asleep = await h.graph.call('sandbox');
             h.eq(asleep.framed, false, 'the guest process is gone');
             h.eq(asleep.state, 'idle', `a suspended sandbox ends up idle, got "${asleep.state}"`);
 
             // Coming back is a rebuild, and it works: a suspend must not be a one-way door.
-            await h.eval(() => { document.getElementById('lolchat').classList.remove('hidden'); return true; });
-            await h.waitFor(() => (window.LolChat.debug.computer ? true : null));
+            await h.view('computer');
+            await h.waitFor(() => (window.LolComputer.debug.computer ? true : null));
             await h.graph.set(code, { code: 'return inputs.in[0].toUpperCase();' });
             const again = await h.graph.run();
             h.eq(again.errors.length, 0, `the run after coming back failed: ${JSON.stringify(again.errors)}`);
             const part = (await h.graph.doc()).parts.find((/** @type {any} */ p) => p.id === code);
             h.eq(part.value.data, 'GO', 'and the rebuilt guest computed');
-            h.note('hidden chat -> the guest stops and its process is released; coming back rebuilds it');
+            h.note('hidden Computer -> the guest stops and its process is released; coming back rebuilds it');
         },
     },
     {
@@ -227,24 +154,36 @@ export default [
             await h.fresh();
             await h.waitFor(() => (window.LolChat && window.LolChat.ready ? true : null));
 
+            await h.waitFor(() => (window.LolComputer && window.LolComputer.ready ? true : null));
+
             const seen = await h.eval(async () => {
                 const mod = await import('../../renderer/chat/graph/parts/index.mjs');
                 return {
                     types: mod.partSpecs().map((/** @type {any} */ p) => p.type),
+                    loadable: Array.from(mod.specMap().keys()),
                     version: window.LolChat.version,
+                    computerVersion: window.LolComputer.version,
                     failed: Object.keys(window.LolChat.failed || {}),
+                    computerFailed: Object.keys(window.LolComputer.failed || {}),
                 };
             });
-            h.eq(seen.types.join(','), PALETTE.join(','), 'the catalogue is not the eleven in palette order: ' + seen.types.join(','));
-            h.eq(seen.failed.length, 0, 'modules failed to load: ' + seen.failed.join(', '));
-            h.eq(seen.version, 'vnext-c3', 'the loader still says it is ' + seen.version);
+            h.eq(seen.types.join(','), PALETTE.join(','), 'the catalogue is not the nine in palette order: ' + seen.types.join(','));
+            for (const type of LEGACY) {
+                h.eq(seen.types.indexOf(type), -1, type + ' is still offered in the palette');
+                h.assert(seen.loadable.indexOf(type) >= 0,
+                    type + ' left specMap() too — a migrated graph would trip part:unknown-type');
+            }
+            h.eq(seen.failed.length, 0, 'chat modules failed to load: ' + seen.failed.join(', '));
+            h.eq(seen.computerFailed.length, 0, 'Computer modules failed to load: ' + seen.computerFailed.join(', '));
+            h.eq(seen.version, 'vnext-k1', 'the chat loader says it is ' + seen.version);
+            h.eq(seen.computerVersion, 'vnext-k1', 'the Computer loader says it is ' + seen.computerVersion);
 
-            // The sandbox is imported by its consumers, never installed as a feature (BG-2/BJ-1):
-            // the Computer panel is the ONE row that reaches the graph tree, and the guest's
-            // iframe only exists once a panel has asked for it.
+            // The sandbox is imported by its consumers, never installed as a feature (BG-2/BJ-1),
+            // and the CHAT no longer reaches the graph tree at all (K1: the `computer` loader row
+            // is gone). Nothing under #lolchat may hold a guest iframe, ever.
             const mounts = await h.eval(() => document.querySelectorAll('#lolchat iframe').length);
-            h.eq(mounts, 0, 'an iframe exists before any panel asked for a sandbox');
-            h.note('catalogue: ' + seen.types.join(' · '));
+            h.eq(mounts, 0, 'the chat is holding a sandbox iframe it has no way to have asked for');
+            h.note('catalogue: ' + seen.types.join(' · ') + ' · legacy: ' + LEGACY.join(' · '));
         },
     },
 ];
