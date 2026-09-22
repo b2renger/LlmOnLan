@@ -57,26 +57,32 @@ export function titleFor(row, thread) {
 }
 
 /**
+ * `skipped` is "already there / deliberately not carried over"; `errors` is "we tried and it
+ * threw". They are counted apart because only the second one means a graph is still waiting: the
+ * done-marker is written ONLY when `errors === 0`, so a row that threw (a QuotaExceededError on
+ * putGraph is the realistic case) is retried on the next launch instead of being sealed behind the
+ * marker for ever. A re-run is already safe — the derived id makes every row idempotent.
+ *
  * @param {{repo: any, now?: () => number}} o
  * @returns {Promise<{status: 'done'|'already'|'none'|'failed'|'skipped', imported: number,
- *   skipped: number, total?: number, reason?: string}>}
+ *   skipped: number, errors: number, total?: number, reason?: string}>}
  */
 export async function migrateGraphsV1(o) {
   const repo = o && o.repo;
   const now = o && typeof o.now === 'function' ? o.now : Date.now;
   if (!repo || typeof repo.listGraphs !== 'function') {
-    return { status: 'skipped', imported: 0, skipped: 0, reason: 'no-repo' };
+    return { status: 'skipped', imported: 0, skipped: 0, errors: 0, reason: 'no-repo' };
   }
 
   try {
     const marker = await repo.kvGet(MIGRATED_KEY, null);
     if (marker) {
       const count = Number(await repo.kvGet(MIGRATED_COUNT_KEY, 0)) || 0;
-      return { status: 'already', imported: 0, skipped: 0, total: count };
+      return { status: 'already', imported: 0, skipped: 0, errors: 0, total: count };
     }
   } catch (err) {
     console.warn('[lolcomputer] reading the migration marker failed', err);
-    return { status: 'failed', imported: 0, skipped: 0, reason: 'kv-read' };
+    return { status: 'failed', imported: 0, skipped: 0, errors: 0, reason: 'kv-read' };
   }
 
   /** @type {any[]} */ let rows = [];
@@ -84,7 +90,7 @@ export async function migrateGraphsV1(o) {
     rows = (await repo.listGraphs()) || [];
   } catch (err) {
     console.warn('[lolcomputer] listing the graphs to migrate failed', err);
-    return { status: 'failed', imported: 0, skipped: 0, reason: 'list' };
+    return { status: 'failed', imported: 0, skipped: 0, errors: 0, reason: 'list' };
   }
 
   const owned = rows.filter((r) => r && r.threadId !== null && r.threadId !== undefined);
@@ -92,11 +98,12 @@ export async function migrateGraphsV1(o) {
     // Nothing to carry over — still mark it, so a reader who never used the panel does not pay a
     // full `listGraphs()` on every launch for the rest of the product's life.
     await markDone(repo, 0);
-    return { status: 'none', imported: 0, skipped: 0, total: 0 };
+    return { status: 'none', imported: 0, skipped: 0, errors: 0, total: 0 };
   }
 
   let imported = 0;
   let skipped = 0;
+  let errors = 0;
   for (const row of owned) {
     const id = derivedId(row.id);
     try {
@@ -118,12 +125,15 @@ export async function migrateGraphsV1(o) {
       imported += 1;
     } catch (err) {
       console.warn('[lolcomputer] migrating one graph failed', err);
-      skipped += 1;
+      errors += 1;
     }
   }
 
-  await markDone(repo, imported);
-  return { status: 'done', imported, skipped, total: owned.length };
+  // The marker is a "never look again" promise. Making it while a row is still unwritten would
+  // strand that graph: the original thread-owned row survives (copy-never-move), but no surface
+  // can open a thread-owned graph any more, so it would be unreachable and unmentioned.
+  if (!errors) await markDone(repo, imported);
+  return { status: 'done', imported, skipped, errors, total: owned.length };
 }
 
 /** @param {any} repo @param {number} n */

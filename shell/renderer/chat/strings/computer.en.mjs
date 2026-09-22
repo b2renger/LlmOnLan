@@ -46,6 +46,8 @@ registerStrings('computer', {
   migrateDoneOne: 'Brought one graph over from your chats.',
   migrateFromThread: 'From: {title}',
   migrateFromThreadUnknown: 'From a deleted chat',
+  migrateStranded: '{n} graphs could not be brought over from your chats. They are still there — reopen the Computer to try again.',
+  migrateStrandedOne: 'One graph could not be brought over from your chats. It is still there — reopen the Computer to try again.',
 
   // ---- the run bar (K1-U3) -------------------------------------------------------------------
   runAll: 'Run all',

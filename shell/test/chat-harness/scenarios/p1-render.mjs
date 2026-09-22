@@ -685,14 +685,29 @@ export default [
       });
       h.eq(byKey.focus, 'chat-input', 'focus is in the composer, as it is after every generate');
       h.eq(byKey.stuckNow, false, 'PageUp from the composer releases the view too');
-      await h.sleep(700);
-      const afterKey = await h.eval(() => {
-        const list = /** @type {any} */ (document.getElementById('chat-messages'));
-        const j = /** @type {any} */ (document.querySelector('.chat-jump'));
-        return { scrollTop: list.scrollTop, stuckNow: window.LolChat.app.view.isStuck(), pill: !j.classList.contains('hidden') };
-      });
-      h.eq(afterKey.stuckNow, false, 'and it stays released while the stream runs on');
-      h.eq(afterKey.scrollTop, byKey.scrollTop, 'the stream did not drag the view back down');
+      // The claim is "it stays released WHILE THE STREAM RUNS ON", so every sample has to carry
+      // proof the stream was still running — thread-view.mjs legitimately re-sticks once the last
+      // row settles at the bottom, and a single read after a fixed sleep raced that. Sample the
+      // whole window instead of reading its end: strictly stronger, and not a coin toss.
+      let afterKey = null;
+      for (let i = 0; i < 7; i += 1) {
+        await h.sleep(100);
+        const s = await h.eval(() => {
+          const list = /** @type {any} */ (document.getElementById('chat-messages'));
+          const j = /** @type {any} */ (document.querySelector('.chat-jump'));
+          return {
+            scrollTop: list.scrollTop,
+            stuckNow: window.LolChat.app.view.isStuck(),
+            pill: !j.classList.contains('hidden'),
+            streaming: !!document.querySelector('.chat-msg[data-status="streaming"]'),
+          };
+        });
+        if (!s.streaming) break;               // the stream ended; the claim no longer applies
+        afterKey = s;
+        h.eq(s.stuckNow, false, 'and it stays released while the stream runs on');
+        h.eq(s.scrollTop, byKey.scrollTop, 'the stream did not drag the view back down');
+      }
+      h.assert(afterKey, 'the stream was still running after the key released the view');
       h.assert(afterKey.pill, 'the jump pill is offered again after the key released the view');
 
       // Leave the box tidy: stop the stream rather than letting the next fresh() cut the socket.

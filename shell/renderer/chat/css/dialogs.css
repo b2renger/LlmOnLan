@@ -43,13 +43,17 @@
 /* Fallback for a renderer without the Popover API: show it as a plain fixed panel. */
 .chat-layer.chat-popover.chat-popover-open { display: block; }
 
-/* ---- toasts (inside #lolchat) ------------------------------------------------------------ */
-#lolchat .chat-toasts {
+/* ---- toasts (inside whichever surface raised them) ---------------------------------------- */
+/* The stack is appended to the owning App's root (ui/dialogs.mjs), so it lands in #lolchat on the
+   chat and in #lolcomputer on the Computer. #lolcomputer is a 3-column grid: an unpositioned stack
+   would auto-place into a fourth, implicit grid ROW and squeeze the canvas for the ~4 s the toast
+   lives. `position: absolute` takes it out of flow on both surfaces; both roots are positioned. */
+:is(#lolchat, #lolcomputer) .chat-toasts {
   position: absolute; right: 16px; bottom: 96px; z-index: 5;
   display: flex; flex-direction: column; gap: 6px; align-items: flex-end;
   pointer-events: none;
 }
-#lolchat .chat-toast {
+:is(#lolchat, #lolcomputer) .chat-toast {
   pointer-events: auto; cursor: pointer;
   max-width: 340px; padding: 8px 12px; border-radius: 8px;
   background: var(--surface-2); color: var(--text);
@@ -57,5 +61,5 @@
   box-shadow: 0 8px 24px color-mix(in srgb, var(--bg) 55%, transparent);
   font-size: 12.5px; line-height: 1.45;
 }
-#lolchat .chat-toast-error { border-color: color-mix(in srgb, var(--danger) 45%, var(--border)); }
-#lolchat .chat-toast-success { border-color: color-mix(in srgb, var(--green) 45%, var(--border)); }
+:is(#lolchat, #lolcomputer) .chat-toast-error { border-color: color-mix(in srgb, var(--danger) 45%, var(--border)); }
+:is(#lolchat, #lolcomputer) .chat-toast-success { border-color: color-mix(in srgb, var(--green) 45%, var(--border)); }

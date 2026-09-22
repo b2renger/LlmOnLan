@@ -166,8 +166,12 @@ K1 kickoff and that are called out loudly here because they are scope-gate chang
 - `docs/**`.
 
 **Forbidden, unchanged:** `shell/src/**`, `farm/**`, `farm-app/**`, `sidecar/**`, `.github/**`,
-`CLAUDE.md`, `package.json`, the CSP meta, `shell/test/e2e.js` (byte-identical),
-`shell/renderer/tokens.css`. **Surface persistence therefore does NOT go in `shell/src/main/store.ts`** —
+`CLAUDE.md`, `package.json`, the CSP meta,
+`shell/renderer/tokens.css`. `shell/test/e2e.js` is **no longer byte-identical** (K1 fix round, 2026-09-23): K1 renamed the
+control it drives and the byte-identical rule made the fix unreachable. The rule it enforces now is
+the one that was meant: e2e.js may be re-pointed at renamed UI, but **no assertion may be removed**
+and it may not be deleted — `chat-scope.js`'s `checkE2e` compares its `throw new Error('…')` set.
+**Surface persistence therefore does NOT go in `shell/src/main/store.ts`** —
 it is `localStorage['lol:view']`, written from the toggle in `app.js`.
 
 ### 1.2 File conventions (additions)

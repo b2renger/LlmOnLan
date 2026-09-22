@@ -46,6 +46,10 @@ async function open(/** @type {any} */ h) {
     return true;
 }
 
+/** The `N / CAP` meter's denominator, as a number. */
+const capDenominator = (/** @type {string|null} */ text) =>
+    Number(String(text || '').replace(/[^0-9/]/g, '').split('/')[1]);
+
 /** What the run bar is actually showing. */
 const bar = (/** @type {any} */ h) => h.eval(() => {
     const pick = (sel) => document.querySelector(`#lolcomputer ${sel}`);
@@ -109,6 +113,67 @@ async function build(/** @type {any} */ h, /** @type {any} */ askSettings) {
 const settled = (/** @type {any} */ h) => h.waitFor(() => (window.LolComputer.debug.computer.running() ? null : true));
 
 export default [
+    {
+        // The surface ships TWO cap widgets — the canvas toolbar's field and the bar's meter — and
+        // they must not disagree. The runner re-reads the key on every run, so the bar has to too.
+        name: 'k1-runbar-cap-follows-the-toolbar',
+        needsMock: true,
+        allowConsoleErrors: FARM_ERRORS,
+        async run(h) {
+            await open(h);
+            const first = await bar(h);
+            h.eq(capDenominator(first.cap), 50, 'the meter starts at the default cap');
+
+            // Edit the SHIPPED field, the way a reader does, and let it write through to kv.
+            await h.eval(() => {
+                const input = /** @type {any} */ (document.querySelector('#lolcomputer .graph-cap-input'));
+                if (!input) throw new Error('the canvas toolbar has no cap field');
+                input.value = '10';
+                input.dispatchEvent(new Event('change', { bubbles: true }));
+                return true;
+            });
+
+            const shown = await h.waitFor(() => {
+                window.LolComputer.app.runbar.render();
+                const el = document.querySelector('#lolcomputer .comp-run-cap');
+                const txt = el ? el.textContent : '';
+                return txt && txt.replace(/[^0-9/]/g, '').split('/')[1] === '10' ? txt : null;
+            }, { timeout: 5000 });
+            h.assert(shown, `the meter's denominator is the cap the next run will enforce (${shown})`);
+        },
+    },
+    {
+        // Escape is the surface's stop gesture. The canvas has its own keydown; everywhere ELSE on
+        // the Computer it has to reach the surface's CANCEL_HANDLERS — which nothing walked until
+        // computer/host.mjs bound it, because the Computer does not load app/controller.mjs.
+        name: 'k1-runbar-escape-stops-from-the-bar',
+        needsMock: true,
+        allowConsoleErrors: FARM_ERRORS,
+        async run(h) {
+            await open(h);
+            // Long enough that a run which ends on its own cannot be mistaken for one Escape
+            // stopped: the wait below is 4 s against a 20 s reply.
+            await h.mock.state({ delayMs: 20000 });
+            const ids = await build(h);
+            await h.click('#lolcomputer .comp-run-all');
+            await h.waitFor(() => (window.LolComputer.debug.computer.running() ? true : null), { timeout: 10000 });
+
+            const sent = await h.eval(() => {
+                const btn = /** @type {any} */ (document.querySelector('#lolcomputer .comp-runbar .comp-run-stop'));
+                if (!btn) throw new Error('the run bar has no Stop button to focus');
+                btn.focus();
+                const where = document.activeElement;
+                where.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+                return { focusedInBar: !!where.closest('.comp-runbar') };
+            });
+            h.eq(sent.focusedInBar, true, 'focus was on the run bar, not inside the canvas');
+
+            await h.waitFor(() => (window.LolComputer.debug.computer.running() ? null : true), { timeout: 4000 });
+            const live = await parts(h);
+            h.eq(live[ids.ask].state, 'stale', 'Escape from the run bar stopped the run, exactly as the Stop button does');
+            await h.mock.state({ delayMs: 0 });
+        },
+    },
     {
         name: 'k1-runbar-run-all',
         needsMock: true,

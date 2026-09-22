@@ -152,7 +152,27 @@ export function install(app) {
     return r && typeof r.report === 'function' ? r.report() : null;
   }
 
+  // The cap lives in kv, and the canvas toolbar's cap field writes the SAME key (graph/canvas.mjs)
+  // while graph/runner.mjs re-reads it on every run. Reading it once at install left the meter
+  // showing `N / 50` after the reader had moved the cap to 10, i.e. the two cap widgets on this
+  // surface actively contradicting each other. So re-read on every paint, and repaint only when
+  // the number actually moved (which is what stops this from looping).
+  let capInFlight = false;
+  function refreshCap() {
+    const repo = app && app.repo;
+    if (!repo || typeof repo.kvGet !== 'function' || capInFlight) return;
+    capInFlight = true;
+    Promise.resolve(repo.kvGet(KV_KEYS.prefComputeMaxItems, DEFAULT_MAX_ITEMS))
+      .then((stored) => {
+        capInFlight = false;
+        const next = Number(stored) > 0 ? Math.floor(Number(stored)) : DEFAULT_MAX_ITEMS;
+        if (next !== cap) { cap = next; paint(); }
+      })
+      .catch(() => { capInFlight = false; });
+  }
+
   function paint() {
+    refreshCap();
     const r = runner();
     const running = !!(r && typeof r.running === 'function' && r.running());
     runBtn.classList.toggle('hidden', running);
@@ -205,16 +225,7 @@ export function install(app) {
   const h0 = host();
   if (h0 && h0.session && typeof h0.session.on === 'function') offs.push(h0.session.on(() => paint()));
 
-  // The cap lives in kv (the runner reads the same key), so the meter's denominator is the one the
-  // next run will really enforce.
-  const repo = app && app.repo;
-  if (repo && typeof repo.kvGet === 'function') {
-    Promise.resolve(repo.kvGet(KV_KEYS.prefComputeMaxItems, DEFAULT_MAX_ITEMS))
-      .then((stored) => { if (Number(stored) > 0) { cap = Math.floor(Number(stored)); paint(); } })
-      .catch(() => { /* the default is the runner's own default */ });
-  }
-
-  paint();
+  paint();   // which also kicks off the first refreshCap()
 
   app.runbar = {
     render: () => paint(),

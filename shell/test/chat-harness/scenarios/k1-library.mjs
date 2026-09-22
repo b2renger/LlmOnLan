@@ -233,4 +233,67 @@ export default [
             h.eq(px, '300px', 'and the sheet is reading it');
         },
     },
+
+    {
+        // A toast is the ONLY visible feedback this surface has — .comp-live is screen-reader-only
+        // — and the stack is appended to the owning App's root, i.e. #lolcomputer. #lolcomputer is
+        // a three-column grid, so an unpositioned stack auto-places into an implicit FOURTH area:
+        // a new grid row that appears for the toast's lifetime and squeezes the canvas.
+        name: 'k1-library-toast-is-at-home-on-the-computer',
+        needsMock: true,
+        timeoutMs: 120000,
+        allowConsoleErrors: FARM_ERRORS,
+        run: async (/** @type {any} */ h) => {
+            await h.fresh();
+            await ready(h);
+
+            const shown = await h.eval(() => {
+                const surface = document.getElementById('lolcomputer');
+                const rowsBefore = getComputedStyle(surface).gridTemplateRows;
+                const canvasBefore = document.querySelector('#lolcomputer .comp-main').getBoundingClientRect().height;
+                window.LolComputer.app.dialogs.toast('a toast from the Computer', { kind: 'error' });
+                const stack = surface.querySelector('.chat-toasts');
+                const el = stack ? stack.querySelector('.chat-toast') : null;
+                const cs = stack ? getComputedStyle(stack) : null;
+                const ecs = el ? getComputedStyle(el) : null;
+                return {
+                    inSurface: !!stack,
+                    position: cs ? cs.position : null,
+                    rowsBefore,
+                    rowsAfter: getComputedStyle(surface).gridTemplateRows,
+                    canvasBefore,
+                    canvasAfter: document.querySelector('#lolcomputer .comp-main').getBoundingClientRect().height,
+                    border: ecs ? ecs.borderTopWidth : null,
+                    radius: ecs ? ecs.borderTopLeftRadius : null,
+                    bg: ecs ? ecs.backgroundColor : null,
+                    text: el ? el.textContent : null,
+                };
+            });
+
+            h.eq(shown.inSurface, true, 'the stack really lands inside #lolcomputer');
+            h.eq(shown.text, 'a toast from the Computer');
+            h.assert(shown.position !== 'static',
+                `the stack is out of flow, so it can never become a grid item (position: ${shown.position})`);
+            h.eq(shown.rowsAfter, shown.rowsBefore, 'and the grid grew no implicit row');
+            h.eq(shown.canvasAfter, shown.canvasBefore, 'so the canvas was not squeezed to make room');
+            h.assert(shown.border !== '0px', `the toast is styled here, not bare text (border ${shown.border})`);
+            h.assert(shown.radius !== '0px', `with the surface's radius (${shown.radius})`);
+            h.assert(shown.bg !== 'rgba(0, 0, 0, 0)', `and a background (${shown.bg})`);
+
+            // ...and it has to LOOK like the rest of the surface, in both themes.
+            for (const theme of ['dark', 'light']) {
+                await h.eval((t) => {
+                    document.documentElement.className = t;
+                    const old = document.querySelector('#lolcomputer .chat-toasts');
+                    if (old) old.remove();
+                    window.LolComputer.app.dialogs.toast('a toast from the Computer', { kind: 'error', ms: 60000 });
+                    return true;
+                }, theme);
+                const shot = await h.screenshot(`k1-toast-${theme}`);
+                h.assert(!!shot, `k1-toast-${theme}: no screenshot was produced`);
+                h.note(`screenshot k1-toast-${theme}`);
+            }
+            await h.eval(() => { document.documentElement.className = 'dark'; return true; });
+        },
+    },
 ];

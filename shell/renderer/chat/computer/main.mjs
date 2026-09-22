@@ -213,7 +213,7 @@ async function mount() {
   LolComputer.ready = true;
 
   // ---- the migration, once the store settles (§7.2) -------------------------------------------
-  const skipped = (/** @type {string} */ reason) => ({ status: 'skipped', reason, imported: 0, skipped: 0 });
+  const skipped = (/** @type {string} */ reason) => ({ status: 'skipped', reason, imported: 0, skipped: 0, errors: 0 });
   LolComputer.migration = (async () => {
     const repo = app.repo;
     if (!repo) return skipped('no-repo');
@@ -228,6 +228,15 @@ async function mount() {
       return skipped('error');
     }
   })();
+
+  // A row that THREW is not the same as a row that was already there: migrate.mjs withholds the
+  // done-marker so the next launch retries it, but a reader who is never told just sees a graph
+  // missing from the library. Say it once, here, where the toast stack exists.
+  LolComputer.migration.then((out) => {
+    const n = out && Number(out.errors) > 0 ? Number(out.errors) : 0;
+    if (!n || !app.dialogs || typeof app.dialogs.toast !== 'function') return;
+    app.dialogs.toast(n === 1 ? t('computer.migrateStrandedOne') : t('computer.migrateStranded', { n }), { kind: 'error' });
+  }).catch(() => { /* the verdict is already logged; a toast is not worth a second failure */ });
 
   // The library opens the last document once the migration has had its say, so a first launch
   // after the upgrade lands on something rather than on an empty list.

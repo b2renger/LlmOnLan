@@ -133,6 +133,47 @@ export default (test) => {
     assert.equal(libraryRows(repo).length, 3);
   });
 
+  // ---- a row that THREW is not a row that was skipped ---------------------------------------------
+
+  test('one row whose putGraph rejects is an error, not a skip, and the marker is withheld', async () => {
+    const repo = fakeRepo({
+      graphs: [graph('g1', 't1'), graph('g2', 't2'), graph('g3', 't3')],
+      threads: [{ id: 't1', title: 'One' }, { id: 't2', title: 'Two' }, { id: 't3', title: 'Three' }],
+    });
+    const put = repo.putGraph;
+    repo.putGraph = async (doc) => {
+      if (doc.id === derivedId('g2')) throw new Error('QuotaExceededError');
+      return put(doc);
+    };
+    const out = await migrateGraphsV1({ repo, now: () => 100 });
+    assert.equal(out.status, 'done');
+    assert.equal(out.imported, 2);
+    assert.equal(out.skipped, 0, 'a throw is NOT a legitimate skip');
+    assert.equal(out.errors, 1);
+    assert.equal(await repo.kvGet(MIGRATED_KEY, null), null,
+        'the done-marker is withheld while a graph is still waiting');
+
+    // ...so the next launch retries it, and the derived id keeps the first two from doubling.
+    repo.putGraph = put;
+    const again = await migrateGraphsV1({ repo, now: () => 200 });
+    assert.equal(again.errors, 0);
+    assert.equal(again.imported, 1, 'only the one that failed was written the second time');
+    assert.equal(again.skipped, 2);
+    assert.equal(libraryRows(repo).length, 3, 'three, not five');
+    assert.equal(await repo.kvGet(MIGRATED_KEY, null), true, 'and NOW the marker lands');
+  });
+
+  test('an ordinary skip still writes the marker, so a clean run is paid for once', async () => {
+    const repo = fakeRepo({
+      graphs: [graph('g1', 't1')],
+      threads: [{ id: 't1', title: 'One', ephemeral: true }],
+    });
+    const out = await migrateGraphsV1({ repo, now: () => 100 });
+    assert.equal(out.skipped, 1);
+    assert.equal(out.errors, 0);
+    assert.equal(await repo.kvGet(MIGRATED_KEY, null), true);
+  });
+
   // ---- titles ------------------------------------------------------------------------------------
 
   test('a row whose chat is gone still migrates, with words instead of a blank title', async () => {

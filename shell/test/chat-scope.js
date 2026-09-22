@@ -91,9 +91,7 @@ function checkScope(io) {
         }
 
         if (rule.checkE2e && /^shell\/test\/e2e\.js$/.test(file)) {
-            const before = io.readBase(file);
-            const after = io.readWork(file);
-            if (before !== after) add(file, 'shell/test/e2e.js must stay byte-identical (§2.5)');
+            for (const v of checkE2e(io, file)) add(file, v);
         }
 
         if (rule.checkPublishFarm) {
@@ -151,6 +149,41 @@ function lolFarmLiteralSpan(src) {
     let i = start;
     while (i < lines.length && !/;\s*$/.test(lines[i])) i++;
     return [start + 1, Math.min(i + 1, lines.length)];
+}
+
+/**
+ * The shipped E2E test (§2.5). It was "byte-identical" until K1, which renamed the surface control
+ * it drives (`#view-toggle` -> the `.viewseg` group) and left `npm test` deterministically red with
+ * nobody allowed to fix it. Byte-identical was the wrong shape for that intent: what must never
+ * happen is an assertion being DROPPED to make the suite pass. So the rule is now exactly that —
+ * e2e.js may be re-pointed at renamed UI, but every `throw new Error('…')` it had must still be
+ * there, and it may not shrink its assertion count.
+ * @returns {string[]} messages
+ */
+function checkE2e(io, file) {
+    const out = [];
+    const base = io.readBase(file);
+    const work = io.readWork(file);
+    if (base === null) return out;                       // a brand-new file has nothing to weaken
+    if (work === null) { out.push('shell/test/e2e.js must not be deleted (§2.5)'); return out; }
+    if (base === work) return out;
+    const before = e2eAssertions(base);
+    const after = new Set(e2eAssertions(work));
+    for (const msg of before) {
+        if (!after.has(msg)) {
+            out.push(`an assertion was removed from the shipped E2E test (§2.5): "${msg}"`);
+        }
+    }
+    return out;
+}
+
+/** Every literal head of a `throw new Error(...)` in a source file. @returns {string[]} */
+function e2eAssertions(src) {
+    const out = [];
+    const re = /throw new Error\(\s*(['"`])((?:\\.|(?!\1)[^\\])*)\1/g;
+    let m = re.exec(src);
+    while (m) { out.push(m[2]); m = re.exec(src); }
+    return out;
 }
 
 /** @returns {string[]} messages */
@@ -471,12 +504,27 @@ function selfTest() {
             "   els.pill.textContent = 'x';"].join('\n'),
     })), /OUTSIDE function publishFarm/);
 
-    // 4. an e2e.js edit
-    expectFlag('an e2e.js edit is flagged', checkScope(io({
+    // 4. e2e.js: re-pointing it at renamed UI is allowed; dropping an assertion is not
+    const E2E_BASE = [
+        'const b = document.getElementById("view-toggle");',
+        "if (!ok) throw new Error('LOL Chat did not open via the toggle');",
+        "if (!pill) throw new Error('topbar pill does not show free seats: ' + p);",
+    ].join('\n');
+    expectClean('re-pointing e2e.js at a renamed control is allowed', checkScope(io({
         changed: ['shell/test/e2e.js'],
-        readBase: () => 'const http = require("http");\n',
-        readWork: () => 'const http = require("http"); // tweaked\n',
-    })), /byte-identical/);
+        readBase: () => E2E_BASE,
+        readWork: () => E2E_BASE.replace('view-toggle', 'view-chat'),
+    })));
+    expectFlag('dropping an assertion from e2e.js is flagged', checkScope(io({
+        changed: ['shell/test/e2e.js'],
+        readBase: () => E2E_BASE,
+        readWork: () => E2E_BASE.split('\n').slice(0, 2).join('\n'),
+    })), /an assertion was removed from the shipped E2E test/);
+    expectFlag('deleting e2e.js is flagged', checkScope(io({
+        changed: ['shell/test/e2e.js'],
+        readBase: () => E2E_BASE,
+        readWork: () => null,
+    })), /must not be deleted/);
 
     expectClean('a new harness file under shell/test/ is allowed', checkScope(io({
         changed: ['shell/test/chat-harness/run.js', 'shell/test/chat/unit/md.test.mjs'],

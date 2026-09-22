@@ -279,7 +279,11 @@ export function createHost(app, els) {
   });
 
   // Escape, and any other cancel gesture the surface grows, stop the run. The Computer has its own
-  // registry (§2.3), so this row is the Computer's and never reaches the chat's.
+  // registry (§2.3), so this row is the Computer's and never reaches the chat's — which also means
+  // NOTHING walks it unless this surface does: app/controller.mjs is the only other reader of
+  // CANCEL_HANDLERS and the Computer does not load the controller. So the row below is registered
+  // AND walked here. Without the listener, Escape stopped a run only while focus was inside the
+  // canvas (graph/canvas.mjs's own keydown) — never from the run bar, the library or the drawer.
   if (app && app.registry && typeof app.registry.add === 'function') {
     app.registry.add(SLOTS.CANCEL_HANDLERS, {
       id: 'computer-run',
@@ -288,6 +292,31 @@ export function createHost(app, els) {
       cancel: () => runner.stop(),
     });
   }
+
+  /** Walk this surface's own CANCEL_HANDLERS. @returns {boolean} whether anything was cancelled */
+  function cancelActive() {
+    const reg = app && app.registry;
+    if (!reg || typeof reg.list !== 'function') return false;
+    for (const handler of reg.list(SLOTS.CANCEL_HANDLERS) || []) {
+      let isActive = false;
+      try { isActive = !!handler.active(app); } catch (err) { console.warn(`[lolcomputer] cancel handler "${handler.id}" threw`, err); }
+      if (!isActive) continue;
+      try { handler.cancel(app); } catch (err) { console.warn(`[lolcomputer] cancel handler "${handler.id}" threw`, err); }
+      return true;
+    }
+    return false;
+  }
+
+  // The canvas stops the event it handles itself, so this only ever sees an Escape pressed with
+  // focus somewhere ELSE on the surface. It cancels nothing when nothing is active, so Escape
+  // keeps its usual meaning (close the popover, blur the field) everywhere else.
+  const surface = /** @type {HTMLElement|null} */ ((app && app.root) || null);
+  /** @param {KeyboardEvent} e */
+  const onSurfaceKey = (e) => {
+    if (e.key !== 'Escape' || e.defaultPrevented) return;
+    if (cancelActive()) e.preventDefault();
+  };
+  if (surface) surface.addEventListener('keydown', onSurfaceKey);
 
   /** The Run button, ctrl+enter, the run bar and the debug door all land here.
    * @param {any} [opts] */
@@ -377,6 +406,7 @@ export function createHost(app, els) {
     async close() {
       closed = true;
       runner.stop();
+      if (surface) surface.removeEventListener('keydown', onSurfaceKey);
       offRunner();
       offSession();
       canvas.destroy();
