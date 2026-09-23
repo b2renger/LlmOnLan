@@ -28,24 +28,55 @@ export const CODE_FACETS = Object.freeze({
   html: Object.freeze({ format: 'html' }),
 });
 
-const FENCE = /(^|\n)[ \t]*(`{3,}|~{3,})[ \t]*([\w.+#-]*)[^\n]*\n([\s\S]*?)\n[ \t]*\2[ \t]*(?=\n|$)/g;
+// A fenced block. The closing fence may sit on its own line (the norm) or be GLUED to the last
+// line of code (`<p>hi</p>```` — a model that forgets the newline); it must end its line either way.
+const FENCE = /(^|\n)[ \t]*(`{3,}|~{3,})[ \t]*([\w.+#-]*)[^\n]*\n([\s\S]*?)(?:\n[ \t]*)?\2[ \t]*(?=\n|$)/g;
+
+/** An opening fence line, for an answer whose closing fence never came (a truncated answer, or a
+ * model that omits it). */
+const OPENER = /(^|\n)[ \t]*(`{3,}|~{3,})[ \t]*([\w.+#-]*)[^\n]*\n/;
+
+/** A lone closing fence on the last line, for an answer that has one but no opener. */
+const TRAILING_CLOSER = /\n[ \t]*(`{3,}|~{3,})[ \t]*$/;
+
+/** Which fence languages are the right SHAPE for each kind a box draws (a Write-… `code`, or a
+ * Preview mode). */
+const LANGS_FOR = Object.freeze({
+  p5: ['js', 'javascript', 'p5', 'p5js', 'p5.js', 'mjs', 'jsx'],
+  three: ['js', 'javascript', 'three', 'threejs', 'three.js', 'mjs', 'jsx'],
+  svg: ['svg', 'xml'],
+  html: ['html', 'htm', 'xhtml'],
+});
 
 /**
  * The code inside a markdown fence, or the text itself when there is none.
- * The LONGEST fenced block wins: a model that shows a one-line usage example before the real
- * program must not have the example drawn. Frozen (KE-3).
- * @param {string} text
+ * Among several fenced blocks, the one whose language is the right shape for `want` (a code kind
+ * or a Preview mode — `html` for an HTML page, `svg`, `js`/`javascript` for a sketch) wins; among
+ * those — or among all when none match or `want` is not given — the LONGEST: a model that shows a
+ * one-line usage example before the real program must not have the example drawn, and an HTML
+ * page followed by a longer stylesheet must not have the stylesheet drawn. An opening fence with
+ * no closing one (a truncated answer) is unwrapped too: the code is everything after it. Frozen
+ * signature (KE-3); `want` is optional.
+ * @param {string} text @param {string} [want]
  * @returns {{code: string, lang: string, fenced: boolean}}
  */
-export function unfence(text) {
+export function unfence(text, want) {
   const src = String(text == null ? '' : text).replace(/\r\n?/g, '\n');
-  let best = null;
+  const langs = /** @type {any} */ (LANGS_FOR)[String(want || '')] || null;
+  /** @type {{code: string, lang: string}|null} */ let best = null;
+  /** @type {{code: string, lang: string}|null} */ let bestMatch = null;
   FENCE.lastIndex = 0;
   let m;
   while ((m = FENCE.exec(src))) {
-    if (!best || m[4].length > best.code.length) best = { code: m[4], lang: String(m[3] || '').toLowerCase() };
+    const block = { code: m[4], lang: String(m[3] || '').toLowerCase() };
+    if (!best || block.code.length > best.code.length) best = block;
+    if (langs && langs.indexOf(block.lang) >= 0 && (!bestMatch || block.code.length > bestMatch.code.length)) bestMatch = block;
   }
-  if (best) return { code: best.code.trim(), lang: best.lang, fenced: true };
+  const pick = bestMatch || best;
+  if (pick) return { code: pick.code.trim(), lang: pick.lang, fenced: true };
+  const open = OPENER.exec(src);
+  if (open) return { code: src.slice(open.index + open[0].length).trim(), lang: String(open[3] || '').toLowerCase(), fenced: true };
+  if (TRAILING_CLOSER.test(src)) return { code: src.replace(TRAILING_CLOSER, '').trim(), lang: '', fenced: true };
   return { code: src.trim(), lang: '', fenced: false };
 }
 
@@ -59,7 +90,7 @@ export function unfence(text) {
 export function codeValue(text, code) {
   const kind = String(code || '');
   if (CODE_KINDS.indexOf(kind) < 0) return { kind: 'text', data: String(text == null ? '' : text) };
-  return { kind: 'text', data: unfence(text).code, .../** @type {any} */ (CODE_FACETS)[kind] };
+  return { kind: 'text', data: unfence(text, kind).code, .../** @type {any} */ (CODE_FACETS)[kind] };
 }
 
 /**
@@ -70,7 +101,7 @@ export function codeValue(text, code) {
  * @param {string} mode a Preview mode @param {string} text @returns {string}
  */
 export function codeFor(mode, text) {
-  const code = unfence(text).code;
+  const code = unfence(text, mode).code;
   if (mode === 'svg') return svgOf(code);
   if (mode === 'html') return htmlOf(code);
   return code;
@@ -196,6 +227,23 @@ export function shapeForGuest(mode, code) {
 /** Words after which a `/` starts a regular expression rather than a division. */
 const REGEX_AFTER_WORD = new Set(['return', 'typeof', 'case', 'do', 'else', 'in', 'of', 'new', 'delete', 'void', 'throw', 'yield', 'await']);
 
+/** Words another word may follow on the same line (`let x`, `new THREE`, `async function`,
+ * `else if`, `get x()`…). Two words side by side where the first is NOT one of these — and the
+ * second is not an infix word — is always a syntax error: `funtion draw() {`. */
+const WORD_THEN_WORD = new Set([
+  'var', 'let', 'const', 'function', 'class', 'new', 'typeof', 'instanceof', 'in', 'of', 'return',
+  'case', 'do', 'else', 'void', 'delete', 'throw', 'yield', 'await', 'async', 'get', 'set',
+  'static', 'extends', 'import', 'export', 'from', 'as', 'default', 'break', 'continue', 'debugger',
+]);
+
+/** Words that may follow any word: `x in y`, `a instanceof B`, `class A extends B`. */
+const INFIX_WORD = new Set(['in', 'of', 'instanceof', 'extends', 'as', 'from']);
+
+/** An operator that needs a right-hand side, and the characters that prove there is none:
+ * `let x = ;`, `f(a *)`. (`+`/`-` are left out: `i++;` is complete; `:` too: `case 1: }` is.) */
+const NEEDS_RIGHT = '=*%&|^<>?';
+const NOTHING_RIGHT = ';),]}';
+
 /**
  * Where a piece of JavaScript is most likely broken, when the engine would not say.
  *
@@ -203,10 +251,17 @@ const REGEX_AFTER_WORD = new Set(['return', 'typeof', 'case', 'do', 'else', 'in'
  * that carries NO line — only "Unexpected token '}'". A person with forty lines in front of them
  * needs the line. This is a small scanner, not a parser: it skips comments, strings, template
  * literals and (heuristically) regular expressions, and finds the first bracket that closes the
- * wrong thing, the first string left open at the end of its line, or — at the end — the bracket
- * that was never closed. It answers null rather than guess when none of those is the problem.
+ * wrong thing, the first string left open at the end of its line, two words side by side that
+ * cannot be (`funtion draw`), an operator with nothing on its right (`let x = ;`), or — at the
+ * end — the bracket that was never closed.
+ *
+ * A WRONG LINE IS WORSE THAN NONE: the box offers to jump there. So a closer that meets the
+ * wrong opener names the line that is actually broken — `createCanvas(4, 4;` then `}` names the
+ * `(`'s line, `background(0));` inside a block names the `)`'s — and when the two lines differ
+ * and neither reading is clearly right, it names no line. It answers null rather than guess;
+ * the engine's own message is then all the box says (the sandbox compiler has the last word).
  * @param {string} code
- * @returns {{line: number, what: 'bracket'|'open'|'string'|'comment'}|null}
+ * @returns {{line: number, what: 'bracket'|'open'|'string'|'comment'|'token'}|null}
  */
 export function syntaxLine(code) {
   const src = String(code == null ? '' : code).replace(/\r\n?/g, '\n');
@@ -217,6 +272,7 @@ export function syntaxLine(code) {
   let i = 0;
   let prev = '';       // the last significant character
   let word = '';       // the last identifier, when `prev` ended one
+  let wordLine = 0;    // the line `word` was on
   const regexAllowed = () => prev === '' || '(,=:[!&|?{};+-*%<>~^'.includes(prev) || REGEX_AFTER_WORD.has(word);
   while (i < n) {
     const c = src[i];
@@ -283,15 +339,27 @@ export function syntaxLine(code) {
         continue;
       }
     }
+    if (NOTHING_RIGHT.includes(c) && prev && NEEDS_RIGHT.includes(prev) && !word) return { line, what: 'token' };
     if (c === '(' || c === '[' || c === '{') stack.push({ c, line });
     else if (c === ')' || c === ']' || c === '}') {
       const top = stack.pop();
-      if (!top || top.c !== /** @type {any} */ (OPEN)[c]) return { line, what: 'bracket' };
+      if (!top) return { line, what: 'bracket' };                 // a closer too many: here
+      if (top.c !== /** @type {any} */ (OPEN)[c]) {
+        if (top.line === line) return { line, what: 'bracket' };
+        // A block ends while a ( or [ is still open: the call/array was never closed — ITS line.
+        if (c === '}' && top.c !== '{') return { line: top.line, what: 'open' };
+        // A ) or ] inside a block that never opened one: a stray closer — THIS line.
+        if (top.c === '{') return { line, what: 'bracket' };
+        return null;                                               // ( … ] across lines: unsure
+      }
     }
     if (/[\w$]/.test(c)) {
       let k = i;
       while (k < n && /[\w$]/.test(src[k])) k++;
-      word = src.slice(i, k);
+      const next = src.slice(i, k);
+      if (word && wordLine === line && !WORD_THEN_WORD.has(word) && !INFIX_WORD.has(next)) return { line, what: 'token' };
+      word = next;
+      wordLine = line;
       prev = 'x';
       i = k;
       continue;

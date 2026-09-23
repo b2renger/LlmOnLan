@@ -62,7 +62,7 @@ import { title } from './title.mjs';
 // p5 mode with starter code). The groups, the glyphs and the plain parts' one-liners are catalogue
 // knowledge and live HERE; the presets live in ./creative.mjs (K5-U1); the menu that draws them is
 // graph/palette-menu.mjs (K5-U2), fed by graph/palette.mjs `buildPalette(paletteCatalogue(), specs)`.
-import { t } from '../../core/i18n.mjs';
+import { t, hasKey } from '../../core/i18n.mjs';
 import '../../strings/palette.en.mjs';
 import { creativePresets } from './creative.mjs';
 
@@ -145,19 +145,39 @@ function partMeta() {
   };
 }
 
+/** A plain part's search words (strings/palette.en.mjs `kw<Type>`, comma separated), carried IN
+ * the catalogue so every search over it — the ＋ menu, the welcome panel, a test — finds "prompt"
+ * or "render" the same way. @param {string} type @returns {string[]} */
+function kwOf(type) {
+  const s = String(type || '');
+  if (!Object.prototype.hasOwnProperty.call(KW, s) || !hasKey(/** @type {any} */ (KW)[s])) return [];
+  return t(KW[/** @type {keyof typeof KW} */ (s)]).split(',').map((w) => w.trim()).filter(Boolean);
+}
+
+/** Each plain part's search-words key (strings/palette.en.mjs). */
+const KW = {
+  note: 'palette.kwNote', image: 'palette.kwImage', file: 'palette.kwFile',
+  ask: 'palette.kwAsk', split: 'palette.kwSplit', filter: 'palette.kwFilter',
+  collect: 'palette.kwCollect', repeat: 'palette.kwRepeat',
+  preview: 'palette.kwPreview', code: 'palette.kwCode',
+  button: 'palette.kwButton', condition: 'palette.kwCondition', confirm: 'palette.kwConfirm',
+  dialog: 'palette.kwDialog', toggle: 'palette.kwToggle', timer: 'palette.kwTimer',
+  sticky: 'palette.kwSticky', section: 'palette.kwSection', title: 'palette.kwTitle',
+};
+
 /**
  * Everything the ＋ menu may offer, as DATA (addendum KE-2): the palette's plain parts with their
  * group/order/glyph/one-liner, and the presets. Strings are resolved at call time. A part type
  * with no meta row falls into `think` at the end rather than vanishing from the menu — the
  * graph-parts test asserts there is none.
- * @returns {{parts: {type: string, label: string, group: PaletteGroup, order: number, glyph: string, desc: string, size: {w: number, h: number}|null}[],
+ * @returns {{parts: {type: string, label: string, group: PaletteGroup, order: number, glyph: string, desc: string, keywords: string[], size: {w: number, h: number}|null}[],
  *   presets: PartPreset[]}}
  */
 export function paletteCatalogue() {
   const meta = partMeta();
   const parts = partSpecs().map((s) => {
     const m = /** @type {any} */ (meta)[s.type] || { group: 'think', order: 9000, glyph: '·', desc: '' };
-    return { type: s.type, label: s.label, group: m.group, order: m.order, glyph: m.glyph, desc: m.desc, size: s.size || null };
+    return { type: s.type, label: s.label, group: m.group, order: m.order, glyph: m.glyph, desc: m.desc, keywords: kwOf(s.type), size: s.size || null };
   });
   const types = new Set(parts.map((p) => p.type));
   return { parts, presets: creativePresets().filter((p) => types.has(p.type)) };

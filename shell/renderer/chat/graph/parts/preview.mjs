@@ -376,11 +376,19 @@ function whenIdle(app) {
 /** Is anything wired into this box? Read off the open document; false when there is no host
  * (a unit test), which is the "nothing wired in" rule's own default. @param {any} ctx @param {string} id */
 function wiredIn(ctx, id) {
+  return wiring(ctx, id) === true;
+}
+
+/** true / false when the open document says whether anything is wired into this box; null when
+ * there is no document to ask (a unit test) — "unknown" must never read as "unwired" to the rule
+ * that forgets an arrival. @param {any} ctx @param {string} id @returns {boolean|null} */
+function wiring(ctx, id) {
   try {
     const session = ctx && ctx.app && ctx.app.host && ctx.app.host.session;
     const doc = session && typeof session.doc === 'function' ? session.doc() : null;
-    return !!(doc && Array.isArray(doc.wires) && doc.wires.some((/** @type {any} */ w) => w && w.to === id));
-  } catch { return false; }
+    if (!doc || !Array.isArray(doc.wires)) return null;
+    return doc.wires.some((/** @type {any} */ w) => w && w.to === id);
+  } catch { return null; }
 }
 
 /** Hand a picture to the reader as a file. `download()` carries TEXT; a PNG is bytes we already
@@ -813,10 +821,36 @@ export const preview = /** @type {any} */ ({
       if (free || (part.state || 'idle') === 'idle') scheduleDraw(0);
     }
 
+    /** An arrival the box shows is FORGOTTEN when its reason is gone (fix pass): the wire that
+     * brought it was removed (unwired, Undo), or the box's own code was replaced from outside the
+     * editor (Reset lesson, Undo of an edit). The box then shows — and draws — its own code again,
+     * exactly as a box that never received anything. A box the person claimed by typing is theirs
+     * already and is left alone. @param {any} prev @param {any} next */
+    function forgetArrival(prev, next) {
+      const shot = shownOf(id);
+      if (!shot || shot.from !== 'input' || OWNED.has(id) || typed) return false;
+      const src = (/** @type {any} */ p) => String((p && p.settings && p.settings.source) || '');
+      const unwired = wiring(ctx, id) === false;
+      const replaced = src(prev) !== src(next);
+      if (!unwired && !replaced) return false;
+      SHOWN.delete(id);
+      REFUSED.delete(id);
+      ERRORS.delete(id);
+      codeOpen = false;
+      return true;
+    }
+
     return {
       update(next) {
+        const prev = live;
         live = next;
+        const forgot = forgetArrival(prev, next);
         paint();
+        if (forgot && String(area.value || '').trim() && !wiredIn(ctx, id)) {
+          const mode = readSettings(next.settings).mode;
+          const free = mode === 'auto' || FREE_MODES.indexOf(mode) >= 0;
+          if (free || (next.state || 'idle') === 'idle') scheduleDraw(0);
+        }
       },
       destroy() {
         destroyed = true;

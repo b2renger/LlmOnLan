@@ -406,6 +406,23 @@ export default [
             await lockBox(h, 'p_svg');
             h.eq((await part(h, 'p_svg')).settings.locked, true, 'the lock on the SVG box keeps its code');
             await waitStep(h, 'done', 'the lesson completes offline');
+
+            // Reset lesson — the rail's button, then OK — puts the SVG box's OWN code back, drawn,
+            // and forgets the answer it showed. The box keeps its authored id, so the canvas reuses
+            // it and only its update() hears about the reset.
+            await h.computer.tutorial.press('reset');
+            await h.waitFor(() => (document.querySelector('dialog.chat-dialog[open]') ? true : null));
+            await h.click('dialog.chat-dialog[open] .chat-dialog-ok');
+            await waitStep(h, 0, 'reset starts the steps over');
+            const shippedSrc = (await part(h, 'p_svg')).settings.source;
+            h.assert(shippedSrc.includes('my picture'), 'the doc holds the shipped code');
+            await h.waitFor((pid) => {
+                const box = document.querySelector('#lolcomputer .graph-part[data-id="' + pid + '"]');
+                const area = /** @type {any} */ (box && box.querySelector('.graph-preview-source'));
+                const from = box && box.querySelector('.graph-preview-from');
+                return area && area.value.includes('my picture') && from && from.getAttribute('data-from') === 'own' ? true : null;
+            }, { timeout: 10000, args: ['p_svg'] });
+            h.assert((await picture(h, 'p_svg')).includes('my picture') && !(await picture(h, 'p_svg')).includes('#4a7a49'), 'the box draws the shipped picture, not the old answer');
             h.eq((await completions(h)).length, 0, 'nothing was sent anywhere');
         },
     },

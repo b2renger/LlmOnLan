@@ -67,6 +67,40 @@ export default [
             h.assert(rows.every((/** @type {any} */ r) => r.glyph && r.label && r.desc.length > 10), 'every row: a glyph, a name, a one-liner');
             const show = rows.filter((/** @type {any} */ r) => r.group === 'show').map((/** @type {any} */ r) => r.entry);
             h.eq(show.join(','), 'p5,three,svg,html,markdown,preview,code', 'the named boxes lead Show; the generic Preview follows');
+
+            // The fix pass: Show is below nine Think rows, so the boxes that draw with code — the
+            // ones the owner could not find — are ALSO a strip at the top, inside the menu's
+            // visible rect the moment it opens, without scrolling or typing.
+            const strip = await h.eval(() => {
+                const m = document.querySelector('#lolcomputer .graph-add-menu:not([hidden])');
+                if (!m) return null;
+                const mr = m.getBoundingClientRect();
+                return Array.from(m.querySelectorAll('.graph-add-quick')).map((b) => {
+                    const r = b.getBoundingClientRect();
+                    const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+                    return {
+                        entry: b.getAttribute('data-entry'),
+                        name: ((b.querySelector('.graph-add-quick-name') || {}).textContent) || '',
+                        seen: r.width > 0 && r.height > 0 && r.top >= mr.top && r.bottom <= mr.bottom && r.left >= mr.left && r.right <= mr.right
+                            && !!hit && (hit === b || b.contains(hit)),
+                    };
+                });
+            });
+            h.eq((strip || []).map((/** @type {any} */ q) => q.entry).join(','), 'p5,three,svg,html', 'the strip: the four boxes that draw with code');
+            for (const q of strip) h.assert(q.seen, `${q.entry} ("${q.name}") is on screen when the menu opens: ${JSON.stringify(strip)}`);
+            h.eq(strip[0].name, await say(h, 'parts.creativeP5Label'), 'named as in Show');
+            const before = (await h.computer.doc()).parts.map((/** @type {any} */ p) => p.id);
+            await h.click('#lolcomputer .graph-add-menu:not([hidden]) .graph-add-quick[data-entry="p5"]');
+            const placed = (await h.computer.doc()).parts.find((/** @type {any} */ p) => before.indexOf(p.id) < 0);
+            h.assert(!!placed && placed.type === 'preview' && placed.settings.mode === 'p5', 'clicking the p5.js sketch in the strip placed one');
+            h.eq(await h.computer.menu.isOpen(), false, 'and closed the menu');
+            await h.computer.remove([placed.id]);
+            await h.computer.menu.open();
+            await h.computer.menu.search('p5');
+            h.eq(await h.eval(() => {
+                const q = document.querySelector('#lolcomputer .graph-add-menu:not([hidden]) .graph-add-quicks');
+                return !!q && getComputedStyle(q).display === 'none';
+            }), true, 'a search hides the strip — the ranked rows are the answer');
             await h.computer.menu.key('Escape');
 
             // The five creative boxes, each by clicking ＋ and then its name.

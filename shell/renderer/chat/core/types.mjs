@@ -409,9 +409,10 @@
 
 /** kv `computer:tutorial` (KV_KEYS.computerTutorial): progress per lesson id. `ticks` latch and
  * never un-tick; `step` is the index of the first unticked step; `demo` lists the part ids whose
- * value is a recorded answer.
+ * value is a recorded answer; `marks` holds, per step id, the settings that step's `edited` checks
+ * watch, as they were when the step became current.
  * @typedef {Record<string, {step: number, ticks: string[], forkedDocId: string|null,
- *   doneAt: number|null, demo: string[]}>} TutorialProgress */
+ *   doneAt: number|null, demo: string[], marks?: Record<string, {parts: {id: string, settings: Record<string, string>}[]}>}>} TutorialProgress */
 
 /** What the runner hands a part's run(). `inputs` is keyed by port name, in wire order.
  * `item` is set ONLY while the part is running per item of a fan-out (C2, §2.6 BH-2): `i` is the

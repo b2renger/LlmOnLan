@@ -42,8 +42,11 @@ export function facetsOf(v) {
   /** @type {any} */ const out = {};
   if (isFormat(v.format) && v.format !== 'plain') out.format = v.format;
   if (typeof v.lang === 'string' && v.lang) out.lang = v.lang.trim().toLowerCase().slice(0, 24);
-  // A `lang` without `format:'code'` is noise from a hand-edited file, not a fact about the value.
-  if (out.lang && out.format !== 'code') delete out.lang;
+  // `lang` is a fact about CODE: the language of `format:'code'`, or the dialect of `format:'js'`
+  // (a Write-a-p5.js-sketch answer is {format:'js', lang:'p5'} — KE-3's CODE_FACETS — and a Preview
+  // in auto reads that lang to draw it; dropping it on load/export turned the sketch into text).
+  // On any other format it is noise from a hand-edited file, not a fact about the value.
+  if (out.lang && out.format !== 'code' && out.format !== 'js') delete out.lang;
   return out;
 }
 

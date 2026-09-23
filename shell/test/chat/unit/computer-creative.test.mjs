@@ -28,11 +28,13 @@ import {
 } from '../../../renderer/chat/graph/parts/creative.mjs';
 import {
   unfence, codeFor, codeValue, shapeForGuest, syntaxLine, isSyntaxError, markupLine, lineRange,
-  P5_HANDLERS,
+  P5_HANDLERS, CODE_FACETS,
 } from '../../../renderer/chat/graph/unfence.mjs';
 import {
-  shownOf, clearShown, sandboxMessage, lineOf, refusalOf, isEditing, errorOf, EDIT_DEBOUNCE_MS,
+  shownOf, clearShown, sandboxMessage, lineOf, refusalOf, isEditing, errorOf, EDIT_DEBOUNCE_MS, modeFor,
 } from '../../../renderer/chat/graph/parts/preview.mjs';
+import { normaliseDoc } from '../../../renderer/chat/graph/model.mjs';
+import { toJson, fromJson } from '../../../renderer/chat/graph/serialize.mjs';
 
 const SPECS = specMap();
 const PREVIEW = SPECS.get('preview');
@@ -212,7 +214,8 @@ function mount(doc, part, o = {}) {
     running: () => running,
     on: (fn) => { listeners.add(fn); return () => listeners.delete(fn); },
   };
-  const app = { now: () => 5000, host: { runner, session: { doc: () => ({ parts: [current], wires: o.wires || [] }) } } };
+  let wires = o.wires || [];
+  const app = { now: () => 5000, host: { runner, session: { doc: () => ({ parts: [current], wires }) } } };
   /** @type {any} */ let view = null;
   const ctx = {
     app, get part() { return current; }, open: () => {},
@@ -229,6 +232,8 @@ function mount(doc, part, o = {}) {
     host, view, patches, commits,
     current: () => current,
     setPart(next) { current = next; view.update(next); },
+    /** The document's wires change (a wire deleted, Undo, Reset lesson); the canvas repaints. */
+    setWires(next) { wires = next; view.update(current); },
     setRunning(on) { running = on; for (const fn of [...listeners]) fn({ type: 'run' }); },
     q: (sel) => host.querySelector(sel),
     qa: (sel) => host.querySelectorAll(sel),
@@ -299,6 +304,32 @@ export default (test) => {
       'function draw() { go(); }');
     // the frozen seam, unchanged
     assert.deepEqual(codeValue(lines(['```svg', svg, '```']), 'svg'), { kind: 'text', data: svg, format: 'svg' });
+  });
+
+  test('fences a model gets wrong are still unwrapped: unclosed, glued, and the wrong language', () => {
+    const sketch = lines(['function setup() { createCanvas(4, 4); }', 'function draw() { background(0); }']);
+    // an opening fence and no closing one — a truncated answer, or a model that omits it
+    const open = unfence(lines(['```javascript', sketch]));
+    assert.deepEqual(open, { code: sketch, lang: 'javascript', fenced: true }, 'the ```javascript line is not line 1 of the sketch');
+    assert.equal(codeValue(lines(['Here is your sketch:', '', '```javascript', sketch]), 'p5').data, sketch);
+    // a closing fence glued to the last line
+    assert.equal(unfence('```html' + NL + '<p>hi</p>```').code, '<p>hi</p>');
+    assert.equal(codeFor('html', lines(['```html', '<h1>A</h1>', '<p>hi</p>```'])), lines(['<h1>A</h1>', '<p>hi</p>']));
+    // a closing fence and no opener
+    assert.equal(unfence(lines([sketch, '```'])).code, sketch);
+    // several blocks: the one in the box's language wins, even when another is longer
+    const html = lines(['<h1>Hello</h1>', '<p>A small page.</p>']);
+    const css = lines(['body { font-family: sans-serif; margin: 0; padding: 2rem; }', 'h1 { color: #2e86ab; letter-spacing: 0.02em; }', 'p { line-height: 1.6; }']);
+    const both = lines(['```html', html, '```', 'and the styles:', '```css', css, '```']);
+    assert.equal(codeFor('html', both), html, 'an HTML page box draws the HTML, not the longer stylesheet');
+    assert.equal(codeValue(both, 'html').data, html);
+    const svg = '<svg xmlns="http://www.w3.org/2000/svg"><rect width="4" height="4"/></svg>';
+    assert.equal(codeValue(lines(['```css', css, '```', '```svg', svg, '```']), 'svg').data, svg);
+    assert.equal(codeValue(lines(['```html', html, '```', '```js', 'function draw() {}', '```']), 'p5').data, 'function draw() {}');
+    // no block in the right language: the longest, as before
+    assert.equal(codeFor('p5', lines(['```', 'go()', '```', '```', 'function draw() { go(); }', '```'])), 'function draw() { go(); }');
+    // a backtick run in the middle of a line is not a fence
+    assert.equal(unfence('const s = "```";').fenced, false);
   });
 
   // --------------------------------------------------------------------- shaping for the guest
@@ -426,6 +457,24 @@ export default (test) => {
       'const half = width / 2 / 1;',
       'function f() { return /}/.test(s); }',
     ])), null);
+    // A WRONG LINE IS WORSE THAN NONE (fix pass): the box offers to jump to it.
+    assert.deepEqual(syntaxLine(lines(['function setup() {', '  createCanvas(400, 300;', '}'])), { line: 2, what: 'open' },
+      'a ( left open before the block ends: the line of the (, not of the }');
+    assert.deepEqual(syntaxLine(lines(['function setup() {', '  createCanvas(400, 300;', '  background(0);', '}'])), { line: 2, what: 'open' });
+    assert.deepEqual(syntaxLine(lines(['function draw() {', '  background(0));', '}'])), { line: 2, what: 'bracket' }, 'a stray ) is on its own line');
+    assert.equal(syntaxLine(lines(['const a = [', '  1,', '  2', ');'])), null, 'a ( … ] mix across lines: unsure, so no line');
+    assert.deepEqual(syntaxLine(lines(['function setup() {', '  let x = ;', '}'])), { line: 2, what: 'token' }, 'an = with nothing after it');
+    assert.deepEqual(syntaxLine(lines(['let a = 1;', 'funtion draw() {', '  background(0);', '}'])), { line: 2, what: 'token' }, 'a misspelt keyword: two words side by side');
+    // …and words that may stand side by side are left alone
+    assert.equal(syntaxLine(lines([
+      'let i = 0; const k = 1; var v = 2;',
+      'async function go() { await new Promise((r) => r()); }',
+      'for (const x of [1]) { if (typeof x === "number" && x instanceof Object) {} else if (x in {}) {} }',
+      'class Ball extends Object { static n = 0; get r() { return this.n; } set r(v) { this.n = v; } }',
+      'function* gen() { yield 1; }',
+      'i++; i--; switch (i) { case 1: }',
+      'const ok = i > 0 ? i : void 0; throw new Error("x");',
+    ])), null);
     assert.equal(syntaxLine(STARTER.p5), null, 'the starters scan clean');
     assert.equal(syntaxLine(STARTER.three), null);
     assert.equal(isSyntaxError({ message: "Unexpected token '}'", stack: '' }), true);
@@ -477,6 +526,34 @@ export default (test) => {
     await PREVIEW.run(r.input);
     assert.equal(r.sandbox.calls.run[0].kind, 'p5');
     assert.ok(r.sandbox.calls.run[0].code.startsWith('function draw() {}'), 'the fence is gone');
+  });
+
+  test('a Write-… answer keeps its dialect through a reload and an export/import (auto still draws p5 / three)', () => {
+    // The facets a Write-a-p5.js-sketch answer carries must survive every door a value goes
+    // through after the session: the store's load (normaliseDoc → normalisePart → facetsOf) and a
+    // graph file (toJson with values → fromJson). Before the fix `lang` was dropped for format 'js'
+    // and a reopened sketch drew as markdown text.
+    for (const kind of ['p5', 'three']) {
+      const v = codeValue(lines(['```javascript', 'function draw() {}', '```']), kind);
+      assert.equal(modeFor('auto', v), kind, `${kind}: fresh`);
+      const doc = {
+        lolgraph: 3, id: 'g', title: 'g',
+        parts: [{ id: 'p1', type: 'ask', x: 0, y: 0, w: 240, h: 200, settings: { instruction: 'x', code: kind }, state: 'done', value: v }],
+        wires: [],
+      };
+      const loaded = normaliseDoc(doc, { specs: SPECS, now: () => 1 });
+      const lv = loaded.doc.parts[0].value;
+      assert.deepEqual({ format: lv.format, lang: lv.lang }, CODE_FACETS[kind], `${kind}: facets after a reload`);
+      assert.equal(modeFor('auto', lv), kind, `${kind}: auto after a reload`);
+      const json = toJson(loaded.doc, { values: true, specs: SPECS });
+      let n = 0;
+      const back = fromJson(JSON.parse(JSON.stringify(json)), { specs: SPECS, newId: () => `n${++n}`, now: () => 1 });
+      const bv = back.doc.parts[0].value;
+      assert.equal(modeFor('auto', bv), kind, `${kind}: auto after export → import`);
+    }
+    // …and a lang on a format that has no dialect is still dropped.
+    assert.deepEqual(valueOf('text', 'x', { format: 'svg', lang: 'p5' }), { kind: 'text', data: 'x', format: 'svg' });
+    assert.deepEqual(valueOf('text', 'x', { lang: 'p5' }), { kind: 'text', data: 'x' });
   });
 
   test('a lock keeps the person’s code, and says so', async () => {
@@ -662,6 +739,48 @@ export default (test) => {
       assert.equal(sandbox.calls.run[0].kind, 'p5');
       s.view.destroy();
       clearShown(sketch.id);
+    });
+  });
+
+  test('an arrival is forgotten when its wire goes, or when Reset / Undo puts the box’s own code back', async () => {
+    await withDom(async (doc) => {
+      const arrived = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><rect width="10" height="10" fill="red"/></svg>';
+      // 1. the wire is deleted: the box shows its own starter again, drawn, and no "arrived" mark
+      const box = presetPart('svg');
+      const wire = { from: 'ask', to: box.id, port: 'content' };
+      const m = mount(doc, box, { wires: [wire] });
+      await PREVIEW.run(runInput(box, [valueOf('text', arrived)]).input);
+      m.setPart({ ...box, state: 'done' });
+      assert.equal(m.q('.graph-preview-source').value, arrived, 'the arrival is in the editor');
+      assert.equal(m.q('.graph-preview-from').getAttribute('data-from'), 'input');
+      m.setWires([]);
+      await sleep(20);
+      assert.equal(m.q('.graph-preview-source').value, STARTER.svg, 'unwired: the box’s own code again');
+      assert.equal(m.q('.graph-preview-from').getAttribute('data-from'), 'own');
+      assert.match(String(shownOf(box.id) && shownOf(box.id).svg), /Hello, SVG/, 'and it draws it');
+      assert.equal(shownOf(box.id).from, 'own');
+      m.view.destroy();
+
+      // 2. Reset lesson (the SAME id, shipped settings, wires put back as shipped — here none)
+      const edited = presetPart('svg', { settings: { ...presetPart('svg').settings, source: '<svg xmlns="http://www.w3.org/2000/svg"><circle r="3"/></svg>' } });
+      const r = mount(doc, edited, { wires: [{ from: 'w', to: edited.id, port: 'content' }] });
+      await PREVIEW.run(runInput(edited, [valueOf('text', arrived)]).input);
+      r.setPart({ ...edited, state: 'done' });
+      assert.equal(r.q('.graph-preview-source').value, arrived);
+      r.setPart({ ...edited, settings: { ...edited.settings, source: STARTER.svg }, state: 'idle' });
+      await sleep(20);
+      assert.equal(r.q('.graph-preview-source').value, STARTER.svg, 'reset: the shipped code, not the old answer');
+      assert.equal(r.q('.graph-preview-from').getAttribute('data-from'), 'own');
+      r.view.destroy();
+
+      // 3. while still wired and unchanged, the arrival stays (a pan, a selection, a move)
+      const kept = presetPart('svg');
+      const k = mount(doc, kept, { wires: [{ from: 'w', to: kept.id, port: 'content' }] });
+      await PREVIEW.run(runInput(kept, [valueOf('text', arrived)]).input);
+      k.setPart({ ...kept, x: 40, state: 'done' });
+      assert.equal(k.q('.graph-preview-source').value, arrived, 'a repaint keeps what arrived');
+      assert.equal(k.q('.graph-preview-from').getAttribute('data-from'), 'input');
+      k.view.destroy();
     });
   });
 

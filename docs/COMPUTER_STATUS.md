@@ -1,11 +1,13 @@
-# The Computer — where the night got to (2026-09-23, K5 landed)
+# The Computer — where the night got to (2026-09-24, K5 landed + its fix round)
 
 > Branch `lolchat/vnext`, all of it committed and pushed. Every phase of
 > [COMPUTER_PLAN.md](COMPUTER_PLAN.md) up to **K5** is done. K5 fixes your bug report ("I do not see
 > the p5js / threejs / svg nodes anywhere") by giving those boxes **names in the ＋ menu and code
 > editors of their own**. It also groups the ＋ menu and makes it searchable, and ships the tutorial
-> mechanic with the Tour, four lessons and two templates. **K6** (uploading PDFs and audio to boxes,
-> gated by the model's capabilities) is next and not started.
+> mechanic with the Tour, four lessons and two templates. The K5 fix round (review findings) made the
+> creative boxes visible the moment ＋ opens, made a reopened p5/three.js answer still draw, and made
+> lesson steps impossible to tick by accident. **K6** (uploading PDFs and audio to boxes, gated by the
+> model's capabilities) is next and not started.
 
 ---
 
@@ -37,11 +39,11 @@ is still at `%APPDATA%\LlmOnLan-backup-20260921-*`.)*
 | **NEW — text boxes with input and output** | Wire an Instruction (or any box) into a **Text** box and the answer lands there, renders as markdown — headings, bold, lists, tables, code — and is passed on downstream. Click into it to edit the source; blur to see it rendered again. **Lock** means "keep what I typed": a locked box refuses an arrival, says so, and still passes its own text on. An arrival never paints over an editor you have open. A box with nothing wired in is exactly the note it always was. A very long arrival is rendered down to its first 64 KB with a line saying so — the whole text still passes on and Save… still writes all of it. |
 | **NEW — drop a picture in** | Drop or paste an image on the canvas; it is downscaled and stored locally, and a wired **Image** goes to the farm's vision model (your gemma4:12b) as part of an Instruction. A farm that reports no vision says so instead of sending a request. A drop reads the FIRST picture only, and a file too big to decode is refused with a sentence rather than with the renderer's memory. |
 | **NEW — Preview boxes** | markdown · SVG · html/css/js · three.js · p5.js. Markdown and SVG draw with **no iframe at all**; the three code modes come back as a picture from the one sandbox guest. Save… writes .md, .svg or .png. Errors name the line. |
-| **NEW (K5) — creative boxes, by name** | Press **＋ Add a box** in the toolbar (or double-click / right-click empty canvas). Under **Show** you will find **p5.js sketch**, **three.js scene**, **SVG**, **HTML page** and **Markdown view**. Each one draws its starter code as soon as it is placed, with no farm needed. Each has its own code editor and redraws as you type. Errors name the line, and clicking the error selects that line. **Keep my code** stops an answer on the wire from replacing your edit. It saves as .js/.svg/.html/.md/.png. |
-| **NEW (K5) — "Write an SVG" and friends** | In the same menu under **Think**: **Write a p5.js sketch / three.js scene / SVG / HTML page**. Place "Write an SVG" beside an SVG box, wire them, and press ▶: the model's code arrives in the box with its fences and prose removed, and it draws. |
-| **NEW (K5) — a menu that explains itself** | The ＋ menu has five groups (Bring in · Think · Show · Control · Annotate). Each row has a glyph and a one-line description. Type to search; typos and whole sentences work ("skecth", "threejs", "draw a spinning cube"). Arrow keys and Enter work too. |
+| **NEW (K5) — creative boxes, by name** | Press **＋ Add a box** in the toolbar (or double-click / right-click empty canvas). The first thing in the menu is a strip, **Draw with code — no farm needed**: **p5.js sketch · three.js scene · SVG · HTML page**, one click each. The same boxes (and **Markdown view**) are also rows under **Show**. Each one draws its starter code as soon as it is placed, with no farm needed. Each has its own code editor and redraws as you type. Errors name the line, and clicking the error selects that line. **Keep my code** stops an answer on the wire from replacing your edit. It saves as .js/.svg/.html/.md/.png. |
+| **NEW (K5) — "Write an SVG" and friends** | In the same menu under **Think**: **Write a p5.js sketch / three.js scene / SVG / HTML page**. Place "Write an SVG" beside an SVG box, wire them, and press ▶: the model's code arrives in the box with its fences and prose removed, and it draws. A fence the model left unclosed or glued to the last line is removed too, and when it sends several blocks the box takes the one in its own language. A p5/three.js answer still draws after the app is reopened or the graph is exported and imported. Unwire it (or Reset the lesson, or Undo) and the box goes back to its own code. |
+| **NEW (K5) — a menu that explains itself** | The ＋ menu has five groups (Bring in · Think · Show · Control · Annotate). Each row has a glyph and a one-line description. Type to search; typos and whole sentences work ("skecth", "threejs", "draw a spinning cube"), and so do the words people use for a box that are not its name ("render", "viewer", "webpage", "prompt", "llm"). Arrow keys and Enter work too. |
 | **NEW (K5) — a first-run offer** | A new, empty graph shows **Take the tour · Open a template · Add your first box**, plus one-click picks for Text, Instruction, p5.js, three.js and SVG. |
-| **NEW (K5) — Learn** | The **Learn** shelf in the library sidebar lists the Tour (no farm needed) and four lessons: hello, farm · wires carry values · arrow labels are names · make a picture. It also lists two templates: **Research → problematic** (the shape of your museum graph) and **Creative coding**. A lesson opens as your own copy, with a step rail at the bottom-left that ticks when you actually do the step, and **Show me** points at what to click. It resumes after a restart. With the farm busy or absent it offers the lesson's saved answer, clearly labelled *demo answer — not generated*. The **?** in the run bar leads to the same place. |
+| **NEW (K5) — Learn** | The **Learn** shelf in the library sidebar lists the Tour (no farm needed) and four lessons: hello, farm · wires carry values · arrow labels are names · make a picture. It also lists two templates: **Research → problematic** (the shape of your museum graph) and **Creative coding**. A lesson opens as your own copy, with a step rail at the bottom-left that ticks when you actually do the step, and **Show me** points at what to click. It resumes after a restart. A step that asks you to change something only counts a change made after it asked, so nothing ticks by accident. With the farm busy or absent it offers the lesson's saved answer, clearly labelled *demo answer — not generated*. The **?** in the run bar leads to the same place. |
 | **NEW — the warm look, and notes for the reader** | The §9 palette: a colour **and a glyph** on every port so the kinds read in both themes, bigger rounded cards, a 24 px grid. **Sticky** (five tints), **Section** (a dashed named region) and **Title** — all three are inert: they are never in a run, never counted, never spend anything. |
 
 ## What is NOT there yet
@@ -62,8 +64,8 @@ is still at `%APPDATA%\LlmOnLan-backup-20260921-*`.)*
 
 ## The numbers, re-run by me and not taken from the builders
 
-`chat-unit` **1285 passed** · `unit` **5** · `chat-lint` **196 files / 0 violations** ·
-`chat-scope` clean · `chat-harness --strict` **280 passed** · perf **9 passed**.
+`chat-unit` **1293 passed** · `unit` **5** · `chat-lint` **196 files / 0 violations** ·
+`chat-scope` clean · `chat-harness --strict` **280 passed** · perf **9 passed** (after the K5 fix round).
 
 Twenty-eight of those scenarios are K5's own. Each one reaches its feature **the way a person does**:
 it clicks ＋ and then a row, double- or right-clicks the canvas, clicks a shelf row, or presses Show
@@ -74,7 +76,8 @@ under 10 ms against a 16 ms budget.
 Commits, newest first:
 
 ```
-HEAD     the Computer's boxes have names, its menu explains itself, and it teaches by building (K5)
+HEAD     K5 fix round: steps that cannot tick by accident, sketches that survive a reload, creative boxes on screen when ＋ opens
+fdc311e  the Computer's boxes have names, its menu explains itself, and it teaches by building (K5)
 d76f993  docs: can the Computer work with data, and should it train models?
 ef13750  typing in a Text box survives the second keystroke
 3ab1ec3  the Computer's text boxes receive, its pictures can be read, and it looks like the sketch

@@ -39,7 +39,7 @@ export default {
       },
       {
         id: 'n_try', type: 'sticky', x: 1020, y: 280, w: 150, h: 290,
-        settings: { colour: 'slate', text: 'Click an arrow to name it. Then click the grey line under the instruction: the prompt now has a heading for each name.' },
+        settings: { colour: 'slate', text: 'After your first ▶, click an arrow to name it. Then click the grey line under the instruction: the prompt now has a heading for each name.' },
       },
       { id: 'n_next', type: 'sticky', x: 720, y: 590, w: 280, h: 100, settings: { colour: 'green', text: 'Next up → 4 · make a picture' } },
     ],
@@ -51,7 +51,10 @@ export default {
   steps: [
     {
       id: 's1',
-      text: 'Press ▶ on the Instruction while the arrows are still blank. The model gets Input 1 and Input 2, and has to guess which is before.',
+      text: 'Press ▶ on the Instruction while both arrows are blank: the model gets Input 1 and Input 2 and must guess which is before. Named them already? Clear the names.',
+      // The blank run IS the point (the contrast the lesson teaches), so naming first does not skip
+      // it. The sticky beside the box therefore says "after your first ▶", and this step says how
+      // to get back if the learner named them anyway — never a dead end.
       check: { all: [{ wire: { to: 'p_ask', label: 'blank', count: 2 } }, { ran: { partId: 'p_ask' } }] },
       show: { partId: 'p_ask' },
     },

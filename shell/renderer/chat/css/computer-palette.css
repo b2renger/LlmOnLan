@@ -50,6 +50,69 @@
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-hover) 30%, transparent);
 }
 
+/* The quick strip (fix pass): the four boxes that draw with code, on screen the moment the menu
+   opens — their rows are under Show, below the fold. Hidden while searching. */
+#lolcomputer .graph-add-quicks {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 4px 2px 6px;
+  border-bottom: 1px solid var(--border);
+}
+#lolcomputer .graph-add-quicks[hidden] { display: none; }
+#lolcomputer .graph-add-quick-head {
+  padding: 0 6px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+#lolcomputer .graph-add-quick-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+}
+#lolcomputer .graph-add-menu .graph-add-quick {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--comp-r-chip, 7px);
+  background: var(--surface-2);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+#lolcomputer .graph-add-menu .graph-add-quick:hover { border-color: var(--accent-hover); background: var(--surface-2); }
+#lolcomputer .graph-add-menu .graph-add-quick[data-hint='true'] { border-color: var(--accent-hover); }
+#lolcomputer .graph-add-quick-glyph {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  min-width: 24px;
+  height: 22px;
+  padding: 0 3px;
+  box-sizing: border-box;
+  border-radius: 5px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+#lolcomputer .graph-add-quick-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+}
+
 /* The list scrolls; the search box and the foot never do. `position: relative` makes the list the
    rows' offsetParent, which is what palette-menu.mjs measures to keep the keyboard's row in view. */
 #lolcomputer .graph-add-list {

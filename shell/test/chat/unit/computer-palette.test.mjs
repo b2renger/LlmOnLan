@@ -8,7 +8,7 @@ import { specMap, paletteCatalogue, groupLabel } from '../../../renderer/chat/gr
 import {
   buildPalette, searchPalette, groupEntries, GROUP_ORDER, words, osa, scoreEntry, STOP_WORDS,
 } from '../../../renderer/chat/graph/palette.mjs';
-import { createPaletteMenu, partKeywords } from '../../../renderer/chat/graph/palette-menu.mjs';
+import { createPaletteMenu, partKeywords, QUICK } from '../../../renderer/chat/graph/palette-menu.mjs';
 import { install as installWelcome, PICKS } from '../../../renderer/chat/computer/welcome.mjs';
 import { t } from '../../../renderer/chat/core/i18n.mjs';
 
@@ -180,6 +180,54 @@ export default (test) => {
   test('search: short queries never fuzz (two letters stay exact)', () => {
     const r = find('no');
     assert.ok(!r.includes('p5') && !r.includes('svg'), String(r));
+  });
+
+  test('search finds the owner’s and the tutorial’s own words — over the CATALOGUE itself, not only the menu', () => {
+    // The fix pass: the plain parts' search words lived only in the menu, so any other search of
+    // the catalogue (the welcome panel, a probe) found nothing for "prompt" or "render".
+    const RAW = buildPalette(paletteCatalogue(), SPECS);
+    const hit = (/** @type {string} */ q) => ids(searchPalette(RAW, q));
+    for (const [q, want] of [
+      ['render', ['preview', 'svg', 'html', 'p5', 'three']],      // "svg render nodes"
+      ['renderer', ['preview', 'svg', 'html']],
+      ['display', ['preview']], ['viewer', ['preview']],
+      ['webpage', ['html', 'write-html']],
+      ['prompt', ['ask']], ['llm', ['ask']], ['ai', ['ask']],   // lesson 1: "an Instruction is a prompt"
+      ['svg render', ['svg']],
+    ]) {
+      const got = hit(/** @type {string} */ (q));
+      for (const w of /** @type {string[]} */ (want)) assert.ok(got.includes(w), `"${q}" finds ${w}: ${got.join(', ')}`);
+    }
+    assert.equal(hit('svg render')[0], 'svg', 'the SVG box first');
+    assert.equal(hit('prompt')[0], 'ask', 'the Instruction first');
+  });
+
+  test('menu: the boxes that draw with code are a strip at the top when nothing is typed; a click places one', () => {
+    const m = makeMenu();
+    m.menu.open({ at: { x: 10, y: 20 } });
+    const strip = m.q('.graph-add-quicks');
+    assert.ok(strip && !strip.hidden, 'the strip shows when the menu opens');
+    const chips = m.qa('.graph-add-quick');
+    assert.deepEqual(chips.map((/** @type {any} */ b) => b.getAttribute('data-entry')), [...QUICK]);
+    assert.deepEqual([...QUICK], ['p5', 'three', 'svg', 'html']);
+    const children = /** @type {any[]} */ (Array.from(m.menu.el.children));
+    assert.ok(children.indexOf(strip) < children.indexOf(m.q('.graph-add-list')), 'above the grouped list');
+    for (const b of chips) {
+      const row = m.rows().find((r) => r.entry === b.getAttribute('data-entry'));
+      assert.ok(row, 'the same box still has its row under Show');
+      assert.equal(b.querySelector('.graph-add-quick-name').textContent, row.b.querySelector('.graph-add-name').textContent, 'named as its row is');
+      assert.ok(String(b.title).length > 10, 'a hover says what it does');
+    }
+    assert.equal(m.rows().filter((r) => QUICK.includes(r.entry)).length, 4, 'the chips are not extra keyboard rows');
+    m.type('three');
+    assert.equal(m.q('.graph-add-quicks').hidden, true, 'a search hides the strip');
+    m.type('');
+    assert.equal(m.q('.graph-add-quicks').hidden, false, 'clearing the search brings it back');
+    chips[0].dispatchEvent({ type: 'click' });
+    assert.equal(m.picked.length, 1);
+    assert.equal(m.picked[0].entry.entry, 'p5', 'the chip picks the p5.js sketch');
+    assert.deepEqual(m.picked[0].at, { x: 10, y: 20 }, 'at the point the menu was opened for');
+    assert.equal(m.menu.isOpen(), false, 'and the menu closes');
   });
 
   test('partKeywords: every plain part has search words; presets bring their own', () => {

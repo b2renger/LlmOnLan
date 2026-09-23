@@ -133,25 +133,25 @@ export function creativePresets() {
     {
       id: 'p5', type: 'preview', group: 'show', order: 810, glyph: 'p5',
       label: t('parts.creativeP5Label'), title: t('parts.creativeP5Label'), desc: t('parts.creativeP5Desc'),
-      keywords: ['processing', 'sketch', 'animation', 'draw', 'canvas', 'javascript', 'creative coding'],
+      keywords: ['processing', 'sketch', 'animation', 'draw', 'canvas', 'javascript', 'creative coding', 'render'],
       settings: show('p5', 400, 300), match: { mode: 'p5' }, size: { w: 380, h: 520 },
     },
     {
       id: 'three', type: 'preview', group: 'show', order: 820, glyph: '3D',
       label: t('parts.creativeThreeLabel'), title: t('parts.creativeThreeLabel'), desc: t('parts.creativeThreeDesc'),
-      keywords: ['3d', 'webgl', 'cube', 'scene', 'javascript', 'threejs'],
+      keywords: ['3d', 'webgl', 'cube', 'scene', 'javascript', 'threejs', 'render'],
       settings: show('three', 400, 300), match: { mode: 'three' }, size: { w: 380, h: 520 },
     },
     {
       id: 'svg', type: 'preview', group: 'show', order: 830, glyph: 'SVG',
       label: t('parts.creativeSvgLabel'), title: t('parts.creativeSvgLabel'), desc: t('parts.creativeSvgDesc'),
-      keywords: ['vector', 'picture', 'drawing', 'illustration', 'image', 'graphic'],
+      keywords: ['vector', 'picture', 'drawing', 'illustration', 'image', 'graphic', 'render', 'renderer'],
       settings: show('svg', 400, 300), match: { mode: 'svg' }, size: { w: 380, h: 460 },
     },
     {
       id: 'html', type: 'preview', group: 'show', order: 840, glyph: '<>',
       label: t('parts.creativeHtmlLabel'), title: t('parts.creativeHtmlLabel'), desc: t('parts.creativeHtmlDesc'),
-      keywords: ['web', 'page', 'website', 'css'],
+      keywords: ['web', 'page', 'webpage', 'website', 'site', 'browser', 'css', 'render', 'renderer'],
       settings: show('html', 400, 300), match: { mode: 'html' }, size: { w: 380, h: 520 },
     },
     {
@@ -181,7 +181,7 @@ export function creativePresets() {
     {
       id: 'write-html', type: 'ask', group: 'think', order: 240, glyph: '✦',
       label: t('parts.writeHtmlLabel'), title: t('parts.writeHtmlLabel'), desc: t('parts.writeHtmlDesc'),
-      keywords: ['code', 'generate', 'web', 'page', 'website'],
+      keywords: ['code', 'generate', 'web', 'page', 'webpage', 'website'],
       settings: { instruction: t('parts.writeAskHtml'), shape: 'text', code: 'html' }, match: { code: 'html' },
     },
   ].map((p) => /** @type {PartPreset} */ (/** @type {any} */ (p)));

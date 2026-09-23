@@ -307,7 +307,52 @@ export default (test) => {
     assert.equal(s.at(), 'done');
   });
 
+  test('lesson 2 out of order: an edit made BEFORE step 4 asked for it does not tick step 4', () => {
+    // The reviewer's walk: the Text box invites typing, so the learner changes the character
+    // first, then wires, Got it, and ONE ▶ on the title. Step 4 must still be open — the lesson is
+    // about seeing the re-run after a change, and that has not happened yet.
+    const s = learner(lessonById('l02-wires'));
+    s.set('p_note', { text: 'A beekeeper who has never been stung.' });
+    s.wire('p_note', 'p_story', 'in');
+    s.got('s2');
+    s.ran('p_note', 'p_story', 'p_title');
+    assert.equal(s.at(), 's4', 'the early edit is not the edit step 4 asks for');
+    assert.equal(s.prog.doneAt, null);
+    s.ran('p_note', 'p_story', 'p_title');
+    assert.equal(s.at(), 's4', 'running again without a change is not step 4');
+    // Resume: the step's mark survives the kv round trip.
+    s.prog = JSON.parse(JSON.stringify(s.prog));
+    s.tick();
+    assert.equal(s.at(), 's4', 'a resumed lesson still waits for the change');
+    s.set('p_note', { text: 'A clockmaker who is always late.' });
+    assert.equal(s.at(), 's4', 'the change alone is not the re-run');
+    s.ran('p_note', 'p_story', 'p_title');
+    assert.equal(s.at(), 'done', 'a change after the step asked, then the re-run, finishes the lesson');
+  });
+
+  test('lesson 4 out of order: code changed before step 2 asked does not tick step 2', () => {
+    const s = learner(lessonById('l04-draw'));
+    s.set('p_svg', { source: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><rect width="10" height="10"/></svg>' });
+    s.ran('p_svg');
+    assert.equal(s.at(), 's2', 'the run ticks step 1, and the earlier edit does not tick step 2');
+    s.set('p_svg', { source: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><circle r="4" cx="5" cy="5" fill="#2e86ab"/></svg>' });
+    assert.equal(s.at(), 's3', 'an edit after the step asked ticks it');
+  });
+
   // ---- lesson 3 -------------------------------------------------------------------------------
+
+  test('lesson 3: nothing the lesson itself says invites naming the arrows before the blank run', () => {
+    // The fix pass: the sticky beside the Instruction used to say "Click an arrow to name it"
+    // while step 1 wants the arrows BLANK — a learner who obeyed it could not tick step 1 by
+    // running. Every sticky that talks about naming an arrow must defer it to after the first ▶,
+    // and step 1 must say how to get back.
+    const lesson = lessonById('l03-labels');
+    for (const p of lesson.doc.parts.filter((x) => x.type === 'sticky')) {
+      const words = String(p.settings.text || '');
+      if (/name (it|them|the arrows?)/i.test(words)) assert.match(words, /after your first ▶/i, `${p.id}: "${words}"`);
+    }
+    assert.match(lesson.steps[0].text, /clear the names/i, 'step 1 tells a learner who named them how to get back');
+  });
 
   test('lesson 3: blank arrows arrive as Input 1 / Input 2; named, as before / after; swapped, reversed', () => {
     const lesson = lessonById('l03-labels');

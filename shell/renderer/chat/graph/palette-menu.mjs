@@ -42,6 +42,12 @@ const PAGE = 5;
 
 let menus = 0;
 
+/** The strip at the top of the UNSEARCHED menu (fix pass): the boxes that draw with code and need
+ * no farm. GROUP_ORDER is frozen, so in the grouped list they sit under Show, below nine Think rows
+ * — twice the owner could not find a box that worked. The strip puts them on screen the moment the
+ * menu opens; their rows stay under Show, and a search hides the strip. */
+export const QUICK = Object.freeze(['p5', 'three', 'svg', 'html']);
+
 /** A plain part's search-words key (strings/palette.en.mjs). A part type with no row has none. */
 const KEYWORDS = {
   note: 'palette.kwNote', image: 'palette.kwImage', file: 'palette.kwFile',
@@ -66,10 +72,12 @@ export function partKeywords(type) {
   return t(KEYWORDS[/** @type {keyof typeof KEYWORDS} */ (s)]).split(',').map((w) => w.trim()).filter(Boolean);
 }
 
-/** @param {PaletteEntry} e @returns {PaletteEntry} */
+/** The catalogue carries these words now (parts/index.mjs); this adds only what a row still lacks
+ * — rows handed in by a caller that built its own. @param {PaletteEntry} e @returns {PaletteEntry} */
 function withKeywords(e) {
   if (e.preset) return e;
-  const extra = partKeywords(e.type);
+  const have = new Set(e.keywords || []);
+  const extra = partKeywords(e.type).filter((w) => !have.has(w));
   return extra.length ? { ...e, keywords: [...(e.keywords || []), ...extra] } : e;
 }
 
@@ -116,7 +124,18 @@ export function createPaletteMenu(o) {
   tip.textContent = t('palette.footTip');
   foot.append(doc.createElement('br'), tip);
 
-  el.append(search, list, foot);
+  const quick = doc.createElement('div');
+  quick.className = 'graph-add-quicks';
+  quick.setAttribute('role', 'group');
+  quick.setAttribute('aria-label', t('palette.quickLabel'));
+  const quickHead = doc.createElement('span');
+  quickHead.className = 'graph-add-quick-head';
+  quickHead.textContent = t('palette.quickLabel');
+  const quickRow = doc.createElement('div');
+  quickRow.className = 'graph-add-quick-row';
+  quick.append(quickHead, quickRow);
+
+  el.append(search, quick, list, foot);
   o.host.appendChild(el);
 
   /** @type {{x: number, y: number}|null} */ let at = null;
@@ -189,9 +208,36 @@ export function createPaletteMenu(o) {
     return b;
   }
 
+  /** The quick strip: one chip per QUICK entry the catalogue offers; hidden while searching. */
+  function paintQuick(/** @type {boolean} */ searching) {
+    const chips = QUICK.map((id) => all.find((e) => e.entry === id)).filter(Boolean);
+    quick.hidden = searching || !chips.length;
+    if (quick.hidden) return;
+    quickRow.replaceChildren(...chips.map((/** @type {any} */ e) => {
+      const b = /** @type {HTMLButtonElement} */ (doc.createElement('button'));
+      b.type = 'button';
+      b.className = 'graph-add-quick';
+      b.tabIndex = -1;                                 // the search box keeps the focus
+      b.setAttribute('data-entry', e.entry);
+      if (hint && e.entry === hint) b.setAttribute('data-hint', 'true');
+      b.title = t('palette.quickHint', { name: e.label, desc: e.desc });
+      const glyph = doc.createElement('span');
+      glyph.className = 'graph-add-quick-glyph';
+      glyph.setAttribute('aria-hidden', 'true');
+      glyph.textContent = e.glyph;
+      const name = doc.createElement('span');
+      name.className = 'graph-add-quick-name';
+      name.textContent = e.label;
+      b.append(glyph, name);
+      b.addEventListener('click', () => pick(e));
+      return b;
+    }));
+  }
+
   function paint() {
     const query = search.value;
     const searching = !!query.trim();
+    paintQuick(searching);
     const found = searchPalette(all, query);
     list.replaceChildren();
     rows = [];

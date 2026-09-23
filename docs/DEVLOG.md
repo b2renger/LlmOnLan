@@ -6,6 +6,77 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-09-24 — The Computer **K5 fix round**: steps that cannot tick by accident, sketches that survive a reload, and creative boxes on screen the moment ＋ opens
+
+The K5 review found two majors and six minors. Each was reproduced against the real modules, fixed at
+the root, and pinned by a test that fails on the old code.
+
+### Lesson 2's last step ticked without the re-run it teaches (major)
+
+`edited` compared a setting against the lesson's SHIPPED doc. A learner who typed into the Text box
+first (the box invites it), then wired it, pressed Got it and pressed ▶ once had "changed the
+character" before step 4 ever asked, so step 4 ticked in the same breath as step 3 and the lesson
+said done. Now `advance()` records a **mark** per step when that step becomes current: the watched
+settings as they are at that moment (`progress.marks`, stored with the rest of the progress, so it
+survives a restart). `edited` inside a step compares against that mark. A step can never tick on an
+`edited` check in the same pass that opened it, and an edit made before the step asked does not
+count. The first step still compares against the shipped doc. The vocabulary and every signature
+are unchanged (KE-5): this is what `edited` now means, not a new matcher. Unit: lesson 2 walked out of
+order (edit first → step 4 still open → a re-run without a change still open → resume through JSON
+→ change → re-run → done), and the same for lesson 4's code edit.
+
+### A Write-a-p5.js-sketch answer drew as text after a reload (major)
+
+The Write-… answer carries `{format:'js', lang:'p5'|'three'}` (KE-3), and a Preview on auto reads
+`lang` to pick p5 or three.js. But `facetsOf()` (the one place facets are validated) kept `lang`
+only for `format:'code'`, so every store load and every export dropped it, and a reopened sketch
+drew its source as markdown. `lang` is now kept for `format:'js'` too (the dialect of a script). It
+is still dropped on any other format. Unit: a codeValue round-trips through `normaliseDoc` and
+through export → import, and `modeFor('auto')` is still p5 / three.
+
+### Minors
+
+- **A creative box kept an old answer after Reset lesson, Undo or unwiring.** It reuses the box
+  (same id), and the box only hears `update()`. Now `update()` forgets an arrival once its reason is
+  gone: nothing is wired in any more, or the box's own code was replaced from outside the editor.
+  The box then shows and draws its own code. A box the person claimed by typing is left alone. Unit
+  (all three cases) + a harness step: lesson 4 offline, done, **Reset lesson** clicked → the SVG box
+  holds and draws the shipped code again.
+- **Fences a model gets wrong.** An opening fence with no closing one (a truncated answer) is
+  unwrapped. So is a closing fence glued to the last line, or a closing fence with no opener. Among
+  several blocks, the one in the box's language wins (`html` for an HTML page, `svg`, `js` for a
+  sketch), and the longest is only the fallback, so an HTML page followed by a longer stylesheet
+  draws the page. `unfence(text, want?)` gained an optional second argument; the frozen one-argument
+  call behaves as before.
+- **"Go to line" could point at the wrong line.** `createCanvas(400, 300;` then `}` named the `}`'s
+  line. A closer that meets the wrong opener now names the broken line (the unclosed `(` before a
+  block ends; a stray `)` inside a block), and names none when the two lines differ and neither
+  reading is clearly right. Two new, conservative detections also name a line: two words side by
+  side that cannot be (`funtion draw`), and an operator with nothing on its right (`let x = ;`). The
+  sandbox compiler still has the last word, and a wrong line is worse than none.
+- **Lesson 3's sticky said "Click an arrow to name it" while step 1 wants them blank.** The blank
+  run is the point of the lesson, so step 1 stays strict. The sticky now says *after your first ▶*,
+  and step 1 says how to get back ("Named them already? Clear the names."). A unit test holds every
+  sticky that talks about naming to that wording.
+- **＋ search missed "render", "viewer", "webpage" and "prompt" outside the menu.** The plain parts'
+  search words were bolted on inside the menu only. They now live IN the catalogue
+  (`paletteCatalogue().parts[].keywords`), so every search over it finds them. Preview also answers to
+  renderer/viewer/visualise, and the creative boxes to render/webpage/site.
+- **The creative boxes were below the fold when ＋ opened.** GROUP_ORDER is frozen, and Show comes
+  after nine Think rows, so the first "p5" a person saw was *Write a p5.js sketch*, which needs the
+  farm. The unsearched menu now opens with a strip, **Draw with code — no farm needed**: p5.js sketch
+  · three.js scene · SVG · HTML page. Their rows stay under Show, and a search hides the strip. Unit +
+  harness: every chip is inside the menu's visible rect when it opens (hit-tested), and clicking the
+  p5.js sketch chip places one.
+
+### Tested
+
+`chat-unit` **1293 passed** · `unit` **5** · `chat-lint` **196 files / 0 violations** · `chat-scope`
+clean · `chat-harness --strict` **280 passed** · perf **9 passed**. Light and dark screenshots of the menu open over drawn
+p5 / three.js / SVG boxes were looked at: the strip reads in both themes.
+
+---
+
 ## 2026-09-23 — The Computer **K5**: boxes you can find by name, a menu that says what each one does, and lessons that teach by building
 
 K5 opened with the owner's bug report: *"I do not see the coding in p5js or threejs nodes, or the svg

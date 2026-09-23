@@ -3375,7 +3375,7 @@ validator (it refuses any other key or field).
 | `wire` | `from?` `to?` `fromType?` `toType?` `fromPreset?` `toPreset?` `port?` `label?` `count?` | the number of matching wires satisfies `count`; `label` is `'nonEmpty'`, `'blank'`, or a name compared with `labelKey()` (casefold, whitespace-collapsed) |
 | `ran` | `partId?` `type?` `preset?` `state?` `demoOk?` | some matching part is in `state` (default `'done'`); a demo answer counts unless `demoOk:false` |
 | `report` | `generations?` `ran?` `errors?` `stopped?` | the LAST run report (`runner.report()`) satisfies every field; `stopped` is `'capped'`/`'cancelled'`/`'yielded'` |
-| `edited` | `partId` `setting` | that setting differs from the lesson's SHIPPED doc |
+| `edited` | `partId` `setting` | that setting differs from its value when THIS STEP became current (the step's mark, `progress.marks[stepId]`, recorded by `advance()`; the first step's mark is the lesson's SHIPPED doc). Amended in the K5 fix round: against the shipped doc, an edit made before the step asked ticked it by accident |
 | `all` / `any` | `[check, …]` | every / some sub-check |
 | `manual` | `true` | never by predicate — only its **Got it** button (`tickManual`) |
 

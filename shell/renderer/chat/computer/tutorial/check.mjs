@@ -153,9 +153,38 @@ export function evaluate(check, ctx) {
   return false;
 }
 
-/** A lesson's progress before anything happened. */
+/** A lesson's progress before anything happened. `marks` holds, per step id, the value of every
+ * setting that step's `edited` checks watch, taken when the step became CURRENT (KE-5 fix pass):
+ * `edited` means "changed since this step asked", so an edit made before the step opened can never
+ * tick it by accident. */
 export function freshProgress() {
-  return { step: 0, ticks: /** @type {string[]} */ ([]), forkedDocId: /** @type {string|null} */ (null), doneAt: /** @type {number|null} */ (null), demo: /** @type {string[]} */ ([]) };
+  return { step: 0, ticks: /** @type {string[]} */ ([]), forkedDocId: /** @type {string|null} */ (null), doneAt: /** @type {number|null} */ (null), demo: /** @type {string[]} */ ([]), marks: /** @type {Record<string, any>} */ ({}) };
+}
+
+/** Every {partId, setting} an `edited` check inside `check` watches (walks `all`/`any`).
+ * @param {any} check @param {{partId: string, setting: string}[]} [out] */
+function editedRefs(check, out = []) {
+  if (!check || typeof check !== 'object') return out;
+  if (Array.isArray(check.all)) check.all.forEach((/** @type {any} */ c) => editedRefs(c, out));
+  if (Array.isArray(check.any)) check.any.forEach((/** @type {any} */ c) => editedRefs(c, out));
+  const m = check.edited;
+  if (m && typeof m === 'object' && typeof m.partId === 'string' && typeof m.setting === 'string') out.push({ partId: m.partId, setting: m.setting });
+  return out;
+}
+
+/** The step's baseline: a mini doc (the shape `evaluate` reads as `base`) holding, for each watched
+ * setting, its value in `doc` NOW. Values are stored as the text `edited` compares, so the mark
+ * survives the kv round trip unchanged. @param {any} check @param {any} doc */
+function markOf(check, doc) {
+  const parts = doc && Array.isArray(doc.parts) ? doc.parts : [];
+  /** @type {Record<string, Record<string, string>>} */
+  const by = {};
+  for (const r of editedRefs(check)) {
+    const p = parts.find((/** @type {any} */ x) => x && x.id === r.partId);
+    if (!p) continue;
+    (by[r.partId] = by[r.partId] || {})[r.setting] = text((p.settings || {})[r.setting]);
+  }
+  return { parts: Object.keys(by).map((id) => ({ id, settings: by[id] })) };
 }
 
 /** A clean copy of stored progress: every field present, arrays copied, `step` clamped.
@@ -166,6 +195,10 @@ function settle(lesson, prog) {
   const p = { ...freshProgress(), ...src };
   p.ticks = Array.isArray(src.ticks) ? src.ticks.filter((/** @type {any} */ x) => typeof x === 'string') : [];
   p.demo = Array.isArray(src.demo) ? src.demo.filter((/** @type {any} */ x) => typeof x === 'string') : [];
+  p.marks = {};
+  if (src.marks && typeof src.marks === 'object' && !Array.isArray(src.marks)) {
+    for (const [k, v] of Object.entries(src.marks)) if (v && typeof v === 'object' && Array.isArray(v.parts)) p.marks[k] = v;
+  }
   const step = Math.floor(Number(src.step));
   p.step = Number.isFinite(step) ? Math.min(Math.max(step, 0), n) : 0;
   return p;
@@ -176,8 +209,14 @@ function settle(lesson, prog) {
  * later edit that breaks an earlier step never un-ticks it (§10.1 mechanism 4). A step further on
  * that happens to be true is NOT ticked while an earlier one is open — the rail teaches in order.
  * A step already in `ticks` (latched before) is passed over. Returns a NEW progress object; never
- * mutates. `ctx.base` is the lesson's SHIPPED doc as the fork opened it (normalised — so a setting
- * the author left to its default compares against that default); `lesson.doc` when absent.
+ * mutates.
+ *
+ * `edited` inside a step compares against that step's MARK — the watched settings as they were
+ * when the step became current (recorded here, into `marks`, the first time a step is current
+ * without one). So a step that opens in this very call can never tick in it on an `edited` check,
+ * and an edit made BEFORE the step asked for it does not count. The first step, with no mark yet,
+ * compares against `ctx.base` — the lesson's SHIPPED doc as the fork opened it (normalised — so a
+ * setting the author left to its default compares against that default); `lesson.doc` when absent.
  * @param {Lesson} lesson @param {any} prog
  * @param {{doc: any, report?: RunReport|null, base?: any, now?: number}} ctx
  */
@@ -185,9 +224,14 @@ export function advance(lesson, prog, ctx) {
   const p = settle(lesson, prog);
   const steps = Array.isArray(lesson && lesson.steps) ? lesson.steps : [];
   const base = ctx && ctx.base ? ctx.base : lesson && lesson.doc;
+  const doc = ctx && ctx.doc ? ctx.doc : null;
   while (p.step < steps.length) {
     const s = steps[p.step];
-    const ok = p.ticks.indexOf(s.id) >= 0 || evaluate(s.check, { ...ctx, base });
+    const latched = p.ticks.indexOf(s.id) >= 0;
+    if (!latched && !p.marks[s.id] && editedRefs(s.check).length) {
+      p.marks[s.id] = markOf(s.check, p.step === 0 && !p.ticks.length ? base : doc);
+    }
+    const ok = latched || evaluate(s.check, { ...ctx, base: p.marks[s.id] || base });
     if (!ok) break;
     if (p.ticks.indexOf(s.id) < 0) p.ticks.push(s.id);
     p.step++;

@@ -44,7 +44,7 @@ registerStrings('palette', {
   kwFilter: 'keep, match, select, where, only, list',
   kwCollect: 'join, merge, combine, gather, reduce, list',
   kwRepeat: 'loop, again, variations, times, many, batch',
-  kwPreview: 'render, view, display, show, output',
+  kwPreview: 'render, renderer, view, viewer, display, show, output, visualise, visualize',
   kwCode: 'javascript, js, script, function, program, transform',
   kwButton: 'start, click, press, trigger, go, run',
   kwCondition: 'if, branch, yes, no, maybe, decide, boolean, switch',
@@ -63,6 +63,9 @@ registerStrings('palette', {
   noMatchHint: 'Try a word for what it does: picture, list, model, code, wait.',
   footKeys: '↑ ↓ to choose · Enter to add · Esc to close',
   footTip: 'Tip: double-click the canvas to add a box right where you click.',
+  // the strip at the top of the unsearched menu: the boxes that draw with code, no farm needed
+  quickLabel: 'Draw with code — no farm needed',
+  quickHint: 'Add a {name}: {desc}',
   // the first-run offer (KE-6, COMPUTER_PLAN §10.4)
   welcomeTitle: 'The Computer',
   welcomeBody: 'A canvas where you wire small programs out of text, instructions and the model on your farm. Everything you make stays on this machine.',
