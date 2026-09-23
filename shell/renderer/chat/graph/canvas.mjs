@@ -24,7 +24,11 @@
 import { t } from '../core/i18n.mjs';
 import { KV_KEYS } from '../core/types.mjs';
 import { EV } from '../core/events.mjs';
-import { partSpecs } from './parts/index.mjs';
+import { paletteCatalogue, groupLabel } from './parts/index.mjs';
+// K5 kickoff (addendum KE-2): the ＋ menu is K5-U2's module; this file only decides WHERE a pick
+// lands and which gestures open it (the ＋, a double-click or a right-click on empty canvas).
+import { buildPalette } from './palette.mjs';
+import { createPaletteMenu } from './palette-menu.mjs';
 import { addPart, addWire, movePart, removeParts, removeWire, setSettings, setWireLabel } from './model.mjs';
 import { preview } from './values.mjs';
 import { createWireLayer, portOffsetY, portPoint, wireAt, SNAP_PX } from './wires.mjs';
@@ -343,15 +347,13 @@ export function createCanvas(o) {
   const addBtn = button('graph-btn graph-add', t('graph.add'));
   addBtn.setAttribute('aria-haspopup', 'true');
   addBtn.setAttribute('aria-expanded', 'false');
-  const addMenu = el('div', 'graph-add-menu');
-  addMenu.hidden = true;
   const undoBtn = button('graph-btn graph-undo', t('graph.undo'));
   const redoBtn = button('graph-btn graph-redo', t('graph.redo'));
   const fitBtn = button('graph-btn graph-fit', t('graph.fit'));
   const zoomLabel = el('span', 'graph-zoom');
   zoomLabel.title = t('graph.zoomLabel');
   const addWrap = el('div', 'graph-add-wrap');
-  addWrap.append(addBtn, addMenu);
+  addWrap.append(addBtn);
 
   // ---- C3-U3: tidy and the sharing story -------------------------------------------------------
   // Three controls, and one popover. Export asks BEFORE it writes whether the values go in the
@@ -604,30 +606,48 @@ export function createCanvas(o) {
       actions: [{
         name: 'lesson',
         label: t('computer.loopLesson'),
-        onClick: tut && typeof tut.open === 'function' ? () => tut.open('10-loops') : undefined,
+        // K5 kickoff (KE-6): lesson ids are `lNN-slug`, and a button that opens a lesson this
+        // build does not ship would be a dead end — `has()` keeps it disabled until one exists.
+        onClick: tut && typeof tut.has === 'function' && tut.has('l10-loops') ? () => tut.open('l10-loops') : undefined,
       }],
     });
   }
 
-  function closeAddMenu() { addMenu.hidden = true; addBtn.setAttribute('aria-expanded', 'false'); }
+  /** K5 kickoff (addendum KE-2): the ONE ＋ menu. Opened by the toolbar's ＋ (placing at the centre
+   * of the view), and by a double-click or a right-click on EMPTY canvas (placing where the pointer
+   * was). Every row is `buildPalette(paletteCatalogue(), specs)`: the palette's plain parts plus
+   * the presets, and never a legacy part — `from-thread`/`to-thread`/`render` are not in
+   * `partSpecs()`, so they are not in the catalogue (COMPUTER_PLAN §3.2). */
+  const palette = createPaletteMenu({
+    host: root,
+    entries: () => buildPalette(paletteCatalogue(), specs),
+    groupLabel,
+    onPick: (entry, at) => { placeEntry(entry, at); },
+    onClose: () => addBtn.setAttribute('aria-expanded', 'false'),
+  });
+  function closeAddMenu() { palette.close(); }
+
+  /** Open the menu. `at` is the WORLD point a pick lands on (null = centre of the view);
+   * `screen` is where the menu shows, in px relative to the canvas root (null = under the ＋).
+   * @param {{at?: {x: number, y: number}|null, screen?: {x: number, y: number}|null, query?: string, highlight?: string}} [opts] */
+  function openPalette(opts = {}) {
+    if (!hasDoc()) return false;
+    closeExportMenu();
+    let screen = opts.screen || null;
+    if (!screen) {
+      const r = root.getBoundingClientRect();
+      const b = addBtn.getBoundingClientRect();
+      screen = { x: b.left - r.left, y: b.bottom - r.top + 4 };
+    }
+    palette.open({ ...opts, screen });
+    addBtn.setAttribute('aria-expanded', 'true');
+    return true;
+  }
   function closeExportMenu() { exportMenu.hidden = true; exportBtn.setAttribute('aria-expanded', 'false'); }
 
-  // The ＋ menu is the PALETTE — `partSpecs()` — and NOT everything the engine can load. K1
-  // demoted `from-thread`/`to-thread` to legacy (COMPUTER_PLAN §3.2): a migrated graph still opens
-  // one and it still says why it cannot run, but nobody may place a NEW one, so it must not be on
-  // offer here. `specs` (the session's `specMap()`) stays the set the canvas RENDERS and wires.
-  const palette = partSpecs().filter((/** @type {any} */ s) => specs.has(s.type));
-  for (const spec of palette.sort((/** @type {any} */ a, /** @type {any} */ b) => (a.order || 0) - (b.order || 0))) {
-    const item = button('graph-add-item', spec.label);
-    item.dataset.type = spec.type;
-    item.addEventListener('click', () => { closeAddMenu(); placeCentred(spec.type); });
-    addMenu.appendChild(item);
-  }
-
   addBtn.addEventListener('click', () => {
-    closeExportMenu();
-    addMenu.hidden = !addMenu.hidden;
-    addBtn.setAttribute('aria-expanded', addMenu.hidden ? 'false' : 'true');
+    if (palette.isOpen()) closeAddMenu();
+    else openPalette({});
   });
   tidyBtn.addEventListener('click', () => { closeAddMenu(); closeExportMenu(); doTidy(); });
   exportBtn.addEventListener('click', () => {
@@ -811,10 +831,20 @@ export function createCanvas(o) {
 
   const partById = (/** @type {string} */ id) => session.doc().parts.find((/** @type {any} */ p) => p.id === id) || null;
 
-  const labelOf = (/** @type {any} */ part) => {
+  const labelOf = (/** @type {any} */ part) => titleFor(part);
+
+  /** K5 (KE-2, PartSpec.titleOf): the box's title — a preset's name ("p5.js sketch") when the
+   * part is one, the spec's label otherwise. The ONE place `titleOf` is read. @param {any} part */
+  function titleFor(part) {
     const spec = part && specs.get(part.type);
+    if (spec && typeof spec.titleOf === 'function') {
+      try {
+        const named = spec.titleOf(part);
+        if (typeof named === 'string' && named) return named;
+      } catch (err) { console.warn('[lolchat] titleOf threw', err); }
+    }
     return (spec && spec.label) || (part ? part.type : '');
-  };
+  }
 
   // ---- mutation doors --------------------------------------------------------------------------
 
@@ -836,6 +866,61 @@ export function createCanvas(o) {
     const size = (spec && spec.size) || { w: 220, h: 120 };
     const c = screenToWorld(view, v.w / 2, v.h / 2);
     return placeAt(type, c.x - size.w / 2, c.y - size.h / 2);
+  }
+
+  /**
+   * K5 kickoff (KE-2): place a ＋ menu row — a plain part or a PRESET (type + settings + size) —
+   * at a world point, or centred in the view when `at` is null. One undo entry, like `placeAt`.
+   * @param {any} entry a PaletteEntry @param {{x: number, y: number}|null} [at] @returns {string|null}
+   */
+  function placeEntry(entry, at) {
+    if (!hasDoc() || !entry) return null;
+    const spec = specs.get(entry.type);
+    if (!spec) return null;
+    const size = entry.size || spec.size || { w: 220, h: 120 };
+    let wx = 0;
+    let wy = 0;
+    const v = viewport();
+    if (at && Number.isFinite(at.x) && Number.isFinite(at.y)) {
+      // K5 landing (U2's contract request): a right-click near the right or bottom edge used to
+      // put the box's top-left corner there, so the new box sat almost entirely off-screen. Pull
+      // it back so it lands wholly in view; a box bigger than the view keeps its top-left visible.
+      const tl = screenToWorld(view, 0, 0);
+      const br = screenToWorld(view, v.w, v.h);
+      const m = 16 / (view.zoom || 1);
+      wx = Math.max(tl.x + m, Math.min(at.x, br.x - size.w - m));
+      wy = Math.max(tl.y + m, Math.min(at.y, br.y - size.h - m));
+    } else {
+      const c = screenToWorld(view, v.w / 2, v.h / 2);
+      wx = c.x - size.w / 2;
+      wy = c.y - size.h / 2;
+    }
+    /** @type {any} */ const want = { type: entry.type, x: snap(wx), y: snap(wy), settings: entry.settings || {} };
+    if (entry.size) { want.w = entry.size.w; want.h = entry.size.h; }
+    const out = addPart(session.doc(), want, { specs, newId: app.newId, now: app.now });
+    if (!out.part) return null;
+    session.apply(out.doc, { label: 'place' });
+    select([out.part.id], { say: false });
+    announce(t('graph.saidPlaced', { part: labelOf(out.part) }));
+    return out.part.id;
+  }
+
+  /**
+   * K5 kickoff (KE-6): bring one part into view and flash it — the tutorial's `Show me`.
+   * @param {string} id @returns {boolean}
+   */
+  function reveal(id) {
+    const p = partById(id);
+    if (!p) return false;
+    const v = viewport();
+    setView({ x: v.w / 2 - (p.x + p.w / 2) * view.zoom, y: v.h / 2 - (p.y + p.h / 2) * view.zoom, zoom: view.zoom });
+    select([id], { say: false });
+    const box = boxes.get(id);
+    if (box) {
+      box.node.dataset.flash = 'true';
+      setTimeout(() => { if (box.node) delete box.node.dataset.flash; }, 1200);
+    }
+    return true;
   }
 
   /** @param {string} from @param {string} to @param {string} port */
@@ -1166,7 +1251,11 @@ export function createCanvas(o) {
     node.tabIndex = 0;
     node.setAttribute('role', 'group');
     const head = el('div', 'graph-part-head');
-    const title = el('span', 'graph-part-title', (spec && spec.label) || part.type);
+    const title = el('span', 'graph-part-title', titleFor(part));
+    // K5 kickoff (KE-7): the permanent badge on a lesson's RECORDED answer. Hidden unless
+    // `part.demo`; syncBox owns it.
+    const demo = el('span', 'graph-part-demo', t('computer.demoBadge'));
+    demo.hidden = true;
     const state = el('span', 'graph-part-state');
     const dot = el('i', 'graph-dot');
     dot.setAttribute('aria-hidden', 'true');
@@ -1189,7 +1278,7 @@ export function createCanvas(o) {
       ev.stopPropagation();
       if (o.onPlay) o.onPlay(part.id);
     });
-    head.append(title, fanout, state, play);
+    head.append(title, demo, fanout, state, play);
     const body = el('div', 'graph-part-body');
     // §6.6, resolved at the K3 landing: a Button's FACE and its ▶ are ONE gesture — "clicking it
     // is `run({mode:'from', seeds:[id]})`". The part records the press itself (button.mjs owns
@@ -1253,6 +1342,10 @@ export function createCanvas(o) {
       /** The edit is over (blur/change): the next keystroke starts a new undo entry. */
       commit() { editing.delete(part.id); },
       open(/** @type {any} */ v) { session.inspect(v); },
+      /** K5 kickoff (KE-3): the ONE sandbox guest, for a creative box re-drawing its own source. */
+      sandbox() {
+        return typeof session.sandbox === 'function' ? Promise.resolve(session.sandbox()).catch(() => null) : Promise.resolve(null);
+      },
     };
     let inst = null;
     if (spec && typeof spec.render === 'function') {
@@ -1263,7 +1356,7 @@ export function createCanvas(o) {
       if (p && p.value) session.inspect(p.value);
     });
 
-    const box = { node, title, stateText, body, value, cost, error, fanout, items, inst, spec, last: /** @type {any} */ ({}) };
+    const box = { node, title, demo, stateText, body, value, cost, error, fanout, items, inst, spec, last: /** @type {any} */ ({}) };
     layer.appendChild(node);
     boxes.set(part.id, box);
     return box;
@@ -1288,6 +1381,11 @@ export function createCanvas(o) {
     }
     const sel = selectedSet.has(part.id);
     if (last.sel !== sel) { box.node.setAttribute('aria-selected', sel ? 'true' : 'false'); last.sel = sel; }
+    // K5 (KE-2): a preset's title follows its settings — switch an SVG box to HTML and it says so.
+    const named = titleFor(part);
+    if (last.title !== named) { box.title.textContent = named; last.title = named; }
+    const isDemo = part.demo === true;
+    if (last.demo !== isDemo) { box.demo.hidden = !isDemo; box.node.dataset.demo = isDemo ? 'true' : 'false'; last.demo = isDemo; }
     // K4 kickoff (addendum KD-4): a `quiet` part draws its own value — Text renders it as
     // markdown, Preview draws it — so the canvas does not print the same words a second time in
     // the foot strip. Every other part keeps the strip, and the "open the value" click with it.
@@ -1679,6 +1777,24 @@ export function createCanvas(o) {
     pasteText(text);
   }
 
+  /**
+   * K5 kickoff (KE-2): a double-click or a right-click on EMPTY canvas opens the ＋ menu there, and
+   * the pick lands where the pointer was. Not on a part, a port, a wire or its label, and not on
+   * anything that takes input — those gestures already mean something.
+   * @param {MouseEvent} ev */
+  function onEmptyGesture(ev) {
+    const target = /** @type {any} */ (ev.target);
+    if (target && target.closest && target.closest('.graph-part, .graph-port, .graph-wire-label, .graph-add-menu, button, input, textarea, select, a')) return;
+    if (!hasDoc()) return;
+    const world = worldOf(ev);
+    if (wireAt(session.doc(), specs, world)) return;
+    ev.preventDefault();
+    const r = root.getBoundingClientRect();
+    openPalette({ at: world, screen: { x: ev.clientX - r.left, y: ev.clientY - r.top } });
+  }
+
+  canvas.addEventListener('dblclick', onEmptyGesture);
+  canvas.addEventListener('contextmenu', onEmptyGesture);
   canvas.addEventListener('pointerdown', onPointerDown);
   canvas.addEventListener('pointermove', onPointerMove);
   canvas.addEventListener('pointerup', onPointerUp);
@@ -1738,6 +1854,13 @@ export function createCanvas(o) {
     },
     place: placeAt,
     placeCentred,
+    // K5 kickoff (KE-2, KE-6): the ＋ menu and `Show me`. `openPalette` is what the first-run offer
+    // and the tutorial call; a scenario clicks the ＋ itself.
+    placeEntry,
+    openPalette,
+    paletteOpen: () => palette.isOpen(),
+    closePalette: () => palette.close(),
+    reveal,
     wire,
     select,
     selectedWires: () => selWires.slice(),
@@ -1795,6 +1918,9 @@ export function createCanvas(o) {
       raf = 0;
       if (viewTimer) clearTimeout(viewTimer);
       viewTimer = null;
+      canvas.removeEventListener('dblclick', onEmptyGesture);
+      canvas.removeEventListener('contextmenu', onEmptyGesture);
+      palette.destroy();
       canvas.removeEventListener('pointerdown', onPointerDown);
       canvas.removeEventListener('pointermove', onPointerMove);
       canvas.removeEventListener('pointerup', onPointerUp);

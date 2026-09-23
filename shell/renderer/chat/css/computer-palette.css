@@ -1,0 +1,274 @@
+/* computer-palette.css — K5-U2's sheet: the grouped, searchable ＋ menu and the first-run offer
+   on an empty canvas (COMPUTER_PLAN §10.4; addendum KE-2, KE-6). One stylesheet per unit (§3.6).
+   Tokens only: chat-lint rule 3 reports 0 colour literals and must still report 0.
+
+   The menu hangs off the canvas ROOT (`.graph > .graph-add-menu`), placed with inline left/top/
+   height by graph/palette-menu.mjs, which keeps it whole inside the canvas. In #lolcomputer the
+   UA's `[hidden] { display: none }` loses to any rule that sets `display` (css/base.css only guards
+   #lolchat), so every element here that sets `display` also says what `[hidden]` means for it. */
+
+/* ---- the ＋ menu ------------------------------------------------------------------------------ */
+
+#lolcomputer .graph > .graph-add-menu {
+  position: absolute;
+  top: 44px;
+  left: 12px;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  box-sizing: border-box;
+  width: 392px;
+  max-width: calc(100% - 16px);
+  max-height: min(520px, 70vh);
+  min-width: 0;
+  padding: 6px;
+  overflow: hidden;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--comp-r-panel, 10px);
+  box-shadow: 0 12px 32px color-mix(in srgb, var(--bg) 55%, transparent);
+}
+#lolcomputer .graph > .graph-add-menu[hidden] { display: none; }
+
+#lolcomputer .graph-add-search {
+  flex: 0 0 auto;
+  width: 100%;
+  box-sizing: border-box;
+  font: inherit;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--comp-r-btn, 8px);
+  background: var(--surface-2);
+  color: var(--text);
+  outline: none;
+}
+#lolcomputer .graph-add-search::placeholder { color: var(--grey); }
+#lolcomputer .graph-add-search:focus-visible,
+#lolcomputer .graph-add-search:focus {
+  border-color: var(--accent-hover);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-hover) 30%, transparent);
+}
+
+/* The list scrolls; the search box and the foot never do. `position: relative` makes the list the
+   rows' offsetParent, which is what palette-menu.mjs measures to keep the keyboard's row in view. */
+#lolcomputer .graph-add-list {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+#lolcomputer .graph-add-list[hidden] { display: none; }
+
+#lolcomputer .graph-add-group {
+  padding: 10px 8px 3px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+#lolcomputer .graph-add-group:first-child { padding-top: 4px; }
+
+/* one row: [glyph] name ········ (tag)
+                    what it does */
+#lolcomputer .graph-add-menu .graph-add-item {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
+  grid-template-areas: 'glyph name tag' 'glyph desc desc';
+  column-gap: 10px;
+  row-gap: 1px;
+  align-items: center;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 6px 8px;
+  border: 1px solid transparent;
+  border-radius: var(--comp-r-btn, 8px);
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+#lolcomputer .graph-add-menu .graph-add-item[hidden] { display: none; }
+#lolcomputer .graph-add-menu .graph-add-item:hover { background: transparent; }
+#lolcomputer .graph-add-menu .graph-add-item[aria-selected='true'] {
+  background: var(--surface-2);
+  border-color: var(--border);
+}
+
+#lolcomputer .graph-add-glyph {
+  grid-area: glyph;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--comp-r-chip, 7px);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--text);
+  font-family: ui-monospace, 'SF Mono', Consolas, monospace;
+  white-space: nowrap;
+  overflow: hidden;
+}
+#lolcomputer .graph-add-item[data-group='bring'] .graph-add-glyph { background: var(--comp-kind-image, var(--surface-2)); }
+#lolcomputer .graph-add-item[data-group='think'] .graph-add-glyph { background: var(--comp-kind-list, var(--surface-2)); }
+#lolcomputer .graph-add-item[data-group='show'] .graph-add-glyph { background: var(--comp-kind-code, var(--surface-2)); }
+#lolcomputer .graph-add-item[data-group='control'] .graph-add-glyph { background: var(--comp-kind-text, var(--surface-2)); }
+#lolcomputer .graph-add-item[data-group='annotate'] .graph-add-glyph { background: var(--comp-sticky, var(--surface-2)); }
+
+#lolcomputer .graph-add-name {
+  grid-area: name;
+  min-width: 0;
+  font-weight: 500;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+#lolcomputer .graph-add-tag {
+  grid-area: tag;
+  font-size: 11px;
+  color: var(--grey);
+  white-space: nowrap;
+}
+#lolcomputer .graph-add-desc {
+  grid-area: desc;
+  min-width: 0;
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--muted);
+}
+
+/* The row a lesson's `Show me` points at: a steady ring, and one gentle pulse to catch the eye. */
+#lolcomputer .graph-add-item[data-hint='true'] {
+  border-color: var(--amber);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--amber) 35%, transparent);
+  animation: graph-add-hint 1.2s ease-out 2;
+}
+@keyframes graph-add-hint {
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--amber) 55%, transparent); }
+  100% { box-shadow: 0 0 0 8px color-mix(in srgb, var(--amber) 0%, transparent); }
+}
+@media (prefers-reduced-motion: reduce) {
+  #lolcomputer .graph-add-item[data-hint='true'] { animation: none; }
+}
+
+#lolcomputer .graph-add-empty { margin: 0; padding: 14px 10px; color: var(--muted); line-height: 1.5; }
+#lolcomputer .graph-add-empty-hint { font-size: 12px; color: var(--grey); }
+
+#lolcomputer .graph-add-foot {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 6px 8px 2px;
+  border-top: 1px solid var(--border);
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--grey);
+}
+#lolcomputer .graph-add-tip { color: var(--muted); }
+
+/* ---- the first-run offer (inside .comp-canvas, over the centre of an empty canvas) ---------- */
+
+#lolcomputer .comp-welcome {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 3;
+  box-sizing: border-box;
+  width: min(600px, calc(100% - 32px));
+  max-height: calc(100% - 32px);
+  overflow: auto;
+  padding: 22px 22px 18px;
+  text-align: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--comp-r-card, 12px);
+  box-shadow: 0 10px 30px color-mix(in srgb, var(--bg) 40%, transparent);
+}
+#lolcomputer .comp-welcome[hidden] { display: none; }
+/* The ＋ menu is the thing to look at once it is open: the offer steps back until it closes. */
+#lolcomputer .comp-canvas:has(.graph-add-menu:not([hidden])) .comp-welcome { display: none; }
+/* The offer REPLACES the canvas's one-line empty hint while it is up (it says more, and says the
+   same). `visibility`, not `display`: the hint stays laid out and its own [hidden] logic untouched. */
+#lolcomputer .comp-canvas:has(.comp-welcome:not([hidden])) .graph-empty { visibility: hidden; }
+
+#lolcomputer .comp-welcome-title { margin: 0 0 6px; font-size: 18px; font-weight: 600; color: var(--text); }
+#lolcomputer .comp-welcome-body { margin: 0 auto 16px; max-width: 460px; color: var(--muted); line-height: 1.5; }
+
+#lolcomputer .comp-welcome-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+#lolcomputer .comp-welcome-btn {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 1 1 160px;
+  max-width: 200px;
+  padding: 11px 12px;
+  font: inherit;
+  text-align: left;
+  color: var(--text);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--comp-r-btn, 8px);
+  cursor: pointer;
+}
+#lolcomputer .comp-welcome-btn[hidden] { display: none; }
+#lolcomputer .comp-welcome-btn:hover { filter: brightness(1.08); border-color: var(--accent-hover); }
+#lolcomputer .comp-welcome-btn:focus-visible { outline: 2px solid var(--accent-hover); outline-offset: 2px; }
+#lolcomputer .comp-welcome-btn[data-action='tour'] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+}
+#lolcomputer .comp-welcome-btn[data-action='tour'] .comp-welcome-hint { color: color-mix(in srgb, var(--on-accent) 80%, transparent); }
+#lolcomputer .comp-welcome-name { font-weight: 600; }
+#lolcomputer .comp-welcome-hint { font-size: 12px; color: var(--muted); }
+
+#lolcomputer .comp-welcome-picks {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 16px;
+}
+#lolcomputer .comp-welcome-picks[hidden] { display: none; }
+#lolcomputer .comp-welcome-picks-label { font-size: 12px; color: var(--muted); margin-right: 2px; }
+#lolcomputer .comp-welcome-pick {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px 4px 5px;
+  font: inherit;
+  font-size: 12px;
+  color: var(--text);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  cursor: pointer;
+}
+#lolcomputer .comp-welcome-pick[hidden] { display: none; }
+#lolcomputer .comp-welcome-pick:hover { background: var(--surface-2); border-color: var(--accent-hover); }
+#lolcomputer .comp-welcome-pick:focus-visible { outline: 2px solid var(--accent-hover); outline-offset: 2px; }
+#lolcomputer .comp-welcome-pick-glyph {
+  display: inline-grid;
+  place-items: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 3px;
+  box-sizing: border-box;
+  border-radius: 999px;
+  background: var(--surface-2);
+  font-family: ui-monospace, 'SF Mono', Consolas, monospace;
+  font-size: 10px;
+  font-weight: 700;
+}
+#lolcomputer .comp-welcome-tip { margin: 14px 0 0; font-size: 12px; color: var(--grey); }

@@ -14,7 +14,7 @@ registerStrings('graph', {
   run: 'Run',
   running: 'Running {i}/{n}',
   stop: 'Stop',
-  add: 'Add a part',
+  add: '＋ Add a box',
   addPart: 'Add {part}',
   undo: 'Undo',
   redo: 'Redo',

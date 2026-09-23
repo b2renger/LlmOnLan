@@ -181,7 +181,7 @@ export default [
             h.eq(seen.failed.length, 0, 'chat modules failed to load: ' + seen.failed.join(', '));
             h.eq(seen.computerFailed.length, 0, 'Computer modules failed to load: ' + seen.computerFailed.join(', '));
             h.eq(seen.version, 'vnext-k1', 'the chat loader says it is ' + seen.version);
-            h.eq(seen.computerVersion, 'vnext-k4', 'the Computer loader says it is ' + seen.computerVersion);
+            h.eq(seen.computerVersion, 'vnext-k5', 'the Computer loader says it is ' + seen.computerVersion);
 
             // The sandbox is imported by its consumers, never installed as a feature (BG-2/BJ-1),
             // and the CHAT no longer reaches the graph tree at all (K1: the `computer` loader row

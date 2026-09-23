@@ -56,6 +56,10 @@ const PURE_MODULES = [
     // registry is a Map and a Set. Neither touches a DOM, a network or a global, which is what
     // lets computer-sched.test.mjs and computer-control.test.mjs run in Node.
     'graph/journal.mjs', 'graph/parts/control-bus.mjs',
+    // K5 (addendum KE-2/KE-3/KE-5): the ＋ menu's model, the code-answer shaping, the preset table
+    // and the tutorial's checkpoints. check.mjs imports creative.mjs and bind.mjs, which is why
+    // those two have to stay pure for the tutorial to be testable at all.
+    'graph/palette.mjs', 'graph/unfence.mjs', 'graph/parts/creative.mjs', 'computer/tutorial/check.mjs',
     // C3 (the sandbox parts, files and sharing)
     'graph/tidy.mjs', 'sandbox/protocol.mjs',
     // S2
@@ -418,6 +422,127 @@ async function readStringKeys(root) {
     return result;
 }
 
+/**
+ * 15. A LESSON IS A PROGRAM THAT OPENS (K5 kickoff; COMPUTER_PLAN §10.1 mechanism 5, addendum KE-5).
+ * computer/tutorial/registry.mjs lists every lesson and template this build ships. For each lesson:
+ * a unique `lNN-slug` id; `needsFarm` one of no/one/few; its `doc` survives normaliseDoc() with
+ * NOTHING dropped and every part keeping its AUTHORED id; every step has a unique id, words, and a
+ * check built only from check.mjs's CHECK_KINDS/CHECK_FIELDS; every part id a check or a `show`
+ * names exists in that doc; every preset is a real preset; every type is loadable; every count
+ * parses; every `show.menu` is a row of the ＋ menu; every `demo` key is a part id or `@<preset>`
+ * and every demo value is a value; `next` names a listed lesson, or is absent on the LAST one (so
+ * a partial shelf still lints). For each template: a unique id and a doc that survives
+ * normaliseDoc() with nothing dropped.
+ */
+async function lintLessons(root, notes) {
+    /** @type {Violation[]} */
+    const out = [];
+    const { pathToFileURL } = require('url');
+    const REG = 'computer/tutorial/registry.mjs';
+    if (!fs.existsSync(path.join(root, REG))) { notes.push('rule 15: no lesson registry yet'); return out; }
+    const bust = `?r15=${Date.now()}${Math.random()}`;
+    const imp = (rel) => import(pathToFileURL(path.join(root, rel)).href + bust);
+    const push = (message) => out.push({ rule: 15, file: REG, line: 1, message });
+    let R; let C; let K; let M; let P; let PAL;
+    try {
+        [R, C, K, M, P, PAL] = await Promise.all([
+            imp(REG), imp('computer/tutorial/check.mjs'), imp('graph/parts/creative.mjs'),
+            imp('graph/model.mjs'), imp('graph/parts/index.mjs'), imp('graph/palette.mjs'),
+        ]);
+    } catch (e) {
+        push(`the shelf does not import: ${e && e.message ? e.message.split('\n')[0] : e}`);
+        return out;
+    }
+    const specs = P.specMap();
+    const presets = new Set(K.CREATIVE_PRESET_IDS);
+    const entries = new Set(PAL.buildPalette(P.paletteCatalogue(), specs).map((e) => e.entry));
+    const CMP = /^\s*(>=|<=|==|>|<)?\s*\d+\s*$/;
+    const okCmp = (v) => (typeof v === 'number' && Number.isInteger(v) && v >= 0) || (typeof v === 'string' && CMP.test(v));
+    const docOk = (what, raw) => {
+        if (!raw || typeof raw !== 'object' || !Array.isArray(raw.parts) || !Array.isArray(raw.wires)) { push(`${what}: doc is not a graph file object`); return null; }
+        const { doc, dropped } = M.normaliseDoc({ ...raw, id: 'rule15', threadId: null }, { specs, now: () => 0 });
+        if (dropped.length) push(`${what}: the doc loses ${dropped.join(', ')} when it opens`);
+        for (const p of raw.parts) {
+            if (!doc.parts.some((q) => q.id === (p && p.id))) push(`${what}: part ${p && p.id} does not survive opening`);
+        }
+        if (doc.wires.length !== raw.wires.length) push(`${what}: ${raw.wires.length - doc.wires.length} wire(s) do not survive opening`);
+        return doc;
+    };
+
+    const lessons = Array.isArray(R.LESSONS) ? R.LESSONS : [];
+    const ids = lessons.map((l) => l && l.id);
+    const seen = new Set();
+    lessons.forEach((lesson, i) => {
+        const id = lesson && lesson.id;
+        const what = `lesson ${id || `#${i}`}`;
+        if (typeof id !== 'string' || !/^l\d\d-[a-z0-9-]+$/.test(id)) push(`${what}: id must look like l01-slug`);
+        if (seen.has(id)) push(`${what}: duplicate lesson id`);
+        seen.add(id);
+        if (!lesson || typeof lesson.title !== 'string' || !lesson.title) push(`${what}: no title`);
+        if (!Number.isInteger(lesson && lesson.n)) push(`${what}: n must be an integer`);
+        if (['no', 'one', 'few'].indexOf(lesson && lesson.needsFarm) < 0) push(`${what}: needsFarm must be no, one or few`);
+        const doc = docOk(what, lesson && lesson.doc);
+        const partIds = new Set(doc ? doc.parts.map((p) => p.id) : []);
+        const steps = Array.isArray(lesson && lesson.steps) ? lesson.steps : [];
+        if (!steps.length) push(`${what}: no steps`);
+        const stepIds = new Set();
+        for (const step of steps) {
+            const sw = `${what} step ${step && step.id}`;
+            if (!step || typeof step.id !== 'string' || !step.id) { push(`${what}: a step has no id`); continue; }
+            if (stepIds.has(step.id)) push(`${sw}: duplicate step id`);
+            stepIds.add(step.id);
+            if (typeof step.text !== 'string' || !step.text.trim()) push(`${sw}: no text`);
+            const r = C.refsOf(step.check);
+            if (!r.kinds.length) push(`${sw}: no check`);
+            for (const k of r.kinds) if (C.CHECK_KINDS.indexOf(k) < 0) push(`${sw}: unknown matcher '${k}'`);
+            for (const f of r.fields) {
+                const [k, name] = f.split('.');
+                const allowed = C.CHECK_FIELDS[k];
+                if (allowed && allowed.indexOf(name) < 0) push(`${sw}: '${k}' has no field '${name}'`);
+            }
+            for (const pid of r.parts) if (!partIds.has(pid)) push(`${sw}: names part '${pid}', which is not in the lesson's doc`);
+            for (const pr of r.presets) if (!presets.has(pr)) push(`${sw}: names preset '${pr}', which does not exist`);
+            for (const ty of r.types) if (!specs.has(ty)) push(`${sw}: names part type '${ty}', which cannot load`);
+            for (const c of r.cmps) if (!okCmp(c)) push(`${sw}: count '${c}' does not parse`);
+            const show = step.show;
+            if (show !== undefined) {
+                if (!show || typeof show !== 'object') push(`${sw}: show is not an object`);
+                else if ('partId' in show) { if (!partIds.has(show.partId)) push(`${sw}: show names part '${show.partId}', which is not in the doc`); }
+                else if ('menu' in show) { if (!entries.has(show.menu)) push(`${sw}: show names ＋ menu row '${show.menu}', which does not exist`); }
+                else if ('wire' in show) {
+                    const w = show.wire || {};
+                    if (!partIds.has(w.from) || !partIds.has(w.to)) push(`${sw}: show names a wire between parts that are not in the doc`);
+                } else push(`${sw}: show must be {partId}, {menu} or {wire}`);
+            }
+        }
+        const demo = lesson && lesson.demo;
+        if (demo !== undefined) {
+            for (const [k, v] of Object.entries(demo || {})) {
+                const named = k.startsWith('@') ? presets.has(k.slice(1)) : partIds.has(k);
+                if (!named) push(`${what}: demo key '${k}' is neither a part in the doc nor @<preset>`);
+                if (!v || typeof v !== 'object' || typeof v.kind !== 'string' || !('data' in v)) push(`${what}: demo '${k}' is not a value {kind, data}`);
+            }
+        }
+        const last = i === lessons.length - 1;
+        if (lesson && lesson.next !== undefined) {
+            if (ids.indexOf(lesson.next) < 0) push(`${what}: next '${lesson.next}' is not a listed lesson`);
+        } else if (!last) push(`${what}: only the last lesson may leave out next`);
+    });
+
+    const tseen = new Set();
+    for (const tpl of (Array.isArray(R.TEMPLATES) ? R.TEMPLATES : [])) {
+        const what = `template ${tpl && tpl.id}`;
+        if (!tpl || typeof tpl.id !== 'string' || !tpl.id) { push('a template has no id'); continue; }
+        if (tseen.has(tpl.id)) push(`${what}: duplicate template id`);
+        tseen.add(tpl.id);
+        if (typeof tpl.title !== 'string' || !tpl.title) push(`${what}: no title`);
+        if (!Number.isFinite(tpl.generations)) push(`${what}: generations must be a number`);
+        docOk(what, tpl.doc);
+    }
+    notes.push(`rule 15: ${lessons.length} lesson(s), ${tseen.size} template(s) checked`);
+    return out;
+}
+
 /** Rule 4: every existing PURE_MODULES entry imports with the DOM/storage globals trapped. */
 async function lintPure(root, notes) {
     /** @type {Violation[]} */
@@ -588,6 +713,7 @@ async function lint(root) {
     violations = violations.concat(lintRunnerCsp(root, notes));
     violations = violations.concat(lintLibs(root, notes));
     violations = violations.concat(await lintPure(root, notes));
+    violations = violations.concat(await lintLessons(root, notes));
     violations.sort((a, b) => a.file.localeCompare(b.file) || a.line - b.line || a.rule - b.rule);
     return { violations, notes, files: files.length };
 }
@@ -758,6 +884,26 @@ const CASES = [
         rule: null,
         plant: (root) => fs.appendFileSync(path.join(root, 'core', 'registry.mjs'),
             "\nexport const PLANTED_SLOT = 'composer.plantedSlotName';\n"),
+    },
+    {
+        // K5 kickoff (rule 15): a step that points at a box the lesson does not ship is a tick
+        // nobody can earn — the worst thing teaching software can do (COMPUTER_PLAN §10.1).
+        name: 'a lesson step naming a part its doc does not have (rule 15)',
+        rule: 15,
+        plant: (root) => {
+            const f = path.join(root, 'computer', 'tutorial', 'lessons', '01-hello-farm.mjs');
+            const src = fs.readFileSync(f, 'utf8');
+            fs.writeFileSync(f, src.replace("check: { ran: { partId: 'p_ask'", "check: { ran: { partId: 'p_nowhere'"));
+        },
+    },
+    {
+        name: 'a lesson using a matcher outside the frozen vocabulary (rule 15)',
+        rule: 15,
+        plant: (root) => {
+            const f = path.join(root, 'computer', 'tutorial', 'lessons', '02-wires.mjs');
+            const src = fs.readFileSync(f, 'utf8');
+            fs.writeFileSync(f, src.replace('check: { manual: true }', "check: { looksRight: 'p_ask' }"));
+        },
     },
     {
         name: 'a comment naming a forbidden token is NOT a violation (§2.6 C)',

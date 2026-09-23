@@ -232,6 +232,9 @@ function normalisePart(raw, spec) {
     error: typeof raw.error === 'string' && raw.error ? raw.error : null,
     stats,
     fanout: normaliseFanout(raw.fanout),
+    // K5 kickoff (addendum KE-7): the demo badge describes the VALUE, so it survives only while
+    // there is one. A flag with no value would be a badge on nothing.
+    ...(raw.demo === true && value ? { demo: true } : {}),
   });
 }
 
@@ -309,7 +312,10 @@ function normaliseView(view) {
   };
 }
 
-/** @param {GraphDoc} doc @param {{type: string, x: number, y: number, settings?: object}} spec
+/** K5 kickoff (addendum KE-2): `w`/`h` override the spec's size — a palette PRESET places a
+ * "three.js scene" bigger than a bare Preview. Absent, today's behaviour.
+ * @param {GraphDoc} doc
+ * @param {{type: string, x: number, y: number, settings?: object, w?: number, h?: number}} spec
  *  @param {{specs: Map<string, any>, newId: () => string, now?: () => number}} o
  *  @returns {{doc: GraphDoc, part: GraphPart|null}} */
 export function addPart(doc, spec, o) {
@@ -321,8 +327,8 @@ export function addPart(doc, spec, o) {
     type: spec.type,
     x: num(spec.x, 0),
     y: num(spec.y, 0),
-    w: num(/** @type {any} */ (size).w, DEFAULT_SIZE.w),
-    h: num(/** @type {any} */ (size).h, DEFAULT_SIZE.h),
+    w: num(/** @type {any} */ (spec).w, num(/** @type {any} */ (size).w, DEFAULT_SIZE.w)),
+    h: num(/** @type {any} */ (spec).h, num(/** @type {any} */ (size).h, DEFAULT_SIZE.h)),
     settings: { ...(typeof def.defaults === 'function' ? obj(def.defaults()) : {}), ...obj(spec.settings) },
     value: null,
     state: 'idle',
@@ -402,6 +408,11 @@ export function patchPart(doc, id, patch, o = {}) {
   // what the canvas reads to paint `7/40` and the per-item failures, and it is DROPPED, not
   // trusted, when it is not the shape below.
   if ('fanout' in p) next.fanout = normaliseFanout(/** @type {any} */ (p).fanout);
+  // K5 kickoff (addendum KE-7): the demo badge. Said explicitly, it is set or cleared; NOT said,
+  // any patch that writes a value clears it — a real generation never inherits a recorded
+  // answer's badge, which is the whole of "we never let the app pretend it generated something".
+  if ('demo' in p) next.demo = /** @type {any} */ (p).demo === true;
+  else if ('value' in p) next.demo = false;
   if (!Object.keys(next).length) return doc;
   return {
     ...doc,

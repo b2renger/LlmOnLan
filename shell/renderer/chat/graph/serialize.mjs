@@ -26,7 +26,7 @@ export const FORMAT = 'lolgraph';
 // with `unsupported-version`, and nothing is imported. Importing what we happen to understand and
 // dropping the rest is the quiet loss §1.3 rule 4 bans — the sentence the reader gets is §8.4's
 // "This graph was made with a newer version of the Computer."
-export const FORMAT_VERSION = 3;
+export const FORMAT_VERSION = 4;
 
 // K3 kickoff (COMPUTER_PLAN §4.6, §7.6): v3 carries `wire.back` — the LOOP declaration. The bump
 // is not decoration: a client shipped before K3 reads a back edge as an ordinary wire, `order()`
@@ -99,6 +99,7 @@ export function toJson(doc, o = {}) {
   const d = doc && typeof doc === 'object' ? doc : /** @type {any} */ ({});
   let v2 = false;                                  // does this file need anything v1 never had?
   let v3 = false;                                  // …and anything v2 never had? (K3: wire.back)
+  let v4 = false;                                  // …and anything v3 never had? (K5: part.demo)
   const parts = (Array.isArray(d.parts) ? d.parts : []).map((p) => {
     /** @type {any} */ const part = {};
     for (const f of PART_FIELDS) part[f] = /** @type {any} */ (p)[f];
@@ -107,6 +108,9 @@ export function toJson(doc, o = {}) {
       const facets = facetsOf(p.value);
       if (Object.keys(facets).length) v2 = true;   // §6.8's advisory `format`/`lang`
       part.value = { kind: p.value.kind, data: p.value.data, ...facets };
+      // K5 kickoff (addendum KE-7): a recorded lesson answer says so in the FILE too, and a
+      // reader built before K5 refuses the file (v4) rather than show that answer unbadged.
+      if (/** @type {any} */ (p).demo === true) { part.demo = true; v4 = true; }
     }
     return part;
   });
@@ -125,7 +129,7 @@ export function toJson(doc, o = {}) {
     // exports — including one with no label and no facet anywhere in it — unopenable by a client
     // shipped before K2, for a version number and nothing else. A file carrying no v2-only field
     // IS a v1 file, byte for byte, and says so.
-    [FORMAT]: v3 ? 3 : (v2 ? 2 : 1),
+    [FORMAT]: v4 ? 4 : (v3 ? 3 : (v2 ? 2 : 1)),
     title: typeof o.title === 'string' ? o.title : (d.title || ''),
     view: d.view ? { x: d.view.x, y: d.view.y, zoom: d.view.zoom } : undefined,
     settings: pickDocSettings(d.settings),

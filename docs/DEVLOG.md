@@ -6,6 +6,112 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-09-23 — The Computer **K5**: boxes you can find by name, a menu that says what each one does, and lessons that teach by building
+
+K5 opened with the owner's bug report: *"I do not see the coding in p5js or threejs nodes, or the svg
+write and svg render nodes, don't see them anywhere."* The Preview part could already do all of it.
+The problem was that nobody could find it. There was no box NAMED p5.js, three.js, SVG or HTML. There
+was one generic "Preview" whose mode was hidden in a settings dropdown, with no editor of its own, in a
+flat list of 19 parts. The phase was re-scoped so that finding things comes first, and the tutorial
+teaches boxes a person can actually find.
+
+### What a person gets
+
+- **Creative boxes with names (U1).** The ＋ menu's Show group has **p5.js sketch**, **three.js
+  scene**, **SVG**, **HTML page** and **Markdown view**. Each box:
+  - has its own monospace code editor;
+  - holds starter code that draws as soon as the box is placed, with no farm (a bouncing ball, a
+    spinning cube, a small poster, a small page);
+  - redraws 400 ms after you stop typing, through the existing sandbox and never the runner;
+  - reports an error by line, and clicking the error selects that line;
+  - has **Keep my code**, so an answer arriving on the wire cannot overwrite your edit;
+  - saves as .js/.svg/.html/.md/.png.
+
+  In the Think group, **Write a p5.js sketch / three.js scene / SVG / HTML page** are Instructions
+  that ask for code only. Their answer arrives in the matching box with fences and any extra prose
+  removed. The boxes are *presets* of `preview` and `ask` (type plus initial settings), not new part
+  types, so every existing graph with `preview`/`render` still opens unchanged.
+- **A grouped, searchable ＋ menu (U2).** It has five groups: Bring in, Think, Show, Control and
+  Annotate. Each row shows a glyph and a one-line description. Search is fuzzy and tolerates typos
+  ("skecth" finds the p5.js sketch, "threejs" the three.js scene), and full sentences work too ("draw
+  a spinning cube"). The menu works from the keyboard. It also opens where you **double-click or
+  right-click** on empty canvas. A new, empty canvas shows a **first-run offer**: Take the tour, Open
+  a template, Add your first box, plus quick picks for Text, Instruction, p5.js, three.js and SVG.
+- **The tutorial (U3).** A **Learn** shelf in the library sidebar lists lessons, each with a progress
+  ring, and templates.
+  - The first time you open a lesson it is copied into your library, and the same copy reopens after
+    that.
+  - A **step rail** at the bottom-left of the canvas shows one step at a time. **Show me** moves to
+    the box, opens the ＋ menu on the right row, or frames a wire. **Put it back** re-adds a box
+    you deleted, and **Reset lesson** can be undone.
+  - Checkpoints are declarative and are checked on every edit and run event. There is no polling and
+    no model call.
+  - The rail resumes where you left off after a restart.
+  - A lesson never dead-ends. With no farm, the rail says the lesson can still be finished. When a
+    box fails, it offers the lesson's saved answer, labelled *demo answer — not generated*.
+  - The run bar's **?** opens the same way in.
+- **Lessons and templates (U4).** The Tour (eight steps, no farm) and four lessons:
+  1. hello, farm
+  2. wires carry values
+  3. arrow labels are names
+  4. make a picture: Write an SVG → SVG
+
+  Two templates: **Research → problematic**, the owner's museum graph (one topic, five labelled
+  research Instructions converging into "write a problematic", then two design concepts), and
+  **Creative coding** (brief → Write a p5.js sketch → p5.js sketch).
+
+### The landing's own changes
+
+- `PHASE` → `K5` (and c3-landing asserts `vnext-k5`). The loader rows, the two @imports and the
+  catalogue were wired at the kickoff and are unchanged.
+- **A corner pick lands in view** (U2's contract request, `graph/canvas.mjs placeEntry`). Before, a
+  right-click near the bottom-right corner put the new box's top-left corner there, so the box was
+  almost entirely off-screen. A placement at a point is now clamped so the whole box is visible, and
+  k5-palette asserts it.
+- **The toolbar button reads "＋ Add a box"** (U2's request), because every surface of this phase
+  (menu, offer, rail, lessons) says *box* and ＋. The Tour's wording was changed to match.
+- **k5-shots** has two scenarios:
+  - Three creative boxes are placed by clicking ＋ and a row, drawn by their own ▶ with the farm gone,
+    and the menu is opened over them. The scene is measured (five groups, every row with a glyph and
+    a description, the menu entirely inside the graph) and photographed in both themes.
+  - Every lesson and template is opened by clicking its shelf row and photographed as a person first
+    sees it.
+- **Room for the arrow's name.** Looking at those pictures showed that the labelled arrows were
+  squeezed, and labelled arrows are the whole point of lesson 3 and of the research template. The
+  gaps between boxes were 30–60 world px, so the "name me" pill sat on the next box ("ame m"). The
+  research labels ("environmental research", …) were cut off by the problematic box. The fixes:
+  - Lesson 1: the Text box moved right.
+  - Lesson 2: zoom 0.8, and both arrows got room.
+  - Lesson 3: the Instruction moved right, and its tip sticky is narrower.
+  - Research: the problematic and the two concepts moved right, so every label reads whole.
+  - Creative coding: the sketch box moved right.
+
+  All of it stays on screen at the harness canvas size, clear of the rail, and k5-lessons' framing
+  scenario still passes.
+
+### Not taken (recorded)
+
+- The library card of a lesson's copy has no progress ring (U3 put it on the Learn shelf row).
+- Syntax-error lines are found by a host-side scanner, not by the sandbox's compiler.
+- "Open live" on a p5/three box still needs the host seam from K4.
+- Uploading PDFs and audio to boxes, gated by the model's capabilities, is **K6**.
+
+### Tested
+
+All at slot 0, in one pass after the last edit: `chat-unit` **1285 passed** (+94) · `unit` 5 ·
+`chat-lint` **196 files / 0 violations** (rule 15: 5 lessons, 2 templates) · `chat-scope` clean ·
+`chat-harness --strict` **280 passed** (+28: k5-creative 4, k5-palette 4, k5-seams 3, k5-tutorial 6,
+k5-lessons 9, k5-shots 2) · perf **9 passed** (500-part pan-work p95 ≤ 9.5 ms).
+
+An earlier full run had 7 failures, all in p1/p2/s0-shots. Each one was "no screenshot was produced":
+the hidden window stopped painting for a stretch, and all 7 passed on an immediate re-run.
+
+I looked at every K5 picture in `generated/shots/` (k5-shots-{dark,light}, one per lesson and
+template, k5-creative-boxes-*, k5-palette-*, k5-tutorial-*). Nothing was checked on the real farm,
+by rule.
+
+---
+
 ## 2026-09-23 — The Computer **K4 fix round**: typing that survives the second keystroke, and two gestures that stop costing what they never used
 
 A review of the K4 landing found one blocker on the phase's own headline path, plus three smaller

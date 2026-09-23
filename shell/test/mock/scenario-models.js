@@ -38,6 +38,12 @@ const STATIC_MODEL_IDS = [
     // model answers from `state.verdicts`, a queue consumed in order whose last entry repeats.
     // Default ['maybe'], because §6.6's rule is that anything unreadable is maybe, never no.
     'mock-verdict',
+    // K5 kickoff (addendum KE-10): the Write-… presets ask for CODE, and a local model wraps its
+    // code in a markdown fence often enough that unwrapping it is the feature. This model answers
+    // with a short sentence and then ONE fenced block of the kind the prompt asked for (svg / p5 /
+    // three / html, read off the last user message), so a scenario proves the fence is stripped
+    // and the picture is drawn, deterministically, with no real model.
+    'mock-code',
 ];
 const MODEL_IDS = [...STATIC_MODEL_IDS, ...PERF_NAMES.map((n) => `mock-perf:${n}`)];
 
@@ -299,6 +305,32 @@ function echoLines(body) {
         `markerWebSearch: ${allText.includes('Web search results')}`,
         `markerBlenderScene: ${allText.includes(SCENE)}`,
     ];
+}
+
+/**
+ * mock-code (K5 kickoff, addendum KE-10) — prose, then ONE fenced code block of the kind the last
+ * user message asks for. The kind is the FIRST of svg / three / p5 / html the prompt mentions
+ * (case-insensitive; `three.js` counts as three, `p5.js` as p5); none → svg. `state.codeReply`
+ * (a string) replaces the whole answer when a scenario needs a specific one — a broken sketch, an
+ * unfenced answer, two fences.
+ */
+const CODE_REPLIES = {
+    svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300"><rect width="400" height="300" fill="#bfe3f2"/><circle cx="320" cy="70" r="36" fill="#f2b134"/><path d="M0 230 Q100 150 200 220 T400 210 V300 H0 Z" fill="#5b8c5a"/></svg>',
+    p5: 'function setup() {\n  createCanvas(400, 300);\n  noLoop();\n}\n\nfunction draw() {\n  background(30, 30, 40);\n  fill(240, 180, 60);\n  circle(200, 150, 120);\n}',
+    three: 'const renderer = new THREE.WebGLRenderer({ canvas: lol.canvas, preserveDrawingBuffer: true });\nrenderer.setSize(lol.size.w, lol.size.h, false);\nconst scene = new THREE.Scene();\nconst camera = new THREE.PerspectiveCamera(50, lol.size.w / lol.size.h, 0.1, 100);\ncamera.position.z = 4;\nconst mesh = new THREE.Mesh(new THREE.TorusGeometry(1, 0.35, 16, 48), new THREE.MeshNormalMaterial());\nscene.add(mesh);\nrenderer.render(scene, camera);',
+    html: '<h1>An exhibition</h1>\n<p>Three rooms about the sea.</p>\n<ul><li>Tides</li><li>Wrecks</li><li>Light</li></ul>',
+};
+const CODE_FENCE_LANG = { svg: 'svg', p5: 'javascript', three: 'javascript', html: 'html' };
+
+function codeReply(body, store) {
+    if (store && store.state && typeof store.state.codeReply === 'string') return store.state.codeReply;
+    const messages = Array.isArray(body && body.messages) ? body.messages : [];
+    const lastUser = [...messages].reverse().find((m) => m && m.role === 'user');
+    const prompt = textOf(lastUser).toLowerCase();
+    const at = (re) => { const m = re.exec(prompt); return m ? m.index : Infinity; };
+    const where = { svg: at(/\bsvg\b/), three: at(/\bthree(\.js)?\b/), p5: at(/\bp5(\.js)?\b/), html: at(/\bhtml\b/) };
+    const kind = Object.keys(where).sort((a, b) => where[a] - where[b]).find((k) => where[k] !== Infinity) || 'svg';
+    return `Here is the code you asked for:\n\n\`\`\`${CODE_FENCE_LANG[kind]}\n${CODE_REPLIES[kind]}\n\`\`\`\n\nChange the numbers to make it your own.`;
 }
 
 /**
@@ -572,6 +604,12 @@ function handleCompletion({ model, res, body, store }) {
         return true;
     }
 
+    if (id === 'mock-code') {
+        const lines = codeReply(body, store).split('\n');
+        streamContent(id, res, store, body, lines.map((l, i) => (i === lines.length - 1 ? l : `${l}\n`)), { finish: 'stop' });
+        return true;
+    }
+
     if (id === 'mock-echo') {
         const lines = echoLines(body);
         streamContent(id, res, store, body, lines.map((l, i) => (i === lines.length - 1 ? l : `${l}\n`)), { finish: 'stop' });
@@ -720,5 +758,5 @@ module.exports = {
     MODEL_IDS, STATIC_MODEL_IDS, PERF_NAMES, VISION_MODELS,
     modelList, modelGroupInfo, handleCompletion, instanceOf, schemaOf, schemaFromPrompt, studioJsonText,
     promptTokens, textOf, partsOf, echoLines, lengthChunks, restartChunks,
-    seededChunks, mulberry32, CORS, headingLines,
+    seededChunks, mulberry32, CORS, headingLines, codeReply,
 };

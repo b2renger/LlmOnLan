@@ -35,7 +35,7 @@ import { spine } from './boot.mjs';
 import { computeVisible, runnerExecuting } from './visible.mjs';
 import '../strings/computer.en.mjs';
 
-const PHASE = 'K4';   // each LANDING bumps this, with the c3-landing assertion in the same edit
+const PHASE = 'K5';   // each LANDING bumps this, with the c3-landing assertion in the same edit
 
 /** @type {import('../core/types.mjs').ModuleRow[]} */
 const MODULES = [
@@ -53,11 +53,17 @@ const MODULES = [
   // K4 (COMPUTER_PLAN §6.4): the ONE door a picture comes in by. A `feature`, so a build without
   // it still runs graphs — the Image part then says it cannot read a picture instead of throwing.
   { key: 'intake',   path: './intake.mjs',          role: 'feature',   fake: null, phase: 'K4' },
-  // K5 rows (welcome, tutorial) are added at that kickoff.
+  // K5 (COMPUTER_PLAN §10; addendum KE-6). The tutorial installs BEFORE the first-run offer, so the
+  // offer's "Take the tour" can ask `app.tutorial.has()` on its very first paint. Both are
+  // features: a build without either still edits and runs graphs, and a missing door is a HIDDEN
+  // button, never a dead one.
+  { key: 'tutorial', path: './tutorial/rail.mjs',   role: 'feature',   fake: null, phase: 'K5' },
+  { key: 'welcome',  path: './welcome.mjs',         role: 'feature',   fake: null, phase: 'K5' },
   //
   // LEAVES WITH NO ROW — a static import of their consumer, so a typo surfaces as that consumer
-  // failing: graph/**, sandbox/**, computer/{boot,layout,visible,docstore}.mjs, every
-  // strings/*.en.mjs, and (K5) tutorial/{check,registry}.mjs with every lesson module.
+  // failing: graph/** (K5: palette.mjs, palette-menu.mjs, unfence.mjs, parts/creative.mjs),
+  // sandbox/**, computer/{boot,layout,visible,docstore}.mjs, every strings/*.en.mjs, and (K5)
+  // tutorial/{check,registry}.mjs with every lesson and template module.
 ];
 
 /**

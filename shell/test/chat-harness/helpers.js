@@ -596,6 +596,121 @@ function createHelpers(ctx) {
                 runbar: (document.querySelector('#lolcomputer .comp-run') || {}).textContent || '',
             })),
 
+            // ---- K5 (addendum KE-2, KE-6): the ＋ menu, the first-run offer and the tutorial,
+            // driven the way a PERSON drives them — by clicking the visible control (build rule 6).
+            // Nothing here calls a debug door to place a box: `add()` clicks ＋, types, clicks a row.
+            menu: {
+                /** Click the toolbar's ＋. → the rows now showing (see `rows`). */
+                open: async () => {
+                    await click('#lolcomputer .graph-add');
+                    return h.computer.menu.rows();
+                },
+                /** A double-click (how='dblclick', the default) or a right-click (how='contextmenu')
+                 * on the canvas at (x, y) px from its top-left corner. → {open, rows} */
+                openAt: async (x, y, how) => {
+                    await evalFn((px, py, kind) => {
+                        const c = document.querySelector('#lolcomputer .graph-canvas');
+                        if (!c) throw new Error('menu.openAt: no canvas');
+                        const r = c.getBoundingClientRect();
+                        c.dispatchEvent(new MouseEvent(kind, { bubbles: true, cancelable: true, clientX: r.left + px, clientY: r.top + py, button: kind === 'contextmenu' ? 2 : 0 }));
+                        return true;
+                    }, x, y, how || 'dblclick');
+                    return { open: await h.computer.menu.isOpen(), rows: await h.computer.menu.rows() };
+                },
+                isOpen: () => evalFn(() => {
+                    const m = document.querySelector('#lolcomputer .graph-add-menu');
+                    return !!m && !m.hidden;
+                }),
+                /** The rows the OPEN menu is showing, in drawn order. */
+                rows: () => evalFn(() => Array.from(document.querySelectorAll('#lolcomputer .graph-add-menu:not([hidden]) .graph-add-item'))
+                    .map((el) => ({
+                        entry: el.getAttribute('data-entry'),
+                        type: el.getAttribute('data-type'),
+                        group: el.getAttribute('data-group'),
+                        preset: el.getAttribute('data-preset'),
+                        label: ((el.querySelector('.graph-add-name') || {}).textContent) || '',
+                        desc: ((el.querySelector('.graph-add-desc') || {}).textContent) || '',
+                        glyph: ((el.querySelector('.graph-add-glyph') || {}).textContent) || '',
+                        active: el.getAttribute('aria-selected') === 'true',
+                    }))),
+                /** The group headings the OPEN menu is showing, in order. */
+                groups: () => evalFn(() => Array.from(document.querySelectorAll('#lolcomputer .graph-add-menu:not([hidden]) .graph-add-group'))
+                    .map((el) => ({ group: el.getAttribute('data-group'), label: el.textContent }))),
+                /** Type into the search box, as a person would. → rows */
+                search: async (q) => {
+                    await evalFn((v) => {
+                        const el = document.querySelector('#lolcomputer .graph-add-menu:not([hidden]) .graph-add-search');
+                        if (!el) throw new Error('menu.search: the menu is not open');
+                        el.focus();
+                        el.value = v;
+                        el.dispatchEvent(new Event('input', { bubbles: true }));
+                        return true;
+                    }, String(q == null ? '' : q));
+                    return h.computer.menu.rows();
+                },
+                /** Press a key in the open menu (ArrowDown, ArrowUp, Enter, Escape). */
+                key: (k) => evalFn((key) => {
+                    const el = document.querySelector('#lolcomputer .graph-add-menu:not([hidden]) .graph-add-search')
+                        || document.querySelector('#lolcomputer .graph-add-menu:not([hidden])');
+                    if (!el) throw new Error('menu.key: the menu is not open');
+                    el.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }));
+                    return true;
+                }, k),
+                /** Click one row of the open menu. → the id of the part it placed, or null. */
+                pick: async (entry) => {
+                    const before = (await h.computer.state()).parts.map((p) => p.id);
+                    await click(`#lolcomputer .graph-add-menu:not([hidden]) .graph-add-item[data-entry="${entry}"]`);
+                    const after = (await h.computer.state()).parts.map((p) => p.id);
+                    return after.find((id) => before.indexOf(id) < 0) || null;
+                },
+            },
+            /** ＋ → (optionally type `opts.query`) → click the row `entry`. → the new part's id. */
+            add: async (entry, opts) => {
+                await h.computer.menu.open();
+                if (opts && opts.query) await h.computer.menu.search(opts.query);
+                return h.computer.menu.pick(entry);
+            },
+            /** The first-run offer on an empty canvas: {shown, actions}. `press(action)` clicks one. */
+            welcome: {
+                state: () => evalFn(() => {
+                    const el = document.querySelector('#lolcomputer .comp-welcome');
+                    return {
+                        shown: !!el && !el.hidden,
+                        actions: el ? Array.from(el.querySelectorAll('.comp-welcome-btn')).filter((b) => !b.hidden).map((b) => b.getAttribute('data-action')) : [],
+                    };
+                }),
+                press: (action) => click(`#lolcomputer .comp-welcome:not([hidden]) .comp-welcome-btn[data-action="${action}"]`),
+            },
+            /** The Learn shelf and the step rail (KE-6 probes). */
+            tutorial: {
+                /** Click a lesson on the Learn shelf. */
+                openLesson: (id) => click(`#lolcomputer .comp-lesson[data-lesson="${id}"]`),
+                /** Click a template on the Learn shelf. */
+                openTemplate: (id) => click(`#lolcomputer .comp-template[data-template="${id}"]`),
+                /** What the rail shows right now. */
+                rail: () => evalFn(() => {
+                    const rail = document.querySelector('#lolcomputer .comp-rail');
+                    const txt = (sel) => { const el = rail && rail.querySelector(sel); return el ? el.textContent : null; };
+                    return {
+                        shown: !!rail && !rail.classList.contains('hidden'),
+                        lesson: rail ? rail.getAttribute('data-lesson') : null,
+                        step: txt('.comp-rail-step'),
+                        text: txt('.comp-rail-text'),
+                        show: txt('.comp-rail-show'),
+                        gotIt: !!(rail && rail.querySelector('.comp-rail-got')),
+                        demo: !!(rail && rail.querySelector('.comp-rail-demo')),
+                        next: txt('.comp-rail-next'),
+                    };
+                }),
+                /** Click one of the rail's buttons: 'show' | 'got' | 'reset' | 'demo' | 'next'. */
+                press: (what) => click(`#lolcomputer .comp-rail .comp-rail-${what}`),
+                /** app.tutorial's own view: {loaded, progress, current, rail}. */
+                debug: () => evalFn(() => {
+                    const tut = window.LolComputer && window.LolComputer.app && window.LolComputer.app.tutorial;
+                    return tut ? tut.debug() : null;
+                }),
+            },
+
             /** What the two Apps share, and what they must not (COMPUTER_PLAN §2.3). */
             spine: () => evalFn(() => {
                 const chat = window.LolChat && window.LolChat.app;

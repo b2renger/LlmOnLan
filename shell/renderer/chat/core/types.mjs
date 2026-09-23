@@ -266,7 +266,15 @@
  *   state: 'idle'|'stale'|'queued'|'running'|'waiting'|'done'|'error', error: string|null,
  *   stats: {ms: number, tokens: number, calls?: number}|null,
  *   fanout?: {n: number, done: number, ok: number, failed: number,
- *     errors: {i: number, message: string}[]}|null }} GraphPart */
+ *     errors: {i: number, message: string}[]}|null,
+ *   demo?: boolean }} GraphPart
+ *
+ * K5 kickoff (COMPUTER_PLAN §10.2, §7.6; addendum KE-7): `demo` says the part's VALUE is a
+ * lesson's RECORDED answer, not a generation. Written only through `patchPart({value, demo:true})`
+ * (a runtime door, never undoable); ANY later patch that writes `value` without saying `demo`
+ * clears it, so a real generation can never inherit the badge. Kept by `normaliseDoc` only while
+ * the part holds a value, exported with the value (serialize v4), and drawn by the canvas as the
+ * permanent `demo answer — not generated` badge. */
 
 /** One wire: a part's single output into ONE named input port of another. Several wires into the
  * same port are legal and arrive as an ordered list.
@@ -311,7 +319,14 @@
  *   `quiet`      the canvas does not draw the one-line value strip under this part's body. A part
  *                that SHOWS its own value (Text renders it as markdown, Preview draws it) would
  *                otherwise print the same text twice. Honoured in graph/canvas.mjs `syncBox()`.
+ * K5 (COMPUTER_PLAN §6, addendum KE-2) adds ONE more, read in ONE place (graph/canvas.mjs, the box
+ * title and `labelOf`):
+ *   `titleOf`    the box's title for THIS part, or null for `label`. A Preview placed as the
+ *                "p5.js sketch" preset is titled "p5.js sketch", not "Preview" — a person finds the
+ *                box they picked by the name they picked it by. The catalogue's `presetTitle()`
+ *                is the only implementation; a part never spells a preset's name itself.
  * @typedef {{ type: string, label: string, order?: number, thinks?: boolean,
+ *   titleOf?: (part: GraphPart) => string|null,
  *   size?: {w: number, h: number},
  *   manual?: boolean, volatile?: boolean, control?: boolean, inert?: boolean, quiet?: boolean,
  *   thinksFor?: (part: GraphPart) => boolean,
@@ -325,8 +340,78 @@
 
 /** What a part's render()/settings() may do to the document. `update` patches settings (and marks
  * the part stale); `commit` closes one undo entry around the edits since the last commit.
+ * K5 kickoff (addendum KE-3): `sandbox()` is the Computer's ONE guest (the same object `RunInput.sandbox`
+ * hands a run), so a creative box can re-draw ITS OWN source on edit without a run, a generation or
+ * a seat. It resolves null when the sandbox is disabled. It never races a run: KE-3's rule is that an
+ * edit-draw waits while `ctx.app.host.runner.running()` is true.
  * @typedef {{ update(patch: object): void, commit(label: string): void, open(value: GraphValue): void,
+ *   sandbox(): Promise<SandboxHost|null>,
  *   app: any, part: GraphPart }} PartCtx */
+
+// ---------------------------------------------------------------------------------------------
+// K5 kickoff (COMPUTER_PLAN §6, §10; addendum KE). The palette, the presets, the tutorial.
+// Additive: nothing before K5 reads any of it.
+// ---------------------------------------------------------------------------------------------
+
+/** The five palette groups, in menu order (COMPUTER_PLAN §6's table). Frozen.
+ * @typedef {'bring'|'think'|'show'|'control'|'annotate'} PaletteGroup */
+
+/** A PRESET: a part type plus the settings that make it a named, first-class box (addendum KE-2).
+ * `id` is globally unique across presets AND part types (a lesson says `preset:'svg'`, the menu
+ * says `data-entry="svg"`). `match` is the subset of settings that IDENTIFIES a placed part as
+ * this preset — `presetOf(part)` compares exactly those keys, so a person editing the source of a
+ * "p5.js sketch" leaves it a p5.js sketch. `settings` is merged over `spec.defaults()` by addPart,
+ * and every key in it MUST be a key of `defaults()` or export drops it (serialize.mjs
+ * exportSettings).
+ * @typedef {{ id: string, type: string, group: PaletteGroup, label: string, title: string,
+ *   desc: string, glyph: string, keywords: string[], order: number,
+ *   settings: object, match: object, size?: {w: number, h: number} }} PartPreset */
+
+/** One row of the ＋ menu (graph/palette.mjs `buildPalette`). A plain part type has
+ * `entry === type` and `preset === null`; a preset row has `entry === preset.id`.
+ * @typedef {{ entry: string, type: string, preset: string|null, group: PaletteGroup,
+ *   label: string, desc: string, glyph: string, keywords: string[], order: number,
+ *   settings: object, size: {w: number, h: number}|null }} PaletteEntry */
+
+/** A tutorial checkpoint (addendum KE-5). Pure data; `computer/tutorial/check.mjs` is the only
+ * interpreter and chat-lint rule 15 the only validator. Counts compare through `Cmp`: a number
+ * (==), or a string '>=3' '<=2' '>1' '<4' '==0'.
+ * @typedef {number|string} Cmp
+ * @typedef {{has: {id?: string, type?: string, preset?: string, setting?: string,
+ *     nonEmpty?: boolean, equals?: any, count?: Cmp}}
+ *   | {wire: {from?: string, to?: string, fromType?: string, toType?: string,
+ *     fromPreset?: string, toPreset?: string, port?: string,
+ *     label?: string, count?: Cmp}}
+ *   | {ran: {partId?: string, type?: string, preset?: string,
+ *     state?: 'done'|'error'|'stale'|'idle', demoOk?: boolean}}
+ *   | {report: {generations?: Cmp, ran?: Cmp, errors?: Cmp, stopped?: 'capped'|'cancelled'|'yielded'}}
+ *   | {edited: {partId: string, setting: string}}
+ *   | {all: any[]} | {any: any[]}
+ *   | {manual: true}} Check */
+
+/** Where a step's `Show me` points (addendum KE-5).
+ * @typedef {{partId: string} | {menu: string} | {wire: {from: string, to: string}}} Show */
+
+/** @typedef {{ id: string, text: string, check: Check, show?: Show, hint?: string }} LessonStep */
+
+/** A lesson module's default export (addendum KE-4). `doc` is a `.lolgraph.json` object — the
+ * canvas's Export with values OFF — whose part ids are AUTHORED ('p_topic') and survive the fork.
+ * @typedef {{ id: string, n: number, title: string, subtitle: string, idea: string,
+ *   minutes: number, needsFarm: 'no'|'one'|'few',
+ *   doc: {lolgraph: number, title?: string, parts: object[], wires: object[], view?: object},
+ *   steps: LessonStep[], demo?: Record<string, GraphValue>, next?: string }} Lesson */
+
+/** A template module's default export (addendum KE-4). Opened as a NEW library document with
+ * fresh ids — a template has no steps, so nothing refers to its part ids.
+ * @typedef {{ id: string, title: string, subtitle: string, needsFarm: 'no'|'one'|'few',
+ *   generations: number,
+ *   doc: {lolgraph: number, title?: string, parts: object[], wires: object[], view?: object} }} Template */
+
+/** kv `computer:tutorial` (KV_KEYS.computerTutorial): progress per lesson id. `ticks` latch and
+ * never un-tick; `step` is the index of the first unticked step; `demo` lists the part ids whose
+ * value is a recorded answer.
+ * @typedef {Record<string, {step: number, ticks: string[], forkedDocId: string|null,
+ *   doneAt: number|null, demo: string[]}>} TutorialProgress */
 
 /** What the runner hands a part's run(). `inputs` is keyed by port name, in wire order.
  * `item` is set ONLY while the part is running per item of a fan-out (C2, §2.6 BH-2): `i` is the
@@ -655,6 +740,8 @@ export const KV_KEYS = Object.freeze({
   /** @param {string} graphId */ computerRuns: (graphId) => `computer:runs:${graphId}`,
   /** @param {string} underlying */ editPolicy: (underlying) => `editPolicy:${underlying}`,
   /** @param {string} underlying */ anchorStats: (underlying) => `anchorStats:${underlying}`,
+  // K5 (COMPUTER_PLAN §10.1): tutorial progress, one row for every lesson (TutorialProgress).
+  computerTutorial: 'computer:tutorial',
 });
 
 export const TYPES_VERSION = 1;
@@ -725,6 +812,18 @@ export const API_KEYS = Object.freeze({
     'runFrom', 'journal', 'waits',
     'docId', 'open',
   ]),
+  // K5 kickoff (addendum KE-6): `app.tutorial`, installed by computer/tutorial/rail.mjs. Checked
+  // by the unit's own test (features have fake:null). `open(id)` is already called by
+  // graph/canvas.mjs (the loop-ungated notice, guarded by `has(id)`) and `explain()` by
+  // computer/runbar.mjs (the ? button).
+  tutorial: Object.freeze([
+    'has', 'lessons', 'templates', 'open', 'openTemplate', 'active', 'reset', 'showShelf',
+    'explain', 'debug',
+  ]),
+  // K5 kickoff (addendum KE-2): the ＋ menu instance graph/palette-menu.mjs builds for the canvas.
+  palette: Object.freeze(['el', 'open', 'close', 'isOpen', 'destroy']),
+  // K5 kickoff (addendum KE-6): `app.welcome`, installed by computer/welcome.mjs.
+  welcome: Object.freeze(['shown', 'refresh', 'debug']),
   // C3: the sandbox host (sandbox/host.mjs). ONE per panel; the S2 vibecode bench uses the same
   // object, which is why the key list lives here and not with the Computer's own keys.
   sandbox: Object.freeze([

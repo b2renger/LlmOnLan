@@ -33,7 +33,11 @@
 @import url('../css/computer-image.css');
 /* K4-U3: the Preview family — markdown/SVG bodies, the snapshot tile, "Open live". */
 @import url('../css/computer-preview.css');
+/* K5-U1 owns css/computer-preview.css (above) for the creative boxes' code editor — no new sheet. */
+/* K5-U2: the grouped ＋ menu and the first-run offer on an empty canvas. */
+@import url('../css/computer-palette.css');
+/* K5-U3: the Learn shelf and the tutorial step rail. */
+@import url('../css/computer-rail.css');
 /* K4-U4, LAST on purpose: the warmed-up look (§9) and the three annotation parts. It warms what
    the sheets above drew, and the cascade is the only mechanism it may use. */
 @import url('../css/computer-look.css');
-/* K5-U1 adds its own @import line at that kickoff: computer-rail.css. */

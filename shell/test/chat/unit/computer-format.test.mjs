@@ -25,6 +25,7 @@ import {
 } from '../../../renderer/chat/graph/parts/preview.mjs';
 
 const SPECS = specMap();
+const NL = String.fromCharCode(10);
 const PREVIEW = SPECS.get('preview');
 
 /** Run `fn` with the unit runner's DOM shim installed as `globalThis.document`. */
@@ -210,10 +211,20 @@ export default (test) => {
   test('three.js and p5.js are handed to the guest as CODE, under their own kind', async () => {
     for (const mode of ['three', 'p5']) {
       const p = part({ mode, w: 2048, h: 64 });
-      const { input, sandbox } = runInput(p, [valueOf('text', 'api.log(1)')]);
+      const sketch = ['api.log(1)', 'api.log(2)'].join(NL);
+      const { input, sandbox } = runInput(p, [valueOf('text', sketch)]);
       await PREVIEW.run(input);
       assert.equal(sandbox.calls.run[0].kind, mode, `${mode} asks the guest for its own libraries`);
-      assert.equal(sandbox.calls.run[0].code, 'api.log(1)');
+      // K5-U1 (addendum KE-3): the sketch is SHAPED for the guest (graph/unfence.mjs
+      // shapeForGuest) — p5 global mode handed to `window`, a three.js renderer pointed at the
+      // guest's canvas — and the one invariant that matters to its author holds: every line of
+      // what they wrote is at the SAME line number in what the guest runs, so an error's line is
+      // the line they see. (The old assertion "three.js is untouched" is superseded by that.)
+      const ran = sandbox.calls.run[0].code.split(NL);
+      assert.ok(ran[0].endsWith('api.log(1)'), `${mode}: line 1 is still the sketch's line 1`);
+      assert.equal(ran[1], 'api.log(2)', `${mode}: line 2 is still the sketch's line 2`);
+      if (mode === 'p5') assert.ok(/window\.draw = typeof draw === 'function'/.test(sandbox.calls.run[0].code), 'then p5 global mode is handed to window');
+      else assert.ok(/preserveDrawingBuffer: true/.test(ran[0]), 'three.js keeps its drawing buffer so the picture can be taken');
       assert.equal(sandbox.calls.run[0].html, undefined, 'a sketch is code, not a page');
       assert.equal(sandbox.calls.snapshot[0].maxPx, 1024, 'and the snapshot is capped at the protocol ceiling');
       assert.equal(shownOf(p.id).mode, mode);
@@ -270,7 +281,8 @@ export default (test) => {
   });
 
   test('a sketch that threw is reported with the LINE, which is the one thing its author needs', async () => {
-    const withLine = runInput(part({ mode: 'p5' }), [valueOf('text', 'boom()')], {
+    const twelve = [...Array.from({ length: 11 }, (_, i) => `// line ${i + 1}`), 'boom()'].join(NL);
+    const withLine = runInput(part({ mode: 'p5' }), [valueOf('text', twelve)], {
       sandbox: fakeSandbox({ run: () => ({ ok: false, ms: 0, error: { message: 'boom is not a function', line: 12, col: 3 } }) }),
     });
     const fail = await failureOf(withLine.input);
@@ -282,6 +294,8 @@ export default (test) => {
     });
     assert.equal((await failureOf(noLine.input)).message, 'the guest gave up', 'no line, no invented one');
     assert.equal(sandboxMessage({ message: 'x', line: 0 }), 'x', 'line 0 is no line');
+    assert.equal(sandboxMessage({ message: 'x', line: 40 }, 'one line'), 'x',
+      'a line past the end of the code came from a library frame, and is dropped rather than misleading');
     assert.equal(sandboxMessage(null), t('sandbox.errNotBuilt'), 'and a silent guest still gets a sentence');
   });
 
@@ -361,8 +375,9 @@ export default (test) => {
         app: {}, part: p, open: () => {},
         update: (patch) => patches.push(patch), commit: (label) => commits.push(label),
       });
-      assert.deepEqual(PREVIEW.defaults(), { mode: 'auto', w: 320, h: 240, live: false },
-        'the stored shape KD-6 froze');
+      // K5 kickoff (addendum KE-3): the box's own `source` and its `locked` join the stored shape.
+      assert.deepEqual(PREVIEW.defaults(), { mode: 'auto', w: 320, h: 240, live: false, source: '', locked: false },
+        'the stored shape KD-6 froze, plus KE-3');
       view.destroy();
       assert.deepEqual(patches, [], 'and nothing is written until the reader picks');
       assert.deepEqual(commits, []);

@@ -125,4 +125,8 @@ registerStrings('computer', {
   // ---- legacy parts, demoted at K1 (K1-U3) ---------------------------------------------------
   legacyBadge: 'legacy',
   legacyNoThread: 'This part belonged to a chat. The Computer is its own surface now — delete it, or copy the text into a Note.',
+
+  // ---- K5 kickoff (addendum KE-7): a lesson's recorded answer, badged for good ----------------
+  demoBadge: 'demo answer — not generated',
+  demoBadgeHint: 'This is the lesson’s saved answer, put here because the farm could not answer. Run the box again to ask the farm.',
 });

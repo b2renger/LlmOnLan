@@ -48,8 +48,10 @@ export default (test) => {
     // format/lang facets. K3 kickoff (§4.6): v3 carries `wire.back`, the LOOP declaration — a
     // pre-K3 client that read a back edge as an ordinary wire would refuse the whole document as
     // a cycle and say nothing useful, so the bump is what buys §8.4's sentence instead.
-    // A v1 and a v2 file still open; a v4 file is still REFUSED whole.
-    assert.equal(FORMAT_VERSION, 3);
+    // K5 kickoff (addendum KE-7): v4 carries `part.demo`, a lesson's RECORDED answer. A pre-K5
+    // reader would show that answer with no badge, so the bump buys a refusal instead.
+    // v1, v2 and v3 files still open; a v5 file is still REFUSED whole.
+    assert.equal(FORMAT_VERSION, 4);
     assert.equal(FILE_SUFFIX, '.lolgraph.json');
   });
 

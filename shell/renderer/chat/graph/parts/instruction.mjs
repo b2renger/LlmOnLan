@@ -27,6 +27,11 @@ import { bindArrivals, bindInputs, planFor } from '../bind.mjs';
 import { budgetFor } from '../../ctx/budget.mjs';
 import { t } from '../../core/i18n.mjs';
 import { partFail, pickerRow, setPicked } from './common.mjs';
+// K5 kickoff (addendum KE-3): an Instruction placed as "Write an SVG" (etc.) answers in CODE. The
+// answer is unwrapped from a markdown fence and stamped with the facets its kind declares, ONCE,
+// here — so it lands clean in an SVG box, and a Preview in `auto` knows how to draw it.
+import { codeValue, CODE_KINDS } from '../unfence.mjs';
+import { presetTitle } from './creative.mjs';
 
 /** @typedef {import('../../core/types.mjs').PartSpec} PartSpec */
 /** @typedef {import('../../core/types.mjs').GraphValue} GraphValue */
@@ -155,7 +160,12 @@ export const instruction = /** @type {any} */ ({
   // question, answered by fanout.mjs exactly as before.
   inputs: [{ name: 'in', label: t('parts.insIn'), accepts: ['text', 'image', 'json', 'file'], many: true }],
   output: 'text',
-  defaults: () => ({ instruction: '', model: '', shape: 'text', schema: '', inlineVars: false }),
+  // K5 kickoff (KE-3): `code` is '' (prose, exactly as before) or one of CODE_KINDS. It only
+  // changes what a `shape:'text'` answer becomes — never the prompt, which is the instruction the
+  // person can read and edit (the Write-… preset puts "reply with only the code" INTO it).
+  defaults: () => ({ instruction: '', model: '', shape: 'text', schema: '', inlineVars: false, code: '' }),
+  // K5 kickoff (KE-2): a box placed as "Write an SVG" is titled that, not "Instruction".
+  titleOf: (/** @type {any} */ part) => presetTitle(part),
 
   render(host, part, ctx) {
     const area = document.createElement('textarea');
@@ -354,6 +364,8 @@ export const instruction = /** @type {any} */ ({
     if (plan.call.shape === 'text') {
       const res = kept(await input.ask.text(call));
       if (!res || !res.ok) throw failFrom(res);
+      const code = String(settings.code || '');
+      if (CODE_KINDS.indexOf(code) >= 0) return /** @type {any} */ (codeValue(String(res.value), code));
       return valueOf('text', String(res.value));
     }
 

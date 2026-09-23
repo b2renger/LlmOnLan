@@ -1,12 +1,13 @@
-/* computer-preview.css — K4-U3's sheet: the Preview family (COMPUTER_PLAN §6.5).
-   One stylesheet per unit (§3.6): K4-U3 REPLACES this file wholesale. It does NOT touch
-   css/computer-parts.css (K3-U2's) or css/sandbox.css (the guest's own, shared with the chat).
+/* computer-preview.css — the Preview family (COMPUTER_PLAN §6.5): K4-U3's sheet, replaced
+   wholesale by K5-U1 for the creative boxes' own code editor (addendum KE-3). It does NOT touch
+   css/computer-parts.css or css/sandbox.css.
 
-   What lands here: the markdown and SVG bodies, the snapshot tile and its sizing, and the note
-   that says which of the two a reader is looking at. Tokens only (lint rule 3).
+   What lands here: the head (mode, where the drawing came from, the lock), the markdown and SVG
+   bodies, the snapshot tile, the note, the error that names a line, the monospace code editor and
+   the Save row. Tokens only (lint rule 3).
 
-   The Preview surface is scoped to `#lolcomputer` because Preview is a Computer part; the older
-   `.graph-render-*` rules in css/graph.css stay where they are for the legacy C3 part. */
+   KE-9: in #lolcomputer the UA's [hidden]{display:none} loses to any rule that sets `display`, so
+   every element below that is given a display carries its own [hidden] rule. */
 
 #lolcomputer .graph-preview {
   display: flex;
@@ -16,13 +17,76 @@
   flex: 1;
 }
 
-#lolcomputer .graph-preview-size { display: flex; gap: 6px; }
-#lolcomputer .graph-preview-size .graph-part-field { flex: 1; min-width: 0; }
+/* ---- the head ----------------------------------------------------------------------------- */
 
-/* The body is the window: it scrolls, it never pushes the box open, and a long report stays
-   readable inside it (§6.5 — the owner's own graphs are full markdown reports). */
-#lolcomputer .graph-preview-body {
+#lolcomputer .graph-preview-head {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+#lolcomputer .graph-preview-head > .graph-part-field { flex: 1 1 120px; min-width: 0; }
+/* The mode picker's caption stays for a screen reader (the label names the select) but not on the
+   box: a creative box's title already says what it is, and the space goes to the drawing. */
+#lolcomputer .graph-preview-head > .graph-part-field > .graph-part-field-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+#lolcomputer .graph-part-body .graph-preview-head select { padding: 3px 6px; font-size: 12px; }
+
+#lolcomputer .graph-preview-from {
+  align-self: center;
+  font-size: 11px;
+  color: var(--muted);
+}
+#lolcomputer .graph-preview-from[hidden] { display: none; }
+
+#lolcomputer .graph-preview-lock,
+#lolcomputer .graph-preview-code-toggle,
+#lolcomputer .graph-preview-save {
+  font: inherit;
+  font-size: 11px;
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface-2);
+  color: var(--text);
+  cursor: pointer;
+}
+#lolcomputer .graph-preview-lock:hover,
+#lolcomputer .graph-preview-code-toggle:hover,
+#lolcomputer .graph-preview-save:hover { border-color: var(--accent-hover); }
+#lolcomputer .graph-preview-lock[aria-pressed='true'] {
+  border-color: var(--accent-hover);
+  background: color-mix(in srgb, var(--accent) 22%, var(--surface-2));
+}
+#lolcomputer .graph-preview-lock[hidden],
+#lolcomputer .graph-preview-code-toggle[hidden],
+#lolcomputer .graph-preview-save[hidden] { display: none; }
+
+#lolcomputer .graph-preview-code-toggle { align-self: flex-start; }
+
+#lolcomputer .graph-preview-size { display: flex; gap: 6px; }
+#lolcomputer .graph-preview-size[hidden] { display: none; }
+#lolcomputer .graph-preview-size .graph-part-field {
   flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--muted);
+}
+#lolcomputer .graph-part-body .graph-preview-size input { padding: 2px 6px; font-size: 12px; }
+
+/* ---- the window: it scrolls, it never pushes the box open --------------------------------- */
+
+#lolcomputer .graph-preview-body {
+  flex: 1 1 auto;
   min-height: 0;
   overflow: auto;
   overscroll-behavior: contain;
@@ -38,8 +102,7 @@
 
 #lolcomputer .graph-preview-body:empty { display: none; }
 
-/* Markdown, drawn by render/dom.mjs. Compact, because it lives in a box on a canvas — the drawer
-   is where a report is read full size. */
+/* Markdown, drawn by render/dom.mjs. Compact, because it lives in a box on a canvas. */
 #lolcomputer .graph-preview-body > :first-child { margin-top: 0; }
 #lolcomputer .graph-preview-body > :last-child { margin-bottom: 0; }
 
@@ -94,42 +157,94 @@
 
 #lolcomputer .graph-preview-body a { color: var(--accent-hover); }
 
-/* The picture: a sanitised SVG or the guest's PNG. `object-fit: contain` is what keeps a 2048px
-   sketch honest inside a 320px box instead of cropping it. */
+/* The picture: a sanitised SVG or the guest's PNG. `object-fit: contain` keeps a 2048px sketch
+   honest inside a 380px box instead of cropping it. */
 #lolcomputer .graph-preview-tile {
   display: block;
   width: 100%;
-  max-height: 100%;
+  max-height: 180px;
   object-fit: contain;
   border-radius: 7px;
   background: var(--surface);
 }
 
-/* A body that holds a picture stops scrolling and centres it. */
+/* A body that holds a picture stops scrolling, centres it, and keeps a real height so the code
+   below cannot squeeze the drawing to a sliver; the tile is capped so a box fits the size it was
+   placed at (a box that grows past it lands on its neighbours). */
 #lolcomputer .graph-preview-body:has(.graph-preview-tile) {
   overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 4px;
+  min-height: 120px;
 }
 
-#lolcomputer .graph-preview-note {
+#lolcomputer .graph-preview-note,
+#lolcomputer .graph-preview-kept {
   margin: 0;
   color: var(--muted);
   font-size: 11px;
 }
+#lolcomputer .graph-preview-note[hidden],
+#lolcomputer .graph-preview-kept[hidden] { display: none; }
+#lolcomputer .graph-preview-note[data-state='drawing'] { color: var(--text); }
 
-#lolcomputer .graph-preview-save {
-  align-self: flex-start;
+/* An error that names a line: a button, because clicking it selects that line in the code. */
+#lolcomputer .graph-preview-error {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 3px 6px;
   font: inherit;
   font-size: 11px;
-  padding: 2px 8px;
-  border: 1px solid var(--border);
+  line-height: 1.4;
+  text-align: left;
+  white-space: pre-wrap;
+  word-break: break-word;
+  border: 1px solid color-mix(in srgb, var(--danger) 45%, var(--border));
   border-radius: 7px;
-  background: var(--surface-2);
-  color: var(--text);
+  background: color-mix(in srgb, var(--danger) 10%, var(--surface));
+  color: var(--danger);
   cursor: pointer;
 }
+#lolcomputer .graph-preview-error[hidden] { display: none; }
+#lolcomputer .graph-preview-error[data-line='0'] { cursor: default; }
 
-#lolcomputer .graph-preview-save:hover { border-color: var(--accent-hover); }
+/* ---- the code ------------------------------------------------------------------------------ */
+
+#lolcomputer .graph-part-body .graph-preview-source {
+  flex: 0 0 auto;
+  width: 100%;
+  height: 112px;
+  min-height: 60px;
+  box-sizing: border-box;
+  resize: vertical;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11.5px;
+  line-height: 1.45;
+  tab-size: 2;
+  white-space: pre;
+  overflow: auto;
+  padding: 5px 7px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+}
+#lolcomputer .graph-part-body .graph-preview-source[hidden] { display: none; }
+#lolcomputer .graph-part-body .graph-preview-source[wrap='soft'] { white-space: pre-wrap; }
+#lolcomputer .graph-part-body .graph-preview-source:focus {
+  outline: none;
+  border-color: var(--accent-hover);
+}
+#lolcomputer .graph-part-body .graph-preview-source::placeholder { color: var(--grey); }
+
+/* ---- save as ------------------------------------------------------------------------------- */
+
+#lolcomputer .graph-preview-saves {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+#lolcomputer .graph-preview-saves[hidden] { display: none; }

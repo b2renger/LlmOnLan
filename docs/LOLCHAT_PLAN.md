@@ -3161,6 +3161,340 @@ the LAN: no cloud, no CDN, no online fallback, no new npm dependency, no rendere
 change. Model text becomes nodes through `render/dom.mjs` and through nothing else. Builders never
 commit; the landing integrator commits the phase once, after every gate is green.
 
+### K5 addendum — the creative boxes, the grouped ＋ menu, the tutorial (kickoff, 2026-09-23)
+
+Frozen at the K5 kickoff, after K1–K4 landed and the owner ran labelled arrows and an Instruction
+on the real farm. `docs/COMPUTER_PLAN.md` §6, §10 and §11 K5 are the spec **where this addendum
+does not re-scope them**; this is the contract between the four parallel units. A unit may ADD keys
+and exports; it may not change a signature, a key, a DOM probe or a vocabulary word frozen here
+without a contract request at the landing. KA-1..KA-11, KB-1..KB-11, KC-1..KC-22 and KD-1..KD-11
+still bind.
+
+**Gates at the end of this kickoff:** `chat-unit` **1201 / 0 failed** (1191 + the ten seam tests
+of `computer-seams.test.mjs`), `unit` 5, `chat-lint` **196 files / 0 violations** (rule 15 new;
+`--self-test` 26/26), `chat-scope` **clean**, harness `--strict` **255 passed** on slot 7 (252 +
+the three `k5-seams` scenarios), perf **9 passed**. Nothing is committed at a kickoff (build rule
+2): the landing integrator commits the phase once, when every gate is green.
+
+**KE-0. The owner's bug report outranks §11 K5's unit split, and is fixed FIRST.**
+
+> *"I do not see the coding in p5js or threejs nodes, or the svg write and svg render nodes, don't
+> see them anywhere."*
+
+The capability existed and was undiscoverable: no box was NAMED p5.js / three.js / SVG / HTML — one
+generic Preview hid its mode in a settings dropdown and had no editor of its own, so writing a p5
+sketch required already knowing to wire a Text box into a Preview and pick `p5`; and the ＋ menu was
+one flat sorted list of nineteen parts (§6's grouped palette was never built). This is the second
+time the owner could not find something that worked (the first was the Computer's door), so
+**discoverability is a requirement, not polish** (build rule 6): every capability below is reachable
+from something visible on screen, and a harness scenario reaches it by CLICKING that control.
+
+| This phase | Was, in COMPUTER_PLAN §11 K5 | Ships |
+|---|---|---|
+| **K5-U1** | *(new — the bug report)* | The **creative boxes** ("p5.js sketch", "three.js scene", "SVG", "HTML page", "Markdown view") with their own code editor, and the **Write-…** Instructions whose code lands clean in them. |
+| **K5-U2** | *(new — §6's palette, never built)* | The **＋ menu, grouped and searchable**, opened by ＋, double-click or right-click on empty canvas; the **first-run offer** on an empty canvas. |
+| **K5-U3** | K5-U1's mechanic half | The **tutorial mechanic** (fork, rail, checkpoints, resume, demo answers) and **the Tour**. |
+| **K5-U4** | K5-U1's content half | **Lessons 1–4** (4 = *make a picture*, KE-4) and **two templates** (the owner's research graph; creative coding). |
+
+Plan K5-U2/U3 (lessons 5–12, six more templates, *Explain this graph*) stay optional and are NOT
+this phase. **K6 is next and is NOT started here:** uploading PDFs and audio files to boxes, gated
+by the connected model's capabilities.
+
+**KE-1. Who owns what.** A unit writes ONLY its own files. Anything else is a contract request in
+that unit's report, applied by the integrator at the landing.
+
+| File | Owner |
+|---|---|
+| `graph/parts/preview.mjs` (replace wholesale; `render.mjs` stays LEGACY-loadable), `graph/parts/creative.mjs`, `graph/unfence.mjs`, `strings/parts-preview.en.mjs`, `strings/parts-creative.en.mjs`, `css/computer-preview.css`, `test/chat/unit/computer-format.test.mjs`, `test/chat/unit/computer-creative.test.mjs`, `chat-harness/scenarios/k4-preview.mjs`, `chat-harness/scenarios/k5-creative.mjs` | K5-U1 |
+| `graph/palette.mjs`, `graph/palette-menu.mjs`, `computer/welcome.mjs`, `strings/palette.en.mjs`, `css/computer-palette.css`, `test/chat/unit/computer-palette.test.mjs`, `chat-harness/scenarios/k5-palette.mjs` | K5-U2 |
+| `computer/tutorial/rail.mjs`, `computer/tutorial/check.mjs`, `computer/tutorial/lessons/00-tour.mjs`, `strings/tutorial.en.mjs`, `css/computer-rail.css`, `test/chat/unit/computer-check.test.mjs`, `chat-harness/scenarios/k5-tutorial.mjs` | K5-U3 |
+| `computer/tutorial/registry.mjs`, `computer/tutorial/lessons/0[1-9]-*.mjs` and later lessons, `computer/templates/*.mjs`, `strings/lessons.en.mjs`, `test/chat/unit/computer-lessons.test.mjs`, `chat-harness/scenarios/k5-lessons.mjs` | K5-U4 |
+| `core/types.mjs`, `graph/{model,serialize,canvas,bind,runner,topo,values,wires}.mjs`, `graph/parts/index.mjs`, `graph/parts/instruction.mjs` (the KE-3 seam is already in), every other part file, `computer/{main,host,library,layout,runbar,computer.css}`, `strings/computer.en.mjs` and every pre-K5 strings file not listed above, `css/computer-{tokens,shell,look,…}.css`, the mock, `chat-harness/helpers.js`, `chat-lint.js`, `test/chat/unit/computer-seams.test.mjs`, `chat-harness/scenarios/k5-seams.mjs`, and every pre-K5 test file not listed above | integrator |
+
+`graph/canvas.mjs` stays integrator-owned: the gestures that open the menu, where a pick lands and
+what `Show me` does are all already in (KE-2, KE-8); a unit that wants a canvas change files it.
+
+**KE-2. The ＋ menu's catalogue — the format the menu reads, frozen.**
+
+*Decision: the creative boxes are PRESETS of the existing `preview` part, not new part types.* A
+p5.js sketch IS a Preview in `mode:'p5'` with code in it — the same run path, the same one sandbox
+guest, the same Save. New types would be a second door to the same guest, a migration the day a
+person switches a box from SVG to HTML, and five type ids the engine knows by name. A preset is a
+row of DATA: a part type plus the settings that make it that box. Every graph ever saved with a
+`preview` or a `render` keeps opening, because neither type changed; the Write-… boxes are presets
+of `ask` the same way.
+
+- **The groups** (§6's table), in menu order, frozen: `bring` · `think` · `show` · `control` ·
+  `annotate` (`PALETTE_GROUPS` in `graph/parts/index.mjs`, copied as `GROUP_ORDER` in
+  `graph/palette.mjs`, which may not import the part files). Headings: `groupLabel(g)`.
+- **Plain parts** get `{group, order, glyph, desc}` from `graph/parts/index.mjs` `partMeta()` —
+  catalogue knowledge, integrator-owned; the one-liners are `palette.desc*` in U2's strings file
+  (U2 owns the words, the KEYS are frozen). Glyphs are 1–3 plain characters, no icon font, no emoji.
+- **A preset** (`core/types.mjs` `PartPreset`): `{id, type, group, label, title, desc, glyph,
+  keywords[], order, settings, match, size?}`. `id` is unique across presets AND part types.
+  `settings` is merged over `spec.defaults()` by `addPart`, and **every key in it must be a key of
+  `defaults()`** or `serialize.mjs` drops it on export (`exportSettings`). `match` is the settings
+  subset that IDENTIFIES a placed part as that preset (`presetOf(part)`), so editing the source of a
+  "p5.js sketch" leaves it a p5.js sketch, and switching an SVG box's mode to `html` makes it an
+  "HTML page" — title included. All K5 presets live in `graph/parts/creative.mjs`:
+
+  | id | type | group | match | title |
+  |---|---|---|---|---|
+  | `p5` | preview | show | `{mode:'p5'}` | p5.js sketch |
+  | `three` | preview | show | `{mode:'three'}` | three.js scene |
+  | `svg` | preview | show | `{mode:'svg'}` | SVG |
+  | `html` | preview | show | `{mode:'html'}` | HTML page |
+  | `markdown` | preview | show | `{mode:'markdown'}` | Markdown view |
+  | `write-p5` | ask | think | `{code:'p5'}` | Write a p5.js sketch |
+  | `write-three` | ask | think | `{code:'three'}` | Write a three.js scene |
+  | `write-svg` | ask | think | `{code:'svg'}` | Write an SVG |
+  | `write-html` | ask | think | `{code:'html'}` | Write an HTML page |
+
+  Order within a group: plain parts use `partMeta()`'s numbers (note 10 … ask 100, split 300 …,
+  preview 870, code 880); presets slot between them (write-* 210–240, creative 810–850). The generic
+  `Preview` (auto) and `Code` stay in Show after the named boxes.
+- **`PartSpec.titleOf?(part) → string|null`** — the box title for THIS part; read in ONE place,
+  `graph/canvas.mjs` `titleFor()` (the title bar, `labelOf`, the live region). `preview` and `ask`
+  both declare `titleOf: presetTitle`; a part never spells a preset's name itself.
+- **`graph/parts/index.mjs` `paletteCatalogue() → {parts, presets}`** — data, strings resolved at
+  call time. **`graph/palette.mjs`** (PURE): `buildPalette(cat, specs) → PaletteEntry[]` in reading
+  order (legacy types are not in `partSpecs()`, so never offered; rows whose type `specs` cannot load
+  are dropped), `searchPalette(entries, query) → PaletteEntry[]` best first (`''` → every row),
+  `groupEntries(entries) → {group, entries}[]`. `PaletteEntry` = `{entry, type, preset, group,
+  label, desc, glyph, keywords, order, settings, size}`; **`entry` is the part type for a plain
+  part and the preset id for a preset** — the ONE id a lesson (`show:{menu:'svg'}`), a DOM probe
+  (`data-entry="svg"`) and the harness (`h.computer.add('svg')`) use.
+- **`graph/palette-menu.mjs` `createPaletteMenu({doc?, host, entries, groupLabel, onPick,
+  onClose?}) → {el, open(opts?), close(), isOpen(), destroy()}`** (API_KEYS.palette);
+  `open({at?, screen?, query?, highlight?})` — `at` is the WORLD point a pick lands on (null =
+  centre of the view), `screen` where the menu shows in px relative to the canvas root. The DOM
+  probes are frozen: `.graph-add-menu` (hidden when closed, appended to the canvas root `.graph`),
+  `input.graph-add-search`, `.graph-add-group[data-group]`, `button.graph-add-item[data-entry]
+  [data-type][data-group]` (+ `[data-preset]` on preset rows, `[aria-selected="true"]` on the
+  keyboard's row) holding `.graph-add-glyph` / `.graph-add-name` / `.graph-add-desc`, and
+  `.graph-add-empty`. `[data-type]` is kept so c1-canvas and c2-bridges still click and count rows.
+- **What opens it** (in `graph/canvas.mjs`, landed): the toolbar's `.graph-add` (places at the view
+  centre), and a **double-click or right-click on EMPTY canvas** — not on a part, a port, a wire
+  (hit-tested with `wireAt`) or a wire label — which places where the pointer was. A pick goes
+  through `canvas.placeEntry(entry, at)`: ONE undo entry, the preset's settings AND size
+  (`addPart` now honours `spec.w/h`, KE-8).
+- **U2's acceptance** on top of the working stub: fuzzy search on name, description and keywords
+  (`p5` finds the sketch first; `svg` finds both SVG rows; `picture` finds Image and SVG; a typo like
+  `skecth` still finds the sketch); ↑/↓/Enter/Escape; the menu kept on screen at the canvas edges;
+  and a scenario that creates EACH creative box by clicking through the menu.
+
+**KE-3. The creative boxes (K5-U1) and the Write-… answer — the contract.**
+
+- **Settings of `preview`** (in `defaults()`, so they export): `mode`, `w`, `h`, `live`, **`source`**
+  (the box's own code: typed by the person, never written by a run — KD-4's rule carried over) and
+  **`locked`** (keep my code when something arrives). The kickoff threaded the run path: nothing
+  wired in (or locked) → it draws `source`; something arrived → it adopts that. U1 adds the
+  **monospace code editor** in the box (same discipline as the Text part: typing is `ctx.update`,
+  blur is `ctx.commit`, an arrival never overwrites an edit in progress), the lock toggle, **re-draw
+  on edit, debounced**, errors that **name the line**, and **Save as** `.js` / `.svg` / `.html` /
+  `.png`.
+- **Re-draw on edit never goes through the runner** — no generation, no seat, no prologue pulling an
+  unrun Instruction upstream. It uses **`ctx.sandbox()`** (PartCtx, KE-8): the Computer's ONE guest.
+  It **never races a run**: while `ctx.app.host.runner.running()` is true an edit-draw waits and
+  draws once the run ends; two boxes' edit-draws are serialised by the module. markdown and SVG stay
+  free and iframe-free (KD-6).
+- **Starter code** (`creative.mjs` `STARTER`, U1 owns it) must DRAW on the first ▶ with the farm
+  absent: a bouncing ball (p5, global mode), a spinning cube (three.js, `THREE` global, drawing into
+  `lol.canvas` with `preserveDrawingBuffer:true`), a simple SVG, a small HTML page, a markdown page.
+- **The guest wraps code in a function** (`sandbox/runner.html` doRun: `new Function('lol', …)`),
+  so p5 GLOBAL mode — what every tutorial and every model writes — needs its handlers handed to
+  `window`, and an ESM `import … from 'three'` is a syntax error. `graph/unfence.mjs`
+  `shapeForGuest(mode, code)` does both (kickoff version; U1 owns and tests it). Error LINE numbers
+  must be the line in the person's code, not the wrapper's — U1 verifies `sandboxMessage`.
+- **The Instruction's `code` setting** — `''` (prose, exactly as before) or one of `CODE_KINDS =
+  ['p5','three','svg','html']`. Landed in `graph/parts/instruction.mjs`: for `shape:'text'`, the
+  answer goes through **`codeValue(text, code)`** → `{kind:'text', data: unfence(text).code,
+  ...CODE_FACETS[code]}`. It changes what the answer BECOMES, never the prompt: the Write-… presets
+  put "reply with only the code, in this shape" INTO the instruction text (`parts.writeAsk*`), which
+  the person sees, can edit, and the transcript's Sent shows. **Facets** (frozen): p5 →
+  `{format:'js', lang:'p5'}`, three → `{format:'js', lang:'three'}`, svg → `{format:'svg'}`, html →
+  `{format:'html'}`; a Preview in `auto` reads them (`modeFor`, landed) — a declaration, not sniffing.
+  **`unfence(text) → {code, lang, fenced}`**: the LONGEST fenced block wins; no fence → the trimmed
+  text. A creative box ALSO unfences what arrives, so an ordinary Instruction wired into an SVG box
+  works too.
+- **Nothing in `creative.mjs`, `unfence.mjs` or a lesson may contain a lint-forbidden token, even
+  inside a string**: `fetch(`, `setInterval(`, `innerHTML =`, `eval(`, `new Function(`,
+  `document.write`, `blob:`, `srcdoc` (rules 1, 2, 11, 13 scan string literals).
+
+**KE-4. Lessons and templates — the format K5-U3 and K5-U4 write against, frozen.**
+
+A lesson is ONE ES module, `computer/tutorial/lessons/NN-slug.mjs`, whose default export is DATA
+(`core/types.mjs` `Lesson`), importing nothing:
+
+```js
+export default {
+  id: 'l04-draw', n: 4,                       // ids are `lNN-slug`; the Tour is `l00-tour`, n:0
+  title: 'make a picture', subtitle: '…', idea: '…', minutes: 5,
+  needsFarm: 'one',                            // 'no' | 'one' | 'few'
+  doc: { lolgraph: 1, title: '…', parts: [ {id:'p_svg', type:'preview', x, y, w, h, settings:{…}} ],
+         wires: [ {from, to, port, label?} ] },  // the canvas's Export, values OFF, AUTHORED ids
+  steps: [ {id:'s1', text:'…', check:{…}, show:{…}}, … ],
+  demo: { p_ask: {kind:'text', data:'…'}, '@write-svg': {kind:'text', format:'svg', data:'<svg…'} },
+  next: 'l05-…',                               // absent ONLY on the last listed lesson
+};
+```
+
+- **Part ids are AUTHORED** (`p_topic`) and survive the fork, because the fork is
+  `normaliseDoc({...lesson.doc, id: newId, threadId:null, title})` — NEVER `fromJson`, which mints
+  fresh ids. Every `check`/`show` names ids from that doc.
+- **How a lesson refers to a creative box:** a box the lesson SHIPS is named by its part id
+  (`{ran:{partId:'p_svg'}}`); a box the learner ADDS from the ＋ menu is named by its preset
+  (`{has:{preset:'write-svg'}}`, `{wire:{fromPreset:'write-svg', to:'p_svg'}}`,
+  `{ran:{preset:'write-svg'}}`), and pointed at with `show:{menu:'write-svg'}` — which OPENS the ＋
+  menu with that row highlighted, so the lesson teaches where boxes come from. A demo answer for a
+  learner-added box is keyed `'@<presetId>'`, because nobody knows its part id in advance.
+- **Prose is data inside the module** (a lesson is round-tripped whole, §10.1 mechanism 5); the
+  tutorial's CHROME is `tutorial.*` strings (U3). `strings/lessons.en.mjs` (U4) holds only what is
+  said about the shelf.
+- **The shelf** is `computer/tutorial/registry.mjs` (U4): `LESSONS` (shelf order, the Tour first),
+  `TEMPLATES`, `lessonById`, `templateById`. Adding a lesson = write the module, import it, list it.
+- **A template** (`computer/templates/<slug>.mjs`, `core/types.mjs` `Template`): `{id, title,
+  subtitle, needsFarm, generations, doc}`. It opens as a NEW library document through
+  `app.library.importText(JSON.stringify(doc), {name})` — fresh ids are fine, nothing refers to them.
+  Labels pre-written (the labels ARE the teaching), inside the 50-generation cap.
+- **The curriculum this phase:** the Tour (U3), 1 *hello, farm*, 2 *wires carry values*, 3 *arrow
+  labels are names* (tldraw's lessons 1–3 in spirit), and **4 *make a picture*** — Write an SVG →
+  SVG, the owner's ask. It takes §10.3's slot 4; *many in, many out* is taught by the research
+  template instead, and §10.3's later numbering shifts by one when those lessons are written.
+  Templates: **Research → problematic** (the owner's museum graph: one topic, several LABELLED
+  research Instructions converging into "write a problematic") and **Creative coding** (a brief →
+  Write a p5.js sketch → p5.js sketch).
+
+**KE-5. Checkpoints — the vocabulary, frozen.** A check is an object with EXACTLY ONE key;
+`computer/tutorial/check.mjs` (PURE, U3) is the only interpreter, chat-lint **rule 15** the only
+validator (it refuses any other key or field).
+
+| Matcher | Fields | True when |
+|---|---|---|
+| `has` | `id?` `type?` `preset?` `setting?` `nonEmpty?` `equals?` `count?` | the number of parts matching id/type/preset (and, with `setting`, whose setting is non-empty / equals) satisfies `count` (default `'>=1'`) |
+| `wire` | `from?` `to?` `fromType?` `toType?` `fromPreset?` `toPreset?` `port?` `label?` `count?` | the number of matching wires satisfies `count`; `label` is `'nonEmpty'`, `'blank'`, or a name compared with `labelKey()` (casefold, whitespace-collapsed) |
+| `ran` | `partId?` `type?` `preset?` `state?` `demoOk?` | some matching part is in `state` (default `'done'`); a demo answer counts unless `demoOk:false` |
+| `report` | `generations?` `ran?` `errors?` `stopped?` | the LAST run report (`runner.report()`) satisfies every field; `stopped` is `'capped'`/`'cancelled'`/`'yielded'` |
+| `edited` | `partId` `setting` | that setting differs from the lesson's SHIPPED doc |
+| `all` / `any` | `[check, …]` | every / some sub-check |
+| `manual` | `true` | never by predicate — only its **Got it** button (`tickManual`) |
+
+Counts (`Cmp`): a number (==), or `'>=3'` `'<=2'` `'>1'` `'<4'` `'==0'`. `show` is `{partId}`
+(`canvas.reveal`; **Put it back** re-adds the authored part at its authored place when it is gone),
+`{menu: entryId}` (opens the ＋ menu, row highlighted) or `{wire:{from, to}}`. Exports, frozen:
+`CHECK_KINDS`, `CHECK_FIELDS`, `cmp`, `evaluate(check, {doc, report, base})`,
+`advance(lesson, prog, ctx)` (ticks every step satisfied NOW, in order, from the current one; ticks
+LATCH and never un-tick), `tickManual(lesson, prog, stepId)`, `freshProgress()`, `refsOf(check)`.
+Evaluated on every session event and every run event — no polling, no model call. Progress: kv
+`computer:tutorial` (`KV_KEYS.computerTutorial`) → `{[lessonId]: {step, ticks[], forkedDocId,
+doneAt, demo[]}}`.
+
+*Decision: fork on first OPEN, not first edit* (§10.1 said first edit). The host opens library
+documents and nothing else; a pristine not-in-the-library view would be a second open path through
+`computer/host.mjs`. **Reset lesson** restores the shipped doc onto the fork (one undo entry), so
+nothing a learner does can break a lesson either way.
+
+**Rule 15** (landed): the registry imports in Node; every lesson id is `lNN-slug` and unique;
+`needsFarm` valid; its doc survives `normaliseDoc()` with NOTHING dropped and every authored id
+intact; every step has an id, words and a check in the vocabulary; every part id a check or `show`
+names is in the doc; every preset exists; every type loads; every count parses; every
+`show.menu` is a ＋ menu row; every demo key is a part id or `@preset` and every demo value a value;
+`next` resolves, or is absent on the last lesson; every template's doc opens whole. Its self-test
+plants two bad lessons.
+
+**KE-6. The two features and their doors.** Loader rows (landed, `computer/main.mjs`, both
+`feature`, phase K5): `tutorial` → `./tutorial/rail.mjs` BEFORE `welcome` → `./welcome.mjs`.
+
+- **`app.tutorial`** (API_KEYS.tutorial, U3): `has(id)`, `lessons()` → cards with
+  `{id, n, title, subtitle, minutes, needsFarm, progress:{step, of, done}}`, `templates()`,
+  `open(id) → Promise<docId|null>` (fork on first open, reopen the fork after, show the rail),
+  `openTemplate(id) → Promise<docId|null>`, `active() → {lessonId, docId, step, of, ticks}|null`,
+  `reset(id?)`, `showShelf('lessons'|'templates')`, `explain()` (the run bar's `?`), `debug()`.
+  Already CALLED by shipped code: `graph/canvas.mjs` (the loop-ungated notice now asks
+  `has('l10-loops')` before offering `open('l10-loops')` — a lesson this build lacks is a disabled
+  button, never a dead one) and `computer/runbar.mjs` (`explain()`).
+  **Visible entry point:** the **Learn** shelf in the library sidebar (`els.shelves`, un-hidden by
+  the feature) listing every lesson and template, plus the first-run offer. DOM probes, frozen:
+  `.comp-learn`, `.comp-lesson[data-lesson]`, `.comp-template[data-template]`, and in the rail
+  (`els.rail`, bottom-left, `[data-lesson]`): `.comp-rail-step`, `.comp-rail-text`,
+  `.comp-rail-show`, `.comp-rail-got`, `.comp-rail-reset`, `.comp-rail-demo`, `.comp-rail-next`.
+- **`app.welcome`** (API_KEYS.welcome, U2): `shown()`, `refresh()`, `debug()`. The panel
+  `.comp-welcome` lives inside `els.canvas`, shows while the open document has no parts, and offers
+  `.comp-welcome-btn[data-action="tour"|"template"|"add"]` — the tour (`app.tutorial.open('l00-tour')`),
+  the template shelf, and the ＋ menu (`app.host.canvas.openPalette({})`). A button whose door is
+  missing is HIDDEN. It covers only itself: a double-click on the canvas around it still opens the
+  menu there, and `.graph-empty` (c1-canvas asserts it) stays.
+- **Never a dead end** (§10.2): a box in `error` that the lesson has a demo answer for gets the rail's
+  offer — *"Continue with the lesson's saved answer?"* — which writes the answer through
+  `session.patchPart(id, {value, state:'done', error:null, demo:true})` (KE-7). The Tour and every
+  step that needs no generation complete with the farm absent.
+
+**KE-7. The demo flag — "we never let the app pretend it generated something".** `GraphPart.demo?:
+boolean`, landed: `patchPart` sets or clears it when told (`demo` in the patch) and **clears it
+whenever a value is written without saying `demo`** — a real generation never inherits the badge;
+`normaliseDoc` keeps it only while the part holds a value; `toJson` exports it WITH the value and
+stamps the file **v4** (`FORMAT_VERSION` 4 — a pre-K5 reader refuses the file rather than show a
+recorded answer unbadged; a file with no demo in it is still v1/v2/v3, "the stamp follows the
+content"); `fromJson` keeps it with the value. The canvas draws `.graph-part-demo`
+(`computer.demoBadge`, *"demo answer — not generated"*) in the title bar and sets
+`[data-demo="true"]` on the box. A scenario reads the flag off `h.computer.doc()` (the session's
+own parts); `debug.computer.state()` is NOT extended — its per-part key list is frozen by
+`c2-canvas-debug-door-did-not-move`, which caught exactly that at this kickoff.
+
+**KE-8. What the integrator landed for the units to build on.**
+
+| Landed | File |
+|---|---|
+| `PartSpec.titleOf`, `PartCtx.sandbox()`, `GraphPart.demo`; typedefs `PaletteGroup`, `PartPreset`, `PaletteEntry`, `Check`, `Show`, `LessonStep`, `Lesson`, `Template`, `TutorialProgress`; `KV_KEYS.computerTutorial`; `API_KEYS.{tutorial,palette,welcome}` | `core/types.mjs` |
+| `addPart` honours `w`/`h`; the demo flag in `normalisePart`/`patchPart` | `graph/model.mjs` |
+| `FORMAT_VERSION` 4, `part.demo` exported with its value | `graph/serialize.mjs` |
+| `PALETTE_GROUPS`, `groupLabel`, `partMeta()`, `paletteCatalogue()` | `graph/parts/index.mjs` |
+| `code` setting + `codeValue` seam + `titleOf` | `graph/parts/instruction.mjs` |
+| The ＋ menu wiring (toolbar, double-click, right-click, `wireAt` guard), `placeEntry`, `openPalette`, `paletteOpen`, `closePalette`, `reveal`, `titleFor` (title bar, `labelOf`, syncBox), the demo badge, `ctx.sandbox()`, the `has()`-guarded lesson button | `graph/canvas.mjs` |
+| `tutorial` + `welcome` loader rows | `computer/main.mjs` |
+| `@import` of `computer-palette.css` and `computer-rail.css` (before `computer-look.css`, which stays LAST) | `computer/computer.css` |
+| `computer.demoBadge`, `computer.demoBadgeHint` | `strings/computer.en.mjs` |
+| Working stubs, each REPLACED wholesale by its unit: `graph/{palette,palette-menu,unfence}.mjs`, `graph/parts/creative.mjs`, the preview seams, `computer/welcome.mjs`, `computer/tutorial/{rail,check,registry}.mjs`, `lessons/{00-tour,01-hello-farm,02-wires,03-labels,04-draw}.mjs`, `templates/{research-problematic,creative-coding}.mjs` | per KE-1 |
+| Four strings files and two stylesheets (KE-9) | per KE-1 |
+| PURE_MODULES += `graph/palette.mjs`, `graph/unfence.mjs`, `graph/parts/creative.mjs`, `computer/tutorial/check.mjs`; **rule 15** + two self-test cases | `chat-lint.js` |
+| `mock-code` (KE-10) | `test/mock/scenario-models.js` |
+| `h.computer.menu.{open,openAt,isOpen,rows,groups,search,key,pick}`, `h.computer.add(entry, {query})`, `h.computer.welcome.{state,press}`, `h.computer.tutorial.{openLesson,openTemplate,rail,press,debug}` | `chat-harness/helpers.js` |
+| The seam tests (10) and the seam scenarios (3) | `computer-seams.test.mjs`, `k5-seams.mjs` |
+| Amended for the new contract, never weakened: `FORMAT_VERSION` 4 (`graph-serialize.test.mjs`); Preview's stored shape gains `source`/`locked`, and p5 code is handed over verbatim THEN shaped (`computer-format.test.mjs`) | pre-K5 tests |
+
+Canvas API additions a unit may call (through `app.host.canvas`): `placeEntry(entry, at?)`,
+`openPalette({at?, screen?, query?, highlight?})`, `paletteOpen()`, `closePalette()`,
+`reveal(partId)` (centre it, select it, flash `[data-flash="true"]` for 1.2 s).
+
+**KE-9. Strings and stylesheets: one per unit.** U1 `strings/parts-creative.en.mjs` (+ its
+`parts-preview.en.mjs`), namespace `parts`; U2 `strings/palette.en.mjs`, namespace `palette`; U3
+`strings/tutorial.en.mjs`, namespace `tutorial`; U4 `strings/lessons.en.mjs`, namespace `lessons`.
+Keys the kickoff resolves elsewhere are frozen BY NAME (`parts.creative*`, `parts.write*`,
+`palette.group*`, `palette.desc*`); the unit owns the words. Stylesheets: U1
+`css/computer-preview.css` (no new sheet), U2 `css/computer-palette.css`, U3 `css/computer-rail.css`
+(which also styles the demo badge and the `Show me` flash); U4 none. **In `#lolcomputer` the UA's
+`[hidden]{display:none}` loses to any rule that sets `display`** (`css/base.css` guards `#lolchat`
+only): every element a unit gives a `display` must carry its own `[hidden]` rule — the old
+`.graph-add-menu` did not, and was painted while "hidden". Tokens only; rule 3 must stay at 0.
+
+**KE-10. Tests, the mock and the harness.**
+- **`mock-code`**: a short sentence, then ONE fenced block of the kind the last user message asks
+  for — the FIRST of `svg` / `three(.js)` / `p5(.js)` / `html` it mentions (none → svg).
+  `POST /mock/state {codeReply: '…'}` replaces the whole answer (a broken sketch, no fence, two
+  fences). A scenario sets the Write-… box's `model` to `mock-code`; the default farm model is never
+  asked for code.
+- **Reach it the way a person does** (build rule 6): a K5 scenario creates a creative box with
+  `h.computer.add(entry)` or `h.computer.menu.openAt(x, y)` + `pick(entry)` — the real ＋, the real
+  search box, the real row — and opens a lesson by clicking the shelf. `h.computer.place()` stays
+  for setup that is not under test.
+- Unit tests and scenarios are auto-discovered; slots as before (the landing uses slot 0).
+
+**KE-11. What does not change, and is worth saying once more.** Every model call goes to the farm on
+the LAN: no cloud, no CDN, no online fallback, no new npm dependency, no renderer build step, no CSP
+change. Model text becomes nodes through `render/dom.mjs` and nothing else; generated code runs ONLY
+in the existing sandbox (`sandbox/**`, its CSP, its watchdog, its vendored three.js/p5.js/matter.js).
+Builders never commit; the landing integrator commits the phase once, after every gate is green.
+
 ## 3. Architecture and contracts
 
 ### 3.1 Load order, loader and mount
