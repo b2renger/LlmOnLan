@@ -238,7 +238,7 @@ export const image = /** @type {any} */ ({
       const dt = ev && ev.dataTransfer;
       const types = dt && dt.types ? Array.from(dt.types) : [];
       host.classList.remove('is-over');
-      if (types.indexOf('Files') < 0 || !intake || typeof intake.fromDataTransfer !== 'function') return;
+      if (types.indexOf('Files') < 0 || !intake || typeof intake.fromDrop !== 'function') return;
       ev.preventDefault();
       // The canvas treats a dropped file as a GRAPH file, so a picture that reached this box must
       // stop here — otherwise the graph importer gets a JPEG and says it is unreadable.
@@ -246,10 +246,11 @@ export const image = /** @type {any} */ ({
       problem = '';
       working = true;
       paint(ctx.part || part);
-      Promise.resolve(intake.fromDataTransfer(dt)).then((results) => {
-        const list = Array.isArray(results) ? results : [];
-        if (!list.length) { take({ error: t('parts.imageNotAnImage', { type: t('parts.imageTypeUnknown') }) }); return; }
-        take(list[0]);
+      // `fromDrop`, NEVER `fromDataTransfer`: a box holds ONE picture, and a folder dropped on it
+      // by accident would otherwise decode and base64 every file in it before we used the first.
+      Promise.resolve(intake.fromDrop(dt)).then((result) => {
+        if (!result) { take({ error: t('parts.imageNotAnImage', { type: t('parts.imageTypeUnknown') }) }); return; }
+        take(result);
       }, () => take({ error: t('parts.imageUnreadable') }));
     }
 

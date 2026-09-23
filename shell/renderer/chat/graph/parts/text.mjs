@@ -55,6 +55,13 @@ const DISMISSED = new Map();
 /** @param {any} id @returns {string} */
 const key = (id) => String(id == null ? '' : id);
 
+/** How much of a value the body renders. A text GraphValue may be MAX_VALUE_BYTES (1 MB) and the
+ * port is `many`, so several wires are joined before this sees them; measured on this box, a
+ * megabyte is ~0.44 s of parse+build on the main thread. The box is 320 px tall and scrolls: past
+ * this much nobody was going to read it in here anyway, and the WHOLE value still travels on the
+ * wire, is still saved and is still what Save… writes. */
+export const MAX_RENDER_CHARS = 64 * 1024;
+
 /** Is this box's source editor open? Read by `run()`. @param {any} id @returns {boolean} */
 export function isEditing(id) { return EDITING.has(key(id)); }
 
@@ -235,13 +242,22 @@ export const textPart = /** @type {any} */ ({
     // Typing is live (so a wired Instruction's preview updates); committing is what enters undo —
     // one history entry per edit, not one per keystroke.
     area.addEventListener('input', () => {
-      EDITING.add(id);
+      // TAKE THE EDITING LOCK FIRST, and take the INSTANCE one too. `ctx.update()` below reaches
+      // the document, and the canvas hands the edited part straight back to `update()` on the same
+      // turn — which repaints. With only the module-level `EDITING` set, `editing` was still false
+      // there, `paintBody()` saw a box with text and hid the textarea the person was typing into:
+      // the first keystroke landed and the second went nowhere. `false` = do not re-seed the
+      // field, because what it holds is what was just typed.
+      beginEdit(false);
       // The first keystroke on a box that was showing an ARRIVAL makes the words yours: the
       // dismissal is what stops the answer snapping back over your edit the moment you click
       // away. Opening the editor and closing it again without typing changes nothing.
       if (!editingOwn) { editingOwn = true; dismiss(id, live.value); }
       ctx.update({ text: area.value });
     });
+    // Focus is the other way in: a fresh box shows its textarea directly (no body to click), and
+    // tabbing or clicking into it must take the same lock a body click takes.
+    area.addEventListener('focus', () => startEdit());
     area.addEventListener('change', () => closeEdit());
     area.addEventListener('blur', () => closeEdit());
 
@@ -253,20 +269,32 @@ export const textPart = /** @type {any} */ ({
     wrap.append(head, body, area, notice);
     host.replaceChildren(wrap);
 
-    /** Open the source on what is currently SHOWN: editing an answer is how an answer becomes
-     * yours, and the first keystroke is what writes it to `settings.text`. */
-    function startEdit() {
+    /**
+     * Take the editing lock. ONE function, because two ways in must leave the box in one state:
+     * the module-level `EDITING` (which `run()` reads) and the instance `editing` (which the paint
+     * reads) are either both taken or neither is.
+     * @param {boolean} seed re-seed the field from what is SHOWN and put the caret in it — true
+     *   when the reader opened the editor (a body click), false when they are already typing in
+     *   it, where re-seeding would overwrite the keystroke that got us here.
+     */
+    function beginEdit(seed) {
       if (editing) return;
       editing = true;
       editingOwn = false;
       EDITING.add(id);
       REFUSED.delete(id);
-      area.value = shown(live).text;
+      if (seed) area.value = shown(live).text;
       paint();
-      try { area.focus(); } catch { /* a detached box cannot take focus; nothing depends on it */ }
+      // A detached box cannot take focus, and nothing here depends on it.
+      if (seed) { try { area.focus(); } catch { /* not in the document yet */ } }
     }
 
-    /** Blur or change: the edit is over. `ctx.commit` is idempotent, so both may fire. */
+    /** Open the source on what is currently SHOWN: editing an answer is how an answer becomes
+     * yours, and the first keystroke is what writes it to `settings.text`. */
+    function startEdit() { beginEdit(true); }
+
+    /** Blur or change: the edit is over. `ctx.commit` is idempotent, so both may fire, and the
+     * repaint is what puts the rendered body back. */
     function closeEdit() {
       EDITING.delete(id);
       ctx.commit(t('parts.textLabel'));
@@ -299,7 +327,9 @@ export const textPart = /** @type {any} */ ({
     function paintBody() {
       const s = shown(live);
       // An empty box is a textarea, exactly as it has always been: a fresh Text box must still be
-      // something you can type into without first clicking it.
+      // something you can type into without first clicking it. `editing` — taken by a body click,
+      // by focus AND by the first keystroke — is what guarantees the field the caret is in is
+      // never the thing this hides.
       const source = editing || !s.text;
       area.hidden = !source;
       body.hidden = source;
@@ -310,7 +340,20 @@ export const textPart = /** @type {any} */ ({
       }
       if (parsedFor === s.text) return;
       parsedFor = s.text;
-      body.replaceChildren(renderBlocks(parseBlocks(s.text), domFactory(document)));
+      // A CEILING on what is parsed and built. A text value may be up to MAX_VALUE_BYTES, and a
+      // Collect of forty answers lands in ONE box: a megabyte of markdown is ~0.4 s of main-thread
+      // work, on every new value and on every loop turn. The box is 320 px tall and scrolls, so
+      // the tail below the cut was never reachable anyway — we render the head and say so.
+      const whole = s.text;
+      const cut = whole.length > MAX_RENDER_CHARS;
+      const upTo = cut ? whole.slice(0, MAX_RENDER_CHARS) : whole;
+      const node = renderBlocks(parseBlocks(upTo), domFactory(document));
+      if (!cut) { body.replaceChildren(node); return; }
+      const more = document.createElement('p');
+      more.className = 'graph-text-notice';
+      more.dataset.why = 'long';
+      more.textContent = t('parts.textTruncated', { kb: Math.round(MAX_RENDER_CHARS / 1024) });
+      body.replaceChildren(node, more);
     }
 
     function paint() {

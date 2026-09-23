@@ -13,7 +13,8 @@ import { t } from '../../../renderer/chat/core/i18n.mjs';
 import { valueOf, listOf, isValue } from '../../../renderer/chat/graph/values.mjs';
 import { specMap } from '../../../renderer/chat/graph/parts/index.mjs';
 import {
-  adopt, bodyOf, dismiss, forget, isEditing, isLocked, ownText, refusalOf, shown, textPart,
+  adopt, bodyOf, dismiss, forget, isEditing, isLocked, MAX_RENDER_CHARS, ownText, refusalOf,
+  shown, textPart,
 } from '../../../renderer/chat/graph/parts/text.mjs';
 
 const SPECS = specMap();
@@ -42,17 +43,28 @@ function box(doc, part) {
   /** @type {any[]} */ const patches = [];
   /** @type {string[]} */ const commits = [];
   let live = { ...part };
+  /** @type {any} */ let inst = null;
+  let inUpdate = false;
   const ctx = {
     app: {},
     get part() { return live; },
     update(/** @type {any} */ patch) {
       patches.push(patch);
       live = { ...live, settings: { ...live.settings, ...patch } };
+      // FAITHFUL, and this is the point of the double: the real PartCtx.update() applies the patch
+      // to the document (graph/canvas.mjs), the session fires, and the canvas hands the edited part
+      // straight back to `box.inst.update(part)` on the SAME turn. A double that stops at the patch
+      // can never see a repaint bug — which is how "typing hides the textarea after the first
+      // keystroke" passed every unit test there was.
+      if (inst && !inUpdate) {
+        inUpdate = true;
+        try { inst.update(live); } finally { inUpdate = false; }
+      }
     },
     commit(/** @type {any} */ label) { commits.push(String(label)); },
     open() {},
   };
-  const inst = textPart.render(host, live, /** @type {any} */ (ctx));
+  inst = textPart.render(host, live, /** @type {any} */ (ctx));
   const pick = (/** @type {string} */ sel) => host.querySelector(sel);
   return {
     host, patches, commits, inst,
@@ -167,7 +179,70 @@ export default function (test) {
     });
   });
 
+  test('typing into a FRESH box keeps the textarea under the caret, keystroke after keystroke', async () => {
+    await withDom(async (doc) => {
+      // The headline path of the whole phase: place a Text box, type. No click on the body first —
+      // an empty box IS the textarea. Each keystroke goes through ctx.update -> the document -> the
+      // canvas -> inst.update(part), which is what the double above now reproduces.
+      const b = box(doc, { id: 'e2', type: 'note', settings: { text: '' }, value: null });
+      const area = b.area();
+      assert.equal(area.hidden, false, 'a fresh box shows its textarea');
+
+      area.value = 'h';
+      area.dispatchEvent({ type: 'input' });
+      assert.equal(b.area().hidden, false, 'the field the caret is in did not vanish on keystroke 1');
+      assert.equal(b.body().hidden, true, 'and the rendered body did not take its place');
+      assert.equal(isEditing('e2'), true, 'typing takes the editing lock, so a run keeps these words');
+
+      area.value = 'he';
+      area.dispatchEvent({ type: 'input' });
+      area.value = 'hel';
+      area.dispatchEvent({ type: 'input' });
+      assert.equal(b.area().hidden, false, 'and it is still there three keystrokes in');
+      assert.equal(b.area().value, 'hel', 'holding every character that was typed');
+      assert.deepEqual(b.patches, [{ text: 'h' }, { text: 'he' }, { text: 'hel' }]);
+      assert.equal(b.commits.length, 0, 'nothing is committed until the edit ends');
+
+      area.dispatchEvent({ type: 'change' });
+      assert.equal(ownText(b.live.settings), 'hel');
+      assert.equal(isEditing('e2'), false, 'and the lock is released when the edit ends');
+      b.inst.destroy();
+    });
+  });
+
+  test('focus alone takes the editing lock, so a run cannot land on an open field', async () => {
+    await withDom(async (doc) => {
+      const b = box(doc, { id: 'e3', type: 'note', settings: { text: '' }, value: null });
+      assert.equal(isEditing('e3'), false);
+      b.area().dispatchEvent({ type: 'focus' });
+      assert.equal(isEditing('e3'), true, 'tabbing into the field is editing it');
+      assert.equal(b.area().hidden, false);
+      b.inst.destroy();
+    });
+  });
+
   // ---- the rendering, through the one safe path -------------------------------------------------
+
+  test('a very long arrival is rendered down to a ceiling, and says so', async () => {
+    await withDom(async (doc) => {
+      const b = box(doc, { id: 'g2', type: 'note', settings: { text: '' }, value: null });
+      const line = ['a paragraph of report text that keeps going', '', ''].join('\n');
+      const huge = line.repeat(Math.ceil((MAX_RENDER_CHARS * 3) / line.length));
+      assert.ok(huge.length > MAX_RENDER_CHARS * 2);
+      b.update({ ...b.live, state: 'done', value: valueOf('text', huge) });
+      const body = b.body();
+      assert.equal(body.hidden, false);
+      const html = doc.serialize(body);
+      // The ceiling is on what is BUILT: a megabyte of markdown is ~0.4 s of main-thread work.
+      assert.ok(html.length < huge.length, 'the whole megabyte was not turned into nodes');
+      const said = body.querySelector('.graph-text-notice');
+      assert.ok(said, 'and the box says what it is showing');
+      assert.equal(said.textContent, t('parts.textTruncated', { kb: Math.round(MAX_RENDER_CHARS / 1024) }));
+      // Rule 1 stands: the VALUE is untouched, so downstream still gets every byte.
+      assert.equal(b.live.value.data.length, huge.length, 'the value on the wire is the whole text');
+      b.inst.destroy();
+    });
+  });
 
   test('a received value renders as markdown — headings, lists, tables, code, and no HTML', async () => {
     await withDom(async (doc) => {

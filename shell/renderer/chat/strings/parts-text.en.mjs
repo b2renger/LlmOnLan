@@ -37,4 +37,9 @@ registerStrings('parts', {
   // Why a run left the box alone. Quiet, one line, and never an error: nothing went wrong.
   textRefused: 'Locked, so what arrived was not used.',
   textRefusedUnsaved: 'You were typing, so this box kept your words.',
+
+  // A very long arrival is rendered down to its first {kb} KB — the box scrolls, but a megabyte of
+  // markdown is most of a second of main-thread work per run. The WHOLE value still goes
+  // downstream and is still what Save… writes.
+  textTruncated: 'Showing the first {kb} KB — the whole text still passes on, and Save… writes all of it.',
 });

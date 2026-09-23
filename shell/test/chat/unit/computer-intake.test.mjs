@@ -14,6 +14,7 @@ import { t } from '../../../renderer/chat/core/i18n.mjs';
 import {
   fitWithin, isImageType, typeOf, nameFor, dataUrlBytes, mbOf, kbOf, filesOf, isTypingTarget,
   readImage, install, MAX_EDGE, STEPS, JPEG_TYPE, MATTE, ACCEPTED_TYPES,
+  MAX_SOURCE_BYTES, MAX_SOURCE_PIXELS, MAX_INTAKE_FILES,
 } from '../../../renderer/chat/computer/intake.mjs';
 import { image, shownImage, arrivalOf, baseName } from '../../../renderer/chat/graph/parts/image.mjs';
 import { valueOf, listOf } from '../../../renderer/chat/graph/values.mjs';
@@ -259,7 +260,7 @@ export default (test) => {
     await withPlatform(fake, async () => {
       /** @type {any} */ const app = {};
       install(app);
-      for (const key of ['fromFile', 'fromDataTransfer', 'pick', 'fitWithin', 'debug']) {
+      for (const key of ['fromFile', 'fromDataTransfer', 'fromDrop', 'pick', 'fitWithin', 'debug']) {
         assert.equal(typeof app.intake[key], 'function', key);
       }
       assert.deepEqual(app.intake.debug(), { reads: 0, refused: 0, lastError: null });
@@ -286,6 +287,61 @@ export default (test) => {
       assert.deepEqual(await app.intake.fromDataTransfer({ files: [fileOf('g.json', 'application/json', 0, 0)] }), []);
       assert.equal(app.intake.debug().reads, 2);
     });
+  });
+
+  test('install: fromDrop reads the FIRST picture and decodes nothing else', async () => {
+    const fake = fakePlatform({ bytesFor: () => 4000 });
+    await withPlatform(fake, async () => {
+      /** @type {any} */ const app = {};
+      install(app);
+      // A folder of pictures dropped on one box. Only one of them can ever be shown, so only one
+      // may be decoded: the rest would be a full decode + a base64 string each, held at once.
+      const files = [];
+      for (let i = 0; i < 40; i += 1) files.push(fileOf(`p${i}.png`, 'image/png', 80, 40));
+      const out = await app.intake.fromDrop({ files });
+      assert.equal(out.name, 'p0.png', 'the first picture is the one the box takes');
+      assert.equal(app.intake.debug().reads, 1, 'and it is the ONLY one that was decoded');
+      assert.equal(fake.encodes.length, 1, 'one encode, not forty');
+      assert.equal(await app.intake.fromDrop({ files: [fileOf('g.json', 'application/json', 0, 0)] }), null,
+        'a drag with no picture in it is not ours');
+    });
+  });
+
+  test('install: fromDataTransfer is capped, so no gesture can decode a whole folder', async () => {
+    const fake = fakePlatform({ bytesFor: () => 4000 });
+    await withPlatform(fake, async () => {
+      /** @type {any} */ const app = {};
+      install(app);
+      const files = [];
+      for (let i = 0; i < 40; i += 1) files.push(fileOf(`p${i}.png`, 'image/png', 80, 40));
+      const results = await app.intake.fromDataTransfer({ files });
+      assert.equal(results.length, MAX_INTAKE_FILES, 'the cap, not the folder');
+      assert.equal((await app.intake.fromDataTransfer({ files }, { limit: 2 })).length, 2,
+        'and a caller may ask for fewer');
+    });
+  });
+
+  test('readImage: a source too big in bytes is refused BEFORE it is decoded', async () => {
+    const fake = fakePlatform({ bytesFor: () => 4000 });
+    let decodes = 0;
+    const env = { ...fake.env, createImageBitmap: async (f) => { decodes += 1; return fake.env.createImageBitmap(f); } };
+    const huge = { ...fileOf('scan.png', 'image/png', 100, 50), size: MAX_SOURCE_BYTES + 1 };
+    const out = await readImage(huge, env);
+    assert.equal(/** @type {any} */ (out).error,
+      t('parts.imageTooBig', { mb: mbOf(MAX_SOURCE_BYTES + 1), capMb: mbOf(MAX_SOURCE_BYTES) }));
+    assert.equal(decodes, 0, 'the decode is the biggest allocation here: it never ran');
+    const ok = await readImage({ ...fileOf('ok.png', 'image/png', 100, 50), size: 1024 }, env);
+    assert.equal(/** @type {any} */ (ok).w, 100, 'an ordinary file is untouched by the guard');
+  });
+
+  test('readImage: a source too big in PIXELS is refused before anything is drawn', async () => {
+    const fake = fakePlatform({ bytesFor: () => 4000 });
+    // A 16000x16000 scan: a few MB on disk, ~1 GB decoded.
+    const out = await readImage(fileOf('panorama.png', 'image/png', 16000, 16000), fake.env);
+    assert.ok(/** @type {any} */ (out).error, 'refused');
+    assert.equal(fake.encodes.length, 0, 'and no canvas was ever asked for');
+    assert.ok(16000 * 16000 > MAX_SOURCE_PIXELS);
+    assert.equal(fake.state.closed, 1, 'the bitmap is still closed on the way out');
   });
 
   test('install: a pasted picture becomes ONE undoable settings edit on the selected Image box', async () => {
@@ -587,7 +643,8 @@ export default (test) => {
   test('render: a dropped picture is read by the intake and stops at the box', async () => {
     const dropped = { dataUrl: `${PREFIX}DROP`, name: 'drop.png', w: 100, h: 50 };
     /** @type {any[]} */ const seen = [];
-    const app = { intake: { fromDataTransfer: async (dt) => { seen.push(dt); return [dropped]; } } };
+    // `fromDrop`, which reads ONE file: a folder dropped on a box must not decode 300 pictures.
+    const app = { intake: { fromDrop: async (dt) => { seen.push(dt); return dropped; } } };
     const part = { id: 'p1', type: 'image', settings: image.defaults(), value: null };
     const r = await renderPart(part, { app });
     let prevented = 0;
@@ -610,7 +667,7 @@ export default (test) => {
 
   test('render: a drag that carries no file is left entirely alone', async () => {
     /** @type {any[]} */ const seen = [];
-    const app = { intake: { fromDataTransfer: async (dt) => { seen.push(dt); return []; } } };
+    const app = { intake: { fromDrop: async (dt) => { seen.push(dt); return null; } } };
     const part = { id: 'p1', type: 'image', settings: image.defaults(), value: null };
     const r = await renderPart(part, { app });
     let prevented = 0;
@@ -627,7 +684,7 @@ export default (test) => {
 
   test('render: destroy leaves the box empty and the listeners gone', async () => {
     const part = { id: 'p1', type: 'image', settings: image.defaults(), value: null };
-    const r = await renderPart(part, { app: { intake: { fromDataTransfer: async () => [] } } });
+    const r = await renderPart(part, { app: { intake: { fromDrop: async () => null } } });
     r.inst.destroy();
     assert.equal(r.host.childNodes.length, 0);
     assert.equal(r.host.classList.contains('graph-image'), false);

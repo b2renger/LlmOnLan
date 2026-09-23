@@ -28,7 +28,9 @@
 // THE FROZEN SHAPE (addendum KD-5 — the seam K4-U1/U3/U4 may rely on, and the one the harness
 // drives):
 //   app.intake.fromFile(file)        -> Promise<{dataUrl, name, w, h} | {error}>
-//   app.intake.fromDataTransfer(dt)  -> Promise<Array<{dataUrl, name, w, h} | {error}>>
+//   app.intake.fromDataTransfer(dt, {limit}) -> Promise<Array<{dataUrl, name, w, h} | {error}>>
+//   app.intake.fromDrop(dt)          -> Promise<{dataUrl, name, w, h} | {error} | null>  (the FIRST
+//                                       picture only — what a one-picture box should ask for)
 //   app.intake.pick()                -> Promise<{dataUrl, name, w, h} | {error} | null>  (a dialog)
 //   app.intake.fitWithin(w, h, edge) -> {w, h}   PURE, and the golden numbers are its acceptance
 //   app.intake.debug()               -> {reads, refused, lastError}
@@ -57,6 +59,23 @@ export const STEPS = Object.freeze([
   { edge: 1024, quality: 0.75 },
   { edge: 768, quality: 0.6 },
 ]);
+
+/** A ceiling on the SOURCE, refused BEFORE `createImageBitmap` ever runs. The ladder bounds what
+ * we PRODUCE; the decode is the biggest allocation the pipeline makes and nothing bounded it. A
+ * 32 MB file is a generous camera raw-export; past it we say the one too-big sentence instead of
+ * asking the renderer for the memory. */
+export const MAX_SOURCE_BYTES = 32 * 1024 * 1024;
+
+/** The same ceiling for a file whose BYTES are small but whose pixels are not (a 16000x16000 PNG
+ * of a scan is a few MB on disk and ~1 GB decoded, at 4 bytes a pixel). Checked after the decode
+ * reports its size and before anything is drawn. */
+export const MAX_SOURCE_PIXELS = 50e6;
+
+/** How many pictures ONE gesture may read. A folder dropped on a box is a gesture people make by
+ * accident; each file costs a full decode and up to `maxBytes` of data URL held at once. The Image
+ * part takes the first picture and nothing else (`fromDrop`), so this cap only bounds a caller
+ * that really does want several. */
+export const MAX_INTAKE_FILES = 8;
 
 /** What a file picker offers and what a drop accepts. GIF is here because people paste them; it
  * arrives as its first frame, which is what a still model sees anyway. */
@@ -140,6 +159,8 @@ function envOf(env) {
     maxBytes: Number(e.maxBytes) > 0 ? Number(e.maxBytes) : MAX_VALUE_BYTES,
     steps: Array.isArray(e.steps) && e.steps.length ? e.steps : STEPS,
     matte: e.matte === null ? null : (e.matte || MATTE),
+    maxSourceBytes: Number(e.maxSourceBytes) > 0 ? Number(e.maxSourceBytes) : MAX_SOURCE_BYTES,
+    maxSourcePixels: Number(e.maxSourcePixels) > 0 ? Number(e.maxSourcePixels) : MAX_SOURCE_PIXELS,
   };
 }
 
@@ -186,12 +207,22 @@ export async function readImage(file, env) {
     return { error: t('parts.imageNotAnImage', { type: type || t('parts.imageTypeUnknown') }) };
   }
   if (!e.createImageBitmap || !e.OffscreenCanvas || !e.FileReader) return { error: t('parts.imageUnreadable') };
+  // BEFORE the decode: the decode is the biggest allocation here and the ladder does not bound it.
+  const size = Number(file.size) || 0;
+  if (size > e.maxSourceBytes) {
+    return { error: t('parts.imageTooBig', { mb: mbOf(size), capMb: mbOf(e.maxSourceBytes) }) };
+  }
   let bitmap = null;
   try {
     try { bitmap = await e.createImageBitmap(file); } catch { return { error: t('parts.imageUnreadable') }; }
     const W = Number(bitmap && bitmap.width) || 0;
     const H = Number(bitmap && bitmap.height) || 0;
     if (!W || !H) return { error: t('parts.imageUnreadable') };
+    // And after it: a file small on disk can still be enormous decoded. ~4 bytes a pixel is what
+    // it cost us to get here, and it is the honest number to refuse on.
+    if (W * H > e.maxSourcePixels) {
+      return { error: t('parts.imageTooBig', { mb: mbOf(W * H * 4), capMb: mbOf(e.maxSourcePixels * 4) }) };
+    }
     let bytes = 0;
     for (const step of e.steps) {
       const box = fitWithin(W, H, step.edge);
@@ -260,11 +291,23 @@ export function install(app) {
   /** @param {any} file */
   const fromFile = async (file) => record(await readImage(file));
 
-  /** @param {any} dt */
-  const fromDataTransfer = async (dt) => {
+  /** Every picture a gesture carries, up to `MAX_INTAKE_FILES`. A caller that wants ONE picture
+   * wants `fromDrop`: this decodes and base64-encodes every file it is given, which is a freeze
+   * and hundreds of megabytes if a folder was dropped.
+   * @param {any} dt @param {{limit?: number}} [o] */
+  const fromDataTransfer = async (dt, o) => {
+    const want = Math.max(1, Math.min(MAX_INTAKE_FILES, Number(o && o.limit) || MAX_INTAKE_FILES));
     /** @type {any[]} */ const out = [];
-    for (const file of filesOf(dt)) out.push(await fromFile(file));
+    for (const file of filesOf(dt).slice(0, want)) out.push(await fromFile(file));
     return out;
+  };
+
+  /** THE picture a drop carries: the first one, and nothing else is read. A box holds one picture,
+   * so reading the other 299 in a dropped folder only spends the memory and the time.
+   * @param {any} dt @returns {Promise<{dataUrl: string, name: string, w: number, h: number}|{error: string}|null>} */
+  const fromDrop = async (dt) => {
+    const file = filesOf(dt)[0];
+    return file ? await fromFile(file) : null;
   };
 
   const pick = () => new Promise((resolve) => {
@@ -338,6 +381,7 @@ export function install(app) {
   app.intake = {
     fromFile,
     fromDataTransfer,
+    fromDrop,
     pick,
     fitWithin,
     /** Exposed so the Image part's own drop handler and this paste door make the SAME write. */

@@ -117,6 +117,54 @@ const type = (/** @type {any} */ h, /** @type {string} */ id, /** @type {string}
 
 export default [
     {
+        // THE HEADLINE GESTURE OF THE PHASE: place a Text box and type in it. Keystroke by
+        // keystroke, in a real browser, because that is the only place `document.activeElement`
+        // and a real repaint exist — the bug this proves against hid the focused textarea on the
+        // FIRST keystroke, so the second character went nowhere and the reader had to click the
+        // box again to carry on. Every other scenario here clicks the body first, which took the
+        // editing lock and hid it.
+        name: 'k4-text-typing-into-a-fresh-box-keeps-the-field-under-the-caret',
+        needsMock: true,
+        allowConsoleErrors: FARM_ERRORS,
+        async run(h) {
+            await open(h);
+            const id = await h.computer.place('note', 40, 60);
+            const word = 'hello';
+            for (let i = 0; i < word.length; i += 1) {
+                const state = await h.eval((partId, ch, first) => {
+                    const root = document.querySelector(`#lolcomputer .graph-part[data-id="${partId}"]`);
+                    const area = root && root.querySelector('.graph-text-source');
+                    if (!area) throw new Error(`no source editor on part ${partId}`);
+                    // Focus ONCE, as a person does: after that the field must keep itself.
+                    if (first) area.focus();
+                    if (area.hidden || document.activeElement !== area) {
+                        return { hidden: !!area.hidden, focused: document.activeElement === area, value: area.value };
+                    }
+                    area.value += ch;
+                    area.dispatchEvent(new Event('input', { bubbles: true }));
+                    const now = root.querySelector('.graph-text-source');
+                    return {
+                        hidden: !now || !!now.hidden,
+                        focused: !!now && document.activeElement === now,
+                        value: now ? now.value : '',
+                    };
+                }, id, word[i], i === 0);
+                h.eq(state.hidden, false, `the field survived keystroke ${i + 1} ("${word[i]}")`);
+                h.eq(state.focused, true, `and the caret is still in it after keystroke ${i + 1}`);
+                h.eq(state.value, word.slice(0, i + 1), `holding every character typed so far`);
+            }
+            await h.eval((partId) => {
+                const area = document.querySelector(`#lolcomputer .graph-part[data-id="${partId}"] .graph-text-source`);
+                area.dispatchEvent(new Event('change', { bubbles: true }));
+                area.blur();
+                return true;
+            }, id);
+            const live = await parts(h);
+            h.eq(live[id].settings.text, word, 'and the whole word is what the box kept');
+            h.note('typed five characters into a fresh Text box without the field vanishing');
+        },
+    },
+    {
         // The owner's sentence, end to end: "render generated text from instruct or other boxes
         // into those text boxes". A Text box feeds an Instruction, the Instruction's answer lands
         // in a second Text box, and the second box shows it.

@@ -6,6 +6,67 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-09-23 — The Computer **K4 fix round**: typing that survives the second keystroke, and two gestures that stop costing what they never used
+
+A review of the K4 landing found one blocker on the phase's own headline path, plus three smaller
+things. All four are fixed at the root, each with a test that fails without the fix.
+
+### Typing into a fresh Text box lost the field after ONE character (blocker)
+
+Place a Text box, type: the first keystroke landed, the second went nowhere, and the reader had to
+click the box again to carry on. The textarea's `input` handler took the module-level editing lock
+(which `run()` reads) but not the instance flag (which the PAINT reads). The keystroke's own
+`ctx.update()` reaches the document, the canvas hands the edited part straight back to
+`inst.update(part)` on the same turn, and that repaint saw a box with text and no edit in progress —
+so it hid the textarea the caret was in. Every scenario that typed had clicked the rendered body
+first, which took the lock, so nothing caught it.
+
+- The two doors into editing are now ONE function (`beginEdit(seed)`): a body click seeds the field
+  from what is shown and puts the caret in it; a keystroke takes exactly the same lock and does NOT
+  re-seed, because what the field holds is what was just typed. Focus takes it too, so tabbing into a
+  box is editing it and a run cannot land on an open field.
+- The unit double for `PartCtx` was the reason no test could see this: it recorded the patch and
+  stopped. It now does what the real one does — apply, then repaint — so any part whose `update()`
+  mishandles its own settings write fails here from now on.
+- Two tests, both verified to fail against the old code: a unit case that fires three separate
+  `input` events with a repaint between them, and a browser scenario that types five characters into
+  a fresh box one at a time and asserts the field is still there, still focused and still holding
+  every character. (The harness window is never OS-focused and does not dispatch focus/blur events at
+  all, which is worth knowing before writing a test that leans on them.)
+
+### A drop of 300 pictures on one box decoded 300 pictures
+
+`fromDataTransfer` reads every picture a DataTransfer carries; the Image box used it and then took
+`list[0]`. A folder dropped on a box by accident paid a full decode, resize and base64 for each file
+and held up to a megabyte of data URL per picture before one was used. The box now asks for
+`app.intake.fromDrop(dt)` — the first picture and nothing else — and `fromDataTransfer` is capped at
+`MAX_INTAKE_FILES` (8) with an explicit `{limit}` for a caller that really wants several.
+
+### Nothing bounded the decode itself
+
+The ladder caps what the intake PRODUCES; the largest allocation it makes is `createImageBitmap`,
+which had no guard at all. A 16000 × 16000 scan is a few MB on disk and about a gigabyte decoded — a
+renderer OOM loses the graph edits since the last save. A file over `MAX_SOURCE_BYTES` (32 MB) is now
+refused **before** the decode, and one over `MAX_SOURCE_PIXELS` (50 M) right after it, both with the
+sentence the intake already had.
+
+### A megabyte of markdown is not rendered twice a second
+
+A text value may be 1 MB and the Text port is `many`, so a Collect of forty answers joins into one
+box: measured here, a megabyte is ~0.44 s of parse-and-build on the main thread, repeated on every
+loop turn that changes the text. The body now renders the first `MAX_RENDER_CHARS` (64 KB) and says
+so in one quiet line. The value itself is untouched — the whole text still goes downstream, is still
+saved, and is still what Save… writes.
+
+### Tested
+
+`chat-unit` **1191 passed** (+7) · `unit` 5 · `chat-lint` 0 violations · `chat-scope` clean ·
+`chat-harness --strict` **252 passed** (+1) · perf **9 passed**, all at slot 0. Each fix was checked
+by re-breaking it: the blocker fails both its new tests, the drop fan-out fails its scenario, and the
+two guards fail theirs.
+
+---
+
 ## 2026-09-23 — The Computer **K4**: text boxes that receive, pictures the model can read, previews, and the warm look
 
 The owner ran K3 against the real farm with a labelled arrow and an Instruction, said it works, and
