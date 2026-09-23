@@ -773,13 +773,19 @@ export default [
             h.assert(new Set(seen.map((r) => r.colour)).size >= 4,
                 `the colours carry information too: ${JSON.stringify(seen.map((r) => r.colour))}`);
 
-            // a value preview is a button that opens the value
+            // a value preview is a button that opens the value.
+            // K4 landing (COMPUTER_PLAN §6.2, addendum KD-3): the Text part (type id `note`) now
+            // RENDERS its own value as markdown in its body, and declares `quiet` so the canvas
+            // does not print the same words again in the foot strip. The foot strip itself is
+            // unchanged and every other part keeps it — so this probe uses one of those. `collect`
+            // is the nearest neighbour: a plain part with a plain text value.
+            const valueId = await h.graph.place('collect', 240, 40);
             const shown = await h.eval((partId) => {
                 const dbg = window.LolComputer.debug.computer;
                 dbg.session().patchPart(partId, { state: 'done', value: { kind: 'text', data: 'the answer' } });
                 const el = document.querySelector(`#lolcomputer .graph-part[data-id="${partId}"] .graph-value`);
                 return { hidden: el.hidden, text: el.textContent, tag: el.tagName };
-            }, id);
+            }, valueId);
             h.eq(shown.hidden, false, 'a done part shows its value');
             h.eq(shown.text, 'the answer');
             h.eq(shown.tag, 'BUTTON', 'and the preview is operable');

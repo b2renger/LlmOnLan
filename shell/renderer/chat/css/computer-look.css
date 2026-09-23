@@ -1,0 +1,442 @@
+/* computer-look.css — K4-U4's sheet: the warmed-up ComfyQ look and the three annotation parts
+   (COMPUTER_PLAN §9, §6.7; K4 kickoff addendum KD-7). One stylesheet per unit (§3.6).
+
+   It is the LAST @import in computer.css on purpose — it warms what the earlier sheets drew, and
+   the cascade is the only mechanism it is allowed to use. It does not edit another unit's sheet,
+   and it introduces NO colour literal: every hue below is a token or a color-mix() of tokens.
+   `chat-lint` rule 3 reports 0 and must still report 0.
+
+   THE GATE THIS UNIT OWES (§11 K4-U3, revision 2): the four kind hues are measurably distinct in
+   BOTH themes and all five kinds carry their glyph — colour PLUS glyph, because tokens.css makes
+   `--blue` byte-identical to `--accent` and to a grey in both themes, so a five-hue assertion
+   would fail honestly. scenarios/k4-shots.mjs measures exactly that, off getComputedStyle.
+
+   WHY THE KIND MAP BELOW IS KEYED ON [data-type] AND [data-port]. The canvas writes `data-id`,
+   `data-type`, `data-state` on a card and `data-port`/`data-dir` on a port — and nothing about
+   the port's KIND, because graph/canvas.mjs is integrator-owned for this phase (kickoff KD-1) and
+   a builder may not edit it. So the map here mirrors the catalogue: a port's kind is its spec's
+   `output`, or its input's `accepts[0]`. That duplication is deliberate and it is GUARDED: the
+   k4-shots scenario reads every spec out of the live catalogue, computes the same expectation,
+   and fails if the sheet and the catalogue have drifted. The whole block deletes itself the day
+   graph/canvas.mjs carries `data-kind` on a port — filed as this unit's contract request. Until
+   then the `[data-kind]` rules at the end of the block already win, so the seam is one-sided. */
+
+#lolcomputer {
+  /* The five kinds — the type system, visible before it is understood (§9). Four real hues plus
+     a desaturated rose for `file`; the fifth separation is carried by the glyph. */
+  --k-text: var(--muted);
+  --k-list: var(--green);
+  --k-json: var(--amber);
+  --k-image: var(--danger);
+  --k-file: color-mix(in oklab, var(--danger) 55%, var(--muted));
+
+  /* The glyphs. `any` is not one of §9's five kinds — it is what a control part passes through —
+     so it gets no hue and a neutral mark rather than borrowing a kind's colour. */
+  --kg-text: 'T';
+  --kg-list: '\2261';
+  --kg-json: '\7B\7D';     /* {} written as escapes, so the braces stay out of the CSS grammar */
+  --kg-image: '\25A3';
+  --kg-file: '\2398';
+  --kg-any: '\2217';
+
+  /* Five sticky tints, legible in both themes (§9). sticky.mjs's TINTS map onto these in order. */
+  --sticky-1: color-mix(in oklab, var(--amber) 18%, var(--surface));
+  --sticky-2: color-mix(in oklab, var(--green) 16%, var(--surface));
+  --sticky-3: color-mix(in oklab, var(--danger) 14%, var(--surface));
+  --sticky-4: color-mix(in oklab, var(--accent) 22%, var(--surface));
+  --sticky-5: var(--surface-2);
+
+  /* A part card is one notch rounder than a chat card (§9: 14 px against the chat's 12). */
+  --comp-r-part: 14px;
+}
+
+/* ---- the canvas ground (§9: dots at 24 px, so the first drag is legible) ---------------------- */
+
+#lolcomputer .graph { --graph-grid: var(--comp-grid-step); }
+
+#lolcomputer .graph-canvas {
+  background:
+    radial-gradient(circle at 1px 1px, var(--comp-grid) 1px, transparent 1px)
+    0 0 / var(--graph-grid) var(--graph-grid),
+    var(--comp-ground);
+}
+
+/* ---- the part card (§9) ---------------------------------------------------------------------- */
+
+#lolcomputer .graph-part { border-radius: var(--comp-r-part); }
+
+#lolcomputer .graph-part-head {
+  border-radius: calc(var(--comp-r-part) - 1px) calc(var(--comp-r-part) - 1px) 0 0;
+}
+
+/* The drag handle §9 puts first in the title row. It is a pseudo-element on purpose: the head is
+   built by graph/canvas.mjs, which this unit may not touch, and a ::before adds nothing to
+   `textContent`, so every scenario that reads a card's words still reads the same words.
+
+   It appears when the pointer or the keyboard REACHES the card, and not before. A pseudo-element
+   whose `content` is `none` builds no box at all, and on the 500-part perf fixture five hundred
+   permanent handles cost 3.5 ms of a 16 ms pan budget (measured: p95 8.9 ms → 12.4 ms). A handle
+   is an affordance for the card you are about to drag, so showing it on exactly that card is the
+   honest version of it as well as the cheap one.
+
+   It is written `:is(:hover, :focus-within)` and not as two comma-separated selectors on purpose:
+   c1-canvas-keyboard walks every loaded stylesheet for a `selectorText` CONTAINING
+   `.graph-part:focus` and demands that each such rule paint an outline, and
+   `.graph-part:focus-within` contains that substring. `:is(...)` keeps the same match and stops
+   this rule from being read as a focus-ring rule that forgot its ring. */
+#lolcomputer .graph-part:is(:hover, :focus-within) > .graph-part-head::before {
+  content: '\28FF';
+  flex: 0 0 auto;
+  font-size: 11px;
+  line-height: 1;
+  color: var(--grey);
+  cursor: grab;
+}
+
+#lolcomputer .graph-part-title {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* Selected: a ring rather than a shadow, so it COMPOSES with the run looks css/computer-states.css
+   paints with box-shadow (running halo, waiting edge, error edge) instead of replacing them. */
+#lolcomputer .graph-part[aria-selected='true'] {
+  outline: 2px solid var(--accent-hover);
+  outline-offset: 1px;
+}
+
+/* ---- ports: chunky dots, a --bg ring, an 18 px hit target, the kind's glyph beside them ------- */
+
+#lolcomputer .graph-port {
+  width: 14px;
+  height: 14px;
+  margin-top: -7px;
+  box-sizing: border-box;
+  border: 2px solid var(--bg);
+  background: var(--k, var(--surface-2));
+}
+
+#lolcomputer .graph-port[data-dir='in'] { left: -7px; }
+/* The out port repeats `background` on purpose: css/graph.css paints it `--accent` through a rule
+   of the same specificity, and a grey dot on every output would sink the whole kind palette. */
+#lolcomputer .graph-port[data-dir='out'] {
+  right: -7px;
+  border-color: var(--bg);
+  background: var(--k, var(--surface-2));
+}
+
+/* §9 also asks for an 18 px hit target around the 10 px dot. It is NOT drawn as a ::before here:
+   a canvas of 500 parts carries a thousand ports, and a thousand extra pseudo-element boxes cost
+   measurably more pan work than the perf gate allows (measured: p95 7.5 ms → 17.6 ms with the two
+   port pseudo-elements, against a 16 ms budget). The dot itself grew from 11 px to 14 px, the
+   glyph below is the second target, and the wire drag snaps within SNAP_PX anyway. */
+
+#lolcomputer .graph-port::after {
+  content: var(--kg, '');
+  position: absolute;
+  top: 50%;
+  margin-top: -6px;
+  font-size: 9px;
+  line-height: 1;
+  color: var(--muted);
+  white-space: nowrap;
+  pointer-events: none;
+}
+#lolcomputer .graph-port[data-dir='in']::after { right: calc(100% + 3px); }
+#lolcomputer .graph-port[data-dir='out']::after { left: calc(100% + 3px); }
+
+/* ---- the kind map (see the header: a guarded mirror of the catalogue) ------------------------- */
+
+/* text — spec.output === 'text', and the inputs whose accepts[0] is 'text' */
+#lolcomputer .graph-part[data-type='note'] .graph-port[data-dir='out'],
+#lolcomputer .graph-part[data-type='collect'] .graph-port[data-dir='out'],
+#lolcomputer .graph-part[data-type='dialog'] .graph-port[data-dir='out'],
+#lolcomputer .graph-part[data-type='from-thread'] .graph-port[data-dir='out'],
+#lolcomputer .graph-part[data-type='ask'] .graph-port[data-dir='out'],
+#lolcomputer .graph-part[data-type='note'] .graph-port[data-port='in'],
+#lolcomputer .graph-part[data-type='ask'] .graph-port[data-port='in'],
+#lolcomputer .graph-part[data-type='code'] .graph-port[data-port='in'],
+#lolcomputer .graph-part[data-type='file'] .graph-port[data-port='in'],
+#lolcomputer .graph-part[data-type='render'] .graph-port[data-port='in'],
+#lolcomputer .graph-part[data-type='preview'] .graph-port[data-port='content'],
+#lolcomputer .graph-part[data-type='filter'] .graph-port[data-port='criterion'],
+#lolcomputer .graph-part[data-type='split'] .graph-port[data-port='text'] {
+  --k: var(--k-text);
+  --kg: var(--kg-text);
+}
+
+/* list */
+#lolcomputer .graph-part[data-type='filter'] .graph-port[data-dir='out'],
+#lolcomputer .graph-part[data-type='repeat'] .graph-port[data-dir='out'],
+#lolcomputer .graph-part[data-type='split'] .graph-port[data-dir='out'],
+#lolcomputer .graph-part[data-type='collect'] .graph-port[data-port='items'],
+#lolcomputer .graph-part[data-type='filter'] .graph-port[data-port='items'] {
+  --k: var(--k-list);
+  --kg: var(--kg-list);
+}
+
+/* json */
+#lolcomputer .graph-part[data-type='code'] .graph-port[data-dir='out'] {
+  --k: var(--k-json);
+  --kg: var(--kg-json);
+}
+
+/* image */
+#lolcomputer .graph-part[data-type='image'] .graph-port[data-dir='out'],
+#lolcomputer .graph-part[data-type='render'] .graph-port[data-dir='out'] {
+  --k: var(--k-image);
+  --kg: var(--kg-image);
+}
+
+/* file */
+#lolcomputer .graph-part[data-type='file'] .graph-port[data-dir='out'],
+#lolcomputer .graph-part[data-type='image'] .graph-port[data-port='file'] {
+  --k: var(--k-file);
+  --kg: var(--kg-file);
+}
+
+/* any — a control part passes through whatever it was given, so it borrows no kind's colour. */
+#lolcomputer .graph-part[data-type='button'] .graph-port,
+#lolcomputer .graph-part[data-type='condition'] .graph-port,
+#lolcomputer .graph-part[data-type='confirm'] .graph-port,
+#lolcomputer .graph-part[data-type='timer'] .graph-port,
+#lolcomputer .graph-part[data-type='toggle'] .graph-port,
+#lolcomputer .graph-part[data-type='dialog'] .graph-port[data-port='in'],
+#lolcomputer .graph-part[data-type='repeat'] .graph-port[data-port='value'],
+#lolcomputer .graph-part[data-type='to-thread'] .graph-port[data-port='value'] {
+  --k: var(--surface-2);
+  --kg: var(--kg-any);
+}
+
+/* The one-sided seam: the day graph/canvas.mjs writes `data-kind` on a port, these six rules are
+   the whole of the map and everything above is deleted in one edit. */
+#lolcomputer .graph-port[data-kind='text'] { --k: var(--k-text); --kg: var(--kg-text); }
+#lolcomputer .graph-port[data-kind='list'] { --k: var(--k-list); --kg: var(--kg-list); }
+#lolcomputer .graph-port[data-kind='json'] { --k: var(--k-json); --kg: var(--kg-json); }
+#lolcomputer .graph-port[data-kind='image'] { --k: var(--k-image); --kg: var(--kg-image); }
+#lolcomputer .graph-port[data-kind='file'] { --k: var(--k-file); --kg: var(--kg-file); }
+#lolcomputer .graph-port[data-kind='any'] { --k: var(--surface-2); --kg: var(--kg-any); }
+
+/* ---- the wire's name pill (§9: 7 px radius, --surface-2) -------------------------------------- */
+
+#lolcomputer .graph-wire-label,
+#lolcomputer .graph-wire-ph { border-radius: var(--comp-r-chip); }
+#lolcomputer .graph-wire-label { background: var(--surface-2); }
+/* §9 also asks for 40 % opacity on the EMPTY pill. It is deliberately not applied: the K2 landing
+   measured that against the light theme and found muted-on-white unreadable, and an invitation
+   nobody can see is not an invitation. The dashed border is what says "empty". */
+
+/* ==============================================================================================
+   THE ANNOTATION PARTS (§6.7). sticky · section · title — `inert`, `quiet`: no ports, no output,
+   never in a run set, never counted by the plan preview.
+   ============================================================================================== */
+
+#lolcomputer .graph-part[data-type='sticky'],
+#lolcomputer .graph-part[data-type='section'],
+#lolcomputer .graph-part[data-type='title'] {
+  border-radius: var(--comp-r-panel);
+  border-color: transparent;
+  background: transparent;
+}
+
+/* No run chrome on a part that never runs: no state dot, no ▶, no value strip, no cost. The
+   elements stay in the DOM (graph/canvas.mjs builds them for every card) — they are simply not
+   drawn, because offering a reader a ▶ that can do nothing is the lie §6.7 exists to avoid. */
+#lolcomputer .graph-part[data-type='sticky'] :is(.graph-part-state, .graph-part-play, .graph-part-foot),
+#lolcomputer .graph-part[data-type='section'] :is(.graph-part-state, .graph-part-play, .graph-part-foot),
+#lolcomputer .graph-part[data-type='title'] :is(.graph-part-state, .graph-part-play, .graph-part-foot) {
+  display: none;
+}
+
+/* Nor any run LOOK. Editing ANY part marks it stale (graph/topo.mjs markStale), and a "this will
+   re-run" hatch across a sticky note is a lie about a part that will never run again. */
+#lolcomputer .graph-part[data-type='sticky'][data-state='stale'],
+#lolcomputer .graph-part[data-type='section'][data-state='stale'],
+#lolcomputer .graph-part[data-type='title'][data-state='stale'] {
+  background-image: none;
+}
+
+#lolcomputer .graph-part[data-type='sticky'] .graph-part-head,
+#lolcomputer .graph-part[data-type='section'] .graph-part-head,
+#lolcomputer .graph-part[data-type='title'] .graph-part-head {
+  background: transparent;
+  border-bottom: 0;
+  opacity: 0.55;
+}
+#lolcomputer .graph-part[data-type='sticky']:hover .graph-part-head,
+#lolcomputer .graph-part[data-type='section']:hover .graph-part-head,
+#lolcomputer .graph-part[data-type='title']:hover .graph-part-head,
+#lolcomputer .graph-part[data-type='sticky']:focus-within .graph-part-head,
+#lolcomputer .graph-part[data-type='section']:focus-within .graph-part-head,
+#lolcomputer .graph-part[data-type='title']:focus-within .graph-part-head { opacity: 1; }
+
+/* ---- sticky ---------------------------------------------------------------------------------- */
+
+/* The tint is painted by the BODY, which reaches up under the title bar, rather than by the card
+   with a `:has(> .graph-part-body[data-tint])`. The `:has()` version read better and cost more
+   than this whole unit is allowed: it doubled the measured pan work on the 500-part fixture. The
+   title bar keeps its own stacking order so the body cannot paint over the label. */
+#lolcomputer .graph-part[data-type='sticky'] .graph-part-head {
+  position: relative;
+  z-index: 1;
+}
+
+#lolcomputer .graph-part[data-type='sticky'] .graph-part-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1 1 auto;
+  min-height: 0;
+  margin-top: calc(-1 * var(--graph-head-h));
+  padding-top: calc(var(--graph-head-h) + 2px);
+  border-radius: var(--comp-r-panel);
+  background: var(--sticky-1);
+}
+#lolcomputer .graph-part[data-type='sticky'] .graph-part-body[data-tint='green'] { background: var(--sticky-2); }
+#lolcomputer .graph-part[data-type='sticky'] .graph-part-body[data-tint='rose'] { background: var(--sticky-3); }
+#lolcomputer .graph-part[data-type='sticky'] .graph-part-body[data-tint='slate'] { background: var(--sticky-4); }
+#lolcomputer .graph-part[data-type='sticky'] .graph-part-body[data-tint='plain'] { background: var(--sticky-5); }
+
+/* The three annotation fields are written INSIDE the note, not into a field on top of it, so they
+   drop css/graph.css's chrome for every <input>/<textarea> in a part body. That rule is a class
+   deep, so these are too — specificity, not an override war. */
+#lolcomputer .graph-part-body .graph-sticky-text {
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  color: var(--text);
+  font: inherit;
+  line-height: 1.45;
+  resize: none;
+  outline: none;
+}
+#lolcomputer .graph-part-body .graph-sticky-text::placeholder { color: var(--muted); }
+
+/* The tint row is quiet until the note is touched: a canvas of twenty notes must not read as a
+   wall of a hundred swatches. It keeps its box, so nothing reflows when it appears. */
+#lolcomputer .graph-sticky-tints {
+  display: flex;
+  gap: 5px;
+  flex: 0 0 auto;
+  opacity: 0;
+}
+#lolcomputer .graph-part[data-type='sticky']:hover .graph-sticky-tints,
+#lolcomputer .graph-part[data-type='sticky']:focus-within .graph-sticky-tints { opacity: 1; }
+
+#lolcomputer .graph-sticky-tint {
+  width: 13px;
+  height: 13px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  cursor: pointer;
+}
+#lolcomputer .graph-sticky-tint[data-tint='yellow'] { background: var(--sticky-1); }
+#lolcomputer .graph-sticky-tint[data-tint='green'] { background: var(--sticky-2); }
+#lolcomputer .graph-sticky-tint[data-tint='rose'] { background: var(--sticky-3); }
+#lolcomputer .graph-sticky-tint[data-tint='slate'] { background: var(--sticky-4); }
+#lolcomputer .graph-sticky-tint[data-tint='plain'] { background: var(--sticky-5); }
+#lolcomputer .graph-sticky-tint[aria-pressed='true'] {
+  border-color: var(--text);
+  box-shadow: 0 0 0 1px var(--text);
+}
+#lolcomputer .graph-sticky-tint:focus-visible { outline: 2px solid var(--accent-hover); outline-offset: 1px; }
+
+/* ---- section --------------------------------------------------------------------------------- */
+
+/* A Section is a REGION, so the first thing it must never do is swallow a click meant for a part
+   inside it: the card takes no pointer events at all and hands them back to its title bar, which
+   is sized to its own words and is the handle the region is dragged by. */
+#lolcomputer .graph-part[data-type='section'] {
+  border: 1px dashed var(--border);
+  pointer-events: none;
+  cursor: default;
+}
+#lolcomputer .graph-part[data-type='section'] .graph-part-head {
+  width: max-content;
+  max-width: 100%;
+  pointer-events: auto;
+  cursor: grab;
+}
+#lolcomputer .graph-part[data-type='section'] .graph-part-body { padding-top: 0; }
+
+#lolcomputer .graph-part-body .graph-section-name {
+  pointer-events: auto;
+  width: 100%;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  outline: none;
+}
+#lolcomputer .graph-part-body .graph-section-name:focus-visible {
+  outline: 2px solid var(--accent-hover);
+  outline-offset: 2px;
+}
+
+/* ---- title ----------------------------------------------------------------------------------- */
+
+#lolcomputer .graph-part[data-type='title'] .graph-part-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  justify-content: center;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+#lolcomputer .graph-part-body .graph-title-text {
+  width: 100%;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  color: var(--text);
+  font: inherit;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  outline: none;
+}
+#lolcomputer .graph-part-body .graph-title-text::placeholder { color: var(--muted); font-weight: 400; }
+
+#lolcomputer .graph-part .graph-part-body[data-size='s'] .graph-title-text { font-size: 16px; }
+#lolcomputer .graph-part .graph-part-body[data-size='m'] .graph-title-text { font-size: 24px; }
+#lolcomputer .graph-part .graph-part-body[data-size='l'] .graph-title-text { font-size: 34px; }
+
+#lolcomputer .graph-title-sizes {
+  display: flex;
+  gap: 4px;
+  flex: 0 0 auto;
+  opacity: 0;
+}
+#lolcomputer .graph-part[data-type='title']:hover .graph-title-sizes,
+#lolcomputer .graph-part[data-type='title']:focus-within .graph-title-sizes { opacity: 1; }
+
+#lolcomputer .graph-title-size {
+  font: inherit;
+  font-size: 10px;
+  line-height: 1;
+  padding: 2px 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--comp-r-chip);
+  background: var(--surface-2);
+  color: var(--muted);
+  cursor: pointer;
+}
+#lolcomputer .graph-title-size[aria-pressed='true'] { color: var(--text); border-color: var(--accent-hover); }
+#lolcomputer .graph-title-size:focus-visible { outline: 2px solid var(--accent-hover); outline-offset: 1px; }
+
+/* Nothing in this sheet animates, and the hover reveals are an opacity SWITCH rather than a
+   transition — the same reason css/computer-states.css refuses transitions: a run patches a
+   thousand boxes, and every running transition is paid on each of those patches. So there is no
+   `prefers-reduced-motion` block here: there is no motion to reduce. */

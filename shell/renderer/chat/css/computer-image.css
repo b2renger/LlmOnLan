@@ -1,0 +1,112 @@
+/* computer-image.css — K4-U2's sheet: the Image part and what intake looks like
+   (COMPUTER_PLAN §6.4). One stylesheet per unit (§3.6).
+
+   What lands here: the empty drop target, the picture fitted into the box, the size line, the
+   drag-over state, the "from the wire" badge, and the refusal strip when a picture is refused.
+   Tokens only (lint rule 3). The BOX around all of this — the state colour, the halo, the ▶ —
+   is css/computer-states.css and is not ours to restyle. */
+
+.graph-part[data-type='image'] .graph-image {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 0;
+  height: 100%;
+}
+
+/* The picture, fitted and never cropped: a diagram that is stretched is a diagram that lies. */
+.graph-part[data-type='image'] .graph-image-figure {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--surface-2);
+}
+.graph-part[data-type='image'] .graph-image-figure[hidden] { display: none; }
+
+.graph-part[data-type='image'] .graph-image-shot {
+  display: block;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  border-radius: 8px;
+}
+
+/* A picture that ARRIVED on the port rather than one the person put here (§6.2 revision 2). It
+   says so, because Replace and Remove are hidden while it shows and a reader is owed the reason. */
+.graph-part[data-type='image'] .graph-image-badge {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 85%, transparent);
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+.graph-part[data-type='image'] .graph-image-badge[hidden] { display: none; }
+
+/* The empty state IS the drop target, and it is a button so the keyboard can reach the picker. */
+.graph-part[data-type='image'] .graph-image-empty {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px;
+  text-align: center;
+  font: inherit;
+  color: var(--muted);
+  background: transparent;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+}
+.graph-part[data-type='image'] .graph-image-empty:hover { border-color: var(--accent-hover); color: var(--text); }
+.graph-part[data-type='image'] .graph-image-empty[hidden] { display: none; }
+
+.graph-part[data-type='image'] .graph-image.is-over .graph-image-empty,
+.graph-part[data-type='image'] .graph-image.is-over .graph-image-figure {
+  border: 1px solid var(--accent-hover);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-hover) 30%, transparent);
+}
+
+.graph-part[data-type='image'] .graph-image-foot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.graph-part[data-type='image'] .graph-image-foot[hidden] { display: none; }
+
+.graph-part[data-type='image'] .graph-image-caption {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.graph-part[data-type='image'] .graph-image-actions {
+  display: flex;
+  gap: 4px;
+  flex: 0 0 auto;
+}
+.graph-part[data-type='image'] .graph-image-btn { font-size: 12px; padding: 2px 8px; }
+.graph-part[data-type='image'] .graph-image-btn[hidden] { display: none; }
+
+/* One line, and it is either "Reading the picture…" or the refusal. Never both, never a dialog. */
+.graph-part[data-type='image'] .graph-image-note {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+.graph-part[data-type='image'] .graph-image-note.is-error { color: var(--danger); }
+.graph-part[data-type='image'] .graph-image-note[hidden] { display: none; }

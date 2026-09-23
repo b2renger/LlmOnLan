@@ -487,11 +487,19 @@ export function activeSet(doc, seeds, opts = {}) {
   if (!ord.ok) return [];
   const specs = opts.specs instanceof Map ? opts.specs : new Map();
   const manual = new Set(manualRoots(fwd, specs));
+  // K4 kickoff (COMPUTER_PLAN §6.7, addendum KD-4): an `inert` part is never active, in any mode,
+  // seed or not. The annotation parts (Sticky, Section, Title) exist for the reader: they have no
+  // ports, no output and nothing to run, and a run that "ran" three of them would report a number
+  // the reader cannot make sense of. This is the ONE place the flag is read, which is what keeps
+  // the run loop, the run bar and the plan preview agreeing without any of them naming a type.
+  const inert = new Set(fwd.parts
+    .filter((p) => { const s = specs.get(p.type); return !!(s && /** @type {any} */ (s).inert); })
+    .map((p) => p.id));
   // NOT `partById` from model.mjs: model.mjs imports this file, so topo stays import-free.
   const live = new Set(fwd.parts.map((p) => p.id));
   const seedIds = (Array.isArray(seeds) ? seeds : []).filter((id) => live.has(id));
   const isSeed = new Set(seedIds);
-  const keep = (/** @type {string} */ id) => !manual.has(id) || isSeed.has(id);
+  const keep = (/** @type {string} */ id) => !inert.has(id) && (!manual.has(id) || isSeed.has(id));
   if (opts.mode === 'from' || opts.mode === 'button') {
     const want = new Set([
       ...seedIds,
@@ -503,7 +511,7 @@ export function activeSet(doc, seeds, opts = {}) {
     // wave and glow "ready — click to continue" — and a ▶ on the Button's own face is a seed.
     // The prologue still refuses to PULL an unpressed Button from upstream (`unrunAncestors`
     // stops at one), so a push never presses a button nobody touched.
-    return ord.ids.filter((id) => want.has(id));
+    return ord.ids.filter((id) => want.has(id) && !inert.has(id));
   }
   if (opts.force) return ord.ids.filter(keep);
   return dirtyClosure(fwd, ord.ids, specs).filter(keep);

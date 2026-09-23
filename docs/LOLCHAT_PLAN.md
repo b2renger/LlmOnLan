@@ -2973,6 +2973,194 @@ activation leaves the loop, so a listener that reads `executing()` is told rathe
 at the next unrelated event. `visible.mjs`'s `running()` fallback stays as the one place that choice
 is made; nothing else in the tree may ask the question itself.
 
+### K4 addendum — text boxes with an input, images, previews, the look (kickoff, 2026-09-23)
+
+Frozen at the K4 kickoff, after K1/K2/K3 landed and the owner ran the Computer against the real
+farm. `docs/COMPUTER_PLAN.md` §6.2, §6.4, §6.5, §6.7, §6.8, §9 and §11 K4 are the spec; **this is
+the contract between the four parallel units**. A unit may ADD keys and exports; it may not change
+a signature here without a contract request at the landing. KA-1..KA-11, KB-1..KB-11 and
+KC-1..KC-22 still bind.
+
+**Gates at the end of this kickoff:** `chat-unit` **1116 / 0 failed** (unchanged), `unit` 5,
+`chat-lint` **175 files / 0 violations**, `chat-scope` **clean**, harness `--strict` re-run on a
+non-zero slot. Nothing is committed at a kickoff (build rule 2): the landing integrator commits the
+phase once, when every gate is green.
+
+**KD-0. The owner's requirement outranks §11 K4's unit split.** After running a labelled arrow into
+an Instruction on the real farm, the owner asked for the thing tldraw teaches in its lesson 1:
+
+> *"we should have text boxes with input and output and we should be able to render generated text
+> from instruct or other boxes into those text boxes."*
+
+Today a Note is `inputs: []`. An Instruction's answer has nowhere friendly to land: you read it in
+the one-line value strip or in the drawer, never as the markdown report it is. So the phase gains a
+unit at the front and the plan's three K4 units shift down one:
+
+| This phase | Was, in COMPUTER_PLAN §11 | Ships |
+|---|---|---|
+| **K4-U1** | *(new — the owner's requirement)* | The **Text part**: the box you type into AND the box an answer lands in. |
+| **K4-U2** | K4-U1 | Image intake and the Image part (§6.4). |
+| **K4-U3** | K4-U2 | The Preview family (§6.5). |
+| **K4-U4** | K4-U3 | The warmed-up look (§9) and the three annotation parts (§6.7). |
+
+**KD-1. Who owns what.** A unit writes ONLY its own files. Anything else is a contract request in
+that unit's report, applied by the integrator at the landing.
+
+| File | Owner |
+|---|---|
+| `graph/parts/text.mjs`, `strings/parts-text.en.mjs`, `css/computer-text.css`, `test/chat/unit/computer-text.test.mjs`, `chat-harness/scenarios/k4-text.mjs` | K4-U1 |
+| `computer/intake.mjs`, `graph/parts/image.mjs`, `strings/parts-image.en.mjs`, `css/computer-image.css`, `test/chat/unit/computer-intake.test.mjs`, `chat-harness/scenarios/k4-vision.mjs` | K4-U2 |
+| `graph/parts/preview.mjs`, `graph/parts/render.mjs` (legacy, may only be deleted **with** its alias in place), `strings/parts-preview.en.mjs`, `css/computer-preview.css`, `test/chat/unit/computer-format.test.mjs`, `chat-harness/scenarios/k4-preview.mjs` | K4-U3 |
+| `graph/parts/{sticky,section,title}.mjs`, `strings/parts-annotate.en.mjs`, `css/computer-look.css`, `chat-harness/scenarios/k4-shots.mjs` | K4-U4 |
+| `core/types.mjs`, `graph/{topo,canvas,values,model,serialize}.mjs`, `graph/parts/index.mjs`, `computer/{main,host,computer.css}`, `strings/parts.en.mjs`, `css/computer-tokens.css`, the mock, `chat-harness/helpers.js`, `chat-lint.js`, and every pre-K4 test file | integrator |
+
+`graph/canvas.mjs` belonged to K3-U3 and is **integrator-owned for this phase**. Three K4 wishes
+touch it — a Section that parts move with, a drop target, a live Preview frame — and each is a
+contract request, not an edit.
+
+**KD-2. What the kickoff landed** (a builder can import it and run against it right now).
+
+| Landed | File |
+|---|---|
+| `PartSpec.inert` and `PartSpec.quiet` (KD-3). | `core/types.mjs` |
+| `activeSet()` drops `inert` parts in **every** mode, seeds included — the one place the flag is read. | `graph/topo.mjs` |
+| `syncBox()` skips the foot value strip for a `quiet` part — the one place THAT flag is read. | `graph/canvas.mjs` |
+| The catalogue rows: `text.mjs` replaces `note.mjs`, `image`/`preview`/`sticky`/`section`/`title` join, `render` moves to `LEGACY`. | `graph/parts/index.mjs` |
+| Working stubs, each REPLACED wholesale by its unit. | `graph/parts/{text,image,preview,sticky,section,title}.mjs` |
+| `intake` loader row (a `feature`, phase K4) + a working stub with the frozen `app.intake` shape and a PURE `fitWithin`. | `computer/main.mjs`, `computer/intake.mjs` |
+| Four strings files, one per unit, all registering into the `parts` namespace. | `strings/parts-{text,image,preview,annotate}.en.mjs` |
+| Four stylesheets, one per unit, plus their `@import` lines in the entry sheet (look LAST). | `css/computer-{text,image,preview,look}.css`, `computer/computer.css` |
+| The catalogue assertions amended for nineteen palette parts and twenty-two loadable ones; the `output:null` list; two new `inert` assertions. | `test/chat/unit/graph-parts.test.mjs` |
+| `PALETTE`/`LEGACY` amended. | `chat-harness/scenarios/c3-landing.mjs` |
+| The one place a scenario spelled the `note` part's LABEL. | `chat-harness/scenarios/k3-canvas.mjs` |
+
+**KD-3. Two new `PartSpec` declarations, each read in exactly ONE place.** This is the same
+discipline as `manual`/`volatile`/`control`/`thinksFor` (KC): no part type is ever known by name
+outside the catalogue.
+
+```js
+inert?: boolean   // never in the active set, in ANY mode, seed or not. Never counted by the plan
+                  //   preview. Read ONLY by graph/topo.mjs activeSet().
+quiet?: boolean   // the canvas does not draw the one-line value strip under this part's body,
+                  //   because the part draws its own value. Read ONLY by graph/canvas.mjs syncBox().
+```
+`sticky`, `section`, `title` declare both. `preview` declares `quiet`. K4-U1's Text part **must**
+declare `quiet` when it starts rendering its value, and not before.
+
+**KD-4. The Text part (K4-U1) — the contract, frozen.**
+
+- **The type id stays `note`.** `graph/parts/text.mjs` exports `textPart` with `type: 'note'`. Every
+  stored graph, every migrated graph, the fixtures and ~30 tests name that id; a rename would be a
+  migration bought to get a nicer word. The FILE and the LABEL are Text (`parts.textLabel`), which
+  is what a reader sees and what tldraw calls it. There is **no** alias table and nothing to migrate.
+- **Nothing wired in ⇒ exactly today's behaviour.** A literal. `thinks:false`, never a generation,
+  never a seat. This must stay true: it is what makes a Text box free to use as a comment.
+- **One input port**, `{name:'in', accepts:['text','json','list','image','file'] or ['any'], many:true}`
+  — U1 picks, and the refusal for anything it will not take must name the port, what arrived and
+  what to do instead (§8.4). The honest minimum is text/markdown/json.
+- **A run with an incoming value ADOPTS it and passes it on.** COMPUTER_PLAN §6.2, revision 2, is
+  binding and is the whole of why this is cheap: **the arriving text becomes the part's VALUE**, and
+  the body renders the value when one exists, falling back to `settings.text` when it does not.
+  `settings.text` is changed by the person typing and by nothing else. A run NEVER writes the
+  program: `session.patchPart` is runtime-only and not undoable, while `setSettings` goes through
+  `session.apply`, which is undoable, `rev`-bumping, would stale its own downstream mid-run and
+  would then be counted as *"left stale by edits"* (§4.3).
+- **It renders markdown** through `render/md-block.mjs` `parseBlocks()` + `render/dom.mjs`
+  `renderBlocks(blocks, domFactory(document))` — the SAME safe path the thread uses, and the ONLY
+  text→nodes path in the build. Model text never becomes HTML by any other route: no `innerHTML`,
+  no second parser, no sanitiser of its own. The body scrolls (`css/computer-text.css`).
+- **Editing.** A received value shows rendered; clicking into the box shows the SOURCE in a
+  textarea; committing (blur/change) goes back to rendered. Typing is live (`ctx.update`), the
+  commit is what enters undo (`ctx.commit`) — one history entry per edit, not per keystroke.
+- **A "from input" marker with `↺ Clear`** drops the value and reveals the typed text again
+  (`parts.textFromInput`, `parts.textClear`).
+- **The lock** (`settings.locked`, tldraw's 🔒, reference capture §3 lesson 1: *"prevents a text
+  block's text from changing"*). A locked box refuses an arriving value, says so quietly
+  (`parts.textRefused`) and **still passes its own text downstream**.
+- **It must be impossible to lose typing silently.** An arrival never overwrites an edit in
+  progress: if the textarea has focus with uncommitted text, the value is held and the box says
+  `parts.textRefusedUnsaved`. This is stronger than the lock and is not optional.
+- `{format:'markdown'}` on the output value (§6.2) lands **with** the tests that prove what the
+  facet does to prompt assembly (§5.3). The kickoff stub deliberately does not set it, so the
+  kickoff changes no behaviour at all.
+
+**KD-5. Image intake (K4-U2) — the seam, frozen.** `computer/intake.mjs` is a loader `feature`;
+`install(app)` sets `app.intake`, and the Image part, a canvas drop and a window paste all go
+through it, so there is ONE size cap, ONE downscale, ONE EXIF strip and ONE refusal sentence.
+
+```js
+app.intake.fromFile(file)        -> Promise<{dataUrl, name, w, h} | {error}>
+app.intake.fromDataTransfer(dt)  -> Promise<Array<{dataUrl, name, w, h} | {error}>>
+app.intake.pick()                -> Promise<{dataUrl, name, w, h} | {error} | null>
+app.intake.fitWithin(w, h, edge) -> {w, h}      // PURE; the golden numbers are the acceptance
+app.intake.debug()               -> {reads, refused, lastError}
+```
+A refusal is `{error: <a sentence>}`, never a throw: an intake that throws into a drop handler loses
+the picture AND the message. The pipeline is `createImageBitmap` → `OffscreenCanvas` (long side ≤
+`MAX_EDGE` 1536) → `convertToBlob('image/jpeg', 0.85)` → `FileReader.readAsDataURL`. **`FileReader`
+only** — `fetch` is lint rule 11's door and belongs to five other files; `createObjectURL`/`blob:`
+belong to `ui/transfer.mjs`. The cap is `MAX_VALUE_BYTES` (1 MB, already exported by
+`graph/serialize.mjs`); over it is a refusal naming the size. The drop guard in `ui/layout.mjs` must
+keep **not** calling `stopPropagation`.
+
+The **image VALUE stays exactly `{dataUrl, name}`** — the shape `values.mjs` already normalises.
+`w`/`h` are the box's own sizing and never travel on a wire, so `valueOf`, `coerce` and `preview`
+keep working untouched. **Vision is already shipped**: K2 landed it (`graph/bind.mjs` `imagesOf` →
+`ask({images})`, `parts/errNoVision`, `app/ask.mjs` `vision()`), so K4-U2 adds the picture, not the
+plumbing. The mock already serves it: `gemma4:12b` and `mock-echo` claim vision, `assistant` does
+not, and `GET /mock/last-body` returns the raw request — that is how a scenario proves an image
+reached the farm and that a non-vision farm hard-errors **without a request**.
+
+**KD-6. Preview (K4-U3).** `type:'preview'`, one `content` port accepting `['text','json']`,
+`output:null`, `quiet:true`, `PREVIEW_MODES = ['auto','markdown','svg','html','three','p5']`.
+markdown and SVG are **live and free** — `render/dom.mjs` and `design/svg-sanitize.mjs`, with **no
+iframe ever created** (lint rule 12 allows exactly one file to make one, and it is
+`sandbox/host.mjs`). html/three/p5 are a PNG snapshot from the ONE guest, plus "Open live", which
+MOVES that single guest: opening a second closes the first, visibly. `auto` reads the value's
+`format`/`lang` facet (§6.8) and **never sniffs** a Code part's output — that part's picker is the
+answer. The refusal sentence is frozen in `parts.previewRefused` and names an action that exists.
+`render` (C3) stays LOADABLE in `specMap()` and is out of the palette: K4-U3 may delete
+`graph/parts/render.mjs` only if `preview.mjs` provides a `render`-typed alias spec in the same
+edit, and the `LEGACY` row in `graph/parts/index.mjs` is then a contract request.
+
+**KD-7. The annotation parts and the look (K4-U4).** `sticky` (five tints), `section` (a labelled
+dashed region), `title` (three sizes): `inputs: []`, `output: null`, `inert: true`, `quiet: true`.
+They never enter a run set, never appear in the plan preview and never export a value. Parts moving
+**with** a Section is a canvas conversation and therefore a contract request. `css/computer-look.css`
+is the LAST `@import` on purpose — it warms what the other sheets drew, and the cascade is the only
+mechanism it may use. It may not edit another unit's sheet and it may not introduce a colour
+literal: `chat-lint` reports **0** today and must still report 0. The gate is COMPUTER_PLAN §11
+K4-U3 revision 2: the four kind hues measurably distinct in **both** themes and all five kinds
+carrying their glyph — colour **plus** glyph, because `--blue` is grey in the ComfyQ palette and a
+five-hue assertion would fail honestly.
+
+**KD-8. Strings: one file per unit, one namespace.** `registerStrings` merges (`core/i18n.mjs`), and
+`chat-lint` imports every `strings/*.mjs`, so four files can decorate `parts.*` without four
+builders queueing on one file. A unit edits ITS OWN file and no other. **`strings/parts.en.mjs` is
+frozen for this phase** — its `parts.note*`, `parts.ins*`, `parts.render*` keys stay registered
+because a stored graph, a legacy part and a K2 prompt still read them. Adding a key to another
+unit's file, or to `parts.en.mjs`, is a contract request.
+
+**KD-9. Stylesheets: one per unit (§3.6), replaced wholesale.** `css/computer-parts.css` is K3-U2's
+and is **not** the home of the Preview rules, as §11 K4-U2 assumed: the four K4 sheets are
+`computer-text.css`, `computer-image.css`, `computer-preview.css`, `computer-look.css`, already
+`@import`ed by `computer/computer.css` in that order. A 404 on an `@import` is a console network
+error and would fail every harness scenario, which is why all four exist from the kickoff.
+
+**KD-10. Tests, the mock and the harness.** Scenarios are auto-discovered from
+`test/chat-harness/scenarios/*.mjs` — a unit adds its file and needs no registry row. Unit tests are
+auto-discovered the same way from `test/chat/unit/`. The mock needs **no K4 addition**: vision, the
+`supports_vision` table, `mock-echo`, `mock-headings` and `GET /mock/last-body` all shipped earlier.
+Three shared assertions the kickoff already amended for the new catalogue —
+`graph-parts.test.mjs`, `c3-landing.mjs` and the one `'Note'` label in `k3-canvas.mjs` — are
+integrator-owned; if a unit's change makes a fourth pre-K4 file red, that is a contract request,
+never an edit, and **never** a weakened assertion (build rule 5).
+
+**KD-11. What does not change, and is worth saying once more.** Every model call goes to the farm on
+the LAN: no cloud, no CDN, no online fallback, no new npm dependency, no renderer build step, no CSP
+change. Model text becomes nodes through `render/dom.mjs` and through nothing else. Builders never
+commit; the landing integrator commits the phase once, after every gate is green.
+
 ## 3. Architecture and contracts
 
 ### 3.1 Load order, loader and mount

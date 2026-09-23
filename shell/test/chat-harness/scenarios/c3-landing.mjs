@@ -14,9 +14,12 @@
 
 const FARM_ERRORS = [/Failed to load resource/, /net::ERR_/];
 // K3 kickoff (COMPUTER_PLAN §6.6): the six control parts join at the END of the palette.
-const PALETTE = ['note', 'ask', 'split', 'repeat', 'filter', 'code', 'collect', 'render', 'file',
-    'button', 'condition', 'confirm', 'dialog', 'toggle', 'timer'];
-const LEGACY = ['from-thread', 'to-thread'];
+// K4 kickoff (COMPUTER_PLAN §6.4-§6.7): Image, Preview (which replaces Render in the palette)
+// and the three annotation parts join; Render stays loadable so a C3 graph still opens.
+const PALETTE = ['note', 'ask', 'split', 'repeat', 'filter', 'code', 'collect', 'preview', 'file',
+    'image', 'button', 'condition', 'confirm', 'dialog', 'toggle', 'timer',
+    'sticky', 'section', 'title'];
+const LEGACY = ['from-thread', 'to-thread', 'render'];
 
 export default [
     {
@@ -169,7 +172,7 @@ export default [
                     computerFailed: Object.keys(window.LolComputer.failed || {}),
                 };
             });
-            h.eq(seen.types.join(','), PALETTE.join(','), 'the catalogue is not the fifteen in palette order: ' + seen.types.join(','));
+            h.eq(seen.types.join(','), PALETTE.join(','), 'the catalogue is not the nineteen in palette order: ' + seen.types.join(','));
             for (const type of LEGACY) {
                 h.eq(seen.types.indexOf(type), -1, type + ' is still offered in the palette');
                 h.assert(seen.loadable.indexOf(type) >= 0,
@@ -178,7 +181,7 @@ export default [
             h.eq(seen.failed.length, 0, 'chat modules failed to load: ' + seen.failed.join(', '));
             h.eq(seen.computerFailed.length, 0, 'Computer modules failed to load: ' + seen.computerFailed.join(', '));
             h.eq(seen.version, 'vnext-k1', 'the chat loader says it is ' + seen.version);
-            h.eq(seen.computerVersion, 'vnext-k1', 'the Computer loader says it is ' + seen.computerVersion);
+            h.eq(seen.computerVersion, 'vnext-k4', 'the Computer loader says it is ' + seen.computerVersion);
 
             // The sandbox is imported by its consumers, never installed as a feature (BG-2/BJ-1),
             // and the CHAT no longer reaches the graph tree at all (K1: the `computer` loader row

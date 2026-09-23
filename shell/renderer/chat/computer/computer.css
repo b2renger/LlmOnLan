@@ -27,5 +27,13 @@
 @import url('../css/computer-parts.css');
 /* K3-U3: what RUNNING looks like — states, the per-box play, barred and back wires. */
 @import url('../css/computer-states.css');
-/* K4-U2/U3 and K5-U1 add their own @import lines at their kickoffs:
-   computer-look.css, computer-rail.css. */
+/* K4-U1: the Text part — rendered markdown, the source swap, the lock. */
+@import url('../css/computer-text.css');
+/* K4-U2: the Image part and what intake looks like. */
+@import url('../css/computer-image.css');
+/* K4-U3: the Preview family — markdown/SVG bodies, the snapshot tile, "Open live". */
+@import url('../css/computer-preview.css');
+/* K4-U4, LAST on purpose: the warmed-up look (§9) and the three annotation parts. It warms what
+   the sheets above drew, and the cascade is the only mechanism it may use. */
+@import url('../css/computer-look.css');
+/* K5-U1 adds its own @import line at that kickoff: computer-rail.css. */

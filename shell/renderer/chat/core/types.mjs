@@ -302,9 +302,18 @@
  * `output: 'any'` (K3) means "whatever came in, passed through": `wireRefusal` skips the kind
  * check on the way OUT of such a part, and the value the part actually returns still carries a
  * real kind. It is a SPEC declaration and never a GraphValue.kind.
+ * K4 (COMPUTER_PLAN §6.5, §6.7) adds two more, both read in ONE place each, both defaulting to
+ * false, so no part type is ever known by name outside the catalogue:
+ *   `inert`      never placed in the active set by ANY mode, seeds included, never counted by the
+ *                plan preview. The three annotation parts (Sticky, Section, Title) are what it is
+ *                for: they are there for the reader, not for the run. Honoured in
+ *                graph/topo.mjs `activeSet()`.
+ *   `quiet`      the canvas does not draw the one-line value strip under this part's body. A part
+ *                that SHOWS its own value (Text renders it as markdown, Preview draws it) would
+ *                otherwise print the same text twice. Honoured in graph/canvas.mjs `syncBox()`.
  * @typedef {{ type: string, label: string, order?: number, thinks?: boolean,
  *   size?: {w: number, h: number},
- *   manual?: boolean, volatile?: boolean, control?: boolean,
+ *   manual?: boolean, volatile?: boolean, control?: boolean, inert?: boolean, quiet?: boolean,
  *   thinksFor?: (part: GraphPart) => boolean,
  *   inputs: {name: string, label: string, accepts: string[], many?: boolean, required?: boolean}[],
  *   output: 'text'|'image'|'list'|'json'|'file'|'any'|null,

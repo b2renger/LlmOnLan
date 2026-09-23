@@ -106,7 +106,14 @@ const inspect = () => {
         parts: parts.map((el) => {
             const r = el.getBoundingClientRect();
             const head = el.querySelector('.graph-part-head');
-            const value = el.querySelector('.graph-value');
+            // K4 landing (COMPUTER_PLAN §6.2, addendum KD-3): a `quiet` part draws its OWN value
+            // and the canvas skips the foot strip, so the same words are not printed twice. The
+            // assertion "a part shows its value after a run" is unchanged — for a Text box the
+            // value preview IS its rendered body.
+            // The foot strip ELEMENT always exists and is emptied when hidden, so this picks the
+            // one that actually carries words rather than the first that exists.
+            const strip = el.querySelector('.graph-value');
+            const value = (strip && (strip.textContent || '').trim()) ? strip : el.querySelector('.graph-text-body');
             return {
                 type: el.getAttribute('data-type'),
                 state: el.getAttribute('data-state'),

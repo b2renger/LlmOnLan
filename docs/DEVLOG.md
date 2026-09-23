@@ -6,6 +6,113 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-09-23 — The Computer **K4**: text boxes that receive, pictures the model can read, previews, and the warm look
+
+The owner ran K3 against the real farm with a labelled arrow and an Instruction, said it works, and
+asked for the one thing missing: *"we should have text boxes with input and output and we should be
+able to render generated text from instruct or other boxes into those text boxes."* That outranked the
+plan's K4 split and became the first unit of the phase. Four units landed together.
+
+### The Text part — a box that both holds and receives (K4-U1)
+
+`graph/parts/note.mjs` is gone; `graph/parts/text.mjs` takes its row. **The type id is still `note`**,
+so every stored graph, every fixture and both shipped examples keep loading — what changed is the file,
+the label ("Text"), and the input port.
+
+- One `in` port (`accepts: ['text','json','list']`, `many: true`) and `output: 'text'`. Wire an
+  Instruction into a Text box and the answer LANDS there and is passed on downstream.
+- The content renders as **markdown** — headings, bold, lists, tables, code — through `parseBlocks()` +
+  `renderBlocks(…, domFactory(document))` and through nothing else. A scenario feeds an
+  `<img src=x onerror=…>` and proves it stays inert text (§0.2 rule 6, LOLCHAT_PLAN §1.2).
+- With nothing wired in it is exactly the literal C1 shipped, textarea and all: an empty box is still
+  something you type into without clicking first.
+- **A run never writes the program.** The arrival becomes `part.value` (runtime only);
+  `settings.text` is changed by typing and by nothing else. Asserted both ways.
+- **The lock** refuses an arrival, says so quietly, and still passes its own text downstream — so a
+  locked box is a constant in a loop rather than a hole in it.
+- **An arrival never lands on an open source editor.** The box keeps the person's words and says so.
+  This is the rule that makes it impossible to lose typing silently.
+- Clicking a rendered box shows the source; typing is live, blur/change commits one undo entry; the
+  first keystroke claims the arrival so the answer cannot snap back over the edit.
+
+### The picture door (K4-U2)
+
+`computer/intake.mjs` (one loader row, `role: 'feature'` — a build without it still runs graphs) and
+`graph/parts/image.mjs`. Drop or paste a picture on the canvas, it is downscaled and stored in
+attachments, and a wired Image reaches `ask({images})` as an `image_url` part for the farm's vision
+model. No `fetch`, no `createObjectURL`, no `blob:` — `chat-lint` proves it. A farm that reports
+`vision: 'no'` hard-errors in a sentence instead of sending a request nobody can answer.
+
+### The Preview family (K4-U3)
+
+`graph/parts/preview.mjs`. **Markdown and SVG are free and make no iframe at all** — markdown through
+the same safe DOM builder, SVG through `design/svg-sanitize.mjs` shown as a `data:` image, so the bytes
+on screen are the bytes "Save…" writes. `html` / `three` / `p5` are a PNG snapshot from the panel's ONE
+guest (§2.6 BJ-7 — one sandbox, still). `auto` reads the declared `format` facet and never sniffs, so a
+markdown report that quotes an `<svg` is still a report. A picked mode always beats the facet and
+survives save, reload and export. C3's `render` leaves the palette and stays loadable.
+
+### The warmed-up look and the annotation parts (K4-U4)
+
+`css/computer-look.css` is §9: the kind palette as tokens with a glyph beside every port dot (T ≡ {} ▣ ⎘,
+and a neutral ∗ for a control part's pass-through), 14 px card radius, a 24 px grid, title bars in muted
+caps, a selection ring written as an `outline` so it composes with the run-state shadows instead of
+replacing them. **0 colour literals.** Sticky (five tints), Section (a dashed named region that never
+steals a click from the parts it frames) and Title (three sizes) are `inert`: never in a run set, never
+counted by the plan preview, honoured in exactly one place (`graph/topo.mjs activeSet()`).
+
+The look cost a perf round: the first sheet took the 500-part pan-work p95 from 7.5 ms to 17.6 ms, over
+the 16 ms budget. Dropping a `:has()` sticky tint and the port hit-target pseudo-element, and making the
+drag handle a reveal rather than an always-drawn box, brought it back — 10.9 ms measured under load by
+the builder, **4.7 ms** re-measured at the landing on a quiet slot 0.
+
+### Two integrator amendments, and why they are not weakened tests
+
+`quiet` (new in `PartSpec`, read only in `graph/canvas.mjs syncBox()`) stops the canvas printing a
+part's value a second time in the foot strip when the part already draws it. Text renders its value as
+markdown; Preview draws it; Sticky/Section/Title have none. Two pre-K4 scenarios asserted the strip on a
+`note`:
+
+- `c1-canvas-contract` — the "a value preview is a button that opens the value" probe now places a
+  `collect`, which is the nearest neighbour that still has a foot strip. The contract being tested (the
+  strip is a button, it opens the value) is unchanged and still tested.
+- `c1-shots-dark` / `c1-shots-light` — "a part shows its value after a run" now reads the strip *or*,
+  when the strip is empty, the part's own rendered body. For a Text box the value preview **is** its
+  body. The assertion is the same sentence; what satisfies it grew one legal shape.
+
+The Computer loader's `PHASE` is now `K4` (`computer/main.mjs`), with the `c3-landing` assertion in the
+same edit.
+
+### Deferred, and stated rather than hidden
+
+- **"Open live"** (§6.5 — a Preview box that holds the one live guest instead of a snapshot) is **not
+  built**. It needs a `session.sandboxLiveAt(el|null)` seam in `computer/host.mjs`: today `mount()`
+  only chooses where the *next* frame boots, `hide()` tears down on a 10 s grace, and `destroy()`
+  disposes the host for the whole panel. Nothing on a Preview box claims to be live.
+- **Parts inside a Section do not move with it** (§6.7). The Section frames and names; `parts.sectionHint`
+  says "lay the parts of one idea inside it", which is what it does. Drag semantics are a separate change.
+- **Wires still stroke `--grey`**, not the source kind's colour (§9). The port dots and their glyphs
+  carry the whole type system today; finishing it needs `data-kind` on the wire path.
+- `css/computer-look.css` mirrors the catalogue's kinds on `[data-type][data-port]` because
+  `graph/canvas.mjs` writes no `data-kind` on a port. The mirror is **guarded**: `k4-shots-kinds`
+  re-derives every port's kind from the live catalogue and fails, naming each drifted port, if the
+  sheet and the catalogue disagree.
+
+### Tested
+
+`chat-unit` **1184 passed** · `unit` 5 · `chat-lint` 175 files / **0 violations** · `chat-scope` clean ·
+`chat-harness --strict` **251 passed** · perf **9 passed**, at slot 0 on a quiet box. The perf medians
+there: 500 parts build 134 ms, pan work p50 3.3 / **p95 4.7 ms** of a 16 ms budget, 0 transformed parts;
+a run of 1000 parts at **0.28 ms/part** of 0.4. Light and dark
+screenshots of the Computer surface were taken and looked at: the Text box renders its markdown body,
+the stickies read as sticky notes in both themes, and the four kind hues are pairwise distinct on a
+channel by ≥ 24 in both themes with five distinct glyphs.
+
+Nothing here was run in the real client — the harness drives the renderer, and the box runs a production
+farm. What only the owner can check is in [COMPUTER_STATUS.md](COMPUTER_STATUS.md).
+
+---
+
 ## 2026-09-23 — LOL Chat vNext **K3 fix round**: a run never outlives the question it asked, nor the graph it was started on
 
 Seven reviewer findings against the K3 landing (`da9b461`). Six fixed at the root with a test that

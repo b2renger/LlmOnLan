@@ -35,7 +35,7 @@ import { spine } from './boot.mjs';
 import { computeVisible, runnerExecuting } from './visible.mjs';
 import '../strings/computer.en.mjs';
 
-const PHASE = 'K1';   // the K2 LANDING bumps this, with c3-landing.mjs:178-179 in the same edit
+const PHASE = 'K4';   // each LANDING bumps this, with the c3-landing assertion in the same edit
 
 /** @type {import('../core/types.mjs').ModuleRow[]} */
 const MODULES = [
@@ -50,7 +50,10 @@ const MODULES = [
   // features install in this table's order.
   { key: 'transcript', path: './transcript.mjs',    role: 'feature',   fake: null, phase: 'K2' },
   { key: 'runbar',   path: './runbar.mjs',          role: 'feature',   fake: null, phase: 'K3' },
-  // K4/K5 rows (intake, welcome, tutorial) are added at those kickoffs.
+  // K4 (COMPUTER_PLAN §6.4): the ONE door a picture comes in by. A `feature`, so a build without
+  // it still runs graphs — the Image part then says it cannot read a picture instead of throwing.
+  { key: 'intake',   path: './intake.mjs',          role: 'feature',   fake: null, phase: 'K4' },
+  // K5 rows (welcome, tutorial) are added at that kickoff.
   //
   // LEAVES WITH NO ROW — a static import of their consumer, so a typo surfaces as that consumer
   // failing: graph/**, sandbox/**, computer/{boot,layout,visible,docstore}.mjs, every

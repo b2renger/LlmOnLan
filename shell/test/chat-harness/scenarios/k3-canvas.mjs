@@ -439,7 +439,8 @@ export default [
             await h.eval((id) => window.LolComputer.app.host.canvas.setLimited(
                 { ceiling: 'maxWallMs', partId: id, limit: 600000, reached: 600000, raiseTo: 1200000 }), firstPart);
             const park = await strip(h);
-            h.eq(park.title, await str(h, 'computer.limitWallPark', { part: 'Note', minutes: 10 }),
+            // K4 kickoff: the `note` part's LABEL is now "Text" (its type id is unchanged).
+            h.eq(park.title, await str(h, 'computer.limitWallPark', { part: 'Text', minutes: 10 }),
                 `an unanswered question says so by name, got "${park.title}"`);
 
             // 3. loop-ungated — the strongest safety property in the build, and the one refusal

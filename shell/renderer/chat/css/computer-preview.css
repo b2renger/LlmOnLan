@@ -1,0 +1,135 @@
+/* computer-preview.css — K4-U3's sheet: the Preview family (COMPUTER_PLAN §6.5).
+   One stylesheet per unit (§3.6): K4-U3 REPLACES this file wholesale. It does NOT touch
+   css/computer-parts.css (K3-U2's) or css/sandbox.css (the guest's own, shared with the chat).
+
+   What lands here: the markdown and SVG bodies, the snapshot tile and its sizing, and the note
+   that says which of the two a reader is looking at. Tokens only (lint rule 3).
+
+   The Preview surface is scoped to `#lolcomputer` because Preview is a Computer part; the older
+   `.graph-render-*` rules in css/graph.css stay where they are for the legacy C3 part. */
+
+#lolcomputer .graph-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 0;
+  flex: 1;
+}
+
+#lolcomputer .graph-preview-size { display: flex; gap: 6px; }
+#lolcomputer .graph-preview-size .graph-part-field { flex: 1; min-width: 0; }
+
+/* The body is the window: it scrolls, it never pushes the box open, and a long report stays
+   readable inside it (§6.5 — the owner's own graphs are full markdown reports). */
+#lolcomputer .graph-preview-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 12px;
+  line-height: 1.5;
+  word-break: break-word;
+}
+
+#lolcomputer .graph-preview-body:empty { display: none; }
+
+/* Markdown, drawn by render/dom.mjs. Compact, because it lives in a box on a canvas — the drawer
+   is where a report is read full size. */
+#lolcomputer .graph-preview-body > :first-child { margin-top: 0; }
+#lolcomputer .graph-preview-body > :last-child { margin-bottom: 0; }
+
+#lolcomputer .graph-preview-body :is(h1, h2, h3, h4, h5, h6) {
+  margin: 0.7em 0 0.3em;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+#lolcomputer .graph-preview-body h1 { font-size: 15px; }
+#lolcomputer .graph-preview-body h2 { font-size: 14px; }
+
+#lolcomputer .graph-preview-body :is(p, ul, ol, pre, table, blockquote) { margin: 0.45em 0; }
+#lolcomputer .graph-preview-body :is(ul, ol) { padding-left: 1.2em; }
+
+#lolcomputer .graph-preview-body :is(code, pre) {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+}
+
+#lolcomputer .graph-preview-body pre {
+  overflow: auto;
+  padding: 6px 7px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--bg);
+}
+
+#lolcomputer .graph-preview-body blockquote {
+  padding-left: 8px;
+  border-left: 2px solid var(--border);
+  color: var(--muted);
+}
+
+#lolcomputer .graph-preview-body table {
+  border-collapse: collapse;
+  font-size: 11px;
+}
+
+#lolcomputer .graph-preview-body :is(th, td) {
+  border: 1px solid var(--border);
+  padding: 2px 6px;
+  text-align: left;
+}
+
+#lolcomputer .graph-preview-body hr {
+  border: 0;
+  border-top: 1px solid var(--border);
+  margin: 0.6em 0;
+}
+
+#lolcomputer .graph-preview-body a { color: var(--accent-hover); }
+
+/* The picture: a sanitised SVG or the guest's PNG. `object-fit: contain` is what keeps a 2048px
+   sketch honest inside a 320px box instead of cropping it. */
+#lolcomputer .graph-preview-tile {
+  display: block;
+  width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  border-radius: 7px;
+  background: var(--surface);
+}
+
+/* A body that holds a picture stops scrolling and centres it. */
+#lolcomputer .graph-preview-body:has(.graph-preview-tile) {
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+}
+
+#lolcomputer .graph-preview-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+#lolcomputer .graph-preview-save {
+  align-self: flex-start;
+  font: inherit;
+  font-size: 11px;
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface-2);
+  color: var(--text);
+  cursor: pointer;
+}
+
+#lolcomputer .graph-preview-save:hover { border-color: var(--accent-hover); }

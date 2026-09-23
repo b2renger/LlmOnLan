@@ -1288,7 +1288,10 @@ export function createCanvas(o) {
     }
     const sel = selectedSet.has(part.id);
     if (last.sel !== sel) { box.node.setAttribute('aria-selected', sel ? 'true' : 'false'); last.sel = sel; }
-    const text = part.value ? preview(part.value) : '';
+    // K4 kickoff (addendum KD-4): a `quiet` part draws its own value — Text renders it as
+    // markdown, Preview draws it — so the canvas does not print the same words a second time in
+    // the foot strip. Every other part keeps the strip, and the "open the value" click with it.
+    const text = part.value && !(box.spec && /** @type {any} */ (box.spec).quiet) ? preview(part.value) : '';
     if (last.value !== text) {
       box.value.textContent = text;
       box.value.hidden = !text;

@@ -99,12 +99,17 @@ export default (test) => {
     // palette; eleven loadable. Image and Look still wait on P3's attachment intake (BH-10).
     // K3 kickoff (COMPUTER_PLAN §6.6): the six control parts join the palette, at the END — the
     // nine data parts are what a first-time reader meets, the controls are what lesson 9 adds.
+    // K4 kickoff (COMPUTER_PLAN §6.4, §6.5, §6.7): Image joins "bring in", Preview REPLACES
+    // Render in the palette (Render stays loadable), and the three annotation parts land at the
+    // end. `note` keeps its type id and becomes the Text part (graph/parts/text.mjs).
     assert.deepEqual(partSpecs().map((s) => s.type),
-      ['note', 'ask', 'split', 'repeat', 'filter', 'code', 'collect', 'render', 'file',
-        'button', 'condition', 'confirm', 'dialog', 'toggle', 'timer']);
+      ['note', 'ask', 'split', 'repeat', 'filter', 'code', 'collect', 'preview', 'file', 'image',
+        'button', 'condition', 'confirm', 'dialog', 'toggle', 'timer',
+        'sticky', 'section', 'title']);
     assert.deepEqual([...specMap().keys()].sort(),
       ['ask', 'button', 'code', 'collect', 'condition', 'confirm', 'dialog', 'file', 'filter',
-        'from-thread', 'note', 'render', 'repeat', 'split', 'timer', 'to-thread', 'toggle'],
+        'from-thread', 'image', 'note', 'preview', 'render', 'repeat', 'section', 'split',
+        'sticky', 'timer', 'title', 'to-thread', 'toggle'],
       'a legacy part left specMap() too — a migrated graph would trip part:unknown-type');
     for (const spec of [...specMap().values()]) {
       assert.equal(typeof spec.label, 'string', `${spec.type} has a resolved label`);
@@ -126,9 +131,19 @@ export default (test) => {
     assert.deepEqual(partSpecs().filter((s) => s.manual).map((s) => s.type), ['button']);
     assert.deepEqual(partSpecs().filter((s) => s.control).map((s) => s.type),
       ['button', 'condition', 'confirm', 'dialog', 'toggle', 'timer']);
-    // Exactly one part has no output: To thread, whose result WAS the conversation (BH-6) and is
-    // now a legacy part that refuses — it is reachable through specMap(), never the palette.
-    assert.deepEqual([...specMap().values()].filter((s) => s.output === null).map((s) => s.type), ['to-thread']);
+    // The parts with no output are the ones that are an END: Preview SHOWS what arrived (§6.5),
+    // the three annotation parts are there for the reader (§6.7), and To thread is the legacy
+    // part whose result WAS the conversation (BH-6) — reachable through specMap(), never the
+    // palette. K4 kickoff: the annotation three also declare `inert`, which is what keeps them
+    // out of every active set (graph/topo.mjs), and `quiet`, which keeps the canvas from
+    // printing a value strip under a part that draws its own (graph/canvas.mjs).
+    assert.deepEqual([...specMap().values()].filter((s) => s.output === null).map((s) => s.type),
+      ['preview', 'sticky', 'section', 'title', 'to-thread']);
+    assert.deepEqual(partSpecs().filter((s) => s.inert).map((s) => s.type), ['sticky', 'section', 'title']);
+    for (const s of partSpecs().filter((p) => p.inert)) {
+      assert.deepEqual(s.inputs, [], `${s.type} is inert, so it has no ports`);
+      assert.equal(s.output, null, `${s.type} is inert, so it produces nothing`);
+    }
   });
 
   // ---- values --------------------------------------------------------------------------------
