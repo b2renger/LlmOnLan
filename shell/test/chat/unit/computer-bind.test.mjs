@@ -17,7 +17,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   labelKey, labelName, mentions, mentionAt,
-  bindInputs, bindArrivals, assemblePrompt, planFor,
+  bindInputs, bindArrivals, assemblePrompt, planFor, fanOf,
   SYSTEM, FALLBACK, INLINE_MAX,
 } from '../../../renderer/chat/graph/bind.mjs';
 import { valueOf, listOf } from '../../../renderer/chat/graph/values.mjs';
@@ -361,7 +361,11 @@ export default (test) => {
     assert.equal(out.truncated.of, 8006 + '# Inputs\n\n## report\n\n\n# Instruction\nsummarise the report'.length);
     assert.equal(out.truncated.params.length, 1);
     assert.equal(out.truncated.params[0].name, 'report');
-    assert.equal(out.truncated.cut, out.truncated.params[0].omitted);
+    // `cut` is MEASURED, not intended (fix pass, finding 3): the prompt as it was, minus the
+    // prompt as it is. It differs from the block's `omitted` by exactly the marker that replaced
+    // the omission, and the badge that prints it is now printing a fact.
+    assert.equal(out.truncated.cut, out.truncated.of - out.prompt.length);
+    assert.ok(out.truncated.cut < out.truncated.params[0].omitted);
   });
 
   test('§5.4 — the cut is PROPORTIONAL: a big input loses more than a small one, and neither is dropped', () => {
@@ -385,6 +389,47 @@ export default (test) => {
     assert.ok(out.prompt.includes('## a') && out.prompt.includes('## b'));
     assert.equal(out.truncated.params.length, 2);
     assert.ok(out.truncated.cut >= 900);
+  });
+
+  // The three cases that used to make `trim()` produce a LONGER prompt than it was given (fix
+  // pass, finding 3): the marker costs ~25 characters however short the block was, so cutting a
+  // ten-character note used to grow it, and a prompt of many small inputs came back bigger AND
+  // still over budget, with a `cut` number the badge printed as fact.
+  test('§5.4 — cutting never makes the prompt LONGER: many tiny inputs, a tiny budget', () => {
+    const pairs = [];
+    for (let i = 0; i < 12; i++) pairs.push([`p${i}`, text('ab')]);
+    const b = arrive(pairs, 'x'.repeat(300));
+    const whole = assemblePrompt(b, 'x'.repeat(300), {});
+    const out = assemblePrompt(b, 'x'.repeat(300), { budget: 200 });
+    assert.ok(out.prompt.length <= whole.prompt.length,
+      `cutting grew the prompt: ${whole.prompt.length} -> ${out.prompt.length}`);
+    // Nothing could be cut — every body is shorter than the marker that would replace it — so
+    // there is no badge to show. A badge reading `0 characters cut` would be a lie of a kind.
+    assert.equal(out.truncated, null);
+    for (let i = 0; i < 12; i++) assert.ok(out.prompt.includes(`## p${i}\nab`), `p${i} is intact`);
+  });
+
+  test('§5.4 — a mixed prompt FITS its budget, and the cut lands on the block that is big', () => {
+    const b = arrive([
+      ['note', text('a short note')],
+      ['code', text('C'.repeat(4000), { format: 'code', lang: 'js' })],
+      ['tag', text('x')],
+    ], 'use the note, the code and the tag');
+    const out = assemblePrompt(b, 'use the note, the code and the tag', { budget: 600 });
+    assert.ok(out.prompt.length <= 600, `assembled ${out.prompt.length} into a 600 budget`);
+    assert.ok(out.prompt.includes('a short note'), 'the small note is left exactly as it was');
+    assert.ok(out.prompt.includes('## tag\nx'));
+    assert.deepEqual(out.truncated.params.map((q) => q.name), ['code'], 'only the big one paid');
+    assert.equal(out.truncated.cut, out.truncated.of - out.prompt.length);
+  });
+
+  test('§5.4 — when only the headings fit, the prompt still never grows and the badge is honest', () => {
+    const b = arrive([['a', text('x'.repeat(500))], ['b', text('y'.repeat(500))]], 'go');
+    const whole = assemblePrompt(b, 'go', {});
+    const out = assemblePrompt(b, 'go', { budget: 80 });
+    assert.ok(out.prompt.length < whole.prompt.length);
+    assert.equal(out.truncated.cut, out.truncated.of - out.prompt.length);
+    assert.equal(out.truncated.of, whole.prompt.length);
   });
 
   test('§5.4 — a budget of 0 or nonsense means "do not cut", never "cut everything"', () => {
@@ -412,6 +457,73 @@ export default (test) => {
     assert.equal(b.params[1].values.length, 0);
     const out = assemblePrompt(b, 'use the topic and the research', {});
     assert.ok(out.prompt.includes('## research\n⟨research — has not run yet⟩'), out.prompt);
+  });
+
+  // -------------------------------------------------------------------------------------------
+  // The BLOCKS — the structure the transcript reads instead of re-parsing the bytes
+  // -------------------------------------------------------------------------------------------
+
+  test('§5.3 — the assembly reports the blocks it built, one per parameter, with its own param', () => {
+    const b = arrive([
+      ['topic', text('museums')],
+      ['notes', text('# Instruction\n## Findings\nbody', { format: 'markdown' })],
+    ], 'write about the topic using the notes');
+    const out = assemblePrompt(b, 'write about the topic using the notes', {});
+    assert.deepEqual(out.blocks.map((x) => x.name), ['topic', 'notes'],
+      'TWO blocks — a `##` heading inside the reader\'s own note is text, not structure');
+    assert.equal(out.blocks[1].body, '# Instruction\n## Findings\nbody',
+      'and the body is the value VERBATIM, headings and all');
+    assert.equal(out.blocks[0].param, b.params[0], 'each block carries the parameter it came from');
+    assert.equal(out.blocks[1].param, b.params[1]);
+    assert.equal(out.instruction, 'write about the topic using the notes');
+  });
+
+  test('§5.3 — an image block is named `(image, attached)`, and an inlined one has no block at all', () => {
+    const img = valueOf('image', { dataUrl: 'data:image/png;base64,AAAA', name: 'p.png' });
+    const b = arrive([['photo', img], ['topic', text('museums')]], 'describe the photo about the topic');
+    const out = assemblePrompt(b, 'describe the photo about the topic', { inline: true });
+    assert.deepEqual(out.blocks.map((x) => x.name), ['photo (image, attached)'],
+      'the short text was substituted in place, so it is not under # Inputs any more');
+    assert.equal(out.blocks[0].param.values[0].kind, 'image', 'the tint comes from the right value');
+  });
+
+  test('§5.3 — the blocks are the CUT bodies, so what is read is what is sent', () => {
+    const b = arrive([['report', text('A'.repeat(4000))]], 'summarise the report');
+    const out = assemblePrompt(b, 'summarise the report', { budget: 900 });
+    assert.equal(out.blocks.length, 1);
+    assert.ok(out.prompt.includes(out.blocks[0].body), 'the block IS the text in the prompt');
+    assert.ok(out.blocks[0].body.includes('characters omitted'));
+  });
+
+  // -------------------------------------------------------------------------------------------
+  // §4.7 — the fan the runner will plan, seen before it runs
+  // -------------------------------------------------------------------------------------------
+
+  test('§4.7 — a list at the port is N generations: the plan assembles generation 1 and says so', () => {
+    const items = listOf([text('alpha'), text('beta'), text('gamma')]);
+    const d = doc([{ id: 'a', value: items }], [{ from: 'a', label: 'item' }], { instruction: 'translate the item' });
+    const plan = planFor({ part: d.parts[1], bind: bindInputs(d, 'ins'), budget: { chars: 0, tokens: 0, assumed: true } });
+    assert.deepEqual(plan.fan, { n: 3, index: 0 });
+    assert.ok(plan.assembled.prompt.includes('## item\nalpha'),
+      `generation 1 sends ONE item, not the whole list:\n${plan.assembled.prompt}`);
+    assert.equal(plan.assembled.prompt.includes('beta'), false);
+    // and the RUN door, which is handed one item, agrees with it byte for byte.
+    const run = planFor({
+      part: d.parts[1],
+      bind: bindArrivals({ values: [text('alpha')], labels: ['item'], instruction: 'translate the item' }),
+      budget: { chars: 0, tokens: 0, assumed: true },
+    });
+    assert.equal(run.fan, null, 'the run door is past the fan and must never fan again');
+    assert.equal(run.assembled.prompt, plan.assembled.prompt);
+  });
+
+  test('§4.7 — no fan to show: no list, two lists (the runner refuses), an empty list', () => {
+    const one = listOf([text('a')]);
+    assert.equal(fanOf([{ values: [text('x')] }]), null, 'nothing fans');
+    assert.equal(fanOf([{ values: [one] }, { values: [listOf([text('b')])] }]), null,
+      'two lists is the runner\'s refusal — there is no generation 1 to preview');
+    assert.equal(fanOf([{ values: [listOf([])] }]), null, 'an empty list runs zero times');
+    assert.deepEqual(fanOf([{ values: [text('x')] }, { values: [one] }]), { param: 1, at: 0, n: 1 });
   });
 
   test('§8.1 — the two doors agree: the same arrivals assemble the same prompt', () => {

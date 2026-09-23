@@ -113,9 +113,12 @@ export default [
             const text = await h.graph.call('exportText', { values: false });
             h.assert(typeof text === 'string' && text.length > 50, 'the export is text');
             const file = JSON.parse(text);
-            // 2 since the K2 kickoff: v2 adds `wire.label` (COMPUTER_PLAN §5.1) and a value's
-            // format/lang facets. A v1 file still opens — graph-serialize.test.mjs proves it.
-            h.eq(file.lolgraph, 2, 'the format tag names itself and its version');
+            // The version follows the CONTENT (fix pass, finding 7): v2 exists for `wire.label`
+            // (COMPUTER_PLAN §5.1) and a value's format/lang facets, and this graph carries
+            // neither — so it is still a v1 file, and a client shipped before K2 can still open
+            // it. `fromJson` refuses a newer version whole, so stamping 2 on a file that needs
+            // nothing from v2 would lock those clients out for a number alone.
+            h.eq(file.lolgraph, 1, 'the format tag names itself and the version its CONTENT needs');
             h.eq(file.parts.length, 4);
             h.eq(file.wires.length, 3);
             // §5, asserted on the BYTES: a graph file carries the program, never the machine.

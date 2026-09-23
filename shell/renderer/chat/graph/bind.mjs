@@ -162,7 +162,10 @@ export function bindInputs(doc, partId, o) {
       });
     }
   }
-  return bindCore(arrivals, instruction);
+  // `prerun` marks this as the DOCUMENT door, which is the only one that may still be looking at a
+  // list the runner is going to fan (see `fanOf`). The run door is handed one item at a time and
+  // must never fan a second time.
+  return bindCore(arrivals, instruction, true);
 }
 
 /**
@@ -190,9 +193,9 @@ export function bindArrivals(o) {
  *   8. a label that normalises to empty IS unlabelled.
  *   9. order = mentioned (by first mention) · unmentioned (wire order) · unlabelled (wire order).
  * @param {{value: GraphValue|null, label: string, from: string}[]} arrivals
- * @param {string} instruction @returns {BindResult}
+ * @param {string} instruction @param {boolean} [prerun] @returns {BindResult}
  */
-function bindCore(arrivals, instruction) {
+function bindCore(arrivals, instruction, prerun) {
   /** @type {Map<string, BoundParam>} */ const named = new Map();
   /** @type {BoundParam[]} */ const positional = [];
 
@@ -229,7 +232,53 @@ function bindCore(arrivals, instruction) {
     params: [...mentioned, ...rest, ...positional],        // rule 9c — unlabelled last
     unused: rest.map((p) => p.name),                       // rule 4 — a chip, not an error
     unwired: unwiredNames(instruction, new Set(all.map((p) => p.key))),  // rule 5
+    prerun: prerun === true,
   };
+}
+
+// ---------------------------------------------------------------------------------------------
+// §4.7 — the fan the RUNNER would plan, seen from the pre-run door
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * Which arrival the runner is going to fan, and how many times this box will therefore run.
+ *
+ * The Instruction's port takes every kind but `list` (parts/instruction.mjs), so a `list` arriving
+ * there means `accepts()` answers `'fanout'` and `fanout.mjs`'s `planFan` runs the part ONCE PER
+ * ITEM with that arrival replaced by the item. Before this existed (fix pass, finding 2) the Sent
+ * tab and the box's own strip showed the whole list under one heading — a prompt that would never
+ * be sent, on the one multi-generation path K2 went out of its way to keep. §8.1's promise is
+ * "what you read is what will be sent", so what is read is now generation 1, and it says so.
+ *
+ * Only a SINGLE list fans: two is `planFan`'s `refuse` and the runner reports it, so there is no
+ * generation 1 to show; an empty list runs zero times and there is no item to substitute. Both
+ * answer null, and the prompt is shown exactly as assembled from what is really there.
+ * @param {BoundParam[]} params @returns {{param: number, at: number, n: number}|null}
+ */
+export function fanOf(params) {
+  /** @type {{param: number, at: number, n: number}|null} */ let found = null;
+  let lists = 0;
+  const all = Array.isArray(params) ? params : [];
+  for (let pi = 0; pi < all.length; pi++) {
+    const values = (all[pi] && all[pi].values) || [];
+    for (let at = 0; at < values.length; at++) {
+      const v = /** @type {any} */ (values[at]);
+      if (!v || v.kind !== 'list') continue;
+      lists += 1;
+      if (!found) found = { param: pi, at, n: itemsOf(v).length };
+    }
+  }
+  return lists === 1 && found && found.n > 0 ? found : null;
+}
+
+/** The same parameters, with the fanning list replaced by item `i` — exactly the substitution
+ * `planFan(...).inputsFor(i)` makes at run time, so the preview assembles the run's own bytes.
+ * @param {BoundParam[]} params @param {{param: number, at: number}} fan @param {number} i */
+function forItem(params, fan, i) {
+  return params.map((p, pi) => (pi !== fan.param ? p : /** @type {any} */ ({
+    ...p,
+    values: p.values.map((v, at) => (at === fan.at ? itemsOf(/** @type {any} */ (v))[i] : v)),
+  })));
 }
 
 /** Names the instruction writes as `{name}` or `$name` that no arrow supplies. A bare phrase
@@ -273,25 +322,39 @@ export function assemblePrompt(params, instruction, o) {
 
   // 2. One block per parameter that is still supplied under `# Inputs`. An inlined one is NOT
   //    repeated here (§5.3) — that is the whole point of substituting it in place.
+  //
+  //    Each block REMEMBERS the parameter it was built from. The transcript's Sent tab reads these
+  //    blocks (fix pass, finding 1): it used to re-derive the cards by scanning the assembled
+  //    prompt for `## ` lines, which invented a card out of every `##` heading a reader had typed
+  //    inside their own markdown note, and shifted every tint and flag after it by one. The
+  //    "nothing paraphrased" promise is kept by showing each block's EXACT body — it never
+  //    required re-parsing the concatenation.
   /** @type {string[]} */ const images = [];
-  /** @type {{heading: string, body: string, name: string}[]} */ const blocks = [];
+  /** @type {{heading: string, body: string, name: string, param: BoundParam}[]} */ const blocks = [];
   for (const p of list) {
     for (const url of imagesOf(p)) images.push(url);
     if (p.key && inlined.has(p.key)) continue;
-    blocks.push({ heading: headingFor(p), body: bodyFor(p), name: p.name });
+    blocks.push({ heading: headingFor(p), body: bodyFor(p), name: nameFor(p), param: p });
   }
 
   const tail = text || (blocks.length || images.length ? FALLBACK : '');
   const join = () => assemble(blocks, tail);
-  let prompt = join();
+  const was = join();
+  let prompt = was;
 
   // 3. §5.4 — the budget. Middle-out per input, proportional to size, longest first, each cut
   //    marked inline, and the HEADING always survives so the model is told the input existed.
   //    Never a silently dropped input.
   let truncated = null;
   if (budget > 0 && prompt.length > budget) {
-    truncated = trim(blocks, prompt.length, budget);
+    const params = trim(blocks, prompt.length, budget);
     prompt = join();
+    // `cut` is MEASURED — the prompt as it was minus the prompt as it is (fix pass, finding 3).
+    // It used to be the sum of the omissions the cutter intended, which over-counted by the
+    // length of every marker it wrote and, when a cut could not shrink its block, was simply
+    // false. The badge prints this number as fact, so it has to be one.
+    const cut = was.length - prompt.length;
+    truncated = cut > 0 ? { cut, of: was.length, params } : null;
   }
 
   return {
@@ -300,6 +363,8 @@ export function assemblePrompt(params, instruction, o) {
     images,
     words: prompt ? prompt.split(/\s+/).filter(Boolean).length : 0,
     truncated,
+    blocks: blocks.map((b) => ({ name: b.name, heading: b.heading, body: b.body, param: b.param })),
+    instruction: tail,
   };
 }
 
@@ -356,11 +421,16 @@ function rewrite(text, list, inlined) {
   return out;
 }
 
-/** `## <name>`, or `## <name> (image, attached)` — an image is NEVER in the text (§5.3).
- * @param {BoundParam} p @returns {string} */
-function headingFor(p) {
+/** The heading TEXT: the reader's own spelling, or `<name> (image, attached)` — an image is NEVER
+ * in the text (§5.3). This is what a transcript card is titled with. @param {BoundParam} p */
+function nameFor(p) {
   const name = p.name || t('parts.insPositional', { n: 1 });
-  return imagesOf(p).length ? `## ${t('parts.insImageHeading', { name })}` : `## ${name}`;
+  return imagesOf(p).length ? t('parts.insImageHeading', { name }) : name;
+}
+
+/** `## <name>` — the line itself. @param {BoundParam} p @returns {string} */
+function headingFor(p) {
+  return `## ${nameFor(p)}`;
 }
 
 /** The data URLs this parameter carries, in wire order. @param {BoundParam} p @returns {string[]} */
@@ -450,39 +520,71 @@ function stringify(data) {
  * model finds its subject and its conclusion — and marked inline with the number of characters
  * removed. The heading always survives, so the model is told the input existed.
  *
- * Mutates `blocks[i].body` in place; the caller re-assembles.
+ * A CUT MUST SHRINK (fix pass, finding 3). The marked-up form of a body is `head + marker + foot`,
+ * and the marker costs ~25 characters however short the body was — so cutting a ten-character note
+ * used to make it 25 characters long, and a prompt of many small inputs came back from `trim()`
+ * LONGER than it went in and still three times over budget. A block's floor is therefore
+ * `min(bodyLength, markerLength)`: a body no longer than its own marker is left exactly as the
+ * reader wrote it, and the allowance it did not need is handed back to the blocks that can really
+ * use it (water-filling, longest-first on the remainder). The consequence is arithmetic rather
+ * than hope: every block ends at or under its allowance, the allowances sum to the room the
+ * headings and the instruction left, and so the re-assembled prompt fits — unless the floors alone
+ * do not fit, which only happens when the headings themselves exceed the budget, and which the
+ * caller reports honestly by measuring rather than by claiming.
+ *
+ * Mutates `blocks[i].body` in place; the caller re-assembles and measures.
  * @param {{heading: string, body: string, name: string}[]} blocks
  * @param {number} was the assembled length before cutting
  * @param {number} budget in characters
- * @returns {{cut: number, of: number, params: {name: string, omitted: number}[]}}
+ * @returns {{name: string, omitted: number}[]}
  */
 function trim(blocks, was, budget) {
   const lens = blocks.map((b) => b.body.length);
   const body = lens.reduce((n, l) => n + l, 0);
   const fixed = was - body;                        // headings, the instruction, the separators
   const target = Math.max(0, budget - fixed);
+  // The marker that names the WHOLE body is the longest one this block can ever write, so a block
+  // reserving that much can never over-spend, and a block whose body is shorter than it cannot be
+  // improved by cutting at all.
+  const reserve = lens.map((len) => t('parts.insOmitted', { n: len }).length);
+  const floor = lens.map((len, i) => Math.min(len, reserve[i]));
 
-  /** @type {number[]} */ const keep = [];
-  if (body > 0) {
-    for (const len of lens) keep.push(Math.floor((target * len) / body));
-    // The remainder goes to the longest bodies — "longest first" is what decides the odd character.
-    let spare = target - keep.reduce((n, k) => n + k, 0);
-    const order = lens.map((len, i) => i).sort((a, b) => lens[b] - lens[a]);
-    for (let n = 0; spare > 0 && n < order.length; n++) {
-      const i = order[n];
-      const room = Math.min(spare, lens[i] - keep[i]);
-      if (room > 0) { keep[i] += room; spare -= room; }
+  // Water-filling: share `target` in proportion to size, but never below a block's floor and never
+  // above its length. Each pass fixes the blocks whose proportional share is outside those bounds
+  // and re-shares what is left among the rest, so at most one block is fixed per pass.
+  /** @type {(number|null)[]} */ const keep = lens.map(() => null);
+  let pool = target;
+  let free = lens.map((len, i) => i);
+  while (free.length) {
+    const total = free.reduce((n, i) => n + lens[i], 0);
+    let fixedOne = -1;
+    for (const i of free) {
+      const share = total > 0 ? Math.floor((pool * lens[i]) / total) : 0;
+      if (share >= lens[i]) { keep[i] = lens[i]; fixedOne = i; break; }
+      if (share <= floor[i]) { keep[i] = floor[i]; fixedOne = i; break; }
     }
+    if (fixedOne >= 0) {
+      pool -= /** @type {number} */ (keep[fixedOne]);
+      free = free.filter((i) => i !== fixedOne);
+      continue;
+    }
+    // Everything left is strictly between its floor and its length: share it out, and give the
+    // rounding remainder to the longest bodies — "longest first" decides the odd character.
+    for (const i of free) keep[i] = Math.floor((pool * lens[i]) / total);
+    let spare = pool - free.reduce((n, i) => n + /** @type {number} */ (keep[i]), 0);
+    for (const i of free.slice().sort((a, b) => lens[b] - lens[a])) {
+      if (spare <= 0) break;
+      const room = Math.min(spare, lens[i] - /** @type {number} */ (keep[i]));
+      if (room > 0) { keep[i] = /** @type {number} */ (keep[i]) + room; spare -= room; }
+    }
+    break;
   }
 
   /** @type {{name: string, omitted: number}[]} */ const params = [];
-  let cut = 0;
   for (let i = 0; i < blocks.length; i++) {
-    if (keep[i] >= lens[i]) continue;
-    // The marker has to fit INSIDE the allowance, or the cut would not cut. Its longest possible
-    // form is the one that names the whole body, so reserving that can never over-spend.
-    const reserve = t('parts.insOmitted', { n: lens[i] }).length;
-    const room = Math.max(0, keep[i] - reserve);
+    const allow = /** @type {number} */ (keep[i]);
+    if (allow >= lens[i]) continue;                // nothing to gain: this body stays whole
+    const room = Math.max(0, allow - reserve[i]);  // head + foot, middle-out
     const head = Math.ceil(room / 2);
     const foot = room - head;
     const omitted = lens[i] - room;
@@ -491,9 +593,8 @@ function trim(blocks, was, budget) {
       + t('parts.insOmitted', { n: omitted })
       + (foot > 0 ? text.slice(text.length - foot) : '');
     params.push({ name: blocks[i].name, omitted });
-    cut += omitted;
   }
-  return { cut, of: was, params };
+  return params;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -515,12 +616,18 @@ export function planFor(o) {
   const fallback = !instruction && bind.params.length > 0;
   const shape = ['text', 'list', 'json'].indexOf(String(settings.shape)) >= 0
     ? String(settings.shape) : 'text';
-  const assembled = assemblePrompt(bind.params, instruction, {
+  // §4.7: from the pre-run door a list still standing at the port is N generations, not one big
+  // input. Assemble what generation 1 will really send, and hand the count up so the strip and the
+  // Sent tab can say `runs 3 times` instead of showing a prompt nobody will receive.
+  const fan = bind.prerun ? fanOf(bind.params) : null;
+  const params = fan ? forItem(bind.params, fan, 0) : bind.params;
+  const assembled = assemblePrompt(params, instruction, {
     budget: budget.chars,
     inline: settings.inlineVars === true,
   });
   return {
     bind,
+    fan: fan ? { n: fan.n, index: 0 } : null,
     assembled,
     instruction,
     fallback,

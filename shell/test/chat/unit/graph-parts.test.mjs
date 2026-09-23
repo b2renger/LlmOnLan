@@ -14,7 +14,7 @@ import { createDoc, addPart, addWire, setSettings, patchPart } from '../../../re
 import { runSet } from '../../../renderer/chat/graph/topo.mjs';
 import { valueOf, listOf } from '../../../renderer/chat/graph/values.mjs';
 import { specMap, partSpecs } from '../../../renderer/chat/graph/parts/index.mjs';
-import { LIST_SCHEMA } from '../../../renderer/chat/graph/parts/instruction.mjs';
+import { LIST_SCHEMA, stripSig } from '../../../renderer/chat/graph/parts/instruction.mjs';
 import { join } from '../../../renderer/chat/graph/parts/collect.mjs';
 import { textOf, itemsOf, fillTemplate } from '../../../renderer/chat/graph/parts/common.mjs';
 import { createRunner, DEFAULT_MAX_ITEMS } from '../../../renderer/chat/graph/runner.mjs';
@@ -202,6 +202,33 @@ export default (test) => {
     assert.deepEqual(value.data[0], { kind: 'text', data: 'a' });
     assert.equal(ask.calls[0].lane, 'json');
     assert.deepEqual(ask.calls[0].schema, LIST_SCHEMA);
+  });
+
+  // Fix pass, finding 4. The strip advertises the word count of the prompt this box WOULD send,
+  // and it is only re-assembled when this signature moves. A runtime write does not move
+  // `doc.rev` (`patchPart` is deliberately neither undoable nor rev-bumping), so fingerprinting an
+  // arrival by `data.length` left the signature identical when an upstream re-ran and produced a
+  // different list or json of the same size — and the box went on showing the old number.
+  test('the strip signature moves when an upstream re-runs, whatever kind it produced', () => {
+    let doc = createDoc({ id: 'g1', threadId: null, now });
+    const up = addPart(doc, { type: 'split', x: 0, y: 0 }, { specs: SPECS, newId, now });
+    doc = up.doc;
+    const ins = addPart(doc, { type: 'ask', x: 0, y: 0 }, { specs: SPECS, newId, now });
+    doc = ins.doc;
+    const wired = addWire(doc, { from: up.part.id, to: ins.part.id, port: 'in', label: 'item' },
+      { specs: SPECS, newId, now });
+    assert.equal(wired.ok, true);
+    doc = wired.doc;
+    const app = { host: { session: { doc: () => doc } } };
+    const part = () => doc.parts.find((p) => p.id === ins.part.id);
+
+    doc = patchPart(doc, up.part.id, { value: listOf([valueOf('text', 'a'), valueOf('text', 'b')]) }, { now });
+    const first = stripSig(app, part());
+    doc = patchPart(doc, up.part.id, { value: listOf([valueOf('text', 'x'), valueOf('text', 'y')]) }, { now });
+    assert.notEqual(stripSig(app, part()), first,
+      'a different list of the same size is a different prompt, and the strip has to know');
+    const second = stripSig(app, part());
+    assert.equal(stripSig(app, part()), second, 'and an unchanged document costs nothing');
   });
 
   test('Instruction (json) needs a schema, and says so instead of asking for nothing', async () => {

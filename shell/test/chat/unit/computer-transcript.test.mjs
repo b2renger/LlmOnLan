@@ -7,9 +7,10 @@
 //
 // The first section is the one that matters most. §8.1's whole claim is that what you read in the
 // Sent tab is what will be sent — so the tab is not allowed to re-render a value, re-order a
-// parameter or re-word a heading. It SPLITS the assembled prompt at its own headings, and the
-// tests here hold that line: a `##` inside a fenced code value is body text, not a card, and the
-// card bodies concatenate back into the bytes `bind.mjs` produced.
+// parameter or re-word a heading. It PLACES the blocks `assemblePrompt()` built, and the tests
+// here hold that line: every card body is a substring of the prompt, a `##` a reader typed inside
+// their own note is body text rather than a card, and the tint of a card is the kind of the value
+// that really produced it (the fix pass's finding 1, which is what the block list is for).
 
 import assert from 'node:assert/strict';
 
@@ -21,7 +22,7 @@ import { t } from '../../../renderer/chat/core/i18n.mjs';
 import { install as installDrawer } from '../../../renderer/chat/computer/drawer.mjs';
 import {
   install as installTranscript, PANEL, TABS, THINK_TYPES,
-  splitAssembled, sentView, ladderFor, costView, callLine, truncatedLine,
+  sentView, ladderFor, costView, callLine, truncatedLine, fanLine,
 } from '../../../renderer/chat/computer/transcript.mjs';
 import { specs, ids, clock } from './graph-fixture.mjs';
 import '../../../renderer/chat/strings/computer.en.mjs';
@@ -119,6 +120,8 @@ function surface(doc, caps) {
     root,
     /** Advance the document the way the host's `apply`/`patchPart` do: new doc, then the event. */
     advance(next) { live = next; for (const fn of Array.from(listeners)) fn({ type: 'doc', doc: next }); },
+    /** What `session.open(graphId)` emits: a DIFFERENT library document in the same session. */
+    load(next) { live = next; for (const fn of Array.from(listeners)) fn({ type: 'doc', doc: next, loaded: true }); },
     text: () => root.querySelector('.comp-tx-body').textContent,
     cards: () => Array.from(root.querySelectorAll('.comp-tx-card')),
   };
@@ -133,9 +136,9 @@ export default (test) => {
     assert.deepEqual([...THINK_TYPES], ['ask'], 'the Instruction keeps the type id `ask` (§6.3)');
   });
 
-  // ---- splitting the assembled prompt ----------------------------------------------------------
+  // ---- the cards ARE the blocks the assembly built ---------------------------------------------
 
-  test('splitAssembled cuts the prompt at its own headings, instruction last', () => {
+  test('one card per block, in order, instruction last, every body inside the real bytes', () => {
     const { doc, ask } = graph({
       instruction: 'write about the topic',
       inputs: [
@@ -144,10 +147,47 @@ export default (test) => {
       ],
     });
     const plan = planOf(doc, ask);
-    const split = splitAssembled(plan.assembled.prompt);
-    assert.deepEqual(split.cards.map((c) => c.name), ['topic', 'notes']);
-    assert.deepEqual(split.cards.map((c) => c.body), ['museums', 'second']);
-    assert.equal(split.instruction, 'write about the topic');
+    const view = sentView(plan);
+    assert.deepEqual(view.cards.map((c) => c.name), ['topic', 'notes']);
+    assert.deepEqual(view.cards.map((c) => c.body), ['museums', 'second']);
+    assert.equal(view.instruction, 'write about the topic');
+    for (const c of view.cards) {
+      assert.ok(plan.assembled.prompt.includes(c.body), 'nothing paraphrased: the body is the bytes');
+    }
+  });
+
+  // THE REGRESSION (fix pass, finding 1). The Sent tab used to re-derive its cards by scanning the
+  // assembled prompt for `## ` lines, so a reader's own markdown headings became phantom cards,
+  // the body under them was cut off at the first one, and every tint and flag after the phantom
+  // shifted by one — an image card tinted as text, a `pending` flag on the wrong card.
+  test('a `##` a READER typed inside their own value is body text, never a card', () => {
+    const note = '## Findings\nthe body\n\n## Method\nmore body';
+    const { doc, ask } = graph({
+      instruction: 'summarise the research about the topic',
+      inputs: [
+        { label: 'topic', value: valueOf('text', 'museums') },
+        { label: 'research', value: valueOf('text', note, { format: 'markdown' }) },
+      ],
+    });
+    const view = sentView(planOf(doc, ask));
+    assert.deepEqual(view.cards.map((c) => c.name), ['research', 'topic'],
+      'TWO cards, in first-mention order — `## Findings` is the reader\'s prose, not our structure');
+    assert.equal(view.cards[0].body, note, 'and the whole note is there, not just its first line');
+  });
+
+  test('a phantom card cannot steal a tint: the image card is still the image card', () => {
+    const { doc, ask } = graph({
+      instruction: 'describe the photo using the notes',
+      inputs: [
+        { label: 'notes', value: valueOf('text', '## Detail\nlook closely', { format: 'markdown' }) },
+        { label: 'photo', value: valueOf('image', { dataUrl: 'data:image/png;base64,AAAA', name: 'p.png' }) },
+      ],
+    });
+    const view = sentView(planOf(doc, ask));
+    assert.deepEqual(view.cards.map((c) => c.kind), ['image', 'text'],
+      'first-mention order, and the image card is the one really carrying the image');
+    assert.equal(view.cards[0].name, t('parts.insImageHeading', { name: 'photo' }));
+    assert.equal(view.images, 1);
   });
 
   test('a `##` inside a fenced code value is body, not a card', () => {
@@ -155,22 +195,24 @@ export default (test) => {
       instruction: 'explain',
       inputs: [{ label: 'script', value: valueOf('text', '# title\n## not a heading\nx = 1', { format: 'code', lang: 'python' }) }],
     });
-    const split = splitAssembled(planOf(doc, ask).assembled.prompt);
-    assert.deepEqual(split.cards.map((c) => c.name), ['script'],
-      'the fence is opaque — a heading inside it is Python, not structure (§2.6 KB-7)');
-    assert.match(split.cards[0].body, /## not a heading/);
+    const view = sentView(planOf(doc, ask));
+    assert.deepEqual(view.cards.map((c) => c.name), ['script'],
+      'a heading inside a code value is Python, not structure (§2.6 KB-7)');
+    assert.match(view.cards[0].body, /## not a heading/);
   });
 
-  test('an instruction with no inputs still splits, and a prompt with neither is empty', () => {
+  test('an instruction with no inputs has no cards, and a prompt with neither has nothing to show', () => {
     const only = graph({ instruction: 'say hello' });
-    const split = splitAssembled(planOf(only.doc, only.ask).assembled.prompt);
-    assert.deepEqual(split.cards, []);
-    assert.equal(split.instruction, 'say hello');
+    const view = sentView(planOf(only.doc, only.ask));
+    assert.deepEqual(view.cards, []);
+    assert.equal(view.instruction, 'say hello');
 
     const nothing = graph({});
     const plan = planOf(nothing.doc, nothing.ask);
     assert.equal(plan.error, 'no-instruction', 'no inputs and no instruction is the one real error');
-    assert.deepEqual(splitAssembled(plan.assembled.prompt), { cards: [], instruction: '' });
+    const empty = sentView(plan);
+    assert.deepEqual(empty.cards, []);
+    assert.equal(empty.instruction, '');
   });
 
   // ---- the pre-run placeholder (the plan's first acceptance) -----------------------------------
@@ -191,18 +233,37 @@ export default (test) => {
 
   test('sentView pairs each card with its bound parameter, so the tint is the wire\'s kind', () => {
     const { doc, ask } = graph({
-      instruction: 'use the list and the code',
+      // NOT a list: a list standing at this port is N generations, not one input (§4.7), and the
+      // card then shows the item generation 1 will really send. That has its own test, below.
+      instruction: 'use the data and the code',
       inputs: [
-        { label: 'list', value: valueOf('list', ['a', 'b']) },
+        { label: 'data', value: valueOf('json', { a: 1 }) },
         { label: 'code', value: valueOf('text', 'x = 1', { format: 'code', lang: 'python' }) },
         { label: '', value: valueOf('text', 'unlabelled') },
       ],
     });
     const view = sentView(planOf(doc, ask));
-    assert.deepEqual(view.cards.map((c) => c.kind), ['list', 'code', 'text']);
+    assert.deepEqual(view.cards.map((c) => c.kind), ['code', 'code', 'text']);
+    assert.equal(view.cards[0].name, 'data');
     assert.equal(view.cards[2].name, t('parts.insPositional', { n: 1 }),
       'an unlabelled arrival is a positional heading, and it is last (rule 9c)');
     assert.equal(view.cards[2].unlabelled, true);
+  });
+
+  // §4.7 (fix pass, finding 2): the Split -> Instruction path runs the box once per item, and the
+  // tab used to show the whole list under one heading — a prompt that would never be sent.
+  test('a list at the port: the tab shows generation 1 and says how many there will be', () => {
+    const { doc, ask } = graph({
+      instruction: 'translate the item',
+      inputs: [{ label: 'item', value: valueOf('list', ['alpha', 'beta', 'gamma']) }],
+    });
+    const plan = planOf(doc, ask);
+    const view = sentView(plan);
+    assert.equal(view.cards.length, 1);
+    assert.equal(view.cards[0].body, 'alpha', 'ONE item — what generation 1 really sends');
+    assert.equal(view.fan, t('parts.insFanout', { n: 3 }), 'and the tab says there are three');
+    assert.equal(fanLine({ fan: null }), '', 'no fan, nothing said');
+    assert.equal(fanLine({ fan: { n: 1 } }), '', 'a one-item list is one generation, like any input');
   });
 
   test('sentView reports the unused and unwired chips, and neither is an error', () => {
@@ -217,6 +278,40 @@ export default (test) => {
     assert.deepEqual(view.unused, ['country'], 'supplied last, reported, not dropped (rule 4)');
     assert.deepEqual(view.unwired, ['theme'], 'named with no arrow (rule 5)');
     assert.equal(sentView(null), null, 'and no plan is no view, not a throw');
+  });
+
+  // Fix pass, finding 6. Two facts about a panel that outlives the document it is looking at.
+  test('opening another library document drops the replies recorded for the last one', async () => {
+    await withDom(async () => {
+      const g = graph({ instruction: 'say', inputs: [{ label: 'topic', value: valueOf('text', 'x') }] });
+      const s = surface(g.doc);
+      s.app.transcript.open(g.ask, 'got');
+      s.app.transcript.record(g.ask, { ok: true, mode: '', raw: 'the first document said this' });
+      assert.deepEqual(Object.keys(s.app.transcript.results()), [g.ask]);
+
+      const other = graph({ instruction: 'a different graph entirely' });
+      s.load(other.doc);
+      assert.deepEqual(s.app.transcript.results(), {},
+        'a reply belongs to the document that produced it, and goes away with it');
+      assert.equal(s.app.transcript.part(), '', 'and the panel is no longer pointed at a part that left');
+    });
+  });
+
+  test('an event that changes nothing this panel shows costs no re-assembly', async () => {
+    await withDom(async () => {
+      const g = graph({ instruction: 'write about the topic', inputs: [{ label: 'topic', value: valueOf('text', 'museums') }] });
+      const s = surface(g.doc);
+      s.app.transcript.open(g.ask);
+      const before = s.root.querySelector('.comp-tx-body').firstChild;
+      // A run emits one of these per part state transition, most about parts nobody is reading.
+      const other = g.doc.parts.find((/** @type {any} */ p) => p.type === 'note' && p.id !== g.ask);
+      s.advance(model.patchPart(g.doc, other.id, { state: 'running' }, { now: g.now }));
+      assert.equal(s.root.querySelector('.comp-tx-body').firstChild, before,
+        'the panel did not rebuild: nothing it shows moved');
+      // …and something that DOES move it still repaints, in the same tick.
+      s.advance(model.patchPart(s.app.host.session.doc(), other.id, { value: valueOf('text', 'arrived') }, { now: g.now }));
+      assert.notEqual(s.root.querySelector('.comp-tx-body').firstChild, before);
+    });
   });
 
   test('the call line says what will be asked for, and says `automatic` rather than null', () => {

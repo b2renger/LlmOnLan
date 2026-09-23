@@ -52,6 +52,7 @@ registerStrings('parts', {
   insNoInstruction: 'no instruction yet',
   insUnused: 'unused: {name}',
   insUnwired: '{name} — not wired',
+  insFanout: 'runs {n} times — this is generation 1 of {n}',
   insTruncated: 'truncated: {cut} of {of} characters cut to fit {tokens} tokens',
   insTruncatedAssumed: 'truncated: {cut} of {of} characters cut to fit an assumed {tokens} tokens',
   errNoVision: 'This farm’s model cannot read images. It is serving {alias}. Switch the farm to a vision model, or remove the image.',

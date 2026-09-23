@@ -1145,7 +1145,10 @@ export function createCanvas(o) {
       else if (!inSel) ids = [id];
       if (ids !== selected) select(ids, { say: false });
       // Typing (or clicking a control) inside a part must not be hijacked by a drag.
-      const interactive = target.closest && target.closest('input, textarea, select, button, [contenteditable="true"]');
+      // `[contenteditable]:not([contenteditable="false"])`, not `="true"` (fix pass, finding 5):
+      // the wire's label pill is `contentEditable = 'plaintext-only'`, which the narrower selector
+      // does not match. It behaved only because the pill stops its own events.
+      const interactive = target.closest && target.closest('input, textarea, select, button, [contenteditable]:not([contenteditable="false"])');
       if (interactive) { drag = null; return; }
       drag = { kind: 'move', start, moved: false, ids: session.selected().slice(), origin: new Map() };
       for (const part of session.doc().parts) {
@@ -1286,8 +1289,11 @@ export function createCanvas(o) {
 
   // ---- keyboard --------------------------------------------------------------------------------
 
+  /** Is the keystroke going into something that edits text? True whatever FLAVOUR of
+   * contenteditable it is — the label pill is `plaintext-only` (fix pass, finding 5) — so the
+   * guard holds even for a key path that never reaches the pill's own handler. */
   const isTyping = (/** @type {any} */ target) => !!(target && target.closest
-    && target.closest('input, textarea, select, [contenteditable="true"]'));
+    && target.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"])'));
 
   function onKeyDown(ev) {
     const typing = isTyping(ev.target);

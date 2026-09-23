@@ -19,9 +19,10 @@
 // THE IDENTITY THAT MAKES §8.1 TRUE (§2.6 KB-4). `planFor(partId)` is one call into `graph/bind.mjs`
 // — `planFor({part, bind: bindInputs(doc, partId), budget: budgetFor(caps)})` — and it is the SAME
 // assembly the Instruction's `run()` uses. Nothing here re-renders a value, re-orders a parameter or
-// re-words a heading: the Sent tab SPLITS the assembled prompt at its own headings rather than
-// rebuilding it, so a card can never drift from the bytes. `assemblePrompt(` appears in bind.mjs and
-// nowhere else, on purpose, and a reviewer can check that by grepping.
+// re-words a heading: the Sent tab PLACES the blocks `assemblePrompt()` built — each card is that
+// block's exact body — so a card can never drift from the bytes, and it never has to guess where one
+// input ends by looking for the next `##` in text a reader wrote (fix pass, finding 1).
+// `assemblePrompt(` appears in bind.mjs and nowhere else, on purpose, and a reviewer can grep it.
 //
 // Feature contract (computer/main.mjs's loader, `transcript` row, AFTER `drawer`):
 //   install(app) -> void, publishing app.transcript = {open, close, isOpen, tab, part, planFor,
@@ -34,6 +35,7 @@ import { bindInputs, planFor as planFrom } from '../graph/bind.mjs';
 import { budgetFor } from '../ctx/budget.mjs';
 import { partById } from '../graph/model.mjs';
 import { bodyText } from '../graph/inspect.mjs';
+import { valueStamp } from '../graph/values.mjs';
 import '../strings/computer.en.mjs';
 import '../strings/parts.en.mjs';
 
@@ -57,84 +59,34 @@ export const RAW_CAP = 40000;
 // ---------------------------------------------------------------------------------------------
 
 /**
- * Split an assembled prompt back into its parts, at ITS OWN headings.
+ * What the Sent tab shows, as data.
  *
- * This is deliberately a read of the bytes rather than a second rendering: the Sent tab promises
- * "nothing paraphrased", and the only way to keep that promise is to show what `assemblePrompt()`
- * produced, cut where it put its headings. Fences are honoured because a wired code value is
- * fenced (§5.3) and a `#` inside it is Python, not structure — the same rule the `mock-headings`
- * model uses when it reports headings back (§2.6 KB-7).
+ * Every card is one BLOCK `assemblePrompt()` built — its heading text, its exact body, and the
+ * bound parameter it came from, which is where the tint and the pending/mentioned flags come from.
+ * Nothing here parses the prompt (fix pass, finding 1). The Sent tab used to re-derive its cards by
+ * scanning the assembled bytes for `## ` lines and pairing card[i] with param[i]; a reader whose
+ * own markdown note contained a `##` heading — which is most notes — got a phantom card, a body
+ * cut off at that heading, and every tint and flag after it shifted by one, so an image card was
+ * tinted as text. "Nothing paraphrased" is kept by showing each block's exact body, which never
+ * required re-reading the concatenation.
  *
- * @param {string} prompt the assembled USER message
- * @returns {{cards: {name: string, body: string}[], instruction: string}}
- */
-export function splitAssembled(prompt) {
-  const INPUTS = t('parts.insInputsHeading');
-  const INSTR = t('parts.insInstructionHeading');
-  /** @type {{name: string, body: string}[]} */ const cards = [];
-  /** @type {string[]} */ let buf = [];
-  /** @type {'head'|'card'|'instruction'} */ let mode = 'head';
-  let instruction = '';
-  let fence = '';
-
-  const flush = () => {
-    const body = trimBlank(buf).join('\n');
-    if (mode === 'card' && cards.length) cards[cards.length - 1].body = body;
-    else if (mode === 'instruction') instruction = body;
-    buf = [];
-  };
-
-  for (const line of String(prompt || '').split('\n')) {
-    const open = /^\s*(`{3,}|~{3,})/.exec(line);
-    if (open) {
-      const mark = open[1][0];
-      if (!fence) fence = mark;
-      else if (fence === mark) fence = '';
-      buf.push(line);
-      continue;
-    }
-    if (fence) { buf.push(line); continue; }
-    if (line === INSTR) { flush(); mode = 'instruction'; continue; }
-    if (line === INPUTS) { flush(); mode = 'head'; continue; }
-    const head = /^##\s+(.*)$/.exec(line);
-    if (head) { flush(); cards.push({ name: head[1], body: '' }); mode = 'card'; continue; }
-    buf.push(line);
-  }
-  flush();
-  return { cards, instruction };
-}
-
-/** @param {string[]} lines @returns {string[]} */
-function trimBlank(lines) {
-  let a = 0;
-  let b = lines.length;
-  while (a < b && !lines[a].trim()) a++;
-  while (b > a && !lines[b - 1].trim()) b--;
-  return lines.slice(a, b);
-}
-
-/**
- * What the Sent tab shows, as data. The cards come from the PROMPT (above); the tint, the pending
- * flag and the mentioned flag come from the bound parameter at the same index — `assemblePrompt()`
- * emits one block per parameter, in order, so index IS the pairing. A parameter with no card (a
- * value substituted inline, §5.3) simply has no card to tint, and a card with no parameter is
- * still shown, untinted: neither is worth losing text over.
+ * A parameter substituted inline (§5.3) has no block and so no card to tint: correct, it is not
+ * under `# Inputs` any more.
  *
  * @param {any} plan an InstructionPlan (core/types.mjs), or null
  * @returns {{system: string, cards: {name: string, body: string, kind: string, pending: boolean,
  *   mentioned: boolean, unlabelled: boolean}[], instruction: string, fallback: boolean,
  *   call: string, words: number, images: number, unused: string[], unwired: string[],
- *   truncated: string}|null}
+ *   truncated: string, fan: string}|null}
  */
 export function sentView(plan) {
   if (!plan || !plan.assembled) return null;
-  const split = splitAssembled(plan.assembled.prompt);
-  const params = (plan.bind && plan.bind.params) || [];
-  const cards = split.cards.map((c, i) => {
-    const p = params[i] || null;
+  const blocks = Array.isArray(plan.assembled.blocks) ? plan.assembled.blocks : [];
+  const cards = blocks.map((/** @type {any} */ b) => {
+    const p = b && b.param ? b.param : null;
     return {
-      name: c.name,
-      body: c.body,
+      name: String((b && b.name) || ''),
+      body: String((b && b.body) || ''),
       kind: kindOf(p),
       pending: !!(p && p.pending && !(p.values && p.values.length)),
       mentioned: !!(p && p.mentioned),
@@ -144,7 +96,7 @@ export function sentView(plan) {
   return {
     system: String(plan.assembled.system || ''),
     cards,
-    instruction: split.instruction,
+    instruction: String(plan.assembled.instruction || ''),
     fallback: !!plan.fallback,
     call: callLine(plan.call),
     words: Number(plan.assembled.words) || 0,
@@ -152,7 +104,17 @@ export function sentView(plan) {
     unused: ((plan.bind && plan.bind.unused) || []).slice(),
     unwired: ((plan.bind && plan.bind.unwired) || []).slice(),
     truncated: truncatedLine(plan),
+    fan: fanLine(plan),
   };
+}
+
+/** §4.7: when a list is still standing at the port the runner fans, and this prompt is the FIRST
+ * of n generations. Say so, rather than letting the tab read as the whole run.
+ * @param {any} plan @returns {string} */
+export function fanLine(plan) {
+  const fan = plan && plan.fan;
+  const n = fan ? Number(fan.n) || 0 : 0;
+  return n > 1 ? t('parts.insFanout', { n }) : '';
 }
 
 /** The kind slot a card is tinted with (§9's five `--comp-kind-*` names). An image parameter is
@@ -301,6 +263,8 @@ export function install(app) {
   /** The last raw reply per part, when something recorded one (see `record` below). */
   /** @type {Map<string, any>} */ const results = new Map();
   /** @type {Function|null} */ let offSession = null;
+  /** The signature of what is currently on screen (see `paintSig`). */
+  let painted = '';
 
   // The tab labels as a same-file literal map: chat-lint rule 5 wants a literal at every `t()`
   // call site, and a computed key would also hide a missing string from its check.
@@ -370,6 +334,7 @@ export function install(app) {
     if (tab === 'sent') paintSent();
     else if (tab === 'got') paintGot();
     else paintCost();
+    painted = paintSig();
   }
 
   function paintSent() {
@@ -380,6 +345,9 @@ export function install(app) {
     if (!view) { say(t('computer.txSentEmpty')); return; }
 
     const chips = div('comp-tx-chips', body);
+    // §4.7: this box will run once per item. The prompt below is generation 1, and saying so is the
+    // difference between a true tab and a plausible one (fix pass, finding 2).
+    if (view.fan) chip(chips, view.fan, 'warn');
     if (view.truncated) chip(chips, view.truncated, 'warn');
     for (const name of view.unwired) chip(chips, t('parts.insUnwired', { name }), 'warn');
     for (const name of view.unused) chip(chips, t('parts.insUnused', { name }), 'muted');
@@ -473,13 +441,52 @@ export function install(app) {
 
   // ---- the door ------------------------------------------------------------------------------
 
+  /** Repaint only when what this panel SHOWS moved (fix pass, finding 6). A run emits a session
+   * event per part state transition, and every one of them used to re-assemble the whole prompt —
+   * on a graph carrying a long report, that is the same large string rebuilt once per transition,
+   * most of them about parts this panel is not looking at. The signature is the same trick the
+   * Instruction's strip uses, and it keeps the repaint SYNCHRONOUS: a reader who renames a wire
+   * sees the new card in the same tick, which is what makes "fix it and read it again" feel free. */
+  function repaint() {
+    if (!api.isOpen() || paintSig() === painted) return;
+    paint();
+  }
+
+  /** Everything the three tabs read, as one cheap string. `valueStamp` gives each value object a
+   * number the first time it is seen, so a re-run that produces a different list of the same kind
+   * is a different signature — a length would not be. @returns {string} */
+  function paintSig() {
+    const d = doc();
+    const part = partOf(openFor);
+    if (!d || !part) return `${tab}|${openFor}|-`;
+    /** @type {string[]} */ const bits = [tab, openFor, String(d.rev || 0),
+      String(part.state || ''), String(part.error || ''),
+      `${(part.stats && part.stats.ms) || 0}~${(part.stats && part.stats.tokens) || 0}~${(part.stats && part.stats.calls) || 0}`,
+      String(valueStamp(part.value)), String(valueStamp(results.get(openFor)))];
+    for (const w of d.wires || []) {
+      if (w.to !== openFor) continue;
+      const up = partById(d, w.from);
+      const v = up ? up.value : null;
+      bits.push(`${w.from}~${w.label || ''}~${v ? /** @type {any} */ (v).kind : '-'}~${valueStamp(v)}`);
+    }
+    return bits.join('|');
+  }
+
   /** Repaint while the panel is up. A label renamed, a value that just arrived and an instruction
-   * edited in place are all the same event to this panel: what WOULD be sent has changed. */
+   * edited in place are all the same event to this panel: what WOULD be sent has changed.
+   *
+   * A DIFFERENT DOCUMENT is not. `session.open(graphId)` loads another library document into the
+   * same session (`{type:'doc', loaded:true}`), and the raw replies recorded here belong to the one
+   * that just went away — so they go with it, rather than being retained for the life of the window
+   * (fix pass, finding 6). */
   function watch() {
     if (offSession) return;
     const s = session();
     if (!s || typeof s.on !== 'function') return;
-    offSession = s.on(() => { if (api.isOpen()) paint(); });
+    offSession = s.on((/** @type {any} */ ev) => {
+      if (ev && ev.loaded) { results.clear(); openFor = ''; }
+      repaint();
+    });
   }
 
   const api = {
@@ -517,6 +524,7 @@ export function install(app) {
       if (!partId || !result) return false;
       results.set(String(partId), result);
       if (api.isOpen() && String(partId) === openFor) paint();
+      else painted = '';
       return true;
     },
     /** What has been recorded, by part id — for a scenario and for the value inspector. */

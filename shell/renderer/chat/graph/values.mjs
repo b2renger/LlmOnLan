@@ -243,3 +243,23 @@ export function preview(value, max = 120) {
   const limit = Number.isFinite(max) && max > 0 ? Math.floor(max) : 120;
   return s.length > limit ? `${s.slice(0, limit)}…` : s;
 }
+
+/** Which REVISION of a value a cheap signature is looking at.
+ *
+ * A value object is made once, by whoever produced it, and never edited: a part that re-runs writes
+ * a NEW one. So object identity answers "did this move?" exactly, for every kind, in constant time
+ * — where the length of `data` (what the Instruction's strip used to fingerprint, fix pass, finding
+ * 4) answers it only for text, and answers it wrong for a `list` or a `json` that changed without
+ * changing size. Numbers are handed out on first sight and remembered weakly, so nothing here keeps
+ * a value alive.
+ * @param {any} value @returns {number} 0 for anything that is not an object */
+const STAMPS = new WeakMap();
+let stamped = 0;
+export function valueStamp(value) {
+  if (!value || typeof value !== 'object') return 0;
+  const seen = STAMPS.get(value);
+  if (seen) return seen;
+  stamped += 1;
+  STAMPS.set(value, stamped);
+  return stamped;
+}

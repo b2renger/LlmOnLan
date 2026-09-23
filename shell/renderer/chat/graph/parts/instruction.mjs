@@ -21,7 +21,7 @@
 // how many named inputs it found, the `unused:` and `— not wired` chips of rules 4 and 5, and the
 // `truncated` badge when §5.4 had to cut. Clicking the strip opens the transcript.
 
-import { valueOf, listOf, isValue } from '../values.mjs';
+import { valueOf, listOf, isValue, valueStamp } from '../values.mjs';
 import { partById } from '../model.mjs';
 import { bindArrivals, bindInputs, planFor } from '../bind.mjs';
 import { budgetFor } from '../../ctx/budget.mjs';
@@ -110,9 +110,11 @@ export function planNow(app, part) {
  * The cheap signature of everything the strip depends on. Re-assembling a prompt on every render
  * would put the cost of the reader's longest document into the pan loop; this puts it behind a
  * walk of the wires, which the canvas already pays for.
+ * Exported for its own unit test: a stale signature shows as a stale number on screen, which is
+ * exactly the kind of quiet wrongness nobody notices until they have paid for it.
  * @param {any} app @param {any} part @returns {string}
  */
-function stripSig(app, part) {
+export function stripSig(app, part) {
   const doc = docOf(app);
   if (!doc) return 'no-doc';
   const s = part.settings || {};
@@ -121,8 +123,11 @@ function stripSig(app, part) {
     if (w.to !== part.id) continue;
     const up = partById(doc, w.from);
     const v = up && up.value;
-    const data = v ? /** @type {any} */ (v).data : null;
-    bits.push(`${w.from}~${w.label || ''}~${v ? /** @type {any} */ (v).kind : '-'}~${typeof data === 'string' ? data.length : 0}`);
+    // `valueStamp`, not `data.length` (fix pass, finding 4). A runtime write does not move
+    // `doc.rev` — `patchPart` is deliberately neither undoable nor rev-bumping — so an upstream
+    // that re-ran and produced a DIFFERENT list or json of the same size used to leave this
+    // signature identical, and the strip went on advertising the previous prompt's word count.
+    bits.push(`${w.from}~${w.label || ''}~${v ? /** @type {any} */ (v).kind : '-'}~${valueStamp(v)}`);
   }
   return bits.join('|');
 }
@@ -263,6 +268,10 @@ export const instruction = /** @type {any} */ ({
       if (!plan.instruction && plan.bind.params.length) rows.push(chip(t('parts.insNoInstruction')));
       for (const name of plan.bind.unused) rows.push(chip(t('parts.insUnused', { name })));
       for (const name of plan.bind.unwired) rows.push(chip(t('parts.insUnwired', { name })));
+      // §4.7: a list still standing at the port means this box runs once per item, and the word
+      // count above is generation 1's (fix pass, finding 2). Nothing used to say so, so a reader
+      // read one prompt and got N different ones.
+      if (plan.fan && plan.fan.n > 1) rows.push(chip(t('parts.insFanout', { n: plan.fan.n })));
       const cutTo = plan.assembled.truncated;
       if (cutTo) {
         rows.push(chip(plan.budget.assumed

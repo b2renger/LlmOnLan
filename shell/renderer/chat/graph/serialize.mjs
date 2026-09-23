@@ -18,7 +18,9 @@ import { isValue, facetsOf } from './values.mjs';
 
 export const FORMAT = 'lolgraph';
 // K2 kickoff (COMPUTER_PLAN §11): v2 carries `wire.label` (§5.1) and a value's advisory
-// `format`/`lang` facets (§6.8). A v1 file still opens — every v1 field means in v2 exactly what
+// `format`/`lang` facets (§6.8). A file is stamped 2 only when it actually carries one of them, so
+// a graph with no labels still exports as v1 and still opens in a client shipped before K2 — the
+// version is a statement about the CONTENT, not about the build that wrote it. A v1 file still opens — every v1 field means in v2 exactly what
 // it meant in v1, an absent label is an unlabelled arrow and an absent format is `plain`. The
 // `version > FORMAT_VERSION` REFUSAL stays (§7.6): a file from a newer build is refused whole,
 // with `unsupported-version`, and nothing is imported. Importing what we happen to understand and
@@ -88,27 +90,38 @@ export function toJson(doc, o = {}) {
   const withValues = o.values === true;
   const specs = o.specs instanceof Map ? o.specs : null;
   const d = doc && typeof doc === 'object' ? doc : /** @type {any} */ ({});
+  let v2 = false;                                  // does this file need anything v1 never had?
+  const parts = (Array.isArray(d.parts) ? d.parts : []).map((p) => {
+    /** @type {any} */ const part = {};
+    for (const f of PART_FIELDS) part[f] = /** @type {any} */ (p)[f];
+    part.settings = exportSettings(p, specs);
+    if (withValues && isValue(p.value)) {
+      const facets = facetsOf(p.value);
+      if (Object.keys(facets).length) v2 = true;   // §6.8's advisory `format`/`lang`
+      part.value = { kind: p.value.kind, data: p.value.data, ...facets };
+    }
+    return part;
+  });
+  // K2-U1 (§5.1, §7.6): v2 carries `wire.label` — but only when there IS one. An unlabelled
+  // arrow writes exactly the three v1 keys.
+  const wires = (Array.isArray(d.wires) ? d.wires : []).map((w) => {
+    const label = wireLabel(/** @type {any} */ (w).label);
+    /** @type {any} */ const out = { from: w.from, to: w.to, port: w.port };
+    if (label) { out.label = label; v2 = true; }
+    return out;
+  });
   /** @type {any} */ const out = {
-    [FORMAT]: FORMAT_VERSION,
+    // THE STAMP FOLLOWS THE CONTENT (fix pass, finding 7). `fromJson` refuses a file from a newer
+    // build whole (§7.6), so stamping 2 unconditionally would have made every graph this build
+    // exports — including one with no label and no facet anywhere in it — unopenable by a client
+    // shipped before K2, for a version number and nothing else. A file carrying no v2-only field
+    // IS a v1 file, byte for byte, and says so.
+    [FORMAT]: v2 ? FORMAT_VERSION : 1,
     title: typeof o.title === 'string' ? o.title : (d.title || ''),
     view: d.view ? { x: d.view.x, y: d.view.y, zoom: d.view.zoom } : undefined,
     settings: pickDocSettings(d.settings),
-    parts: (Array.isArray(d.parts) ? d.parts : []).map((p) => {
-      /** @type {any} */ const part = {};
-      for (const f of PART_FIELDS) part[f] = /** @type {any} */ (p)[f];
-      part.settings = exportSettings(p, specs);
-      if (withValues && isValue(p.value)) part.value = { kind: p.value.kind, data: p.value.data, ...facetsOf(p.value) };
-      return part;
-    }),
-    // K2-U1 (§5.1, §7.6): v2 carries `wire.label` — but only when there IS one. An unlabelled
-    // arrow writes exactly the three v1 keys, so a graph with no labels round-trips to the same
-    // bytes it did in v1 and a v1 reader loses nothing it ever had.
-    wires: (Array.isArray(d.wires) ? d.wires : []).map((w) => {
-      const label = wireLabel(/** @type {any} */ (w).label);
-      /** @type {any} */ const out = { from: w.from, to: w.to, port: w.port };
-      if (label) out.label = label;
-      return out;
-    }),
+    parts,
+    wires,
   };
   if (!out.view) delete out.view;
   return out;

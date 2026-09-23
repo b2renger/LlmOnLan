@@ -6,6 +6,68 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-09-23 — LOL Chat vNext **K2 fix round**: the Sent tab stops guessing, the budget stops growing, and an export stops locking out old clients
+
+Seven reviewer findings against the K2 landing (`5e4a252`). All seven fixed at the root, each with a
+test that would have caught it.
+
+1. **The Sent tab invented cards out of the reader's own markdown (major).** It re-derived its cards
+   by scanning the assembled prompt for `## ` lines — and a value goes in VERBATIM, so a note
+   containing `## Findings` became a phantom card, its body was cut off at that heading, and every
+   tint and flag after it shifted by one: an image card tinted as text, a `pending` badge on the
+   wrong card. `assemblePrompt()` now RETURNS the blocks it built (`{name, heading, body, param}`)
+   plus the instruction tail, and the tab places those. "Nothing paraphrased" never required
+   re-parsing the concatenation — it only required showing each block's exact body.
+   `splitAssembled()` is deleted with the guesswork.
+2. **The preview showed a prompt that would never be sent, on the one fan-out path (major).** A
+   `list` standing at the Instruction's port means the runner runs the box once per item — and the
+   strip and the drawer showed the whole list under one heading. `planFor()` now detects the fan the
+   runner would plan (pre-run door only; the run door is past it and must never fan twice),
+   assembles **generation 1**, and both surfaces say `runs 3 times — this is generation 1 of 3`.
+3. **The §5.4 budget could make the prompt LONGER and then report a false number (major).** The
+   omission marker costs ~25 characters however short the block was, so cutting a ten-character note
+   GREW it; twelve tiny inputs under a 200-character budget came back 264 characters longer than
+   they went in, three times over budget, with a `cut` count the badge printed as fact. A block's
+   floor is now `min(body, marker)` — a body no longer than its own marker is left exactly as the
+   reader wrote it — the allowance it did not need is water-filled back to the blocks that can use
+   it, and `cut` is MEASURED (`was − now`) rather than summed from intentions. When nothing can be
+   cut there is no badge, because nothing was.
+4. **The box's word count went stale after a re-run (minor).** The strip's signature fingerprinted
+   each arrival by `data.length`, and a runtime write does not move `doc.rev` — so an upstream that
+   re-ran and produced a different list or json of the same size left the number unchanged. New
+   `values.mjs` `valueStamp()` numbers each value OBJECT on first sight (weakly held), which is
+   exact for every kind and costs one Map read.
+5. **The canvas's typing guard could not see the label pill (minor).** Both selectors tested
+   `[contenteditable="true"]`; the pill is `plaintext-only`. Nothing broke today only because the
+   pill stops every key itself — so the guard is now `[contenteditable]:not([contenteditable="false"])`
+   and holds independently of that.
+6. **The drawer kept every raw reply of every document visited, and re-assembled on every session
+   event (minor).** Recorded replies are dropped when the session opens another library document,
+   and the panel repaints only when a signature of what it SHOWS moves — synchronously, so renaming
+   a wire still redraws the card in the same tick, but a run's per-part transitions no longer
+   re-assemble a long report once each.
+7. **Every export was stamped v2 and refused whole by pre-K2 clients (minor).** v2 exists for
+   `wire.label` and a value's `format`/`lang` facets; a graph carrying neither IS a v1 file. The
+   stamp now follows the content, so a label-free graph exported from this build still opens in a
+   client shipped before K2 — which is what the in-file comment had been claiming all along.
+
+**Tested.** `chat-unit` **1066 passed / 0 failed** (11 new cases: the blocks and the phantom-card
+regression, the fan preview and the two doors agreeing byte for byte, three budget cases asserting
+the prompt never grows and fits, the stale-signature case, the content-driven version stamp, and the
+drawer's retention + repaint); `unit.js` 5/5; `chat-lint` 151 files / 0 violations; `chat-scope`
+clean; harness `--strict` **223 passed / 0 failed** (one `k2-shots-light` flake on the first run,
+green on re-run and in isolation); `--phase perf` 9/9 — 500 parts build 86 ms, pan work p95 4.4 ms.
+Light and dark shots of the drawer re-taken and LOOKED at: five cards, the instruction last in the
+accent colour, no phantom.
+
+**Two test expectations were corrected rather than weakened.** The single-block budget case asserted
+`cut === omitted`, which was only true while `cut` over-counted by the marker; it now asserts the
+exact measured identity `cut === of − prompt.length`. The card-tint case fed a `list` to prove a
+`list` tint — but a list at that port is N generations, so the card is now the item generation 1
+sends; the case uses a `json` value and the list behaviour has a test of its own.
+
+---
+
 ## 2026-09-23 — LOL Chat vNext **K2**: arrows that carry names, an Instruction that binds them, and a prompt you can read before you pay for it
 
 The Computer's headline feature. An arrow between two boxes can now be **named** — click the pill on

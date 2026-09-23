@@ -288,6 +288,27 @@ export default [
             h.eq(named.selected.join(','), g.wire, 'clicking the wire selected it');
             h.eq(named.editing, true, 'F2 on a selected arrow opens its name for editing — no mouse needed');
             h.eq((await h.computer.state()).wires[0].label, 'topic', 'and Enter commits it');
+
+            // Fix pass, finding 5. The canvas suppresses its shortcuts while a control is being
+            // typed in, and it decides that by SELECTOR. The pill is `contenteditable` in its
+            // `plaintext-only` flavour, which `[contenteditable="true"]` does not match — so the
+            // suppression rested entirely on the pill stopping every key itself, and any key path
+            // that skipped that handler would have deleted the selection instead of a character.
+            // Nothing the pill does can be observed through that handler, so what is asserted here
+            // is the fact the guard now depends on: which selector really sees the pill.
+            const guard = await h.eval((id) => {
+                const label = document.querySelector(`#lolcomputer .graph-wire-label[data-wire="${id}"]`);
+                document.querySelector('#lolcomputer .graph').dispatchEvent(
+                    new KeyboardEvent('keydown', { key: 'F2', bubbles: true, cancelable: true, composed: true }));
+                return {
+                    mode: label.getAttribute('contenteditable'),
+                    wide: !!label.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"])'),
+                    narrow: !!label.closest('input, textarea, select, [contenteditable="true"]'),
+                };
+            }, g.wire);
+            h.eq(guard.mode, 'plaintext-only', 'the pill edits in the plaintext-only flavour');
+            h.eq(guard.wide, true, 'the guard the canvas ships now sees it');
+            h.eq(guard.narrow, false, 'and the one it used to ship did not — which is the bug');
         },
     },
 ];

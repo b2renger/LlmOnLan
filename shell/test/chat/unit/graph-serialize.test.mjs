@@ -54,7 +54,7 @@ export default (test) => {
     const { doc } = sample();
     const file = toJson(doc);
     assert.deepEqual(Object.keys(file).sort(), ['lolgraph', 'parts', 'settings', 'title', 'view', 'wires']);
-    assert.equal(file.lolgraph, FORMAT_VERSION);
+    assert.equal(file.lolgraph, 1, 'nothing in this graph needs v2, so it is a v1 file');
     assert.equal(file.title, 'Names');
     const text = JSON.stringify(file);
     for (const forbidden of ['threadId', 't1', 'stats', 'tokens', 'createdAt', 'rev', 'error']) {
@@ -143,7 +143,7 @@ export default (test) => {
     const { doc } = sample();
     const text = toText(doc);
     assert.ok(text.endsWith('\n'));
-    assert.equal(JSON.parse(text).lolgraph, FORMAT_VERSION);
+    assert.equal(JSON.parse(text).lolgraph, 1);
     assert.equal(fromText(text, importOpts()).doc.parts.length, 2);
     assert.deepEqual(fromText('{ not json', importOpts()), { ok: false, doc: null, errors: ['not-json'] });
   });
@@ -202,7 +202,26 @@ export default (test) => {
   });
 
   test('toJson survives a doc that is not one', () => {
-    assert.deepEqual(toJson(null), { lolgraph: FORMAT_VERSION, title: '', settings: {}, parts: [], wires: [] });
+    assert.deepEqual(toJson(null), { lolgraph: 1, title: '', settings: {}, parts: [], wires: [] });
+  });
+
+  // §7.6, fix pass finding 7: the stamp is a statement about the CONTENT of the file, not about
+  // the build that wrote it. `fromJson` refuses a newer version WHOLE, so stamping 2 on a graph
+  // that carries nothing v2 would lock a pre-K2 client out of a file it could read perfectly.
+  test('the version follows what the file CARRIES: 1 without labels or facets, 2 with them', () => {
+    const { doc } = sample();
+    assert.equal(toJson(doc).lolgraph, 1, 'no label anywhere: a v1 file, openable by a v1 client');
+
+    const labelled = { ...doc, wires: doc.wires.map((w, i) => (i ? w : { ...w, label: 'topic' })) };
+    assert.equal(toJson(labelled).lolgraph, FORMAT_VERSION, 'one label makes it a v2 file');
+    assert.equal(toJson(labelled).wires[0].label, 'topic');
+
+    // A value facet (§6.8) is the other v2-only field, and only rides when values are exported.
+    const faceted = { ...doc, parts: doc.parts.map((p, i) => (i ? p : { ...p, value: { kind: 'text', data: 'x', format: 'markdown' } })) };
+    assert.equal(toJson(faceted).lolgraph, 1, 'without values there is no facet in the file');
+    assert.equal(toJson(faceted, { values: true }).lolgraph, FORMAT_VERSION);
+    assert.equal(toJson({ ...doc, parts: doc.parts.map((p, i) => (i ? p : { ...p, value: { kind: 'text', data: 'x' } })) },
+      { values: true }).lolgraph, 1, 'a plain value is a v1 value');
   });
 
   // ---- the fix pass: a graph file comes from someone ELSE'S machine, by design -----------------

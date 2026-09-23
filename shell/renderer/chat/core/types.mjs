@@ -328,20 +328,32 @@
 /** What `bindInputs()` answers. `unused` = labels the instruction never mentions (supplied last,
  * a grey chip, NOT an error, rule 4). `unwired` = names the instruction mentions with no arrow to
  * supply them (a warning chip, NOT an error, rule 5).
- * @typedef {{ params: BoundParam[], unused: string[], unwired: string[] }} BindResult */
+ * `prerun` marks the DOCUMENT door (`bindInputs`), the only one that may still see a list the
+ * runner is going to fan out (§4.7).
+ * @typedef {{ params: BoundParam[], unused: string[], unwired: string[],
+ *   prerun?: boolean }} BindResult */
 
 /** What `assemblePrompt()` answers — the body exactly as it goes on the wire. `images` are data
  * URLs, in parameter order; an image is NEVER in `prompt` (§5.3). `truncated` is null unless the
  * budget bit, and then it names what was cut so the badge can say it in numbers.
+ * `blocks` are the `# Inputs` cards as they were BUILT — heading text, exact body, and the bound
+ * parameter each came from — so a reader of the prompt never has to re-parse it to find its
+ * structure, and `instruction` is the tail exactly as it goes out. `cut` is measured: the prompt
+ * as it was minus the prompt as it is.
  * @typedef {{ system: string, prompt: string, images: string[], words: number,
- *   truncated: {cut: number, of: number, params: {name: string, omitted: number}[]}|null
+ *   truncated: {cut: number, of: number, params: {name: string, omitted: number}[]}|null,
+ *   blocks: {name: string, heading: string, body: string, param: BoundParam}[],
+ *   instruction: string
  * }} AssembledPrompt */
 
 /** Everything the Instruction part will send, assembled once and read twice — by `run()` and by
  * the transcript drawer, which is what makes "what you read is what will be sent" true rather
  * than merely claimed. `call` is the DECLARED request: `maxTokens: null` means the ask spine
  * decides (§3.4.1). `fallback` is true when the empty-instruction sentence was used.
- * @typedef {{ bind: BindResult, assembled: AssembledPrompt, instruction: string,
+ * `fan` is set when the runner will run this box once per item of a list still standing at its
+ * port (§4.7): the assembly is then generation `index` of `n`.
+ * @typedef {{ bind: BindResult, fan: {n: number, index: number}|null,
+ *   assembled: AssembledPrompt, instruction: string,
  *   fallback: boolean, budget: {chars: number, tokens: number, assumed: boolean},
  *   call: {model: string|null, shape: 'text'|'list'|'json', schema: any,
  *     maxTokens: number|null, priority: 'background'|'foreground', task: string},
