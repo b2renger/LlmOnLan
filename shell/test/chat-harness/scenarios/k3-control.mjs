@@ -370,9 +370,16 @@ export default [
             await startRun(h, {}, step);
             const spun = await report(h, 120000);
             h.assert(spun, 'a loop that cannot be stopped by hand still ends on its own');
+            // NAMED means the STRUCTURED field, not a substring: every report carries an
+            // `iterations` map whatever ended the run, so a /iteration/i match over the JSON would
+            // pass for a plain break and test nothing (K3 fix pass).
+            const ceiling = spun.limited && spun.limited.ceiling;
+            h.eq(ceiling, 'maxIterations',
+                `the stop names maxIterations as the ceiling it hit: ${JSON.stringify(spun.limited)}`);
+            h.eq(spun.limited.partId, step, 'and names the part that was going round');
             const named = JSON.stringify(spun) + ' ' + String((await h.computer.states()).runbar);
             h.assert(/maxIterations|iteration/i.test(named),
-                `the stop NAMES its ceiling rather than just ending: ${named}`);
+                `and the reader is told, not just the report: ${named}`);
             const spins = (await h.mock.log({ path: '/v1/chat/completions' })).length - offSpend;
             h.assert(spins > 1 && spins <= 40, `the loop really iterated, and really stopped: ${spins} generations`);
 

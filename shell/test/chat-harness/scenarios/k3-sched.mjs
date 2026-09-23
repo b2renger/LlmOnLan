@@ -144,9 +144,13 @@ export default [
             h.eq(rows.some((r) => r.mode === 'from'), true, 'and a ▶ is recorded as a push');
 
             // 7. A CRASH MID-RUN (§7.5). The row is written the moment a run opens, so a reload
-            //    that never reaches the end comes back with a row that says a run was live — which
-            //    is exactly what puts the resume banner up. Then Resume is `run({mode:'all'})`,
-            //    and the dirty rule makes everything already finished free.
+            //    that never reaches the end comes back with a row that says a run was live, and
+            //    everything it left unfinished comes back `stale` — so re-running costs only those
+            //    boxes. That is the MECHANISM of Resume, and it is what this asserts.
+            //    NOT asserted here, because it is not built: the BANNER §7.5 asks for. The strings
+            //    (`computer.resumeBanner`/`resumeAction`/`resumeDismiss`) and `journal.resumable()`
+            //    are shipped and unit-tested, but nothing renders them yet — deferred to K4, and
+            //    said so in DEVLOG. A reader gets the cheap re-run; they are not yet OFFERED it.
             await h.computer.set(ids.a, { text: 'delta' });
             // A Timer at the end of the chain parks the run on a clock, which is the only way a
             // scenario can hold a run open long enough to be interrupted the way a crash is.

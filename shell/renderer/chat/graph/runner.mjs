@@ -46,7 +46,7 @@ import { accepts, isValue } from './values.mjs';
 import { planFan, joinResults, fanoutRecord } from './fanout.mjs';
 import { KV_KEYS, RUN_LIMITS } from '../core/types.mjs';
 import { createJournal } from './journal.mjs';
-import { cancelAll as cancelParks } from './parts/control-bus.mjs';
+import { cancelAll as cancelParks, answer as answerPark } from './parts/control-bus.mjs';
 import { t } from '../core/i18n.mjs';
 import '../strings/parts.en.mjs';
 
@@ -139,6 +139,13 @@ export function createRunner(o) {
   const session = o.session;
   const app = o.app;
   /** @type {AbortController|null} */ let ac = null;
+  /**
+   * How many activations are executing RIGHT NOW (§2.3). Not the same question as `running()`: a
+   * run parked on a Dialog nobody has answered is running and executing nothing, and the Computer
+   * reads THIS one to decide whether a hidden surface still deserves its farm seat and its guest.
+   * A number rather than a flag because a fan-out's items run through the same door.
+   */
+  let inFlight = 0;
   /** @type {Set<Function>} */ const listeners = new Set();
   /** @type {{i: number, n: number, partId: string|null, item: {i: number, n: number}|null}|null} */
   let progress = null;
@@ -168,9 +175,23 @@ export function createRunner(o) {
     }
   }
 
+  /**
+   * The document the live run belongs to (§4.8, K3 fix pass). A run is started ON a graph; if the
+   * library hands the session a DIFFERENT graph while it unwinds, every id it still marks would
+   * land in the graph that replaced it — the same id meaning a different box. Null between runs,
+   * when a write is unconditional.
+   * @type {string|null}
+   */
+  let ownerDocId = null;
+  /** Is the document the run started on still the open one? @returns {boolean} */
+  const ownsDoc = () => !ownerDocId
+    || typeof session.docId !== 'function'
+    || session.docId() === ownerDocId;
+
   /** Write a part's runtime fields (state/value/error/stats/fanout) through the session's one door.
    * @param {string} id @param {any} fields */
   function mark(id, fields) {
+    if (!ownsDoc()) return;
     try { session.patchPart(id, fields); } catch (err) { console.error('[lolchat] graph patch threw', err); }
   }
 
@@ -178,7 +199,7 @@ export function createRunner(o) {
    * `queued` up front, and N separate patches cost the canvas N renders (C1 fix pass).
    * @param {string[]} ids @param {any} fields */
   function markAll(ids, fields) {
-    if (!ids.length) return;
+    if (!ids.length || !ownsDoc()) return;
     try {
       if (typeof session.patchParts === 'function') session.patchParts(ids, fields);
       else for (const id of ids) session.patchPart(id, fields);
@@ -264,6 +285,7 @@ export function createRunner(o) {
     const startedWall = Date.now();
     const controller = new AbortController();
     ac = controller;
+    ownerDocId = typeof session.docId === 'function' ? session.docId() : null;
     const signal = controller.signal;
     const cache = opts.cache !== false;
     const mode = opts.mode === 'from' || opts.mode === 'button' ? opts.mode : 'all';
@@ -387,6 +409,12 @@ export function createRunner(o) {
 
     /** @param {boolean} cycle @returns {RunReport} */
     const finish = (cycle) => {
+      // §4.8, K3 fix pass: NO run outlives its parks. `stop()` cancels them, but a run can also end
+      // on a ceiling, on the generation cap, or on a cycle with a branch still parked — and a park
+      // that survives its run is a ghost: the run bar keeps counting "1 question waiting", the box
+      // keeps painting the field and Send, and the answer the person types resolves a promise
+      // nobody awaits. Every exit goes through here, so every exit rejects what it left parked.
+      for (const id of [...waiting.keys()]) answerPark(id, { ok: false, cancelled: true });
       /** @type {string[]} */ const leftStale = [];
       if (!cancelled) {
         for (const id of executed) {
@@ -403,6 +431,8 @@ export function createRunner(o) {
       });
       last = report;
       ac = null;
+      ownerDocId = null;
+      inFlight = 0;
       mergeInto = null;
       progress = null;
       try { J.close(report); } catch (err) { console.error('[lolchat] journal close threw', err); }
@@ -506,7 +536,9 @@ export function createRunner(o) {
         // already ran this part) is exactly what a gate exists to stop.
         if (executed.has(q) && stateOf(q) !== 'queued') continue;
         A.delete(q);
-        waiting.delete(q);
+        // Barring a part that is PARKED must reject its park too, or the question stays on the box
+        // and on the run bar after the branch it belonged to was cut (K3 fix pass).
+        if (waiting.delete(q)) answerPark(q, { ok: false, cancelled: true });
         barred.push(q);
         dropped.push(q);
         J.event({ partId: q, kind: 'bar', by: id });
@@ -990,14 +1022,23 @@ export function createRunner(o) {
         }
 
         progress = { i: activations, n: A.size, partId: next, item: null };
+        inFlight += 1;
+        /** @type {any} */ let verdict = 'next';
         // eslint-disable-next-line no-await-in-loop
-        const verdict = await execute(next);
+        try { verdict = await execute(next); } finally { inFlight -= 1; }
+        // The `waiting` event above was emitted while the activation was still technically in
+        // flight. This one fires once it is not, so a listener that reads `executing()` — the
+        // Computer's `visible` rule (§2.3) — learns that the run is now parked and lets a hidden
+        // surface suspend its guest instead of holding the seat for a question nobody answered.
+        if (verdict === 'suspended') emit({ type: 'parked', partId: next, i: activations, n: A.size });
         if (verdict === 'stop') break;
       }
 
-      // A Stop while parts were parked: the parks are already cancelled by `stop()`, and anything
-      // still suspended here is put back where the next Run will find it.
-      if (waiting.size) { for (const id of waiting.keys()) A.add(id); waiting.clear(); }
+      // A Stop — or a ceiling, or the cap — while parts were parked: anything still suspended is
+      // put back where the next Run will find it. `waiting` is deliberately NOT cleared here:
+      // `finish()` reads it to reject the parks this run leaves behind, and the Map dies with the
+      // call anyway.
+      for (const id of waiting.keys()) A.add(id);
 
       // Anything still QUEUED, RUNNING or WAITING never finished: put it back where the run set
       // will find it — in ONE write, the same as the queueing that put it there. A capped run's
@@ -1037,6 +1078,10 @@ export function createRunner(o) {
       }
     },
     running: () => !!ac,
+    /** §2.3: is an activation in flight RIGHT NOW? False while the run is merely parked on a
+     * Dialog, a Confirm or a Timer — which is what lets a hidden Computer stop holding a farm
+     * seat and suspend its guest while nobody answers the question. */
+    executing: () => !!ac && inFlight > 0,
     progress: () => (progress ? { ...progress } : null),
     /** The last finished run, for a panel that mounted after it (null before the first). */
     report: () => last,

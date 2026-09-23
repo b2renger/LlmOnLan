@@ -6,6 +6,71 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-09-23 — LOL Chat vNext **K3 fix round**: a run never outlives the question it asked, nor the graph it was started on
+
+Seven reviewer findings against the K3 landing (`da9b461`). Six fixed at the root with a test that
+would have caught each; one is a deliberate, now-stated deferral.
+
+1. **Switching graphs in the library left the old run alive on the new document (major).** The
+   library's Open swapped the session's document without stopping the run — so a run parked on a
+   Dialog of the graph you just left went on marking part ids into the graph that replaced them
+   (same ids, different boxes), kept the run bar's Stop for a question nobody could see, and made
+   the new document's Run a **silent** no-op: `start()` returned `null` while the runner was busy,
+   so nothing was even said. Two fixes. `host.openDoc()` now ends the run the way `close()` already
+   did — `runner.stop()`, reject every park, forget every unconsumed Button press — and the runner
+   itself remembers **which document a run belongs to**: `mark`/`markAll` write nothing once
+   `session.docId()` has moved on, so even the asynchronous tail of an aborted run cannot touch the
+   new graph. The seedless busy branch now announces `graph.runBusy` — §4.2's "never a silently
+   no-op button".
+2. **`runner.executing()` was specified in K1 and never added (major).** `visible.mjs` falls back to
+   `running()` when it is missing, so the omission compiled and nothing caught it — and the K1 rule
+   it exists to enforce was silently inverted: a Dialog nobody answers held `app.state.visible` true
+   while the surface was hidden, keeping the farm seat and the sandbox awake for the full ten
+   minutes of `maxWallMs`. The runner now counts activations in flight and publishes
+   `executing() = running && inFlight > 0`, and emits a `parked` event once the activation that
+   suspended has really left the loop, so the surface learns about it rather than finding out at the
+   next unrelated event.
+3. **A run that ended while a branch was parked left the park registered (major).** Only `stop()`
+   cancelled parks. A run ended by a ceiling, by the generation cap on another branch, or by a
+   cycle left a **ghost question**: the run bar kept counting `1 question waiting` with its Show me,
+   the box kept painting the field and Send, and the answer the person typed resolved a promise
+   nobody was awaiting — their words vanished with no word said (§1.2). Stop could not clear it
+   either, because Stop was hidden and Escape's `active()` was false. `finish()` — the ONE exit
+   every path goes through — now rejects whatever the run left parked, and `applyBarrier` rejects
+   the park of a branch it cuts.
+4. **The loop-ceiling harness assertion was vacuous (minor).** It matched `/iteration/i` against the
+   whole report, and every report carries an `iterations` map whatever ended the run, so the K3-U2
+   acceptance "stops at `maxIterations` with the ceiling named" was not tested at all. It now
+   asserts the structured `limited.ceiling` and `limited.partId`, keeping the run-bar string as a
+   secondary.
+5. **Plan-time wall-clock arithmetic ignored loops (minor).** `runPlan` summed each Timer's own
+   `repeats` while the very next line multiplied a looping thinking part by `maxIterations`. A
+   120 s Timer inside a gated loop planned as 120 s, cleared the §4.6 plan-time refusal, then
+   really spent up to 8 × 120 s and was stopped ten minutes in by the runtime ceiling — the exact
+   thing the refusal exists to prevent. Same multiplier now applies to `waitMs`.
+6. **An unconsumed Button press survived for the life of the window (minor).** The press is recorded
+   by the face's own listener and removed only when a run activates the part; a run that never
+   started (no document open) or was refused (a hand-edited cycle) left it in the module Set, and a
+   later wave through that Button consumed the stale press and passed through **unpressed** — which
+   is the one thing the manual gate exists to stop. `clearPresses()` (exported since K3 and until
+   now never called) is wired to document open, document close, and both refusal paths.
+
+**Deferred, and now said so.** §7.5's **resume banner** is not built. `journal.resumable()` and the
+three strings (`computer.resumeBanner`/`resumeAction`/`resumeDismiss`) ship and are unit-tested, and
+the *mechanism* works — a crash mid-run comes back with a live row and everything unfinished `stale`,
+so re-running costs only those boxes, which `k3-sched` asserts end to end. What is missing is the
+offer: nothing renders the banner on document open. K4. The misleading comment in `k3-sched.mjs`
+that claimed the row "is exactly what puts the resume banner up" has been corrected to say what is
+and is not asserted.
+
+**Tested.** `chat-unit` 1116 passed / 0 failed (+5 in `computer-sched`: a ceiling that leaves no
+ghost question, a barred park, `executing()` across a park, a document swapped under a live run, and
+a Timer inside a loop planned at the ceiling); `unit.js` 5/5; `chat-lint` 161 files / 0 violations;
+`chat-scope` clean; harness `--strict` and `--phase perf` green at slot 0. Light and dark
+screenshots re-taken and looked at.
+
+---
+
 ## 2026-09-23 — LOL Chat vNext **K3**: ▶ on any box, six control parts, loops that cannot run away, and a run you can watch
 
 The Computer becomes an agent canvas. Every box now carries its own **▶**: pressing it runs *that*

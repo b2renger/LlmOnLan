@@ -30,7 +30,7 @@ import {
 import { createRunner } from '../../../renderer/chat/graph/runner.mjs';
 import { partById } from '../../../renderer/chat/graph/model.mjs';
 import { valueOf } from '../../../renderer/chat/graph/values.mjs';
-import { park, answer, cancelAll } from '../../../renderer/chat/graph/parts/control-bus.mjs';
+import { park, answer, cancelAll, pending } from '../../../renderer/chat/graph/parts/control-bus.mjs';
 
 const text = (/** @type {string} */ s) => valueOf('text', s);
 
@@ -60,10 +60,13 @@ function doc(wires, parts) {
 /** A session over a doc built by hand — the same doors the host gives the runner. */
 function sessionOver(d, specs, { graphId = 'g1' } = {}) {
   let live = d;
+  let openId = graphId;
   /** @type {any[]} */ const patches = [];
   return {
     specs,
-    docId: () => graphId,
+    docId: () => openId,
+    /** The library switching the surface to another graph, mid-run (§4.8). */
+    swapDoc: (/** @type {string} */ id, /** @type {any} */ next) => { openId = id; if (next) live = next; },
     doc: () => live,
     thread: () => null,
     patchPart(id, fields) {
@@ -631,6 +634,104 @@ export default (test) => {
     assert.equal(specs.ran('after'), 0);
   });
 
+  test('a run that ends on a ceiling with a branch parked does NOT leave the question behind', async () => {
+    cancelAll();
+    const specs = testSpecs();
+    const d = doc([{ from: 'q', to: 'after', port: 'in' }], [
+      { id: 'q', type: 'asker', state: 'idle', value: null },
+      { id: 'after', type: 'step', state: 'idle', value: null },
+    ]);
+    const session = sessionOver(d, specs);
+    const runner = createRunner({ session, app: fakeApp() });
+    const report = await runner.run({ limits: { maxWallMs: 40 } });
+    assert.equal(report.limited.ceiling, 'maxWallMs');
+    assert.equal(runner.running(), false);
+    // THE BUG THIS GUARDS (K3 fix pass): only `stop()` used to cancel parks, so a run that ended
+    // on a ceiling, on the generation cap or on a cycle left the park registered. The run bar went
+    // on counting "1 question waiting", the box went on painting the field and Send, and the
+    // answer the person typed resolved a promise nobody was awaiting — their words vanished.
+    assert.deepEqual(pending(), [], 'the park went with the run that owned it');
+    assert.equal(answer('q', { ok: true, text: 'too late' }), false,
+      'and a stale Send is told so rather than swallowed');
+    assert.equal(session.state('q'), 'stale', 'the question comes back stale, and will ask again');
+  });
+
+  test('barring a parked branch rejects its park too — no question on a box the run cut', async () => {
+    cancelAll();
+    const specs = testSpecs();
+    // `barrier` passes nothing on (barAfter:0 bars on iteration 1), so `q` — reachable ONLY through
+    // it — is dropped while it is parked.
+    const d = doc([
+      { from: 'src', to: 'barrier', port: 'in' },
+      { from: 'src', to: 'q', port: 'in' },
+      { from: 'q', to: 'tail', port: 'in' },
+      { from: 'barrier', to: 'q', port: 'in' },
+    ], [
+      { id: 'src', type: 'step', state: 'idle', value: null },
+      { id: 'q', type: 'asker', state: 'idle', value: null },
+      { id: 'barrier', type: 'gate', state: 'idle', value: null, settings: { barAfter: 0 } },
+      { id: 'tail', type: 'step', state: 'idle', value: null },
+    ]);
+    const session = sessionOver(d, specs);
+    const runner = createRunner({ session, app: fakeApp() });
+    const report = await runner.run({ limits: { maxWallMs: 400 } });
+    assert.ok(report, 'the run ended on its own');
+    assert.deepEqual(pending(), [], 'nothing is still asking');
+    cancelAll();
+  });
+
+  test('`executing()` is false while the run is merely PARKED, and true mid-activation', async () => {
+    cancelAll();
+    const specs = testSpecs();
+    const d = doc([{ from: 'q', to: 'after', port: 'in' }], [
+      { id: 'q', type: 'asker', state: 'idle', value: null },
+      { id: 'after', type: 'slow', state: 'idle', value: null, settings: { ms: 60 } },
+    ]);
+    const session = sessionOver(d, specs);
+    const runner = createRunner({ session, app: fakeApp() });
+    assert.equal(typeof runner.executing, 'function', 'the runner answers §2.3 itself');
+    assert.equal(runner.executing(), false, 'nothing runs before the run');
+    const running = runner.run({ limits: { maxWallMs: 4000 } });
+    await new Promise((r) => { setTimeout(r, 30); });
+    assert.equal(session.state('q'), 'waiting');
+    assert.equal(runner.running(), true, 'the run is alive');
+    // THE RULE (§2.3): a Dialog nobody answers must NOT keep a hidden Computer's farm seat, nor
+    // keep its sandbox awake, for the ten minutes of `maxWallMs`. `running()` cannot tell the
+    // difference; this is the question the surface actually asks.
+    assert.equal(runner.executing(), false, 'a parked run is executing nothing');
+    assert.equal(answer('q', { ok: true, text: 'go' }), true);
+    await new Promise((r) => { setTimeout(r, 20); });
+    assert.equal(runner.executing(), true, 'and the activation it released IS in flight');
+    const report = await running;
+    assert.equal(report.waited, 1);
+    assert.equal(runner.executing(), false, 'and false again once the run is over');
+  });
+
+  test('a run whose document is swapped out stops writing into the graph that replaced it', async () => {
+    /** @type {() => void} */ let release = () => {};
+    const specs = testSpecs({ hold: () => new Promise((r) => { release = () => r(undefined); }) });
+    const d = doc([{ from: 'a', to: 'b', port: 'in' }], [
+      { id: 'a', type: 'held', state: 'idle', value: null },
+      { id: 'b', type: 'step', state: 'idle', value: null },
+    ]);
+    const session = sessionOver(d, specs);
+    const runner = createRunner({ session, app: fakeApp() });
+    const running = runner.run({});
+    await new Promise((r) => { setTimeout(r, 20); });
+    // The library opens ANOTHER graph. Same ids, different boxes — which is exactly why a run that
+    // went on marking would paint states onto parts nobody asked it about (K3 fix pass).
+    const other = doc([], [
+      { id: 'a', type: 'step', state: 'idle', value: null },
+      { id: 'b', type: 'step', state: 'idle', value: null },
+    ]);
+    session.swapDoc('g2', other);
+    runner.stop();
+    release();
+    await running;
+    assert.equal(session.state('a'), 'idle', 'the new document was not touched');
+    assert.equal(session.state('b'), 'idle');
+  });
+
   // -------------------------------------------------------------------------------------------
   // Merge (§4.4): the user's press is never swallowed.
   // -------------------------------------------------------------------------------------------
@@ -755,6 +856,32 @@ export default (test) => {
     // The plan says the same thing on its own, which is what the run bar quotes.
     const plan = runPlan(d, { specs });
     assert.equal(plan.waitMs, 800000);
+  });
+
+  test('a Timer INSIDE a loop is planned at the loop ceiling, not one pass (§4.6)', async () => {
+    const specs = testSpecs();
+    const seconds = 100;
+    const d = doc([
+      { from: 'g', to: 't', port: 'in' },
+      { from: 't', to: 'g', port: 'in', back: true },
+    ], [
+      { id: 'g', type: 'gate', state: 'idle', value: null, settings: { barAfter: 99 } },
+      { id: 't', type: 'timer', state: 'idle', value: null, settings: { seconds, repeats: 1 } },
+    ]);
+    const plan = runPlan(d, { specs });
+    // THE BUG THIS GUARDS (K3 fix pass): `waitMs` summed each Timer's OWN repeats and ignored the
+    // loop, so this planned as 100 s, passed the plan-time refusal, and was then discovered ten
+    // minutes in by the runtime ceiling — the opposite of §4.6's "refused before it starts, with
+    // the arithmetic shown". `costMax` two lines away had the multiplier all along.
+    assert.deepEqual(plan.loops, ['g', 't'], 'both boxes really are in the loop');
+    assert.equal(plan.waitMs, seconds * 1000 * RUN_LIMITS.maxIterations,
+      'the wait is the ceiling on the loop, not one pass round it');
+    const session = sessionOver(d, specs);
+    const runner = createRunner({ session, app: fakeApp() });
+    const report = await runner.run({});
+    assert.equal(report.limited.ceiling, 'maxWallMs');
+    assert.equal(report.limited.planned, true, 'and it is refused BEFORE the first tick');
+    assert.equal(specs.ran('t'), 0);
   });
 
   test('the run plan is a RANGE when the graph loops, and counts thinksFor honestly (§4.6)', () => {

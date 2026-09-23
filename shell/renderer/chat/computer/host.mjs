@@ -29,6 +29,7 @@ import { createRunner } from '../graph/runner.mjs';
 // the debug door from hour one, so the door and the units' files land together (§11 K3).
 import { readRuns } from '../graph/journal.mjs';
 import { pending as pendingParks, cancelAll as cancelParks } from '../graph/parts/control-bus.mjs';
+import { clearPresses } from '../graph/parts/button.mjs';
 import { createCanvas } from '../graph/canvas.mjs';
 import { createDocStore, SAVE_DEBOUNCE_MS } from './docstore.mjs';
 import { createSandbox } from '../sandbox/host.mjs';
@@ -329,7 +330,10 @@ export function createHost(app, els) {
   /** The Run button, ctrl+enter, the run bar and the debug door all land here.
    * @param {any} [opts] */
   async function start(opts) {
-    if (!session.docId()) return null;
+    // §6.6: a Button press authorises ONE wave. If there is no document to run it on, no wave is
+    // coming — and a press left in the registry would silently open that gate for some LATER run
+    // the person never pressed anything for (K3 fix pass).
+    if (!session.docId()) { clearPresses(); return null; }
     const o = opts || {};
     // K3 kickoff (COMPUTER_PLAN §4.4): a ▶ pressed MID-RUN MERGES, never refuses — "the user's
     // press is never swallowed". A second `mode:'all'` is still a refusal (the Run button reads
@@ -342,7 +346,11 @@ export function createHost(app, els) {
         canvas.announce(t('computer.runMerged'));
         return { merged: Number(merged) || seeds.length, busy: false };
       }
-      return null;
+      // A Run with nothing to merge WHILE a run is live is a refusal, and §4.2 has one rule about
+      // refusals: never a silently no-op button. It used to `return null` — the caller announced
+      // nothing, so pressing Run on a busy Computer looked exactly like pressing a dead button.
+      canvas.announce(t('graph.runBusy'));
+      return { ran: 0, busy: true, merged: 0 };
     }
     canvas.setCapped(null);          // a new run starts with no banner, whatever the last one said
     // The rebuild ladder (C3-U1): three rebuilds in a minute leave the sandbox quiet until an
@@ -358,6 +366,9 @@ export function createHost(app, els) {
     // `only` here is gone — it called the same `activeSet`, so it was harmless, but it hid where
     // the entry point actually lives.
     const report = await runner.run(o);
+    // A refused run activates nothing, so it consumes no press. Same rule as above: the
+    // authorisation dies with the wave it was for, rather than waiting to open a gate by itself.
+    if (report && report.cycle) clearPresses();
     canvas.setRunning({ running: false, progress: null });
     if (report) {
       if (report.busy) canvas.announce(t('graph.runBusy'));
@@ -419,6 +430,22 @@ export function createHost(app, els) {
     return !!(await session.store.rename(id, title));
   }
 
+  /**
+   * Switch the surface to another document (§4.8, K3 fix pass). A run belongs to the graph it was
+   * started on: handed a DIFFERENT one, it would go on marking ids that now mean other boxes, its
+   * parked Dialog would still own the run bar's Stop for a graph nobody can see, and the new
+   * document's Run would be refused as busy. So a switch ends the run exactly the way `close()`
+   * does — stop it, reject every park, and forget every Button press no run ever consumed — and
+   * only then loads.
+   * @param {string|null} [graphId]
+   */
+  function openDoc(graphId) {
+    runner.stop();
+    cancelParks();
+    clearPresses();
+    return session.open(graphId || null);
+  }
+
   return {
     session,
     canvas,
@@ -427,7 +454,7 @@ export function createHost(app, els) {
     /** Resolves once the host has a document open (or decided it cannot get one). */
     ready,
     /** @param {string|null} [graphId] */
-    open: (graphId) => session.open(graphId || null),
+    open: (graphId) => openDoc(graphId),
     rename,
     async close() {
       closed = true;
@@ -435,6 +462,10 @@ export function createHost(app, els) {
       // §4.8 / §7.5: closing the document rejects every park. A Timer does not survive a close,
       // and a Dialog that was asking comes back `stale` and asks again.
       cancelParks();
+      // §6.6: a Button press is an authorisation for ONE wave. An unconsumed one must not outlive
+      // the document that owned it, or the next run through that box passes a manual gate nobody
+      // clicked.
+      clearPresses();
       if (surface) surface.removeEventListener('keydown', onSurfaceKey);
       offRunner();
       offSession();
@@ -553,7 +584,7 @@ export function createHost(app, els) {
       waits: () => pendingParks(),
       // ---- K1 additions (§2.4) -------------------------------------------------------------
       /** @param {string|null} [graphId] */
-      open: (graphId) => session.open(graphId || null),
+      open: (graphId) => openDoc(graphId),
       docId: () => session.docId(),
     },
   };

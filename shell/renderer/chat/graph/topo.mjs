@@ -229,7 +229,12 @@ export function runPlan(doc, o = {}) {
     const part = /** @type {any} */ (byId.get(id));
     const spec = part ? specs.get(part.type) : null;
     if (!spec) continue;
-    waitMs += plannedWaitMsOf(part, spec, maxIterations);
+    // §4.6: the refusal is made at PLAN time, with the arithmetic shown — so the arithmetic has to
+    // include the loop. A 120 s Timer inside a gated loop is not 120 s of waiting, it is up to
+    // `maxIterations` × 120 s, and planning it as 120 s is exactly how the run gets discovered ten
+    // minutes in by the runtime ceiling instead of refused before it starts. Same multiplier
+    // `costMax` already applies two lines down.
+    waitMs += plannedWaitMsOf(part, spec, maxIterations) * (looping.has(id) ? maxIterations : 1);
     if (!thinksFor(spec, part)) continue;
     thinking.push(id);
     cost += 1;

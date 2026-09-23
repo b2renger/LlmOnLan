@@ -2951,6 +2951,28 @@ changes (a wire edit replaces `doc.wires`; a part added or removed changes the l
 parts up through an index that is rebuilt only when it misses. The scan still looks at every part,
 every time. Measured after: **0.23 ms/part**, and `perf-graph-run` is green.
 
+**KC-21 (fix round). A run belongs to ONE document, and ends with the parks it opened.** Three
+frozen consequences, all in `graph/runner.mjs` + `computer/host.mjs`:
+(a) the runner records `session.docId()` when a run starts and `mark`/`markAll` write nothing once
+the open document has changed — the asynchronous tail of an aborted run cannot paint states onto the
+graph that replaced it;
+(b) `host.openDoc()` is the ONLY door that changes the open document, and it does what `close()`
+does first: `runner.stop()`, `cancelAll()` on the park registry, `clearPresses()`. The library's
+Open goes through it, and so does the debug door's;
+(c) `finish()` — the single exit of `run()` — rejects every park the run still holds, and
+`applyBarrier` rejects the park of a branch it cuts. A park NEVER outlives the run that opened it,
+whatever ended it. A Send on a park nobody holds returns `false` (control-bus already said so), and
+that is now reachable by the surface rather than a ghost.
+
+**KC-22 (fix round). `runner.executing()` is the §2.3 predicate, and it is the runner's to answer.**
+`executing() === running() && inFlight > 0`, where `inFlight` counts activations really awaiting
+`spec.run()`. A run parked on a Dialog, a Confirm or a Timer is **running** and **executing
+nothing** — so a hidden Computer stops holding a farm seat, suspends its sandbox and saves, exactly
+as `visible.mjs` has said since K1. The runner emits a `parked` event after the suspending
+activation leaves the loop, so a listener that reads `executing()` is told rather than finding out
+at the next unrelated event. `visible.mjs`'s `running()` fallback stays as the one place that choice
+is made; nothing else in the tree may ask the question itself.
+
 ## 3. Architecture and contracts
 
 ### 3.1 Load order, loader and mount
