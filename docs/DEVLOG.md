@@ -6,6 +6,84 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-09-23 — LOL Chat vNext **K2**: arrows that carry names, an Instruction that binds them, and a prompt you can read before you pay for it
+
+The Computer's headline feature. An arrow between two boxes can now be **named** — click the pill on
+the wire, type `societal research` — and the name is what the model reads: the Instruction assembles
+COMPUTER_PLAN §5.3's prompt, one `## <the reader's own spelling>` heading per named input, the
+unlabelled ones as `## Input n`, the instruction **last**. Prose that says "taking the societal
+research into account" therefore refers to something the model can actually find. The box says what
+it will spend before it spends it (`sends 46 words · 3 named inputs`, `unused: country`), and the
+**transcript drawer** shows the exact bytes — Sent / Got / Cost — *before* the first run, with
+`⟨topic — has not run yet⟩` where a value will land. What you read is what will be sent: the drawer
+and the run call the same `planFor()`.
+
+Built in three units on one tree: `graph/{model,serialize,wires,canvas}.mjs` (the label through the
+engine and the pill on the SVG layer), `graph/bind.mjs` + `graph/parts/instruction.mjs` (the nine
+binding rules, the exact prompt, the §5.4 middle-out budget, the hard `errNoVision` refusal before
+any request), and `computer/transcript.mjs` + `css/computer-transcript.css` (the panel, mounted
+through K1-U3's `mountPanel` — `drawer.mjs` was not touched).
+
+**Landing decisions worth the owner's eye.**
+
+1. **`ask.mjs` is gone; `instruction.mjs` holds its row.** The type id stays `ask`, so every stored
+   graph still loads. `parts/filter.mjs` now takes `modelOptions`/`optionSig` from the new file and
+   the `parts.ask*` strings are deleted with it.
+2. **A renamed port must not cut a reader's arrows.** The C1 Ask's port was `context`; the
+   Instruction declares one port, `in`. `normaliseDoc` DROPS a wire whose port a part does not
+   declare — so the swap alone would have quietly deleted every arrow into every Instruction in
+   every graph the owner already drew. `graph/model.mjs` gained a rename table (`PORT_ALIASES`,
+   `ask.context → in`) applied on the way in, with a unit case against the real catalogue and a
+   port nothing renamed still refused by name. The two shipped `docs/examples/*.lolgraph.json` are
+   left at v1 on purpose: they now exercise that migration on every run.
+3. **§6.3 and §4.7 disagreed, and §4.7 won.** §6.3 writes the Instruction's port as
+   `accepts:['any']`, which makes a `list` arriving on one arrow *"ok"* — the part would run once
+   over the whole list. §4.7 says a list fans, which is what C2 shipped and proved (Split → Ask =
+   one generation per item). Ending that at a landing would have deleted a shipped guarantee, so
+   the port names the four non-list kinds, which is `['any']` in every respect except that a list
+   still answers `'fanout'`. A duplicated *label* is still a join, never a map.
+4. **Two doors must not answer to one selector.** The Instruction's strip borrowed the `.graph-value`
+   class from the canvas's value chip, and being higher in the box it swallowed the click meant for
+   the inspector. The strip is now `.graph-ins-strip` and only borrows the look.
+5. **`transcript.record()` is called by the run**, so the Got tab shows the farm's raw reply and the
+   repair ladder is read rather than inferred. It lives per window, never on the part: an AskResult
+   is a fact about the last run, not about the document.
+6. **Naming an arrow cannot commit on blur alone** (K2-U1): a window without OS focus sets
+   `activeElement` while firing no focus events at all, so an edit commits on Enter, Escape
+   (cancel), blur **and** the canvas's next pointer press.
+
+**Guarantees that CHANGED, by decision, not by accident.** C1's prompt shape ("Context:
+…
+
+<the
+instruction>") is gone: `c1-run-three-parts` now asserts §5.3's shape and **two** messages, because
+the Instruction carries the frozen system sentence. `mock-item` and the fan scenarios read the item
+from its heading instead of from the last line of the prompt — the instruction is last now. The
+~20 scenario wires that named the port `context` name `in`; no assertion was dropped.
+
+**Tested.** `chat-unit` 1051 passed / 0 failed (+ the label, bind and transcript files, and one new
+`normaliseDoc` rename case); `unit.js` 5/5; `chat-lint` 152 files / 0 violations; `chat-scope` clean;
+harness `--strict` **223 passed / 0 failed** (221 before the two new shot scenarios); `--phase perf`
+9/9 — 500 parts build 90 ms of a 1500 ms budget, pan work p95 4.8 ms of 16, 250 label pills cost
+nothing measurable. Light and dark screenshots of the new surface (`k2-shots-*`) were taken and
+LOOKED at: they turned up a library card photographed before its debounced save (now waited for)
+and a `name me` plea at opacity 0.4 that could not be read on white (now 0.75).
+
+**Doc corrections made here.** §5.3's worked example labelled its unlabelled arrival `## Input 3`
+while rule 1 numbers unlabelled arrivals among themselves (`## Input 1`), and its heading order
+contradicted its own instruction text under rule 9a; §11 K2-U1 said a move "does not bump `rev`"
+while `movePart` does (what a move really guarantees is that it stales nothing). Fixed in
+COMPUTER_PLAN.
+
+**Known, deferred.** The assembled prompt puts a value on the line directly under its heading, where
+§5.3's example shows a blank line between them — markdown-identical, pinned by K2-U2's golden
+fixture, left alone. §8.2's value chips, hover previews and type colours on the wire are K4-U3's
+look pass; the pill is drawn but not yet dressed. `app/caps.mjs` keys its vision verdicts by the
+advertised model group while `app/ask.mjs` asks the underlying id — the Instruction asks **both** and
+refuses if either says no, so the Computer is safe, but the chat's own gate still has that hole.
+
+---
+
 ## 2026-09-23 — LOL Chat vNext **K1 fix round**: the shipped E2E test, the Computer's toasts, and its Escape
 
 Seven reviewer findings against the K1 landing (`3c43d7c`). Six fixed at the root, one deferred to

@@ -51,7 +51,7 @@ async function build(/** @type {any} */ h) {
     await h.graph.set(ask, { instruction: 'name a colour', model: 'mock-item' });
     await h.graph.set(collect, { mode: 'numbered' });
     h.eq((await h.graph.wire(note, split, 'text')).ok, true, 'Note feeds Split');
-    h.eq((await h.graph.wire(split, ask, 'context')).ok, true, 'Split feeds Ask');
+    h.eq((await h.graph.wire(split, ask, 'in')).ok, true, 'Split feeds Ask');
     h.eq((await h.graph.wire(ask, collect, 'items')).ok, true, 'Ask feeds Collect');
     return { note, split, ask, collect };
 }
@@ -113,7 +113,9 @@ export default [
             const text = await h.graph.call('exportText', { values: false });
             h.assert(typeof text === 'string' && text.length > 50, 'the export is text');
             const file = JSON.parse(text);
-            h.eq(file.lolgraph, 1, 'the format tag names itself and its version');
+            // 2 since the K2 kickoff: v2 adds `wire.label` (COMPUTER_PLAN §5.1) and a value's
+            // format/lang facets. A v1 file still opens — graph-serialize.test.mjs proves it.
+            h.eq(file.lolgraph, 2, 'the format tag names itself and its version');
             h.eq(file.parts.length, 4);
             h.eq(file.wires.length, 3);
             // §5, asserted on the BYTES: a graph file carries the program, never the machine.
@@ -409,7 +411,7 @@ export default [
                 const split = await h.graph.place('split', 40 + ((i * 31) % 300), 600 - i * 7);
                 const ask = await h.graph.place('ask', (i * 71) % 900, (i * 53) % 900);
                 h.eq((await h.graph.wire(note, split, 'text')).ok, true);
-                h.eq((await h.graph.wire(split, ask, 'context')).ok, true);
+                h.eq((await h.graph.wire(split, ask, 'in')).ok, true);
                 all.push(note, split, ask);
             }
             h.eq((await h.graph.doc()).parts.length, 30, 'thirty parts on the canvas');

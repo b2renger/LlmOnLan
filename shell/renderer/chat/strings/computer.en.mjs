@@ -11,6 +11,7 @@
 //   computer.migrate*     K1-U2 (computer/migrate.mjs)
 //   computer.run*         K1-U3 (computer/runbar.mjs)
 //   computer.drawer*      K1-U3 (computer/drawer.mjs)
+//   computer.tx*          K2-U3 (computer/transcript.mjs)
 import { registerStrings } from '../core/i18n.mjs';
 
 registerStrings('computer', {
@@ -63,6 +64,30 @@ registerStrings('computer', {
   // ---- the drawer (K1-U3) --------------------------------------------------------------------
   drawerClose: 'Close',
   drawerEmpty: 'Click a value on the canvas to read it here.',
+
+  // ---- the transcript (K2-U3, COMPUTER_PLAN §8.1) ---------------------------------------------
+  // Three tabs on one thinking part: what WILL be sent (before a run, and for free), what came
+  // back verbatim, and what it cost. Namespace `computer.tx*` is K2-U3's alone.
+  txTitle: 'What gets sent',
+  txSent: 'Sent',
+  txGot: 'Got',
+  txCost: 'Cost',
+  txSentEmpty: 'Nothing is wired into this box yet, and it has no instruction.',
+  txGotEmpty: 'This box has not run yet. Open Sent to read the prompt before you spend a generation.',
+  txCostEmpty: 'No run to cost yet.',
+  txSystem: 'System',
+  txInstruction: 'Instruction',
+  txParams: 'model: {model} · response_format: {format} · max_tokens: {maxTokens} · priority: {priority}',
+  txParamsAuto: 'automatic',
+  txLadderSchema: 'asked with schema',
+  txLadderProse: 'model returned prose with a fenced object',
+  txLadderExtract: 'extracted',
+  txLadderValid: 'validated ✓',
+  txLadderFailed: 'could not be validated',
+  txCostLine: '{seconds} s · {tokens} tokens · {cached} · farm: {farm}',
+  txCached: 'cached',
+  txNotCached: 'not cached',
+  txUnknownFarm: 'no farm',
 
   // ---- legacy parts, demoted at K1 (K1-U3) ---------------------------------------------------
   legacyBadge: 'legacy',

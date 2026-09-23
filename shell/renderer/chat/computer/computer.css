@@ -21,6 +21,8 @@
 @import url('../css/computer-runbar.css');
 /* K1-U3, extended by K2-U3 */
 @import url('../css/computer-drawer.css');
-/* K2-U3, K3-U2/U3, K4-U2/U3 and K5-U1 add their own @import lines at their kickoffs:
-   computer-transcript.css, computer-parts.css, computer-states.css, computer-look.css,
+/* K2-U3: the Sent/Got/Cost panel inside the drawer. */
+@import url('../css/computer-transcript.css');
+/* K3-U2/U3, K4-U2/U3 and K5-U1 add their own @import lines at their kickoffs:
+   computer-parts.css, computer-states.css, computer-look.css,
    computer-rail.css. */

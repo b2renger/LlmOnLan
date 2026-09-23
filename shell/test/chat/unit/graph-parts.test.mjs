@@ -14,7 +14,7 @@ import { createDoc, addPart, addWire, setSettings, patchPart } from '../../../re
 import { runSet } from '../../../renderer/chat/graph/topo.mjs';
 import { valueOf, listOf } from '../../../renderer/chat/graph/values.mjs';
 import { specMap, partSpecs } from '../../../renderer/chat/graph/parts/index.mjs';
-import { promptFrom, LIST_SCHEMA } from '../../../renderer/chat/graph/parts/ask.mjs';
+import { LIST_SCHEMA } from '../../../renderer/chat/graph/parts/instruction.mjs';
 import { join } from '../../../renderer/chat/graph/parts/collect.mjs';
 import { textOf, itemsOf, fillTemplate } from '../../../renderer/chat/graph/parts/common.mjs';
 import { createRunner, DEFAULT_MAX_ITEMS } from '../../../renderer/chat/graph/runner.mjs';
@@ -52,7 +52,8 @@ function makeSession(doc) {
   return { session, events, get: () => doc };
 }
 
-/** A graph: Note -> Ask -> Collect, the three-part program the spec opens with. */
+/** A graph: Note -> Instruction -> Collect, the three-part program the spec opens with. The type
+ * id is still `ask` (COMPUTER_PLAN §6.3); the port is the Instruction's single `in`. */
 function buildGraph(settings = {}) {
   let doc = createDoc({ id: 'g1', threadId: 'th1', now });
   const a = addPart(doc, { type: 'note', x: 0, y: 0, settings: { text: 'Paris' } }, { specs: SPECS, newId, now });
@@ -61,7 +62,7 @@ function buildGraph(settings = {}) {
   doc = b.doc;
   const c = addPart(doc, { type: 'collect', x: 400, y: 0 }, { specs: SPECS, newId, now });
   doc = c.doc;
-  const w1 = addWire(doc, { from: a.part.id, to: b.part.id, port: 'context' }, { specs: SPECS, newId, now });
+  const w1 = addWire(doc, { from: a.part.id, to: b.part.id, port: 'in' }, { specs: SPECS, newId, now });
   assert.equal(w1.ok, true, 'note -> ask is a legal wire');
   doc = w1.doc;
   const w2 = addWire(doc, { from: b.part.id, to: c.part.id, port: 'items' }, { specs: SPECS, newId, now });
@@ -146,22 +147,35 @@ export default (test) => {
     assert.equal(spec.thinks, false);
   });
 
-  // ---- Ask -----------------------------------------------------------------------------------
+  // ---- Instruction (the part `ask` became at the K2 landing) ---------------------------------
 
-  test('one input is labelled "Context", several are numbered', () => {
-    assert.equal(promptFrom([valueOf('text', 'Paris')], 'go'), `${t('parts.askContext')}:\nParis\n\ngo`);
-    const two = promptFrom([valueOf('text', 'a'), valueOf('text', 'b')], 'go');
-    assert.ok(two.startsWith(`${t('parts.askContextN', { n: 1 })}:\na`), two);
-    assert.ok(two.includes(`${t('parts.askContextN', { n: 2 })}:\nb`), two);
-    assert.equal(promptFrom([], 'just the instruction'), 'just the instruction');
+  test('an arrow\'s LABEL is the heading its value arrives under, and the instruction is last', async () => {
+    // K2: the assembly itself is graph/bind.mjs's, exhaustively covered by computer-bind. What is
+    // asserted HERE is that the part hands the runner's arrivals AND their wire labels to it — an
+    // unlabelled arrival is numbered, a labelled one keeps the reader's own spelling.
+    const ask = fakeAsk(okText('ok'));
+    await SPECS.get('ask').run({
+      part: { settings: { instruction: 'compare them', model: '', shape: 'text' } },
+      inputs: { in: [valueOf('text', 'Paris'), valueOf('text', 'Lyon')] },
+      labels: { in: ['', 'second city'] },
+      app: null, ask, signal: null, thread: null, cache: true,
+    });
+    const prompt = ask.calls[0].prompt;
+    const positional = `## ${t('parts.insPositional', { n: 1 })}`;
+    assert.ok(prompt.startsWith(`${t('parts.insInputsHeading')}\n`), prompt);
+    assert.ok(prompt.includes('## second city\nLyon'), prompt);
+    assert.ok(prompt.includes(`${positional}\nParis`), prompt);
+    assert.ok(prompt.endsWith(`${t('parts.insInstructionHeading')}\ncompare them`), prompt);
+    assert.ok(prompt.indexOf('## second city') < prompt.indexOf(positional),
+      'rule 9: named parameters come before the unlabelled ones');
   });
 
-  test('Ask (text) sends the labelled prompt and the chosen model, and returns a text value', async () => {
+  test('Instruction (text) sends the assembled prompt and the chosen model, and returns a text value', async () => {
     const ask = fakeAsk(okText('three things'));
     const spec = SPECS.get('ask');
     const value = await spec.run({
       part: { settings: { instruction: 'name three', model: 'mock-echo', shape: 'text' } },
-      inputs: { context: [valueOf('text', 'Paris')] },
+      inputs: { in: [valueOf('text', 'Paris')] },
       app: null, ask, signal: null, thread: null, cache: true,
     });
     assert.deepEqual(value, { kind: 'text', data: 'three things' });
@@ -169,10 +183,15 @@ export default (test) => {
     assert.equal(ask.calls[0].lane, 'text');
     assert.equal(ask.calls[0].model, 'mock-echo');
     assert.equal(ask.calls[0].task, 'graph:ask');
-    assert.equal(ask.calls[0].prompt, `${t('parts.askContext')}:\nParis\n\nname three`);
+    assert.equal(ask.calls[0].prompt, [
+      t('parts.insInputsHeading'), '',
+      `## ${t('parts.insPositional', { n: 1 })}`, 'Paris', '',
+      t('parts.insInstructionHeading'), 'name three',
+    ].join('\n'), 'the §5.3 shape: the inputs under their headings, the instruction LAST');
+    assert.equal(ask.calls[0].system, t('parts.insSystem'), 'and the frozen system sentence rides with it');
   });
 
-  test('Ask (list) goes through the json lane and produces a list of text values', async () => {
+  test('Instruction (list) goes through the json lane and produces a list of text values', async () => {
     const ask = fakeAsk({ ok: true, value: { items: ['a', 'b', 'c'] }, mode: 'schema', usage: null, ms: 1, error: null });
     const value = await SPECS.get('ask').run({
       part: { settings: { instruction: 'three cities', shape: 'list' } },
@@ -185,7 +204,7 @@ export default (test) => {
     assert.deepEqual(ask.calls[0].schema, LIST_SCHEMA);
   });
 
-  test('Ask (json) needs a schema, and says so instead of asking for nothing', async () => {
+  test('Instruction (json) needs a schema, and says so instead of asking for nothing', async () => {
     const ask = fakeAsk(okText('never sent'));
     await assert.rejects(
       SPECS.get('ask').run({ part: { settings: { instruction: 'x', shape: 'json' } }, inputs: {}, app: null, ask, signal: null, thread: null, cache: true }),
@@ -198,7 +217,7 @@ export default (test) => {
     assert.equal(ask.calls.length, 0, 'neither refusal spent a seat');
   });
 
-  test('Ask (json) validates against the reader\'s own schema and answers a json value', async () => {
+  test('Instruction (json) validates against the reader\'s own schema and answers a json value', async () => {
     const ask = fakeAsk({ ok: true, value: { city: 'Paris' }, mode: 'schema', usage: null, ms: 1, error: null });
     const value = await SPECS.get('ask').run({
       part: { settings: { instruction: 'x', shape: 'json', schema: '{"type":"object","properties":{"city":{"type":"string"}}}' } },
@@ -208,7 +227,7 @@ export default (test) => {
     assert.deepEqual(ask.calls[0].schema, { type: 'object', properties: { city: { type: 'string' } } });
   });
 
-  test('an empty Ask refuses before the farm, and a farmless Ask names the farm', async () => {
+  test('an empty Instruction refuses before the farm, and a farmless Ask names the farm', async () => {
     await assert.rejects(
       SPECS.get('ask').run({ part: { settings: {} }, inputs: {}, app: null, ask: fakeAsk(okText('x')), signal: null, thread: null, cache: true }),
       (err) => err.message === t('parts.errNoInstruction'),
@@ -428,7 +447,7 @@ export default (test) => {
     doc = a.doc;
     const b = addPart(doc, { type: 'ask', x: 200, y: 0, settings: { instruction: 'summarise' } }, { specs: SPECS, newId, now });
     doc = b.doc;
-    const w = addWire(doc, { from: a.part.id, to: b.part.id, port: 'context' }, { specs: SPECS, newId, now });
+    const w = addWire(doc, { from: a.part.id, to: b.part.id, port: 'in' }, { specs: SPECS, newId, now });
     assert.equal(w.ok, true, 'the wire is legal — Ask declares a text output');
     doc = w.doc;
 

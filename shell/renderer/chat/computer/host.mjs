@@ -470,7 +470,7 @@ export function createHost(app, els) {
           id: p.id, type: p.type, state: p.state, value: p.value, x: p.x, y: p.y, settings: p.settings,
           error: p.error || null, stats: p.stats || null, fanout: p.fanout || null,
         })),
-        wires: session.doc().wires.map((/** @type {any} */ w) => ({ id: w.id, from: w.from, to: w.to, port: w.port })),
+        wires: session.doc().wires.map((/** @type {any} */ w) => ({ id: w.id, from: w.from, to: w.to, port: w.port, label: typeof w.label === 'string' ? w.label : '' })),
         view: canvas.view(),
       }),
       run: (/** @type {any} */ opts) => start(opts || {}),
@@ -487,6 +487,28 @@ export function createHost(app, els) {
       sandbox: () => {
         const live = session.sandboxNow();
         return live ? live.debug() : { state: 'idle', framed: false, runs: 0 };
+      },
+      // ---- K2 additions (COMPUTER_PLAN §5, §8.1) ---------------------------------------------
+      /**
+       * Name a wire. The SAME edit the label pill makes — undoable, `rev`-bumping, staling `to`
+       * and everything downstream (§5.1). The canvas owns it; this is the door a scenario presses.
+       * K2-U1 lands `canvas.setWireLabel`; until then the door answers `false` rather than
+       * pretending it renamed something.
+       * @param {string} wireId @param {string} text @returns {boolean}
+       */
+      label: (wireId, text) => (typeof (/** @type {any} */ (canvas).setWireLabel) === 'function'
+        ? !!(/** @type {any} */ (canvas).setWireLabel(wireId, String(text == null ? '' : text)))
+        : false),
+      /**
+       * The prompt a thinking part WOULD send, without sending it (§8.1: "you can read your
+       * prompt, fix it, and read it again, for free"). It is the transcript's own assembly — the
+       * same `bind.mjs` call — resolved at CALL time through `app.transcript`, so this file never
+       * imports K2-U3's module and the order they install in does not matter.
+       * @param {string} partId @returns {any} an InstructionPlan, or null
+       */
+      preview: (partId) => {
+        const tx = app && /** @type {any} */ (app).transcript;
+        return tx && typeof tx.planFor === 'function' ? tx.planFor(partId) : null;
       },
       // ---- K1 additions (§2.4) -------------------------------------------------------------
       /** @param {string|null} [graphId] */

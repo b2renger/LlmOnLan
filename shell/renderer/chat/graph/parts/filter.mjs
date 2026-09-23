@@ -22,7 +22,7 @@
 import { listOf } from '../values.mjs';
 import { t } from '../../core/i18n.mjs';
 import { itemsOf, textOf, pickerRow, partFail, isControl, setPicked, slicer } from './common.mjs';
-import { modelOptions, optionSig } from './ask.mjs';
+import { modelOptions, optionSig } from './instruction.mjs';
 import { itemsLine, numberField, textField, checkField } from './fields.mjs';
 
 /** @typedef {import('../../core/types.mjs').PartSpec} PartSpec */

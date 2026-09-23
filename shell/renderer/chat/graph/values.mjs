@@ -20,10 +20,39 @@ export function isKind(kind) {
   return typeof kind === 'string' && KINDS.includes(kind);
 }
 
+/** The advisory facets (K2 kickoff, COMPUTER_PLAN §6.8). `format` says how a text-ish value READS;
+ * `lang` tags a code fence. Neither is part of the routing alphabet: `accepts()` never reads them
+ * and `isValue()` never requires them, so every value stored before K2 loads as `plain`. */
+export const FORMATS = Object.freeze(['plain', 'markdown', 'code', 'svg', 'html', 'css', 'js']);
+
+/** @param {any} format @returns {boolean} */
+export function isFormat(format) {
+  return typeof format === 'string' && FORMATS.includes(format);
+}
+
+/**
+ * The facets of a value, cleaned — the ONE place they are validated, so `valueOf`, `normalisePart`
+ * and `serialize` cannot disagree about what survives a round trip. Returns an object to SPREAD:
+ * empty when there is nothing to carry, so `{kind, data}` stays exactly `{kind, data}` and every
+ * existing deepEqual on a value keeps passing.
+ * @param {any} v a value, or a `{format, lang}` bag @returns {{format?: string, lang?: string}}
+ */
+export function facetsOf(v) {
+  if (!v || typeof v !== 'object') return {};
+  /** @type {any} */ const out = {};
+  if (isFormat(v.format) && v.format !== 'plain') out.format = v.format;
+  if (typeof v.lang === 'string' && v.lang) out.lang = v.lang.trim().toLowerCase().slice(0, 24);
+  // A `lang` without `format:'code'` is noise from a hand-edited file, not a fact about the value.
+  if (out.lang && out.format !== 'code') delete out.lang;
+  return out;
+}
+
 /** Build a value. An unknown kind falls back to 'text' rather than producing an unusable value.
- * @param {string} kind @param {any} data @returns {GraphValue} */
-export function valueOf(kind, data) {
-  return /** @type {any} */ ({ kind: isKind(kind) ? kind : 'text', data });
+ * `o` carries the advisory facets; an unknown or absent format means `plain` and adds no key.
+ * @param {string} kind @param {any} data
+ * @param {{format?: string, lang?: string}} [o] @returns {GraphValue} */
+export function valueOf(kind, data, o) {
+  return /** @type {any} */ ({ kind: isKind(kind) ? kind : 'text', data, ...facetsOf(o) });
 }
 
 /** @param {any} v @returns {boolean} */

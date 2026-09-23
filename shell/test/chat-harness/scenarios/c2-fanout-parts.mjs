@@ -73,6 +73,15 @@ const parts = async (/** @type {any} */ h) => {
 const items = (/** @type {any} */ value) =>
     ((value && value.kind === 'list' && Array.isArray(value.data)) ? value.data : []).map((v) => String(v && v.data));
 
+/** The ITEM one request was about. K2: §5.3 puts the inputs under `## ` headings FIRST and the
+ * instruction LAST, so the item is the first line under the first heading, not the last line. */
+const itemAsked = (/** @type {string} */ text) => {
+    const lines = text.split('\n').map((l) => l.trim()).filter(Boolean);
+    const at = lines.findIndex((l) => l.startsWith('## '));
+    const under = at >= 0 ? lines.slice(at + 1).find((l) => !l.startsWith('#')) : '';
+    return under || (lines.length ? lines[lines.length - 1] : '');
+};
+
 export default [
     {
         name: 'c2-parts-split-fans-one-generation-per-item',
@@ -94,7 +103,7 @@ export default [
             await h.graph.set(ask, { instruction: '', model: 'mock-item' });
             await h.graph.set(collect, { mode: 'numbered' });
             h.eq((await h.graph.wire(note, split, 'text')).ok, true, 'Note feeds Split');
-            h.eq((await h.graph.wire(split, ask, 'context')).ok, true, 'a list into a text port is a legal wire');
+            h.eq((await h.graph.wire(split, ask, 'in')).ok, true, 'a list into a text port is a legal wire');
             h.eq((await h.graph.wire(ask, collect, 'items')).ok, true, 'Ask feeds Collect');
 
             const report = await h.graph.run();
@@ -102,7 +111,7 @@ export default [
 
             const log = await posts(h, 'mock-item');
             h.eq(log.length, 3, 'THREE generations for three items — the fan really fanned');
-            const carried = log.map((e) => userText(e).split('\n').pop());
+            const carried = log.map((e) => itemAsked(userText(e)));
             h.eq(carried.join('|'), 'Paris|Rome|Lisbon', 'each generation carried its OWN item, in order');
 
             const live = await parts(h);
@@ -136,7 +145,7 @@ export default [
             await h.graph.set(split, { mode: 'separator', separator: ',' });
             await h.graph.set(ask, { instruction: '', model: 'mock-item' });
             await h.graph.wire(note, split, 'text');
-            await h.graph.wire(split, ask, 'context');
+            await h.graph.wire(split, ask, 'in');
 
             const report = await h.graph.run();
             const live = await parts(h);
@@ -170,7 +179,7 @@ export default [
             await h.graph.set(repeat, { times: 4, template: '' });
             await h.graph.set(ask, { instruction: 'one variant', model: 'mock-item' });
             await h.graph.wire(note, repeat, 'value');
-            await h.graph.wire(repeat, ask, 'context');
+            await h.graph.wire(repeat, ask, 'in');
             await h.graph.wire(ask, collect, 'items');
 
             const report = await h.graph.run();
@@ -297,7 +306,7 @@ export default [
             await h.graph.set(split, { mode: 'numbered' });
             await h.graph.set(ask, { instruction: '', model: 'mock-item' });
             await h.graph.wire(note, split, 'text');
-            await h.graph.wire(split, ask, 'context');
+            await h.graph.wire(split, ask, 'in');
 
             const report = await h.graph.run();
             h.eq((await posts(h, '')).length, 0, 'nothing was generated');

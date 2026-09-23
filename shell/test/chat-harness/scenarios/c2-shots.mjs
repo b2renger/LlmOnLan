@@ -54,7 +54,7 @@ async function buildScene(/** @type {any} */ h) {
     await h.graph.set(ask, { instruction: 'say one thing about it', model: 'mock-item' });
     await h.graph.set(collect, { mode: 'numbered' });
     await h.graph.wire(note, split, 'text');
-    await h.graph.wire(split, ask, 'context');
+    await h.graph.wire(split, ask, 'in');
     await h.graph.wire(ask, collect, 'items');
 
     await h.mock.state({ failWhen: 'pear' });     // ONE item the farm refuses, out of five

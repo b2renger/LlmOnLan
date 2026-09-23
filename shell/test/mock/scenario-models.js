@@ -29,6 +29,10 @@ const STATIC_MODEL_IDS = [
     // C2 kickoff (plan §2.6 BH-11): fan-out needs a model whose answer IDENTIFIES the item it was
     // asked about, so a scenario can assert 40 distinct generations rather than 40 calls.
     'mock-item',
+    // K2 kickoff (COMPUTER_PLAN §11): the assembled prompt's own SHAPE, reported back. A
+    // scenario can then assert that `## societal research` came before `## environmental
+    // research` without a real model and without asserting on prose.
+    'mock-headings',
 ];
 const MODEL_IDS = [...STATIC_MODEL_IDS, ...PERF_NAMES.map((n) => `mock-perf:${n}`)];
 
@@ -36,7 +40,7 @@ const MODEL_IDS = [...STATIC_MODEL_IDS, ...PERF_NAMES.map((n) => `mock-perf:${n}
 // default; mock-echo claims vision so image tests have a model that accepts parts and
 // reports what it got. `assistant` deliberately does NOT (plan §2.3), so the client's
 // vision gate has something to gate.
-const VISION_MODELS = new Set(['gemma4:12b', 'mock-echo', 'mock-vision-echo']);
+const VISION_MODELS = new Set(['gemma4:12b', 'mock-echo', 'mock-vision-echo', 'mock-headings']);
 
 function modelList() {
     return { object: 'list', data: MODEL_IDS.map((id) => ({ id, object: 'model', owned_by: 'mock' })) };
@@ -292,6 +296,41 @@ function echoLines(body) {
     ];
 }
 
+/**
+ * mock-headings — the markdown HEADINGS of the last user message, in order, one per line, then
+ * three summary lines. K2 (COMPUTER_PLAN §5.3): the assembled prompt's structure IS the contract
+ * between an arrow's label and what the model reads, so a scenario asserts the structure rather
+ * than a sentence a model happened to produce.
+ *
+ *   heading: ## societal research
+ *   heading: ### 1
+ *   images: 0
+ *   systemChars: 213
+ *   promptChars: 1840
+ *
+ * Keys are added at the END, never renamed — the same rule mock-echo's line list follows.
+ */
+function headingLines(body) {
+    const messages = Array.isArray(body && body.messages) ? body.messages : [];
+    const lastUser = [...messages].reverse().find((m) => m && m.role === 'user');
+    const system = messages.filter((m) => m && m.role === 'system').map(textOf).join('\n\n');
+    const prompt = textOf(lastUser);
+    const images = messages.reduce((n, m) => n + partsOf(m).filter((p) => p && p.type === 'image_url').length, 0);
+    // Headings only OUTSIDE a fenced block: a wired code value is fenced (§5.3), and a `#` comment
+    // inside it is Python, not structure.
+    const out = [];
+    let fenced = false;
+    for (const line of String(prompt).split('\n')) {
+        if (/^\s*```/.test(line)) { fenced = !fenced; continue; }
+        if (fenced) continue;
+        if (/^#{1,6} /.test(line)) out.push(`heading: ${line.trim()}`);
+    }
+    out.push(`images: ${images}`);
+    out.push(`systemChars: ${system.length}`);
+    out.push(`promptChars: ${String(prompt).length}`);
+    return out;
+}
+
 /** mock-length — 200 tokens then finish_reason "length"; continues a trailing assistant. */
 function lengthChunks(body) {
     const messages = Array.isArray(body && body.messages) ? body.messages : [];
@@ -453,12 +492,18 @@ function handleCompletion({ model, res, body, store }) {
         }
     }
 
-    // ---- mock-item: the last line of the last user message, echoed back ------------------
+    // ---- mock-item: the ITEM the request was about, echoed back --------------------------
+    // K2 landing: the Instruction assembles COMPUTER_PLAN §5.3 — the inputs under `## ` headings
+    // FIRST and the instruction LAST — so "the last line of the prompt" is now the instruction and
+    // no longer identifies the item. When the prompt carries that shape, the item is the first
+    // line under the first `## ` heading; any other caller still gets the last line.
     if (id === 'mock-item') {
         const messages = Array.isArray(body && body.messages) ? body.messages : [];
         const lastUser = [...messages].reverse().find((m) => m && m.role === 'user');
         const lines = String(textOf(lastUser)).split('\n').map((l) => l.trim()).filter(Boolean);
-        const item = lines.length ? lines[lines.length - 1] : '';
+        const at = lines.findIndex((l) => l.startsWith('## '));
+        const under = at >= 0 ? lines.slice(at + 1).find((l) => !l.startsWith('#')) : '';
+        const item = under || (lines.length ? lines[lines.length - 1] : '');
         streamContent(id, res, store, body, ['item: ', item], { finish: 'stop' });
         return true;
     }
@@ -500,6 +545,12 @@ function handleCompletion({ model, res, body, store }) {
 
     // ---- streams -----------------------------------------------------------------------
     if (id === 'assistant' || id === 'gemma4:12b') { legacyStream(id, res, store, body); return true; }
+
+    if (id === 'mock-headings') {
+        const lines = headingLines(body);
+        streamContent(id, res, store, body, lines.map((l, i) => (i === lines.length - 1 ? l : `${l}\n`)), { finish: 'stop' });
+        return true;
+    }
 
     if (id === 'mock-echo') {
         const lines = echoLines(body);
@@ -649,5 +700,5 @@ module.exports = {
     MODEL_IDS, STATIC_MODEL_IDS, PERF_NAMES, VISION_MODELS,
     modelList, modelGroupInfo, handleCompletion, instanceOf, schemaOf, schemaFromPrompt, studioJsonText,
     promptTokens, textOf, partsOf, echoLines, lengthChunks, restartChunks,
-    seededChunks, mulberry32, CORS,
+    seededChunks, mulberry32, CORS, headingLines,
 };

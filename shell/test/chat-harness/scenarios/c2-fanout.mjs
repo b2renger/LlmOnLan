@@ -48,8 +48,14 @@ const userText = (/** @type {any} */ entry) => {
 
 /** The ITEM one recorded request was about: the last line of its prompt (what mock-item reads). */
 const itemOf = (/** @type {any} */ entry) => {
+    // K2: the Instruction assembles §5.3 — inputs under `## ` headings first, the instruction
+    // LAST — so the item is the first line under the first heading, not the last line. (Before K2
+    // the Ask put the context first and the instruction after it, and the last line was the item
+    // only because these graphs leave the instruction empty on purpose.)
     const lines = userText(entry).split('\n').map((l) => l.trim()).filter(Boolean);
-    return lines.length ? lines[lines.length - 1] : '';
+    const at = lines.findIndex((l) => l.startsWith('## '));
+    const under = at >= 0 ? lines.slice(at + 1).find((l) => !l.startsWith('#')) : '';
+    return under || (lines.length ? lines[lines.length - 1] : '');
 };
 
 /** Send into the CURRENT thread (h.submit would click "new chat" and move the panel's graph). */
@@ -96,7 +102,7 @@ async function build(h, o = {}) {
     await h.graph.set(ask, { instruction: '', model: o.model || 'mock-item' });
     await h.graph.set(collect, { mode: 'numbered' });
     h.eq((await h.graph.wire(note, split, 'text')).ok, true, 'Note feeds Split');
-    h.eq((await h.graph.wire(split, ask, 'context')).ok, true, 'Split feeds Ask — this is the fan');
+    h.eq((await h.graph.wire(split, ask, 'in')).ok, true, 'Split feeds Ask — this is the fan');
     h.eq((await h.graph.wire(ask, collect, 'items')).ok, true, 'Ask feeds Collect — this ends it');
     return { note, split, ask, collect };
 }
@@ -280,7 +286,7 @@ export default [
             await h.graph.set(split2, { mode: 'lines' });
             await h.graph.set(ids.note, { text: 'a\nb\nc' });
             h.eq((await h.graph.wire(note2, split2, 'text')).ok, true);
-            h.eq((await h.graph.wire(split2, ids.ask, 'context')).ok, true, 'the wire itself is legal');
+            h.eq((await h.graph.wire(split2, ids.ask, 'in')).ok, true, 'the wire itself is legal');
 
             const refused = await h.graph.run();
             h.eq(refused.errors.length, 1, 'the part refuses at run time, when it can see both lists');
@@ -431,7 +437,7 @@ export default [
             const ids = await build(h, { items: ['one', 'two', 'three'] });
             const second = await h.graph.place('ask', 560, 320);
             await h.graph.set(second, { instruction: '', model: 'mock-item' });
-            h.eq((await h.graph.wire(ids.ask, second, 'context')).ok, true,
+            h.eq((await h.graph.wire(ids.ask, second, 'in')).ok, true,
                 'a list output into a text port: the fan travels');
 
             const report = await h.graph.run();

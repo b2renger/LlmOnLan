@@ -44,7 +44,9 @@ const importOpts = (prefix = 'i') => ({ specs: map, newId: ids(prefix), now: clo
 export default (test) => {
   test('the format constants are the frozen ones', () => {
     assert.equal(FORMAT, 'lolgraph');
-    assert.equal(FORMAT_VERSION, 1);
+    // K2 kickoff (COMPUTER_PLAN §11 item 5): v2 carries `wire.label` and a value's advisory
+    // format/lang facets. A v1 file still opens; a v3 file is still REFUSED whole.
+    assert.equal(FORMAT_VERSION, 2);
     assert.equal(FILE_SUFFIX, '.lolgraph.json');
   });
 
@@ -52,7 +54,7 @@ export default (test) => {
     const { doc } = sample();
     const file = toJson(doc);
     assert.deepEqual(Object.keys(file).sort(), ['lolgraph', 'parts', 'settings', 'title', 'view', 'wires']);
-    assert.equal(file.lolgraph, 1);
+    assert.equal(file.lolgraph, FORMAT_VERSION);
     assert.equal(file.title, 'Names');
     const text = JSON.stringify(file);
     for (const forbidden of ['threadId', 't1', 'stats', 'tokens', 'createdAt', 'rev', 'error']) {
@@ -141,7 +143,7 @@ export default (test) => {
     const { doc } = sample();
     const text = toText(doc);
     assert.ok(text.endsWith('\n'));
-    assert.equal(JSON.parse(text).lolgraph, 1);
+    assert.equal(JSON.parse(text).lolgraph, FORMAT_VERSION);
     assert.equal(fromText(text, importOpts()).doc.parts.length, 2);
     assert.deepEqual(fromText('{ not json', importOpts()), { ok: false, doc: null, errors: ['not-json'] });
   });
@@ -153,9 +155,11 @@ export default (test) => {
     assert.deepEqual(fromJson([{ lolgraph: 1 }], o).errors, ['not-an-object']);
     assert.deepEqual(fromJson({ parts: [], wires: [] }, o).errors, ['not-a-graph']);
     assert.deepEqual(fromJson({ lolgraph: 'yes' }, o).errors, ['not-a-graph']);
-    assert.deepEqual(fromJson({ lolgraph: 2 }, o).errors, ['unsupported-version'],
+    assert.deepEqual(fromJson({ lolgraph: FORMAT_VERSION + 1 }, o).errors, ['unsupported-version'],
       'a file from a later format is refused, not half-read');
-    for (const bad of [null, 'x', [{ lolgraph: 1 }], { parts: [] }, { lolgraph: 2 }]) {
+    assert.equal(fromJson({ lolgraph: 1, parts: [], wires: [] }, o).ok, true,
+      'a v1 file still opens: every v1 field means in v2 exactly what it meant in v1');
+    for (const bad of [null, 'x', [{ lolgraph: 1 }], { parts: [] }, { lolgraph: FORMAT_VERSION + 1 }]) {
       assert.equal(fromJson(bad, o).doc, null);
       assert.equal(fromJson(bad, o).ok, false);
     }
@@ -198,7 +202,7 @@ export default (test) => {
   });
 
   test('toJson survives a doc that is not one', () => {
-    assert.deepEqual(toJson(null), { lolgraph: 1, title: '', settings: {}, parts: [], wires: [] });
+    assert.deepEqual(toJson(null), { lolgraph: FORMAT_VERSION, title: '', settings: {}, parts: [], wires: [] });
   });
 
   // ---- the fix pass: a graph file comes from someone ELSE'S machine, by design -----------------

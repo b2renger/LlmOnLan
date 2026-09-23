@@ -216,7 +216,8 @@ export default (test) => {
     const first = addWire(doc, { from: b, to: ask, port: 'in' }, s.o);
     assert.equal(first.ok, true);
     assert.deepEqual({ ...first.wire, id: typeof first.wire.id },
-      { id: 'string', from: b, to: ask, port: 'in' });
+      { id: 'string', from: b, to: ask, port: 'in', label: '' },
+      'K2-U1: every wire carries a label, and an arrow nobody named carries the empty one');
     assert.deepEqual(first.doc.wires, [first.wire]);
     assert.equal(partById(first.doc, ask).state, 'stale');
     assert.equal(doc.wires.length, 0, 'the input doc is untouched');
@@ -341,6 +342,30 @@ export default (test) => {
     assert.deepEqual(dropped, ['wire:cycle', 'wire:duplicate', 'wire:self', 'wire:no-output',
       'wire:unknown-port', 'wire:malformed']);
     assert.equal(runSet(doc).length, 3, 'what comes back is runnable');
+  });
+
+  test('normaliseDoc: a C1 graph keeps its wires when a port is RENAMED under it (K2 landing)', async () => {
+    // The Instruction replaced the C1 Ask and its `context` port became `in`. Every graph the
+    // owner already drew stores `port: 'context'`, and an unknown port is DROPPED — so without the
+    // rename table in model.mjs the catalogue swap would quietly cut every arrow into every
+    // Instruction. Read against the REAL catalogue, because the rename is a fact about it.
+    const { specMap } = await import('../../../renderer/chat/graph/parts/index.mjs');
+    const real = specMap();
+    const { doc, dropped } = normaliseDoc({
+      id: 'g1', threadId: null,
+      parts: [{ id: 'a', type: 'note', settings: { text: 'Paris' } }, { id: 'b', type: 'ask' }],
+      wires: [{ id: 'w1', from: 'a', to: 'b', port: 'context', label: 'topic' }],
+    }, { specs: real, now: clock(7) });
+    assert.deepEqual(dropped, [], 'nothing was dropped');
+    assert.equal(doc.wires.length, 1, 'the arrow survived the rename');
+    assert.equal(doc.wires[0].port, 'in', 'and it now names the port the part really has');
+    assert.equal(doc.wires[0].label, 'topic', 'its label came with it');
+    // A port that was never renamed is still refused: the table is a rename, not an amnesty.
+    const junk = normaliseDoc({
+      parts: [{ id: 'a', type: 'note' }, { id: 'b', type: 'ask' }],
+      wires: [{ id: 'w1', from: 'a', to: 'b', port: 'nonsense' }],
+    }, { specs: real, now: clock(7) });
+    assert.deepEqual(junk.dropped, ['wire:unknown-port']);
   });
 
   test('normaliseDoc: a part interrupted by a crash comes back stale, never mid-flight', () => {

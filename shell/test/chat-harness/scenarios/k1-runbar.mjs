@@ -104,7 +104,7 @@ async function build(/** @type {any} */ h, /** @type {any} */ askSettings) {
     await h.computer.set(note, { text: 'Paris' });
     await h.computer.set(ask, Object.assign({ instruction: 'name three things', model: 'mock-echo' }, askSettings || {}));
     await h.computer.set(collect, { mode: 'numbered' });
-    h.eq((await h.computer.wire(note, ask, 'context')).ok, true, 'Note feeds Ask');
+    h.eq((await h.computer.wire(note, ask, 'in')).ok, true, 'Note feeds Ask');
     h.eq((await h.computer.wire(ask, collect, 'items')).ok, true, 'Ask feeds Collect');
     return { note, ask, collect };
 }

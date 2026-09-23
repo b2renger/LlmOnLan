@@ -207,3 +207,43 @@ export function gateVerdict(o) {
   if (cost >= threshold) return { kind: 'confirm', seconds };
   return { kind: 'ok', seconds: null };
 }
+
+/**
+ * The prompt budget ONE assembled Instruction may spend (K2 kickoff, COMPUTER_PLAN §5.4).
+ *
+ * COMPUTER_PLAN §5.4 names this function as "existing"; it did not exist — `trustedBudget` and the
+ * two defaults did. It is added here rather than in `graph/bind.mjs` for the reason §5.4 gives:
+ * bind takes a NUMBER and does no arithmetic of its own about farms, so everything a farm ever
+ * says about context is decided in exactly one module.
+ *
+ * `assumed` is the honest half. A farm that advertises nothing gets DEFAULT_BUDGET, and the
+ * `truncated` badge must then say "assumed" instead of quoting a number the farm never said.
+ *
+ * `chars` is what bind actually cuts with — the assembly is text, not tokens, and a character
+ * count is exact where a token count is a guess. The ratio errs HIGH on purpose (fewer characters
+ * per token than prose really uses), so the estimate over-counts and the cut is conservative.
+ *
+ * @param {any} caps the whole FarmCaps, its `budget`, or a bare number
+ * @param {{reserve?: number}} [o] room kept for the ANSWER (default DEFAULT_RESERVE)
+ * @returns {{tokens: number, chars: number, assumed: boolean}}
+ */
+export function budgetFor(caps, o) {
+  const advertised = trustedBudget(caps);
+  const assumed = !hasAdvertisedWindow(caps);
+  const reserve = Math.max(0, num((o || {}).reserve, DEFAULT_RESERVE));
+  const tokens = Math.max(MIN_BUDGET, advertised - reserve);
+  return { tokens, chars: Math.floor(tokens * DEFAULT_RATIO), assumed };
+}
+
+/** Did this farm say anything at all about its window? @param {any} caps @returns {boolean} */
+function hasAdvertisedWindow(caps) {
+  const c = caps || null;
+  if (typeof c === 'number') return Number.isFinite(c) && c > 0;
+  if (!c) return false;
+  if (typeof c.budget === 'number') return true;
+  if (c.budget && typeof c.budget.tokens === 'number') return true;
+  if (c.backend && typeof c.backend.contextPerSlot === 'number') return true;
+  if (typeof c.contextPerSlot === 'number') return true;
+  if (typeof c.tokens === 'number') return true;
+  return false;
+}

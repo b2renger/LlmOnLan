@@ -186,14 +186,19 @@ export default (test) => {
     assert.equal(new Set(computer).size, computer.length, 'a key is listed twice');
   });
 
-  test('css/graph.css is re-scoped to both surfaces: 106 selectors, and none left behind', () => {
+  test('css/graph.css is re-scoped to both surfaces: 121 selectors, and none left behind', () => {
     // The K1 kickoff's ONE mechanical edit (§3.2): `#lolchat ` -> `:is(#lolchat, #lolcomputer) `.
     // The count is asserted because the rewrite is what makes the SAME canvas paint on the new
     // surface; a rule missed here is a piece of the Computer that is simply invisible. The two
     // remaining `#lolchat ` hits are in the file's own header comment, explaining the rewrite.
     const css = fs.readFileSync(new URL('../../../renderer/chat/css/graph.css', import.meta.url), 'utf8');
     const scoped = css.match(/:is\(#lolchat, #lolcomputer\) /g) || [];
-    assert.equal(scoped.length, 106, `the graph.css re-scope is ${scoped.length} selectors, not 106`);
+    // K2-U1 raised it from the K1 landing's 106 to 120: the 14 rules of the wire label pill
+    // (COMPUTER_PLAN §5.1, §8.2). The K2 LANDING added one: `.graph-ins-strip`, which had to stop
+    // sharing `.graph-value` — one selector must not open two doors. The COUNT is a snapshot that
+    // moves whenever the sheet honestly grows; the assertion below it — that no `#lolchat `
+    // selector survived — is the guarantee, and it is untouched.
+    assert.equal(scoped.length, 121, `the graph.css re-scope is ${scoped.length} selectors, not 121`);
     const body = css.replace(/\/\*[\s\S]*?\*\//g, '');
     assert.equal((body.match(/#lolchat /g) || []).length, 0,
       'a `#lolchat ` selector survived the re-scope: that rule paints in the chat and nowhere else');

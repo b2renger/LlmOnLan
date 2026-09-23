@@ -12,7 +12,12 @@
 
 import '../../strings/parts.en.mjs';
 import { note } from './note.mjs';
-import { ask } from './ask.mjs';
+// K2 landing (COMPUTER_PLAN §11 K2): the C1 `ask.mjs` is GONE and `instruction.mjs` takes its
+// row. The type id is still `ask`, so every stored graph keeps loading; what changed is the file,
+// the label, the single `in` port and the prompt assembly (graph/bind.mjs). The C1 port name
+// `context` is carried across by `PORT_ALIASES` in graph/model.mjs, so an existing document's
+// wires survive the swap.
+import { instruction } from './instruction.mjs';
 import { collect } from './collect.mjs';
 // C2 (§2.6 BH-1): the fan-out family and the two bridges to the conversation. The rows are here
 // from the C2 kickoff so no two builders contend for this file; C2-U3 replaces each part FILE
@@ -43,7 +48,7 @@ const LEGACY = [fromThread, toThread];
 
 /** The catalogue, in palette order — what the ＋ menu offers. @returns {PartSpec[]} */
 export function partSpecs() {
-  return [note, ask, splitPart, repeat, filter, code, collect, render, file];
+  return [note, instruction, splitPart, repeat, filter, code, collect, render, file];
 }
 
 /** Every type the engine can LOAD: the palette plus the legacy parts. @returns {Map<string, PartSpec>} */

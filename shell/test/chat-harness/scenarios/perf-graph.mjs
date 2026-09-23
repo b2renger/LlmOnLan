@@ -75,7 +75,7 @@ const measure = (/** @type {any} */ h) => h.eval(async (cfg) => {
         });
     }
     for (let i = 0; i + 1 < parts.length; i += 2) {
-        wires.push({ id: app.newId(), from: parts[i].id, to: parts[i + 1].id, port: 'context' });
+        wires.push({ id: app.newId(), from: parts[i].id, to: parts[i + 1].id, port: 'in' });
     }
 
     const buildStart = performance.now();

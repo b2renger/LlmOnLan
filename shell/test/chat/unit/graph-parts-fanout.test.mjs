@@ -183,7 +183,7 @@ export default (test) => {
 
     // The salt is what makes four identical prompts four generations (§2.6 BH-5): only the FIRST
     // of a repeated item is unsalted.
-    const plan = planFan(SPECS.get('ask'), { context: [out] });
+    const plan = planFan(SPECS.get('ask'), { in: [out] });
     assert.equal(plan.kind, 'fan');
     assert.equal(plan.n, 4);
     assert.equal(plan.saltFor(0), null, 'the first pass is the plain question');
@@ -198,7 +198,7 @@ export default (test) => {
     assert.equal(timesOf({}), 1);
     assert.equal(timesOf({ times: '6' }), 6);
     // Distinct texts need no salt — they are already different questions.
-    const plan = planFan(SPECS.get('ask'), { context: [out] });
+    const plan = planFan(SPECS.get('ask'), { in: [out] });
     assert.deepEqual([plan.saltFor(0), plan.saltFor(1), plan.saltFor(2)], [null, null, null]);
   });
 

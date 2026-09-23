@@ -85,7 +85,7 @@ async function build(/** @type {any} */ h, /** @type {any} */ askSettings) {
     await h.graph.set(note, { text: 'Paris' });
     await h.graph.set(ask, Object.assign({ instruction: 'name three things', model: 'mock-echo' }, askSettings || {}));
     await h.graph.set(collect, { mode: 'numbered' });
-    const w1 = await h.graph.wire(note, ask, 'context');
+    const w1 = await h.graph.wire(note, ask, 'in');
     h.eq(w1.ok, true, 'Note feeds Ask');
     const w2 = await h.graph.wire(ask, collect, 'items');
     h.eq(w2.ok, true, 'Ask feeds Collect');
@@ -136,10 +136,23 @@ export default [
             const log = await posts(h, '');
             h.eq(log.length, 1, 'ONE generation for a three-part graph — only Ask thinks');
             h.eq(log[0].model, 'mock-echo', 'the part\'s own model setting chose the deployment');
-            const contextLabel = await str(h, 'parts.askContext');
-            h.eq(userText(log[0]), `${contextLabel}:\nParis\n\nname three things`,
-                'the wired Note arrived as LABELLED context, followed by the instruction');
-            h.eq((log[0].body.messages || []).length, 1, 'one user message, no invented system prompt');
+            // K2: the C1 "Context:" preamble became §5.3's assembled prompt — the arrivals under
+            // their headings first (this arrow has no label, so it is `## Input 1`), the
+            // instruction LAST, which is the strongest lever on a small model.
+            const inputsHeading = await str(h, 'parts.insInputsHeading');
+            const positional = await str(h, 'parts.insPositional');
+            const instructionHeading = await str(h, 'parts.insInstructionHeading');
+            h.eq(userText(log[0]),
+                `${inputsHeading}\n\n## ${positional.replace('{n}', '1')}\nParis\n\n${instructionHeading}\nname three things`,
+                'the wired Note arrived under its own heading, followed by the instruction');
+            // K2: TWO messages now — the Instruction's frozen system sentence (§5.3) and the one
+            // user message. The system text is the part's, declared in strings/parts.en.mjs, not
+            // something the spine invented.
+            const messages = log[0].body.messages || [];
+            h.eq(messages.length, 2, 'the frozen system sentence plus ONE user message');
+            h.eq(messages[0].role, 'system');
+            h.eq(messages[0].content, await str(h, 'parts.insSystem'), 'the §5.3 system text, verbatim');
+            h.eq(messages[1].role, 'user');
             h.eq(log[0].body.stream, true, 'a part streams like everything else, so a stall is visible');
 
             const live = await parts(h);

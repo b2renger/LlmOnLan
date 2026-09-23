@@ -48,6 +48,10 @@ const PURE_MODULES = [
     'graph/model.mjs', 'graph/topo.mjs', 'graph/values.mjs', 'graph/undo.mjs', 'graph/serialize.mjs',
     // C2
     'graph/fanout.mjs',
+    // K2 (COMPUTER_PLAN §5.6): arrow labels bound as named parameters, and the prompt they
+    // assemble. It touches no DOM and no farm, and its unit test is the most important in the
+    // Computer build — which is only possible because it runs in Node.
+    'graph/bind.mjs',
     // C3 (the sandbox parts, files and sharing)
     'graph/tidy.mjs', 'sandbox/protocol.mjs',
     // S2

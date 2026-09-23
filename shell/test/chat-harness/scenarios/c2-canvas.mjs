@@ -72,7 +72,7 @@ async function build(/** @type {any} */ h, /** @type {any} */ o = {}) {
     await h.graph.set(ask, { instruction: '', model: o.model || 'mock-item' });
     await h.graph.set(collect, { mode: 'numbered' });
     h.eq((await h.graph.wire(note, split, 'text')).ok, true, 'Note feeds Split');
-    h.eq((await h.graph.wire(split, ask, 'context')).ok, true, 'Split feeds Ask — this is the fan');
+    h.eq((await h.graph.wire(split, ask, 'in')).ok, true, 'Split feeds Ask — this is the fan');
     h.eq((await h.graph.wire(ask, collect, 'items')).ok, true, 'Ask feeds Collect — this ends it');
     return { note, split, ask, collect };
 }

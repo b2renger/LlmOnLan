@@ -510,6 +510,41 @@ function createHelpers(ctx) {
             tidy: () => h.computer.call('tidy'),
             exportText: (o) => h.computer.call('exportText', o || {}),
             importText: (text, o) => h.computer.call('importText', text, o || {}),
+            // ---- K2 (COMPUTER_PLAN §5, §8.1) --------------------------------------------------
+            /** Name a wire — the same undoable edit the label pill makes. → boolean */
+            label: (wireId, text) => h.computer.call('label', wireId, String(text == null ? '' : text)),
+            /** The prompt a thinking part WOULD send, without sending it. → InstructionPlan|null */
+            preview: (partId) => h.computer.call('preview', partId),
+            /** The transcript drawer: open it on a part, read which tab is up, close it.
+             * `tab` is 'sent' | 'got' | 'cost'. */
+            transcript: {
+                open: (partId, tab) => evalFn((id, which) => {
+                    const tx = window.LolComputer && window.LolComputer.app && window.LolComputer.app.transcript;
+                    if (!tx) throw new Error('no app.transcript: the transcript feature has not installed');
+                    return tx.open(id, which || undefined);
+                }, partId, tab || ''),
+                close: () => evalFn(() => {
+                    const tx = window.LolComputer && window.LolComputer.app && window.LolComputer.app.transcript;
+                    return tx ? tx.close() : false;
+                }),
+                /** {open, tab, part, panel, text} — what the drawer is actually showing. */
+                state: () => evalFn(() => {
+                    const app = window.LolComputer && window.LolComputer.app;
+                    const tx = app && app.transcript;
+                    const drawer = app && app.drawer;
+                    const body = document.querySelector('#lolcomputer .comp-tx-body');
+                    return {
+                        open: !!(tx && tx.isOpen()),
+                        tab: tx ? tx.tab() : '',
+                        part: tx && typeof tx.part === 'function' ? tx.part() : '',
+                        panel: drawer && typeof drawer.panel === 'function' ? drawer.panel() : '',
+                        drawerOpen: !!(drawer && drawer.isOpen && drawer.isOpen()),
+                        tabs: Array.from(document.querySelectorAll('#lolcomputer .comp-tx-tab'))
+                            .map((el) => ({ tab: el.getAttribute('data-tab'), on: el.getAttribute('aria-pressed') === 'true' })),
+                        text: body ? body.textContent : null,
+                    };
+                }),
+            },
             /** What the two Apps share, and what they must not (COMPUTER_PLAN §2.3). */
             spine: () => evalFn(() => {
                 const chat = window.LolChat && window.LolChat.app;
@@ -544,6 +579,11 @@ function createHelpers(ctx) {
                     transform: layer ? getComputedStyle(layer).transform : '',
                     states: Array.from(document.querySelectorAll('#lolcomputer .graph-part'))
                         .map((el) => el.getAttribute('data-state')),
+                    // K2: the label pill on each wire (§8.2). `null` where a wire has no pill yet;
+                    // '' is an EMPTY pill, which draws as the dashed `name me` placeholder.
+                    labels: Array.from(document.querySelectorAll('#lolcomputer .graph-wire-label'))
+                        .map((el) => ({ wire: el.getAttribute('data-wire'), text: el.textContent })),
+                    transcript: !!document.querySelector('#lolcomputer .comp-tx'),
                 };
             }),
         },

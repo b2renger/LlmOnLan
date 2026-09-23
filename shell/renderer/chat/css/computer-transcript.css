@@ -1,0 +1,223 @@
+/* computer-transcript.css — the drawer's Sent/Got/Cost panel (COMPUTER_PLAN §8.1, §11 K2-U3).
+   ComfyQ tokens only — no colour literals (chat-lint rule 3).
+
+   The drawer's frame, its width, its grip and Escape belong to computer-drawer.css; this sheet
+   styles only what is INSIDE the panel. The five `--comp-kind-*` tints come from
+   css/computer-tokens.css and are read, never redefined: a card's tint is the colour the reader
+   already saw on the wire that fed it, which is the whole of §8.2's claim that colour is the type
+   system. */
+
+#lolcomputer .comp-drawer-panels {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1 1 auto;
+}
+
+#lolcomputer .comp-tx {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  gap: 8px;
+  padding: 0 12px 12px;
+}
+
+#lolcomputer .comp-tx-title {
+  margin: 0;
+  flex: 0 0 auto;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+#lolcomputer .comp-tx-tabs {
+  display: flex;
+  gap: 4px;
+  flex: 0 0 auto;
+}
+
+#lolcomputer .comp-tx-tab {
+  appearance: none;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--muted);
+  border-radius: var(--comp-r-chip, 7px);
+  padding: 4px 10px;
+  font: inherit;
+  cursor: pointer;
+}
+
+#lolcomputer .comp-tx-tab:hover {
+  color: var(--text);
+}
+
+#lolcomputer .comp-tx-tab[aria-pressed='true'] {
+  background: var(--surface);
+  color: var(--text);
+  border-color: var(--accent);
+}
+
+/* The scroll column. It keeps the class the harness reads, and its textContent is the whole of
+   what the tab is saying — a panel that shows one thing and reports another would be worse than
+   no panel at all. */
+#lolcomputer .comp-tx-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+#lolcomputer .comp-tx-pre,
+#lolcomputer .comp-tx-card-body,
+#lolcomputer .comp-tx-raw,
+#lolcomputer .comp-tx-call,
+#lolcomputer .comp-tx-cost {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text);
+}
+
+/* ---- Sent ---------------------------------------------------------------------------------- */
+
+/* One card per named parameter, headed by the label in the wire's own kind colour. */
+#lolcomputer .comp-tx-card {
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--comp-kind-text);
+  border-radius: var(--comp-r-panel, 10px);
+  background: var(--surface-2);
+  padding: 8px 10px;
+}
+
+#lolcomputer .comp-tx-card[data-kind='code'] { border-left-color: var(--comp-kind-code); }
+#lolcomputer .comp-tx-card[data-kind='image'] { border-left-color: var(--comp-kind-image); }
+#lolcomputer .comp-tx-card[data-kind='list'] { border-left-color: var(--comp-kind-list); }
+
+/* The instruction is last and is the one card in the accent colour (§8.1). */
+#lolcomputer .comp-tx-card[data-role='instruction'] {
+  border-left-color: var(--accent-hover);
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface-2));
+}
+
+/* The system message is chrome the reader did not write: present, and quieter than the rest. */
+#lolcomputer .comp-tx-card[data-role='system'] .comp-tx-card-body {
+  color: var(--muted);
+}
+
+/* An input that has not run yet reads as a placeholder, because that is what it is. */
+#lolcomputer .comp-tx-card[data-pending='true'] .comp-tx-card-body {
+  color: var(--muted);
+  font-style: italic;
+}
+
+#lolcomputer .comp-tx-card-head {
+  margin: 0 0 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+#lolcomputer .comp-tx-card[data-mentioned='true'] .comp-tx-card-head::after {
+  content: '·';
+  color: var(--accent-hover);
+  margin-left: 6px;
+}
+
+#lolcomputer .comp-tx-call {
+  color: var(--muted);
+  font-size: 11px;
+  border-top: 1px solid var(--border);
+  padding-top: 8px;
+}
+
+#lolcomputer .comp-tx-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+#lolcomputer .comp-tx-chip {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 11px;
+  color: var(--muted);
+  background: var(--surface-2);
+}
+
+#lolcomputer .comp-tx-chip[data-tone='warn'] {
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--amber) 55%, var(--border));
+  background: color-mix(in srgb, var(--amber) 14%, var(--surface-2));
+}
+
+/* ---- Got ----------------------------------------------------------------------------------- */
+
+#lolcomputer .comp-tx-raw {
+  border: 1px solid var(--border);
+  border-radius: var(--comp-r-panel, 10px);
+  background: var(--surface-2);
+  padding: 10px;
+}
+
+/* The repair ladder: one rung per thing that happened to the answer, in order. */
+#lolcomputer .comp-tx-ladder {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+#lolcomputer .comp-tx-rung {
+  font-size: 11px;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: var(--comp-r-chip, 7px);
+  padding: 2px 8px;
+  background: var(--surface-2);
+}
+
+#lolcomputer .comp-tx-rung + .comp-tx-rung {
+  position: relative;
+  margin-left: 10px;
+}
+
+#lolcomputer .comp-tx-rung + .comp-tx-rung::before {
+  content: '→';
+  position: absolute;
+  left: -13px;
+  color: var(--grey);
+}
+
+#lolcomputer .comp-tx-rung[data-ok='false'] {
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--danger) 55%, var(--border));
+  background: color-mix(in srgb, var(--danger) 14%, var(--surface-2));
+}
+
+/* ---- Cost and refusals --------------------------------------------------------------------- */
+
+#lolcomputer .comp-tx-error {
+  border: 1px solid color-mix(in srgb, var(--danger) 55%, var(--border));
+  border-radius: var(--comp-r-panel, 10px);
+  background: color-mix(in srgb, var(--danger) 10%, var(--surface-2));
+  color: var(--text);
+  padding: 8px 10px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+#lolcomputer .comp-tx-empty {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}

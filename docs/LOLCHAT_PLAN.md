@@ -2524,6 +2524,218 @@ perf **9** — both unchanged, because the Computer surface mounts on every harn
 existing scenario looks at it.
 
 
+### 2.6.K2 — K2 kickoff freeze (arrow labels, the Instruction, the transcript)
+
+*Addendum to §2.6, written at the K2 kickoff (2026-09-23). `docs/COMPUTER_PLAN.md` §5, §6.3, §6.8
+and §8.1 are authoritative for WHAT K2 builds; this section freezes the seams BETWEEN the three K2
+units and records the four places where the plan named something that did not exist in the tree.
+Everything below is already landed — a builder can import it, call it and run against it right now.
+Gates at the end of the kickoff: `chat-unit` **973 / 0 failed** (unchanged), `chat-lint` **151
+files / 0 violations** (was 150), `chat-scope` **clean**, harness `--strict` unchanged at 197 (six
+of them re-run at the kickoff, including both debug-door contract scenarios).*
+
+**KB-1. What the kickoff landed.**
+
+| Landed | File |
+|---|---|
+| `GraphWire.label`, `GraphValue.format`/`lang`, `RunInput.labels`, and the four bind typedefs (`BoundParam`, `BindResult`, `AssembledPrompt`, `InstructionPlan`). `API_KEYS.graphDebug` **and** `computerDebug` gain `label`, `preview`. | `core/types.mjs` |
+| The **whole facet contract in one commit** (§6.8, revision 2): `FORMATS`, `isFormat`, `facetsOf`, `valueOf(kind, data, o)`; `normalisePart` carries `format`/`lang`; `toJson` writes them. | `graph/{values,model,serialize}.mjs` |
+| `FORMAT_VERSION = 2`, the `version > FORMAT_VERSION` **refusal kept** with §8.4's sentence. | `graph/serialize.mjs` |
+| `wiresInto(doc, partId)` — the wires into each port, in wire order. | `graph/model.mjs` |
+| The `labels` seam: `gather()` walks wires instead of ids and hands `spec.run()` a `labels` bag. | `graph/runner.mjs` |
+| `budgetFor(caps, {reserve})` → `{tokens, chars, assumed}`. | `ctx/budget.mjs` |
+| `graph/bind.mjs` — **working stub, every signature frozen** (K2-U2 replaces it wholesale). Listed in `chat-lint.js` `PURE_MODULES`. | `graph/bind.mjs`, `test/chat-lint.js` |
+| The drawer's **panel door** `mountPanel/showPanel/panel` (+ the no-skeleton fallback). | `computer/drawer.mjs` |
+| `debug.label(wireId, text)`, `debug.preview(partId)`, and `label` on `state().wires[]`. | `computer/host.mjs` |
+| The `transcript` loader row (**after** `drawer` — features install in table order) and a working stub. | `computer/main.mjs`, `computer/transcript.mjs` |
+| `@import url('../css/computer-transcript.css')` + the stub sheet. | `computer/computer.css`, `css/computer-transcript.css` |
+| `parts.ins*` (the prompt's own words, frozen, and the box's chrome) and `parts.errNoVision`; `computer.tx*`. | `strings/{parts,computer}.en.mjs` |
+| `mock-headings` — the assembled prompt's headings reported back, plus `images`/`systemChars`/`promptChars`. It claims vision. | `test/mock/scenario-models.js` |
+| `h.computer.label/preview`, `h.computer.transcript.{open,close,state}`, `dom().labels`, `dom().transcript`. | `test/chat-harness/helpers.js` |
+| The five `FORMAT_VERSION`-shaped assertions amended, plus one new line proving a **v1 file still opens**. | `test/chat/unit/graph-serialize.test.mjs` |
+
+**Deferred to the K2 LANDING, on purpose** (each turns a green gate red for every builder all
+night, which is what a kickoff exists to prevent — COMPUTER_PLAN §0.4):
+
+1. **`parts/index.mjs` swapping `ask` → `instruction`.** The row stays `ask.mjs` until the landing,
+   so the palette, `partSpecs()`'s frozen order and every C1–C3 scenario keep passing while three
+   builders work in one tree. K2-U2 writes `graph/parts/instruction.mjs` beside `ask.mjs`; the
+   landing deletes `ask.mjs` and changes the one import. The `parts.ask*` strings stay until then.
+2. **`PHASE = 'K2'` in `computer/main.mjs`** (and in `chat/main.mjs`). `c3-landing.mjs:178-179`
+   asserts both loaders say `vnext-k1`; the landing re-points that file in the same edit. The line
+   is marked in `main.mjs` so nobody bumps it early.
+3. **The `ask`→`instruction` label strings.** `parts.insLabel` exists now; nothing reads it until
+   the part file lands.
+
+**KB-2. The four things the plan named that did not exist, and how each was resolved.**
+
+1. **`budgetFor(caps)`** (§5.4 calls it "existing"). It did not exist — `trustedBudget(caps)`,
+   `DEFAULT_BUDGET` and `DEFAULT_RESERVE` did. Added to `ctx/budget.mjs`, not to `bind.mjs`, for
+   the reason §5.4 itself gives: bind takes a NUMBER and does no arithmetic about farms, so every
+   fact a farm advertises about context is decided in one module. It returns
+   `{tokens, chars, assumed}`. `chars = tokens × 3.6` (`ctx/tokens.mjs`'s `DEFAULT_RATIO`) because
+   the assembly is TEXT and §5.4's own cut marker counts characters. `assumed` is true when the
+   farm advertised no window at all — that is the flag §5.4 requires the `truncated` badge to read,
+   so it never quotes a number the farm never said.
+2. **`drawer.mountPanel(name, node)`** (§11 K2-U3 says the transcript mounts through it and is
+   "not an edit of `drawer.mjs`"). The door did not exist. The integrator built it, so the
+   sentence becomes true: `mountPanel(name, node)` registers a hidden node, `showPanel(name)`
+   raises it and opens the drawer, `panel()` names what is up (`''` = the value inspector).
+   A panel and the inspector are **alternatives, never a stack** — `open(value)` puts panels away
+   and `showPanel` hides the inspector's mount, so one drawer holds one thing. The drawer keeps
+   sole ownership of Escape, the grip and the remembered width (§8.1's ladder rung 2).
+3. **`RunInput` had no way to see a wire's label.** The runner reads values off the doc and hands a
+   part only `inputs[port]`. Rather than hand a part the whole document, `gather()` — which already
+   walks the wires — now also returns `labels[port]`, **in exactly the order of `inputs[port]`**,
+   and the runner passes it into `spec.run()`. `labels` is frozen in `RunInput` (`core/types.mjs`).
+   A part written before K2 ignores it. This is safe under fan-out because Instruction's one port
+   `accepts:['any']`, so a list arriving there is `'ok'` and never fans (§5.2 rule 3, §4.7).
+4. **`h.computer.state().wires[]` carried no label**, so no scenario could see one. It does now,
+   `''` when unnamed; and `dom().labels` reports the pill per wire, which is the DOM half K2-U1
+   paints (`.graph-wire-label[data-wire]` — the class and the attribute are the frozen probe).
+
+**KB-3. The seam signatures, frozen.** A unit may add keys; it may not change these.
+
+```js
+// graph/bind.mjs — K2-U2 (PURE; chat-lint PURE_MODULES). The stub in the tree implements every
+// signature and the rules the other two units depend on; K2-U2 replaces the FILE.
+labelKey(label)   -> string     // trim, collapse runs of whitespace, casefold   (matching)
+labelName(label)  -> string     // trim, collapse runs of whitespace             (display + heading)
+mentions(instruction, key)   -> boolean
+mentionAt(instruction, key)  -> number   // index of first mention, -1 when absent (rule 9a orders by it)
+
+bindInputs(doc, partId, {specs?, instruction?}) -> BindResult   // the PRE-RUN door (the transcript)
+bindArrivals({values, labels, instruction})     -> BindResult   // the RUN door (RunInput)
+assemblePrompt(params, instruction, {budget, inline}) -> AssembledPrompt   // budget in CHARACTERS
+planFor({part, bind, budget}) -> InstructionPlan
+
+export const SYSTEM   // = t('parts.insSystem'), §5.3 verbatim
+export const FALLBACK // = t('parts.insFallback')
+export const LABEL_DISPLAY_MAX = 64
+```
+
+```js
+// computer/transcript.mjs — K2-U3 (a FEATURE: install(app), row after `drawer`)
+install(app) -> void, publishing
+app.transcript = {
+  open(partId, tab?) -> boolean,   // tab: 'sent'|'got'|'cost', default 'sent'
+  close() -> boolean, isOpen() -> boolean, tab() -> string, part() -> string,
+  planFor(partId) -> InstructionPlan|null,   // the door host.mjs's debug.preview() resolves
+  el() -> HTMLElement,
+}
+export const PANEL = 'transcript';                       // the drawer panel name
+export const TABS = ['sent', 'got', 'cost'];
+```
+
+```js
+// computer/drawer.mjs — K1-U3's file, K2 kickoff addition (nobody in K2 edits it)
+app.drawer.mountPanel(name, node) -> HTMLElement   // registers it hidden; re-mounting replaces
+app.drawer.showPanel(name)        -> boolean       // raises it + opens the drawer; false = unknown
+app.drawer.panel()                -> string        // '' means the value inspector, not a panel
+```
+
+```js
+// graph/{model,canvas}.mjs — K2-U1
+setWireLabel(doc, wireId, label, {now}) -> GraphDoc   // undoable, rev-bumping, stales `to` + downstream
+addWire(doc, {from, to, port, label?}, o)             // label is optional and normalised like the rest
+canvas.setWireLabel(wireId, text) -> boolean          // what host.mjs's debug.label() calls
+// wiresInto(doc, partId) -> Record<string, GraphWire[]>   (landed at the kickoff; U1 may read it)
+```
+
+**KB-4. `planFor` is the identity that makes §8.1 true.** The Sent tab and the Instruction's
+`run()` MUST call the same assembly, or "what you read is what will be sent" is a claim rather
+than a fact. The shape:
+
+- K2-U3's `transcript.planFor(partId)` = `planFor({part, bind: bindInputs(doc, partId), budget: budgetFor(caps)})`.
+- K2-U2's `instruction.run(input)` = `planFor({part: input.part, bind: bindArrivals({values: input.inputs.in, labels: input.labels.in, instruction}), budget: budgetFor(app.farm.get())})`, then sends `plan.assembled`.
+
+Both go through `bindCore`, so rule order, headings, `### n` joins, images and the budget are
+computed once. **Neither unit may assemble a prompt by any other route**, and a reviewer can check
+that by grepping: `assemblePrompt(` appears in `bind.mjs` only.
+
+**KB-5. The `ask` spine, unchanged.** `app.ask.text/json` already take
+`{task, prompt, system, images, model, schema, maxTokens, priority, cache, cacheSalt, signal}`;
+K2 needs no door that is not there. `priority: 'background'` stays (a human typing takes the seat
+first). `system` is now non-null for the first time on this path — `SYSTEM` — and rides
+`buildBody`'s existing `draftFromPath({system})`. Vision: `app.ask.vision(underlying)` answers
+`'yes'|'no'|'unknown'`; §6.3's hard `errNoVision` fires on `'no'` **before any request goes out**,
+and `parts.errNoVision` names the alias.
+
+**KB-6. Strings, and who owns which prefix.** `parts.ins*` is K2-U2's; `computer.tx*` is K2-U3's;
+K2-U1 uses the existing `graph.*` wire strings and asks for a new key rather than adding one.
+The **first eight `parts.ins*` keys are PROMPT TEXT, not chrome** — `insSystem`,
+`insInputsHeading`, `insInstructionHeading`, `insPositional`, `insEmpty`, `insImageHeading`,
+`insOmitted`, `insFallback`, plus `insPending` for the pre-run placeholder. They are what the model
+reads (§5.3) and they are frozen: changing one changes every answer the Computer has ever given.
+
+**KB-7. The mock: `mock-headings`.** `state.failWhen`, `mock-echo` and `mock-item` are unchanged.
+The new model streams, one per line, `heading: <the line>` for every markdown heading **outside a
+fenced block** in the last user message, then `images: n`, `systemChars: n`, `promptChars: n`.
+Fenced lines are skipped because a wired code value is fenced (§5.3) and a `#` inside it is Python,
+not structure. It claims vision, so an image-carrying assembly can be asserted against it. Keys are
+added at the END, never renamed — mock-echo's rule.
+
+**KB-8. What K2 does NOT touch.** `graph/topo.mjs`, `graph/fanout.mjs`, `graph/tidy.mjs`,
+`graph/inspect.mjs`, `computer/{boot,layout,library,migrate,docstore,runbar,main}.mjs` beyond the
+one loader row, `app/ask.mjs`, `net/**`, `chat-scope.js` (**no scope change is needed or
+sanctioned**: every K2 file is under `shell/renderer/chat/**` or `shell/test/**`, both already
+allowed). `graph/runner.mjs` was amended by the INTEGRATOR at this kickoff and is amended by nobody
+else in K2 — K3-U1 rewrites it, and `labels` is part of the frozen `RunInput` it inherits.
+
+**KB-9. Two guarantees this kickoff amends, and one it deliberately does not.**
+
+- **Amended:** `FORMAT_VERSION` is 2. The five assertions in `graph-serialize.test.mjs` that named
+  `1` now name `FORMAT_VERSION`, and one line was ADDED proving a v1 file still opens — the
+  guarantee that mattered was "a file from a later format is refused, not half-read", and it is
+  now asserted against `FORMAT_VERSION + 1` so the next bump cannot quietly weaken it.
+- **Amended:** `valueOf` takes a third argument. Every existing call site passes two and gets
+  exactly `{kind, data}` — `facetsOf` returns an empty object for `plain`, so no stored value, no
+  deepEqual and no exported file changes shape unless a facet was really set.
+- **NOT amended:** the debug-door key lists are still asserted equal to the live door
+  (`c1-canvas-contract`, `c2-canvas-debug-door-did-not-move`) and to each other
+  (`core.test.mjs`: `computerDebug` = `graphDebug` + exactly `docId`, `open`). `label` and
+  `preview` went into BOTH lists with their real bodies in the same commit, which is why those
+  three assertions were green without being touched.
+
+**KB-10. The stubs are stubs, and they say so.** `graph/bind.mjs` and `computer/transcript.mjs`
+each open with a fenced KICKOFF STUB block listing what is real (every signature and shape) and
+what is NOT implemented, marked `K2-U2:` / owned-by-U3 at each site. Neither has a unit test of its
+own on purpose: a test written against a stub is a test that has to be deleted. In particular the
+stub bind **does not enforce the budget** (`truncated` is always `null`) and **ignores `inline`** —
+both are named acceptance cases of `computer-bind.test.mjs`, which is K2-U2's and is the most
+important test file in the build.
+
+
+**KB-11. The K2 LANDING, and what it decided (2026-09-23).** Ratifying the units' contract requests
+and wiring the phase:
+
+- **`parts/index.mjs` rows `instruction`; `parts/ask.mjs` is deleted**, with the `parts.ask*` strings.
+  `parts/filter.mjs` takes `modelOptions`/`optionSig` from `instruction.mjs` — the one other file
+  that imported the old part. Type id unchanged (`ask`), so every stored graph still loads.
+- **`PORT_ALIASES` in `graph/model.mjs`** (ratified, not requested): `normaliseDoc` maps a stored
+  `ask.context` to the Instruction's `in` on the way in. Without it the catalogue swap DROPS every
+  wire into every Instruction in every existing document, silently — `wireRefusal` answers
+  `unknown-port` and `normaliseDoc` is the gate. A port nothing renamed is still refused by name.
+  The two `docs/examples/*.lolgraph.json` stay at v1 so the suite exercises this on every run.
+- **The Instruction's port accepts the four non-list kinds, not `['any']`.** COMPUTER_PLAN §6.3 and
+  §4.7 disagree; §4.7 (and C2's shipped Split → Ask fan) wins. `accepts()` then answers `'fanout'`
+  for a list and `'ok'` for everything else. A duplicated LABEL is still a join, never a map.
+- **`.graph-ins-strip` is its own class.** It borrowed `.graph-value`, the canvas's value-chip door,
+  and swallowed the click meant for the inspector (`k1-runbar-drawer` caught it).
+- **`app.transcript.record()` is called by `instruction.mjs`'s run**, so Got is the farm's raw reply
+  and the ladder is read, not inferred. KB-2.2's "not an edit of `drawer.mjs`" held: it was not.
+- **K2-U1's five `graph.*` keys are ratified** (`wireNameMe`, `wireLabelAria`, `wireLabelHint`,
+  `saidWireNamed`, `saidWireUnnamed`): chat-lint rule 5 bans hard-coded UI text, so the dashed plea
+  could not ship without them. KB-6's "ask rather than add" is amended to "ask, or add under the
+  file's own prefix and have the landing ratify".
+- **Guarantees that changed, by decision:** C1's `Context:`-preamble prompt shape is gone
+  (`c1-run-three-parts` asserts §5.3 and TWO messages — the Instruction carries a system sentence);
+  `mock-item` and the fan scenarios read the item from its `##` heading, because the instruction is
+  last now; ~20 scenario wires renamed the port they name. No assertion was dropped.
+- **Added:** `scenarios/k2-shots.mjs` (integrator-owned, like `c1-shots`/`c2-shots`) — the named
+  arrows, the strip, the `unused:` chip and the open Sent tab, in both themes.
+
+
 ## 3. Architecture and contracts
 
 ### 3.1 Load order, loader and mount

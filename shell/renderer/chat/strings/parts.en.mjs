@@ -10,23 +10,51 @@ registerStrings('parts', {
   noteHint: 'Typed text. Wire it into anything, or leave it as a comment.',
   notePlaceholder: 'Write something…',
 
-  // Ask (C1)
-  askLabel: 'Ask',
-  askHint: 'Runs on the farm. Wired inputs become labelled context.',
-  askInstruction: 'Instruction',
-  askInstructionPlaceholder: 'What should the model do with the context?',
-  askContext: 'Context',
-  askContextN: 'Context {n}',
-  askModel: 'Model',
-  askModelAuto: 'Automatic',
-  askShape: 'Answer shape',
-  askShapeText: 'Text',
-  askShapeList: 'List',
-  askShapeJson: 'JSON',
-  askThinking: 'Thinking',
-  askTemperature: 'Temperature',
-  askSchema: 'Schema',
-  askSchemaPlaceholder: '{"type":"object","properties":{}}',
+  // Instruction (K2 — the part `ask.mjs` becomes; COMPUTER_PLAN §6.3). The TYPE ID stays `ask`
+  // so every stored graph loads; the label, the file and these keys become `instruction`. The
+  // `ask*` keys are GONE with `ask.mjs` (the K2 landing swapped the catalogue row).
+  //
+  // The first block is PROMPT TEXT, not chrome: these strings are what the model reads (§5.3),
+  // and they are frozen — changing one changes every answer the Computer has ever given.
+  insSystem: [
+    'You are one component in a visual workflow. You are given named inputs and one instruction.',
+    'Use every input the instruction refers to by name. Reply with the result only — no preamble,',
+    'no restatement of the inputs, no commentary about the workflow.',
+  ].join('\n'),
+  insInputsHeading: '# Inputs',
+  insInstructionHeading: '# Instruction',
+  insPositional: 'Input {n}',
+  insEmpty: '*(empty)*',
+  insImageHeading: '{name} (image, attached)',
+  insOmitted: '…[{n} characters omitted]…',
+  insFallback: 'Combine the inputs above into a single coherent result.',
+  insPending: '⟨{name} — has not run yet⟩',
+
+  // …and the chrome the box itself shows.
+  insLabel: 'Instruction',
+  insHint: 'Names the arrows feeding it, then tells the model what to do with them.',
+  insPlaceholder: 'What should the model do with these inputs?',
+  insIn: 'Inputs',
+  insInline: 'Substitute short values in place',
+  // The box's own controls (K2-U2, within the `parts.ins*` prefix KB-6 assigns it).
+  insModel: 'Model',
+  insModelAuto: 'Automatic',
+  insShape: 'Answer shape',
+  insShapeText: 'Text',
+  insShapeList: 'List',
+  insShapeJson: 'JSON',
+  insSchema: 'JSON schema',
+  insSchemaPlaceholder: '{"type":"object","properties":{…}}',
+  insOpen: 'Read what will be sent',
+  insStrip: 'sends {words} words · {n} named inputs',
+  insStripOne: 'sends {words} words · 1 named input',
+  insStripNone: 'sends {words} words · no named inputs',
+  insNoInstruction: 'no instruction yet',
+  insUnused: 'unused: {name}',
+  insUnwired: '{name} — not wired',
+  insTruncated: 'truncated: {cut} of {of} characters cut to fit {tokens} tokens',
+  insTruncatedAssumed: 'truncated: {cut} of {of} characters cut to fit an assumed {tokens} tokens',
+  errNoVision: 'This farm’s model cannot read images. It is serving {alias}. Switch the farm to a vision model, or remove the image.',
 
   // Collect (C1)
   collectLabel: 'Collect',

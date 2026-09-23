@@ -63,6 +63,16 @@ registerStrings('graph', {
   partAria: '{label} — {state}',
   wireAria: 'Wire from {from} to {to}',
 
+  // ---- K2-U1 (COMPUTER_PLAN §5.1, §8.2): the arrow's name -------------------------------------
+  // An arrow's label is not decoration: it is the NAME the instruction below refers to. The
+  // placeholder is a plea, not a field name — an unnamed wire is the commonest cause of a mushy
+  // answer, and the empty pill is where a reader finds that out.
+  wireNameMe: 'name me',
+  wireLabelAria: 'Name this arrow',
+  wireLabelHint: 'Click an arrow’s name to rename it. The instruction below refers to it by that name.',
+  saidWireNamed: 'Arrow named {name}',
+  saidWireUnnamed: 'Arrow name cleared',
+
   // the live region: one line per change
   saidPlaced: '{part} placed',
   saidDeleted: { one: '1 part deleted', other: '{count} parts deleted' },

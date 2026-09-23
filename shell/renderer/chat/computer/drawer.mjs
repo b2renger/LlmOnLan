@@ -15,6 +15,9 @@
 //
 // Feature contract (computer/main.mjs's loader, `drawer` row):
 //   install(app) -> void, publishing app.drawer = {open(value, opts), close(), isOpen(), width()}
+// K2 kickoff adds the PANEL door to that contract — {mountPanel(name, node), showPanel(name),
+// panel()} — because §11 K2-U3 says the transcript mounts INTO this drawer and is "not an edit of
+// drawer.mjs". The door has to exist for that to be true, so the integrator built it here.
 // It renders into app.els.drawer and nothing else.
 //
 // HOW A VALUE CHIP GETS HERE. The canvas opens a value by calling `session.inspect(value)`
@@ -65,7 +68,13 @@ export function install(app) {
   const root = app && app.els ? app.els.drawer : null;
   if (!root) {
     // No skeleton to render into is not a crash: the Computer without a drawer still runs graphs.
-    app.drawer = { open: () => null, close: () => false, isOpen: () => false, width: () => DRAWER_DEFAULT };
+    app.drawer = {
+      open: () => null, inspect: () => null, close: () => false, isOpen: () => false,
+      width: () => DRAWER_DEFAULT, el: () => null,
+      // The panel door answers too, so K2's transcript degrades to "no drawer" instead of throwing.
+      mountPanel: (/** @type {string} */ _n, /** @type {any} */ node) => node,
+      showPanel: () => false, panel: () => '',
+    };
     return;
   }
 
@@ -86,11 +95,20 @@ export function install(app) {
 
   const mount = div('comp-drawer-mount');
 
+  // K2 kickoff — the PANEL door (COMPUTER_PLAN §11 K2-U3). The drawer owns the frame; a panel is
+  // a named node someone else built and this file only shows or hides. `computer/transcript.mjs`
+  // mounts the Sent/Got/Cost tabs through it and never edits this file, which is what keeps the
+  // Escape ladder, the grip and the remembered width in ONE place.
+  const panels = div('comp-drawer-panels');
+  panels.classList.add('hidden');
+  /** @type {Map<string, HTMLElement>} */ const mounted = new Map();
+  /** @type {string} */ let shown = '';
+
   const empty = document.createElement('p');
   empty.className = 'comp-drawer-empty';
   empty.textContent = t('computer.drawerEmpty');
 
-  root.replaceChildren(grip, head, mount, empty);
+  root.replaceChildren(grip, head, mount, panels, empty);
   root.classList.add('hidden');
   root.setAttribute('aria-label', t('computer.surface'));
   root.style.width = `${width}px`;
@@ -106,10 +124,53 @@ export function install(app) {
   function hide() {
     root.classList.add('hidden');
     empty.classList.remove('hidden');
+    hidePanels();
+  }
+
+  /** Every panel down, the inspector's mount back. @returns {void} */
+  function hidePanels() {
+    shown = '';
+    panels.classList.add('hidden');
+    for (const node of mounted.values()) node.classList.add('hidden');
+    mount.classList.remove('hidden');
+  }
+
+  /**
+   * Register a panel. Mounting the SAME name twice replaces the node (a unit that rebuilds its
+   * panel must not leave the old one behind). The node arrives hidden; `showPanel` raises it.
+   * @param {string} name @param {HTMLElement} node @returns {HTMLElement}
+   */
+  function mountPanel(name, node) {
+    const key = String(name || '');
+    const old = mounted.get(key);
+    if (old && old !== node) old.remove();
+    node.classList.add('hidden');
+    node.setAttribute('data-panel', key);
+    if (node.parentNode !== panels) panels.appendChild(node);
+    mounted.set(key, node);
+    return node;
+  }
+
+  /** Raise one panel and open the drawer. Unknown name → nothing happens and it says so.
+   * @param {string} name @returns {boolean} */
+  function showPanel(name) {
+    const key = String(name || '');
+    const node = mounted.get(key);
+    if (!node) return false;
+    for (const [k, el] of mounted) el.classList.toggle('hidden', k !== key);
+    shown = key;
+    panels.classList.remove('hidden');
+    // A panel and the value inspector are alternatives, never a stack: one drawer, one thing in it.
+    mount.classList.add('hidden');
+    empty.classList.add('hidden');
+    root.classList.remove('hidden');
+    try { shut.focus(); } catch (err) { void err; }
+    return true;
   }
 
   /** @param {any} value @param {any} [opts] @returns {any} the value's element, or null */
   function open(value, opts) {
+    hidePanels();
     const node = inspector.show(value, opts || {});
     // A drawer that opened onto nothing is worse than one that did not open: say what it is for.
     if (node) empty.classList.add('hidden');
@@ -181,6 +242,10 @@ export function install(app) {
 
   const api = {
     open,
+    // K2: the panel door. `panel()` names what is up ('' when it is the value inspector).
+    mountPanel,
+    showPanel,
+    panel: () => shown,
     /** What computer/host.mjs's `session.inspect()` calls — the same door under the canvas's name. */
     inspect: open,
     close,

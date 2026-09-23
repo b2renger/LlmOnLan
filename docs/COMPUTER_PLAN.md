@@ -778,22 +778,28 @@ USER:
 ## topic
 accessibility in museums for autistic persons
 
-## societal research
-<the whole markdown report, verbatim>
-
 ## environmental research
 ### 1
 <first arrow's value>
 ### 2
 <second arrow's value, same label>
 
-## Input 3
+## societal research
+<the whole markdown report, verbatim>
+
+## Input 1
 <an unlabelled arrival>
 
 # Instruction
-write a problematic about the topic taking into account: technological research,
-environmental research, societal research, business research…
+write a problematic about the topic taking into account: environmental research,
+societal research…
 ```
+
+*(Corrected at the K2 landing, in two places the example contradicted its own rules: unlabelled
+arrivals are numbered among THEMSELVES, so the single unlabelled one is `## Input 1`, not
+`## Input 3` (rule 1); and the named parameters are ordered by FIRST MENTION in the instruction
+(rule 9a), which the old example's heading order reversed. The shipped `bind.mjs` implements the
+rules; the example now agrees with it.)*
 
 Frozen details:
 
@@ -1586,7 +1592,8 @@ Files owned: `graph/{model,serialize,wires,canvas}.mjs` (label only) ·
 
 **Acceptance.**
 - `chat-unit.js computer-label`: `key()`/`name()` normalisation (case, runs of spaces, empty→unlabelled);
-  a label edit stales `to` and downstream and bumps `rev`; a move does not; v1 round-trips; a v2 file
+  a label edit stales `to` and downstream and bumps `rev`; a move stales NOTHING (corrected at the
+  K2 landing: `movePart` does bump `rev` — what a move guarantees is that no part goes stale); v1 round-trips; a v2 file
   keeps labels **and facets**; **a `version:3` file is REFUSED with `unsupported-version` and nothing is
   imported** (revision 2 — revision 1 asked for import-with-warning, which is the quiet loss §1.3 rule 4
   bans).

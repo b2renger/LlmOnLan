@@ -32,7 +32,7 @@
 // studio's other callers.
 
 import { runSet, order } from './topo.mjs';
-import { inputsOf, partById } from './model.mjs';
+import { inputsOf, wiresInto, partById } from './model.mjs';
 import { accepts, isValue } from './values.mjs';
 import { planFan, joinResults, fanoutRecord } from './fanout.mjs';
 import { KV_KEYS } from '../core/types.mjs';
@@ -130,23 +130,30 @@ export function createRunner(o) {
    * @returns {{inputs: Record<string, GraphValue[]>}|{error: string}}
    */
   function gather(doc, part, spec) {
-    const sources = inputsOf(doc, part.id);
+    const sources = wiresInto(doc, part.id);
     /** @type {Record<string, GraphValue[]>} */ const inputs = {};
+    // K2 (COMPUTER_PLAN §5): the wire LABEL of every arrival, in the same order as its value.
+    // The walk already has the wire in its hand; handing the label over is what lets a part bind
+    // named parameters without being given the whole document.
+    /** @type {Record<string, string[]>} */ const labels = {};
     for (const port of spec.inputs || []) {
-      const froms = sources[port.name] || [];
+      const wires = sources[port.name] || [];
       /** @type {GraphValue[]} */ const values = [];
-      for (const from of froms) {
-        const up = partById(doc, from);
+      /** @type {string[]} */ const names = [];
+      for (const wire of wires) {
+        const up = partById(doc, wire.from);
         const value = up ? up.value : null;
         if (!isValue(value)) return { error: t('parts.errNoInput', { port: port.label }) };
         const verdict = accepts(port.accepts, value);
         if (verdict === 'no') return { error: t('parts.errBadInput', { port: port.label, kind: /** @type {any} */ (value).kind }) };
         values.push(value);
+        names.push(typeof wire.label === 'string' ? wire.label : '');
       }
       if (!values.length && port.required) return { error: t('parts.errNoInput', { port: port.label }) };
       inputs[port.name] = values;
+      labels[port.name] = names;
     }
-    return { inputs };
+    return { inputs, labels };
   }
 
   /** @param {{only?: string[], cache?: boolean, maxItems?: number}} [opts] @returns {Promise<RunReport>} */
@@ -310,6 +317,7 @@ export function createRunner(o) {
           continue;
         }
         const inputs = /** @type {any} */ (got).inputs;
+        const labels = /** @type {any} */ (got).labels || {};
 
         // Does this part run once, or once per item? Two lists at once is a REFUSAL, never a
         // guessed pairing (§2.6 BH-2).
@@ -365,6 +373,7 @@ export function createRunner(o) {
             const value = await spec.run({
               part,
               inputs: fanning ? /** @type {any} */ (plan).inputsFor(k) : inputs,
+              labels,
               app,
               ask: meteredAsk(meter, fanning ? /** @type {any} */ (plan).saltFor(k) : null),
               signal,

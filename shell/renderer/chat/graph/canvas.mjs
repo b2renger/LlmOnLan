@@ -17,7 +17,7 @@ import { t } from '../core/i18n.mjs';
 import { KV_KEYS } from '../core/types.mjs';
 import { EV } from '../core/events.mjs';
 import { partSpecs } from './parts/index.mjs';
-import { addPart, addWire, movePart, removeParts, removeWire, setSettings } from './model.mjs';
+import { addPart, addWire, movePart, removeParts, removeWire, setSettings, setWireLabel } from './model.mjs';
 import { preview } from './values.mjs';
 import { createWireLayer, portOffsetY, portPoint, wireAt, SNAP_PX } from './wires.mjs';
 import { DEFAULT_MAX_ITEMS } from './runner.mjs';
@@ -205,7 +205,13 @@ export function toClipboard(doc, ids) {
     })),
     wires: doc.wires
       .filter((/** @type {any} */ w) => keep.has(w.from) && keep.has(w.to))
-      .map((/** @type {any} */ w) => ({ from: index.get(w.from), to: index.get(w.to), port: w.port })),
+      .map((/** @type {any} */ w) => {
+        /** @type {any} */ const out = { from: index.get(w.from), to: index.get(w.to), port: w.port };
+        // K2-U1: an arrow's NAME travels with it. Written only when there is one, so an unlabelled
+        // selection still copies as exactly the three v1 keys.
+        if (typeof w.label === 'string' && w.label) out.label = w.label;
+        return out;
+      }),
   };
 }
 
@@ -296,7 +302,12 @@ export function createCanvas(o) {
   root.append(toolbar, capBanner, canvas, live);
   o.host.replaceChildren(root);
 
-  const wires = createWireLayer(/** @type {any} */ (svg), { specs });
+  const wires = createWireLayer(/** @type {any} */ (svg), {
+    specs,
+    // The pill types; the DOCUMENT edit happens here, once, so naming an arrow is one undo entry
+    // and one re-run of what depends on it (K2-U1, COMPUTER_PLAN §5.1).
+    onLabel: (/** @type {string} */ wireId, /** @type {string} */ text) => { commitLabel(wireId, text); },
+  });
 
   // ---- toolbar ---------------------------------------------------------------------------------
   /** @param {string} cls @param {string} label */
@@ -580,6 +591,24 @@ export function createCanvas(o) {
   }
 
   /**
+   * Name an arrow (K2-U1, COMPUTER_PLAN §5.1). ONE door for the pill, the keyboard and the debug
+   * call, so every route makes the same undoable, `rev`-bumping edit that stales what it feeds.
+   * Renaming to the same thing is not an edit and returns `false` — there is nothing to undo.
+   * @param {string} wireId @param {string} text @returns {boolean}
+   */
+  function commitLabel(wireId, text) {
+    if (!hasDoc()) return false;
+    const doc = session.doc();
+    const next = setWireLabel(doc, wireId, text, { now: app.now });
+    if (next === doc) return false;
+    session.apply(next, { label: 'label' });
+    const named = next.wires.find((/** @type {any} */ w) => w.id === wireId);
+    const name = named && named.label ? named.label : '';
+    announce(name ? t('graph.saidWireNamed', { name }) : t('graph.saidWireUnnamed'));
+    return true;
+  }
+
+  /**
    * What a keystroke acts on: the FOCUSED part when it is not part of the selection, otherwise the
    * selection. Tabbing to a box and pressing an arrow must move THAT box — that is the whole point
    * of it being in the tab order — while a marquee selection still moves as one.
@@ -660,7 +689,7 @@ export function createCanvas(o) {
       const from = minted.get(w.from);
       const to = minted.get(w.to);
       if (!from || !to) continue;
-      const out = addWire(doc, { from, to, port: w.port }, { specs, newId: app.newId, now: app.now });
+      const out = addWire(doc, { from, to, port: w.port, label: w.label }, { specs, newId: app.newId, now: app.now });
       if (out.ok) doc = out.doc;
     }
     const ids = Array.from(minted.values());
@@ -1090,6 +1119,11 @@ export function createCanvas(o) {
 
   function onPointerDown(ev) {
     if (ev.button !== 0 && ev.button !== 1) return;
+    // Pressing anywhere else on the graph commits an open arrow name, the way clicking away from a
+    // field always has. The pill's own press never reaches here — it stops at the pill — so this
+    // cannot cancel the edit it just opened. (K2-U1: `blur` alone would lose the name in a window
+    // that does not hold the OS focus, where Chromium fires no focus events at all.)
+    wires.endLabelEdit();
     const target = /** @type {HTMLElement} */ (ev.target);
     const portEl = target && target.closest ? target.closest('.graph-port') : null;
     const partEl = target && target.closest ? target.closest('.graph-part') : null;
@@ -1276,6 +1310,13 @@ export function createCanvas(o) {
       select(session.doc().parts.map((/** @type {any} */ p) => p.id));
       return;
     }
+    // K2-U1: a selected arrow can be NAMED without a mouse. F2 is the rename key everywhere else
+    // in this app's ancestry; Enter is what a reader tries first.
+    if ((ev.key === 'F2' || ev.key === 'Enter') && selWires.length === 1) {
+      ev.preventDefault();
+      wires.editLabel(selWires[0]);
+      return;
+    }
     if (ev.key === 'Delete' || ev.key === 'Backspace') { ev.preventDefault(); deleteSelection(); return; }
     if (ev.key === 'f' || ev.key === 'F') { ev.preventDefault(); fit(); return; }
     if (ev.key === ' ') { spaceDown = true; canvas.classList.add('graph-panning'); return; }
@@ -1392,6 +1433,12 @@ export function createCanvas(o) {
     wire,
     select,
     selectedWires: () => selWires.slice(),
+    // K2-U1 (COMPUTER_PLAN §5.1): naming an arrow, from the pill, the keyboard or `debug.label()` —
+    // the same door in all three cases, which is what makes the scenario's `h.computer.label()`
+    // proof about the shipped control rather than about a second code path.
+    setWireLabel: (/** @type {string} */ wireId, /** @type {any} */ text) => commitLabel(wireId, String(text == null ? '' : text)),
+    editWireLabel: (/** @type {string} */ wireId) => wires.editLabel(wireId),
+    editingWireLabel: () => wires.editingLabel(),
     copyText,
     pasteText,
     deleteSelection,

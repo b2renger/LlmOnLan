@@ -179,11 +179,11 @@ export default [
             h.eq(shot.partTransforms.every((tr) => tr === 'none'), true,
                 `no part may carry a transform (BG-8): ${shot.partTransforms.join(' | ')}`);
 
-            // Wire by DRAGGING from the Note's output port to the Ask's context port.
+            // Wire by DRAGGING from the Note's output port to the Instruction's `in` port.
             const wired = await h.eval((ids) => {
                 const g = window.__g;
                 const from = g.port(ids.note, 'out', 'out');
-                const to = g.port(ids.ask, 'context', 'in');
+                const to = g.port(ids.ask, 'in', 'in');
                 if (!from || !to) throw new Error('a port is missing from the DOM');
                 const a = from.getBoundingClientRect();
                 const b = to.getBoundingClientRect();
@@ -197,7 +197,7 @@ export default [
             h.eq(state.wires.length, 1, `the drag made a wire (live region said: "${wired}")`);
             h.eq(state.wires[0].from, note);
             h.eq(state.wires[0].to, ask);
-            h.eq(state.wires[0].port, 'context');
+            h.eq(state.wires[0].port, 'in');
             shot = await picture(h);
             h.eq(shot.wires, 1, 'and exactly one <path> is drawn for it');
 
@@ -235,7 +235,7 @@ export default [
             const reopened = await openGraph(h);
             h.eq(reopened.parts.length, 2, 'both parts came back from the graphs store');
             h.eq(reopened.wires.length, 1, 'and so did the wire');
-            h.eq(reopened.wires[0].port, 'context');
+            h.eq(reopened.wires[0].port, 'in');
             h.eq(reopened.parts.find((/** @type {any} */ p) => p.id === ask).x, before.x + 100, 'at the position it was left at');
             h.eq((await picture(h)).parts, 2, 'and the canvas painted them');
         },
@@ -256,17 +256,17 @@ export default [
             const note = await h.graph.place('note', 40, 40);
             const ask = await h.graph.place('ask', 400, 40);
             const collect = await h.graph.place('collect', 760, 40);
-            h.eq((await h.graph.wire(note, ask, 'context')).ok, true);
+            h.eq((await h.graph.wire(note, ask, 'in')).ok, true);
             h.eq((await h.graph.wire(ask, collect, 'items')).ok, true);
 
-            const cycle = await h.graph.wire(collect, ask, 'context');
+            const cycle = await h.graph.wire(collect, ask, 'in');
             h.eq(cycle.ok, false);
             h.eq(cycle.reason, 'cycle');
             let said = await h.eval(() => window.__g.said());
             h.assert(/loop/i.test(said), `a refused cycle must say why in words: "${said}"`);
             h.eq((await h.graph.state()).wires.length, 2, 'and nothing was added');
 
-            const dup = await h.graph.wire(note, ask, 'context');
+            const dup = await h.graph.wire(note, ask, 'in');
             h.eq(dup.reason, 'duplicate');
             said = await h.eval(() => window.__g.said());
             h.assert(/already/i.test(said), `the duplicate explained itself: "${said}"`);
@@ -304,7 +304,7 @@ export default [
 
             const note = await h.graph.place('note', 40, 40);
             const ask = await h.graph.place('ask', 400, 40);
-            await h.graph.wire(note, ask, 'context');
+            await h.graph.wire(note, ask, 'in');
 
             // Click the wire at its midpoint — geometry, not a fat invisible second path.
             const hit = await h.eval(async () => {
@@ -499,7 +499,7 @@ export default [
 
             const note = await h.graph.place('note', 100, 100);
             const ask = await h.graph.place('ask', 500, 100);
-            await h.graph.wire(note, ask, 'context');
+            await h.graph.wire(note, ask, 'in');
 
             // every part is reachable by keyboard and shows a focus ring
             const focus = await h.eval((id) => {

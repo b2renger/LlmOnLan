@@ -35,7 +35,7 @@ import { spine } from './boot.mjs';
 import { computeVisible, runnerExecuting } from './visible.mjs';
 import '../strings/computer.en.mjs';
 
-const PHASE = 'K1';
+const PHASE = 'K1';   // the K2 LANDING bumps this, with c3-landing.mjs:178-179 in the same edit
 
 /** @type {import('../core/types.mjs').ModuleRow[]} */
 const MODULES = [
@@ -46,6 +46,9 @@ const MODULES = [
   { key: 'ask',      path: '../app/ask.mjs',        role: 'feature',   fake: null, phase: 'K1' },
   { key: 'projects', path: '../projects/bridge.mjs', role: 'feature',  fake: null, phase: 'K1' },
   { key: 'drawer',   path: './drawer.mjs',          role: 'feature',   fake: null, phase: 'K2' },
+  // K2: the transcript mounts its panel INTO the drawer, so its row comes AFTER the drawer's —
+  // features install in this table's order.
+  { key: 'transcript', path: './transcript.mjs',    role: 'feature',   fake: null, phase: 'K2' },
   { key: 'runbar',   path: './runbar.mjs',          role: 'feature',   fake: null, phase: 'K3' },
   // K4/K5 rows (intake, welcome, tutorial) are added at those kickoffs.
   //

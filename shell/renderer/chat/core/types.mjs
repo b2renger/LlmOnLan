@@ -248,7 +248,14 @@
 
 /** A value travelling a wire. Typed but forgiving (spec §2): a mismatch is a visible error on the
  * part, never a silent coercion.
- * @typedef {{ kind: 'text'|'image'|'list'|'json'|'file', data: any }} GraphValue */
+ *
+ * K2 (COMPUTER_PLAN §6.8) adds two ADVISORY facets, and they are advisory in the strict sense:
+ * `accepts()` never reads them, `isValue()` never requires them, and a value stored before K2
+ * loads with both absent, meaning `format:'plain'`. They drive exactly three things — which
+ * preview renders a value, how it is FENCED in an assembled prompt (§5.3), and what a Preview
+ * part defaults to. Kinds stay at five; a sixth kind would be a sixth way to tell a beginner no.
+ * @typedef {{ kind: 'text'|'image'|'list'|'json'|'file', data: any,
+ *   format?: 'plain'|'markdown'|'code'|'svg'|'html'|'css'|'js', lang?: string }} GraphValue */
 
 /** One part on the canvas. `settings` is the part type's own; `value`/`state`/`error`/`stats`/
  * `fanout` are RUNTIME fields, written only through the session's patchPart() and never undoable.
@@ -263,7 +270,14 @@
 
 /** One wire: a part's single output into ONE named input port of another. Several wires into the
  * same port are legal and arrive as an ordered list.
- * @typedef {{ id, from: string, to: string, port: string }} GraphWire */
+ *
+ * K2 (COMPUTER_PLAN §5.1): `label` NAMES the arrival. It is a PROGRAM edit — undoable, `rev`-
+ * bumping, it stales `to` and everything downstream, it is exported, and it is part of
+ * `.lolgraph.json` v2. Default `''`, which means an unnamed input supplied positionally.
+ * Matching is `key()` (casefolded, whitespace-collapsed); the prompt heading is `name()` (the
+ * reader's own spelling). Labels and ports are different namespaces (rule 7): a wire always
+ * targets a declared port, and the label distinguishes arrivals WITHIN it.
+ * @typedef {{ id, from: string, to: string, port: string, label?: string }} GraphWire */
 
 /** A part type. The catalogue (graph/parts/index.mjs) is the only place these are constructed.
  * `run()` throws an Error to fail the part; the message is what the canvas shows.
@@ -288,10 +302,50 @@
  * Repeat) reads it; every other part ignores it and behaves exactly as it does on one value.
  * `sandbox` (C3, §2.6 BJ) resolves the panel's ONE sandbox host, or null when this build has
  * none. `Code`/`Render` call it; every other part ignores it and never pays for an iframe.
- * @typedef {{ part: GraphPart, inputs: Record<string, GraphValue[]>, app: any, ask: any,
+ * `labels` (K2, COMPUTER_PLAN §5) is the wire LABEL of every arrival, keyed by port name and in
+ * EXACTLY the order of `inputs[port]` — `labels.in[2]` names `inputs.in[2]`. It is how a part can
+ * bind named parameters without being handed the document: the runner already walks the wires to
+ * gather the values, so it hands over what it read there. A part written before K2 ignores it.
+ * @typedef {{ part: GraphPart, inputs: Record<string, GraphValue[]>,
+ *   labels: Record<string, string[]>, app: any, ask: any,
  *   signal: AbortSignal, thread: Thread|null, cache: boolean,
  *   item?: {i: number, n: number}|null,
  *   sandbox?: (() => Promise<SandboxHost|null>)|null }} RunInput */
+
+// ---------------------------------------------------------------------------------------------
+// K2 — arrow labels as named parameters (COMPUTER_PLAN §5, graph/bind.mjs). PURE shapes: nothing
+// here knows a farm, a DOM node or a part type. Frozen at the K2 kickoff.
+// ---------------------------------------------------------------------------------------------
+
+/** One bound parameter: every arrival that shares a label, in wire order. `values.length > 1` is
+ * a JOIN (rule 2), never a fan-out and never last-wins. `unlabelled:true` marks a positional
+ * arrival, whose `name` is then `Input <n>`. `mentioned` is whether the instruction names it.
+ * `pending` is set only by a PRE-RUN bind (the transcript's Sent tab): the wire exists, the
+ * upstream part has not produced a value yet, and the placeholder is what the reader sees.
+ * @typedef {{ name: string, key: string, mentioned: boolean, unlabelled: boolean,
+ *   values: GraphValue[], pending: boolean, from: string[] }} BoundParam */
+
+/** What `bindInputs()` answers. `unused` = labels the instruction never mentions (supplied last,
+ * a grey chip, NOT an error, rule 4). `unwired` = names the instruction mentions with no arrow to
+ * supply them (a warning chip, NOT an error, rule 5).
+ * @typedef {{ params: BoundParam[], unused: string[], unwired: string[] }} BindResult */
+
+/** What `assemblePrompt()` answers — the body exactly as it goes on the wire. `images` are data
+ * URLs, in parameter order; an image is NEVER in `prompt` (§5.3). `truncated` is null unless the
+ * budget bit, and then it names what was cut so the badge can say it in numbers.
+ * @typedef {{ system: string, prompt: string, images: string[], words: number,
+ *   truncated: {cut: number, of: number, params: {name: string, omitted: number}[]}|null
+ * }} AssembledPrompt */
+
+/** Everything the Instruction part will send, assembled once and read twice — by `run()` and by
+ * the transcript drawer, which is what makes "what you read is what will be sent" true rather
+ * than merely claimed. `call` is the DECLARED request: `maxTokens: null` means the ask spine
+ * decides (§3.4.1). `fallback` is true when the empty-instruction sentence was used.
+ * @typedef {{ bind: BindResult, assembled: AssembledPrompt, instruction: string,
+ *   fallback: boolean, budget: {chars: number, tokens: number, assumed: boolean},
+ *   call: {model: string|null, shape: 'text'|'list'|'json', schema: any,
+ *     maxTokens: number|null, priority: 'background'|'foreground', task: string},
+ *   error: string|null }} InstructionPlan */
 
 /** The sandbox host (sandbox/host.mjs), frozen at the C3 kickoff and shared with the S2 bench.
  * `compute` is the deterministic path (a value comes back as JSON); `run` + `snapshot` are the
@@ -548,6 +602,9 @@ export const API_KEYS = Object.freeze({
     // C3 (§2.6 BJ): tidy, the sharing story and the live sandbox's state. Added with their stub
     // bodies at the kickoff so the door and this list never disagree mid-phase.
     'tidy', 'exportText', 'importText', 'sandbox',
+    // K2 (COMPUTER_PLAN §11): naming a wire, and reading the prompt a thinking part WOULD send
+    // without sending it. Same rule as C3 — the key and its body land together at the kickoff.
+    'label', 'preview',
   ]),
   // K1 (COMPUTER_PLAN §2.4/§8.2): the STANDALONE Computer's debug door, published at
   // window.LolComputer.debug.computer. It is `graphDebug` verbatim plus the two questions a
@@ -558,6 +615,7 @@ export const API_KEYS = Object.freeze({
     'doc', 'state', 'session', 'place', 'remove', 'wire', 'unwire', 'select', 'move', 'setSettings',
     'run', 'stop', 'running', 'undo', 'redo', 'view', 'fit', 'save',
     'tidy', 'exportText', 'importText', 'sandbox',
+    'label', 'preview',
     'docId', 'open',
   ]),
   // C3: the sandbox host (sandbox/host.mjs). ONE per panel; the S2 vibecode bench uses the same

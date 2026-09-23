@@ -10,6 +10,9 @@
 // port is to within a pixel (the canvas positions the port element from `portOffsetY`, the wire
 // ends at `portPoint`) and because that agreement is unit-testable in Node.
 
+import { t } from '../core/i18n.mjs';
+import '../strings/graph.en.mjs';
+
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
 /** Height of `.graph-part-head` — the ports hang below it. Mirrored by `--graph-head-h` in css. */
@@ -73,6 +76,18 @@ function at(a, b, t) {
   };
 }
 
+/** The MIDPOINT of the drawn curve — where the label pill sits (§8.2). It is `at(a, b, 0.5)` and
+ * not the average of the ends, so the pill follows the curve's belly rather than floating off it
+ * when the two parts are far apart vertically.
+ * @param {{x: number, y: number}} a @param {{x: number, y: number}} b @returns {{x: number, y: number}} */
+export function wireMid(a, b) {
+  return at(a, b, 0.5);
+}
+
+/** The box the label pill is laid out in, in WORLD units. Fixed, because it must not depend on
+ * text measurement: the pill is centred inside it and the rest is transparent. */
+export const LABEL_BOX = Object.freeze({ w: 180, h: 26 });
+
 /** Squared distance from `p` to the cubic, sampled. @returns {number} world units */
 export function wireDistance(a, b, p, samples = 24) {
   let best = Infinity;
@@ -101,15 +116,27 @@ export function wireAt(doc, specs, p, tol = WIRE_HIT) {
  * The live layer. `render(doc)` is ONE pass: every path is created, moved or dropped in this call
  * and nothing else in the panel touches the svg.
  * @param {SVGSVGElement} svg
- * @param {{specs: Map<string, any>}} o
+ * @param {{specs: Map<string, any>, onLabel?: (wireId: string, text: string) => void}} o
  */
 export function createWireLayer(svg, o) {
   const g = document.createElementNS(SVG_NS, 'g');
   g.setAttribute('class', 'graph-wire-g');
+  // Two child groups under the ONE transformed <g> (K2-U1): the paths, then the label pills on
+  // top of them. Pan/zoom is still exactly one style write — the pills ride the same transform and
+  // do no per-frame work of their own, which is the whole reason §11 says the perf gate must not
+  // move when labels land.
+  const gPaths = document.createElementNS(SVG_NS, 'g');
+  gPaths.setAttribute('class', 'graph-wire-paths');
+  const gLabels = document.createElementNS(SVG_NS, 'g');
+  gLabels.setAttribute('class', 'graph-wire-labels');
+  g.append(gPaths, gLabels);
   svg.replaceChildren(g);
   /** @type {Map<string, SVGPathElement>} */ const paths = new Map();
+  /** @type {Map<string, {fo: any, pill: any, label: any}>} */ const pills = new Map();
   /** @type {SVGPathElement|null} */ let preview = null;
   /** @type {Set<string>} */ let selected = new Set();
+  /** The wire whose pill is being typed into, and the text it had when the edit began. */
+  /** @type {{id: string, was: string, cancelled: boolean}|null} */ let editing = null;
 
   /** @param {{x: number, y: number, zoom: number}} view */
   function setView(view) {
@@ -128,19 +155,169 @@ export function createWireLayer(svg, o) {
         path = document.createElementNS(SVG_NS, 'path');
         path.setAttribute('class', 'graph-wire');
         path.setAttribute('data-wire', wire.id);
-        g.appendChild(path);
+        path.setAttribute('aria-hidden', 'true');
+        gPaths.appendChild(path);
         paths.set(wire.id, path);
       }
       const d = wirePath(ends.a, ends.b);
       if (path.getAttribute('d') !== d) path.setAttribute('d', d);
       const want = selected.has(wire.id) ? 'true' : 'false';
       if (path.getAttribute('data-selected') !== want) path.setAttribute('data-selected', want);
+      renderPill(wire, ends);
     }
     for (const [id, path] of Array.from(paths)) {
       if (live.has(id)) continue;
       path.remove();
       paths.delete(id);
     }
+    for (const [id, pill] of Array.from(pills)) {
+      if (live.has(id)) continue;
+      if (editing && editing.id === id) editing = null;
+      pill.fo.remove();
+      pills.delete(id);
+    }
+  }
+
+  // ---- the label pill (K2-U1, COMPUTER_PLAN §5.1 + §8.2) ---------------------------------------
+  //
+  // An unnamed wire is the #1 cause of a mushy answer, so EVERY wire wears a pill: dashed and
+  // `name me` at rest when it is empty, an editable field when it is clicked. The text node is the
+  // label and nothing else — the placeholder is a SIBLING span — because `.graph-wire-label`'s
+  // `textContent` is the contract the harness reads: `''` means an empty pill, never 'name me'.
+
+  /** @param {any} wire @param {{a: any, b: any}} ends */
+  function renderPill(wire, ends) {
+    const text = String(wire.label == null ? '' : wire.label);
+    let pill = pills.get(wire.id);
+    if (!pill) pill = makePill(wire.id);
+    const mid = wireMid(ends.a, ends.b);
+    const x = Math.round((mid.x - LABEL_BOX.w / 2) * 100) / 100;
+    const y = Math.round((mid.y - LABEL_BOX.h / 2) * 100) / 100;
+    if (pill.fo.getAttribute('x') !== String(x)) pill.fo.setAttribute('x', String(x));
+    if (pill.fo.getAttribute('y') !== String(y)) pill.fo.setAttribute('y', String(y));
+    // While someone is typing, the document is BEHIND the field, not in front of it: rewriting the
+    // text here would move the caret to the start on every unrelated render.
+    if (!editing || editing.id !== wire.id) {
+      if (pill.label.textContent !== text) pill.label.textContent = text;
+      pill.pill.dataset.empty = text ? 'false' : 'true';
+    }
+  }
+
+  /** @param {string} wireId */
+  function makePill(wireId) {
+    const fo = document.createElementNS(SVG_NS, 'foreignObject');
+    fo.setAttribute('class', 'graph-wire-fo');
+    fo.setAttribute('width', String(LABEL_BOX.w));
+    fo.setAttribute('height', String(LABEL_BOX.h));
+    const pillEl = document.createElement('div');
+    pillEl.className = 'graph-wire-pill';
+    pillEl.dataset.wire = wireId;
+    pillEl.dataset.empty = 'true';
+    const label = document.createElement('span');
+    label.className = 'graph-wire-label';
+    label.dataset.wire = wireId;
+    label.setAttribute('role', 'textbox');
+    label.setAttribute('aria-label', t('graph.wireLabelAria'));
+    label.tabIndex = 0;
+    // The placeholder is its own span (never the label's text) and carries the tab stop while the
+    // label is hidden, so an UNNAMED arrow is reachable by keyboard as well as by mouse.
+    const ph = document.createElement('span');
+    ph.className = 'graph-wire-ph';
+    ph.setAttribute('aria-label', t('graph.wireLabelAria'));
+    ph.setAttribute('role', 'button');
+    ph.tabIndex = 0;
+    ph.textContent = t('graph.wireNameMe');
+    pillEl.append(label, ph);
+    fo.appendChild(pillEl);
+    gLabels.appendChild(fo);
+    const entry = { fo, pill: pillEl, label };
+    pills.set(wireId, entry);
+    // On the PILL, so the dashed placeholder opens the same editor the named pill does; the canvas
+    // never sees the press, which is why clicking a name does not also start a marquee.
+    pillEl.addEventListener('pointerdown', (ev) => ev.stopPropagation());
+    pillEl.addEventListener('click', (ev) => { ev.stopPropagation(); beginEdit(wireId); });
+    ph.addEventListener('focus', () => beginEdit(wireId));
+    label.addEventListener('focus', () => beginEdit(wireId));
+    label.addEventListener('blur', () => endEdit());
+    label.addEventListener('keydown', onLabelKey);
+    ph.addEventListener('keydown', (/** @type {any} */ ev) => {
+      if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); ev.stopPropagation(); beginEdit(wireId); }
+    });
+    return entry;
+  }
+
+  /** @param {string} wireId */
+  function beginEdit(wireId) {
+    if (editing && editing.id === wireId) return;
+    if (editing) endEdit();
+    const entry = pills.get(wireId);
+    if (!entry) return;
+    editing = { id: wireId, was: entry.label.textContent || '', cancelled: false };
+    entry.pill.dataset.editing = 'true';
+    entry.label.contentEditable = 'plaintext-only';
+    if (document.activeElement !== entry.label) entry.label.focus();
+    selectAll(entry.label);
+  }
+
+  /**
+   * Commit (or, after Escape, put back) whatever was typed. Committing is the CALLER's job — the
+   * layer never touches the document; it hands the text to `o.onLabel` and re-renders from what
+   * comes back, so one edit is one undo entry made in one place.
+   *
+   * It is called from FOUR places on purpose: Enter, Escape, the label's own blur, and the canvas's
+   * next pointer press. `blur` alone is not enough — a browser whose window does not hold the OS
+   * focus sets `activeElement` without ever firing `focus`/`blur`, and a name typed into a window
+   * that then lost focus must still be the name the graph runs with.
+   * @param {{cancel?: boolean}} [opt]
+   */
+  function endEdit(opt = {}) {
+    if (!editing) return;
+    if (opt.cancel) editing.cancelled = true;
+    const { id, was, cancelled } = editing;
+    const entry = pills.get(id);
+    editing = null;
+    if (!entry) return;
+    entry.label.contentEditable = 'false';
+    delete entry.pill.dataset.editing;
+    const text = String(entry.label.textContent || '');
+    if (cancelled || text === was) {
+      entry.label.textContent = was;
+      entry.pill.dataset.empty = was ? 'false' : 'true';
+      return;
+    }
+    entry.pill.dataset.empty = text.trim() ? 'false' : 'true';
+    if (typeof o.onLabel === 'function') o.onLabel(id, text);
+  }
+
+  /** @param {any} ev */
+  function onLabelKey(ev) {
+    if (ev.key === 'Enter') {
+      ev.preventDefault();
+      ev.stopPropagation();
+      endEdit();
+      if (ev.target.blur) ev.target.blur();
+      return;
+    }
+    if (ev.key === 'Escape') {
+      ev.preventDefault();
+      ev.stopPropagation();                 // the drawer owns Escape; a field being typed in owns it first
+      endEdit({ cancel: true });
+      if (ev.target.blur) ev.target.blur();
+      return;
+    }
+    // Delete, Backspace and the arrows mean "edit this text", not "delete the selected parts".
+    ev.stopPropagation();
+  }
+
+  /** @param {any} node */
+  function selectAll(node) {
+    try {
+      const sel = window.getSelection();
+      const range = document.createRange();
+      range.selectNodeContents(node);
+      sel.removeAllRanges();
+      sel.addRange(range);
+    } catch { /* selection is a convenience; an edit that cannot select still types */ }
   }
 
   /** The wire being dragged. `null` clears it. @param {{a: any, b: any}|null} ends */
@@ -152,7 +329,8 @@ export function createWireLayer(svg, o) {
     if (!preview) {
       preview = document.createElementNS(SVG_NS, 'path');
       preview.setAttribute('class', 'graph-wire graph-wire-preview');
-      g.appendChild(preview);
+      preview.setAttribute('aria-hidden', 'true');
+      gPaths.appendChild(preview);
     }
     preview.setAttribute('d', wirePath(ends.a, ends.b));
   }
@@ -165,6 +343,30 @@ export function createWireLayer(svg, o) {
     setSelected(ids) { selected = new Set(ids || []); },
     selected: () => Array.from(selected),
     count: () => paths.size,
-    destroy() { paths.clear(); preview = null; svg.replaceChildren(); },
+    /** Put the caret in one wire's pill (K2-U1). The canvas calls it when a wire is chosen and
+     * `F2`/Enter is pressed, so naming a wire is reachable without a mouse.
+     * @param {string} wireId @returns {boolean} */
+    editLabel(wireId) {
+      if (!pills.has(wireId)) return false;
+      beginEdit(wireId);
+      return true;
+    },
+    /** Which wire's pill has the caret, or `''`. */
+    editingLabel: () => (editing ? editing.id : ''),
+    /** Close an open pill: the canvas calls it on its next pointer press, so pressing anywhere
+     * else on the graph commits the name the way clicking away from a field always has.
+     * @param {{cancel?: boolean}} [opt] @returns {boolean} whether anything was open */
+    endLabelEdit(opt) {
+      if (!editing) return false;
+      endEdit(opt || {});
+      return true;
+    },
+    destroy() {
+      editing = null;
+      paths.clear();
+      pills.clear();
+      preview = null;
+      svg.replaceChildren();
+    },
   };
 }

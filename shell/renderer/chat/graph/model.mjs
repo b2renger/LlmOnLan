@@ -13,7 +13,7 @@
 // Cosmetic edits (move, resize, view) and runtime writes (patchPart) mark nothing.
 
 import { markStale, wouldCycle } from './topo.mjs';
-import { accepts, isValue, valueOf, isRepeatList } from './values.mjs';
+import { accepts, isValue, valueOf, isRepeatList, facetsOf } from './values.mjs';
 import { MAX_ITEM_ERRORS } from './fanout.mjs';
 
 /** @typedef {import('../core/types.mjs').GraphDoc} GraphDoc */
@@ -22,6 +22,23 @@ import { MAX_ITEM_ERRORS } from './fanout.mjs';
 
 export const DEFAULT_SIZE = Object.freeze({ w: 220, h: 120 });
 export const DEFAULT_VIEW = Object.freeze({ x: 0, y: 0, zoom: 1 });
+
+/**
+ * K2-U1 (COMPUTER_PLAN §5.1) — the DISPLAY form of a wire label: trimmed, runs of whitespace
+ * collapsed, the reader's OWN case kept, because the user's own spelling is what the model sees as
+ * a `##` heading. A label that normalises to empty IS an unlabelled arrow (§5.2 rule 8), so the
+ * stored form of "no name" is exactly `''` and never `null`.
+ *
+ * This is `bind.mjs`'s `labelName` written twice ON PURPOSE: `bind.mjs` imports this module, so
+ * this module cannot import `bind.mjs` without a cycle. `computer-label.test.mjs` asserts the two
+ * agree over a table of awkward inputs, so the duplication cannot drift unnoticed.
+ * @param {any} raw @returns {string}
+ */
+export function wireLabel(raw) {
+  // Anything that is not a string came from a hand-edited file or a later format, not from a
+  // reader typing a name: it is an unlabelled arrow, never `[object Object]` painted on a pill.
+  return typeof raw === 'string' ? raw.trim().replace(/\s+/g, ' ') : '';
+}
 
 /** The part states, in the order they occur in a run. `patchPart` refuses anything else. */
 export const STATES = Object.freeze(['idle', 'stale', 'queued', 'running', 'done', 'error']);
@@ -65,6 +82,30 @@ const obj = (o) => (o && typeof o === 'object' && !Array.isArray(o) ? o : {});
 
 /** The part type's declared inputs. @param {any} spec @returns {any[]} */
 const inputsOfSpec = (spec) => (spec && Array.isArray(spec.inputs) ? spec.inputs : []);
+
+/**
+ * Port names a later build renamed, by part type. K2 landing: the C1 `ask`'s `context` port became
+ * the Instruction's single `in` (COMPUTER_PLAN §5.2 rule 7). Every graph the owner already drew
+ * stores `port: 'context'`, and `normaliseDoc` refuses an unknown port — so without this table the
+ * catalogue swap would silently drop every wire into every Instruction on load, which is exactly
+ * the quiet loss §1.3 rule 4 bans. Applied on the way IN only: what is stored afterwards is the
+ * live name, so the rename is paid once per document.
+ * @type {Readonly<Record<string, Readonly<Record<string, string>>>>}
+ */
+const PORT_ALIASES = Object.freeze({ ask: Object.freeze({ context: 'in' }) });
+
+/**
+ * The port this wire means today: its own name, or the live name a rename maps it to when the
+ * target part no longer declares it.
+ * @param {any} toPart @param {any} toSpec @param {string} port @returns {string}
+ */
+function livePort(toPart, toSpec, port) {
+  const ports = inputsOfSpec(toSpec);
+  if (ports.some((p) => p && p.name === port)) return port;
+  const table = toPart && PORT_ALIASES[toPart.type];
+  const renamed = table && table[port];
+  return renamed && ports.some((p) => p && p.name === renamed) ? renamed : port;
+}
 
 /**
  * Why this wire cannot exist, or null when it can. The ONE place the reason codes are decided —
@@ -125,7 +166,12 @@ function normaliseFanout(f) {
 function normalisePart(raw, spec) {
   const size = obj(spec && spec.size);
   const state = STATES.includes(raw.state) ? raw.state : 'idle';
-  const value = isValue(raw.value) ? { kind: raw.value.kind, data: raw.value.data } : null;
+  // K2 kickoff (COMPUTER_PLAN §6.8): the facets ride along. This line used to strip a value to
+  // `{kind, data}`, which is the ONE place a `format`/`lang` was silently lost on reload — a Note
+  // came back as `plain` and its markdown stopped being fenced as markdown in the next prompt.
+  const value = isValue(raw.value)
+    ? { kind: raw.value.kind, data: raw.value.data, ...facetsOf(raw.value) }
+    : null;
   // A list may say its identical items are deliberate (Repeat). That belongs to the VALUE, so it
   // has to survive the round trip or a reloaded Repeat would collapse its four passes into one.
   if (value && isRepeatList(raw.value)) /** @type {any} */ (value).repeats = true;
@@ -195,12 +241,14 @@ export function normaliseDoc(raw, o) {
       dropped.push('wire:malformed');
       continue;
     }
-    const port = typeof w.port === 'string' && w.port ? w.port : '';
+    const stored = typeof w.port === 'string' && w.port ? w.port : '';
+    const target = partById(doc, w.to);
+    const port = livePort(target, target ? specs.get(target.type) : null, stored);
     const refusal = wireRefusal(doc, { from: w.from, to: w.to, port }, specs);
     if (refusal) { dropped.push(`wire:${refusal}`); continue; }
     const id = typeof w.id === 'string' && w.id && !seenWire.has(w.id) ? w.id : `w:${w.from}:${w.to}:${port}`;
     seenWire.add(id);
-    doc = { ...doc, wires: [...doc.wires, { id, from: w.from, to: w.to, port }] };
+    doc = { ...doc, wires: [...doc.wires, { id, from: w.from, to: w.to, port, label: wireLabel(w.label) }] };
   }
   return { doc, dropped };
 }
@@ -317,7 +365,7 @@ export function patchPart(doc, id, patch, o = {}) {
   };
 }
 
-/** @param {GraphDoc} doc @param {{from: string, to: string, port: string}} edge
+/** @param {GraphDoc} doc @param {{from: string, to: string, port: string, label?: string}} edge
  *  @param {{specs: Map<string, any>, newId: () => string, now?: () => number}} o
  *  @returns {{ok: true, doc: GraphDoc, wire: GraphWire}|{ok: false, reason: string}} */
 export function addWire(doc, edge, o) {
@@ -329,8 +377,29 @@ export function addWire(doc, edge, o) {
   };
   const refusal = wireRefusal(doc, want, specs);
   if (refusal) return { ok: false, reason: refusal };
-  const wire = /** @type {any} */ ({ id: o.newId(), from: want.from, to: want.to, port: want.port });
+  const wire = /** @type {any} */ ({
+    id: o.newId(), from: want.from, to: want.to, port: want.port, label: wireLabel(edge && edge.label),
+  });
   return { ok: true, doc: markStale(bump({ ...doc, wires: [...doc.wires, wire] }, o), [want.to], o), wire };
+}
+
+/**
+ * Name a wire (K2-U1, COMPUTER_PLAN §5.1). A label is a PROGRAM edit, not a decoration: it changes
+ * which parameter an input arrives as, so it bumps `rev`, it is undoable at the caller, and it
+ * marks `to` and everything downstream STALE — renaming `country` to `topic` must make the
+ * Instruction below re-run, or the canvas would show an answer built from a heading that no longer
+ * exists. Renaming to the same normalised text is NOT an edit: it returns the doc untouched, so a
+ * blur that changed nothing costs neither an undo entry nor a re-run.
+ * @param {GraphDoc} doc @param {string} wireId @param {any} label @param {{now?: () => number}} [o]
+ * @returns {GraphDoc}
+ */
+export function setWireLabel(doc, wireId, label, o = {}) {
+  const w = doc.wires.find((x) => x.id === wireId);
+  if (!w) return doc;
+  const next = wireLabel(label);
+  if (next === wireLabel(/** @type {any} */ (w).label)) return doc;
+  const wires = doc.wires.map((x) => (x.id === wireId ? { ...x, label: next } : x));
+  return markStale(bump({ ...doc, wires }, o), [w.to], o);
 }
 
 /** @param {GraphDoc} doc @param {string} wireId @param {{now?: () => number}} [o] @returns {GraphDoc} */
@@ -338,6 +407,19 @@ export function removeWire(doc, wireId, o = {}) {
   const w = doc.wires.find((x) => x.id === wireId);
   if (!w) return doc;
   return markStale(bump({ ...doc, wires: doc.wires.filter((x) => x.id !== wireId) }, o), [w.to], o);
+}
+
+/** The WIRES into each input port, in wire order — what `inputsOf` answers, with the wire itself
+ * instead of only its source id. K2 (COMPUTER_PLAN §5) needs the wire because the LABEL lives on
+ * it: the runner walks these to hand a part `labels` alongside `inputs`, in the same order.
+ * @param {GraphDoc} doc @param {string} partId @returns {Record<string, GraphWire[]>} */
+export function wiresInto(doc, partId) {
+  /** @type {Record<string, GraphWire[]>} */ const out = {};
+  for (const w of doc.wires) {
+    if (w.to !== partId) continue;
+    (out[w.port] = out[w.port] || []).push(w);
+  }
+  return out;
 }
 
 /** Source part ids per input port, in wire order (several wires into one port arrive as a list).

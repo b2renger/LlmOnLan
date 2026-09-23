@@ -47,7 +47,7 @@ async function buildScene(/** @type {any} */ h) {
     await h.graph.set(note, { text: 'Paris' });
     await h.graph.set(ask, { instruction: 'name three things to see', model: 'mock-echo' });
     await h.graph.set(collect, { mode: 'numbered' });
-    await h.graph.wire(note, ask, 'context');
+    await h.graph.wire(note, ask, 'in');
     await h.graph.wire(ask, collect, 'items');
     const report = await h.graph.run();
     h.eq(report.errors.length, 0, 'the photographed run failed: ' + JSON.stringify(report.errors));

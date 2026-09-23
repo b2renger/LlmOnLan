@@ -99,7 +99,13 @@ async function importExample(h, name) {
 
     // Ids are re-minted on import by design, so the wires are compared through the mapping.
     const id = new Map(file.parts.map((/** @type {any} */ p, /** @type {number} */ i) => [p.id, doc.parts[i].id]));
-    const want = file.wires.map((/** @type {any} */ w) => `${id.get(w.from)}>${id.get(w.to)}.${w.port}`).sort().join('|');
+    // K2 landing: these files are v1, drawn when the Ask's port was `context`. The Instruction
+    // renamed it to `in`, and `graph/model.mjs`'s rename table carries an old document's arrows
+    // across on load — so the EXAMPLES prove that migration, and what is compared is the port the
+    // wire means today. A port nothing renamed still has to match exactly.
+    const type = new Map(file.parts.map((/** @type {any} */ p) => [p.id, p.type]));
+    const live = (/** @type {any} */ w) => (type.get(w.to) === 'ask' && w.port === 'context' ? 'in' : w.port);
+    const want = file.wires.map((/** @type {any} */ w) => `${id.get(w.from)}>${id.get(w.to)}.${live(w)}`).sort().join('|');
     const got = doc.wires.map((/** @type {any} */ w) => `${w.from}>${w.to}.${w.port}`).sort().join('|');
     h.eq(got, want, 'every wire connects the same two ports it did in the file');
 
@@ -242,8 +248,12 @@ export default [
             const log = await posts(h, 'mock-item');
             h.eq(log.length, 6, `exactly six completions left the window, got ${log.length}`);
             const asked = log.map((/** @type {any} */ e) => {
+                // K2 (§5.3): the topic arrives under its own `## ` heading and the instruction is
+                // LAST, so the request's subject is read from the heading, not from the tail.
                 const lines = userText(e).split('\n').map((/** @type {string} */ l) => l.trim()).filter(Boolean);
-                return lines[lines.length - 1];
+                const at = lines.findIndex((/** @type {string} */ l) => l.startsWith('## '));
+                const under = at >= 0 ? lines.slice(at + 1).find((/** @type {string} */ l) => !l.startsWith('#')) : '';
+                return under || lines[lines.length - 1];
             }).sort();
             h.eq(asked.join('|'), [...topics].sort().join('|'),
                 'one request per topic, each about a different one');

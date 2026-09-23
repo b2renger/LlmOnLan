@@ -163,6 +163,63 @@
 :is(#lolchat, #lolcomputer) .graph-wire[data-selected="true"] { stroke: var(--accent-hover); stroke-width: 3; }
 :is(#lolchat, #lolcomputer) .graph-wire-preview { stroke: var(--accent-hover); stroke-dasharray: 5 4; }
 
+/* K2-U1 (COMPUTER_PLAN §5.1, §8.2): the arrow's NAME, at the midpoint of its curve. The
+   <foreignObject> is a fixed transparent box; only the pill inside it takes the pointer, so the
+   canvas keeps its marquee everywhere the pill is not. */
+:is(#lolchat, #lolcomputer) .graph-wire-fo { overflow: visible; pointer-events: none; }
+
+:is(#lolchat, #lolcomputer) .graph-wire-pill {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  font: inherit;
+  font-size: 11px;
+  line-height: 1.2;
+}
+
+:is(#lolchat, #lolcomputer) .graph-wire-label,
+:is(#lolchat, #lolcomputer) .graph-wire-ph {
+  pointer-events: auto;
+  max-width: 100%;
+  padding: 2px 7px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: text;
+}
+
+/* An EMPTY pill is the dashed plea; the label span itself collapses so the two never both show. */
+:is(#lolchat, #lolcomputer) .graph-wire-pill[data-empty="true"] .graph-wire-label { display: none; }
+:is(#lolchat, #lolcomputer) .graph-wire-pill[data-empty="false"] .graph-wire-ph { display: none; }
+:is(#lolchat, #lolcomputer) .graph-wire-pill[data-editing="true"] .graph-wire-label { display: inline-block; min-width: 40px; }
+:is(#lolchat, #lolcomputer) .graph-wire-pill[data-editing="true"] .graph-wire-ph { display: none; }
+
+:is(#lolchat, #lolcomputer) .graph-wire-ph {
+  border-style: dashed;
+  background: none;
+  color: var(--muted);
+  /* K2 landing, from the light-theme screenshot: at 0.4 the plea was muted-on-white and could not
+     be read at 100 % zoom — an invitation nobody can see is not an invitation. Still clearly
+     secondary to a real name, which is opaque. */
+  opacity: 0.75;
+}
+
+:is(#lolchat, #lolcomputer) .graph-wire-label:hover,
+:is(#lolchat, #lolcomputer) .graph-wire-ph:hover { border-color: var(--accent-hover); }
+
+:is(#lolchat, #lolcomputer) .graph-wire-label:focus-visible,
+:is(#lolchat, #lolcomputer) .graph-wire-ph:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+:is(#lolchat, #lolcomputer) .graph-wire-pill[data-editing="true"] .graph-wire-label {
+  border-color: var(--accent);
+  outline: none;
+}
+
 :is(#lolchat, #lolcomputer) .graph-layer {
   position: absolute;
   top: 0;
@@ -309,7 +366,11 @@
   min-height: 0;
 }
 
-:is(#lolchat, #lolcomputer) .graph-value {
+/* K2 landing: the Instruction's "sends N words" strip is a DIFFERENT door from the value chip —
+   it opens the transcript, the chip opens the inspector — so it carries its own class and only
+   borrows the chip's look. Sharing `.graph-value` made `.graph-part .graph-value` ambiguous and the
+   strip, which sits higher in the box, swallowed the click meant for the value. */
+:is(#lolchat, #lolcomputer) :is(.graph-value, .graph-ins-strip) {
   appearance: none;
   font: inherit;
   font-size: 11px;
@@ -327,7 +388,10 @@
   text-overflow: ellipsis;
 }
 
-:is(#lolchat, #lolcomputer) .graph-value:hover { filter: brightness(1.08); }
+:is(#lolchat, #lolcomputer) :is(.graph-value, .graph-ins-strip):hover { filter: brightness(1.08); }
+
+/* The strip is a full-width line inside the box body, not a chip in the footer row. */
+:is(#lolchat, #lolcomputer) .graph-ins-strip { flex: 0 0 auto; width: 100%; margin-top: 6px; }
 
 :is(#lolchat, #lolcomputer) .graph-cost {
   font-size: 11px;
