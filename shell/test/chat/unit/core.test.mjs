@@ -186,7 +186,7 @@ export default (test) => {
     assert.equal(new Set(computer).size, computer.length, 'a key is listed twice');
   });
 
-  test('css/graph.css is re-scoped to both surfaces: 121 selectors, and none left behind', () => {
+  test('css/graph.css is re-scoped to both surfaces: 123 selectors, and none left behind', () => {
     // The K1 kickoff's ONE mechanical edit (§3.2): `#lolchat ` -> `:is(#lolchat, #lolcomputer) `.
     // The count is asserted because the rewrite is what makes the SAME canvas paint on the new
     // surface; a rule missed here is a piece of the Computer that is simply invisible. The two
@@ -198,7 +198,10 @@ export default (test) => {
     // sharing `.graph-value` — one selector must not open two doors. The COUNT is a snapshot that
     // moves whenever the sheet honestly grows; the assertion below it — that no `#lolchat `
     // selector survived — is the guarantee, and it is untouched.
-    assert.equal(scoped.length, 121, `the graph.css re-scope is ${scoped.length} selectors, not 121`);
+    // The K3 landing added two: `input[type="checkbox"]` and `.graph-part-check`'s
+    // `justify-content` — a checkbox was inheriting the 100 % width meant for a text field, so
+    // every control part's switches rendered as full-width lanes with the caption crushed right.
+    assert.equal(scoped.length, 123, `the graph.css re-scope is ${scoped.length} selectors, not 123`);
     const body = css.replace(/\/\*[\s\S]*?\*\//g, '');
     assert.equal((body.match(/#lolchat /g) || []).length, 0,
       'a `#lolchat ` selector survived the re-scope: that rule paints in the chat and nowhere else');

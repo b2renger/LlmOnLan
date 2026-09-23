@@ -12,6 +12,14 @@
 //
 // The pure half (view maths, marquee hits, the clipboard payload) is exported on its own and
 // tested in Node: it is the part that is easy to get subtly wrong and impossible to see.
+//
+// K3-U3 added what a RUN looks like (COMPUTER_PLAN §8.2-§8.4): a per-box ▶ in every title bar,
+// which is the push entry point and goes out through `o.onPlay` so a part never reaches for the
+// runner; the two wire flags — `data-back` for a declared loop edge and `data-barred` for a
+// branch a gate stopped — written here and never inside graph/wires.mjs; the travelling dot on a
+// delivering wire; and the RUN-NOTICE STRIP, which is C2's cap banner generalised to §8.4's
+// rows. The canvas draws all of it and decides none of it: `setBarred`, `setLimited` and
+// `setCapped` are told, by the module that read the report (computer/runbar.mjs).
 
 import { t } from '../core/i18n.mjs';
 import { KV_KEYS } from '../core/types.mjs';
@@ -25,6 +33,9 @@ import { tidy } from './tidy.mjs';
 import { toText, fromText, FILE_SUFFIX, MAX_IMPORT_BYTES } from './serialize.mjs';
 import { download, pickImportFile, slugify } from '../ui/transfer.mjs';
 import '../strings/graph.en.mjs';
+// K3-U3 (COMPUTER_PLAN §8.3, §8.4): the per-box ▶ and the run-notice strip speak in the
+// COMPUTER's voice — `computer.runPlayTitle`, the four ceilings, the loop-ungated sentence.
+import '../strings/computer.en.mjs';
 import '../strings/parts.en.mjs';
 
 /** How many per-item failures a part lists before the rest live in the run report (§2.6 BH-3).
@@ -41,6 +52,13 @@ export const FIT_PADDING = 40;
 export const DRAG_SLOP = 3;
 /** The clipboard payload's format tag — the same name graph/serialize.mjs (C1-U1) uses for files. */
 export const CLIP_FORMAT = 'lolgraph';
+
+/** K3-U3 (§9's title-bar row): the per-box run mark. A glyph, not an icon font and not an SVG —
+ *  it sits in a 12 px title bar next to the type name and has to stay legible at 25 % zoom. */
+export const PLAY_GLYPH = '\u25B6';
+
+/** How long the travelling dot runs on a delivering wire (§8.3). One animation at a time. */
+export const FLOW_MS = 700;
 
 /** C3-U3. Why a whole FILE was refused → the sentence the reader gets. graph/serialize.mjs returns
  * these codes and never throws, so every one of them has to have a line here. */
@@ -93,6 +111,7 @@ const STATE_LABEL = {
   stale: 'graph.stateStale',
   queued: 'graph.stateQueued',
   running: 'graph.stateRunning',
+  waiting: 'graph.stateWaiting',      // K3 kickoff (§4.1): parked on a human or a clock
   done: 'graph.stateDone',
   error: 'graph.stateError',
 };
@@ -106,6 +125,7 @@ const WIRE_REASON = {
   'unknown-port': 'graph.wireUnknownPort',
   type: 'graph.wireType',
   'unknown-part': 'graph.wireUnknownPart',
+  'loop-ungated': 'graph.wireLoopUngated',   // K3 kickoff (§4.6)
 };
 
 // ---- pure helpers (unit-tested in Node) ---------------------------------------------------------
@@ -356,7 +376,15 @@ export function createCanvas(o) {
   exportWrap.append(exportBtn, exportMenu);
   const importBtn = button('graph-btn graph-import', t('graph.importGraph'));
   const capRaiseBtn = button('graph-btn graph-cap-raise', t('graph.capRaise'));
-  capBanner.append(capText, capRaiseBtn);
+  // K3-U3 (COMPUTER_PLAN §8.4): the strip carries up to TWO buttons, because "capped" reads
+  // `[Raise it for this run]` `[Show me what spent it]` and a ceiling reads the same shape. A slot
+  // with no action is empty AND blank — `textContent` is what the shots scenarios read off the
+  // banner, so a hidden button holding a label would put a sentence in the picture nobody sees.
+  const capMoreBtn = button('graph-btn graph-cap-more', '');
+  capMoreBtn.hidden = true;
+  const capActions = el('div', 'graph-cap-actions');
+  capActions.append(capRaiseBtn, capMoreBtn);
+  capBanner.append(capText, capActions);
 
   // The stored preference (`pref:computeMaxItems`) as a toolbar field — §2.6 BH-4 puts the ONLY
   // place the default changes here, never in a settings section. The banner's button raises the
@@ -379,11 +407,11 @@ export function createCanvas(o) {
   /** What the raise button should ask for: twice the cap the LAST run stopped at, or — when an
    * item ceiling stopped it — exactly enough for that fan. Never "unlimited". */
   let raiseTo = 0;
-  capRaiseBtn.addEventListener('click', () => {
-    if (!raiseTo || !o.onRaiseCap) return;
-    setCapped(null);
-    o.onRaiseCap(raiseTo);
-  });
+  /** The live notice's two handlers. Replaced wholesale by `setNotice`, so a button can never
+   * still be wired to the run before last. */
+  const noticeAct = { primary: /** @type {Function|null} */ (null), secondary: /** @type {Function|null} */ (null) };
+  capRaiseBtn.addEventListener('click', () => { const f = noticeAct.primary; if (f) f(); });
+  capMoreBtn.addEventListener('click', () => { const f = noticeAct.secondary; if (f) f(); });
   /** Has the reader touched the field? Then the stored value is BEHIND it, not ahead of it. */
   let capEdited = false;
   capInput.addEventListener('input', () => { capEdited = true; });
@@ -409,31 +437,176 @@ export function createCanvas(o) {
     } catch { /* the default stands */ }
   })();
 
+  // ---- the run-notice strip (K3-U3, COMPUTER_PLAN §8.4) ----------------------------------------
+  //
+  // ONE strip, over the canvas, for everything a RUN has to say to the person who started it:
+  // "one sentence for what happened, one for what to do, never a code, never a stack". The cap
+  // banner C2 shipped is now the first of its rows, unchanged in its words and its button, and
+  // the four ceilings of §4.6 are the rest. A per-PART failure is not a notice: it keeps living
+  // in that part's own error strip, behind its last good value, which is the other half of §8.4.
+
+  /** @param {any} btn @param {any} spec @returns {Function|null} */
+  function applyAction(btn, spec) {
+    if (!spec || !spec.label) {
+      btn.hidden = true;
+      btn.textContent = '';
+      btn.disabled = false;
+      delete btn.dataset.action;
+      return null;
+    }
+    btn.hidden = false;
+    btn.textContent = String(spec.label);
+    // A button with nowhere to go is DISABLED, not absent: §8.4 promises the action is there, and
+    // the lesson it opens ships in K5. The run bar's `?` already established the shape.
+    btn.disabled = !!spec.disabled || typeof spec.onClick !== 'function';
+    btn.dataset.action = String(spec.name || '');
+    return typeof spec.onClick === 'function' ? spec.onClick : null;
+  }
+
+  /** @type {any} */ let notice = null;
+
+  /**
+   * Show (or clear, with `null`) the one notice over the canvas.
+   * @param {any} n {kind, title, body?, say?, actions?: [{name, label, onClick?, disabled?}]}
+   */
+  function setNotice(n) {
+    notice = n || null;
+    if (!notice) {
+      raiseTo = 0;
+      capBanner.hidden = true;
+      capBanner.removeAttribute('data-notice');
+      capTitleEl.textContent = '';
+      capBodyEl.textContent = '';
+      noticeAct.primary = applyAction(capRaiseBtn, null);
+      noticeAct.secondary = applyAction(capMoreBtn, null);
+      return null;
+    }
+    const acts = Array.isArray(notice.actions) ? notice.actions : [];
+    capBanner.dataset.notice = String(notice.kind || 'notice');
+    capTitleEl.textContent = String(notice.title || '');
+    capBodyEl.textContent = String(notice.body || '');
+    noticeAct.primary = applyAction(capRaiseBtn, acts[0] || null);
+    noticeAct.secondary = applyAction(capMoreBtn, acts[1] || null);
+    capBanner.hidden = false;
+    if (notice.say !== false) announce(`${notice.title || ''} ${notice.body || ''}`.trim());
+    return notice;
+  }
+
   /**
    * The cap banner: what a run that stopped at the cap says, and the one button that finishes it.
-   * `null` clears it — a new run always starts with no banner (§2.6 BH-4).
+   * `null` clears it — a new run always starts with no banner (§2.6 BH-4). Since K3 it is the
+   * `capped` ROW of the notice strip, with §8.4's second button beside the first.
    * @param {{cap: number, spent?: number, stopped?: number, items?: number, raiseTo?: number}|null} info
    */
   function setCapped(info) {
     const cap = info && Number(info.cap) > 0 ? Math.floor(Number(info.cap)) : 0;
-    if (!cap) {
-      raiseTo = 0;
-      capBanner.hidden = true;
-      capTitleEl.textContent = '';
-      capBodyEl.textContent = '';
-      return;
-    }
+    if (!cap) { setNotice(null); return; }
     const items = Math.floor(Number((info && info.items) || 0));
     raiseTo = Math.floor(Number((info && info.raiseTo) || 0)) || cap * 2;
     // Two lines, not one run-on sentence: the title says what happened, the body says why it is
     // a promise rather than a limitation (seen in the C2 landing screenshots). A run stopped by the
     // ITEM ceiling says so in its own words: "50 generations" would be a lie about a part that was
     // going to spend none of them.
-    capTitleEl.textContent = items > 0 ? t('graph.capItemsTitle', { items }) : t('graph.capTitle', { cap });
-    capBodyEl.textContent = items > 0
-      ? t('graph.capItemsBody', { cap, raise: raiseTo })
-      : t('graph.capBody', { n: Number((info && info.stopped) || 0) });
-    capBanner.hidden = false;
+    setNotice({
+      kind: 'capped',
+      say: false,                  // the host announces the capped sentence in its own words
+      title: items > 0 ? t('graph.capItemsTitle', { items }) : t('graph.capTitle', { cap }),
+      body: items > 0
+        ? t('graph.capItemsBody', { cap, raise: raiseTo })
+        : t('graph.capBody', { n: Number((info && info.stopped) || 0) }),
+      actions: [
+        {
+          name: 'raise',
+          label: t('graph.capRaise'),
+          onClick: () => {
+            // Read the number BEFORE clearing: `setNotice(null)` zeroes `raiseTo`, and the
+            // pre-K3 handler read it afterwards — so every raise asked for `0` and only worked
+            // because the runner reads a falsy cap as "the stored default".
+            const want = raiseTo;
+            if (!want || !o.onRaiseCap) return;
+            setNotice(null);
+            o.onRaiseCap(want);
+          },
+        },
+        { name: 'show-spend', label: t('computer.limitShowSpend'), onClick: showSpend },
+      ],
+    });
+  }
+
+  /**
+   * §8.4's second button on a capped run: "Show me what spent it". The transcript drawer's COST
+   * tab, on the part that spent the most, is exactly that answer — and the drawer is K2's, so
+   * this only asks for it and stays quiet when it is not installed.
+   */
+  function showSpend() {
+    const tx = app && /** @type {any} */ (app).transcript;
+    /** @type {{id: string, calls: number}|null} */ let worst = null;
+    for (const part of session.doc().parts) {
+      const calls = part.stats && Number(part.stats.calls) > 0 ? Number(part.stats.calls) : 0;
+      if (!calls) continue;
+      if (!worst || calls > worst.calls) worst = { id: part.id, calls };
+    }
+    if (worst && tx && typeof tx.open === 'function') tx.open(worst.id, 'cost');
+  }
+
+  /**
+   * A run stopped by one of §4.6's four ceilings (K3-U1's `report.limited`). Every one is a STOP,
+   * not an error: the sentence names the ceiling and the part, and the one button raises it FOR
+   * THAT RUN through the frozen `run({limits})` door the caller hands in.
+   * @param {any} limit a RunLimit, or null to clear
+   * @param {{onRaise?: (limits: any) => void}} [opt]
+   */
+  function setLimited(limit, opt = {}) {
+    if (!limit || !limit.ceiling) { setNotice(null); return null; }
+    const part = labelOf(partById(limit.partId));
+    const lim = Math.floor(Number(limit.limit) || 0);
+    const minutes = Math.max(1, Math.round((Number(limit.limit) || 0) / 60000));
+    const want = Math.floor(Number(limit.raiseTo) || 0) || lim * 2;
+    // chat-lint rule 5: literal keys, one per branch — never a key assembled from `ceiling`.
+    /** @type {Record<string, string>} */
+    const title = {
+      maxIterations: t('computer.limitIterations', { limit: lim, part }),
+      maxGenerations: t('computer.limitGenerations', { limit: lim }),
+      maxWallMs: limit.partId
+        ? t('computer.limitWallPark', { part, minutes })
+        : t('computer.limitWall', { minutes }),
+      maxActivations: t('computer.limitActivations', { limit: lim }),
+    };
+    const actions = [{
+      name: 'raise',
+      label: t('computer.limitRaise'),
+      onClick: typeof opt.onRaise === 'function'
+        ? () => { setNotice(null); /** @type {any} */ (opt.onRaise)({ [limit.ceiling]: want }); }
+        : undefined,
+    }];
+    if (limit.ceiling === 'maxGenerations') {
+      actions.push({ name: 'show-spend', label: t('computer.limitShowSpend'), onClick: showSpend });
+    }
+    return setNotice({
+      kind: `limit:${limit.ceiling}`,
+      title: title[limit.ceiling] || t('computer.limitGenerations', { limit: lim }),
+      body: '',
+      actions,
+    });
+  }
+
+  /**
+   * §8.4's `loop-ungated` row, shown where the refusal happened: a wire that would close a loop
+   * with nothing in it that can stop it. The lesson the button opens is K5's; until it exists the
+   * button is there and disabled, because promising an action and hiding it is worse than either.
+   */
+  function sayLoopUngated() {
+    const tut = app && /** @type {any} */ (app).tutorial;
+    setNotice({
+      kind: 'loop-ungated',
+      title: t('computer.loopUngated'),
+      body: '',
+      actions: [{
+        name: 'lesson',
+        label: t('computer.loopLesson'),
+        onClick: tut && typeof tut.open === 'function' ? () => tut.open('10-loops') : undefined,
+      }],
+    });
   }
 
   function closeAddMenu() { addMenu.hidden = true; addBtn.setAttribute('aria-expanded', 'false'); }
@@ -501,7 +674,12 @@ export function createCanvas(o) {
     raf = requestAnimationFrame(() => {
       raf = 0;
       if (needView) { needView = false; applyView(); }
-      if (needWires) { needWires = false; wires.render(dragDoc || session.doc()); }
+      if (needWires) {
+        needWires = false;
+        const doc = dragDoc || session.doc();
+        wires.render(doc);
+        markWires(doc);
+      }
     });
   }
 
@@ -509,6 +687,94 @@ export function createCanvas(o) {
     layer.style.transform = `translate(${view.x}px, ${view.y}px) scale(${view.zoom})`;
     wires.setView(view);
     zoomLabel.textContent = t('graph.zoom', { percent: Math.round(view.zoom * 100) });
+  }
+
+  // ---- what the wires say about the last run (K3-U3, COMPUTER_PLAN §8.2, §8.3, §6.6) -----------
+  //
+  // Two flags, both written HERE and never inside `graph/wires.mjs`: a wire is `data-back` when
+  // the document declares it a loop edge, and `data-barred` when a gate refused to activate what
+  // it feeds. They are set on the wire RENDER and never on a pan — pan is still one transform
+  // write on the layer and one on the wire <g>, which is what the perf gate measures.
+
+  /** Parts a barrier stopped in the last run (§4.5): their outgoing wires drop to 35 %. */
+  /** @type {Set<string>} */ let barred = new Set();
+  /** wireId → the flags already written, so a re-render writes an attribute only when it moved. */
+  /** @type {Map<string, string>} */ const wireFlags = new Map();
+
+  /** @param {any} doc */
+  function markWires(doc) {
+    /** @type {Map<string, any>} */ const byId = new Map();
+    for (const w of doc.wires) byId.set(w.id, w);
+    const paths = svg.querySelectorAll('path.graph-wire[data-wire]');
+    for (const path of Array.from(paths)) {
+      const id = path.getAttribute('data-wire') || '';
+      const w = byId.get(id);
+      if (!w) continue;
+      const back = w.back === true ? 'true' : 'false';
+      // BOTH ENDS (K3 landing). The runner's `barred` names the parts a gate DROPPED — the boxes
+      // that never ran — so the arrow that died is the one the wave failed to cross INTO a dropped
+      // box as much as the ones leaving it. Greying only the out-edges left the entry arrow bright,
+      // which is the one a reader is looking at: a Toggle switched off greyed nothing at all unless
+      // something happened to sit past the box it held. §8.2's grey is most of the teaching, so it
+      // has to land on the edge where the wave stopped.
+      const grey = (barred.has(w.from) || barred.has(w.to)) ? 'true' : 'false';
+      const key = `${back}|${grey}`;
+      if (wireFlags.get(id) === key) continue;
+      wireFlags.set(id, key);
+      path.setAttribute('data-back', back);
+      path.setAttribute('data-barred', grey);
+      // The label pill wears the same two flags, so the `↺` of §9 sits ON the arrow's name and a
+      // greyed branch greys whole rather than leaving a bright pill floating over a faded wire.
+      const pill = svg.querySelector(`.graph-wire-pill[data-wire="${id}"]`);
+      if (pill) {
+        pill.setAttribute('data-back', back);
+        pill.setAttribute('data-barred', grey);
+      }
+    }
+    if (wireFlags.size > byId.size) {
+      for (const id of Array.from(wireFlags.keys())) if (!byId.has(id)) wireFlags.delete(id);
+    }
+  }
+
+  /** @type {any} */ let flowTimer = null;
+
+  function clearFlow() {
+    if (flowTimer) { clearTimeout(flowTimer); flowTimer = null; }
+    for (const el2 of Array.from(svg.querySelectorAll('[data-flow="true"]'))) {
+      el2.setAttribute('data-flow', 'false');
+    }
+  }
+
+  /** The travelling dot (§8.3): the wires a freshly finished part delivers on, briefly lit.
+   *  Back edges are left out — their value is the PREVIOUS iteration's and nothing travelled now.
+   *  @param {string} partId */
+  function flowFrom(partId) {
+    if (destroyed) return;
+    // Nothing leaves this box, so nothing travels — and the DOM is not touched at all. A run over
+    // a thousand wireless Notes finishes a thousand parts, and a query per finish is a query too
+    // many (the perf fixture is exactly that graph).
+    const ids = session.doc().wires
+      .filter((/** @type {any} */ w) => w.from === partId && w.back !== true)
+      .map((/** @type {any} */ w) => w.id);
+    if (!ids.length) return;
+    clearFlow();                                    // one animation at a time, §8.3
+    for (const id of ids) {
+      const path = svg.querySelector(`path.graph-wire[data-wire="${id}"]`);
+      if (path) path.setAttribute('data-flow', 'true');
+    }
+    flowTimer = setTimeout(() => { flowTimer = null; clearFlow(); }, FLOW_MS);
+  }
+
+  /** What the last run's barriers greyed. The run bar hands the report's `barred` straight in.
+   *  @param {string[]} ids @returns {string[]} */
+  function setBarred(ids) {
+    const next = new Set((ids || []).filter((id) => typeof id === 'string' && id));
+    if (next.size === barred.size && Array.from(next).every((id) => barred.has(id))) {
+      return Array.from(barred);
+    }
+    barred = next;
+    schedule('wires');
+    return Array.from(barred);
   }
 
   /** Pan/zoom is not a document edit; it rides the save debounce and never touches undo. */
@@ -583,6 +849,9 @@ export function createCanvas(o) {
       const fromSpec = fromPart && specs.get(fromPart.type);
       const vars = { from: labelOf(fromPart), to: labelOf(toPart), kind: (fromSpec && fromSpec.output) || '' };
       announce(key ? t(/** @type {any} */ (WIRE_REASON)[out.reason], vars) : t('graph.wireRefused'));
+      // §8.4: a refusal that names a CONCEPT gets the strip and the lesson button, because
+      // "you can't draw that" with no way to learn why is the refusal people give up on.
+      if (out.reason === 'loop-ungated') sayLoopUngated();
       return { ok: false, reason: out.reason };
     }
     session.apply(out.doc, { label: 'wire' });
@@ -905,8 +1174,34 @@ export function createCanvas(o) {
     state.append(dot, stateText);
     const fanout = el('span', 'graph-part-fanout');
     fanout.hidden = true;
-    head.append(title, fanout, state);
+    // K3-U3 (COMPUTER_PLAN §4.2, §9's title-bar row): ▶ on EVERY box. Pressing it is the push
+    // entry point — `run({mode:'from', seeds:[id]})` — and it goes out through `o.onPlay`, so a
+    // part never reaches for the runner and there is exactly one scheduler on this surface.
+    // It is a <button>, which `onPointerDown`'s `interactive` guard already excludes from drags.
+    const play = /** @type {any} */ (el('button', 'graph-part-play'));
+    play.type = 'button';
+    play.dataset.part = part.id;
+    play.textContent = PLAY_GLYPH;
+    play.title = t('computer.runPlayTitle');
+    play.setAttribute('aria-label', t('computer.runPlayTitle'));
+    play.addEventListener('click', (/** @type {any} */ ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      if (o.onPlay) o.onPlay(part.id);
+    });
+    head.append(title, fanout, state, play);
     const body = el('div', 'graph-part-body');
+    // §6.6, resolved at the K3 landing: a Button's FACE and its ▶ are ONE gesture — "clicking it
+    // is `run({mode:'from', seeds:[id]})`". The part records the press itself (button.mjs owns
+    // that) and the canvas starts the push run through the same `onPlay` the title-bar ▶ uses, so
+    // neither has to know about the other and there is still exactly one scheduler. Delegated,
+    // because the part's own DOM is rebuilt by its `render()` whenever it repaints.
+    body.addEventListener('click', (/** @type {any} */ ev) => {
+      const face = ev.target && ev.target.closest
+        ? ev.target.closest('.graph-part-control[data-action="press"]') : null;
+      if (!face || !body.contains(face)) return;
+      if (o.onPlay) o.onPlay(part.id);
+    });
     const error = el('p', 'graph-part-error');
     error.hidden = true;
     const foot = el('div', 'graph-part-foot');
@@ -983,6 +1278,10 @@ export function createCanvas(o) {
     if (last.h !== part.h) { box.node.style.minHeight = `${part.h}px`; last.h = part.h; }
     const state = part.state || 'idle';
     if (last.state !== state) {
+      // §8.3: "the delivering wire animates a single travelling dot from source to target". It is
+      // what makes "data flowed" legible to someone who has never seen a dataflow graph — so it
+      // fires on the transition INTO `done`, on that part's outgoing wires, and nowhere else.
+      if (state === 'done' && last.state && last.state !== 'done') flowFrom(part.id);
       box.node.dataset.state = state;
       box.stateText.textContent = t(/** @type {any} */ (STATE_LABEL)[state] || 'graph.stateIdle');
       last.state = state;
@@ -1460,6 +1759,16 @@ export function createCanvas(o) {
     redo: doRedo,
     focus: () => canvas.focus(),
     setCapped,
+    // K3-U3 (COMPUTER_PLAN §8.4): the run-notice strip, and the three rows a RUN can put in it.
+    // The run bar owns when they appear — it is the module that reads the report — so each of
+    // these takes the handler for its own button rather than reaching for the runner.
+    setNotice,
+    notice: () => (notice ? { ...notice } : null),
+    setLimited,
+    sayLoopUngated,
+    // §4.5 / §8.2: which parts a gate stopped, and therefore which arrows grey.
+    setBarred,
+    barred: () => Array.from(barred),
     capField: () => ({ cap: Math.floor(Number(capInput.value)) || 0 }),
     /** The panel tells the canvas what the runner is doing; the canvas owns no run logic. */
     setRunning(/** @type {{running: boolean, progress: any}} */ s) {
@@ -1478,6 +1787,7 @@ export function createCanvas(o) {
       destroyed = true;
       off();
       offFarm();
+      if (flowTimer) { clearTimeout(flowTimer); flowTimer = null; }
       if (raf) cancelAnimationFrame(raf);
       raf = 0;
       if (viewTimer) clearTimeout(viewTimer);

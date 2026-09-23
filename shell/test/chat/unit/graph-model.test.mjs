@@ -52,9 +52,12 @@ export default (test) => {
   });
 
   test('the frozen vocabularies are exactly the ones the canvas draws', () => {
-    assert.deepEqual([...STATES], ['idle', 'stale', 'queued', 'running', 'done', 'error']);
+    // K3 kickoff (COMPUTER_PLAN §4.1): `waiting` is an activation parked on a human or a clock,
+    // and `loop-ungated` is what refuses a cycle that nothing can stop (§4.6). `cycle` stays:
+    // a self-wire still reports it, and so does a hand-edited file.
+    assert.deepEqual([...STATES], ['idle', 'stale', 'queued', 'running', 'waiting', 'done', 'error']);
     assert.deepEqual([...WIRE_REASONS].sort(),
-      ['cycle', 'duplicate', 'no-output', 'self', 'type', 'unknown-part', 'unknown-port']);
+      ['cycle', 'duplicate', 'loop-ungated', 'no-output', 'self', 'type', 'unknown-part', 'unknown-port']);
   });
 
   // ------------------------------------------------------------------- parts
@@ -216,8 +219,9 @@ export default (test) => {
     const first = addWire(doc, { from: b, to: ask, port: 'in' }, s.o);
     assert.equal(first.ok, true);
     assert.deepEqual({ ...first.wire, id: typeof first.wire.id },
-      { id: 'string', from: b, to: ask, port: 'in', label: '' },
-      'K2-U1: every wire carries a label, and an arrow nobody named carries the empty one');
+      { id: 'string', from: b, to: ask, port: 'in', label: '', back: false },
+      'K2-U1: every wire carries a label, and an arrow nobody named carries the empty one; '
+      + 'K3 kickoff: and a DECLARATION of whether it loops back (§4.6), false for a plain arrow');
     assert.deepEqual(first.doc.wires, [first.wire]);
     assert.equal(partById(first.doc, ask).state, 'stale');
     assert.equal(doc.wires.length, 0, 'the input doc is untouched');
@@ -251,15 +255,20 @@ export default (test) => {
       'the output check comes first: a sink can never be a source');
   });
 
-  test('addWire: a cycle is refused at draw time — the loop that eats a farm never exists', () => {
+  // K3-U2 (COMPUTER_PLAN §4.6): the loop that eats a farm still never exists, but the refusal
+  // moved. A cycle is legal and DECLARED (`back:true`) when it holds something that can stop it;
+  // one that holds nothing is refused `loop-ungated`, which is what three Asks in a ring are.
+  // `computer-control.test.mjs` owns the gated half — here the rule is only that a ring of
+  // thinking parts with no gate is still a gesture the canvas will not complete.
+  test('addWire: an UNGATED cycle is refused at draw time — the loop that eats a farm never exists', () => {
     const s = seed();
     let [doc, a] = place(s.doc, 'ask', s.o);
     let b; [doc, b] = place(doc, 'ask', s.o);
     let c; [doc, c] = place(doc, 'ask', s.o);
     doc = addWire(doc, { from: a, to: b, port: 'in' }, s.o).doc;
     doc = addWire(doc, { from: b, to: c, port: 'in' }, s.o).doc;
-    assert.equal(addWire(doc, { from: c, to: a, port: 'in' }, s.o).reason, 'cycle');
-    assert.equal(addWire(doc, { from: c, to: b, port: 'in' }, s.o).reason, 'cycle');
+    assert.equal(addWire(doc, { from: c, to: a, port: 'in' }, s.o).reason, 'loop-ungated');
+    assert.equal(addWire(doc, { from: c, to: b, port: 'in' }, s.o).reason, 'loop-ungated');
     assert.equal(addWire(doc, { from: a, to: c, port: 'in' }, s.o).ok, true, 'a forward shortcut is legal');
     assert.equal(doc.wires.length, 2, 'a refused wire changes nothing');
   });
@@ -330,7 +339,7 @@ export default (test) => {
       parts: [{ id: 'a', type: 'ask' }, { id: 'b', type: 'ask' }, { id: 's', type: 'sink' }],
       wires: [
         { id: 'w1', from: 'a', to: 'b', port: 'in' },
-        { id: 'w2', from: 'b', to: 'a', port: 'in' },     // closes a loop
+        { id: 'w2', from: 'b', to: 'a', port: 'in' },     // closes a loop with no gate in it
         { id: 'w3', from: 'a', to: 'b', port: 'in' },     // the same wire twice
         { id: 'w4', from: 'a', to: 'a', port: 'in' },
         { id: 'w5', from: 's', to: 'a', port: 'in' },     // a source with no output
@@ -339,7 +348,7 @@ export default (test) => {
       ],
     }, { specs: map });
     assert.deepEqual(doc.wires.map((w) => w.id), ['w1']);
-    assert.deepEqual(dropped, ['wire:cycle', 'wire:duplicate', 'wire:self', 'wire:no-output',
+    assert.deepEqual(dropped, ['wire:loop-ungated', 'wire:duplicate', 'wire:self', 'wire:no-output',
       'wire:unknown-port', 'wire:malformed']);
     assert.equal(runSet(doc).length, 3, 'what comes back is runnable');
   });

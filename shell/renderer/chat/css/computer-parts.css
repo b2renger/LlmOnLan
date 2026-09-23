@@ -1,0 +1,37 @@
+/* computer-parts.css — K3-U2's own sheet (COMPUTER_PLAN §3.6, §6.6).
+   KICKOFF STUB: the @import must exist from the start, because a 404 on an @import is a console
+   network error and would fail every harness scenario. K3-U2 REPLACES this file wholesale.
+
+   What belongs here and nowhere else: the six control parts' bodies — the Button's face, the
+   Condition's verdict chip, the Confirm's OK/Cancel row, the Dialog's question field, the
+   Toggle's switch, the Timer's countdown. The BOX around them (states, the ▶, the halo) is
+   css/computer-states.css, K3-U3's. */
+
+/* The inline controls a parked part shows on the canvas (§6.6: never a modal over a canvas). */
+#lolcomputer .graph-part-controls {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-top: 6px;
+}
+#lolcomputer .graph-part-controls[hidden] { display: none; }
+#lolcomputer .graph-part-control {
+  font: inherit;
+  padding: 3px 10px;
+  border-radius: 7px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  cursor: pointer;
+}
+#lolcomputer .graph-part-control:hover { border-color: var(--accent-hover); }
+#lolcomputer .graph-part-answer {
+  flex: 1 1 auto;
+  min-width: 0;
+  font: inherit;
+  padding: 3px 8px;
+  border-radius: 7px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+}

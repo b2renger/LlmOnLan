@@ -263,7 +263,7 @@
  * and the message of every item that failed — which is what makes "one bad item never kills the
  * run" visible rather than merely true.
  * @typedef {{ id, type, x, y, w, h, settings: object, value: GraphValue|null,
- *   state: 'idle'|'stale'|'queued'|'running'|'done'|'error', error: string|null,
+ *   state: 'idle'|'stale'|'queued'|'running'|'waiting'|'done'|'error', error: string|null,
  *   stats: {ms: number, tokens: number, calls?: number}|null,
  *   fanout?: {n: number, done: number, ok: number, failed: number,
  *     errors: {i: number, message: string}[]}|null }} GraphPart */
@@ -277,17 +277,40 @@
  * Matching is `key()` (casefolded, whitespace-collapsed); the prompt heading is `name()` (the
  * reader's own spelling). Labels and ports are different namespaces (rule 7): a wire always
  * targets a declared port, and the label distinguishes arrivals WITHIN it.
- * @typedef {{ id, from: string, to: string, port: string, label?: string }} GraphWire */
+ * K3 (COMPUTER_PLAN §4.6): `back` DECLARES a loop. A wire that would close a cycle is no longer
+ * refused — it is created with `back:true`, drawn dashed with a `↺`, and its target is a loop
+ * head. `order()` runs on the graph with back edges REMOVED, which is what gives a loop its
+ * unit delay and stops a loop head deadlocking. A cycle containing no gate part is still refused
+ * (`loop-ungated`). Written by `addWire`, preserved by `normaliseDoc`, exported in v3.
+ * @typedef {{ id, from: string, to: string, port: string, label?: string, back?: boolean }} GraphWire */
 
 /** A part type. The catalogue (graph/parts/index.mjs) is the only place these are constructed.
  * `run()` throws an Error to fail the part; the message is what the canvas shows.
+ *
+ * K3 (COMPUTER_PLAN §4.2, §6.6) adds four optional DECLARATIONS, all defaulting to false/absent,
+ * all read by the scheduler and by nothing else:
+ *   `manual`     never placed in the active set by `mode:'all'` — an unpressed Button. The plan
+ *                preview reports them (`2 buttons not pressed`); a ▶ on one runs it.
+ *   `volatile`   never satisfied by a stored value: a `done` part is still dirty. `Dialog` with
+ *                `askEveryRun:true` maps to it. (A spec flag, so `runSet` needs no part types.)
+ *   `control`    this part may return the `{value, bar}` outcome and may park. Advisory: the
+ *                runner accepts the shapes from anyone, but the canvas uses it to know which
+ *                boxes draw an inline control and the loop gate check reads it (§4.6).
+ *   `thinksFor`  a part that thinks only in some settings (Condition in `mode:'model'`). The run
+ *                plan asks it before counting a generation, so the preview tells the truth for a
+ *                free text-mode Condition instead of over-quoting the farm.
+ * `output: 'any'` (K3) means "whatever came in, passed through": `wireRefusal` skips the kind
+ * check on the way OUT of such a part, and the value the part actually returns still carries a
+ * real kind. It is a SPEC declaration and never a GraphValue.kind.
  * @typedef {{ type: string, label: string, order?: number, thinks?: boolean,
  *   size?: {w: number, h: number},
+ *   manual?: boolean, volatile?: boolean, control?: boolean,
+ *   thinksFor?: (part: GraphPart) => boolean,
  *   inputs: {name: string, label: string, accepts: string[], many?: boolean, required?: boolean}[],
- *   output: 'text'|'image'|'list'|'json'|'file'|null,
+ *   output: 'text'|'image'|'list'|'json'|'file'|'any'|null,
  *   defaults(): object,
  *   render(host: HTMLElement, part: GraphPart, ctx: PartCtx): {update(part: GraphPart): void, destroy(): void},
- *   run(input: RunInput): Promise<GraphValue|null>,   // null ONLY when `output` is null (BH-6)
+ *   run(input: RunInput): Promise<PartOutcome>,   // null ONLY when `output` is null (BH-6)
  *   settings?(host: HTMLElement, part: GraphPart, ctx: PartCtx): {update(part: GraphPart): void, destroy(): void}
  * }} PartSpec */
 
@@ -310,7 +333,60 @@
  *   labels: Record<string, string[]>, app: any, ask: any,
  *   signal: AbortSignal, thread: Thread|null, cache: boolean,
  *   item?: {i: number, n: number}|null,
- *   sandbox?: (() => Promise<SandboxHost|null>)|null }} RunInput */
+ *   sandbox?: (() => Promise<SandboxHost|null>)|null,
+ *   iteration?: number, run?: {id: string, mode: 'all'|'from'|'button'} }} RunInput */
+
+// ---------------------------------------------------------------------------------------------
+// K3 — one scheduler for push and pull: barriers, parks, loops and the run journal
+// (COMPUTER_PLAN §4, §6.6, §7.3-§7.5). Frozen at the K3 kickoff. PURE shapes.
+// ---------------------------------------------------------------------------------------------
+
+/** What a part's `run()` may resolve to (§4.5). Three shapes, and only three:
+ *   a GraphValue          the common case, unchanged since C1. Implies `bar:false`.
+ *   null                  success for a part whose `output` is null, a failure for everyone else.
+ *   {value, bar}          a CONTROL outcome: the value still flows (`gather()` reads it off the
+ *                         doc), and `bar:true` refuses to ACTIVATE the downstream. Never conflate
+ *                         the two — that separation is the whole of §4.5.
+ *   {park, settle}        the part SUSPENDS: the runner marks it `waiting`, journals the wait,
+ *                         and goes on serving other branches. `settle` resolves to one of the
+ *                         three shapes above when the human, or the clock, answers.
+ * @typedef {GraphValue|null|{value: GraphValue|null, bar?: boolean}
+ *   |{park: ParkRequest, settle: Promise<GraphValue|null|{value: GraphValue|null, bar?: boolean}>}
+ *   } PartOutcome */
+
+/** What a parked part is waiting FOR, in the words the run bar and the journal both use.
+ * `untilMs` is an absolute wall-clock deadline (a Timer, or a Confirm's `timeoutSec`); `question`
+ * is what a Dialog or a Confirm is asking, so "2 questions waiting" can name them.
+ * @typedef {{ kind: 'confirm'|'dialog'|'timer', partId: string, question?: string,
+ *   untilMs?: number|null, since?: number }} ParkRequest */
+
+/** One run, as `graph/journal.mjs` stores it under `computer:runs:<graphId>` (§7.3). `events` is
+ * a ring of the last 200; the last 5 rows are kept per graph and older rows are pruned on write.
+ * `status` is `running`/`waiting` while it is live, which is also the crash-resume record: a row
+ * that comes back with `endedAt:null` is what puts the resume banner on screen (§7.5).
+ * @typedef {{ id: string, startedAt: number, endedAt: number|null,
+ *   mode: 'all'|'from'|'button', seeds: string[],
+ *   status: 'running'|'waiting'|'done'|'stopped'|'error'|'capped'|'limited',
+ *   cap: number, spent: number, tokens: number, model: string|null,
+ *   iterations: Record<string, number>,
+ *   waits: {partId: string, kind: string, since: number, question?: string}[],
+ *   events: {t: number, partId: string|null,
+ *     kind: 'start'|'done'|'error'|'bar'|'item'|'wait'|'resume'|'limit', by?: string}[],
+ *   report: RunReport|null }} RunJournal */
+
+/** Which ceiling stopped a run (§4.6). All four are STOPS, not errors: the run ends, the part
+ * goes `stale`, and the report names the ceiling, the part and the number to raise it to.
+ * @typedef {{ ceiling: 'maxIterations'|'maxGenerations'|'maxWallMs'|'maxActivations',
+ *   partId: string|null, limit: number, reached: number, raiseTo: number }} RunLimit */
+
+/** The four ceilings, as one run reads them (§4.6). Every one is raisable FOR THAT RUN through
+ * `run({limits})`; none of them is silently raised by anything. */
+export const RUN_LIMITS = Object.freeze({
+  maxIterations: 8,        // activations of ONE part in one run; raisable to 100
+  maxGenerations: 50,      // == DEFAULT_MAX_ITEMS, counted where generations are made
+  maxWallMs: 600000,       // 10 minutes of wall clock, PARKED TIME INCLUDED
+  maxActivations: 2000,    // total part executions in one run
+});
 
 // ---------------------------------------------------------------------------------------------
 // K2 — arrow labels as named parameters (COMPUTER_PLAN §5, graph/bind.mjs). PURE shapes: nothing
@@ -394,7 +470,11 @@
  * @typedef {{ ran: number, skipped: number, errors: {partId: string, message: string}[],
  *   cancelled: boolean, ms: number,
  *   yielded?: boolean, capped?: {cap: number, spent: number, stopped: number}|null,
- *   cycle?: boolean, busy?: boolean, generations?: number }} RunReport
+ *   cycle?: boolean, busy?: boolean, generations?: number,
+ *   mode?: 'all'|'from'|'button', seeds?: string[], journalId?: string|null,
+ *   activations?: number, iterations?: Record<string, number>,
+ *   barred?: string[], waited?: number, leftStale?: string[],
+ *   limited?: RunLimit|null, merged?: number }} RunReport
  *
  * C1 landing, additive (all three set by graph/runner.mjs, all three read by graph/panel.mjs):
  *   yielded  the governor gave the seat back to the human mid-run. NOT an error and NOT a cancel:
@@ -562,6 +642,8 @@ export const KV_KEYS = Object.freeze({
   workPanel: 'ui:workPanel',               // the last panel opened, for a brand-new thread (S0-U1)
   prefQueueMax: 'pref:queueMax',           // batch size cap, default 4 (S0-U3)
   prefComputeMaxItems: 'pref:computeMaxItems', // the Computer's generation cap, default 50 (C2)
+  // K3 (COMPUTER_PLAN §7.3): the run journal, one row per graph, last 5 runs, pruned on write.
+  /** @param {string} graphId */ computerRuns: (graphId) => `computer:runs:${graphId}`,
   /** @param {string} underlying */ editPolicy: (underlying) => `editPolicy:${underlying}`,
   /** @param {string} underlying */ anchorStats: (underlying) => `anchorStats:${underlying}`,
 });
@@ -617,6 +699,9 @@ export const API_KEYS = Object.freeze({
     // K2 (COMPUTER_PLAN §11): naming a wire, and reading the prompt a thinking part WOULD send
     // without sending it. Same rule as C3 — the key and its body land together at the kickoff.
     'label', 'preview',
+    // K3 (COMPUTER_PLAN §11 K3): pressing ▶ on ONE box (push), the run journal, and what is
+    // parked right now. Same rule again — key and body land together, at this kickoff.
+    'runFrom', 'journal', 'waits',
   ]),
   // K1 (COMPUTER_PLAN §2.4/§8.2): the STANDALONE Computer's debug door, published at
   // window.LolComputer.debug.computer. It is `graphDebug` verbatim plus the two questions a
@@ -628,6 +713,7 @@ export const API_KEYS = Object.freeze({
     'run', 'stop', 'running', 'undo', 'redo', 'view', 'fit', 'save',
     'tidy', 'exportText', 'importText', 'sandbox',
     'label', 'preview',
+    'runFrom', 'journal', 'waits',
     'docId', 'open',
   ]),
   // C3: the sandbox host (sandbox/host.mjs). ONE per panel; the S2 vibecode bench uses the same

@@ -33,6 +33,17 @@ import { toThread } from './to-thread.mjs';
 import { code } from './code.mjs';
 import { render } from './render.mjs';
 import { file } from './file.mjs';
+// K3 (COMPUTER_PLAN §6.6): the six control parts, which are what turns a canvas of literals and
+// generations into an agent canvas. The rows are here from the K3 kickoff so no two builders
+// contend for this file; K3-U2 replaces each part FILE wholesale, never this catalogue.
+// They sit at the END of the palette on purpose: the nine data parts are what a first-time reader
+// meets, and the controls are what lesson 9 onwards adds.
+import { button } from './button.mjs';
+import { condition } from './condition.mjs';
+import { confirm } from './confirm.mjs';
+import { dialog } from './dialog.mjs';
+import { toggle } from './toggle.mjs';
+import { timer } from './timer.mjs';
 
 /** @typedef {import('../../core/types.mjs').PartSpec} PartSpec */
 
@@ -48,7 +59,8 @@ const LEGACY = [fromThread, toThread];
 
 /** The catalogue, in palette order — what the ＋ menu offers. @returns {PartSpec[]} */
 export function partSpecs() {
-  return [note, instruction, splitPart, repeat, filter, code, collect, render, file];
+  return [note, instruction, splitPart, repeat, filter, code, collect, render, file,
+    button, condition, confirm, dialog, toggle, timer];
 }
 
 /** Every type the engine can LOAD: the palette plus the legacy parts. @returns {Map<string, PartSpec>} */

@@ -25,6 +25,10 @@ import { t } from '../core/i18n.mjs';
 import { createUndo } from '../graph/undo.mjs';
 import { specMap } from '../graph/parts/index.mjs';
 import { createRunner } from '../graph/runner.mjs';
+// K3 kickoff: the journal's read side and the park registry. Both are PURE and both are read by
+// the debug door from hour one, so the door and the units' files land together (§11 K3).
+import { readRuns } from '../graph/journal.mjs';
+import { pending as pendingParks, cancelAll as cancelParks } from '../graph/parts/control-bus.mjs';
 import { createCanvas } from '../graph/canvas.mjs';
 import { createDocStore, SAVE_DEBOUNCE_MS } from './docstore.mjs';
 import { createSandbox } from '../sandbox/host.mjs';
@@ -274,6 +278,10 @@ export function createHost(app, els) {
     host: mount,
     onRun: () => { start(); },
     onStop: () => runner.stop(),
+    // K3 kickoff (COMPUTER_PLAN §4.2, §11 K3-U3): the per-box ▶, and a Button's own face. Both
+    // are the SAME gesture — `run({mode:'from', seeds:[partId]})` — so a part never reaches for
+    // the runner itself and there is never a second scheduler on this surface.
+    onPlay: (/** @type {string} */ partId) => { start({ mode: 'from', seeds: [partId] }); },
     // The cap banner's one button: finish THIS run at twice the cap it stopped at (§2.6 BH-4).
     onRaiseCap: (/** @type {number} */ cap) => { start({ maxItems: cap }); },
   });
@@ -321,7 +329,21 @@ export function createHost(app, els) {
   /** The Run button, ctrl+enter, the run bar and the debug door all land here.
    * @param {any} [opts] */
   async function start(opts) {
-    if (runner.running() || !session.docId()) return null;
+    if (!session.docId()) return null;
+    const o = opts || {};
+    // K3 kickoff (COMPUTER_PLAN §4.4): a ▶ pressed MID-RUN MERGES, never refuses — "the user's
+    // press is never swallowed". A second `mode:'all'` is still a refusal (the Run button reads
+    // Stop while a run is live). `addToRun` lands with K3-U1's scheduler; until then the feature
+    // test below keeps the old refusal rather than pretending the merge happened.
+    if (runner.running()) {
+      const seeds = Array.isArray(o.seeds) ? o.seeds.filter((/** @type {any} */ id) => typeof id === 'string' && id) : [];
+      if (seeds.length && typeof (/** @type {any} */ (runner).addToRun) === 'function') {
+        const merged = /** @type {any} */ (runner).addToRun(seeds);
+        canvas.announce(t('computer.runMerged'));
+        return { merged: Number(merged) || seeds.length, busy: false };
+      }
+      return null;
+    }
     canvas.setCapped(null);          // a new run starts with no banner, whatever the last one said
     // The rebuild ladder (C3-U1): three rebuilds in a minute leave the sandbox quiet until an
     // explicit re-arm, and the host cannot tell a human's Run from an automatic re-run — only the
@@ -331,7 +353,11 @@ export function createHost(app, els) {
     if (sb && sb.state() === 'disabled') {
       await sb.compute({ code: 'return 0;', rearm: true, timeoutMs: 2000 });
     }
-    const report = await runner.run(opts || {});
+    // The host does NOT narrow `A` (K3 landing): the scheduler builds its own active set from
+    // `mode`/`seeds`/`force`, prologue included (§4.2). The K3 kickoff shim that used to pre-set
+    // `only` here is gone — it called the same `activeSet`, so it was harmless, but it hid where
+    // the entry point actually lives.
+    const report = await runner.run(o);
     canvas.setRunning({ running: false, progress: null });
     if (report) {
       if (report.busy) canvas.announce(t('graph.runBusy'));
@@ -406,6 +432,9 @@ export function createHost(app, els) {
     async close() {
       closed = true;
       runner.stop();
+      // §4.8 / §7.5: closing the document rejects every park. A Timer does not survive a close,
+      // and a Dialog that was asking comes back `stale` and asks again.
+      cancelParks();
       if (surface) surface.removeEventListener('keydown', onSurfaceKey);
       offRunner();
       offSession();
@@ -510,6 +539,18 @@ export function createHost(app, els) {
         const tx = app && /** @type {any} */ (app).transcript;
         return tx && typeof tx.planFor === 'function' ? tx.planFor(partId) : null;
       },
+      // ---- K3 additions (COMPUTER_PLAN §4.2, §7.3, §11 K3) -----------------------------------
+      /**
+       * Press ▶ on ONE box: run it, everything downstream, and — the §4.2 prologue — whatever
+       * upstream of it holds no value yet. The same door the canvas's per-box ▶ and a Button's
+       * face press, so a scenario exercises the shipped path.
+       * @param {string} partId @param {any} [opts] @returns {Promise<any>}
+       */
+      runFrom: (partId, opts) => start({ ...(opts || {}), mode: 'from', seeds: [partId] }),
+      /** Every stored run for the open document, oldest first (§7.3). @returns {Promise<any[]>} */
+      journal: () => readRuns(app && app.repo, session.docId() || ''),
+      /** What is parked right now (§4.1): a Confirm, a Dialog's question, a Timer's countdown. */
+      waits: () => pendingParks(),
       // ---- K1 additions (§2.4) -------------------------------------------------------------
       /** @param {string|null} [graphId] */
       open: (graphId) => session.open(graphId || null),

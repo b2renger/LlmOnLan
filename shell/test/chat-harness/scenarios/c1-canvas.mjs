@@ -259,9 +259,13 @@ export default [
             h.eq((await h.graph.wire(note, ask, 'in')).ok, true);
             h.eq((await h.graph.wire(ask, collect, 'items')).ok, true);
 
+            // K3-U2 (COMPUTER_PLAN §4.6): a loop is legal once something in it can STOP it, so
+            // the refusal this ring gets is `loop-ungated` — a Note, an Ask and a Collect can
+            // none of them stop anything. The sentence still has to name the fix, which is what
+            // the check below is really about.
             const cycle = await h.graph.wire(collect, ask, 'in');
             h.eq(cycle.ok, false);
-            h.eq(cycle.reason, 'cycle');
+            h.eq(cycle.reason, 'loop-ungated');
             let said = await h.eval(() => window.__g.said());
             h.assert(/loop/i.test(said), `a refused cycle must say why in words: "${said}"`);
             h.eq((await h.graph.state()).wires.length, 2, 'and nothing was added');

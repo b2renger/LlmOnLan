@@ -25,6 +25,10 @@
 
 const PARTS = 500;                 // 250 Note → 250 Ask pairs
 const WIRES = PARTS / 2;
+/** K3-U3 (§11): 200 of those wires carry a NAME — the label pill of §5.1, which draws a
+ *  <foreignObject> per wire inside the same transformed <g>. The gate is that the three numbers
+ *  below do not move: a pill that did per-frame work would show up in pan work immediately. */
+const LABELLED = 200;
 const COLS = 25;
 const STEP_X = 320;
 const STEP_Y = 200;
@@ -75,7 +79,12 @@ const measure = (/** @type {any} */ h) => h.eval(async (cfg) => {
         });
     }
     for (let i = 0; i + 1 < parts.length; i += 2) {
-        wires.push({ id: app.newId(), from: parts[i].id, to: parts[i + 1].id, port: 'in' });
+        const wire = { id: app.newId(), from: parts[i].id, to: parts[i + 1].id, port: 'in' };
+        // The first LABELLED arrows are named. An unnamed wire still wears a pill (the dashed
+        // `name me` placeholder), so this is not "pills versus none" — it is the pill doing its
+        // most expensive thing, laying out real text, on 200 of them at once.
+        if (wires.length < cfg.LABELLED) wire.label = `input ${wires.length + 1}`;
+        wires.push(wire);
     }
 
     const buildStart = performance.now();
@@ -121,6 +130,10 @@ const measure = (/** @type {any} */ h) => h.eval(async (cfg) => {
         return sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * p))];
     };
     const samePaths = Array.from(document.querySelectorAll('#lolcomputer .graph-wires path'));
+    const pills = Array.from(document.querySelectorAll('#lolcomputer .graph-wire-label'));
+    const named = pills.filter((el) => (el.textContent || '').trim()).length;
+    const transformedPills = pills.filter((el) => getComputedStyle(el).transform !== 'none').length;
+    const plays = document.querySelectorAll('#lolcomputer .graph-part-play').length;
     const transformed = Array.from(document.querySelectorAll('#lolcomputer .graph-part'))
         .filter((el) => getComputedStyle(el).transform !== 'none').length;
 
@@ -139,8 +152,14 @@ const measure = (/** @type {any} */ h) => h.eval(async (cfg) => {
         // A pan that REBUILT the wire layer would hand back different elements.
         pathsReused: firstPaths.length === samePaths.length
             && firstPaths.every((el, i) => el === samePaths[i]) ? 1 : 0,
+        // K3-U3: the label pills and the per-box ▶ ride the same single transform as everything
+        // else. A pill with a transform of its own is 250 more style writes per frame.
+        pills: pills.length,
+        named,
+        transformedPills,
+        plays,
     };
-}, { PARTS, WIRES, COLS, STEP_X, STEP_Y, PAN_FRAMES });
+}, { PARTS, WIRES, COLS, STEP_X, STEP_Y, PAN_FRAMES, LABELLED });
 
 
 /**
@@ -321,6 +340,8 @@ export default [
             const m = await measure(h);
             h.eq(m.parts, PARTS, `all ${PARTS} parts must be painted — anything less is not the measurement`);
             h.eq(m.wirePaths, WIRES, `and all ${WIRES} wires`);
+            h.eq(m.named, LABELLED, `and ${LABELLED} of them wear a NAME (got ${m.named})`);
+            h.eq(m.plays, PARTS, `a ▶ in every one of the ${PARTS} title bars (got ${m.plays})`);
             h.note(`500 parts: build ${Math.round(m.buildMs)} ms · pan work p50 ${m.workP50.toFixed(2)} ms `
                 + `p95 ${m.workP95.toFixed(2)} ms max ${m.workMax.toFixed(2)} ms · frame p50 ${m.frameMs.toFixed(1)} ms `
                 + `p95 ${m.frameP95.toFixed(1)} ms · ${m.transformedParts} transformed parts`);
@@ -334,6 +355,7 @@ export default [
             h.eq(med.layerTransformed, 1, 'the layer is what moved');
             h.eq(med.groupTransformed, 1, 'and the wire group moved with it');
             h.eq(med.pathsReused, 1, 'a pan must not rebuild the wire paths — they are redrawn in one pass, not recreated');
+            h.eq(med.transformedPills, 0, 'no label pill may carry a transform either: the pills ride the wire group (K3-U3)');
             h.assert(med.frameP95 <= 34, `the page dropped frames while panning: p95 inter-frame ${med.frameP95.toFixed(1)} ms`);
             h.note(`perf-graph MEDIAN: build ${Math.round(med.buildMs)} ms · work p50 ${med.workP50.toFixed(2)} / `
                 + `p95 ${med.workP95.toFixed(2)} ms · frame p50 ${med.frameMs.toFixed(1)} / p95 ${med.frameP95.toFixed(1)} ms`);

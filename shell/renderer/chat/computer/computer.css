@@ -23,6 +23,9 @@
 @import url('../css/computer-drawer.css');
 /* K2-U3: the Sent/Got/Cost panel inside the drawer. */
 @import url('../css/computer-transcript.css');
-/* K3-U2/U3, K4-U2/U3 and K5-U1 add their own @import lines at their kickoffs:
-   computer-parts.css, computer-states.css, computer-look.css,
-   computer-rail.css. */
+/* K3-U2: the six control parts' bodies (the OK/Cancel row, the question field, the switch). */
+@import url('../css/computer-parts.css');
+/* K3-U3: what RUNNING looks like — states, the per-box play, barred and back wires. */
+@import url('../css/computer-states.css');
+/* K4-U2/U3 and K5-U1 add their own @import lines at their kickoffs:
+   computer-look.css, computer-rail.css. */

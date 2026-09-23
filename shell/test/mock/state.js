@@ -52,6 +52,8 @@ function defaults() {
         structuredDrop: false,       // the proxy strips response_format before dispatch
         askDelayMs: 0,               // a lead-in delay before the first delta of a paced stream
         modelGroupInfo: null,        // REPLACES the body of GET /model_group/info outright
+        // K3 kickoff: what `mock-verdict` answers, consumed in order, last entry repeating.
+        verdicts: ['maybe'],
     };
 }
 
@@ -76,6 +78,7 @@ function createStore() {
         state,
         log,
         lastBody: null,          // the raw text of the last POST /v1/chat/completions
+        verdictAt: 0,            // K3: how far through `state.verdicts` mock-verdict has got
         beacon: false,           // reported by GET /mock/health
         warnings: [],            // e.g. a missing fixture file
         maxLog: 500,
@@ -99,6 +102,7 @@ function createStore() {
             deepMerge(state, defaults());
             log.length = 0;
             store.lastBody = null;
+            store.verdictAt = 0;
             store.warnings.length = 0;
             return state;
         },

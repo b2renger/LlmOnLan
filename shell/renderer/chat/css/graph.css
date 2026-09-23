@@ -571,6 +571,18 @@
 
 :is(#lolchat, #lolcomputer) .graph-part-check input { accent-color: var(--accent-hover); margin: 0; }
 
+/* A CHECKBOX IS NOT A FIELD (found in the K3 screenshots, on Dialog's two switches). The
+   `.graph-part-body input { width: 100% }` rule above is right for a text input and wrong for a
+   checkbox: it turned each switch into a full-width empty lane that shoved its caption against the
+   far edge of the box, where it wrapped to three lines. Every control part has two of them. */
+:is(#lolchat, #lolcomputer) .graph-part-body input[type="checkbox"] {
+  width: auto;
+  flex: 0 0 auto;
+  padding: 0;
+}
+
+:is(#lolchat, #lolcomputer) .graph-part-check { justify-content: flex-start; }
+
 :is(#lolchat, #lolcomputer) .graph-cap-title { display: block; font-weight: 600; }
 :is(#lolchat, #lolcomputer) .graph-cap-body { display: block; color: var(--muted); margin-top: 1px; }
 

@@ -5,8 +5,13 @@
 //   [ Run all ] [ Stop ]   3 parts · 1 generation   1 / 50   100%   ?
 //
 // K1 lands exactly the controls §11 names — Run all, Stop, the two counts, the cap meter, the zoom
-// readout and the `?`. K3-U3 extends this file (and css/computer-runbar.css) with the plan-range
-// preview and the waits counter; K5 lights the `?` up.
+// readout and the `?`; K5 lights the `?` up. K3-U3 added, in this file and in
+// css/computer-runbar.css: the PLAN PREVIEW before the first run of a graph (§4.6 — a RANGE,
+// "6-48 generations", when the document declares a loop), the WAITS counter (§8.3 — "2 questions
+// waiting" and the button that puts the canvas on the oldest one), and the reading of a finished
+// run that the CANVAS then draws — which arrows a gate greyed (§8.2) and which of §4.6's four
+// ceilings stopped it (§8.4). The bar is where the report is read, because it is the module that
+// already reads reports; the canvas owns the picture and none of the arithmetic.
 //
 // The numbers are READ, never kept: the parts/generations counts come off the runner's own report
 // and the zoom off the canvas's view. A run bar with its own idea of what ran is a run bar that
@@ -18,8 +23,13 @@
 // door, so pressing them walks the shipped path and not a second implementation (§0.4/BG-3).
 
 import { t } from '../core/i18n.mjs';
-import { KV_KEYS } from '../core/types.mjs';
+import { KV_KEYS, RUN_LIMITS } from '../core/types.mjs';
 import { DEFAULT_MAX_ITEMS } from '../graph/runner.mjs';
+// K3-U3 (COMPUTER_PLAN §4.6, §8.3): the plan's RANGE and what is parked. Both are read, never
+// kept — `runPlan` is topo's (K3-U1's file) and the parks are the control bus's (the integrator's
+// singleton). A run bar with its own idea of either is a run bar that will one day disagree.
+import { backEdges, forwardEdges, runPlan } from '../graph/topo.mjs';
+import { onParks, pending } from '../graph/parts/control-bus.mjs';
 import '../strings/computer.en.mjs';
 
 /** The share of the cap past which the meter warns (§8.3: "turning amber past 80 %"). */
@@ -45,6 +55,48 @@ export function partsLabel(n) {
 /** `{n} generations`. @param {number} n @returns {string} */
 export function generationsLabel(n) {
   return Number(n) === 1 ? t('computer.runGenerationsOne') : t('computer.runGenerations', { n: Number(n) || 0 });
+}
+
+/**
+ * What the NEXT run will cost, as a range (§4.6: "a graph with a loop reads 6–48 generations,
+ * minimum one pass, maximum `maxIterations` per looping thinking part. On a shared farm that
+ * honesty is the point").
+ *
+ * K3-U1's `runPlan` is the authority and returns `costMin`/`costMax` once a loop can exist; while
+ * it still returns the single `cost`, a document that HAS a back edge is still a looping graph and
+ * the bar still owes the reader a range, so the ceiling is applied here. The moment the scheduler
+ * reports its own numbers, these are ignored — which is the only way round that cannot go stale.
+ * PURE. @param {any} plan @param {number} loops how many back edges the document declares
+ * @returns {{min: number, max: number}}
+ */
+export function planRange(plan, loops) {
+  const cost = Math.max(0, Math.floor(Number(plan && plan.cost) || 0));
+  const hasMin = plan && Number.isFinite(Number(plan.costMin));
+  const hasMax = plan && Number.isFinite(Number(plan.costMax));
+  const min = hasMin ? Math.max(0, Math.floor(Number(plan.costMin))) : cost;
+  const max = hasMax
+    ? Math.floor(Number(plan.costMax))
+    : (Number(loops) > 0 ? cost * RUN_LIMITS.maxIterations : cost);
+  return { min, max: Math.max(min, max) };
+}
+
+/** The generations chip's text: one number, or §4.6's range. PURE.
+ * @param {{min: number, max: number}} range @returns {string} */
+export function rangeLabel(range) {
+  const min = Math.max(0, Math.floor(Number(range && range.min) || 0));
+  const max = Math.max(min, Math.floor(Number(range && range.max) || 0));
+  return max > min ? t('computer.runRange', { min, max }) : generationsLabel(min);
+}
+
+/** `{n} questions waiting`, in the reader's own grammar. PURE. @param {number} n */
+export function waitingLabel(n) {
+  // chat-lint rule 5: literal keys, never a key built from the count.
+  return Number(n) === 1 ? t('computer.runWaitingOne') : t('computer.runWaiting', { n: Number(n) || 0 });
+}
+
+/** `{n} boxes were stopped by a gate`. PURE. @param {number} n */
+export function barredLabel(n) {
+  return Number(n) === 1 ? t('computer.runBarredOne') : t('computer.runBarred', { n: Number(n) || 0 });
 }
 
 /** @param {string} cls @param {string} text @param {HTMLElement} [parent] */
@@ -101,6 +153,9 @@ export function install(app) {
 
   /** The generation cap for the NEXT run, as the runner will read it. */
   let cap = DEFAULT_MAX_ITEMS;
+  /** The document the last adopted report belongs to. A report is about ONE graph: open another
+   *  and the bar goes back to planning rather than quoting a run that happened somewhere else. */
+  let reportDocId = '';
 
   // ---- the bar ---------------------------------------------------------------------------------
   const runBtn = button('comp-run-all', t('computer.runAll'), () => { runAll(); });
@@ -115,6 +170,14 @@ export function install(app) {
   const partsChip = chip('comp-run-parts', partsLabel(0), counts);
   const gensChip = chip('comp-run-gens', generationsLabel(0), counts);
   const capChip = chip('comp-run-cap', capMeter(0, cap).text, counts);
+  // K3-U3 (§8.3: "Waiting: ... and the run bar counts them"). Two Dialogs open at once and the bar
+  // says `2 questions waiting` — the one place a reader can see that the run is not stuck but
+  // asking. The button beside it puts the canvas on the oldest question.
+  const waitsChip = chip('comp-run-waits', '', counts);
+  waitsChip.hidden = true;
+  const waitsBtn = button('comp-run-show-waiting', t('computer.runShowWaiting'), () => { showWaiting(); });
+  waitsBtn.hidden = true;
+  counts.appendChild(waitsBtn);
 
   const zoomBtn = button('comp-run-zoom', t('computer.runZoom', { percent: 100 }), () => {
     const c = canvas();
@@ -144,6 +207,10 @@ export function install(app) {
   // Order matters: the status line reads left-to-right after the counts it explains, and the zoom
   // readout carries `margin-left:auto`, so everything after it is pinned to the right edge.
   root.replaceChildren(runBtn, stopBtn, counts, status, zoomBtn, helpBtn);
+  // The frozen probe `h.computer.states().runbar` reads `#lolcomputer .comp-run` (KC-4), and the
+  // element the layout hands us is `.comp-runbar`. One class, so the harness reads the real bar
+  // rather than an empty string that would pass every assertion by accident.
+  root.classList.add('comp-run');
 
   // ---- painting --------------------------------------------------------------------------------
   /** The last finished run, when the runner remembers one. */
@@ -166,12 +233,97 @@ export function install(app) {
       .then((stored) => {
         capInFlight = false;
         const next = Number(stored) > 0 ? Math.floor(Number(stored)) : DEFAULT_MAX_ITEMS;
-        if (next !== cap) { cap = next; paint(); }
+        if (next !== cap) { cap = next; paintNow(); }
       })
       .catch(() => { capInFlight = false; });
   }
 
+  /** The document the bar is describing, or null. */
+  function docNow() {
+    const h = host();
+    return h && h.session && typeof h.session.doc === 'function' ? h.session.doc() : null;
+  }
+
+  /** The last plan, and the document revision it was made for. */
+  let planKey = '';
+  /** @type {{parts: number, range: {min: number, max: number}}|null} */ let planVal = null;
+
+  /**
+   * What the next run would cost, BEFORE it is paid for (§4.6's plan preview). `runPlan` is
+   * topo's, so the bar quotes the scheduler rather than counting thinking boxes itself — which is
+   * what makes a free text-mode Condition quote nothing.
+   *
+   * MEMOISED on the document's revision, and never called while a run is live. `runPlan` walks
+   * every part and every wire; `paint()` runs on every runner event, and a run over 1000 parts
+   * emits three per part. Planning on each of those is O(N²) and cost 3 ms per part on the perf
+   * fixture — the plan cannot change mid-run anyway, because the reader is not editing.
+   * @returns {{parts: number, range: {min: number, max: number}}|null}
+   */
+  function plan() {
+    const h = host();
+    const doc = docNow();
+    if (!doc || !h || !h.session) return null;
+    const key = `${doc.rev || 0}|${doc.parts.length}|${doc.wires.length}|${cap}`;
+    if (key === planKey) return planVal;
+    try {
+      let out = runPlan(doc, { cap, specs: h.session.specs });
+      const loops = backEdges(doc).length;
+      // While `runPlan` still refuses a document with a back edge as a cycle (§4.6 says `order()`
+      // runs on the forward graph), plan the forward graph instead — the loop is still counted,
+      // because the RANGE is computed from `loops`, not from the edge being walked.
+      if (!out.ok && loops) out = runPlan(forwardEdges(doc), { cap, specs: h.session.specs });
+      planKey = key;
+      planVal = { parts: (out.ids || []).length, range: planRange(out, loops) };
+      return planVal;
+    } catch (err) {
+      console.warn('[lolcomputer] the run bar could not read the plan', err);
+      planKey = key;
+      planVal = null;
+      return null;
+    }
+  }
+
+  /** Put the canvas on the oldest question and say which part it is (§8.3's `Show me`). */
+  function showWaiting() {
+    const waiting = pending();
+    if (!waiting.length) return false;
+    const c = canvas();
+    const doc = docNow();
+    const partId = waiting[0].partId;
+    if (c && typeof c.select === 'function') c.select([partId]);
+    const part = doc && Array.isArray(doc.parts) ? doc.parts.find((/** @type {any} */ p) => p.id === partId) : null;
+    const h = host();
+    const spec = part && h && h.session && h.session.specs ? h.session.specs.get(part.type) : null;
+    say(t('computer.runWaitFor', { part: (spec && spec.label) || (part ? part.type : partId) }));
+    return true;
+  }
+
+  /** The last painted waits count, so the common case (none) writes no DOM at all. */
+  let paintedWaits = -1;
+
+  function paintWaits() {
+    const n = pending().length;
+    if (n === paintedWaits) return;
+    paintedWaits = n;
+    waitsChip.textContent = n ? waitingLabel(n) : '';
+    waitsChip.hidden = !n;
+    waitsBtn.hidden = !n;
+  }
+
+  /**
+   * ONE rAF for the whole bar, exactly as the canvas has one (§2.6 BG-8's habit). A run over a
+   * thousand parts emits three events per part; painting a text chip on each of them is three
+   * thousand style recalculations for sixty frames' worth of readable change, and the perf gate
+   * measures precisely that. Anything a scenario reads straight after an await is painted through
+   * `paintNow()` instead — the terminal events and `render()`.
+   */
+  let paintRaf = 0;
   function paint() {
+    if (paintRaf) return;
+    paintRaf = requestAnimationFrame(() => { paintRaf = 0; paintNow(); });
+  }
+
+  function paintNow() {
     refreshCap();
     const r = runner();
     const running = !!(r && typeof r.running === 'function' && r.running());
@@ -179,24 +331,39 @@ export function install(app) {
     stopBtn.classList.toggle('hidden', !running);
     runBtn.disabled = !r;
 
-    // Before the first run the bar counts what is ON the canvas; afterwards it reports what the
-    // run actually did — which is the number a reader wants when six of nine boxes were cached.
+    // Before the first run the bar PLANS — what would run, and what it would cost as a range on a
+    // looping graph; afterwards it reports what the run actually did, which is the number a reader
+    // wants when six of nine boxes were cached.
     const last = report();
+    const doc = docNow();
     const h = host();
-    const doc = h && h.session && typeof h.session.doc === 'function' ? h.session.doc() : null;
-    const parts = last ? Number(last.ran) || 0 : (doc && Array.isArray(doc.parts) ? doc.parts.length : 0);
-    const gens = last ? Number(last.generations) || 0 : 0;
-    partsChip.textContent = partsLabel(parts);
-    gensChip.textContent = generationsLabel(gens);
+    const here = h && h.session && typeof h.session.docId === 'function' ? (h.session.docId() || '') : '';
+    // The bar reports the LAST RUN of THIS graph; with no such run — a fresh document, or one
+    // never run — it PLANS the next one instead (§4.6's preview, a range when there is a loop).
+    // Never mid-run: a run is not a moment to re-quote a price, and `runPlan` walks the document.
+    const mine = !!(last && here && here === reportDocId);
+    const ahead = running || mine ? null : plan();
+    // What the PARTS chip counts is unchanged since K1 — the boxes on the canvas before a run,
+    // what the run reported after it. `runPlan`'s run set is the scheduler's business and is not
+    // the same number a reader is looking at when they have drawn three boxes.
+    const parts = mine ? Number(last.ran) || 0 : (doc && Array.isArray(doc.parts) ? doc.parts.length : 0);
+    const gens = mine ? Number(last.generations) || 0 : 0;
+    const partsText = partsLabel(parts);
+    if (partsChip.textContent !== partsText) partsChip.textContent = partsText;
+    const gensText = ahead && !mine ? rangeLabel(ahead.range) : generationsLabel(gens);
+    if (gensChip.textContent !== gensText) gensChip.textContent = gensText;
+    paintWaits();
 
     const meter = capMeter(gens, cap);
-    capChip.textContent = meter.text;
-    capChip.dataset.amber = meter.amber ? 'true' : 'false';
+    if (capChip.textContent !== meter.text) capChip.textContent = meter.text;
+    const amber = meter.amber ? 'true' : 'false';
+    if (capChip.dataset.amber !== amber) capChip.dataset.amber = amber;
 
     const c = canvas();
     const view = c && typeof c.view === 'function' ? c.view() : null;
     const percent = Math.round((view && Number(view.zoom) ? view.zoom : 1) * 100);
-    zoomBtn.textContent = t('computer.runZoom', { percent });
+    const zoomText = t('computer.runZoom', { percent });
+    if (zoomBtn.textContent !== zoomText) zoomBtn.textContent = zoomText;
 
     helpBtn.disabled = !(/** @type {any} */ (app).tutorial);
   }
@@ -204,35 +371,113 @@ export function install(app) {
   /** @param {string} text */
   function say(text) { status.textContent = text; }
 
-  async function runAll() {
+  /**
+   * What the canvas has to show about a finished run (K3-U3, COMPUTER_PLAN §8.2, §8.4). The bar is
+   * the module that READS the report, so it is the module that tells the canvas which arrows a
+   * gate greyed and which ceiling stopped the run. The canvas owns the picture; it owns none of
+   * the arithmetic. @param {any} out a RunReport, or null
+   */
+  function adoptReport(out) {
+    const h = host();
+    if (out && h && h.session && typeof h.session.docId === 'function') reportDocId = h.session.docId() || '';
+    const c = canvas();
+    if (!c) return;
+    if (typeof c.setBarred === 'function') c.setBarred((out && out.barred) || []);
+    if (!out || typeof c.setLimited !== 'function') return;
+    if (out.limited) {
+      // §4.6: every ceiling is raisable FOR THAT RUN, through the frozen `run({limits})` door —
+      // the same door the Run button uses, so the raise walks the shipped path.
+      c.setLimited(out.limited, { onRaise: (/** @type {any} */ limits) => { void runDoor()({ limits }); } });
+    } else if (!out.capped) {
+      c.setLimited(null);
+    }
+  }
+
+  /** The sentence a finished run leaves behind, when it has one worth leaving (§8.3). */
+  function sayOutcome(/** @type {any} */ out) {
+    if (!out) return;
+    if (out.cancelled || out.busy || out.cycle) return;
+    const barred = Array.isArray(out.barred) ? out.barred.length : 0;
+    const stale = Array.isArray(out.leftStale) ? out.leftStale.length : 0;
+    if (!out.ran && !(out.errors && out.errors.length) && !barred) { say(t('computer.runNothing')); return; }
+    const bits = [];
+    if (barred) bits.push(barredLabel(barred));
+    if (stale) bits.push(t('computer.runLeftStale', { n: stale }));
+    if (bits.length) say(bits.join(' · '));
+  }
+
+  async function runAll(/** @type {any} */ opts) {
     const r = runner();
     if (r && typeof r.running === 'function' && r.running()) return null;
     say('');
-    const out = await runDoor()();
-    paint();
+    const out = await runDoor()(opts || {});
+    adoptReport(out);
+    paintNow();
     // The one sentence this bar owns: a Run that found every box up to date looks exactly like a
     // Run that did nothing, and the reader deserves to be told which it was (§1.2).
-    if (out && !out.cancelled && !out.busy && !out.cycle && !out.ran && !(out.errors && out.errors.length)) {
-      say(t('computer.runNothing'));
-    }
+    sayOutcome(out);
     return out;
   }
 
   // ---- what makes it repaint -------------------------------------------------------------------
   const offs = [];
   const r0 = runner();
-  if (r0 && typeof r0.on === 'function') offs.push(r0.on(() => paint()));
+  /** What THIS run has barred so far, from the runner's own events (§8.2). */
+  /** @type {Set<string>} */ let liveBarred = new Set();
+  const pushBarred = () => {
+    const c = canvas();
+    if (c && typeof c.setBarred === 'function') c.setBarred(Array.from(liveBarred));
+  };
+  if (r0 && typeof r0.on === 'function') {
+    offs.push(r0.on((/** @type {any} */ ev) => {
+      const type = ev && ev.type;
+      // The grey arrives WHILE the run happens, not after it: a reader watching a Condition choose
+      // one of three branches has to see the other two go grey at the moment it chooses. The run's
+      // own `barred` events say exactly that, and the report confirms it at the end.
+      if (type === 'start') { liveBarred = new Set(); pushBarred(); }
+      else if (type === 'barred' && Array.isArray(ev.ids)) {
+        for (const id of ev.ids) liveBarred.add(id);
+        pushBarred();
+      }
+      // A run that ended anywhere but through `runAll` — the canvas toolbar's Run, a per-box ▶,
+      // the debug door — still has barred branches and a ceiling to show. The report is the same
+      // object either way, so the bar adopts it from the runner's own event.
+      // The coalesced paint is for the THOUSAND `part` events one run emits. Everything else — a
+      // run starting, a park opening, the end — moves a control a person is about to press, and
+      // is painted at once: a Stop button that appears one frame late is a Stop button that was
+      // not there when the reader reached for it.
+      if (!(r0.running && r0.running())) { adoptReport(report()); paintNow(); }
+      else if (type === 'part' || type === 'item') paint();
+      else paintNow();
+    }));
+  }
+  // A park opening or closing is not a runner event and not a document edit: it is its own
+  // channel, and the waits counter is the only thing on the bar that reads it.
+  offs.push(onParks(() => paintWaits()));
   const h0 = host();
-  if (h0 && h0.session && typeof h0.session.on === 'function') offs.push(h0.session.on(() => paint()));
+  // An EDIT repaints the bar at once — a reader who has just drawn a third box must not read
+  // "2 parts" for a frame, and in a hidden or occluded window rAF may not run at all, which is
+  // how a coalesced paint here turned into a flaky test rather than a slow one. During a RUN it
+  // is coalesced, because that is the path that patches a thousand boxes three times each.
+  if (h0 && h0.session && typeof h0.session.on === 'function') {
+    offs.push(h0.session.on(() => {
+      const live = runner();
+      if (live && typeof live.running === 'function' && live.running()) paint();
+      else paintNow();
+    }));
+  }
 
-  paint();   // which also kicks off the first refreshCap()
+  paintNow();   // which also kicks off the first refreshCap()
 
   app.runbar = {
-    render: () => paint(),
+    render: () => paintNow(),
     /** The host may tell the bar directly; it still reads the runner for everything else. */
-    setRunning: () => paint(),
+    setRunning: () => paintNow(),
     runAll,
     say,
-    destroy() { for (const off of offs) { try { off(); } catch (err) { void err; } } },
+    destroy() {
+      if (paintRaf) { cancelAnimationFrame(paintRaf); paintRaf = 0; }
+      for (const off of offs) { try { off(); } catch (err) { void err; } }
+    },
   };
 }

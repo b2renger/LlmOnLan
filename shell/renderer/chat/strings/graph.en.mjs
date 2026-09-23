@@ -25,6 +25,11 @@ registerStrings('graph', {
   // wire refusals — one per reason code returned by graph/model.mjs addWire() (frozen, §2.6 BG-4)
   wireSelf: 'A part cannot feed itself.',
   wireCycle: 'That would make a loop. Use Repeat instead of feeding a value back.',
+  // K3 kickoff (COMPUTER_PLAN §4.6): a loop is now LEGAL and declared — `wireCycle` survives for
+  // a self-wire and for an old file. What a loop may not be is unstoppable.
+  wireLoopUngated: 'A loop needs something that can stop it. Add a Toggle.',
+  wireBack: 'loops back',
+  wireBackAria: '{from} loops back into {to}',
   wireDuplicate: 'Those two are already wired together.',
   wireNoOutput: 'That part has no output.',
   wireUnknownPort: 'That input does not exist on this part.',
@@ -46,8 +51,12 @@ registerStrings('graph', {
   // part states, as the label next to the colour (never colour alone)
   stateIdle: 'Not run',
   stateStale: 'Needs a re-run',
-  stateQueued: 'Waiting',
+  stateQueued: 'Queued',
   stateRunning: 'Running',
+  // K3 kickoff (COMPUTER_PLAN §4.1): PARKED on a human or a clock. `queued` had this word until
+  // K3 and had to give it up — "Waiting" is what a person reading a Dialog's question sees, and
+  // a box merely standing in line is queued.
+  stateWaiting: 'Waiting for you',
   stateDone: 'Done',
   stateError: 'Error',
 

@@ -545,6 +545,57 @@ function createHelpers(ctx) {
                     };
                 }),
             },
+            // ---- K3 (COMPUTER_PLAN §4, §6.6, §7.3) --------------------------------------------
+            /** Press ▶ on ONE box: push, plus the §4.2 unrun-ancestor prologue. → RunReport */
+            runFrom: (partId, opts) => h.computer.call('runFrom', partId, opts || {}),
+            /** Every stored run for the open document, oldest first (§7.3). → RunJournal[] */
+            journal: () => h.computer.call('journal'),
+            /** What is parked right now (§4.1). → ParkRequest[] */
+            waits: () => h.computer.call('waits'),
+            /** Click a part's own ▶ in its title bar — the DOM gesture, not the door (K3-U3).
+             * The frozen probe is `.graph-part-play[data-part="<id>"]`. */
+            play: (partId) => evalFn((id) => {
+                const el = document.querySelector('#lolcomputer .graph-part-play[data-part="' + id + '"]');
+                if (!el) throw new Error('play: no ▶ on part ' + id);
+                el.click();
+                return true;
+            }, partId),
+            /** Press one of a parked part's inline controls — `ok`, `cancel`, `send`, `press`.
+             * The frozen probe is `.graph-part-control[data-part][data-action]` (K3-U2). */
+            control: (partId, action) => evalFn((id, act) => {
+                const sel = '#lolcomputer [data-part="' + id + '"][data-action="' + act + '"]';
+                const el = document.querySelector(sel);
+                if (!el) throw new Error('control: no [' + act + '] on part ' + id);
+                el.click();
+                return true;
+            }, partId, action),
+            /** Answer a waiting Dialog: type into its field, then Send. */
+            answer: async (partId, text) => {
+                await evalFn((id, v) => {
+                    const el = document.querySelector('#lolcomputer .graph-part-answer[data-part="' + id + '"]');
+                    if (!el) throw new Error('answer: no field on part ' + id);
+                    el.value = v;
+                    el.dispatchEvent(new Event('input', { bubbles: true }));
+                    return true;
+                }, partId, String(text == null ? '' : text));
+                return h.computer.control(partId, 'send');
+            },
+            /** Every part's state and every wire's barred/back flags, straight off the DOM —
+             * what §8.3 says a reader can distinguish, asserted the way a reader sees it. */
+            states: () => evalFn(() => ({
+                parts: Array.from(document.querySelectorAll('#lolcomputer .graph-part'))
+                    .map((el) => ({ id: el.getAttribute('data-id'), state: el.getAttribute('data-state') })),
+                wires: Array.from(document.querySelectorAll('#lolcomputer .graph-wire'))
+                    .map((el) => ({
+                        wire: el.getAttribute('data-wire'),
+                        barred: el.getAttribute('data-barred') === 'true',
+                        back: el.getAttribute('data-back') === 'true',
+                    })),
+                plays: Array.from(document.querySelectorAll('#lolcomputer .graph-part-play'))
+                    .map((el) => el.getAttribute('data-part')),
+                runbar: (document.querySelector('#lolcomputer .comp-run') || {}).textContent || '',
+            })),
+
             /** What the two Apps share, and what they must not (COMPUTER_PLAN §2.3). */
             spine: () => evalFn(() => {
                 const chat = window.LolChat && window.LolChat.app;

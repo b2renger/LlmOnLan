@@ -13,7 +13,9 @@
 //    surface has asked for one.
 
 const FARM_ERRORS = [/Failed to load resource/, /net::ERR_/];
-const PALETTE = ['note', 'ask', 'split', 'repeat', 'filter', 'code', 'collect', 'render', 'file'];
+// K3 kickoff (COMPUTER_PLAN §6.6): the six control parts join at the END of the palette.
+const PALETTE = ['note', 'ask', 'split', 'repeat', 'filter', 'code', 'collect', 'render', 'file',
+    'button', 'condition', 'confirm', 'dialog', 'toggle', 'timer'];
 const LEGACY = ['from-thread', 'to-thread'];
 
 export default [
@@ -167,7 +169,7 @@ export default [
                     computerFailed: Object.keys(window.LolComputer.failed || {}),
                 };
             });
-            h.eq(seen.types.join(','), PALETTE.join(','), 'the catalogue is not the nine in palette order: ' + seen.types.join(','));
+            h.eq(seen.types.join(','), PALETTE.join(','), 'the catalogue is not the fifteen in palette order: ' + seen.types.join(','));
             for (const type of LEGACY) {
                 h.eq(seen.types.indexOf(type), -1, type + ' is still offered in the palette');
                 h.assert(seen.loadable.indexOf(type) >= 0,

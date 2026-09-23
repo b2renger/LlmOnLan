@@ -26,7 +26,14 @@ export const FORMAT = 'lolgraph';
 // with `unsupported-version`, and nothing is imported. Importing what we happen to understand and
 // dropping the rest is the quiet loss §1.3 rule 4 bans — the sentence the reader gets is §8.4's
 // "This graph was made with a newer version of the Computer."
-export const FORMAT_VERSION = 2;
+export const FORMAT_VERSION = 3;
+
+// K3 kickoff (COMPUTER_PLAN §4.6, §7.6): v3 carries `wire.back` — the LOOP declaration. The bump
+// is not decoration: a client shipped before K3 reads a back edge as an ordinary wire, `order()`
+// then refuses the whole document as a cycle, and the reader is told nothing about why their
+// loop stopped working. Refusing the file whole, with §8.4's sentence, is the honest half of
+// §1.3 rule 4. The stamp still FOLLOWS THE CONTENT: a graph with no loop, no label and no facet
+// still exports as v1 and still opens everywhere.
 export const FILE_SUFFIX = '.lolgraph.json';
 
 /** Fields copied out of a part on export. Everything else (state, error, stats, runtime junk) is
@@ -91,6 +98,7 @@ export function toJson(doc, o = {}) {
   const specs = o.specs instanceof Map ? o.specs : null;
   const d = doc && typeof doc === 'object' ? doc : /** @type {any} */ ({});
   let v2 = false;                                  // does this file need anything v1 never had?
+  let v3 = false;                                  // …and anything v2 never had? (K3: wire.back)
   const parts = (Array.isArray(d.parts) ? d.parts : []).map((p) => {
     /** @type {any} */ const part = {};
     for (const f of PART_FIELDS) part[f] = /** @type {any} */ (p)[f];
@@ -108,6 +116,7 @@ export function toJson(doc, o = {}) {
     const label = wireLabel(/** @type {any} */ (w).label);
     /** @type {any} */ const out = { from: w.from, to: w.to, port: w.port };
     if (label) { out.label = label; v2 = true; }
+    if (/** @type {any} */ (w).back === true) { out.back = true; v3 = true; }
     return out;
   });
   /** @type {any} */ const out = {
@@ -116,7 +125,7 @@ export function toJson(doc, o = {}) {
     // exports — including one with no label and no facet anywhere in it — unopenable by a client
     // shipped before K2, for a version number and nothing else. A file carrying no v2-only field
     // IS a v1 file, byte for byte, and says so.
-    [FORMAT]: v2 ? FORMAT_VERSION : 1,
+    [FORMAT]: v3 ? 3 : (v2 ? 2 : 1),
     title: typeof o.title === 'string' ? o.title : (d.title || ''),
     view: d.view ? { x: d.view.x, y: d.view.y, zoom: d.view.zoom } : undefined,
     settings: pickDocSettings(d.settings),
@@ -194,7 +203,7 @@ export function fromJson(obj, o) {
     const from = ids.get(w.from);
     const to = ids.get(w.to);
     if (!from || !to) { errors.push('wire:unknown-part'); continue; }
-    wires.push({ id: newId(), from, to, port: w.port, label: wireLabel(w.label) });
+    wires.push({ id: newId(), from, to, port: w.port, label: wireLabel(w.label), back: w.back === true });
   }
 
   const { doc, dropped } = normaliseDoc({

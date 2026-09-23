@@ -104,3 +104,27 @@
   text-overflow: ellipsis;
 }
 #lolcomputer .comp-run-status:empty { display: none; }
+
+/* ---- the waits counter (K3-U3, COMPUTER_PLAN §8.3) -------------------------------------------
+   "Waiting: the part's own inline control, and the run bar counts them." Amber like the waiting
+   box itself, so the two read as one fact seen from two places, and a button that puts the canvas
+   on the oldest question — a run that is asking must never look like a run that is stuck. */
+#lolcomputer .comp-run-waits {
+  padding: 3px 8px;
+  border: 1px solid color-mix(in srgb, var(--amber) 60%, var(--comp-line));
+  border-radius: var(--comp-r-chip);
+  background: color-mix(in srgb, var(--amber) 16%, var(--comp-panel-2));
+  color: var(--text);
+}
+#lolcomputer .comp-run-show-waiting {
+  font: inherit;
+  font-size: 12px;
+  padding: 3px 8px;
+  border-radius: var(--comp-r-btn);
+  border: 1px solid var(--comp-line);
+  background: var(--comp-panel-2);
+  color: var(--text);
+  cursor: pointer;
+}
+#lolcomputer .comp-run-show-waiting:hover { border-color: var(--accent-hover); }
+#lolcomputer .comp-run-show-waiting:focus-visible { outline: 2px solid var(--accent-hover); outline-offset: 1px; }

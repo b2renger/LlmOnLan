@@ -218,6 +218,70 @@ registerStrings('parts', {
   renderWidth: 'Width',
   renderHeight: 'Height',
 
+  // ---- K3: the six control parts (COMPUTER_PLAN §6.6) -----------------------------------------
+  // Namespace ownership inside `parts.*` for this phase: every key below is K3-U2's, and the
+  // integrator adds new ones at a kickoff. The two halves a learner must be able to tell apart —
+  // ACTIVATION and VALUE (§4.5) — are named apart here too: a Toggle that is off BARS and still
+  // PUBLISHES, and neither word is "stopped".
+  ctlIn: 'In',
+
+  btnLabel: 'Button',
+  btnText: 'Label',
+  btnPress: 'Run this',
+  btnHint: 'Nothing runs until you press it. Press it and everything after it runs.',
+  btnNotPressed: '{n} buttons not pressed',
+  btnNotPressedOne: '1 button not pressed',
+  btnReady: 'ready — click to continue',
+
+  condLabel: 'Condition',
+  condBranch: 'Continue when',
+  condMode: 'Decide by',
+  condModeText: 'reading the words (free)',
+  condModeModel: 'asking the model (1 generation)',
+  condQuestion: 'Question',
+  cond_yes: 'yes',
+  cond_no: 'no',
+  cond_maybe: 'maybe',
+  condVerdict: 'read as {verdict}',
+  condHint: 'Anything it cannot read is “maybe”, never “no”.',
+  // K3-U2: `mode:'model'` — one cheap generation with a fixed {verdict} shape. The prompt is built
+  // from exactly the question and the text, which is what lets the ask cache answer the second
+  // Condition of a fan for free.
+  condModel: 'Model',
+  condAsking: 'Does this answer yes, no, or maybe?',
+  condSystem: 'You are a classifier. Read the text and answer the question with exactly one of: yes, no, maybe. Answer “maybe” whenever the text does not clearly say yes or no.',
+  condPrompt: 'Question: {question}\n\nText:\n{text}',
+
+  confirmLabel: 'Confirm',
+  confirmMessage: 'Message',
+  confirmTimeout: 'Give up after (seconds, 0 = never)',
+  confirmOk: 'OK',
+  confirmCancel: 'Cancel',
+  confirmAsking: 'Continue?',
+  confirmCancelled: 'Cancelled — this branch stopped here.',
+  confirmTimedOut: 'Nobody answered, so this branch stopped here.',
+
+  dlgLabel: 'Dialog',
+  dlgQuestion: 'Question',
+  dlgContext: 'Context',
+  dlgPlaceholder: 'Hint text',
+  dlgMultiline: 'Several lines',
+  dlgDefault: 'If nobody answers',
+  dlgAskEveryRun: 'Ask again every run',
+  dlgSend: 'Send',
+  dlgAsking: 'Your answer?',
+
+  togLabel: 'Toggle',
+  togOn: 'On',
+  togOnHint: 'On — what arrives here carries on.',
+  togOffHint: 'Off — the value still flows, but nothing after this runs.',
+
+  timerLabel: 'Timer',
+  timerSeconds: 'Wait (seconds)',
+  timerRepeats: 'Repeats',
+  timerHint: 'Waits {seconds} s, {repeats}×.',
+  timerWaiting: 'waiting {seconds} s…',
+
   errCodeEmpty: 'This part has no code yet, so there is nothing to run.',
   errCodeLine: 'Line {line}: {message}',
   errRenderNotSvg: 'That text does not start with <svg>, so it cannot be drawn as SVG.',

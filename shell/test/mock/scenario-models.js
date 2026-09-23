@@ -33,6 +33,11 @@ const STATIC_MODEL_IDS = [
     // scenario can then assert that `## societal research` came before `## environmental
     // research` without a real model and without asserting on prose.
     'mock-headings',
+    // K3 kickoff (COMPUTER_PLAN §11 K3): Condition's `mode:'model'` asks one cheap question and
+    // reads a verdict back. A scenario needs that verdict to be CHOSEN, not guessed — so this
+    // model answers from `state.verdicts`, a queue consumed in order whose last entry repeats.
+    // Default ['maybe'], because §6.6's rule is that anything unreadable is maybe, never no.
+    'mock-verdict',
 ];
 const MODEL_IDS = [...STATIC_MODEL_IDS, ...PERF_NAMES.map((n) => `mock-perf:${n}`)];
 
@@ -549,6 +554,21 @@ function handleCompletion({ model, res, body, store }) {
     if (id === 'mock-headings') {
         const lines = headingLines(body);
         streamContent(id, res, store, body, lines.map((l, i) => (i === lines.length - 1 ? l : `${l}\n`)), { finish: 'stop' });
+        return true;
+    }
+
+    if (id === 'mock-verdict') {
+        const queue = Array.isArray(store.state.verdicts) && store.state.verdicts.length
+            ? store.state.verdicts : ['maybe'];
+        // Consumed in order; the LAST entry repeats for every further call, so a three-Condition
+        // fan can be scripted with three entries and a loop with one.
+        const at = Math.min(store.verdictAt || 0, queue.length - 1);
+        store.verdictAt = (store.verdictAt || 0) + 1;
+        const verdict = String(queue[at]);
+        // A JSON object, so the SAME model serves `ask.json` (schema {verdict}) and a text-mode
+        // read: `classify()` reads `{"verdict":"yes"}`'s first token as prose and would say maybe,
+        // so a text-mode scenario asks for `mock-echo` instead and this one stays JSON-shaped.
+        streamContent(id, res, store, body, jsonChunks(JSON.stringify({ verdict }, null, 2)), { finish: 'stop' });
         return true;
     }
 

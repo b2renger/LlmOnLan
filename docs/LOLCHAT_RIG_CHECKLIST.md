@@ -696,3 +696,41 @@ profile; **what it cannot prove is a real person's disk, a real second machine, 
 - [ ] **What an exported file says about you.** Export a graph from a thread that used a
       **From thread** part set to a specific message. Open the file in a text editor. Expected: no
       message id, no thread id, no farm address, no password — only parts, wires and settings.
+
+## 16. The Computer's control flow (K3, added at the K3 landing 2026-09-23)
+
+Every item here is about a graph that RUNS. Do them on the real farm, with the real client, on a
+graph you drew yourself — the harness can prove the mechanism, it cannot tell you whether the thing
+felt safe to use.
+
+- [ ] **▶ on a box in the middle.** Draw four boxes in a row, run the whole thing once, edit only the
+      third one's instruction, then press **▶ on that third box**. Expected: the third and fourth
+      boxes run, the first two do NOT (no spinner, no cost, no change), and the run bar's generation
+      count goes up by exactly what those two boxes cost.
+- [ ] **▶ on a cold graph.** Same four boxes, but never run them, and press ▶ on the LAST one.
+      Expected: everything it needs runs first, in order, and then it runs — one pass, no refusal
+      about nothing being wired in.
+- [ ] **The Button really is a brake.** Put a Button between a cheap box and an expensive one and
+      press **Run all**. Expected: the wave stops at the Button, it says it is ready, the expensive
+      box stays pale and hatched (NOT red), and nothing was spent past the Button. Then click the
+      Button's face: the expensive box runs.
+- [ ] **A question does not freeze the rest.** Two branches off one note; put a Dialog in one of them.
+      Run all. Expected: the question appears **in its box** on the canvas with a field and Send, the
+      other branch keeps running and finishes while the question sits there, and the run bar says one
+      question is waiting with a **Show me** that pans to it.
+- [ ] **Close the app with a question open.** Do the above, and quit the client while the question is
+      unanswered. Reopen it. Expected: it comes back with the run listed as unfinished and nothing
+      half-spent; resuming costs only what was left.
+- [ ] **A loop that stops.** Draw a ring through a Toggle (the loop the tutorial teaches), switch the
+      Toggle **on**, and run. Expected: it stops on its own at a named ceiling, the sentence says
+      which box and which limit, and the offer to raise it applies to **that run only** — the next
+      Run all starts from the stored limit again.
+- [ ] **A loop you cannot draw.** Try to close a ring with no Toggle/Condition/Button in it. Expected:
+      the arrow is refused as you draw it, with a sentence that says a loop needs a gate — not a
+      silent failure and not a graph that hangs.
+- [ ] **Stop keeps what you paid for.** Start a long Run all, press **Stop** halfway. Expected: the
+      finished boxes keep their answers, the one that was mid-flight goes back to pale (no error), any
+      waiting question closes, and pressing Run all again re-runs only what is left.
+- [ ] **The grey teaches.** One Instruction into three Conditions (yes / no / maybe). Run it.
+      Expected: exactly one branch stays bright and the other two arrows visibly fade — you can tell
+      which way the graph went from across the room, without reading a word.

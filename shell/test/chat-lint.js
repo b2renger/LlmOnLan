@@ -52,6 +52,10 @@ const PURE_MODULES = [
     // assemble. It touches no DOM and no farm, and its unit test is the most important in the
     // Computer build — which is only possible because it runs in Node.
     'graph/bind.mjs',
+    // K3 (COMPUTER_PLAN §7.3, §4.1): the run journal takes a `repo` and a clock; the park
+    // registry is a Map and a Set. Neither touches a DOM, a network or a global, which is what
+    // lets computer-sched.test.mjs and computer-control.test.mjs run in Node.
+    'graph/journal.mjs', 'graph/parts/control-bus.mjs',
     // C3 (the sandbox parts, files and sharing)
     'graph/tidy.mjs', 'sandbox/protocol.mjs',
     // S2

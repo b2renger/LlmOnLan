@@ -6,6 +6,86 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-09-23 — LOL Chat vNext **K3**: ▶ on any box, six control parts, loops that cannot run away, and a run you can watch
+
+The Computer becomes an agent canvas. Every box now carries its own **▶**: pressing it runs *that*
+box and everything downstream — and, before it does, quietly pulls the box's **unrun ancestors**, so
+the headline button on a graph you just imported works instead of complaining that nothing is wired
+into it. Nothing upstream that already holds a value is paid for twice. **Run all** is the same
+scheduler with a different seed: one run loop, one staleness rule, one set of ceilings.
+
+Six **control parts** turn a picture into a program. A **Button** is the manual gate — a wave that
+reaches an unpressed one stops there and the box glows *ready*, which is what makes an expensive
+branch safe to draw. A **Condition** classifies what arrives (free text-matching by default, or one
+cheap generation against a `{verdict}` schema) and bars the branches it did not pick, so one
+Instruction into three Conditions is the Yes/No/Maybe fan. **Confirm** and **Dialog** ask a person,
+*on the canvas*, in the box that is asking — and the rest of the graph keeps running while they wait.
+**Toggle** is a switch whose value still flows while its activation does not. **Timer** waits.
+
+A **loop you cannot draw wrong**: a ring with no gate in it is refused when you draw the arrow, with
+the sentence saying so; a ring that has one is stamped as a back edge, drawn dashed, and bounded by
+**four independent ceilings** — iterations, generations, wall clock and activations — each of which
+stops the run, *names the box it stopped at*, and offers to raise itself for this run only. The run
+bar quotes a **range** before you press anything (`2–16 generations`), counts the questions waiting
+with a **Show me** button that pans to them, and the canvas paints five distinguishable looks —
+queued, running, waiting, stale, error — with the held branches hatched and their arrows greyed.
+Every run is written to a **journal** (a ring of events per run, five runs kept), flushed the instant
+a part parks or the farm is paid, so a crash mid-question comes back as a resumable row.
+
+Built in three units on one tree: `graph/{runner,topo}.mjs` + `graph/journal.mjs` (the scheduler, the
+loop rules, the ceilings, the journal), `graph/parts/{button,condition,confirm,dialog,toggle,timer}.mjs`
++ `graph/model.mjs` (the six parts and the back-edge/`loop-ungated` rule), and `graph/canvas.mjs` +
+`computer/runbar.mjs` + `css/computer-states.css` (the per-box ▶, the five looks, the wire flags, the
+run-notice strip).
+
+**Landing decisions worth the owner's eye.**
+
+1. **`manual` is a Run-all exclusion, not an activation ban** (KC-16). `activeSet` filtered unpressed
+   Buttons out of *every* entry point, so on the kickoff tree a Button could never run at all: a wave
+   left it stale and reddened the box after it. §6.6 excludes a manual part from **Run-all** only — a
+   wave must activate it (that is the only way it can bar) and a press is a seed. One filter moved;
+   `k3-control` now asserts the whole gesture in the browser.
+2. **A box the run never activates leaves its downstream STALE, not red** (KC-17). Run-all past an
+   unpressed Button reads as *held*, which is true, instead of *your graph is wrong*, which is not.
+3. **A Button's face and its ▶ are one gesture.** The part records the press, the canvas starts the
+   push run through the same `onPlay` the title-bar ▶ uses — so a part still never reaches for the
+   runner and there is exactly one scheduler on the surface.
+4. **The grey lands on the arrow where the wave stopped.** A barred id names a box the run *dropped*,
+   so both the arrow into it and the arrows out of it are dead. Greying only the out-edges meant a
+   Toggle switched off greyed nothing at all unless something happened to sit past the box it held —
+   §8.2's grey is most of the teaching, and it was landing one arrow too far down the branch.
+5. **The scheduler memoises the graph's SHAPE, and that is not a cursor** (KC-20). The ready scan is
+   still O(n) per activation and the order is still recomputed every iteration; what is no longer
+   recomputed per activation is a topological sort, two Maps and a document spread. On the 1000-part
+   perf fixture that was **0.56 ms/part against a 0.4 ms budget**; it is **0.23 ms/part** now.
+6. **§4.5 was taken in spirit, not literally** (KC-18). A barrier recomputes reachability within the
+   active set from the run's own roots ∪ the accumulated seeds, over the cut graph — the literal
+   `activeSet(doc minus P's out-edges, S)` drops the whole run when `S` is empty, which is every
+   Run-all. Same guarantee: a part reachable by a second, unbarred path keeps running.
+
+**Tested.** `chat-unit` 1111 passed / 0 failed (+45 in `computer-sched` and `computer-control`);
+`unit.js` 5/5; `chat-lint` 161 files / 0 violations; `chat-scope` clean; harness `--strict`
+**234 passed / 0 failed**; `--phase perf` 9/9 — 500 parts build 95 ms of a 1500 ms budget, pan work
+p95 7.2 ms of 16, 0 parts transformed on pan with 200 label pills and 500 play buttons on screen.
+Light and dark screenshots (`k3-shots-*`: a parked Dialog, a held branch, a live run bar) were taken
+and LOOKED at. They found a real one: `.graph-part-body input { width: 100% }` is right for a text
+field and wrong for a checkbox — every control part's switches rendered as full-width empty lanes
+with their captions crushed against the far edge, wrapped to three lines. Fixed in `css/graph.css`,
+which fixes the same latent squash on the chat surface.
+
+**Known, deferred.** §8.3's per-part scheduling detail is not in: the queued badge does not say
+*2nd in this run*, the running box has no elapsed counter or phase word, and clicking a part's clock
+explains nothing yet — all three need per-part detail the report does not carry. The §8.4 notice
+strip takes any `{kind,title,body,actions}` but only the rows whose sentences exist today are wired
+(`no farm`, `busy`, `invalid shape`, `empty`, `sandbox throw`, `type refusal`, `newer file`,
+`no vision` have no string keys yet — K4/K5). The run bar's plan preview shows until a document's
+first run and does not come back after a later edit; that wants a real *edited since the report*
+signal rather than the revision counter. Timer's `repeats > 1` now re-activates its downstream
+through the runner's `repeatsFor` door, but nothing in the shipped catalogue exercises it beyond the
+clamp and the plan-time wall-clock arithmetic.
+
+---
+
 ## 2026-09-23 — LOL Chat vNext **K2 fix round**: the Sent tab stops guessing, the budget stops growing, and an export stops locking out old clients
 
 Seven reviewer findings against the K2 landing (`5e4a252`). All seven fixed at the root, each with a

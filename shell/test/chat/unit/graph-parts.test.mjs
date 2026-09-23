@@ -97,10 +97,14 @@ export default (test) => {
     // move out of `partSpecs()` — the palette a reader picks from — and stay in `specMap()`, the
     // set the engine can LOAD, so a graph migrated out of an old chat still opens. Nine in the
     // palette; eleven loadable. Image and Look still wait on P3's attachment intake (BH-10).
+    // K3 kickoff (COMPUTER_PLAN §6.6): the six control parts join the palette, at the END — the
+    // nine data parts are what a first-time reader meets, the controls are what lesson 9 adds.
     assert.deepEqual(partSpecs().map((s) => s.type),
-      ['note', 'ask', 'split', 'repeat', 'filter', 'code', 'collect', 'render', 'file']);
+      ['note', 'ask', 'split', 'repeat', 'filter', 'code', 'collect', 'render', 'file',
+        'button', 'condition', 'confirm', 'dialog', 'toggle', 'timer']);
     assert.deepEqual([...specMap().keys()].sort(),
-      ['ask', 'code', 'collect', 'file', 'filter', 'from-thread', 'note', 'render', 'repeat', 'split', 'to-thread'],
+      ['ask', 'button', 'code', 'collect', 'condition', 'confirm', 'dialog', 'file', 'filter',
+        'from-thread', 'note', 'render', 'repeat', 'split', 'timer', 'to-thread', 'toggle'],
       'a legacy part left specMap() too — a migrated graph would trip part:unknown-type');
     for (const spec of [...specMap().values()]) {
       assert.equal(typeof spec.label, 'string', `${spec.type} has a resolved label`);
@@ -112,7 +116,16 @@ export default (test) => {
       for (const port of spec.inputs) assert.ok(Array.isArray(port.accepts) && port.accepts.length, `${spec.type}.${port.name} declares what it accepts`);
     }
     // `thinks` is what the cap counts (BG-5). Ask always generates; Filter does in model mode.
-    assert.deepEqual(partSpecs().filter((s) => s.thinks).map((s) => s.type), ['ask', 'filter']);
+    // Condition declares `thinks` because `mode:'model'` really does spend one generation — and
+    // `thinksFor`, so the plan preview does NOT quote one for a free text-mode Condition (§4.6).
+    assert.deepEqual(partSpecs().filter((s) => s.thinks).map((s) => s.type), ['ask', 'filter', 'condition']);
+    assert.equal(typeof specMap().get('condition').thinksFor, 'function');
+    assert.equal(specMap().get('condition').thinksFor({ settings: { mode: 'text' } }), false);
+    assert.equal(specMap().get('condition').thinksFor({ settings: { mode: 'model' } }), true);
+    // §4.2's two scheduler declarations exist and belong to exactly the parts that need them.
+    assert.deepEqual(partSpecs().filter((s) => s.manual).map((s) => s.type), ['button']);
+    assert.deepEqual(partSpecs().filter((s) => s.control).map((s) => s.type),
+      ['button', 'condition', 'confirm', 'dialog', 'toggle', 'timer']);
     // Exactly one part has no output: To thread, whose result WAS the conversation (BH-6) and is
     // now a legacy part that refuses — it is reachable through specMap(), never the palette.
     assert.deepEqual([...specMap().values()].filter((s) => s.output === null).map((s) => s.type), ['to-thread']);

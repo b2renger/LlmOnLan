@@ -89,6 +89,39 @@ registerStrings('computer', {
   txNotCached: 'not cached',
   txUnknownFarm: 'no farm',
 
+  // ---- K3: the scheduler, the ceilings, the waits and the journal (§4.6, §7.5, §8.3) ----------
+  // Ownership: `computer.run*` stays K1-U3's file (computer/runbar.mjs), extended by K3-U3;
+  // `computer.limit*` and `computer.resume*` are read by K3-U1's report and K3-U3's bar alike.
+  // The rule §4.6 insists on: a ceiling is a STOP, never an error, and every sentence says what
+  // was kept and offers the one button that raises it for this run.
+  runRange: '{min}–{max} generations',
+  runWaiting: '{n} questions waiting',
+  runWaitingOne: '1 question waiting',
+  runWaitFor: 'Waiting for {part}',
+  runShowWaiting: 'Show me',
+  runBarred: '{n} boxes were stopped by a gate',
+  runBarredOne: '1 box was stopped by a gate',
+  runLeftStale: 'left stale by edits: {n}',
+  runMerged: 'Added to the run.',
+  runFrom: 'Run this box',
+  runPlayTitle: 'Run this box and everything after it',
+
+  limitIterations: 'This run reached its limit of {limit} passes through “{part}”. Nothing was lost.',
+  limitGenerations: 'This run reached its limit of {limit} generations. Nothing was lost.',
+  limitWall: 'The run stopped after {minutes} minutes.',
+  limitWallPark: 'Nobody answered the question in “{part}”, so the run stopped after {minutes} minutes.',
+  limitActivations: 'This run reached its limit of {limit} steps. Nothing was lost.',
+  limitTimerPlan: 'That run would wait {minutes} minutes before it finished — longer than the {limitMinutes} minute limit. Shorten a Timer, or raise the limit for this run.',
+  limitRaise: 'Raise it for this run',
+  limitShowSpend: 'Show me what spent it',
+
+  resumeBanner: 'The last run stopped when the app closed — {done} of {total} boxes finished.',
+  resumeAction: 'Resume',
+  resumeDismiss: 'Start fresh',
+
+  loopUngated: 'A loop needs something that can stop it. Put a Toggle in the way — see lesson 10.',
+  loopLesson: 'Open lesson 10',
+
   // ---- legacy parts, demoted at K1 (K1-U3) ---------------------------------------------------
   legacyBadge: 'legacy',
   legacyNoThread: 'This part belonged to a chat. The Computer is its own surface now — delete it, or copy the text into a Note.',

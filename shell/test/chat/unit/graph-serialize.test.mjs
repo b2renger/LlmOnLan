@@ -45,8 +45,11 @@ export default (test) => {
   test('the format constants are the frozen ones', () => {
     assert.equal(FORMAT, 'lolgraph');
     // K2 kickoff (COMPUTER_PLAN §11 item 5): v2 carries `wire.label` and a value's advisory
-    // format/lang facets. A v1 file still opens; a v3 file is still REFUSED whole.
-    assert.equal(FORMAT_VERSION, 2);
+    // format/lang facets. K3 kickoff (§4.6): v3 carries `wire.back`, the LOOP declaration — a
+    // pre-K3 client that read a back edge as an ordinary wire would refuse the whole document as
+    // a cycle and say nothing useful, so the bump is what buys §8.4's sentence instead.
+    // A v1 and a v2 file still open; a v4 file is still REFUSED whole.
+    assert.equal(FORMAT_VERSION, 3);
     assert.equal(FILE_SUFFIX, '.lolgraph.json');
   });
 
@@ -213,13 +216,18 @@ export default (test) => {
     assert.equal(toJson(doc).lolgraph, 1, 'no label anywhere: a v1 file, openable by a v1 client');
 
     const labelled = { ...doc, wires: doc.wires.map((w, i) => (i ? w : { ...w, label: 'topic' })) };
-    assert.equal(toJson(labelled).lolgraph, FORMAT_VERSION, 'one label makes it a v2 file');
+    assert.equal(toJson(labelled).lolgraph, 2, 'one label makes it a v2 file, NOT a v3 one');
     assert.equal(toJson(labelled).wires[0].label, 'topic');
 
     // A value facet (§6.8) is the other v2-only field, and only rides when values are exported.
     const faceted = { ...doc, parts: doc.parts.map((p, i) => (i ? p : { ...p, value: { kind: 'text', data: 'x', format: 'markdown' } })) };
     assert.equal(toJson(faceted).lolgraph, 1, 'without values there is no facet in the file');
-    assert.equal(toJson(faceted, { values: true }).lolgraph, FORMAT_VERSION);
+    assert.equal(toJson(faceted, { values: true }).lolgraph, 2);
+
+    // K3: and one back edge makes it a v3 file, while everything else about it stays v1/v2.
+    const looped = { ...doc, wires: doc.wires.map((w, i) => (i ? w : { ...w, back: true })) };
+    assert.equal(toJson(looped).lolgraph, 3, 'one declared loop makes it a v3 file');
+    assert.equal(toJson(looped).wires[0].back, true);
     assert.equal(toJson({ ...doc, parts: doc.parts.map((p, i) => (i ? p : { ...p, value: { kind: 'text', data: 'x' } })) },
       { values: true }).lolgraph, 1, 'a plain value is a v1 value');
   });

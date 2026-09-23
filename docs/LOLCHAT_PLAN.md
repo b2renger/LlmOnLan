@@ -2735,6 +2735,221 @@ and wiring the phase:
 - **Added:** `scenarios/k2-shots.mjs` (integrator-owned, like `c1-shots`/`c2-shots`) — the named
   arrows, the strip, the `unused:` chip and the open Sent tab, in both themes.
 
+---
+
+### K3 addendum — push play, control flow, loops (kickoff, 2026-09-23)
+
+Frozen at the K3 kickoff, after K1/K2 landed. `docs/COMPUTER_PLAN.md` §4, §6.6, §7.3–§7.5, §8.3–§8.4
+and §11 K3 are the spec; **this is the contract between the three parallel units**. A unit may ADD
+keys; it may not change a signature here without a contract request at the landing. KA-1..KA-11 and
+KB-1..KB-11 still bind.
+
+**KC-1. Who owns what, and the one file the plan did not assign.**
+
+| File | Owner |
+|---|---|
+| `graph/{runner,topo}.mjs`, `graph/journal.mjs` | K3-U1 |
+| `graph/parts/{button,condition,confirm,dialog,toggle,timer}.mjs`, `graph/model.mjs` (`wireRefusal` only) | K3-U2 |
+| `graph/canvas.mjs`, `computer/runbar.mjs`, `css/computer-states.css` | K3-U3 |
+| `core/types.mjs`, `graph/serialize.mjs`, `graph/parts/{index,control-bus}.mjs`, `computer/host.mjs`, `strings/*`, `css/computer-parts.css`, `computer/computer.css`, the mock, `chat-harness/helpers.js`, `chat-lint.js` | integrator |
+
+`computer/host.mjs` is the file §11 K3 assigns to nobody and every unit needs: it is where a ▶
+becomes a run. It is **integrator-owned for this phase** and already carries the three seams below.
+A unit that needs more of it files a contract request.
+
+**KC-2. `PartOutcome` — the three shapes a `run()` may resolve to (§4.5), frozen.**
+
+```js
+return valueOf('text', '…')                    // unchanged since C1. Implies bar:false.
+return null                                    // ONLY when spec.output is null (BH-6)
+return { value: GraphValue|null, bar: boolean } // a CONTROL outcome (§4.5)
+return { park: ParkRequest, settle: Promise<one of the above> }   // the part SUSPENDS
+```
+
+The separation the whole phase rests on: **`bar` refuses to ACTIVATE the downstream and the value
+still flows.** `gather()` reads `upstream.value` off the doc, so a part that runs for another
+reason reads straight *through* a barred Toggle. Never conflate the two.
+
+**KC-3. `graph/parts/control-bus.mjs` — the one seam between all three units. Integrator-owned.**
+
+A parked part does not block the loop, and a part never reaches for the runner. Frozen:
+
+```js
+park(partId, kind, {question?, untilMs?, now?}) -> {request: ParkRequest, promise: Promise<ParkAnswer>}
+answer(partId, {ok, text?, timeout?, cancelled?}) -> boolean   // false = nothing was waiting
+isParked(partId) -> boolean · parkOf(partId) -> ParkRequest|null
+pending() -> ParkRequest[]      // oldest first; the run bar's count and the journal's `waits`
+cancelAll() -> number           // Stop (§4.8) and a document close
+onParks(fn) -> off
+```
+
+`promise` **never rejects**: a cancel is an ANSWER (`{ok:false, cancelled:true}`), because a
+rejected park reaches the runner as a part that threw, and a cancelled Confirm is not an error.
+A second `park()` on the same part cancels the first — a part cannot wait twice at once.
+It is a module singleton (only the Computer runs graphs) and is in `chat-lint` `PURE_MODULES`.
+
+**KC-4. The DOM probes, frozen — the canvas, the parts and the scenarios all read these.**
+
+```
+.graph-part[data-state="idle|stale|queued|running|waiting|done|error"]
+.graph-part-play[data-part="<id>"]                     the per-box play      (K3-U3)
+.graph-part-controls / .graph-part-control[data-part][data-action]           (K3-U2)
+        data-action is one of: press | ok | cancel | send
+.graph-part-answer[data-part="<id>"]                   a Dialog's field      (K3-U2)
+.graph-wire[data-barred="true"]                        greyed by a barrier   (K3-U3)
+.graph-wire[data-back="true"]                          a declared loop edge  (K3-U3)
+```
+
+`helpers.js` reads exactly these: `h.computer.play(id)`, `.control(id, action)`, `.answer(id, text)`,
+`.states()`. The six stub parts already emit the `[data-action]`/`[data-part]` half.
+
+**KC-5. What the kickoff put in `core/types.mjs`.** `GraphPart.state` and `STATES` gain `waiting`
+(and `model.mjs:192` maps it to `stale` on load — §7.5). `GraphWire.back`. `PartSpec` gains
+`manual`, `volatile`, `control`, `thinksFor(part)` and `output:'any'`. `RunInput` gains
+`iteration` and `run:{id, mode}`. New typedefs `PartOutcome`, `ParkRequest`, `RunJournal`,
+`RunLimit`. `RunReport` grows `mode`, `seeds`, `journalId`, `activations`, `iterations`, `barred`,
+`waited`, `leftStale`, `limited`, `merged`. `KV_KEYS.computerRuns(graphId)`. **`RUN_LIMITS`** is a
+real runtime export — the four ceilings of §4.6, `{maxIterations:8, maxGenerations:50,
+maxWallMs:600000, maxActivations:2000}`. `API_KEYS.graphDebug` and `computerDebug` both gain
+`runFrom`, `journal`, `waits`, with their bodies in the same commit (the C3/K2 rule).
+
+**KC-6. `output:'any'`, and why `wireRefusal` grew a line the integrator wrote.** §6.6 says all six
+controls output "the input passed through". There is no such VALUE kind and there must not be — a
+sixth kind is a sixth way to tell a beginner no. So `output:'any'` is a SPEC declaration, and
+`wireRefusal` skips the outgoing kind check for it. Without it a Toggle could only ever feed a port
+that accepts text. **K3-U2 must preserve this line** while it rewrites the rest of `wireRefusal`.
+
+**KC-7. `graph/topo.mjs`: what is real at the kickoff and what K3-U1 replaces.** REAL, and
+cross-unit — do not re-derive them anywhere: `forwardEdges(doc)` (the doc minus back edges; returns
+the SAME object when there are none, because `order()` runs every loop iteration),
+`backEdges(doc)`, `isBack(wire)`, `cycleFor(doc, edge)` (the closed walk an edge would close, over
+the forward graph, so an existing loop does not make every later edge look like a second one),
+`GATE_TYPES`, `gatedLoop(doc, cycle, specs)` (a gate is one of the six types **or** any spec
+declaring `control:true`), `manualRoots(doc, specs)`. KICKOFF STUBS with frozen signatures:
+`activeSet(doc, seeds, {mode, force, specs})` — today it is the pull set, or seeds+downstream for
+`'from'`; it does **not** implement the §4.2 prologue and does **not** honour
+`volatile`/`volatileFor` — and `runPlan`, which K3-U1 makes return a RANGE when loops exist
+(§4.6's "6–48 generations").
+
+**KC-8. `graph/journal.mjs` (K3-U1's, stub in the tree).** PURE — it takes a `repo` and a clock.
+`journalKey(graphId)` = `computer:runs:<graphId>`; `MAX_EVENTS = 200`; `MAX_RUNS = 5`;
+`ring(events)`, `prune(rows)`, `readRuns(repo, graphId)`, `resumable(rows)`;
+`createJournal({repo, graphId, now, newId})` → `{list, last, resumable, openRun(init), flush}`;
+`openRun({mode, seeds, cap, model})` → `{id, row(), event({partId, kind, by}), wait(partId, kind,
+{question}), resume(partId), iteration(partId, n), spend({spent, tokens}), status(s),
+close(report, status), flush()}`. **What is NOT real: the §7.4 flush policy.** The stub writes on
+`close()` and on an explicit `flush()`. K3-U1 owes the forced flush on (a) any completion that
+consumed a generation, (b) entering `waiting`, (c) run end, with the 500 ms debounce between —
+"anything the farm was paid for is flushed before the next part starts".
+
+**KC-9. Two shims the integrator wrote so three units can work in parallel, and who removes them.**
+
+1. **`graph/runner.mjs` `unwrapOutcome()`** — marked `K3 KICKOFF SHIM`, about twenty lines. It
+   unwraps `{value, bar}` and **awaits a park INLINE**, which is precisely what §4.3 exists to
+   prevent. Without it every one of the six control parts fails with `errNoValue` the moment it
+   runs and neither K3-U2 nor K3-U3 can test anything end to end. **K3-U1 deletes it with the real
+   loop.** Consequence while it stands, and it is why `k3-control` places its parking parts on a
+   graph it does not run: **a Dialog, Confirm or Timer inside a run set hangs the run.**
+2. **`computer/host.mjs`** maps `mode:'from'` to the runner's existing `only` via `activeSet`,
+   because the runner knows nothing of modes yet — a ▶ that did not narrow `A` would run the whole
+   dirty graph. **K3-U1 moves this inside the runner** and adds the §4.2 prologue.
+
+`host.mjs` also already: passes `onPlay(partId) -> start({mode:'from', seeds:[partId]})` into
+`createCanvas` (**K3-U3 wires the play button and a Button's face to it** — a part never calls the
+runner); **merges instead of refusing** a ▶ pressed mid-run, through `runner.addToRun(seeds)` when
+the runner has it (**K3-U1 owes `addToRun(seeds) -> number`**, §4.4) and refusing only a second
+`mode:'all'`; cancels every park on document close. **K3-U1 must also call `cancelAll()` from
+`runner.stop()`** — §4.8 says Stop "rejects every park", and Stop reaches the runner directly from
+the canvas, the run bar and the Escape handler.
+
+**KC-10. `serialize.mjs` is v3, and the bump is not decoration.** `FORMAT_VERSION = 3`; v3 carries
+`wire.back`. A pre-K3 client reading a back edge as an ordinary wire has `order()` refuse the whole
+document as a cycle and tells the reader nothing useful, so refusing the file whole with §8.4's
+sentence is the honest half of §1.3 rule 4. **The stamp still follows the content**: no loop, no
+label and no facet still exports as v1. `computer-label.test.mjs`'s newer-version refusal is written
+against `FORMAT_VERSION + 1`, so it moved with the bump on its own (KB-9's design paying off).
+
+**KC-11. The catalogue is fifteen, in palette order.** `note, ask, split, repeat, filter, code,
+collect, render, file, button, condition, confirm, dialog, toggle, timer` — the controls at the
+END, because the nine data parts are what a first-time reader meets and the controls are what
+lesson 9 adds. Seventeen loadable (the two legacy thread parts). Asserted in
+`graph-parts.test.mjs` and in `c3-landing.mjs`'s `PALETTE`, both updated at this kickoff.
+`Condition` declares **`thinks:true` AND `thinksFor(part)`** so the plan preview does not quote a
+generation for a free text-mode Condition — §4.6's honesty rule applied to the number on the bar.
+The six part files are **KICKOFF STUBS** in the shape KB-10 established: each opens with a fenced
+block saying what is real and what is not. What is already real and worth not rebuilding:
+`condition.classify()` and its table, `timer.secondsOf/repeatsOf/plannedWaitMs` (the plan-time
+arithmetic §4.6 asks for), `dialog.volatileFor`, and every part's park.
+
+**KC-12. Strings.** `parts.*` gains `ctlIn` and the six parts' keys (`btn*`, `cond*`, `confirm*`,
+`dlg*`, `tog*`, `timer*`) — **all K3-U2's**. `computer.*` gains `runRange`, `runWaiting(One)`,
+`runWaitFor`, `runShowWaiting`, `runBarred(One)`, `runLeftStale`, `runMerged`, `runFrom`,
+`runPlayTitle` (K3-U3), seven `limit*` and three `resume*` keys (read by K3-U1's report and
+K3-U3's bar), `loopUngated`/`loopLesson`. `graph.*` gains `stateWaiting`, `wireLoopUngated`,
+`wireBack`, `wireBackAria`. **One existing string changed**: `graph.stateQueued` was `'Waiting'`
+and is now `'Queued'` — `waiting` needed that word, and a box merely standing in line is queued.
+Nothing read the old text. `canvas.mjs`'s `STATE_LABEL` and `WIRE_REASON` maps carry the two new
+rows already; **K3-U3 must keep them** while it rewrites the rest.
+
+**KC-13. The mock: `mock-verdict`.** Answers `{"verdict": "<v>"}` from `state.verdicts`, a queue
+consumed in order whose **last entry repeats**, default `['maybe']` (§6.6's rule that anything
+unreadable is maybe, never no). Reset by `POST /mock/reset`. A three-Condition fan is scripted with
+three entries, a loop with one. It is JSON-shaped so it serves `ask.json`'s `{verdict}` schema; a
+text-mode scenario should use `mock-echo` instead, because `classify()` would read
+`{"verdict":"yes"}` as prose and answer maybe.
+
+**KC-14. No scope or lint change was needed.** `shell/renderer/chat/**` and `shell/test/**` are
+already allowed by `chat-scope.js`. `chat-lint.js` `PURE_MODULES` gains `graph/journal.mjs` and
+`graph/parts/control-bus.mjs`. Rule 13 already forbids `setInterval` outside `sandbox/host.mjs`,
+which is exactly what §6.6 asks of Timer — it uses `setTimeout`.
+
+**KC-15. Gates at the kickoff (2026-09-23, slot 0).** `chat-unit` 1078 passed / 0 failed ·
+`unit` 5 passed · `chat-lint` 161 files / 0 violations · `chat-scope` clean ·
+`chat-harness --strict` 226 passed / 0 failed · `--strict --phase perf` 9 passed / 0 failed.
+Three scenario stubs (`k3-sched`, `k3-control`, `k3-canvas`) and two unit stubs
+(`computer-sched.test.mjs`, `computer-control.test.mjs`) are in the tree, each carrying its unit's
+acceptance list verbatim in its header and asserting only seams that really exist — a test written
+against a stub is a test that has to be deleted.
+
+**KC-16. The landing's one rule change: `manual` is a RUN-ALL exclusion, not an activation ban.**
+`topo.activeSet` filtered `manualRoots` out of `mode:'from'` as well as out of Run-all, so on the
+kickoff tree a Button could never enter an active set: a wave into one left it `stale` and the box
+after it went red with *"Nothing is wired into In."* §6.6 excludes a manual part from **Run-all**
+only — a wave must ACTIVATE a Button (that is the only way it can bar) and a press on its face is a
+seed. The filter now applies to `mode:'all'`/`force` alone. The PROLOGUE still refuses to pull an
+unpressed Button from upstream (`unrunAncestors` stops at one), so a push never presses a button
+nobody touched. `k3-control` block 6 carries the browser assertions this unblocked.
+
+**KC-17. A part the run never activates leaves its downstream STALE, not red.** The runner's
+`execute()` gained the mirror of KC-16: an input whose source is outside `A`, holds no value and
+declares `manual` blocks the part the way a failed upstream does — stale, counted in `skipped`,
+`error:null`. Run-all past an unpressed Button therefore reads as *held*, which is true, rather than
+as *your graph is wrong*, which is not. Only `manual` sources do this: any other valueless source is
+still the honest `errNoInput`.
+
+**KC-18. The barrier recomputes reachability from the RUN'S OWN roots, not from `S` alone.** §4.5
+says a bar recomputes `activeSet(doc minus P's out-edges, S)`. Taken literally that is wrong for
+`mode:'all'`, whose `S` is empty (it would drop the whole run), and for a pull run mid-flight, where
+parts already `done` are no longer dirty. The shipped rule: reachability WITHIN `A`, from the run's
+own roots (parts in `A` with no forward-upstream in `A`) ∪ the accumulated seeds `S`, over the cut
+graph. Same guarantee — a part reachable by a second, unbarred path keeps running — stated in the
+code. A barred part is dropped when it has not executed this run **or is currently queued**; without
+the second clause a gate inside a loop could not stop a part that already ran in iteration 1, i.e.
+could not stop the loop at all.
+
+**KC-19. Dialog is the one control whose `output` is `text`.** The other five pass their input
+through as `'any'`; what a Dialog publishes is the answer a human typed, whatever arrived on its
+context port. KC-6's `output:'any'` skip in `wireRefusal` is unaffected.
+
+**KC-20. The scheduler memoises the graph's SHAPE, and that is not a cursor.** §4.3's ready scan is
+O(n) per activation and the order is recomputed every iteration so an edit during a run lands at the
+next selection. It does not ask for a fresh topological sort, two fresh Maps and a document spread
+per activation: on the 1000-part perf fixture that measured **0.56 ms/part against a 0.4 ms budget**.
+`forwardEdges`/`order`/`forwardInto` depend only on the wires and the part ids, and a state write
+replaces `doc.parts` while keeping both, so the runner recomputes them exactly when the shape
+changes (a wire edit replaces `doc.wires`; a part added or removed changes the length) and looks
+parts up through an index that is rebuilt only when it misses. The scan still looks at every part,
+every time. Measured after: **0.23 ms/part**, and `perf-graph-run` is green.
 
 ## 3. Architecture and contracts
 

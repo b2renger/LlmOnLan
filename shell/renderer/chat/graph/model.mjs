@@ -12,7 +12,7 @@
 // Semantic edits (settings, wires, deletions) mark the part and everything downstream STALE.
 // Cosmetic edits (move, resize, view) and runtime writes (patchPart) mark nothing.
 
-import { markStale, wouldCycle } from './topo.mjs';
+import { markStale, cycleFor, gatedLoop } from './topo.mjs';
 import { accepts, isValue, valueOf, isRepeatList, facetsOf } from './values.mjs';
 import { MAX_ITEM_ERRORS } from './fanout.mjs';
 
@@ -40,13 +40,22 @@ export function wireLabel(raw) {
   return typeof raw === 'string' ? raw.trim().replace(/\s+/g, ' ') : '';
 }
 
-/** The part states, in the order they occur in a run. `patchPart` refuses anything else. */
-export const STATES = Object.freeze(['idle', 'stale', 'queued', 'running', 'done', 'error']);
+/** The part states, in the order they occur in a run. `patchPart` refuses anything else.
+ * K3 kickoff (COMPUTER_PLAN §4.1): `waiting` is an activation PARKED on a human or a clock — a
+ * Confirm showing OK/Cancel, a Dialog holding its question, a Timer counting down. Other branches
+ * keep running past it, so it is a state of one part and never of the run. */
+export const STATES = Object.freeze(['idle', 'stale', 'queued', 'running', 'waiting', 'done', 'error']);
 
 /** Why `addWire` refused. FROZEN (plan §2.6 BG-4): each maps to exactly one `graph.wire*` string,
- * and the engine never returns a sentence. */
+ * and the engine never returns a sentence.
+ * K3-U2 (COMPUTER_PLAN §4.6): a wire that merely closes a loop is no longer refused — it is
+ * created with `back:true`. `cycle` stays in the frozen list, and stays in the canvas's sentence
+ * table, because a document written by a client that refuses loops can still carry the code and a
+ * reader must still get a sentence; nothing in this file returns it any more. `loop-ungated` is
+ * what took its place, and it is the strongest safety property in the build: a cycle containing
+ * nothing that can stop it is a gesture the canvas will not complete. */
 export const WIRE_REASONS = Object.freeze([
-  'self', 'cycle', 'duplicate', 'no-output', 'unknown-port', 'type', 'unknown-part',
+  'self', 'cycle', 'duplicate', 'no-output', 'unknown-port', 'type', 'unknown-part', 'loop-ungated',
 ]);
 
 /** @param {{id: string, threadId: string|null, title?: string, now?: () => number}} o @returns {GraphDoc} */
@@ -108,6 +117,22 @@ function livePort(toPart, toSpec, port) {
 }
 
 /**
+ * Does this edge close a loop, and may it? The ONE predicate for both halves of §4.6, so the
+ * refusal and the `back` stamp can never disagree about which edges the ordering must ignore:
+ *   ''         it closes nothing — an ordinary forward arrow
+ *   'gated'    it closes a cycle that holds a Toggle, Condition, Confirm, Dialog, Button or Timer
+ *   'ungated'  it closes a cycle nothing can stop, and `wireRefusal` says so in words
+ * @param {GraphDoc} doc @param {{from: string, to: string}} edge @param {Map<string, any>} specs
+ * @returns {''|'gated'|'ungated'}
+ */
+function closesLoop(doc, edge, specs) {
+  if (!edge || !edge.from || !edge.to || edge.from === edge.to) return '';
+  const cycle = cycleFor(doc, edge);
+  if (!cycle) return '';
+  return gatedLoop(doc, cycle, specs) ? 'gated' : 'ungated';
+}
+
+/**
  * Why this wire cannot exist, or null when it can. The ONE place the reason codes are decided —
  * `addWire` and `normaliseDoc` both call it, so an imported file is filtered by exactly the rule
  * the canvas enforces.
@@ -122,15 +147,26 @@ function wireRefusal(doc, edge, specs) {
   const fromSpec = specs.get(from.type);
   const toSpec = specs.get(to.type);
   if (!fromSpec || !fromSpec.output) return 'no-output';
+  // K3 kickoff (COMPUTER_PLAN §6.6): a control part declares `output:'any'` — "whatever came in,
+  // passed through". There is no such VALUE kind, so the outgoing type check below is skipped for
+  // it; the value the part really returns still carries a real kind and is checked where it is
+  // read. Without this a Toggle could only ever feed a port that accepts text.
+  const anyOut = fromSpec.output === 'any';
   const port = inputsOfSpec(toSpec).find((p) => p && p.name === edge.port) || null;
   if (!port) return 'unknown-port';
   if (doc.wires.some((w) => w.from === edge.from && w.to === edge.to && w.port === edge.port)) return 'duplicate';
   // A port that declares `many:false` holds exactly one wire. There is no separate reason code in
   // the frozen set, and "this port is already taken" IS a duplicate from the user's side.
   if (port.many === false && doc.wires.some((w) => w.to === edge.to && w.port === edge.port)) return 'duplicate';
-  if (wouldCycle(doc, edge)) return 'cycle';
+  // K3-U2 (COMPUTER_PLAN §4.6): a cycle is LEGAL and DECLARED. `cycleFor` answers with the closed
+  // walk the edge would make, over the FORWARD graph, so a loop that already exists does not make
+  // every later edge look like a second one. The only cycle still refused is one that contains
+  // nothing that can stop it — `loop-ungated`, checked here, at draw time, O(V+E). That refusal is
+  // the strongest safety property in the build: a runaway is not a bug to catch at run time, it is
+  // a gesture the canvas will not complete. A self-wire never reaches this line (`self`, above).
+  if (closesLoop(doc, edge, specs) === 'ungated') return 'loop-ungated';
   // The check is on the port's KIND, not on a value: wiring happens before anything has run.
-  if (accepts(port.accepts, valueOf(fromSpec.output, null)) === 'no') return 'type';
+  if (!anyOut && accepts(port.accepts, valueOf(fromSpec.output, null)) === 'no') return 'type';
   return null;
 }
 
@@ -189,7 +225,10 @@ function normalisePart(raw, spec) {
     value,
     // A part that carries a value but claims to be running/queued was interrupted by a crash: it
     // comes back STALE, never mid-flight, so Run can finish it and nothing shows a spinner forever.
-    state: state === 'running' || state === 'queued' ? 'stale' : state,
+    // K3 kickoff (COMPUTER_PLAN §0.3, §7.5): `waiting` joins them. A Dialog that was holding a
+    // question when the app closed has no stored answer, so it must come back asking — which is
+    // what `stale` means here, and what makes Resume honest.
+    state: state === 'running' || state === 'queued' || state === 'waiting' ? 'stale' : state,
     error: typeof raw.error === 'string' && raw.error ? raw.error : null,
     stats,
     fanout: normaliseFanout(raw.fanout),
@@ -248,7 +287,13 @@ export function normaliseDoc(raw, o) {
     if (refusal) { dropped.push(`wire:${refusal}`); continue; }
     const id = typeof w.id === 'string' && w.id && !seenWire.has(w.id) ? w.id : `w:${w.from}:${w.to}:${port}`;
     seenWire.add(id);
-    doc = { ...doc, wires: [...doc.wires, { id, from: w.from, to: w.to, port, label: wireLabel(w.label) }] };
+    // K3: `back` survives a round-trip, and is RE-DERIVED rather than trusted. A stored
+    // `back:true` on an edge the live graph no longer sees as a loop is dropped to false, so a
+    // hand-edited file cannot smuggle a back edge into a plain DAG and disable its ordering; a
+    // stored `back:false` on an edge that really does close one is raised to true, so a file
+    // written before K3 loads as the loop it draws instead of as a document `order()` refuses.
+    const back = refusal === null && !!closesLoop(doc, { from: w.from, to: w.to }, specs);
+    doc = { ...doc, wires: [...doc.wires, { id, from: w.from, to: w.to, port, label: wireLabel(w.label), back }] };
   }
   return { doc, dropped };
 }
@@ -379,6 +424,11 @@ export function addWire(doc, edge, o) {
   if (refusal) return { ok: false, reason: refusal };
   const wire = /** @type {any} */ ({
     id: o.newId(), from: want.from, to: want.to, port: want.port, label: wireLabel(edge && edge.label),
+    // K3-U2: the loop DECLARATION (§4.6). `wireRefusal` above has already let this edge through,
+    // so a cycle here is a GATED one; `closesLoop` is the same predicate that decided the refusal,
+    // which is what makes it impossible for the two to disagree about which edges `order()` must
+    // ignore. A declared back edge is drawn dashed with a `↺` and carries the loop's unit delay.
+    back: !!closesLoop(doc, want, specs),
   });
   return { ok: true, doc: markStale(bump({ ...doc, wires: [...doc.wires, wire] }, o), [want.to], o), wire };
 }
