@@ -30,7 +30,7 @@ import { renderTakes } from '../takes-view.mjs';
 import { takesFor, farmViewOf } from '../takes.mjs';
 import { AUDIO_EXTS, classify } from '../drop-route.mjs';
 import { soundLength } from '../sound-length.mjs';
-import { sayOnlyOne } from './document.mjs';
+import { sayOnlyOne, releaseUnused } from './document.mjs';
 import '../../strings/parts-audio.en.mjs';
 // `parts.mediaMissing` is the file store's sentence (K6-U2's table); imported so it is registered
 // wherever this box is.
@@ -185,10 +185,14 @@ function forget(fileId) {
 
 /**
  * The decoded sound for a stored file, from the one-slot cache or decoded now.
- * @param {any} app @param {string} fileId @param {string} name
+ *
+ * `wanted` is asked AFTER the decode, before the result is cached (critic R1 B16): a box destroyed,
+ * or given another file, while its sound was decoding must not leave up to ~230 MB pinned in the
+ * module's slot with nothing left to ever release it. Without `wanted` the result is cached.
+ * @param {any} app @param {string} fileId @param {string} name @param {() => boolean} [wanted]
  * @returns {Promise<{buffer: any}|{error: string, missing?: boolean}>}
  */
-async function bufferFor(app, fileId, name) {
+export async function bufferFor(app, fileId, name, wanted) {
   if (cached.fileId === fileId && cached.buffer) return { buffer: cached.buffer };
   const media = app && app.media;
   /** @type {ArrayBuffer|null} */ let bytes = null;
@@ -198,7 +202,7 @@ async function bufferFor(app, fileId, name) {
   if (!ac) return { error: t('parts.audioNoPlayer') };
   try {
     const buffer = await ac.decodeAudioData(bytes);
-    cached = { fileId, buffer };
+    if (typeof wanted !== 'function' || wanted()) cached = { fileId, buffer };
     return { buffer };
   } catch {
     return { error: t('parts.audioUndecodable', { name }) };
@@ -233,6 +237,7 @@ export const audioPart = /** @type {any} */ ({
     let problem = '';         // the last refusal, shown until the next attempt
     let missing = false;      // the stored bytes are gone from this computer
     let checkedFor = '';      // the fileId whose presence was last checked
+    let takeSeq = 0;          // the newest intake: an older one that finishes later is not applied
     /** @type {any} */ let handle = null;   // this box's playing sound
     let frame = 0;
     let shownSec = -1;
@@ -353,7 +358,8 @@ export const audioPart = /** @type {any} */ ({
       loading = true;
       problem = '';
       paint(live);
-      const out = await bufferFor(app, id, String(s.name || ''));
+      const out = await bufferFor(app, id, String(s.name || ''),
+        () => !destroyed && String(settingsOf(live).fileId || '') === id);
       loading = false;
       if (destroyed) return;
       if ('error' in out) {
@@ -409,12 +415,19 @@ export const audioPart = /** @type {any} */ ({
         paint(live);
         return;
       }
+      // Two drops in a row on one box (critic R1 B17): the LAST one dropped wins, whichever
+      // finishes reading first. An older take that comes back late is not applied, and the bytes
+      // it kept are let go again unless something else holds the same file.
+      const my = ++takeSeq;
       working = true;
       problem = '';
       paint(live);
       const out = await takeSound(app, file);
+      if (my !== takeSeq || destroyed) {
+        if (!('error' in out)) releaseUnused(app, out.fileId);
+        return;
+      }
       working = false;
-      if (destroyed) return;
       if ('error' in out) { problem = out.error; paint(live); return; }
       stopMine();
       const before = String(settingsOf(live).fileId || '');

@@ -28,6 +28,7 @@
 // the same function under the name the plan's feature contract uses).
 
 import { t } from '../core/i18n.mjs';
+import { SLOTS } from '../core/registry.mjs';
 import { createInspector } from '../graph/inspect.mjs';
 import '../strings/computer.en.mjs';
 
@@ -198,6 +199,19 @@ export function install(app) {
     if (typeof e.stopPropagation === 'function') e.stopPropagation();
     close();
   });
+
+  // Critic R1, B7 — §8.1's ladder from ANYWHERE on the surface: with the drawer open and the focus
+  // on the canvas, Escape used to stop the run and leave the drawer open. The drawer is a rung of
+  // this surface's CANCEL_HANDLERS, ordered BEFORE the run's (`computer-run`, order 400), so the
+  // first Escape closes what you are reading and only the next one stops anything.
+  if (app && app.registry && typeof app.registry.add === 'function') {
+    app.registry.add(SLOTS.CANCEL_HANDLERS, {
+      id: 'computer-drawer',
+      order: 100,
+      active: () => !root.classList.contains('hidden'),
+      cancel: () => { close(); },
+    });
+  }
 
   // ---- the grip --------------------------------------------------------------------------------
   /** @param {any} px @param {boolean} [save] */

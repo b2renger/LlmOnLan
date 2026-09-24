@@ -35,7 +35,12 @@ registerStrings('parts', {
   insHint: 'Names the arrows feeding it, then tells the model what to do with them.',
   insPlaceholder: 'What should the model do with these inputs?',
   insIn: 'Inputs',
-  insInline: 'Substitute short values in place',
+  // Critic R1 A2: the owner could not tell what "Substitute short values in place" meant. The
+  // checkbox fills ONLY the explicit `{name}` forms — a bare word is never replaced — and the
+  // hint says so in one line. `{names}`/`{topic}` below are literal text: t() leaves a
+  // placeholder it has no value for exactly as written.
+  insInline: 'Fill in {names} with their values',
+  insInlineHint: 'Where your instruction writes {topic}, put the topic’s text right there instead of listing it under Inputs. Only for short text (up to 200 characters).',
   // The box's own controls (K2-U2, within the `parts.ins*` prefix KB-6 assigns it).
   insModel: 'Model',
   insModelAuto: 'Automatic',

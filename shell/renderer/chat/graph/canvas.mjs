@@ -29,9 +29,12 @@ import { paletteCatalogue, groupLabel } from './parts/index.mjs';
 // lands and which gestures open it (the ＋, a double-click or a right-click on empty canvas).
 import { buildPalette } from './palette.mjs';
 import { createPaletteMenu } from './palette-menu.mjs';
-import { addPart, addWire, movePart, removeParts, removeWire, setSettings, setWireLabel } from './model.mjs';
+import { addPart, addWire, movePart, removeParts, removeWire, resizePart, setSettings, setWireLabel } from './model.mjs';
 import { preview } from './values.mjs';
-import { createWireLayer, portOffsetY, portPoint, wireAt, SNAP_PX } from './wires.mjs';
+import { createWireLayer, portOffsetY, portPoint, wireAt, SNAP_PX, WIRE_HIT } from './wires.mjs';
+// Critic R1 (Package B): what a wheel, a resize handle, a dropped wire end and Ctrl+C MEAN is
+// decided in a pure module and pinned in Node; this file reads the DOM into it and writes back.
+import { wheelIntent, scrollRoom, zoomStep, resizeRect, rewireOutcome, shouldCopyParts, WHEEL_LATCH_MS } from './gestures.mjs';
 import { DEFAULT_MAX_ITEMS } from './runner.mjs';
 import { tidy } from './tidy.mjs';
 import { toText, fromText, FILE_SUFFIX, MAX_IMPORT_BYTES } from './serialize.mjs';
@@ -41,6 +44,7 @@ import '../strings/graph.en.mjs';
 // COMPUTER's voice — `computer.runPlayTitle`, the four ceilings, the loop-ungated sentence.
 import '../strings/computer.en.mjs';
 import '../strings/parts.en.mjs';
+import '../strings/computer-canvas.en.mjs';
 
 /** How many per-item failures a part lists before the rest live in the run report (§2.6 BH-3).
  *  A fan of 40 that fails 40 times must not turn one part into a wall of red. */
@@ -48,8 +52,10 @@ export const ITEM_ERRORS_SHOWN = 5;
 
 /** Parts land on a 10 px grid, so a hand-dragged graph still lines up. */
 export const GRID = 10;
-export const MIN_ZOOM = 0.25;
-export const MAX_ZOOM = 2;
+/** Critic R1, A4: 0.25 meant Fit could not fit a graph more than four viewports wide, and parts
+ * stayed off-screen after "Fit". 10 % fits 10 000 px of graph in a laptop window. */
+export const MIN_ZOOM = 0.1;
+export const MAX_ZOOM = 4;
 /** Padding kept around the graph by fit-to-content, in screen px. */
 export const FIT_PADDING = 40;
 /** A pointer that moved less than this was a click, not a drag. */
@@ -186,14 +192,16 @@ export function bounds(parts) {
   return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
 }
 
-/** Fit-to-content. Never zooms IN past 1: a two-part graph should not fill the screen with one box.
- * @param {any[]} parts @param {{w: number, h: number}} viewport @returns {{x: number, y: number, zoom: number}} */
-export function fitView(parts, viewport, pad = FIT_PADDING) {
+/** Fit-to-content. Never zooms IN past `maxZoom` (1): a two-part graph should not fill the screen
+ * with one box. Zoom-to-selection is the same maths over the selected parts.
+ * @param {any[]} parts @param {{w: number, h: number}} viewport @param {number} [pad] @param {number} [maxZoom]
+ * @returns {{x: number, y: number, zoom: number}} */
+export function fitView(parts, viewport, pad = FIT_PADDING, maxZoom = 1) {
   const b = bounds(parts);
   const vw = Math.max(1, viewport.w);
   const vh = Math.max(1, viewport.h);
   if (!b) return { x: 0, y: 0, zoom: 1 };
-  const zoom = clampZoom(Math.min(1, (vw - pad * 2) / Math.max(1, b.w), (vh - pad * 2) / Math.max(1, b.h)));
+  const zoom = clampZoom(Math.min(maxZoom, (vw - pad * 2) / Math.max(1, b.w), (vh - pad * 2) / Math.max(1, b.h)));
   return {
     x: (vw - b.w * zoom) / 2 - b.x * zoom,
     y: (vh - b.h * zoom) / 2 - b.y * zoom,
@@ -224,8 +232,10 @@ export function toClipboard(doc, ids) {
   return {
     [CLIP_FORMAT]: 1,
     kind: 'selection',
+    // Critic R1, A3: the SIZE travels too, so a pasted "p5.js sketch" comes back 380×520 and
+    // not as a default 320×260 box.
     parts: parts.map((/** @type {any} */ p) => ({
-      i: index.get(p.id), type: p.type, x: p.x, y: p.y, settings: { ...p.settings },
+      i: index.get(p.id), type: p.type, x: p.x, y: p.y, w: p.w, h: p.h, settings: { ...p.settings },
     })),
     wires: doc.wires
       .filter((/** @type {any} */ w) => keep.has(w.from) && keep.has(w.to))
@@ -246,18 +256,39 @@ export function fromClipboard(text) {
   if (!raw || typeof raw !== 'object' || raw[CLIP_FORMAT] !== 1 || !Array.isArray(raw.parts)) return null;
   const parts = raw.parts
     .filter((/** @type {any} */ p) => p && typeof p.type === 'string' && Number.isFinite(p.x) && Number.isFinite(p.y))
-    .map((/** @type {any} */ p, /** @type {number} */ i) => ({
-      i: Number.isFinite(p.i) ? p.i : i,
-      type: p.type,
-      x: p.x,
-      y: p.y,
-      settings: p.settings && typeof p.settings === 'object' ? p.settings : {},
-    }));
+    .map((/** @type {any} */ p, /** @type {number} */ i) => {
+      /** @type {any} */ const out = {
+        i: Number.isFinite(p.i) ? p.i : i,
+        type: p.type,
+        x: p.x,
+        y: p.y,
+        settings: p.settings && typeof p.settings === 'object' ? p.settings : {},
+      };
+      // A size is only carried when it is a real one; an older payload without it still pastes.
+      if (Number(p.w) > 0 && Number(p.h) > 0) { out.w = Number(p.w); out.h = Number(p.h); }
+      return out;
+    });
   if (!parts.length) return null;
   const known = new Set(parts.map((/** @type {any} */ p) => p.i));
   const wires = (Array.isArray(raw.wires) ? raw.wires : [])
     .filter((/** @type {any} */ w) => w && known.has(w.from) && known.has(w.to) && typeof w.port === 'string');
   return { parts, wires };
+}
+
+/**
+ * Where a pasted group lands (critic R1, tldraw tool #4): with the pointer on the canvas, its
+ * top-left goes UNDER THE POINTER, so repeated pastes land where you point instead of stacking
+ * on one spot; without one, 20 px down-right of where it was copied from.
+ * @param {{x: number, y: number}[]} parts @param {{x: number, y: number}|null} at
+ * @returns {{dx: number, dy: number}}
+ */
+export function pasteOffset(parts, at) {
+  if (!parts || !parts.length) return { dx: 0, dy: 0 };
+  if (!at || !Number.isFinite(at.x) || !Number.isFinite(at.y)) return { dx: GRID * 2, dy: GRID * 2 };
+  let x0 = Infinity;
+  let y0 = Infinity;
+  for (const p of parts) { x0 = Math.min(x0, p.x); y0 = Math.min(y0, p.y); }
+  return { dx: snap(at.x - x0), dy: snap(at.y - y0) };
 }
 
 // ---- the live canvas ----------------------------------------------------------------------------
@@ -270,10 +301,42 @@ function el(tag, cls, text) {
   return node;
 }
 
+/** A Lucide-style line icon, built node by node (no markup strings). @param {string[]} paths */
+function icon(paths) {
+  const NS = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(NS, 'svg');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('width', '14');
+  svg.setAttribute('height', '14');
+  svg.setAttribute('fill', 'none');
+  svg.setAttribute('stroke', 'currentColor');
+  svg.setAttribute('stroke-width', '2');
+  svg.setAttribute('stroke-linecap', 'round');
+  svg.setAttribute('stroke-linejoin', 'round');
+  svg.setAttribute('aria-hidden', 'true');
+  svg.setAttribute('class', 'graph-icon');
+  for (const d of paths) {
+    const path = document.createElementNS(NS, 'path');
+    path.setAttribute('d', d);
+    svg.appendChild(path);
+  }
+  return svg;
+}
+
+const ICON_POINTER = ['M4.04 4.69a.5.5 0 0 1 .65-.65l16 6.5a.5.5 0 0 1-.06.95l-6.13 1.58a2 2 0 0 0-1.43 1.43l-1.58 6.13a.5.5 0 0 1-.95.06z'];
+const ICON_HAND = [
+  'M18 11V6a2 2 0 0 0-4 0',
+  'M14 10V4a2 2 0 0 0-4 0v2',
+  'M10 10.5V6a2 2 0 0 0-4 0v8',
+  'M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15',
+];
+
 /**
  * @param {{
  *   session: any, host: HTMLElement,
  *   onRun?: () => void, onStop?: () => void,
+ *   onCancel?: () => boolean,
+ *   onPlay?: (partId: string) => void, onRaiseCap?: (cap: number) => void,
  * }} o
  */
 export function createCanvas(o) {
@@ -331,6 +394,8 @@ export function createCanvas(o) {
     // The pill types; the DOCUMENT edit happens here, once, so naming an arrow is one undo entry
     // and one re-run of what depends on it (K2-U1, COMPUTER_PLAN §5.1).
     onLabel: (/** @type {string} */ wireId, /** @type {string} */ text) => { commitLabel(wireId, text); },
+    // Critic R1, A5: the ✕ on a hovered or selected wire's pill.
+    onDelete: (/** @type {string} */ wireId) => { unplugWire(wireId); },
   });
 
   // ---- toolbar ---------------------------------------------------------------------------------
@@ -350,10 +415,64 @@ export function createCanvas(o) {
   const undoBtn = button('graph-btn graph-undo', t('graph.undo'));
   const redoBtn = button('graph-btn graph-redo', t('graph.redo'));
   const fitBtn = button('graph-btn graph-fit', t('graph.fit'));
-  const zoomLabel = el('span', 'graph-zoom');
-  zoomLabel.title = t('graph.zoomLabel');
+  fitBtn.title = `${t('graph.zoomFit')} (F, ${t('graph.zoomKeyFit')})`;
   const addWrap = el('div', 'graph-add-wrap');
   addWrap.append(addBtn);
+
+  // ---- critic R1, A4: the zoom cluster ---------------------------------------------------------
+  // `−  100%  +`, the tldraw shape: the percentage IS the menu button (fit, selection, 100 %), and
+  // every row names its shortcut, so the keys are discoverable from the one place people look.
+  const zoomOutBtn = button('graph-btn graph-zoom-out', '−');
+  zoomOutBtn.title = t('graph.zoomOut');
+  zoomOutBtn.setAttribute('aria-label', t('graph.zoomOut'));
+  const zoomLabel = button('graph-btn graph-zoom', t('graph.zoom', { percent: 100 }));
+  zoomLabel.title = t('graph.zoomMenu');
+  zoomLabel.setAttribute('aria-haspopup', 'menu');
+  zoomLabel.setAttribute('aria-expanded', 'false');
+  const zoomInBtn = button('graph-btn graph-zoom-in', '+');
+  zoomInBtn.title = t('graph.zoomIn');
+  zoomInBtn.setAttribute('aria-label', t('graph.zoomIn'));
+  const zoomMenu = el('div', 'graph-zoom-menu');
+  zoomMenu.hidden = true;
+  zoomMenu.setAttribute('role', 'menu');
+  zoomMenu.setAttribute('aria-label', t('graph.zoomMenu'));
+  /** @param {string} act @param {string} label @param {string} key @param {() => void} fn */
+  const zoomRow = (act, label, key, fn) => {
+    const b = button('graph-zoom-item', '');
+    b.dataset.act = act;
+    b.setAttribute('role', 'menuitem');
+    b.append(el('span', 'graph-zoom-item-label', label), el('kbd', 'graph-zoom-key', key));
+    b.addEventListener('click', () => { closeZoomMenu(); fn(); });
+    return b;
+  };
+  zoomMenu.append(
+    zoomRow('fit', t('graph.zoomFit'), t('graph.zoomKeyFit'), () => { fit(); }),
+    zoomRow('selection', t('graph.zoomSelection'), t('graph.zoomKeySelection'), () => { zoomToSelection(); }),
+    zoomRow('100', t('graph.zoom100'), t('graph.zoomKey100'), () => { zoomTo(1); }),
+  );
+  const zoomWrap = el('div', 'graph-zoom-wrap');
+  zoomWrap.append(zoomOutBtn, zoomLabel, zoomInBtn, zoomMenu);
+
+  // ---- critic R1, A4: the two canvas tools (tldraw's V and H) ---------------------------------
+  // For a trackpad with no middle button, Space-drag is the only pan a person has to be TOLD
+  // about. The Hand makes panning a thing you can see and click: left-drag on empty canvas pans,
+  // Shift-drag still draws a selection box, and boxes stay clickable and draggable.
+  const toolsWrap = el('div', 'graph-tools');
+  toolsWrap.setAttribute('role', 'group');
+  toolsWrap.setAttribute('aria-label', t('graph.toolsLabel'));
+  /** @param {string} name @param {string[]} glyph @param {string} label @param {string} hint */
+  const toolBtn = (name, glyph, label, hint) => {
+    const b = button(`graph-btn graph-tool graph-tool-${name}`, '');
+    b.dataset.tool = name;
+    b.title = hint;
+    b.setAttribute('aria-pressed', name === 'select' ? 'true' : 'false');
+    b.append(icon(glyph), el('span', 'graph-tool-label', label));
+    b.addEventListener('click', () => { setTool(name); });
+    return b;
+  };
+  const selectToolBtn = toolBtn('select', ICON_POINTER, t('graph.toolSelect'), t('graph.toolSelectHint'));
+  const handToolBtn = toolBtn('hand', ICON_HAND, t('graph.toolHand'), t('graph.toolHandHint'));
+  toolsWrap.append(selectToolBtn, handToolBtn);
 
   // ---- C3-U3: tidy and the sharing story -------------------------------------------------------
   // Three controls, and one popover. Export asks BEFORE it writes whether the values go in the
@@ -402,8 +521,8 @@ export function createCanvas(o) {
   capInput.value = String(DEFAULT_MAX_ITEMS);
   capField.appendChild(capInput);
   toolbar.append(
-    runBtn, stopBtn, addWrap, undoBtn, redoBtn, fitBtn, tidyBtn, exportWrap, importBtn,
-    capField, zoomLabel,
+    runBtn, stopBtn, addWrap, toolsWrap, undoBtn, redoBtn, fitBtn, tidyBtn, exportWrap, importBtn,
+    capField, zoomWrap,
   );
 
   /** What the raise button should ask for: twice the cap the LAST run stopped at, or — when an
@@ -666,6 +785,9 @@ export function createCanvas(o) {
   undoBtn.addEventListener('click', () => doUndo());
   redoBtn.addEventListener('click', () => doRedo());
   fitBtn.addEventListener('click', () => fit());
+  zoomOutBtn.addEventListener('click', () => { closeZoomMenu(); zoomBy(-1); });
+  zoomInBtn.addEventListener('click', () => { closeZoomMenu(); zoomBy(1); });
+  zoomLabel.addEventListener('click', () => { if (zoomMenu.hidden) openZoomMenu(); else closeZoomMenu(); });
 
   // ---- state -----------------------------------------------------------------------------------
   /** @type {{x: number, y: number, zoom: number}} */
@@ -676,6 +798,17 @@ export function createCanvas(o) {
   /** @type {any} */ let viewTimer = null;
   let spaceDown = false;
   let destroyed = false;
+  /** 'select' | 'hand' (critic R1, A4). */
+  let tool = 'select';
+  /** The pointer's last CLIENT position over the canvas (paste at the cursor, wire hover), or null. */
+  /** @type {{x: number, y: number}|null} */ let pointer = null;
+  /** What the pointer was over at that position — the hover check reads it in the frame. */
+  /** @type {any} */ let hoverTarget = null;
+  /** The kind the last wheel event chose and when: a gesture keeps its target (gestures.mjs). */
+  /** @type {{kind: 'pan'|'scroll-inner'|null, at: number}} */ let wheelLatch = { kind: null, at: 0 };
+  /** One zoom sentence per gesture, not one per wheel event (the live region churned). */
+  /** @type {any} */ let zoomSayTimer = null;
+  let zoomShown = '';
   let lastSaid = '';
   /** Parts whose settings edit is still running: the first keystroke opens ONE undo entry. */
   /** @type {Set<string>} */ const editing = new Set();
@@ -684,12 +817,14 @@ export function createCanvas(o) {
   let raf = 0;
   let needView = false;
   let needWires = false;
+  let needHover = false;
   /** @type {any} */ let dragDoc = null;
 
-  /** @param {'view'|'wires'} what */
+  /** @param {'view'|'wires'|'hover'} what */
   function schedule(what) {
     if (what === 'view') needView = true;
     if (what === 'wires') needWires = true;
+    if (what === 'hover') needHover = true;
     if (raf || destroyed) return;
     raf = requestAnimationFrame(() => {
       raf = 0;
@@ -699,14 +834,19 @@ export function createCanvas(o) {
         const doc = dragDoc || session.doc();
         wires.render(doc);
         markWires(doc);
+        // Which inputs are plugged (critic R1, A5) moves only with the DOCUMENT, never mid-drag.
+        if (!dragDoc) markPorts(doc);
       }
+      if (needHover) { needHover = false; updateHover(); }
     });
   }
 
   function applyView() {
     layer.style.transform = `translate(${view.x}px, ${view.y}px) scale(${view.zoom})`;
     wires.setView(view);
-    zoomLabel.textContent = t('graph.zoom', { percent: Math.round(view.zoom * 100) });
+    // Written only when the NUMBER moves: a pan at a fixed zoom is still exactly two style writes.
+    const shown = t('graph.zoom', { percent: Math.round(view.zoom * 100) });
+    if (shown !== zoomShown) { zoomShown = shown; zoomLabel.textContent = shown; }
   }
 
   // ---- what the wires say about the last run (K3-U3, COMPUTER_PLAN §8.2, §8.3, §6.6) -----------
@@ -797,10 +937,13 @@ export function createCanvas(o) {
     return Array.from(barred);
   }
 
-  /** Pan/zoom is not a document edit; it rides the save debounce and never touches undo. */
+  /** Pan/zoom is not a document edit; it rides the save debounce and never touches undo.
+   * Critic R1, B12: and it is never a write at all while no document is open — a wheel during the
+   * migration wait used to save the blank placeholder as an "Untitled" library row. */
   function commitView() {
     if (viewTimer) clearTimeout(viewTimer);
-    viewTimer = setTimeout(() => { viewTimer = null; if (!destroyed) session.setView(view); }, 150);
+    if (!hasDoc()) { viewTimer = null; return; }
+    viewTimer = setTimeout(() => { viewTimer = null; if (!destroyed && hasDoc()) session.setView(view); }, 150);
   }
 
   /** @param {{x: number, y: number, zoom: number}} next @param {{commit?: boolean}} [opt] */
@@ -820,6 +963,74 @@ export function createCanvas(o) {
     setView(fitView(session.doc().parts, viewport()));
     if (opt.say !== false) announce(t('graph.saidFit'));
     return { ...view };
+  }
+
+  // ---- critic R1, A4: zoom controls and the two tools ------------------------------------------
+
+  /** Zoom about the CENTRE of the view to `z` (the buttons and keys have no cursor to zoom about).
+   * @param {number} z */
+  function zoomTo(z) {
+    const v = viewport();
+    const target = clampZoom(z);
+    setView(zoomAbout(view, v.w / 2, v.h / 2, target / (view.zoom || 1)));
+    announce(t('graph.saidZoom', { percent: Math.round(view.zoom * 100) }));
+    return { ...view };
+  }
+
+  /** One step of ZOOM_STEPS in or out (the + / − buttons, Ctrl+= / Ctrl+−). @param {1|-1} dir */
+  function zoomBy(dir) { return zoomTo(zoomStep(view.zoom, dir)); }
+
+  /** Fit the SELECTED boxes (Shift+2). Nothing selected says so rather than doing nothing. */
+  function zoomToSelection() {
+    const ids = new Set(session.selected());
+    const parts = session.doc().parts.filter((/** @type {any} */ p) => ids.has(p.id));
+    if (!parts.length) { announce(t('graph.saidNothingToZoom')); return null; }
+    setView(fitView(parts, viewport()));
+    announce(t('graph.saidZoomSelection'));
+    return { ...view };
+  }
+
+  /** Open the zoom menu — under the % button, or beside `anchor` (the run bar's zoom chip).
+   * @param {HTMLElement|null} [anchor] */
+  function openZoomMenu(anchor) {
+    closeAddMenu();
+    closeExportMenu();
+    if (anchor && anchor !== zoomLabel && typeof anchor.getBoundingClientRect === 'function') {
+      const r = root.getBoundingClientRect();
+      const a = anchor.getBoundingClientRect();
+      zoomMenu.classList.add('graph-zoom-menu-floating');
+      zoomMenu.style.left = `${Math.max(8, a.left - r.left)}px`;
+      zoomMenu.style.top = `${Math.max(8, a.top - r.top - 4)}px`;
+      root.appendChild(zoomMenu);
+    } else if (zoomMenu.parentNode !== zoomWrap) {
+      zoomMenu.classList.remove('graph-zoom-menu-floating');
+      zoomMenu.style.left = '';
+      zoomMenu.style.top = '';
+      zoomWrap.appendChild(zoomMenu);
+    }
+    zoomMenu.hidden = false;
+    zoomLabel.setAttribute('aria-expanded', 'true');
+    const first = /** @type {any} */ (zoomMenu.firstChild);
+    if (first && typeof first.focus === 'function') first.focus({ preventScroll: true });
+    return true;
+  }
+  function closeZoomMenu() {
+    if (zoomMenu.hidden) return false;
+    const hadFocus = zoomMenu.contains(document.activeElement);
+    zoomMenu.hidden = true;
+    zoomLabel.setAttribute('aria-expanded', 'false');
+    if (hadFocus) { try { zoomLabel.focus({ preventScroll: true }); } catch { /* gone */ } }
+    return true;
+  }
+
+  /** @param {string} name 'select' | 'hand' @param {{say?: boolean}} [opt] */
+  function setTool(name, opt = {}) {
+    tool = name === 'hand' ? 'hand' : 'select';
+    canvas.classList.toggle('graph-hand', tool === 'hand');
+    selectToolBtn.setAttribute('aria-pressed', tool === 'select' ? 'true' : 'false');
+    handToolBtn.setAttribute('aria-pressed', tool === 'hand' ? 'true' : 'false');
+    if (opt.say !== false) announce(tool === 'hand' ? t('graph.saidToolHand') : t('graph.saidToolSelect'));
+    return tool;
   }
 
   /** One live-region line per change, never the same line twice in a row. @param {string} text */
@@ -963,6 +1174,57 @@ export function createCanvas(o) {
   }
 
   /**
+   * Unplug ONE wire (critic R1, A5): the ✕ on its pill, and a wire end dragged onto nothing. One
+   * undo entry, `rev` bumped and what it fed marked stale — graph/model.mjs's `removeWire`, the same
+   * door Delete uses — and a sentence that says how to get it back.
+   * @param {string} wireId @returns {boolean}
+   */
+  function unplugWire(wireId) {
+    if (!hasDoc()) return false;
+    const doc = session.doc();
+    const w = doc.wires.find((/** @type {any} */ x) => x.id === wireId);
+    if (!w) return false;
+    selWires = selWires.filter((id) => id !== wireId);
+    wires.setSelected(selWires);
+    wires.setHover('');
+    session.apply(removeWire(doc, wireId, { now: app.now }), { label: 'unwire' });
+    announce(t('graph.saidWireUnplugged', { from: labelOf(partById(w.from)), to: labelOf(partById(w.to)) }));
+    return true;
+  }
+
+  /**
+   * Drop a picked-up wire end (critic R1, A5) — on an input (`target`) or on nothing (null).
+   * @param {string} wireId @param {{partId: string, port: string}|null} target @returns {string} the outcome kind
+   */
+  function dropWireEnd(wireId, target) {
+    if (!hasDoc()) return 'missing';
+    const doc = session.doc();
+    const out = rewireOutcome(doc, wireId, target, { specs, newId: app.newId, now: app.now });
+    const was = out.was;
+    if (out.kind === 'unplug') {
+      selWires = selWires.filter((id) => id !== wireId);
+      wires.setSelected(selWires);
+      session.apply(out.doc, { label: 'unwire' });
+      announce(t('graph.saidWireUnplugged', { from: labelOf(partById(was.from)), to: labelOf(partById(was.to)) }));
+    } else if (out.kind === 'replug') {
+      selWires = [];
+      wires.setSelected(selWires);
+      session.apply(out.doc, { label: 'rewire' });
+      announce(t('graph.saidWireReplugged', { from: labelOf(partById(was.from)), to: labelOf(partById(target ? target.partId : '')) }));
+    } else if (out.kind === 'refused') {
+      // The wire stays exactly where it was; the reason is the same sentence drawing it would give.
+      const fromPart = partById(was.from);
+      const fromSpec = fromPart && specs.get(fromPart.type);
+      const vars = { from: labelOf(fromPart), to: labelOf(partById(target ? target.partId : '')), kind: (fromSpec && fromSpec.output) || '' };
+      const key = /** @type {any} */ (WIRE_REASON)[out.reason || ''];
+      announce(key ? t(/** @type {any} */ (WIRE_REASON)[out.reason || ''], vars) : t('graph.wireRefused'));
+      if (out.reason === 'loop-ungated') sayLoopUngated();
+    }
+    schedule('wires');
+    return out.kind;
+  }
+
+  /**
    * What a keystroke acts on: the FOCUSED part when it is not part of the selection, otherwise the
    * selection. Tabbing to a box and pressing an arrow must move THAT box — that is the whole point
    * of it being in the tab order — while a marquee selection still moves as one.
@@ -1023,18 +1285,24 @@ export function createCanvas(o) {
     return JSON.stringify(toClipboard(session.doc(), ids));
   }
 
-  /** @param {string} text @returns {string[]} the ids of the pasted parts */
-  function pasteText(text) {
+  /**
+   * @param {string} text
+   * @param {{at?: {x: number, y: number}|null, label?: string}} [opt] `at` is the WORLD point the
+   *   group's top-left lands on (the pointer, for Ctrl+V); without one it lands 20 px down-right.
+   * @returns {string[]} the ids of the pasted parts */
+  function pasteText(text, opt = {}) {
     const payload = fromClipboard(text);
     if (!payload || !hasDoc()) { announce(t('graph.saidNothingToPaste')); return []; }
     let doc = session.doc();
+    const off = pasteOffset(payload.parts, opt.at || null);
     /** @type {Map<number, string>} */ const minted = new Map();
     for (const p of payload.parts) {
-      const out = addPart(
-        doc,
-        { type: p.type, x: snap(p.x + GRID * 2), y: snap(p.y + GRID * 2), settings: p.settings },
-        { specs, newId: app.newId, now: app.now },
-      );
+      /** @type {any} */ const want = { type: p.type, x: snap(p.x + off.dx), y: snap(p.y + off.dy), settings: p.settings };
+      if (Number(/** @type {any} */ (p).w) > 0 && Number(/** @type {any} */ (p).h) > 0) {
+        want.w = /** @type {any} */ (p).w;
+        want.h = /** @type {any} */ (p).h;
+      }
+      const out = addPart(doc, want, { specs, newId: app.newId, now: app.now });
       if (!out.part) continue;                       // a type this build does not have: dropped
       doc = out.doc;
       minted.set(p.i, out.part.id);
@@ -1048,10 +1316,56 @@ export function createCanvas(o) {
     }
     const ids = Array.from(minted.values());
     if (!ids.length) { announce(t('graph.saidNothingToPaste')); return []; }
-    session.apply(doc, { label: 'paste' });
+    const dup = opt.label === 'duplicate';
+    session.apply(doc, { label: dup ? 'duplicate' : 'paste' });
     select(ids, { say: false });
-    announce(t('graph.saidPasted', { count: ids.length }));
+    announce(dup ? t('graph.saidDuplicated', { count: ids.length }) : t('graph.saidPasted', { count: ids.length }));
     return ids;
+  }
+
+  /** Ctrl+D (critic R1, tldraw tool #4): the selection, again, 20 px down-right. One undo entry. */
+  function duplicate() {
+    const text = copyText();
+    return text ? pasteText(text, { label: 'duplicate' }) : [];
+  }
+
+  /**
+   * Plain text pasted onto the canvas becomes a Text box holding it, at the pointer (A7, the tldraw
+   * gesture). Only when nothing is being typed into and the text is not one of our own payloads.
+   * @param {string} text @param {{x: number, y: number}|null} at @returns {string|null}
+   */
+  function pastePlainText(text, at) {
+    if (!hasDoc() || !specs.get('note')) return null;
+    const v = viewport();
+    const c = at || screenToWorld(view, v.w / 2, v.h / 2);
+    const out = addPart(session.doc(), { type: 'note', x: snap(c.x), y: snap(c.y), settings: { text: String(text) } }, { specs, newId: app.newId, now: app.now });
+    if (!out.part) return null;
+    session.apply(out.doc, { label: 'paste' });
+    select([out.part.id], { say: false });
+    announce(t('graph.saidPastedText'));
+    return out.part.id;
+  }
+
+  /** The pointer's world point while it is over the canvas, else null. */
+  function pointerWorld() {
+    if (!pointer) return null;
+    const r = canvas.getBoundingClientRect();
+    if (pointer.x < r.left || pointer.x > r.right || pointer.y < r.top || pointer.y > r.bottom) return null;
+    return screenToWorld(view, pointer.x - r.left, pointer.y - r.top);
+  }
+
+  /**
+   * K-2 (critic R1, A6): ask a box to open its editor — double-click on its body, Enter or F2 with
+   * it the only thing selected. A part that has no `edit()` answers false and nothing happens.
+   * @param {string} id @returns {boolean}
+   */
+  function editPart(id) {
+    const box = boxes.get(id);
+    if (!box || !box.inst || typeof box.inst.edit !== 'function') return false;
+    try { return box.inst.edit() !== false; } catch (err) {
+      console.warn('[lolchat] part edit() threw', err);
+      return false;
+    }
   }
 
   // ---- C3-U3: tidy, export, import -------------------------------------------------------------
@@ -1347,16 +1661,21 @@ export function createCanvas(o) {
     node.append(head, body, error, foot, items);
 
     // Ports are positioned from the SAME function the wire ends use, so the picture and the
-    // geometry cannot drift apart.
+    // geometry cannot drift apart. Critic R1, A3: they are KEPT, so a resize moves them with the
+    // box (`layoutPorts`) instead of leaving them where the box's first height put them.
     const inputs = (spec && spec.inputs) || [];
+    /** @type {{in: HTMLElement[], out: HTMLElement|null}} */ const ports = { in: [], out: null };
     inputs.forEach((/** @type {any} */ p, /** @type {number} */ i) => {
       const port = el('span', 'graph-port');
       port.dataset.port = p.name;
       port.dataset.dir = 'in';
+      port.dataset.label = p.label || p.name;
+      port.dataset.wired = 'false';
       port.setAttribute('aria-hidden', 'true');
       port.title = t('graph.portIn', { label: p.label || p.name });
       port.style.top = `${portOffsetY(part.h, i, inputs.length)}px`;
       node.appendChild(port);
+      ports.in.push(port);
     });
     if (spec && spec.output) {
       const port = el('span', 'graph-port');
@@ -1366,7 +1685,14 @@ export function createCanvas(o) {
       port.title = t('graph.portOut');
       port.style.top = `${part.h / 2}px`;
       node.appendChild(port);
+      ports.out = port;
     }
+    // Critic R1, A3: the resize handle, bottom-right, on EVERY box (tldraw's corner). Decorative
+    // for a screen reader — Alt+Shift+arrows is the keyboard way, and its title says so.
+    const grip = el('span', 'graph-part-resize');
+    grip.title = t('graph.resizeHandle');
+    grip.setAttribute('aria-hidden', 'true');
+    node.appendChild(grip);
 
     /** The PartCtx (BG-5): a part edits its own settings through here and through nothing else. */
     const ctx = {
@@ -1398,10 +1724,20 @@ export function createCanvas(o) {
       if (p && p.value) session.inspect(p.value);
     });
 
-    const box = { node, title, demo, stateText, body, value, cost, error, fanout, items, inst, spec, last: /** @type {any} */ ({}) };
+    const box = { node, title, demo, stateText, body, value, cost, error, fanout, items, inst, spec, ports, last: /** @type {any} */ ({}) };
     layer.appendChild(node);
     boxes.set(part.id, box);
     return box;
+  }
+
+  /** Put a box's ports where the wire ends are for height `h` (critic R1, A3).
+   * @param {any} box @param {number} h */
+  function layoutPorts(box, h) {
+    const list = box.ports ? box.ports.in : [];
+    list.forEach((/** @type {HTMLElement} */ port, /** @type {number} */ i) => {
+      port.style.top = `${portOffsetY(h, i, list.length)}px`;
+    });
+    if (box.ports && box.ports.out) box.ports.out.style.top = `${h / 2}px`;
   }
 
   /** @param {any} box @param {any} part @param {Set<string>} selectedSet */
@@ -1410,7 +1746,10 @@ export function createCanvas(o) {
     if (last.x !== part.x) { box.node.style.left = `${part.x}px`; last.x = part.x; }
     if (last.y !== part.y) { box.node.style.top = `${part.y}px`; last.y = part.y; }
     if (last.w !== part.w) { box.node.style.width = `${part.w}px`; last.w = part.w; }
-    if (last.h !== part.h) { box.node.style.minHeight = `${part.h}px`; last.h = part.h; }
+    // K-3 (critic R1, A3): the box is EXACTLY `part.h` tall. It used to be a MIN-height, so content
+    // grew the box past the height the ports, Fit and the marquee all believed in; now the body
+    // scrolls inside it and the resize handle is how a box gets taller.
+    if (last.h !== part.h) { box.node.style.height = `${part.h}px`; layoutPorts(box, part.h); last.h = part.h; }
     const state = part.state || 'idle';
     if (last.state !== state) {
       // §8.3: "the delivering wire animates a single travelling dot from source to target". It is
@@ -1465,6 +1804,32 @@ export function createCanvas(o) {
     if (box.inst && typeof box.inst.update === 'function') {
       try { box.inst.update(part); } catch (err2) { console.warn('[lolchat] part update failed', err2); }
     }
+  }
+
+  /**
+   * Critic R1, B8: a freshly LOADED document starts with no boxes. Lessons reuse ids (`n_title`,
+   * `n_next`…), so reusing a box across a graph switch kept the OLD document's per-box closures —
+   * a Preview's live draw, an edit timer, a Text box's editing flag — alive in the new one.
+   */
+  function resetBoxes() {
+    for (const box of boxes.values()) {
+      if (box.inst && typeof box.inst.destroy === 'function') {
+        try { box.inst.destroy(); } catch { /* a part never blocks its own removal */ }
+      }
+      box.node.remove();
+    }
+    boxes.clear();
+    editing.clear();
+    wireFlags.clear();
+    selWires = [];
+    wires.setSelected(selWires);
+    wires.setHover('');
+    wires.setPreview(null);
+    if (drag && drag.captured) { try { canvas.releasePointerCapture(drag.pointerId); } catch { /* gone */ } }
+    drag = null;
+    dragDoc = null;
+    marquee.hidden = true;
+    canvas.classList.remove('graph-wiring', 'graph-grabbing');
   }
 
   function renderParts() {
@@ -1523,6 +1888,17 @@ export function createCanvas(o) {
   }
 
   // ---- pointer ---------------------------------------------------------------------------------
+  //
+  // CRITIC R1 (A6/A7, proven with real input): pointer capture is taken only once a press has
+  // really become a DRAG — moved DRAG_SLOP px. Chromium delivers the click (and the dblclick) that
+  // follows a captured press to the capture target, so capturing on every press sent every click
+  // on a box body to the canvas: a filled Text box could not be opened for editing, and a double-
+  // click on a box opened the ＋ menu on top of it. An uncaptured press that never moves is now an
+  // ordinary click on whatever was under it.
+  //
+  // K-1: a press inside `[data-selectable]` (rendered text a person may want to copy) selects the
+  // part and does NOTHING else — no drag, no preventDefault, no capture — so the browser starts a
+  // text selection there. The box is dragged by its title bar and its chrome.
 
   /** Pointer → screen coordinates inside `.graph-canvas`. */
   function screenOf(ev) {
@@ -1559,6 +1935,117 @@ export function createCanvas(o) {
     return best && bestD <= SNAP_PX ? best : null;
   }
 
+  /** The wire a press on this input port picks up: the LAST one drawn into it (the one on top).
+   * @param {string} partId @param {string} port */
+  function wireInto(partId, port) {
+    const list = session.doc().wires.filter((/** @type {any} */ w) => w.to === partId && w.port === port);
+    return list.length ? list[list.length - 1] : null;
+  }
+
+  /** Which inputs have a wire (critic R1, A5): a plugged input shows a grab cursor and says, in
+   * its title, that dragging its wire off unplugs it. @param {any} doc */
+  function markPorts(doc) {
+    /** @type {Set<string>} */ const wired = new Set();
+    for (const w of doc.wires) wired.add(`${w.to}\u0000${w.port}`);
+    for (const [id, box] of boxes) {
+      for (const port of (box.ports ? box.ports.in : [])) {
+        const on = wired.has(`${id}\u0000${port.dataset.port}`) ? 'true' : 'false';
+        if (port.dataset.wired === on) continue;
+        port.dataset.wired = on;
+        port.title = on === 'true'
+          ? t('graph.portInWired', { label: port.dataset.label || '' })
+          : t('graph.portIn', { label: port.dataset.label || '' });
+      }
+    }
+  }
+
+  /** The input port under a pointer event. A captured pointer's events all target the canvas, so
+   * the element under the pointer is asked for when the event's own target is not a port.
+   * @param {any} ev @returns {{partId: string, port: string}|null} */
+  function portUnder(ev) {
+    let node = ev && ev.target;
+    const onPort = node && node.closest && node.closest('.graph-port[data-dir="in"]');
+    if (!onPort && typeof document.elementFromPoint === 'function' && Number.isFinite(ev.clientX)) {
+      const hit = document.elementFromPoint(ev.clientX, ev.clientY);
+      if (hit) node = hit;
+    }
+    const portEl = node && node.closest ? node.closest('.graph-port[data-dir="in"]') : null;
+    const partEl = portEl && portEl.closest ? portEl.closest('.graph-part') : null;
+    return partEl && portEl && canvas.contains(partEl) ? { partId: partEl.dataset.id, port: portEl.dataset.port } : null;
+  }
+
+  /** Is this press on a scrollbar of the element it hit? A press on a box's scrollbar scrolls, it
+   * never drags the box (critic R1, A7). @param {any} target @param {any} ev */
+  function onScrollbar(target, ev) {
+    if (!target || typeof target.getBoundingClientRect !== 'function' || !Number.isFinite(ev.clientX)) return false;
+    const tall = target.scrollHeight > target.clientHeight + 1;
+    const wide = target.scrollWidth > target.clientWidth + 1;
+    if (!tall && !wide) return false;
+    const cs = getComputedStyle(target);
+    const scrollsY = tall && (/(auto|scroll)/.test(cs.overflowY) || target.tagName === 'TEXTAREA');
+    const scrollsX = wide && (/(auto|scroll)/.test(cs.overflowX) || target.tagName === 'TEXTAREA');
+    if (!scrollsY && !scrollsX) return false;
+    const r = target.getBoundingClientRect();
+    const k = target.offsetWidth ? r.width / target.offsetWidth : 1;      // the canvas zoom
+    const x = (ev.clientX - r.left) / (k || 1);
+    const y = (ev.clientY - r.top) / (k || 1);
+    return (scrollsY && x >= target.clientLeft + target.clientWidth) || (scrollsX && y >= target.clientTop + target.clientHeight);
+  }
+
+  /** Which ways the scrollable thing under a wheel can still move, or null (K-1, A4). Walks from
+   * the target up to its part; outside a part there is nothing to scroll but the canvas.
+   * @param {any} target */
+  function innerScroll(target) {
+    let node = target && target.nodeType === 1 ? target : (target && target.parentElement) || null;
+    if (!node || !node.closest || !node.closest('.graph-part')) return null;
+    const room = { up: false, down: false, left: false, right: false };
+    let any = false;
+    for (; node && node !== layer && node !== canvas; node = node.parentElement) {
+      const cs = getComputedStyle(node);
+      const y = /(auto|scroll)/.test(cs.overflowY) || node.tagName === 'TEXTAREA';
+      const x = /(auto|scroll)/.test(cs.overflowX) || node.tagName === 'TEXTAREA';
+      if (!x && !y) continue;
+      const r = scrollRoom(node, { x, y });
+      if (r.up || r.down || r.left || r.right) {
+        any = true;
+        room.up = room.up || r.up;
+        room.down = room.down || r.down;
+        room.left = room.left || r.left;
+        room.right = room.right || r.right;
+      }
+    }
+    return any ? room : null;
+  }
+
+  /** Take the pointer for a drag that has really started. @param {any} d */
+  function capture(d) {
+    if (d.captured) return;
+    d.captured = true;
+    try { canvas.setPointerCapture(d.pointerId); } catch { /* a synthetic pointer has no capture */ }
+  }
+
+  /** Give the canvas the keyboard after a press on a box's chrome, so Delete, arrows, Ctrl+C and
+   * Enter reach it — without scrolling anything, and without stealing focus from the box itself.
+   * @param {any} [partEl] the box that was pressed, if any */
+  function takeFocus(partEl) {
+    const active = /** @type {any} */ (document.activeElement);
+    if (active === canvas) return;
+    // The pressed box itself keeps its focus (it is what the arrows move); a field being typed in
+    // does not — pressing a box's chrome is "click away", and it commits the edit.
+    if (partEl && active && partEl.contains(active) && !isTyping(active)) return;
+    try { canvas.focus({ preventScroll: true }); } catch { /* not focusable yet */ }
+  }
+
+  /** A highlighted sentence inside the canvas is cleared by a press on a box's chrome (the press
+   * is cancelled, so the browser would otherwise keep it — and Ctrl+C would then copy the text,
+   * not the box the person just clicked). */
+  function clearTextSelection() {
+    const sel = window.getSelection ? window.getSelection() : null;
+    if (sel && !sel.isCollapsed && sel.anchorNode && root.contains(sel.anchorNode)) {
+      try { sel.removeAllRanges(); } catch { /* read-only selection */ }
+    }
+  }
+
   function onPointerDown(ev) {
     if (ev.button !== 0 && ev.button !== 1) return;
     // Pressing anywhere else on the graph commits an open arrow name, the way clicking away from a
@@ -1566,22 +2053,54 @@ export function createCanvas(o) {
     // cannot cancel the edit it just opened. (K2-U1: `blur` alone would lose the name in a window
     // that does not hold the OS focus, where Chromium fires no focus events at all.)
     wires.endLabelEdit();
+    closeZoomMenu();
+    if (drag) cancelDrag();                          // a second button mid-drag ends the first
     const target = /** @type {HTMLElement} */ (ev.target);
     const portEl = target && target.closest ? target.closest('.graph-port') : null;
     const partEl = target && target.closest ? target.closest('.graph-part') : null;
     const start = screenOf(ev);
+    const base = { pointerId: ev.pointerId, start, captured: false, armed: false };
 
-    if (ev.button === 1 || spaceDown) {
-      drag = { kind: 'pan', start, view: { ...view } };
-    } else if (portEl && portEl.dataset.dir === 'out' && partEl) {
-      drag = { kind: 'wire', from: partEl.dataset.id, targets: inPorts(session.doc()), snap: null, start };
-      canvas.classList.add('graph-wiring');
+    // PAN: the middle button, Space held, or the Hand tool on empty canvas (Shift keeps the marquee).
+    if (ev.button === 1 || spaceDown || (tool === 'hand' && !partEl && !ev.shiftKey)) {
+      ev.preventDefault();                           // no middle-click autoscroll, no text selection
+      drag = { ...base, kind: 'pan', view: { ...view }, click: ev.button === 0 && !spaceDown };
+      canvas.classList.add('graph-grabbing');
+      takeFocus();
+      return;
+    }
+    if (portEl && partEl && portEl.dataset.dir === 'out') {
+      drag = { ...base, kind: 'wire', from: partEl.dataset.id, targets: inPorts(session.doc()), snap: null };
       ev.preventDefault();
-    } else if (partEl) {
+      takeFocus();
+      return;
+    }
+    // A5: pressing a PLUGGED input picks its wire's end up (ComfyUI/tldraw). An empty input is
+    // chrome, as it always was.
+    if (portEl && partEl && portEl.dataset.dir === 'in') {
+      const w = wireInto(partEl.dataset.id || '', portEl.dataset.port || '');
+      if (w) {
+        drag = { ...base, kind: 'rewire', wireId: w.id, from: w.from, targets: null, snap: null };
+        ev.preventDefault();
+        takeFocus();
+        return;
+      }
+    }
+    if (partEl) {
       const id = partEl.dataset.id;
       const selected = session.selected();
       const inSel = selected.indexOf(id) >= 0;
       const additive = ev.shiftKey || ev.metaKey || ev.ctrlKey;
+      // A3: the corner handle resizes THIS box, whatever else is selected.
+      if (target.closest('.graph-part-resize')) {
+        if (!inSel || selected.length !== 1) select([id], { say: false });
+        const part = partById(id);
+        if (!part) return;
+        drag = { ...base, kind: 'resize', id, from: { w: part.w, h: part.h }, size: null };
+        ev.preventDefault();
+        takeFocus();
+        return;
+      }
       let ids = selected;
       if (additive) ids = inSel ? selected.filter((/** @type {string} */ s) => s !== id) : selected.concat([id]);
       else if (!inSel) ids = [id];
@@ -1590,52 +2109,72 @@ export function createCanvas(o) {
       // `[contenteditable]:not([contenteditable="false"])`, not `="true"` (fix pass, finding 5):
       // the wire's label pill is `contentEditable = 'plaintext-only'`, which the narrower selector
       // does not match. It behaved only because the pill stops its own events.
-      const interactive = target.closest && target.closest('input, textarea, select, button, [contenteditable]:not([contenteditable="false"])');
+      const interactive = target.closest && target.closest('input, textarea, select, button, a[href], [contenteditable]:not([contenteditable="false"])');
       if (interactive) { drag = null; return; }
-      drag = { kind: 'move', start, moved: false, ids: session.selected().slice(), origin: new Map() };
+      // K-1: text a person can select. The part is selected (above) and that is all.
+      if (target.closest('[data-selectable]')) { drag = null; return; }
+      if (onScrollbar(target, ev)) { drag = null; return; }
+      drag = { ...base, kind: 'move', moved: false, ids: session.selected().slice(), origin: new Map() };
       for (const part of session.doc().parts) {
         if (drag.ids.indexOf(part.id) >= 0) drag.origin.set(part.id, { x: part.x, y: part.y });
       }
       ev.preventDefault();
-    } else {
-      // Empty space: a wire under the pointer, else a marquee.
-      const hit = wireAt(session.doc(), specs, worldOf(ev));
-      if (hit) {
-        selWires = [hit.wire.id];
-        wires.setSelected(selWires);
-        session.select([]);
-        schedule('wires');
-        announce(t('graph.wireAria', {
-          from: labelOf(partById(hit.wire.from)),
-          to: labelOf(partById(hit.wire.to)),
-        }));
-        return;
-      }
-      drag = { kind: 'marquee', start, additive: ev.shiftKey };
-      marquee.hidden = false;
-      marquee.style.left = `${start.x}px`;
-      marquee.style.top = `${start.y}px`;
-      marquee.style.width = '0px';
-      marquee.style.height = '0px';
-      if (!ev.shiftKey) select([], { say: false });
+      clearTextSelection();
+      takeFocus(partEl);
+      return;
     }
-    if (drag) {
-      drag.pointerId = ev.pointerId;
-      try { canvas.setPointerCapture(ev.pointerId); } catch { /* a synthetic pointer has no capture */ }
+    // Empty space: a wire under the pointer (an 8 SCREEN px band at any zoom), else a marquee.
+    const hit = wireAt(session.doc(), specs, worldOf(ev), WIRE_HIT / (view.zoom || 1));
+    if (hit) {
+      selWires = [hit.wire.id];
+      wires.setSelected(selWires);
+      session.select([]);
+      schedule('wires');
+      announce(t('graph.wireAria', {
+        from: labelOf(partById(hit.wire.from)),
+        to: labelOf(partById(hit.wire.to)),
+      }));
+      return;
     }
+    drag = { ...base, kind: 'marquee', additive: ev.shiftKey };
+    marquee.hidden = false;
+    marquee.style.left = `${start.x}px`;
+    marquee.style.top = `${start.y}px`;
+    marquee.style.width = '0px';
+    marquee.style.height = '0px';
+    if (!ev.shiftKey) select([], { say: false });
   }
 
   function onPointerMove(ev) {
-    if (!drag) return;
+    pointer = { x: ev.clientX, y: ev.clientY };
+    if (!drag) {
+      // Nothing held: the only work is ONE hover check per frame (A5), never while a drag or a
+      // pan is live, so neither pays for it.
+      hoverTarget = ev.target;
+      if (!ev.buttons) schedule('hover');
+      return;
+    }
+    if (ev.pointerId !== undefined && drag.pointerId !== undefined && ev.pointerId !== drag.pointerId) return;
+    // A release the canvas never heard (outside the window, before capture): end it here rather
+    // than leave a drag stuck to a pointer with no button down.
+    if (ev.isTrusted && ev.buttons === 0) { onPointerUp(ev); return; }
     const here = screenOf(ev);
     const dx = here.x - drag.start.x;
     const dy = here.y - drag.start.y;
+    if (!drag.armed) {
+      if (Math.abs(dx) + Math.abs(dy) < DRAG_SLOP) return;
+      drag.armed = true;
+      capture(drag);
+      if (drag.kind === 'rewire') armRewire(drag);
+      if (drag.kind === 'wire') canvas.classList.add('graph-wiring');
+      if (drag.kind === 'resize') canvas.classList.add('graph-resizing');
+      wires.setHover('');
+    }
     if (drag.kind === 'pan') {
       setView({ x: drag.view.x + dx, y: drag.view.y + dy, zoom: view.zoom }, { commit: false });
       return;
     }
     if (drag.kind === 'move') {
-      if (!drag.moved && Math.abs(dx) + Math.abs(dy) < DRAG_SLOP) return;
       drag.moved = true;
       const wx = dx / view.zoom;
       const wy = dy / view.zoom;
@@ -1655,11 +2194,28 @@ export function createCanvas(o) {
       schedule('wires');
       return;
     }
-    if (drag.kind === 'wire') {
+    if (drag.kind === 'resize') {
+      const size = resizeRect(drag.from, dx, dy, view.zoom, undefined, GRID);
+      drag.size = size;
+      const box = boxes.get(drag.id);
+      if (box) {
+        box.node.style.width = `${size.w}px`;
+        box.node.style.height = `${size.h}px`;
+        box.last.w = size.w;
+        box.last.h = size.h;
+        layoutPorts(box, size.h);
+      }
+      const doc = session.doc();
+      dragDoc = { ...doc, parts: doc.parts.map((/** @type {any} */ p) => (p.id === drag.id ? { ...p, w: size.w, h: size.h } : p)) };
+      schedule('wires');
+      return;
+    }
+    if (drag.kind === 'wire' || drag.kind === 'rewire') {
       const world = worldOf(ev);
-      const snapped = nearestPort(drag.targets.filter((/** @type {any} */ p) => p.partId !== drag.from), world);
+      const doc = dragDoc || session.doc();
+      const snapped = nearestPort((drag.targets || []).filter((/** @type {any} */ p) => p.partId !== drag.from), world);
       drag.snap = snapped;
-      const from = partById(drag.from);
+      const from = doc.parts.find((/** @type {any} */ p) => p.id === drag.from);
       if (from) {
         wires.setPreview({
           a: portPoint(from, { dir: 'out' }),
@@ -1678,12 +2234,29 @@ export function createCanvas(o) {
     }
   }
 
+  /** The picked-up wire leaves the picture (the document keeps it until the drop decides).
+   * @param {any} d */
+  function armRewire(d) {
+    const doc = session.doc();
+    dragDoc = { ...doc, wires: doc.wires.filter((/** @type {any} */ w) => w.id !== d.wireId) };
+    d.targets = inPorts(dragDoc);
+    canvas.classList.add('graph-wiring');
+    schedule('wires');
+  }
+
   function onPointerUp(ev) {
     if (!drag) return;
+    if (ev && ev.pointerId !== undefined && drag.pointerId !== undefined && ev.pointerId !== drag.pointerId) return;
     const d = drag;
     drag = null;
-    try { canvas.releasePointerCapture(d.pointerId); } catch { /* the capture may already be gone */ }
-    if (d.kind === 'pan') { commitView(); return; }
+    if (d.captured) { try { canvas.releasePointerCapture(d.pointerId); } catch { /* the capture may already be gone */ } }
+    canvas.classList.remove('graph-grabbing', 'graph-resizing');
+    if (d.kind === 'pan') {
+      if (d.armed) commitView();
+      // A click with the Hand on empty canvas is still "click away": it clears the selection.
+      else if (d.click && tool === 'hand') { selWires = []; wires.setSelected(selWires); select([], { say: false }); schedule('wires'); }
+      return;
+    }
     if (d.kind === 'move') {
       dragDoc = null;
       if (!d.moved || !d.at) { schedule('wires'); return; }
@@ -1696,15 +2269,40 @@ export function createCanvas(o) {
       }
       return;
     }
+    if (d.kind === 'resize') {
+      dragDoc = null;
+      if (!d.armed || !d.size) { schedule('wires'); return; }
+      const next = resizePart(session.doc(), d.id, d.size, { now: app.now });
+      session.apply(next, { label: 'resize' });
+      const part = partById(d.id);
+      if (part) announce(t('graph.saidResized', { part: labelOf(part), w: part.w, h: part.h }));
+      return;
+    }
     if (d.kind === 'wire') {
       canvas.classList.remove('graph-wiring');
       wires.setPreview(null);
-      const target = /** @type {HTMLElement} */ (ev.target);
-      const portEl = target && target.closest ? target.closest('.graph-port[data-dir="in"]') : null;
-      const partEl = portEl && portEl.closest ? portEl.closest('.graph-part') : null;
-      const to = partEl ? { partId: partEl.dataset.id, port: portEl.dataset.port } : d.snap;
+      if (!d.armed) return;
+      const to = portUnder(ev) || d.snap;
       if (to) wire(d.from, to.partId, to.port);
       schedule('wires');
+      return;
+    }
+    if (d.kind === 'rewire') {
+      canvas.classList.remove('graph-wiring');
+      wires.setPreview(null);
+      dragDoc = null;
+      if (!d.armed) {
+        // A click on a plugged input selects its wire — Delete then removes it, F2 names it.
+        selWires = [d.wireId];
+        wires.setSelected(selWires);
+        session.select([]);
+        schedule('wires');
+        const w = session.doc().wires.find((/** @type {any} */ x) => x.id === d.wireId);
+        if (w) announce(t('graph.wireAria', { from: labelOf(partById(w.from)), to: labelOf(partById(w.to)) }));
+        return;
+      }
+      const under = portUnder(ev);
+      dropWireEnd(d.wireId, under && under.partId !== d.from ? under : d.snap);
       return;
     }
     if (d.kind === 'marquee') {
@@ -1718,15 +2316,112 @@ export function createCanvas(o) {
     }
   }
 
+  /** Escape mid-gesture: everything goes back to where it was and nothing is written. */
+  function cancelDrag() {
+    const d = drag;
+    drag = null;
+    if (!d) return false;
+    if (d.captured) { try { canvas.releasePointerCapture(d.pointerId); } catch { /* gone */ } }
+    canvas.classList.remove('graph-grabbing', 'graph-wiring', 'graph-resizing');
+    wires.setPreview(null);
+    marquee.hidden = true;
+    dragDoc = null;
+    if (d.kind === 'pan' && d.armed) setView(d.view);
+    if (d.kind === 'move' && d.origin) {
+      for (const [id, o0] of d.origin) {
+        const box = boxes.get(id);
+        if (!box) continue;
+        box.node.style.left = `${o0.x}px`;
+        box.node.style.top = `${o0.y}px`;
+        box.last.x = o0.x;
+        box.last.y = o0.y;
+      }
+    }
+    if (d.kind === 'resize') {
+      const box = boxes.get(d.id);
+      if (box) {
+        box.node.style.width = `${d.from.w}px`;
+        box.node.style.height = `${d.from.h}px`;
+        box.last.w = d.from.w;
+        box.last.h = d.from.h;
+        layoutPorts(box, d.from.h);
+      }
+    }
+    schedule('wires');
+    return true;
+  }
+
+  /** The pointer lost the canvas mid-drag (a system dialog, a window switch): keep what was done. */
+  function onLostCapture(ev) {
+    if (drag && drag.captured && ev.pointerId === drag.pointerId) {
+      drag.captured = false;
+      onPointerUp(ev);
+    }
+  }
+
+  function onPointerLeave() {
+    pointer = null;
+    hoverTarget = null;
+    wires.setHover('');
+    canvas.classList.remove('graph-wire-hover');
+  }
+
+  /** The wire under a still pointer (A5): it thickens, its pill shows ✕, the cursor says "click". */
+  function updateHover() {
+    if (drag || !pointer || destroyed) { wires.setHover(''); canvas.classList.remove('graph-wire-hover'); return; }
+    const target = hoverTarget;
+    let id = '';
+    let onPill = false;
+    const pill = target && target.closest ? target.closest('.graph-wire-pill') : null;
+    if (pill) { id = pill.dataset.wire || ''; onPill = true; } else if (!(target && target.closest && target.closest('.graph-part, .graph-toolbar'))) {
+      const doc = session.doc();
+      if (doc.wires.length) {
+        const r = canvas.getBoundingClientRect();
+        const w = screenToWorld(view, pointer.x - r.left, pointer.y - r.top);
+        const hit = wireAt(doc, specs, w, WIRE_HIT / (view.zoom || 1));
+        id = hit ? hit.wire.id : '';
+      }
+    }
+    wires.setHover(id);
+    canvas.classList.toggle('graph-wire-hover', !!id && !onPill);
+  }
+
+  /** Say the zoom ONCE, when the gesture has settled (A4): a pinch is dozens of events. */
+  function sayZoomSoon() {
+    if (zoomSayTimer) clearTimeout(zoomSayTimer);
+    zoomSayTimer = setTimeout(() => {
+      zoomSayTimer = null;
+      if (!destroyed) announce(t('graph.saidZoom', { percent: Math.round(view.zoom * 100) }));
+    }, 300);
+  }
+
   function onWheel(ev) {
-    ev.preventDefault();
-    const p = screenOf(ev);
-    if (ev.ctrlKey || ev.metaKey) {
-      setView(zoomAbout(view, p.x, p.y, Math.exp(-ev.deltaY / 400)));
-      announce(t('graph.saidZoom', { percent: Math.round(view.zoom * 100) }));
+    closeCtxMenu();
+    const now = Date.now();
+    const latched = wheelLatch.kind && now - wheelLatch.at < WHEEL_LATCH_MS ? wheelLatch.kind : null;
+    const zooming = ev.ctrlKey || ev.metaKey;
+    const it = wheelIntent(ev, zooming ? null : innerScroll(ev.target), { latched, pagePx: viewport().h });
+    if (it.kind === 'scroll-inner') {
+      // K-1: the box's own content scrolls — the browser does it; the canvas stays put.
+      wheelLatch = { kind: 'scroll-inner', at: now };
       return;
     }
-    setView({ x: view.x - ev.deltaX, y: view.y - ev.deltaY, zoom: view.zoom });
+    ev.preventDefault();
+    if (it.kind === 'zoom') {
+      wheelLatch = { kind: null, at: 0 };
+      const p = screenOf(ev);
+      setView(zoomAbout(view, p.x, p.y, it.factor));
+      sayZoomSoon();
+      return;
+    }
+    wheelLatch = { kind: 'pan', at: now };
+    setView({ x: view.x - it.dx, y: view.y - it.dy, zoom: view.zoom });
+  }
+
+  /** The canvas is `overflow:hidden`, which is still a scroll container: a focus or a selection
+   * drag could scroll it and shift every coordinate the canvas computes. It never scrolls. */
+  function onCanvasScroll() {
+    if (canvas.scrollTop || canvas.scrollLeft) { canvas.scrollTop = 0; canvas.scrollLeft = 0; }
   }
 
   // ---- keyboard --------------------------------------------------------------------------------
@@ -1737,13 +2432,33 @@ export function createCanvas(o) {
   const isTyping = (/** @type {any} */ target) => !!(target && target.closest
     && target.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"])'));
 
+  function setSpace(on) {
+    spaceDown = !!on;
+    canvas.classList.toggle('graph-panning', spaceDown);
+  }
+
   function onKeyDown(ev) {
     const typing = isTyping(ev.target);
     if (ev.key === 'Enter' && (ev.ctrlKey || ev.metaKey)) { ev.preventDefault(); if (o.onRun) o.onRun(); return; }
     if (ev.key === 'Escape') {
-      if (o.onStop) o.onStop();
-      if (typing && ev.target && typeof ev.target.blur === 'function') ev.target.blur();
-      return;                                    // Escape also reaches the CANCEL_HANDLERS door
+      // §8.1's ladder (critic R1, B7). Leaving a field is ALL Escape does while typing: it used to
+      // stop the run first, so Escape out of a text box killed a three-minute run.
+      if (typing) {
+        ev.preventDefault();
+        if (ev.target && typeof ev.target.blur === 'function') ev.target.blur();
+        return;
+      }
+      if (cancelDrag() || closeZoomMenu() || closeCtxMenu()) { ev.preventDefault(); return; }
+      // Then the surface's own CANCEL_HANDLERS, in order: the drawer closes before a run stops.
+      if (o.onCancel && o.onCancel()) { ev.preventDefault(); return; }
+      if (session.selected().length || selWires.length) {
+        ev.preventDefault();
+        selWires = [];
+        wires.setSelected(selWires);
+        schedule('wires');
+        select([]);
+      }
+      return;
     }
     if (typing) return;
     const mod = ev.ctrlKey || ev.metaKey;
@@ -1758,6 +2473,17 @@ export function createCanvas(o) {
       select(session.doc().parts.map((/** @type {any} */ p) => p.id));
       return;
     }
+    // A4: the zoom keys (tldraw's). The window has no menu, so none of these is taken.
+    if (mod && (ev.key === '=' || ev.key === '+')) { ev.preventDefault(); zoomBy(1); return; }
+    if (mod && (ev.key === '-' || ev.key === '_')) { ev.preventDefault(); zoomBy(-1); return; }
+    if (mod && ev.key === '0') { ev.preventDefault(); zoomTo(1); return; }
+    if (mod && (ev.key === 'd' || ev.key === 'D')) { ev.preventDefault(); duplicate(); return; }
+    // A7: the key is left to the browser (it raises the copy/paste events above); these only
+    // cover a platform where it raises none.
+    if (mod && (ev.key === 'c' || ev.key === 'C') && !ev.shiftKey && wantsPartCopy(ev)) { copyFallback(); return; }
+    if (mod && (ev.key === 'v' || ev.key === 'V') && !ev.shiftKey && hasDoc()) { pasteFallback(); return; }
+    if (!mod && ev.shiftKey && ev.code === 'Digit1') { ev.preventDefault(); fit(); return; }
+    if (!mod && ev.shiftKey && ev.code === 'Digit2') { ev.preventDefault(); zoomToSelection(); return; }
     // K2-U1: a selected arrow can be NAMED without a mouse. F2 is the rename key everywhere else
     // in this app's ancestry; Enter is what a reader tries first.
     if ((ev.key === 'F2' || ev.key === 'Enter') && selWires.length === 1) {
@@ -1765,33 +2491,66 @@ export function createCanvas(o) {
       wires.editLabel(selWires[0]);
       return;
     }
+    // K-2 (critic R1, A6): Enter or F2 on the ONE selected box opens its editor. A button that has
+    // the focus keeps Enter for itself.
+    if ((ev.key === 'F2' || ev.key === 'Enter') && !selWires.length && !mod) {
+      const tag = ev.target && ev.target.tagName;
+      const ids = targets();
+      if (tag !== 'BUTTON' && ids.length === 1 && editPart(ids[0])) { ev.preventDefault(); return; }
+    }
     if (ev.key === 'Delete' || ev.key === 'Backspace') { ev.preventDefault(); deleteSelection(); return; }
-    if (ev.key === 'f' || ev.key === 'F') { ev.preventDefault(); fit(); return; }
-    if (ev.key === ' ') { spaceDown = true; canvas.classList.add('graph-panning'); return; }
+    if (!mod && (ev.key === 'f' || ev.key === 'F') && !ev.shiftKey) { ev.preventDefault(); fit(); return; }
+    if (!mod && !ev.altKey && (ev.key === 'h' || ev.key === 'H')) { ev.preventDefault(); setTool('hand'); return; }
+    if (!mod && !ev.altKey && (ev.key === 'v' || ev.key === 'V')) { ev.preventDefault(); setTool('select'); return; }
+    if (ev.key === ' ') {
+      // A focused button keeps Space (it is how a keyboard presses it).
+      if (ev.target && ev.target.tagName === 'BUTTON') return;
+      ev.preventDefault();
+      setSpace(true);
+      return;
+    }
     if (String(ev.key).indexOf('Arrow') === 0) {
       const ids = targets();
       if (!ids.length) return;
       ev.preventDefault();
-      const step = ev.shiftKey ? 1 : GRID;
+      const step = ev.shiftKey && !ev.altKey ? 1 : GRID;
       const dx = (ev.key === 'ArrowRight' ? step : 0) - (ev.key === 'ArrowLeft' ? step : 0);
       const dy = (ev.key === 'ArrowDown' ? step : 0) - (ev.key === 'ArrowUp' ? step : 0);
       let doc = session.doc();
       /** @type {any} */ let last = null;
+      // A3: Alt+Shift+arrows RESIZE by the grid — the keyboard way to the corner handle.
+      const resizing = ev.altKey && ev.shiftKey;
       for (const id of ids) {
         const part = doc.parts.find((/** @type {any} */ p) => p.id === id);
         if (!part) continue;
-        last = { x: part.x + dx, y: part.y + dy };
-        doc = movePart(doc, id, last, { now: app.now });
+        if (resizing) {
+          last = { w: part.w + dx, h: part.h + dy };
+          doc = resizePart(doc, id, last, { now: app.now });
+        } else {
+          last = { x: part.x + dx, y: part.y + dy };
+          doc = movePart(doc, id, last, { now: app.now });
+        }
       }
-      session.apply(doc, { label: 'move' });
+      session.apply(doc, { label: resizing ? 'resize' : 'move' });
       if (ids.length === 1 && last) {
-        announce(t('graph.saidMoved', { part: labelOf(partById(ids[0])), x: last.x, y: last.y }));
+        const p = partById(ids[0]);
+        if (resizing && p) announce(t('graph.saidResized', { part: labelOf(p), w: p.w, h: p.h }));
+        else if (!resizing) announce(t('graph.saidMoved', { part: labelOf(p), x: last.x, y: last.y }));
       }
     }
   }
 
   function onKeyUp(ev) {
-    if (ev.key === ' ') { spaceDown = false; canvas.classList.remove('graph-panning'); }
+    if (ev.key === ' ') setSpace(false);
+  }
+
+  /** Critic R1, A4: Space released OUTSIDE the canvas (or while the window was elsewhere) must
+   * still end the pan, or every left-drag pans for ever and the marquee is gone. */
+  function onWindowKeyUp(ev) { if (ev.key === ' ' && spaceDown) setSpace(false); }
+  function onWindowBlur() { if (spaceDown) setSpace(false); }
+  function onFocusOut(ev) {
+    const next = ev.relatedTarget;
+    if (spaceDown && !(next && root.contains(next))) setSpace(false);
   }
 
   function onFocusIn(ev) {
@@ -1802,46 +2561,275 @@ export function createCanvas(o) {
     select([partEl.dataset.id], { say: false });
   }
 
+  /** Has the page a text selection INSIDE the Computer's canvas? */
+  function textSelected() {
+    const sel = window.getSelection ? window.getSelection() : null;
+    if (!sel || sel.isCollapsed || !String(sel)) return false;
+    return !!(sel.anchorNode && root.contains(sel.anchorNode));
+  }
+
+  // ---- the clipboard, as a REAL Ctrl+C / Ctrl+V reaches it (critic R1, A7) ---------------------
+  //
+  // Chromium sends a keyboard copy/paste to the node the SELECTION starts in — and to <body> when
+  // nothing is selected and the focus is not in a field. So with a box selected and the canvas
+  // focused, the copy event never passed through the canvas at all, and the Copy command is not
+  // even enabled unless someone cancels `beforecopy`. The listeners are therefore on the DOCUMENT,
+  // and act only while this canvas has the focus or the event is aimed inside it.
+
+  /** Is this clipboard event ours to answer? @param {any} ev */
+  const ownsClipboard = (ev) => {
+    if (destroyed) return false;
+    const target = ev && ev.target;
+    if (target && target.nodeType === 1 && root.contains(target)) return true;
+    const active = document.activeElement;
+    return !!(active && root.contains(active));
+  };
+  /** @param {any} ev */
+  const wantsPartCopy = (ev) => shouldCopyParts({
+    typing: isTyping(ev && ev.target) || isTyping(document.activeElement),
+    selectionCollapsed: !textSelected(),
+    selected: session.selected().length,
+  });
+  /** A copy that the key asked for and no copy event answered (the fallback below). */
+  let copyPending = false;
+  let pastePending = false;
+
+  /** `beforecopy` cancelled = "Copy is enabled here" (how Chromium decides for a non-field). */
+  function onBeforeCopy(ev) { if (ownsClipboard(ev) && wantsPartCopy(ev)) ev.preventDefault(); }
+  function onBeforePaste(ev) {
+    if (ownsClipboard(ev) && !isTyping(ev.target) && !isTyping(document.activeElement) && hasDoc()) ev.preventDefault();
+  }
+
   function onCopy(ev) {
-    if (isTyping(ev.target)) return;
+    if (!ownsClipboard(ev)) return;
+    // K-1 / A7: highlighted words in a box are the READER's copy. Parts are copied only when
+    // nothing is typed into and no text is selected (gestures.mjs `shouldCopyParts`).
+    if (!wantsPartCopy(ev)) { copyPending = false; return; }
     const text = copyText();
     if (!text || !ev.clipboardData) return;
+    copyPending = false;
     ev.preventDefault();
     ev.clipboardData.setData('text/plain', text);
     announce(t('graph.saidCopied', { count: session.selected().length }));
   }
 
+  /** Ctrl+C on selected boxes where the platform fired no copy event: write the clipboard directly. */
+  function copyFallback() {
+    copyPending = true;
+    setTimeout(() => {
+      if (!copyPending || destroyed) return;
+      copyPending = false;
+      const text = copyText();
+      const clip = typeof navigator !== 'undefined' ? /** @type {any} */ (navigator).clipboard : null;
+      if (!text || !clip || typeof clip.writeText !== 'function') return;
+      Promise.resolve(clip.writeText(text))
+        .then(() => { if (!destroyed) announce(t('graph.saidCopied', { count: session.selected().length })); })
+        .catch(() => { /* no clipboard access here: nothing was copied, and nothing says it was */ });
+    }, 0);
+  }
+
+  /** Ctrl+V with no paste event (same platforms): read the clipboard directly. */
+  function pasteFallback() {
+    pastePending = true;
+    const at = pointerWorld();
+    setTimeout(() => {
+      if (!pastePending || destroyed) return;
+      pastePending = false;
+      const clip = typeof navigator !== 'undefined' ? /** @type {any} */ (navigator).clipboard : null;
+      if (!clip || typeof clip.readText !== 'function') return;
+      Promise.resolve(clip.readText())
+        .then((text) => {
+          if (destroyed || !text) return;
+          if (fromClipboard(text)) pasteText(text, { at });
+          else if (String(text).trim() && hasDoc()) pastePlainText(text, at);
+        })
+        .catch(() => { /* no clipboard access: the key did nothing, as it did before */ });
+    }, 0);
+  }
+
   function onPaste(ev) {
-    if (isTyping(ev.target) || !ev.clipboardData) return;
+    if (!ownsClipboard(ev)) return;
+    pastePending = false;
+    if (isTyping(ev.target) || isTyping(document.activeElement) || !ev.clipboardData) return;
     const text = ev.clipboardData.getData('text/plain');
-    if (!fromClipboard(text)) return;              // not ours: leave it to whoever wants it
+    if (fromClipboard(text)) {
+      ev.preventDefault();
+      pasteText(text, { at: pointerWorld() });      // tldraw: the paste lands where you point
+      return;
+    }
+    // Not ours. Plain words onto the canvas become a Text box (A7, tldraw); anything else is left
+    // to whoever wants it.
+    if (!text || !String(text).trim() || !hasDoc()) return;
     ev.preventDefault();
-    pasteText(text);
+    pastePlainText(text, pointerWorld());
   }
 
   /**
    * K5 kickoff (KE-2): a double-click or a right-click on EMPTY canvas opens the ＋ menu there, and
    * the pick lands where the pointer was. Not on a part, a port, a wire or its label, and not on
    * anything that takes input — those gestures already mean something.
+   * Critic R1, A6: "empty" is decided from what is UNDER THE POINTER, not from `ev.target` — a
+   * double-click that followed a captured press arrived targeted at the canvas and opened the menu
+   * on top of the box that was double-clicked.
    * @param {MouseEvent} ev */
   function onEmptyGesture(ev) {
-    const target = /** @type {any} */ (ev.target);
-    if (target && target.closest && target.closest('.graph-part, .graph-port, .graph-wire-label, .graph-add-menu, button, input, textarea, select, a')) return;
+    let target = /** @type {any} */ (ev.target);
+    if (typeof document.elementFromPoint === 'function' && Number.isFinite(ev.clientX)) {
+      const under = document.elementFromPoint(ev.clientX, ev.clientY);
+      if (under) target = under;
+    }
+    if (target && target.closest && target.closest('.graph-part, .graph-port, .graph-wire-pill, .graph-wire-label, .graph-add-menu, button, input, textarea, select, a')) return;
     if (!hasDoc()) return;
     const world = worldOf(ev);
-    if (wireAt(session.doc(), specs, world)) return;
+    if (wireAt(session.doc(), specs, world, WIRE_HIT / (view.zoom || 1))) return;
     ev.preventDefault();
     const r = root.getBoundingClientRect();
     openPalette({ at: world, screen: { x: ev.clientX - r.left, y: ev.clientY - r.top } });
   }
 
-  canvas.addEventListener('dblclick', onEmptyGesture);
-  canvas.addEventListener('contextmenu', onEmptyGesture);
+  /** A double-click on a box's body asks it to edit (K-2); anywhere else it is the empty gesture.
+   * @param {MouseEvent} ev */
+  function onDblClick(ev) {
+    const target = /** @type {any} */ (ev.target);
+    const partEl = target && target.closest ? target.closest('.graph-part') : null;
+    if (partEl) {
+      if (target.closest('input, textarea, select, button, a[href], [contenteditable]:not([contenteditable="false"])')) return;
+      if (target.closest('.graph-part-body') && editPart(partEl.dataset.id || '')) ev.preventDefault();
+      return;                                        // a box is never "empty canvas"
+    }
+    onEmptyGesture(ev);
+  }
+
+  /** A press outside the zoom menu closes it (the menu lives in the toolbar, not the canvas). */
+  function onRootPointerDown(ev) {
+    const target = ev.target;
+    if (!ctxMenu.hidden && !(target && ctxMenu.contains(target))) closeCtxMenu();
+    if (zoomMenu.hidden) return;
+    if (target && (zoomMenu.contains(target) || zoomLabel.contains(target))) return;
+    closeZoomMenu();
+  }
+
+  // ---- critic R1: the right-click menu on a box or a wire (tldraw tool #6) ----------------------
+  // Every keyboard-only action gets a visible door here — Duplicate, Copy, Zoom to it, Delete,
+  // Unplug, Name — each row naming its key. And "Copy text": the window has no native context
+  // menu at all, so without this row a right-click could never copy the words in a box.
+  const ctxMenu = el('div', 'graph-zoom-menu graph-ctx-menu');
+  ctxMenu.hidden = true;
+  ctxMenu.setAttribute('role', 'menu');
+  root.appendChild(ctxMenu);
+
+  /** @param {string} act @param {string} label @param {string} key @param {() => void} fn */
+  function ctxRow(act, label, key, fn) {
+    const b = button('graph-zoom-item', '');
+    b.dataset.act = act;
+    b.setAttribute('role', 'menuitem');
+    b.append(el('span', 'graph-zoom-item-label', label));
+    if (key) b.append(el('kbd', 'graph-zoom-key', key));
+    b.addEventListener('click', () => { closeCtxMenu(); fn(); });
+    return b;
+  }
+
+  /** @param {HTMLElement[]} rows @param {string} label @param {MouseEvent} ev */
+  function openCtxMenu(rows, label, ev) {
+    closeZoomMenu();
+    closeAddMenu();
+    closeExportMenu();
+    ctxMenu.replaceChildren(...rows);
+    ctxMenu.setAttribute('aria-label', label);
+    const r = root.getBoundingClientRect();
+    ctxMenu.style.left = `${Math.max(4, Math.min(ev.clientX - r.left, r.width - 230))}px`;
+    ctxMenu.style.top = `${Math.max(4, Math.min(ev.clientY - r.top, r.height - rows.length * 34 - 12))}px`;
+    ctxMenu.hidden = false;
+    const first = /** @type {any} */ (ctxMenu.firstChild);
+    if (first && typeof first.focus === 'function') first.focus({ preventScroll: true });
+  }
+  function closeCtxMenu() {
+    if (ctxMenu.hidden) return false;
+    const hadFocus = ctxMenu.contains(document.activeElement);
+    ctxMenu.hidden = true;
+    ctxMenu.replaceChildren();
+    if (hadFocus) { try { canvas.focus({ preventScroll: true }); } catch { /* gone */ } }
+    return true;
+  }
+
+  /** Copy through the browser's own Copy command (the copy listener above decides what goes on
+   * the clipboard); where the command is refused, the clipboard API. */
+  function copyNow() {
+    let done = false;
+    try { done = document.execCommand('copy'); } catch { done = false; }
+    if (done) return;
+    const text = textSelected() ? String(window.getSelection()) : copyText();
+    const clip = typeof navigator !== 'undefined' ? /** @type {any} */ (navigator).clipboard : null;
+    if (text && clip && typeof clip.writeText === 'function') Promise.resolve(clip.writeText(text)).catch(() => { /* no clipboard here */ });
+  }
+
+  /** @param {string} id @param {MouseEvent} ev */
+  function openPartMenu(id, ev) {
+    if (session.selected().indexOf(id) < 0) select([id], { say: false });
+    const box = boxes.get(id);
+    /** @type {HTMLElement[]} */ const rows = [];
+    if (textSelected()) rows.push(ctxRow('copy-text', t('graph.ctxCopyText'), t('graph.keyCopy'), () => copyNow()));
+    if (box && box.inst && typeof box.inst.edit === 'function') rows.push(ctxRow('edit', t('graph.ctxEdit'), t('graph.keyEdit'), () => { editPart(id); }));
+    rows.push(
+      ctxRow('duplicate', t('graph.ctxDuplicate'), t('graph.keyDuplicate'), () => { duplicate(); }),
+      ctxRow('copy', t('graph.ctxCopy'), textSelected() ? '' : t('graph.keyCopy'), () => { clearTextSelection(); copyNow(); }),
+      ctxRow('zoom', t('graph.ctxZoom'), t('graph.zoomKeySelection'), () => { zoomToSelection(); }),
+      ctxRow('delete', t('graph.ctxDelete'), t('graph.keyDelete'), () => { deleteSelection(); }),
+    );
+    openCtxMenu(rows, t('graph.ctxPartMenu'), ev);
+  }
+
+  /** @param {string} wireId @param {MouseEvent} ev */
+  function openWireMenu(wireId, ev) {
+    selWires = [wireId];
+    wires.setSelected(selWires);
+    session.select([]);
+    schedule('wires');
+    openCtxMenu([
+      ctxRow('name', t('graph.ctxWireName'), t('graph.keyRename'), () => { wires.editLabel(wireId); }),
+      ctxRow('unplug', t('graph.ctxWireUnplug'), t('graph.keyDelete'), () => { unplugWire(wireId); }),
+    ], t('graph.ctxWireMenu'), ev);
+  }
+
+  /** Right-click: a box's menu, a wire's menu, or — on empty canvas — the ＋ menu, as before.
+   * A field keeps its own right-click. @param {MouseEvent} ev */
+  function onContextMenu(ev) {
+    let target = /** @type {any} */ (ev.target);
+    if (typeof document.elementFromPoint === 'function' && Number.isFinite(ev.clientX)) {
+      const under = document.elementFromPoint(ev.clientX, ev.clientY);
+      if (under && canvas.contains(under)) target = under;
+    }
+    if (!target || !target.closest || !hasDoc()) return;
+    // A wire's name pill first: the right button's press FOCUSES the pill, which opens its name
+    // editor — a right-click there means the wire's menu, so that edit is put back unchanged.
+    const pill = target.closest('.graph-wire-pill');
+    if (pill && pill.dataset.wire) {
+      wires.endLabelEdit({ cancel: true });
+      ev.preventDefault();
+      openWireMenu(pill.dataset.wire, ev);
+      return;
+    }
+    if (target.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"])')) return;
+    const partEl = target.closest('.graph-part');
+    if (partEl && partEl.dataset.id) { ev.preventDefault(); openPartMenu(partEl.dataset.id, ev); return; }
+    const hit = (() => {
+      const w = wireAt(session.doc(), specs, worldOf(ev), WIRE_HIT / (view.zoom || 1));
+      return w ? { id: w.wire.id } : null;
+    })();
+    if (hit && hit.id) { ev.preventDefault(); openWireMenu(hit.id, ev); return; }
+    onEmptyGesture(ev);
+  }
+
+  canvas.addEventListener('dblclick', onDblClick);
+  canvas.addEventListener('contextmenu', onContextMenu);
   canvas.addEventListener('pointerdown', onPointerDown);
   canvas.addEventListener('pointermove', onPointerMove);
   canvas.addEventListener('pointerup', onPointerUp);
   canvas.addEventListener('pointercancel', onPointerUp);
+  canvas.addEventListener('lostpointercapture', onLostCapture);
+  canvas.addEventListener('pointerleave', onPointerLeave);
   canvas.addEventListener('wheel', onWheel, { passive: false });
+  canvas.addEventListener('scroll', onCanvasScroll);
   canvas.addEventListener('dragenter', onDragEnter);
   canvas.addEventListener('dragover', onDragOver);
   canvas.addEventListener('dragleave', onDragLeave);
@@ -1850,8 +2838,14 @@ export function createCanvas(o) {
   root.addEventListener('keydown', onKeyDown);
   root.addEventListener('keyup', onKeyUp);
   root.addEventListener('focusin', onFocusIn);
-  root.addEventListener('copy', onCopy);
-  root.addEventListener('paste', onPaste);
+  root.addEventListener('focusout', onFocusOut);
+  document.addEventListener('beforecopy', onBeforeCopy);
+  document.addEventListener('copy', onCopy);
+  document.addEventListener('beforepaste', onBeforePaste);
+  document.addEventListener('paste', onPaste);
+  root.addEventListener('pointerdown', onRootPointerDown, true);
+  window.addEventListener('keyup', onWindowKeyUp, true);
+  window.addEventListener('blur', onWindowBlur);
 
   // ---- session events --------------------------------------------------------------------------
 
@@ -1863,6 +2857,8 @@ export function createCanvas(o) {
       return;
     }
     if (ev.type === 'part' && Array.isArray(ev.ids) && ev.ids.length && syncOnly(ev.ids)) return;
+    // Critic R1, B8: a LOADED document gets fresh boxes, never the last graph's.
+    if (ev.type === 'doc' && ev.loaded) resetBoxes();
     render();
   });
 
@@ -1916,6 +2912,28 @@ export function createCanvas(o) {
     copyText,
     pasteText,
     deleteSelection,
+    // ---- critic R1 (Package B) ------------------------------------------------------------------
+    duplicate,
+    /** A4: the zoom controls, as the buttons and keys call them. */
+    zoomIn: () => zoomBy(1),
+    zoomOut: () => zoomBy(-1),
+    zoomTo,
+    zoomToSelection,
+    /** The zoom menu: under the % button, or next to `anchor` (the run bar's zoom chip). */
+    openZoomMenu,
+    closeZoomMenu,
+    zoomMenuOpen: () => !zoomMenu.hidden,
+    ctxMenuOpen: () => !ctxMenu.hidden,
+    closeCtxMenu,
+    tool: () => tool,
+    setTool: (/** @type {string} */ name) => setTool(name),
+    /** A5: unplug one wire (the ✕'s door) and drop a picked-up wire end (null = on nothing). */
+    unplugWire,
+    dropWireEnd,
+    /** K-2: ask the box to open its editor. */
+    editPart,
+    hoveredWire: () => wires.hovered(),
+    spaceHeld: () => spaceDown,
     // C3-U3. The panel's debug door calls exactly these, so a scenario and the buttons walk the
     // same path (BG-3); `exportText` is the only one that touches nothing, which is why the
     // round-trip scenario can use it without a file dialog.
@@ -1961,14 +2979,19 @@ export function createCanvas(o) {
       raf = 0;
       if (viewTimer) clearTimeout(viewTimer);
       viewTimer = null;
-      canvas.removeEventListener('dblclick', onEmptyGesture);
-      canvas.removeEventListener('contextmenu', onEmptyGesture);
+      if (zoomSayTimer) clearTimeout(zoomSayTimer);
+      zoomSayTimer = null;
+      canvas.removeEventListener('dblclick', onDblClick);
+      canvas.removeEventListener('contextmenu', onContextMenu);
       palette.destroy();
       canvas.removeEventListener('pointerdown', onPointerDown);
       canvas.removeEventListener('pointermove', onPointerMove);
       canvas.removeEventListener('pointerup', onPointerUp);
       canvas.removeEventListener('pointercancel', onPointerUp);
+      canvas.removeEventListener('lostpointercapture', onLostCapture);
+      canvas.removeEventListener('pointerleave', onPointerLeave);
       canvas.removeEventListener('wheel', onWheel);
+      canvas.removeEventListener('scroll', onCanvasScroll);
       canvas.removeEventListener('dragenter', onDragEnter);
       canvas.removeEventListener('dragover', onDragOver);
       canvas.removeEventListener('dragleave', onDragLeave);
@@ -1977,8 +3000,14 @@ export function createCanvas(o) {
       root.removeEventListener('keydown', onKeyDown);
       root.removeEventListener('keyup', onKeyUp);
       root.removeEventListener('focusin', onFocusIn);
-      root.removeEventListener('copy', onCopy);
-      root.removeEventListener('paste', onPaste);
+      root.removeEventListener('focusout', onFocusOut);
+      document.removeEventListener('beforecopy', onBeforeCopy);
+      document.removeEventListener('copy', onCopy);
+      document.removeEventListener('beforepaste', onBeforePaste);
+      document.removeEventListener('paste', onPaste);
+      root.removeEventListener('pointerdown', onRootPointerDown, true);
+      window.removeEventListener('keyup', onWindowKeyUp, true);
+      window.removeEventListener('blur', onWindowBlur);
       for (const box of boxes.values()) {
         if (box.inst && typeof box.inst.destroy === 'function') {
           try { box.inst.destroy(); } catch { /* nothing may block teardown */ }

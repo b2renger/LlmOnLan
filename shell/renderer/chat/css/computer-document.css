@@ -11,13 +11,15 @@
   gap: 6px;
   min-height: 0;
 }
+/* K-3 (critic R1 A3): the empty drop target fills an empty box. */
+#lolcomputer .graph-part[data-type='document'] .graph-doc-empty { flex: 1 1 auto; }
 
 /* The empty state IS the drop target, and it is a button so the keyboard can reach the picker. */
 #lolcomputer .graph-part[data-type='document'] .graph-doc-empty {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 72px;
+  min-height: 48px;
   padding: 10px;
   text-align: center;
   font: inherit;
@@ -102,9 +104,13 @@
 
 /* ---- the extracted text (render/dom.mjs's tree, and only that tree) ------------------------- */
 
+/* The text FILLS the box (K-3) and scrolls inside it; it is a selectable zone (K-1), so a drag
+   selects words and Ctrl+C copies them — `.graph-part` is `user-select: none` for its chrome. */
 #lolcomputer .graph-part[data-type='document'] .graph-doc-text {
-  max-height: 220px;
+  flex: 1 1 auto;
+  min-height: 0;
   overflow: auto;
+  overscroll-behavior: contain;
   overflow-wrap: anywhere;
   padding: 2px 4px 2px 0;
   font-size: 12px;
@@ -112,6 +118,7 @@
   color: var(--text);
   cursor: text;
   user-select: text;
+  -webkit-user-select: text;
 }
 #lolcomputer .graph-part[data-type='document'] .graph-doc-text[hidden] { display: none; }
 #lolcomputer .graph-part[data-type='document'] .graph-doc-text > :first-child { margin-top: 0; }

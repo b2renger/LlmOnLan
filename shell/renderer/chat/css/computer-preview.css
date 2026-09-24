@@ -85,9 +85,12 @@
 
 /* ---- the window: it scrolls, it never pushes the box open --------------------------------- */
 
+/* K-3 (critic R1 A3): the box is exactly part.w × part.h, and the drawing and the code SHARE it —
+   three parts drawing to two parts code — each scrolling inside its own share. Either one takes
+   the whole box when the other is not there (no drawing yet; a folded report). */
 #lolcomputer .graph-preview-body {
-  flex: 1 1 auto;
-  min-height: 0;
+  flex: 3 1 0;
+  min-height: 40px;
   overflow: auto;
   overscroll-behavior: contain;
   padding: 6px 8px;
@@ -101,6 +104,14 @@
 }
 
 #lolcomputer .graph-preview-body:empty { display: none; }
+
+/* The words of a markdown page are a SELECTABLE ZONE (contract K-1, critic R1 A7): `.graph-part`
+   is `user-select: none` for its chrome; this takes it back, so a drag selects and Ctrl+C copies. */
+#lolcomputer .graph-preview-body[data-selectable='text'] {
+  cursor: text;
+  user-select: text;
+  -webkit-user-select: text;
+}
 
 /* Markdown, drawn by render/dom.mjs. Compact, because it lives in a box on a canvas. */
 #lolcomputer .graph-preview-body > :first-child { margin-top: 0; }
@@ -157,27 +168,26 @@
 
 #lolcomputer .graph-preview-body a { color: var(--accent-hover); }
 
-/* The picture: a sanitised SVG or the guest's PNG. `object-fit: contain` keeps a 2048px sketch
-   honest inside a 380px box instead of cropping it. */
+/* The picture: a sanitised SVG or the guest's PNG, laid over the whole body and `contain`ed — a
+   2048px sketch stays honest inside a 380px box instead of being cropped, and the picture grows and
+   shrinks with the box (K-3). Absolutely placed, so it never pushes the body open: the body's size
+   comes from the box, not from the picture. */
 #lolcomputer .graph-preview-tile {
+  position: absolute;
+  inset: 4px;
   display: block;
-  width: 100%;
-  max-height: 180px;
+  width: calc(100% - 8px);
+  height: calc(100% - 8px);
   object-fit: contain;
   border-radius: 7px;
   background: var(--surface);
 }
 
-/* A body that holds a picture stops scrolling, centres it, and keeps a real height so the code
-   below cannot squeeze the drawing to a sliver; the tile is capped so a box fits the size it was
-   placed at (a box that grows past it lands on its neighbours). */
 #lolcomputer .graph-preview-body:has(.graph-preview-tile) {
+  position: relative;
   overflow: hidden;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 4px;
-  min-height: 120px;
+  padding: 0;
+  min-height: 60px;
 }
 
 #lolcomputer .graph-preview-note,
@@ -213,13 +223,14 @@
 
 /* ---- the code ------------------------------------------------------------------------------ */
 
+/* No native grip (critic R1 A3): one handle, on the box, sizes the box, and the code grows with it.
+   A grip in here changed a height that was never saved and moved no port. */
 #lolcomputer .graph-part-body .graph-preview-source {
-  flex: 0 0 auto;
+  flex: 2 1 0;
   width: 100%;
-  height: 112px;
-  min-height: 60px;
+  min-height: 48px;
   box-sizing: border-box;
-  resize: vertical;
+  resize: none;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 11.5px;
   line-height: 1.45;

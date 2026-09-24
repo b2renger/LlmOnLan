@@ -340,6 +340,17 @@ const CODE_FENCE_LANG = { svg: 'svg', p5: 'javascript', three: 'javascript', htm
 function codeReply(body, store) {
     if (store && store.state && typeof store.state.codeReply === 'string') return store.state.codeReply;
     const messages = Array.isArray(body && body.messages) ? body.messages : [];
+    // Critic R1 A8: a Write-… Instruction now says WHAT to draw in its instruction ("A slow,
+    // colourful spiral that turns.") and HOW in the system message ("You write ONE p5.js sketch…").
+    // The system message names the kind first, so it is read first; the prompt is the fallback
+    // for an ordinary Instruction that asks for code in its own words.
+    const system = messages.filter((m) => m && m.role === 'system').map(textOf).join('\n');
+    const said = /You write ONE (?:still )?(p5\.js|three\.js|SVG|small web page)/i.exec(system);
+    if (said) {
+        const k = said[1].toLowerCase();
+        const kind = k.startsWith('p5') ? 'p5' : k.startsWith('three') ? 'three' : k === 'svg' ? 'svg' : 'html';
+        return `Here is the code you asked for:\n\n\`\`\`${CODE_FENCE_LANG[kind]}\n${CODE_REPLIES[kind]}\n\`\`\`\n\nChange the numbers to make it your own.`;
+    }
     const lastUser = [...messages].reverse().find((m) => m && m.role === 'user');
     const prompt = textOf(lastUser).toLowerCase();
     const at = (re) => { const m = re.exec(prompt); return m ? m.index : Infinity; };

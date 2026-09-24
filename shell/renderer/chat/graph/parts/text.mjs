@@ -52,6 +52,11 @@ const REFUSED = new Map();
  * object with a new stamp, so a dismissal never outlives the thing it dismissed. */
 const DISMISSED = new Map();
 
+/** Boxes the FIRST KEYSTROKE locked (critic R1 A6): a box with a wire coming in used to lose the
+ * person's edit to the next run's arrival, silently. Now the first keystroke on a wired, unlocked
+ * box sets the lock in the same undo entry as the text, and the box says why it is locked. */
+const AUTOLOCKED = new Set();
+
 /** @param {any} id @returns {string} */
 const key = (id) => String(id == null ? '' : id);
 
@@ -84,6 +89,83 @@ export function forget(id) {
   EDITING.delete(key(id));
   REFUSED.delete(key(id));
   DISMISSED.delete(key(id));
+  AUTOLOCKED.delete(key(id));
+}
+
+/** Did the first keystroke of an edit lock this box? @param {any} id @returns {boolean} */
+export function wasAutoLocked(id) { return AUTOLOCKED.has(key(id)); }
+
+/**
+ * Should the first keystroke of an edit lock the box? PURE. Only a box that something is WIRED
+ * INTO needs it — an unwired box has nothing that could replace the words — and only one that is
+ * not locked already. `wired === null` (no document to ask, a unit test) is "not known to be
+ * wired", which never locks: a lock nobody asked for is also a surprise.
+ * @param {{wired: boolean|null, locked: boolean}} o @returns {boolean}
+ */
+export function shouldAutoLock(o) {
+  return !!o && o.wired === true && !o.locked;
+}
+
+/** true / false when the open document says whether a wire comes into this box; null when there
+ * is no document to ask. The same question graph/parts/preview.mjs asks, asked the same way.
+ * @param {any} ctx @param {string} id @returns {boolean|null} */
+function wiring(ctx, id) {
+  try {
+    const session = ctx && ctx.app && ctx.app.host && ctx.app.host.session;
+    const doc = session && typeof session.doc === 'function' ? session.doc() : null;
+    if (!doc || !Array.isArray(doc.wires)) return null;
+    return doc.wires.some((/** @type {any} */ w) => w && w.to === id);
+  } catch { return null; }
+}
+
+/**
+ * Put text on the clipboard: the async clipboard first, then the hidden-field fallback. The same
+ * chain render/thread-view.mjs uses for a chat message's Copy — written here rather than imported,
+ * so a box on the canvas does not pull the chat thread view into the Computer's module graph.
+ * Exported for the Document box's Copy. @param {string} text @returns {Promise<boolean>}
+ */
+export async function copyText(text) {
+  try {
+    if (typeof navigator !== 'undefined' && navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(String(text));
+      return true;
+    }
+  } catch { /* fall through to the field */ }
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = String(text);
+    ta.setAttribute('aria-hidden', 'true');
+    ta.style.position = 'fixed';
+    ta.style.left = '-9999px';
+    document.body.appendChild(ta);
+    ta.select();
+    const ok = document.execCommand('copy');
+    ta.remove();
+    return !!ok;
+  } catch { return false; }
+}
+
+/** How long "Copied" stays on a Copy button before it reads Copy again. */
+export const COPIED_MS = 1200;
+
+/**
+ * A Copy button's own feedback: the label says what happened, then goes back. Shared by the Text
+ * and Document boxes so the two say it the same way.
+ * @param {HTMLElement} button @param {() => string} textOf @returns {() => Promise<boolean>}
+ */
+export function copier(button, textOf) {
+  /** @type {any} */ let timer = 0;
+  const idle = button.textContent || '';
+  return async () => {
+    const text = String(textOf() || '');
+    if (!text) return false;
+    const ok = await copyText(text);
+    button.textContent = ok ? t('parts.textCopied') : t('parts.textCopyFailed');
+    button.dataset.copied = ok ? 'true' : 'false';
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(() => { timer = 0; button.textContent = idle; delete button.dataset.copied; }, COPIED_MS);
+    return ok;
+  };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -217,20 +299,36 @@ export const textPart = /** @type {any} */ ({
       ctx.update({ locked: next });
       ctx.commit(t('parts.textLock'));
       if (next) REFUSED.delete(id);
+      // Unlocking by hand is the person answering the "why is this locked" line: it goes.
+      AUTOLOCKED.delete(id);
       // The canvas will hand the edited part back through `update()`; until it does, the control
       // shows what was just pressed rather than what it was pressed away from.
       live = { ...live, settings: { ...(live.settings || {}), locked: next } };
       paintHead();
     });
     lock.dataset.part = id;
-    head.append(from, clear, lock);
+    // ✎ Edit (critic R1 A6): the obvious way in to a box that is SHOWING text. A <button>, so it
+    // works whatever the canvas does with a press on the body — the double-click and Enter/F2
+    // (K-2, `edit()` below) are the quick ways, this is the one a person can see.
+    const edit = iconButton('graph-text-edit', t('parts.textEdit'), t('parts.textEditHint'), () => startEdit());
+    edit.dataset.part = id;
+    // Copy (critic R1 A7): the whole text this box shows — not the rendered-down head of a long one.
+    const copy = iconButton('graph-text-copy', t('parts.textCopy'), t('parts.textCopyHint'), () => { void copyShown(); });
+    copy.dataset.part = id;
+    const copyShown = copier(copy, () => shown(live).text);
+    head.append(from, clear, edit, copy, lock);
 
     // ---- the body: the value as markdown, through the one safe path -------------------------
+    // A SELECTABLE ZONE (contract K-1): a press here selects the box but never drags it, so a drag
+    // across the words selects them and Ctrl+C copies them. A single click only selects the box;
+    // a double-click opens the editor (the canvas's K-2 `edit()` call, and this listener too, which
+    // `beginEdit` makes harmless to receive twice).
     const body = document.createElement('div');
     body.className = 'graph-text-body';
     body.dataset.part = id;
+    body.setAttribute('data-selectable', 'text');
     body.hidden = true;
-    body.addEventListener('click', (/** @type {any} */ ev) => {
+    body.addEventListener('dblclick', (/** @type {any} */ ev) => {
       // A link in a rendered answer is a link, not an invitation to edit.
       const target = ev && ev.target;
       if (target && typeof target.closest === 'function' && target.closest('a')) return;
@@ -253,14 +351,25 @@ export const textPart = /** @type {any} */ ({
       // the first keystroke landed and the second went nowhere. `false` = do not re-seed the
       // field, because what it holds is what was just typed.
       beginEdit(false);
+      /** @type {{text: string, locked?: boolean}} */ const patch = { text: area.value };
       // The first keystroke on a box that was showing an ARRIVAL makes the words yours: the
       // dismissal is what stops the answer snapping back over your edit the moment you click
       // away. Opening the editor and closing it again without typing changes nothing.
-      if (!editingOwn) { editingOwn = true; dismiss(id, live.value); }
-      ctx.update({ text: area.value });
+      if (!editingOwn) {
+        editingOwn = true;
+        dismiss(id, live.value);
+        // …and on a box something is WIRED INTO, the next run would put the arrival back over
+        // the edit (critic R1 A6). The first keystroke locks it, in the SAME patch as the text —
+        // one undo entry takes back both — and the box says why it is locked.
+        if (shouldAutoLock({ wired: wiring(ctx, id), locked: isLocked(live.settings) })) {
+          patch.locked = true;
+          AUTOLOCKED.add(id);
+        }
+      }
+      ctx.update(patch);
     });
     // Focus is the other way in: a fresh box shows its textarea directly (no body to click), and
-    // tabbing or clicking into it must take the same lock a body click takes.
+    // tabbing or clicking into it must take the same lock ✎ and a double-click take.
     area.addEventListener('focus', () => startEdit());
     area.addEventListener('change', () => closeEdit());
     area.addEventListener('blur', () => closeEdit());
@@ -278,19 +387,29 @@ export const textPart = /** @type {any} */ ({
      * the module-level `EDITING` (which `run()` reads) and the instance `editing` (which the paint
      * reads) are either both taken or neither is.
      * @param {boolean} seed re-seed the field from what is SHOWN and put the caret in it — true
-     *   when the reader opened the editor (a body click), false when they are already typing in
+     *   when the reader opened the editor (✎, a double-click, Enter), false when they are already typing in
      *   it, where re-seeding would overwrite the keystroke that got us here.
      */
     function beginEdit(seed) {
-      if (editing) return;
-      editing = true;
-      editingOwn = false;
-      EDITING.add(id);
-      REFUSED.delete(id);
-      if (seed) area.value = shown(live).text;
-      paint();
-      // A detached box cannot take focus, and nothing here depends on it.
-      if (seed) { try { area.focus(); } catch { /* not in the document yet */ } }
+      if (!editing) {
+        editing = true;
+        editingOwn = false;
+        EDITING.add(id);
+        REFUSED.delete(id);
+        if (seed) area.value = shown(live).text;
+        paint();
+      }
+      // The caret goes in, at the END of the words — the way a double-click, ✎ or Enter is meant.
+      // Not when the field already has the focus (the focus listener, a click into the field): the
+      // caret is already where the person put it. A detached box cannot take focus, and nothing
+      // here depends on it.
+      if (seed && document.activeElement !== area) {
+        try {
+          area.focus();
+          const end = String(area.value || '').length;
+          if (typeof area.setSelectionRange === 'function') area.setSelectionRange(end, end);
+        } catch { /* not in the document yet */ }
+      }
     }
 
     /** Open the source on what is currently SHOWN: editing an answer is how an answer becomes
@@ -320,9 +439,16 @@ export const textPart = /** @type {any} */ ({
       from.hidden = !mark;
       from.dataset.from = editing ? 'editing' : locked ? 'locked' : s.from;
       clear.hidden = editing || s.from !== 'input';
-      const why = REFUSED.get(id) || '';
+      // ✎ and Copy belong to a box that is SHOWING text: while the source is up (an edit, or an
+      // empty box, which is its own editor) there is nothing to open and the field copies itself.
+      const source = editing || !s.text;
+      edit.hidden = source;
+      copy.hidden = source;
+      if (!locked) AUTOLOCKED.delete(id);        // an Undo of the lock takes its reason with it
+      const why = REFUSED.get(id) || (locked && AUTOLOCKED.has(id) ? 'autolocked' : '');
       const said = why === 'locked' ? t('parts.textRefused')
-        : why === 'unsaved' ? t('parts.textRefusedUnsaved') : '';
+        : why === 'unsaved' ? t('parts.textRefusedUnsaved')
+          : why === 'autolocked' ? t('parts.textAutoLocked') : '';
       notice.textContent = said;
       notice.hidden = !said;
       notice.dataset.why = why;
@@ -331,7 +457,7 @@ export const textPart = /** @type {any} */ ({
     function paintBody() {
       const s = shown(live);
       // An empty box is a textarea, exactly as it has always been: a fresh Text box must still be
-      // something you can type into without first clicking it. `editing` — taken by a body click,
+      // something you can type into without first clicking it. `editing` — taken by ✎, a double-click or Enter,
       // by focus AND by the first keystroke — is what guarantees the field the caret is in is
       // never the thing this hides.
       const source = editing || !s.text;
@@ -375,6 +501,12 @@ export const textPart = /** @type {any} */ ({
         // can say the run kept your words while you were typing.
         if (editing) { paintHead(); return; }
         paint();
+      },
+      /** K-2: the canvas's double-click inside the body, and Enter/F2 on the one selected box.
+       * Opens the source on what is SHOWN, caret in it. @returns {boolean} */
+      edit() {
+        startEdit();
+        return true;
       },
       destroy() {
         forget(id);

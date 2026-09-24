@@ -355,7 +355,9 @@
  *   inputs: {name: string, label: string, accepts: string[], many?: boolean, required?: boolean}[],
  *   output: 'text'|'image'|'list'|'json'|'file'|'any'|null,
  *   defaults(): object,
- *   render(host: HTMLElement, part: GraphPart, ctx: PartCtx): {update(part: GraphPart): void, destroy(): void},
+ *   render(host: HTMLElement, part: GraphPart, ctx: PartCtx): {update(part: GraphPart): void, destroy(): void, edit?(): boolean},
+ *     // edit?() (critic R1, K-2): open the box for typing; the canvas calls it on a double-click in
+ *     // the body and on Enter/F2 with one box selected. Answers whether an editor opened.
  *   run(input: RunInput): Promise<PartOutcome>,   // null ONLY when `output` is null (BH-6)
  *   settings?(host: HTMLElement, part: GraphPart, ctx: PartCtx): {update(part: GraphPart): void, destroy(): void}
  * }} PartSpec */

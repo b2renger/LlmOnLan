@@ -42,4 +42,15 @@ registerStrings('parts', {
   // markdown is most of a second of main-thread work per run. The WHOLE value still goes
   // downstream and is still what Save… writes.
   textTruncated: 'Showing the first {kb} KB — the whole text still passes on, and Save… writes all of it.',
+
+  // Critic R1 A6/A7: the ways in to a box that is SHOWING text, and the way its words out.
+  textEdit: '✎ Edit',
+  textEditHint: 'Edit this text (or double-click it, or select the box and press Enter)',
+  textCopy: 'Copy',
+  textCopyHint: 'Copy this text',
+  textCopied: 'Copied',
+  textCopyFailed: 'Could not copy',
+  // The first keystroke on a box something is wired into locks it, so the next run cannot put the
+  // arrival back over the edit. The box says so once, plainly, and how to undo it.
+  textAutoLocked: 'Locked so the next run keeps your edit. Press Lock again to take what arrives.',
 });

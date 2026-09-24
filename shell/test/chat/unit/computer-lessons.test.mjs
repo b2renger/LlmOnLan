@@ -16,7 +16,7 @@ import { specMap } from '../../../renderer/chat/graph/parts/index.mjs';
 import { creativePresets, presetOf } from '../../../renderer/chat/graph/parts/creative.mjs';
 import { normaliseDoc, addPart, addWire, setSettings, setWireLabel, patchPart, partById } from '../../../renderer/chat/graph/model.mjs';
 import { toJson, fromJson } from '../../../renderer/chat/graph/serialize.mjs';
-import { bindInputs, mentions, labelKey } from '../../../renderer/chat/graph/bind.mjs';
+import { bindInputs, mentions, labelKey, planFor } from '../../../renderer/chat/graph/bind.mjs';
 import { isValue } from '../../../renderer/chat/graph/values.mjs';
 import { unfence, codeValue } from '../../../renderer/chat/graph/unfence.mjs';
 import { t } from '../../../renderer/chat/core/i18n.mjs';
@@ -527,9 +527,13 @@ export default (test) => {
     const brief = doc.parts.find((p) => p.type === 'note');
     assert.ok(doc.wires.some((w) => w.from === brief.id && w.to === write.id && w.label === 'brief'), 'the brief arrives named');
     assert.ok(doc.wires.some((w) => w.from === write.id && w.to === sketch.id && w.port === 'content'), 'the sketch is fed by the writer');
-    assert.match(write.settings.instruction, /Reply with only the/, 'it asks for code only');
+    // Critic R1 A8: the instruction is the TASK only; code-only and the canvas size ride the p5
+    // system message, which sizes the canvas from the guest (windowWidth × windowHeight).
     assert.match(write.settings.instruction, /the brief/, 'about the brief');
-    assert.match(write.settings.instruction, new RegExp(`createCanvas\\(${sketch.settings.w}, ${sketch.settings.h}\\)`), 'for the canvas the box shows');
+    assert.equal(write.settings.code, 'p5');
+    const sent = planFor({ part: write, bind: bindInputs(doc, write.id) });
+    assert.match(sent.assembled.system, /Reply with exactly one ```javascript code block/, 'it asks for code only');
+    assert.match(sent.assembled.system, /createCanvas\(windowWidth, windowHeight\)/, 'for the canvas the box shows');
     const landed = codeValue(fenced('javascript', 'function setup() {}'), 'p5');
     assert.equal(landed.data, 'function setup() {}', 'a fenced p5 answer lands clean');
     assert.equal(landed.lang, 'p5');

@@ -98,11 +98,39 @@
   var _raf = window.requestAnimationFrame, _caf = window.cancelAnimationFrame;
   var _st = window.setTimeout, _si = window.setInterval;
   var _ct = window.clearTimeout, _ci = window.clearInterval;
+  // THE FIRST FRAME (critic R1 A8). The guest is an off-screen frame, where the browser throttles
+  // animation frames, and the host photographs it right after the run. A sketch that paints only
+  // inside a requestAnimationFrame loop - a three.js `animate()`, `renderer.setAnimationLoop`,
+  // p5's own draw loop in instance mode - was photographed BLANK. So every callback a run queues
+  // is recorded (`queued`, live only while the run's code executes) and called ONCE, synchronously,
+  // before `ran` is sent: the frame the browser would have painted next. It re-queues itself as it
+  // always would, and the browser's own call of the one it replaced does nothing (`done`), so an
+  // animation keeps exactly one loop.
+  var FRAME_MS = 1000 / 60;
+  var queued = null;
   window.requestAnimationFrame = function (fn) {
-    var h = _raf.call(window, fn);
+    var entry = { fn: fn, done: false };
+    var h = _raf.call(window, function (ts) {
+      if (entry.done) return;
+      entry.done = true;
+      fn(ts);
+    });
     if (tracking) rafs.push(h);
+    if (queued && typeof fn === 'function') queued.push(entry);
     return h;
   };
+
+  // Call each recorded callback once. The timestamp is one frame ahead - the time of the frame
+  // being painted - which is what makes p5's frame-rate gate draw it rather than skip it.
+  function flushFirstFrame(list) {
+    var ts = (window.performance && performance.now ? performance.now() : Date.now()) + FRAME_MS;
+    for (var i = 0; i < list.length; i++) {
+      var entry = list[i];
+      if (entry.done) continue;
+      entry.done = true;
+      try { entry.fn(ts); } catch (e) { report('runtime', e); }
+    }
+  }
   window.setTimeout = function (fn, ms) {
     var h = _st.call(window, fn, ms);
     if (tracking) timers.push(['t', h]);
@@ -141,8 +169,14 @@
     return _addDoc.call(document, type, fn, o);
   };
 
+  // Bumped by every reset, so a run still waiting for its frame size (whenSized) is dropped when a
+  // stop, a dispose or the next run arrives first.
+  var runSeq = 0;
+
   function reset() {
     var i;
+    runSeq++;
+    queued = null;
     for (i = 0; i < sketches.length; i++) { try { sketches[i].remove(); } catch (e) { /* gone */ } }
     for (i = 0; i < rafs.length; i++) { try { _caf.call(window, rafs[i]); } catch (e) { /* gone */ } }
     for (i = 0; i < timers.length; i++) {
@@ -230,6 +264,44 @@
     c.style.height = '100%';
   }
 
+  // ---- the drawing size (contract K-4) ----------------------------------------------------------
+  // A run may carry `size: {w, h}`, the Preview box's Width x Height. The host sizes this frame to
+  // it before posting `run`, so `innerWidth`/`innerHeight` (p5's windowWidth, three's W and H),
+  // `lol.size` and the default canvas all equal it - the box's fields tell the truth. The root is
+  // sized too, so the snapshot is w x h even in the rare case the frame's new size has not reached
+  // this process when the wait below gives up.
+  var SIZE_MAX = 4096;
+  var SIZE_WAIT_MS = 750;
+  var sized = null;
+
+  function sizeOf(v) {
+    if (!v || typeof v !== 'object') return null;
+    var w = Math.round(Number(v.w)), h = Math.round(Number(v.h));
+    if (!isFinite(w) || !isFinite(h) || w < 1 || h < 1) return null;
+    return { w: Math.min(SIZE_MAX, w), h: Math.min(SIZE_MAX, h) };
+  }
+
+  function applySize(size) {
+    sized = size;
+    root.style.width = size ? size.w + 'px' : '';
+    root.style.height = size ? size.h + 'px' : '';
+  }
+
+  // The frame's new size travels to this process on its own path, not with the `run` message, so
+  // it can arrive a frame later. Wait for it - on a MessageChannel, which an off-screen frame does
+  // not throttle the way it throttles timers and animation frames - but never for long.
+  function whenSized(size, then) {
+    var fits = function () { return window.innerWidth === size.w && window.innerHeight === size.h; };
+    if (!size || fits() || typeof MessageChannel !== 'function') { then(); return; }
+    var until = Date.now() + SIZE_WAIT_MS;
+    var ch = new MessageChannel();
+    ch.port1.onmessage = function () {
+      if (fits() || Date.now() >= until) { ch.port1.onmessage = null; then(); return; }
+      ch.port2.postMessage(0);
+    };
+    ch.port2.postMessage(0);
+  }
+
   function makeApi(kind) {
     var canvas = root.querySelector('canvas');
     if (canvas) fitCanvas(canvas);
@@ -238,7 +310,7 @@
       root: root,
       canvas: canvas,
       params: params,
-      size: { w: root.clientWidth || 640, h: root.clientHeight || 480 },
+      size: sized ? { w: sized.w, h: sized.h } : { w: root.clientWidth || 640, h: root.clientHeight || 480 },
       log: function () { console.log.apply(console, arguments); },
       onParams: function (fn) { if (typeof fn === 'function') onParams.push(fn); }
     };
@@ -254,8 +326,17 @@
 
   function doRun(msg) {
     reset();
-    var kind = RUN_KINDS.indexOf(String(msg.kind || '')) >= 0 ? String(msg.kind) : 'dom';
+    var my = runSeq;
     var t0 = Date.now();
+    var size = sizeOf(msg.size);
+    applySize(size);
+    whenSized(size, function () {
+      if (my === runSeq) runNow(msg, t0);
+    });
+  }
+
+  function runNow(msg, t0) {
+    var kind = RUN_KINDS.indexOf(String(msg.kind || '')) >= 0 ? String(msg.kind) : 'dom';
     try {
       // The guest MAY innerHTML: it is the containment boundary. `params.source` is the shape the
       // Render part uses for markdown/SVG it has already turned into HTML.
@@ -267,13 +348,18 @@
       var api = makeApi(kind);
       var code = String(msg.code || '');
       var value;
+      queued = [];
       if (code.trim()) {
         var fn = new Function('lol', '"use strict";\n' + code);
         value = fn(api);
       }
       if (kind === 'p5') startP5(value);
+      var first = queued;
+      queued = null;
+      flushFirstFrame(first);
       send('ran', { id: msg.id, ok: true, ms: Date.now() - t0, error: null });
     } catch (e) {
+      queued = null;
       send('ran', { id: msg.id, ok: false, ms: Date.now() - t0, error: errOf(e, 'run') });
     }
   }

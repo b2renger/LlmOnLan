@@ -32,6 +32,14 @@ import '../strings/computer.en.mjs';
 export const MIGRATED_KEY = 'computer:migratedV1';
 /** How many library documents the migration wrote, for the DEVLOG and for a toast. */
 export const MIGRATED_COUNT_KEY = 'computer:migratedCount';
+/**
+ * Critic R1, B14: the SOURCE rows already carried over, by their own id. The derived id alone
+ * answered "is the copy still there?", so a migrated graph the reader DELETED was carried over
+ * again on the next launch whenever the migration was still retrying (one row had failed, so the
+ * done-marker was not written yet). A source in this list is never copied twice, whatever became
+ * of its copy.
+ */
+export const MIGRATED_SOURCES_KEY = 'computer:migratedSources';
 
 /**
  * The library id a thread-owned row migrates to. Exported because it is the idempotency rule:
@@ -101,13 +109,21 @@ export async function migrateGraphsV1(o) {
     return { status: 'none', imported: 0, skipped: 0, errors: 0, total: 0 };
   }
 
+  /** @type {Set<string>} */ let done = new Set();
+  try {
+    const list = await repo.kvGet(MIGRATED_SOURCES_KEY, []);
+    if (Array.isArray(list)) done = new Set(list.map((/** @type {any} */ v) => String(v)));
+  } catch { /* no list is an empty list: the derived id still keeps a re-run safe */ }
+  const before = done.size;
+
   let imported = 0;
   let skipped = 0;
   let errors = 0;
   for (const row of owned) {
+    if (done.has(String(row.id))) { skipped += 1; continue; }
     const id = derivedId(row.id);
     try {
-      if (await repo.getGraph(id)) { skipped += 1; continue; }
+      if (await repo.getGraph(id)) { skipped += 1; done.add(String(row.id)); continue; }
       const thread = typeof repo.getThread === 'function' ? await repo.getThread(row.threadId) : null;
       // An ephemeral chat is the one the reader asked never to be written down; copying its graph
       // into a permanent library is not the consent that reverses that. In practice the ephemeral
@@ -123,9 +139,17 @@ export async function migrateGraphsV1(o) {
         updatedAt: Number(row.updatedAt) || now(),
       });
       imported += 1;
+      done.add(String(row.id));
     } catch (err) {
       console.warn('[lolcomputer] migrating one graph failed', err);
       errors += 1;
+    }
+  }
+
+  if (done.size !== before) {
+    try { await repo.kvSet(MIGRATED_SOURCES_KEY, Array.from(done)); } catch (err) {
+      // Without the list a re-run falls back to the derived-id check, which is what it was before.
+      console.warn('[lolcomputer] writing the migrated-sources list failed', err);
     }
   }
 

@@ -22,7 +22,7 @@
 
 import { SLOTS } from '../core/registry.mjs';
 import { t } from '../core/i18n.mjs';
-import { createUndo } from '../graph/undo.mjs';
+import { createUndo, restoreProgram } from '../graph/undo.mjs';
 import { specMap } from '../graph/parts/index.mjs';
 import { createRunner } from '../graph/runner.mjs';
 // K3 kickoff: the journal's read side and the park registry. Both are PURE and both are read by
@@ -33,7 +33,7 @@ import { clearPresses } from '../graph/parts/button.mjs';
 import { createCanvas } from '../graph/canvas.mjs';
 import { createDocStore, SAVE_DEBOUNCE_MS } from './docstore.mjs';
 import { createSandbox } from '../sandbox/host.mjs';
-import { createDoc, patchPart as patchPartIn, removeParts, setSettings as setSettingsIn, setView } from '../graph/model.mjs';
+import { createDoc, movePart, patchPart as patchPartIn, removeParts, removeWire, setSettings as setSettingsIn, setView } from '../graph/model.mjs';
 import '../strings/graph.en.mjs';
 
 export { SAVE_DEBOUNCE_MS };
@@ -84,6 +84,16 @@ export function createSession(app, host) {
   let epoch = 0;
   /** @type {string|null} */ let openingId = null;
   let opening = false;
+  /** The open in flight, so a second ask for the SAME graph waits on it instead of answering null. */
+  /** @type {Promise<any>|null} */ let openingPromise = null;
+
+  /**
+   * Critic R1, B12: a document is written only while it IS the open one. Before the first open the
+   * session holds a blank placeholder with a fresh id, and a wheel or an async adoption landing on
+   * it used to save that placeholder as an "Untitled" library row — which `open(null)` could then
+   * pick as the newest graph.
+   */
+  const persist = () => { if (docIdOpen && doc && doc.id === docIdOpen) store.put(doc); };
 
   /** @param {any} ev */
   const emit = (ev) => {
@@ -110,14 +120,14 @@ export function createSession(app, host) {
       if (!next || next === doc) return;
       if (o.undoable !== false) undoStack.push(doc, o.label || '');
       doc = next;
-      store.put(doc);
+      persist();
       // `label` names the edit for the debug log (addendum KG); no other listener reads it.
       emit({ type: 'doc', doc, label: o.label || '' });
     },
     /** Runtime fields only. Never undoable, never marks anything stale, never a history entry. */
     patchPart(/** @type {string} */ id, /** @type {any} */ patch) {
       doc = patchPartIn(doc, id, patch, { now: app.now });
-      store.put(doc);
+      persist();
       emit({ type: 'part', doc, ids: [id] });
     },
     /** The SAME door for many parts at once: one document, one save, ONE event naming every id.
@@ -126,7 +136,7 @@ export function createSession(app, host) {
       const list = Array.isArray(ids) ? ids.filter((id) => !!id) : [];
       if (!list.length) return;
       for (const id of list) doc = patchPartIn(doc, id, patch, { now: app.now });
-      store.put(doc);
+      persist();
       emit({ type: 'part', doc, ids: list.slice() });
     },
     select(/** @type {string[]} */ ids) {
@@ -136,24 +146,30 @@ export function createSession(app, host) {
     selected: () => selected.slice(),
     setView(/** @type {any} */ view) {
       doc = setView(doc, view);
-      store.put(doc);
+      persist();
       emit({ type: 'view', doc });
     },
+    /**
+     * Critic R1, B1: Undo takes back the last EDIT of the program and nothing else. The stack holds
+     * whole documents, so what it hands back is merged through `restoreProgram`: the snapshot's
+     * parts, settings and wires; the present's answers, run states, title and view. Undoing a move
+     * after a run keeps every answer; undoing during a run cannot bring back `running` spinners.
+     */
     undo() {
       const e = undoStack.undo(doc);
       if (!e) return false;
-      doc = e.doc;
+      doc = restoreProgram(doc, e.doc, { label: e.label, now: app.now });
       selected = selected.filter((id) => doc.parts.some((/** @type {any} */ p) => p.id === id));
-      store.put(doc);
+      persist();
       emit({ type: 'doc', doc, label: 'undo' });
       return true;
     },
     redo() {
       const e = undoStack.redo(doc);
       if (!e) return false;
-      doc = e.doc;
+      doc = restoreProgram(doc, e.doc, { label: e.label, now: app.now });
       selected = selected.filter((id) => doc.parts.some((/** @type {any} */ p) => p.id === id));
-      store.put(doc);
+      persist();
       emit({ type: 'doc', doc, label: 'redo' });
       return true;
     },
@@ -206,52 +222,25 @@ export function createSession(app, host) {
      */
     async open(graphId) {
       const wanted = graphId || null;
-      if (wanted && docIdOpen === wanted && doc && doc.id === wanted) return { id: wanted, created: false };
-      if (opening && openingId === wanted) return null;
+      if (wanted && docIdOpen === wanted && doc && doc.id === wanted) {
+        // Critic R1, B11: "A is open, click B, click A again before B loads". The reader came BACK:
+        // the open of B still in flight must not land after this and show B under A's highlight.
+        if (opening) { epoch++; opening = false; openingId = null; openingPromise = null; }
+        return { id: wanted, created: false };
+      }
+      if (opening && openingId === wanted && openingPromise) return openingPromise;
       const mine = ++epoch;
       opening = true;
       openingId = wanted;
-      await store.flush();
-      if (mine !== epoch) return null;
-
-      let id = wanted;
-      let created = false;
-      if (!id) {
-        id = await store.lastId();
-        if (mine !== epoch) return null;
-        if (id) {
-          // The marker can name a graph that has since been deleted on another machine's copy of
-          // the folder, or by a failed migration. Falling through to the newest row is kinder than
-          // creating an empty one beside the library the reader can see.
-          const rows = await store.list();
-          if (mine !== epoch) return null;
-          if (!rows.some((/** @type {any} */ r) => r && r.id === id)) id = rows.length ? rows[0].id : null;
-        } else {
-          const rows = await store.list();
-          if (mine !== epoch) return null;
-          id = rows.length ? rows[0].id : null;
-        }
-        if (!id) {
-          const made = await store.create({});
-          if (mine !== epoch) return null;
-          id = made ? made.id : null;
-          created = true;
-        }
-      }
-      if (!id) return null;
-
-      undoStack.clear();
-      selected = [];
-      const out = await store.load(id);
-      if (mine !== epoch) return null;
-      opening = false;
-      openingId = null;
-      doc = out.doc;
-      docIdOpen = doc.id;
-      await store.setLastId(doc.id);
-      emit({ type: 'doc', doc, loaded: true, dropped: out.dropped });
-      return { id: doc.id, created: created || out.created };
+      const run = openInner(wanted, mine).finally(() => {
+        if (mine === epoch) { opening = false; openingId = null; openingPromise = null; }
+      });
+      openingPromise = run;
+      return run;
     },
+    /** Is an open in flight? (The host's switch uses it: a click on the open graph's card is not a
+     * switch — unless another graph is still loading.) */
+    opening: () => opening,
     /** Host teardown: flush, then stop accepting writes. */
     async close() {
       epoch++;
@@ -264,6 +253,52 @@ export function createSession(app, host) {
     },
     store,
   };
+
+  /** The body of `open()`, for ONE epoch. @param {string|null} wanted @param {number} mine
+   * @returns {Promise<{id: string, created: boolean}|null>} */
+  async function openInner(wanted, mine) {
+    await store.flush();
+    if (mine !== epoch) return null;
+
+    let id = wanted;
+    let created = false;
+    if (!id) {
+      id = await store.lastId();
+      if (mine !== epoch) return null;
+      if (id) {
+        // The marker can name a graph that has since been deleted on another machine's copy of
+        // the folder, or by a failed migration. Falling through to the newest row is kinder than
+        // creating an empty one beside the library the reader can see.
+        const rows = await store.list();
+        if (mine !== epoch) return null;
+        if (!rows.some((/** @type {any} */ r) => r && r.id === id)) id = rows.length ? rows[0].id : null;
+      } else {
+        const rows = await store.list();
+        if (mine !== epoch) return null;
+        id = rows.length ? rows[0].id : null;
+      }
+      if (!id) {
+        const made = await store.create({});
+        if (mine !== epoch) return null;
+        id = made ? made.id : null;
+        created = true;
+      }
+    }
+    if (!id) return null;
+
+    const out = await store.load(id);
+    if (mine !== epoch) return null;
+    // Critic R1, B12: the history and the selection are cleared in the SAME synchronous block
+    // that swaps the document. Clearing them before the await let an edit that landed during the
+    // load push graph A onto graph B's undo stack.
+    undoStack.clear();
+    selected = [];
+    doc = out.doc;
+    docIdOpen = doc.id;
+    await store.setLastId(doc.id);
+    emit({ type: 'doc', doc, loaded: true, dropped: out.dropped });
+    return { id: doc.id, created: created || out.created };
+  }
   return session;
 }
 
@@ -283,6 +318,10 @@ export function createHost(app, els) {
     host: mount,
     onRun: () => { start(); },
     onStop: () => runner.stop(),
+    // Critic R1, B7: Escape on the canvas walks this surface's cancel ladder (the drawer closes
+    // before a run stops) instead of stopping the run outright. Resolved at call time: the
+    // function is declared below.
+    onCancel: () => cancelActive(),
     // K3 kickoff (COMPUTER_PLAN §4.2, §11 K3-U3): the per-box ▶, and a Button's own face. Both
     // are the SAME gesture — `run({mode:'from', seeds:[partId]})` — so a part never reaches for
     // the runner itself and there is never a second scheduler on this surface.
@@ -320,9 +359,10 @@ export function createHost(app, els) {
     return false;
   }
 
-  // The canvas stops the event it handles itself, so this only ever sees an Escape pressed with
-  // focus somewhere ELSE on the surface. It cancels nothing when nothing is active, so Escape
-  // keeps its usual meaning (close the popover, blur the field) everywhere else.
+  // An Escape the canvas already acted on arrives here `defaultPrevented` (it blurred a field,
+  // cancelled a drag, or walked this same ladder through `onCancel`) and is left alone; any other
+  // Escape pressed on the surface walks the ladder here. It cancels nothing when nothing is
+  // active, so Escape keeps its usual meaning (close the popover, blur the field) everywhere else.
   const surface = /** @type {HTMLElement|null} */ ((app && app.root) || null);
   /** @param {KeyboardEvent} e */
   const onSurfaceKey = (e) => {
@@ -444,10 +484,27 @@ export function createHost(app, els) {
    * @param {string|null} [graphId]
    */
   function openDoc(graphId) {
+    const id = graphId || null;
+    // Critic R1, B3: clicking the card of the graph that is ALREADY open is not a switch. It used
+    // to stop the live run, reject the Dialog that was asking, and waste the farm call — before
+    // `session.open` noticed there was nothing to load. Unless another open is still in flight
+    // (then this click is "come back", and the session's own open handles the race, B11).
+    if (id && id === session.docId() && !session.opening()) return Promise.resolve({ id, created: false });
     runner.stop();
     cancelParks();
     clearPresses();
-    return session.open(graphId || null);
+    return session.open(id);
+  }
+
+  /**
+   * Resolve once no run is live (critic R1, B4): a stopped run still unwinds — its journal's last
+   * write lands after `stop()` returns — and a graph must not be deleted underneath that write.
+   * @param {number} [maxMs] @returns {Promise<boolean>} true when the runner really is idle
+   */
+  async function settle(maxMs = 5000) {
+    const end = Date.now() + maxMs;
+    while (runner.running() && Date.now() < end) await sleep(25);
+    return !runner.running();
   }
 
   return {
@@ -459,6 +516,7 @@ export function createHost(app, els) {
     ready,
     /** @param {string|null} [graphId] */
     open: (graphId) => openDoc(graphId),
+    settle,
     rename,
     async close() {
       closed = true;
@@ -481,7 +539,9 @@ export function createHost(app, els) {
     // API_KEYS.graphDebug verbatim, plus the two K1 additions the standalone surface needs: `open`
     // (the library's door, and the harness's) and `docId` (what replaced "is there a thread").
     // Every entry is the SAME function the toolbar calls, so a scenario that presses them
-    // exercises the shipped path and not a second implementation (§2.6 BG-3).
+    // exercises the shipped path and not a second implementation (§2.6 BG-3). Critic R1, B10:
+    // `unwire` and `move` hand-edited the document (no `rev`, nothing marked stale) and so drifted
+    // from that promise; they go through graph/model.mjs's doors now, like the canvas.
     debug: {
       doc: () => session.doc(),
       session: () => session,
@@ -495,21 +555,15 @@ export function createHost(app, els) {
       unwire: (/** @type {string} */ id) => {
         canvas.select([], { say: false });
         const doc = session.doc();
-        const wire = doc.wires.find((/** @type {any} */ w) => w.id === id);
-        if (!wire) return false;
-        session.apply(
-          { ...doc, wires: doc.wires.filter((/** @type {any} */ w) => w.id !== id) },
-          { label: 'unwire' },
-        );
+        if (!doc.wires.some((/** @type {any} */ w) => w.id === id)) return false;
+        session.apply(removeWire(doc, id, { now: app.now }), { label: 'unwire' });
         return true;
       },
       select: (/** @type {string[]} */ ids) => canvas.select(ids || []),
       move: (/** @type {string} */ id, /** @type {number} */ x, /** @type {number} */ y) => {
         const doc = session.doc();
-        session.apply(
-          { ...doc, parts: doc.parts.map((/** @type {any} */ p) => (p.id === id ? { ...p, x, y } : p)) },
-          { label: 'move' },
-        );
+        if (!doc.parts.some((/** @type {any} */ p) => p.id === id)) return false;
+        session.apply(movePart(doc, id, { x, y }, { now: app.now }), { label: 'move' });
         return true;
       },
       setSettings: (/** @type {string} */ id, /** @type {any} */ patch) => {

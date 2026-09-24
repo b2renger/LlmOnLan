@@ -26,9 +26,17 @@
 //     RETURN it as `mode:'prompt'` instead of spending a second seat asking again — and we count it
 //     as a schema failure, so two of them flip the verdict to prompt mode for good.
 //
-// The cache is in-memory and per-window: identical (farm, model, system, prompt, images, schema)
-// in, the same AskResult out, with `cached:true` added. Pass `cache:false` for anything a reader
-// pressed Retry on — a Retry that replays a cached answer is a lie.
+// The cache is in-memory and per-window: identical (farm, model, system, prompt, images, schema,
+// max_tokens, SEED, temperature) in, the same AskResult out, with `cached:true` added. Pass
+// `cache:false` for anything a reader pressed Retry on — a Retry that replays a cached answer is a
+// lie.
+//
+// Critic R1 (A1, A8, contract K-5). A caller may pass `seed` (a whole number, sent as the request's
+// `seed` and part of the cache key — so a NEW seed is a new generation and the SAME seed on the
+// same inputs is honestly the same answer), `temperature`, and `maxTokens` (never under the 512
+// floor). Every result carries `finishReason` as the farm said it ('stop', 'length', …, or null):
+// an answer cut off at max_tokens is `ok:true` with `finishReason:'length'`, and it is the CALLER
+// that decides whether a cut answer is still an answer (prose) or a failure (code).
 
 import { EV } from '../core/events.mjs';
 import { KV_KEYS } from '../core/types.mjs';
@@ -171,9 +179,10 @@ export function createAsk(app) {
 
   /**
    * The wire body, through the SAME pure pipeline a chat turn uses (net/request.mjs), so an ask can
-   * never grow its own idea of what a request looks like.
+   * never grow its own idea of what a request looks like. `seed` and `temperature` ride in the
+   * params the whitelist (PARAM_KEYS) already allows; null means "not set" and is not sent.
    * @param {{model: string|null, system: string|null, prompt: string, images: string[],
-   *          maxTokens: number, responseFormat: any}} o
+   *          maxTokens: number, responseFormat: any, seed?: number|null, temperature?: number|null}} o
    */
   function buildBody(o) {
     const req = draftFromPath(
@@ -184,7 +193,10 @@ export function createAsk(app) {
       const blocks = req.messages[0] ? req.messages[0].blocks : null;
       if (blocks) for (const url of o.images) blocks.push(/** @type {any} */ ({ type: 'image', dataUrl: url }));
     }
-    /** @type {any} */ (req).params = { max_tokens: o.maxTokens };
+    /** @type {any} */ const params = { max_tokens: o.maxTokens };
+    if (typeof o.seed === 'number') params.seed = o.seed;
+    if (typeof o.temperature === 'number') params.temperature = o.temperature;
+    /** @type {any} */ (req).params = params;
     /** @type {any} */ (req).responseFormat = o.responseFormat || null;
     return toOpenAIBody(req);
   }
@@ -194,14 +206,14 @@ export function createAsk(app) {
    * means. `null` for `refusal` means the request actually went out.
    * @param {any} o
    * @returns {Promise<{refusal: AskResult|null, content: string, reasoning: string, usage: any,
-   *   error: any, ms: number, model: string|null, underlying: string}>}
+   *   error: any, ms: number, model: string|null, underlying: string, finishReason: string|null}>}
    */
   async function once(o) {
     const started = app.now ? app.now() : Date.now();
     const { model, underlying } = resolveModel(o);
     const c = caps();
     /** @param {AskResult} r */
-    const refuse = (r) => ({ refusal: r, content: '', reasoning: '', usage: null, error: null, ms: 0, model, underlying });
+    const refuse = (r) => ({ refusal: r, content: '', reasoning: '', usage: null, error: null, ms: 0, model, underlying, finishReason: null });
 
     if (!c || !c.present || !c.baseUrl) return refuse(fail('no_farm', t('ask.noFarm')));
     if (c.keyMissing) return refuse(fail('no_farm', t('ask.keyMissing')));
@@ -241,6 +253,7 @@ export function createAsk(app) {
         body: buildBody({
           model, system: o.system, prompt: o.prompt, images: o.images,
           maxTokens: o.maxTokens, responseFormat: o.responseFormat,
+          seed: o.seed, temperature: o.temperature,
         }),
         requiresKey: !!c.requiresKey,
       });
@@ -248,7 +261,7 @@ export function createAsk(app) {
       const result = await generation.done;
       const ms = Math.round((app.now ? app.now() : Date.now()) - started);
       if (result.status === 'aborted' || abortedBySignal) {
-        return { refusal: fail('aborted', t('ask.aborted'), { ms }), content: '', reasoning: '', usage: null, error: null, ms, model, underlying };
+        return { refusal: fail('aborted', t('ask.aborted'), { ms }), content: '', reasoning: '', usage: null, error: null, ms, model, underlying, finishReason: null };
       }
       return {
         refusal: null,
@@ -259,6 +272,9 @@ export function createAsk(app) {
         ms,
         model,
         underlying,
+        // Critic R1 A8: 'length' means the answer hit max_tokens. It used to be dropped here, so a
+        // sketch cut off mid-program came back as an ordinary success.
+        finishReason: str(result.finishReason) || null,
       };
     } finally {
       if (o.signal) o.signal.removeEventListener('abort', onAbort);
@@ -290,7 +306,22 @@ export function createAsk(app) {
       // variants of a Repeat fan-out — says so with a salt. It changes the cache key and nothing
       // else: same prompt, same model, same governor lane, a second real generation.
       cacheSalt: opts.cacheSalt === undefined || opts.cacheSalt === null ? null : String(opts.cacheSalt),
+      // Critic R1 A1 (K-5): the sampling seed, a whole number 0..2^32-1, or null for "the farm
+      // picks". It is sent AND keyed, so a new seed is a new generation.
+      seed: seedOf(opts.seed),
+      temperature: temperatureOf(opts.temperature),
     };
+  }
+
+  /** @param {any} v @returns {number|null} */
+  function seedOf(v) {
+    const n = typeof v === 'string' && v.trim() ? Number(v) : v;
+    return typeof n === 'number' && Number.isInteger(n) && n >= 0 && n <= 0xffffffff ? n : null;
+  }
+
+  /** @param {any} v @returns {number|null} */
+  function temperatureOf(v) {
+    return typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= 2 ? v : null;
   }
 
   /**
@@ -320,6 +351,8 @@ export function createAsk(app) {
       schema: o.schema ? stableStringify(o.schema) : null,
       maxTokens: o.maxTokens,
       salt: o.cacheSalt || null,
+      seed: o.seed === null || o.seed === undefined ? null : o.seed,
+      temperature: o.temperature === null || o.temperature === undefined ? null : o.temperature,
     });
   }
 
@@ -387,21 +420,26 @@ export function createAsk(app) {
     const out = await once({ ...o, system, responseFormat });
     if (out.refusal) return { result: out.refusal, degraded: false, hard: false };
     if (out.error) return { result: farmFailure(out.error, out.underlying, out.ms), degraded: false, hard: false };
+    const finishReason = out.finishReason || null;
+    /** @param {AskResult} r @returns {AskResult} */
+    const said = (r) => /** @type {any} */ ({ ...r, finishReason });
 
     const raw = rawOf(out.content, out.reasoning);
     if (!raw.trim()) {
-      return { result: fail('empty', t('ask.empty'), { mode: lane, raw: '', ms: out.ms }), degraded: false, hard: true };
+      return { result: said(fail('empty', t('ask.empty'), { mode: lane, raw: '', ms: out.ms })), degraded: false, hard: true };
     }
 
     const found = extractJson(raw);
     if (!found.ok) {
-      return { result: fail('invalid', t('ask.invalid'), { mode: lane, raw, ms: out.ms }), degraded: useSchema, hard: true };
+      // An answer CUT OFF mid-object says nothing about response_format: it is not evidence.
+      const cut = finishReason === 'length';
+      return { result: said(fail('invalid', t('ask.invalid'), { mode: lane, raw, ms: out.ms })), degraded: useSchema && !cut, hard: true };
     }
 
     const value = coerce(found.value, o.schema);
     const verdict = validate(value, o.schema);
     if (!verdict.ok) {
-      const bad = fail('invalid', t('ask.invalid'), { mode: lane, raw, ms: out.ms });
+      const bad = said(fail('invalid', t('ask.invalid'), { mode: lane, raw, ms: out.ms }));
       /** @type {any} */ (bad).errors = verdict.errors;
       return { result: bad, degraded: useSchema, hard: true };
     }
@@ -418,6 +456,7 @@ export function createAsk(app) {
         usage: out.usage,
         ms: out.ms,
         error: null,
+        finishReason,
       }),
       degraded,
       hard: false,
@@ -445,7 +484,9 @@ export function createAsk(app) {
     if (start === 'schema' && vKey) {
       // An EMPTY reply says nothing about response_format, so it never moves the verdict: only a
       // reply that came back unparseable, or wrapped in prose, is evidence the schema did not ride.
-      const evidence = out.degraded || (out.hard && out.result.error && out.result.error.kind === 'invalid');
+      // Nor does a reply CUT OFF at max_tokens: half an object is the length's fault, not the schema's.
+      const cutOff = /** @type {any} */ (out.result).finishReason === 'length';
+      const evidence = out.degraded || (out.hard && !cutOff && out.result.error && out.result.error.kind === 'invalid');
       if (out.result.ok && !out.degraded) {
         strikes.set(vKey, 0);
         setVerdict(vKey, 'json');
@@ -455,8 +496,11 @@ export function createAsk(app) {
         if (n >= SCHEMA_STRIKES) setVerdict(vKey, 'prompt');
       }
     }
-    // A hard failure earns the second rung; a degraded-but-valid answer does not need one.
-    if (start === 'schema' && !out.result.ok && out.hard) out = await attempt(o, 'prompt');
+    // A hard failure earns the second rung; a degraded-but-valid answer does not need one — and
+    // neither does an answer cut off at max_tokens (critic R1 A8): the same length limit would cut
+    // the second attempt too, and the caller is told `finishReason:'length'` instead.
+    const wasCut = /** @type {any} */ (out.result).finishReason === 'length';
+    if (start === 'schema' && !out.result.ok && out.hard && !wasCut) out = await attempt(o, 'prompt');
 
     // Rung three (§3.4.2): both structured attempts failed, so the honest answer is "here is the
     // text, it is not what you asked for". The panel renders it with a Retry — never nothing.
@@ -483,11 +527,16 @@ export function createAsk(app) {
     if (out.error) return record(o.task, farmFailure(out.error, out.underlying, out.ms), out.model);
 
     const raw = rawOf(out.content, out.reasoning);
-    if (!raw.trim()) return record(o.task, fail('empty', t('ask.empty'), { mode: 'text', ms: out.ms }), out.model);
+    if (!raw.trim()) {
+      return record(o.task, /** @type {any} */ ({ ...fail('empty', t('ask.empty'), { mode: 'text', ms: out.ms }), finishReason: out.finishReason }), out.model);
+    }
 
-    const result = /** @type {AskResult} */ ({
+    // `finishReason:'length'` stays `ok:true`: a prose answer cut short is still an answer, and
+    // the caller (the Instruction) decides — a CODE answer cut short is a failure it names.
+    const result = /** @type {AskResult} */ (/** @type {any} */ ({
       ok: true, value: raw, mode: 'text', raw, usage: out.usage, ms: out.ms, error: null,
-    });
+      finishReason: out.finishReason,
+    }));
     if (key) cachePut(key, result);
     return record(o.task, result, out.model);
   }

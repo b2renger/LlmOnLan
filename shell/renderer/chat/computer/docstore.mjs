@@ -18,6 +18,7 @@
 // `pending()` stays true until then. Dragging a part 200 px costs one write, not two hundred.
 
 import { createDoc, normaliseDoc } from '../graph/model.mjs';
+import { journalKey } from '../graph/journal.mjs';
 
 /** How long a document edit waits for the next one before it is written. */
 export const SAVE_DEBOUNCE_MS = 500;
@@ -53,6 +54,9 @@ export function createDocStore(o) {
   /** @type {Promise<void>|null} */ let inFlight = null;
   let writes = 0;
   let destroyed = false;
+  /** Critic R1, B4: ids deleted in this session. A write for one of them is REFUSED, whoever asks:
+   * a run still unwinding, a debounced save, or the flush at the top of the next open. */
+  /** @type {Set<string>} */ const gone = new Set();
 
   const repo = () => (app && app.repo && typeof app.repo.putGraph === 'function' ? app.repo : null);
   const now = () => (app && typeof app.now === 'function' ? app.now() : Date.now());
@@ -60,8 +64,9 @@ export function createDocStore(o) {
   /** @param {any} doc */
   async function write(doc) {
     const r = repo();
-    // The ONE guard: a document needs an id. NOT a threadId — see the header.
-    if (!r || !doc || !doc.id) return;
+    // The ONE guard: a document needs an id. NOT a threadId — see the header. And a deleted
+    // document stays deleted (critic R1, B4).
+    if (!r || !doc || !doc.id || gone.has(doc.id)) return;
     writes++;
     try { await r.putGraph(doc); } catch (err) { console.warn('[lolcomputer] graph save failed', err); }
   }
@@ -81,7 +86,7 @@ export function createDocStore(o) {
   /** Queue `doc` for the next write. The LAST doc wins — an older snapshot never lands on a newer.
    * @param {any} doc */
   function put(doc) {
-    if (destroyed || !doc || !doc.id) return;
+    if (destroyed || !doc || !doc.id || gone.has(doc.id)) return;
     queued = doc;
     if (timer) clearTimeout(timer);
     timer = setTimeout(() => { timer = null; flush(); }, wait);
@@ -176,6 +181,9 @@ export function createDocStore(o) {
     if (!row) return null;
     const stamp = now();
     const copy = cloneDoc(row);
+    // Critic R1, B13: a copy has never run. `stats` is what the card's "last run" used to read, so
+    // a never-run duplicate said "last run just now". The values stay: they are what it shows.
+    copy.parts = copy.parts.map((/** @type {any} */ p) => ({ ...p, stats: null }));
     copy.id = app.newId();
     copy.threadId = null;
     copy.title = String((opts && opts.title) || row.title || '');
@@ -186,14 +194,24 @@ export function createDocStore(o) {
     return copy.id;
   }
 
-  /** Delete a row. A queued write for that same document is dropped, never resurrected. @param {string} id */
+  /**
+   * Delete a row. A queued write for that same document is dropped, never resurrected — and every
+   * LATER write for it is refused too (critic R1, B4): the row used to come back from the next
+   * debounced save of a run still unwinding on it. Its run journal (`computer:runs:<id>`, which
+   * holds a Dialog's questions) goes with it, as "This cannot be undone" promises.
+   * @param {string} id
+   */
   async function remove(id) {
     const r = repo();
     if (!r || !id) return false;
+    gone.add(id);
     if (queued && queued.id === id) { queued = null; if (timer) { clearTimeout(timer); timer = null; } }
     await flush();
     if (typeof r.deleteGraph !== 'function') return false;
     try { await r.deleteGraph(id); } catch (err) { console.warn('[lolcomputer] graph delete failed', err); return false; }
+    if (typeof r.kvSet === 'function') {
+      try { await r.kvSet(journalKey(id), null); } catch (err) { console.warn('[lolcomputer] deleting the run journal failed', err); }
+    }
     const last = await lastId();
     if (last === id) await setLastId(null);
     return true;
@@ -231,6 +249,8 @@ export function createDocStore(o) {
     // this before reading the store would otherwise read it mid-write.
     pending: () => !!timer || !!queued || !!inFlight,
     writes: () => writes,
+    /** Was this id deleted in this session? (B4) @param {string} id */
+    isGone: (id) => gone.has(id),
     destroy() { destroyed = true; if (timer) clearTimeout(timer); timer = null; queued = null; },
   };
 }

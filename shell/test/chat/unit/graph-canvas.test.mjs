@@ -142,11 +142,12 @@ export default (test) => {
     ],
   };
 
-  test('copy carries types, positions and settings — never runtime values or ids', () => {
+  test('copy carries types, positions, SIZES and settings — never runtime values or ids', () => {
     const clip = toClipboard(doc, ['p1', 'p2']);
     assert.equal(clip[CLIP_FORMAT], 1);
     assert.equal(clip.parts.length, 2);
-    assert.deepEqual(clip.parts[0], { i: 0, type: 'note', x: 0, y: 0, settings: { text: 'hello' } });
+    // Critic R1, A3: the size travels, so a pasted 380×520 sketch does not come back 320×260.
+    assert.deepEqual(clip.parts[0], { i: 0, type: 'note', x: 0, y: 0, w: 220, h: 120, settings: { text: 'hello' } });
     const json = JSON.stringify(clip);
     assert.ok(!json.includes('"p1"'), 'a document id must never travel on the clipboard');
   });

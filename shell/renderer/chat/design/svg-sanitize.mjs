@@ -109,6 +109,12 @@ const NAME_CHAR = /[-A-Za-z0-9_:.]/;
 const WS = /\s/;
 
 const ENTITIES = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'" };
+/** A handful of HTML named characters (text only; the output re-escapes everything). */
+const HTML_ENTITIES = {
+  nbsp: ' ', copy: '©', reg: '®', deg: '°', middot: '·', times: '×',
+  ndash: '–', mdash: '—', lsquo: '‘', rsquo: '’', ldquo: '“', rdquo: '”',
+  hellip: '…', bull: '•', trade: '™', euro: '€', laquo: '«', raquo: '»',
+};
 
 /** XML's five entities plus numeric references. An unknown name stays literal text — it is
  * re-escaped on the way out, so it can never become markup. @param {string} s @returns {string} */
@@ -121,8 +127,11 @@ export function decodeEntities(s) {
       if (!Number.isFinite(code) || code <= 0 || code > 0x10ffff) return whole;
       try { return String.fromCodePoint(code); } catch { return whole; }
     }
-    return Object.prototype.hasOwnProperty.call(ENTITIES, body)
-      ? /** @type {any} */ (ENTITIES)[body]
+    if (Object.prototype.hasOwnProperty.call(ENTITIES, body)) return /** @type {any} */ (ENTITIES)[body];
+    // Critic R1 A8: the few HTML names a model writes in an SVG's <text> (`&nbsp;`, `&deg;`,
+    // `&mdash;`…) decode to their character instead of showing up on the picture as "&nbsp;".
+    return Object.prototype.hasOwnProperty.call(HTML_ENTITIES, body)
+      ? /** @type {any} */ (HTML_ENTITIES)[body]
       : whole;
   });
 }
@@ -405,5 +414,36 @@ export function sanitizeSvg(source) {
   const removed = parsed.removed.slice();
   const clean = scrub(parsed.root, removed);
   if (!clean) return { ok: false, svg: '', removed: Array.from(new Set(removed)), error: 'the root <svg> was refused' };
+  repairNamespaces(clean);
   return { ok: true, svg: serialize(clean), removed: Array.from(new Set(removed)) };
+}
+
+/** The SVG namespace, which the root MUST declare for `image/svg+xml` to draw at all. */
+export const SVG_NS = 'http://www.w3.org/2000/svg';
+/** The xlink namespace, which an `xlink:href` needs declared or the whole document fails. */
+export const XLINK_NS = 'http://www.w3.org/1999/xlink';
+
+/**
+ * Critic R1 A8: an SVG is shown as `<img src="data:image/svg+xml,…">`, and there a root with no
+ * `xmlns` — or an `xlink:` attribute whose prefix nobody declared — is a BLANK picture with no
+ * error at all. Inline in HTML both are forgiven, which is why a model writes them constantly.
+ * The tree is ours by now (every attribute allow-listed), so the two declarations are simply
+ * added: the SVG namespace on the root when it is missing (or was refused as foreign), and the
+ * xlink one when any `xlink:` attribute survived. Mutates the root. @param {XElement} root
+ */
+function repairNamespaces(root) {
+  const has = (/** @type {string} */ name) => root.attrs.some((a) => a.name === name);
+  if (!has('xmlns')) root.attrs.unshift({ name: 'xmlns', value: SVG_NS });
+  if (!has('xmlns:xlink') && usesPrefix(root, 'xlink')) {
+    const at = root.attrs.findIndex((a) => a.name === 'xmlns') + 1;
+    root.attrs.splice(at, 0, { name: 'xmlns:xlink', value: XLINK_NS });
+  }
+}
+
+/** Does any element in the tree carry an attribute with this prefix? @param {XElement} el
+ * @param {string} prefix @returns {boolean} */
+function usesPrefix(el, prefix) {
+  if (el.attrs.some((a) => a.name.startsWith(`${prefix}:`))) return true;
+  for (const c of el.children) if (c.type === 'element' && usesPrefix(c, prefix)) return true;
+  return false;
 }

@@ -15,6 +15,9 @@
 //
 // NOTHING HERE MAY CONTAIN a lint-forbidden token even inside a string (rules 1, 2, 11, 13).
 
+import { t } from '../core/i18n.mjs';
+import '../strings/computer-gen.en.mjs';
+
 /** The four code kinds an Instruction can be asked to answer in. Frozen: the `code` setting of
  * `ask` is '' or one of these. */
 export const CODE_KINDS = Object.freeze(['p5', 'three', 'svg', 'html']);
@@ -90,7 +93,50 @@ export function unfence(text, want) {
 export function codeValue(text, code) {
   const kind = String(code || '');
   if (CODE_KINDS.indexOf(kind) < 0) return { kind: 'text', data: String(text == null ? '' : text) };
-  return { kind: 'text', data: unfence(text, kind).code, .../** @type {any} */ (CODE_FACETS)[kind] };
+  let data = unfence(text, kind).code;
+  if (kind === 'p5' || kind === 'three') data = scriptOf(data);
+  return { kind: 'text', data, .../** @type {any} */ (CODE_FACETS)[kind] };
+}
+
+/**
+ * Critic R1 A8: a sketch that came back as a WEB PAGE. Asked for p5 or three.js, a 12B model often
+ * answers with a whole HTML document — a CDN `<script src>`, maybe an import map, and the program
+ * in an inline `<script>` (fenced ```html, or not fenced at all). Run as JavaScript that is
+ * "Unexpected token '<'". When the code starts with `<`, the program is the LARGEST inline
+ * `<script>` that has no `src` and is not an import map; a script that never closed (a truncated
+ * answer) runs to the end. Anything else is returned untouched.
+ * @param {string} code @returns {string}
+ */
+export function scriptOf(code) {
+  const src = String(code == null ? '' : code);
+  if (!/^\s*</.test(src)) return src;
+  const OPEN = /<script\b([^>]*)>/gi;
+  /** @type {string} */ let best = '';
+  let found = false;
+  let m;
+  while ((m = OPEN.exec(src))) {
+    const attrs = String(m[1] || '');
+    const from = m.index + m[0].length;
+    const close = src.slice(from).search(/<\/script\s*>/i);
+    const body = close >= 0 ? src.slice(from, from + close) : src.slice(from);
+    if (close >= 0) OPEN.lastIndex = from + close;
+    if (/\bsrc\s*=/i.test(attrs) || /\btype\s*=\s*["']?importmap\b/i.test(attrs)) continue;
+    if (/\btype\s*=\s*["']?(?!module\b|text\/javascript\b|application\/javascript\b)[\w/+-]+/i.test(attrs)) continue;
+    if (!found || body.trim().length > best.trim().length) { best = body; found = true; }
+  }
+  return found && best.trim() ? dedent(best) : src;
+}
+
+/** Strip the indentation an inline script carries inside its page, so line 1 starts at column 0
+ * (the p5 trailer's instance-mode check reads a column-0 `return`). @param {string} text */
+function dedent(text) {
+  const lines = String(text).replace(/^\s*\n/, '').replace(/\s+$/, '').split('\n');
+  /** @param {string} l */
+  const lead = (l) => l.length - l.replace(/^[ \t]+/, '').length;
+  let pad = Infinity;
+  for (const l of lines) if (l.trim()) pad = Math.min(pad, lead(l));
+  if (!Number.isFinite(pad) || pad === 0) return lines.join('\n');
+  return lines.map((l) => l.slice(Math.min(pad, lead(l)))).join('\n');
 }
 
 /**
@@ -104,6 +150,7 @@ export function codeFor(mode, text) {
   const code = unfence(text, mode).code;
   if (mode === 'svg') return svgOf(code);
   if (mode === 'html') return htmlOf(code);
+  if (mode === 'p5' || mode === 'three') return scriptOf(code);
   return code;
 }
 
@@ -182,8 +229,16 @@ function p5Trailer() {
  * keeps it between runs. `OrbitControls` (an addon the guest does not ship) is a harmless stand-in:
  * a picture has no mouse to orbit with.
  */
+// Critic R1 A8: `renderer.setAnimationLoop(fn)` paints NOTHING before the snapshot — three's loop
+// waits for an animation frame, and the guest is an off-screen frame the browser throttles. The
+// renderer therefore calls the loop's callback once more, in a microtask: after every top-level
+// line has run (so nothing the callback reads is still uninitialised) and before the host asks for
+// the picture. r160 assigns `setAnimationLoop` IN its constructor, so the wrap is done there too —
+// a method on the subclass would be shadowed by the instance property and never called.
 const THREE_PRELUDE = 'const THREE = (function (T, c) { if (!T || typeof T.WebGLRenderer !== \'function\') return T; '
-  + 'const R = class extends T.WebGLRenderer { constructor(o) { super(Object.assign(c ? { canvas: c } : {}, o || {}, { preserveDrawingBuffer: true })); } }; '
+  + 'const R = class extends T.WebGLRenderer { constructor(o) { super(Object.assign(c ? { canvas: c } : {}, o || {}, { preserveDrawingBuffer: true })); '
+  + 'const loop = this.setAnimationLoop; if (typeof loop === \'function\') { this.setAnimationLoop = function (f) { loop.call(this, f); '
+  + 'if (typeof f === \'function\') Promise.resolve().then(function () { f(typeof performance !== \'undefined\' ? performance.now() : Date.now()); }); }; } } }; '
   + 'const O = T.OrbitControls || class { constructor() { this.enabled = true; this.target = new T.Vector3(); } update() { return false; } dispose() {} addEventListener() {} removeEventListener() {} }; '
   + 'return Object.assign({}, T, { WebGLRenderer: R, OrbitControls: O }); })(window.THREE, lol.canvas); ';
 
@@ -192,6 +247,15 @@ const ORBIT_PRELUDE = 'const OrbitControls = THREE.OrbitControls; ';
 
 /** Put the guest's canvas back where the snapshot looks, after `document.body.appendChild(…)`. */
 const THREE_TRAILER = '\n;if (lol.canvas && lol.root && lol.canvas.parentNode !== lol.root) lol.root.insertBefore(lol.canvas, lol.root.firstChild);\n';
+
+/** `window.addEventListener('load', init)` / `document.addEventListener('DOMContentLoaded', …)`. */
+const READY_LISTENER = /\b(?:window|document)\s*\.\s*addEventListener\s*\(\s*(['"])(?:DOMContentLoaded|load)\1\s*,/g;
+/** …becomes a call, same line, same closing parenthesis: `(function (f) { f(); })( init);`. */
+const READY_NOW = '(function (f) { f(); })(';
+
+/** A sketch that assigned `window.onload`: the page loaded long ago, so it is called once here,
+ * and marked, so a later sketch that sets no handler never re-runs this one's. */
+const ONLOAD_TRAILER = ";if (typeof window.onload === 'function' && !window.onload.__lolRan) { window.onload.__lolRan = true; window.onload(); }\n";
 
 /** Does the sketch declare this name itself? A prelude that declared it too would be a
  * redeclaration — a syntax error the person never wrote. @param {string} src @param {string} name */
@@ -208,16 +272,43 @@ function declares(src, name) {
  */
 export function shapeForGuest(mode, code) {
   let src = String(code == null ? '' : code).replace(/\r\n?/g, '\n');
-  if (mode === 'p5' || mode === 'three') src = src.replace(IMPORT_LINE, '');
+  if (mode === 'p5' || mode === 'three') {
+    src = src.replace(IMPORT_LINE, '');
+    // Critic R1 A8: the guest runs code long after the page loaded, so a listener for `load` or
+    // `DOMContentLoaded` would wait for ever and the picture stays blank. The registration is
+    // rewritten, on its own line, into a call made right there.
+    src = src.replace(READY_LISTENER, READY_NOW);
+  }
   if (mode === 'three') {
     let prelude = '';
     if (!declares(src, 'THREE')) prelude += THREE_PRELUDE;
     if (/\bOrbitControls\b/.test(src) && !declares(src, 'OrbitControls')) prelude += ORBIT_PRELUDE;
-    return `${prelude}${src}${THREE_TRAILER}`;
+    const onload = /\bwindow\s*\.\s*onload\s*=/.test(src) ? ONLOAD_TRAILER : '';
+    return `${prelude}${src}${THREE_TRAILER}${onload}`;
   }
   if (mode !== 'p5') return src;
+  src = handOverInstance(src);
   if (/^return\b/m.test(src)) return src;             // instance mode: a column-0 `return function (p)`
   return `${src}\n${p5Trailer()}`;
+}
+
+/**
+ * Critic R1 A8: an INSTANCE-mode sketch that ends `new p5(sketch);` (with no node, or `document.body`)
+ * would put its canvas on the page's body — outside `#root`, where the snapshot looks — and keep
+ * running into the next run, because the guest never learnt about it. When that is the sketch's
+ * LAST statement it becomes `return sketch;` on the same line: the guest's own instance-mode door,
+ * which starts it inside `#root` and stops it on the next run. Anything else is left alone.
+ * @param {string} src @returns {string}
+ */
+function handOverInstance(src) {
+  const lines = src.split('\n');
+  let last = lines.length - 1;
+  while (last >= 0 && !lines[last].trim()) last -= 1;
+  if (last < 0) return src;
+  const m = /^(\s*)(?:(?:const|let|var)\s+[A-Za-z_$][\w$]*\s*=\s*)?new\s+p5\s*\(\s*([A-Za-z_$][\w$]*)\s*(?:,[^)]*)?\)\s*;?\s*$/.exec(lines[last]);
+  if (!m) return src;
+  lines[last] = `return ${m[2]};`;
+  return lines.join('\n');
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -425,4 +516,90 @@ export function lineRange(text, lineNo) {
   }
   const end = src.indexOf('\n', start);
   return [start, end < 0 ? src.length : end];
+}
+
+// ---------------------------------------------------------------------------------------------
+// saying what to do about a guest error (critic R1 A8)
+// ---------------------------------------------------------------------------------------------
+
+/** p5 FUNCTIONS a sketch calls. At the top of a sketch none of them exist yet: the guest runs the
+ * body BEFORE p5 binds its globals, which is when `setup()` starts. */
+export const P5_FUNCTIONS = Object.freeze(new Set([
+  'createCanvas', 'resizeCanvas', 'createGraphics', 'background', 'clear', 'fill', 'noFill', 'stroke',
+  'noStroke', 'strokeWeight', 'color', 'lerpColor', 'red', 'green', 'blue', 'alpha', 'hue',
+  'saturation', 'brightness', 'colorMode', 'random', 'randomSeed', 'randomGaussian', 'noise',
+  'noiseSeed', 'noiseDetail', 'map', 'constrain', 'lerp', 'dist', 'mag', 'norm', 'sq', 'sqrt', 'pow',
+  'abs', 'floor', 'ceil', 'round', 'min', 'max', 'exp', 'log', 'sin', 'cos', 'tan', 'asin', 'acos',
+  'atan', 'atan2', 'radians', 'degrees', 'angleMode', 'ellipse', 'circle', 'rect', 'square', 'line',
+  'point', 'triangle', 'quad', 'arc', 'beginShape', 'endShape', 'vertex', 'curveVertex',
+  'bezierVertex', 'quadraticVertex', 'bezier', 'curve', 'push', 'pop', 'translate', 'rotate', 'scale',
+  'shearX', 'shearY', 'rectMode', 'ellipseMode', 'text', 'textSize', 'textAlign', 'textFont',
+  'textStyle', 'textWidth', 'frameRate', 'createVector', 'millis', 'second', 'minute', 'hour',
+  'noLoop', 'loop', 'isLooping', 'redraw', 'blendMode', 'tint', 'noTint', 'image', 'loadImage',
+  'loadFont', 'loadJSON', 'loadStrings', 'shuffle', 'int', 'float', 'str', 'pixelDensity', 'smooth',
+  'noSmooth', 'erase', 'noErase', 'keyIsDown', 'drawingContext', 'box', 'sphere', 'torus', 'cone',
+  'cylinder', 'plane', 'orbitControl', 'normalMaterial', 'ambientLight', 'directionalLight',
+  'pointLight', 'rotateX', 'rotateY', 'rotateZ',
+]));
+
+/** p5 VALUES a sketch reads: sizes, the mouse, the frame count and the constants. */
+export const P5_VALUES = Object.freeze(new Set([
+  'width', 'height', 'windowWidth', 'windowHeight', 'displayWidth', 'displayHeight', 'mouseX',
+  'mouseY', 'pmouseX', 'pmouseY', 'mouseIsPressed', 'mouseButton', 'key', 'keyCode', 'keyIsPressed',
+  'frameCount', 'deltaTime', 'focused', 'pixels', 'PI', 'TWO_PI', 'HALF_PI', 'QUARTER_PI', 'TAU',
+  'HSB', 'HSL', 'RGB', 'CENTER', 'CORNER', 'CORNERS', 'RADIUS', 'DEGREES', 'RADIANS', 'CLOSE',
+  'LEFT', 'RIGHT', 'TOP', 'BOTTOM', 'BASELINE', 'BLEND', 'ADD', 'MULTIPLY', 'SCREEN', 'OVERLAY',
+  'DIFFERENCE', 'LIGHTEST', 'DARKEST', 'ROUND', 'SQUARE', 'PROJECT', 'MITER', 'BEVEL', 'WEBGL',
+  'P2D', 'BOLD', 'ITALIC', 'NORMAL', 'POINTS', 'LINES', 'TRIANGLES', 'TRIANGLE_FAN',
+  'TRIANGLE_STRIP', 'QUADS', 'QUAD_STRIP',
+]));
+
+/** three.js ADD-ONS a model reaches for that the guest does not ship (OrbitControls has a
+ * stand-in in the prelude). A name ending like an add-on counts too. */
+const THREE_ADDONS = new Set(['GLTFLoader', 'OBJLoader', 'FontLoader', 'TextGeometry', 'EffectComposer',
+  'RenderPass', 'UnrealBloomPass', 'OutputPass', 'RoomEnvironment', 'RGBELoader', 'TrackballControls',
+  'FlyControls', 'MapControls', 'PointerLockControls', 'TransformControls', 'DragControls',
+  'SimplexNoise', 'ImprovedNoise', 'CSS2DRenderer', 'CSS3DRenderer', 'Sky', 'Water', 'Stats', 'GUI',
+  'dat', 'TWEEN', 'gsap', 'RoundedBoxGeometry', 'ConvexGeometry', 'ParametricGeometry']);
+const THREE_ADDON_SHAPE = /(?:Controls|Loader|Pass|Composer|Environment|Renderer)$/;
+
+/**
+ * One sentence that says what to DO about an error the guest reported, in the words of the fix,
+ * or '' when there is nothing better to say than the engine's own message. PURE: the Preview box
+ * (sandbox side) shows it under the error; this module knows what the sandbox provides.
+ *
+ *   "color is not defined" (p5)          → call it inside setup() or draw()
+ *   "angle is not defined"                → declare it with let at the top
+ *   "Cannot access 'x' before initialization" → it is used before the line that creates it
+ *   "GLTFLoader is not defined" (three)   → an add-on the sandbox does not have
+ *   "THREE.Geometry is not a constructor" → gone from r160
+ *   "Unexpected token '<'" (p5/three)     → this is HTML, not JavaScript
+ *   "Cannot use import statement…"        → the libraries are already loaded
+ *
+ * @param {any} message the guest's error message (an `Uncaught ReferenceError: ` prefix is fine)
+ * @param {string} mode the box's mode: 'p5' | 'three' | 'svg' | 'html' | …
+ * @returns {string}
+ */
+export function explainGuestError(message, mode) {
+  const m = String(message == null ? '' : message).trim()
+    .replace(/^Uncaught\s+/, '')
+    .replace(/^[A-Z][A-Za-z]*Error:\s*/, '');
+  const kind = String(mode || '');
+  if (kind !== 'p5' && kind !== 'three') return '';
+
+  const undef = /^([A-Za-z_$][\w$]*) is not defined$/.exec(m);
+  if (undef) {
+    const name = undef[1];
+    if (kind === 'p5' && P5_FUNCTIONS.has(name)) return t('parts.genErrP5Function', { name });
+    if (kind === 'p5' && P5_VALUES.has(name)) return t('parts.genErrP5Value', { name });
+    if (kind === 'three' && (THREE_ADDONS.has(name) || THREE_ADDON_SHAPE.test(name))) return t('parts.genErrThreeAddon', { name });
+    return t('parts.genErrDeclare', { name });
+  }
+  const early = /^Cannot access '([A-Za-z_$][\w$]*)' before initialization$/.exec(m);
+  if (early) return t('parts.genErrTooEarly', { name: early[1] });
+  const gone = /^THREE\.([A-Za-z_$][\w$]*) is not a constructor$/.exec(m);
+  if (gone && kind === 'three') return t('parts.genErrThreeGone', { name: gone[1] });
+  if (/^Unexpected token '<'/.test(m)) return t('parts.genErrHtmlNotJs');
+  if (/^Cannot use import statement outside a module/.test(m) || /^Unexpected token 'import'/.test(m)) return t('parts.genErrImport');
+  return '';
 }

@@ -319,6 +319,10 @@
   outline: none;
 }
 #lolcomputer .graph-part-body .graph-sticky-text::placeholder { color: var(--muted); }
+/* A note that shows words is READ, not typed into (critic R1 B6): the press goes through the field
+   to the note, so one click selects the note (and Delete deletes it) and a drag moves it. A
+   double-click or Enter opens it for typing (graph/parts/sticky.mjs). */
+#lolcomputer .graph-part-body .graph-sticky-text.is-reading { pointer-events: none; }
 
 /* The tint row is quiet until the note is touched: a canvas of twenty notes must not read as a
    wall of a hundred swatches. It keeps its box, so nothing reflows when it appears. */

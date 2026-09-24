@@ -12,6 +12,9 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
+  /* K-3: the box is exactly part.w × part.h and its main field fills it — the body or the source
+     grows and shrinks with the box and scrolls inside it (critic R1 A3). */
+  flex: 1 1 auto;
   min-height: 0;
 }
 
@@ -40,6 +43,8 @@
 #lolcomputer .graph-text-from[data-from='editing'] { color: var(--amber); border-color: var(--amber); }
 
 #lolcomputer .graph-text-clear,
+#lolcomputer .graph-text-edit,
+#lolcomputer .graph-text-copy,
 #lolcomputer .graph-text-lock {
   font: inherit;
   font-size: 11px;
@@ -51,9 +56,24 @@
   cursor: pointer;
   white-space: nowrap;
 }
-#lolcomputer .graph-text-clear[hidden] { display: none; }
+#lolcomputer .graph-text-clear[hidden],
+#lolcomputer .graph-text-edit[hidden],
+#lolcomputer .graph-text-copy[hidden] { display: none; }
 #lolcomputer .graph-text-clear:hover,
+#lolcomputer .graph-text-edit:hover,
+#lolcomputer .graph-text-copy:hover,
 #lolcomputer .graph-text-lock:hover { border-color: var(--accent-hover); color: var(--text); }
+/* ✎ and Copy are quiet until the box is touched (hovered, selected, or holding the focus): a canvas
+   of twenty answers must not read as a wall of forty buttons. They keep their box, so nothing
+   reflows when they appear, and a keyboard focus shows them at once. */
+#lolcomputer .graph-text-edit,
+#lolcomputer .graph-text-copy { opacity: 0; transition: opacity 120ms ease; }
+#lolcomputer .graph-part:hover :is(.graph-text-edit, .graph-text-copy),
+#lolcomputer .graph-part[aria-selected='true'] :is(.graph-text-edit, .graph-text-copy),
+#lolcomputer .graph-part:focus-within :is(.graph-text-edit, .graph-text-copy),
+#lolcomputer :is(.graph-text-edit, .graph-text-copy):focus-visible { opacity: 1; }
+#lolcomputer .graph-text-copy[data-copied='true'] { color: var(--green); border-color: var(--green); }
+#lolcomputer .graph-text-copy[data-copied='false'] { color: var(--danger); border-color: var(--danger); }
 #lolcomputer .graph-text-lock { margin-left: auto; }
 #lolcomputer .graph-text-lock[aria-pressed='true'] {
   color: var(--text);
@@ -63,26 +83,33 @@
 
 /* ---- the two faces of the body -------------------------------------------------------------- */
 
+/* The rendered words are a SELECTABLE ZONE (contract K-1, critic R1 A7): `.graph-part` says
+   `user-select: none` for its chrome, and this takes it back for the text, so a drag selects words
+   and Ctrl+C copies them. The box is dragged by its title bar. */
 #lolcomputer .graph-text-body {
   flex: 1 1 auto;
   min-height: 0;
-  max-height: 320px;
   overflow: auto;
+  overscroll-behavior: contain;
   overflow-wrap: anywhere;
   padding: 2px 2px 2px 0;
   cursor: text;
+  user-select: text;
+  -webkit-user-select: text;
   font-size: 12px;
   line-height: 1.5;
   color: var(--text);
 }
 #lolcomputer .graph-text-body[hidden] { display: none; }
 
+/* No native grip (critic R1 A3): one resize handle, on the box, is what sizes a Text box — a grip
+   in here changed a height that was never saved and moved no port. */
 #lolcomputer .graph-text-source {
   flex: 1 1 auto;
   width: 100%;
-  min-height: 72px;
+  min-height: 36px;
   box-sizing: border-box;
-  resize: vertical;
+  resize: none;
   font: inherit;
   font-size: 12px;
   line-height: 1.5;

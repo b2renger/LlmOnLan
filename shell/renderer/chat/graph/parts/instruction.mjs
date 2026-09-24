@@ -23,7 +23,8 @@
 
 import { valueOf, listOf, isValue, valueStamp } from '../values.mjs';
 import { partById } from '../model.mjs';
-import { bindArrivals, bindInputs, planFor } from '../bind.mjs';
+import { bindArrivals, bindInputs, planFor, parseSeed, maxTokensOf, SEED_SPAN } from '../bind.mjs';
+import '../../strings/computer-gen.en.mjs';
 import { budgetFor } from '../../ctx/budget.mjs';
 import { t } from '../../core/i18n.mjs';
 import { partFail, pickerRow, setPicked } from './common.mjs';
@@ -148,7 +149,9 @@ export const instruction = /** @type {any} */ ({
   order: 200,
   label: t('parts.insLabel'),
   thinks: true,
-  size: { w: 300, h: 260 },
+  // 340 tall since critic R1: a box is exactly its height now, and the prompt, model, shape and seed
+  // rows must fit without the body scrolling.
+  size: { w: 300, h: 340 },
   // ONE port, and it takes every kind: labels do all the distinguishing (§5.2 rule 7).
   //
   // K2 LANDING, the one place §6.3 and §4.7 disagreed. §6.3 writes `accepts:['any']`, which makes a
@@ -165,10 +168,13 @@ export const instruction = /** @type {any} */ ({
   // question, answered by fanout.mjs exactly as before.
   inputs: [{ name: 'in', label: t('parts.insIn'), accepts: ['text', 'image', 'json', 'file'], many: true }],
   output: 'text',
-  // K5 kickoff (KE-3): `code` is '' (prose, exactly as before) or one of CODE_KINDS. It only
-  // changes what a `shape:'text'` answer becomes — never the prompt, which is the instruction the
-  // person can read and edit (the Write-… preset puts "reply with only the code" INTO it).
-  defaults: () => ({ instruction: '', model: '', shape: 'text', schema: '', inlineVars: false, code: '' }),
+  // K5 kickoff (KE-3): `code` is '' (prose, exactly as before) or one of CODE_KINDS. It changes
+  // what a `shape:'text'` answer becomes and — since critic R1 A8 — the SYSTEM message (the
+  // sandbox's rules for that kind, graph/bind.mjs planFor) and max_tokens (4096). The instruction
+  // the person reads and edits stays the task only.
+  // Critic R1 A1: `seed` is '' (new each run — the default) or a whole number as a string (pinned).
+  // Declared here because `serialize` only exports declared keys.
+  defaults: () => ({ instruction: '', model: '', shape: 'text', schema: '', inlineVars: false, code: '', seed: '' }),
   // K5 kickoff (KE-2): a box placed as "Write an SVG" is titled that, not "Instruction".
   titleOf: (/** @type {any} */ part) => presetTitle(part),
   // K6 kickoff (addendum KF-4): this part SENDS what arrives to a model — which one is what the
@@ -197,9 +203,12 @@ export const instruction = /** @type {any} */ ({
       const options = modelOptions(ctx.app);
       const sig = optionSig(options);
       if (sig === modelSig) return;
-      modelSig = sig;
       const select = /** @type {any} */ (model.querySelector('select'));
+      // Critic R1 B9: the signature is stored only once the list is REALLY rebuilt. It used to be
+      // stored first, so a picker that was focused when the farm's catalogue arrived bailed out
+      // here and then never rebuilt again — the new models never appeared in it.
       if (!select || document.activeElement === select) return;
+      modelSig = sig;
       select.replaceChildren();
       for (const o of options) {
         const opt = document.createElement('option');
@@ -230,8 +239,14 @@ export const instruction = /** @type {any} */ ({
 
     // §5.3's opt-in substitution. Default OFF: a reader who has not asked for it must be able to
     // read the prompt as "here are the inputs, here is what to do with them".
+    // Critic R1 A2: named for what it does — "Fill in {names} with their values" — with a one-line
+    // hint (also the tooltip), and shown only when the instruction really writes a bound name in
+    // braces: anywhere else it would do nothing, and a control that does nothing is a question.
+    const inlineWrap = document.createElement('div');
+    inlineWrap.className = 'graph-ins-inline-wrap';
     const inlineRow = document.createElement('label');
-    inlineRow.className = 'graph-ins-inline';
+    inlineRow.className = 'graph-part-check graph-ins-inline';
+    inlineRow.title = t('parts.insInlineHint');
     const inlineBox = document.createElement('input');
     inlineBox.type = 'checkbox';
     inlineBox.checked = part.settings.inlineVars === true;
@@ -242,10 +257,98 @@ export const instruction = /** @type {any} */ ({
     const inlineText = document.createElement('span');
     inlineText.textContent = t('parts.insInline');
     inlineRow.append(inlineBox, inlineText);
+    const inlineHint = document.createElement('p');
+    inlineHint.className = 'graph-ins-hint';
+    inlineHint.textContent = t('parts.insInlineHint');
+    inlineWrap.append(inlineRow, inlineHint);
+    inlineWrap.hidden = true;                     // paint() shows it when a {name} is bound
+
+    // Critic R1 A1: the SEED, in the box's visible settings. Empty = a new seed every run (the
+    // default: ▶ again gives a new answer); a number = pinned. 🎲 pins a random one, ✕ goes back
+    // to new each run. Each is one undoable edit, like every other setting on the box.
+    const seedRow = document.createElement('div');
+    seedRow.className = 'graph-ins-seed';
+    const seedField = document.createElement('label');
+    seedField.className = 'graph-part-field graph-ins-seed-field';
+    const seedCaption = document.createElement('span');
+    seedCaption.className = 'graph-part-field-label';
+    seedCaption.textContent = t('parts.genSeed');
+    const seedInput = document.createElement('input');
+    seedInput.type = 'text';
+    seedInput.className = 'graph-part-input graph-ins-seed-input';
+    seedInput.setAttribute('inputmode', 'numeric');
+    seedInput.setAttribute('autocomplete', 'off');
+    seedInput.setAttribute('aria-label', t('parts.genSeed'));
+    seedInput.placeholder = t('parts.genSeedNew');
+    seedInput.title = t('parts.genSeedHint');
+    seedInput.value = String(part.settings.seed == null ? '' : part.settings.seed);
+    seedField.append(seedCaption, seedInput);
+    /** Digits only, as typed; a number too big to send is flagged, and means new each run. */
+    const markSeed = () => {
+      const bad = seedInput.value !== '' && parseSeed(seedInput.value) === null;
+      if (bad) seedInput.setAttribute('aria-invalid', 'true'); else seedInput.removeAttribute('aria-invalid');
+    };
+    seedInput.addEventListener('input', () => {
+      const digits = seedInput.value.replace(/\D+/g, '').slice(0, 10);
+      if (digits !== seedInput.value) seedInput.value = digits;
+      markSeed();
+      ctx.update({ seed: digits });
+    });
+    seedInput.addEventListener('change', () => ctx.commit(t('parts.genSeed')));
+    /** @param {string} value @param {string} label */
+    const setSeed = (value, label) => {
+      seedInput.value = value;
+      markSeed();
+      ctx.update({ seed: value });
+      ctx.commit(label);
+    };
+    const dice = seedButton('graph-ins-seed-dice', t('parts.genSeedDice'), t('parts.genSeedDiceTitle'), () => {
+      setSeed(String(1 + Math.floor(Math.random() * (SEED_SPAN - 1))), t('parts.genSeedDiceTitle'));
+    });
+    const clearSeed = seedButton('graph-ins-seed-clear', t('parts.genSeedClear'), t('parts.genSeedClearTitle'), () => {
+      setSeed('', t('parts.genSeedClearTitle'));
+    });
+    seedRow.append(seedField, dice, clearSeed);
+
+    // What the LAST run used, said on the box: "last run: seed 48213 · Keep". Keep pins exactly
+    // that number (one undo entry), so the answer on screen can be asked for again. A prose answer
+    // that hit max_tokens says so here too (A8): it is kept, but the end is missing.
+    const runLine = document.createElement('div');
+    runLine.className = 'graph-ins-run';
+    const seedUsed = document.createElement('span');
+    seedUsed.className = 'graph-cost graph-ins-seed-used';
+    const keep = seedButton('graph-ins-seed-keep', t('parts.genSeedKeep'), t('parts.genSeedKeepTitle'), () => {
+      const s = runPart.stats;
+      if (s && typeof s.seed === 'number') setSeed(String(s.seed), t('parts.genSeedKeep'));
+    });
+    const cutChip = document.createElement('span');
+    cutChip.className = 'graph-cost graph-ins-chip graph-ins-cut';
+    runLine.append(seedUsed, keep, cutChip);
+    /** @type {any} */ let runPart = part;
+    /** @type {string} */ let runSig = '-';
+    /** @param {any} p */
+    function paintRun(p) {
+      runPart = p;
+      const s = p.stats || null;
+      const seed = s && typeof s.seed === 'number' ? s.seed : null;
+      const cut = !!(s && s.cut);
+      const pinnedNow = parseSeed(p.settings && p.settings.seed);
+      const next = `${seed}|${s && s.pinned ? 1 : 0}|${cut ? 1 : 0}|${pinnedNow}|${maxTokensOf(p.settings)}`;
+      if (next === runSig) return;
+      runSig = next;
+      seedUsed.textContent = seed === null ? ''
+        : (s.pinned ? t('parts.genSeedUsedPinned', { seed }) : t('parts.genSeedUsed', { seed }));
+      seedUsed.hidden = seed === null;
+      // Nothing to keep when that seed is already the pinned one.
+      keep.hidden = seed === null || pinnedNow === seed;
+      cutChip.textContent = cut ? t('parts.genCutChip', { n: maxTokensOf(p.settings) }) : '';
+      cutChip.hidden = !cut;
+      runLine.hidden = seed === null && !cut;
+    }
 
     const fields = document.createElement('div');
     fields.className = 'graph-part-fields';
-    fields.append(model, shape);
+    fields.append(model, shape, seedRow);
 
     // The strip: what this box will spend, before it spends it. Clicking it opens the transcript,
     // which is the same assembly read in full (§8.1).
@@ -283,7 +386,7 @@ export const instruction = /** @type {any} */ ({
     }
     paintCaps();
 
-    host.replaceChildren(area, fields, capsLine, schema, inlineRow, strip, chips);
+    host.replaceChildren(area, fields, capsLine, schema, inlineWrap, runLine, strip, chips);
 
     /** @type {string} */ let sig = '';
 
@@ -296,6 +399,10 @@ export const instruction = /** @type {any} */ ({
       if (next === sig) return;
       sig = next;
       const plan = planNow(ctx.app, p);
+      // A2: the Fill-in row is offered only where it can do something — a bound {name} — and
+      // stays while it is on, so it can always be switched back off.
+      const braced = plan.bind.params.some((q) => /** @type {any} */ (q).mentionedBraced);
+      inlineWrap.hidden = !(braced || p.settings.inlineVars === true);
       const named = plan.bind.params.filter((q) => !q.unlabelled).length;
       const words = plan.assembled.words;
       strip.textContent = named === 0
@@ -328,12 +435,32 @@ export const instruction = /** @type {any} */ ({
       return el;
     }
 
+    /** A small ghost button (the seed row's 🎲 / ✕ / Keep). @param {string} cls @param {string} label
+     * @param {string} title @param {() => void} onClick @returns {HTMLButtonElement} */
+    function seedButton(cls, label, title, onClick) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = `graph-btn graph-ins-seed-btn ${cls}`;
+      b.textContent = label;
+      b.title = title;
+      b.setAttribute('aria-label', title);
+      b.addEventListener('click', onClick);
+      return b;
+    }
+
     paint(part);
+    paintRun(part);
+    markSeed();
 
     return {
       update(next) {
         if (document.activeElement !== area) area.value = String(next.settings.instruction || '');
         if (document.activeElement !== schema) schema.value = String(next.settings.schema || '');
+        if (document.activeElement !== seedInput) {
+          const want = String(next.settings.seed == null ? '' : next.settings.seed);
+          if (seedInput.value !== want) { seedInput.value = want; markSeed(); }
+        }
+        paintRun(next);
         refreshModels(String(next.settings.model || ''));
         const ms = /** @type {any} */ (model.querySelector('select'));
         const ss = /** @type {any} */ (shape.querySelector('select'));
@@ -375,14 +502,20 @@ export const instruction = /** @type {any} */ ({
       if (blind) throw partFail(t('parts.errNoVision', { alias: alias || underlying }), 'part');
     }
 
-    const call = {
+    const maxTokens = Number(/** @type {any} */ (plan.call).maxTokens) || maxTokensOf(settings);
+    /** @type {any} */ const call = {
       task: plan.call.task,
       prompt: plan.assembled.prompt,
       system: plan.assembled.system,
       images,
       model: plan.call.model,
       priority: plan.call.priority,
+      // Critic R1 A8: the real length (4096 for code, 2048 otherwise), never the silent 512.
+      maxTokens,
     };
+    // Critic R1 A1 (K-5): the seed the runner picked for this activation — pinned or new each run.
+    // It is sent, and it is part of the ask cache's key, so a new seed is a new generation.
+    if (typeof input.seed === 'number') call.seed = input.seed;
 
     // K2 landing: hand the raw AskResult to the transcript, so its Got tab shows what the farm
     // actually said and its repair ladder is READ rather than inferred from the parsed value
@@ -395,17 +528,30 @@ export const instruction = /** @type {any} */ ({
       return res;
     };
 
+    /** Did the farm stop because the answer hit max_tokens? @param {any} res */
+    const cutOff = (res) => !!res && res.finishReason === 'length';
+
     if (plan.call.shape === 'text') {
       const res = kept(await input.ask.text(call));
       if (!res || !res.ok) throw failFrom(res);
       const code = String(settings.code || '');
-      if (CODE_KINDS.indexOf(code) >= 0) return /** @type {any} */ (codeValue(String(res.value), code));
+      if (CODE_KINDS.indexOf(code) >= 0) {
+        // Critic R1 A8: half a program is not a program. A CODE answer cut off at max_tokens is a
+        // named failure — never a success that draws nothing or throws a SyntaxError in the box.
+        if (cutOff(res)) throw partFail(t('parts.errCutOff', { n: maxTokens }), 'part');
+        return /** @type {any} */ (codeValue(String(res.value), code));
+      }
+      // Prose that was cut is still worth reading: it is kept, and the box says the end is
+      // missing (the runner records `stats.cut`, the box paints the chip).
       return valueOf('text', String(res.value));
     }
 
     if (plan.call.shape === 'list') {
       const res = kept(await input.ask.json({ ...call, schema: LIST_SCHEMA }));
-      if (!res || !res.ok) throw failFrom(res);
+      if (!res || !res.ok) {
+        if (cutOff(res)) throw partFail(t('parts.errCutOffData', { n: maxTokens }), 'part');
+        throw failFrom(res);
+      }
       const items = res.value && Array.isArray(res.value.items) ? res.value.items : [];
       return listOf(items.map((/** @type {any} */ s) => valueOf('text', String(s))));
     }
@@ -415,7 +561,10 @@ export const instruction = /** @type {any} */ ({
     /** @type {any} */ let schema = null;
     try { schema = JSON.parse(raw); } catch { throw partFail(t('parts.errBadSchema'), 'part'); }
     const res = kept(await input.ask.json({ ...call, schema }));
-    if (!res || !res.ok) throw failFrom(res);
+    if (!res || !res.ok) {
+      if (cutOff(res)) throw partFail(t('parts.errCutOffData', { n: maxTokens }), 'part');
+      throw failFrom(res);
+    }
     const value = valueOf('json', res.value);
     if (!isValue(value)) throw partFail(t('parts.errNoValue'), 'part');
     return value;

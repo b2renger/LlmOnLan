@@ -12,6 +12,7 @@
 //   computer.run*         K1-U3 (computer/runbar.mjs)
 //   computer.drawer*      K1-U3 (computer/drawer.mjs)
 //   computer.tx*          K2-U3 (computer/transcript.mjs)
+//   computer.dropSwitched, computer.pasteSwitched   critic R1 Package C (drops.mjs, intake.mjs)
 import { registerStrings } from '../core/i18n.mjs';
 
 registerStrings('computer', {
@@ -77,7 +78,6 @@ registerStrings('computer', {
   txCostEmpty: 'No run to cost yet.',
   txSystem: 'System',
   txInstruction: 'Instruction',
-  txParams: 'model: {model} · response_format: {format} · max_tokens: {maxTokens} · priority: {priority}',
   txParamsAuto: 'automatic',
   txLadderSchema: 'asked with schema',
   txLadderProse: 'model returned prose with a fenced object',
@@ -152,4 +152,9 @@ registerStrings('computer', {
   recMarkFailed: 'The marker could not be written to the log.',
   recFull: 'The log reached its size limit and stopped. It is saved as {name}.',
   recFailed: 'Could not start the log: {message}',
+
+  // ---- a drop or a paste that finished after a graph switch (critic R1 B17, Package C) ------
+  // A big file takes a moment to read; the boxes it makes belong to the graph it was dropped on.
+  dropSwitched: '“{name}” was read after you switched graphs, so it was not placed. Drop it again on this graph.',
+  pasteSwitched: '“{name}” was read after you switched graphs, so it was not pasted. Paste it again here.',
 });

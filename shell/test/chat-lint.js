@@ -75,6 +75,8 @@ const PURE_MODULES = [
     // S3
     'design/color.mjs', 'design/tokens.mjs', 'design/quantize.mjs', 'design/svg-sanitize.mjs',
     'design/areas.mjs', 'board/select.mjs', 'board/lint.mjs', 'board/scaffold.mjs',
+    // Critic R1, Package B: what a wheel, a resize handle, a dropped wire end and Ctrl+C mean.
+    'graph/gestures.mjs',
 ];
 
 // ---------------------------------------------------------------------------------------------

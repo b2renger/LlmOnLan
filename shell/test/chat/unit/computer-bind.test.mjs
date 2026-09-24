@@ -18,7 +18,7 @@ import { fileURLToPath } from 'node:url';
 import {
   labelKey, labelName, mentions, mentionAt,
   bindInputs, bindArrivals, assemblePrompt, planFor, fanOf,
-  SYSTEM, FALLBACK, INLINE_MAX,
+  SYSTEM, FALLBACK, INLINE_MAX, MAX_TOKENS_TEXT,
 } from '../../../renderer/chat/graph/bind.mjs';
 import { valueOf, listOf } from '../../../renderer/chat/graph/values.mjs';
 
@@ -296,8 +296,9 @@ export default (test) => {
     assert.ok(out.prompt.includes('write about the topic'));
   });
 
-  test('§5.3 — inline ON substitutes a short text value in place and does NOT repeat it', () => {
-    const say = 'write about topic using report';
+  test('§5.3 — inline ON fills a short text value into its {name} and does NOT repeat it', () => {
+    // Critic R1 A2: only the braced forms are slots (`{topic}` and `$report`).
+    const say = 'write about {topic} using $report';
     const b = arrive([['topic', text('museums')], ['report', text('a long report')]], say);
     const out = assemblePrompt(b, say, { inline: true });
     assert.ok(out.prompt.includes('write about museums using a long report'), out.prompt);
@@ -306,13 +307,36 @@ export default (test) => {
     assert.ok(!out.prompt.includes('# Inputs'), 'nothing left to head');
   });
 
-  test('§5.3 — inline ON substitutes a BARE phrase too, article and all: the plan says in place', () => {
-    // Pinned deliberately. "write about the topic" becomes "write about the museums", which reads
-    // oddly and is still the plan's rule: the owner's own labels are phrases, not `{braces}`, and
-    // a toggle that silently did nothing for them would be worse than an article out of place.
+  test('§5.3 — inline ON never replaces a BARE word (critic R1 A2): it stays listed under # Inputs', () => {
+    // This test used to pin the opposite ("write about the museums"). The owner could not tell
+    // what the option did, and the probe showed it corrupting prose; a bare word is the reader's
+    // sentence, never a slot.
     const say = 'write about the topic';
     const out = assemblePrompt(arrive([['topic', text('museums')]], say), say, { inline: true });
-    assert.equal(out.prompt, '# Instruction\nwrite about the museums');
+    assert.equal(out.prompt, '# Inputs\n\n## topic\nmuseums\n\n# Instruction\nwrite about the topic');
+  });
+
+  test('§5.3 — critic R1 A2: "The topic of the essay is {topic}. Stay on topic." fills the slot and keeps both sentences', () => {
+    const say = 'The topic of the essay is {topic}. Stay on topic.';
+    const b = arrive([['topic', text('cats')]], say);
+    assert.equal(b.params[0].mentionedBraced, true);
+    const out = assemblePrompt(b, say, { inline: true });
+    assert.equal(out.prompt, '# Instruction\nThe topic of the essay is cats. Stay on topic.');
+    assert.equal(out.blocks.length, 0, 'a filled {name} is not listed again');
+    // …and with the option OFF the braces are only un-braced: the value stays under its heading.
+    const off = assemblePrompt(b, say, {});
+    assert.ok(off.prompt.includes('## topic\ncats'), off.prompt);
+    assert.ok(off.prompt.endsWith('The topic of the essay is topic. Stay on topic.'), off.prompt);
+  });
+
+  test('§5.3 — critic R1 A2: a bare mention with inline ON is still bound, mentioned, and listed', () => {
+    const say = 'summarise the topic';
+    const b = arrive([['topic', text('cats')]], say);
+    assert.equal(b.params[0].mentioned, true, 'a bare mention still orders the parameter (rule 9)');
+    assert.equal(b.params[0].mentionedBraced, false);
+    const out = assemblePrompt(b, say, { inline: true });
+    assert.deepEqual(out.blocks.map((x) => x.name), ['topic']);
+    assert.ok(out.prompt.endsWith('summarise the topic'));
   });
 
   test('§5.3 — inline ON leaves a LONG value under its heading', () => {
@@ -480,8 +504,8 @@ export default (test) => {
 
   test('§5.3 — an image block is named `(image, attached)`, and an inlined one has no block at all', () => {
     const img = valueOf('image', { dataUrl: 'data:image/png;base64,AAAA', name: 'p.png' });
-    const b = arrive([['photo', img], ['topic', text('museums')]], 'describe the photo about the topic');
-    const out = assemblePrompt(b, 'describe the photo about the topic', { inline: true });
+    const b = arrive([['photo', img], ['topic', text('museums')]], 'describe the photo about {topic}');
+    const out = assemblePrompt(b, 'describe the photo about {topic}', { inline: true });
     assert.deepEqual(out.blocks.map((x) => x.name), ['photo (image, attached)'],
       'the short text was substituted in place, so it is not under # Inputs any more');
     assert.equal(out.blocks[0].param.values[0].kind, 'image', 'the tint comes from the right value');
@@ -567,7 +591,9 @@ export default (test) => {
     assert.equal(plan.call.schema, '{"type":"object"}');
     assert.equal(plan.call.model, 'gemma4:12b');
     assert.equal(plan.call.priority, 'background', 'a human typing always takes the seat first');
-    assert.equal(plan.call.maxTokens, null);
+    // Critic R1 A8: the real number, never null ("the spine decides" was a silent 512).
+    assert.equal(plan.call.maxTokens, MAX_TOKENS_TEXT);
+    assert.equal(plan.call.seed, null, 'no seed set: new each run');
     assert.equal(plan.error, null);
     assert.equal(plan.fallback, false);
     assert.equal(plan.assembled.system, SYSTEM);
@@ -583,8 +609,8 @@ export default (test) => {
   });
 
   test('planFor reads the inline toggle off the part, and the budget off its argument', () => {
-    const part = { id: 'ins', settings: { instruction: 'about topic', inlineVars: true } };
-    const bind = arrive([['topic', text('museums')]], 'about topic');
+    const part = { id: 'ins', settings: { instruction: 'about {topic}', inlineVars: true } };
+    const bind = arrive([['topic', text('museums')]], 'about {topic}');
     const on = planFor({ part, bind, budget: { chars: 5000, tokens: 1388, assumed: true } });
     assert.ok(on.assembled.prompt.includes('about museums'));
     const off = planFor({ part: { ...part, settings: { ...part.settings, inlineVars: false } }, bind });

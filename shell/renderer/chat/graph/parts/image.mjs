@@ -212,6 +212,13 @@ export const image = /** @type {any} */ ({
       note.classList.toggle('is-error', !working && !!problem);
     }
 
+    /** The newest pick or drop (critic R1 B17): two in a row on one box, and the LAST one wins,
+     * whichever finishes reading first. */
+    let takeSeq = 0;
+    /** A result for pick/drop number `my`, applied only while it is still the newest.
+     * @param {number} my @returns {(out: any) => void} */
+    const takeIf = (my) => (out) => { if (my === takeSeq) take(out); };
+
     /** The one place a result from the intake becomes a settings edit. @param {any} out */
     function take(out) {
       if (destroyed) return;
@@ -230,7 +237,8 @@ export const image = /** @type {any} */ ({
       problem = '';
       working = true;
       paint(ctx.part || part);
-      Promise.resolve(intake.pick()).then(take, () => take({ error: t('parts.imageUnreadable') }));
+      const done = takeIf(++takeSeq);
+      Promise.resolve(intake.pick()).then(done, () => done({ error: t('parts.imageUnreadable') }));
     }
 
     /** @param {any} ev */
@@ -261,10 +269,11 @@ export const image = /** @type {any} */ ({
       paint(ctx.part || part);
       // `fromDrop`, NEVER `fromDataTransfer`: a box holds ONE picture, and a folder dropped on it
       // by accident would otherwise decode and base64 every file in it before we used the first.
+      const done = takeIf(++takeSeq);
       Promise.resolve(intake.fromDrop(dt)).then((result) => {
-        if (!result) { take({ error: t('parts.imageNotAnImage', { type: t('parts.imageTypeUnknown') }) }); return; }
-        take(result);
-      }, () => take({ error: t('parts.imageUnreadable') }));
+        if (!result) { done({ error: t('parts.imageNotAnImage', { type: t('parts.imageTypeUnknown') }) }); return; }
+        done(result);
+      }, () => done({ error: t('parts.imageUnreadable') }));
     }
 
     empty.addEventListener('click', choose);

@@ -6,6 +6,61 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-09-24 (night) — The Computer, critic round 1: the owner's eight complaints fixed
+
+The owner tested the Computer and reported eight problems. A critic traced each one to code
+([reviews/COMPUTER_CRITIC_R1.md](reviews/COMPUTER_CRITIC_R1.md)) and found 18 more defects. The
+integrator proved items 6 and 7 with the new real-input harness. Three builders then worked in
+parallel on disjoint files.
+
+- **Re-runs give new answers.** Each Instruction has a Seed: new each run (the default) or a
+  pinned number (🎲, ✕, and Keep to pin the last one). The seed goes into the request and the
+  cache key, the run bar offers "Run everything again", and the transcript names the seed.
+- **"Substitute short values in place" is now "Fill in {names} with their values"**, and it
+  fills only {braced} names (it used to replace bare words too).
+- **Resize** every box from its corner. Fields fill the box, and ports and wires follow.
+- **Mouse and trackpad.**
+  - Two-finger scroll pans, and pinch zooms about the cursor.
+  - A wheel over a box's scrollable text scrolls the text.
+  - Space-drag, middle-drag and a Hand tool pan.
+  - There is a zoom menu (fit, selection, 100 %) with its keys, zoom goes from 10 % to 400 %, and
+    right-click menus sit on boxes and wires.
+- **Unplug a wire** by dragging its end off the input, or with the ✕ on hover. One undo brings
+  it back.
+- **Edit a filled Text box** with a double-click, ✎ Edit, or Enter/F2. Editing a wired box locks
+  it, so the next run keeps the edit.
+- **Copy text.** Text in boxes is selectable and Ctrl+C copies it (parts are copied only when no
+  text is selected). Copy buttons sit on Text and Document boxes, and plain text pasted on the
+  canvas becomes a Text box.
+- **p5 / three.js / SVG.**
+  - The model is told what the sandbox gives it, with one system message per kind.
+  - Code answers get 4096 tokens (a silent 512 cut most sketches in half), and a cut-off answer
+    is an error.
+  - Script salvage, instance-mode p5, and SVG namespace repair.
+  - The guest is sized to the box, and animation-only sketches photograph non-blank.
+  - A guest error is explained in words.
+- **Also fixed:**
+  - undo no longer rewinds run results;
+  - an edit made during a run is not lost;
+  - clicking the open graph's card no longer stops its run;
+  - a deleted graph stays deleted, and a migrated graph that was deleted is not brought back;
+  - Escape now works in order;
+  - the drop and box races, and a decoded sound pinned after its box is gone.
+- **Integration:** the run bar's zoom chip opens the zoom menu. The defaults are Instruction
+  300×340 and Preview 360×400, since boxes are now exactly their height.
+- **Gates:** chat-unit 1486/0, chat-lint 219/0, chat-scope clean, tsc clean, harness **335/0**
+  (36 new scenarios, driven by real mouse and keyboard). Perf 8/1:
+  - `perf-graph-500` pan p95 is 17.0–17.8 ms. It was over budget on this machine before the round
+    too.
+  - `perf-graph-run` rose to 0.40 ms/part, right at its budget. The likely cause is the
+    per-activation seed.
+  - Both go to the perf pass.
+- **Not yet verified on the real farm (gemma4:12b):** whether LiteLLM passes `seed` through, and
+  whether each Write-… preset draws 4 times out of 5. This needs the owner's client relaunched
+  with a debug port.
+
+---
+
 ## 2026-09-24 (evening) — The Computer **K7**: a debug log you switch on, for bug reports
 
 Owner request: *"a switch to write to disk detail logs … record everything in a timestamped file

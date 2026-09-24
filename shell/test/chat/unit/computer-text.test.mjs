@@ -14,7 +14,7 @@ import { valueOf, listOf, isValue } from '../../../renderer/chat/graph/values.mj
 import { specMap } from '../../../renderer/chat/graph/parts/index.mjs';
 import {
   adopt, bodyOf, dismiss, forget, isEditing, isLocked, MAX_RENDER_CHARS, ownText, refusalOf,
-  shown, textPart,
+  shown, textPart, shouldAutoLock, wasAutoLocked, copyText,
 } from '../../../renderer/chat/graph/parts/text.mjs';
 
 const SPECS = specMap();
@@ -37,8 +37,10 @@ const run = (part, arrivals) => textPart.run(/** @type {any} */ ({
   app: null, ask: null, signal: null, thread: null, cache: true,
 }));
 
-/** A box, rendered, with the handles a test needs. @param {any} doc @param {any} part */
-function box(doc, part) {
+/** A box, rendered, with the handles a test needs. `app` stands in for the Computer (a test that
+ * needs the open document — who is wired in — hands one). @param {any} doc @param {any} part
+ * @param {any} [app] */
+function box(doc, part, app) {
   const host = doc.createElement('div');
   /** @type {any[]} */ const patches = [];
   /** @type {string[]} */ const commits = [];
@@ -46,7 +48,7 @@ function box(doc, part) {
   /** @type {any} */ let inst = null;
   let inUpdate = false;
   const ctx = {
-    app: {},
+    app: app || {},
     get part() { return live; },
     update(/** @type {any} */ patch) {
       patches.push(patch);
@@ -76,9 +78,14 @@ function box(doc, part) {
     from: () => pick('.graph-text-from'),
     clear: () => pick('.graph-text-clear'),
     lock: () => pick('.graph-text-lock'),
+    edit: () => pick('.graph-text-edit'),
+    copy: () => pick('.graph-text-copy'),
     notice: () => pick('.graph-text-notice'),
   };
 }
+
+/** An app whose open document has these wires. @param {any[]} wires */
+const appWith = (wires) => ({ host: { session: { doc: () => ({ parts: [], wires }) } } });
 
 export default function (test) {
   // ---- the contract the catalogue makes -------------------------------------------------------
@@ -147,7 +154,7 @@ export default function (test) {
   test('a box whose source editor is open keeps the person\'s words — stronger than the lock', async () => {
     await withDom(async (doc) => {
       const b = box(doc, { id: 'd', type: 'note', settings: { text: 'half a th', locked: false }, value: null });
-      b.body().dispatchEvent({ type: 'click', target: b.body() });   // clicking in opens the source
+      assert.equal(b.inst.edit(), true, 'K-2: the canvas opens the editor (double-click, Enter, F2)');
       assert.equal(isEditing('d'), true, 'the box declares it is being typed into');
 
       const out = await run(b.live, [valueOf('text', 'an answer that must not land')]);
@@ -355,5 +362,144 @@ export default function (test) {
     assert.deepEqual(shown({ id: 'x2', settings: { text: 'own' }, value: v }), { text: 'shared', from: 'input' });
     forget('x1');
     assert.deepEqual(shown({ id: 'x1', settings: { text: 'own' }, value: v }), { text: 'shared', from: 'input' });
+  });
+
+  // ---- critic R1 A6/A7 (Package C): editing a box that holds text, and copying its words --------
+
+  test('A6: edit() (K-2) opens the source seeded from what the box SHOWS, and says it did', async () => {
+    await withDom(async (doc) => {
+      const b = box(doc, { id: 'r1', type: 'note', settings: { text: 'typed long ago' }, value: null });
+      assert.equal(b.area().hidden, true, 'a filled box shows its rendered words');
+      assert.equal(typeof b.inst.edit, 'function', 'the instance offers the K-2 door');
+      assert.equal(b.inst.edit(), true);
+      assert.equal(b.area().hidden, false, 'the source is up');
+      assert.equal(b.body().hidden, true);
+      assert.equal(b.area().value, 'typed long ago', 'seeded from the words shown');
+      assert.equal(b.from().textContent, t('parts.textEditing'));
+      b.inst.destroy();
+
+      // A box that shows an ARRIVAL seeds the editor with the arrival — what the person saw.
+      const c = box(doc, { id: 'r2', type: 'note', settings: { text: 'mine' }, value: valueOf('text', 'the model wrote this') });
+      c.inst.edit();
+      assert.equal(c.area().value, 'the model wrote this');
+      c.area().value = 'the model wrote this!';
+      assert.equal(c.inst.edit(), true, 'asking twice is harmless');
+      assert.equal(c.area().value, 'the model wrote this!', 'and does not re-seed over the edit');
+      c.inst.destroy();
+    });
+  });
+
+  test('A6: a single click selects (no editor); a double-click on the words edits; a link stays a link', async () => {
+    await withDom(async (doc) => {
+      const b = box(doc, { id: 'r3', type: 'note', settings: { text: 'words' }, value: null });
+      b.body().dispatchEvent({ type: 'click', target: b.body() });
+      assert.equal(b.area().hidden, true, 'one click only selects the box (the canvas does that)');
+      assert.equal(isEditing('r3'), false);
+      const link = { closest: (/** @type {string} */ sel) => (sel === 'a' ? {} : null) };
+      b.body().dispatchEvent({ type: 'dblclick', target: link });
+      assert.equal(b.area().hidden, true, 'a double-click on a link does not open the editor');
+      b.body().dispatchEvent({ type: 'dblclick', target: b.body() });
+      assert.equal(b.area().hidden, false, 'a double-click on the words does');
+      b.inst.destroy();
+    });
+  });
+
+  test('A6: ✎ Edit opens the editor; ✎ and Copy belong to a box that is showing text', async () => {
+    await withDom(async (doc) => {
+      const b = box(doc, { id: 'r4', type: 'note', settings: { text: 'words' }, value: null });
+      assert.equal(b.edit().hidden, false);
+      assert.equal(b.edit().textContent, t('parts.textEdit'));
+      assert.equal(b.edit().tagName, 'button', 'a real button: it works whatever the canvas does with a press');
+      assert.equal(b.copy().hidden, false);
+      b.edit().dispatchEvent({ type: 'click', target: b.edit(), preventDefault() {}, stopPropagation() {} });
+      assert.equal(b.area().hidden, false, '✎ opened the source');
+      assert.equal(b.edit().hidden, true, 'nothing to open while it is open');
+      assert.equal(b.copy().hidden, true, 'the field copies itself while it is up');
+      b.inst.destroy();
+      const e = box(doc, { id: 'r5', type: 'note', settings: { text: '' }, value: null });
+      assert.equal(e.edit().hidden, true, 'an empty box is its own editor');
+      assert.equal(e.copy().hidden, true, 'and has nothing to copy');
+      e.inst.destroy();
+    });
+  });
+
+  test('A7: the rendered words are a selectable zone (K-1)', async () => {
+    await withDom(async (doc) => {
+      const b = box(doc, { id: 'r6', type: 'note', settings: { text: 'select me' }, value: null });
+      assert.equal(b.body().getAttribute('data-selectable'), 'text');
+      b.inst.destroy();
+    });
+  });
+
+  test('A7: Copy puts the WHOLE text on the clipboard — not the rendered-down head of a long one', async () => {
+    const had = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
+    /** @type {string[]} */ const wrote = [];
+    Object.defineProperty(globalThis, 'navigator', {
+      configurable: true, value: { clipboard: { writeText: async (/** @type {string} */ s) => { wrote.push(s); } } },
+    });
+    try {
+      await withDom(async (doc) => {
+        const long = `# Long\n\n${'word '.repeat(Math.ceil(MAX_RENDER_CHARS / 5) + 100)}`;
+        const b = box(doc, { id: 'r7', type: 'note', settings: { text: 'mine' }, value: valueOf('text', long) });
+        b.copy().dispatchEvent({ type: 'click', target: b.copy(), preventDefault() {}, stopPropagation() {} });
+        await new Promise((r) => setTimeout(r, 0));
+        assert.equal(wrote.length, 1);
+        assert.equal(wrote[0], long, 'every character of what the box holds');
+        assert.equal(b.copy().textContent, t('parts.textCopied'), 'and the button says so');
+        b.inst.destroy();
+      });
+      assert.equal(await copyText('x'), true);
+    } finally {
+      if (had) Object.defineProperty(globalThis, 'navigator', had);
+      else delete (/** @type {any} */ (globalThis)).navigator;
+    }
+  });
+
+  test('A6: shouldAutoLock is exactly "wired in and not locked" — unknown never locks', () => {
+    assert.equal(shouldAutoLock({ wired: true, locked: false }), true);
+    assert.equal(shouldAutoLock({ wired: true, locked: true }), false);
+    assert.equal(shouldAutoLock({ wired: false, locked: false }), false);
+    assert.equal(shouldAutoLock({ wired: null, locked: false }), false);
+  });
+
+  test('A6: the first keystroke on a WIRED box locks it, in the same patch as the text', async () => {
+    await withDom(async (doc) => {
+      const app = appWith([{ id: 'w1', from: 'ins', to: 'r8', port: 'in' }]);
+      const b = box(doc, { id: 'r8', type: 'note', settings: { text: '', locked: false }, value: valueOf('text', 'an answer') }, app);
+      b.inst.edit();
+      b.area().value = 'an answer, edited';
+      b.area().dispatchEvent({ type: 'input' });
+      assert.deepEqual(b.patches, [{ text: 'an answer, edited', locked: true }],
+        'ONE patch: one undo entry takes back the words and the lock together');
+      assert.equal(wasAutoLocked('r8'), true);
+      b.area().value = 'an answer, edited twice';
+      b.area().dispatchEvent({ type: 'input' });
+      assert.deepEqual(b.patches[1], { text: 'an answer, edited twice' }, 'the lock is set once');
+      b.area().dispatchEvent({ type: 'blur' });
+      assert.equal(b.notice().hidden, false, 'the box says why it is locked');
+      assert.equal(b.notice().textContent, t('parts.textAutoLocked'));
+
+      // …and the next run keeps the edit instead of re-adopting the arrival.
+      const out = await run(b.live, [valueOf('text', 'a NEW answer')]);
+      assert.deepEqual(out, { kind: 'text', data: 'an answer, edited twice' });
+
+      // Unlocking by hand answers the line: it goes.
+      b.lock().dispatchEvent({ type: 'click', target: b.lock() });
+      assert.equal(wasAutoLocked('r8'), false);
+      assert.notEqual(b.notice().textContent, t('parts.textAutoLocked'));
+      b.inst.destroy();
+    });
+  });
+
+  test('A6: typing into an UNWIRED box never locks it', async () => {
+    await withDom(async (doc) => {
+      const b = box(doc, { id: 'r9', type: 'note', settings: { text: '' }, value: null }, appWith([]));
+      b.area().dispatchEvent({ type: 'focus' });
+      b.area().value = 'a note';
+      b.area().dispatchEvent({ type: 'input' });
+      assert.deepEqual(b.patches, [{ text: 'a note' }]);
+      assert.equal(wasAutoLocked('r9'), false);
+      b.inst.destroy();
+    });
   });
 }

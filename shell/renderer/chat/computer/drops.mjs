@@ -31,6 +31,7 @@ import { takesFor, farmViewOf } from '../graph/takes.mjs';
 import { DOC_MAX_BYTES, pagesRefusal } from '../graph/parts/document.mjs';
 import { takeSound } from '../graph/parts/audio.mjs';
 import '../strings/drops.en.mjs';
+import '../strings/computer.en.mjs';
 
 /** How many refusal sentences one drop shows one by one; past it, one line counts the rest. */
 export const SAY_AT_MOST = 3;
@@ -84,6 +85,11 @@ export function install(app) {
   const hasDoc = () => {
     const s = sessionOf();
     return !!(s && typeof s.docId === 'function' && s.docId());
+  };
+  /** The open graph's id, or '' — asked again before anything is placed (critic R1 B17). */
+  const docIdNow = () => {
+    const s = sessionOf();
+    try { return s && typeof s.docId === 'function' ? String(s.docId() || '') : ''; } catch { return ''; }
   };
   const specsOf = () => {
     const s = sessionOf();
@@ -188,7 +194,11 @@ export function install(app) {
       for (const extra of graphs.slice(1)) refuse(extra.name, t('drops.oneGraph', { name: extra.name }));
     }
 
-    // 3. Every other file: the box that holds its kind, with what that box adopts.
+    // 3. Every other file: the box that holds its kind, with what that box adopts. The graph they
+    //    are FOR is the one open now (after any graph file above opened): reading a big PDF or a
+    //    long sound takes a while, and a person who switches graphs meanwhile must not find the
+    //    boxes in the graph they switched to (critic R1 B17).
+    const docAt = docIdNow();
     const specs = specsOf();
     /** @type {{type: string, settings: any, size: any, name: string, fileId: string}[]} */ const boxes = [];
     for (const it of items) {
@@ -219,7 +229,9 @@ export function install(app) {
     const canvas = canvasOf();
     /** Files kept for a box that never got placed: nothing will ever refer to them. */
     /** @type {string[]} */ const orphans = [];
-    if (boxes.length && (!canvas || typeof canvas.placeEntry !== 'function' || !hasDoc())) {
+    if (boxes.length && docIdNow() !== docAt) {
+      for (const b of boxes) { refuse(b.name, t('computer.dropSwitched', { name: b.name })); if (b.fileId) orphans.push(b.fileId); }
+    } else if (boxes.length && (!canvas || typeof canvas.placeEntry !== 'function' || !hasDoc())) {
       for (const b of boxes) { refuse(b.name, t('drops.notPlaced', { name: b.name })); if (b.fileId) orphans.push(b.fileId); }
     } else if (boxes.length) {
       const sizes = boxes.map((b) => b.size);

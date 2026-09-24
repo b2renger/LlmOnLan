@@ -128,3 +128,70 @@
 }
 #lolcomputer .comp-run-show-waiting:hover { border-color: var(--accent-hover); }
 #lolcomputer .comp-run-show-waiting:focus-visible { outline: 2px solid var(--accent-hover); outline-offset: 1px; }
+
+/* ---- "Run everything again" (critic R1 A1) ----------------------------------------------------
+   Offered only when a run found every box up to date: the way to a NEW answer (new seeds) that
+   used to require editing something first. A ghost button, like the waits button beside it. */
+#lolcomputer .comp-run-again {
+  font: inherit;
+  font-size: 12px;
+  padding: 3px 10px;
+  border-radius: var(--comp-r-btn);
+  border: 1px solid var(--comp-line);
+  background: var(--comp-panel-2);
+  color: var(--text);
+  cursor: pointer;
+  white-space: nowrap;
+}
+#lolcomputer .comp-run-again:hover { filter: brightness(1.08); border-color: var(--accent-hover); }
+#lolcomputer .comp-run-again:focus-visible { outline: 2px solid var(--accent-hover); outline-offset: 1px; }
+#lolcomputer .comp-run-again[hidden] { display: none; }
+
+/* ---- the Instruction's seed row and last-run line (critic R1 A1, A2, A8) ---------------------
+   The seed is part of RUNNING a box, so its few rules live with the run bar's; the box sheet
+   (graph.css) is the canvas's. `Seed [ new each run ] 🎲 ✕` sits with Model and Answer shape;
+   `last run: seed 48213 · Keep` and the "cut off" chip sit under the settings. */
+#lolcomputer .graph-ins-seed {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+#lolcomputer .graph-ins-seed-field {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+#lolcomputer .graph-ins-seed-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-variant-numeric: tabular-nums;
+}
+#lolcomputer .graph-ins-seed-input[aria-invalid='true'] { border-color: var(--danger); }
+#lolcomputer .graph-ins-seed-btn {
+  flex: 0 0 auto;
+  font-size: 11px;
+  padding: 2px 7px;
+  border-radius: 7px;
+  line-height: 1.3;
+}
+#lolcomputer .graph-ins-seed-btn:focus-visible { outline: 2px solid var(--accent-hover); outline-offset: 1px; }
+#lolcomputer .graph-ins-run {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+  margin-top: 4px;
+}
+#lolcomputer .graph-ins-run[hidden],
+#lolcomputer .graph-ins-run > [hidden],
+#lolcomputer .graph-ins-inline-wrap[hidden] { display: none; }
+#lolcomputer .graph-ins-cut { color: var(--amber); white-space: normal; }
+#lolcomputer .graph-ins-hint {
+  margin: 2px 0 0;
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--muted);
+}

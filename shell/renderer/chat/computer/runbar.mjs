@@ -31,6 +31,7 @@ import { DEFAULT_MAX_ITEMS } from '../graph/runner.mjs';
 import { backEdges, forwardEdges, runPlan } from '../graph/topo.mjs';
 import { onParks, pending } from '../graph/parts/control-bus.mjs';
 import '../strings/computer.en.mjs';
+import '../strings/computer-gen.en.mjs';
 
 /** The share of the cap past which the meter warns (§8.3: "turning amber past 80 %"). */
 export const CAP_AMBER = 0.8;
@@ -99,6 +100,20 @@ export function barredLabel(n) {
   return Number(n) === 1 ? t('computer.runBarredOne') : t('computer.runBarred', { n: Number(n) || 0 });
 }
 
+/**
+ * Critic R1 A1: did this run find NOTHING to do — every box up to date? That is the moment the bar
+ * offers "Run everything again" instead of a dead end. A run that was refused (busy), stopped,
+ * cyclic, capped, limited, or that barred or failed anything did something worth reading, and is
+ * not "nothing". PURE. @param {any} out a RunReport, or null @returns {boolean}
+ */
+export function nothingRan(out) {
+  if (!out || out.cancelled || out.busy || out.cycle || out.capped || out.limited) return false;
+  if (Number(out.ran) > 0) return false;
+  if (Array.isArray(out.errors) && out.errors.length) return false;
+  if (Array.isArray(out.barred) && out.barred.length) return false;
+  return true;
+}
+
 /** @param {string} cls @param {string} text @param {HTMLElement} [parent] */
 function chip(cls, text, parent) {
   const el = document.createElement('span');
@@ -156,6 +171,8 @@ export function install(app) {
   /** The document the last adopted report belongs to. A report is about ONE graph: open another
    *  and the bar goes back to planning rather than quoting a run that happened somewhere else. */
   let reportDocId = '';
+  /** The document revision that report was adopted at: an edit after it retires "Run again". */
+  let reportRev = -1;
 
   // ---- the bar ---------------------------------------------------------------------------------
   const runBtn = button('comp-run-all', t('computer.runAll'), () => { runAll(); });
@@ -179,9 +196,12 @@ export function install(app) {
   waitsBtn.hidden = true;
   counts.appendChild(waitsBtn);
 
+  // The chip shows the live zoom and opens the canvas's zoom menu (fit, selection, 100 %), so the
+  // bar and the toolbar are one control; on a canvas without the menu it still fits.
   const zoomBtn = button('comp-run-zoom', t('computer.runZoom', { percent: 100 }), () => {
-    const c = canvas();
-    if (c && typeof c.fit === 'function') c.fit();
+    const c = /** @type {any} */ (canvas());
+    if (c && typeof c.openZoomMenu === 'function') c.openZoomMenu(zoomBtn);
+    else if (c && typeof c.fit === 'function') c.fit();
     paint();
   });
 
@@ -204,9 +224,17 @@ export function install(app) {
   status.setAttribute('role', 'status');
   status.setAttribute('aria-live', 'polite');
 
+  // Critic R1 A1: "Nothing to run — every box is up to date" used to be a dead end, and the only
+  // way to get a new answer was to edit something. When a run finds nothing stale the bar offers
+  // this instead: every box runs again (`force`, which still leaves an unpressed Button and the
+  // notes alone), and every Instruction set to "new each run" gets a new seed.
+  const againBtn = button('comp-run-again', t('computer.genRunAgain'), () => { runAll({ force: true }); });
+  againBtn.title = t('computer.genRunAgainHint');
+  againBtn.hidden = true;
+
   // Order matters: the status line reads left-to-right after the counts it explains, and the zoom
   // readout carries `margin-left:auto`, so everything after it is pinned to the right edge.
-  root.replaceChildren(runBtn, stopBtn, counts, status, zoomBtn, helpBtn);
+  root.replaceChildren(runBtn, stopBtn, counts, status, againBtn, zoomBtn, helpBtn);
   // The frozen probe `h.computer.states().runbar` reads `#lolcomputer .comp-run` (KC-4), and the
   // element the layout hands us is `.comp-runbar`. One class, so the harness reads the real bar
   // rather than an empty string that would pass every assertion by accident.
@@ -354,6 +382,12 @@ export function install(app) {
     if (gensChip.textContent !== gensText) gensChip.textContent = gensText;
     paintWaits();
 
+    // "Run everything again" stands while the last run of THIS graph found nothing to do and
+    // nothing has been edited since — an edit makes something stale, and then Run all is the
+    // honest button again.
+    const again = !running && mine && nothingRan(last) && !!doc && (Number(doc.rev) || 0) === reportRev;
+    if (againBtn.hidden === again) againBtn.hidden = !again;
+
     const meter = capMeter(gens, cap);
     if (capChip.textContent !== meter.text) capChip.textContent = meter.text;
     const amber = meter.amber ? 'true' : 'false';
@@ -379,7 +413,11 @@ export function install(app) {
    */
   function adoptReport(out) {
     const h = host();
-    if (out && h && h.session && typeof h.session.docId === 'function') reportDocId = h.session.docId() || '';
+    if (out && h && h.session && typeof h.session.docId === 'function') {
+      reportDocId = h.session.docId() || '';
+      const d = docNow();
+      reportRev = d ? Number(d.rev) || 0 : -1;
+    }
     const c = canvas();
     if (!c) return;
     if (typeof c.setBarred === 'function') c.setBarred((out && out.barred) || []);

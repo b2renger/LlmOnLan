@@ -22,8 +22,10 @@
 
 import { partById, wiresInto } from './model.mjs';
 import { isValue, itemsOf } from './values.mjs';
+import { CODE_KINDS } from './unfence.mjs';
 import { t } from '../core/i18n.mjs';
 import '../strings/parts.en.mjs';
+import '../strings/computer-gen.en.mjs';
 
 /** @typedef {import('../core/types.mjs').GraphDoc} GraphDoc */
 /** @typedef {import('../core/types.mjs').GraphValue} GraphValue */
@@ -52,6 +54,114 @@ export const INLINE_MAX = 200;
  * part that wants them). When a producer HAS attached text, §5.3 says to fence it up to this. */
 export const FILE_TEXT_MAX = 64 * 1024;
 
+/** Critic R1 A8: how long an answer may be. A p5 spiral is 350-600 tokens, a three.js scene with
+ * lights 600-1000, a landscape SVG 400-800 — the old silent 512 floor cut most of them mid-program.
+ * A CODE answer gets 4096 (the same room ctx/budget.mjs already reserves for the answer), prose
+ * and shaped answers 2048. What is asked for is what the transcript prints: never "automatic". */
+export const MAX_TOKENS_CODE = 4096;
+export const MAX_TOKENS_TEXT = 2048;
+
+/** The per-kind system instruction appended to SYSTEM when an Instruction answers in code (A8).
+ * A literal map (chat-lint rule 5); the text is in strings/computer-gen.en.mjs. */
+const CODE_SYSTEM_KEY = {
+  svg: 'parts.genSystemSvg',
+  p5: 'parts.genSystemP5',
+  three: 'parts.genSystemThree',
+  html: 'parts.genSystemHtml',
+};
+
+/** The code kind an Instruction's settings really answer in: `code` only counts for a TEXT answer
+ * (a list or a JSON answer is never code). '' for prose. @param {any} settings @returns {string} */
+export function codeKindOf(settings) {
+  const s = settings || {};
+  const shape = ['text', 'list', 'json'].indexOf(String(s.shape)) >= 0 ? String(s.shape) : 'text';
+  const code = String(s.code || '');
+  return shape === 'text' && CODE_KINDS.indexOf(code) >= 0 ? code : '';
+}
+
+/** The `max_tokens` an Instruction with these settings asks for. @param {any} settings @returns {number} */
+export function maxTokensOf(settings) {
+  return codeKindOf(settings) ? MAX_TOKENS_CODE : MAX_TOKENS_TEXT;
+}
+
+/** What the model is told about ONE code kind, or '' for anything else. Resolved at call time so a
+ * locale registered later is honoured. @param {string} kind @returns {string} */
+export function codeSystem(kind) {
+  const k = String(kind || '');
+  if (CODE_KINDS.indexOf(k) < 0) return '';
+  return t(/** @type {any} */ (CODE_SYSTEM_KEY)[k]);
+}
+
+// ---------------------------------------------------------------------------------------------
+// Critic R1 A1 — the seed. PURE arithmetic, shared by the runner (which picks it), the Instruction
+// (which shows it) and the transcript (which declares it).
+// ---------------------------------------------------------------------------------------------
+
+/** The largest seed ever sent: 2^31 − 1. Every engine behind LiteLLM takes that as a plain int —
+ * llama-server reads 0xFFFFFFFF as "pick a random seed", and some servers hold an int32. */
+export const SEED_MAX = 2147483647;
+/** A new-each-run seed is SHORT on purpose: "seed 48213" is a number a person can read, keep and
+ * type back. The spread between runs comes from the nonce, not from the width of the number. */
+export const SEED_SPAN = 1000000;
+/** How far apart the seeds of fan item k and loop iteration i sit from the base (two primes), so
+ * four Repeat items are four different generations — and the SAME four under a pinned seed. */
+export const SEED_ITEM_STEP = 7919;
+export const SEED_ITERATION_STEP = 104729;
+
+/**
+ * A seed setting as a number, or null for "new each run". `''` (the default), anything that is not
+ * a whole number, and anything over SEED_MAX all mean new each run — a seed that cannot be sent is
+ * never silently clamped into a different one.
+ * @param {any} v @returns {number|null}
+ */
+export function parseSeed(v) {
+  if (typeof v === 'number') return Number.isInteger(v) && v >= 0 && v <= SEED_MAX ? v : null;
+  const s = String(v == null ? '' : v).trim();
+  if (!/^\d{1,10}$/.test(s)) return null;
+  const n = Number(s);
+  return n <= SEED_MAX ? n : null;
+}
+
+/** FNV-1a with a murmur3 finaliser: a stable, well-mixed uint32 of a string. @param {string} text */
+export function hash32(text) {
+  const s = String(text);
+  let h = 0x811c9dc5;
+  for (let i = 0; i < s.length; i += 1) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  h ^= h >>> 16;
+  h = Math.imul(h, 0x85ebca6b);
+  h ^= h >>> 13;
+  h = Math.imul(h, 0xc2b2ae35);
+  h ^= h >>> 16;
+  return h >>> 0;
+}
+
+/**
+ * The BASE seed of one part in one run: the pinned number, or — new each run — a short number
+ * derived from the run's nonce and the part id, so two parts in one run never share a stream and
+ * two runs of one part do not either. This base is what the box shows ("last run: seed 48213")
+ * and what Keep pins, which is why item 0 of iteration 1 is sent exactly this number.
+ * @param {{pinned: number|null, nonce: number, partId: string}} o @returns {number}
+ */
+export function baseSeed(o) {
+  if (o && typeof o.pinned === 'number' && o.pinned >= 0) return o.pinned;
+  return hash32(`${(Number(o && o.nonce) || 0) >>> 0}|${String((o && o.partId) || '')}`) % SEED_SPAN;
+}
+
+/**
+ * The seed SENT for fan item `k` of loop iteration `iteration` (as the runner counts them: k from
+ * 0, iteration from 1). k=0 of iteration 1 is exactly `base`.
+ * @param {number} base @param {number} k @param {number} iteration @returns {number}
+ */
+export function seedFor(base, k, iteration) {
+  const kk = Math.max(0, Math.floor(Number(k) || 0));
+  const it = Math.max(1, Math.floor(Number(iteration) || 1));
+  const b = Math.max(0, Math.floor(Number(base) || 0));
+  return (b + kk * SEED_ITEM_STEP + (it - 1) * SEED_ITERATION_STEP) % (SEED_MAX + 1);
+}
+
 // ---------------------------------------------------------------------------------------------
 // §5.1 — the two normalisations
 // ---------------------------------------------------------------------------------------------
@@ -75,6 +185,16 @@ export function labelName(label) {
  * @param {string} instruction @param {string} key @returns {boolean} */
 export function mentions(instruction, key) {
   return mentionAt(instruction, key) >= 0;
+}
+
+/** Is `key` written in one of the two EXPLICIT forms, `{key}` or `$key`? Critic R1 A2: only these
+ * are ever filled in with a value — a bare word in a sentence is the reader's prose, not a slot.
+ * @param {string} instruction @param {string} key @returns {boolean} */
+export function mentionsBraced(instruction, key) {
+  const hay = String(instruction || '');
+  const needle = labelKey(key);
+  if (!needle || !hay) return false;
+  return formsOf(needle).some((form) => form.braced && new RegExp(form.source, 'i').test(hay));
 }
 
 /** Where `key` is first mentioned, or -1. The INDEX is what rule 9 orders by.
@@ -215,11 +335,13 @@ function bindCore(arrivals, instruction, prerun) {
       existing.from.push(a.from);
       continue;
     }
-    named.set(key, {
+    named.set(key, /** @type {any} */ ({
       name: labelName(a.label), key,
       mentioned: mentions(instruction, key), unlabelled: false,
+      // Critic R1 A2: written as `{key}`/`$key` — the only form "Fill in {names}" ever fills.
+      mentionedBraced: mentionsBraced(instruction, key),
       values: a.value ? [a.value] : [], pending: !a.value, from: [a.from],
-    });
+    }));
   }
 
   const all = [...named.values()];
@@ -316,7 +438,8 @@ export function assemblePrompt(params, instruction, o) {
     ? Math.floor(opts.budget) : 0;
 
   // 1. The instruction as the model will read it: `{topic}` and `$topic` become the bare word, and
-  //    — when inline substitution is on — a short text value takes the place of its own name.
+  //    — when "Fill in {names}" is on — a short text value takes the place of its BRACED name.
+  //    A bare mention is never replaced (critic R1 A2).
   const inlined = inline ? new Set(list.filter(canInline).map((p) => p.key)) : new Set();
   const text = rewrite(String(instruction || '').trim(), list, inlined);
 
@@ -377,18 +500,22 @@ function assemble(blocks, tail) {
   return [head, tail ? `${t('parts.insInstructionHeading')}\n${tail}` : ''].filter(Boolean).join('\n\n');
 }
 
-/** Can this parameter be substituted in place? §5.3: only a MENTIONED label (there is nowhere else
- * to put it), carrying exactly one short text value. @param {BoundParam} p @returns {boolean} */
+/** Can this parameter be filled in place? §5.3: only a label the instruction writes as `{name}` or
+ * `$name` (critic R1 A2: a bare word is never a slot — "Stay on topic." must stay a sentence),
+ * carrying exactly one short text value. @param {BoundParam} p @returns {boolean} */
 function canInline(p) {
-  if (!p.key || !p.mentioned || p.pending || p.values.length !== 1) return false;
+  if (!p.key || !(/** @type {any} */ (p).mentionedBraced) || p.pending || p.values.length !== 1) return false;
   const v = /** @type {any} */ (p.values[0]);
   return !!v && v.kind === 'text' && String(v.data == null ? '' : v.data).length <= INLINE_MAX;
 }
 
 /**
- * Rewrite the instruction: every `{name}` / `$name` of a BOUND parameter becomes the bare word,
- * and every mention of an inlined parameter becomes its value. A name the arrows do not supply
- * keeps its braces — it is reported as `— not wired`, and silently un-bracing it would hide that.
+ * Rewrite the instruction: every `{name}` / `$name` of a BOUND parameter becomes the bare word —
+ * or, for an inlined parameter, its value. ONLY the braced forms are ever touched (critic R1 A2):
+ * a bare mention is the reader's own prose and stays exactly as written, so "The topic of the
+ * essay is {topic}. Stay on topic." fills the slot and keeps both sentences. A name the arrows do
+ * not supply keeps its braces — it is reported as `— not wired`, and silently un-bracing it would
+ * hide that.
  * @param {string} text @param {BoundParam[]} list @param {Set<string>} inlined @returns {string}
  */
 function rewrite(text, list, inlined) {
@@ -396,7 +523,7 @@ function rewrite(text, list, inlined) {
     name: p.name,
     value: inlined.has(p.key) ? String(/** @type {any} */ (p.values[0]).data ?? '') : null,
     // Sticky, so each form can be tried AT one offset and nowhere else: the scan owns the walk.
-    forms: formsOf(p.key).map((f) => ({ re: new RegExp(f.source, 'iy'), braced: f.braced })),
+    forms: formsOf(p.key).filter((f) => f.braced).map((f) => ({ re: new RegExp(f.source, 'iy') })),
   }));
   if (!targets.length || !text) return text;
 
@@ -409,10 +536,7 @@ function rewrite(text, list, inlined) {
         form.re.lastIndex = i;
         const m = form.re.exec(text);
         if (!m) continue;
-        if (!form.braced && !isPhrase(text, i, m[0].length)) continue;
-        // A bare phrase with nothing to substitute is left exactly as the reader wrote it.
-        const to = tgt.value !== null ? tgt.value : (form.braced ? tgt.name : null);
-        if (to === null) continue;
+        const to = tgt.value !== null ? tgt.value : tgt.name;
         if (!hit || m[0].length > hit.len) hit = { len: m[0].length, to };
       }
     }
@@ -625,21 +749,30 @@ export function planFor(o) {
     budget: budget.chars,
     inline: settings.inlineVars === true,
   });
+  // Critic R1 A8: an Instruction that answers in CODE is told the sandbox's rules in the SYSTEM
+  // message — so the person's editable instruction does not have to carry them — and it is set
+  // HERE, in the one assembly, so the Sent tab shows exactly what goes on the wire.
+  const codeKind = codeKindOf(settings);
+  const sent = codeKind ? { ...assembled, system: `${SYSTEM}\n\n${codeSystem(codeKind)}` } : assembled;
   return {
     bind,
     fan: fan ? { n: fan.n, index: 0 } : null,
-    assembled,
+    assembled: sent,
     instruction,
     fallback,
     budget,
-    call: {
+    call: /** @type {any} */ ({
       model: String(settings.model || '') || null,
       shape: /** @type {any} */ (shape),
       schema: shape === 'json' ? String(settings.schema || '') : null,
-      maxTokens: null,                             // the ask spine decides (§3.4.1)
+      // Critic R1 A8: the real number, never "the spine decides" — a silent 512 was the bug.
+      maxTokens: maxTokensOf(settings),
+      // Critic R1 A1: a pinned number, or null for "new each run" (the runner picks it per run).
+      seed: parseSeed(settings.seed),
+      code: codeKind || null,
       priority: 'background',                      // a human typing always takes the seat first
       task: 'graph:ask',
-    },
+    }),
     // No inputs AND no instruction is the one case that is genuinely an error (§5.3).
     error: (!instruction && !bind.params.length) ? 'no-instruction' : null,
   };

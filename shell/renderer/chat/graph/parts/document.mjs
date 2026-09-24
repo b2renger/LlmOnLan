@@ -37,7 +37,9 @@ import { farmViewOf, reasonFor, WHY } from '../takes.mjs';
 import { extractDoc, EXTRACT_TIMEOUT_MS } from '../../net/extract.mjs';
 import { parseBlocks } from '../../render/md-block.mjs';
 import { domFactory, renderBlocks } from '../../render/dom.mjs';
+import { copier } from './text.mjs';
 import '../../strings/parts-document.en.mjs';
+import '../../strings/parts-text.en.mjs';
 
 /** @typedef {import('../../core/types.mjs').PartSpec} PartSpec */
 /** @typedef {{page: number, text: string, engine?: string}} DocPage */
@@ -392,6 +394,18 @@ export async function readDoc(o) {
     /** @type {any} */ (reasonOf(code)));
 }
 
+/** Let go of a file a box kept and then did not use (a drop overtaken by a newer one): swept at
+ * once unless something still refers to it (the store keeps one copy per content). Fire and forget.
+ * @param {any} app @param {string} fileId */
+export function releaseUnused(app, fileId) {
+  const media = app && app.media;
+  if (!fileId || !media || typeof media.sweep !== 'function') return;
+  try {
+    const out = media.sweep({ only: [String(fileId)] });
+    if (out && typeof out.catch === 'function') out.catch((/** @type {any} */ err) => console.warn('[lolcomputer] releasing an unused file failed', err));
+  } catch (err) { console.warn('[lolcomputer] releasing an unused file failed', err); }
+}
+
 /**
  * Several files dropped on a box that holds ONE: say which one it took and where the rest go —
  * a toast the reader sees, and the canvas's live region for a screen reader (build rule 6). The
@@ -422,7 +436,9 @@ export const documentPart = /** @type {any} */ ({
   // The box draws its own value (the extracted text), so the canvas's one-line strip would only
   // print its first line twice (KD-3).
   quiet: true,
-  size: { w: 300, h: 200 },
+  // Critic R1 A3/K-3: the box is now EXACTLY this tall (it no longer grows to fit), so the default
+  // holds the head, the "takes:" line, a status line and a readable stretch of the text.
+  size: { w: 300, h: 280 },
   holds: 'pdf',
   adopt,
   inputs: [],
@@ -446,6 +462,8 @@ export const documentPart = /** @type {any} */ ({
     /** @type {any} */ let recValue = null;
     /** The repaint that clears the "the farm may still be reading it" line when its wait ends. */
     /** @type {any} */ let coolTimer = null;
+    /** The newest file being kept: an older one that finishes later is not applied. */
+    let takeSeq = 0;
 
     /** @param {string} tag @param {string} cls @param {string} [text] */
     const el = (tag, cls, text) => {
@@ -465,17 +483,27 @@ export const documentPart = /** @type {any} */ ({
     const meta = el('p', 'graph-doc-meta');
     who.append(name, meta);
     const actions = el('span', 'graph-doc-actions');
+    // Copy (critic R1 A7): the WHOLE extracted text, not the rendered-down head of a long one.
+    const copy = /** @type {HTMLButtonElement} */ (el('button', 'graph-part-control graph-doc-btn graph-doc-copy', t('parts.textCopy')));
+    copy.type = 'button';
+    copy.title = t('parts.textCopyHint');
+    copy.hidden = true;
     const replace = /** @type {HTMLButtonElement} */ (el('button', 'graph-part-control graph-doc-btn graph-doc-replace', t('parts.docReplace')));
     replace.type = 'button';
     const remove = /** @type {HTMLButtonElement} */ (el('button', 'graph-part-control graph-doc-btn graph-doc-remove', t('parts.docRemove')));
     remove.type = 'button';
-    actions.append(replace, remove);
+    actions.append(copy, replace, remove);
     head.append(glyph, who, actions);
     const takes = renderTakes({ app, partId: part.id, kind: 'pdf', doc });
     const note = el('p', 'graph-doc-note');
     note.setAttribute('role', 'status');
     const cutLine = el('p', 'graph-doc-cut');
+    // The extracted text is a SELECTABLE ZONE (contract K-1, critic R1 A7): a press selects the box
+    // but never drags it, so a drag across the words selects them and Ctrl+C copies them.
     const text = el('div', 'graph-doc-text');
+    text.setAttribute('data-selectable', 'text');
+    const copyText = copier(copy, () => String((rendered && rendered.data) || ''));
+    copy.addEventListener('click', () => { void copyText(); });
     host.classList.add('graph-doc');
     host.replaceChildren(empty, head, takes.el, note, cutLine, text);
 
@@ -560,6 +588,7 @@ export const documentPart = /** @type {any} */ ({
         }
       }
       text.hidden = !own;
+      copy.hidden = !own;
       // "First 60 of 120 pages", from the SAME function that cut the value.
       const info = own && rec && Array.isArray(rec.pages) ? docText(rec.pages) : null;
       cutLine.textContent = info && info.cut ? info.note : '';
@@ -586,12 +615,19 @@ export const documentPart = /** @type {any} */ ({
       problem = '';
       keeping = fileName;
       paint(latest);
+      // Two drops in a row on one box (critic R1 B17): the LAST one dropped wins, whichever is kept
+      // first. An older one that comes back late is not applied, and its bytes are let go again
+      // unless something else holds the same file.
+      const my = ++takeSeq;
       /** @type {any} */ let ref = null;
       try {
         ref = await media.put(file, { maxBytes: DOC_MAX_BYTES, kind: 'pdf', check: (/** @type {ArrayBuffer} */ buf) => pagesRefusal(buf, fileName) });
       } catch { ref = null; }
+      if (my !== takeSeq || destroyed) {
+        if (ref && !ref.error) releaseUnused(app, ref.fileId);
+        return;
+      }
       keeping = '';
-      if (destroyed) return;
       if (!ref || ref.error) { problem = String((ref && ref.error) || t('parts.mediaUnreadable', { name: fileName })); paint(latest); return; }
       const before = (latest && latest.settings) || {};
       if (before.fileId !== ref.fileId) hidden = { value: (latest && latest.value) || null, fileId: String(before.fileId || '') };

@@ -63,7 +63,6 @@ registerStrings('graph', {
   // canvas affordances
   canvasLabel: 'Graph canvas',
   selectionCount: '{n} selected',
-  deleteParts: 'Delete',
   valueOpen: 'Open this value',
   valueTitle: 'Value',
   valueMore: '… {n} more characters',

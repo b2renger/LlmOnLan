@@ -78,7 +78,7 @@ export default {
     },
     {
       id: 's-delete',
-      text: 'Delete the sticky note: click it once to select it, then press Delete.',
+      text: 'Delete the sticky note: click it once to select it, then press Delete. (A double-click would open it for typing instead.)',
       check: { has: { id: 'p_bin', count: 0 } },
       show: { partId: 'p_bin' },
     },

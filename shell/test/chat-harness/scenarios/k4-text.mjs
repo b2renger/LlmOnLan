@@ -15,6 +15,7 @@
 //   .graph-part[data-id="<id>"] .graph-text-from        "from input" / "locked" / "editing"
 //   .graph-part[data-id="<id>"] .graph-text-clear       ↺ Clear
 //   .graph-text-lock[data-part="<id>"]                  the lock
+//   .graph-part[data-id="<id>"] .graph-text-edit        ✎ Edit (critic R1 A6: a click on the body only selects)
 //   .graph-part[data-id="<id>"] .graph-text-notice      the quiet line a refusal writes
 
 const FARM_ERRORS = [/Failed to load resource/, /net::ERR_/];
@@ -254,9 +255,11 @@ export default [
             await settled(h);
 
             const undoBefore = (await h.computer.state()).undo.past;
-            await click(h, b, '.graph-text-body');
+            // Critic R1 A6: a single click on the words only SELECTS the box now; ✎ Edit (or a
+            // double-click, or Enter — k8-boxes-text drives those with real input) opens it.
+            await click(h, b, '.graph-text-edit');
             let box = await boxOf(h, b);
-            h.eq(box.source.hidden, false, 'clicking in shows the SOURCE');
+            h.eq(box.source.hidden, false, '✎ Edit shows the SOURCE');
             h.eq(box.body.hidden, true);
             h.eq(box.source.value, REPORT, 'and the source is what was on screen, not an empty field');
             h.eq(box.from.text, await str(h, 'parts.textEditing'), 'the box says it is being edited');
@@ -265,11 +268,14 @@ export default [
             box = await boxOf(h, b);
             h.eq(box.body.hidden, false, 'committing goes back to rendered');
             h.eq(box.headings[0], 'My own heading', 'showing what the person wrote, not what arrived');
-            h.eq(box.from.hidden, true, 'these are their words now, so nothing claims otherwise');
+            // Critic R1 A6: the box is wired in, so the first keystroke LOCKED it (the next run
+            // must not put the arrival back over the edit) — and it says "locked", not "from input".
+            h.eq(box.from.text, await str(h, 'parts.textLocked'), 'these are their words now, kept by the lock');
 
             const live = await parts(h);
             h.eq(live[b].settings.text, '# My own heading\n\nmine now',
                 'typing is the ONLY thing that writes settings.text');
+            h.eq(live[b].settings.locked, true, 'the edit locked the wired box');
             h.assert((await h.computer.state()).undo.past > undoBefore,
                 'and the edit entered undo: one history entry, opened by the first keystroke');
             await h.computer.undo();
@@ -338,8 +344,8 @@ export default [
             await h.computer.set(b, { text: 'half a thou' });
             await h.computer.wire(a, b, 'in');
 
-            // The person is mid-sentence: the source editor is open and focused.
-            await click(h, b, '.graph-text-body');
+            // The person is mid-sentence: the source editor is open and focused (✎ Edit, R1 A6).
+            await click(h, b, '.graph-text-edit');
             h.eq((await boxOf(h, b)).source.hidden, false, 'the editor is open');
 
             await h.computer.run({});

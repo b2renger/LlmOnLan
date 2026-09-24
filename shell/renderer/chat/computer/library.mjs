@@ -40,6 +40,7 @@ import { t } from '../core/i18n.mjs';
 import { specMap } from '../graph/parts/index.mjs';
 import { createDoc } from '../graph/model.mjs';
 import { toText, fromText, FILE_SUFFIX } from '../graph/serialize.mjs';
+import { readRuns, journalKey } from '../graph/journal.mjs';
 import { download, pickImportFile, slugify } from '../ui/transfer.mjs';
 import '../strings/computer.en.mjs';
 
@@ -59,13 +60,24 @@ export const MAX_IMPORT_BYTES = 8 * 1024 * 1024;
 /**
  * When a document last RAN, or 0 for never.
  *
- * There is no run journal until K3 (§7.3), and no part carries a timestamp. What a document does
- * carry is `part.stats` — written only by the runner — so "has anything on this canvas ever been
- * executed" is answerable exactly, and the only time available is the document's own `updatedAt`.
- * K3 re-points this at `kv 'computer:runs:<id>'` and the card stops approximating.
- * @param {any} doc @returns {number}
+ * Critic R1, B13: the run JOURNAL (`kv 'computer:runs:<id>'`, §7.3) is the answer — its newest
+ * run's end (or start, while it is still live). It used to be `updatedAt` whenever any part had
+ * `stats`, so the card said "last run" and meant "last edit", and a duplicate (which copied the
+ * stats) said "last run just now" about a graph that had never run. A document with no journal —
+ * one that last ran before K3 — still falls back to that approximation, because "never run" would
+ * be a worse lie about a box full of answers.
+ * @param {any} doc @param {any[]} [runs] the document's journal rows, when they have been read
+ * @returns {number}
  */
-export function lastRunAt(doc) {
+export function lastRunAt(doc, runs) {
+  if (Array.isArray(runs) && runs.length) {
+    let best = 0;
+    for (const r of runs) {
+      const ts = Number(r && (r.endedAt || r.startedAt)) || 0;
+      if (ts > best) best = ts;
+    }
+    if (best) return best;
+  }
   const parts = doc && Array.isArray(doc.parts) ? doc.parts : [];
   const ran = parts.some((p) => p && p.stats
     && (Number(p.stats.calls) > 0 || Number(p.stats.ms) > 0 || Number(p.stats.tokens) > 0));
@@ -75,12 +87,13 @@ export function lastRunAt(doc) {
 /**
  * The one line under a card's title. Exported because it is the whole of the card's honesty: a
  * document that has never run must not imply that it has.
- * @param {any} doc @param {number} nowMs @returns {string}
+ * @param {any} doc @param {number} nowMs @param {any[]} [runs] its journal rows (B13)
+ * @returns {string}
  */
-export function cardMeta(doc, nowMs) {
+export function cardMeta(doc, nowMs, runs) {
   const n = doc && Array.isArray(doc.parts) ? doc.parts.length : 0;
   const parts = n === 1 ? t('computer.libPartsOne') : t('computer.libParts', { n });
-  const ran = lastRunAt(doc);
+  const ran = lastRunAt(doc, runs);
   return `${parts} · ${ran ? t('computer.libLastRun', { when: whenText(ran, nowMs) }) : t('computer.libNeverRun')}`;
 }
 
@@ -135,6 +148,16 @@ export function createLibrary(app, els) {
   let destroyed = false;
   /** @type {Function|null} */ let offSession = null;   // the open card's meta subscription
   let built = false;
+  /** Each document's run journal, as last read (B13): what "last run" on its card is made of. */
+  /** @type {Map<string, any[]>} */ const runsById = new Map();
+
+  /** Read the journals of these rows. Never throws: no journal is an empty one. @param {any[]} list */
+  async function readJournals(list) {
+    await Promise.all((list || []).map(async (r) => {
+      if (!r || !r.id) return;
+      try { runsById.set(r.id, await readRuns(app.repo, r.id)); } catch { runsById.set(r.id, []); }
+    }));
+  }
 
   // ---- the document operations (§7.1: the host's store when there is one, the repo when not) ---
 
@@ -205,6 +228,8 @@ export function createLibrary(app, els) {
       if (s && typeof s.duplicate === 'function') return (await s.duplicate(id, { title })) || null;
       const copy = {
         ...from,
+        // B13: a copy has never run — its parts keep their answers, not their run stats.
+        parts: (Array.isArray(from.parts) ? from.parts : []).map((/** @type {any} */ p) => ({ ...p, stats: null })),
         id: app.newId(),
         threadId: null,
         folder: null,
@@ -219,13 +244,20 @@ export function createLibrary(app, els) {
     async remove(id) {
       const s = store();
       if (s && typeof s.remove === 'function') await s.remove(id);
-      else await app.repo.deleteGraph(id);
+      else {
+        await app.repo.deleteGraph(id);
+        // B4: the run journal goes with the graph (the store does this itself when there is one).
+        try { await app.repo.kvSet(journalKey(id), null); } catch { /* the store speaks for itself */ }
+      }
+      runsById.delete(id);
       // K6 kickoff (addendum KF-5): a deleted graph may have held the last reference to a PDF or a
       // sound kept on this computer. The file store drops what nothing refers to any more; a
-      // failure there never undoes the delete.
+      // failure there never undoes the delete. Critic R1, B17: `spareFresh`, like every automatic
+      // sweep — a drop still landing in ANOTHER graph has just stored its file and has not yet
+      // written the box that refers to it.
       const media = app && app.media;
       if (media && typeof media.sweep === 'function') {
-        try { await media.sweep(); } catch (err) { console.warn('[lolcomputer] sweeping unused files failed', err); }
+        try { await media.sweep({ spareFresh: true }); } catch (err) { console.warn('[lolcomputer] sweeping unused files failed', err); }
       }
     },
   };
@@ -398,7 +430,10 @@ export function createLibrary(app, els) {
   /** Re-read the rows and repaint. */
   async function render() {
     if (destroyed) return;
-    rows = await docs.list();
+    const list = await docs.list();
+    await readJournals(list);
+    if (destroyed) return;
+    rows = list;
     paint();
   }
 
@@ -432,8 +467,15 @@ export function createLibrary(app, els) {
     if (!live || live.id !== openId) return;
     const el = els.list.querySelector(`.comp-card[data-id="${openId}"] .comp-card-meta`);
     if (!el) return;
-    const next = cardMeta(live, now());
+    const next = cardMeta(live, now(), runsById.get(openId));
     if (el.textContent !== next) el.textContent = next;
+    // Critic R1, B1 (d): the TITLE is the live one too. A rename of the open graph is written
+    // through the session, and the card kept the old words until the next full repaint.
+    if (renamingId !== openId) {
+      const titleEl = els.list.querySelector(`.comp-card[data-id="${openId}"] .comp-card-title`);
+      const title = live.title || t('computer.libUntitled');
+      if (titleEl && titleEl.textContent !== title) titleEl.textContent = title;
+    }
   }
 
   /** @param {any} row @param {number} nowMs @returns {HTMLElement} */
@@ -447,7 +489,7 @@ export function createLibrary(app, els) {
     /** @type {any} */ (openBtn).type = 'button';
     openBtn.setAttribute('data-act', 'open');
     const title = h('span', 'comp-card-title', row.title || t('computer.libUntitled'));
-    const meta = h('span', 'comp-card-meta', cardMeta(row, nowMs));
+    const meta = h('span', 'comp-card-meta', cardMeta(row, nowMs, runsById.get(row.id)));
     openBtn.append(title, meta);
     openBtn.addEventListener('click', () => { void openDocument(row.id); });
     openBtn.addEventListener('dblclick', () => startRename(row.id));
@@ -550,15 +592,22 @@ export function createLibrary(app, els) {
         : true;
       if (!go) return false;
     }
-    await docs.remove(id);
-    if (openId === id) {
-      openId = null;
+    const host = app.host;
+    const liveId = host && host.session && typeof host.session.docId === 'function' ? host.session.docId() : null;
+    if (openId === id || liveId === id) {
+      // Critic R1, B4: SWITCH AWAY FIRST, then delete. Removing the row first left the live run
+      // owning the document: its next mark() saved the row straight back, and the flush at the
+      // top of the next open rewrote it. Opening the next graph stops that run and flushes; the
+      // run's last journal write is waited for; only then does the row (and its journal) go.
       const left = (await docs.list()).filter((r) => r.id !== id);
       const next = left[0] ? left[0].id : await docs.create({ title: '' });
       if (next) await openDocument(next);
-      else await render();
-      return true;
+      else openId = null;
+      if (host && typeof host.settle === 'function') {
+        try { await host.settle(); } catch (err) { console.warn('[lolcomputer] waiting for the run to end failed', err); }
+      }
     }
+    await docs.remove(id);
     await render();
     return true;
   }
@@ -595,11 +644,20 @@ export function createLibrary(app, els) {
   /** @param {string|null} id */
   async function open(id) {
     if (!id) return null;
+    const host = app.host;
+    const live = () => (host && host.session && typeof host.session.docId === 'function' ? host.session.docId() : null);
+    // Critic R1, B3: the card of the graph that is ALREADY open. Opening it again is not a switch
+    // (the host would stop the run and reject a waiting Dialog to "switch" to itself).
+    const already = !!id && id === live() && !(host && host.session && typeof host.session.opening === 'function' && host.session.opening());
     openId = id;
     renamingId = null;
     try { await app.repo.kvSet(LAST_GRAPH_KEY, id); } catch (err) { console.warn('[lolcomputer] remembering the open graph failed', err); }
-    if (app.host && typeof app.host.open === 'function') {
-      try { await app.host.open(id); } catch (err) { console.warn('[lolcomputer] opening the graph failed', err); }
+    if (!already && host && typeof host.open === 'function') {
+      try { await host.open(id); } catch (err) { console.warn('[lolcomputer] opening the graph failed', err); }
+      // Critic R1, B11: the highlight follows what the canvas really SHOWS once the open settles
+      // — a later click may have won the race — not what this click asked for.
+      const shown = live();
+      if (shown) openId = shown;
     }
     await render();
     return id;
@@ -636,11 +694,19 @@ export function createLibrary(app, els) {
       /** @type {any} */ let metaTimer = 0;
       offSession = host.session.on(() => {
         if (metaTimer) return;
-        metaTimer = setTimeout(() => { metaTimer = 0; syncOpenMeta(); }, META_REFRESH_MS);
+        metaTimer = setTimeout(async () => {
+          metaTimer = 0;
+          // B13: a run that just ended wrote the journal; re-read the open one's before painting.
+          if (openId) {
+            try { runsById.set(openId, await readRuns(app.repo, openId)); } catch { /* keep the last read */ }
+          }
+          syncOpenMeta();
+        }, META_REFRESH_MS);
       });
     }
 
     rows = await docs.list();
+    await readJournals(rows);
 
     let id = host && host.session && typeof host.session.docId === 'function' ? host.session.docId() : null;
     if (!id) {
@@ -674,7 +740,7 @@ export function createLibrary(app, els) {
     // so a scenario and a click walk one path.
     debug: {
       list: () => rows.map((r) => ({
-        id: r.id, title: r.title || '', parts: (r.parts || []).length, updatedAt: r.updatedAt || 0, lastRun: lastRunAt(r),
+        id: r.id, title: r.title || '', parts: (r.parts || []).length, updatedAt: r.updatedAt || 0, lastRun: lastRunAt(r, runsById.get(r.id)),
       })),
       cards: () => Array.from(els.list.querySelectorAll('.comp-card')).map((el) => ({
         id: el.getAttribute('data-id'),

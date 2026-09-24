@@ -52,6 +52,23 @@ export const TIMEOUTS = Object.freeze({
   hideGrace: 10000,
 });
 
+/** The largest guest frame a run may ask for, per side, in CSS pixels (K-4). The Preview's own
+ * fields stop at 2048; the guest clamps to this same number (runner.html `SIZE_MAX`). */
+export const GUEST_MAX_PX = 4096;
+
+/**
+ * A run's `size` (contract K-4, critic R1 A8) as the guest will use it: whole pixels, at least 1,
+ * at most GUEST_MAX_PX a side — or null (no size: the frame keeps the mount's own).
+ * @param {any} v @returns {{w: number, h: number}|null}
+ */
+export function guestSize(v) {
+  if (!v || typeof v !== 'object') return null;
+  const w = Math.round(Number(v.w));
+  const h = Math.round(Number(v.h));
+  if (!Number.isFinite(w) || !Number.isFinite(h) || w < 1 || h < 1) return null;
+  return { w: Math.min(GUEST_MAX_PX, w), h: Math.min(GUEST_MAX_PX, h) };
+}
+
 /** How many malformed messages in a row tear the frame down (§3.7.2). */
 export const MAX_DROPPED = 10;
 

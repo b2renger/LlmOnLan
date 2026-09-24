@@ -201,7 +201,10 @@ export default (test) => {
     // The K3 landing added two: `input[type="checkbox"]` and `.graph-part-check`'s
     // `justify-content` — a checkbox was inheriting the 100 % width meant for a text field, so
     // every control part's switches rendered as full-width lanes with the caption crushed right.
-    assert.equal(scoped.length, 123, `the graph.css re-scope is ${scoped.length} selectors, not 123`);
+    // Critic R1 (Package B) added 39: the resize handle, the exact-height body (K-3), the plugged
+    // input, the wire hover and its ✕, the Select/Hand tools, the zoom cluster and its menu, and
+    // the right-click menu.
+    assert.equal(scoped.length, 162, `the graph.css re-scope is ${scoped.length} selectors, not 162`);
     const body = css.replace(/\/\*[\s\S]*?\*\//g, '');
     assert.equal((body.match(/#lolchat /g) || []).length, 0,
       'a `#lolchat ` selector survived the re-scope: that rule paints in the chat and nowhere else');

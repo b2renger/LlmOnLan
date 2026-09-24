@@ -789,3 +789,206 @@
    x 1042 + 240 > 1264). Anchor it to the button's RIGHT edge instead — it opens inward from
    wherever the button ended up. */
 :is(#lolchat, #lolcomputer) .graph-export-menu { left: auto; right: 0; }
+
+/* ---------------------------------------------------------------------------------------------
+   Critic R1, Package B — the canvas under a real mouse and a real trackpad.
+
+     .graph-part-resize        the corner handle (A3); the box is EXACTLY part.w × part.h (K-3)
+     .graph-port[data-wired]   a plugged input: drag its wire off to unplug it (A5)
+     .graph-wire[data-hover]   the wire under the pointer thickens (A5)
+     .graph-wire-x             the ✕ that unplugs a hovered or selected wire (A5)
+     .graph-tools              the Select / Hand tools (A4)
+     .graph-zoom-wrap          −  100%  +, the % button opening .graph-zoom-menu (A4)
+   --------------------------------------------------------------------------------------------- */
+
+/* K-3: the body takes what the head, the error strip and the foot leave, and SCROLLS inside the
+   box instead of growing it. Each part's main field fills the body (its own sheet says so). */
+:is(#lolchat, #lolcomputer) .graph-part-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+:is(#lolchat, #lolcomputer) .graph-part-head,
+:is(#lolchat, #lolcomputer) .graph-part-error,
+:is(#lolchat, #lolcomputer) .graph-part-foot,
+:is(#lolchat, #lolcomputer) .graph-item-errors { flex: 0 0 auto; }
+
+/* The Instruction's prompt is the field that grows with its box. */
+:is(#lolchat, #lolcomputer) .graph-ins-instruction {
+  flex: 1 1 auto;
+  min-height: 48px;
+}
+
+/* The resize handle: three short diagonal strokes in the corner, always faintly there, clear on
+   hover and on the selected box — found by looking, and by the cursor. */
+:is(#lolchat, #lolcomputer) .graph-part-resize {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 16px;
+  height: 16px;
+  border-radius: 0 0 12px 0;
+  cursor: nwse-resize;
+  opacity: 0.45;
+  background:
+    linear-gradient(135deg,
+      transparent 0 52%, var(--muted) 52% 58%, transparent 58% 66%,
+      var(--muted) 66% 72%, transparent 72% 80%, var(--muted) 80% 86%, transparent 86%);
+  touch-action: none;
+  z-index: 1;
+}
+:is(#lolchat, #lolcomputer) .graph-part:hover .graph-part-resize,
+:is(#lolchat, #lolcomputer) .graph-part[aria-selected="true"] .graph-part-resize { opacity: 0.9; }
+:is(#lolchat, #lolcomputer) .graph-part-resize:hover {
+  opacity: 1;
+  background-color: color-mix(in srgb, var(--accent-hover) 18%, transparent);
+}
+:is(#lolchat, #lolcomputer) .graph-canvas.graph-resizing,
+:is(#lolchat, #lolcomputer) .graph-canvas.graph-resizing * { cursor: nwse-resize; }
+
+/* A plugged input: grab it to pick the wire's end up. */
+:is(#lolchat, #lolcomputer) .graph-port[data-dir="in"][data-wired="true"] {
+  cursor: grab;
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+
+/* The wire under the pointer. The path itself never takes the pointer (the canvas hit-tests it),
+   so the hover is an attribute the canvas writes. */
+:is(#lolchat, #lolcomputer) .graph-wire[data-hover="true"] { stroke: var(--accent-hover); stroke-width: 4; }
+:is(#lolchat, #lolcomputer) .graph-canvas.graph-wire-hover { cursor: pointer; }
+
+/* The pill's chip holds the name and the ✕ beside it, absolutely, so showing the ✕ never shifts
+   the name under the pointer. */
+:is(#lolchat, #lolcomputer) .graph-wire-chip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  pointer-events: auto;
+}
+:is(#lolchat, #lolcomputer) .graph-wire-x {
+  position: absolute;
+  left: 100%;
+  top: 50%;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  margin: -9px 0 0 3px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--muted);
+  font: inherit;
+  font-size: 10px;
+  line-height: 1;
+  cursor: pointer;
+  pointer-events: auto;
+}
+:is(#lolchat, #lolcomputer) .graph-wire-pill[data-hover="true"] .graph-wire-x,
+:is(#lolchat, #lolcomputer) .graph-wire-pill[data-selected="true"] .graph-wire-x { display: inline-flex; }
+:is(#lolchat, #lolcomputer) .graph-wire-pill[data-editing="true"] .graph-wire-x { display: none; }
+:is(#lolchat, #lolcomputer) .graph-wire-x:hover {
+  color: var(--danger);
+  border-color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 12%, var(--surface));
+}
+
+/* The two tools: a segmented pair, the pressed one reads as pressed. */
+:is(#lolchat, #lolcomputer) .graph-tools {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-2);
+}
+:is(#lolchat, #lolcomputer) .graph-tool {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  border-color: transparent;
+  background: transparent;
+  border-radius: 7px;
+}
+:is(#lolchat, #lolcomputer) .graph-tool[aria-pressed="true"] {
+  background: var(--surface);
+  border-color: var(--border);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent-hover) 40%, transparent);
+}
+:is(#lolchat, #lolcomputer) .graph-icon { flex: 0 0 auto; display: block; }
+
+:is(#lolchat, #lolcomputer) .graph-canvas.graph-hand { cursor: grab; }
+:is(#lolchat, #lolcomputer) .graph-canvas.graph-grabbing,
+:is(#lolchat, #lolcomputer) .graph-canvas.graph-grabbing * { cursor: grabbing; }
+
+/* The zoom cluster: − 100% + at the right end of the toolbar; the % opens the menu. */
+:is(#lolchat, #lolcomputer) .graph-zoom-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+:is(#lolchat, #lolcomputer) .graph-zoom-wrap .graph-btn { padding: 4px 8px; }
+:is(#lolchat, #lolcomputer) .graph-zoom {
+  margin-left: 0;
+  min-width: 56px;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+:is(#lolchat, #lolcomputer) .graph-zoom-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 220px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--bg) 60%, transparent);
+}
+:is(#lolchat, #lolcomputer) .graph-zoom-menu[hidden] { display: none; }
+:is(#lolchat, #lolcomputer) .graph-zoom-menu.graph-zoom-menu-floating {
+  top: auto;
+  right: auto;
+  transform: translateY(-100%);
+}
+:is(#lolchat, #lolcomputer) .graph-zoom-item {
+  appearance: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+:is(#lolchat, #lolcomputer) .graph-zoom-item:hover,
+:is(#lolchat, #lolcomputer) .graph-zoom-item:focus-visible { background: var(--surface-2); outline: none; }
+:is(#lolchat, #lolcomputer) .graph-zoom-key {
+  font: inherit;
+  font-size: 11px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The right-click menu on a box or a wire: the zoom menu's look, placed where the pointer was. */
+:is(#lolchat, #lolcomputer) .graph-zoom-menu.graph-ctx-menu {
+  right: auto;
+  z-index: 8;
+  min-width: 200px;
+}

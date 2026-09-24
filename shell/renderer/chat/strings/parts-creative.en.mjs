@@ -6,11 +6,12 @@
 // them, lessons name the boxes by them). K5-U1 owns the WORDING and may add keys.
 //
 // The four `writeAsk*` strings are what a Write-… preset puts in the Instruction's text box — the
-// words the person SEES and can edit, and exactly what the transcript's Sent tab shows. They ask
-// for code only, in the shape the sandbox guest runs, in words short enough for a 12B model to
-// follow. The guest takes the code as models usually write it (p5 global mode, a three.js renderer
-// appended to the page, a fenced block) — graph/unfence.mjs — so the asks do not have to fight
-// the model's habits, only name the canvas size and forbid imports.
+// words the person SEES and can edit, and exactly what the transcript's Sent tab shows. Since
+// critic R1 (A8) they are the TASK only: how to answer (one fenced block, the sandbox's rules, a
+// skeleton) is the per-kind system message graph/bind.mjs adds for the Instruction's `code`
+// setting. The guest still takes code as models usually write it (p5 global mode, a three.js
+// renderer appended to the page, a fenced block, a page with an inline <script>) —
+// graph/unfence.mjs — so the prompt does not have to fight every habit.
 import { registerStrings } from '../core/i18n.mjs';
 
 registerStrings('parts', {
@@ -34,8 +35,12 @@ registerStrings('parts', {
   writeSvgDesc: 'Ask the model to draw an SVG picture. Wire it into an SVG box to see it.',
   writeHtmlLabel: 'Write an HTML page',
   writeHtmlDesc: 'Ask the model for a small web page. Wire it into an HTML page box to see it.',
-  writeAskP5: 'Write a p5.js sketch of a slow, colourful spiral.\n\nReply with only the JavaScript code, no explanation. Use p5.js global mode: define setup() and draw(), and call createCanvas(400, 300) in setup(). Do not import anything.',
-  writeAskThree: 'Write a three.js scene with a few floating shapes and soft light.\n\nReply with only the JavaScript code, no explanation. THREE is already loaded as a global, so do not import anything. Make a 400 by 300 renderer, and call renderer.render(scene, camera) once before any animation loop.',
-  writeAskSvg: 'Draw a simple landscape: a sun, two hills and a house.\n\nReply with only the SVG code, no explanation. Start with <svg and include xmlns and a viewBox of 0 0 400 300.',
-  writeAskHtml: 'Make a small web page that introduces a museum exhibition, with a title, a short paragraph and a list of three highlights.\n\nReply with only the HTML, no explanation. Put any CSS in a <style> element; no scripts, no external links or images.',
+  // Critic R1 A8: the TASK only. The rules the sandbox imposes (strict mode, p5 globals only
+  // inside setup/draw, no network, one fenced block…) ride the SYSTEM message the Instruction
+  // sends for its code kind (strings/computer-gen.en.mjs `genSystem*`), which the transcript's
+  // Sent tab shows — so the person edits what they want drawn, not the sandbox's small print.
+  writeAskP5: 'A slow, colourful spiral that turns.',
+  writeAskThree: 'A few floating shapes in soft light.',
+  writeAskSvg: 'A simple landscape: a sun, two hills and a house.',
+  writeAskHtml: 'A small page introducing a museum exhibition: a title, a short paragraph and three highlights.',
 });

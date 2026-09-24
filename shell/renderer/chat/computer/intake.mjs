@@ -38,6 +38,7 @@
 // an intake that throws into a drop handler loses the picture AND the message.
 
 import { t } from '../core/i18n.mjs';
+import '../strings/computer.en.mjs';
 import { MAX_VALUE_BYTES } from '../graph/serialize.mjs';
 import { setSettings } from '../graph/model.mjs';
 import '../strings/parts-image.en.mjs';
@@ -348,8 +349,13 @@ export function install(app) {
     const session = host && host.session;
     const canvas = host && host.canvas;
     if (!session || !canvas || typeof session.doc !== 'function') { say(t('parts.imageNoBox'), 'error'); return null; }
+    // The graph the picture is FOR is the one open when it was pasted (critic R1 B17): a big
+    // picture takes a moment to read, and a switch meanwhile must not put it in the other graph.
+    const docIdOf = () => { try { return typeof session.docId === 'function' ? String(session.docId() || '') : ''; } catch { return ''; } };
+    const docAt = docIdOf();
     const out = await fromFile(file);
     if (!out || out.error) { say(String((out && out.error) || t('parts.imageUnreadable')), 'error'); return null; }
+    if (docIdOf() !== docAt) { say(t('computer.pasteSwitched', { name: String(out.name || '') }), 'error'); return null; }
     const doc = session.doc();
     const wanted = (o && o.into) || '';
     const selected = typeof session.selected === 'function' ? session.selected() : [];

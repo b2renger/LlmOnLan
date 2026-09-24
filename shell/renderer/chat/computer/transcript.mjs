@@ -38,6 +38,7 @@ import { bodyText } from '../graph/inspect.mjs';
 import { valueStamp } from '../graph/values.mjs';
 import '../strings/computer.en.mjs';
 import '../strings/parts.en.mjs';
+import '../strings/computer-gen.en.mjs';
 
 /** The name this panel is mounted under in the drawer. Frozen (§2.6 KB-3). */
 export const PANEL = 'transcript';
@@ -74,12 +75,14 @@ export const RAW_CAP = 40000;
  * under `# Inputs` any more.
  *
  * @param {any} plan an InstructionPlan (core/types.mjs), or null
+ * @param {{used?: number|null}} [o] `used`: the seed the part's LAST run sent (its `stats.seed`),
+ *   so a new-each-run call line can say which one produced the answer on screen
  * @returns {{system: string, cards: {name: string, body: string, kind: string, pending: boolean,
  *   mentioned: boolean, unlabelled: boolean}[], instruction: string, fallback: boolean,
  *   call: string, words: number, images: number, unused: string[], unwired: string[],
  *   truncated: string, fan: string}|null}
  */
-export function sentView(plan) {
+export function sentView(plan, o) {
   if (!plan || !plan.assembled) return null;
   const blocks = Array.isArray(plan.assembled.blocks) ? plan.assembled.blocks : [];
   const cards = blocks.map((/** @type {any} */ b) => {
@@ -98,7 +101,7 @@ export function sentView(plan) {
     cards,
     instruction: String(plan.assembled.instruction || ''),
     fallback: !!plan.fallback,
-    call: callLine(plan.call),
+    call: callLine(plan.call, o && typeof o.used === 'number' ? o.used : null),
     words: Number(plan.assembled.words) || 0,
     images: ((plan.assembled.images) || []).length,
     unused: ((plan.bind && plan.bind.unused) || []).slice(),
@@ -132,19 +135,31 @@ function kindOf(p) {
   return 'text';
 }
 
-/** `model: gemma4:12b · response_format: json_schema · max_tokens: 2048 · priority: background`
- * — the DECLARED request (§8.1). `maxTokens: null` means the ask spine decides, which is a fact
- * about the call and is said as one rather than printed as `null`.
- * @param {any} call @returns {string} */
-export function callLine(call) {
+/** `model: gemma4:12b · response_format: json_schema · max_tokens: 2048 · seed: new each run ·
+ * priority: background` — the DECLARED request (§8.1). Since critic R1 the Instruction declares
+ * its real `max_tokens` (4096 for code, 2048 otherwise) and its seed: pinned (`48213 (pinned)`) or
+ * new each run, with the one the last run used when there is one. `maxTokens: null` (a caller that
+ * declares none) still says `automatic` rather than printing `null`.
+ * @param {any} call @param {number|null} [used] the seed the last run sent, if any
+ * @returns {string} */
+export function callLine(call, used) {
   const c = call || {};
   const auto = t('computer.txParamsAuto');
-  return t('computer.txParams', {
+  return t('computer.genTxParams', {
     model: c.model || auto,
     format: c.shape === 'json' ? 'json_schema' : (c.shape || 'text'),
     maxTokens: c.maxTokens == null ? auto : String(c.maxTokens),
+    seed: seedText(c.seed, used),
     priority: c.priority || 'background',
   });
+}
+
+/** The seed half of the call line. PURE. @param {any} seed the declared seed (a number = pinned)
+ * @param {any} [used] the seed the last run sent @returns {string} */
+export function seedText(seed, used) {
+  if (typeof seed === 'number') return t('computer.genTxSeedPinned', { seed });
+  if (typeof used === 'number') return t('computer.genTxSeedNewLast', { seed: used });
+  return t('computer.genTxSeedNew');
 }
 
 /** The truncation badge, in the numbers §5.4 requires — and saying `assumed` when the farm never
@@ -199,8 +214,11 @@ export function ladderFor(result, o) {
  * meters a call only when one really left the window (`stats.calls`), so a part that produced a
  * value having made no call was answered from the ask spine's cache and cost the farm nothing.
  *
+ * Critic R1: `seed` (the number the last run sent, `seedLine` says it and whether it was pinned)
+ * and `cut` (an answer hit max_tokens) ride along as their own fields, so `line` is unchanged.
  * @param {{stats?: any, farm?: string, value?: any}} o
- * @returns {{seconds: number, tokens: number, cached: boolean, farm: string, line: string}|null}
+ * @returns {{seconds: number, tokens: number, cached: boolean, farm: string, line: string,
+ *   seed: number|null, seedLine: string, cut: boolean}|null}
  */
 export function costView(o) {
   const stats = (o && o.stats) || null;
@@ -209,6 +227,7 @@ export function costView(o) {
   const tokens = Number(stats.tokens) || 0;
   const cached = Number(stats.calls) === 0 && !!(o && o.value);
   const farm = String((o && o.farm) || '') || t('computer.txUnknownFarm');
+  const seed = typeof stats.seed === 'number' ? stats.seed : null;
   return {
     seconds,
     tokens,
@@ -220,6 +239,10 @@ export function costView(o) {
       cached: cached ? t('computer.txCached') : t('computer.txNotCached'),
       farm,
     }),
+    seed,
+    seedLine: seed === null ? ''
+      : (stats.pinned ? t('computer.genCostSeedPinned', { seed }) : t('computer.genCostSeed', { seed })),
+    cut: stats.cut === true,
   };
 }
 
@@ -339,9 +362,11 @@ export function install(app) {
 
   function paintSent() {
     const plan = openFor ? planFor(openFor) : null;
+    const part = partOf(openFor);
+    const used = part && part.stats && typeof part.stats.seed === 'number' ? part.stats.seed : null;
     // §5.3's one genuine error: nothing wired in AND no instruction. There is no prompt to read,
     // so the tab says what is missing instead of showing a system message and a blank page.
-    const view = plan && plan.error !== 'no-instruction' ? sentView(plan) : null;
+    const view = plan && plan.error !== 'no-instruction' ? sentView(plan, { used }) : null;
     if (!view) { say(t('computer.txSentEmpty')); return; }
 
     const chips = div('comp-tx-chips', body);
@@ -403,6 +428,11 @@ export function install(app) {
     });
     if (!cost && !(part && part.error)) { say(t('computer.txCostEmpty')); return; }
     if (cost) pre(cost.line, body, 'comp-tx-cost');
+    if (cost && cost.seedLine) pre(cost.seedLine, body, 'comp-tx-cost comp-tx-seed');
+    if (cost && cost.cut) {
+      const warn = div('comp-tx-cut', body);
+      warn.textContent = t('computer.genCostCut');
+    }
     // §8.4: a refusal is said in the same plain sentence the box shows, never a code.
     if (part && part.error) {
       const box = div('comp-tx-error', body);
@@ -461,7 +491,8 @@ export function install(app) {
     if (!d || !part) return `${tab}|${openFor}|-`;
     /** @type {string[]} */ const bits = [tab, openFor, String(d.rev || 0),
       String(part.state || ''), String(part.error || ''),
-      `${(part.stats && part.stats.ms) || 0}~${(part.stats && part.stats.tokens) || 0}~${(part.stats && part.stats.calls) || 0}`,
+      `${(part.stats && part.stats.ms) || 0}~${(part.stats && part.stats.tokens) || 0}~${(part.stats && part.stats.calls) || 0}`
+        + `~${part.stats && typeof part.stats.seed === 'number' ? part.stats.seed : '-'}~${part.stats && part.stats.cut ? 1 : 0}`,
       String(valueStamp(part.value)), String(valueStamp(results.get(openFor)))];
     for (const w of d.wires || []) {
       if (w.to !== openFor) continue;

@@ -30,6 +30,14 @@
 //      `waiting`; the loop keeps serving every branch that is still ready and only suspends when
 //      nothing else CAN run (§4.3).
 //   9. "The press is never swallowed." A ▶ pressed mid-run MERGES into the live run (§4.4).
+//  10. "Run it again gives a new answer" (critic R1 A1). Every run mints a NONCE; every activation
+//      hands its part a SEED (`input.seed`) derived from it — or from the part's pinned
+//      `settings.seed` — and the Instruction sends it. A new seed is a new cache key, so ▶ twice is
+//      two generations; a pinned seed is honestly the same answer, from the cache or the farm.
+//      Stop / yield / cap CARRY the interrupted part's nonce to its next run, so the items it had
+//      already paid for come back from the cache for free (sentence 3 stays true).
+//  11. "An edit made while a box runs is never overwritten" (critic R1 B2). The answer that comes
+//      back for the OLD settings is kept, but the box stays `stale` and the run does not count it.
 //
 // THE SCAN IS DELIBERATELY O(n) PER ACTIVATION (§4.3) and `order()` is recomputed every iteration:
 // that is what makes the loop restartable, mergeable, loop-safe and editable-during-a-run with no
@@ -47,6 +55,7 @@ import { planFan, joinResults, fanoutRecord } from './fanout.mjs';
 import { KV_KEYS, RUN_LIMITS } from '../core/types.mjs';
 import { createJournal } from './journal.mjs';
 import { cancelAll as cancelParks, answer as answerPark } from './parts/control-bus.mjs';
+import { parseSeed, baseSeed, seedFor } from './bind.mjs';
 import { t } from '../core/i18n.mjs';
 import '../strings/parts.en.mjs';
 
@@ -134,10 +143,31 @@ const NO_JOURNAL = {
   flush: async () => {},
 };
 
-/** @param {{session: any, app: any}} o */
+/** A run's nonce: 32 random bits from the platform's CSPRNG (a Math.random floor where there is
+ * none). Only its DIFFERENCE from the last run matters — it is what makes ▶ twice two seeds. */
+function mintNonce() {
+  try {
+    const c = /** @type {any} */ (globalThis).crypto;
+    if (c && typeof c.getRandomValues === 'function') return c.getRandomValues(new Uint32Array(1))[0] >>> 0;
+  } catch { /* fall through */ }
+  return Math.floor(Math.random() * 0x100000000) >>> 0;
+}
+
+/** @param {{session: any, app: any, nonce?: () => number}} o */
 export function createRunner(o) {
   const session = o.session;
   const app = o.app;
+  /** Where a run's nonce comes from. Injectable so a unit test can name the seeds it expects. */
+  const nextNonce = typeof o.nonce === 'function' ? o.nonce : mintNonce;
+  /**
+   * Critic R1 A1: the nonce a part was interrupted under, by `<docId>|<partId>`, for the life of
+   * this runner. Set when a part ends yielded / capped / cancelled; its next activation uses it
+   * instead of the new run's, and deletes it when the part completes or fails. It is what keeps
+   * "Stop keeps what you already paid for" true now that every run brings new seeds: the fan items
+   * that finished are asked again with the SAME seeds, and the ask cache answers them for free.
+   * @type {Map<string, number>}
+   */
+  const carry = new Map();
   /** @type {AbortController|null} */ let ac = null;
   /**
    * How many activations are executing RIGHT NOW (§2.3). Not the same question as `running()`: a
@@ -266,7 +296,7 @@ export function createRunner(o) {
   }
 
   /**
-   * @param {{only?: string[], cache?: boolean, maxItems?: number, mode?: 'all'|'from'|'button',
+   * @param {{only?: string[], cache?: boolean, maxItems?: number, mode?: 'all'|'from',
    *   seeds?: string[], force?: boolean, limits?: object}} [opts]
    * @returns {Promise<RunReport>}
    */
@@ -288,7 +318,14 @@ export function createRunner(o) {
     ownerDocId = typeof session.docId === 'function' ? session.docId() : null;
     const signal = controller.signal;
     const cache = opts.cache !== false;
-    const mode = opts.mode === 'from' || opts.mode === 'button' ? opts.mode : 'all';
+    // Critic R1 B18: `mode:'button'` was accepted here and passed by nobody — a press is a seed of
+    // a `from` run (§4.2). Two modes, both real.
+    const mode = opts.mode === 'from' ? 'from' : 'all';
+    /** This run's nonce (A1): every new-each-run part gets seeds no earlier run used. */
+    const runNonce = nextNonce() >>> 0;
+    const docKey = typeof session.docId === 'function' ? String(session.docId() || '') : '';
+    /** @param {string} id */
+    const carryKey = (id) => `${docKey}|${id}`;
     const limits = { ...RUN_LIMITS, ...(opts.limits || {}) };
     /** @type {{partId: string, message: string}[]} */ const errors = [];
     let ran = 0;
@@ -407,6 +444,16 @@ export function createRunner(o) {
     /** @param {string} id @returns {string} */
     const stateOf = (id) => { const p = partNow(id); return p ? String(p.state) : ''; };
 
+    /** A part's runtime stats. Since critic R1: `seed` (the BASE seed of the activation — what the
+     * box shows and what Keep pins) and `pinned` when the part really sent a seed, and `cut` when
+     * an answer hit max_tokens. @param {any} meter @param {number} t0 @returns {any} */
+    const statsOf = (meter, t0) => {
+      /** @type {any} */ const s = { ms: Math.round(now() - t0), tokens: meter.tokens, calls: meter.calls };
+      if (meter.seeded && typeof meter.base === 'number') { s.seed = meter.base; s.pinned = !!meter.pinned; }
+      if (meter.cut) s.cut = true;
+      return s;
+    };
+
     /** @param {boolean} cycle @returns {RunReport} */
     const finish = (cycle) => {
       // §4.8, K3 fix pass: NO run outlives its parks. `stop()` cancels them, but a run can also end
@@ -451,8 +498,14 @@ export function createRunner(o) {
      * `cacheSalt` comes from the fan plan (§2.6 BH-5) AND, since K3, from the loop ITERATION
      * (§4.6): a critique loop whose inputs have not changed must make a real second generation, or
      * `maxGenerations` never fires and the lesson whose point is a loop teaches that loops do
-     * nothing. Iteration 1 stays unsalted, so re-running a settled graph is still near-free.
-     * @param {{tokens: number, calls: number}} meter @param {number|string|null} salt
+     * nothing. Iteration 1 stays unsalted, so re-running a settled graph is still near-free — for
+     * a part that sends no seed. A part that DOES (the Instruction, critic R1 A1) gets a new seed
+     * every run, so its re-run is a real generation, which is what the owner asked for.
+     *
+     * `given.seed` passes through untouched. The meter notes THAT a seed was sent (so the box can
+     * show "last run: seed 48213") and whether any answer was cut off at max_tokens.
+     * @param {{tokens: number, calls: number, seeded?: boolean, cut?: boolean}} meter
+     * @param {number|string|null} salt
      */
     function meteredAsk(meter, salt) {
       const base = app && app.ask;
@@ -464,6 +517,7 @@ export function createRunner(o) {
           /** @type {any} */ (err).reason = 'capped';
           throw err;
         }
+        if (typeof given.seed === 'number') meter.seeded = true;
         const res = await fn({
           ...given,
           signal,
@@ -473,6 +527,7 @@ export function createRunner(o) {
             ? salt
             : given.cacheSalt,
         });
+        if (res && /** @type {any} */ (res).finishReason === 'length') meter.cut = true;
         if (res && /** @type {any} */ (res).cached) return res;   // free: no generation, no cost
         // A refusal that never reached a seat is not a generation either: a farm that said "busy",
         // an abort, and "there is no farm" must not eat the reader's cap on the way past.
@@ -582,8 +637,20 @@ export function createRunner(o) {
      */
     function complete(ctx) {
       const { id, meter, t0, record, wantsValue, value, bar, spec, part } = ctx;
-      const stats = { ms: Math.round(now() - t0), tokens: meter.tokens, calls: meter.calls };
+      const stats = statsOf(meter, t0);
       executed.add(id);
+      // It finished: its next run brings new seeds (A1) — unless some of its fan items FAILED, in
+      // which case the next run is a repair, not a re-roll: the items that answered are asked again
+      // with the seeds they were paid for (so the cache answers them) and only the failures cost.
+      if (typeof ctx.keepNonce === 'number') carry.set(carryKey(id), ctx.keepNonce);
+      else carry.delete(carryKey(id));
+      // (a) of §7.4: anything the farm was paid for is flushed before the next part starts —
+      // whatever becomes of the answer below, the generation was spent.
+      if (meter.calls > 0) {
+        tokensTotal += meter.tokens;
+        J.spend({ spent, tokens: tokensTotal });
+        J.flush();
+      }
       // A ▶ pressed on this part while it ran: keep the value, and run it again (§4.4).
       if (requeue.has(id)) {
         requeue.delete(id);
@@ -591,16 +658,20 @@ export function createRunner(o) {
         emit({ type: 'part', partId: id, state: 'queued', i: activations, n: A.size });
         return 'next';
       }
+      // Critic R1 B2: the person EDITED this box while it ran — `setSettings` marked it stale. The
+      // answer that came back is for the OLD settings: it is kept (it was paid for, and it is still
+      // worth reading) but the box stays stale, the run does not count it as ran, and nothing
+      // downstream is driven by it. The next Run asks again with what the person wrote.
+      const expected = ctx.expect || 'running';
+      if (ownsDoc() && stateOf(id) !== expected) {
+        mark(id, { state: 'stale', value: wantsValue ? value : null, error: null, stats, fanout: record });
+        emit({ type: 'part', partId: id, state: 'stale', i: activations, n: A.size, edited: true });
+        return 'next';
+      }
       mark(id, { state: 'done', value: wantsValue ? value : null, error: null, stats, fanout: record });
       ran++;
       J.event({ partId: id, kind: 'done' });
       emit({ type: 'part', partId: id, state: 'done', i: activations, n: A.size });
-      // (a) of §7.4: anything the farm was paid for is flushed before the next part starts.
-      if (meter.calls > 0) {
-        tokensTotal += meter.tokens;
-        J.spend({ spent, tokens: tokensTotal });
-        J.flush();
-      }
       if (bar) applyBarrier(id);
       else {
         driveLoops(id);
@@ -614,6 +685,7 @@ export function createRunner(o) {
     function failPart(id, message, stats) {
       blocked.add(id);
       A.delete(id);
+      carry.delete(carryKey(id));              // a failure ends the attempt: next run, new seeds
       errors.push({ partId: id, message });
       mark(id, stats ? { state: 'error', error: message, stats } : { state: 'error', error: message });
       J.event({ partId: id, kind: 'error' });
@@ -724,7 +796,13 @@ export function createRunner(o) {
       J.event({ partId: id, kind: 'start' });
       mark(id, { state: 'running', error: null, fanout: null });
       emit({ type: 'part', partId: id, state: 'running', i: activations, n: A.size });
-      const meter = { tokens: 0, calls: 0 };
+      // Critic R1 A1: the seed. Pinned (`settings.seed`) or new each run — from THIS run's nonce, or
+      // the nonce this part was interrupted under (the carry), so a resumed fan asks its finished
+      // items with the same seeds and the cache answers them.
+      const pinned = parseSeed(part.settings && part.settings.seed);
+      const nonce = carry.has(carryKey(id)) ? /** @type {number} */ (carry.get(carryKey(id))) : runNonce;
+      const base = baseSeed({ pinned, nonce, partId: id });
+      const meter = { tokens: 0, calls: 0, base, pinned: pinned !== null, seeded: false, cut: false };
       const t0 = now();
       /** @type {any[]} */ const results = [];
       const n = fanning ? /** @type {any} */ (plan).n : 1;
@@ -756,6 +834,9 @@ export function createRunner(o) {
             cache,
             item,
             iteration,
+            // K-5: the sampling seed for THIS item of THIS iteration (item 0 of iteration 1 is the
+            // base). A part that asks the farm passes it on; every other part ignores it.
+            seed: seedFor(base, k, iteration),
             run: { id: J.id, mode },
             // C3 (§2.6 BJ): the panel's ONE sandbox, created on the first part that asks.
             // A part that never asks never pays for an iframe; there is at most one in the
@@ -800,7 +881,11 @@ export function createRunner(o) {
       }
 
       const record = fanning ? fanoutRecord(results, n) : null;
-      const stats = { ms: Math.round(now() - t0), tokens: meter.tokens, calls: meter.calls };
+      const stats = statsOf(meter, t0);
+
+      // Interrupted, not finished: the NEXT run of this part reuses this nonce (A1), so whatever
+      // items finished are asked again with the seeds they were paid for — and cost nothing.
+      if (how === 'cancelled' || how === 'yielded' || how === 'capped') carry.set(carryKey(id), nonce);
 
       if (how === 'cancelled') {
         // OUR Stop. The part was interrupted, not wrong; whatever items finished are in the ask
@@ -839,6 +924,7 @@ export function createRunner(o) {
         const message = t('parts.errAllItems', { message: record.errors.length ? record.errors[0].message : '' });
         blocked.add(id);
         A.delete(id);
+        carry.delete(carryKey(id));
         errors.push({ partId: id, message });
         mark(id, { state: 'error', error: message, stats, fanout: record });
         emit({ type: 'part', partId: id, state: 'error', i: activations, n: A.size });
@@ -847,7 +933,8 @@ export function createRunner(o) {
 
       let value = null;
       if (wantsValue) value = fanning ? joinResults(results) : results[0].value;
-      return complete({ id, meter, t0, record, wantsValue, value, bar, spec, part });
+      const keepNonce = record && record.failed > 0 ? nonce : null;
+      return complete({ id, meter, t0, record, wantsValue, value, bar, spec, part, keepNonce });
     }
 
     /** How many parts this run has not executed — what `capped.stopped` means. @param {string} id */
@@ -899,6 +986,8 @@ export function createRunner(o) {
       return complete({
         id, meter: entry.meter, t0: entry.t0, record: null, wantsValue: entry.wantsValue,
         value: got.value, bar: got.bar, spec: entry.spec, part: entry.part,
+        // B2: a parked part is `waiting`, not `running`; anything else means it was edited.
+        expect: 'waiting',
       });
     }
 

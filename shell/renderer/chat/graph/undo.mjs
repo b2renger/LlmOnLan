@@ -8,6 +8,14 @@
 //   - `undo(current)` hands back that older doc and parks `current` on the redo stack;
 //   - any `push` clears redo — the classic rule: once you edit after undoing, the future is gone;
 //   - the past is capped at `limit` (oldest dropped first), so a long session cannot grow forever.
+//
+// Critic R1, B1: a snapshot is the WHOLE document, runtime included — and "runtime writes are
+// never undoable" (COMPUTER_PLAN §7). Handing a snapshot back verbatim rewound every answer a run
+// had produced since, brought back `running` spinners for a run long finished, and reverted a
+// title the reader had set with an un-undoable rename. `restoreProgram()` below is what the
+// session applies instead: the snapshot's PROGRAM, the present's RUNTIME, title and view.
+
+import { markStale } from './topo.mjs';
 
 /** @typedef {import('../core/types.mjs').GraphDoc} GraphDoc */
 /** @typedef {{doc: GraphDoc, label: string}} UndoEntry */
@@ -67,4 +75,78 @@ export function createUndo(o = {}) {
 
     clear() { past = []; future = []; },
   };
+}
+
+/** The fields of a part that ARE the program. Everything else on a part is runtime (state, value,
+ * error, stats, fanout, demo, and whatever a later phase adds) and is grafted from the present. */
+export const PROGRAM_FIELDS = Object.freeze(['type', 'x', 'y', 'w', 'h', 'settings']);
+
+/** States that only mean something while a run is working on the part. */
+const TRANSIENT = new Set(['running', 'queued', 'waiting']);
+
+/** @param {any} v */
+function stable(v) {
+  if (v === null || typeof v !== 'object') return JSON.stringify(v);
+  if (Array.isArray(v)) return `[${v.map(stable).join(',')}]`;
+  return `{${Object.keys(v).sort().map((k) => `${JSON.stringify(k)}:${stable(v[k])}`).join(',')}}`;
+}
+
+/** What arrives at a part, in arrival order: the input side of the program. @param {any} doc @param {string} id */
+function incoming(doc, id) {
+  return (doc.wires || [])
+    .filter((/** @type {any} */ w) => w.to === id)
+    .map((/** @type {any} */ w) => `${w.from}|${w.port}|${w.label || ''}|${w.back ? 1 : 0}`)
+    .join(',');
+}
+
+/**
+ * Undo/Redo without rewinding what a run produced (critic R1, B1). PURE.
+ *
+ *   - the PART SET, each part's type/x/y/w/h/settings, the wires and the document's settings come
+ *     from `snapshot` (the edit is taken back);
+ *   - a part that exists in both keeps the PRESENT's runtime fields — its answer, state, stats and
+ *     anything else that is not program — so "move, Run all, undo the move" keeps every answer;
+ *   - a part the snapshot brings back (an undone delete) keeps the runtime it had, except that a
+ *     `running`/`queued`/`waiting` it was photographed in becomes `stale`: no run is working on it;
+ *   - a part whose settings or incoming wires differ between the two is marked stale, with
+ *     everything downstream: its answer came from a program that is no longer on the canvas;
+ *   - `title` and `view` stay the present's (a rename is not undoable and a pan is not an edit),
+ *     except for an `import` entry, which is the whole file coming back out.
+ *
+ * @param {GraphDoc} current the document on screen now
+ * @param {GraphDoc} snapshot the document the undo (or redo) entry holds
+ * @param {{label?: string, now?: () => number}} [o]
+ * @returns {GraphDoc}
+ */
+export function restoreProgram(current, snapshot, o = {}) {
+  if (!snapshot) return current;
+  if (!current) return snapshot;
+  const now = (o && o.now) || Date.now;
+  /** @type {Map<string, any>} */ const live = new Map();
+  for (const p of /** @type {any[]} */ (current.parts || [])) live.set(p.id, p);
+  /** @type {string[]} */ const changed = [];
+  const parts = /** @type {any[]} */ (snapshot.parts || []).map((sp) => {
+    const cp = live.get(sp.id);
+    if (!cp) return TRANSIENT.has(sp.state) ? { ...sp, state: 'stale' } : sp;
+    if (cp.type !== sp.type || stable(cp.settings || {}) !== stable(sp.settings || {})) changed.push(sp.id);
+    else if (incoming(current, sp.id) !== incoming(snapshot, sp.id)) changed.push(sp.id);
+    /** @type {any} */ const out = { ...cp };
+    for (const k of PROGRAM_FIELDS) {
+      if (k in sp) out[k] = /** @type {any} */ (sp)[k];
+      else delete out[k];
+    }
+    return out;
+  });
+  const keepFile = o && o.label === 'import';
+  const next = /** @type {any} */ ({
+    ...snapshot,
+    parts,
+    title: keepFile ? snapshot.title : current.title,
+    view: keepFile ? snapshot.view : current.view,
+    // An undo is a new revision of the program, never an old one handed back: anything keyed on
+    // `rev` (a cache, a stale check) must not mistake the restored graph for the one it last saw.
+    rev: Math.max(Number(current.rev) || 1, Number(snapshot.rev) || 1) + 1,
+    updatedAt: now(),
+  });
+  return changed.length ? markStale(next, Array.from(new Set(changed)), { now }) : next;
 }

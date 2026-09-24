@@ -221,3 +221,15 @@
   font-size: 12px;
   line-height: 1.5;
 }
+
+/* Critic R1 A8: the Cost tab says when an answer hit max_tokens — amber, like the box's own
+   "cut off" chip: the answer is kept, but its end is missing. */
+#lolcomputer .comp-tx-cut {
+  border: 1px solid color-mix(in srgb, var(--amber) 55%, var(--border));
+  border-radius: var(--comp-r-panel, 10px);
+  background: color-mix(in srgb, var(--amber) 10%, var(--surface-2));
+  color: var(--text);
+  padding: 8px 10px;
+  font-size: 12px;
+  line-height: 1.5;
+}

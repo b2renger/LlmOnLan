@@ -50,6 +50,10 @@ import { download, slugify } from '../../ui/transfer.mjs';
 import {
   codeFor, shapeForGuest, syntaxLine, isSyntaxError, markupLine, lineRange,
 } from '../unfence.mjs';
+// Package A's `explainGuestError` (critic R1 A8), read off the namespace rather than imported by
+// name: a named import of an export that is not there fails the WHOLE module, and this box is
+// where every sketch is drawn. Without it, the engine's own message is shown, as before.
+import * as unfence from '../unfence.mjs';
 import { presetTitle, saveFormats } from './creative.mjs';
 import { t } from '../../core/i18n.mjs';
 import '../../strings/parts-preview.en.mjs';
@@ -94,9 +98,11 @@ const IDLE_POLL_MS = 500;
  * dark theme (K5-U1 found it with a model-written page). A copy of Render's rules otherwise, and
  * not an import, so render.mjs stays deletable. */
 export const PAGE_CSS = [
-  '#root{background:#ffffff;color:#111111;padding:16px;box-sizing:border-box;min-height:480px;}',
+  // The FONT is on the root, not on body (critic R1 A8): the snapshot clones the root alone into
+  // an SVG foreignObject, where body's font never reached and the picture came back in the
+  // default serif. The root is exactly the box's Width x Height (K-4), so the paper fills it.
+  '#root{background:#ffffff;color:#111111;padding:16px;box-sizing:border-box;min-height:100%;font:14px/1.5 Inter,system-ui,sans-serif;word-wrap:break-word;}',
   'html,body{margin:0;padding:0;}',
-  'body{font:14px/1.5 Inter,system-ui,sans-serif;word-wrap:break-word;}',
   'pre,code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;}',
   'pre{padding:8px;overflow:hidden;}',
   'table{border-collapse:collapse;}th,td{border:1px solid;padding:4px 8px;text-align:left;}',
@@ -268,12 +274,25 @@ export function lineOf(error, code) {
 }
 
 /** The sentence a failed guest run shows. A line number is the single most useful thing a sketch
- * can tell its author, so it is in the sentence whenever one is known.
- * @param {any} error @param {string} [code] @returns {string} */
-export function sandboxMessage(error, code) {
+ * can tell its author, so it is in the sentence whenever one is known — and, on a second line,
+ * what to do about it when the error is one a sketch commonly makes (critic R1 A8).
+ * @param {any} error @param {string} [code] @param {string} [mode] @returns {string} */
+export function sandboxMessage(error, code, mode) {
   const message = String((error && error.message) || '') || t('sandbox.errNotBuilt');
   const line = lineOf(error, code);
-  return line > 0 ? t('parts.previewError', { message, line }) : message;
+  const said = line > 0 ? t('parts.previewError', { message, line }) : message;
+  const why = explained(message, mode);
+  return why ? `${said}
+${why}` : said;
+}
+
+/** What to DO about a guest error, in the words of the fix (Package A's `explainGuestError`), or
+ * '' — when there is nothing better to say than the engine's message, or no explainer.
+ * @param {string} message @param {string} [mode] @returns {string} */
+export function explained(message, mode) {
+  const fn = /** @type {any} */ (unfence).explainGuestError;
+  if (typeof fn !== 'function' || !mode) return '';
+  try { return String(fn(message, mode) || ''); } catch { return ''; }
 }
 
 /** A part failure that also carries the line it names. @param {string} message @param {string}
@@ -329,19 +348,22 @@ function drawFree(mode, code) {
 async function drawInGuest(sandbox, mode, code, s, signal) {
   if (!sandbox) throw drawFail(t('sandbox.errDisabled'), 'part');
   const params = { width: s.w, height: s.h, mode };
+  // K-4: the guest frame IS the box's Width x Height, so `innerWidth`, p5's `windowWidth`, three's
+  // W and H, `lol.size` and the default canvas all say what the fields say.
+  const size = { w: s.w, h: s.h };
   const req = mode === 'html'
-    ? { kind: 'dom', code: '', html: code, css: PAGE_CSS, params }
-    : { kind: mode, code: shapeForGuest(mode, code), params };
+    ? { kind: 'dom', code: '', html: code, css: PAGE_CSS, params, size }
+    : { kind: mode, code: shapeForGuest(mode, code), params, size };
   const out = await sandbox.run(/** @type {any} */ ({ ...req, signal }));
   if (!out || !out.ok) {
     const e = out && out.error;
-    throw drawFail(sandboxMessage(e, code), 'part', lineOf(e, code));
+    throw drawFail(sandboxMessage(e, code, mode), 'part', lineOf(e, code));
   }
   const maxPx = Math.min(LIMITS.maxPx, Math.max(s.w, s.h));
   const shot = await sandbox.snapshot({ maxPx, signal });
   // An error thrown AFTER the run returned (a draw() on a later frame) is still this code's error.
   const late = typeof sandbox.errors === 'function' ? sandbox.errors() : [];
-  if (Array.isArray(late) && late.length) throw drawFail(sandboxMessage(late[0], code), 'part', lineOf(late[0], code));
+  if (Array.isArray(late) && late.length) throw drawFail(sandboxMessage(late[0], code, mode), 'part', lineOf(late[0], code));
   if (!shot || !shot.dataUrl) throw drawFail(t('parts.previewNoPicture'), 'part');
   if (String(shot.dataUrl).length > MAX_TILE_BYTES) throw drawFail(t('parts.previewTooBig'), 'part');
   return { mode, dataUrl: String(shot.dataUrl), w: Number(shot.w) || s.w, h: Number(shot.h) || s.h };
@@ -423,7 +445,8 @@ export const preview = /** @type {any} */ ({
   order: 805,
   label: t('parts.previewLabel'),
   thinks: false,
-  size: { w: 320, h: 260 },
+  // 360×400 since critic R1: exact heights left the default Preview a two-line code field.
+  size: { w: 360, h: 400 },
   inputs: [{ name: 'content', label: t('parts.previewIn'), accepts: ['text', 'json'] }],
   output: null,
   quiet: true,
@@ -511,6 +534,15 @@ export const preview = /** @type {any} */ ({
     // ---- the picture, what it is, and what went wrong ---------------------------------------
     const body = document.createElement('div');
     body.className = 'graph-preview-body';
+    // A double-click ON THE WORDS of a markdown page selects a word — the browser's own meaning,
+    // and the first half of copying one. It is remembered for the one event turn in which the
+    // canvas may also ask this box to `edit()` (K-2), so that call does not pull the caret away.
+    let wordPick = false;
+    body.addEventListener('dblclick', () => {
+      if (!body.hasAttribute('data-selectable')) return;
+      wordPick = true;
+      setTimeout(() => { wordPick = false; }, 0);
+    });
     const note = document.createElement('p');
     note.className = 'graph-preview-note';
     const kept = document.createElement('p');
@@ -715,6 +747,10 @@ export const preview = /** @type {any} */ ({
         : 'nothing';
       if (stamp === drawn) return;
       drawn = stamp;
+      // A markdown page is WORDS: a selectable zone (contract K-1, critic R1 A7), so a drag selects
+      // them and Ctrl+C copies them. A picture is not, so a press on it still moves the box.
+      if (shot && shot.mode === 'markdown') body.setAttribute('data-selectable', 'text');
+      else body.removeAttribute('data-selectable');
       if (!shot) { body.replaceChildren(); return; }
       if (shot.mode === 'markdown') {
         body.replaceChildren(renderBlocks(parseBlocks(String(shot.text || '')), domFactory(document)));
@@ -851,6 +887,15 @@ export const preview = /** @type {any} */ ({
           const free = mode === 'auto' || FREE_MODES.indexOf(mode) >= 0;
           if (free || (next.state || 'idle') === 'idle') scheduleDraw(0);
         }
+      },
+      /** K-2: a double-click inside the box, or Enter/F2 with it selected, puts the caret in the
+       * code — unfolding it first when a markdown report that arrived has it folded away.
+       * @returns {boolean} */
+      edit() {
+        if (destroyed || wordPick) return false;
+        if (area.hidden) { codeOpen = true; paint(); }
+        try { area.focus(); } catch { return false; }
+        return true;
       },
       destroy() {
         destroyed = true;

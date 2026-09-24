@@ -50,6 +50,14 @@ export const sticky = /** @type {any} */ ({
 
   render(host, part, ctx) {
     host.title = t('parts.stickyHint');
+    // CLICK SELECTS, DOUBLE-CLICK EDITS (critic R1 A6/B6). A note that holds words shows them in a
+    // READ-ONLY field that lets the press through to the note itself (`is-reading`, pointer-events
+    // off in computer-look.css), so one click selects the note and Delete deletes it — the tour's
+    // own step, which used to put a caret in the words and delete a character instead. A
+    // double-click, or Enter with the note selected (the canvas's K-2 `edit()`), opens it for
+    // typing. An EMPTY note is its own editor at once, like an empty Text box: there is nothing to
+    // select-and-delete in it yet, and a fresh note must be something you can type into.
+    let editing = false;
     const area = document.createElement('textarea');
     area.className = 'graph-sticky-text';
     area.setAttribute('aria-label', t('parts.stickyLabel'));
@@ -59,6 +67,36 @@ export const sticky = /** @type {any} */ ({
     // keystroke. Exactly the contract every other editable part on this canvas keeps.
     area.addEventListener('input', () => ctx.update({ text: area.value }));
     area.addEventListener('change', () => ctx.commit());
+    area.addEventListener('focus', () => { if (!area.readOnly) editing = true; });
+    area.addEventListener('blur', () => { editing = false; ctx.commit(); face(); });
+
+    /** Reading or writing: read-only (and out of the Tab order) while it shows words and nobody
+     * is typing in it. */
+    function face() {
+      const reading = !editing && !!String(area.value || '').trim();
+      area.readOnly = reading;
+      area.tabIndex = reading ? -1 : 0;
+      area.classList.toggle('is-reading', reading);
+    }
+
+    /** Open the note for typing, caret at the end of its words. @returns {boolean} */
+    function startEdit() {
+      editing = true;
+      face();
+      try {
+        area.focus();
+        const end = String(area.value || '').length;
+        if (typeof area.setSelectionRange === 'function') area.setSelectionRange(end, end);
+      } catch { /* detached */ }
+      return true;
+    }
+    /** @param {any} ev */
+    const onDblClick = (ev) => {
+      const target = ev && ev.target;
+      if (target && typeof target.closest === 'function' && target.closest('.graph-sticky-tints')) return;
+      startEdit();
+    };
+    host.addEventListener('dblclick', onDblClick);
 
     // The tint row. It is a <button> row, which the canvas's pointerdown `interactive` guard
     // already excludes from a drag, so pressing a tint never starts moving the note.
@@ -92,13 +130,16 @@ export const sticky = /** @type {any} */ ({
       for (const b of swatches) b.setAttribute('aria-pressed', b.dataset.tint === tint ? 'true' : 'false');
     };
     paint(part);
+    face();
     host.replaceChildren(area, tints);
     return {
       update(next) {
         paint(next);
-        if (document.activeElement !== area) area.value = String(next.settings.text || '');
+        if (document.activeElement !== area) { area.value = String(next.settings.text || ''); face(); }
       },
-      destroy() { tints.remove(); area.remove(); },
+      /** K-2: a double-click inside the note, or Enter/F2 with it selected. */
+      edit: () => startEdit(),
+      destroy() { host.removeEventListener('dblclick', onDblClick); tints.remove(); area.remove(); },
     };
   },
 

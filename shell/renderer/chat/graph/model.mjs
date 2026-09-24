@@ -198,6 +198,27 @@ function normaliseFanout(f) {
   };
 }
 
+/**
+ * A part's runtime stats, cleaned — the ONE definition, read by `patchPart` on the way in and by
+ * `normalisePart` on the way back from the store (the lesson `normaliseFanout` taught). Critic R1
+ * (K-5): `seed` (the whole number the last run's first item was sent, 0..2^31-1) and `pinned`
+ * survive, and so does `cut` (an answer hit max_tokens) — each only when really there, so a stats
+ * object from before R1 round-trips unchanged.
+ * @param {any} s @returns {{ms: number, tokens: number, calls: number, seed?: number,
+ *   pinned?: boolean, cut?: boolean}|null}
+ */
+function normaliseStats(s) {
+  if (!s || typeof s !== 'object') return null;
+  /** @type {any} */ const out = { ms: num(s.ms, 0), tokens: num(s.tokens, 0), calls: num(s.calls, 0) };
+  const seed = Number(s.seed);
+  if (s.seed !== null && s.seed !== undefined && s.seed !== '' && Number.isInteger(seed) && seed >= 0 && seed <= 0xffffffff) {
+    out.seed = seed;
+    out.pinned = s.pinned === true;
+  }
+  if (s.cut === true) out.cut = true;
+  return out;
+}
+
 /** One stored part, cleaned. @param {any} raw @param {any} spec @returns {GraphPart} */
 function normalisePart(raw, spec) {
   const size = obj(spec && spec.size);
@@ -211,9 +232,7 @@ function normalisePart(raw, spec) {
   // A list may say its identical items are deliberate (Repeat). That belongs to the VALUE, so it
   // has to survive the round trip or a reloaded Repeat would collapse its four passes into one.
   if (value && isRepeatList(raw.value)) /** @type {any} */ (value).repeats = true;
-  const stats = raw.stats && typeof raw.stats === 'object'
-    ? { ms: num(raw.stats.ms, 0), tokens: num(raw.stats.tokens, 0), calls: num(raw.stats.calls, 0) }
-    : null;
+  const stats = normaliseStats(raw.stats);
   return /** @type {any} */ ({
     id: String(raw.id),
     type: raw.type,
@@ -398,12 +417,7 @@ export function patchPart(doc, id, patch, o = {}) {
     const e = /** @type {any} */ (p).error;
     next.error = typeof e === 'string' && e ? e : null;
   }
-  if ('stats' in p) {
-    const s = /** @type {any} */ (p).stats;
-    next.stats = s && typeof s === 'object'
-      ? { ms: num(s.ms, 0), tokens: num(s.tokens, 0), calls: num(s.calls, 0) }
-      : null;
-  }
+  if ('stats' in p) next.stats = normaliseStats(/** @type {any} */ (p).stats);
   // C2 (§2.6 BH-3): the per-item record of a fan-out. A runtime field like the four above — it is
   // what the canvas reads to paint `7/40` and the per-item failures, and it is DROPPED, not
   // trusted, when it is not the shape below.

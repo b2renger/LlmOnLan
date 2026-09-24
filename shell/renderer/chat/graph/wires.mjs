@@ -12,12 +12,14 @@
 
 import { t } from '../core/i18n.mjs';
 import '../strings/graph.en.mjs';
+import '../strings/computer-canvas.en.mjs';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
 /** Height of `.graph-part-head` — the ports hang below it. Mirrored by `--graph-head-h` in css. */
 export const HEAD_H = 28;
-/** How far a click may miss a wire and still hit it, in WORLD units. */
+/** How far a click may miss a wire and still hit it, in SCREEN px (critic R1, A5): the canvas
+ * divides by the zoom, so the band is 8 px wide at 25 % as at 200 %, not 2 px. */
 export const WIRE_HIT = 8;
 /** How far a dragged wire end may miss a port and still snap to it, in WORLD units. */
 export const SNAP_PX = 28;
@@ -116,7 +118,8 @@ export function wireAt(doc, specs, p, tol = WIRE_HIT) {
  * The live layer. `render(doc)` is ONE pass: every path is created, moved or dropped in this call
  * and nothing else in the panel touches the svg.
  * @param {SVGSVGElement} svg
- * @param {{specs: Map<string, any>, onLabel?: (wireId: string, text: string) => void}} o
+ * @param {{specs: Map<string, any>, onLabel?: (wireId: string, text: string) => void,
+ *   onDelete?: (wireId: string) => void}} o
  */
 export function createWireLayer(svg, o) {
   const g = document.createElementNS(SVG_NS, 'g');
@@ -135,6 +138,8 @@ export function createWireLayer(svg, o) {
   /** @type {Map<string, {fo: any, pill: any, label: any}>} */ const pills = new Map();
   /** @type {SVGPathElement|null} */ let preview = null;
   /** @type {Set<string>} */ let selected = new Set();
+  /** The wire under the pointer (critic R1, A5): it thickens and its pill shows the ✕. */
+  let hovered = '';
   /** The wire whose pill is being typed into, and the text it had when the edit began. */
   /** @type {{id: string, was: string, cancelled: boolean}|null} */ let editing = null;
 
@@ -163,6 +168,8 @@ export function createWireLayer(svg, o) {
       if (path.getAttribute('d') !== d) path.setAttribute('d', d);
       const want = selected.has(wire.id) ? 'true' : 'false';
       if (path.getAttribute('data-selected') !== want) path.setAttribute('data-selected', want);
+      const hov = hovered === wire.id ? 'true' : 'false';
+      if (path.getAttribute('data-hover') !== hov) path.setAttribute('data-hover', hov);
       renderPill(wire, ends);
     }
     for (const [id, path] of Array.from(paths)) {
@@ -201,6 +208,10 @@ export function createWireLayer(svg, o) {
       if (pill.label.textContent !== text) pill.label.textContent = text;
       pill.pill.dataset.empty = text ? 'false' : 'true';
     }
+    const sel = selected.has(wire.id) ? 'true' : 'false';
+    if (pill.pill.dataset.selected !== sel) pill.pill.dataset.selected = sel;
+    const hov = hovered === wire.id ? 'true' : 'false';
+    if (pill.pill.dataset.hover !== hov) pill.pill.dataset.hover = hov;
   }
 
   /** @param {string} wireId */
@@ -227,7 +238,27 @@ export function createWireLayer(svg, o) {
     ph.setAttribute('role', 'button');
     ph.tabIndex = 0;
     ph.textContent = t('graph.wireNameMe');
-    pillEl.append(label, ph);
+    // Critic R1, A5: the ✕ that unplugs. It sits BESIDE the name (absolutely, so showing it on
+    // hover never shifts the name under the pointer) and shows while the wire is hovered or
+    // selected. Out of the tab order: a selected wire's keyboard way out is Delete, which its
+    // title says.
+    const chip = document.createElement('span');
+    chip.className = 'graph-wire-chip';
+    const x = document.createElement('button');
+    x.type = 'button';
+    x.className = 'graph-wire-x';
+    x.dataset.wire = wireId;
+    x.tabIndex = -1;
+    x.textContent = '✕';
+    x.title = t('graph.wireUnplug');
+    x.setAttribute('aria-label', t('graph.wireUnplug'));
+    x.addEventListener('click', (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      if (typeof o.onDelete === 'function') o.onDelete(wireId);
+    });
+    chip.append(label, ph, x);
+    pillEl.append(chip);
     fo.appendChild(pillEl);
     gLabels.appendChild(fo);
     const entry = { fo, pill: pillEl, label };
@@ -341,6 +372,23 @@ export function createWireLayer(svg, o) {
     setPreview,
     /** @param {string[]} ids */
     setSelected(ids) { selected = new Set(ids || []); },
+    /** The wire under the pointer, or '' (critic R1, A5). Written straight onto the path and the
+     * pill — no render, so a hover costs two attribute writes and never a re-draw.
+     * @param {string} id */
+    setHover(id) {
+      const next = String(id || '');
+      if (next === hovered) return;
+      const prev = hovered;
+      hovered = next;
+      for (const [wid, v] of [[prev, 'false'], [next, 'true']]) {
+        if (!wid) continue;
+        const path = paths.get(wid);
+        if (path) path.setAttribute('data-hover', v);
+        const pill = pills.get(wid);
+        if (pill) pill.pill.dataset.hover = v;
+      }
+    },
+    hovered: () => hovered,
     selected: () => Array.from(selected),
     count: () => paths.size,
     /** Put the caret in one wire's pill (K2-U1). The canvas calls it when a wire is chosen and

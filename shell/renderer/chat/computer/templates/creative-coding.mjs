@@ -37,7 +37,9 @@ export default {
         id: 'c_write_p5', type: 'ask', x: 400, y: 250, w: 300, h: 280,
         settings: {
           code: 'p5', shape: 'text',
-          instruction: 'Write a p5.js sketch of the brief.\n\nReply with only the JavaScript code — no explanation, no markdown. Use p5.js global mode: define setup() and draw(), and call createCanvas(400, 300) in setup().',
+          // Critic R1 A8: the TASK only. How to answer (one code block, p5 global mode, the
+          // sandbox's rules, a skeleton) rides the system message the `code:'p5'` setting adds.
+          instruction: 'A p5.js sketch of the brief.',
         },
       },
       {

@@ -436,11 +436,13 @@ export default [
                 for (let i = 0; i < 40; i++) window.__g.wheel({ x: 200, y: 200 }, 0, 200, true);
                 return true;
             });
+            // Critic R1, A4: the floor is 10 % now (it was 25 %, which left Fit unable to fit a graph
+            // more than four windows wide). Still a floor, still not zero.
             const floor = await h.waitFor(() => {
                 const v = window.LolComputer.debug.computer.view();
-                return v.zoom <= 0.26 ? v : null;
+                return v.zoom <= 0.11 ? v : null;
             });
-            h.eq(floor.zoom, 0.25, 'zoom clamps at the floor instead of vanishing');
+            h.eq(floor.zoom, 0.1, 'zoom clamps at the floor instead of vanishing');
 
             // fit brings both parts back on screen
             const fitted = await h.graph.call('fit');
@@ -525,7 +527,9 @@ export default [
                             for (const rule of rules) {
                                 if (rule.styleSheet) { walk(rule.styleSheet); continue; }
                                 if (!rule.selectorText || !rule.style) continue;
-                                if (rule.selectorText.indexOf('.graph-part:focus') < 0) continue;
+                                // The part's OWN focus ring: :focus / :focus-visible, not :focus-within (critic R1:
+                                // a Text box styles its head while its editor has focus, and that is not a ring).
+                                if (!/.graph-part:focus(?!-within)/.test(rule.selectorText)) continue;
                                 found.push({
                                     selector: rule.selectorText,
                                     outline: rule.style.outline || `${rule.style.outlineWidth} ${rule.style.outlineStyle}`,
@@ -609,16 +613,32 @@ export default [
             h.eq(copies.length, 2, 'the copy carries the settings');
             h.assert(copies[0].x !== copies[1].x || copies[0].y !== copies[1].y, 'and is offset, not stacked exactly on top');
 
-            // pasting something that is not ours changes nothing
+            // Critic R1, A7 (the tldraw gesture): plain WORDS pasted onto the canvas become one Text
+            // box holding them. (Until R1 a foreign clipboard was ignored here.)
+            const words = 'just some text a reader copied from a chat';
+            const asText = await h.eval((w) => {
+                const canvas = document.querySelector('#lolcomputer .graph-canvas');
+                const dt = new DataTransfer();
+                dt.setData('text/plain', w);
+                const ev = new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true });
+                canvas.dispatchEvent(ev);
+                const st = window.LolComputer.debug.computer.state();
+                const made = st.parts.find((q) => q.settings && q.settings.text === w);
+                return { parts: st.parts.length, prevented: ev.defaultPrevented, type: made ? made.type : null };
+            }, words);
+            h.eq(asText.parts, 5, 'pasted words became ONE new box');
+            h.eq(asText.type, 'note', 'a Text box holding them');
+            h.eq(asText.prevented, true, 'and the canvas took the paste');
+            // …and a paste with no words in it is still left alone.
             const untouched = await h.eval(() => {
                 const canvas = document.querySelector('#lolcomputer .graph-canvas');
                 const dt = new DataTransfer();
-                dt.setData('text/plain', 'just some text a reader copied from a chat');
+                dt.setData('text/plain', '   ');
                 const ev = new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true });
                 canvas.dispatchEvent(ev);
                 return { parts: window.LolComputer.debug.computer.state().parts.length, prevented: ev.defaultPrevented };
             });
-            h.eq(untouched.parts, 4, 'a foreign clipboard is left alone');
+            h.eq(untouched.parts, 5, 'a clipboard with nothing in it is left alone');
             h.eq(untouched.prevented, false, 'and the event is not swallowed');
         },
     },

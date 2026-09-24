@@ -32,6 +32,7 @@ import {
 } from '../../../renderer/chat/graph/unfence.mjs';
 import {
   shownOf, clearShown, sandboxMessage, lineOf, refusalOf, isEditing, errorOf, EDIT_DEBOUNCE_MS, modeFor,
+  explained,
 } from '../../../renderer/chat/graph/parts/preview.mjs';
 import { normaliseDoc } from '../../../renderer/chat/graph/model.mjs';
 import { toJson, fromJson } from '../../../renderer/chat/graph/serialize.mjs';
@@ -276,14 +277,19 @@ export default (test) => {
     assert.equal(presetTitle({ type: 'preview', settings: { mode: 'html', source: STARTER.svg } }), t('parts.creativeHtmlLabel'));
   });
 
-  test('the Write-… asks say code only, in the shape the box runs', () => {
+  test('the Write-… asks are the TASK only; the rules ride the system message (critic R1 A8)', () => {
+    // This test used to pin "Reply with only…" in the instruction. Since critic R1 the person's
+    // instruction is what to draw, and how to answer is the per-kind system message —
+    // computer-gen.test.mjs pins those.
     const ask = (id) => creativePresets().find((p) => p.id === id).settings.instruction;
-    for (const id of ['write-p5', 'write-three', 'write-svg', 'write-html']) assert.match(ask(id), /Reply with only/);
-    assert.match(ask('write-p5'), /setup\(\) and draw\(\)/);
-    assert.match(ask('write-p5'), /createCanvas\(400, 300\)/);
-    assert.match(ask('write-three'), /do not import/i);
-    assert.match(ask('write-svg'), /viewBox of 0 0 400 300/);
-    assert.match(ask('write-html'), /no scripts/);
+    for (const id of ['write-p5', 'write-three', 'write-svg', 'write-html']) {
+      assert.doesNotMatch(ask(id), /Reply with only/);
+      assert.ok(ask(id).length < 120, `${id}: a short task`);
+    }
+    assert.match(ask('write-p5'), /spiral/);
+    assert.match(ask('write-three'), /floating shapes/);
+    assert.match(ask('write-svg'), /landscape/);
+    assert.match(ask('write-html'), /exhibition/);
   });
 
   // ------------------------------------------------------------------ unfence and what arrives
@@ -571,7 +577,11 @@ export default (test) => {
     const box = presetPart('p5', { settings: { ...presetPart('p5').settings, source: code } });
     const sandbox = fakeSandbox({ late: { message: 'bad is not defined', line: 3, stack: 'ReferenceError' } });
     const fail = await failureOf(runInput(box, [], { sandbox }).input);
-    assert.equal(fail.message, t('parts.previewError', { message: 'bad is not defined', line: 3 }));
+    // Critic R1 A8: the engine's sentence, with its line — and, on a second line, what to do about
+    // it when Package A's explainer knows the mistake ('' when it does not).
+    const why = explained('bad is not defined', 'p5');
+    const said = t('parts.previewError', { message: 'bad is not defined', line: 3 });
+    assert.equal(fail.message, why ? `${said}\n${why}` : said);
     assert.equal(errorOf(box.id).line, 3, 'the box can offer to go to that line');
     assert.equal(shownOf(box.id), null, 'a broken sketch shows no picture pretending it worked');
   });

@@ -16,7 +16,7 @@
 
 import {
   PROTOCOL_VERSION, LIMITS, TIMEOUTS, MAX_DROPPED, MAX_REBUILDS, REBUILD_WINDOW_MS, SANDBOX_ATTR,
-  command, readMessage, mintToken, clampText,
+  command, readMessage, mintToken, clampText, guestSize,
 } from './protocol.mjs';
 import { loadLibs, LIB_NAMES } from './libs.mjs';
 import { t } from '../core/i18n.mjs';
@@ -327,6 +327,17 @@ export function createSandbox(o = {}) {
     libsInFrame = true;
   }
 
+  /** K-4: the frame takes the run's size (or goes back to the mount's), and the parent lays it out
+   * NOW — reading its box is what sends the new size on towards the guest before `run` does. The
+   * guest still waits for it to arrive (runner.html `whenSized`), briefly.
+   * @param {{w: number, h: number}|null} size */
+  function sizeFrame(size) {
+    if (!frame || !frame.style) return;
+    frame.style.width = size ? `${size.w}px` : '';
+    frame.style.height = size ? `${size.h}px` : '';
+    try { if (typeof frame.getBoundingClientRect === 'function') frame.getBoundingClientRect(); } catch { /* a shim */ }
+  }
+
   /** Make sure these libraries are in the live frame before the sketch's first line runs. */
   async function ensureLibs(/** @type {string[]} */ names) {
     const want = (Array.isArray(names) ? names : []).map(String).filter((n, i, a) => a.indexOf(n) === i);
@@ -364,8 +375,12 @@ export function createSandbox(o = {}) {
     },
 
     /** A sketch that PAINTS (the `Render` part, and the S2 bench's preview).
+     * K-4 (critic R1 A8): `size: {w, h}` sizes the guest frame before the run, so the sketch's
+     * `innerWidth`/`innerHeight`, `lol.size` and the default canvas are exactly w x h. Without it
+     * the frame is the mount's own size (640 x 480), as it always was.
      * @param {{code?: string, kind?: string, params?: object, html?: string, css?: string,
-     *   libs?: string[], timeoutMs?: number, signal?: AbortSignal, rearm?: boolean}} req
+     *   libs?: string[], timeoutMs?: number, signal?: AbortSignal, rearm?: boolean,
+     *   size?: {w: number, h: number}}} req
      * @returns {Promise<{ok: boolean, ms: number, error: any}>} */
     async run(req = {}) {
       rearmIfAllowed(req);
@@ -376,12 +391,15 @@ export function createSandbox(o = {}) {
       logs = []; errors = [];
       setState('running');
       const g = gen;
+      const size = guestSize(req.size);
+      sizeFrame(size);
       const out = await ask('run', {
         code: String(req.code || ''),
         kind,
         params: req.params || {},
         html: req.html === undefined ? '' : String(req.html),
         css: req.css === undefined ? '' : String(req.css),
+        size,
       }, req.timeoutMs || T.run, req.signal);
       if (out && out.timeout && gen === g) await onStall('run-timeout');
       else if (state !== 'disabled' && state !== 'booting') setState(frame ? 'ready' : 'idle');

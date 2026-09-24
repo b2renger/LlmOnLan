@@ -445,7 +445,10 @@ export default (test) => {
       assert.match(text, new RegExp(escape(t('parts.insPending', { name: 'topic' }))),
         'the pre-run placeholder is on screen before a single generation is spent');
       assert.match(text, /write a problematic about the topic/);
-      assert.match(text, new RegExp(escape(callLine({ model: null, shape: 'text', maxTokens: null, priority: 'background' }))));
+      // Critic R1: the declared call carries the REAL max_tokens (2048 for prose) and the seed.
+      assert.match(text, new RegExp(escape(callLine({ model: null, shape: 'text', maxTokens: 2048, seed: null, priority: 'background' }))));
+      assert.match(text, /max_tokens: 2048/);
+      assert.match(text, new RegExp(escape(`seed: ${t('computer.genTxSeedNew')}`)));
       const roles = s.cards().map((el) => el.getAttribute('data-role'));
       assert.deepEqual(roles, ['system', 'param', 'instruction'],
         'the system first, the parameters in order, the INSTRUCTION LAST (§5.3)');
