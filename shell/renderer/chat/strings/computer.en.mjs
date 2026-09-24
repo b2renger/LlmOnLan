@@ -129,4 +129,27 @@ registerStrings('computer', {
   // ---- K5 kickoff (addendum KE-7): a lesson's recorded answer, badged for good ----------------
   demoBadge: 'demo answer — not generated',
   demoBadgeHint: 'This is the lesson’s saved answer, put here because the farm could not answer. Run the box again to ask the farm.',
+
+  // ---- K7 (addendum KG): the debug-log switch, computer/recorder.mjs --------------------------
+  recOff: 'Record log',
+  recOn: 'Recording · {n} events',
+  recOffHint: 'Record everything you do here, and every error, into a log file on this computer — to hand over with a bug report. It also keeps the last few minutes before you pressed it.',
+  recOnHint: 'Recording to {name}. Press to stop.',
+  recStarting: 'Starting…',
+  recMark: 'Mark bug',
+  recMarkHint: 'Put a marker in the log right now, with a screenshot and a snapshot of this graph, and say in a sentence what went wrong.',
+  recMarkTitle: 'What went wrong?',
+  recMarkBody: 'A screenshot and a snapshot of the graph are already in the log. One sentence about what you expected helps the most.',
+  recMarkPlaceholder: 'e.g. the wire disappeared when I undid the move',
+  recMarkOk: 'Save marker',
+  recMarked: 'Marker {i} saved in the log.',
+  recFolder: 'Show log files',
+  recFolderHint: 'Open the folder with the log files, with the latest one selected.',
+  recStarted: 'Recording to {name}.',
+  recSaved: 'Log saved: {name}',
+  recSavedPartial: 'Log saved as {name}, but {n} batch(es) of lines could not be written to it.',
+  recStopFailed: 'The log could not be closed properly: {message}',
+  recMarkFailed: 'The marker could not be written to the log.',
+  recFull: 'The log reached its size limit and stopped. It is saved as {name}.',
+  recFailed: 'Could not start the log: {message}',
 });

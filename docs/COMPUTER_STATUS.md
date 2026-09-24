@@ -1,4 +1,4 @@
-# The Computer — where the night got to (2026-09-24, K6 landed, then its fix round)
+# The Computer — where the night got to (2026-09-24: K6 landed, its fix round, then K7 — the debug log)
 
 > Branch `lolchat/vnext`, all of it committed and pushed. Every phase of
 > [COMPUTER_PLAN.md](COMPUTER_PLAN.md) up to **K6** is done. K6 answers your request — *"upload pdfs
@@ -27,6 +27,28 @@ into it on first open.
 
 *(A dev run shares `%APPDATA%\LlmOnLan` with your installed client, as before. The backup from the 21st
 is still at `%APPDATA%\LlmOnLan-backup-20260921-*`.)*
+
+## NEWEST (K7, evening of the 24th) — a debug log you can switch on
+
+At the right end of the run bar there's a new **● Record log** button.
+1. Press it. It turns red and counts events.
+2. Explore. When something breaks, press **⚑ Mark bug**. It takes a screenshot, asks one sentence
+   about what went wrong, and saves the whole graph and state with it.
+3. Press the red button again to stop. The folder button opens the file in Explorer.
+
+The file is `%APPDATA%\LlmOnLan\logs\computer\computer-<date>_<time>.jsonl`, with the screenshots
+next to it. It records:
+- what you clicked and typed (per field, not per key), with the button labels you saw;
+- every graph edit (settings with their new values);
+- the run, box by box, and every request to the farm, with the model and the prompt's text but
+  never the password;
+- every error, the console, and the sandbox's errors;
+- frames slower than 100 ms, with the function that was slow.
+
+It also keeps **the few minutes before you pressed the button**, so pressing it *after* you see a
+bug still works. The switch survives a relaunch. Full guide and file format:
+[COMPUTER_DEBUG_LOG.md](COMPUTER_DEBUG_LOG.md). To hand one over, just say "look at the latest
+Computer log". The folder is fixed, so I can find it.
 
 ## NEW (K6) — a PDF or a sound file in a box, step by step
 

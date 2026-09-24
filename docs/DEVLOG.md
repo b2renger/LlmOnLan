@@ -6,6 +6,92 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-09-24 (evening) — The Computer **K7**: a debug log you switch on, for bug reports
+
+Owner request: *"a switch to write to disk detail logs … record everything in a timestamped file
+where you can find all the informations needed to fix bugs … user interactions and all the runtime
+errors."* Built by the integrator directly (no units, to spare tokens). Contract:
+LOLCHAT_PLAN addendum KG. Guide: [COMPUTER_DEBUG_LOG.md](COMPUTER_DEBUG_LOG.md).
+
+- **An always-on flight recorder, in memory** (`computer/devlog.mjs`, installed before any Computer
+  module loads). It keeps the last 2000 events, so a recording started *after* the bug still
+  contains what led to it (lines flagged `pre:1`).
+- **The switch** (`computer/recorder.mjs`) sits at the run bar's right end: **● Record log**, then
+  **⚑ Mark bug** (the screenshot first, then a one-sentence note, the whole graph and state) and a
+  folder button. It is remembered across a relaunch, and a resumed recording starts a new file.
+- **Main owns the file** (`src/main/debugLog.ts`, a second carve-out the same shape as S0: marked
+  regions in `index.ts`, one additive `debugLog` preload property, the scope gate extended with
+  self-tests). The folder is `<userData>/logs/computer`, named by local time. Limits: 25 MB per
+  file, 15 recordings kept, 40 screenshots each. No channel takes a path or reads a file back.
+  Main writes the crash and hang lines the page cannot write itself.
+- **What is captured:**
+  - clicks, keys, drags, wheel, drops and pastes, each target named in words (element, box, part,
+    wire, port, the label you saw);
+  - typing, summarised per field;
+  - the toasts and dialogs shown and answered;
+  - each graph edit with what changed, including settings values and undo/redo;
+  - every runner event;
+  - every request (model, roles, clipped prompt text, picture sizes) and its answer;
+  - uncaught errors, rejections, failed resources, CSP violations, the console, the sandbox
+    guest's errors;
+  - frames over 100 ms with their slowest scripts. That last one is for tonight's perf pass.
+- **Never written:** a key/token/password field by name (the farm password is `caps.apiKey`),
+  `Bearer …` strings, request headers, a password field's value, and picture/PDF/sound bytes.
+- **Two defects found by reading a real recording, not by the tests:**
+  - Data fields overwrote the line envelope. A request's `ms` replaced the timestamp, and the
+    runner's part count replaced the event number. The envelope now comes first and always wins.
+    Durations are `took`, counts are `count`.
+  - A click on the switch was named by its paragraph-long tooltip. The label a person saw now
+    comes before the title.
+- **Adversarial review (one agent, read-only): 10 findings, all fixed.**
+  - A password typed with AltGr was written key by key. A password field's keys, length and
+    value are now never written.
+  - A mark on a big graph was replaced by a stub and lost its note. Lines now shrink step by step
+    and keep the note.
+  - The target label walked the whole canvas's text on every click. It now stops at a real
+    clickable element and reads at most 400 characters.
+  - `will-quit` never fires, because the shell exits with `app.exit`. The file now closes from
+    `before-quit`.
+  - A remembered switch now resumes before mount can fail.
+  - A crash note could split a line. Appends are now synchronous.
+  - Names were sorted as text, so `-10` came before `-2`, and a pruned name was reused. My first
+    fix still sorted wrong; the new test caught it.
+  - Events arriving during stop were lost, and the size limit stopped twice.
+  - A 10 000-item fan-out wrote every request. A burst is now written 20 times per 10 s, then
+    counted.
+  - The header and footer could bypass the size limit.
+  - Recordings holding a marked bug are kept longer (30).
+- **Critic R1 findings in the logger (B5, B15), fixed here.**
+  - The `fetch` wrapper also saw LOL Chat. Message text is now kept only while a Computer run is
+    executing on screen; any other request is method, URL and size, and is not parsed.
+  - The toasts now say what happened.
+  - The marker's state is taken when Mark is pressed.
+  - Cancel saves no marker.
+  - The ring copies documents down instead of keeping them alive.
+- **The long-frame observer runs only while recording.** A three-way A/B on `perf-graph-500` (no
+  recorder / recorder without the observer / full recorder: pan p95 medians 17.3 / 18.9 / 19.7 ms)
+  put the full recorder about a millisecond higher.
+- **Known and NOT fixed here: `perf-graph-500` fails its 16 ms pan p95 budget on this machine
+  tonight WITH THE RECORDER DISABLED TOO** (control runs 20.6 / 11.0 / 17.3 ms). The box is also
+  the live farm and runs the owner's client; the K6 kickoff already noted the test sits near its
+  budget here. That is the 02:05 perf pass's job, not this landing's.
+- **K-6, real input for the harness:** `h.input.*` on CDP's Input domain (trusted events), with
+  the `h0-real-input` self-check. Used at once to PROVE the owner's items 6 and 7: a real click on
+  a filled Text box does not open its editor, and a real drag across its text moves the box.
+- **Tests:** `computer-devlog.test.mjs` has 9 cases:
+  - redaction, bounds, target description, request summary, edit diff;
+  - the recorder against a fake page (backlog, typing summary, password, fetch observed without
+    an extra request, switch remembered);
+  - the compiled main writer (name, header, size limit, retention, screenshots).
+
+  `k7-recorder.mjs` has 2 scenarios. One clicks the switch, builds and runs a graph, plants three
+  kinds of error, marks a bug through the real dialog, stops, and reads the file back off disk
+  line by line. It also checks that the farm password is not in it. The other checks that the
+  switch survives a reload into a new file and stays off once turned off. `h0-no-real-lol` pins
+  the new preload key.
+
+---
+
 ## 2026-09-24 — The Computer **K6 fix round**: a PDF cannot hold the farm GPU for nobody, a long sound is refused before it is decoded, and a removed file does not stay on disk forever
 
 Six review findings on the K6 landing (three majors, three minors), each reproduced and fixed at the

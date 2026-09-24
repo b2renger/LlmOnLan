@@ -36,16 +36,55 @@ const ERR_KEY = {
 };
 const CODES = new Set(Object.keys(ERR_KEY));
 
-/** The preload's `projects` property, or null on a build that predates it. */
-function door() {
+/**
+ * One property of the preload's `lol` object, or null on a build that predates it or lacks any of
+ * `ops`. The ONLY place the rule-10 token is read.
+ * @param {string} name @param {readonly string[]} ops
+ */
+function preloadProp(name, ops) {
   try {
-    const api = typeof window !== 'undefined' && window.lol ? window.lol.projects : null;
+    const api = typeof window !== 'undefined' && window.lol ? /** @type {any} */ (window.lol)[name] : null;
     if (!api || typeof api !== 'object') return null;
-    for (const op of OPS) if (typeof api[op] !== 'function') return null;
+    for (const op of ops) if (typeof api[op] !== 'function') return null;
     return api;
   } catch {
     return null;   // a preload that throws on property access is a preload we do not have
   }
+}
+
+/** The preload's `projects` property, or null on a build that predates it. */
+function door() {
+  return preloadProp('projects', OPS);
+}
+
+/** What the Computer's debug log may ask of the main process (COMPUTER_PLAN addendum KG). */
+const LOG_OPS = Object.freeze(['start', 'append', 'stop', 'mark', 'reveal', 'status']);
+
+/**
+ * The debug-log door (K7): the SAME rules as the projects door — every answer is {ok:true,...} or
+ * {ok:false, code, message}, a rejected invoke becomes E_IO, and on a shell without the
+ * `debugLog` property this returns null, so the Record switch is HIDDEN rather than dead.
+ * @returns {null | {start(header: string): Promise<any>, append(text: string): Promise<any>,
+ *   stop(footer?: string): Promise<any>, mark(): Promise<any>, reveal(): Promise<any>, status(): Promise<any>}}
+ */
+export function debugLogDoor() {
+  const api = preloadProp('debugLog', LOG_OPS);
+  if (!api) return null;
+  /** @param {any} r */
+  const shape = (r) => (r && typeof r === 'object' && (r.ok === true || typeof r.code === 'string')
+    ? r : { ok: false, code: 'E_IO', message: 'no answer from the main process' });
+  /** @param {string} op @param {any[]} args */
+  const call = (op, args) => Promise.resolve()
+    .then(() => api[op](...args))
+    .then(shape, (/** @type {any} */ e) => ({ ok: false, code: 'E_IO', message: String(e && e.message ? e.message : e) }));
+  return {
+    start: (header) => call('start', [header]),
+    append: (text) => call('append', [text]),
+    stop: (footer) => call('stop', footer === undefined ? [] : [footer]),
+    mark: () => call('mark', []),
+    reveal: () => call('reveal', []),
+    status: () => call('status', []),
+  };
 }
 
 /** Whatever came back over IPC, shaped like an answer. @param {any} r */

@@ -54,6 +54,43 @@ let currentCtxPerSlot: number | null = null; // active farm's per-slot context (
 let activeFarmId: string | null = null;
 let booted = false; // true once the initial sidecar start has been kicked off
 
+// ---- LOL Studio (S0) ---- (the Computer's debug log, COMPUTER_PLAN addendum KG; mirrored in chat-harness/main.cjs)
+// ONE recorder for the app, created on first use. Its folder is fixed HERE: the renderer never
+// names a path. createWindow() reports a crashed or hung renderer into the open recording, because
+// the renderer cannot do that for itself, and registerIpc() wires the lol:debugLog:* channels.
+const { createDebugLog } = require('./debugLog') as typeof import('./debugLog');
+let computerLog: ReturnType<typeof createDebugLog> | null = null;
+function debugLog(): ReturnType<typeof createDebugLog> {
+    if (!computerLog) {
+        computerLog = createDebugLog({
+            dir: path.join(app.getPath('userData'), 'logs', 'computer'),
+            facts: () => ({
+                app: app.getVersion(), electron: process.versions.electron, chrome: process.versions.chrome,
+                node: process.versions.node, platform: process.platform, arch: process.arch, os: os.release(),
+                cpus: os.cpus().length, ramGB: Math.round(os.totalmem() / 2 ** 30),
+            }),
+            capture: async () => {
+                if (!win || win.isDestroyed()) return null;
+                const img = await win.webContents.capturePage();
+                return img.isEmpty() ? null : img.toPNG();
+            },
+            shellApi: {
+                showItemInFolder: (target: string) => shell.showItemInFolder(target),
+                openPath: (target: string) => shell.openPath(target),
+            },
+        });
+    }
+    return computerLog;
+}
+// `before-quit`, not `will-quit`: the shell's own before-quit handler ends in app.exit(0), which
+// never emits will-quit. A beat of delay lets the page's last lines (sent from its pagehide as the
+// window closes) land first; the handler below waits for the sidecar for longer than that.
+app.on('before-quit', () => {
+    const log = computerLog;
+    if (log) setTimeout(() => log.close('quit'), 250);
+});
+// ---- /LOL Studio ----
+
 // Single place that records which farm is active, so discovery's fast poll always
 // follows it (see ACTIVE_POLL_MS). Assigning activeFarmId directly is how the two
 // drifted apart before.
@@ -404,6 +441,18 @@ function createWindow(): void {
     });
     // ---- /LOL Studio ----
 
+    // ---- LOL Studio (S0) ---- (the Computer's debug log: what the renderer cannot write itself)
+    // note() writes only while a recording is open, and synchronously: the renderer may be gone.
+    win.webContents.on('render-process-gone', (_e, d) => {
+        if (computerLog) computerLog.note({ k: 'main.renderer-gone', reason: d.reason, exitCode: d.exitCode });
+    });
+    win.webContents.on('preload-error', (_e, _p, error) => {
+        if (computerLog) computerLog.note({ k: 'main.preload-error', message: String(error && error.message) });
+    });
+    win.on('unresponsive', () => { if (computerLog) computerLog.note({ k: 'main.unresponsive' }); });
+    win.on('responsive', () => { if (computerLog) computerLog.note({ k: 'main.responsive' }); });
+    // ---- /LOL Studio ----
+
     configureWebviewPermissions();
     // Closing the window closes EVERYTHING (owner decision 2026-09-04): no
     // hide-to-tray, no background sidecar, no lingering farm presence. A client
@@ -543,6 +592,19 @@ function registerIpc(): void {
     ipcMain.handle('lol:projects:reveal', (_e, id: unknown) => (isStr(id) ? projects().reveal(id) : badArgs));
     ipcMain.handle('lol:projects:open', (_e, id: unknown) => (isStr(id) ? projects().open(id) : badArgs));
     ipcMain.handle('lol:projects:path', (_e, id: unknown) => (isStr(id) ? projects().path(id) : badArgs));
+    // ---- /LOL Studio ----
+
+    // ---- LOL Studio (S0) ---- (the Computer's debug log, COMPUTER_PLAN addendum KG)
+    // Text in, nothing out: no channel reads a file back, and none takes a path. Types are checked
+    // here as well as in debugLog.ts, so a garbled call never reaches the fs.
+    const badLog = Promise.resolve({ ok: false, code: 'E_ARGS', message: 'bad arguments' });
+    ipcMain.handle('lol:debugLog:start', (_e, header: unknown) => (isStr(header) ? debugLog().start(header) : badLog));
+    ipcMain.handle('lol:debugLog:append', (_e, text: unknown) => (isStr(text) ? debugLog().append(text) : badLog));
+    ipcMain.handle('lol:debugLog:stop', (_e, footer: unknown) => (
+        footer === undefined || isStr(footer) ? debugLog().stop(footer) : badLog));
+    ipcMain.handle('lol:debugLog:mark', () => debugLog().mark());
+    ipcMain.handle('lol:debugLog:reveal', () => debugLog().reveal());
+    ipcMain.handle('lol:debugLog:status', () => debugLog().status());
     // ---- /LOL Studio ----
 
     // Manual reload of the embedded OWUI (e.g. after a repoint).

@@ -65,6 +65,9 @@ const PURE_MODULES = [
     'graph/takes.mjs', 'graph/drop-route.mjs',
     // K6 fix round: a sound's length from its headers, read before anything is decoded.
     'graph/sound-length.mjs',
+    // K7 (addendum KG): what the debug log writes — redaction, clipping, the edit diff and the
+    // request summary. What goes into a person's bug report is pinned in Node.
+    'computer/devlog-format.mjs',
     // C3 (the sandbox parts, files and sharing)
     'graph/tidy.mjs', 'sandbox/protocol.mjs',
     // S2

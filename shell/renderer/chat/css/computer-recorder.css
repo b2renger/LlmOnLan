@@ -1,0 +1,78 @@
+/* computer-recorder.css — the debug log's switch at the right end of the run bar
+   (computer/recorder.mjs, COMPUTER_PLAN addendum KG). ComfyQ tokens only (chat-lint rule 3).
+   Off, it is a quiet ghost button with a hollow dot. On, the dot is filled and pulses, so nobody
+   forgets a recording is running. */
+
+#lolcomputer .comp-rec {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+}
+#lolcomputer .comp-rec.hidden { display: none; }
+
+#lolcomputer .comp-rec-toggle,
+#lolcomputer .comp-rec-mark,
+#lolcomputer .comp-rec-folder {
+  appearance: none;
+  font: inherit;
+  font-size: 12px;
+  line-height: 1;
+  padding: 6px 10px;
+  border: 1px solid var(--comp-line);
+  border-radius: var(--comp-r-btn);
+  background: var(--comp-panel-2);
+  color: var(--muted);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+#lolcomputer .comp-rec-toggle:hover:not(:disabled),
+#lolcomputer .comp-rec-mark:hover:not(:disabled),
+#lolcomputer .comp-rec-folder:hover { color: var(--text); background: color-mix(in srgb, var(--text) 6%, var(--comp-panel-2)); }
+#lolcomputer .comp-rec-toggle:disabled,
+#lolcomputer .comp-rec-mark:disabled { opacity: 0.6; cursor: default; }
+#lolcomputer .comp-rec-mark.hidden,
+#lolcomputer .comp-rec-folder.hidden { display: none; }
+#lolcomputer .comp-rec-folder { padding: 5px 7px; }
+
+#lolcomputer .comp-rec-label { font-variant-numeric: tabular-nums; }
+
+#lolcomputer .comp-rec-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  border: 1.5px solid currentColor;
+  flex: none;
+}
+
+#lolcomputer .comp-rec-toggle.is-on {
+  color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 55%, var(--comp-line));
+  background: color-mix(in srgb, var(--danger) 10%, var(--comp-panel-2));
+}
+#lolcomputer .comp-rec-toggle.is-on .comp-rec-dot {
+  background: var(--danger);
+  border-color: var(--danger);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 25%, transparent);
+  animation: comp-rec-pulse 1.6s ease-in-out infinite;
+}
+
+#lolcomputer .comp-rec-mark {
+  color: var(--amber);
+  border-color: color-mix(in srgb, var(--amber) 45%, var(--comp-line));
+}
+
+#lolcomputer .comp-rec-toggle:focus-visible,
+#lolcomputer .comp-rec-mark:focus-visible,
+#lolcomputer .comp-rec-folder:focus-visible { outline: 2px solid var(--accent-hover); outline-offset: 1px; }
+
+@keyframes comp-rec-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #lolcomputer .comp-rec-toggle.is-on .comp-rec-dot { animation: none; }
+}

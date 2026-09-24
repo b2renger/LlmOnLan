@@ -84,7 +84,53 @@ function wireProjects() {
 }
 // ---- /LOL Studio ----
 
-function createWindow(hasProjects) {
+// ---- LOL Studio (S0) ---- (the Computer's debug log, addendum KG; mirrors shell/src/main/index.ts)
+// The REAL createDebugLog from the compiled main output, writing under <userData>/logs/computer
+// exactly as the shell does, with the SAME recording fake `shell` as the projects API. Absent build
+// => no handlers, no `window.lol.debugLog`, and the Record switch must be hidden (k7-recorder).
+const DEBUGLOG_BUILD = path.join(__dirname, '..', '..', 'build', 'main', 'debugLog.js');
+/** @type {import('electron').BrowserWindow | null} */
+let harnessWin = null;
+
+function wireDebugLog() {
+    let factory = null;
+    try {
+        if (fs.existsSync(DEBUGLOG_BUILD)) factory = require(DEBUGLOG_BUILD).createDebugLog;
+    } catch (e) {
+        console.error('[harness-main] debugLog build present but unloadable:', e && e.message);
+    }
+    if (typeof factory !== 'function') return false;
+    const dir = path.join(tmpDir(), 'logs', 'computer');
+    const record = (call, p) => {
+        shellCalls.push({ call, path: String(p), ts: Date.now() });
+        writeJson(path.join(tmpDir(), 'shell-calls.json'), shellCalls);
+    };
+    const log = factory({
+        dir,
+        facts: () => ({ app: 'harness', electron: process.versions.electron, platform: process.platform }),
+        capture: async () => {
+            if (!harnessWin || harnessWin.isDestroyed()) return null;
+            const img = await harnessWin.webContents.capturePage();
+            return img.isEmpty() ? null : img.toPNG();
+        },
+        shellApi: {
+            showItemInFolder: (p) => record('showItemInFolder', p),
+            openPath: async (p) => { record('openPath', p); return ''; },
+        },
+    });
+    ipcMain.handle('lol:debugLog:start', (_e, header) => (typeof header === 'string' ? log.start(header) : { ok: false, code: 'E_ARGS' }));
+    ipcMain.handle('lol:debugLog:append', (_e, text) => (typeof text === 'string' ? log.append(text) : { ok: false, code: 'E_ARGS' }));
+    ipcMain.handle('lol:debugLog:stop', (_e, footer) => log.stop(footer));
+    ipcMain.handle('lol:debugLog:mark', () => log.mark());
+    ipcMain.handle('lol:debugLog:reveal', () => log.reveal());
+    ipcMain.handle('lol:debugLog:status', () => log.status());
+    app.on('will-quit', () => log.close('quit'));
+    console.log(`[harness-main] debug log wired at ${dir}`);
+    return true;
+}
+// ---- /LOL Studio ----
+
+function createWindow(hasProjects, hasDebugLog) {
     const win = new BrowserWindow({
         show: false,
         width: 1280,
@@ -94,9 +140,10 @@ function createWindow(hasProjects) {
             nodeIntegration: false,
             backgroundThrottling: false,
             preload: path.join(__dirname, 'preload.cjs'),
-            additionalArguments: hasProjects ? ['--lol-projects=1'] : [],
+            additionalArguments: [hasProjects && '--lol-projects=1', hasDebugLog && '--lol-debuglog=1'].filter(Boolean),
         },
     });
+    harnessWin = win;
 
     // ---- LOL Studio (S0) ---- (navigation veto; mirrored in shell/src/main/index.ts)
     // A SUBFRAME (the sandbox runner, S2) may load itself once and never navigate again; the
@@ -173,7 +220,7 @@ app.whenReady().then(() => {
     writeJson(path.join(tmpDir(), 'window-opens.json'), windowOpens);
     writeJson(path.join(tmpDir(), 'downloads.json'), downloads);
     writeJson(path.join(tmpDir(), 'shell-calls.json'), shellCalls);
-    createWindow(wireProjects());
+    createWindow(wireProjects(), wireDebugLog());
 });
 
 // Nothing here should ever reach the system browser.

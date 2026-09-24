@@ -238,6 +238,9 @@ async function main() {
         // landing runs with the build present and 0 skipped is a landing gate.
         const hasProjectsBuild = fs.existsSync(path.join(SHELL_DIR, 'build', 'main', 'projects.js'));
         if (!hasProjectsBuild) console.log("[run] no shell/build/main/projects.js: needsProjects:'real' scenarios will be skipped");
+        // K7 (addendum KG): the same rule for the Computer's debug-log writer.
+        const hasDebugLogBuild = fs.existsSync(path.join(SHELL_DIR, 'build', 'main', 'debugLog.js'));
+        if (!hasDebugLogBuild) console.log("[run] no shell/build/main/debugLog.js: needsDebugLog:'real' scenarios will be skipped");
         if (!args.noMock) {
             if (!fs.existsSync(args.mock)) throw new Error(`mock farm not found: ${args.mock}`);
             const env = { ...process.env };
@@ -365,6 +368,14 @@ async function main() {
                 console.log(JSON.stringify({
                     scenario: s.name, ok: true, skipped: true,
                     error: 'needs the compiled projects API — run: npm --prefix shell run build',
+                }));
+                continue;
+            }
+            if (s.needsDebugLog === 'real' && !hasDebugLogBuild) {
+                skipped++;
+                console.log(JSON.stringify({
+                    scenario: s.name, ok: true, skipped: true,
+                    error: 'needs the compiled debug-log writer — run: npm --prefix shell run build',
                 }));
                 continue;
             }

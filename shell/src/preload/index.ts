@@ -80,4 +80,15 @@ contextBridge.exposeInMainWorld('lol', {
         open: (id: string) => ipcRenderer.invoke('lol:projects:open', id),
         path: (id: string) => ipcRenderer.invoke('lol:projects:path', id),
     },
+    debugLog: {
+        // The Computer's debug log (COMPUTER_PLAN addendum KG): ONE additive property, the same
+        // rules as `projects` — thin invokes, {ok:...} answers, no events, and no path in or out
+        // except the one main chose. The renderer appends text; it never reads a file back.
+        start: (header: string) => ipcRenderer.invoke('lol:debugLog:start', header),
+        append: (text: string) => ipcRenderer.invoke('lol:debugLog:append', text),
+        stop: (footer?: string) => ipcRenderer.invoke('lol:debugLog:stop', footer),
+        mark: () => ipcRenderer.invoke('lol:debugLog:mark'),
+        reveal: () => ipcRenderer.invoke('lol:debugLog:reveal'),
+        status: () => ipcRenderer.invoke('lol:debugLog:status'),
+    },
 });

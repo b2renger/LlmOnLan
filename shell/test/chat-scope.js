@@ -36,7 +36,11 @@ const ALLOWED = [
     { re: /^shell\/src\/main\/projects\.ts$/, why: 'the scratch-projects API (S0)' },
     { re: /^shell\/src\/main\/projectsPath\.ts$/, why: 'the pure path validator (S0)' },
     { re: /^shell\/src\/main\/index\.ts$/, why: 'the marked LOL Studio regions only', checkMarkedRegion: 'LOL Studio (S0)' },
-    { re: /^shell\/src\/preload\/index\.ts$/, why: 'the additive projects property only', checkPreloadProjects: true },
+    { re: /^shell\/src\/preload\/index\.ts$/, why: 'the additive projects and debugLog properties only', checkPreloadProjects: true },
+    // K7 (COMPUTER_PLAN addendum KG, owner request 2026-09-24): the Computer's debug log. Same shape
+    // as S0: one new main file the phase owns outright, a marked region in index.ts, and ONE
+    // additive preload property (`debugLog`) beside `projects`.
+    { re: /^shell\/src\/main\/debugLog\.ts$/, why: "the Computer's debug-log writer (K7)" },
     { re: /^docs\/.+/, why: 'documentation' },
 ];
 
@@ -306,10 +310,19 @@ function checkMarked(io, file, label) {
     return out;
 }
 
-/** The span of the `projects: {` ... `},` property in a preload file, in 1-based lines. */
+/** The additive preload properties, in the order they were granted (S0, K7). */
+const PRELOAD_PROPS = ['projects', 'debugLog'];
+
+/** The span of the `projects: {` ... `},` property (S0), under its old name for callers. */
 function projectsPropSpan(src) {
+    return propSpan(src, 'projects');
+}
+
+/** The span of the `<name>: {` ... `},` property in a preload file, in 1-based lines. */
+function propSpan(src, name) {
     const lines = src.split('\n');
-    const start = lines.findIndex((l) => /^\s*projects\s*:\s*\{/.test(l));
+    const head = new RegExp(`^\\s*${name}\\s*:\\s*\\{`);
+    const start = lines.findIndex((l) => head.test(l));
     if (start < 0) return null;
     let depth = 0;
     for (let i = start; i < lines.length; i++) {
@@ -322,7 +335,8 @@ function projectsPropSpan(src) {
     return [start + 1, lines.length];
 }
 
-/** shell/src/preload/index.ts: one additive `projects: {...}` property, nothing else. */
+/** shell/src/preload/index.ts: the additive `projects: {...}` (S0) and `debugLog: {...}` (K7)
+ * properties, nothing else. */
 function checkPreload(io, file) {
     const out = [];
     const work = io.readWork(file);
@@ -332,13 +346,14 @@ function checkPreload(io, file) {
     }
     const span = projectsPropSpan(work);
     if (!span) return out.concat(['no `projects: {` ... `},` property in the preload: that property IS the carve-out']);
+    const spans = PRELOAD_PROPS.map((name) => propSpan(work, name)).filter(Boolean);
     for (const hunk of hunksOf(io.diff(file))) {
         if (hunk.removes.length) {
             out.push(`the preload carve-out is additive only, but a line is removed: ${hunk.removes[0].trim().slice(0, 60)}`);
         }
         for (const a of hunk.adds) {
-            if (a.line < span[0] || a.line > span[1]) {
-                out.push(`added line ${a.line} is outside the \`projects\` property (lines ${span[0]}-${span[1]}): `
+            if (!spans.some(([lo, hi]) => a.line >= lo && a.line <= hi)) {
+                out.push(`added line ${a.line} is outside the \`projects\` and \`debugLog\` properties: `
                     + a.text.trim().slice(0, 60));
             }
         }
@@ -607,7 +622,25 @@ function selfTest() {
         readWork: () => PRELOAD_TS,
         diff: () => ['--- a/shell/src/preload/index.ts', '+++ b/shell/src/preload/index.ts',
             '@@ -2,0 +2 @@', '+  openExternal: (u) => shell.openExternal(u),'].join('\n'),
-    })), /outside the `projects` property/);
+    })), /outside the `projects` and `debugLog` properties/);
+    const PRELOAD_K7 = PRELOAD_TS.replace('});', "  debugLog: {\n    start: (h) => ipcRenderer.invoke('lol:debugLog:start', h),\n  },\n});");
+    expectClean('an added line inside the preload debugLog property is allowed (K7)', checkScope(io({
+        changed: ['shell/src/preload/index.ts'],
+        readBase: () => PRELOAD_TS,
+        readWork: () => PRELOAD_K7,
+        diff: () => ['--- a/shell/src/preload/index.ts', '+++ b/shell/src/preload/index.ts',
+            '@@ -5,0 +6,3 @@', '+  debugLog: {', "+    start: (h) => ipcRenderer.invoke('lol:debugLog:start', h),", '+  },'].join('\n'),
+    })));
+    expectFlag('a K7 preload line outside both properties is still flagged', checkScope(io({
+        changed: ['shell/src/preload/index.ts'],
+        readBase: () => PRELOAD_TS,
+        readWork: () => PRELOAD_K7,
+        diff: () => ['--- a/shell/src/preload/index.ts', '+++ b/shell/src/preload/index.ts',
+            '@@ -2,0 +2 @@', '+  readFile: (p) => fs.readFileSync(p),'].join('\n'),
+    })), /outside the `projects` and `debugLog` properties/);
+    expectClean('the debug-log writer is allowed outright (K7)', checkScope(io({
+        changed: ['shell/src/main/debugLog.ts'],
+    })));
     expectClean('the two new projects .ts files are allowed outright', checkScope(io({
         changed: ['shell/src/main/projects.ts', 'shell/src/main/projectsPath.ts'],
     })));
@@ -654,7 +687,7 @@ function main() {
     return violations.length ? 1 : 0;
 }
 
-module.exports = { checkScope, publishFarmSpan, toggleSpan, lolFarmLiteralSpan, markedSpans, projectsPropSpan, ALLOWED };
+module.exports = { checkScope, publishFarmSpan, toggleSpan, lolFarmLiteralSpan, markedSpans, projectsPropSpan, propSpan, ALLOWED };
 
 if (require.main === module) {
     process.exit(main());

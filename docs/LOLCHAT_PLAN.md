@@ -3746,6 +3746,71 @@ code, DOM probe or constant changed. Recorded here because later phases inherit 
 - **Gates at the landing (slot 0):** `chat-unit` 1370 / 0, `unit` 5, `chat-lint` 211 / 0 (self-test
   26/26), `chat-scope` clean, harness `--strict` **295 / 0**, perf 9 / 0.
 
+### K7 addendum — the Computer's debug log (2026-09-24, built by the integrator, no units)
+
+> *"I need a switch to write to disk detail logs to pass on to you. When I explore and find a bug I
+> want to be able to record everything in a timestamped file where you can find all the informations
+> needed to fix bugs. We need to log user interactions and all the runtime errors."* — the owner
+
+The owner's guide and the file format are in [COMPUTER_DEBUG_LOG.md](COMPUTER_DEBUG_LOG.md). This entry
+freezes the contract. KA–KF still bind.
+
+**KG-1. A second main-process carve-out, the same shape as S0.** `shell/src/main/debugLog.ts` is new
+and owned outright. `src/main/index.ts` grows three marked `LOL Studio (S0)` regions: the lazy
+recorder at module level, crash/hang notes in `createWindow`, and the `lol:debugLog:*` handlers in
+`registerIpc`. `src/preload/index.ts` grows ONE additive property, `debugLog`, beside `projects`.
+`chat-scope.js` allows exactly that (`PRELOAD_PROPS = ['projects', 'debugLog']`, three self-test
+cases). The renderer reaches main only through `projects/bridge.mjs` `debugLogDoor()` (lint rule 10
+unchanged: one file names `window.lol`).
+
+**KG-2. Main decides every path.** The folder is `<userData>/logs/computer`, and the name is
+`computer-YYYY-MM-DD_HH-MM-SS[-n].jsonl` in local time. The channels are `start(header)`,
+`append(text)`, `stop(footer?)`, `mark()` (a PNG of the window, saved next to the file),
+`reveal()` and `status()`. No channel takes a path, and none reads a file back. The limits are
+`APPEND_MAX` 2 MB, `FILE_MAX` 25 MB (one `log.full` line, then `E_FULL`), `KEEP` 15 recordings
+(pruned with their PNGs at each start, ordered by stamp then numeric suffix; a recording with a
+marked bug is spared up to `MARKED_KEEP` 30), `MARK_MAX` 40 and `HEADER_MAX` 64 KB. The footer counts
+against `FILE_MAX`. Appends are synchronous, so a crash `note()` cannot land mid-line. Main closes
+the file from `before-quit` (the shell exits with `app.exit`, which skips `will-quit`). Every answer is `{ok:true,...}` or
+`{ok:false, code:'E_ARGS'|'E_NONE'|'E_FULL'|'E_IO', message}`. Main alone writes `log.main`,
+`log.end` and `main.renderer-gone` / `main.unresponsive` / `main.responsive` / `main.preload-error`.
+
+**KG-3. The recorder is always on, in memory.** `computer/devlog.mjs` is installed at module
+evaluation in `computer/main.mjs`, before the spine and before any loader row. Its ring holds
+`RING_MAX` 2000 events. Starting a recording writes the ring first, each line flagged `pre:1`.
+Every line starts with the envelope `{n, ts, ms, k}`, which data never overwrites: durations are
+`took`, counts are `count`. The switch is remembered in `localStorage['lol:computer:recording']`,
+and a page load with it on starts a new file with `why:'resume'`. `pagehide` sends its last lines
+and the stop synchronously.
+
+**KG-4. What is captured.** The kinds are listed in `README` in `computer/devlog-format.mjs`, which
+is the file's first line. Interactions are recorded only while `#lolcomputer` is shown. Typing is
+one `ui.edit` per field, and a password field's value is never read. Requests are observed by
+wrapping `window.fetch`. The wrapper adds no request (unit-tested) and logs no header except the
+OCR upload's file name. Toasts and dialogs are observed by wrapping `app.dialogs.{toast,confirm,prompt}`.
+The session's `doc` event gained an additive `label` (the undo label, or `'undo'` / `'redo'`), which
+no other listener reads.
+
+**KG-5. Never written.** A field whose NAME is in `SECRET_KEY_RE` (exact names: `apiKey`, `key`,
+`token`, `password`, `authorization`, …, but not `max_tokens`) is written as `[redacted]`. So is a
+`Bearer …` string. `data:` URIs become `[mime N KB]`. Strings are clipped, and every event has a
+node budget. `devlog-format.mjs` is in `PURE_MODULES`, and `computer-devlog.test.mjs` pins all of
+this in Node.
+
+**KG-6. The switch.** `computer/recorder.mjs` is a `feature` row (K7) after `runbar`. It draws
+**● Record log** / **● Recording · N events** (`aria-pressed`), then **⚑ Mark bug** and the folder
+button, at the run bar's right end. The whole group is hidden when there is no door. A mark takes
+the screenshot FIRST, then asks for the note through `app.dialogs.prompt`. The mark event carries
+the note, the PNG name, the snapshot (farm with keys redacted, state, doc, sandbox, waits) and the
+last journal run.
+
+**KG-7. What does not change.** No CSP change, no new dependency, no network request of its own.
+`farm/`, `farm-app/` and `sidecar/` are untouched. Open WebUI is untouched (the recorder never sees
+the webview). `PHASE` → `K7`, with the c3-landing assertion in the same edit. The harness mirrors
+the writer (`main.cjs` wires the compiled `build/main/debugLog.js`, `preload.cjs` exposes
+`debugLog` under `--lol-debuglog=1`, and a scenario can say `needsDebugLog:'real'`). `h0-no-real-lol`
+pins the new key and its six methods.
+
 ## 3. Architecture and contracts
 
 ### 3.1 Load order, loader and mount

@@ -64,13 +64,17 @@ export default [
         // scratch-projects carve-out, studio plan §3.8), so the allowed shape grew by exactly that
         // one key — and its method set is pinned here against shell/src/preload/index.ts, so a
         // sixteenth method added there without a review shows up as this scenario failing.
+        // K7 landing (addendum KG): ONE more additive property, `debugLog` (the Computer's debug
+        // log), pinned the same way — six methods, text in, nothing read back.
         run: async (h) => {
             const shape = await h.eval(() => ({
                 keys: Object.keys(window.lol || {}),
                 type: typeof (window.lol && window.lol.getBlenderConnection),
                 projects: window.lol && window.lol.projects ? Object.keys(window.lol.projects) : null,
+                debugLog: window.lol && window.lol.debugLog ? Object.keys(window.lol.debugLog) : null,
             }));
-            h.eq(shape.keys, ['getBlenderConnection', 'projects'], 'window.lol exposes more than the real preload');
+            h.eq(shape.keys, ['getBlenderConnection', 'projects', 'debugLog'], 'window.lol exposes more than the real preload');
+            h.eq(shape.debugLog, ['start', 'append', 'stop', 'mark', 'reveal', 'status'], 'window.lol.debugLog is not the real preload method set');
             h.eq(shape.projects, [
                 'root', 'list', 'create', 'meta', 'update', 'forget', 'listFiles', 'read', 'readBinary',
                 'write', 'writeBinary', 'remove', 'reveal', 'open', 'path',
@@ -405,6 +409,57 @@ export default [
             }
 
             await h.type('#chat-input', '');
+        },
+    },
+    {
+        name: 'h0-real-input',
+        // K-6 (critic R1): h.input.* goes through Chromium's input pipeline (CDP Input), so the page
+        // sees TRUSTED events with hit testing, focus and default actions — the ground truth for
+        // pointer capture, text selection and editing bugs that el.click() cannot see.
+        run: async (h) => {
+            await h.eval(() => {
+                const box = document.createElement('div');
+                box.id = 'k6-probe';
+                box.style.cssText = 'position:fixed;left:40px;top:40px;width:300px;height:160px;z-index:99999;background:#333;overflow:auto';
+                const btn = document.createElement('button'); btn.id = 'k6-btn'; btn.textContent = 'press';
+                const input = document.createElement('input'); input.id = 'k6-in';
+                const tall = document.createElement('div'); tall.style.height = '600px'; tall.textContent = 'scroll me';
+                box.append(btn, input, tall);
+                document.body.appendChild(box);
+                const seen = (window.__k6 = { click: 0, dbl: 0, trusted: true, moves: 0, wheel: null, keys: [] });
+                const t = (e) => { if (!e.isTrusted) seen.trusted = false; };
+                btn.addEventListener('click', (e) => { t(e); seen.click++; });
+                btn.addEventListener('dblclick', (e) => { t(e); seen.dbl++; });
+                box.addEventListener('pointermove', (e) => { if (e.buttons) seen.moves++; });
+                box.addEventListener('wheel', (e) => { t(e); seen.wheel = { dy: e.deltaY, ctrl: e.ctrlKey }; });
+                input.addEventListener('keydown', (e) => { t(e); seen.keys.push((e.ctrlKey ? 'Ctrl+' : '') + e.key); });
+                return true;
+            });
+            try {
+                await h.input.click('#k6-btn');
+                await h.input.dblclick('#k6-btn');
+                await h.input.drag({ x: 60, y: 150 }, { x: 250, y: 170 }, { steps: 6 });
+                await h.input.wheel({ x: 150, y: 150, dy: 120 });
+                await h.sleep(400);                          // wheel scrolling is animated on the compositor
+                const scrolled = await h.eval(() => document.getElementById('k6-probe').scrollTop);
+                await h.input.wheel({ x: 150, y: 150, dy: -10, ctrl: true });
+                await h.input.click('#k6-in');
+                await h.input.key('a');
+                await h.input.type('bc');
+                await h.input.key('a', { ctrl: true });
+                const seen = await h.eval(() => ({ ...window.__k6, value: document.getElementById('k6-in').value, focus: document.activeElement && document.activeElement.id }));
+                h.eq(seen.trusted, true, 'every event is trusted (isTrusted)');
+                h.eq(seen.click, 3, 'one click + the two clicks of a double-click');
+                h.eq(seen.dbl, 1, 'one dblclick');
+                h.assert(seen.moves >= 6, 'a drag moves with the button held: ' + seen.moves);
+                h.assert(scrolled > 0, 'a wheel scrolls what is under it (default action): ' + scrolled);
+                h.eq(seen.wheel && seen.wheel.ctrl, true, 'a pinch arrives as wheel + ctrlKey');
+                h.eq(seen.focus, 'k6-in', 'a real click focuses');
+                h.eq(seen.value, 'abc', 'keys and typed text land in the focused field');
+                h.assert(seen.keys.includes('Ctrl+a'), 'chords arrive with their modifier: ' + seen.keys.join(','));
+            } finally {
+                await h.eval(() => { const b = document.getElementById('k6-probe'); if (b) b.remove(); delete window.__k6; return true; });
+            }
         },
     },
 ];

@@ -734,3 +734,27 @@ felt safe to use.
 - [ ] **The grey teaches.** One Instruction into three Conditions (yes / no / maybe). Run it.
       Expected: exactly one branch stays bright and the other two arrows visibly fade — you can tell
       which way the graph went from across the room, without reading a word.
+
+## 17. The Computer's debug log (K7, added 2026-09-24)
+
+The harness proves the file is written, complete and without the key. These checks need the real
+window, Explorer and your own eyes.
+
+- [ ] **The switch is where you'd look.** Open the Computer. At the right end of the run bar is
+      **● Record log**. Press it. Expected: it turns red, the dot pulses, it counts events, and a
+      toast names the file.
+- [ ] **The file is where the guide says.** Open `%APPDATA%\LlmOnLan\logs\computer\`. Expected: a
+      `computer-<today>_<time>.jsonl` that grows while you click around.
+- [ ] **Mark bug takes a real screenshot.** Press **⚑ Mark bug**, type a sentence, press Save
+      marker. Expected: a `…-mark-1.png` next to the file, showing the canvas and NOT the question
+      box.
+- [ ] **The folder button.** Stop the recording, then press the folder icon. Expected: Explorer
+      opens with the file selected.
+- [ ] **It survives a relaunch.** Record, close the app, reopen it. Expected: the button is red
+      again, and a second file begins with `"why":"resume"`. Turn it off, relaunch. Expected: it
+      stays off.
+- [ ] **No password in it.** On a farm with a password, record a run, then search the file for the
+      password. Expected: not found. `apiKey` reads `[redacted]`.
+- [ ] **Nothing while you're elsewhere.** Record, switch to LOL Chat, type a message, come back,
+      stop. Expected: no `ui.*` lines for what you typed in the chat (a request it made may appear
+      as `http.*`, which is intended).

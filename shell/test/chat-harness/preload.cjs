@@ -16,6 +16,13 @@ const OPS = [
 const projects = {};
 for (const op of OPS) projects[op] = (...args) => ipcRenderer.invoke(`lol:projects:${op}`, ...args);
 
+// K7 (addendum KG): the additive `debugLog` property, the SAME shape as shell/src/preload/index.ts,
+// present only when main.cjs wired the real writer (build/main/debugLog.js exists).
+const HAS_DEBUGLOG = process.argv.includes('--lol-debuglog=1');
+const debugLog = {};
+for (const op of ['start', 'append', 'stop', 'mark', 'reveal', 'status']) debugLog[op] = (...args) => ipcRenderer.invoke(`lol:debugLog:${op}`, ...args);
+
 const api = { getBlenderConnection: () => ipcRenderer.invoke('harness:blender') };
 if (HAS_PROJECTS) api.projects = projects;
+if (HAS_DEBUGLOG) api.debugLog = debugLog;
 contextBridge.exposeInMainWorld('lol', api);

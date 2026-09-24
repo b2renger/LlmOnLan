@@ -111,7 +111,8 @@ export function createSession(app, host) {
       if (o.undoable !== false) undoStack.push(doc, o.label || '');
       doc = next;
       store.put(doc);
-      emit({ type: 'doc', doc });
+      // `label` names the edit for the debug log (addendum KG); no other listener reads it.
+      emit({ type: 'doc', doc, label: o.label || '' });
     },
     /** Runtime fields only. Never undoable, never marks anything stale, never a history entry. */
     patchPart(/** @type {string} */ id, /** @type {any} */ patch) {
@@ -144,7 +145,7 @@ export function createSession(app, host) {
       doc = e.doc;
       selected = selected.filter((id) => doc.parts.some((/** @type {any} */ p) => p.id === id));
       store.put(doc);
-      emit({ type: 'doc', doc });
+      emit({ type: 'doc', doc, label: 'undo' });
       return true;
     },
     redo() {
@@ -153,7 +154,7 @@ export function createSession(app, host) {
       doc = e.doc;
       selected = selected.filter((id) => doc.parts.some((/** @type {any} */ p) => p.id === id));
       store.put(doc);
-      emit({ type: 'doc', doc });
+      emit({ type: 'doc', doc, label: 'redo' });
       return true;
     },
     undoDepth: () => undoStack.depth(),

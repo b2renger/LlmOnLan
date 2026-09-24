@@ -908,6 +908,105 @@ function createHelpers(ctx) {
             return file;
         },
 
+        // ---- K-6 (critic R1): REAL input -------------------------------------------------------
+        // `el.click()` and `new KeyboardEvent()` skip Chromium's input pipeline: no hit testing, no
+        // pointer capture, no focus change, no text selection, no default actions — exactly where
+        // "I can't edit that box" and "I can't select that text" live. These go through CDP's Input
+        // domain, which Chromium treats as a person's hardware. `target` is a selector (its centre)
+        // or {x, y} in client px; `at` in click/dblclick can offset from a selector's top-left.
+        input: {
+            /** @param {string|{x:number,y:number}} target @param {{at?: {x:number,y:number}}} [o] */
+            async point(target, o = {}) {
+                if (target && typeof target === 'object') return { x: target.x, y: target.y };
+                return evalFn((sel, at) => {
+                    const el = document.querySelector(sel);
+                    if (!el) throw new Error('input: no element for ' + sel);
+                    el.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+                    const r = el.getBoundingClientRect();
+                    return at ? { x: r.left + at.x, y: r.top + at.y } : { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+                }, target, o.at || null);
+            },
+            async move(target, o = {}) {
+                const p = await h.input.point(target, o);
+                await cdp.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: p.x, y: p.y, button: 'none', buttons: 0 });
+                return p;
+            },
+            /** @param {any} target @param {{at?: any, button?: 'left'|'right'|'middle', ctrl?: boolean, shift?: boolean}} [o] */
+            async click(target, o = {}) {
+                const p = await h.input.point(target, o);
+                const button = o.button || 'left';
+                const buttons = button === 'left' ? 1 : button === 'right' ? 2 : 4;
+                const modifiers = (o.ctrl ? 2 : 0) | (o.shift ? 8 : 0);
+                await cdp.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: p.x, y: p.y, button: 'none', buttons: 0, modifiers });
+                await cdp.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: p.x, y: p.y, button, buttons, clickCount: 1, modifiers });
+                await cdp.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: p.x, y: p.y, button, buttons: 0, clickCount: 1, modifiers });
+                return p;
+            },
+            async dblclick(target, o = {}) {
+                const p = await h.input.point(target, o);
+                await cdp.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: p.x, y: p.y, button: 'none', buttons: 0 });
+                for (const clickCount of [1, 2]) {
+                    await cdp.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: p.x, y: p.y, button: 'left', buttons: 1, clickCount });
+                    await cdp.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: p.x, y: p.y, button: 'left', buttons: 0, clickCount });
+                }
+                return p;
+            },
+            /** Press at `from`, move in `steps` to `to`, release. @param {any} from @param {any} to @param {{steps?: number, button?: 'left'|'middle', shift?: boolean, hold?: number}} [o] */
+            async drag(from, to, o = {}) {
+                const a = await h.input.point(from);
+                const b = await h.input.point(to);
+                const button = o.button || 'left';
+                const buttons = button === 'left' ? 1 : 4;
+                const modifiers = o.shift ? 8 : 0;
+                const steps = Math.max(1, o.steps || 8);
+                await cdp.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: a.x, y: a.y, button: 'none', buttons: 0, modifiers });
+                await cdp.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: a.x, y: a.y, button, buttons, clickCount: 1, modifiers });
+                for (let i = 1; i <= steps; i++) {
+                    const x = a.x + ((b.x - a.x) * i) / steps;
+                    const y = a.y + ((b.y - a.y) * i) / steps;
+                    await cdp.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x, y, button, buttons, modifiers });
+                    if (o.hold) await sleep(o.hold);
+                }
+                await cdp.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: b.x, y: b.y, button, buttons: 0, clickCount: 1, modifiers });
+                return { from: a, to: b };
+            },
+            /** A wheel / trackpad event. `ctrl: true` is what a PINCH on a trackpad sends. @param {{x?: number, y?: number, target?: any, dx?: number, dy?: number, ctrl?: boolean}} o */
+            async wheel(o) {
+                const p = o.target ? await h.input.point(o.target) : { x: o.x || 0, y: o.y || 0 };
+                await cdp.send('Input.dispatchMouseEvent', {
+                    type: 'mouseWheel', x: p.x, y: p.y, deltaX: o.dx || 0, deltaY: o.dy || 0, modifiers: o.ctrl ? 2 : 0,
+                });
+                return p;
+            },
+            /**
+             * One key, pressed and released, where the focus is. Printable keys also insert their
+             * text. @param {string} k 'a', 'Enter', 'Delete', 'Escape', 'F2', 'c' with ctrl, …
+             * @param {{ctrl?: boolean, shift?: boolean, alt?: boolean, meta?: boolean}} [o]
+             */
+            async key(k, o = {}) {
+                const modifiers = (o.alt ? 1 : 0) | (o.ctrl ? 2 : 0) | (o.meta ? 4 : 0) | (o.shift ? 8 : 0);
+                const VK = { Enter: 13, Escape: 27, Delete: 46, Backspace: 8, Tab: 9, F2: 113, ArrowLeft: 37, ArrowUp: 38, ArrowRight: 39, ArrowDown: 40, ' ': 32, Home: 36, End: 35 };
+                const printable = k.length === 1;
+                const vk = VK[k] || (printable ? k.toUpperCase().charCodeAt(0) : 0);
+                const code = printable ? (/[a-z]/i.test(k) ? `Key${k.toUpperCase()}` : (/\d/.test(k) ? `Digit${k}` : '')) : k;
+                const text = printable && !(o.ctrl || o.meta || o.alt) ? k : (k === 'Enter' ? '\r' : undefined);
+                await cdp.send('Input.dispatchKeyEvent', { type: text ? 'keyDown' : 'rawKeyDown', key: k, code, windowsVirtualKeyCode: vk, nativeVirtualKeyCode: vk, modifiers, text, unmodifiedText: text });
+                await cdp.send('Input.dispatchKeyEvent', { type: 'keyUp', key: k, code, windowsVirtualKeyCode: vk, nativeVirtualKeyCode: vk, modifiers });
+            },
+            /** Type text where the focus is, the way an IME commits it (one input event per call). */
+            async type(text) {
+                await cdp.send('Input.insertText', { text: String(text) });
+            },
+            /** What the page has selected right now (for copy tests). */
+            selection: () => evalFn(() => String(window.getSelection ? window.getSelection() : '')),
+            /** What is under a client point: the element and its nearest part id. */
+            hit: (x, y) => evalFn((px, py) => {
+                const el = document.elementFromPoint(px, py);
+                const part = el && el.closest ? el.closest('.graph-part') : null;
+                return el ? { tag: el.tagName.toLowerCase(), cls: String(el.getAttribute('class') || ''), part: part ? part.getAttribute('data-id') : null } : null;
+            }, x, y),
+        },
+
         // harness-bridge controls
         setFarm: (patch) => evalFn((p) => window.__harness.setFarm(p), patch === undefined ? null : patch),
         pause: (on) => evalFn((o) => window.__harness.pause(o), !!on),

@@ -82,7 +82,7 @@ export default (test) => {
       readWork: () => PRELOAD,
       diff: () => ['--- a', '+++ b', '@@ -1,0 +2 @@', "+  runAnything: (c) => ipcRenderer.invoke('exec', c),"].join('\n'),
     }));
-    assert.ok(/outside the `projects` property/.test(flagged(r)), flagged(r));
+    assert.ok(/outside the `projects` and `debugLog` properties/.test(flagged(r)), flagged(r));
   });
 
   test('a removal inside the carve-out is still a removal', () => {

@@ -34,8 +34,13 @@ import { buildComputerLayout } from './layout.mjs';
 import { spine } from './boot.mjs';
 import { computeVisible, runnerExecuting } from './visible.mjs';
 import '../strings/computer.en.mjs';
+// K7 (addendum KG): the flight recorder installs NOW, at module evaluation — before the spine and
+// before any row below is imported — so a module that fails to load is already on the record.
+import { installDevlog } from './devlog.mjs';
 
-const PHASE = 'K6';   // each LANDING bumps this, with the c3-landing assertion in the same edit
+const recorder = installDevlog();
+
+const PHASE = 'K7';   // each LANDING bumps this, with the c3-landing assertion in the same edit
 
 /** @type {import('../core/types.mjs').ModuleRow[]} */
 const MODULES = [
@@ -65,6 +70,9 @@ const MODULES = [
   // before K6; without `media` a Document or Sound box says it cannot keep the file.
   { key: 'media',    path: './media.mjs',           role: 'feature',   fake: null, phase: 'K6' },
   { key: 'drops',    path: './drops.mjs',           role: 'feature',   fake: null, phase: 'K6' },
+  // K7 (addendum KG): the debug log's switch, drawn into the run bar, so AFTER `runbar`. The
+  // recorder itself is not a row: it is devlog.mjs, installed above before anything loads.
+  { key: 'recorder', path: './recorder.mjs',        role: 'feature',   fake: null, phase: 'K7' },
   //
   // LEAVES WITH NO ROW — a static import of their consumer, so a typo surfaces as that consumer
   // failing: graph/** (K5: palette.mjs, palette-menu.mjs, unfence.mjs, parts/creative.mjs;
@@ -161,6 +169,12 @@ async function mount() {
     b.setAttribute('role', 'alert');
     b.textContent = t('computer.loaderFailed', { key: broken.map((/** @type {any} */ f) => f.key).join(', ') });
     els.banner.appendChild(b);
+  }
+
+  // K7: the recorder hears the host, runner, bus and dialogs from here on (they exist now).
+  if (recorder) {
+    try { recorder.attach(app); } catch (err) { console.warn(`[lolcomputer] the debug log could not attach: ${errText(err)}`); }
+    LolComputer.debug.devlog = recorder;
   }
 
   // The debug door: the host's, verbatim. The harness drives the Computer through it, and its key
