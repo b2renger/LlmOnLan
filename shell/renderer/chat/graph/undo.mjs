@@ -91,6 +91,26 @@ function stable(v) {
   return `{${Object.keys(v).sort().map((k) => `${JSON.stringify(k)}:${stable(v[k])}`).join(',')}}`;
 }
 
+/** A part's settings without its seed (critic R3-4). @param {any} settings */
+function withoutSeed(settings) {
+  if (!settings || typeof settings !== 'object' || !('seed' in settings)) return settings || {};
+  const { seed, ...rest } = settings;
+  return rest;
+}
+
+/**
+ * Does the seed a restore brings back fit the answer on screen (critic R4-3)? Yes when it is "new
+ * each run" (none), or the seed that answer was produced with (`stats.seed`). A pinned 42 restored
+ * over an answer made with 99 does not: that answer is stale.
+ * @param {any} settings @param {any} part
+ */
+function seedFits(settings, part) {
+  const s = settings && typeof settings === 'object' ? settings.seed : undefined;
+  if (s === undefined || s === null || s === '') return true;
+  const used = part && part.stats ? part.stats.seed : undefined;
+  return used !== undefined && Number(s) === Number(used);
+}
+
 /** What arrives at a part, in arrival order: the input side of the program. @param {any} doc @param {string} id */
 function incoming(doc, id) {
   return (doc.wires || [])
@@ -128,7 +148,10 @@ export function restoreProgram(current, snapshot, o = {}) {
   const parts = /** @type {any[]} */ (snapshot.parts || []).map((sp) => {
     const cp = live.get(sp.id);
     if (!cp) return TRANSIENT.has(sp.state) ? { ...sp, state: 'stale' } : sp;
-    if (cp.type !== sp.type || stable(cp.settings || {}) !== stable(sp.settings || {})) changed.push(sp.id);
+    // A difference in the SEED alone is not a program change (critic R3-4): undoing a Keep must not
+    // mark an answer stale that that very seed produced. Every other setting still counts.
+    if (cp.type !== sp.type || stable(withoutSeed(cp.settings)) !== stable(withoutSeed(sp.settings))) changed.push(sp.id);
+    else if (!seedFits(sp.settings, cp)) changed.push(sp.id);
     else if (incoming(current, sp.id) !== incoming(snapshot, sp.id)) changed.push(sp.id);
     /** @type {any} */ const out = { ...cp };
     for (const k of PROGRAM_FIELDS) {

@@ -35,3 +35,23 @@
   background: var(--surface);
   color: var(--text);
 }
+
+/* Critic R2, N1: a box is exactly its height (K-3). A Button at its 200×120 could not hold the
+   face, the Label field and the hint one under the other, so the face and the field share a row
+   and the hint takes the line under them. */
+#lolcomputer .graph-part[data-type='button'] .graph-part-body {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  align-content: flex-start;
+}
+#lolcomputer .graph-part[data-type='button'] .graph-btn-face {
+  flex: 0 1 auto;
+  max-width: 50%;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#lolcomputer .graph-part[data-type='button'] .graph-part-body > .graph-part-field { flex: 1 1 90px; }
+#lolcomputer .graph-part[data-type='button'] .graph-btn-hint { flex: 1 1 100%; }

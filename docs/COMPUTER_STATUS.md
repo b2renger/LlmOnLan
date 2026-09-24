@@ -28,7 +28,62 @@ into it on first open.
 *(A dev run shares `%APPDATA%\LlmOnLan` with your installed client, as before. The backup from the 21st
 is still at `%APPDATA%\LlmOnLan-backup-20260921-*`.)*
 
-## NEWEST (K7, evening of the 24th) — a debug log you can switch on
+## NEWEST (night of the 24th) — your eight bugs, fixed and checked by a critic until it was happy
+
+Your list, and where each fix is:
+1. **"We always get the same results — we want control of the seed."** Every Instruction now has a
+   **Seed** row.
+   - It is **new each run** by default, so ▶ twice gives two different answers.
+   - Type a number or press 🎲 to pin one, and ✕ to go back to new each run.
+   - After a run the box says *last run: seed N* with **Keep**, which pins the seed that produced
+     the answer you are looking at.
+   - When nothing needs re-running, the run bar offers **Run everything again**.
+2. **"What does 'substitute short values in place' mean?"** It is now **"Fill in {names} with their
+   values"**, with a one-line hint. It only appears when you have written a `{name}` in the prompt.
+   It also had a real bug: it replaced bare words too ("topic" became "cats" everywhere). Now only
+   `{braced}` names are filled.
+3. **Resize** any box from its **bottom-right corner** (or Alt+Shift+arrows). Fields and prompts
+   grow with the box, and the wires follow.
+4. **Mouse and trackpad:**
+   - two-finger scroll **pans**, pinch **zooms about your fingers**, and Ctrl+wheel zooms;
+   - a scroll over a long answer scrolls the answer, not the canvas;
+   - pan also with Space-drag, the middle button, or the **Hand** tool (H), next to **Select** (V);
+   - the **% button** has Zoom to fit (⇧1), Zoom to selection (⇧2) and 100 % (Ctrl+0);
+   - **right-click** a box or a wire for its menu.
+5. **Unplug a wire:** drag its end off the input and let go on empty canvas, or hover the wire and
+   press the **✕** on its label. Drop the end on another input to re-plug it. Ctrl+Z brings it
+   back.
+6. **Editing a Text box you made earlier:** **double-click** its words, press **✎ Edit** (it
+   appears when you hover), or select the box and press **Enter/F2**. Typing into a box that has a
+   wire coming in locks it, so the next run keeps your edit. It says so, and one Ctrl+Z takes both
+   back. (The bug was the canvas swallowing the click. It was proven with a real mouse before it
+   was fixed.)
+7. **Copy text:** select words in a box with the mouse and press Ctrl+C, or press **Copy** on a Text
+   or Document box. Ctrl+C copies boxes only when no text is selected. Plain text pasted onto the
+   canvas becomes a Text box.
+8. **Write SVG / p5.js / three.js:**
+   - The model now gets instructions per kind, written for gemma4:12b around what the sandbox
+     really provides.
+   - The deeper cause: every answer was **silently cut at 512 tokens**, so most sketches arrived
+     half-written. Code answers now get 4096, and a cut-off answer says so instead of drawing
+     nothing.
+   - The sandbox is sized to the box, and sketches that only draw inside their animation loop now
+     photograph properly. Guest errors are explained in words.
+
+**How it was checked.** A critic agent read the Computer's code and traced your eight items plus
+18 other defects. Three builders fixed them in parallel. The critic re-reviewed four times until it
+had nothing blocking left. Reports: `docs/reviews/COMPUTER_CRITIC_R1.md` → `R2.md` → `R3.md` (with
+Round 4). The harness now drives a **real mouse and keyboard**; about 40 new scenarios do.
+
+**Not yet checked, because it needs gemma4 on the real farm:**
+- whether a pinned seed gives the same text twice through LiteLLM;
+- whether each Write-… preset draws at least 4 times out of 5.
+
+To let me check both, close the client and relaunch it with
+`cd shell && npx electron . --remote-debugging-port=9229`. That also turns on the Record switch,
+which needs the new main process.
+
+## NEW (K7, evening of the 24th) — a debug log you can switch on
 
 At the right end of the run bar there's a new **● Record log** button.
 1. Press it. It turns red and counts events.

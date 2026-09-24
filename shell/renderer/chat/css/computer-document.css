@@ -11,16 +11,18 @@
   gap: 6px;
   min-height: 0;
 }
-/* K-3 (critic R1 A3): the empty drop target fills an empty box. */
+/* K-3 (critic R1 A3): the empty drop target fills an empty box. Critic R2, N1: and a Document at
+   the 300×200 it had before R1 still holds it and the "takes:" line without scrolling. */
 #lolcomputer .graph-part[data-type='document'] .graph-doc-empty { flex: 1 1 auto; }
+#lolcomputer .graph-part[data-type='document'] .graph-takes { margin: 0; flex: 0 0 auto; }
 
 /* The empty state IS the drop target, and it is a button so the keyboard can reach the picker. */
 #lolcomputer .graph-part[data-type='document'] .graph-doc-empty {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 48px;
-  padding: 10px;
+  min-height: 40px;
+  padding: 8px;
   text-align: center;
   font: inherit;
   font-size: 12px;

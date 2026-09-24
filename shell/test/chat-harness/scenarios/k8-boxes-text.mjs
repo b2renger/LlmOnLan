@@ -189,6 +189,9 @@ export default [
         async run(/** @type {any} */ h) {
             await open(h);
             const id = await filledText(h, WORDS);
+            // Away first, then onto the box: a pointer left on this spot by an earlier scenario would
+            // make the move a no-op and :hover would never be re-evaluated (seen in a full run).
+            await h.input.move({ x: 4, y: 4 });
             await h.input.move(inBox(id, '.graph-text-body'));
             await h.sleep(300);                          // the fade-in is 120 ms
             const shown = await h.eval((sel) => {

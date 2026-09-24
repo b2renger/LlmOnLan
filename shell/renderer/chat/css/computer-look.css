@@ -427,6 +427,16 @@
 }
 #lolcomputer .graph-part[data-type='title']:hover .graph-title-sizes,
 #lolcomputer .graph-part[data-type='title']:focus-within .graph-title-sizes { opacity: 1; }
+/* Critic R2, N1: a box is exactly its height (K-3), and a Title at 88 px could not hold L words
+   AND the S/M/L row under them — the tour's first screen had a scrollbar. The row sits in the
+   title bar's empty right end instead (the bar shows only the word "Title"), so the words get the
+   whole body. The box is the positioned ancestor. */
+#lolcomputer .graph-part[data-type='title'] .graph-title-sizes {
+  position: absolute;
+  top: 6px;
+  right: 10px;
+}
+#lolcomputer .graph-part[data-type='title'] .graph-part-body { padding-top: 4px; padding-bottom: 4px; }
 
 #lolcomputer .graph-title-size {
   font: inherit;

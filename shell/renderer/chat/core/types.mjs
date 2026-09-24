@@ -349,6 +349,9 @@
  *   holds?: 'image'|'pdf'|'audio'|'text',
  *   adopt?: (payload: object) => object,
  *   size?: {w: number, h: number},
+ *     // minH? (critic R3-2): the height below which the box's content cannot fit. A graph saved
+ *     // with a shorter box is raised to it on load, and the resize handle stops there.
+ *   minH?: number,
  *   manual?: boolean, volatile?: boolean, control?: boolean, inert?: boolean, quiet?: boolean,
  *   passes?: boolean, onlyWhenUsed?: boolean,
  *   thinksFor?: (part: GraphPart) => boolean,
@@ -368,7 +371,9 @@
  * hands a run), so a creative box can re-draw ITS OWN source on edit without a run, a generation or
  * a seat. It resolves null when the sandbox is disabled. It never races a run: KE-3's rule is that an
  * edit-draw waits while `ctx.app.host.runner.running()` is true.
- * @typedef {{ update(patch: object): void, commit(label: string): void, open(value: GraphValue): void,
+ * Critic R2, N3: `update(patch, {stale: false})` is the one edit that changes nothing a run computed
+ * (the Instruction's Keep); it is undoable like any other and marks nothing stale.
+ * @typedef {{ update(patch: object, opt?: {stale?: boolean}): void, commit(label: string): void, open(value: GraphValue): void,
  *   sandbox(): Promise<SandboxHost|null>,
  *   app: any, part: GraphPart }} PartCtx */
 

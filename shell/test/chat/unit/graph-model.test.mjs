@@ -136,6 +136,21 @@ export default (test) => {
     assert.equal(setSettings(doc, 'ghost', { x: 1 }, s.o), doc);
   });
 
+  test('setSettings {stale: false}: an edit that changes nothing a run computed (critic R2, N3 — Keep)', () => {
+    const s = seed();
+    let [doc, a] = place(s.doc, 'ask', s.o);
+    let b; [doc, b] = place(doc, 'ask', s.o);
+    doc = addWire(doc, { from: a, to: b, port: 'in' }, s.o).doc;
+    for (const id of [a, b]) doc = patchPart(doc, id, { state: 'done' });
+    const kept = setSettings(doc, a, { seed: '816897' }, { ...s.o, stale: false });
+    assert.equal(partById(kept, a).settings.seed, '816897', 'the setting is written');
+    assert.ok(kept.rev > doc.rev, 'it is still an edit of the program');
+    assert.deepEqual(kept.parts.map((p) => p.state), ['done', 'done'], 'and nothing is marked stale');
+    assert.deepEqual(runSet(kept), [], 'so the next Run all has nothing to do');
+    const typed = setSettings(doc, a, { seed: '42' }, s.o);
+    assert.deepEqual(typed.parts.map((p) => p.state), ['stale', 'stale'], 'without the option it stales as always');
+  });
+
   test('patchPart: runtime fields only, validated, and never a document edit', () => {
     const s = seed();
     const [doc, a] = place(s.doc, 'note', s.o);

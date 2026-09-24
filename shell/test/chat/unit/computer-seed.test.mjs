@@ -155,6 +155,7 @@ function renderBox(/** @type {any} */ settings, /** @type {any} */ o = {}) {
   const parts = [part].concat(o.extraParts || []);
   const doc = { id: 'g', rev: 1, parts, wires: o.wires || [] };
   /** @type {any[]} */ const updates = [];
+  /** @type {any[]} */ const updateOpts = [];
   /** @type {string[]} */ const commits = [];
   const app = {
     bus: createBus(),
@@ -164,12 +165,12 @@ function renderBox(/** @type {any} */ settings, /** @type {any} */ o = {}) {
   const host = document.createElement('div');
   const inst = instruction.render(host, part, {
     app,
-    update: (/** @type {any} */ p) => updates.push(p),
+    update: (/** @type {any} */ p, /** @type {any} */ opt) => { updates.push(p); updateOpts.push(opt); },
     commit: (/** @type {string} */ label) => commits.push(label),
   });
   const q = (/** @type {string} */ sel) => host.querySelector(sel);
   const click = (/** @type {string} */ sel) => q(sel).dispatchEvent({ type: 'click' });
-  return { host, inst, part, doc, caps, updates, commits, q, click };
+  return { host, inst, part, doc, caps, updates, updateOpts, commits, q, click };
 }
 
 /** Install the fake endpoint for one test. */
@@ -537,6 +538,39 @@ export default (test) => {
       b.inst.update({ ...b.part, stats: { ms: 1, tokens: 1, calls: 1, cut: true } });
       assert.equal(b.q('.graph-ins-cut').hidden, false);
       assert.equal(b.q('.graph-ins-cut').textContent, t('parts.genCutChip', { n: 2048 }));
+    });
+  });
+
+  test('critic R2, N3: Keep pins the seed on screen WITHOUT staling; a typed seed or 🎲 still stales', async () => {
+    await withDom(() => {
+      const b = renderBox({ instruction: 'go' });
+      b.inst.update({ ...b.part, state: 'done', stats: { ms: 1, tokens: 1, calls: 1, seed: 48213, pinned: false } });
+      b.click('.graph-ins-seed-keep');
+      assert.deepEqual(b.updates.at(-1), { seed: '48213' });
+      assert.deepEqual(b.updateOpts.at(-1), { stale: false }, 'the seed that made the answer on screen: nothing to recompute');
+      b.click('.graph-ins-seed-dice');
+      assert.equal(b.updateOpts.at(-1), undefined, '🎲 is a new seed: it stales as any edit does');
+      // While the box is running, the answer on its way has another seed: Keep is a real edit then.
+      const r = renderBox({ instruction: 'go' });
+      r.inst.update({ ...r.part, state: 'running', stats: { ms: 1, tokens: 1, calls: 1, seed: 7, pinned: false } });
+      r.click('.graph-ins-seed-keep');
+      assert.equal(r.updateOpts.at(-1), undefined);
+    });
+  });
+
+  test('critic R2, N1: Model and Answer shape share a row; the last-run line is folded into the seed row', async () => {
+    await withDom(() => {
+      const b = renderBox({ instruction: 'go' });
+      const fields = b.q('.graph-ins-fields');
+      assert.ok(fields, 'the settings block');
+      const kids = Array.from(fields.children).map((/** @type {any} */ el) => String(el.className));
+      assert.deepEqual(kids, ['graph-part-field', 'graph-part-field', 'graph-ins-seed'], 'Model, Answer shape, then the seed row');
+      assert.ok(b.q('.graph-ins-seed .graph-ins-run .graph-ins-seed-used'), 'the last-run line lives in the seed row');
+      assert.ok(b.q('.graph-ins-seed .graph-ins-run .graph-ins-seed-keep'), 'with its Keep');
+      assert.equal(b.q('.graph-ins-seed .graph-ins-cut'), null, 'the cut-off chip has a line of its own');
+      b.inst.update({ ...b.part, stats: { ms: 1, tokens: 1, calls: 1, seed: 48213, pinned: false, cut: true } });
+      assert.equal(b.q('.graph-ins-run').hidden, false);
+      assert.equal(b.q('.graph-ins-cut').hidden, false);
     });
   });
 

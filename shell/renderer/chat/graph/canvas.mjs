@@ -990,18 +990,29 @@ export function createCanvas(o) {
     return { ...view };
   }
 
-  /** Open the zoom menu — under the % button, or beside `anchor` (the run bar's zoom chip).
+  /** Open the zoom menu — under the % button, or under `anchor` (the run bar's zoom chip).
+   * Critic R2, N2: the chip sits ABOVE the canvas root, so a menu placed inside the root and lifted
+   * by its own height opened off the top of the window. It opens BELOW the chip now, in window
+   * coordinates (position: fixed), right-aligned to the chip and kept inside the window.
    * @param {HTMLElement|null} [anchor] */
   function openZoomMenu(anchor) {
     closeAddMenu();
     closeExportMenu();
     if (anchor && anchor !== zoomLabel && typeof anchor.getBoundingClientRect === 'function') {
-      const r = root.getBoundingClientRect();
-      const a = anchor.getBoundingClientRect();
       zoomMenu.classList.add('graph-zoom-menu-floating');
-      zoomMenu.style.left = `${Math.max(8, a.left - r.left)}px`;
-      zoomMenu.style.top = `${Math.max(8, a.top - r.top - 4)}px`;
-      root.appendChild(zoomMenu);
+      if (zoomMenu.parentNode !== root) root.appendChild(zoomMenu);
+      zoomMenu.style.left = '0px';
+      zoomMenu.style.top = '0px';
+      zoomMenu.hidden = false;
+      const a = anchor.getBoundingClientRect();
+      const m = zoomMenu.getBoundingClientRect();
+      const vw = window.innerWidth || document.documentElement.clientWidth || 0;
+      const vh = window.innerHeight || document.documentElement.clientHeight || 0;
+      const left = Math.max(8, Math.min(a.right - m.width, vw - m.width - 8));
+      const below = a.bottom + 4;
+      const top = below + m.height <= vh - 8 ? below : Math.max(8, vh - m.height - 8);
+      zoomMenu.style.left = `${Math.round(left)}px`;
+      zoomMenu.style.top = `${Math.round(top)}px`;
     } else if (zoomMenu.parentNode !== zoomWrap) {
       zoomMenu.classList.remove('graph-zoom-menu-floating');
       zoomMenu.style.left = '';
@@ -1698,12 +1709,14 @@ export function createCanvas(o) {
     const ctx = {
       app,
       get part() { return partById(part.id) || part; },
-      /** A keystroke: applied at once, but only the FIRST of an edit run opens an undo entry. */
-      update(/** @type {object} */ patch) {
+      /** A keystroke: applied at once, but only the FIRST of an edit run opens an undo entry.
+       * `{stale: false}` (critic R2, N3) is the Instruction's Keep: an edit that changes nothing a
+       * run computed, so nothing is marked stale. */
+      update(/** @type {object} */ patch, /** @type {{stale?: boolean}} */ opt = {}) {
         const first = !editing.has(part.id);
         editing.add(part.id);
         session.apply(
-          setSettings(session.doc(), part.id, patch, { specs, now: app.now }),
+          setSettings(session.doc(), part.id, patch, { specs, now: app.now, stale: opt && opt.stale === false ? false : undefined }),
           { label: 'settings', undoable: first },
         );
       },
@@ -2096,7 +2109,8 @@ export function createCanvas(o) {
         if (!inSel || selected.length !== 1) select([id], { say: false });
         const part = partById(id);
         if (!part) return;
-        drag = { ...base, kind: 'resize', id, from: { w: part.w, h: part.h }, size: null };
+        const minH = Number((specs.get(part.type) || {}).minH) || 0;
+        drag = { ...base, kind: 'resize', id, from: { w: part.w, h: part.h }, min: { w: 0, h: minH }, size: null };
         ev.preventDefault();
         takeFocus();
         return;
@@ -2195,7 +2209,7 @@ export function createCanvas(o) {
       return;
     }
     if (drag.kind === 'resize') {
-      const size = resizeRect(drag.from, dx, dy, view.zoom, undefined, GRID);
+      const size = resizeRect(drag.from, dx, dy, view.zoom, drag.min, GRID);
       drag.size = size;
       const box = boxes.get(drag.id);
       if (box) {
@@ -2524,7 +2538,7 @@ export function createCanvas(o) {
         const part = doc.parts.find((/** @type {any} */ p) => p.id === id);
         if (!part) continue;
         if (resizing) {
-          last = { w: part.w + dx, h: part.h + dy };
+          last = { w: part.w + dx, h: Math.max(part.h + dy, Number((specs.get(part.type) || {}).minH) || 0) };
           doc = resizePart(doc, id, last, { now: app.now });
         } else {
           last = { x: part.x + dx, y: part.y + dy };
@@ -2597,6 +2611,8 @@ export function createCanvas(o) {
   /** `beforecopy` cancelled = "Copy is enabled here" (how Chromium decides for a non-field). */
   function onBeforeCopy(ev) { if (ownsClipboard(ev) && wantsPartCopy(ev)) ev.preventDefault(); }
   function onBeforePaste(ev) {
+    // Critic R2, N5: a paste another handler already took is not ours to enable either.
+    if (ev.defaultPrevented) return;
     if (ownsClipboard(ev) && !isTyping(ev.target) && !isTyping(document.activeElement) && hasDoc()) ev.preventDefault();
   }
 
@@ -2650,6 +2666,11 @@ export function createCanvas(o) {
   function onPaste(ev) {
     if (!ownsClipboard(ev)) return;
     pastePending = false;
+    // Critic R2, N5: the Computer's intake (on #lolcomputer, so it hears the paste first) adopts a
+    // pasted PICTURE and cancels the event. A clipboard that also carries text — cells copied from
+    // a spreadsheet, a picture with its caption — then made a second, Text box here. One Ctrl+V,
+    // one box: a paste someone already took is left alone.
+    if (ev.defaultPrevented) return;
     if (isTyping(ev.target) || isTyping(document.activeElement) || !ev.clipboardData) return;
     const text = ev.clipboardData.getData('text/plain');
     if (fromClipboard(text)) {

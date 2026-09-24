@@ -47,8 +47,11 @@ export default {
   steps: [
     {
       id: 's-look',
-      text: 'Look around: drag the empty canvas to move, and hold Ctrl (⌘ on a Mac) while you scroll to zoom.',
-      hint: 'Lost? “Fit” in the toolbar above the canvas brings everything back into view.',
+      // Critic R2, N4: dragging empty canvas under the Select tool draws a selection box, so the
+      // step no longer says "drag to move". Scrolling moves; Space, the middle button or the Hand
+      // tool (H) drag it.
+      text: 'Look around: scroll with two fingers (or the mouse wheel) to move, and pinch or hold Ctrl (⌘ on a Mac) while you scroll to zoom. Dragging empty canvas draws a box that selects.',
+      hint: 'To drag the canvas itself, hold Space, use the middle mouse button, or pick the Hand tool (H) in the toolbar. Lost? “Fit” brings everything back into view.',
       check: { manual: true },
     },
     {

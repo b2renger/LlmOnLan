@@ -6,6 +6,34 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-09-25 (small hours) — The Computer, critic rounds 2–4: HAPPY-PENDING-RIG
+
+- **Round 2** ([R2](reviews/COMPUTER_CRITIC_R2.md)): all 8 of the owner's items and all 18 round-1
+  defects were verified with real input. New findings: 1 major, 4 minor. Builder D fixed them:
+  - **N1:** exact box heights overflowed in older graphs, lessons and templates. The Instruction is
+    now compact (one picker row, and "last run · Keep" in the seed row), and shared field CSS
+    fixed EVERY part type, most of which were already overflowing their defaults. New scenario:
+    `k9-fit`, covering every lesson, template, the tour, and all 24 part types at pre-R1 sizes.
+  - **N2:** the zoom menu stays on screen.
+  - **N3:** Keep does not stale.
+  - **N4:** the tour text was reworded.
+  - **N5:** one paste makes one box.
+- **Round 3** ([R3](reviews/COMPUTER_CRITIC_R3.md)): HAPPY-PENDING-RIG with 4 minor items. The
+  integrator fixed them:
+  - the Instruction pickers carry their names in their options ("Model: automatic", "Answer:
+    text"), and their captions are hidden from view but kept for screen readers;
+  - a new `minH` on the part spec raises a shorter saved control box on load and stops the resize
+    handle there;
+  - undo ignores a seed-only difference.
+- **Round 4** (same file): HAPPY-PENDING-RIG with 3 smaller items, fixed:
+  - Condition 240×256;
+  - "Model: automatic" only where the caption is hidden;
+  - undo stales an answer only when the restored pinned seed did not produce it.
+- **Pending:** the rig session on gemma4:12b (seed passthrough through LiteLLM, Write-… presets
+  drawing ≥ 4/5). It needs the owner's client relaunched with a debug port.
+
+---
+
 ## 2026-09-24 (night) — The Computer, critic round 1: the owner's eight complaints fixed
 
 The owner tested the Computer and reported eight problems. A critic traced each one to code

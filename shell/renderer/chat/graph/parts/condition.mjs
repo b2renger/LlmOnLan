@@ -130,7 +130,10 @@ export const condition = /** @type {any} */ ({
   // The plan preview must not quote a generation for a FREE text-mode Condition (§4.6's honesty).
   thinksFor: (/** @type {any} */ part) => modeOf(part && part.settings) === 'model',
   control: true,
-  size: { w: 240, h: 170 },
+  // Taller since critic R2: a box is exactly its height now, and the answer line a run adds
+  // below the face (~33 px) must fit without the body scrolling.
+  size: { w: 240, h: 256 },
+  minH: 256,
   inputs: [{ name: 'in', label: t('parts.ctlIn'), accepts: ['any'], many: false, required: true }],
   output: 'any',
   defaults: () => ({ branch: 'yes', mode: 'text', question: '', model: '' }),

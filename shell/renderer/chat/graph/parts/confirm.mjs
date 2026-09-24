@@ -40,7 +40,10 @@ export const confirm = /** @type {any} */ ({
   label: t('parts.confirmLabel'),
   thinks: false,
   control: true,
-  size: { w: 240, h: 150 },
+  // Taller since critic R2: a box is exactly its height now, and the answer line a run adds
+  // below the face (~33 px) must fit without the body scrolling.
+  size: { w: 240, h: 186 },
+  minH: 186,
   inputs: [{ name: 'in', label: t('parts.ctlIn'), accepts: ['any'], many: false, required: false }],
   output: 'any',
   defaults: () => ({ message: '', timeoutSec: 0 }),

@@ -22,8 +22,9 @@ registerStrings('parts', {
   genSeedDiceTitle: 'Pin a random seed',
   genSeedClear: '✕',
   genSeedClearTitle: 'Back to a new seed each run',
-  genSeedUsed: 'last run: seed {seed}',
-  genSeedUsedPinned: 'last run: seed {seed} (pinned)',
+  // Critic R2, N1: said INSIDE the Seed row now, so "seed" is not repeated.
+  genSeedUsed: 'last run: {seed}',
+  genSeedUsedPinned: 'last run: {seed} (pinned)',
   genSeedKeep: 'Keep',
   genSeedKeepTitle: 'Pin this seed, so the next run can give this answer again',
 

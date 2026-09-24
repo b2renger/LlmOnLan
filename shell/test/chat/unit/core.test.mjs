@@ -204,7 +204,9 @@ export default (test) => {
     // Critic R1 (Package B) added 39: the resize handle, the exact-height body (K-3), the plugged
     // input, the wire hover and its ✕, the Select/Hand tools, the zoom cluster and its menu, and
     // the right-click menu.
-    assert.equal(scoped.length, 162, `the graph.css re-scope is ${scoped.length} selectors, not 162`);
+    // Critic R2 (N1) added 15: the compact box — a field on one row, 12 px inputs, hint lines
+    // without browser margins, the legacy strip, the empty foot — and the Instruction's rows.
+    assert.equal(scoped.length, 179, `the graph.css re-scope is ${scoped.length} selectors, not 179`);
     const body = css.replace(/\/\*[\s\S]*?\*\//g, '');
     assert.equal((body.match(/#lolchat /g) || []).length, 0,
       'a `#lolchat ` selector survived the re-scope: that rule paints in the chat and nowhere else');

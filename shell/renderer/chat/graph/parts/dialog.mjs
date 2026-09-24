@@ -41,7 +41,10 @@ export const dialog = /** @type {any} */ ({
   // and falls back to `volatile`.
   volatile: false,
   volatileFor: asksEveryRun,
-  size: { w: 260, h: 190 },
+  // Taller since critic R2: a box is exactly its height now, and the answer line a run adds
+  // below the face (~33 px) must fit without the body scrolling.
+  size: { w: 260, h: 240 },
+  minH: 240,
   inputs: [{ name: 'in', label: t('parts.dlgContext'), accepts: ['any'], many: true, required: false }],
   output: 'text',
   defaults: () => ({ question: '', placeholder: '', multiline: false, default: '', askEveryRun: false }),

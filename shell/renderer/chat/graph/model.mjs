@@ -239,7 +239,9 @@ function normalisePart(raw, spec) {
     x: num(raw.x, 0),
     y: num(raw.y, 0),
     w: num(raw.w, num(size.w, DEFAULT_SIZE.w)),
-    h: num(raw.h, num(size.h, DEFAULT_SIZE.h)),
+    // Critic R3-2: never below what the type needs to show its content (spec.minH) — a control box
+    // saved at its old, shorter default would otherwise hide its verdict or its Send button.
+    h: Math.max(num(raw.h, num(size.h, DEFAULT_SIZE.h)), num(spec && spec.minH, 0)),
     settings: { ...(typeof spec.defaults === 'function' ? obj(spec.defaults()) : {}), ...obj(raw.settings) },
     value,
     // A part that carries a value but claims to be running/queued was interrupted by a crash: it
@@ -391,8 +393,10 @@ export function resizePart(doc, id, size, o = {}) {
 }
 
 /** Editing a part's settings marks it and everything downstream stale (spec §2).
+ * Critic R2, N3: `stale: false` is for the one edit that changes nothing a run computed — Keep,
+ * pinning the seed the answer on screen came from. It is still an edit (undoable, `rev` moves).
  * @param {GraphDoc} doc @param {string} id @param {object} patch
- * @param {{specs?: Map<string, any>, now?: () => number}} [o] @returns {GraphDoc} */
+ * @param {{specs?: Map<string, any>, now?: () => number, stale?: boolean}} [o] @returns {GraphDoc} */
 export function setSettings(doc, id, patch, o = {}) {
   const part = partById(doc, id);
   if (!part) return doc;
@@ -400,7 +404,7 @@ export function setSettings(doc, id, patch, o = {}) {
     ...doc,
     parts: doc.parts.map((p) => (p.id === id ? { ...p, settings: { ...obj(p.settings), ...obj(patch) } } : p)),
   }, o);
-  return markStale(next, [id], o);
+  return o.stale === false ? next : markStale(next, [id], o);
 }
 
 /** Runtime fields only (state/value/error/stats). NEVER undoable, never marks anything stale, and

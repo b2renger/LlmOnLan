@@ -57,7 +57,10 @@ export const timer = /** @type {any} */ ({
   label: t('parts.timerLabel'),
   thinks: false,
   control: true,
-  size: { w: 220, h: 140 },
+  // Taller since critic R2: a box is exactly its height now, and the answer line a run adds
+  // below the face (~33 px) must fit without the body scrolling.
+  size: { w: 220, h: 176 },
+  minH: 176,
   inputs: [{ name: 'in', label: t('parts.ctlIn'), accepts: ['any'], many: false, required: false }],
   output: 'any',
   defaults: () => ({ seconds: 3, repeats: 1 }),

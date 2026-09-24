@@ -70,11 +70,16 @@ function capsOf(app) {
   return app && app.farm && typeof app.farm.get === 'function' ? app.farm.get() : null;
 }
 
-/** @param {any} app @returns {{value: string, label: string}[]} */
-export function modelOptions(app) {
+/**
+ * The model picker's options. `named` (critic R4-2): the Instruction hides the picker's caption, so
+ * its "automatic" row says what it is; Condition and Filter keep their caption and the plain word.
+ * @param {any} app @param {{named?: boolean}} [o] @returns {{value: string, label: string}[]}
+ */
+export function modelOptions(app, o = {}) {
   const caps = capsOf(app);
   const models = caps && Array.isArray(caps.models) ? caps.models : [];
-  return [{ value: '', label: t('parts.insModelAuto') }]
+  const auto = o.named ? t('parts.insModelAutoNamed') : t('parts.insModelAuto');
+  return [{ value: '', label: auto }]
     .concat(models.map((/** @type {any} */ m) => ({ value: String(m.id), label: String(m.id) })));
 }
 
@@ -149,9 +154,13 @@ export const instruction = /** @type {any} */ ({
   order: 200,
   label: t('parts.insLabel'),
   thinks: true,
-  // 340 tall since critic R1: a box is exactly its height now, and the prompt, model, shape and seed
-  // rows must fit without the body scrolling.
-  size: { w: 300, h: 340 },
+  // A box is exactly its height since critic R1 (K-3). R1 grew this to 340 so the new seed row fit;
+  // critic R2 (N1) compacted the rows instead — Model and Answer shape on one row, the last-run line
+  // folded into the seed row — so the 300×260 of every graph saved before R1 fits again, with a
+  // prompt of 129 px before a run and 63 px after one that was cut off. A NEW box is 300 tall: the
+  // densest state it meets — a {name} bound, so the "Fill in {names}" row and its hint show, and
+  // an answer in the foot — still leaves a 70 px prompt (measured; k9-fit holds the old sizes).
+  size: { w: 300, h: 300 },
   // ONE port, and it takes every kind: labels do all the distinguishing (§5.2 rule 7).
   //
   // K2 LANDING, the one place §6.3 and §4.7 disagreed. §6.3 writes `accepts:['any']`, which makes a
@@ -190,8 +199,8 @@ export const instruction = /** @type {any} */ ({
     area.addEventListener('input', () => ctx.update({ instruction: area.value }));
     area.addEventListener('change', () => ctx.commit(t('parts.insLabel')));
 
-    let modelSig = optionSig(modelOptions(ctx.app));
-    const model = pickerRow(t('parts.insModel'), modelOptions(ctx.app), String(part.settings.model || ''), (v) => {
+    let modelSig = optionSig(modelOptions(ctx.app, { named: true }));
+    const model = pickerRow(t('parts.insModel'), modelOptions(ctx.app, { named: true }), String(part.settings.model || ''), (v) => {
       ctx.update({ model: v });
       ctx.commit(t('parts.insModel'));
     });
@@ -200,7 +209,7 @@ export const instruction = /** @type {any} */ ({
      * the empty one. Rebuild when the list really moved, keeping the current selection.
      * @param {string} picked */
     function refreshModels(picked) {
-      const options = modelOptions(ctx.app);
+      const options = modelOptions(ctx.app, { named: true });
       const sig = optionSig(options);
       if (sig === modelSig) return;
       const select = /** @type {any} */ (model.querySelector('select'));
@@ -302,6 +311,20 @@ export const instruction = /** @type {any} */ ({
       ctx.update({ seed: value });
       ctx.commit(label);
     };
+    /** Critic R2, N3: Keep pins the seed the answer ON SCREEN came from. That changes nothing that
+     * was computed, so — unlike a typed seed or 🎲 — it stales nothing: this box and everything
+     * downstream stay done, and the next Run all has nothing to do. Not while the box is running
+     * or queued: the answer on its way has another seed, so the pin is a real edit then.
+     * @param {string} value */
+    const keepSeed = (value) => {
+      const now = /** @type {any} */ (ctx.part || runPart);
+      const s = now && now.stats;
+      const same = !!s && s.seed === Number(value) && now.state !== 'running' && now.state !== 'queued';
+      seedInput.value = value;
+      markSeed();
+      ctx.update({ seed: value }, same ? { stale: false } : undefined);
+      ctx.commit(t('parts.genSeedKeep'));
+    };
     const dice = seedButton('graph-ins-seed-dice', t('parts.genSeedDice'), t('parts.genSeedDiceTitle'), () => {
       setSeed(String(1 + Math.floor(Math.random() * (SEED_SPAN - 1))), t('parts.genSeedDiceTitle'));
     });
@@ -310,20 +333,23 @@ export const instruction = /** @type {any} */ ({
     });
     seedRow.append(seedField, dice, clearSeed);
 
-    // What the LAST run used, said on the box: "last run: seed 48213 · Keep". Keep pins exactly
+    // What the LAST run used, said on the box: "last run: 48213 · Keep". Keep pins exactly
     // that number (one undo entry), so the answer on screen can be asked for again. A prose answer
-    // that hit max_tokens says so here too (A8): it is kept, but the end is missing.
+    // that hit max_tokens says so on its own line (A8): it is kept, but the end is missing.
+    // Critic R2, N1: the last-run line is folded INTO the seed row — it wraps under the field only
+    // when the box is too narrow — so an Instruction fits the 300×260 it had before R1.
     const runLine = document.createElement('div');
     runLine.className = 'graph-ins-run';
     const seedUsed = document.createElement('span');
     seedUsed.className = 'graph-cost graph-ins-seed-used';
     const keep = seedButton('graph-ins-seed-keep', t('parts.genSeedKeep'), t('parts.genSeedKeepTitle'), () => {
       const s = runPart.stats;
-      if (s && typeof s.seed === 'number') setSeed(String(s.seed), t('parts.genSeedKeep'));
+      if (s && typeof s.seed === 'number') keepSeed(String(s.seed));
     });
     const cutChip = document.createElement('span');
     cutChip.className = 'graph-cost graph-ins-chip graph-ins-cut';
-    runLine.append(seedUsed, keep, cutChip);
+    runLine.append(seedUsed, keep);
+    seedRow.append(runLine);
     /** @type {any} */ let runPart = part;
     /** @type {string} */ let runSig = '-';
     /** @param {any} p */
@@ -343,11 +369,17 @@ export const instruction = /** @type {any} */ ({
       keep.hidden = seed === null || pinnedNow === seed;
       cutChip.textContent = cut ? t('parts.genCutChip', { n: maxTokensOf(p.settings) }) : '';
       cutChip.hidden = !cut;
-      runLine.hidden = seed === null && !cut;
+      runLine.hidden = seed === null;
     }
 
+    // Critic R2, N1: Model and Answer shape share ONE row, the seed row is the next one.
     const fields = document.createElement('div');
-    fields.className = 'graph-part-fields';
+    fields.className = 'graph-part-fields graph-ins-fields';
+    // Critic R3-1: the captions are visually hidden (graph.css), so each picker says what it is on hover.
+    const modelSel = model.querySelector('select');
+    if (modelSel) modelSel.title = t('parts.insModel');
+    const shapeSel = shape.querySelector('select');
+    if (shapeSel) shapeSel.title = t('parts.insShape');
     fields.append(model, shape, seedRow);
 
     // The strip: what this box will spend, before it spends it. Clicking it opens the transcript,
@@ -386,7 +418,7 @@ export const instruction = /** @type {any} */ ({
     }
     paintCaps();
 
-    host.replaceChildren(area, fields, capsLine, schema, inlineWrap, runLine, strip, chips);
+    host.replaceChildren(area, fields, cutChip, capsLine, schema, inlineWrap, strip, chips);
 
     /** @type {string} */ let sig = '';
 
