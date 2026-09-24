@@ -57,6 +57,12 @@ import { preview } from './preview.mjs';
 import { sticky } from './sticky.mjs';
 import { section } from './section.mjs';
 import { title } from './title.mjs';
+// K6 kickoff (addendum KF-4/KF-5/KF-6): the two boxes that HOLD a file — a PDF the farm reads the
+// text of, and a sound file played here. Same rule as C2/C3/K3/K4 — the rows are here from the
+// kickoff so no two builders contend for this file; K6-U2 and K6-U3 replace their part FILES
+// wholesale, never this catalogue. They sit in "bring in", right after Image.
+import { documentPart } from './document.mjs';
+import { audioPart } from './audio.mjs';
 // K5 kickoff (addendum KE-2): the ＋ menu is GROUPED, every row says what it does, and it offers
 // PRESETS — a part type plus the settings that make it a named box ("p5.js sketch" is a Preview in
 // p5 mode with starter code). The groups, the glyphs and the plain parts' one-liners are catalogue
@@ -87,8 +93,20 @@ const LEGACY = [fromThread, toThread, render];
  * @returns {PartSpec[]} */
 export function partSpecs() {
   return [textPart, instruction, splitPart, repeat, filter, code, collect, preview, file, image,
+    documentPart, audioPart,
     button, condition, confirm, dialog, toggle, timer,
     sticky, section, title];
+}
+
+/**
+ * K6 kickoff (addendum KF-4): the part type that HOLDS a kind of file — how a dropped PDF finds
+ * the Document box without anything outside this catalogue knowing a part type by name. Read by
+ * computer/drops.mjs. The first palette spec declaring `holds === kind` wins; null when none does.
+ * @param {string} kind 'image' | 'pdf' | 'audio' | 'text' @returns {string|null}
+ */
+export function holderOf(kind) {
+  const spec = partSpecs().find((s) => /** @type {any} */ (s).holds === kind);
+  return spec ? spec.type : null;
 }
 
 /** Every type the engine can LOAD: the palette plus the legacy parts. @returns {Map<string, PartSpec>} */
@@ -125,6 +143,8 @@ function partMeta() {
   return {
     note: { group: 'bring', order: 10, glyph: 'T', desc: t('palette.descNote') },
     image: { group: 'bring', order: 20, glyph: '▣', desc: t('palette.descImage') },
+    document: { group: 'bring', order: 22, glyph: 'PDF', desc: t('palette.descDocument') },
+    audio: { group: 'bring', order: 24, glyph: '♪', desc: t('palette.descAudio') },
     file: { group: 'bring', order: 30, glyph: '⎘', desc: t('palette.descFile') },
     ask: { group: 'think', order: 100, glyph: '✦', desc: t('palette.descAsk') },
     split: { group: 'think', order: 300, glyph: '⋔', desc: t('palette.descSplit') },
@@ -157,6 +177,7 @@ function kwOf(type) {
 /** Each plain part's search-words key (strings/palette.en.mjs). */
 const KW = {
   note: 'palette.kwNote', image: 'palette.kwImage', file: 'palette.kwFile',
+  document: 'palette.kwDocument', audio: 'palette.kwAudio',
   ask: 'palette.kwAsk', split: 'palette.kwSplit', filter: 'palette.kwFilter',
   collect: 'palette.kwCollect', repeat: 'palette.kwRepeat',
   preview: 'palette.kwPreview', code: 'palette.kwCode',

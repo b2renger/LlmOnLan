@@ -44,6 +44,13 @@ const STATIC_MODEL_IDS = [
     // three / html, read off the last user message), so a scenario proves the fence is stripped
     // and the picture is drawn, deterministically, with no real model.
     'mock-code',
+    // K6 kickoff (LOLCHAT_PLAN 2.6 KF-10): one model per capability answer the client must be able
+    // to TELL APART in /model_group/info. The pinned LiteLLM (1.97) never reports audio or PDF
+    // input at all (KF-1(a)); these rows exist so the resolver's yes/no/unknown branches are
+    // exercised, and every one of them ANSWERS like mock-echo.
+    'mock-hears',        // supports_audio_input: true, supports_vision: false
+    'mock-reads-pdf',    // supports_pdf_input: true,   supports_vision: true
+    'mock-nocaps',       // a row with NO supports_* field at all: every verdict stays unknown
 ];
 const MODEL_IDS = [...STATIC_MODEL_IDS, ...PERF_NAMES.map((n) => `mock-perf:${n}`)];
 
@@ -51,7 +58,7 @@ const MODEL_IDS = [...STATIC_MODEL_IDS, ...PERF_NAMES.map((n) => `mock-perf:${n}
 // default; mock-echo claims vision so image tests have a model that accepts parts and
 // reports what it got. `assistant` deliberately does NOT (plan §2.3), so the client's
 // vision gate has something to gate.
-const VISION_MODELS = new Set(['gemma4:12b', 'mock-echo', 'mock-vision-echo', 'mock-headings']);
+const VISION_MODELS = new Set(['gemma4:12b', 'mock-echo', 'mock-vision-echo', 'mock-headings', 'mock-reads-pdf']);
 
 function modelList() {
     return { object: 'list', data: MODEL_IDS.map((id) => ({ id, object: 'model', owned_by: 'mock' })) };
@@ -63,7 +70,15 @@ function modelList() {
 function modelGroupInfo(store) {
     const override = store && store.state && store.state.modelGroupInfo;
     if (override) return override;
-    return { data: MODEL_IDS.map((id) => ({ model_group: id, supports_vision: VISION_MODELS.has(id) })) };
+    return {
+        data: MODEL_IDS.map((id) => {
+            if (id === 'mock-nocaps') return { model_group: id };
+            const row = { model_group: id, supports_vision: VISION_MODELS.has(id) };
+            if (id === 'mock-hears') row.supports_audio_input = true;
+            if (id === 'mock-reads-pdf') row.supports_pdf_input = true;
+            return row;
+        }),
+    };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -610,7 +625,7 @@ function handleCompletion({ model, res, body, store }) {
         return true;
     }
 
-    if (id === 'mock-echo') {
+    if (id === 'mock-echo' || id === 'mock-hears' || id === 'mock-reads-pdf' || id === 'mock-nocaps') {
         const lines = echoLines(body);
         streamContent(id, res, store, body, lines.map((l, i) => (i === lines.length - 1 ? l : `${l}\n`)), { finish: 'stop' });
         return true;

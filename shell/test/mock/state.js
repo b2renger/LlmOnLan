@@ -54,6 +54,12 @@ function defaults() {
         modelGroupInfo: null,        // REPLACES the body of GET /model_group/info outright
         // K3 kickoff: what `mock-verdict` answers, consumed in order, last entry repeating.
         verdicts: ['maybe'],
+        // K6 kickoff (LOLCHAT_PLAN 2.6 KF-10): the OCR extractor at PUT /ocr/process. It is only
+        // ADVERTISED when a scenario sets `extract` (h.computer.ocr(true) does, with the real
+        // services port) - the default farm offers none, like a farm whose OCR is off.
+        extractDown: false,          // PUT /ocr/process -> 503
+        ocrPages: null,              // force the page count of every PDF
+        ocrDelayMs: null,            // per-page delay override (default 200 ms, capped at 3 s)
     };
 }
 

@@ -3495,6 +3495,257 @@ change. Model text becomes nodes through `render/dom.mjs` and nothing else; gene
 in the existing sandbox (`sandbox/**`, its CSP, its watchdog, its vendored three.js/p5.js/matter.js).
 Builders never commit; the landing integrator commits the phase once, after every gate is green.
 
+### K6 addendum — PDFs and sound in boxes, gated by the farm and its models (kickoff, 2026-09-24)
+
+Frozen at the K6 kickoff, after K1–K5 landed (K5 at 43a94ac). This is the contract between the
+three parallel units. A unit may ADD keys and exports; it may not change a signature, a key, a
+`why` code, a DOM probe or a constant frozen here without a contract request at the landing.
+KA-1..KA-11, KB-1..KB-11, KC-1..KC-22, KD-1..KD-11 and KE-0..KE-11 still bind.
+
+> *"We should be able to also upload pdfs or audio files to nodes. It should be conditional to the
+> box we are connected to and the models it serves and these model capabilities."* — the owner
+
+**Gates at the end of this kickoff:** `chat-unit` **1304 / 0 failed** (1293 + the eleven seam tests
+of `computer-seams-k6.test.mjs`), `unit` 5, `chat-lint` **211 files / 0 violations** (`--self-test`
+26/26), `chat-scope` **clean**, harness `--strict` on slot 7 **282 passed / 0 failed** (the two `k6-seams`
+scenarios included; a run with `chat-unit` going at the same time lost four timing-sensitive
+scenarios, k3-control ×2 and s0-shots ×2, which pass alone and in the clean run), perf **9 passed**
+(`perf-graph-500`'s pan p95 sits near its 16 ms budget on this box: one of three runs measured 17.4 ms,
+the median is judged). Nothing is committed at a kickoff (build rule 2).
+
+**KF-1. The facts this phase rests on** (read in code on 2026-09-24; `farm/` read-only).
+
+| # | Fact | Status | Where |
+|---|---|---|---|
+| a1 | The beacon snapshot's `models` rows are `{id, underlying, default}` — **no capability field of any kind**. `backend.engine` is `'ollama'`, `'llama.cpp'` or `'external'`. | VERIFIED | `farm/src/snapshot.js:172-174`, `:62`, `:85`, `:123` |
+| a2 | The farm's generated LiteLLM config declares **only** `model_info.supports_vision: true`, and only for models it believes see (Ollama: `VISION_MODEL_RX`, which matches `gemma-?4`; llama.cpp: an `mmproj`; external: `ex.vision`). It never declares audio or PDF input. A llama.cpp **coordinator peer** is declared vision unconditionally. | VERIFIED | `farm/src/litellm.js:26-33`, `:103`, `:118`, `:136`, `:155`, `:196`, `:214` |
+| a3 | The pinned LiteLLM is **1.97.0** (the Farm app's venv). `/model_group/info` rows are `ModelGroupInfo(Proxy)`: `supports_vision`, `supports_function_calling`, `supports_parallel_function_calling`, `supports_web_search`, `supports_url_context`, `supports_reasoning` — every one a bool that **defaults to False and turns None into False**. There is **no `supports_audio_input` and no `supports_pdf_input`** (extra fields are dropped). The router sets `supports_vision` true only when `model_info` says True. | VERIFIED | `…/site-packages/litellm/types/router.py:534-563`, `…/types/proxy/management_endpoints/model_management_endpoints.py:8-12`, `…/litellm/router.py:9200-9201` |
+| a4 | Consequence: for gemma4 on this farm, vision is an honest **yes** (the farm declared it); `supports_vision:false` means **"the farm did not declare vision"** (a default, not a probe); audio and PDF input are **never reported → unknown**, always. | VERIFIED (by a2+a3) | — |
+| a5 | The client keeps only an explicit boolean `supports_vision` (false → `'no'`, the S0 contract that shipped); its resolver answers `'vision'` and nothing else; `app.farm.cap()` is `'unknown'` without a resolver. (DISCUSS D-F4 says the chat treats `false` as unknown — the code says otherwise; the code is what ships.) | VERIFIED | `app/caps.mjs:43-56`, `:154-157`; `net/farm.mjs:168-176` |
+| b1 | LiteLLM's `ollama_chat` transform builds each Ollama message from `convert_content_list_to_str` (every part's `text`, nothing else) and `extract_images_from_message` (every `image_url`, nothing else). An OpenAI **`input_audio` part and a `file` part are DROPPED without an error** — the model would answer as if nothing had been attached. | VERIFIED | `…/litellm/llms/ollama/chat/transformation.py:268-280`; `…/litellm_core_utils/prompt_templates/common_utils.py:162-183`, `:1587-1605` |
+| b2 | So on the DEFAULT engine (Ollama → gemma4:12b) **no path carries sound or a native PDF**, whatever the model could do. | VERIFIED (by b1) | — |
+| b3 | On the `openai/`-routed deployments (llama.cpp, external, coordinator peers) LiteLLM probably passes content parts through, and llama-server accepts `input_audio` only with an audio-capable projector. Neither was probed, and no deployment reports audio (a3). | UNVERIFIED | — |
+| b4 | Ollama's own `/api/chat` has no audio field. | UNVERIFIED (moot: b1 drops it first) | — |
+| c1 | The extractor: `PUT /process`, `Authorization: Bearer <key>` (401 otherwise; 500 when the farm has no key), `X-Filename` URL-quoted, raw bytes (400 when empty) → a JSON list of `{page_content, metadata:{page, source, engine}}`. Images and scanned pages go to a **vision model on the farm's Ollama**; born-digital pages to text extraction. No CORS middleware. | VERIFIED | `farm/src/pysvc/server.py:102-103`, `:300-304`, `:312-335`; `farm/src/extract.js:8-13` |
+| c2 | The snapshot advertises `extract: {url, key}` only when OCR is enabled AND up AND keyed, else `null`; `url` is the loader BASE (the client appends `/process`). The shell publishes it only with both fields; the renderer sees `app.farm.get().ocr = {url, key}`. | VERIFIED | `farm/src/snapshot.js:217-219`; `shell/renderer/app.js:872`; `net/farm.mjs:86` |
+| c3 | CORS is not enforced for the `file://` renderer, so the extractor is readable without CORS headers. | VERIFIED earlier (scout, live) | this plan §0.3 |
+| c4 | The extractor is NOT behind the seat gate (a big PDF uses the GPU while the farm reports free seats), gives no progress, and its key rides the beacon in cleartext. | VERIFIED (DISCUSS) | DISCUSS D-F3, D-F7 |
+| d1 | The chat/Computer today: nothing calls `/process`; `net/request.mjs` builds only `text` and `image_url` parts; the `Attachment` typedef already carries `pages`/`extractEngine:'farm-ocr'` and nothing fills them (P3 was cancelled); the mock had no OCR route. | VERIFIED | `net/request.mjs:135-155`; `core/types.mjs:53`; `test/mock/services.js` (before this kickoff) |
+| e1 | The renderer CSP is `default-src 'self'; img-src 'self' data:` — no `media-src`, so an `<audio>` element can play **neither a `data:` nor a `blob:` URL**. `AudioContext` + `decodeAudioData` work. | VERIFIED | `shell/renderer/index.html:10`, harness `page.html:9`; §0.3 |
+| f1 | `repo.putAttachment` dedups by `(threadId, sha256)` and returns the existing id; there is no update method (`runTx` is the door); `deleteGraph` never touches attachments. | VERIFIED | `state/repo.mjs:466-479`, `:615`, `:520-526` |
+
+**What that means, decided here:** a PDF reaches a model as **text extracted by the farm** (the
+sanctioned OCR flow), never as a native PDF part (`NATIVE_PDF_SEND = false`). **Sound is never sent
+this phase** (`AUDIO_SEND = false`): the Sound box exists, keeps and plays the file, and says plainly
+why nothing on this farm can listen; what flows on is its name and length as text. A farm-side
+transcription service is written up for the owner as **DISCUSS D-F12** — not built.
+
+**KF-2. The capability model — states and where they come from (K6-U1).**
+- A verdict is `'yes' | 'no' | 'unknown'` (`core/types.mjs` `Verdict`). `unknown` is shown as `?`,
+  never folded into `no`, and nothing is concluded from an absent or defaulted field (rule 7).
+- Three capability names, frozen (`graph/takes.mjs` `CAP_NAMES`): `vision`, `audio`, `pdf`.
+  `app.farm.cap(model, name)` answers all three through `app/caps.mjs`'s ONE resolver. U1 extends
+  `readModelGroupInfo`/`resolver` to read **explicit booleans** `supports_audio_input` and
+  `supports_pdf_input` (LiteLLM's own spelling in its cost map) when a row has them — which the
+  pinned LiteLLM never does (a3), so on the real farm both stay `unknown`; the mock has a row for
+  each answer (KF-10). Existing `caps` tests stay green unchanged. Persist under
+  `KV_KEYS.cap(farmId, model, name)` (landed; `KV_KEYS.vision` is the same row for `vision`).
+- **`CAPS_EVENT = 'caps:change'`** (exported by `app/caps.mjs`, landed): emitted after a successful
+  catalogue read and after a downgrade, payload `{farmId}`. It is how a "takes:" line repaints
+  without polling. `EV` is P0-frozen and is not extended.
+- Vision `no` stays the S0 behaviour (a4), but every sentence about it says **"the farm does not
+  list X as able to see"** — the farm's declaration — never "X cannot see".
+
+**KF-3. "What can this box take, right now?" — the resolver and the line (K6-U1).**
+`graph/takes.mjs` (PURE, in `PURE_MODULES`), frozen exports: `MEDIA_KINDS`, `CAP_NAMES`,
+`AUDIO_SEND`, `NATIVE_PDF_SEND`, `WHY`, `farmViewOf(app) → FarmView`, `modelCaps(view, model) →
+ModelCaps` (asks the alias AND the underlying; either `no` is no), `consumersOf(doc, partId, specs)`
+(direct downstream parts declaring `modelOf`), `takesFor(doc, partId, kind, view, specs) →
+TakeVerdict`, `reasonFor(why, model)`. The kickoff version works; U1 owns its insides.
+
+| kind | decided by | state → `why` |
+|---|---|---|
+| `pdf` | the FARM | no farm → `unknown`/`no-farm` · no extractor → `no`/`no-ocr` · extractor → `yes`/`ocr` (wiring irrelevant: the text flows to anything that takes text) |
+| `image` | the models wired to | none → `unwired` · no farm → `unknown`/`no-farm` · **worst consumer wins**: any `no` → `no-vision` naming that model; else any unknown → `vision-unknown`; else `yes`/`vision` |
+| `audio` | engine, then models | none → `unwired` · no farm → `no-farm` · engine `ollama` → `no`/`engine-no-audio` (b1) · a model says no → `no-audio` · a model says yes → still `no`/`audio-unverified` while `AUDIO_SEND` is false · else `no`/`audio-unreported` |
+| `text` | nothing | `yes`/`text`, no sentence |
+
+Every non-`yes` verdict carries a SENTENCE (`strings/takes.en.mjs`, keys named by `WHY_KEY`) that
+says why and what would make it work. `graph/takes-view.mjs` (U1): `renderTakes({app, partId, kind,
+doc?}) → {el, refresh(), verdict(), destroy()}` — the box appends `el` and calls `refresh()` from its
+own `update()` (the canvas updates every part on every document change); it subscribes itself to
+`EV.FARM_CHANGE` and `CAPS_EVENT`. `modelCapsLine(app, model, partId?) → string`.
+**DOM probes, frozen:** `.graph-takes[data-kind][data-state]` > `.graph-takes-label` ("takes: PDF
+✓", always shown) + `.graph-takes-why` (the sentence, visible whenever the state is not `yes`); on
+the Instruction, `.graph-ins-caps` ("gemma4:12b: pictures ✓ · sound ? · PDF directly ?"), landed in
+`instruction.mjs` and shown **only while a box holding a picture or a sound is wired in** — an
+always-on line grew every Instruction by 32 px and broke `k5-lessons` (boxes drawn on top of each
+other). U1 also puts the line on the **Image** box (`graph/parts/image.mjs` is U1's this phase) and
+must keep `k5-lessons` and `k4-shots` green (a box that grows into its neighbour fails them).
+
+**KF-4. Three `PartSpec` declarations, each read in ONE place (landed).** No part type is known by
+name outside the catalogue, so:
+- `modelOf?(part) → string` — this part SENDS what arrives to a model ('' = the farm default). Read
+  only by `takes.mjs consumersOf`. Declared by `ask` (the Instruction), and only by it.
+- `holds?: 'image'|'pdf'|'audio'|'text'` — the kind of FILE this box holds. Read only by
+  `graph/parts/index.mjs holderOf(kind)`: image → `image`, pdf → `document`, audio → `audio`,
+  text → `note`.
+- `adopt?(payload) → settings` — the settings a box is PLACED with for one dropped file. Read only by
+  `computer/drops.mjs`. Every key it returns is a key of `defaults()` (the seam test checks).
+
+**KF-5. The Document (PDF) box, the file store, the extractor door (K6-U2).**
+- **Part** `type:'document'`, label *Document*, `holds:'pdf'`, `inputs: []`, `output:'text'`,
+  `thinks:false`, `defaults() = {fileId, name, mime, size, sha256}` (a MediaRef, flat). Caps, frozen:
+  `DOC_MAX_BYTES` 32 MB, `DOC_MAX_PAGES` 60 (pages that flow on), `DOC_MAX_CHARS` 200 000 (under
+  serialize's 1 MB value cap), `DOC_TYPES ['application/pdf']`. Over a cap is a sentence naming it.
+- **Drop / choose / paste** on the box stores the bytes through `app.media.put` and writes the ref
+  with ONE `ctx.update` + `ctx.commit`. **Nothing is sent on drop.** On a farm that advertises no
+  extractor the box refuses the file with the `no-ocr` sentence (a canvas drop too, KF-7); with no
+  farm connected it keeps it (`unknown`) and reads it on the first run with a farm that can.
+- **Run** (only when the run needs the text): the cached pages on the attachment record, if present,
+  are used (same bytes → same `fileId` → never sent twice); else, with `app.farm.get().ocr`, ONE
+  `extractDoc()` (serialized per window, honours `input.signal` — Stop aborts it — and says "reading
+  on the farm…" while it waits), then `app.media.patch(fileId, {pages, extractEngine:'farm-ocr',
+  status:'ready'})`. A failure is never cached. No extractor → `partFail` with the `no-ocr` sentence
+  and **zero requests**. The value is `valueOf('text', md, {format:'markdown'})` of the first
+  `DOC_MAX_PAGES` pages / `DOC_MAX_CHARS` characters; when cut, the value AND the box say so ("first
+  60 of 120 pages"). The box shows the text through `render/md-block.mjs` + `render/dom.mjs` only
+  (KD-4's safe path), scrolling; it declares `quiet:true` once it renders its value.
+- **Not a generation**: it spends no seat and is not counted by the plan preview (the farm's
+  extractor is outside the seat gate — c4).
+- **`computer/media.mjs`** (loader `feature` `media`, landed as a working stub; U2 owns it):
+  `MEDIA_OWNER = 'computer:media'` is the `threadId` of every Computer file (f1's dedup does the rest);
+  `app.media.{put(file,{maxBytes,kind}), get(fileId), bytes(fileId), patch(fileId, fields),
+  sweep(), debug()}` (API_KEYS.media); a refusal is `{error: sentence}`, never a throw. `sweep()`
+  (U2) deletes `MEDIA_OWNER` attachments no saved graph and not the open one refers to by
+  `settings.fileId`; `computer/library.mjs remove()` already calls it (landed). A graph's
+  `.lolgraph.json` never carries the bytes: a box whose file is gone says `parts.mediaMissing`.
+- **`net/extract.mjs`** (U2; the ONE extractor door, allow-listed by chat-lint rule 11, landed
+  working): `extractDoc({url, key, bytes, name, mime, signal?, timeoutMs?}) → {pages} | {error,
+  code}` with `code ∈ no-ocr | unauthorized | unsupported | farm | aborted | timeout | network`;
+  `readPages(body)` (pure); `EXTRACT_TIMEOUT_MS` 5 min. Each code gets its own sentence in the box.
+
+**KF-6. The Sound box (K6-U3).** `type:'audio'`, label *Sound*, `holds:'audio'`, `inputs: []`,
+`output:'text'`, `defaults() = {fileId, name, mime, size, sha256, durationSec}`. Caps, frozen:
+`AUDIO_MAX_BYTES` 25 MB, `AUDIO_MAX_SEC` 600. Drop / choose on the box stores through `app.media`;
+the file is **decoded once at intake** (`decodeAudioData`) to measure `durationSec` and to refuse,
+with a sentence, what Chromium cannot decode. **Playback is Web Audio** (e1): play/stop in the box,
+an `AudioBufferSourceNode`, one playing at a time, stopped on `destroy()`. The run returns the
+`parts.audioValue` text (name, length, size, and the resolver's sentence for why the sound itself
+was not sent) — landed working. **No code path builds an `input_audio` part while `AUDIO_SEND` is
+false**; the mock warns if one ever reaches it (KF-10).
+
+**KF-7. The canvas drop router (K6-U3).** `graph/canvas.mjs onDrop` (landed) hands EVERY file
+dropped on empty canvas to `app.drops.route(files, {at, importGraph})` when the `drops` feature is
+installed, else does the pre-K6 graph import. `importGraph(file | {name, text})` is the old path,
+returning a promise. A drop ON a box goes to that box's own handler (which stops it).
+`graph/drop-route.mjs` (PURE; U3): `classify({name, type, size}) → {kind, ext, maybeGraph}` —
+`.lolgraph.json` → graph; pdf; image (`IMAGE_EXTS`/`image/*`); audio (`AUDIO_EXTS`/`audio/*`);
+text (`TEXT_EXTS` txt md markdown csv tsv json / `text/*`); else `none`. `looksLikeGraph(text)` peeks
+a `.json` for `"lolgraph"`. `TEXT_MAX_BYTES` 256 KB, `MAX_DROP_FILES` 8.
+`computer/drops.mjs` (loader `feature` `drops`, after `media`; landed as a behaviour-neutral stub —
+every drop still goes to `importGraph(files[0])`): U3 routes each kind to `holderOf(kind)` placed at
+the drop point (staggered for several files) with the holder's `adopt(payload)` — **one undo entry
+per box** through `app.host.canvas.placeEntry({type, settings}, at)`; images through
+`app.intake.fromFile` (its cap, downscale and EXIF strip); PDFs/sounds through `app.media.put`; a
+PDF on a present farm without an extractor is REFUSED with the `no-ocr` sentence; a kind nothing
+can take → `drops.refusedKind`; no open graph → `drops.refusedNoDoc`. Every refusal is a toast AND
+`canvas.announce` — never silent. `hint()` switches to `drops.hint` once every kind routes.
+
+**KF-8. The ＋ menu rows (landed).** `document` and `audio` are plain parts in `bring`, orders 22 and
+24 (after Image 20, before File 30), glyphs `PDF` and `♪`, one-liners `palette.descDocument` /
+`palette.descAudio`, search words `palette.kwDocument` / `palette.kwAudio` (in both keyword maps:
+`graph/parts/index.mjs` and `graph/palette-menu.mjs`). `h.computer.add('document')` /
+`add('audio')` reach them by clicking. The one-liners never promise what a farm has not said — the
+box does that.
+
+**KF-9. Strings and stylesheets: one per unit.** U1 `strings/takes.en.mjs` (namespace `takes`) +
+`css/computer-takes.css`; U2 `strings/parts-document.en.mjs` (`parts.doc*`, `parts.media*`) +
+`css/computer-document.css`; U3 `strings/parts-audio.en.mjs` (`parts.audio*`) +
+`strings/drops.en.mjs` (namespace `drops`) + `css/computer-audio.css`. The three sheets are
+`@import`ed before `computer-look.css` (still LAST). Keys named elsewhere are frozen BY NAME; the unit
+owns the words. KE-9's `[hidden]` rule applies to every element given a `display`. Tokens only.
+`css/computer-look.css`'s kind map now paints `document`/`audio` outputs as text (k4-shots-kinds).
+
+**KF-10. The mock, the harness, the tests (landed).**
+- **Mock OCR**: `PUT /ocr/process` and `GET /ocr/health` on the services port, by the farm's contract
+  (c1): Bearer key (`state.extract.key`, default `mock-extract-key`) else 401; empty → 400; PDF →
+  N pages (`X-Mock-Pages`, else `state.ocrPages`, else `pages-<N>.pdf` in `X-Filename`, else
+  ceil(bytes/1000)), each `"Page i of <name>. …"`; wordprocessingml → 1; anything else → 415;
+  `state.extractDown` → 503; 200 ms/page (`state.ocrDelayMs`) capped at 3 s; abort-safe. Logged
+  with `authorization`/`content-type`/`x-filename` headers and `bytes`. The default snapshot
+  advertises **no** extractor (`extract: null`, e2e-safe); `h.computer.ocr(true|false)` sets or
+  withdraws it with the slot's real services URL and publishes.
+- **Mock models**: `mock-hears` (`supports_audio_input:true`, no vision), `mock-reads-pdf`
+  (`supports_pdf_input:true`, vision), `mock-nocaps` (a row with no `supports_*` at all) — all answer
+  like `mock-echo`. Any content part other than `text`/`image_url` reaching `/v1/chat/completions`
+  adds a `store.warn` — a scenario asserts `h.mock.warnings()` has no `K6:` line.
+- **Harness**: `h.computer.dropFiles([{name, mime, base64}], at?, targetSelector?)` (a real
+  DragEvent at a client point, default the canvas centre), `h.computer.takes(partId)` → `{kind,
+  state, label, why, whyShown}`, `h.computer.ocr(on)`.
+- **Seams**: `test/chat/unit/computer-seams-k6.test.mjs` (11) and `chat-harness/scenarios/k6-seams.mjs`
+  (2: the Bring-in rows and both lines reached by clicking; a graph file dropped still opens, through
+  the router). Integrator-owned. A unit that makes one red files a contract request.
+- **Reach it the way a person does** (rule 6): each unit's scenario places its box through the ＋
+  menu and brings a file in with `dropFiles` (on the canvas and on the box), and shows the refusal
+  sentence on screen. Slots as before; the landing uses slot 0; slot 9 is the orchestrator's.
+- Windows note: a unit test that starts the mock must let sockets settle after `mock.close()`
+  (~50 ms) — exiting while undici closes a keep-alive socket trips a libuv assertion after every
+  test passed (measured: 0 ms crashes, 20 ms does not).
+
+**KF-11. Who owns what.** A unit writes ONLY its own files; anything else is a contract request.
+
+| File | Owner |
+|---|---|
+| `graph/takes.mjs`, `graph/takes-view.mjs`, `app/caps.mjs` (the KF-2 extension), `graph/parts/image.mjs` (the takes line only), `strings/takes.en.mjs`, `css/computer-takes.css`, `test/chat/unit/computer-takes.test.mjs`, `chat-harness/scenarios/k6-takes.mjs` | K6-U1 |
+| `graph/parts/document.mjs`, `computer/media.mjs`, `net/extract.mjs`, `strings/parts-document.en.mjs`, `css/computer-document.css`, `test/chat/unit/computer-document.test.mjs`, `test/chat/unit/computer-media.test.mjs`, `chat-harness/scenarios/k6-document.mjs` | K6-U2 |
+| `graph/parts/audio.mjs`, `graph/drop-route.mjs`, `computer/drops.mjs`, `strings/parts-audio.en.mjs`, `strings/drops.en.mjs`, `css/computer-audio.css`, `test/chat/unit/computer-audio.test.mjs`, `test/chat/unit/computer-drops.test.mjs`, `chat-harness/scenarios/k6-audio.mjs`, `chat-harness/scenarios/k6-drops.mjs` | K6-U3 |
+| `core/types.mjs`, `graph/{canvas,model,serialize,bind,values,palette-menu}.mjs`, `graph/parts/{index,instruction,text}.mjs`, `computer/{main,library,intake,computer.css}`, `strings/palette.en.mjs` and every other strings file, `css/computer-look.css`, the mock, `chat-harness/helpers.js`, `chat-lint.js`, `computer-seams-k6.test.mjs`, `k6-seams.mjs`, every pre-K6 test | integrator |
+
+**KF-12. What does not change.** Every call goes to the farm on the LAN; no cloud, no CDN, no online
+fallback, no new npm dependency, no build step, **no CSP change** (playback is Web Audio because of
+it). `farm/`, `farm-app/`, `sidecar/` are untouched. Embeddings never leave the laptop; the OCR
+extract is the one sanctioned flow of file bytes, for extraction only, and the text stays here.
+Model text becomes nodes through `render/dom.mjs` and nothing else. Builders never commit; the
+landing integrator commits the phase once, after every gate is green, and bumps `PHASE` in
+`computer/main.mjs` to `K6` with the c3-landing assertion in the same edit.
+
+**KF-13. The landing — what changed at integration (2026-09-24).** No frozen export, key, `why`
+code, DOM probe or constant changed. Recorded here because later phases inherit it:
+- **KF-2, as built (U1).** `readModelGroupInfo` keeps `supports_audio_input` / `supports_pdf_input`
+  only as explicit booleans. A later catalogue that STOPS stating one clears the stored verdict (the
+  `KV_KEYS.cap` row is set to `null`), so a stale yes cannot outlive the farm saying it; vision keeps
+  its S0 rule (a downgrade after a 400 still stands). `CAPS_EVENT` is ALSO emitted when a reload
+  restores stored verdicts, so the lines repaint with the farm unreachable. Sound, like pictures, is
+  **worst consumer wins**: one silent model among listeners → `audio-unreported`, naming it.
+- **`relayCapsTo(bus)`** (new export of `app/caps.mjs`). The Computer's bus is not the chat's, and
+  `computer/boot.mjs`'s mirror forwards only GOV_CHANGE / FARM_CHANGE / FARM_TICK, so `CAPS_EVENT`
+  never reached the canvas. `takes-view` registers the Computer's bus; `changed()` emits once per
+  distinct bus. `CAPS_EVENT` was deliberately NOT added to boot's mirror (it would arrive twice).
+- **The drop overlay (canvas.mjs).** A box that takes a drop stops it, so the bubbling `onDrop`
+  never hid the "Drop a picture, a PDF…" overlay (the Image box had this since K4). A capture-phase
+  `drop` listener on the canvas now hides it first; `k6-audio` asserts it is gone after a drop on a box.
+- **`app.media` (U2).** `put(kind:'pdf')` checks the `%PDF` signature and refuses empty files;
+  `get/bytes/patch` answer only for `MEDIA_OWNER` records (chat attachments are unreachable through
+  it); `sweep()` reads the graphs inside the same `runTx` that deletes; `debug()` gained `swept`.
+- **Sizes.** The Sound box is 280×220 (the stub was 260×170) so its sentence fits. `drop-route.mjs`
+  gained `fitSlots`, `slotsFor`, `describeType`, `looksLikeText`, `DROP_GAP`, `DROP_PER_ROW`.
+- **One sentence, said once.** The landing screenshot showed a PDF dropped on a Document box on a
+  farm with no extractor repeating `takes.whyNoOcr` twice (the line's sentence, then the same words in
+  red as the refusal). The drop refusal is now `parts.docRefusedNoOcr` ("report.pdf was not kept, and
+  nothing was sent. Drop it again once the farm reads documents."); the why stays the "takes:" line's.
+  A RUN refused for no extractor still fails with the takes sentence (`errorSentence('no-ocr')`), since
+  a run's error is read in the run summary and transcript, away from the line.
+- **`k6-shots`** (landing-owned) photographs a Document box holding six farm-read pages beside a
+  wired Sound box, in both themes, and a refused drop; it measures that the text scrolls inside its
+  box and that both "takes:" lines sit inside theirs before it shoots.
+- **`h.screenshot`** restarts the frame pump (stop + start the screencast) once and retries before
+  its 6 s give-up latches for the run: two full runs lost every later screenshot at the same point
+  (just after the K6 audio/document scenarios) while a short run photographed the same scenarios
+  fine. The cause is not known; the note `the frame pump had stalled` says when the restart was used.
+- **Gates at the landing (slot 0):** `chat-unit` 1370 / 0, `unit` 5, `chat-lint` 211 / 0 (self-test
+  26/26), `chat-scope` clean, harness `--strict` **295 / 0**, perf 9 / 0.
+
 ## 3. Architecture and contracts
 
 ### 3.1 Load order, loader and mount

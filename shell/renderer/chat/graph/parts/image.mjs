@@ -22,6 +22,9 @@ import { partFail, itemsOf } from './common.mjs';
 import { MAX_VALUE_BYTES } from '../serialize.mjs';
 import { isImageType, dataUrlBytes, mbOf, kbOf } from '../../computer/intake.mjs';
 import { t } from '../../core/i18n.mjs';
+// K6-U1 (addendum KF-3): the box says whether the picture it holds can be USED where it is wired
+// — what the farm says the Instructions downstream can see. graph/takes-view.mjs draws the line.
+import { renderTakes } from '../takes-view.mjs';
 import '../../strings/parts-image.en.mjs';
 
 /** @typedef {import('../../core/types.mjs').PartSpec} PartSpec */
@@ -116,6 +119,13 @@ export const image = /** @type {any} */ ({
   label: t('parts.imageLabel'),
   thinks: false,
   size: { w: 240, h: 200 },
+  // K6 kickoff (addendum KF-4): a picture dropped on the canvas becomes an Image box placed with
+  // what the intake produced — the same four keys the box's own drop writes.
+  holds: 'image',
+  adopt: (/** @type {any} */ p) => ({
+    dataUrl: String((p && p.dataUrl) || ''), name: String((p && p.name) || ''),
+    w: Number(p && p.w) || 0, h: Number(p && p.h) || 0,
+  }),
   // Optional, so an Image box is useful the moment it is placed. An arrival is ADOPTED as the
   // VALUE and passed on; the picture the person dropped in stays in `settings`, untouched.
   inputs: [{ name: 'file', label: t('parts.imageLabel'), accepts: ['file', 'image'], required: false }],
@@ -168,8 +178,11 @@ export const image = /** @type {any} */ ({
     note.className = 'graph-image-note';
     note.setAttribute('role', 'status');
 
+    // `.graph-takes` (KF-3): 'takes: picture ✓', and the sentence whenever it is not a yes.
+    const takes = renderTakes({ app, partId: String(part.id || ''), kind: 'image' });
+
     host.classList.add('graph-image');
-    host.replaceChildren(figure, empty, foot, note);
+    host.replaceChildren(figure, empty, foot, note, takes.el);
 
     /** @param {any} p */
     function paint(p) {
@@ -268,9 +281,10 @@ export const image = /** @type {any} */ ({
 
     paint(part);
     return {
-      update(next) { paint(next); },
+      update(next) { paint(next); takes.refresh(); },
       destroy() {
         destroyed = true;
+        takes.destroy();
         host.removeEventListener('dragover', onDragOver);
         host.removeEventListener('dragleave', onDragLeave);
         host.removeEventListener('drop', onDrop);

@@ -1191,11 +1191,23 @@ export function createCanvas(o) {
 
   function hideDrop() { dragDepth = 0; dropZone.hidden = true; }
 
+  /** K6 kickoff (addendum KF-7): the overlay's words come from the drop router when there is one,
+   * so they say what a drop will actually do. */
+  function syncDropHint() {
+    const drops = app && app.drops;
+    let text = '';
+    try { text = drops && typeof drops.hint === 'function' ? String(drops.hint() || '') : ''; } catch { text = ''; }
+    const p = dropZone.firstChild;
+    const want = text || t('graph.dropHint');
+    if (p && p.textContent !== want) p.textContent = want;
+  }
+
   /** @param {any} ev */
   function onDragEnter(ev) {
     if (!dragHasFile(ev)) return;
     ev.preventDefault();
     dragDepth++;
+    syncDropHint();
     dropZone.hidden = false;
   }
 
@@ -1214,25 +1226,55 @@ export function createCanvas(o) {
     if (!dragDepth) dropZone.hidden = true;
   }
 
+  /** K6 landing: a file dropped ON a box (Image, Document, Sound) is taken and stopped by that
+   * box, so the bubbling `onDrop` below never runs. This capture-phase listener sees every drop
+   * first and only hides the overlay, so it never stays on screen after a drop on a box.
+   * @param {any} ev */
+  function onDropCapture(ev) {
+    if (dragHasFile(ev)) hideDrop();
+  }
+
   /** @param {any} ev */
   function onDrop(ev) {
     if (!dragHasFile(ev)) return;              // not ours: the document guard still preventDefaults it
-    const file = ev.dataTransfer.files && ev.dataTransfer.files[0];
+    const files = ev.dataTransfer.files ? Array.from(/** @type {ArrayLike<any>} */ (ev.dataTransfer.files)) : [];
     ev.preventDefault();
     // Handled here and nowhere else: the composer's own drop handling must not also see a graph
     // file. This is the ONE place that stops the event, and only once a file is really in hand.
     ev.stopPropagation();
     hideDrop();
-    if (!file) return;
+    if (!files.length) return;
+    // K6 kickoff (addendum KF-7): with a drop router installed, EVERY file goes through it — a
+    // picture becomes an Image box, a PDF a Document box, a sound a Sound box, a text file a Text
+    // box, a graph file opens as before, and anything else is refused with a sentence. Without
+    // one (a build that lacks the feature), a drop is a graph file, exactly as before K6.
+    const drops = app && app.drops;
+    if (drops && typeof drops.route === 'function') {
+      const at = hasDoc() ? worldOf(ev) : null;
+      Promise.resolve(drops.route(files, { at, importGraph: importGraphFile }))
+        .catch((err) => {
+          console.warn('[lolcomputer] the drop router failed', err);
+          if (!destroyed) announce(t('graph.errImportUnreadable'));
+        });
+      return;
+    }
+    importGraphFile(files[0]);
+  }
+
+  /** The pre-K6 drop: a graph file, read and imported. The router calls it for `graph` files —
+   * with the File, or with `{name, text}` when it already read the text to peek at it.
+   * @param {any} file @returns {Promise<void>} */
+  function importGraphFile(file) {
+    if (!file) return Promise.resolve();
     // Refused before the read, not after: `file.text()` on a few hundred megabytes is the cost we
     // are avoiding. fromText() holds the same line for every other way in.
     if (Number(file.size) > MAX_IMPORT_BYTES) {
       const message = t('graph.errImportTooBig');
       announce(message);
       if (app && app.dialogs && typeof app.dialogs.toast === 'function') app.dialogs.toast(message, { kind: 'error' });
-      return;
+      return Promise.resolve();
     }
-    Promise.resolve(typeof file.text === 'function' ? file.text() : '')
+    return Promise.resolve(typeof file.text === 'function' ? file.text() : String(file.text || ''))
       .then((text) => { if (!destroyed) importText(String(text || ''), { name: file.name }); })
       .catch((err) => {
         console.warn('[lolchat] reading the dropped graph failed', err);
@@ -1804,6 +1846,7 @@ export function createCanvas(o) {
   canvas.addEventListener('dragover', onDragOver);
   canvas.addEventListener('dragleave', onDragLeave);
   canvas.addEventListener('drop', onDrop);
+  canvas.addEventListener('drop', onDropCapture, true);
   root.addEventListener('keydown', onKeyDown);
   root.addEventListener('keyup', onKeyUp);
   root.addEventListener('focusin', onFocusIn);
@@ -1930,6 +1973,7 @@ export function createCanvas(o) {
       canvas.removeEventListener('dragover', onDragOver);
       canvas.removeEventListener('dragleave', onDragLeave);
       canvas.removeEventListener('drop', onDrop);
+      canvas.removeEventListener('drop', onDropCapture, true);
       root.removeEventListener('keydown', onKeyDown);
       root.removeEventListener('keyup', onKeyUp);
       root.removeEventListener('focusin', onFocusIn);

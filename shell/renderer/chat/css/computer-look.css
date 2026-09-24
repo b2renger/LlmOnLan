@@ -156,6 +156,8 @@
 #lolcomputer .graph-part[data-type='dialog'] .graph-port[data-dir='out'],
 #lolcomputer .graph-part[data-type='from-thread'] .graph-port[data-dir='out'],
 #lolcomputer .graph-part[data-type='ask'] .graph-port[data-dir='out'],
+#lolcomputer .graph-part[data-type='document'] .graph-port[data-dir='out'],
+#lolcomputer .graph-part[data-type='audio'] .graph-port[data-dir='out'],
 #lolcomputer .graph-part[data-type='note'] .graph-port[data-port='in'],
 #lolcomputer .graph-part[data-type='ask'] .graph-port[data-port='in'],
 #lolcomputer .graph-part[data-type='code'] .graph-port[data-port='in'],

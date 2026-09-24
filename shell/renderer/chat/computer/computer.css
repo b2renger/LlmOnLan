@@ -38,6 +38,12 @@
 @import url('../css/computer-palette.css');
 /* K5-U3: the Learn shelf and the tutorial step rail. */
 @import url('../css/computer-rail.css');
+/* K6-U1: the "takes:" line on a box that holds a file, and the Instruction's model line. */
+@import url('../css/computer-takes.css');
+/* K6-U2: the Document (PDF) box — the file, the reading state, the extracted text. */
+@import url('../css/computer-document.css');
+/* K6-U3: the Sound box — the file, the player, why it is not sent. */
+@import url('../css/computer-audio.css');
 /* K4-U4, LAST on purpose: the warmed-up look (§9) and the three annotation parts. It warms what
    the sheets above drew, and the cascade is the only mechanism it may use. */
 @import url('../css/computer-look.css');

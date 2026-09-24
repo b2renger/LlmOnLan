@@ -17,11 +17,22 @@
 //
 // This file owns the ONE network GET the renderer makes outside net/* (chat-lint rule 11's allow
 // list names it). It never POSTs: an ask costs a seat, a capability check must not.
+//
+// K6-U1 (LOLCHAT_PLAN 2.6 KF-2): the same catalogue read now also keeps `audio` and `pdf` — from
+// the explicit booleans `supports_audio_input` / `supports_pdf_input`, LiteLLM's own spelling in
+// its cost map. The pinned proxy (1.97) never puts either field in a row (KF-1 a3), so on the real
+// farm both stay 'unknown'; the resolver says so rather than guessing. Every verdict lives under
+// KV_KEYS.cap(farmId, model, name) — `vision` is the very row S0 already wrote.
 
 import { EV } from '../core/events.mjs';
 import { KV_KEYS } from '../core/types.mjs';
 import { NO_VISION_EVENT } from './ask.mjs';
 import '../strings/ask.en.mjs';
+
+/** K6 kickoff (addendum KF-2): the bus name a verdict change travels on — after a successful
+ * catalogue read and after a downgrade — so a box's "takes:" line (graph/takes-view.mjs) can
+ * repaint without polling. Payload `{farmId}`. Emitted by this module and by nothing else. */
+export const CAPS_EVENT = 'caps:change';
 
 /** How long a probe may take before we give up and stay honest about not knowing. */
 const PROBE_TIMEOUT_MS = 5000;
@@ -30,29 +41,77 @@ const PROBE_TIMEOUT_MS = 5000;
 const str = (v) => (typeof v === 'string' ? v : '');
 
 /**
+ * The row field each capability is read from (KF-2). ONLY an explicit boolean is a verdict: a
+ * row without the field says nothing, and nothing is concluded from that silence (build rule 7).
+ * `vision` is the S0 contract that shipped (`false` → 'no', addendum KF-1 a5); `audio` and `pdf`
+ * are LiteLLM's cost-map spellings, which the pinned proxy never reports (KF-1 a3).
+ */
+export const CAP_FIELDS = Object.freeze({
+  vision: 'supports_vision',
+  audio: 'supports_audio_input',
+  pdf: 'supports_pdf_input',
+});
+
+/** @typedef {'vision'|'audio'|'pdf'} CapName */
+const NAMES = /** @type {CapName[]} */ (Object.keys(CAP_FIELDS));
+
+/** A `/model_group/info` row's name, or ''. @param {any} row */
+const rowName = (row) => (row && typeof row === 'object' ? (str(row.model_group) || str(row.model_name) || str(row.id)) : '');
+
+/**
  * PURE: LiteLLM's `/model_group/info` body → the verdicts we keep. Exported for the unit test,
- * because the shape is the one thing about the probe that can silently change under us.
+ * because the shape is the one thing about the probe that can silently change under us. A row
+ * carries a key ONLY for a capability it stated; a row that states none is not in the list.
  * @param {any} body
- * @returns {{underlying: string, vision: 'yes'|'no'}[]}
+ * @returns {{underlying: string, vision?: 'yes'|'no', audio?: 'yes'|'no', pdf?: 'yes'|'no'}[]}
  */
 export function readModelGroupInfo(body) {
   const rows = body && Array.isArray(body.data) ? body.data : [];
-  /** @type {{underlying: string, vision: 'yes'|'no'}[]} */ const out = [];
+  /** @type {{underlying: string, vision?: 'yes'|'no', audio?: 'yes'|'no', pdf?: 'yes'|'no'}[]} */ const out = [];
   for (const row of rows) {
-    if (!row || typeof row !== 'object') continue;
-    const name = str(row.model_group) || str(row.model_name) || str(row.id);
+    const name = rowName(row);
     if (!name) continue;
-    // Absent means absent: only an explicit boolean is a verdict, and `false` is the one that
-    // matters (a farm that never mentions vision leaves us at 'unknown', not at 'no').
-    if (typeof row.supports_vision !== 'boolean') continue;
-    out.push({ underlying: name, vision: row.supports_vision ? 'yes' : 'no' });
+    // Absent means absent: only an explicit boolean is a verdict (a farm that never mentions a
+    // capability leaves us at 'unknown', not at 'no').
+    /** @type {any} */ const v = { underlying: name };
+    let stated = false;
+    for (const cap of NAMES) {
+      const field = row[CAP_FIELDS[cap]];
+      if (typeof field !== 'boolean') continue;
+      v[cap] = field ? 'yes' : 'no';
+      stated = true;
+    }
+    if (stated) out.push(v);
   }
   return out;
 }
 
+/**
+ * Buses OTHER than the installing App's that want CAPS_EVENT (K6-U1). The Computer shares the
+ * chat's farm and therefore the chat's ONE caps install (computer/boot.mjs), but its bus is its
+ * own, and the boot mirror carries only GOV/FARM events — so a catalogue read would repaint the
+ * chat and leave every "takes:" line on the canvas saying '?' until the next edit. A line
+ * registers its App's bus here (graph/takes-view.mjs); a bus is emitted on once, never twice.
+ * @type {Set<any>}
+ */
+const relays = new Set();
+
+/**
+ * Also deliver CAPS_EVENT on `bus`. Idempotent; a surface registers its bus once for the life of
+ * the window (there are two surfaces, so the set never grows past two).
+ * @param {any} bus @returns {() => void} undo
+ */
+export function relayCapsTo(bus) {
+  if (!bus || typeof bus.emit !== 'function') return () => {};
+  relays.add(bus);
+  return () => { relays.delete(bus); };
+}
+
 /** @param {any} app */
 export function createCaps(app) {
-  /** @type {Map<string, 'yes'|'no'>} */ const vision = new Map();
+  /** @type {Record<CapName, Map<string, 'yes'|'no'>>} */
+  const known = { vision: new Map(), audio: new Map(), pdf: new Map() };
+  const vision = known.vision;
   /** The (baseUrl|apiKey|models) signature we last probed, so a tick can never re-ask. */
   let probedFor = '';
   let probing = false;
@@ -61,40 +120,70 @@ export function createCaps(app) {
   const caps = () => (app.farm && typeof app.farm.get === 'function' ? app.farm.get() : null);
   const repo = () => app.repo || null;
 
+  /** Tell whoever draws a verdict that one may have moved (KF-2). Never throws into a probe. */
+  function changed() {
+    const payload = { farmId: (caps() || {}).id || null };
+    const buses = new Set([app.bus, ...relays]);
+    for (const bus of buses) {
+      try {
+        if (bus && typeof bus.emit === 'function') bus.emit(CAPS_EVENT, payload);
+      } catch (err) { console.warn('[lolchat] a capability listener threw', err); }
+    }
+  }
+
   /** @param {any} c */
   const signature = (c) => `${(c && c.baseUrl) || ''}|${(c && c.apiKey) || ''}|${JSON.stringify((c && c.models) || [])}`;
 
-  /** @param {any} c @param {string} underlying @returns {string|null} */
-  function kvKey(c, underlying) {
+  /** @param {any} c @param {string} model @param {CapName} name @returns {string|null} */
+  function kvKey(c, model, name) {
     const farmId = (c && c.id) || null;
-    if (!farmId || !underlying) return null;
-    return KV_KEYS.vision(farmId, underlying);
+    if (!farmId || !model) return null;
+    return KV_KEYS.cap(farmId, model, name);
   }
 
-  /** @param {string} underlying @param {'yes'|'no'} verdict @param {{persist?: boolean}} [o] */
-  function remember(underlying, verdict, o) {
-    if (!underlying) return;
-    vision.set(underlying, verdict);
+  /** @param {string} model @param {CapName} name @param {'yes'|'no'|null} verdict null = forget
+   * @param {{persist?: boolean}} [o] */
+  function remember(model, name, verdict, o) {
+    if (!model || !known[name]) return;
+    if (verdict) known[name].set(model, verdict);
+    else known[name].delete(model);
     if (o && o.persist === false) return;
     const r = repo();
-    const key = kvKey(caps(), underlying);
+    const key = kvKey(caps(), model, name);
+    // There is no kvDelete; a null row reads back as "no verdict" (primeFromStore keeps only
+    // 'yes'/'no'), which is exactly what forgetting has to mean.
     if (r && key && typeof r.kvSet === 'function') Promise.resolve(r.kvSet(key, verdict)).catch(() => {});
   }
 
-  /** Pull what we already knew about the advertised models into memory (no network). */
+  /** Every name a served model is known under: the alias the catalogue is keyed by AND the
+   * underlying model a verdict may have been learnt for. @param {any} c @returns {string[]} */
+  function namesOf(c) {
+    /** @type {string[]} */ const out = [];
+    for (const m of (c && c.models) || []) {
+      for (const n of [str(m && m.id), str(m && m.underlying)]) if (n && out.indexOf(n) < 0) out.push(n);
+    }
+    return out;
+  }
+
+  /** Pull what we already knew about the advertised models into memory (no network). Tells the
+   * lines when it learnt anything, so a reload with a farm that is momentarily unreachable still
+   * repaints from what the last window knew. */
   async function primeFromStore() {
     const c = caps();
     const r = repo();
     if (!c || !r || typeof r.kvGet !== 'function') return;
-    for (const m of c.models || []) {
-      const underlying = str(m.underlying) || str(m.id);
-      const key = kvKey(c, underlying);
-      if (!key || vision.has(underlying)) continue;
-      try {
-        const v = await r.kvGet(key, null);
-        if ((v === 'yes' || v === 'no') && !vision.has(underlying)) vision.set(underlying, v);
-      } catch { /* the store speaks through its own banner */ }
+    let learnt = 0;
+    for (const model of namesOf(c)) {
+      for (const name of NAMES) {
+        const key = kvKey(c, model, name);
+        if (!key || known[name].has(model)) continue;
+        try {
+          const v = await r.kvGet(key, null);
+          if ((v === 'yes' || v === 'no') && !known[name].has(model)) { known[name].set(model, v); learnt++; }
+        } catch { /* the store speaks through its own banner */ }
+      }
     }
+    if (learnt) changed();
   }
 
   /**
@@ -126,8 +215,26 @@ export function createCaps(app) {
       });
       if (!res.ok) return false;
       const body = await res.json();
-      for (const row of readModelGroupInfo(body)) remember(row.underlying, row.vision);
+      const stated = readModelGroupInfo(body);
+      for (const row of stated) {
+        for (const name of NAMES) {
+          const v = row[name];
+          if (v) remember(row.underlying, name, v);
+        }
+      }
+      // A model the catalogue LISTS but no longer states sound or PDF input for loses what an
+      // older catalogue said: a remembered 'yes' the farm has stopped saying is a claim from
+      // stale data (build rule 7). Vision keeps its S0 rule (a verdict stays until one replaces
+      // it), because a 400 downgrade must outlive a catalogue that simply omits the field.
+      const listed = (body && Array.isArray(body.data) ? body.data : []).map(rowName).filter(Boolean);
+      for (const model of listed) {
+        const row = stated.find((x) => x.underlying === model);
+        for (const name of /** @type {CapName[]} */ (['audio', 'pdf'])) {
+          if ((!row || !row[name]) && known[name].has(model)) remember(model, name, null);
+        }
+      }
       probedFor = sig;                      // only a SUCCESSFUL read stops us asking again
+      changed();
       return true;
     } catch {
       return false;                          // unknown stays unknown; the next farm change retries
@@ -137,10 +244,13 @@ export function createCaps(app) {
     }
   }
 
-  /** The resolver net/farm.mjs calls from `app.farm.cap()`. Synchronous, cache-only, never fetches. */
+  /** The resolver net/farm.mjs calls from `app.farm.cap()`. Synchronous, cache-only, never fetches.
+   * Answers `vision`, `audio` and `pdf` (KF-2); any other name, and any model the farm has not
+   * stated anything about, is 'unknown'. @param {string} underlying @param {string} name */
   function resolver(underlying, name) {
-    if (name !== 'vision') return 'unknown';
-    return vision.get(str(underlying)) || 'unknown';
+    const map = Object.prototype.hasOwnProperty.call(known, name) ? known[/** @type {CapName} */ (name)] : null;
+    if (!map) return 'unknown';
+    return map.get(str(underlying)) || 'unknown';
   }
 
   return {
@@ -151,11 +261,18 @@ export function createCaps(app) {
     downgrade(underlying) {
       const id = str(underlying);
       if (!id) return;
-      remember(id, 'no');
+      remember(id, 'vision', 'no');
+      changed();
     },
     debug: {
       probes: () => probes,
       verdicts: () => Object.fromEntries(vision),
+      /** Every verdict held, by capability (K6). */
+      all: () => ({
+        vision: Object.fromEntries(known.vision),
+        audio: Object.fromEntries(known.audio),
+        pdf: Object.fromEntries(known.pdf),
+      }),
     },
   };
 }

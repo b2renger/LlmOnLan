@@ -18,6 +18,10 @@ registerStrings('palette', {
   // one line per plain part: what it DOES, in the reader's words
   descNote: 'A box of text. Type into it, or let an answer land in it.',
   descImage: 'A picture: drop, paste or choose one. The model can look at it.',
+  // K6 kickoff (addendum KF-8): the two boxes that hold a file. The box itself says what THIS farm
+  // can do with it; the menu line never promises what the farm has not said.
+  descDocument: 'A PDF: drop or choose one. The farm reads its text when a run needs it, and the text flows on.',
+  descAudio: 'A sound file: drop or choose one and play it here. The box says whether anything on this farm can listen.',
   descFile: 'Writes what arrives into a file in this graph’s project folder.',
   descAsk: 'Tells the model what to do with whatever is wired into it.',
   descSplit: 'Cuts text into a list, so each item runs on its own.',
@@ -38,6 +42,8 @@ registerStrings('palette', {
   // search words for the plain parts (never shown)
   kwNote: 'text, words, write, paste, type, input, paragraph, topic',
   kwImage: 'picture, photo, png, jpg, reference, vision, look, see',
+  kwDocument: 'pdf, document, paper, report, scan, ocr, read, file, upload',
+  kwAudio: 'audio, sound, voice, recording, mp3, wav, m4a, listen, music, upload',
   kwFile: 'save, export, disk, folder, output, txt',
   kwAsk: 'prompt, model, llm, ai, generate, question, answer, gemma, chat, instruction',
   kwSplit: 'list, lines, items, divide, each, separate, map',

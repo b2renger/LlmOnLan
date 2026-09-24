@@ -325,8 +325,22 @@
  *                "p5.js sketch" preset is titled "p5.js sketch", not "Preview" — a person finds the
  *                box they picked by the name they picked it by. The catalogue's `presetTitle()`
  *                is the only implementation; a part never spells a preset's name itself.
+ * K6 (addendum KF-4) adds three, so the capability resolver and the drop router never know a part
+ * type by name either:
+ *   `modelOf`    this part SENDS what arrives to a model; returns the served model it asks ('' =
+ *                the farm default). Read ONLY by graph/takes.mjs `consumersOf()`. The Instruction
+ *                declares it.
+ *   `holds`      the kind of FILE this box holds ('image' | 'pdf' | 'audio' | 'text'). Read ONLY
+ *                by graph/parts/index.mjs `holderOf(kind)`, which is how a dropped PDF finds the
+ *                Document box.
+ *   `adopt`      the settings a box is PLACED with for one dropped file: text → {text, name},
+ *                image → the intake's {dataUrl, name, w, h}, pdf/audio → a MediaRef. Read ONLY by
+ *                computer/drops.mjs. Every key it returns is a key of `defaults()`.
  * @typedef {{ type: string, label: string, order?: number, thinks?: boolean,
  *   titleOf?: (part: GraphPart) => string|null,
+ *   modelOf?: (part: GraphPart) => string,
+ *   holds?: 'image'|'pdf'|'audio'|'text',
+ *   adopt?: (payload: object) => object,
  *   size?: {w: number, h: number},
  *   manual?: boolean, volatile?: boolean, control?: boolean, inert?: boolean, quiet?: boolean,
  *   thinksFor?: (part: GraphPart) => boolean,
@@ -413,6 +427,47 @@
  * watch, as they were when the step became current.
  * @typedef {Record<string, {step: number, ticks: string[], forkedDocId: string|null,
  *   doneAt: number|null, demo: string[], marks?: Record<string, {parts: {id: string, settings: Record<string, string>}[]}>}>} TutorialProgress */
+
+// ---------------------------------------------------------------------------------------------
+// K6 kickoff (addendum KF): files a box can take — PDFs and sound — and what the farm and its
+// models can do with them. Additive: nothing before K6 reads any of it.
+// ---------------------------------------------------------------------------------------------
+
+/** A capability verdict. `unknown` is its own state and is SHOWN as unknown: nothing about a model
+ * is ever concluded from a field that is absent or defaulted (build rule 7).
+ * @typedef {'yes'|'no'|'unknown'} Verdict */
+
+/** The three model capabilities `app.farm.cap(model, name)` answers for (KF-2).
+ * @typedef {'vision'|'audio'|'pdf'} CapName */
+
+/** One served model's capabilities, as far as the farm has said (graph/takes.mjs `modelCaps`).
+ * @typedef {{ model: string, vision: Verdict, audio: Verdict, pdf: Verdict }} ModelCaps */
+
+/** A kind of FILE a box holds. `text` is a dropped .txt/.md/.csv/.json (it becomes a Text box).
+ * @typedef {'image'|'pdf'|'audio'|'text'} MediaKind */
+
+/** What the capability resolver may know about the farm, gathered ONCE by `farmViewOf(app)` so the
+ * resolver itself stays pure. `cap` is `app.farm.cap`; `underlyingOf(alias)` the model behind a
+ * served name; `models` the served names in catalogue order.
+ * @typedef {{ present: boolean, engine: string|null, ocr: boolean, defaultModel: string|null,
+ *   models: string[], cap: (model: string, name: CapName) => Verdict,
+ *   underlyingOf: (alias: string) => string }} FarmView */
+
+/** One consumer of a box's file: a part downstream that sends what arrives to a model.
+ * @typedef {{ partId: string, model: string, state: 'yes'|'no'|'unknown' }} TakeConsumer */
+
+/** Can THIS box pass the kind of file it holds to something that can use it, right now? (KF-3)
+ * `state` is the box's answer — `unwired` when nothing downstream would use it yet. `why` is a
+ * frozen code (KF-3's table), `reason` the visible sentence (null only when `state` is `yes` and
+ * there is nothing worth saying), `model` the model the sentence is about.
+ * @typedef {{ kind: MediaKind, state: 'yes'|'no'|'unknown'|'unwired', why: string,
+ *   reason: string|null, model: string|null, consumers: TakeConsumer[] }} TakeVerdict */
+
+/** A file the Computer keeps on THIS machine (computer/media.mjs). The bytes live in the
+ * `attachments` store under `threadId: 'computer:media'`, deduplicated by sha256; a part holds
+ * only this reference, in its settings, so a `.lolgraph.json` never carries the bytes.
+ * @typedef {{ fileId: string, name: string, mime: string, size: number, sha256: string,
+ *   durationSec?: number }} MediaRef */
 
 /** What the runner hands a part's run(). `inputs` is keyed by port name, in wire order.
  * `item` is set ONLY while the part is running per item of a fan-out (C2, §2.6 BH-2): `i` is the
@@ -730,6 +785,8 @@ export const KV_KEYS = Object.freeze({
   /** @param {string} farmId */ promptTokSec: (farmId) => `promptTokSec:${farmId}`,
   /** @param {string} underlying */ continueMode: (underlying) => `continueMode:${underlying}`,
   /** @param {string} farmId @param {string} underlying */ vision: (farmId, underlying) => `cap:${farmId}:${underlying}:vision`,
+  // K6 (addendum KF-2): the same row shape for any capability name; `vision(f, u)` === `cap(f, u, 'vision')`.
+  /** @param {string} farmId @param {string} underlying @param {string} name */ cap: (farmId, underlying, name) => `cap:${farmId}:${underlying}:${name}`,
   /** @param {string} farmId @param {string} underlying */ structuredMode: (farmId, underlying) => `structuredMode:${farmId}:${underlying}`,
   /** @param {string} threadId */ threadSearch: (threadId) => `ui:search:${threadId}`,
   // Studio (S0 kickoff; studio plan §3.6.4). `pref:mapLayout` is NOT here — S1 was cancelled.
@@ -825,6 +882,12 @@ export const API_KEYS = Object.freeze({
   palette: Object.freeze(['el', 'open', 'close', 'isOpen', 'destroy']),
   // K5 kickoff (addendum KE-6): `app.welcome`, installed by computer/welcome.mjs.
   welcome: Object.freeze(['shown', 'refresh', 'debug']),
+  // K6 kickoff (addendum KF-5): `app.media`, installed by computer/media.mjs — the ONE place a
+  // Computer file's bytes are written, read, cached and swept.
+  media: Object.freeze(['put', 'get', 'bytes', 'patch', 'sweep', 'debug']),
+  // K6 kickoff (addendum KF-7): `app.drops`, installed by computer/drops.mjs — what a file dropped
+  // on the canvas becomes.
+  drops: Object.freeze(['route', 'hint', 'debug']),
   // C3: the sandbox host (sandbox/host.mjs). ONE per panel; the S2 vibecode bench uses the same
   // object, which is why the key list lives here and not with the Computer's own keys.
   sandbox: Object.freeze([

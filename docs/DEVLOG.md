@@ -6,6 +6,100 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-09-24 — The Computer **K6**: PDFs and sound files in boxes, and every box says what it can be used for
+
+> *"We should be able to also upload pdfs or audio files to nodes. It should be conditional to the
+> box we are connected to and the models it serves and these model capabilities."* — the owner
+
+### What the kickoff found before anything was built (LOLCHAT_PLAN 2.6 KF-1)
+
+Read in code, `farm/` untouched. The beacon's model rows carry no capability at all. The farm's
+generated LiteLLM routing declares only `supports_vision`, and the pinned LiteLLM 1.97.0's
+`/model_group/info` has **no** `supports_audio_input` or `supports_pdf_input` field — every flag it
+does have defaults to `false`. Worse for sound: LiteLLM's `ollama_chat` transform keeps only `text`
+and `image_url` parts and **silently drops** an `input_audio` or `file` part, so on the default
+engine (Ollama → gemma4:12b) sound can never reach the model, whatever the model could do. So:
+a PDF reaches a model as **text extracted by the farm's OCR service** (the sanctioned flow — bytes
+go for extraction only, nothing is stored, the text stays here), never as a native PDF part; and
+**sound is not sent this phase** (`AUDIO_SEND = false`). The Sound box still exists, keeps and plays
+the file, and says plainly why nothing on this farm can listen. A farm transcription service is
+written up for the owner as DISCUSS **D-F12** — not built.
+
+### K6-U1 — "what can this box take, right now?"
+
+- `app/caps.mjs` reads `supports_audio_input` / `supports_pdf_input` as explicit booleans only; a
+  string, number, null or missing field is not a verdict. Verdicts are `yes / no / unknown`, and
+  unknown is shown as `?`, never folded into no. A catalogue that stops stating a flag clears the
+  stored verdict.
+- `graph/takes.mjs` (pure) answers per box and kind: a PDF is decided by the FARM (extractor or not);
+  a picture by the models it is wired to (worst consumer wins); a sound by the engine, then the
+  models. Every non-yes verdict has a sentence that says why and what would make it work.
+- The line is on the Image, Document and Sound boxes (`takes: PDF ✓`, a dot, the sentence), and the
+  Instruction shows `gemma4:12b: pictures ✓ · sound ? · PDF directly ?` while a picture or a sound is
+  wired in.
+- **Bug found by the harness:** the Computer's event bus is not the chat's, and the boot mirror did
+  not forward `CAPS_EVENT`, so a catalogue read never repainted a line. `relayCapsTo(bus)` fixes it;
+  with the relay switched off, the `k6-takes` scenario fails.
+
+### K6-U2 — the Document box
+
+＋ → Bring in → **Document**. Drop, choose or paste a PDF: the bytes are kept on this computer
+(`app.media`, deduplicated by sha256; `%PDF` signature checked; 32 MB cap), and **nothing is sent on
+drop**. A run sends it once to the farm's extractor (`PUT /process`, one at a time per window, Stop
+aborts it, "Reading … on the farm…" while it waits), caches the pages on the attachment record so the
+same bytes are never sent twice, and flows the text on as markdown with each page marked. Past 60
+pages or 200,000 characters it says "First 60 of 120 pages…" on the box AND in the value. A farm with
+no extractor refuses the file with a sentence and keeps nothing; with no farm the file is kept and the
+first run on a farm that reads documents reads it. Every extractor failure has its own sentence and
+none is cached. The text is drawn through `md-block` + `dom` only (KD-4's safe path) and scrolls.
+
+### K6-U3 — the Sound box and the drop router
+
+＋ → Bring in → **Sound**. A sound file is size-checked (25 MB) before any byte is read, decoded once
+by Chromium (to measure it and refuse what it cannot read; 10 minutes max), kept locally, and played
+in the box with Web Audio (the CSP has no `media-src`, so `<audio>` cannot play `data:`/`blob:`).
+One sound plays at a time. A run passes on its name, length and size **as text**, plus the reason the
+sound itself was not sent; no code path builds an `input_audio` part, and the mock warns if one ever
+arrives. Any file dropped on empty canvas now becomes the box for its kind — picture → Image, PDF →
+Document, sound → Sound, .txt/.md/.csv/.json → Text with the contents, a graph file opens as before —
+side by side, one undo entry each; anything else is refused with a toast and the canvas's live region.
+
+### The landing
+
+- A file dropped ON a box (Image since K4, Document, Sound) is stopped by the box, so the canvas never
+  hid its "Drop a picture, a PDF…" overlay. A capture-phase listener hides it now; `k6-audio`
+  asserts it.
+- A PDF dropped on a Document box while the farm reads no documents said the same four-line sentence
+  twice — white in the "takes:" line, red in the refusal (seen in the landing screenshot). The
+  refusal now names the file and what happened (`parts.docRefusedNoOcr`); the why stays the line's.
+- DISCUSS D-F4 corrected: the client maps `supports_vision:false` to `'no'`, not unknown.
+- `k6-shots` photographs a Document box with six farm-read pages beside a wired Sound box (both
+  themes) and a refused drop, after measuring that the text scrolls inside its box.
+- `PHASE` → `K6` (`vnext-k6`).
+
+### How it was tested
+
+Every gate re-run by the landing on slot 0: `chat-unit` **1370 passed / 0 failed** (1293 before K6 +
+the 11 kickoff seam tests + 66 unit tests from the three units), `unit` 5, `chat-lint` **211 files /
+0 violations** (`--self-test` 26/26), `chat-scope` clean, `chat-harness --strict` **295 passed / 0
+failed** (15 of them K6: 2 takes, 5 document, 2 audio, 2 drops, 2 seams, 2 shots), perf **9 passed**
+(500-part pan work p95 11.6–16.0 ms against the 16 ms budget).
+
+The landing looked at `k6-shots-document-{dark,light}.png`, `k6-shots-refused-drop.png` and
+`k6-audio-wired.png`. The refused-drop picture showed the no-OCR sentence stacked twice on one box —
+fixed above. Harness note: two full runs lost every screenshot after ~15 minutes (the first
+screenshot after the K6 audio/document scenarios timed out, and the 6 s give-up latches for the rest
+of the run) while the same scenarios photographed fine in a short run. `h.screenshot` now restarts the
+frame pump (run.js's tiny screencast) once and retries before giving up; the third full run needed
+that exactly once (`k6-shots-document-dark`) and went green. Why the pump goes quiet there is not
+known yet.
+
+Not verified (rule 3, the live farm serves real users): the real extractor on a real PDF, a real OS
+drag, a real file dialog, and sound actually heard (the harness plays silent WAVs on purpose). Those
+are on the owner's list in COMPUTER_STATUS.md.
+
+---
+
 ## 2026-09-24 — The Computer **K5 fix round**: steps that cannot tick by accident, sketches that survive a reload, and creative boxes on screen the moment ＋ opens
 
 The K5 review found two majors and six minors. Each was reproduced against the real modules, fixed at

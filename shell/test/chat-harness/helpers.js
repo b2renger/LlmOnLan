@@ -670,6 +670,54 @@ function createHelpers(ctx) {
                 if (opts && opts.query) await h.computer.menu.search(opts.query);
                 return h.computer.menu.pick(entry);
             },
+            // ---- K6 (LOLCHAT_PLAN 2.6 KF-10) ------------------------------------------------------
+            /**
+             * Drop files on the Computer's canvas the way a person does: a real DragEvent carrying a
+             * real DataTransfer, at client point `at` (default: the canvas centre). `files` is
+             * `[{name, mime, base64}]`; `target` a selector to drop ON instead (a box's body).
+             * → {files, notCancelled, defaultPrevented}
+             */
+            dropFiles: (files, at, target) => evalFn((fs2, pt, sel) => {
+                const el = document.querySelector(sel || '#lolcomputer .graph-canvas') || document.querySelector('#lolcomputer .graph');
+                if (!el) throw new Error('dropFiles: no canvas to drop on');
+                const r = el.getBoundingClientRect();
+                const x = pt && Number.isFinite(pt.x) ? pt.x : r.left + r.width / 2;
+                const y = pt && Number.isFinite(pt.y) ? pt.y : r.top + r.height / 2;
+                const dt = new DataTransfer();
+                for (const f of fs2) {
+                    const bin = atob(f.base64 || '');
+                    const bytes = new Uint8Array(bin.length);
+                    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+                    dt.items.add(new File([bytes], f.name, { type: f.mime || '' }));
+                }
+                const init = { dataTransfer: dt, bubbles: true, cancelable: true, clientX: x, clientY: y };
+                el.dispatchEvent(new DragEvent('dragenter', init));
+                el.dispatchEvent(new DragEvent('dragover', init));
+                const ev = new DragEvent('drop', init);
+                const notCancelled = el.dispatchEvent(ev);
+                return { files: dt.files.length, notCancelled, defaultPrevented: ev.defaultPrevented };
+            }, files || [], at || null, target || ''),
+            /** A box's "takes:" line as drawn: {kind, state, label, why, whyShown} or null (KF-3 probes). */
+            takes: (partId) => evalFn((id) => {
+                const box = document.querySelector(`#lolcomputer .graph-part[data-id="${id}"]`);
+                const el = box && box.querySelector('.graph-takes');
+                if (!el) return null;
+                const why = el.querySelector('.graph-takes-why');
+                const label = el.querySelector('.graph-takes-label');
+                return {
+                    kind: el.getAttribute('data-kind'),
+                    state: el.getAttribute('data-state'),
+                    label: label ? label.textContent : '',
+                    why: why ? why.textContent : '',
+                    whyShown: !!why && !why.hidden,
+                };
+            }, partId),
+            /** Make the mock farm advertise (true) or withdraw (false) its OCR extractor, and publish. */
+            ocr: async (on) => {
+                await h.mock.state({ extract: on ? { url: services + '/ocr', key: 'mock-extract-key' } : null });
+                await h.publishFarm();
+                return on ? services + '/ocr' : null;
+            },
             /** The first-run offer on an empty canvas: {shown, actions}. `press(action)` clicks one. */
             welcome: {
                 state: () => evalFn(() => {
@@ -828,11 +876,22 @@ function createHelpers(ctx) {
                 return null;
             }
             const TIMED_OUT = Symbol('timeout');
-            const shot = cdp.send('Page.captureScreenshot', { format: 'png' });
-            const r = await Promise.race([
-                shot.then((v) => v, (err) => ({ error: err })),
+            const capture = () => Promise.race([
+                cdp.send('Page.captureScreenshot', { format: 'png' }).then((v) => v, (err) => ({ error: err })),
                 sleep(6000).then(() => TIMED_OUT),
             ]);
+            let r = await capture();
+            if (r === TIMED_OUT) {
+                // K6 landing: two full runs on this box lost every later screenshot after ~15 min
+                // while the same scenarios photographed fine in a short run — the frame pump (run.js's
+                // tiny screencast) had stalled, not the window. Restart it ONCE and retry before
+                // concluding the window cannot be photographed; the latch below still guards an
+                // environment where screenshots never work.
+                try { await cdp.send('Page.stopScreencast'); } catch { /* not running */ }
+                try { await cdp.send('Page.startScreencast', { format: 'jpeg', quality: 10, maxWidth: 64, maxHeight: 64, everyNthFrame: 1 }); } catch { /* unavailable */ }
+                r = await capture();
+                if (r !== TIMED_OUT) ctx.notes.push('screenshot: the frame pump had stalled; restarted it for ' + name);
+            }
             if (r === TIMED_OUT) {
                 noScreenshots = true;                       // a hidden window: never try again this run
                 ctx.notes.push('screenshot unavailable (hidden window) — rerun with --show for ' + name);

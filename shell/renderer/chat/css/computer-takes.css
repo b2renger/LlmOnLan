@@ -1,0 +1,81 @@
+/* computer-takes.css — K6-U1's sheet (addendum KF-3/KF-9). The "takes:" line on a box that holds
+   a file (.graph-takes[data-kind][data-state] > .graph-takes-label + .graph-takes-why) and the
+   Instruction's model line (.graph-ins-caps).
+
+   The label is a small pill with a status dot, the ComfyQ way (green = it will be used, amber =
+   nobody can say, red = it will not be sent, grey = nothing wired). The dot never carries the
+   meaning alone: the mark (✓ ✗ ? –) is in the text, and every state but "yes" shows its sentence
+   underneath. Tokens only (lint rule 3). In #lolcomputer the UA's [hidden] loses to any rule that
+   sets `display`, so every element given one carries its own [hidden] rule (KE-9). */
+
+#lolcomputer .graph-takes {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  margin: 4px 0 0;
+  min-width: 0;
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--muted);
+}
+#lolcomputer .graph-takes[hidden] { display: none; }
+
+#lolcomputer .graph-takes-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 100%;
+  padding: 0 7px 0 6px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+#lolcomputer .graph-takes-label::before {
+  content: '';
+  flex: 0 0 auto;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--grey);
+}
+#lolcomputer .graph-takes[data-state='yes'] .graph-takes-label { color: var(--text); }
+#lolcomputer .graph-takes[data-state='yes'] .graph-takes-label::before {
+  background: var(--green);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--green) 25%, transparent);
+}
+#lolcomputer .graph-takes[data-state='no'] .graph-takes-label::before {
+  background: var(--danger);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--danger) 20%, transparent);
+}
+#lolcomputer .graph-takes[data-state='unknown'] .graph-takes-label::before {
+  background: var(--amber);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--amber) 20%, transparent);
+}
+
+/* The sentence: plain words, never clipped — a refusal nobody can read is a silent one. */
+#lolcomputer .graph-takes-why {
+  margin: 0;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+#lolcomputer .graph-takes[data-state='unwired'] .graph-takes-why { color: var(--muted); }
+#lolcomputer .graph-takes-why[hidden] { display: none; }
+
+/* Inside the Image box the line sits in its flex column, which already spaces its children. */
+#lolcomputer .graph-part[data-type='image'] .graph-takes { margin: 0; flex: 0 0 auto; }
+
+/* The Instruction's model line: one quiet row, shown only while a picture or a sound is wired in. */
+#lolcomputer .graph-ins-caps {
+  margin: 4px 0;
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+#lolcomputer .graph-ins-caps[hidden] { display: none; }

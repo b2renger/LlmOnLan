@@ -35,7 +35,7 @@ import { spine } from './boot.mjs';
 import { computeVisible, runnerExecuting } from './visible.mjs';
 import '../strings/computer.en.mjs';
 
-const PHASE = 'K5';   // each LANDING bumps this, with the c3-landing assertion in the same edit
+const PHASE = 'K6';   // each LANDING bumps this, with the c3-landing assertion in the same edit
 
 /** @type {import('../core/types.mjs').ModuleRow[]} */
 const MODULES = [
@@ -59,9 +59,16 @@ const MODULES = [
   // button, never a dead one.
   { key: 'tutorial', path: './tutorial/rail.mjs',   role: 'feature',   fake: null, phase: 'K5' },
   { key: 'welcome',  path: './welcome.mjs',         role: 'feature',   fake: null, phase: 'K5' },
+  // K6 (addendum KF-5, KF-7). `media` keeps the files a box holds on THIS computer; `drops` turns a
+  // file dropped on the canvas into the right box. `drops` installs AFTER `media` and `intake`,
+  // whose doors it uses. Both are features: without `drops` a canvas drop is a graph file, as
+  // before K6; without `media` a Document or Sound box says it cannot keep the file.
+  { key: 'media',    path: './media.mjs',           role: 'feature',   fake: null, phase: 'K6' },
+  { key: 'drops',    path: './drops.mjs',           role: 'feature',   fake: null, phase: 'K6' },
   //
   // LEAVES WITH NO ROW — a static import of their consumer, so a typo surfaces as that consumer
-  // failing: graph/** (K5: palette.mjs, palette-menu.mjs, unfence.mjs, parts/creative.mjs),
+  // failing: graph/** (K5: palette.mjs, palette-menu.mjs, unfence.mjs, parts/creative.mjs;
+  // K6: takes.mjs, takes-view.mjs, drop-route.mjs, parts/{document,audio}.mjs), net/extract.mjs,
   // sandbox/**, computer/{boot,layout,visible,docstore}.mjs, every strings/*.en.mjs, and (K5)
   // tutorial/{check,registry}.mjs with every lesson and template module.
 ];

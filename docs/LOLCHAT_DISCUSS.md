@@ -45,6 +45,7 @@
 | D-F9 | Logprobs pass-through for `ollama_chat` | farm | M | No | Drop unless a feature needs it |
 | D-F10 | Farm STT endpoint (dictation) | farm | M–L | No | Later |
 | D-F11 | Update the live farm build to repo HEAD | ops | S | No | **Do** (quiet moment) |
+| D-F12 | Farm transcription (whisper) so the Computer's Sound box can be heard; honest audio/PDF capability flags | farm | M | No (the Sound box ships without it) | **Decide** |
 | D-P1 | `npm` scripts + CI job for chat unit tests and the harness | package.json / .github | S | No | **Do** |
 | D-P2 | Vendoring budget (pdf.js, Temml, grammars, onnxruntime, whisper) | packaging | decision | No | Decide per feature |
 | D-P3 | Installer smoke test that LOL Chat loads (static imports verified in asar; dynamic `import()` re-probed at P0 kickoff) | CI | S | No | **Do** |
@@ -292,8 +293,13 @@
 
 ### D-F4: Capability flags
 - **Why:** LiteLLM `/model_group/info` reports `supports_vision:false` and `supports_function_calling:false`
-  for models whose names don't match the farm's regex (e.g. nemotron, granite). LOL Chat treats `false`
-  as *unknown* and learns from errors instead.
+  for models whose names don't match the farm's regex (e.g. nemotron, granite). *(Corrected at the K6
+  landing, 2026-09-24: this used to say LOL Chat treats `false` as unknown. The code does not —
+  `app/caps.mjs` maps an explicit `supports_vision:false` to `'no'`, the S0 contract, and the chat
+  refuses a picture for that model before sending. Since K6 every sentence about it says "the farm
+  does not list X as able to see", because on the pinned LiteLLM that `false` is a default, not a
+  probe — LOLCHAT_PLAN 2.6 KF-1 a3/a4. A farm that declared vision honestly would make the
+  refusal right; that is this item.)*
 - **Proposal:** read real capabilities (Ollama `/api/show` → `capabilities`; llama.cpp `mmproj`
   presence) when generating the LiteLLM config.
 - **Effort:** S. **Touches:** `farm/src/litellm.js`.
@@ -341,6 +347,34 @@
 - **Why:** the live farm lacks `capacity.seatIdleSec` and still advertises the 1 M context. LOL Chat must
   distrust fields it could trust.
 - **Effort:** S. Needs a quiet moment on AN-A6000PRO (it serves real users).
+
+### D-F12: Farm transcription for the Computer's Sound box (raised at the K6 kickoff, 2026-09-24)
+- **Why:** the owner asked for audio files in boxes, "conditional to the box we are connected to and
+  the models it serves". K6 ships the Sound box — it keeps the file on the laptop, plays it, and flows
+  its name and length on as text — but **nothing on this farm can listen**, and the box says so:
+  - the pinned LiteLLM (1.97.0) `ollama_chat` transform keeps only `text` and `image_url` parts and
+    silently drops an `input_audio` part (`litellm/llms/ollama/chat/transformation.py:268-280`), so on
+    the default engine sound can never reach gemma4:12b, whatever the model could do;
+  - `/model_group/info` has no `supports_audio_input` or `supports_pdf_input` field at all
+    (`litellm/types/router.py:534-563`), and the farm declares only `supports_vision`
+    (`farm/src/litellm.js`), so no model can even SAY it listens;
+  - the llama.cpp / external engines might pass `input_audio` through to an audio-capable projector,
+    but nothing is verified and nothing reports it (LOLCHAT_PLAN 2.6 KF-1 b3).
+- **Proposal (the sanctioned-flow pattern OCR already uses):** a `lol-stt` service next to
+  `lol-extract` — faster-whisper (or whisper.cpp) on the farm GPU, OpenAI-compatible
+  `POST /v1/audio/transcriptions`, advertised in the snapshot as `stt: {url, key}` (and in `plugins`).
+  The Sound box would then send the bytes for TRANSCRIPTION only, the farm stores nothing, and the
+  transcript stays local and flows on as text — exactly the Document box's shape. It also answers
+  D-F10 (dictation) with the same service.
+- **Also worth doing while there:** declare capabilities honestly in the generated routing — read
+  Ollama's `/api/show` `capabilities` per model instead of `VISION_MODEL_RX` (D-F4), and add
+  `supports_audio_input` / `supports_pdf_input` to `model_info` when true — knowing that the pinned
+  LiteLLM drops those two keys from `/model_group/info`, so the farm would also have to advertise them
+  itself (e.g. per model in the snapshot's `models` rows).
+- **Costs:** VRAM next to the chat model (whisper-large-v3 ~3 GB fp16; `base`/`small` far less); one
+  more venv in `lol install`; the same seat-gate blind spot as OCR (D-F3) unless routed through it.
+- **Effort:** M. **Touches:** `farm/src/` (new `stt.js`, `pysvc`-style service, `snapshot.js`,
+  plugins registry), then a client unit to wire the Sound box to it. **Blocking:** no.
 
 ---
 

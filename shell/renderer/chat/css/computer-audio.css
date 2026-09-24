@@ -1,0 +1,123 @@
+/* computer-audio.css — K6-U3 (addendum KF-6/KF-9). The Sound box: the empty drop target, the
+   player (▶/■, the name, a progress bar, the length and size), Replace/Remove, and the one-line
+   note that says "Reading the sound…" or why a file was refused. Tokens only (lint rule 3); every
+   element given a `display` carries its own [hidden] rule (KE-9). The "takes:" line under it is
+   K6-U1's (css/computer-takes.css). */
+
+#lolcomputer .graph-audio {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/* The empty state IS the drop target, and a button so the keyboard can reach the picker. */
+#lolcomputer .graph-audio-empty {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 56px;
+  padding: 10px;
+  text-align: center;
+  font: inherit;
+  font-size: 13px;
+  color: var(--muted);
+  background: transparent;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+}
+#lolcomputer .graph-audio-empty:hover { border-color: var(--accent-hover); color: var(--text); }
+#lolcomputer .graph-audio-empty[hidden] { display: none; }
+
+#lolcomputer .graph-audio-player {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-2);
+}
+#lolcomputer .graph-audio-player[hidden] { display: none; }
+
+#lolcomputer .graph-audio.is-over .graph-audio-empty,
+#lolcomputer .graph-audio.is-over .graph-audio-player {
+  border: 1px solid var(--accent-hover);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-hover) 30%, transparent);
+}
+
+#lolcomputer .graph-audio-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+#lolcomputer .graph-audio-play {
+  flex: 0 0 auto;
+  min-width: 68px;
+  font-size: 12px;
+  padding: 2px 10px;
+}
+#lolcomputer .graph-audio[data-playing='true'] .graph-audio-play {
+  border-color: var(--accent-hover);
+  color: var(--text);
+}
+
+#lolcomputer .graph-audio-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  font-size: 13px;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The playhead. Scaled, not resized, so a frame of progress is a composite and not a layout. */
+#lolcomputer .graph-audio-bar {
+  position: relative;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--border);
+  overflow: hidden;
+}
+#lolcomputer .graph-audio-fill {
+  position: absolute;
+  inset: 0;
+  background: var(--accent-hover);
+  transform-origin: left center;
+  transform: scaleX(0);
+}
+
+#lolcomputer .graph-audio-foot {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+#lolcomputer .graph-audio-time {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+#lolcomputer .graph-audio-btn { font-size: 12px; padding: 2px 8px; }
+#lolcomputer .graph-audio-btn[hidden] { display: none; }
+
+/* One line: "Reading the sound…", or the refusal. Never both, never a dialog. */
+#lolcomputer .graph-audio-note {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+#lolcomputer .graph-audio-note.is-error { color: var(--danger); }
+#lolcomputer .graph-audio-note[hidden] { display: none; }

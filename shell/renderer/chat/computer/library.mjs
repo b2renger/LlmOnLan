@@ -218,8 +218,15 @@ export function createLibrary(app, els) {
     /** @param {string} id */
     async remove(id) {
       const s = store();
-      if (s && typeof s.remove === 'function') { await s.remove(id); return; }
-      await app.repo.deleteGraph(id);
+      if (s && typeof s.remove === 'function') await s.remove(id);
+      else await app.repo.deleteGraph(id);
+      // K6 kickoff (addendum KF-5): a deleted graph may have held the last reference to a PDF or a
+      // sound kept on this computer. The file store drops what nothing refers to any more; a
+      // failure there never undoes the delete.
+      const media = app && app.media;
+      if (media && typeof media.sweep === 'function') {
+        try { await media.sweep(); } catch (err) { console.warn('[lolcomputer] sweeping unused files failed', err); }
+      }
     },
   };
 

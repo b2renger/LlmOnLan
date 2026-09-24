@@ -32,6 +32,11 @@ import { partFail, pickerRow, setPicked } from './common.mjs';
 // here — so it lands clean in an SVG box, and a Preview in `auto` knows how to draw it.
 import { codeValue, CODE_KINDS } from '../unfence.mjs';
 import { presetTitle } from './creative.mjs';
+// K6 kickoff (addendum KF-3): the line that says what THIS box's model can take, as far as the
+// farm has said. K6-U1 owns what it says (graph/takes-view.mjs); this file only hosts it.
+import { modelCapsLine } from '../takes-view.mjs';
+import { EV } from '../../core/events.mjs';
+import { CAPS_EVENT } from '../../app/caps.mjs';
 
 /** @typedef {import('../../core/types.mjs').PartSpec} PartSpec */
 /** @typedef {import('../../core/types.mjs').GraphValue} GraphValue */
@@ -166,6 +171,9 @@ export const instruction = /** @type {any} */ ({
   defaults: () => ({ instruction: '', model: '', shape: 'text', schema: '', inlineVars: false, code: '' }),
   // K5 kickoff (KE-2): a box placed as "Write an SVG" is titled that, not "Instruction".
   titleOf: (/** @type {any} */ part) => presetTitle(part),
+  // K6 kickoff (addendum KF-4): this part SENDS what arrives to a model — which one is what the
+  // capability resolver (graph/takes.mjs) asks about when an Image or Sound box is wired in.
+  modelOf: (/** @type {any} */ part) => String((part && part.settings && part.settings.model) || ''),
 
   render(host, part, ctx) {
     const area = document.createElement('textarea');
@@ -254,7 +262,28 @@ export const instruction = /** @type {any} */ ({
     const chips = document.createElement('div');
     chips.className = 'graph-ins-chips';
 
-    host.replaceChildren(area, fields, schema, inlineRow, strip, chips);
+    // K6 kickoff (KF-3): `.graph-ins-caps` — "gemma4:12b: pictures ✓ · sound ? · PDF directly ?".
+    // Shown while a picture or a sound is wired in; hidden when there is nothing honest to say.
+    const capsLine = document.createElement('p');
+    capsLine.className = 'graph-ins-caps';
+    /** @type {any} */ let capsPart = part;
+    const paintCaps = () => {
+      let line = '';
+      try { line = modelCapsLine(ctx.app, String((capsPart.settings && capsPart.settings.model) || ''), String(capsPart.id || '')); } catch (err) { console.warn('[lolcomputer] caps line failed', err); }
+      if (capsLine.textContent !== line) capsLine.textContent = line;
+      capsLine.hidden = !line;
+    };
+    /** @type {Array<() => void>} */ const capsOffs = [];
+    const bus = ctx && ctx.app && ctx.app.bus;
+    if (bus && typeof bus.on === 'function') {
+      for (const name of [EV.FARM_CHANGE, CAPS_EVENT]) {
+        const off = bus.on(name, paintCaps);
+        if (typeof off === 'function') capsOffs.push(off);
+      }
+    }
+    paintCaps();
+
+    host.replaceChildren(area, fields, capsLine, schema, inlineRow, strip, chips);
 
     /** @type {string} */ let sig = '';
 
@@ -310,9 +339,14 @@ export const instruction = /** @type {any} */ ({
         const ss = /** @type {any} */ (shape.querySelector('select'));
         if (ms && document.activeElement !== ms) setPicked(ms, String(next.settings.model || ''));
         if (ss && document.activeElement !== ss) ss.value = String(next.settings.shape || 'text');
+        capsPart = next;
+        paintCaps();
         paint(next);
       },
-      destroy() { host.replaceChildren(); },
+      destroy() {
+        for (const off of capsOffs.splice(0)) { try { off(); } catch { /* already gone */ } }
+        host.replaceChildren();
+      },
     };
   },
 

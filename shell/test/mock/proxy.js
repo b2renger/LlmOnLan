@@ -114,6 +114,18 @@ function createProxyHandler({ store, role, key }) {
             // the model answers prose. store.lastBody keeps what the CLIENT sent, untouched.
             if (store.state.structuredDrop && parsed && parsed.response_format) delete parsed.response_format;
             const model = parsed && parsed.model;
+            // K6 kickoff (LOLCHAT_PLAN 2.6 KF-1(b)): LiteLLM's ollama_chat transform keeps only
+            // `text` and `image_url` parts and silently DROPS the rest, so an `input_audio` or a
+            // `file` part reaching the farm is a request that would be answered about nothing.
+            // The client must never send one; a scenario asserts `h.mock.warnings()` stays empty.
+            for (const m of (parsed && Array.isArray(parsed.messages) ? parsed.messages : [])) {
+                for (const part of (m && Array.isArray(m.content) ? m.content : [])) {
+                    const type = part && part.type;
+                    if (type && type !== 'text' && type !== 'image_url') {
+                        store.warn(`K6: a '${type}' content part reached the farm (model ${model}) - no verified path carries it`);
+                    }
+                }
+            }
             const known = handleCompletion({ model, req, res, body: parsed || {}, store });
             if (!known) {
                 return json(res, 400, {

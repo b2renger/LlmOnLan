@@ -51,6 +51,7 @@ export const QUICK = Object.freeze(['p5', 'three', 'svg', 'html']);
 /** A plain part's search-words key (strings/palette.en.mjs). A part type with no row has none. */
 const KEYWORDS = {
   note: 'palette.kwNote', image: 'palette.kwImage', file: 'palette.kwFile',
+  document: 'palette.kwDocument', audio: 'palette.kwAudio',   // K6 kickoff (KF-8)
   ask: 'palette.kwAsk', split: 'palette.kwSplit', filter: 'palette.kwFilter',
   collect: 'palette.kwCollect', repeat: 'palette.kwRepeat',
   preview: 'palette.kwPreview', code: 'palette.kwCode',

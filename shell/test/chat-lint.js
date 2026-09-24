@@ -60,6 +60,9 @@ const PURE_MODULES = [
     // and the tutorial's checkpoints. check.mjs imports creative.mjs and bind.mjs, which is why
     // those two have to stay pure for the tutorial to be testable at all.
     'graph/palette.mjs', 'graph/unfence.mjs', 'graph/parts/creative.mjs', 'computer/tutorial/check.mjs',
+    // K6 (addendum KF-3/KF-7): the capability resolver and the drop classifier. Both decide what a
+    // person is told about a file, so both are pinned in Node.
+    'graph/takes.mjs', 'graph/drop-route.mjs',
     // C3 (the sandbox parts, files and sharing)
     'graph/tidy.mjs', 'sandbox/protocol.mjs',
     // S2
@@ -209,7 +212,9 @@ const DOORS = [
         // GET (`/model_group/info`) in that file by name, and the S0 kickoff list omitted it, so
         // the rule as frozen made the specified module unwritable. Reported as a contract request;
         // the door itself is unchanged in spirit — one file, one GET, no POST.
-        allow: ['net/farm.mjs', 'net/run.mjs', 'core/fakes.mjs', 'app/caps.mjs', 'sandbox/libs.mjs'],
+        // K6 kickoff (addendum KF-5): net/extract.mjs is the ONE door to the farm's document
+        // extractor (PUT {extract.url}/process) — the sanctioned OCR flow, one file, one PUT.
+        allow: ['net/farm.mjs', 'net/run.mjs', 'core/fakes.mjs', 'app/caps.mjs', 'sandbox/libs.mjs', 'net/extract.mjs'],
         patterns: [/\bfetch\s*\(/g, /new\s+XMLHttpRequest\b/g, /new\s+EventSource\b/g, /navigator\s*\.\s*sendBeacon\b/g],
     },
     {

@@ -173,6 +173,10 @@ export const textPart = /** @type {any} */ ({
   // in the foot strip (KD-3: `quiet` is read in graph/canvas.mjs syncBox() and nowhere else).
   quiet: true,
   size: { w: 260, h: 170 },
+  // K6 kickoff (addendum KF-4): a .txt/.md/.csv/.json dropped on the canvas becomes a Text box
+  // holding the file's contents, typed-text-equivalent (the person's own words, undoable).
+  holds: 'text',
+  adopt: (/** @type {any} */ p) => ({ text: String((p && p.text) || '') }),
   // The honest minimum (KD-4). `image` and `file` are deliberately absent: there is no honest
   // text for either (values.mjs has no `text <- image` row at all), so the wire refusal names the
   // port and says what to do instead rather than a box quietly showing the word "image".

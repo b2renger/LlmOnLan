@@ -47,6 +47,62 @@ function snapshot(store, { proxyPort, httpPort, host = '127.0.0.1' } = {}) {
     };
 }
 
+/** The raw bytes of a request body (the OCR route is binary; readBody decodes text). */
+function readBytes(req, limit = 64 * 1024 * 1024) {
+    return new Promise((resolve) => {
+        const chunks = [];
+        let size = 0;
+        req.on('data', (c) => { if (size <= limit) { chunks.push(c); size += c.length; } });
+        req.on('end', () => resolve(Buffer.concat(chunks)));
+        req.on('error', () => resolve(Buffer.concat(chunks)));
+    });
+}
+
+/**
+ * K6 kickoff (LOLCHAT_PLAN 2.6 KF-10): the farm's document extractor, by its own contract
+ * (farm/src/pysvc/server.py:312) - PUT /process, `Authorization: Bearer <key>`, `X-Filename`,
+ * raw bytes -> a JSON list of {page_content, metadata:{page, source, engine}}. The page count is
+ * `X-Mock-Pages`, else `state.ocrPages`, else a decoded `X-Filename` like `pages-<N>.pdf`, else
+ * ceil(bytes / 1000). Each page says which page of which file it is, so a scenario can find it.
+ */
+async function ocrProcess(req, res, store) {
+    const s = store.state;
+    const body = await readBytes(req);
+    const entry = store.log[store.log.length - 1];
+    if (entry && entry.path === '/ocr/process') entry.bytes = body.length;
+    if (s.extractDown) return json(res, 503, { detail: 'extractor down (mock)' });
+    const key = (s.extract && s.extract.key) || 'mock-extract-key';
+    if ((req.headers.authorization || '') !== `Bearer ${key}`) return json(res, 401, { detail: 'Unauthorized' });
+    if (!body.length) return json(res, 400, { detail: 'Empty request body.' });
+    let name = 'upload';
+    try { name = decodeURIComponent(String(req.headers['x-filename'] || 'upload')); } catch { name = String(req.headers['x-filename'] || 'upload'); }
+    const type = String(req.headers['content-type'] || '').toLowerCase();
+    let pages = 0;
+    if (type.includes('wordprocessingml')) pages = 1;
+    else if (type === 'application/pdf' || /\.pdf$/i.test(name)) {
+        const forced = Number(req.headers['x-mock-pages']) || Number(s.ocrPages) || 0;
+        const named = /pages-(\d+)\.pdf$/i.exec(name);
+        pages = forced || (named ? Number(named[1]) : Math.ceil(body.length / 1000));
+    } else {
+        return json(res, 415, { detail: `Unsupported file type: ${type || 'unknown'}` });
+    }
+    pages = Math.max(1, Math.min(pages, 2000));
+    const perPage = s.ocrDelayMs !== null && Number.isFinite(Number(s.ocrDelayMs)) ? Number(s.ocrDelayMs) : 200;
+    const wait = Math.min(3000, Math.max(0, perPage * pages));
+    let closed = false;
+    res.on('close', () => { closed = true; });
+    await new Promise((r) => setTimeout(r, wait));
+    if (closed) return undefined;
+    const out = [];
+    for (let i = 1; i <= pages; i++) {
+        out.push({
+            page_content: `Page ${i} of ${name}. The mock farm read this page; its words stand in for the real text.`,
+            metadata: { page: i, source: name, engine: 'text' },
+        });
+    }
+    return json(res, 200, out);
+}
+
 function json(res, status, obj) {
     res.writeHead(status, { 'content-type': 'application/json', ...CORS });
     res.end(obj === undefined ? '' : JSON.stringify(obj));
@@ -124,6 +180,9 @@ function createServicesHandler({ store, snapshotFn, role }) {
             }
             return json(res, 200, store.state);
         }
+
+        if (pathOnly === '/ocr/health') return json(res, 200, { status: 'ok', model: 'mock-ocr', docling: false });
+        if (pathOnly === '/ocr/process' && method === 'PUT') return ocrProcess(req, res, store);
 
         return json(res, 404, { ok: false, error: `no mock route for ${method} ${pathOnly}` });
     };

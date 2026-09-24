@@ -102,12 +102,15 @@ export default (test) => {
     // K4 kickoff (COMPUTER_PLAN §6.4, §6.5, §6.7): Image joins "bring in", Preview REPLACES
     // Render in the palette (Render stays loadable), and the three annotation parts land at the
     // end. `note` keeps its type id and becomes the Text part (graph/parts/text.mjs).
+    // K6 kickoff (LOLCHAT_PLAN 2.6 KF-4): Document (a PDF) and Sound (an audio file) join "bring
+    // in", right after Image — twenty-one in the palette, twenty-four loadable.
     assert.deepEqual(partSpecs().map((s) => s.type),
       ['note', 'ask', 'split', 'repeat', 'filter', 'code', 'collect', 'preview', 'file', 'image',
+        'document', 'audio',
         'button', 'condition', 'confirm', 'dialog', 'toggle', 'timer',
         'sticky', 'section', 'title']);
     assert.deepEqual([...specMap().keys()].sort(),
-      ['ask', 'button', 'code', 'collect', 'condition', 'confirm', 'dialog', 'file', 'filter',
+      ['ask', 'audio', 'button', 'code', 'collect', 'condition', 'confirm', 'dialog', 'document', 'file', 'filter',
         'from-thread', 'image', 'note', 'preview', 'render', 'repeat', 'section', 'split',
         'sticky', 'timer', 'title', 'to-thread', 'toggle'],
       'a legacy part left specMap() too — a migrated graph would trip part:unknown-type');
