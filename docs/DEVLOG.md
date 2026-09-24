@@ -6,6 +6,82 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-09-24 — The Computer **K6 fix round**: a PDF cannot hold the farm GPU for nobody, a long sound is refused before it is decoded, and a removed file does not stay on disk forever
+
+Six review findings on the K6 landing (three majors, three minors), each reproduced and fixed at the
+root with a test that fails without the fix. Nothing touches `farm/`, `farm-app/` or `sidecar/`; no CSP
+change, no new dependency.
+
+### The farm read every page, and a retry started a second full read (major)
+The farm's extractor reads every page it is sent and does not stop when the client gives up
+(`farm/src/pysvc/server.py`: a loop over `doc.page_count`, run through `run_in_threadpool`, no cancel on
+disconnect). The 60-page cap was only applied on the laptop, after the farm had read everything; and a
+timeout or a Stop was never cached, so the next Run-all uploaded the same file again while the farm was
+still busy with the first copy — every retry another full GPU job, outside the seat gate.
+- `graph/parts/document.mjs` `pdfPageCount(bytes)` reads the page count the PDF STATES — the last root
+  `/Type /Pages` `/Count` (the last one, because an incremental update appends a new root), else the
+  linearization `/N` — and answers null when the page tree is compressed, never a guess.
+  `pagesRefusal()` refuses a PDF over 60 pages at intake (through a new `check` option on `media.put`,
+  used by the box and by the drop router) and `readDoc` refuses it again before any upload, for files
+  kept before this check existed. The sentence names the count and says to split the PDF.
+- After a timeout or a Stop DURING the read (not while queued — nothing was sent then), the same bytes
+  wait `EXTRACT_COOLDOWN_MS` (5 min, per sha256; a test shortens it with `flags.extractCooldownMs`).
+  A run in that window refuses in a sentence and sends nothing; a box queued behind with the same bytes
+  waits too; the box says *"The farm may still be reading this PDF from the last try…"* between runs.
+  `docErrTimeout` / `docErrAborted` now say the farm may still be reading and that a new try waits.
+- The farm-side fix — a page cap on `/process` and cancel-on-disconnect — is written up as DISCUSS
+  **D-F13**.
+
+### A long sound was decoded whole before "too long" (major)
+`takeSound` checked only the 25 MB byte cap and then decoded the whole file to learn its length. At a
+low bitrate 25 MB is an hour or more, and Chromium decodes at the file's own rate before resampling:
+~1.2 GB of PCM in the owner's renderer before the refusal.
+- New pure `graph/sound-length.mjs` reads the length from the headers: WAV (`data` size / byte rate),
+  MP3 (Xing/Info or VBRI frame count; else the CBR estimate after three frames in a row, so a WebM's
+  stray 0xFFE is not taken for MP3), OGG Vorbis/Opus (last granule), FLAC (STREAMINFO), M4A
+  (`mvhd`), ADTS AAC (every frame header). Exact lengths refuse past 10:00; estimates past 1.25 ×.
+- A format whose headers say nothing (WebM) is judged by decoding a 256 KB prefix and scaling by size;
+  one that cannot even be probed is refused with a sentence (*"cannot tell how long … without decoding
+  all of it"*). Only a sound known to be near or under the cap is decoded whole, once, at 8 kHz.
+- The one-slot playback cache now lets go when its box removes or replaces the file or goes away.
+
+### Replaced and removed files stayed in IndexedDB forever (major)
+The file store was only swept when a whole graph was deleted, and that sweep ignored the undo stack.
+- `computer/media.mjs` now sweeps whenever a graph is OPENED — every boot of the Computer, every switch —
+  which is exactly when the undo history is cleared. It keeps every file a saved graph, the open graph
+  OR the open graph's undo/redo history refers to (`session.history()`, from `undo.docs()`), so an Undo
+  never brings back a box whose file was swept. The automatic sweeps spare a file kept in the last
+  minute (a box may be about to take it).
+- A drop whose box could not be placed now lets its kept file go at once (`sweep({only})`), unless
+  another box holds the same bytes.
+
+### Minors
+- **Run-all read a PDF nothing used.** A new `PartSpec.onlyWhenUsed` (read only by `topo.activeSet`)
+  leaves a Document box with no wire out of Run-all; its own ▶ still reads it. The plan preview agrees.
+- **"Nothing uses this yet" behind a Repeat.** `consumersOf` now walks through parts that pass their
+  input on (`PartSpec.passes`: Button, Condition, Confirm, Toggle, Timer, Repeat), so Image → Repeat →
+  Instruction answers for the Instruction's model; a box wired only to non-model parts says so with its
+  own sentence (`WHY.noModel`) instead of the false "nothing uses this".
+- **Several files dropped on one box.** The Document and Sound boxes take one (the first PDF / sound)
+  and say *"Only thesis.pdf went into this box (1 more dropped with it did not). Drop those on an empty
+  part of the canvas…"* — a toast and the canvas's live region.
+- **Pages marked twice.** The farm already heads each page "[Page N]"; the box's own mark replaces it.
+  The mock farm now heads pages the same way, and a harness assertion catches a double mark.
+  `docMoreHere` counts characters, which is what it cuts.
+
+### How it was tested
+Unit: +16 tests (the page counter on real PDF text, the intake/pre-upload refusal with zero requests,
+the cooldown incl. the queued twin and the queued Stop that must NOT start one, the page-mark strip, the
+multi-file sentence, Run-all exclusion, the pass-through walk, the undo-aware sweep, `only`/`spareFresh`,
+the sweep on open, the unplaced-drop release, `soundLength` on every format's real header bytes, the
+header refusal with zero whole-file decodes, the prefix probe, the playback cache release). Harness:
+`k6-document` proves the wait after Stop against the mock farm (refused, zero new requests, then read
+again after a 3 s test cooldown) and a new scenario proves Run-all sends nothing for a lone Document box;
+`k6-audio` drops a real one-hour MP3 header and a 601 s WAV and proves neither was decoded;
+`k6-shots-a-pdf-with-too-many-pages-is-refused-on-sight` photographs the refusal and the one-file toast.
+
+Gates (slot 0): chat-unit 1386/0, unit 5, chat-lint 212 files/0, chat-scope clean, chat-harness --strict 297/0, perf 9/0.
+
 ## 2026-09-24 — The Computer **K6**: PDFs and sound files in boxes, and every box says what it can be used for
 
 > *"We should be able to also upload pdfs or audio files to nodes. It should be conditional to the

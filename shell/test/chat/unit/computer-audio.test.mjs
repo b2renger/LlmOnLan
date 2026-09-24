@@ -14,8 +14,9 @@ import { fileURLToPath } from 'node:url';
 import { t } from '../../../renderer/chat/core/i18n.mjs';
 import {
   audioPart, takeSound, measureSound, clock, soundDebug,
-  AUDIO_MAX_BYTES, AUDIO_MAX_SEC, AUDIO_ACCEPT, MEASURE_RATE,
+  AUDIO_MAX_BYTES, AUDIO_MAX_SEC, AUDIO_ACCEPT, MEASURE_RATE, PROBE_BYTES, LENGTH_SLACK,
 } from '../../../renderer/chat/graph/parts/audio.mjs';
+import { soundLength } from '../../../renderer/chat/graph/sound-length.mjs';
 import { specMap } from '../../../renderer/chat/graph/parts/index.mjs';
 import { reasonFor, WHY, AUDIO_SEND } from '../../../renderer/chat/graph/takes.mjs';
 
@@ -152,7 +153,219 @@ const run = (p, app) => audioPart.run(/** @type {any} */ ({
   part: p, inputs: {}, labels: {}, app: app || null, ask: null, signal: null, thread: null, cache: true,
 }));
 
+// ---- K6 fix round: real headers for every format the Sound box reads a length from ------------
+
+/** @param {Uint8Array} b @param {number} at @param {string} s */
+const tagAt = (b, at, s) => { for (let i = 0; i < s.length; i++) b[at + i] = s.charCodeAt(i); };
+/** @param {...Uint8Array} parts */
+const concat = (...parts) => {
+  const out = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
+  let at = 0;
+  for (const p of parts) { out.set(p, at); at += p.length; }
+  return out;
+};
+/** A real PCM WAV: mono, 8-bit, `rate` bytes a second. */
+function realWav(sec, rate) {
+  const n = sec * rate;
+  const b = new Uint8Array(44 + n);
+  const dv = new DataView(b.buffer);
+  tagAt(b, 0, 'RIFF'); dv.setUint32(4, 36 + n, true); tagAt(b, 8, 'WAVE'); tagAt(b, 12, 'fmt ');
+  dv.setUint32(16, 16, true); dv.setUint16(20, 1, true); dv.setUint16(22, 1, true);
+  dv.setUint32(24, rate, true); dv.setUint32(28, rate, true); dv.setUint16(32, 1, true); dv.setUint16(34, 8, true);
+  tagAt(b, 36, 'data'); dv.setUint32(40, n, true);
+  b.fill(128, 44);
+  return b;
+}
+/** Three MPEG-1 Layer III frames (128 kbps, 44.1 kHz, stereo, 417 bytes each); the first may carry
+ * a Xing or a VBRI header with a frame count. */
+function mp3Frames(o = {}) {
+  const len = 417;
+  const b = new Uint8Array(len * 3 + 8);
+  const dv = new DataView(b.buffer);
+  for (let f = 0; f < 3; f++) b.set([0xff, 0xfb, 0x90, 0x00], f * len);
+  if (o.xing) { tagAt(b, 36, 'Xing'); dv.setUint32(40, 1); dv.setUint32(44, o.xing); }
+  if (o.vbri) { tagAt(b, 36, 'VBRI'); dv.setUint32(50, o.vbri); }
+  return b;
+}
+const mp3Xing = (/** @type {number} */ frames) => mp3Frames({ xing: frames });
+/** A plain CBR MP3 of `bytes` bytes: MPEG-2 Layer III, 8 kbps, 22.05 kHz, mono (26-byte frames),
+ * so its length is bytes / 1000 seconds. */
+function mp3Low(bytes) {
+  const b = new Uint8Array(bytes);
+  for (let at = 0; at + 4 <= bytes; at += 26) b.set([0xff, 0xf3, 0x10, 0xc0], at);
+  return b;
+}
+function oggPage(granule, packet) {
+  const b = new Uint8Array(28 + packet.length);
+  const dv = new DataView(b.buffer);
+  tagAt(b, 0, 'OggS');
+  dv.setUint32(6, granule % 4294967296, true);
+  dv.setUint32(10, Math.floor(granule / 4294967296), true);
+  b[26] = 1; b[27] = packet.length;
+  b.set(packet, 28);
+  return b;
+}
+function oggVorbis(rate, lastGranule) {
+  const id = new Uint8Array(30);
+  id[0] = 1; tagAt(id, 1, 'vorbis'); new DataView(id.buffer).setUint32(12, rate, true);
+  return concat(oggPage(0, id), new Uint8Array(500), oggPage(lastGranule, new Uint8Array(10)));
+}
+function oggOpus(preSkip, lastGranule) {
+  const id = new Uint8Array(19);
+  tagAt(id, 0, 'OpusHead'); id[8] = 1; id[9] = 2; new DataView(id.buffer).setUint16(10, preSkip, true);
+  return concat(oggPage(0, id), new Uint8Array(500), oggPage(lastGranule, new Uint8Array(10)));
+}
+function flacBytes(rate, total) {
+  const b = new Uint8Array(8 + 34 + 16);
+  tagAt(b, 0, 'fLaC'); b[4] = 0x80; b[7] = 34;
+  const si = 8;
+  b[si + 10] = (rate >> 12) & 0xff; b[si + 11] = (rate >> 4) & 0xff; b[si + 12] = ((rate & 0xf) << 4) | 0x02;
+  b[si + 13] = 0xf0 | (Math.floor(total / 4294967296) & 0x0f);
+  new DataView(b.buffer).setUint32(si + 14, total >>> 0);
+  return b;
+}
+function mp4Box(type, content) {
+  const b = new Uint8Array(8 + content.length);
+  new DataView(b.buffer).setUint32(0, b.length);
+  tagAt(b, 4, type);
+  b.set(content, 8);
+  return b;
+}
+function m4aBytes(version, scale, duration) {
+  const mv = new Uint8Array(version === 1 ? 112 : 100);
+  const dv = new DataView(mv.buffer);
+  mv[0] = version;
+  if (version === 1) { dv.setUint32(20, scale); dv.setUint32(24, Math.floor(duration / 4294967296)); dv.setUint32(28, duration >>> 0); }
+  else { dv.setUint32(12, scale); dv.setUint32(16, duration); }
+  const brand = new Uint8Array(8); tagAt(brand, 0, 'M4A ');
+  return concat(mp4Box('ftyp', brand), mp4Box('mdat', new Uint8Array(64)), mp4Box('moov', mp4Box('mvhd', mv)));
+}
+/** `frames` ADTS AAC frames of 20 bytes at 44.1 kHz, one raw block (1024 samples) each. */
+function adtsBytes(frames) {
+  const len = 20;
+  const b = new Uint8Array(len * frames);
+  for (let f = 0; f < frames; f++) {
+    const at = f * len;
+    b[at] = 0xff; b[at + 1] = 0xf1; b[at + 2] = (1 << 6) | (4 << 2);
+    b[at + 3] = 0x80 | ((len >> 11) & 3); b[at + 4] = (len >> 3) & 0xff; b[at + 5] = ((len & 7) << 5) | 0x1f; b[at + 6] = 0xfc;
+  }
+  return b;
+}
+/** A WebM's EBML signature and nothing a length could be read from. */
+function webmish(n) {
+  const b = new Uint8Array(n);
+  b.set([0x1a, 0x45, 0xdf, 0xa3]);
+  return b;
+}
+
 export default (test) => {
+
+  // ---- K6 fix round: the length is read BEFORE the whole file is decoded -----------------------
+
+  test('soundLength: WAV, MP3 (Xing, VBRI, CBR), OGG Vorbis and Opus, FLAC, M4A (v0, v1) and ADTS state their length; WebM and noise say nothing', () => {
+    assert.deepEqual(soundLength(realWav(90, 100)), { sec: 90, exact: true, format: 'wav' });
+    const xing = soundLength(mp3Xing(137813));
+    assert.equal(xing.format, 'mp3');
+    assert.equal(xing.exact, true);
+    assert.equal(Math.round(xing.sec), 3600, 'an hour, from the frame count — nothing decoded');
+    const vbri = soundLength(mp3Frames({ vbri: 2000 }));
+    assert.deepEqual([Math.round(vbri.sec * 100) / 100, vbri.exact], [Math.round((2000 * 1152 / 44100) * 100) / 100, true]);
+    const cbr = soundLength(mp3Low(40000));
+    assert.equal(cbr.exact, false, 'a plain CBR MP3 is an estimate from its bitrate');
+    assert.equal(Math.round(cbr.sec), 40, '8 kbps: 40 000 bytes = 40 s');
+    assert.equal(Math.round(soundLength(oggVorbis(44100, 44100 * 120)).sec), 120);
+    const opus = soundLength(oggOpus(312, 48000 * 60 + 312));
+    assert.deepEqual([opus.sec, opus.exact, opus.format], [60, true, 'ogg'], 'Opus: 48 kHz, minus the pre-skip');
+    assert.deepEqual(soundLength(flacBytes(44100, 44100 * 30)), { sec: 30, exact: true, format: 'flac' });
+    assert.deepEqual(soundLength(m4aBytes(0, 1000, 90000)), { sec: 90, exact: true, format: 'm4a' });
+    assert.deepEqual(soundLength(m4aBytes(1, 600, 600 * 75)), { sec: 75, exact: true, format: 'm4a' });
+    const aac = soundLength(adtsBytes(10));
+    assert.deepEqual([Math.round(aac.sec * 1000), aac.exact, aac.format], [Math.round(10 * 1024 / 44100 * 1000), true, 'aac']);
+    assert.equal(soundLength(webmish(4096)), null, 'WebM: the caller probes a prefix instead');
+    assert.equal(soundLength(new Uint8Array(4096).fill(0xff)), null, '0xFF noise is not three MP3 frames in a row');
+    assert.equal(soundLength(new Uint8Array(0)), null);
+  });
+
+  test('takeSound: a sound whose headers say it is too long is refused WITHOUT being decoded, and nothing is kept', async () => {
+    await withAudio(async () => {
+      const media = fakeMedia();
+      const before = soundDebug().decodes;
+      let out = await takeSound({ media }, new File([realWav(3600, 100)], 'hour.wav', { type: 'audio/wav' }));
+      assert.equal(out.error, t('parts.audioTooLong', { name: 'hour.wav', duration: '60:00', cap: '10:00' }));
+      out = await takeSound({ media }, new File([mp3Xing(137813)], 'podcast.mp3', { type: 'audio/mpeg' }));
+      assert.equal(out.error, t('parts.audioTooLong', { name: 'podcast.mp3', duration: '60:00', cap: '10:00' }));
+      // An ESTIMATE refuses only well past the cap, and says "about".
+      out = await takeSound({ media }, new File([mp3Low(1000000)], 'lecture.mp3', { type: 'audio/mpeg' }));
+      assert.equal(out.error, t('parts.audioTooLongAbout', { name: 'lecture.mp3', duration: '16:40', cap: '10:00' }));
+      assert.equal(soundDebug().decodes, before, 'not one whole-file decode');
+      assert.equal(media.puts.length, 0, 'nothing kept');
+    });
+  });
+
+  test('takeSound: headers that say nothing are judged by decoding a PROBE_BYTES prefix; a file that cannot even be probed is refused', async () => {
+    const media = fakeMedia();
+    /** @type {number[]} */ const asked = [];
+    const measure = async (/** @type {ArrayBuffer} */ buf) => {
+      asked.push(buf.byteLength);
+      if (buf.byteLength === PROBE_BYTES) return 200;       // the first 256 KB hold 200 s
+      return 700;
+    };
+    const big = new File([webmish(4 * PROBE_BYTES)], 'meeting.webm', { type: 'audio/webm' });
+    const before = soundDebug().decodes;
+    let out = await takeSound({ media }, big, { measure });
+    assert.equal(out.error, t('parts.audioTooLongAbout', { name: 'meeting.webm', duration: '13:20', cap: '10:00' }));
+    assert.deepEqual(asked, [PROBE_BYTES], 'only the prefix was decoded');
+    assert.equal(soundDebug().decodes, before);
+    out = await takeSound({ media }, big, { measure: async () => { throw new Error('EncodingError'); } });
+    assert.equal(out.error, t('parts.audioLengthUnknown', { name: 'meeting.webm' }));
+    // A prefix that scales to under the cap goes on to the one exact decode, and is kept.
+    asked.length = 0;
+    out = await takeSound({ media }, new File([webmish(2 * PROBE_BYTES)], 'short.webm', { type: 'audio/webm' }), {
+      measure: async (/** @type {ArrayBuffer} */ buf) => { asked.push(buf.byteLength); return buf.byteLength === PROBE_BYTES ? 100 : 199.9; },
+    });
+    assert.equal(out.durationSec, 199.9);
+    assert.deepEqual(asked, [PROBE_BYTES, 2 * PROBE_BYTES]);
+    assert.equal(soundDebug().decodes, before + 1);
+    assert.equal(media.puts.length, 1);
+    assert.ok(LENGTH_SLACK > 1 && LENGTH_SLACK < 2);
+  });
+
+  test('the decoded copy kept for replay is let go when its box removes the file or goes away', async () => {
+    await withDom(async (doc) => withAudio(async () => {
+      const media = fakeMedia();
+      const ref = await takeSound({ media }, sound('keep.wav', 3));
+      const app = { media };
+      const b = box(doc, part(audioPart.adopt(ref), 'fg1'), app);
+      b.q('.graph-audio-play').dispatchEvent({ type: 'click' });
+      await settle();
+      assert.equal(soundDebug().cached, ref.fileId, 'played: one decoded copy kept');
+      b.q('.graph-audio-remove').dispatchEvent({ type: 'click' });
+      assert.equal(soundDebug().cached, null, 'Remove lets it go');
+      b.inst.destroy();
+      const c = box(doc, part(audioPart.adopt(ref), 'fg2'), app);
+      c.q('.graph-audio-play').dispatchEvent({ type: 'click' });
+      await settle();
+      assert.equal(soundDebug().cached, ref.fileId);
+      c.inst.destroy();
+      assert.equal(soundDebug().cached, null, 'a box that goes away lets it go');
+    }));
+  });
+
+  test('several files dropped on the Sound box: it takes the sound and SAYS so, naming how many it did not', async () => {
+    await withDom(async (doc) => withAudio(async () => {
+      const media = fakeMedia();
+      /** @type {string[]} */ const said = [];
+      const app = { media, dialogs: { toast: (/** @type {string} */ m) => { said.push(m); } } };
+      const b = box(doc, part({}, 'md1'), app);
+      b.host.dispatchEvent(dropOf([new File(['x'], 'notes.txt', { type: 'text/plain' }), sound('voice.wav', 4)]));
+      await settle();
+      assert.equal(b.patches.length, 1);
+      assert.equal(b.patches[0].name, 'voice.wav', 'the sound, not the first file');
+      assert.deepEqual(said, [t('parts.dropOnlyOne', { name: 'voice.wav', n: 1 })]);
+      b.inst.destroy();
+    }));
+  });
+
 
   test('KF-6: the spec — a Bring-in box that holds a sound, takes no wire, and passes on text', () => {
     assert.equal(audioPart.type, 'audio');

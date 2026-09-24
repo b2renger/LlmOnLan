@@ -61,6 +61,10 @@ export function createUndo(o = {}) {
      * @returns {{past: string[], future: string[]}} */
     labels: () => ({ past: past.map((e) => e.label), future: future.map((e) => e.label) }),
 
+    /** Every document the stack holds, past and future (K6 fix round): the file store must not
+     * sweep a file an Undo or a Redo would bring back. @returns {GraphDoc[]} */
+    docs: () => [...past.map((e) => e.doc), ...future.map((e) => e.doc)],
+
     clear() { past = []; future = []; },
   };
 }

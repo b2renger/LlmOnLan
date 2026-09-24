@@ -50,6 +50,9 @@ export function plannedWaitMs(part, maxIterations) {
 /** @type {PartSpec} */
 export const timer = /** @type {any} */ ({
   type: 'timer',
+  // K6 fix round: what arrives goes on unchanged, so graph/takes.mjs looks THROUGH this box for the
+  // model a picture or a sound is headed to.
+  passes: true,
   order: 650,
   label: t('parts.timerLabel'),
   thinks: false,

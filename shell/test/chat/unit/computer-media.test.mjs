@@ -10,7 +10,7 @@ import { openRepoSync } from '../../../renderer/chat/state/repo.mjs';
 import { createMemoryBackend } from '../../../renderer/chat/state/backend-memory.mjs';
 import { t } from '../../../renderer/chat/core/i18n.mjs';
 import {
-  install, MEDIA_OWNER, sha256Hex, isPdfBytes, fileIdsOf, PDF_MAGIC_WINDOW,
+  install, MEDIA_OWNER, sha256Hex, isPdfBytes, fileIdsOf, PDF_MAGIC_WINDOW, FRESH_MS,
 } from '../../../renderer/chat/computer/media.mjs';
 
 /** A fresh app with a real repo and the file store installed. @param {any} [openDoc] */
@@ -147,6 +147,66 @@ export default (/** @type {any} */ test) => {
     await assert.rejects(() => app.media.sweep(), /unreadable/);
     app.repo.runTx = realRunTx;
     assert.ok(await app.media.get(ref.fileId), 'the file survived');
+  });
+
+  test('K6 fix round: sweep keeps what an Undo or a Redo would bring back', async () => {
+    const { app } = setup({ id: 'g', parts: [], wires: [] });
+    const undone = await app.media.put(pdf('removed-box.pdf', 10, 'u1'), { kind: 'pdf' });
+    const redone = await app.media.put(pdf('undone-drop.pdf', 10, 'u2'), { kind: 'pdf' });
+    const gone = await app.media.put(pdf('nowhere.pdf', 10, 'u3'), { kind: 'pdf' });
+    let history = [
+      { id: 'g', parts: [{ id: 'p', type: 'document', settings: { fileId: undone.fileId } }], wires: [] },
+      { id: 'g', parts: [{ id: 'q', type: 'document', settings: { fileId: redone.fileId } }], wires: [] },
+    ];
+    app.host.session.history = () => history;
+    assert.equal(await app.media.sweep(), 1, 'only the file nothing, not even the history, refers to');
+    assert.ok(await app.media.get(undone.fileId), 'Undo can still bring its box back');
+    assert.ok(await app.media.get(redone.fileId), 'and Redo too');
+    assert.equal(await app.media.get(gone.fileId), null);
+    history = [];
+    assert.equal(await app.media.sweep(), 2, 'once the history is cleared (a graph opened), they go');
+  });
+
+  test('K6 fix round: `only` limits a sweep to some files; `spareFresh` keeps a file kept a moment ago', async () => {
+    const { app } = setup({ id: 'g', parts: [], wires: [] });
+    const a = await app.media.put(pdf('a.pdf', 10, 'o1'), { kind: 'pdf' });
+    const b = await app.media.put(pdf('b.pdf', 10, 'o2'), { kind: 'pdf' });
+    assert.equal(await app.media.sweep({ spareFresh: true }), 0, 'both were kept just now: a box may be about to take them');
+    assert.equal(await app.media.sweep({ only: [a.fileId] }), 1);
+    assert.equal(await app.media.get(a.fileId), null);
+    assert.ok(await app.media.get(b.fileId), '`only` never touches another file');
+    let shift = 0;
+    app.now = () => Date.now() + shift;
+    shift = FRESH_MS + 1;
+    assert.equal(await app.media.sweep({ spareFresh: true }), 1, 'a minute on, a file nothing took is swept');
+  });
+
+  test('K6 fix round: opening a graph (every boot, every switch) sweeps; a put refuses what its check objects to', async () => {
+    const app = /** @type {any} */ (createApp({ root: null, els: /** @type {any} */ ({ live: { textContent: '' } }) }));
+    app.repo = openRepoSync({ openPersistent: () => createMemoryBackend({ kind: 'idb' }), bus: app.bus, now: app.now, newId: app.newId });
+    /** @type {Set<Function>} */ const subs = new Set();
+    let doc = { id: 'g1', parts: [], wires: [] };
+    app.host = { session: { doc: () => doc, history: () => [], on: (/** @type {Function} */ fn) => { subs.add(fn); return () => subs.delete(fn); } } };
+    let shift = 0;
+    app.now = () => Date.now() + shift;
+    install(app);
+    const orphan = await app.media.put(pdf('replaced.pdf', 10, 'b1'), { kind: 'pdf' });
+    const held = await app.media.put(pdf('held.pdf', 10, 'b2'), { kind: 'pdf' });
+    doc = { id: 'g1', parts: [{ id: 'p', type: 'document', settings: { fileId: held.fileId } }], wires: [] };
+    shift = FRESH_MS + 1;
+    for (const fn of subs) fn({ type: 'doc', doc, loaded: true });
+    await new Promise((r) => setTimeout(r, 30));
+    assert.equal(await app.media.get(orphan.fileId), null, 'the Replace-d file is gone once a graph opens');
+    assert.ok(await app.media.get(held.fileId));
+    // An edit (not an open) sweeps nothing.
+    const later = await app.media.put(pdf('later.pdf', 10, 'b3'), { kind: 'pdf' });
+    shift += FRESH_MS + 1;
+    for (const fn of subs) fn({ type: 'doc', doc });
+    await new Promise((r) => setTimeout(r, 30));
+    assert.ok(await app.media.get(later.fileId), 'only an OPEN sweeps');
+    const no = await app.media.put(pdf('checked.pdf', 10, 'b4'), { kind: 'pdf', check: () => 'This one has too many pages.' });
+    assert.deepEqual(no, { error: 'This one has too many pages.' });
+    assert.equal((await app.repo.listAttachments(MEDIA_OWNER)).length, 2, 'the refused file was not kept');
   });
 
   test('fileIdsOf reads settings.fileId of every part and ignores the rest', () => {

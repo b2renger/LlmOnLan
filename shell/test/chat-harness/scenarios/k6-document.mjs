@@ -31,9 +31,10 @@ async function until(/** @type {any} */ h, /** @type {() => Promise<any>} */ fn,
 const str = (/** @type {any} */ h, /** @type {string} */ key, /** @type {any} */ vars) =>
     h.eval((k, v) => window.LolComputer.app.t(k, v || undefined), key, vars || null);
 
-/** The Computer, shown, with a document open, the mock's log clear and OCR as asked. */
-async function open(/** @type {any} */ h, /** @type {boolean} */ ocr) {
-    await h.fresh();
+/** The Computer, shown, with a document open, the mock's log clear and OCR as asked. `flags`:
+ * test flags for this page load (K6 fix round: a short `extractCooldownMs`). */
+async function open(/** @type {any} */ h, /** @type {boolean} */ ocr, /** @type {any} */ flags) {
+    await h.fresh(flags ? { flags } : {});
     await h.view('computer');
     await h.waitFor(() => (window.LolComputer.debug.computer.docId() ? true : null), { timeout: 20000 });
     await h.eval(() => {
@@ -146,6 +147,8 @@ export default [
             h.assert(/3 pages read/.test(seen.meta), `the head says how many pages: ${seen.meta}`);
             const body = JSON.stringify(await h.mock.lastBody());
             h.assert(/Page 3 of pages-3\.pdf/.test(body), 'the text reached the Instruction\'s request as TEXT');
+            // K6 fix round: the farm heads each page "[Page N]"; the box's own mark replaces it.
+            h.assert(!/\[Page \d/.test(String(doc.value.data)) && !/\[Page \d/.test(body), 'each page is marked once, not twice');
             h.assert(!/input_audio|"type":"file"/.test(body), 'and nothing but text and pictures went with it');
             const warned = ((await h.mock.warnings()) || []).filter((/** @type {any} */ w) => /K6:/.test(String(w && (w.message || w))));
             h.eq(warned.length, 0, 'the mock saw no stray content part');
@@ -212,7 +215,8 @@ export default [
         timeoutMs: 90000,
         allowConsoleErrors: FARM_ERRORS,
         async run(/** @type {any} */ h) {
-            await open(h, true);
+            // K6 fix round: after a Stop the same PDF waits before it may be sent again; 3 s here.
+            await open(h, true, { extractCooldownMs: 3000 });
 
             // 120 pages: 60 flow on, and both the box and the value say so.
             const longId = await h.computer.add('document');
@@ -245,7 +249,18 @@ export default [
             h.assert(stopped.state !== 'done' && stopped.state !== 'error', `Stop is not a failure (state ${stopped.state})`);
             h.eq((await shows(h, slowId)).note === reading, false, 'nobody says "reading" after Stop');
             h.eq((await h.mock.log({ path: OCR })).filter((/** @type {any} */ e) => e.headers['x-filename'] === 'pages-4.pdf').length, 1);
+            // The farm may still be reading it (it has no cancel): the box says so, and a run now
+            // refuses in a sentence and sends NOTHING — no second full read on the farm's GPU.
+            h.eq((await shows(h, slowId)).note, await str(h, 'parts.docCoolingNote', { min: 1 }), 'the box says the PDF is waiting');
             await h.mock.state({ ocrDelayMs: 0 });
+            await h.computer.runFrom(slowId);
+            await settled(h);
+            const waiting = await stateOf(h, slowId);
+            h.eq(waiting.state, 'error', 'a run during the wait is refused');
+            h.assert(/may still be reading pages-4\.pdf/.test(String(waiting.error)), `and says why: ${waiting.error}`);
+            h.eq((await h.mock.log({ path: OCR })).filter((/** @type {any} */ e) => e.headers['x-filename'] === 'pages-4.pdf').length, 1,
+                'the refused run sent nothing');
+            await new Promise((r) => setTimeout(r, 3300));
             await h.computer.runFrom(slowId);
             await settled(h);
             h.eq((await stateOf(h, slowId)).state, 'done');
@@ -332,6 +347,35 @@ export default [
             await settled(h);
             h.eq((await stateOf(h, box.id)).state, 'done');
             h.eq((await h.mock.log({ path: OCR })).length, 1, 'read once, on the run');
+        },
+    },
+    {
+        // K6 fix round: Run-all leaves out a Document box nothing is wired from — pressing it for
+        // another branch must not send a PDF to the farm's reader for nobody.
+        name: 'k6-document-run-all-does-not-read-a-pdf-nothing-uses',
+        needsMock: true,
+        timeoutMs: 60000,
+        allowConsoleErrors: FARM_ERRORS,
+        async run(/** @type {any} */ h) {
+            await open(h, true);
+            const docId = await h.computer.add('document');
+            await dropOn(h, docId, 'pages-2.pdf', pdfB64('lonely'));
+            await held(h, docId);
+            const textId = await h.computer.add('note');
+            await h.computer.set(textId, { text: 'Say hello.' });
+            const askId = await h.computer.add('ask');
+            await h.computer.set(askId, { instruction: 'answer', model: 'mock-echo' });
+            h.assert(await h.computer.wire(textId, askId, 'in'), 'a Text box wired into an Instruction');
+            await h.computer.run();
+            await settled(h);
+            h.eq((await stateOf(h, askId)).state, 'done', 'the wired branch ran');
+            h.eq((await h.mock.log({ path: OCR })).length, 0, 'the PDF nothing uses was NOT sent');
+            h.assert((await stateOf(h, docId)).state !== 'done', 'the lone Document box was left alone');
+            // Its own ▶ still reads it.
+            await h.computer.runFrom(docId);
+            await settled(h);
+            h.eq((await stateOf(h, docId)).state, 'done');
+            h.eq((await h.mock.log({ path: OCR })).length, 1, '▶ on the box reads it');
         },
     },
 ];

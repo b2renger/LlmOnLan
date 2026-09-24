@@ -336,6 +336,13 @@
  *   `adopt`      the settings a box is PLACED with for one dropped file: text → {text, name},
  *                image → the intake's {dataUrl, name, w, h}, pdf/audio → a MediaRef. Read ONLY by
  *                computer/drops.mjs. Every key it returns is a key of `defaults()`.
+ * The K6 fix round adds two more, each read in ONE place:
+ *   `passes`       what arrives goes on unchanged (Button, Condition, Confirm, Toggle, Timer,
+ *                  Repeat). Read ONLY by graph/takes.mjs `consumersOf()`, which looks THROUGH such
+ *                  a box for the model a picture or a sound is headed to.
+ *   `onlyWhenUsed` a RUN-ALL leaves this part out while no wire is drawn from it; ▶ on its own face
+ *                  still runs it. Read ONLY by graph/topo.mjs `activeSet()`. The Document box
+ *                  declares it: reading a PDF nobody uses would send the file to the farm for nothing.
  * @typedef {{ type: string, label: string, order?: number, thinks?: boolean,
  *   titleOf?: (part: GraphPart) => string|null,
  *   modelOf?: (part: GraphPart) => string,
@@ -343,6 +350,7 @@
  *   adopt?: (payload: object) => object,
  *   size?: {w: number, h: number},
  *   manual?: boolean, volatile?: boolean, control?: boolean, inert?: boolean, quiet?: boolean,
+ *   passes?: boolean, onlyWhenUsed?: boolean,
  *   thinksFor?: (part: GraphPart) => boolean,
  *   inputs: {name: string, label: string, accepts: string[], many?: boolean, required?: boolean}[],
  *   output: 'text'|'image'|'list'|'json'|'file'|'any'|null,

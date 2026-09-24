@@ -59,6 +59,9 @@ export function passes(source, settings) {
 /** @type {PartSpec} */
 export const repeat = /** @type {any} */ ({
   type: 'repeat',
+  // K6 fix round: what arrives goes on unchanged (as copies), so graph/takes.mjs looks THROUGH this
+  // box for the model a picture or a sound is headed to.
+  passes: true,
   order: 260,
   label: t('parts.repeatLabel'),
   thinks: false,

@@ -46,6 +46,7 @@
 | D-F10 | Farm STT endpoint (dictation) | farm | M–L | No | Later |
 | D-F11 | Update the live farm build to repo HEAD | ops | S | No | **Do** (quiet moment) |
 | D-F12 | Farm transcription (whisper) so the Computer's Sound box can be heard; honest audio/PDF capability flags | farm | M | No (the Sound box ships without it) | **Decide** |
+| D-F13 | The OCR extractor: a page cap and cancel-on-disconnect, so one PDF cannot hold the farm GPU for a quarter of an hour | farm | S | No (the client guards it today) | **Do** |
 | D-P1 | `npm` scripts + CI job for chat unit tests and the harness | package.json / .github | S | No | **Do** |
 | D-P2 | Vendoring budget (pdf.js, Temml, grammars, onnxruntime, whisper) | packaging | decision | No | Decide per feature |
 | D-P3 | Installer smoke test that LOL Chat loads (static imports verified in asar; dynamic `import()` re-probed at P0 kickoff) | CI | S | No | **Do** |
@@ -375,6 +376,31 @@
   more venv in `lol install`; the same seat-gate blind spot as OCR (D-F3) unless routed through it.
 - **Effort:** M. **Touches:** `farm/src/` (new `stt.js`, `pysvc`-style service, `snapshot.js`,
   plugins registry), then a client unit to wire the Sound box to it. **Blocking:** no.
+
+### D-F13: The OCR extractor reads every page and never stops (raised at the K6 fix round, 2026-09-24)
+- **Why:** the Computer's Document box sends a PDF to the farm's extractor (`PUT {extract.url}/process`,
+  the sanctioned OCR flow). The extractor
+  - reads EVERY page it is sent: `farm/src/pysvc/server.py` `_extract_pdf` loops over
+    `doc.page_count` and runs vision OCR on each scanned page — a 300-page scan at a few seconds a page
+    is ~15 minutes of GPU, outside the seat gate (D-F3);
+  - never stops early: `process()` runs `_extract` through `run_in_threadpool`, which does not cancel
+    when the client disconnects, so a client that gives up (a 5-minute timeout, Stop) leaves the job
+    running, and a retry starts a second full one beside it.
+- **What the client does meanwhile (K6 fix round, no farm change):** it counts the pages from the PDF's
+  own bytes where the file states them (the root `/Pages` `/Count`, or the linearization `/N`) and
+  refuses one over its 60-page cap before anything is sent; and after a timeout or a Stop mid-read the
+  same bytes wait 5 minutes (per content hash) before they may be sent again. Neither can help with a PDF
+  whose page tree is compressed (most modern PDFs), and neither helps OWUI's own uploads.
+- **Proposal:**
+  - a `max_pages` query parameter (or `X-Max-Pages` header) on `/process`: read at most that many pages,
+    and say in each page's metadata that the document had more (`total_pages`), so the client can keep
+    its "first 60 of 300 pages" honesty without the farm reading the other 240;
+  - cancel on disconnect: run the page loop in a worker that checks a cancel flag between pages, set when
+    the request's `is_disconnected()` turns true (Starlette), so a client that gives up frees the GPU at
+    the next page;
+  - optionally one extraction at a time per client IP, which the client already does per window.
+- **Effort:** S. **Touches:** `farm/src/pysvc/server.py` only; the client would then send `X-Max-Pages: 60`
+  from `net/extract.mjs`. **Blocking:** no.
 
 ---
 

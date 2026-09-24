@@ -157,6 +157,9 @@ export function createSession(app, host) {
       return true;
     },
     undoDepth: () => undoStack.depth(),
+    /** The documents Undo and Redo could bring back (K6 fix round): computer/media.mjs keeps every
+     * file they refer to. */
+    history: () => undoStack.docs(),
     save: () => store.flush(),
     /**
      * Open a value full size. On the chat surface this used to be the conversation column; the

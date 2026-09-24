@@ -23,6 +23,9 @@ export function passthrough(inputs) {
 /** @type {PartSpec} */
 export const toggle = /** @type {any} */ ({
   type: 'toggle',
+  // K6 fix round: what arrives goes on unchanged, so graph/takes.mjs looks THROUGH this box for the
+  // model a picture or a sound is headed to.
+  passes: true,
   order: 610,
   label: t('parts.togLabel'),
   thinks: false,

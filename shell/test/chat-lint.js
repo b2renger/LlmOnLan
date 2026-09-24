@@ -63,6 +63,8 @@ const PURE_MODULES = [
     // K6 (addendum KF-3/KF-7): the capability resolver and the drop classifier. Both decide what a
     // person is told about a file, so both are pinned in Node.
     'graph/takes.mjs', 'graph/drop-route.mjs',
+    // K6 fix round: a sound's length from its headers, read before anything is decoded.
+    'graph/sound-length.mjs',
     // C3 (the sandbox parts, files and sharing)
     'graph/tidy.mjs', 'sandbox/protocol.mjs',
     // S2

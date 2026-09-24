@@ -180,6 +180,30 @@ export default (test) => {
     assert.deepEqual(out.refused, []);
   });
 
+  test('K6 fix round: a file kept for a box that could not be placed is let go at once; a PDF drop carries the page check', async () => {
+    const f = fakeApp({ farm: { engine: 'ollama', ocr: { url: 'http://farm/ocr', key: 'k' } } });
+    /** @type {any[]} */ const sweeps = [];
+    /** @type {any[]} */ const opts = [];
+    f.app.media.sweep = async (/** @type {any} */ o) => { sweeps.push(o); return 1; };
+    const put = f.app.media.put;
+    f.app.media.put = async (/** @type {any} */ file, /** @type {any} */ opt) => { opts.push(opt); return put(file, opt); };
+    f.app.host.canvas.placeEntry = () => null;
+    const out = await withAudio(() => f.app.drops.route([pdf('a.pdf'), sound('b.wav', 3), PNG], { at: { x: 0, y: 0 }, importGraph: f.importGraph }));
+    assert.equal(out.placed.length, 0);
+    assert.equal(out.refused.length, 3, 'each unplaced box is said');
+    assert.deepEqual(sweeps, [{ only: ['f1', 'f2'] }], 'the PDF and the sound kept for boxes that never appeared — the picture kept nothing');
+    assert.equal(typeof opts[0].check, 'function', 'the PDF went in with the Document box’s page check');
+    const big = await new File(['%PDF-1.4\n2 0 obj\n<< /Type /Pages /Count 300 >>\nendobj\n'], 'big.pdf').arrayBuffer();
+    assert.equal(opts[0].check(big), t('parts.docTooManyPages', { name: 'a.pdf', pages: 300, max: 60 }));
+    // Placed normally: nothing is swept.
+    const g = fakeApp({ farm: { engine: 'ollama', ocr: { url: 'http://farm/ocr', key: 'k' } } });
+    let swept = 0;
+    g.app.media.sweep = async () => { swept++; return 0; };
+    await g.app.drops.route([pdf('ok.pdf')], { at: { x: 0, y: 0 }, importGraph: g.importGraph });
+    assert.equal(g.doc.parts.length, 1);
+    assert.equal(swept, 0);
+  });
+
   test('graph files still open — by name, or a .json whose text says "lolgraph" — and a plain .json becomes a Text box', async () => {
     const { app, doc, log, importGraph } = fakeApp();
     await app.drops.route([text('flow.lolgraph.json', '{"lolgraph":4}', 'application/json')], { at: { x: 0, y: 0 }, importGraph });

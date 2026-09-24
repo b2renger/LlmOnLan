@@ -54,6 +54,9 @@ export const WHY = Object.freeze({
   ocr: 'ocr',                           // pdf yes: the farm reads it when a run needs it
   noOcr: 'no-ocr',                      // pdf no: the farm advertises no extractor
   unwired: 'unwired',                   // image/audio: nothing downstream sends it to a model
+  // K6 fix round: wired, but only to parts that are not models (a Preview, a Code box) — "nothing
+  // uses this" would be false there. Same `unwired` state; a sentence that is true.
+  noModel: 'no-model',
   vision: 'vision',                     // image yes
   noVision: 'no-vision',                // image no: the farm does not list the model as seeing
   visionUnknown: 'vision-unknown',      // image unknown: the farm does not say
@@ -113,26 +116,38 @@ export function modelCaps(view, model) {
 }
 
 /**
- * The parts directly downstream of `partId` that SEND what arrives to a model — declared by
- * `PartSpec.modelOf`, never by type name.
+ * The parts downstream of `partId` that SEND what arrives to a model — declared by
+ * `PartSpec.modelOf`, never by type name. K6 fix round: the walk goes THROUGH parts that pass
+ * their input on unchanged (`PartSpec.passes`: a Button, a Condition, a Confirm, a Toggle, a Timer,
+ * a Repeat), so Image → Repeat → Instruction is answered for the Instruction's model instead of
+ * "nothing uses this". It stops at a model and at anything that makes something new of its input.
  * @param {{parts: any[], wires: any[]}} doc @param {string} partId @param {Map<string, any>} specs
  * @returns {{partId: string, model: string}[]}
  */
 export function consumersOf(doc, partId, specs) {
   const parts = (doc && Array.isArray(doc.parts)) ? doc.parts : [];
   const wires = (doc && Array.isArray(doc.wires)) ? doc.wires : [];
+  const byId = new Map(parts.filter(Boolean).map((p) => [p.id, p]));
   /** @type {{partId: string, model: string}[]} */ const out = [];
-  const seen = new Set();
-  for (const w of wires) {
-    if (!w || w.from !== partId || seen.has(w.to)) continue;
-    const part = parts.find((p) => p && p.id === w.to);
-    const spec = part && specs && specs.get(part.type);
-    if (!spec || typeof spec.modelOf !== 'function') continue;
-    seen.add(w.to);
-    out.push({ partId: w.to, model: str(spec.modelOf(part)) });
+  const seen = new Set([partId]);
+  const queue = [partId];
+  while (queue.length) {
+    const from = queue.shift();
+    for (const w of wires) {
+      if (!w || w.from !== from || seen.has(w.to)) continue;
+      seen.add(w.to);
+      const part = byId.get(w.to);
+      const spec = part && specs && specs.get(part.type);
+      if (!spec) continue;
+      if (typeof spec.modelOf === 'function') { out.push({ partId: w.to, model: str(spec.modelOf(part)) }); continue; }
+      if (spec.passes === true) queue.push(w.to);
+    }
   }
   return out;
 }
+
+/** Is any wire drawn FROM this part? PURE. @param {{wires: any[]}} doc @param {string} partId */
+const wiredFrom = (doc, partId) => ((doc && Array.isArray(doc.wires)) ? doc.wires : []).some((w) => w && w.from === partId);
 
 /**
  * THE question (KF-3): can the box `partId`, holding a file of `kind`, pass it to something that
@@ -150,7 +165,7 @@ export function takesFor(doc, partId, kind, view, specs) {
     return verdict(kind, 'yes', WHY.ocr, null, []);
   }
   const found = consumersOf(doc, partId, specs);
-  if (!found.length) return verdict(kind, 'unwired', WHY.unwired, null, []);
+  if (!found.length) return verdict(kind, 'unwired', wiredFrom(doc, partId) ? WHY.noModel : WHY.unwired, null, []);
   if (!view || !view.present) {
     return verdict(kind, 'unknown', WHY.noFarm, null, found.map((c) => ({ ...c, state: /** @type {'unknown'} */ ('unknown') })));
   }
@@ -202,6 +217,7 @@ const WHY_KEY = {
   ocr: 'takes.whyOcr',
   'no-ocr': 'takes.whyNoOcr',
   unwired: 'takes.whyUnwired',
+  'no-model': 'takes.whyNoModel',
   vision: 'takes.whyVision',
   'no-vision': 'takes.whyNoVision',
   'vision-unknown': 'takes.whyVisionUnknown',

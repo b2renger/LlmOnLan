@@ -22,7 +22,7 @@ registerStrings('parts', {
   docPageMark: '**Page {page}**',
   docCutPages: 'First {shown} of {total} pages. The rest was not passed on; split the PDF to use it.',
   docCutChars: 'The first {chars} characters, up to page {page} of {total}. The rest was not passed on; split the PDF to use it.',
-  docMoreHere: 'This box shows the first {kb} KB. All of the text above the cut flows on.',
+  docMoreHere: 'This box shows the first {chars} characters. All of the text flows on, not only what is shown here.',
   docNoText: 'The farm read {name} but found no text in it. If it is a scan, ask whoever runs the farm whether its document reader has a vision model.',
   // A PDF dropped on a box while the farm reads no documents. The WHY (and who can change it) is
   // the "takes:" line right above it, so this names the file and what happened, without repeating it.
@@ -32,8 +32,17 @@ registerStrings('parts', {
   docErrUnauthorized: 'The farm’s document reader refused the key this computer has for it. Reconnect to the farm (the key comes with it) and run again.',
   docErrUnsupported: 'The farm’s document reader cannot read {name}. Check that it really is a PDF.',
   docErrFarm: 'The farm’s document reader failed on {name} (HTTP {status}). Run again; if it keeps failing, whoever runs the farm can check Document OCR in its admin panel.',
-  docErrAborted: 'Stopped while the farm was reading {name}. Nothing was kept; run again to read it.',
-  docErrTimeout: 'The farm took more than {min} minutes to read {name}, so LOL gave up. Try a shorter PDF, or run again when the farm is less busy.',
+  // After a Stop or a timeout the farm keeps reading (it has no cancel), so a new try of the same
+  // bytes waits `{cool}` minutes instead of starting a second full read on the farm's GPU.
+  docErrAborted: 'Stopped waiting for the farm to read {name}. The farm may still be finishing it, so a new try of this PDF waits {cool} min.',
+  docErrTimeout: 'The farm took more than {min} minutes to read {name}, so LOL stopped waiting. The farm may still be reading it, so a new try waits {cool} min; a shorter PDF reads faster.',
+  docCooling: 'The farm may still be reading {name} from the last try (it keeps going after LOL stops waiting), so nothing was sent. Run again in about {min} min.',
+  docCoolingNote: 'The farm may still be reading this PDF from the last try. A new run waits about {min} min, so it is not read twice at once.',
+  // Known from the PDF's own bytes, before anything is sent: the farm reads every page it gets.
+  docTooManyPages: '{name} has {pages} pages. A Document box passes on at most {max}, and the farm would read all {pages}, so it was not kept and nothing was sent. Split it into PDFs of {max} pages or fewer.',
+  docTooManyPagesRun: '{name} has {pages} pages. A Document box passes on at most {max}, and the farm would read all {pages}, so nothing was sent. Split it into PDFs of {max} pages or fewer.',
+  // Several files dropped on one box (the Sound box says the same).
+  dropOnlyOne: 'Only {name} went into this box ({n} more dropped with it did not). Drop those on an empty part of the canvas and each gets its own box.',
   docErrNetwork: 'The farm’s document reader could not be reached to read {name}. Check the connection to the farm and run again.',
   // The shared file store (computer/media.mjs) speaks through these, for the Sound box too.
   mediaTooBig: '{name} is {mb} MB, over the {capMb} MB a box may keep. Try a smaller file.',

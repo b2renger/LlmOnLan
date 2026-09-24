@@ -94,9 +94,11 @@ async function ocrProcess(req, res, store) {
     await new Promise((r) => setTimeout(r, wait));
     if (closed) return undefined;
     const out = [];
+    // Like the real farm (farm/src/pysvc/server.py _extract_pdf), a multi-page document heads
+    // every page's content with "[Page N]" on its own line.
     for (let i = 1; i <= pages; i++) {
         out.push({
-            page_content: `Page ${i} of ${name}. The mock farm read this page; its words stand in for the real text.`,
+            page_content: `${pages > 1 ? `[Page ${i}]\n` : ''}Page ${i} of ${name}. The mock farm read this page; its words stand in for the real text.`,
             metadata: { page: i, source: name, engine: 'text' },
         });
     }

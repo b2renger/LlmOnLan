@@ -28,7 +28,7 @@ import {
 } from '../graph/drop-route.mjs';
 import { holderOf, specMap } from '../graph/parts/index.mjs';
 import { takesFor, farmViewOf } from '../graph/takes.mjs';
-import { DOC_MAX_BYTES } from '../graph/parts/document.mjs';
+import { DOC_MAX_BYTES, pagesRefusal } from '../graph/parts/document.mjs';
 import { takeSound } from '../graph/parts/audio.mjs';
 import '../strings/drops.en.mjs';
 
@@ -122,7 +122,9 @@ export function install(app) {
       if (v.state === 'no') return { error: String(v.reason || '') };
       const media = app && app.media;
       if (!media || typeof media.put !== 'function') return { error: t('drops.cannotKeep', { name }) };
-      const ref = await media.put(file, { maxBytes: DOC_MAX_BYTES, kind: 'pdf' });
+      // The Document box's own intake check rides along: a PDF that says it has more pages than a
+      // box passes on is refused here too, before anything is kept (K6 fix round).
+      const ref = await media.put(file, { maxBytes: DOC_MAX_BYTES, kind: 'pdf', check: (/** @type {ArrayBuffer} */ buf) => pagesRefusal(buf, name) });
       if (!ref || ref.error) return { error: String((ref && ref.error) || t('drops.unreadable', { name })) };
       return { payload: ref };
     }
@@ -188,7 +190,7 @@ export function install(app) {
 
     // 3. Every other file: the box that holds its kind, with what that box adopts.
     const specs = specsOf();
-    /** @type {{type: string, settings: any, size: any, name: string}[]} */ const boxes = [];
+    /** @type {{type: string, settings: any, size: any, name: string, fileId: string}[]} */ const boxes = [];
     for (const it of items) {
       if (it.kind === 'graph') continue;
       if (it.kind === 'none') {
@@ -208,14 +210,17 @@ export function install(app) {
         out = { error: t('drops.unreadable', { name: it.name }) };
       }
       if (out.error) { refuse(it.name, out.error); continue; }
-      boxes.push({ type, settings: spec.adopt(out.payload), size: spec.size || { w: 220, h: 120 }, name: it.name });
+      const kept = out.payload && typeof out.payload.fileId === 'string' ? out.payload.fileId : '';
+      boxes.push({ type, settings: spec.adopt(out.payload), size: spec.size || { w: 220, h: 120 }, name: it.name, fileId: kept });
     }
 
     // 4. Place them side by side from the drop point: ONE undo entry per box (placeEntry applies
     //    once each), so undo takes back the last box and not the whole drop.
     const canvas = canvasOf();
+    /** Files kept for a box that never got placed: nothing will ever refer to them. */
+    /** @type {string[]} */ const orphans = [];
     if (boxes.length && (!canvas || typeof canvas.placeEntry !== 'function' || !hasDoc())) {
-      for (const b of boxes) refuse(b.name, t('drops.notPlaced', { name: b.name }));
+      for (const b of boxes) { refuse(b.name, t('drops.notPlaced', { name: b.name })); if (b.fileId) orphans.push(b.fileId); }
     } else if (boxes.length) {
       const sizes = boxes.map((b) => b.size);
       const bounds = visibleWorld(canvas);
@@ -227,7 +232,7 @@ export function install(app) {
       /** @type {({x: number, y: number}|null)[]} */ let slots = origin ? fitSlots(origin, sizes, bounds) : [];
       boxes.forEach((b, i) => {
         const id = canvas.placeEntry({ type: b.type, settings: b.settings }, slots[i] || null);
-        if (!id) { refuse(b.name, t('drops.notPlaced', { name: b.name })); return; }
+        if (!id) { refuse(b.name, t('drops.notPlaced', { name: b.name })); if (b.fileId) orphans.push(b.fileId); return; }
         placed.push(String(id));
         // No drop point (a caller that gave none): the first box was centred; the rest follow it.
         if (!origin) {
@@ -239,6 +244,12 @@ export function install(app) {
           }
         }
       });
+    }
+
+    // 4b. The bytes of a box that was not placed are deleted again at once (K6 fix round) — unless
+    //     something else refers to the same bytes (the store keeps one copy per content hash).
+    if (orphans.length && app && app.media && typeof app.media.sweep === 'function') {
+      try { await app.media.sweep({ only: orphans }); } catch (err) { console.warn('[lolcomputer] releasing an unplaced file failed', err); }
     }
 
     // 5. Every refusal is SAID — a toast and the live region — never a silent no-op.

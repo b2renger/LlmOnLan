@@ -1,4 +1,4 @@
-# The Computer — where the night got to (2026-09-24, K6 landed)
+# The Computer — where the night got to (2026-09-24, K6 landed, then its fix round)
 
 > Branch `lolchat/vnext`, all of it committed and pushed. Every phase of
 > [COMPUTER_PLAN.md](COMPUTER_PLAN.md) up to **K6** is done. K6 answers your request — *"upload pdfs
@@ -43,6 +43,18 @@ is still at `%APPDATA%\LlmOnLan-backup-20260921-*`.)*
    what the Instruction receives. Run it again, or drop the same file into another box: the farm is not
    asked twice. Past 60 pages it says *"First 60 of 120 pages. The rest was not passed on; split the
    PDF to use it."* on the box and in what it passes on.
+   **A PDF that says it has more than 60 pages** (most simple writers state it in the file) is refused
+   the moment you drop it, before anything is kept or sent: *"thesis.pdf has 300 pages. A Document box
+   passes on at most 60, and the farm would read all 300, so it was not kept and nothing was sent. Split
+   it into PDFs of 60 pages or fewer."* — the farm reads every page it is given, and would spend its GPU
+   on 240 pages nobody gets. (Fix round.)
+   **Stop, or a read that took over 5 minutes:** the farm keeps reading after LOL stops waiting, so the
+   same PDF waits 5 minutes before it may be sent again. The box says *"The farm may still be reading
+   this PDF from the last try. A new run waits about 5 min, so it is not read twice at once."*, and a
+   run in that window is refused in a sentence and sends nothing. (Fix round; the farm-side fix is
+   DISCUSS D-F13.)
+   **Run all** leaves out a Document box that is not wired to anything — pressing it for another branch
+   never sends a PDF nobody uses. Its own ▶ still reads it. (Fix round.)
 4. **When it cannot:** if the farm is connected but its Document OCR service is off or down, the box's
    line reads **takes: PDF ✗** with *"This farm does not offer document reading right now (its Document
    OCR service is off or down), so the PDF stays here and nothing is sent. Whoever runs the farm can
@@ -56,7 +68,10 @@ is still at `%APPDATA%\LlmOnLan-backup-20260921-*`.)*
 1. Drag a .wav / .mp3 / .ogg / .m4a / .flac onto the canvas (or **＋ → Bring in → Sound**, then drop it
    on the box or click its face to choose). A **Sound** box appears with the file's name, its length,
    and **▶ Play** / **■ Stop** — it plays right there, one sound at a time. Over 25 MB or 10 minutes, or
-   a file Chromium cannot decode, is refused with a sentence and not kept.
+   a file Chromium cannot decode, is refused with a sentence and not kept. The 10-minute check reads the
+   length from the file's own header first (WAV, MP3, OGG/Opus, FLAC, M4A, AAC), so a one-hour podcast
+   is refused — *"“podcast.mp3” lasts 60:00, longer than the 10:00 a Sound box keeps…"* — without
+   being decoded into a gigabyte of memory first; a WebM is judged from its first 256 KB. (Fix round.)
 2. Wire it into an Instruction. Its line reads **takes: sound ✗** with, on your farm today: *"This farm
    runs its models through Ollama, which has no way to pass sound on, so the sound is not sent. Its name
    and length go along as text."* (On an engine that could pass it on, the sentence names the model the
@@ -64,6 +79,19 @@ is still at `%APPDATA%\LlmOnLan-backup-20260921-*`.)*
    directly ?` while a picture or a sound is wired in.
 3. Press ▶: the Instruction gets *"Sound file "interview.wav" (0:02, 0.0 MB). The sound itself was not
    sent: …"* — honest text, never the sound, never a wasted request.
+
+**Several files dropped on one box** (not on the canvas): the box takes one — the first PDF, or the
+first sound — and a toast says *"Only thesis.pdf went into this box (1 more dropped with it did not).
+Drop those on an empty part of the canvas and each gets its own box."* (Fix round.)
+
+**The "takes:" line looks through** a Button, a Condition, a Confirm, a Toggle, a Timer or a Repeat to
+the Instruction behind it, so Image → Repeat → Instruction says what THAT model can see. A box wired
+only to boxes that are not models (a Preview, a Split) says *"What this is wired to does not pass it to
+a model…"* instead of "Nothing uses this yet". (Fix round.)
+
+**Files you replace or remove** are deleted from this computer the next time a graph is opened (every
+start of the Computer, every switch of graph) — but never one that Undo or Redo could still bring back.
+(Fix round.)
 
 **Anything else** dropped on the canvas (a program, a zip…) is refused with a toast naming the file
 and what the Computer does take. Text files (.txt/.md/.csv/.json) become Text boxes with their
@@ -114,10 +142,10 @@ contents; pictures become Image boxes, which now carry the same "takes:" line.
 
 ## The numbers, re-run by me and not taken from the builders
 
-`chat-unit` **1370 passed** · `unit` **5** · `chat-lint` **211 files / 0 violations** ·
-`chat-scope` clean · `chat-harness --strict` **295 passed** · perf **9 passed** (after the K6 landing).
+`chat-unit` **1386 passed** · `unit` **5** · `chat-lint` **212 files / 0 violations** ·
+`chat-scope` clean · `chat-harness --strict` **297 passed** · perf **9 passed** (after the K6 fix round).
 
-Fifteen of those scenarios are K6's own. Each reaches its feature **the way a person does**: it
+Seventeen of those scenarios are K6's own. Each reaches its feature **the way a person does**: it
 places the box by clicking ＋ and then Bring in → Document / Sound, and brings the file in with a real
 drop event on the box or on the canvas. Every refusal is read off the screen as a sentence. Every
 scenario checks that nothing reached the farm that should not have: no OCR request on a drop, exactly
@@ -126,7 +154,8 @@ one per file on a run, never a sound part. The mock farm is used for all of it, 
 Commits, newest first:
 
 ```
-HEAD     PDFs and sound files go into the Computer's boxes, and every box says what it can be used for (K6)
+HEAD     K6 fix round: a PDF cannot hold the farm GPU for nobody, a long sound is refused before it is decoded, removed files are swept
+edc0be1  PDFs and sound files go into the Computer's boxes, and every box says what it can be used for (K6)
 43a94ac  K5 fix round: steps that cannot tick by accident, sketches that survive a reload, creative boxes on screen when ＋ opens
 fdc311e  the Computer's boxes have names, its menu explains itself, and it teaches by building (K5)
 d76f993  docs: can the Computer work with data, and should it train models?
@@ -190,6 +219,8 @@ of this was verified on real hardware**:
 
 **D-F12** (farm transcription, so a Sound box can actually be heard) is a farm change and needs your
 yes first; the client half would then be one small unit shaped exactly like the Document box.
+**D-F13** (the farm's document reader: a page cap and stopping when the client gives up) is a small
+farm change; until then the client guards it as above, but only for PDFs that state their page count.
 
 Also sized and waiting, in the order I would take them: **Open live** (a p5/three box you can
 interact with, instead of a picture of its first frame), **parts move with their Section**, **wires

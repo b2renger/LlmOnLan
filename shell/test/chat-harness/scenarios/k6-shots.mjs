@@ -25,6 +25,10 @@ function wav(seconds) {
     return b;
 }
 const pdf = (/** @type {string} */ tag) => Buffer.from(`%PDF-1.4\n% LOL K6 landing ${tag}\n%%EOF\n`).toString('base64');
+/** A PDF whose own page tree says it has `n` pages (K6 fix round). */
+const paged = (/** @type {number} */ n) => Buffer.from(
+    `%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count ${n} >>\nendobj\n%%EOF\n`,
+).toString('base64');
 const body = (/** @type {string} */ id) => `#lolcomputer .graph-part[data-id="${id}"] .graph-part-body`;
 
 const str = (/** @type {any} */ h, /** @type {string} */ key, /** @type {any} */ vars) =>
@@ -188,6 +192,48 @@ export default [
             await shoot(h, 'k6-shots-refused-drop');
             h.eq((await h.mock.log({ path: OCR })).length, 0, 'nothing went to the extractor');
             h.eq((await h.mock.log({ path: '/v1/chat/completions' })).length, 0, 'nothing went to a model');
+        },
+    },
+
+    {
+        // K6 fix round: the farm reads every page it is sent, so a PDF whose own bytes say it has
+        // more pages than a box passes on is refused on sight — and two files dropped on one box are
+        // not one taken and one silently lost.
+        name: 'k6-shots-a-pdf-with-too-many-pages-is-refused-on-sight',
+        needsMock: true,
+        timeoutMs: 120000,
+        allowConsoleErrors: FARM_ERRORS,
+        async run(/** @type {any} */ h) {
+            await open(h, true);
+            const docId = await h.computer.add('document');
+            await h.computer.move(docId, 40, 40);
+            await h.computer.dropFiles([
+                { name: 'thesis.pdf', mime: 'application/pdf', base64: paged(300) },
+                { name: 'appendix.pdf', mime: 'application/pdf', base64: pdf('C') },
+            ], null, body(docId));
+            const said = await str(h, 'parts.docTooManyPages', { name: 'thesis.pdf', pages: 300, max: 60 });
+            const note = await h.waitFor((pid, want) => {
+                const el = document.querySelector(`#lolcomputer .graph-part[data-id="${pid}"] .graph-doc-note`);
+                return el && !el.hidden && el.textContent === want ? el.textContent : null;
+            }, { args: [docId, said], timeout: 8000 });
+            h.eq(note, said, 'the box says how many pages, why that is too many, and what to do');
+            const one = await str(h, 'parts.dropOnlyOne', { name: 'thesis.pdf', n: 1 });
+            await h.waitFor((w) => (Array.from(document.querySelectorAll('.chat-toast')).some((el) => el.textContent === w) ? true : null),
+                { args: [one], timeout: 8000 });
+            const m = await layout(h, [docId]);
+            const noteBox = await h.eval((pid) => {
+                const el = document.querySelector(`#lolcomputer .graph-part[data-id="${pid}"] .graph-doc-note`);
+                const b = el.getBoundingClientRect();
+                return { l: b.left, t: b.top, r: b.right, b: b.bottom };
+            }, docId);
+            h.assert(inside(noteBox, m[docId].box), `the refusal is inside its box: ${JSON.stringify({ noteBox, box: m[docId].box })}`);
+            await shoot(h, 'k6-shots-too-many-pages');
+            h.eq((await h.mock.log({ path: OCR })).length, 0, 'not one page went to the extractor');
+            const kept = await h.eval((pid) => {
+                const p = window.LolComputer.debug.computer.doc().parts.find((x) => x.id === pid);
+                return !!(p && p.settings && p.settings.fileId);
+            }, docId);
+            h.eq(kept, false, 'nothing was kept');
         },
     },
 ];

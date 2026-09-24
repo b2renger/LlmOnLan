@@ -34,6 +34,26 @@ function wav(seconds, rate = 8000) {
 }
 const file = (/** @type {string} */ name, /** @type {string} */ mime, /** @type {Buffer} */ bytes) => ({ name, mime, base64: bytes.toString('base64') });
 
+/** K6 fix round: three MPEG-1 Layer III frames whose Xing header says the file holds `frames`
+ * frames (137 813 x 1152 / 44 100 Hz = one hour) — a length Chromium never has to decode to learn. */
+function mp3Hour(frames = 137813) {
+    const len = 417;
+    const b = Buffer.alloc(len * 3 + 8);
+    for (let f = 0; f < 3; f++) b.set([0xff, 0xfb, 0x90, 0x00], f * len);
+    b.write('Xing', 36, 'ascii');
+    b.writeUInt32BE(1, 40);
+    b.writeUInt32BE(frames, 44);
+    return b;
+}
+
+/** How many WHOLE-file decodes the Sound box's intake has done in this page. */
+const decodes = (/** @type {any} */ h) => h.eval(async () => {
+    // The module instance the Computer loaded: resolved from its own entry script's URL.
+    const entry = /** @type {HTMLScriptElement} */ (document.querySelector('script[src*="computer/main.mjs"]'));
+    const m = await import(new URL('../graph/parts/audio.mjs', entry.src).href);
+    return m.soundDebug().decodes;
+});
+
 /** Poll a NODE-side async check (h.waitFor runs its function in the page); the timeout says what it last saw. */
 async function until(/** @type {any} */ h, /** @type {() => Promise<any>} */ fn, /** @type {number} */ ms, /** @type {string} */ what) {
     const end = Date.now() + ms;
@@ -155,13 +175,22 @@ export default [
             }, { args: [id, undecodable], timeout: 10000 });
             h.eq((await settingsOf(h, id)).name, 'beep.wav', 'the refusal changed nothing: the box still holds beep.wav');
 
-            // Longer than the cap: decoded, measured, refused naming both lengths.
+            // Longer than the cap: refused naming both lengths — read from the file's HEADER, before
+            // a single whole-file decode (K6 fix round: a one-hour file would be ~1.2 GB of PCM).
+            const decodedBefore = await decodes(h);
             await h.computer.dropFiles([file('lecture.wav', 'audio/wav', wav(601, 3000))], null, onBox(id));
             const tooLong = await str(h, 'parts.audioTooLong', { name: 'lecture.wav', duration: '10:01', cap: '10:00' });
             await h.waitFor((pid, want) => {
                 const n = document.querySelector(`#lolcomputer .graph-part[data-id="${pid}"] .graph-audio-note`);
                 return n && !n.hidden && n.textContent === want ? true : null;
             }, { args: [id, tooLong], timeout: 15000 });
+            await h.computer.dropFiles([file('podcast.mp3', 'audio/mpeg', mp3Hour())], null, onBox(id));
+            const hour = await str(h, 'parts.audioTooLong', { name: 'podcast.mp3', duration: '60:00', cap: '10:00' });
+            await h.waitFor((pid, want) => {
+                const n = document.querySelector(`#lolcomputer .graph-part[data-id="${pid}"] .graph-audio-note`);
+                return n && !n.hidden && n.textContent === want ? true : null;
+            }, { args: [id, hour], timeout: 15000 });
+            h.eq(await decodes(h), decodedBefore, 'neither too-long file was decoded to find out');
 
             // A PDF dropped on the Sound box: this box holds sound, and it says where the PDF goes.
             await h.computer.dropFiles([file('paper.pdf', 'application/pdf', Buffer.from('%PDF-1.4 x'))], null, onBox(id));

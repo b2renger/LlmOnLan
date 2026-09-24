@@ -321,6 +321,40 @@ export default (test) => {
     assert.equal(yes.why, WHY.vision);
   });
 
+  test('K6 fix round: the resolver looks THROUGH boxes that pass their input on, and "nothing uses this" is only said when it is true', () => {
+    const caps = { blind: { vision: 'no' }, seer: { vision: 'yes' } };
+    // Image → Repeat → Instruction(blind): the Instruction's model is the answer, not "unwired".
+    const through = {
+      parts: [{ id: 'src', type: 'image', settings: {} }, { id: 'rep', type: 'repeat', settings: {} }, { id: 'ask', type: 'ask', settings: { model: 'blind' } }],
+      wires: [{ id: 'w1', from: 'src', to: 'rep', port: 'value' }, { id: 'w2', from: 'rep', to: 'ask', port: 'in' }],
+    };
+    const v = takesFor(through, 'src', 'image', view({ caps }), SPECS);
+    assert.deepEqual([v.state, v.why, v.model], ['no', WHY.noVision, 'blind']);
+    assert.deepEqual(consumersOf(through, 'src', SPECS), [{ partId: 'ask', model: 'blind' }]);
+    // Every box that passes its input on is walked through, chained, and a loop does not hang.
+    for (const type of ['button', 'condition', 'confirm', 'toggle', 'timer', 'repeat']) {
+      assert.equal(SPECS.get(type).passes, true, `${type} passes its input on`);
+    }
+    const chain = {
+      parts: [{ id: 'src', type: 'audio', settings: {} }, { id: 'b', type: 'button' }, { id: 'c', type: 'condition' },
+        { id: 'ask', type: 'ask', settings: { model: 'seer' } }],
+      wires: [{ id: 'w1', from: 'src', to: 'b' }, { id: 'w2', from: 'b', to: 'c' }, { id: 'w3', from: 'c', to: 'b' }, { id: 'w4', from: 'c', to: 'ask' }],
+    };
+    assert.deepEqual(consumersOf(chain, 'src', SPECS), [{ partId: 'ask', model: 'seer' }]);
+    assert.equal(takesFor(chain, 'src', 'audio', view({ engine: 'ollama', caps }), SPECS).why, WHY.engineNoAudio,
+      'a sound headed to a model through a Button and a Condition gets the engine sentence, not "nothing uses this"');
+    // Wired only to boxes that make something NEW of it (a Preview, a Split): no model gets it —
+    // said as that, not as "nothing uses this".
+    const noModel = {
+      parts: [{ id: 'src', type: 'image', settings: {} }, { id: 'pv', type: 'preview' }, { id: 'sp', type: 'split' }, { id: 'ask', type: 'ask', settings: { model: 'blind' } }],
+      wires: [{ id: 'w1', from: 'src', to: 'pv' }, { id: 'w2', from: 'src', to: 'sp' }, { id: 'w3', from: 'sp', to: 'ask' }],
+    };
+    const nm = takesFor(noModel, 'src', 'image', view({ caps }), SPECS);
+    assert.deepEqual([nm.state, nm.why], ['unwired', WHY.noModel]);
+    assert.ok(!/Nothing uses this/.test(String(nm.reason)), nm.reason);
+    assert.equal(takesFor(graph('image', []), 'src', 'image', view({ caps }), SPECS).why, WHY.unwired, 'no wire at all: unwired');
+  });
+
   test('build rule 7, exhaustively: a picture is never refused on silence, and sound is never sent', () => {
     const verdicts = ['yes', 'no', 'unknown'];
     for (const a of verdicts) {

@@ -24,6 +24,9 @@ registerStrings('parts', {
   // Refusals, at intake (a drop on the box, the picker, or a drop on the canvas).
   audioTooBig: '“{name}” is {mb} MB, over the {capMb} MB a Sound box keeps. Try a shorter or more compressed file (an .mp3 or .ogg).',
   audioTooLong: '“{name}” lasts {duration}, longer than the {cap} a Sound box keeps. Cut it shorter and drop it again.',
+  // Said from the file's headers or a decoded start, BEFORE the whole file is decoded.
+  audioTooLongAbout: '“{name}” lasts about {duration}, longer than the {cap} a Sound box keeps. Cut it shorter and drop it again.',
+  audioLengthUnknown: 'This computer cannot tell how long “{name}” is without decoding all of it, which could use a lot of memory, so it was not kept. Save it as WAV, MP3, OGG, FLAC or M4A and drop it again.',
   audioUndecodable: 'This computer cannot play “{name}”: it is not a sound file it knows how to read. WAV, MP3, OGG, FLAC and M4A files work.',
   audioEmptyFile: '“{name}” is empty. Drop a file that has sound in it.',
   audioNotSound: '“{name}” is not a sound file, so this box cannot hold it. Drop it on an empty part of the canvas instead, and the Computer makes the right box for it.',

@@ -16,9 +16,12 @@ import { t } from '../../../renderer/chat/core/i18n.mjs';
 import { install as installMedia } from '../../../renderer/chat/computer/media.mjs';
 import { extractDoc, readPages, EXTRACT_TIMEOUT_MS } from '../../../renderer/chat/net/extract.mjs';
 import { reasonFor, WHY } from '../../../renderer/chat/graph/takes.mjs';
+import { activeSet, runPlan } from '../../../renderer/chat/graph/topo.mjs';
+import { specMap } from '../../../renderer/chat/graph/parts/index.mjs';
 import {
   documentPart, docText, cachedPages, hasText, errorSentence, readingOf, isPdfFile,
   DOC_MAX_PAGES, DOC_MAX_CHARS, DOC_RENDER_CHARS,
+  pdfPageCount, pagesRefusal, coolingLeft, EXTRACT_COOLDOWN_MS,
 } from '../../../renderer/chat/graph/parts/document.mjs';
 
 const NO_OCR = /** @type {string} */ (reasonFor(WHY.noOcr, null));
@@ -26,6 +29,11 @@ const NO_OCR = /** @type {string} */ (reasonFor(WHY.noOcr, null));
 /** `n` pages of `each` characters. */
 const pagesOf = (/** @type {number} */ n, /** @type {number} */ each = 20) =>
   Array.from({ length: n }, (_, i) => ({ page: i + 1, text: `p${i + 1} ${'w'.repeat(Math.max(0, each - 4))}`, engine: 'text' }));
+
+/** A PDF whose (uncompressed) page tree says it has `n` pages, as a simple writer makes it. */
+const pagedPdf = (/** @type {string} */ name, /** @type {number} */ n) => new File([
+  `%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count ${n} >>\nendobj\n`
+  + `3 0 obj\n<< /Type /Page /Parent 2 0 R >>\nendobj\n%%EOF\n`], name, { type: 'application/pdf' });
 
 /** A PDF-looking file. */
 const pdf = (/** @type {string} */ name, /** @type {string} */ salt = '') =>
@@ -256,6 +264,8 @@ export default (/** @type {any} */ test) => {
 
   test('a failure is NEVER cached: a 503, an empty answer and a Stop all leave the next run to try again', async () => {
     const { app } = setup();
+    let shift = 0;
+    app.now = () => Date.now() + shift;
     const ref = await app.media.put(pdf('flaky.pdf'), { kind: 'pdf' });
     let mode = 'down';
     await withFetch(async (call) => {
@@ -277,8 +287,16 @@ export default (/** @type {any} */ test) => {
       assert.deepEqual([stopped.message, stopped.reason], [errorSentence('aborted', 'flaky.pdf'), 'aborted']);
       assert.equal(cachedPages(await app.media.get(ref.fileId)), null, 'three failures, nothing cached');
       mode = 'ok';
+      // K6 fix round: the farm keeps reading after a Stop, so the same bytes WAIT before they are
+      // sent again — a run now is refused in a sentence and sends nothing.
+      const held = await failure(() => run(app, ref));
+      assert.deepEqual([held.message, held.reason], [errorSentence('cooling', 'flaky.pdf', 0, { waitMs: EXTRACT_COOLDOWN_MS }), 'farm']);
+      assert.equal(calls.length, 3, 'the wait sent nothing');
+      assert.ok(coolingLeft(ref.sha256, app.now()) > 0);
+      shift = EXTRACT_COOLDOWN_MS + 1;
       await run(app, ref);
-      assert.equal(calls.length, 4, 'each run asked again');
+      assert.equal(calls.length, 4, 'each run asked again once it was allowed to');
+      assert.equal(coolingLeft(ref.sha256, Date.now()), 0, 'a success ends the wait for those bytes');
       assert.ok(cachedPages(await app.media.get(ref.fileId)), 'the first success is cached');
     });
   });
@@ -427,6 +445,126 @@ export default (/** @type {any} */ test) => {
       assert.equal(b.q('.graph-doc-note').getAttribute('data-state'), 'error');
       b.inst.destroy();
     });
+  });
+
+  // ---- K6 fix round -------------------------------------------------------------------------
+
+  test('pdfPageCount: the root page tree says, the newest root after an update wins, the linearized /N — else null, never a guess', () => {
+    const enc = (/** @type {string} */ x) => new TextEncoder().encode(x);
+    assert.equal(pdfPageCount(enc('%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 300 >>\nendobj\n4 0 obj\n<</Type/Pages/Parent 2 0 R/Count 7>>\nendobj\n')), 300,
+      'a child node (it has a /Parent) is not the root');
+    assert.equal(pdfPageCount(enc('%PDF-1.4\n2 0 obj\n<< /Type /Pages /Count 300 >>\nendobj\nxref\n2 0 obj\n<< /Type /Pages /Count 12 >>\nendobj\n')), 12,
+      'an incremental update appends a new root: the last one is the document now');
+    assert.equal(pdfPageCount(enc('%PDF-1.5\n1 0 obj\n<< /Linearized 1 /L 12345 /H [ 500 200 ] /O 4 /E 999 /N 88 /T 1200 >>\nendobj\n')), 88);
+    assert.equal(pdfPageCount(enc('%PDF-1.7\n5 0 obj\n<< /Type /ObjStm /N 40 /First 300 /Filter /FlateDecode >>\nstream\nxx\nendstream\nendobj\n')), null,
+      'a page tree inside a compressed object stream: unknown, not 40');
+    assert.equal(pdfPageCount(enc('%PDF-1.4\n3 0 obj\n<< /Type /Page /Parent 2 0 R >>\nendobj\n')), null, '/Type /Page is a page, not the tree');
+    assert.equal(pdfPageCount(enc('%PDF-1.4\nnothing here\n')), null);
+    assert.equal(pdfPageCount(new ArrayBuffer(0)), null);
+  });
+
+  test('a PDF that SAYS it has more pages than flow on is never sent: refused at intake, on the box, and before an upload', async () => {
+    const { app } = setup();
+    const big = pagedPdf('big.pdf', 300);
+    const said = t('parts.docTooManyPages', { name: 'big.pdf', pages: 300, max: DOC_MAX_PAGES });
+    assert.equal(pagesRefusal(await big.arrayBuffer(), 'big.pdf'), said);
+    assert.equal(pagesRefusal(await pagedPdf('ok.pdf', DOC_MAX_PAGES).arrayBuffer(), 'ok.pdf'), '', 'exactly the cap is fine');
+    assert.equal(pagesRefusal(await pdf('plain.pdf').arrayBuffer(), 'plain.pdf'), '', 'a PDF that does not say is not refused');
+    const refused = await app.media.put(big, { kind: 'pdf', check: (/** @type {ArrayBuffer} */ buf) => pagesRefusal(buf, 'big.pdf') });
+    assert.equal(refused.error, said);
+    assert.equal((await app.repo.listAttachments('computer:media')).length, 0, 'nothing kept');
+    await withFetch(okPages(1), async (calls) => {
+      await withDom(async (doc) => {
+        const b = box(doc, app, { id: 'd9', type: 'document', settings: documentPart.defaults(), value: null });
+        b.drop([big]);
+        await b.settle();
+        assert.equal(b.q('.graph-doc-note').textContent, said, 'the box says it, in its own words');
+        assert.equal(b.q('.graph-doc-note').getAttribute('data-state'), 'error');
+        assert.equal(b.patches.length, 0);
+        b.inst.destroy();
+      });
+      // A file kept before this check existed is refused before the upload.
+      const old = await app.media.put(pagedPdf('old.pdf', 120), { kind: 'pdf' });
+      const err = await failure(() => run(app, old));
+      assert.deepEqual([err.message, err.reason], [errorSentence('too-many-pages', 'old.pdf', 0, { pages: 120 }), 'part']);
+      assert.match(err.message, /120 pages/);
+      assert.equal(calls.length, 0, 'not one byte reached the farm');
+    });
+  });
+
+  test('after a Stop mid-read, a box queued behind with the SAME bytes waits too; a Stop before sending starts no wait', async () => {
+    const { app } = setup();
+    const a = await app.media.put(pdf('same.pdf', 'cool-1'), { kind: 'pdf' });
+    const other = await app.media.put(pdf('other.pdf', 'cool-2'), { kind: 'pdf' });
+    await withDom(async (doc) => {
+      // A box holding the same bytes, on screen BEFORE the read is stopped: it must learn of the
+      // wait by itself, not on its next update from the canvas.
+      const b = box(doc, app, { id: 'c4', type: 'document', settings: documentPart.adopt(a), value: null });
+      await b.settle();
+      assert.equal(b.q('.graph-doc-note').textContent, t('parts.docKept'));
+      await withFetch(okPages(1, 200), async (calls) => {
+        const ac = new AbortController();
+        const first = failure(() => run(app, a, ac.signal, 'c1'));
+        const queuedOther = new AbortController();
+        const second = failure(() => run(app, other, queuedOther.signal, 'c2'));
+        const twin = failure(() => run(app, a, null, 'c3'));
+        await new Promise((r) => setTimeout(r, 10));
+        queuedOther.abort();                    // stopped while QUEUED: nothing sent, so no wait
+        ac.abort();                             // stopped while the farm READS: the bytes wait
+        assert.equal((await first).reason, 'aborted');
+        assert.equal((await second).reason, 'aborted');
+        const held = await twin;
+        assert.deepEqual([held.reason, /may still be reading same\.pdf/.test(held.message)], ['farm', true]);
+        assert.equal(calls.length, 1, 'only the read that was stopped mid-way ever left');
+        assert.ok(coolingLeft(a.sha256, Date.now()) > 0);
+        assert.equal(coolingLeft(other.sha256, Date.now()), 0, 'a Stop before the request left is no reason to wait');
+      });
+      // The box says so between runs, with no run going and no update from the canvas.
+      assert.equal(b.q('.graph-doc-note').textContent, t('parts.docCoolingNote', { min: 5 }));
+      b.inst.destroy();
+    });
+  });
+
+  test('the farm\'s own "[Page N]" heading is replaced by our page mark, not said twice', () => {
+    const md = docText([{ page: 1, text: '[Page 1]\nbody 1' }, { page: 2, text: '[Page 2]\r\nbody 2' }]).md;
+    assert.equal(md, `${t('parts.docPageMark', { page: 1 })}\n\nbody 1\n\n${t('parts.docPageMark', { page: 2 })}\n\nbody 2`);
+    assert.ok(!/\[Page/.test(md));
+    assert.equal(docText([{ page: 1, text: '[Page 1] is how the farm marks pages' }]).md, '[Page 1] is how the farm marks pages',
+      'one page: the farm adds no heading, and nothing is stripped');
+    assert.match(t('parts.docMoreHere', { chars: '65,536' }), /65,536 characters/, 'the box counts what it cuts in characters');
+  });
+
+  test('several files dropped on the box: it takes one and SAYS which, and where the others go', async () => {
+    const { app } = setup();
+    /** @type {string[]} */ const said = [];
+    app.dialogs = { toast: (/** @type {string} */ m) => { said.push(m); } };
+    await withDom(async (doc) => {
+      const b = box(doc, app, { id: 'm1', type: 'document', settings: documentPart.defaults(), value: null });
+      b.drop([new File(['hi'], 'a.txt', { type: 'text/plain' }), pdf('b.pdf', 'many'), pdf('c.pdf', 'many2')]);
+      await b.settle();
+      assert.equal(b.patches.length, 1);
+      assert.equal(b.patches[0].name, 'b.pdf', 'the first PDF');
+      assert.deepEqual(said, [t('parts.dropOnlyOne', { name: 'b.pdf', n: 2 })]);
+      b.inst.destroy();
+    });
+  });
+
+  test('Run-all leaves out a Document box nothing is wired from; ▶ on it, or a wire from it, reads it', () => {
+    const specs = specMap();
+    const doc = {
+      parts: [
+        { id: 'd1', type: 'document', settings: {}, state: 'idle' },
+        { id: 't1', type: 'note', settings: { text: 'x' }, state: 'idle' },
+        { id: 'a1', type: 'ask', settings: {}, state: 'idle' },
+      ],
+      wires: [{ id: 'w1', from: 't1', to: 'a1', port: 'in' }],
+    };
+    assert.deepEqual(activeSet(/** @type {any} */ (doc), [], { mode: 'all', specs }), ['t1', 'a1'], 'the lone PDF is not read for nobody');
+    assert.deepEqual(activeSet(/** @type {any} */ (doc), [], { mode: 'all', force: true, specs }), ['t1', 'a1']);
+    assert.ok(activeSet(/** @type {any} */ (doc), ['d1'], { mode: 'from', specs }).includes('d1'), '▶ on the box reads it');
+    const wired = { ...doc, wires: [...doc.wires, { id: 'w2', from: 'd1', to: 'a1', port: 'in' }] };
+    assert.ok(activeSet(/** @type {any} */ (wired), [], { mode: 'all', specs }).includes('d1'), 'wired: Run-all reads it');
+    assert.deepEqual(runPlan(/** @type {any} */ (doc), { specs }).ids, ['t1', 'a1'], 'the plan preview agrees');
   });
 
   test('the spec: quiet, not a generation, holds pdf, adopt returns only defaults() keys', () => {

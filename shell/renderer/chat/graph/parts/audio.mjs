@@ -13,11 +13,15 @@
 // on the canvas (computer/drops.mjs) — and all three go through `takeSound()` below, so there is
 // ONE size cap, ONE decode check, ONE length cap and one set of refusal sentences.
 //
-// The file is decoded ONCE at intake, into an 8 kHz OfflineAudioContext: that measures its length
-// and refuses what Chromium cannot decode, and the low rate keeps a ten-minute file's decoded copy
-// to ~40 MB instead of ~230. Playback decodes again at the output rate, on the first ▶, and keeps
-// ONE decoded sound in memory for the whole window (the last one played). One sound plays at a
-// time: pressing ▶ on a second box stops the first.
+// Its LENGTH is read from the file's headers first (graph/sound-length.mjs), so a sound longer
+// than AUDIO_MAX_SEC is refused BEFORE it is decoded: Chromium decodes at the file's own rate
+// before it resamples, and a 25 MB one-hour MP3 would be ~1.2 GB of PCM in this renderer before
+// "too long" could be said (K6 fix round). A format whose headers do not say (WebM) is judged by
+// decoding a PROBE_BYTES prefix and scaling by size; one that cannot even be probed is refused.
+// Only then is the file decoded ONCE, into an 8 kHz OfflineAudioContext, which measures its exact
+// length and refuses what Chromium cannot decode. Playback decodes again at the output rate, on
+// the first ▶, and keeps ONE decoded sound in memory (the last one played) until its box lets go
+// of the file or goes away. One sound plays at a time: pressing ▶ on a second box stops the first.
 
 import { t } from '../../core/i18n.mjs';
 import { valueOf } from '../values.mjs';
@@ -25,6 +29,8 @@ import { partFail } from './common.mjs';
 import { renderTakes } from '../takes-view.mjs';
 import { takesFor, farmViewOf } from '../takes.mjs';
 import { AUDIO_EXTS, classify } from '../drop-route.mjs';
+import { soundLength } from '../sound-length.mjs';
+import { sayOnlyOne } from './document.mjs';
 import '../../strings/parts-audio.en.mjs';
 // `parts.mediaMissing` is the file store's sentence (K6-U2's table); imported so it is registered
 // wherever this box is.
@@ -41,6 +47,14 @@ export const AUDIO_ACCEPT = ['audio/*', ...AUDIO_EXTS.map((e) => `.${e}`)].join(
 /** The rate the intake decodes at to MEASURE a sound. Duration survives resampling; memory does not
  * have to (a ten-minute stereo file: 600 s x 8000 x 2 x 4 B = 38 MB). */
 export const MEASURE_RATE = 8000;
+/** A sound whose headers do not state its length is judged by decoding this much of its start. */
+export const PROBE_BYTES = 256 * 1024;
+/** An ESTIMATED length (a CBR MP3, a probed prefix) refuses only past this margin over the cap; in
+ * between, the full decode measures it exactly — and a sound under 1.25 × the cap is bounded. */
+export const LENGTH_SLACK = 1.25;
+
+/** How many WHOLE-file decodes the intake has done (for the tests: a refusal by header is none). */
+let fullDecodes = 0;
 
 /** The settings a box is placed with for one stored sound (KF-4 `adopt`). @param {any} ref */
 function adopt(ref) {
@@ -102,7 +116,25 @@ export async function takeSound(app, file, env) {
   /** @type {ArrayBuffer} */ let buf;
   try { buf = await file.arrayBuffer(); } catch { return { error: t('parts.mediaUnreadable', { name }) }; }
   const measure = (env && typeof env.measure === 'function') ? env.measure : measureSound;
+  // 1. What the headers say, before anything is decoded (K6 fix round).
+  const stated = soundLength(buf);
+  if (stated && stated.sec > AUDIO_MAX_SEC * (stated.exact ? 1 : LENGTH_SLACK)) {
+    const vars = { name, duration: clock(stated.sec), cap: clock(AUDIO_MAX_SEC) };
+    return { error: stated.exact ? t('parts.audioTooLong', vars) : t('parts.audioTooLongAbout', vars) };
+  }
+  // 2. Headers that do not say, on a file big enough to matter: decode its start, scale by size.
+  if (!stated && buf.byteLength > PROBE_BYTES) {
+    let head = NaN;
+    try { head = Number(await measure(buf.slice(0, PROBE_BYTES))); } catch { head = NaN; }
+    if (!Number.isFinite(head) || head <= 0) return { error: t('parts.audioLengthUnknown', { name }) };
+    const guess = head * (buf.byteLength / PROBE_BYTES);
+    if (guess > AUDIO_MAX_SEC * LENGTH_SLACK) {
+      return { error: t('parts.audioTooLongAbout', { name, duration: clock(guess), cap: clock(AUDIO_MAX_SEC) }) };
+    }
+  }
+  // 3. Known to be near or under the cap: decode it whole, once, at 8 kHz — the exact length.
   let sec = NaN;
+  fullDecodes += 1;
   try { sec = Number(await measure(buf.slice(0))); } catch { sec = NaN; }
   if (!Number.isFinite(sec) || sec <= 0) return { error: t('parts.audioUndecodable', { name }) };
   if (sec > AUDIO_MAX_SEC) {
@@ -142,7 +174,13 @@ function audioCtx() {
 
 /** What the player is doing, for tests: never a handle, only facts. */
 export function soundDebug() {
-  return { plays, playing: current ? String(current.fileId) : null, cached: cached.fileId || null };
+  return { plays, playing: current ? String(current.fileId) : null, cached: cached.fileId || null, decodes: fullDecodes };
+}
+
+/** Let go of the decoded copy of a file a box no longer holds (up to ~230 MB for a ten-minute
+ * stereo sound at 48 kHz). @param {string} fileId */
+function forget(fileId) {
+  if (fileId && cached.fileId === fileId) cached = { fileId: '', buffer: null };
 }
 
 /**
@@ -379,6 +417,8 @@ export const audioPart = /** @type {any} */ ({
       if (destroyed) return;
       if ('error' in out) { problem = out.error; paint(live); return; }
       stopMine();
+      const before = String(settingsOf(live).fileId || '');
+      if (before !== out.fileId) forget(before);
       missing = false;
       checkedFor = out.fileId;
       ctx.update(adopt(out));
@@ -420,7 +460,11 @@ export const audioPart = /** @type {any} */ ({
       // A file dropped ON this box is this box's: the canvas would otherwise place a new box for it.
       ev.stopPropagation();
       const files = ev.dataTransfer && ev.dataTransfer.files ? Array.from(/** @type {ArrayLike<any>} */ (ev.dataTransfer.files)) : [];
-      void takeFile(files[0]);
+      // A box holds ONE sound: the first sound dropped (else the first file, so the refusal names
+      // it), and the others are named rather than dropped silently (build rule 6).
+      const file = files.find((f) => classify(f).kind === 'audio') || files[0];
+      if (file && files.length > 1) sayOnlyOne(app, String(file.name || ''), files.length - 1);
+      void takeFile(file);
     }
 
     empty.addEventListener('click', choose);
@@ -428,6 +472,7 @@ export const audioPart = /** @type {any} */ ({
     play.addEventListener('click', () => { void toggle(); });
     remove.addEventListener('click', () => {
       stopMine();
+      forget(String(settingsOf(live).fileId || ''));
       problem = '';
       ctx.update(EMPTY());
       ctx.commit(t('parts.audioRemove'));
@@ -447,6 +492,7 @@ export const audioPart = /** @type {any} */ ({
       destroy() {
         destroyed = true;
         stopMine();
+        forget(String(settingsOf(live).fileId || ''));
         cancelFrame(frame);
         host.removeEventListener('dragover', onDragOver);
         host.removeEventListener('dragleave', onDragLeave);

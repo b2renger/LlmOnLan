@@ -9,12 +9,24 @@
 // which is what "cached by content hash" means: the same bytes are never sent twice.
 //
 // install(app) sets `app.media` (API_KEYS.media):
-//   put(file, {maxBytes, kind})  -> Promise<MediaRef | {error}>   a refusal is a SENTENCE, never a throw
+//   put(file, {maxBytes, kind, check})  -> Promise<MediaRef | {error}>   a refusal is a SENTENCE, never a throw
+//                                          `check(buf, name)` → a refusal sentence or '' (the Document
+//                                          box's page count), asked before anything is kept
 //   get(fileId)                  -> Promise<Attachment|null>
 //   bytes(fileId)                -> Promise<ArrayBuffer|null>
 //   patch(fileId, fields)        -> Promise<boolean>              the extraction cache; never the bytes
-//   sweep()                      -> Promise<number>               drop files no graph refers to
+//   sweep({only?, spareFresh?})  -> Promise<number>               drop files nothing refers to
 //   debug()                      -> {puts, refused, swept, lastError}
+//
+// WHEN FILES ARE SWEPT (K6 fix round). A file nothing refers to any more — Replace or Remove on a
+// box, the box deleted, a drop undone, a drop whose box could not be placed — is deleted:
+//   - when a graph is deleted (computer/library.mjs remove());
+//   - when a graph is OPENED, which is also every boot of the Computer: the undo history is cleared
+//     there, so what only the history held is finally unreferenced;
+//   - at once, for the files of a drop whose box could not be placed (computer/drops.mjs).
+// "Refers to" is: a saved graph, the open graph, AND the open graph's undo/redo history — an Undo
+// must never bring back a box whose file was swept. The automatic sweeps also spare a file kept in
+// the last FRESH_MS, which a box or a drop may be about to refer to.
 //
 // Nothing here talks to the network. Nothing here decides whether a farm can USE a file — that is
 // graph/takes.mjs; this module only keeps bytes, and says so in a sentence when it will not.
@@ -29,6 +41,9 @@ export const MEDIA_OWNER = 'computer:media';
 const PDF_MAGIC = '%PDF-';
 /** How far into a file the PDF signature may start. */
 export const PDF_MAGIC_WINDOW = 1024;
+
+/** How long a just-kept file is spared by the automatic sweeps (graph opened). */
+export const FRESH_MS = 60 * 1000;
 
 /** @param {number} bytes @returns {string} */
 const mb = (bytes) => ((Number(bytes) || 0) / (1024 * 1024)).toFixed(1);
@@ -65,6 +80,9 @@ export function install(app) {
   let refused = 0;
   let swept = 0;
   /** @type {string|null} */ let lastError = null;
+  /** fileId → when it was kept, for `spareFresh`. */
+  /** @type {Map<string, number>} */ const fresh = new Map();
+  const clock = () => (app && typeof app.now === 'function' ? Number(app.now()) : Date.now());
   const repo = () => (app && app.repo) || null;
 
   /** @param {string} message */
@@ -73,7 +91,7 @@ export function install(app) {
   /**
    * Keep one file. `kind: 'pdf'` also checks the bytes really are a PDF.
    * @param {any} file a File/Blob with name/type/size
-   * @param {{maxBytes?: number, kind?: string}} [o]
+   * @param {{maxBytes?: number, kind?: string, check?: (buf: ArrayBuffer, name: string) => string}} [o]
    */
   async function put(file, o = {}) {
     const name = String((file && file.name) || 'file');
@@ -89,6 +107,9 @@ export function install(app) {
       if (cap && buf.byteLength > cap) return refuse(t('parts.mediaTooBig', { name, mb: mb(buf.byteLength), capMb: mb(cap) }));
       if (!buf.byteLength) return refuse(t('parts.mediaEmpty', { name }));
       if (o && o.kind === 'pdf' && !isPdfBytes(buf)) return refuse(t('parts.mediaNotPdf', { name }));
+      // The holder's own objection (a PDF with more pages than a box passes on), before anything is kept.
+      const objection = o && typeof o.check === 'function' ? String(o.check(buf, name) || '') : '';
+      if (objection) return refuse(objection);
       const sha = await sha256Hex(buf);
       const mime = String((file && file.type) || (o && o.kind === 'pdf' ? 'application/pdf' : 'application/octet-stream'));
       /** @type {any} */ const att = { threadId: MEDIA_OWNER, name, mime, size: buf.byteLength, sha256: sha, status: 'ready' };
@@ -97,6 +118,7 @@ export function install(app) {
       const fileId = await r.putAttachment(att);
       if (!fileId) return refuse(t('parts.mediaUnreadable', { name }));
       puts++;
+      fresh.set(String(fileId), clock());
       return { fileId: String(fileId), name, mime, size: buf.byteLength, sha256: sha };
     } catch (err) {
       console.warn('[lolcomputer] keeping a file failed', err);
@@ -141,22 +163,38 @@ export function install(app) {
     }
   }
 
+  /** Every fileId the OPEN graph refers to: its document and its undo/redo history. Throws when the
+   * session cannot be read — a sweep that cannot see the open graph must not delete anything.
+   * @param {Set<string>} into */
+  function openRefs(into) {
+    const session = app && app.host && app.host.session;
+    if (!session) return into;
+    if (typeof session.doc === 'function') fileIdsOf(session.doc(), into);
+    if (typeof session.history === 'function') for (const d of session.history() || []) fileIdsOf(d, into);
+    return into;
+  }
+
   /**
-   * Delete the Computer's files that no saved graph and not the open one refers to. Called after a
-   * graph is deleted (computer/library.mjs remove()). The saved graphs are read INSIDE the same
-   * transaction that deletes, so a graph saved meanwhile cannot lose its file, and a failed read
-   * throws instead of looking like "no graphs" (repo reads fall back to [] on error — deleting
-   * against that would empty the store). → how many files were deleted.
+   * Delete the Computer's files that nothing refers to: no saved graph, not the open one, not the
+   * open one's undo history. The saved graphs are read INSIDE the same transaction that deletes, so
+   * a graph saved meanwhile cannot lose its file, and a failed read throws instead of looking like
+   * "no graphs" (repo reads fall back to [] on error — deleting against that would empty the
+   * store). → how many files were deleted.
+   * @param {{only?: string[], spareFresh?: boolean}} [o] `only`: consider just these files (a
+   *   failed drop's); `spareFresh`: keep a file kept in the last FRESH_MS (the automatic sweeps)
    */
-  async function sweep() {
+  async function sweep(o = {}) {
     const r = repo();
     if (!r || typeof r.runTx !== 'function') return 0;
+    const only = o && Array.isArray(o.only) ? new Set(o.only.map(String)) : null;
+    if (only && !only.size) return 0;
     /** @type {Set<string>} */ const keep = new Set();
     // The open graph may hold a file it has not been saved with yet.
-    try {
-      const session = app && app.host && app.host.session;
-      if (session && typeof session.doc === 'function') fileIdsOf(session.doc(), keep);
-    } catch (err) { console.warn('[lolcomputer] reading the open graph for a sweep failed', err); return 0; }
+    try { openRefs(keep); } catch (err) { console.warn('[lolcomputer] reading the open graph for a sweep failed', err); return 0; }
+    if (o && o.spareFresh) {
+      const now = clock();
+      for (const [id, at] of fresh) { if (now - at < FRESH_MS) keep.add(id); else fresh.delete(id); }
+    }
     // Graphs of ephemeral threads live outside IndexedDB; listGraphs() is the only door to them.
     if (typeof r.listGraphs === 'function') {
       for (const g of (await r.listGraphs()) || []) fileIdsOf(g, keep);
@@ -164,15 +202,33 @@ export function install(app) {
     let removed = 0;
     await r.runTx(['graphs', 'attachments'], 'readwrite', async (/** @type {any} */ tx) => {
       for (const g of (await tx.getAll('graphs')) || []) fileIdsOf(g, keep);
+      // Read the open graph AGAIN, here: a box may have taken a file while the graphs were read.
+      openRefs(keep);
       const mine = (await tx.byIndex('attachments', 'threadId', MEDIA_OWNER)) || [];
       for (const a of mine) {
         if (!a || !a.id || keep.has(a.id)) continue;
+        if (only && !only.has(String(a.id))) continue;
         await tx.del('attachments', a.id);
+        fresh.delete(String(a.id));
         removed++;
       }
     });
     swept += removed;
     return removed;
+  }
+
+  // Sweep when a graph is OPENED — every boot of the Computer, and every switch: the undo history
+  // was just cleared, so what only it held is unreferenced now. One sweep at a time; a failure is
+  // logged and never reaches the reader.
+  /** @type {Promise<any>} */ let sweeping = Promise.resolve();
+  const session = app && app.host && app.host.session;
+  if (session && typeof session.on === 'function') {
+    session.on((/** @type {any} */ ev) => {
+      if (!ev || ev.type !== 'doc' || !ev.loaded) return;
+      sweeping = sweeping.then(() => sweep({ spareFresh: true })).catch((err) => {
+        console.warn('[lolcomputer] sweeping unused files failed', err);
+      });
+    });
   }
 
   app.media = {

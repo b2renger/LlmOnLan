@@ -468,8 +468,9 @@ function dirtyClosure(fwd, ranked, specs) {
  * The ACTIVE SET `A` of one run (§4.2), in topological order over the forward graph. ONE function
  * for both entry points — there is deliberately no second code path.
  *
- *   mode 'all'   the pull set: dirty ∪ downstream(dirty), minus `manualRoots`, `volatile` parts
- *                always dirty. An input-less `done` source stays done.
+ *   mode 'all'   the pull set: dirty ∪ downstream(dirty), minus `manualRoots` and minus an
+ *                `onlyWhenUsed` part nothing is wired from, `volatile` parts always dirty. An
+ *                input-less `done` source stays done.
  *   mode 'from'  the push set: `unrunAncestors(seeds) ∪ seeds ∪ downstream(seeds)` — the PROLOGUE
  *                of §4.2. Every part in it executes regardless of its stored state, `manual`
  *                included (§6.6 excludes `manual` from RUN-ALL only).
@@ -499,7 +500,14 @@ export function activeSet(doc, seeds, opts = {}) {
   const live = new Set(fwd.parts.map((p) => p.id));
   const seedIds = (Array.isArray(seeds) ? seeds : []).filter((id) => live.has(id));
   const isSeed = new Set(seedIds);
-  const keep = (/** @type {string} */ id) => !inert.has(id) && (!manual.has(id) || isSeed.has(id));
+  // K6 fix round: an `onlyWhenUsed` part with no wire drawn from it (a Document box nothing reads)
+  // is left out of a RUN-ALL — running it would send a PDF to the farm's reader for nobody. ▶ on
+  // its own face is a seed, and a seed always runs.
+  const wiredFrom = new Set((Array.isArray(doc.wires) ? doc.wires : []).map((w) => w && w.from).filter(Boolean));
+  const unused = new Set(fwd.parts
+    .filter((p) => { const s = specs.get(p.type); return !!(s && /** @type {any} */ (s).onlyWhenUsed) && !wiredFrom.has(p.id); })
+    .map((p) => p.id));
+  const keep = (/** @type {string} */ id) => !inert.has(id) && (!manual.has(id) || isSeed.has(id)) && (!unused.has(id) || isSeed.has(id));
   if (opts.mode === 'from' || opts.mode === 'button') {
     const want = new Set([
       ...seedIds,

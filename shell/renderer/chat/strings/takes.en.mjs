@@ -29,6 +29,7 @@ registerStrings('takes', {
   whyOcr: 'The farm reads this PDF’s text when a run needs it. Only the text comes back, and it stays on this computer.',
   whyNoOcr: 'This farm does not offer document reading right now (its Document OCR service is off or down), so the PDF stays here and nothing is sent. Whoever runs the farm can turn Document OCR on in its admin panel.',
   whyUnwired: 'Nothing uses this yet. Wire it into an Instruction.',
+  whyNoModel: 'What this is wired to does not pass it to a model, so no model gets it. Wire it into an Instruction (directly, or through a Button, a Condition or a Repeat).',
   whyVision: '{model} can look at pictures, as far as the farm says.',
   whyNoVision: 'The farm does not list {model} as able to see, so that Instruction refuses the picture before sending anything. Pick a model that can see in the Instruction.',
   whyVisionUnknown: 'The farm does not say whether {model} can see. The picture will be sent, and the farm’s answer will tell.',
