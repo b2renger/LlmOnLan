@@ -11,7 +11,7 @@ what was actually done and how each claim was checked, and it names what was not
 | 2 | **Your eight bugs** (seed, the "substitute" option, resize, trackpad, unplug, editing, copy, p5/three/SVG) | All eight fixed; each was checked with real mouse and keyboard input |
 | 3 | **A critic loop, as you asked**: four rounds until it had nothing blocking left | 18 more defects found and fixed. Final verdict "happy pending rig", and the rig passed this morning |
 | 4 | **The perf pass you scheduled for 02:05** | Runs about 2× faster on big graphs; panning is smooth; strict budgets added |
-| 5 | **The rig check on your farm** (this morning, on your relaunched client) | The seed works through LiteLLM. Each preset drew 5 times out of 5 |
+| 5 | **The rig check on your farm** (this morning, on your relaunched client) | **Qwen3.8:** the seed repeats, and each preset drew 5/5. **gemma4:12b:** it fails. SVG 2/5 and p5 1/5, because the model's thinking uses up the 4096-token budget, and the seed varies inside Ollama itself. Being fixed in the new critic loop |
 
 Seven commits, 109 files, +13,296 / −503 lines. Unit tests went from 1,386 to **1,493**, harness
 scenarios from 297 to **340**, and perf is **9/9**. Every gate was green at every commit, except the
@@ -121,6 +121,27 @@ tested.
 One thing about how it was run: your client window was hidden, and the Computer (rightly) refuses to
 use the farm for a hidden window. For this session I set the test hook `forcePageVisible` in memory
 and cleared it afterwards. No setting was changed.
+
+### Re-test on gemma4:12b (09:03, at your request), and it does NOT pass
+
+gemma4:12b is the farm's third model now (Qwen3.8 is still the default), so the Instructions were
+pinned to it. The graph is **"Rig check — gemma4:12b (25 Sept)"**.
+
+| | Qwen3.8 | gemma4:12b |
+|---|---|---|
+| Same seed twice | identical | **different** (601 vs 396 tokens) |
+| Write an SVG | 5/5 | **2/5** |
+| Write a p5.js sketch | 5/5 | **1/5** |
+| Write a three.js scene | 5/5 | 5/5 |
+
+- **Why the drawings fail:** gemma4 thinks for 2–4k tokens before it writes the code, and that
+  thinking counts against the client's 4096-token budget for code. All 7 failures stopped at the
+  limit (4493–4551 tokens). The box said so honestly, but its advice, "Ask for something smaller",
+  is wrong for this case. The budget has to change. This is being fixed now, in the new critic loop.
+- **Why the seed differs:** asking Ollama **directly** with seed 42 gives the same two different
+  answers, in the same order (the cold prompt, then the warm cache). So LiteLLM passes the seed
+  through; Ollama itself varies for gemma4. A pinned seed is guaranteed to repeat only through the
+  Computer's own cache. The wording that promises more is being made honest.
 
 ## What was NOT done, or is not proven
 
