@@ -24,6 +24,10 @@ import { partById, wiresInto } from './model.mjs';
 import { isValue, itemsOf } from './values.mjs';
 import { CODE_KINDS } from './unfence.mjs';
 import { t } from '../core/i18n.mjs';
+// Critic S1-3: the answer's room is sized against the same window the prompt is cut from. Both
+// modules are PURE (chat-lint PURE_MODULES), so this file stays loadable in Node.
+import { budgetFor } from '../ctx/budget.mjs';
+import { estimateText, IMAGE_TOKENS, PER_MESSAGE_TOKENS } from '../ctx/tokens.mjs';
 import '../strings/parts.en.mjs';
 import '../strings/computer-gen.en.mjs';
 
@@ -56,10 +60,19 @@ export const FILE_TEXT_MAX = 64 * 1024;
 
 /** Critic R1 A8: how long an answer may be. A p5 spiral is 350-600 tokens, a three.js scene with
  * lights 600-1000, a landscape SVG 400-800 — the old silent 512 floor cut most of them mid-program.
- * A CODE answer gets 4096 (the same room ctx/budget.mjs already reserves for the answer), prose
- * and shaped answers 2048. What is asked for is what the transcript prints: never "automatic". */
-export const MAX_TOKENS_CODE = 4096;
-export const MAX_TOKENS_TEXT = 2048;
+ * What is asked for is what the transcript prints: never "automatic".
+ *
+ * Critic S1-3: these are CEILINGS, not targets. A thinking model's `reasoning_content` counts
+ * toward `max_tokens`, and on the rig gemma4:12b spent 2-4k tokens thinking before a line of code
+ * — 7 of 15 Write-… runs were cut at 4096 before they finished. The number really sent is
+ * `clampMaxTokens`: this ceiling, or what the prompt leaves of the farm's window, whichever is
+ * smaller, never under MAX_TOKENS_FLOOR. A model that stops early spends nothing extra. */
+export const MAX_TOKENS_CODE = 16384;
+export const MAX_TOKENS_TEXT = 8192;
+/** The least an answer is ever given (the ask spine's own floor, app/ask.mjs MIN_MAX_TOKENS). */
+export const MAX_TOKENS_FLOOR = 512;
+/** Slack between the estimated prompt and the window: the estimate is a guess, the window is not. */
+export const MAX_TOKENS_MARGIN = 256;
 
 /** The per-kind system instruction appended to SYSTEM when an Instruction answers in code (A8).
  * A literal map (chat-lint rule 5); the text is in strings/computer-gen.en.mjs. */
@@ -79,9 +92,33 @@ export function codeKindOf(settings) {
   return shape === 'text' && CODE_KINDS.indexOf(code) >= 0 ? code : '';
 }
 
-/** The `max_tokens` an Instruction with these settings asks for. @param {any} settings @returns {number} */
+/** The `max_tokens` CEILING of an Instruction with these settings (critic S1-3: the number sent is
+ * `clampMaxTokens` of this). @param {any} settings @returns {number} */
 export function maxTokensOf(settings) {
   return codeKindOf(settings) ? MAX_TOKENS_CODE : MAX_TOKENS_TEXT;
+}
+
+/**
+ * Critic S1-3: the `max_tokens` really sent — `min(ceiling, window − prompt − MAX_TOKENS_MARGIN)`,
+ * never under MAX_TOKENS_FLOOR. With no window known (0) the ceiling stands: nothing to clamp to.
+ * PURE. @param {{ceiling: number, window?: number, promptTokens?: number}} o @returns {number}
+ */
+export function clampMaxTokens(o) {
+  const ceiling = Math.max(MAX_TOKENS_FLOOR, Math.floor(Number(o && o.ceiling) || MAX_TOKENS_TEXT));
+  const window = Math.floor(Number(o && o.window) || 0);
+  if (!(window > 0)) return ceiling;
+  const prompt = Math.max(0, Math.ceil(Number(o && o.promptTokens) || 0));
+  return Math.max(MAX_TOKENS_FLOOR, Math.min(ceiling, window - prompt - MAX_TOKENS_MARGIN));
+}
+
+/**
+ * What the request costs in PROMPT tokens before the answer: the system message, the user message
+ * and the pictures, estimated the way ctx/tokens.mjs estimates a chat turn (it errs high).
+ * PURE. @param {string} system @param {string} prompt @param {number} images @returns {number}
+ */
+export function promptTokensOf(system, prompt, images) {
+  return estimateText(String(system || '')) + estimateText(String(prompt || ''))
+    + Math.max(0, Math.floor(Number(images) || 0)) * IMAGE_TOKENS + 2 * PER_MESSAGE_TOKENS;
 }
 
 /** What the model is told about ONE code kind, or '' for anything else. Resolved at call time so a
@@ -727,15 +764,21 @@ function trim(blocks, was, budget) {
 // ---------------------------------------------------------------------------------------------
 
 /**
+ * `budget` is `ctx/budget.mjs` `budgetFor(caps)`. When it carries the trusted `window` (critic
+ * S1-3), the answer's `max_tokens` is resolved HERE, once, from the whole assembled prompt —
+ * `clampMaxTokens` — and the prompt's own budget is re-cut with that answer as the reserve, so the
+ * two can never together overrun the slot. The Instruction's run() and the transcript's Sent tab
+ * both read `plan.call.maxTokens`, so what is printed is what is sent. A budget without `window`
+ * (a hand-built one) is used as given, and the ceiling is sent.
  * @param {{part: any, bind: BindResult,
- *   budget?: {chars: number, tokens: number, assumed: boolean}}} o
+ *   budget?: {chars: number, tokens: number, assumed: boolean, window?: number}}} o
  * @returns {InstructionPlan}
  */
 export function planFor(o) {
   const part = (o && o.part) || null;
   const settings = (part && part.settings) || {};
   const bind = (o && o.bind) || { params: [], unused: [], unwired: [] };
-  const budget = (o && o.budget) || { chars: 0, tokens: 0, assumed: true };
+  const given = (o && o.budget) || { chars: 0, tokens: 0, assumed: true };
   const instruction = String(settings.instruction || '').trim();
   const fallback = !instruction && bind.params.length > 0;
   const shape = ['text', 'list', 'json'].indexOf(String(settings.shape)) >= 0
@@ -745,15 +788,32 @@ export function planFor(o) {
   // Sent tab can say `runs 3 times` instead of showing a prompt nobody will receive.
   const fan = bind.prerun ? fanOf(bind.params) : null;
   const params = fan ? forItem(bind.params, fan, 0) : bind.params;
-  const assembled = assemblePrompt(params, instruction, {
-    budget: budget.chars,
-    inline: settings.inlineVars === true,
-  });
+  const inline = settings.inlineVars === true;
   // Critic R1 A8: an Instruction that answers in CODE is told the sandbox's rules in the SYSTEM
   // message — so the person's editable instruction does not have to carry them — and it is set
   // HERE, in the one assembly, so the Sent tab shows exactly what goes on the wire.
   const codeKind = codeKindOf(settings);
-  const sent = codeKind ? { ...assembled, system: `${SYSTEM}\n\n${codeSystem(codeKind)}` } : assembled;
+  const system = codeKind ? `${SYSTEM}\n\n${codeSystem(codeKind)}` : SYSTEM;
+  const ceiling = maxTokensOf(settings);
+  const window = Number(/** @type {any} */ (given).window) > 0 ? Math.floor(Number(/** @type {any} */ (given).window)) : 0;
+  /** @type {any} */ let budget = given;
+  let maxTokens = ceiling;
+  /** @type {AssembledPrompt} */ let assembled;
+  if (window) {
+    // Critic S1-3: size the answer from the WHOLE prompt, then cut the prompt — only when it must
+    // — to what that answer leaves. One window, shared; the reserve follows `maxTokens`.
+    const whole = assemblePrompt(params, instruction, { inline });
+    const images = whole.images.length;
+    maxTokens = clampMaxTokens({ ceiling, window, promptTokens: promptTokensOf(system, whole.prompt, images) });
+    const fixed = promptTokensOf(system, '', images) + MAX_TOKENS_MARGIN;
+    budget = { ...budgetFor(window, { reserve: maxTokens + fixed }), assumed: !!given.assumed };
+    assembled = whole.prompt.length > budget.chars
+      ? assemblePrompt(params, instruction, { budget: budget.chars, inline })
+      : whole;
+  } else {
+    assembled = assemblePrompt(params, instruction, { budget: given.chars, inline });
+  }
+  const sent = codeKind ? { ...assembled, system } : assembled;
   return {
     bind,
     fan: fan ? { n: fan.n, index: 0 } : null,
@@ -766,7 +826,8 @@ export function planFor(o) {
       shape: /** @type {any} */ (shape),
       schema: shape === 'json' ? String(settings.schema || '') : null,
       // Critic R1 A8: the real number, never "the spine decides" — a silent 512 was the bug.
-      maxTokens: maxTokensOf(settings),
+      // Critic S1-3: the ceiling clamped to the window (see above), resolved once, here.
+      maxTokens,
       // Critic R1 A1: a pinned number, or null for "new each run" (the runner picks it per run).
       seed: parseSeed(settings.seed),
       code: codeKind || null,

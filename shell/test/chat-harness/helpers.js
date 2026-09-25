@@ -987,8 +987,11 @@ function createHelpers(ctx) {
                 const modifiers = (o.alt ? 1 : 0) | (o.ctrl ? 2 : 0) | (o.meta ? 4 : 0) | (o.shift ? 8 : 0);
                 const VK = { Enter: 13, Escape: 27, Delete: 46, Backspace: 8, Tab: 9, F2: 113, ArrowLeft: 37, ArrowUp: 38, ArrowRight: 39, ArrowDown: 40, ' ': 32, Home: 36, End: 35 };
                 const printable = k.length === 1;
-                const vk = VK[k] || (printable ? k.toUpperCase().charCodeAt(0) : 0);
-                const code = printable ? (/[a-z]/i.test(k) ? `Key${k.toUpperCase()}` : (/\d/.test(k) ? `Digit${k}` : '')) : k;
+                const digit = o.code && /^Digit(\d)$/.exec(o.code);
+                const vk = VK[k] || (digit ? 48 + Number(digit[1]) : (printable ? k.toUpperCase().charCodeAt(0) : 0));
+                // `o.code` (critic S1): the PHYSICAL key, for layouts where it differs from `k` — an
+                // AZERTY Ctrl+0 is key 'à' on code 'Digit0'.
+                const code = o.code || (printable ? (/[a-z]/i.test(k) ? `Key${k.toUpperCase()}` : (/\d/.test(k) ? `Digit${k}` : '')) : k);
                 const text = printable && !(o.ctrl || o.meta || o.alt) ? k : (k === 'Enter' ? '\r' : undefined);
                 await cdp.send('Input.dispatchKeyEvent', { type: text ? 'keyDown' : 'rawKeyDown', key: k, code, windowsVirtualKeyCode: vk, nativeVirtualKeyCode: vk, modifiers, text, unmodifiedText: text });
                 await cdp.send('Input.dispatchKeyEvent', { type: 'keyUp', key: k, code, windowsVirtualKeyCode: vk, nativeVirtualKeyCode: vk, modifiers });

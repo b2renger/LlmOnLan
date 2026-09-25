@@ -2850,6 +2850,9 @@ consumed a generation, (b) entering `waiting`, (c) run end, with the 500 ms debo
    runs and neither K3-U2 nor K3-U3 can test anything end to end. **K3-U1 deletes it with the real
    loop.** Consequence while it stands, and it is why `k3-control` places its parking parts on a
    graph it does not run: **a Dialog, Confirm or Timer inside a run set hangs the run.**
+   *SUPERSEDED (critic S1-16, 2026-09-25): the shim is gone. K3-U1's loop parks for real — a
+   Dialog, Confirm or Timer puts its box in `waiting`, the run bar counts it, and the rest of the
+   graph goes on (`graph/runner.mjs`, the §4.3 park).*
 2. **`computer/host.mjs`** maps `mode:'from'` to the runner's existing `only` via `activeSet`,
    because the runner knows nothing of modes yet — a ▶ that did not narrow `A` would run the whole
    dirty graph. **K3-U1 moves this inside the runner** and adds the §4.2 prologue.
@@ -3072,6 +3075,9 @@ declare `quiet` when it starts rendering its value, and not before.
 - **Editing.** A received value shows rendered; clicking into the box shows the SOURCE in a
   textarea; committing (blur/change) goes back to rendered. Typing is live (`ctx.update`), the
   commit is what enters undo (`ctx.commit`) — one history entry per edit, not per keystroke.
+  *SUPERSEDED (critic S1-16, 2026-09-25): since critic R1 (K-1/K-2) a click SELECTS the box and
+  lets you select its rendered words; the source opens on a double-click on its words, on ✎ Edit,
+  or with the box selected on Enter/F2.*
 - **A "from input" marker with `↺ Clear`** drops the value and reveals the typed text again
   (`parts.textFromInput`, `parts.textClear`).
 - **The lock** (`settings.locked`, tldraw's 🔒, reference capture §3 lesson 1: *"prevents a text
@@ -3116,7 +3122,9 @@ reached the farm and that a non-vision farm hard-errors **without a request**.
 markdown and SVG are **live and free** — `render/dom.mjs` and `design/svg-sanitize.mjs`, with **no
 iframe ever created** (lint rule 12 allows exactly one file to make one, and it is
 `sandbox/host.mjs`). html/three/p5 are a PNG snapshot from the ONE guest, plus "Open live", which
-MOVES that single guest: opening a second closes the first, visibly. `auto` reads the value's
+MOVES that single guest: opening a second closes the first, visibly. *(SUPERSEDED, critic S1-16,
+2026-09-25: "Open live" was never built — a Preview shows the snapshot only, and nothing on the box
+claims to be live. See COMPUTER_STATUS.md, "What is NOT there yet".)* `auto` reads the value's
 `format`/`lang` facet (§6.8) and **never sniffs** a Code part's output — that part's picker is the
 answer. The refusal sentence is frozen in `parts.previewRefused` and names an action that exists.
 `render` (C3) stays LOADABLE in `specMap()` and is out of the palette: K4-U3 may delete
@@ -3311,7 +3319,10 @@ of `ask` the same way.
   answer goes through **`codeValue(text, code)`** → `{kind:'text', data: unfence(text).code,
   ...CODE_FACETS[code]}`. It changes what the answer BECOMES, never the prompt: the Write-… presets
   put "reply with only the code, in this shape" INTO the instruction text (`parts.writeAsk*`), which
-  the person sees, can edit, and the transcript's Sent shows. **Facets** (frozen): p5 →
+  the person sees, can edit, and the transcript's Sent shows. *(SUPERSEDED, critic S1-16,
+  2026-09-25: since critic R1 the code rules ride the SYSTEM message, one per code kind
+  (`graph/bind.mjs` → `parts.genSystem{Svg,P5,Three,Html}`); a Write-… preset's instruction is the
+  task only. The transcript's Sent tab still shows both, so nothing sent is hidden.)* **Facets** (frozen): p5 →
   `{format:'js', lang:'p5'}`, three → `{format:'js', lang:'three'}`, svg → `{format:'svg'}`, html →
   `{format:'html'}`; a Preview in `auto` reads them (`modeFor`, landed) — a declaration, not sniffing.
   **`unfence(text) → {code, lang, fenced}`**: the LONGEST fenced block wins; no fence → the trimmed
@@ -3555,6 +3566,11 @@ transcription service is written up for the owner as **DISCUSS D-F12** — not b
   without polling. `EV` is P0-frozen and is not extended.
 - Vision `no` stays the S0 behaviour (a4), but every sentence about it says **"the farm does not
   list X as able to see"** — the farm's declaration — never "X cannot see".
+  *SUPERSEDED in part (critic S1-13 / S1-16, 2026-09-25): X is THIS box's model — every
+  Instruction has its own Model menu listing every farm model, and on Automatic it is the farm's
+  default, not a "vision model" — so the sentence names that model and sends the person to the
+  box's Model menu, never to the farm, and no `ask.*`/`parts.*` sentence names a model id as the
+  fix.*
 
 **KF-3. "What can this box take, right now?" — the resolver and the line (K6-U1).**
 `graph/takes.mjs` (PURE, in `PURE_MODULES`), frozen exports: `MEDIA_KINDS`, `CAP_NAMES`,
@@ -3598,6 +3614,10 @@ name outside the catalogue, so:
   `thinks:false`, `defaults() = {fileId, name, mime, size, sha256}` (a MediaRef, flat). Caps, frozen:
   `DOC_MAX_BYTES` 32 MB, `DOC_MAX_PAGES` 60 (pages that flow on), `DOC_MAX_CHARS` 200 000 (under
   serialize's 1 MB value cap), `DOC_TYPES ['application/pdf']`. Over a cap is a sentence naming it.
+  *SUPERSEDED (critic S1-16, 2026-09-25): a PDF whose page count is KNOWN from its bytes and is
+  over 60 is REFUSED at the drop — not kept, nothing sent — because the farm would read every page
+  (K6 fix round, `graph/parts/document.mjs` rule 5). The cut below applies only when the count
+  could not be read up front.*
 - **Drop / choose / paste** on the box stores the bytes through `app.media.put` and writes the ref
   with ONE `ctx.update` + `ctx.commit`. **Nothing is sent on drop.** On a farm that advertises no
   extractor the box refuses the file with the `no-ocr` sentence (a canvas drop too, KF-7); with no
@@ -3609,7 +3629,8 @@ name outside the catalogue, so:
   status:'ready'})`. A failure is never cached. No extractor → `partFail` with the `no-ocr` sentence
   and **zero requests**. The value is `valueOf('text', md, {format:'markdown'})` of the first
   `DOC_MAX_PAGES` pages / `DOC_MAX_CHARS` characters; when cut, the value AND the box say so ("first
-  60 of 120 pages"). The box shows the text through `render/md-block.mjs` + `render/dom.mjs` only
+  60 of 120 pages") — *only for a PDF whose page count was unknown at the drop; one that states more
+  than 60 is refused there (superseded, critic S1-16)*. The box shows the text through `render/md-block.mjs` + `render/dom.mjs` only
   (KD-4's safe path), scrolling; it declares `quiet:true` once it renders its value.
 - **Not a generation**: it spends no seat and is not counted by the plan preview (the farm's
   extractor is outside the seat gate — c4).

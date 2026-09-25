@@ -310,7 +310,7 @@ export function createRunner(o) {
     if (ac) {
       return /** @type {any} */ ({
         ran: 0, skipped: 0, errors: [], cancelled: false, busy: true, ms: 0,
-        yielded: false, capped: null, cycle: false, generations: 0,
+        yielded: false, yieldedBy: null, capped: null, cycle: false, generations: 0,
       });
     }
     const started = now();
@@ -334,6 +334,13 @@ export function createRunner(o) {
     let skipped = 0;
     let cancelled = false;
     let yielded = false;
+    /**
+     * Critic S1-1: WHY the run yielded — the FIRST control failure's part, sentence, and whether it
+     * was this window being in the background (`ask.hidden`). A yield used to leave nothing on the
+     * box and nothing in the report, so the run bar read "every box is up to date" after a run that
+     * sent nothing at all. @type {{partId: string, message: string, hidden: boolean}|null}
+     */
+    let yieldedBy = null;
     let merged = 0;
     let waited = 0;
     let activations = 0;
@@ -473,7 +480,7 @@ export function createRunner(o) {
       }
       const report = /** @type {any} */ ({
         ran, skipped, errors, cancelled, ms: Math.round(now() - started),
-        yielded, capped, cycle, generations: spent,
+        yielded, yieldedBy, capped, cycle, generations: spent,
         mode, seeds: [...S], journalId: J.id || null,
         activations, iterations: Object.fromEntries(iterationsOf),
         barred: barred.slice(), waited, leftStale, limited, merged,
@@ -810,6 +817,7 @@ export function createRunner(o) {
       const n = fanning ? /** @type {any} */ (plan).n : 1;
       /** @type {'ok'|'cancelled'|'yielded'|'capped'|'part'} */ let how = 'ok';
       let partMessage = '';
+      /** The control failure that made this part yield (critic S1-1). @type {any} */ let yieldErr = null;
       let bar = false;
 
       for (let k = 0; k < n; k++) {
@@ -867,7 +875,7 @@ export function createRunner(o) {
           // A CONTROL failure is about the RUN, not about the item (§2.6 BH-4): it ends the run
           // with the part back to `stale`, and it is never written against item k.
           if (reason === 'capped') { how = 'capped'; break; }
-          if (reason === 'busy' || reason === 'aborted') { how = 'yielded'; break; }
+          if (reason === 'busy' || reason === 'aborted') { how = 'yielded'; yieldErr = err; break; }
           // A per-ITEM failure: recorded against the item, and its siblings carry on. A part that
           // did not fan has exactly one "item", so this is C1's behaviour unchanged.
           results.push({ ok: false, message: messageOf(err) });
@@ -900,6 +908,9 @@ export function createRunner(o) {
       if (how === 'yielded') {
         // The human took the seat. Yield: nothing is wrong, and Run resumes here.
         yielded = true;
+        if (!yieldedBy) {
+          yieldedBy = { partId: id, message: messageOf(yieldErr), hidden: !!(yieldErr && /** @type {any} */ (yieldErr).hidden) };
+        }
         mark(id, { state: 'stale', error: null, fanout: record });
         emit({ type: 'part', partId: id, state: 'stale', i: activations, n: A.size, yielded: true });
         return 'stop';

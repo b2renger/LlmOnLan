@@ -327,8 +327,9 @@ export default (test) => {
     const env = { ...fake.env, createImageBitmap: async (f) => { decodes += 1; return fake.env.createImageBitmap(f); } };
     const huge = { ...fileOf('scan.png', 'image/png', 100, 50), size: MAX_SOURCE_BYTES + 1 };
     const out = await readImage(huge, env);
+    // Critic S1-12: the FILE is too big to open — the sentence no longer says "once resized".
     assert.equal(/** @type {any} */ (out).error,
-      t('parts.imageTooBig', { mb: mbOf(MAX_SOURCE_BYTES + 1), capMb: mbOf(MAX_SOURCE_BYTES) }));
+      t('parts.imageTooBigFile', { mb: mbOf(MAX_SOURCE_BYTES + 1), capMb: mbOf(MAX_SOURCE_BYTES) }));
     assert.equal(decodes, 0, 'the decode is the biggest allocation here: it never ran');
     const ok = await readImage({ ...fileOf('ok.png', 'image/png', 100, 50), size: 1024 }, env);
     assert.equal(/** @type {any} */ (ok).w, 100, 'an ordinary file is untouched by the guard');
@@ -339,6 +340,8 @@ export default (test) => {
     // A 16000x16000 scan: a few MB on disk, ~1 GB decoded.
     const out = await readImage(fileOf('panorama.png', 'image/png', 16000, 16000), fake.env);
     assert.ok(/** @type {any} */ (out).error, 'refused');
+    // Critic S1-12: counted in pixels, in its own sentence.
+    assert.equal(/** @type {any} */ (out).error, t('parts.imageTooManyPixels', { mp: '256', capMp: String(Math.round(MAX_SOURCE_PIXELS / 1e6)) }));
     assert.equal(fake.encodes.length, 0, 'and no canvas was ever asked for');
     assert.ok(16000 * 16000 > MAX_SOURCE_PIXELS);
     assert.equal(fake.state.closed, 1, 'the bitmap is still closed on the way out');

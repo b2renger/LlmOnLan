@@ -12,6 +12,9 @@
 // the error object rather than in prose parsing.
 
 import { isValue } from '../values.mjs';
+import { t } from '../../core/i18n.mjs';
+import '../../strings/parts.en.mjs';
+import '../../strings/computer-gen.en.mjs';
 
 /** @typedef {import('../../core/types.mjs').GraphValue} GraphValue */
 
@@ -39,6 +42,46 @@ export function partFail(message, reason) {
 export function isControl(err) {
   const reason = err && err.reason;
   return reason === 'capped' || reason === 'busy' || reason === 'aborted';
+}
+
+/**
+ * An AskResult that is not ok, as the right THROW. ONE mapping for every part that asks the farm
+ * (critic S1-1, S1-7, S1-13): the Instruction, Condition and Filter each had their own copy, and
+ * each dropped the ask's own sentence — so a farm that still needed its password said "No farm is
+ * connected", and a window in the background said "the farm is busy".
+ *
+ *   busy       the ask's own sentence, `reason:'busy'`, and `hidden:true` when the window was in
+ *              the background — the runner carries both into `report.yieldedBy`
+ *   no_farm    the ask's own sentence ("…needs its password…" is not "no farm")
+ *   no_vision  `parts.errNoVision` naming THIS box's model when the caller knows it
+ *   thought    (critic S1-3/S1-4) cut off while still thinking: `parts.errCutOffThinking`
+ *   the rest   as before: aborted, empty, invalid, and the farm's own words
+ * @param {any} res an AskResult
+ * @param {{model?: string, maxTokens?: number}} [o] what the caller asked with, for the sentence
+ * @returns {Error}
+ */
+export function failFromAsk(res, o) {
+  const opts = o || {};
+  const error = res && res.error ? res.error : null;
+  const kind = error ? String(error.kind || 'farm') : 'farm';
+  const said = error && typeof error.message === 'string' ? error.message : '';
+  if (kind === 'busy') {
+    const err = partFail(said || t('parts.errBusy'), 'busy');
+    if (error && error.hidden) /** @type {any} */ (err).hidden = true;
+    return err;
+  }
+  if (kind === 'aborted') return partFail(t('parts.errAborted'), 'aborted');
+  if (kind === 'no_farm') return partFail(said || t('parts.errNoFarm'), 'no-farm');
+  if (kind === 'no_vision') {
+    return partFail(opts.model ? t('parts.errNoVision', { model: opts.model }) : (said || t('parts.errFarmSilent')), 'part');
+  }
+  if (res && res.thought) {
+    const n = Math.floor(Number(opts.maxTokens) || Number(res.maxTokens) || 0);
+    return partFail(t('parts.errCutOffThinking', { n: n || '?' }), 'part');
+  }
+  if (kind === 'empty') return partFail(t('parts.errEmpty'), 'empty');
+  if (kind === 'invalid') return partFail(t('parts.errInvalid'), 'invalid');
+  return partFail(said ? t('parts.errFarm', { message: said }) : t('parts.errFarmSilent'), 'farm');
 }
 
 /** The items a value carries: a `list` is its own items, anything else is one item.

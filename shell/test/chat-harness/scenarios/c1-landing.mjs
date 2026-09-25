@@ -60,6 +60,8 @@ export default [
         run: async (/** @type {any} */ h) => {
             await h.fresh();
             await h.waitFor(() => (window.LolChat && window.LolChat.ready ? true : null));
+            // The graph.* strings are registered by the COMPUTER's modules, which finish after the chat's.
+            await h.waitFor(() => (window.LolComputer && window.LolComputer.ready ? true : null), { timeout: 20000 });
             const lines = await h.eval(() => {
                 const t = window.LolChat.app.t;
                 return {

@@ -17,7 +17,9 @@ registerStrings('parts', {
   // ---- the seed row on an Instruction (A1) --------------------------------------------------
   genSeed: 'Seed',
   genSeedNew: 'new each run',
-  genSeedHint: 'Empty: a new seed every run, so pressing ▶ again gives a new answer. A number: the same seed every time, so the same inputs usually give the same answer.',
+  // Critic S1-13: the sameness a pinned seed promises is the Computer's OWN cache. Asked the farm
+  // again with the same seed, Qwen3.8 repeated itself and gemma4:12b (through Ollama) did not.
+  genSeedHint: 'Empty: a new seed every run, so pressing ▶ again gives a new answer. A number: the same seed every time. While this window is open the Computer re-uses the answer it already has. Asked again, most models repeat it, but some still vary.',
   genSeedDice: '🎲',
   genSeedDiceTitle: 'Pin a random seed',
   genSeedClear: '✕',
@@ -26,12 +28,15 @@ registerStrings('parts', {
   genSeedUsed: 'last run: {seed}',
   genSeedUsedPinned: 'last run: {seed} (pinned)',
   genSeedKeep: 'Keep',
-  genSeedKeepTitle: 'Pin this seed, so the next run can give this answer again',
+  genSeedKeepTitle: 'Pin this seed: the next run re-uses this answer instead of asking again.',
 
   // ---- answers that hit max_tokens (A8) -----------------------------------------------------
   errCutOff: 'The answer was cut off after {n} tokens, so the code is incomplete. Ask for something smaller.',
   errCutOffData: 'The answer was cut off after {n} tokens, so the list or JSON is incomplete. Ask for fewer or shorter items.',
   genCutChip: 'cut off after {n} tokens — the end of the answer is missing',
+  // Critic S1-3: the tokens went on THINKING (reasoning_content counts toward max_tokens), so
+  // "ask for something smaller" would be wrong advice.
+  errCutOffThinking: 'The model used all {n} tokens thinking before it finished. Run it again, or pick a model that thinks less in Model.',
 
   // ---- what the model is told when an Instruction answers in code (A8) ----------------------
   genSystemSvg: [

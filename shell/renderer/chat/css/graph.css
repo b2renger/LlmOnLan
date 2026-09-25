@@ -85,6 +85,11 @@
 
 :is(#lolchat, #lolcomputer) .graph-stop { border-color: var(--amber); }
 
+/* Critic S1-14: on the Computer the run bar is THE run door — Run all and Stop sit right above.
+   The toolbar's Run was the same `host.start()` under a second name, so it is not drawn there;
+   Ctrl+Enter on the canvas still runs everything. */
+#lolcomputer .graph-toolbar :is(.graph-run, .graph-stop) { display: none; }
+
 :is(#lolchat, #lolcomputer) .graph-add-wrap { position: relative; }
 
 :is(#lolchat, #lolcomputer) .graph-add-menu {
@@ -218,6 +223,21 @@
 :is(#lolchat, #lolcomputer) .graph-wire-pill[data-editing="true"] .graph-wire-label {
   border-color: var(--accent);
   outline: none;
+}
+
+/* Critic S1-6: `revealWire` flashes the name tag it brought into view, the way `reveal` flashes a
+   box — the tag is what the lesson step asks you to click. */
+#lolcomputer .graph-wire-pill[data-flash="true"] :is(.graph-wire-label, .graph-wire-ph) {
+  border-color: var(--green);
+  opacity: 1;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--green) 35%, transparent);
+}
+
+/* Critic S1-5: the box a dragged wire would plug into if it were released now — over its body as
+   much as over its dot — so a drop on the box is never a surprise. */
+#lolcomputer .graph-part[data-drop-target="true"] {
+  outline: 2px dashed var(--accent-hover);
+  outline-offset: 3px;
 }
 
 :is(#lolchat, #lolcomputer) .graph-layer {
@@ -752,6 +772,8 @@
   font-size: 12px;
   line-height: 1.35;
 }
+/* S1-11: the note about pictures shows only while "Include results" is ticked. */
+#lolcomputer .graph-export-note[hidden] { display: none; }
 
 :is(#lolchat, #lolcomputer) .graph-export-save { align-self: flex-start; }
 

@@ -48,7 +48,8 @@ registerStrings('parts', {
   previewLockOff: 'Click to keep your code when something arrives on the wire.',
   previewFromInput: 'Drawing what arrived on the wire',
   previewLocked: 'Your code is kept',
-  previewKept: 'Kept your code: what arrived was not drawn. Unlock to draw it.',
+  // Critic S1-12: a Preview has no Unlock; its control is “Keep my code” (previewLock).
+  previewKept: 'Kept your code: what arrived was not drawn. Press “Keep my code” again to draw it.',
   previewKeptEditing: 'Kept your code while you were typing. Press ▶ again to draw what arrived.',
   previewShowCode: 'Show code',
   previewHideCode: 'Hide code',

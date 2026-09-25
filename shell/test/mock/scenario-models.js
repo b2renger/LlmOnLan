@@ -51,6 +51,10 @@ const STATIC_MODEL_IDS = [
     'mock-hears',        // supports_audio_input: true, supports_vision: false
     'mock-reads-pdf',    // supports_pdf_input: true,   supports_vision: true
     'mock-nocaps',       // a row with NO supports_* field at all: every verdict stays unknown
+    // Critic S1-3/S1-4: a THINKING model that spends its whole max_tokens on reasoning_content and
+    // is cut off (finish_reason "length") before it writes a word of the answer — gemma4:12b on the
+    // rig, drawing SVG/p5 at max_tokens 4096. The client must fail the box, never keep the thoughts.
+    'mock-think-length',
 ];
 const MODEL_IDS = [...STATIC_MODEL_IDS, ...PERF_NAMES.map((n) => `mock-perf:${n}`)];
 
@@ -700,6 +704,26 @@ function handleCompletion({ model, res, body, store }) {
 
     if (id === 'mock-length') {
         streamContent(id, res, store, body, lengthChunks(body), { finish: 'length' });
+        return true;
+    }
+
+    if (id === 'mock-think-length') {
+        // Reasoning ONLY, then finish_reason "length" and a usage that says the whole max_tokens was
+        // spent — the shape gemma4:12b produced on the rig (4493-4551 completion tokens at 4096).
+        const out = sse(res);
+        const think = Array.from({ length: 60 }, (_, i) => `step ${i}: weighing the layout, the colours and the shapes. `);
+        let i = 0;
+        const next = () => {
+            if (i >= think.length) return null;
+            out.send(chunk(id, { reasoning_content: think[i++] }));
+            return true;
+        };
+        pace(res, store, next, () => {
+            out.send(chunk(id, {}, 'length'));
+            const spent = Math.max(1, Math.floor(Number(body && body.max_tokens) || 4096));
+            out.send(usageChunk(id, spent, body));
+            out.done();
+        }, { perTick: 10 });
         return true;
     }
     if (id === 'mock-restart-on-prefill') {

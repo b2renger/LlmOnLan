@@ -27,7 +27,7 @@ import { createRunner } from '../../../renderer/chat/graph/runner.mjs';
 import { createDoc, addPart, addWire, patchPart, partById, setSettings, normaliseDoc } from '../../../renderer/chat/graph/model.mjs';
 import { valueOf, listOf } from '../../../renderer/chat/graph/values.mjs';
 import { instruction } from '../../../renderer/chat/graph/parts/instruction.mjs';
-import { seedFor, baseSeed, parseSeed, SEED_ITEM_STEP, SEED_ITERATION_STEP, SEED_MAX, SEED_SPAN } from '../../../renderer/chat/graph/bind.mjs';
+import { seedFor, baseSeed, parseSeed, SEED_ITEM_STEP, SEED_ITERATION_STEP, SEED_MAX, SEED_SPAN, MAX_TOKENS_CODE, MAX_TOKENS_TEXT } from '../../../renderer/chat/graph/bind.mjs';
 import { t } from '../../../renderer/chat/core/i18n.mjs';
 import '../../../renderer/chat/strings/parts.en.mjs';
 import '../../../renderer/chat/strings/computer-gen.en.mjs';
@@ -427,17 +427,19 @@ export default (test) => {
     const runner = createRunner({ session, app });
     const farm = fakeFarm(() => ({ text: '```javascript\nfunction setup() {\n  createCanvas(', finish: 'length' }));
     await withFarm(farm, () => runner.run({ mode: 'from', seeds: [ins] }));
-    assert.equal(farm.posts[0].max_tokens, 4096, 'code gets 4096');
+    // Critic S1-3: the ceilings are 16384 / 8192, clamped to the window — this farm advertises
+    // none, so the assumed 32768 leaves each its whole ceiling.
+    assert.equal(farm.posts[0].max_tokens, MAX_TOKENS_CODE, 'code gets its ceiling');
     assert.match(String(farm.posts[0].messages[0].content), /You write ONE p5\.js sketch/, 'the p5 rules ride the system message');
     const part = session.part(ins);
     assert.equal(part.state, 'error');
-    assert.equal(part.error, t('parts.errCutOff', { n: 4096 }));
+    assert.equal(part.error, t('parts.errCutOff', { n: MAX_TOKENS_CODE }));
 
     const prose = oneInstruction();
     const r2 = createRunner({ session: prose.session, app: makeApp() });
     const farm2 = fakeFarm(() => ({ text: 'A long essay that stops mid-', finish: 'length' }));
     await withFarm(farm2, () => r2.run({ mode: 'from', seeds: [prose.ins] }));
-    assert.equal(farm2.posts[0].max_tokens, 2048, 'prose gets 2048');
+    assert.equal(farm2.posts[0].max_tokens, MAX_TOKENS_TEXT, 'prose gets its ceiling');
     const p2 = prose.session.part(prose.ins);
     assert.equal(p2.state, 'done', 'prose that was cut is still worth reading');
     assert.equal(p2.stats.cut, true, 'and the box is told the end is missing');
@@ -537,7 +539,7 @@ export default (test) => {
       // a prose answer cut at max_tokens says so on the box
       b.inst.update({ ...b.part, stats: { ms: 1, tokens: 1, calls: 1, cut: true } });
       assert.equal(b.q('.graph-ins-cut').hidden, false);
-      assert.equal(b.q('.graph-ins-cut').textContent, t('parts.genCutChip', { n: 2048 }));
+      assert.equal(b.q('.graph-ins-cut').textContent, t('parts.genCutChip', { n: MAX_TOKENS_TEXT }));
     });
   });
 

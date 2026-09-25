@@ -146,7 +146,10 @@ export default [
             h.eq(part.stats.calls, 1, 'not cached');
             h.eq(part.stats.seed, two[1].seed);
             h.eq((await seedView(h, ins)).used, await str(h, 'parts.genSeedUsed', { seed: two[1].seed }));
-            h.eq(two[1].maxTokens, 2048, 'and a prose answer asks for 2048 tokens, not a silent 512');
+            // Critic S1-3: prose's ceiling is 8192, clamped to the window — the mock's 16k slot
+            // leaves it whole. What the plan says is what goes out.
+            h.eq(two[1].maxTokens, (await h.computer.preview(ins)).call.maxTokens, 'a prose answer asks for its planned max_tokens');
+            h.eq(two[1].maxTokens, 8192, 'its whole 8192 ceiling, not a silent 512');
         },
     },
     {

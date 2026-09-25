@@ -348,7 +348,9 @@ export default [
             const refused = await askText(h, { task: 'look', prompt: 'what is this', images: [px], model: 'mock-vision-echo' });
             h.eq(refused.ok, false);
             h.eq(refused.error.kind, 'no_vision');
-            h.assert(/vision model/.test(refused.error.message), 'the sentence names what has to change');
+            // Critic S1-13: the reader changes it (a model that can see), and no model id is named.
+            h.assert(/Pick a model that can see/.test(refused.error.message), 'the sentence names what has to change');
+            h.assert(!/gemma|:\d+b/.test(refused.error.message), 'and promises no particular model');
             h.eq(await posts(h), 0, 'a known-blind model is refused locally');
 
             // A model the catalogue never mentioned is 'unknown' — so we ASK, and the farm's own 400

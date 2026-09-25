@@ -297,9 +297,11 @@ export default (test) => {
   });
 
   test('every ask failure kind becomes its own sentence and its own reason', async () => {
+    // Critic S1-1/S1-7: busy and no_farm carry the ASK'S OWN sentence (here 'boom') — "the farm
+    // needs its password" is not "no farm", and "this window is hidden" is not "the farm is busy".
     const cases = [
-      ['no_farm', t('parts.errNoFarm'), 'no-farm'],
-      ['busy', t('parts.errBusy'), 'busy'],
+      ['no_farm', 'boom', 'no-farm'],
+      ['busy', 'boom', 'busy'],
       ['aborted', t('parts.errAborted'), 'aborted'],
       ['empty', t('parts.errEmpty'), 'empty'],
       ['invalid', t('parts.errInvalid'), 'invalid'],

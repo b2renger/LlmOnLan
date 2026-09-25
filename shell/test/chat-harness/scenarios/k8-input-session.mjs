@@ -11,6 +11,9 @@
 // The rest of Package B's session rules (the open race B11, no writes before an open B12, the
 // card's last run B13, the migration's per-source marker B14) are pure and pinned in Node by
 // `chat-unit.js computer-canvas-r1`.
+//
+// Critic S1-14: the canvas toolbar's Run/Stop are no longer drawn on the Computer — the run bar's
+// Run all and Stop are its one run door — so these scenarios press those.
 
 const FARM_ERRORS = [/Failed to load resource/, /net::ERR_/, /aborted/i];
 const COMPLETIONS = '/v1/chat/completions';
@@ -78,7 +81,7 @@ export default [
         async run(h) {
             await freshDoc(h, 'k8 undo keeps answers');
             const { note, ask } = await build(h, 'mock-echo');
-            await h.input.click('#lolcomputer .graph-run');
+            await h.input.click('#lolcomputer .comp-run-all');
             await h.waitFor(() => (window.LolComputer.debug.computer.running() ? true : null), { timeout: 5000 }).catch(() => true);
             await settled(h);
             const ran = await part(h, ask);
@@ -110,7 +113,7 @@ export default [
         async run(h) {
             const id = await freshDoc(h, 'k8 open card');
             await build(h, 'mock-slow');
-            await h.input.click('#lolcomputer .graph-run');
+            await h.input.click('#lolcomputer .comp-run-all');
             await waitForPost(h, 'mock-slow');
             h.eq(await running(h), true, 'the run is live, waiting on the slow model');
             const card = `#lolcomputer .comp-card[data-id="${id}"] .comp-card-open`;
@@ -120,7 +123,7 @@ export default [
             h.eq(await running(h), true, 'clicking the card of the graph already open does not stop its run');
             h.eq(await h.eval(() => window.LolComputer.debug.computer.docId()), id, 'and nothing was switched');
             h.eq((await h.mock.log({ path: COMPLETIONS, model: 'mock-slow' })).filter((e) => e.closedEarly).length, 0, 'no request was aborted');
-            await h.input.click('#lolcomputer .graph-stop');
+            await h.input.click('#lolcomputer .comp-run-stop');
             await settled(h);
         },
     },
@@ -135,7 +138,7 @@ export default [
             await freshDoc(h, 'k8 keeper');                    // somewhere to land after the delete
             const doomed = await freshDoc(h, 'k8 doomed');
             await build(h, 'mock-slow');
-            await h.input.click('#lolcomputer .graph-run');
+            await h.input.click('#lolcomputer .comp-run-all');
             await waitForPost(h, 'mock-slow');
             h.eq(await running(h), true, 'a run is live on the graph about to be deleted');
 
@@ -174,7 +177,7 @@ export default [
         async run(h) {
             await freshDoc(h, 'k8 escape');
             const { ask } = await build(h, 'mock-slow');
-            await h.input.click('#lolcomputer .graph-run');
+            await h.input.click('#lolcomputer .comp-run-all');
             await waitForPost(h, 'mock-slow');
 
             // 1. In a field: Escape leaves the field and nothing else.

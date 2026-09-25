@@ -195,8 +195,9 @@ export default [
 
             const live = await parts(h);
             h.eq(live[ins].state, 'error', 'a blind farm is a hard error, never a silent text-only answer');
-            h.eq(live[ins].error, await str(h, 'parts.errNoVision', { alias: 'assistant' }),
-                'and the sentence names the model the farm is serving');
+            // Critic S1-13: {model} is this box's model, and the fix named is its Model menu.
+            h.eq(live[ins].error, await str(h, 'parts.errNoVision', { model: 'assistant' }),
+                'and the sentence names the model this box asks');
             const posts = await h.mock.log({ path: COMPLETIONS, since: mark });
             h.eq(posts.length, 0, 'nothing was generated to find this out');
         },

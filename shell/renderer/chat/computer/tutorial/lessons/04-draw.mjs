@@ -75,7 +75,7 @@ export default {
     },
     {
       id: 's4',
-      text: 'Wire “Write an SVG” into the SVG box: drag from the dot on its right edge onto the SVG box.',
+      text: 'Wire “Write an SVG” into the SVG box: drag from the dot on its right edge onto the SVG box (its left dot).',
       check: { wire: { fromPreset: 'write-svg', to: 'p_svg' } },
       show: { partId: 'p_svg' },
     },

@@ -639,7 +639,10 @@ export const RUN_LIMITS = Object.freeze({
  *   mode?: 'all'|'from'|'button', seeds?: string[], journalId?: string|null,
  *   activations?: number, iterations?: Record<string, number>,
  *   barred?: string[], waited?: number, leftStale?: string[],
- *   limited?: RunLimit|null, merged?: number }} RunReport
+ *   limited?: RunLimit|null, merged?: number,
+ *   yieldedBy?: {partId: string, message: string, hidden: boolean}|null }} RunReport
+ *   // yieldedBy (critic S1-1): the first control failure that made the run yield; `hidden` is true
+ *   // when the window was in the background, so the bar can say why nothing was sent.
  *
  * C1 landing, additive (all three set by graph/runner.mjs, all three read by graph/panel.mjs):
  *   yielded  the governor gave the seat back to the human mid-run. NOT an error and NOT a cancel:
@@ -654,7 +657,10 @@ export const RUN_LIMITS = Object.freeze({
  * @typedef {{ ok: boolean, value: any, mode: 'schema'|'prompt'|'text', raw: string,
  *   usage: object|null, ms: number,
  *   error: {kind: 'busy'|'no_farm'|'no_vision'|'empty'|'invalid'|'aborted'|'farm', message: string}|null,
- *   cached?: boolean, errors?: string[] }} AskResult
+ *   cached?: boolean, errors?: string[],
+ *   thought?: boolean, maxTokens?: number }} AskResult
+ *   // thought/maxTokens (critic S1-3/S1-4): the answer was cut at max_tokens while the model was
+ *   // still THINKING (no content, or under 10 % of what it wrote) — a failure, never a value.
  *
  * S0 landing, additive (both optional, both set by app/ask.mjs):
  *   cached  an in-memory hit on the input hash — no seat was taken. A Retry passes `cache:false`.

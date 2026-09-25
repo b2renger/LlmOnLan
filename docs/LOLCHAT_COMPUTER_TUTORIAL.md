@@ -1,275 +1,346 @@
 # The Computer — a tutorial
 
-The Computer is a canvas inside a chat where you place **parts**, draw **wires** between them and
-press **Run**. Values flow along the wires; the parts that think call the model on the farm, and the
-parts that count run plain JavaScript on your own machine. It is a small visual program you assemble
-in a minute and re-run all afternoon, because on our own farm re-running costs nothing.
+The Computer is a canvas where you place **boxes**, draw **wires** between them and run them. What
+a box makes travels along its wires to the next box. The boxes that think ask a model on the farm;
+the others (text, pictures, code, views, controls) do their work on your own machine. It is a
+small visual program you assemble in a few minutes and re-run all afternoon, because on our own
+farm re-running costs nothing.
 
-It is **not** a mind map, not a chat with a diagram, and not a place to organise notes. There is no
-free-form drawing, no cloud, no API key. Every part either holds a value, transforms one, or asks the
-farm on the LAN for one.
+It is **not** a mind map and not a chat with a diagram. There is no cloud and no API key. Every
+graph you make is saved on this computer, in the Computer's own library.
 
-Two worked examples ship with it, in [examples/](examples/):
-
-| File | What it shows |
-|---|---|
-| [`palette-check.lolgraph.json`](examples/palette-check.lolgraph.json) | The model judges, JavaScript checks: a palette proposed by the model, its WCAG contrast computed exactly, a swatch sheet drawn, a `tokens.css` written. Seven parts, **one** generation. |
-| [`fanout-pitches.lolgraph.json`](examples/fanout-pitches.lolgraph.json) | Fan-out: six topics, one Run, six generations, rejoined into one file. |
-
-Both files are rebuilt from [`examples/build-examples.mjs`](examples/build-examples.mjs), which runs
-them through the real graph engine, and both are run end to end by the harness scenario
-[`shell/test/chat-harness/scenarios/examples.mjs`](../shell/test/chat-harness/scenarios/examples.mjs).
-They are not illustrations; they work.
+> Rewritten on 2026-09-25 (critic S1-16) to describe the Computer as it is now: its own surface
+> with a library, the ＋ menu's boxes by their current names, pictures, PDFs and sounds in boxes,
+> the drawer on the right, and the Learn shelf. The design is in
+> [COMPUTER_PLAN.md](COMPUTER_PLAN.md); what works today and what does not is in
+> [COMPUTER_STATUS.md](COMPUTER_STATUS.md).
 
 ---
 
 ## Opening it
 
-Open a chat first — **a graph belongs to a conversation**, one canvas per thread. Then either:
+The topbar has a three-way switch: **Open WebUI · LOL Chat · Computer**. Press **Computer**. The
+app remembers which one you were on, so the next launch opens there again.
 
-- press the **Computer** button in the chat header (its tooltip reads *Open Computer*), or
-- press **Ctrl+1**, or
-- click the **Computer** tab in the rail down the right-hand edge of the workbench column.
+What you see, left to right:
 
-`Ctrl+\` cycles the three widths — **Chat**, **Split**, **Panel** — and there are three buttons for
-the same thing at the top of the workbench. Build in **Split** so you can still see the conversation;
-switch to **Panel** when the graph gets wide.
+- **The library** (sidebar). **＋ New** makes an empty graph, **Import…** adds a graph from a
+  `.lolgraph.json` file, and the search box filters the list. Each graph is a card with its title,
+  how many boxes it has and when it last ran. Hover a card for **Rename**, **Duplicate**,
+  **Export…** and **Delete**. Below the list is the **Learn** shelf. Drag the sidebar's right edge
+  to make it wider.
+- **The run bar**, above the canvas: **Run all** (with **Stop** beside it while a run is going),
+  counts of parts and generations, the generation cap, a sentence about the last run, the zoom (a button
+  that opens the zoom menu), **?** (what is this?), and **● Record log** (see
+  [COMPUTER_DEBUG_LOG.md](COMPUTER_DEBUG_LOG.md)).
+- **The canvas**, with its toolbar: **＋ Add a box**, the **Select** and **Hand** tools, **Undo**,
+  **Redo**, **Fit**, **Tidy**, **Export…**, **Replace from file…**, the **Cap** field, and the zoom
+  cluster (**−**, the zoom %, **+**).
+- **The drawer**, on the right, when something is open in it: a value you clicked, or what a box
+  sent and got (see [Read the prompt before you pay](#step-4--read-the-prompt-before-you-pay)).
+  Drag its left edge to resize it.
 
-An empty canvas says *"Place a part to start. Wire it up, then press Run."*
+A new, empty graph offers **Take the tour · Open a template · Add your first box**, plus one-click
+picks for the most common boxes.
 
 ---
 
-## Part 1 — build the palette graph by hand
+## The fastest way in: the Learn shelf
 
-The point of this graph: **the model proposes colours, JavaScript decides whether they are legible.**
-A 12B model cannot compute a contrast ratio and should never be asked to. It can have taste; the
-arithmetic is ours.
+The **Learn** shelf in the sidebar holds a tour, four lessons and two templates. A lesson opens as
+**your own copy** of a small graph, with a **step rail** docked at the bottom-left of the canvas.
+The rail shows one step at a time and **ticks it when you have really done it**: nothing is typed
+for you, and nothing ticks by accident.
 
-You will build seven parts. It takes about ten minutes the first time. If you would rather see it
-running first, skip to [Part 2](#part-2--import-the-fan-out-example) and import
-`palette-check.lolgraph.json` instead — then come back and take it apart.
+| On the shelf | What it teaches | Farm |
+|---|---|---|
+| **The tour** | Move around, add a box, wire two together, run, delete, undo. | not needed |
+| **1. hello, farm** | An Instruction is a prompt you can point at and run. | one generation |
+| **2. wires carry values** | A box runs when the boxes that feed it have finished. | two per pass |
+| **3. arrow labels are names** | Name an arrow, and the Instruction can use that name. | one per run |
+| **4. make a picture** | Ask the model for an SVG, and watch it drawn. | one |
+| **Research → problematic** (template) | One topic, five angles of research, one problematic, two design concepts. | about 8 |
+| **Creative coding** (template) | A brief becomes a p5.js sketch you can run, read and edit. | about 1 |
 
-### Step 1 — the brief (Note)
+On the rail:
 
-Press **Add a part** in the toolbar. A menu drops down listing all eleven part types in palette
-order: Note, From thread, Ask, Split, Repeat, Filter, Collect, To thread, Code, Render, File. Choose
-**Note**. (The new part lands in the middle of the view, so pan to where you want it first.)
+- **Show me** moves the canvas to what the step is about and flashes it. If you deleted that box,
+  the button reads **Put it back** and restores it where the lesson had it.
+- A step you can only read (like "read what will be sent") has **Got it**.
+- **Reset lesson** asks, then puts the lesson's graph back as it shipped. One Undo takes the reset
+  back.
+- **No farm, or the farm too busy?** When a box cannot get an answer, the rail offers **Use the
+  saved answer**. The box then shows the lesson's recorded answer with a *demo answer — not
+  generated* badge, and you can finish the lesson.
+- The **–** folds the rail to a pill. A lesson resumes where you left it, even after a restart.
 
-A box lands on the canvas with a text area in it. Type your brief — mine is:
+The **?** in the run bar explains the Computer in two sentences and leads to the same shelf.
+
+---
+
+## Part 1 — build a graph by hand
+
+You will make: a brief in a **Text** box → an **Instruction** that writes from it → the answer in a
+second **Text** box, and then a picture. About ten minutes the first time.
+
+### Step 1 — a new graph, and a Text box
+
+Press **＋ New** in the library. The new graph opens on the canvas; double-click its card (or hover
+it and press **Rename**) to name it.
+
+Press **＋ Add a box** in the toolbar (or **double-click** an empty spot of the canvas, or
+**right-click** it: the box then lands where you clicked). The menu is grouped — **Bring in ·
+Think · Show · Control · Annotate** — and you can type to search ("picture", "model", "p5"). Pick
+**Text** under *Bring in*.
+
+Click into the Text box and type your brief, for example:
 
 ```
-Atelier Num is a small studio that does VR, projection and installation work.
-The site is dark by default, reads as a workshop rather than an agency, and shows a lot of
-photography. It needs a page background, a surface for cards, one accent for links and buttons,
-and two text colours (body and muted).
+A small studio that does VR, projection and installation work. Dark by default, reads as a
+workshop rather than an agency, shows a lot of photography.
 ```
 
-**On screen now:** one box labelled *Note*, its state pill reading **Not run**, with your text in it.
-A Note has no input port — it is a literal, and the left edge of most graphs. An unwired Note is just
-a comment, which is a legitimate use.
+**On screen now:** one box titled *Text*, its state reading **Not run**, your words in it. A Text
+box with nothing wired into it is simply the text you typed.
 
-### Step 2 — the ask (Ask)
+### Step 2 — an Instruction, and a wire
 
-**Add a part → Ask.** Drag it to the right of the Note (drag anywhere on the part except its own
-controls; parts snap to a 10 px grid).
+**＋ Add a box → Think → Instruction.** Move it to the right of the Text box: drag it by its
+title bar. Boxes snap to a grid.
 
-Wire them: put the pointer on the **small round port on the right edge of the Note**, press and
-drag. A line follows the pointer. Drop it on the **port on the left edge of the Ask**, labelled
-*Context in*. The wire snaps to the nearest input port if you are close, and the canvas announces
-*"Note now feeds Ask"*.
+Wire them: put the pointer on the **dot on the right edge of the Text box**, press, and drag. A
+line follows the pointer. Let go **on the Instruction** — on its left dot, or anywhere on the box:
+the box it will plug into is outlined while you hover it, and the wire goes into that box's first
+free input that takes what the wire carries. The canvas says *"Text now feeds Instruction"*.
 
-If a wire is refused it snaps back and says why in one line — *"That would make a loop. Use Repeat
-instead of feeding a value back."*, *"Those two are already wired together."*, or
-*"Note produces text, which Look does not accept."* Wire refusals happen at draw time, never
-silently at run time.
+A wire that cannot be made is refused **on the spot**, in one sentence: *"Those two are already
+wired together."*, *"A part cannot feed itself."*, a kind the box does not accept, or a loop with
+nothing in it that can stop it (see [Loops](#loops-and-the-limits-of-a-run)). Let go on empty
+canvas and nothing is made; the canvas says to drop the wire on a box or its dot.
 
-Now the Ask's settings, all on the part itself:
+To unplug a wire, drag its end off the input and let go on empty canvas, or hover the wire and
+press the **✕** beside its name. Drop the end on another box (or its dot) instead, and it is
+re-plugged there. **Ctrl+Z** undoes any of it.
 
-| Control | Set it to |
+### Step 3 — name the arrow, then write the instruction
+
+Every wire carries a dashed **name me** tag at its middle. **Click the tag**, type `brief`, press
+**Enter**. (Or select the wire by clicking its line and press **F2**, or just start typing.)
+
+Now click into the Instruction's text area and write what you want, using that name:
+
+```
+From the brief, propose five colours for this studio's website: a background, a surface for cards,
+one accent, and two text colours. Give each a name and a hex value.
+```
+
+Why name it: the model receives each wired input under a heading. A named arrow arrives as
+`## brief`; an unnamed one as `## Input 1`, and the model has to guess what it is. A name the
+instruction does not mention is flagged on the box (*unused: …*), and so is a name the instruction
+mentions but no arrow carries.
+
+The Instruction's own controls:
+
+| Control | What it does |
 |---|---|
-| The big text area (*Instruction*) | `Propose exactly five colours for this site. Give each one a short name, a six-digit hex value starting with #, and the role it plays. Do not explain them.` |
-| *Model* | **Automatic** — let the farm's default model answer. Pick a specific one only when you mean to. |
-| *Answer shape* | **JSON** |
-| *Schema* | the JSON Schema below |
+| **Model** | **Automatic** (the farm's default model) or any model the farm serves. Each Instruction has its own. |
+| **Answer shape** | **text**, **list** (an array of items — the next box then runs once per item) or **JSON** (checked against the **JSON schema** you paste before it becomes a value). |
+| **Seed** | Empty: a new seed every run, so ▶ again gives a new answer. A number (type one, or 🎲): the same seed every time. After a run the box shows *last run: …* with **Keep**, which pins the seed of the answer you are looking at. While this window is open the Computer re-uses the answer it already has; asked again, most models repeat it, but some still vary. |
+| **Fill in {names} with their values** | Appears when your instruction writes a name in braces, like `{brief}`: that short text is put right there instead of under its heading. |
 
-```json
-{"type":"object","properties":{"palette":{"type":"array","items":{"type":"object","properties":{"name":{"type":"string"},"hex":{"type":"string"},"role":{"type":"string"}},"required":["name","hex","role"],"additionalProperties":false}}},"required":["palette"],"additionalProperties":false}
-```
+### Step 4 — read the prompt before you pay
 
-The shape matters. With **Text** you get prose you would have to parse; with **JSON** the answer is
-validated against your schema before it becomes a value, and everything downstream can rely on it.
-(*List* is the third shape — a plain array of strings, which is what you want when the next part
-should run once per item.)
+Under the instruction, a grey line reads something like *sends 64 words · 1 named input*. **Click
+it.** The drawer opens on the right on the **Sent** tab: the system message, each input under its
+heading, your instruction, and the call's settings — exactly what will be sent, before anything is
+spent. After a run, **Got** shows the reply word for word and **Cost** shows the time, the tokens
+and whether it came from the cache.
 
-**On screen now:** Note → Ask, one wire, both **Not run**. Wired inputs arrive in the prompt as
-labelled context, above your instruction — so the Ask sees your brief whether or not you repeat it.
+### Step 5 — run it
 
-### Step 3 — the arithmetic (Code)
+Press **▶** in the Instruction's title bar. It goes **Queued → Running → Done**: a model on the
+farm is writing, not this laptop. When it is done, the box shows the start of the answer and a cost
+line such as `1.8s · 412 tokens`. **Click the answer** to read the whole of it in the drawer.
 
-**Add a part → Code.** Wire **Ask → Code** (port *Inputs in*).
+Two ways to run:
 
-A Code part is `(inputs) => value` and nothing more. `inputs.in` is an **array** — several wires can
-land on one port — so the object from the Ask is `inputs.in[0]`. It runs in the sandbox: no network,
-no file access, a watchdog for infinite loops. Returning a string gives a `text` value, an object
-gives `json`, an array gives a `list`.
+- **▶ on a box** runs that box and everything after it — and first any box before it that has not
+  run yet, because it needs their values.
+- **Run all** in the run bar runs every box that has not run or needs a re-run (**Needs a re-run**
+  is what a box says after something it depends on changed). **Ctrl+Enter** on the canvas does the
+  same.
 
-Type (or paste) the contrast maths. The copy in
-[`examples/build-examples.mjs`](examples/build-examples.mjs) is the one that is tested; the shape of
-it is:
+**Stop** (in the run bar, or **Esc** on the canvas when nothing else is open) ends the run. Every
+box that finished keeps its answer.
 
-```js
-const first = inputs.in[0];
-const list = Array.isArray(first) ? first
-  : (first && Array.isArray(first.palette) ? first.palette : null);
-if (!list || !list.length) {
-  throw new Error('No palette arrived. Wire the Ask part into this one and set its shape to JSON.');
-}
-// sRGB -> relative luminance -> (L1 + 0.05) / (L2 + 0.05)
-// #000 against #fff is 21:1;  #777 against #fff is 4.48:1
-```
+### Step 6 — land the answer in a Text box
 
-It returns `{threshold, checked, failing, rows, table}` — a row per colour with its ratio against
-black and against white, a boolean verdict against 4.5:1, and a markdown table you can read.
-A colour it cannot parse is **flagged**, not guessed at: that is the whole reason this is JavaScript
-and not a second question to the model.
+Add a second **Text** box and wire the **Instruction → Text**. Press ▶ on the Instruction again.
+The answer lands in the Text box, **rendered** — headings, bold, lists, tables, code — and is passed
+on to whatever that box feeds.
 
-**Press Run now** (the button, or `Ctrl+Enter`). The Ask goes **Waiting**, then **Running**, then
-**Done**; the Code follows within milliseconds. Under each part that has finished, a cost line:
-`1.8s · 412 tokens`. The Code part's is `0.0s · 0 tokens` — deterministic work costs nothing, which
-is the point.
+- **Double-click** its words (or press **✎ Edit**, or select the box and press **Enter**) to edit
+  the markdown source.
+- **Lock** means "keep what I typed": a locked box does not let the next answer replace it.
+- **Copy** copies its text. You can also select words with the mouse and press **Ctrl+C**.
 
-**Click the value preview** at the bottom of the Code part. The full value opens in the chat column
-on the left, headed *From Code*. That column is the inspector: the canvas is the program, the
-conversation is where you read things at full size. Close it and the graph is unchanged.
+### Step 7 — a picture
 
-If the graph is now wider than the window, press **Fit** (or the `f` key). To zoom by hand, ctrl-wheel;
-to pan, hold space and drag, middle-drag, or just wheel.
+**＋ Add a box → Think → Write an SVG**, and **＋ Add a box → Show → SVG** (the same boxes are in
+the menu's first strip, *Draw with code — no farm needed*). The SVG box draws its own starter code
+straight away, and redraws as you edit its code.
 
-### Step 4 — the picture (Code → Render)
+Wire **Write an SVG → SVG** (drag from its right dot onto the SVG box), write what to draw in the
+Write an SVG box, and press **▶ on the SVG box**: the Instruction runs first, then the box draws
+the model's picture instead of your code. **Keep my code** makes the box draw your own code again,
+whatever arrives. **Save .svg** / **Save .png** write the picture to a file.
 
-The report is data; a swatch sheet is a picture. **Add a part → Code** again, wire **contrast Code →
-this Code**, and have it return an SVG string — again, the tested copy is in the generator. Then
-**Add a part → Render**, wire the new Code into it, and set *Read as* → **SVG**. The *Width* and
-*Height* fields disappear when you do: an SVG brings its own size, and the part will not pretend
-otherwise. (They come back for Markdown and HTML page, which need a drawing surface.)
+The same pairs exist for **p5.js sketch**, **three.js scene** and **HTML page**. Those three run in
+the sandbox — no network, no access to your files — and come back as a picture of their first
+frame. SVG and **Markdown view** draw directly, without the sandbox.
 
-Press **Run**. Only the two new parts run: everything upstream is already **Done**, and Run
-recomputes only what is stale. The Render part becomes a tile showing the sheet, with **Save as SVG**
-and **Save as PNG** under it.
+### Step 8 — tidy, undo, change one word
 
-SVG mode never goes near the sandbox — an SVG already is a picture, so it is sanitised and shown as
-it is, and *Save as SVG* gives you back the exact bytes. **Markdown** and **HTML page** modes draw in
-the sandbox and hand back a raster.
-
-### Step 5 — the file (Code → File)
-
-**Add a part → Code** a third time, wire **contrast Code → this Code**, and return a `:root{}` block:
-one `--custom-property` per readable colour, with the measured ratio in the comment, and a comment
-line for anything it had to reject. Then **Add a part → File**, wire that Code into it, and set
-*Path in the project* to `out/tokens.css`.
-
-Press **Run**. The File part shows *Wrote out/tokens.css* and offers **Reveal in Explorer**. It wrote
-into **this conversation's own scratch project folder** on your machine — one project per thread,
-created on first write. A second run overwrites the same path; you never get `tokens (3).css`.
-
-### Step 6 — tidy, and what it looks like finished
-
-Press **Tidy**. The parts lay out left to right in columns: Note, Ask, contrast Code, the two
-formatting Codes stacked, then Render and File. Tidy never runs on its own — it is a button, and one
-**Undo** (the toolbar button, or `Ctrl+Z`) puts everything back where you had it.
-
-Undo covers the program, not the run: placing, wiring, deleting, editing a setting and importing are
-all undoable in one step each. Values a run computed are not undone, because they are not edits.
-
-**Change one word in the Note and press Run again.** Everything downstream goes **Needs a re-run**
-and recomputes; nothing else does. That is the loop this panel exists for.
-
-### When a part goes red
-
-A failed part turns red, its state pill reads **Error**, and it carries a sentence in plain English —
-never a stack trace, never a file path off your disk. Fix the cause, press **Run**: only the failed
-part and what depends on it will run again. Every case I hit is in
-[troubleshooting](#troubleshooting) below.
+- **Tidy** lays the boxes out left to right. It only ever happens when you press it, and one
+  **Undo** puts everything back.
+- **Undo/Redo** (the buttons, **Ctrl+Z** / **Ctrl+Shift+Z** or **Ctrl+Y**) cover what you built:
+  placing, moving, resizing, wiring, naming, editing a setting, importing. Answers a run computed
+  are not undone, because they are not edits.
+- **Change one word in the brief and press Run all.** Everything after it goes **Needs a re-run**
+  and runs again; nothing else does. That is the loop the Computer exists for.
 
 ---
 
-## Part 2 — import the fan-out example
+## Part 2 — import the examples
 
-Press **Import…** in the toolbar and choose
-[`docs/examples/fanout-pitches.lolgraph.json`](examples/fanout-pitches.lolgraph.json). (You can also
-just drag the file onto the canvas — the canvas shows *"Drop a .lolgraph.json file to open it here."*)
-If the canvas already has parts on it, it asks first: *"This conversation already has 6 parts.
-Importing replaces them; one undo takes it back."* One **Undo** really does take it back.
+Two worked examples ship in [examples/](examples/):
 
-You get five parts: **Note** (six topics, one per line) → **Split** (by lines) → **Ask** (one
-paragraph per topic) → **Collect** (numbered list) → **File** (`out/pitches.md`).
+| File | What it shows |
+|---|---|
+| [`palette-check.lolgraph.json`](examples/palette-check.lolgraph.json) | The model judges, JavaScript checks: a palette proposed by the model, its WCAG contrast computed exactly by **Code** boxes, a swatch sheet drawn, a `tokens.css` written by a **File** box. **One** generation. |
+| [`fanout-pitches.lolgraph.json`](examples/fanout-pitches.lolgraph.json) | Fan-out: six topics, one run, six generations, joined back into one file. |
 
-Press **Run**.
+Both are rebuilt by [`examples/build-examples.mjs`](examples/build-examples.mjs) and run end to end
+by the harness scenario
+[`shell/test/chat-harness/scenarios/examples.mjs`](../shell/test/chat-harness/scenarios/examples.mjs).
 
-### What fan-out actually is
+**To open one:** press **Import…** in the library and choose the file. It becomes a **new graph** in
+the library; nothing you had open changes.
 
-The Split part turns the Note's text into a **list** of six items. The Ask part's Context port accepts
-`text`, not `list` — and that mismatch is not an error, it is the fan: **the Ask runs once per item**,
-and its output becomes a list of the same length. Fan-out keeps propagating downstream until a
-**Collect** part joins it back into one value.
+The canvas toolbar's **Replace from file…** is different: it puts the file **in place of the open
+graph**, after asking — *"This graph already has 4 boxes. The file replaces them; one undo takes it
+back."* Dropping a `.lolgraph.json` onto the canvas does the same, with the same question.
 
-So: **one Run, six generations.** While it runs:
+*The palette example was made before the Preview family: its swatch sheet is drawn by a **Render**
+box, which still loads and draws but is no longer in the ＋ menu. Today you would use an **SVG** box.*
 
-- the Run button is replaced by **Stop**, which reads `Running 3/5 · item 4/6` — which part of the
-  graph, and which item of the fan;
-- the Ask part itself shows `4/6` and ticks up;
-- the cost line on the Ask, when it finishes, reads something like `11.4s · 2130 tokens · 6 calls`.
+### What fan-out is
 
-**One failing item does not take the others down.** Each item keeps its own error; the part shows
-`2 of 6 items failed` and lists them, and the five that worked keep their answers. Collect joins what
-there is.
+In the pitches graph, **Split** turns the Text box's six lines into a **list** of six items. The
+Instruction takes text, not a list — and that is not an error, it is the fan: **the Instruction
+runs once per item**, and what it makes is a list of the same length. The fan carries on until a
+**Collect** box joins it back into one value (*Join as*: bullet list, numbered list, JSON array or a
+template per item).
 
-### The cap
+While it runs, the Instruction counts `4/6`, and its cost line then reads something like
+`11.4s · 2130 tokens · 6 calls`. **One failing item does not stop the others**: the box lists the
+items that failed, by number, and the rest keep their answers.
 
-A run that would spend more than **50 generations** stops and says so, rather than quietly eating the
-farm:
+Other boxes for lists: **Filter** keeps the items that match (*Contains*, *Matches*, *Length is*,
+or *The model says yes*, which asks the model about each one), and **Repeat** runs what comes after it several times, for variations.
 
-> **This run stopped at 50 generations** — 3 parts were left for later, so a graph cannot quietly
-> spend the farm.
+### Save a graph to a file
 
-with a **Raise the cap for this run** button next to it. That raises it **for that run only** —
-enough to finish the fan, never "unlimited" — and answers already computed are cached, so raising the
-cap only pays for the items it never asked. If you want a different standing limit, the **Cap** field
-in the toolbar sets it and remembers it.
-
-Try it: paste sixty lines into the Note and press Run.
-
-### Stop, and why a colleague goes first
-
-**Stop** (the button, or `Esc`) aborts the one request in flight and leaves every completed value
-cached. Press Run again and it picks up from there.
-
-While a graph runs it holds the farm at **background priority**. If someone — including you — types a
-message in the chat, the human goes first: the graph yields, and the run line says *"The farm went to
-someone else — press Run to pick up where it stopped."* This is not a failure and nothing is lost.
-It is also the reason a forty-item fan-out is socially acceptable on a shared farm at all: it is
-always at the back of the queue.
-
-Closing the panel or the app stops the run. The values survive.
+**Export…** — on a library card, or in the canvas toolbar for the open graph — asks one thing:
+**Include results**, ticked by default. Ticked, the file carries the answers and pictures the graph
+already made (so it is bigger); unticked, only the program.
 
 ---
 
-## Part 3 — three things to try next
+## Part 3 — pictures, PDFs and sounds
 
-**1. Four variants of one thing.** Note (a brief) → **Repeat** (*Times* = 4) → Ask ("rewrite this
-headline") → Collect (*Join as* → Numbered list). Repeat turns one value into a list of four
-deliberate copies, so the Ask fans out into four genuinely separate generations rather than one
-cached answer reused four times.
+Drop a file on an empty part of the canvas, and it becomes the right box where you dropped it: a
+picture becomes an **Image** box, a PDF a **Document** box, a sound file a **Sound** box, a text
+file (.txt, .md, .csv, .json) a **Text** box. Anything else is refused with a sentence. You can
+also add the box from **＋ → Bring in** and then drop a file on it, click it to choose one, or paste
+one while it is selected.
 
-**2. Sift a long list without reading it.** Note (thirty lines) → Split (*Split by* → Lines) →
-**Filter** (*Keep when* → **The model says yes**, *Criterion* = "is this about hardware?") → Collect.
-Filter's model mode spends one small generation per item and caches the verdict by item, so re-running
-after an edit downstream costs nothing.
+Every box that holds a file has a **takes:** line saying whether what it holds can be used where it
+is wired: ✓, ✗ with the reason, or ? when the farm does not say.
 
-**3. Pull the conversation in, and push the result back.** **From thread** (*Take* → The last answer)
-→ Code (count the sentences, or strip the headings) → **To thread** (*Post as* → The assistant). The
-graph result lands in the conversation as a message you can then talk about — which is usually where
-a good result wants to end up.
+- **Image.** Stored on this computer, downscaled. Wired into an Instruction, the picture goes to
+  **that Instruction's model** as part of the prompt. When the farm does not list that model as
+  able to see pictures, the box says so and nothing is sent; pick a model that can in the box's
+  **Model** menu.
+- **Document (PDF).** Kept on this computer. When a run needs the text, the farm's document reader
+  reads it once, and only the text comes back and flows on. A PDF that states more than 60 pages is
+  refused when you drop it; nothing is kept or sent.
+- **Sound.** Kept and playable in the box (**▶ Play** / **■ Stop**). Nothing on the farm can listen
+  yet, so a sound wired into an Instruction passes on only its name and length, as text, and the box
+  says so.
+
+---
+
+## Part 4 — control, loops and limits
+
+The **Control** group holds the boxes that decide **whether and when** the rest runs:
+
+| Box | What it does |
+|---|---|
+| **Button** | Nothing after it runs until you press it. Pressing it runs what comes after. |
+| **Condition** | Lets what arrives through when it reads as your chosen yes, no or maybe. |
+| **Confirm** | Stops and asks you **OK** or **Cancel** before going on. |
+| **Dialog** | Stops and asks you a question; your answer flows on. |
+| **Toggle** | A switch: off lets values through without running what follows. |
+| **Timer** | Waits a few seconds, and can repeat. |
+
+A box that is waiting for you says **Waiting for you**, and the run bar counts the questions
+waiting, with **Show me** to go to the oldest one.
+
+### Loops and the limits of a run
+
+A wire that closes a loop is allowed only when the loop passes through something that can stop it
+— a Toggle, Condition, Confirm, Dialog, Button or Timer. Otherwise the wire is refused when you
+draw it.
+
+Every run has four limits, so no graph can quietly spend the farm or run for ever: **8** passes
+through any one box, **50** generations, **10 minutes** (time spent waiting for you included), and
+**2000** box runs in all. The generation cap is the **Cap** field in the toolbar, which remembers
+what you set. When a run stops at a limit, a notice above the canvas says which one, keeps every
+answer, and offers **Raise it for this run** (for the generation cap: **Raise the cap for this
+run** and **Show me what spent it**). A plan whose Timers alone would outlast the time limit is
+refused before it starts, with the arithmetic.
+
+### Sharing the farm
+
+A run asks the farm at **background priority**. When someone chats, they go first: the run pauses
+and the run bar says so; press **Run all** to carry on, and nothing already finished is asked again.
+A run also sends nothing while the Computer's window is in the background.
+
+---
+
+## Writing files
+
+A **File** box writes what arrives into a file in **this graph's own project folder** on your
+machine — one folder per graph, made on its first write (a duplicated graph gets its own). Set
+*Path in the project*, for example `out/tokens.css`. After a run it says *Wrote out/tokens.css* and
+offers **Reveal in Explorer**. Running again overwrites the same file.
+
+---
+
+## Mouse and keyboard
+
+| To… | Do this |
+|---|---|
+| Move around | Two-finger scroll or the mouse wheel; Space-drag; the middle button; or the **Hand** tool (**H**). **V** goes back to **Select**. |
+| Zoom | Pinch, or Ctrl+wheel. **+ / −** and **Ctrl+= / Ctrl+−**. The zoom % button: *Zoom to fit* (**F** or **Shift+1**), *Zoom to selection* (**Shift+2**), *100 %* (**Ctrl+0**). |
+| Select | Click a box; Shift- or Ctrl-click to add; drag on empty canvas for a selection box; **Ctrl+A** for all. **Tab** goes from box to box, and the view follows. |
+| Move / resize | Drag a box by its title bar, or **arrow keys** (10 px; **Shift** 1 px). Resize from the bottom-right corner, or **Alt+Shift+arrows**. |
+| Copy, paste, duplicate | **Ctrl+C / Ctrl+V** (a paste lands at the pointer), **Ctrl+D**. Words pasted onto the canvas become a Text box; a picture becomes an Image box. |
+| Delete | **Delete** or **Backspace** — the selected boxes, or the selected wire. |
+| Edit a box / name an arrow | **Enter** or **F2** with one box selected opens its editor; with a wire selected it names the wire (typing does too). |
+| Every action, with the mouse | Right-click a box (**Edit, Duplicate, Copy box, Zoom to this box, Delete**) or a wire (**Name this arrow, Unplug**). |
+| Leave a field | **Esc**. Pressed again it closes a menu, then the drawer, then stops a run, then clears the selection. |
 
 ---
 
@@ -277,36 +348,29 @@ a good result wants to end up.
 
 | What you see | What it means | What to do |
 |---|---|---|
-| The Ask is red: *"No farm is connected, so this part cannot run."* | The client has not found a farm on the LAN. | Check the farm strip under the chat's top line — it says `farm silent` or `password needed` when there is nothing to talk to. Nothing in the graph runs without a farm; there is no cloud fallback, by design. |
-| The Ask is red: *"The farm is busy with someone else. Press Run again in a moment."*, or the run line says *"The farm went to someone else…"* | Every seat on the farm is in use, or a human took priority. | Press **Run** again — everything already done keeps its value. The farm strip tells you how many seats are in use (`2/2 seats`). |
-| A part is red with a sentence, everything downstream is **Needs a re-run** | One part failed; the engine stopped that branch rather than passing nothing along. | Fix the part, press **Run**. Only the failed part and its dependants run again. |
-| *"The answer did not match the shape you asked for."* | The model's JSON did not validate against your schema. | Simplify the schema (fewer required fields, no nesting), or shorten the instruction. A 12B model does better with a flat object. |
-| *"Answer shape is JSON, so this part needs a schema."* / *"That schema is not valid JSON."* | The Ask is set to JSON with an empty or broken schema. | Paste valid JSON Schema into *Schema*. A bad schema never reaches the farm — it costs nothing to get wrong. |
-| The palette graph runs but every colour is flagged *"not a colour I can read"* | The model returned names or prose where hex values were asked for. | That is the Code part doing its job. Re-run — or tighten the instruction ("a six-digit hex value starting with #"). Never move this check into the model. |
-| The Code part shows a **Line 7** chip and *"Line 7: x is not defined"* | Your JavaScript threw. | Click the chip; the editor points at that line. Remember `inputs.in` is an **array**, and a list arrives **whole** (Code never fans out — fan before it if you want per-item work). |
-| *"That code returned nothing…"* | The body fell off the end without a `return`. | Return text, a number, an array or an object. "No value" is a failure here, never a state. |
-| The Render part: *"That text does not start with `<svg>`, so it cannot be drawn as SVG."* | *Read as* is SVG but the input is markdown or JSON. | Switch *Read as* to Markdown, or make the upstream part return SVG source. |
-| The File part: *"Type a path, like out/value.md, before writing."* or *"The file was not written: …"* | The path is empty, escapes the project (`..`), or has an extension that is not allowed. | Use a relative path inside the project, like `out/tokens.css`. Paths are validated in the main process, not by renderer politeness — `..` is refused there and always will be. |
-| *"A picture needs a picture file name — end the path with .png."* | A Render tile wired into a File with a `.md` path. | End the path with `.png` for the raster, or `.svg` to write the vector source. |
-| A wire snaps back | The canvas refused it: a loop, a duplicate, or a type the target does not accept. | Read the line it printed. Loops are rejected on purpose — iteration is **Repeat**, not feedback. |
-| *"Open a chat to build a program — a graph belongs to a conversation."* | The panel is open with no thread selected. | Start or select a conversation first. |
+| An Instruction is red and says the farm is not connected, or needs its password | The client has not found a farm on the LAN, or has not been given the farm's password. | Check the farm pill in the topbar. Nothing that thinks runs without a farm; there is no cloud fallback, by design. Boxes that do not think (Text, SVG, Code, views) still run. |
+| The run bar says the farm was busy, or the run paused | Every seat on the farm is in use, or a person took priority. | Press **Run all** again in a moment. Everything already done keeps its value. |
+| A box is red with a sentence; the boxes after it say **Needs a re-run** | One box failed; its branch stopped rather than passing nothing along. | Fix what the sentence says, press **Run all**. Only the failed box and what depends on it run again. |
+| The answer did not match the shape you asked for | The model's JSON did not validate against your schema. | Simplify the schema (fewer required fields, no nesting), or shorten the instruction. |
+| A code answer was cut off | The model ran out of room before it finished — a thinking model can spend it all on thoughts. | Run it again, or pick a model that thinks less in the box's **Model** menu. The box says which of the two happened. |
+| A Code box shows a **Line 7** chip | Your JavaScript threw. | Click the chip to go to that line. `inputs.in` is an **array**, and a list arrives whole. |
+| A wire will not connect | The canvas refused it and said why in one line: a duplicate, a kind the box does not accept, or a loop with nothing that can stop it. | Read the line. Put a Toggle (or another control box) in a loop. |
+| The pictures stay home | The farm does not list the Instruction's model as able to see pictures. | Pick a model that can in that box's **Model** menu. |
+| A lesson step will not tick | The rail ticks what you really did, in order, and a change only counts after the step asked for it. | Press **Show me**. If the farm cannot answer, use the saved answer the rail offers. |
+
+To report a bug: press **● Record log**, reproduce it, press **⚑ Mark bug**, and hand over the file
+([COMPUTER_DEBUG_LOG.md](COMPUTER_DEBUG_LOG.md)).
 
 ---
 
 ## What is not built yet
 
-Being honest about the edges, so you do not go looking:
-
-- **No image parts.** The spec's `Image` and `Look` (vision) parts are not in the catalogue — they
-  wait on the attachment intake work. There is no way to get a picture *into* a graph yet, only out
-  of one via Render.
-- **No image generation**, and there never will be until the farm serves an image model.
-- **No web search or fetch part.** SearXNG is a farm plugin the chat uses; the Computer has no
-  network part at all, deliberately.
-- **No sub-graphs**, no graph-as-a-part, no scripting language, no multi-user editing.
-- **The other benches are not built**: the vibecode bench (S2), the design bench and the board bench
-  (S3) from [LOLCHAT_STUDIO_PLAN.md](LOLCHAT_STUDIO_PLAN.md) are still on paper. The Computer is the
-  first real workbench panel and currently the only one.
-
-The full design, including what was deliberately left out and why, is in
-[LOLCHAT_COMPUTER_SPEC.md](LOLCHAT_COMPUTER_SPEC.md).
+- **Lessons 5–12** and the other templates from the plan. The shelf takes them as data files.
+- **"Open live"** on a p5.js / three.js / HTML box: they show a picture of their first frame, not a
+  running page you can interact with.
+- **A sound reaching a model**, and **a PDF sent to a model as a PDF** (a PDF always goes as text
+  read by the farm).
+- **Boxes inside a Section do not move with it**, and **wires are grey**, not the colour of what
+  they carry.
+- **No image, audio or video generation**, **no web search or fetch box**, **no sub-graphs**, and
+  no editing by several people at once.

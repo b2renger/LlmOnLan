@@ -103,6 +103,21 @@ registerStrings('computer', {
   runBarredOne: '1 box was stopped by a gate',
   runLeftStale: 'left stale by edits: {n}',
   runMerged: 'Added to the run.',
+  // Critic S1-1: what a finished run SAYS — one sentence, the same in the bar and the live region
+  // (computer/runbar.mjs outcomeOf). A yield is not "up to date": it says why nothing was sent.
+  runOutcomeHidden: 'Paused: this window was in the background, so nothing was sent to the farm. Press Run all to carry on.',
+  runOutcomeBusy: 'Paused: the farm was busy with someone else. Press Run all to carry on.',
+  runOutcomeAlready: 'A run is already going.',
+  runOutcomeStopped: 'Stopped. Finished boxes kept their answers.',
+  runOutcomeCycle: 'This graph has a loop and cannot run.',
+  runOutcomeErrors: '{n} boxes failed — each one says why.',
+  runOutcomeErrorsOne: '1 box failed — it says why.',
+  runOutcomeCapped: 'Stopped at the cap of {cap} generations, {n} boxes still to run.',
+  runOutcomeCappedItems: 'Stopped: one box would run {items} times, over the cap of {cap}.',
+  runOutcomeLimited: 'Stopped at one of this run’s limits. Nothing was lost.',
+  runOutcomePlanned: 'Nothing ran: its Timers would take longer than this run’s time limit.',
+  runOutcomeDone: '{n} boxes ran in {sec}s.',
+  runOutcomeDoneOne: '1 box ran in {sec}s.',
   runFrom: 'Run this box',
   runPlayTitle: 'Run this box and everything after it',
 
@@ -119,12 +134,14 @@ registerStrings('computer', {
   resumeAction: 'Resume',
   resumeDismiss: 'Start fresh',
 
-  loopUngated: 'A loop needs something that can stop it. Put a Toggle in the way — see lesson 10.',
-  loopLesson: 'Open lesson 10',
+  // Critic S1-12: no lesson number until a loops lesson ships (LESSONS has 0-4); the button the
+  // canvas draws with loopLesson is disabled, so its label says why rather than promising one.
+  loopUngated: 'A loop needs something that can stop it. Put a Toggle in the way.',
+  loopLesson: 'No lesson on loops yet',
 
   // ---- legacy parts, demoted at K1 (K1-U3) ---------------------------------------------------
   legacyBadge: 'legacy',
-  legacyNoThread: 'This part belonged to a chat. The Computer is its own surface now — delete it, or copy the text into a Note.',
+  legacyNoThread: 'This part belonged to a chat. The Computer is its own surface now — delete it, or copy the text into a Text box.',
 
   // ---- K5 kickoff (addendum KE-7): a lesson's recorded answer, badged for good ----------------
   demoBadge: 'demo answer — not generated',

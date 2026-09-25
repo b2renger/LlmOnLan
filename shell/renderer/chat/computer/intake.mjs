@@ -138,6 +138,13 @@ export function mbOf(bytes) {
   return mb >= 10 ? String(Math.round(mb)) : mb.toFixed(1);
 }
 
+/** Pixels as megapixels, the way a camera says it: one decimal under 10, whole above.
+ * @param {number} pixels @returns {string} */
+export function mpOf(pixels) {
+  const mp = Math.max(0, Number(pixels) || 0) / 1e6;
+  return mp >= 10 ? String(Math.round(mp)) : mp.toFixed(1);
+}
+
 /** Bytes as the kilobytes the size line says. @param {number} bytes @returns {number} */
 export function kbOf(bytes) {
   return Math.max(0, Math.round((Number(bytes) || 0) / 1024));
@@ -211,7 +218,8 @@ export async function readImage(file, env) {
   // BEFORE the decode: the decode is the biggest allocation here and the ladder does not bound it.
   const size = Number(file.size) || 0;
   if (size > e.maxSourceBytes) {
-    return { error: t('parts.imageTooBig', { mb: mbOf(size), capMb: mbOf(e.maxSourceBytes) }) };
+    // Critic S1-12: the FILE is too big to open — nothing was resized yet, so say only that.
+    return { error: t('parts.imageTooBigFile', { mb: mbOf(size), capMb: mbOf(e.maxSourceBytes) }) };
   }
   let bitmap = null;
   try {
@@ -222,7 +230,8 @@ export async function readImage(file, env) {
     // And after it: a file small on disk can still be enormous decoded. ~4 bytes a pixel is what
     // it cost us to get here, and it is the honest number to refuse on.
     if (W * H > e.maxSourcePixels) {
-      return { error: t('parts.imageTooBig', { mb: mbOf(W * H * 4), capMb: mbOf(e.maxSourcePixels * 4) }) };
+      // Critic S1-12: too many PIXELS, counted as pixels — not as megabytes "once resized".
+      return { error: t('parts.imageTooManyPixels', { mp: mpOf(W * H), capMp: mpOf(e.maxSourcePixels) }) };
     }
     let bytes = 0;
     for (const step of e.steps) {

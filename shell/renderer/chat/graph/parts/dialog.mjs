@@ -102,6 +102,10 @@ export const dialog = /** @type {any} */ ({
         if (e.key !== 'Enter') return;
         if (el === block && !(e.ctrlKey || e.metaKey)) return;
         e.preventDefault();
+        // Critic S1-15: the key that SENDS the answer is spent here. Ctrl+Enter also means "Run" on
+        // the canvas, whose handler sits on an ancestor and starts a Run before its typing guard —
+        // so it used to reach it, be refused (a run is going) and announce a false sentence.
+        e.stopPropagation();
         submit();
       });
     }

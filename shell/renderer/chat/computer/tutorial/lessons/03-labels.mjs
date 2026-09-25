@@ -39,7 +39,7 @@ export default {
       },
       {
         id: 'n_try', type: 'sticky', x: 1020, y: 280, w: 150, h: 290,
-        settings: { colour: 'slate', text: 'After your first ▶, click an arrow to name it. Then click the grey line under the instruction: the prompt now has a heading for each name.' },
+        settings: { colour: 'slate', text: 'After your first ▶, click the “name me” tag on an arrow and type its name. Then click the grey line under the instruction: the prompt has a heading for each name.' },
       },
       { id: 'n_next', type: 'sticky', x: 720, y: 590, w: 280, h: 100, settings: { colour: 'green', text: 'Next up → 4 · make a picture' } },
     ],
@@ -60,7 +60,7 @@ export default {
     },
     {
       id: 's2',
-      text: 'Name the arrows: click the arrow from the busy street and type before, then click the other one and type after.',
+      text: 'Name the arrows: click the “name me” tag on the busy street’s arrow (or select it and press F2), type before, press Enter. Then do the same on the other with after.',
       check: { all: [{ wire: { from: 'p_cars', to: 'p_ask', label: 'before' } }, { wire: { from: 'p_trees', to: 'p_ask', label: 'after' } }] },
       show: { wire: { from: 'p_cars', to: 'p_ask' } },
     },
@@ -78,7 +78,7 @@ export default {
     },
     {
       id: 's5',
-      text: 'Swap the names — before on the tree-lined street, after on the busy one — and press ▶. The story runs backwards.',
+      text: 'Swap the names: click each name tag and type over it — before on the tree-lined street, after on the busy one — then press ▶. The story runs backwards.',
       check: { all: [{ wire: { from: 'p_trees', to: 'p_ask', label: 'before' } }, { wire: { from: 'p_cars', to: 'p_ask', label: 'after' } }, { ran: { partId: 'p_ask' } }] },
       show: { wire: { from: 'p_trees', to: 'p_ask' } },
     },

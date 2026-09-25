@@ -59,7 +59,7 @@ registerStrings('tutorial', {
 
   // ---- the run bar's ? card (§8.5) ----
   explainTitle: 'What is this?',
-  explainBody: 'Each box does one thing; the arrows carry what it made to the next box. Press ▶ on a box to run it, or Run to run everything. The Learn shelf in the sidebar has lessons that build a graph with you.',
+  explainBody: 'Each box does one thing; the arrows carry what it made to the next box. Press ▶ on a box to run it, or Run all to run everything. The Learn shelf in the sidebar has lessons that build a graph with you.',
   explainLesson: 'This lesson: {idea}',
   explainTour: 'Take the tour',
   explainLearn: 'Lessons and templates',

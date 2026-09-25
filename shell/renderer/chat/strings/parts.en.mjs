@@ -61,7 +61,9 @@ registerStrings('parts', {
   insFanout: 'runs {n} times — this is generation 1 of {n}',
   insTruncated: 'truncated: {cut} of {of} characters cut to fit {tokens} tokens',
   insTruncatedAssumed: 'truncated: {cut} of {of} characters cut to fit an assumed {tokens} tokens',
-  errNoVision: 'This farm’s model cannot read images. It is serving {alias}. Switch the farm to a vision model, or remove the image.',
+  // Critic S1-13: {model} is THIS box's model, and the fix is this box's own Model menu — not the
+  // farm. Said the way takes.* says it: what the farm lists, never more.
+  errNoVision: 'The farm does not list {model} as able to see pictures. Pick one that can in this box’s Model menu.',
 
   // Collect (C1)
   collectLabel: 'Collect',

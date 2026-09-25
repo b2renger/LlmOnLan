@@ -101,17 +101,100 @@ export function barredLabel(n) {
 }
 
 /**
+ * Critic S1-1/S1-2: the ONE sentence a finished run leaves — in the bar AND in the canvas's live
+ * region (computer/host.mjs), whatever door started it. A literal map (chat-lint rule 5): every
+ * outcome is one of these keys, chosen by `outcomeOf`.
+ */
+const OUTCOME = {
+  nothing: 'computer.runNothing',
+  done: 'computer.runOutcomeDone',
+  doneOne: 'computer.runOutcomeDoneOne',
+  hidden: 'computer.runOutcomeHidden',
+  busy: 'computer.runOutcomeBusy',
+  already: 'computer.runOutcomeAlready',
+  stopped: 'computer.runOutcomeStopped',
+  cycle: 'computer.runOutcomeCycle',
+  errors: 'computer.runOutcomeErrors',
+  errorsOne: 'computer.runOutcomeErrorsOne',
+  capped: 'computer.runOutcomeCapped',
+  cappedItems: 'computer.runOutcomeCappedItems',
+  limited: 'computer.runOutcomeLimited',
+  planned: 'computer.runOutcomePlanned',
+  barred: 'computer.runBarred',
+  barredOne: 'computer.runBarredOne',
+  leftStale: 'computer.runLeftStale',
+};
+
+/** @typedef {{id: keyof typeof OUTCOME, key: string, vars: any}} OutcomeBit */
+
+/** @param {keyof typeof OUTCOME} id @param {any} [vars] @returns {OutcomeBit} */
+const bit = (id, vars) => ({ id, key: OUTCOME[id], vars: vars || {} });
+
+/**
+ * What a finished run SAYS (critic S1-1): one key and its vars, plus the notes that ride after it
+ * (a gate that barred boxes, boxes an edit left stale). PURE. The order is the order of what a
+ * reader most needs to know:
+ *   already   the run was refused because one is going (`busy` on the report)
+ *   cycle     a loop nothing can stop
+ *   stopped   Stop (or a switch) ended it
+ *   hidden    it YIELDED because this window was in the background — nothing was sent
+ *   busy      it yielded because someone else took the seat
+ *   capped    the generation cap (or one fan over it)
+ *   planned   a Timer plan refused before it started · limited — another ceiling
+ *   errors    boxes failed
+ *   nothing   nothing was stale: the ONLY outcome that offers "Run everything again"
+ *   done      boxes ran
+ * @param {any} out a RunReport, or null
+ * @returns {{id: keyof typeof OUTCOME, key: string, vars: any, notes: OutcomeBit[]}|null}
+ */
+export function outcomeOf(out) {
+  if (!out) return null;
+  const ran = Math.max(0, Math.floor(Number(out.ran) || 0));
+  const errors = Array.isArray(out.errors) ? out.errors.length : 0;
+  const barred = Array.isArray(out.barred) ? out.barred.length : 0;
+  const stale = Array.isArray(out.leftStale) ? out.leftStale.length : 0;
+  /** @param {OutcomeBit} main @param {OutcomeBit[]} [notes] */
+  const said = (main, notes) => ({ ...main, notes: notes || [] });
+  if (out.busy) return said(bit('already'));
+  if (out.cycle) return said(bit('cycle'));
+  if (out.cancelled) return said(bit('stopped'));
+  if (out.yielded) return said(bit(out.yieldedBy && out.yieldedBy.hidden ? 'hidden' : 'busy'));
+  if (out.capped) {
+    const c = out.capped;
+    return said(c.items
+      ? bit('cappedItems', { items: c.items, cap: c.cap })
+      : bit('capped', { cap: c.cap, n: Number(c.stopped) || 0 }));
+  }
+  if (out.limited) return said(bit(out.limited.planned ? 'planned' : 'limited'));
+  /** @type {OutcomeBit[]} */ const notes = [];
+  if (barred) notes.push(barred === 1 ? bit('barredOne') : bit('barred', { n: barred }));
+  if (stale) notes.push(bit('leftStale', { n: stale }));
+  if (errors) return said(errors === 1 ? bit('errorsOne') : bit('errors', { n: errors }), notes);
+  if (!ran && !barred) return said(bit('nothing'));
+  const sec = (Math.max(0, Number(out.ms) || 0) / 1000).toFixed(1);
+  return said(ran === 1 ? bit('doneOne', { sec }) : bit('done', { n: ran, sec }), notes);
+}
+
+/** The outcome as the sentence both the bar and the live region say. PURE. @param {any} out
+ * @returns {string} '' when there is no report */
+export function outcomeText(out) {
+  const o = outcomeOf(out);
+  if (!o) return '';
+  const head = t(OUTCOME[o.id], o.vars);
+  const tail = o.notes.map((n) => t(OUTCOME[n.id], n.vars));
+  return [head, ...tail].join(' · ');
+}
+
+/**
  * Critic R1 A1: did this run find NOTHING to do — every box up to date? That is the moment the bar
- * offers "Run everything again" instead of a dead end. A run that was refused (busy), stopped,
- * cyclic, capped, limited, or that barred or failed anything did something worth reading, and is
- * not "nothing". PURE. @param {any} out a RunReport, or null @returns {boolean}
+ * offers "Run everything again" instead of a dead end. Critic S1-1: exactly `outcomeOf`'s
+ * `nothing` — a run that YIELDED (the window was hidden, the seat was taken) sent nothing, but it
+ * did not find everything up to date, and "Run everything again" would re-roll finished boxes.
+ * PURE. @param {any} out a RunReport, or null @returns {boolean}
  */
 export function nothingRan(out) {
-  if (!out || out.cancelled || out.busy || out.cycle || out.capped || out.limited) return false;
-  if (Number(out.ran) > 0) return false;
-  if (Array.isArray(out.errors) && out.errors.length) return false;
-  if (Array.isArray(out.barred) && out.barred.length) return false;
-  return true;
+  const o = outcomeOf(out);
+  return !!o && o.id === 'nothing';
 }
 
 /** @param {string} cls @param {string} text @param {HTMLElement} [parent] */
@@ -173,6 +256,8 @@ export function install(app) {
   let reportDocId = '';
   /** The document revision that report was adopted at: an edit after it retires "Run again". */
   let reportRev = -1;
+  /** What the status line is saying (critic S1-2): a run's outcome, a waiting question, or nothing. */
+  /** @type {''|'outcome'|'wait'|'other'} */ let statusKind = '';
 
   // ---- the bar ---------------------------------------------------------------------------------
   const runBtn = button('comp-run-all', t('computer.runAll'), () => { runAll(); });
@@ -311,18 +396,30 @@ export function install(app) {
     }
   }
 
-  /** Put the canvas on the oldest question and say which part it is (§8.3's `Show me`). */
+  /**
+   * Put the canvas on the oldest question and say which part it is (§8.3's `Show me`). Critic S1-8:
+   * it used to only SELECT the box — a Dialog off screen stayed off screen. `reveal` pans to it
+   * (and selects and flashes it), and the answer field takes the focus, so the next key types the
+   * answer. `preventScroll`: the canvas owns its own view; a native scroll would fight it.
+   */
   function showWaiting() {
     const waiting = pending();
     if (!waiting.length) return false;
-    const c = canvas();
+    const c = /** @type {any} */ (canvas());
     const doc = docNow();
     const partId = waiting[0].partId;
-    if (c && typeof c.select === 'function') c.select([partId]);
+    if (c && typeof c.reveal === 'function') c.reveal(partId);
+    else if (c && typeof c.select === 'function') c.select([partId]);
+    const scope = /** @type {any} */ ((app.els && app.els.canvas) || (typeof document !== 'undefined' ? document : null));
+    const field = scope && typeof scope.querySelector === 'function'
+      ? scope.querySelector(`.graph-part-answer[data-part="${String(partId).replace(/["\\]/g, '')}"]`) : null;
+    if (field && typeof field.focus === 'function') {
+      try { field.focus({ preventScroll: true }); } catch { field.focus(); }
+    }
     const part = doc && Array.isArray(doc.parts) ? doc.parts.find((/** @type {any} */ p) => p.id === partId) : null;
     const h = host();
     const spec = part && h && h.session && h.session.specs ? h.session.specs.get(part.type) : null;
-    say(t('computer.runWaitFor', { part: (spec && spec.label) || (part ? part.type : partId) }));
+    say(t('computer.runWaitFor', { part: (spec && spec.label) || (part ? part.type : partId) }), 'wait');
     return true;
   }
 
@@ -336,6 +433,8 @@ export function install(app) {
     waitsChip.textContent = n ? waitingLabel(n) : '';
     waitsChip.hidden = !n;
     waitsBtn.hidden = !n;
+    // Critic S1-2: "Waiting for Dialog" is about a question that is waiting — not once none is.
+    if (!n && statusKind === 'wait') say('');
   }
 
   /**
@@ -387,6 +486,9 @@ export function install(app) {
     // honest button again.
     const again = !running && mine && nothingRan(last) && !!doc && (Number(doc.rev) || 0) === reportRev;
     if (againBtn.hidden === again) againBtn.hidden = !again;
+    // Critic S1-2: the run's sentence is about THAT run of THIS graph as it was. An edit since (the
+    // box is stale now), or another graph open, and it is no longer true — so it goes.
+    if (statusKind === 'outcome' && !running && (!mine || !doc || (Number(doc.rev) || 0) !== reportRev)) say('');
 
     const meter = capMeter(gens, cap);
     if (capChip.textContent !== meter.text) capChip.textContent = meter.text;
@@ -402,8 +504,12 @@ export function install(app) {
     helpBtn.disabled = !(/** @type {any} */ (app).tutorial);
   }
 
-  /** @param {string} text */
-  function say(text) { status.textContent = text; }
+  /** @param {string} text @param {''|'outcome'|'wait'|'other'} [kind] */
+  function say(text, kind) {
+    const next = text ? String(text) : '';
+    statusKind = next ? (kind || 'other') : '';
+    if (status.textContent !== next) status.textContent = next;
+  }
 
   /**
    * What the canvas has to show about a finished run (K3-U3, COMPUTER_PLAN §8.2, §8.4). The bar is
@@ -431,29 +537,23 @@ export function install(app) {
     }
   }
 
-  /** The sentence a finished run leaves behind, when it has one worth leaving (§8.3). */
-  function sayOutcome(/** @type {any} */ out) {
+  /**
+   * The sentence a finished run leaves behind (§8.3), whatever door started it (critic S1-2): the
+   * runner's own `done` event says it, so ▶, a Button's face and the toolbar's Run are reported
+   * exactly like Run all. It is `outcomeText` — the same sentence the live region gets (S1-1).
+   * @param {any} out
+   */
+  function sayOutcome(out) {
     if (!out) return;
-    if (out.cancelled || out.busy || out.cycle) return;
-    const barred = Array.isArray(out.barred) ? out.barred.length : 0;
-    const stale = Array.isArray(out.leftStale) ? out.leftStale.length : 0;
-    if (!out.ran && !(out.errors && out.errors.length) && !barred) { say(t('computer.runNothing')); return; }
-    const bits = [];
-    if (barred) bits.push(barredLabel(barred));
-    if (stale) bits.push(t('computer.runLeftStale', { n: stale }));
-    if (bits.length) say(bits.join(' · '));
+    say(outcomeText(out), 'outcome');
   }
 
   async function runAll(/** @type {any} */ opts) {
     const r = runner();
     if (r && typeof r.running === 'function' && r.running()) return null;
-    say('');
     const out = await runDoor()(opts || {});
     adoptReport(out);
     paintNow();
-    // The one sentence this bar owns: a Run that found every box up to date looks exactly like a
-    // Run that did nothing, and the reader deserves to be told which it was (§1.2).
-    sayOutcome(out);
     return out;
   }
 
@@ -472,7 +572,8 @@ export function install(app) {
       // The grey arrives WHILE the run happens, not after it: a reader watching a Condition choose
       // one of three branches has to see the other two go grey at the moment it chooses. The run's
       // own `barred` events say exactly that, and the report confirms it at the end.
-      if (type === 'start') { liveBarred = new Set(); pushBarred(); }
+      // Critic S1-2: a new run retires the last one's sentence at once, whatever door started it.
+      if (type === 'start') { liveBarred = new Set(); pushBarred(); say(''); }
       else if (type === 'barred' && Array.isArray(ev.ids)) {
         for (const id of ev.ids) liveBarred.add(id);
         pushBarred();
@@ -484,8 +585,11 @@ export function install(app) {
       // run starting, a park opening, the end — moves a control a person is about to press, and
       // is painted at once: a Stop button that appears one frame late is a Stop button that was
       // not there when the reader reached for it.
-      if (!(r0.running && r0.running())) { adoptReport(report()); paintNow(); }
-      else if (type === 'part' || type === 'item') paint();
+      if (!(r0.running && r0.running())) {
+        adoptReport(report());
+        paintNow();
+        if (type === 'done') sayOutcome((ev && ev.report) || report());
+      } else if (type === 'part' || type === 'item') paint();
       else paintNow();
     }));
   }

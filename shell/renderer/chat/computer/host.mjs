@@ -34,7 +34,10 @@ import { createCanvas } from '../graph/canvas.mjs';
 import { createDocStore, SAVE_DEBOUNCE_MS } from './docstore.mjs';
 import { createSandbox } from '../sandbox/host.mjs';
 import { createDoc, movePart, patchPart as patchPartIn, removeParts, removeWire, setSettings as setSettingsIn, setView } from '../graph/model.mjs';
+// Critic S1-1: the ONE sentence a run leaves, shared with the run bar (a PURE export).
+import { outcomeText } from './runbar.mjs';
 import '../strings/graph.en.mjs';
+import '../strings/computer.en.mjs';
 
 export { SAVE_DEBOUNCE_MS };
 
@@ -393,7 +396,9 @@ export function createHost(app, els) {
       // A Run with nothing to merge WHILE a run is live is a refusal, and §4.2 has one rule about
       // refusals: never a silently no-op button. It used to `return null` — the caller announced
       // nothing, so pressing Run on a busy Computer looked exactly like pressing a dead button.
-      canvas.announce(t('graph.runBusy'));
+      // Critic S1-15: and it said "The farm went to someone else", which was false — the refusal is
+      // OURS, because a run is going (a Ctrl+Enter that also answered a Dialog, a second Run all).
+      canvas.announce(t('computer.runOutcomeAlready'));
       return { ran: 0, busy: true, merged: 0 };
     }
     canvas.setCapped(null);          // a new run starts with no banner, whatever the last one said
@@ -415,17 +420,12 @@ export function createHost(app, els) {
     if (report && report.cycle) clearPresses();
     canvas.setRunning({ running: false, progress: null });
     if (report) {
-      if (report.busy) canvas.announce(t('graph.runBusy'));
-      else if (report.cycle) canvas.announce(t('graph.runCycle'));
-      else if (report.cancelled) canvas.announce(t('graph.runStopped'));
-      else if (report.errors && report.errors.length) canvas.announce(t('graph.runErrors', { n: report.errors.length }));
-      else if (report.yielded) canvas.announce(t('graph.runBusy'));
-      else if (report.capped && report.capped.items) {
-        canvas.announce(t('graph.runCappedItems', { items: report.capped.items, cap: report.capped.cap }));
-      } else if (report.capped) canvas.announce(t('graph.runCapped', { cap: report.capped.cap, n: report.capped.stopped }));
+      // Critic S1-1: ONE sentence per run, the same one the run bar shows (runbar.mjs outcomeOf).
+      // Two `if` chains used to announce twice, the second overwriting the first — "Nothing to run"
+      // straight after "The farm went to someone else", "Stopped" or "2 parts failed".
+      const said = outcomeText(report);
+      if (said) canvas.announce(said);
       if (report.capped) canvas.setCapped(report.capped);
-      else if (!report.ran) canvas.announce(t('graph.runNothing'));
-      else canvas.announce(t('graph.runDone', { n: report.ran, sec: (report.ms / 1000).toFixed(1) }));
     }
     return report;
   }

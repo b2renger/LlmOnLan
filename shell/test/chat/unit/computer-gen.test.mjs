@@ -385,18 +385,20 @@ const HTML_ANSWERS = [
 export default (test) => {
   // ------------------------------------------------------------------------- what is SENT (A8)
 
-  test('planFor: a code kind adds its system instruction and 4096 max_tokens; prose keeps SYSTEM and 2048', () => {
+  // Critic S1-3: the ceilings moved to 16384 (code) and 8192 (the rest); with no window in the
+  // budget, planFor sends the ceiling (the clamp is computer-s1.test.mjs's).
+  test('planFor: a code kind adds its system instruction and the code ceiling; prose keeps SYSTEM and the text ceiling', () => {
     const bind = bindArrivals({ values: [valueOf('text', 'a sun')], labels: ['brief'], instruction: 'Draw the brief.' });
     const svg = planFor({ part: { id: 'a', settings: { instruction: 'Draw the brief.', code: 'svg', shape: 'text' } }, bind });
     assert.ok(svg.assembled.system.startsWith(SYSTEM), 'the frozen SYSTEM stays first');
     assert.ok(svg.assembled.system.includes('xmlns="http://www.w3.org/2000/svg"'), 'the SVG rules name the namespace');
     assert.equal(svg.call.maxTokens, MAX_TOKENS_CODE);
-    assert.equal(svg.call.maxTokens, 4096);
+    assert.equal(svg.call.maxTokens, 16384);
     for (const [code, marker] of [['p5', 'createCanvas(windowWidth, windowHeight)'], ['three', 'THREE is already a global'], ['html', 'no <!DOCTYPE>']]) {
       const plan = planFor({ part: { id: 'a', settings: { instruction: 'x', code, shape: 'text' } }, bind });
       assert.ok(plan.assembled.system.includes(marker), `${code}: ${marker}`);
       assert.ok(plan.assembled.system.includes('exactly one'), `${code}: ONE fenced block`);
-      assert.equal(plan.call.maxTokens, 4096);
+      assert.equal(plan.call.maxTokens, MAX_TOKENS_CODE);
       assert.equal(plan.call.code, code);
     }
     const prose = planFor({ part: { id: 'a', settings: { instruction: 'x' } }, bind });
@@ -405,10 +407,10 @@ export default (test) => {
     // a list answer is never code, whatever `code` says
     const list = planFor({ part: { id: 'a', settings: { instruction: 'x', code: 'svg', shape: 'list' } }, bind });
     assert.equal(list.assembled.system, SYSTEM);
-    assert.equal(list.call.maxTokens, 2048);
+    assert.equal(list.call.maxTokens, 8192);
     assert.equal(codeKindOf({ code: 'p5' }), 'p5');
     assert.equal(codeKindOf({ code: 'p5', shape: 'json' }), '');
-    assert.equal(maxTokensOf({ code: 'three' }), 4096);
+    assert.equal(maxTokensOf({ code: 'three' }), MAX_TOKENS_CODE);
     assert.equal(codeSystem('nope'), '');
   });
 
@@ -429,7 +431,7 @@ export default (test) => {
       const plan = planFor({ part: { id: 'w', settings: p.settings }, bind: { params: [], unused: [], unwired: [] } });
       assert.ok(plan.assembled.prompt.endsWith(p.settings.instruction), `${p.id}: the task is the instruction`);
       assert.ok(plan.assembled.system.includes('You write ONE'), `${p.id}: the system message carries the rules`);
-      assert.equal(plan.call.maxTokens, 4096);
+      assert.equal(plan.call.maxTokens, MAX_TOKENS_CODE);
     }
     const write = templateCreative.doc.parts.find((/** @type {any} */ x) => x.id === 'c_write_p5');
     assert.doesNotMatch(write.settings.instruction, /Reply with only/);

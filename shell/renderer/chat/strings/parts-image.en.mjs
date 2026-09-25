@@ -14,7 +14,11 @@ registerStrings('parts', {
   imageSize: '{w}×{h} · {kb} KB',
   imageUnnamed: 'pasted image',
   // The refusals, in the words of the person who hit them (§8.4).
-  imageTooBig: 'That picture is {mb} MB once resized, over the {capMb} MB a box may carry. Try a smaller image, or crop it first.',
+  // Critic S1-12: three checks, three sentences. One string used to serve all three, so a 40 MB
+  // PNG read "40 MB once resized, over the 32 MB a box may carry": it was never resized.
+  imageTooBigFile: 'That picture is {mb} MB, over the {capMb} MB the Computer will open. Try a smaller file.',
+  imageTooManyPixels: 'That picture is {mp} megapixels, over the {capMp} megapixels the Computer will open. Try a smaller image, or crop it first.',
+  imageTooBig: 'Even resized, that picture is {mb} MB, over the {capMb} MB a box may carry. Try a smaller image, or crop it first.',
   imageNotAnImage: 'That file is not a picture ({type}). Drop a PNG, JPEG, WebP or GIF.',
   imageUnreadable: 'That picture could not be read.',
   imageWorking: 'Reading the picture…',

@@ -75,11 +75,12 @@ Your list, and where each fix is:
    or Document box. Ctrl+C copies boxes only when no text is selected. Plain text pasted onto the
    canvas becomes a Text box.
 8. **Write SVG / p5.js / three.js:**
-   - The model now gets instructions per kind, written for gemma4:12b around what the sandbox
-     really provides.
+   - The model now gets instructions per kind, in the system message, written around what the
+     sandbox really provides (first tuned on gemma4:12b; your farm's default is now Qwen3.8).
    - The deeper cause: every answer was **silently cut at 512 tokens**, so most sketches arrived
-     half-written. Code answers now get 4096, and a cut-off answer says so instead of drawing
-     nothing.
+     half-written. Code answers now get far more room (critic S1-3 resizes the budget to what the
+     farm's slot can hold, because a thinking model spends it on thoughts first), and a cut-off
+     answer says so instead of drawing nothing.
    - The sandbox is sized to the box, and sketches that only draw inside their animation loop now
      photograph properly. Guest errors are explained in words.
 
@@ -89,8 +90,11 @@ had nothing blocking left. Reports: `docs/reviews/COMPUTER_CRITIC_R1.md` → `R2
 Round 4). The harness now drives a **real mouse and keyboard**; about 40 new scenarios do.
 
 **Checked on your real farm on the 25th, 08:30** (its default model is now Qwen3.8, not gemma4):
-- a pinned seed gives the identical answer twice through LiteLLM;
-- each Write-… preset drew 5 times out of 5.
+- on **Qwen3.8**, a pinned seed gave the identical answer twice through LiteLLM. On **gemma4:12b**
+  through Ollama it did not (rig, 09:03): the same seed can still vary there. What is guaranteed
+  everywhere is narrower — while the window is open, the Computer re-uses the answer it already has;
+- each Write-… preset drew 5 times out of 5 on Qwen3.8. On gemma4:12b, SVG drew 2/5 and p5 1/5
+  (its thinking used up the answer budget) — critic S1-3.
 
 The full account of the night is in [NIGHT_REPORT_2026-09-25.md](NIGHT_REPORT_2026-09-25.md).
 
@@ -163,8 +167,9 @@ Computer log". The folder is fixed, so I can find it.
 2. Wire it into an Instruction. Its line reads **takes: sound ✗** with, on your farm today: *"This farm
    runs its models through Ollama, which has no way to pass sound on, so the sound is not sent. Its name
    and length go along as text."* (On an engine that could pass it on, the sentence names the model the
-   farm does not say can listen instead.) The Instruction shows `gemma4:12b: pictures ✓ · sound ? · PDF
-   directly ?` while a picture or a sound is wired in.
+   farm does not say can listen instead.) The Instruction shows its OWN model's line — for example
+   `gemma4:12b: pictures ✓ · sound ? · PDF directly ?` — while a picture or a sound is wired in. That
+   model is whatever the box's Model menu says; on Automatic it is the farm's default.
 3. Press ▶: the Instruction gets *"Sound file "interview.wav" (0:02, 0.0 MB). The sound itself was not
    sent: …"* — honest text, never the sound, never a wasted request.
 
@@ -191,13 +196,13 @@ contents; pictures become Image boxes, which now carry the same "takes:" line.
 |---|---|
 | **NEW (K6) — PDFs, sound, and a line that says what a box can take** | See the section above. The Document box sends its PDF to the farm's OCR only when a run needs the text, once per file ever; the Sound box keeps and plays, and says why nothing listens; every file-holding box says **takes: … ✓ / ✗ / ?** with a sentence whenever the answer is not yes — `?` when the farm does not say, never a guess. |
 | **A surface of its own** | Library sidebar: create, open, rename, duplicate, delete, import/export a graph as a document. No chat involved anywhere. |
-| **Arrows carry names** | Select a wire, press **F2** (or double-click the pill), type `societal research`. That label is the name the Instruction refers to in its prose — your museum graph, exactly. |
+| **Arrows carry names** | Click the **name me** tag on a wire (or select the wire and press **F2**, or just start typing), type `societal research`, press Enter. That label is the name the Instruction refers to in its prose — your museum graph, exactly. |
 | **See the prompt before you pay** | The transcript drawer shows **Sent / Got / Cost** for any Instruction — including *before* you run it, so you can read the assembled prompt and fix the wording without spending a generation. |
-| **Two ways to run** | **▶ on any box** runs it and everything downstream (and quietly runs any un-run ancestors it needs first). **Run** does the whole stale graph. **Stop**/Escape cancels either. |
+| **Two ways to run** | **▶ on any box** runs it and everything downstream (and quietly runs any un-run ancestors it needs first). **Run all** in the run bar does the whole stale graph (the canvas toolbar no longer has a second Run — critic S1-14). **Stop**/Escape cancels either. |
 | **Control flow** | Button, Condition (yes/no/maybe), Confirm, Dialog (pauses the run and asks you), Toggle (the gate that makes a loop legal), Timer/Interval. |
-| **Loops that stop themselves** | A loop must contain a gate, and four ceilings bound it: iterations, generations, wall-clock, and a per-iteration cache salt. A run never outlives the graph it started on, or the question it asked. |
+| **Loops that stop themselves** | A loop must pass through something that can stop it (a Toggle, Condition, Confirm, Dialog, Button or Timer), and four ceilings bound every run: 8 passes through one box, 50 generations, 10 minutes of wall clock (waiting included), and 2000 box runs in all (`maxActivations`). Each is raisable for one run from the notice that names it. A run never outlives the graph it started on, or the question it asked. |
 | **NEW — text boxes with input and output** | Wire an Instruction (or any box) into a **Text** box and the answer lands there, renders as markdown — headings, bold, lists, tables, code — and is passed on downstream. Click into it to edit the source; blur to see it rendered again. **Lock** means "keep what I typed": a locked box refuses an arrival, says so, and still passes its own text on. An arrival never paints over an editor you have open. A box with nothing wired in is exactly the note it always was. A very long arrival is rendered down to its first 64 KB with a line saying so — the whole text still passes on and Save… still writes all of it. |
-| **NEW — drop a picture in** | Drop or paste an image on the canvas; it is downscaled and stored locally, and a wired **Image** goes to the farm's vision model (your gemma4:12b) as part of an Instruction. A farm that reports no vision says so instead of sending a request. Since K6 a drop of several files places one box per file (up to 8), side by side; a file too big to decode is refused with a sentence rather than with the renderer's memory. |
+| **NEW — drop a picture in** | Drop or paste an image on the canvas; it is downscaled and stored locally, and a wired **Image** goes, as part of an Instruction, to **that Instruction's model** — whatever its Model menu says; on Automatic, the farm's default (Qwen3.8 on your farm today), not a separate "vision model". When the farm does not list that model as able to see, the box says so and sends nothing; pick one that can in the box's Model menu. Since K6 a drop of several files places one box per file (up to 8), side by side; a file too big to decode is refused with a sentence rather than with the renderer's memory. |
 | **NEW — Preview boxes** | markdown · SVG · html/css/js · three.js · p5.js. Markdown and SVG draw with **no iframe at all**; the three code modes come back as a picture from the one sandbox guest. Save… writes .md, .svg or .png. Errors name the line. |
 | **NEW (K5) — creative boxes, by name** | Press **＋ Add a box** in the toolbar (or double-click / right-click empty canvas). The first thing in the menu is a strip, **Draw with code — no farm needed**: **p5.js sketch · three.js scene · SVG · HTML page**, one click each. The same boxes (and **Markdown view**) are also rows under **Show**. Each one draws its starter code as soon as it is placed, with no farm needed. Each has its own code editor and redraws as you type. Errors name the line, and clicking the error selects that line. **Keep my code** stops an answer on the wire from replacing your edit. It saves as .js/.svg/.html/.md/.png. |
 | **NEW (K5) — "Write an SVG" and friends** | In the same menu under **Think**: **Write a p5.js sketch / three.js scene / SVG / HTML page**. Place "Write an SVG" beside an SVG box, wire them, and press ▶: the model's code arrives in the box with its fences and prose removed, and it draws. A fence the model left unclosed or glued to the last line is removed too, and when it sends several blocks the box takes the one in its own language. A p5/three.js answer still draws after the app is reopened or the graph is exported and imported. Unwire it (or Reset the lesson, or Undo) and the box goes back to its own code. |
@@ -274,8 +279,9 @@ of this was verified on real hardware**:
    events and plays silent WAVs on purpose. Drag an .mp3 from Explorer, press ▶ Play, and listen; then
    check an .m4a and a .flac decode (only WAV was decoded here).
 3. **Your bug report, on the real farm (K5).** Press **＋ Add a box**, type `svg`, and add **Write an
-   SVG**. Add an **SVG** box the same way, drag a wire from Write an SVG into it, and press ▶. gemma4's
-   SVG should land clean and draw. Do the same with **Write a p5.js sketch → p5.js sketch**. The
+   SVG**. Add an **SVG** box the same way, drag a wire from Write an SVG onto it, and press ▶. The
+   model's SVG should land clean and draw — on Automatic that is the farm's default (Qwen3.8 today);
+   to check gemma4:12b, pick it in the Write an SVG box's Model menu. Do the same with **Write a p5.js sketch → p5.js sketch**. The
    Write-… prompts were only tested against the mock model, so this is the check that matters.
 4. **The Tour and lesson 1, with the farm on.** Open **Learn** in the library sidebar and walk the Tour,
    then lesson 1. Check that the rail ticks when you do each step, and that **Show me** points at
@@ -284,11 +290,13 @@ of this was verified on real hardware**:
 5. **The Research → problematic template**: does its shape match your museum graph? Does it run its
    eight generations on your farm in a time you would accept?
 6. **A real Instruction into a Text box**, the K4 headline. Wire an Instruction's answer
-   into a Text box and read whether gemma4's markdown report lands legibly: headings, lists, a table.
+   into a Text box and read whether the model's markdown report lands legibly: headings, lists, a table.
    Then click in, edit a line, click out, and re-run: your edit must survive if the box is **locked**
    and be replaced if it is not.
-7. **A photo through the vision model** — drop a screenshot on the canvas, wire it into an Instruction,
-   and see whether gemma4:12b reads it. This is the first time the Computer sends a picture anywhere.
+7. **A photo through a model that can see** — drop a screenshot on the canvas, wire it into an
+   Instruction, and see whether that box's model reads it. On Automatic it is the farm's default; pick
+   a model the farm lists as able to see (gemma4:12b is one) in the box's Model menu. This is the first
+   time the Computer sends a picture anywhere.
 8. **A three.js or p5 sketch in a Preview box** — whether the snapshot is worth looking at at the size
    the box gives it, and whether an error names a line you can find.
 9. **The look, on your monitor** — five kinds, five glyphs, in both themes; and whether the sticky's

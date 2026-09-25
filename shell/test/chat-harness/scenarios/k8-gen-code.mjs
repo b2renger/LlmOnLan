@@ -7,8 +7,9 @@
 // What is proven here, against the mock farm (never a real one — the rig check on gemma4:12b is
 // the integrator's):
 //   - a Write-… Instruction sends the sandbox's rules for its kind in the SYSTEM message and asks
-//     for 4096 tokens — and the transcript's Sent tab, opened with a real click on the box's strip,
-//     shows exactly that system text, `max_tokens: 4096` and the seed;
+//     for its planned max_tokens (critic S1-3: the 16384 ceiling clamped to what the prompt leaves
+//     of the mock's 16k slot) — and the transcript's Sent tab, opened with a real click on the
+//     box's strip, shows exactly that system text, that `max_tokens` and the seed;
 //   - a CODE answer that hits max_tokens (`mock-length`: 200 tokens, then finish_reason "length")
 //     is a named error on the box, never a success that draws half a program;
 //   - a PROSE answer that hits max_tokens is kept, and the box says the end is missing.
@@ -68,7 +69,11 @@ export default [
 
             const [sent] = await h.mock.log({ path: COMPLETIONS });
             h.assert(sent && sent.body, 'one request left');
-            h.eq(sent.body.max_tokens, 4096, 'a code answer asks for 4096 tokens');
+            // Critic S1-3: the ceiling (16384) clamped to the mock's 16k slot minus the prompt — what
+            // the plan says is exactly what goes out, and it is well over the old 4096.
+            const planned = (await h.computer.preview(ins)).call.maxTokens;
+            h.eq(sent.body.max_tokens, planned, 'a code answer asks for its planned max_tokens');
+            h.assert(planned > 4096 && planned < 16384, `clamped to the slot: ${planned}`);
             h.eq(typeof sent.body.seed, 'number', 'with a seed');
             const system = (sent.body.messages || []).filter((/** @type {any} */ m) => m.role === 'system')
                 .map((/** @type {any} */ m) => (typeof m.content === 'string' ? m.content : '')).join('\n');
@@ -92,7 +97,7 @@ export default [
                 return text.includes('max_tokens') ? text : null;
             });
             h.assert(shown.includes(rules.split('\n')[0]), 'the Sent tab shows the SVG rules');
-            h.assert(shown.includes('max_tokens: 4096'), 'and the real max_tokens');
+            h.assert(shown.includes(`max_tokens: ${planned}`), 'and the real (clamped) max_tokens');
             h.assert(shown.includes(await str(h, 'computer.genTxSeedNewLast', { seed: sent.body.seed })),
                 'and the seed: new each run, and the one the answer came from');
         },
@@ -108,7 +113,8 @@ export default [
             await play(h, sketch);
             const cut = await partOf(h, sketch);
             h.eq(cut.state, 'error', 'half a program is not a program');
-            h.eq(cut.error, await str(h, 'parts.errCutOff', { n: 4096 }), 'and the box says why, and what to do');
+            const sketchMax = (await h.computer.preview(sketch)).call.maxTokens;
+            h.eq(cut.error, await str(h, 'parts.errCutOff', { n: sketchMax }), 'and the box says why, and what to do');
             const shownError = await h.eval((sel) => ((document.querySelector(sel) || {}).textContent || ''), inBox(sketch, '.graph-part-error'));
             h.eq(shownError, cut.error, 'on the box itself');
 
@@ -122,9 +128,12 @@ export default [
                 const el = /** @type {any} */ (document.querySelector(sel));
                 return el && !el.hidden && el.getClientRects().length > 0 ? el.textContent : '';
             }, inBox(essay, '.graph-ins-cut'));
-            h.eq(chip, await str(h, 'parts.genCutChip', { n: 2048 }), 'and the box says the end is missing');
+            const essayMax = (await h.computer.preview(essay)).call.maxTokens;
+            h.eq(chip, await str(h, 'parts.genCutChip', { n: essayMax }), 'and the box says the end is missing');
             const posts = await h.mock.log({ path: COMPLETIONS });
-            h.eq(posts.map((/** @type {any} */ p) => p.body.max_tokens), [4096, 2048], 'code 4096, prose 2048');
+            // Critic S1-3: prose's ceiling is 8192 and the slot leaves it whole; code is clamped.
+            h.eq(posts.map((/** @type {any} */ p) => p.body.max_tokens), [sketchMax, essayMax], 'each sends what its plan says');
+            h.eq(essayMax, 8192, 'prose: its whole 8192 ceiling fits the 16k slot');
         },
     },
 ];

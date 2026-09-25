@@ -5,7 +5,7 @@ import { registerStrings } from '../core/i18n.mjs';
 
 registerStrings('graph', {
   panelLabel: 'Computer',
-  empty: 'Place a part to start. Wire it up, then press Run.',
+  empty: 'Place a part to start. Wire it up, then press Run all.',
   // K1 landing: a graph no longer belongs to a conversation, it belongs to a LIBRARY DOCUMENT.
   // (`noThread` was 'Open a chat to build a program…'; the Computer has no chat to open.)
   noDoc: 'Open a graph from the library, or press ＋ New, to start building.',
@@ -128,15 +128,11 @@ registerStrings('graph', {
   tidyNothing: 'Everything is already in place.',
 
   exportGraph: 'Export…',
-  exportWithValues: 'Include the values it has already computed',
   exportDone: 'Saved {name}',
-  importGraph: 'Import…',
-  importReplaceTitle: 'Replace this canvas?',
-  importReplaceBody: 'This conversation already has {n} parts. Importing replaces them; one undo takes it back.',
   importDone: 'Imported {n} parts and {w} wires',
   importDropped: 'Imported, but {n} things were dropped: {why}',
   errImportNotGraph: 'That file is not a LOL graph.',
-  errImportVersion: 'That file was written by a newer version of LOL Chat.',
+  errImportVersion: 'That file was written by a newer version of the Computer.',
   errImportUnreadable: 'That file could not be read.',
   errImportTooBig: 'That file is too big to open. A graph file has to stay under 8 MB.',
   dropHint: 'Drop a .lolgraph.json file to open it here.',

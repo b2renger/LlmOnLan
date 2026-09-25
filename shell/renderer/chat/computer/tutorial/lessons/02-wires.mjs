@@ -55,7 +55,7 @@ export default {
   steps: [
     {
       id: 's1',
-      text: 'Wire the Text box into the first Instruction: drag from the dot on its right edge onto the Instruction.',
+      text: 'Wire the Text box into the first Instruction: drag from the dot on its right edge onto the Instruction (its left dot).',
       check: { wire: { from: 'p_note', to: 'p_story' } },
       show: { partId: 'p_note' },
     },
@@ -74,6 +74,9 @@ export default {
     {
       id: 's4',
       text: 'Change the character in the Text box, then press ▶ on the Text box: everything below your change runs again, in order.',
+      // Critic S1-12: with no farm, ▶ on the Text box re-asks the story every time, and it fails
+      // every time; the way out is the title's ▶, which READS a story that has a value.
+      hint: 'No farm? Use the saved answer when it is offered, then press ▶ on the title and use its saved answer too.',
       check: { all: [{ edited: { partId: 'p_note', setting: 'text' } }, { ran: { partId: 'p_story' } }, { ran: { partId: 'p_title' } }] },
       show: { partId: 'p_note' },
     },

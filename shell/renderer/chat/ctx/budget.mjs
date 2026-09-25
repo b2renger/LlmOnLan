@@ -223,16 +223,21 @@ export function gateVerdict(o) {
  * count is exact where a token count is a guess. The ratio errs HIGH on purpose (fewer characters
  * per token than prose really uses), so the estimate over-counts and the cut is conservative.
  *
+ * Critic S1-3: `window` is the whole trusted window the prompt budget was cut from. The
+ * Instruction's plan (graph/bind.mjs `planFor`) reads it to size the ANSWER — `max_tokens` is a
+ * ceiling clamped to what the prompt leaves of this window — and then asks again here with that
+ * number as the reserve, so the prompt and the answer are sized against the same window.
+ *
  * @param {any} caps the whole FarmCaps, its `budget`, or a bare number
  * @param {{reserve?: number}} [o] room kept for the ANSWER (default DEFAULT_RESERVE)
- * @returns {{tokens: number, chars: number, assumed: boolean}}
+ * @returns {{tokens: number, chars: number, assumed: boolean, window: number}}
  */
 export function budgetFor(caps, o) {
   const advertised = trustedBudget(caps);
   const assumed = !hasAdvertisedWindow(caps);
   const reserve = Math.max(0, num((o || {}).reserve, DEFAULT_RESERVE));
   const tokens = Math.max(MIN_BUDGET, advertised - reserve);
-  return { tokens, chars: Math.floor(tokens * DEFAULT_RATIO), assumed };
+  return { tokens, chars: Math.floor(tokens * DEFAULT_RATIO), assumed, window: advertised };
 }
 
 /** Did this farm say anything at all about its window? @param {any} caps @returns {boolean} */

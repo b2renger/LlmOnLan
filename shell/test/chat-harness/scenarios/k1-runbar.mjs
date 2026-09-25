@@ -203,7 +203,12 @@ export default [
                 'and ONE generation — only Ask thinks, and the bar reads that off the report');
             h.eq(after.cap, '1 / 50', 'the cap meter is this run\'s spend against the limit it ran under');
             h.eq(after.capAmber, 'false', 'one generation out of fifty is not worth a colour');
-            h.eq(after.status, '', 'a run that did something says nothing extra');
+            // Critic S1-1/S1-2: every run leaves ONE sentence — the same the live region says — so a
+            // run that did something says what it did (it used to say nothing here, and a stale
+            // "Nothing to run" from an earlier run could outlive it).
+            const report = await h.eval(() => JSON.parse(JSON.stringify(window.LolComputer.app.host.runner.report())));
+            h.eq(after.status, await str(h, 'computer.runOutcomeDone', { n: report.ran, sec: (report.ms / 1000).toFixed(1) }),
+                'a run that did something says what it did');
             h.eq(after.runShown, true, 'and the bar is offering Run all again');
 
             const log = await h.mock.log({ path: '/v1/chat/completions' });

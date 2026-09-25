@@ -318,7 +318,8 @@ export default (test) => {
     const ask = fakeAsk((i) => (i === 1 ? askFail('busy', 'seats full') : keepRes(true)));
     await assert.rejects(() => run('filter', { items: [items] }, { mode: 'model', text: 'keep?' }, { ask }), (err) => {
       assert.equal(err.reason, 'busy', 'the runner must see a YIELD, not a wrong part');
-      assert.equal(err.message, t('parts.errBusy'));
+      // Critic S1-1: the ask's own sentence rides up to the runner's report (`yieldedBy`).
+      assert.equal(err.message, 'seats full');
       return true;
     });
     assert.equal(ask.calls.length, 2, 'and it stopped asking the moment the farm said no');

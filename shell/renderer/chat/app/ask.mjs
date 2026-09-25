@@ -20,7 +20,9 @@
 //   - THE LADDER (§3.4.2). schema → prompt → text, with the verdict remembered per
 //     (farm, underlying) in `kv structuredMode:` so we stop paying for the discovery on every call.
 //   - THE REASONING TRAP (F8). A model that put its JSON in `reasoning` and left `content` empty
-//     has answered; only a reply with neither is empty.
+//     has answered; only a reply with neither is empty. That holds for finish_reason 'stop' ONLY
+//     (critic S1-4): cut off at max_tokens with no content, the reasoning is unfinished thoughts,
+//     and the result is `ok:false`, kind 'empty', `thought:true` — never the thoughts as a value.
 //   - ONE REQUEST PER ANSWER where we can. When `response_format` was stripped upstream
 //     (LiteLLM `drop_params`) the reply arrives as prose around a fenced object: that parses, so we
 //     RETURN it as `mode:'prompt'` instead of spending a second seat asking again — and we count it
@@ -76,10 +78,16 @@ const str = (v) => (typeof v === 'string' ? v : '');
 
 /**
  * @param {'busy'|'no_farm'|'no_vision'|'empty'|'invalid'|'aborted'|'farm'} kind
- * @param {string} message @param {{mode?: 'schema'|'prompt'|'text', raw?: string, ms?: number}} [o]
+ * @param {string} message
+ * @param {{mode?: 'schema'|'prompt'|'text', raw?: string, ms?: number, hidden?: boolean}} [o]
+ *   `hidden` (critic S1-1): a `busy` that is really "this window is in the background". The kind
+ *   stays `busy`, so every control path (the queue's retry, the runner's yield) is unchanged; the
+ *   flag is what lets the Computer say WHY nothing was sent.
  * @returns {AskResult}
  */
 function fail(kind, message, o) {
+  /** @type {any} */ const error = { kind, message };
+  if (o && o.hidden) error.hidden = true;
   return /** @type {any} */ ({
     ok: false,
     value: null,
@@ -87,7 +95,39 @@ function fail(kind, message, o) {
     raw: (o && o.raw) || '',
     usage: null,
     ms: (o && o.ms) || 0,
-    error: { kind, message },
+    error,
+  });
+}
+
+/**
+ * Critic S1-3: did a reply cut off at max_tokens spend (nearly) all of it THINKING? True when the
+ * visible answer is empty, or under a tenth of everything the model wrote. A thinking model's
+ * `reasoning_content` counts toward max_tokens; on the rig gemma4:12b spent 2-4k tokens on it
+ * before a line of code. PURE.
+ * @param {string} content @param {string} reasoning @param {any} finishReason @returns {boolean}
+ */
+export function thoughtOut(content, reasoning, finishReason) {
+  if (finishReason !== 'length') return false;
+  const c = str(content).trim().length;
+  if (!c) return true;
+  const r = str(reasoning).length;
+  return r > 0 && c < 0.1 * (c + r);
+}
+
+/**
+ * Critic S1-4: a reply cut off at max_tokens with NO visible answer is a failure, never an answer.
+ * F8 ("JSON in `reasoning` with empty `content` has answered") holds for `stop` only: under
+ * `length` the reasoning is unfinished thoughts, and handing them on as the value made every box
+ * downstream read them — or parse an object the model was only considering.
+ * @param {'schema'|'prompt'|'text'} mode @param {number} ms @param {number} maxTokens
+ * @returns {AskResult}
+ */
+function cutThinking(mode, ms, maxTokens) {
+  return /** @type {any} */ ({
+    ...fail('empty', t('ask.cutThinking'), { mode, ms }),
+    finishReason: 'length',
+    thought: true,
+    maxTokens,
   });
 }
 
@@ -219,7 +259,9 @@ export function createAsk(app) {
     if (c.keyMissing) return refuse(fail('no_farm', t('ask.keyMissing')));
     // Hidden means idle (§3.9): a window nobody is looking at does not spend one of the farm's
     // seats, and the queue's FARM_TICK retry is what picks the work up again when it comes back.
-    if (!(app.state.visible && app.state.pageVisible)) return refuse(fail('busy', t('ask.hidden')));
+    // Critic S1-1: still `busy` (every control path is unchanged), flagged `hidden` so the run
+    // report can say "this window was in the background" instead of "every box is up to date".
+    if (!(app.state.visible && app.state.pageVisible)) return refuse(fail('busy', t('ask.hidden'), { hidden: true }));
     if (o.images.length && vision(underlying) === 'no') return refuse(fail('no_vision', t('ask.noVision')));
     if (o.signal && o.signal.aborted) return refuse(fail('aborted', t('ask.aborted')));
 
@@ -424,6 +466,11 @@ export function createAsk(app) {
     /** @param {AskResult} r @returns {AskResult} */
     const said = (r) => /** @type {any} */ ({ ...r, finishReason });
 
+    // Critic S1-4: cut off while still thinking — never parse the thoughts as the answer.
+    if (finishReason === 'length' && !out.content.trim()) {
+      return { result: cutThinking(lane, out.ms, o.maxTokens), degraded: false, hard: true };
+    }
+
     const raw = rawOf(out.content, out.reasoning);
     if (!raw.trim()) {
       return { result: said(fail('empty', t('ask.empty'), { mode: lane, raw: '', ms: out.ms })), degraded: false, hard: true };
@@ -447,17 +494,19 @@ export function createAsk(app) {
     // The schema lane answering in prose means the format never reached the engine. The ANSWER is
     // fine, so we keep it (one seat, one answer) and report the mode we actually got.
     const degraded = useSchema && found.how !== 'body';
+    /** @type {any} */ const okResult = {
+      ok: true,
+      value,
+      mode: degraded ? 'prompt' : lane,
+      raw,
+      usage: out.usage,
+      ms: out.ms,
+      error: null,
+      finishReason,
+    };
+    if (thoughtOut(out.content, out.reasoning, finishReason)) { okResult.thought = true; okResult.maxTokens = o.maxTokens; }
     return {
-      result: /** @type {any} */ ({
-        ok: true,
-        value,
-        mode: degraded ? 'prompt' : lane,
-        raw,
-        usage: out.usage,
-        ms: out.ms,
-        error: null,
-        finishReason,
-      }),
+      result: okResult,
       degraded,
       hard: false,
     };
@@ -526,6 +575,12 @@ export function createAsk(app) {
     if (out.refusal) return record(o.task, out.refusal, out.model);
     if (out.error) return record(o.task, farmFailure(out.error, out.underlying, out.ms), out.model);
 
+    // Critic S1-4: cut off while still thinking. The reasoning is NOT the answer — it used to come
+    // back here as `ok:true`, and became the box's value and everything downstream's input.
+    if (out.finishReason === 'length' && !out.content.trim()) {
+      return record(o.task, cutThinking('text', out.ms, o.maxTokens), out.model);
+    }
+
     const raw = rawOf(out.content, out.reasoning);
     if (!raw.trim()) {
       return record(o.task, /** @type {any} */ ({ ...fail('empty', t('ask.empty'), { mode: 'text', ms: out.ms }), finishReason: out.finishReason }), out.model);
@@ -533,10 +588,14 @@ export function createAsk(app) {
 
     // `finishReason:'length'` stays `ok:true`: a prose answer cut short is still an answer, and
     // the caller (the Instruction) decides — a CODE answer cut short is a failure it names.
-    const result = /** @type {AskResult} */ (/** @type {any} */ ({
+    // Critic S1-3: `thought` marks a cut answer that went (nearly) all on thinking, so the caller
+    // can say so instead of "ask for something smaller".
+    /** @type {any} */ const answer = {
       ok: true, value: raw, mode: 'text', raw, usage: out.usage, ms: out.ms, error: null,
       finishReason: out.finishReason,
-    }));
+    };
+    if (thoughtOut(out.content, out.reasoning, out.finishReason)) { answer.thought = true; answer.maxTokens = o.maxTokens; }
+    const result = /** @type {AskResult} */ (answer);
     if (key) cachePut(key, result);
     return record(o.task, result, out.model);
   }

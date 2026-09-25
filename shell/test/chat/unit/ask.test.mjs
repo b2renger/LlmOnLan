@@ -358,13 +358,15 @@ export default (test) => {
 
   // ---- vision ------------------------------------------------------------------------------------
 
-  test('a known-blind model refuses the image locally, with the operator sentence', async () => {
+  test('a known-blind model refuses the image locally, with a sentence that names no model', async () => {
     const { app } = stubApp({ vision: 'no' });
     const { api } = createAsk(app);
     const farm = fakeFarm(() => 'never');
     const r = await withFarm(farm, () => api.text({ task: 't', prompt: 'p', images: ['data:image/png;base64,AAA'] }));
     assert.equal(r.error.kind, 'no_vision');
-    assert.match(r.error.message, /vision model/);
+    // Critic S1-13: the reader picks the model; the sentence no longer names one (it said gemma4:12b).
+    assert.match(r.error.message, /cannot read pictures/);
+    assert.doesNotMatch(r.error.message, /gemma|:\d+b/);
     assert.equal(farm.posts.length, 0);
     assert.equal(api.vision('gemma4:12b'), 'no');
   });

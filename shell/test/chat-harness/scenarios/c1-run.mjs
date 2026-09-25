@@ -18,7 +18,10 @@ const COMPLETIONS = '/v1/chat/completions';
 const FARM_ERRORS = [/Failed to load resource/, /net::ERR_/];
 
 /** Fail loudly when this unit's modules were replaced by fakes or skipped. */
-const requireReal = (/** @type {any} */ h) => h.eval(() => {
+const requireReal = async (/** @type {any} */ h) => {
+    // The Computer publishes app.ask when its loader finishes, a beat after the page loads.
+    await h.waitFor(() => (window.LolComputer && window.LolComputer.ready && window.LolComputer.app && window.LolComputer.app.ask ? true : null), { timeout: 20000 }).catch(() => null);
+    return h.eval(() => {
     // K1: the graph's modules are loaded by the COMPUTER's loader now, not the chat's.
     const failed = (window.LolComputer && window.LolComputer.failed) || {};
     const missing = ['host', 'ask'].filter((k) => failed[k]);
@@ -27,7 +30,8 @@ const requireReal = (/** @type {any} */ h) => h.eval(() => {
     }
     if (!window.LolComputer.app.ask) throw new Error('the Computer app.ask was never published');
     return true;
-});
+    });
+};
 
 /** A string as the page itself resolves it, so the test never re-types an English sentence. */
 const str = (/** @type {any} */ h, /** @type {string} */ key) => h.eval((k) => window.LolChat.app.t(k), key);
@@ -400,7 +404,9 @@ export default [
             const report = await h.graph.run();
             h.eq(report.errors.length, 1, 'the thinking part failed');
             h.eq(report.errors[0].partId, ids.ask);
-            h.eq(report.errors[0].message, await str(h, 'parts.errNoFarm'), 'with the sentence a person can act on');
+            // Critic S1-7: the ask's OWN sentence (common.mjs failFromAsk) — so a farm that needs its
+            // password can say so; with no farm at all it is ask.noFarm.
+            h.eq(report.errors[0].message, await str(h, 'ask.noFarm'), 'with the sentence a person can act on');
             h.eq((await posts(h, '')).length, 0, 'and nothing was sent anywhere');
 
             const live = await parts(h);

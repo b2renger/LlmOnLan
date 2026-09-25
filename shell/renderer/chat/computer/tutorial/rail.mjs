@@ -486,6 +486,14 @@ export function install(app) {
       const gone = [from, to].filter((id) => !has(id));
       if (gone.length) putBack(gone);
       if (!has(from) || !has(to)) { if (has(from)) c.reveal(from); else if (has(to)) c.reveal(to); return; }
+      // Critic S1-6: when the arrow already EXISTS (lesson 3: "click its name me tag"), show the
+      // ARROW — its tag centred, the wire selected and flashed — not the two boxes around it.
+      const wired = s.doc().wires.some((/** @type {any} */ w) => w.from === from && w.to === to);
+      if (wired && typeof (/** @type {any} */ (c).revealWire) === 'function') {
+        /** @type {any} */ (c).revealWire(from, to);
+        paintRail();
+        return;
+      }
       // Both ends flash, then the view settles on the middle of the pair with both selected.
       c.reveal(to);
       c.reveal(from);

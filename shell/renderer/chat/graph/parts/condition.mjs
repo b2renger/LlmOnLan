@@ -16,9 +16,12 @@
 
 import { valueOf } from '../values.mjs';
 import { t } from '../../core/i18n.mjs';
-import { textOf, pickerRow, setPicked, partFail, isControl } from './common.mjs';
+import { textOf, pickerRow, setPicked, partFail, isControl, failFromAsk } from './common.mjs';
 import { textField } from './fields.mjs';
 import { modelOptions, optionSig } from './instruction.mjs';
+
+/** Room for a thinking model to reason before its verdict (critic S1). */
+const VERDICT_MAX_TOKENS = 4096;
 
 /** @typedef {import('../../core/types.mjs').PartSpec} PartSpec */
 
@@ -104,18 +107,6 @@ const verdicts = new Map();
 /** @param {string} partId @returns {string} */
 export function lastVerdict(partId) {
   return verdicts.get(String(partId || '')) || '';
-}
-
-/** @param {any} res @returns {Error} */
-function failFrom(res) {
-  const kind = res && res.error ? res.error.kind : 'farm';
-  if (kind === 'no_farm') return partFail(t('parts.errNoFarm'), 'no-farm');
-  if (kind === 'busy') return partFail(t('parts.errBusy'), 'busy');
-  if (kind === 'aborted') return partFail(t('parts.errAborted'), 'aborted');
-  if (kind === 'empty') return partFail(t('parts.errEmpty'), 'empty');
-  if (kind === 'invalid') return partFail(t('parts.errInvalid'), 'invalid');
-  const said = (res && res.error && res.error.message) || '';
-  return partFail(said ? t('parts.errFarm', { message: said }) : t('parts.errFarmSilent'), 'farm');
 }
 
 /** @type {PartSpec} */
@@ -208,6 +199,9 @@ export const condition = /** @type {any} */ ({
       try {
         res = await input.ask.json({
           task: 'graph:condition',
+          // Integrator, critic S1: without a ceiling the ask spine's 512 applies, and a thinking
+          // model (gemma4, Qwen3.8) spends that before its one-word verdict. A ceiling, not a target.
+          maxTokens: VERDICT_MAX_TOKENS,
           model: String(part.settings.model || '') || null,
           system: t('parts.condSystem'),
           prompt: verdictPrompt(String(part.settings.question || ''), textOf(value)),
@@ -219,7 +213,8 @@ export const condition = /** @type {any} */ ({
         if (isControl(err)) throw err;
         throw partFail(String((err && /** @type {any} */ (err).message) || ''), 'part');
       }
-      if (!res || !res.ok) throw failFrom(res);
+      // Critic S1-1/S1-7: the one mapping (common.mjs), which keeps the ask's own sentence.
+      if (!res || !res.ok) throw failFromAsk(res);
       verdict = readVerdict(res.value && res.value.verdict);
     } else {
       verdict = classify(value);

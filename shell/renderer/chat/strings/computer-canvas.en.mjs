@@ -57,4 +57,20 @@ registerStrings('graph', {
   keyDuplicate: 'Ctrl+D',
   keyDelete: 'Delete',
   keyRename: 'F2',
+
+  // ---- critic S1, Package B ----------------------------------------------------------------------
+  // S1-5: a wire dropped on a box's body plugs into its first free input; elsewhere it says so.
+  wireDropNowhere: 'No wire made: drop it on a box, or on the dot on its left edge.',
+  wireNoInput: '{to} takes nothing in, so no wire can go into it.',
+
+  // S1-11: the toolbar's file button REPLACES the open graph; the library's Import… adds a new one.
+  replaceFromFile: 'Replace from file…',
+  replaceFromFileHint: 'Open a .lolgraph.json file in place of this graph (one undo takes it back). To add it as a new graph instead, use Import… in the library.',
+  replaceTitle: 'Replace this graph?',
+  replaceBody: {
+    one: 'This graph already has 1 box. The file replaces it; one undo takes it back.',
+    other: 'This graph already has {count} boxes. The file replaces them; one undo takes it back.',
+  },
+  replaceOk: 'Replace',
+  importNewHint: 'Add a .lolgraph.json file to the library as a new graph. The graph that is open stays as it is.',
 });

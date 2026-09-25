@@ -31,7 +31,7 @@ import { buildPalette } from './palette.mjs';
 import { createPaletteMenu } from './palette-menu.mjs';
 import { addPart, addWire, movePart, removeParts, removeWire, resizePart, setSettings, setWireLabel } from './model.mjs';
 import { preview } from './values.mjs';
-import { createWireLayer, portOffsetY, portPoint, wireAt, SNAP_PX, WIRE_HIT } from './wires.mjs';
+import { createWireLayer, portOffsetY, portPoint, wireAt, wireEnds, wireMid, SNAP_PX, WIRE_HIT, LABEL_BOX } from './wires.mjs';
 // Critic R1 (Package B): what a wheel, a resize handle, a dropped wire end and Ctrl+C MEAN is
 // decided in a pure module and pinned in Node; this file reads the DOM into it and writes back.
 import { wheelIntent, scrollRoom, zoomStep, resizeRect, rewireOutcome, shouldCopyParts, WHEEL_LATCH_MS } from './gestures.mjs';
@@ -291,6 +291,66 @@ export function pasteOffset(parts, at) {
   return { dx: snap(at.x - x0), dy: snap(at.y - y0) };
 }
 
+/**
+ * Critic S1-5: where a wire dropped on a box's BODY plugs in. Lessons 2 and 4 say "drag … onto
+ * the Instruction", and ComfyUI and tldraw both take a drop on the box: the box's FIRST input that
+ * is free and accepts what the wire carries; failing that, its first input that still takes one
+ * more wire (a `many` port already holding one); failing that, nothing — with the reason the
+ * first input refused, so the drop can say why in the words drawing to that dot would use.
+ * Pure: each candidate is asked through graph/model.mjs's own `addWire` and the answer is thrown
+ * away, so this can never disagree with what the real wire() will accept.
+ * @param {any} doc @param {string} from @param {string} to @param {Map<string, any>} specs
+ * @returns {{port: string|null, reason: string|null}} `reason` is 'no-input' for a box with no inputs
+ */
+export function bodyDropPort(doc, from, to, specs) {
+  const part = doc && Array.isArray(doc.parts) ? doc.parts.find((/** @type {any} */ p) => p.id === to) : null;
+  const spec = part && specs && typeof specs.get === 'function' ? specs.get(part.type) : null;
+  const inputs = (spec && Array.isArray(spec.inputs) ? spec.inputs : []).filter((/** @type {any} */ p) => p && p.name);
+  if (!part || !inputs.length) return { port: null, reason: 'no-input' };
+  /** @type {string|null} */ let fuller = null;
+  /** @type {string|null} */ let reason = null;
+  for (const input of inputs) {
+    const out = addWire(doc, { from, to, port: input.name }, { specs, newId: () => '\u0000probe', now: () => 0 });
+    if (!out.ok) { if (!reason) reason = out.reason || 'refused'; continue; }
+    if (!doc.wires.some((/** @type {any} */ w) => w.to === to && w.port === input.name)) return { port: input.name, reason: null };
+    if (!fuller) fuller = input.name;
+  }
+  return fuller ? { port: fuller, reason: null } : { port: null, reason };
+}
+
+/**
+ * Critic S1-9: the least pan that brings a world rectangle inside the viewport (with `margin`
+ * screen px to spare), or null when it is already inside. A box bigger than the view shows its
+ * top-left corner. The zoom never changes: Tab moves the view, it does not rescale it.
+ * @param {{x: number, y: number, zoom: number}} view @param {{x: number, y: number, w: number, h: number}} rect
+ * @param {{w: number, h: number}} viewport @param {number} [margin]
+ * @returns {{x: number, y: number, zoom: number}|null}
+ */
+export function panToShow(view, rect, viewport, margin = 24) {
+  const z = view.zoom || 1;
+  /** @param {number} s @param {number} len @param {number} room */
+  const axis = (s, len, room) => {
+    if (s >= margin && s + len <= room - margin) return 0;
+    if (len > room - margin * 2 || s < margin) return margin - s;
+    return room - margin - (s + len);
+  };
+  const dx = axis(rect.x * z + view.x, (Number(rect.w) || 0) * z, viewport.w);
+  const dy = axis(rect.y * z + view.y, (Number(rect.h) || 0) * z, viewport.h);
+  if (!dx && !dy) return null;
+  return { x: view.x + dx, y: view.y + dy, zoom: z };
+}
+
+/**
+ * Critic S1-15: Ctrl+0 is "zoom to 100%" by the KEY'S PLACE, not its character — on AZERTY the
+ * key marked 0 reports `à`, so `ev.key === '0'` never matched there. Shift+1 and Shift+2 are read
+ * the same way. The numpad's 0 counts too.
+ * @param {{key?: string, code?: string, ctrlKey?: boolean, metaKey?: boolean, altKey?: boolean}} ev
+ */
+export function isZoomResetKey(ev) {
+  if (!ev || !(ev.ctrlKey || ev.metaKey) || ev.altKey) return false;
+  return ev.code === 'Digit0' || ev.code === 'Numpad0' || (!ev.code && ev.key === '0');
+}
+
 // ---- the live canvas ----------------------------------------------------------------------------
 
 /** @param {string} tag @param {string} cls @param {string} [text] */
@@ -476,8 +536,11 @@ export function createCanvas(o) {
 
   // ---- C3-U3: tidy and the sharing story -------------------------------------------------------
   // Three controls, and one popover. Export asks BEFORE it writes whether the values go in the
-  // file, because a cached value is chat text and a picture is a megabyte: including them is a
-  // choice a person makes about a file they are about to hand to somebody, not a default.
+  // file, because a cached value is chat text and a picture is a megabyte.
+  // Critic S1-11: the library card's Export… asks the same question, so the two ask it in the SAME
+  // words ("Include results") with the SAME default (on, §7.6), and the note about pictures shows
+  // only while they are going in. The file button here REPLACES the open graph — the library's
+  // Import… is the one that adds a new graph — so it is called what it does.
   const tidyBtn = button('graph-btn graph-tidy', t('graph.tidy'));
   tidyBtn.title = t('graph.tidyHint');
   const exportBtn = button('graph-btn graph-export', t('graph.exportGraph'));
@@ -490,12 +553,16 @@ export function createCanvas(o) {
   const valuesInput = /** @type {HTMLInputElement} */ (document.createElement('input'));
   valuesInput.type = 'checkbox';
   valuesInput.className = 'graph-export-values-input';
-  valuesLabel.append(valuesInput, el('span', '', t('graph.exportWithValues')));
+  valuesInput.checked = true;
+  valuesLabel.append(valuesInput, el('span', '', t('computer.libExportValues')));
   const saveBtn = button('graph-btn graph-export-save', t('graph.exportSave'));
-  exportMenu.append(valuesLabel, el('p', 'graph-export-note', t('graph.exportImages')), saveBtn);
+  const exportNote = el('p', 'graph-export-note', t('graph.exportImages'));
+  valuesInput.addEventListener('change', () => { exportNote.hidden = !valuesInput.checked; });
+  exportMenu.append(valuesLabel, exportNote, saveBtn);
   const exportWrap = el('div', 'graph-add-wrap graph-export-wrap');
   exportWrap.append(exportBtn, exportMenu);
-  const importBtn = button('graph-btn graph-import', t('graph.importGraph'));
+  const importBtn = button('graph-btn graph-import', t('graph.replaceFromFile'));
+  importBtn.title = t('graph.replaceFromFileHint');
   const capRaiseBtn = button('graph-btn graph-cap-raise', t('graph.capRaise'));
   // K3-U3 (COMPUTER_PLAN §8.4): the strip carries up to TWO buttons, because "capped" reads
   // `[Raise it for this run]` `[Show me what spent it]` and a ceiling reads the same shape. A slot
@@ -683,14 +750,20 @@ export function createCanvas(o) {
     const lim = Math.floor(Number(limit.limit) || 0);
     const minutes = Math.max(1, Math.round((Number(limit.limit) || 0) / 60000));
     const want = Math.floor(Number(limit.raiseTo) || 0) || lim * 2;
+    // Critic S1-10: a Timer plan the runner refused BEFORE it started (`planned`) never ran for
+    // ten minutes — it ran for none. Its sentence is the arithmetic: how long it would have waited,
+    // against the limit.
+    const planMinutes = Math.max(1, Math.round((Number(limit.reached) || 0) / 60000));
     // chat-lint rule 5: literal keys, one per branch — never a key assembled from `ceiling`.
     /** @type {Record<string, string>} */
     const title = {
       maxIterations: t('computer.limitIterations', { limit: lim, part }),
       maxGenerations: t('computer.limitGenerations', { limit: lim }),
-      maxWallMs: limit.partId
-        ? t('computer.limitWallPark', { part, minutes })
-        : t('computer.limitWall', { minutes }),
+      maxWallMs: limit.planned
+        ? t('computer.limitTimerPlan', { minutes: planMinutes, limitMinutes: minutes })
+        : limit.partId
+          ? t('computer.limitWallPark', { part, minutes })
+          : t('computer.limitWall', { minutes }),
       maxActivations: t('computer.limitActivations', { limit: lim }),
     };
     const actions = [{
@@ -722,13 +795,11 @@ export function createCanvas(o) {
       kind: 'loop-ungated',
       title: t('computer.loopUngated'),
       body: '',
-      actions: [{
-        name: 'lesson',
-        label: t('computer.loopLesson'),
-        // K5 kickoff (KE-6): lesson ids are `lNN-slug`, and a button that opens a lesson this
-        // build does not ship would be a dead end — `has()` keeps it disabled until one exists.
-        onClick: tut && typeof tut.has === 'function' && tut.has('l10-loops') ? () => tut.open('l10-loops') : undefined,
-      }],
+      // Critic S1-12: the lesson button appears only once a loops lesson ships; a disabled button
+      // that says "No lesson on loops yet" was a promise with nothing behind it.
+      actions: tut && typeof tut.has === 'function' && tut.has('l10-loops')
+        ? [{ name: 'lesson', label: t('computer.loopLesson'), onClick: () => tut.open('l10-loops') }]
+        : [],
     });
   }
 
@@ -1145,6 +1216,32 @@ export function createCanvas(o) {
     return true;
   }
 
+  /**
+   * Critic S1-6: bring one ARROW's name tag into view, select the arrow (so F2 or typing names it)
+   * and flash the tag — the door a lesson step about naming an arrow needs, where `reveal()` of
+   * its two boxes points at the wrong thing. By its ends, the way a lesson names a wire.
+   * @param {string} from @param {string} to @returns {boolean}
+   */
+  function revealWire(from, to) {
+    const doc = session.doc();
+    const w = doc.wires.find((/** @type {any} */ x) => x.from === from && x.to === to);
+    const ends = w ? wireEnds(doc, w, specs) : null;
+    if (!w || !ends) return false;
+    const mid = wireMid(ends.a, ends.b);
+    const v = viewport();
+    setView({ x: v.w / 2 - mid.x * view.zoom, y: v.h / 2 - mid.y * view.zoom, zoom: view.zoom });
+    session.select([]);
+    selWires = [w.id];
+    wires.setSelected(selWires);
+    schedule('wires');
+    const pill = svg.querySelector(`.graph-wire-pill[data-wire="${w.id}"]`);
+    if (pill) {
+      pill.setAttribute('data-flash', 'true');
+      setTimeout(() => { pill.removeAttribute('data-flash'); }, 1200);
+    }
+    return true;
+  }
+
   /** @param {string} from @param {string} to @param {string} port */
   function wire(from, to, port) {
     const doc = session.doc();
@@ -1460,9 +1557,9 @@ export function createCanvas(o) {
       const dialogs = app && app.dialogs;
       const go = dialogs && typeof dialogs.confirm === 'function'
         ? await dialogs.confirm({
-          title: t('graph.importReplaceTitle'),
-          body: t('graph.importReplaceBody', { n: before.parts.length }),
-          ok: t('graph.importGraph'),
+          title: t('graph.replaceTitle'),
+          body: t('graph.replaceBody', { count: before.parts.length }),
+          ok: t('graph.replaceOk'),
         })
         : true;
       if (!go) {
@@ -1834,6 +1931,7 @@ export function createCanvas(o) {
     boxes.clear();
     editing.clear();
     wireFlags.clear();
+    dropTargetId = '';
     selWires = [];
     wires.setSelected(selWires);
     wires.setHover('');
@@ -1985,6 +2083,73 @@ export function createCanvas(o) {
     const portEl = node && node.closest ? node.closest('.graph-port[data-dir="in"]') : null;
     const partEl = portEl && portEl.closest ? portEl.closest('.graph-part') : null;
     return partEl && portEl && canvas.contains(partEl) ? { partId: partEl.dataset.id, port: portEl.dataset.port } : null;
+  }
+
+  /** The box under a pointer event (S1-5), by what is really drawn there — a captured pointer's
+   * events all target the canvas. Null over empty canvas, a wire's name, or anything outside.
+   * @param {any} ev @returns {string|null} */
+  function partUnder(ev) {
+    if (!ev || typeof document.elementFromPoint !== 'function' || !Number.isFinite(ev.clientX)) return null;
+    const hit = document.elementFromPoint(ev.clientX, ev.clientY);
+    const partEl = hit && hit.closest ? /** @type {any} */ (hit.closest('.graph-part')) : null;
+    return partEl && layer.contains(partEl) && partEl.dataset.id ? String(partEl.dataset.id) : null;
+  }
+
+  /**
+   * S1-5: the box BODY under a wire being dragged, and the input a drop there would plug into
+   * (`bodyDropPort`), with that input's world point for the preview. Asked once per box per drag:
+   * the answer cannot change while the pointer is held.
+   * @param {any} d the drag @param {any} ev @param {any} doc the document the drop will land in
+   * @returns {{partId: string, port: string|null, reason: string|null, x: number, y: number}|null}
+   */
+  function bodyTarget(d, ev, doc) {
+    const partId = partUnder(ev);
+    if (!partId || partId === d.from) return null;
+    if (!d.bodies) d.bodies = new Map();
+    if (d.bodies.has(partId)) return d.bodies.get(partId);
+    const part = doc.parts.find((/** @type {any} */ p) => p.id === partId);
+    /** @type {any} */ let out = null;
+    if (part) {
+      const pick = bodyDropPort(doc, d.from, partId, specs);
+      const inputs = ((specs.get(part.type) || {}).inputs) || [];
+      const index = Math.max(0, inputs.findIndex((/** @type {any} */ p) => p.name === pick.port));
+      const pt = portPoint(part, { dir: 'in', index, count: inputs.length || 1 });
+      out = { partId, port: pick.port, reason: pick.reason, x: pt.x, y: pt.y };
+    }
+    d.bodies.set(partId, out);
+    return out;
+  }
+
+  /** The box a wire would plug into right now (S1-5). */
+  let dropTargetId = '';
+  /** It wears `data-drop-target`; '' clears it. @param {string} id */
+  function markDropTarget(id) {
+    const next = String(id || '');
+    if (next === dropTargetId) return;
+    const was = boxes.get(dropTargetId);
+    if (was) delete was.node.dataset.dropTarget;
+    dropTargetId = next;
+    const now = boxes.get(next);
+    if (now) now.node.dataset.dropTarget = 'true';
+  }
+
+  /**
+   * S1-5: a new wire released on no input dot. On a box's body it plugs into that box's first free
+   * input that takes it; a box that takes nothing, or refuses what the wire carries, says so; a
+   * release on nothing says where to drop. Never silent.
+   * @param {any} d the drag @param {any} ev
+   */
+  function dropOnBody(d, ev) {
+    const doc = session.doc();
+    const hit = bodyTarget(d, ev, doc);
+    if (!hit) { announce(t('graph.wireDropNowhere')); return; }
+    if (hit.port) { wire(d.from, hit.partId, hit.port); return; }
+    if (hit.reason === 'no-input') { announce(t('graph.wireNoInput', { to: labelOf(partById(hit.partId)) })); return; }
+    // Every input refused: the first one's reason, in the words drawing to its dot would use.
+    const part = partById(hit.partId);
+    const first = part && ((specs.get(part.type) || {}).inputs || [])[0];
+    if (first) wire(d.from, hit.partId, first.name);
+    else announce(t('graph.wireDropNowhere'));
   }
 
   /** Is this press on a scrollbar of the element it hit? A press on a box's scrollbar scrolls, it
@@ -2229,11 +2394,15 @@ export function createCanvas(o) {
       const doc = dragDoc || session.doc();
       const snapped = nearestPort((drag.targets || []).filter((/** @type {any} */ p) => p.partId !== drag.from), world);
       drag.snap = snapped;
+      // S1-5: over a box's BODY the wire shows where it would plug in — the preview ends on that
+      // dot and the box is outlined — so a drop there is never a surprise. Only while wiring.
+      const body = snapped ? null : bodyTarget(drag, ev, doc);
+      markDropTarget(snapped ? snapped.partId : body ? body.partId : '');
       const from = doc.parts.find((/** @type {any} */ p) => p.id === drag.from);
       if (from) {
         wires.setPreview({
           a: portPoint(from, { dir: 'out' }),
-          b: snapped ? { x: snapped.x, y: snapped.y } : world,
+          b: snapped ? { x: snapped.x, y: snapped.y } : body ? { x: body.x, y: body.y } : world,
         });
       }
       return;
@@ -2295,15 +2464,19 @@ export function createCanvas(o) {
     if (d.kind === 'wire') {
       canvas.classList.remove('graph-wiring');
       wires.setPreview(null);
+      markDropTarget('');
       if (!d.armed) return;
       const to = portUnder(ev) || d.snap;
       if (to) wire(d.from, to.partId, to.port);
+      else dropOnBody(d, ev);
       schedule('wires');
       return;
     }
     if (d.kind === 'rewire') {
       canvas.classList.remove('graph-wiring');
       wires.setPreview(null);
+      markDropTarget('');
+      const without = dragDoc;
       dragDoc = null;
       if (!d.armed) {
         // A click on a plugged input selects its wire — Delete then removes it, F2 names it.
@@ -2316,7 +2489,20 @@ export function createCanvas(o) {
         return;
       }
       const under = portUnder(ev);
-      dropWireEnd(d.wireId, under && under.partId !== d.from ? under : d.snap);
+      /** @type {{partId: string, port: string}|null} */ let target = under && under.partId !== d.from ? under : d.snap;
+      // S1-5, the same promise for a picked-up end: dropped on a box's body it re-plugs into that
+      // box's first free input; a box that refuses it keeps the wire where it was and says why.
+      // A box with no inputs at all is "nothing", which unplugs, as a drop on empty canvas does.
+      if (!target) {
+        const body = bodyTarget(d, ev, without || session.doc());
+        if (body && body.port) target = { partId: body.partId, port: body.port };
+        else if (body && body.reason !== 'no-input') {
+          const part = partById(body.partId);
+          const first = part && ((specs.get(part.type) || {}).inputs || [])[0];
+          if (first) target = { partId: body.partId, port: first.name };
+        }
+      }
+      dropWireEnd(d.wireId, target);
       return;
     }
     if (d.kind === 'marquee') {
@@ -2338,6 +2524,7 @@ export function createCanvas(o) {
     if (d.captured) { try { canvas.releasePointerCapture(d.pointerId); } catch { /* gone */ } }
     canvas.classList.remove('graph-grabbing', 'graph-wiring', 'graph-resizing');
     wires.setPreview(null);
+    markDropTarget('');
     marquee.hidden = true;
     dragDoc = null;
     if (d.kind === 'pan' && d.armed) setView(d.view);
@@ -2490,7 +2677,7 @@ export function createCanvas(o) {
     // A4: the zoom keys (tldraw's). The window has no menu, so none of these is taken.
     if (mod && (ev.key === '=' || ev.key === '+')) { ev.preventDefault(); zoomBy(1); return; }
     if (mod && (ev.key === '-' || ev.key === '_')) { ev.preventDefault(); zoomBy(-1); return; }
-    if (mod && ev.key === '0') { ev.preventDefault(); zoomTo(1); return; }
+    if (isZoomResetKey(ev)) { ev.preventDefault(); zoomTo(1); return; }
     if (mod && (ev.key === 'd' || ev.key === 'D')) { ev.preventDefault(); duplicate(); return; }
     // A7: the key is left to the browser (it raises the copy/paste events above); these only
     // cover a platform where it raises none.
@@ -2504,6 +2691,14 @@ export function createCanvas(o) {
       ev.preventDefault();
       wires.editLabel(selWires[0]);
       return;
+    }
+    // Critic S1-6: "click the arrow and type before" — typing a letter while ONE arrow is selected
+    // names it, starting with that letter, instead of firing the canvas's one-key shortcuts (`f`
+    // in "before" used to Fit). The editor opens with its old name selected and takes the focus
+    // here, in keydown, so the browser delivers this very keystroke's character into it.
+    if (!mod && !ev.altKey && selWires.length === 1 && typeof ev.key === 'string' && ev.key.length === 1
+      && ev.key !== ' ' && !ev.isComposing) {
+      if (wires.editLabel(selWires[0])) return;
     }
     // K-2 (critic R1, A6): Enter or F2 on the ONE selected box opens its editor. A button that has
     // the focus keeps Enter for itself.
@@ -2567,7 +2762,44 @@ export function createCanvas(o) {
     if (spaceDown && !(next && root.contains(next))) setSpace(false);
   }
 
+  /** Was the last thing the person did a PRESS (true) or a KEY (false)? A focus that follows a
+   * press is the mouse's, and the mouse already put the box where the person is looking. Read off
+   * the window, so a Tab from the rail or the library into the canvas counts as a key. */
+  let focusByPointer = false;
+  function onWindowPointerDown() { focusByPointer = true; }
+  function onWindowKeyDown() { focusByPointer = false; }
+
+  /**
+   * Critic S1-9: Tab to a box (or an arrow's name) that is off screen brings it on screen, by the
+   * least pan — the browser's own focus scroll cannot, because the canvas never scrolls (it is
+   * undone by `onCanvasScroll`) and the boxes sit in a transformed layer. Keyboard focus only:
+   * a focus that follows a press stays where the pointer put it.
+   * @param {any} target the element that took the focus
+   */
+  function followFocus(target) {
+    if (focusByPointer || drag) return;
+    onCanvasScroll();
+    /** @type {{x: number, y: number, w: number, h: number}|null} */ let rect = null;
+    const partEl = target.closest('.graph-part');
+    if (partEl && layer.contains(partEl)) {
+      const p = partById(partEl.dataset.id || '');
+      if (p) rect = { x: p.x, y: p.y, w: p.w, h: p.h };
+    } else {
+      const pill = target.closest('.graph-wire-pill');
+      const doc = session.doc();
+      const w = pill ? doc.wires.find((/** @type {any} */ x) => x.id === pill.dataset.wire) : null;
+      const ends = w ? wireEnds(doc, w, specs) : null;
+      if (ends) {
+        const mid = wireMid(ends.a, ends.b);
+        rect = { x: mid.x - LABEL_BOX.w / 2, y: mid.y - LABEL_BOX.h / 2, w: LABEL_BOX.w, h: LABEL_BOX.h };
+      }
+    }
+    const next = rect ? panToShow(view, rect, viewport()) : null;
+    if (next) setView(next);
+  }
+
   function onFocusIn(ev) {
+    if (ev.target && ev.target.closest) followFocus(ev.target);
     const partEl = ev.target && ev.target.closest ? ev.target.closest('.graph-part') : null;
     if (!partEl || !partEl.dataset.id) return;
     const sel = session.selected();
@@ -2867,6 +3099,8 @@ export function createCanvas(o) {
   root.addEventListener('pointerdown', onRootPointerDown, true);
   window.addEventListener('keyup', onWindowKeyUp, true);
   window.addEventListener('blur', onWindowBlur);
+  window.addEventListener('pointerdown', onWindowPointerDown, true);
+  window.addEventListener('keydown', onWindowKeyDown, true);
 
   // ---- session events --------------------------------------------------------------------------
 
@@ -2921,6 +3155,8 @@ export function createCanvas(o) {
     paletteOpen: () => palette.isOpen(),
     closePalette: () => palette.close(),
     reveal,
+    // Critic S1-6: `Show me` for a step about an ARROW — its name tag, not its two boxes.
+    revealWire,
     wire,
     select,
     selectedWires: () => selWires.slice(),
@@ -3029,6 +3265,8 @@ export function createCanvas(o) {
       root.removeEventListener('pointerdown', onRootPointerDown, true);
       window.removeEventListener('keyup', onWindowKeyUp, true);
       window.removeEventListener('blur', onWindowBlur);
+      window.removeEventListener('pointerdown', onWindowPointerDown, true);
+      window.removeEventListener('keydown', onWindowKeyDown, true);
       for (const box of boxes.values()) {
         if (box.inst && typeof box.inst.destroy === 'function') {
           try { box.inst.destroy(); } catch { /* nothing may block teardown */ }

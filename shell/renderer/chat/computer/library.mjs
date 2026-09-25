@@ -43,6 +43,8 @@ import { toText, fromText, FILE_SUFFIX } from '../graph/serialize.mjs';
 import { readRuns, journalKey } from '../graph/journal.mjs';
 import { download, pickImportFile, slugify } from '../ui/transfer.mjs';
 import '../strings/computer.en.mjs';
+import '../strings/graph.en.mjs';
+import '../strings/computer-canvas.en.mjs';
 
 /** kv: the document the reader left open (mirrors `ui:lastThreadId`). */
 export const LAST_GRAPH_KEY = 'computer:lastGraphId';
@@ -365,6 +367,8 @@ export function createLibrary(app, els) {
     const importBtn = h('button', 'comp-btn', t('computer.libImport'));
     /** @type {any} */ (importBtn).type = 'button';
     importBtn.setAttribute('data-act', 'import');
+    // Critic S1-11: this one ADDS a graph; the canvas's "Replace from file…" replaces the open one.
+    importBtn.title = t('graph.importNewHint');
     importBtn.addEventListener('click', () => { void pickAndImport(); });
 
     row.append(newBtn, importBtn);
@@ -612,7 +616,9 @@ export function createLibrary(app, els) {
     return true;
   }
 
-  /** The Export… popover: one checkbox, "Include results", default on (§7.6).
+  /** The Export… popover: one checkbox, "Include results", default on (§7.6). Critic S1-11: the
+   * canvas toolbar's Export… asks the same question in the same words with the same default, and
+   * both say that pictures go inside the file only while the box is ticked.
    * @param {string} id @param {HTMLElement} anchor */
   function askExport(id, anchor) {
     const dialogs = app.dialogs;
@@ -624,6 +630,8 @@ export function createLibrary(app, els) {
       box.checked = true;
       box.setAttribute('data-act', 'export-values');
       label.append(box, h('span', undefined, t('computer.libExportValues')));
+      const note = h('p', 'comp-export-note', t('graph.exportImages'));
+      box.addEventListener('change', () => { note.hidden = !box.checked; });
       const go = h('button', 'comp-btn comp-btn-accent', t('computer.libExport'));
       /** @type {any} */ (go).type = 'button';
       go.setAttribute('data-act', 'export-go');
@@ -632,7 +640,7 @@ export function createLibrary(app, els) {
         close();
         void exportFile(id, { values });
       });
-      el.append(label, go);
+      el.append(label, note, go);
     });
   }
 

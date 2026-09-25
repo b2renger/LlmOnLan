@@ -21,9 +21,12 @@
 
 import { listOf } from '../values.mjs';
 import { t } from '../../core/i18n.mjs';
-import { itemsOf, textOf, pickerRow, partFail, isControl, setPicked, slicer } from './common.mjs';
+import { itemsOf, textOf, pickerRow, partFail, isControl, setPicked, slicer, failFromAsk } from './common.mjs';
 import { modelOptions, optionSig } from './instruction.mjs';
 import { itemsLine, numberField, textField, checkField } from './fields.mjs';
+
+/** Room for a thinking model to reason before its verdict (critic S1). */
+const VERDICT_MAX_TOKENS = 4096;
 
 /** @typedef {import('../../core/types.mjs').PartSpec} PartSpec */
 /** @typedef {import('../../core/types.mjs').GraphValue} GraphValue */
@@ -93,19 +96,15 @@ export function verdictPrompt(criterion, item) {
   return `${String(criterion).trim()}\n\n---\n${item}`;
 }
 
-/** An AskResult that is not ok becomes the right THROW: a control failure keeps its reason so the
- * runner can end the run, anything else names the item. @param {any} res @param {number} i */
+/** An AskResult that is not ok becomes the right THROW: a control failure keeps its reason (and,
+ * critic S1-1, the ask's own sentence) so the runner can end the run; so does "no farm", which is
+ * about the farm, not the item (S1-7 — the ask's own words, e.g. its password). Anything else
+ * names the item. ONE mapping, common.mjs `failFromAsk`. @param {any} res @param {number} i */
 function failFor(res, i) {
-  const kind = (res && res.error && res.error.kind) || 'farm';
-  if (kind === 'busy') return partFail(t('parts.errBusy'), 'busy');
-  if (kind === 'aborted') return partFail(t('parts.errAborted'), 'aborted');
-  if (kind === 'no_farm') return partFail(t('parts.errNoFarm'), 'no-farm');
-  const message = kind === 'empty' ? t('parts.errEmpty')
-    : kind === 'invalid' ? t('parts.errInvalid')
-      : ((res && res.error && res.error.message)
-        ? t('parts.errFarm', { message: res.error.message })
-        : t('parts.errFarmSilent'));
-  return partFail(t('parts.itemError', { i: i + 1, message }), 'part');
+  const err = failFromAsk(res);
+  const reason = /** @type {any} */ (err).reason;
+  if (isControl(err) || reason === 'no-farm') return err;
+  return partFail(t('parts.itemError', { i: i + 1, message: err.message }), 'part');
 }
 
 /** @type {PartSpec} */
@@ -245,6 +244,9 @@ export const filter = /** @type {any} */ ({
       try {
         res = await input.ask.json({
           task: 'graph:filter',
+          // Integrator, critic S1: without a ceiling the ask spine's 512 applies, and a thinking
+          // model (gemma4, Qwen3.8) spends that before its one-word verdict. A ceiling, not a target.
+          maxTokens: VERDICT_MAX_TOKENS,
           model,
           system: t('parts.filterSystem'),
           prompt: verdictPrompt(criterion, textOf(items[i])),

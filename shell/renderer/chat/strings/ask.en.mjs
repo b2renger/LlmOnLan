@@ -19,12 +19,15 @@ registerStrings('ask', {
   hidden: 'Paused while this window is in the background.',
   noFarm: 'No farm is connected, so there is nothing to ask.',
   keyMissing: 'This farm needs its password before it will answer.',
-  // The model cannot see images and we know it (studio plan §3.10 / O4). One sentence that names
-  // what the OPERATOR has to change, because the reader cannot fix it from here.
-  noVision: 'This model cannot read images. Switch the farm to a vision model (gemma4:12b) to use this.',
+  // The model cannot see images and we know it (studio plan §3.10 / O4). Critic S1-13: the READER
+  // can fix it — a thread's model, a box's Model menu — so the sentence sends them there, and names
+  // no model id: naming one promised a model the farm may not even serve.
+  noVision: 'This model cannot read pictures. Pick a model that can see them to use this.',
 
   // ---- the model answered, but not usefully --------------------------------------------------
   empty: 'The model returned nothing at all.',
+  // Critic S1-4: cut off at max_tokens while still thinking — nothing of the answer was written.
+  cutThinking: 'The model used its whole answer thinking and was cut off before it wrote anything.',
   invalid: 'The model did not answer in the shape this panel needs.',
   aborted: 'Cancelled.',
   // Anything net/errors.mjs classified: the panel shows this line and the classified message below.

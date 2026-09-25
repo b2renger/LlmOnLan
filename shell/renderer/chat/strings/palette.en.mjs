@@ -31,7 +31,8 @@ registerStrings('palette', {
   descPreview: 'Shows whatever arrives, and picks how: markdown, SVG, a web page, three.js or p5.js.',
   descCode: 'Plain JavaScript that runs in the sandbox, on what arrives.',
   descButton: 'Nothing after it runs until you press it.',
-  descCondition: 'Sends what arrives down Yes, No or Maybe.',
+  // Critic S1-12: ONE output — the value goes on only when the verdict matches the chosen branch.
+  descCondition: 'Lets what arrives through when it reads as your chosen yes, no or maybe.',
   descConfirm: 'Stops and asks you OK or Cancel before going on.',
   descDialog: 'Stops and asks you a question; your answer flows on.',
   descToggle: 'A switch: off lets values through without running what follows.',

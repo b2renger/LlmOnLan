@@ -25,9 +25,9 @@ import { valueOf, listOf, isValue, valueStamp } from '../values.mjs';
 import { partById } from '../model.mjs';
 import { bindArrivals, bindInputs, planFor, parseSeed, maxTokensOf, SEED_SPAN } from '../bind.mjs';
 import '../../strings/computer-gen.en.mjs';
-import { budgetFor } from '../../ctx/budget.mjs';
+import { budgetFor, trustedBudget } from '../../ctx/budget.mjs';
 import { t } from '../../core/i18n.mjs';
-import { partFail, pickerRow, setPicked } from './common.mjs';
+import { partFail, pickerRow, setPicked, failFromAsk } from './common.mjs';
 // K5 kickoff (addendum KE-3): an Instruction placed as "Write an SVG" (etc.) answers in CODE. The
 // answer is unwrapped from a markdown fence and stamped with the facets its kind declares, ONCE,
 // here — so it lands clean in an SVG box, and a Preview in `auto` knows how to draw it.
@@ -52,18 +52,6 @@ export const LIST_SCHEMA = {
 };
 
 const SHAPES = ['text', 'list', 'json'];
-
-/** An AskResult that is not ok becomes the right THROW (see common.mjs on `reason`). @param {any} res */
-function failFrom(res) {
-  const kind = res && res.error ? res.error.kind : 'farm';
-  if (kind === 'no_farm') return partFail(t('parts.errNoFarm'), 'no-farm');
-  if (kind === 'busy') return partFail(t('parts.errBusy'), 'busy');
-  if (kind === 'aborted') return partFail(t('parts.errAborted'), 'aborted');
-  if (kind === 'empty') return partFail(t('parts.errEmpty'), 'empty');
-  if (kind === 'invalid') return partFail(t('parts.errInvalid'), 'invalid');
-  const said = (res && res.error && res.error.message) || '';
-  return partFail(said ? t('parts.errFarm', { message: said }) : t('parts.errFarmSilent'), 'farm');
-}
 
 /** @param {any} app @returns {any} the live FarmCaps, or null */
 function capsOf(app) {
@@ -134,7 +122,10 @@ export function stripSig(app, part) {
   const doc = docOf(app);
   if (!doc) return 'no-doc';
   const s = part.settings || {};
-  /** @type {string[]} */ const bits = [String(doc.rev || 0), String(s.instruction || '').length + '', s.inlineVars ? '1' : '0'];
+  // Critic S1-3: the farm's window sizes max_tokens (and the prompt's cut), and a farm is found
+  // AFTER boot, so the window is part of what the strip depends on.
+  /** @type {string[]} */ const bits = [String(doc.rev || 0), String(s.instruction || '').length + '', s.inlineVars ? '1' : '0',
+    String(trustedBudget(capsOf(app)))];
   for (const w of doc.wires || []) {
     if (w.to !== part.id) continue;
     const up = partById(doc, w.from);
@@ -179,8 +170,8 @@ export const instruction = /** @type {any} */ ({
   output: 'text',
   // K5 kickoff (KE-3): `code` is '' (prose, exactly as before) or one of CODE_KINDS. It changes
   // what a `shape:'text'` answer becomes and — since critic R1 A8 — the SYSTEM message (the
-  // sandbox's rules for that kind, graph/bind.mjs planFor) and max_tokens (4096). The instruction
-  // the person reads and edits stays the task only.
+  // sandbox's rules for that kind, graph/bind.mjs planFor) and max_tokens (a code ceiling, S1-3).
+  // The instruction the person reads and edits stays the task only.
   // Critic R1 A1: `seed` is '' (new each run — the default) or a whole number as a string (pinned).
   // Declared here because `serialize` only exports declared keys.
   defaults: () => ({ instruction: '', model: '', shape: 'text', schema: '', inlineVars: false, code: '', seed: '' }),
@@ -352,6 +343,9 @@ export const instruction = /** @type {any} */ ({
     seedRow.append(runLine);
     /** @type {any} */ let runPart = part;
     /** @type {string} */ let runSig = '-';
+    /** Critic S1-3: the max_tokens this box's plan really sends (the ceiling clamped to the farm's
+     * window, bind.mjs planFor) — what the cut chip quotes. Set by paint() from the same plan. */
+    let planMax = maxTokensOf(part.settings);
     /** @param {any} p */
     function paintRun(p) {
       runPart = p;
@@ -359,7 +353,7 @@ export const instruction = /** @type {any} */ ({
       const seed = s && typeof s.seed === 'number' ? s.seed : null;
       const cut = !!(s && s.cut);
       const pinnedNow = parseSeed(p.settings && p.settings.seed);
-      const next = `${seed}|${s && s.pinned ? 1 : 0}|${cut ? 1 : 0}|${pinnedNow}|${maxTokensOf(p.settings)}`;
+      const next = `${seed}|${s && s.pinned ? 1 : 0}|${cut ? 1 : 0}|${pinnedNow}|${planMax}`;
       if (next === runSig) return;
       runSig = next;
       seedUsed.textContent = seed === null ? ''
@@ -367,7 +361,7 @@ export const instruction = /** @type {any} */ ({
       seedUsed.hidden = seed === null;
       // Nothing to keep when that seed is already the pinned one.
       keep.hidden = seed === null || pinnedNow === seed;
-      cutChip.textContent = cut ? t('parts.genCutChip', { n: maxTokensOf(p.settings) }) : '';
+      cutChip.textContent = cut ? t('parts.genCutChip', { n: planMax }) : '';
       cutChip.hidden = !cut;
       runLine.hidden = seed === null;
     }
@@ -431,6 +425,7 @@ export const instruction = /** @type {any} */ ({
       if (next === sig) return;
       sig = next;
       const plan = planNow(ctx.app, p);
+      planMax = Number(/** @type {any} */ (plan.call).maxTokens) || maxTokensOf(p.settings);
       // A2: the Fill-in row is offered only where it can do something — a bound {name} — and
       // stays while it is on, so it can always be switched back off.
       const braced = plan.bind.params.some((q) => /** @type {any} */ (q).mentionedBraced);
@@ -492,7 +487,6 @@ export const instruction = /** @type {any} */ ({
           const want = String(next.settings.seed == null ? '' : next.settings.seed);
           if (seedInput.value !== want) { seedInput.value = want; markSeed(); }
         }
-        paintRun(next);
         refreshModels(String(next.settings.model || ''));
         const ms = /** @type {any} */ (model.querySelector('select'));
         const ss = /** @type {any} */ (shape.querySelector('select'));
@@ -501,6 +495,8 @@ export const instruction = /** @type {any} */ ({
         capsPart = next;
         paintCaps();
         paint(next);
+        // After paint(): the cut chip quotes the plan paint() just read (critic S1-3).
+        paintRun(next);
       },
       destroy() {
         for (const off of capsOffs.splice(0)) { try { off(); } catch { /* already gone */ } }
@@ -531,7 +527,8 @@ export const instruction = /** @type {any} */ ({
     if (images.length && typeof input.ask.vision === 'function') {
       const { alias, underlying } = modelFor(input.app, settings);
       const blind = [alias, underlying].filter(Boolean).some((id) => input.ask.vision(id) === 'no');
-      if (blind) throw partFail(t('parts.errNoVision', { alias: alias || underlying }), 'part');
+      // Critic S1-13: THIS box's model, and the fix is this box's Model menu, not the farm.
+      if (blind) throw partFail(t('parts.errNoVision', { model: alias || underlying }), 'part');
     }
 
     const maxTokens = Number(/** @type {any} */ (plan.call).maxTokens) || maxTokensOf(settings);
@@ -542,7 +539,8 @@ export const instruction = /** @type {any} */ ({
       images,
       model: plan.call.model,
       priority: plan.call.priority,
-      // Critic R1 A8: the real length (4096 for code, 2048 otherwise), never the silent 512.
+      // Critic R1 A8 / S1-3: the real length — the ceiling (16384 code, 8192 otherwise) clamped to
+      // what the prompt leaves of the farm's window — never the silent 512.
       maxTokens,
     };
     // Critic R1 A1 (K-5): the seed the runner picked for this activation — pinned or new each run.
@@ -562,15 +560,24 @@ export const instruction = /** @type {any} */ ({
 
     /** Did the farm stop because the answer hit max_tokens? @param {any} res */
     const cutOff = (res) => !!res && res.finishReason === 'length';
+    // Critic S1-1/S1-7/S1-13: ONE mapping (common.mjs), which keeps the ask's own sentence.
+    const asked = { model: modelFor(input.app, settings).alias, maxTokens };
+    /** @param {any} res */
+    const failed = (res) => failFromAsk(res, asked);
 
     if (plan.call.shape === 'text') {
       const res = kept(await input.ask.text(call));
-      if (!res || !res.ok) throw failFrom(res);
+      // Critic S1-4: cut off while still THINKING is `ok:false` + `thought` now — never the
+      // thoughts as the answer — and failFromAsk says so with errCutOffThinking.
+      if (!res || !res.ok) throw failed(res);
       const code = String(settings.code || '');
       if (CODE_KINDS.indexOf(code) >= 0) {
         // Critic R1 A8: half a program is not a program. A CODE answer cut off at max_tokens is a
         // named failure — never a success that draws nothing or throws a SyntaxError in the box.
-        if (cutOff(res)) throw partFail(t('parts.errCutOff', { n: maxTokens }), 'part');
+        // Critic S1-3: when the tokens went on thinking, "ask for something smaller" is wrong advice.
+        if (cutOff(res)) {
+          throw partFail(res.thought ? t('parts.errCutOffThinking', { n: maxTokens }) : t('parts.errCutOff', { n: maxTokens }), 'part');
+        }
         return /** @type {any} */ (codeValue(String(res.value), code));
       }
       // Prose that was cut is still worth reading: it is kept, and the box says the end is
@@ -581,8 +588,8 @@ export const instruction = /** @type {any} */ ({
     if (plan.call.shape === 'list') {
       const res = kept(await input.ask.json({ ...call, schema: LIST_SCHEMA }));
       if (!res || !res.ok) {
-        if (cutOff(res)) throw partFail(t('parts.errCutOffData', { n: maxTokens }), 'part');
-        throw failFrom(res);
+        if (cutOff(res) && !res.thought) throw partFail(t('parts.errCutOffData', { n: maxTokens }), 'part');
+        throw failed(res);
       }
       const items = res.value && Array.isArray(res.value.items) ? res.value.items : [];
       return listOf(items.map((/** @type {any} */ s) => valueOf('text', String(s))));
@@ -594,8 +601,8 @@ export const instruction = /** @type {any} */ ({
     try { schema = JSON.parse(raw); } catch { throw partFail(t('parts.errBadSchema'), 'part'); }
     const res = kept(await input.ask.json({ ...call, schema }));
     if (!res || !res.ok) {
-      if (cutOff(res)) throw partFail(t('parts.errCutOffData', { n: maxTokens }), 'part');
-      throw failFrom(res);
+      if (cutOff(res) && !res.thought) throw partFail(t('parts.errCutOffData', { n: maxTokens }), 'part');
+      throw failed(res);
     }
     const value = valueOf('json', res.value);
     if (!isValue(value)) throw partFail(t('parts.errNoValue'), 'part');
