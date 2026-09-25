@@ -6,6 +6,57 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-09-25 (02:05, scheduled) — The Computer perf pass: off-screen boxes stop rendering
+
+The owner scheduled this pass at 21:01. K1–K6 had taken a 1000-part run from 0.06 to 0.33–0.40 ms/part
+and to a 140 ms main-thread block, while every budget stayed green. Tonight's round 1 then left
+`perf-graph-500`'s pan failing on this machine (p95 17–20 ms).
+
+**Where the time went.** Two new harness tools found it: `h.profiler` (a CDP CPU profile) and
+`h.tracer` (a CDP rendering trace).
+- Of about 414 ms of main-thread work in a 1000-part run, **290 ms was Chromium rendering**, not
+  JavaScript.
+- The block was one frame of about 80 ms. When a run changes every box's state, style was
+  recalculated for 13,008 elements, layout touched 5,016 dirty objects, and paint took 35 ms, all
+  for boxes nobody could see. The runner's own first task ran right before that frame.
+- On the JavaScript side, `partById` was the top self-time item. A linear search per patch made a
+  run O(N²).
+
+**Fixes.**
+1. **`content-visibility: auto` on every Computer box.** An off-screen box skips style, layout and
+   paint. Its size is explicit, so skipping never moves anything. `overflow-clip-margin: 16px` keeps
+   the ports, which sit half outside the edge, and the 3 px halos unclipped. Checked by eye in
+   `k3-shots`. Nothing inside a box is `position:fixed`.
+2. **`graph/model.mjs` keeps a position index per parts array.** Model arrays are never mutated in
+   place, and hits are verified. `patchPart` copies the array and replaces one slot, and the new
+   array inherits the index.
+3. **The runner yields once after marking a run of more than 50 parts queued (`BIG_RUN`)**, so
+   that frame paints before any part executes. Small graphs keep their exact timing.
+
+| | before | after |
+|---|---|---|
+| perf-graph-run, per part | 0.33–0.40 ms | **0.16–0.18 ms** |
+| perf-graph-run, longest block | 125–145 ms | **65–71 ms** |
+| perf-graph-500, pan work p95 | 17–20 ms (failing) | **1.4–1.6 ms** |
+| perf-graph-500, build 500 parts | 114–143 ms | **59–65 ms** |
+| perf-graph-fan, longest block | 9–20 ms | 13–14 ms (unchanged) |
+
+**Budgets that cannot creep silently any more.** These are the measured numbers plus headroom for
+a machine that is also a live farm. The reasoning is at the top of `perf-graph.mjs` (`BUDGET`):
+- build: 1500 → **500 ms**;
+- pan p95: 16 → **8 ms**;
+- per part: 0.4 → **0.25 ms**;
+- run block: 250 → **110 ms**;
+- fan block: 100 → **40 ms**.
+
+The remaining 65 ms block is two frames restyling the 1000 box elements themselves (their contents
+are skipped). The runner's O(n)-per-activation scan is deliberate (its header forbids a cursor).
+
+**Gates:** chat-unit 1493/0, chat-lint 219/0, chat-scope clean, harness 340/0, perf **9/9** (the
+first fully green perf run of the night).
+
+---
+
 ## 2026-09-25 (small hours) — The Computer, critic rounds 2–4: HAPPY-PENDING-RIG
 
 - **Round 2** ([R2](reviews/COMPUTER_CRITIC_R2.md)): all 8 of the owner's items and all 18 round-1

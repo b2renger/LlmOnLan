@@ -75,9 +75,39 @@ export function createDoc(o) {
   });
 }
 
+/**
+ * id → position, cached PER PARTS ARRAY (perf pass, 2026-09-25). Every mutation in this file returns
+ * a NEW array, so an array's positions never change under its cache. A run patches each of N parts
+ * a few times; with a linear `find` per patch that was O(N²) — the profile's top self-time on a
+ * 1000-part run. A hit is VERIFIED (the id at that position), so an array someone changed in place
+ * anyway (tests do) costs one rebuild, never a wrong part.
+ * @type {WeakMap<any[], {n: number, m: Map<string, number>}>}
+ */
+const POSITIONS = new WeakMap();
+
+/** @param {any[]} parts */
+function positionsOf(parts) {
+  /** @type {Map<string, number>} */ const m = new Map();
+  for (let i = 0; i < parts.length; i++) m.set(parts[i].id, i);
+  const c = { n: parts.length, m };
+  POSITIONS.set(parts, c);
+  return c;
+}
+
+/** The position of part `id` in `parts`, or -1. @param {any[]} parts @param {string} id */
+function positionOf(parts, id) {
+  let c = POSITIONS.get(parts);
+  if (!c || c.n !== parts.length) c = positionsOf(parts);
+  const i = c.m.get(id);
+  if (i !== undefined && parts[i] && parts[i].id === id) return i;
+  const fresh = positionsOf(parts).m.get(id);
+  return fresh === undefined ? -1 : fresh;
+}
+
 /** @param {GraphDoc} doc @param {string} id @returns {GraphPart|null} */
 export function partById(doc, id) {
-  return doc.parts.find((p) => p.id === id) || null;
+  const i = positionOf(doc.parts, id);
+  return i >= 0 ? doc.parts[i] : null;
 }
 
 /** @param {GraphDoc} doc @param {{now?: () => number}} [o] @returns {GraphDoc} */
@@ -412,7 +442,8 @@ export function setSettings(doc, id, patch, o = {}) {
  * @param {GraphDoc} doc @param {string} id @param {object} patch
  * @param {{now?: () => number}} [o] @returns {GraphDoc} */
 export function patchPart(doc, id, patch, o = {}) {
-  if (!partById(doc, id)) return doc;
+  const at = positionOf(doc.parts, id);
+  if (at < 0) return doc;
   /** @type {Record<string, any>} */ const next = {};
   const p = obj(patch);
   if ('state' in p && STATES.includes(/** @type {any} */ (p).state)) next.state = /** @type {any} */ (p).state;
@@ -432,11 +463,13 @@ export function patchPart(doc, id, patch, o = {}) {
   if ('demo' in p) next.demo = /** @type {any} */ (p).demo === true;
   else if ('value' in p) next.demo = false;
   if (!Object.keys(next).length) return doc;
-  return {
-    ...doc,
-    updatedAt: (o.now || Date.now)(),
-    parts: doc.parts.map((pt) => (pt.id === id ? { ...pt, ...next } : pt)),
-  };
+  // One slot replaced in a copy, not a map() over every part: same positions, so the new array
+  // inherits the old one's position cache.
+  const parts = doc.parts.slice();
+  parts[at] = { ...parts[at], ...next };
+  const cached = POSITIONS.get(doc.parts);
+  if (cached) POSITIONS.set(parts, cached);
+  return { ...doc, updatedAt: (o.now || Date.now)(), parts };
 }
 
 /** @param {GraphDoc} doc @param {{from: string, to: string, port: string, label?: string}} edge

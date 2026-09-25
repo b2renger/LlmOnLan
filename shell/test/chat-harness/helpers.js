@@ -1007,6 +1007,44 @@ function createHelpers(ctx) {
             }, x, y),
         },
 
+        // A CPU profile of the page (CDP Profiler), for perf work: start, do the thing, stop → the
+        // raw profile ({nodes, samples, timeDeltas, startTime, endTime}). Perf pass, 2026-09-25.
+        profiler: {
+            async start(intervalUs = 100) {
+                await cdp.send('Profiler.enable');
+                await cdp.send('Profiler.setSamplingInterval', { interval: intervalUs });
+                await cdp.send('Profiler.start');
+            },
+            async stop() {
+                const r = await cdp.send('Profiler.stop');
+                await cdp.send('Profiler.disable');
+                return r.profile;
+            },
+        },
+        // A rendering trace (CDP Tracing, devtools.timeline): what the profiler files under
+        // "(program)" — style recalc, layout, paint — with durations. start → stop → trace events.
+        tracer: {
+            /** @type {any[]} */ events: [],
+            /** @type {any} */ off: null,
+            async start() {
+                h.tracer.events = [];
+                h.tracer.off = cdp.on('Tracing.dataCollected', (p) => { h.tracer.events.push(...(p.value || [])); });
+                await cdp.send('Tracing.start', {
+                    categories: 'devtools.timeline,disabled-by-default-devtools.timeline,v8.execute',
+                    options: 'sampling-frequency=10000',
+                });
+            },
+            async stop() {
+                const done = new Promise((resolve) => {
+                    const off = cdp.on('Tracing.tracingComplete', () => { if (typeof off === 'function') off(); resolve(true); });
+                });
+                await cdp.send('Tracing.end');
+                await done;
+                if (typeof h.tracer.off === 'function') h.tracer.off();
+                return h.tracer.events;
+            },
+        },
+
         // harness-bridge controls
         setFarm: (patch) => evalFn((p) => window.__harness.setFarm(p), patch === undefined ? null : patch),
         pause: (on) => evalFn((o) => window.__harness.pause(o), !!on),

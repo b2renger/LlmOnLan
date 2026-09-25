@@ -73,6 +73,8 @@ export const DEFAULT_MAX_ITEMS = 50;
  * be clicked. Eight milliseconds is half a 60 Hz frame. §4.3 adds: a LOOP yields between
  * iterations too, which this same slice does, because every activation passes through it. */
 export const YIELD_SLICE_MS = 8;
+/** A run of more than this many parts yields once after marking them queued (perf pass, 2026-09-25). */
+export const BIG_RUN = 50;
 
 /** A REAL macrotask, so a pending timer, a click and a paint all get their turn. Deliberately
  * `setTimeout` and not `queueMicrotask`/`await null`: a microtask would not let ANY of them run. */
@@ -1049,6 +1051,15 @@ export function createRunner(o) {
       // invisibly" (§3.5.4) applies to the parts, not only to the button. A previous run's
       // per-item record goes with it: `7/40` from last time is not this run's progress.
       markAll(ids, { state: 'queued', error: null, fanout: null });
+      // PERF PASS (2026-09-25): on a big run, let the "everything is queued" frame paint BEFORE the
+      // first part executes. Marking 1000 parts and running the first slice in one turn was one
+      // ~70 ms block (the mark, then a frame restyling 1000 boxes, with no gap between them). A
+      // small graph keeps its exact timing: the yield is only for sets larger than BIG_RUN.
+      if (ids.length > BIG_RUN) {
+        // eslint-disable-next-line no-await-in-loop
+        await breathe();
+        sliceAt = Date.now();
+      }
 
       for (;;) {
         if (signal.aborted) { cancelled = true; break; }

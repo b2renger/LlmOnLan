@@ -271,6 +271,19 @@
   user-select: none;
 }
 
+/* PERF PASS (2026-09-25): a box that is not on screen does no rendering work. A run changes every
+   box's state; with 1000 boxes that was ONE frame of ~80 ms — style for 13 000 elements, layout,
+   and paint of boxes nobody could see — and, with the runner's own task, the ~140 ms block
+   perf-graph-run measured. `content-visibility: auto` skips an off-screen box's style, layout and
+   paint (measured: no task over 40 ms, run 450 → 300 ms). The box's size is explicit (w × h), so
+   skipping never changes the layout. Its paint containment would clip the ports, which sit half
+   outside the edge, and the 3 px halos: `overflow-clip-margin` gives them room. Nothing inside a
+   box is position:fixed (containment would re-anchor it). */
+#lolcomputer .graph-part {
+  content-visibility: auto;
+  overflow-clip-margin: 16px;
+}
+
 :is(#lolchat, #lolcomputer) .graph-part:focus { outline: 2px solid var(--accent-hover); outline-offset: 2px; }
 :is(#lolchat, #lolcomputer) .graph-part:focus-visible { outline: 2px solid var(--accent-hover); outline-offset: 2px; }
 

@@ -320,6 +320,16 @@ const measureFan = (/** @type {any} */ h) => h.eval(async (cfg) => {
     };
 }, { FAN_ITEMS });
 
+// ---- THE BUDGETS (perf pass, 2026-09-25) ------------------------------------------------------
+// Measured on the owner's machine (which is also a live farm, so it is never truly quiet), median of
+// three, after the pass. Each budget is the measured number with room for that noise, and tight
+// enough that the creep this pass undid (K1–K6 took a 1000-part run from 0.06 to 0.40 ms/part and
+// to a 140 ms block while every budget stayed green) fails LOUDLY next time:
+//   perf-graph-500   build 65 ms → budget 500;  pan work p95 1.4–1.6 ms → budget 8 (half a frame;
+//                    it was 17–20 before off-screen boxes stopped rendering)
+//   perf-graph-run   0.17–0.18 ms/part → budget 0.25;  longest block 65–70 ms → budget 110
+//   perf-graph-fan   longest block 9–20 ms → budget 40
+export const BUDGET = Object.freeze({ buildMs: 500, panP95: 8, perPartMs: 0.25, runBlockMs: 110, fanBlockMs: 40 });
 export default [
     {
         name: 'perf-graph-500',
@@ -349,8 +359,8 @@ export default [
         },
         /** @param {any} med @param {any} h */
         judge: (med, h) => {
-            h.assert(med.buildMs <= 1500, `building ${PARTS} parts took ${Math.round(med.buildMs)} ms, the budget is 1500 ms`);
-            h.assert(med.workP95 <= 16, `pan work p95 is ${med.workP95.toFixed(2)} ms, the 60 Hz budget is 16 ms`);
+            h.assert(med.buildMs <= BUDGET.buildMs, `building ${PARTS} parts took ${Math.round(med.buildMs)} ms, the budget is ${BUDGET.buildMs} ms`);
+            h.assert(med.workP95 <= BUDGET.panP95, `pan work p95 is ${med.workP95.toFixed(2)} ms, the budget is ${BUDGET.panP95} ms (half a 60 Hz frame)`);
             h.eq(med.transformedParts, 0, 'no part may carry a transform: pan/zoom is the LAYER (BG-8)');
             h.eq(med.layerTransformed, 1, 'the layer is what moved');
             h.eq(med.groupTransformed, 1, 'and the wire group moved with it');
@@ -388,10 +398,11 @@ export default [
         /** @param {any} med @param {any} h */
         judge: (med, h) => {
             h.eq(med.paintedDone, RUN_PARTS, 'every box shows `done`: the narrow sync must still paint');
-            h.assert(med.perPartMs <= 0.4, `a run costs ${med.perPartMs.toFixed(2)} ms per part; the budget is 0.4 ms `
+            h.assert(med.perPartMs <= BUDGET.perPartMs, `a run costs ${med.perPartMs.toFixed(2)} ms per part; the budget is ${BUDGET.perPartMs} ms `
                 + '— a full canvas re-render per runtime patch is O(N) per part and blows this at a thousand');
-            h.assert(med.blockMs <= 250, `the main thread was held for ${Math.round(med.blockMs)} ms in one stretch, `
-                + 'the budget is 250 ms — the up-front `queued` marking must be ONE write, not N');
+            h.assert(med.blockMs <= BUDGET.runBlockMs, `the main thread was held for ${Math.round(med.blockMs)} ms in one stretch, `
+                + `the budget is ${BUDGET.runBlockMs} ms — off-screen boxes must not render (content-visibility), the `
+                + 'up-front `queued` marking must be ONE write and must paint before the first part runs');
             h.note(`perf-graph-run MEDIAN: ${Math.round(med.runMs)} ms · ${med.perPartMs.toFixed(2)} ms/part · `
                 + `block ${Math.round(med.blockMs)} ms`);
         },
@@ -424,8 +435,8 @@ export default [
         },
         /** @param {any} med @param {any} h */
         judge: (med, h) => {
-            h.assert(med.blockMs <= 100, `the main thread was held for ${Math.round(med.blockMs)} ms in one `
-                + 'stretch; the budget is 100 ms, well inside the 250 ms the 1000-part run is judged on '
+            h.assert(med.blockMs <= BUDGET.fanBlockMs, `the main thread was held for ${Math.round(med.blockMs)} ms in one `
+                + `stretch; the budget is ${BUDGET.fanBlockMs} ms `
                 + '— a fan must hand the thread back every slice, or the badge cannot paint and Stop '
                 + 'cannot be clicked. Unfixed, ten thousand free items ran in ONE macrotask.');
             h.assert(med.ticks >= 1, `not one timer tick got through the whole run: the fan is holding `

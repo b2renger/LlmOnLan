@@ -1,4 +1,4 @@
-# The Computer — where the night got to (2026-09-24: K6 landed, its fix round, then K7 — the debug log)
+# The Computer — where the night got to (25 Sept, morning: K7 debug log, your eight bugs, the perf pass)
 
 > Branch `lolchat/vnext`, all of it committed and pushed. Every phase of
 > [COMPUTER_PLAN.md](COMPUTER_PLAN.md) up to **K6** is done. K6 answers your request — *"upload pdfs
@@ -28,7 +28,20 @@ into it on first open.
 *(A dev run shares `%APPDATA%\LlmOnLan` with your installed client, as before. The backup from the 21st
 is still at `%APPDATA%\LlmOnLan-backup-20260921-*`.)*
 
-## NEWEST (night of the 24th) — your eight bugs, fixed and checked by a critic until it was happy
+## NEWEST (02:05 on the 25th) — the perf pass you scheduled
+
+The Computer is about **twice as fast on big graphs**, and panning is smooth. Measured on a
+1000-box graph:
+- a run costs 0.17 ms per box instead of 0.35;
+- the longest freeze during it is 65 ms instead of 140;
+- panning a 500-box graph does 1.5 ms of work a frame instead of 17–20.
+
+The cause was the browser restyling and repainting boxes that are off screen. They now skip that
+work until you scroll to them. The perf tests now have tight budgets, so a slow creep fails
+loudly instead of passing quietly. You won't notice anything on a small graph; on a big one,
+pan and zoom should feel instant. Details and before/after: [DEVLOG.md](DEVLOG.md).
+
+## NEW (night of the 24th) — your eight bugs, fixed and checked by a critic until it was happy
 
 Your list, and where each fix is:
 1. **"We always get the same results — we want control of the seed."** Every Instruction now has a
