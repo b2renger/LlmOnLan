@@ -50,6 +50,14 @@ node."* ([COMPUTER_LIVE_PLAN.md](COMPUTER_LIVE_PLAN.md))
 To try: ＋ → **three.js scene** → **Edit code**, change `0x1f1f23` to `0x203040`, **Ctrl+Enter**; then
 **▶ Live** and drag on the cube.
 
+**Checked on your farm (afternoon):**
+- **The new instructions on Qwen3.8:** p5 drew 5/5 and three.js 4/5. The one miss was a blank scene with no error; its cause is not pinned down.
+- **gemma4:12b:** no longer served by your farm, so it could not be re-checked.
+- **Live:** not tried on your client yet, because its window was hidden and Live deliberately pauses a hidden window. The harness proves Live with real input. Please try it by hand:
+  1. Open **"Rig check — Qwen3.8 live prompts"**.
+  2. Press **▶ Live** on the three.js box.
+  3. Drag to orbit, scroll to zoom, then drop a wire from a Text box onto the picture.
+
 ## NEW (02:05 on the 25th) — the perf pass you scheduled
 
 The Computer is about **twice as fast on big graphs**, and panning is smooth. Measured on a
