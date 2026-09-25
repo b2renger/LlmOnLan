@@ -88,13 +88,11 @@ Your list, and where each fix is:
 had nothing blocking left. Reports: `docs/reviews/COMPUTER_CRITIC_R1.md` → `R2.md` → `R3.md` (with
 Round 4). The harness now drives a **real mouse and keyboard**; about 40 new scenarios do.
 
-**Not yet checked, because it needs gemma4 on the real farm:**
-- whether a pinned seed gives the same text twice through LiteLLM;
-- whether each Write-… preset draws at least 4 times out of 5.
+**Checked on your real farm on the 25th, 08:30** (its default model is now Qwen3.8, not gemma4):
+- a pinned seed gives the identical answer twice through LiteLLM;
+- each Write-… preset drew 5 times out of 5.
 
-To let me check both, close the client and relaunch it with
-`cd shell && npx electron . --remote-debugging-port=9229`. That also turns on the Record switch,
-which needs the new main process.
+The full account of the night is in [NIGHT_REPORT_2026-09-25.md](NIGHT_REPORT_2026-09-25.md).
 
 ## NEW (K7, evening of the 24th) — a debug log you can switch on
 
