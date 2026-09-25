@@ -30,6 +30,8 @@ import { DEFAULT_MAX_ITEMS } from '../graph/runner.mjs';
 // singleton). A run bar with its own idea of either is a run bar that will one day disagree.
 import { backEdges, forwardEdges, runPlan } from '../graph/topo.mjs';
 import { onParks, pending } from '../graph/parts/control-bus.mjs';
+// Critic S2-2: a run held back by a Button names it by what its face reads.
+import { faceText } from '../graph/parts/button.mjs';
 import '../strings/computer.en.mjs';
 import '../strings/computer-gen.en.mjs';
 
@@ -120,6 +122,8 @@ const OUTCOME = {
   cappedItems: 'computer.runOutcomeCappedItems',
   limited: 'computer.runOutcomeLimited',
   planned: 'computer.runOutcomePlanned',
+  held: 'computer.runOutcomeHeld',
+  heldOne: 'computer.runOutcomeHeldOne',
   barred: 'computer.runBarred',
   barredOne: 'computer.runBarredOne',
   leftStale: 'computer.runLeftStale',
@@ -141,18 +145,24 @@ const bit = (id, vars) => ({ id, key: OUTCOME[id], vars: vars || {} });
  *   busy      it yielded because someone else took the seat
  *   capped    the generation cap (or one fan over it)
  *   planned   a Timer plan refused before it started · limited — another ceiling
+ *   held      boxes wait behind a Button nobody pressed (critic S2-2): the one thing to do next is
+ *             press it, so it leads — what did run, and what failed, ride after it as notes
  *   errors    boxes failed
  *   nothing   nothing was stale: the ONLY outcome that offers "Run everything again"
  *   done      boxes ran
+ * `o.nameOf(buttonId)` names a held Button (`faceNamesIn(doc)`: what its face reads); without it
+ * the default face's words stand in.
  * @param {any} out a RunReport, or null
+ * @param {{nameOf?: (id: string) => string}} [o]
  * @returns {{id: keyof typeof OUTCOME, key: string, vars: any, notes: OutcomeBit[]}|null}
  */
-export function outcomeOf(out) {
+export function outcomeOf(out, o) {
   if (!out) return null;
   const ran = Math.max(0, Math.floor(Number(out.ran) || 0));
   const errors = Array.isArray(out.errors) ? out.errors.length : 0;
   const barred = Array.isArray(out.barred) ? out.barred.length : 0;
   const stale = Array.isArray(out.leftStale) ? out.leftStale.length : 0;
+  const heldBy = Array.isArray(out.heldBy) ? out.heldBy.filter((/** @type {any} */ id) => typeof id === 'string' && id) : [];
   /** @param {OutcomeBit} main @param {OutcomeBit[]} [notes] */
   const said = (main, notes) => ({ ...main, notes: notes || [] });
   if (out.busy) return said(bit('already'));
@@ -169,20 +179,47 @@ export function outcomeOf(out) {
   /** @type {OutcomeBit[]} */ const notes = [];
   if (barred) notes.push(barred === 1 ? bit('barredOne') : bit('barred', { n: barred }));
   if (stale) notes.push(bit('leftStale', { n: stale }));
-  if (errors) return said(errors === 1 ? bit('errorsOne') : bit('errors', { n: errors }), notes);
-  if (!ran && !barred) return said(bit('nothing'));
   const sec = (Math.max(0, Number(out.ms) || 0) / 1000).toFixed(1);
-  return said(ran === 1 ? bit('doneOne', { sec }) : bit('done', { n: ran, sec }), notes);
+  const failed = errors ? (errors === 1 ? bit('errorsOne') : bit('errors', { n: errors })) : null;
+  const done = ran === 1 ? bit('doneOne', { sec }) : bit('done', { n: ran, sec });
+  if (heldBy.length) {
+    // Critic S2-2: `held` counts every box waiting for the press; a report without it (a hand-made
+    // one) falls back to what the run skipped, at least the one box after the Button.
+    const n = Array.isArray(out.held) && out.held.length
+      ? out.held.length : Math.max(1, Math.floor(Number(out.skipped) || 0));
+    const nameOf = o && typeof o.nameOf === 'function' ? o.nameOf : null;
+    const button = (nameOf && String(nameOf(heldBy[0]) || '')) || faceText(null);
+    /** @type {OutcomeBit[]} */ const also = [];
+    if (ran) also.push(done);
+    if (failed) also.push(failed);
+    return said(n === 1 ? bit('heldOne', { button }) : bit('held', { button, n }), [...also, ...notes]);
+  }
+  if (failed) return said(failed, notes);
+  if (!ran && !barred) return said(bit('nothing'));
+  return said(done, notes);
 }
 
 /** The outcome as the sentence both the bar and the live region say. PURE. @param {any} out
+ * @param {{nameOf?: (id: string) => string}} [o] as `outcomeOf`
  * @returns {string} '' when there is no report */
-export function outcomeText(out) {
-  const o = outcomeOf(out);
-  if (!o) return '';
-  const head = t(OUTCOME[o.id], o.vars);
-  const tail = o.notes.map((n) => t(OUTCOME[n.id], n.vars));
+export function outcomeText(out, o) {
+  const got = outcomeOf(out, o);
+  if (!got) return '';
+  const head = t(OUTCOME[got.id], got.vars);
+  const tail = got.notes.map((n) => t(OUTCOME[n.id], n.vars));
   return [head, ...tail].join(' · ');
+}
+
+/**
+ * Critic S2-2: `outcomeOf`'s `nameOf` for one document — a Button is named by what its FACE reads
+ * (graph/parts/button.mjs `faceText`), the words a person has to find and press.
+ * @param {any} doc @returns {(id: string) => string}
+ */
+export function faceNamesIn(doc) {
+  return (id) => {
+    const part = doc && Array.isArray(doc.parts) ? doc.parts.find((/** @type {any} */ p) => p.id === id) : null;
+    return part ? faceText(part.settings) : '';
+  };
 }
 
 /**
@@ -190,6 +227,8 @@ export function outcomeText(out) {
  * offers "Run everything again" instead of a dead end. Critic S1-1: exactly `outcomeOf`'s
  * `nothing` — a run that YIELDED (the window was hidden, the seat was taken) sent nothing, but it
  * did not find everything up to date, and "Run everything again" would re-roll finished boxes.
+ * Critic S2-2: nor did a run `held` behind an unpressed Button — its forced re-run would still skip
+ * that Button, re-roll every other box and leave the held one stale.
  * PURE. @param {any} out a RunReport, or null @returns {boolean}
  */
 export function nothingRan(out) {
@@ -545,7 +584,7 @@ export function install(app) {
    */
   function sayOutcome(out) {
     if (!out) return;
-    say(outcomeText(out), 'outcome');
+    say(outcomeText(out, { nameOf: faceNamesIn(docNow()) }), 'outcome');
   }
 
   async function runAll(/** @type {any} */ opts) {

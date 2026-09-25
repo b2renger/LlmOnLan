@@ -9,6 +9,8 @@
 //         the answer (`mock-think-length`: reasoning only, then finish_reason "length");
 //   S1-8  "Show me" beside "1 question waiting" left an off-screen Dialog off screen;
 //   S1-15 Ctrl+Enter in a Dialog's multi-line answer also reached the canvas as "Run".
+//   S2-2  a box behind an unpressed Button read "Nothing to run — every box is up to date" and
+//         offered "Run everything again"; it now names the Button to press.
 //
 // The mock farm answers; it never beacons. Nothing here reaches a real farm.
 
@@ -204,6 +206,50 @@ export default [
             const want = await doneSentence(h, report);
             h.eq((await bar(h)).status, want, 'the bar reports the ▶ run');
             h.eq(await said(h), want, 'and the live region says the same sentence');
+        },
+    },
+    {
+        // Critic S2-2: Button → Instruction, Run all. The Instruction waits for the press; the bar
+        // used to say "Nothing to run — every box is up to date" and offer "Run everything again".
+        name: 'k10-run-outcomes-a-box-behind-an-unpressed-button-names-the-button',
+        needsMock: true,
+        allowConsoleErrors: FARM_ERRORS,
+        async run(h) {
+            await freshDoc(h, 'k10 held');
+            const btn = await h.computer.place('button', 40, 40);
+            const ins = await h.computer.place('ask', 400, 40);
+            await h.computer.set(btn, { text: 'Go' });
+            await h.computer.set(ins, { instruction: 'Say hello.', model: 'mock-echo' });
+            h.eq((await h.computer.wire(btn, ins, 'in')).ok, true, 'the Button feeds the Instruction');
+            await frame(h);
+
+            await listen(h);
+            await runAll(h);
+            const report = await lastReport(h);
+            h.eq(report.ran, 0, 'Run all never presses a Button');
+            h.eq(report.heldBy, [btn], 'the report names the Button that held the run');
+            h.eq(report.held, [ins], 'and the box waiting for its press');
+            h.eq((await partOf(h, ins)).state, 'stale');
+            h.eq((await h.mock.log({ path: COMPLETIONS })).length, 0, 'nothing was sent');
+
+            const want = await str(h, 'computer.runOutcomeHeldOne', { button: 'Go' });
+            const shown = await bar(h);
+            h.eq(shown.status, want, 'the bar says which Button to press');
+            h.eq(shown.again, false, '"Run everything again" is NOT offered');
+            h.eq(await said(h), want, 'the live region says the same sentence');
+            const nothing = await str(h, 'computer.runNothing');
+            h.assert(!(await heard(h)).includes(nothing), 'never "every box is up to date"');
+
+            // The press, with a real click on the Button's face, runs the box after it.
+            await markRun(h);
+            await h.input.click(`#lolcomputer .graph-part[data-id="${btn}"] .graph-btn-face`);
+            await runEnded(h);
+            await frame(h);
+            h.eq((await partOf(h, ins)).state, 'done', 'pressing the Button ran the Instruction');
+            h.eq((await h.mock.log({ path: COMPLETIONS })).length, 1, 'one request: the Instruction');
+            const pressed = await lastReport(h);
+            h.eq(pressed.heldBy, [], 'nothing is held any more');
+            h.eq((await bar(h)).status, await doneSentence(h, pressed), 'and the bar reports that run');
         },
     },
     {

@@ -9,6 +9,8 @@
 //   S1-6   lesson 3 s2: click the "name me" tag, type `before` (the `f` must not Fit), Enter; the
 //          rail's Show me puts that tag on screen; a selected arrow can be named by typing or F2
 //   S1-9   Tab to a box that is off screen brings it on screen before anything can delete it
+//   S2-3   Tab inside a box taller than the view brings each focused CONTROL on screen, and only
+//          a Tab moves the view
 //   S1-10  a Timer plan refused before it starts says its own arithmetic, not "stopped after 10"
 //   S1-11  the toolbar's and the library card's Export… default the same way, in the same words;
 //          the toolbar's file button says it replaces, the library's that it adds
@@ -346,6 +348,74 @@ export default [
             h.eq(await onCanvas(h, sel(b)), true, 'and the view followed it: B is on screen');
             await h.input.key('Delete');
             h.eq((await doc(h)).parts.map((/** @type {any} */ p) => p.id), [a], 'Delete removed the box the person could see');
+        },
+    },
+
+    {
+        // S2-3: an Instruction at 350 % is taller than the canvas. Tab through it from the prompt:
+        // the Model picker, the seed, 🎲, ✕ and the strip each used to stay below the view while it
+        // sat on the box's top. Every control Tab reaches must be on screen.
+        name: 'k10-canvas-lessons-tab-inside-a-box-taller-than-the-view-keeps-each-control-on-screen',
+        needsMock: true,
+        allowConsoleErrors: FARM_ERRORS,
+        async run(/** @type {any} */ h) {
+            await freshDoc(h, 'k10 tab tall');
+            const ins = await h.computer.place('ask', 40, 40);
+            await h.computer.set(ins, { instruction: 'Summarise the report in a page.' });
+            await h.eval(() => { window.LolComputer.app.host.canvas.setView({ x: 0, y: 0, zoom: 3.5 }); return true; });
+            await frame(h);
+            const tall = await h.eval((s) => {
+                const box = document.querySelector(s).getBoundingClientRect();
+                const c = document.querySelector('#lolcomputer .graph-canvas').getBoundingClientRect();
+                return box.height > c.height;
+            }, sel(ins));
+            h.eq(tall, true, 'at 350 % the box is taller than the canvas');
+            await h.input.click(sel(ins, '.graph-ins-instruction'));
+            h.eq(await h.eval(() => (document.activeElement ? document.activeElement.className : '')), 'graph-ins-instruction',
+                'the click put the caret in the prompt');
+            const viewY = async () => (await h.eval(() => window.LolComputer.debug.computer.view())).y;
+            const startY = await viewY();
+
+            let checked = 0;
+            for (let i = 0; i < 12; i++) {
+                await h.input.key('Tab');
+                await frame(h);
+                const got = await h.eval((id) => {
+                    const a = /** @type {any} */ (document.activeElement);
+                    const part = a && a.closest ? a.closest('#lolcomputer .graph-part') : null;
+                    if (!part || part.getAttribute('data-id') !== id) return { inBox: false };
+                    const r = a.getBoundingClientRect();
+                    const c = document.querySelector('#lolcomputer .graph-canvas').getBoundingClientRect();
+                    // Wholly inside when it fits the canvas on that axis, overlapping when it cannot.
+                    const axis = (/** @type {number} */ lo, /** @type {number} */ hi, /** @type {number} */ a0, /** @type {number} */ a1) =>
+                        (a1 - a0 <= hi - lo ? a0 >= lo - 1 && a1 <= hi + 1 : a0 < hi && a1 > lo);
+                    return {
+                        inBox: true,
+                        what: `${a.tagName.toLowerCase()}.${String(a.className || '')}`,
+                        onScreen: r.width > 0 && axis(c.left, c.right, r.left, r.right) && axis(c.top, c.bottom, r.top, r.bottom),
+                        rect: [Math.round(r.left), Math.round(r.top), Math.round(r.right), Math.round(r.bottom)],
+                        canvas: [Math.round(c.left), Math.round(c.top), Math.round(c.right), Math.round(c.bottom)],
+                    };
+                }, ins);
+                if (!got.inBox) break;
+                checked += 1;
+                h.assert(got.onScreen, `Tab #${i + 1} focused ${got.what} at ${JSON.stringify(got.rect)}, which must be inside the canvas ${JSON.stringify(got.canvas)}`);
+            }
+            h.assert(checked >= 3, `Tab walked through at least three controls of the box (${checked})`);
+            const movedY = await viewY();
+            h.assert(movedY < startY, `the view followed the focus down the box (${startY} → ${movedY})`);
+
+            // Tab only: a focus no Tab caused (a script's re-focus) leaves the view where it is, even
+            // on a control that is now off screen.
+            const promptInside = await h.eval((s) => {
+                const r = document.querySelector(s).getBoundingClientRect();
+                const c = document.querySelector('#lolcomputer .graph-canvas').getBoundingClientRect();
+                return r.top >= c.top && r.bottom <= c.bottom;
+            }, sel(ins, '.graph-ins-instruction'));
+            h.eq(promptInside, false, 'the prompt is no longer wholly in view (a Tab-caused focus there WOULD pan)');
+            await h.eval((s) => { document.querySelector(s).focus(); return true; }, sel(ins, '.graph-ins-instruction'));
+            await frame(h);
+            h.eq(await viewY(), movedY, 'a programmatic focus does not move the view');
         },
     },
 

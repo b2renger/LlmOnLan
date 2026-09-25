@@ -640,9 +640,14 @@ export const RUN_LIMITS = Object.freeze({
  *   activations?: number, iterations?: Record<string, number>,
  *   barred?: string[], waited?: number, leftStale?: string[],
  *   limited?: RunLimit|null, merged?: number,
- *   yieldedBy?: {partId: string, message: string, hidden: boolean}|null }} RunReport
+ *   yieldedBy?: {partId: string, message: string, hidden: boolean}|null,
+ *   heldBy?: string[], held?: string[] }} RunReport
  *   // yieldedBy (critic S1-1): the first control failure that made the run yield; `hidden` is true
  *   // when the window was in the background, so the bar can say why nothing was sent.
+ *   // heldBy (critic S2-2): the unpressed Buttons (unique ids, first found first) that held boxes
+ *   // back; `held` the boxes left stale waiting for that press, directly after a Button or further
+ *   // down (all counted in `skipped` too). A run that only found these reads "press “…”", never
+ *   // "every box is up to date", and does not offer "Run everything again".
  *
  * C1 landing, additive (all three set by graph/runner.mjs, all three read by graph/panel.mjs):
  *   yielded  the governor gave the seat back to the human mid-run. NOT an error and NOT a cancel:

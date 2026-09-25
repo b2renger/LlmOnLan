@@ -216,3 +216,95 @@ the lesson ships.**
 - The rig result on gemma4:12b (SVG, p5 and three each at least 4/5) still decides the S1-3 half.
 
 With these landed I expect to be **HAPPY**, pending the rig.
+
+---
+
+## Round S3 (2026-09-25): the S2 fix set
+
+**Verdict: HAPPY.** S2-1 to S2-5 are all fixed, and nothing blocking or major is left. The rig
+condition is met: gemma4:12b drew SVG, p5 and three.js 5/5 each after S1.
+
+One new minor (S3-1) and one note remain. Both are two-line changes. They can ride with this commit
+or go in the next polish pass.
+
+**How this was checked**
+- **Code:** the uncommitted tree on top of `f34a501`. I read every source diff: `bind`, `runner`,
+  `runbar`, `host`, `button`, `canvas`, `condition`, `filter`, `instruction` and the strings.
+- **Gates:**
+  - `chat-unit`: 1523 passed, 0 failed.
+  - `chat-lint`: 0 violations.
+  - On slot 7: `--phase k10` 15/15, `--phase k8` 35/35 and `--phase k9` 5/5. The k8 flake from S2
+    did not recur.
+- **Throwaway real-input probes on slot 7** (`zz-critic-s3-{a,b}.mjs`, now deleted), clicking the
+  Button's face and pressing Tab and Shift+Tab:
+  - Button then Instruction then Instruction, before and after pressing the Button;
+  - the Button pressed **during** a run;
+  - Tab and Shift+Tab through an Instruction at 350 %;
+  - a pointer click, to confirm it does not pan.
+- **Node:** the real `planFor` over 8k, 16k and 32k windows, with 9k–40k-token inputs and with 4–6
+  pictures.
+
+| # | Status | Evidence |
+|---|---|---|
+| S2-1 a long input leaves a 512-token answer | **Fixed** | See the S2-1 details below. |
+| S2-2 an unpressed Button reads "up to date" | **Fixed** | See the S2-2 details below. |
+| S2-3 Tab inside a box taller than the view | **Fixed** | At 350 %, every Tab stop is in view, both ways: Model, Answer shape, seed, 🎲, ✕ and the strip going forward, then ✕, 🎲 and seed coming back. A pointer click does not pan. Only a focus change caused by Tab moves the view. |
+| S2-4 the verdict ceilings were unclamped | **Fixed** | `verdictMaxTokens` clamps 4096 to the window, per Filter item, floor 512. There is no import cycle: `condition` imports `instruction` and `bind`, and `filter` imports `condition`. |
+| S2-5 the `loopLesson` label | **Fixed** | "Open the lesson on loops"; the comment is corrected. |
+
+S2-1 in detail:
+- **Answer size:**
+
+  | Window | Input | `max_tokens` |
+  |---|---|---|
+  | 32k | 40k tokens | **8192** |
+  | 16k slot | 20k or 15k | **4096** |
+  | 16k slot | 10k | about 6k; the prompt is not cut, as before |
+  | 8k slot | 9k | **2048** |
+
+- **Fit:** every text row totals at most the window minus 256.
+- **Prompt:** the prompt is cut, and says so.
+
+S2-2 in detail:
+- **Before the press:** the bar and the live region say "Waiting for a press: press “Go” to run the
+  2 boxes after it." "Run everything again" is hidden.
+- **The report:** `heldBy` holds the Button and `held` holds both boxes downstream.
+- **After a real click on the face:** "3 boxes ran in 0.2s." All three boxes are done.
+
+**S3-1 (minor). A Button pressed while the run is going: the held box runs, but the bar still says
+it is waiting.**
+- **Where:** `graph/runner.mjs`.
+  - `held` and `heldBy` are filled when a box is skipped, and never emptied again.
+  - `mergeInto` (§4.4) takes the pressed Button and its downstream back into the run
+    (`blocked.delete(q)`), but leaves both sets alone.
+- **Probe (real click):**
+  1. A 5 s Timer and, separately, Button “Go” then an Instruction. Click Run all.
+  2. The Instruction is skipped as held, and the Timer waits.
+  3. Click “Go” mid-run. The press merges (`merged: 2`), and the Instruction runs and ends `done`.
+  4. The bar and the live region say **"Waiting for a press: press “Go” to run the box after it. ·
+     3 boxes ran in 5.0s."**
+- **Fix:** in `mergeInto`, `held.delete(q)` for each merged id. Drop a Button from `heldBy` once it
+  is merged, or once no id in `held` is still behind it. Alternatively, filter both at `finish()`:
+  `held` to ids still `stale`, and `heldBy` to Buttons that still hold no value.
+- **Test:** the probe as a k10 case. After the mid-run press, the outcome is "3 boxes ran…" with no
+  `held`.
+
+**Note (not a finding): pictures cannot be cut, so the answer's guaranteed share can overrun a
+small slot.**
+- Four pictures on an 8k slot are estimated at 6637 prompt tokens. Adding `answerMin` 2048 gives
+  8685, which is over 8192. Before S2-1, the clamp would have sent about 1300.
+- **Farm behaviour:**
+  - llama.cpp and Ollama stop at the window, so the answer ends as "cut off".
+  - An `external` vLLM or SGLang farm would refuse it with a 400.
+- **Why it is rare:** `IMAGE_TOKENS` (1600) errs high, the owner's farms run far larger windows, and
+  four pictures into one 8k slot is unusual.
+- **If wanted:** in `planFor`, cap `maxTokens` at `window − (image tokens + system) − MARGIN` when
+  that is smaller than `answerMin`, and keep the 512 floor.
+
+**Sign-off.**
+- **Results:**
+  - Series S found 16 defects in S1, and S2 found 5. All 21 are fixed and checked, with real input
+    wherever a hand was involved.
+  - The rig passes on gemma4:12b, 15/15, after S1.
+- **The loop ends here unless the owner wants another round.** S3-1 is the one thing I would fold
+  in before this commit.

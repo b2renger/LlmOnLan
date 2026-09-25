@@ -5,7 +5,8 @@
 //   S1-1  a run refused because the window is hidden carries `yieldedBy.hidden`; `outcomeOf` says
 //         so and `nothingRan` is false for it — every report shape has ONE sentence;
 //   S1-3  max_tokens is a CEILING clamped to the farm's window (a 16k slot and a 10k prompt give
-//         about 6k, never under 512), the prompt's reserve follows it, and a cut answer that went
+//         about 6k; S2-1: never under a quarter of the window — 15k or 30k inputs are CUT around
+//         4096), the prompt's reserve follows it, and a cut answer that went
 //         on thinking is flagged `thought` and named `errCutOffThinking`;
 //   S1-4  cut off while still thinking is `ok:false` with NO value — never the thoughts — while
 //         F8 (JSON in reasoning, finish `stop`) still parses;
@@ -25,7 +26,7 @@ import { valueOf } from '../../../renderer/chat/graph/values.mjs';
 import { instruction } from '../../../renderer/chat/graph/parts/instruction.mjs';
 import { failFromAsk, isControl } from '../../../renderer/chat/graph/parts/common.mjs';
 import {
-  planFor, bindArrivals, clampMaxTokens, promptTokensOf, maxTokensOf,
+  planFor, bindArrivals, clampMaxTokens, answerMinOf, promptTokensOf, maxTokensOf,
   MAX_TOKENS_CODE, MAX_TOKENS_TEXT, MAX_TOKENS_FLOOR, MAX_TOKENS_MARGIN,
 } from '../../../renderer/chat/graph/bind.mjs';
 import { budgetFor } from '../../../renderer/chat/ctx/budget.mjs';
@@ -154,7 +155,14 @@ export default (test) => {
     const six = clampMaxTokens({ ceiling: MAX_TOKENS_CODE, window: 16384, promptTokens: 10000 });
     assert.equal(six, 16384 - 10000 - MAX_TOKENS_MARGIN);
     assert.ok(six > 5800 && six < 6200, `about 6k: ${six}`);
+    // The bare clamp (a verdict's, whose prompt cannot be cut) still floors at 512; an Instruction's
+    // plan adds its guaranteed share on top (critic S2-1, planFor below).
     assert.equal(clampMaxTokens({ ceiling: MAX_TOKENS_CODE, window: 16384, promptTokens: 16000 }), MAX_TOKENS_FLOOR, 'never below the floor');
+    assert.equal(answerMinOf({ ceiling: MAX_TOKENS_CODE, window: 16384 }), 4096, 'S2-1: a quarter of a 16k slot');
+    assert.equal(answerMinOf({ ceiling: MAX_TOKENS_TEXT, window: 32768 }), 8192, 'a quarter of 32k');
+    assert.equal(answerMinOf({ ceiling: MAX_TOKENS_TEXT, window: 262144 }), MAX_TOKENS_TEXT, 'never over the ceiling');
+    assert.equal(answerMinOf({ ceiling: MAX_TOKENS_TEXT, window: 1024 }), MAX_TOKENS_FLOOR, 'never under the floor');
+    assert.equal(answerMinOf({ ceiling: MAX_TOKENS_CODE, window: 0 }), MAX_TOKENS_CODE, 'no window: the ceiling');
     assert.equal(clampMaxTokens({ ceiling: MAX_TOKENS_TEXT, window: 262144, promptTokens: 100 }), MAX_TOKENS_TEXT, 'a big window leaves the ceiling');
     assert.equal(clampMaxTokens({ ceiling: MAX_TOKENS_CODE, window: 0, promptTokens: 100 }), MAX_TOKENS_CODE, 'no window: the ceiling');
     assert.equal(MAX_TOKENS_CODE, 16384);
@@ -190,16 +198,29 @@ export default (test) => {
     assert.ok(tenK.budget.tokens + tenK.call.maxTokens <= 16384, `budget ${tenK.budget.tokens} + answer ${tenK.call.maxTokens}`);
     assert.equal(tenK.budget.window, 16384);
 
-    // A prompt bigger than the slot: the floor, and the prompt is cut to fit around it.
+    // Critic S2-1: a prompt bigger than the slot (30k on 16k) no longer leaves the answer 512 — it
+    // keeps its guaranteed share (a quarter of the window: 4096), and the PROMPT is cut around it.
     const huge = planFor({
       part: { id: 'c', settings: { instruction: 'Summarise the report.' } },
       bind: bindArrivals({ values: [valueOf('text', doc.repeat(3))], labels: ['report'], instruction: 'Summarise the report.' }),
       budget: budgetFor(caps),
     });
-    assert.equal(huge.call.maxTokens, MAX_TOKENS_FLOOR);
+    assert.equal(huge.call.maxTokens, 4096, 'the answer keeps its share of the slot');
     assert.ok(huge.assembled.truncated, 'the prompt was cut, and says so');
     const hugePrompt = promptTokensOf(huge.assembled.system, huge.assembled.prompt, 0);
-    assert.ok(hugePrompt + MAX_TOKENS_FLOOR <= 16384, `cut prompt ${hugePrompt} + 512 fit the slot`);
+    assert.ok(hugePrompt + huge.call.maxTokens <= 16384, `cut prompt ${hugePrompt} + ${huge.call.maxTokens} fit the slot`);
+
+    // Critic S2-1: 15k on a 16k slot — the whole prompt would leave ~1k; the answer keeps 4096 and
+    // the prompt is cut to fit around it.
+    const fifteenK = planFor({
+      part: { id: 'e', settings: { instruction: 'Summarise the report.', code: 'svg', shape: 'text' } },
+      bind: bindArrivals({ values: [valueOf('text', 'lorem ipsum dolor sit amet. '.repeat(Math.ceil((15000 * 3.6) / 28)))], labels: ['report'], instruction: 'Summarise the report.' }),
+      budget: budgetFor(caps),
+    });
+    assert.equal(fifteenK.call.maxTokens, 4096, `15k on 16k: the answer's share, not ~1k (${fifteenK.call.maxTokens})`);
+    assert.ok(fifteenK.assembled.truncated, 'and the prompt is cut');
+    const fifteenKPrompt = promptTokensOf(fifteenK.assembled.system, fifteenK.assembled.prompt, 0);
+    assert.ok(fifteenKPrompt + fifteenK.call.maxTokens <= 16384, `cut prompt ${fifteenKPrompt} + 4096 fit the slot`);
 
     // A budget with no window (a hand-built one) sends the ceiling, as before.
     const bare = planFor({ part: { id: 'd', settings: { instruction: 'x', code: 'p5' } }, bind: bindArrivals({ values: [], labels: [], instruction: 'x' }), budget: { chars: 0, tokens: 0, assumed: true } });

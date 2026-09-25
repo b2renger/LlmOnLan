@@ -118,6 +118,10 @@ registerStrings('computer', {
   runOutcomePlanned: 'Nothing ran: its Timers would take longer than this run’s time limit.',
   runOutcomeDone: '{n} boxes ran in {sec}s.',
   runOutcomeDoneOne: '1 box ran in {sec}s.',
+  // Critic S2-2: a box behind a Button nobody pressed is waiting for a press, not "up to date".
+  // {button} is what the Button's face reads.
+  runOutcomeHeld: 'Waiting for a press: press “{button}” to run the {n} boxes after it.',
+  runOutcomeHeldOne: 'Waiting for a press: press “{button}” to run the box after it.',
   runFrom: 'Run this box',
   runPlayTitle: 'Run this box and everything after it',
 
@@ -134,10 +138,11 @@ registerStrings('computer', {
   resumeAction: 'Resume',
   resumeDismiss: 'Start fresh',
 
-  // Critic S1-12: no lesson number until a loops lesson ships (LESSONS has 0-4); the button the
-  // canvas draws with loopLesson is disabled, so its label says why rather than promising one.
+  // Critic S1-12: no lesson number until a loops lesson ships (LESSONS has 0-4). Critic S2-5: the
+  // canvas (sayLoopUngated) draws the loopLesson button ONLY once `l10-loops` ships, and then it
+  // opens that lesson — so its label says what the click does.
   loopUngated: 'A loop needs something that can stop it. Put a Toggle in the way.',
-  loopLesson: 'No lesson on loops yet',
+  loopLesson: 'Open the lesson on loops',
 
   // ---- legacy parts, demoted at K1 (K1-U3) ---------------------------------------------------
   legacyBadge: 'legacy',

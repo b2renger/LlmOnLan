@@ -18,10 +18,29 @@ import { valueOf } from '../values.mjs';
 import { t } from '../../core/i18n.mjs';
 import { textOf, pickerRow, setPicked, partFail, isControl, failFromAsk } from './common.mjs';
 import { textField } from './fields.mjs';
-import { modelOptions, optionSig } from './instruction.mjs';
+import { modelOptions, optionSig, capsOf } from './instruction.mjs';
+import { clampMaxTokens, promptTokensOf } from '../bind.mjs';
+import { trustedBudget } from '../../ctx/budget.mjs';
 
-/** Room for a thinking model to reason before its verdict (critic S1). */
-const VERDICT_MAX_TOKENS = 4096;
+/** Room for a thinking model to reason before its verdict (critic S1). A CEILING: what is sent is
+ * clamped to what the prompt leaves of the farm's window (critic S2-4, `verdictMaxTokens`). */
+export const VERDICT_MAX_TOKENS = 4096;
+
+/**
+ * Critic S2-4: the verdict's `max_tokens` really sent — its ceiling clamped to what this prompt
+ * leaves of the farm's window, as the Instruction's is (bind.mjs `clampMaxTokens`, floor 512). A
+ * verdict's prompt cannot be cut, so there is no guaranteed share here: an engine that refuses a
+ * prompt + max_tokens past its window (vLLM, SGLang behind `external`) would otherwise answer
+ * every item with a 400. PURE given the app. @param {any} app @param {string} system
+ * @param {string} prompt @returns {number}
+ */
+export function verdictMaxTokens(app, system, prompt) {
+  return clampMaxTokens({
+    ceiling: VERDICT_MAX_TOKENS,
+    window: trustedBudget(capsOf(app)),
+    promptTokens: promptTokensOf(system, prompt, 0),
+  });
+}
 
 /** @typedef {import('../../core/types.mjs').PartSpec} PartSpec */
 
@@ -196,15 +215,18 @@ export const condition = /** @type {any} */ ({
     if (modeOf(part.settings) === 'model') {
       if (!input.ask) throw partFail(t('parts.errNoFarm'), 'no-farm');
       /** @type {any} */ let res;
+      const system = t('parts.condSystem');
+      const prompt = verdictPrompt(String(part.settings.question || ''), textOf(value));
       try {
         res = await input.ask.json({
           task: 'graph:condition',
           // Integrator, critic S1: without a ceiling the ask spine's 512 applies, and a thinking
-          // model (gemma4, Qwen3.8) spends that before its one-word verdict. A ceiling, not a target.
-          maxTokens: VERDICT_MAX_TOKENS,
+          // model (gemma4, Qwen3.8) spends that before its one-word verdict. A ceiling, not a target
+          // — clamped to the window (critic S2-4).
+          maxTokens: verdictMaxTokens(input.app, system, prompt),
           model: String(part.settings.model || '') || null,
-          system: t('parts.condSystem'),
-          prompt: verdictPrompt(String(part.settings.question || ''), textOf(value)),
+          system,
+          prompt,
           schema: VERDICT_SCHEMA,
         });
       } catch (err) {

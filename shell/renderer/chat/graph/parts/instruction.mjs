@@ -53,8 +53,9 @@ export const LIST_SCHEMA = {
 
 const SHAPES = ['text', 'list', 'json'];
 
-/** @param {any} app @returns {any} the live FarmCaps, or null */
-function capsOf(app) {
+/** @param {any} app @returns {any} the live FarmCaps, or null. Exported for the verdicts' clamp
+ * (critic S2-4: condition.mjs, filter.mjs). */
+export function capsOf(app) {
   return app && app.farm && typeof app.farm.get === 'function' ? app.farm.get() : null;
 }
 

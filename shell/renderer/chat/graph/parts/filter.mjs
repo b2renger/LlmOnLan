@@ -24,9 +24,9 @@ import { t } from '../../core/i18n.mjs';
 import { itemsOf, textOf, pickerRow, partFail, isControl, setPicked, slicer, failFromAsk } from './common.mjs';
 import { modelOptions, optionSig } from './instruction.mjs';
 import { itemsLine, numberField, textField, checkField } from './fields.mjs';
-
-/** Room for a thinking model to reason before its verdict (critic S1). */
-const VERDICT_MAX_TOKENS = 4096;
+// Room for a thinking model to reason before its verdict (critic S1): the Condition's 4096
+// ceiling, clamped to what each item's prompt leaves of the window (critic S2-4).
+import { verdictMaxTokens } from './condition.mjs';
 
 /** @typedef {import('../../core/types.mjs').PartSpec} PartSpec */
 /** @typedef {import('../../core/types.mjs').GraphValue} GraphValue */
@@ -241,15 +241,18 @@ export const filter = /** @type {any} */ ({
       // eslint-disable-next-line no-await-in-loop
       await breathe();
       /** @type {any} */ let res;
+      const system = t('parts.filterSystem');
+      const prompt = verdictPrompt(criterion, textOf(items[i]));
       try {
         res = await input.ask.json({
           task: 'graph:filter',
           // Integrator, critic S1: without a ceiling the ask spine's 512 applies, and a thinking
-          // model (gemma4, Qwen3.8) spends that before its one-word verdict. A ceiling, not a target.
-          maxTokens: VERDICT_MAX_TOKENS,
+          // model (gemma4, Qwen3.8) spends that before its one-word verdict. A ceiling, not a target
+          // — clamped to what THIS item's prompt leaves of the window (critic S2-4).
+          maxTokens: verdictMaxTokens(input.app, system, prompt),
           model,
-          system: t('parts.filterSystem'),
-          prompt: verdictPrompt(criterion, textOf(items[i])),
+          system,
+          prompt,
           schema: KEEP_SCHEMA,
         });
       } catch (err) {

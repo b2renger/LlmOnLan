@@ -341,6 +341,39 @@ export function panToShow(view, rect, viewport, margin = 24) {
 }
 
 /**
+ * Critic S2-3: does a world rectangle fit inside the viewport at this zoom, with `panToShow`'s
+ * margin on every side? When it does not, `panToShow` can only show its top-left corner — so Tab
+ * pans to the focused control instead of the whole box. PURE.
+ * @param {{w: number, h: number}} rect @param {number} zoom @param {{w: number, h: number}} viewport
+ * @param {number} [margin] @returns {boolean}
+ */
+export function fitsView(rect, zoom, viewport, margin = 24) {
+  const z = zoom || 1;
+  return (Number(rect.w) || 0) * z <= viewport.w - margin * 2 && (Number(rect.h) || 0) * z <= viewport.h - margin * 2;
+}
+
+/**
+ * Critic S2-3: a focused control's rectangle in WORLD coordinates, from two client rects measured
+ * in the same frame — the control's and its box's — and the box's world rectangle. The scale is
+ * read off the box AS DRAWN (its client width over its world width), so a view change still
+ * waiting for its frame cannot skew it. Null when the box is not drawn. PURE.
+ * @param {{left: number, top: number, width: number, height: number}} el
+ * @param {{left: number, top: number, width: number}} box
+ * @param {{x: number, y: number, w: number}} part
+ * @returns {{x: number, y: number, w: number, h: number}|null}
+ */
+export function controlRect(el, box, part) {
+  const s = box && part && box.width > 0 && part.w > 0 ? box.width / part.w : 0;
+  if (!(s > 0) || !el) return null;
+  return {
+    x: part.x + (el.left - box.left) / s,
+    y: part.y + (el.top - box.top) / s,
+    w: el.width / s,
+    h: el.height / s,
+  };
+}
+
+/**
  * Critic S1-15: Ctrl+0 is "zoom to 100%" by the KEY'S PLACE, not its character — on AZERTY the
  * key marked 0 reports `à`, so `ev.key === '0'` never matched there. Shift+1 and Shift+2 are read
  * the same way. The numpad's 0 counts too.
@@ -2762,28 +2795,37 @@ export function createCanvas(o) {
     if (spaceDown && !(next && root.contains(next))) setSpace(false);
   }
 
-  /** Was the last thing the person did a PRESS (true) or a KEY (false)? A focus that follows a
-   * press is the mouse's, and the mouse already put the box where the person is looking. Read off
-   * the window, so a Tab from the rail or the library into the canvas counts as a key. */
-  let focusByPointer = false;
-  function onWindowPointerDown() { focusByPointer = true; }
-  function onWindowKeyDown() { focusByPointer = false; }
+  /** Critic S2-3: is the focus moving because of a TAB? Set on the Tab's keydown (the browser
+   * moves the focus inside that keydown's default action) and cleared by the next keyup, press or
+   * window blur — so a focus that follows a press stays where the pointer put it, and a
+   * programmatic re-focus after any other key (the palette's Escape restore, the drawer's, the
+   * window regaining focus) never moves the view. Read off the window, so a Tab from the rail or
+   * the library into the canvas counts. */
+  let focusByTab = false;
+  function onWindowPointerDown() { focusByTab = false; }
+  function onWindowKeyDown(/** @type {any} */ ev) { focusByTab = !!ev && ev.key === 'Tab'; }
+  function onWindowTabUp() { focusByTab = false; }
 
   /**
    * Critic S1-9: Tab to a box (or an arrow's name) that is off screen brings it on screen, by the
    * least pan — the browser's own focus scroll cannot, because the canvas never scrolls (it is
-   * undone by `onCanvasScroll`) and the boxes sit in a transformed layer. Keyboard focus only:
-   * a focus that follows a press stays where the pointer put it.
+   * undone by `onCanvasScroll`) and the boxes sit in a transformed layer. Tab only (S2-3).
+   * Critic S2-3: a box too big for the view (a tall Instruction at 350 %) is not shown by its
+   * top-left corner — the pan goes to the focused CONTROL, so the Model picker, the seed, the
+   * strip each come on screen as Tab reaches them.
    * @param {any} target the element that took the focus
    */
   function followFocus(target) {
-    if (focusByPointer || drag) return;
+    if (!focusByTab || drag) return;
     onCanvasScroll();
     /** @type {{x: number, y: number, w: number, h: number}|null} */ let rect = null;
     const partEl = target.closest('.graph-part');
     if (partEl && layer.contains(partEl)) {
       const p = partById(partEl.dataset.id || '');
       if (p) rect = { x: p.x, y: p.y, w: p.w, h: p.h };
+      if (p && target !== partEl && !fitsView(rect, view.zoom, viewport())) {
+        rect = controlRect(target.getBoundingClientRect(), partEl.getBoundingClientRect(), p) || rect;
+      }
     } else {
       const pill = target.closest('.graph-wire-pill');
       const doc = session.doc();
@@ -3101,6 +3143,8 @@ export function createCanvas(o) {
   window.addEventListener('blur', onWindowBlur);
   window.addEventListener('pointerdown', onWindowPointerDown, true);
   window.addEventListener('keydown', onWindowKeyDown, true);
+  window.addEventListener('keyup', onWindowTabUp, true);
+  window.addEventListener('blur', onWindowTabUp);
 
   // ---- session events --------------------------------------------------------------------------
 
@@ -3267,6 +3311,8 @@ export function createCanvas(o) {
       window.removeEventListener('blur', onWindowBlur);
       window.removeEventListener('pointerdown', onWindowPointerDown, true);
       window.removeEventListener('keydown', onWindowKeyDown, true);
+      window.removeEventListener('keyup', onWindowTabUp, true);
+      window.removeEventListener('blur', onWindowTabUp);
       for (const box of boxes.values()) {
         if (box.inst && typeof box.inst.destroy === 'function') {
           try { box.inst.destroy(); } catch { /* nothing may block teardown */ }

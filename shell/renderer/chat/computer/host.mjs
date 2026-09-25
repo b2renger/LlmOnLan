@@ -35,7 +35,7 @@ import { createDocStore, SAVE_DEBOUNCE_MS } from './docstore.mjs';
 import { createSandbox } from '../sandbox/host.mjs';
 import { createDoc, movePart, patchPart as patchPartIn, removeParts, removeWire, setSettings as setSettingsIn, setView } from '../graph/model.mjs';
 // Critic S1-1: the ONE sentence a run leaves, shared with the run bar (a PURE export).
-import { outcomeText } from './runbar.mjs';
+import { outcomeText, faceNamesIn } from './runbar.mjs';
 import '../strings/graph.en.mjs';
 import '../strings/computer.en.mjs';
 
@@ -423,7 +423,8 @@ export function createHost(app, els) {
       // Critic S1-1: ONE sentence per run, the same one the run bar shows (runbar.mjs outcomeOf).
       // Two `if` chains used to announce twice, the second overwriting the first — "Nothing to run"
       // straight after "The farm went to someone else", "Stopped" or "2 parts failed".
-      const said = outcomeText(report);
+      // Critic S2-2: a held Button is named by what its face reads, as the bar names it.
+      const said = outcomeText(report, { nameOf: faceNamesIn(session.doc()) });
       if (said) canvas.announce(said);
       if (report.capped) canvas.setCapped(report.capped);
     }

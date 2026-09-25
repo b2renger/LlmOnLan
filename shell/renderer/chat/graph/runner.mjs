@@ -365,6 +365,11 @@ export function createRunner(o) {
     /** @type {Set<string>} */ const executed = new Set();
     /** Parts whose upstream failed: left stale, never run, counted in `skipped`. */
     /** @type {Set<string>} */ const blocked = new Set();
+    /** Critic S2-2: the blocked parts that are waiting for a PRESS — behind an unpressed Button,
+     * directly or further down — and the Buttons holding them, first found first. A run that only
+     * found these did not find "every box up to date", and the report has to say so. */
+    /** @type {Set<string>} */ const held = new Set();
+    /** @type {string[]} */ const heldBy = [];
     /** Activations of each part in this run — `maxIterations` counts these (§4.6). */
     /** @type {Map<string, number>} */ const iterationsOf = new Map();
     /** Parts a ▶ re-pressed while they were running: they re-queue on completion (§4.4). */
@@ -484,6 +489,13 @@ export function createRunner(o) {
         mode, seeds: [...S], journalId: J.id || null,
         activations, iterations: Object.fromEntries(iterationsOf),
         barred: barred.slice(), waited, leftStale, limited, merged,
+        // Critic S3-1: a press that JOINED this run (a merged ▶) ran the box it held, so the report
+        // must not still say "waiting for a press". A held box that ended done or in error is no
+        // longer held; with nothing still held, no Button is holding anything.
+        ...(() => {
+          const stillHeld = [...held].filter((id) => { const s = stateOf(id); return s !== 'done' && s !== 'error'; });
+          return { held: stillHeld, heldBy: stillHeld.length ? heldBy.slice() : [] };
+        })(),
       });
       last = report;
       ac = null;
@@ -721,6 +733,8 @@ export function createRunner(o) {
       const upstream = shapeOf(doc).into.get(id) || [];
       if (upstream.some((from) => blocked.has(from))) {
         blocked.add(id);
+        // Critic S2-2: further down from a held box is held too — it waits for the same press.
+        if (upstream.some((from) => held.has(from))) held.add(id);
         A.delete(id);
         skipped++;
         mark(id, { state: 'stale' });
@@ -732,14 +746,20 @@ export function createRunner(o) {
       // K3 landing). The one part that does this is an unpressed Button, which Run-all excludes
       // from `A`: turning the box after it into an error reads to a learner as "your graph is
       // wrong" when nothing is — the graph is simply waiting for a click.
-      const skippedManual = upstream.some((from) => {
+      /** @param {string} from */
+      const isUnpressed = (from) => {
         if (A.has(from)) return false;
         const up = lookup(doc, from);
         if (!up || isValue(up.value)) return false;
         const upSpec = session.specs.get(up.type);
         return !!(upSpec && upSpec.manual);
-      });
+      };
+      const skippedManual = upstream.some(isUnpressed);
       if (skippedManual) {
+        // Critic S2-2: the report names the Buttons that held something back, so the bar can say
+        // "press “Go” to run the box after it" instead of "every box is up to date".
+        held.add(id);
+        for (const from of upstream) if (isUnpressed(from) && !heldBy.includes(from)) heldBy.push(from);
         blocked.add(id);
         A.delete(id);
         skipped++;

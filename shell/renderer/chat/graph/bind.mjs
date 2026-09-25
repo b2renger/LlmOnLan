@@ -66,7 +66,11 @@ export const FILE_TEXT_MAX = 64 * 1024;
  * toward `max_tokens`, and on the rig gemma4:12b spent 2-4k tokens thinking before a line of code
  * — 7 of 15 Write-… runs were cut at 4096 before they finished. The number really sent is
  * `clampMaxTokens`: this ceiling, or what the prompt leaves of the farm's window, whichever is
- * smaller, never under MAX_TOKENS_FLOOR. A model that stops early spends nothing extra. */
+ * smaller, never under MAX_TOKENS_FLOOR. A model that stops early spends nothing extra.
+ *
+ * Critic S2-1: an Instruction's answer is also never under `answerMinOf` (a quarter of the window,
+ * up to the ceiling) — a long input is CUT to fit around that share, instead of leaving the answer
+ * 512 tokens a thinking model spends before its first word. See `planFor`. */
 export const MAX_TOKENS_CODE = 16384;
 export const MAX_TOKENS_TEXT = 8192;
 /** The least an answer is ever given (the ask spine's own floor, app/ask.mjs MIN_MAX_TOKENS). */
@@ -101,6 +105,8 @@ export function maxTokensOf(settings) {
 /**
  * Critic S1-3: the `max_tokens` really sent — `min(ceiling, window − prompt − MAX_TOKENS_MARGIN)`,
  * never under MAX_TOKENS_FLOOR. With no window known (0) the ceiling stands: nothing to clamp to.
+ * This is the clamp for a prompt that CANNOT be cut (a Condition's or a Filter's verdict, S2-4);
+ * an Instruction, whose inputs can be cut, first guarantees `answerMinOf` (planFor, S2-1).
  * PURE. @param {{ceiling: number, window?: number, promptTokens?: number}} o @returns {number}
  */
 export function clampMaxTokens(o) {
@@ -109,6 +115,20 @@ export function clampMaxTokens(o) {
   if (!(window > 0)) return ceiling;
   const prompt = Math.max(0, Math.ceil(Number(o && o.promptTokens) || 0));
   return Math.max(MAX_TOKENS_FLOOR, Math.min(ceiling, window - prompt - MAX_TOKENS_MARGIN));
+}
+
+/**
+ * Critic S2-1: the share of the window an Instruction's answer is GUARANTEED, however long its
+ * input — `min(ceiling, max(MAX_TOKENS_FLOOR, window / 4))`: 4096 on a 16k slot, 8192 on 32k. The
+ * prompt is cut to fit around it (planFor), because a 60-page PDF left with a 512-token answer
+ * fails every time on a thinking model. With no window known (0) the ceiling stands.
+ * PURE. @param {{ceiling: number, window?: number}} o @returns {number}
+ */
+export function answerMinOf(o) {
+  const ceiling = Math.max(MAX_TOKENS_FLOOR, Math.floor(Number(o && o.ceiling) || MAX_TOKENS_TEXT));
+  const window = Math.floor(Number(o && o.window) || 0);
+  if (!(window > 0)) return ceiling;
+  return Math.min(ceiling, Math.max(MAX_TOKENS_FLOOR, Math.floor(window / 4)));
 }
 
 /**
@@ -766,9 +786,11 @@ function trim(blocks, was, budget) {
 /**
  * `budget` is `ctx/budget.mjs` `budgetFor(caps)`. When it carries the trusted `window` (critic
  * S1-3), the answer's `max_tokens` is resolved HERE, once, from the whole assembled prompt —
- * `clampMaxTokens` — and the prompt's own budget is re-cut with that answer as the reserve, so the
- * two can never together overrun the slot. The Instruction's run() and the transcript's Sent tab
- * both read `plan.call.maxTokens`, so what is printed is what is sent. A budget without `window`
+ * `clampMaxTokens`, never under `answerMinOf` (critic S2-1: the answer's guaranteed share) — and
+ * the prompt's own budget is re-cut with that answer as the reserve, so the two can never together
+ * overrun the slot: a long input is cut, the answer keeps its share. The Instruction's run() and
+ * the transcript's Sent tab both read `plan.call.maxTokens`, so what is printed is what is sent. A
+ * budget without `window`
  * (a hand-built one) is used as given, and the ceiling is sent.
  * @param {{part: any, bind: BindResult,
  *   budget?: {chars: number, tokens: number, assumed: boolean, window?: number}}} o
@@ -802,9 +824,12 @@ export function planFor(o) {
   if (window) {
     // Critic S1-3: size the answer from the WHOLE prompt, then cut the prompt — only when it must
     // — to what that answer leaves. One window, shared; the reserve follows `maxTokens`.
+    // Critic S2-1: the answer never gets less than its share of the window — a long input used to
+    // win every time and leave 512 — so past that point it is the PROMPT that gets cut.
     const whole = assemblePrompt(params, instruction, { inline });
     const images = whole.images.length;
-    maxTokens = clampMaxTokens({ ceiling, window, promptTokens: promptTokensOf(system, whole.prompt, images) });
+    maxTokens = Math.max(answerMinOf({ ceiling, window }),
+      clampMaxTokens({ ceiling, window, promptTokens: promptTokensOf(system, whole.prompt, images) }));
     const fixed = promptTokensOf(system, '', images) + MAX_TOKENS_MARGIN;
     budget = { ...budgetFor(window, { reserve: maxTokens + fixed }), assumed: !!given.assumed };
     assembled = whole.prompt.length > budget.chars

@@ -18,6 +18,7 @@
 import { valueOf } from '../values.mjs';
 import { t } from '../../core/i18n.mjs';
 import { textField } from './fields.mjs';
+import '../../strings/parts.en.mjs';
 
 /** @typedef {import('../../core/types.mjs').PartSpec} PartSpec */
 
@@ -50,6 +51,12 @@ export function consumePress(partId) {
 /** Is this Button holding back a wave right now? @param {string} partId @returns {boolean} */
 export function isReady(partId) {
   return ready.has(String(partId || ''));
+}
+
+/** What a Button's face reads: its label, or "Run this". Critic S2-2: the run bar names a Button
+ * by exactly this — the words a person has to find and press. @param {any} settings @returns {string} */
+export function faceText(settings) {
+  return String((settings && settings.text) || '') || t('parts.btnPress');
 }
 
 /** Forget every press and every held wave — a document close, and the unit test between cases. */
@@ -92,7 +99,7 @@ export const button = /** @type {any} */ ({
     host.replaceChildren(face, name.node, hint);
     const paint = (/** @type {any} */ p) => {
       name.update(String(p.settings.text || ''));
-      face.textContent = String(p.settings.text || '') || t('parts.btnPress');
+      face.textContent = faceText(p.settings);
       const held = isReady(p.id);
       face.dataset.ready = held ? 'true' : 'false';
       hint.textContent = held ? t('parts.btnReady') : t('parts.btnHint');
