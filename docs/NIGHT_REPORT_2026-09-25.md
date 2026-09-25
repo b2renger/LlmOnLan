@@ -84,6 +84,16 @@ How it was checked:
 
 Reports: [reviews/COMPUTER_CRITIC_R1.md](reviews/COMPUTER_CRITIC_R1.md), [R2](reviews/COMPUTER_CRITIC_R2.md), [R3 + R4](reviews/COMPUTER_CRITIC_R3.md).
 
+**A second series this morning (you asked for a fresh critic loop):**
+
+| Round | Found | Fixed by |
+|---|---|---|
+| S1 | 6 majors, 10 minors the first series missed. The worst: a run refused for a hidden window said "Nothing to run", and its "Run everything again" re-rolled finished boxes; thinking models ran out of tokens; a reply cut off while still thinking was passed downstream; lessons 2–4 could not be done as written | Two builders, plus me |
+| S2 | All 16 fixed. 2 new majors: a long input squeezed the answer to 512 tokens, and a run held by an unpressed Button said "Nothing to run". Plus 3 minors | One builder |
+| S3 | **HAPPY.** One small follow-up, fixed | Me |
+
+Reports: [S1](reviews/COMPUTER_CRITIC_S1.md), [S2 + S3](reviews/COMPUTER_CRITIC_S2.md). Commits `06240ff` and `afabd08`. The full harness is 355/0, perf 9/9 and unit tests 1524/0.
+
 ## 4. The perf pass (02:05)
 
 The cause was not the runner. Of ~414 ms of work in a 1000-box run, **290 ms was the browser
