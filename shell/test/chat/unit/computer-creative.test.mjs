@@ -67,6 +67,8 @@ function fakeP5Window(o = {}) {
   const win = {
     calls,
     width: 400, height: 300,
+    // p5's input globals as they are before anyone touches the sketch (the picture's moment).
+    mouseX: 0, mouseY: 0, mouseIsPressed: false,
     createCanvas: (w, h) => { calls.createCanvas++; win.width = w; win.height = h; },
     noStroke: () => {}, stroke: () => {}, strokeWeight: () => {}, noFill: () => {},
     background: () => { calls.background++; },
@@ -207,6 +209,8 @@ async function failureOf(input) {
 function mount(doc, part, o = {}) {
   const host = doc.createElement('div');
   const patches = [];
+  /** The options each `ctx.update` was called with (critic L1-3: Live is `undoable: false`). */
+  const opts = [];
   const commits = [];
   let current = part;
   const listeners = new Set();
@@ -220,8 +224,9 @@ function mount(doc, part, o = {}) {
   /** @type {any} */ let view = null;
   const ctx = {
     app, get part() { return current; }, open: () => {},
-    update(patch) {
+    update(patch, opt) {
       patches.push(patch);
+      opts.push(opt || {});
       current = { ...current, settings: { ...current.settings, ...patch }, state: 'stale' };
       if (view) view.update(current);
     },
@@ -230,7 +235,7 @@ function mount(doc, part, o = {}) {
   };
   view = PREVIEW.render(host, part, /** @type {any} */ (ctx));
   return {
-    host, view, patches, commits,
+    host, view, patches, opts, commits,
     current: () => current,
     setPart(next) { current = next; view.update(next); },
     /** The document's wires change (a wire deleted, Undo, Reset lesson); the canvas repaints. */
@@ -420,7 +425,11 @@ export default (test) => {
     const { THREE, made } = fakeThree();
     const { root, canvas, body } = fakeRoot();
     const win = { THREE, requestAnimationFrame: () => 0, document: { body } };
-    runInGuest(shapeForGuest('three', STARTER.three), win, { canvas, root });
+    // K-7: the guest's `lol.orbit` (sandbox/runner.html), stubbed — the starter hands it the camera.
+    /** @type {any[]} */ const orbited = [];
+    runInGuest(shapeForGuest('three', STARTER.three), win, { canvas, root, orbit: (/** @type {any} */ cam) => { orbited.push(cam); return { target: null, update() {}, dispose() {} }; } });
+    assert.equal(orbited.length, 1, 'the starter calls lol.orbit(camera) once');
+    assert.ok(orbited[0] instanceof THREE.PerspectiveCamera, 'with its camera');
     assert.equal(made.renderers.length, 1, 'one renderer');
     assert.equal(made.renderers[0].opts.canvas, canvas, 'it draws into lol.canvas, where the snapshot looks');
     assert.equal(made.renderers[0].opts.preserveDrawingBuffer, true, 'with its drawing buffer kept');
@@ -653,6 +662,26 @@ export default (test) => {
       area.dispatchEvent({ type: 'blur' });
       assert.equal(isEditing(part.id), false);
       assert.equal(m.commits.length, 1, 'leaving the editor closes ONE undo entry');
+      m.view.destroy();
+    });
+  });
+
+  test('L1-3 / L1-5: the Live choice is view state — never an undo entry, even for a press the sandbox refuses', async () => {
+    await withDom(async (doc) => {
+      const part = presetPart('p5', { state: 'done' });
+      const m = mount(doc, part, { sandbox: null });            // ctx.sandbox() resolves null
+      const btn = m.q('.graph-preview-live');
+      assert.ok(btn && !btn.hidden, 'a p5 box offers ▶ Live');
+      btn.dispatchEvent({ type: 'click' });
+      await sleep(20);
+      assert.deepEqual(m.patches, [{ live: true }, { live: false }], 'the press wrote the choice, the refusal took it back');
+      for (const o of m.opts) {
+        assert.equal(o.undoable, false, 'each write is NOT undoable: the undo depth does not move');
+        assert.equal(o.stale, false, 'and marks nothing stale');
+      }
+      assert.equal(m.commits.length, 0, 'no edit run was opened or closed around it');
+      assert.equal(m.current().settings.live, false, 'the box does not claim live');
+      assert.equal(m.q('.graph-preview-live').getAttribute('aria-pressed'), 'false');
       m.view.destroy();
     });
   });

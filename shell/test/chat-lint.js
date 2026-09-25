@@ -68,6 +68,8 @@ const PURE_MODULES = [
     // K7 (addendum KG): what the debug log writes — redaction, clipping, the edit diff and the
     // request summary. What goes into a person's bug report is pinned in Node.
     'computer/devlog-format.mjs',
+    // Live previews (COMPUTER_LIVE_PLAN, builder E): the code editor's gutter, caret and indent model.
+    'computer/code-edit.mjs',
     // C3 (the sandbox parts, files and sharing)
     'graph/tidy.mjs', 'sandbox/protocol.mjs',
     // S2

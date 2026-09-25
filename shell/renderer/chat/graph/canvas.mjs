@@ -222,6 +222,13 @@ export function marqueeHits(parts, rect) {
   )).map((p) => p.id);
 }
 
+/** A part's settings without the Live choice (critic L2-1). @param {any} settings */
+function withoutLive(settings) {
+  const out = { ...(settings || {}) };
+  delete out.live;
+  return out;
+}
+
 /** A selection as the clipboard carries it: part TYPES and settings, never runtime values.
  * Wires are kept only when BOTH ends are in the selection. @returns {object} */
 export function toClipboard(doc, ids) {
@@ -234,8 +241,9 @@ export function toClipboard(doc, ids) {
     kind: 'selection',
     // Critic R1, A3: the SIZE travels too, so a pasted "p5.js sketch" comes back 380×520 and
     // not as a default 320×260 box.
+    // Critic L2-1: a copy is never live — only the box that was pressed runs its sketch.
     parts: parts.map((/** @type {any} */ p) => ({
-      i: index.get(p.id), type: p.type, x: p.x, y: p.y, w: p.w, h: p.h, settings: { ...p.settings },
+      i: index.get(p.id), type: p.type, x: p.x, y: p.y, w: p.w, h: p.h, settings: withoutLive(p.settings),
     })),
     wires: doc.wires
       .filter((/** @type {any} */ w) => keep.has(w.from) && keep.has(w.to))
@@ -1841,10 +1849,13 @@ export function createCanvas(o) {
       get part() { return partById(part.id) || part; },
       /** A keystroke: applied at once, but only the FIRST of an edit run opens an undo entry.
        * `{stale: false}` (critic R2, N3) is the Instruction's Keep: an edit that changes nothing a
-       * run computed, so nothing is marked stale. */
-      update(/** @type {object} */ patch, /** @type {{stale?: boolean}} */ opt = {}) {
-        const first = !editing.has(part.id);
-        editing.add(part.id);
+       * run computed, so nothing is marked stale. `{undoable: false}` (critic L1-3) is view state
+       * — a Preview's Live choice, like the zoom: written, but never an undo entry, and it neither
+       * opens nor closes the edit run around it. */
+      update(/** @type {object} */ patch, /** @type {{stale?: boolean, undoable?: boolean}} */ opt = {}) {
+        const undoable = !(opt && opt.undoable === false);
+        const first = undoable && !editing.has(part.id);
+        if (undoable) editing.add(part.id);
         session.apply(
           setSettings(session.doc(), part.id, patch, { specs, now: app.now, stale: opt && opt.stale === false ? false : undefined }),
           { label: 'settings', undoable: first },
@@ -1971,6 +1982,7 @@ export function createCanvas(o) {
     wires.setPreview(null);
     if (drag && drag.captured) { try { canvas.releasePointerCapture(drag.pointerId); } catch { /* gone */ } }
     drag = null;
+    uncapture();
     dragDoc = null;
     marquee.hidden = true;
     canvas.classList.remove('graph-wiring', 'graph-grabbing');
@@ -2232,7 +2244,16 @@ export function createCanvas(o) {
   function capture(d) {
     if (d.captured) return;
     d.captured = true;
+    // Critic L1-1: pointer capture does not reach into a live sketch's frame (another document) —
+    // a drag released over it ended in the sketch and never here. While the canvas holds a drag,
+    // one CSS rule takes the live frame out of hit testing, so the moves and the release are ours.
+    canvas.setAttribute('data-dragging', 'true');
     try { canvas.setPointerCapture(d.pointerId); } catch { /* a synthetic pointer has no capture */ }
+  }
+
+  /** The drag is over, however it ended: the live frame takes the pointer again (L1-1). */
+  function uncapture() {
+    canvas.removeAttribute('data-dragging');
   }
 
   /** Give the canvas the keyboard after a press on a box's chrome, so Delete, arrows, Ctrl+C and
@@ -2267,6 +2288,12 @@ export function createCanvas(o) {
     closeZoomMenu();
     if (drag) cancelDrag();                          // a second button mid-drag ends the first
     const target = /** @type {HTMLElement} */ (ev.target);
+    if (overLive(target)) {                          // K-9: the live sketch's, not the canvas's
+      const liveBox = target.closest('.graph-part');
+      const liveId = liveBox ? /** @type {any} */ (liveBox).dataset.id : '';
+      if (liveId && session.selected().indexOf(liveId) < 0) select([liveId], { say: false });
+      return;
+    }
     const portEl = target && target.closest ? target.closest('.graph-port') : null;
     const partEl = target && target.closest ? target.closest('.graph-part') : null;
     const start = screenOf(ev);
@@ -2465,6 +2492,7 @@ export function createCanvas(o) {
     if (ev && ev.pointerId !== undefined && drag.pointerId !== undefined && ev.pointerId !== drag.pointerId) return;
     const d = drag;
     drag = null;
+    uncapture();
     if (d.captured) { try { canvas.releasePointerCapture(d.pointerId); } catch { /* the capture may already be gone */ } }
     canvas.classList.remove('graph-grabbing', 'graph-resizing');
     if (d.kind === 'pan') {
@@ -2553,6 +2581,7 @@ export function createCanvas(o) {
   function cancelDrag() {
     const d = drag;
     drag = null;
+    uncapture();
     if (!d) return false;
     if (d.captured) { try { canvas.releasePointerCapture(d.pointerId); } catch { /* gone */ } }
     canvas.classList.remove('graph-grabbing', 'graph-wiring', 'graph-resizing');
@@ -2631,6 +2660,7 @@ export function createCanvas(o) {
 
   function onWheel(ev) {
     closeCtxMenu();
+    if (overLive(ev.target)) { ev.preventDefault(); return; }   // K-9: a live sketch's wheel
     const now = Date.now();
     const latched = wheelLatch.kind && now - wheelLatch.at < WHEEL_LATCH_MS ? wheelLatch.kind : null;
     const zooming = ev.ctrlKey || ev.metaKey;
@@ -2666,12 +2696,20 @@ export function createCanvas(o) {
   const isTyping = (/** @type {any} */ target) => !!(target && target.closest
     && target.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"])'));
 
+  /** K-9 (docs/COMPUTER_LIVE_PLAN.md, builder L): is this event aimed at a LIVE preview? Input
+   * over a live sketch lands in the sketch's own document and never reaches this one; what does
+   * reach it there — the live frame element itself, the stage around a scaled frame — must not
+   * pan, zoom, drag, marquee-select or fire a canvas shortcut either. The box keeps its title bar,
+   * which is outside the stage. */
+  const overLive = (/** @type {any} */ target) => !!(target && target.closest && target.closest('[data-live-stage]'));
+
   function setSpace(on) {
     spaceDown = !!on;
     canvas.classList.toggle('graph-panning', spaceDown);
   }
 
   function onKeyDown(ev) {
+    if (overLive(ev.target)) return;                 // K-9: keys aimed at a live sketch are its own
     const typing = isTyping(ev.target);
     if (ev.key === 'Enter' && (ev.ctrlKey || ev.metaKey)) { ev.preventDefault(); if (o.onRun) o.onRun(); return; }
     if (ev.key === 'Escape') {
@@ -2986,6 +3024,7 @@ export function createCanvas(o) {
    * @param {MouseEvent} ev */
   function onDblClick(ev) {
     const target = /** @type {any} */ (ev.target);
+    if (overLive(target)) return;                    // K-9: no editor, no ＋ menu over a live sketch
     const partEl = target && target.closest ? target.closest('.graph-part') : null;
     if (partEl) {
       if (target.closest('input, textarea, select, button, a[href], [contenteditable]:not([contenteditable="false"])')) return;
@@ -3095,6 +3134,7 @@ export function createCanvas(o) {
       if (under && canvas.contains(under)) target = under;
     }
     if (!target || !target.closest || !hasDoc()) return;
+    if (overLive(target)) { ev.preventDefault(); return; }   // K-9: a live sketch's right button
     // A wire's name pill first: the right button's press FOCUSES the pill, which opens its name
     // editor — a right-click there means the wire's menu, so that edit is put back unchanged.
     const pill = target.closest('.graph-wire-pill');

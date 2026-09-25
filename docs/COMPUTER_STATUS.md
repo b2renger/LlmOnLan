@@ -28,7 +28,29 @@ into it on first open.
 *(A dev run shares `%APPDATA%\LlmOnLan` with your installed client, as before. The backup from the 21st
 is still at `%APPDATA%\LlmOnLan-backup-20260921-*`.)*
 
-## NEWEST (02:05 on the 25th) — the perf pass you scheduled
+## NEWEST (afternoon of the 25th) — edit the code by hand, go Live, orbit the camera
+
+Your request: *"edit the code by hand and then rerun … a camera control … when we interact with the
+node."* ([COMPUTER_LIVE_PLAN.md](COMPUTER_LIVE_PLAN.md))
+- **Edit code** on a p5.js / three.js / SVG / HTML / Markdown box opens its code in the drawer on the
+  right: a big editor with line numbers, two-way with the box's own field. The box redraws as you
+  type; **▶ Run code** or **Ctrl+Enter** redraws it now. **Tab** indents, **Enter** keeps the indent,
+  **Ctrl+Z** undoes, **Esc** closes it and puts you back on the box. An error shows under the editor,
+  its line marked in the margin, with **Go to line N**.
+- **▶ Live** runs a p5.js, three.js or HTML box for real inside the box — it animates and hears the
+  mouse and keys — until **■ Stop**. One box is Live at a time; the others keep their pictures.
+- **Orbit the camera:** the three.js starter calls `lol.orbit(camera)` — drag to turn around the cube,
+  wheel to zoom, right-drag to pan. The p5 starter's ball follows the pointer while you hold the
+  button, and a key turns it back. Both still draw the same first picture with no farm.
+- **The model is told:** the three.js system message now says to call `lol.orbit(camera)` right after
+  the camera, the p5 one that `mouseX`/`mouseY`/`keyPressed()` work when Live — one short rule each
+  (worth a rig re-check on gemma4:12b). A model that writes `new OrbitControls(…)` anyway gets
+  `lol.orbit` behind it, so its scene can be explored too.
+
+To try: ＋ → **three.js scene** → **Edit code**, change `0x1f1f23` to `0x203040`, **Ctrl+Enter**; then
+**▶ Live** and drag on the cube.
+
+## NEW (02:05 on the 25th) — the perf pass you scheduled
 
 The Computer is about **twice as fast on big graphs**, and panning is smooth. Measured on a
 1000-box graph:
@@ -223,9 +245,6 @@ contents; pictures become Image boxes, which now carry the same "takes:" line.
   you.
 - **Lessons 5–12 and the other six templates** from plan §10.3/§10.5. The shelf takes them as data
   files, and stopping between any two leaves a coherent shelf.
-- **"Open live" on a Preview box**: html/three/p5 (the named creative boxes included) come back as a
-  *snapshot* of the first frame, not a running frame you can interact with. Moving the one sandbox guest into a box needs a seam in the panel's host that
-  does not exist yet; nothing on the box claims to be live.
 - **Parts inside a Section do not move with it.** The Section frames and names a group; dragging it
   does not carry its contents.
 - **Wires still stroke grey**, not the colour of the kind they carry. The port dots and their glyphs
@@ -318,6 +337,6 @@ yes first; the client half would then be one small unit shaped exactly like the 
 **D-F13** (the farm's document reader: a page cap and stopping when the client gives up) is a small
 farm change; until then the client guards it as above, but only for PDFs that state their page count.
 
-Also sized and waiting, in the order I would take them: **Open live** (a p5/three box you can
-interact with, instead of a picture of its first frame), **parts move with their Section**, **wires
-in the kind's colour**, and lessons 5–12 with their templates.
+Also sized and waiting, in the order I would take them: **parts move with their Section**, **wires
+in the kind's colour**, and lessons 5–12 with their templates. (**Open live** is done: see the
+newest section at the top.)

@@ -5,6 +5,8 @@ import { registerStrings } from '../core/i18n.mjs';
 
 registerStrings('sandbox', {
   frameTitle: 'Sandboxed preview',
+  // K-9: the live guest's frame, as a screen reader names it when it takes the focus.
+  liveTitle: 'Live sketch — Escape hands the keyboard back to the canvas',
 
   // failures the host reports to whoever called it. Each names what happened and what it means —
   // never "an error occurred" (§1.2: a silent or vague failure is the bug).

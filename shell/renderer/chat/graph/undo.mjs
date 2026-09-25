@@ -91,11 +91,31 @@ function stable(v) {
   return `{${Object.keys(v).sort().map((k) => `${JSON.stringify(k)}:${stable(v[k])}`).join(',')}}`;
 }
 
-/** A part's settings without its seed (critic R3-4). @param {any} settings */
-function withoutSeed(settings) {
-  if (!settings || typeof settings !== 'object' || !('seed' in settings)) return settings || {};
-  const { seed, ...rest } = settings;
+/** Settings that are VIEW state, not program (critic L1-3): a Preview's `live` choice is written
+ * with `undoable: false`, so an Undo or a Redo keeps the present's, as it keeps the present's zoom.
+ * Otherwise undoing an older edit would switch a live sketch off (or on) and mark its box stale. */
+export const VIEW_SETTINGS = Object.freeze(['live']);
+
+/** A part's settings without its seed (critic R3-4) or its view state. @param {any} settings */
+function programSettings(settings) {
+  if (!settings || typeof settings !== 'object') return settings || {};
+  if (!('seed' in settings) && !VIEW_SETTINGS.some((k) => k in settings)) return settings;
+  /** @type {any} */ const rest = { ...settings };
+  delete rest.seed;
+  for (const k of VIEW_SETTINGS) delete rest[k];
   return rest;
+}
+
+/** The snapshot's settings with the present's view state (L1-3). @param {any} snap @param {any} now */
+function keepView(snap, now) {
+  const has = (/** @type {any} */ s) => !!s && typeof s === 'object' && VIEW_SETTINGS.some((k) => k in s);
+  if (!has(snap) && !has(now)) return snap;
+  /** @type {any} */ const out = { ...(snap || {}) };
+  for (const k of VIEW_SETTINGS) {
+    if (now && typeof now === 'object' && k in now) out[k] = now[k];
+    else delete out[k];
+  }
+  return out;
 }
 
 /**
@@ -131,7 +151,8 @@ function incoming(doc, id) {
  *   - a part whose settings or incoming wires differ between the two is marked stale, with
  *     everything downstream: its answer came from a program that is no longer on the canvas;
  *   - `title` and `view` stay the present's (a rename is not undoable and a pan is not an edit),
- *     except for an `import` entry, which is the whole file coming back out.
+ *     and so do a part's VIEW_SETTINGS (a Preview's Live choice, L1-3) — except for an `import`
+ *     entry, which is the whole file coming back out.
  *
  * @param {GraphDoc} current the document on screen now
  * @param {GraphDoc} snapshot the document the undo (or redo) entry holds
@@ -145,12 +166,13 @@ export function restoreProgram(current, snapshot, o = {}) {
   /** @type {Map<string, any>} */ const live = new Map();
   for (const p of /** @type {any[]} */ (current.parts || [])) live.set(p.id, p);
   /** @type {string[]} */ const changed = [];
+  const keepFile = o && o.label === 'import';
   const parts = /** @type {any[]} */ (snapshot.parts || []).map((sp) => {
     const cp = live.get(sp.id);
     if (!cp) return TRANSIENT.has(sp.state) ? { ...sp, state: 'stale' } : sp;
     // A difference in the SEED alone is not a program change (critic R3-4): undoing a Keep must not
     // mark an answer stale that that very seed produced. Every other setting still counts.
-    if (cp.type !== sp.type || stable(withoutSeed(cp.settings)) !== stable(withoutSeed(sp.settings))) changed.push(sp.id);
+    if (cp.type !== sp.type || stable(programSettings(cp.settings)) !== stable(programSettings(sp.settings))) changed.push(sp.id);
     else if (!seedFits(sp.settings, cp)) changed.push(sp.id);
     else if (incoming(current, sp.id) !== incoming(snapshot, sp.id)) changed.push(sp.id);
     /** @type {any} */ const out = { ...cp };
@@ -158,9 +180,9 @@ export function restoreProgram(current, snapshot, o = {}) {
       if (k in sp) out[k] = /** @type {any} */ (sp)[k];
       else delete out[k];
     }
+    if (!keepFile && 'settings' in out) out.settings = keepView(out.settings, cp.settings);
     return out;
   });
-  const keepFile = o && o.label === 'import';
   const next = /** @type {any} */ ({
     ...snapshot,
     parts,

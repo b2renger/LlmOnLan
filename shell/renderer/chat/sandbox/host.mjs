@@ -13,10 +13,15 @@
 //
 // Studio plan §3.7. Every timeout, cap and CSP byte lives in ./protocol.mjs so the two sides
 // cannot drift apart.
+//
+// K-9 (docs/COMPUTER_LIVE_PLAN.md): a SECOND guest, the live one — `live({mount, mode, code, size,
+// inputs})` runs one box's sketch for real inside that box, with real input. Both guests come out
+// of the same `makeFrame`, so "one module makes iframes" (rule 12) still holds, and what contains
+// the live guest is exactly what contains the snapshot guest.
 
 import {
   PROTOCOL_VERSION, LIMITS, TIMEOUTS, MAX_DROPPED, MAX_REBUILDS, REBUILD_WINDOW_MS, SANDBOX_ATTR,
-  command, readMessage, mintToken, clampText, guestSize,
+  RUN_KINDS, command, readMessage, mintToken, clampText, guestSize,
 } from './protocol.mjs';
 import { loadLibs, LIB_NAMES } from './libs.mjs';
 import { t } from '../core/i18n.mjs';
@@ -214,8 +219,24 @@ export function createSandbox(o = {}) {
     }, T.ping);
   }
 
-  /** Create the iframe and wait for `ready`. The URL comes from import.meta.url, NEVER from
+  /** THE iframe factory: both guests (the snapshot one and the live one, K-9) are made here, so
+   * they cannot differ in what contains them — the same runner, the same `sandbox` attribute, the
+   * same referrer policy, no delegated permission. The URL comes from import.meta.url, NEVER from
    * location: the harness page lives at a different depth than the shipped index.html.
+   * @param {string} cls @param {string} title @returns {any} */
+  function makeFrame(cls, title) {
+    const url = new URL('./runner.html', import.meta.url);
+    const fr = doc.createElement('iframe');
+    fr.className = cls;
+    fr.setAttribute('sandbox', SANDBOX_ATTR);
+    fr.setAttribute('referrerpolicy', 'no-referrer');
+    fr.setAttribute('allow', '');
+    fr.setAttribute('title', title);
+    fr.src = url.href;
+    return fr;
+  }
+
+  /** Create the iframe and wait for `ready`.
    * @returns {Promise<boolean>} */
   function boot() {
     if (disposed || blocked || !mountEl || !win) return Promise.resolve(false);
@@ -226,14 +247,7 @@ export function createSandbox(o = {}) {
       setState('booting');
       tok = mintToken();
       logs = []; errors = []; dropped = 0; missed = 0;
-      const url = new URL('./runner.html', import.meta.url);
-      const fr = doc.createElement('iframe');
-      fr.className = 'sandbox-frame';
-      fr.setAttribute('sandbox', SANDBOX_ATTR);
-      fr.setAttribute('referrerpolicy', 'no-referrer');
-      fr.setAttribute('allow', '');
-      fr.setAttribute('title', t('sandbox.frameTitle'));
-      fr.src = url.href;
+      const fr = makeFrame('sandbox-frame', t('sandbox.frameTitle'));
       frame = fr;
       win.addEventListener('message', onMessage);
       mountEl.appendChild(fr);
@@ -347,6 +361,261 @@ export function createSandbox(o = {}) {
     else if (wantedLibs.length && !libsInFrame) await sendLibs(wantedLibs);
   }
 
+  // ---- K-9: the LIVE guest ------------------------------------------------------------------
+  //
+  // The snapshot guest above is a camera: it runs a sketch off-screen and hands back a PNG. The
+  // live guest is the sketch itself, running for real inside ONE box's picture area — so the
+  // person can orbit a three.js scene, move the mouse over a p5 sketch, type into it. Everything
+  // that contains the snapshot guest contains this one too (`makeFrame`: the same runner, the same
+  // CSP, the same `sandbox` attribute and referrer policy), with its own nonce, its own message
+  // check and its own watchdog. What is different is WHERE it lives: inside the box (`mount`), so
+  // it pans and zooms with the canvas for nothing, and input over it lands in ITS document, not
+  // the canvas's. At most ONE exists: starting a second stops the first (§2.6 BJ becomes "one
+  // snapshot guest, plus at most one live guest"). A live guest that stops answering is torn
+  // down and NOT rebuilt — rebuilding would run the loop that hung it again.
+
+  /** @type {any} */ let liveGuest = null;
+
+  /** What a live run carries to the guest: a Preview's mode, in the host's own words.
+   * `html` is the one mode whose code is markup: it goes as `html` on a `dom` run.
+   * @param {any} req */
+  function liveSpec(req) {
+    const mode = String(req.mode || 'dom');
+    const markup = mode === 'html';
+    const kind = markup ? 'dom' : (RUN_KINDS.indexOf(mode) >= 0 ? mode : 'dom');
+    return {
+      markup,
+      kind,
+      code: markup ? '' : String(req.code || ''),
+      html: markup ? String(req.code || '') : (req.html === undefined ? '' : String(req.html)),
+      css: req.css === undefined ? '' : String(req.css),
+      params: req.inputs && typeof req.inputs === 'object' ? req.inputs : {},
+      libs: Array.isArray(req.libs) ? req.libs.map(String) : (/** @type {any} */ (KIND_LIBS)[kind] || []),
+    };
+  }
+
+  /**
+   * @param {{mount?: any, mode?: string, code?: string, html?: string, css?: string,
+   *   size?: {w: number, h: number}, inputs?: object, libs?: string[]}} req
+   */
+  function makeLive(req) {
+    const mount = req.mount || null;
+    const spec = liveSpec(req);
+    let size = guestSize(req.size);
+    /** @type {'booting'|'running'|'error'|'stalled'|'stopped'} */ let lstate = 'booting';
+    /** @type {any} */ let lframe = null;
+    let ltok = '';
+    let lping = 0;
+    let lmissed = 0;
+    let lseq = 0;
+    let ldropped = 0;
+    let lruns = 0;
+    let lnext = 0;
+    let ended = false;
+    /** @type {{level: string, text: string}[]} */ let llogs = [];
+    /** @type {any[]} */ let lerrs = [];
+    /** @type {Set<Function>} */ const subs = new Set();
+    /** @type {Map<string, {resolve: Function, timer: any}>} */ const lwait = new Map();
+
+    const lemit = (/** @type {any} */ ev) => {
+      for (const fn of Array.from(subs)) {
+        try { fn(ev); } catch (err) { console.error('[lolchat] live sandbox listener threw', err); }
+      }
+    };
+    const setL = (/** @type {any} */ next) => {
+      if (lstate === next) return;
+      lstate = next;
+      lemit({ type: 'state', state: next });
+    };
+    const lpost = (/** @type {string} */ cmd, /** @type {object} */ payload) => {
+      if (!lframe || !lframe.contentWindow) return false;
+      lframe.contentWindow.postMessage(command(cmd, ltok, payload), '*');
+      return true;
+    };
+    /** A wait that RESOLVES on timeout (never rejects), keyed by id. */
+    const lwaitFor = (/** @type {string} */ id, /** @type {number} */ ms, /** @type {any} */ onTimeout) => new Promise((resolve) => {
+      const timer = setTimeout(() => { lwait.delete(id); resolve(onTimeout); }, ms);
+      lwait.set(id, { resolve: (/** @type {any} */ v) => { clearTimeout(timer); lwait.delete(id); resolve(v); }, timer });
+    });
+    const lsettle = (/** @type {string} */ id, /** @type {any} */ v) => { const w = lwait.get(id); if (w) w.resolve(v); };
+    /** @param {string} cmd @param {object} payload @param {number} ms */
+    const lask = (cmd, payload, ms) => {
+      const id = `l${++lnext}`;
+      const p = lwaitFor(id, ms, { ok: false, timeout: true, error: fail(t('sandbox.errTimeout')) });
+      if (!lpost(cmd, { ...payload, id })) lsettle(id, { ok: false, error: fail(t('sandbox.errNoFrame')) });
+      return p;
+    };
+
+    function onLiveMessage(/** @type {MessageEvent} */ ev) {
+      if (!lframe || ev.source !== lframe.contentWindow) return;   // the snapshot guest's, or no one's
+      const read = readMessage(ev.data, { tok: ltok, sameSource: true });
+      if (!read.ok) {
+        ldropped++;
+        if (ldropped >= MAX_DROPPED) end('dropped');
+        return;
+      }
+      ldropped = 0;
+      const msg = read.msg;
+      if (msg.kind === 'ready') { lsettle('boot', { ok: true }); return; }
+      if (msg.kind === 'pong') { lmissed = 0; return; }
+      if (msg.kind === 'libsDone') { lsettle('libs', msg); return; }
+      if (msg.kind === 'ran' || msg.kind === 'frame') { lsettle(msg.id, msg); return; }
+      if (msg.kind === 'log') {
+        if (llogs.length < LIMITS.maxLogs) llogs.push({ level: msg.level, text: msg.text });
+        lemit({ type: 'log', log: msg });
+        return;
+      }
+      if (msg.kind === 'error') {
+        if (lerrs.length < LIMITS.maxErrors) lerrs.push(msg);
+        lemit({ type: 'error', error: msg });
+        return;
+      }
+      if (msg.kind === 'release') lemit({ type: 'release', why: msg.why });
+    }
+
+    /** The frame takes the run's size exactly (K-4): `innerWidth`/`innerHeight` ARE the box's. */
+    function sizeLive() {
+      if (!lframe || !lframe.style) return;
+      lframe.style.width = size ? `${size.w}px` : '';
+      lframe.style.height = size ? `${size.h}px` : '';
+    }
+
+    /** Tear it down. Removing the frame ends every timer, listener, WebGL context and sound it
+     * had, in one step, whatever the sketch was doing. @param {string} why */
+    function end(why) {
+      if (ended) return;
+      ended = true;
+      if (lping) { clearInterval(lping); lping = 0; }
+      if (win) { try { win.removeEventListener('message', onLiveMessage); } catch { /* torn down */ } }
+      if (lframe && lframe.parentNode) lframe.parentNode.removeChild(lframe);
+      lframe = null;
+      const stalledWhy = why === 'stalled' || /timeout$/.test(why);
+      for (const id of Array.from(lwait.keys())) {
+        lsettle(id, { ok: false, timeout: stalledWhy, aborted: !stalledWhy, error: fail(stalledWhy ? t('sandbox.errTimeout') : t('sandbox.errAborted')) });
+      }
+      setL(stalledWhy || why === 'dropped' ? 'stalled' : 'stopped');
+      if (liveGuest === self) liveGuest = null;
+      lemit({ type: 'stopped', why });
+      subs.clear();
+    }
+
+    /** The watchdog, the live guest's own: two missed pongs and the frame goes — for good. */
+    function armLivePing() {
+      if (lping || !lframe) return;
+      lping = setInterval(() => {
+        if (!lframe) return;
+        lmissed++;
+        if (lmissed >= 2) { end('stalled'); return; }
+        lpost('ping', { seq: ++lseq });
+      }, T.ping);
+    }
+
+    async function runLive() {
+      if (ended) return { ok: false, ms: 0, error: fail(t('sandbox.errNoFrame')) };
+      llogs = []; lerrs = [];
+      lruns++;
+      sizeLive();
+      const out = await lask('run', {
+        code: spec.code, kind: spec.kind, params: spec.params, html: spec.html, css: spec.css, size,
+      }, T.run);
+      if (out && out.timeout && !ended) { end('run-timeout'); }
+      if (ended) return { ok: false, ms: 0, timeout: !!(out && out.timeout), error: (out && out.error) || fail(t('sandbox.errGone')) };
+      setL(out && out.ok ? 'running' : 'error');
+      return { ok: !!(out && out.ok), ms: (out && out.ms) || 0, error: (out && out.error) || null };
+    }
+
+    async function bootLive() {
+      if (disposed || !win || !mount || typeof mount.appendChild !== 'function') {
+        end('no-mount');
+        return { ok: false, ms: 0, error: fail(t('sandbox.errNoFrame')) };
+      }
+      ltok = mintToken();
+      const fr = makeFrame('sandbox-frame sandbox-live-frame', t('sandbox.liveTitle'));
+      lframe = fr;
+      sizeLive();
+      win.addEventListener('message', onLiveMessage);
+      mount.appendChild(fr);
+      const ready = lwaitFor('boot', T.boot, { ok: false });
+      await new Promise((r) => {
+        let settled = false;
+        const go = () => { if (!settled) { settled = true; r(null); } };
+        try { fr.addEventListener('load', go, { once: true }); } catch { /* shim element */ }
+        setTimeout(go, T.boot);
+      });
+      if (ended) return { ok: false, ms: 0, error: fail(t('sandbox.errAborted')) };
+      lpost('boot', {
+        live: true,
+        limits: {
+          maxLogs: LIMITS.maxLogs, maxErrors: LIMITS.maxErrors,
+          logBytes: LIMITS.logBytes, resultBytes: LIMITS.resultBytes, maxPx: LIMITS.maxPx,
+        },
+      });
+      const out = /** @type {any} */ (await ready);
+      if (ended) return { ok: false, ms: 0, error: fail(t('sandbox.errAborted')) };
+      if (!out || !out.ok) { end('boot-timeout'); return { ok: false, ms: 0, error: fail(t('sandbox.errBoot')) }; }
+      armLivePing();
+      if (spec.libs.length) {
+        const sources = await loadLibs(spec.libs, { override: o.libSource });
+        if (ended) return { ok: false, ms: 0, error: fail(t('sandbox.errAborted')) };
+        if (sources.length) {
+          const done = lwaitFor('libs', T.run, { results: [] });
+          lpost('libs', { libs: sources.map((s) => ({ name: s.name, source: s.source })) });
+          await done;
+        }
+      }
+      return runLive();
+    }
+
+    /** @type {Promise<any>} */ let chain = Promise.resolve(null);
+
+    const handle = {
+      /** Stop and remove the live frame. The owner hears `{type:'stopped', why:'stopped'}`. */
+      stop() { end('stopped'); },
+      /** Run new code (or the same, with `null`) in the SAME frame: the guest resets and runs.
+       * `opts.size` re-sizes the frame first. @param {string|null} [code]
+       * @param {{size?: {w: number, h: number}, inputs?: object}} [opts] */
+      restart(code, opts) {
+        if (ended) return Promise.resolve({ ok: false, ms: 0, error: fail(t('sandbox.errNoFrame')) });
+        if (typeof code === 'string') {
+          if (spec.markup) spec.html = code; else spec.code = code;
+        }
+        if (opts && opts.size) size = guestSize(opts.size);
+        if (opts && opts.inputs && typeof opts.inputs === 'object') spec.params = opts.inputs;
+        chain = chain.then(() => runLive(), () => runLive());
+        return chain;
+      },
+      /** Give the sketch the keyboard (the person clicked into it, or asked from the box). */
+      focus() { try { if (lframe && typeof lframe.focus === 'function') lframe.focus(); } catch { /* detached */ } },
+      /** 'booting' | 'running' | 'error' (the sketch threw) | 'stalled' | 'stopped' */
+      state: () => lstate,
+      /** The first run's outcome, `{ok, ms, error}` (set below, once the boot has started). */
+      /** @type {Promise<any>} */ ready: Promise.resolve(null),
+      logs: () => llogs.slice(),
+      errors: () => lerrs.slice(),
+      /** A PNG of what the live sketch shows right now, or null — the debug door a test reads
+       * pixels through (a WebGL scene needs `preserveDrawingBuffer`, which the three.js prelude sets).
+       * @param {{maxPx?: number}} [req] */
+      async snapshot(req = {}) {
+        if (ended || !lframe) return null;
+        const maxPx = Math.min(Number(req.maxPx) || LIMITS.maxPx, LIMITS.maxPx);
+        const out = await lask('snapshot', { maxPx }, T.snapshot);
+        if (!out || !out.dataUrl) return null;
+        return { dataUrl: out.dataUrl, w: out.w || 0, h: out.h || 0 };
+      },
+      /** @param {(ev: any) => void} fn */
+      on(fn) { subs.add(fn); return () => subs.delete(fn); },
+      debug: () => ({ state: lstate, kind: spec.kind, runs: lruns, logs: llogs.length, errors: lerrs.length, framed: !!lframe, size }),
+    };
+    // The host's record of this guest: the public handle, and the teardown only the host calls
+    // (`hide`, `destroy`, a second live guest).
+    const self = { handle, end };
+    // Every run of this guest goes through one chain, so a restart during the boot runs AFTER it.
+    chain = bootLive();
+    handle.ready = chain;
+    Object.freeze(handle);
+    return self;
+  }
+
   return {
     /** @param {HTMLElement} el where the (visually inert) iframe lives */
     mount(el) { mountEl = el; },
@@ -424,9 +693,33 @@ export function createSandbox(o = {}) {
     params(values) { post('params', { values: values || {} }); },
     stop() { post('stop', {}); abortWaiting(); if (state === 'running') setState(frame ? 'ready' : 'idle'); },
 
+    /**
+     * K-9: run a sketch LIVE inside `mount` (a box's picture area), with real input. Starting a
+     * second live guest stops the first (its owner hears `{type:'stopped', why:'replaced'}`).
+     * Never throws: a guest that cannot start ends with state 'stopped'/'stalled' and its `ready`
+     * resolves `{ok:false, error}`.
+     * @param {{mount: any, mode: string, code: string, size?: {w: number, h: number},
+     *   inputs?: object, html?: string, css?: string, libs?: string[]}} req
+     *   `mode` is a Preview mode (`three`, `p5`, `html`) or a run kind; `code` is already shaped.
+     * @returns {{stop(): void, restart(code?: string|null, opts?: object): Promise<any>,
+     *   focus(): void, state(): string, ready: Promise<any>, logs(): any[], errors(): any[],
+     *   snapshot(o?: object): Promise<any>, on(fn: Function): () => void, debug(): object}}
+     */
+    live(req) {
+      if (liveGuest) liveGuest.end('replaced');
+      const g = makeLive(req || /** @type {any} */ ({}));
+      const st = g.handle.state();
+      if (st !== 'stopped' && st !== 'stalled') liveGuest = g;
+      return g.handle;
+    },
+    /** The live guest's handle, or null when no box is live. */
+    liveNow: () => (liveGuest ? liveGuest.handle : null),
+
     /** Suspend: the sketch stops now, the watchdog stops now, and the frame itself goes after a
-     * grace period — so flipping to another panel and back does not pay a rebuild. */
+     * grace period — so flipping to another panel and back does not pay a rebuild. The LIVE
+     * guest does not wait: a sketch nobody can see is stopped at once. */
     hide() {
+      if (liveGuest) liveGuest.end('hidden');
       post('stop', {});
       abortWaiting();
       if (pingTimer) { clearInterval(pingTimer); pingTimer = 0; }
@@ -437,6 +730,7 @@ export function createSandbox(o = {}) {
 
     destroy() {
       disposed = true;
+      if (liveGuest) liveGuest.end('gone');
       post('dispose', {});
       destroyFrame('dispose');
       wantedLibs = [];
@@ -459,6 +753,7 @@ export function createSandbox(o = {}) {
       rebuilds: rebuilds.length,
       libs: Array.from(libState.entries()).map(([name, s]) => ({ name, ok: s.ok, error: clampText(s.error, 200) })),
       known: LIB_NAMES.slice(),
+      live: liveGuest ? liveGuest.handle.debug() : null,
     }),
   };
 }

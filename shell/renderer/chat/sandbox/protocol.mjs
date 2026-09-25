@@ -24,8 +24,13 @@ export const PROTOCOL_VERSION = 1;
 /** Host -> guest. */
 export const CMDS = Object.freeze(['boot', 'libs', 'run', 'compute', 'params', 'snapshot', 'stop', 'ping', 'dispose']);
 
-/** Guest -> host. */
-export const KINDS = Object.freeze(['ready', 'libsDone', 'ran', 'computed', 'error', 'log', 'frame', 'pong', 'bye']);
+/** Guest -> host. `release` (K-9, the LIVE guest only): the person pressed Escape inside a live
+ * sketch, which hands the keyboard back to the canvas. The guest cannot move the focus out of its
+ * own frame, so it asks the host to. */
+export const KINDS = Object.freeze(['ready', 'libsDone', 'ran', 'computed', 'error', 'log', 'frame', 'pong', 'bye', 'release']);
+
+/** Why a live guest hands the keyboard back. One reason today; a list so a typo is refused. */
+export const RELEASE_WHYS = Object.freeze(['escape']);
 
 /** The sketch shapes `run` understands. `compute` has no kind: it returns a value. */
 export const RUN_KINDS = Object.freeze(['canvas', 'dom', 'three', 'p5', 'svg']);
@@ -153,6 +158,11 @@ export function readMessage(raw, o) {
   if (k === 'ready') { msg.ua = clampText(raw.ua, 64); return { ok: true, msg }; }
   if (k === 'pong') { msg.seq = num(raw.seq, -1); return { ok: true, msg }; }
   if (k === 'bye') return { ok: true, msg };
+  if (k === 'release') {
+    const why = String(raw.why || '');
+    msg.why = RELEASE_WHYS.indexOf(why) >= 0 ? why : RELEASE_WHYS[0];
+    return { ok: true, msg };
+  }
   if (k === 'libsDone') {
     const rows = Array.isArray(raw.results) ? raw.results.slice(0, LIMITS.arrayMax) : [];
     msg.results = rows.map((r) => ({

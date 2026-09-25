@@ -24,7 +24,7 @@ registerStrings('parts', {
   previewHeight: 'Height',
   previewEmpty: 'Nothing to show yet: write code below, or wire something in.',
   previewAlt: 'What the sandbox drew',
-  previewSnapshot: 'A picture, drawn in the sandbox.',
+  previewSnapshot: 'A picture, drawn in the sandbox. ▶ Live runs it for real.',
   previewExport: 'Save…',
   // §6.5: a refusal names the port, what arrived, what the port takes, AND an action that exists.
   previewRefused: 'Preview: got {got} on `content`, which takes text or json. To look at a picture, put it in an Image box; to ask about it, wire it into an Instruction.',
@@ -58,4 +58,19 @@ registerStrings('parts', {
   previewGoto: 'Go to line {line}',
   previewGotoHint: 'Select that line in the code',
   previewSvgBroken: 'That SVG does not parse: {reason}.',
+
+  // ---- K-9 (docs/COMPUTER_LIVE_PLAN.md): live previews, Run code, Edit code ------------------
+  previewLive: '▶ Live',
+  previewStop: '■ Stop',
+  previewLiveHint: 'Run this sketch for real, right here: the mouse, the wheel and the keys go to it. Esc gives them back.',
+  previewStopHint: 'Stop the live sketch and show its picture again.',
+  previewLiveStarting: 'Going live…',
+  previewLiveNote: 'Live: the mouse and keys go to the sketch — Esc gives them back. Ctrl+Enter runs your edits.',
+  previewLiveStalled: 'The live sketch stopped answering, so it was stopped. Fix the code and press ▶ Live again.',
+  previewLiveUnavailable: 'The sandbox could not start, so this sketch cannot go live.',
+  previewRunCode: 'Run code',
+  previewRunCodeHint: 'Draw the code as it is now (Ctrl+Enter in the code)',
+  previewRunLiveHint: 'Restart the live sketch with the code as it is now (Ctrl+Enter in the code)',
+  previewEditCode: 'Edit code',
+  previewEditCodeHint: 'Open this code in a large editor beside the canvas',
 });

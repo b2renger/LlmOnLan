@@ -259,3 +259,76 @@
   gap: 4px;
 }
 #lolcomputer .graph-preview-saves[hidden] { display: none; }
+
+/* ---- K-9: live previews, Run code, Edit code (docs/COMPUTER_LIVE_PLAN.md, builder L) ------- */
+
+#lolcomputer .graph-preview-live,
+#lolcomputer .graph-preview-run,
+#lolcomputer .graph-preview-edit {
+  font: inherit;
+  font-size: 11px;
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface-2);
+  color: var(--text);
+  cursor: pointer;
+  white-space: nowrap;
+}
+#lolcomputer .graph-preview-live:hover:not(:disabled),
+#lolcomputer .graph-preview-run:hover,
+#lolcomputer .graph-preview-edit:hover { border-color: var(--accent-hover); }
+#lolcomputer .graph-preview-live:disabled { opacity: 0.5; cursor: default; }
+#lolcomputer .graph-preview-live[aria-pressed='true'] {
+  border-color: var(--green);
+  background: color-mix(in srgb, var(--green) 16%, var(--surface-2));
+}
+#lolcomputer .graph-preview-live[hidden],
+#lolcomputer .graph-preview-run[hidden],
+#lolcomputer .graph-preview-edit[hidden] { display: none; }
+#lolcomputer .graph-preview-size .graph-preview-live { flex: none; align-self: center; }
+
+/* Run code, Edit code and the Save buttons share the box's last row. */
+#lolcomputer .graph-preview-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+#lolcomputer .graph-preview-tools[hidden] { display: none; }
+
+/* The live stage: laid over the picture area exactly where the snapshot tile sits, and the frame
+   inside it is the box's Width x Height, scaled to fit (preview.mjs liveFit) — so going live does
+   not move or resize anything on the box. */
+#lolcomputer .graph-preview-body[data-live='on'] {
+  position: relative;
+  overflow: hidden;
+  padding: 0;
+  min-height: 60px;
+}
+#lolcomputer .graph-preview-stage {
+  position: absolute;
+  inset: 4px;
+  overflow: hidden;
+  border-radius: 7px;
+  background: var(--surface);
+  outline: 1px solid color-mix(in srgb, var(--green) 55%, transparent);
+}
+/* Critic L1-4: the sketch holds the keyboard (a click in it, until Escape) — and it shows.
+   `data-keys` is set by preview.mjs: Chromium does not match :focus-within for a focused iframe. */
+#lolcomputer .graph-preview-stage:focus-within,
+#lolcomputer .graph-preview-stage[data-keys='sketch'] {
+  outline: 2px solid var(--accent-hover);
+  outline-offset: 1px;
+}
+/* Critic L1-1: while the canvas holds a drag (a marquee, a wire, a pan, a resize), the live frame
+   is out of hit testing — its document would otherwise take the moves and the release, and the
+   drag would never end. A wire dropped on the picture then lands on the box, as on any box. */
+#lolcomputer .graph-canvas[data-dragging='true'] .sandbox-live-frame { pointer-events: none; }
+#lolcomputer .graph-preview-live-mount {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform-origin: 0 0;
+}
+#lolcomputer .graph-preview-note[data-state='live'] { color: var(--green); }

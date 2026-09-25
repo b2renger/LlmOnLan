@@ -226,8 +226,10 @@ function p5Trailer() {
  * shown. So inside this sketch `THREE` is the real library with ONE difference: a renderer draws
  * into the guest's own canvas (`lol.canvas`, unless the sketch names another) and keeps its
  * drawing buffer, so the picture can be taken. The library itself is never modified — the guest
- * keeps it between runs. `OrbitControls` (an addon the guest does not ship) is a harmless stand-in:
- * a picture has no mouse to orbit with.
+ * keeps it between runs. `OrbitControls` (an addon the guest does not ship) is a stand-in that
+ * hands the camera to the guest's own `lol.orbit` (COMPUTER_LIVE_PLAN K-7): a no-op in a picture,
+ * a camera you can drag when the box is Live — so a model that reached for OrbitControls anyway
+ * still gets one. Without `lol.orbit` (an older guest) it is the old harmless do-nothing.
  */
 // Critic R1 A8: `renderer.setAnimationLoop(fn)` paints NOTHING before the snapshot — three's loop
 // waits for an animation frame, and the guest is an off-screen frame the browser throttles. The
@@ -239,7 +241,10 @@ const THREE_PRELUDE = 'const THREE = (function (T, c) { if (!T || typeof T.WebGL
   + 'const R = class extends T.WebGLRenderer { constructor(o) { super(Object.assign(c ? { canvas: c } : {}, o || {}, { preserveDrawingBuffer: true })); '
   + 'const loop = this.setAnimationLoop; if (typeof loop === \'function\') { this.setAnimationLoop = function (f) { loop.call(this, f); '
   + 'if (typeof f === \'function\') Promise.resolve().then(function () { f(typeof performance !== \'undefined\' ? performance.now() : Date.now()); }); }; } } }; '
-  + 'const O = T.OrbitControls || class { constructor() { this.enabled = true; this.target = new T.Vector3(); } update() { return false; } dispose() {} addEventListener() {} removeEventListener() {} }; '
+  + 'const O = T.OrbitControls || class { constructor(cam) { const o = cam && typeof lol.orbit === \'function\' ? lol.orbit(cam) : null; '
+  + 'this.enabled = true; this.target = o && o.target && typeof o.target.set === \'function\' ? o.target : new T.Vector3(); this.__lol = o; } '
+  + 'update() { if (this.__lol && typeof this.__lol.update === \'function\') this.__lol.update(); return false; } '
+  + 'dispose() { if (this.__lol && typeof this.__lol.dispose === \'function\') this.__lol.dispose(); } addEventListener() {} removeEventListener() {} }; '
   + 'return Object.assign({}, T, { WebGLRenderer: R, OrbitControls: O }); })(window.THREE, lol.canvas); ';
 
 /** When the sketch uses `OrbitControls` by its bare name without declaring it. */
@@ -592,6 +597,8 @@ export function explainGuestError(message, mode) {
     const name = undef[1];
     if (kind === 'p5' && P5_FUNCTIONS.has(name)) return t('parts.genErrP5Function', { name });
     if (kind === 'p5' && P5_VALUES.has(name)) return t('parts.genErrP5Value', { name });
+    // COMPUTER_LIVE_PLAN K-7: a camera control has a first-party answer, so the fix names it.
+    if (kind === 'three' && /Controls$/.test(name)) return t('parts.genErrThreeControls', { name });
     if (kind === 'three' && (THREE_ADDONS.has(name) || THREE_ADDON_SHAPE.test(name))) return t('parts.genErrThreeAddon', { name });
     return t('parts.genErrDeclare', { name });
   }

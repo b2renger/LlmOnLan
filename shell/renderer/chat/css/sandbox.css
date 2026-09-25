@@ -38,3 +38,13 @@
 }
 
 .sandbox-note[data-level='error'] { color: var(--danger); }
+
+/* K-9: the LIVE guest's frame. Unlike the snapshot guest it is seen and touched: it sits inside a
+   Preview box's picture area (preview.mjs sizes and scales its mount), takes the pointer, the wheel
+   and the keyboard, and pans and zooms with the canvas because it lives in the canvas. */
+.sandbox-live-frame {
+  display: block;
+  border: 0;
+  background: var(--surface);
+  pointer-events: auto;
+}

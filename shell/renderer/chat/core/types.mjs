@@ -619,7 +619,10 @@ export const RUN_LIMITS = Object.freeze({
  *   params(values: object): void,
  *   stop(): void, hide(): void, destroy(): void,
  *   on(fn: (ev: any) => void): () => void,
- *   debug(): object
+ *   debug(): object,
+ *   live(req: {mount: HTMLElement, mode: string, code: string, size?: {w: number, h: number}, inputs?: object}):
+ *     {stop(): void, restart(code?: string|null, opts?: object): Promise<any>, focus(): void, state(): string},
+ *   liveNow(): object|null
  * }} SandboxHost */
 
 /** graph/fanout.mjs (C2-U1, PURE): what one part's inputs mean for one run (§2.6 BH-2).
@@ -919,5 +922,7 @@ export const API_KEYS = Object.freeze({
   sandbox: Object.freeze([
     'mount', 'state', 'ready', 'logs', 'errors', 'runs', 'compute', 'run', 'snapshot', 'params',
     'stop', 'hide', 'destroy', 'on', 'debug',
+    // K-9 (docs/COMPUTER_LIVE_PLAN.md, frozen): the LIVE guest, one box at a time.
+    'live', 'liveNow',
   ]),
 });

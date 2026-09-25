@@ -36,8 +36,15 @@
 // WHAT A DRAW LEAVES BEHIND is this module's own `SHOWN` map, keyed by part id: RUNTIME state,
 // deliberately not persisted, which is exactly right for a picture. Preview's `output` is null.
 //
-// "OPEN LIVE" IS STILL NOT HERE (the K4 contract request on computer/host.mjs stands): the box
-// shows the first frame of an animation, and its note says it is a picture.
+// LIVE (docs/COMPUTER_LIVE_PLAN.md, K-9, builder L): a p5, three.js or web-page box has a ▶ Live
+// button. It runs the box's code FOR REAL inside the picture area — in the sandbox host's second,
+// live guest, mounted inside this box so it pans and zooms with the canvas — and the mouse, the
+// wheel and the keys go to the sketch. ONE box is live at a time. It stops on ■ Stop, when another
+// box goes live, and pauses when the box leaves the screen, the Computer is hidden or the window
+// is hidden (the `live` setting remembers the person's choice, so it comes back with the box).
+// Leaving live shows the snapshot again. Run code (and Ctrl+Enter in the code) redraws — or
+// restarts the live sketch — with the code as it is now; Edit code opens the drawer's big editor
+// (K-8, `app.drawer.editCode`), two-way with the box's own field.
 
 import { partFail, textOf, pickerRow } from './common.mjs';
 import { numberField } from './fields.mjs';
@@ -55,6 +62,7 @@ import {
 // where every sketch is drawn. Without it, the engine's own message is shown, as before.
 import * as unfence from '../unfence.mjs';
 import { presetTitle, saveFormats } from './creative.mjs';
+import { EV } from '../../core/events.mjs';
 import { t } from '../../core/i18n.mjs';
 import '../../strings/parts-preview.en.mjs';
 import '../../strings/sandbox.en.mjs';
@@ -90,6 +98,37 @@ export const EDIT_DEBOUNCE_MS = 400;
 
 /** How often an edit-draw that is waiting for a run re-checks, if the runner's event is missed. */
 const IDLE_POLL_MS = 500;
+
+/** The modes that can go LIVE (K-9): exactly the ones the guest draws. An SVG or a markdown page
+ * has nothing to interact with. */
+export const LIVE_MODES = SANDBOX_MODES;
+
+/** How long after the last change in the drawer's editor the edit is closed as ONE undo step. */
+export const EDITOR_COMMIT_MS = 1200;
+
+/**
+ * Where a live frame of `w` x `h` sits in a picture area of `availW` x `availH`: the scale that
+ * shows it whole (like the snapshot's `object-fit: contain`), and the offset that centres it.
+ * PURE. @param {number} availW @param {number} availH @param {number} w @param {number} h
+ * @returns {{k: number, x: number, y: number}}
+ */
+export function liveFit(availW, availH, w, h) {
+  const aw = Math.max(0, Number(availW) || 0);
+  const ah = Math.max(0, Number(availH) || 0);
+  const fw = Math.max(1, Number(w) || 1);
+  const fh = Math.max(1, Number(h) || 1);
+  if (!aw || !ah) return { k: 1, x: 0, y: 0 };
+  const k = Math.min(aw / fw, ah / fh);
+  return { k, x: Math.round(((aw - fw * k) / 2) * 100) / 100, y: Math.round(((ah - fh * k) / 2) * 100) / 100 };
+}
+
+/** Why a live box stopped, and whether that ends the person's choice to have it live (the `live`
+ * setting) or only pauses it until the box can be seen again. PURE.
+ * @param {string} why @returns {boolean} true when the setting goes back to false */
+export function liveEndsChoice(why) {
+  return ['stopped', 'replaced', 'stalled', 'run-timeout', 'dropped', 'mode', 'boot-timeout', 'no-mount', 'unavailable']
+    .indexOf(String(why)) >= 0;
+}
 
 /** The guest's page styling for `html` mode: a picture of a page should look like a page. The
  * snapshot rasterises the guest's root element on its own (an SVG foreignObject), where neither
@@ -140,8 +179,13 @@ const REFUSED = new Map();
 
 /** The last draw's error, with the line it names: `via:'edit'` is drawn in the box (the canvas
  * does not know about edit-draws), `via:'run'` only lends its line to "Go to line N" (the canvas
- * already prints a run's error). @type {Map<string, {message: string, line: number, via: 'edit'|'run'}>} */
+ * already prints a run's error), `via:'live'` is the live sketch's (K-9), drawn like an edit's.
+ * @type {Map<string, {message: string, line: number, via: 'edit'|'run'|'live'}>} */
 const ERRORS = new Map();
+
+/** K-9: a RUN drew this box — its live sketch (if it is live) follows what was drawn. One hook per
+ * box on screen, set by its `render()`. @type {Map<string, () => void>} */
+const DREW = new Map();
 
 /** @param {any} id @returns {string} */
 const key = (id) => String(id == null ? '' : id);
@@ -473,6 +517,33 @@ export const preview = /** @type {any} */ ({
     let destroyed = false;
     /** The order the Save buttons were last laid out in. */
     let saveOrder = '';
+    // ---- K-9, live ----
+    /** The live guest's handle while this box is live. @type {any} */ let liveH = null;
+    /** ▶ Live was pressed and the sandbox is being fetched. */
+    let liveStarting = false;
+    /** The code the live guest is running (the one its errors' lines are counted in). */
+    let liveCode = '';
+    /** The mode it was started in. */
+    let liveModeNow = '';
+    /** Why the NEXT stop happens, when this box asked for it (the host only knows 'stopped'). */
+    let liveWhy = '';
+    /** A live error is showing (the first one wins; a draw() that throws every frame is one error). */
+    let liveErrShown = false;
+    /** @type {Function[]} */ let liveOffs = [];
+    /** Is the box on screen, as the IntersectionObserver last said? */
+    let onScreen = true;
+    /** @type {any} */ let io = null;
+    /** @type {any} */ let ro = null;
+    /** @type {any} */ let busOff = null;
+    /** While this box writes its own `live` setting, `update()` must not act on the echo. */
+    let writingLive = false;
+    // ---- K-8, the drawer's editor ----
+    /** @type {any} */ let editor = null;
+    /** The text the editor was last given or gave us, so nothing is echoed back to it. */
+    let editorText2 = null;
+    /** The error the editor was last told about ('' = none). */
+    let editorErr = '';
+    /** @type {any} */ let commitTimer = 0;
 
     const wrap = document.createElement('div');
     wrap.className = 'graph-preview';
@@ -492,9 +563,11 @@ export const preview = /** @type {any} */ ({
       ],
       readSettings(part.settings).mode,
       (v) => {
+        const was = effectiveMode();
         ctx.update({ mode: v });
         ctx.commit(t('parts.previewLabel'));
         live = { ...live, settings: { ...(live.settings || {}), mode: v } };
+        liveAfterSettings(was);
         redrawNow();
       },
     );
@@ -518,22 +591,45 @@ export const preview = /** @type {any} */ ({
     const sizeRow = document.createElement('div');
     sizeRow.className = 'graph-preview-size';
     const w = numberField(t('parts.previewWidth'), readSettings(part.settings).w, MIN_SIZE, (n) => {
+      const was = effectiveMode();
       ctx.update({ w: n });
       ctx.commit(t('parts.previewWidth'));
       live = { ...live, settings: { ...(live.settings || {}), w: n } };
+      liveAfterSettings(was);
       redrawNow();
     }, MAX_SIZE);
     const h = numberField(t('parts.previewHeight'), readSettings(part.settings).h, MIN_SIZE, (n) => {
+      const was = effectiveMode();
       ctx.update({ h: n });
       ctx.commit(t('parts.previewHeight'));
       live = { ...live, settings: { ...(live.settings || {}), h: n } };
+      liveAfterSettings(was);
       redrawNow();
     }, MAX_SIZE);
-    sizeRow.append(w.node, h.node);
+    // K-9: ▶ Live / ■ Stop. In the size row because it shows for exactly the modes the size row
+    // does — the ones the guest draws — and it is about the picture, not the code.
+    const liveBtn = button(t('parts.previewLive'), 'graph-preview-live');
+    liveBtn.setAttribute('data-part', id);
+    liveBtn.setAttribute('aria-pressed', 'false');
+    liveBtn.addEventListener('click', (/** @type {any} */ ev) => {
+      if (ev && typeof ev.preventDefault === 'function') ev.preventDefault();
+      if (liveH || liveStarting) { endLive('stopped'); return; }
+      void goLive({ pressed: true });
+    });
+    sizeRow.append(w.node, h.node, liveBtn);
 
     // ---- the picture, what it is, and what went wrong ---------------------------------------
     const body = document.createElement('div');
     body.className = 'graph-preview-body';
+    // K-9: the live stage, laid over the picture area while the box is live, and the mount the
+    // sandbox host makes its live iframe in. `data-live-stage` is what the canvas's input guard
+    // looks for: nothing over it pans, zooms, drags, selects or fires a canvas shortcut.
+    const stage = document.createElement('div');
+    stage.className = 'graph-preview-stage';
+    stage.setAttribute('data-live-stage', id);
+    const liveMount = document.createElement('div');
+    liveMount.className = 'graph-preview-live-mount';
+    stage.appendChild(liveMount);
     // A double-click ON THE WORDS of a markdown page selects a word — the browser's own meaning,
     // and the first half of copying one. It is remembered for the one event turn in which the
     // canvas may also ask this box to `edit()` (K-2), so that call does not pull the caret away.
@@ -573,7 +669,8 @@ export const preview = /** @type {any} */ ({
     area.setAttribute('data-part', id);
     area.placeholder = t('parts.previewSourceHint');
     area.value = editorText();
-    area.addEventListener('input', () => {
+    /** An edit of the code — typed here, or in the drawer's editor (K-8). */
+    const onAreaInput = () => {
       // TAKE THE LOCKS FIRST: `ctx.update()` reaches the document and the canvas hands the edited
       // part straight back to `update()` on this same turn — which must not re-seed the field.
       typed = true;
@@ -582,8 +679,13 @@ export const preview = /** @type {any} */ ({
       REFUSED.delete(id);
       ctx.update({ source: String(area.value) });
       scheduleDraw(EDIT_DEBOUNCE_MS);
+    };
+    area.addEventListener('input', () => {
+      onAreaInput();
+      syncEditor();
     });
     const leave = () => {
+      if (commitTimer) { clearTimeout(commitTimer); commitTimer = 0; }
       if (!typed) return;
       typed = false;
       EDITING.delete(id);
@@ -592,6 +694,15 @@ export const preview = /** @type {any} */ ({
     };
     area.addEventListener('change', leave);
     area.addEventListener('blur', leave);
+    // Ctrl+Enter (Cmd+Enter) in the code runs THIS code — it redraws, or restarts the live sketch.
+    // Stopped here: on the canvas the same keys run the whole graph, which is not what a person
+    // typing a sketch means.
+    area.addEventListener('keydown', (/** @type {any} */ ev) => {
+      if (ev.key !== 'Enter' || !(ev.ctrlKey || ev.metaKey) || ev.isComposing) return;
+      ev.preventDefault();
+      ev.stopPropagation();
+      runCode();
+    });
 
     // ---- save as -----------------------------------------------------------------------------
     const saves = document.createElement('div');
@@ -610,7 +721,28 @@ export const preview = /** @type {any} */ ({
       saves.appendChild(b);
     }
 
-    wrap.append(head, sizeRow, body, note, kept, error, codeToggle, area, saves);
+    // ---- run code / edit code (K-8, K-9) -------------------------------------------------------
+    const tools = document.createElement('div');
+    tools.className = 'graph-preview-tools';
+    const runBtn = button(t('parts.previewRunCode'), 'graph-preview-run');
+    runBtn.setAttribute('data-part', id);
+    runBtn.title = t('parts.previewRunCodeHint');
+    runBtn.hidden = true;
+    runBtn.addEventListener('click', (/** @type {any} */ ev) => {
+      if (ev && typeof ev.preventDefault === 'function') ev.preventDefault();
+      runCode();
+    });
+    const editBtn = button(t('parts.previewEditCode'), 'graph-preview-edit');
+    editBtn.setAttribute('data-part', id);
+    editBtn.title = t('parts.previewEditCodeHint');
+    editBtn.hidden = true;
+    editBtn.addEventListener('click', (/** @type {any} */ ev) => {
+      if (ev && typeof ev.preventDefault === 'function') ev.preventDefault();
+      openEditor();
+    });
+    tools.append(runBtn, editBtn, saves);
+
+    wrap.append(head, sizeRow, body, note, kept, error, codeToggle, area, tools);
     host.replaceChildren(wrap);
 
     // ---- what the box knows ------------------------------------------------------------------
@@ -741,6 +873,9 @@ export const preview = /** @type {any} */ ({
     // ---- painting ------------------------------------------------------------------------------
 
     function paintBody() {
+      // While live, the body holds the live stage — and its iframe, which a re-parent or a
+      // replaceChildren would reload. Nothing here touches it until the box leaves live.
+      if (stage.parentNode === body) return;
       const shot = shownOf(id);
       const stamp = shot
         ? `${shot.mode}|${shot.at}|${(shot.dataUrl || shot.svg || shot.text || '').length}`
@@ -807,19 +942,35 @@ export const preview = /** @type {any} */ ({
 
       // the one-line note: what the box is doing, or what it is showing
       const hasCode = !!String(area.value || '').trim();
+      const isLive = !!liveH;
       let said2 = '';
-      if (pending) said2 = t('parts.previewDrawing');
+      if (liveStarting || (isLive && liveH.state() === 'booting')) said2 = t('parts.previewLiveStarting');
+      else if (isLive) said2 = t('parts.previewLiveNote');
+      else if (pending) said2 = t('parts.previewDrawing');
       else if (!shot) said2 = hasCode ? t('parts.previewPress') : t('parts.previewEmpty');
       else if (shot.mode !== 'markdown' && shot.mode !== 'svg') said2 = t('parts.previewSnapshot');
       note.textContent = said2;
       note.hidden = !said2;
-      note.setAttribute('data-state', pending ? 'drawing' : shot ? 'shown' : hasCode ? 'ready' : 'empty');
+      note.setAttribute('data-state', isLive || liveStarting ? 'live' : pending ? 'drawing' : shot ? 'shown' : hasCode ? 'ready' : 'empty');
+
+      // ▶ Live / ■ Stop, Run code, Edit code
+      const liveOn = isLive || liveStarting;
+      const canLive = LIVE_MODES.indexOf(mode) >= 0 && hasCode;
+      liveBtn.textContent = liveOn ? t('parts.previewStop') : t('parts.previewLive');
+      liveBtn.title = liveOn ? t('parts.previewStopHint') : t('parts.previewLiveHint');
+      liveBtn.setAttribute('aria-pressed', liveOn ? 'true' : 'false');
+      liveBtn.disabled = !liveOn && !canLive;
+      liveBtn.hidden = LIVE_MODES.indexOf(mode) < 0;
+      runBtn.hidden = !hasCode;
+      runBtn.title = isLive ? t('parts.previewRunLiveHint') : t('parts.previewRunCodeHint');
+      const drawer = ctx.app && ctx.app.drawer;
+      editBtn.hidden = !(drawer && typeof drawer.editCode === 'function');
 
       // the error that names a line
       const err = ERRORS.get(id);
       let text = '';
       let line = 0;
-      if (err && err.via === 'edit') { text = err.message; line = err.line; }
+      if (err && (err.via === 'edit' || err.via === 'live')) { text = err.message; line = err.line; }
       else if (err && err.via === 'run' && err.line > 0 && live.state === 'error') {
         text = t('parts.previewGoto', { line: err.line });
         line = err.line;
@@ -844,9 +995,351 @@ export const preview = /** @type {any} */ ({
         saves.replaceChildren(...on.concat(rest).map((e) => saveButtons.get(e)));
       }
       saves.hidden = !on.length;
+      tools.hidden = runBtn.hidden && editBtn.hidden && saves.hidden;
+
+      // the drawer's editor (K-8) follows the box: its text, and the error that names a line
+      syncEditor();
+      const errKey = text ? `${line}|${text}` : '';
+      if (editor && errKey !== editorErr) {
+        editorErr = errKey;
+        try { editor.setError(text ? { line: line || 0, message: text } : null); } catch { /* the editor went away */ }
+      }
     }
 
+    // ---- the drawer's code editor (K-8) ----------------------------------------------------------
+
+    /** Hand the box's code to the editor, unless the editor already holds it. Compared with what
+     * the editor really HOLDS (critic L1-2), not with what it was last sent: a hand-over the editor
+     * refused — the person's pending typing reached the box first — must be offered again. */
+    function syncEditor() {
+      if (editor && typeof editor.isOpen === 'function' && !editor.isOpen()) { editor = null; editorText2 = null; editorErr = ''; }
+      if (!editor) return;
+      const now = String(area.value || '');
+      const holds = typeof editor.text === 'function' ? String(editor.text()) : editorText2;
+      if (now === holds) { editorText2 = now; return; }
+      editorText2 = now;
+      try { editor.setSource(now); } catch { /* the editor went away */ }
+    }
+
+    /** Edit code: the big editor in the right-hand drawer, two-way with this box's field. Called
+     * only when the drawer offers it (`app.drawer.editCode`, builder E). */
+    function openEditor() {
+      const drawer = ctx.app && ctx.app.drawer;
+      if (destroyed || !drawer || typeof drawer.editCode !== 'function') return;
+      const source = String(area.value || '');
+      editorText2 = source;
+      editorErr = '';
+      let handle = null;
+      try {
+        handle = drawer.editCode({
+          partId: id,
+          title: presetTitle(live) || t('parts.previewLabel'),
+          mode: effectiveMode() || readSettings(live.settings).mode,
+          source,
+          onChange: (/** @type {any} */ text) => {
+            if (destroyed || editor !== handle) return;
+            const next = String(text == null ? '' : text);
+            if (next === String(area.value || '')) return;
+            editorText2 = next;
+            area.value = next;
+            onAreaInput();
+            // One pause in the drawer's typing closes the edit as one undo step, as leaving the
+            // box's own field does.
+            if (commitTimer) clearTimeout(commitTimer);
+            commitTimer = setTimeout(() => { commitTimer = 0; leave(); }, EDITOR_COMMIT_MS);
+          },
+          onRun: () => { if (!destroyed && editor === handle) runCode(); },
+          // Additive in builder E's drawer: told once, however the editor ends (Close, Escape,
+          // another box's Edit code). The edit in progress is closed as one undo step then.
+          onClose: () => {
+            if (editor !== handle) return;
+            editor = null;
+            editorText2 = null;
+            editorErr = '';
+            if (!destroyed) leave();
+          },
+        });
+      } catch (err) {
+        console.warn('[lolchat] the code editor did not open', err);
+        handle = null;
+      }
+      editor = handle || null;
+      paint();
+    }
+
+    // ---- run code (K-9) ----------------------------------------------------------------------------
+
+    /** Run code / Ctrl+Enter: the code as it is NOW — a redraw, or, while live, a restart of the
+     * live sketch. Never the graph: this box only. */
+    function runCode() {
+      if (destroyed) return;
+      if (liveH) { void restartLive(); return; }
+      if (timer) { clearTimeout(timer); timer = 0; }
+      void editDraw();
+    }
+
+    // ---- live (K-9) --------------------------------------------------------------------------------
+
+    /** The live stage: laid over the picture area; the frame inside is the box's W x H, scaled to
+     * fit (`liveFit`). The sandbox host puts its iframe in `liveMount`. */
+    function layoutStage() {
+      if (stage.parentNode !== body) return;
+      const s = readSettings(live.settings);
+      const f = liveFit(stage.clientWidth, stage.clientHeight, s.w, s.h);
+      liveMount.style.width = `${s.w}px`;
+      liveMount.style.height = `${s.h}px`;
+      liveMount.style.transform = `translate(${f.x}px, ${f.y}px) scale(${f.k})`;
+    }
+
+    /**
+     * Critic L1-4: the stage SAYS when the sketch holds the keyboard. Chromium matches neither
+     * `:focus` nor `:focus-within` for an iframe whose document has the focus, so the stage is
+     * marked by hand: the page's window blurs when the focus goes into the frame, and gets it back
+     * when it comes out (Escape, a click elsewhere). Two listeners while live; nothing per frame.
+     */
+    const onKeysMaybeGone = () => {
+      const a = typeof document !== 'undefined' ? document.activeElement : null;
+      if (a && liveMount.contains(a)) stage.setAttribute('data-keys', 'sketch');
+      else stage.removeAttribute('data-keys');
+    };
+    const winOf = () => (typeof window !== 'undefined' && window && typeof window.addEventListener === 'function' ? window : null);
+
+    function showStage() {
+      liveMount.replaceChildren();
+      body.replaceChildren(stage);
+      body.setAttribute('data-live', 'on');
+      body.removeAttribute('data-selectable');
+      drawn = null;
+      layoutStage();
+      if (!ro && typeof ResizeObserver === 'function') {
+        ro = new ResizeObserver(() => layoutStage());
+        ro.observe(stage);
+      }
+      const w = winOf();
+      if (w) { w.addEventListener('blur', onKeysMaybeGone); w.addEventListener('focus', onKeysMaybeGone); }
+    }
+
+    function hideStage() {
+      if (ro) { try { ro.disconnect(); } catch { /* gone */ } ro = null; }
+      const w = winOf();
+      if (w) { w.removeEventListener('blur', onKeysMaybeGone); w.removeEventListener('focus', onKeysMaybeGone); }
+      stage.removeAttribute('data-keys');
+      if (stage.parentNode) stage.remove();
+      liveMount.replaceChildren();
+      body.removeAttribute('data-live');
+      drawn = null;
+    }
+
+    /** Can the page be seen at all? (A minimised window, or the harness's forced flag.) */
+    function pageVisible() {
+      const st = ctx.app && ctx.app.state;
+      return !(st && st.pageVisible === false);
+    }
+
+    /** Does the person want this box live, and could it be? */
+    function wantsLive() {
+      return readSettings(live.settings).live && LIVE_MODES.indexOf(effectiveMode()) >= 0
+        && !!String(area.value || '').trim() && pageVisible() && onScreen;
+    }
+
+    /** Watch what pauses and resumes a live box: the box on screen (an IntersectionObserver,
+     * which also sees the Computer hidden — the box then has no box at all) and the window's
+     * visibility. Armed only while the box is live or wants to be: a canvas with no live box pays
+     * nothing for this, per frame or otherwise. */
+    function armWatch() {
+      if (!io && typeof IntersectionObserver === 'function') {
+        io = new IntersectionObserver((entries) => {
+          const e = entries[entries.length - 1];
+          onScreen = !!(e && e.isIntersecting);
+          if (!onScreen) { if (liveH || liveStarting) endLive('offscreen'); }
+          else if (!liveH && !liveStarting && wantsLive()) void goLive({ pressed: false });
+        });
+        io.observe(wrap);
+      }
+      const bus = ctx.app && ctx.app.bus;
+      if (!busOff && bus && typeof bus.on === 'function') {
+        busOff = bus.on(EV.VISIBLE, (/** @type {any} */ p) => {
+          if (p && p.pageVisible === false) { if (liveH || liveStarting) endLive('page'); }
+          else if (!liveH && !liveStarting && wantsLive()) void goLive({ pressed: false });
+        });
+      }
+    }
+
+    function disarmWatch() {
+      if (io) { try { io.disconnect(); } catch { /* gone */ } io = null; }
+      if (typeof busOff === 'function') { try { busOff(); } catch { /* gone */ } }
+      busOff = null;
+      onScreen = true;
+    }
+
+    /** Write the person's choice to the `live` setting. View state, like the zoom (critic L1-3,
+     * L1-5): saved with the document, never an undo entry — an Undo that took back one half of a
+     * takeover left a box saying live with no frame — and it marks nothing stale.
+     * @param {boolean} on */
+    function setLiveChoice(on) {
+      if (readSettings(live.settings).live === on) return;
+      writingLive = true;
+      try {
+        ctx.update({ live: on }, { stale: false, undoable: false });
+      } finally { writingLive = false; }
+      live = { ...live, settings: { ...(live.settings || {}), live: on } };
+    }
+
+    /** The code the guest runs for this mode (a web page goes as markup, untouched). */
+    function guestCode(/** @type {string} */ mode, /** @type {string} */ code) {
+      return mode === 'html' ? code : shapeForGuest(mode, code);
+    }
+
+    /** ▶ Live. `pressed` is the person's click (it takes over from another live box); otherwise
+     * the box is RESUMING a choice it already had, which never takes over. @param {{pressed: boolean}} o */
+    async function goLive(o) {
+      if (destroyed || liveH || liveStarting) return;
+      const mode = effectiveMode();
+      const code = String(area.value || '');
+      if (LIVE_MODES.indexOf(mode) < 0 || !code.trim()) return;
+      liveStarting = true;
+      if (o.pressed) { onScreen = true; setLiveChoice(true); }
+      armWatch();
+      paint();
+      const sandbox = typeof ctx.sandbox === 'function' ? await ctx.sandbox() : null;
+      const cancelled = !liveStarting;
+      liveStarting = false;
+      if (destroyed || cancelled) { paint(); return; }
+      if (!sandbox || typeof sandbox.live !== 'function') {
+        ERRORS.set(id, { message: t('parts.previewLiveUnavailable'), line: 0, via: 'live' });
+        setLiveChoice(false);
+        disarmWatch();
+        paint();
+        return;
+      }
+      // Critic L2-1: a RESUME that finds another box already live never takes over — and this box
+      // stops claiming live, so a duplicate, an undone delete or an import that copied the flag
+      // does not leave two boxes saying so (which one reopens live would otherwise be arbitrary).
+      if (!o.pressed && typeof sandbox.liveNow === 'function' && sandbox.liveNow()) { setLiveChoice(false); paint(); return; }
+      const s = readSettings(live.settings);
+      showStage();
+      liveCode = code;
+      liveModeNow = mode;
+      liveWhy = '';
+      liveErrShown = false;
+      if (ERRORS.has(id) && /** @type {any} */ (ERRORS.get(id)).via === 'live') ERRORS.delete(id);
+      const hnd = sandbox.live({
+        mount: liveMount,
+        mode,
+        code: guestCode(mode, code),
+        css: mode === 'html' ? PAGE_CSS : undefined,
+        size: { w: s.w, h: s.h },
+        inputs: { width: s.w, height: s.h, mode },
+      });
+      liveH = hnd;
+      liveOffs.push(hnd.on((/** @type {any} */ ev) => onLiveEvent(hnd, ev)));
+      if (hnd.state() === 'stopped' || hnd.state() === 'stalled') { onLiveEvent(hnd, { type: 'stopped', why: 'no-mount' }); return; }
+      paint();
+      const out = await hnd.ready;
+      if (liveH !== hnd || destroyed) return;
+      if (out && !out.ok) liveError(out.error);
+      paint();
+    }
+
+    /** A live error is shown like an edit's: the sentence, its line, "Go to line" by clicking. */
+    function liveError(/** @type {any} */ e) {
+      if (liveErrShown) return;
+      liveErrShown = true;
+      ERRORS.set(id, { message: sandboxMessage(e, liveCode, liveModeNow), line: lineOf(e, liveCode), via: 'live' });
+    }
+
+    /** @param {any} hnd @param {any} ev */
+    function onLiveEvent(hnd, ev) {
+      if (hnd !== liveH || !ev) return;
+      if (ev.type === 'error') { liveError(ev.error); paint(); return; }
+      if (ev.type === 'state') { paint(); return; }
+      if (ev.type === 'release') { giveBackKeys(); return; }
+      if (ev.type === 'stopped') {
+        const why = liveWhy || String(ev.why || 'stopped');
+        liveWhy = '';
+        liveH = null;
+        for (const off of liveOffs) { try { off(); } catch { /* gone */ } }
+        liveOffs = [];
+        hideStage();
+        if (why === 'stalled' || why === 'run-timeout' || why === 'dropped') {
+          ERRORS.set(id, { message: t('parts.previewLiveStalled'), line: 0, via: 'live' });
+        } else if (ERRORS.has(id) && /** @type {any} */ (ERRORS.get(id)).via === 'live' && why !== 'offscreen' && why !== 'page') {
+          ERRORS.delete(id);
+        }
+        if (!destroyed && liveEndsChoice(why)) setLiveChoice(false);
+        if (!readSettings(live.settings).live || destroyed) disarmWatch();
+        if (!destroyed) paint();
+      }
+    }
+
+    /** Stop the live sketch, saying why (the host only knows it was asked to). @param {string} why */
+    function endLive(why) {
+      if (liveStarting && !liveH) {
+        liveStarting = false;                       // goLive() sees it and stands down
+        if (liveEndsChoice(why)) setLiveChoice(false);
+        if (!readSettings(live.settings).live) disarmWatch();
+        paint();
+        return;
+      }
+      if (!liveH) return;
+      liveWhy = why;
+      try { liveH.stop(); } catch { /* already gone */ }
+    }
+
+    /** Run the code as it is now in the SAME live frame (Run code, Ctrl+Enter, a new size). */
+    async function restartLive() {
+      const hnd = liveH;
+      if (!hnd) return;
+      const s = readSettings(live.settings);
+      const code = String(area.value || '');
+      liveCode = code;
+      liveErrShown = false;
+      if (ERRORS.has(id) && /** @type {any} */ (ERRORS.get(id)).via === 'live') ERRORS.delete(id);
+      layoutStage();
+      paint();
+      const out = await hnd.restart(guestCode(liveModeNow, code), { size: { w: s.w, h: s.h }, inputs: { width: s.w, height: s.h, mode: liveModeNow } });
+      if (liveH !== hnd || destroyed) return;
+      if (out && !out.ok) liveError(out.error);
+      paint();
+    }
+
+    /** A setting changed while live: another mode means another guest; another size, a restart.
+     * @param {string} wasMode */
+    function liveAfterSettings(wasMode) {
+      if (!liveH) return;
+      const mode = effectiveMode();
+      if (LIVE_MODES.indexOf(mode) < 0) { endLive('mode'); return; }
+      if (mode !== wasMode || mode !== liveModeNow) {
+        endLive('switch');
+        void goLive({ pressed: true });
+        return;
+      }
+      void restartLive();
+    }
+
+    /** Escape inside the sketch: the keyboard goes back to the canvas, on this box. */
+    function giveBackKeys() {
+      const boxEl = /** @type {any} */ (wrap.closest ? wrap.closest('.graph-part') : null);
+      try { if (boxEl && typeof boxEl.focus === 'function') boxEl.focus({ preventScroll: true }); } catch { /* detached */ }
+    }
+
+    /** A run drew this box while it is live: the live sketch restarts with what the box now
+     * shows — an arrival from the wire, or the box's own code — in the mode it was drawn in. */
+    const onDrew = () => {
+      if (!liveH || destroyed) return;
+      if (!typed) {
+        const want = editorText();
+        if (area.value !== want) area.value = want;
+      }
+      const mode = effectiveMode();
+      if (LIVE_MODES.indexOf(mode) < 0) { endLive('mode'); return; }
+      if (mode !== liveModeNow) { endLive('switch'); void goLive({ pressed: true }); return; }
+      void restartLive();
+    };
+    DREW.set(id, onDrew);
+
     paint();
+    if (readSettings(part.settings).live) armWatch();
 
     // A box that has never drawn, holds code and has nothing wired in shows its code at once: an
     // SVG or a markdown page for free, a sketch only while the box is fresh (`idle`) — reopening a
@@ -881,6 +1374,18 @@ export const preview = /** @type {any} */ ({
         const prev = live;
         live = next;
         const forgot = forgetArrival(prev, next);
+        // The `live` setting changed from OUTSIDE this box (Undo, Redo, an import): follow it.
+        // A change this box is writing itself is an echo, and is ignored.
+        if (!writingLive) {
+          const was = readSettings(prev && prev.settings).live;
+          const now = readSettings(next && next.settings).live;
+          if (was !== now && !now && (liveH || liveStarting)) endLive('setting');
+          else if (was !== now && now && !liveH && !liveStarting) {
+            const armed = !!io;
+            armWatch();
+            if (armed && wantsLive()) void goLive({ pressed: false });
+          }
+        }
         paint();
         if (forgot && String(area.value || '').trim() && !wiredIn(ctx, id)) {
           const mode = readSettings(next.settings).mode;
@@ -900,6 +1405,16 @@ export const preview = /** @type {any} */ ({
       destroy() {
         destroyed = true;
         if (timer) { clearTimeout(timer); timer = 0; }
+        if (commitTimer) { clearTimeout(commitTimer); commitTimer = 0; }
+        // The box is going (deleted, or another document opened): its live sketch goes with it,
+        // without touching the setting — the document keeps what the person chose.
+        liveStarting = false;
+        if (liveH) { liveWhy = 'gone'; try { liveH.stop(); } catch { /* already gone */ } }
+        liveH = null;
+        disarmWatch();
+        hideStage();
+        if (editor) { try { editor.close(); } catch { /* already closed */ } editor = null; }
+        if (DREW.get(id) === onDrew) DREW.delete(id);
         clearShown(id);
         wrap.remove();
       },
@@ -955,6 +1470,8 @@ export const preview = /** @type {any} */ ({
     }
     // A new arrival is shown in the editor again; the person's claim was on the old one.
     if (!useOwn) OWNED.delete(id);
+    const drew = DREW.get(id);
+    if (drew) { try { drew(); } catch (err) { console.warn('[lolchat] the live preview did not follow the run', err); } }
     return null;
   },
 });

@@ -30,6 +30,10 @@
   var logsLeft = 0, errsLeft = 0, logsDropped = 0, errsDropped = 0;
   var params = {};
   var onParams = [];
+  // K-9: a LIVE guest (the host says so in `boot`) runs inside a box on the canvas, visible, with
+  // real input: nothing is flushed early for a photograph, `lol.orbit` listens, and Escape hands
+  // the keyboard back. A snapshot guest never becomes live, and the reverse.
+  var liveMode = false;
 
   function send(kind, payload) {
     var msg = { v: V, tok: tok || '', kind: kind };
@@ -108,11 +112,15 @@
   // animation keeps exactly one loop.
   var FRAME_MS = 1000 / 60;
   var queued = null;
+  // How many animation-frame callbacks the page has run (K-7): `lol.orbit` reads it to tell a
+  // scene with its own loop (which will re-render the moved camera) from a scene drawn once.
+  var pageFrames = 0;
   window.requestAnimationFrame = function (fn) {
     var entry = { fn: fn, done: false };
     var h = _raf.call(window, function (ts) {
       if (entry.done) return;
       entry.done = true;
+      pageFrames++;
       fn(ts);
     });
     if (tracking) rafs.push(h);
@@ -177,6 +185,8 @@
     var i;
     runSeq++;
     queued = null;
+    disposeOrbits();
+    lastRender = null;
     for (i = 0; i < sketches.length; i++) { try { sketches[i].remove(); } catch (e) { /* gone */ } }
     for (i = 0; i < rafs.length; i++) { try { _caf.call(window, rafs[i]); } catch (e) { /* gone */ } }
     for (i = 0; i < timers.length; i++) {
@@ -302,6 +312,284 @@
     ch.port2.postMessage(0);
   }
 
+  // ---- K-7: lol.orbit(camera, opts?) ---------------------------------------------------------
+  // Camera controls for a three.js scene, first-party because the official OrbitControls ship
+  // only as an ES module importing 'three' (using them would mean editing a vendored file, rule 14).
+  // Drag rotates about a target, the wheel or a pinch zooms, right-drag or Shift-drag pans, with
+  // damping. In a snapshot there is no mouse: it is a harmless no-op that returns the same shape.
+  // The math between the two ORBIT-MATH markers is pure (no DOM, no THREE) and is exercised in
+  // Node by shell/test/chat/unit/sandbox-live.test.mjs, which evaluates exactly these lines.
+  // ORBIT-MATH BEGIN
+  var ORBIT_EPS = 1e-6;
+  var ORBIT_MIN_PHI = 0.0001;
+  var ORBIT_MIN_R = 1e-3, ORBIT_MAX_R = 1e6;
+
+  /** A fresh orbit state around `target` ({x, y, z}), damping in [0, 1): 0 applies input at once. */
+  function orbitState(target, damping) {
+    var d = Number(damping);
+    return {
+      target: target,
+      damping: isFinite(d) && d > 0 && d < 1 ? d : (isFinite(d) && d === 0 ? 0 : 0.15),
+      dTheta: 0, dPhi: 0, logScale: 0, pan: { x: 0, y: 0, z: 0 },
+      first: true
+    };
+  }
+
+  /** The camera's place around the target, as the sphere the orbit moves it on. */
+  function orbitSphere(st, cam) {
+    var ox = cam.position.x - st.target.x, oy = cam.position.y - st.target.y, oz = cam.position.z - st.target.z;
+    var r = Math.sqrt(ox * ox + oy * oy + oz * oz);
+    if (!(r > ORBIT_MIN_R)) return { r: ORBIT_MIN_R, theta: 0, phi: Math.PI / 2 };
+    return { r: r, theta: Math.atan2(ox, oz), phi: Math.acos(Math.max(-1, Math.min(1, oy / r))) };
+  }
+
+  /** A drag of (dx, dy) px on a view `h` px tall turns the camera: a full height is a full turn. */
+  function orbitRotate(st, dx, dy, h) {
+    var k = 2 * Math.PI / Math.max(1, h);
+    st.dTheta -= dx * k;
+    st.dPhi -= dy * k;
+  }
+
+  /** A pan of (dx, dy) px moves the target in the camera's own plane, so the point under the
+   * pointer follows it (at the target's depth). */
+  function orbitPan(st, cam, dx, dy, h) {
+    var s = orbitSphere(st, cam);
+    var unit;
+    if (cam.isOrthographicCamera) {
+      unit = (Number(cam.top) - Number(cam.bottom)) / (Number(cam.zoom) || 1) / Math.max(1, h);
+    } else {
+      var fov = (Number(cam.fov) || 50) * Math.PI / 180;
+      unit = 2 * s.r * Math.tan(fov / 2) / Math.max(1, h);
+    }
+    var st1 = Math.sin(s.theta), ct = Math.cos(s.theta), sp = Math.sin(s.phi), cp = Math.cos(s.phi);
+    // right = (cos t, 0, -sin t); up = (-cos p sin t, sin p, -cos p cos t)
+    st.pan.x += -dx * unit * ct + dy * unit * (-cp * st1);
+    st.pan.y += dy * unit * sp;
+    st.pan.z += dx * unit * st1 + dy * unit * (-cp * ct);
+  }
+
+  /** Zoom by `factor` (> 1 moves away, < 1 comes closer). */
+  function orbitZoom(st, factor) {
+    var f = Number(factor);
+    if (isFinite(f) && f > 0) st.logScale += Math.log(f);
+  }
+
+  /** What a wheel event means: pixels (or lines/pages) of scroll, or a pinch (ctrl + wheel). */
+  function orbitWheelFactor(deltaY, deltaMode, pinch) {
+    var dy = Number(deltaY) || 0;
+    if (deltaMode === 1) dy *= 16;
+    else if (deltaMode === 2) dy *= 400;
+    return Math.exp(dy * (pinch ? 0.01 : 0.0015));
+  }
+
+  /** One step: move the camera by (a damped share of) what input asked for, then look at the
+   * target. `advance` false re-applies without spending damping (a second update in one frame).
+   * Returns true when the camera moved. */
+  function orbitStep(st, cam, advance) {
+    var k = advance === false ? 0 : (st.damping > 0 ? st.damping : 1);
+    var s = orbitSphere(st, cam);
+    var dT = st.dTheta * k, dP = st.dPhi * k, dL = st.logScale * k;
+    var px = st.pan.x * k, py = st.pan.y * k, pz = st.pan.z * k;
+    st.dTheta -= dT; st.dPhi -= dP; st.logScale -= dL;
+    st.pan.x -= px; st.pan.y -= py; st.pan.z -= pz;
+    if (Math.abs(st.dTheta) < ORBIT_EPS) st.dTheta = 0;
+    if (Math.abs(st.dPhi) < ORBIT_EPS) st.dPhi = 0;
+    if (Math.abs(st.logScale) < ORBIT_EPS) st.logScale = 0;
+    if (Math.abs(st.pan.x) + Math.abs(st.pan.y) + Math.abs(st.pan.z) < ORBIT_EPS) { st.pan.x = 0; st.pan.y = 0; st.pan.z = 0; }
+    var moved = st.first || Math.abs(dT) + Math.abs(dP) + Math.abs(dL) + Math.abs(px) + Math.abs(py) + Math.abs(pz) > ORBIT_EPS;
+    st.first = false;
+    if (!moved) return false;
+    var theta = s.theta + dT;
+    var phi = Math.max(ORBIT_MIN_PHI, Math.min(Math.PI - ORBIT_MIN_PHI, s.phi + dP));
+    var r = s.r;
+    if (dL) {
+      if (cam.isOrthographicCamera) {
+        cam.zoom = Math.max(ORBIT_MIN_R, (Number(cam.zoom) || 1) / Math.exp(dL));
+        if (typeof cam.updateProjectionMatrix === 'function') cam.updateProjectionMatrix();
+      } else {
+        r = Math.max(ORBIT_MIN_R, Math.min(ORBIT_MAX_R, r * Math.exp(dL)));
+      }
+    }
+    if (typeof st.target.set === 'function') st.target.set(st.target.x + px, st.target.y + py, st.target.z + pz);
+    else { st.target.x += px; st.target.y += py; st.target.z += pz; }
+    var sp = Math.sin(phi);
+    cam.position.x = st.target.x + r * sp * Math.sin(theta);
+    cam.position.y = st.target.y + r * Math.cos(phi);
+    cam.position.z = st.target.z + r * sp * Math.cos(theta);
+    if (typeof cam.lookAt === 'function') cam.lookAt(st.target.x, st.target.y, st.target.z);
+    return true;
+  }
+  // ORBIT-MATH END
+
+  // Every orbit the current run made; reset() takes them all back.
+  var orbits = [];
+  // The last `renderer.render(scene, camera)` (live mode, K-7): a scene drawn ONCE, with no loop
+  // of its own, is re-rendered by the orbit when it moves the camera.
+  var lastRender = null;
+
+  function disposeOrbits() {
+    var list = orbits;
+    orbits = [];
+    for (var i = 0; i < list.length; i++) { try { list[i].dispose(); } catch (e) { /* gone */ } }
+  }
+
+  // In live mode, three's renderer is wrapped ONCE (after the library text is evaluated) so the
+  // guest knows the last scene and camera it drew. The vendored file is not touched (rule 14):
+  // `window.THREE` becomes a copy of the library whose WebGLRenderer is a subclass, exactly the
+  // move the three.js prelude (graph/unfence.mjs) makes for its own reasons.
+  function trackThreeRenders() {
+    var T = window.THREE;
+    if (!T || typeof T.WebGLRenderer !== 'function' || T.__lolTracked) return;
+    var Base = T.WebGLRenderer;
+    var Tracked = class extends Base {
+      constructor(o) {
+        super(o);
+        var self = this;
+        var render = this.render;
+        if (typeof render === 'function') {
+          this.render = function (scene, camera) {
+            lastRender = { r: self, s: scene, c: camera };
+            return render.apply(this, arguments);
+          };
+        }
+      }
+    };
+    window.THREE = Object.assign({}, T, { WebGLRenderer: Tracked, __lolTracked: true });
+  }
+
+  function vec3(v) {
+    var a = Array.isArray(v) ? v : [0, 0, 0];
+    var x = Number(a[0]) || 0, y = Number(a[1]) || 0, z = Number(a[2]) || 0;
+    var T = window.THREE;
+    if (T && typeof T.Vector3 === 'function') return new T.Vector3(x, y, z);
+    return { x: x, y: y, z: z, set: function (nx, ny, nz) { this.x = nx; this.y = ny; this.z = nz; return this; } };
+  }
+
+  function makeOrbit(camera, opts) {
+    var o = opts && typeof opts === 'object' ? opts : {};
+    var st = orbitState(vec3(o.target), o.damping);
+    var controls = { target: st.target, enabled: true, update: function () { return false; }, dispose: function () {} };
+    if (!liveMode || !camera || !camera.position) return controls;   // a snapshot: nothing to hold
+
+    var el = document.documentElement;
+    var raf = 0;
+    var seen = pageFrames;
+    var lastStep = 0;
+    var drag = null;                    // {mode: 'rotate'|'pan', x, y}
+    var touches = {};                   // pointerId -> {x, y}, for a two-finger pinch
+    var pinchD = 0;
+    var gone = false;
+    var viewH = function () { return window.innerHeight || root.clientHeight || 1; };
+    try {
+      root.style.touchAction = 'none'; el.style.touchAction = 'none';
+      root.style.userSelect = 'none'; el.style.userSelect = 'none';
+    } catch (e) { /* no style */ }
+
+    function step(advance) {
+      if (gone) return false;
+      var now = window.performance && performance.now ? performance.now() : Date.now();
+      var spend = advance !== false && now - lastStep >= 8;
+      if (spend) lastStep = now;
+      return orbitStep(st, camera, spend);
+    }
+    function loop() {
+      if (gone) return;
+      raf = _raf.call(window, loop);
+      if (!controls.enabled) return;
+      var moved = step(true);
+      // No page frame ran since the last tick: the scene has no loop of its own, so nothing will
+      // draw the moved camera unless the orbit does.
+      var looping = pageFrames !== seen;
+      seen = pageFrames;
+      if (moved && !looping && lastRender && lastRender.c === camera) {
+        try { lastRender.r.render(lastRender.s, camera); } catch (e) { report('runtime', e); }
+      }
+    }
+    function touchList() { var out = []; for (var k in touches) if (Object.prototype.hasOwnProperty.call(touches, k)) out.push(touches[k]); return out; }
+    function spread(list) { var dx = list[0].x - list[1].x, dy = list[0].y - list[1].y; return Math.sqrt(dx * dx + dy * dy); }
+
+    function onDown(e) {
+      if (!controls.enabled) return;
+      if (e.pointerType === 'touch') {
+        touches[e.pointerId] = { x: e.clientX, y: e.clientY };
+        var list = touchList();
+        if (list.length === 2) { pinchD = spread(list); drag = { mode: 'pan', x: (list[0].x + list[1].x) / 2, y: (list[0].y + list[1].y) / 2 }; }
+        else if (list.length === 1) drag = { mode: 'rotate', x: e.clientX, y: e.clientY };
+      } else {
+        var pan = e.button === 2 || (e.button === 0 && (e.shiftKey || e.ctrlKey || e.metaKey));
+        if (e.button !== 0 && e.button !== 2) return;
+        drag = { mode: pan ? 'pan' : 'rotate', x: e.clientX, y: e.clientY };
+      }
+      // NOT preventDefault: the press must still give this frame the keyboard (a scene may listen
+      // for keys too). `touch-action` and `user-select` below keep the browser's own gestures out.
+      try { if (e.target && e.target.setPointerCapture) e.target.setPointerCapture(e.pointerId); } catch (err) { /* no capture */ }
+    }
+    function onMove(e) {
+      if (!drag) return;
+      if (e.pointerType === 'touch') {
+        if (!touches[e.pointerId]) return;
+        touches[e.pointerId] = { x: e.clientX, y: e.clientY };
+        var list = touchList();
+        if (list.length === 2) {
+          var d = spread(list);
+          if (pinchD > 0 && d > 0) orbitZoom(st, pinchD / d);
+          pinchD = d;
+          var cx = (list[0].x + list[1].x) / 2, cy = (list[0].y + list[1].y) / 2;
+          orbitPan(st, camera, cx - drag.x, cy - drag.y, viewH());
+          drag.x = cx; drag.y = cy;
+          return;
+        }
+      }
+      var dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+      drag.x = e.clientX; drag.y = e.clientY;
+      if (drag.mode === 'pan') orbitPan(st, camera, dx, dy, viewH());
+      else orbitRotate(st, dx, dy, viewH());
+    }
+    function onUp(e) {
+      if (e.pointerType === 'touch') {
+        delete touches[e.pointerId];
+        var list = touchList();
+        pinchD = 0;
+        drag = list.length === 1 ? { mode: 'rotate', x: list[0].x, y: list[0].y } : null;
+        return;
+      }
+      drag = null;
+    }
+    function onWheel(e) {
+      if (!controls.enabled) return;
+      if (e.cancelable) e.preventDefault();       // the scene zooms; nothing scrolls, nothing chains
+      orbitZoom(st, orbitWheelFactor(e.deltaY, e.deltaMode, !!e.ctrlKey));
+    }
+    function onMenu(e) { if (e.cancelable) e.preventDefault(); }
+
+    // On the document, not the canvas: a label a sketch lays over its canvas must not eat the drag.
+    document.addEventListener('pointerdown', onDown);
+    document.addEventListener('pointermove', onMove);
+    document.addEventListener('pointerup', onUp);
+    document.addEventListener('pointercancel', onUp);
+    document.addEventListener('wheel', onWheel, { passive: false });
+    document.addEventListener('contextmenu', onMenu);
+    raf = _raf.call(window, loop);
+
+    controls.update = function () { return step(false) || false; };
+    controls.dispose = function () {
+      if (gone) return;
+      gone = true;
+      if (raf) { try { _caf.call(window, raf); } catch (e) { /* gone */ } raf = 0; }
+      document.removeEventListener('pointerdown', onDown);
+      document.removeEventListener('pointermove', onMove);
+      document.removeEventListener('pointerup', onUp);
+      document.removeEventListener('pointercancel', onUp);
+      document.removeEventListener('wheel', onWheel, { passive: false });
+      document.removeEventListener('contextmenu', onMenu);
+    };
+    // The first step aims the camera at the target now, so the first frame the sketch draws is
+    // already the orbit's view (OrbitControls does the same in its constructor's update()).
+    step(true);
+    orbits.push(controls);
+    return controls;
+  }
+
   function makeApi(kind) {
     var canvas = root.querySelector('canvas');
     if (canvas) fitCanvas(canvas);
@@ -311,8 +599,10 @@
       canvas: canvas,
       params: params,
       size: sized ? { w: sized.w, h: sized.h } : { w: root.clientWidth || 640, h: root.clientHeight || 480 },
+      live: liveMode,
       log: function () { console.log.apply(console, arguments); },
-      onParams: function (fn) { if (typeof fn === 'function') onParams.push(fn); }
+      onParams: function (fn) { if (typeof fn === 'function') onParams.push(fn); },
+      orbit: function (camera, opts) { return makeOrbit(camera, opts); }
     };
   }
 
@@ -322,6 +612,21 @@
     if (typeof value === 'function') made = new window.p5(value, root);
     else if (typeof window.setup === 'function' || typeof window.draw === 'function') made = new window.p5(undefined, root);
     if (made) sketches.push(made);
+  }
+
+  // Re-create each inline <script> of a live page so it runs, in document order. A failing one is
+  // reported like any runtime error and does not stop the next.
+  function wakeScripts() {
+    var list = root.querySelectorAll('script');
+    for (var i = 0; i < list.length; i++) {
+      var old = list[i];
+      if (old.src) continue;                        // the CSP refuses it anyway; say nothing new
+      var type = String(old.type || '').toLowerCase();
+      if (type && type !== 'text/javascript' && type !== 'application/javascript') continue;
+      var s = document.createElement('script');
+      s.text = old.textContent || '';
+      try { old.parentNode.replaceChild(s, old); } catch (e) { report('runtime', e); }
+    }
   }
 
   function doRun(msg) {
@@ -348,15 +653,20 @@
       var api = makeApi(kind);
       var code = String(msg.code || '');
       var value;
-      queued = [];
+      // Live: the frame is on screen and animates by itself, so nothing is recorded for an early
+      // first frame (flushing it would only draw one frame twice).
+      queued = liveMode ? null : [];
       if (code.trim()) {
         var fn = new Function('lol', '"use strict";\n' + code);
         value = fn(api);
       }
       if (kind === 'p5') startP5(value);
+      // A LIVE web page is a page, not a picture of one: its own <script>s run (innerHTML leaves
+      // them inert). The CSP still decides what they may do — no network, nothing from disk.
+      if (liveMode && kind === 'dom') wakeScripts();
       var first = queued;
       queued = null;
-      flushFirstFrame(first);
+      if (first) flushFirstFrame(first);
       send('ran', { id: msg.id, ok: true, ms: Date.now() - t0, error: null });
     } catch (e) {
       queued = null;
@@ -451,6 +761,15 @@
     if (cmd === 'boot') {
       tok = String(msg.tok || '');
       if (msg.limits) for (var k in msg.limits) limits[k] = msg.limits[k];
+      if (msg.live === true && !liveMode) {
+        liveMode = true;
+        // Escape inside a live sketch hands the keyboard back to the canvas: the guest cannot
+        // move the focus out of its own frame, so it asks the host to. Installed ONCE, untracked,
+        // so no run's reset can take it away.
+        _addWin.call(window, 'keydown', function (e) {
+          if (e && e.key === 'Escape') send('release', { why: 'escape' });
+        }, true);
+      }
       reset();
       send('ready', { ua: 'runner' });
       return;
@@ -479,6 +798,7 @@
         }
       }
       tracking = true;
+      if (liveMode) trackThreeRenders();
       send('libsDone', { results: results });
       return;
     }

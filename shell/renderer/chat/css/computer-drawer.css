@@ -121,3 +121,190 @@
   color: var(--muted);
   font-size: 12px;
 }
+
+/* ---- the code editor (COMPUTER_LIVE_PLAN K-8) -------------------------------------------------
+   computer/drawer.mjs `editCode()`: a heading with the caret's line and column, a Run code button
+   with the key hints, a line-number gutter beside a no-wrap textarea, and the error with its
+   "Go to line". The gutter's numbers and the textarea share ONE font, size and line height — that
+   is what keeps number N beside line N — and the error band sits BEHIND the (transparent) field,
+   moved by the drawer as the field scrolls. It fills the drawer's height: code wants rows. */
+#lolcomputer .comp-code {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 4px 12px 12px;
+  --comp-code-font: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --comp-code-size: 12.5px;
+  --comp-code-lh: 18px;
+  --comp-code-pad: 8px;
+}
+
+#lolcomputer .comp-code-head {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+#lolcomputer .comp-code-title {
+  margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+#lolcomputer .comp-code-caret {
+  flex: 0 0 auto;
+  font-family: var(--comp-code-font);
+  font-size: 11px;
+  color: var(--grey);
+  font-variant-numeric: tabular-nums;
+}
+
+#lolcomputer .comp-code-tools {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+}
+#lolcomputer .comp-code-run {
+  appearance: none;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 5px 12px;
+  border: 1px solid var(--accent);
+  border-radius: var(--comp-r-btn);
+  background: var(--accent);
+  color: var(--on-accent);
+  cursor: pointer;
+}
+#lolcomputer .comp-code-run:hover { filter: brightness(1.08); }
+#lolcomputer .comp-code-run:focus-visible { outline: 2px solid var(--accent-hover); outline-offset: 2px; }
+#lolcomputer .comp-code-hint {
+  min-width: 0;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+/* The editing surface: one bordered box holding the gutter and the field. */
+#lolcomputer .comp-code-body {
+  flex: 1 1 auto;
+  min-height: 160px;
+  display: flex;
+  overflow: hidden;
+  border: 1px solid var(--comp-line);
+  border-radius: var(--comp-r-panel);
+  background: var(--comp-panel-2);
+}
+#lolcomputer .comp-code-body:focus-within { border-color: var(--accent-hover); }
+
+#lolcomputer .comp-code-gutter {
+  flex: 0 0 auto;
+  overflow: hidden;
+  padding: 0 8px 0 10px;
+  border-right: 1px solid var(--comp-line);
+  background: color-mix(in srgb, var(--comp-panel) 70%, var(--comp-panel-2));
+  user-select: none;
+}
+#lolcomputer .comp-code-rows {
+  padding: var(--comp-code-pad) 0;
+  font-family: var(--comp-code-font);
+  font-size: var(--comp-code-size);
+  line-height: var(--comp-code-lh);
+  text-align: right;
+  color: var(--grey);
+  font-variant-numeric: tabular-nums;
+  will-change: transform;
+}
+#lolcomputer .comp-code-ln { height: var(--comp-code-lh); white-space: nowrap; }
+#lolcomputer .comp-code-ln.is-error {
+  color: var(--danger);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+#lolcomputer .comp-code-field {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+}
+#lolcomputer .comp-code-band {
+  position: absolute;
+  left: 0; right: 0; top: 0;
+  height: var(--comp-code-lh);
+  background: color-mix(in srgb, var(--danger) 14%, transparent);
+  border-left: 2px solid var(--danger);
+  pointer-events: none;
+}
+#lolcomputer .comp-code-band[hidden] { display: none; }
+#lolcomputer .comp-code-area {
+  position: relative;
+  flex: 1 1 auto;
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+  box-sizing: border-box;
+  margin: 0;
+  padding: var(--comp-code-pad) 12px;
+  border: 0;
+  outline: none;
+  resize: none;
+  background: transparent;
+  color: var(--text);
+  caret-color: var(--text);
+  font-family: var(--comp-code-font);
+  font-size: var(--comp-code-size);
+  line-height: var(--comp-code-lh);
+  tab-size: 2;
+  white-space: pre;
+  overflow: auto;
+}
+#lolcomputer .comp-code-area::selection { background: color-mix(in srgb, var(--accent-hover) 40%, transparent); }
+
+/* What went wrong, and the way to the line. */
+#lolcomputer .comp-code-error {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 1px solid color-mix(in srgb, var(--danger) 45%, var(--comp-line));
+  border-radius: var(--comp-r-btn);
+  background: color-mix(in srgb, var(--danger) 10%, var(--comp-panel));
+  color: var(--danger);
+  font-size: 12px;
+  line-height: 1.45;
+}
+#lolcomputer .comp-code-error[hidden] { display: none; }
+#lolcomputer .comp-code-error-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+#lolcomputer .comp-code-goto {
+  flex: 0 0 auto;
+  appearance: none;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 9px;
+  border: 1px solid color-mix(in srgb, var(--danger) 55%, var(--comp-line));
+  border-radius: var(--comp-r-chip);
+  background: var(--comp-panel-2);
+  color: var(--danger);
+  cursor: pointer;
+}
+#lolcomputer .comp-code-goto:hover { filter: brightness(1.08); }
+#lolcomputer .comp-code-goto[hidden] { display: none; }
+#lolcomputer .comp-code-goto:focus-visible { outline: 2px solid var(--danger); outline-offset: 1px; }

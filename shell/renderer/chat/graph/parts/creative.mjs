@@ -39,9 +39,15 @@ export const CREATIVE_PRESET_IDS = Object.freeze([
 /** What each creative box holds before anyone touches it. It must DRAW on the first ▶ with no
  * farm at all — that is the acceptance (KE-3). */
 export const STARTER = Object.freeze({
+  // COMPUTER_LIVE_PLAN decision 6: the p5 starter reacts to the mouse and a key. The picture of
+  // its first frame is unchanged (no button is down when it is taken), so it still draws with no
+  // farm and no Live; press Live and the same code answers the pointer.
   p5: [
     '// A ball that bounces off the walls.',
     '// Change a number: the picture redraws as you type.',
+    '// Press Live on this box and it moves for real: hold the mouse',
+    '// button down and the ball follows the pointer (mouseX, mouseY);',
+    '// press any key and it turns back.',
     'let x = 120;',
     'let y = 80;',
     'let dx = 3;',
@@ -57,19 +63,36 @@ export const STARTER = Object.freeze({
     '  background(245, 240, 230);',
     '  fill(230, 90, 60);',
     '  circle(x, y, r * 2);',
-    '  x += dx;',
-    '  y += dy;',
-    '  if (x < r || x > width - r) dx = -dx;',
-    '  if (y < r || y > height - r) dy = -dy;',
+    '  if (mouseIsPressed) {',
+    '    x += (constrain(mouseX, r, width - r) - x) * 0.2;',
+    '    y += (constrain(mouseY, r, height - r) - y) * 0.2;',
+    '  } else {',
+    '    x += dx;',
+    '    y += dy;',
+    '  }',
+    '  if (x < r) dx = Math.abs(dx);',
+    '  if (x > width - r) dx = -Math.abs(dx);',
+    '  if (y < r) dy = Math.abs(dy);',
+    '  if (y > height - r) dy = -Math.abs(dy);',
+    '}',
+    '',
+    'function keyPressed() {',
+    '  dx = -dx;',
+    '  dy = -dy;',
     '}',
   ].join('\n'),
+  // …and the three.js starter can be explored: `lol.orbit(camera)` (K-7, sandbox/runner.html) is
+  // the first-party camera control — a harmless no-op in the picture, drag/zoom/pan when Live.
   three: [
     '// A cube that spins. THREE is already loaded: no import needed.',
+    '// Press Live on this box, then drag to turn around the cube,',
+    '// scroll to zoom and right-drag to pan: lol.orbit(camera) does that.',
     'const scene = new THREE.Scene();',
     'scene.background = new THREE.Color(0x1f1f23);',
     '',
     'const camera = new THREE.PerspectiveCamera(50, 400 / 300, 0.1, 100);',
     'camera.position.z = 4;',
+    'lol.orbit(camera);',
     '',
     'const renderer = new THREE.WebGLRenderer({ antialias: true });',
     'renderer.setSize(400, 300);',

@@ -197,7 +197,26 @@ whatever arrives. **Save .svg** / **Save .png** write the picture to a file.
 
 The same pairs exist for **p5.js sketch**, **three.js scene** and **HTML page**. Those three run in
 the sandbox — no network, no access to your files — and come back as a picture of their first
-frame. SVG and **Markdown view** draw directly, without the sandbox.
+frame, until you press **▶ Live** (below). SVG and **Markdown view** draw directly, without the
+sandbox.
+
+### Edit the code, go Live, orbit the camera
+
+- **Edit code** on any of these boxes opens its code in the drawer on the right: a big editor with
+  line numbers. It is the box's own code — typing in either place changes both — and the box
+  redraws as you type. **▶ Run code** (or **Ctrl+Enter**) redraws it now. **Tab** indents
+  (**Shift+Tab** takes it back), **Enter** keeps the indentation, **Ctrl+Z** undoes, and **Esc**
+  closes the editor and puts you back on the box.
+- **When the code fails**, the sentence appears under the editor with **Go to line N**, and that line
+  is marked in the margin.
+- **▶ Live** (p5.js, three.js, HTML) runs the box's code for real, inside the box: it animates and
+  hears the mouse and the keyboard. Click in it to give it the keys; **Esc** or a click outside gives
+  them back. One box is Live at a time; **■ Stop** puts the picture back.
+- **Orbit the camera.** The three.js starter calls `lol.orbit(camera)`: when Live, drag to turn around
+  the cube, use the wheel (or pinch) to zoom, right-drag or Shift-drag to pan. Put the same line after
+  the camera in your own scenes; the **Write a three.js scene** Instruction tells the model to. In
+  p5.js, `mouseX`, `mouseY`, `mouseIsPressed` and `keyPressed()` work when Live: the starter's ball
+  follows the pointer while you hold the button, and any key turns it back.
 
 ### Step 8 — tidy, undo, change one word
 
@@ -340,6 +359,7 @@ offers **Reveal in Explorer**. Running again overwrites the same file.
 | Delete | **Delete** or **Backspace** — the selected boxes, or the selected wire. |
 | Edit a box / name an arrow | **Enter** or **F2** with one box selected opens its editor; with a wire selected it names the wire (typing does too). |
 | Every action, with the mouse | Right-click a box (**Edit, Duplicate, Copy box, Zoom to this box, Delete**) or a wire (**Name this arrow, Unplug**). |
+| Edit a box's code in the drawer | **Edit code** on the box. **Ctrl+Enter** runs it, **Tab** indents, **Esc** closes the editor. |
 | Leave a field | **Esc**. Pressed again it closes a menu, then the drawer, then stops a run, then clears the selection. |
 
 ---
@@ -366,8 +386,6 @@ To report a bug: press **● Record log**, reproduce it, press **⚑ Mark bug**,
 ## What is not built yet
 
 - **Lessons 5–12** and the other templates from the plan. The shelf takes them as data files.
-- **"Open live"** on a p5.js / three.js / HTML box: they show a picture of their first frame, not a
-  running page you can interact with.
 - **A sound reaching a model**, and **a PDF sent to a model as a PDF** (a PDF always goes as text
   read by the farm).
 - **Boxes inside a Section do not move with it**, and **wires are grey**, not the colour of what

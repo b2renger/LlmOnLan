@@ -17,9 +17,9 @@ import { registerStrings } from '../core/i18n.mjs';
 registerStrings('parts', {
   // the Show group: boxes with their own code editor
   creativeP5Label: 'p5.js sketch',
-  creativeP5Desc: 'Draw and animate with p5.js code. Starts with a bouncing ball you can change.',
+  creativeP5Desc: 'Draw and animate with p5.js code. Starts with a bouncing ball you can change; press Live and it follows your mouse.',
   creativeThreeLabel: 'three.js scene',
-  creativeThreeDesc: 'A 3D scene written with three.js. Starts with a spinning cube.',
+  creativeThreeDesc: 'A 3D scene written with three.js. Starts with a spinning cube; press Live and drag to orbit around it.',
   creativeSvgLabel: 'SVG',
   creativeSvgDesc: 'A vector picture written in SVG. Redraws as you type.',
   creativeHtmlLabel: 'HTML page',
