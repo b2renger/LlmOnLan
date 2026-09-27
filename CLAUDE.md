@@ -79,7 +79,10 @@ docs) is `docs/reviews/DOCS_REVIEW_2026-09-27_{FARM,SHELL,COMPUTER}.md`. Snapsho
     `lol.config.json` (`configFile.js` raw patch — never the schema-parsed config) **except** the plugin
     toggles and the Blender recommendation; Ollama's slot count applies after a farm restart.
   - **Plugins** (`plugins/registry.js`): web search (SearXNG, ON), document OCR (`farm/src/pysvc` +
-    `extract.js`, ON — hybrid text/vision PDF extraction), Kokoro TTS (OFF). They bind to `proxy.host`.
+    `extract.js`, ON — hybrid text/vision PDF extraction), Kokoro TTS (OFF), and since 2026-09-27 **Classify**
+    (Laya on the CPU, `classify.js` + `pysvc/classify_server.py`, OFF) and **speech to text** (faster-whisper on
+    the CPU, `stt.js` + `pysvc/stt_server.py`, OFF). They bind to `proxy.host`; the Python ones share one
+    shape (own venv, a Bearer key in the snapshot, one job at a time + 429, no body ever logged).
   - Also: beacon group **`239.255.43.10:41998`** (+ httpPort `41997`), distinct from ComfyQ; coordinator mode;
     `lol fleet`/`lol bench`; `modelAlias` + the interactive picker in `lol up`; `lol install` (Ollama, the
     LiteLLM venv, `models` + `preinstall` — ships a ~8.6 GB staged Qwen3.8-27B — the SearXNG/OCR venvs, and
@@ -132,12 +135,12 @@ docs) is `docs/reviews/DOCS_REVIEW_2026-09-27_{FARM,SHELL,COMPUTER}.md`. Snapsho
   single-instance lock and the owner's real DATA_DIR make it unsafe on a box with a client open).
 - **The Computer** (third client surface, `shell/renderer/chat/{computer,graph,sandbox}/`) — a node-graph
   canvas where boxes wired by **named arrows** make a small program, kept in a library of graphs. Boxes:
-  Text, Image, Document, Sound, File, **Fetch** (*bring*); Instruction (+ "Write a p5.js/three.js/SVG/HTML"
+  Text, Image, Document, Sound (+ a **Listen** switch: the farm's speech to text writes it down), File, **Fetch** (*bring*); Instruction (+ "Write a p5.js/three.js/SVG/HTML"
   and "Describe a picture" presets), **Classify** (Laya on the farm: one multiple-choice question per item,
   with a confidence; unsure below 0.6; no Laya → every item passed on unsure), Split, Filter, Collect,
   Repeat (*think*); Preview (+ p5.js/three.js/SVG/HTML/Markdown presets; since 2026-09-27 it hands on a
   **PNG** of what it drew — SVG rasterised in the renderer — so a vision model can see its own work) and
-  Code (*show*); Button, Condition, Confirm, Dialog, Toggle, Timer (*control*); Sticky, Section, Title
+  Code and **Speak** (says text with the farm's voice or this computer's) (*show*); Button, Condition, Confirm, Dialog, Toggle, Timer (*control*); Sticky, Section, Title
   (*annotate*). Thinking boxes ask the farm **directly** (never through OWUI) on the background lane: one
   request in flight, they yield to a person's chat, and a hidden window sends nothing. Every run is bounded by
   `RUN_LIMITS` (`core/types.mjs`): 8 passes per box, 50 generations (the toolbar **Cap**), 10 min of wall
