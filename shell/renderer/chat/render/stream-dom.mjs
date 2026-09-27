@@ -301,14 +301,15 @@ function tableView(H, b, o) {
 function listView(H, b, o, ctx) {
   const ordered = !!b.ordered;
   const start = b.start;
-  const node = H.el(ordered ? 'ol' : 'ul', ordered && start && start !== 1 ? { start } : null);
+  // `start` 0 is a real start, so presence, not truthiness (docs review SA-16).
+  const node = H.el(ordered ? 'ol' : 'ul', ordered && start != null && start !== 1 ? { start } : null);
   /** @type {any[]} */ const items = [];
 
   const view = {
     type: 'list',
     node,
     compatible(/** @type {any} */ nb) {
-      return !!nb.ordered === ordered && (nb.start || 1) === (start || 1);
+      return !!nb.ordered === ordered && (nb.start ?? 1) === (start ?? 1);
     },
     update(/** @type {any} */ nb, /** @type {boolean} */ final) {
       const want = nb.items || [];

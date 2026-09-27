@@ -5,7 +5,7 @@
 // debounce, not a wall-clock rule — plan §2.6 AK explicitly allows setTimeout here), restored when
 // a thread is selected, and cleared the moment a send takes it.
 //
-// Two rules that are easy to get wrong:
+// Three rules that are easy to get wrong (the third: text typed while no chat is open is kept):
 //   - a THREAD_SELECTED carrying `created: true` (plan §2.6 AP.1) is a thread nobody has typed in
 //     yet. Restoring into it is a no-op — and worse than a no-op, because the composer clears and
 //     focuses itself in the same beat, so an async "restore" landing afterwards would wipe the
@@ -28,6 +28,9 @@ export function install(app) {
   let timer = null;
   /** True while we are writing into the composer ourselves (its DRAFT_CHANGE is not the reader). */
   let restoring = false;
+  /** The thread that was open BEFORE the current selection (null = no chat was open). */
+  /** @type {string|null} */
+  let selected = null;
 
   /** @param {string} threadId @param {string} text */
   function write(threadId, text) {
@@ -75,9 +78,20 @@ export function install(app) {
   app.bus.on(EV.THREAD_SELECTED, (/** @type {any} */ p) => {
     const created = !!(p && p.created);
     const id = p && typeof p.threadId === 'string' ? p.threadId : null;
+    const from = selected;
+    selected = id;
+    // Text typed while NO chat was open (straight after launch, before reopenLast() selects the
+    // last chat; or after deleting the open one) has no thread to be saved under — schedule() drops
+    // it — so a restore would be the only thing that ever touches it, and it wiped it (docs review
+    // SA-13). It stays in the composer and becomes this chat's draft instead.
+    const typedWithNoChat = !from && !!app.composer && !!String(app.composer.getDraft().text || '').trim();
     void (async () => {
       await flush();                             // the OLD thread's sentence, before we move on
       if (created || !id || !repo() || !app.composer) return;
+      if (typedWithNoChat) {
+        if (app.state.threadId === id) schedule(id, app.composer.getDraft().text || '');
+        return;
+      }
       let thread = null;
       try { thread = await repo().getThread(id); } catch (err) { void err; }
       if (app.state.threadId !== id) return;     // the reader moved on again while we read

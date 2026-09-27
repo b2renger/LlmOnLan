@@ -276,7 +276,8 @@ export function renderBlock(/** @type {any} */ b, /** @type {any} */ H, /** @typ
         else kids.push(renderBlocks(blocks, H, o));
         return H.el('li', item.task === null || item.task === undefined ? null : { class: 'chat-taskitem' }, kids);
       });
-      const attrs = b.ordered && b.start && b.start !== 1 ? { start: b.start } : null;
+      // `start` 0 is a real start ("0. zero"), so test for presence, not truthiness (docs review SA-16).
+      const attrs = b.ordered && b.start != null && b.start !== 1 ? { start: b.start } : null;
       return H.el(b.ordered ? 'ol' : 'ul', attrs, items);
     }
     case 'table': {

@@ -189,6 +189,19 @@ function readRaw(storage) {
 const none = (/** @type {string} */ status) => ({ status, imported: 0, copies: 0, skipped: 0 });
 
 /**
+ * Is there a real database behind `repo`? A repo that fell back to memory ('memory' while a slow
+ * IndexedDB open is still pending, 'memory-final' when it was refused) holds nothing past this
+ * session: importing into it and then removing the v1 key threw the whole history away at quit,
+ * and a late attach replayed a duplicate import (docs review SA-9). A repo without a `mode` (a
+ * bare test double) counts as a database, as before.
+ * @param {any} repo
+ */
+async function noDatabase(repo) {
+  if (repo && repo.ready && typeof repo.ready.then === 'function') await repo.ready;
+  return !!repo && typeof repo.mode === 'string' && repo.mode !== 'idb';
+}
+
+/**
  * Import everything in the v1 key that is not already here. Never removes the key, never mutates an
  * already-imported thread. One transaction over threads/messages/kv.
  * @param {import('../core/types.mjs').MigrateOptions} opts
@@ -198,6 +211,7 @@ export async function migrateV1({ repo, storage, now, bus }) {
   const nowMs = typeof now === 'function' ? now() : Date.now();
   const raw = readRaw(storage);
   if (raw === null) return /** @type {any} */ (none('none'));
+  if (await noDatabase(repo)) return /** @type {any} */ (none('none'));
 
   const rawHash = fnv(raw);
   if ((await repo.kvGet('v1RawHash', null)) === rawHash) return /** @type {any} */ (none('already'));
@@ -284,6 +298,7 @@ export async function v1Status({ repo, storage, hash }) {
 export async function removeV1Copy({ repo, storage, now, bus }) {
   const raw = readRaw(storage);
   if (raw === null) return false;
+  if (await noDatabase(repo)) return false;         // the key is the ONLY durable copy then
   if (parseList(raw) === null) {
     // We cannot prove what is in there, so we must not throw it away.
     console.warn('[lolchat] the v1 history key is unreadable; keeping it');

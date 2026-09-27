@@ -399,6 +399,40 @@ export default (test) => {
     } finally { calls.restore(); }
   });
 
+  // Docs review SA-10: a resend that ends in a LOCAL note (the farm started a model switch, lost its
+  // password, left the network) returned without STREAM_END — the only event that lets the wait go —
+  // so the composer stayed held until Stop.
+  const localEnds = [
+    ['a model switch', (caps) => { caps.busy = { label: 'switching model', percent: null }; }, /The server is busy: switching model/],
+    ['a password it no longer has', (caps) => { caps.keyMissing = true; }, /password/i],
+    ['the farm leaving the network', (caps) => { caps.present = false; caps.baseUrl = null; }, /farm/i],
+  ];
+  for (const [what, breakIt, says] of localEnds) {
+    test(`SA-10: a resend that meets ${what} ends the wait, frees the slot and says why`, async () => {
+      const { app, farm, tick } = await makeWorld({ flags: { seatJitterMs: 0 } });
+      const calls = stubFetch(() => seatsFullResponse());
+      try {
+        await app.controller.send({ text: 'hello farm', parts: [], model: 'assistant' });
+        await settle();
+        assert.equal((await lastAssistant(app)).status, 'waiting');
+
+        farm.caps.seats = { used: 0, slots: 2, clients: 1, idleSec: 900 };
+        breakIt(farm.caps);
+        tick(); await settle();                // schedule
+        tick(); await settle();                // resend → local note
+        assert.equal(calls.length, 1, 'the local note is not a request');
+        assert.equal(app.seatWait.state(), null, 'nothing is waiting any more');
+        assert.deepEqual(app.gov.state(), { foreground: 'idle', holder: null }, 'the composer is free again');
+        const msg = await lastAssistant(app);
+        assert.equal(msg.status, 'error', 'the row left "waiting"');
+        assert.ok(says.test(msg.error.message), msg.error.message);
+
+        for (let i = 0; i < 3; i++) { tick(); await settle(); }
+        assert.equal(calls.length, 1, 'and the wait does not wake up again');
+      } finally { calls.restore(); }
+    });
+  }
+
   test('a FARM_CHANGE + FARM_TICK pair does not forget the schedule it just made', async () => {
     // One publish emits BOTH events back to back. The first schedules the jittered resend; the
     // second used to see "scheduled, not due yet" (a 'wait' verdict) and clear it, so the resend

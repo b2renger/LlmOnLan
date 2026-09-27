@@ -386,10 +386,16 @@ export function openRepoSync(options = {}) {
       return msg;
     },
 
-    /** @param {any} msg */
+    /**
+     * Writes a settled message. EV.MESSAGE_PUT follows the write (docs review SA-14: nothing in LOL
+     * Chat emitted it, so the sidebar's "cut off" dot and its search cache went stale after a
+     * Continue or a seat-wait note). Checkpoints do not emit — they are mid-stream, 1/s.
+     * @param {any} msg
+     */
     async putMessage(msg) {
       const snapshot = toStoreMsg(clone(msg));
       await enqueue('putMessage', () => applyOps([{ op: 'put', store: 'messages', value: snapshot }], isEph(msg.threadId)));
+      emit(EV.MESSAGE_PUT, msg);
     },
 
     /** Trailing 1 s throttle per message id — crash safety while a reply streams. @param {any} msg */
@@ -444,9 +450,14 @@ export function openRepoSync(options = {}) {
           ops.push({ op: 'put', store: 'threads', value: clone(th) });
         }
         await applyOps(ops, ephemeral);
-        return { removed, headId };
+        return { removed, headId, threadId };
       });
-      return result || { removed: [], headId: null };
+      // A deleted branch may have been the thread's only "cut off" reply: the same event, marked
+      // `deleted`, lets the sidebar re-check that thread (SA-14).
+      if (result && result.removed.length) {
+        emit(EV.MESSAGE_PUT, { id: messageId, threadId: result.threadId, status: null, deleted: true, removed: result.removed });
+      }
+      return result ? { removed: result.removed, headId: result.headId } : { removed: [], headId: null };
     },
 
     /** Cursor over every message (persistent, then ephemeral). Return false to stop. @param {(m: any) => any} visitor */

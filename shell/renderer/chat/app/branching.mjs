@@ -300,7 +300,13 @@ export function install(app) {
       });
       if (!plan.ok) return null;
 
-      // Attachments first: the copied parts must point at records that already exist.
+      // The thread FIRST: whether a copied attachment is ephemeral (memory only) or persistent is
+      // decided by its thread's id, and an ephemeral fork's id is only known as ephemeral once
+      // createThread() has registered it — copied before, the attachments of a temporary chat
+      // landed in IndexedDB (docs review, latent item under SA-16).
+      const created = repo().createThread(plan.init);
+
+      // Then the attachments: the copied parts must point at records that already exist.
       /** @type {Record<string, string>} */
       const attMap = {};
       for (const attId of plan.attachmentIds || []) {
@@ -319,7 +325,6 @@ export function install(app) {
         }
       }
 
-      const created = repo().createThread(plan.init);
       for (const m of plan.messages || []) repo().appendMessage(created.id, m);
       if (app.sidebar) app.sidebar.render();
       await ctl().selectThread(created.id);

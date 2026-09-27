@@ -7,6 +7,7 @@ import assert from 'node:assert/strict';
 import {
   estimateText, estimateMessage, estimateRequest, breakdown, calibrate, promptChars, systemTextOf,
   imageCount, DEFAULT_RATIO, MIN_RATIO, MAX_RATIO, PER_MESSAGE_TOKENS, IMAGE_TOKENS,
+  calibrationSample, calibrateFromSample, MIN_CALIBRATION_CHARS, PRIMING_TOKENS,
 } from '../../../renderer/chat/ctx/tokens.mjs';
 
 /** A RequestDraft.messages entry. */
@@ -163,5 +164,41 @@ export default (test) => {
     assert.equal(calibrate(null, 3600, 0), DEFAULT_RATIO);
     assert.equal(calibrate(/** @type {any} */('nonsense'), 3600, 1200), calibrate(DEFAULT_RATIO, 3600, 1200));
     assert.ok(Number.isFinite(calibrate(NaN, NaN, NaN)));
+  });
+
+  test('SA-11: a short prompt is mostly chat template — it never moves the ratio', () => {
+    // "hi" = 2 characters, but the farm counts ~12 prompt tokens (role envelope + priming): the raw
+    // quotient 2/12 used to pull the persisted ratio down to the clamp.
+    const short = req([entry('user', 'hi')]);
+    assert.equal(calibrationSample(short), null);
+    assert.equal(calibrateFromSample(3.6, calibrationSample(short), 12), 3.6);
+    let r = DEFAULT_RATIO;
+    for (let i = 0; i < 50; i++) r = calibrateFromSample(r, calibrationSample(short), 12);
+    assert.equal(r, DEFAULT_RATIO, 'fifty "hi"s later the estimator is where it started');
+  });
+
+  test('SA-11: the template allowance comes off before the ratio moves', () => {
+    const text = 'x'.repeat(3600);
+    const r = req([entry('user', 'a'.repeat(400)), entry('assistant', 'b'.repeat(200)), entry('user', text)], { system: 's'.repeat(100) });
+    const sample = calibrationSample(r);
+    assert.ok(sample, 'long enough to learn from');
+    assert.equal(sample.chars, 100 + 400 + 200 + 3600);
+    assert.equal(sample.overhead, 4 * PER_MESSAGE_TOKENS + PRIMING_TOKENS, 'system + three messages + the priming');
+    // The farm counted exactly 3 chars/token of text PLUS the envelope: the sample must read 3, not less.
+    const tokens = sample.chars / 3 + sample.overhead;
+    let ratio = DEFAULT_RATIO;
+    for (let i = 0; i < 40; i++) ratio = calibrateFromSample(ratio, sample, tokens);
+    assert.ok(Math.abs(ratio - 3) < 0.01, `converged to the TEXT ratio: ${ratio}`);
+  });
+
+  test('SA-11: wide characters and images are not text the ratio describes', () => {
+    const cjk = req([entry('user', '日本語'.repeat(100) + 'y'.repeat(MIN_CALIBRATION_CHARS))]);
+    const sample = calibrationSample(cjk);
+    assert.equal(sample.chars, MIN_CALIBRATION_CHARS, 'the 300 ideographs are not in the Latin count');
+    assert.equal(sample.overhead, PER_MESSAGE_TOKENS + PRIMING_TOKENS + 300, 'they cost one token each instead');
+    const withImage = req([{ msgId: 'u', role: 'user', pinned: false, blocks: [{ type: 'text', text: 'z'.repeat(5000) }, { type: 'image', attId: 'a' }] }]);
+    assert.equal(calibrationSample(withImage), null, 'image tokens have no characters: no sample');
+    assert.equal(calibrateFromSample(3.6, calibrationSample(req([entry('user', 'q'.repeat(2000))])), 5), 3.6,
+      'fewer tokens than the envelope itself is nonsense: unchanged');
   });
 };

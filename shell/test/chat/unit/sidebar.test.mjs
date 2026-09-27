@@ -436,6 +436,35 @@ export default (test) => {
     });
   });
 
+  test('SA-14 sidebar: a Continue or a delete that leaves NO cut-off reply clears the dot', async () => {
+    await withDom(async (doc) => {
+      const messages = [
+        { id: 'm1', threadId: 't1', status: 'interrupted' },
+        { id: 'm2', threadId: 't1', status: 'interrupted' },
+      ];
+      const repo = fakeRepo(doc, [thread('t1', 'a')], messages);
+      repo.getMessages = async (id) => messages.filter((m) => m.threadId === id);
+      const app = fakeApp(doc, repo);
+      const sb = createSidebar(app, app.els.list);
+      await sb.render({ rescan: true });
+      await new Promise((r) => setTimeout(r, 0));
+      const dot = () => app.els.list.querySelector('.chat-thread-dot');
+      assert.ok(!dot().classList.contains('hidden'), 'two cut-off replies');
+
+      messages[0].status = 'done';                               // one was continued
+      app.bus.emit(EV.MESSAGE_PUT, { ...messages[0] });
+      await new Promise((r) => setTimeout(r, 0));
+      assert.ok(!dot().classList.contains('hidden'), 'the other one is still cut off: the dot stays');
+
+      messages.splice(1, 1);                                     // the other was deleted
+      app.bus.emit(EV.MESSAGE_PUT, { id: 'm2', threadId: 't1', status: null, deleted: true, removed: ['m2'] });
+      await new Promise((r) => setTimeout(r, 0));
+      assert.ok(dot().classList.contains('hidden'), 'nothing is cut off any more');
+      await sb.render();
+      assert.ok(dot().classList.contains('hidden'), 'and a later render does not bring it back');
+    });
+  });
+
   // ------------------------------------------------------------------ NEW_MENU
   test('sidebar: the ⌄ button shows SLOTS.NEW_MENU, built-in item and all', async () => {
     await withDom(async (doc) => {

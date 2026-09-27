@@ -20,7 +20,8 @@ export const EV = Object.freeze({
   // onto one of those and never onto a thread the reader merely opened).
   THREAD_SELECTED: 'thread:selected',
   THREADS_CHANGED: 'threads:changed', // {reason:'create'|'update'|'delete'|'import'|'migrate'|'attach', ids: string[]}
-  MESSAGE_PUT: 'message:put',         // Message (non-streaming updates)
+  MESSAGE_PUT: 'message:put',         // Message (a settled write: repo.putMessage/finalize), or
+                                      // {id, threadId, status: null, deleted: true, removed} after repo.deleteSubtree
   STREAM_START: 'stream:start',       // {message}
   STREAM_END: 'stream:end',           // {message, result}
   DRAFT_CHANGE: 'composer:draft',     // Draft — also emitted by addPart/updatePart/removePart

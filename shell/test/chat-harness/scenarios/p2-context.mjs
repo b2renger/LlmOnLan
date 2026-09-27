@@ -341,7 +341,16 @@ export default [
             const before = await h.eval(() => window.LolChat.app.repo.kvGet('tokRatio:Qwen3.8-27B-UD-Q2_K_XL', null));
             h.eq(before, null, 'nothing is calibrated before the first reply');
 
+            // SA-11 (docs review 2026-09-27): a SHORT prompt is mostly chat template, so it teaches
+            // the ratio nothing — it used to drag it down to the clamp.
             await h.submit('how much VRAM does the box have?');
+            await h.waitReply();
+            await waitSettled(h);
+            const afterShort = await h.eval(() => window.LolChat.app.repo.kvGet('tokRatio:Qwen3.8-27B-UD-Q2_K_XL', null));
+            h.eq(afterShort, null, 'a short prompt leaves the ratio alone');
+
+            await h.submit('Here are my notes from the rig session, please summarise them. '
+                + 'The farm served gemma4 at its native context and every client stayed responsive. '.repeat(14));
             await h.waitReply();
             await waitSettled(h);
 

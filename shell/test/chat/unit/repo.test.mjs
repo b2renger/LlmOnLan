@@ -192,6 +192,33 @@ export default (test) => {
     assert.deepEqual(await repo.deleteSubtree('nope'), { removed: [], headId: null });
   });
 
+  test('SA-14 repo: putMessage/finalize and deleteSubtree announce EV.MESSAGE_PUT after the write', async () => {
+    const bus = createBus();
+    const seen = [];
+    const repo = makeRepo(createMemoryBackend({ kind: 'idb' }), { bus });
+    bus.on(EV.MESSAGE_PUT, (m) => seen.push(m));
+    await repo.ready;
+    const th = repo.createThread({ title: 'cut' });
+    const u = repo.appendMessage(th.id, { role: 'user', content: 'q' });
+    const a = repo.appendMessage(th.id, { role: 'assistant', content: 'half', status: 'interrupted' });
+    assert.equal(seen.length, 0, 'appendMessage is not a settled write');
+    a.status = 'done';
+    a.content = 'half, and the rest';
+    await repo.finalize(a);
+    assert.equal(seen.length, 1);
+    assert.equal(seen[0].id, a.id);
+    assert.equal(seen[0].status, 'done');
+    const stored = (await repo.getMessages(th.id)).find((m) => m.id === a.id);
+    assert.equal(stored.status, 'done', 'the event follows the write, so a listener reading back sees it');
+
+    const r = await repo.deleteSubtree(a.id);
+    assert.deepEqual(r, { removed: [a.id], headId: u.id }, 'the return shape is unchanged');
+    assert.equal(seen.length, 2);
+    assert.deepEqual(seen[1], { id: a.id, threadId: th.id, status: null, deleted: true, removed: [a.id] });
+    await repo.deleteSubtree('nope');
+    assert.equal(seen.length, 2, 'deleting nothing announces nothing');
+  });
+
   test('repo: getPath repairs a dangling head instead of showing nothing', async () => {
     const repo = makeRepo(createMemoryBackend({ kind: 'idb' }));
     const th = repo.createThread();

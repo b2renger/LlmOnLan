@@ -258,6 +258,37 @@ export default (test) => {
     } finally { calls.restore(); }
   });
 
+  // Docs review SA-8: a Continue that cannot run (busy farm, no password, no farm) used to write the
+  // reason OVER the partial answer and finalize it — the text the reader wanted to continue was lost.
+  const cannotRun = [
+    ['a busy farm', (caps) => { caps.busy = { label: 'switching model', percent: 40 }; }, /The server is busy: switching model/],
+    ['a missing password', (caps) => { caps.keyMissing = true; }, /password/i],
+    ['no farm at all', (caps) => { caps.present = false; caps.baseUrl = null; }, /farm/i],
+  ];
+  for (const [what, breakIt, says] of cannotRun) {
+    test(`SA-8: Continue on ${what} keeps the partial answer, whole and continuable, and says why in a toast`, async () => {
+      const { app, api, thread, reply } = await makeWorld();
+      const toasts = [];
+      app.dialogs.toast = (text) => { toasts.push(String(text)); };
+      breakIt(app.farm.get());
+      const calls = stubFetch(() => 'never asked');
+      try {
+        const out = await api.run(reply);
+        await settle();
+        assert.equal(out, null);
+        assert.equal(calls.length, 0, 'nothing went to the farm');
+        const stored = (await app.repo.getMessages(thread.id)).find((m) => m.id === reply.id);
+        assert.equal(stored.content, PARTIAL, 'the partial is still there, byte for byte');
+        assert.equal(stored.status, 'done');
+        assert.equal(stored.error, null);
+        assert.equal(canContinue(stored), true, 'and can still be continued once the farm is back');
+        assert.equal(reply.content, PARTIAL, 'the in-memory row was not rewritten either');
+        assert.ok(toasts.some((x) => says.test(x)), `the reason reached the reader: ${JSON.stringify(toasts)}`);
+        assert.deepEqual(app.gov.state(), { foreground: 'idle', holder: null }, 'the slot came back');
+      } finally { calls.restore(); }
+    });
+  }
+
   test('the extra turn is never stored: the thread keeps exactly two messages', async () => {
     const { app, api, thread, reply } = await makeWorld();
     await app.repo.kvSet(KV_KEYS.continueMode('Qwen3.8-27B-UD-Q2_K_XL'), 'userTurn');
