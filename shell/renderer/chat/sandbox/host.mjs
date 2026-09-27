@@ -32,6 +32,14 @@ import '../strings/sandbox.en.mjs';
 /** Which libraries a sketch of this kind needs before its first line runs. */
 const KIND_LIBS = Object.freeze({ three: ['three'], p5: ['p5'] });
 
+/** The libraries a run loads when its caller names none: its kind's, plus d3 for code that uses it
+ * (owner, 2026-09-27: d3 is in the sandbox, for charts a model writes as code). PURE.
+ * @param {string} kind @param {string} code @returns {string[]} */
+export function libsFor(kind, code) {
+  const base = /** @type {any} */ (KIND_LIBS)[kind] || [];
+  return /\bd3\s*\./.test(String(code || '')) ? [...base, 'd3'] : base;
+}
+
 /** A failure shaped like the guest's own, so a caller has ONE error shape to show. */
 const fail = (/** @type {string} */ message) => ({ message, stack: '', line: 0, col: 0 });
 
@@ -397,7 +405,7 @@ export function createSandbox(o = {}) {
       html: markup ? String(req.code || '') : (req.html === undefined ? '' : String(req.html)),
       css: req.css === undefined ? '' : String(req.css),
       params: req.inputs && typeof req.inputs === 'object' ? req.inputs : {},
-      libs: Array.isArray(req.libs) ? req.libs.map(String) : (/** @type {any} */ (KIND_LIBS)[kind] || []),
+      libs: Array.isArray(req.libs) ? req.libs.map(String) : libsFor(kind, markup ? '' : String(req.code || '')),
     };
   }
 
@@ -643,6 +651,7 @@ export function createSandbox(o = {}) {
       runs++;
       logs = []; errors = [];
       setState('running');
+      await ensureLibs(libsFor('compute', String(req.code || '')));
       const g = gen;
       const out = await ask('compute', { code: String(req.code || ''), inputs: req.inputs || {} }, req.timeoutMs || T.compute, req.signal);
       if (out && out.timeout && gen === g) await onStall('compute-timeout');
@@ -662,7 +671,7 @@ export function createSandbox(o = {}) {
       rearmIfAllowed(req);
       if (!(await boot())) return { ok: false, ms: 0, error: fail(unavailable()) };
       const kind = String(req.kind || 'dom');
-      await ensureLibs(req.libs || /** @type {any} */ (KIND_LIBS)[kind] || []);
+      await ensureLibs(req.libs || libsFor(kind, String(req.code || '')));
       runs++;
       logs = []; errors = [];
       setState('running');

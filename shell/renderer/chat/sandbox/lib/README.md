@@ -3,8 +3,9 @@
 Byte-identical upstream builds, shipped in-repo so a sketch works on a closed LAN with no CDN and
 no download (CLAUDE.md prime directive: LOCAL ONLY).
 
-Owner decision (C3): **three.js (MIT) · p5.js (LGPL-2.1) · matter.js (MIT)**. Four candidates were
-considered and three shipped; a fourth needs an owner decision, not a new file.
+Owner decision (C3): **three.js (MIT) · p5.js (LGPL-2.1) · matter.js (MIT)**. Owner decision
+2026-09-27: **d3 (ISC)** as the fourth, for charts a model writes as code; it loads only for code that
+names `d3.` (`sandbox/host.mjs` `libsFor`). A fifth needs an owner decision, not a new file.
 
 ## What is here, and where it came from
 
@@ -13,9 +14,10 @@ considered and three shipped; a fourth needs an owner decision, not a new file.
 | `three.min.js` | r160 (`three@0.160.1`) | 669 884 | MIT | `three-0.160.1.tgz` → `package/build/three.min.js` |
 | `p5.min.js` | `p5@1.11.13` | 1 063 246 | LGPL-2.1 | `p5-1.11.13.tgz` → `package/lib/p5.min.js` |
 | `matter.min.js` | `matter-js@0.20.0` | 83 476 | MIT | `matter-js-0.20.0.tgz` → `package/build/matter.min.js` |
+| `d3.min.js` | `d3@7.9.0` | 279 706 | ISC | `d3-7.9.0.tgz` → `package/dist/d3.min.js` |
 | licences | — | 26 653 | — | each tarball's own licence file, verbatim |
 
-**Total: 1 816 606 bytes of library text (1.73 MB of the 2.0 MB budget) + 26 KB of licences**
+**Total: 2 096 312 bytes of library text (the 2.0 MiB budget, 840 bytes to spare) + 27 KB of licences**
 (budget 40 KB). Measured at the C3 landing; the lint re-measures on every run, so going over is a
 gate failure rather than a discovery at packaging time.
 

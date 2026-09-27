@@ -9,6 +9,7 @@ import { creativePresets, presetOf, LAYA_QUESTION_SCHEMA } from '../../../render
 import { codeKindOf, codeSystem } from '../../../renderer/chat/graph/bind.mjs';
 import { valueOf } from '../../../renderer/chat/graph/values.mjs';
 import { templateById } from '../../../renderer/chat/computer/tutorial/registry.mjs';
+import { libsFor } from '../../../renderer/chat/sandbox/host.mjs';
 
 /** A sandbox that answers with the program it was handed and the inputs it saw. */
 const echoSandbox = () => ({
@@ -81,6 +82,14 @@ export default (test) => {
     assert.equal(codeKindOf(p.settings), 'js');
     assert.match(codeSystem('js'), /inputs\.in is an ARRAY/);
     assert.equal(presetOf({ type: 'ask', settings: { ...p.settings, instruction: 'anything else' } }), 'write-code', 'titled by its code kind, whatever the words');
+  });
+
+  test('d3 (owner, 2026-09-27): loaded for code that names it — a Code box, a sketch — and for nothing else', () => {
+    assert.deepEqual(libsFor('compute', 'const x = d3.scaleLinear();'), ['d3']);
+    assert.deepEqual(libsFor('compute', 'return 1;'), []);
+    assert.deepEqual(libsFor('p5', 'const y = d3 .max(v);'), ['p5', 'd3']);
+    assert.deepEqual(libsFor('three', 'const cd3 = 1; md3.x = 2;'), ['three'], 'a name that merely ends in d3 is not d3');
+    assert.match(codeSystem('js'), /d3 v7 is available/);
   });
 
   test('Write a Laya question: a JSON answer {question, options}, matched by its schema', () => {

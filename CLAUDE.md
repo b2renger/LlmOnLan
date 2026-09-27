@@ -156,7 +156,8 @@ docs) is `docs/reviews/DOCS_REVIEW_2026-09-27_{FARM,SHELL,COMPUTER}.md`. Snapsho
   `RUN_LIMITS` (`core/types.mjs`): 8 passes per box, 50 generations (the toolbar **Cap**), 10 min of wall
   clock including waits, 2000 activations; a loop is legal only through a gate box (`topo.mjs`
   `GATE_TYPES`). Code/p5/three/HTML run in ONE opaque-origin sandbox iframe (`sandbox/runner.html`,
-  `allow-scripts` only, no network, vendored three r160 / p5; `sandbox/host.mjs` is the only iframe maker)
+  `allow-scripts` only, no network, vendored three r160 / p5 / matter, and d3 7.9 (2026-09-27, loaded for code that names
+  `d3.`); `sandbox/host.mjs` is the only iframe maker)
   plus at most one **Live** guest that gets the mouse and keys (`lol.orbit(camera)` is the first-party
   camera control); a Preview box's **Edit code** opens a drawer editor. View tools: Select (V) · Hand (H) · − % + Fit,
   answering from anywhere on the Computer, never while typing. What leaves the machine: prompt text and an

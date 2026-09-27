@@ -380,12 +380,17 @@ export default [
                 const probe = await sb.compute({
                     code: 'return {three: typeof THREE, p5: typeof p5, matter: typeof Matter, rev: (typeof THREE === "object" && THREE.REVISION) || null};',
                 });
-                return { ok: out.ok, probe: probe.ok ? JSON.parse(probe.json) : null, debug: sb.debug().libs };
+                // d3 loads by itself for code that names it (owner, 2026-09-27): a Code box builds a chart.
+                const d3 = await sb.compute({
+                    code: 'const x = d3.scaleLinear().domain([0, 10]).range([0, 100]); return { v: d3.version, x5: x(5), path: d3.line()([[0, 0], [10, 20]]) };',
+                });
+                return { ok: out.ok, probe: probe.ok ? JSON.parse(probe.json) : null, d3: d3.ok ? JSON.parse(d3.json) : d3.error, debug: sb.debug().libs };
             }, { timeout: 30000 });
             h.eq(libs.ok, true, 'the sketch ran with the libraries loaded');
             h.eq(libs.probe.three, 'object', 'three.js defined THREE in the guest');
             h.eq(libs.probe.p5, 'function', 'p5.js defined p5 in the guest');
             h.eq(libs.probe.matter, 'object', 'matter.js defined Matter in the guest');
+            h.eq(libs.d3, { v: '7.9.0', x5: 50, path: 'M0,0L10,20' }, 'd3 loaded for a Code box that names it, and computes');
             h.note(`vendored: three r${libs.probe.rev}, p5 + matter loaded; host verdicts ${JSON.stringify(libs.debug)}`);
             for (const row of libs.debug) h.eq(row.ok, true, `${row.name} failed to evaluate: ${row.error}`);
 

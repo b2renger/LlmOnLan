@@ -17,7 +17,8 @@
 //   three.min.js   654 KB   r160 (three@0.160.1, the last release line with a UMD build)
 //   p5.min.js     1039 KB   p5@1.11.13 (LGPL-2.1 — shipped verbatim, replaceable, see lib/README.md)
 //   matter.min.js   82 KB   matter-js@0.20.0
-//   total         1774 KB of library text + 26 KB of licences.
+//   d3.min.js      273 KB   d3@7.9.0 (ISC; owner decision 2026-09-27 — loaded for code that names d3)
+//   total         2047 KB of library text (the 2.0 MiB budget, 840 bytes to spare) + 27 KB of licences.
 
 /** name -> the file inside sandbox/lib/, the global it defines, its licence file and its pin. */
 export const LIB_FILES = Object.freeze({
@@ -32,6 +33,10 @@ export const LIB_FILES = Object.freeze({
   matter: Object.freeze({
     file: 'lib/matter.min.js', global: 'Matter', licence: 'lib/matter.LICENSE.txt',
     version: '0.20.0', spdx: 'MIT',
+  }),
+  d3: Object.freeze({
+    file: 'lib/d3.min.js', global: 'd3', licence: 'lib/d3.LICENSE.txt',
+    version: '7.9.0', spdx: 'ISC',
   }),
 });
 

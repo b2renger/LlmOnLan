@@ -225,7 +225,8 @@ A Code box does not have to be written by you:
   Code box's **code** port (the data goes into **Inputs** as usual). On **Run all** the model writes the
   program and the Code box runs it, with numbers computed from the data, never typed by the model. The Code
   box shows the program it ran. Type in it and it becomes **yours** (the model's next version is then
-  ignored); **Use the model's code** gives it back to the model.
+  ignored); **Use the model's code** gives it back to the model. **d3** (v7) is there for any code that
+  uses it: its scales and shapes turn counted numbers into an SVG chart a Preview draws.
 - **What it does** at the top of every Code box is a line of plain words. **Hide the code** folds the
   program away behind it, so a graph reads as a list of steps, not a wall of JavaScript. **Show the code**
   opens it again. Folding changes nothing a run computes.

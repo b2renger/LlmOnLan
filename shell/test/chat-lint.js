@@ -272,6 +272,13 @@ const LIB_MANIFEST = [
         upstream: 'https://registry.npmjs.org/matter-js/-/matter-js-0.20.0.tgz (package/build/matter.min.js)',
         spdx: 'MIT',
     },
+    {
+        // Owner decision 2026-09-27: d3 goes into the sandbox (charts a model writes as code).
+        name: 'd3', file: 'sandbox/lib/d3.min.js', licence: 'sandbox/lib/d3.LICENSE.txt',
+        version: '7.9.0', sha256: 'f2094bbf6141b359722c4fe454eb6c4b0f0e42cc10cc7af921fc158fceb86539',
+        upstream: 'https://registry.npmjs.org/d3/-/d3-7.9.0.tgz (package/dist/d3.min.js)',
+        spdx: 'ISC',
+    },
 ];
 
 const LIB_DIR = 'sandbox/lib/';

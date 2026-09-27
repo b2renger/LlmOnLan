@@ -148,6 +148,7 @@ registerStrings('parts', {
     '3. End with return and the result: a string, a number, an object or an array. Return an OBJECT that holds a list rather than a bare list.',
     '4. Plain JavaScript only: no import or require, no network, no page, no timers, no await. It must finish in under 5 seconds.',
     '5. Compute every number from the data. Never type a number you read in the question or the data.',
+    '6. d3 v7 is available as the global d3 (scales, shapes, formats, arrays). To draw, build an SVG as a string: d3.scaleLinear, d3.max and d3.line give the numbers and the path, and you return the SVG text.',
     'Skeleton:',
     '```javascript',
     'const data = inputs.in.find((v) => v && typeof v === "object") || {};',
