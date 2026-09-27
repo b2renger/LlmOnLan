@@ -1,11 +1,13 @@
 # Arduino and ESP32 examples for the Computer
 
-Code to put on a microcontroller so it can talk with the LlmOnLan **Computer**. Everything here runs on the
-board and on this computer only: nothing goes through the farm or the internet.
+Code to put on a microcontroller so it can talk with the LlmOnLan **Computer**. `lol_serial` runs on the
+board and on this computer only, over the USB cable. `lol_mqtt` goes over Wi-Fi to the farm's message bus
+on your own network. Nothing here goes to the internet.
 
 | Folder | Board | What it shows |
 |---|---|---|
 | [`lol_serial/`](lol_serial/lol_serial.ino) | Arduino Uno / Nano, ESP32 | Both ways over the USB cable: the Computer sets an LED; the board sends a light-sensor reading as one JSON line every 500 ms. |
+| [`lol_mqtt/`](lol_mqtt/lol_mqtt.ino) | ESP32 | Both ways over Wi-Fi, through the farm's message bus (MQTT): the board publishes `{"light":…}` on `lol/<board>/light` every second and sets its LED from `lol/<board>/led`. Needs the **PubSubClient** library and the farm's *Message bus* plugin. |
 
 ## Using `lol_serial`
 
@@ -22,3 +24,22 @@ board and on this computer only: nothing goes through the farm or the internet.
 
 The protocol is written at the top of the sketch: one line = one message, 115200 baud. Change it freely;
 the Computer only sends what you wire into Send and hands on whatever line the board writes.
+
+## Using `lol_mqtt`
+
+1. On the farm, turn on the **Message bus**: admin panel ▸ *Plugins* ▸ *Message bus (MQTT · WebSocket ·
+   OSC)* ▸ **Enable** (for the session), or `"bus": { "enabled": true }` in `lol.config.json` (for good).
+2. In the Arduino IDE: *esp32 by Espressif* in the Boards Manager, and **PubSubClient** by Nick O'Leary in
+   *Tools → Manage Libraries…*.
+3. Open `lol_mqtt/lol_mqtt.ino` and fill in the six lines under *YOUR SETTINGS*: your Wi-Fi, the farm's
+   address, the farm password (or `""` on a farm without one) and a name for this board. Press **Upload**.
+4. Check it: **Tools → Serial Monitor** at **115200** baud says *Farm: connected*. From any computer on the
+   network, `mosquitto_sub -h <farm> -t 'lol/#' -v -u lol -P <password>` shows the readings, and
+   `mosquitto_pub -h <farm> -t lol/board1/led -m 0.5 -u lol -P <password>` lights the LED at half.
+5. In the Computer: a **Send** box to the farm's broker writes to `lol/<board>/led`, a **Trigger** box
+   subscribed to `lol/<board>/light` starts a run on each reading (both arrive with the farm-bus work, plan
+   P3b).
+
+The farm keeps nothing: a message goes to whoever is subscribed at that moment, and is gone. With a farm
+password, the board needs it too (username `lol`); a board with the wrong one sees state `5` in the Serial
+Monitor.

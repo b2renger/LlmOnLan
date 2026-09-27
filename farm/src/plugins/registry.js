@@ -17,6 +17,7 @@ const kokoro = require('../kokoro');
 const extract = require('../extract');
 const classify = require('../classify');
 const stt = require('../stt');
+const bus = require('../bus');
 const { serviceHosts } = require('../net');
 
 // Where the farm's own health checks reach a plugin: the plugins bind where
@@ -80,6 +81,30 @@ const DESCRIPTORS = [
             return { ok: false, level: 'warn', message: `OCR service did not become healthy on port ${c.ocr.port} (busy port? slow first install? see the [extract] log). Continuing without OCR.` };
         },
         alive: (c) => extract.extractAlive(c.ocr.port, probeHost(c)),
+    },
+    {
+        // Ecosystem plan §8d (P3b): where boards and Computers meet — an MQTT broker, a WebSocket hub and an
+        // OSC relay on one topic space (src/bus.js). Node only: nothing to install. Its own process (the
+        // same child shape as the others), so a flood or a parser bug never reaches the seat gate.
+        id: 'bus', label: 'Message bus (MQTT · WebSocket · OSC)', logPrefix: 'bus', configKey: 'bus', healthKey: 'busUp', runsOn: 'farm',
+        // Started after the farm is public (up.js), like the Computer's other plugins, and listed before
+        // them: the late ones start in this order, and the bus takes a second where their first start
+        // installs for minutes.
+        late: true,
+        enabled: (c) => !!(c.bus && c.bus.enabled),
+        port: (c) => c.bus.mqttPort,
+        // The bus checks the farm password itself; up.js's health tick hands it a changed one (bus.sendKey).
+        makeCtx: (c) => ({ key: (c.proxy && c.proxy.masterKey) || null }),
+        ensure: async () => true,
+        spawn: (c, ctx) => bus.spawnBus(c, ctx),
+        stepMessage: (c) => `Message bus: MQTT ${c.bus.mqttPort} · WebSocket ${c.bus.wsPort} · OSC ${c.bus.oscPort} (udp) …`,
+        waitReady: async (c, ctx, isDead) => {
+            if (await bus.waitForBus(c.bus.wsPort, undefined, probeHost(c), isDead)) {
+                return { ok: true, level: 'ok', message: `Message bus up — boards and Computers meet on MQTT ${c.bus.mqttPort}, WebSocket ${c.bus.wsPort} and OSC ${c.bus.oscPort}${ctx.key ? ' (with the farm password)' : ''}${firewallNote(c)}.` };
+            }
+            return { ok: false, level: 'warn', message: `Message bus did not start (a port already in use? see the [bus] log). Continuing without it.` };
+        },
+        alive: (c) => bus.busAlive(c.bus.wsPort, probeHost(c)),
     },
     {
         // Ecosystem plan v2 §3.2: Laya for the Computer's Classify box. CPU-first, off by default.

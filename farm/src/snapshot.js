@@ -247,6 +247,17 @@ function buildSnapshot(config, health = {}) {
         stt: (config.stt?.enabled && health.sttUp && health.sttKey)
             ? plug(`http://${svcHost}:${config.stt.port}`, health.sttKey)
             : null,
+        // The message bus (null when off/down): where boards and Computers meet. `auth` = the farm password
+        // is required (MQTT user "lol" + the password, WebSocket ?key=<password>, OSC /lol/listen's second
+        // argument). The password itself is never here.
+        bus: (config.bus?.enabled && health.busUp)
+            ? {
+                mqtt: `mqtt://${svcHost}:${config.bus.mqttPort}`,
+                ws: `ws://${svcHost}:${config.bus.wsPort}`,
+                osc: `udp://${svcHost}:${config.bus.oscPort}`,
+                auth: keyed,
+            }
+            : null,
         // Farm-side plugin state (web search / voice / OCR): { id: {label, runsOn, enabled,
         // healthy} }. Bespoke fields above (searxngUrl/ttsUrl/extract) stay for back-compat;
         // this is the generic map the admin page + clients read.

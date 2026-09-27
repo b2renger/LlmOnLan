@@ -453,8 +453,62 @@ farm, where the keys stay in the snapshot as before). A new password takes effec
 client that fetched the keys under the old one keeps them until the farm restarts (the keys are made per
 run). What stays open, deliberately: discovery (`/lol/self`, the beacon) so
 clients can *find* the farm and ask for the password, `/health/liveliness` (the farm's own health
-checks), and the admin panel's own **token** gate, which is separate and unchanged. This is a
-trusted-LAN convenience lock, not hardened auth: traffic is plain HTTP on your own network.
+checks), and the admin panel's own **token** gate, which is separate and unchanged. The
+[message bus](#message-bus) checks the same password itself (MQTT, WebSocket and OSC each carry it their
+own way). This is a trusted-LAN convenience lock, not hardened auth: traffic is plain HTTP on your own
+network.
+
+## Message bus
+
+Off by default. `"bus": { "enabled": true }` in `lol.config.json` (or the panel's plugin toggle, for the
+session) makes the farm the meeting point for microcontrollers and Computers on the LAN: **one in-memory
+topic space behind three doors**, so an ESP32 on MQTT, a browser page on WebSocket and TouchDesigner on OSC
+see the same messages. Node's standard library only (`src/bus.js`, run as its own process so a flood never
+reaches the seat gate), nothing to install. It binds to `proxy.host` like the other plugins, starts once
+the farm is public, and is advertised in the snapshot as
+`bus: { mqtt: "mqtt://<host>:1883", ws: "ws://<host>:8893", osc: "udp://<host>:9001", auth }` only while it
+answers (`auth` = a farm password is needed; the password itself is never there).
+
+| Door | Port | Speaks |
+|---|---|---|
+| MQTT 3.1.1 broker | `bus.mqttPort` 1883 (TCP) | CONNECT, PUBLISH (QoS 0; QoS 1 and 2 are acknowledged and delivered at QoS 0), SUBSCRIBE with `+` and `#`, UNSUBSCRIBE, PING, DISCONNECT. A client silent for 1.5× its keep-alive is dropped; a reconnect with the same client id replaces the old session. |
+| WebSocket hub | `bus.wsPort` 8893 | JSON text. Send `{"sub": "sensors/#"}` (answered `{"subscribed": "sensors/#"}`), `{"unsub": "…"}`, `{"pub": "lol/board1/led", "data": 0.5}`; receive `{"topic": "…", "data": …}`. A bad message gets `{"error": "…"}`. `GET /health` answers counts. |
+| OSC relay | `bus.oscPort` 9001 (UDP) | `/light 0.5` is published on `osc/light` with data `0.5` (several arguments → an array). `/lol/listen <filter> [password] [reply port]` sends every matching message back as OSC (address `/` + topic) for 10 minutes — send it again to stay; the relay answers `/lol/listening <filter>`. The reply port is for tools that send from one port and listen on another (TouchDesigner, Max). `/lol/unlisten [filter] [reply port]` stops it. |
+
+**Payloads.** An MQTT payload that parses as JSON reaches WebSocket and OSC as that value, anything else
+as its text. A value goes to MQTT as its JSON text, except a string, which goes as itself (`on`, not
+`"on"`). OSC out: an integer → `i`, another number → `f`, a string → `s`, true/false → `T`/`F`, an array →
+its items, an object → its JSON text. Every door delivers to every matching subscriber, the sender included.
+
+**Auth** follows the farm password: MQTT wants username `lol` + the password (CONNACK 5 otherwise), the
+WebSocket wants `?key=<password>` on its URL (401 otherwise), `/lol/listen` wants it as its second argument
+(ignored otherwise). A new password reaches the bus within one health tick (~10 s) and ends every session
+made with the old one. On a keyed farm, OSC *writes* stay open — ordinary OSC tools cannot log in — but only
+under `osc/…`; reading anything needs the password. An open farm asks for nothing.
+
+**Limits.** 256 connections per door, 64 KB per MQTT packet or WebSocket message, 200 messages/s per
+client (the excess is dropped and the log says so once), 64 subscriptions per client. Not built: retained
+messages, persistent sessions, wills, exactly-once QoS 2, TLS (plain text on your own LAN, like the rest of
+the farm). The log shows counts and refusals, never a message.
+
+**Try it** (`-u`/`-P` only on a farm with a password):
+
+```bash
+mosquitto_sub -h <farm> -t 'sensors/#' -v -u lol -P <password>
+mosquitto_pub -h <farm> -t sensors/test/light -m '{"light":512}' -u lol -P <password>
+```
+
+[MQTT Explorer](https://mqtt-explorer.com) works too: host `<farm>`, port 1883, username `lol`, the
+password. In a browser's developer console:
+
+```js
+const ws = new WebSocket('ws://<farm>:8893/?key=<password>');
+ws.onmessage = (e) => console.log(e.data);
+ws.onopen = () => ws.send(JSON.stringify({ sub: 'sensors/#' }));
+```
+
+An ESP32 that publishes a light reading and takes its LED from the bus:
+[`docs/examples/arduino/lol_mqtt`](../docs/examples/arduino/lol_mqtt/lol_mqtt.ino).
 
 ## Admin HTTP API
 
@@ -606,6 +660,10 @@ build for Blackwell cards (16 GB+); replace it freely.
   Measured on the dev box's CPU: `small` writes down a 7.4 s clip in 2.1 s. Confucius4-R2T2 (streaming,
   GPU, Linux/vLLM) is not installed: read its weight licence first, then run it yourself. `rm -rf farm/.stt`
   uninstalls it.
+- **Message bus (OFF by default, 2026-09-27):** an MQTT broker, a WebSocket hub and an OSC relay on one
+  topic space, so boards and Computers on the LAN meet at the farm.
+  `"bus": { "enabled": true, "mqttPort": 1883, "wsPort": 8893, "oscPort": 9001 }`. Nothing to install. See
+  [Message bus](#message-bus).
 - **Admin panel (running the farm):** while `lol up` runs, open `http://<box>:41997/lol/admin` (the
   beacon `httpPort`) from any browser on the LAN — or click **"Manage this farm"** in the desktop
   client's fleet popover. The Farm app shows the same page as its own window. It is where the farm is
@@ -711,6 +769,7 @@ build for Blackwell cards (16 GB+); replace it freely.
 | llama-server never becomes healthy, no clear error | Weights + KV don't fit VRAM, or a mismatched `mmproj` | Lower `contextLength`/`parallel`, check `mmproj` matches the model family |
 | *"Farm already running"* / a stale port | A previous run wasn't torn down | `lol down`, then `lol up` |
 | Port already in use (4000 / 4001 / 41997 / 8081 / 8888 / 8890) | Another process (or an orphaned plugin) holds it | `lol down`; if it persists, change the port in `lol.config.json` (the Farm app moves 8888 / 8890 itself) |
+| *"Message bus did not start"* | Another MQTT broker (Mosquitto) or OSC tool holds 1883 / 8893 / 9001 | Stop it, or change `bus.mqttPort` / `wsPort` / `oscPort`; the farm serves chat without the bus meanwhile |
 
 ## Notes / gotchas
 

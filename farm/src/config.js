@@ -360,6 +360,16 @@ const SttSchema = z.object({
     maxMb: z.number().int().min(1).max(100).default(25),   // the Sound box's own cap
 });
 
+// The message bus (docs/ECOSYSTEM_PLAN.md §8d, P3b; src/bus.js): an MQTT broker, a WebSocket hub and an
+// OSC relay on one topic space, so boards and Computers on the LAN meet at the farm. Node only, nothing to
+// install. OFF by default: it opens three more ports on the LAN (keyed by the farm password when one is set).
+const BusSchema = z.object({
+    enabled: z.boolean().default(false),
+    mqttPort: z.number().int().positive().max(65535).default(1883),
+    wsPort: z.number().int().positive().max(65535).default(8893),
+    oscPort: z.number().int().positive().max(65535).default(9001),   // UDP
+}).strict();
+
 const OcrSchema = z.object({
     // One shared "lol-extract" document-extraction service on this box; clients
     // discover it via the beacon (snapshot.extract) and OWUI uses it as its
@@ -483,6 +493,7 @@ const ConfigSchema = z.object({
     tts: TtsSchema.default({}),
     classify: ClassifySchema.default({}),
     stt: SttSchema.default({}),
+    bus: BusSchema.default({}),
     ocr: OcrSchema.default({}),
     admin: AdminSchema.default({}),
     // Coordinator mode: aggregate LAN peer farms into one balanced endpoint that

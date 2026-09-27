@@ -601,10 +601,11 @@ test('snapshot usage.clients mirrors clientsConnected (null on older farms)', ()
 // ---- plugin registry -------------------------------------------------------
 const { makeServices, pluginsSummary, FarmService } = require('../src/plugins/registry');
 
-test('registry: five farm services, config-gated (websearch+ocr on, tts+classify+stt off)', () => {
+test('registry: six farm services, config-gated (websearch+ocr on, tts+classify+stt+bus off)', () => {
     const c = defaultConfig();
     const svcs = makeServices();
-    assert.deepEqual(svcs.map((s) => s.id), ['websearch', 'tts', 'ocr', 'classify', 'stt']);
+    assert.deepEqual(svcs.map((s) => s.id), ['websearch', 'tts', 'ocr', 'bus', 'classify', 'stt']);
+    assert.equal(svcs.find((s) => s.id === 'bus').enabled(c), false, 'the message bus is off by default (three more LAN ports)');
     assert.equal(svcs.find((s) => s.id === 'stt').enabled(c), false, 'speech to text off by default (plan v2: CPU first)');
     assert.equal(svcs.find((s) => s.id === 'classify').enabled(c), false, 'Classify off by default (plan v2: CPU contention first)');
     assert.equal(svcs.find((s) => s.id === 'websearch').enabled(c), true);
@@ -1962,7 +1963,7 @@ test('plugin keys are tied to the farm password: off the beacon when one is set,
 
 test('classify + stt start AFTER the farm is public, and their installs never block the event loop (rig, 2026-09-27)', () => {
     const svcs = makeServices();
-    assert.deepEqual(svcs.filter((s) => s.desc.late).map((s) => s.id), ['classify', 'stt'], 'the two heavy first starts are late');
+    assert.deepEqual(svcs.filter((s) => s.desc.late).map((s) => s.id), ['bus', 'classify', 'stt'], 'the two heavy first starts are late, and the quick bus before them');
     const upSrc = fs.readFileSync(path.join(__dirname, '..', 'src', 'commands', 'up.js'), 'utf8');
     const boot = upSrc.indexOf('if (!svc.enabled(config) || svc.desc.late) continue;');
     const late = upSrc.indexOf('if (!svc.desc.late || !svc.enabled(config)) continue;');
@@ -2002,14 +2003,418 @@ test('classify + stt waits: end early when the child exits or the model failed t
 });
 
 test('classify + stt services: refusals and bookkeeping with stub models (farm/src/pysvc/check_services.py)', () => {
-    // Needs a Python with fastapi + httpx: LOL_PYSVC_PYTHON, or a farm venv that has them. Skips otherwise.
+    // Needs a Python with fastapi + httpx + python-multipart: LOL_PYSVC_PYTHON, or a farm venv that has them. Skips otherwise.
     const { spawnSync } = require('child_process');
     const bin = process.platform === 'win32' ? ['Scripts', 'python.exe'] : ['bin', 'python'];
     const candidates = [process.env.LOL_PYSVC_PYTHON, ...['.classify', '.stt'].map((d) => path.join(__dirname, '..', d, 'venv', ...bin))].filter(Boolean);
-    const py = candidates.find((p) => fs.existsSync(p) && spawnSync(p, ['-c', 'import fastapi, httpx']).status === 0);
+    const py = candidates.find((p) => fs.existsSync(p) && spawnSync(p, ['-c', 'import fastapi, httpx, multipart']).status === 0);
     if (!py) { console.log('       (skipped: no Python with fastapi + httpx; set LOL_PYSVC_PYTHON)'); return; }
     const r = spawnSync(py, ['-W', 'ignore', path.join(__dirname, '..', 'src', 'pysvc', 'check_services.py')], { encoding: 'utf8', env: { ...process.env, PYTHONDONTWRITEBYTECODE: '1' }, timeout: 120000 });
     assert.equal(r.status, 0, r.stdout + r.stderr);
+});
+
+// ---- the message bus (src/bus.js, plan §8d P3b) ------------------------------------------------
+// Real sockets on ephemeral ports (port 0), bound to 127.0.0.1 — never 1883/8893/9001.
+const busMod = require('../src/bus');
+
+const mqttStr = (s) => { const b = Buffer.from(s); return Buffer.concat([Buffer.from([b.length >> 8, b.length & 255]), b]); };
+function mqttConnectPkt(id, { user = null, pass = null, keepAlive = 60 } = {}) {
+    const flags = 0x02 | (user != null ? 0x80 : 0) | (pass != null ? 0x40 : 0);
+    return busMod.mqttPacket(0x10, Buffer.concat([mqttStr('MQTT'), Buffer.from([4, flags, keepAlive >> 8, keepAlive & 255]), mqttStr(id),
+        user != null ? mqttStr(user) : Buffer.alloc(0), pass != null ? mqttStr(pass) : Buffer.alloc(0)]));
+}
+const mqttPubPkt = (topic, payload, qos = 0, pid = 1) => busMod.mqttPacket(0x30 | (qos << 1),
+    Buffer.concat([mqttStr(topic), qos ? Buffer.from([pid >> 8, pid & 255]) : Buffer.alloc(0), Buffer.from(payload)]));
+const pubOf = (p) => { const n = p.body.readUInt16BE(0); return { topic: p.body.toString('utf8', 2, 2 + n), payload: p.body.toString('utf8', 2 + n) }; };
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+async function waitFor(fn, ms = 2000, what = 'condition') {
+    const t0 = Date.now();
+    while (!(await fn())) { if (Date.now() - t0 > ms) throw new Error(`timed out waiting for ${what}`); await sleep(20); }
+}
+
+// A raw-socket MQTT client, written by hand: `next(type)` resolves with the next packet of that type.
+function mqttRaw(port) {
+    const net = require('net');
+    return new Promise((resolve, reject) => {
+        const sock = net.connect(port, '127.0.0.1');
+        sock.setNoDelay(true);
+        let buf = Buffer.alloc(0);
+        const got = [];
+        const waiters = [];
+        let closed = false;
+        const pump = () => {
+            for (let i = 0; i < waiters.length; i++) {
+                const j = got.findIndex((p) => p.type === waiters[i].type);
+                if (j >= 0) { waiters[i].resolve(got.splice(j, 1)[0]); waiters.splice(i--, 1); }
+            }
+        };
+        const parseOne = () => {
+            if (buf.length < 2) return false;
+            let len = 0; let mult = 1; let i = 1; let byte;
+            do { if (i >= buf.length) return false; byte = buf[i++]; len += (byte & 127) * mult; mult *= 128; } while (byte & 128);
+            if (buf.length < i + len) return false;
+            got.push({ type: buf[0] >> 4, flags: buf[0] & 15, body: buf.subarray(i, i + len) });
+            buf = buf.subarray(i + len);
+            return true;
+        };
+        sock.on('data', (d) => { buf = Buffer.concat([buf, d]); while (parseOne()); pump(); });
+        sock.on('close', () => { closed = true; });
+        sock.on('error', () => {});
+        const c = {
+            sock, got,
+            closed: () => closed,
+            send: (b) => sock.write(b),
+            next: (type, ms = 3000) => new Promise((res, rej) => {
+                const w = { type, resolve: res };
+                waiters.push(w);
+                pump();
+                setTimeout(() => { const k = waiters.indexOf(w); if (k >= 0) { waiters.splice(k, 1); rej(new Error(`no MQTT packet of type ${type} within ${ms} ms`)); } }, ms);
+            }),
+            async connect(id, opts) { sock.write(mqttConnectPkt(id, opts)); return (await c.next(2)).body[1]; },
+            async sub(filter, pid = 1) {
+                sock.write(busMod.mqttPacket(0x82, Buffer.concat([Buffer.from([pid >> 8, pid & 255]), mqttStr(filter), Buffer.from([0])])));
+                return [...(await c.next(9)).body.subarray(2)];
+            },
+            end: () => sock.destroy(),
+        };
+        sock.once('connect', () => resolve(c));
+        sock.once('error', reject);
+    });
+}
+
+async function withBus(opts, fn) {
+    const lines = [];
+    const b = busMod.startBus({ host: '127.0.0.1', mqttPort: 0, wsPort: 0, oscPort: 0, log: (l) => lines.push(String(l)), ...opts });
+    const ports = await b.ready;
+    try { await fn(ports, b, lines); } finally { await b.close(); }
+}
+
+function wsOpen(url) {
+    return new Promise((resolve, reject) => {
+        const w = new WebSocket(url);
+        w.onopen = () => resolve(w);
+        w.onerror = () => reject(new Error('refused'));
+    });
+}
+function wsNext(w, pred, ms = 3000) {
+    return new Promise((resolve, reject) => {
+        const h = (e) => { const m = JSON.parse(e.data); if (pred(m)) { w.removeEventListener('message', h); resolve(m); } };
+        w.addEventListener('message', h);
+        setTimeout(() => { w.removeEventListener('message', h); reject(new Error('no matching WebSocket message')); }, ms);
+    });
+}
+
+async function udpSocket() {
+    const s = require('dgram').createSocket('udp4');
+    await new Promise((r) => s.bind(0, '127.0.0.1', r));
+    s.got = [];
+    s.on('message', (b) => { try { s.got.push(...busMod.oscDecode(b)); } catch { /* not OSC */ } });
+    return s;
+}
+
+test('bus: topic filters, the payload rule, OSC encode/decode', () => {
+    const m = busMod.topicMatches;
+    assert.ok(m('sensors/+/light', 'sensors/esp1/light'));
+    assert.ok(!m('sensors/+/light', 'sensors/esp1/temp'));
+    assert.ok(!m('sensors/+/light', 'sensors/esp1/light/x'));
+    assert.ok(m('sensors/#', 'sensors/esp1/light') && m('sensors/#', 'sensors'), '# is the rest AND the parent');
+    assert.ok(m('#', 'a/b') && !m('#', '$SYS/x') && !m('+/x', '$SYS/x'), '$ topics stay out of wildcards');
+    assert.ok(m('a/b', 'a/b') && !m('a/b', 'a/b/c') && m('+/+', 'a/b'));
+    for (const f of ['a/#', '#', '+', 'a/+/b', 'a//b']) assert.ok(busMod.validFilter(f), f);
+    for (const f of ['a/#/b', 'a#', 'a/b+', '', 5, null]) assert.ok(!busMod.validFilter(f), String(f));
+    for (const t of ['a/+', 'a/#', '', 7]) assert.ok(!busMod.validTopic(t), String(t));
+    assert.deepEqual(busMod.toData(Buffer.from('{"light":5}')), { light: 5 });
+    assert.equal(busMod.toData(Buffer.from('on')), 'on', 'not JSON → the text');
+    assert.equal(busMod.toPayload('on').toString(), 'on', 'a string goes to MQTT as itself');
+    assert.equal(busMod.toPayload(0.5).toString(), '0.5');
+    assert.equal(busMod.toPayload({ a: [1, true] }).toString(), '{"a":[1,true]}');
+    assert.deepEqual(busMod.oscDecode(busMod.oscEncode('/x', [1, 0.1, 's', true, false])), [{ address: '/x', args: [1, 0.1, 's', true, false] }]);
+    assert.deepEqual(busMod.oscDecode(busMod.oscEncode('/o', { light: 5 })), [{ address: '/o', args: ['{"light":5}'] }], 'an object → its JSON text');
+    assert.deepEqual(busMod.oscDecode(busMod.oscEncode('/bang', null)), [{ address: '/bang', args: [] }]);
+    // A bundle of two messages gives both.
+    const el = (b) => Buffer.concat([Buffer.from([0, 0, 0, b.length]), b]);
+    const bundle = Buffer.concat([Buffer.from('#bundle\0'), Buffer.alloc(8), el(busMod.oscEncode('/a', 1)), el(busMod.oscEncode('/b', 'x'))]);
+    assert.deepEqual(busMod.oscDecode(bundle), [{ address: '/a', args: [1] }, { address: '/b', args: ['x'] }]);
+    assert.throws(() => busMod.oscDecode(Buffer.from('/x\0\0,b\0\0\0\0\0\1z\0\0\0')), /unsupported OSC type b/);
+});
+
+test('bus MQTT: + and # subscribers, QoS 1 → PUBACK, PINGREQ → PINGRESP, a packet split inside its length still parses', async () => {
+    await withBus({}, async (p) => {
+        const a = await mqttRaw(p.mqtt);
+        const all = await mqttRaw(p.mqtt);
+        const pub = await mqttRaw(p.mqtt);
+        try {
+            assert.equal(await a.connect('a'), 0);
+            assert.equal(await all.connect('all'), 0);
+            assert.equal(await pub.connect('pub'), 0);
+            assert.deepEqual(await a.sub('sensors/+/light'), [0]);
+            assert.deepEqual(await all.sub('sensors/#', 2), [0]);
+            assert.deepEqual(await a.sub('bad/#/filter', 3), [0x80], 'an invalid filter → SUBACK failure');
+            pub.send(mqttPubPkt('sensors/esp1/light', '{"light":512}'));
+            assert.deepEqual(pubOf(await a.next(3)), { topic: 'sensors/esp1/light', payload: '{"light":512}' });
+            assert.deepEqual(pubOf(await all.next(3)), { topic: 'sensors/esp1/light', payload: '{"light":512}' });
+            // QoS 1: acknowledged with the same packet id, delivered at QoS 0.
+            pub.send(mqttPubPkt('sensors/esp1/temp', '21', 1, 0x1234));
+            const ack = await pub.next(4);
+            assert.deepEqual([...ack.body], [0x12, 0x34]);
+            const d = await all.next(3);
+            assert.equal(d.flags, 0, 'delivered at QoS 0');
+            assert.deepEqual(pubOf(d), { topic: 'sensors/esp1/temp', payload: '21' });
+            // A 300-byte payload needs two remaining-length bytes: split the packet between them.
+            const big = mqttPubPkt('sensors/esp2/light', 'x'.repeat(300));
+            pub.send(big.subarray(0, 2));
+            await sleep(60);
+            pub.send(big.subarray(2, 40));
+            await sleep(60);
+            pub.send(big.subarray(40));
+            const got = pubOf(await a.next(3));
+            assert.equal(got.topic, 'sensors/esp2/light');
+            assert.equal(got.payload.length, 300);
+            await sleep(100);
+            assert.equal(a.got.filter((x) => x.type === 3).length, 0, 'the temp topic never reached the +/light subscriber');
+            pub.send(Buffer.from([0xc0, 0]));
+            await pub.next(13);
+            // A packet over the 64 KB cap ends the connection.
+            pub.send(mqttPubPkt('sensors/huge', 'x'.repeat(busMod.MAX_PACKET + 1)));
+            await waitFor(() => pub.closed(), 2000, 'the oversize publisher to be dropped');
+        } finally { a.end(); all.end(); pub.end(); }
+    });
+});
+
+test('bus MQTT: a keyed bus wants user "lol" + the farm password (CONNACK 5 otherwise); a same-id reconnect replaces the old session', async () => {
+    await withBus({ key: 'pw-farm' }, async (p) => {
+        const tries = [[{}, 5], [{ user: 'lol', pass: 'nope' }, 5], [{ user: 'bob', pass: 'pw-farm' }, 5], [{ user: 'lol', pass: 'pw-farm' }, 0]];
+        for (const [opts, code] of tries) {
+            const c = await mqttRaw(p.mqtt);
+            try { assert.equal(await c.connect('k', opts), code, JSON.stringify(opts)); } finally { c.end(); }
+        }
+        const first = await mqttRaw(p.mqtt);
+        const second = await mqttRaw(p.mqtt);
+        try {
+            assert.equal(await first.connect('board1', { user: 'lol', pass: 'pw-farm' }), 0);
+            assert.equal(await second.connect('board1', { user: 'lol', pass: 'pw-farm' }), 0);
+            await waitFor(() => first.closed(), 2000, 'the old board1 session to end');
+            assert.equal(second.closed(), false);
+        } finally { first.end(); second.end(); }
+    });
+});
+
+test('bus MQTT: a client silent past 1.5× its keep-alive is dropped', async () => {
+    await withBus({}, async (p) => {
+        const quiet = await mqttRaw(p.mqtt);
+        const pinging = await mqttRaw(p.mqtt);
+        try {
+            assert.equal(await quiet.connect('quiet', { keepAlive: 1 }), 0);
+            assert.equal(await pinging.connect('pinging', { keepAlive: 1 }), 0);
+            const t0 = Date.now();
+            const pinger = setInterval(() => pinging.send(Buffer.from([0xc0, 0])), 500);
+            try { await waitFor(() => quiet.closed(), 4000, 'the silent client to be dropped'); } finally { clearInterval(pinger); }
+            assert.ok(Date.now() - t0 >= 1400, 'not before 1.5 s');
+            assert.equal(pinging.closed(), false, 'a client that pings stays');
+        } finally { quiet.end(); pinging.end(); }
+    });
+});
+
+test('bus WebSocket: ?key on a keyed bus, sub gets an MQTT publish as {topic,data}, a pub reaches MQTT', async () => {
+    await withBus({ key: 'pw-farm' }, async (p) => {
+        await assert.rejects(wsOpen(`ws://127.0.0.1:${p.ws}/`), /refused/, 'no key → 401');
+        await assert.rejects(wsOpen(`ws://127.0.0.1:${p.ws}/?key=wrong`), /refused/, 'a wrong key → 401');
+        const w = await wsOpen(`ws://127.0.0.1:${p.ws}/?key=pw-farm`);
+        const m = await mqttRaw(p.mqtt);
+        try {
+            assert.equal(await m.connect('m', { user: 'lol', pass: 'pw-farm' }), 0);
+            assert.deepEqual(await m.sub('lol/board1/led'), [0]);
+            w.send(JSON.stringify({ sub: 'sensors/#' }));
+            assert.deepEqual(await wsNext(w, (x) => 'subscribed' in x), { subscribed: 'sensors/#' });
+            m.send(mqttPubPkt('sensors/esp1/light', '{"light":512}'));
+            assert.deepEqual(await wsNext(w, (x) => 'topic' in x), { topic: 'sensors/esp1/light', data: { light: 512 } });
+            m.send(mqttPubPkt('sensors/esp1/name', 'kitchen'));
+            assert.deepEqual(await wsNext(w, (x) => 'topic' in x), { topic: 'sensors/esp1/name', data: 'kitchen' }, 'not JSON → the text');
+            w.send(JSON.stringify({ pub: 'lol/board1/led', data: 0.5 }));
+            assert.deepEqual(pubOf(await m.next(3)), { topic: 'lol/board1/led', payload: '0.5' });
+            w.send(JSON.stringify({ pub: 'lol/board1/led', data: 'on' }));
+            assert.deepEqual(pubOf(await m.next(3)), { topic: 'lol/board1/led', payload: 'on' }, 'a string goes as itself');
+            w.send(JSON.stringify({ pub: 'bad/#', data: 1 }));
+            assert.ok((await wsNext(w, (x) => 'error' in x)).error.includes('cannot publish'));
+            w.send('not json');
+            assert.ok('error' in await wsNext(w, (x) => 'error' in x));
+        } finally { w.close(); m.end(); }
+        const open = await fetch(`http://127.0.0.1:${p.ws}/health`);
+        assert.equal(open.status, 200, 'the farm probe needs no key');
+        assert.equal((await open.json()).bus, true);
+    });
+});
+
+test('bus WebSocket: fragmented frames are reassembled; over 64 KB closes with 1009; unmasked frames close with 1002', async () => {
+    const net = require('net');
+    const crypto = require('crypto');
+    const frame = (fin, op, payload) => {   // a client frame, masked
+        const mask = crypto.randomBytes(4);
+        const n = payload.length;
+        const head = n < 126 ? Buffer.from([(fin ? 0x80 : 0) | op, 0x80 | n])
+            : n < 65536 ? Buffer.from([(fin ? 0x80 : 0) | op, 0x80 | 126, n >> 8, n & 255])
+                : Buffer.concat([Buffer.from([(fin ? 0x80 : 0) | op, 0x80 | 127, 0, 0, 0, 0]), (() => { const b = Buffer.alloc(4); b.writeUInt32BE(n); return b; })()]);
+        const body = Buffer.from(payload);
+        for (let i = 0; i < body.length; i++) body[i] ^= mask[i & 3];
+        return Buffer.concat([head, mask, body]);
+    };
+    const rawWs = (port) => new Promise((resolve) => {
+        const s = net.connect(port, '127.0.0.1', () => s.write(`GET / HTTP/1.1\r\nHost: x\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: ${crypto.randomBytes(16).toString('base64')}\r\nSec-WebSocket-Version: 13\r\n\r\n`));
+        s.data = Buffer.alloc(0);
+        s.on('data', (d) => { s.data = Buffer.concat([s.data, d]); if (!s.upgraded && s.data.includes('\r\n\r\n')) { s.upgraded = true; s.data = s.data.subarray(s.data.indexOf('\r\n\r\n') + 4); resolve(s); } });
+        s.on('error', () => {});
+        s.on('close', () => { s.gone = true; });
+    });
+    await withBus({}, async (p) => {
+        const w = await wsOpen(`ws://127.0.0.1:${p.ws}/`);
+        const s = await rawWs(p.ws);
+        try {
+            w.send(JSON.stringify({ sub: 'frag/#' }));
+            await wsNext(w, (x) => 'subscribed' in x);
+            const msg = JSON.stringify({ pub: 'frag/t', data: { a: 'b' } });
+            s.write(frame(false, 1, msg.slice(0, 5)));
+            s.write(frame(false, 0, msg.slice(5, 12)));
+            s.write(frame(true, 9, 'hi'));                        // a ping between the fragments is allowed
+            s.write(frame(true, 0, msg.slice(12)));
+            assert.deepEqual(await wsNext(w, (x) => 'topic' in x), { topic: 'frag/t', data: { a: 'b' } });
+            await waitFor(() => s.data.includes(Buffer.from([0x8a, 2, 0x68, 0x69])), 2000, 'the pong');
+            s.write(frame(false, 1, 'x'.repeat(40000)));
+            s.write(frame(true, 0, 'x'.repeat(30000)));
+            await waitFor(() => s.gone, 2000, 'the oversize message to close the socket');
+            assert.ok(s.data.includes(Buffer.from([0x88, 2, 0x03, 0xf1])), 'close 1009');
+            const u = await rawWs(p.ws);
+            u.write(Buffer.from([0x81, 2, 0x68, 0x69]));          // unmasked
+            await waitFor(() => u.gone, 2000, 'the unmasked client to be closed');
+            assert.ok(u.data.includes(Buffer.from([0x88, 2, 0x03, 0xea])), 'close 1002');
+        } finally { w.close(); s.destroy(); }
+    });
+});
+
+test('bus OSC: /lol/listen <filter> <password> [reply port] relays MQTT as OSC; /light 0.5 reaches a WebSocket on osc/light; unlisten', async () => {
+    await withBus({ key: 'pw-farm' }, async (p, b) => {
+        const listener = await udpSocket();
+        const stranger = await udpSocket();
+        const tdIn = await udpSocket();   // TouchDesigner/Max: send from one port, listen on another
+        const m = await mqttRaw(p.mqtt);
+        const w = await wsOpen(`ws://127.0.0.1:${p.ws}/?key=pw-farm`);
+        try {
+            stranger.send(busMod.oscEncode('/lol/listen', ['sensors/#']), p.osc, '127.0.0.1');
+            stranger.send(busMod.oscEncode('/lol/listen', ['sensors/#', 'wrong']), p.osc, '127.0.0.1');
+            listener.send(busMod.oscEncode('/lol/listen', ['sensors/#', 'pw-farm']), p.osc, '127.0.0.1');
+            await waitFor(() => listener.got.some((x) => x.address === '/lol/listening'), 2000, 'the /lol/listening answer');
+            assert.deepEqual(listener.got.shift(), { address: '/lol/listening', args: ['sensors/#'] });
+            assert.equal(b.counts().osc, 1, 'no password → ignored');
+            stranger.send(busMod.oscEncode('/lol/listen', ['sensors/+/light', 'pw-farm', tdIn.address().port]), p.osc, '127.0.0.1');
+            await waitFor(() => tdIn.got.some((x) => x.address === '/lol/listening'), 2000, 'the answer at the reply port');
+            tdIn.got.length = 0;
+            assert.equal(await m.connect('m', { user: 'lol', pass: 'pw-farm' }), 0);
+            m.send(mqttPubPkt('sensors/esp1/light', '42'));
+            m.send(mqttPubPkt('sensors/esp1/rgb', '[1,0.5,"x",true]'));
+            await waitFor(() => listener.got.length >= 2, 2000, 'two OSC packets');
+            assert.deepEqual(listener.got, [
+                { address: '/sensors/esp1/light', args: [42] },
+                { address: '/sensors/esp1/rgb', args: [1, 0.5, 'x', true] },
+            ]);
+            assert.equal(stranger.got.length, 0, 'the unkeyed sender gets nothing at its own port');
+            assert.deepEqual(tdIn.got, [{ address: '/sensors/esp1/light', args: [42] }], 'the reply port gets its filter only');
+            // A device's OSC → osc/<address> for the WebSocket hub (and MQTT).
+            w.send(JSON.stringify({ sub: 'osc/#' }));
+            await wsNext(w, (x) => 'subscribed' in x);
+            stranger.send(busMod.oscEncode('/light', 0.5), p.osc, '127.0.0.1');
+            assert.deepEqual(await wsNext(w, (x) => 'topic' in x), { topic: 'osc/light', data: 0.5 });
+            stranger.send(busMod.oscEncode('/xy', [0.25, 7]), p.osc, '127.0.0.1');
+            assert.deepEqual(await wsNext(w, (x) => 'topic' in x), { topic: 'osc/xy', data: [0.25, 7] }, 'several arguments → an array');
+            listener.send(busMod.oscEncode('/lol/unlisten', null), p.osc, '127.0.0.1');
+            await waitFor(() => b.counts().osc === 1, 2000, 'the first unlisten');
+            stranger.send(busMod.oscEncode('/lol/unlisten', [tdIn.address().port]), p.osc, '127.0.0.1');
+            await waitFor(() => b.counts().osc === 0, 2000, 'the unlisten by reply port');
+        } finally { listener.close(); stranger.close(); tdIn.close(); m.end(); w.close(); }
+    });
+});
+
+test('bus: over 200 messages/s per client are dropped (said once); no payload or password ever reaches the log', async () => {
+    const SECRET = 'PAYLOAD-7f3a91';
+    await withBus({ key: 'pw-hidden-42' }, async (p, b, lines) => {
+        const sub = await mqttRaw(p.mqtt);
+        const pub = await mqttRaw(p.mqtt);
+        const osc = await udpSocket();
+        try {
+            assert.equal(await sub.connect('s', { user: 'lol', pass: 'pw-hidden-42' }), 0);
+            assert.equal(await pub.connect('p', { user: 'lol', pass: 'pw-hidden-42' }), 0);
+            await sub.sub('flood/#');
+            pub.send(Buffer.concat(Array.from({ length: 250 }, (_, i) => mqttPubPkt('flood/x', `${SECRET}-${i}`))));
+            await waitFor(() => sub.got.filter((x) => x.type === 3).length >= 200, 3000, '200 deliveries');
+            await sleep(200);
+            assert.equal(sub.got.filter((x) => x.type === 3).length, 200, 'exactly the cap in one second');
+            // Refusals on every door, and traffic through every door, all carrying the marker.
+            const bad = await mqttRaw(p.mqtt);
+            assert.equal(await bad.connect('x', { user: 'lol', pass: `${SECRET}-guess` }), 5);
+            bad.end();
+            await assert.rejects(wsOpen(`ws://127.0.0.1:${p.ws}/?key=${SECRET}`));
+            osc.send(busMod.oscEncode('/lol/listen', [`${SECRET}/#`, `${SECRET}-pw`]), p.osc, '127.0.0.1');
+            osc.send(busMod.oscEncode(`/${SECRET}`, SECRET), p.osc, '127.0.0.1');
+            const w = await wsOpen(`ws://127.0.0.1:${p.ws}/?key=pw-hidden-42`);
+            w.send(JSON.stringify({ pub: `t/${SECRET}`, data: SECRET }));
+            w.send(`${SECRET} not json`);
+            await wsNext(w, (x) => 'error' in x);
+            w.close();
+            await waitFor(() => lines.some((l) => l.startsWith('WebSocket: refused')) && lines.some((l) => l.startsWith('OSC: refused')), 2000, 'the refusals');
+            b.setKey('pw-new-99');
+            assert.equal(b.stats.dropped >= 50, true);
+        } finally { sub.end(); pub.end(); osc.close(); }
+        const text = lines.join('\n');
+        assert.ok(/over 200 messages\/s/.test(text), 'the drop is said');
+        assert.equal(text.match(/over 200 messages\/s/g).length, 1, 'said once');
+        assert.ok(lines.some((l) => l.startsWith('MQTT: refused')), 'refusals are said');
+        assert.ok(!text.includes(SECRET), 'no payload, topic or guessed password in the log');
+        assert.ok(!text.includes('pw-hidden-42') && !text.includes('pw-new-99'), 'no farm password in the log');
+    });
+});
+
+test('bus: the registry runs it as its own process; the snapshot advertises it only when up (never the password); a new password reaches it; lol down stops it', async () => {
+    const net = require('net');
+    const dgram = require('dgram');
+    const freeTcp = async () => { const s = net.createServer(); await new Promise((r) => s.listen(0, '127.0.0.1', r)); const p = s.address().port; await new Promise((r) => s.close(r)); return p; };
+    const freeUdp = async () => { const s = dgram.createSocket('udp4'); await new Promise((r) => s.bind(0, '127.0.0.1', r)); const p = s.address().port; await new Promise((r) => s.close(r)); return p; };
+    const c = defaultConfig();
+    c.proxy.host = '127.0.0.1';
+    c.proxy.masterKey = 'pw-one';
+    c.bus = { enabled: true, mqttPort: await freeTcp(), wsPort: await freeTcp(), oscPort: await freeUdp() };
+    const svc = makeServices().find((s) => s.id === 'bus');
+    const out = [];
+    const log = { step() {}, ok() {}, warn() {}, err() {}, childPrefix: () => (d) => out.push(String(d)) };
+    const res = await svc.start(c, { log });
+    try {
+        assert.equal(res.ok, true, res.message);
+        assert.ok(svc.pid && svc.pid !== process.pid, 'its own process');
+        const snap = buildSnapshot(c, { proxyUp: true, hostsUp: 1, busUp: svc.up });
+        assert.deepEqual(snap.bus, {
+            mqtt: `mqtt://127.0.0.1:${c.bus.mqttPort}`, ws: `ws://127.0.0.1:${c.bus.wsPort}`, osc: `udp://127.0.0.1:${c.bus.oscPort}`, auth: true,
+        });
+        assert.ok(!JSON.stringify(snap).includes('pw-one'), 'never the password');
+        assert.equal(buildSnapshot(c, { proxyUp: true, hostsUp: 1, busUp: false }).bus, null, 'down → not advertised');
+        assert.equal(buildSnapshot({ ...c, bus: { ...c.bus, enabled: false } }, { proxyUp: true, hostsUp: 1, busUp: true }).bus, null, 'off → not advertised');
+        assert.equal(buildSnapshot({ ...c, proxy: { ...c.proxy, masterKey: null } }, { proxyUp: true, hostsUp: 1, busUp: true }).bus.auth, false);
+        // The health tick's password hand-over: the old session ends, only the new password connects.
+        const m = await mqttRaw(c.bus.mqttPort);
+        assert.equal(await m.connect('m', { user: 'lol', pass: 'pw-one' }), 0);
+        busMod.sendKey(svc.child, 'pw-one');
+        await sleep(150);
+        assert.equal(m.closed(), false, 'an unchanged password changes nothing');
+        busMod.sendKey(svc.child, 'pw-two');
+        await waitFor(() => m.closed(), 3000, 'the old session to end');
+        for (const [pass, code] of [['pw-one', 5], ['pw-two', 0]]) {
+            const t = await mqttRaw(c.bus.mqttPort);
+            try { assert.equal(await t.connect('t', { user: 'lol', pass }), code, pass); } finally { t.end(); }
+        }
+        assert.ok(out.join('').includes('listening — MQTT'), 'its log reaches the farm log');
+        assert.ok(!out.join('').includes('pw-'), 'no password in the child log');
+    } finally { await svc.stop(); }
+    assert.equal(await busMod.busAlive(c.bus.wsPort), false, 'stopped');
+    const upSrc = fs.readFileSync(path.join(__dirname, '..', 'src', 'commands', 'up.js'), 'utf8');
+    const downSrc = fs.readFileSync(path.join(__dirname, '..', 'src', 'commands', 'down.js'), 'utf8');
+    assert.ok(/busPid: svcById\.bus\.pid/.test(upSrc) && /rt\.busPid/.test(downSrc), '`lol down` from another shell finds and stops it');
+    assert.ok(/sendBusKey\(svcById\.bus\.child, config\.proxy\.masterKey\)/.test(upSrc), 'the health tick hands it the password');
 });
 
 (async () => {

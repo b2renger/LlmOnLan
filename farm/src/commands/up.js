@@ -32,6 +32,7 @@ const { DiscoveryBeacon } = require('../beacon');
 const { PeerListener } = require('../peerListener');
 const { selectModels } = require('../modelPicker');
 const { makeServices, pluginsSummary } = require('../plugins/registry');
+const { sendKey: sendBusKey } = require('../bus');
 const { farmId } = require('../identity');
 const { startSelfServer } = require('../selfServer');
 const { createSeats, startSeatGate } = require('../seats');
@@ -967,6 +968,7 @@ async function run(args) {
         classifyKey: svcById.classify.up ? svcById.classify.ctx.key : null,
         sttUp: svcById.stt.up,                // advertise stt{} so the Computer's Sound box can listen
         sttKey: svcById.stt.up ? svcById.stt.ctx.key : null,
+        busUp: svcById.bus.up,                // advertise bus{} so boards and Computers meet here
         plugins: pluginsSummary(services, config), // generic map for the admin page + clients
         clientsConnected: 0,             // desktop clients heartbeating us (see onClientPing)
         // false when ANY reachable Ollama was already running before this farm
@@ -1154,7 +1156,8 @@ async function run(args) {
 
     // Classify and speech to text start AFTER the farm is public: a first start installs ~1 GB (torch,
     // Laya's weights, the Whisper model), which used to keep every client waiting at a shut port. They
-    // are the Computer's, read at run time, so nothing restarts Open WebUI when they appear.
+    // are the Computer's, read at run time, so nothing restarts Open WebUI when they appear. The message
+    // bus starts quickly but is the Computer's too, so it comes up with them.
     // `lol down` from another shell must find them: step 6 hands over the runtime writer when it runs.
     let recordRuntime = () => {};
     void (async () => {
@@ -1242,6 +1245,9 @@ async function run(args) {
             // re-probed to flip its stale advertisement off (probe() handles the null child).
             for (const svc of services) { if (svc.wasUp) liveHealth[svc.healthKey] = await svc.probe(config); }
             liveHealth.plugins = pluginsSummary(services, config);
+            // The bus checks the farm password itself: hand it the current one (unchanged = nothing happens;
+            // changed = every session made with the old one ends).
+            sendBusKey(svcById.bus.child, config.proxy.masterKey);
             liveHealth.clientsConnected = freshClients().length; // decay the count when pings stop
             liveHealth.perf = await samplePerf();
             // While another engine (llama.cpp, or an external server on this box)
@@ -1279,6 +1285,7 @@ async function run(args) {
         extractPid: svcById.ocr.pid,
         classifyPid: svcById.classify.pid,
         sttPid: svcById.stt.pid,
+        busPid: svcById.bus.pid,
         ollamaPids: oll.spawnedPids,
         llamacppPid: llamacppChild ? llamacppChild.pid : null,
         proxyPort: config.proxy.port,
@@ -1290,7 +1297,7 @@ async function run(args) {
         host: os.hostname(),
     });
     writeRuntimeState();
-    recordRuntime = writeRuntimeState;   // a late plugin (Classify, speech to text) records itself when up
+    recordRuntime = writeRuntimeState;   // a late plugin (Classify, speech to text, the bus) records itself when up
 
     log.plain('');
     log.ok(`${log.paint.bold(config.name)} is up${coordinator ? ' (coordinator)' : ''}.`);
