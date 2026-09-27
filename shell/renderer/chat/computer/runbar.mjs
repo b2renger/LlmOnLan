@@ -350,8 +350,8 @@ export function install(app) {
   againBtn.title = t('computer.genRunAgainHint');
   againBtn.hidden = true;
 
-  // Order matters: the status line reads left-to-right after the counts it explains, and the zoom
-  // readout carries `margin-left:auto`, so everything after it is pinned to the right edge.
+  // Order matters: the status line reads left-to-right after the counts it explains, and the `?`
+  // carries `margin-left:auto`, so it and the Record switch after it are pinned to the right edge.
   root.replaceChildren(runBtn, stopBtn, counts, status, againBtn, helpBtn);
   // The frozen probe `h.computer.states().runbar` reads `#lolcomputer .comp-run` (KC-4), and the
   // element the layout hands us is `.comp-runbar`. One class, so the harness reads the real bar

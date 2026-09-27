@@ -46,7 +46,7 @@
 // restarts the live sketch — with the code as it is now; Edit code opens the drawer's big editor
 // (K-8, `app.drawer.editCode`), two-way with the box's own field.
 
-import { partFail, textOf, pickerRow } from './common.mjs';
+import { partFail, textOf, pickerRow, sandboxDownText, sandboxPaused } from './common.mjs';
 import { numberField } from './fields.mjs';
 import { isValue } from '../values.mjs';
 import { parseBlocks } from '../../render/md-block.mjs';
@@ -387,10 +387,11 @@ function drawFree(mode, code) {
  * Draw `code` in the guest and photograph it. The caller holds the guest (`withGuest`).
  * @param {any} sandbox @param {string} mode @param {string} code
  * @param {{w: number, h: number}} s @param {AbortSignal} [signal]
+ * @param {any} [app] only read when there is no sandbox, to say whether it is paused (CA-1)
  * @returns {Promise<{mode: string, dataUrl: string, w: number, h: number}>}
  */
-async function drawInGuest(sandbox, mode, code, s, signal) {
-  if (!sandbox) throw drawFail(t('sandbox.errDisabled'), 'part');
+async function drawInGuest(sandbox, mode, code, s, signal, app) {
+  if (!sandbox) throw drawFail(sandboxDownText(app), 'part');
   const params = { width: s.w, height: s.h, mode };
   // K-4: the guest frame IS the box's Width x Height, so `innerWidth`, p5's `windowWidth`, three's
   // W and H, `lol.size` and the default canvas all say what the fields say.
@@ -845,7 +846,7 @@ export const preview = /** @type {any} */ ({
             if (isRunning(ctx.app)) return { busy: true };   // a run took the floor: let it draw first
             const sandbox = typeof ctx.sandbox === 'function' ? await ctx.sandbox() : null;
             try {
-              return { drew: await drawInGuest(sandbox, mode, code, s) };
+              return { drew: await drawInGuest(sandbox, mode, code, s, undefined, ctx.app) };
             } catch (err) {
               return { error: err };
             }
@@ -1206,7 +1207,8 @@ export const preview = /** @type {any} */ ({
       liveStarting = false;
       if (destroyed || cancelled) { paint(); return; }
       if (!sandbox || typeof sandbox.live !== 'function') {
-        ERRORS.set(id, { message: t('parts.previewLiveUnavailable'), line: 0, via: 'live' });
+        // CA-1: a PAUSED sandbox says so and how to bring it back, not "could not start".
+        ERRORS.set(id, { message: sandboxPaused(ctx.app) ? t('sandbox.errPaused') : t('parts.previewLiveUnavailable'), line: 0, via: 'live' });
         setLiveChoice(false);
         disarmWatch();
         paint();
@@ -1459,7 +1461,7 @@ export const preview = /** @type {any} */ ({
         const getSandbox = typeof input.sandbox === 'function' ? input.sandbox : null;
         const drew = await withGuest(async () => {
           const sandbox = getSandbox ? await getSandbox() : null;
-          return drawInGuest(sandbox, mode, code, s, input.signal);
+          return drawInGuest(sandbox, mode, code, s, input.signal, input.app);
         });
         setShown(id, { ...drew, source: code, from: origin, at });
       }

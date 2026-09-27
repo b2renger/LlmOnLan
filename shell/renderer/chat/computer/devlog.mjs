@@ -627,6 +627,8 @@ export function installDevlog(o = {}) {
             return;
           }
           if (ev.type === 'error') { log('sbx.error', { error: scrub(ev.error, { max: 2000, nodes: 80 }) }); return; }
+          // CA-1: a note keeps its words — "paused after three stalls" is the line a bug report needs.
+          if (ev.type === 'note') { log('sbx.note', { level: ev.level, text: clip(String(ev.text || ''), 500) }); return; }
           log(`sbx.${ev.type}`, { state: ev.state, why: ev.why, dropped: ev.n });
         });
       };

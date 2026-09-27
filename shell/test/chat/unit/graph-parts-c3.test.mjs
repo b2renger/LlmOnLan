@@ -284,6 +284,20 @@ export default (test) => {
     assert.equal((await failureOf(CODE, none.input)).message, t('sandbox.errDisabled'));
   });
 
+  test('CA-1: no sandbox because it is PAUSED says paused and how to bring it back, on Code and Render', async () => {
+    // The Computer's one sandbox, paused by its rebuild ladder: `sandbox()` resolved null, and the
+    // host's debug says `blocked`. The box must not claim the sandbox "could not start".
+    const paused = { host: { session: { sandboxNow: () => ({ debug: () => ({ blocked: true }) }) } } };
+    const code = runInput(part('code', { code: 'return 1;' }), { in: [] }, { sandbox: null, app: paused });
+    assert.equal((await failureOf(CODE, code.input)).message, t('sandbox.errPaused'));
+    const render = runInput(part('render', { mode: 'html' }), { in: [valueOf('text', '<p>hi</p>')] }, { sandbox: null, app: paused });
+    assert.equal((await failureOf(RENDER, render.input)).message, t('sandbox.errPaused'));
+    // Not paused (a boot that never answered, or no host at all): the old sentence still stands.
+    const running = { host: { session: { sandboxNow: () => ({ debug: () => ({ blocked: false }) }) } } };
+    const other = runInput(part('code', { code: 'return 1;' }), { in: [] }, { sandbox: null, app: running });
+    assert.equal((await failureOf(CODE, other.input)).message, t('sandbox.errDisabled'));
+  });
+
   test('the default code runs over the default port without throwing on an empty port', () => {
     assert.ok(DEFAULT_CODE.includes('inputs.in'), 'the starting body reads the port by name');
     const body = new Function('inputs', DEFAULT_CODE);

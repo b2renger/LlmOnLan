@@ -86,6 +86,10 @@ export function createSandbox(o = {}) {
     emit({ type: 'state', state });
   }
 
+  /** Why `boot()` said no, in the caller's words (CA-1). Paused by the rebuild ladder is not "could
+   * not start": the sandbox did start, three times, and a sketch stopped answering each time. */
+  const unavailable = () => (blocked ? t('sandbox.errPaused') : t('sandbox.errDisabled'));
+
   /** One row the reader sees: the restart, the disable, a missing library. */
   function note(/** @type {string} */ text, /** @type {string} */ level) {
     emit({ type: 'note', level: level || 'info', text });
@@ -305,7 +309,10 @@ export function createSandbox(o = {}) {
   }
 
   /** An explicit call re-arms the ladder once its window has passed (or when the caller says the
-   * human asked for this run). Nothing re-arms itself on a timer. */
+   * human asked for this run). Nothing re-arms itself on a timer. `ready()` does NOT come through
+   * here: the Computer's boxes get the sandbox through `ready()`, so on the Computer the only thing
+   * that re-arms a paused sandbox is `host.start()` (Run all, ▶ on a box, Ctrl+Enter on the canvas,
+   * a Button's face), which passes `rearm: true` (CA-1). */
   function rearmIfAllowed(/** @type {any} */ req) {
     if (!blocked) return;
     const last = rebuilds.length ? rebuilds[rebuilds.length - 1] : 0;
@@ -632,7 +639,7 @@ export function createSandbox(o = {}) {
      * @returns {Promise<{ok: boolean, ms: number, json: string|null, error: any}>} */
     async compute(req) {
       rearmIfAllowed(req);
-      if (!(await boot())) return { ok: false, ms: 0, json: null, error: fail(t('sandbox.errDisabled')) };
+      if (!(await boot())) return { ok: false, ms: 0, json: null, error: fail(unavailable()) };
       runs++;
       logs = []; errors = [];
       setState('running');
@@ -653,7 +660,7 @@ export function createSandbox(o = {}) {
      * @returns {Promise<{ok: boolean, ms: number, error: any}>} */
     async run(req = {}) {
       rearmIfAllowed(req);
-      if (!(await boot())) return { ok: false, ms: 0, error: fail(t('sandbox.errDisabled')) };
+      if (!(await boot())) return { ok: false, ms: 0, error: fail(unavailable()) };
       const kind = String(req.kind || 'dom');
       await ensureLibs(req.libs || /** @type {any} */ (KIND_LIBS)[kind] || []);
       runs++;

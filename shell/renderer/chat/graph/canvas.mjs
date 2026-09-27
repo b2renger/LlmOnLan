@@ -2872,6 +2872,8 @@ export function createCanvas(o) {
     if (mod && !ev.altKey && (ev.key === '=' || ev.key === '+')) { ev.preventDefault(); zoomBy(1); return; }
     if (mod && !ev.altKey && (ev.key === '-' || ev.key === '_')) { ev.preventDefault(); zoomBy(-1); return; }
     if (isZoomResetKey(ev)) { ev.preventDefault(); zoomTo(1); return; }
+    // CA-2: F fits from here too — the Fit button's own tooltip advertises it next to Shift+1.
+    if (!mod && !ev.altKey && !ev.shiftKey && (ev.key === 'f' || ev.key === 'F')) { ev.preventDefault(); fit(); return; }
     if (!mod && ev.shiftKey && ev.code === 'Digit1') { ev.preventDefault(); fit(); return; }
     if (!mod && ev.shiftKey && ev.code === 'Digit2') { ev.preventDefault(); zoomToSelection(); }
   }

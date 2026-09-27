@@ -19,7 +19,7 @@
 // sanitised .svg and the raster .png of what was drawn.
 
 import { valueOf } from '../values.mjs';
-import { partFail, textOf, pickerRow } from './common.mjs';
+import { partFail, textOf, pickerRow, sandboxDownText } from './common.mjs';
 import { numberField } from './fields.mjs';
 import { parseBlocks } from '../../render/md-block.mjs';
 import { parseInline } from '../../render/md-inline.mjs';
@@ -342,7 +342,7 @@ export const render = /** @type {any} */ ({
 
     // ---- the laid-out path: the panel's ONE sandbox draws, then hands back a picture.
     const sandbox = typeof input.sandbox === 'function' ? await input.sandbox() : null;
-    if (!sandbox) throw partFail(t('sandbox.errDisabled'), 'part');
+    if (!sandbox) throw partFail(sandboxDownText(input.app), 'part');
     const html = mode === 'html' ? source : markdownToHtml(source);
     const out = await sandbox.run({
       kind: 'dom',
