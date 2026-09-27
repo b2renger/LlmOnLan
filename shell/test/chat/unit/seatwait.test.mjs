@@ -433,6 +433,55 @@ export default (test) => {
     });
   }
 
+  // Docs review recheck: a Continue refused for a seat came back as a NEW reply (the resend passed no
+  // mode) — the controller then cleared the very answer the Continue was meant to extend.
+  test('a Continue refused for a seat is resent as a Continue and keeps the partial answer', async () => {
+    const { app, farm, tick } = await makeWorld({ flags: { seatJitterMs: 0 } });
+    const calls = stubFetch((n) => (n === 0 ? sseOk('The start') : n === 1 ? seatsFullResponse() : sseOk(' and the end')));
+    try {
+      await app.controller.send({ text: 'hello farm', parts: [], model: 'assistant' });
+      await settle();
+      const first = await lastAssistant(app);
+      assert.equal(first.content, 'The start');
+
+      await app.controller.generate({ threadId: first.threadId, into: first, mode: 'continue' });
+      await settle();
+      assert.equal((await lastAssistant(app)).status, 'waiting');
+      assert.equal(app.seatWait.state().mode, 'continue', 'the wait remembers it was a Continue');
+
+      farm.caps.seats = { used: 1, slots: 2, clients: 2, idleSec: 900 };
+      tick(); await settle();                  // schedule
+      tick(); await settle();                  // resend
+      assert.equal(calls.length, 3);
+      const done = await lastAssistant(app);
+      assert.equal(done.id, first.id, 'the same message, extended');
+      assert.equal(done.content, 'The start and the end', 'the partial answer was extended, not replaced');
+    } finally { calls.restore(); }
+  });
+
+  test('a Continue resend that meets a missing password keeps the partial answer and ends the wait', async () => {
+    const { app, farm, tick } = await makeWorld({ flags: { seatJitterMs: 0 } });
+    const calls = stubFetch((n) => (n === 0 ? sseOk('The start') : seatsFullResponse()));
+    try {
+      await app.controller.send({ text: 'hello farm', parts: [], model: 'assistant' });
+      await settle();
+      const first = await lastAssistant(app);
+      await app.controller.generate({ threadId: first.threadId, into: first, mode: 'continue' });
+      await settle();
+      assert.equal((await lastAssistant(app)).status, 'waiting');
+
+      farm.caps.seats = { used: 0, slots: 2, clients: 1, idleSec: 900 };
+      farm.caps.keyMissing = true;
+      tick(); await settle();
+      tick(); await settle();
+      assert.equal(app.seatWait.state(), null, 'nothing is waiting any more');
+      assert.deepEqual(app.gov.state(), { foreground: 'idle', holder: null }, 'the composer is free again');
+      const msg = await lastAssistant(app);
+      assert.notEqual(msg.status, 'waiting', 'the row left "waiting"');
+      assert.equal(msg.content, 'The start', 'the partial answer is still there');
+    } finally { calls.restore(); }
+  });
+
   test('a FARM_CHANGE + FARM_TICK pair does not forget the schedule it just made', async () => {
     // One publish emits BOTH events back to back. The first schedules the jittered resend; the
     // second used to see "scheduled, not due yet" (a 'wait' verdict) and clear it, so the resend

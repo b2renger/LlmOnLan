@@ -173,6 +173,22 @@ export default (test) => {
     assert.equal(d.getFarms()[0]._host, 'studio.local', 'and now THAT host is the sticky one');
   });
 
+  // Recheck: a farm the beacon saw first keeps the beacon's record (SA-3), so an added entry that
+  // reaches it never marked it 'added' — and prune() dropped it once it went quiet for DROP_MS.
+  test('Discovery.prune keeps a farm the user added even when the beacon saw it first', () => {
+    const d = new Discovery({ autoScan: false, manualPeers: ['studio.local'], scanRange: { base: '10.0', third: [0, 0], fourth: [1, 1] } });
+    const snap = { v: 1, id: 'studio', name: 'Studio', proxyPort: 4000, httpPort: 41997, healthy: true, models: [] };
+    d.merge({ ...snap }, '10.0.0.5', 'beacon');
+    d.merge({ ...snap }, 'studio.local', 'added');
+    assert.equal(d.getFarms()[0]._source, 'beacon', 'the record still describes the beacon host (SA-3)');
+    d.peers.get('studio').lastSeen -= 10 * 60_000;       // silent for ten minutes
+    d.prune();
+    assert.equal(d.getFarms().length, 1, 'kept: the user added it');
+    d.removeManualPeer('studio.local');
+    d.prune();
+    assert.equal(d.getFarms().length, 0, 'once the entry is removed, a silent farm is dropped as before');
+  });
+
   test('SA-5 Discovery.notify() re-sends the list (the popover re-marks the pin at once)', () => {
     const d = new Discovery({ autoScan: false, scanRange: { base: '10.0', third: [0, 0], fourth: [1, 1] } });
     let n = 0;

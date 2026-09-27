@@ -44,6 +44,7 @@ export class Discovery extends EventEmitter {
     private socket: dgram.Socket | null = null;
     private peers = new Map<string, PeerRec>();        // id → record
     private discovered = new Map<string, number>();    // host → lastResponseTs
+    private manualSeen = new Map<string, string>();    // manual host → the farm id it reached
     private manualPeers: string[] = [];
     private autoScan = true;
     private scanRange: ScanRange | null = null;
@@ -198,6 +199,9 @@ export class Discovery extends EventEmitter {
     private merge(snap: FarmSnapshot, host: string, source: PeerRec['source']): void {
         const id = snap.id || `${host}:${snap.proxyPort || ''}`;
         const now = Date.now();
+        // Remember which farm a manual entry reaches even when the record keeps another host (a
+        // beacon saw it first): prune() must keep a farm the user added, stale or not.
+        if (source === 'added') this.manualSeen.set(host, id);
         const prev = this.peers.get(id);
         if (prev && prev.host !== host && now - prev.hostSeen <= STALE_MS) {
             this.peers.set(id, { ...prev, snap, lastSeen: now });
@@ -295,8 +299,13 @@ export class Discovery extends EventEmitter {
     private prune(): void {
         const now = Date.now();
         for (const [host, ts] of this.discovered) if (now - ts > DISCOVERED_TTL) this.discovered.delete(host);
+        const manualIds = new Set<string>();
+        for (const e of this.manualPeers) {
+            const seen = this.manualSeen.get(this.parseHost(e).host);
+            if (seen) manualIds.add(seen);
+        }
         for (const [id, rec] of this.peers) {
-            if (rec.source === 'added') continue;           // keep manually-added even when stale
+            if (rec.source === 'added' || manualIds.has(id)) continue;   // keep manually-added even when stale
             if (now - rec.lastSeen > DROP_MS) this.peers.delete(id);
         }
         this.emitState();

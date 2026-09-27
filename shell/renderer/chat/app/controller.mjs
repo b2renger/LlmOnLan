@@ -264,11 +264,13 @@ export function createController(app) {
    * @param {{status: string, content: string|null, error: any}} note
    */
   async function localNote(target, how, { status, content, error }) {
-    if (how.into && how.mode === 'continue') {
+    if (how.into && how.mode === 'continue' && target.status !== 'waiting') {
       const why = (error && error.message) || content || '';
       if (why) toast(why);
       return null;
     }
+    // A seat wait's resend of a Continue lands here too (status 'waiting'): the partial answer
+    // stays, but the row must still leave 'waiting' and STREAM_END must fire (SA-10).
     if (how.into) {
       target.status = 'error';
       target.error = error || { kind: 'busy', code: null, message: content || '', retryAfter: null };
@@ -613,7 +615,7 @@ export function createController(app) {
           let handled = false;
           for (const handler of list(SLOTS.ERROR_HANDLERS)) {
             try {
-              if (await handler.handle(out.error, target, app)) { handled = true; break; }
+              if (await handler.handle(out.error, target, app, { mode })) { handled = true; break; }
             } catch (err) {
               console.warn(`[lolchat] error handler "${handler.id}" threw`, err);
             }
