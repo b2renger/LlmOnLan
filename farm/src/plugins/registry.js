@@ -90,8 +90,9 @@ const DESCRIPTORS = [
         ensure: () => classify.ensureClassify(),
         spawn: (c, ctx) => classify.spawnClassify(c, ctx),
         stepMessage: (c) => `Classify: preparing Laya on the CPU (port ${c.classify.port}) — first run installs torch + downloads its weights …`,
-        waitReady: async (c) => {
-            const cx = await classify.waitForClassify(c.classify.port, undefined, probeHost(c));
+        waitReady: async (c, ctx, isDead) => {
+            const cx = await classify.waitForClassify(c.classify.port, undefined, probeHost(c), isDead);
+            if (cx.error) return { ok: false, level: 'warn', message: `Classify could not load Laya (${cx.error}). Continuing without it.` };
             if (cx.up) return { ok: true, level: 'ok', message: `Classify up (Laya ${classify.LAYA_VERSION}, CPU) — the Computer's Classify box works on this farm${firewallNote(c)}.` };
             return { ok: false, level: 'warn', message: `Classify did not become ready on port ${c.classify.port} (download or load still running? see the [classify] log). Continuing without it.` };
         },
@@ -106,8 +107,9 @@ const DESCRIPTORS = [
         ensure: () => stt.ensureStt(),
         spawn: (c, ctx) => stt.spawnStt(c, ctx),
         stepMessage: (c) => `Speech to text: preparing faster-whisper "${c.stt.model}" on the CPU (port ${c.stt.port}) — first run installs it and downloads the model …`,
-        waitReady: async (c) => {
-            const sx = await stt.waitForStt(c.stt.port, undefined, probeHost(c));
+        waitReady: async (c, ctx, isDead) => {
+            const sx = await stt.waitForStt(c.stt.port, undefined, probeHost(c), isDead);
+            if (sx.error) return { ok: false, level: 'warn', message: `Speech to text could not load its model (${sx.error}). Continuing without it.` };
             if (sx.up) return { ok: true, level: 'ok', message: `Speech to text up (faster-whisper ${c.stt.model}, CPU) — the Computer's Sound box can listen on this farm${firewallNote(c)}.` };
             return { ok: false, level: 'warn', message: `Speech to text did not become ready on port ${c.stt.port} (download or load still running? see the [stt] log). Continuing without it.` };
         },
@@ -160,7 +162,7 @@ class FarmService {
         if (child.stdout) child.stdout.on('data', log.childPrefix(this.desc.logPrefix));
         if (child.stderr) child.stderr.on('data', log.childPrefix(this.desc.logPrefix));
         let res;
-        try { res = await this.desc.waitReady(config, this.ctx); }
+        try { res = await this.desc.waitReady(config, this.ctx, () => exited); }
         catch { res = { ok: false, level: 'warn', message: `${this.label} health check failed — continuing without it.` }; }
         if (exited) { this.up = false; return { ok: false, level: 'warn', message: `${this.label} exited during startup (port ${this.port(config)} already in use? see the [${this.desc.logPrefix}] log above). Continuing without it.` }; }
         this.up = !!res.ok;

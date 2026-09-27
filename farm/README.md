@@ -720,3 +720,8 @@ build for Blackwell cards (16 GB+); replace it freely.
 ```bash
 npm test        # unit tests for config, LiteLLM generation, snapshot, helpers
 ```
+
+`npm test` also runs `src/pysvc/check_services.py` — the Classify and speech-to-text services' refusals
+(key, size, busy), their queue bookkeeping and their stop-when-the-client-leaves, against stub models (no
+Laya, no Whisper) — when it finds a Python with `fastapi` + `httpx` (`LOL_PYSVC_PYTHON=<python>`, or the
+`.classify` / `.stt` venv if one has httpx). Without one it says "skipped".

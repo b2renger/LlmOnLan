@@ -35,6 +35,8 @@ THREADS = max(1, int(os.environ.get("CLASSIFY_THREADS", "4")))
 MAX_ITEMS = max(1, int(os.environ.get("CLASSIFY_MAX_ITEMS", "200")))
 MAX_WAITING = max(0, int(os.environ.get("CLASSIFY_MAX_WAITING", "4")))
 MAX_ITEM_CHARS = 4000
+# The largest body worth reading: every item at its cap, JSON-escaped, plus the question.
+MAX_BODY = MAX_ITEMS * MAX_ITEM_CHARS * 4 + 65536
 MIN_OPTIONS, MAX_OPTIONS = 2, 20
 
 app = FastAPI(title="lol-classify")
@@ -109,7 +111,16 @@ async def classify(request: Request):
     if not state["ready"]:
         return JSONResponse({"detail": "warming up"}, status_code=503, headers={"Retry-After": "5"})
     try:
-        body = await request.json()
+        declared = int(request.headers.get("content-length") or 0)
+    except ValueError:
+        declared = 0
+    if declared > MAX_BODY:
+        return JSONResponse({"detail": "the body is too big"}, status_code=413)
+    try:
+        raw = await request.body()
+        if len(raw) > MAX_BODY:
+            return JSONResponse({"detail": "the body is too big"}, status_code=413)
+        body = json.loads(raw)
     except Exception:
         return JSONResponse({"detail": "the body is not JSON"}, status_code=400)
     items = body.get("items") if isinstance(body, dict) else None
@@ -125,18 +136,28 @@ async def classify(request: Request):
 
     client = request.client.host if request.client else "?"
     if per_client[client] >= 1 or (gate.locked() and waiting["n"] >= MAX_WAITING):
-        return JSONResponse({"detail": "busy"}, status_code=429, headers={"Retry-After": "2"})
+        detail = "one request at a time from this computer" if per_client[client] >= 1 else "the farm is busy classifying"
+        return JSONResponse({"detail": detail}, status_code=429, headers={"Retry-After": "2"})
     per_client[client] += 1
     waiting["n"] += 1
+    queued = True   # counted in `waiting` until the gate is ours; a cancelled wait must not leak it
     try:
         async with gate:
             waiting["n"] -= 1
+            queued = False
             q = {"q": {"type": "choice", "instructions": instructions, "criteria": criteria}}
             t0 = time.time()
             router = state["router"]
-            answers = await asyncio.to_thread(lambda: [_answer(router.predict(_state_of(it), q)) for it in items])
+            answers = []
+            for it in items:
+                # A person who pressed Stop frees the farm now, not after the whole batch.
+                if await request.is_disconnected():
+                    return JSONResponse({"detail": "the client left"}, status_code=499)
+                answers.append(_answer(await asyncio.to_thread(router.predict, _state_of(it), q)))
             return {"answers": answers, "ms": round((time.time() - t0) * 1000), "model": state["model"]}
     finally:
+        if queued:
+            waiting["n"] -= 1
         per_client[client] -= 1
         if per_client[client] <= 0:
             per_client.pop(client, None)

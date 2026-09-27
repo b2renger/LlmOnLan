@@ -105,24 +105,41 @@ function spawnStt(config, opts, spawnFn = spawn) {
 
 function get(url, timeoutMs = 3000) {
     return new Promise((resolve) => {
-        const req = http.get(url, { timeout: timeoutMs }, (res) => { res.resume(); res.on('end', () => resolve(res.statusCode)); });
+        const req = http.get(url, { timeout: timeoutMs }, (res) => {
+            let b = '';
+            res.on('data', (c) => { if (b.length < 4096) b += c; });
+            res.on('end', () => resolve({ status: res.statusCode, body: b }));
+        });
         req.on('timeout', () => req.destroy());
         req.on('error', () => resolve(null));
     });
 }
 
+// The service answers 503 {"error": "..."} once loading has FAILED (not while it is still loading):
+// no point waiting out the timeout for it.
+function loadError(r) {
+    if (!r || r.status !== 503) return null;
+    try { return JSON.parse(r.body).error || null; } catch { return null; }
+}
+
 // Wait for /health = 200 (the model is loaded). Generous: the first start downloads it.
-async function waitForStt(port, timeoutMs = 10 * 60 * 1000, host = '127.0.0.1') {
+// `isDead` (the registry's "the child exited") and a load error both end the wait early.
+async function waitForStt(port, timeoutMs = 10 * 60 * 1000, host = '127.0.0.1', isDead = () => false) {
     const t0 = Date.now();
     while (Date.now() - t0 < timeoutMs) {
-        if ((await get(`http://${host}:${port}/health`)) === 200) return { up: true };
-        await new Promise((r) => setTimeout(r, 1000));
+        if (isDead()) return { up: false };
+        const r = await get(`http://${host}:${port}/health`);
+        if (r && r.status === 200) return { up: true };
+        const error = loadError(r);
+        if (error) return { up: false, error };
+        await new Promise((res) => setTimeout(res, 1000));
     }
     return { up: false };
 }
 
 async function sttAlive(port, host = '127.0.0.1') {
-    return (await get(`http://${host}:${port}/health`)) === 200;
+    const r = await get(`http://${host}:${port}/health`);
+    return !!(r && r.status === 200);
 }
 
-module.exports = { ensureStt, spawnStt, waitForStt, sttAlive, depsSignature, FW_VERSION };
+module.exports = { loadError, ensureStt, spawnStt, waitForStt, sttAlive, depsSignature, FW_VERSION };

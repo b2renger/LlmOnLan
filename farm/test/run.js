@@ -1908,7 +1908,8 @@ test('stt plugin: faster-whisper pinned (no torch), bound like the others, key a
 
 test('classify plugin: pinned CPU install, bound like the others, key in env, advertised only when up (plan v2 §3.2)', () => {
     const classifyMod = require('../src/classify');
-    assert.match(classifyMod.depsSignature(), /laya=0.3.20|torch=cpu/, 'Laya pinned, torch from the CPU index');
+    assert.match(classifyMod.depsSignature(), /laya=0\.3\.20/, 'Laya pinned');
+    assert.match(classifyMod.depsSignature(), /torch=cpu/, 'torch from the CPU index');
     const c = defaultConfig();
     assert.deepEqual([c.classify.enabled, c.classify.port, c.classify.threads, c.classify.maxItems], [false, 8891, 4, 200]);
     for (const [proxyHost, want] of [['127.0.0.1', '127.0.0.1'], ['0.0.0.0', '0.0.0.0']]) {
@@ -1926,6 +1927,37 @@ test('classify plugin: pinned CPU install, bound like the others, key in env, ad
     assert.deepEqual(Object.keys(snap.classify).sort(), ['key', 'url']);
     assert.match(snap.classify.url, /:8891$/);
     assert.equal(buildSnapshot(defaultConfig(), { proxyUp: true, hostsUp: 1, classifyUp: true, classifyKey: 'kk' }).classify, null, 'off in the config: never advertised');
+});
+
+test('classify + stt waits: end early when the child exits or the model failed to load (critic M2)', async () => {
+    const http = require('http');
+    for (const mod of [require('../src/classify'), require('../src/stt')]) {
+        const wait = mod.waitForClassify || mod.waitForStt;
+        assert.equal(mod.loadError({ status: 503, body: '{"ready":false,"error":null}' }), null, 'still loading: keep waiting');
+        assert.equal(mod.loadError({ status: 503, body: '{"ready":false,"error":"OSError: no weights"}' }), 'OSError: no weights');
+        assert.equal(mod.loadError({ status: 200, body: '{"ready":true}' }), null);
+        let t0 = Date.now();
+        assert.deepEqual(await wait(1, 60000, '127.0.0.1', () => true), { up: false }, 'a dead child ends the wait');
+        assert.ok(Date.now() - t0 < 1000);
+        const srv = http.createServer((req, res) => { res.writeHead(503, { 'Content-Type': 'application/json' }); res.end('{"ready":false,"error":"boom"}'); });
+        await new Promise((r) => srv.listen(0, '127.0.0.1', r));
+        try {
+            t0 = Date.now();
+            assert.deepEqual(await wait(srv.address().port, 60000), { up: false, error: 'boom' }, 'a load error ends the wait');
+            assert.ok(Date.now() - t0 < 2000);
+        } finally { srv.close(); }
+    }
+});
+
+test('classify + stt services: refusals and bookkeeping with stub models (farm/src/pysvc/check_services.py)', () => {
+    // Needs a Python with fastapi + httpx: LOL_PYSVC_PYTHON, or a farm venv that has them. Skips otherwise.
+    const { spawnSync } = require('child_process');
+    const bin = process.platform === 'win32' ? ['Scripts', 'python.exe'] : ['bin', 'python'];
+    const candidates = [process.env.LOL_PYSVC_PYTHON, ...['.classify', '.stt'].map((d) => path.join(__dirname, '..', d, 'venv', ...bin))].filter(Boolean);
+    const py = candidates.find((p) => fs.existsSync(p) && spawnSync(p, ['-c', 'import fastapi, httpx']).status === 0);
+    if (!py) { console.log('       (skipped: no Python with fastapi + httpx; set LOL_PYSVC_PYTHON)'); return; }
+    const r = spawnSync(py, ['-W', 'ignore', path.join(__dirname, '..', 'src', 'pysvc', 'check_services.py')], { encoding: 'utf8', env: { ...process.env, PYTHONDONTWRITEBYTECODE: '1' }, timeout: 120000 });
+    assert.equal(r.status, 0, r.stdout + r.stderr);
 });
 
 (async () => {
