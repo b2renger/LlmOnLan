@@ -423,11 +423,12 @@ export default (test) => {
     for (const rule of ['no import map', 'window.onload', 'window.innerWidth', 'AmbientLight', 'renderer.render(scene, camera) once']) {
       assert.ok(three.includes(rule), `three says: ${rule}`);
     }
-    for (const kind of ['svg', 'p5', 'three', 'html']) assert.ok(codeSystem(kind).length < 2400, `${kind}: short enough for a 12B model`);
+    for (const kind of ['svg', 'p5', 'three', 'html', 'js']) assert.ok(codeSystem(kind).length < 2400, `${kind}: short enough for a 12B model`);
   });
 
   test('the Write-… presets and the creative template send the task only, and the rules ride the system message', () => {
-    for (const p of creativePresets().filter((x) => x.id.startsWith('write-'))) {
+    // The presets that answer in CODE (write-laya answers in JSON, and has no code rules to carry).
+    for (const p of creativePresets().filter((x) => x.id.startsWith('write-') && /** @type {any} */ (x.settings).code)) {
       const plan = planFor({ part: { id: 'w', settings: p.settings }, bind: { params: [], unused: [], unwired: [] } });
       assert.ok(plan.assembled.prompt.endsWith(p.settings.instruction), `${p.id}: the task is the instruction`);
       assert.ok(plan.assembled.system.includes('You write ONE'), `${p.id}: the system message carries the rules`);

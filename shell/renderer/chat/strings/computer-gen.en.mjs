@@ -138,6 +138,23 @@ registerStrings('parts', {
     '</div>',
     '```',
   ].join('\n'),
+  // Owner, 2026-09-27: a model writes a Code box's program from a person's words.
+  genSystemJs: [
+    'You write ONE JavaScript function body for a Code box. The box runs it as (inputs) => value.',
+    'Reply with exactly one ```javascript code block and nothing else.',
+    'Rules:',
+    '1. inputs.in is an ARRAY with one entry per arrow into the box, in the order they arrive. Each entry is plain data already parsed: a string, a number, an object or an array.',
+    '2. Find what you need by its shape, not its position: for example inputs.in.find((v) => v && Array.isArray(v.hits)).',
+    '3. End with return and the result: a string, a number, an object or an array. Return an OBJECT that holds a list rather than a bare list.',
+    '4. Plain JavaScript only: no import or require, no network, no page, no timers, no await. It must finish in under 5 seconds.',
+    '5. Compute every number from the data. Never type a number you read in the question or the data.',
+    'Skeleton:',
+    '```javascript',
+    'const data = inputs.in.find((v) => v && typeof v === "object") || {};',
+    'const items = Array.isArray(data.items) ? data.items : [];',
+    'return { count: items.length };',
+    '```',
+  ].join('\n'),
 
   // ---- a guest error, said in the words of the fix (A8, graph/unfence.mjs explainGuestError) --
   genErrP5Function: '{name} is a p5 function: call it inside setup() or draw(), not at the top of the sketch.',

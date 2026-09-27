@@ -654,6 +654,18 @@
   tab-size: 2;
 }
 
+/* Owner, 2026-09-27: what the code does in plain words, a fold that hides the code behind it, and
+   whose code it is when a model wrote it (the `code` port). */
+:is(#lolchat, #lolcomputer) .graph-code-head { display: flex; gap: 6px; align-items: center; }
+:is(#lolchat, #lolcomputer) .graph-code-about { flex: 1; min-width: 0; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); color: var(--text); font: inherit; font-size: 12px; padding: 4px 6px; }
+:is(#lolchat, #lolcomputer) .graph-code-fold,
+:is(#lolchat, #lolcomputer) .graph-code-unlock { font: inherit; font-size: 11px; padding: 3px 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-2); color: var(--text); cursor: pointer; white-space: nowrap; }
+:is(#lolchat, #lolcomputer) .graph-code-unlock { align-self: flex-start; }
+:is(#lolchat, #lolcomputer) .graph-code-fold:hover,
+:is(#lolchat, #lolcomputer) .graph-code-unlock:hover { filter: brightness(1.08); }
+:is(#lolchat, #lolcomputer) .graph-code-whose { margin: 0; font-size: 11px; color: var(--muted); }
+:is(#lolchat, #lolcomputer) .graph-code.folded .graph-code-about { font-size: 13px; }
+
 :is(#lolchat, #lolcomputer) .graph-send { display: flex; flex-direction: column; gap: 5px; }
 :is(#lolchat, #lolcomputer) .graph-send-transport { border: 1px solid var(--border); border-radius: 8px; background: var(--bg); color: var(--text); font: inherit; font-size: 12px; padding: 4px 6px; }
 :is(#lolchat, #lolcomputer) .graph-send-status { margin: 0; font-size: 11px; color: var(--muted); overflow-wrap: anywhere; }

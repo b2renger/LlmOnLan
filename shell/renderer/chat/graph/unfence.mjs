@@ -18,9 +18,13 @@
 import { t } from '../core/i18n.mjs';
 import '../strings/computer-gen.en.mjs';
 
-/** The four code kinds an Instruction can be asked to answer in. Frozen: the `code` setting of
- * `ask` is '' or one of these. */
-export const CODE_KINDS = Object.freeze(['p5', 'three', 'svg', 'html']);
+/** The code kinds an Instruction can be asked to answer in. Frozen: the `code` setting of `ask` is
+ * '' or one of these. The four drawing kinds, plus `js` (owner, 2026-09-27): the program of a Code
+ * box, written by a model from a person's words and wired into the Code box's `code` port. */
+export const CODE_KINDS = Object.freeze(['p5', 'three', 'svg', 'html', 'js']);
+
+/** The kinds a Preview can DRAW (every CODE_KIND but `js`, which a Code box runs). */
+export const DRAW_KINDS = Object.freeze(['p5', 'three', 'svg', 'html']);
 
 /** The advisory facets (COMPUTER_PLAN §6.8) each code kind stamps on its value. A Preview in
  * `auto` mode reads exactly these to pick how to draw. Frozen. */
@@ -29,6 +33,7 @@ export const CODE_FACETS = Object.freeze({
   three: Object.freeze({ format: 'js', lang: 'three' }),
   svg: Object.freeze({ format: 'svg' }),
   html: Object.freeze({ format: 'html' }),
+  js: Object.freeze({ format: 'js' }),
 });
 
 // A fenced block. The closing fence may sit on its own line (the norm) or be GLUED to the last
@@ -49,6 +54,7 @@ const LANGS_FOR = Object.freeze({
   three: ['js', 'javascript', 'three', 'threejs', 'three.js', 'mjs', 'jsx'],
   svg: ['svg', 'xml'],
   html: ['html', 'htm', 'xhtml'],
+  js: ['js', 'javascript', 'mjs'],
 });
 
 /**

@@ -46,4 +46,11 @@ registerStrings('parts', {
   writeAskThree: 'A few floating shapes in soft light.',
   writeAskSvg: 'A simple landscape: a sun, two hills and a house.',
   writeAskHtml: 'A small page introducing a museum exhibition: a title, a short paragraph and three highlights.',
+  // Owner, 2026-09-27: the code boxes are intimidating, so a model can write them from plain words.
+  writeCodeLabel: 'Write code',
+  writeCodeDesc: 'Say in plain words what a Code box should compute; the model writes the code. Wire it into a Code box’s code port, and the data into its value port.',
+  writeAskCode: 'Count how many items there are in each category, and add up their points.',
+  writeLayaLabel: 'Write a Laya question',
+  writeLayaDesc: 'The model writes the multiple-choice question Laya answers for every item, from your topics and a look at the data. Wire it into a Classify box’s question port.',
+  writeLayaAsk: 'Write the question Laya will answer for every item of the data, one item at a time. Laya reads only one item’s title or text, so the question must be answerable from that alone, in under 15 words. The options are the topics, written exactly as given in lowercase, plus other if it is missing.',
 });

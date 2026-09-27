@@ -34,8 +34,18 @@ import '../../strings/parts-creative.en.mjs';
 export const CREATIVE_PRESET_IDS = Object.freeze([
   'p5', 'three', 'svg', 'html', 'markdown',
   'write-p5', 'write-three', 'write-svg', 'write-html',
-  'describe-image',
+  'describe-image', 'write-code', 'write-laya',
 ]);
+
+/** The answer shape of "Write a Laya question": what a Classify box's `question` port reads. */
+export const LAYA_QUESTION_SCHEMA = JSON.stringify({
+  type: 'object',
+  properties: {
+    question: { type: 'string' },
+    options: { type: 'array', items: { type: 'string' } },
+  },
+  required: ['question', 'options'],
+}, null, 2);
 
 /** What each creative box holds before anyone touches it. It must DRAW on the first ▶ with no
  * farm at all — that is the acceptance (KE-3). */
@@ -216,6 +226,22 @@ export function creativePresets() {
       label: t('parts.describeLabel'), title: t('parts.describeLabel'), desc: t('parts.describeDesc'),
       keywords: ['describe', 'look', 'see', 'vision', 'picture', 'image', 'critique', 'feedback', 'check'],
       settings: { instruction: t('parts.describeAsk'), shape: 'text' }, match: { instruction: t('parts.describeAsk') },
+    },
+    {
+      // Owner, 2026-09-27: the code boxes are intimidating, so a model writes one from plain words.
+      // The answer is a Code box's program (`code:'js'`), wired into that box's `code` port.
+      id: 'write-code', type: 'ask', group: 'think', order: 246, glyph: '{}',
+      label: t('parts.writeCodeLabel'), title: t('parts.writeCodeLabel'), desc: t('parts.writeCodeDesc'),
+      keywords: ['code', 'generate', 'program', 'javascript', 'compute', 'count', 'calculate', 'transform'],
+      settings: { instruction: t('parts.writeAskCode'), shape: 'text', code: 'js' }, match: { code: 'js' },
+    },
+    {
+      // Owner, 2026-09-27: "the website and the keywords into a model that writes the Laya prompt".
+      // Matches on its answer shape, so rewording the question keeps the title.
+      id: 'write-laya', type: 'ask', group: 'think', order: 248, glyph: '?',
+      label: t('parts.writeLayaLabel'), title: t('parts.writeLayaLabel'), desc: t('parts.writeLayaDesc'),
+      keywords: ['laya', 'classify', 'question', 'options', 'categories', 'topics', 'prompt'],
+      settings: { instruction: t('parts.writeLayaAsk'), shape: 'json', schema: LAYA_QUESTION_SCHEMA }, match: { schema: LAYA_QUESTION_SCHEMA },
     },
   ].map((p) => /** @type {PartPreset} */ (/** @type {any} */ (p)));
 }

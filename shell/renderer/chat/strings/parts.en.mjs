@@ -191,6 +191,16 @@ registerStrings('parts', {
   // so the three stubs resolve at module load; C3-U2 owns every key below from here.
   codeLabel: 'Code',
   codeIn: 'Inputs',
+  // Owner, 2026-09-27: a model can write the code (the `code` port), and the code can hide behind
+  // what it does, in plain words.
+  codeCodeIn: 'code',
+  codeAbout: 'What it does',
+  codeAboutPlaceholder: 'What this code does, in plain words',
+  codeShow: 'Show the code ({n} lines)',
+  codeHide: 'Hide the code',
+  codeWhoseModel: 'Written by the model wired into “code”. Type in it to make it yours.',
+  codeWhoseMine: 'Your code: the model’s is ignored while you keep it.',
+  codeUseModel: 'Use the model’s code',
   codeHint: 'Plain JavaScript. `inputs.in` is an array; return text, a number, an array or an object.',
   renderLabel: 'Render',
   renderIn: 'Text',
@@ -291,6 +301,7 @@ registerStrings('parts', {
   timerWaiting: 'waiting {seconds} s…',
 
   errCodeEmpty: 'This part has no code yet, so there is nothing to run.',
+  errCodeEmptyWire: 'The box wired into “code” sent no code. Run it again, or write the code here.',
   errCodeLine: 'Line {line}: {message}',
   errRenderNotSvg: 'That text does not start with <svg>, so it cannot be drawn as SVG.',
   errRenderTooBig: 'That picture is too large to keep on the canvas. Draw it smaller.',

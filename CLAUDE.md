@@ -136,11 +136,14 @@ docs) is `docs/reviews/DOCS_REVIEW_2026-09-27_{FARM,SHELL,COMPUTER}.md`. Snapsho
 - **The Computer** (third client surface, `shell/renderer/chat/{computer,graph,sandbox}/`) — a node-graph
   canvas where boxes wired by **named arrows** make a small program, kept in a library of graphs. Boxes:
   Text, Image, Document, Sound (+ a **Listen** switch: the farm's speech to text writes it down), File, **Fetch** (*bring*); Instruction (+ "Write a p5.js/three.js/SVG/HTML"
-  and "Describe a picture" presets), **Classify** (Laya on the farm: one multiple-choice question per item,
-  with a confidence; unsure below 0.6; no Laya → every item passed on unsure), Split, Filter, Collect,
+  and "Describe a picture" presets, plus "Write code" — a model writes a Code box's program into its **code**
+  port — and "Write a Laya question" — a model writes Classify's question + options into its **question**
+  port), **Classify** (Laya on the farm: one multiple-choice question per item,
+  with a confidence; unsure below 0.6; no Laya → every item passed on unsure; each answer carries the item's
+  text), Split, Filter, Collect,
   Repeat (*think*); Preview (+ p5.js/three.js/SVG/HTML/Markdown presets; since 2026-09-27 it hands on a
   **PNG** of what it drew — SVG rasterised in the renderer — so a vision model can see its own work) and
-  Code, **Speak** (says text with the farm's voice or this computer's) and **Send** (OSC, Art-Net DMX, MQTT,
+  Code (a plain-words **What it does** line, and a fold that hides the program behind it), **Speak** (says text with the farm's voice or this computer's) and **Send** (OSC, Art-Net DMX, MQTT,
   WebSocket, HTTP POST to a device — through ONE choke point in main, `src/main/outputs.ts`: DISARMED by default
   and after every reload so a run is a dry run, arming asks and lists every target, a person-typed target
   only, never the farm's ports, 20 msg/s per target, DMX ≤ 3 frames/s, Panic blacks out every universe lit)

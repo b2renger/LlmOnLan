@@ -216,6 +216,20 @@ Two more boxes sit under *Show*. **Code** runs plain JavaScript in the sandbox o
 behind all five: its *Read it as* menu (**Automatic**, **Markdown**, **SVG**, **Web page**,
 **three.js**, **p5.js**) picks how to show what arrives.
 
+### No need to write the code yourself
+
+A Code box does not have to be written by you:
+
+- **＋ → Think → Write code** is an Instruction you give in plain words (*count how many items there are in
+  each category*). Wire the data into it too, so the model sees its shape, and wire its answer into the
+  Code box's **code** port (the data goes into **Inputs** as usual). On **Run all** the model writes the
+  program and the Code box runs it, with numbers computed from the data, never typed by the model. The Code
+  box shows the program it ran. Type in it and it becomes **yours** (the model's next version is then
+  ignored); **Use the model's code** gives it back to the model.
+- **What it does** at the top of every Code box is a line of plain words. **Hide the code** folds the
+  program away behind it, so a graph reads as a list of steps, not a wall of JavaScript. **Show the code**
+  opens it again. Folding changes nothing a run computes.
+
 ### Let the model see what it drew
 
 A Preview hands on a **picture** of what it drew: an SVG, a p5.js sketch, a three.js scene or a web page,
@@ -383,7 +397,10 @@ leaves this computer. The rules, so a graph someone hands you cannot misuse it:
 
 **＋ → Think → Classify** asks **Laya**, a small decision model on the farm, ONE multiple-choice question
 about every item of a list: *what is this about?* with the options you list (or wire a Text box into
-**options**). It answers all of them in one call, in about a fifth of a second per item, with a
+**options**). A model can write the question for you: **＋ → Think → Write a Laya question** reads your
+topics (and a look at the data) and answers with the question and its options; wire it into Classify's
+**question** port. Classify then says what it asked. Each answer carries the words Laya read, so a model
+can give a second opinion from Classify's answers alone. It answers all of them in one call, in about a fifth of a second per item, with a
 **confidence**. It is not a generation and takes no seat. Laya is a fast *first pass*: on 104 real story
 titles it got about 3 in 4 right; two thirds of them came above **Sure above** (0.6 by default), and 4 in 5
 of those were right. Every answer below the threshold is passed on as **unsure** for a thinking model or a

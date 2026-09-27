@@ -79,6 +79,28 @@ export function optionsOf(plain) {
 }
 
 /**
+ * PURE: what arrived on the `question` port → the question and, when it brought them, the options.
+ * Text is the question; an object (a "Write a Laya question" answer) carries `question` (or
+ * `instructions`) and `options`. @param {any} plain @returns {{question: string, options: string[]|null}}
+ */
+export function questionOf(plain) {
+  if (typeof plain === 'string') return { question: plain.trim(), options: null };
+  if (!plain || typeof plain !== 'object' || Array.isArray(plain)) return { question: '', options: null };
+  const question = String(plain.question || plain.instructions || '').trim();
+  const raw = plain.options;
+  const options = raw === undefined || raw === null ? null
+    : optionsOf(raw && typeof raw === 'object' && !Array.isArray(raw) ? Object.keys(raw) : raw);
+  return { question, options: options && options.length ? options : null };
+}
+
+/** PURE: the words Laya read for an item, capped — carried in the output so a model can give a
+ * second opinion from Classify's answers alone. @param {any} item @returns {string} */
+export function textOf(item) {
+  const st = stateOf(item);
+  return (typeof st === 'string' ? st : JSON.stringify(st)).slice(0, 300);
+}
+
+/**
  * PURE: answers → the box's output.
  * @param {{id: any}[]} rows @param {({choice: string|null, confidence: number})[]|null} answers
  * @param {number} threshold @param {number} ms
@@ -87,7 +109,7 @@ export function labelsFrom(rows, answers, threshold, ms) {
   const labels = rows.map((r, i) => {
     const a = answers ? answers[i] : null;
     const confidence = a ? Math.round(a.confidence * 1000) / 1000 : 0;
-    return { id: r.id, label: a ? a.choice : null, confidence, sure: !!a && !!a.choice && confidence >= threshold };
+    return { id: r.id, text: textOf(/** @type {any} */ (r).item), label: a ? a.choice : null, confidence, sure: !!a && !!a.choice && confidence >= threshold };
   });
   return { labels, unsure: labels.filter((l) => !l.sure).map((l) => l.id), by: answers ? 'laya' : 'none', ms, threshold };
 }
@@ -103,6 +125,8 @@ export const classifyPart = /** @type {any} */ ({
   inputs: [
     { name: 'items', label: t('parts.classifyItemsIn'), accepts: ['json', 'list', 'text'] },
     { name: 'options', label: t('parts.classifyOptionsIn'), accepts: ['text', 'json', 'list'] },
+    // Owner, 2026-09-27: a model can write the question ("＋ → Think → Write a Laya question").
+    { name: 'question', label: t('parts.classifyQuestionIn'), accepts: ['json', 'text'] },
   ],
   output: 'json',
   defaults: () => ({ question: t('parts.classifyQuestionPlaceholder'), options: '', threshold: DEFAULT_THRESHOLD }),
@@ -159,15 +183,18 @@ export const classifyPart = /** @type {any} */ ({
   async run(input) {
     const id = String(input.part.id);
     const s = input.part.settings || {};
-    const question = String(s.question || '').trim();
-    if (!question) throw partFail(t('parts.classifyNoQuestion'), 'empty');
     const inputs = input.inputs || {};
+    // The wire wins over the box's own field: a question (and options) a model wrote.
+    const qIn = (inputs.question || [])[0];
+    const wired = qIn ? questionOf(toPlain(qIn)) : { question: '', options: null };
+    const question = wired.question || String(s.question || '').trim();
+    if (!question) throw partFail(t('parts.classifyNoQuestion'), 'empty');
     const itemsIn = (inputs.items || [])[0];
     const rows = itemsOf(itemsIn ? toPlain(itemsIn) : null);
     if (!rows.length) throw partFail(t('parts.classifyNoItems'), 'empty');
     if (rows.length > MAX_ITEMS) throw partFail(t('parts.classifyTooMany', { n: rows.length, max: MAX_ITEMS }), 'part');
     const optsIn = (inputs.options || [])[0];
-    const options = optionsOf(optsIn ? toPlain(optsIn) : s.options);
+    const options = optsIn ? optionsOf(toPlain(optsIn)) : wired.options || optionsOf(s.options);
     if (options.length < 2 || options.length > 20) throw partFail(t('parts.classifyBadOptions'), 'part');
     const threshold = Math.min(0.95, Math.max(0.3, Number(s.threshold) || DEFAULT_THRESHOLD));
 
@@ -189,7 +216,8 @@ export const classifyPart = /** @type {any} */ ({
       throw partFail(message, out.code === 'busy' || out.code === 'warming' ? 'busy' : 'part');
     }
     const value = labelsFrom(rows, out.answers, threshold, out.ms);
-    notes.set(id, t('parts.classifyStatus', { n: rows.length, unsure: value.unsure.length, sec: (out.ms / 1000).toFixed(1) }));
+    const status = t('parts.classifyStatus', { n: rows.length, unsure: value.unsure.length, sec: (out.ms / 1000).toFixed(1) });
+    notes.set(id, wired.question ? t('parts.classifyAsked', { question, options: options.join(', ') }) + ' · ' + status : status);
     return valueOf('json', value);
   },
 });

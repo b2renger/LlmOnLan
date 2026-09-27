@@ -7,6 +7,8 @@ registerStrings('parts', {
   classifyLabel: 'Classify',
   classifyItemsIn: 'items',
   classifyOptionsIn: 'options',
+  classifyQuestionIn: 'question',
+  classifyAsked: 'Asked (from the wire): “{question}” — {options}',
   classifyQuestion: 'Question',
   classifyQuestionPlaceholder: 'What is each item mainly about?',
   classifyOptions: 'Options',

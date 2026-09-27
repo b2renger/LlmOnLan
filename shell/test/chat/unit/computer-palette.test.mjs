@@ -379,7 +379,7 @@ export default (test) => {
     const m = makeMenu();
     m.menu.open({ query: 'write' });
     assert.equal(m.q('.graph-add-search').value, 'write');
-    assert.deepEqual(m.rows().slice(0, 4).map((r) => r.entry).sort(), ['write-html', 'write-p5', 'write-svg', 'write-three']);
+    assert.deepEqual(m.rows().slice(0, 6).map((r) => r.entry).sort(), ['write-code', 'write-html', 'write-laya', 'write-p5', 'write-svg', 'write-three']);
   });
 
   test('menu: kept whole inside the canvas — flips left/up at the far edges, clamps near the near ones', () => {

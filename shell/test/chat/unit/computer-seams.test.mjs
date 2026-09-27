@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import { specMap, partSpecs, paletteCatalogue, PALETTE_GROUPS, groupLabel } from '../../../renderer/chat/graph/parts/index.mjs';
 import { CREATIVE_PRESET_IDS, creativePresets, presetOf, presetTitle, STARTER } from '../../../renderer/chat/graph/parts/creative.mjs';
 import { buildPalette, searchPalette, groupEntries, GROUP_ORDER } from '../../../renderer/chat/graph/palette.mjs';
-import { unfence, codeValue, shapeForGuest, CODE_KINDS, CODE_FACETS } from '../../../renderer/chat/graph/unfence.mjs';
+import { unfence, codeValue, shapeForGuest, CODE_KINDS, DRAW_KINDS, CODE_FACETS } from '../../../renderer/chat/graph/unfence.mjs';
 import { createDoc, addPart, patchPart, normaliseDoc } from '../../../renderer/chat/graph/model.mjs';
 import { toJson, fromJson, FORMAT_VERSION } from '../../../renderer/chat/graph/serialize.mjs';
 import { shownOf, modeFor } from '../../../renderer/chat/graph/parts/preview.mjs';
@@ -86,12 +86,13 @@ export default (test) => {
   });
 
   test('KE-3: an Instruction answering in CODE lands unfenced, with the facet a Preview reads', async () => {
-    assert.deepEqual([...CODE_KINDS], ['p5', 'three', 'svg', 'html']);
+    assert.deepEqual([...CODE_KINDS], ['p5', 'three', 'svg', 'html', 'js']);
     const fenced = 'Here is your picture:\n\n```svg\n<svg xmlns="http://www.w3.org/2000/svg"></svg>\n```\n\nEnjoy.';
     assert.deepEqual(codeValue(fenced, 'svg'), { kind: 'text', data: '<svg xmlns="http://www.w3.org/2000/svg"></svg>', format: 'svg' });
     assert.deepEqual(codeValue('plain words', ''), { kind: 'text', data: 'plain words' }, 'no code kind → the old text value');
     assert.equal(unfence('no fence').fenced, false);
-    for (const k of CODE_KINDS) assert.equal(modeFor('auto', codeValue('x', k)), k, `auto reads ${k} from the facet`);
+    for (const k of DRAW_KINDS) assert.equal(modeFor('auto', codeValue('x', k)), k, `auto reads ${k} from the facet`);
+    assert.equal(modeFor('auto', codeValue('return 1;', 'js')), 'markdown', 'a Code box program is not drawn: shown as text');
     assert.deepEqual(CODE_FACETS.p5, { format: 'js', lang: 'p5' });
 
     const ask = SPECS.get('ask');

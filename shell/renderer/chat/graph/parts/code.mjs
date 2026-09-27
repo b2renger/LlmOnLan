@@ -16,6 +16,7 @@
 import { fromPlain, toPlain, isValue } from '../values.mjs';
 import { partFail, sandboxDownText } from './common.mjs';
 import { t } from '../../core/i18n.mjs';
+import { unfence } from '../unfence.mjs';
 import '../../strings/sandbox.en.mjs';
 
 /** @typedef {import('../../core/types.mjs').PartSpec} PartSpec */
@@ -37,6 +38,47 @@ export function errorHint(id) { return errorLines.get(String(id)) || null; }
 export function setErrorHint(id, hint) {
   if (hint && hint.line > 0) errorLines.set(String(id), hint);
   else errorLines.delete(String(id));
+}
+
+// ---------------------------------------------------------------------------------------------
+// the program that arrives on the `code` port (owner, 2026-09-27: a model can write a Code box)
+// ---------------------------------------------------------------------------------------------
+
+/** partId -> the program that last arrived on the `code` port, unfenced. A render HINT like the
+ * line chip: written by run(), read by the editor, never persisted. */
+const ARRIVED = new Map();
+
+/**
+ * PURE: the program on the `code` port, unfenced (a model's "Here is the code: ```js …```" runs as
+ * the code alone) — or null when nothing arrived there.
+ * @param {GraphValue[]} values @returns {string|null}
+ */
+export function arrivedCode(values) {
+  const list = Array.isArray(values) ? values : [];
+  if (!list.length) return null;
+  const text = list.map((v) => { const p = toPlain(v); return typeof p === 'string' ? p : ''; }).join('\n');
+  return unfence(text, 'js').code;
+}
+
+/** Is anything wired into this box's `code` port? null when there is no document to ask (a unit
+ * test), which must not read as "unwired". @param {any} ctx @param {string} id @returns {boolean|null} */
+function codeWired(ctx, id) {
+  try {
+    const session = ctx && ctx.app && ctx.app.host && ctx.app.host.session;
+    const doc = session && typeof session.doc === 'function' ? session.doc() : null;
+    if (!doc || !Array.isArray(doc.wires)) return null;
+    return doc.wires.some((/** @type {any} */ w) => w && w.to === id && w.port === 'code');
+  } catch { return null; }
+}
+
+/** The arrival the editor shows, or null: nothing arrived, the wire is gone, or the box is locked
+ * to the person's own code. @param {any} part @param {any} ctx @returns {string|null} */
+function shownArrival(part, ctx) {
+  const s = (part && part.settings) || {};
+  const id = String(part && part.id);
+  if (s.locked === true && String(s.code || '').trim()) return null;
+  if (!ARRIVED.has(id) || codeWired(ctx, id) === false) return null;
+  return String(ARRIVED.get(id));
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -183,13 +225,43 @@ export const code = /** @type {any} */ ({
   // Accepts everything and DECLINES to fan: a Code part that wants the whole list gets the whole
   // list (BJ-9 — arithmetic over forty items is one program, not forty; the way to fan is to wire
   // the list into something that wants `text`).
-  inputs: [{ name: 'in', label: t('parts.codeIn'), accepts: ['text', 'json', 'list', 'image', 'file'], many: true }],
+  // Owner, 2026-09-27: a second port, `code`, takes a PROGRAM a model wrote ("＋ → Think → Write
+  // code", graph/parts/creative.mjs) — the same discipline as a Preview's arriving code:
+  //   1. Nothing on `code`, or the box LOCKED → it runs its own `settings.code`. Something arrived →
+  //      it runs that, unfenced, and the editor SHOWS it (a run never writes `settings.code`).
+  //   2. Typing in the code the box is showing makes it yours: the arrival plus the keystroke is
+  //      written to `settings.code` and the box locks, so the next run keeps the person's code.
+  //      "Use the model's code" unlocks.
+  inputs: [
+    { name: 'in', label: t('parts.codeIn'), accepts: ['text', 'json', 'list', 'image', 'file'], many: true },
+    // Takes a list WHOLE too, like `in`: a list wired here must never fan the box out (BJ-9).
+    { name: 'code', label: t('parts.codeCodeIn'), accepts: ['text', 'json', 'list'] },
+  ],
   output: 'json',
-  defaults: () => ({ code: DEFAULT_CODE }),
+  // `about` is what the code does, in plain words; `folded` hides the code behind it (owner,
+  // 2026-09-27: "the code boxes are too intimidating"). Neither changes what a run computes.
+  defaults: () => ({ code: DEFAULT_CODE, about: '', folded: false, locked: false }),
 
   render(host, part, ctx) {
     const wrap = document.createElement('div');
     wrap.className = 'graph-code';
+
+    const about = document.createElement('input');
+    about.type = 'text';
+    about.className = 'graph-code-about';
+    about.placeholder = t('parts.codeAboutPlaceholder');
+    about.setAttribute('aria-label', t('parts.codeAbout'));
+    about.value = String(part.settings.about || '');
+    about.addEventListener('input', () => ctx.update({ about: about.value }, { stale: false }));
+    about.addEventListener('change', () => ctx.commit(t('parts.codeAbout')));
+
+    const fold = document.createElement('button');
+    fold.type = 'button';
+    fold.className = 'graph-code-fold';
+    fold.addEventListener('click', (e) => {
+      e.preventDefault();
+      ctx.update({ folded: !(ctx.part.settings && ctx.part.settings.folded) }, { stale: false, undoable: false });
+    });
 
     const area = document.createElement('textarea');
     area.className = 'graph-code-text';
@@ -197,9 +269,26 @@ export const code = /** @type {any} */ ({
     area.setAttribute('aria-label', t('parts.codeLabel'));
     // What `inputs.in` IS is the one thing the editor cannot show, so it rides on the control.
     area.title = t('parts.codeHint');
-    area.value = String(part.settings.code || '');
-    area.addEventListener('input', () => ctx.update({ code: area.value }));
+    area.addEventListener('input', () => {
+      // Rule 2: typing in the model's code makes it yours.
+      const lock = shownArrival(ctx.part, ctx) !== null ? { locked: true } : {};
+      ctx.update({ code: area.value, ...lock });
+    });
     area.addEventListener('change', () => ctx.commit(t('parts.codeLabel')));
+
+    const whose = document.createElement('p');
+    whose.className = 'graph-code-whose';
+    whose.hidden = true;
+    const unlock = document.createElement('button');
+    unlock.type = 'button';
+    unlock.className = 'graph-code-unlock';
+    unlock.textContent = t('parts.codeUseModel');
+    unlock.hidden = true;
+    unlock.addEventListener('click', (e) => {
+      e.preventDefault();
+      ctx.update({ locked: false });
+      ctx.commit(t('parts.codeUseModel'));
+    });
 
     const chip = document.createElement('button');
     chip.type = 'button';
@@ -211,12 +300,30 @@ export const code = /** @type {any} */ ({
       if (hint) selectLine(area, hint.line);
     });
 
-    wrap.append(area, chip);
+    const head = document.createElement('div');
+    head.className = 'graph-code-head';
+    head.append(about, fold);
+    wrap.append(head, whose, unlock, area, chip);
     host.replaceChildren(wrap);
 
     /** @param {any} p */
     const paint = (p) => {
-      const hint = p.state === 'error' ? errorHint(p.id) : null;
+      const s = p.settings || {};
+      const folded = s.folded === true;
+      const arrived = shownArrival(p, ctx);
+      const shown = arrived !== null ? arrived : String(s.code || '');
+      if (document.activeElement !== area && area.value !== shown) area.value = shown;
+      if (document.activeElement !== about && about.value !== String(s.about || '')) about.value = String(s.about || '');
+      const lines = shown ? shown.split('\n').length : 0;
+      fold.textContent = folded ? t('parts.codeShow', { n: lines }) : t('parts.codeHide');
+      fold.setAttribute('aria-expanded', folded ? 'false' : 'true');
+      area.hidden = folded;
+      wrap.classList.toggle('folded', folded);
+      const wired = ARRIVED.has(String(p.id)) && codeWired(ctx, String(p.id)) !== false;
+      whose.hidden = !wired;
+      if (wired) whose.textContent = s.locked === true ? t('parts.codeWhoseMine') : t('parts.codeWhoseModel');
+      unlock.hidden = !(wired && s.locked === true);
+      const hint = p.state === 'error' && !folded ? errorHint(p.id) : null;
       chip.hidden = !hint;
       if (hint) {
         chip.textContent = t('parts.codeLineChip', { line: hint.line });
@@ -226,10 +333,7 @@ export const code = /** @type {any} */ ({
     paint(part);
 
     return {
-      update(next) {
-        if (document.activeElement !== area) area.value = String(next.settings.code || '');
-        paint(next);
-      },
+      update(next) { paint(next); },
       destroy() { wrap.remove(); },
     };
   },
@@ -238,10 +342,19 @@ export const code = /** @type {any} */ ({
     const sandbox = typeof input.sandbox === 'function' ? await input.sandbox() : null;
     if (!sandbox) throw partFail(sandboxDownText(input.app), 'part');
 
-    const body = String(input.part.settings.code || '');
-    if (!body.trim()) throw partFail(t('parts.errCodeEmpty'), 'empty');
+    const id = String(input.part.id);
+    const settings = input.part.settings || {};
+    const arrived = arrivedCode((input.inputs && input.inputs.code) || []);
+    if (arrived !== null) ARRIVED.set(id, arrived);
+    else ARRIVED.delete(id);
+    const own = String(settings.code || '');
+    const body = arrived && !(settings.locked === true && own.trim()) ? arrived : own;
+    if (!body.trim()) throw partFail(arrived === null ? t('parts.errCodeEmpty') : t('parts.errCodeEmptyWire'), 'empty');
 
-    const inputs = marshalInputs(input.inputs || {}, input.item || null);
+    // The program is not data: the guest sees only the value ports.
+    /** @type {Record<string, GraphValue[]>} */ const values = { ...(input.inputs || {}) };
+    delete values.code;
+    const inputs = marshalInputs(values, input.item || null);
     const out = await sandbox.compute({
       code: body,
       inputs,
@@ -250,13 +363,13 @@ export const code = /** @type {any} */ ({
     });
 
     if (!out || !out.ok) {
-      const fail = codeFailure(out && out.error, body, hasListInput(input.inputs || {}));
-      setErrorHint(input.part.id, fail.hint);
+      const fail = codeFailure(out && out.error, body, hasListInput(values));
+      setErrorHint(id, fail.hint);
       throw partFail(fail.message, 'part');
     }
 
     const result = coerceResult(out.json);
-    setErrorHint(input.part.id, null);
+    setErrorHint(id, null);
     if (!result.ok) {
       throw partFail(result.why === 'json' ? t('sandbox.errResultJson') : t('parts.errCodeNoValue'), 'part');
     }

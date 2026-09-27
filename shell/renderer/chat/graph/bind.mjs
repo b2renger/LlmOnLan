@@ -85,6 +85,7 @@ const CODE_SYSTEM_KEY = {
   p5: 'parts.genSystemP5',
   three: 'parts.genSystemThree',
   html: 'parts.genSystemHtml',
+  js: 'parts.genSystemJs',
 };
 
 /** The code kind an Instruction's settings really answer in: `code` only counts for a TEXT answer
