@@ -341,6 +341,35 @@ second: exactly one run is live at a time, the last value wins, and the budget s
     same caps; a hidden window still sends nothing to the farm; every call is logged in the Record log.
   - Depends on: the rename (the MCP client in LOL Vibe), P5's IDE for "apps that use it".
 
+## 8d. Owner directions for P3a-2, P3b and P4 (2026-09-27, 20:55)
+
+**P3a-2 — USB serial, both ways.** Send AND receive (the owner's "send and release", read as receive):
+- a **Send** transport `serial` (a port a person picks, a baud rate) and a **Receive** box that hands on
+  each line the board writes, through the SAME choke point rules as P3a (armed, rate-capped, Panic);
+- the browser's own Web Serial in the renderer, with main answering Electron's `select-serial-port`
+  (a person picks the port; no native Node module to rebuild per platform);
+- **the Arduino code ships in the repo**, commented for students: one sketch that works on an Arduino Uno
+  and an ESP32 (reads a line → sets an LED or a servo; writes a sensor reading every N ms as a line);
+- **a template** showing the round trip: the Computer sends a value → the board acts and answers with a
+  reading → the graph reacts (a Condition or a chart), with the board's code in a Sticky and in the repo.
+
+**P3b — triggers, with the FARM as the meeting point.** Examples for each, and:
+- **the farm hosts the servers** for local and LAN communication, as plugins like the others (off by
+  default, bound to `proxy.host`, advertised in the snapshot only when up, keyed and tied to the farm
+  password): an **MQTT broker**, a **WebSocket hub**, an **OSC relay**;
+- **the Computer has boxes to send to them and to receive from them** (Send's transports gain "the farm's
+  broker / hub / relay" as targets picked from the snapshot; a Trigger box receives), plus a **schedule**;
+- the §8b rules hold: armed runs only while the Computer is shown, latest-event-wins, an hourly
+  generation budget, nothing armed after a quit;
+- an ESP32 example (Wi-Fi → the farm's broker) and a template: a board's button press → the farm's
+  broker → a Computer graph → an answer spoken (Speak) or sent back to the board.
+
+**P4 — the agent spike needs the owner's OK** (asked 2026-09-27 ~21:00): about 80 short tool-calling
+requests to the live farm's served model, one at a time (one seat, ~15–30 min), stopping at once on a
+busy farm or a 429; nothing stored on the farm; results in `docs/research/`. ≥ 80% correct tool calls →
+the Agent box (P4) and DeepSeek Harness for the IDE (P5); below → the Agent box waits and the IDE uses
+our own minimal loop (§4.3).
+
 ## 9. Feedback loop
 
 **v1 → critic** ([reviews/ECOSYSTEM_PLAN_CRITIC_2026-09-27.md](reviews/ECOSYSTEM_PLAN_CRITIC_2026-09-27.md))
