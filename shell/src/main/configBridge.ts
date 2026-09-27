@@ -91,6 +91,21 @@ export function hfModelsCached(dataDir: string, env: NodeJS.ProcessEnv = process
 export const FULL_CONTEXT_MIN_CTX = 24576;
 
 // Build the environment Open WebUI is launched with. This is the whole coupling.
+// The Computer's MCP server (src/main/mcp.ts): set once at boot, before the first sidecar spawn, and the
+// same for every launch after — so it never makes the env differ (no extra OWUI restart).
+let computerMcp: { url: string; token: string } | null = null;
+export function setComputerMcp(conn: { url: string; token: string } | null): void { computerMcp = conn; }
+
+/** OWUI's public tool-server setting for the Computer's MCP server (OWUI 0.11.4 config.py
+ * TOOL_SERVER_CONNECTIONS, type "mcp", bearer auth). Env is authoritative (ENABLE_PERSISTENT_CONFIG=false). */
+export function computerToolServer(conn: { url: string; token: string }): string {
+    return JSON.stringify([{
+        type: 'mcp', url: conn.url, auth_type: 'bearer', key: conn.token,
+        config: { enable: true },
+        info: { id: 'lol-computer', name: 'LlmOnLan Computer', description: 'Build and run graphs on the LlmOnLan Computer (this computer only).' },
+    }]);
+}
+
 export function buildSidecarEnv(input: SidecarEnvInput): Record<string, string> {
     // Adaptive retrieval mode: whole-document injection on farms with room for it,
     // classic top-k retrieval on small-context farms (16k default fleets). An old
@@ -305,6 +320,8 @@ export function buildSidecarEnv(input: SidecarEnvInput): Record<string, string> 
     // supported user-settings API (POST /api/v1/users/user/settings/update) from the authed webview, the
     // same way seedWebSearchDefault() sets the web-search default — see app.js.
 
+    // The Computer as a tool server Open WebUI's models can use (owner, 2026-09-27; this machine only).
+    if (computerMcp) env.TOOL_SERVER_CONNECTIONS = computerToolServer(computerMcp);
     return env;
 }
 

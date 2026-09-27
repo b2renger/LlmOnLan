@@ -37,6 +37,8 @@ import '../strings/computer.en.mjs';
 // K7 (addendum KG): the flight recorder installs NOW, at module evaluation — before the spine and
 // before any row below is imported — so a module that fails to load is already on the record.
 import { installDevlog } from './devlog.mjs';
+// The Computer as an MCP server (owner, 2026-09-27): main carries OWUI's tool calls here.
+import { installMcpTools, runTool } from './mcp-tools.mjs';
 
 const recorder = installDevlog();
 
@@ -273,6 +275,10 @@ async function mount() {
 
   // The library opens the last document once the migration has had its say, so a first launch
   // after the upgrade lands on something rather than on an empty list.
+  // Answer the MCP server's tool calls (src/main/mcp.ts); the same tools, callable from a test.
+  installMcpTools();
+  LolComputer.debug.mcp = runTool;
+
   if (app.library && typeof app.library.start === 'function') {
     LolComputer.migration.then(() => app.library.start()).catch(() => app.library.start());
   }

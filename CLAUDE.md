@@ -177,7 +177,10 @@ docs) is `docs/reviews/DOCS_REVIEW_2026-09-27_{FARM,SHELL,COMPUTER}.md`. Snapsho
   project per graph); a data-folder move carries both. The opt-in **Record log** writes `%APPDATA%\LlmOnLan\logs\computer\*.jsonl`
   (25 MB per file; 15 recordings kept + up to 30 with a marked bug; keys redacted; `src/main/debugLog.ts`,
   [docs/COMPUTER_DEBUG_LOG.md](docs/COMPUTER_DEBUG_LOG.md)). Learn shelf: the tour, lessons 1–4 and 2
-  templates, and since 2026-09-27 a **? on every box** that opens that box's example (`computer/examples/`: one per ＋
+  templates (+ **Talk to a board**, 2026-09-27), and since 2026-09-27 an **MCP server** (`src/main/mcp.ts`, 127.0.0.1:41995,
+  a per-install bearer, JSON responses over Streamable HTTP): Open WebUI's models list, build and run graphs
+  through `computer/mcp-tools.mjs` — the Computer's own debug doors; no tool arms the outputs and a run is
+  refused while a person has them armed. Also a **? on every box** that opens that box's example (`computer/examples/`: one per ＋
   menu entry, a Sticky with what it does / inputs / output / how to use it next to a working setup, imported
   as a library graph once and reopened after). Not built: the resume-after-close banner, lessons 5–12. Docs: [the user tutorial](docs/LOLCHAT_COMPUTER_TUTORIAL.md),
   [status](docs/COMPUTER_STATUS.md), [plan](docs/COMPUTER_PLAN.md), [live plan](docs/COMPUTER_LIVE_PLAN.md).
@@ -270,7 +273,7 @@ If a task seems to require breaking one of these, **stop and flag it**.
 | Lifecycle | Shell spawns the OWUI sidecar as a child process and supervises it. | Shell = process manager + window. |
 | Config → OWUI | Env vars at **every** launch, made authoritative by `ENABLE_PERSISTENT_CONFIG=false` — repointing the farm restarts the sidecar with new env. **Two exceptions**, both written from the authed webview via OWUI's user‑settings API `POST /api/v1/users/user/settings/update`: web search defaulted ON (`ui.webSearch='always'`, one‑time via a `lolWebSearchSeeded` marker) and the opt‑in Blender tool server (`ui.toolServers` + `ui.tools`). Neither has a usable env. | See gotchas below. |
 | Data | `DATA_DIR` → the user's chosen local folder; default local embeddings; telemetry off. | Enforces invariant #3. |
-| Net out of OWUI | Chat completions to the farm endpoint; plus, when the farm advertises them: SearXNG queries (then direct page fetches), Kokoro TTS requests, and uploaded‑file bytes to the farm OCR extractor. | Embeddings always stay local. |
+| Net out of OWUI | Chat completions to the farm endpoint; plus, when the farm advertises them: SearXNG queries (then direct page fetches), Kokoro TTS requests, and uploaded‑file bytes to the farm OCR extractor; and MCP tool calls to the Computer on 127.0.0.1 (this machine). | Embeddings always stay local. |
 | Webview | The renderer reads the OWUI origin's `localStorage.token`, validates it with `GET /api/v1/auths/` (drop + reload, ≤4 tries) before revealing the webview, and reads `/api/config` before seeding web search; the `persist:owui` partition is granted mic/camera/clipboard only. | `renderer/app.js`, `src/main/index.ts`. |
 | Everything else | None. OWUI is a black box. | No DB poking, no template/CSS edits, no internal imports. |
 
@@ -303,7 +306,10 @@ Connection: `OPENAI_API_BASE_URL` + `OPENAI_API_KEY` (the farm is OpenAI‑compa
 - **Kokoro** (when advertised): `AUDIO_TTS_ENGINE=openai` · `AUDIO_TTS_OPENAI_API_BASE_URL=<ttsUrl>` ·
   `AUDIO_TTS_OPENAI_API_KEY=sk-lol-tts` · `AUDIO_TTS_MODEL=<ttsModel|kokoro>` · `AUDIO_TTS_VOICE=<ttsVoice|af_heart>`.
 - **OCR** (when advertised): `CONTENT_EXTRACTION_ENGINE=external` · `EXTERNAL_DOCUMENT_LOADER_URL=<extract.url>`
-  · `EXTERNAL_DOCUMENT_LOADER_API_KEY=<extract.key>`.
+  · `EXTERNAL_DOCUMENT_LOADER_API_KEY=<extract.key>` (the key fetched through the farm password on a keyed farm).
+- **The Computer's MCP server** (2026-09-27, when its port is free): `TOOL_SERVER_CONNECTIONS=[{type:"mcp",
+  url:"http://127.0.0.1:41995/mcp", auth_type:"bearer", key:<per-install mcpToken>, config:{enable:true},
+  info:{id:"lol-computer"}}]` — OWUI 0.11.4's own tool-server setting (config.py), no OWUI change.
 - The supervisor adds `PYTHONUTF8=1`, `PYTHONIOENCODING=utf-8` and otherwise inherits the shell's environment.
 
 - **Gotcha #1 — persisted URLs beat env.** Connection URLs saved via the admin UI go to OWUI's DB

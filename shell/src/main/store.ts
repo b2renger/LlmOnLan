@@ -30,6 +30,7 @@ const DEFAULTS: ShellSettings = {
     pendingClientMove: null,          // a data-folder move of the client session, done at the next launch
     legacyClientDataImported: false,  // the one-time copy of a v0.1.x profile into DATA_DIR/lol-client
     legacyClientDataStamp: null,      // that old copy's fingerprint at the import (a later change is warned about)
+    mcpToken: null,                   // the Computer's MCP server bearer, made at the first launch that serves it
 };
 
 let cache: ShellSettings | null = null;

@@ -125,6 +125,20 @@ export function outputsDoor() {
 }
 
 /**
+ * The Computer's MCP server (src/main/mcp.ts): main carries a tool call to the page, the page answers.
+ * null outside the app.
+ * @returns {{onCall: (fn: (msg: any) => void) => void, answer: (id: string, out: any) => Promise<any>}|null}
+ */
+export function mcpDoor() {
+  const api = preloadProp('mcp', ['onCall', 'answer']);
+  if (!api) return null;
+  return {
+    onCall: (fn) => { try { api.onCall(fn); } catch { /* no main */ } },
+    answer: (id, out) => Promise.resolve().then(() => api.answer(String(id), out)).catch(() => false),
+  };
+}
+
+/**
  * USB serial's port chooser (P3a-2, src/main/serial.ts): main forwards the plugged-in boards when the
  * page's Web Serial asks for one; the page answers with the person's pick. null outside the app.
  * @returns {{onChoose: (fn: (list: any[]) => void) => void, chosen: (portId: string) => Promise<any>}|null}

@@ -331,7 +331,9 @@ second: exactly one run is live at a time, the last value wins, and the budget s
   password; a **?** on every box opening its example (38, one per ＋ menu entry).
 - **Next: LOL Chat becomes "LOL Vibe"** in everything a person reads (topbar, docs, in-app text). The internal
   names stay (`renderer/chat/`, the `lol-chat` IndexedDB, `lol:view` values), so no history moves.
-- **Planned: an MCP server for the Computer** ("control it from OWUI, or from apps vibecoded in LOL Vibe").
+- **Built 2026-09-27 (v0.2.x): an MCP server for the Computer** — Open WebUI's model built a graph through it on
+  the rig. The design below is what shipped; LOL Vibe's apps using it waits for P5.
+- ~~Planned~~: an MCP server for the Computer ("control it from OWUI, or from apps vibecoded in LOL Vibe").
   - Where: the client's main process, Streamable HTTP on 127.0.0.1 only, behind a per-install token.
   - Tools: list, open and create graphs; add boxes; wire; change settings; run all / from a box; read values;
     list the box examples (the ? content is the tool documentation).

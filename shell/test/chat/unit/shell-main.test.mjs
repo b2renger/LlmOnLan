@@ -15,7 +15,7 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SHELL = path.join(HERE, '..', '..', '..');
 const BUILD = path.join(SHELL, 'build', 'main');
 const SRC = path.join(SHELL, 'src', 'main');
-const MODULES = ['farmSelect', 'discovery', 'configBridge', 'sidecar', 'sidecarManager', 'clientData', 'dataMigration', 'store', 'io'];
+const MODULES = ['farmSelect', 'discovery', 'configBridge', 'sidecar', 'sidecarManager', 'clientData', 'dataMigration', 'store', 'io', 'mcp'];
 
 /** @type {string[]} */
 const temps = [];
@@ -86,11 +86,50 @@ export default (test) => {
   const FS = require(path.join(BUILD, 'farmSelect.js'));
   const { Discovery } = require(path.join(BUILD, 'discovery.js'));
   const CB = require(path.join(BUILD, 'configBridge.js'));
+  const MCP = require(path.join(BUILD, 'mcp.js'));
   const { SidecarSupervisor } = require(path.join(BUILD, 'sidecar.js'));
   const SM = require(path.join(BUILD, 'sidecarManager.js'));
   const CD = require(path.join(BUILD, 'clientData.js'));
   const DM = require(path.join(BUILD, 'dataMigration.js'));
   const STORE = require(path.join(BUILD, 'store.js'));
+
+  // ------------------------------------------------ the Computer as an MCP server (2026-09-27)
+  test('MCP: initialize, tools/list and tools/call by JSON-RPC; a notification gets nothing; the tools carry their schema', async () => {
+    const calls = [];
+    const deps = { token: 't0k', version: '0.2.0', tools: () => MCP.TOOLS, call: async (name, args) => { calls.push([name, args]); return name === 'read_graph' ? { text: '{"boxes":[]}' } : { text: 'no', isError: true }; } };
+    const init = await MCP.handleRpc({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-06-18' } }, deps);
+    assert.equal(init.result.serverInfo.name, 'llmonlan-computer');
+    assert.deepEqual(init.result.capabilities, { tools: { listChanged: false } });
+    assert.equal(await MCP.handleRpc({ jsonrpc: '2.0', method: 'notifications/initialized' }, deps), null);
+    const list = await MCP.handleRpc({ jsonrpc: '2.0', id: 2, method: 'tools/list' }, deps);
+    assert.ok(list.result.tools.length >= 9 && list.result.tools.every((t) => t.name && t.description && t.inputSchema && t.inputSchema.type === 'object'));
+    const read = await MCP.handleRpc({ jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'read_graph', arguments: {} } }, deps);
+    assert.deepEqual(read.result, { content: [{ type: 'text', text: '{"boxes":[]}' }], isError: false });
+    const refused = await MCP.handleRpc({ jsonrpc: '2.0', id: 4, method: 'tools/call', params: { name: 'run_graph', arguments: {} } }, deps);
+    assert.equal(refused.result.isError, true, 'a refusal is an error the model reads, not a protocol error');
+    assert.equal((await MCP.handleRpc({ jsonrpc: '2.0', id: 5, method: 'tools/call', params: { name: 'format_disk' } }, deps)).error.code, -32602);
+    assert.equal((await MCP.handleRpc({ jsonrpc: '2.0', id: 6, method: 'resources/list' }, deps)).error.code, -32601);
+    assert.deepEqual(calls.map((c) => c[0]), ['read_graph', 'run_graph']);
+  });
+
+  test('MCP over HTTP: loopback, the bearer token, POST only; OWUI gets it as a public tool-server env', async () => {
+    const deps = { token: 'secret-token', version: '0', tools: () => MCP.TOOLS, call: async () => ({ text: 'ok' }) };
+    const srv = await MCP.startMcpServer(deps, 0);
+    const url = 'http://127.0.0.1:' + srv.address().port + '/mcp';
+    const post = (h, body) => fetch(url, { method: 'POST', headers: { 'content-type': 'application/json', ...h }, body: JSON.stringify(body) });
+    try {
+      assert.equal(srv.address().address, '127.0.0.1', 'this machine only');
+      assert.equal((await post({}, { jsonrpc: '2.0', id: 1, method: 'ping' })).status, 401);
+      assert.equal((await post({ authorization: 'Bearer nope-token!' }, { jsonrpc: '2.0', id: 1, method: 'ping' })).status, 401);
+      const r = await post({ authorization: 'Bearer secret-token' }, { jsonrpc: '2.0', id: 1, method: 'tools/list' });
+      assert.equal(r.status, 200);
+      assert.ok((await r.json()).result.tools.some((t) => t.name === 'add_box'));
+      assert.equal((await post({ authorization: 'Bearer secret-token' }, { jsonrpc: '2.0', method: 'notifications/initialized' })).status, 202);
+      assert.equal((await fetch(url, { headers: { authorization: 'Bearer secret-token' } })).status, 405, 'no server-sent stream');
+    } finally { srv.close(); }
+    const env = JSON.parse(CB.computerToolServer({ url: 'http://127.0.0.1:41995/mcp', token: 'secret-token' }));
+    assert.deepEqual([env[0].type, env[0].auth_type, env[0].key, env[0].config.enable, env[0].info.id], ['mcp', 'bearer', 'secret-token', true, 'lol-computer']);
+  });
 
   // -------------------------------------------- plugin keys tied to the farm password (2026-09-27)
   test('applyPluginKeys: a keyed farm\'s plugin keys come from the fetched answer, never from the beacon', () => {

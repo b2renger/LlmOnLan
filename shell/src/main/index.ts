@@ -8,7 +8,7 @@ import { app, BrowserWindow, ipcMain, shell, nativeTheme, dialog, session, power
 import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
-import { randomUUID } from 'crypto';
+import { randomUUID, randomBytes } from 'crypto';
 import { pathToFileURL } from 'url';
 import { loadSettings, updateSettings } from './store';
 import { defaultDataDir, bundledOwuiVersion, sidecarRoot } from './paths';
@@ -23,6 +23,8 @@ import { OWUI_ENABLED } from './clientMode';
 import { fetchText } from './io';
 import { send as sendOutput, arm as armOutputs, isArmed as outputsArmed, panic as panicOutputs, SendRequest } from './outputs';
 import { configureSerial, registerSerialIpc } from './serial';
+import { startMcpServer, pageCaller, TOOLS as MCP_TOOLS, MCP_PORT, MCP_PATH } from './mcp';
+import { setComputerMcp } from './configBridge';
 import {
     ensureSidecar, applyPendingSidecar, isSidecarInstalled,
     checkOwuiUpdate, downloadOwuiUpdate, SidecarProgress,
@@ -1008,6 +1010,19 @@ app.whenReady().then(async () => {
     applyTheme(settings.theme);
     registerIpc();
     registerSerialIpc();
+    // The Computer as an MCP server (owner, 2026-09-27): OWUI (and LOL Vibe's apps) build and run graphs.
+    // Loopback only, a per-install token; set before the first sidecar spawn so OWUI boots knowing it.
+    {
+        const token: string = loadSettings().mcpToken || randomBytes(24).toString('hex');
+        if (loadSettings().mcpToken !== token) updateSettings({ mcpToken: token });
+        const caller = pageCaller((msg) => { if (win && !win.isDestroyed()) win.webContents.send('lol:mcp:call', msg); else throw new Error('no window'); });
+        ipcMain.handle('lol:mcp:answer', (_e, id: unknown, out: unknown) => caller.answered(String(id), out as { text: string; isError?: boolean }));
+        setComputerMcp({ url: `http://127.0.0.1:${MCP_PORT}${MCP_PATH}`, token });
+        void startMcpServer({ token, version: app.getVersion(), tools: () => MCP_TOOLS, call: caller.call }).then((srv) => {
+            if (!srv) { setComputerMcp(null); console.warn(`[mcp] port ${MCP_PORT} is taken: the Computer's MCP server is off this session`); }
+            else console.log(`[mcp] the Computer's MCP server on http://127.0.0.1:${MCP_PORT}${MCP_PATH}`);
+        });
+    }
     createWindow();
 
     // Migration from the keep-warm era: installs that enabled launch-at-login

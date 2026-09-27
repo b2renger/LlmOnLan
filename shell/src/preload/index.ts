@@ -104,6 +104,11 @@ contextBridge.exposeInMainWorld('lol', {
     },
     // USB serial (P3a-2): main forwards the plugged-in boards when the page asks for one; the page
     // answers with the person's pick ('' = cancelled). The bytes go through the page's own Web Serial.
+    // The Computer's MCP server (src/main/mcp.ts): main carries a tool call here, the page answers it.
+    mcp: {
+        onCall: (fn: (msg: unknown) => void) => { ipcRenderer.on('lol:mcp:call', (_e, msg) => fn(msg)); },
+        answer: (id: string, out: unknown) => ipcRenderer.invoke('lol:mcp:answer', id, out),
+    },
     serial: {
         onChoose: (fn: (list: unknown) => void) => { ipcRenderer.on('lol:serial:choose', (_e, list) => fn(list)); },
         chosen: (portId: string) => ipcRenderer.invoke('lol:serial:chosen', portId),

@@ -394,6 +394,18 @@ choose where a graph sends. And the rules are the same for every graph, even one
   computer*): OSC to TouchDesigner or Max on `127.0.0.1` is a
   normal target.
 
+### Let Open WebUI build graphs for you
+
+Open WebUI (the chat that comes with LlmOnLan) can use the Computer as a **tool**. In a chat, open the
+**tools** menu under the message field and turn on **LlmOnLan Computer**, then ask in plain words: *"On my
+Computer, make a graph titled Weather that fetches … and draws …"*. The model can list your graphs, open or
+create one, add boxes, draw the arrows, change settings and run the graph, and it reads the results back to
+answer you. You watch the graph appear on the Computer.
+
+What it can never do: arm the outputs. A graph with Send boxes stays a dry run, and while you have the
+outputs armed, a model's run is refused. The connection stays on this computer (127.0.0.1): no other
+machine can drive your Computer.
+
 ### A board on the USB cable: Send by USB serial, and the Receive box
 
 An Arduino or an ESP32 plugged into this computer talks with a graph both ways, **one line = one message**:

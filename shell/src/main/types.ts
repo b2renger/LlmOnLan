@@ -131,4 +131,7 @@ export interface ShellSettings {
     // A fingerprint of that old copy when it was imported (clientData.legacyStamp; null = none).
     // A later change means an older build wrote LOL Chat history there that the data folder lacks.
     legacyClientDataStamp: string | null;
+    // The Computer's MCP server's bearer (src/main/mcp.ts), made once per install; Open WebUI gets it in
+    // TOOL_SERVER_CONNECTIONS. null until the first launch that serves it.
+    mcpToken: string | null;
 }
