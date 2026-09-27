@@ -6,6 +6,46 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-09-28 (night) — Release v0.2.1 + farm-v0.0.40: boards, a message bus, open data, an agent, and Open WebUI driving the Computer
+
+The rest of the night of 2026-09-27 (`docs/NIGHT_LOG_2026-09-27.md`), on the owner's directions; the manual rig
+checklist for all of it is `docs/TEST_SCENARIOS_v0.2.md`.
+
+**Client (the Computer).**
+- **USB serial, both ways**: Send by USB serial and a new **Receive** box talk with an Arduino or ESP32 (one line
+  = one message; Web Serial in the page, the board picked by a person; sending through the outputs choke point).
+- **The farm's message bus**: Receive listens to a topic (`+`/`#`), Send publishes; a **Trigger** box starts runs
+  by itself on a bus message or a schedule — only while a person armed the outputs and the Computer is on screen,
+  one run per gap (latest wins), an hourly budget.
+- **Open data**: paste a data.gouv.fr link; the box reads the description, the whole-file column profile
+  data.gouv.fr computed, and a sample of rows (data.gouv.fr's public API — what datagouv-client wraps).
+- **The Agent box** (P4): a model in short steps — run code in the sandbox, fetch on hosts a person listed, ask
+  Laya, answer — with every step shown under its answer; no output tool.
+- **The Computer is an MCP server** (loopback, a per-install bearer): Open WebUI's models list, build and run
+  graphs through 9 tools; none arms the outputs.
+- Templates: **Talk to a board**, **A board on Wi-Fi**, **Analyse a dataset**, **Ask a dataset**. LOL Chat is
+  now **LOL Vibe** (display names; data and exports keep their old names).
+
+**Farm.** A **message bus** plugin, off by default: an MQTT 3.1.1 broker (:1883), a WebSocket hub (:8893) and an
+OSC relay (:9001) sharing one topic space, tied to the farm password (OSC writes stay open, only under `osc/…`),
+Node's standard library only, never logging a payload. Classify and speech to text start after the farm is
+public (their first install no longer shuts the port for minutes).
+
+**Rig (the real app + a dev farm on this box, the owner's farm closed).** Plugin keys through the password; Laya
+4/4 headlines in 0.8 s; Whisper `small` on a French clip in 2.4 s; Open WebUI's model built a graph through MCP;
+*Analyse a dataset* on live data.gouv.fr (festivals 104 s, museums 158 s); the Agent on a whole-file museum
+question — gemma4 3 steps / 23 s, qwen3.8 3 / 15 s, nemotron 4 steps, all correct. Both Arduino sketches
+compile (arduino-cli: Uno, Nano, ESP32) but have not run on a board.
+
+**Tested.** Unit 1690/0 · lint 0 · scope clean · app tests 5/5 · farm 139/139 · shell + farm-app typecheck · the chat harness 387/0 and perf 9/9 on the tagged tree · a critic over everything since v0.2.0 (`docs/reviews/POST020_CRITIC_2026-09-27.md`): its blocker (MCP could edit a graph while a person had the outputs armed) and four should-fixes (person-only settings over MCP, serial devices pre-granted, redirects past an agent's hosts, an unscoped permission handler) fixed with tests; five bus nits left as follow-ups.
+
+**Mixed versions.** Nothing new beyond v0.2.0's: a v0.1.45 client on a farm with a password lacks plugin keys.
+
+**Not yet verified on the rig:** real boards (USB and Wi-Fi), real lights over Art-Net, TouchDesigner over OSC,
+Open WebUI → MCP from the installed app, the v0.2.0 → v0.2.1 auto-update.
+
+---
+
 ## 2026-09-27 (evening) — Release v0.2.0 + farm-v0.0.39: the Computer reads, listens, speaks and acts; a ? on every box
 
 The owner's ecosystem vision became `docs/ECOSYSTEM_PLAN.md` v2 (one critic loop, research in

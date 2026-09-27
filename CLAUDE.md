@@ -14,10 +14,11 @@
 
 ---
 
-## Build status (2026-09-27) — released: client `v0.2.0` (OWUI `0.11.4`) · Farm app `farm-v0.0.39`
+## Build status (2026-09-28) — released: client `v0.2.1` (OWUI `0.11.4`) · Farm app `farm-v0.0.40`
 
-> v0.2.0 is the first release with LOL Vibe vNext and the Computer (Fetch, Classify, Listen/Speak, Send, a ? on
-> every box). What changed since is on `main`, in docs/DEVLOG.md. The bullets below describe `main`.
+> v0.2.0 brought LOL Vibe vNext and the Computer (Fetch, Classify, Listen/Speak, Send, a ? on every box); v0.2.1
+> adds USB serial, the farm's message bus + Trigger, Open data (data.gouv.fr), the Agent box and the Computer as an
+> MCP server (docs/DEVLOG.md; the manual rig list is docs/TEST_SCENARIOS_v0.2.md). The bullets below describe `main`.
 
 The full plan is built, released and in multi-user testing; the dated build log with how
 each piece was tested lives in [docs/DEVLOG.md](docs/DEVLOG.md), the rig‑verification state in
@@ -93,7 +94,7 @@ docs) is `docs/reviews/DOCS_REVIEW_2026-09-27_{FARM,SHELL,COMPUTER}.md`. Snapsho
     LiteLLM venv, `models` + `preinstall` — ships a ~8.6 GB staged Qwen3.8-27B — the SearXNG/OCR venvs, and
     the llama.cpp build + weights only when enabled). The farm's advertised `version` is the Farm app's
     (`LOL_FARM_VERSION`), falling back to `farm/package.json`.
-- **`shell/`** (Electron + TS, **v0.2.0**) — boots the **unmodified** OWUI sidecar (config-bridge =
+- **`shell/`** (Electron + TS, **v0.2.1**) — boots the **unmodified** OWUI sidecar (config-bridge =
   env-authoritative, `ENABLE_PERSISTENT_CONFIG=false`), discovers the farm and auto-connects with **no
   URL typed**, full Preferences (data folder + move/fresh migration, connection, assistant tools,
   startup/updates, about). **Adaptive RAG**: whole-document injection (`RAG_FULL_CONTEXT=true`) on farms
