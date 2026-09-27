@@ -2,7 +2,7 @@
 
 > **Status: v2 (2026-09-27, 19:00). v1 went through one critic loop (§9).** The plan was written from the
 > owner's vision of 2026-09-27.
-> [research/ECOSYSTEM_RESEARCH_2026-09-27.md](research/ECOSYSTEM_RESEARCH_2026-09-27.md). This document
+> The research facts are in [research/ECOSYSTEM_RESEARCH_2026-09-27.md](research/ECOSYSTEM_RESEARCH_2026-09-27.md). This document
 > supersedes the forward-looking parts of LOLCHAT_STUDIO_VISION.md and COMPUTER_PLAN.md where they
 > disagree. Their "as built" sections stay true.
 
