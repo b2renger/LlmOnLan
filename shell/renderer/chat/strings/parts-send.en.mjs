@@ -13,6 +13,8 @@ registerStrings('parts', {
   sendTransport_ws: 'WebSocket',
   sendTransport_http: 'HTTP POST',
   sendTransport_serial: 'USB serial (Arduino, ESP32)',
+  sendTransport_bus: 'The farm’s message bus',
+  busErrOffline: 'The farm’s message bus did not answer.',
   sendHost: 'Host',
   sendPort: 'Port',
   sendAddress: 'OSC address',

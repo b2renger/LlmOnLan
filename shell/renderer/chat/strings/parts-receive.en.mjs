@@ -5,7 +5,14 @@ import { registerStrings } from '../core/i18n.mjs';
 
 registerStrings('parts', {
   receiveLabel: 'Receive',
-  receiveHint: 'Hands on what a board says over USB: one line per message. A line that is JSON (like {"light": 512}) flows on as data.',
+  receiveHint: 'Hands on what a board says over USB (one line per message) or what arrives on the farm’s message bus. JSON flows on as data.',
+  receiveFrom: 'From',
+  receiveFrom_serial: 'a board on USB',
+  receiveFrom_bus: 'the farm’s message bus',
+  receiveTopic: 'Topic',
+  receiveNoTopic: 'Type a topic, like lol/+/light (+ is any one level, # anything below).',
+  receiveNothingBus: 'Nothing on {topic} yet. Is the board or the tool publishing there?',
+  busErrNoBus: 'This farm has no message bus: its operator turns it on in the farm panel (Plugins).',
   receiveTake: 'Hand on',
   receiveTake_latest: 'the latest line',
   receiveTake_new: 'every new line since the last run',

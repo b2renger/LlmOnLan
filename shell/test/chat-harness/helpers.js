@@ -725,6 +725,12 @@ function createHelpers(ctx) {
                 await h.eval(() => window.__harness.refresh());
                 return on ? services + '/stt' : null;
             },
+            /** Advertise (or withdraw) a message bus the scenario started (P3b): {ws, mqtt, osc, auth} or null. */
+            bus: async (bus) => {
+                await h.mock.state({ bus: bus || null });
+                await h.eval(() => window.__harness.refresh());
+                return !!bus;
+            },
             /** Advertise (or withdraw) the mock farm's Laya service (ecosystem plan v2 §3.2). */
             classify: async (on) => {
                 await h.mock.state({ classify: on ? { url: services + '/classify', key: 'mock-classify-key' } : null });

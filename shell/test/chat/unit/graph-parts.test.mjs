@@ -105,14 +105,14 @@ export default (test) => {
     // K6 kickoff (LOLCHAT_PLAN 2.6 KF-4): Document (a PDF) and Sound (an audio file) join "bring
     // in", right after Image — twenty-one in the palette, twenty-four loadable.
     assert.deepEqual(partSpecs().map((s) => s.type),
-      ['note', 'ask', 'classify', 'split', 'repeat', 'filter', 'code', 'collect', 'preview', 'speak', 'send', 'receive', 'file', 'image',
+      ['note', 'ask', 'classify', 'split', 'repeat', 'filter', 'code', 'collect', 'preview', 'speak', 'send', 'receive', 'trigger', 'file', 'image',
         'document', 'audio', 'fetch',
         'button', 'condition', 'confirm', 'dialog', 'toggle', 'timer',
         'sticky', 'section', 'title']);
     assert.deepEqual([...specMap().keys()].sort(),
       ['ask', 'audio', 'button', 'classify', 'code', 'collect', 'condition', 'confirm', 'dialog', 'document', 'fetch', 'file', 'filter',
         'from-thread', 'image', 'note', 'preview', 'receive', 'render', 'repeat', 'section', 'send', 'speak', 'split',
-        'sticky', 'timer', 'title', 'to-thread', 'toggle'],
+        'sticky', 'timer', 'title', 'to-thread', 'toggle', 'trigger'],
       'a legacy part left specMap() too — a migrated graph would trip part:unknown-type');
     for (const spec of [...specMap().values()]) {
       assert.equal(typeof spec.label, 'string', `${spec.type} has a resolved label`);

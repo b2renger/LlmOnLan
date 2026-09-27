@@ -62,6 +62,8 @@ function defaults() {
         // scenario sets `classify` (h.computer.classify(true)); `classifyDown` answers 503 (warming).
         classify: null,
         classifyDown: false,
+        // P3b: the farm's message bus, as a scenario advertises it (a REAL farm/src/bus.js it started).
+        bus: null,
         // Ecosystem plan v2 §3.3: speech to text at POST /stt/v1/audio/transcriptions (h.computer.stt(true)).
         stt: null,
         sttDown: false,

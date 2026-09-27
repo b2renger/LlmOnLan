@@ -24,7 +24,8 @@
  *   budget: {tokens, advertised, source: 'advertised'|'default'},
  *   seats: {used, slots, clients, idleSec}|null, busy: {label, percent}|null, perf, gpuUtil,
  *   search: {url}|null, tts: {url, voice, model}|null, ocr: {url, key}|null,
- *   classify?: {url: string, key: string|null}|null, stt?: {url: string, key: string|null}|null }} FarmCaps
+ *   classify?: {url: string, key: string|null}|null, stt?: {url: string, key: string|null}|null,
+ *   bus?: {ws: string, mqtt: string|null, osc: string|null, auth: boolean}|null }} FarmCaps
  */
 
 // ---------------------------------------------------------------------------------------------

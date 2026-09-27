@@ -98,6 +98,7 @@ const expectedBridge = (patch = {}) => ({
     extract: null,
     classify: null,
     stt: null,
+    bus: null,
     ...patch,
 });
 

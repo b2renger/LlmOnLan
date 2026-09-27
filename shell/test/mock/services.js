@@ -43,6 +43,7 @@ function snapshot(store, { proxyPort, httpPort, host = '127.0.0.1' } = {}) {
         extract: s.extract,
         classify: s.classify,
         stt: s.stt,
+        bus: s.bus,
         plugins: s.plugins,
         recommendedClientPlugins: s.recommendedClientPlugins,
         ts: Date.now(),

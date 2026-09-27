@@ -88,6 +88,8 @@ export function capsFromBridge(bridge) {
     classify: b && b.classify && b.classify.url ? { url: b.classify.url, key: b.classify.key || null } : null,
     // Ecosystem plan v2 §3.3: the farm's speech-to-text service for the Sound box's Listen mode.
     stt: b && b.stt && b.stt.url ? { url: b.stt.url, key: b.stt.key || null } : null,
+    // P3b: the farm's message bus (MQTT · WebSocket · OSC); the Computer talks to its WebSocket hub.
+    bus: b && b.bus && b.bus.ws ? { ws: b.bus.ws, mqtt: b.bus.mqtt || null, osc: b.bus.osc || null, auth: !!b.bus.auth } : null,
   });
 }
 

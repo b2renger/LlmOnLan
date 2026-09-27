@@ -17,17 +17,18 @@ import { partFail } from './common.mjs';
 import { textField, numberField } from './fields.mjs';
 import { outputsDoor } from '../../projects/bridge.mjs';
 import { writeLine, DEFAULT_BAUD } from '../../net/serial.mjs';
+import { publish } from '../../net/bus.mjs';
 import { boardRow } from './board-picker.mjs';
 import { t } from '../../core/i18n.mjs';
 import '../../strings/parts-send.en.mjs';
 
 /** @typedef {import('../../core/types.mjs').PartSpec} PartSpec */
 
-export const TRANSPORTS = Object.freeze(['osc', 'artnet', 'mqtt', 'ws', 'http', 'serial']);
+export const TRANSPORTS = Object.freeze(['bus', 'osc', 'artnet', 'mqtt', 'ws', 'http', 'serial']);
 /** Literal maps, so lint rule 5 can see every key a person may read. */
 const TRANSPORT_KEY = {
   osc: 'parts.sendTransport_osc', artnet: 'parts.sendTransport_artnet', mqtt: 'parts.sendTransport_mqtt',
-  ws: 'parts.sendTransport_ws', http: 'parts.sendTransport_http', serial: 'parts.sendTransport_serial',
+  ws: 'parts.sendTransport_ws', http: 'parts.sendTransport_http', serial: 'parts.sendTransport_serial', bus: 'parts.sendTransport_bus',
 };
 const ERR_KEY = {
   E_TARGET: 'parts.sendErr_E_TARGET', E_FARM: 'parts.sendErr_E_FARM', E_RATE: 'parts.sendErr_E_RATE', E_SEND: 'parts.sendErr_E_SEND',
@@ -36,6 +37,8 @@ const ERR_KEY = {
 const SERIAL_ERR = {
   'no-serial': 'parts.boardErrNoSerial', 'not-found': 'parts.boardErrNotFound', busy: 'parts.boardErrBusy', lost: 'parts.boardErrLost',
 };
+/** Why a bus publish failed (net/bus.mjs codes). */
+const BUS_ERR = { 'no-bus': 'parts.busErrNoBus', offline: 'parts.busErrOffline' };
 /** The default port per transport (Art-Net's own, OSC's usual, MQTT's). */
 const DEFAULT_PORT = { osc: 9000, artnet: 6454, mqtt: 1883 };
 
@@ -48,6 +51,7 @@ export function requestFor(s, value) {
   const r = /** @type {any} */ ({ transport, value });
   if (transport === 'ws' || transport === 'http') r.url = String(s.url || '');
   else if (transport === 'serial') r.serialPort = String(s.serialPort || '');
+  else if (transport === 'bus') r.topic = String(s.topic || '').trim();
   else {
     r.host = String(s.host || '').trim();
     r.port = Number(s.port) || /** @type {any} */ (DEFAULT_PORT)[transport];
@@ -85,7 +89,7 @@ export function targetsIn(doc) {
   for (const p of (doc && Array.isArray(doc.parts) ? doc.parts : [])) {
     if (p.type !== 'send') continue;
     const r = requestFor(p.settings || {}, null);
-    const where = r.transport === 'serial' ? String((p.settings && p.settings.serialLabel) || r.serialPort || '?') : r.url || `${r.host}:${r.port}${r.address ? ' ' + r.address : ''}${r.topic ? ' ' + r.topic : ''}${r.transport === 'artnet' ? ' universe ' + r.universe : ''}`;
+    const where = r.transport === 'serial' ? String((p.settings && p.settings.serialLabel) || r.serialPort || '?') : r.transport === 'bus' ? String(r.topic || '?') : r.url || `${r.host}:${r.port}${r.address ? ' ' + r.address : ''}${r.topic ? ' ' + r.topic : ''}${r.transport === 'artnet' ? ' universe ' + r.universe : ''}`;
     const name = t(/** @type {any} */ (TRANSPORT_KEY)[r.transport]);
     // A target on this very computer is said so: arming a shared graph must not hide a POST to a local service.
     let host = String(r.host || '');
@@ -147,10 +151,11 @@ export const sendPart = /** @type {any} */ ({
       if (document.activeElement !== select) select.value = tr;
       const byUrl = tr === 'ws' || tr === 'http';
       const bySerial = tr === 'serial';
-      hostF.node.hidden = byUrl || bySerial; portF.node.hidden = byUrl || bySerial; urlF.node.hidden = !byUrl;
+      const byBus = tr === 'bus';
+      hostF.node.hidden = byUrl || bySerial || byBus; portF.node.hidden = byUrl || bySerial || byBus; urlF.node.hidden = !byUrl;
       board.node.hidden = !bySerial;
       board.update(p);
-      addrF.node.hidden = tr !== 'osc'; uniF.node.hidden = tr !== 'artnet'; topicF.node.hidden = tr !== 'mqtt';
+      addrF.node.hidden = tr !== 'osc'; uniF.node.hidden = tr !== 'artnet'; topicF.node.hidden = tr !== 'mqtt' && !byBus;
       hostF.update(s.host); portF.update(Number(s.port) || 1); addrF.update(s.address); uniF.update(Number(s.universe) || 0);
       topicF.update(s.topic); urlF.update(s.url);
       status.textContent = notes.get(String(p.id)) || '';
@@ -176,6 +181,12 @@ export const sendPart = /** @type {any} */ ({
     if (r.sent && st.transport === 'serial') {
       const w = await writeLine(String(st.serialPort || ''), Number(st.baud) || DEFAULT_BAUD, lineOf(sendValue(toPlain(arrived))));
       if (!w.ok) { notes.delete(id); throw partFail(t(/** @type {any} */ (SERIAL_ERR)[/** @type {any} */ (w).code] || SERIAL_ERR.lost), 'part'); }
+    }
+    // The farm's bus: main said it may go; the page publishes through the farm's hub.
+    if (r.sent && st.transport === 'bus') {
+      const caps = input.app && input.app.farm && typeof input.app.farm.get === 'function' ? input.app.farm.get() : null;
+      const p = await publish(caps, String(st.topic || '').trim(), sendValue(toPlain(arrived)));
+      if (!p.ok) { notes.delete(id); throw partFail(t(/** @type {any} */ (BUS_ERR)[/** @type {any} */ (p).code] || BUS_ERR.offline), 'part'); }
     }
     const line = r.sent ? t('parts.sendSent', { summary: r.summary }) : t('parts.sendDry', { summary: r.summary });
     notes.set(id, line);

@@ -123,6 +123,28 @@ export const CONTROL = [
     wires: [{ from: 'e_text', to: 'e_timer', port: 'in' }, { from: 'e_timer', to: 'e_view', port: 'content' }],
   },
   {
+    key: 'trigger',
+    title: 'Trigger',
+    needsFarm: 'one with the Message bus plugin, for a trigger on a topic (a schedule needs nothing).',
+    what: 'Starts a run by itself: on each message on a topic of the farm\'s message bus (a board\'s button, a sensor), or every few seconds. Only while you have armed the outputs and the Computer is on screen.',
+    inputs: [],
+    output: 'The message that started the run, as {topic, data} (or {tick, at} on a schedule).',
+    howto: [
+      'Arm the outputs in the run bar first: until then it only counts the messages.',
+      'Topic lol/+/button fires on any board\'s button; a Code box reads inputs.in[0].data.',
+      'At most one run every N seconds (the messages in between only update the value: latest wins), and at most N runs an hour.',
+    ],
+    parts: [
+      { id: 'e_trig', type: 'trigger', x: 0, y: 0, w: 320, h: 250, settings: { source: 'schedule', every: 10, gapSec: 2, perHour: 60 } },
+      {
+        id: 'e_code', type: 'code', x: 380, y: 0, w: 340, h: 200,
+        settings: { code: 'const e = inputs.in[0] || {};\nreturn "Tick " + (e.tick ?? "?") + " at " + (e.at || "");', about: 'Says which tick started this run.', folded: false },
+      },
+      { id: 'e_view', type: 'preview', x: 380, y: 260, w: 340, h: 200, settings: view },
+    ],
+    wires: [{ from: 'e_trig', to: 'e_code', port: 'in' }, { from: 'e_code', to: 'e_view', port: 'content' }],
+  },
+  {
     key: 'sticky',
     title: 'Sticky note',
     what: 'A note on the canvas for people: what a part of the graph does, a to-do, a warning. It never runs and is never sent anywhere.',
