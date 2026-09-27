@@ -107,6 +107,9 @@ async function classifyMock(req, res, store) {
     try { body = JSON.parse((await readBytes(req)).toString('utf8')); } catch { body = null; }
     const items = body && Array.isArray(body.items) ? body.items : null;
     const options = body && body.question && Array.isArray(body.question.options) ? body.question.options.map(String) : null;
+    // What was ASKED (never the items): a scenario checks the question a model wrote reached Laya.
+    const entry = store.log[store.log.length - 1];
+    if (entry && entry.path === '/classify/classify' && body && body.question) entry.question = body.question;
     if (!items || !options || options.length < 2) return json(res, 400, { detail: 'bad body' });
     const answers = items.map((it) => {
         const text = (typeof it === 'string' ? it : JSON.stringify(it)).toLowerCase();

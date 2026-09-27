@@ -8,6 +8,7 @@ import { classifyPart, questionOf, labelsFrom, itemsOf } from '../../../renderer
 import { creativePresets, presetOf, LAYA_QUESTION_SCHEMA } from '../../../renderer/chat/graph/parts/creative.mjs';
 import { codeKindOf, codeSystem } from '../../../renderer/chat/graph/bind.mjs';
 import { valueOf } from '../../../renderer/chat/graph/values.mjs';
+import { templateById } from '../../../renderer/chat/computer/tutorial/registry.mjs';
 
 /** A sandbox that answers with the program it was handed and the inputs it saw. */
 const echoSandbox = () => ({
@@ -19,6 +20,39 @@ const runCode = (settings, inputs) => CODE.run(/** @type {any} */ ({
 }));
 
 export default (test) => {
+  test('Read the news, reshaped: website + topics → a model writes Laya\'s question → Laya → second opinion; the two Code boxes are folded', () => {
+    const tpl = /** @type {any} */ (templateById('read-the-news'));
+    const doc = tpl.doc;
+    const part = (/** @type {string} */ id) => doc.parts.find((/** @type {any} */ p) => p.id === id);
+    assert.equal(presetOf(part('n_write')), 'write-laya', 'the template\'s schema is the preset\'s, byte for byte');
+    assert.ok(doc.wires.some((/** @type {any} */ w) => w.from === 'n_write' && w.to === 'n_laya' && w.port === 'question'));
+    assert.ok(doc.wires.some((/** @type {any} */ w) => w.from === 'n_src' && w.to === 'n_laya' && w.port === 'items'), 'Laya reads the website directly');
+    assert.ok(doc.wires.some((/** @type {any} */ w) => w.from === 'n_laya' && w.to === 'n_label'), 'the second opinion reads Classify\'s answers directly');
+    assert.ok(doc.wires.some((/** @type {any} */ w) => w.from === 'n_cats' && w.to === 'n_laya' && w.port === 'options'), 'the person\'s topics are Laya\'s options, exactly');
+    const codes = doc.parts.filter((/** @type {any} */ p) => p.type === 'code');
+    assert.deepEqual(codes.map((/** @type {any} */ p) => [p.id, p.settings.folded === true, !!String(p.settings.about).trim()]), [['n_count', true, true], ['n_draw', true, true]]);
+    assert.equal(tpl.generations, doc.parts.filter((/** @type {any} */ p) => p.type === 'ask').length);
+  });
+
+  test('Read the news, Count: from the website\'s hits, Laya\'s sure labels, then the model\'s — every story once', async () => {
+    const tpl = /** @type {any} */ (templateById('read-the-news'));
+    const part = (/** @type {string} */ id) => tpl.doc.parts.find((/** @type {any} */ p) => p.id === id);
+    const page = part('n_src').value.data;
+    const n = page.hits.length;
+    const laya = (/** @type {any} */ (await classifyPart.run(/** @type {any} */ ({
+      part: { id: 'k2', settings: { question: 'Topic?', options: 'ai\nscience', threshold: 0.6 } },
+      inputs: { items: [valueOf('json', page)] }, app: { farm: { get: () => ({}) } },
+    })))).data;
+    const model = { labels: [{ id: 1, topic: 'AI', sure: true }, { id: 2, topic: 'gardening', sure: true }, { id: 3, topic: 'science', sure: false }] };
+    const count = new Function('inputs', part('n_count').settings.code);
+    const out = count({ in: [page, laya, model, part('n_cats').settings.text] });
+    assert.equal(out.total, n);
+    assert.equal(out.byTopic.reduce((/** @type {number} */ s, /** @type {any} */ r) => s + r.stories, 0), n, 'every story counted once');
+    assert.deepEqual(out.labelledBy, { laya: 0, model: 3 }, 'no Laya: the model labelled what it labelled');
+    assert.equal(out.byTopic.find((/** @type {any} */ r) => r.topic === 'ai').points, Number(page.hits[0].points), 'points come from the data');
+    assert.deepEqual(out.unsure.slice(0, 2).map((/** @type {any} */ u) => u.why), ['not one of your topics: gardening', 'neither Laya nor the model was sure (science)']);
+  });
+
   test('Code: a program on the `code` port runs, unfenced; the guest never sees it as data', async () => {
     const out = /** @type {any} */ (await runCode({ code: 'return 1;' }, {
       in: [valueOf('json', { hits: [] })],
@@ -64,7 +98,7 @@ export default (test) => {
     assert.ok(classifyPart.inputs.some((/** @type {any} */ p) => p.name === 'question'));
   });
 
-  test('Classify: the wired question and options are what is asked; the output carries each item\'s text', async () => {
+  test('Classify: the wired question is what is asked; `check` carries the text of the unsure items only', async () => {
     const out = /** @type {any} */ (await classifyPart.run(/** @type {any} */ ({
       part: { id: 'k1', settings: { question: 'own?', options: 'x\ny', threshold: 0.6 } },
       inputs: {
@@ -74,8 +108,11 @@ export default (test) => {
       app: { farm: { get: () => ({}) } },   // no Laya on this farm: nothing is sent
     })));
     assert.equal(out.data.by, 'none');
-    assert.deepEqual(out.data.labels.map((/** @type {any} */ l) => l.text), ['A new chip', 'A comet']);
-    const rows = itemsOf(['short', { title: 'x'.repeat(400) }]);
-    assert.equal(labelsFrom(rows, null, 0.6, 0).labels[1].text.length, 300, 'capped');
+    assert.deepEqual(out.data.check, [{ id: 1, text: 'A new chip' }, { id: 2, text: 'A comet' }], 'no Laya: every item is to check');
+    const rows = itemsOf(['short', { title: 'x'.repeat(400) }, 'sure one']);
+    const v = labelsFrom(rows, [{ choice: 'a', confidence: 0.2 }, { choice: 'a', confidence: 0.3 }, { choice: 'b', confidence: 0.9 }], 0.6, 5);
+    assert.deepEqual(v.check.map((/** @type {any} */ c) => c.id), [1, 2], 'a sure item is never handed on to re-read');
+    assert.equal(v.check[1].text.length, 300, 'capped');
+    assert.ok(v.labels.every((/** @type {any} */ l) => !('text' in l)));
   });
 };

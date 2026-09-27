@@ -139,8 +139,8 @@ docs) is `docs/reviews/DOCS_REVIEW_2026-09-27_{FARM,SHELL,COMPUTER}.md`. Snapsho
   and "Describe a picture" presets, plus "Write code" — a model writes a Code box's program into its **code**
   port — and "Write a Laya question" — a model writes Classify's question + options into its **question**
   port), **Classify** (Laya on the farm: one multiple-choice question per item,
-  with a confidence; unsure below 0.6; no Laya → every item passed on unsure; each answer carries the item's
-  text), Split, Filter, Collect,
+  with a confidence; unsure below 0.6; no Laya → every item passed on unsure; the unsure items' text rides a `check` list for a
+  second opinion), Split, Filter, Collect,
   Repeat (*think*); Preview (+ p5.js/three.js/SVG/HTML/Markdown presets; since 2026-09-27 it hands on a
   **PNG** of what it drew — SVG rasterised in the renderer — so a vision model can see its own work) and
   Code (a plain-words **What it does** line, and a fold that hides the program behind it), **Speak** (says text with the farm's voice or this computer's) and **Send** (OSC, Art-Net DMX, MQTT,

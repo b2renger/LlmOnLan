@@ -399,8 +399,9 @@ leaves this computer. The rules, so a graph someone hands you cannot misuse it:
 about every item of a list: *what is this about?* with the options you list (or wire a Text box into
 **options**). A model can write the question for you: **＋ → Think → Write a Laya question** reads your
 topics (and a look at the data) and answers with the question and its options; wire it into Classify's
-**question** port. Classify then says what it asked. Each answer carries the words Laya read, so a model
-can give a second opinion from Classify's answers alone. It answers all of them in one call, in about a fifth of a second per item, with a
+**question** port. Classify then says what it asked. Its answers list the items Laya was unsure of under **check**, with
+their words, so a model can give a second opinion from Classify's answers alone — and never re-reads an
+item Laya was sure of. It answers all of them in one call, in about a fifth of a second per item, with a
 **confidence**. It is not a generation and takes no seat. Laya is a fast *first pass*: on 104 real story
 titles it got about 3 in 4 right; two thirds of them came above **Sure above** (0.6 by default), and 4 in 5
 of those were right. Every answer below the threshold is passed on as **unsure** for a thinking model or a
@@ -411,12 +412,15 @@ Classify needs the farm's **Classify (Laya)** plugin, which is **off by default*
 in the farm panel). On a farm without it, nothing is sent: every item comes out unsure, and a graph built
 for Laya still runs — the model behind it labels everything.
 
-The **Read the news** template shows the pattern to copy: **no model ever writes a number**. Laya labels
-each story with one of your categories; the stories it was unsure of go to the model for a second look;
-the model then chooses how to chart (which measure, which order, which topic to highlight, the words); the
-**Code** boxes count and draw every bar. The chart's footer says how many stories each one labelled, and
-the stories nobody was sure of are listed under it. Change the categories or the question and press **Run
-all**.
+The **Read the news** template shows the pattern to copy, with no code to write: **no model ever writes a
+number**. The **Website**, your **Topics** and **Your question** are three separate boxes. A model reads
+the website and your topics and writes Laya's question (your topics are its answers, exactly as you wrote
+them); Laya labels every story; the stories it was unsure of go to the model for a second opinion; the
+model then chooses how to chart (which measure, which order, which topic to highlight, the words). The two
+**Code** boxes, folded behind a line of plain words, count and draw every bar. The chart's footer says how
+many stories each one labelled, and the stories nobody was sure of are listed under it. Change the topics
+or the question and press **Run all**. Another website has another shape: add **＋ → Think → Write code**,
+say what to count, and wire it into the Count box's **code** port.
 
 ---
 

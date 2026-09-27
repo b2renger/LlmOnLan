@@ -49,9 +49,9 @@ export default [
             h.eq(doc.title, 'Read the news', 'a new library document, named for the template');
             const src = idOf(doc, 'fetch');
             const asks = doc.parts.filter((/** @type {any} */ p) => p.type === 'ask').map((/** @type {any} */ p) => p.id);
-            h.eq(asks.length, 2, 'two thinking boxes: label, then choose the chart');
+            h.eq(asks.length, 3, 'three thinking boxes: write Laya\'s question, a second opinion, choose the chart');
             const gens = await h.eval(() => (document.querySelector('#lolcomputer .comp-run-gens') || {}).textContent || '');
-            h.assert(/\b2\b/.test(gens), `the run bar says what it costs: ${gens}`);
+            h.assert(/\b3\b/.test(gens), `the run bar says what it costs: ${gens}`);
 
             // No web: a port nothing listens on (the harness allows loopback, so this is a refused
             // connection — a network failure, the one case the last copy may cover).
@@ -68,9 +68,9 @@ export default [
             }, src);
             h.assert(face && face.offline && /Offline/.test(face.text), `the Fetch box says it kept the last copy: ${JSON.stringify(face)}`);
 
-            const pick = doc.parts.find((/** @type {any} */ p) => p.type === 'code' && /stories:/.test(p.settings.code));
-            h.eq(pick.value.data.stories.length, 30, 'the shipped copy carries the 30 front-page stories');
+            h.eq(doc.parts.find((/** @type {any} */ p) => p.id === src).value.data.hits.length, 30, 'the shipped copy carries the 30 front-page stories');
             const count = doc.parts.find((/** @type {any} */ p) => p.type === 'code' && /byTopic/.test(p.settings.code) && /counted HERE/.test(p.settings.code));
+            h.eq(count.value.data.total, 30, 'Count read the website directly');
             const total = count.value.data.byTopic.reduce((/** @type {number} */ s, /** @type {any} */ r) => s + r.stories, 0);
             h.eq(total, 30, 'the Code box counted every story once — the counts come from the data');
 
@@ -84,7 +84,7 @@ export default [
             }, idOf(doc, 'preview'));
             h.assert(svg && svg.rects >= 2, `the Preview draws the chart as SVG: ${JSON.stringify(svg)}`);
             h.assert(/labels: 0 by Laya, \d+ by the model · counts by the code/.test(svg.text), `with no Laya on the farm, only the model labels, and the chart says so: ${svg.text}`);
-            h.eq((await completions(h)).length, 2, 'two generations, as the shelf said');
+            h.eq((await completions(h)).length, 3, 'three generations, as the shelf said');
         },
     },
 
@@ -156,12 +156,18 @@ export default [
             const count = doc.parts.find((/** @type {any} */ p) => p.type === 'code' && /labelledBy/.test(p.settings.code) && /counted HERE/.test(p.settings.code));
             h.eq(count.value.data.labelledBy.laya, sure, 'the stories Laya was sure of keep its label');
             h.eq(count.value.data.byTopic.reduce((/** @type {number} */ a, /** @type {any} */ r) => a + r.stories, 0), 30, 'every story counted once');
+            // Laya asked the question a model wrote, over the person's own topics.
+            const asked = (await h.mock.log({ path: '/classify/classify' }))[0].question || {};
+            h.eq((asked.options || []).slice(0, 2), ['ai', 'software'], 'Laya\'s options are the person\'s topics, exactly');
+            h.assert(typeof asked.instructions === 'string' && asked.instructions !== 'What is this story mainly about?',
+                `Laya asked the question the model wrote, not the box's own: ${JSON.stringify(asked.instructions)}`);
             // The model's second look carries only the stories Laya was not sure of.
-            const sureTitle = doc.parts.find((/** @type {any} */ p) => p.type === 'code' && /stories:/.test(p.settings.code) && /source:/.test(p.settings.code))
-                .value.data.stories.find((/** @type {any} */ s) => laya.value.data.labels.find((/** @type {any} */ l) => l.id === s.id && l.sure)).title;
-            const labelAsk = (await completions(h)).map((/** @type {any} */ e) => JSON.stringify(e.body)).find((/** @type {string} */ b) => b.includes('Label the stories'));
+            const hits = doc.parts.find((/** @type {any} */ p) => p.type === 'fetch').value.data.hits;
+            const sureId = laya.value.data.labels.find((/** @type {any} */ l) => l.sure).id;
+            const sureTitle = hits[sureId - 1].title;
+            const labelAsk = (await completions(h)).map((/** @type {any} */ e) => JSON.stringify(e.body)).find((/** @type {string} */ b) => b.includes('were not sure of') || b.includes('was not sure of'));
             h.assert(labelAsk && !labelAsk.includes(JSON.stringify(sureTitle).slice(1, -1)), `a story Laya was sure of is not re-asked: ${sureTitle}`);
-            h.eq((await completions(h)).length, 2, 'still two generations: Laya is not one');
+            h.eq((await completions(h)).length, 3, 'still three generations: Laya is not one');
         },
     },
 ];

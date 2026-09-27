@@ -10,7 +10,9 @@
 //
 // Output (the same `labels` shape the Read-the-news labelling Instruction returns, so a graph can
 // put either in front of the same Code):
-//   { labels: [{id, label, confidence, sure}], unsure: [id…], by: 'laya' | 'none', ms, threshold }
+//   { labels: [{id, label, confidence, sure}], unsure: [id…], check: [{id, text}], by: 'laya' | 'none', ms, threshold }
+// `check` carries the words of the UNSURE items only, so a model can give a second opinion from
+// Classify's answers alone, and never re-reads an item Laya was sure of (owner, 2026-09-27).
 // With no Classify service on the farm (it is off by default), nothing is sent: every item comes
 // out unsure (`by: 'none'`) and the face says so — a graph built for Laya still runs, and the model
 // behind it labels everything.
@@ -93,8 +95,7 @@ export function questionOf(plain) {
   return { question, options: options && options.length ? options : null };
 }
 
-/** PURE: the words Laya read for an item, capped — carried in the output so a model can give a
- * second opinion from Classify's answers alone. @param {any} item @returns {string} */
+/** PURE: the words Laya read for an item, capped (the output's `check` list). @param {any} item @returns {string} */
 export function textOf(item) {
   const st = stateOf(item);
   return (typeof st === 'string' ? st : JSON.stringify(st)).slice(0, 300);
@@ -109,9 +110,10 @@ export function labelsFrom(rows, answers, threshold, ms) {
   const labels = rows.map((r, i) => {
     const a = answers ? answers[i] : null;
     const confidence = a ? Math.round(a.confidence * 1000) / 1000 : 0;
-    return { id: r.id, text: textOf(/** @type {any} */ (r).item), label: a ? a.choice : null, confidence, sure: !!a && !!a.choice && confidence >= threshold };
+    return { id: r.id, label: a ? a.choice : null, confidence, sure: !!a && !!a.choice && confidence >= threshold };
   });
-  return { labels, unsure: labels.filter((l) => !l.sure).map((l) => l.id), by: answers ? 'laya' : 'none', ms, threshold };
+  const check = rows.filter((r, i) => !labels[i].sure).map((r) => ({ id: r.id, text: textOf(/** @type {any} */ (r).item) }));
+  return { labels, unsure: check.map((c) => c.id), check, by: answers ? 'laya' : 'none', ms, threshold };
 }
 
 /** @type {PartSpec} */
