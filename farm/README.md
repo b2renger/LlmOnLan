@@ -578,6 +578,19 @@ build for Blackwell cards (16 GB+); replace it freely.
   opt a box out with `"ocr": { "enabled": false }` or `lol up --no-ocr`. The light path covers
   images/PDF/docx/pptx/xlsx/text, and `"docling": true` adds the rest (legacy `.doc`/`.ppt`/`.xls`,
   `.odt`/`.epub`/`.rtf`) at the cost of a multi‑GB torch install. Delete `farm/.extract/` to uninstall.
+- **Classify — Laya (OFF by default, 2026-09-27):** the Laya decision model (convaiinnovations/laya,
+  Apache-2.0) for the Computer's **Classify** box: one multiple-choice question answered for every item of
+  a list, with a confidence. `"classify": { "enabled": true, "port": 8891, "threads": 4, "maxItems": 200 }`.
+  `lol up` builds its own venv under `farm/.classify` (torch from the **CPU** index, ~0.9 GB, and
+  `laya==0.3.20`); the service downloads ~0.8 GB of weights at its first start and warms the model before
+  `/health` answers, so clients only ever see a service that answers quickly. It is ours
+  (`src/pysvc/classify_server.py`), not `laya-serve`: a Bearer key advertised in the snapshot as
+  `classify: {url, key}` (the same LAN trust as the OCR key), one forward pass at a time, one request in
+  flight per client, then 429 + `Retry-After`; `choice` questions only (2–20 options); no request body is
+  ever logged. Measured on the dev box's CPU: 13.7 s cold, then ~0.2 s per item. It shares the CPU with
+  everything else, so run `lol bench` with it busy before turning it on for a class. The panel's plugin
+  toggles list it (a toggle lasts the session; `classify.enabled` in the config makes it permanent).
+  `rm -rf farm/.classify` uninstalls it.
 - **Admin panel (running the farm):** while `lol up` runs, open `http://<box>:41997/lol/admin` (the
   beacon `httpPort`) from any browser on the LAN — or click **"Manage this farm"** in the desktop
   client's fleet popover. The Farm app shows the same page as its own window. It is where the farm is
