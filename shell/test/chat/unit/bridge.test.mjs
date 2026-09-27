@@ -97,6 +97,7 @@ const expectedBridge = (patch = {}) => ({
     ttsModel: 'kokoro',
     extract: null,
     classify: null,
+    stt: null,
     ...patch,
 });
 

@@ -42,6 +42,7 @@ function snapshot(store, { proxyPort, httpPort, host = '127.0.0.1' } = {}) {
         ttsModel: s.ttsModel,
         extract: s.extract,
         classify: s.classify,
+        stt: s.stt,
         plugins: s.plugins,
         recommendedClientPlugins: s.recommendedClientPlugins,
         ts: Date.now(),
@@ -57,6 +58,38 @@ function readBytes(req, limit = 64 * 1024 * 1024) {
         req.on('end', () => resolve(Buffer.concat(chunks)));
         req.on('error', () => resolve(Buffer.concat(chunks)));
     });
+}
+
+/**
+ * The farm's voice (Kokoro) by OpenAI's speech contract: POST /v1/audio/speech {model, voice, input} → sound.
+ * The mock answers a 0.3 s, 8 kHz, 16-bit mono WAV of silence (a real, decodable sound) whatever it is asked.
+ */
+async function ttsMock(req, res) {
+    await readBytes(req);
+    const samples = 2400;
+    const b = Buffer.alloc(44 + samples * 2);
+    b.write('RIFF', 0); b.writeUInt32LE(36 + samples * 2, 4); b.write('WAVE', 8); b.write('fmt ', 12);
+    b.writeUInt32LE(16, 16); b.writeUInt16LE(1, 20); b.writeUInt16LE(1, 22); b.writeUInt32LE(8000, 24);
+    b.writeUInt32LE(16000, 28); b.writeUInt16LE(2, 32); b.writeUInt16LE(16, 34); b.write('data', 36); b.writeUInt32LE(samples * 2, 40);
+    res.writeHead(200, { 'content-type': 'audio/wav', 'access-control-allow-origin': '*' });
+    res.end(b);
+}
+
+/**
+ * Ecosystem plan v2 §3.3: the farm's speech-to-text service by the OpenAI contract (farm/src/pysvc/stt_server.py) —
+ * POST /v1/audio/transcriptions, Bearer key, multipart `file`. Deterministic: the transcript names the
+ * uploaded file and its size, so a scenario can tell WHICH recording was written down.
+ */
+async function sttMock(req, res, store) {
+    const s = store.state;
+    if (s.sttDown) return json(res, 503, { detail: 'loading (mock)' });
+    const key = (s.stt && s.stt.key) || 'mock-stt-key';
+    if ((req.headers.authorization || '') !== 'Bearer ' + key) return json(res, 401, { detail: 'bad key' });
+    const body = await readBytes(req);
+    const text = body.toString('latin1');
+    const m = /filename="([^"]*)"/.exec(text);
+    if (!m) return json(res, 400, { detail: 'no file' });
+    return json(res, 200, { text: 'Mock transcript of ' + m[1] + ' (' + body.length + ' bytes).', language: 'en', duration: 1, ms: 5 });
 }
 
 /**
@@ -213,6 +246,8 @@ function createServicesHandler({ store, snapshotFn, role }) {
         if (pathOnly === '/ocr/health') return json(res, 200, { status: 'ok', model: 'mock-ocr', docling: false });
         if (pathOnly === '/ocr/process' && method === 'PUT') return ocrProcess(req, res, store);
         if (pathOnly === '/classify/classify' && method === 'POST') return classifyMock(req, res, store);
+        if (pathOnly === '/stt/v1/audio/transcriptions' && method === 'POST') return sttMock(req, res, store);
+        if (pathOnly === '/tts/v1/audio/speech' && method === 'POST') return ttsMock(req, res);
 
         return json(res, 404, { ok: false, error: `no mock route for ${method} ${pathOnly}` });
     };

@@ -958,6 +958,7 @@ function publishFarm() {
       ttsUrl: f.ttsUrl || null, ttsVoice: f.ttsVoice || 'af_heart', ttsModel: f.ttsModel || 'kokoro',
       extract: f.extract && f.extract.url && f.extract.key ? { url: f.extract.url, key: f.extract.key } : null,
       classify: f.classify && f.classify.url && f.classify.key ? { url: f.classify.url, key: f.classify.key } : null,
+      stt: f.stt && f.stt.url && f.stt.key ? { url: f.stt.url, key: f.stt.key } : null,
     }
     : (sidecarState && sidecarState.endpoint ? { name: 'farm', openaiBaseUrl: sidecarState.endpoint, defaultModel: null } : null);
   if (window.__lolChatRefresh) window.__lolChatRefresh();

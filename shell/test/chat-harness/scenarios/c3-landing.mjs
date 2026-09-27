@@ -17,7 +17,7 @@ const FARM_ERRORS = [/Failed to load resource/, /net::ERR_/];
 // K4 kickoff (COMPUTER_PLAN §6.4-§6.7): Image, Preview (which replaces Render in the palette)
 // and the three annotation parts join; Render stays loadable so a C3 graph still opens.
 // K6 kickoff (LOLCHAT_PLAN 2.6 KF-4): Document and Sound join "bring in", right after Image.
-const PALETTE = ['note', 'ask', 'classify', 'split', 'repeat', 'filter', 'code', 'collect', 'preview', 'file',
+const PALETTE = ['note', 'ask', 'classify', 'split', 'repeat', 'filter', 'code', 'collect', 'preview', 'speak', 'file',
     'image', 'document', 'audio', 'fetch', 'button', 'condition', 'confirm', 'dialog', 'toggle', 'timer',
     'sticky', 'section', 'title'];
 const LEGACY = ['from-thread', 'to-thread', 'render'];
@@ -173,7 +173,7 @@ export default [
                     computerFailed: Object.keys(window.LolComputer.failed || {}),
                 };
             });
-            h.eq(seen.types.join(','), PALETTE.join(','), 'the catalogue is not the twenty-three in palette order: ' + seen.types.join(','));
+            h.eq(seen.types.join(','), PALETTE.join(','), 'the catalogue is not the twenty-four in palette order: ' + seen.types.join(','));
             for (const type of LEGACY) {
                 h.eq(seen.types.indexOf(type), -1, type + ' is still offered in the palette');
                 h.assert(seen.loadable.indexOf(type) >= 0,

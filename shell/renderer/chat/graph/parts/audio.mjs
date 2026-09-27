@@ -32,6 +32,7 @@ import { AUDIO_EXTS, classify } from '../drop-route.mjs';
 import { soundLength } from '../sound-length.mjs';
 import { sayOnlyOne, releaseUnused } from './document.mjs';
 import '../../strings/parts-audio.en.mjs';
+import { transcribe } from '../../net/stt.mjs';
 // `parts.mediaMissing` is the file store's sentence (K6-U2's table); imported so it is registered
 // wherever this box is.
 import '../../strings/parts-document.en.mjs';
@@ -69,7 +70,19 @@ function adopt(ref) {
   };
 }
 
-const EMPTY = () => ({ fileId: '', name: '', mime: '', size: 0, sha256: '', durationSec: 0 });
+const EMPTY = () => ({ fileId: '', name: '', mime: '', size: 0, sha256: '', durationSec: 0, listen: false });
+
+/** A literal map, so lint rule 5 can see every key a person may read (Listen, plan v2 §3.3). */
+const STT_ERR = {
+  unauthorized: 'parts.audioSttErr_unauthorized',
+  busy: 'parts.audioSttErr_busy',
+  warming: 'parts.audioSttErr_warming',
+  'too-big': 'parts.audioSttErr_tooBig',
+  unreadable: 'parts.audioSttErr_unreadable',
+  farm: 'parts.audioSttErr_farm',
+  timeout: 'parts.audioSttErr_timeout',
+  network: 'parts.audioSttErr_network',
+};
 
 /** `2:14` for 134 s. @param {number} sec @returns {string} */
 export function clock(sec) {
@@ -172,6 +185,30 @@ function audioCtx() {
   return sharedCtx;
 }
 
+/**
+ * Play encoded sound bytes (a WAV or an MP3 the farm's voice made) through the window's ONE
+ * AudioContext — the same Web Audio path as the Sound box, so nothing here makes an <audio>
+ * element (lint). Resolves when the sound ends, or at once when `signal` aborts (the sound stops).
+ * @param {ArrayBuffer} bytes @param {AbortSignal} [signal]
+ * @returns {Promise<{ok: true, seconds: number}|{ok: false, error: string}>}
+ */
+export async function playBytes(bytes, signal) {
+  const ac = audioCtx();
+  if (!ac) return { ok: false, error: t('parts.audioNoPlayer') };
+  let buffer = null;
+  try { buffer = await ac.decodeAudioData(bytes.slice(0)); } catch { return { ok: false, error: t('parts.audioUndecodable', { name: 'voice' }) }; }
+  try { if (ac.state === 'suspended' && typeof ac.resume === 'function') await ac.resume(); } catch { /* keep going */ }
+  return new Promise((resolve) => {
+    const src = ac.createBufferSource();
+    src.buffer = buffer;
+    src.connect(ac.destination);
+    const done = () => resolve({ ok: true, seconds: Number(buffer.duration) || 0 });
+    src.onended = done;
+    if (signal) signal.addEventListener('abort', () => { try { src.stop(); } catch { /* ended */ } done(); }, { once: true });
+    src.start();
+  });
+}
+
 /** What the player is doing, for tests: never a handle, only facts. */
 export function soundDebug() {
   return { plays, playing: current ? String(current.fileId) : null, cached: cached.fileId || null, decodes: fullDecodes };
@@ -269,6 +306,16 @@ export const audioPart = /** @type {any} */ ({
     remove.textContent = t('parts.audioRemove');
     foot.append(time, replace, remove);
     player.append(row, bar, foot);
+
+    // Listen (plan v2 §3.3): a person turns it on, and the face says where the sound goes.
+    const listenRow = make('label', 'graph-audio-listen');
+    listenRow.title = t('parts.audioListenHint');
+    const listenBox = /** @type {HTMLInputElement} */ (make('input', 'graph-audio-listen-box'));
+    listenBox.type = 'checkbox';
+    listenBox.checked = !!(part.settings && part.settings.listen);
+    listenBox.addEventListener('change', () => { ctx.update({ listen: listenBox.checked }); ctx.commit(t('parts.audioListen')); });
+    listenRow.append(listenBox, doc.createTextNode(' ' + t('parts.audioListen')));
+    player.append(listenRow);
 
     const note = make('p', 'graph-audio-note');
     note.setAttribute('role', 'status');
@@ -498,6 +545,7 @@ export const audioPart = /** @type {any} */ ({
     paint(part);
     return {
       update(next) {
+        listenBox.checked = !!(next.settings && next.settings.listen);
         // Replace, Remove, undo or an import changed the file under a playing sound: stop it.
         if (handle && String(settingsOf(next).fileId || '') !== handle.fileId) handle.stop();
         paint(next);
@@ -528,6 +576,23 @@ export const audioPart = /** @type {any} */ ({
       let rec = null;
       try { rec = await media.get(String(s.fileId)); } catch { rec = null; }
       if (!rec) throw partFail(t('parts.mediaMissing'), 'part');
+    }
+    // Listen (plan v2 §3.3): the farm writes the recording down, and the WORDS flow on.
+    if (s.listen) {
+      const farm = app && app.farm && typeof app.farm.get === 'function' ? app.farm.get() : null;
+      const svc = farm && farm.stt ? farm.stt : null;
+      if (!svc) throw partFail(t('parts.audioNoStt'), 'part');
+      let bytes = null;
+      try { bytes = media && typeof media.bytes === 'function' ? await media.bytes(String(s.fileId)) : null; } catch { bytes = null; }
+      if (!bytes) throw partFail(t('parts.mediaMissing'), 'part');
+      const out = await transcribe({ url: svc.url, key: svc.key, bytes, name: String(s.name || 'recording'), mime: String(s.mime || ''), signal: input.signal });
+      if ('error' in out) {
+        if (out.code === 'aborted') throw partFail(t('parts.audioSttErr_busy'), 'aborted');
+        const message = t(/** @type {any} */ (STT_ERR)[out.code] || STT_ERR.farm, { message: out.error });
+        throw partFail(message, out.code === 'busy' || out.code === 'warming' ? 'busy' : 'part');
+      }
+      if (!out.text.trim()) throw partFail(t('parts.audioSttEmpty'), 'empty');
+      return valueOf('text', out.text.trim());
     }
     const session = app && app.host && app.host.session;
     const docNow = session && typeof session.doc === 'function' ? session.doc() : { parts: [], wires: [] };

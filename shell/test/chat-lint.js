@@ -225,7 +225,7 @@ const DOORS = [
         // extractor (PUT {extract.url}/process) — the sanctioned OCR flow, one file, one PUT.
         // Ecosystem plan v2 §3.2: net/classify.mjs is the ONE door to the farm's Laya service (POST
         // {classify.url}/classify) — one file, one POST, like net/extract.mjs.
-        allow: ['net/farm.mjs', 'net/run.mjs', 'core/fakes.mjs', 'app/caps.mjs', 'sandbox/libs.mjs', 'net/extract.mjs', 'net/classify.mjs'],
+        allow: ['net/farm.mjs', 'net/run.mjs', 'core/fakes.mjs', 'app/caps.mjs', 'sandbox/libs.mjs', 'net/extract.mjs', 'net/classify.mjs', 'net/stt.mjs', 'net/tts.mjs'],
         patterns: [/\bfetch\s*\(/g, /new\s+XMLHttpRequest\b/g, /new\s+EventSource\b/g, /navigator\s*\.\s*sendBeacon\b/g],
     },
     {

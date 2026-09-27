@@ -72,7 +72,7 @@ export default (test) => {
     }
     // the named creative boxes sit in Show BEFORE the generic Preview and Code (KE-2)
     const show = ids(ROWS.filter((r) => r.group === 'show'));
-    assert.deepEqual(show, ['p5', 'three', 'svg', 'html', 'markdown', 'preview', 'code']);
+    assert.deepEqual(show, ['p5', 'three', 'svg', 'html', 'markdown', 'preview', 'code', 'speak']);
     // Think: the Instruction first, then the Write-… boxes, then the list tools
     const think = ids(ROWS.filter((r) => r.group === 'think'));
     assert.deepEqual(think.slice(0, 5), ['ask', 'write-p5', 'write-three', 'write-svg', 'write-html']);

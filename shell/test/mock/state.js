@@ -62,6 +62,9 @@ function defaults() {
         // scenario sets `classify` (h.computer.classify(true)); `classifyDown` answers 503 (warming).
         classify: null,
         classifyDown: false,
+        // Ecosystem plan v2 §3.3: speech to text at POST /stt/v1/audio/transcriptions (h.computer.stt(true)).
+        stt: null,
+        sttDown: false,
         ocrPages: null,              // force the page count of every PDF
         ocrDelayMs: null,            // per-page delay override (default 200 ms, capped at 3 s)
     };

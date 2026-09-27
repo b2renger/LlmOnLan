@@ -32,4 +32,17 @@ registerStrings('parts', {
   audioNotSound: '“{name}” is not a sound file, so this box cannot hold it. Drop it on an empty part of the canvas instead, and the Computer makes the right box for it.',
   audioNoStore: 'This build of the Computer cannot keep files, so the sound was not kept.',
   audioNoPlayer: 'This window cannot play sound.',
+  // Ecosystem plan v2 §3.3: Listen — the farm writes down what is said.
+  audioListen: 'Listen: write down what is said',
+  audioListenHint: 'On a run, the recording goes to the farm’s speech-to-text service, which writes down what is said and keeps nothing; the words flow on instead of the sound.',
+  audioNoStt: 'This farm cannot listen: its Speech to text plugin is off. The farm’s operator can turn it on in the farm panel.',
+  audioSttErr_unauthorized: 'The farm refused the speech-to-text key — the farm may have restarted. Run again in a few seconds.',
+  audioSttErr_busy: 'The farm is writing down someone else’s recording. Run again in a moment — nothing was lost.',
+  audioSttErr_warming: 'The farm is still loading its speech-to-text model. Run again in a few seconds.',
+  audioSttErr_tooBig: 'This recording is too big for the farm to write down.',
+  audioSttErr_unreadable: 'The farm could not read this recording.',
+  audioSttErr_farm: 'The farm’s speech-to-text service answered badly ({message}).',
+  audioSttErr_timeout: 'The farm did not finish writing this recording down within five minutes.',
+  audioSttErr_network: 'The farm’s speech-to-text service could not be reached: {message}',
+  audioSttEmpty: 'The farm heard no words in this recording.',
 });

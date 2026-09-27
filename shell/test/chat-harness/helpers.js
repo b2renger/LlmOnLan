@@ -713,6 +713,18 @@ function createHelpers(ctx) {
                 };
             }, partId),
             /** Make the mock farm advertise (true) or withdraw (false) its OCR extractor, and publish. */
+            /** Advertise (or withdraw) the mock farm's voice (Kokoro by OpenAI's speech contract). */
+            tts: async (on) => {
+                await h.mock.state({ ttsUrl: on ? services + '/tts/v1' : null, ttsVoice: on ? 'af_heart' : null, ttsModel: on ? 'kokoro' : null });
+                await h.eval(() => window.__harness.refresh());
+                return on ? services + '/tts/v1' : null;
+            },
+            /** Advertise (or withdraw) the mock farm's speech-to-text service (ecosystem plan v2 §3.3). */
+            stt: async (on) => {
+                await h.mock.state({ stt: on ? { url: services + '/stt', key: 'mock-stt-key' } : null });
+                await h.eval(() => window.__harness.refresh());
+                return on ? services + '/stt' : null;
+            },
             /** Advertise (or withdraw) the mock farm's Laya service (ecosystem plan v2 §3.2). */
             classify: async (on) => {
                 await h.mock.state({ classify: on ? { url: services + '/classify', key: 'mock-classify-key' } : null });

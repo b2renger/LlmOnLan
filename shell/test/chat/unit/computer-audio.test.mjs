@@ -373,7 +373,8 @@ export default (test) => {
     assert.equal(audioPart.thinks, false);
     assert.deepEqual(audioPart.inputs, []);
     assert.equal(audioPart.output, 'text');
-    assert.deepEqual(Object.keys(audioPart.defaults()).sort(), ['durationSec', 'fileId', 'mime', 'name', 'sha256', 'size']);
+    assert.deepEqual(Object.keys(audioPart.defaults()).sort(), ['durationSec', 'fileId', 'listen', 'mime', 'name', 'sha256', 'size']);
+    assert.equal(audioPart.defaults().listen, false, 'Listen is off until a person turns it on (plan v2 §3.3)');
     assert.equal(SPECS.get('audio'), audioPart, 'the catalogue serves this spec');
     assert.equal(AUDIO_MAX_BYTES, 25 * 1024 * 1024);
     assert.equal(AUDIO_MAX_SEC, 600);
@@ -599,6 +600,7 @@ export default (test) => {
       const real = doc.createElement.bind(doc);
       doc.createElement = (tag) => { const e = real(tag); if (tag === 'input') made.push(e); return e; };
       const b = box(doc, part(), { media: fakeMedia() });
+      made.length = 0;   // the Listen checkbox is an <input> made at render; count only what the click makes
       b.q('.graph-audio-empty').dispatchEvent({ type: 'click' });
       assert.equal(made.length, 1, 'one file input');
       assert.equal(made[0].type, 'file');

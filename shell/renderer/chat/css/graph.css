@@ -654,6 +654,10 @@
   tab-size: 2;
 }
 
+:is(#lolchat, #lolcomputer) .graph-speak { display: flex; flex-direction: column; gap: 6px; }
+:is(#lolchat, #lolcomputer) .graph-speak-voice { border: 1px solid var(--border); border-radius: 8px; background: var(--bg); color: var(--text); font: inherit; font-size: 12px; padding: 4px 6px; }
+:is(#lolchat, #lolcomputer) .graph-speak-said { margin: 0; font-size: 11px; color: var(--muted); }
+:is(#lolchat, #lolcomputer) .graph-audio-listen { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--muted); margin-top: 4px; }
 :is(#lolchat, #lolcomputer) .graph-classify { display: flex; flex-direction: column; gap: 6px; }
 :is(#lolchat, #lolcomputer) .graph-classify-q,
 :is(#lolchat, #lolcomputer) .graph-classify-opts,
