@@ -48,7 +48,8 @@
 
 import { partFail, textOf, pickerRow, sandboxDownText, sandboxPaused } from './common.mjs';
 import { numberField } from './fields.mjs';
-import { isValue } from '../values.mjs';
+import { isValue, valueOf } from '../values.mjs';
+import { MAX_VALUE_BYTES } from '../serialize.mjs';
 import { parseBlocks } from '../../render/md-block.mjs';
 import { renderBlocks, domFactory } from '../../render/dom.mjs';
 import { sanitizeSvg } from '../../design/svg-sanitize.mjs';
@@ -375,6 +376,31 @@ function withGuest(fn) {
  * Draw `code` in a FREE mode. No guest, no await. Throws a part failure.
  * @param {string} mode @param {string} code @returns {{mode: string, text?: string, svg?: string, removed?: string[]}}
  */
+/**
+ * A PNG of a sanitised SVG, for a model that reads pictures (vision models take PNG or JPEG, never
+ * SVG). Drawn on white: a transparent background reads as black to some models. null where there
+ * is no DOM (Node) or the browser will not draw it.
+ * @param {string} svg @param {number} maxPx @returns {Promise<{dataUrl: string, w: number, h: number}|null>}
+ */
+export async function svgToPng(svg, maxPx) {
+  if (!svg || typeof document === 'undefined' || typeof Image === 'undefined') return null;
+  const img = new Image();
+  img.src = svgDataUrl(svg);
+  try { await img.decode(); } catch { return null; }
+  const w0 = img.naturalWidth || 320;
+  const h0 = img.naturalHeight || 240;
+  const k = Math.min(1, maxPx / Math.max(w0, h0));
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.max(1, Math.round(w0 * k));
+  canvas.height = Math.max(1, Math.round(h0 * k));
+  const g = canvas.getContext('2d');
+  if (!g) return null;
+  g.fillStyle = 'rgb(255, 255, 255)';
+  g.fillRect(0, 0, canvas.width, canvas.height);
+  g.drawImage(img, 0, 0, canvas.width, canvas.height);
+  try { return { dataUrl: canvas.toDataURL('image/png'), w: canvas.width, h: canvas.height }; } catch { return null; }
+}
+
 function drawFree(mode, code) {
   if (mode === 'markdown') return { mode, text: code };
   const clean = sanitizeSvg(code);
@@ -493,7 +519,9 @@ export const preview = /** @type {any} */ ({
   // 360×400 since critic R1: exact heights left the default Preview a two-line code field.
   size: { w: 360, h: 400 },
   inputs: [{ name: 'content', label: t('parts.previewIn'), accepts: ['text', 'json'] }],
-  output: null,
+  // Owner, 2026-09-27: the drawing as a PNG, so a model can look at what it produced (a feedback
+  // loop). A markdown page hands on nothing.
+  output: 'image',
   quiet: true,
   // `source` is the box's own code (typed by the person, never written by a run) and `locked`
   // keeps it when something arrives. Both MUST be here: serialize.mjs exports only the keys
@@ -1454,9 +1482,13 @@ export const preview = /** @type {any} */ ({
     const at = input.app && typeof input.app.now === 'function' ? input.app.now() : Date.now();
     const origin = useOwn ? 'own' : 'input';
 
+    /** The picture this box hands on (owner, 2026-09-27: a model can SEE what it made). */
+    /** @type {{dataUrl: string, w: number, h: number}|null} */ let picture = null;
     try {
       if (FREE_MODES.indexOf(mode) >= 0) {
-        setShown(id, { ...drawFree(mode, code), source: code, from: origin, at });
+        const free = drawFree(mode, code);
+        setShown(id, { ...free, source: code, from: origin, at });
+        if (mode === 'svg') picture = await svgToPng(String(/** @type {any} */ (free).svg || ''), LIMITS.maxPx);
       } else {
         const getSandbox = typeof input.sandbox === 'function' ? input.sandbox : null;
         const drew = await withGuest(async () => {
@@ -1464,6 +1496,7 @@ export const preview = /** @type {any} */ ({
           return drawInGuest(sandbox, mode, code, s, input.signal, input.app);
         });
         setShown(id, { ...drew, source: code, from: origin, at });
+        picture = { dataUrl: drew.dataUrl, w: drew.w, h: drew.h };
       }
     } catch (err) {
       const line = Number(/** @type {any} */ (err).line) || 0;
@@ -1474,6 +1507,10 @@ export const preview = /** @type {any} */ ({
     if (!useOwn) OWNED.delete(id);
     const drew = DREW.get(id);
     if (drew) { try { drew(); } catch (err) { console.warn('[lolchat] the live preview did not follow the run', err); } }
-    return null;
+    // A markdown page has no picture; everything else hands on the PNG it drew, so an Instruction
+    // wired to this box (a vision model) sees exactly what is on screen.
+    return picture && picture.dataUrl.length <= MAX_VALUE_BYTES
+      ? valueOf('image', { dataUrl: picture.dataUrl, w: picture.w, h: picture.h, name: `preview-${mode}.png`, mode })
+      : null;
   },
 });

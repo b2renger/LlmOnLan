@@ -103,10 +103,10 @@ async function failureOf(input) {
 export default (test) => {
   // ------------------------------------------------------------------------------- declarations
 
-  test('Preview declares a window, not a source: one content port, no output, and quiet', () => {
+  test('Preview: one content port, an IMAGE output (owner 2026-09-27: a model can see what it drew), and quiet', () => {
     assert.ok(PREVIEW, 'preview is in the catalogue');
     assert.equal(PREVIEW.type, 'preview');
-    assert.equal(PREVIEW.output, null, 'a window publishes nothing — §6.5');
+    assert.equal(PREVIEW.output, 'image', 'the drawing as a PNG, for a vision model downstream (supersedes §6.5)');
     assert.equal(PREVIEW.quiet, true, 'it draws its own value, so the canvas strip would say it twice');
     assert.equal(PREVIEW.thinks, false, 'it spends no generation');
     assert.equal(PREVIEW.inputs.length, 1);

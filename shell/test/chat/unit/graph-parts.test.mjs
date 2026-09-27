@@ -141,7 +141,7 @@ export default (test) => {
     // out of every active set (graph/topo.mjs), and `quiet`, which keeps the canvas from
     // printing a value strip under a part that draws its own (graph/canvas.mjs).
     assert.deepEqual([...specMap().values()].filter((s) => s.output === null).map((s) => s.type),
-      ['preview', 'sticky', 'section', 'title', 'to-thread']);
+      ['sticky', 'section', 'title', 'to-thread']);
     assert.deepEqual(partSpecs().filter((s) => s.inert).map((s) => s.type), ['sticky', 'section', 'title']);
     for (const s of partSpecs().filter((p) => p.inert)) {
       assert.deepEqual(s.inputs, [], `${s.type} is inert, so it has no ports`);

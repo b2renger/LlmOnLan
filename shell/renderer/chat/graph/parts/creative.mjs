@@ -34,6 +34,7 @@ import '../../strings/parts-creative.en.mjs';
 export const CREATIVE_PRESET_IDS = Object.freeze([
   'p5', 'three', 'svg', 'html', 'markdown',
   'write-p5', 'write-three', 'write-svg', 'write-html',
+  'describe-image',
 ]);
 
 /** What each creative box holds before anyone touches it. It must DRAW on the first ▶ with no
@@ -206,6 +207,15 @@ export function creativePresets() {
       label: t('parts.writeHtmlLabel'), title: t('parts.writeHtmlLabel'), desc: t('parts.writeHtmlDesc'),
       keywords: ['code', 'generate', 'web', 'page', 'webpage', 'website'],
       settings: { instruction: t('parts.writeAskHtml'), shape: 'text', code: 'html' }, match: { code: 'html' },
+    },
+    {
+      // Owner, 2026-09-27: a Preview now hands on a PNG of what it drew, so a model can LOOK at its own
+      // picture. This places an Instruction that asks for exactly that. It matches on its own question:
+      // rewrite the question and it becomes a plain Instruction, titled as one.
+      id: 'describe-image', type: 'ask', group: 'think', order: 245, glyph: '◉',
+      label: t('parts.describeLabel'), title: t('parts.describeLabel'), desc: t('parts.describeDesc'),
+      keywords: ['describe', 'look', 'see', 'vision', 'picture', 'image', 'critique', 'feedback', 'check'],
+      settings: { instruction: t('parts.describeAsk'), shape: 'text' }, match: { instruction: t('parts.describeAsk') },
     },
   ].map((p) => /** @type {PartPreset} */ (/** @type {any} */ (p)));
 }
