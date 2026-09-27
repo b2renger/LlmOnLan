@@ -7,7 +7,8 @@
 
 const log = require('../log');
 const ollama = require('../ollama');
-const { loadConfig, writeConfig } = require('../config');
+const { loadConfig } = require('../config');
+const { patchConfigFile } = require('../configFile');
 
 async function run(args) {
     const sub = args[0];
@@ -51,24 +52,30 @@ function hostLabel(h) {
     try { return new URL(h).host; } catch { return h; }
 }
 
-function add(id) {
+// add/rm patch ONLY `models` in the raw file (configFile.js): writing the
+// schema-parsed config back froze every default into the operator's file and
+// silently opted them out of future ones. `configPath` is for tests.
+function add(id, configPath) {
     if (!id) { log.err('Usage: lol models add <id>   e.g. lol models add gemma4:12b'); return 1; }
-    const { config, path: p } = loadConfig();
+    const { config, path: p } = loadConfig(configPath);
     if (config.models.some((m) => m.id === id)) { log.warn(`${id} is already in the catalog.`); return 0; }
-    config.models.push({ id });
-    writeConfig(p, config);
+    // config.models is the file's list when it has one, else the default catalog —
+    // either way the file must end up with the whole list, not just the new id.
+    const next = config.models.concat([{ id }]);
+    const r = patchConfigFile(p, (raw) => { raw.models = next; return raw; });
+    if (!r.ok) { log.err(`Could not save ${p}: ${r.error}`); return 1; }
     log.ok(`Added ${log.paint.bold(id)}. Run ${log.paint.cyan('lol up --no-pick')} to serve it \n     ${log.paint.grey('(plain `lol up` prompts, and Enter serves only the default — dropping this one).')}`);
     return 0;
 }
 
-function remove(id) {
+function remove(id, configPath) {
     if (!id) { log.err('Usage: lol models rm <id>'); return 1; }
-    const { config, path: p } = loadConfig();
-    const before = config.models.length;
-    config.models = config.models.filter((m) => m.id !== id);
-    if (config.models.length === before) { log.warn(`${id} is not in the catalog.`); return 0; }
-    if (config.models.length === 0) { log.err('Refusing to remove the last model — a farm must serve at least one.'); return 1; }
-    writeConfig(p, config);
+    const { config, path: p } = loadConfig(configPath);
+    const next = config.models.filter((m) => m.id !== id);
+    if (next.length === config.models.length) { log.warn(`${id} is not in the catalog.`); return 0; }
+    if (next.length === 0) { log.err('Refusing to remove the last model — a farm must serve at least one.'); return 1; }
+    const r = patchConfigFile(p, (raw) => { raw.models = next; return raw; });
+    if (!r.ok) { log.err(`Could not save ${p}: ${r.error}`); return 1; }
     log.ok(`Removed ${log.paint.bold(id)}.`);
     return 0;
 }
@@ -86,11 +93,14 @@ async function pull() {
         if (!up) { log.err(`${label} unreachable — skipping.`); failures++; return; }
         const present = await ollama.listModels(host);
         for (const m of config.models) {
-            if (ollama.hasModel(present, m.id)) { log.ok(`${label}: ${m.id} already present.`); continue; }
-            log.step(`${label}: pulling ${log.paint.bold(m.id)} …`);
+            // A derived model is pulled by its UPSTREAM tag: `m.id` is the local name
+            // `lol up` creates from it and exists on no registry (a pull 404s).
+            const upstream = m.source || m.id;
+            if (ollama.hasModel(present, upstream)) { log.ok(`${label}: ${upstream} already present.`); continue; }
+            log.step(`${label}: pulling ${log.paint.bold(upstream)} …`);
             try {
                 let last = ''; let lastAt = 0;
-                await ollama.pullModel(host, m.id, (o) => {
+                await ollama.pullModel(host, upstream, (o) => {
                     // pullModel emits the PARSED object now, so format it here — and
                     // throttle: with byte counts the text changes on every chunk.
                     const s = ollama.pullProgressText(o);
@@ -101,10 +111,10 @@ async function pull() {
                     }
                 });
                 process.stdout.write('\n');
-                log.ok(`${label}: ${m.id} pulled.`);
+                log.ok(`${label}: ${upstream} pulled${m.source ? ` (lol up derives ${m.id} from it)` : ''}.`);
             } catch (e) {
                 process.stdout.write('\n');
-                log.err(`${label}: pull ${m.id} failed — ${e.message}`);
+                log.err(`${label}: pull ${upstream} failed — ${e.message}`);
                 failures++;
             }
         }
@@ -113,4 +123,4 @@ async function pull() {
     return failures ? 1 : 0;
 }
 
-module.exports = { run };
+module.exports = { run, add, remove };

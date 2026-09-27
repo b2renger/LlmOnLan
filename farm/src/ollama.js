@@ -269,6 +269,17 @@ function pullModel(baseUrl, id, onLine = () => {}, timeoutMs = 30 * 60 * 1000) {
     });
 }
 
+// The Modelfile PARAMETERs a derived (`source`) model is created with: the entry's
+// own params, plus num_ctx from ollama.contextLength ONLY when that is a number. The
+// default is 'auto', and the string went straight into /api/create (or a Modelfile
+// PARAMETER line) for any source model without its own num_ctx. Leaving it out is
+// safe: the routed per-request num_ctx (litellm.js) governs the served window anyway.
+function deriveParams(config, m) {
+    const cl = config && config.ollama ? config.ollama.contextLength : undefined;
+    const base = (typeof cl === 'number' && Number.isFinite(cl)) ? { num_ctx: cl } : {};
+    return Object.assign(base, (m && m.params) || {});
+}
+
 // Derive a local model from another one, applying Modelfile PARAMETERs.
 //
 // Why this exists: a raw `hf.co/...` pull carries the WEIGHTS but none of the
@@ -418,7 +429,7 @@ function createModelWithDraft(name, from, draftFile, parameters = {}, timeoutMs 
 module.exports = {
     normalizeHost, version, listModels, listModelsDetailed, loadedModels, warmModel, evictModel,
     hasModel, pullModel, pullProgressText, deleteModel, createModel, createModelWithDraft, downloadDraft, draftPathFor, draftDir, request,
-    keepAliveValue, showModel, psModels,
+    keepAliveValue, showModel, psModels, deriveParams,
     // Same fetcher under names that read correctly at the other call sites: the
     // llama.cpp backend uses it for full model weights and release archives, not
     // just draft modules.

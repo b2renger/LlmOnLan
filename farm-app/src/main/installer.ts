@@ -43,7 +43,7 @@ const PHASE_LABELS: Record<SetupPhaseId, string> = {
     runtime: 'Runtime — Python & Ollama',
     farm: 'Farm code',
     model: `AI model — ${MODEL_ID}`,
-    deps: 'Services — proxy, search, OCR',
+    deps: 'Services — proxy, search, OCR + staged model (~8.6 GB)',
     launch: 'Launch the farm',
 };
 const PHASE_ORDER: SetupPhaseId[] = ['runtime', 'farm', 'model', 'deps', 'launch'];
@@ -107,9 +107,10 @@ function copyFarm(): void {
     });
 }
 
-// `share` picks the network posture: private (false) binds the proxy + discovery to
-// 127.0.0.1 and turns the beacon OFF (no other machine can reach/use the farm);
-// shared (true) binds 0.0.0.0 + advertises via the beacon. Everything else is left to
+// `share` picks the network posture: private (false) binds the proxy, discovery AND
+// the plugins (web search, OCR, voice — they follow proxy.host) to 127.0.0.1 and turns
+// the beacon OFF (no other machine can reach/use the farm); shared (true) binds
+// 0.0.0.0 + advertises via the beacon. Everything else is left to
 // the farm's zod defaults (SearXNG/OCR on, TTS off, ports, the llamacpp backend).
 // contextLength seeds ollama.contextLength on first run; after that the farm panel owns it.
 function writeFarmConfig(adminToken: string, share: boolean, contextLength: number | 'auto'): void {

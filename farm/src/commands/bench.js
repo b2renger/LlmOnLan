@@ -123,7 +123,13 @@ async function run(args = []) {
         const tps = all.map((x) => x.tps).sort((a, b) => a - b);
         log.plain('');
         log.ok(`Summary (${all.length} requests): first token p50 ${log.paint.bold(fmtS(pct(ttfts, 50)))} / p95 ${fmtS(pct(ttfts, 95))} · per-user ${pct(tps, 50).toFixed(1)} tok/s median`);
-        if (config) log.info(`Reminder: one Ollama runs ${config.ollama.numParallel} generation(s) at once (ollama.numParallel); more users than that queue.`);
+        // Name the engine this config serves with — the Ollama figure is meaningless
+        // while llama.cpp or an external server answers.
+        if (config) {
+            if (config.external && config.external.enabled) log.info(`Reminder: the external server was declared to run ${config.external.parallel} generation(s) at once (external.parallel); the farm cannot verify it.`);
+            else if (config.llamacpp && config.llamacpp.enabled) log.info(`Reminder: llama-server runs ${config.llamacpp.parallel} generation(s) at once (llamacpp.parallel); more queue.`);
+            else log.info(`Reminder: one Ollama runs ${config.ollama.numParallel} generation(s) at once (ollama.numParallel); more users than that queue.`);
+        }
     }
     return all.length ? 0 : 1;
 }

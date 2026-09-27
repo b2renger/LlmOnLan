@@ -61,6 +61,114 @@ function servedEntries(config) {
     });
 }
 
+// Is the OLLAMA engine the one answering chat? One engine at a time (owner decision
+// 2026-08-26): while llama.cpp or an operator-run external server serves, the Ollama
+// catalog is STANDBY inventory — not routed, not advertised — and nothing may warm,
+// probe or re-route it as if it were serving. Every exclusivity check goes through
+// this; testing only `llamacpp.enabled` (as the code once did) treated an external
+// engine as "Ollama serves" and let the panel load models next to vLLM.
+function ollamaServes(config) {
+    return !(config.llamacpp && config.llamacpp.enabled) && !(config.external && config.external.enabled);
+}
+
+// The catalog entry clients auto-select on the Ollama engine (same rule as
+// servedEntries: the flagged default, else the first).
+function defaultModelEntry(config) {
+    const models = config.models || [];
+    return models.find((m) => m.default) || models[0] || null;
+}
+
+// Would giving the default model `name` collide with ANOTHER served model's name?
+// A duplicate model_name silently merges two models into one route.
+function nameTakenByOther(config, name) {
+    const def = defaultModelEntry(config);
+    return (config.models || []).some((m) => m !== def && ((m.alias || '').trim() || m.id) === name);
+}
+
+// A NAME PLAN is how the advertised name moves between engines, as data: keys present
+// are set, absent keys are left alone.
+//   { llamacppAlias }  → config.llamacpp.alias
+//   { modelAlias }     → config.modelAlias (null clears it)
+//   { defaultAlias }   → the default catalog entry's own `alias` (null removes it)
+// Plans are computed by the pure functions below and applied by applyNamePlan (memory)
+// and, for a real engine switch only, persisted by the caller (up.js).
+
+// Carry the advertised name across an engine SWITCH. The name IS the model id clients
+// bind to, so a switch that renames the model makes every open chat ask to re-pick.
+//   → llama.cpp: the default Ollama model's SERVED name (its own alias, else the
+//     global modelAlias) becomes llamacpp.alias. A raw checkpoint id is not carried —
+//     llama.cpp serving a different model under "gemma4:12b" would be a lie. modelAlias
+//     is cleared so llamacpp.alias is the ONE source of truth while llama.cpp serves
+//     (a stale copy would win a later fallback).
+//   → Ollama: llamacpp.alias goes onto the default entry's own alias when it has one
+//     (per-model naming is how the panel names Ollama models), else into modelAlias.
+function carryNameAcross(config, toLlamacpp) {
+    const plan = {};
+    const lc = config.llamacpp || {};
+    if (toLlamacpp) {
+        const def = servedEntries(config).find((e) => e.isDefault);
+        if (def && def.servedName !== def.underlying && def.servedName !== lc.alias) plan.llamacppAlias = def.servedName;
+        if ((config.modelAlias || '').trim()) plan.modelAlias = null;
+        return plan;
+    }
+    const name = (lc.alias || '').trim();
+    const def = defaultModelEntry(config);
+    if (!name || !def || nameTakenByOther(config, name)) return plan;
+    const own = (def.alias || '').trim();
+    if (own) { if (own !== name) plan.defaultAlias = name; }
+    else if ((config.modelAlias || '').trim() !== name) plan.modelAlias = name;
+    return plan;
+}
+
+// The name the Ollama engine serves when it takes over by FALLBACK (the configured
+// engine could not start, or died). Chats are bound to the failed engine's alias, and
+// a fallback that serves raw checkpoint ids breaks every one of them for the whole
+// run. Unlike a switch, the operator's own Ollama naming wins: only a default nobody
+// named gets the engine's alias.
+function fallbackNamePlan(config, engineAlias) {
+    const name = (engineAlias || '').trim();
+    const def = defaultModelEntry(config);
+    if (!name || !def) return {};
+    if ((def.alias || '').trim() || (config.modelAlias || '').trim()) return {};
+    if (nameTakenByOther(config, name)) return {};
+    return { modelAlias: name };
+}
+
+// Apply a name plan to the in-memory config. Returns the config.
+function applyNamePlan(config, plan) {
+    if (!plan) return config;
+    if ('llamacppAlias' in plan) config.llamacpp.alias = plan.llamacppAlias;
+    if ('modelAlias' in plan) config.modelAlias = plan.modelAlias;
+    if ('defaultAlias' in plan) {
+        const def = defaultModelEntry(config);
+        if (def) { if (plan.defaultAlias) def.alias = plan.defaultAlias; else delete def.alias; }
+    }
+    return config;
+}
+
+// A configured engine is off for THIS RUN (boot probe failed, no prebuilt, start
+// failure, crashed twice). IN MEMORY ONLY: the operator's file keeps the engine
+// enabled so the next boot retries, and the fallback's names are never written.
+//   'external' → the built-in engine that stands in (llama.cpp when enabled, else
+//                Ollama) serves under the external alias.
+//   'llamacpp' → Ollama serves, under llamacpp.alias unless the default is named.
+// Returns the plan it applied (for the log line).
+function engineFallback(config, engine) {
+    let plan;
+    if (engine === 'external') {
+        const alias = (config.external.alias || '').trim();
+        config.external.enabled = false;
+        plan = config.llamacpp.enabled
+            ? (alias && alias !== config.llamacpp.alias ? { llamacppAlias: alias } : {})
+            : fallbackNamePlan(config, alias);
+    } else {
+        config.llamacpp.enabled = false;
+        plan = fallbackNamePlan(config, config.llamacpp.alias);
+    }
+    applyNamePlan(config, plan);
+    return plan;
+}
+
 // Build the config.yaml object (model_list × hosts + router/proxy settings).
 //
 // `peers` (coordinator mode) is a list of OTHER farms discovered on the LAN:
@@ -160,7 +268,7 @@ function buildLitellmConfig(config, peers = []) {
     for (const { servedName, underlying, vision } of servedEntries(config)) {
         // One engine at a time — see the note above. Either non-Ollama engine
         // suppresses the whole local catalog (it stays standby inventory).
-        if (lc.enabled || ex.enabled) continue;
+        if (!ollamaServes(config)) continue;
         // Local Ollama deployments. In alias mode `servedName` is the fixed alias and
         // `underlying` is the real Ollama tag it routes to; otherwise they're equal.
         for (const host of config.ollama.hosts) {
@@ -277,4 +385,7 @@ function writeLitellmConfig(config, outPath = generatedConfigPath(), peers = [])
     return outPath;
 }
 
-module.exports = { buildLitellmConfig, toYaml, generatedConfigPath, writeLitellmConfig, modelSupportsVision, servedEntries };
+module.exports = {
+    buildLitellmConfig, toYaml, generatedConfigPath, writeLitellmConfig, modelSupportsVision, servedEntries,
+    ollamaServes, defaultModelEntry, carryNameAcross, fallbackNamePlan, applyNamePlan, engineFallback,
+};

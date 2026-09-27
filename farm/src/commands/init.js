@@ -28,8 +28,8 @@ function run(args) {
     log.plain(`    2. Make sure Ollama is running on each host and LiteLLM is installed.`);
     log.plain(`    3. ${log.paint.cyan('lol up')}  — pull models, generate+run the proxy, start the beacon.`);
     log.plain('');
-    log.plain(`  ${log.paint.grey('models + ollama.contextLength are preset for 12 GB cards (4070-class), measured')}`);
-    log.plain(`  ${log.paint.grey('in farm/bench/. On a big-VRAM box raise contextLength and pick a higher quant.')}`);
+    log.plain(`  ${log.paint.grey('Context sizes itself per box ("auto"). The default preinstall stages a ~8.6 GB')}`);
+    log.plain(`  ${log.paint.grey('Qwen3.8-27B: set "preinstall": [] before `lol install` to skip it.')}`);
     log.plain('');
     return 0;
 }

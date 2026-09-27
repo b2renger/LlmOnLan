@@ -15,6 +15,16 @@ const { killTree } = require('../proc');
 const searxng = require('../searxng');
 const kokoro = require('../kokoro');
 const extract = require('../extract');
+const { serviceHosts } = require('../net');
+
+// Where the farm's own health checks reach a plugin: the plugins bind where
+// config.proxy.host says (LAN, loopback, or one specific address), so a probe at a
+// hard-coded 127.0.0.1 would call a specifically-bound plugin dead.
+const probeHost = (c) => serviceHosts(c.proxy && c.proxy.host).probe;
+// The Windows Firewall prompt only appears for a LAN bind — not on a private farm.
+const firewallNote = (c) => (serviceHosts(c.proxy && c.proxy.host).loopback
+    ? ' (private: this machine only)'
+    : ' (first LAN bind may show a Windows Firewall prompt: allow it)');
 
 // Each descriptor delegates to an existing module; see the header. `runtime` (passed to
 // start/makeCtx) carries { log, crypto, resolveOcrModel, isLocalHost, reachable }.
@@ -27,12 +37,12 @@ const DESCRIPTORS = [
         spawn: (c) => searxng.spawnSearxng(c),
         stepMessage: (c) => `Web search: preparing SearXNG (port ${c.websearch.port}) …`,
         waitReady: async (c) => {
-            const sx = await searxng.waitForSearxng(c.websearch.port);
-            if (sx.up && sx.jsonOk) return { ok: true, level: 'ok', message: 'SearXNG up — clients get web search automatically (first 0.0.0.0 bind may show a Windows Firewall prompt: allow it).' };
+            const sx = await searxng.waitForSearxng(c.websearch.port, undefined, probeHost(c));
+            if (sx.up && sx.jsonOk) return { ok: true, level: 'ok', message: `SearXNG up — clients get web search automatically${firewallNote(c)}.` };
             if (sx.up && !sx.jsonOk) return { ok: false, level: 'err', message: 'SearXNG is up but the JSON API is off (OWUI would get 403) — delete farm/.searxng/settings.yml and re-run `lol up`.' };
             return { ok: false, level: 'warn', message: `SearXNG did not become healthy on port ${c.websearch.port} (busy port? see the [searxng] log above). Continuing without web search.` };
         },
-        alive: (c) => searxng.searxngAlive(c.websearch.port),
+        alive: (c) => searxng.searxngAlive(c.websearch.port, probeHost(c)),
     },
     {
         id: 'tts', label: 'Voice (TTS)', logPrefix: 'kokoro', configKey: 'tts', healthKey: 'ttsUp', runsOn: 'farm',
@@ -42,12 +52,12 @@ const DESCRIPTORS = [
         spawn: (c) => kokoro.spawnKokoro(c),
         stepMessage: (c) => `Voice: preparing Kokoro TTS (port ${c.tts.port}) — first run installs it (multi-GB) …`,
         waitReady: async (c) => {
-            const kx = await kokoro.waitForKokoro(c.tts.port, c.tts.voice);
+            const kx = await kokoro.waitForKokoro(c.tts.port, c.tts.voice, undefined, probeHost(c));
             if (kx.up && kx.synthOk) return { ok: true, level: 'ok', message: `Kokoro TTS up (voice ${c.tts.voice}) — clients get neural read-aloud automatically.` };
             if (kx.up) return { ok: false, level: 'err', message: 'Kokoro is up but synthesis failed — voice/model/espeak issue. See the [kokoro] log above.' };
             return { ok: false, level: 'warn', message: `Kokoro did not become healthy on port ${c.tts.port} (busy port? warmup slow? see [kokoro] log). Continuing without voice.` };
         },
-        alive: (c) => kokoro.kokoroAlive(c.tts.port),
+        alive: (c) => kokoro.kokoroAlive(c.tts.port, probeHost(c)),
     },
     {
         id: 'ocr', label: 'Document OCR', logPrefix: 'extract', configKey: 'ocr', healthKey: 'extractUp', runsOn: 'farm',
@@ -63,11 +73,11 @@ const DESCRIPTORS = [
         spawn: (c, ctx) => extract.spawnExtract(c, ctx),
         stepMessage: (c, ctx) => `OCR: preparing document extraction (port ${c.ocr.port}, model ${ctx.model}) — first run installs it …`,
         waitReady: async (c, ctx) => {
-            const ex = await extract.waitForExtract(c.ocr.port);
-            if (ex.up) return { ok: true, level: 'ok', message: `OCR up (model ${ctx.model}) — clients get scanned-doc + image OCR automatically (first 0.0.0.0 bind may show a Windows Firewall prompt: allow it).` };
+            const ex = await extract.waitForExtract(c.ocr.port, undefined, probeHost(c));
+            if (ex.up) return { ok: true, level: 'ok', message: `OCR up (model ${ctx.model}) — clients get scanned-doc + image OCR automatically${firewallNote(c)}.` };
             return { ok: false, level: 'warn', message: `OCR service did not become healthy on port ${c.ocr.port} (busy port? slow first install? see the [extract] log). Continuing without OCR.` };
         },
-        alive: (c) => extract.extractAlive(c.ocr.port),
+        alive: (c) => extract.extractAlive(c.ocr.port, probeHost(c)),
     },
 ];
 

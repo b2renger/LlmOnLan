@@ -57,8 +57,9 @@ export interface FarmSettings {
     // largest window that stays fully in VRAM and caches the verdict per box.
     contextLength: number | 'auto';
     // Share this farm's compute with the LAN. OFF by default = fully private: the
-    // proxy + discovery bind 127.0.0.1 only and the beacon is off, so no other
-    // machine can reach or use it (even by direct IP / subnet scan). ON = bind
+    // proxy, discovery and the plugins (web search, OCR, voice) bind 127.0.0.1 only
+    // and the beacon is off, so no other machine can reach or use it (even by
+    // direct IP / subnet scan). ON = bind
     // 0.0.0.0 + advertise as a compute box for other clients.
     shareWithNetwork: boolean;
 }
