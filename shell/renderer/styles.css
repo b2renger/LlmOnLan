@@ -67,7 +67,7 @@ body {
 .icon-btn:hover { color: var(--text); border-color: var(--accent); }
 .icon-btn svg { width: 17px; height: 17px; }
 
-/* theme toggle shows the icon for the mode you'd switch TO */
+/* theme toggle shows the CURRENT mode's icon (moon in dark, sun in light), as ComfyQ does */
 .icon-sun { display: none; }
 .icon-moon { display: block; }
 :root.light .icon-moon { display: none; }
