@@ -173,7 +173,9 @@ docs) is `docs/reviews/DOCS_REVIEW_2026-09-27_{FARM,SHELL,COMPUTER}.md`. Snapsho
   project per graph); a data-folder move carries both. The opt-in **Record log** writes `%APPDATA%\LlmOnLan\logs\computer\*.jsonl`
   (25 MB per file; 15 recordings kept + up to 30 with a marked bug; keys redacted; `src/main/debugLog.ts`,
   [docs/COMPUTER_DEBUG_LOG.md](docs/COMPUTER_DEBUG_LOG.md)). Learn shelf: the tour, lessons 1–4 and 2
-  templates. Not built: the resume-after-close banner, lessons 5–12. Docs: [the user tutorial](docs/LOLCHAT_COMPUTER_TUTORIAL.md),
+  templates, and since 2026-09-27 a **? on every box** that opens that box's example (`computer/examples/`: one per ＋
+  menu entry, a Sticky with what it does / inputs / output / how to use it next to a working setup, imported
+  as a library graph once and reopened after). Not built: the resume-after-close banner, lessons 5–12. Docs: [the user tutorial](docs/LOLCHAT_COMPUTER_TUTORIAL.md),
   [status](docs/COMPUTER_STATUS.md), [plan](docs/COMPUTER_PLAN.md), [live plan](docs/COMPUTER_LIVE_PLAN.md).
 - **`sidecar/`** — `build-sidecar` bundles a relocatable standalone CPython 3.12 + OWUI + `launcher.py`;
   `OPENWEBUI_VERSION` is the pin (**OWUI `0.11.4`** since 2026-09-27, Python 3.11/3.12; the bump notes are in INTEGRATION_BRIEF). A packaged client runs

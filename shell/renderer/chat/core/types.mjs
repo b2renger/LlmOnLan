@@ -905,7 +905,7 @@ export const API_KEYS = Object.freeze({
   // graph/canvas.mjs (the loop-ungated notice, guarded by `has(id)`) and `explain()` by
   // computer/runbar.mjs (the ? button).
   tutorial: Object.freeze([
-    'has', 'lessons', 'templates', 'open', 'openTemplate', 'active', 'reset', 'showShelf',
+    'has', 'lessons', 'templates', 'open', 'openTemplate', 'openExample', 'active', 'reset', 'showShelf',
     'explain', 'debug',
   ]),
   // K5 kickoff (addendum KE-2): the ＋ menu instance graph/palette-menu.mjs builds for the canvas.

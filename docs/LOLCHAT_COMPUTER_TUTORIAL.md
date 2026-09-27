@@ -80,6 +80,15 @@ On the rail:
 
 The **?** in the run bar explains the Computer in two sentences and leads to the same shelf.
 
+### Every box has an example: its own **?**
+
+Each box has a small **?** in its title bar, next to ▶. It opens that box's **example**: a small graph in
+your library with a yellow note saying what the box does, what goes in, what comes out and how to use it
+on the Computer (with short snippets), next to a tiny setup that already works. Press **Run all** to watch
+it, change anything to try your own idea. The **?** opens the same example graph next time; delete it
+from the library and the next **?** makes a fresh one. There is one for every box in the **＋** menu,
+including the presets (a p5.js sketch, *Write code*, *Describe a picture*…).
+
 ---
 
 ## Part 1 — build a graph by hand

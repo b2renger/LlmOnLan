@@ -1791,7 +1791,21 @@ export function createCanvas(o) {
       ev.stopPropagation();
       if (o.onPlay) o.onPlay(part.id);
     });
-    head.append(title, demo, fanout, state, play);
+    // Owner, 2026-09-27: a ? on every box opens its example (computer/examples) — what it does, its
+    // inputs and output, how to use it. Shown only where the host says an example exists.
+    const help = /** @type {any} */ (el('button', 'graph-part-help'));
+    help.type = 'button';
+    help.dataset.part = part.id;
+    help.textContent = '?';
+    help.title = t('computer.boxHelpTitle');
+    help.setAttribute('aria-label', t('computer.boxHelpTitle'));
+    help.hidden = !(o.onHelp && (!o.hasHelp || o.hasHelp(part)));
+    help.addEventListener('click', (/** @type {any} */ ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      if (o.onHelp) o.onHelp(partById(part.id) || part);
+    });
+    head.append(title, demo, fanout, state, help, play);
     const body = el('div', 'graph-part-body');
     // §6.6, resolved at the K3 landing: a Button's FACE and its ▶ are ONE gesture — "clicking it
     // is `run({mode:'from', seeds:[id]})`". The part records the press itself (button.mjs owns

@@ -31,6 +31,7 @@ import { readRuns } from '../graph/journal.mjs';
 import { pending as pendingParks, cancelAll as cancelParks } from '../graph/parts/control-bus.mjs';
 import { clearPresses } from '../graph/parts/button.mjs';
 import { createCanvas } from '../graph/canvas.mjs';
+import { exampleByKey, exampleKeyOf } from './examples/index.mjs';
 import { createDocStore, SAVE_DEBOUNCE_MS } from './docstore.mjs';
 import { createSandbox } from '../sandbox/host.mjs';
 import { createDoc, movePart, patchPart as patchPartIn, removeParts, removeWire, setSettings as setSettingsIn, setView } from '../graph/model.mjs';
@@ -341,6 +342,12 @@ export function createHost(app, els) {
     // are the SAME gesture — `run({mode:'from', seeds:[partId]})` — so a part never reaches for
     // the runner itself and there is never a second scheduler on this surface.
     onPlay: (/** @type {string} */ partId) => { start({ mode: 'from', seeds: [partId] }); },
+    // Owner, 2026-09-27: the ? on a box opens that box's example (computer/examples).
+    hasHelp: (/** @type {any} */ part) => !!exampleByKey(exampleKeyOf(part)),
+    onHelp: (/** @type {any} */ part) => {
+      const tut = app && app.tutorial;
+      if (tut && typeof tut.openExample === 'function') void tut.openExample(exampleKeyOf(part));
+    },
     // The cap banner's one button: finish THIS run at twice the cap it stopped at (§2.6 BH-4).
     onRaiseCap: (/** @type {number} */ cap) => { start({ maxItems: cap }); },
   });

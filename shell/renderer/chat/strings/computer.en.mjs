@@ -123,6 +123,7 @@ registerStrings('computer', {
   runOutcomeHeldOne: 'Waiting for a press: press “{button}” to run the box after it.',
   runFrom: 'Run this box',
   runPlayTitle: 'Run this box and everything after it',
+  boxHelpTitle: 'Example: what this box does, its inputs and output, and how to use it',
 
   limitIterations: 'This run reached its limit of {limit} passes through “{part}”. Nothing was lost.',
   limitGenerations: 'This run reached its limit of {limit} generations. Nothing was lost.',

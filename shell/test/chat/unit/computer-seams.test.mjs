@@ -184,7 +184,7 @@ export default (test) => {
   });
 
   test('KE-6: the frozen API key lists and the progress kv key', () => {
-    assert.deepEqual([...API_KEYS.tutorial], ['has', 'lessons', 'templates', 'open', 'openTemplate', 'active', 'reset', 'showShelf', 'explain', 'debug']);
+    assert.deepEqual([...API_KEYS.tutorial], ['has', 'lessons', 'templates', 'open', 'openTemplate', 'openExample', 'active', 'reset', 'showShelf', 'explain', 'debug']);
     assert.deepEqual([...API_KEYS.palette], ['el', 'open', 'close', 'isOpen', 'destroy']);
     assert.deepEqual([...API_KEYS.welcome], ['shown', 'refresh', 'debug']);
     assert.equal(KV_KEYS.computerTutorial, 'computer:tutorial');

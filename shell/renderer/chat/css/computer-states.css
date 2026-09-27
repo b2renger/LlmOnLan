@@ -38,6 +38,27 @@
    running transition is paid on each of those patches (measured on the perf fixture). */
 #lolcomputer .graph-part:hover .graph-part-play,
 #lolcomputer .graph-part-play:focus-visible { opacity: 1; }
+
+/* The per-box ? (owner, 2026-09-27): the box's example. The ▶'s quiet look, round like a hint. */
+#lolcomputer .graph-part-help {
+  flex: 0 0 auto;
+  margin-left: 4px;
+  font: inherit;
+  font-size: 10px;
+  line-height: 1;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  opacity: 0.55;
+}
+#lolcomputer .graph-part:hover .graph-part-help,
+#lolcomputer .graph-part-help:focus-visible { opacity: 1; }
+#lolcomputer .graph-part-help[hidden] { display: none; }
 #lolcomputer .graph-part-play:hover { color: var(--text); border-color: var(--accent-hover); }
 #lolcomputer .graph-part-play:focus-visible { outline: 2px solid var(--accent-hover); outline-offset: 1px; }
 #lolcomputer .graph-part-play:disabled { opacity: 0.3; cursor: default; }

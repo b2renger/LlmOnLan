@@ -56,6 +56,8 @@ registerStrings('tutorial', {
   demoNoteMany: '{n} boxes show the lesson’s saved answers. Each is marked “demo answer — not generated”.',
 
   notShipped: 'That lesson is not in this version yet.',
+  noExample: 'This box has no example yet.',
+  exampleOpened: 'Opened the example for {title}. Try it, change it: the ? opens this same graph next time.',
 
   // ---- the run bar's ? card (§8.5) ----
   explainTitle: 'What is this?',

@@ -30,6 +30,7 @@ import { specMap } from '../../graph/parts/index.mjs';
 import { normaliseDoc, addWire } from '../../graph/model.mjs';
 import { presetOf } from '../../graph/parts/creative.mjs';
 import { LESSONS, TEMPLATES, lessonById, templateById } from './registry.mjs';
+import { exampleByKey, exampleDoc } from '../examples/index.mjs';
 import { advance, tickManual, freshProgress } from './check.mjs';
 import '../../strings/tutorial.en.mjs';
 
@@ -608,6 +609,28 @@ export function install(app) {
     return out.id;
   }
 
+  /** A box's example (owner, 2026-09-27: the ? on a box). The first click imports it as a library
+   * graph; later clicks reopen that graph while it exists, so the library holds one per box.
+   * @param {string} key @returns {Promise<string|null>} */
+  async function openExample(key) {
+    const ex = exampleByKey(key);
+    if (!ex) { toast(t('tutorial.noExample')); return null; }
+    const known = progress.examples && typeof progress.examples === 'object' ? progress.examples[key] : null;
+    if (known && app.repo && typeof app.repo.getGraph === 'function') {
+      let row = null;
+      try { row = await app.repo.getGraph(known); } catch { row = null; }
+      if (row && !row.deletedAt) { await openDoc(known); return known; }
+    }
+    if (!app.library || typeof app.library.importText !== 'function') return null;
+    const doc = exampleDoc(ex);
+    const out = await app.library.importText(JSON.stringify(doc), { name: doc.title });
+    if (!out || !out.ok) return null;
+    progress.examples = { ...(progress.examples && typeof progress.examples === 'object' ? progress.examples : {}), [key]: out.id };
+    void save();
+    toast(t('tutorial.exampleOpened', { title: ex.title }));
+    return out.id;
+  }
+
   /** Put a lesson's fork back the way it shipped: one undo entry on the open fork (so Undo brings
    * the learner's version back), and its progress from step 1. @param {string} [id]
    * @param {{confirm?: boolean}} [o] @returns {Promise<boolean>} */
@@ -674,6 +697,7 @@ export function install(app) {
     templates: () => TEMPLATES.map((x) => ({ id: x.id, title: x.title, subtitle: x.subtitle, needsFarm: x.needsFarm, generations: x.generations })),
     open,
     openTemplate,
+    openExample,
     active: () => {
       if (!current) return null;
       const p = progOf(current.lesson.id);
