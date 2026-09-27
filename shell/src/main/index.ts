@@ -4,7 +4,7 @@
 // sidecar (pointed at the farm via config-bridge), and loads it in a <webview>.
 // Discovery (M3) and full Preferences (M4) layer onto this skeleton.
 
-import { app, BrowserWindow, ipcMain, shell, nativeTheme, dialog, session, powerMonitor } from 'electron';
+import { app, BrowserWindow, ipcMain, shell, nativeTheme, dialog, session, powerMonitor, Session } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
@@ -17,6 +17,7 @@ import { McpoSupervisor } from './mcpoSupervisor';
 import { httpGet, tcpProbe } from './util';
 import { Discovery } from './discovery';
 import { moveDataDir, dirHasData } from './dataMigration';
+import { clientDataDir, prepareClientData, isInside, CLIENT_DIR_NAME, ClientDataNotice } from './clientData';
 import { initAutoUpdate, checkForAppUpdate, quitAndInstallUpdate, setUpdateNotifier } from './updater';
 import { OWUI_ENABLED } from './clientMode';
 import {
@@ -38,7 +39,8 @@ app.setName('LlmOnLan');
 app.commandLine.appendSwitch('lang', 'en-US');
 
 // Single-instance: a second launch focuses the existing window.
-if (!app.requestSingleInstanceLock()) {
+const gotSingleInstanceLock = app.requestSingleInstanceLock();
+if (!gotSingleInstanceLock) {
     app.quit();
 }
 
@@ -114,6 +116,88 @@ function resolveEndpoint(): string | null {
 }
 function resolveDataDir(): string {
     return loadSettings().dataDir || defaultDataDir();
+}
+
+// --- the client's own data, in DATA_DIR ---------------------------------------
+// Owner rule 2026-09-27: ALL data lives in the data folder — LOL Chat's history and the
+// Computer's graphs and media too, not only OWUI's. Those are the main window's Chromium
+// storage (IndexedDB `lol-chat` + localStorage), so the window runs on a session rooted in
+// <DATA_DIR>/lol-client instead of the default session under userData (clientData.ts).
+// The OWUI <webview> keeps its own `persist:owui` partition under userData: that is a global
+// partition whatever the embedder's session, and it holds only OWUI's token and caches.
+//
+// The file work runs HERE, at module load: before app 'ready', before any session exists, so
+// Chromium holds none of these files yet — (1) a Preferences move saved by the last run,
+// (2) a DATA_DIR that cannot be written falls back to <userData>/lol-client, (3) a history
+// such a fallback kept is brought back, (4) the one-time import of a v0.1.x profile.
+// A second instance (no lock) touches nothing.
+let clientDir: string | null = null;          // where the main window's session lives; null = the default session
+let clientSession: Session | null = null;     // created on first use, after 'ready'
+let clientNotices: ClientDataNotice[] = [];   // told to the user once the window asks (get-data-notices)
+
+function clientDataLog(lines: string[]): void {
+    if (!lines.length) return;
+    for (const l of lines) console.log('[client-data]', l);
+    try {
+        const dir = path.join(app.getPath('userData'), 'logs');
+        fs.mkdirSync(dir, { recursive: true });
+        const at = new Date().toISOString();
+        fs.appendFileSync(path.join(dir, 'client-data.log'), lines.map((l) => `${at} ${l}\n`).join(''));
+    } catch { /* the log is a convenience */ }
+}
+
+function prepareClientDataAtBoot(): void {
+    const sleepSync = (ms: number) => { try { Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms); } catch { /* no wait */ } };
+    try {
+        const s = loadSettings();
+        const plan = prepareClientData({
+            userDataDir: app.getPath('userData'),
+            dataDir: resolveDataDir(),
+            settings: {
+                pendingClientMove: s.pendingClientMove ?? null,
+                legacyClientDataImported: !!s.legacyClientDataImported,
+                legacyClientDataStamp: s.legacyClientDataStamp ?? null,
+            },
+            save: (patch) => { updateSettings(patch); },
+            // The last run may still be letting go of its files for a moment after a relaunch.
+            attempts: 6,
+            sleep: sleepSync,
+        });
+        clientDir = plan.dir;
+        clientNotices = plan.notices;
+        clientDataLog(plan.log.concat(`session: ${plan.dir ?? 'default (userData)'}`));
+    } catch (e) {
+        // Never lose data silently: the default session still holds whatever it held.
+        clientDir = null;
+        clientNotices = [{ level: 'warn', text: `LlmOnLan could not open its data folder (${(e as Error).message}). This session uses the app's own folder.` }];
+        clientDataLog([`prepare failed: ${(e as Error).message}; using the default session`]);
+    }
+}
+if (gotSingleInstanceLock) prepareClientDataAtBoot();
+
+// The main window's session (after 'ready'). `cache: false`: the window loads file:// only and
+// talks to the farm with streaming requests, so an HTTP cache in the data folder buys nothing.
+function mainWindowSession(): Session | undefined {
+    if (!clientDir) return undefined;
+    if (!clientSession) {
+        try {
+            clientSession = session.fromPath(clientDir, { cache: false });
+        } catch (e) {
+            clientDataLog([`session.fromPath(${clientDir}) failed: ${(e as Error).message}; using the default session`]);
+            clientNotices.push({ level: 'warn', text: `LOL Chat could not open ${clientDir} (${(e as Error).message}). This session uses the app's own folder.` });
+            clientDir = null;
+            return undefined;
+        }
+    }
+    return clientSession;
+}
+
+// Restart the app after a data-folder change: the next boot moves the client session (see
+// above). The user confirmed the change in Preferences, so the "Quit LlmOnLan?" prompt is
+// skipped the way "Restart & install" skips it. A beat of delay lets the renderer show it.
+function relaunchForDataDir(): void {
+    quitConfirmed = true;
+    setTimeout(() => { app.relaunch(); app.quit(); }, 900);
 }
 
 // Stable per-install id for the farm presence heartbeat — generated once, persisted.
@@ -325,6 +409,7 @@ function pushSidecarInstall(p: SidecarProgress): void {
 }
 
 function createWindow(): void {
+    const clientSes = mainWindowSession();
     win = new BrowserWindow({
         width: 1280,
         height: 860,
@@ -339,6 +424,8 @@ function createWindow(): void {
             contextIsolation: true,
             nodeIntegration: false,
             webviewTag: true, // the main area embeds OWUI in a <webview>
+            // LOL Chat + the Computer keep their data in this session: <DATA_DIR>/lol-client.
+            ...(clientSes ? { session: clientSes } : {}),
         },
     });
     win.removeMenu();
@@ -654,6 +741,10 @@ function registerIpc(): void {
             dataDir: resolveDataDir(),
             dataDirDefault: defaultDataDir(),
             dataDirIsDefault: !s.dataDir,
+            // Where LOL Chat + the Computer actually live this session. It differs from
+            // <dataDir>/lol-client only when the data folder could not be used at boot.
+            clientDataDir: clientDir,
+            clientDataInDataDir: !!clientDir && path.resolve(clientDir) === path.resolve(clientDataDir(resolveDataDir())),
             theme: s.theme,
             launchAtLogin: s.launchAtLogin,
             autoUpdate: s.autoUpdate,
@@ -684,26 +775,55 @@ function registerIpc(): void {
     });
 
     // Apply a data-folder change. mode: 'move' (copy old→new) | 'fresh' (start empty).
+    // Either way the app RESTARTS to finish: the client session (<DATA_DIR>/lol-client, LOL Chat
+    // + the Computer) is held open by Chromium while the app runs, so 'move' copies OWUI's data
+    // now, leaves lol-client where it is, and saves `pendingClientMove` — the next boot moves it
+    // before the window opens (prepareClientDataAtBoot). 'fresh' just switches: the old data stays
+    // where it was, as OWUI's always has.
     ipcMain.handle('set-data-dir', async (_e, payload: { path: string; mode: 'move' | 'fresh' }) => {
         const oldDir = resolveDataDir();
-        const newDir = payload.path;
+        const newDir = payload && typeof payload.path === 'string' ? payload.path : '';
         if (!newDir || path.resolve(newDir) === path.resolve(oldDir)) return { ok: false, error: 'Same folder.' };
+        if (!path.isAbsolute(newDir)) return { ok: false, error: 'Pick a full folder path.' };
+        // A data folder inside the client's own session folder would nest one Chromium profile in another.
+        for (const held of [clientDataDir(oldDir), clientDir].filter((d): d is string => !!d)) {
+            if (isInside(held, newDir)) return { ok: false, error: `Pick a folder outside ${held}.` };
+        }
+        const mode = payload.mode === 'move' ? 'move' : 'fresh';
         await sidecar.stop({ keepState: true });
         let result: { ok: boolean; error?: string } = { ok: true };
-        if (payload.mode === 'move') result = moveDataDir(oldDir, newDir);
-        if (result.ok) updateSettings({ dataDir: newDir });
-        // Re-thread the farm's model + SearXNG + TTS + OCR so a data-folder change
-        // doesn't drop web search / the default model / voice / OCR (they'd reset to
-        // null otherwise, and the no-op change-check in onFarms would never repoint to
-        // restore them).
-        // apiKey rides along or a keyed farm 401-loops after the move — sidecar.start
-        // NULLS any field not passed (audit round 2 caught this handler missing it).
-        const moveKey = (() => {
+        if (mode === 'move') result = moveDataDir(oldDir, newDir, { exclude: [CLIENT_DIR_NAME] });
+        if (!result.ok) {
+            // Nothing moved: OWUI comes back on the old folder, exactly as before.
+            // Re-thread the farm's model + SearXNG + TTS + OCR so a failed change doesn't drop
+            // web search / the default model / voice / OCR (they'd reset to null otherwise). apiKey
+            // rides along or a keyed farm 401-loops — sidecar.start NULLS any field not passed.
             const f = discovery?.getFarms().find((x) => x.id === activeFarmId) ?? null;
-            return f ? farmKey(f as { id: string; requiresKey?: boolean }) : loadSettings().lastFarmKey;
-        })();
-        await sidecar.start({ endpoint: currentEndpoint, dataDir: result.ok ? newDir : oldDir, apiKey: moveKey, defaultModel: currentModel, searxngUrl: currentSearxng, tts: currentTts, extract: currentExtract, contextPerSlot: currentCtxPerSlot });
-        return result;
+            const key = f ? farmKey(f as { id: string; requiresKey?: boolean }) : loadSettings().lastFarmKey;
+            if (OWUI_ENABLED) {
+                await sidecar.start({ endpoint: currentEndpoint, dataDir: oldDir, apiKey: key, defaultModel: currentModel, searxngUrl: currentSearxng, tts: currentTts, extract: currentExtract, contextPerSlot: currentCtxPerSlot });
+            }
+            return result;
+        }
+        // 'move' hands the client session over to the next boot. With no clientDir (this session
+        // runs on the default session because the v0.1.x import failed) there is nothing to hand
+        // over: that import simply runs again, into the new folder. 'fresh' drops any older
+        // pending move, so the data it names stays where it is.
+        const pendingClientMove = mode === 'move' && clientDir
+            ? { from: clientDir, to: clientDataDir(newDir) }
+            : null;
+        updateSettings({ dataDir: newDir, pendingClientMove });
+        clientDataLog([`data folder ${oldDir} -> ${newDir} (${mode}); ${pendingClientMove ? `client move pending ${pendingClientMove.from} -> ${pendingClientMove.to}` : 'no client move'}; relaunching`]);
+        relaunchForDataDir();
+        return { ok: true, error: result.error, restarting: true, dataDir: newDir };
+    });
+
+    // What happened to the client's data at boot (a move landed, a fallback, an import) — told
+    // to the user once, as toasts. Pull, not push: the window may not be listening yet at boot.
+    ipcMain.handle('get-data-notices', () => {
+        const out = clientNotices;
+        clientNotices = [];
+        return out;
     });
 
     ipcMain.handle('set-launch-at-login', (_e, on: boolean) => {
@@ -829,6 +949,7 @@ app.on('second-instance', () => {
 });
 
 app.whenReady().then(async () => {
+    if (!gotSingleInstanceLock) return; // quitting: the running instance owns the data folder
     const settings = loadSettings();
     applyTheme(settings.theme);
     registerIpc();

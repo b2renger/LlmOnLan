@@ -120,4 +120,14 @@ export interface ShellSettings {
     blenderMcp: boolean;               // local Blender assistant-tools server (mcpo) on/off
     blenderMcpUserSet: boolean;        // user toggled Blender explicitly → farm recommendations won't override
     blenderPort: number;               // BlenderMCP add-on socket port (BLENDER_PORT; default 9876)
+    // The main window's session lives in <DATA_DIR>/lol-client (clientData.ts). A Preferences move
+    // cannot copy it while Chromium holds it open, so the move is saved here and done at the next
+    // launch, before the window opens; cleared once it landed.
+    pendingClientMove: { from: string; to: string } | null;
+    // True once the one-time import of a v0.1.x profile (the default session under userData) ran,
+    // so a later "Start fresh" folder is never filled with that old copy.
+    legacyClientDataImported: boolean;
+    // A fingerprint of that old copy when it was imported (clientData.legacyStamp; null = none).
+    // A later change means an older build wrote LOL Chat history there that the data folder lacks.
+    legacyClientDataStamp: string | null;
 }

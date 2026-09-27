@@ -27,6 +27,39 @@ if (USER_DATA) app.setPath('userData', USER_DATA);
 const tmpDir = () => app.getPath('userData');
 const downloadsDir = () => path.join(tmpDir(), 'downloads');
 
+// ---- the client session in DATA_DIR (mirrors shell/src/main/index.ts prepareClientDataAtBoot) ----
+// Owner rule 2026-09-27: LOL Chat's history and the Computer's graphs live in the data folder. The
+// shell runs its main window on session.fromPath(<DATA_DIR>/lol-client) and does the file work
+// (a pending move, the writability fallback, the v0.1.x import) BEFORE app 'ready'; the harness
+// does the same, with the REAL prepareClientData from the compiled main output, so every scenario
+// runs on that session. The fake DATA_DIR is <userData>/owui-data, the shell's default layout, so
+// <userData>/IndexedDB is where a regression to the default session would show (h1-data-dir).
+// Without the build, the same folder is computed here and nothing is migrated (a fresh profile has
+// nothing to migrate anyway).
+const CLIENTDATA_BUILD = path.join(__dirname, '..', '..', 'build', 'main', 'clientData.js');
+const HARNESS_DATA_DIR = path.join(tmpDir(), 'owui-data');
+let clientDir = path.join(HARNESS_DATA_DIR, 'lol-client');
+const clientFacts = { dataDir: HARNESS_DATA_DIR, clientDir, userData: tmpDir(), built: false, notices: [], log: [] };
+try {
+    if (fs.existsSync(CLIENTDATA_BUILD)) {
+        const { prepareClientData } = require(CLIENTDATA_BUILD);
+        const settingsFile = path.join(tmpDir(), 'harness-client-settings.json');
+        let settings = { pendingClientMove: null, legacyClientDataImported: false, legacyClientDataStamp: null };
+        try { settings = { ...settings, ...JSON.parse(fs.readFileSync(settingsFile, 'utf8')) }; } catch { /* first run */ }
+        const plan = prepareClientData({
+            userDataDir: tmpDir(),
+            dataDir: HARNESS_DATA_DIR,
+            settings,
+            save: (patch) => { settings = { ...settings, ...patch }; fs.writeFileSync(settingsFile, JSON.stringify(settings, null, 2)); },
+        });
+        clientDir = plan.dir;
+        Object.assign(clientFacts, { clientDir, built: true, notices: plan.notices, log: plan.log });
+    }
+} catch (e) {
+    console.error('[harness-main] clientData build present but unusable:', e && e.message);
+    clientFacts.error = String(e && e.message);
+}
+
 /** @type {{url: string, action: 'external' | 'dropped', ts: number}[]} */
 const windowOpens = [];
 /** Calls the projects API made into `shell` (showItemInFolder / openPath). Nothing is opened. */
@@ -131,6 +164,10 @@ function wireDebugLog() {
 // ---- /LOL Studio ----
 
 function createWindow(hasProjects, hasDebugLog) {
+    // The same session the shell gives its main window (see the client-session block above).
+    const chatSession = clientDir ? session.fromPath(clientDir, { cache: false }) : session.defaultSession;
+    clientFacts.sessionPath = chatSession.getStoragePath();
+    writeJson(path.join(tmpDir(), 'client-data.json'), clientFacts);
     const win = new BrowserWindow({
         show: false,
         width: 1280,
@@ -140,6 +177,7 @@ function createWindow(hasProjects, hasDebugLog) {
             nodeIntegration: false,
             backgroundThrottling: false,
             preload: path.join(__dirname, 'preload.cjs'),
+            session: chatSession,
             additionalArguments: [hasProjects && '--lol-projects=1', hasDebugLog && '--lol-debuglog=1'].filter(Boolean),
         },
     });
@@ -183,7 +221,7 @@ function createWindow(hasProjects, hasDebugLog) {
         writeJson(path.join(tmpDir(), 'window-opens.json'), windowOpens);
     });
 
-    session.defaultSession.on('will-download', (event, item) => {
+    chatSession.on('will-download', (event, item) => {
         const file = path.join(downloadsDir(), item.getFilename());
         fs.mkdirSync(downloadsDir(), { recursive: true });
         item.setSavePath(file);

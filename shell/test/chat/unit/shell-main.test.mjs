@@ -15,7 +15,7 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SHELL = path.join(HERE, '..', '..', '..');
 const BUILD = path.join(SHELL, 'build', 'main');
 const SRC = path.join(SHELL, 'src', 'main');
-const MODULES = ['farmSelect', 'discovery', 'configBridge', 'sidecar', 'sidecarManager'];
+const MODULES = ['farmSelect', 'discovery', 'configBridge', 'sidecar', 'sidecarManager', 'clientData', 'dataMigration', 'store'];
 
 /** @type {string[]} */
 const temps = [];
@@ -88,6 +88,9 @@ export default (test) => {
   const CB = require(path.join(BUILD, 'configBridge.js'));
   const { SidecarSupervisor } = require(path.join(BUILD, 'sidecar.js'));
   const SM = require(path.join(BUILD, 'sidecarManager.js'));
+  const CD = require(path.join(BUILD, 'clientData.js'));
+  const DM = require(path.join(BUILD, 'dataMigration.js'));
+  const STORE = require(path.join(BUILD, 'store.js'));
 
   // ---------------------------------------------------------------- SA-5: the pin can be removed
   test('SA-5 chooseActive: a pin wins; with the pin cleared, least-busy selection applies again', () => {
@@ -321,6 +324,293 @@ export default (test) => {
     const d = await SM.downloadOwuiUpdate();
     assert.equal(d.ok, false);
     assert.equal(fs.existsSync(pending), false, 'no ~700 MB sidecar.pending in a dev tree');
+  });
+
+  // ---------------------------------------------------------------- the client's data in DATA_DIR
+  // Owner rule 2026-09-27: LOL Chat's history and the Computer's graphs live in the data folder, as
+  // the main window's session at <DATA_DIR>/lol-client (clientData.ts, run by index.ts before app
+  // 'ready'). Fixtures are the Chromium layout measured on Electron 42.
+  const write = (/** @type {string} */ f, /** @type {string} */ text) => { fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, text); };
+  /** Every file under dir → its text, keyed by the path relative to dir (forward slashes). */
+  const snapshot = (/** @type {string} */ dir) => {
+    /** @type {Record<string, string>} */ const out = {};
+    const walk = (/** @type {string} */ d) => {
+      let ents = [];
+      try { ents = fs.readdirSync(d, { withFileTypes: true }); } catch { return; }
+      for (const e of ents) {
+        const p = path.join(d, e.name);
+        if (e.isDirectory()) walk(p); else out[path.relative(dir, p).split(path.sep).join('/')] = fs.readFileSync(p, 'utf8');
+      }
+    };
+    walk(dir);
+    return out;
+  };
+  /** A v0.1.45 userData: the default session's storage, plus things that are NOT the client's. */
+  const legacyProfile = (/** @type {string} */ ud) => {
+    write(path.join(ud, 'IndexedDB', 'file__0.indexeddb.leveldb', 'CURRENT'), 'MANIFEST-000001\n');
+    write(path.join(ud, 'IndexedDB', 'file__0.indexeddb.leveldb', '000003.log'), 'threads: Rig notes');
+    write(path.join(ud, 'IndexedDB', 'file__0.indexeddb.leveldb', 'LOCK'), '');
+    write(path.join(ud, 'IndexedDB', 'file__0.indexeddb.blob', '1', '00', '1'), '%PDF a graph attachment');
+    write(path.join(ud, 'Local Storage', 'leveldb', '000003.log'), 'lol:view=computer lol.chat.threads.v1=[...]');
+    write(path.join(ud, 'Local Storage', 'leveldb', 'LOCK'), '');
+    write(path.join(ud, 'WebStorage', 'QuotaManager'), 'sqlite');
+    write(path.join(ud, 'Partitions', 'owui', 'Local Storage', 'leveldb', '000003.log'), 'owui token');
+    write(path.join(ud, 'Cache', 'Cache_Data', 'index'), 'cache');
+    write(path.join(ud, 'shell-settings.json'), '{}');
+  };
+  /** A client session folder as Chromium leaves it. */
+  const sessionFolder = (/** @type {string} */ dir, /** @type {string} */ tag) => {
+    write(path.join(dir, 'IndexedDB', 'file__0.indexeddb.leveldb', '000003.log'), `threads: ${tag}`);
+    write(path.join(dir, 'IndexedDB', 'file__0.indexeddb.leveldb', 'LOCK'), '');
+    write(path.join(dir, 'Local Storage', 'leveldb', '000003.log'), `prefs: ${tag}`);
+    write(path.join(dir, 'WebStorage', 'QuotaManager'), `quota: ${tag}`);
+  };
+  const CLIENT_FILES = [
+    'IndexedDB/file__0.indexeddb.blob/1/00/1', 'IndexedDB/file__0.indexeddb.leveldb/000003.log',
+    'IndexedDB/file__0.indexeddb.leveldb/CURRENT', 'Local Storage/leveldb/000003.log', 'WebStorage/QuotaManager',
+  ];
+
+  test('clientDataDir: the client session lives in <DATA_DIR>/lol-client', () => {
+    const data = path.join(tempDir('cdd'), 'My LlmOnLan data');
+    assert.equal(CD.CLIENT_DIR_NAME, 'lol-client');
+    assert.equal(CD.clientDataDir(data), path.join(data, 'lol-client'));
+    assert.deepEqual([...CD.LEGACY_ITEMS], ['IndexedDB', 'Local Storage', 'WebStorage']);
+    assert.equal(CD.hasClientData(path.join(data, 'lol-client')), false);
+    write(path.join(data, 'lol-client', 'Local Storage', 'leveldb', 'CURRENT'), 'x');
+    assert.equal(CD.hasClientData(path.join(data, 'lol-client')), true, 'a folder a session opened once has Local Storage');
+  });
+
+  test('migrateLegacy: copies the three folders into an empty target, skips LOCK, leaves the rest behind', () => {
+    const ud = tempDir('legacy-ud');
+    legacyProfile(ud);
+    const before = snapshot(ud);
+    const target = CD.clientDataDir(path.join(ud, 'owui-data'));
+    const r = CD.migrateLegacy(ud, target);
+    assert.equal(r.ok, true, r.error);
+    assert.deepEqual(r.copied, ['IndexedDB', 'Local Storage', 'WebStorage']);
+    assert.deepEqual(Object.keys(snapshot(target)).sort(), CLIENT_FILES,
+      'exactly the client storage, blobs included — no LOCK, no Cache, no Partitions/owui, no settings');
+    assert.equal(snapshot(target)['IndexedDB/file__0.indexeddb.blob/1/00/1'], '%PDF a graph attachment');
+    const after = snapshot(ud);
+    for (const [k, v] of Object.entries(before)) assert.equal(after[k], v, `the source lost or changed ${k} — it is the backup`);
+  });
+
+  test('migrateLegacy: never overwrites a target that already has a history, never deletes the source', () => {
+    const ud = tempDir('legacy-ud2');
+    legacyProfile(ud);
+    const target = path.join(tempDir('legacy-t2'), 'lol-client');
+    write(path.join(target, 'Local Storage', 'leveldb', '000003.log'), 'the NEWER history');
+    const r = CD.migrateLegacy(ud, target);
+    assert.deepEqual(r, { ok: true, copied: [], skipped: 'target-has-data' });
+    assert.deepEqual(snapshot(target), { 'Local Storage/leveldb/000003.log': 'the NEWER history' });
+    assert.equal(fs.existsSync(path.join(ud, 'IndexedDB', 'file__0.indexeddb.leveldb', '000003.log')), true);
+
+    const emptyUd = tempDir('legacy-none');
+    write(path.join(emptyUd, 'shell-settings.json'), '{}');
+    const fresh = path.join(tempDir('legacy-t3'), 'lol-client');
+    assert.deepEqual(CD.migrateLegacy(emptyUd, fresh), { ok: true, copied: [], skipped: 'no-legacy-data' });
+    assert.equal(fs.existsSync(fresh), false, 'a fresh install creates nothing');
+  });
+
+  test('migrateLegacy: a copy that fails half-way is removed again (the next launch retries), source intact', () => {
+    const ud = tempDir('legacy-fail');
+    legacyProfile(ud);
+    const before = snapshot(ud);
+    const target = path.join(tempDir('legacy-fail-t'), 'lol-client');
+    write(path.join(target, 'WebStorage'), 'a FILE where the folder goes');     // copying the folder onto it fails
+    const r = CD.migrateLegacy(ud, target);
+    assert.equal(r.ok, false);
+    assert.ok(r.error);
+    assert.equal(CD.hasClientData(target), false, 'the half copy of IndexedDB / Local Storage is gone');
+    assert.equal(fs.readFileSync(path.join(target, 'WebStorage'), 'utf8'), 'a FILE where the folder goes', 'what was there is kept');
+    assert.deepEqual(snapshot(ud), before);
+  });
+
+  test('movePendingClientData: copies, then removes the source; no staging folder left', () => {
+    const root = tempDir('move');
+    const from = path.join(root, 'old', 'lol-client');
+    const to = path.join(root, 'new data', 'lol-client');
+    sessionFolder(from, 'mine');
+    const r = CD.movePendingClientData(from, to);
+    assert.deepEqual(r, { ok: true, moved: true, replacedTo: undefined });
+    assert.deepEqual(snapshot(to), {
+      'IndexedDB/file__0.indexeddb.leveldb/000003.log': 'threads: mine',
+      'Local Storage/leveldb/000003.log': 'prefs: mine',
+      'WebStorage/QuotaManager': 'quota: mine',
+    });
+    assert.equal(fs.existsSync(from), false, 'the source is removed once the copy is in place');
+    assert.equal(fs.existsSync(`${to}.moving`), false);
+    assert.deepEqual(CD.movePendingClientData(from, to), { ok: true, moved: false }, 'nothing left to move: a no-op');
+  });
+
+  test('movePendingClientData: refuses nested paths and leaves the source intact on failure', () => {
+    const root = tempDir('move-bad');
+    const from = path.join(root, 'data', 'lol-client');
+    sessionFolder(from, 'keep me');
+    const before = snapshot(from);
+    const inside = CD.movePendingClientData(from, path.join(from, 'sub', 'lol-client'));
+    assert.equal(inside.ok, false);
+    assert.match(inside.error, /inside/);
+    const outside = CD.movePendingClientData(from, path.dirname(from));
+    assert.equal(outside.ok, false);
+    assert.match(outside.error, /inside/);
+
+    write(path.join(root, 'not-a-folder'), 'a file');                  // mkdir of the target's parent fails
+    const failed = CD.movePendingClientData(from, path.join(root, 'not-a-folder', 'lol-client'));
+    assert.equal(failed.ok, false);
+    assert.ok(failed.error);
+    assert.deepEqual(snapshot(from), before, 'the source is untouched after every refusal and failure');
+  });
+
+  test('movePendingClientData: a history already at the target is set aside, never deleted', () => {
+    const root = tempDir('move-replace');
+    const from = path.join(root, 'old', 'lol-client');
+    const to = path.join(root, 'new', 'lol-client');
+    sessionFolder(from, 'moving');
+    sessionFolder(to, 'was here');
+    const r = CD.movePendingClientData(from, to, new Date('2026-09-27T10:00:00Z'));
+    assert.equal(r.ok, true);
+    assert.equal(r.replacedTo, `${path.resolve(to)}.replaced-2026-09-27T10-00-00-000Z`);
+    assert.equal(snapshot(to)['Local Storage/leveldb/000003.log'], 'prefs: moving');
+    assert.equal(snapshot(r.replacedTo)['Local Storage/leveldb/000003.log'], 'prefs: was here');
+  });
+
+  test('moveDataDir {exclude}: OWUI data moves, lol-client stays for the next boot', () => {
+    const root = tempDir('owui-move');
+    const src = path.join(root, 'old');
+    const dest = path.join(root, 'new');
+    write(path.join(src, 'webui.db'), 'db');
+    write(path.join(src, 'uploads', 'a.pdf'), 'pdf');
+    write(path.join(src, 'LOL Studio Projects', 'p1', 'out.txt'), 'file box');
+    sessionFolder(path.join(src, 'lol-client'), 'held open');
+    const r = DM.moveDataDir(src, dest, { exclude: ['lol-client'] });
+    assert.deepEqual(r, { ok: true });
+    assert.deepEqual(Object.keys(snapshot(dest)).sort(), ['LOL Studio Projects/p1/out.txt', 'uploads/a.pdf', 'webui.db']);
+    assert.deepEqual(fs.readdirSync(src), ['lol-client'], 'only the client session is left, for the boot move');
+    assert.equal(DM.moveDataDir(path.join(root, 'x'), path.join(root, 'x', 'y'), { exclude: ['lol-client'] }).ok, true,
+      'a missing source is still "nothing to copy"');
+  });
+
+  test('prepareClientData + store: a Preferences move lands at the next boot and the marker is cleared', () => {
+    const ud = tempDir('boot-ud');
+    const oldData = path.join(tempDir('boot-old'), 'data');
+    const newData = path.join(tempDir('boot-new'), 'data');
+    sessionFolder(CD.clientDataDir(oldData), 'moved by prefs');
+    // What set-data-dir saves before the relaunch — through the real store, onto disk.
+    STORE.updateSettings({
+      dataDir: newData, legacyClientDataImported: true,
+      pendingClientMove: { from: CD.clientDataDir(oldData), to: CD.clientDataDir(newData) },
+    });
+    const onDisk = () => JSON.parse(fs.readFileSync(path.join(USER_DATA, 'shell-settings.json'), 'utf8'));
+    assert.deepEqual(onDisk().pendingClientMove, { from: CD.clientDataDir(oldData), to: CD.clientDataDir(newData) },
+      'the marker is in shell-settings.json, so it survives the relaunch');
+
+    const s = STORE.loadSettings();
+    const plan = CD.prepareClientData({
+      userDataDir: ud, dataDir: s.dataDir, settings: s, save: (/** @type {any} */ p) => { STORE.updateSettings(p); },
+    });
+    assert.equal(plan.dir, CD.clientDataDir(newData));
+    assert.equal(snapshot(CD.clientDataDir(newData))['Local Storage/leveldb/000003.log'], 'prefs: moved by prefs');
+    assert.equal(fs.existsSync(oldData), false, 'the old data folder, empty once lol-client left it, is removed');
+    assert.equal(STORE.loadSettings().pendingClientMove, null);
+    assert.equal(onDisk().pendingClientMove, null, 'the marker is cleared ON DISK: the next launch does not move again');
+    assert.equal(plan.notices.length, 1);
+    assert.equal(plan.notices[0].level, 'info');
+    assert.match(plan.notices[0].text, /now lives in/);
+  });
+
+  test('prepareClientData: a move that fails keeps the marker and runs on the untouched source', () => {
+    const ud = tempDir('boot-fail-ud');
+    const root = tempDir('boot-fail');
+    const from = CD.clientDataDir(path.join(root, 'old'));
+    sessionFolder(from, 'still here');
+    write(path.join(root, 'blocked'), 'a file where the new data folder goes');
+    const to = CD.clientDataDir(path.join(root, 'blocked'));
+    /** @type {Record<string, any>} */ let saved = {};
+    const plan = CD.prepareClientData({
+      userDataDir: ud, dataDir: path.join(root, 'blocked'),
+      settings: { pendingClientMove: { from, to }, legacyClientDataImported: true },
+      save: (/** @type {any} */ p) => { saved = { ...saved, ...p }; }, attempts: 2, sleep: () => {},
+    });
+    assert.equal(plan.dir, from, 'the window opens on the data it had');
+    assert.deepEqual(saved, {}, 'the marker stays: the next launch tries again');
+    assert.equal(snapshot(from)['Local Storage/leveldb/000003.log'], 'prefs: still here');
+    assert.equal(plan.notices[0].level, 'warn');
+    assert.equal(plan.log.filter((/** @type {string} */ l) => /attempt \d failed/.test(l)).length, 2, 'retried');
+  });
+
+  test('prepareClientData: the v0.1.x import runs once — a later "Start fresh" folder stays empty', () => {
+    const ud = tempDir('boot-legacy-ud');
+    legacyProfile(ud);
+    const first = path.join(tempDir('boot-legacy-a'), 'data');
+    /** @type {any} */ let settings = { pendingClientMove: null, legacyClientDataImported: false };
+    const save = (/** @type {any} */ p) => { settings = { ...settings, ...p }; };
+    const plan = CD.prepareClientData({ userDataDir: ud, dataDir: first, settings, save });
+    assert.equal(plan.dir, CD.clientDataDir(first));
+    assert.deepEqual(Object.keys(snapshot(plan.dir)).sort(), CLIENT_FILES);
+    assert.equal(settings.legacyClientDataImported, true);
+    assert.equal(plan.notices[0].level, 'info');
+
+    const fresh = path.join(tempDir('boot-legacy-b'), 'data');
+    const again = CD.prepareClientData({ userDataDir: ud, dataDir: fresh, settings, save });
+    assert.equal(again.dir, CD.clientDataDir(fresh));
+    assert.equal(CD.hasClientData(again.dir), false, 'the old v0.1.x copy is not poured into a fresh folder');
+    assert.deepEqual(again.notices, []);
+  });
+
+  test('prepareClientData: an older build writing the old IndexedDB after the import is warned about, once per change', () => {
+    const ud = tempDir('boot-stamp-ud');
+    legacyProfile(ud);
+    const data = path.join(tempDir('boot-stamp'), 'data');
+    /** @type {any} */ let settings = { pendingClientMove: null, legacyClientDataImported: false, legacyClientDataStamp: null };
+    const save = (/** @type {any} */ p) => { settings = { ...settings, ...p }; };
+    const boot = () => CD.prepareClientData({ userDataDir: ud, dataDir: data, settings, save });
+    boot();
+    assert.equal(settings.legacyClientDataStamp, CD.legacyStamp(ud), 'the old copy is fingerprinted at the import');
+    assert.ok(settings.legacyClientDataStamp);
+    assert.deepEqual(boot().notices, [], 'unchanged: nothing to say');
+
+    // A dev build from before this change (default session, sharing this userData) saved a chat there.
+    write(path.join(ud, 'IndexedDB', 'file__0.indexeddb.leveldb', '000005.log'), 'a chat written after the import');
+    const warned = boot();
+    assert.equal(warned.notices.length, 1);
+    assert.equal(warned.notices[0].level, 'warn');
+    assert.match(warned.notices[0].text, /not merged/);
+    assert.ok(warned.notices[0].text.includes(path.join(ud, 'IndexedDB')), 'it says where that history is');
+    assert.equal(snapshot(CD.clientDataDir(data))['IndexedDB/file__0.indexeddb.leveldb/000005.log'], undefined, 'and merges nothing');
+    assert.deepEqual(boot().notices, [], 'once per change, not at every launch');
+
+    // A data folder that already had a history when the import first ran: said, not merged.
+    const ud2 = tempDir('boot-stamp-ud2');
+    legacyProfile(ud2);
+    const data2 = path.join(tempDir('boot-stamp2'), 'data');
+    sessionFolder(CD.clientDataDir(data2), 'dev build');
+    /** @type {any} */ let s2 = { pendingClientMove: null, legacyClientDataImported: false };
+    const first = CD.prepareClientData({ userDataDir: ud2, dataDir: data2, settings: s2, save: (/** @type {any} */ p) => { s2 = { ...s2, ...p }; } });
+    assert.equal(first.notices[0].level, 'warn');
+    assert.match(first.notices[0].text, /already had a LOL Chat history/);
+    assert.equal(snapshot(CD.clientDataDir(data2))['Local Storage/leveldb/000003.log'], 'prefs: dev build', 'nothing overwritten');
+  });
+
+  test('prepareClientData: an unwritable DATA_DIR falls back to <userData>/lol-client, says so, and comes back later', () => {
+    const ud = tempDir('boot-fb-ud');
+    const root = tempDir('boot-fb');
+    write(path.join(root, 'drive'), 'a file: the "drive" is not there');
+    const away = path.join(root, 'drive', 'data');
+    /** @type {any} */ let settings = { pendingClientMove: null, legacyClientDataImported: true };
+    const save = (/** @type {any} */ p) => { settings = { ...settings, ...p }; };
+    const plan = CD.prepareClientData({ userDataDir: ud, dataDir: away, settings, save });
+    assert.equal(plan.dir, path.join(ud, 'lol-client'));
+    assert.equal(plan.notices[0].level, 'warn');
+    assert.match(plan.notices[0].text, /cannot be written/);
+
+    // That session kept a history in the fallback; the data folder comes back empty → it moves in.
+    sessionFolder(path.join(ud, 'lol-client'), 'written while away');
+    const back = path.join(root, 'back', 'data');
+    const plan2 = CD.prepareClientData({ userDataDir: ud, dataDir: back, settings, save });
+    assert.equal(plan2.dir, CD.clientDataDir(back));
+    assert.equal(snapshot(plan2.dir)['Local Storage/leveldb/000003.log'], 'prefs: written while away');
+    assert.equal(fs.existsSync(path.join(ud, 'lol-client')), false);
   });
 
   test('cleanup', () => {

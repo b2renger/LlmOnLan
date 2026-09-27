@@ -36,6 +36,8 @@ contextBridge.exposeInMainWorld('lol', {
     getPrefs: () => ipcRenderer.invoke('get-prefs'),
     chooseDataDir: () => ipcRenderer.invoke('choose-data-dir'),
     setDataDir: (payload: { path: string; mode: 'move' | 'fresh' }) => ipcRenderer.invoke('set-data-dir', payload),
+    // What boot did with LOL Chat's data (a move landed, a fallback, an import) — once.
+    getDataNotices: () => ipcRenderer.invoke('get-data-notices'),
     setLaunchAtLogin: (on: boolean) => ipcRenderer.invoke('set-launch-at-login', on),
     setAutoUpdate: (on: boolean) => ipcRenderer.invoke('set-auto-update', on),
 

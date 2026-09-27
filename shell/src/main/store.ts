@@ -27,6 +27,9 @@ const DEFAULTS: ShellSettings = {
     blenderMcp: false,  // Blender assistant tools are OPT-IN (owner call 2026-07-05; was on by default before v0.1.24)
     blenderMcpUserSet: false, // true once the user toggled Blender explicitly → farm recommendations won't override
     blenderPort: 9876,  // BlenderMCP add-on's default socket port (what its panel shows)
+    pendingClientMove: null,          // a data-folder move of the client session, done at the next launch
+    legacyClientDataImported: false,  // the one-time copy of a v0.1.x profile into DATA_DIR/lol-client
+    legacyClientDataStamp: null,      // that old copy's fingerprint at the import (a later change is warned about)
 };
 
 let cache: ShellSettings | null = null;

@@ -57,7 +57,7 @@ $('theme-toggle').addEventListener('click', async () => {
 // ---- preferences modal (M4) ----
 const prefs = {
   backdrop: $('prefs-backdrop'), close: $('prefs-close'),
-  dataPath: $('data-path'), changeFolder: $('change-folder'),
+  dataPath: $('data-path'), changeFolder: $('change-folder'), clientNote: $('data-client-note'),
   movePanel: $('move-panel'), moveQ: $('move-q'), moveYes: $('move-yes'), moveFresh: $('move-fresh'), moveCancel: $('move-cancel'), moveStatus: $('move-status'),
   autoScan: $('pref-auto-scan'), rescan: $('pref-rescan'),
   base: $('range-base'), t0: $('range-t0'), t1: $('range-t1'), f0: $('range-f0'), f1: $('range-f1'), rangeApply: $('range-apply'),
@@ -82,6 +82,15 @@ function closePrefs() { prefs.backdrop.classList.add('hidden'); }
 async function refreshPrefs() {
   const p = await window.lol.getPrefs();
   prefs.dataPath.textContent = p.dataDir + (p.dataDirIsDefault ? '  (default)' : '');
+  // LOL Chat + the Computer run from <dataDir>/lol-client; only a data folder that could not be
+  // used at boot puts them elsewhere for the session, and then the panel says where.
+  const away = !p.clientDataInDataDir;
+  prefs.clientNote.classList.toggle('hidden', !away);
+  prefs.clientNote.classList.toggle('err', away);
+  prefs.clientNote.textContent = !away ? ''
+    : p.clientDataDir
+      ? `This session, LOL Chat and the Computer keep their work in ${p.clientDataDir}, because the data folder could not be used.`
+      : 'This session, LOL Chat and the Computer keep their work in the app’s own folder, because the data folder could not be used.';
   prefs.autoScan.checked = !!p.autoScan;
   prefs.launch.checked = !!p.launchAtLogin;
   prefs.autoUpdate.checked = !!p.autoUpdate;
@@ -130,29 +139,57 @@ $('settings-btn').addEventListener('click', openPrefs);
 prefs.close.addEventListener('click', closePrefs);
 prefs.backdrop.addEventListener('click', (e) => { if (e.target === prefs.backdrop) closePrefs(); });
 
+// Changing the folder RESTARTS the app (LOL Chat's and the Computer's data is the window's own
+// storage, which cannot be moved while the window has it open), so the panel always asks first
+// and says so — even when there is nothing to move.
 prefs.changeFolder.addEventListener('click', async () => {
   const res = await window.lol.chooseDataDir();
   if (res.canceled) return;
   pendingFolder = res.path;
+  setMoveButtons(false);
+  prefs.moveStatus.textContent = '';
+  prefs.moveStatus.classList.remove('err');
   if (res.oldHasData) {
-    prefs.moveQ.textContent = `Move your existing data to “${res.path}”, or start fresh there?`;
-    prefs.moveStatus.textContent = '';
-    prefs.movePanel.classList.remove('hidden');
+    prefs.moveQ.textContent = `Move everything to “${res.path}” — LOL Chat, the Computer and Open WebUI — or start fresh there? `
+      + 'LlmOnLan restarts to finish; “Start fresh” leaves your current data where it is.';
+    prefs.moveYes.classList.remove('hidden');
+    prefs.moveFresh.textContent = 'Start fresh';
   } else {
-    await applyFolder('fresh');
+    prefs.moveQ.textContent = `Use “${res.path}” as your data folder? LlmOnLan restarts to switch.`;
+    prefs.moveYes.classList.add('hidden');
+    prefs.moveFresh.textContent = 'Use this folder';
   }
+  prefs.movePanel.classList.remove('hidden');
 });
 prefs.moveYes.addEventListener('click', () => applyFolder('move'));
 prefs.moveFresh.addEventListener('click', () => applyFolder('fresh'));
 prefs.moveCancel.addEventListener('click', () => { pendingFolder = null; prefs.movePanel.classList.add('hidden'); });
 
+function setMoveButtons(disabled) {
+  for (const b of [prefs.moveYes, prefs.moveFresh, prefs.moveCancel, prefs.changeFolder]) b.disabled = disabled;
+}
+
 async function applyFolder(mode) {
   if (!pendingFolder) return;
-  prefs.moveStatus.textContent = mode === 'move' ? 'Moving data… (the chat will restart)' : 'Switching folder… (the chat will restart)';
-  const r = await window.lol.setDataDir({ path: pendingFolder, mode });
+  const target = pendingFolder;
+  setMoveButtons(true);
+  prefs.moveStatus.classList.remove('err');
+  prefs.moveStatus.textContent = mode === 'move' ? 'Moving your data…' : 'Switching folder…';
+  const r = await window.lol.setDataDir({ path: target, mode });
   pendingFolder = null;
-  if (r.ok) { prefs.movePanel.classList.add('hidden'); toast(r.error || 'Data folder updated'); await refreshPrefs(); }
-  else { prefs.moveStatus.textContent = 'Could not change folder: ' + (r.error || 'unknown'); }
+  if (r.ok) {
+    // Main saved the new folder and restarts the app in a moment; the next launch finishes the
+    // move before the window opens and says so.
+    prefs.dataPath.textContent = r.dataDir || target;
+    prefs.moveStatus.textContent = mode === 'move'
+      ? 'Restarting LlmOnLan to finish moving LOL Chat and the Computer…'
+      : 'Restarting LlmOnLan on the new folder…';
+    if (r.error) prefs.moveStatus.textContent += ' ' + r.error;
+  } else {
+    setMoveButtons(false);
+    prefs.moveStatus.classList.add('err');
+    prefs.moveStatus.textContent = 'Could not change folder: ' + (r.error || 'unknown') + ' Nothing was moved.';
+  }
 }
 
 prefs.autoScan.addEventListener('change', () => window.lol.setAutoScan(prefs.autoScan.checked));
@@ -256,12 +293,26 @@ prefs.owuiRestart.addEventListener('click', () => window.lol.relaunch());
 
 // ---- toast ----
 let toastTimer = null;
-function toast(msg) {
+function toast(msg, ms = 2200) {
   els.toast.textContent = msg;
   els.toast.classList.add('show');
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => els.toast.classList.remove('show'), 2200);
+  toastTimer = setTimeout(() => els.toast.classList.remove('show'), ms);
 }
+
+// What boot did with the client's data (a finished move, a data folder it could not use, the
+// one-time import of an older install's history) — shown once, long enough to read. Notices
+// queue so a second one never hides the first.
+(async () => {
+  let notices = [];
+  try { notices = (await window.lol.getDataNotices()) || []; } catch { return; }
+  let at = 800;
+  for (const n of notices) {
+    const ms = n.level === 'warn' ? 16000 : 9000;
+    setTimeout(() => toast(n.text, ms), at);
+    at += ms + 400;
+  }
+})();
 
 // ---- farm helpers ----
 const farmEndpoint = (f) => `http://${f._host}:${f.proxyPort}/v1`;
