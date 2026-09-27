@@ -105,12 +105,12 @@ export default (test) => {
     // K6 kickoff (LOLCHAT_PLAN 2.6 KF-4): Document (a PDF) and Sound (an audio file) join "bring
     // in", right after Image — twenty-one in the palette, twenty-four loadable.
     assert.deepEqual(partSpecs().map((s) => s.type),
-      ['note', 'ask', 'classify', 'split', 'repeat', 'filter', 'code', 'collect', 'preview', 'speak', 'send', 'receive', 'trigger', 'file', 'image',
+      ['note', 'ask', 'classify', 'agent', 'split', 'repeat', 'filter', 'code', 'collect', 'preview', 'speak', 'send', 'receive', 'trigger', 'file', 'image',
         'document', 'audio', 'fetch', 'opendata',
         'button', 'condition', 'confirm', 'dialog', 'toggle', 'timer',
         'sticky', 'section', 'title']);
     assert.deepEqual([...specMap().keys()].sort(),
-      ['ask', 'audio', 'button', 'classify', 'code', 'collect', 'condition', 'confirm', 'dialog', 'document', 'fetch', 'file', 'filter',
+      ['agent', 'ask', 'audio', 'button', 'classify', 'code', 'collect', 'condition', 'confirm', 'dialog', 'document', 'fetch', 'file', 'filter',
         'from-thread', 'image', 'note', 'opendata', 'preview', 'receive', 'render', 'repeat', 'section', 'send', 'speak', 'split',
         'sticky', 'timer', 'title', 'to-thread', 'toggle', 'trigger'],
       'a legacy part left specMap() too — a migrated graph would trip part:unknown-type');
@@ -126,7 +126,7 @@ export default (test) => {
     // `thinks` is what the cap counts (BG-5). Ask always generates; Filter does in model mode.
     // Condition declares `thinks` because `mode:'model'` really does spend one generation — and
     // `thinksFor`, so the plan preview does NOT quote one for a free text-mode Condition (§4.6).
-    assert.deepEqual(partSpecs().filter((s) => s.thinks).map((s) => s.type), ['ask', 'filter', 'condition']);
+    assert.deepEqual(partSpecs().filter((s) => s.thinks).map((s) => s.type), ['ask', 'agent', 'filter', 'condition']);
     assert.equal(typeof specMap().get('condition').thinksFor, 'function');
     assert.equal(specMap().get('condition').thinksFor({ settings: { mode: 'text' } }), false);
     assert.equal(specMap().get('condition').thinksFor({ settings: { mode: 'model' } }), true);

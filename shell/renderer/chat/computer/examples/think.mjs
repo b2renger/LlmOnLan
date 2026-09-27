@@ -151,6 +151,28 @@ export const THINK = [
     ],
   },
   {
+    key: 'agent',
+    title: 'Agent',
+    needsFarm: 'one: every step is a generation (the run bar counts up to "Steps at most").',
+    what: 'A model that works in SHORT STEPS. Each step it picks one tool — run code over what is wired in, read a web host you allowed, ask Laya — and sees the result, until it answers. The answer comes with every step it took, so you can check where each number came from. It never sends to a device.',
+    inputs: [['in', 'anything: text, data, lists — each arrow under its name (the agent reads inputs["that name"])']],
+    output: 'Text (markdown): the answer, then "How it got there", one line per step with what the tool gave back.',
+    howto: [
+      'Say the task in plain words, and what to compute: the agent computes numbers with code, it does not guess them.',
+      'Web hosts it may read: exactly the names you list (e.g. tabular-api.data.gouv.fr for French open data). Empty: no web at all.',
+      'Steps at most (6): each step is one generation. A small task needs 2 or 3 — run code, then answer.',
+    ],
+    parts: [
+      { id: 'e_nums', type: 'note', x: 0, y: 0, w: 320, h: 170, settings: { text: '[12, 7, 30, 5, 18, 22, 9]', locked: false } },
+      { id: 'e_agent', type: 'agent', x: 380, y: 0, w: 320, h: 330, settings: { task: 'What are the average and the largest of these readings? Compute them with code, then answer in one sentence.', hosts: '', maxSteps: 4, model: '' } },
+      { id: 'e_view', type: 'preview', x: 760, y: 0, w: 380, h: 320, settings: view },
+    ],
+    wires: [
+      { from: 'e_nums', to: 'e_agent', port: 'in', label: 'readings' },
+      { from: 'e_agent', to: 'e_view', port: 'content' },
+    ],
+  },
+  {
     key: 'split',
     title: 'Split',
     what: 'Cuts text into a list of items. A box after it that takes text (an Instruction) runs once PER ITEM; Collect, Filter, Code and Classify take the whole list. No model, no farm.',

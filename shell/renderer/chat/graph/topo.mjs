@@ -238,7 +238,10 @@ export function runPlan(doc, o = {}) {
     if (!thinksFor(spec, part)) continue;
     thinking.push(id);
     cost += 1;
-    costMax += looping.has(id) ? maxIterations : 1;
+    // P4: a box that may ask more than once per activation (the Agent, one generation per step)
+    // declares its most; the plan's range then quotes the truth ("1–6 generations").
+    const most = typeof spec.mostGenerations === 'function' ? Math.max(1, Number(spec.mostGenerations(part)) || 1) : 1;
+    costMax += (looping.has(id) ? maxIterations : 1) * most;
     if (cost <= cap) capped.push(id);
     else overflow += 1;
   }

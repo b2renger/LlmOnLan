@@ -38,6 +38,9 @@ const STATIC_MODEL_IDS = [
     // model answers from `state.verdicts`, a queue consumed in order whose last entry repeats.
     // Default ['maybe'], because §6.6's rule is that anything unreadable is maybe, never no.
     'mock-verdict',
+    // P4: the Agent box asks one JSON step at a time and its prompt says "step k of …". This model
+    // answers `state.agentSteps[k-1]` (the last entry repeats) — stateless, so nothing to reset.
+    'mock-agent',
     // K5 kickoff (addendum KE-10): the Write-… presets ask for CODE, and a local model wraps its
     // code in a markdown fence often enough that unwrapping it is the feature. This model answers
     // with a short sentence and then ONE fenced block of the kind the prompt asked for (svg / p5 /
@@ -616,6 +619,17 @@ function handleCompletion({ model, res, body, store }) {
     if (id === 'mock-headings') {
         const lines = headingLines(body);
         streamContent(id, res, store, body, lines.map((l, i) => (i === lines.length - 1 ? l : `${l}\n`)), { finish: 'stop' });
+        return true;
+    }
+
+    if (id === 'mock-agent') {
+        const messages = Array.isArray(body && body.messages) ? body.messages : [];
+        const lastUser = [...messages].reverse().find((m) => m && m.role === 'user');
+        const m = /step (\d+) of/i.exec(String(textOf(lastUser)));
+        const steps = Array.isArray(store.state.agentSteps) && store.state.agentSteps.length ? store.state.agentSteps : [{ tool: 'answer', why: 'nothing scripted', answer: 'No steps were scripted.' }];
+        const k = m ? Number(m[1]) : 1;
+        const json = JSON.stringify(steps[Math.min(k - 1, steps.length - 1)]);
+        streamContent(id, res, store, body, jsonChunks(json), { finish: 'stop' });
         return true;
     }
 
