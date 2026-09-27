@@ -165,7 +165,8 @@
 #lolcomputer .graph-part[data-type='render'] .graph-port[data-port='in'],
 #lolcomputer .graph-part[data-type='preview'] .graph-port[data-port='content'],
 #lolcomputer .graph-part[data-type='filter'] .graph-port[data-port='criterion'],
-#lolcomputer .graph-part[data-type='split'] .graph-port[data-port='text'] {
+#lolcomputer .graph-part[data-type='split'] .graph-port[data-port='text'],
+#lolcomputer .graph-part[data-type='classify'] .graph-port[data-port='options'] {
   --k: var(--k-text);
   --kg: var(--kg-text);
 }
@@ -181,14 +182,18 @@
 }
 
 /* json */
-#lolcomputer .graph-part[data-type='code'] .graph-port[data-dir='out'] {
+#lolcomputer .graph-part[data-type='code'] .graph-port[data-dir='out'],
+#lolcomputer .graph-part[data-type='fetch'] .graph-port[data-dir='out'],
+#lolcomputer .graph-part[data-type='classify'] .graph-port[data-dir='out'],
+#lolcomputer .graph-part[data-type='classify'] .graph-port[data-port='items'] {
   --k: var(--k-json);
   --kg: var(--kg-json);
 }
 
 /* image */
 #lolcomputer .graph-part[data-type='image'] .graph-port[data-dir='out'],
-#lolcomputer .graph-part[data-type='render'] .graph-port[data-dir='out'] {
+#lolcomputer .graph-part[data-type='render'] .graph-port[data-dir='out'],
+#lolcomputer .graph-part[data-type='preview'] .graph-port[data-dir='out'] {
   --k: var(--k-image);
   --kg: var(--kg-image);
 }

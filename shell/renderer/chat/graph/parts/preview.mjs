@@ -522,6 +522,7 @@ export const preview = /** @type {any} */ ({
   // Owner, 2026-09-27: the drawing as a PNG, so a model can look at what it produced (a feedback
   // loop). A markdown page hands on nothing.
   output: 'image',
+  optionalOutput: true,   // a markdown page hands on no picture, and that is not a failure
   quiet: true,
   // `source` is the box's own code (typed by the person, never written by a run) and `locked`
   // keeps it when something arrives. Both MUST be here: serialize.mjs exports only the keys

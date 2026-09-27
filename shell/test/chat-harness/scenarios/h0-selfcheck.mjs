@@ -73,7 +73,7 @@ export default [
                 projects: window.lol && window.lol.projects ? Object.keys(window.lol.projects) : null,
                 debugLog: window.lol && window.lol.debugLog ? Object.keys(window.lol.debugLog) : null,
             }));
-            h.eq(shape.keys, ['getBlenderConnection', 'projects', 'debugLog'], 'window.lol exposes more than the real preload');
+            h.eq(shape.keys, ['getBlenderConnection', 'projects', 'debugLog', 'io'], 'window.lol exposes more than the real preload');
             h.eq(shape.debugLog, ['start', 'append', 'stop', 'mark', 'reveal', 'status'], 'window.lol.debugLog is not the real preload method set');
             h.eq(shape.projects, [
                 'root', 'list', 'create', 'meta', 'update', 'forget', 'listFiles', 'read', 'readBinary',

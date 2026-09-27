@@ -886,8 +886,9 @@ export function createRunner(o) {
           }
           const got2 = unwrapOutcome(out);
           if (got2.bar) bar = true;
-          // "No value" is a failure, not a state (§1.2 / BG-5) — unless the part declares none.
-          if (wantsValue && !isValue(got2.value)) throw new Error(t('parts.errNoValue'));
+          // "No value" is a failure, not a state (§1.2 / BG-5) — unless the part declares none, or declares
+          // its output OPTIONAL (a Preview showing a markdown page has no picture to hand on).
+          if (wantsValue && !isValue(got2.value) && !(/** @type {any} */ (spec).optionalOutput === true)) throw new Error(t('parts.errNoValue'));
           results.push({ ok: true, value: wantsValue ? got2.value : null });
         } catch (err) {
           if (signal.aborted) { how = 'cancelled'; break; }
