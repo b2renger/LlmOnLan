@@ -621,6 +621,15 @@ promise — flag it.
 
 ## Conventions & guardrails
 
+**Code by the ponytail ladder** (owner, 2026-09-27; https://github.com/dietrichgebert/ponytail): after
+reading the task and tracing the real flow, stop at the first rung that holds — does it need to exist →
+already in this codebase → the standard library → a native platform feature → an installed dependency →
+one line → only then the minimum that works. Root cause over symptom (fix the shared function once). No
+unrequested abstractions, dependencies or boilerplate; deletion over addition; fewest files. Mark a
+deliberate ceiling with a `ponytail:` comment naming it and the upgrade path. Never lazy about validation at
+trust boundaries, error handling that prevents data loss, security, accessibility, or hardware calibration;
+non-trivial logic leaves ONE runnable check.
+
 **Do:** keep first‑party code in `shell/` and `farm/`; treat OWUI as an external product configured from
 outside; re‑verify the config surface on each version bump; keep env authoritative every launch
 (`ENABLE_PERSISTENT_CONFIG=false` — OWUI's user-settings REST API only for what env can't do: the
