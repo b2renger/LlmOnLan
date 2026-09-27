@@ -57,7 +57,7 @@ registerStrings('library', {
   removeV1Kept: 'The old copy was kept.',
   about: 'About',
   aboutBody: 'LOL Chat keeps everything on this computer.',
-  aboutWhere: 'Chats, drafts and attachments live in this app’s own local database. Nothing is uploaded: only the text of the conversation you send goes to the farm, so it can answer.',
+  aboutWhere: 'Chats, drafts and attachments live in this app’s own local database, inside your data folder (Preferences › Data location). Nothing is uploaded: only the text of the conversation you send goes to the farm, so it can answer.',
 
   // ---- transfer ----
   exported: 'Exported {name}',
@@ -65,8 +65,10 @@ registerStrings('library', {
   exportedSkippedMany: 'Exported {name} — {count} temporary chats left out',
   exportEmpty: 'There is nothing to export yet.',
   imported: 'Imported {n} chats',
+  importedOne: 'Imported 1 chat',
   importNothing: 'Nothing was imported.',
   importProblems: '{n} problems in that file',
+  importProblemsOne: 'One problem in that file',
   importFailedTitle: 'That file could not be imported',
   copyTitle: 'Copy this export',
   copyBody: 'This build could not hand you a file, so here is the text. Copy it and save it yourself.',

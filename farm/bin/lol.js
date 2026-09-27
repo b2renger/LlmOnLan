@@ -3,18 +3,19 @@
 // Ollama + a generated LiteLLM proxy + a LAN discovery beacon.
 
 const log = require('../src/log');
-const { PKG_VERSION } = require('../src/snapshot');
+const { farmVersion } = require('../src/snapshot');
 
 const USAGE = `
 ${log.paint.bold('lol')} — the LlmOnLan farm CLI
 
   ${log.paint.cyan('lol install')}             One-time bootstrap on a fresh pull: install Ollama
-                          + LiteLLM and pull the configured models.
+                          + LiteLLM, pull models + preinstall, build the
+                          web-search/OCR venvs (+ llama.cpp when enabled).
   ${log.paint.cyan('lol init')} [--force]      Scaffold a lol.config.json here.
   ${log.paint.cyan('lol up')} | ${log.paint.cyan('serve')}        Ensure Ollama, pick+pull model(s), generate+run
                           the LiteLLM proxy, start the beacon (foreground).
                           ${log.paint.grey('(prompts to choose an installed model; Enter = default)')}
-                          ${log.paint.grey('--model <id[,id]>')}  serve these, no prompt.
+                          ${log.paint.grey('--model <id[=alias][,…]>')} (-m)  serve these, no prompt.
                           ${log.paint.grey('--no-pick')}          skip the prompt, serve the config catalog
                           (needed after adding a model). Also --yes, -y.
                           ${log.paint.grey('--alias <name>')}      expose ONE fixed model id (e.g.
@@ -52,7 +53,7 @@ async function main() {
         return 0;
     }
     if (cmd === '-v' || cmd === '--version' || cmd === 'version') {
-        log.plain(PKG_VERSION);
+        log.plain(farmVersion());
         return 0;
     }
 

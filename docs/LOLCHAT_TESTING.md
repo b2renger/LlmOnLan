@@ -3,6 +3,11 @@
 > For the owner, 2026-09-16. Everything below is on branch **`lolchat/vnext`**, built over phases
 > P0–P2 (the chat) and S0 + C1–C3 (the workbench and the Computer). The build stops here on purpose:
 > the vibecode bench (S2) and the design/board benches (S3) are planned but **not built**.
+>
+> **Since then (2026-09-27):** the branch was merged into `main` (`811451a`), and the Computer grew
+> past C3. §3 and §5 below describe it as of 2026-09-16 and are **superseded** — for the Computer as
+> built (Text, Instruction, Preview, Image/Document/Sound boxes; Live previews) see
+> [LOLCHAT_COMPUTER_TUTORIAL.md](LOLCHAT_COMPUTER_TUTORIAL.md) and [COMPUTER_STATUS.md](COMPUTER_STATUS.md).
 
 ---
 
@@ -13,7 +18,7 @@
 
 ```bash
 cd shell
-npx electron .            # the real client, from the working tree
+npm run dev               # builds main, then runs the real client from the working tree
 ```
 
 Two things to know first, neither of them a reason to use another machine:
@@ -34,6 +39,18 @@ Two things to know first, neither of them a reason to use another machine:
    Copy-Item "$ud\shell-settings.json" "$ud\..\LlmOnLan-backup-settings.json" -Force
    ```
 
+   **Since 2026-09-27 (all data in the data folder)** a dev run keeps LOL Chat and the Computer in
+   `<data folder>\lol-client` (default `%APPDATA%\LlmOnLan\owui-data\lol-client`). Its first launch
+   COPIES `IndexedDB`, `Local Storage` and `WebStorage` from `%APPDATA%\LlmOnLan` there — the originals
+   are never modified — and marks that done in `shell-settings.json` (`legacyClientDataImported`).
+   From then on the installed v0.1.x client (which keeps writing `%APPDATA%\LlmOnLan\Local Storage`)
+   and the dev run keep **separate copies**, and a v0.2.0 installed later on this box inherits the
+   mark: **chats you make in the installed client after that first dev launch are not imported and
+   nothing warns about them** (only a change to the old *IndexedDB*, i.e. an older dev build, is
+   detected). To import again from `%APPDATA%\LlmOnLan`: quit, rename `owui-data\lol-client`, and set
+   `"legacyClientDataImported": false` in `shell-settings.json`. Or keep dev runs isolated (below).
+   What each boot did is logged to `%APPDATA%\LlmOnLan\logs\client-data.log`.
+
 **If you would rather not touch your real data at all**, run isolated — a different `userData` also gets
 its own single-instance lock, so it can run *alongside* your installed client. Junction the sidecar in so
 it doesn't re-download 2.4 GB:
@@ -43,7 +60,7 @@ $t = "D:\lolchat-test"                                  # anywhere you like
 New-Item -ItemType Directory -Force $t | Out-Null
 New-Item -ItemType Junction -Path "$t\sidecar" -Target "$env:APPDATA\LlmOnLan\sidecar" -EA SilentlyContinue
 cd C:\Users\ateliernum\Documents\code\LlmOnLan\shell
-npx electron . --user-data-dir=$t
+npm run build; npx electron . --user-data-dir=$t   # build first: a stale build/ runs old main code
 ```
 
 Fresh profile = empty chat history (nothing to migrate) and the farm found by beacon as usual.
@@ -51,12 +68,12 @@ Fresh profile = empty chat history (nothing to migrate) and the farm found by be
 **On another machine**, it is the ordinary route:
 
 ```bash
-git fetch && git switch lolchat/vnext     # once it is pushed — see §6
+git fetch && git switch lolchat/vnext
 cd shell && npm ci && npm run build && npx electron .
 ```
 
 The farm is found by the usual beacon; nothing about discovery, the sidecar or Open WebUI changed.
-Press the topbar toggle to reach **LOL Chat**.
+Press **LOL Chat** in the topbar's three-way switch.
 
 *Don't want to run Open WebUI at all while testing?* `shell/src/main/clientMode.ts` `OWUI_ENABLED` and
 the `NO_OWUI` const at the top of `renderer/app.js` still flip together, as before.
@@ -82,8 +99,13 @@ Worth poking at:
 
 ## 3. The Computer (C1–C3) — the part to really test
 
-Open a thread, then the **Computer** tab in the workbench column (right). Three widths: Chat / Split /
-Panel. `Ctrl+\` cycles panels; drag the divider; it remembers per thread.
+> **Superseded (2026-09-27).** This section uses the C3 box names (Note, Ask, Render, Look); today they
+> are Text, Instruction and Preview, with Image/Document/Sound boxes and Live previews. Follow
+> [LOLCHAT_COMPUTER_TUTORIAL.md](LOLCHAT_COMPUTER_TUTORIAL.md) and
+> [COMPUTER_STATUS.md](COMPUTER_STATUS.md) instead.
+
+Open the **Computer** from the topbar's three-way switch. (The workbench column this used to describe —
+Chat / Split / Panel, `Ctrl+\` — is not registered in this build.)
 
 **A first graph (2 minutes).** Add a part → `Note`, type "Paris". Add `Ask`, wire Note → Ask, instruction
 "name three things to see". Add `Collect`, wire Ask → Collect. **Run** (or `Ctrl+Enter`). Each part shows
@@ -150,6 +172,11 @@ for the older plan — §§ on documents/OCR/search describe cancelled work; ign
 
 ## 5. Known gaps and deliberate omissions
 
+> **Superseded (2026-09-27)** for the Computer: image parts, Live previews and code editing have since
+> been built, and graphs live in the Computer's own library rather than one per thread — see
+> [COMPUTER_STATUS.md](COMPUTER_STATUS.md). The LOL Chat line (no RAG, documents or web search) still
+> holds.
+
 - **Not built:** the vibecode bench (live preview + scratch project editing), design tools (vision
   critique, token playground, SVG), board-aware ESP32/Arduino assistance. Specced in
   [LOLCHAT_STUDIO_PLAN.md](LOLCHAT_STUDIO_PLAN.md) and [LOLCHAT_COMPUTER_SPEC.md](LOLCHAT_COMPUTER_SPEC.md).
@@ -162,9 +189,7 @@ for the older plan — §§ on documents/OCR/search describe cancelled work; ign
 
 ## 6. State of the branch
 
-Nothing is committed — the work is a dirty working tree on `lolchat/vnext`, so that you could veto the
-direction before it became history. Say the word and I'll commit it phase by phase and push, which is
-also what makes §1's `git switch` possible on a second machine.
+The work is committed on `lolchat/vnext` and pushed to `origin/lolchat/vnext`.
 
 Automated gates, all green on this box (re-run by me, not taken from the builders' reports):
 

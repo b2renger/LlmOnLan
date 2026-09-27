@@ -3,6 +3,7 @@
 //
 //   node shell/test/chat-harness/run.js                  # every scenario except the perf group
 //   node shell/test/chat-harness/run.js --phase h0       # scenarios whose name starts with "h0-"
+//   node shell/test/chat-harness/run.js --phase k        # a bare letter: every "k<digits>-" scenario too
 //   node shell/test/chat-harness/run.js --only h0-ports,h0-loader
 //   node shell/test/chat-harness/run.js --phase perf     # perf group: 3 runs each, median judged
 //   node shell/test/chat-harness/run.js --strict         # no fakes: a failed import fails the run
@@ -155,7 +156,11 @@ function selectScenarios(all, args) {
     let list = all;
     if (args.only) list = list.filter((s) => args.only.includes(s.name));
     else if (args.phase === 'perf') list = list.filter((s) => s.perf === true);
-    else if (args.phase) list = list.filter((s) => s.name.startsWith(`${args.phase}-`) && s.perf !== true);
+    else if (args.phase) {
+        // A bare letter prefix is a family: `--phase k` also matches k1-, k2-, … k12-.
+        const family = /^[a-z]+$/i.test(args.phase) ? new RegExp(`^${args.phase}\\d+-`) : null;
+        list = list.filter((s) => (s.name.startsWith(`${args.phase}-`) || (family && family.test(s.name))) && s.perf !== true);
+    }
     else list = list.filter((s) => s.perf !== true);
     return list;
 }

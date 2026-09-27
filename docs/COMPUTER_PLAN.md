@@ -9,6 +9,15 @@
 >
 > **Read §0.3 before writing any code. It is the list of things that are true in the tree right now
 > and that three separate studies each got partly wrong.**
+>
+> *As built (2026-09-27): K1–K5 as planned, K5 without most of the optional U2/U3 (lesson 4
+> shipped; lessons 5–12, six of the eight templates and Explain this graph did not). K6 and K7 are
+> specified as addenda in [LOLCHAT_PLAN.md](LOLCHAT_PLAN.md) ("K6 addendum", "K7 addendum" — the
+> "COMPUTER_PLAN addendum KF/KG" the code cites lives there), and Live/Edit code in
+> [COMPUTER_LIVE_PLAN.md](COMPUTER_LIVE_PLAN.md). Not built: §7.5's Resume banner, §8.5's per-part
+> `?` card (the run bar's single `?` stands in), and §8.4's lesson links (the loop notice offers its
+> lesson button only once `l10-loops` ships, `graph/canvas.mjs` `sayLoopUngated`). What works today
+> is [COMPUTER_STATUS.md](COMPUTER_STATUS.md).*
 
 ---
 

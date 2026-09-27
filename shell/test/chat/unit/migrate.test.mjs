@@ -333,6 +333,20 @@ export default (test) => {
     assert.equal(storage.calls.remove, 0);
   });
 
+  test('SA-9: with no database behind the repo, nothing is imported and the v1 key is never removed', async () => {
+    // 'memory-final' = IndexedDB refused: an import lands in RAM and is gone at quit, so the v1 key
+    // is the only durable copy of the history and must stay exactly as it is.
+    const repo = openRepoSync({ forceMemory: true, openPersistent: () => createMemoryBackend({ kind: 'idb' }) });
+    await repo.ready;
+    assert.equal(repo.mode, 'memory-final');
+    const storage = fakeStorage({ [V1_KEY]: fixture('three.json') });
+    assert.equal((await migrateV1({ repo, storage, now: () => NOW })).imported, 0, 'no copy into RAM');
+    assert.equal(await removeV1Copy({ repo, storage, now: () => NOW }), false);
+    assert.equal(storage.map.get(V1_KEY), fixture('three.json'), 'the key is untouched');
+    assert.equal(storage.calls.remove, 0);
+    assert.equal((await repo.listThreads()).length, 0);
+  });
+
   test('storage.removeItem is called by removeV1Copy and by nothing else', async () => {
     const { repo } = makeRepo();
     await repo.ready;

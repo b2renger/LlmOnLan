@@ -176,7 +176,7 @@ function renderFarmState(s) {
         $('.spinner').style.display = (s.status === 'starting' || s.status === 'restarting') ? '' : 'none';
         // While starting, prefer the supervisor's live message — the first boot
         // after an install/update downloads multi-GB weights, and the supervisor
-        // streams "First start: fetching model weights — 43%" through `message`.
+        // streams "<tag>: <what> — N%" (e.g. "llama.cpp: model weights — 43%") through `message`.
         const msg = s.status === 'stopped' ? 'The farm is stopped.'
             : s.status === 'error' ? (s.message || 'The farm hit an error.')
             : (s.message || 'Starting the farm…');

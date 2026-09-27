@@ -20,6 +20,7 @@ const path = require('path');
 const http = require('http');
 const { execSync, spawn } = require('child_process');
 const log = require('./log');
+const { serviceHosts } = require('./net');
 const { resolvePython } = require('./python');
 
 const IS_WIN = process.platform === 'win32';
@@ -102,9 +103,12 @@ async function ensureExtract(config) {
 }
 
 // Spawn the service: <venv python> -m uvicorn server:app, cwd = pysvc source (so
-// `import ocr_processor` resolves), bound to the LAN. opts = { key, model, ollamaUrl }.
-function spawnExtract(config, opts) {
-    const child = spawn(venvPython(), ['-m', 'uvicorn', 'server:app', '--host', '0.0.0.0', '--port', String(config.ocr.port)], {
+// `import ocr_processor` resolves), bound where config.proxy.host says (the LAN on a
+// shared farm, loopback on a private one — net.serviceHosts). opts = { key, model,
+// ollamaUrl }. `spawnFn` is for tests.
+function spawnExtract(config, opts, spawnFn = spawn) {
+    const bind = serviceHosts(config.proxy && config.proxy.host).bind;
+    const child = spawnFn(venvPython(), ['-m', 'uvicorn', 'server:app', '--host', bind, '--port', String(config.ocr.port)], {
         cwd: PYSVC,
         windowsHide: true,
         detached: !IS_WIN,
@@ -141,18 +145,18 @@ function get(url, timeoutMs = 3000) {
 
 // Wait for /health. Generous timeout — the first run may still be importing the
 // (heavy) deps. Returns { up }.
-async function waitForExtract(port, timeoutMs = 90000) {
+async function waitForExtract(port, timeoutMs = 90000, host = '127.0.0.1') {
     const t0 = Date.now();
     while (Date.now() - t0 < timeoutMs) {
-        if ((await get(`http://127.0.0.1:${port}/health`)) === 200) return { up: true };
+        if ((await get(`http://${host}:${port}/health`)) === 200) return { up: true };
         await new Promise((r) => setTimeout(r, 1000));
     }
     return { up: false };
 }
 
 // Single quick liveness probe (for the farm's health timer).
-async function extractAlive(port) {
-    return (await get(`http://127.0.0.1:${port}/health`)) === 200;
+async function extractAlive(port, host = '127.0.0.1') {
+    return (await get(`http://${host}:${port}/health`)) === 200;
 }
 
 module.exports = { ensureExtract, spawnExtract, waitForExtract, extractAlive, depsSignature };

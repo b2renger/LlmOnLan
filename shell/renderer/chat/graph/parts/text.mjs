@@ -64,7 +64,7 @@ const key = (id) => String(id == null ? '' : id);
  * port is `many`, so several wires are joined before this sees them; measured on this box, a
  * megabyte is ~0.44 s of parse+build on the main thread. The box is 320 px tall and scrolls: past
  * this much nobody was going to read it in here anyway, and the WHOLE value still travels on the
- * wire, is still saved and is still what Save… writes. */
+ * wire, is still saved and is still what Copy copies. */
 export const MAX_RENDER_CHARS = 64 * 1024;
 
 /** Is this box's source editor open? Read by `run()`. @param {any} id @returns {boolean} */

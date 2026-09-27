@@ -819,12 +819,33 @@ export function createSidebar(app, el) {
   app.bus.on(EV.STREAM_END, dropScanCache);
   app.bus.on(EV.MESSAGE_PUT, (/** @type {any} */ msg) => {
     dropScanCache();
-    if (!msg || msg.status !== 'interrupted' || !msg.threadId) return;
-    if (interrupted.has(msg.threadId)) return;
-    interrupted.add(msg.threadId);
-    const entry = rows.get(msg.threadId);
-    if (entry) { entry.dot.classList.remove('hidden'); entry.dot.title = t('sidebar.interrupted'); }
+    if (!msg || !msg.threadId) return;
+    if (msg.status === 'interrupted') {
+      if (interrupted.has(msg.threadId)) return;
+      interrupted.add(msg.threadId);
+      const entry = rows.get(msg.threadId);
+      if (entry) { entry.dot.classList.remove('hidden'); entry.dot.title = t('sidebar.interrupted'); }
+      return;
+    }
+    // A dotted thread whose reply was continued, finished or deleted: the dot goes only when NO
+    // reply of that thread is still cut off (one thread-sized read, never a whole-store scan).
+    if (interrupted.has(msg.threadId)) void recheckThread(msg.threadId);
   });
+
+  /** @param {string} threadId */
+  async function recheckThread(threadId) {
+    const repo = app.repo;
+    if (!repo || typeof repo.getMessages !== 'function') return;
+    let still = true;
+    try {
+      const msgs = await repo.getMessages(threadId);
+      still = Array.isArray(msgs) && msgs.some((/** @type {any} */ m) => m && m.status === 'interrupted');
+    } catch (err) { void err; return; }
+    if (still || !interrupted.has(threadId)) return;
+    interrupted.delete(threadId);
+    const entry = rows.get(threadId);
+    if (entry) entry.dot.classList.add('hidden');
+  }
 
   return api;
 }

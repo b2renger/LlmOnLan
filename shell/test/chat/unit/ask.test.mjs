@@ -371,6 +371,18 @@ export default (test) => {
     assert.equal(api.vision('gemma4:12b'), 'no');
   });
 
+  test('SA-15: on an ALIASED farm a verdict filed under the alias still refuses the image locally', async () => {
+    // app/caps.mjs stores what /model_group/info says under the model GROUP name — the alias the
+    // farm serves ('assistant') — while the ask used to ask only the checkpoint behind it.
+    const { app } = stubApp({ models: [{ id: 'assistant', underlying: 'Qwen3.8-27B-UD-IQ2_S', default: true }], caps: { defaultModel: 'assistant' } });
+    app.farm.cap = (id) => (id === 'assistant' ? 'no' : 'unknown');
+    const { api } = createAsk(app);
+    const farm = fakeFarm(() => 'never');
+    const r = await withFarm(farm, () => api.text({ task: 't', prompt: 'p', images: ['data:image/png;base64,AAA'] }));
+    assert.equal(r.error.kind, 'no_vision');
+    assert.equal(farm.posts.length, 0, 'no seat spent, no 400 earned');
+  });
+
   test('images ride as OpenAI content parts when the model can see', async () => {
     const { app } = stubApp({ vision: 'yes' });
     const { api } = createAsk(app);

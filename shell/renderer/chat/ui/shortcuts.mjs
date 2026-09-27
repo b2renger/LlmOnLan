@@ -13,7 +13,8 @@
 //   Escape            stop the reply; with nothing streaming the controller's CANCEL_HANDLERS get
 //                     it (that is the seat-wait cancel); with nothing to cancel, close a popover.
 //   ArrowUp           in an EMPTY composer: edit the last message you sent.
-//   Alt+←  / Alt+→    walk the branches of the last reply.
+//   Alt+←  / Alt+→    walk the branches of the last reply (not while the caret is in a field that
+//                     holds text: there it is the system's word jump).
 //   Mod+Shift+O       new chat (Mod = Ctrl, or ⌘ on a Mac).
 
 import { SLOTS } from '../core/registry.mjs';
@@ -144,11 +145,27 @@ export function install(app) {
       .catch((err) => console.warn('[lolchat] branch switch failed', err));
   };
 
+  /**
+   * Alt+←/→ inside a field that holds text is the SYSTEM's word jump (Option+arrow on a Mac): the
+   * composer and the inline editor must keep it. Claiming it there flipped the last reply's version
+   * instead of moving the caret (docs review SA-7). An EMPTY composer has no caret to move, so the
+   * shortcut still works from there — the same rule `edit-last` follows for ArrowUp.
+   */
+  function caretOwnsArrows() {
+    const el = /** @type {any} */ (typeof document !== 'undefined' ? document.activeElement : null);
+    if (!el) return false;
+    const tag = String(el.tagName || '').toLowerCase();
+    if (tag === 'textarea' || tag === 'input') return String(el.value || '').length > 0;
+    return !!el.isContentEditable;
+  }
+
   app.registry.add(SLOTS.SHORTCUTS, {
-    id: 'branch-prev', keys: 'Alt+ArrowLeft', label: t('tree.shortcutBranchPrev'), run: branchStep(-1),
+    id: 'branch-prev', keys: 'Alt+ArrowLeft', label: t('tree.shortcutBranchPrev'),
+    when: () => !caretOwnsArrows(), run: branchStep(-1),
   });
   app.registry.add(SLOTS.SHORTCUTS, {
-    id: 'branch-next', keys: 'Alt+ArrowRight', label: t('tree.shortcutBranchNext'), run: branchStep(1),
+    id: 'branch-next', keys: 'Alt+ArrowRight', label: t('tree.shortcutBranchNext'),
+    when: () => !caretOwnsArrows(), run: branchStep(1),
   });
 
   app.registry.add(SLOTS.SHORTCUTS, {

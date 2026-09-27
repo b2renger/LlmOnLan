@@ -4,9 +4,9 @@
 // v0.1.29 shipped WITHOUT Open WebUI as a product experiment (LOL Chat only).
 // The verdict (owner, 2026-08-25): the OWUI features are wanted back — RAG /
 // knowledge bases, document upload + farm OCR, web search, voice, chat history,
-// folders, prompts — so OWUI is the primary surface again. LOL Chat remains as
-// the topbar-toggle alternative view (see renderer/chat.js), unchanged from the
-// studio test build.
+// folders, prompts — so OWUI is the primary surface again. LOL Chat (renderer/chat/,
+// entry chat/main.mjs) and the Computer are the other two surfaces of the topbar's
+// three-way switch.
 //
 // Keep this as ONE constant so the no-OWUI build stays a boolean flip away.
 // NOTE the renderer has a matching `NO_OWUI` const at the top of

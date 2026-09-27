@@ -105,6 +105,15 @@ export function createSession(app, host) {
     }
   };
 
+  /** A sandbox `note` of level warn or error, as a toast (CA-1). Info notes ("Using this
+   * project's p5") stay in the debug log. @param {any} ev */
+  const toastNote = (ev) => {
+    if (!ev || ev.type !== 'note' || (ev.level !== 'warn' && ev.level !== 'error')) return;
+    const dialogs = app && app.dialogs;
+    if (!dialogs || typeof dialogs.toast !== 'function' || !ev.text) return;
+    dialogs.toast(String(ev.text), { kind: ev.level === 'error' ? 'error' : 'info' });
+  };
+
   const session = {
     app,
     host,
@@ -208,6 +217,9 @@ export function createSession(app, host) {
         }
         sandbox = createSandbox({ app });
         sandbox.mount(sandboxMount);
+        // CA-1: the sandbox's own notices — a sketch restarted, the pause after three stalls, a
+        // library that did not load — reach the reader. Nothing else on the surface shows them.
+        sandbox.on(toastNote);
       }
       const ok = await sandbox.ready();
       return ok ? sandbox : null;

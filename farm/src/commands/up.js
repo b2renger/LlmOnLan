@@ -17,9 +17,12 @@ const ollama = require('../ollama');
 const llamacpp = require('../llamacpp');
 const proxyApi = require('../proxy');
 const { loadConfig } = require('../config');
-const { writeLitellmConfig, servedEntries } = require('../litellm');
+const {
+    writeLitellmConfig, servedEntries, ollamaServes, defaultModelEntry,
+    carryNameAcross, applyNamePlan, engineFallback,
+} = require('../litellm');
 const { buildSnapshot, backendInfo } = require('../snapshot');
-const { patchSection, patchConfigFile } = require('../configFile');
+const { patchSection, patchConfigFile, readRawConfig } = require('../configFile');
 const { detectHardware, gpuLiveStats } = require('../systemInfo');
 const perfMod = require('../perf');
 const ggufMod = require('../gguf');
@@ -62,6 +65,14 @@ function resolveOcrModel(config) {
     return pick ? pick.underlying : (config.models[0] && config.models[0].id);
 }
 
+// A fallback (engineFallback) may give the Ollama default the failed engine's name
+// for this run, in memory only — say so, since the file will not show it.
+function logFallbackNames(plan) {
+    if (!plan) return;
+    if (plan.llamacppAlias) log.info(`llama.cpp serves as "${plan.llamacppAlias}" for this run — the name chats are bound to (not saved).`);
+    if (plan.modelAlias) log.info(`The Ollama default serves as "${plan.modelAlias}" for this run — the name chats are bound to (not saved).`);
+}
+
 // Spawn a local `ollama serve` with the configured concurrency env. Returns the
 // child pid, or null if it couldn't be started. Only used when a LOCAL host is
 // down — we never touch a remote box or an already-running local Ollama.
@@ -77,11 +88,11 @@ function spawnLocalOllama(config, baseUrl) {
             ? { OLLAMA_KV_CACHE_TYPE: config.ollama.kvCacheType } : {}),
         // Keep-warm policy depends on WHICH engine serves. Ollama engine: the
         // configured keepAlive ('-1' = forever — right for a dedicated box). But when
-        // llama.cpp is the engine, the only Ollama user is the OCR plugin, and a
-        // vision model pinned forever ('-1') next to a resident llama-server is how a
-        // 12 GB card ends up paging every token. 5 minutes: hot across a document
-        // batch, gone before it starves chat.
-        OLLAMA_KEEP_ALIVE: config.llamacpp.enabled ? '5m' : config.ollama.keepAlive,
+        // llama.cpp or an external server is the engine, the only Ollama user is the
+        // OCR plugin, and a vision model pinned forever ('-1') next to the engine that
+        // serves chat is how a 12 GB card ends up paging every token. 5 minutes: hot
+        // across a document batch, gone before it starves chat.
+        OLLAMA_KEEP_ALIVE: ollamaServes(config) ? config.ollama.keepAlive : '5m',
         // Context window big enough for whole-document chat — see config.contextLength.
         // 'auto' resolves AFTER Ollama is up (resolveOllamaContext probes the real
         // load), so the env seed is the proven floor; the resolved value rides
@@ -276,7 +287,7 @@ async function pullMissing(config, reachable) {
             // stale after the operator changes it. Creating from an already-present
             // source is a manifest write — cheap, no re-download.
             if (m.source) {
-                const params = Object.assign({ num_ctx: config.ollama.contextLength }, m.params || {});
+                const params = ollama.deriveParams(config, m);
                 const shown = Object.entries(params).map(([k, v]) => `${k}=${v}`).join(' ');
 
                 // A separate draft/MTP module needs the CLI and a local file path, so it
@@ -429,7 +440,7 @@ async function run(args) {
         } else {
             externalBootError = `External engine at ${config.external.baseUrl} is not answering — serving with the built-in engine instead. Start it and re-run \`lol up\` (or restart the farm) to use it.`;
             log.warn(externalBootError);
-            config.external.enabled = false;
+            logFallbackNames(engineFallback(config, 'external'));
         }
     }
 
@@ -438,7 +449,7 @@ async function run(args) {
         llamacppBootError = `No prebuilt llama.cpp for ${process.platform}/${process.arch} — serving with Ollama. ` +
             'Install llama.cpp yourself and set llamacpp.binDir to use the llama.cpp engine.';
         log.warn(llamacppBootError);
-        config.llamacpp.enabled = false;
+        logFallbackNames(engineFallback(config, 'llamacpp'));
     }
 
     // 1. Ollama
@@ -450,7 +461,7 @@ async function run(args) {
     // The interactive picker chooses what OLLAMA serves. With the llama.cpp engine
     // on, the catalog is standby inventory (nothing in it is routed), so prompting
     // "which models to serve" would promise something the run will not do.
-    if (!config.llamacpp.enabled && !config.external.enabled) {
+    if (ollamaServes(config)) {
         config.models = await selectModels(config, oll.reachable, args || []);
     }
 
@@ -799,7 +810,7 @@ async function run(args) {
                 llamacppBootError = 'llama-server crashed twice in 5 minutes.';
             }
             log.warn(`${llamacppBootError} Falling back to the OLLAMA engine.`);
-            config.llamacpp.enabled = false;
+            logFallbackNames(engineFallback(config, 'llamacpp'));
             await stopLlamacpp();
             liveHealth.engineUp = null;                // no engine to be down now
             await restartProxy();
@@ -842,7 +853,7 @@ async function run(args) {
             llamacppBootError = r.message;
             log.err(`llama.cpp backend: ${r.message}`);
             log.warn('Falling back to the OLLAMA engine for this run.');
-            config.llamacpp.enabled = false;
+            logFallbackNames(engineFallback(config, 'llamacpp'));
             await stopLlamacpp();
         }
     }
@@ -851,7 +862,7 @@ async function run(args) {
     //     so sizing would probe (and load a model) for nothing. When Ollama IS the
     //     engine — configured, unsupported platform, or boot fallback — resolve
     //     'auto' BEFORE the routing is generated so num_ctx carries the real number.
-    if (!config.llamacpp.enabled && !config.external.enabled) {
+    if (ollamaServes(config)) {
         await resolveOllamaContext((what) => log.step(`Context: ${what} …`));
     }
 
@@ -864,11 +875,19 @@ async function run(args) {
     }
     const yamlPath = writeLitellmConfig(config, undefined, peers);
     const backends = config.ollama.hosts.length + peers.length;
-    log.ok(`Generated LiteLLM routing → ${log.paint.grey(yamlPath)} (${config.models.length} model × ${config.ollama.hosts.length} host${peers.length ? ` + ${peers.length} peer` : ''} deployments)`);
-    const alias = (config.modelAlias || '').trim();
-    if (alias) {
-        const real = (config.models.find((m) => m.default) || config.models[0]).id;
-        log.ok(`Model alias: clients see ${log.paint.bold(`"${alias}"`)} → ${log.paint.bold(real)} (switch the model anytime without breaking chats)`);
+    // Name the engine that is actually routed: with llama.cpp or an external
+    // server serving, the Ollama catalog is standby and contributes no deployment.
+    const routedWhat = config.external.enabled
+        ? `external ${config.external.baseUrl}`
+        : (config.llamacpp.enabled
+            ? `llama.cpp :${config.llamacpp.port}`
+            : `${config.models.length} model × ${config.ollama.hosts.length} host`);
+    log.ok(`Generated LiteLLM routing → ${log.paint.grey(yamlPath)} (${routedWhat}${peers.length ? ` + ${peers.length} peer` : ''})`);
+    if (ollamaServes(config)) {
+        const def = servedEntries(config).find((e) => e.isDefault);
+        if (def && def.servedName !== def.underlying) {
+            log.ok(`Model alias: clients see ${log.paint.bold(`"${def.servedName}"`)} → ${log.paint.bold(def.underlying)} (switch the model anytime without breaking chats)`);
+        }
     }
 
     // 4. Start + health-wait the proxy. With the seat gate on (default), the
@@ -1200,12 +1219,13 @@ async function run(args) {
             liveHealth.plugins = pluginsSummary(services, config);
             liveHealth.clientsConnected = freshClients().length; // decay the count when pings stop
             liveHealth.perf = await samplePerf();
-            // While llama.cpp is the engine, an Ollama model left in VRAM (OCR with
-            // keep-alive) starves it — the live incident was a 12 GB card paging with
-            // both resident. Evict only when the GPU is idle and nearly full, so a
-            // running extraction or generation is never yanked mid-flight.
+            // While another engine (llama.cpp, or an external server on this box)
+            // serves, an Ollama model left in VRAM (OCR with keep-alive) starves it —
+            // the live incident was a 12 GB card paging with both resident. Evict only
+            // when the GPU is idle and nearly full, so a running extraction or
+            // generation is never yanked mid-flight.
             if (perfMod.shouldEvictOllama({
-                llamacppOn: !!(config.llamacpp.enabled && llamacppChild),
+                otherEngineOn: !ollamaServes(config),
                 vramUsedGb: liveHealth.gpu && liveHealth.gpu.vramUsedGb,
                 vramTotalGb: liveHealth.gpu && liveHealth.gpu.vramTotalGb,
                 gpuUtil: liveHealth.gpu && liveHealth.gpu.gpuUtil,
@@ -1359,6 +1379,19 @@ async function run(args) {
     const norm = (s) => String(s || '').replace(/:latest$/, '');   // gemma4 ≡ gemma4:latest
     const servedIdList = () => config.models.map((m) => m.id);
 
+    // Standby catalog edit: while llama.cpp or an external server serves, nothing in
+    // config.models is routed (litellm.js), so a change there needs no proxy restart —
+    // bouncing LiteLLM would only drop everyone's in-flight chats for nothing — and
+    // nothing may be warmed into the GPU the serving engine is using. Persist and say
+    // when it applies.
+    function standbyModels(next) {
+        config.models = next;
+        const warn = persistModels();
+        if (beacon) beacon.kick();
+        return warn;
+    }
+    const standbyNote = () => ` It is offered to clients when Ollama is the engine (${backendInfo(config, liveHealth).engine} is serving now).`;
+
     async function startModel(id) {
         id = String(id || '').trim();
         if (!id) return { ok: false, error: 'No model id.' };
@@ -1371,6 +1404,10 @@ async function run(args) {
         // the panel should serve it exactly as configured, not a degraded version.
         const known = (config.preinstall || []).find((m) => norm(m.id) === norm(id));
         const entry = known ? { ...known } : { id };
+        if (!ollamaServes(config)) {
+            const warn = standbyModels(config.models.concat([entry]));
+            return { ok: true, standby: true, message: `${id} added to the catalog.${standbyNote()}${warn || ''}`, servedModels: servedIdList(), warning: warn || null };
+        }
         if (!(await applyModels(config.models.concat([entry])))) {
             return { ok: false, error: 'The proxy did not come back — reverted to the previous model set.', servedModels: servedIdList() };
         }
@@ -1389,6 +1426,13 @@ async function run(args) {
         next.splice(idx, 1);
         // Promote a new default without mutating the shared entry object (rollback safety).
         if (removed.default && !next.some((m) => m.default)) next[0] = { ...next[0], default: true };
+        if (!ollamaServes(config)) {
+            // Standby: not routed, so no proxy bounce. Evicting is still right —
+            // it only frees VRAM for the engine that IS serving.
+            const warn = standbyModels(next);
+            for (const h of oll.reachable.filter(isLocalHost)) ollama.evictModel(h, removed.id).catch(() => {});
+            return { ok: true, standby: true, servedModels: servedIdList(), warning: warn || null };
+        }
         if (!(await applyModels(next))) {
             return { ok: false, error: 'The proxy did not come back — reverted to the previous model set.', servedModels: servedIdList() };
         }
@@ -1515,6 +1559,12 @@ async function run(args) {
         if (!target) return { ok: false, error: `"${id}" isn't a served model — start it first.`, servedModels: servedIdList() };
         if (target.default) return { ok: true, already: true, defaultModel: target.id };
         const next = config.models.map((m) => ({ ...m, default: norm(m.id) === norm(id) }));
+        if (!ollamaServes(config)) {
+            // Standby: no routing change, no warm-up, and no context probe (that is
+            // 2–4 full model loads) next to the engine that is serving.
+            const warn = standbyModels(next);
+            return { ok: true, standby: true, message: `${target.id} is the Ollama default.${standbyNote()}${warn || ''}`, defaultModel: target.id, servedModels: servedIdList(), warning: warn || null };
+        }
         if ((config.modelAlias || '').trim()) {
             // Alias mode: the alias re-binds to the new default → routing changes.
             if (!(await applyModels(next))) {
@@ -1533,7 +1583,7 @@ async function run(args) {
         // 4× past what the new model was trained on, silently degrading answers.
         // On a switch, clamp a pin that exceeds the NEW default's native max, and
         // say so; a pin below native is a legitimate choice and is kept.
-        if (!config.llamacpp.enabled && typeof config.ollama.contextLength === 'number' && !busy()) {
+        if (ollamaServes(config) && typeof config.ollama.contextLength === 'number' && !busy()) {
             const pinned = config.ollama.contextLength;
             return runJob('context', `Checking ${target.id}'s context limit`, async (progress) => {
                 const h2 = (oll.reachable || []).filter(isLocalHost)[0] || (oll.reachable || [])[0] || null;
@@ -1563,7 +1613,7 @@ async function run(args) {
         // rides the PREVIOUS model's num_ctx — a quarter window for a long-context
         // model (live case: nemotron 1M behind gemma's 262144), or a spill for a
         // heavier one. The probe warms the new model as a side effect.
-        if (!config.llamacpp.enabled && config.ollama.contextLength === 'auto' && !busy()) {
+        if (ollamaServes(config) && config.ollama.contextLength === 'auto' && !busy()) {
             return runJob('context', `Sizing the context window for ${target.id}`, async (progress) => {
                 config.ollama.contextResolved = null;
                 await resolveOllamaContext(progress);
@@ -1588,11 +1638,17 @@ async function run(args) {
     // serving, and persists.
     //
     // The two engines take it differently, and the difference is visible to users:
-    //   • llama.cpp — --ctx-size is argv AND is split across `parallel` slots, so this
-    //     reloads the model and each user gets contextLength / slots.
+    //   • llama.cpp — --ctx-size is argv, so this reloads the model. With kvUnified
+    //     (the default) the `parallel` slots share ONE pool: a person alone gets the
+    //     whole window, contextLength / slots is the floor under full contention;
+    //     kvUnified:false restores the hard split (each user gets contextLength / slots).
     //   • Ollama — num_ctx rides the generated routing, so a proxy bounce is enough and
     //     every request keeps the full window.
     function setContextLength(tokens) {
+        // An external server's window is whatever it was launched with; the farm only
+        // DECLARES it (external.contextLength). Changing Ollama's here would do nothing
+        // for chat and, under 'auto', load models into the GPU vLLM is using.
+        if (config.external.enabled) return externalRefusal();
         // 'auto' = the largest context this box can hold for the current model,
         // recomputed at every model load — the right choice on every card at once,
         // and the default. A number pins it.
@@ -1688,7 +1744,12 @@ async function run(args) {
                     await reloadLlamacpp(() => {});
                     return { ok: false, error: `${r.error} Kept ${before} tokens. A too-large window is the usual cause — it must fit in VRAM alongside the weights.` };
                 }
-                const each = config.llamacpp.parallel > 1 ? ` (${perSlot} per slot across ${config.llamacpp.parallel} slots)` : '';
+                const par = config.llamacpp.parallel;
+                const each = par > 1
+                    ? (config.llamacpp.kvUnified !== false
+                        ? `, one pool shared by ${par} slots (${perSlot} guaranteed each)`
+                        : ` (${perSlot} per slot across ${par} slots)`)
+                    : '';
                 return { ok: true, message: `Context window is ${want} tokens${each}.${overWarn}${warn || ''}` };
             });
         }
@@ -1894,27 +1955,50 @@ async function run(args) {
     function setBackend(engine) {
         const want = String(engine || '').toLowerCase();
         if (want !== 'llamacpp' && want !== 'ollama') return { ok: false, error: 'Backend must be "llamacpp" or "ollama".' };
+        // An external server owns the box: starting llama-server (or re-routing to
+        // Ollama) next to it would fight the config file and share its GPU.
+        if (config.external.enabled) return externalRefusal();
         const on = want === 'llamacpp';
         if (!!config.llamacpp.enabled === on) return { ok: true, already: true, engine: want };
         if (busy()) return busyErr();
         return runJob('backend', on ? 'Switching to llama.cpp' : 'Switching to Ollama', async (progress) => {
             // carryNameAcross MOVES the advertised name between llamacpp.alias and
-            // the global modelAlias (memory + disk). A failed switch must put BOTH
-            // back — restoring only `enabled` used to leave modelAlias nulled on
-            // disk, so the recovered Ollama routing served raw ids and every chat
-            // bound to the alias broke, surviving reboots.
-            const before = {
+            // the Ollama default's name (its own alias, or the global modelAlias),
+            // in memory and on disk. A failed switch must put ALL of it back —
+            // restoring only `enabled` used to leave modelAlias nulled on disk, so
+            // the recovered Ollama routing served raw ids and every chat bound to the
+            // alias broke, surviving reboots. Memory goes back to what it was (a
+            // fallback's in-memory names included); the FILE goes back to exactly
+            // what it held, so a fallback's names are never written by a rollback.
+            const defEntry = defaultModelEntry(config);
+            const memBefore = {
                 lcAlias: config.llamacpp.alias,
-                globalAlias: config.modelAlias || null,
+                modelAlias: config.modelAlias ?? null,
+                defAlias: defEntry ? defEntry.alias : undefined,
             };
+            const rawBefore = readRawConfig(configPath);
+            const diskBefore = rawBefore && JSON.parse(JSON.stringify({
+                lc: rawBefore.llamacpp && 'alias' in rawBefore.llamacpp ? { v: rawBefore.llamacpp.alias } : null,
+                modelAlias: 'modelAlias' in rawBefore ? { v: rawBefore.modelAlias } : null,
+                models: 'models' in rawBefore ? { v: rawBefore.models } : null,
+            }));
             const restoreNames = () => {
-                config.llamacpp.alias = before.lcAlias;
-                config.modelAlias = before.globalAlias;
-                persistLlamacpp({ alias: before.lcAlias });
-                patchConfigFile(configPath, (raw) => { raw.modelAlias = before.globalAlias; return raw; });
+                config.llamacpp.alias = memBefore.lcAlias;
+                config.modelAlias = memBefore.modelAlias;
+                if (defEntry) { if (memBefore.defAlias) defEntry.alias = memBefore.defAlias; else delete defEntry.alias; }
+                if (!diskBefore) return;
+                patchConfigFile(configPath, (raw) => {
+                    raw.llamacpp = { ...(raw.llamacpp || {}) };
+                    if (diskBefore.lc) raw.llamacpp.alias = diskBefore.lc.v; else delete raw.llamacpp.alias;
+                    if (diskBefore.modelAlias) raw.modelAlias = diskBefore.modelAlias.v; else delete raw.modelAlias;
+                    if (diskBefore.models) raw.models = diskBefore.models.v; else delete raw.models;
+                    return raw;
+                });
             };
             const warn = persistLlamacpp({ enabled: on });
-            carryNameAcross(on);
+            const plan = carryNameAcross(config, on);
+            applyNamePlan(config, plan);
+            persistNamePlan(plan);
             if (on) {
                 const r = await startLlamacpp(progress);
                 if (!r.ok) {
@@ -1950,26 +2034,33 @@ async function run(args) {
         });
     }
 
-    // Carry the advertised name across a backend switch. The two engines keep it on
-    // different keys — llama.cpp on `llamacpp.alias`, Ollama on the global `modelAlias` —
-    // and that name IS the model id clients bind to, so without this a switch silently
-    // renames the model and every open chat asks its user to re-pick.
-    //
-    // Going TO llama.cpp we also clear `modelAlias`: it would then collide with
-    // `llamacpp.alias`, and a colliding Ollama deployment is skipped in the generated
-    // routing — the operator would lose that model from the picker without being told.
-    function carryNameAcross(toLlamacpp) {
-        const global = (config.modelAlias || '').trim();
-        if (toLlamacpp) {
-            if (global && global !== config.llamacpp.alias) persistLlamacpp({ alias: global });
-            if (global) {
-                config.modelAlias = null;
-                patchConfigFile(configPath, (raw) => { raw.modelAlias = null; return raw; });
-            }
-        } else if (config.llamacpp.alias && config.llamacpp.alias !== global) {
-            config.modelAlias = config.llamacpp.alias;
-            patchConfigFile(configPath, (raw) => { raw.modelAlias = config.llamacpp.alias; return raw; });
-        }
+    // Persist a name plan from carryNameAcross (litellm.js — the pure half, where the
+    // rule and its tests live). Only an operator's engine SWITCH persists names; a
+    // fallback applies its plan in memory only (engineFallback).
+    function persistNamePlan(plan) {
+        if ('llamacppAlias' in plan) persist('llamacpp', { alias: plan.llamacppAlias });
+        if ('modelAlias' in plan) patchConfigFile(configPath, (raw) => { raw.modelAlias = plan.modelAlias; return raw; });
+        if ('defaultAlias' in plan) persistModels();
+    }
+
+    // A llama.cpp rename also renames the standby Ollama default when that default
+    // carries its OWN alias (carried there by an earlier switch): a switch back — or a
+    // crash fallback, which keeps an operator's own Ollama name — would otherwise serve
+    // the stale one. Returns an undo for the rename's rollback path.
+    function syncStandbyDefaultName(name) {
+        const def = defaultModelEntry(config);
+        const prev = def && (def.alias || '').trim();
+        if (!def || !prev || prev === name) return () => {};
+        if (config.models.some((m) => m !== def && ((m.alias || '').trim() || m.id) === name)) return () => {};
+        def.alias = name;
+        persistModels();
+        return () => { def.alias = prev; persistModels(); };
+    }
+
+    // The refusal every engine knob gives while an operator-run external server
+    // serves: its model, window and concurrency are its own, declared in the file.
+    function externalRefusal() {
+        return { ok: false, error: 'An external server is serving — set external.* in lol.config.json and restart the farm.' };
     }
 
     // Swap the .gguf llama-server loads: either a library entry (`id`) or any .gguf URL
@@ -2074,14 +2165,19 @@ async function run(args) {
         return { ok: true, library: lib, warning: warn || null };
     }
 
-    // How many people this box serves AT ONCE. On llama.cpp this is --parallel, and
-    // --ctx-size is SPLIT across the slots (verified: 16384 / 2 -> n_ctx_slot 8192), so
-    // the caller is told what each user's context becomes. On Ollama it is
+    // How many people this box serves AT ONCE. On llama.cpp this is --parallel; the
+    // slots share one --ctx-size pool under kvUnified (the default — contextLength /
+    // slots is then the guaranteed floor), or split it hard with kvUnified:false
+    // (verified: 16384 / 2 -> n_ctx_slot 8192), and the caller is told which. On Ollama it is
     // OLLAMA_NUM_PARALLEL, which only applies to an Ollama this CLI starts — so there it
     // needs a farm restart, not a proxy bounce, and we say so instead of pretending.
     function setSlots(count) {
         const want = Math.round(Number(count));
         if (!Number.isFinite(want) || want < 1 || want > 16) return { ok: false, error: 'Slots must be between 1 and 16.' };
+        // An external server's concurrency is its own (external.parallel only
+        // DECLARES it). Writing ollama.numParallel here reported success for a change
+        // that did nothing while the seats kept using external.parallel.
+        if (config.external.enabled) return externalRefusal();
         if (busy()) return busyErr();
         if (!config.llamacpp.enabled) {
             config.ollama.numParallel = want;
@@ -2106,7 +2202,12 @@ async function run(args) {
                 await reloadLlamacpp(() => {});
                 return { ok: false, error: `${r.error} Kept ${before} slot(s).` };
             }
-            return { ok: true, message: `${want} slot(s), ${perSlot} tokens of context each.${warn || ''}` };
+            return {
+                ok: true,
+                message: config.llamacpp.kvUnified !== false
+                    ? `${want} slot(s) sharing one ${ctxNum}-token context pool (${perSlot} guaranteed each).${warn || ''}`
+                    : `${want} slot(s), ${perSlot} tokens of context each.${warn || ''}`,
+            };
         });
     }
 
@@ -2114,6 +2215,8 @@ async function run(args) {
     // a picker displays, so this is the served alias, not a cosmetic label — which is
     // also why renaming asks existing chats to re-select the model.
     function setAdvertisedName(name) {
+        // The external engine's name is external.alias in the config file.
+        if (config.external.enabled) return externalRefusal();
         if (busy()) return busyErr();
         const clean = String(name == null ? '' : name).replace(/[\r\n\t]/g, ' ').trim().slice(0, 48);
         if (!clean) return { ok: false, error: 'Give the model a name.' };
@@ -2122,10 +2225,13 @@ async function run(args) {
             // Ollama side: the global alias re-binds the routing; no model reload needed.
             if (clean === (config.modelAlias || '')) return { ok: true, already: true, name: clean };
             const before = config.modelAlias;
+            // The file's own value (memory may hold a fallback's name — never write it).
+            const rawBefore = readRawConfig(configPath) || {};
+            const diskAlias = 'modelAlias' in rawBefore ? { v: rawBefore.modelAlias } : null;
             // A per-model alias on the DEFAULT model outranks modelAlias in the
             // routing (servedEntries), so left in place it would silently swallow
             // this rename. The most recent action wins: clear it.
-            const defEntry = config.models.find((m) => m.default) || config.models[0];
+            const defEntry = defaultModelEntry(config);
             const defAliasBefore = defEntry && (defEntry.alias || '').trim() || null;
             if (defEntry && defAliasBefore) delete defEntry.alias;
             config.modelAlias = clean;
@@ -2137,7 +2243,10 @@ async function run(args) {
                     if (defEntry && defAliasBefore) { defEntry.alias = defAliasBefore; persistModels(); }
                     // Revert the FILE too — memory and disk disagreeing until the next
                     // reboot is how names silently change overnight.
-                    patchConfigFile(configPath, (raw) => { raw.modelAlias = before; return raw; });
+                    patchConfigFile(configPath, (raw) => {
+                        if (diskAlias) raw.modelAlias = diskAlias.v; else delete raw.modelAlias;
+                        return raw;
+                    });
                     await restartProxy();
                     return { ok: false, error: 'The proxy did not come back — kept the previous name.' };
                 }
@@ -2149,9 +2258,11 @@ async function run(args) {
         const before = config.llamacpp.alias;
         return runJob('name', `Renaming the model to "${clean}"`, async (progress) => {
             const warn = persistLlamacpp({ alias: clean });
+            const unsync = syncStandbyDefaultName(clean);
             const r = await reloadLlamacpp(progress);
             if (!r.ok) {
                 persistLlamacpp({ alias: before });
+                unsync();
                 await reloadLlamacpp(() => {});
                 return { ok: false, error: `${r.error} Kept the previous name.` };
             }
@@ -2168,22 +2279,33 @@ async function run(args) {
         if (busy()) return busyErr();
         const entry = config.models.find((m) => norm(m.id) === norm(id));
         if (!entry) return { ok: false, error: `"${id}" is not in the served catalog — Offer it first.` };
+        const isDefault = entry === defaultModelEntry(config);
+        // While llama.cpp serves, the Ollama DEFAULT's name is not its own: a switch
+        // back gives it llama.cpp's name (carryNameAcross) so bound chats keep working.
+        // A standby rename here would be silently overwritten — say where it lives.
+        if (config.llamacpp.enabled && isDefault) {
+            return { ok: false, error: `${entry.id} is the Ollama default — on a switch back to Ollama it takes the name llama.cpp serves ("${config.llamacpp.alias}"). Rename it under Backend ▸ Name users see.` };
+        }
         const clean = String(alias == null ? '' : alias).replace(/[\r\n\t]/g, ' ').trim().slice(0, 48) || null;
         if (clean && NAME_BAD_RX.test(clean)) return { ok: false, error: 'Use letters, numbers, spaces and . - + : only.' };
         if (clean) {
             // The name IS the id clients request — a duplicate silently merges two
-            // models into one route (the alias-hygiene rule, enforced here).
+            // models into one route (the alias-hygiene rule, enforced here). The
+            // serving engine's name is reserved for the default: it is what the
+            // default carries back on a switch or a fallback.
             const taken = config.models.some((m) => m !== entry && ((m.alias || '').trim() || m.id) === clean)
                 || (config.llamacpp.enabled && clean === config.llamacpp.alias)
-                || (!entry.default && clean === (config.modelAlias || '').trim());
+                || (config.external.enabled && !isDefault && clean === config.external.alias)
+                || (!isDefault && clean === (config.modelAlias || '').trim());
             if (taken) return { ok: false, error: `"${clean}" is already another model's name.` };
         }
         if (((entry.alias || '').trim() || null) === clean) return { ok: true, already: true };
         const before = (entry.alias || '').trim() || null;
         const apply = (v) => { if (v) entry.alias = v; else delete entry.alias; };
-        // Standby catalog (llama.cpp serving): nothing here is routed, so persist
-        // without bouncing the proxy — the name applies on the next engine switch.
-        if (config.llamacpp.enabled) {
+        // Standby catalog (llama.cpp or an external server serving): nothing here is
+        // routed, so persist without bouncing the proxy — the name applies when
+        // Ollama is the engine again.
+        if (!ollamaServes(config)) {
             apply(clean);
             const warn = persistModels();
             if (beacon) beacon.kick();
@@ -2238,6 +2360,12 @@ async function run(args) {
     // flow). `password` here only SETS — clearing keeps its own confirmed control.
     function applyFarmSettings(body = {}) {
         if (busy()) return busyErr();
+        // Under an external server only the password applies (it gates the farm's own
+        // proxy); name, slots and context are that server's, declared in the file.
+        if (config.external.enabled
+            && ((body.name != null && String(body.name).trim() !== '') || body.slots != null || body.context != null)) {
+            return externalRefusal();
+        }
         const lcMode = !!config.llamacpp.enabled;
         // Validate everything BEFORE touching anything; normalize no-ops to null.
         let name = null;
@@ -2286,6 +2414,7 @@ async function run(args) {
                 if (context != null) { patch.contextLength = context; applied.push(context === 'auto' ? 'context automatic' : `context ${context}`); }
                 if (password !== undefined) { config.proxy.masterKey = password; persist('proxy', { masterKey: password }); applied.push('password set'); }
                 if (Object.keys(patch).length) persistLlamacpp(patch);
+                const unsync = name != null ? syncStandbyDefaultName(name) : () => {};
                 let ok, err;
                 if (Object.keys(patch).length) {
                     const r = await reloadLlamacpp(progress);   // reload covers alias/slots/ctx AND bounces the proxy (password rides along)
@@ -2295,6 +2424,7 @@ async function run(args) {
                 }
                 if (!ok) {
                     persistLlamacpp(beforeLc);
+                    unsync();
                     config.proxy.masterKey = beforePw;
                     persist('proxy', { masterKey: beforePw ?? undefined });
                     if (Object.keys(patch).length) await reloadLlamacpp(() => {}); else await restartProxy();
@@ -2309,7 +2439,11 @@ async function run(args) {
                 cl: config.ollama.contextLength, res: config.ollama.contextResolved ?? null,
                 pw: config.proxy.masterKey || null,
             };
-            const defEntry = config.models.find((m) => m.default) || config.models[0];
+            // What the FILE held, so a rollback restores the file exactly — memory can
+            // carry a fallback's name (engineFallback) that must never be written.
+            const rawBefore = readRawConfig(configPath) || {};
+            const diskAlias = 'modelAlias' in rawBefore ? { v: rawBefore.modelAlias } : null;
+            const defEntry = defaultModelEntry(config);
             const defAliasBefore = (defEntry && (defEntry.alias || '').trim()) || null;
             let needsFarmRestart = false;
             if (name != null) {
@@ -2343,16 +2477,29 @@ async function run(args) {
             }
             progress('reloading routing', null);
             if (!(await restartProxy())) {
-                config.modelAlias = before.modelAlias;
-                if (defEntry && defAliasBefore) { defEntry.alias = defAliasBefore; persistModels(); }
-                patchConfigFile(configPath, (raw) => { raw.modelAlias = before.modelAlias; return raw; });
-                config.ollama.numParallel = before.numParallel;
-                persist('ollama', { numParallel: before.numParallel });
-                config.proxy.masterKey = before.pw;
-                persist('proxy', { masterKey: before.pw ?? undefined });
-                config.ollama.contextLength = before.cl;
-                config.ollama.contextResolved = before.res;
-                persist('ollama', { contextLength: before.cl });
+                // Revert only what this Apply changed: writing untouched values back
+                // would freeze today's defaults into the operator's file.
+                if (name != null) {
+                    config.modelAlias = before.modelAlias;
+                    if (defEntry && defAliasBefore) { defEntry.alias = defAliasBefore; persistModels(); }
+                    patchConfigFile(configPath, (raw) => {
+                        if (diskAlias) raw.modelAlias = diskAlias.v; else delete raw.modelAlias;
+                        return raw;
+                    });
+                }
+                if (slots != null) {
+                    config.ollama.numParallel = before.numParallel;
+                    persist('ollama', { numParallel: before.numParallel });
+                }
+                if (password !== undefined) {
+                    config.proxy.masterKey = before.pw;
+                    persist('proxy', { masterKey: before.pw ?? undefined });
+                }
+                if (context != null) {
+                    config.ollama.contextLength = before.cl;
+                    config.ollama.contextResolved = before.res;
+                    persist('ollama', { contextLength: before.cl });
+                }
                 await restartProxy();
                 return { ok: false, error: 'The proxy did not come back — reverted everything.' };
             }
@@ -2405,7 +2552,7 @@ async function run(args) {
                     // Ollama's registry refuses split GGUF repos outright — point the
                     // operator at the path that CAN serve them instead of dead-ending.
                     const hint = /sharded/i.test(failed)
-                        ? ' This repo is a SPLIT .gguf, which Ollama cannot pull. Use Model · llama.cpp ▸ Add a model with the file\'s download URL instead — the farm fetches all parts.'
+                        ? ' This repo is a SPLIT .gguf, which Ollama cannot pull. Switch Backend to llama.cpp first, then use Model · llama.cpp ▸ Add a model with the file\'s download URL — the farm fetches all parts.'
                         : '';
                     return { ok: false, error: `Could not pull "${want}": ${failed}${hint}` };
                 }
@@ -2414,6 +2561,16 @@ async function run(args) {
             // is not what anyone means by adding a model. This restarts the proxy, so
             // say so: it is the several-second tail an operator otherwise reads as a
             // hang right after the bar hits 100%.
+            // Standby (llama.cpp or an external server serving): the catalog is not
+            // routed, so the routing would come out identical — a proxy restart would
+            // only drop everyone's in-flight chats (502 while LiteLLM comes back), and a
+            // keep_alive -1 warm-up would pin the model next to the serving engine.
+            if (!ollamaServes(config)) {
+                progress('adding it to the catalog', null);
+                const known = config.models.some((m) => norm(m.id) === norm(want));
+                const warnS = known ? null : standbyModels(config.models.concat([{ id: want }]));
+                return { ok: true, standby: true, message: `${want} downloaded to this box.${standbyNote()}${warnS || ''}` };
+            }
             progress('adding it to the served models', null);
             if (!config.models.some((m) => norm(m.id) === norm(want))) {
                 if (!(await applyModels(config.models.concat([{ id: want }])))) {

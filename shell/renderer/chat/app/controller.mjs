@@ -245,16 +245,60 @@ export function createController(app) {
     };
   }
 
-  /** A local answer (busy / missing password): finalize, show, never a request. */
-  async function localNote(target, { status, content, error }) {
-    target.status = status;
-    if (content != null) target.content = content;
-    if (error !== undefined) target.error = error;
+  /**
+   * A local answer (busy / missing password / no farm): never a request.
+   *
+   * A NEW reply row becomes the note: finalize, show. A generation INTO an existing message is a
+   * different thing, because that message already holds text that belongs to the reader (docs
+   * review SA-8): a Continue that cannot run used to overwrite the partial answer with the busy
+   * sentence (or with '') and finalize it to IndexedDB — the text the reader wanted to continue
+   * was gone. Now:
+   *   - Continue (`mode: 'continue'`): the message is not touched at all — it stays continuable —
+   *     and the reason is a toast;
+   *   - any other `into` (the seat wait's resend): content and reasoning stay, the reason goes in
+   *     `error`, and the row leaves 'waiting'.
+   * Either way STREAM_END is emitted once the row is settled, so a feature waiting on this message
+   * (the seat wait, which only lets go on STREAM_END) is released instead of holding the composer
+   * until Stop (SA-10).
+   * @param {any} target @param {{into: boolean, mode: string}} how
+   * @param {{status: string, content: string|null, error: any}} note
+   */
+  async function localNote(target, how, { status, content, error }) {
+    if (how.into && how.mode === 'continue' && target.status !== 'waiting') {
+      const why = (error && error.message) || content || '';
+      if (why) toast(why);
+      return null;
+    }
+    // A seat wait's resend of a Continue lands here too (status 'waiting'): the partial answer
+    // stays, but the row must still leave 'waiting' and STREAM_END must fire (SA-10).
+    if (how.into) {
+      target.status = 'error';
+      target.error = error || { kind: 'busy', code: null, message: content || '', retryAfter: null };
+    } else {
+      target.status = status;
+      if (content != null) target.content = content;
+      if (error !== undefined) target.error = error;
+    }
     target.updatedAt = app.now();
     if (!target.reasoning) target.reasoning = null;
     await repo().finalize(target);
     if (app.view && onScreen(target.threadId)) app.view.upsert(target);
+    app.bus.emit(EV.STREAM_END, { message: target, result: { status: target.status, error: target.error || null, local: true } });
     return null;
+  }
+
+  /**
+   * Hand the caret back to the composer after a reply — but only if the reader was not busy
+   * somewhere else. Focusing unconditionally committed a half-typed sidebar rename (it saves on
+   * blur) and yanked the caret out of search, the inline editor and the system-prompt popover
+   * (docs review SA-12).
+   */
+  function composerMayTakeFocus() {
+    if (typeof document === 'undefined') return true;
+    const el = document.activeElement;
+    if (!el || el === document.body) return true;
+    const els = app.els || /** @type {any} */ ({});
+    return el === els.input || el === els.send || el === els.stop;
   }
 
   const api = {
@@ -383,6 +427,7 @@ export function createController(app) {
         const info = model && app.farm.modelInfo ? app.farm.modelInfo(model) : null;
 
         target = o.into || null;
+        const how = { into: !!o.into, mode };
         if (!target) {
           target = repo().appendMessage(threadId, {
             role: 'assistant',
@@ -398,14 +443,14 @@ export function createController(app) {
         // The farm is switching model/backend: answer with the reason instead of a network error.
         if (c.busy && c.busy.label) {
           const percent = c.busy.percent != null ? t('core.busyPercent', { percent: c.busy.percent }) : '';
-          return await localNote(target, {
+          return await localNote(target, how, {
             status: 'local',
             content: t('core.busyNote', { label: c.busy.label, percent }),
             error: null,
           });
         }
         if (c.keyMissing) {
-          return await localNote(target, {
+          return await localNote(target, how, {
             status: 'error',
             content: '',
             error: { kind: 'key_missing', code: null, message: t('composer.keyMissingNote'), retryAfter: null },
@@ -415,7 +460,7 @@ export function createController(app) {
         // which resolves against file:// and fails — the row then blamed the network while the
         // picker, correctly, read "no farm".
         if (!c.present || !c.baseUrl) {
-          return await localNote(target, {
+          return await localNote(target, how, {
             status: 'error',
             content: '',
             error: { kind: 'network', code: null, message: t('composer.noFarmNote'), retryAfter: null },
@@ -570,7 +615,7 @@ export function createController(app) {
           let handled = false;
           for (const handler of list(SLOTS.ERROR_HANDLERS)) {
             try {
-              if (await handler.handle(out.error, target, app)) { handled = true; break; }
+              if (await handler.handle(out.error, target, app, { mode })) { handled = true; break; }
             } catch (err) {
               console.warn(`[lolchat] error handler "${handler.id}" threw`, err);
             }
@@ -647,7 +692,7 @@ export function createController(app) {
         // then offered a button whose own doSubmit refuses, with Stop hidden.
         if (app.composer) {
           app.composer.setBusy(app.gov ? app.gov.state().foreground !== 'idle' : false);
-          app.composer.focus();
+          if (composerMayTakeFocus()) app.composer.focus();
         }
         if (inflight) { const f = inflight; inflight = null; f.done(); }
       }

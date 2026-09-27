@@ -33,8 +33,8 @@ you don't forget.
     computer-2026-09-24_21-15-03-mark-1.png     the screenshot for marker 1
 ```
 
-That is `C:\Users\<you>\AppData\Roaming\LlmOnLan\logs\computer\`. A dev run (`npx electron .`) and
-the installed client write to the same folder.
+That is `C:\Users\<you>\AppData\Roaming\LlmOnLan\logs\computer\`. A dev run
+(`npm run dev` in `shell/`) and the installed client write to the same folder.
 
 Limits, so a switch left on can't fill the disk:
 - **25 MB per file.** At the limit, one last line says so, the recording stops and a toast tells you.
@@ -58,26 +58,33 @@ carries a `readme` with this same key, so a file explains itself.
 | kind | what |
 |---|---|
 | `log.start`, `log.main` | Header: when, which build, the window, the theme. Then what only the main process knows: app / Electron / Chrome versions, OS, CPU count, RAM |
+| `log.live` | The switch went on: why, how many backlog lines were written first, and the file's path |
+| `log.attached` | The recorder found the host and the runner, and names any module that failed to load |
+| `log.error` | The main process refused to start the file (with its code and message) |
 | `snap` | The whole state when the recording started: farm (keys redacted), store mode, runner state, the open graph, the sandbox, what is waiting, modules that failed to load |
 | `ui.click` `ui.dblclick` `ui.menu` `ui.auxclick` `ui.key` `ui.drag` `ui.wheel` `ui.drop` `ui.paste` `ui.change` `ui.edit` | What you did, while the Computer was on screen (`ui.auxclick` is a middle-button click; a right-click is `ui.menu`). The **target** is named in words: the element, the one or two boxes around it, the part id and type, the wire, the port, and the button label you saw |
 | `ui.toast` `ui.prompt` `ui.confirm` (+ `.answer`) | What you were told, and what you answered |
 | `doc.open` `doc.edit` `doc.select` `doc.view` | A graph opened (the whole document). Each edit says what changed: parts added / removed / moved / resized, settings with their new values, wires added / removed, labels, the title. Also undo / redo |
 | `run.start` `run.part` `run.end` `run.capped` `run.parked` … | The runner: the plan, every part's state change (with the value for small graphs, the error for a failed part), the end report |
-| `http.req` `http.res` `http.body` `http.fail` | Every request the page makes and its answer. For a chat request: the model, each message's role and clipped text, and picture sizes (never the bytes). A failing answer's body is included. The farm's `/models` poll is logged once a minute unless it fails. The same request repeated in a burst (a fan-out) is written 20 times per 10 s, and the rest are counted in `http.quieted`. Failures are always written |
+| `http.req` `http.res` `http.body` `http.fail` `http.quieted` | Every request the page makes and its answer. For a chat request: the model, each message's role and clipped text, and picture sizes (never the bytes). A failing answer's body is included. The farm's `/models` poll is logged once a minute unless it fails. The same request repeated in a burst (a fan-out) is written 20 times per 10 s, and the rest are counted in `http.quieted`. Failures are always written |
 | `err.uncaught` `err.rejection` `err.resource` `err.csp` `err.store` | Runtime errors, with message, file:line and stack |
 | `con.error` `con.warn` `con.info` `con.log` | The console |
-| `sbx.state` `sbx.error` `sbx.log` `sbx.log-dropped` `sbx.gone` | The sandbox that runs p5 / three / HTML: its state, the guest's errors and console (20 lines/s; the lines over that are counted in one `sbx.log-dropped` per second) |
+| `sbx.state` `sbx.error` `sbx.log` `sbx.log-dropped` `sbx.gone` `sbx.note` | The sandbox that runs p5 / three / HTML: its state, the guest's errors and console (20 lines/s; the lines over that are counted in one `sbx.log-dropped` per second), and its own notices with their level and words (`sbx.note`: a restarted sketch, the pause after three stalls, a library that did not load) |
 | `bus.farm` `bus.gov` `bus.visible` `bus.store` | The farm changed, the seat governor changed, the Computer was shown or hidden |
 | `perf.frame` | A frame longer than 100 ms, with the three scripts that took longest (file, function, what invoked them). Only while recording: watching frames costs a little on every frame, so an idle recorder does not |
 | `mark` `mark.cancelled` | A bug marked by hand: the note, the screenshot, the whole state and graph, the last run. If the note box is cancelled, no marker is saved: one `mark.cancelled` line names the screenshot already on disk |
-| `main.renderer-gone` `main.unresponsive` `main.responsive` | Written by the main process when the page crashed or hung, which the page cannot report itself |
+| `main.renderer-gone` `main.unresponsive` `main.responsive` `main.preload-error` | Written by the main process when the page crashed or hung, or its preload script failed, which the page cannot report itself |
 | `log.pagehide` `log.stop` `log.full` `log.end` | How the file ended (`log.full` is the main process's line at the 25 MB limit; `log.end` is its last line) |
 
 ## What is never in a file
 
-- **The farm password and the OCR key.** Any field named like a key, token, password, secret,
-  cookie or authorization is written as `[redacted]`, and so is any `Bearer …` string. No request
-  header is logged except the file name an OCR upload carries.
+- **The farm password and the OCR key.** Any field whose name is exactly one of authorization,
+  cookie, set-cookie, password, passwd, secret, client_secret, token, access_token, refresh_token,
+  bearer, key, api_key/apiKey, x-api-key, master_key or farm_key (any case; the underscore is
+  optional) is written as `[redacted]` — the farm password lives in `caps.apiKey` and the OCR key in
+  `ocr.key`, both covered — and so is any `Bearer …` string. A field whose name only *contains* one of
+  these (`adminToken`, say) is not redacted by name. No request header is logged except the file
+  name an OCR upload carries.
 - **What you type in a password field**: no value, no length and no key (AltGr characters
   included). Other fields are summarised once per edit, not per keystroke. The value is clipped to
   600 characters.

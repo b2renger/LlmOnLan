@@ -430,6 +430,29 @@ export default (test) => {
     } finally { calls.restore(); }
   });
 
+  test('fork of a TEMPORARY chat: its attachment copies stay in memory, never in IndexedDB', async () => {
+    // Docs review (latent, under SA-16): the copies used to be written BEFORE createThread() had
+    // registered the fork as ephemeral, so they went to the persistent store.
+    const { app, controller, branching } = await makeWorld();
+    const backend = createMemoryBackend({ kind: 'idb' });
+    app.repo = openRepoSync({ openPersistent: () => backend, bus: app.bus, now: app.now, newId: app.newId });
+    await app.repo.ready;
+    const calls = stubFetch('answer');
+    try {
+      const thread = controller.newThread({ ephemeral: true });
+      const attId = await app.repo.putAttachment({ threadId: thread.id, name: 'a.txt', mime: 'text/plain', size: 3, sha256: 'abc', text: 'hey', status: 'ready' });
+      app.repo.appendMessage(thread.id, { role: 'user', content: 'q1', status: 'done', parts: [{ type: 'doc', attId, pages: null }] });
+      await settle();
+      const answer = await sendTurn(app, controller, 'q2');
+      const forked = await branching.fork(answer);
+      await settle();
+      await app.repo.flush();
+      assert.equal(forked.ephemeral, true);
+      assert.equal((await app.repo.listAttachments(forked.id)).length, 1, 'the fork has its copy for the session');
+      assert.deepEqual(await backend.getAll('attachments'), [], 'and nothing of either temporary chat reached the disk');
+    } finally { calls.restore(); }
+  });
+
   test('deleteSubtree: confirmed, the branch goes and the head is repaired', async () => {
     const { app, controller, branching, confirms, view } = await makeWorld();
     const calls = stubFetch('answer');

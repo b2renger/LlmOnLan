@@ -16,6 +16,9 @@ import { readFileSync } from 'node:fs';
 import {
   exportThreads, parseImport, threadToMarkdown, LOLCHAT_FORMAT,
 } from '../../../renderer/chat/app/transfer-format.mjs';
+import { importFromText } from '../../../renderer/chat/ui/transfer.mjs';
+import { createBus } from '../../../renderer/chat/core/events.mjs';
+import '../../../renderer/chat/strings/library.en.mjs';
 
 const FIXTURES = new URL('../fixtures/transfer/', import.meta.url);
 const fixture = (/** @type {string} */ name) => readFileSync(new URL(name, FIXTURES), 'utf8');
@@ -253,6 +256,34 @@ export default (test) => {
     const r = parseImport(fixture('wrong-version.lolchat.json'), { newId: minter('a') });
     assert.deepEqual(r.threads, []);
     assert.match(r.errors[0], /unsupported export version: 2/);
+  });
+
+  test('B-9 transfer: a Computer graph picked by mistake is named, not "unsupported version: undefined"', async () => {
+    const graph = parseImport(JSON.stringify({ lolgraph: 2, title: 'sketch', nodes: [], edges: [] }), { newId: minter('a') });
+    assert.deepEqual(graph.threads, []);
+    assert.equal(graph.errors.length, 1);
+    assert.match(graph.errors[0], /a \.lolgraph\.json is a Computer graph; open it from the Computer/);
+    assert.doesNotMatch(graph.errors[0], /undefined/);
+    const other = parseImport(JSON.stringify({ hello: 'world' }), { newId: minter('a') });
+    assert.match(other.errors[0], /not a LOL Chat export/);
+    assert.doesNotMatch(other.errors[0], /undefined/);
+  });
+
+  test('B-10 transfer: importing ONE chat says "Imported 1 chat"', async () => {
+    const file = JSON.parse(fixture('two-threads.lolchat.json'));
+    const keep = file.threads[0];
+    file.threads = [keep];
+    file.messages = (file.messages || []).filter((m) => m.threadId === keep.id);
+    file.attachments = (file.attachments || []).filter((a) => a.threadId === keep.id);
+    const toasts = [];
+    const app = /** @type {any} */ ({
+      now: () => 1_789_000_000_000, rng: Math.random, bus: createBus(),
+      repo: { runTx: async (_stores, _mode, fn) => fn({ put: async () => {} }) },
+      dialogs: { toast: (text) => toasts.push(text), confirm: async () => true },
+    });
+    const r = await importFromText(app, JSON.stringify(file), { select: false });
+    assert.equal(r.threads, 1);
+    assert.equal(toasts[0], 'Imported 1 chat');
   });
 
   test('transfer: a file whose chats are all unusable writes nothing', async () => {

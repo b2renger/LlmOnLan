@@ -28,7 +28,7 @@ import { SLOTS } from '../core/registry.mjs';
 import { t } from '../core/i18n.mjs';
 import { hash } from '../core/ids.mjs';
 import { KV_KEYS } from '../core/types.mjs';
-import { calibrate, estimateMessage, promptChars, DEFAULT_RATIO } from '../ctx/tokens.mjs';
+import { calibrateFromSample, calibrationSample, estimateMessage, DEFAULT_RATIO } from '../ctx/tokens.mjs';
 import { trustedBudget, reserveFor, planTrim, gateVerdict, DEFAULT_GATE_THRESHOLD } from '../ctx/budget.mjs';
 import { createMeter } from '../ui/meter.mjs';
 import '../strings/context.en.mjs';
@@ -200,7 +200,9 @@ export function install(app) {
       if (!ctx || ctx.preview !== true) {
         // A REAL send: remember what we put on the wire so the reply's usage can calibrate, and
         // publish the numbers ourselves — controller.preview() is the only other emitter (§2.6 AM).
-        lastSent = { chars: promptChars(req), model, underlying };
+        // A SAMPLE, not a raw character count: the template overhead is taken off before the
+        // ratio moves, and short or image-carrying requests teach it nothing (SA-11).
+        lastSent = { sample: calibrationSample(req), model, underlying };
         app.bus.emit(EV.REQUEST_PREVIEW, { request: req });
       }
     },
@@ -315,11 +317,14 @@ export function install(app) {
     const promptTokens = usage ? num(usage.prompt_tokens, 0) : 0;
     if (promptTokens > 0) {
       const underlying = (msg && msg.underlying) || (sent && sent.underlying) || null;
-      const chars = sent ? sent.chars : 0;
-      if (underlying && chars > 0) {
-        const next = calibrate(ratios.get(underlying) ?? DEFAULT_RATIO, chars, promptTokens);
-        ratios.set(underlying, next);
-        write(KV_KEYS.tokRatio(underlying), next);
+      const sample = sent ? sent.sample : null;
+      if (underlying && sample) {
+        const prev = ratios.get(underlying) ?? DEFAULT_RATIO;
+        const next = calibrateFromSample(prev, sample, promptTokens);
+        if (next !== prev) {
+          ratios.set(underlying, next);
+          write(KV_KEYS.tokRatio(underlying), next);
+        }
       }
       // The gate's "seconds" is PREFILL time: prompt tokens over the time to the first token.
       const ttftMs = num(result && result.ttftMs, 0);

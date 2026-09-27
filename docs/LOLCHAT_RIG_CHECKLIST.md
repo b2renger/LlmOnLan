@@ -52,7 +52,8 @@ farm.
 
 ## 1. Upgrade and migration (laptop A, v0.1.45 → vNext)
 - [ ] Auto-update (or install) the vNext build over v0.1.45. **Expected:** the app opens on Open WebUI
-      as before; the topbar toggle still reads "Open WebUI"/"LOL Chat".
+      as before; the topbar's three-way switch reads "Open WebUI" / "LOL Chat" / "Computer", and a
+      relaunch opens on the surface you last used.
 - [ ] **(C-21)** **Packaged build loads the modules** (`.mjs` inside `app.asar`, DISCUSS D-P3; static imports
       AND the dynamic `import()` loader both passed a synthetic packed-asar probe at the P0 landing, under
       the shipping CSP — re-runnable at any time with `node shell/test/asar-probe.js`, which exits
@@ -66,15 +67,15 @@ farm.
       header and a Copy button; reasoning panels are collapsed.
 - [ ] Quit and reopen, then toggle again. **Expected:** no duplicate threads.
 - [ ] Settings (gear, bottom of the sidebar) → Storage. **Expected:** mode "saved on this computer",
-      a usage figure, and a "Remove old v1 copy" button.
-- [ ] Do **not** press "Remove old v1 copy" yet. Instead, roll back to v0.1.45 (reinstall).
+      a usage figure, and a "Remove the old v1 copy" button.
+- [ ] Do **not** press "Remove the old v1 copy" yet. Instead, roll back to v0.1.45 (reinstall).
       **Expected:** the v0.1.45 LOL Chat still shows the v1 threads (the key was not deleted).
 - [ ] **While on v0.1.45:** create one new thread ("rollback-new") and add one message to an existing old
       thread ("rollback-appended"). Then re-upgrade to vNext.
       **Expected:** "rollback-new" appears as a normal thread; "rollback-appended" appears once more as
       "{title} (older version)" with the extra message; the original migrated copy is unchanged; no other
       duplicates.
-- [ ] Settings → Storage → "Remove old v1 copy". **Expected:** if anything from the rollback was not yet
+- [ ] Settings → Storage → "Remove the old v1 copy". **Expected:** if anything from the rollback was not yet
       brought over, the button first offers to bring it over; only then it removes the key. After a
       restart every thread (including both rollback ones) is still present.
 - [ ] **Uninstall and reinstall** vNext (Windows NSIS per-user). **Expected:** LOL Chat history survives
@@ -82,17 +83,18 @@ farm.
 - [ ] Laptop B, fresh install with no history. **Expected:** the empty state, no errors, and a new
       chat works.
 - [ ] **(P0 store)** On each laptop, Settings → Storage: the mode must read "saved on this computer"
-      (IndexedDB). A "history is not being saved" / memory banner on a normal profile is a bug — record
+      (IndexedDB). A "History can't be saved on this machine…" banner on a normal profile is a bug — record
       the laptop, the OS and `window.LolChat.app.repo.mode` in DEVLOG. (The memory and late-attach paths
       are proven in the harness; the rig only has to prove the normal path is the one real machines take.)
 - [ ] **(P0 store)** Preferences → Data location → move the data folder, then reopen LOL Chat.
       **Expected:** the thread list is unchanged — LOL Chat history lives in the renderer profile
       (`%APPDATA%\LlmOnLan\IndexedDB`), not under `DATA_DIR`, so a move must not touch it. If threads
       disappear, stop and report: that is data loss, not a display bug.
-- [ ] **(P0 store)** A corrupt v1 history: on a spare profile, replace the `lolchat.threads.v1`
+- [ ] **(P0 store)** A corrupt v1 history: on a spare profile, replace the `lol.chat.threads.v1`
       localStorage value with `{`, then open LOL Chat. **Expected:** the chat opens on an empty list with
-      no crash, and Settings → Storage → "Remove old v1 copy" REFUSES (it must never delete history it
-      could not read).
+      no crash, and Settings → Storage → "Remove the old v1 copy" REFUSES (it must never delete history it
+      could not read). (The key is `lol.chat.threads.v1`, `state/migrate-v0.mjs` `V1_KEY` — a wrong key
+      corrupts nothing and so tests nothing.)
 
 ## 2. Basic chat on each engine
 ### 2.1 F1: Ollama `gemma4:12b`
@@ -171,7 +173,8 @@ farm.
       farm can show the seat actually coming back.
 - [ ] **A wrong farm password says where to fix it** (P1 fix round 2). Point the client at F2 with the
       wrong password and send. **Expected:** "The farm refused the password" plus our own sentence
-      ("Check it in Preferences → Connection"), with LiteLLM's own jargon only in brackets after it.
+      ("Click the connection pill in the top bar and enter it again on the farm’s card"), with LiteLLM's
+      own jargon only in brackets after it.
 - [ ] **Busy farm / engine switch.** Switch F1's engine (or pull a model) from the admin panel while A has
       LOL Chat open. **Expected:** the strip shows the busy label with a percentage; a send during the
       switch shows the local "server is busy" note and sends nothing; after the switch the model list
@@ -241,6 +244,9 @@ farm.
       button. Record what the renderer actually received.
 
 ## 5. Images, documents, search
+
+> **NOT SHIPPED** — P3 (images, documents, web search in LOL Chat) was not built. Skip this section;
+> do not fail it. Open WebUI covers all three.
 - [ ] Paste a screenshot (Win+Shift+S) into the composer on F1 (gemma4, vision). **Expected:** a
       thumbnail chip; the reply describes the screenshot correctly.
 - [ ] Drop 5 images. **Expected:** 4 accepted, plus a toast about the limit.
@@ -265,6 +271,9 @@ farm.
 - [ ] Disable SearXNG on the farm. **Expected:** the globe toggle disappears within a few seconds.
 
 ## 6. Blender (laptop A, Blender 4.x + BlenderMCP addon)
+
+> **NOT SHIPPED** — P3-U4 (the Blender attach menu in LOL Chat) was not built. Skip this section; the
+> Blender tools in Open WebUI are covered by Preferences › Assistant tools.
 - [ ] Preferences → Assistant tools → enable, and start the MCP server in Blender. **Expected:** the attach
       menu in LOL Chat shows "Blender viewport" and "Blender scene".
 - [ ] **(C-21)** Attach viewport. **Expected:** a thumbnail of the actual viewport. If it fails, copy the
@@ -325,6 +334,8 @@ farm.
       sits streaming for ever.
 
 ## 9. Recipes and structured output
+
+> **NOT SHIPPED** — P4 (recipes, `/` commands, structured output) was not built. Skip this section.
 - [ ] Type `/names`, fill the form, send. **Expected:** a card deck; keep 3 → "More like these"
       references exactly those 3.
 - [ ] **(C-21)** `json_schema` on the llama.cpp farm: run Name deck on F2. **Expected:** cards render
@@ -355,8 +366,9 @@ farm.
     toast; that is expected, not a bug.
   - Clicking the toast: record whether the window comes to the front. On Windows a renderer
     `window.focus()` often only flashes the taskbar; if so, note it (DISCUSS D-C7), it is a known limit.
-- [ ] **(C-21)** **Read aloud** (farm with Kokoro TTS on): press Read aloud. **Expected:** audio plays
-      through WebAudio; Stop works. Record whether MP3 decoded or the WAV fallback was used.
+- [ ] **NOT SHIPPED** (P4-U4, not built — skip): **(C-21)** **Read aloud** (farm with Kokoro TTS on):
+      press Read aloud. **Expected:** audio plays through WebAudio; Stop works. Record whether MP3
+      decoded or the WAV fallback was used.
 - [ ] **Numbered steps with a code block** (P0 fix round 2): ask for "three numbered install steps,
       each with a bash code block". **Expected:** every code block starts at column 0 — no hanging
       three-space indent — and **Copy** puts exactly that on the clipboard. This is the shape the
@@ -375,8 +387,8 @@ farm.
       the buttons have names.
 - [ ] **High-DPI and small windows:** 150% scaling, window at 1024×700. **Expected:** no horizontal
       page scroll; tables and code scroll inside their own boxes.
-- [ ] **macOS arm64 + Intel, Linux AppImage:** sections 2.1, 5 (images + one PDF) and 7 (quit mid-stream)
-      pass on each.
+- [ ] **macOS arm64 + Intel, Linux AppImage:** sections 2.1 and 7 (quit mid-stream) pass on each.
+      (Section 5, images + one PDF, is NOT SHIPPED — skip it.)
 
 - [ ] **Both themes on a real screen.** Open a thread with a code block, a table and a reasoning
       panel, and toggle the theme from the topbar. **Expected:** the chat repaints in the other theme
@@ -387,9 +399,10 @@ farm.
       at a window size the harness never uses.
 
 ## 11. Privacy and data locality
-- [ ] With the farm's LiteLLM logs visible, attach a text file and a PDF and chat. **Expected:** **zero**
-      `/v1/embeddings` calls. The farm receives only chat completions, one OCR PUT for the PDF, and a
-      SearXNG query only when the globe is on.
+- [ ] LOL Chat has no attachments, OCR or web search (P3 NOT SHIPPED), so run this one in **Open
+      WebUI**: with the farm's LiteLLM logs visible, attach a text file and a PDF and chat.
+      **Expected:** **zero** `/v1/embeddings` calls. The farm receives only chat completions, one OCR
+      PUT for the PDF, and a SearXNG query only when the globe is on.
 - [ ] Nothing about LOL Chat history appears on the farm disk (`lol.config.json` directory, logs contain
       no thread titles beyond LiteLLM's normal request logging).
 - [ ] **Data folder move** in Preferences. **Expected (known limitation, DISCUSS D-C2):** LOL Chat
@@ -399,6 +412,10 @@ farm.
 ## 12. Studio rails (S0, added at the S0 landing 2026-09-16)
 No panel ships in S0, so these are the rails themselves. Anything marked **(needs a panel)** waits
 for the Computer panel.
+
+> **Status (2026-09-27):** no workbench panel is registered anywhere — the Computer became its own
+> top-level surface instead — so the rail and width items below (Ctrl+\, Ctrl+1…4, Chat / Split /
+> Panel) are **untestable** in this build. Skip them rather than failing them.
 
 - [ ] **The workbench column, on a real display.** With a chat open, press **Ctrl+\** to cycle
       chat → split → work → chat, and **Ctrl+1** to open the first panel. **Expected:** the column
@@ -450,7 +467,9 @@ for the Computer panel.
       database; only a real profile proves it against a real one. If anything is missing, STOP and
       capture the profile before touching it again — the upgrade never deletes, so the data is
       recoverable.
-- [ ] **The queue chip on a real screen.** When a panel first runs a batch **(needs a panel)**:
+- [ ] **Untestable in this build** — nothing calls `app.ask.queue` (the Computer's runner keeps its
+      own queue), so the chip never appears. **The queue chip on a real screen.** When a panel first
+      runs a batch **(needs a panel)**:
       the chip must appear over the bottom-left of the chat area while the batch runs, read
       `<label> — i/n`, and disappear when it ends. Press its **Cancel**, and separately press
       **Escape** — both must stop the batch. Check it in both themes and at a narrow window: it must
@@ -471,6 +490,12 @@ for the Computer panel.
       tree, **keep the tail** and file the scenario name — the flake is still unidentified.
 
 ## 13. The Computer (C1, added at the C1 landing 2026-09-16)
+
+> *Written for the per-thread panel (before K1). Items that name a thread, From/To thread, Render,
+> the toolbar's Run or 'Send to the Computer' no longer apply. Run the equivalent in the Computer
+> surface, or skip them.* (Docs review 2026-09-27. The Computer is its own surface with a library now;
+> the busy sentence reads *"Paused: the farm was busy with someone else. Press Run all to carry on."*,
+> not "The farm went to someone else".)
 
 The panel is in the workbench rail as **Computer**. C1 has three part types — Note, Ask, Collect —
 and one graph per thread. The harness drives it through a debug door on a mock farm; these are the
@@ -536,6 +561,12 @@ seat item, which needs a colleague or a second laptop.
       the first request goes out.
 
 ## 14. The Computer, fanned out (C2, added at the C2 landing 2026-09-16)
+
+> *Written for the per-thread panel (before K1). Items that name a thread, From/To thread, Render,
+> the toolbar's Run or 'Send to the Computer' no longer apply. Run the equivalent in the Computer
+> surface, or skip them.* (Docs review 2026-09-27. The value inspector is the drawer on the right
+> now, and the busy sentence reads *"Paused: the farm was busy with someone else. Press Run all to
+> carry on."*)
 
 Everything here needs the **real model**, because the whole phase is about what dozens of real
 generations feel like from the outside. Run them on a farm a colleague is also using — that is the
@@ -609,6 +640,12 @@ is the case no farm-side measurement can show you:
 ---
 
 ## 15. The Computer: code, pictures, files and sharing (C3, added at the C3 landing 2026-09-16)
+
+> *Written for the per-thread panel (before K1). Items that name a thread, From/To thread, Render,
+> the toolbar's Run or 'Send to the Computer' no longer apply. Run the equivalent in the Computer
+> surface, or skip them.* (Docs review 2026-09-27. A File box writes into the graph's own project
+> folder now, not the thread's; a sketch that stops answering three times in a minute pauses the
+> sandbox, which a toast says, and **Run all** or **▶** on a box starts it again.)
 
 C3 is the phase where the Computer stops asking the model for everything: `Code` computes in a
 sandbox, `Render` draws a picture, `File` writes into the thread's project folder, and a graph can
@@ -719,8 +756,9 @@ felt safe to use.
       other branch keeps running and finishes while the question sits there, and the run bar says one
       question is waiting with a **Show me** that pans to it.
 - [ ] **Close the app with a question open.** Do the above, and quit the client while the question is
-      unanswered. Reopen it. Expected: it comes back with the run listed as unfinished and nothing
-      half-spent; resuming costs only what was left.
+      unanswered. Reopen it. Expected: boxes that were running come back as **Needs a re-run**;
+      **Run all** re-runs only those, and nothing already answered is paid for again. (The plan's
+      "Resume" banner is not built — COMPUTER_STATUS.md, "What is NOT there yet".)
 - [ ] **A loop that stops.** Draw a ring through a Toggle (the loop the tutorial teaches), switch the
       Toggle **on**, and run. Expected: it stops on its own at a named ceiling, the sentence says
       which box and which limit, and the offer to raise it applies to **that run only** — the next
@@ -758,3 +796,20 @@ window, Explorer and your own eyes.
 - [ ] **Nothing while you're elsewhere.** Record, switch to LOL Chat, type a message, come back,
       stop. Expected: no `ui.*` lines for what you typed in the chat (a request it made may appear
       as `http.*`, which is intended).
+
+## 18. The Computer after K4 (Live, Edit code, the view tools; added by the docs review 2026-09-27)
+
+K4–K6 are covered by [COMPUTER_STATUS.md](COMPUTER_STATUS.md), "What only you can check", items 1–12.
+Do those, plus:
+
+- [ ] **Live does not pan the canvas.** ▶ Live on a three.js box, then drag, scroll and right-drag
+      over it. Expected: the scene orbits, zooms and pans; the canvas behind it does not move.
+- [ ] **Edit code hands the focus back.** **Edit code** on a p5.js box, change a colour, press
+      **Ctrl+Enter** (the box redraws), then **Esc**. Expected: the drawer closes and the focus is back
+      on the box.
+- [ ] **The view keys from anywhere.** Click the run bar, press **H**, then **V**; click an empty part
+      of the library sidebar, press **H**, **V** and **F**. Expected: the tool switches and F fits,
+      with no click on the canvas first. Typed into the library search, the same letters stay text.
+- [ ] **A paused sandbox says so.** A Code box with `while (true) {}`: press its ▶ three times inside a
+      minute. Expected: a toast says the sandbox is paused and names **Run all** and **▶**. Fix the
+      code, press **Run all**: the box runs again.

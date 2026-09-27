@@ -78,6 +78,20 @@ export default (test) => {
     assert.ok(doc(), 'chat-unit.js provides globalThis.__chatTestDom');
   });
 
+  test('SA-16: a list that starts at 0 renders from 0, streamed and one-shot', () => {
+    const text = '0. zero\n1. one\n2. two\n';
+    const d = doc();
+    const one = d.createElement('div');
+    one.appendChild(renderBlocks(parseBlocks(text), domFactory(d), {}));
+    assert.equal(one.querySelector('ol').getAttribute('start'), '0', 'one-shot: `b.start && …` read 0 as "absent"');
+    const streamed = streamInto(text, () => 3);
+    assert.equal(streamed.host.querySelector('ol').getAttribute('start'), '0', 'streamed');
+    assert.equal(streamed.serialize(), oneShot(text, {}), 'and the two agree');
+    // 1 is still the default and gets no attribute; 9 keeps its own.
+    assert.equal(streamInto('1. a\n2. b\n', () => 2).host.querySelector('ol').hasAttribute('start'), false);
+    assert.equal(streamInto('9. a\n10. b\n', () => 2).host.querySelector('ol').getAttribute('start'), '9');
+  });
+
   // --------------------------------------------------------------- 1. the final DOM is the truth
   for (const name of FIXTURES) {
     test(`${name}: the streamed DOM equals renderBlocks(parseBlocks(text))`, () => {

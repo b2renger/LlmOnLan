@@ -106,8 +106,12 @@ async function findSidecarAsset(tagOrLatest: string): Promise<FoundAsset | null>
 
 // Download <tarball-url> and extract it into destDir (replacing it atomically).
 // Extraction is platform-split (see the tar call below): RELATIVE paths on Windows,
-// ABSOLUTE paths everywhere else.
-async function installFrom(url: string, destDir: string, onProgress?: ProgressCb): Promise<void> {
+// ABSOLUTE paths everywhere else. `precompile` is for a tree that is about to RUN (the
+// first-run install). A staged update is NOT precompiled where it lands: compileall runs
+// python.exe from inside sidecar.pending, and on Windows a running exe under that folder
+// makes the pending→live rename fail — "Restart to apply" then lost the update (docs review
+// SA-6). applyPendingSidecar() precompiles the live tree after the swap instead.
+async function installFrom(url: string, destDir: string, onProgress?: ProgressCb, opts: { precompile?: boolean } = {}): Promise<void> {
     const tmp = path.join(app.getPath('temp'), `lol-sidecar-${process.pid}-${Date.now()}.tar.gz`);
     onProgress?.({ phase: 'download', message: 'Downloading the chat engine…', percent: 0 });
     await downloadTo(url, tmp, (recv, total) => {
@@ -137,17 +141,17 @@ async function installFrom(url: string, destDir: string, onProgress?: ProgressCb
     fs.rmSync(destDir, { recursive: true, force: true });
     fs.renameSync(stage, destDir);
     fs.rmSync(tmp, { force: true });
-    precompileSidecar(destDir);
+    if (opts.precompile !== false) precompileSidecar(destDir);
 }
 
 // Precompile the freshly-unpacked tree to bytecode in the background. Python only
 // writes a module's .pyc the first time it imports it, so without this the tree's
 // first boot pays parse+compile for thousands of files on top of cold-disk reads —
 // a large share of the "way too long" first launch. One low-priority pass now
-// means the next boot of this tree (the first launch, or the restart that applies
-// a staged update — .pyc validation is mtime/size-based, so the pending→live
-// rename keeps them valid) starts from bytecode. Best-effort: a failure just
-// leaves the old behavior.
+// means the next boot of this tree starts from bytecode. It runs on a tree that is
+// about to be used: the first-run install, and the live tree right after a staged
+// update was swapped in (never inside sidecar.pending — see installFrom). Best-effort:
+// a failure just leaves the old behavior.
 function precompileSidecar(destDir: string): void {
     try {
         const py = process.platform === 'win32'
@@ -168,16 +172,36 @@ export function isSidecarInstalled(): boolean {
 }
 
 // At boot, before starting OWUI: if an update was staged, swap it in (the running
-// OWUI is stopped at this point, so the files aren't locked — esp. on Windows).
+// OWUI is stopped at this point, so ITS files aren't locked — esp. on Windows).
+//
+// The swap never leaves the app without an engine. It used to delete the live tree and
+// only then rename pending; when that rename failed (anything still holding a file under
+// sidecar.pending on Windows), the catch left NO sidecar, the boot re-downloaded the app
+// version's — older — engine, and the update landed one launch later (docs review SA-6).
+// Now: live → live.old, pending → live, and on any failure the old tree goes back. The
+// pending tree stays for the next launch to retry.
 export function applyPendingSidecar(): boolean {
+    const live = sidecarRoot();
+    const pending = pendingDir();
+    const old = live + '.old';
+    // A previous swap that died between its two renames left the engine in live.old.
+    if (!fs.existsSync(live) && fs.existsSync(old)) { try { fs.renameSync(old, live); } catch { /* try below */ } }
+    if (!fs.existsSync(pending)) return false;
+    try { fs.rmSync(old, { recursive: true, force: true }); } catch { /* a leftover we can live with */ }
+    let movedLive = false;
     try {
-        if (fs.existsSync(pendingDir())) {
-            fs.rmSync(sidecarRoot(), { recursive: true, force: true });
-            fs.renameSync(pendingDir(), sidecarRoot());
-            return true;
+        if (fs.existsSync(live)) { fs.renameSync(live, old); movedLive = true; }
+        fs.renameSync(pending, live);
+    } catch (e) {
+        if (movedLive && !fs.existsSync(live)) {
+            try { fs.renameSync(old, live); } catch (e2) { console.warn('[sidecar] could not restore the previous engine:', (e2 as Error).message); }
         }
-    } catch { /* leave the current sidecar in place */ }
-    return false;
+        console.warn('[sidecar] staged engine update not applied (will retry next launch):', (e as Error).message);
+        return false;
+    }
+    try { fs.rmSync(old, { recursive: true, force: true }); } catch { /* removed next time */ }
+    precompileSidecar(live);
+    return true;
 }
 
 // Ensure the sidecar is present; download it from this app version's release (or
@@ -199,9 +223,12 @@ export async function ensureSidecar(onProgress?: ProgressCb): Promise<{ ok: bool
     }
 }
 
-// Is a newer OWUI available on the latest release?
-export async function checkOwuiUpdate(): Promise<{ current: string; latest: string | null; updateAvailable: boolean }> {
+// Is a newer OWUI available on the latest release? `latest: null` means GitHub could not
+// be read (offline, a closed LAN, rate-limited). A dev build never checks: it runs the
+// repo's sidecar/.venv, and a download would stage ~700 MB into a folder nothing uses.
+export async function checkOwuiUpdate(): Promise<{ current: string; latest: string | null; updateAvailable: boolean; error?: string }> {
     const current = bundledOwuiVersion();
+    if (!app.isPackaged) return { current, latest: null, updateAvailable: false, error: 'Chat-engine updates only apply to an installed build.' };
     const found = await findSidecarAsset('latest').catch(() => null);
     const latest = found?.owuiVersion || null;
     return { current, latest, updateAvailable: !!(latest && latest !== current && current !== 'unknown') };
@@ -210,11 +237,12 @@ export async function checkOwuiUpdate(): Promise<{ current: string; latest: stri
 // Download the latest OWUI sidecar, STAGED to userData/sidecar.pending — applied
 // on the next launch by applyPendingSidecar() (so a running OWUI isn't disturbed).
 export async function downloadOwuiUpdate(onProgress?: ProgressCb): Promise<{ ok: boolean; version?: string; error?: string }> {
+    if (!app.isPackaged) return { ok: false, error: 'Chat-engine updates only apply to an installed build.' };
     try {
         onProgress?.({ phase: 'check', message: 'Checking for a newer chat engine…' });
         const found = await findSidecarAsset('latest').catch(() => null);
         if (!found) return { ok: false, error: 'no sidecar on the latest release' };
-        await installFrom(found.url, pendingDir(), onProgress);
+        await installFrom(found.url, pendingDir(), onProgress, { precompile: false });
         onProgress?.({ phase: 'done', message: 'Update downloaded — restart to apply.' });
         return { ok: true, version: found.owuiVersion || undefined };
     } catch (e: any) {

@@ -1,5 +1,14 @@
 # LOL Chat — the Computer panel (spec delta)
 
+> *Superseded (2026-09-22) by [COMPUTER_PLAN.md](COMPUTER_PLAN.md). The Computer is its own surface
+> with a library, not a panel in a thread. Kept for its history: §1's reasons and §6's directives
+> still stand. For today's behaviour read [LOLCHAT_COMPUTER_TUTORIAL.md](LOLCHAT_COMPUTER_TUTORIAL.md).*
+> No longer true below (docs review, 2026-09-27): a graph belongs to a library document, not a
+> thread; a loop through a gate box is legal (`graph/topo.mjs` `GATE_TYPES`), so cycles are not all
+> rejected; the **Look** part was never built (a wired Image goes to the Instruction's own model);
+> **From/To thread** and **Render** are legacy and cannot be placed; and `Esc` walks a ladder (leave
+> the field, close a menu, close the drawer, then stop the run).
+
 > Written 2026-09-16 after the owner asked for *"something like https://computer.tldraw.com/"*, built for
 > our own use, on the local model.
 >

@@ -913,4 +913,34 @@ export default (test) => {
       assert.equal(app.gov.state().foreground, 'idle');
     } finally { calls.restore(); }
   });
+
+  test('SA-12: a finished reply takes the caret back only from the body, the composer, Send or Stop', async () => {
+    // Every reply used to call composer.focus(): a sidebar rename typed while a reply streamed was
+    // committed half-typed (it saves on blur), and search / the inline editor lost the caret.
+    const { app, controller, composer } = await makeWorld();
+    const input = { id: 'chat-input' };
+    const send = { id: 'chat-send' };
+    const rename = { id: 'rename' };
+    app.els.input = input; app.els.send = send;
+    const doc = { body: { id: 'body' }, activeElement: null };
+    const had = Object.prototype.hasOwnProperty.call(globalThis, 'document');
+    const saved = globalThis.document;
+    globalThis.document = /** @type {any} */ (doc);
+    const calls = stubFetch(sseResponse([chunk({ content: 'ok' }), usageChunk(1)]));
+    try {
+      const thread = controller.newThread();
+      const cases = [[rename, 0, 'a rename field keeps its caret'], [doc.body, 1, 'nothing focused: the composer takes it'],
+        [input, 1, 'the composer keeps it'], [send, 1, 'Send hands it back to the composer']];
+      for (const [active, more, why] of cases) {
+        doc.activeElement = active;
+        const before = composer.calls.focus;
+        await controller.generate({ threadId: thread.id, model: 'assistant' });
+        await settle();
+        assert.equal(composer.calls.focus - before, more, why);
+      }
+    } finally {
+      calls.restore();
+      if (had) globalThis.document = saved; else delete globalThis.document;
+    }
+  });
 };

@@ -28,8 +28,8 @@ registerStrings('studio', {
   shortcutCycle: 'Chat / split / panel',
   shortcutPanel: 'Open workbench panel {n}',
 
-  // The Computer panel (docs/LOLCHAT_COMPUTER_SPEC.md) is the first real panel; it registers itself
-  // in the next phase. Its label lives here so the rail and the string gate are ready for it.
+  // The Computer was planned as the first workbench panel (docs/LOLCHAT_COMPUTER_SPEC.md). Since K1
+  // it is its own surface (computer/main.mjs) and does not register a panel here; the label is kept.
   panelComputer: 'Computer',
 
   // The header button. The rail lives INSIDE the workbench column, which is 0px wide while the

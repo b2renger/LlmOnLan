@@ -15,8 +15,33 @@ import { isValue } from '../values.mjs';
 import { t } from '../../core/i18n.mjs';
 import '../../strings/parts.en.mjs';
 import '../../strings/computer-gen.en.mjs';
+import '../../strings/sandbox.en.mjs';
 
 /** @typedef {import('../../core/types.mjs').GraphValue} GraphValue */
+
+/**
+ * Is the Computer's one sandbox PAUSED by its rebuild ladder (three stalls in a minute)? Reads it
+ * through `app.host` and never creates one; false when there is no host or no sandbox yet.
+ * @param {any} app @returns {boolean}
+ */
+export function sandboxPaused(app) {
+  try {
+    const session = app && app.host && app.host.session;
+    const sb = session && typeof session.sandboxNow === 'function' ? session.sandboxNow() : null;
+    return !!(sb && typeof sb.debug === 'function' && sb.debug().blocked);
+  } catch { return false; }
+}
+
+/**
+ * Why a box got no sandbox (`sandbox()` resolved null), in the reader's words (CA-1). A paused
+ * sandbox did start — a sketch stopped answering in it three times — and only Run all or ▶
+ * re-arms it, so that case must not read "could not start". Anything else (no guest, a boot that
+ * never answered) keeps the old sentence.
+ * @param {any} app @returns {string}
+ */
+export function sandboxDownText(app) {
+  return sandboxPaused(app) ? t('sandbox.errPaused') : t('sandbox.errDisabled');
+}
 
 /**
  * @param {string} message the sentence the canvas shows on the part

@@ -8,11 +8,21 @@
 // Shape (v=1): { v, id, name, proxyPort, ips, endpoint, openaiBaseUrl,
 //                requiresKey, models, healthy, version, ts }
 
-const { lanAddresses, primaryAddress } = require('./net');
+const { lanAddresses, primaryAddress, serviceHosts } = require('./net');
 const { servedEntries } = require('./litellm');
 const { farmId } = require('./identity');
 
 const PKG_VERSION = require('../package.json').version;
+
+// The version this farm advertises (snapshot, `lol --version`, `lol fleet`).
+// farm/package.json never moves (it has said 0.1.0 since the first commit), so
+// every box looked identical — the gap behind "which build is AN-VR-01 running?".
+// The Farm app passes its own release version in LOL_FARM_VERSION; a bare CLI
+// checkout falls back to package.json. Read per call so the env is honored even
+// when set after this module loads.
+function farmVersion() {
+    return (process.env.LOL_FARM_VERSION || '').trim() || PKG_VERSION;
+}
 const GGUF_EXT = new RegExp(String.raw`\.gguf$`, 'i');
 
 // The GGUF's basename, so a client card can show the real weights even though
@@ -44,9 +54,10 @@ function llamacppServedModel(config) {
 // panel could tell a llama.cpp farm from an Ollama one — or say "this box is full".
 //
 // Slots differ per engine, and the difference is not cosmetic:
-//   • llama.cpp — `parallel` slots, and --ctx-size is SPLIT across them (verified:
-//     --ctx-size 16384 --parallel 2 -> n_ctx_slot 8192). Raising slots therefore
-//     SHRINKS every user's context window, so contextPerSlot is what a user gets.
+//   • llama.cpp — `parallel` slots over one --ctx-size. With kvUnified (the default)
+//     they share ONE pool: a person alone gets the whole window, and contextPerSlot
+//     (ctx / slots) is the floor under full contention. kvUnified:false splits it
+//     hard (verified: --ctx-size 16384 --parallel 2 -> n_ctx_slot 8192).
 //   • Ollama — numParallel requests per host, so capacity scales with reachable
 //     hosts and each request keeps the full num_ctx.
 function backendInfo(config, health = {}) {
@@ -143,6 +154,10 @@ function buildSnapshot(config, health = {}) {
     const proxyPort = config.proxy.port;
     const primary = primaryAddress();
     const endpoint = `http://${primary}:${proxyPort}`;
+    // The plugins bind where config.proxy.host says (net.serviceHosts): on a
+    // private (loopback) farm their URLs must say 127.0.0.1, or the same-box
+    // client is sent to a LAN address nothing listens on.
+    const svcHost = serviceHosts(config.proxy && config.proxy.host).advertise || primary;
     // Advertise what clients actually SEE on /v1/models — the SERVED names (per-
     // model alias / global modelAlias / raw id), derived from the same
     // servedEntries() that generates the LiteLLM routing, so advertising and
@@ -192,7 +207,7 @@ function buildSnapshot(config, health = {}) {
         healthy: health.proxyUp !== false
             && (health.hostsUp == null || health.hostsUp > 0)
             && health.engineUp !== false,
-        version: PKG_VERSION,
+        version: farmVersion(),
         // Coordinator mode: this farm aggregates peers into one balanced proxy, so
         // clients should prefer it over the individual box-farms (see the shell's
         // pickLeastLoaded). Absent/false on a normal single-box farm.
@@ -200,13 +215,13 @@ function buildSnapshot(config, health = {}) {
         // Shared SearXNG metasearch on this box (null when off/down). Clients set
         // OWUI's SEARXNG_QUERY_URL from this — web search with zero client setup.
         searxngUrl: (config.websearch?.enabled && health.searxngUp)
-            ? `http://${primary}:${config.websearch.port}`
+            ? `http://${svcHost}:${config.websearch.port}`
             : null,
         // Shared Kokoro TTS on this box (null when off/down). Clients set OWUI's
         // AUDIO_TTS_* from these — neural read-aloud/voice with zero client setup.
         // ttsUrl already includes /v1 (what AUDIO_TTS_OPENAI_API_BASE_URL wants).
         ttsUrl: (config.tts?.enabled && health.ttsUp)
-            ? `http://${primary}:${config.tts.port}/v1`
+            ? `http://${svcHost}:${config.tts.port}/v1`
             : null,
         ttsVoice: (config.tts?.enabled && health.ttsUp) ? config.tts.voice : null,
         ttsModel: (config.tts?.enabled && health.ttsUp) ? config.tts.model : null,
@@ -215,7 +230,7 @@ function buildSnapshot(config, health = {}) {
         // from `url` and the required key from `key` — scanned-doc + image OCR with
         // zero client setup. `url` is the loader BASE (OWUI appends /process itself).
         extract: (config.ocr?.enabled && health.extractUp && health.extractKey)
-            ? { url: `http://${primary}:${config.ocr.port}`, key: health.extractKey }
+            ? { url: `http://${svcHost}:${config.ocr.port}`, key: health.extractKey }
             : null,
         // Farm-side plugin state (web search / voice / OCR): { id: {label, runsOn, enabled,
         // healthy} }. Bespoke fields above (searxngUrl/ttsUrl/extract) stay for back-compat;
@@ -281,4 +296,4 @@ function buildSnapshot(config, health = {}) {
     };
 }
 
-module.exports = { buildSnapshot, backendInfo, ggufName, PKG_VERSION };
+module.exports = { buildSnapshot, backendInfo, ggufName, PKG_VERSION, farmVersion };

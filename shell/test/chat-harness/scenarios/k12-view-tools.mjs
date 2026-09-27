@@ -89,6 +89,23 @@ export default [
             await h.input.key('0', { ctrl: true });
             h.eq(await h.eval(() => window.LolComputer.debug.computer.view().zoom), 1, 'Ctrl+0 from the run bar resets to 100 %');
 
+            // CA-2: F fits from outside the canvas too, as the Fit button's tooltip says. Zoom to
+            // 200 % with Ctrl+=, then a plain F from the run bar lands on exactly Fit's view.
+            await h.input.click('#lolcomputer .comp-run-counts');
+            for (let i = 0; i < 12; i++) {
+                if (await h.eval(() => window.LolComputer.debug.computer.view().zoom) >= 2) break;
+                await h.input.key('=', { ctrl: true });
+            }
+            const far = await h.eval(() => window.LolComputer.debug.computer.view());
+            h.assert(far.zoom >= 2, `Ctrl+= reached 200 %: ${far.zoom}`);
+            await h.input.click('#lolcomputer .comp-run-counts');
+            h.eq(await h.eval(() => !!document.activeElement && !!document.activeElement.closest('#lolcomputer .graph')), false, 'the focus is outside the canvas for F');
+            await h.input.key('f');
+            const fitted = await h.eval(() => window.LolComputer.debug.computer.view());
+            h.assert(fitted.zoom !== far.zoom || fitted.x !== far.x || fitted.y !== far.y, `F from the run bar changed the view: ${JSON.stringify(far)} -> ${JSON.stringify(fitted)}`);
+            const byFit = await h.eval(() => window.LolComputer.debug.computer.fit());
+            h.eq(fitted, byFit, 'F from the run bar is exactly Fit');
+
             // Delete from outside the canvas never removes a box (only the view keys act there).
             await h.eval(() => window.LolComputer.debug.computer.select(window.LolComputer.debug.computer.doc().parts.map((p) => p.id)));
             await h.input.click('#lolcomputer .comp-run-counts');

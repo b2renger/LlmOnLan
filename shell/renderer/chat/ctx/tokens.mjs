@@ -128,6 +128,65 @@ export function promptChars(req) {
   return chars;
 }
 
+/** A request with less text than this says more about the chat template than about the text. */
+export const MIN_CALIBRATION_CHARS = 1000;
+/** The reply priming a chat template appends after the last message (`<|im_start|>assistant\n`). */
+export const PRIMING_TOKENS = 3;
+
+/**
+ * What one REAL request can teach the ratio, or null when it cannot teach it anything reliable.
+ *
+ * `usage.prompt_tokens` counts everything the farm tokenised: the text, but also the chat template
+ * (the role envelope per message and the reply priming) and one token per wide character. The ratio
+ * is chars/token for the NON-wide text only (that is how estimateText uses it), so those are taken
+ * off before calibrating. Without that, a short prompt ("hi" = 2 characters, ~12 prompt tokens)
+ * dragged the persisted ratio down to MIN_RATIO and every later estimate ran up to 2.4x high —
+ * false "Too long for this farm" and an early cost gate (docs review SA-11). Short requests and
+ * requests with images (image tokens have no characters at all) are skipped entirely.
+ * @param {any} req a RequestDraft
+ * @returns {{chars: number, overhead: number}|null} chars: non-wide characters sent; overhead:
+ *   the tokens to subtract from usage.prompt_tokens before dividing
+ */
+export function calibrationSample(req) {
+  const r = req || {};
+  const messages = Array.isArray(r.messages) ? r.messages : [];
+  if (messages.some((m) => imageCount(m) > 0)) return null;
+  const texts = [systemTextOf(r)];
+  for (const m of messages) {
+    for (const b of (m && Array.isArray(m.blocks) ? m.blocks : [])) if (b && typeof b.text === 'string') texts.push(b.text);
+  }
+  let length = 0;
+  let wide = 0;
+  let wideUnits = 0;
+  for (const s of texts) {
+    if (!s) continue;
+    length += s.length;
+    WIDE_RE.lastIndex = 0;
+    let m;
+    while ((m = WIDE_RE.exec(s)) !== null) { wide++; wideUnits += m[0].length; }
+  }
+  const chars = length - wideUnits;
+  if (chars < MIN_CALIBRATION_CHARS) return null;
+  const wireMessages = messages.length + (systemTextOf(r) ? 1 : 0);
+  return { chars, overhead: wireMessages * PER_MESSAGE_TOKENS + PRIMING_TOKENS + wide };
+}
+
+/**
+ * calibrate() from a calibrationSample and the reply's `usage.prompt_tokens`: the template
+ * allowance comes off first. No sample, or nothing left after the allowance → the ratio is unchanged.
+ * @param {number|null|undefined} prev
+ * @param {{chars: number, overhead: number}|null} sample
+ * @param {number} promptTokens
+ * @returns {number}
+ */
+export function calibrateFromSample(prev, sample, promptTokens) {
+  const base = num(prev, DEFAULT_RATIO) > 0 ? num(prev, DEFAULT_RATIO) : DEFAULT_RATIO;
+  if (!sample) return clampRatio(base);
+  const textTokens = num(promptTokens, 0) - num(sample.overhead, 0);
+  if (textTokens <= 0) return clampRatio(base);
+  return calibrate(base, sample.chars, textTokens);
+}
+
 /**
  * Index of the last STORED user entry — where "this message" starts. Everything at or after it is
  * the new turn, which in continue mode includes the assistant prefill and the request-only turns

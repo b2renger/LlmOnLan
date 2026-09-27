@@ -13,6 +13,18 @@ import { findFreePort, killTree, waitForHttp } from './util';
 import { SidecarState } from './types';
 
 const HOST = '127.0.0.1';
+
+// What start() takes — and what launchOpts() hands back, field for field.
+export interface SidecarStartOpts {
+    endpoint: string | null;
+    dataDir: string;
+    apiKey?: string | null;
+    defaultModel?: string | null;
+    searxngUrl?: string | null;
+    tts?: { url: string; voice: string; model: string } | null;
+    extract?: { url: string; key: string } | null;
+    contextPerSlot?: number | null;
+}
 const HEALTH_PATH = '/health';
 const MAX_CRASH_RESTARTS = 5;
 
@@ -43,8 +55,20 @@ export class SidecarSupervisor extends EventEmitter {
         this.emit('state', this.state);
     }
 
+    // Everything the sidecar is launched with, as start() takes it. The ONE place that re-reads the
+    // stored inputs: every restart path (crash restart, data-folder move, the repoint env diff)
+    // goes through here, so a field added to start() cannot be dropped by one of them again. The
+    // crash restart used to rebuild the list by hand and left out contextPerSlot — after any OWUI
+    // crash a 16k farm was relaunched with RAG_FULL_CONTEXT=true (docs review SA-1).
+    private launchOpts(): SidecarStartOpts {
+        return {
+            endpoint: this.endpoint, dataDir: this.dataDir, apiKey: this.apiKey, defaultModel: this.defaultModel,
+            searxngUrl: this.searxngUrl, tts: this.tts, extract: this.extract, contextPerSlot: this.contextPerSlot,
+        };
+    }
+
     // Start (or no-op if already running with the same endpoint+dataDir).
-    async start(opts: { endpoint: string | null; dataDir: string; apiKey?: string | null; defaultModel?: string | null; searxngUrl?: string | null; tts?: { url: string; voice: string; model: string } | null; extract?: { url: string; key: string } | null; contextPerSlot?: number | null }): Promise<void> {
+    async start(opts: SidecarStartOpts): Promise<void> {
         this.endpoint = opts.endpoint;
         this.dataDir = opts.dataDir;
         this.apiKey = opts.apiKey ?? null;
@@ -76,7 +100,7 @@ export class SidecarSupervisor extends EventEmitter {
 
         const env = {
             ...process.env,
-            ...buildSidecarEnv({ endpoint: this.endpoint, dataDir: this.dataDir, apiKey: this.apiKey, defaultModel: this.defaultModel, searxngUrl: this.searxngUrl, tts: this.tts, extract: this.extract, contextPerSlot: this.contextPerSlot }),
+            ...buildSidecarEnv(this.launchOpts()),
             // OWUI logs Unicode (loguru/rich) → force UTF-8 so it doesn't crash a
             // Windows cp1252 console (same class of bug as LiteLLM's banner).
             PYTHONUTF8: '1',
@@ -143,7 +167,7 @@ export class SidecarSupervisor extends EventEmitter {
         // E.g. the farm growing its context 65536 → 131072 changes contextPerSlot
         // but not the RAG mode it selects, so the running sidecar is already
         // correct; adopt the new inputs and keep it alive.
-        const oldEnv = buildSidecarEnv({ endpoint: this.endpoint, dataDir: this.dataDir, apiKey: this.apiKey, defaultModel: this.defaultModel, searxngUrl: this.searxngUrl, tts: this.tts, extract: this.extract, contextPerSlot: this.contextPerSlot });
+        const oldEnv = buildSidecarEnv(this.launchOpts());
         const newEnv = buildSidecarEnv({ endpoint, dataDir: this.dataDir, apiKey, defaultModel, searxngUrl, tts, extract, contextPerSlot });
         if (this.child && JSON.stringify(oldEnv) === JSON.stringify(newEnv)) {
             this.endpoint = endpoint; this.apiKey = apiKey; this.defaultModel = defaultModel;
@@ -163,7 +187,7 @@ export class SidecarSupervisor extends EventEmitter {
         if (dataDir === this.dataDir) return;
         this.setState({ status: 'restarting', dataDir });
         await this.stop({ keepState: true });
-        await this.start({ endpoint: this.endpoint, dataDir, apiKey: this.apiKey, defaultModel: this.defaultModel, searxngUrl: this.searxngUrl, tts: this.tts, extract: this.extract, contextPerSlot: this.contextPerSlot });
+        await this.start({ ...this.launchOpts(), dataDir });
     }
 
     async stop(opts: { keepState?: boolean } = {}): Promise<void> {
@@ -184,7 +208,7 @@ export class SidecarSupervisor extends EventEmitter {
             this.crashRestarts++;
             console.warn(`[sidecar] exited (code ${code}); restart ${this.crashRestarts}/${MAX_CRASH_RESTARTS}`);
             this.setState({ status: 'restarting', url: null, message: `Sidecar restarted (${this.crashRestarts}/${MAX_CRASH_RESTARTS})` });
-            this.start({ endpoint: this.endpoint, dataDir: this.dataDir, apiKey: this.apiKey, defaultModel: this.defaultModel, searxngUrl: this.searxngUrl, tts: this.tts, extract: this.extract });
+            this.start(this.launchOpts());
         } else {
             this.setState({ status: 'error', url: null, message: `Open WebUI keeps exiting (code ${code}). Check logs.` });
         }

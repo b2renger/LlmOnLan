@@ -35,6 +35,7 @@ registerStrings('render', {
   branchPrev: 'Previous version',
   branchNext: 'Next version',
   branchAt: '{position}/{count}',
+  branchKeyTitle: '{label} ({keys} on the last reply)',
 
   // live region
   replyFinished: 'Reply finished',

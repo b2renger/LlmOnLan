@@ -203,7 +203,12 @@ function renderV1(el, app) {
     return;                                   // no localStorage at all: nothing to offer
   }
   const repo = app.repo;
-  if (!repo) return;
+  // Only against a REAL database (docs review SA-9). The boot migration already waits for
+  // `repo.mode === 'idb'` (main.mjs); these buttons did not: with IndexedDB refused
+  // ('memory-final') "Bring over…" imported into RAM and "Remove…" then deleted the v1 key, so
+  // the whole history was gone at quit; with a slow open ('memory') the late attach replayed a
+  // duplicate import. No database, no offer.
+  if (!repo || repo.mode !== 'idb') return;
 
   const row = h('div', 'chat-settings-actions');
   const btn = button('btn-ghost chat-settings-removev1', t('library.removeV1'), () => act());
@@ -225,7 +230,7 @@ function renderV1(el, app) {
   };
 
   const act = async () => {
-    if (!status) return;
+    if (!status || repo.mode !== 'idb') return;
     /** @type {any} */ (btn).disabled = true;
     if (Number(status.pending) > 0) {
       // Bring the stragglers over FIRST; the key stays until they are all here.

@@ -10,6 +10,7 @@
 // Ollama `lol up` started (the child is its own process group on POSIX).
 
 import { EventEmitter } from 'events';
+import { app } from 'electron';
 import { spawn, ChildProcess } from 'child_process';
 import * as path from 'path';
 import { farmRoot, lolEntry, bundledPython, pythonDir, ollamaDir } from './paths';
@@ -19,7 +20,8 @@ import { appendFarmLog } from './farmLog';
 import { FarmState } from './types';
 
 // The farm's admin/discovery HTTP port (config.beacon.httpPort default). The farm
-// binds it on 0.0.0.0, so 127.0.0.1 reaches it locally.
+// binds it on proxy.host (0.0.0.0 shared, 127.0.0.1 private), so 127.0.0.1 reaches
+// it locally either way.
 const SELF_PORT = 41997;
 const HOST = '127.0.0.1';
 const MAX_CRASH_RESTARTS = 5;
@@ -60,6 +62,9 @@ export class FarmSupervisor extends EventEmitter {
             ...process.env,
             ELECTRON_RUN_AS_NODE: '1',
             LOL_PYTHON: bundledPython(),
+            // The version the farm advertises (snapshot, `lol fleet`, client cards).
+            // farm/package.json never moves, so without this every box said 0.1.0.
+            LOL_FARM_VERSION: app.getVersion(),
             PATH: `${pythonDir()}${sep}${ollamaDir()}${sep}${process.env.PATH || ''}`,
             // The farm's LiteLLM/Ollama banners log Unicode → force UTF-8 so a Windows
             // cp1252 console can't crash them (same class of bug the farm guards on).

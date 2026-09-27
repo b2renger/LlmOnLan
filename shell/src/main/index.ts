@@ -4,7 +4,7 @@
 // sidecar (pointed at the farm via config-bridge), and loads it in a <webview>.
 // Discovery (M3) and full Preferences (M4) layer onto this skeleton.
 
-import { app, BrowserWindow, ipcMain, shell, nativeTheme, dialog, session, powerMonitor } from 'electron';
+import { app, BrowserWindow, ipcMain, shell, nativeTheme, dialog, session, powerMonitor, Session } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
@@ -17,6 +17,7 @@ import { McpoSupervisor } from './mcpoSupervisor';
 import { httpGet, tcpProbe } from './util';
 import { Discovery } from './discovery';
 import { moveDataDir, dirHasData } from './dataMigration';
+import { clientDataDir, prepareClientData, isInside, CLIENT_DIR_NAME, ClientDataNotice } from './clientData';
 import { initAutoUpdate, checkForAppUpdate, quitAndInstallUpdate, setUpdateNotifier } from './updater';
 import { OWUI_ENABLED } from './clientMode';
 import {
@@ -24,6 +25,9 @@ import {
     checkOwuiUpdate, downloadOwuiUpdate, SidecarProgress,
 } from './sidecarManager';
 import { ShellSettings, DiscoveredFarm, ScanRange, McpoState } from './types';
+import {
+    farmEndpoint, chooseActive as pickActive, farmContext, sameContext, persistedContext, FarmContext,
+} from './farmSelect';
 
 app.setName('LlmOnLan');
 
@@ -35,7 +39,8 @@ app.setName('LlmOnLan');
 app.commandLine.appendSwitch('lang', 'en-US');
 
 // Single-instance: a second launch focuses the existing window.
-if (!app.requestSingleInstanceLock()) {
+const gotSingleInstanceLock = app.requestSingleInstanceLock();
+if (!gotSingleInstanceLock) {
     app.quit();
 }
 
@@ -51,6 +56,7 @@ let currentSearxng: string | null = null; // the active farm's SearXNG (→ OWUI
 let currentTts: { url: string; voice: string; model: string } | null = null; // active farm's Kokoro (→ OWUI TTS)
 let currentExtract: { url: string; key: string } | null = null; // active farm's lol-extract (→ OWUI OCR loader)
 let currentCtxPerSlot: number | null = null; // active farm's per-slot context (→ whole-doc vs top-k RAG)
+let currentKey: string | null = null; // the password OWUI was launched with for the active farm (null = open farm)
 let activeFarmId: string | null = null;
 let booted = false; // true once the initial sidecar start has been kicked off
 
@@ -112,45 +118,86 @@ function resolveDataDir(): string {
     return loadSettings().dataDir || defaultDataDir();
 }
 
-// Reach a farm at the address we actually saw it (beacon source / probed host),
-// not its self-reported primary IP, which may be a different interface.
-function farmEndpoint(f: DiscoveredFarm): string {
-    return `http://${f._host}:${f.proxyPort}/v1`;
+// --- the client's own data, in DATA_DIR ---------------------------------------
+// Owner rule 2026-09-27: ALL data lives in the data folder — LOL Chat's history and the
+// Computer's graphs and media too, not only OWUI's. Those are the main window's Chromium
+// storage (IndexedDB `lol-chat` + localStorage), so the window runs on a session rooted in
+// <DATA_DIR>/lol-client instead of the default session under userData (clientData.ts).
+// The OWUI <webview> keeps its own `persist:owui` partition under userData: that is a global
+// partition whatever the embedder's session, and it holds only OWUI's token and caches.
+//
+// The file work runs HERE, at module load: before app 'ready', before any session exists, so
+// Chromium holds none of these files yet — (1) a Preferences move saved by the last run,
+// (2) a DATA_DIR that cannot be written falls back to <userData>/lol-client, (3) a history
+// such a fallback kept is brought back, (4) the one-time import of a v0.1.x profile.
+// A second instance (no lock) touches nothing.
+let clientDir: string | null = null;          // where the main window's session lives; null = the default session
+let clientSession: Session | null = null;     // created on first use, after 'ready'
+let clientNotices: ClientDataNotice[] = [];   // told to the user once the window asks (get-data-notices)
+
+function clientDataLog(lines: string[]): void {
+    if (!lines.length) return;
+    for (const l of lines) console.log('[client-data]', l);
+    try {
+        const dir = path.join(app.getPath('userData'), 'logs');
+        fs.mkdirSync(dir, { recursive: true });
+        const at = new Date().toISOString();
+        fs.appendFileSync(path.join(dir, 'client-data.log'), lines.map((l) => `${at} ${l}\n`).join(''));
+    } catch { /* the log is a convenience */ }
 }
 
-// The farm's advertised default model (or its first) → OWUI's DEFAULT_MODELS, so
-// OWUI always auto-selects whatever the farm serves. null if the farm lists none.
-function farmDefaultModel(f: DiscoveredFarm | null): string | null {
-    const models = f?.models;
-    if (!Array.isArray(models) || !models.length) return null;
-    return (models.find((m) => m.default) || models[0])?.id || null;
+function prepareClientDataAtBoot(): void {
+    const sleepSync = (ms: number) => { try { Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms); } catch { /* no wait */ } };
+    try {
+        const s = loadSettings();
+        const plan = prepareClientData({
+            userDataDir: app.getPath('userData'),
+            dataDir: resolveDataDir(),
+            settings: {
+                pendingClientMove: s.pendingClientMove ?? null,
+                legacyClientDataImported: !!s.legacyClientDataImported,
+                legacyClientDataStamp: s.legacyClientDataStamp ?? null,
+            },
+            save: (patch) => { updateSettings(patch); },
+            // The last run may still be letting go of its files for a moment after a relaunch.
+            attempts: 6,
+            sleep: sleepSync,
+        });
+        clientDir = plan.dir;
+        clientNotices = plan.notices;
+        clientDataLog(plan.log.concat(`session: ${plan.dir ?? 'default (userData)'}`));
+    } catch (e) {
+        // Never lose data silently: the default session still holds whatever it held.
+        clientDir = null;
+        clientNotices = [{ level: 'warn', text: `LlmOnLan could not open its data folder (${(e as Error).message}). This session uses the app's own folder.` }];
+        clientDataLog([`prepare failed: ${(e as Error).message}; using the default session`]);
+    }
+}
+if (gotSingleInstanceLock) prepareClientDataAtBoot();
+
+// The main window's session (after 'ready'). `cache: false`: the window loads file:// only and
+// talks to the farm with streaming requests, so an HTTP cache in the data folder buys nothing.
+function mainWindowSession(): Session | undefined {
+    if (!clientDir) return undefined;
+    if (!clientSession) {
+        try {
+            clientSession = session.fromPath(clientDir, { cache: false });
+        } catch (e) {
+            clientDataLog([`session.fromPath(${clientDir}) failed: ${(e as Error).message}; using the default session`]);
+            clientNotices.push({ level: 'warn', text: `LOL Chat could not open ${clientDir} (${(e as Error).message}). This session uses the app's own folder.` });
+            clientDir = null;
+            return undefined;
+        }
+    }
+    return clientSession;
 }
 
-// The farm's shared SearXNG (→ OWUI web search); null when the farm doesn't host one.
-function farmSearxng(f: DiscoveredFarm | null): string | null {
-    return f?.searxngUrl || null;
-}
-
-// The farm's shared Kokoro TTS (→ OWUI AUDIO_TTS_*); null when the farm doesn't host one.
-function farmTts(f: DiscoveredFarm | null): { url: string; voice: string; model: string } | null {
-    if (!f?.ttsUrl) return null;
-    return { url: f.ttsUrl, voice: f.ttsVoice || 'af_heart', model: f.ttsModel || 'kokoro' };
-}
-
-// The farm's shared OCR loader (→ OWUI CONTENT_EXTRACTION_ENGINE=external); null when
-// the farm doesn't host one. Requires both a url and a key (OWUI's loader mandates the key).
-function farmExtract(f: DiscoveredFarm | null): { url: string; key: string } | null {
-    if (!f?.extract?.url || !f.extract.key) return null;
-    return { url: f.extract.url, key: f.extract.key };
-}
-
-// The context window ONE chat gets on this farm (llama.cpp splits --ctx-size across
-// slots; Ollama's num_ctx is already per-request). Drives the whole-document vs
-// top-k RAG choice in configBridge. Null on farms older than farm-v0.0.22 — the
-// bridge then keeps the historic whole-document default.
-function farmCtxPerSlot(f: DiscoveredFarm | null): number | null {
-    const v = f?.backend?.contextPerSlot;
-    return typeof v === 'number' && v > 0 ? v : null;
+// Restart the app after a data-folder change: the next boot moves the client session (see
+// above). The user confirmed the change in Preferences, so the "Quit LlmOnLan?" prompt is
+// skipped the way "Restart & install" skips it. A beat of delay lets the renderer show it.
+function relaunchForDataDir(): void {
+    quitConfirmed = true;
+    setTimeout(() => { app.relaunch(); app.quit(); }, 900);
 }
 
 // Stable per-install id for the farm presence heartbeat — generated once, persisted.
@@ -205,10 +252,6 @@ function applyFarmRecommendations(farm: DiscoveredFarm | null): void {
     }
 }
 
-// Load metric for a farm, from the telemetry the beacon already carries. Lower =
-// more free. GPU utilisation (0–100) is the best proxy for "busy"; a farm that
-// doesn't report it (no nvidia-smi) is treated as mid-load so a box we CAN measure
-// and see idle beats an unknown one.
 // The stored password for a keyed farm (null when open, or none entered yet).
 function farmKey(f: { id: string; requiresKey?: boolean } | null): string | null {
     if (!f || !f.requiresKey) return null;
@@ -245,58 +288,52 @@ function verifyStoredFarmKey(f: DiscoveredFarm, key: string): void {
         .finally(() => clearTimeout(t));
 }
 
-function farmLoad(f: DiscoveredFarm): number {
-    // Slot occupancy beats GPU%: clients/slots is "how many people are ahead of
-    // you", where a busy GPU is just a healthy box mid-answer. Old farms without
-    // `capacity` keep the util heuristic.
-    const cap = (f as { capacity?: { slots?: number; clients?: number } }).capacity;
-    if (cap && typeof cap.slots === 'number' && cap.slots > 0) {
-        return Math.min(100, Math.round(((cap.clients || 0) / cap.slots) * 100));
-    }
-    const util = f.usage?.gpuUtil;
-    return typeof util === 'number' ? util : 50;
-}
-
-// Pick the least-loaded healthy farm, scattering ties randomly so a fleet of
-// clients booting at once doesn't stampede the same box (at cold start they all
-// see every box idle, so jitter spreads them). This runs only when we're actually
-// CHOOSING a farm — chooseActive keeps a healthy current farm sticky, so load-aware
-// selection never repoints OWUI mid-session (that churn would cost more than the
-// imbalance it fixes); it kicks in at first connect and on failover.
-//
-// If a coordinator farm is present it "absorbs" the fleet — we route through it
-// (it balances every request across the boxes centrally), so the candidate pool
-// is the coordinators. With no coordinator, the pool is all healthy farms and we
-// balance client-side. One rule cleanly covers both deployment styles.
-const LOAD_BAND = 15; // farms within 15 util-points of the minimum count as "equally free"
-function pickLeastLoaded(farms: DiscoveredFarm[]): DiscoveredFarm | null {
-    const healthy = farms.filter((x) => x.healthy && !x._stale && farmUsable(x));
-    if (!healthy.length) return null;
-    const coordinators = healthy.filter((x) => x.coordinator);
-    const pool = coordinators.length ? coordinators : healthy;
-    if (pool.length === 1) return pool[0];
-    const min = Math.min(...pool.map(farmLoad));
-    const contenders = pool.filter((x) => farmLoad(x) <= min + LOAD_BAND);
-    return contenders[Math.floor(Math.random() * contenders.length)];
-}
-
-// Pick the farm OWUI should use: the user's pinned choice, else the current one
-// if still good (sticky — avoids flapping between equivalents), else the
-// least-loaded healthy farm (spreads a fleet of clients across the boxes).
+// Pick the farm OWUI should use (farmSelect.ts holds the rules): the user's pin, else
+// the current farm while it is healthy, else last session's, else the least busy.
 function chooseActive(farms: DiscoveredFarm[]): DiscoveredFarm | null {
-    const sel = loadSettings().selectedFarmId;
-    if (sel) { const f = farms.find((x) => x.id === sel && x.healthy && !x._stale); if (f) return f; }
-    if (activeFarmId) { const f = farms.find((x) => x.id === activeFarmId && x.healthy && !x._stale); if (f) return f; }
-    // Cold boot on a multi-farm LAN: stay with LAST session's farm while it's
-    // healthy. The boot sidecar was already started against its endpoint
-    // (lastEndpoint), so re-rolling the load dice here would repoint — a full
-    // second OWUI boot — for no gain. Load-aware spreading still applies to
-    // first-ever connects and to failover (this farm gone/unhealthy).
-    if (currentEndpoint) {
-        const f = farms.find((x) => x.healthy && !x._stale && farmEndpoint(x) === currentEndpoint);
-        if (f) return f;
-    }
-    return pickLeastLoaded(farms);
+    return pickActive(farms, {
+        selectedFarmId: loadSettings().selectedFarmId,
+        activeFarmId,
+        currentEndpoint,
+        usable: farmUsable,
+    });
+}
+
+// What OWUI is running with right now, in farmContext()'s shape (null before any farm).
+function currentContext(): FarmContext | null {
+    if (currentEndpoint == null) return null;
+    return {
+        endpoint: currentEndpoint, key: currentKey, model: currentModel, searxng: currentSearxng,
+        tts: currentTts, extract: currentExtract, ctxPerSlot: currentCtxPerSlot,
+    };
+}
+
+// Point OWUI at `chosen` — the ONE path for both discovery's auto-connect and the user's
+// pin. The whole context (password included) is compared and persisted together: the pin
+// path used to save only lastEndpoint and to leave the password out of the change check,
+// so a pinned keyed farm cold-booted with the previous farm's password (docs review SA-4).
+function connectTo(chosen: DiscoveredFarm): void {
+    setActiveFarm(chosen.id);
+    const next = farmContext(chosen, farmKey(chosen as { id: string; requiresKey?: boolean }));
+    if (sameContext(next, currentContext())) return;
+    currentEndpoint = next.endpoint;
+    currentKey = next.key;
+    currentModel = next.model;
+    currentSearxng = next.searxng;
+    currentTts = next.tts;
+    currentExtract = next.extract;
+    currentCtxPerSlot = next.ctxPerSlot;
+    // Persist the whole farm context, not just the endpoint — it seeds the next
+    // cold launch so the first sidecar boot is already correctly configured and
+    // the first beacon doesn't force a restart (see ShellSettings.lastFarmModel).
+    updateSettings(persistedContext(next));
+    // A keyed farm connects with its stored password (farmKey); an open farm sends none. The
+    // default model + SearXNG + TTS + OCR ride along so OWUI auto-selects the model
+    // and gets web search + neural voice + document OCR, all with zero clicks.
+    // No-OWUI build: record the endpoint only — repoint would (re)start the OWUI
+    // sidecar, which this build must never run even where one is installed.
+    if (OWUI_ENABLED) sidecar.repoint(next.endpoint, next.key, next.model, next.searxng, next.tts, next.extract, next.ctxPerSlot);
+    else sidecar.pointTo(next.endpoint);
 }
 
 // Discovery update → forward to the renderer + auto-connect to the active farm.
@@ -304,65 +341,33 @@ function onFarms(payload: { farms: DiscoveredFarm[] } & Record<string, unknown>)
     // Decorate for the renderer: which keyed farms already have a stored password
     // (the card shows a lock + input for the others), and the key itself so LOL
     // Chat can authenticate its direct fetches. Same-user process boundary — the
-    // password was typed in this very app.
+    // password was typed in this very app. `selectedFarmId` marks the pinned card and
+    // lights the "Automatic" row when nothing is pinned.
     const decorated = {
         ...payload,
         farms: payload.farms.map((f) => {
             const k = farmKey(f as { id: string; requiresKey?: boolean });
             return { ...f, _hasKey: !!k, _key: k };
         }),
+        selectedFarmId: loadSettings().selectedFarmId,
     };
     if (win && !win.isDestroyed()) win.webContents.send('farms', decorated);
     if (!booted || process.env.LOL_ENDPOINT) return; // pinned endpoint: discovery is informational only
     const chosen = chooseActive(payload.farms);
     if (!chosen) return;
-    // Rotation detection must not hide inside the endpoint-CHANGED branch: the
-    // operator rotating the password changes nothing in that comparison, and the
-    // stored key silently 401-loops. Verify on every beacon — verifyStoredFarmKey
-    // rate-limits itself to one probe per farm per minute.
+    // Rotation detection must not hide inside the context-CHANGED check: the operator
+    // rotating the password changes nothing in that comparison, and the stored key
+    // silently 401-loops. Verify on every beacon — verifyStoredFarmKey rate-limits
+    // itself to one probe per farm per minute. A wrong key is dropped, the farm falls
+    // out of auto-connect and its card grows the password prompt again.
     {
         const k = farmKey(chosen as { id: string; requiresKey?: boolean });
         if (k) verifyStoredFarmKey(chosen as DiscoveredFarm, k);
     }
     // Honor the farm's client-plugin recommendations (Blender) — independent of the
-    // endpoint change-check below, since recommendations can change on a stable endpoint.
+    // context change-check, since recommendations can change on a stable endpoint.
     applyFarmRecommendations(chosen);
-    const endpoint = farmEndpoint(chosen);
-    const model = farmDefaultModel(chosen);
-    const searxng = farmSearxng(chosen);
-    const tts = farmTts(chosen);
-    const extract = farmExtract(chosen);
-    const ctxPerSlot = farmCtxPerSlot(chosen);
-    if (endpoint !== currentEndpoint || model !== currentModel || searxng !== currentSearxng
-        || JSON.stringify(tts) !== JSON.stringify(currentTts)
-        || JSON.stringify(extract) !== JSON.stringify(currentExtract)
-        || ctxPerSlot !== currentCtxPerSlot) {
-        currentEndpoint = endpoint;
-        currentModel = model;
-        currentSearxng = searxng;
-        currentTts = tts;
-        currentExtract = extract;
-        currentCtxPerSlot = ctxPerSlot;
-        setActiveFarm(chosen.id);
-        // Persist the whole farm context, not just the endpoint — it seeds the next
-        // cold launch so the first sidecar boot is already correctly configured and
-        // the first beacon doesn't force a restart (see ShellSettings.lastFarmModel).
-        const key = farmKey(chosen as { id: string; requiresKey?: boolean });
-        // A stored password can go STALE (the operator rotated it). Left alone,
-        // the farm still counts as usable, OWUI 401-loops, and the card shows an
-        // unlocked farm with no way to re-enter — so verify on connect, and on
-        // failure drop the key: the farm falls out of auto-connect and its card
-        // grows the password prompt again. Fire-and-forget; never blocks connect.
-        if (key) verifyStoredFarmKey(chosen as DiscoveredFarm, key);
-        updateSettings({ lastEndpoint: endpoint, lastFarmKey: key, lastFarmModel: model, lastFarmSearxng: searxng, lastFarmTts: tts, lastFarmExtract: extract, lastFarmCtxPerSlot: ctxPerSlot });
-        // A keyed farm connects with its stored password (farmKey); an open farm sends none. The
-        // default model + SearXNG + TTS + OCR ride along so OWUI auto-selects the model
-        // and gets web search + neural voice + document OCR, all with zero clicks.
-        // No-OWUI build: record the endpoint only — repoint would (re)start the OWUI
-        // sidecar, which this build must never run even where one is installed.
-        if (OWUI_ENABLED) sidecar.repoint(endpoint, key, model, searxng, tts, extract, ctxPerSlot);
-        else sidecar.pointTo(endpoint);
-    }
+    connectTo(chosen);
 }
 
 // Local Blender assistant-tools server (mcpo) state → forward to the renderer. The
@@ -404,6 +409,7 @@ function pushSidecarInstall(p: SidecarProgress): void {
 }
 
 function createWindow(): void {
+    const clientSes = mainWindowSession();
     win = new BrowserWindow({
         width: 1280,
         height: 860,
@@ -418,6 +424,8 @@ function createWindow(): void {
             contextIsolation: true,
             nodeIntegration: false,
             webviewTag: true, // the main area embeds OWUI in a <webview>
+            // LOL Chat + the Computer keep their data in this session: <DATA_DIR>/lol-client.
+            ...(clientSes ? { session: clientSes } : {}),
         },
     });
     win.removeMenu();
@@ -733,6 +741,10 @@ function registerIpc(): void {
             dataDir: resolveDataDir(),
             dataDirDefault: defaultDataDir(),
             dataDirIsDefault: !s.dataDir,
+            // Where LOL Chat + the Computer actually live this session. It differs from
+            // <dataDir>/lol-client only when the data folder could not be used at boot.
+            clientDataDir: clientDir,
+            clientDataInDataDir: !!clientDir && path.resolve(clientDir) === path.resolve(clientDataDir(resolveDataDir())),
             theme: s.theme,
             launchAtLogin: s.launchAtLogin,
             autoUpdate: s.autoUpdate,
@@ -763,26 +775,55 @@ function registerIpc(): void {
     });
 
     // Apply a data-folder change. mode: 'move' (copy old→new) | 'fresh' (start empty).
+    // Either way the app RESTARTS to finish: the client session (<DATA_DIR>/lol-client, LOL Chat
+    // + the Computer) is held open by Chromium while the app runs, so 'move' copies OWUI's data
+    // now, leaves lol-client where it is, and saves `pendingClientMove` — the next boot moves it
+    // before the window opens (prepareClientDataAtBoot). 'fresh' just switches: the old data stays
+    // where it was, as OWUI's always has.
     ipcMain.handle('set-data-dir', async (_e, payload: { path: string; mode: 'move' | 'fresh' }) => {
         const oldDir = resolveDataDir();
-        const newDir = payload.path;
+        const newDir = payload && typeof payload.path === 'string' ? payload.path : '';
         if (!newDir || path.resolve(newDir) === path.resolve(oldDir)) return { ok: false, error: 'Same folder.' };
+        if (!path.isAbsolute(newDir)) return { ok: false, error: 'Pick a full folder path.' };
+        // A data folder inside the client's own session folder would nest one Chromium profile in another.
+        for (const held of [clientDataDir(oldDir), clientDir].filter((d): d is string => !!d)) {
+            if (isInside(held, newDir)) return { ok: false, error: `Pick a folder outside ${held}.` };
+        }
+        const mode = payload.mode === 'move' ? 'move' : 'fresh';
         await sidecar.stop({ keepState: true });
         let result: { ok: boolean; error?: string } = { ok: true };
-        if (payload.mode === 'move') result = moveDataDir(oldDir, newDir);
-        if (result.ok) updateSettings({ dataDir: newDir });
-        // Re-thread the farm's model + SearXNG + TTS + OCR so a data-folder change
-        // doesn't drop web search / the default model / voice / OCR (they'd reset to
-        // null otherwise, and the no-op change-check in onFarms would never repoint to
-        // restore them).
-        // apiKey rides along or a keyed farm 401-loops after the move — sidecar.start
-        // NULLS any field not passed (audit round 2 caught this handler missing it).
-        const moveKey = (() => {
+        if (mode === 'move') result = moveDataDir(oldDir, newDir, { exclude: [CLIENT_DIR_NAME] });
+        if (!result.ok) {
+            // Nothing moved: OWUI comes back on the old folder, exactly as before.
+            // Re-thread the farm's model + SearXNG + TTS + OCR so a failed change doesn't drop
+            // web search / the default model / voice / OCR (they'd reset to null otherwise). apiKey
+            // rides along or a keyed farm 401-loops — sidecar.start NULLS any field not passed.
             const f = discovery?.getFarms().find((x) => x.id === activeFarmId) ?? null;
-            return f ? farmKey(f as { id: string; requiresKey?: boolean }) : loadSettings().lastFarmKey;
-        })();
-        await sidecar.start({ endpoint: currentEndpoint, dataDir: result.ok ? newDir : oldDir, apiKey: moveKey, defaultModel: currentModel, searxngUrl: currentSearxng, tts: currentTts, extract: currentExtract, contextPerSlot: currentCtxPerSlot });
-        return result;
+            const key = f ? farmKey(f as { id: string; requiresKey?: boolean }) : loadSettings().lastFarmKey;
+            if (OWUI_ENABLED) {
+                await sidecar.start({ endpoint: currentEndpoint, dataDir: oldDir, apiKey: key, defaultModel: currentModel, searxngUrl: currentSearxng, tts: currentTts, extract: currentExtract, contextPerSlot: currentCtxPerSlot });
+            }
+            return result;
+        }
+        // 'move' hands the client session over to the next boot. With no clientDir (this session
+        // runs on the default session because the v0.1.x import failed) there is nothing to hand
+        // over: that import simply runs again, into the new folder. 'fresh' drops any older
+        // pending move, so the data it names stays where it is.
+        const pendingClientMove = mode === 'move' && clientDir
+            ? { from: clientDir, to: clientDataDir(newDir) }
+            : null;
+        updateSettings({ dataDir: newDir, pendingClientMove });
+        clientDataLog([`data folder ${oldDir} -> ${newDir} (${mode}); ${pendingClientMove ? `client move pending ${pendingClientMove.from} -> ${pendingClientMove.to}` : 'no client move'}; relaunching`]);
+        relaunchForDataDir();
+        return { ok: true, error: result.error, restarting: true, dataDir: newDir };
+    });
+
+    // What happened to the client's data at boot (a move landed, a fallback, an import) — told
+    // to the user once, as toasts. Pull, not push: the window may not be listening yet at boot.
+    ipcMain.handle('get-data-notices', () => {
+        const out = clientNotices;
+        clientNotices = [];
+        return out;
     });
 
     ipcMain.handle('set-launch-at-login', (_e, on: boolean) => {
@@ -810,17 +851,19 @@ function registerIpc(): void {
         if (!initial) initial = await waitForFirstFarm(4500);
         currentEndpoint = initial;
         const activeNow = discovery?.getFarms().find((f) => f.id === activeFarmId) ?? null;
-        currentModel = farmDefaultModel(activeNow);
-        currentSearxng = farmSearxng(activeNow);
-        currentTts = farmTts(activeNow);
-        currentExtract = farmExtract(activeNow);
-        currentCtxPerSlot = farmCtxPerSlot(activeNow);
+        const seed = activeNow ? farmContext(activeNow, farmKey(activeNow as { id: string; requiresKey?: boolean })) : null;
+        currentModel = seed ? seed.model : null;
+        currentSearxng = seed ? seed.searxng : null;
+        currentTts = seed ? seed.tts : null;
+        currentExtract = seed ? seed.extract : null;
+        currentCtxPerSlot = seed ? seed.ctxPerSlot : null;
+        // Same key logic as the cold boot — a keyed farm must come back
+        // authenticated after the first-run download too.
+        currentKey = seed ? seed.key : loadSettings().lastFarmKey;
         booted = true;
         sidecar.start({
             endpoint: initial, dataDir: resolveDataDir(),
-            // Same key logic as the cold boot — a keyed farm must come back
-            // authenticated after a data-folder move too.
-            apiKey: activeNow ? farmKey(activeNow as { id: string; requiresKey?: boolean }) : loadSettings().lastFarmKey,
+            apiKey: currentKey,
             defaultModel: currentModel, searxngUrl: currentSearxng, tts: currentTts, extract: currentExtract, contextPerSlot: currentCtxPerSlot,
         });
         return res;
@@ -839,27 +882,15 @@ function registerIpc(): void {
     // Relaunch the app (applies a staged OWUI update via applyPendingSidecar at boot).
     ipcMain.handle('relaunch-app', () => { quitConfirmed = true; app.relaunch(); app.quit(); return true; });
 
-    // User pins a specific farm → persist + repoint immediately.
+    // User pins a specific farm (a card click) → persist + repoint immediately; null
+    // unpins ("Automatic — least busy"): the current farm stays while it is healthy
+    // (sticky, no needless OWUI restart) and least-busy selection applies again on the
+    // next boot or failover. Before this, a pin could never be removed (docs review SA-5).
     ipcMain.handle('select-farm', (_e, farmId: string | null) => {
-        updateSettings({ selectedFarmId: farmId });
-        const farms = discovery?.getFarms() ?? [];
-        const chosen = chooseActive(farms);
-        if (chosen) {
-            const endpoint = farmEndpoint(chosen);
-            currentEndpoint = endpoint;
-            currentModel = farmDefaultModel(chosen);
-            currentSearxng = farmSearxng(chosen);
-            currentTts = farmTts(chosen);
-            currentExtract = farmExtract(chosen);
-            currentCtxPerSlot = farmCtxPerSlot(chosen);
-            setActiveFarm(chosen.id);
-            updateSettings({ lastEndpoint: endpoint });
-            // A keyed farm connects with its stored password (farmKey); an open farm sends none. Thread
-            // the pinned farm's model + SearXNG + TTS + OCR so pinning doesn't drop
-            // DEFAULT_MODELS / web search / voice / OCR (and leave the globals stale so
-            // onFarms never restores them).
-            sidecar.repoint(endpoint, farmKey(chosen as { id: string; requiresKey?: boolean }), currentModel, currentSearxng, currentTts, currentExtract, currentCtxPerSlot);
-        }
+        updateSettings({ selectedFarmId: typeof farmId === 'string' && farmId ? farmId : null });
+        const chosen = chooseActive(discovery?.getFarms() ?? []);
+        if (chosen) connectTo(chosen);
+        discovery?.notify(); // the popover re-marks the pinned card / the Automatic row now
         return chosen?.id ?? null;
     });
 }
@@ -918,6 +949,7 @@ app.on('second-instance', () => {
 });
 
 app.whenReady().then(async () => {
+    if (!gotSingleInstanceLock) return; // quitting: the running instance owns the data folder
     const settings = loadSettings();
     applyTheme(settings.theme);
     registerIpc();
@@ -973,20 +1005,22 @@ app.whenReady().then(async () => {
     // context, an unchanged farm confirms what we booted with and OWUI starts ONCE;
     // a genuinely changed farm still repoints exactly as before.
     const activeNow = discovery?.getFarms().find((f) => f.id === activeFarmId) ?? null;
-    currentModel = activeNow ? farmDefaultModel(activeNow) : settings.lastFarmModel;
-    currentSearxng = activeNow ? farmSearxng(activeNow) : settings.lastFarmSearxng;
-    currentTts = activeNow ? farmTts(activeNow) : settings.lastFarmTts;
-    currentExtract = activeNow ? farmExtract(activeNow) : settings.lastFarmExtract;
-    currentCtxPerSlot = activeNow ? farmCtxPerSlot(activeNow) : settings.lastFarmCtxPerSlot;
+    const seed = activeNow ? farmContext(activeNow, farmKey(activeNow as { id: string; requiresKey?: boolean })) : null;
+    currentModel = seed ? seed.model : settings.lastFarmModel;
+    currentSearxng = seed ? seed.searxng : settings.lastFarmSearxng;
+    currentTts = seed ? seed.tts : settings.lastFarmTts;
+    currentExtract = seed ? seed.extract : settings.lastFarmExtract;
+    currentCtxPerSlot = seed ? seed.ctxPerSlot : settings.lastFarmCtxPerSlot;
+    // The cold-boot seed rides with lastEndpoint: a keyed farm boots
+    // authenticated instead of 401-looping until the first beacon.
+    currentKey = seed ? seed.key : settings.lastFarmKey;
     booted = true;
     // LOL Chat talks straight to the farm's OpenAI endpoint, so there is no local
     // process to supervise — discovery alone is enough to be usable.
     if (OWUI_ENABLED) {
         sidecar.start({
             endpoint: initial, dataDir: resolveDataDir(),
-            // The cold-boot seed rides with lastEndpoint: a keyed farm boots
-            // authenticated instead of 401-looping until the first beacon.
-            apiKey: activeNow ? farmKey(activeNow as { id: string; requiresKey?: boolean }) : settings.lastFarmKey,
+            apiKey: currentKey,
             defaultModel: currentModel, searxngUrl: currentSearxng, tts: currentTts, extract: currentExtract, contextPerSlot: currentCtxPerSlot,
         });
     } else {

@@ -16,18 +16,21 @@ no URL typed. Model choice lives in the config — the CLI never hand‑edits ro
 > installer that runs this exact CLI for you — it downloads its own Ollama + Python, fetches the
 > backend + weights, and gives you the admin panel, with zero prerequisites. (**Unlike the client it
 > does not update itself** — it shows a notice and a Download button; check it after each client
-> release. It also has no UI for `llamacpp.parallel`, so serving a group still means editing the
-> config.) This README is for driving
+> release.) This README is for driving
 > the farm directly (or understanding what the app does under the hood). The app sets `$LOL_PYTHON`
-> so the venv builds below use its bundled interpreter.
+> so the venv builds below use its bundled interpreter, and `$LOL_FARM_VERSION` so the farm advertises
+> the app's release (a bare CLI checkout advertises `farm/package.json`). Before every start it also
+> moves SearXNG / OCR off a taken port (8888 / 8890 — JupyterLab's 8888 is common on a DGX) by patching
+> `websearch.port` / `ocr.port` in its `lol.config.json`; clients follow, since the port rides the beacon.
 
 ## Quick start (fresh pull) — two commands
 
 On a GPU box with a fresh checkout you need **[Node ≥ 20](https://nodejs.org)** and
-**[Python 3.9–3.13](https://python.org)** — `lol install` builds the LiteLLM proxy into a venv but will
+**[Python 3.10–3.13](https://python.org)** (3.9 is enough for the LiteLLM proxy alone; the default-on web
+search and OCR need 3.10+) — `lol install` builds the LiteLLM proxy into a venv but will
 **not** install Python for you (without it the bootstrap stops at *"Bootstrap incomplete"* and the farm
-has no proxy). Everything else — Ollama, LiteLLM, the llama.cpp backend, the models, web search and OCR
-— one command installs; one runs the farm.
+has no proxy). Everything else — Ollama, LiteLLM, the models, web search and OCR (and the llama.cpp
+backend, only when enabled) — one command installs; one runs the farm.
 
 **Windows (PowerShell):**
 ```powershell
@@ -59,7 +62,7 @@ the desktop clients auto‑discover it. To change which models are served, edit 
 | **Config** | Scaffolds `farm/lol.config.json` from the defaults (named after this host) if none exists. | A config is already there. |
 | **Models** | Pulls every model in `models` **and `preinstall`** on the local Ollama (over its HTTP API), derives `source` models with their `params`, and fetches any `draft` module. | Model already pulled. (`lol up` also pulls anything missing.) |
 | **Web search + OCR** | Builds the SearXNG and document-OCR venvs (both default-on) so the first `lol up` starts instantly. Non-fatal: `lol up` retries. | Already installed. |
-| **llama.cpp backend** | Downloads the pinned `llama-server` build + CUDA runtime into `farm/.llamacpp/` and the `.gguf` weights + vision projector into `farm/.models/` (several GB). Non‑fatal: `lol up` retries. | Build marker matches **and** the weights are cached. |
+| **llama.cpp backend** | Only when `llamacpp.enabled`: downloads the pinned `llama-server` build + CUDA runtime into `farm/.llamacpp/` and the `.gguf` weights + vision projector into `farm/.models/` (several GB). Non‑fatal: `lol up` retries. | Build marker matches **and** the weights are cached. |
 
 If an auto‑installer isn't available (no winget/brew/curl, or no Python), `lol install` prints the exact
 manual step and you re‑run it — it's **idempotent**, so re‑running only does what's left.
@@ -87,9 +90,9 @@ npm link        # then just `lol <cmd>` anywhere
 
 | Command | Does |
 |---|---|
-| `lol install` / `setup` | One‑time bootstrap: install Ollama + LiteLLM, pull the configured models, and set up shared web search (SearXNG) + document OCR (both on by default). Idempotent. |
+| `lol install` / `setup` | One‑time bootstrap: install Ollama + LiteLLM, pull every `models` + `preinstall` entry, set up shared web search (SearXNG) + document OCR (both on by default), and — only when `llamacpp.enabled` — fetch the llama.cpp build + weights. Idempotent. |
 | `lol init [--force]` | Scaffold a `lol.config.json` in the current directory. |
-| `lol up` / `lol serve` | Ensure Ollama, **pick the Ollama model(s) to serve** (interactive, from what's installed; Enter = default), pull anything missing, start `llama-server` (fetching build + weights on first run), generate + run the LiteLLM proxy, start SearXNG + OCR (if enabled) + the beacon. Foreground; Ctrl‑C stops. |
+| `lol up` / `lol serve` | Ensure Ollama, **pick the Ollama model(s) to serve** (interactive, from what's installed; Enter = default), pull anything missing, start `llama-server` if enabled (fetching build + weights on first run), generate + run the LiteLLM proxy behind the seat gate, start SearXNG + OCR (if enabled) + the beacon + the admin panel. Foreground; Ctrl‑C stops. |
 | `lol down` | Stop the proxy + `llama-server` + SearXNG + TTS + OCR + beacon (and any Ollama this CLI started). |
 | `lol status` | Health of each Ollama host + the proxy + which models are loaded. Works from any shell. |
 | `lol fleet` | Every farm on the LAN (this box + peers): health, GPU load, VRAM, loaded models, roles, search URL. |
@@ -106,7 +109,8 @@ voice toggle (off by default) · `--ocr` / `--no-ocr` override the document‑OC
 
 ## Backends — Ollama (default) and llama.cpp
 
-A farm knows **two** engines — and serves through **one at a time**. Knowing which one is serving is
+A farm knows **two** built-in engines — plus an operator-run [`external`](#config--lolconfigjson) server
+(vLLM/SGLang, config file only) — and serves through **one at a time**. Knowing which one is serving is
 the thing to understand before changing models or sizing for a group.
 
 | | **llama.cpp** (`llama-server`) | **Ollama** |
@@ -121,15 +125,32 @@ Both live behind the same LiteLLM proxy, but **one engine serves at a time**: wh
 engine, its alias is the only model routed or advertised, and the Ollama catalog is **standby** —
 installed and ready for an engine switch, and used internally by document OCR (which talks raw Ollama,
 never the proxy). Two engines advertising at once read as "both are running", and on a 12 GB card a
-client picking an Ollama model next to a resident llama-server overcommitted VRAM and crawled. The
-advertised **name survives the switch** (it is copied between `llamacpp.alias` and `modelAlias`), so
-existing chats keep working either way.
+client picking an Ollama model next to a resident llama-server overcommitted VRAM and crawled. A
+**name you gave the model** (**Rename** / **Name users see**) **survives an engine switch and a
+fallback** (`carryNameAcross`), so bound chats keep working: switching to llama.cpp makes the Ollama
+default's served name (its own **Rename**, else `modelAlias`) the `llamacpp.alias`; switching back
+writes `llamacpp.alias` onto the default's own name if it has one, else into `modelAlias`. An
+**unnamed** default is served under its raw id on Ollama (`gemma4:12b`) and under `llamacpp.alias`
+(`assistant`) on llama.cpp — a raw checkpoint id is never carried — so chats bound to it re-pick after
+a switch (and a switch back names it `llamacpp.alias` via `modelAlias`); name the model first if chats
+should survive a switch. The other catalog models are never served under llama.cpp. A fallback gives
+an unnamed Ollama default the failed engine's alias **for that run only** (never written to the file).
+
+**A reachable Ollama is required even when llama.cpp or an external server serves.** `lol up` exits
+with *"No reachable Ollama host"* if none answers: Ollama is the fallback engine, and document OCR
+drives its vision model there. With another engine serving, a farm-started Ollama keeps models warm
+for only 5 minutes, and **pressure eviction** unloads Ollama models when VRAM is ≥ 92 % full and the
+GPU ≤ 20 % busy (never mid-extraction) — the farm log says so, and on llama.cpp so does the panel's
+Performance card.
 
 **If llama.cpp cannot start, the farm does not die.** No prebuilt exists for this platform (prebuilts
 cover win-x64 and linux-arm64/the Spark today), the download failed, the weights would not load:
 `lol up` logs the reason, **falls back to the Ollama engine for the run**, and the panel shows why on
 the Backend card. The config keeps `llamacpp.enabled`, so a later boot (or a `binDir` pointing at a
-hand-built llama.cpp) picks the fast engine back up.
+hand-built llama.cpp) picks the fast engine back up. **A crash mid-run** (OOM, driver reset) gets one
+automatic restart; a second crash within 5 minutes falls back to Ollama the same way (the panel reason
+reads *"llama-server crashed twice in 5 minutes"*). In both windows the beacon flips the farm unhealthy
+at once, so clients fail over instead of chatting into a dead port.
 
 **What `lol up` bootstraps for it** (automatic on win-x64 with NVIDIA **and on the DGX Spark** —
 linux-arm64 has no upstream prebuilt, so our own CI builds one and the farm downloads it from this
@@ -151,7 +172,8 @@ Clients see the same thing from the outside: each farm card in the desktop app s
 asking anyone.
 
 **From the config** — `"llamacpp": { "enabled": false }`. Ollama then serves everything, and the
-global `modelAlias` (not `llamacpp.alias`) names the default model.
+default model is named by its own `alias` (the panel's **Rename**), else the global `modelAlias` (not
+`llamacpp.alias`).
 
 > **Quant ↔ `mtp` rule.** `mtp: true` adds `--spec-type draft-mtp` (speculative decoding via the GGUF's
 > built-in MTP head). Unsloth **strips that head** from every quant below `UD-Q2_K_XL`, and llama-server
@@ -183,8 +205,8 @@ This is the model clients auto-select — the one that matters. It is a single `
    and several minutes) and reloads llama-server onto it.
 3. **Remove** drops an entry from the list. The one currently serving can't be removed; switch first.
 
-The library ships with the three quants this project has measured on 12 GB cards, so on that hardware you
-can switch between them without hunting for URLs.
+The library ships with four: the three 12 GB-class Qwen3.8-27B quants measured here, plus an NVFP4+MTP
+build for Blackwell cards (16 GB+), so you can switch between them without hunting for URLs.
 
 If the new weights fail to load — a wrong URL, a file that isn't a GGUF, something too big for the card —
 **the farm rolls back to the model that was working** and tells you why. It will not leave you with a
@@ -220,8 +242,10 @@ Old `.gguf`s stay in `farm/.models/` at several GB each; delete the ones you're 
 ### The name users see
 
 Over an OpenAI connection, the model **id** is what a picker displays — so the name is the served alias,
-not a label bolted on top. Set it in the panel's *Backend* card (**Name users see** → Apply), or as
-`llamacpp.alias` in the config (`modelAlias` when the llama.cpp backend is off).
+not a label bolted on top. Set it in the panel: on llama.cpp, *Backend* ▸ **Name users see**
+(`llamacpp.alias`); on Ollama, the **Rename** button on each model row (`models[].alias`). `modelAlias`
+is config-file only. While llama.cpp serves, the Ollama default's row has no Rename: a switch back gives
+it llama.cpp's name, so it is renamed up in *Backend*.
 
 Renaming reloads the model and takes a few seconds. **Existing chats will ask to re-select the model**,
 because their bound id no longer exists; new chats are unaffected. That is the cost of the rename being
@@ -231,13 +255,16 @@ real rather than cosmetic.
 
 These are ordinary Ollama tags. When **Ollama is the selected engine** they are what the farm serves —
 several at once, load-balanced across `ollama.hosts`. While llama.cpp is the engine they are
-**standby**: kept installed (the panel shows them greyed with Download/Delete only) so an engine
-switch is instant, and so document OCR has its vision model.
+**standby**: kept installed (the card carries a *standby* badge and a "Not served right now" hint; the
+rows keep **Rename** — except the default's — and **Delete**, but lose Offer/Stop and Make default) so
+an engine switch is instant, and so document OCR has its vision model.
 
 **From the panel** — the *Models · Ollama* card:
 
-- **Download a model**: type an Ollama tag (`gemma4:12b`, `qwen3.8:14b`) and press Download. It is pulled
-  onto every local host and immediately offered to clients.
+- **Download a model**: type an Ollama tag (`gemma4:12b`, `qwen3.8:14b`) and press Download. It is
+  pulled onto every local host and offered to clients while Ollama is the engine. With another engine
+  serving it is only added to the standby catalog: no proxy restart (in-flight chats keep going) and no
+  warm-up next to the serving engine.
 - **Offer / Stop**: whether clients can select an already-downloaded model.
 - **Delete**: removes the weights from the box. Refused for the last model in the catalog, and for the
   model document OCR is using.
@@ -283,11 +310,21 @@ first bootstrap is large; empty it (`"preinstall": []`) if you don't want it on 
 ### What the panel changes, and what it does not
 
 Everything in the panel applies to the **running** farm and is written back to `lol.config.json`, so it
-survives a restart. Two exceptions, both deliberate:
+survives a restart. The exceptions, all deliberate:
 
-- **Plugin toggles** (web search / OCR / voice) are for this session only.
+- **Plugin toggles** and the **Blender recommendation** are for this session only.
 - **Ollama's own slot count** needs a farm restart to take effect, because `OLLAMA_NUM_PARALLEL` is read
-  by Ollama at startup. The panel says so when you change it.
+  by Ollama at startup. The panel says so when you change it. On a multi-box farm it is **per box**
+  (the panel shows the farm total next to it).
+
+The *Backend* card's settings — the name (llama.cpp), people served at once, the context window and the
+farm password — are collected and applied by **one Apply changes** button: one restart for all of them,
+not one per field.
+
+**Under an external server** the panel's engine controls are off: the engine buttons, name, slots and
+context are refused (*"An external server is serving — set external.\* in lol.config.json and restart"*),
+because that server's model, window and concurrency are its own. The farm password still applies. The
+Ollama catalog is standby, exactly as under llama.cpp.
 
 Only **one** long operation runs at a time — a download, a backend switch, a reload. Everything else is
 refused with *"the farm is busy"* rather than queued, because two model reloads racing is how a farm ends
@@ -299,22 +336,18 @@ A farm is a shared box, and the honest limits are per-engine.
 
 **llama.cpp serves `llamacpp.parallel` requests at once — default `1`.** With one slot, a second person's
 message waits for the first to finish generating: throughput is fine, but their *time to first token* is
-however long the current answer takes. Raising it splits the context window rather than adding memory —
-verified on the pinned build:
-
-```
---ctx-size 16384 --parallel 2   →   n_slots = 2, n_ctx_slot = 8192
-```
-
-So for N concurrent users at the same usable window, raise **both**: `parallel: N` **and**
-`contextLength: N × (the per-user window you want)` — then check the total still fits VRAM, because the
-KV cache is allocated in full at load.
+however long the current answer takes. With `kvUnified` (the default) the slots share ONE context pool:
+a person alone gets the whole window, and under full contention each is guaranteed
+`contextLength ÷ parallel` (what the beacon advertises as `contextPerSlot`). For N busy users at a
+W-token window, set `contextLength ≈ N × W` and check the total still fits VRAM, because the KV cache is
+allocated in full at load. `kvUnified: false` restores the hard split
+(`--ctx-size 16384 --parallel 2` → 8192 each).
 
 Both are panel controls — *Backend* → **People served at once** and **Context window** — and the panel
-spells out the arithmetic as you change them ("2 slots, 8192 tokens of context each"), which is the
-part that is easy to get wrong. Each applies live, reloading the model, and is written back to
-`lol.config.json`. If the new shape does not fit VRAM the model fails to load and the farm reverts to
-the shape that worked.
+spells out the arithmetic as you change them ("2 slot(s) sharing one 32768-token context pool (16384
+guaranteed each)"), which is the part that is easy to get wrong. They apply together with **Apply
+changes**, reloading the model once, and are written back to `lol.config.json`. If the new shape does
+not fit VRAM the model fails to load and the farm reverts to the shape that worked.
 
 **Budgeting VRAM.** For the shipped quant, weights are ~7.8 GB and quantized (`q4_0`) KV runs
 **~1.2 GB per 16k of total `contextLength`** — so `parallel: 4, contextLength: 65536` lands around
@@ -336,12 +369,13 @@ number in the panel only when you need to trade context for slots.
 
 **The Ollama engine sizes automatically too** (`ollama.contextLength: "auto"`, the default): GGUF
 math is unreliable for its zoo of architectures (Gemma's sliding-window layers make the naive KV
-estimate several times too high), so the farm **measures instead** — it loads the default model at a
-VRAM-tiered candidate, asks `/api/ps` whether any of it landed in system RAM, steps down if so, and
-**caches the verdict** per (model, VRAM, parallel) so the one-or-two model loads are paid once per
-box, not per boot. Verified: gemma4:12b on a 96 GB box probes straight to its native **262144**
-(fully in VRAM — that sliding window makes its KV tiny), while the floor is the measured-safe 16384.
-The probe doubles as the warm-up. `Automatic` in the panel's context selector works on both engines.
+estimate several times too high), so the farm **measures instead** — it loads the default model at 16k
+and 32k, derives the per-token cost from `/api/ps`, aims at min(native max, VRAM − 8%) and verifies with
+one more load (one halving, then 16k, if it spills). The verdict is **cached** per (model, VRAM,
+numParallel, kvCacheType), so the loads are paid once per box, not per boot. If even 16k spills it walks
+down to 8192/4096. Verified: gemma4:12b on a 96 GB box probes straight to its native **262144** (fully
+in VRAM — that sliding window makes its KV tiny). The probe doubles as the warm-up. `Automatic` in the
+panel's context selector works on both engines.
 
 You mostly do not have to do the arithmetic yourself even then: the panel **computes the budget from the real
 weights on disk and the detected VRAM** — context sizes past the budget are **advertised as too much**
@@ -382,11 +416,16 @@ hostname, platform, app version, idle seconds). The admin panel's **Clients** ca
 times, and it rides the beacon as `usage.clients` — so you can see who is actually on a box before
 restarting it. Machines drop off ~30 s after the app closes.
 
-That count is also published against the slot count as `capacity: { slots, clients }`, which is what
-lets both ends show occupancy: the panel's Clients card reads *"1 of 2 slots in use"*, and every farm
-card in the desktop client shows the same, turning amber once a box is full. It is deliberately
-**advisory** — the farm never turns anyone away past `slots`, it queues them — so a full box means
-"expect to wait", and the point of showing it is that the next person can pick a different box.
+That count is also published against the slot count as `capacity: { slots, clients, seatsUsed }`, which
+is what lets both ends show occupancy: every farm card in the desktop client turns amber once a box is
+full. Past `slots` the **seat gate** refuses NEW generations with a clear 429 (*"All N seats … in use"*)
+until a seat has been idle `proxy.seatIdleSec` (15 min). The panel's Clients card reads *"N of M seats
+in use"*. Set `proxy.seatGate: false` to go back to queueing.
+
+**"Capacity is unverified."** `OLLAMA_NUM_PARALLEL` / `OLLAMA_KV_CACHE_TYPE` only reach an Ollama the farm
+starts. When Ollama was already running as someone's service, the snapshot reports
+`slotsVerified: false`, and the panel's Clients card says *"Capacity is unverified"* with the exact env
+line to set on that service (the seats still use the configured number).
 
 **What multi-user does *not* mean here.** There are no farm-side accounts and nothing to administer per
 person: each client is a single-user app whose chats, documents and RAG vectors live on that person's own
@@ -399,8 +438,9 @@ for it once per farm and remembers it.
 
 One shared password for everyone (the ComfyQ model — nothing fancy, no accounts):
 
-1. Panel ▸ *Backend* ▸ **Farm password** → type one → Apply (a few seconds; the proxy restarts).
-   Apply with the field empty to remove it. Or set `proxy.masterKey` in `lol.config.json`.
+1. Panel ▸ *Backend* ▸ **Farm password** → type one → Apply changes (a few seconds; the proxy
+   restarts). To remove it, press **Remove** next to the field (it asks to confirm). Or set
+   `proxy.masterKey` in `lol.config.json`.
 2. Every client then shows the farm with a 🔒 and asks for the password **once**, verifies it
    against the farm before saving, and remembers it per farm. Wrong password = an immediate
    "not accepted", never a broken chat.
@@ -411,6 +451,28 @@ clients can *find* the farm and ask for the password, `/health/liveliness` (the 
 checks), and the admin panel's own **token** gate, which is separate and unchanged. This is a
 trusted-LAN convenience lock, not hardened auth: traffic is plain HTTP on your own network.
 
+## Admin HTTP API
+
+The panel is a thin page over these routes on `beacon.httpPort` (41997), bound to `proxy.host`. Every
+`/lol/admin/*` route needs `Authorization: Bearer <admin token>`; the rest are open. Routes that reload a
+model return at once with a job, whose progress rides `GET /lol/admin/state` (one job at a time — others
+get *"the farm is busy"*).
+
+| Route | Does |
+|---|---|
+| `GET /lol/self` | The discovery snapshot (open, CORS `*`). |
+| `POST /lol/client-ping` | Client presence heartbeat (open). |
+| `GET /lol/admin` | The panel page (open — it asks for the token). |
+| `GET /lol/admin/state` | Everything the panel renders. |
+| `POST /lol/admin/apply` | `{ name?, slots?, password?, context? }` — the one **Apply changes**, one restart. |
+| `POST /lol/admin/backend` | `{ engine: "llamacpp" \| "ollama" }` — switch engines. |
+| `POST /lol/admin/name` · `/slots` · `/context` · `/security` | The single-field forms of Apply (`{ name }`, `{ slots }`, `{ tokens }`, `{ password }` — an empty password removes it). |
+| `POST /lol/admin/llamacpp/model` · `/llamacpp/library/add` · `/llamacpp/library/remove` | Load a library entry or URL; edit the `.gguf` library. |
+| `POST /lol/admin/model/start` · `/model/stop` · `/model/default` · `/model/alias` | Offer / stop / make default / rename an Ollama model (`{ id }`, `{ id, alias }`). |
+| `POST /lol/admin/ollama/pull` · `/ollama/remove` | Download / delete an Ollama model. |
+| `POST /lol/admin/plugin/<id>/enable` · `/disable` | Toggle web search / OCR / voice (session only). |
+| `POST /lol/admin/plugin/recommend` | `{ id, on }` — recommend a client plugin (Blender) to the fleet (session only). |
+
 ## Config — `lol.config.json`
 
 The CLI reads **`farm/lol.config.json`** (or `./lol.config.json` in your CWD) — `lol install` / `lol init`
@@ -420,8 +482,8 @@ nothing. Shape:
 ```jsonc
 {
   "name": "Studio Farm",                       // friendly name shown in the client
-  "modelAlias": null,                          // stable id for the default OLLAMA model (null = raw ids).
-                                               //   MUST NOT equal llamacpp.alias — see the warning below
+  "modelAlias": null,                          // stable name for the default OLLAMA model (null = raw id);
+                                               //   copied from llamacpp.alias on an engine switch
   "beacon": { "enabled": true, "group": "239.255.43.10", "port": 41998,
               "intervalSec": 5, "httpPort": 41997 },   // distinct from ComfyQ's 239.255.42.99
   "proxy":  { "port": 4000, "host": "0.0.0.0", "masterKey": null },
@@ -456,7 +518,7 @@ nothing. Shape:
                                                //   applies to an Ollama the farm starts
               "keepAlive": "-1",               // keep models warm in VRAM (no reload after idle)
               "contextLength": "auto" },       // num_ctx for OLLAMA models. DEFAULT "auto": probed per
-                                               //   box (largest that stays in VRAM, floor 16384) — a number pins it
+                                               //   box (largest that stays in VRAM, 4096 if even 16k spills) — a number pins it
   "litellm": { "command": "litellm", "extraArgs": [], "provider": "ollama_chat" },
   "websearch": { "enabled": true, "port": 8888 },   // shared SearXNG → clients get web search
   "tts": { "enabled": false, "port": 8880,            // shared Kokoro voice (off by default — multi-GB install)
@@ -473,10 +535,11 @@ nothing. Shape:
 > back to the checkpoint name), which writes the per-model `"alias"` in `models` and enforces
 > uniqueness — the name IS the id clients request, so a duplicate would silently merge two models
 > into one route. Precedence: a per-model alias > the global `modelAlias` (which only names the
-> default model, and is what the Backend card's big **Name users see** control sets — using that
-> control clears a per-model override on the default, so the most recent rename always wins). On an
-> engine switch the advertised name still travels between `llamacpp.alias` and `modelAlias`
-> automatically (`carryNameAcross`).
+> default model and is config-file only; the Backend card's **Name users see** is llama.cpp-only and
+> sets `llamacpp.alias`). A name you gave the model survives an engine switch and a fallback
+> (`carryNameAcross`), so bound chats keep working; an unnamed default is served under its raw id on
+> Ollama and under `llamacpp.alias` on llama.cpp, so name the model first if chats should survive a
+> switch ([Backends](#backends--ollama-default-and-llamacpp)).
 
 **`llamacpp.library`** is the list of `.gguf`s the panel offers under *Use this*, so an operator can
 switch weights without hunting for URLs. Each entry is
@@ -484,14 +547,16 @@ switch weights without hunting for URLs. Each entry is
 a quant that still carries its MTP head; it defaults to `false`, the safe direction, because the farm
 reads it to decide whether it must turn speculative decoding **off** when you switch onto that model.
 The list is only a menu: `llamacpp.model` is what is actually served, and adding an entry downloads
-nothing. It ships with the three quants measured on this project's 12 GB hardware; replace it freely.
+nothing. It ships with four: the three 12 GB-class Qwen3.8-27B quants measured here, plus an NVFP4+MTP
+build for Blackwell cards (16 GB+); replace it freely.
 
 > **`ollama.contextLength` is farm-global but VRAM is per-host.** A mixed fleet is served by whichever
 > single value is set here, and it rides the generated routing (`num_ctx` per deployment), so it applies
 > even on hosts this CLI never started.
 
-- **Model choice** — the model everyone gets is `llamacpp.model`; extra models in the picker are
-  `models` (or `lol models add`, or the `lol up` picker). Full recipe:
+- **Model choice** — on the default Ollama engine the picker offers `models` (or `lol models add`, or
+  the `lol up` picker), and the `default` entry is what clients auto-select; with llama.cpp serving,
+  the one model is `llamacpp.model` and `models` is standby (not routed or advertised). Full recipe:
   [Adding or changing models](#adding-or-changing-models). Each Ollama host becomes a deployment of the
   same `model_name`, so LiteLLM load‑balances + fails over automatically.
 - **Model aliases (important for stable chats):** an OWUI chat binds to the model *id* it started with —
@@ -521,16 +586,24 @@ nothing. It ships with the three quants measured on this project's 12 GB hardwar
   catalog** (download / offer / delete / make default), the **plugins** (web search / voice / OCR) and
   the Blender recommendation, and the **connected clients** (hostname, IP, app version, idle time —
   clients report presence every ~10 s and drop off ~30 s after closing), against the slot count.
-  Clients pick every change up within ~5 s. Everything except the plugin toggles is **written back to**
-  `lol.config.json`, so it survives a restart; see
+  Clients pick every change up within ~5 s. Everything except the plugin toggles and the Blender
+  recommendation is **written back to** `lol.config.json`, so it survives a restart; see
   [What the panel changes, and what it does not](#what-the-panel-changes-and-what-it-does-not).
   Auth: the **admin token printed in the `lol up` banner** (regenerated each run; set
-  `"admin": { "token": "…" }` in `lol.config.json` for a fixed one).
+  `"admin": { "token": "…" }` in `lol.config.json` for a fixed one). The Farm app pins one and
+  seeds it into its own window; its Settings ▸ **Panel access token** (Copy) is how you drive the
+  panel from another computer's browser — with **Share compute** on (a private farm binds the panel to
+  `127.0.0.1`), open `http://<its LAN address>:41997/lol/admin` there and paste the token. The HTTP
+  routes are listed under [Admin HTTP API](#admin-http-api).
 - **Multiple GPU boxes:** either list every box in `ollama.hosts` (one farm balances them all), or run
   `lol up` per box and let clients auto‑spread (they pick the least‑loaded farm), or run one box with
   `--coordinator` to aggregate the others behind a single endpoint that clients prefer.
 - **`proxy.masterKey`** — leave `null` for an open proxy on a trusted LAN, or set a key clients must
   send (`Authorization: Bearer <key>`).
+- **`proxy.host`** — where the farm listens: the seat gate, `/lol/self` + the admin panel, **and** the
+  plugins (SearXNG, OCR, Kokoro), which follow it. `0.0.0.0` (default) = the LAN; `127.0.0.1` = this
+  machine only (the Farm app's private mode, with `beacon.enabled: false`) — the plugin URLs then
+  advertise `127.0.0.1`, which is what a client on the same box needs.
 - **`external`** — route to an OpenAI-compatible server the farm does **not** run (vLLM, SGLang,
   TensorRT-LLM, a llama-server you started yourself). A third engine, exclusive like llama.cpp: while
   it serves, no local Ollama deployment is routed or advertised. Use it for stacks we can never bundle
@@ -568,27 +641,36 @@ nothing. It ships with the three quants measured on this project's 12 GB hardwar
   made one, else `litellm` from PATH. Set an absolute path only to point at a LiteLLM elsewhere.
 - **Concurrency/keep‑warm env** (`OLLAMA_NUM_PARALLEL`, `OLLAMA_KEEP_ALIVE`, …) only applies when Ollama
   *starts*. If the CLI starts a local Ollama it sets them; if Ollama is already running, set them on that
-  service. The CLI prints the recommended values. Sizing rule: one Ollama runs `numParallel` generations
+  service. The CLI prints the recommended values (and the panel flags *"Capacity is unverified"*
+  with the same line). Sizing rule: one Ollama runs `numParallel` generations
   at once (default 2) and queues the rest, while llama.cpp runs `llamacpp.parallel` (default **1**) —
   see [Multiple users & capacity](#multiple-users--capacity), and check with `lol bench`.
 
 ## What `lol up` does, in order
 
-1. Ping each Ollama host (start a **local** one if it's down, with the concurrency/keep‑warm env).
-2. **Pick the model(s) to serve** — interactive from what's installed (Enter = default), or `--model` /
-   `--no-pick` / non‑TTY = the config catalog.
-3. Pull any picked model missing on a reachable host.
-4. (llama.cpp, on by default) Ensure the pinned `llama-server` build + CUDA runtime, ensure the `.gguf`
+1. (`external.enabled`) Probe `GET {baseUrl}/models`: answering → the external server serves and
+   llama.cpp stands down; not answering → fall back to the built-in engine for this run (panel says why).
+2. Ping each Ollama host (start a **local** one if it's down, with the concurrency/keep‑warm env). No
+   reachable host → exit: Ollama is required even when another engine serves.
+3. (Ollama engine) **Pick the model(s) to serve** — interactive from what's installed (Enter = default),
+   or `--model` / `--no-pick` / non‑TTY = the config catalog.
+4. Pull any picked (and `preinstall`) model missing on a reachable host; derive `source` models.
+5. (llama.cpp, if enabled) Ensure the pinned `llama-server` build + CUDA runtime, ensure the `.gguf`
    weights + projector (**downloads several GB on a first run** — normally already done at
-   `lol install`), spawn it, and health‑wait `/health`. A start failure here falls back to the Ollama engine (the panel shows why) and names the
-   likely cause (see the quant ↔ `mtp` rule).
-5. (`--coordinator`) discover LAN peer farms and fold them into the routing.
-6. Generate `litellm/config.generated.yaml` (llama.cpp deployment + served names × hosts + peers).
-7. Spawn LiteLLM, wait for `/health/liveliness`, confirm `/v1/models`.
-8. (websearch/OCR, on by default) Ensure each is installed (normally already done at `lol install`;
-   installs here if missing) + spawn it and health‑wait it. Non‑fatal: the farm still serves chat.
-9. Start the discovery beacon (+ the unicast `/lol/self` endpoint + the admin panel).
-10. Write `.lol-runtime.json` (so `status`/`down` work elsewhere) and supervise until Ctrl‑C.
+   `lol install`), spawn it, and health‑wait `/health`. A start failure here falls back to the Ollama
+   engine (the panel shows why) and names the likely cause (see the quant ↔ `mtp` rule).
+6. (Ollama engine — configured, or after a fallback) Size the context: the `"auto"` probe, cached per
+   box after the first time.
+7. (`--coordinator`) discover LAN peer farms and fold them into the routing.
+8. Generate `litellm/config.generated.yaml` (the serving engine's deployment(s) + peers).
+9. Spawn LiteLLM (on `127.0.0.1:proxy.port+1` with the seat gate on), wait for `/health/liveliness`,
+   confirm `/v1/models`.
+10. (websearch/OCR, on by default) Ensure each is installed (normally already done at `lol install`;
+    installs here if missing) + spawn it, bound to `proxy.host`, and health‑wait it. Non‑fatal: the farm
+    still serves chat.
+11. Start the seat gate on `proxy.port` (LiteLLM stays on loopback behind it), then the discovery beacon
+    (+ the unicast `/lol/self` endpoint + the admin panel).
+12. Write `.lol-runtime.json` (so `status`/`down` work elsewhere) and supervise until Ctrl‑C.
 
 ## If the farm won't start
 
@@ -600,7 +682,7 @@ nothing. It ships with the three quants measured on this project's 12 GB hardwar
 | llama-server exits: *"model doesn't contain MTP layers"* | `mtp: true` on a quant whose head was stripped (below `UD-Q2_K_XL`) | Set `mtp: false`, or use a UD-Q2_K_XL+ quant |
 | llama-server never becomes healthy, no clear error | Weights + KV don't fit VRAM, or a mismatched `mmproj` | Lower `contextLength`/`parallel`, check `mmproj` matches the model family |
 | *"Farm already running"* / a stale port | A previous run wasn't torn down | `lol down`, then `lol up` |
-| Port already in use (4000 / 41997 / 8081 / 8888 / 8890) | Another process (or an orphaned plugin) holds it | `lol down`; if it persists, change the port in `lol.config.json` |
+| Port already in use (4000 / 4001 / 41997 / 8081 / 8888 / 8890) | Another process (or an orphaned plugin) holds it | `lol down`; if it persists, change the port in `lol.config.json` (the Farm app moves 8888 / 8890 itself) |
 
 ## Notes / gotchas
 

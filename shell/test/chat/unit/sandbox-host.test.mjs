@@ -243,6 +243,52 @@ export default (test) => {
     sb.destroy();
   });
 
+  test('CA-1: three watchdog stalls PAUSE the sandbox, and it says so — not "could not start"', async () => {
+    // A guest stuck in a loop answers nothing, not even the watchdog's ping. Each frame spins from
+    // the moment it is handed a sketch; a rebuilt frame starts out well.
+    const spinning = new Set();
+    let loops = true;
+    const { sb } = boot((msg, frame) => {
+      if (msg.cmd === 'run' && loops) { spinning.add(frame); return null; }
+      if (spinning.has(frame)) return null;
+      return politeGuest(msg);
+    });
+    const notes = [];
+    sb.on((ev) => { if (ev.type === 'note') notes.push(ev); });
+    for (let i = 0; i < 3; i++) {
+      const out = await sb.run({ kind: 'canvas', code: 'for(;;){}' });
+      assert.equal(out.ok, false);
+      assert.equal(out.error.message, t('sandbox.errTimeout'), `stall ${i + 1} is a timeout for its caller`);
+    }
+    assert.equal(sb.debug().blocked, true, 'the third stall inside the window pauses the ladder');
+    assert.equal(sb.state(), 'disabled');
+    const last = notes[notes.length - 1];
+    assert.equal(last.level, 'error', 'the pause is a notice the Computer toasts');
+    assert.equal(last.text, t('sandbox.disabled'));
+    assert.match(last.text, /paused/i);
+    assert.equal(notes.filter((n) => n.level === 'warn').length, 2, 'the first two stalls each said "restarted"');
+
+    // While paused, every door answers with the PAUSE, and names what brings it back.
+    const run = await sb.run({ kind: 'canvas', code: 'ok' });
+    assert.equal(run.ok, false);
+    assert.equal(run.error.message, t('sandbox.errPaused'));
+    assert.notEqual(run.error.message, t('sandbox.errDisabled'));
+    const comp = await sb.compute({ code: 'return 1;' });
+    assert.equal(comp.error.message, t('sandbox.errPaused'));
+    assert.match(t('sandbox.errPaused'), /Run all/);
+    // `ready()` (the door the Computer's boxes use) never re-arms: only host.start()'s rearm does,
+    // which is why the sentences name Run all and ▶ and nothing else.
+    assert.equal(await sb.ready(), false, 'ready() does not re-arm a paused sandbox');
+    assert.equal(sb.debug().blocked, true);
+
+    loops = false;
+    const back = await sb.compute({ code: 'return 1;', rearm: true });
+    assert.equal(back.ok, true, 'the human re-arm (Run all, ▶) brings it back');
+    assert.equal(sb.debug().blocked, false);
+    assert.equal((await sb.run({ kind: 'canvas', code: 'ok' })).ok, true, 'and it draws again');
+    sb.destroy();
+  });
+
   test('libraries are sent once, and replayed into a frame that had to be rebuilt', async () => {
     let deaf = false;
     const { sb, frames } = boot((msg) => {

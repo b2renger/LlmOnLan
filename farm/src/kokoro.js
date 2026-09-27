@@ -23,6 +23,7 @@ const path = require('path');
 const http = require('http');
 const { execSync, spawn } = require('child_process');
 const log = require('./log');
+const { serviceHosts } = require('./net');
 const { resolvePython } = require('./python');
 
 // Bump deliberately: change the tag and re-run `lol up` — the next run re-fetches
@@ -181,11 +182,14 @@ function espeakLibrary() {
 
 // Spawn the server: <venv python> -m uvicorn api.src.main:app. Replicates upstream
 // start-gpu.ps1's env (relative MODEL_DIR/VOICES_DIR resolve against api/), but
-// points espeak at the bundled DLL and drops the `uv run` wrapper.
-function spawnKokoro(config) {
+// points espeak at the bundled DLL and drops the `uv run` wrapper. Bound where
+// config.proxy.host says (LAN when shared, loopback when private — net.serviceHosts).
+// `spawnFn` / `espeak` are for tests (skip the venv probe).
+function spawnKokoro(config, { spawnFn = spawn, espeak } = {}) {
     const backend = readTrim(BACKEND_FILE) || 'cpu';
-    const esp = espeakLibrary();
-    const child = spawn(venvPython(), ['-m', 'uvicorn', 'api.src.main:app', '--host', '0.0.0.0', '--port', String(config.tts.port)], {
+    const esp = espeak !== undefined ? espeak : espeakLibrary();
+    const bind = serviceHosts(config.proxy && config.proxy.host).bind;
+    const child = spawnFn(venvPython(), ['-m', 'uvicorn', 'api.src.main:app', '--host', bind, '--port', String(config.tts.port)], {
         cwd: SRC,
         windowsHide: true,
         detached: !IS_WIN,
@@ -224,11 +228,11 @@ function get(url, timeoutMs = 4000) {
 
 // POST a tiny synthesis and confirm we get real (non-empty) audio back — proves the
 // model loaded, voices are present, and espeak resolved. Resolves bytes or 0.
-function synthProbe(port, voice, timeoutMs = 60000) {
+function synthProbe(port, voice, timeoutMs = 60000, host = '127.0.0.1') {
     return new Promise((resolve) => {
         const body = Buffer.from(JSON.stringify({ model: 'kokoro', input: 'ok', voice: voice || 'af_heart', response_format: 'mp3' }));
         const req = http.request({
-            method: 'POST', hostname: '127.0.0.1', port, path: '/v1/audio/speech', timeout: timeoutMs,
+            method: 'POST', hostname: host, port, path: '/v1/audio/speech', timeout: timeoutMs,
             headers: { 'content-type': 'application/json', 'content-length': body.length },
         }, (res) => {
             let n = 0;
@@ -243,11 +247,11 @@ function synthProbe(port, voice, timeoutMs = 60000) {
 
 // Wait for /health, then a real synthesis. Generous timeout — model warmup is slow
 // (esp. on CPU). Returns { up, synthOk }.
-async function waitForKokoro(port, voice, timeoutMs = 120000) {
+async function waitForKokoro(port, voice, timeoutMs = 120000, host = '127.0.0.1') {
     const t0 = Date.now();
     while (Date.now() - t0 < timeoutMs) {
-        if ((await get(`http://127.0.0.1:${port}/health`)) === 200) {
-            const bytes = await synthProbe(port, voice);
+        if ((await get(`http://${host}:${port}/health`)) === 200) {
+            const bytes = await synthProbe(port, voice, 60000, host);
             return { up: true, synthOk: bytes > 0 };
         }
         await new Promise((r) => setTimeout(r, 1000));
@@ -256,8 +260,8 @@ async function waitForKokoro(port, voice, timeoutMs = 120000) {
 }
 
 // Single quick liveness probe (for the farm's health timer).
-async function kokoroAlive(port) {
-    return (await get(`http://127.0.0.1:${port}/health`)) === 200;
+async function kokoroAlive(port, host = '127.0.0.1') {
+    return (await get(`http://${host}:${port}/health`)) === 200;
 }
 
 module.exports = { ensureKokoro, spawnKokoro, waitForKokoro, kokoroAlive, PINNED_TAG };

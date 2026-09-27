@@ -5,7 +5,7 @@
 import { registerStrings } from '../core/i18n.mjs';
 
 registerStrings('drops', {
-  hint: 'Drop a picture, a PDF, a sound file, a text file — or a .lolgraph.json to open it',
+  hint: 'Drop a picture, a PDF, a sound file, a text file — or a .lolgraph.json to put it in place of this graph',
   refusedKind: 'The Computer cannot use “{name}” ({type}). Drop a picture, a PDF, a sound file, or a text file (.txt, .md, .csv, .json).',
   refusedNoDoc: 'Open or create a graph first, then drop “{name}” on it.',
   typeUnknown: 'a file of unknown type',

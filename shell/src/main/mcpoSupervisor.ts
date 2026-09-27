@@ -1,7 +1,9 @@
 // mcpo supervisor — owns the LOCAL "assistant tools" server that lets the chat
 // drive Blender on THIS machine. It runs Open WebUI's own MCP→OpenAPI proxy
 // (`mcpo`) wrapping the Blender MCP server (`blender-mcp`), and OWUI consumes it
-// as an OpenAPI tool server (config-bridge injects TOOL_SERVER_CONNECTIONS). The
+// as an OpenAPI tool server (the renderer registers it through OWUI's user-settings
+// API from the authed webview — env TOOL_SERVER_CONNECTIONS is unreliable upstream,
+// see configBridge.ts). The
 // user owns the Blender side (install the BlenderMCP addon + Start the server);
 // we own making OWUI turnkey — flip the toggle and the Blender tools appear.
 //
@@ -81,8 +83,9 @@ export class McpoSupervisor extends EventEmitter {
     private child: ChildProcess | null = null;
     private port = 0;
     private enabled = false;
-    // Stable per-session bearer key: OWUI holds it in TOOL_SERVER_CONNECTIONS, so
-    // keeping it constant across restarts avoids re-wiring the sidecar each bounce.
+    // Stable per-session bearer key: the renderer writes it into OWUI's user settings
+    // (ui.toolServers, via the user-settings API), so keeping it constant across mcpo
+    // restarts avoids rewriting that entry each bounce.
     private readonly apiKey = crypto.randomBytes(24).toString('hex');
     // Generation token: a superseding start()/stop() bumps it so an in-flight start
     // aborts at its awaits instead of clobbering a newer child (same discipline as

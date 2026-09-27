@@ -14,7 +14,7 @@
 // read by the editor, and dropped the moment the part succeeds.
 
 import { fromPlain, toPlain, isValue } from '../values.mjs';
-import { partFail } from './common.mjs';
+import { partFail, sandboxDownText } from './common.mjs';
 import { t } from '../../core/i18n.mjs';
 import '../../strings/sandbox.en.mjs';
 
@@ -236,7 +236,7 @@ export const code = /** @type {any} */ ({
 
   async run(input) {
     const sandbox = typeof input.sandbox === 'function' ? await input.sandbox() : null;
-    if (!sandbox) throw partFail(t('sandbox.errDisabled'), 'part');
+    if (!sandbox) throw partFail(sandboxDownText(input.app), 'part');
 
     const body = String(input.part.settings.code || '');
     if (!body.trim()) throw partFail(t('parts.errCodeEmpty'), 'empty');

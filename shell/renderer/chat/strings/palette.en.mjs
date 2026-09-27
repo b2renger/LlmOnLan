@@ -77,7 +77,8 @@ registerStrings('palette', {
   welcomeTitle: 'The Computer',
   welcomeBody: 'A canvas where you wire small programs out of text, instructions and the model on your farm. Everything you make stays on this machine.',
   welcomeTour: 'Take the tour',
-  welcomeTourHint: 'about 90 seconds · no model needed',
+  // Docs review B-5: the same length the Learn shelf prints for the tour (`minutes: 2`).
+  welcomeTourHint: 'about 2 minutes · no model needed',
   welcomeTemplate: 'Open a template',
   welcomeTemplateHint: 'a working graph to change',
   welcomeAdd: 'Add your first box',

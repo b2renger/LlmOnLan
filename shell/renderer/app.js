@@ -57,7 +57,7 @@ $('theme-toggle').addEventListener('click', async () => {
 // ---- preferences modal (M4) ----
 const prefs = {
   backdrop: $('prefs-backdrop'), close: $('prefs-close'),
-  dataPath: $('data-path'), changeFolder: $('change-folder'),
+  dataPath: $('data-path'), changeFolder: $('change-folder'), clientNote: $('data-client-note'),
   movePanel: $('move-panel'), moveQ: $('move-q'), moveYes: $('move-yes'), moveFresh: $('move-fresh'), moveCancel: $('move-cancel'), moveStatus: $('move-status'),
   autoScan: $('pref-auto-scan'), rescan: $('pref-rescan'),
   base: $('range-base'), t0: $('range-t0'), t1: $('range-t1'), f0: $('range-f0'), f1: $('range-f1'), rangeApply: $('range-apply'),
@@ -82,6 +82,15 @@ function closePrefs() { prefs.backdrop.classList.add('hidden'); }
 async function refreshPrefs() {
   const p = await window.lol.getPrefs();
   prefs.dataPath.textContent = p.dataDir + (p.dataDirIsDefault ? '  (default)' : '');
+  // LOL Chat + the Computer run from <dataDir>/lol-client; only a data folder that could not be
+  // used at boot puts them elsewhere for the session, and then the panel says where.
+  const away = !p.clientDataInDataDir;
+  prefs.clientNote.classList.toggle('hidden', !away);
+  prefs.clientNote.classList.toggle('err', away);
+  prefs.clientNote.textContent = !away ? ''
+    : p.clientDataDir
+      ? `This session, LOL Chat and the Computer keep their work in ${p.clientDataDir}, because the data folder could not be used.`
+      : 'This session, LOL Chat and the Computer keep their work in the app’s own folder, because the data folder could not be used.';
   prefs.autoScan.checked = !!p.autoScan;
   prefs.launch.checked = !!p.launchAtLogin;
   prefs.autoUpdate.checked = !!p.autoUpdate;
@@ -89,7 +98,8 @@ async function refreshPrefs() {
   prefs.blenderPort.value = p.blenderPort || 9876;
   setBlenderStatus(p.blenderState, p.blenderMcp);
   prefs.verShell.textContent = 'v' + p.shellVersion;
-  prefs.verOwui.textContent = 'v' + p.owuiVersion;
+  // 'unknown' = the chat engine has not been downloaded yet (first run) — never print "vunknown".
+  prefs.verOwui.textContent = p.owuiVersion === 'unknown' ? 'not installed yet' : 'v' + p.owuiVersion;
   const r = p.scanRange || {};
   prefs.base.value = r.base || '';
   if (r.third) { prefs.t0.value = r.third[0]; prefs.t1.value = r.third[1]; }
@@ -129,29 +139,57 @@ $('settings-btn').addEventListener('click', openPrefs);
 prefs.close.addEventListener('click', closePrefs);
 prefs.backdrop.addEventListener('click', (e) => { if (e.target === prefs.backdrop) closePrefs(); });
 
+// Changing the folder RESTARTS the app (LOL Chat's and the Computer's data is the window's own
+// storage, which cannot be moved while the window has it open), so the panel always asks first
+// and says so — even when there is nothing to move.
 prefs.changeFolder.addEventListener('click', async () => {
   const res = await window.lol.chooseDataDir();
   if (res.canceled) return;
   pendingFolder = res.path;
+  setMoveButtons(false);
+  prefs.moveStatus.textContent = '';
+  prefs.moveStatus.classList.remove('err');
   if (res.oldHasData) {
-    prefs.moveQ.textContent = `Move your existing data to “${res.path}”, or start fresh there?`;
-    prefs.moveStatus.textContent = '';
-    prefs.movePanel.classList.remove('hidden');
+    prefs.moveQ.textContent = `Move everything to “${res.path}” — LOL Chat, the Computer and Open WebUI — or start fresh there? `
+      + 'LlmOnLan restarts to finish; “Start fresh” leaves your current data where it is.';
+    prefs.moveYes.classList.remove('hidden');
+    prefs.moveFresh.textContent = 'Start fresh';
   } else {
-    await applyFolder('fresh');
+    prefs.moveQ.textContent = `Use “${res.path}” as your data folder? LlmOnLan restarts to switch.`;
+    prefs.moveYes.classList.add('hidden');
+    prefs.moveFresh.textContent = 'Use this folder';
   }
+  prefs.movePanel.classList.remove('hidden');
 });
 prefs.moveYes.addEventListener('click', () => applyFolder('move'));
 prefs.moveFresh.addEventListener('click', () => applyFolder('fresh'));
 prefs.moveCancel.addEventListener('click', () => { pendingFolder = null; prefs.movePanel.classList.add('hidden'); });
 
+function setMoveButtons(disabled) {
+  for (const b of [prefs.moveYes, prefs.moveFresh, prefs.moveCancel, prefs.changeFolder]) b.disabled = disabled;
+}
+
 async function applyFolder(mode) {
   if (!pendingFolder) return;
-  prefs.moveStatus.textContent = mode === 'move' ? 'Moving data… (the chat will restart)' : 'Switching folder… (the chat will restart)';
-  const r = await window.lol.setDataDir({ path: pendingFolder, mode });
+  const target = pendingFolder;
+  setMoveButtons(true);
+  prefs.moveStatus.classList.remove('err');
+  prefs.moveStatus.textContent = mode === 'move' ? 'Moving your data…' : 'Switching folder…';
+  const r = await window.lol.setDataDir({ path: target, mode });
   pendingFolder = null;
-  if (r.ok) { prefs.movePanel.classList.add('hidden'); toast(r.error || 'Data folder updated'); await refreshPrefs(); }
-  else { prefs.moveStatus.textContent = 'Could not change folder: ' + (r.error || 'unknown'); }
+  if (r.ok) {
+    // Main saved the new folder and restarts the app in a moment; the next launch finishes the
+    // move before the window opens and says so.
+    prefs.dataPath.textContent = r.dataDir || target;
+    prefs.moveStatus.textContent = mode === 'move'
+      ? 'Restarting LlmOnLan to finish moving LOL Chat and the Computer…'
+      : 'Restarting LlmOnLan on the new folder…';
+    if (r.error) prefs.moveStatus.textContent += ' ' + r.error;
+  } else {
+    setMoveButtons(false);
+    prefs.moveStatus.classList.add('err');
+    prefs.moveStatus.textContent = 'Could not change folder: ' + (r.error || 'unknown') + ' Nothing was moved.';
+  }
 }
 
 prefs.autoScan.addEventListener('change', () => window.lol.setAutoScan(prefs.autoScan.checked));
@@ -234,7 +272,10 @@ prefs.checkOwui.addEventListener('click', async () => {
   prefs.owuiRestartRow.classList.add('hidden');
   try {
     const r = await window.lol.checkOwuiUpdate();
-    if (!r.latest) { prefs.owuiStatus.textContent = 'Could not check (only available in an installed build).'; return; }
+    // `error` = a dev build (main answers without asking GitHub). A null `latest` otherwise
+    // means GitHub could not be read — the normal case on a closed LAN.
+    if (r.error) { prefs.owuiStatus.textContent = r.error; return; }
+    if (!r.latest) { prefs.owuiStatus.textContent = 'Could not reach GitHub to check for a chat-engine update. Check the internet connection and try again.'; return; }
     if (!r.updateAvailable) { prefs.owuiStatus.textContent = `Chat engine is up to date (v${r.current}).`; return; }
     prefs.owuiStatus.textContent = `v${r.latest} available — downloading…`;
     const res = await window.lol.downloadOwuiUpdate();
@@ -252,12 +293,26 @@ prefs.owuiRestart.addEventListener('click', () => window.lol.relaunch());
 
 // ---- toast ----
 let toastTimer = null;
-function toast(msg) {
+function toast(msg, ms = 2200) {
   els.toast.textContent = msg;
   els.toast.classList.add('show');
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => els.toast.classList.remove('show'), 2200);
+  toastTimer = setTimeout(() => els.toast.classList.remove('show'), ms);
 }
+
+// What boot did with the client's data (a finished move, a data folder it could not use, the
+// one-time import of an older install's history) — shown once, long enough to read. Notices
+// queue so a second one never hides the first.
+(async () => {
+  let notices = [];
+  try { notices = (await window.lol.getDataNotices()) || []; } catch { return; }
+  let at = 800;
+  for (const n of notices) {
+    const ms = n.level === 'warn' ? 16000 : 9000;
+    setTimeout(() => toast(n.text, ms), at);
+    at += ms + 400;
+  }
+})();
 
 // ---- farm helpers ----
 const farmEndpoint = (f) => `http://${f._host}:${f.proxyPort}/v1`;
@@ -695,6 +750,31 @@ function renderPopover() {
   els.farmEmpty.classList.toggle('hidden', n > 0);
 
   const active = activeFarm();
+  // Clicking a card PINS that farm (main always prefers it while it is healthy). This row is
+  // the way back: it clears the pin, so the least-busy choice applies again (docs review SA-5).
+  // Shown when there is a choice to make, or a pin to undo.
+  const pinnedId = farmState.selectedFarmId || null;
+  const pinned = pinnedId ? farmState.farms.find((f) => f.id === pinnedId) : null;
+  if (n > 1 || pinnedId) {
+    const auto = document.createElement('div');
+    auto.className = 'farm farm-auto' + (pinnedId ? '' : ' farm-auto-on');
+    auto.title = 'Let the app choose: the least busy farm when it connects, and the same farm for as long as it keeps working.';
+    auto.innerHTML =
+      `<div class="farm-main">` +
+        `<div class="farm-name">Automatic — least busy farm</div>` +
+        `<div class="farm-meta">${pinnedId
+          ? `Off — pinned to ${esc(pinned ? pinned.name : 'a farm that is not on the network')}. Click to let the app choose.`
+          : 'On — click a farm below to pin it instead.'}</div>` +
+      `</div>`;
+    auto.onclick = () => {
+      if (!pinnedId) return;
+      window.lol.selectFarm(null);
+      // Unpinning does not move you: main keeps a healthy current farm (no needless OWUI restart).
+      toast(active ? `Automatic — staying on ${active.name} while it works` : 'Automatic — connecting to the least busy farm');
+    };
+    els.farmList.appendChild(auto);
+  }
+
   for (const f of farmState.farms) {
     const isActive = active && f.id === active.id;
     const row = document.createElement('div');
@@ -712,6 +792,7 @@ function renderPopover() {
     const badges =
       `<span class="farm-src">${f._source}</span>` +
       (f.coordinator ? `<span class="farm-src farm-coord">coordinator</span>` : '') +
+      (f.id === pinnedId ? `<span class="farm-src farm-pin" title="You picked this farm. Choose “Automatic” above to undo.">pinned</span>` : '') +
       (f.searxngUrl ? `<span class="farm-src">web search</span>` : '') +
       (f.requiresKey ? `<span class="farm-src">🔒${f._hasKey ? '' : ' password needed'}</span>` : '');
     // Live line: GPU util, VRAM used/total, loaded models, backends, hosts.
@@ -773,6 +854,7 @@ function renderPopover() {
         manageBtn +
       `</div>` +
       `<span class="farm-check">${isActive ? ICON_CHECK : ''}</span>`;
+    row.title = f.id === pinnedId ? `${f.name} is pinned` : `Use ${f.name} (pins it until you choose Automatic)`;
     row.onclick = () => {
       if (needsKey) { const inp = row.querySelector('.farm-key-in'); if (inp) inp.focus(); return; }
       window.lol.selectFarm(f.id); toast(`Connecting to ${f.name}…`);
@@ -786,7 +868,11 @@ function renderPopover() {
         if (!v) { if (inp) inp.focus(); return; }
         keyGo.disabled = true; keyGo.textContent = '…';
         const r = await window.lol.setFarmKey(f.id, v);
-        if (r && r.ok) { toast(`Connected to ${f.name}`); window.lol.selectFarm(f.id); }
+        // Entering a password makes the farm USABLE; it does not pin it (docs review SA-5 — on a
+        // keyed fleet every client used to pin itself to the first farm it typed a password for).
+        // Main re-runs the choice at once, so with no farm in use this one connects now.
+        const using = activeFarm();
+        if (r && r.ok) toast(using && using.id !== f.id ? `Password saved for ${f.name}. Click its card to switch to it.` : `Password accepted — connecting to ${f.name}…`);
         else { toast((r && r.error) || 'Wrong password'); keyGo.disabled = false; keyGo.textContent = 'Connect'; if (inp) { inp.select(); inp.focus(); } }
       };
       keyGo.onclick = submitKey;
@@ -840,7 +926,8 @@ window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', ()
 // ---- LOL Chat: alternative view to the OWUI webview -------------------------
 // The chat surface talks straight to the farm's OpenAI endpoint, so it needs the
 // endpoint the sidecar is currently pointed at. Published on `window` rather than
-// re-derived in chat.js so there is exactly one source of truth for "which farm".
+// re-derived in chat/ (net/farm.mjs reads it) so there is exactly one source of truth
+// for "which farm".
 function publishFarm() {
   const f = activeFarm();
   // The farm's advertised default (snapshot.models[].default) rides along so the

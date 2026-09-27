@@ -67,7 +67,7 @@ body {
 .icon-btn:hover { color: var(--text); border-color: var(--accent); }
 .icon-btn svg { width: 17px; height: 17px; }
 
-/* theme toggle shows the icon for the mode you'd switch TO */
+/* theme toggle shows the CURRENT mode's icon (moon in dark, sun in light), as ComfyQ does */
 .icon-sun { display: none; }
 .icon-moon { display: block; }
 :root.light .icon-moon { display: none; }
@@ -147,6 +147,9 @@ webview.hidden { display: none !important; }
   padding: 8px 16px; border-radius: 8px; font-size: 13px;
   box-shadow: 0 6px 20px rgba(0,0,0,0.45);
   z-index: 50; opacity: 0; transition: opacity 0.2s;
+  /* boot notices name folders: wrap them instead of running off-screen */
+  max-width: min(720px, calc(100vw - 32px)); text-align: center; overflow-wrap: anywhere;
+  pointer-events: none;
 }
 .toast.show { opacity: 1; }
 
@@ -195,6 +198,12 @@ webview.hidden { display: none !important; }
 .farm-hw.farm-busy { color: var(--amber); }
 .farm-src { font-size: 10px; color: var(--grey); border: 1px solid var(--border); border-radius: 5px; padding: 0 5px; text-transform: uppercase; letter-spacing: 0.03em; }
 .farm-coord { color: var(--green); border-color: var(--green); }
+.farm-pin { color: var(--text); border-color: var(--grey); }
+/* The "Automatic — least busy farm" row above the cards: the way to undo a pin. */
+.farm-auto { background: transparent; border-style: dashed; }
+.farm-auto.farm-auto-on { cursor: default; }
+.farm-auto.farm-auto-on:hover { border-color: var(--border); }
+.farm-auto .farm-meta { white-space: normal; }
 .farm-check { color: var(--green); flex: 0 0 auto; width: 16px; }
 .farm-check svg { width: 16px; height: 16px; }
 .farm-manage { margin-top: 6px; font: inherit; font-size: 11px; cursor: pointer; color: var(--text);

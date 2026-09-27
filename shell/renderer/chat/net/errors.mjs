@@ -133,7 +133,9 @@ export function classifyThrown(err) {
   const msg = err && err.message ? String(err.message) : String(err ?? '');
   if (name === 'AbortError' || name === 'TimeoutError') return make('aborted', { message: msg || 'aborted' });
   if (name === 'TypeError' || NETWORK_WORDS.test(msg)) return make('network', { message: msg || 'network error' });
-  return make('http', { message: msg || 'request failed' });
+  // Anything else failed HERE, before or while reading: calling it `http` produced "The farm
+  // answered : …" (no status) and blamed the farm for this machine's failure (docs review B-8).
+  return make('local', { message: msg || 'request failed' });
 }
 
 // Titles/bodies per kind. Literal maps so chat-lint rule 5 can prove every key exists.
@@ -148,6 +150,7 @@ const TITLE = {
   network: 'net.networkTitle',
   aborted: 'net.abortedTitle',
   http: 'net.httpTitle',
+  local: 'net.localTitle',
 };
 const BODY = {
   seats_full: 'net.seatsFullBody',
@@ -160,6 +163,7 @@ const BODY = {
   network: 'net.networkBody',
   aborted: 'net.abortedBody',
   http: 'net.httpBody',
+  local: 'net.localBody',
 };
 
 /**

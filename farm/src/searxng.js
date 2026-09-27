@@ -31,6 +31,7 @@ const http = require('http');
 const crypto = require('crypto');
 const { execSync, spawn } = require('child_process');
 const log = require('./log');
+const { serviceHosts } = require('./net');
 const { resolvePython } = require('./python');
 
 // Master HEAD at integration time (2026-07-01), smoke-tested on the dev box.
@@ -289,16 +290,18 @@ async function ensureSearxng() {
     }
 }
 
-// Spawn the instance: <venv python> -m searx.webapp, bound to the LAN.
-function spawnSearxng(config) {
-    const child = spawn(venvPython(), ['-m', 'searx.webapp'], {
+// Spawn the instance: <venv python> -m searx.webapp, bound where config.proxy.host
+// says (net.serviceHosts): the LAN on a shared farm, loopback on a private one —
+// SearXNG has no auth, so a 0.0.0.0 bind made "private" a lie. `spawnFn` is for tests.
+function spawnSearxng(config, spawnFn = spawn) {
+    const child = spawnFn(venvPython(), ['-m', 'searx.webapp'], {
         cwd: SRC,
         windowsHide: true,
         detached: !IS_WIN,
         env: {
             ...process.env,
             SEARXNG_SETTINGS_PATH: SETTINGS,
-            SEARXNG_BIND_ADDRESS: '0.0.0.0',
+            SEARXNG_BIND_ADDRESS: serviceHosts(config.proxy && config.proxy.host).bind,
             SEARXNG_PORT: String(config.websearch.port),
             // Same cp1252 crash-guard as the LiteLLM spawn (Windows consoles).
             PYTHONUTF8: '1',
@@ -321,12 +324,12 @@ function get(url, timeoutMs = 3000) {
 }
 
 // Wait for /healthz, then prove the JSON format is on (the OWUI 403 gotcha).
-// Returns { up, jsonOk }.
-async function waitForSearxng(port, timeoutMs = 60000) {
+// Returns { up, jsonOk }. `host` = where it was bound (serviceHosts().probe).
+async function waitForSearxng(port, timeoutMs = 60000, host = '127.0.0.1') {
     const t0 = Date.now();
     while (Date.now() - t0 < timeoutMs) {
-        if ((await get(`http://127.0.0.1:${port}/healthz`)) === 200) {
-            const jsonStatus = await get(`http://127.0.0.1:${port}/search?q=searxng&format=json`, 10000);
+        if ((await get(`http://${host}:${port}/healthz`)) === 200) {
+            const jsonStatus = await get(`http://${host}:${port}/search?q=searxng&format=json`, 10000);
             return { up: true, jsonOk: jsonStatus === 200 };
         }
         await new Promise((r) => setTimeout(r, 1000));
@@ -335,8 +338,8 @@ async function waitForSearxng(port, timeoutMs = 60000) {
 }
 
 // Single quick liveness probe (for the farm's health timer) — did /healthz answer?
-async function searxngAlive(port) {
-    return (await get(`http://127.0.0.1:${port}/healthz`)) === 200;
+async function searxngAlive(port, host = '127.0.0.1') {
+    return (await get(`http://${host}:${port}/healthz`)) === 200;
 }
 
 module.exports = { ensureSearxng, spawnSearxng, waitForSearxng, searxngAlive, buildSettingsYaml, PINNED_SHA };

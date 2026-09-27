@@ -224,7 +224,7 @@ export function install(app) {
     if (!(await stillThere(w))) { w.resending = false; abandon(w); return null; }
     w.scheduledAt = null;
     try {
-      return await app.controller.generate({ threadId: w.threadId, into: w.msg, holder: w.msg.id });
+      return await app.controller.generate({ threadId: w.threadId, into: w.msg, holder: w.msg.id, mode: w.mode });
     } catch (err) {
       console.warn('[lolchat] seat-wait: resend failed', err);
       return null;
@@ -239,8 +239,8 @@ export function install(app) {
   app.registry.add(SLOTS.ERROR_HANDLERS, {
     id: 'seats-full',
     order: 100,
-    /** @param {any} err @param {any} msg @returns {Promise<boolean>} */
-    async handle(err, msg, _app) {
+    /** @param {any} err @param {any} msg @param {any} _app @param {{mode?: string}} [ctx] @returns {Promise<boolean>} */
+    async handle(err, msg, _app, ctx) {
       if (!err || err.kind !== 'seats_full' || !msg) return false;
       const c = caps();
       const already = waiting && waiting.msg === msg ? waiting : null;
@@ -252,6 +252,9 @@ export function install(app) {
         threadId: msg.threadId,
         since: already ? already.since : app.now(),
         attempts: (already ? already.attempts : 0) + 1,
+        // A Continue refused for a seat is resent as a Continue: resending it as a new reply
+        // cleared the partial answer it was meant to extend (docs review recheck).
+        mode: (ctx && ctx.mode === 'continue') || (already && already.mode === 'continue') ? 'continue' : 'new',
         scheduledAt: null,
         resending: false,
         farmText,
@@ -410,7 +413,7 @@ export function install(app) {
     state: () => (waiting
       ? {
         msgId: waiting.msg.id, attempts: waiting.attempts, since: waiting.since,
-        scheduledAt: waiting.scheduledAt, resending: waiting.resending,
+        scheduledAt: waiting.scheduledAt, resending: waiting.resending, mode: waiting.mode,
       }
       : null),
     debug: () => ({ ticks, lastDecision, lastInput }),

@@ -248,7 +248,7 @@ function render(s) {
     + `<div class="engines">`
     + engineBtn('llamacpp', 'llama.cpp',
         lcAvailable
-          ? 'One model, fastest. Speculative decoding, quantised KV cache.'
+          ? 'One model, fastest. Quantised KV cache; speculative decoding (MTP) on quants that keep their MTP head.'
           : 'Not available on this machine — no prebuilt llama.cpp for this platform. Install it yourself and set llamacpp.binDir.',
         be.engine === 'llama.cpp', !lcAvailable || be.engine === 'external')
     // `active` must be an explicit equality, not "not llama.cpp": with the
@@ -272,29 +272,41 @@ function render(s) {
       : '')
 
     // Capacity. The knob that decides whether a workshop works, previously reachable
-    // only by hand-editing lol.config.json.
-    + `<div class="row"><span></span><span><div class="mname">People served at once</div>`
-    + `<div class="meta">${be.engine === 'llama.cpp'
-        ? (be.kvUnified
-            ? 'slots share one context pool — a person alone gets the whole window, people arriving share it'
-            : 'llama.cpp splits its context window across slots, so more slots means less context each')
-        : 'requests Ollama runs in parallel per host — needs a farm restart'}</div></span>`
-    + `<span class="badges"><select id="slots-sel" data-orig="${be.slots}">${
-        [1, 2, 3, 4, 6, 8].map((v) => `<option value="${v}"${v === be.slots ? ' selected' : ''}>${v}</option>`).join('')
-      }</select></span></div>`
+    // only by hand-editing lol.config.json. Hidden under an external server: its
+    // concurrency is its own (external.parallel only declares it).
+    // On Ollama the setting is PER BOX (ollama.numParallel) while be.slots is the
+    // farm total (x reachable hosts) — showing the total and writing it back as the
+    // per-box value made "2 hosts x 2" read "4", and picking 8 gave 16.
+    + (be.engine === 'external' ? '' : (() => {
+        const cur = be.engine === 'ollama' ? ((s.ollama && s.ollama.numParallel) || be.slots) : be.slots;
+        const opts = [1, 2, 3, 4, 6, 8];
+        if (cur && !opts.includes(cur)) opts.push(cur);
+        opts.sort((a, b) => a - b);
+        const manyHosts = !!(s.ollama && (s.ollama.hosts || []).length > 1);
+        return `<div class="row"><span></span><span><div class="mname">People served at once${be.engine === 'ollama' ? ', per box' : ''}</div>`
+          + `<div class="meta">${be.engine === 'llama.cpp'
+              ? (be.kvUnified
+                  ? 'slots share one context pool — a person alone gets the whole window, people arriving share it'
+                  : 'llama.cpp splits its context window across slots, so more slots means less context each')
+              : `requests each Ollama box runs in parallel${manyHosts ? ` (${be.slots} across the farm now)` : ''} — applies after a farm restart`}</div></span>`
+          + `<span class="badges"><select id="slots-sel" data-orig="${cur}">${
+              opts.map((v) => `<option value="${v}"${v === cur ? ' selected' : ''}>${v}</option>`).join('')
+            }</select></span></div>`;
+      })())
 
     // The shared farm password (ComfyQ-style). One string for everyone; clients
     // prompt for it when the beacon says requiresKey. Setting/clearing bounces
     // the proxy for a few seconds.
     + `<div class="row"><span></span><span><div class="mname">Farm password</div>
     <div class="meta">${s.requiresKey
-        ? '<b>Set.</b> Protects chat (everything on /v1). Web search, document reading and discovery stay open on the LAN. Apply an empty field to remove it.'
+        ? '<b>Set.</b> Protects chat (everything on /v1). Web search, document reading and discovery stay open on the LAN. Use <b>Remove</b> to take it off.'
         : 'Not set — anyone on the network can use this farm. Type one to require it (protects chat; web search / document reading / discovery stay open).'}</div></span>
     <span class="badges"><input id="sec-in" type="password" placeholder="${s.requiresKey ? '••••••••' : 'choose a password'}" maxlength="128" spellcheck="false" autocomplete="new-password" data-orig="" />${
       s.requiresKey ? `<button id="sec-clear" class="stop"${jobRunning ? ' disabled' : ''}>Remove</button>` : ''}</span></div>`
 
-    // Context window — now honest about which engine it hits.
-    + `<div class="row"><span></span><span><div class="mname">Context window</div>`
+    // Context window — now honest about which engine it hits. Hidden under an
+    // external server: its window is whatever that server was launched with.
+    + (be.engine === 'external' ? '' : `<div class="row"><span></span><span><div class="mname">Context window</div>`
     + `<div class="meta">how much text the model reads at once — bigger fits whole documents, costs VRAM${
         be.engine === 'llama.cpp'
           ? (be.kvUnified
@@ -303,7 +315,7 @@ function render(s) {
           : ' · every request gets the full window'}</div></span>`
     + `<span class="badges"><select id="ctx-sel" data-orig="${esc(String((be.engine === 'llama.cpp' ? lc.contextLength : (s.ollama && s.ollama.contextLength)) ?? 'auto'))}">${be.engine === 'llama.cpp'
         ? ctxOptions(lc.contextLength, lc.contextResolved || be.contextLength, s.fit, s.fit && s.fit.nativeMax)
-        : ctxOptions((s.ollama && s.ollama.contextLength) ?? be.contextLength, be.contextLength, null, s.ollama && s.ollama.nativeMax)}</select></span></div>`
+        : ctxOptions((s.ollama && s.ollama.contextLength) ?? be.contextLength, be.contextLength, null, s.ollama && s.ollama.nativeMax)}</select></span></div>`)
 
     // ONE Apply for everything above (owner ask 2026-08-31): each setting used to
     // carry its own button, and each press restarted the server — four restarts to
@@ -389,25 +401,29 @@ function render(s) {
     : '';
 
   // --- Ollama catalog ------------------------------------------------------------
-  const lcOn = be.engine === 'llama.cpp';
+  // STANDBY whenever Ollama is not the engine: llama.cpp OR an external server.
+  // Keyed on "not ollama" (it used to be "=== llama.cpp"), which under an external
+  // server offered Offer / Make default buttons that load models into the GPU the
+  // external server is using.
+  const standby = be.engine !== 'ollama';
   const models = (s.models || []).slice().sort((a, b) => Number(b.served) - Number(a.served) || a.id.localeCompare(b.id));
   const rows = models.length ? models.map((m) => {
     const dotCls = 'dot' + (m.served ? ' served' : '') + (m.loaded ? ' loaded' : '');
     const meta = [gb(m.size), m.paramSize].filter(Boolean).join(' · ');
     const isOcr = s.ocrModel && m.id.replace(/:latest$/, '') === String(s.ocrModel).replace(/:latest$/, '');
     const badges = [
-      m.isDefault && !lcOn ? '<span class="badge star">★ default</span>' : '',
+      m.isDefault && !standby ? '<span class="badge star">★ default</span>' : '',
       isOcr ? '<span class="badge">document reading</span>' : '',
       m.loaded ? '<span class="badge on">in VRAM</span>' : '',
-      lcOn ? '' : (m.served ? '<span class="badge on">offered</span>' : '<span class="badge">idle</span>'),
+      standby ? '' : (m.served ? '<span class="badge on">offered</span>' : '<span class="badge">idle</span>'),
     ].filter(Boolean).join('');
-    // Promoting to default is meaningless while llama.cpp owns the alias clients
+    // Promoting to default is meaningless while another engine owns the name clients
     // auto-select — so the button is hidden there rather than lying about its effect.
-    const defBtn = m.served && !m.isDefault && !lcOn
+    const defBtn = m.served && !m.isDefault && !standby
       ? `<button data-dact="default" data-id="${esc(m.id)}" title="Every client auto-selects this model">Make default</button>` : '';
-    // Offer/Stop change what OLLAMA serves — meaningless while llama.cpp is the
-    // engine (nothing here is routed), so they are hidden rather than left lying.
-    const btn = lcOn ? '' : (m.served
+    // Offer/Stop change what OLLAMA serves — meaningless while another engine
+    // serves (nothing here is routed), so they are hidden rather than left lying.
+    const btn = standby ? '' : (m.served
       ? `<button class="stop" data-act="stop" data-id="${esc(m.id)}">Stop</button>`
       : `<button class="start" data-act="start" data-id="${esc(m.id)}">Offer</button>`);
     const del = isOcr ? '' : `<button class="stop" data-olrm="${esc(m.id)}" title="Delete the weights from this box"${jobRunning ? ' disabled' : ''}>Delete</button>`;
@@ -415,7 +431,9 @@ function render(s) {
     // default, admin-overridable — setModelAlias). Renamed rows lead with the
     // name users see; the checkpoint id moves into the meta line.
     const renamed = m.servedAs && m.servedAs !== m.id;
-    const rnBtn = m.served
+    // Not on the default row while llama.cpp serves: a switch back gives the default
+    // llama.cpp's name (so bound chats survive), so it is renamed up in Backend.
+    const rnBtn = m.served && !(be.engine === 'llama.cpp' && m.isDefault)
       ? `<button data-rn="${esc(m.id)}" data-cur="${esc(m.servedAs || m.id)}" title="The name users see for this model"${jobRunning ? ' disabled' : ''}>Rename</button>` : '';
     const metaLine = [renamed ? `checkpoint ${m.id}` : '', meta].filter(Boolean).join(' · ');
     return `<div class="row"><span class="${dotCls}"></span>`
@@ -423,13 +441,13 @@ function render(s) {
       + `<span class="badges">${badges}${defBtn}${rnBtn}${btn}${del}</span></div>`;
   }).join('') : '<div class="empty">No models installed on any reachable host.</div>';
 
-  const ollamaCard = `<div class="card"><h2>Models · Ollama${lcOn ? ' <span class="badge">standby</span>' : ''}</h2>`
-    + `<div class="hint">${lcOn
-        ? '<b>Not served right now</b> — one engine at a time, and llama.cpp is serving. These stay installed for an engine switch, and document reading uses its model from here.'
+  const ollamaCard = `<div class="card"><h2>Models · Ollama${standby ? ' <span class="badge">standby</span>' : ''}</h2>`
+    + `<div class="hint">${standby
+        ? `<b>Not served right now</b> — one engine at a time, and ${esc(engineName)} is serving. These stay installed for an engine switch, and document reading uses its model from here.`
         : 'These are what this farm serves. The ★ one is what clients auto-select.'}</div>`
     + rows
     + `<div class="row"><span></span><span><div class="mname">Download a model</div>`
-    + `<div class="meta">an Ollama model name, e.g. <b>gemma4:12b</b> or <b>qwen3.8:14b</b> — it is downloaded and offered to clients</div></span>`
+    + `<div class="meta">an Ollama model name, e.g. <b>gemma4:12b</b> or <b>qwen3.8:14b</b> — downloaded to this box and offered to clients while Ollama is the engine</div></span>`
     + `<span class="badges"><input id="ol-id" type="text" placeholder="gemma4:12b" spellcheck="false" />`
     + `<button id="ol-pull"${jobRunning ? ' disabled' : ''}>Download</button></span></div>`
     + `</div>`;
@@ -505,7 +523,7 @@ function render(s) {
 
   app.innerHTML =
     `<header class="top"><h1>lol <span class="lol">${esc(s.name || 'farm')}</span></h1></header>`
-    + `<p class="sub">Everything here applies to the running farm and is remembered across restarts.</p>`
+    + `<p class="sub">Changes apply to the running farm and are saved to lol.config.json, except the plugin toggles and the Blender recommendation (this session only) and Ollama's "people served at once" (after a farm restart).</p>`
     + jobBar
     + backendCard
     + perfCard

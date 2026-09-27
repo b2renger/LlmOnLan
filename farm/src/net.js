@@ -61,4 +61,23 @@ function primaryAddress() {
     return lanAddresses()[0] || '127.0.0.1';
 }
 
-module.exports = { ipv4Interfaces, lanAddresses, broadcastAddr, primaryAddress, isVirtualIfaceName };
+// Where the farm's own services listen, derived from config.proxy.host — the ONE
+// network-posture knob (the Farm app's private mode sets it to 127.0.0.1 and turns
+// the beacon off). The plugins (SearXNG, OCR, Kokoro) used to hard-code 0.0.0.0, so
+// a "private" farm still served web search to the whole LAN. Three answers:
+//   bind      — what the plugin listens on
+//   probe     — where the farm's own health checks reach it
+//   advertise — the host put in the snapshot's plugin URLs (null = the primary
+//               LAN address). A loopback farm advertises 127.0.0.1: the only
+//               client that can read its /lol/self is on the same box, and the
+//               LAN address would point that client at a port nothing listens on.
+const WILDCARD_RX = /^(0\.0\.0\.0|::|\*|)$/;
+const LOOPBACK_RX = /^(127\.\d+\.\d+\.\d+|localhost|::1)$/i;
+function serviceHosts(proxyHost) {
+    const h = String(proxyHost == null ? '0.0.0.0' : proxyHost).trim();
+    if (WILDCARD_RX.test(h)) return { bind: '0.0.0.0', probe: '127.0.0.1', advertise: null, loopback: false };
+    if (LOOPBACK_RX.test(h)) return { bind: '127.0.0.1', probe: '127.0.0.1', advertise: '127.0.0.1', loopback: true };
+    return { bind: h, probe: h, advertise: h, loopback: false };
+}
+
+module.exports = { ipv4Interfaces, lanAddresses, broadcastAddr, primaryAddress, isVirtualIfaceName, serviceHosts };

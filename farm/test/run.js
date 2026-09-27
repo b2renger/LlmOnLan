@@ -1583,6 +1583,307 @@ test('seat gate: streams pass through, ungated GETs skip admit, full farm gets t
     }
 });
 
+// ---- docs review 2026-09-27 (FA-1 … FA-9) ------------------------------------
+
+// The admin panel's own script, run against a DOM stub: render(state) returns the
+// HTML it would put on screen. Every handler is wired onto inert stubs, so this
+// exercises exactly what an operator would SEE for a given /lol/admin/state.
+function loadPanel() {
+    const html = fs.readFileSync(path.join(__dirname, '..', 'src', 'admin', 'index.html'), 'utf8');
+    const m = /<script>([\s\S]*)<\/script>/.exec(html);
+    assert.ok(m, 'panel script block moved — update loadPanel');
+    const els = new Map();
+    const el = (sel) => {
+        if (!els.has(sel)) {
+            els.set(sel, {
+                innerHTML: '', value: '', dataset: {}, style: {},
+                classList: { add() {}, remove() {} },
+                querySelector: (s) => el(`${sel} ${s}`), querySelectorAll: () => [],
+                addEventListener() {}, focus() {}, select() {},
+            });
+        }
+        return els.get(sel);
+    };
+    const document = { querySelector: el, activeElement: null };
+    const localStorage = { getItem: () => null, setItem() {}, removeItem() {} };
+    // eslint-disable-next-line no-new-func
+    const fn = new Function('document', 'localStorage', 'setInterval', 'fetch', 'confirm',
+        `${m[1]}\n;return { render };`);
+    const out = fn(document, localStorage, () => 0, () => new Promise(() => {}), () => false);
+    return (state) => { out.render(state); return el('#app').innerHTML; };
+}
+
+function adminState(over = {}) {
+    return {
+        name: 'Test Farm',
+        backend: { engine: 'ollama', alias: 'gemma4:12b', model: 'gemma4:12b', contextLength: 32768, contextPerSlot: 32768, contextAuto: true, slots: 2, slotsVerified: true },
+        llamacpp: { enabled: false, running: false, alias: 'assistant', library: [], contextLength: 'auto', contextResolved: null, parallel: 1 },
+        ollama: { hosts: ['http://127.0.0.1:11434'], numParallel: 2, contextLength: 'auto', contextResolved: 32768, nativeMax: 262144 },
+        capacity: { slots: 2, clients: 0, seats: [], seatIdleSec: 900, slotsVerified: true, unmanagedHosts: [], ollamaEnvAdvice: null },
+        models: [
+            { id: 'gemma4:12b', size: 8e9, served: true, loaded: true, isDefault: true, servedAs: 'gemma4:12b' },
+            { id: 'qwen3:8b', size: 5e9, served: true, loaded: false, isDefault: false, servedAs: 'qwen3:8b' },
+            { id: 'llava:7b', size: 4e9, served: false, loaded: false, isDefault: false, servedAs: null },
+        ],
+        plugins: {}, recommendedClientPlugins: [], clients: [],
+        health: { hostsUp: 1, hostsTotal: 1, proxyUp: true, gpu: null, host: null },
+        requiresKey: false, job: null, perf: null, perfHistory: [], fit: null,
+        ocrModel: 'gemma4:12b', llamacppAvailable: true, llamacppBootError: null,
+        ...over,
+    };
+}
+
+const { ollamaServes, carryNameAcross, applyNamePlan, engineFallback } = require('../src/litellm');
+
+test('ollamaServes: only when neither llama.cpp nor an external server serves (FA-1)', () => {
+    const c = defaultConfig();
+    assert.equal(ollamaServes(c), true, 'the default farm serves on Ollama');
+    c.llamacpp.enabled = true;
+    assert.equal(ollamaServes(c), false);
+    c.llamacpp.enabled = false; c.external.enabled = true;
+    assert.equal(ollamaServes(c), false, 'external boot sets llamacpp.enabled=false — that must NOT read as "Ollama serves"');
+    // The routing agrees with the helper: no Ollama deployment while external serves.
+    assert.ok(buildLitellmConfig(c).model_list.every((d) => !String(d.litellm_params.model).startsWith('ollama')));
+});
+
+test('panel: an external server leaves no Ollama/capacity/context control live (FA-1)', () => {
+    const render = loadPanel();
+    // Sanity: on the Ollama engine the controls ARE there (so the negative check below bites).
+    const ol = render(adminState());
+    for (const needle of ['id="ctx-sel"', 'id="slots-sel"', 'data-act=', 'data-dact=']) assert.ok(ol.includes(needle), `ollama view lost ${needle}`);
+
+    const ext = render(adminState({
+        backend: { engine: 'external', alias: 'assistant', model: 'deepseek-v4', baseUrl: 'http://10.0.0.5:8000/v1', contextLength: 32768, contextPerSlot: 32768, contextAuto: false, slots: 4, slotsVerified: false },
+        capacity: { slots: 4, clients: 0, seats: [], seatIdleSec: 900, slotsVerified: false, unmanagedHosts: [], ollamaEnvAdvice: null },
+    }));
+    for (const needle of ['id="ctx-sel"', 'id="slots-sel"', 'data-act=', 'data-dact=']) {
+        assert.ok(!ext.includes(needle), `external view must not render ${needle}`);
+    }
+    assert.ok(!ext.includes('These are what this farm serves'), 'the Ollama catalog is standby, not served');
+    assert.ok(/External server<\/b>|External server is serving/.test(ext), 'the standby hint names the engine that serves');
+    assert.ok(ext.includes('id="sec-in"') && ext.includes('id="settings-apply"'), 'the farm password still applies (it gates the farm proxy)');
+});
+
+test('panel: llama.cpp standby hides Offer/Default, and Rename on the default row', () => {
+    const render = loadPanel();
+    const out = render(adminState({
+        backend: { engine: 'llama.cpp', alias: 'assistant', model: 'Qwen3.8-27B-UD-IQ2_S', contextLength: 65536, contextPerSlot: 65536, contextAuto: true, kvUnified: true, slots: 1, slotsVerified: true },
+        llamacpp: { enabled: true, running: true, alias: 'assistant', library: [], contextLength: 'auto', contextResolved: 65536, parallel: 1 },
+    }));
+    assert.ok(!out.includes('data-act=') && !out.includes('data-dact='));
+    assert.ok(!out.includes('data-rn="gemma4:12b"'), 'the default takes llama.cpp\'s name on a switch back — no dead Rename');
+    assert.ok(out.includes('data-rn="qwen3:8b"'), 'other standby rows can still be named');
+    assert.ok(out.includes('llama.cpp is serving'));
+});
+
+test('panel: Ollama "people served at once" shows and sends the PER-BOX value (FA-9)', () => {
+    const render = loadPanel();
+    const out = render(adminState({
+        backend: { engine: 'ollama', alias: 'gemma4:12b', model: 'gemma4:12b', contextLength: 32768, contextPerSlot: 32768, contextAuto: true, slots: 4, slotsVerified: true },
+        ollama: { hosts: ['http://a:11434', 'http://b:11434'], numParallel: 2, contextLength: 'auto', contextResolved: 32768, nativeMax: 262144 },
+        capacity: { slots: 4, clients: 0, seats: [], seatIdleSec: 900, slotsVerified: true, unmanagedHosts: [], ollamaEnvAdvice: null },
+    }));
+    const sel = /<select id="slots-sel" data-orig="(\d+)">([\s\S]*?)<\/select>/.exec(out);
+    assert.ok(sel, 'slots select rendered');
+    assert.equal(sel[1], '2', 'compared against numParallel, the value Apply writes');
+    const chosen = /<option value="(\d+)" selected>/.exec(sel[2]);
+    assert.equal(chosen && chosen[1], '2', '2 hosts × 2 must show 2 per box, not the total 4');
+    assert.ok(out.includes('People served at once, per box'));
+    assert.ok(out.includes('4 across the farm now'), 'the farm total is still stated');
+});
+
+test('an engine switch carries the served name both ways, per-model alias included (FA-2)', () => {
+    const defId = (c) => buildSnapshot(c, {}).models.find((m) => m.default).id;
+    const switchTo = (c, toLc) => {
+        const snapshotBefore = JSON.stringify(c);
+        const plan = carryNameAcross(c, toLc);
+        assert.equal(JSON.stringify(c), snapshotBefore, 'carryNameAcross is pure — it only returns a plan');
+        applyNamePlan(c, plan);
+        c.llamacpp.enabled = toLc;
+        return plan;
+    };
+
+    // Renamed per row on Ollama (the only way the panel names an Ollama model).
+    let c = defaultConfig();
+    c.models = [{ id: 'gemma4:12b', default: true, alias: 'tutor' }, { id: 'qwen3:8b' }];
+    let before = defId(c);
+    assert.equal(before, 'tutor');
+    switchTo(c, true);
+    assert.equal(defId(c), before, 'Ollama → llama.cpp keeps "tutor"');
+    // Renamed on llama.cpp, then back: the default's own alias takes the new name.
+    c.llamacpp.alias = 'coach';
+    before = defId(c);
+    switchTo(c, false);
+    assert.equal(defId(c), before, 'llama.cpp → Ollama keeps "coach"');
+    assert.equal(c.models[0].alias, 'coach', 'written onto the own alias (it outranks modelAlias)');
+
+    // The global modelAlias path.
+    c = defaultConfig();
+    c.modelAlias = 'helper';
+    before = defId(c);
+    switchTo(c, true);
+    assert.equal(defId(c), before);
+    assert.equal(c.modelAlias, null, 'llamacpp.alias is the single source of truth while llama.cpp serves');
+    before = defId(c);
+    switchTo(c, false);
+    assert.equal(defId(c), before);
+
+    // A raw checkpoint id is not carried to llama.cpp; coming back, llama.cpp's name is.
+    c = defaultConfig();
+    c.llamacpp.enabled = true;
+    before = defId(c);
+    assert.equal(before, 'assistant');
+    switchTo(c, false);
+    assert.equal(defId(c), 'assistant');
+
+    // Never creates a duplicate route: another model already named like llama.cpp.
+    c = defaultConfig();
+    c.llamacpp.enabled = true;
+    c.models = [{ id: 'gemma4:12b', default: true }, { id: 'qwen3:8b', alias: 'assistant' }];
+    assert.deepEqual(carryNameAcross(c, false), {}, 'skip rather than merge two models into one name');
+});
+
+test('a fallback serves the name chats are bound to, in memory only (FA-3)', () => {
+    const snapId = (c) => buildSnapshot(c, {}).models.find((m) => m.default).id;
+    // No prebuilt / start failure / second crash: llama.cpp → Ollama.
+    let c = defaultConfig();
+    c.llamacpp.enabled = true; c.modelAlias = null;
+    const plan = engineFallback(c, 'llamacpp');
+    assert.equal(c.llamacpp.enabled, false);
+    assert.equal(snapId(c), 'assistant', 'not the raw gemma4:12b');
+    assert.deepEqual(plan, { modelAlias: 'assistant' });
+    // The operator's own Ollama name wins over the engine alias.
+    c = defaultConfig();
+    c.llamacpp.enabled = true;
+    c.models = [{ id: 'gemma4:12b', default: true, alias: 'tutor' }];
+    assert.deepEqual(engineFallback(c, 'llamacpp'), {});
+    assert.equal(snapId(c), 'tutor');
+    // External down at boot, Ollama stands in → under the external alias.
+    c = defaultConfig();
+    c.external.enabled = true; c.external.alias = 'deepseek';
+    engineFallback(c, 'external');
+    assert.equal(c.external.enabled, false);
+    assert.equal(snapId(c), 'deepseek');
+    // External down, llama.cpp stands in → under the external alias; if llama.cpp
+    // then fails too, Ollama still answers to it.
+    c = defaultConfig();
+    c.external.enabled = true; c.external.alias = 'deepseek'; c.llamacpp.enabled = true;
+    engineFallback(c, 'external');
+    assert.equal(snapId(c), 'deepseek');
+    engineFallback(c, 'llamacpp');
+    assert.equal(snapId(c), 'deepseek');
+    // engineFallback takes a config object, never a path: it cannot write the file.
+    assert.equal(engineFallback.length, 2);
+});
+
+test('private farm: plugins bind loopback and advertise loopback URLs (FA-4)', () => {
+    const { serviceHosts, primaryAddress } = require('../src/net');
+    const searxngMod = require('../src/searxng');
+    const extractMod = require('../src/extract');
+    const kokoroMod = require('../src/kokoro');
+    const spy = () => {
+        const calls = [];
+        const fn = (cmd, args, opts) => { calls.push({ cmd, args, opts }); return { pid: null, on() {}, stdout: null, stderr: null }; };
+        fn.calls = calls;
+        return fn;
+    };
+    const hostArg = (args) => args[args.indexOf('--host') + 1];
+    for (const [proxyHost, want] of [['127.0.0.1', '127.0.0.1'], ['localhost', '127.0.0.1'], ['0.0.0.0', '0.0.0.0'], ['10.1.2.3', '10.1.2.3']]) {
+        const c = defaultConfig();
+        c.proxy.host = proxyHost;
+        const s1 = spy(); searxngMod.spawnSearxng(c, s1);
+        assert.equal(s1.calls[0].opts.env.SEARXNG_BIND_ADDRESS, want, `searxng on proxy.host=${proxyHost}`);
+        const s2 = spy(); extractMod.spawnExtract(c, { key: 'k', model: 'm', ollamaUrl: 'http://127.0.0.1:11434/api/generate' }, s2);
+        assert.equal(hostArg(s2.calls[0].args), want, `ocr on proxy.host=${proxyHost}`);
+        const s3 = spy(); kokoroMod.spawnKokoro(c, { spawnFn: s3, espeak: '' });
+        assert.equal(hostArg(s3.calls[0].args), want, `kokoro on proxy.host=${proxyHost}`);
+    }
+    // The farm's own health probes reach a specifically-bound plugin where it is.
+    assert.equal(serviceHosts('10.1.2.3').probe, '10.1.2.3');
+    assert.equal(serviceHosts('0.0.0.0').probe, '127.0.0.1');
+    // Private: the same-box client reads /lol/self over loopback and must be sent to
+    // loopback — the LAN address would point it at ports nothing listens on.
+    const c = defaultConfig();
+    c.proxy.host = '127.0.0.1'; c.tts.enabled = true;
+    const h = { searxngUp: true, ttsUp: true, extractUp: true, extractKey: 'k' };
+    let snap = buildSnapshot(c, h);
+    assert.equal(snap.searxngUrl, 'http://127.0.0.1:8888');
+    assert.equal(snap.ttsUrl, 'http://127.0.0.1:8880/v1');
+    assert.equal(snap.extract.url, 'http://127.0.0.1:8890');
+    // Shared: unchanged — the primary LAN address.
+    c.proxy.host = '0.0.0.0';
+    snap = buildSnapshot(c, h);
+    assert.equal(snap.searxngUrl, `http://${primaryAddress()}:8888`);
+    assert.equal(snap.extract.url, `http://${primaryAddress()}:8890`);
+});
+
+test('standby catalog edits leave the routing byte-identical (FA-5 no-restart guard)', () => {
+    for (const engine of ['llamacpp', 'external']) {
+        const c = defaultConfig();
+        if (engine === 'llamacpp') c.llamacpp.enabled = true; else c.external.enabled = true;
+        const before = toYaml(buildLitellmConfig(c));
+        c.models = c.models.concat([{ id: 'qwen3:8b' }]);
+        c.models = c.models.map((m) => ({ ...m, default: m.id === 'qwen3:8b' }));
+        assert.equal(toYaml(buildLitellmConfig(c)), before, `${engine}: a pulled/default-changed standby model must not need a proxy restart`);
+        assert.equal(ollamaServes(c), false);
+    }
+});
+
+test('the farm advertises the Farm app release, not farm/package.json (FA-6)', () => {
+    const { PKG_VERSION } = require('../src/snapshot');
+    const prev = process.env.LOL_FARM_VERSION;
+    try {
+        process.env.LOL_FARM_VERSION = '0.0.39';
+        assert.equal(buildSnapshot(defaultConfig(), {}).version, '0.0.39');
+        delete process.env.LOL_FARM_VERSION;
+        assert.equal(buildSnapshot(defaultConfig(), {}).version, PKG_VERSION, 'a bare CLI checkout falls back to package.json');
+    } finally {
+        if (prev === undefined) delete process.env.LOL_FARM_VERSION; else process.env.LOL_FARM_VERSION = prev;
+    }
+});
+
+test('lol models add/rm patch only `models`, never the parsed defaults (FA-7)', () => {
+    const modelsCmd = require('../src/commands/models');
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lol-models-'));
+    const p = path.join(dir, 'lol.config.json');
+    const read = () => JSON.parse(fs.readFileSync(p, 'utf8'));
+    try {
+        fs.writeFileSync(p, JSON.stringify({ models: [{ id: 'gemma4:12b', default: true }] }));
+        assert.equal(modelsCmd.add('qwen3:8b', p), 0);
+        assert.deepEqual(Object.keys(read()), ['models'], 'no default may be frozen into the file');
+        assert.deepEqual(read().models.map((m) => m.id), ['gemma4:12b', 'qwen3:8b']);
+        assert.equal(modelsCmd.remove('qwen3:8b', p), 0);
+        assert.deepEqual(Object.keys(read()), ['models']);
+        assert.deepEqual(read().models.map((m) => m.id), ['gemma4:12b']);
+        // A file with no catalog: add keeps the default catalog it was serving.
+        fs.writeFileSync(p, JSON.stringify({ name: 'X' }));
+        assert.equal(modelsCmd.add('qwen3:8b', p), 0);
+        assert.deepEqual(Object.keys(read()).sort(), ['models', 'name']);
+        assert.deepEqual(read().models.map((m) => m.id), ['gemma4:12b', 'qwen3:8b']);
+    } finally {
+        fs.rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test('deriving a source model never ships num_ctx:"auto" (FA-8)', () => {
+    const c = defaultConfig();   // ollama.contextLength = 'auto'
+    const m = { id: 'mine', source: 'hf.co/unsloth/X-GGUF:Q4_K_M' };
+    const p = ollama.deriveParams(c, m);
+    assert.ok(!Object.values(p).includes('auto'), 'the string must never reach /api/create');
+    assert.ok(!('num_ctx' in p), 'the routed per-request num_ctx governs instead');
+    c.ollama.contextLength = 32768;
+    assert.equal(ollama.deriveParams(c, m).num_ctx, 32768, 'a pinned number still bakes in');
+    assert.equal(ollama.deriveParams(c, { ...m, params: { num_ctx: 8192 } }).num_ctx, 8192, "the entry's own num_ctx wins");
+    assert.equal(ollama.deriveParams(defaultConfig(), defaultConfig().preinstall[0]).num_ctx, 8192);
+});
+
+test('pressure eviction covers any non-Ollama engine (external too)', () => {
+    const base = { vramUsedGb: 11.5, vramTotalGb: 12, gpuUtil: 3, loadedCount: 1 };
+    assert.equal(perfMod.shouldEvictOllama({ ...base, otherEngineOn: true }), true);
+    assert.equal(perfMod.shouldEvictOllama({ ...base, otherEngineOn: false }), false);
+    assert.equal(perfMod.shouldEvictOllama({ ...base, llamacppOn: true }), true, 'the older name still works');
+});
+
 (async () => {
     for (const { name, fn } of tests) {
         try { await fn(); console.log(`  ok  ${name}`); passed++; }

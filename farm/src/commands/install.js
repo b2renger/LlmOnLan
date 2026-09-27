@@ -240,7 +240,7 @@ async function pullModels(config) {
         // to track contextLength; doing it here too means the box is ready to serve
         // at full speed straight after `lol install`, with no first-run penalty.
         if (m.source) {
-            const params = Object.assign({ num_ctx: config.ollama.contextLength }, m.params || {});
+            const params = ollama.deriveParams(config, m);   // never ships num_ctx:'auto'
             const shown = Object.entries(params).map(([k, v]) => `${k}=${v}`).join(' ');
 
             // `lol install` only ever targets the local Ollama, so a draft module is

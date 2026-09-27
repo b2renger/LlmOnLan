@@ -211,6 +211,16 @@ export function parseImport(text, opts = {}) {
     return nothing();
   }
   if (!isObj(doc)) { errors.push('this is not a LOL Chat export: the file is not an object'); return nothing(); }
+  // The picker also offers .lolgraph.json (the Computer imports through it): name what the file IS
+  // instead of "unsupported export version: undefined" (docs review B-9).
+  if (doc.lolchat === undefined && doc.lolgraph !== undefined) {
+    errors.push('This is not a LOL Chat export — a .lolgraph.json is a Computer graph; open it from the Computer.');
+    return nothing();
+  }
+  if (doc.lolchat === undefined) {
+    errors.push('This is not a LOL Chat export: the file has no "lolchat" version field.');
+    return nothing();
+  }
   if (doc.lolchat !== LOLCHAT_FORMAT) {
     errors.push(`unsupported export version: ${JSON.stringify(doc.lolchat)} (this build reads ${LOLCHAT_FORMAT})`);
     return nothing();

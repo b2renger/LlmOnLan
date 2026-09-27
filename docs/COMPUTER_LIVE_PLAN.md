@@ -26,6 +26,10 @@
    until another box goes live, or until the box leaves the screen, the Computer is hidden or the
    window is hidden. The other boxes keep their snapshots. SVG and Markdown have nothing to interact
    with, so they have no Live button.
+   *As built: leaving the screen, the Computer being hidden or the window being hidden pause the box
+   and it resumes when visible again; the Live choice is saved with the graph (critic L1-3/L1-5). Only
+   ■ Stop, a takeover by another box, a stall, a mode change or an error end the choice
+   (`graph/parts/preview.mjs` `liveEndsChoice`).*
 2. **A second guest frame, owned by `sandbox/host.mjs`.** The snapshot guest is unchanged. A LIVE
    guest is created INSIDE the live box's picture element, so it pans and zooms with the canvas for
    free. It has the same runner, the same CSP, the same `sandbox` attributes, no network, and a

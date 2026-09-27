@@ -8,7 +8,8 @@ registerStrings('graph', {
   empty: 'Place a part to start. Wire it up, then press Run all.',
   // K1 landing: a graph no longer belongs to a conversation, it belongs to a LIBRARY DOCUMENT.
   // (`noThread` was 'Open a chat to build a program…'; the Computer has no chat to open.)
-  noDoc: 'Open a graph from the library, or press ＋ New, to start building.',
+  // Docs review B-2: the library button reads "New" (computer.libNew), with no ＋.
+  noDoc: 'Open a graph from the library, or press New, to start building.',
 
   // toolbar
   run: 'Run',
@@ -135,7 +136,9 @@ registerStrings('graph', {
   errImportVersion: 'That file was written by a newer version of the Computer.',
   errImportUnreadable: 'That file could not be read.',
   errImportTooBig: 'That file is too big to open. A graph file has to stay under 8 MB.',
-  dropHint: 'Drop a .lolgraph.json file to open it here.',
+  // Docs review B-4: a dropped graph file REPLACES the open graph (after the replaceTitle question),
+  // like the toolbar's "Replace from file…" — it does not open beside it.
+  dropHint: 'Drop a .lolgraph.json file to put it in place of this graph.',
 
   // C3-U3: the export popover, and what an import has to be able to SAY. A graph file is the whole
   // sharing story on a stateless farm, so every way it can go wrong gets a sentence of its own —

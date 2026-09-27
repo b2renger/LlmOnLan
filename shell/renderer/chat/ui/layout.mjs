@@ -48,7 +48,13 @@ function h(tag, o = {}, children = []) {
  * @returns {import('../core/types.mjs').Els}
  */
 export function buildLayout(root) {
-  const newBtn = h('button', { cls: 'btn-accent chat-new', id: 'chat-new', attrs: { type: 'button' }, text: t('core.newChat') });
+  // LOL Chat has no shortcut list, so the buttons that have a key name it (ui/shortcuts.mjs).
+  const mac = typeof navigator !== 'undefined' && /Mac/i.test(String(navigator.platform || ''));
+  const newBtn = h('button', {
+    cls: 'btn-accent chat-new', id: 'chat-new',
+    attrs: { type: 'button', title: t('core.newChatTitle', { keys: mac ? '⌘⇧O' : 'Ctrl+Shift+O' }) },
+    text: t('core.newChat'),
+  });
   const sideHead = h('div', { cls: 'chat-side-head' }, [newBtn]);
   const sideTools = h('div', { cls: 'chat-side-tools' });
   const list = h('div', { cls: 'chat-threads', id: 'chat-threads', attrs: { role: 'list', 'aria-label': t('core.threadsLabel') } });
@@ -78,7 +84,7 @@ export function buildLayout(root) {
   });
   const meter = h('div', { cls: 'chat-composer-meter' });
   const send = h('button', { cls: 'btn-accent', id: 'chat-send', attrs: { type: 'submit' }, text: t('core.send') });
-  const stop = h('button', { cls: 'btn-ghost hidden', id: 'chat-stop', attrs: { type: 'button' }, text: t('core.stop') });
+  const stop = h('button', { cls: 'btn-ghost hidden', id: 'chat-stop', attrs: { type: 'button', title: t('core.stopTitle') }, text: t('core.stop') });
   const row = h('div', { cls: 'chat-composer-row' }, [tools, input, meter, send, stop]);
   const form = h('form', { cls: 'chat-form', id: 'chat-form', attrs: { autocomplete: 'off' } }, [above, tray, row]);
 

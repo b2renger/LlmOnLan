@@ -9,7 +9,7 @@
 //
 //   #lolcomputer
 //   ├── .comp-side            the library sidebar (K1-U2; resizable, width in kv)
-//   │   ├── .comp-side-head     [＋ New] [search]
+//   │   ├── .comp-side-head     [New] [search]
 //   │   ├── .comp-list          document cards
 //   │   └── .comp-shelves       ▸ Lessons  ▸ Templates            (K5, collapsed)
 //   ├── .comp-main

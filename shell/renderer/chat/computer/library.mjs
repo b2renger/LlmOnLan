@@ -6,7 +6,7 @@
 // whose `threadId` is null (§7.1). No DB version bump, no new store.
 //
 // What it owns:
-//   the head      [＋ New] [search] [Import…]
+//   the head      [New] [search] [Import…]
 //   the list      one card per document: title · N parts · last run, and per-card actions
 //                 (Rename inline · Duplicate · Export… · Delete)
 //   the width     a drag handle on the right edge, remembered in kv 'computer:sideWidth'

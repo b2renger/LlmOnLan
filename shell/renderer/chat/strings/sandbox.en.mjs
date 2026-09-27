@@ -14,6 +14,10 @@ registerStrings('sandbox', {
   errNoFrame: 'The sandbox is not running.',
   errGone: 'The sandbox was restarted while this was running.',
   errDisabled: 'The sandbox could not start, so nothing was run.',
+  // CA-1: after three stalls in REBUILD_WINDOW_MS the sandbox is PAUSED, not broken. Only
+  // host.start() re-arms it on the Computer (Run all, ▶ in a box's title bar — not ▶ Live or
+  // Run code), so the sentence names only those.
+  errPaused: 'The sandbox is paused: a sketch stopped answering three times in a minute. Press Run all (or ▶ in a box’s title bar) to start it again.',
   errNotBuilt: 'This part of the sandbox is not built yet.',
   errBoot: 'The sandbox did not answer while starting up — the preview is off.',
   errAborted: 'The run was stopped before the sandbox answered.',
@@ -22,7 +26,7 @@ registerStrings('sandbox', {
 
   // the restart ladder (studio plan §3.7.4)
   stalled: 'The sketch stopped responding — the preview was restarted.',
-  disabled: 'The preview is off until you press Run again.',
+  disabled: 'The sandbox is paused after a sketch stopped answering three times in a minute. Press Run all or ▶ in a box’s title bar to start it again.',
   dropped: 'The preview sent something the app could not read, so it was restarted.',
   libMissing: 'This build does not ship {name}.',
   libFailed: '{name} could not be loaded, so a sketch that needs it will not run.',

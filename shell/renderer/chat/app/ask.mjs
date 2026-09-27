@@ -262,7 +262,13 @@ export function createAsk(app) {
     // Critic S1-1: still `busy` (every control path is unchanged), flagged `hidden` so the run
     // report can say "this window was in the background" instead of "every box is up to date".
     if (!(app.state.visible && app.state.pageVisible)) return refuse(fail('busy', t('ask.hidden'), { hidden: true }));
-    if (o.images.length && vision(underlying) === 'no') return refuse(fail('no_vision', t('ask.noVision')));
+    // Both names are asked (docs review SA-15): app/caps.mjs files a verdict under the name the
+    // farm's catalogue row carries — the model GROUP, i.e. the alias on an aliased farm — while
+    // this used to ask only the underlying checkpoint, so an image ask to a text-only alias cost a
+    // seat and a 400 instead of being refused here. graph/parts/instruction.mjs asks both too.
+    if (o.images.length && [model, underlying].filter(Boolean).some((id) => vision(String(id)) === 'no')) {
+      return refuse(fail('no_vision', t('ask.noVision')));
+    }
     if (o.signal && o.signal.aborted) return refuse(fail('aborted', t('ask.aborted')));
 
     const kind = o.priority === 'background' ? 'background' : 'foreground';

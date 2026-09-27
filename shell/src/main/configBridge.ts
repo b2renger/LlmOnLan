@@ -1,8 +1,9 @@
 // config-bridge — the ONLY module that knows Open WebUI's config surface.
 //
 // Per the integration contract (CLAUDE.md) + the research brief, we couple to
-// OWUI exclusively through env vars (+ optionally the admin REST API). The chosen
-// strategy is ENV-AUTHORITATIVE:
+// OWUI exclusively through env vars (+ its public REST API — the renderer's app.js
+// holds the few user-settings writes env cannot do). The chosen strategy is
+// ENV-AUTHORITATIVE:
 //
 //   OWUI's OPENAI_* are "PersistentConfig" — env seeds only the FIRST boot, then
 //   the SQLite DB wins, so a single admin-UI edit could pin a stale farm URL
@@ -18,6 +19,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
+import * as os from 'os';
 import { app } from 'electron';
 
 // Stable WEBUI_SECRET_KEY (signs JWTs / encrypts at rest). Generated once and
@@ -45,19 +47,39 @@ export interface SidecarEnvInput {
     contextPerSlot?: number | null; // farm's per-slot context window (snapshot backend.contextPerSlot) → RAG mode
 }
 
-// True when every Hugging Face model OWUI might fetch at runtime is already in
-// the default HF cache (~/.cache/huggingface/hub): MiniLM (embeddings) and
-// faster-whisper base (STT, WHISPER_MODEL below). Gates HF_HUB_OFFLINE.
-function hfModelsCached(): boolean {
-    const hub = path.join(require('os').homedir(), '.cache', 'huggingface', 'hub');
-    const cached = (dir: string): boolean => {
+// Where Hugging Face keeps its hub cache for a process with this environment — the same order
+// huggingface_hub resolves it: HF_HUB_CACHE, else $HF_HOME/hub, else
+// ${XDG_CACHE_HOME:-~/.cache}/huggingface/hub. The sidecar inherits the shell's environment
+// (sidecar.ts spreads process.env under the bridge's env), so this is the cache OWUI will use.
+export function hfHubDir(env: NodeJS.ProcessEnv = process.env, home: string = os.homedir()): string {
+    if (env.HF_HUB_CACHE) return env.HF_HUB_CACHE;
+    if (env.HF_HOME) return path.join(env.HF_HOME, 'hub');
+    return path.join(env.XDG_CACHE_HOME || path.join(home, '.cache'), 'huggingface', 'hub');
+}
+
+// True when every Hugging Face model OWUI might fetch at runtime is already on disk, where the
+// pinned OWUI 0.10.2 actually looks for it (verified against the packaged sidecar's source):
+//   - MiniLM (embeddings, loaded at boot): retrieval/utils.py get_model_path() passes
+//     cache_dir=$SENTENCE_TRANSFORMERS_HOME (unset by us) to snapshot_download, so it lives in the
+//     default HF hub cache above — once per machine, shared by every data folder.
+//   - faster-whisper base (STT, loaded on first mic use): routers/audio.py passes
+//     download_root=WHISPER_MODEL_DIR, which config.py defaults to <DATA_DIR>/cache/whisper/models;
+//     faster_whisper turns that into snapshot_download's cache_dir. So Whisper is per DATA FOLDER,
+//     never in the hub — the old check looked for it in the hub and HF_HUB_OFFLINE never turned
+//     on for a real install (docs review SA-2). A "Start fresh" data folder correctly stays online
+//     until Whisper has been fetched into it.
+// Gates HF_HUB_OFFLINE.
+export function hfModelsCached(dataDir: string, env: NodeJS.ProcessEnv = process.env, home: string = os.homedir()): boolean {
+    const cached = (root: string, repo: string): boolean => {
         try {
-            const snaps = path.join(hub, dir, 'snapshots');
+            const snaps = path.join(root, repo, 'snapshots');
             return fs.readdirSync(snaps).some((d) => fs.readdirSync(path.join(snaps, d)).length > 0);
         } catch { return false; }
     };
-    return cached('models--sentence-transformers--all-MiniLM-L6-v2')
-        && cached('models--Systran--faster-whisper-base');
+    const embeddings = env.SENTENCE_TRANSFORMERS_HOME || hfHubDir(env, home);
+    const whisper = env.WHISPER_MODEL_DIR || path.join(dataDir, 'cache', 'whisper', 'models');
+    return cached(embeddings, 'models--sentence-transformers--all-MiniLM-L6-v2')
+        && cached(whisper, 'models--Systran--faster-whisper-base');
 }
 
 // Whole-document RAG needs the whole document to FIT. Below this per-slot context
@@ -203,12 +225,13 @@ export function buildSidecarEnv(input: SidecarEnvInput): Record<string, string> 
     // OWUI's startup asks huggingface.co for the embedding model's latest revision
     // even when it is fully cached (boot-profiled). Online that's a wasted round
     // trip; on a closed/flaky LAN it is a hang waiting to happen. Once BOTH models
-    // OWUI might pull at runtime are cached — MiniLM (embeddings, loaded at boot)
-    // and faster-whisper base (STT, loaded on first mic use) — go hub-offline.
+    // OWUI might pull at runtime are cached — MiniLM (embeddings, loaded at boot,
+    // in the HF hub) and faster-whisper base (STT, loaded on first mic use, under
+    // this DATA_DIR) — go hub-offline.
     // While either is missing the flag stays off so the one-time download works —
     // the etag timeout below then keeps a dead internet from stalling those
     // metadata checks for more than a moment (downloads are unaffected).
-    if (hfModelsCached()) env.HF_HUB_OFFLINE = '1';
+    if (hfModelsCached(input.dataDir)) env.HF_HUB_OFFLINE = '1';
     else env.HF_HUB_ETAG_TIMEOUT = '2';
 
     // Point at the farm. Set ONLY the singular pair (the brief warns against also

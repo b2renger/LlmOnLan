@@ -40,8 +40,8 @@ registerStrings('parts', {
 
   // A very long arrival is rendered down to its first {kb} KB — the box scrolls, but a megabyte of
   // markdown is most of a second of main-thread work per run. The WHOLE value still goes
-  // downstream and is still what Save… writes.
-  textTruncated: 'Showing the first {kb} KB — the whole text still passes on, and Save… writes all of it.',
+  // downstream and is still what Copy copies (docs review B-1: the Text box has no Save…).
+  textTruncated: 'Showing the first {kb} KB. The whole text still passes on, and Copy copies all of it.',
 
   // Critic R1 A6/A7: the ways in to a box that is SHOWING text, and the way its words out.
   textEdit: '✎ Edit',

@@ -96,7 +96,7 @@ Legend — **Value**: to *this* office (shared LAN farm, 12B–30B local models,
 | # | Feature | Value | Effort | Risk | In scope? | Verdict | Rationale |
 |---|---|---|---|---|---|---|---|
 | F40 | Message tree: edit user message → sibling; regenerate → sibling; `◀ 2/3 ▶` switcher; delete subtree | High | M | Low | Yes | **BUILD NOW** | Creative exploration without overwrites. |
-| F41 | "Regenerate with…" another recipe / temperature (sequential sibling, never parallel) | Med | S | Low | Yes | **BUILD NOW** | The honest version of "two takes" and compare mode on a one-engine farm. |
+| F41 | "Regenerate with…" another recipe / temperature (sequential sibling, never parallel) | Med | S | Low | Yes | **BUILD NOW** | The honest version of "two takes" and compare mode on a one-engine farm. *Shipped as two temperatures only — **More creative** (1.0) and **More precise** (0.2) (`ui/message-actions.mjs`); recipes were not built.* |
 | F42 | Fork thread from any message | Med | S | Low | Yes | **BUILD NOW** | Side quests; copies the path. |
 | F43 | Continue (`finish_reason:'length'` or interrupted) via trailing-assistant prefill, with fallback "continue exactly where you stopped" user turn | Med‑High | M | Med (prefill unverified) | Yes | **BUILD NOW** | Ollama and llama-server very likely continue a trailing assistant turn; the fallback makes it safe either way. Live check in C‑21. |
 | F44 | Rewrite-from-selection (truncate reply at a selection, continue differently) | Med | S (on F43) | Med | Yes | **BUILD NOW (stretch)** | Same code path as Continue. |
@@ -157,8 +157,8 @@ Legend — **Value**: to *this* office (shared LAN farm, 12B–30B local models,
 | F102 | Ghost-text autocomplete | DROP | The governor forbids it; OWUI's was disabled for the same reason. |
 | F103 | Automatic devil's-advocate notes | DROP (as automatic) | Ships as a user-run built-in recipe "Critique this answer". |
 | F104 | Cross-farm second opinion | DROP | Fleet territory — explicitly excluded by the owner. |
-| F105 | Instant-start handoff (LOL Chat as the view while OWUI boots; remember last view) | NEEDS OOS CHANGE | Strategic, but lives in `app.js` toggle logic (C‑1). |
-| F106 | LOL Chat data under `DATA_DIR` | NEEDS OOS CHANGE | Needs preload/main (C‑2). |
+| F105 | Instant-start handoff (LOL Chat as the view while OWUI boots; remember last view) | **SHIPPED** (was NEEDS OOS CHANGE) | The view is remembered as `localStorage['lol:view']` (`app.js`), the switch is three-way (Open WebUI · LOL Chat · Computer), and the other surfaces are usable while OWUI boots (`styles.css` keeps the OWUI overlay off them). |
+| F106 | LOL Chat data under `DATA_DIR` | **DONE 2026-09-27** | Built in main (C‑2): the window's session lives in `<DATA_DIR>/lol-client`. |
 
 ### A.7 Tests & tooling
 
@@ -203,6 +203,8 @@ Legend — **Value**: to *this* office (shared LAN farm, 12B–30B local models,
 **Tier 2 — distinctive (must ship):** F21–F27, F30, F41–F43, F48, F50–F53, F59, F60, F62, F70–F74,
 F80, F90, F91.
 **Tier 3 — stretch (ship if Tier 1+2 are green):** F8, F44, F54, F58, F82.
+
+**Shipped (2026-09):** P0–P2 + S0; P3/P4 (F50–F52, F70, F72–F74, F80, F90–F91) not built.
 
 Size target (new/rewritten product code, excluding tests and vendored files): **~4,800 lines** for
 Tiers 1+2, **~5,700** with Tier 3. Tests + harness + mock: **~1,800** more. No vendored libraries in
@@ -309,7 +311,7 @@ shell/renderer/chat/
 rows. The streaming hot path bypasses events: `run.mjs` appends to the message string and asks
 `thread-view` to paint the tail at most once per animation frame.
 
-### B.4 Storage (IndexedDB database `lol-chat`, version 1)
+### B.4 Storage (IndexedDB database `lol-chat`, version 1 — now version 2: S0 added `graphs` + `projects`)
 
 | Store | Key | Record | Indexes |
 |---|---|---|---|
@@ -580,7 +582,7 @@ update(bridgeObject); get() → FarmCaps; on('change', fn)
 | # | What | Why | Touches | Interacts with | Rough effort |
 |---|---|---|---|---|---|
 | C‑1 | **Instant-start handoff**: open on LOL Chat while OWUI boots, remember the last view, "Continue in Open WebUI" later | The strategic reason LOL Chat exists: every launch pays ~10 s of OWUI boot since "close means close" | `renderer/app.js` toggle (beyond additive), maybe main for boot ordering | CLAUDE.md "Close means close" boot cost; the handoff part must not touch OWUI internals (invariant #4) — an import through OWUI's public format only | S (view memory) · M (handoff) |
-| C‑2 | **LOL Chat data under `DATA_DIR`** (or a preload export/move API) | Today threads live in `%APPDATA%\LlmOnLan` IndexedDB; a data-folder move or "fresh start" leaves them behind | `shell/src/main`, `shell/src/preload`, Preferences data-location flow | Prime directive #3 (spirit: "the data folder is where your data lives") | M |
+| C‑2 | ~~**LOL Chat data under `DATA_DIR`**~~ — **CLOSED 2026-09-27** (owner rule: "all data in data dir including lol chat projects and computer projects") | Was: threads lived in `%APPDATA%\LlmOnLan` IndexedDB and a data-folder move left them behind. Now the main window runs on `session.fromPath(<DATA_DIR>/lol-client)` (`shell/src/main/clientData.ts`); a Preferences move restarts the app and carries it; v0.1.x history is imported once, on the first launch | `shell/src/main` (clientData, index, dataMigration, store), the Preferences data-location flow | Prime directive #3, now worded for it | done |
 | C‑3 | **CSP decision on the worker loophole**: `file://` workers and our own iframe don't inherit the page CSP, so WASM/eval run there. Bless it (`'wasm-unsafe-eval'`, `worker-src 'self'`, plus `media-src data: blob:`, `img-src blob:`) or forbid it | Unlocks local pdf.js-free WASM, embeddings, whisper, sandboxed artifacts; today it is an injection-escalation path that a future Electron/main hardening may close silently | `renderer/index.html` CSP meta, maybe main | Security posture; nothing in this release relies on it | S (decision) |
 | C‑4 | Main-process guards: `will-navigate` block, a default-session permission handler (mic, clipboard-read, notifications are implicitly allow-all), a save-dialog preload API if `<a download>` fails | Defence in depth; the renderer drop guard is only a mitigation | `shell/src/main/index.ts`, preload | — | S‑M |
 | C‑5 | `publishFarm` event-driven (call from `onFarms` in the OWUI build too) and give the fallback branch an `apiKey` | The 4 s poll adds latency to farm switches; a keyed farm in the fallback branch fails every chat fetch | `renderer/app.js` (non-additive) | — | S |
@@ -630,7 +632,8 @@ update(bridgeObject); get() → FarmCaps; on('change', fn)
   turns, never merged into the system prompt.
 
 **D‑3 Data locality and farm etiquette**
-- All history, attachments, recipes and caches live in this machine's IndexedDB. The farm sees only: chat
+- All history, attachments, recipes and caches live in this machine's IndexedDB — in the user's data
+  folder since 2026-09-27 (`<DATA_DIR>/lol-client`, C‑2). The farm sees only: chat
   completions, SearXNG queries, OCR extraction bytes, TTS text (stretch). Nothing else leaves the machine.
 - **Never** call `/v1/embeddings` for anything. Never send `num_ctx`. No cloud services, no internet
   assumption at runtime (offline-first; every farm service optional).

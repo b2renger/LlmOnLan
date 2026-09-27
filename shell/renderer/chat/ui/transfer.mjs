@@ -362,8 +362,10 @@ export async function importFromText(app, text, opts = {}) {
   const ids = parsed.threads.map((th) => th.id);
   app.bus.emit(EV.THREADS_CHANGED, { reason: 'import', ids });
   if (app.dialogs) {
-    app.dialogs.toast(t('library.imported', { n: parsed.threads.length }), { kind: 'success' });
-    if (parsed.errors.length) app.dialogs.toast(t('library.importProblems', { n: parsed.errors.length }), { kind: 'error' });
+    const n = parsed.threads.length;
+    app.dialogs.toast(n === 1 ? t('library.importedOne') : t('library.imported', { n }), { kind: 'success' });
+    const bad = parsed.errors.length;
+    if (bad) app.dialogs.toast(bad === 1 ? t('library.importProblemsOne') : t('library.importProblems', { n: bad }), { kind: 'error' });
   }
   if (app.sidebar) await app.sidebar.render();
   if (opts.select !== false && app.controller) {

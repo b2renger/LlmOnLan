@@ -54,8 +54,8 @@
     </div>
     <div class="farm-list" id="farm-list"></div>
     <div class="pop-empty hidden" id="farm-empty">
-      No servers found yet. Make sure a farm is running (<code>lol up</code>) on the network, or add
-      one by address below.
+      No servers found yet. Make sure a farm is running on this network — in the LlmOnLan Farm app,
+      turn on “Share compute with the network” (or run <code>lol up</code>) — or add one by address below.
     </div>
     <form class="add-form" id="add-form">
       <input id="add-host" type="text" placeholder="Add by address — e.g. 10.10.16.5" spellcheck="false" />
@@ -81,11 +81,12 @@
         <!-- Data location -->
         <section class="pref-sec">
           <h3>Data location</h3>
-          <p class="pref-hint">Every chat, document, and vector lives here, on this machine. Nothing is stored on the server.</p>
+          <p class="pref-hint">Everything LlmOnLan keeps lives in this folder, on this machine: LOL Chat's history, the Computer's graphs with their pictures, PDFs and sounds, the files its File boxes write, and Open WebUI's chats, documents and vectors. Nothing is stored on the server. Changing the folder restarts the app.</p>
           <div class="pref-row">
             <code class="pathbox" id="data-path">—</code>
             <button class="btn-ghost" id="change-folder">Change folder…</button>
           </div>
+          <p class="pref-hint hidden" id="data-client-note"></p>
           <div class="pref-subpanel hidden" id="move-panel">
             <p id="move-q">Move your existing data to the new folder?</p>
             <div class="pref-actions">

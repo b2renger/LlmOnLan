@@ -1,10 +1,15 @@
 // Unicast discovery fallback + the farm ADMIN control API, on one built-in http
 // server (no framework). Routes:
 //   GET  /lol/self               → the discovery snapshot JSON (open; CORS *)
+//   POST /lol/client-ping        → desktop-client presence heartbeat (open)
 //   GET  /lol/admin              → the static admin page (open — it's just HTML/JS)
 //   GET  /lol/admin/state        → richer admin view (token)   → control.getAdminState()
+//   POST /lol/admin/apply        → name/slots/password/context in ONE restart (token)
 //   POST /lol/admin/model/start  → serve + warm a model (token) → control.startModel(id)
 //   POST /lol/admin/model/stop   → unserve + evict a model (token) → control.stopModel(id)
+//   POST /lol/admin/model/default → make a served model the fleet default (token)
+//   POST /lol/admin/model/alias  → per-model advertised name (token)
+//   POST /lol/admin/context      → the context window, {tokens} (token)
 //   POST /lol/admin/backend      → switch inference engine (token)
 //   POST /lol/admin/name         → the model name users see (token)
 //   POST /lol/admin/security     → set/clear the shared farm password (token)
@@ -14,13 +19,16 @@
 //   POST /lol/admin/llamacpp/library/remove → drop one from the library (token)
 //   POST /lol/admin/ollama/pull   → download an Ollama model (token)
 //   POST /lol/admin/ollama/remove → delete an Ollama model (token)
+//   POST /lol/admin/plugin/<id>/enable|disable → toggle a farm plugin (token)
+//   POST /lol/admin/plugin/recommend → recommend a client plugin, {id,on} (token)
 //
 // `GET /lol/self` is the unicast discovery path (mirrors ComfyQ's /federation/self):
 // on managed Wi-Fi, client isolation drops broadcast+multicast so the UDP beacon
 // never arrives even though unicast HTTP works — the shell's subnet sweep probes it.
 // The admin routes MUTATE the live farm, so every one except the open page requires
 // `Authorization: Bearer <adminToken>` (the token `lol up` prints). The whole server
-// binds `config.proxy.host` (0.0.0.0), so the token is what gates control on the LAN.
+// binds `config.proxy.host` (0.0.0.0 by default — 127.0.0.1 on a private farm), so on
+// the LAN the token is what gates control.
 
 const http = require('http');
 const fs = require('fs');

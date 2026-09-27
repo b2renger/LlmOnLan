@@ -115,13 +115,16 @@ function round1(n) { return Math.round(n * 10) / 10; }
 
 // --- eviction under pressure ---------------------------------------------------
 
-// While llama.cpp is the engine, the only thing that loads Ollama models is the OCR
-// plugin — and with keep-alive it can pin a ~7.6 GB vision model next to a resident
-// llama-server on a card that holds one of them. Evict when: llama.cpp serves, VRAM
-// is nearly full, something IS loaded on Ollama, and the GPU is idle (never yank a
-// model out from under a running extraction or generation — util is high then).
-function shouldEvictOllama({ llamacppOn, vramUsedGb, vramTotalGb, gpuUtil, loadedCount }) {
-    if (!llamacppOn || !loadedCount) return false;
+// While another engine serves chat (llama.cpp, or an external server on this box),
+// the only thing that loads Ollama models is the OCR plugin — and with keep-alive it
+// can pin a ~7.6 GB vision model next to the resident engine on a card that holds
+// one of them. Evict when: a non-Ollama engine serves, VRAM is nearly full,
+// something IS loaded on Ollama, and the GPU is idle (never yank a model out from
+// under a running extraction or generation — util is high then).
+// `otherEngineOn` (= !ollamaServes); `llamacppOn` is its older name, still accepted.
+function shouldEvictOllama({ otherEngineOn, llamacppOn, vramUsedGb, vramTotalGb, gpuUtil, loadedCount }) {
+    const other = otherEngineOn ?? llamacppOn;
+    if (!other || !loadedCount) return false;
     if (!vramTotalGb || vramUsedGb == null) return false;
     if (vramUsedGb / vramTotalGb < 0.92) return false;
     if (gpuUtil != null && gpuUtil > 20) return false;
