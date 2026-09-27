@@ -1367,6 +1367,11 @@ retention cliff). 4 is the owner's own use case, arriving early enough to feel e
 shipping with its own brake. 11 exists because this is a **shared** farm and politeness must be taught,
 and it teaches best right after lesson 10 scared them.
 
+**As built (2026-09-28).** 1–3 as above; 4 = *make a picture* (the owner's ask); this table's 4 (*many in, many
+out*) is the *Research → problematic* template; 5 = *code counts, the model names* (docs/ECOSYSTEM_PLAN.md v2,
+decision 6: numbers never come from a model). This table's 5–12 follow, each shifted by one, when they are
+written.
+
 ### 10.4 First run
 
 Not a modal. The library sidebar is open and empty; the canvas area holds one centred, calm panel:
