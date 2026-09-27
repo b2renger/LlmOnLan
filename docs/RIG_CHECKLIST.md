@@ -13,6 +13,11 @@ risk; the build itself is implemented (see [DEVLOG.md](DEVLOG.md)).
       confirm the **subnet sweep** finds the farm via `/lol/self`, and **Add-by-address** works.
 - [ ] Multiple farms on one LAN → the picker lists both and switching repoints OWUI.
 - [ ] Farm IP changes (DHCP) → de-dup by farm `id` keeps one entry; shell repoints to the new address.
+- [ ] **Pin a farm, relaunch:** click a password-protected farm's card (it shows **pinned**), quit, relaunch
+      → one `[sidecar] spawning`, no repoint, and chats answer (no 401). Then **Automatic — least busy
+      farm** un-pins it (docs review SA-4/SA-5).
+- [ ] **A farm added by hostname** (or a second IP) while its beacon also arrives → the pill stays on one
+      address; OWUI does not show "Reconnecting…" every few seconds (SA-3).
 
 ## Farm robustness
 - [x] `lol up` → `/v1/models` + a real `/v1/chat/completions` (LiteLLM → Ollama → gemma4).
@@ -39,6 +44,12 @@ risk; the build itself is implemented (see [DEVLOG.md](DEVLOG.md)).
 - [ ] `ENABLE_PERSISTENT_CONFIG=false` truly keeps env authoritative across restarts when the farm IP
       changes (no stale persisted URL winning). Spot-check there's no DB-saved OpenAI URL.
 - [ ] Confirm `--port` (not `PORT` env) + the single-vs-plural OpenAI env precaution on the exact pin.
+- [ ] **Offline boot:** after one mic use (Whisper fetched into `DATA_DIR/cache/whisper/models`), a relaunch
+      with the internet unplugged boots with `HF_HUB_OFFLINE=1` (visible in the sidecar env) and no hub
+      wait; a fresh data folder boots with `HF_HUB_ETAG_TIMEOUT=2` instead (SA-2).
+- [ ] **Chat-engine update on Windows:** Preferences ▸ About ▸ Check for chat-engine update → download →
+      Restart to apply → About shows the new version; a failed swap keeps the old engine and retries next
+      launch (SA-6).
 
 ## Data-folder change (M4)
 - [x] `moveDataDir`/`copyDataDir` unit-tested (9/9: copy, nested, src-removed, refuse-nested, empty-src).
@@ -50,19 +61,16 @@ risk; the build itself is implemented (see [DEVLOG.md](DEVLOG.md)).
 - [x] `electron-builder --dir` packs a real `LlmOnLan.exe` (~100 MB, **no sidecar bundled**); the sidecar
       is downloaded to `userData/sidecar` on first run from the release's
       `owui-sidecar-<platform>-<arch>.tar.gz` asset (`sidecarManager.ts`).
-- [ ] **Full installers** built by CI on a `v*` tag: NSIS (win), dmg+zip (mac **arm64 only** — see
-      the Intel note), AppImage (linux); each release also carries the sidecar tarball assets the app
-      downloads on first run (`darwin-arm64`, `win32-x64`, `linux-x64`).
-- **Intel Mac (x64): NOT SUPPORTED — blocked upstream, don't retry without checking this first.**
-      OWUI 0.10.2 pins `onnxruntime==1.26.0`; onnxruntime's last macOS-x86_64 wheel was **1.23.2**, so
-      the sidecar can't pip-install on an Intel Mac at all (tried on `macos-15-intel`, v0.1.27).
-      Re-check on an OWUI bump with:
-      `pip index versions onnxruntime` on an Intel Mac, or the pinned OWUI's `onnxruntime` constraint.
-      If it ever resolves: re-add `x64` to `shell/electron-builder.yml`'s mac target + the
-      `macos-15-intel` matrix entry (its `sidecarOnly` guards are still in the workflow). **Never ship
-      an x64 installer without the matching `owui-sidecar-darwin-x64.tar.gz`** — the app dead-ends on
-      first run. (Secondary risk if it's ever unblocked: macOS-Intel torch tops out at 2.2.2, so local
-      embeddings are the next thing to verify; and ad-hoc-signed Intel builds need macOS **12+**.)
+- [ ] **Full installers** built by CI on a `v*` tag: NSIS (win x64), dmg+zip (mac arm64 + x64), AppImage
+      (linux x64 + arm64); sidecars darwin-arm64, darwin-x64 (onnxruntime 1.23.2 substitution), win32-x64,
+      linux-x64, linux-arm64 — each release carries one `owui-sidecar-<platform>-<arch>.tar.gz` per platform,
+      downloaded on first run. **Never ship an x64 mac installer without the matching
+      `owui-sidecar-darwin-x64.tar.gz`** — the app dead-ends on first run.
+- [ ] **Intel Mac (macOS 14+):** first run downloads the darwin-x64 sidecar; local embeddings + a chat work
+      (the darwin-x64 sidecar substitutes onnxruntime 1.23.2 — the last Intel wheel — for OWUI's pin;
+      macOS-Intel torch tops out at 2.2.2, so local embeddings are the thing to watch).
+- [ ] **macOS ad-hoc build: OWUI voice (mic) and camera prompt and work** (electron-builder ≥ 26.0.13 has
+      an ad-hoc Camera/Microphone regression, #9529; the webview is granted both).
 - [ ] **Auto-update cycle:** install `vX.Y.Z`, publish `vX.Y.(Z+1)`, confirm the installed app self-updates
       on next launch — per OS. Windows: silent, no UAC (rides on NSIS `perMachine:false`). macOS: ad-hoc
       signing is the weak link — **validate on real Macs** (zip target present for Squirrel.Mac). Linux:
@@ -124,7 +132,8 @@ dev Electron boot to the welcome screen on the dev box.
       `[extract] <file>: N page(s) → …` line per document; a text+image PDF shows `text+vision` pages
       and `[Page N]` markers in the extracted text.
 - [ ] **Client presence:** two shells (≥0.1.23) → both appear in the panel's Clients section with
-      hostname/version/idle; quitting one removes it within ~30 s; the popover shows "N clients".
+      hostname/version/idle; quitting one removes it within ~30 s; the farm card shows seats ("N of M
+      seats free", plus "K connected" when that differs).
 - [ ] **Blender recommendation:** Recommend from the panel → a client that never touched the toggle
       enables it; a client that explicitly disabled it is left alone.
 

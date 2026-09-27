@@ -178,9 +178,9 @@ is written back to `lol.config.json`, so it survives a restart.
 
 Go to **[the latest release](https://github.com/b2renger/LlmOnLan/releases/latest)** and grab the small installer for your OS:
 
-- **Windows** — `LlmOnLan-Setup-<version>.exe`. SmartScreen may warn on first download → **More info → Run anyway**.
-- **macOS** — `LlmOnLan-<version>-arm64.dmg` (**Apple Silicon only**). First launch: **right-click → Open → Open** (unsigned-app bypass). *Intel Macs are not supported*: the pinned Open WebUI requires an `onnxruntime` version that has no macOS‑x86_64 build, so there is no Intel installer.
-- **Linux** — `LlmOnLan-<version>.AppImage` → `chmod +x` then run. On Ubuntu/Mint you may need `sudo apt install libfuse2`.
+- **Windows** — `LlmOnLan-Setup-<version>-windows-x64.exe` (SmartScreen: **More info → Run anyway**).
+- **macOS** — `LlmOnLan-<version>-mac-arm64.dmg` (Apple Silicon) or `…-mac-x64.dmg` (Intel, macOS 14+). First launch: **right-click → Open → Open** (unsigned-app bypass).
+- **Linux** — `LlmOnLan-<version>-linux-x64.AppImage` (or `-linux-arm64`, e.g. DGX Spark) → `chmod +x`; Ubuntu/Mint may need `sudo apt install libfuse2`.
 
 On **first launch** the app downloads the chat engine (Open WebUI, ~700 MB) once, then **auto-discovers your farm** on the LAN and drops you into a chat. It **auto-updates** itself from GitHub Releases after that.
 
@@ -205,17 +205,40 @@ with `LOL_ENDPOINT=http://<box-ip>:4000/v1` if discovery isn't available.
   model, shown under the name the operator chose in the farm panel (`gemma4:12b` by default;
   `assistant` on a llama.cpp farm). That name is a stable id, so the operator can swap the
   checkpoint underneath without breaking your existing chats.
-- **Two chat UIs** — the topbar toggle switches between **Open WebUI** (documents, RAG, web search,
-  voice, history — the full product) and **LOL Chat** (a minimal, fast surface that talks straight to
-  the farm; no documents or history beyond that machine).
+- **Three surfaces** — the topbar switch picks **Open WebUI** (documents, RAG, web search, voice,
+  history), **LOL Chat** (a fast chat straight to the farm; no documents) or the **Computer**; the app
+  remembers your last choice.
+- **The connection pill** (top bar) shows the farm and its free seats (`· 2/3 free`). Amber means wait —
+  connecting, every seat busy, the farm not responding, or a password needed; red means a problem on the
+  server. Click it for **Servers on your network**: one card per farm (seats, engine and model, plugins,
+  **Manage this farm ↗** for the operator's panel), the password field of a protected farm, add‑by‑address
+  and Rescan. **Clicking a card pins that farm**; the **Automatic — least busy farm** row above the cards
+  lets the app choose again.
 - **Web search** — if the farm hosts it, it's **on by default**; just ask something current and it searches + cites pages.
 - **Voice** — click the microphone to talk (allow the mic prompt the first time). Speech-to-text runs **on your laptop** (Whisper); read-aloud uses the farm's **Kokoro** neural voice if enabled, otherwise your OS voices.
-- **Documents** — attach a PDF or a photo of a document and ask about it. Scanned pages and images are OCR'd by the farm's vision model; answers use the **whole document**, not just snippets.
-- **Where your data lives** — Open WebUI's chats, documents and RAG vectors sit in a folder on **your**
-  machine (by default `…/LlmOnLan/owui-data` in your user app‑data; see Settings ⚙ ▸ **Data location**,
-  which can move it). LOL Chat is separate: its conversations live in the app's `localStorage` on that
-  machine and don't appear in Open WebUI. With farm OCR on, an uploaded file's bytes transit to the
-  trusted‑LAN farm for text extraction; nothing is stored there.
+- **Documents** — attach a PDF or a photo of a document and ask about it. Scanned pages and images are OCR'd by the farm's vision model; on farms with a large context window (≥ 24k tokens per chat) answers read the whole document; on smaller ones, the 8 most relevant passages.
+- **Where your data lives** — Open WebUI's chats, documents and RAG vectors, and the Computer's
+  projects (`LOL Studio Projects`), sit in a folder on **your** machine (by default
+  `…/LlmOnLan/owui-data` in your user app‑data; see Settings ⚙ ▸ **Data location**, which can move it).
+  LOL Chat is separate: its conversations live in its own local database (IndexedDB in the app's
+  user-data folder — not the Data location folder; export from LOL Chat › Settings) and don't appear in
+  Open WebUI. With farm OCR on, an uploaded file's bytes transit to the trusted‑LAN farm for text
+  extraction; nothing is stored there.
+- **LOL Chat** — reopens your last chat on launch. Each reply shows tok/s and time to first token;
+  **Regenerate** also offers **More creative** / **More precise**; ◀ ▶ walk a reply's versions;
+  **Continue** picks up a reply that was cut short; each message's actions include **Delete from
+  here**; the chat header sets a **System prompt for this chat**. On a full farm the reply waits for a seat (**Try now** / **Cancel**) instead of
+  failing. Keys: **Esc** stops a reply (or cancels a seat wait), **↑** in an empty box edits your last
+  message (**Ctrl+Enter** saves the edit), **Alt+← / Alt+→** walk the last reply's versions,
+  **Ctrl+Shift+O** (⌘⇧O) starts a new chat. **LOL Chat › Settings** holds Storage (space used, **Export
+  all chats**, **Import chats…** — `.json` / `.lolchat.json`, new ids, up to 512 MB), the send‑cost gate
+  (**Ask before sending more than N tokens**), **Tell me when a long reply is done**, and About; each
+  chat's … menu exports Markdown or `.lolchat.json`.
+- **Closing the window quits** — the app asks "Quit LlmOnLan?" first, then stops the chat engine and frees
+  your seat on the farm. Reopening takes a few seconds while Open WebUI starts again.
+- **Updates** — the app updates itself (Settings ▸ Startup & updates). The chat engine is separate:
+  Settings ▸ About ▸ **Check for chat‑engine update** downloads a newer Open WebUI, applied on the next
+  launch (**Restart to apply**).
 - **No login, by design** — the chat surface is single‑user with authentication off, because the data is
   already local and per‑machine. Anyone who can use the laptop can read its chats: on a **shared**
   machine, use separate OS accounts.
@@ -401,9 +424,10 @@ only the default — dropping what you just added). Recipes for both paths:
 
 ## 6. If a client can't find the farm
 
+- **Farm app?** It is private until the operator turns on Settings ▸ **Share compute with the network**.
 - **Same Wi-Fi/LAN?** Discovery is automatic. Give it a few seconds after the farm starts.
 - **Managed / school Wi-Fi** often blocks broadcast. The client also **sweeps the subnet** for the farm, and you can **add it by IP**: client **⚙ Settings → add the farm's `<box-ip>`**. (Confirm reachability first: `curl http://<box-ip>:4000/v1/models` from the laptop.)
-- **Different subnets** only work if the network routes between them — otherwise put the boxes and clients on one LAN.
+- **Different subnets** only work if the network routes between them — otherwise put the boxes and clients on one LAN — or set Settings ▸ Connection ▸ **Search range** to cover the farm's subnet (unicast crosses subnets that block broadcast).
 
 ---
 
