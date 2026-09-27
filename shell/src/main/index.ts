@@ -29,6 +29,7 @@ import {
 import { ShellSettings, DiscoveredFarm, ScanRange, McpoState } from './types';
 import {
     farmEndpoint, chooseActive as pickActive, farmContext, sameContext, persistedContext, FarmContext,
+    applyPluginKeys, PluginKeyEntry,
 } from './farmSelect';
 
 app.setName('LlmOnLan');
@@ -290,6 +291,32 @@ function verifyStoredFarmKey(f: DiscoveredFarm, key: string): void {
         .finally(() => clearTimeout(t));
 }
 
+// Plugin keys are tied to the farm password: the rules are farmSelect.ts applyPluginKeys; this holds
+// the cache and does the fetch.
+const pluginKeyCache = new Map<string, PluginKeyEntry>();
+const pluginKeyPending = new Set<string>();
+
+function withPluginKeys<T extends DiscoveredFarm>(f: T, key: string | null): T {
+    const { farm, fetchSig } = applyPluginKeys(f, key, pluginKeyCache.get(f.id), Date.now());
+    if (fetchSig && key) fetchPluginKeys(f, key, fetchSig);
+    return farm;
+}
+
+function fetchPluginKeys(f: DiscoveredFarm, key: string, sig: string): void {
+    if (pluginKeyPending.has(f.id)) return;
+    pluginKeyPending.add(f.id);
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 4000);
+    fetch(`http://${f._host}:${f.httpPort || 41997}/lol/plugin-keys`, { headers: { authorization: `Bearer ${key}` }, signal: ctrl.signal })
+        .then(async (res) => {
+            const keys = res.ok ? await res.json() as Record<string, string | null> : {};
+            pluginKeyCache.set(f.id, { sig, keys: keys && typeof keys === 'object' ? keys : {}, retryAt: Date.now() + 60_000 });
+            if (res.ok && discovery) onFarms({ farms: discovery.getFarms() });
+        })
+        .catch(() => { pluginKeyCache.set(f.id, { sig, keys: {}, retryAt: Date.now() + 60_000 }); })
+        .finally(() => { clearTimeout(t); pluginKeyPending.delete(f.id); });
+}
+
 // Pick the farm OWUI should use (farmSelect.ts holds the rules): the user's pin, else
 // the current farm while it is healthy, else last session's, else the least busy.
 function chooseActive(farms: DiscoveredFarm[]): DiscoveredFarm | null {
@@ -316,7 +343,8 @@ function currentContext(): FarmContext | null {
 // so a pinned keyed farm cold-booted with the previous farm's password (docs review SA-4).
 function connectTo(chosen: DiscoveredFarm): void {
     setActiveFarm(chosen.id);
-    const next = farmContext(chosen, farmKey(chosen as { id: string; requiresKey?: boolean }));
+    const key = farmKey(chosen as { id: string; requiresKey?: boolean });
+    const next = farmContext(withPluginKeys(chosen, key), key);
     if (sameContext(next, currentContext())) return;
     currentEndpoint = next.endpoint;
     currentKey = next.key;
@@ -349,7 +377,7 @@ function onFarms(payload: { farms: DiscoveredFarm[] } & Record<string, unknown>)
         ...payload,
         farms: payload.farms.map((f) => {
             const k = farmKey(f as { id: string; requiresKey?: boolean });
-            return { ...f, _hasKey: !!k, _key: k };
+            return { ...withPluginKeys(f, k), _hasKey: !!k, _key: k };
         }),
         selectedFarmId: loadSettings().selectedFarmId,
     };
@@ -691,7 +719,7 @@ function registerIpc(): void {
     ipcMain.handle('get-farms', () => ({
         farms: (discovery?.getFarms() ?? []).map((f) => {
             const k = farmKey(f as { id: string; requiresKey?: boolean });
-            return { ...f, _hasKey: !!k, _key: k };
+            return { ...withPluginKeys(f, k), _hasKey: !!k, _key: k };
         }),
         manualPeers: discovery?.getManualPeers() ?? [],
         autoScan: discovery?.getAutoScan() ?? true,

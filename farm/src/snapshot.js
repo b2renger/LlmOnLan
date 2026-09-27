@@ -158,6 +158,9 @@ function buildSnapshot(config, health = {}) {
     // private (loopback) farm their URLs must say 127.0.0.1, or the same-box
     // client is sent to a LAN address nothing listens on.
     const svcHost = serviceHosts(config.proxy && config.proxy.host).advertise || primary;
+    // Plugin keys are tied to the farm password (owner, 2026-09-27): with one set, the keys leave the
+    // beacon and a client that knows the password fetches them from /lol/plugin-keys.
+    const keyed = !!(config.proxy && config.proxy.masterKey);
     // Advertise what clients actually SEE on /v1/models — the SERVED names (per-
     // model alias / global modelAlias / raw id), derived from the same
     // servedEntries() that generates the LiteLLM routing, so advertising and
@@ -230,18 +233,16 @@ function buildSnapshot(config, health = {}) {
         // from `url` and the required key from `key` — scanned-doc + image OCR with
         // zero client setup. `url` is the loader BASE (OWUI appends /process itself).
         extract: (config.ocr?.enabled && health.extractUp && health.extractKey)
-            ? { url: `http://${svcHost}:${config.ocr.port}`, key: health.extractKey }
+            ? { url: `http://${svcHost}:${config.ocr.port}`, key: keyed ? null : health.extractKey }
             : null,
-        // The Laya decision service for the Computer's Classify box (null when off/down). The key has
-        // the same LAN-trust as the OCR key above (ecosystem plan v2 §3.4: tying plugin keys to the farm
-        // password is a follow-up).
+        // The Laya decision service for the Computer's Classify box (null when off/down).
         classify: (config.classify?.enabled && health.classifyUp && health.classifyKey)
-            ? { url: `http://${svcHost}:${config.classify.port}`, key: health.classifyKey }
+            ? { url: `http://${svcHost}:${config.classify.port}`, key: keyed ? null : health.classifyKey }
             : null,
         // Speech to text for the Computer's Sound box (null when off/down): POST {url}/v1/audio/transcriptions,
-        // the OpenAI contract. Same LAN trust as the keys above.
+        // the OpenAI contract.
         stt: (config.stt?.enabled && health.sttUp && health.sttKey)
-            ? { url: `http://${svcHost}:${config.stt.port}`, key: health.sttKey }
+            ? { url: `http://${svcHost}:${config.stt.port}`, key: keyed ? null : health.sttKey }
             : null,
         // Farm-side plugin state (web search / voice / OCR): { id: {label, runsOn, enabled,
         // healthy} }. Bespoke fields above (searxngUrl/ttsUrl/extract) stay for back-compat;

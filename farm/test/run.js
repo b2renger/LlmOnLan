@@ -1929,6 +1929,34 @@ test('classify plugin: pinned CPU install, bound like the others, key in env, ad
     assert.equal(buildSnapshot(defaultConfig(), { proxyUp: true, hostsUp: 1, classifyUp: true, classifyKey: 'kk' }).classify, null, 'off in the config: never advertised');
 });
 
+test('plugin keys are tied to the farm password: off the beacon when one is set, served to its holder only', async () => {
+    const health = { proxyUp: true, hostsUp: 1, extractUp: true, extractKey: 'ek', classifyUp: true, classifyKey: 'ck', sttUp: true, sttKey: 'sk' };
+    const open = defaultConfig(); open.classify.enabled = true; open.stt.enabled = true;
+    const snapOpen = buildSnapshot(open, health);
+    assert.deepEqual([snapOpen.extract.key, snapOpen.classify.key, snapOpen.stt.key], ['ek', 'ck', 'sk'], 'an open farm: the keys ride the snapshot as before');
+    const keyed = defaultConfig(); keyed.classify.enabled = true; keyed.stt.enabled = true; keyed.proxy.masterKey = 'pw';
+    const snapKeyed = buildSnapshot(keyed, health);
+    assert.deepEqual([snapKeyed.extract.key, snapKeyed.classify.key, snapKeyed.stt.key], [null, null, null], 'a password: no key in clear');
+    assert.ok(snapKeyed.extract.url && snapKeyed.classify.url && snapKeyed.stt.url, 'the services are still advertised');
+    assert.ok(!JSON.stringify(snapKeyed).includes('"ek"'), 'nowhere in the snapshot');
+
+    let password = 'pw';
+    const server = startSelfServer({ httpPort: 0, getSnapshot: () => ({}), host: '127.0.0.1', getPluginKeys: () => ({ password, keys: { extract: 'ek', classify: 'ck', stt: null } }) });
+    await new Promise((r) => { if (server.listening) r(); else server.once('listening', r); });
+    const url = `http://127.0.0.1:${server.address().port}/lol/plugin-keys`;
+    try {
+        assert.equal((await fetch(url)).status, 401, 'no password → 401');
+        assert.equal((await fetch(url, { headers: { authorization: 'Bearer nope' } })).status, 401, 'wrong password → 401');
+        const ok = await fetch(url, { headers: { authorization: 'Bearer pw' } });
+        assert.equal(ok.status, 200);
+        assert.deepEqual(await ok.json(), { extract: 'ek', classify: 'ck', stt: null });
+        password = 'rotated';
+        assert.equal((await fetch(url, { headers: { authorization: 'Bearer pw' } })).status, 401, 'a changed password takes effect at once');
+        password = null;
+        assert.equal((await fetch(url, { headers: { authorization: 'Bearer pw' } })).status, 404, 'an open farm: the keys are in /lol/self');
+    } finally { server.close(); }
+});
+
 test('classify + stt waits: end early when the child exits or the model failed to load (critic M2)', async () => {
     const http = require('http');
     for (const mod of [require('../src/classify'), require('../src/stt')]) {

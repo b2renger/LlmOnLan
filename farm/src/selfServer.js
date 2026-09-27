@@ -70,7 +70,7 @@ function sendJson(res, status, obj) {
     res.end(JSON.stringify(obj));
 }
 
-function startSelfServer({ httpPort, getSnapshot, host = '0.0.0.0', control = null, adminToken = null, onClientPing = null }) {
+function startSelfServer({ httpPort, getSnapshot, host = '0.0.0.0', control = null, adminToken = null, onClientPing = null, getPluginKeys = null }) {
     const server = http.createServer(async (req, res) => {
         const pathOnly = (req.url || '').split('?')[0].replace(/\/+$/, '') || '/';
         const method = req.method || 'GET';
@@ -93,6 +93,20 @@ function startSelfServer({ httpPort, getSnapshot, host = '0.0.0.0', control = nu
             const body = await readJson(req, 4096);
             if (!body) return sendJson(res, 400, { error: 'bad json' });
             return sendJson(res, 200, onClientPing(body, (req.socket && req.socket.remoteAddress) || ''));
+        }
+
+        // The Python plugins' keys, for a client that knows the farm password (owner, 2026-09-27: plugin
+        // keys are tied to the farm password). On a farm WITH a password the snapshot no longer carries
+        // them in clear; on an open farm they stay in /lol/self and this answers 404.
+        if (method === 'GET' && pathOnly === '/lol/plugin-keys') {
+            if (!getPluginKeys) return sendJson(res, 404, { error: 'not supported' });
+            const { password, keys } = getPluginKeys();
+            if (!password) return sendJson(res, 404, { error: 'this farm has no password: the keys are in /lol/self' });
+            if (!authOk(req, password)) {
+                await new Promise((r) => setTimeout(r, 400));   // a guess costs time
+                return sendJson(res, 401, { error: 'unauthorized' });
+            }
+            return sendJson(res, 200, keys);
         }
 
         // Admin page (open — it prompts for the token client-side).

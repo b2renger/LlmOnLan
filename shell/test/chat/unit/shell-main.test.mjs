@@ -92,6 +92,33 @@ export default (test) => {
   const DM = require(path.join(BUILD, 'dataMigration.js'));
   const STORE = require(path.join(BUILD, 'store.js'));
 
+  // -------------------------------------------- plugin keys tied to the farm password (2026-09-27)
+  test('applyPluginKeys: a keyed farm\'s plugin keys come from the fetched answer, never from the beacon', () => {
+    const keyed = { id: 'f', requiresKey: true, extract: { url: 'http://h:8888', key: null }, classify: { url: 'http://h:8891', key: null }, stt: null };
+    // No password stored, or an open farm: nothing to do.
+    assert.deepEqual(FS.applyPluginKeys(keyed, null, undefined, 0), { farm: keyed, fetchSig: null });
+    const open = { ...keyed, requiresKey: false, extract: { url: 'http://h:8888', key: 'ek' } };
+    assert.equal(FS.applyPluginKeys(open, 'pw', undefined, 0).fetchSig, null);
+    // First time: fetch, and hand on the farm untouched meanwhile.
+    const first = FS.applyPluginKeys(keyed, 'pw', undefined, 0);
+    assert.ok(first.fetchSig && first.farm === keyed);
+    // The answer is in: keys filled, no refetch.
+    const hit = { sig: first.fetchSig, keys: { extract: 'ek', classify: 'ck', stt: null }, retryAt: 60_000 };
+    const done = FS.applyPluginKeys(keyed, 'pw', hit, 1000);
+    assert.equal(done.fetchSig, null);
+    assert.deepEqual([done.farm.extract.key, done.farm.classify.key], ['ek', 'ck']);
+    assert.equal(keyed.extract.key, null, 'the discovered farm is not mutated');
+    // Another password (rotated, re-entered): fetch again.
+    assert.ok(FS.applyPluginKeys(keyed, 'pw2', hit, 1000).fetchSig);
+    // A failed fetch retries only after its retryAt.
+    const failed = { sig: first.fetchSig, keys: {}, retryAt: 60_000 };
+    assert.equal(FS.applyPluginKeys(keyed, 'pw', failed, 1000).fetchSig, null);
+    assert.ok(FS.applyPluginKeys(keyed, 'pw', failed, 60_000).fetchSig);
+    // The farm context then carries the fetched OCR key to OWUI.
+    const ctx = FS.farmContext({ ...done.farm, _host: 'h', proxyPort: 4000, models: [] }, 'pw');
+    assert.deepEqual(ctx.extract, { url: 'http://h:8888', key: 'ek' });
+  });
+
   // ---------------------------------------------------------------- SA-5: the pin can be removed
   test('SA-5 chooseActive: a pin wins; with the pin cleared, least-busy selection applies again', () => {
     const busy = farm({ id: 'busy', n: 5, capacity: { slots: 1, clients: 1 } });   // 100 %

@@ -129,3 +129,25 @@ export function persistedContext(c: FarmContext): {
         lastFarmTts: c.tts, lastFarmExtract: c.extract, lastFarmCtxPerSlot: c.ctxPerSlot,
     };
 }
+
+// Plugin keys are tied to the farm password (owner, 2026-09-27): a farm with a password leaves its
+// plugins' keys out of the beacon, and a client holding the password fetches them from the farm's
+// /lol/plugin-keys (index.ts). These are the pure rules; `hit` is the cached answer for this farm.
+export const PLUGIN_KEYS = ['extract', 'classify', 'stt'] as const;
+export interface PluginKeyEntry { sig: string; keys: Record<string, string | null>; retryAt: number }
+
+/** The farm with its plugin keys filled in from `hit`, and `fetchSig` when they must be fetched
+ * (first time, the password or a plugin URL changed, or a failed fetch is due for a retry). */
+export function applyPluginKeys<T extends { requiresKey?: boolean }>(f: T, key: string | null, hit: PluginKeyEntry | undefined, now: number): { farm: T; fetchSig: string | null } {
+    const plugins = f as unknown as Record<string, { url?: string; key?: string | null } | null | undefined>;
+    if (!f.requiresKey || !key) return { farm: f, fetchSig: null };
+    const need = PLUGIN_KEYS.filter((k) => plugins[k] && plugins[k]!.url && !plugins[k]!.key);
+    if (!need.length) return { farm: f, fetchSig: null };
+    const sig = JSON.stringify([key, ...PLUGIN_KEYS.map((k) => plugins[k]?.url || null)]);
+    const fresh = !!hit && hit.sig === sig;
+    const due = !fresh || (!Object.keys(hit!.keys).length && now >= hit!.retryAt);
+    if (!fresh) return { farm: f, fetchSig: sig };
+    const out = { ...f } as unknown as Record<string, unknown>;
+    for (const k of need) if (hit!.keys[k]) out[k] = { ...plugins[k], key: hit!.keys[k] };
+    return { farm: out as unknown as T, fetchSig: due ? sig : null };
+}

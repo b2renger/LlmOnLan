@@ -1111,7 +1111,12 @@ async function run(args) {
         liveHealth.clientsConnected = freshClients().length;
         return { ok: true };
     }
-    const selfServer = startSelfServer({ httpPort: config.beacon.httpPort, getSnapshot, host: config.proxy.host, control, adminToken, onClientPing });
+    // Plugin keys are tied to the farm password: with one set, a client fetches them here with it.
+    const getPluginKeys = () => ({
+        password: config.proxy.masterKey || null,
+        keys: { extract: liveHealth.extractKey || null, classify: liveHealth.classifyKey || null, stt: liveHealth.sttKey || null },
+    });
+    const selfServer = startSelfServer({ httpPort: config.beacon.httpPort, getSnapshot, host: config.proxy.host, control, adminToken, onClientPing, getPluginKeys });
     log.ok(`Unicast discovery → ${log.paint.grey(`http://<ip>:${config.beacon.httpPort}/lol/self`)}`);
     log.ok(`Admin panel → ${log.paint.grey(`http://<ip>:${config.beacon.httpPort}/lol/admin`)} ${log.paint.grey('(token in the startup banner)')}`);
 

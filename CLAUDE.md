@@ -82,7 +82,10 @@ docs) is `docs/reviews/DOCS_REVIEW_2026-09-27_{FARM,SHELL,COMPUTER}.md`. Snapsho
     `extract.js`, ON — hybrid text/vision PDF extraction), Kokoro TTS (OFF), and since 2026-09-27 **Classify**
     (Laya on the CPU, `classify.js` + `pysvc/classify_server.py`, OFF) and **speech to text** (faster-whisper on
     the CPU, `stt.js` + `pysvc/stt_server.py`, OFF). They bind to `proxy.host`; the Python ones share one
-    shape (own venv, a Bearer key in the snapshot, one job at a time + 429, no body ever logged).
+    shape (own venv, a Bearer key per run, one job at a time + 429, no body ever logged). **Plugin keys are
+    tied to the farm password** (2026-09-27): on an open farm the key rides the snapshot; with a password
+    it is `null` there and a client holding the password fetches it from `GET /lol/plugin-keys`
+    (`selfServer.js`; the client side is `farmSelect.ts` `applyPluginKeys` + `index.ts`).
   - Also: beacon group **`239.255.43.10:41998`** (+ httpPort `41997`), distinct from ComfyQ; coordinator mode;
     `lol fleet`/`lol bench`; `modelAlias` + the interactive picker in `lol up`; `lol install` (Ollama, the
     LiteLLM venv, `models` + `preinstall` — ships a ~8.6 GB staged Qwen3.8-27B — the SearXNG/OCR venvs, and

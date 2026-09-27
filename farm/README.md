@@ -446,7 +446,12 @@ One shared password for everyone (the ComfyQ model — nothing fancy, no account
    "not accepted", never a broken chat.
 
 What it protects: **every `/v1` route** — chat, models, everything the proxy serves (it becomes
-LiteLLM's `master_key`). What stays open, deliberately: discovery (`/lol/self`, the beacon) so
+LiteLLM's `master_key`) — and, since 2026-09-27, **the plugins**: the OCR, Classify and speech-to-text
+keys leave the beacon and `/lol/self` (their `key` is `null`), and a client holding the password fetches
+them from `GET /lol/plugin-keys` (`Authorization: Bearer <farm password>`; 401 otherwise, 404 on an open
+farm, where the keys stay in the snapshot as before). A new password takes effect there at once; a
+client that fetched the keys under the old one keeps them until the farm restarts (the keys are made per
+run). What stays open, deliberately: discovery (`/lol/self`, the beacon) so
 clients can *find* the farm and ask for the password, `/health/liveliness` (the farm's own health
 checks), and the admin panel's own **token** gate, which is separate and unchanged. This is a
 trusted-LAN convenience lock, not hardened auth: traffic is plain HTTP on your own network.
