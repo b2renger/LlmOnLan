@@ -86,7 +86,8 @@ dev Electron boot to the welcome screen on the dev box.
 - [ ] **`$LOL_PYTHON` determinism:** the venvs are built by the **bundled** interpreter even when a system
       `py -3.12`/`python3` is also on PATH (check the `.venv`/`.searxng`/`.extract` python).
 - [ ] **Ollama lifecycle:** the app-owned Ollama used for the pull is stopped before launch, and `lol up`
-      starts its own with `OLLAMA_CONTEXT_LENGTH=65536` (a whole-document chat isn't truncated).
+      starts its own Ollama (`OLLAMA_CONTEXT_LENGTH` seed 16384) and the `"auto"` probe settles the served
+      `num_ctx` (the "Context: auto → N" log line).
 - [ ] **Start/Stop + crash-restart:** the chrome Stop/Start toggles the farm; `taskkill` the `lol up` tree →
       bounded auto-restart; quitting the app reaps LiteLLM/Ollama (no orphans).
 - [ ] **Private by default (the compute-privacy toggle):** fresh install → a second machine
@@ -94,6 +95,10 @@ dev Electron boot to the welcome screen on the dev box.
       scan does NOT find it (localhost bind + no beacon). Flip **Settings → Share compute** → the farm
       restarts, the second machine now reaches the proxy and the client auto-discovers it; flip back →
       it disappears + refuses again. The chrome shows 🔒 private vs. the shared endpoint.
+- [ ] **Private really means the plugins too (FA-4):** while private, from a second machine
+      `curl http://<box>:8888/healthz` (web search) and `http://<box>:8890/health` (OCR) refuse; on the
+      farm box itself a client still gets web search and document reading (the snapshot advertises
+      `http://127.0.0.1:8888` / `:8890`). Shared again → both answer on the LAN address.
 - [ ] **Upgrade migration:** a farm installed while the app defaulted to shared (farm-v0.0.1) → after
       updating, boot enforces private (the box stops being reachable until the operator opts in).
 - [ ] **A client connects:** with sharing ON, a second machine's LlmOnLan **client** auto-discovers this farm and chats.
@@ -102,9 +107,11 @@ dev Electron boot to the welcome screen on the dev box.
 - [ ] **DGX Spark:** the arm64 AppImage runs on the Spark; the plain `ollama-linux-arm64` archive loads
       gemma4:12b on the GB10 GPU (vs. the `-jetpack5/6` variants); FUSE present or `--appimage-extract-and-run`.
 - [ ] **Low-RAM Mac:** a <16 GB Mac shows the wizard's memory **warning** but still proceeds.
-- [ ] **★ Auto-update channel (the load-bearing packaging risk):** publish `farm-v0.0.1`, install, publish
-      `farm-v0.0.2` → the app self-updates via the **`farm`** channel (`farm.yml`) and does **not** confuse
-      itself with the client's `v*`/`latest.yml` releases in the same repo.
+- [ ] **★ Manual update check:** with `farm-v0.0.N` installed, publish `farm-v0.0.N+1` as a prerelease →
+      at launch (Notify on) the app shows "Version … is available" and Download opens the release page;
+      the client's `v*` auto-update is unaffected.
+- [ ] **Farm version on the wire (FA-6):** `lol fleet` / a client's farm card shows the Farm app's release
+      (e.g. `farm v0.0.39`), not `0.1.0`.
 
 ## Admin panel + plugins + presence (shipped 2026-07-03→05; needs a two-machine pass)
 - [ ] **Admin panel** from a second machine: open `http://<box>:41997/lol/admin`, paste the banner token →
@@ -120,6 +127,19 @@ dev Electron boot to the welcome screen on the dev box.
       hostname/version/idle; quitting one removes it within ~30 s; the popover shows "N clients".
 - [ ] **Blender recommendation:** Recommend from the panel → a client that never touched the toggle
       enables it; a client that explicitly disabled it is left alone.
+
+## Engines, seats and names (needs a real rig)
+- [ ] **Seat gate:** two source IPs against a farm with 1 seat → the second one's completion gets a 429
+      `lol_seats_full` ("All 1 seats … in use"); after `proxy.seatIdleSec` of no generation from the first,
+      the second one gets in.
+- [ ] **External engine killed mid-run:** stop the operator-run vLLM/SGLang → within one health tick the
+      farm goes unhealthy (`healthy:false` in `/lol/self`) and clients fail over; restart it → healthy again.
+      The panel offers no slots/context/engine control while external serves (FA-1).
+- [ ] **llama.cpp on the DGX Spark** from the `llamacpp-b10670` tarball (our `build-llamacpp-arm64.yml`):
+      `lol up` downloads it, llama-server loads on the GB10, the panel reads `llama.cpp · …`.
+- [ ] **An engine switch keeps the served name (FA-2):** rename the Ollama default in the panel (e.g.
+      `tutor`), switch to llama.cpp → clients still see `tutor` and an open chat keeps working; switch
+      back → still `tutor`.
 
 ## Dev-environment gotchas already found
 - LiteLLM + OWUI children are spawned with `PYTHONUTF8=1` (Windows cp1252 banner/log crash).

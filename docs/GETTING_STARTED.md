@@ -15,7 +15,7 @@ You set up the farm once per GPU box, and everyone else just installs the client
 |---|---|---|
 | For | anyone; no terminal, no prerequisites | operators comfortable in a terminal |
 | Gets you | a running farm + the admin panel in a window | the same farm, driven directly |
-| **Required if you want to** | — | change the chat model, add models to the picker, or **serve more than one person at a time** (see §4) |
+| **Required if you want to** | — | — (the Farm app's window is the admin panel: model, picker and capacity are all there) |
 
 ### First-run download (both routes)
 
@@ -54,7 +54,7 @@ Download the newest **`farm-v…`** build from **[the releases page](https://git
 Run it and follow the wizard; leave the window open — that *is* the farm. Full details:
 [`farm-app/README.md`](../farm-app/README.md).
 
-> **The first run downloads ~28 GB and takes 30–45 minutes** (see the table above). The screen
+> **The first run downloads ~18 GB** (see the table above) **plus its own Python/Ollama runtime**. The screen
 > narrates each step and shows download percentages. **Do not press "Start the farm" while a download
 > is running** — that kills it and starts the download over.
 
@@ -109,7 +109,7 @@ The defaults already give you a working farm (model + web search). `lol install`
     "enabled": true,                     //   the default farm serves gemma4:12b on Ollama at 262k context)
     "alias": "assistant",                //   the name users see — rename it to anything you like
     "model": "https://…/Qwen3.8-27B-GGUF/resolve/main/Qwen3.8-27B-UD-IQ2_S.gguf",
-    "contextLength": "auto",             //   DEFAULT: the largest that fits this GPU (a number pins it); SPLIT across the slots below
+    "contextLength": "auto",             //   DEFAULT: the largest that fits this GPU (a number pins it); one pool shared by the slots below (kvUnified)
     "parallel": 1                        //   how many people it answers at once — see §4
   },
   "modelAlias": null,                    // stable id for the default OLLAMA model (used when
@@ -139,8 +139,8 @@ The defaults already give you a working farm (model + web search). `lol install`
 On start, `lol up`:
 1. ensures Ollama is up,
 2. **prompts you to pick which installed Ollama model(s) to serve** (press Enter for the default; or `lol up --model gemma4:12b --no-pick` to skip the prompt),
-3. starts **`llama-server`** with the model everyone chats with (downloading the backend + weights if `lol install` didn't already),
-4. generates + runs the **LiteLLM proxy** that fronts both engines as one endpoint,
+3. if llama.cpp is enabled, starts **`llama-server`** (downloading the backend + weights if `lol install` didn't already) — else sizes the Ollama context,
+4. generates + runs the **LiteLLM proxy** that fronts the serving engine as one endpoint (behind the farm's seat gate),
 5. if enabled, **installs (first run) and starts SearXNG + document OCR + Kokoro voice**,
 6. starts the **discovery beacon** so clients find it.
 
@@ -154,9 +154,9 @@ lol fleet      # every farm on the LAN (this box + peers): load, VRAM, model, se
 ```
 
 When it's up you'll see the OpenAI endpoint (`http://<box-ip>:4000/v1`) and, if enabled, the search/voice URLs.
-Clients auto-select the llama.cpp model, advertised under its alias (`assistant` unless you renamed
-it) — with llama.cpp serving it is the **only** model clients see (one engine at a time; the Ollama
-catalog is standby). Confirm what's actually served with
+Clients auto-select the farm's default model — `gemma4:12b` on the default Ollama engine (or its alias
+if you set one); with llama.cpp enabled, `llamacpp.alias` (`assistant`) is the only model they see (one
+engine at a time; the Ollama catalog is standby). Confirm what's actually served with
 `curl http://<box-ip>:4000/v1/models`.
 
 The banner also prints the **admin panel** URL — `http://<box-ip>:41997/lol/admin` — plus an access
@@ -164,8 +164,8 @@ The banner also prints the **admin panel** URL — `http://<box-ip>:41997/lol/ad
 From any browser on the LAN, that panel is where the farm is run: which **engine** serves and which
 `.gguf` it loads, the **name users see**, **how many people** it serves at once, the **context window**,
 the **Ollama catalog** (download / offer / delete), the web search / OCR / voice **plugins**, and
-who is **connected** right now. Everything except the plugin toggles is written back to
-`lol.config.json`, so it survives a restart.
+who is **connected** right now. Everything except the plugin toggles and the Blender recommendation
+is written back to `lol.config.json`, so it survives a restart.
 
 §5 walks through the common changes.
 > **Firewall:** the first time the farm (and SearXNG/Kokoro) binds to the network, Windows may prompt to allow it — **allow it** so clients can reach it.
@@ -202,8 +202,8 @@ with `LOL_ENDPOINT=http://<box-ip>:4000/v1` if discovery isn't available.
 ## 3. Using it
 
 - **Model** — pick it in the top-left dropdown. It's preselected for you: everyone lands on the farm's
-  model, shown under the name the operator chose (`assistant` by default — the Farm app's Settings ▸
-  **Model name**, or `llamacpp.alias`). That name is a stable id, so the operator can swap the
+  model, shown under the name the operator chose in the farm panel (`gemma4:12b` by default;
+  `assistant` on a llama.cpp farm). That name is a stable id, so the operator can swap the
   checkpoint underneath without breaking your existing chats.
 - **Two chat UIs** — the topbar toggle switches between **Open WebUI** (documents, RAG, web search,
   voice, history — the full product) and **LOL Chat** (a minimal, fast surface that talks straight to
@@ -249,22 +249,23 @@ admin panel; clients that never made an explicit choice then enable it automatic
 
 ## 4. A room full of people (capacity) & multiple GPU boxes
 
-> ### ⚠ Serving a group? Change one setting first.
-> Out of the box the farm answers **one request at a time**. A second person's question waits for the
-> first answer to finish. For a class, raise `llamacpp.parallel`.
->
-> **It is not in the Farm app yet.** Farm app users: **Settings ▸ Open data & logs folder**, open
-> `farm/lol.config.json`, edit the `llamacpp` block, then **Stop** and **Start** the farm.
+> ### Serving a group? Check one setting first.
+> Out of the box the farm (gemma4 on Ollama) answers **two requests at a time**; raise it in the panel
+> (*Backend* ▸ **People served at once**; on Ollama it applies after a farm restart). On llama.cpp the
+> default is 1, and the slots share one context pool: a person alone gets the whole window. When every
+> seat is taken, a new question gets a clear "all seats in use" until someone has been idle 15 min.
 
-**How many people can one box serve at once?** The model everyone chats with runs on `llama-server`,
-which answers **`llamacpp.parallel` requests at a time — `1` by default**. With one slot, the second
-person's question waits for the first answer to finish; throughput is fine, but their *time to first
-token* is however long that answer takes.
+**How many people can one box serve at once?** As many requests as it has slots — `ollama.numParallel`
+(2) per box on Ollama, `llamacpp.parallel` (1) on llama.cpp. With one slot, the second person's
+question waits for the first answer to finish; throughput is fine, but their *time to first token* is
+however long that answer takes.
 
 **`parallel` is simultaneous *requests*, not people.** In a class, people read, type and think at
 different moments, so a room of 12 rarely has more than a handful of answers generating at once —
-`parallel: 4` serves a workshop far better than the number of students suggests. Queued requests are
-not dropped; they wait.
+`parallel: 4` serves a workshop far better than the number of students suggests. Someone who already
+holds a seat waits for a free slot; a newcomer only gets "all seats in use" when every seat is held.
+
+On the llama.cpp engine, shapes that fit (VRAM totals for the shipped quant):
 
 | People in the room | Card | Setting | Uses |
 |---|---|---|---|
@@ -286,11 +287,12 @@ not dropped; they wait.
 >
 > Full reference: [`farm/README.md` ▸ Multiple users & capacity](../farm/README.md#multiple-users--capacity).
 
-Raising it **splits the context window** rather than adding memory (measured on the pinned build:
-`--ctx-size 16384 --parallel 2` → two slots of 8192). So for a group, raise **both**:
+On llama.cpp the slots **share one context pool** (`kvUnified`, the default): a person alone gets the
+whole window, and under full contention each is guaranteed `contextLength ÷ parallel`. So for a group,
+size **both**:
 
 ```jsonc
-"llamacpp": { "parallel": 2, "contextLength": 32768 }   // 2 people × a 16k window each — fits 12 GB
+"llamacpp": { "parallel": 2, "contextLength": 32768 }   // 2 busy people × 16k guaranteed each — fits 12 GB
 ```
 
 …and check it still fits VRAM — the whole KV cache is allocated at load. Rough budget for the shipped
@@ -306,10 +308,10 @@ There are **no accounts to manage**: every client is a single-user app that keep
 documents locally, so "multi-user" here is purely a capacity question — how many people the box can
 answer at once, which you set in the panel (*Backend* ▸ **People served at once**).
 
-Both ends show how full a box is. The panel's **Clients** card reads *"1 of 2 slots in use"* and lists
+Both ends show how full a box is. The panel's **Clients** card reads *"N of M seats in use"* and lists
 who is on (hostname, app version, idle time); each farm card in the desktop client shows the same, in
-amber once every slot is taken. It is **advisory** — nobody is turned away, they queue — so a full box
-means "expect to wait", and the point is that the next person can pick a different one. Full reference:
+amber once every seat is taken. When every seat is taken, a new question gets a clear "all seats in
+use" until someone has been idle 15 min — so the next person can pick a different box. Full reference:
 [`farm/README.md` ▸ Multiple users & capacity](../farm/README.md#multiple-users--capacity).
 
 **More GPU boxes** — run the farm on each and clients spread across them automatically:
@@ -331,7 +333,8 @@ apply live *and* are remembered across restarts.
 The panel opens on a **Backend** card that answers the two questions that used to need a config file:
 what users' model is called, and which engine is behind it.
 
-**Rename what users see.** *Backend* ▸ **Name users see** → type e.g. `Studio Assistant` → Apply.
+**Rename what users see.** On llama.cpp: *Backend* ▸ **Name users see** → type e.g. `Studio Assistant`
+→ Apply changes. On Ollama: the **Rename** button on the model's row.
 Because the name *is* the model id that clients request, renaming takes a few seconds and chats started
 under the old name will ask their user to re-pick the model; new chats are unaffected.
 
@@ -375,12 +378,12 @@ classic top-passages retrieval so a big attachment can never overflow the model 
 More context on the farm = better document answers on every client, automatically.
 
 **Password-protect the farm.** *Backend* ▸ **Farm password** → Apply. Every client then asks for
-it once (with a 🔒 on the farm card) and remembers it. Empty + Apply removes it. Details:
+it once (with a 🔒 on the farm card) and remembers it. **Remove** (next to the field) takes it off. Details:
 [`farm/README.md` ▸ Password-protecting a farm](../farm/README.md#password-protecting-a-farm).
 
-**Serve more people at once.** *Backend* ▸ **People served at once**. On llama.cpp the context window is
-**split** across slots, so the panel tells you what each user actually gets ("2 slots, 8192 tokens of
-context each"). Raise the context window alongside it if you need both — and check it still fits VRAM:
+**Serve more people at once.** *Backend* ▸ **People served at once** (on Ollama: per box, applied after
+a farm restart). On llama.cpp the slots share one context pool; the panel shows the guaranteed share per
+person. Raise the context window alongside it if you need both — and check it still fits VRAM:
 [`farm/README.md` ▸ Multiple users & capacity](../farm/README.md#multiple-users--capacity).
 
 **Manage the Ollama catalog.** *Models · Ollama* ▸ **Download a model** → an Ollama tag such as
@@ -408,9 +411,9 @@ only the default — dropping what you just added). Recipes for both paths:
 
 Work down this list — the first two causes account for most reports.
 
-1. **Several people at once, one slot.** The default `llamacpp.parallel: 1` means answers are served
-   strictly one at a time; everyone else waits. This looks exactly like "the model is slow" but the
-   tokens/s of any single answer is normal. Fix: [§4](#4-a-room-full-of-people-capacity--multiple-gpu-boxes).
+1. **Several people at once, few slots** (Ollama default 2 per box, llama.cpp default 1): the rest
+   queue, or get "all seats in use" once every seat is held. This looks exactly like "the model is
+   slow" but the tokens/s of any single answer is normal. Fix: [§4](#4-a-room-full-of-people-capacity--multiple-gpu-boxes).
 2. **The model spilled to the CPU.** If the weights + KV cache don't fit VRAM, llama.cpp runs part of
    the model on the CPU and throughput collapses (think 5–10× slower, and it never recovers on its own).
    Usual causes: `contextLength` raised too far, `parallel` raised without checking VRAM, or a bigger
@@ -462,7 +465,7 @@ Terms that show up in the config and in this guide.
 | **quant**(isation) | A compressed version of a model — smaller and faster, slightly less accurate. `UD-IQ2_S`, `UD-Q2_K_XL` etc. are Unsloth's quants of the same model, listed smallest-first. Which one you use decides both VRAM and whether `mtp` works. |
 | **context window** (`contextLength`, `num_ctx`) | How much text the model can consider at once — your question, the conversation so far, and any attached document. Bigger = longer documents, more VRAM. |
 | **KV cache** | The memory the model uses to hold that context while generating. It's allocated **in full when the model loads**, which is why the context window costs VRAM even on an idle farm. |
-| **slot** (`parallel`) | One conversation the server can answer at a time. llama.cpp **splits the context window across slots**, so 2 slots of a 16k window need a 32k `contextLength`. |
+| **slot** (`parallel`) | One generation the server runs at a time. llama.cpp slots share one context pool by default (`kvUnified`). |
 | **alias** | The model name clients see (`assistant` by default). It's a stable stand-in for the real checkpoint, so you can swap the model underneath without breaking chats. |
 | **`mmproj`** | The "vision projector" file that lets a model read images. Must come from the same repo as the weights. |
 | **`ngl`** | How many model layers go on the GPU. `999` = all of them; anything less spills to CPU and is dramatically slower. |

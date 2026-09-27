@@ -19,7 +19,7 @@ A setup wizard runs once (needs internet), with a phase checklist + progress + a
 | **Runtime** | Downloads a relocatable standalone **CPython** ([python-build-standalone](https://github.com/astral-sh/python-build-standalone)) + the **Ollama** binary for this OS/arch. | `userData/farm-runtime/{python,ollama}` |
 | **Farm code** | Copies the bundled farm CLI to a **writable** location + writes `lol.config.json` (gemma4:12b default, a pinned admin token). | `userData/farm/` |
 | **Model** | `ollama pull gemma4:12b` (~8 GB) with a real % bar (an app-owned Ollama) — the catalog + OCR vision model. | Ollama's model store |
-| **Services** | `lol install` builds the LiteLLM / SearXNG / OCR venvs **and pre-fetches the llama.cpp backend**: the pinned `llama-server` + CUDA runtime, plus the `.gguf` weights of the model everyone chats with (~8.7 GB). | `userData/farm/.venv` · `.searxng` · `.extract` · `.llamacpp` · `.models` |
+| **Services** | `lol install` builds the LiteLLM / SearXNG / OCR venvs (and pre-fetches the llama.cpp backend only if `llamacpp.enabled` — off by default). | `userData/farm/.venv` · `.searxng` · `.extract` (· `.llamacpp` · `.models` when enabled) |
 | **Staged model** | The same step also pulls the `preinstall` model + its draft module (~8.6 GB) — kept ready for the admin panel to start on demand, never served automatically. | Ollama's model store · `.models` |
 | **Launch** | Starts `lol up`, health-waits `http://127.0.0.1:41997/lol/self`. | — |
 
@@ -27,8 +27,8 @@ Every phase is **idempotent + resumable** — a Retry after a failure only redoe
 what's missing. On the 2nd+ launch it skips the wizard and goes straight to the
 running screen (and auto-starts the farm).
 
-> **The first run is big: ~28 GB and typically 30–45 minutes**
-> ([breakdown](../docs/GETTING_STARTED.md#first-run-download-both-routes)). The start screen narrates
+> **The first run is big: ~18 GB (gemma4:12b + the staged model + venvs) plus the Python/Ollama
+> runtime** ([breakdown](../docs/GETTING_STARTED.md#first-run-download-both-routes)). The start screen narrates
 > what `lol up` is doing — step lines ("Starting LiteLLM …") and live download
 > progress ("First start: fetching model weights — 43%") — so a working bootstrap is
 > distinguishable from a hang. The supervisor waits as long as the farm keeps making
@@ -44,50 +44,54 @@ The window IS the farm's admin panel — `http://127.0.0.1:41997/lol/admin` in a
 `<webview>`, with the admin token auto-seeded into `localStorage` (via a webview
 preload reading it from the URL hash) so it unlocks with no prompt. Thin app chrome
 adds: a **status dot**, **Start/Stop**, a **privacy line** (private vs. the shared
-LAN endpoint), and **Settings** (share compute, theme, launch-at-login, update check,
-and **Open data & logs folder**) — the model itself is run from the panel below.
+LAN endpoint), and **Settings** (share compute, theme, launch-at-login, update
+notifications + **Check for updates**, the **panel access token** (Copy — to drive the
+panel from another computer's browser), and **Open data & logs folder**) — the model
+itself is run from the panel below.
 
 ## The model, its name, and capacity — in the panel, not in Settings
 
 All of it lives in the window itself: the panel opens on a **Backend** card carrying the engine
-switch, the `.gguf` in use, **Name users see**, **People served at once**, and the **context window**.
-Each applies live — no farm restart — and is written back to `lol.config.json`.
+switch, the `.gguf` in use, **Name users see** (llama.cpp), **People served at once**, the **context
+window** and the farm password. One **Apply changes** applies them together, in one restart, and
+writes them back to `lol.config.json` (Ollama's "people served at once" takes effect after a farm
+restart).
 
 These used to be split between Settings and the panel, in two half-versions that could disagree: the
 app re-applied its own stored values on every launch, so a rename done in the panel came back wrong
 after the next restart. Settings now holds only what belongs to the *app* (share-with-network, theme,
-launch-at-login, updates, logs folder).
+launch-at-login, update notifications + Check for updates, the panel access token, logs folder).
 
 **Naming.** The model id clients receive *is* the name their picker shows — over an OpenAI-style
-connection there's no separate display-name channel — so this renames the served alias
-(`llamacpp.alias`, or the global `modelAlias` when the llama.cpp backend is off, so the same name
-survives a backend switch). The real checkpoint stays visible to clients as the beacon's `underlying`
-field: only the label is friendly, not the truth.
+connection there's no separate display-name channel — so this renames the served id: on llama.cpp,
+*Backend* ▸ **Name users see**; on Ollama, each model row's **Rename** (`models[].alias`). The name
+survives an engine switch and a fallback, so bound chats keep working. The real checkpoint stays
+visible to clients as the beacon's `underlying` field: only the label is friendly, not the truth.
 
 > **Caveat:** it changes the model **id**, so chats a user started under the old name will ask them to
 > re-select the model. New chats are unaffected. Pick the name once, early.
 ## Serving more than one person at a time
 
-The farm answers **one request at a time** out of the box (`llamacpp.parallel: 1`), so a second
-person's question waits for the first answer. Raise it in the panel: *Backend* ▸ **People served at
-once**. llama.cpp **splits its context window across slots**, so the panel states what each user
-actually gets, and you usually want to raise the **context window** alongside it — then check the
-total still fits VRAM. Sizing table + budget:
+Out of the box the farm serves gemma4:12b on Ollama, **2 requests at a time** (`ollama.numParallel`,
+applied after a farm restart). On llama.cpp the default is 1; its slots share one context pool
+(`kvUnified`), so a person alone gets the whole window. Raise it in the panel: *Backend* ▸ **People
+served at once**. Past capacity, new generations get a clear "all seats in use" until a seat is idle
+15 min. Sizing table + budget:
 [`farm/README.md`](../farm/README.md#multiple-users--capacity).
 
-Every client shows how full each box is ("1 of 2 slots in use"), so people can spread themselves
-across boxes without being told to.
+Every client shows how full each box is, so people can spread themselves across boxes without being
+told to.
 
-> A fresh install starts at a **16k** context window, which is what this project measured as safe on a
-> 12 GB card. (It used to seed 64k — a figure measured on a 96 GB box, which spills to CPU and runs
-> ~5x slower on 12 GB.) Raise it in the panel on hardware that can hold it.
+> A fresh install starts on **Automatic**: the farm measures the largest window this GPU holds and
+> caches it. (It used to seed a fixed 64k — a figure measured on a 96 GB box, which spills to CPU and
+> runs ~5x slower on 12 GB.) Pin a number in the panel only to trade window for something else.
 
 ## Private by default (share compute is opt-in)
 
-Out of the box the farm is **fully private**: the LiteLLM proxy + discovery bind
-`127.0.0.1` only and the UDP beacon is off, so **no other machine can reach or use it**
-— not by direct IP, not by subnet scan. You run models for your own machine and nobody
-else spends your GPU.
+Out of the box the farm is **fully private**: the proxy, discovery **and the plugins**
+(web search, document OCR, voice) bind `127.0.0.1` only and the UDP beacon is off, so
+**no other machine can reach or use it** — not by direct IP, not by subnet scan. You run
+models for your own machine and nobody else spends your GPU.
 
 Flip **Settings → Share compute with the network** to advertise as a compute box: the
 farm rebinds to `0.0.0.0` + starts the beacon, so LlmOnLan clients on the LAN discover
@@ -96,8 +100,8 @@ The posture maps to the farm's own `proxy.host` + `beacon.enabled` config, so CL
 users get the same control by editing `lol.config.json`.
 
 > Note: while private, your *own* other devices can't reach it either (it's localhost-
-> only). "Share" opens it to everyone on the LAN — there's no per-device allow-list yet
-> (that needs the farm's `proxy.masterKey` plus a key-entry screen in the client).
+> only). "Share" opens it to everyone on the LAN. To limit who uses a shared farm, set a
+> farm password (panel ▸ Backend ▸ Farm password); clients prompt for it once.
 
 ## Why bundled Python + Ollama on PATH
 
@@ -107,8 +111,13 @@ users get the same control by editing `lol.config.json`.
   chosen deterministically (a stray system `py -3.12` can't win the venv builds).
 - The bundled Ollama dir is prepended to `PATH`, so `lol install`'s `onPath('ollama')`
   check finds it and skips winget/brew/curl, and `lol up` spawns *that* Ollama (with
-  the right concurrency + context env — the app writes `ollama.contextLength` from its
-  own Settings, default 64k).
+  the right concurrency + context env — the app seeds `ollama.contextLength` ("auto")
+  once, at setup; the panel owns it afterwards).
+- Before every farm start the app moves SearXNG / OCR off a taken 8888 / 8890 (e.g.
+  JupyterLab on a DGX) by patching `websearch.port` / `ocr.port` in `lol.config.json`;
+  clients follow automatically, since the port rides the beacon.
+- The app passes its own version as `$LOL_FARM_VERSION`, so the farm advertises the
+  release it runs (`lol fleet`, client cards) instead of `farm/package.json`'s 0.1.0.
 
 The farm code writes its venvs + runtime state **inside its own dir**, so it's copied
 to `userData/farm` (writable) rather than run from the read-only app resources.
@@ -151,8 +160,8 @@ tags don't work on the prerelease path). So:
 
 - Farm releases are published as **prereleases** → the client's `v*` release stays
   GitHub's "latest", keeping client auto-update working.
-- The farm app does **not** auto-install. On launch (and via **Settings → Check for
-  updates**) it queries the GitHub API for the newest `farm-v*` release; if newer, it shows
+- The farm app does **not** auto-install. On launch (when **Notify me about updates** is
+  on) and via **Settings → Check for updates** it queries the GitHub API for the newest `farm-v*` release; if newer, it shows
   a notice and a **Download vX** button that opens the release page. The operator downloads
   the new installer. (electron-updater was removed — the app has no runtime deps.)
 
