@@ -112,7 +112,15 @@ export default (test) => {
     const abort = new Error('aborted');
     abort.name = 'AbortError';
     assert.equal(classifyThrown(abort).kind, 'aborted');
-    assert.equal(classifyThrown(new Error('something else entirely')).kind, 'http');
+    // B-8: anything else failed on THIS machine — never "The farm answered : …".
+    assert.equal(classifyThrown(new Error('something else entirely')).kind, 'local');
+  });
+
+  test('B-8 describe(): a local failure says so, and does not blame the farm', () => {
+    const d = describe(classifyThrown(new Error('transform exploded')), t, {});
+    assert.equal(d.title, 'LOL Chat could not send this');
+    assert.equal(d.body, 'Something failed on this computer, not on the farm: transform exploded');
+    assert.doesNotMatch(d.body, /farm answered/);
   });
 
   test('describe(): a farm that was busy at failure time gets the busy sentence, verbatim', () => {
@@ -143,7 +151,9 @@ export default (test) => {
     const d = describe(e, t, { busy: null });
     assert.equal(d.title, 'The farm refused the password');
     assert.match(d.body, /^The farm did not accept the password this client is sending\./);
-    assert.match(d.body, /Preferences → Connection/, 'the only line that says how to fix it survives');
+    // B-2: the password lives on the farm's card in the connection popover, not in Preferences.
+    assert.match(d.body, /connection pill in the top bar/, 'the only line that says how to fix it survives');
+    assert.doesNotMatch(d.body, /Preferences/);
     assert.ok(d.body.includes(e.farmMessage), "the farm's own words are kept for whoever runs the farm");
   });
 

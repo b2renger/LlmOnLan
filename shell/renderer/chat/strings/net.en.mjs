@@ -23,17 +23,22 @@ registerStrings('net', {
   networkTitle: 'The farm is unreachable',
   abortedTitle: 'Stopped',
   httpTitle: 'The farm refused the request',
+  localTitle: 'LOL Chat could not send this',
 
   // describe() bodies ({message} = the classified message, {status} = the HTTP status,
   // {seconds} = retry-after)
   seatsFullBody: 'Every seat on this server is in use. Try again in {seconds} s, or ask around who is done.',
   upstreamDownBody: 'The farm answered, but the model behind it did not — it may be restarting. Try again in a few seconds.',
-  authBody: 'The farm did not accept the password this client is sending. Check it in Preferences → Connection.',
-  keyMissingBody: 'Enter the farm password in Preferences → Connection, then send again.',
-  contextOverflowBody: 'The farm ran out of context for this thread. Start a new chat, or remove some of what is attached.',
+  // The password is entered on the farm's card in the connection popover (the top bar's pill) —
+  // Preferences › Connection has no password field.
+  authBody: 'The farm did not accept the password this client is sending. Click the connection pill in the top bar and enter it again on the farm’s card.',
+  keyMissingBody: 'This farm needs a password. Click the connection pill in the top bar, enter it on the farm’s card, then send again.',
+  contextOverflowBody: 'The farm ran out of context for this thread. Start a new chat, shorten your message, or stop keeping pinned messages in context.',
   visionUnsupportedBody: 'The model this farm is serving takes text only. Pick a vision model in the picker, or send the question without the image.',
-  streamErrorBody: 'The farm stopped sending mid-answer: {message}. What arrived is kept below.',
+  streamErrorBody: 'The farm stopped sending mid-answer: {message}. What arrived is kept above.',
   networkBody: 'No answer from the farm ({message}). It may have gone off the network, or be restarting.',
   abortedBody: 'You stopped this answer.',
   httpBody: 'The farm answered {status}: {message}',
+  // A throw on THIS machine (a transform, the read loop) — not something the farm said.
+  localBody: 'Something failed on this computer, not on the farm: {message}',
 });

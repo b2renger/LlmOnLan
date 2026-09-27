@@ -139,6 +139,7 @@ export function install(app) {
       const H = domFactory(document);
       const img = H.svgImg(info.code);
       if (!img) return;                       // not an SVG we are willing to draw
+      img.alt = t('render.svgAlt');           // the drawing is otherwise nameless to a screen reader
 
       const pane = document.createElement('div');
       pane.className = 'chat-svg-preview';

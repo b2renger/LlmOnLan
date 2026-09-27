@@ -80,7 +80,7 @@
  *   usage, finishReason, ttftMs, durationMs, tokPerSec, error: ClassifiedError|null }} GenerationResult
  */
 
-/** @typedef {{ kind: 'seats_full'|'upstream_down'|'auth'|'key_missing'|'context_overflow'|'vision_unsupported'|'stream_error'|'network'|'aborted'|'http',
+/** @typedef {{ kind: 'seats_full'|'upstream_down'|'auth'|'key_missing'|'context_overflow'|'vision_unsupported'|'stream_error'|'network'|'aborted'|'http'|'local',
  *   status, code, message, farmMessage, retryAfter }} ClassifiedError
  */
 

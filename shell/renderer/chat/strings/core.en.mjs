@@ -7,6 +7,9 @@ registerStrings('core', {
   newChat: 'New chat',
   send: 'Send',
   stop: 'Stop',
+  // Tooltips naming the key (LOL Chat has no shortcut list). {keys} is the platform's spelling.
+  newChatTitle: 'New chat ({keys})',
+  stopTitle: 'Stop the reply (Esc)',
   inputPlaceholder: 'Ask something…  (Enter to send, Shift+Enter for a new line)',
   inputLabel: 'Message',
   modelTitle: 'Model served by the farm',
@@ -22,10 +25,12 @@ registerStrings('core', {
 
   // development fakes (core/fakes.mjs) — harness only, never shown in production
   reasoning: 'reasoning',
+  // The model picker's states (ui/model-picker.mjs) — shown in production (the fakes reuse them).
   noFarm: 'no farm',
   noModels: 'no models',
   unreachable: 'unreachable',
   passwordRefused: 'password refused',
+  // v0.1.45 parity strings used by the real controller/composer (and reused by the fakes).
   busyNote: '⏳ The server is busy: {label}{percent}. Try again in a moment.',
   busyPercent: ' ({percent}%)',
   errorNote: '[error: {message}]',

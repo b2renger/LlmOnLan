@@ -392,12 +392,14 @@ export function createThreadView(app, el) {
     const at = siblings && typeof siblings.get === 'function' ? siblings.get(msg.id) : null;
     row.branch.replaceChildren();
     if (!at || !(at.count > 1)) return;
+    // The title also names the key (ui/shortcuts.mjs: Alt+←/→ walks the LAST reply's versions).
+    const alt = typeof navigator !== 'undefined' && /Mac/i.test(String(navigator.platform || '')) ? '⌥' : 'Alt+';
     const mk = (dir, label, glyph, disabled) => {
       const b = document.createElement('button');
       b.type = 'button';
       b.className = 'chat-branch-btn';
       b.textContent = glyph;
-      b.title = label;
+      b.title = t('render.branchKeyTitle', { label, keys: `${alt}${dir < 0 ? '←' : '→'}` });
       b.setAttribute('aria-label', label);
       b.disabled = disabled;
       b.addEventListener('click', () => app.bus.emit(app.EV.BRANCH_SWITCH, { messageId: msg.id, dir }));
