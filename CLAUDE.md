@@ -132,9 +132,12 @@ docs) is `docs/reviews/DOCS_REVIEW_2026-09-27_{FARM,SHELL,COMPUTER}.md`. Snapsho
   single-instance lock and the owner's real DATA_DIR make it unsafe on a box with a client open).
 - **The Computer** (third client surface, `shell/renderer/chat/{computer,graph,sandbox}/`) — a node-graph
   canvas where boxes wired by **named arrows** make a small program, kept in a library of graphs. Boxes:
-  Text, Image, Document, Sound, File (*bring*); Instruction (+ "Write a p5.js/three.js/SVG/HTML" presets),
-  Split, Filter, Collect, Repeat (*think*); Preview (+ p5.js/three.js/SVG/HTML/Markdown presets) and Code
-  (*show*); Button, Condition, Confirm, Dialog, Toggle, Timer (*control*); Sticky, Section, Title
+  Text, Image, Document, Sound, File, **Fetch** (*bring*); Instruction (+ "Write a p5.js/three.js/SVG/HTML"
+  and "Describe a picture" presets), **Classify** (Laya on the farm: one multiple-choice question per item,
+  with a confidence; unsure below 0.6; no Laya → every item passed on unsure), Split, Filter, Collect,
+  Repeat (*think*); Preview (+ p5.js/three.js/SVG/HTML/Markdown presets; since 2026-09-27 it hands on a
+  **PNG** of what it drew — SVG rasterised in the renderer — so a vision model can see its own work) and
+  Code (*show*); Button, Condition, Confirm, Dialog, Toggle, Timer (*control*); Sticky, Section, Title
   (*annotate*). Thinking boxes ask the farm **directly** (never through OWUI) on the background lane: one
   request in flight, they yield to a person's chat, and a hidden window sends nothing. Every run is bounded by
   `RUN_LIMITS` (`core/types.mjs`): 8 passes per box, 50 generations (the toolbar **Cap**), 10 min of wall
@@ -145,7 +148,8 @@ docs) is `docs/reviews/DOCS_REVIEW_2026-09-27_{FARM,SHELL,COMPUTER}.md`. Snapsho
   camera control); a Preview box's **Edit code** opens a drawer editor. View tools: Select (V) · Hand (H) · − % + Fit,
   answering from anywhere on the Computer, never while typing. What leaves the machine: prompt text and an
   Image's pixels inside the Instruction's chat completion to the farm; a Document's PDF bytes to the farm
-  OCR for text only; a Sound is never sent; a **Fetch** box (2026-09-27) sends ONE GET to the address a person
+  OCR for text only; a Classify box's items (text) to the farm's Laya for one forward pass each; a Sound
+  is never sent; a **Fetch** box (2026-09-27) sends ONE GET to the address a person
   typed — run in main (`src/main/io.ts`): http(s), never loopback/link-local/farm ports, ≤ 1 MB text, keeps
   its last copy offline. Where data lives: all of it in DATA_DIR — graphs and their
   files in the renderer's IndexedDB (`lol-chat` → `graphs`, `attachments`), which is the main window's

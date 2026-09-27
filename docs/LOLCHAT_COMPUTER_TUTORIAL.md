@@ -216,6 +216,16 @@ Two more boxes sit under *Show*. **Code** runs plain JavaScript in the sandbox o
 behind all five: its *Read it as* menu (**Automatic**, **Markdown**, **SVG**, **Web page**,
 **three.js**, **p5.js**) picks how to show what arrives.
 
+### Let the model see what it drew
+
+A Preview hands on a **picture** of what it drew: an SVG, a p5.js sketch, a three.js scene or a web page,
+as a PNG (a Markdown page hands on nothing). Wire it into **＋ → Think → Describe a picture** — an
+Instruction that asks a model that can see (a vision model, like the farm's gemma4) to describe the picture
+and list what to change. That is a **feedback loop**: *Write an SVG* → Preview → *Describe a picture* →
+back into the writer's next attempt. When the writer returns new code, ▶ on it redraws the Preview (a Live
+box restarts with it) and the describing model looks at the new picture. The picture goes to the farm
+inside that Instruction's request, like an Image box's.
+
 ### Edit the code, go Live, orbit the camera
 
 - **Edit code** on any of these boxes opens its code in the drawer on the right: a big editor with
@@ -328,10 +338,26 @@ leaves this computer. The rules, so a graph someone hands you cannot misuse it:
 - when the network is gone, the box keeps the **last copy** it read and says **Offline — kept the last
   copy**. A refusal or an error from the site never falls back.
 
-The **Read the news** template shows the pattern to copy: **the model never writes a number**. It labels
-each story with one of your categories and chooses how to chart (which measure, which order, which topic to
-highlight, the words); the **Code** boxes count and draw every bar. Stories it was unsure of are listed under
-the chart for you to check. Change the categories or the question and press **Run all**.
+### Sorting many items fast: the Classify box
+
+**＋ → Think → Classify** asks **Laya**, a small decision model on the farm, ONE multiple-choice question
+about every item of a list: *what is this about?* with the options you list (or wire a Text box into
+**options**). It answers all of them in one call, in about a fifth of a second per item, with a
+**confidence**. It is not a generation and takes no seat. Laya is a fast *first pass*: in our test it got
+about 7 or 8 in 10 right, and its wrong answers came with lower confidence, so every answer below **Sure
+above** (0.6 by default) is passed on as **unsure** for a thinking model or a person to check. Its
+confidence is not calibrated, and the box says so.
+
+Classify needs the farm's **Classify (Laya)** plugin, which is **off by default** (the operator turns it on
+in the farm panel). On a farm without it, nothing is sent: every item comes out unsure, and a graph built
+for Laya still runs — the model behind it labels everything.
+
+The **Read the news** template shows the pattern to copy: **no model ever writes a number**. Laya labels
+each story with one of your categories; the stories it was unsure of go to the model for a second look;
+the model then chooses how to chart (which measure, which order, which topic to highlight, the words); the
+**Code** boxes count and draw every bar. The chart's footer says how many stories each one labelled, and
+the stories nobody was sure of are listed under it. Change the categories or the question and press **Run
+all**.
 
 ---
 
