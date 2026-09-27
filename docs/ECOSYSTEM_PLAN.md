@@ -323,6 +323,24 @@ channel (`lol:io:event`, a preload `onEvent` with the id-scoped payload).
 happens and that the downstream Send (dry run) reports the value. A second one hammers 50 events in a
 second: exactly one run is live at a time, the last value wins, and the budget stops runs at its limit.
 
+## 8c. Owner additions (2026-09-27 evening)
+
+- **Done, in v0.2.0:** models write the code (Write code → a Code box's `code` port; a fold behind plain
+  words) and Laya's question (Write a Laya question → Classify's `question` port); "Read the news" reshaped
+  to Website + Topics → a model writes Laya's prompt → Laya; d3 in the sandbox; plugin keys tied to the farm
+  password; a **?** on every box opening its example (38, one per ＋ menu entry).
+- **Next: LOL Chat becomes "LOL Vibe"** in everything a person reads (topbar, docs, in-app text). The internal
+  names stay (`renderer/chat/`, the `lol-chat` IndexedDB, `lol:view` values), so no history moves.
+- **Planned: an MCP server for the Computer** ("control it from OWUI, or from apps vibecoded in LOL Vibe").
+  - Where: the client's main process, Streamable HTTP on 127.0.0.1 only, behind a per-install token.
+  - Tools: list, open and create graphs; add boxes; wire; change settings; run all / from a box; read values;
+    list the box examples (the ? content is the tool documentation).
+  - OWUI reaches it the way the opt-in Blender tool server does (`ui.toolServers` via the user-settings API):
+    no OWUI change (invariants #1, #4).
+  - Rules: an MCP caller can NEVER arm the outputs (arming stays a person's click, P3a); runs count against the
+    same caps; a hidden window still sends nothing to the farm; every call is logged in the Record log.
+  - Depends on: the rename (the MCP client in LOL Vibe), P5's IDE for "apps that use it".
+
 ## 9. Feedback loop
 
 **v1 → critic** ([reviews/ECOSYSTEM_PLAN_CRITIC_2026-09-27.md](reviews/ECOSYSTEM_PLAN_CRITIC_2026-09-27.md))

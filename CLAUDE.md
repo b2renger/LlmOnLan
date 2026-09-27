@@ -14,10 +14,10 @@
 
 ---
 
-## Build status (2026-09-27) — released: client `v0.1.45` (OWUI `0.10.2`) · Farm app `farm-v0.0.38` · pin on `main`: OWUI `0.11.4`
+## Build status (2026-09-27) — released: client `v0.2.0` (OWUI `0.11.4`) · Farm app `farm-v0.0.39`
 
-> `main` is ahead of both tags: LOL Chat vNext, the Computer and the 2026-09-27 review fixes (client and
-> farm) are merged but unreleased until the next `v*` / `farm-v*` tag. The bullets below describe `main`.
+> v0.2.0 is the first release with LOL Chat vNext and the Computer (Fetch, Classify, Listen/Speak, Send, a ? on
+> every box). What changed since is on `main`, in docs/DEVLOG.md. The bullets below describe `main`.
 
 The full plan is built, released and in multi-user testing; the dated build log with how
 each piece was tested lives in [docs/DEVLOG.md](docs/DEVLOG.md), the rig‑verification state in
@@ -91,7 +91,7 @@ docs) is `docs/reviews/DOCS_REVIEW_2026-09-27_{FARM,SHELL,COMPUTER}.md`. Snapsho
     LiteLLM venv, `models` + `preinstall` — ships a ~8.6 GB staged Qwen3.8-27B — the SearXNG/OCR venvs, and
     the llama.cpp build + weights only when enabled). The farm's advertised `version` is the Farm app's
     (`LOL_FARM_VERSION`), falling back to `farm/package.json`.
-- **`shell/`** (Electron + TS, **v0.1.45**) — boots the **unmodified** OWUI sidecar (config-bridge =
+- **`shell/`** (Electron + TS, **v0.2.0**) — boots the **unmodified** OWUI sidecar (config-bridge =
   env-authoritative, `ENABLE_PERSISTENT_CONFIG=false`), discovers the farm and auto-connects with **no
   URL typed**, full Preferences (data folder + move/fresh migration, connection, assistant tools,
   startup/updates, about). **Adaptive RAG**: whole-document injection (`RAG_FULL_CONTEXT=true`) on farms

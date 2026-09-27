@@ -6,6 +6,52 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-09-27 (evening) — Release v0.2.0 + farm-v0.0.39: the Computer reads, listens, speaks and acts; a ? on every box
+
+The owner's ecosystem vision became `docs/ECOSYSTEM_PLAN.md` v2 (one critic loop, research in
+`docs/research/ECOSYSTEM_RESEARCH_2026-09-27.md`); the night's hand-over log is `docs/NIGHT_LOG_2026-09-27.md`.
+Everything below is on `main`, tested, and ships in v0.2.0 (client) + farm-v0.0.39 (Farm app).
+
+**Client (the Computer).**
+- **Fetch** box: ONE capped GET run in main (`src/main/io.ts`): http(s) only, never this machine (loopback,
+  its own LAN addresses, an IPv4 inside an IPv6 literal), link-local or the farm's ports; ≤ 1 MB text; keeps
+  its last copy offline.
+- **Classify** box: Laya on the farm, one multiple-choice question per item with a confidence; a `question`
+  port a model can write; `check` carries only the unsure items' text for a second opinion.
+- **Read the news** template, reshaped to the owner's flow: Website + Topics + Your question → a model writes
+  Laya's question → Laya → a second opinion → Count and Draw as folded Code boxes → an SVG chart. No model
+  writes a number (the chart turns any digit in the model's words into "…").
+- **Write code** → a Code box's new `code` port; every Code box gets a plain-words "What it does" line and
+  a fold. **Write a Laya question**. **d3 7.9.0** in the sandbox, loaded for code that names it.
+- The **Preview hands on a PNG** of what it drew; **Describe a picture** lets a model see its own work.
+- **Sound → Listen** (farm speech to text; an imported graph opens with Listen off) and the **Speak** box
+  (this computer's voice, or the farm's Kokoro).
+- **Send** box: OSC, Art-Net DMX, MQTT, WebSocket, HTTP POST through ONE choke point in main
+  (`src/main/outputs.ts`): disarmed by default and after every reload or graph switch, arming asks and lists
+  every target, person-typed targets only, never the farm's ports, 20 msg/s per target, DMX ≤ 3 frames/s,
+  Panic blacks out what a graph lit.
+- A **?** on every box opens its example (`computer/examples/`, 38 of them, one per ＋ menu entry).
+- **Open WebUI 0.11.4** (pin bump, no LOL code change; a 0.10.2 data folder upgrades in place).
+
+**Farm.** Two CPU plugins, off by default: **Classify** (Laya 0.3.20, our FastAPI wrapper) and **speech to
+text** (faster-whisper 1.2.1). Both keyed, one job at a time + 429, no body logged, stop work when the client
+leaves, never spool audio to disk. **Plugin keys are tied to the farm password**: with one set, the keys
+leave the beacon and a client holding the password fetches them from `GET /lol/plugin-keys`.
+
+**Tested.** Unit 1660/0 · lint 0 · app tests 5/5 · farm 129/129 (+18 Python checks of the two services
+with stub models) · shell + farm-app typecheck · the chat harness and perf budgets (numbers in the night
+log) · Laya measured on 104 real titles (74% right; 81% of the sure ones at 0.6) · faster-whisper `small`
+2.1 s for a 7.4 s clip on the CPU. Two reviews: `docs/reviews/P1P2_CRITIC_2026-09-27.md` (all resolved)
+and `docs/reviews/RELEASE_CRITIC_2026-09-27.md`.
+
+**Mixed versions.** A v0.1.45 client on a farm-v0.0.39 WITH a password sees no plugin key, so its Open WebUI
+falls back to local extraction (no scanned-PDF OCR) until it updates to v0.2.0.
+
+**Not yet verified on the rig:** Classify and speech to text on a real farm (the owner enables them after
+updating to farm-v0.0.39), the Send box against real lights, the v0.1.45 → v0.2.0 auto-update.
+
+---
+
 ## 2026-09-27 — All data in DATA_DIR: LOL Chat and the Computer move into the data folder
 
 Owner rule: *"all data in data dir including lol chat projects and computer projects"*. Until now
