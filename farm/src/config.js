@@ -340,6 +340,16 @@ const TtsSchema = z.object({
     model: z.string().default('kokoro'),               // OWUI AUDIO_TTS_MODEL
 }).strict();
 
+// Classify (docs/ECOSYSTEM_PLAN.md v2 §3.2): the Laya decision model for the Computer's Classify box,
+// CPU-first. OFF by default: it costs ~0.9 GB of torch + ~0.8 GB of weights and shares the CPU with
+// everything else on the box — measure `lol bench` with it busy before turning it on for a class.
+const ClassifySchema = z.object({
+    enabled: z.boolean().default(false),
+    port: z.number().int().positive().default(8891),
+    threads: z.number().int().min(1).max(64).default(4),     // torch CPU threads (the cap)
+    maxItems: z.number().int().min(1).max(1000).default(200), // items per call
+});
+
 const OcrSchema = z.object({
     // One shared "lol-extract" document-extraction service on this box; clients
     // discover it via the beacon (snapshot.extract) and OWUI uses it as its
@@ -461,6 +471,7 @@ const ConfigSchema = z.object({
     litellm: LiteLLMSchema.default({}),
     websearch: WebsearchSchema.default({}),
     tts: TtsSchema.default({}),
+    classify: ClassifySchema.default({}),
     ocr: OcrSchema.default({}),
     admin: AdminSchema.default({}),
     // Coordinator mode: aggregate LAN peer farms into one balanced endpoint that

@@ -15,6 +15,7 @@ const { killTree } = require('../proc');
 const searxng = require('../searxng');
 const kokoro = require('../kokoro');
 const extract = require('../extract');
+const classify = require('../classify');
 const { serviceHosts } = require('../net');
 
 // Where the farm's own health checks reach a plugin: the plugins bind where
@@ -78,6 +79,22 @@ const DESCRIPTORS = [
             return { ok: false, level: 'warn', message: `OCR service did not become healthy on port ${c.ocr.port} (busy port? slow first install? see the [extract] log). Continuing without OCR.` };
         },
         alive: (c) => extract.extractAlive(c.ocr.port, probeHost(c)),
+    },
+    {
+        // Ecosystem plan v2 §3.2: Laya for the Computer's Classify box. CPU-first, off by default.
+        id: 'classify', label: 'Classify (Laya)', logPrefix: 'classify', configKey: 'classify', healthKey: 'classifyUp', runsOn: 'farm',
+        enabled: (c) => !!(c.classify && c.classify.enabled),
+        port: (c) => c.classify.port,
+        makeCtx: (c, rt) => ({ key: rt.crypto.randomBytes(24).toString('hex') }),
+        ensure: () => classify.ensureClassify(),
+        spawn: (c, ctx) => classify.spawnClassify(c, ctx),
+        stepMessage: (c) => `Classify: preparing Laya on the CPU (port ${c.classify.port}) — first run installs torch + downloads its weights …`,
+        waitReady: async (c) => {
+            const cx = await classify.waitForClassify(c.classify.port, undefined, probeHost(c));
+            if (cx.up) return { ok: true, level: 'ok', message: `Classify up (Laya ${classify.LAYA_VERSION}, CPU) — the Computer's Classify box works on this farm${firewallNote(c)}.` };
+            return { ok: false, level: 'warn', message: `Classify did not become ready on port ${c.classify.port} (download or load still running? see the [classify] log). Continuing without it.` };
+        },
+        alive: (c) => classify.classifyAlive(c.classify.port, probeHost(c)),
     },
 ];
 

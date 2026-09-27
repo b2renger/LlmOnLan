@@ -601,10 +601,11 @@ test('snapshot usage.clients mirrors clientsConnected (null on older farms)', ()
 // ---- plugin registry -------------------------------------------------------
 const { makeServices, pluginsSummary, FarmService } = require('../src/plugins/registry');
 
-test('registry: three farm services, config-gated (websearch+ocr on, tts off)', () => {
+test('registry: four farm services, config-gated (websearch+ocr on, tts+classify off)', () => {
     const c = defaultConfig();
     const svcs = makeServices();
-    assert.deepEqual(svcs.map((s) => s.id), ['websearch', 'tts', 'ocr']);
+    assert.deepEqual(svcs.map((s) => s.id), ['websearch', 'tts', 'ocr', 'classify']);
+    assert.equal(svcs.find((s) => s.id === 'classify').enabled(c), false, 'Classify off by default (plan v2: CPU contention first)');
     assert.equal(svcs.find((s) => s.id === 'websearch').enabled(c), true);
     assert.equal(svcs.find((s) => s.id === 'tts').enabled(c), false);
     assert.equal(svcs.find((s) => s.id === 'ocr').enabled(c), true, 'OCR on by default (owner call)');
@@ -1884,6 +1885,28 @@ test('pressure eviction covers any non-Ollama engine (external too)', () => {
     assert.equal(perfMod.shouldEvictOllama({ ...base, llamacppOn: true }), true, 'the older name still works');
 });
 
+test('classify plugin: pinned CPU install, bound like the others, key in env, advertised only when up (plan v2 §3.2)', () => {
+    const classifyMod = require('../src/classify');
+    assert.match(classifyMod.depsSignature(), /laya=0.3.20|torch=cpu/, 'Laya pinned, torch from the CPU index');
+    const c = defaultConfig();
+    assert.deepEqual([c.classify.enabled, c.classify.port, c.classify.threads, c.classify.maxItems], [false, 8891, 4, 200]);
+    for (const [proxyHost, want] of [['127.0.0.1', '127.0.0.1'], ['0.0.0.0', '0.0.0.0']]) {
+        c.proxy.host = proxyHost;
+        const calls = [];
+        classifyMod.spawnClassify(c, { key: 'kk' }, (cmd, args, opts) => { calls.push({ args, opts }); return { pid: null, on() {} }; });
+        assert.equal(calls[0].args[calls[0].args.indexOf('--host') + 1], want, `classify on proxy.host=${proxyHost}`);
+        assert.ok(calls[0].args.includes('--no-access-log'), 'no request lines in the log');
+        assert.equal(calls[0].opts.env.CLASSIFY_API_KEY, 'kk');
+        assert.equal(calls[0].opts.env.CLASSIFY_THREADS, '4');
+    }
+    const on = defaultConfig(); on.classify.enabled = true;
+    assert.equal(buildSnapshot(on, { proxyUp: true, hostsUp: 1 }).classify, null, 'not advertised until it is up');
+    const snap = buildSnapshot(on, { proxyUp: true, hostsUp: 1, classifyUp: true, classifyKey: 'kk' });
+    assert.deepEqual(Object.keys(snap.classify).sort(), ['key', 'url']);
+    assert.match(snap.classify.url, /:8891$/);
+    assert.equal(buildSnapshot(defaultConfig(), { proxyUp: true, hostsUp: 1, classifyUp: true, classifyKey: 'kk' }).classify, null, 'off in the config: never advertised');
+});
+
 (async () => {
     for (const { name, fn } of tests) {
         try { await fn(); console.log(`  ok  ${name}`); passed++; }
@@ -1891,3 +1914,4 @@ test('pressure eviction covers any non-Ollama engine (external too)', () => {
     }
     console.log(`\n${passed} passed`);
 })();
+
