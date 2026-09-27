@@ -149,7 +149,7 @@ function partMeta() {
     image: { group: 'bring', order: 20, glyph: '▣', desc: t('palette.descImage') },
     document: { group: 'bring', order: 22, glyph: 'PDF', desc: t('palette.descDocument') },
     audio: { group: 'bring', order: 24, glyph: '♪', desc: t('palette.descAudio') },
-    fetch: { group: 'bring', order: 26, glyph: 'URL', desc: t('palette.descFetch') },
+    fetch: { group: 'bring', order: 32, glyph: 'URL', desc: t('palette.descFetch') },
     file: { group: 'bring', order: 30, glyph: '⎘', desc: t('palette.descFile') },
     ask: { group: 'think', order: 100, glyph: '✦', desc: t('palette.descAsk') },
     classify: { group: 'think', order: 250, glyph: 'A|B', desc: t('palette.descClassify') },

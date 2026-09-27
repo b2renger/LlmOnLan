@@ -70,10 +70,10 @@ export function valueFromAnswer(r) {
 /** @type {PartSpec} */
 export const fetchPart = /** @type {any} */ ({
   type: 'fetch',
-  order: 26,
+  order: 32,
   label: t('parts.fetchLabel'),
   thinks: false,
-  size: { w: 320, h: 118 },
+  size: { w: 320, h: 130 },
   inputs: [],
   output: 'json',
   defaults: () => ({ url: '' }),

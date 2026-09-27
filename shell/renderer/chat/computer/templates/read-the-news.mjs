@@ -422,7 +422,7 @@ export default {
           text: 'How it works\n\n1. Fetch reads the Hacker News front page (a copy ships with the template, so it also works offline).\n2. Code keeps each story’s title and numbers.\n3. Classify: Laya, the farm’s fast decision model, gives each story ONE of your categories, with a confidence.\n4. The stories Laya was not sure of go to the model for a second look.\n5. Code counts — no model ever writes a number.\n6. The model reads your question and chooses the chart; Code draws the SVG.\n\nStories nobody was sure of are listed under the chart: check them.',
         },
       },
-      { id: 'n_src', type: 'fetch', x: 400, y: 240, w: 340, h: 118, settings: { url: 'https://hn.algolia.com/api/v1/search?tags=front_page&hitsPerPage=30' }, value: { kind: 'json', data: SNAPSHOT } },
+      { id: 'n_src', type: 'fetch', x: 400, y: 240, w: 340, h: 130, settings: { url: 'https://hn.algolia.com/api/v1/search?tags=front_page&hitsPerPage=30' }, value: { kind: 'json', data: SNAPSHOT } },
       { id: 'n_pick', type: 'code', x: 400, y: 400, w: 340, h: 250, settings: { code: PICK } },
       { id: 'n_cats', type: 'note', x: 400, y: 690, w: 340, h: 200, settings: { text: 'ai\nsoftware\nhardware\nscience\nbusiness\npolitics\nculture\nother', locked: false } },
       { id: 'n_q', type: 'note', x: 400, y: 920, w: 340, h: 170, settings: { text: 'Which topics get the most attention on the front page today? Is AI dominating the conversation?', locked: false } },
