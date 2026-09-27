@@ -489,6 +489,12 @@ for the Computer panel.
 
 ## 13. The Computer (C1, added at the C1 landing 2026-09-16)
 
+> *Written for the per-thread panel (before K1). Items that name a thread, From/To thread, Render,
+> the toolbar's Run or 'Send to the Computer' no longer apply. Run the equivalent in the Computer
+> surface, or skip them.* (Docs review 2026-09-27. The Computer is its own surface with a library now;
+> the busy sentence reads *"Paused: the farm was busy with someone else. Press Run all to carry on."*,
+> not "The farm went to someone else".)
+
 The panel is in the workbench rail as **Computer**. C1 has three part types — Note, Ask, Collect —
 and one graph per thread. The harness drives it through a debug door on a mock farm; these are the
 things only a person on a real farm can answer. **Quiet farm OK** for everything here except the
@@ -553,6 +559,12 @@ seat item, which needs a colleague or a second laptop.
       the first request goes out.
 
 ## 14. The Computer, fanned out (C2, added at the C2 landing 2026-09-16)
+
+> *Written for the per-thread panel (before K1). Items that name a thread, From/To thread, Render,
+> the toolbar's Run or 'Send to the Computer' no longer apply. Run the equivalent in the Computer
+> surface, or skip them.* (Docs review 2026-09-27. The value inspector is the drawer on the right
+> now, and the busy sentence reads *"Paused: the farm was busy with someone else. Press Run all to
+> carry on."*)
 
 Everything here needs the **real model**, because the whole phase is about what dozens of real
 generations feel like from the outside. Run them on a farm a colleague is also using — that is the
@@ -626,6 +638,12 @@ is the case no farm-side measurement can show you:
 ---
 
 ## 15. The Computer: code, pictures, files and sharing (C3, added at the C3 landing 2026-09-16)
+
+> *Written for the per-thread panel (before K1). Items that name a thread, From/To thread, Render,
+> the toolbar's Run or 'Send to the Computer' no longer apply. Run the equivalent in the Computer
+> surface, or skip them.* (Docs review 2026-09-27. A File box writes into the graph's own project
+> folder now, not the thread's; a sketch that stops answering three times in a minute pauses the
+> sandbox, which a toast says, and **Run all** or **▶** on a box starts it again.)
 
 C3 is the phase where the Computer stops asking the model for everything: `Code` computes in a
 sandbox, `Render` draws a picture, `File` writes into the thread's project folder, and a graph can
@@ -736,8 +754,9 @@ felt safe to use.
       other branch keeps running and finishes while the question sits there, and the run bar says one
       question is waiting with a **Show me** that pans to it.
 - [ ] **Close the app with a question open.** Do the above, and quit the client while the question is
-      unanswered. Reopen it. Expected: it comes back with the run listed as unfinished and nothing
-      half-spent; resuming costs only what was left.
+      unanswered. Reopen it. Expected: boxes that were running come back as **Needs a re-run**;
+      **Run all** re-runs only those, and nothing already answered is paid for again. (The plan's
+      "Resume" banner is not built — COMPUTER_STATUS.md, "What is NOT there yet".)
 - [ ] **A loop that stops.** Draw a ring through a Toggle (the loop the tutorial teaches), switch the
       Toggle **on**, and run. Expected: it stops on its own at a named ceiling, the sentence says
       which box and which limit, and the offer to raise it applies to **that run only** — the next
@@ -775,3 +794,20 @@ window, Explorer and your own eyes.
 - [ ] **Nothing while you're elsewhere.** Record, switch to LOL Chat, type a message, come back,
       stop. Expected: no `ui.*` lines for what you typed in the chat (a request it made may appear
       as `http.*`, which is intended).
+
+## 18. The Computer after K4 (Live, Edit code, the view tools; added by the docs review 2026-09-27)
+
+K4–K6 are covered by [COMPUTER_STATUS.md](COMPUTER_STATUS.md), "What only you can check", items 1–12.
+Do those, plus:
+
+- [ ] **Live does not pan the canvas.** ▶ Live on a three.js box, then drag, scroll and right-drag
+      over it. Expected: the scene orbits, zooms and pans; the canvas behind it does not move.
+- [ ] **Edit code hands the focus back.** **Edit code** on a p5.js box, change a colour, press
+      **Ctrl+Enter** (the box redraws), then **Esc**. Expected: the drawer closes and the focus is back
+      on the box.
+- [ ] **The view keys from anywhere.** Click the run bar, press **H**, then **V**; click an empty part
+      of the library sidebar, press **H**, **V** and **F**. Expected: the tool switches and F fits,
+      with no click on the canvas first. Typed into the library search, the same letters stay text.
+- [ ] **A paused sandbox says so.** A Code box with `while (true) {}`: press its ▶ three times inside a
+      minute. Expected: a toast says the sandbox is paused and names **Run all** and **▶**. Fix the
+      code, press **Run all**: the box runs again.

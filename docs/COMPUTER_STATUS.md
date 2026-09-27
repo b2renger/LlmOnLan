@@ -1,7 +1,12 @@
-# The Computer — where the night got to (25 Sept, morning: K7 debug log, your eight bugs, the perf pass)
+# The Computer — status on 27 Sept (merged into main)
 
-> Branch `lolchat/vnext`, all of it committed and pushed. Every phase of
-> [COMPUTER_PLAN.md](COMPUTER_PLAN.md) up to **K6** is done. K6 answers your request — *"upload pdfs
+> Branch `lolchat/vnext`, merged into `main` on 27 Sept (`811451a`). Every phase of
+> [COMPUTER_PLAN.md](COMPUTER_PLAN.md) through **K6**, plus **K7** (the debug log), the **S1–S3**
+> critic series, **Live previews and Edit code** ([COMPUTER_LIVE_PLAN.md](COMPUTER_LIVE_PLAN.md)) and
+> the **view tools** (27 Sept) are built. The sections below are newest first; the K6 note that
+> headed this file follows.
+>
+> K6 answers your request — *"upload pdfs
 > or audio files to nodes … conditional to the box we are connected to and the models it serves and
 > these model capabilities"*: a **Document** box and a **Sound** box, a canvas that turns any dropped
 > file into the right box, and a **"takes:" line** on every box that holds a file, saying whether what
@@ -18,8 +23,12 @@
 Close your installed client if it is running (single-instance lock), then:
 
 ```bash
-cd shell && npx electron .
+cd shell && npm run dev
 ```
+
+(`npm run dev` compiles the main process with `tsc`, then starts Electron. `npx electron .` alone runs
+`build/main/index.js`, which a fresh checkout does not have, and which is stale after any change to
+`src/main/` such as the debug log's `debugLog.ts`.)
 
 The topbar has a three-way segmented control: **Open WebUI · LOL Chat · Computer**. The Computer is
 its own surface with its own library of graphs down the left; your old per-thread graphs were migrated
@@ -28,7 +37,28 @@ into it on first open.
 *(A dev run shares `%APPDATA%\LlmOnLan` with your installed client, as before. The backup from the 21st
 is still at `%APPDATA%\LlmOnLan-backup-20260921-*`.)*
 
-## NEWEST (afternoon of the 25th) — edit the code by hand, go Live, orbit the camera
+## NEWEST (27 Sept) — the view tools sit together, and a docs review
+
+- **The view tools** sit together on the canvas toolbar — Select (V) · Hand (H) · − 100 % + Fit —
+  and the run bar's duplicate zoom chip is gone. V, H, F and the zoom keys answer from anywhere on
+  the Computer (the run bar, the library), never while typing (`k12-view-tools`).
+- **A paused sandbox says so.** After a sketch or a Code box stops answering three times in a
+  minute, the sandbox stops restarting itself. That used to show nowhere, and every box then read
+  *"The sandbox could not start"*, which was false. Now a toast says it is paused, a box that asks
+  says *"The sandbox is paused … Press Run all (or ▶ on a box) to start it again."*, and those two
+  are exactly what brings it back (editing the code or ▶ Run code does not). The debug log keeps the
+  notice's words (`sbx.note`). Tested by `sandbox-host` (unit) and `k12-sandbox-paused` (harness).
+  Seen in that scenario: after a stall, the toast *"The sketch stopped responding — the preview was
+  restarted."* is often followed 3 s later by *"The sandbox did not answer while starting up — the
+  preview is off."* The likely cause (not proven): Chromium puts the rebuilt frame in the process the
+  loop still holds, so its boot times out. The next ▶ starts it cleanly. Both notices were always emitted; they were just never
+  shown before.
+- **Words that were wrong on screen:** the empty canvas says **New** (the button has no ＋); a
+  dropped `.lolgraph.json` says it **replaces** this graph (it always did); the tour is **about 2
+  minutes**, as the Learn shelf says; a long Text box says **Copy** copies all of it (there is no
+  Save… on a Text box).
+
+## NEW (afternoon of the 25th) — edit the code by hand, go Live, orbit the camera
 
 Your request: *"edit the code by hand and then rerun … a camera control … when we interact with the
 node."* ([COMPUTER_LIVE_PLAN.md](COMPUTER_LIVE_PLAN.md))
@@ -38,7 +68,9 @@ node."* ([COMPUTER_LIVE_PLAN.md](COMPUTER_LIVE_PLAN.md))
   **Ctrl+Z** undoes, **Esc** closes it and puts you back on the box. An error shows under the editor,
   its line marked in the margin, with **Go to line N**.
 - **▶ Live** runs a p5.js, three.js or HTML box for real inside the box — it animates and hears the
-  mouse and keys — until **■ Stop**. One box is Live at a time; the others keep their pictures.
+  mouse and keys — until **■ Stop**. One box is Live at a time; the others keep their pictures. A
+  Live box pauses while it is off screen, while another surface is shown or while the window is
+  hidden, and starts again when it is back; the Live choice is saved with the graph.
 - **Orbit the camera:** the three.js starter calls `lol.orbit(camera)` — drag to turn around the cube,
   wheel to zoom, right-drag to pan. The p5 starter's ball follows the pointer while you hold the
   button, and a key turns it back. Both still draw the same first picture with no farm.
@@ -93,7 +125,7 @@ Your list, and where each fix is:
    - pan also with Space-drag, the middle button, or the **Hand** tool (H), next to **Select** (V);
    - the **% button** has Zoom to fit (⇧1), Zoom to selection (⇧2) and 100 % (Ctrl+0);
    - (2026-09-27) the view tools sit together on the canvas toolbar — Select (V) · Hand (H) ·
-     − 100 % + Fit — and the run bar's duplicate zoom chip is gone. V, H and the zoom keys answer
+     − 100 % + Fit — and the run bar's duplicate zoom chip is gone. V, H, F and the zoom keys answer
      from anywhere on the Computer (the run bar, the library), never while typing (`k12-view-tools`);
    - **right-click** a box or a wire for its menu.
 5. **Unplug a wire:** drag its end off the input and let go on empty canvas, or hover the wire and
@@ -157,7 +189,8 @@ Computer log". The folder is fixed, so I can find it.
 
 **A PDF.**
 1. Drag the PDF from Explorer onto an empty part of the canvas. While you drag, the canvas says
-   *"Drop a picture, a PDF, a sound file, a text file — or a .lolgraph.json to open it"*. Let go and a
+   *"Drop a picture, a PDF, a sound file, a text file — or a .lolgraph.json to put it in place of this
+   graph"*. Let go and a
    **Document** box appears where you dropped it. (Or: **＋ Add a box → Bring in → Document**, then drop
    the PDF on the box, click its face to choose one, or paste one while the box is selected.)
 2. The box names the file and says *"Kept on this computer. The farm reads its text only when the graph
@@ -223,7 +256,7 @@ start of the Computer, every switch of graph) — but never one that Undo or Red
 and what the Computer does take. Text files (.txt/.md/.csv/.json) become Text boxes with their
 contents; pictures become Image boxes, which now carry the same "takes:" line.
 
-## What works this morning
+## What works
 
 | | |
 |---|---|
@@ -234,7 +267,7 @@ contents; pictures become Image boxes, which now carry the same "takes:" line.
 | **Two ways to run** | **▶ on any box** runs it and everything downstream (and quietly runs any un-run ancestors it needs first). **Run all** in the run bar does the whole stale graph (the canvas toolbar no longer has a second Run — critic S1-14). **Stop**/Escape cancels either. |
 | **Control flow** | Button, Condition (yes/no/maybe), Confirm, Dialog (pauses the run and asks you), Toggle (the gate that makes a loop legal), Timer/Interval. |
 | **Loops that stop themselves** | A loop must pass through something that can stop it (a Toggle, Condition, Confirm, Dialog, Button or Timer), and four ceilings bound every run: 8 passes through one box, 50 generations, 10 minutes of wall clock (waiting included), and 2000 box runs in all (`maxActivations`). Each is raisable for one run from the notice that names it. A run never outlives the graph it started on, or the question it asked. |
-| **NEW — text boxes with input and output** | Wire an Instruction (or any box) into a **Text** box and the answer lands there, renders as markdown — headings, bold, lists, tables, code — and is passed on downstream. Click into it to edit the source; blur to see it rendered again. **Lock** means "keep what I typed": a locked box refuses an arrival, says so, and still passes its own text on. An arrival never paints over an editor you have open. A box with nothing wired in is exactly the note it always was. A very long arrival is rendered down to its first 64 KB with a line saying so — the whole text still passes on and Save… still writes all of it. |
+| **NEW — text boxes with input and output** | Wire an Instruction (or any box) into a **Text** box and the answer lands there, renders as markdown — headings, bold, lists, tables, code — and is passed on downstream. Click into it to edit the source; blur to see it rendered again. **Lock** means "keep what I typed": a locked box refuses an arrival, says so, and still passes its own text on. An arrival never paints over an editor you have open. A box with nothing wired in is exactly the note it always was. A very long arrival is rendered down to its first 64 KB with a line saying so — the whole text still passes on and Copy still copies all of it. |
 | **NEW — drop a picture in** | Drop or paste an image on the canvas; it is downscaled and stored locally, and a wired **Image** goes, as part of an Instruction, to **that Instruction's model** — whatever its Model menu says; on Automatic, the farm's default (Qwen3.8 on your farm today), not a separate "vision model". When the farm does not list that model as able to see, the box says so and sends nothing; pick one that can in the box's Model menu. Since K6 a drop of several files places one box per file (up to 8), side by side; a file too big to decode is refused with a sentence rather than with the renderer's memory. |
 | **NEW — Preview boxes** | markdown · SVG · html/css/js · three.js · p5.js. Markdown and SVG draw with **no iframe at all**; the three code modes come back as a picture from the one sandbox guest. Save… writes .md, .svg or .png. Errors name the line. |
 | **NEW (K5) — creative boxes, by name** | Press **＋ Add a box** in the toolbar (or double-click / right-click empty canvas). The first thing in the menu is a strip, **Draw with code — no farm needed**: **p5.js sketch · three.js scene · SVG · HTML page**, one click each. The same boxes (and **Markdown view**) are also rows under **Show**. Each one draws its starter code as soon as it is placed, with no farm needed. Each has its own code editor and redraws as you type. Errors name the line, and clicking the error selects that line. **Keep my code** stops an answer on the wire from replacing your edit. It saves as .js/.svg/.html/.md/.png. |
@@ -246,6 +279,11 @@ contents; pictures become Image boxes, which now carry the same "takes:" line.
 
 ## What is NOT there yet
 
+- **Resuming a run after the app closed.** The plan's banner (§7.5, *"The last run stopped when the
+  app closed — N of M boxes finished · Resume"*) is not built; its strings
+  `computer.resumeBanner/resumeAction/resumeDismiss` are used nowhere. What does happen: boxes that
+  were running come back **Needs a re-run** (`graph/model.mjs`), and **Run all** finishes the job
+  without re-paying for finished boxes.
 - **A sound reaching a model.** Nothing on this farm can listen: the default engine drops sound on the
   way to the model, and no model reports it can hear. The farm-side fix is a transcription service
   (whisper on the GPU box, the same sanctioned shape as the OCR), written up as DISCUSS **D-F12** —
@@ -265,8 +303,13 @@ contents; pictures become Image boxes, which now carry the same "takes:" line.
 
 ## The numbers, re-run by me and not taken from the builders
 
-`chat-unit` **1386 passed** · `unit` **5** · `chat-lint` **212 files / 0 violations** ·
-`chat-scope` clean · `chat-harness --strict` **297 passed** · perf **9 passed** (after the K6 fix round).
+**27 Sept (docs review):** `chat-unit` **1605 passed** · `chat-lint` **221 files / 0 violations** ·
+the harness's Computer scenarios on their own slot — every `k*` **176 passed**, `c1-*` **20 passed**,
+perf **9 passed**. `chat-scope` flags only files outside the Computer (the farm, CLAUDE.md,
+`src/main`), which were other builders' work in the same tree.
+
+*After the K6 fix round:* `chat-unit` **1386 passed** · `unit` **5** · `chat-lint` **212 files / 0
+violations** · `chat-scope` clean · `chat-harness --strict` **297 passed** · perf **9 passed**.
 
 Seventeen of those scenarios are K6's own. Each reaches its feature **the way a person does**: it
 places the box by clicking ＋ and then Bring in → Document / Sound, and brings the file in with a real
@@ -277,7 +320,24 @@ one per file on a run, never a sound part. The mock farm is used for all of it, 
 Commits, newest first:
 
 ```
-HEAD     K6 fix round: a PDF cannot hold the farm GPU for nobody, a long sound is refused before it is decoded, removed files are swept
+32bcf8d  the Computer's view tools sit together — V/H work from anywhere on the Computer, one zoom control beside them
+011f867  docs: status — the live-preview prompts on the owner's farm (Qwen3.8: p5 5/5, three 4/5)
+12cf37f  p5, three.js and HTML boxes go Live — mouse and keys reach the sketch, a three.js camera orbits, the code opens in a real editor
+5cc3d4a  docs: plan for live, interactive previews and hand-editing in the Computer
+3a0cb7e  docs: night report — the second critic series (S1–S3) ends HAPPY
+afabd08  the second critic series ends HAPPY — long inputs keep their answer room, a Button-held run says so (critic S2, S3)
+f34a501  docs: critic S2, and the gemma4:12b rig passing 5/5 on every preset after S1
+06240ff  the Computer says what really happened, gives thinking models room, and its lessons can be done as written (critic S1)
+9664a40  docs: critic S1 — a fresh pass finds 6 majors and 10 minors the first series missed
+1f584f0  docs: night report — the gemma4:12b re-test fails (thinking exhausts the code budget)
+8b84a7d  docs: the night's report
+850c033  the Computer skips rendering off-screen boxes — twice as fast on big graphs (perf pass)
+c43e6ac  every Computer box fits what it shows, and the critic is happy pending the rig (rounds 2–4)
+4cabdbd  docs: the critic's second pass
+d4462c5  the Computer answers the owner's eight complaints (critic round 1)
+afff65a  docs: the critic's first pass over the Computer
+98e9e42  the Computer records a bug report to disk when you switch it on (K7)
+1f46284  K6 fix round: a PDF cannot hold the farm GPU for nobody, a long sound is refused before it is decoded, removed files are swept
 edc0be1  PDFs and sound files go into the Computer's boxes, and every box says what it can be used for (K6)
 43a94ac  K5 fix round: steps that cannot tick by accident, sketches that survive a reload, creative boxes on screen when ＋ opens
 fdc311e  the Computer's boxes have names, its menu explains itself, and it teaches by building (K5)
@@ -293,6 +353,9 @@ da9b461  the Computer runs — a play button on every box, six control parts, lo
 3c43d7c  the Computer becomes a surface of its own, with a library of graphs
 44ac372  docs: write down what the owner showed us of tldraw computer
 ```
+
+After `32bcf8d`: `811451a` merged the branch into `main`, and the 27 Sept docs-review fixes (the
+paused sandbox, F from anywhere, the wording above) followed on `lolchat/vnext`.
 
 ## What only you can check (it needs the real farm and a real window)
 

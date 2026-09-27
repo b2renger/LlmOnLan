@@ -13,7 +13,8 @@ graph you make is saved on this computer, in the Computer's own library.
 > with a library, the ＋ menu's boxes by their current names, pictures, PDFs and sounds in boxes,
 > the drawer on the right, and the Learn shelf. The design is in
 > [COMPUTER_PLAN.md](COMPUTER_PLAN.md); what works today and what does not is in
-> [COMPUTER_STATUS.md](COMPUTER_STATUS.md).
+> [COMPUTER_STATUS.md](COMPUTER_STATUS.md). Checked against the code again on 2026-09-27 (docs
+> review): the view tools, Live pausing, and the boxes and buttons it had left out.
 
 ---
 
@@ -24,18 +25,18 @@ app remembers which one you were on, so the next launch opens there again.
 
 What you see, left to right:
 
-- **The library** (sidebar). **＋ New** makes an empty graph, **Import…** adds a graph from a
+- **The library** (sidebar). **New** makes an empty graph, **Import…** adds a graph from a
   `.lolgraph.json` file, and the search box filters the list. Each graph is a card with its title,
   how many boxes it has and when it last ran. Hover a card for **Rename**, **Duplicate**,
   **Export…** and **Delete**. Below the list is the **Learn** shelf. Drag the sidebar's right edge
   to make it wider.
 - **The run bar**, above the canvas: **Run all** (with **Stop** beside it while a run is going),
-  counts of parts and generations, the generation cap, a sentence about the last run, the zoom (a button
-  that opens the zoom menu), **?** (what is this?), and **● Record log** (see
+  counts of parts and generations, the generation cap, a sentence about the last run (and **Run
+  everything again** when nothing needed a re-run), **?** (what is this?), and **● Record log** (see
   [COMPUTER_DEBUG_LOG.md](COMPUTER_DEBUG_LOG.md)).
-- **The canvas**, with its toolbar: **＋ Add a box**, the **Select** and **Hand** tools, **Undo**,
-  **Redo**, **Fit**, **Tidy**, **Export…**, **Replace from file…**, the **Cap** field, and the zoom
-  cluster (**−**, the zoom %, **+**).
+- **The canvas**, with its toolbar: **＋ Add a box**, the **Select (V)** and **Hand (H)** tools, the
+  zoom cluster (**−**, the zoom %, **+**, **Fit**), **Undo**, **Redo**, **Tidy**, **Export…**,
+  **Replace from file…** and the **Cap** field.
 - **The drawer**, on the right, when something is open in it: a value you clicked, or what a box
   sent and got (see [Read the prompt before you pay](#step-4--read-the-prompt-before-you-pay)).
   Drag its left edge to resize it.
@@ -85,7 +86,7 @@ second **Text** box, and then a picture. About ten minutes the first time.
 
 ### Step 1 — a new graph, and a Text box
 
-Press **＋ New** in the library. The new graph opens on the canvas; double-click its card (or hover
+Press **New** in the library. The new graph opens on the canvas; double-click its card (or hover
 it and press **Rename**) to name it.
 
 Press **＋ Add a box** in the toolbar (or **double-click** an empty spot of the canvas, or
@@ -170,6 +171,9 @@ Two ways to run:
   is what a box says after something it depends on changed). **Ctrl+Enter** on the canvas does the
   same.
 
+When nothing needs a re-run, the run bar offers **Run everything again**: every box runs, and
+Instructions on *new each run* get new seeds.
+
 **Stop** (in the run bar, or **Esc** on the canvas when nothing else is open) ends the run. Every
 box that finished keeps its answer.
 
@@ -181,14 +185,18 @@ on to whatever that box feeds.
 
 - **Double-click** its words (or press **✎ Edit**, or select the box and press **Enter**) to edit
   the markdown source.
-- **Lock** means "keep what I typed": a locked box does not let the next answer replace it.
-- **Copy** copies its text. You can also select words with the mouse and press **Ctrl+C**.
+- **Lock** means "keep what I typed": a locked box does not let the next answer replace it. Typing
+  into a box that has a wire coming in locks it for you, and says so; one **Ctrl+Z** takes both back.
+- **↺ Clear** shows what you typed again instead of what arrived.
+- **Copy** copies its text — all of it, even when a very long text shows only its first 64 KB. You
+  can also select words with the mouse and press **Ctrl+C**.
 
 ### Step 7 — a picture
 
-**＋ Add a box → Think → Write an SVG**, and **＋ Add a box → Show → SVG** (the same boxes are in
-the menu's first strip, *Draw with code — no farm needed*). The SVG box draws its own starter code
-straight away, and redraws as you edit its code.
+**＋ Add a box → Think → Write an SVG**, and **＋ Add a box → Show → SVG** (the SVG box is also one
+click away in the menu's first strip, *Draw with code — no farm needed*; the Write-… boxes are only
+under *Think*). The SVG box draws its own starter code straight away, and redraws as you edit its
+code.
 
 Wire **Write an SVG → SVG** (drag from its right dot onto the SVG box), write what to draw in the
 Write an SVG box, and press **▶ on the SVG box**: the Instruction runs first, then the box draws
@@ -199,6 +207,11 @@ The same pairs exist for **p5.js sketch**, **three.js scene** and **HTML page**.
 the sandbox — no network, no access to your files — and come back as a picture of their first
 frame, until you press **▶ Live** (below). SVG and **Markdown view** draw directly, without the
 sandbox.
+
+Two more boxes sit under *Show*. **Code** runs plain JavaScript in the sandbox on what arrives
+(`inputs.in` is an array; return text, a number, an array or an object). **Preview** is the box
+behind all five: its *Read it as* menu (**Automatic**, **Markdown**, **SVG**, **Web page**,
+**three.js**, **p5.js**) picks how to show what arrives.
 
 ### Edit the code, go Live, orbit the camera
 
@@ -211,7 +224,9 @@ sandbox.
   is marked in the margin.
 - **▶ Live** (p5.js, three.js, HTML) runs the box's code for real, inside the box: it animates and
   hears the mouse and the keyboard. Click in it to give it the keys; **Esc** or a click outside gives
-  them back. One box is Live at a time; **■ Stop** puts the picture back.
+  them back. One box is Live at a time; **■ Stop** puts the picture back. A Live box pauses when it
+  scrolls off screen, when you switch to another surface, or when the window is hidden, and it starts
+  again when it is back. It is still Live when you reopen the graph, until you press **■ Stop**.
 - **Orbit the camera.** The three.js starter calls `lol.orbit(camera)`: when Live, drag to turn around
   the cube, use the wheel (or pinch) to zoom, right-drag or Shift-drag to pan. Put the same line after
   the camera in your own scenes; the **Write a three.js scene** Instruction tells the model to. In
@@ -307,7 +322,7 @@ The **Control** group holds the boxes that decide **whether and when** the rest 
 | Box | What it does |
 |---|---|
 | **Button** | Nothing after it runs until you press it. Pressing it runs what comes after. |
-| **Condition** | Lets what arrives through when it reads as your chosen yes, no or maybe. |
+| **Condition** | Lets what arrives through when it reads as your chosen yes, no or maybe. It reads the words for free, or asks the model (one generation). |
 | **Confirm** | Stops and asks you **OK** or **Cancel** before going on. |
 | **Dialog** | Stops and asks you a question; your answer flows on. |
 | **Toggle** | A switch: off lets values through without running what follows. |
@@ -315,6 +330,14 @@ The **Control** group holds the boxes that decide **whether and when** the rest 
 
 A box that is waiting for you says **Waiting for you**, and the run bar counts the questions
 waiting, with **Show me** to go to the oldest one.
+
+The **Annotate** group holds boxes for the reader of the graph:
+
+| Box | What it does |
+|---|---|
+| **Sticky** | A coloured note for the reader. Never runs. |
+| **Section** | A labelled region to group the parts of one idea (its parts do not move with it yet). |
+| **Title** | Big words on the canvas. Never runs. |
 
 ### Loops and the limits of a run
 
@@ -358,11 +381,11 @@ offers **Reveal in Explorer**. Running again overwrites the same file.
 | Copy, paste, duplicate | **Ctrl+C / Ctrl+V** (a paste lands at the pointer), **Ctrl+D**. Words pasted onto the canvas become a Text box; a picture becomes an Image box. |
 | Delete | **Delete** or **Backspace** — the selected boxes, or the selected wire. |
 | Edit a box / name an arrow | **Enter** or **F2** with one box selected opens its editor; with a wire selected it names the wire (typing does too). |
-| Every action, with the mouse | Right-click a box (**Edit, Duplicate, Copy box, Zoom to this box, Delete**) or a wire (**Name this arrow, Unplug**). |
-| Edit a box's code in the drawer | **Edit code** on the box. **Ctrl+Enter** runs it, **Tab** indents, **Esc** closes the editor. |
+| Every action, with the mouse | Right-click a box (**Copy text** when words are selected, **Edit**, **Duplicate**, **Copy box**, **Zoom to this box**, **Delete box**) or a wire (**Name this arrow**, **Unplug**). |
+| Edit a box's code in the drawer | **Edit code** on the box. **Ctrl+Enter** runs it: it redraws that box (or restarts it when Live), in the drawer and in the box's own code field alike — never the whole graph, which is what Ctrl+Enter does on the canvas. **Tab** indents, **Esc** closes the editor. |
 | Leave a field | **Esc**. Pressed again it closes a menu, then the drawer, then stops a run, then clears the selection. |
 
-The view keys — **V**, **H**, and the zoom keys — work anywhere on the Computer, even after you have clicked the run bar or the library. They never fire while you type in a field. The keys that change boxes (Delete, Ctrl+C, arrows) only act when the canvas has the focus.
+The view keys — **V**, **H**, **F** and the other zoom keys — work anywhere on the Computer, even after you have clicked the run bar or the library. They never fire while you type in a field. The keys that change boxes (Delete, Ctrl+C, arrows) only act when the canvas has the focus.
 
 ---
 
@@ -376,6 +399,7 @@ The view keys — **V**, **H**, and the zoom keys — work anywhere on the Compu
 | The answer did not match the shape you asked for | The model's JSON did not validate against your schema. | Simplify the schema (fewer required fields, no nesting), or shorten the instruction. |
 | A code answer was cut off | The model ran out of room before it finished — a thinking model can spend it all on thoughts. | Run it again, or pick a model that thinks less in the box's **Model** menu. The box says which of the two happened. |
 | A Code box shows a **Line 7** chip | Your JavaScript threw. | Click the chip to go to that line. `inputs.in` is an **array**, and a list arrives whole. |
+| A box says *"The sandbox is paused"* | A sketch or a Code box stopped answering three times in a minute (usually an endless loop), so the sandbox stopped restarting itself. | Fix the loop, then press **Run all** or **▶** on a box: that starts the sandbox again. Editing the code or **▶ Run code** alone does not. |
 | A wire will not connect | The canvas refused it and said why in one line: a duplicate, a kind the box does not accept, or a loop with nothing that can stop it. | Read the line. Put a Toggle (or another control box) in a loop. |
 | The pictures stay home | The farm does not list the Instruction's model as able to see pictures. | Pick a model that can in that box's **Model** menu. |
 | A lesson step will not tick | The rail ticks what you really did, in order, and a change only counts after the step asked for it. | Press **Show me**. If the farm cannot answer, use the saved answer the rail offers. |
