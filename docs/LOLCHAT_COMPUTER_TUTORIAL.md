@@ -64,6 +64,7 @@ for you, and nothing ticks by accident.
 | **4. make a picture** | Ask the model for an SVG, and watch it drawn. | one |
 | **Research → problematic** (template) | One topic, five angles of research, one problematic, two design concepts. | about 8 |
 | **Creative coding** (template) | A brief becomes a p5.js sketch you can run, read and edit. | about 1 |
+| **Read the news** (template) | The Hacker News front page, labelled by the model from **your** categories, counted by code, charted as an SVG that answers **your** question. A copy of the page ships with it, so it runs offline too. | about 2 |
 
 On the rail:
 
@@ -314,6 +315,23 @@ is wired: ✓, ✗ with the reason, or ? when the farm does not say.
 - **Sound.** Kept and playable in the box (**▶ Play** / **■ Stop**). Nothing on the farm can listen
   yet, so a sound wired into an Instruction passes on only its name and length, as text, and the box
   says so.
+
+### Data from the web: the Fetch box
+
+**＋ → Bring in → Fetch** reads a web address you type: an open API (JSON) or a page. Press ▶: a JSON
+answer flows on as data a **Code** box can pick apart; anything else flows on as text. Only that request
+leaves this computer. The rules, so a graph someone hands you cannot misuse it:
+
+- only **http://** and **https://**; no user name or password in the address;
+- never this computer, a link-local address, or the farm's own ports (reach the farm through its boxes);
+- at most **1 MB** of text, in at most 15 seconds;
+- when the network is gone, the box keeps the **last copy** it read and says **Offline — kept the last
+  copy**. A refusal or an error from the site never falls back.
+
+The **Read the news** template shows the pattern to copy: **the model never writes a number**. It labels
+each story with one of your categories and chooses how to chart (which measure, which order, which topic to
+highlight, the words); the **Code** boxes count and draw every bar. Stories it was unsure of are listed under
+the chart for you to check. Change the categories or the question and press **Run all**.
 
 ---
 

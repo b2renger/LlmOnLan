@@ -145,7 +145,9 @@ docs) is `docs/reviews/DOCS_REVIEW_2026-09-27_{FARM,SHELL,COMPUTER}.md`. Snapsho
   camera control); a Preview box's **Edit code** opens a drawer editor. View tools: Select (V) · Hand (H) · − % + Fit,
   answering from anywhere on the Computer, never while typing. What leaves the machine: prompt text and an
   Image's pixels inside the Instruction's chat completion to the farm; a Document's PDF bytes to the farm
-  OCR for text only; a Sound is never sent. Where data lives: all of it in DATA_DIR — graphs and their
+  OCR for text only; a Sound is never sent; a **Fetch** box (2026-09-27) sends ONE GET to the address a person
+  typed — run in main (): http(s), never loopback/link-local/farm ports, ≤ 1 MB text, keeps
+  its last copy offline. Where data lives: all of it in DATA_DIR — graphs and their
   files in the renderer's IndexedDB (`lol-chat` → `graphs`, `attachments`), which is the main window's
   session at `<DATA_DIR>/lol-client`, and File-box outputs in `<DATA_DIR>/LOL Studio Projects/` (one
   project per graph); a data-folder move carries both. The opt-in **Record log** writes `%APPDATA%\LlmOnLan\logs\computer\*.jsonl`
@@ -609,6 +611,8 @@ LlmOnLan/
   the farm hosts Kokoro; and — with the default‑on farm OCR — an uploaded file's (or a Computer Document
   box's) raw bytes, for text **extraction only** (the extracted text embeds locally); presence heartbeats
   (`POST /lol/client-ping` every 10 s: hostname, platform, version, idle seconds).
+- **To third parties a person names:** a Computer **Fetch** box's GET to the address typed in it (nothing
+  from the graph is sent with it).
 - **Beyond the farm (no user content):** GitHub, for the app update check and the chat-engine (sidecar)
   download/update check; huggingface.co, until MiniLM and whisper-base are cached (then `HF_HUB_OFFLINE=1`).
 - **Never sent anywhere:** documents for **embedding** (local model), a Computer Sound box, and
