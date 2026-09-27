@@ -666,6 +666,19 @@
 :is(#lolchat, #lolcomputer) .graph-code-whose { margin: 0; font-size: 11px; color: var(--muted); }
 :is(#lolchat, #lolcomputer) .graph-code.folded .graph-code-about { font-size: 13px; }
 
+/* P3a-2: the Board row (Send by USB, Receive) and the Receive box. */
+:is(#lolchat, #lolcomputer) .graph-board { display: flex; flex-direction: column; gap: 4px; }
+:is(#lolchat, #lolcomputer) .graph-board-line { display: flex; gap: 6px; align-items: center; }
+:is(#lolchat, #lolcomputer) .graph-board-name { flex: 1; min-width: 0; font-size: 12px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+:is(#lolchat, #lolcomputer) .graph-board-choose { font: inherit; font-size: 11px; padding: 3px 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-2); color: var(--text); cursor: pointer; white-space: nowrap; }
+:is(#lolchat, #lolcomputer) .graph-board-choose:hover { filter: brightness(1.08); }
+:is(#lolchat, #lolcomputer) .graph-board-note { margin: 0; font-size: 11px; color: var(--amber); }
+:is(#lolchat, #lolcomputer) .graph-board-list { display: flex; flex-direction: column; gap: 4px; padding: 6px; }
+:is(#lolchat, #lolcomputer) .graph-board-list button { font: inherit; font-size: 12px; text-align: left; padding: 5px 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-2); color: var(--text); cursor: pointer; }
+:is(#lolchat, #lolcomputer) .graph-receive { display: flex; flex-direction: column; gap: 6px; }
+:is(#lolchat, #lolcomputer) .graph-receive-take { border: 1px solid var(--border); border-radius: 8px; background: var(--bg); color: var(--text); font: inherit; font-size: 12px; padding: 4px 6px; }
+:is(#lolchat, #lolcomputer) .graph-receive-live { margin: 0; font-size: 12px; color: var(--muted); font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; overflow-wrap: anywhere; }
+
 :is(#lolchat, #lolcomputer) .graph-send { display: flex; flex-direction: column; gap: 5px; }
 :is(#lolchat, #lolcomputer) .graph-send-transport { border: 1px solid var(--border); border-radius: 8px; background: var(--bg); color: var(--text); font: inherit; font-size: 12px; padding: 4px 6px; }
 :is(#lolchat, #lolcomputer) .graph-send-status { margin: 0; font-size: 11px; color: var(--muted); overflow-wrap: anywhere; }

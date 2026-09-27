@@ -120,4 +120,25 @@ export const BRING = [
     ],
     wires: [{ from: 'e_src', to: 'e_code', port: 'in' }, { from: 'e_code', to: 'e_view', port: 'content' }],
   },
+  {
+    key: 'receive',
+    title: 'Receive',
+    what: 'Hands on what a board (an Arduino, an ESP32) says over the USB cable: one line per message. A line that is JSON, like {"light": 512}, flows on as data. Nothing leaves this computer.',
+    inputs: [],
+    output: 'The latest line (text, or data when it is JSON), or a list of every new line since the last run.',
+    howto: [
+      'Put docs/examples/arduino/lol_serial on the board (it sends {"light": …} every half second), plug it in, press "Choose the board…" and pick it.',
+      'Wire it into a Code box: inputs.in[0].light is the reading. The box shows the last line live.',
+      'Close the Arduino Serial Monitor first: only one program can hold the board. The Send box talks back to it ("Send by: USB serial").',
+    ],
+    parts: [
+      { id: 'e_recv', type: 'receive', x: 0, y: 0, w: 320, h: 200, settings: { transport: 'serial', take: 'latest' } },
+      {
+        id: 'e_code', type: 'code', x: 380, y: 0, w: 340, h: 200,
+        settings: { code: 'const r = inputs.in[0] || {};\nreturn "Light: " + (r.light ?? "?");', about: 'Reads the light level from the board\'s line.', folded: false },
+      },
+      { id: 'e_view', type: 'preview', x: 380, y: 260, w: 340, h: 200, settings: view },
+    ],
+    wires: [{ from: 'e_recv', to: 'e_code', port: 'in' }, { from: 'e_code', to: 'e_view', port: 'content' }],
+  },
 ];

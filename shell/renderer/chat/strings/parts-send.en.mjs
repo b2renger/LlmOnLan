@@ -12,6 +12,7 @@ registerStrings('parts', {
   sendTransport_mqtt: 'MQTT publish',
   sendTransport_ws: 'WebSocket',
   sendTransport_http: 'HTTP POST',
+  sendTransport_serial: 'USB serial (Arduino, ESP32)',
   sendHost: 'Host',
   sendPort: 'Port',
   sendAddress: 'OSC address',

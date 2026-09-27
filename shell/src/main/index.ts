@@ -22,6 +22,7 @@ import { initAutoUpdate, checkForAppUpdate, quitAndInstallUpdate, setUpdateNotif
 import { OWUI_ENABLED } from './clientMode';
 import { fetchText } from './io';
 import { send as sendOutput, arm as armOutputs, isArmed as outputsArmed, panic as panicOutputs, SendRequest } from './outputs';
+import { configureSerial, registerSerialIpc } from './serial';
 import {
     ensureSidecar, applyPendingSidecar, isSidecarInstalled,
     checkOwuiUpdate, downloadOwuiUpdate, SidecarProgress,
@@ -440,6 +441,8 @@ function pushSidecarInstall(p: SidecarProgress): void {
 
 function createWindow(): void {
     const clientSes = mainWindowSession();
+    // USB serial for the Computer (P3a-2): the window's own session, never the OWUI webview's.
+    configureSerial(clientSes || session.defaultSession);
     win = new BrowserWindow({
         width: 1280,
         height: 860,
@@ -1004,6 +1007,7 @@ app.whenReady().then(async () => {
     const settings = loadSettings();
     applyTheme(settings.theme);
     registerIpc();
+    registerSerialIpc();
     createWindow();
 
     // Migration from the keep-warm era: installs that enabled launch-at-login

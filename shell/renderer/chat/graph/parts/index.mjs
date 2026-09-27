@@ -71,6 +71,8 @@ import { classifyPart } from './classify.mjs';
 import { speakPart } from './speak.mjs';
 // Ecosystem plan v2 §3.5, P3a: outputs to the world, through ONE choke point in main.
 import { sendPart } from './send.mjs';
+// P3a-2: what a board says over USB, coming into a graph.
+import { receivePart } from './receive.mjs';
 // K5 kickoff (addendum KE-2): the ＋ menu is GROUPED, every row says what it does, and it offers
 // PRESETS — a part type plus the settings that make it a named box ("p5.js sketch" is a Preview in
 // p5 mode with starter code). The groups, the glyphs and the plain parts' one-liners are catalogue
@@ -100,7 +102,7 @@ const LEGACY = [fromThread, toThread, render];
  * `spec.order`, so this array is the reading order and `order` is the drawn one.
  * @returns {PartSpec[]} */
 export function partSpecs() {
-  return [textPart, instruction, classifyPart, splitPart, repeat, filter, code, collect, preview, speakPart, sendPart, file, image,
+  return [textPart, instruction, classifyPart, splitPart, repeat, filter, code, collect, preview, speakPart, sendPart, receivePart, file, image,
     documentPart, audioPart, fetchPart,
     button, condition, confirm, dialog, toggle, timer,
     sticky, section, title];
@@ -154,6 +156,7 @@ function partMeta() {
     document: { group: 'bring', order: 22, glyph: 'PDF', desc: t('palette.descDocument') },
     audio: { group: 'bring', order: 24, glyph: '♪', desc: t('palette.descAudio') },
     fetch: { group: 'bring', order: 32, glyph: 'URL', desc: t('palette.descFetch') },
+    receive: { group: 'bring', order: 34, glyph: 'USB', desc: t('palette.descReceive') },
     file: { group: 'bring', order: 30, glyph: '⎘', desc: t('palette.descFile') },
     ask: { group: 'think', order: 100, glyph: '✦', desc: t('palette.descAsk') },
     classify: { group: 'think', order: 250, glyph: 'A|B', desc: t('palette.descClassify') },
@@ -189,7 +192,7 @@ function kwOf(type) {
 /** Each plain part's search-words key (strings/palette.en.mjs). */
 const KW = {
   note: 'palette.kwNote', image: 'palette.kwImage', file: 'palette.kwFile',
-  document: 'palette.kwDocument', audio: 'palette.kwAudio', fetch: 'palette.kwFetch', classify: 'palette.kwClassify', speak: 'palette.kwSpeak', send: 'palette.kwSend',
+  document: 'palette.kwDocument', audio: 'palette.kwAudio', fetch: 'palette.kwFetch', classify: 'palette.kwClassify', speak: 'palette.kwSpeak', send: 'palette.kwSend', receive: 'palette.kwReceive',
   ask: 'palette.kwAsk', split: 'palette.kwSplit', filter: 'palette.kwFilter',
   collect: 'palette.kwCollect', repeat: 'palette.kwRepeat',
   preview: 'palette.kwPreview', code: 'palette.kwCode',

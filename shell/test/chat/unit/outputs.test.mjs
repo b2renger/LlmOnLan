@@ -102,6 +102,21 @@ export default (test) => {
     O.resetForTests();
   });
 
+  test('outputs: USB serial goes through the same choke point — dry run disarmed, allowed armed, rate-capped, a board needed', async () => {
+    O.resetForTests();
+    let clock = 5000;
+    const deps = { now: () => clock, transportImpl: { udp: async () => { throw new Error('serial must not touch the network'); } } };
+    const usb = { transport: 'serial', serialPort: 'usb:2341:0043', value: 'led 1' };
+    assert.deepEqual(await O.send(usb, deps), { ok: true, sent: false, summary: 'USB ← led 1' }, 'disarmed: a dry run');
+    O.arm(true);
+    assert.equal((await O.send(usb, deps)).sent, true, 'armed: the page may write the line');
+    assert.equal((await O.send(usb, deps)).code, 'E_RATE', 'the same instant: held (20 a second per board)');
+    clock += 60;
+    assert.equal((await O.send(usb, deps)).sent, true);
+    assert.equal((await O.send({ transport: 'serial', value: 1 }, deps)).code, 'E_TARGET', 'no board chosen');
+    O.resetForTests();
+  });
+
   test('send box: typed numbers and lists go out as numbers and lists (release critic R5); a local target is named', () => {
     assert.equal(sendValue('0.75'), 0.75, 'an OSC float, not the string "0.75"');
     assert.deepEqual(sendValue(' [255, 128, 0] '), [255, 128, 0], 'DMX levels, not a blackout');

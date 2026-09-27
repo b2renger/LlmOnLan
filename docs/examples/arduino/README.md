@@ -15,8 +15,10 @@ board and on this computer only: nothing goes through the farm or the internet.
 3. Check it: **Tools → Serial Monitor** at **115200** baud, line ending **Newline**. You see
    `{"light":…}` lines; type `led 1` and the LED switches on. **Close the Serial Monitor** before the
    Computer uses the port: only one program can hold it.
-4. In the Computer: a **Send** box with *Send by: USB serial* talks to the board, a **Receive** box hands on
-   each line the board writes (both arrive with the USB-serial work, plan P3a-2).
+4. In the Computer: a **Send** box with *Send by: USB serial* talks to the board (a dry run until you arm
+   the outputs), a **Receive** box (＋ → Bring in) hands on each line the board writes. Press **Choose the
+   board…** on each and pick it. The **Talk to a board** template on the Learn shelf wires the round trip,
+   with this sketch in a Text box.
 
 The protocol is written at the top of the sketch: one line = one message, 115200 baud. Change it freely;
 the Computer only sends what you wire into Send and hands on whatever line the board writes.

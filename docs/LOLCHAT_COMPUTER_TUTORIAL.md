@@ -374,6 +374,7 @@ Speak.
 | **MQTT publish** | broker host, port (1883), topic | the text, or the JSON of anything else |
 | **WebSocket** | `ws://…` address (an ESP32, for instance) | the text, or the JSON |
 | **HTTP POST** | `http://…` address | the text, or the JSON, as the body |
+| **USB serial (Arduino, ESP32)** | the board you pick with **Choose the board…**, and its speed (115200) | one line: the text, or the JSON of anything else |
 
 The target is always typed by you in the box: an arrow only brings the **value**, so a model can never
 choose where a graph sends. And the rules are the same for every graph, even one someone gave you:
@@ -392,6 +393,23 @@ choose where a graph sends. And the rules are the same for every graph, even one
 - Never the farm's own ports. This computer is allowed (the arming question marks such a target *this
   computer*): OSC to TouchDesigner or Max on `127.0.0.1` is a
   normal target.
+
+### A board on the USB cable: Send by USB serial, and the Receive box
+
+An Arduino or an ESP32 plugged into this computer talks with a graph both ways, **one line = one message**:
+
+- **Send** with *Send by: USB serial* writes a line to the board (a typed number, `led 1`, or JSON), with the
+  same rules as every output: a dry run until you arm the outputs.
+- **＋ → Bring in → Receive** hands on what the board writes: **the latest line**, or **every new line since
+  the last run** (a list). A line that is JSON, like `{"light": 512}`, flows on as data, so a Code box reads
+  `inputs.in[0].light`. Its face shows the last line live. Reading sends nothing anywhere.
+- **Choose the board…** (on both) lists the boards plugged in; you pick one. Close the Arduino IDE's Serial
+  Monitor first: only one program can hold a board.
+
+The code to put on the board is in the repo, [`docs/examples/arduino/lol_serial`](examples/arduino/lol_serial/lol_serial.ino)
+(an Uno, a Nano or an ESP32; it sets its LED from a number and sends its light sensor every half second).
+The **Talk to a board** template on the Learn shelf carries the same sketch in a Text box to copy, and shows
+the **round trip**: the board reports its light, a Code box decides "dark? LED on", and a Send writes it back.
 
 ### Data from the web: the Fetch box
 

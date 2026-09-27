@@ -140,7 +140,9 @@ docs) is `docs/reviews/DOCS_REVIEW_2026-09-27_{FARM,SHELL,COMPUTER}.md`. Snapsho
   single-instance lock and the owner's real DATA_DIR make it unsafe on a box with a client open).
 - **The Computer** (third client surface, `shell/renderer/chat/{computer,graph,sandbox}/`) — a node-graph
   canvas where boxes wired by **named arrows** make a small program, kept in a library of graphs. Boxes:
-  Text, Image, Document, Sound (+ a **Listen** switch: the farm's speech to text writes it down), File, **Fetch** (*bring*); Instruction (+ "Write a p5.js/three.js/SVG/HTML"
+  Text, Image, Document, Sound (+ a **Listen** switch: the farm's speech to text writes it down), File, **Fetch**, **Receive**
+  (a board's lines over USB serial: Web Serial in the page, the port picked by a person through main's
+  `select-serial-port`, `src/main/serial.ts` + `net/serial.mjs`) (*bring*); Instruction (+ "Write a p5.js/three.js/SVG/HTML"
   and "Describe a picture" presets, plus "Write code" — a model writes a Code box's program into its **code**
   port — and "Write a Laya question" — a model writes Classify's question + options into its **question**
   port), **Classify** (Laya on the farm: one multiple-choice question per item,
@@ -149,7 +151,7 @@ docs) is `docs/reviews/DOCS_REVIEW_2026-09-27_{FARM,SHELL,COMPUTER}.md`. Snapsho
   Repeat (*think*); Preview (+ p5.js/three.js/SVG/HTML/Markdown presets; since 2026-09-27 it hands on a
   **PNG** of what it drew — SVG rasterised in the renderer — so a vision model can see its own work) and
   Code (a plain-words **What it does** line, and a fold that hides the program behind it), **Speak** (says text with the farm's voice or this computer's) and **Send** (OSC, Art-Net DMX, MQTT,
-  WebSocket, HTTP POST to a device — through ONE choke point in main, `src/main/outputs.ts`: DISARMED by default
+  WebSocket, HTTP POST, USB serial to a device — through ONE choke point in main (USB: main decides, the page writes), `src/main/outputs.ts`: DISARMED by default
   and after every reload so a run is a dry run, arming asks and lists every target, a person-typed target
   only, never the farm's ports, 20 msg/s per target, DMX ≤ 3 frames/s, Panic blacks out every universe lit)
   (*show*); Button, Condition, Confirm, Dialog, Toggle, Timer (*control*); Sticky, Section, Title
@@ -639,7 +641,8 @@ LlmOnLan/
   (`POST /lol/client-ping` every 10 s: hostname, platform, version, idle seconds).
 - **To third parties a person names:** a Computer **Fetch** box's GET to the address typed in it (nothing
   from the graph is sent with it); a **Send** box's message to the device typed in it, only once a person
-  armed the outputs (a dry run otherwise).
+  armed the outputs (a dry run otherwise). A board on this computer's USB cable (Send by USB, Receive) stays
+  on this computer.
 - **Beyond the farm (no user content):** GitHub, for the app update check and the chat-engine (sidecar)
   download/update check; huggingface.co, until MiniLM and whisper-base are cached (then `HF_HUB_OFFLINE=1`).
 - **Never sent anywhere:** documents for **embedding** (local model), a Computer Sound box's recording

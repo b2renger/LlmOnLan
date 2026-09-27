@@ -124,6 +124,20 @@ export function outputsDoor() {
   };
 }
 
+/**
+ * USB serial's port chooser (P3a-2, src/main/serial.ts): main forwards the plugged-in boards when the
+ * page's Web Serial asks for one; the page answers with the person's pick. null outside the app.
+ * @returns {{onChoose: (fn: (list: any[]) => void) => void, chosen: (portId: string) => Promise<any>}|null}
+ */
+export function serialDoor() {
+  const api = preloadProp('serial', ['onChoose', 'chosen']);
+  if (!api) return null;
+  return {
+    onChoose: (fn) => { try { api.onChoose(fn); } catch { /* no main: nothing to choose */ } },
+    chosen: (portId) => Promise.resolve().then(() => api.chosen(String(portId || ''))).catch(() => false),
+  };
+}
+
 /** Whatever came back over IPC, shaped like an answer. @param {any} r */
 function normalise(r) {
   if (!r || typeof r !== 'object') return { ok: false, code: 'E_IO', message: t('projects.err_E_IO') };

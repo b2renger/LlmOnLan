@@ -129,7 +129,7 @@ export default (test) => {
     assert.deepEqual(LESSONS.map((l) => l.n), [0, 1, 2, 3, 4], 'n is the shelf number');
     for (let i = 0; i < LESSONS.length - 1; i++) assert.equal(LESSONS[i].next, LESSONS[i + 1].id, `${LESSONS[i].id} → next`);
     assert.equal(LESSONS[LESSONS.length - 1].next, undefined, 'the last lesson ends the shelf');
-    assert.deepEqual(TEMPLATES.map((x) => x.id), ['research-problematic', 'creative-coding', 'read-the-news']);
+    assert.deepEqual(TEMPLATES.map((x) => x.id), ['research-problematic', 'creative-coding', 'read-the-news', 'talk-to-a-board']);
     for (const id of MINE) assert.equal(lessonById(id).id, id);
     assert.equal(templateById('creative-coding').title, 'Creative coding');
     assert.equal(templateById('nope'), null);

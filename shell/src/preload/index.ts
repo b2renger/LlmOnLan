@@ -102,4 +102,10 @@ contextBridge.exposeInMainWorld('lol', {
         armed: () => ipcRenderer.invoke('lol:io:armed'),
         panic: () => ipcRenderer.invoke('lol:io:panic'),
     },
+    // USB serial (P3a-2): main forwards the plugged-in boards when the page asks for one; the page
+    // answers with the person's pick ('' = cancelled). The bytes go through the page's own Web Serial.
+    serial: {
+        onChoose: (fn: (list: unknown) => void) => { ipcRenderer.on('lol:serial:choose', (_e, list) => fn(list)); },
+        chosen: (portId: string) => ipcRenderer.invoke('lol:serial:chosen', portId),
+    },
 });

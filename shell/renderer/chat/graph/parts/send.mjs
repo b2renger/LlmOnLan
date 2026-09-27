@@ -16,19 +16,25 @@ import { toPlain, valueOf } from '../values.mjs';
 import { partFail } from './common.mjs';
 import { textField, numberField } from './fields.mjs';
 import { outputsDoor } from '../../projects/bridge.mjs';
+import { writeLine, DEFAULT_BAUD } from '../../net/serial.mjs';
+import { boardRow } from './board-picker.mjs';
 import { t } from '../../core/i18n.mjs';
 import '../../strings/parts-send.en.mjs';
 
 /** @typedef {import('../../core/types.mjs').PartSpec} PartSpec */
 
-export const TRANSPORTS = Object.freeze(['osc', 'artnet', 'mqtt', 'ws', 'http']);
+export const TRANSPORTS = Object.freeze(['osc', 'artnet', 'mqtt', 'ws', 'http', 'serial']);
 /** Literal maps, so lint rule 5 can see every key a person may read. */
 const TRANSPORT_KEY = {
   osc: 'parts.sendTransport_osc', artnet: 'parts.sendTransport_artnet', mqtt: 'parts.sendTransport_mqtt',
-  ws: 'parts.sendTransport_ws', http: 'parts.sendTransport_http',
+  ws: 'parts.sendTransport_ws', http: 'parts.sendTransport_http', serial: 'parts.sendTransport_serial',
 };
 const ERR_KEY = {
   E_TARGET: 'parts.sendErr_E_TARGET', E_FARM: 'parts.sendErr_E_FARM', E_RATE: 'parts.sendErr_E_RATE', E_SEND: 'parts.sendErr_E_SEND',
+};
+/** Why a USB write failed (net/serial.mjs codes). */
+const SERIAL_ERR = {
+  'no-serial': 'parts.boardErrNoSerial', 'not-found': 'parts.boardErrNotFound', busy: 'parts.boardErrBusy', lost: 'parts.boardErrLost',
 };
 /** The default port per transport (Art-Net's own, OSC's usual, MQTT's). */
 const DEFAULT_PORT = { osc: 9000, artnet: 6454, mqtt: 1883 };
@@ -41,6 +47,7 @@ export function requestFor(s, value) {
   const transport = TRANSPORTS.includes(String(s.transport)) ? String(s.transport) : 'osc';
   const r = /** @type {any} */ ({ transport, value });
   if (transport === 'ws' || transport === 'http') r.url = String(s.url || '');
+  else if (transport === 'serial') r.serialPort = String(s.serialPort || '');
   else {
     r.host = String(s.host || '').trim();
     r.port = Number(s.port) || /** @type {any} */ (DEFAULT_PORT)[transport];
@@ -67,13 +74,18 @@ export function sendValue(plain) {
   } catch { return plain; }
 }
 
+/** PURE: what a USB line carries: text as it is, anything else as JSON. @param {any} v @returns {string} */
+export function lineOf(v) {
+  return typeof v === 'string' ? v : JSON.stringify(v);
+}
+
 /** Every target the Send boxes of `doc` name, for the arming question. @param {any} doc @returns {string[]} */
 export function targetsIn(doc) {
   const out = [];
   for (const p of (doc && Array.isArray(doc.parts) ? doc.parts : [])) {
     if (p.type !== 'send') continue;
     const r = requestFor(p.settings || {}, null);
-    const where = r.url || `${r.host}:${r.port}${r.address ? ' ' + r.address : ''}${r.topic ? ' ' + r.topic : ''}${r.transport === 'artnet' ? ' universe ' + r.universe : ''}`;
+    const where = r.transport === 'serial' ? String((p.settings && p.settings.serialLabel) || r.serialPort || '?') : r.url || `${r.host}:${r.port}${r.address ? ' ' + r.address : ''}${r.topic ? ' ' + r.topic : ''}${r.transport === 'artnet' ? ' universe ' + r.universe : ''}`;
     const name = t(/** @type {any} */ (TRANSPORT_KEY)[r.transport]);
     // A target on this very computer is said so: arming a shared graph must not hide a POST to a local service.
     let host = String(r.host || '');
@@ -93,7 +105,7 @@ export const sendPart = /** @type {any} */ ({
   size: { w: 320, h: 250 },
   inputs: [{ name: 'in', label: t('parts.sendIn'), accepts: ['text', 'json', 'list'] }],
   output: 'text',
-  defaults: () => ({ transport: 'osc', host: '127.0.0.1', port: 9000, address: '/lol', universe: 0, topic: 'lol/computer', url: '' }),
+  defaults: () => ({ transport: 'osc', host: '127.0.0.1', port: 9000, address: '/lol', universe: 0, topic: 'lol/computer', url: '', serialPort: '', serialLabel: '', baud: DEFAULT_BAUD }),
 
   render(host, part, ctx) {
     const wrap = document.createElement('div');
@@ -115,6 +127,7 @@ export const sendPart = /** @type {any} */ ({
     const uniF = numberField(t('parts.sendUniverse'), Number(part.settings.universe) || 0, 0, (n) => { ctx.update({ universe: n }); commit(t('parts.sendUniverse')); }, 32767);
     const topicF = textField(t('parts.sendTopic'), part.settings.topic, { onInput: (v) => ctx.update({ topic: v }), onCommit: () => commit(t('parts.sendTopic')), placeholder: 'lol/computer' });
     const urlF = textField(t('parts.sendUrl'), part.settings.url, { onInput: (v) => ctx.update({ url: v }), onCommit: () => commit(t('parts.sendUrl')), placeholder: 'ws://192.168.1.40:81/ or http://…' });
+    const board = boardRow(ctx, part);
     const status = document.createElement('p');
     status.className = 'graph-send-status';
     select.addEventListener('change', () => {
@@ -124,7 +137,7 @@ export const sendPart = /** @type {any} */ ({
       ctx.update(patch);
       commit(t('parts.sendTransport'));
     });
-    wrap.append(select, hostF.node, portF.node, addrF.node, uniF.node, topicF.node, urlF.node, status);
+    wrap.append(select, hostF.node, portF.node, addrF.node, uniF.node, topicF.node, urlF.node, board.node, status);
     host.replaceChildren(wrap);
 
     /** @param {any} p */
@@ -133,7 +146,10 @@ export const sendPart = /** @type {any} */ ({
       const tr = TRANSPORTS.includes(String(s.transport)) ? String(s.transport) : 'osc';
       if (document.activeElement !== select) select.value = tr;
       const byUrl = tr === 'ws' || tr === 'http';
-      hostF.node.hidden = byUrl; portF.node.hidden = byUrl; urlF.node.hidden = !byUrl;
+      const bySerial = tr === 'serial';
+      hostF.node.hidden = byUrl || bySerial; portF.node.hidden = byUrl || bySerial; urlF.node.hidden = !byUrl;
+      board.node.hidden = !bySerial;
+      board.update(p);
       addrF.node.hidden = tr !== 'osc'; uniF.node.hidden = tr !== 'artnet'; topicF.node.hidden = tr !== 'mqtt';
       hostF.update(s.host); portF.update(Number(s.port) || 1); addrF.update(s.address); uniF.update(Number(s.universe) || 0);
       topicF.update(s.topic); urlF.update(s.url);
@@ -154,6 +170,12 @@ export const sendPart = /** @type {any} */ ({
       notes.delete(id);
       const code = r && Object.prototype.hasOwnProperty.call(ERR_KEY, r.code) ? r.code : 'E_SEND';
       throw partFail(t(/** @type {any} */ (ERR_KEY)[code], { message: String((r && r.message) || '') }), 'part');
+    }
+    // USB serial: main said it may go (armed, within the rate); the page writes the line itself.
+    const st = input.part.settings || {};
+    if (r.sent && st.transport === 'serial') {
+      const w = await writeLine(String(st.serialPort || ''), Number(st.baud) || DEFAULT_BAUD, lineOf(sendValue(toPlain(arrived))));
+      if (!w.ok) { notes.delete(id); throw partFail(t(/** @type {any} */ (SERIAL_ERR)[/** @type {any} */ (w).code] || SERIAL_ERR.lost), 'part'); }
     }
     const line = r.sent ? t('parts.sendSent', { summary: r.summary }) : t('parts.sendDry', { summary: r.summary });
     notes.set(id, line);

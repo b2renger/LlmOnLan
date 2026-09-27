@@ -17,7 +17,7 @@ import * as dgram from 'dgram';
 import * as net from 'net';
 import { FARM_PORTS } from './io';
 
-export type Transport = 'osc' | 'artnet' | 'mqtt' | 'ws' | 'http';
+export type Transport = 'osc' | 'artnet' | 'mqtt' | 'ws' | 'http' | 'serial';
 export interface SendRequest {
     transport: Transport;
     host?: string; port?: number;           // osc, artnet, mqtt
@@ -25,6 +25,7 @@ export interface SendRequest {
     address?: string;                       // osc: /path
     universe?: number;                      // artnet: 0..32767
     topic?: string;                         // mqtt
+    serialPort?: string;                    // serial: the board the person picked (net/serial.mjs identity)
     value: unknown;                         // what to send (see encode below)
 }
 export type SendAnswer = { ok: true; sent: boolean; summary: string } | { ok: false; code: string; message: string };
@@ -110,6 +111,12 @@ function asText(value: unknown): string { return typeof value === 'string' ? val
 // ---- the checks ---------------------------------------------------------------------------------
 
 function targetOf(r: SendRequest): { ok: true; key: string; label: string } | { ok: false; code: string; message: string } {
+    // USB serial (P3a-2): the page writes the bytes through Web Serial; this decides whether it may.
+    if (r.transport === 'serial') {
+        const port = String(r.serialPort || '').trim();
+        if (!port) return { ok: false, code: 'E_TARGET', message: 'choose the board first' };
+        return { ok: true, key: `serial|${port}`, label: port };
+    }
     if (r.transport === 'ws' || r.transport === 'http') {
         let u: URL;
         try { u = new URL(String(r.url || '')); } catch { return { ok: false, code: 'E_TARGET', message: 'not an address' }; }
@@ -142,6 +149,7 @@ function describe(r: SendRequest): string {
         case 'mqtt': return `MQTT ${r.topic} ← ${asText(r.value).slice(0, 80)}`;
         case 'ws': return `WebSocket ← ${asText(r.value).slice(0, 80)}`;
         case 'http': return `POST ← ${asText(r.value).slice(0, 80)}`;
+        case 'serial': return `USB ← ${asText(r.value).slice(0, 80)}`;
     }
     return '';
 }
@@ -191,7 +199,7 @@ export interface SendDeps { now?: () => number; transportImpl?: Partial<{ udp: t
 export async function send(r: SendRequest, deps: SendDeps = {}): Promise<SendAnswer> {
     const now = (deps.now || Date.now)();
     const impl = { udp, mqtt: mqttPublish, ws: wsSend, http: httpPost, ...(deps.transportImpl || {}) };
-    if (!r || !['osc', 'artnet', 'mqtt', 'ws', 'http'].includes(r.transport)) return { ok: false, code: 'E_TARGET', message: 'unknown transport' };
+    if (!r || !['osc', 'artnet', 'mqtt', 'ws', 'http', 'serial'].includes(r.transport)) return { ok: false, code: 'E_TARGET', message: 'unknown transport' };
     const t = targetOf(r);
     if (!t.ok) return t;
     const summary = describe(r);
@@ -210,6 +218,7 @@ export async function send(r: SendRequest, deps: SendDeps = {}): Promise<SendAns
             dmxTargets.set(t.key, { host: String(r.host), port: Number(r.port), universe: Number(r.universe) });
             await impl.udp(String(r.host), Number(r.port), encodeArtDmx(Number(r.universe), dmxChannels(r.value)));
         } else if (r.transport === 'mqtt') await impl.mqtt(String(r.host), Number(r.port), String(r.topic), Buffer.from(asText(r.value), 'utf8'));
+        else if (r.transport === 'serial') { /* allowed: the page writes the line through Web Serial */ }
         else if (r.transport === 'ws') await impl.ws(String(r.url), asText(r.value));
         else await impl.http(String(r.url), asText(r.value));
         return { ok: true, sent: true, summary };

@@ -189,6 +189,7 @@
 /* json */
 #lolcomputer .graph-part[data-type='code'] .graph-port[data-dir='out'],
 #lolcomputer .graph-part[data-type='fetch'] .graph-port[data-dir='out'],
+#lolcomputer .graph-part[data-type='receive'] .graph-port[data-dir='out'],
 #lolcomputer .graph-part[data-type='classify'] .graph-port[data-dir='out'],
 #lolcomputer .graph-part[data-type='classify'] .graph-port[data-port='items'],
 #lolcomputer .graph-part[data-type='classify'] .graph-port[data-port='question'] {

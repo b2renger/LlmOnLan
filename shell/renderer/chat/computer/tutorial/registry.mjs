@@ -21,6 +21,7 @@ import l04 from './lessons/04-draw.mjs';
 import researchProblematic from '../templates/research-problematic.mjs';
 import creativeCoding from '../templates/creative-coding.mjs';
 import readTheNews from '../templates/read-the-news.mjs';
+import talkToABoard from '../templates/talk-to-a-board.mjs';
 
 /** @typedef {import('../../core/types.mjs').Lesson} Lesson */
 /** @typedef {import('../../core/types.mjs').Template} Template */
@@ -29,7 +30,7 @@ import readTheNews from '../templates/read-the-news.mjs';
 export const LESSONS = Object.freeze(/** @type {any[]} */ ([tour, l01, l02, l03, l04]));
 
 /** @type {readonly Template[]} */
-export const TEMPLATES = Object.freeze(/** @type {any[]} */ ([researchProblematic, creativeCoding, readTheNews]));
+export const TEMPLATES = Object.freeze(/** @type {any[]} */ ([researchProblematic, creativeCoding, readTheNews, talkToABoard]));
 
 /** @param {string} id @returns {Lesson|null} */
 export function lessonById(id) {
