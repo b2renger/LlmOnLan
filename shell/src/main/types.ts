@@ -48,7 +48,7 @@ export interface FarmSnapshot {
     // at it, so every client gets scanned-doc + image OCR with zero setup. `url` is
     // the loader BASE (OWUI appends /process); `key` is the bearer OWUI must send.
     // `key` is null on a farm with a password: the client fetches it from /lol/plugin-keys (index.ts).
-    extract?: { url: string; key: string | null } | null;
+    extract?: { url: string; key: string | null; keyId?: string } | null;
     // Serving engine + context geometry (absent on farms older than farm-v0.0.22).
     // contextPerSlot is what ONE chat can actually hold — the client picks
     // whole-document vs top-k RAG from it (configBridge FULL_CONTEXT_MIN_CTX).

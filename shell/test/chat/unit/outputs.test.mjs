@@ -7,7 +7,7 @@ import path from 'node:path';
 import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
-import { requestFor, targetsIn } from '../../../renderer/chat/graph/parts/send.mjs';
+import { requestFor, targetsIn, sendValue } from '../../../renderer/chat/graph/parts/send.mjs';
 
 const require = createRequire(import.meta.url);
 const BUILD = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..', 'build', 'main', 'outputs.js');
@@ -82,7 +82,12 @@ export default (test) => {
     assert.equal((await O.send(dmx, deps)).code, 'E_RATE', 'a second frame 200 ms later is held: > 3 Hz');
     clock += 200;
     assert.equal((await O.send(dmx, deps)).sent, true, '400 ms after the first: allowed');
-    const osc = { transport: 'osc', host: '127.0.0.1', port: 9000, address: '/a', value: 1 };
+    // Release critic R4: the node's address and a broadcast address reach the same lights, so they
+    // share ONE budget per universe.
+    clock += 170;
+    assert.equal((await O.send({ ...dmx, host: '10.0.0.255' }, deps)).code, 'E_RATE', 'the same universe by another address: held');
+    clock += 170;
+    const osc ={ transport: 'osc', host: '127.0.0.1', port: 9000, address: '/a', value: 1 };
     assert.equal((await O.send(osc, deps)).sent, true);
     assert.equal((await O.send(osc, deps)).code, 'E_RATE', 'the same instant: held');
     clock += 60;
@@ -95,6 +100,20 @@ export default (test) => {
     assert.ok(packets[0].b.subarray(18).every((/** @type {number} */ v) => v === 0), 'a blackout: every channel 0');
     assert.equal(O.isArmed(), false, 'and the outputs are disarmed');
     O.resetForTests();
+  });
+
+  test('send box: typed numbers and lists go out as numbers and lists (release critic R5); a local target is named', () => {
+    assert.equal(sendValue('0.75'), 0.75, 'an OSC float, not the string "0.75"');
+    assert.deepEqual(sendValue(' [255, 128, 0] '), [255, 128, 0], 'DMX levels, not a blackout');
+    assert.deepEqual(sendValue('{"12": 255}'), { 12: 255 });
+    assert.equal(sendValue('hello'), 'hello');
+    assert.equal(sendValue('12 apples'), '12 apples', 'not JSON: sent as it came');
+    assert.equal(sendValue('true'), 'true', 'a word stays a word');
+    assert.deepEqual(sendValue([1, 2]), [1, 2], 'a list arrives as a list');
+    const doc = { parts: [{ type: 'send', settings: { transport: 'http', url: 'http://127.0.0.1:8188/prompt' } }, { type: 'send', settings: { transport: 'osc', host: '10.0.0.5', port: 9000, address: '/a' } }] };
+    const list = targetsIn(doc);
+    assert.match(list[0], /\(this computer\)$/);
+    assert.doesNotMatch(list[1], /this computer/);
   });
 
   test('send box: the request carries the PERSON\'s target and the wire\'s value; the arming question lists every target', () => {

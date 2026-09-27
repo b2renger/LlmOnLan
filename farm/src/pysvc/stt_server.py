@@ -91,6 +91,9 @@ async def transcriptions(request: Request):
         declared = int(request.headers.get("content-length") or 0)
     except ValueError:
         declared = 0
+    if declared <= 0:
+        # A chunked upload does not say its size, and would reach the disk spool before any check.
+        return JSONResponse({"detail": "the upload must declare its length"}, status_code=411)
     if declared > MAX_BYTES + FORM_SLACK:
         return JSONResponse({"detail": f"at most {MAX_BYTES // (1024 * 1024)} MB"}, status_code=413)
     client = request.client.host if request.client else "?"

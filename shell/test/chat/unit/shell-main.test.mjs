@@ -114,6 +114,17 @@ export default (test) => {
     const failed = { sig: first.fetchSig, keys: {}, retryAt: 60_000 };
     assert.equal(FS.applyPluginKeys(keyed, 'pw', failed, 1000).fetchSig, null);
     assert.ok(FS.applyPluginKeys(keyed, 'pw', failed, 60_000).fetchSig);
+    // Release critic R3: a plugin restart mints a new key; its new keyId is a new fetch.
+    const restarted = { ...keyed, extract: { url: 'http://h:8888', key: null, keyId: 'aa11bb22' } };
+    assert.ok(FS.applyPluginKeys(restarted, 'pw', hit, 1000).fetchSig, 'a changed keyId refetches');
+    // Release critic R2: while that fetch is out, the loader OWUI already has for the same URL stays,
+    // so a pending fetch never changes the launch env.
+    const pending = FS.farmContext({ ...keyed, _host: 'h', proxyPort: 4000, models: [] }, 'pw');
+    assert.equal(pending.extract, null);
+    const known = { url: 'http://h:8888', key: 'ek' };
+    assert.deepEqual(FS.keepPendingExtract(pending, keyed, known).extract, known);
+    assert.equal(FS.keepPendingExtract(pending, keyed, { url: 'http://other:8888', key: 'x' }).extract, null, 'another address: not kept');
+    assert.equal(FS.keepPendingExtract(pending, { ...keyed, requiresKey: false }, known).extract, null, 'an open farm: nothing pending');
     // The farm context then carries the fetched OCR key to OWUI.
     const ctx = FS.farmContext({ ...done.farm, _host: 'h', proxyPort: 4000, models: [] }, 'pw');
     assert.deepEqual(ctx.extract, { url: 'http://h:8888', key: 'ek' });

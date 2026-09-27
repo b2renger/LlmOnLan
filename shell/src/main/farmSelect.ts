@@ -139,15 +139,23 @@ export interface PluginKeyEntry { sig: string; keys: Record<string, string | nul
 /** The farm with its plugin keys filled in from `hit`, and `fetchSig` when they must be fetched
  * (first time, the password or a plugin URL changed, or a failed fetch is due for a retry). */
 export function applyPluginKeys<T extends { requiresKey?: boolean }>(f: T, key: string | null, hit: PluginKeyEntry | undefined, now: number): { farm: T; fetchSig: string | null } {
-    const plugins = f as unknown as Record<string, { url?: string; key?: string | null } | null | undefined>;
+    const plugins = f as unknown as Record<string, { url?: string; key?: string | null; keyId?: string } | null | undefined>;
     if (!f.requiresKey || !key) return { farm: f, fetchSig: null };
     const need = PLUGIN_KEYS.filter((k) => plugins[k] && plugins[k]!.url && !plugins[k]!.key);
     if (!need.length) return { farm: f, fetchSig: null };
-    const sig = JSON.stringify([key, ...PLUGIN_KEYS.map((k) => plugins[k]?.url || null)]);
+    const sig = JSON.stringify([key, ...PLUGIN_KEYS.map((k) => [plugins[k]?.url || null, plugins[k]?.keyId || null])]);
     const fresh = !!hit && hit.sig === sig;
     const due = !fresh || (!Object.keys(hit!.keys).length && now >= hit!.retryAt);
     if (!fresh) return { farm: f, fetchSig: sig };
     const out = { ...f } as unknown as Record<string, unknown>;
     for (const k of need) if (hit!.keys[k]) out[k] = { ...plugins[k], key: hit!.keys[k] };
     return { farm: out as unknown as T, fetchSig: due ? sig : null };
+}
+
+/** While a keyed farm's plugin keys are still being fetched, keep the OCR loader Open WebUI already
+ * has for the SAME address: a pending fetch must not change the launch env, or a cold launch boots
+ * Open WebUI three times (release critic R2). */
+export function keepPendingExtract<T extends { requiresKey?: boolean; extract?: { url?: string } | null }>(next: FarmContext, farm: T, known: FarmContext['extract']): FarmContext {
+    if (next.extract || !farm.requiresKey || !farm.extract || !farm.extract.url || !known || known.url !== farm.extract.url) return next;
+    return { ...next, extract: known };
 }

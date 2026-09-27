@@ -1937,6 +1937,9 @@ test('plugin keys are tied to the farm password: off the beacon when one is set,
     const keyed = defaultConfig(); keyed.classify.enabled = true; keyed.stt.enabled = true; keyed.proxy.masterKey = 'pw';
     const snapKeyed = buildSnapshot(keyed, health);
     assert.deepEqual([snapKeyed.extract.key, snapKeyed.classify.key, snapKeyed.stt.key], [null, null, null], 'a password: no key in clear');
+    assert.match(snapKeyed.classify.keyId, /^[0-9a-f]{8}$/, 'a short non-secret id, so a client sees a new key');
+    assert.notEqual(buildSnapshot(keyed, { ...health, classifyKey: 'ck2' }).classify.keyId, snapKeyed.classify.keyId, 'a plugin restart changes it');
+    assert.equal(snapOpen.classify.keyId, undefined, 'an open farm has the key itself');
     assert.ok(snapKeyed.extract.url && snapKeyed.classify.url && snapKeyed.stt.url, 'the services are still advertised');
     assert.ok(!JSON.stringify(snapKeyed).includes('"ek"'), 'nowhere in the snapshot');
 

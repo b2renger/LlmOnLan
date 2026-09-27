@@ -51,6 +51,22 @@ export function requestFor(s, value) {
   return r;
 }
 
+/**
+ * PURE: what is sent for what arrived. Text that IS a number, a list or an object (a Text box holding
+ * `0.75` or `[255, 128, 0]`) is sent as that value: an OSC float, DMX levels. Anything else goes as it
+ * came (release critic R5: typed levels used to go out as a string, and DMX read them as a blackout).
+ * @param {any} plain @returns {any}
+ */
+export function sendValue(plain) {
+  if (typeof plain !== 'string') return plain;
+  const s = plain.trim();
+  if (!/^(-?\d|\[|\{)/.test(s)) return plain;
+  try {
+    const v = JSON.parse(s);
+    return typeof v === 'number' || (v && typeof v === 'object') ? v : plain;
+  } catch { return plain; }
+}
+
 /** Every target the Send boxes of `doc` name, for the arming question. @param {any} doc @returns {string[]} */
 export function targetsIn(doc) {
   const out = [];
@@ -59,7 +75,11 @@ export function targetsIn(doc) {
     const r = requestFor(p.settings || {}, null);
     const where = r.url || `${r.host}:${r.port}${r.address ? ' ' + r.address : ''}${r.topic ? ' ' + r.topic : ''}${r.transport === 'artnet' ? ' universe ' + r.universe : ''}`;
     const name = t(/** @type {any} */ (TRANSPORT_KEY)[r.transport]);
-    out.push(`${name} → ${where}`);
+    // A target on this very computer is said so: arming a shared graph must not hide a POST to a local service.
+    let host = String(r.host || '');
+    if (r.url) { try { host = new URL(r.url).hostname; } catch { host = ''; } }
+    const local = /^(127\.|localhost$|\[?::1\]?$|0\.0\.0\.0$)/i.test(host);
+    out.push(`${name} → ${where}${local ? ` (${t('parts.sendThisComputer')})` : ''}`);
   }
   return out;
 }
@@ -129,7 +149,7 @@ export const sendPart = /** @type {any} */ ({
     if (!arrived) throw partFail(t('parts.sendEmpty'), 'empty');
     const door = outputsDoor();
     if (!door) throw partFail(t('parts.sendNoDoor'), 'part');
-    const r = await door.send(requestFor(input.part.settings || {}, toPlain(arrived)));
+    const r = await door.send(requestFor(input.part.settings || {}, sendValue(toPlain(arrived))));
     if (!r || r.ok !== true) {
       notes.delete(id);
       const code = r && Object.prototype.hasOwnProperty.call(ERR_KEY, r.code) ? r.code : 'E_SEND';

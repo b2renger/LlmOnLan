@@ -29,7 +29,7 @@ import {
 import { ShellSettings, DiscoveredFarm, ScanRange, McpoState } from './types';
 import {
     farmEndpoint, chooseActive as pickActive, farmContext, sameContext, persistedContext, FarmContext,
-    applyPluginKeys, PluginKeyEntry,
+    applyPluginKeys, PluginKeyEntry, keepPendingExtract,
 } from './farmSelect';
 
 app.setName('LlmOnLan');
@@ -344,7 +344,7 @@ function currentContext(): FarmContext | null {
 function connectTo(chosen: DiscoveredFarm): void {
     setActiveFarm(chosen.id);
     const key = farmKey(chosen as { id: string; requiresKey?: boolean });
-    const next = farmContext(withPluginKeys(chosen, key), key);
+    const next = keepPendingExtract(farmContext(withPluginKeys(chosen, key), key), chosen, currentExtract);
     if (sameContext(next, currentContext())) return;
     currentEndpoint = next.endpoint;
     currentKey = next.key;
@@ -462,7 +462,13 @@ function createWindow(): void {
     win.loadFile(path.join(app.getAppPath(), 'renderer', 'index.html'));
     win.webContents.on('did-finish-load', pushSidecarState);
     // Ecosystem plan v2 §3.5: nothing stays armed across a (re)load — outputs start as a dry run.
-    win.webContents.on('did-start-loading', () => { armOutputs(false); });
+    // Disarm on a real reload of the window only: `did-start-loading` also fires for every iframe
+    // (the sandbox, a Live guest), which disarmed a graph mid-run while the bar still said LIVE
+    // (release critic R1). A crashed renderer disarms too.
+    win.webContents.on('did-start-navigation', (d: { isMainFrame?: boolean; isSameDocument?: boolean }) => {
+        if (d && d.isMainFrame && !d.isSameDocument) armOutputs(false);
+    });
+    win.webContents.on('render-process-gone', () => { armOutputs(false); });
 
     // ---- LOL Studio (S0) ---- (navigation veto; mirrored in shell/test/chat-harness/main.cjs)
     // The sandbox runner (S2) is a SUBFRAME: it may load itself once and must never navigate
@@ -895,7 +901,8 @@ function registerIpc(): void {
         if (!initial) initial = await waitForFirstFarm(4500);
         currentEndpoint = initial;
         const activeNow = discovery?.getFarms().find((f) => f.id === activeFarmId) ?? null;
-        const seed = activeNow ? farmContext(activeNow, farmKey(activeNow as { id: string; requiresKey?: boolean })) : null;
+        const seedKey = activeNow ? farmKey(activeNow as { id: string; requiresKey?: boolean }) : null;
+        const seed = activeNow ? keepPendingExtract(farmContext(withPluginKeys(activeNow, seedKey), seedKey), activeNow, loadSettings().lastFarmExtract) : null;
         currentModel = seed ? seed.model : null;
         currentSearxng = seed ? seed.searxng : null;
         currentTts = seed ? seed.tts : null;
@@ -1049,7 +1056,8 @@ app.whenReady().then(async () => {
     // context, an unchanged farm confirms what we booted with and OWUI starts ONCE;
     // a genuinely changed farm still repoints exactly as before.
     const activeNow = discovery?.getFarms().find((f) => f.id === activeFarmId) ?? null;
-    const seed = activeNow ? farmContext(activeNow, farmKey(activeNow as { id: string; requiresKey?: boolean })) : null;
+    const seedKey = activeNow ? farmKey(activeNow as { id: string; requiresKey?: boolean }) : null;
+    const seed = activeNow ? keepPendingExtract(farmContext(withPluginKeys(activeNow, seedKey), seedKey), activeNow, settings.lastFarmExtract) : null;
     currentModel = seed ? seed.model : settings.lastFarmModel;
     currentSearxng = seed ? seed.searxng : settings.lastFarmSearxng;
     currentTts = seed ? seed.tts : settings.lastFarmTts;
@@ -1107,7 +1115,8 @@ app.on('before-quit', async (e) => {
     // outside, from the app refusing to quit. Try to stop cleanly, but exit
     // either way: a lingering background process is the exact thing the owner
     // asked to be rid of (2026-09-10).
-    const cleanup = Promise.allSettled([sidecar.stop(), mcpo.stop()]);
+    // Lights a graph turned on go dark when the app quits (release critic: Panic on the way out).
+    const cleanup = Promise.allSettled([sidecar.stop(), mcpo.stop(), panicOutputs()]);
     const deadline = new Promise((r) => setTimeout(r, 4000));
     await Promise.race([cleanup, deadline]);
     app.exit(0);

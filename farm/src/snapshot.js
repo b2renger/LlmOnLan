@@ -161,6 +161,9 @@ function buildSnapshot(config, health = {}) {
     // Plugin keys are tied to the farm password (owner, 2026-09-27): with one set, the keys leave the
     // beacon and a client that knows the password fetches them from /lol/plugin-keys.
     const keyed = !!(config.proxy && config.proxy.masterKey);
+    // With the key hidden, a short non-secret id of it (the start of its sha256) tells a client when a
+    // plugin restarted with a new key, so it fetches again (release critic R3).
+    const plug = (url, key) => (keyed ? { url, key: null, keyId: require('crypto').createHash('sha256').update(String(key)).digest('hex').slice(0, 8) } : { url, key });
     // Advertise what clients actually SEE on /v1/models — the SERVED names (per-
     // model alias / global modelAlias / raw id), derived from the same
     // servedEntries() that generates the LiteLLM routing, so advertising and
@@ -233,16 +236,16 @@ function buildSnapshot(config, health = {}) {
         // from `url` and the required key from `key` — scanned-doc + image OCR with
         // zero client setup. `url` is the loader BASE (OWUI appends /process itself).
         extract: (config.ocr?.enabled && health.extractUp && health.extractKey)
-            ? { url: `http://${svcHost}:${config.ocr.port}`, key: keyed ? null : health.extractKey }
+            ? plug(`http://${svcHost}:${config.ocr.port}`, health.extractKey)
             : null,
         // The Laya decision service for the Computer's Classify box (null when off/down).
         classify: (config.classify?.enabled && health.classifyUp && health.classifyKey)
-            ? { url: `http://${svcHost}:${config.classify.port}`, key: keyed ? null : health.classifyKey }
+            ? plug(`http://${svcHost}:${config.classify.port}`, health.classifyKey)
             : null,
         // Speech to text for the Computer's Sound box (null when off/down): POST {url}/v1/audio/transcriptions,
         // the OpenAI contract.
         stt: (config.stt?.enabled && health.sttUp && health.sttKey)
-            ? { url: `http://${svcHost}:${config.stt.port}`, key: keyed ? null : health.sttKey }
+            ? plug(`http://${svcHost}:${config.stt.port}`, health.sttKey)
             : null,
         // Farm-side plugin state (web search / voice / OCR): { id: {label, runsOn, enabled,
         // healthy} }. Bespoke fields above (searxngUrl/ttsUrl/extract) stay for back-compat;

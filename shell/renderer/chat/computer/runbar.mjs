@@ -381,6 +381,9 @@ export function install(app) {
   const panicBtn = button('comp-run-panic', t('computer.outputsPanic'), async () => {
     const door = outputsDoor();
     if (!door) return;
+    // Panic stops EVERYTHING: the outputs (main blacks out every universe a graph lit) and the run.
+    const live = runner();
+    if (live && typeof live.running === 'function' && live.running() && typeof live.stop === 'function') live.stop();
     const out = await door.panic();
     armed = false;
     paint();
@@ -559,7 +562,8 @@ export function install(app) {
     const hasSend = !!doc && Array.isArray(doc.parts) && doc.parts.some((/** @type {any} */ p) => p.type === 'send');
     if (armed && here !== armedFor) { armed = false; const door = outputsDoor(); if (door) void door.arm(false); }
     outBtn.hidden = !hasSend;
-    panicBtn.hidden = !hasSend || !armed;
+    // Panic stays with a Send box whether armed or not: disarming does not turn off the lights a run lit.
+    panicBtn.hidden = !hasSend;
     const outText = armed ? t('computer.outputsLive') : t('computer.outputsDry');
     if (outBtn.textContent !== outText) outBtn.textContent = outText;
     outBtn.title = armed ? t('computer.outputsLiveHint') : t('computer.outputsDryHint');
@@ -662,6 +666,9 @@ export function install(app) {
       // not there when the reader reached for it.
       if (!(r0.running && r0.running())) {
         adoptReport(report());
+        // The label never outlives the truth: main may have disarmed (a reload, a crash).
+        const door = outputsDoor();
+        if (armed && door) void Promise.resolve(door.armed()).then((v) => { if (armed !== !!v) { armed = !!v; paintNow(); } });
         paintNow();
         if (type === 'done') sayOutcome((ev && ev.report) || report());
       } else if (type === 'part' || type === 'item') paint();

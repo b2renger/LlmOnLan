@@ -77,8 +77,11 @@ big = json.dumps({"items": ["x" * (cs.MAX_BODY + 10)], "question": body["questio
 check("classify: a body over MAX_BODY -> 413", c.post("/classify", content=big, headers={**KEY, "Content-Type": "application/json"}).status_code == 413)
 check("classify: three items over a cap of two -> 413", c.post("/classify", json={**body, "items": ["1", "2", "3"]}, headers=KEY).status_code == 413)
 Router.calls = 0
-code = asyncio.run(asgi(cs.app, "/classify", {**KEY, "content-type": "application/json"}, json.dumps(body).encode(), True))
+raw = json.dumps(body).encode()
+code = asyncio.run(asgi(cs.app, "/classify", {**KEY, "content-type": "application/json", "content-length": str(len(raw))}, raw, True))
 check("classify: a client that left -> 499, no item predicted", code == 499 and Router.calls == 0)
+code = asyncio.run(asgi(cs.app, "/classify", {**KEY, "content-type": "application/json"}, raw, False))
+check("classify: a body that does not declare its length (chunked) -> 411, nothing read", code == 411 and Router.calls == 0)
 check("classify: nothing left counted as waiting or in flight", cs.waiting["n"] == 0 and not cs.per_client)
 
 
@@ -119,6 +122,9 @@ form = (b"--b\r\nContent-Disposition: form-data; name=\"file\"; filename=\"a.wav
 code = asyncio.run(asgi(ss.app, "/v1/audio/transcriptions", {**KEY, "content-type": "multipart/form-data; boundary=b",
                                                                "content-length": str(len(form))}, form, True))
 check("stt: a client that left -> 499, stopped well before the 20th segment", code == 499 and Whisper.yielded < 10)
+Whisper.yielded = 0
+code = asyncio.run(asgi(ss.app, "/v1/audio/transcriptions", {**KEY, "content-type": "multipart/form-data; boundary=b"}, form, False))
+check("stt: an upload that does not declare its length (chunked) -> 411, before any read", code == 411 and Whisper.yielded == 0)
 check("stt: nothing left counted as waiting or in flight", ss.waiting["n"] == 0 and not ss.per_client)
 
 print(f"{'FAILED ' + str(len(failures)) if failures else 'all passed'}")

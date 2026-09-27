@@ -6,8 +6,9 @@
 //   - a person-typed target only (the renderer passes the box's settings, never a wire's value);
 //   - never the farm's own ports (this machine IS allowed: OSC to TouchDesigner or Max on 127.0.0.1
 //     is the classic case, and a lighting node on a link-local address is normal);
-//   - a rate limit per target, and DMX capped at 3 frames a second (photosensitivity: nothing a
-//     graph sends may flash a light faster than 3 Hz);
+//   - a rate limit per target, and DMX frames capped at 3 a second PER UNIVERSE, whatever address
+//     they go to (photosensitivity). What this cannot cover, and the words say so: a fixture's own
+//     strobe channel, and lights driven over OSC, MQTT, WebSocket or HTTP (20 messages a second);
 //   - PANIC: disarm, then send every DMX universe used a blackout frame.
 // Transports use only Node's standard library: UDP (dgram) for OSC and Art-Net, TCP (net) for an
 // MQTT publish, the global WebSocket and fetch for WebSocket and HTTP POST.
@@ -196,14 +197,18 @@ export async function send(r: SendRequest, deps: SendDeps = {}): Promise<SendAns
     const summary = describe(r);
     if (!armed) return { ok: true, sent: false, summary };
     const min = r.transport === 'artnet' ? DMX_MIN_MS : MSG_MIN_MS;
-    const last = lastSent.get(t.key) || 0;
+    // DMX shares ONE budget per universe: a node's own address and a broadcast address reach the same
+    // lights, so they must not have a budget each (release critic R4).
+    const rateKey = r.transport === 'artnet' ? `artnet|${Number(r.universe)}` : t.key;
+    const last = lastSent.get(rateKey) || 0;
     if (now - last < min) return { ok: false, code: 'E_RATE', message: r.transport === 'artnet' ? 'DMX is capped at 3 frames a second' : 'too many messages to this target' };
-    lastSent.set(t.key, now);
+    lastSent.set(rateKey, now);
     try {
         if (r.transport === 'osc') await impl.udp(String(r.host), Number(r.port), encodeOsc(String(r.address), r.value));
         else if (r.transport === 'artnet') {
-            await impl.udp(String(r.host), Number(r.port), encodeArtDmx(Number(r.universe), dmxChannels(r.value)));
+            // Recorded BEFORE the frame leaves, so a Panic pressed while it is in flight still blacks it out.
             dmxTargets.set(t.key, { host: String(r.host), port: Number(r.port), universe: Number(r.universe) });
+            await impl.udp(String(r.host), Number(r.port), encodeArtDmx(Number(r.universe), dmxChannels(r.value)));
         } else if (r.transport === 'mqtt') await impl.mqtt(String(r.host), Number(r.port), String(r.topic), Buffer.from(asText(r.value), 'utf8'));
         else if (r.transport === 'ws') await impl.ws(String(r.url), asText(r.value));
         else await impl.http(String(r.url), asText(r.value));

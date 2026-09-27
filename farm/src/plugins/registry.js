@@ -167,6 +167,12 @@ class FarmService {
         if (exited) { this.up = false; return { ok: false, level: 'warn', message: `${this.label} exited during startup (port ${this.port(config)} already in use? see the [${this.desc.logPrefix}] log above). Continuing without it.` }; }
         this.up = !!res.ok;
         this.wasUp = this.up;
+        // Not ready (a model that failed to load, a timeout): stop it, so it gives back its port and RAM
+        // instead of idling until `lol down` (release critic).
+        if (!res.ok && this.child === child) {
+            this.child = null;
+            try { await killTree(child.pid); } catch { /* already gone */ }
+        }
         return res;
     }
 

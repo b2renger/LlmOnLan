@@ -19,7 +19,8 @@
 .chat-layer .chat-dialog-title { margin: 0; font-size: 14.5px; font-weight: 600; color: var(--text); }
 .chat-layer .chat-dialog-body { display: flex; flex-direction: column; gap: 10px; }
 .chat-layer .chat-dialog-body:empty { display: none; }
-.chat-layer .chat-dialog-text { margin: 0; font-size: 13px; line-height: 1.5; color: var(--muted); }
+.chat-layer .chat-dialog-text { margin: 0; font-size: 13px; line-height: 1.5; color: var(--muted);   white-space: pre-line;   /* a list in a question (the arming targets) keeps its lines */
+}
 .chat-layer .chat-dialog-input {
   width: 100%; background: var(--surface-2); color: var(--text);
   border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px;

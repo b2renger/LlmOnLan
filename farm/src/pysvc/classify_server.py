@@ -114,6 +114,10 @@ async def classify(request: Request):
         declared = int(request.headers.get("content-length") or 0)
     except ValueError:
         declared = 0
+    if declared <= 0:
+        # A body that does not say its size (chunked) is refused before a byte is read: the size checks
+        # below would otherwise only run after the whole body sat in memory.
+        return JSONResponse({"detail": "the body must declare its length"}, status_code=411)
     if declared > MAX_BODY:
         return JSONResponse({"detail": "the body is too big"}, status_code=413)
     try:
