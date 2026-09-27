@@ -96,14 +96,14 @@ export default [
             await h.computer.place('note', 40, 40);
             await h.computer.place('note', 2600, 1600);
             await frame(h);
-            await h.input.click('#lolcomputer .comp-run-zoom');
+            await h.input.click('#lolcomputer .graph-zoom-wrap .graph-zoom');
             await h.waitFor((sel) => {
                 const m = /** @type {any} */ (document.querySelector(sel));
                 return m && !m.hidden ? true : null;
             }, { args: [ZOOM_MENU] });
             const seen = await h.eval((sel) => {
                 const m = /** @type {any} */ (document.querySelector(sel));
-                const chip = document.querySelector('#lolcomputer .comp-run-zoom').getBoundingClientRect();
+                const chip = document.querySelector('#lolcomputer .graph-zoom-wrap .graph-zoom').getBoundingClientRect();
                 const rec = document.querySelector('#lolcomputer .comp-rec');
                 const r = m.getBoundingClientRect();
                 const first = /** @type {any} */ (m.querySelector('.graph-zoom-item'));

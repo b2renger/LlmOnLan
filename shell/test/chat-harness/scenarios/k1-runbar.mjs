@@ -65,7 +65,6 @@ const bar = (/** @type {any} */ h) => h.eval(() => {
         gens: text('.comp-run-gens'),
         cap: text('.comp-run-cap'),
         capAmber: (pick('.comp-run-cap') || {}).dataset ? pick('.comp-run-cap').dataset.amber : null,
-        zoom: text('.comp-run-zoom'),
         help: !!pick('.comp-run-help'),
         status: text('.comp-run-status'),
     };

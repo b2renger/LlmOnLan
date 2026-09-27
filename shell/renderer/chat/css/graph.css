@@ -962,13 +962,31 @@
 :is(#lolchat, #lolcomputer) .graph-canvas.graph-grabbing,
 :is(#lolchat, #lolcomputer) .graph-canvas.graph-grabbing * { cursor: grabbing; }
 
-/* The zoom cluster: − 100% + at the right end of the toolbar; the % opens the menu. */
+/* The key a tool answers to, shown on the button (owner, 2026-09-27). */
+:is(#lolchat, #lolcomputer) .graph-tool-key {
+  font: inherit;
+  font-size: 10px;
+  line-height: 1;
+  padding: 1px 4px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--muted);
+  background: var(--surface);
+}
+
+/* The zoom cluster, next to the tools and styled as their sibling: − 100% + Fit; the % opens the menu. */
 :is(#lolchat, #lolcomputer) .graph-zoom-wrap {
   position: relative;
   display: inline-flex;
   align-items: center;
   gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-2);
 }
+:is(#lolchat, #lolcomputer) .graph-zoom-wrap > .graph-btn { border-color: transparent; background: transparent; }
+:is(#lolchat, #lolcomputer) .graph-zoom-wrap > .graph-btn:hover { background: var(--surface); }
 :is(#lolchat, #lolcomputer) .graph-zoom-wrap .graph-btn { padding: 4px 8px; }
 :is(#lolchat, #lolcomputer) .graph-zoom {
   margin-left: 0;

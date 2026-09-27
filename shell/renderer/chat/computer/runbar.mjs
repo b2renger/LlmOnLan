@@ -320,14 +320,8 @@ export function install(app) {
   waitsBtn.hidden = true;
   counts.appendChild(waitsBtn);
 
-  // The chip shows the live zoom and opens the canvas's zoom menu (fit, selection, 100 %), so the
-  // bar and the toolbar are one control; on a canvas without the menu it still fits.
-  const zoomBtn = button('comp-run-zoom', t('computer.runZoom', { percent: 100 }), () => {
-    const c = /** @type {any} */ (canvas());
-    if (c && typeof c.openZoomMenu === 'function') c.openZoomMenu(zoomBtn);
-    else if (c && typeof c.fit === 'function') c.fit();
-    paint();
-  });
+  // No zoom chip here any more (owner, 2026-09-27): it duplicated the canvas toolbar's `− 100% +`,
+  // which now sits next to the Select/Hand tools — ONE zoom control, where the other view tools are.
 
   const helpBtn = document.createElement('button');
   helpBtn.type = 'button';
@@ -358,7 +352,7 @@ export function install(app) {
 
   // Order matters: the status line reads left-to-right after the counts it explains, and the zoom
   // readout carries `margin-left:auto`, so everything after it is pinned to the right edge.
-  root.replaceChildren(runBtn, stopBtn, counts, status, againBtn, zoomBtn, helpBtn);
+  root.replaceChildren(runBtn, stopBtn, counts, status, againBtn, helpBtn);
   // The frozen probe `h.computer.states().runbar` reads `#lolcomputer .comp-run` (KC-4), and the
   // element the layout hands us is `.comp-runbar`. One class, so the harness reads the real bar
   // rather than an empty string that would pass every assertion by accident.
@@ -534,11 +528,6 @@ export function install(app) {
     const amber = meter.amber ? 'true' : 'false';
     if (capChip.dataset.amber !== amber) capChip.dataset.amber = amber;
 
-    const c = canvas();
-    const view = c && typeof c.view === 'function' ? c.view() : null;
-    const percent = Math.round((view && Number(view.zoom) ? view.zoom : 1) * 100);
-    const zoomText = t('computer.runZoom', { percent });
-    if (zoomBtn.textContent !== zoomText) zoomBtn.textContent = zoomText;
 
     helpBtn.disabled = !(/** @type {any} */ (app).tutorial);
   }

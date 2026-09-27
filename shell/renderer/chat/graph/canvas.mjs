@@ -561,18 +561,21 @@ export function createCanvas(o) {
   const toolsWrap = el('div', 'graph-tools');
   toolsWrap.setAttribute('role', 'group');
   toolsWrap.setAttribute('aria-label', t('graph.toolsLabel'));
-  /** @param {string} name @param {string[]} glyph @param {string} label @param {string} hint */
-  const toolBtn = (name, glyph, label, hint) => {
+  // Each tool shows its key (owner, 2026-09-27): V and H were only in a tooltip, so nobody found
+  // them. `aria-keyshortcuts` says the same to a screen reader.
+  /** @param {string} name @param {string[]} glyph @param {string} label @param {string} hint @param {string} key */
+  const toolBtn = (name, glyph, label, hint, key) => {
     const b = button(`graph-btn graph-tool graph-tool-${name}`, '');
     b.dataset.tool = name;
     b.title = hint;
     b.setAttribute('aria-pressed', name === 'select' ? 'true' : 'false');
-    b.append(icon(glyph), el('span', 'graph-tool-label', label));
+    b.setAttribute('aria-keyshortcuts', key);
+    b.append(icon(glyph), el('span', 'graph-tool-label', label), el('kbd', 'graph-tool-key', key));
     b.addEventListener('click', () => { setTool(name); });
     return b;
   };
-  const selectToolBtn = toolBtn('select', ICON_POINTER, t('graph.toolSelect'), t('graph.toolSelectHint'));
-  const handToolBtn = toolBtn('hand', ICON_HAND, t('graph.toolHand'), t('graph.toolHandHint'));
+  const selectToolBtn = toolBtn('select', ICON_POINTER, t('graph.toolSelect'), t('graph.toolSelectHint'), t('graph.toolSelectKey'));
+  const handToolBtn = toolBtn('hand', ICON_HAND, t('graph.toolHand'), t('graph.toolHandHint'), t('graph.toolHandKey'));
   toolsWrap.append(selectToolBtn, handToolBtn);
 
   // ---- C3-U3: tidy and the sharing story -------------------------------------------------------
@@ -628,9 +631,13 @@ export function createCanvas(o) {
   capInput.title = t('graph.capHint');
   capInput.value = String(DEFAULT_MAX_ITEMS);
   capField.appendChild(capInput);
+  // Owner, 2026-09-27: the view controls live TOGETHER — the two tools, then the zoom cluster with
+  // Fit at its end — instead of the zoom at the far right and Fit among the edit buttons. The run
+  // bar's own zoom chip is gone: one zoom control, next to the tools.
+  zoomWrap.insertBefore(fitBtn, zoomMenu);
   toolbar.append(
-    runBtn, stopBtn, addWrap, toolsWrap, undoBtn, redoBtn, fitBtn, tidyBtn, exportWrap, importBtn,
-    capField, zoomWrap,
+    runBtn, stopBtn, addWrap, toolsWrap, zoomWrap, undoBtn, redoBtn, tidyBtn, exportWrap, importBtn,
+    capField,
   );
 
   /** What the raise button should ask for: twice the cap the LAST run stopped at, or — when an
@@ -1102,7 +1109,8 @@ export function createCanvas(o) {
     return { ...view };
   }
 
-  /** Open the zoom menu — under the % button, or under `anchor` (the run bar's zoom chip).
+  /** Open the zoom menu — under the % button, or under `anchor` (a control outside the canvas root;
+   * the run bar's zoom chip used it until 2026-09-27, when the one zoom control moved next to the tools).
    * Critic R2, N2: the chip sits ABOVE the canvas root, so a menu placed inside the root and lifted
    * by its own height opened off the top of the window. It opens BELOW the chip now, in window
    * coordinates (position: fixed), right-aligned to the chip and kept inside the window.
@@ -2841,6 +2849,33 @@ export function createCanvas(o) {
    * the library into the canvas counts. */
   let focusByTab = false;
   function onWindowPointerDown() { focusByTab = false; }
+  /**
+   * The tool and zoom keys from ANYWHERE on the Computer (owner, 2026-09-27: "shortcuts to switch
+   * between hand and edit"). `onKeyDown` only hears keys while the focus is inside the canvas, so
+   * after a click on the run bar, the library or a drawer button, H and V did nothing. This hears
+   * them outside the canvas too — and ONLY them: nothing that edits the graph (Delete, arrows,
+   * copy/paste) ever acts from outside, so a Delete in the library can never remove a box. Quiet
+   * while typing, inside a dialog or menu, and when the Computer is not the surface on screen.
+   * @param {any} ev
+   */
+  function onSurfaceKeyDown(ev) {
+    if (!ev || ev.defaultPrevented || ev.repeat || !hasDoc()) return;
+    const target = ev.target;
+    if (target && root.contains(target)) return;               // onKeyDown already had it
+    if (!root.getClientRects().length) return;                 // the Computer is not shown
+    if (isTyping(target)) return;
+    if (target && typeof target.closest === 'function'
+      && target.closest('dialog, [role="dialog"], [role="menu"], [role="listbox"], .chat-popover')) return;
+    const mod = ev.ctrlKey || ev.metaKey;
+    if (!mod && !ev.altKey && !ev.shiftKey && (ev.key === 'h' || ev.key === 'H')) { ev.preventDefault(); setTool('hand'); return; }
+    if (!mod && !ev.altKey && !ev.shiftKey && (ev.key === 'v' || ev.key === 'V')) { ev.preventDefault(); setTool('select'); return; }
+    if (mod && !ev.altKey && (ev.key === '=' || ev.key === '+')) { ev.preventDefault(); zoomBy(1); return; }
+    if (mod && !ev.altKey && (ev.key === '-' || ev.key === '_')) { ev.preventDefault(); zoomBy(-1); return; }
+    if (isZoomResetKey(ev)) { ev.preventDefault(); zoomTo(1); return; }
+    if (!mod && ev.shiftKey && ev.code === 'Digit1') { ev.preventDefault(); fit(); return; }
+    if (!mod && ev.shiftKey && ev.code === 'Digit2') { ev.preventDefault(); zoomToSelection(); }
+  }
+
   function onWindowKeyDown(/** @type {any} */ ev) { focusByTab = !!ev && ev.key === 'Tab'; }
   function onWindowTabUp() { focusByTab = false; }
 
@@ -3178,6 +3213,7 @@ export function createCanvas(o) {
   document.addEventListener('copy', onCopy);
   document.addEventListener('beforepaste', onBeforePaste);
   document.addEventListener('paste', onPaste);
+  document.addEventListener('keydown', onSurfaceKeyDown);
   root.addEventListener('pointerdown', onRootPointerDown, true);
   window.addEventListener('keyup', onWindowKeyUp, true);
   window.addEventListener('blur', onWindowBlur);
@@ -3260,7 +3296,7 @@ export function createCanvas(o) {
     zoomOut: () => zoomBy(-1),
     zoomTo,
     zoomToSelection,
-    /** The zoom menu: under the % button, or next to `anchor` (the run bar's zoom chip). */
+    /** The zoom menu: under the % button, or next to `anchor` (a control outside the canvas root). */
     openZoomMenu,
     closeZoomMenu,
     zoomMenuOpen: () => !zoomMenu.hidden,
@@ -3346,6 +3382,7 @@ export function createCanvas(o) {
       document.removeEventListener('copy', onCopy);
       document.removeEventListener('beforepaste', onBeforePaste);
       document.removeEventListener('paste', onPaste);
+      document.removeEventListener('keydown', onSurfaceKeyDown);
       root.removeEventListener('pointerdown', onRootPointerDown, true);
       window.removeEventListener('keyup', onWindowKeyUp, true);
       window.removeEventListener('blur', onWindowBlur);

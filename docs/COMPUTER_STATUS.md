@@ -92,6 +92,9 @@ Your list, and where each fix is:
    - a scroll over a long answer scrolls the answer, not the canvas;
    - pan also with Space-drag, the middle button, or the **Hand** tool (H), next to **Select** (V);
    - the **% button** has Zoom to fit (⇧1), Zoom to selection (⇧2) and 100 % (Ctrl+0);
+   - (2026-09-27) the view tools sit together on the canvas toolbar — Select (V) · Hand (H) ·
+     − 100 % + Fit — and the run bar's duplicate zoom chip is gone. V, H and the zoom keys answer
+     from anywhere on the Computer (the run bar, the library), never while typing (`k12-view-tools`);
    - **right-click** a box or a wire for its menu.
 5. **Unplug a wire:** drag its end off the input and let go on empty canvas, or hover the wire and
    press the **✕** on its label. Drop the end on another input to re-plug it. Ctrl+Z brings it

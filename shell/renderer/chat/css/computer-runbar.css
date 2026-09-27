@@ -8,7 +8,6 @@
    never offers two ways to think about a run that is already going. */
 #lolcomputer .comp-run-all,
 #lolcomputer .comp-run-stop,
-#lolcomputer .comp-run-zoom,
 #lolcomputer .comp-run-help {
   appearance: none;
   font: inherit;
@@ -39,7 +38,6 @@
 
 #lolcomputer .comp-run-all:focus-visible,
 #lolcomputer .comp-run-stop:focus-visible,
-#lolcomputer .comp-run-zoom:focus-visible,
 #lolcomputer .comp-run-help:focus-visible { outline: 2px solid var(--accent-hover); outline-offset: 1px; }
 
 /* ---- the counts ------------------------------------------------------------------------------
@@ -74,16 +72,9 @@
   color: var(--text);
 }
 
-/* ---- zoom and the `?` ------------------------------------------------------------------------ */
-#lolcomputer .comp-run-zoom {
-  margin-left: auto;
-  color: var(--muted);
-  font-variant-numeric: tabular-nums;
-  min-width: 56px;
-  text-align: center;
-}
-
+/* ---- the `?` ------------------------------------------------------------------------------ */
 #lolcomputer .comp-run-help {
+  margin-left: auto;             /* pins ? and the Record switch right (the zoom chip that did is gone) */
   width: 26px;
   padding: 6px 0;
   border-radius: 999px;

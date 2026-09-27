@@ -351,8 +351,8 @@ offers **Reveal in Explorer**. Running again overwrites the same file.
 
 | To… | Do this |
 |---|---|
-| Move around | Two-finger scroll or the mouse wheel; Space-drag; the middle button; or the **Hand** tool (**H**). **V** goes back to **Select**. |
-| Zoom | Pinch, or Ctrl+wheel. **+ / −** and **Ctrl+= / Ctrl+−**. The zoom % button: *Zoom to fit* (**F** or **Shift+1**), *Zoom to selection* (**Shift+2**), *100 %* (**Ctrl+0**). |
+| Move around | Two-finger scroll or the mouse wheel; Space-drag; the middle button; or the **Hand** tool (**H**). **V** goes back to **Select**. Both buttons sit at the left of the canvas toolbar, with their key on them. |
+| Zoom | Pinch, or Ctrl+wheel. **+ / −** (right after the Select/Hand tools) and **Ctrl+= / Ctrl+−**. The zoom % button between them: *Zoom to fit* (**F** or **Shift+1**), *Zoom to selection* (**Shift+2**), *100 %* (**Ctrl+0**). |
 | Select | Click a box; Shift- or Ctrl-click to add; drag on empty canvas for a selection box; **Ctrl+A** for all. **Tab** goes from box to box, and the view follows. |
 | Move / resize | Drag a box by its title bar, or **arrow keys** (10 px; **Shift** 1 px). Resize from the bottom-right corner, or **Alt+Shift+arrows**. |
 | Copy, paste, duplicate | **Ctrl+C / Ctrl+V** (a paste lands at the pointer), **Ctrl+D**. Words pasted onto the canvas become a Text box; a picture becomes an Image box. |
@@ -361,6 +361,8 @@ offers **Reveal in Explorer**. Running again overwrites the same file.
 | Every action, with the mouse | Right-click a box (**Edit, Duplicate, Copy box, Zoom to this box, Delete**) or a wire (**Name this arrow, Unplug**). |
 | Edit a box's code in the drawer | **Edit code** on the box. **Ctrl+Enter** runs it, **Tab** indents, **Esc** closes the editor. |
 | Leave a field | **Esc**. Pressed again it closes a menu, then the drawer, then stops a run, then clears the selection. |
+
+The view keys — **V**, **H**, and the zoom keys — work anywhere on the Computer, even after you have clicked the run bar or the library. They never fire while you type in a field. The keys that change boxes (Delete, Ctrl+C, arrows) only act when the canvas has the focus.
 
 ---
 

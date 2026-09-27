@@ -58,7 +58,6 @@ registerStrings('computer', {
   runPartsOne: '1 part',
   runGenerations: '{n} generations',
   runGenerationsOne: '1 generation',
-  runZoom: '{percent}%',
   runHelp: 'What is this?',
   runNothing: 'Nothing to run — every box is up to date.',
 

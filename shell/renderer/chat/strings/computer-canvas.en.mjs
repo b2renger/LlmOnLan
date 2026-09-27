@@ -28,6 +28,9 @@ registerStrings('graph', {
   toolSelectHint: 'Select and move boxes (V). Drag on empty canvas to draw a selection box.',
   toolHand: 'Hand',
   toolHandHint: 'Drag to move around the canvas (H). Hold Shift to draw a selection box instead.',
+  // The key each tool shows on its button (owner, 2026-09-27) — they work anywhere on the Computer.
+  toolSelectKey: 'V',
+  toolHandKey: 'H',
   saidToolHand: 'Hand tool: drag to move around',
   saidToolSelect: 'Select tool',
 
