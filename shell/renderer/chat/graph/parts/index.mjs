@@ -63,6 +63,8 @@ import { title } from './title.mjs';
 // wholesale, never this catalogue. They sit in "bring in", right after Image.
 import { documentPart } from './document.mjs';
 import { audioPart } from './audio.mjs';
+// Ecosystem plan v2 §4.2: the way in for web data (one GET, checked in main).
+import { fetchPart } from './fetch.mjs';
 // K5 kickoff (addendum KE-2): the ＋ menu is GROUPED, every row says what it does, and it offers
 // PRESETS — a part type plus the settings that make it a named box ("p5.js sketch" is a Preview in
 // p5 mode with starter code). The groups, the glyphs and the plain parts' one-liners are catalogue
@@ -93,7 +95,7 @@ const LEGACY = [fromThread, toThread, render];
  * @returns {PartSpec[]} */
 export function partSpecs() {
   return [textPart, instruction, splitPart, repeat, filter, code, collect, preview, file, image,
-    documentPart, audioPart,
+    documentPart, audioPart, fetchPart,
     button, condition, confirm, dialog, toggle, timer,
     sticky, section, title];
 }
@@ -145,6 +147,7 @@ function partMeta() {
     image: { group: 'bring', order: 20, glyph: '▣', desc: t('palette.descImage') },
     document: { group: 'bring', order: 22, glyph: 'PDF', desc: t('palette.descDocument') },
     audio: { group: 'bring', order: 24, glyph: '♪', desc: t('palette.descAudio') },
+    fetch: { group: 'bring', order: 26, glyph: 'URL', desc: t('palette.descFetch') },
     file: { group: 'bring', order: 30, glyph: '⎘', desc: t('palette.descFile') },
     ask: { group: 'think', order: 100, glyph: '✦', desc: t('palette.descAsk') },
     split: { group: 'think', order: 300, glyph: '⋔', desc: t('palette.descSplit') },
@@ -177,7 +180,7 @@ function kwOf(type) {
 /** Each plain part's search-words key (strings/palette.en.mjs). */
 const KW = {
   note: 'palette.kwNote', image: 'palette.kwImage', file: 'palette.kwFile',
-  document: 'palette.kwDocument', audio: 'palette.kwAudio',
+  document: 'palette.kwDocument', audio: 'palette.kwAudio', fetch: 'palette.kwFetch',
   ask: 'palette.kwAsk', split: 'palette.kwSplit', filter: 'palette.kwFilter',
   collect: 'palette.kwCollect', repeat: 'palette.kwRepeat',
   preview: 'palette.kwPreview', code: 'palette.kwCode',

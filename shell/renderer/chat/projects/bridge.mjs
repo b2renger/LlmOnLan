@@ -87,6 +87,25 @@ export function debugLogDoor() {
   };
 }
 
+/**
+ * The Fetch box's door (ecosystem plan v2 §4.2): ONE capped GET, run and checked in the main process
+ * (src/main/io.ts: http(s) only, never this machine or link-local, never the farm's ports, ≤ 1 MB of
+ * text). Every answer is {ok:true, url, status, contentType, text, bytes} or {ok:false, code,
+ * message, status?}; on a shell without the `io` property this returns null, so the box can say why.
+ * @returns {null | {get(url: string): Promise<any>}}
+ */
+export function ioDoor() {
+  const api = preloadProp('io', ['get']);
+  if (!api) return null;
+  return {
+    get: (url) => Promise.resolve()
+      .then(() => api.get(url))
+      .then((r) => (r && typeof r === 'object' && (r.ok === true || typeof r.code === 'string')
+        ? r : { ok: false, code: 'E_NET', message: 'no answer from the main process' }),
+      (e) => ({ ok: false, code: 'E_NET', message: String(e && e.message ? e.message : e) })),
+  };
+}
+
 /** Whatever came back over IPC, shaped like an answer. @param {any} r */
 function normalise(r) {
   if (!r || typeof r !== 'object') return { ok: false, code: 'E_IO', message: t('projects.err_E_IO') };

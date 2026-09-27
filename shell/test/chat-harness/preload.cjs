@@ -25,4 +25,7 @@ for (const op of ['start', 'append', 'stop', 'mark', 'reveal', 'status']) debugL
 const api = { getBlenderConnection: () => ipcRenderer.invoke('harness:blender') };
 if (HAS_PROJECTS) api.projects = projects;
 if (HAS_DEBUGLOG) api.debugLog = debugLog;
+// Ecosystem plan v2 §4.2: the additive `io` property (the Fetch box), present only when main.cjs wired
+// the real io.js (build/main/io.js exists).
+if (process.argv.includes('--lol-io=1')) api.io = { get: (url) => ipcRenderer.invoke('lol:io:fetch', url) };
 contextBridge.exposeInMainWorld('lol', api);

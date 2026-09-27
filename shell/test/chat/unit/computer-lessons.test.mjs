@@ -124,12 +124,12 @@ const fenced = (lang, code) => `Here you go:\n\n\`\`\`${lang}\n${code}\n\`\`\`\n
 export default (test) => {
   // ---- the shelf ------------------------------------------------------------------------------
 
-  test('the shelf: the Tour then lessons 1–4 in order, each pointing at the next, and two templates', () => {
+  test('the shelf: the Tour then lessons 1–4 in order, each pointing at the next, and three templates', () => {
     assert.deepEqual(LESSONS.map((l) => l.id), ['l00-tour', ...MINE]);
     assert.deepEqual(LESSONS.map((l) => l.n), [0, 1, 2, 3, 4], 'n is the shelf number');
     for (let i = 0; i < LESSONS.length - 1; i++) assert.equal(LESSONS[i].next, LESSONS[i + 1].id, `${LESSONS[i].id} → next`);
     assert.equal(LESSONS[LESSONS.length - 1].next, undefined, 'the last lesson ends the shelf');
-    assert.deepEqual(TEMPLATES.map((x) => x.id), ['research-problematic', 'creative-coding']);
+    assert.deepEqual(TEMPLATES.map((x) => x.id), ['research-problematic', 'creative-coding', 'read-the-news']);
     for (const id of MINE) assert.equal(lessonById(id).id, id);
     assert.equal(templateById('creative-coding').title, 'Creative coding');
     assert.equal(templateById('nope'), null);
@@ -153,7 +153,7 @@ export default (test) => {
 
   test('strings about the shelf', () => {
     const note = t('lessons.shelfNote', { lessons: LESSONS.length, templates: TEMPLATES.length });
-    assert.ok(note.includes('5') && note.includes('2'), note);
+    assert.ok(note.includes(String(LESSONS.length)) && note.includes(String(TEMPLATES.length)), note);
     assert.equal(t('lessons.templateCost', { n: 8 }), 'about 8 generations');
     assert.ok(t('lessons.lessonsBlurb').length > 20 && t('lessons.templatesBlurb').length > 20);
   });

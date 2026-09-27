@@ -203,7 +203,7 @@ export default [
                     .map((el) => ({ id: el.getAttribute('data-template'), text: el.textContent, visible: !!(/** @type {any} */ (el).offsetParent) })),
             }));
             h.eq(shelf.lessons.map((/** @type {any} */ l) => l.id).join(','), 'l00-tour,l01-hello-farm,l02-wires,l03-labels,l04-draw', 'the Tour, then lessons 1–4, in order');
-            h.eq(shelf.templates.map((/** @type {any} */ x) => x.id).join(','), 'research-problematic,creative-coding', 'the two templates');
+            h.eq(shelf.templates.map((/** @type {any} */ x) => x.id).join(','), 'research-problematic,creative-coding,read-the-news', 'the three templates');
             for (const row of [...shelf.lessons, ...shelf.templates]) h.assert(row.visible, `${row.id} is on screen`);
             for (const [id, words] of [['l01-hello-farm', 'hello, farm'], ['l02-wires', 'wires carry values'], ['l03-labels', 'arrow labels are names'], ['l04-draw', 'make a picture']]) {
                 const row = shelf.lessons.find((/** @type {any} */ l) => l.id === id);

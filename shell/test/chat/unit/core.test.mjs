@@ -206,7 +206,7 @@ export default (test) => {
     // the right-click menu.
     // Critic R2 (N1) added 15: the compact box — a field on one row, 12 px inputs, hint lines
     // without browser margins, the legacy strip, the empty foot — and the Instruction's rows.
-    assert.equal(scoped.length, 182, `the graph.css re-scope is ${scoped.length} selectors, not 182`);
+    assert.equal(scoped.length, 186, `the graph.css re-scope is ${scoped.length} selectors, not 186`);
     const body = css.replace(/\/\*[\s\S]*?\*\//g, '');
     assert.equal((body.match(/#lolchat /g) || []).length, 0,
       'a `#lolchat ` selector survived the re-scope: that rule paints in the chat and nowhere else');

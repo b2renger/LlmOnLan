@@ -654,6 +654,21 @@
   tab-size: 2;
 }
 
+:is(#lolchat, #lolcomputer) .graph-fetch { display: flex; flex-direction: column; gap: 6px; }
+:is(#lolchat, #lolcomputer) .graph-fetch-url {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  padding: 6px 8px;
+}
+:is(#lolchat, #lolcomputer) .graph-fetch-status { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; min-height: 14px; }
+:is(#lolchat, #lolcomputer) .graph-fetch-status.offline { color: var(--amber); }
+
 :is(#lolchat, #lolcomputer) .graph-render { display: flex; flex-direction: column; gap: 6px; min-height: 0; flex: 1; }
 
 :is(#lolchat, #lolcomputer) .graph-render-tile {

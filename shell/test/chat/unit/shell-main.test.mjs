@@ -15,7 +15,7 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SHELL = path.join(HERE, '..', '..', '..');
 const BUILD = path.join(SHELL, 'build', 'main');
 const SRC = path.join(SHELL, 'src', 'main');
-const MODULES = ['farmSelect', 'discovery', 'configBridge', 'sidecar', 'sidecarManager', 'clientData', 'dataMigration', 'store'];
+const MODULES = ['farmSelect', 'discovery', 'configBridge', 'sidecar', 'sidecarManager', 'clientData', 'dataMigration', 'store', 'io'];
 
 /** @type {string[]} */
 const temps = [];
@@ -611,6 +611,63 @@ export default (test) => {
     assert.equal(plan2.dir, CD.clientDataDir(back));
     assert.equal(snapshot(plan2.dir)['Local Storage/leveldb/000003.log'], 'prefs: written while away');
     assert.equal(fs.existsSync(path.join(ud, 'lol-client')), false);
+  });
+
+  // ---------------------------------------------------------------- io.ts: the Fetch box's GET (ecosystem plan v2 §4.2)
+  test('io.checkUrl / blockedAddress: http(s) only, no credentials, never this machine, link-local or a farm port', () => {
+    const IO = require(path.join(BUILD, 'io.js'));
+    const code = (u, allow) => { const r = IO.checkUrl(u, allow); return r.ok ? 'ok' : r.code; };
+    assert.equal(code('https://hn.algolia.com/api/v1/search?tags=front_page'), 'ok');
+    assert.equal(code('http://192.168.1.40/data.json'), 'ok', 'a LAN device (an ESP32) is allowed');
+    assert.equal(code('file:///C:/secret.txt'), 'E_SCHEME');
+    assert.equal(code('ftp://example.org/x'), 'E_SCHEME');
+    assert.equal(code('not a url'), 'E_URL');
+    assert.equal(code('https://user:pw@example.org/'), 'E_CREDENTIALS');
+    assert.equal(code('http://localhost:9000/'), 'E_LOCAL');
+    assert.equal(code('http://127.0.0.5/'), 'E_LOCAL');
+    assert.equal(code('http://[::1]:8000/'), 'E_LOCAL');
+    assert.equal(code('http://169.254.169.254/latest/meta-data'), 'E_LOCAL', 'link-local (cloud metadata style) is refused');
+    assert.equal(code('http://10.10.16.58:4000/v1/models'), 'E_FARM', 'the farm proxy port');
+    assert.equal(code('http://10.10.16.58:41997/lol/admin'), 'E_FARM', 'the admin panel port');
+    assert.equal(code('http://127.0.0.1:5555/', true), 'ok', 'the harness may reach its own fixtures');
+    assert.equal(IO.blockedAddress('::ffff:127.0.0.1'), true, 'an IPv4-mapped loopback');
+    assert.equal(IO.blockedAddress('fe80::1'), true);
+    assert.equal(IO.blockedAddress('8.8.8.8'), false);
+    assert.equal(IO.isTextType('application/json; charset=utf-8'), true);
+    assert.equal(IO.isTextType('image/png'), false);
+  });
+
+  test('io.fetchText: DNS that answers loopback is refused; a redirect is re-checked; the cap holds; errors never throw', async () => {
+    const IO = require(path.join(BUILD, 'io.js'));
+    const ok = (body, headers = {}) => new Response(body, { status: 200, headers: { 'content-type': 'application/json', ...headers } });
+    const pub = async () => [{ address: '93.184.216.34' }];
+    // DNS rebinding-lite: a public name that resolves to this machine.
+    let r = await IO.fetchText('https://evil.example/', { lookup: async () => [{ address: '127.0.0.1' }], fetchImpl: async () => ok('{}') });
+    assert.deepEqual([r.ok, r.code], [false, 'E_LOCAL']);
+    // A redirect to a blocked address is refused on the second hop.
+    const redirect = new Response(null, { status: 302, headers: { location: 'http://127.0.0.1/x' } });
+    r = await IO.fetchText('https://a.example/', { lookup: pub, fetchImpl: async () => redirect });
+    assert.deepEqual([r.ok, r.code], [false, 'E_LOCAL']);
+    // A good answer, followed through one relative redirect.
+    let calls = 0;
+    r = await IO.fetchText('https://a.example/start', { lookup: pub, fetchImpl: async (u) => (++calls === 1
+      ? new Response(null, { status: 301, headers: { location: '/data' } }) : ok('{"hits":[1,2]}')) });
+    assert.equal(r.ok, true);
+    assert.equal(r.url, 'https://a.example/data');
+    assert.equal(r.text, '{"hits":[1,2]}');
+    // Over the cap, streamed (no content-length): cut, E_SIZE.
+    const big = 'x'.repeat(IO.FETCH_MAX_BYTES + 10);
+    r = await IO.fetchText('https://a.example/big', { lookup: pub, fetchImpl: async () => ok(big, { 'content-type': 'text/plain' }) });
+    assert.deepEqual([r.ok, r.code], [false, 'E_SIZE']);
+    // Not text, an HTTP error, a thrown fetch: answers, never throws.
+    r = await IO.fetchText('https://a.example/p.png', { lookup: pub, fetchImpl: async () => ok('x', { 'content-type': 'image/png' }) });
+    assert.equal(r.code, 'E_TYPE');
+    r = await IO.fetchText('https://a.example/404', { lookup: pub, fetchImpl: async () => new Response('no', { status: 404 }) });
+    assert.deepEqual([r.code, r.status], ['E_HTTP', 404]);
+    r = await IO.fetchText('https://a.example/', { lookup: pub, fetchImpl: async () => { throw new Error('ECONNREFUSED'); } });
+    assert.equal(r.code, 'E_NET');
+    r = await IO.fetchText('https://nowhere.invalid/', { lookup: async () => { throw new Error('ENOTFOUND'); } });
+    assert.equal(r.code, 'E_DNS');
   });
 
   test('cleanup', () => {

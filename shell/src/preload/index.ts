@@ -93,4 +93,8 @@ contextBridge.exposeInMainWorld('lol', {
         reveal: () => ipcRenderer.invoke('lol:debugLog:reveal'),
         status: () => ipcRenderer.invoke('lol:debugLog:status'),
     },
+    io: {
+        // The Computer's Fetch box (ecosystem plan v2 §4.2): one capped GET, checked in main (io.ts).
+        get: (url: string) => ipcRenderer.invoke('lol:io:fetch', url),
+    },
 });

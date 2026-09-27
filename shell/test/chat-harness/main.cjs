@@ -125,6 +125,18 @@ const DEBUGLOG_BUILD = path.join(__dirname, '..', '..', 'build', 'main', 'debugL
 /** @type {import('electron').BrowserWindow | null} */
 let harnessWin = null;
 
+// Ecosystem plan v2 §4.2: the Fetch box's ONE main-side GET, the REAL io.js with loopback allowed —
+// the ONLY difference from the shell, because the harness's fixture servers live on 127.0.0.1.
+const IO_BUILD = path.join(__dirname, '..', '..', 'build', 'main', 'io.js');
+function wireIo() {
+    let fetchText = null;
+    try { if (fs.existsSync(IO_BUILD)) fetchText = require(IO_BUILD).fetchText; } catch (e) { console.error('[harness-main] io build unloadable:', e && e.message); }
+    if (typeof fetchText !== 'function') return false;
+    ipcMain.handle('lol:io:fetch', (_e, url) => (typeof url === 'string' && url.length <= 2048
+        ? fetchText(url, { allowLoopback: true }) : { ok: false, code: 'E_URL', message: 'bad arguments' }));
+    return true;
+}
+
 function wireDebugLog() {
     let factory = null;
     try {
@@ -163,7 +175,7 @@ function wireDebugLog() {
 }
 // ---- /LOL Studio ----
 
-function createWindow(hasProjects, hasDebugLog) {
+function createWindow(hasProjects, hasDebugLog, hasIo) {
     // The same session the shell gives its main window (see the client-session block above).
     const chatSession = clientDir ? session.fromPath(clientDir, { cache: false }) : session.defaultSession;
     clientFacts.sessionPath = chatSession.getStoragePath();
@@ -178,7 +190,7 @@ function createWindow(hasProjects, hasDebugLog) {
             backgroundThrottling: false,
             preload: path.join(__dirname, 'preload.cjs'),
             session: chatSession,
-            additionalArguments: [hasProjects && '--lol-projects=1', hasDebugLog && '--lol-debuglog=1'].filter(Boolean),
+            additionalArguments: [hasProjects && '--lol-projects=1', hasDebugLog && '--lol-debuglog=1', hasIo && '--lol-io=1'].filter(Boolean),
         },
     });
     harnessWin = win;
@@ -258,7 +270,7 @@ app.whenReady().then(() => {
     writeJson(path.join(tmpDir(), 'window-opens.json'), windowOpens);
     writeJson(path.join(tmpDir(), 'downloads.json'), downloads);
     writeJson(path.join(tmpDir(), 'shell-calls.json'), shellCalls);
-    createWindow(wireProjects(), wireDebugLog());
+    createWindow(wireProjects(), wireDebugLog(), wireIo());
 });
 
 // Nothing here should ever reach the system browser.

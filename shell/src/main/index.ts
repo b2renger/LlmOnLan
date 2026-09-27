@@ -20,6 +20,7 @@ import { moveDataDir, dirHasData } from './dataMigration';
 import { clientDataDir, prepareClientData, isInside, CLIENT_DIR_NAME, ClientDataNotice } from './clientData';
 import { initAutoUpdate, checkForAppUpdate, quitAndInstallUpdate, setUpdateNotifier } from './updater';
 import { OWUI_ENABLED } from './clientMode';
+import { fetchText } from './io';
 import {
     ensureSidecar, applyPendingSidecar, isSidecarInstalled,
     checkOwuiUpdate, downloadOwuiUpdate, SidecarProgress,
@@ -613,6 +614,11 @@ function registerIpc(): void {
     ipcMain.handle('lol:debugLog:mark', () => debugLog().mark());
     ipcMain.handle('lol:debugLog:reveal', () => debugLog().reveal());
     ipcMain.handle('lol:debugLog:status', () => debugLog().status());
+    // ---- /LOL Studio ----
+
+    // ---- LOL Studio (S0) ---- (the Computer's Fetch box: one capped GET, io.ts; ecosystem plan v2 §4.2)
+    ipcMain.handle('lol:io:fetch', (_e, url: unknown) => (
+        isStr(url) && url.length <= 2048 ? fetchText(url) : Promise.resolve({ ok: false, code: 'E_URL', message: 'bad arguments' })));
     // ---- /LOL Studio ----
 
     // Manual reload of the embedded OWUI (e.g. after a repoint).
