@@ -1,4 +1,6 @@
-// E2E for the no-OWUI shell: drives the REAL app over CDP against test/mock-farm.js.
+// E2E for the shell (the OWUI build, switched to LOL Chat): drives the REAL app over CDP against
+// test/mock-farm.js. Needs a box with NO LlmOnLan client running (single-instance lock, CDP 9222)
+// and a beaconing mock (LOL_MOCK_BEACON_OK=1).
 // Verifies the whole chain a user hits: UDP discovery → overlay clears → model list
 // fetched from the farm (the renderer CSP must allow LAN connect) → capacity rendered
 // on the farm card and the topbar pill → the farm's
@@ -6,7 +8,7 @@
 // the stats line rendered.
 //
 // Flow (from shell/):
-//   1. node test/mock-farm.js --coordinator
+//   1. LOL_MOCK_BEACON_OK=1 node test/mock-farm.js --coordinator   (a spare box only: it beacons)
 //   2. LOL_ENDPOINT=http://127.0.0.1:4009/v1 npx electron . --remote-debugging-port=9222
 //      (unset ELECTRON_RUN_AS_NODE first — VS Code's integrated shell exports it,
 //       which makes `electron` run as plain Node and die on `app.setName`.

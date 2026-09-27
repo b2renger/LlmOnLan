@@ -36,7 +36,9 @@ const DISCOVERED_TTL = 90_000;  // stop polling an auto-found host unseen this l
 const STALE_MS = 12_000;
 const DROP_MS = 120_000;
 
-interface PeerRec { snap: FarmSnapshot; host: string; lastSeen: number; source: 'beacon' | 'scan' | 'added'; }
+// lastSeen: the farm answered at all (any host, any path). hostSeen: it answered AT `host` — the
+// address farmEndpoint() builds OWUI's URL from, which must not change while it still works.
+interface PeerRec { snap: FarmSnapshot; host: string; lastSeen: number; hostSeen: number; source: 'beacon' | 'scan' | 'added'; }
 
 export class Discovery extends EventEmitter {
     private socket: dgram.Socket | null = null;
@@ -109,6 +111,9 @@ export class Discovery extends EventEmitter {
         return this.scanRange;
     }
     rescan(): void { this.sweep(); }
+    // Re-send the current list now (after something outside discovery changed how it reads, e.g.
+    // the pinned farm), instead of waiting for the next sighting.
+    notify(): void { this.emitState(); }
 
     // ---- the merged farm list ----
     getFarms(): DiscoveredFarm[] {
@@ -181,9 +186,24 @@ export class Discovery extends EventEmitter {
         } catch { return null; }
     }
 
+    // One sighting of a farm. The same farm is routinely seen under TWO names: the beacon files it
+    // under the host it advertises, a manual entry or the sweep under the name the user typed or
+    // the address that answered (a hostname like studio.local, a secondary IP). Overwriting the
+    // host on every sighting made `_host` alternate every few seconds, every alternation changed
+    // the OpenAI URL index.ts hands OWUI, and each change restarted the engine — "Reconnecting…"
+    // for ever (docs review SA-3; the Docker-bridge fix below was the same failure). So a record
+    // KEEPS its host while that host is still answering, and adopts a new one only once the old
+    // one has been quiet for STALE_MS. The snapshot and lastSeen still refresh on every sighting:
+    // the farm is alive whichever name it answered under.
     private merge(snap: FarmSnapshot, host: string, source: PeerRec['source']): void {
         const id = snap.id || `${host}:${snap.proxyPort || ''}`;
-        this.peers.set(id, { snap, host, lastSeen: Date.now(), source });
+        const now = Date.now();
+        const prev = this.peers.get(id);
+        if (prev && prev.host !== host && now - prev.hostSeen <= STALE_MS) {
+            this.peers.set(id, { ...prev, snap, lastSeen: now });
+            return;
+        }
+        this.peers.set(id, { snap, host, lastSeen: now, hostSeen: now, source });
     }
 
     // Which farm the client is actually using. Set by the main process whenever the

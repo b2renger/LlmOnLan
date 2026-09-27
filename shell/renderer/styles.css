@@ -195,6 +195,12 @@ webview.hidden { display: none !important; }
 .farm-hw.farm-busy { color: var(--amber); }
 .farm-src { font-size: 10px; color: var(--grey); border: 1px solid var(--border); border-radius: 5px; padding: 0 5px; text-transform: uppercase; letter-spacing: 0.03em; }
 .farm-coord { color: var(--green); border-color: var(--green); }
+.farm-pin { color: var(--text); border-color: var(--grey); }
+/* The "Automatic — least busy farm" row above the cards: the way to undo a pin. */
+.farm-auto { background: transparent; border-style: dashed; }
+.farm-auto.farm-auto-on { cursor: default; }
+.farm-auto.farm-auto-on:hover { border-color: var(--border); }
+.farm-auto .farm-meta { white-space: normal; }
 .farm-check { color: var(--green); flex: 0 0 auto; width: 16px; }
 .farm-check svg { width: 16px; height: 16px; }
 .farm-manage { margin-top: 6px; font: inherit; font-size: 11px; cursor: pointer; color: var(--text);

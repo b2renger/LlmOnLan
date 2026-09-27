@@ -89,7 +89,8 @@ async function refreshPrefs() {
   prefs.blenderPort.value = p.blenderPort || 9876;
   setBlenderStatus(p.blenderState, p.blenderMcp);
   prefs.verShell.textContent = 'v' + p.shellVersion;
-  prefs.verOwui.textContent = 'v' + p.owuiVersion;
+  // 'unknown' = the chat engine has not been downloaded yet (first run) — never print "vunknown".
+  prefs.verOwui.textContent = p.owuiVersion === 'unknown' ? 'not installed yet' : 'v' + p.owuiVersion;
   const r = p.scanRange || {};
   prefs.base.value = r.base || '';
   if (r.third) { prefs.t0.value = r.third[0]; prefs.t1.value = r.third[1]; }
@@ -234,7 +235,10 @@ prefs.checkOwui.addEventListener('click', async () => {
   prefs.owuiRestartRow.classList.add('hidden');
   try {
     const r = await window.lol.checkOwuiUpdate();
-    if (!r.latest) { prefs.owuiStatus.textContent = 'Could not check (only available in an installed build).'; return; }
+    // `error` = a dev build (main answers without asking GitHub). A null `latest` otherwise
+    // means GitHub could not be read — the normal case on a closed LAN.
+    if (r.error) { prefs.owuiStatus.textContent = r.error; return; }
+    if (!r.latest) { prefs.owuiStatus.textContent = 'Could not reach GitHub to check for a chat-engine update. Check the internet connection and try again.'; return; }
     if (!r.updateAvailable) { prefs.owuiStatus.textContent = `Chat engine is up to date (v${r.current}).`; return; }
     prefs.owuiStatus.textContent = `v${r.latest} available — downloading…`;
     const res = await window.lol.downloadOwuiUpdate();
@@ -695,6 +699,30 @@ function renderPopover() {
   els.farmEmpty.classList.toggle('hidden', n > 0);
 
   const active = activeFarm();
+  // Clicking a card PINS that farm (main always prefers it while it is healthy). This row is
+  // the way back: it clears the pin, so the least-busy choice applies again (docs review SA-5).
+  // Shown when there is a choice to make, or a pin to undo.
+  const pinnedId = farmState.selectedFarmId || null;
+  const pinned = pinnedId ? farmState.farms.find((f) => f.id === pinnedId) : null;
+  if (n > 1 || pinnedId) {
+    const auto = document.createElement('div');
+    auto.className = 'farm farm-auto' + (pinnedId ? '' : ' farm-auto-on');
+    auto.title = 'Let the app choose: the least busy farm when it connects, and the same farm for as long as it keeps working.';
+    auto.innerHTML =
+      `<div class="farm-main">` +
+        `<div class="farm-name">Automatic — least busy farm</div>` +
+        `<div class="farm-meta">${pinnedId
+          ? `Off — pinned to ${esc(pinned ? pinned.name : 'a farm that is not on the network')}. Click to let the app choose.`
+          : 'On — click a farm below to pin it instead.'}</div>` +
+      `</div>`;
+    auto.onclick = () => {
+      if (!pinnedId) return;
+      window.lol.selectFarm(null);
+      toast('Automatic: the app picks the least busy farm');
+    };
+    els.farmList.appendChild(auto);
+  }
+
   for (const f of farmState.farms) {
     const isActive = active && f.id === active.id;
     const row = document.createElement('div');
@@ -712,6 +740,7 @@ function renderPopover() {
     const badges =
       `<span class="farm-src">${f._source}</span>` +
       (f.coordinator ? `<span class="farm-src farm-coord">coordinator</span>` : '') +
+      (f.id === pinnedId ? `<span class="farm-src farm-pin" title="You picked this farm. Choose “Automatic” above to undo.">pinned</span>` : '') +
       (f.searxngUrl ? `<span class="farm-src">web search</span>` : '') +
       (f.requiresKey ? `<span class="farm-src">🔒${f._hasKey ? '' : ' password needed'}</span>` : '');
     // Live line: GPU util, VRAM used/total, loaded models, backends, hosts.
@@ -773,6 +802,7 @@ function renderPopover() {
         manageBtn +
       `</div>` +
       `<span class="farm-check">${isActive ? ICON_CHECK : ''}</span>`;
+    row.title = f.id === pinnedId ? `${f.name} is pinned` : `Use ${f.name} (pins it until you choose Automatic)`;
     row.onclick = () => {
       if (needsKey) { const inp = row.querySelector('.farm-key-in'); if (inp) inp.focus(); return; }
       window.lol.selectFarm(f.id); toast(`Connecting to ${f.name}…`);
@@ -786,7 +816,11 @@ function renderPopover() {
         if (!v) { if (inp) inp.focus(); return; }
         keyGo.disabled = true; keyGo.textContent = '…';
         const r = await window.lol.setFarmKey(f.id, v);
-        if (r && r.ok) { toast(`Connected to ${f.name}`); window.lol.selectFarm(f.id); }
+        // Entering a password makes the farm USABLE; it does not pin it (docs review SA-5 — on a
+        // keyed fleet every client used to pin itself to the first farm it typed a password for).
+        // Main re-runs the choice at once, so with no farm in use this one connects now.
+        const using = activeFarm();
+        if (r && r.ok) toast(using && using.id !== f.id ? `Password saved for ${f.name}. Click its card to switch to it.` : `Password accepted — connecting to ${f.name}…`);
         else { toast((r && r.error) || 'Wrong password'); keyGo.disabled = false; keyGo.textContent = 'Connect'; if (inp) { inp.select(); inp.focus(); } }
       };
       keyGo.onclick = submitKey;
@@ -840,7 +874,8 @@ window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', ()
 // ---- LOL Chat: alternative view to the OWUI webview -------------------------
 // The chat surface talks straight to the farm's OpenAI endpoint, so it needs the
 // endpoint the sidecar is currently pointed at. Published on `window` rather than
-// re-derived in chat.js so there is exactly one source of truth for "which farm".
+// re-derived in chat/ (net/farm.mjs reads it) so there is exactly one source of truth
+// for "which farm".
 function publishFarm() {
   const f = activeFarm();
   // The farm's advertised default (snapshot.models[].default) rides along so the

@@ -1,7 +1,9 @@
 // mcpo supervisor — owns the LOCAL "assistant tools" server that lets the chat
 // drive Blender on THIS machine. It runs Open WebUI's own MCP→OpenAPI proxy
 // (`mcpo`) wrapping the Blender MCP server (`blender-mcp`), and OWUI consumes it
-// as an OpenAPI tool server (config-bridge injects TOOL_SERVER_CONNECTIONS). The
+// as an OpenAPI tool server (the renderer registers it through OWUI's user-settings
+// API from the authed webview — env TOOL_SERVER_CONNECTIONS is unreliable upstream,
+// see configBridge.ts). The
 // user owns the Blender side (install the BlenderMCP addon + Start the server);
 // we own making OWUI turnkey — flip the toggle and the Blender tools appear.
 //
