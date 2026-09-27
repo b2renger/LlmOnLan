@@ -121,7 +121,7 @@ users get the same control by editing `lol.config.json`.
   JupyterLab on a DGX) by patching `websearch.port` / `ocr.port` in `lol.config.json`;
   clients follow automatically, since the port rides the beacon.
 - The app passes its own version as `$LOL_FARM_VERSION`, so the farm advertises the
-  release it runs (`lol fleet`, client cards) instead of `farm/package.json`'s 0.1.0.
+  release it runs (`lol fleet`, `/lol/self`) instead of `farm/package.json`'s 0.1.0.
 
 The farm code writes its venvs + runtime state **inside its own dir**, so it's copied
 to `userData/farm` (writable) rather than run from the read-only app resources.

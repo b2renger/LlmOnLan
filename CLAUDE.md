@@ -135,7 +135,7 @@ docs) is `docs/reviews/DOCS_REVIEW_2026-09-27_{FARM,SHELL,COMPUTER}.md`. Snapsho
   `GATE_TYPES`). Code/p5/three/HTML run in ONE opaque-origin sandbox iframe (`sandbox/runner.html`,
   `allow-scripts` only, no network, vendored three r160 / p5; `sandbox/host.mjs` is the only iframe maker)
   plus at most one **Live** guest that gets the mouse and keys (`lol.orbit(camera)` is the first-party
-  camera control); **Edit code** opens a drawer editor. View tools: Select (V) · Hand (H) · − % + Fit,
+  camera control); a Preview box's **Edit code** opens a drawer editor. View tools: Select (V) · Hand (H) · − % + Fit,
   answering from anywhere on the Computer, never while typing. What leaves the machine: prompt text and an
   Image's pixels inside the Instruction's chat completion to the farm; a Document's PDF bytes to the farm
   OCR for text only; a Sound is never sent. Where data lives: graphs and their files are in the renderer's

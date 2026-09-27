@@ -113,7 +113,7 @@ node bin/lol.js up             # start the engines + LiteLLM + the beacon
 node bin/lol.js status         # health of hosts + proxy + loaded models
 ```
 
-Prereqs: **Node ≥ 20** and a Python 3.9–3.13 — `lol install` sets up everything else (Ollama, LiteLLM,
+Prereqs: **Node ≥ 20** and a Python 3.10–3.13 (3.9 is enough for LiteLLM alone, not for web search/OCR) — `lol install` sets up everything else (Ollama, LiteLLM,
 the models, and the llama.cpp backend only when `llamacpp.enabled`). Then: [Backends](farm/README.md#backends--ollama-default-and-llamacpp)
 · [Adding or changing models](farm/README.md#adding-or-changing-models) ·
 [Multiple users & capacity](farm/README.md#multiple-users--capacity).

@@ -18,7 +18,7 @@
 
 ```bash
 cd shell
-npx electron .            # the real client, from the working tree
+npm run dev               # builds main, then runs the real client from the working tree
 ```
 
 Two things to know first, neither of them a reason to use another machine:
@@ -48,7 +48,7 @@ $t = "D:\lolchat-test"                                  # anywhere you like
 New-Item -ItemType Directory -Force $t | Out-Null
 New-Item -ItemType Junction -Path "$t\sidecar" -Target "$env:APPDATA\LlmOnLan\sidecar" -EA SilentlyContinue
 cd C:\Users\ateliernum\Documents\code\LlmOnLan\shell
-npx electron . --user-data-dir=$t
+npm run build; npx electron . --user-data-dir=$t   # build first: a stale build/ runs old main code
 ```
 
 Fresh profile = empty chat history (nothing to migrate) and the farm found by beacon as usual.
