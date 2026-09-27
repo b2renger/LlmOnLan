@@ -140,7 +140,11 @@ docs) is `docs/reviews/DOCS_REVIEW_2026-09-27_{FARM,SHELL,COMPUTER}.md`. Snapsho
   with a confidence; unsure below 0.6; no Laya → every item passed on unsure), Split, Filter, Collect,
   Repeat (*think*); Preview (+ p5.js/three.js/SVG/HTML/Markdown presets; since 2026-09-27 it hands on a
   **PNG** of what it drew — SVG rasterised in the renderer — so a vision model can see its own work) and
-  Code and **Speak** (says text with the farm's voice or this computer's) (*show*); Button, Condition, Confirm, Dialog, Toggle, Timer (*control*); Sticky, Section, Title
+  Code, **Speak** (says text with the farm's voice or this computer's) and **Send** (OSC, Art-Net DMX, MQTT,
+  WebSocket, HTTP POST to a device — through ONE choke point in main, `src/main/outputs.ts`: DISARMED by default
+  and after every reload so a run is a dry run, arming asks and lists every target, a person-typed target
+  only, never the farm's ports, 20 msg/s per target, DMX ≤ 3 frames/s, Panic blacks out every universe lit)
+  (*show*); Button, Condition, Confirm, Dialog, Toggle, Timer (*control*); Sticky, Section, Title
   (*annotate*). Thinking boxes ask the farm **directly** (never through OWUI) on the background lane: one
   request in flight, they yield to a person's chat, and a hidden window sends nothing. Every run is bounded by
   `RUN_LIMITS` (`core/types.mjs`): 8 passes per box, 50 generations (the toolbar **Cap**), 10 min of wall
@@ -150,9 +154,9 @@ docs) is `docs/reviews/DOCS_REVIEW_2026-09-27_{FARM,SHELL,COMPUTER}.md`. Snapsho
   plus at most one **Live** guest that gets the mouse and keys (`lol.orbit(camera)` is the first-party
   camera control); a Preview box's **Edit code** opens a drawer editor. View tools: Select (V) · Hand (H) · − % + Fit,
   answering from anywhere on the Computer, never while typing. What leaves the machine: prompt text and an
-  Image's pixels inside the Instruction's chat completion to the farm; a Document's PDF bytes to the farm
+  Image's (or a Preview's rendered) pixels inside the Instruction's chat completion to the farm; a Document's PDF bytes to the farm
   OCR for text only; a Classify box's items (text) to the farm's Laya for one forward pass each; a Sound
-  box's recording ONLY when a person turns on its **Listen** switch — to the farm's speech-to-text, written down
+  box's recording ONLY when a person turns on its **Listen** switch (an imported graph always opens with it off) — to the farm's speech-to-text, written down
   and dropped (never logged or kept); a **Speak** box's text to the farm's Kokoro when it uses the farm voice
   (its own-computer voice, `speechSynthesis`, sends nothing); a **Fetch** box (2026-09-27) sends ONE GET to the address a person
   typed — run in main (`src/main/io.ts`): http(s), never loopback/link-local/farm ports, ≤ 1 MB text, keeps
@@ -615,7 +619,7 @@ LlmOnLan/
   OWUI's webview token/caches, logs, and — after an upgrade from v0.1.x — the old LOL Chat copy kept as a
   backup.
 - **Over the network (all to the trusted‑LAN farm, which stores nothing):** the chat context per
-  completion (from OWUI, LOL Chat, or a Computer Instruction — with an Image box's pixels when wired);
+  completion (from OWUI, LOL Chat, or a Computer Instruction — with an Image box's or a Preview's rendered pixels when wired);
   web‑search queries to the farm's SearXNG (result pages are then fetched directly); TTS requests when
   the farm hosts Kokoro (and a Computer Speak box's text, with the farm voice); a Computer Sound box's
   recording, only in **Listen** mode, to be written down by the farm's speech-to-text (never logged or
@@ -623,7 +627,8 @@ LlmOnLan/
   box's) raw bytes, for text **extraction only** (the extracted text embeds locally); presence heartbeats
   (`POST /lol/client-ping` every 10 s: hostname, platform, version, idle seconds).
 - **To third parties a person names:** a Computer **Fetch** box's GET to the address typed in it (nothing
-  from the graph is sent with it).
+  from the graph is sent with it); a **Send** box's message to the device typed in it, only once a person
+  armed the outputs (a dry run otherwise).
 - **Beyond the farm (no user content):** GitHub, for the app update check and the chat-engine (sidecar)
   download/update check; huggingface.co, until MiniLM and whisper-base are cached (then `HF_HUB_OFFLINE=1`).
 - **Never sent anywhere:** documents for **embedding** (local model), a Computer Sound box's recording

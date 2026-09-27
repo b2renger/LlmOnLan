@@ -327,7 +327,8 @@ is wired: ✓, ✗ with the reason, or ? when the farm does not say.
   down what is said**. Then, on a run, the recording goes to the farm's **speech to text**, which writes
   down what is said and keeps nothing, and the **words** flow on instead of the sound. The farm's
   operator turns speech to text on in the farm panel (it is off by default); on a farm without it the box
-  says so and nothing is sent.
+  says so and nothing is sent. A graph someone hands you always opens with Listen **off**: only you
+  decide that your recordings leave this computer.
 
 ### Saying it out loud: the Speak box
 
@@ -337,6 +338,34 @@ offline and sends nothing) or **the farm's** (Kokoro, when the farm offers it: t
 to be spoken). **Automatic** uses the farm's voice when there is one. **Stop** stops the voice.
 Together with Listen, a graph can hear a question and answer it aloud: Sound (Listen) → Instruction →
 Speak.
+
+### Acting on the world: the Send box
+
+**＋ → Show → Send** hands what arrives to a device. **Send by** picks the transport:
+
+| Send by | The target you type | What the value becomes |
+|---|---|---|
+| **OSC (UDP)** | host, port (9000), OSC address (`/lol`) | a number, a word, true/false — or a list of them as the arguments |
+| **DMX over Art-Net** | host (a node, or a broadcast address), port (6454), universe | a list of channel levels (channel 1 first) or `{"12": 255}` |
+| **MQTT publish** | broker host, port (1883), topic | the text, or the JSON of anything else |
+| **WebSocket** | `ws://…` address (an ESP32, for instance) | the text, or the JSON |
+| **HTTP POST** | `http://…` address | the text, or the JSON, as the body |
+
+The target is always typed by you in the box: an arrow only brings the **value**, so a model can never
+choose where a graph sends. And the rules are the same for every graph, even one someone gave you:
+
+- **Dry run by default.** Until you arm the outputs, a Send box only shows **Dry run — would send: …**
+  and nothing leaves. A graph always opens as a dry run, and so does the Computer after a restart.
+- **Arming asks first.** The run bar's **Outputs: dry run** button (it appears when the graph has a Send
+  box) asks before arming and lists every target of the graph. Armed, it reads **Outputs: LIVE**; press
+  it again to go back to a dry run.
+- **Panic** (next to it while armed) stops everything at once and sends a **blackout** to every DMX
+  universe the graph lit.
+- **Limits:** at most 20 messages a second to one target, and DMX at most **3 frames a second** — nothing
+  a graph sends may flash a light faster than that. A message over the limit is held back, and the box
+  says so.
+- Never the farm's own ports. This computer is allowed: OSC to TouchDesigner or Max on `127.0.0.1` is a
+  normal target.
 
 ### Data from the web: the Fetch box
 

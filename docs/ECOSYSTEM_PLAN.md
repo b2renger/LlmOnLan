@@ -2,6 +2,9 @@
 
 > **Status: v2 (2026-09-27, 19:00). v1 went through one critic loop (§9).** The plan was written from the
 > owner's vision of 2026-09-27.
+> **Built (local `main`, not released):** P1a, P1b, P1c (OWUI 0.11.4), P2 (Listen + Speak), P3a (the Send box
+> and the outputs choke point; serial is P3a-2), each with its tests; the P1+P2 critic's findings are resolved
+> ([reviews/P1P2_CRITIC_2026-09-27.md](reviews/P1P2_CRITIC_2026-09-27.md)). The running log: NIGHT_LOG_2026-09-27.md.
 > The research facts are in [research/ECOSYSTEM_RESEARCH_2026-09-27.md](research/ECOSYSTEM_RESEARCH_2026-09-27.md). This document
 > supersedes the forward-looking parts of LOLCHAT_STUDIO_VISION.md and COMPUTER_PLAN.md where they
 > disagree. Their "as built" sections stay true.
@@ -290,7 +293,7 @@ laptops.
   git over HTTPS.
 - **OWUI**: 0.11.4 bump · bump on each upstream minor.
 
-## 8b. P3b design notes (written 2026-09-28 after P3a, for the next session)
+## 8b. P3b design notes (written 2026-09-27 after P3a, for the next session)
 
 **How a trigger starts a run.** `computer/host.mjs` `start({mode:'from', seeds:[partId]})` runs a box and
 everything after it. Pressed mid-run, it **merges** its seeds into the live run (`runner.addToRun`) rather
