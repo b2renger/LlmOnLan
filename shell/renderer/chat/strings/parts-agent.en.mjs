@@ -33,7 +33,7 @@ registerStrings('parts', {
   agentToolCode: 'run JavaScript in a sandbox with no network. `inputs["<name>"]` is each input listed above; `results[i]` (also `inputs.results[i]`) is the result of step i+1. Put the code in "code"; it must `return` a value (a number, text, a list or an object) — that is the step\'s result; console.log shows nothing. JavaScript only.',
   agentToolFetch: 'GET one web address (JSON or text, at most 1 MB) and see what came back. Put it in "url". Allowed hosts, and no others: {hosts}.',
   agentToolLaya: 'ask Laya, the farm\'s fast classifier, ONE multiple-choice question about every text of a list an earlier step returned. Put the question in "question", 2 to 20 answers in "options", and that step\'s number in "from".',
-  agentToolAnswer: 'finish: write the answer for the person in "answer" (markdown). Quote only numbers that appear in the results above.',
+  agentToolAnswer: 'finish: write the answer for the person in "answer" (markdown). Quote only numbers that appear in the results above, and say what they count. If the steps could not find what the task asks, say so plainly — never present other numbers as the answer.',
   agentNextStep: 'This is step {k} of at most {max}. Choose the next tool; when you have what the task needs, use answer.',
   agentLastStep: 'This is step {k} of {max}, the LAST: use answer now, with what the results above show.',
 });

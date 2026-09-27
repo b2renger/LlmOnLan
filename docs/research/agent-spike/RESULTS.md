@@ -75,3 +75,14 @@ land); gemma4 wrote `results[0]` five times running against `inputs.results[0]` 
 scope); code that `console.log`s returns null (→ the model is told to return). The rig's first runs also read
 the WRONG file: a changed Open data link does not re-run a box that already holds a value when ▶ is pressed on
 a box downstream — run the Open data box itself first (a Computer rule, not the Agent's).
+
+**The template "Ask a dataset" (2026-09-28, 00:05–00:25)** — the festivals list, *"Which 5 regions have the most music
+festivals?"*, gemma4. First run (6 steps at most): it wrote column names with underscores (400 ×2) and counted a
+sub-category instead of filtering the discipline. Second run: the tabular API refused every call with a bare "400"
+(`page_size` over 200) and the agent answered with the profile's counts of ALL festivals, labelled as music ones —
+the worst failure of the night, and the reason for two fixes: `io.ts` now returns what the site SAID about a refusal
+(≤ 300 characters: *"Page size exceeds allowed maximum: 200"*, *"column … does not exist"*), shown on the Fetch
+box and fed to the agent; the answer tool must say plainly when the steps did not find what was asked. With the
+task's encoding example (`?Discipline%20dominante__exact=Musique`) and 8 steps: **6 steps, 69 s, correct** —
+Provence-Alpes-Côte d'Azur 416, Auvergne-Rhône-Alpes 408, Occitanie 386, Nouvelle-Aquitaine 345, Bretagne 315,
+matching an independent query of the tabular API.

@@ -502,6 +502,9 @@ device and never arms anything.
 Tip, from the rig: for data.gouv.fr, wire an **Open data** box into the agent, allow
 `tabular-api.data.gouv.fr`, and say in the task that `…/api/resources/<file id>/data/?<column>__groupby&<column>__sum`
 groups and sums the **whole** file on data.gouv.fr's side — gemma4 then answers in about three steps.
+**Learn → Templates → Ask a dataset** is exactly that, ready to use: paste a data.gouv.fr link, ▶ the Open data
+box, write your question, ▶ the Agent. When a site refuses a request, the box shows what the site said (for
+example *Page size exceeds allowed maximum: 200*), and the agent reads it too.
 
 ### Sorting many items fast: the Classify box
 

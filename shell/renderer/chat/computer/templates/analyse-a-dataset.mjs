@@ -8,7 +8,8 @@
 // 2026-09-27 (the whole-file column counts and the first 20 rows, the contact e-mail column left out), so the
 // template runs offline.
 
-const SNAPSHOT = {
+// Exported: "Ask a dataset" opens with the same copy.
+export const SNAPSHOT = {
  "source": "data.gouv.fr",
  "dataset": {
   "title": "Liste des festivals en France",

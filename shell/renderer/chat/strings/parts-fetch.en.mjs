@@ -22,6 +22,7 @@ registerStrings('parts', {
   fetchErr_E_SIZE: 'The answer is bigger than 1 MB, the most a box can hold. Ask the source for less (fewer items, a smaller page).',
   fetchErr_E_TYPE: 'The answer is not text ({message}). Use the Image or Document box for pictures and PDFs.',
   fetchErr_E_HTTP: 'The address answered {status}.',
+  fetchSaid: 'It said: “{detail}”',
   fetchErr_E_REDIRECTS: 'The address redirected too many times.',
   fetchErr_E_NET: 'The address could not be reached: {message}',
   fetchErr_E_HOST: 'That leads to {message}, which is not one of the hosts this box may read (a redirect is checked too).',

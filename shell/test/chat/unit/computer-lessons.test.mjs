@@ -129,7 +129,7 @@ export default (test) => {
     assert.deepEqual(LESSONS.map((l) => l.n), [0, 1, 2, 3, 4], 'n is the shelf number');
     for (let i = 0; i < LESSONS.length - 1; i++) assert.equal(LESSONS[i].next, LESSONS[i + 1].id, `${LESSONS[i].id} → next`);
     assert.equal(LESSONS[LESSONS.length - 1].next, undefined, 'the last lesson ends the shelf');
-    assert.deepEqual(TEMPLATES.map((x) => x.id), ['research-problematic', 'creative-coding', 'read-the-news', 'analyse-a-dataset', 'talk-to-a-board', 'board-on-wifi']);
+    assert.deepEqual(TEMPLATES.map((x) => x.id), ['research-problematic', 'creative-coding', 'read-the-news', 'analyse-a-dataset', 'ask-a-dataset', 'talk-to-a-board', 'board-on-wifi']);
     for (const id of MINE) assert.equal(lessonById(id).id, id);
     assert.equal(templateById('creative-coding').title, 'Creative coding');
     assert.equal(templateById('nope'), null);
@@ -474,7 +474,9 @@ export default (test) => {
   test('templates: the declared cost is the real number of generations, inside the cap, and every box has its inputs', () => {
     for (const tpl of TEMPLATES) {
       const thinking = tpl.doc.parts.filter((p) => SPECS.get(p.type).thinks);
-      assert.equal(tpl.generations, thinking.length, `${tpl.id}: one generation per thinking box`);
+      // One per thinking box — or a box's most, when it may ask more than once (the Agent: one per step).
+      const most = thinking.reduce((n, p) => n + (typeof SPECS.get(p.type).mostGenerations === 'function' ? SPECS.get(p.type).mostGenerations(p) : 1), 0);
+      assert.equal(tpl.generations, most, `${tpl.id}: one generation per thinking box (an agent: one per step)`);
       assert.ok(tpl.generations <= 50, `${tpl.id} is inside the 50-generation cap`);
       for (const p of thinking) assert.ok(tpl.doc.wires.some((w) => w.to === p.id), `${tpl.id}: ${p.id} is fed`);
     }

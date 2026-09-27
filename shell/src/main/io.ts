@@ -27,7 +27,7 @@ export type FetchCode = 'E_URL' | 'E_SCHEME' | 'E_CREDENTIALS' | 'E_FARM' | 'E_L
     | 'E_TIMEOUT' | 'E_SIZE' | 'E_TYPE' | 'E_HTTP' | 'E_REDIRECTS' | 'E_NET' | 'E_HOST';
 export type FetchAnswer =
     | { ok: true; url: string; status: number; contentType: string; text: string; bytes: number }
-    | { ok: false; code: FetchCode; status?: number; message: string };
+    | { ok: false; code: FetchCode; status?: number; message: string; detail?: string };
 
 /** An IPv6 literal as its eight 16-bit groups (a trailing dotted quad included), or null. */
 export function ipv6Groups(ip: string): number[] | null {
@@ -113,6 +113,25 @@ export function isTextType(ct: string): boolean {
 const fail = (code: FetchCode, message: string, status?: number): FetchAnswer => (
     status === undefined ? { ok: false, code, message } : { ok: false, code, message, status });
 
+/** The start of an error answer's text, one line, ≤ 300 characters — or '' (not text, empty, unreadable). */
+async function errorText(res: Response): Promise<string> {
+    if (!isTextType(res.headers.get('content-type') || '') || !res.body) return '';
+    const reader = res.body.getReader();
+    const chunks: Uint8Array[] = [];
+    let bytes = 0;
+    try {
+        while (bytes < 2048) {
+            const r = await reader.read();
+            if (r.done) break;
+            chunks.push(r.value);
+            bytes += r.value.byteLength;
+        }
+    } catch { /* what arrived is enough */ }
+    try { await reader.cancel(); } catch { /* already closed */ }
+    const text = Buffer.concat(chunks).toString('utf8').replace(/\s+/g, ' ').trim();
+    return text.length > 300 ? `${text.slice(0, 300)}…` : text;
+}
+
 export interface FetchDeps {
     fetchImpl?: typeof fetch;
     lookup?: (host: string) => Promise<{ address: string }[]>;
@@ -160,7 +179,12 @@ export async function fetchText(raw: unknown, deps: FetchDeps = {}): Promise<Fet
                 try { next = new URL(String(res.headers.get('location')), url).href; } catch { return fail('E_URL', String(res.headers.get('location'))); }
                 continue;
             }
-            if (res.status >= 400) return fail('E_HTTP', url.href, res.status);
+            if (res.status >= 400) {
+                // What the site SAID, briefly (the rig: "Page size exceeds allowed maximum: 200" — an agent
+                // shown only "400" retried blind five times). At most 2 KB read, 300 characters kept.
+                const detail = await errorText(res);
+                return detail ? { ok: false, code: 'E_HTTP', message: url.href, status: res.status, detail } : fail('E_HTTP', url.href, res.status);
+            }
             const contentType = res.headers.get('content-type') || '';
             if (!isTextType(contentType)) return fail('E_TYPE', contentType);
             if (Number(res.headers.get('content-length')) > FETCH_MAX_BYTES) return fail('E_SIZE', url.href);

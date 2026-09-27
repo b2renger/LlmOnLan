@@ -84,6 +84,10 @@ and TouchDesigner or Max (OSC). Scenarios marked **(no farm)** work with the far
   sums the whole file."* — expect Île-de-France first (≈ 362.7 million), in 3–4 steps. (c) Empty the hosts
   field: fetch is no longer offered, and it can only work from what is wired in (the 200-row sample) — check
   its answer says so rather than claiming whole-file totals. The run bar says *1–6 generations*.
+- [ ] **3.14 Ask a dataset.** Learn ▸ Templates ▸ *Ask a dataset*: ▶ the Open data box, then ▶ the Agent on the
+  default question (the 5 regions with the most music festivals). Expect Provence-Alpes-Côte d'Azur 416,
+  Auvergne-Rhône-Alpes 408, Occitanie 386, Nouvelle-Aquitaine 345, Bretagne 315 (whole file, 2026-09-28),
+  with every step shown. Ask your own question; paste another dataset.
 - [ ] **3.12 Different models.** Run *Analyse a dataset* and *Read the news* with gemma4:12b, then with
   qwen3.8 and nemotron if the farm serves them (each Instruction's model picker). Note which one writes a
   working program for 3.11's question.

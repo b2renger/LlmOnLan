@@ -48,7 +48,9 @@ const notes = new Map();
 /** The sentence for a failed answer. @param {any} r @returns {string} */
 export function fetchError(r) {
   const code = r && Object.prototype.hasOwnProperty.call(ERR_KEY, r.code) ? r.code : 'E_NET';
-  return t(/** @type {any} */ (ERR_KEY)[code], { status: r && r.status != null ? r.status : '', message: String((r && r.message) || '') });
+  const said = t(/** @type {any} */ (ERR_KEY)[code], { status: r && r.status != null ? r.status : '', message: String((r && r.message) || '') });
+  // What the site said about its refusal (io.ts reads ≤ 300 characters of it): the fix is usually in it.
+  return r && typeof r.detail === 'string' && r.detail ? `${said} ${t('parts.fetchSaid', { detail: r.detail })}` : said;
 }
 
 /**

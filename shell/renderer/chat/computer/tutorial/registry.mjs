@@ -24,6 +24,7 @@ import readTheNews from '../templates/read-the-news.mjs';
 import talkToABoard from '../templates/talk-to-a-board.mjs';
 import boardOnWifi from '../templates/board-on-wifi.mjs';
 import analyseADataset from '../templates/analyse-a-dataset.mjs';
+import askADataset from '../templates/ask-a-dataset.mjs';
 
 /** @typedef {import('../../core/types.mjs').Lesson} Lesson */
 /** @typedef {import('../../core/types.mjs').Template} Template */
@@ -32,7 +33,7 @@ import analyseADataset from '../templates/analyse-a-dataset.mjs';
 export const LESSONS = Object.freeze(/** @type {any[]} */ ([tour, l01, l02, l03, l04]));
 
 /** @type {readonly Template[]} */
-export const TEMPLATES = Object.freeze(/** @type {any[]} */ ([researchProblematic, creativeCoding, readTheNews, analyseADataset, talkToABoard, boardOnWifi]));
+export const TEMPLATES = Object.freeze(/** @type {any[]} */ ([researchProblematic, creativeCoding, readTheNews, analyseADataset, askADataset, talkToABoard, boardOnWifi]));
 
 /** @param {string} id @returns {Lesson|null} */
 export function lessonById(id) {

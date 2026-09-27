@@ -753,6 +753,13 @@ export default (test) => {
     assert.equal(r.code, 'E_TYPE');
     r = await IO.fetchText('https://a.example/404', { lookup: pub, fetchImpl: async () => new Response('no', { status: 404 }) });
     assert.deepEqual([r.code, r.status], ['E_HTTP', 404]);
+    // What the site said about its refusal rides along, briefly (the rig: an agent retried blind on a bare 400).
+    r = await IO.fetchText('https://a.example/q', { lookup: pub, fetchImpl: async () => new Response('{"errors": [{"detail":\n "Page size exceeds allowed maximum: 200"}]}', { status: 400, headers: { 'content-type': 'application/json' } }) });
+    assert.deepEqual([r.code, r.status, r.detail], ['E_HTTP', 400, '{"errors": [{"detail": "Page size exceeds allowed maximum: 200"}]}']);
+    r = await IO.fetchText('https://a.example/q', { lookup: pub, fetchImpl: async () => new Response('x'.repeat(5000), { status: 500, headers: { 'content-type': 'text/plain' } }) });
+    assert.equal(r.detail.length, 301, 'at most 300 characters and an ellipsis');
+    r = await IO.fetchText('https://a.example/q', { lookup: pub, fetchImpl: async () => new Response('binary', { status: 500, headers: { 'content-type': 'image/png' } }) });
+    assert.equal(r.detail, undefined, 'not text: nothing quoted');
     r = await IO.fetchText('https://a.example/', { lookup: pub, fetchImpl: async () => { throw new Error('ECONNREFUSED'); } });
     assert.equal(r.code, 'E_NET');
     r = await IO.fetchText('https://nowhere.invalid/', { lookup: async () => { throw new Error('ENOTFOUND'); } });

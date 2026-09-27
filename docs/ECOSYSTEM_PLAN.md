@@ -255,7 +255,7 @@ Learn shelf**.
 | P2 Speech | done, released in v0.2.0 | ? examples only — **no template yet** |
 | P3a Outputs | done (v0.2.0); + USB serial both ways (P3a-2, on main) | template *Talk to a board* |
 | P3b Triggers | done on main: the farm's message bus (MQTT · WebSocket · OSC), Receive/Send on it, the Trigger box | template *A board on Wi-Fi* |
-| P4 Agents | done on main: the Agent box (JSON mode through the ask door; run_code / fetch on listed hosts / laya / answer); rig: gemma4, qwen3.8, nemotron all correct on a whole-file data.gouv.fr question | ? example + a tutorial tip — **no template yet** |
+| P4 Agents | done on main: the Agent box (JSON mode through the ask door; run_code / fetch on listed hosts / laya / answer); rig: gemma4, qwen3.8, nemotron all correct on a whole-file data.gouv.fr question | template *Ask a dataset* |
 | Owner additions | on main: the Computer as an MCP server (§8c), LOL Chat → LOL Vibe, a ? example per box, **Open data** (data.gouv.fr) + template *Analyse a dataset* | — |
 | P5 Studio IDE | not started (P5-0: the DeepSeek Harness spike) | — |
 | P6 Home | not started (Home Assistant over the farm's MQTT bus is now possible) | — |
