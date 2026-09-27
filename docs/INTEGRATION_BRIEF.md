@@ -25,6 +25,15 @@
 | **Default bind** | host `0.0.0.0`, port `8080` |
 | **Override host/port** | CLI flags only: `open-webui serve --host 0.0.0.0 --port 8080`. **The `PORT` env var is NOT honored by `open-webui serve`** — use `--port` |
 
+> **NOTE (2026-09-27): bumped to 0.11.4.** The changelog 0.11.0–0.11.4 has no breaking change to any env var or API
+> the shell uses; the standard pip package still pins sentence-transformers 5.5.1, faster-whisper 1.2.1 and
+> onnxruntime 1.26.0 (the darwin-x64 substitution still applies); only langchain-community and rapidocr left.
+> Every env name configBridge.ts sets was found in the 0.11.4 source; WHISPER_MODEL_DIR is still
+> `{CACHE_DIR}/whisper/models`. Smoke-tested standalone on this box: a cold boot in 22 s, /api/version 0.11.4,
+> auth off, signin → token, GET /api/v1/auths/ 200, the user-settings write round-trips; and an UPGRADE of a
+> 0.10.2 DATA_DIR (8 alembic migrations, no error) keeps a chat and a user setting written under 0.10.2.
+> Still for the rig: the full client against a real farm on 0.11.4 (RIG_CHECKLIST).
+>
 > **NOTE (post-brief):** the live pin has since moved to **0.10.2** — `sidecar/OPENWEBUI_VERSION` is the
 > single source of truth. The 0.10.1 facts here (Python range, console script, `--port`, license rider,
 > External Document Loader contract) were re-verified to hold on 0.10.2.

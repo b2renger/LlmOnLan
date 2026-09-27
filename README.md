@@ -53,7 +53,7 @@ rationale, and [`implementation_plan.md`](implementation_plan.md) for the milest
 
 ## Status
 
-**Shipped — client `v0.1.45` (self‑updating; `lolchat/vnext` merged to `main` 2026‑09‑27, unreleased until the next tag), Farm app `farm-v0.0.38` (manual update check), OWUI `0.10.2`.**
+**Shipped — client `v0.1.45` (self‑updating; `lolchat/vnext` merged to `main` 2026‑09‑27, unreleased until the next tag), Farm app `farm-v0.0.38` (manual update check), OWUI `0.10.2` (the pin on `main` is `0.11.4`, unreleased).**
 
 *Chat + farm* — the farm serves **`gemma4:12b` on [Ollama](farm/README.md#backends--ollama-default-and-llamacpp)**
 by default, with **llama.cpp** (`llama-server`) as the opt‑in speed engine; either sits behind a single

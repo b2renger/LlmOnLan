@@ -14,7 +14,7 @@
 
 ---
 
-## Build status (2026-09-27) — released: client `v0.1.45` · Farm app `farm-v0.0.38` · OWUI `0.10.2`
+## Build status (2026-09-27) — released: client `v0.1.45` (OWUI `0.10.2`) · Farm app `farm-v0.0.38` · pin on `main`: OWUI `0.11.4`
 
 > `main` is ahead of both tags: LOL Chat vNext, the Computer and the 2026-09-27 review fixes (client and
 > farm) are merged but unreleased until the next `v*` / `farm-v*` tag. The bullets below describe `main`.
@@ -115,7 +115,7 @@ docs) is `docs/reviews/DOCS_REVIEW_2026-09-27_{FARM,SHELL,COMPUTER}.md`. Snapsho
   import chain — untouchable): `repoint` restarts ONLY when the effective launch env differs (not when an
   input differs), `sidecarManager` precompiles the freshly-unpacked tree to bytecode in the background (a
   fresh install otherwise pays parse+compile for ~27k files on first launch), `HF_HUB_OFFLINE=1` when MiniLM
-  (HF cache) + whisper-base (OWUI 0.10.2 keeps it under `DATA_DIR/cache/whisper/models`) are cached (OWUI
+  (HF cache) + whisper-base (OWUI 0.10.2 and 0.11.4 keep it under `DATA_DIR/cache/whisper/models`) are cached (OWUI
   otherwise asks huggingface.co on every boot — a hang on a closed LAN; `HF_HUB_ETAG_TIMEOUT=2` until then),
   and health polling at 300 ms.
   **Close means close** (owner decisions 2026-09-04 + 2026-09-10, replacing the keep-warm/tray behavior of
@@ -160,7 +160,7 @@ docs) is `docs/reviews/DOCS_REVIEW_2026-09-27_{FARM,SHELL,COMPUTER}.md`. Snapsho
   templates. Not built: the resume-after-close banner, lessons 5–12. Docs: [the user tutorial](docs/LOLCHAT_COMPUTER_TUTORIAL.md),
   [status](docs/COMPUTER_STATUS.md), [plan](docs/COMPUTER_PLAN.md), [live plan](docs/COMPUTER_LIVE_PLAN.md).
 - **`sidecar/`** — `build-sidecar` bundles a relocatable standalone CPython 3.12 + OWUI + `launcher.py`;
-  `OPENWEBUI_VERSION` is the pin (**OWUI `0.10.2`**, Python 3.11/3.12). A packaged client runs
+  `OPENWEBUI_VERSION` is the pin (**OWUI `0.11.4`** since 2026-09-27, Python 3.11/3.12; the bump notes are in INTEGRATION_BRIEF). A packaged client runs
   `<userData>/sidecar/python launcher.py serve`; dev uses `sidecar/.venv`'s `open-webui serve`. NOT bundled
   into the installer — CI publishes it as `owui-sidecar-<platform>-<arch>.tar.gz` release assets and the
   packaged shell downloads it to `userData/sidecar` on first run (`sidecarManager.ts`); About ▸ "Check for
