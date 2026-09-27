@@ -34,6 +34,10 @@ import { onParks, pending } from '../graph/parts/control-bus.mjs';
 import { faceText } from '../graph/parts/button.mjs';
 import '../strings/computer.en.mjs';
 import '../strings/computer-gen.en.mjs';
+// Ecosystem plan v2 §3.5: the outputs control (dry run / LIVE, Panic) and the arming question.
+import { outputsDoor } from '../projects/bridge.mjs';
+import { targetsIn } from '../graph/parts/send.mjs';
+import '../strings/parts-send.en.mjs';
 
 /** The share of the cap past which the meter warns (§8.3: "turning amber past 80 %"). */
 export const CAP_AMBER = 0.8;
@@ -352,7 +356,41 @@ export function install(app) {
 
   // Order matters: the status line reads left-to-right after the counts it explains, and the `?`
   // carries `margin-left:auto`, so it and the Record switch after it are pinned to the right edge.
-  root.replaceChildren(runBtn, stopBtn, counts, status, againBtn, helpBtn);
+  // Outputs (plan v2 §3.5): shown only when the graph has a Send box. DISARMED is a dry run; arming
+  // asks first and lists every target; Panic disarms and blacks out the DMX a graph lit. The truth is
+  // in main (outputs.ts); `armed` here only mirrors it for the label.
+  let armed = false;
+  let armedFor = '';
+  const outBtn = button('comp-run-outputs', t('computer.outputsDry'), async () => {
+    const door = outputsDoor();
+    if (!door) return;
+    if (armed) { armed = await door.arm(false); paint(); return; }
+    const doc = docNow();
+    const list = targetsIn(doc).map((x) => '• ' + x).join('\n');
+    const dialogs = /** @type {any} */ (app).dialogs;
+    const yes = dialogs && typeof dialogs.confirm === 'function'
+      ? await dialogs.confirm({ title: t('computer.outputsArmTitle'), body: t('computer.outputsArmBody', { targets: list }), ok: t('computer.outputsArmOk'), danger: true })
+      : false;
+    if (!yes) return;
+    armed = await door.arm(true);
+    const h = host();
+    armedFor = h && h.session && typeof h.session.docId === 'function' ? (h.session.docId() || '') : '';
+    paint();
+  });
+  outBtn.hidden = true;
+  const panicBtn = button('comp-run-panic', t('computer.outputsPanic'), async () => {
+    const door = outputsDoor();
+    if (!door) return;
+    const out = await door.panic();
+    armed = false;
+    paint();
+    const dialogs = /** @type {any} */ (app).dialogs;
+    if (dialogs && typeof dialogs.toast === 'function') dialogs.toast(t('computer.outputsPanicked', { n: Number(out && out.blackouts) || 0 }), { kind: 'info' });
+  });
+  panicBtn.title = t('computer.outputsPanicHint');
+  panicBtn.hidden = true;
+
+  root.replaceChildren(runBtn, stopBtn, counts, status, againBtn, outBtn, panicBtn, helpBtn);
   // The frozen probe `h.computer.states().runbar` reads `#lolcomputer .comp-run` (KC-4), and the
   // element the layout hands us is `.comp-runbar`. One class, so the harness reads the real bar
   // rather than an empty string that would pass every assertion by accident.
@@ -517,6 +555,15 @@ export function install(app) {
     // "Run everything again" stands while the last run of THIS graph found nothing to do and
     // nothing has been edited since — an edit makes something stale, and then Run all is the
     // honest button again.
+    // Outputs: shown with a Send box; another graph opened while armed goes back to a dry run.
+    const hasSend = !!doc && Array.isArray(doc.parts) && doc.parts.some((/** @type {any} */ p) => p.type === 'send');
+    if (armed && here !== armedFor) { armed = false; const door = outputsDoor(); if (door) void door.arm(false); }
+    outBtn.hidden = !hasSend;
+    panicBtn.hidden = !hasSend || !armed;
+    const outText = armed ? t('computer.outputsLive') : t('computer.outputsDry');
+    if (outBtn.textContent !== outText) outBtn.textContent = outText;
+    outBtn.title = armed ? t('computer.outputsLiveHint') : t('computer.outputsDryHint');
+    outBtn.classList.toggle('armed', armed);
     const again = !running && mine && nothingRan(last) && !!doc && (Number(doc.rev) || 0) === reportRev;
     if (againBtn.hidden === again) againBtn.hidden = !again;
     // Critic S1-2: the run's sentence is about THAT run of THIS graph as it was. An edit since (the

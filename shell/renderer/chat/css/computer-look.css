@@ -168,7 +168,9 @@
 #lolcomputer .graph-part[data-type='split'] .graph-port[data-port='text'],
 #lolcomputer .graph-part[data-type='classify'] .graph-port[data-port='options'],
 #lolcomputer .graph-part[data-type='speak'] .graph-port[data-dir='out'],
-#lolcomputer .graph-part[data-type='speak'] .graph-port[data-port='in'] {
+#lolcomputer .graph-part[data-type='speak'] .graph-port[data-port='in'],
+#lolcomputer .graph-part[data-type='send'] .graph-port[data-dir='out'],
+#lolcomputer .graph-part[data-type='send'] .graph-port[data-port='in'] {
   --k: var(--k-text);
   --kg: var(--kg-text);
 }

@@ -106,6 +106,24 @@ export function ioDoor() {
   };
 }
 
+/**
+ * The outputs door (ecosystem plan v2 §3.5): the Send box and the run bar's arm/panic control reach
+ * the ONE choke point in main (src/main/outputs.ts) through here. null on a shell without it.
+ * @returns {null | {send(req: any): Promise<any>, arm(on: boolean): Promise<boolean>, armed(): Promise<boolean>, panic(): Promise<any>}}
+ */
+export function outputsDoor() {
+  const api = preloadProp('io', ['send', 'arm', 'armed', 'panic']);
+  if (!api) return null;
+  /** @param {string} op @param {any[]} args @param {any} fallback */
+  const call = (op, args, fallback) => Promise.resolve().then(() => api[op](...args)).catch(() => fallback);
+  return {
+    send: (req) => call('send', [req], { ok: false, code: 'E_SEND', message: 'no answer from the main process' }),
+    arm: (on) => call('arm', [!!on], false),
+    armed: () => call('armed', [], false),
+    panic: () => call('panic', [], { ok: false }),
+  };
+}
+
 /** Whatever came back over IPC, shaped like an answer. @param {any} r */
 function normalise(r) {
   if (!r || typeof r !== 'object') return { ok: false, code: 'E_IO', message: t('projects.err_E_IO') };

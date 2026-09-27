@@ -27,5 +27,11 @@ if (HAS_PROJECTS) api.projects = projects;
 if (HAS_DEBUGLOG) api.debugLog = debugLog;
 // Ecosystem plan v2 §4.2: the additive `io` property (the Fetch box), present only when main.cjs wired
 // the real io.js (build/main/io.js exists).
-if (process.argv.includes('--lol-io=1')) api.io = { get: (url) => ipcRenderer.invoke('lol:io:fetch', url) };
+if (process.argv.includes('--lol-io=1')) api.io = {
+    get: (url) => ipcRenderer.invoke('lol:io:fetch', url),
+    send: (req) => ipcRenderer.invoke('lol:io:send', req),
+    arm: (on) => ipcRenderer.invoke('lol:io:arm', on),
+    armed: () => ipcRenderer.invoke('lol:io:armed'),
+    panic: () => ipcRenderer.invoke('lol:io:panic'),
+};
 contextBridge.exposeInMainWorld('lol', api);

@@ -192,3 +192,27 @@
   line-height: 1.35;
   color: var(--muted);
 }
+
+/* ---- Outputs: dry run / LIVE, and Panic (ecosystem plan v2 §3.5) ------------------------------
+   Shown only when the graph has a Send box. Disarmed is a ghost button like "again"; armed turns
+   amber so a live graph is never mistaken for a dry run; Panic is the danger button beside it. */
+#lolcomputer .comp-run-outputs,
+#lolcomputer .comp-run-panic {
+  font: inherit;
+  font-size: 12px;
+  padding: 3px 10px;
+  border-radius: var(--comp-r-btn);
+  border: 1px solid var(--comp-line);
+  background: var(--comp-panel-2);
+  color: var(--text);
+  cursor: pointer;
+  white-space: nowrap;
+}
+#lolcomputer .comp-run-outputs.armed { border-color: var(--amber); color: var(--amber); }
+#lolcomputer .comp-run-panic { border-color: var(--danger); color: var(--danger); }
+#lolcomputer .comp-run-outputs:hover,
+#lolcomputer .comp-run-panic:hover { filter: brightness(1.08); }
+#lolcomputer .comp-run-outputs:focus-visible,
+#lolcomputer .comp-run-panic:focus-visible { outline: 2px solid var(--accent-hover); outline-offset: 1px; }
+#lolcomputer .comp-run-outputs[hidden],
+#lolcomputer .comp-run-panic[hidden] { display: none; }

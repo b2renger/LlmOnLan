@@ -134,6 +134,15 @@ function wireIo() {
     if (typeof fetchText !== 'function') return false;
     ipcMain.handle('lol:io:fetch', (_e, url) => (typeof url === 'string' && url.length <= 2048
         ? fetchText(url, { allowLoopback: true }) : { ok: false, code: 'E_URL', message: 'bad arguments' }));
+    // The outputs choke point, the REAL outputs.js (it allows this machine anyway: OSC to 127.0.0.1).
+    const OUT_BUILD = path.join(__dirname, '..', '..', 'build', 'main', 'outputs.js');
+    if (fs.existsSync(OUT_BUILD)) {
+        const out = require(OUT_BUILD);
+        ipcMain.handle('lol:io:send', (_e, req) => (req && typeof req === 'object' ? out.send(req) : { ok: false, code: 'E_TARGET', message: 'bad arguments' }));
+        ipcMain.handle('lol:io:arm', (_e, on) => out.arm(on === true));
+        ipcMain.handle('lol:io:armed', () => out.isArmed());
+        ipcMain.handle('lol:io:panic', () => out.panic());
+    }
     return true;
 }
 

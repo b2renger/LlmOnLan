@@ -21,6 +21,7 @@ import { clientDataDir, prepareClientData, isInside, CLIENT_DIR_NAME, ClientData
 import { initAutoUpdate, checkForAppUpdate, quitAndInstallUpdate, setUpdateNotifier } from './updater';
 import { OWUI_ENABLED } from './clientMode';
 import { fetchText } from './io';
+import { send as sendOutput, arm as armOutputs, isArmed as outputsArmed, panic as panicOutputs, SendRequest } from './outputs';
 import {
     ensureSidecar, applyPendingSidecar, isSidecarInstalled,
     checkOwuiUpdate, downloadOwuiUpdate, SidecarProgress,
@@ -432,6 +433,8 @@ function createWindow(): void {
     win.removeMenu();
     win.loadFile(path.join(app.getAppPath(), 'renderer', 'index.html'));
     win.webContents.on('did-finish-load', pushSidecarState);
+    // Ecosystem plan v2 §3.5: nothing stays armed across a (re)load — outputs start as a dry run.
+    win.webContents.on('did-start-loading', () => { armOutputs(false); });
 
     // ---- LOL Studio (S0) ---- (navigation veto; mirrored in shell/test/chat-harness/main.cjs)
     // The sandbox runner (S2) is a SUBFRAME: it may load itself once and must never navigate
@@ -619,6 +622,13 @@ function registerIpc(): void {
     // ---- LOL Studio (S0) ---- (the Computer's Fetch box: one capped GET, io.ts; ecosystem plan v2 §4.2)
     ipcMain.handle('lol:io:fetch', (_e, url: unknown) => (
         isStr(url) && url.length <= 2048 ? fetchText(url) : Promise.resolve({ ok: false, code: 'E_URL', message: 'bad arguments' })));
+    // The Computer's outputs to the world: ONE choke point (outputs.ts; ecosystem plan v2 §3.5). Disarmed
+    // by default and on every window (re)load — see createWindow — so a dry run is the default.
+    ipcMain.handle('lol:io:send', (_e, req: unknown) => (
+        isObj(req) ? sendOutput(req as unknown as SendRequest) : Promise.resolve({ ok: false, code: 'E_TARGET', message: 'bad arguments' })));
+    ipcMain.handle('lol:io:arm', (_e, on: unknown) => armOutputs(on === true));
+    ipcMain.handle('lol:io:armed', () => outputsArmed());
+    ipcMain.handle('lol:io:panic', () => panicOutputs());
     // ---- /LOL Studio ----
 
     // Manual reload of the embedded OWUI (e.g. after a repoint).
