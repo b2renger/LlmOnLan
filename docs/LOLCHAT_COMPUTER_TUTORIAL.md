@@ -423,6 +423,24 @@ The code to put on the board is in the repo, [`docs/examples/arduino/lol_serial`
 The **Talk to a board** template on the Learn shelf carries the same sketch in a Text box to copy, and shows
 the **round trip**: the board reports its light, a Code box decides "dark? LED on", and a Send writes it back.
 
+### Boards on Wi-Fi: the farm's message bus, and the Trigger box
+
+When the farm's operator turns on the **Message bus** (farm panel ▸ Plugins), the farm becomes a meeting
+point on your network: an ESP32 on Wi-Fi (MQTT), TouchDesigner or Max (OSC) and every Computer (WebSocket)
+publish and listen on the same **topics**, like `lol/board1/light`.
+
+- **Receive** with *From: the farm's message bus* listens to a topic (`+` is any one level, `#` anything
+  below: `lol/+/light` hears every board's light) and hands on `{topic, data}`.
+- **Send** with *Send by: the farm's message bus* publishes on a topic (a dry run until you arm the outputs).
+- **＋ → Control → Trigger** starts a run **by itself**, on each message on a topic (a board's button) or
+  every few seconds. It only does so **while you have armed the outputs and the Computer is on screen**; at
+  most one run every few seconds (the messages in between only update what it hands on: the latest wins),
+  and at most so many runs an hour. Its face counts events, runs and merged messages, and says why nothing
+  starts.
+
+The ESP32 side is [`docs/examples/arduino/lol_mqtt`](examples/arduino/lol_mqtt/lol_mqtt.ino): it publishes
+its light sensor and sets its LED from a topic. With a farm password, the board and the bus need it too.
+
 ### Data from the web: the Fetch box
 
 **＋ → Bring in → Fetch** reads a web address you type: an open API (JSON) or a page. Press ▶: a JSON

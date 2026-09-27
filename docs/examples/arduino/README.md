@@ -36,9 +36,9 @@ the Computer only sends what you wire into Send and hands on whatever line the b
 4. Check it: **Tools → Serial Monitor** at **115200** baud says *Farm: connected*. From any computer on the
    network, `mosquitto_sub -h <farm> -t 'lol/#' -v -u lol -P <password>` shows the readings, and
    `mosquitto_pub -h <farm> -t lol/board1/led -m 0.5 -u lol -P <password>` lights the LED at half.
-5. In the Computer: a **Send** box to the farm's broker writes to `lol/<board>/led`, a **Trigger** box
-   subscribed to `lol/<board>/light` starts a run on each reading (both arrive with the farm-bus work, plan
-   P3b).
+5. In the Computer: a **Send** box with *Send by: the farm's message bus* writes to `lol/<board>/led`, a
+   **Receive** box on `lol/+/light` hands on the readings, and a **Trigger** box on a topic starts a run on
+   each message (only while you have armed the outputs).
 
 The farm keeps nothing: a message goes to whoever is subscribed at that moment, and is gone. With a farm
 password, the board needs it too (username `lol`); a board with the wrong one sees state `5` in the Serial

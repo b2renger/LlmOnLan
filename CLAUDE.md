@@ -81,7 +81,9 @@ docs) is `docs/reviews/DOCS_REVIEW_2026-09-27_{FARM,SHELL,COMPUTER}.md`. Snapsho
   - **Plugins** (`plugins/registry.js`): web search (SearXNG, ON), document OCR (`farm/src/pysvc` +
     `extract.js`, ON — hybrid text/vision PDF extraction), Kokoro TTS (OFF), and since 2026-09-27 **Classify**
     (Laya on the CPU, `classify.js` + `pysvc/classify_server.py`, OFF) and **speech to text** (faster-whisper on
-    the CPU, `stt.js` + `pysvc/stt_server.py`, OFF). They bind to `proxy.host`; the Python ones share one
+    the CPU, `stt.js` + `pysvc/stt_server.py`, OFF), and the **message bus** (`bus.js`, Node stdlib, OFF: an MQTT
+    3.1.1 broker :1883, a WebSocket hub :8893 and an OSC relay :9001 sharing one topic space, tied to the farm
+    password — MQTT user `lol`, `?key=`, `/lol/listen <filter> <pw>`; never logs a payload). They bind to `proxy.host`; the Python ones share one
     shape (own venv, a Bearer key per run, one job at a time + 429, no body ever logged). **Plugin keys are
     tied to the farm password** (2026-09-27): on an open farm the key rides the snapshot; with a password
     it is `null` there and a client holding the password fetches it from `GET /lol/plugin-keys`
@@ -141,8 +143,9 @@ docs) is `docs/reviews/DOCS_REVIEW_2026-09-27_{FARM,SHELL,COMPUTER}.md`. Snapsho
 - **The Computer** (third client surface, `shell/renderer/chat/{computer,graph,sandbox}/`) — a node-graph
   canvas where boxes wired by **named arrows** make a small program, kept in a library of graphs. Boxes:
   Text, Image, Document, Sound (+ a **Listen** switch: the farm's speech to text writes it down), File, **Fetch**, **Receive**
-  (a board's lines over USB serial: Web Serial in the page, the port picked by a person through main's
-  `select-serial-port`, `src/main/serial.ts` + `net/serial.mjs`) (*bring*); Instruction (+ "Write a p5.js/three.js/SVG/HTML"
+  (a board's lines over USB serial — Web Serial in the page, the port picked by a person through main's
+  `select-serial-port`, `src/main/serial.ts` + `net/serial.mjs` — or a topic of the farm's message bus through
+  its WebSocket hub, `net/bus.mjs`, the one file allowed a WebSocket) (*bring*); Instruction (+ "Write a p5.js/three.js/SVG/HTML"
   and "Describe a picture" presets, plus "Write code" — a model writes a Code box's program into its **code**
   port — and "Write a Laya question" — a model writes Classify's question + options into its **question**
   port), **Classify** (Laya on the farm: one multiple-choice question per item,
@@ -154,7 +157,9 @@ docs) is `docs/reviews/DOCS_REVIEW_2026-09-27_{FARM,SHELL,COMPUTER}.md`. Snapsho
   WebSocket, HTTP POST, USB serial to a device — through ONE choke point in main (USB: main decides, the page writes), `src/main/outputs.ts`: DISARMED by default
   and after every reload so a run is a dry run, arming asks and lists every target, a person-typed target
   only, never the farm's ports, 20 msg/s per target, DMX ≤ 3 frames/s, Panic blacks out every universe lit)
-  (*show*); Button, Condition, Confirm, Dialog, Toggle, Timer (*control*); Sticky, Section, Title
+  (*show*); Button, Condition, Confirm, Dialog, Toggle, Timer, **Trigger** (starts runs by itself on a bus message or
+  a schedule, ONLY while a person armed the outputs and the Computer is on screen; one run per `gapSec`, latest wins;
+  `perHour` runs at most) (*control*); Sticky, Section, Title
   (*annotate*). Thinking boxes ask the farm **directly** (never through OWUI) on the background lane: one
   request in flight, they yield to a person's chat, and a hidden window sends nothing. Every run is bounded by
   `RUN_LIMITS` (`core/types.mjs`): 8 passes per box, 50 generations (the toolbar **Cap**), 10 min of wall
@@ -648,7 +653,8 @@ LlmOnLan/
 - **To third parties a person names:** a Computer **Fetch** box's GET to the address typed in it (nothing
   from the graph is sent with it); a **Send** box's message to the device typed in it, only once a person
   armed the outputs (a dry run otherwise). A board on this computer's USB cable (Send by USB, Receive) stays
-  on this computer.
+  on this computer; the farm's message bus carries what a graph publishes (armed) to whoever subscribed on the
+  LAN, and keeps nothing.
 - **Beyond the farm (no user content):** GitHub, for the app update check and the chat-engine (sidecar)
   download/update check; huggingface.co, until MiniLM and whisper-base are cached (then `HF_HUB_OFFLINE=1`).
 - **Never sent anywhere:** documents for **embedding** (local model), a Computer Sound box's recording
