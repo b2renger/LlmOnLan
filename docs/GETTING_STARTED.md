@@ -206,7 +206,7 @@ with `LOL_ENDPOINT=http://<box-ip>:4000/v1` if discovery isn't available.
   `assistant` on a llama.cpp farm). That name is a stable id, so the operator can swap the
   checkpoint underneath without breaking your existing chats.
 - **Three surfaces** — the topbar switch picks **Open WebUI** (documents, RAG, web search, voice,
-  history), **LOL Chat** (a fast chat straight to the farm; no documents) or the **Computer**; the app
+  history), **LOL Vibe** (a fast chat straight to the farm; no documents) or the **Computer**; the app
   remembers your last choice.
 - **The connection pill** (top bar) shows the farm and its free seats (`· 2/3 free`). Amber means wait —
   connecting, every seat busy, the farm not responding, or a password needed; red means a problem on the
@@ -219,21 +219,21 @@ with `LOL_ENDPOINT=http://<box-ip>:4000/v1` if discovery isn't available.
 - **Documents** — attach a PDF or a photo of a document and ask about it. Scanned pages and images are OCR'd by the farm's vision model; on farms with a large context window (≥ 24k tokens per chat) answers read the whole document; on smaller ones, the 8 most relevant passages.
 - **Where your data lives** — everything sits in one folder on **your** machine (by default
   `…/LlmOnLan/owui-data` in your user app‑data; Settings ⚙ ▸ **Data location** shows it and can move
-  it): Open WebUI's chats, documents and RAG vectors; LOL Chat's conversations and the Computer's graphs
+  it): Open WebUI's chats, documents and RAG vectors; LOL Vibe's conversations and the Computer's graphs
   with the pictures, PDFs and sounds in them (in its `lol-client` subfolder — the app's own local
   database, so they don't appear in Open WebUI); and the files the Computer's File boxes write
   (`LOL Studio Projects`). Changing the folder restarts the app: **Move my data** carries all of it,
-  **Start fresh** leaves the old folder as it was. Updating from v0.1.x copies your LOL Chat history
+  **Start fresh** leaves the old folder as it was. Updating from v0.1.x copies your LOL Vibe history
   into that folder once, on the first launch, and keeps the old copy in the app's user-data folder as a
   backup. With farm OCR on, an uploaded file's bytes transit to the trusted‑LAN farm for text
   extraction; nothing is stored there.
-- **LOL Chat** — reopens your last chat on launch. Each reply shows tok/s and time to first token;
+- **LOL Vibe** — reopens your last chat on launch. Each reply shows tok/s and time to first token;
   **Regenerate** also offers **More creative** / **More precise**; ◀ ▶ walk a reply's versions;
   **Continue** picks up a reply that was cut short; each message's actions include **Delete from
   here**; the chat header sets a **System prompt for this chat**. On a full farm the reply waits for a seat (**Try now** / **Cancel**) instead of
   failing. Keys: **Esc** stops a reply (or cancels a seat wait), **↑** in an empty box edits your last
   message (**Ctrl+Enter** saves the edit), **Alt+← / Alt+→** walk the last reply's versions,
-  **Ctrl+Shift+O** (⌘⇧O) starts a new chat. **LOL Chat › Settings** holds Storage (space used, **Export
+  **Ctrl+Shift+O** (⌘⇧O) starts a new chat. **LOL Vibe › Settings** holds Storage (space used, **Export
   all chats**, **Import chats…** — `.json` / `.lolchat.json`, new ids, up to 512 MB), the send‑cost gate
   (**Ask before sending more than N tokens**), **Tell me when a long reply is done**, and About; each
   chat's … menu exports Markdown or `.lolchat.json`.

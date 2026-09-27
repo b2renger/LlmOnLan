@@ -50,7 +50,7 @@ export default (test) => {
       now: 1_789_200_000_000,
     });
     assert.equal(doc.lolchat, LOLCHAT_FORMAT);
-    assert.equal(doc.app, 'LlmOnLan LOL Chat');
+    assert.equal(doc.app, 'LlmOnLan LOL Vibe');
     assert.equal(doc.exportedAt, new Date(1_789_200_000_000).toISOString());
 
     const second = parseImport(JSON.stringify(doc), { newId: minter('b') });
@@ -249,7 +249,7 @@ export default (test) => {
     assert.deepEqual(r.messages, []);
     assert.deepEqual(r.attachments, []);
     assert.equal(r.errors.length, 1);
-    assert.match(r.errors[0], /not a LOL Chat export/);
+    assert.match(r.errors[0], /not a LOL Vibe export/);
   });
 
   test('transfer: a version this build does not read is refused whole', async () => {
@@ -265,7 +265,7 @@ export default (test) => {
     assert.match(graph.errors[0], /a \.lolgraph\.json is a Computer graph; open it from the Computer/);
     assert.doesNotMatch(graph.errors[0], /undefined/);
     const other = parseImport(JSON.stringify({ hello: 'world' }), { newId: minter('a') });
-    assert.match(other.errors[0], /not a LOL Chat export/);
+    assert.match(other.errors[0], /not a LOL Vibe export/);
     assert.doesNotMatch(other.errors[0], /undefined/);
   });
 

@@ -15,7 +15,7 @@ registerStrings('render', {
 
   // message notes (.chat-msg-note)
   noteAborted: 'You stopped this reply.',
-  noteInterrupted: 'This reply was cut short — LOL Chat closed while it was still streaming.',
+  noteInterrupted: 'This reply was cut short — LOL Vibe closed while it was still streaming.',
   noteError: 'The reply failed.',
 
   // message actions (.chat-actions)

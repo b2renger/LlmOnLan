@@ -20,7 +20,7 @@ ComfyUI workflows, LOL gives a workshop a private, local‑first chat assistant.
   │   │  all chats / docs / RAG vectors live     ││◄─────┤    ├─ Ollama #1..#N → the default    │
   │   │  HERE, in a folder you choose (DATA_DIR) ││ only │    │   (gemma4:12b) + OCR vision     │
   │   └──────────────────────────────────────────┘│      │    └─ llama-server  → opt-in speed   │
-  │   └─ or LOL Chat · or the Computer (switch) ──┘│      │                       engine        │
+  │   └─ or LOL Vibe · or the Computer (switch) ──┘│      │                       engine        │
   └───────────────────────────────────────────────┘      └──────────────────────────────────────┘
 ```
 
@@ -37,14 +37,14 @@ so the client sees one OpenAI‑compatible endpoint and never knows which answer
 |---|---|---|
 | **`lol`** — farm CLI | Node CLI. Reads `lol.config.json`; runs **Ollama (default) or llama.cpp**, generates + runs a LiteLLM proxy (one OpenAI‑compatible, load‑balanced endpoint), runs a UDP discovery beacon. **Where models are chosen.** | [`farm/`](farm/) |
 | **Farm app** | Electron installer that runs the `lol` farm for a non‑technical operator: on first run it downloads its own Ollama + Python + the inference backend and weights, then hands over the farm **panel** (where the model, its name and the capacity are run). Its own Settings carry the share‑with‑LAN toggle, theme, launch‑at‑login and updates. **Update checks are manual** (a notice + a Download button — no in‑place install). | [`farm-app/`](farm-app/) |
-| **Client shell** | Electron + TypeScript. Supervises the bundled Open WebUI, discovers the farm, points OWUI at it, stores all data — OWUI's, LOL Chat's and the Computer's — in a user‑chosen local folder. Owns the topbar / settings / connection screen, and two surfaces of its own: **LOL Chat** and the **Computer**. | [`shell/`](shell/) |
+| **Client shell** | Electron + TypeScript. Supervises the bundled Open WebUI, discovers the farm, points OWUI at it, stores all data — OWUI's, LOL Vibe's and the Computer's — in a user‑chosen local folder. Owns the topbar / settings / connection screen, and two surfaces of its own: **LOL Vibe** and the **Computer**. | [`shell/`](shell/) |
 | **Open WebUI sidecar** | Vendored, version‑pinned, **unmodified**. We inherit all its features and never edit its source. | [`sidecar/`](sidecar/) |
 
 ## Prime directive (non‑negotiable)
 
 1. **Open WebUI is vendored, version‑pinned, and UNMODIFIED** — zero OWUI source diffs in this repo, ever.
 2. **We keep Open WebUI's branding** (license convenience + product choice).
-3. **All persistent data stays on the client machine** under a user‑chosen `DATA_DIR` — OWUI's, LOL Chat's history, and the Computer's graphs, media and projects. The farm is stateless.
+3. **All persistent data stays on the client machine** under a user‑chosen `DATA_DIR` — OWUI's, LOL Vibe's history, and the Computer's graphs, media and projects. The farm is stateless.
 4. **We touch OWUI only through its public surface** (env vars + admin REST API).
 5. **Upgrading OWUI is a version bump, not a merge** — no LOL code changes.
 
@@ -60,7 +60,7 @@ by default, with **llama.cpp** (`llama-server`) as the opt‑in speed engine; ei
 load‑balanced LiteLLM endpoint. **Stable model aliases** mean the operator can swap the checkpoint
 underneath without breaking a single existing chat, and can **name the model users see** in the farm
 panel. The client is the bundled, unmodified **Open WebUI**, with a topbar switch between Open WebUI,
-**LOL Chat** (a Studio‑style chat straight to the farm) and the **Computer**.
+**LOL Vibe** (a Studio‑style chat straight to the farm) and the **Computer**.
 
 *Features* — **full multimodal** (image understanding + voice; Whisper STT runs on‑device); **web
 search** via a shared farm‑hosted [SearXNG](https://docs.searxng.org) (**on by default**, zero client

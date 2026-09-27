@@ -7,7 +7,7 @@ registerStrings('core', {
   newChat: 'New chat',
   send: 'Send',
   stop: 'Stop',
-  // Tooltips naming the key (LOL Chat has no shortcut list). {keys} is the platform's spelling.
+  // Tooltips naming the key (LOL Vibe has no shortcut list). {keys} is the platform's spelling.
   newChatTitle: 'New chat ({keys})',
   stopTitle: 'Stop the reply (Esc)',
   inputPlaceholder: 'Ask something…  (Enter to send, Shift+Enter for a new line)',
@@ -20,8 +20,8 @@ registerStrings('core', {
   messagesLabel: 'Conversation',
 
   // loader (main.mjs)
-  loaderFailed: 'Part of LOL Chat failed to load ({key}).',
-  loaderFallback: 'LOL Chat failed to load — see the developer console.',
+  loaderFailed: 'Part of LOL Vibe failed to load ({key}).',
+  loaderFallback: 'LOL Vibe failed to load — see the developer console.',
 
   // development fakes (core/fakes.mjs) — harness only, never shown in production
   reasoning: 'reasoning',

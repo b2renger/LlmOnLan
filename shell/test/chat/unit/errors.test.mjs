@@ -118,7 +118,7 @@ export default (test) => {
 
   test('B-8 describe(): a local failure says so, and does not blame the farm', () => {
     const d = describe(classifyThrown(new Error('transform exploded')), t, {});
-    assert.equal(d.title, 'LOL Chat could not send this');
+    assert.equal(d.title, 'LOL Vibe could not send this');
     assert.equal(d.body, 'Something failed on this computer, not on the farm: transform exploded');
     assert.doesNotMatch(d.body, /farm answered/);
   });

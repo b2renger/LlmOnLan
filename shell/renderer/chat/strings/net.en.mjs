@@ -23,7 +23,7 @@ registerStrings('net', {
   networkTitle: 'The farm is unreachable',
   abortedTitle: 'Stopped',
   httpTitle: 'The farm refused the request',
-  localTitle: 'LOL Chat could not send this',
+  localTitle: 'LOL Vibe could not send this',
 
   // describe() bodies ({message} = the classified message, {status} = the HTTP status,
   // {seconds} = retry-after)

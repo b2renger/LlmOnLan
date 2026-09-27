@@ -158,7 +158,7 @@ export default (test) => {
   test('i18n: core strings are registered by the fakes/layout strings file', () => {
     assert.ok(hasKey('core.newChat'));
     assert.ok(hasKey('core.loaderFailed'));
-    assert.equal(t('core.loaderFailed', { key: 'repo' }), 'Part of LOL Chat failed to load (repo).');
+    assert.equal(t('core.loaderFailed', { key: 'repo' }), 'Part of LOL Vibe failed to load (repo).');
     assert.equal(t('core.stats', { tokens: 12, tokPerSec: '48.0', ttft: '0.25' }), '12 tok · 48.0 tok/s · first token 0.25s');
   });
 

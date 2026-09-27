@@ -16,12 +16,12 @@
 
 ## Build status (2026-09-27) — released: client `v0.2.0` (OWUI `0.11.4`) · Farm app `farm-v0.0.39`
 
-> v0.2.0 is the first release with LOL Chat vNext and the Computer (Fetch, Classify, Listen/Speak, Send, a ? on
+> v0.2.0 is the first release with LOL Vibe vNext and the Computer (Fetch, Classify, Listen/Speak, Send, a ? on
 > every box). What changed since is on `main`, in docs/DEVLOG.md. The bullets below describe `main`.
 
 The full plan is built, released and in multi-user testing; the dated build log with how
 each piece was tested lives in [docs/DEVLOG.md](docs/DEVLOG.md), the rig‑verification state in
-[docs/RIG_CHECKLIST.md](docs/RIG_CHECKLIST.md) (LOL Chat and the Computer: [docs/LOLCHAT_RIG_CHECKLIST.md](docs/LOLCHAT_RIG_CHECKLIST.md)),
+[docs/RIG_CHECKLIST.md](docs/RIG_CHECKLIST.md) (LOL Vibe and the Computer: [docs/LOLCHAT_RIG_CHECKLIST.md](docs/LOLCHAT_RIG_CHECKLIST.md)),
 and the version‑specific integration facts in [docs/INTEGRATION_BRIEF.md](docs/INTEGRATION_BRIEF.md)
 (a dated snapshot — the pin has since moved). The last full consistency pass (code ↔ in‑app text ↔ these
 docs) is `docs/reviews/DOCS_REVIEW_2026-09-27_{FARM,SHELL,COMPUTER}.md`. Snapshot:
@@ -99,15 +99,17 @@ docs) is `docs/reviews/DOCS_REVIEW_2026-09-27_{FARM,SHELL,COMPUTER}.md`. Snapsho
   so a 16k farm can't context-overflow on an attachment; presence heartbeats to the farm (`POST
   /lol/client-ping` every 10 s: id/hostname/platform/version/idleSec); Blender/mcpo assistant tools are
   **opt-in** (off by default since v0.1.24; a farm recommendation can enable them for non-explicit users).
-  **Three surfaces**, picked by the topbar's segmented control (Open WebUI · LOL Chat · Computer; the last
-  choice is remembered in `localStorage['lol:view']`): OWUI; **LOL Chat** (`renderer/chat/main.mjs` + modules
+  **Three surfaces**, picked by the topbar's segmented control (Open WebUI · LOL Vibe · Computer; the last
+  choice is remembered in `localStorage['lol:view']`): OWUI; **LOL Vibe** (`renderer/chat/main.mjs` + modules
   in `app/ core/ ctx/ net/ render/ state/ ui/ strings/ css/` — farm-direct, tok/s + TTFT per reply, a message
   tree, seat-aware sending, a context meter; history in the renderer's IndexedDB `lol-chat` v2 with a one-way
   import of the v1 `localStorage` history; no RAG, uploads or tools — those P3/P4 plans are NOT BUILT); and
-  the **Computer** (next bullet). Whether OWUI ships is `src/main/clientMode.ts` `OWUI_ENABLED` + the
+  the **Computer** (next bullet). **LOL Vibe was named LOL Chat until 2026-09-27** (owner): only what a person
+  reads changed; the code and the data keep the old name (`renderer/chat/`, `#lolchat`, the `lol-chat` IndexedDB,
+  the `chat` view value, `.lolchat.json` exports), so no history moves and old exports still import. Whether OWUI ships is `src/main/clientMode.ts` `OWUI_ENABLED` + the
   renderer's `NO_OWUI` (flip both; a no-OWUI build hides the Open WebUI button).
   **All of the client's data is in DATA_DIR** (owner rule 2026-09-27): the main window runs on
-  `session.fromPath(<DATA_DIR>/lol-client)` (`src/main/clientData.ts`), so LOL Chat's IndexedDB + the
+  `session.fromPath(<DATA_DIR>/lol-client)` (`src/main/clientData.ts`), so LOL Vibe's IndexedDB + the
   window's localStorage live there, next to OWUI's data. Before app `ready` the boot applies a pending
   Preferences move, falls back to `<userData>/lol-client` (with a toast) when the DATA_DIR cannot be
   written, and imports a v0.1.x profile ONCE from the default session under userData (left there as a
@@ -131,7 +133,7 @@ docs) is `docs/reviews/DOCS_REVIEW_2026-09-27_{FARM,SHELL,COMPUTER}.md`. Snapsho
   heartbeating the farm and held a seat while nobody used it; reopening pays the OWUI boot again —
   accepted cost.
   **Tests** (`shell/test/`, see `test/chat/README.md`): `npm run test:unit` (app.js capacity helpers);
-  `node test/chat-unit.js` (LOL Chat + Computer unit suites); `chat-lint.js` + `chat-scope.js` (static and
+  `node test/chat-unit.js` (LOL Vibe + Computer unit suites); `chat-lint.js` + `chat-scope.js` (static and
   scope gates); `asar-probe.js`; `node test/chat-harness/run.js [--slot n] [--phase p]` (a chat-only
   Electron driven over CDP against a NON-beaconing `mock-farm.js`; `--phase perf` = the perf budgets). The
   legacy `npm test` = `e2e.js` drives the real app against a beaconing mock — a spare box only (Electron's
@@ -198,7 +200,7 @@ streamed gemma4 reply); **document‑locality** (a doc embedded into the local C
 **Still needs real two‑machine / installer verification** (see [docs/RIG_CHECKLIST.md](docs/RIG_CHECKLIST.md)):
 discovery across *physical* boxes / broadcast‑blocked Wi‑Fi, the full installer build + a live
 GitHub‑Release auto‑update cycle on mac/win/linux (the upgrade test), the data‑folder move via the
-native dialog, and the v0.1.45 → v0.2.0 upgrade of a profile with LOL Chat history (the one-time import
+native dialog, and the v0.1.45 → v0.2.0 upgrade of a profile with LOL Vibe history (the one-time import
 into `DATA_DIR/lol-client`, then a Preferences move + relaunch). When working here, keep honoring the **prime directive** below.
 
 ---
@@ -214,7 +216,7 @@ into `DATA_DIR/lol-client`, then a Preferences move + relaunch). When working he
 2. **The client shell** (Electron + TypeScript). Supervises a bundled, unmodified Open WebUI
    sidecar, discovers the farm on the LAN, points Open WebUI at it, and stores all data locally
    (OWUI's under a user‑chosen folder). Owns the topbar, settings/preferences, the connection overlay,
-   and two first-party surfaces beside OWUI: **LOL Chat** and **the Computer**.
+   and two first-party surfaces beside OWUI: **LOL Vibe** and **the Computer**.
 3. **Open WebUI** — vendored, version‑pinned, **unmodified**. We inherit all its features.
 4. **The Farm app** (`farm-app/`, Electron) — the operator-facing sibling of the client: a first-run
    wizard downloads its own Python + Ollama, copies the farm code to `userData/farm`, pulls `gemma4:12b`,
@@ -245,7 +247,7 @@ If a task seems to require breaking one of these, **stop and flag it**.
    only constrains deployments over **50 aggregate users / 30 days**; keeping branding means no
    constraint and no enterprise license at any scale. (https://docs.openwebui.com/license/)
 3. **All persistent data stays on the client machine** — under a local `DATA_DIR` the user chooses:
-   OWUI's chats, folders, knowledge bases, documents and RAG vectors, LOL Chat's history, and the
+   OWUI's chats, folders, knowledge bases, documents and RAG vectors, LOL Vibe's history, and the
    Computer's graphs, media and projects. The farm is stateless and stores nothing.
 4. **We touch Open WebUI ONLY through its public config surface** (env vars + admin REST API). If
    a behavior needs Open WebUI internals, we don't build it.
@@ -314,7 +316,7 @@ Connection: `OPENAI_API_BASE_URL` + `OPENAI_API_KEY` (the farm is OpenAI‑compa
 
 Data locality:
 - `DATA_DIR` → user‑chosen local folder (all persistent data lives here: OWUI's, and — in its `lol-client`
-  subfolder, the main window's Chromium session — LOL Chat's history and the Computer's graphs and media;
+  subfolder, the main window's Chromium session — LOL Vibe's history and the Computer's graphs and media;
   File-box outputs in `LOL Studio Projects/`).
 - **Keep default local embeddings** — we set **neither** `RAG_EMBEDDING_ENGINE` **nor**
   `RAG_EMBEDDING_MODEL`, so OWUI's in‑process default applies (`all-MiniLM-L6-v2`,
@@ -387,7 +389,7 @@ Notes:
   OpenAI deployment (+ coordinator peers) replaces the Ollama catalog. LOL never hand‑edits routing; it's
   derived from `lol.config.json`.
 - Model choice = the admin panel (live), or edit `models` (or `lol models add`) + `lol up`. Clients see the
-  catalog via the endpoint's `/v1/models`; OWUI's and LOL Chat's pickers handle per‑chat selection.
+  catalog via the endpoint's `/v1/models`; OWUI's and LOL Vibe's pickers handle per‑chat selection.
 - Prereqs (documented in `farm/README.md`): Ollama installed per box; LiteLLM available (pip/binary) —
   `lol install` bootstraps both. The CLI spawns/supervises them; it doesn't reimplement them.
 - The beacon is adapted from ComfyQ's `server/federation/beacon.js` (see Discovery).
@@ -397,8 +399,8 @@ Notes:
 ## Client shell
 
 Layout (mirrors ComfyQ's desktop shell): a sticky **topbar** (logo · "powered by Open WebUI" · connection
-pill · surface switch Open WebUI / LOL Chat / Computer · theme · gear) over the OWUI `<webview>`
-(`http://127.0.0.1:<port>`), LOL Chat or the Computer. **The pill** shows the farm and its free seats
+pill · surface switch Open WebUI / LOL Vibe / Computer · theme · gear) over the OWUI `<webview>`
+(`http://127.0.0.1:<port>`), LOL Vibe or the Computer. **The pill** shows the farm and its free seats
 (`· 2/3 free`); amber = connecting, seats full, not responding or password needed; red = a server problem.
 Clicking it opens **Servers on your network**: farm cards with live load, password entry, "Manage this
 farm ↗" (`/lol/admin`), add-by-address, auto-search and Rescan. **The connection overlay** covers OWUI
@@ -408,11 +410,11 @@ while it starts, reconnects, fails (Retry) or downloads the engine on first run.
 Main‑process responsibilities: sidecar supervisor (start/health‑wait/restart/stop), discovery,
 config‑bridge (the only module that knows OWUI's env surface; the renderer's `app.js` holds the few REST
 touches in the contract table), and the shell config store (a hand-rolled `userData/shell-settings.json`,
-`store.ts`). The renderer hosts the chrome, the webview, the settings UI, LOL Chat and the Computer.
+`store.ts`). The renderer hosts the chrome, the webview, the settings UI, LOL Vibe and the Computer.
 
 **Preferences panel** (LOL‑owned, ComfyQ‑styled), sections (data location · connection · **assistant
 tools** · startup & updates · about):
-- **Data location** — show the current `DATA_DIR` (everything: OWUI's data, LOL Chat's history, the
+- **Data location** — show the current `DATA_DIR` (everything: OWUI's data, LOL Vibe's history, the
   Computer's graphs, media and projects); "Change folder…" (Electron `dialog.showOpenDialog`). The panel
   asks first and says the app restarts: **move** copies OWUI's data now (the sidecar stopped), saves
   `dataDir` + a `pendingClientMove` marker, and relaunches (no quit prompt) — the next boot moves
@@ -429,7 +431,7 @@ tools** · startup & updates · about):
 
 Model selection is intentionally **not** here — the served catalog lives farm‑side (lol.config.json, the
 `lol up` interactive picker, or live via the admin panel at `http://<box>:41997/lol/admin`), and per‑chat
-model choice lives in Open WebUI's own picker (and LOL Chat's).
+model choice lives in Open WebUI's own picker (and LOL Vibe's).
 
 ---
 
@@ -579,8 +581,8 @@ LlmOnLan/
                          #   farmSelect (pure farm choice), clientMode.ts; projects/projectsPath/debugLog = the Computer's
     src/preload/
     renderer/            #   index.html + app.js (topbar, webview host, prefs); tokens.css (ComfyQ palette)
-      chat/              #   LOL Chat + the Computer — ES modules, no build; IndexedDB `lol-chat` (in DATA_DIR/lol-client)
-        main.mjs         #     LOL Chat entry (+ app/ core/ ctx/ net/ render/ state/ ui/ strings/ css/)
+      chat/              #   LOL Vibe + the Computer — ES modules, no build; IndexedDB `lol-chat` (in DATA_DIR/lol-client)
+        main.mjs         #     LOL Vibe entry (+ app/ core/ ctx/ net/ render/ state/ ui/ strings/ css/)
         computer/        #     the Computer surface: layout, library, run bar, drawer (+ code editor),
                          #     host (session/runner/canvas), drops/intake/media, devlog + recorder,
                          #     tutorial/ (Learn shelf, rail, lessons), templates/
@@ -622,13 +624,13 @@ LlmOnLan/
 ## Data‑flow & privacy boundary
 
 - **On the device, all under `DATA_DIR`:** every conversation, folder, prompt, document, and RAG vector
-  (OWUI's); LOL Chat's history and the Computer's graphs and media (the main window's session,
+  (OWUI's); LOL Vibe's history and the Computer's graphs and media (the main window's session,
   `DATA_DIR/lol-client`); the Computer's File-box outputs (`DATA_DIR/LOL Studio Projects`). Embeddings are
   computed locally. Outside DATA_DIR, under userData, only app plumbing: settings, the downloaded engine,
-  OWUI's webview token/caches, logs, and — after an upgrade from v0.1.x — the old LOL Chat copy kept as a
+  OWUI's webview token/caches, logs, and — after an upgrade from v0.1.x — the old LOL Vibe copy kept as a
   backup.
 - **Over the network (all to the trusted‑LAN farm, which stores nothing):** the chat context per
-  completion (from OWUI, LOL Chat, or a Computer Instruction — with an Image box's or a Preview's rendered pixels when wired);
+  completion (from OWUI, LOL Vibe, or a Computer Instruction — with an Image box's or a Preview's rendered pixels when wired);
   web‑search queries to the farm's SearXNG (result pages are then fetched directly); TTS requests when
   the farm hosts Kokoro (and a Computer Speak box's text, with the farm voice); a Computer Sound box's
   recording, only in **Listen** mode, to be written down by the farm's speech-to-text (never logged or

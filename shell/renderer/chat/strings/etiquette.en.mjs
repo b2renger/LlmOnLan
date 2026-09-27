@@ -41,7 +41,7 @@ registerStrings('etiquette', {
   notifyTitle: 'Notifications',
   // The desktop toast's own title, used when the chat has no title yet. NOT notifyTitle:
   // sharing that key announced the notification as "Notifications" (P2 review).
-  notifyFallbackTitle: 'LOL Chat — your reply is ready',
+  notifyFallbackTitle: 'LOL Vibe — your reply is ready',
   notifyToggle: 'Tell me when a long reply is done',
-  notifyHint: 'Only when LOL Chat is in the background and the answer took a while.',
+  notifyHint: 'Only when LOL Vibe is in the background and the answer took a while.',
 });

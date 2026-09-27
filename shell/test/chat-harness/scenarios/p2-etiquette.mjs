@@ -684,7 +684,7 @@ export default [
             });
             h.note(`untitled-chat notification: ${JSON.stringify(untitled[0].title)}`);
             h.assert(untitled[0].title !== 'Notifications', 'never the settings-section heading');
-            h.eq(untitled[0].title, 'LOL Chat — your reply is ready', 'its own fallback string');
+            h.eq(untitled[0].title, 'LOL Vibe — your reply is ready', 'its own fallback string');
 
             // The reader turns it off: the preference is honoured without a reload.
             await h.eval(async () => {

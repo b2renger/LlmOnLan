@@ -8,7 +8,7 @@
 //   parseImport(text, {maxBytes, newId})                          → {threads, messages, attachments, errors}
 //
 // THE FILE. `.lolchat.json`, one JSON object:
-//   {lolchat: 1, exportedAt, app: 'LlmOnLan LOL Chat', threads: [], messages: [], attachments: []}
+//   {lolchat: 1, exportedAt, app: 'LlmOnLan LOL Vibe', threads: [], messages: [], attachments: []}
 // `lolchat` is the format version and the ONLY thing that gates a read: a file that says anything
 // but 1 is refused whole rather than guessed at.
 //
@@ -31,7 +31,7 @@ export const LOLCHAT_FORMAT = 1;
 /** The default refusal size for parseImport (plan §4 P2-U4). */
 export const MAX_IMPORT_BYTES = 512 * 1024 * 1024;
 
-const APP_NAME = 'LlmOnLan LOL Chat';
+const APP_NAME = 'LlmOnLan LOL Vibe';
 
 const THREAD_FIELDS = [
   'id', 'title', 'titleSource', 'createdAt', 'updatedAt', 'headId', 'pinned', 'ephemeral',
@@ -141,7 +141,7 @@ function messageText(msg) {
 }
 
 /**
- * One conversation as Markdown, for reading outside LOL Chat. Message text is copied VERBATIM —
+ * One conversation as Markdown, for reading outside LOL Vibe. Message text is copied VERBATIM —
  * fences, tables and all — under a heading per turn, so a code block survives the trip unescaped
  * (escaping it would be the one thing that makes the export useless for the code people export it
  * for). Attachments are named, never inlined.
@@ -207,18 +207,18 @@ export function parseImport(text, opts = {}) {
     doc = JSON.parse(raw);
   } catch (err) {
     const why = err && /** @type {any} */ (err).message ? String(/** @type {any} */ (err).message) : 'unreadable JSON';
-    errors.push(`this is not a LOL Chat export: ${why}`);
+    errors.push(`this is not a LOL Vibe export: ${why}`);
     return nothing();
   }
-  if (!isObj(doc)) { errors.push('this is not a LOL Chat export: the file is not an object'); return nothing(); }
+  if (!isObj(doc)) { errors.push('this is not a LOL Vibe export: the file is not an object'); return nothing(); }
   // The picker also offers .lolgraph.json (the Computer imports through it): name what the file IS
   // instead of "unsupported export version: undefined" (docs review B-9).
   if (doc.lolchat === undefined && doc.lolgraph !== undefined) {
-    errors.push('This is not a LOL Chat export — a .lolgraph.json is a Computer graph; open it from the Computer.');
+    errors.push('This is not a LOL Vibe export — a .lolgraph.json is a Computer graph; open it from the Computer.');
     return nothing();
   }
   if (doc.lolchat === undefined) {
-    errors.push('This is not a LOL Chat export: the file has no "lolchat" version field.');
+    errors.push('This is not a LOL Vibe export: the file has no "lolchat" version field.');
     return nothing();
   }
   if (doc.lolchat !== LOLCHAT_FORMAT) {

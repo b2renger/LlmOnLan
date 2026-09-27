@@ -35,11 +35,11 @@ registerStrings('library', {
 
   // ---- ephemeral ----
   newEphemeral: 'New ephemeral chat',
-  ephemeral: 'Not saved — this chat disappears when LOL Chat closes.',
+  ephemeral: 'Not saved — this chat disappears when LOL Vibe closes.',
 
   // ---- settings ----
   settings: 'Settings',
-  settingsTitle: 'LOL Chat settings',
+  settingsTitle: 'LOL Vibe settings',
   storage: 'Storage',
   storeIdb: 'Saved on this computer',
   storePending: 'Opening the local database…',
@@ -56,7 +56,7 @@ registerStrings('library', {
   removeV1Done: 'The old copy was removed.',
   removeV1Kept: 'The old copy was kept.',
   about: 'About',
-  aboutBody: 'LOL Chat keeps everything on this computer.',
+  aboutBody: 'LOL Vibe keeps everything on this computer.',
   aboutWhere: 'Chats, drafts and attachments live in this app’s own local database, inside your data folder (Preferences › Data location). Nothing is uploaded: only the text of the conversation you send goes to the farm, so it can answer.',
 
   // ---- transfer ----

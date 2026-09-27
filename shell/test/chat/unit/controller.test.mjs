@@ -519,7 +519,7 @@ export default (test) => {
       const assistant = path[path.length - 1];
       assert.equal(assistant.sawToolCalls, true);
       assert.equal(assistant.error.kind, 'tool_calls');
-      assert.equal(assistant.error.message, "The model tried to use a tool; LOL Chat doesn't run tools.");
+      assert.equal(assistant.error.message, "The model tried to use a tool; LOL Vibe doesn't run tools.");
     } finally { calls.restore(); }
   });
 

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <!-- connect-src is load-bearing: without it, fetch() falls back to default-src
-       'self' and LOL Chat's direct calls to the farm's LAN endpoint are BLOCKED
+       'self' and LOL Vibe's direct calls to the farm's LAN endpoint are BLOCKED
        (dropdown shows "unreachable", sends fail with "Failed to fetch"). The farm
        address is discovered at runtime, so it cannot be listed literally. -->
   <meta http-equiv="Content-Security-Policy"
@@ -33,7 +33,7 @@
            button plus a section. -->
       <div class="viewseg" id="view-seg" role="group" aria-label="Surface">
         <button class="viewseg-btn" id="view-owui" data-view="owui" aria-pressed="true">Open WebUI</button>
-        <button class="viewseg-btn" id="view-chat" data-view="chat" aria-pressed="false">LOL Chat</button>
+        <button class="viewseg-btn" id="view-chat" data-view="chat" aria-pressed="false">LOL Vibe</button>
         <button class="viewseg-btn" id="view-computer" data-view="computer" aria-pressed="false">Computer</button>
       </div>
       <button class="icon-btn" id="theme-toggle" title="Toggle theme" aria-label="Toggle theme">
@@ -81,7 +81,7 @@
         <!-- Data location -->
         <section class="pref-sec">
           <h3>Data location</h3>
-          <p class="pref-hint">Everything LlmOnLan keeps lives in this folder, on this machine: LOL Chat's history, the Computer's graphs with their pictures, PDFs and sounds, the files its File boxes write, and Open WebUI's chats, documents and vectors. Nothing is stored on the server. Changing the folder restarts the app.</p>
+          <p class="pref-hint">Everything LlmOnLan keeps lives in this folder, on this machine: LOL Vibe's history, the Computer's graphs with their pictures, PDFs and sounds, the files its File boxes write, and Open WebUI's chats, documents and vectors. Nothing is stored on the server. Changing the folder restarts the app.</p>
           <div class="pref-row">
             <code class="pathbox" id="data-path">—</code>
             <button class="btn-ghost" id="change-folder">Change folder…</button>
@@ -190,11 +190,11 @@
     </div>
     <webview id="owui" class="hidden" partition="persist:owui" allowpopups></webview>
 
-    <!-- LOL Chat: an alternative, Studio-style surface. Hidden unless toggled.
+    <!-- LOL Vibe: an alternative, Studio-style surface. Hidden unless toggled.
          The skeleton DOM is built at runtime by renderer/chat/ui/layout.mjs (plan §3.5); the
          paragraph below is only what a reader sees if chat/main.mjs never runs. -->
     <section id="lolchat" class="hidden">
-      <p class="chat-fallback">LOL Chat failed to load — see the developer console.</p>
+      <p class="chat-fallback">LOL Vibe failed to load — see the developer console.</p>
     </section>
 
     <!-- The Computer: the third surface (docs/COMPUTER_PLAN.md §2.1). `class="chat-layer"` is

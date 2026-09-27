@@ -22,7 +22,7 @@ its File boxes write, so moving that folder takes all of it along.
 
 ## Opening it
 
-The topbar has a three-way switch: **Open WebUI · LOL Chat · Computer**. Press **Computer**. The
+The topbar has a three-way switch: **Open WebUI · LOL Vibe · Computer**. Press **Computer**. The
 app remembers which one you were on, so the next launch opens there again.
 
 What you see, left to right:

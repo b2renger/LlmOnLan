@@ -82,15 +82,15 @@ function closePrefs() { prefs.backdrop.classList.add('hidden'); }
 async function refreshPrefs() {
   const p = await window.lol.getPrefs();
   prefs.dataPath.textContent = p.dataDir + (p.dataDirIsDefault ? '  (default)' : '');
-  // LOL Chat + the Computer run from <dataDir>/lol-client; only a data folder that could not be
+  // LOL Vibe + the Computer run from <dataDir>/lol-client; only a data folder that could not be
   // used at boot puts them elsewhere for the session, and then the panel says where.
   const away = !p.clientDataInDataDir;
   prefs.clientNote.classList.toggle('hidden', !away);
   prefs.clientNote.classList.toggle('err', away);
   prefs.clientNote.textContent = !away ? ''
     : p.clientDataDir
-      ? `This session, LOL Chat and the Computer keep their work in ${p.clientDataDir}, because the data folder could not be used.`
-      : 'This session, LOL Chat and the Computer keep their work in the app’s own folder, because the data folder could not be used.';
+      ? `This session, LOL Vibe and the Computer keep their work in ${p.clientDataDir}, because the data folder could not be used.`
+      : 'This session, LOL Vibe and the Computer keep their work in the app’s own folder, because the data folder could not be used.';
   prefs.autoScan.checked = !!p.autoScan;
   prefs.launch.checked = !!p.launchAtLogin;
   prefs.autoUpdate.checked = !!p.autoUpdate;
@@ -139,7 +139,7 @@ $('settings-btn').addEventListener('click', openPrefs);
 prefs.close.addEventListener('click', closePrefs);
 prefs.backdrop.addEventListener('click', (e) => { if (e.target === prefs.backdrop) closePrefs(); });
 
-// Changing the folder RESTARTS the app (LOL Chat's and the Computer's data is the window's own
+// Changing the folder RESTARTS the app (LOL Vibe's and the Computer's data is the window's own
 // storage, which cannot be moved while the window has it open), so the panel always asks first
 // and says so — even when there is nothing to move.
 prefs.changeFolder.addEventListener('click', async () => {
@@ -150,7 +150,7 @@ prefs.changeFolder.addEventListener('click', async () => {
   prefs.moveStatus.textContent = '';
   prefs.moveStatus.classList.remove('err');
   if (res.oldHasData) {
-    prefs.moveQ.textContent = `Move everything to “${res.path}” — LOL Chat, the Computer and Open WebUI — or start fresh there? `
+    prefs.moveQ.textContent = `Move everything to “${res.path}” — LOL Vibe, the Computer and Open WebUI — or start fresh there? `
       + 'LlmOnLan restarts to finish; “Start fresh” leaves your current data where it is.';
     prefs.moveYes.classList.remove('hidden');
     prefs.moveFresh.textContent = 'Start fresh';
@@ -182,7 +182,7 @@ async function applyFolder(mode) {
     // move before the window opens and says so.
     prefs.dataPath.textContent = r.dataDir || target;
     prefs.moveStatus.textContent = mode === 'move'
-      ? 'Restarting LlmOnLan to finish moving LOL Chat and the Computer…'
+      ? 'Restarting LlmOnLan to finish moving LOL Vibe and the Computer…'
       : 'Restarting LlmOnLan on the new folder…';
     if (r.error) prefs.moveStatus.textContent += ' ' + r.error;
   } else {
@@ -923,7 +923,7 @@ window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', ()
   window.lol.getSettings().then((s) => { if (s.theme === 'system') applyThemeClass('system'); });
 });
 
-// ---- LOL Chat: alternative view to the OWUI webview -------------------------
+// ---- LOL Vibe: alternative view to the OWUI webview -------------------------
 // The chat surface talks straight to the farm's OpenAI endpoint, so it needs the
 // endpoint the sidecar is currently pointed at. Published on `window` rather than
 // re-derived in chat/ (net/farm.mjs reads it) so there is exactly one source of truth
@@ -938,7 +938,7 @@ function publishFarm() {
     ? ((f.models.find((m) => m.default) || f.models[0]).id || null)
     : null;
   window.__lolFarm = f
-    // LOL Chat vNext needs more of the snapshot than the endpoint: the served catalog for its
+    // LOL Vibe vNext needs more of the snapshot than the endpoint: the served catalog for its
     // picker, the backend's context-per-slot for its budget meter, the seat counts for the seat
     // gate, and the plugin URLs. Every field below is ADDITIVE and read off the same main-shaped
     // farm object; the OWUI path never looks at window.__lolFarm.
