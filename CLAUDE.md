@@ -149,7 +149,9 @@ docs) is `docs/reviews/DOCS_REVIEW_2026-09-27_{FARM,SHELL,COMPUTER}.md`. Snapsho
   answering from anywhere on the Computer, never while typing. What leaves the machine: prompt text and an
   Image's pixels inside the Instruction's chat completion to the farm; a Document's PDF bytes to the farm
   OCR for text only; a Classify box's items (text) to the farm's Laya for one forward pass each; a Sound
-  is never sent; a **Fetch** box (2026-09-27) sends ONE GET to the address a person
+  box's recording ONLY when a person turns on its **Listen** switch — to the farm's speech-to-text, written down
+  and dropped (never logged or kept); a **Speak** box's text to the farm's Kokoro when it uses the farm voice
+  (its own-computer voice, `speechSynthesis`, sends nothing); a **Fetch** box (2026-09-27) sends ONE GET to the address a person
   typed — run in main (`src/main/io.ts`): http(s), never loopback/link-local/farm ports, ≤ 1 MB text, keeps
   its last copy offline. Where data lives: all of it in DATA_DIR — graphs and their
   files in the renderer's IndexedDB (`lol-chat` → `graphs`, `attachments`), which is the main window's
@@ -612,15 +614,17 @@ LlmOnLan/
 - **Over the network (all to the trusted‑LAN farm, which stores nothing):** the chat context per
   completion (from OWUI, LOL Chat, or a Computer Instruction — with an Image box's pixels when wired);
   web‑search queries to the farm's SearXNG (result pages are then fetched directly); TTS requests when
-  the farm hosts Kokoro; and — with the default‑on farm OCR — an uploaded file's (or a Computer Document
+  the farm hosts Kokoro (and a Computer Speak box's text, with the farm voice); a Computer Sound box's
+  recording, only in **Listen** mode, to be written down by the farm's speech-to-text (never logged or
+  kept); and — with the default‑on farm OCR — an uploaded file's (or a Computer Document
   box's) raw bytes, for text **extraction only** (the extracted text embeds locally); presence heartbeats
   (`POST /lol/client-ping` every 10 s: hostname, platform, version, idle seconds).
 - **To third parties a person names:** a Computer **Fetch** box's GET to the address typed in it (nothing
   from the graph is sent with it).
 - **Beyond the farm (no user content):** GitHub, for the app update check and the chat-engine (sidecar)
   download/update check; huggingface.co, until MiniLM and whisper-base are cached (then `HF_HUB_OFFLINE=1`).
-- **Never sent anywhere:** documents for **embedding** (local model), a Computer Sound box, and
-  telemetry (off).
+- **Never sent anywhere:** documents for **embedding** (local model), a Computer Sound box's recording
+  unless its Listen switch is on, and telemetry (off).
 
 If a feature would move *stored* data off the device or persist anything server‑side, it breaks the
 promise — flag it.

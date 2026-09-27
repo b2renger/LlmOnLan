@@ -591,6 +591,16 @@ build for Blackwell cards (16 GB+); replace it freely.
   everything else, so run `lol bench` with it busy before turning it on for a class. The panel's plugin
   toggles list it (a toggle lasts the session; `classify.enabled` in the config makes it permanent).
   `rm -rf farm/.classify` uninstalls it.
+- **Speech to text (OFF by default, 2026-09-27):** for the Computer's Sound box in **Listen** mode.
+  `"stt": { "enabled": true, "port": 8892, "model": "small", "threads": 4, "maxMb": 25 }`. `lol up` builds
+  `farm/.stt` with **faster-whisper 1.2.1** — the library and version Open WebUI uses on the client (MIT),
+  CPU int8, no torch (~0.3 GB); the model (`small` ≈ 0.5 GB, `base` ≈ 0.15 GB) downloads at the first start.
+  Ours (`src/pysvc/stt_server.py`), by the OpenAI contract `POST /v1/audio/transcriptions`, advertised as
+  `stt: {url, key}`: a Bearer key, one transcription at a time, one request per client, 429 +
+  `Retry-After`; the recording is read into memory, transcribed and dropped — never logged or kept.
+  Measured on the dev box's CPU: `small` writes down a 7.4 s clip in 2.1 s. Confucius4-R2T2 (streaming,
+  GPU, Linux/vLLM) is not installed: read its weight licence first, then run it yourself. `rm -rf farm/.stt`
+  uninstalls it.
 - **Admin panel (running the farm):** while `lol up` runs, open `http://<box>:41997/lol/admin` (the
   beacon `httpPort`) from any browser on the LAN — or click **"Manage this farm"** in the desktop
   client's fleet popover. The Farm app shows the same page as its own window. It is where the farm is

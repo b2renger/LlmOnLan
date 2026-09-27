@@ -322,9 +322,21 @@ is wired: ✓, ✗ with the reason, or ? when the farm does not say.
 - **Document (PDF).** Kept on this computer. When a run needs the text, the farm's document reader
   reads it once, and only the text comes back and flows on. A PDF that states more than 60 pages is
   refused when you drop it; nothing is kept or sent.
-- **Sound.** Kept and playable in the box (**▶ Play** / **■ Stop**). Nothing on the farm can listen
-  yet, so a sound wired into an Instruction passes on only its name and length, as text, and the box
-  says so.
+- **Sound.** Kept and playable in the box (**▶ Play** / **■ Stop**). A sound wired into an Instruction
+  passes on only its name and length, as text, and the box says so — unless you turn on **Listen: write
+  down what is said**. Then, on a run, the recording goes to the farm's **speech to text**, which writes
+  down what is said and keeps nothing, and the **words** flow on instead of the sound. The farm's
+  operator turns speech to text on in the farm panel (it is off by default); on a farm without it the box
+  says so and nothing is sent.
+
+### Saying it out loud: the Speak box
+
+**＋ → Show → Speak** says what arrives, out loud, and passes the same text on, so a graph can carry on
+afterwards. Its **Voice** is either **this computer's** (the voices your operating system has: it works
+offline and sends nothing) or **the farm's** (Kokoro, when the farm offers it: the text goes to the farm
+to be spoken). **Automatic** uses the farm's voice when there is one. **Stop** stops the voice.
+Together with Listen, a graph can hear a question and answer it aloud: Sound (Listen) → Instruction →
+Speak.
 
 ### Data from the web: the Fetch box
 
