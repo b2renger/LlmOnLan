@@ -16,6 +16,7 @@ const searxng = require('../searxng');
 const kokoro = require('../kokoro');
 const extract = require('../extract');
 const classify = require('../classify');
+const stt = require('../stt');
 const { serviceHosts } = require('../net');
 
 // Where the farm's own health checks reach a plugin: the plugins bind where
@@ -95,6 +96,22 @@ const DESCRIPTORS = [
             return { ok: false, level: 'warn', message: `Classify did not become ready on port ${c.classify.port} (download or load still running? see the [classify] log). Continuing without it.` };
         },
         alive: (c) => classify.classifyAlive(c.classify.port, probeHost(c)),
+    },
+    {
+        // Ecosystem plan v2 §3.3: speech to text for the Computer's Sound box (Listen). CPU, off by default.
+        id: 'stt', label: 'Speech to text', logPrefix: 'stt', configKey: 'stt', healthKey: 'sttUp', runsOn: 'farm',
+        enabled: (c) => !!(c.stt && c.stt.enabled),
+        port: (c) => c.stt.port,
+        makeCtx: (c, rt) => ({ key: rt.crypto.randomBytes(24).toString('hex') }),
+        ensure: () => stt.ensureStt(),
+        spawn: (c, ctx) => stt.spawnStt(c, ctx),
+        stepMessage: (c) => `Speech to text: preparing faster-whisper "${c.stt.model}" on the CPU (port ${c.stt.port}) — first run installs it and downloads the model …`,
+        waitReady: async (c) => {
+            const sx = await stt.waitForStt(c.stt.port, undefined, probeHost(c));
+            if (sx.up) return { ok: true, level: 'ok', message: `Speech to text up (faster-whisper ${c.stt.model}, CPU) — the Computer's Sound box can listen on this farm${firewallNote(c)}.` };
+            return { ok: false, level: 'warn', message: `Speech to text did not become ready on port ${c.stt.port} (download or load still running? see the [stt] log). Continuing without it.` };
+        },
+        alive: (c) => stt.sttAlive(c.stt.port, probeHost(c)),
     },
 ];
 

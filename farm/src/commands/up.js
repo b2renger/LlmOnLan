@@ -965,6 +965,8 @@ async function run(args) {
         extractKey: svcById.ocr.up ? svcById.ocr.ctx.key : null, // bearer OWUI's loader must send
         classifyUp: svcById.classify.up,      // advertise classify{} so the Computer's Classify box works
         classifyKey: svcById.classify.up ? svcById.classify.ctx.key : null,
+        sttUp: svcById.stt.up,                // advertise stt{} so the Computer's Sound box can listen
+        sttKey: svcById.stt.up ? svcById.stt.ctx.key : null,
         plugins: pluginsSummary(services, config), // generic map for the admin page + clients
         clientsConnected: 0,             // desktop clients heartbeating us (see onClientPing)
         // false when ANY reachable Ollama was already running before this farm
@@ -1124,6 +1126,7 @@ async function run(args) {
         liveHealth[svc.healthKey] = svc.up;
         if (svc.id === 'ocr') liveHealth.extractKey = svc.up ? svc.ctx.key : null;
         if (svc.id === 'classify') liveHealth.classifyKey = svc.up ? svc.ctx.key : null;
+        if (svc.id === 'stt') liveHealth.sttKey = svc.up ? svc.ctx.key : null;
         refreshPluginHealth();
     };
     for (const svc of services) {

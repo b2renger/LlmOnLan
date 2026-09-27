@@ -350,6 +350,16 @@ const ClassifySchema = z.object({
     maxItems: z.number().int().min(1).max(1000).default(200), // items per call
 });
 
+// Speech to text (docs/ECOSYSTEM_PLAN.md v2 §3.3): faster-whisper on the CPU for the Computer's Sound
+// box in Listen mode. OFF by default: it shares the CPU with everything else on the box.
+const SttSchema = z.object({
+    enabled: z.boolean().default(false),
+    port: z.number().int().positive().default(8892),
+    model: z.string().default('small'),                    // faster-whisper size: tiny|base|small|medium|…
+    threads: z.number().int().min(1).max(64).default(4),
+    maxMb: z.number().int().min(1).max(100).default(25),   // the Sound box's own cap
+});
+
 const OcrSchema = z.object({
     // One shared "lol-extract" document-extraction service on this box; clients
     // discover it via the beacon (snapshot.extract) and OWUI uses it as its
@@ -472,6 +482,7 @@ const ConfigSchema = z.object({
     websearch: WebsearchSchema.default({}),
     tts: TtsSchema.default({}),
     classify: ClassifySchema.default({}),
+    stt: SttSchema.default({}),
     ocr: OcrSchema.default({}),
     admin: AdminSchema.default({}),
     // Coordinator mode: aggregate LAN peer farms into one balanced endpoint that

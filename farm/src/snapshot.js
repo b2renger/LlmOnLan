@@ -238,6 +238,11 @@ function buildSnapshot(config, health = {}) {
         classify: (config.classify?.enabled && health.classifyUp && health.classifyKey)
             ? { url: `http://${svcHost}:${config.classify.port}`, key: health.classifyKey }
             : null,
+        // Speech to text for the Computer's Sound box (null when off/down): POST {url}/v1/audio/transcriptions,
+        // the OpenAI contract. Same LAN trust as the keys above.
+        stt: (config.stt?.enabled && health.sttUp && health.sttKey)
+            ? { url: `http://${svcHost}:${config.stt.port}`, key: health.sttKey }
+            : null,
         // Farm-side plugin state (web search / voice / OCR): { id: {label, runsOn, enabled,
         // healthy} }. Bespoke fields above (searxngUrl/ttsUrl/extract) stay for back-compat;
         // this is the generic map the admin page + clients read.

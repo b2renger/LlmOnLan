@@ -601,10 +601,11 @@ test('snapshot usage.clients mirrors clientsConnected (null on older farms)', ()
 // ---- plugin registry -------------------------------------------------------
 const { makeServices, pluginsSummary, FarmService } = require('../src/plugins/registry');
 
-test('registry: four farm services, config-gated (websearch+ocr on, tts+classify off)', () => {
+test('registry: five farm services, config-gated (websearch+ocr on, tts+classify+stt off)', () => {
     const c = defaultConfig();
     const svcs = makeServices();
-    assert.deepEqual(svcs.map((s) => s.id), ['websearch', 'tts', 'ocr', 'classify']);
+    assert.deepEqual(svcs.map((s) => s.id), ['websearch', 'tts', 'ocr', 'classify', 'stt']);
+    assert.equal(svcs.find((s) => s.id === 'stt').enabled(c), false, 'speech to text off by default (plan v2: CPU first)');
     assert.equal(svcs.find((s) => s.id === 'classify').enabled(c), false, 'Classify off by default (plan v2: CPU contention first)');
     assert.equal(svcs.find((s) => s.id === 'websearch').enabled(c), true);
     assert.equal(svcs.find((s) => s.id === 'tts').enabled(c), false);
@@ -1883,6 +1884,26 @@ test('pressure eviction covers any non-Ollama engine (external too)', () => {
     assert.equal(perfMod.shouldEvictOllama({ ...base, otherEngineOn: true }), true);
     assert.equal(perfMod.shouldEvictOllama({ ...base, otherEngineOn: false }), false);
     assert.equal(perfMod.shouldEvictOllama({ ...base, llamacppOn: true }), true, 'the older name still works');
+});
+
+test('stt plugin: faster-whisper pinned (no torch), bound like the others, key and model in env, advertised only when up (plan v2 §3.3)', () => {
+    const sttMod = require('../src/stt');
+    assert.match(sttMod.depsSignature(), /faster-whisper=1\.2\.1/, 'the version Open WebUI pins');
+    const c = defaultConfig();
+    assert.deepEqual([c.stt.enabled, c.stt.port, c.stt.model, c.stt.threads, c.stt.maxMb], [false, 8892, 'small', 4, 25]);
+    for (const [proxyHost, want] of [['127.0.0.1', '127.0.0.1'], ['0.0.0.0', '0.0.0.0']]) {
+        c.proxy.host = proxyHost;
+        const calls = [];
+        sttMod.spawnStt(c, { key: 'kk' }, (cmd, args, opts) => { calls.push({ args, opts }); return { pid: null, on() {} }; });
+        assert.equal(calls[0].args[calls[0].args.indexOf('--host') + 1], want, `stt on proxy.host=${proxyHost}`);
+        assert.ok(calls[0].args.includes('--no-access-log'));
+        assert.equal(calls[0].opts.env.STT_API_KEY, 'kk');
+        assert.equal(calls[0].opts.env.STT_MODEL, 'small');
+    }
+    const on = defaultConfig(); on.stt.enabled = true;
+    assert.equal(buildSnapshot(on, { proxyUp: true, hostsUp: 1 }).stt, null, 'not advertised until it is up');
+    assert.match(buildSnapshot(on, { proxyUp: true, hostsUp: 1, sttUp: true, sttKey: 'kk' }).stt.url, /:8892$/);
+    assert.equal(buildSnapshot(defaultConfig(), { proxyUp: true, hostsUp: 1, sttUp: true, sttKey: 'kk' }).stt, null, 'off in the config: never advertised');
 });
 
 test('classify plugin: pinned CPU install, bound like the others, key in env, advertised only when up (plan v2 §3.2)', () => {
