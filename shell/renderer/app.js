@@ -718,7 +718,8 @@ function renderPopover() {
     auto.onclick = () => {
       if (!pinnedId) return;
       window.lol.selectFarm(null);
-      toast('Automatic: the app picks the least busy farm');
+      // Unpinning does not move you: main keeps a healthy current farm (no needless OWUI restart).
+      toast(active ? `Automatic — staying on ${active.name} while it works` : 'Automatic — connecting to the least busy farm');
     };
     els.farmList.appendChild(auto);
   }
