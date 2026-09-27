@@ -36,6 +36,7 @@ export default [
         allowConsoleErrors: FARM_ERRORS,
         async run(/** @type {any} */ h) {
             await h.fresh();
+            await h.computer.classify(false);   // the default farm: Classify is off
             await open(h);
             const before = await h.computer.call('docId');
             await h.computer.tutorial.openTemplate('read-the-news');
@@ -82,7 +83,7 @@ export default [
                 return { rects: (svgText.match(/<rect/g) || []).length, text: svgText.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').slice(-200) };
             }, idOf(doc, 'preview'));
             h.assert(svg && svg.rects >= 2, `the Preview draws the chart as SVG: ${JSON.stringify(svg)}`);
-            h.assert(/labels by the model · counts by the code/.test(svg.text), 'the chart says who did what');
+            h.assert(/labels: 0 by Laya, \d+ by the model · counts by the code/.test(svg.text), `with no Laya on the farm, only the model labels, and the chart says so: ${svg.text}`);
             h.eq((await completions(h)).length, 2, 'two generations, as the shelf said');
         },
     },
@@ -121,6 +122,46 @@ export default [
             } finally {
                 server.close();
             }
+        },
+    },
+    {
+        name: 'k13-read-the-news-with-laya-labels-first-and-sends-only-the-unsure-to-the-model',
+        needsMock: true,
+        timeoutMs: 120000,
+        allowConsoleErrors: FARM_ERRORS,
+        async run(/** @type {any} */ h) {
+            await h.fresh();
+            await h.computer.classify(true);    // the mock Laya: an option named in the title wins at 0.9, else 'other' at 0.4
+            await open(h);
+            const before = await h.computer.call('docId');
+            await h.computer.tutorial.openTemplate('read-the-news');
+            await h.waitFor((was) => {
+                const id = window.LolComputer.debug.computer.docId();
+                const doc = window.LolComputer.debug.computer.doc();
+                return id && id !== was && doc && doc.parts.some((p) => p.type === 'classify') ? id : null;
+            }, { timeout: 15000, args: [before] });
+            let doc = await h.computer.doc();
+            await h.computer.set(idOf(doc, 'fetch'), { url: 'http://127.0.0.1:9/front_page.json' });
+            for (const p of doc.parts.filter((/** @type {any} */ x) => x.type === 'ask')) await h.computer.set(p.id, { model: 'mock-studio-json' });
+            await h.click('#lolcomputer .comp-run-all');
+            doc = await settle(h, doc.parts.filter((/** @type {any} */ p) => ['fetch', 'code', 'ask', 'preview', 'classify'].includes(p.type)).map((/** @type {any} */ p) => p.id));
+            const bad = doc.parts.filter((/** @type {any} */ p) => ['fetch', 'code', 'ask', 'preview', 'classify'].includes(p.type) && p.state !== 'done');
+            h.eq(bad.map((/** @type {any} */ p) => `${p.id}: ${p.error}`), [], 'every box ran');
+            const laya = doc.parts.find((/** @type {any} */ p) => p.type === 'classify');
+            h.eq(laya.value.data.by, 'laya', 'Laya answered');
+            const sure = laya.value.data.labels.filter((/** @type {any} */ l) => l.sure).length;
+            h.assert(sure > 0 && sure < 30, `some stories Laya was sure of, some not: ${sure}/30`);
+            const calls = await h.mock.log({ path: '/classify/classify' });
+            h.eq(calls.length, 1, 'ONE call to Laya for all 30 stories');
+            const count = doc.parts.find((/** @type {any} */ p) => p.type === 'code' && /labelledBy/.test(p.settings.code) && /counted HERE/.test(p.settings.code));
+            h.eq(count.value.data.labelledBy.laya, sure, 'the stories Laya was sure of keep its label');
+            h.eq(count.value.data.byTopic.reduce((/** @type {number} */ a, /** @type {any} */ r) => a + r.stories, 0), 30, 'every story counted once');
+            // The model's second look carries only the stories Laya was not sure of.
+            const sureTitle = doc.parts.find((/** @type {any} */ p) => p.type === 'code' && /stories:/.test(p.settings.code) && /source:/.test(p.settings.code))
+                .value.data.stories.find((/** @type {any} */ s) => laya.value.data.labels.find((/** @type {any} */ l) => l.id === s.id && l.sure)).title;
+            const labelAsk = (await completions(h)).map((/** @type {any} */ e) => JSON.stringify(e.body)).find((/** @type {string} */ b) => b.includes('Label the stories'));
+            h.assert(labelAsk && !labelAsk.includes(JSON.stringify(sureTitle).slice(1, -1)), `a story Laya was sure of is not re-asked: ${sureTitle}`);
+            h.eq((await completions(h)).length, 2, 'still two generations: Laya is not one');
         },
     },
 ];

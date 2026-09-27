@@ -84,6 +84,8 @@ export function capsFromBridge(bridge) {
     search: b && b.searxngUrl ? { url: b.searxngUrl } : null,
     tts: b && b.ttsUrl ? { url: b.ttsUrl, voice: b.ttsVoice || null, model: b.ttsModel || null } : null,
     ocr: b && b.extract && b.extract.url ? { url: b.extract.url, key: b.extract.key || null } : null,
+    // Ecosystem plan v2 §3.2: the farm's Laya service for the Computer's Classify box.
+    classify: b && b.classify && b.classify.url ? { url: b.classify.url, key: b.classify.key || null } : null,
   });
 }
 

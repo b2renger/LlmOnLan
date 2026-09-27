@@ -58,6 +58,10 @@ function defaults() {
         // ADVERTISED when a scenario sets `extract` (h.computer.ocr(true) does, with the real
         // services port) - the default farm offers none, like a farm whose OCR is off.
         extractDown: false,          // PUT /ocr/process -> 503
+        // Ecosystem plan v2 §3.2: the Laya service at POST /classify/classify, advertised only when a
+        // scenario sets `classify` (h.computer.classify(true)); `classifyDown` answers 503 (warming).
+        classify: null,
+        classifyDown: false,
         ocrPages: null,              // force the page count of every PDF
         ocrDelayMs: null,            // per-page delay override (default 200 ms, capped at 3 s)
     };

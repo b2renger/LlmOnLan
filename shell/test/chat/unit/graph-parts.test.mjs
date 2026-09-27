@@ -105,12 +105,12 @@ export default (test) => {
     // K6 kickoff (LOLCHAT_PLAN 2.6 KF-4): Document (a PDF) and Sound (an audio file) join "bring
     // in", right after Image — twenty-one in the palette, twenty-four loadable.
     assert.deepEqual(partSpecs().map((s) => s.type),
-      ['note', 'ask', 'split', 'repeat', 'filter', 'code', 'collect', 'preview', 'file', 'image',
+      ['note', 'ask', 'classify', 'split', 'repeat', 'filter', 'code', 'collect', 'preview', 'file', 'image',
         'document', 'audio', 'fetch',
         'button', 'condition', 'confirm', 'dialog', 'toggle', 'timer',
         'sticky', 'section', 'title']);
     assert.deepEqual([...specMap().keys()].sort(),
-      ['ask', 'audio', 'button', 'code', 'collect', 'condition', 'confirm', 'dialog', 'document', 'fetch', 'file', 'filter',
+      ['ask', 'audio', 'button', 'classify', 'code', 'collect', 'condition', 'confirm', 'dialog', 'document', 'fetch', 'file', 'filter',
         'from-thread', 'image', 'note', 'preview', 'render', 'repeat', 'section', 'split',
         'sticky', 'timer', 'title', 'to-thread', 'toggle'],
       'a legacy part left specMap() too — a migrated graph would trip part:unknown-type');

@@ -223,7 +223,9 @@ const DOORS = [
         // the door itself is unchanged in spirit — one file, one GET, no POST.
         // K6 kickoff (addendum KF-5): net/extract.mjs is the ONE door to the farm's document
         // extractor (PUT {extract.url}/process) — the sanctioned OCR flow, one file, one PUT.
-        allow: ['net/farm.mjs', 'net/run.mjs', 'core/fakes.mjs', 'app/caps.mjs', 'sandbox/libs.mjs', 'net/extract.mjs'],
+        // Ecosystem plan v2 §3.2: net/classify.mjs is the ONE door to the farm's Laya service (POST
+        // {classify.url}/classify) — one file, one POST, like net/extract.mjs.
+        allow: ['net/farm.mjs', 'net/run.mjs', 'core/fakes.mjs', 'app/caps.mjs', 'sandbox/libs.mjs', 'net/extract.mjs', 'net/classify.mjs'],
         patterns: [/\bfetch\s*\(/g, /new\s+XMLHttpRequest\b/g, /new\s+EventSource\b/g, /navigator\s*\.\s*sendBeacon\b/g],
     },
     {

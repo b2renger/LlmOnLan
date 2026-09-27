@@ -23,7 +23,8 @@
  *   defaultModel, models: {id, underlying, default}[], engine: 'ollama'|'llama.cpp'|'external'|null,
  *   budget: {tokens, advertised, source: 'advertised'|'default'},
  *   seats: {used, slots, clients, idleSec}|null, busy: {label, percent}|null, perf, gpuUtil,
- *   search: {url}|null, tts: {url, voice, model}|null, ocr: {url, key}|null }} FarmCaps
+ *   search: {url}|null, tts: {url, voice, model}|null, ocr: {url, key}|null,
+ *   classify?: {url: string, key: string|null}|null }} FarmCaps
  */
 
 // ---------------------------------------------------------------------------------------------

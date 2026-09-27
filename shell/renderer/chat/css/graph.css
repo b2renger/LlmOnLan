@@ -654,6 +654,24 @@
   tab-size: 2;
 }
 
+:is(#lolchat, #lolcomputer) .graph-classify { display: flex; flex-direction: column; gap: 6px; }
+:is(#lolchat, #lolcomputer) .graph-classify-q,
+:is(#lolchat, #lolcomputer) .graph-classify-opts,
+:is(#lolchat, #lolcomputer) .graph-classify-thr input {
+  box-sizing: border-box;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  padding: 5px 7px;
+}
+:is(#lolchat, #lolcomputer) .graph-classify-q { width: 100%; }
+:is(#lolchat, #lolcomputer) .graph-classify-opts { width: 100%; min-height: 64px; resize: none; }
+:is(#lolchat, #lolcomputer) .graph-classify-thr { font-size: 11px; color: var(--muted); }
+:is(#lolchat, #lolcomputer) .graph-classify-thr input { width: 64px; margin-left: 4px; }
+:is(#lolchat, #lolcomputer) .graph-classify-status { font-size: 11px; color: var(--muted); min-height: 14px; }
 :is(#lolchat, #lolcomputer) .graph-fetch { display: flex; flex-direction: column; gap: 6px; }
 :is(#lolchat, #lolcomputer) .graph-fetch-url {
   width: 100%;

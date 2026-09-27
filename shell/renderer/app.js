@@ -957,6 +957,7 @@ function publishFarm() {
       searxngUrl: f.searxngUrl || null,
       ttsUrl: f.ttsUrl || null, ttsVoice: f.ttsVoice || 'af_heart', ttsModel: f.ttsModel || 'kokoro',
       extract: f.extract && f.extract.url && f.extract.key ? { url: f.extract.url, key: f.extract.key } : null,
+      classify: f.classify && f.classify.url && f.classify.key ? { url: f.classify.url, key: f.classify.key } : null,
     }
     : (sidecarState && sidecarState.endpoint ? { name: 'farm', openaiBaseUrl: sidecarState.endpoint, defaultModel: null } : null);
   if (window.__lolChatRefresh) window.__lolChatRefresh();

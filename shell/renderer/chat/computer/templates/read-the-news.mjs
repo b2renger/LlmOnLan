@@ -9,9 +9,12 @@
 //
 // The Fetch box ships with a copy of the Hacker News front page (taken 2026-09-27), so the
 // template runs offline and on the mock farm; a run refreshes it from the web when there is one.
-// P1b adds Laya (the Classify box) in front of the labelling Instruction.
+// P1b: Laya (the Classify box, the farm's fast decision model) labels every story first; only the
+// stories it was NOT sure of go to the thinking model. With no Laya on the farm, Classify passes
+// every story on as unsure and the model labels them all — the template runs either way.
 //
-// 2 generations: one to label all the stories at once, one to choose the chart.
+// 2 generations: one to label the unsure stories at once, one to choose the chart. Classify is not
+// a generation (one forward pass per story on the farm's CPU).
 
 const SNAPSHOT = {
  "hits": [
@@ -304,23 +307,36 @@ return {
   })),
 };`;
 
-const COUNT = `// Every number in the chart is counted HERE, from the data. The model only chose labels.
+const SECOND = `// Laya answered every story at once; the ones it was NOT sure of go to the model for a second look.
+// (With no Laya on the farm, Classify marks every story unsure, so the model labels them all.)
 const pick = inputs.in.find((v) => v && Array.isArray(v.stories)) || { stories: [] };
-const lab = inputs.in.find((v) => v && Array.isArray(v.labels)) || { labels: [] };
+const laya = inputs.in.find((v) => v && Array.isArray(v.labels)) || { unsure: [] };
+const unsure = new Set(laya.unsure || []);
+return { stories: pick.stories.filter((s) => unsure.has(s.id)) };`;
+
+const COUNT = `// Every number in the chart is counted HERE, from the data. Laya and the model only chose labels:
+// Laya's when it was sure, the model's for the rest.
+const pick = inputs.in.find((v) => v && Array.isArray(v.stories)) || { stories: [] };
+const laya = inputs.in.find((v) => v && Array.isArray(v.labels) && 'by' in v) || { labels: [] };
+const model = inputs.in.find((v) => v && Array.isArray(v.labels) && !('by' in v)) || { labels: [] };
 const catText = inputs.in.find((v) => typeof v === 'string') || '';
 const cats = catText.split(/[\\n,]+/).map((s) => s.trim().toLowerCase()).filter(Boolean);
 if (!cats.includes('other')) cats.push('other');
-const byId = new Map(lab.labels.map((l) => [Number(l.id), l]));
+const fromLaya = new Map(laya.labels.filter((l) => l.sure).map((l) => [Number(l.id), l]));
+const fromModel = new Map(model.labels.map((l) => [Number(l.id), l]));
 const rows = new Map(cats.map((c) => [c, { topic: c, stories: 0, points: 0, comments: 0 }]));
 const unsure = [];
+const by = { laya: 0, model: 0 };
 for (const s of pick.stories) {
-  const l = byId.get(s.id);
-  let topic = l ? String(l.topic || '').trim().toLowerCase() : '';
+  const l = fromLaya.get(s.id);
+  const m = fromModel.get(s.id);
+  let topic = l ? String(l.label || '').toLowerCase() : m ? String(m.topic || '').trim().toLowerCase() : '';
+  if (l) by.laya += 1; else if (m) by.model += 1;
   if (!rows.has(topic)) {
-    unsure.push({ id: s.id, title: s.title, why: l ? 'not one of your categories: ' + topic : 'no label' });
+    unsure.push({ id: s.id, title: s.title, why: topic ? 'not one of your categories: ' + topic : 'no label' });
     topic = 'other';
-  } else if (l && l.sure === false) {
-    unsure.push({ id: s.id, title: s.title, why: 'the model was not sure (' + topic + ')' });
+  } else if (!l && m && m.sure === false) {
+    unsure.push({ id: s.id, title: s.title, why: 'neither Laya nor the model was sure (' + topic + ')' });
   }
   const r = rows.get(topic);
   r.stories += 1; r.points += s.points; r.comments += s.comments;
@@ -328,6 +344,7 @@ for (const s of pick.stories) {
 return {
   source: pick.source || '',
   total: pick.stories.length,
+  labelledBy: by,
   byTopic: [...rows.values()].filter((r) => r.stories > 0),
   unsure,
 };`;
@@ -375,7 +392,8 @@ if (unsure.length) {
   y += 26; tail += text(24, 13, '#b45309', 'Check these (' + (counts.unsure || []).length + '):', 600);
   for (const u of unsure) { y += 16; tail += text(36, 12, '#52525b', '#' + u.id + ' ' + u.title.slice(0, 80) + ' — ' + u.why); }
 }
-y += 28; tail += text(24, 11, '#a1a1aa', (counts.source || 'Source') + ' · ' + counts.total + ' stories · labels by the model · counts by the code');
+const lb = counts.labelledBy || {};
+y += 28; tail += text(24, 11, '#a1a1aa', (counts.source || 'Source') + ' · ' + counts.total + ' stories · labels: ' + (lb.laya || 0) + ' by Laya, ' + (lb.model || 0) + ' by the model · counts by the code');
 const H = y + 16;
 return '<svg xmlns="http://www.w3.org/2000/svg" width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + ' ' + H + '" font-family="Inter, system-ui, sans-serif">'
   + '<rect width="' + W + '" height="' + H + '" fill="#fafafa"/>'
@@ -387,7 +405,7 @@ return '<svg xmlns="http://www.w3.org/2000/svg" width="' + W + '" height="' + H 
 export default {
   id: 'read-the-news',
   title: 'Read the news',
-  subtitle: 'A web source, labelled by the model, counted by code, charted as an SVG — steered by your own question.',
+  subtitle: 'A web source labelled by Laya and the model, counted by code, charted as an SVG — steered by your own question.',
   needsFarm: 'one',
   generations: 2,
   doc: {
@@ -396,12 +414,12 @@ export default {
     view: { x: 16, y: 8, zoom: 0.45 },
     parts: [
       { id: 'n_title', type: 'title', x: 40, y: 24, w: 820, h: 100, settings: { text: 'Read the news', size: 'l' } },
-      { id: 'n_sub', type: 'title', x: 40, y: 130, w: 1300, h: 80, settings: { text: 'Change the question or the categories, press Run: the model labels and chooses, the code counts and draws.', size: 's' } },
+      { id: 'n_sub', type: 'title', x: 40, y: 130, w: 1300, h: 80, settings: { text: 'Change the question or the categories, press Run: Laya and the model label, the model chooses the chart, the code counts and draws.', size: 's' } },
       {
         id: 'n_how', type: 'sticky', x: 40, y: 240, w: 320, h: 470,
         settings: {
           colour: 'yellow',
-          text: 'How it works\n\n1. Fetch reads the Hacker News front page (a copy ships with the template, so it also works offline).\n2. Code keeps each story’s title and numbers.\n3. The model gives each story ONE of your categories.\n4. Code counts — the model never writes a number.\n5. The model reads your question and chooses the chart.\n6. Code draws the SVG from the counts.\n\nStories the model was not sure of are listed under the chart: check them.',
+          text: 'How it works\n\n1. Fetch reads the Hacker News front page (a copy ships with the template, so it also works offline).\n2. Code keeps each story’s title and numbers.\n3. Classify: Laya, the farm’s fast decision model, gives each story ONE of your categories, with a confidence.\n4. The stories Laya was not sure of go to the model for a second look.\n5. Code counts — no model ever writes a number.\n6. The model reads your question and chooses the chart; Code draws the SVG.\n\nStories nobody was sure of are listed under the chart: check them.',
         },
       },
       { id: 'n_src', type: 'fetch', x: 400, y: 240, w: 340, h: 118, settings: { url: 'https://hn.algolia.com/api/v1/search?tags=front_page&hitsPerPage=30' }, value: { kind: 'json', data: SNAPSHOT } },
@@ -409,7 +427,12 @@ export default {
       { id: 'n_cats', type: 'note', x: 400, y: 690, w: 340, h: 200, settings: { text: 'ai\nsoftware\nhardware\nscience\nbusiness\npolitics\nculture\nother', locked: false } },
       { id: 'n_q', type: 'note', x: 400, y: 920, w: 340, h: 170, settings: { text: 'Which topics get the most attention on the front page today? Is AI dominating the conversation?', locked: false } },
       {
-        id: 'n_label', type: 'ask', x: 800, y: 400, w: 340, h: 300,
+        id: 'n_laya', type: 'classify', x: 800, y: 400, w: 340, h: 230,
+        settings: { question: 'What is this story mainly about?', options: '', threshold: 0.6 },
+      },
+      { id: 'n_second', type: 'code', x: 800, y: 670, w: 340, h: 250, settings: { code: SECOND } },
+      {
+        id: 'n_label', type: 'ask', x: 800, y: 960, w: 340, h: 300,
         settings: {
           instruction: 'Label the stories. For each story, pick exactly ONE topic from the categories — write the category exactly as given, and use other when nothing fits. Say whether you are sure. Do not change, count or rank anything.',
           shape: 'json',
@@ -454,9 +477,14 @@ export default {
     ],
     wires: [
       { from: 'n_src', to: 'n_pick', port: 'in' },
-      { from: 'n_pick', to: 'n_label', port: 'in', label: 'stories' },
+      { from: 'n_pick', to: 'n_laya', port: 'items' },
+      { from: 'n_cats', to: 'n_laya', port: 'options' },
+      { from: 'n_pick', to: 'n_second', port: 'in' },
+      { from: 'n_laya', to: 'n_second', port: 'in' },
+      { from: 'n_second', to: 'n_label', port: 'in', label: 'stories' },
       { from: 'n_cats', to: 'n_label', port: 'in', label: 'categories' },
       { from: 'n_pick', to: 'n_count', port: 'in' },
+      { from: 'n_laya', to: 'n_count', port: 'in' },
       { from: 'n_label', to: 'n_count', port: 'in' },
       { from: 'n_cats', to: 'n_count', port: 'in' },
       { from: 'n_count', to: 'n_spec', port: 'in', label: 'counts' },

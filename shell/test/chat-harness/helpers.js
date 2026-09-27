@@ -713,6 +713,13 @@ function createHelpers(ctx) {
                 };
             }, partId),
             /** Make the mock farm advertise (true) or withdraw (false) its OCR extractor, and publish. */
+            /** Advertise (or withdraw) the mock farm's Laya service (ecosystem plan v2 §3.2). */
+            classify: async (on) => {
+                await h.mock.state({ classify: on ? { url: services + '/classify', key: 'mock-classify-key' } : null });
+                // Re-poll /lol/self NOW: publish() alone republishes the last polled snapshot (every 4 s).
+                await h.eval(() => window.__harness.refresh());
+                return on ? services + '/classify' : null;
+            },
             ocr: async (on) => {
                 await h.mock.state({ extract: on ? { url: services + '/ocr', key: 'mock-extract-key' } : null });
                 await h.publishFarm();

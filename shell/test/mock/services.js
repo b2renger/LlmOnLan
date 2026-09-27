@@ -41,6 +41,7 @@ function snapshot(store, { proxyPort, httpPort, host = '127.0.0.1' } = {}) {
         ttsVoice: s.ttsVoice,
         ttsModel: s.ttsModel,
         extract: s.extract,
+        classify: s.classify,
         plugins: s.plugins,
         recommendedClientPlugins: s.recommendedClientPlugins,
         ts: Date.now(),
@@ -56,6 +57,32 @@ function readBytes(req, limit = 64 * 1024 * 1024) {
         req.on('end', () => resolve(Buffer.concat(chunks)));
         req.on('error', () => resolve(Buffer.concat(chunks)));
     });
+}
+
+/**
+ * Ecosystem plan v2 §3.2: the farm's Laya service by its own contract (farm/src/pysvc/classify_server.py) —
+ * POST /classify, Bearer key, {items, question:{instructions, options}} -> {answers:[{choice, confidence,
+ * probabilities}], ms, model}. Deterministic: the first option whose name appears in the item wins at
+ * 0.9; otherwise the LAST option at 0.4 (so a scenario sees both sure and unsure answers).
+ */
+async function classifyMock(req, res, store) {
+    const s = store.state;
+    if (s.classifyDown) return json(res, 503, { detail: 'warming up (mock)' });
+    const key = (s.classify && s.classify.key) || 'mock-classify-key';
+    if ((req.headers.authorization || '') !== `Bearer ${key}`) return json(res, 401, { detail: 'bad key' });
+    let body = null;
+    try { body = JSON.parse((await readBytes(req)).toString('utf8')); } catch { body = null; }
+    const items = body && Array.isArray(body.items) ? body.items : null;
+    const options = body && body.question && Array.isArray(body.question.options) ? body.question.options.map(String) : null;
+    if (!items || !options || options.length < 2) return json(res, 400, { detail: 'bad body' });
+    const answers = items.map((it) => {
+        const text = (typeof it === 'string' ? it : JSON.stringify(it)).toLowerCase();
+        const hit = options.find((o) => text.includes(o.toLowerCase()));
+        const choice = hit || options[options.length - 1];
+        const confidence = hit ? 0.9 : 0.4;
+        return { choice, confidence, probabilities: { [choice]: confidence } };
+    });
+    return json(res, 200, { answers, ms: 5 * items.length, model: 'mock-laya' });
 }
 
 /**
@@ -185,6 +212,7 @@ function createServicesHandler({ store, snapshotFn, role }) {
 
         if (pathOnly === '/ocr/health') return json(res, 200, { status: 'ok', model: 'mock-ocr', docling: false });
         if (pathOnly === '/ocr/process' && method === 'PUT') return ocrProcess(req, res, store);
+        if (pathOnly === '/classify/classify' && method === 'POST') return classifyMock(req, res, store);
 
         return json(res, 404, { ok: false, error: `no mock route for ${method} ${pathOnly}` });
     };
