@@ -343,10 +343,11 @@ leaves this computer. The rules, so a graph someone hands you cannot misuse it:
 **＋ → Think → Classify** asks **Laya**, a small decision model on the farm, ONE multiple-choice question
 about every item of a list: *what is this about?* with the options you list (or wire a Text box into
 **options**). It answers all of them in one call, in about a fifth of a second per item, with a
-**confidence**. It is not a generation and takes no seat. Laya is a fast *first pass*: in our test it got
-about 7 or 8 in 10 right, and its wrong answers came with lower confidence, so every answer below **Sure
-above** (0.6 by default) is passed on as **unsure** for a thinking model or a person to check. Its
-confidence is not calibrated, and the box says so.
+**confidence**. It is not a generation and takes no seat. Laya is a fast *first pass*: on 104 real story
+titles it got about 3 in 4 right; two thirds of them came above **Sure above** (0.6 by default), and 4 in 5
+of those were right. Every answer below the threshold is passed on as **unsure** for a thinking model or a
+person to check — but about one item in eight is confidently wrong (it likes to say *ai* about anything
+technical), so glance at the result. Its confidence is not calibrated, and the box says so.
 
 Classify needs the farm's **Classify (Laya)** plugin, which is **off by default** (the operator turns it on
 in the farm panel). On a farm without it, nothing is sent: every item comes out unsure, and a graph built

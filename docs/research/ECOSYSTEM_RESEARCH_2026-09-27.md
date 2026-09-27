@@ -87,6 +87,26 @@ default (lazy loading).
   - Send the items below a threshold (about 0.6) to the thinking model or to a person.
   - Do not build on `noul` without a calibration set.
 
+### Laya on 109 real titles (2026-09-27, 21:55) — the critic's "confirm on 100+"
+
+109 Hacker News titles (the front page + recent stories with > 20 points), 8 categories (ai, software,
+hardware, science, business, politics, culture, other), CPU, `Router()` default: **21.5 s for 109** (~0.2 s
+each). Reference labels by the integrator (Claude); 5 genuinely ambiguous titles excluded, 104 judged.
+
+| | right | wrong | precision | share of items |
+|---|---|---|---|---|
+| all | 77 | 27 | **74%** | 100% |
+| confidence ≥ 0.6 ("sure") | 54 | 13 | **81%** | 64% |
+| confidence < 0.6 (sent on) | 23 | 14 | 62% | 36% |
+| confidence ≥ 0.8 | 35 | 6 | 85% | 39% |
+
+- The 0.6 default is a fair trade: two thirds of the items never reach the thinking model, and 4 in 5 of
+  those are right. 0.8 buys 4 points of precision for 25 points of coverage.
+- **Its typical error is over-assigning "ai"** to technical titles: *Go Concurrency Distilled* → ai (0.87),
+  *Flip Fluid on Flip Dots* → ai (0.92), *Rusty thoughts on "Parse, don't validate"* → ai (0.78). About
+  one item in eight is sure AND wrong, and nothing re-checks it — the lesson text says so.
+- Raw output: kept in the session scratchpad (bench-out.json), not committed.
+
 ## 2. DeepSeek Harness: the owner's "deepseek harness"
 
 - **What it is.**
