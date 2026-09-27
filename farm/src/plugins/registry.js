@@ -84,6 +84,7 @@ const DESCRIPTORS = [
     {
         // Ecosystem plan v2 §3.2: Laya for the Computer's Classify box. CPU-first, off by default.
         id: 'classify', label: 'Classify (Laya)', logPrefix: 'classify', configKey: 'classify', healthKey: 'classifyUp', runsOn: 'farm',
+        late: true,   // started after the farm is public (up.js): a first start installs ~1 GB
         enabled: (c) => !!(c.classify && c.classify.enabled),
         port: (c) => c.classify.port,
         makeCtx: (c, rt) => ({ key: rt.crypto.randomBytes(24).toString('hex') }),
@@ -101,6 +102,7 @@ const DESCRIPTORS = [
     {
         // Ecosystem plan v2 §3.3: speech to text for the Computer's Sound box (Listen). CPU, off by default.
         id: 'stt', label: 'Speech to text', logPrefix: 'stt', configKey: 'stt', healthKey: 'sttUp', runsOn: 'farm',
+        late: true,   // started after the farm is public (up.js): a first start downloads the model
         enabled: (c) => !!(c.stt && c.stt.enabled),
         port: (c) => c.stt.port,
         makeCtx: (c, rt) => ({ key: rt.crypto.randomBytes(24).toString('hex') }),

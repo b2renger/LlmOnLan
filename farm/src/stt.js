@@ -15,7 +15,7 @@
 const fs = require('fs');
 const path = require('path');
 const http = require('http');
-const { execSync, spawn } = require('child_process');
+const { spawn } = require('child_process');
 const log = require('./log');
 const { serviceHosts } = require('./net');
 const { resolvePython } = require('./python');
@@ -33,7 +33,16 @@ const DEPS = [`faster-whisper==${FW_VERSION}`, 'fastapi', 'uvicorn', 'python-mul
 function venvPython() {
     return IS_WIN ? path.join(VENV, 'Scripts', 'python.exe') : path.join(VENV, 'bin', 'python');
 }
-function sh(cmd, opts = {}) { execSync(cmd, { stdio: 'inherit', ...opts }); }
+// Async (a spawned shell, awaited): a first install is ~1 GB of pip, and it runs while the farm is already
+// public (up.js starts this plugin late), so it must never freeze the event loop the seat gate and the
+// beacon run on.
+function sh(cmd, opts = {}) {
+    return new Promise((resolve, reject) => {
+        const child = spawn(cmd, { shell: true, stdio: 'inherit', windowsHide: true, ...opts });
+        child.on('error', reject);
+        child.on('exit', (code) => (code === 0 ? resolve() : reject(new Error(`${cmd.split(' ')[0]} exited with ${code}`))));
+    });
+}
 function readTrim(p) { try { return fs.readFileSync(p, 'utf8').trim(); } catch { return null; } }
 
 function findPython() {
@@ -65,12 +74,12 @@ async function ensureStt() {
         fs.mkdirSync(ROOT, { recursive: true });
         if (!fs.existsSync(venvPython())) {
             log.step(`Creating the speech-to-text venv with ${log.paint.bold(py.version)} …`);
-            sh(`${py.cmd} -m venv "${VENV}"`);
+            await sh(`${py.cmd} -m venv "${VENV}"`);
         }
         const vpy = venvPython();
-        sh(`"${vpy}" -m pip install -q -U pip`);
+        await sh(`"${vpy}" -m pip install -q -U pip`);
         log.step(`Installing faster-whisper ${FW_VERSION} (CPU, no torch) …`);
-        sh(`"${vpy}" -m pip install -q ${DEPS.join(' ')}`);
+        await sh(`"${vpy}" -m pip install -q ${DEPS.join(' ')}`);
         fs.writeFileSync(MARKER, depsSignature() + '\n', 'utf8');
         log.ok(`Speech to text installed → ${log.paint.grey(ROOT)} (the model downloads at its first start)`);
         return true;

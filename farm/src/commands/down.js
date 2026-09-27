@@ -39,6 +39,12 @@ async function run() {
         await killTree(rt.extractPid);
         killed++;
     }
+    for (const [pid, label] of [[rt.classifyPid, 'Classify'], [rt.sttPid, 'speech to text']]) {
+        if (pid && isAlive(pid)) {
+            log.step(`Stopping ${label} (pid ${pid}) …`);
+            await killTree(pid);
+        }
+    }
     if (rt.llamacppPid && isAlive(rt.llamacppPid)) {
         log.step(`Stopping llama.cpp backend (pid ${rt.llamacppPid}) …`);
         await killTree(rt.llamacppPid);

@@ -944,7 +944,7 @@ async function run(args) {
     const svcById = Object.fromEntries(services.map((s) => [s.id, s]));
     const pluginRuntime = { log, crypto, resolveOcrModel, isLocalHost, reachable: oll.reachable };
     for (const svc of services) {
-        if (!svc.enabled(config)) continue;
+        if (!svc.enabled(config) || svc.desc.late) continue;   // the late ones start once the farm is public
         const res = await svc.start(config, pluginRuntime);
         if (res && res.level && res.message) log[res.level](res.message);
     }
@@ -1152,6 +1152,20 @@ async function run(args) {
         applyPluginHealth(svc);
     }
 
+    // Classify and speech to text start AFTER the farm is public: a first start installs ~1 GB (torch,
+    // Laya's weights, the Whisper model), which used to keep every client waiting at a shut port. They
+    // are the Computer's, read at run time, so nothing restarts Open WebUI when they appear.
+    // `lol down` from another shell must find them: step 6 hands over the runtime writer when it runs.
+    let recordRuntime = () => {};
+    void (async () => {
+        for (const svc of services) {
+            if (!svc.desc.late || !svc.enabled(config)) continue;
+            try { await bringUp(svc); } catch (e) { log.warn(`${svc.label} did not start: ${e.message}`); }
+            recordRuntime();
+            if (beacon) beacon.kick();
+        }
+    })();
+
     // Keep the advertised health honest: re-probe proxy + hosts periodically and
     // push a fresh beacon. Cheap (a few HTTP HEADs) and unref'd.
     const hosts = config.ollama.hosts.map(ollama.normalizeHost);
@@ -1263,6 +1277,8 @@ async function run(args) {
         searxngPid: svcById.websearch.pid,
         kokoroPid: svcById.tts.pid,
         extractPid: svcById.ocr.pid,
+        classifyPid: svcById.classify.pid,
+        sttPid: svcById.stt.pid,
         ollamaPids: oll.spawnedPids,
         llamacppPid: llamacppChild ? llamacppChild.pid : null,
         proxyPort: config.proxy.port,
@@ -1274,6 +1290,7 @@ async function run(args) {
         host: os.hostname(),
     });
     writeRuntimeState();
+    recordRuntime = writeRuntimeState;   // a late plugin (Classify, speech to text) records itself when up
 
     log.plain('');
     log.ok(`${log.paint.bold(config.name)} is up${coordinator ? ' (coordinator)' : ''}.`);

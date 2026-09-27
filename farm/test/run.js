@@ -1960,6 +1960,27 @@ test('plugin keys are tied to the farm password: off the beacon when one is set,
     } finally { server.close(); }
 });
 
+test('classify + stt start AFTER the farm is public, and their installs never block the event loop (rig, 2026-09-27)', () => {
+    const svcs = makeServices();
+    assert.deepEqual(svcs.filter((s) => s.desc.late).map((s) => s.id), ['classify', 'stt'], 'the two heavy first starts are late');
+    const upSrc = fs.readFileSync(path.join(__dirname, '..', 'src', 'commands', 'up.js'), 'utf8');
+    const boot = upSrc.indexOf('if (!svc.enabled(config) || svc.desc.late) continue;');
+    const late = upSrc.indexOf('if (!svc.desc.late || !svc.enabled(config)) continue;');
+    const gate = upSrc.indexOf('seatGateServer = await startSeatGate(');
+    assert.ok(boot > 0 && late > 0 && gate > 0, 'both loops and the seat gate are where they should be');
+    assert.ok(boot < gate && gate < late, 'boot plugins before the seat gate; the late ones after it');
+    for (const f of ['classify', 'stt']) {
+        const src = fs.readFileSync(path.join(__dirname, '..', 'src', `${f}.js`), 'utf8');
+        assert.ok(!/execSync/.test(src), `${f}: no execSync — a 1 GB pip install must not freeze the farm`);
+        assert.ok(/await sh\(/.test(src), `${f}: the installs are awaited`);
+    }
+    // `lol down` from another shell stops them: their pids are recorded (again once a late one is up).
+    assert.ok(/classifyPid: svcById\.classify\.pid/.test(upSrc) && /sttPid: svcById\.stt\.pid/.test(upSrc), 'recorded in the runtime');
+    assert.ok(upSrc.indexOf('recordRuntime = writeRuntimeState') > 0 && /recordRuntime\(\);/.test(upSrc), 'a late plugin re-records');
+    const downSrc = fs.readFileSync(path.join(__dirname, '..', 'src', 'commands', 'down.js'), 'utf8');
+    assert.ok(/rt\.classifyPid/.test(downSrc) && /rt\.sttPid/.test(downSrc), 'lol down stops them');
+});
+
 test('classify + stt waits: end early when the child exits or the model failed to load (critic M2)', async () => {
     const http = require('http');
     for (const mod of [require('../src/classify'), require('../src/stt')]) {
