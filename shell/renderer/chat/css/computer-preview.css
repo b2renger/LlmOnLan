@@ -1,0 +1,334 @@
+/* computer-preview.css — the Preview family (COMPUTER_PLAN §6.5): K4-U3's sheet, replaced
+   wholesale by K5-U1 for the creative boxes' own code editor (addendum KE-3). It does NOT touch
+   css/computer-parts.css or css/sandbox.css.
+
+   What lands here: the head (mode, where the drawing came from, the lock), the markdown and SVG
+   bodies, the snapshot tile, the note, the error that names a line, the monospace code editor and
+   the Save row. Tokens only (lint rule 3).
+
+   KE-9: in #lolcomputer the UA's [hidden]{display:none} loses to any rule that sets `display`, so
+   every element below that is given a display carries its own [hidden] rule. */
+
+#lolcomputer .graph-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 0;
+  flex: 1;
+}
+
+/* ---- the head ----------------------------------------------------------------------------- */
+
+#lolcomputer .graph-preview-head {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+#lolcomputer .graph-preview-head > .graph-part-field { flex: 1 1 120px; min-width: 0; }
+/* The mode picker's caption stays for a screen reader (the label names the select) but not on the
+   box: a creative box's title already says what it is, and the space goes to the drawing. */
+#lolcomputer .graph-preview-head > .graph-part-field > .graph-part-field-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+#lolcomputer .graph-part-body .graph-preview-head select { padding: 3px 6px; font-size: 12px; }
+
+#lolcomputer .graph-preview-from {
+  align-self: center;
+  font-size: 11px;
+  color: var(--muted);
+}
+#lolcomputer .graph-preview-from[hidden] { display: none; }
+
+#lolcomputer .graph-preview-lock,
+#lolcomputer .graph-preview-code-toggle,
+#lolcomputer .graph-preview-save {
+  font: inherit;
+  font-size: 11px;
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface-2);
+  color: var(--text);
+  cursor: pointer;
+}
+#lolcomputer .graph-preview-lock:hover,
+#lolcomputer .graph-preview-code-toggle:hover,
+#lolcomputer .graph-preview-save:hover { border-color: var(--accent-hover); }
+#lolcomputer .graph-preview-lock[aria-pressed='true'] {
+  border-color: var(--accent-hover);
+  background: color-mix(in srgb, var(--accent) 22%, var(--surface-2));
+}
+#lolcomputer .graph-preview-lock[hidden],
+#lolcomputer .graph-preview-code-toggle[hidden],
+#lolcomputer .graph-preview-save[hidden] { display: none; }
+
+#lolcomputer .graph-preview-code-toggle { align-self: flex-start; }
+
+#lolcomputer .graph-preview-size { display: flex; gap: 6px; }
+#lolcomputer .graph-preview-size[hidden] { display: none; }
+#lolcomputer .graph-preview-size .graph-part-field {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--muted);
+}
+#lolcomputer .graph-part-body .graph-preview-size input { padding: 2px 6px; font-size: 12px; }
+
+/* ---- the window: it scrolls, it never pushes the box open --------------------------------- */
+
+/* K-3 (critic R1 A3): the box is exactly part.w × part.h, and the drawing and the code SHARE it —
+   three parts drawing to two parts code — each scrolling inside its own share. Either one takes
+   the whole box when the other is not there (no drawing yet; a folded report). */
+#lolcomputer .graph-preview-body {
+  flex: 3 1 0;
+  min-height: 40px;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 12px;
+  line-height: 1.5;
+  word-break: break-word;
+}
+
+#lolcomputer .graph-preview-body:empty { display: none; }
+
+/* The words of a markdown page are a SELECTABLE ZONE (contract K-1, critic R1 A7): `.graph-part`
+   is `user-select: none` for its chrome; this takes it back, so a drag selects and Ctrl+C copies. */
+#lolcomputer .graph-preview-body[data-selectable='text'] {
+  cursor: text;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+/* Markdown, drawn by render/dom.mjs. Compact, because it lives in a box on a canvas. */
+#lolcomputer .graph-preview-body > :first-child { margin-top: 0; }
+#lolcomputer .graph-preview-body > :last-child { margin-bottom: 0; }
+
+#lolcomputer .graph-preview-body :is(h1, h2, h3, h4, h5, h6) {
+  margin: 0.7em 0 0.3em;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+#lolcomputer .graph-preview-body h1 { font-size: 15px; }
+#lolcomputer .graph-preview-body h2 { font-size: 14px; }
+
+#lolcomputer .graph-preview-body :is(p, ul, ol, pre, table, blockquote) { margin: 0.45em 0; }
+#lolcomputer .graph-preview-body :is(ul, ol) { padding-left: 1.2em; }
+
+#lolcomputer .graph-preview-body :is(code, pre) {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+}
+
+#lolcomputer .graph-preview-body pre {
+  overflow: auto;
+  padding: 6px 7px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--bg);
+}
+
+#lolcomputer .graph-preview-body blockquote {
+  padding-left: 8px;
+  border-left: 2px solid var(--border);
+  color: var(--muted);
+}
+
+#lolcomputer .graph-preview-body table {
+  border-collapse: collapse;
+  font-size: 11px;
+}
+
+#lolcomputer .graph-preview-body :is(th, td) {
+  border: 1px solid var(--border);
+  padding: 2px 6px;
+  text-align: left;
+}
+
+#lolcomputer .graph-preview-body hr {
+  border: 0;
+  border-top: 1px solid var(--border);
+  margin: 0.6em 0;
+}
+
+#lolcomputer .graph-preview-body a { color: var(--accent-hover); }
+
+/* The picture: a sanitised SVG or the guest's PNG, laid over the whole body and `contain`ed — a
+   2048px sketch stays honest inside a 380px box instead of being cropped, and the picture grows and
+   shrinks with the box (K-3). Absolutely placed, so it never pushes the body open: the body's size
+   comes from the box, not from the picture. */
+#lolcomputer .graph-preview-tile {
+  position: absolute;
+  inset: 4px;
+  display: block;
+  width: calc(100% - 8px);
+  height: calc(100% - 8px);
+  object-fit: contain;
+  border-radius: 7px;
+  background: var(--surface);
+}
+
+#lolcomputer .graph-preview-body:has(.graph-preview-tile) {
+  position: relative;
+  overflow: hidden;
+  padding: 0;
+  min-height: 60px;
+}
+
+#lolcomputer .graph-preview-note,
+#lolcomputer .graph-preview-kept {
+  margin: 0;
+  color: var(--muted);
+  font-size: 11px;
+}
+#lolcomputer .graph-preview-note[hidden],
+#lolcomputer .graph-preview-kept[hidden] { display: none; }
+#lolcomputer .graph-preview-note[data-state='drawing'] { color: var(--text); }
+
+/* An error that names a line: a button, because clicking it selects that line in the code. */
+#lolcomputer .graph-preview-error {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 3px 6px;
+  font: inherit;
+  font-size: 11px;
+  line-height: 1.4;
+  text-align: left;
+  white-space: pre-wrap;
+  word-break: break-word;
+  border: 1px solid color-mix(in srgb, var(--danger) 45%, var(--border));
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--danger) 10%, var(--surface));
+  color: var(--danger);
+  cursor: pointer;
+}
+#lolcomputer .graph-preview-error[hidden] { display: none; }
+#lolcomputer .graph-preview-error[data-line='0'] { cursor: default; }
+
+/* ---- the code ------------------------------------------------------------------------------ */
+
+/* No native grip (critic R1 A3): one handle, on the box, sizes the box, and the code grows with it.
+   A grip in here changed a height that was never saved and moved no port. */
+#lolcomputer .graph-part-body .graph-preview-source {
+  flex: 2 1 0;
+  width: 100%;
+  min-height: 48px;
+  box-sizing: border-box;
+  resize: none;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11.5px;
+  line-height: 1.45;
+  tab-size: 2;
+  white-space: pre;
+  overflow: auto;
+  padding: 5px 7px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+}
+#lolcomputer .graph-part-body .graph-preview-source[hidden] { display: none; }
+#lolcomputer .graph-part-body .graph-preview-source[wrap='soft'] { white-space: pre-wrap; }
+#lolcomputer .graph-part-body .graph-preview-source:focus {
+  outline: none;
+  border-color: var(--accent-hover);
+}
+#lolcomputer .graph-part-body .graph-preview-source::placeholder { color: var(--grey); }
+
+/* ---- save as ------------------------------------------------------------------------------- */
+
+#lolcomputer .graph-preview-saves {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+#lolcomputer .graph-preview-saves[hidden] { display: none; }
+
+/* ---- K-9: live previews, Run code, Edit code (docs/COMPUTER_LIVE_PLAN.md, builder L) ------- */
+
+#lolcomputer .graph-preview-live,
+#lolcomputer .graph-preview-run,
+#lolcomputer .graph-preview-edit {
+  font: inherit;
+  font-size: 11px;
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface-2);
+  color: var(--text);
+  cursor: pointer;
+  white-space: nowrap;
+}
+#lolcomputer .graph-preview-live:hover:not(:disabled),
+#lolcomputer .graph-preview-run:hover,
+#lolcomputer .graph-preview-edit:hover { border-color: var(--accent-hover); }
+#lolcomputer .graph-preview-live:disabled { opacity: 0.5; cursor: default; }
+#lolcomputer .graph-preview-live[aria-pressed='true'] {
+  border-color: var(--green);
+  background: color-mix(in srgb, var(--green) 16%, var(--surface-2));
+}
+#lolcomputer .graph-preview-live[hidden],
+#lolcomputer .graph-preview-run[hidden],
+#lolcomputer .graph-preview-edit[hidden] { display: none; }
+#lolcomputer .graph-preview-size .graph-preview-live { flex: none; align-self: center; }
+
+/* Run code, Edit code and the Save buttons share the box's last row. */
+#lolcomputer .graph-preview-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+#lolcomputer .graph-preview-tools[hidden] { display: none; }
+
+/* The live stage: laid over the picture area exactly where the snapshot tile sits, and the frame
+   inside it is the box's Width x Height, scaled to fit (preview.mjs liveFit) — so going live does
+   not move or resize anything on the box. */
+#lolcomputer .graph-preview-body[data-live='on'] {
+  position: relative;
+  overflow: hidden;
+  padding: 0;
+  min-height: 60px;
+}
+#lolcomputer .graph-preview-stage {
+  position: absolute;
+  inset: 4px;
+  overflow: hidden;
+  border-radius: 7px;
+  background: var(--surface);
+  outline: 1px solid color-mix(in srgb, var(--green) 55%, transparent);
+}
+/* Critic L1-4: the sketch holds the keyboard (a click in it, until Escape) — and it shows.
+   `data-keys` is set by preview.mjs: Chromium does not match :focus-within for a focused iframe. */
+#lolcomputer .graph-preview-stage:focus-within,
+#lolcomputer .graph-preview-stage[data-keys='sketch'] {
+  outline: 2px solid var(--accent-hover);
+  outline-offset: 1px;
+}
+/* Critic L1-1: while the canvas holds a drag (a marquee, a wire, a pan, a resize), the live frame
+   is out of hit testing — its document would otherwise take the moves and the release, and the
+   drag would never end. A wire dropped on the picture then lands on the box, as on any box. */
+#lolcomputer .graph-canvas[data-dragging='true'] .sandbox-live-frame { pointer-events: none; }
+#lolcomputer .graph-preview-live-mount {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform-origin: 0 0;
+}
+#lolcomputer .graph-preview-note[data-state='live'] { color: var(--green); }

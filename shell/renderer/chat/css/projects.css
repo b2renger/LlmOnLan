@@ -1,0 +1,45 @@
+/* css/projects.css — the scratch-projects surface bits the S0 bridge itself renders (S0-U4).
+   The project panels arrive in S2/S3 and bring their own rules; what is here is the degradation
+   note and the two shared bits every project surface reuses (a path chip, a folder-missing row).
+   ComfyQ tokens only: no colour literals (lint rule 3). */
+
+/* The one honest sentence when this build has no projects folder (bridge.mjs renderNotice). */
+.chat-projects-notice {
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+/* The projects root / a project folder, shown so it can be read and copied. */
+.chat-projects-path {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  padding: 3px 8px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface-2);
+  color: var(--text);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* A project whose folder is gone: never re-created silently, only offered for Forget. */
+.chat-projects-missing {
+  color: var(--amber);
+  font-size: 12px;
+}
+
+.chat-projects-error {
+  color: var(--danger);
+  font-size: 12px;
+}

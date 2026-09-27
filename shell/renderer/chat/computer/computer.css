@@ -1,0 +1,51 @@
+/* computer.css — the Computer surface's entry sheet (integrator-owned: @imports, NOTHING else).
+   COMPUTER_PLAN §3.6. One stylesheet per unit; a unit REPLACES its own sheet wholesale and never
+   touches this file or another unit's.
+
+   It deliberately does NOT import chat.css: the composer/thread/sidebar rules are dead weight
+   here. The three sheets the Computer shares with the chat — css/base.css (the `.chat-layer`
+   escape hatch, `.hidden`, the buttons), css/graph.css (the canvas, re-scoped to
+   `:is(#lolchat, #lolcomputer)` at the K1 kickoff) and css/sandbox.css (no #lolchat selectors at
+   all) — are already loaded by chat.css's <link> in index.html and the harness page, once.
+
+   Each file below is a kickoff stub until its unit lands; the @import must exist from the start,
+   because a 404 on an @import is a console network error and would fail every harness scenario. */
+
+/* K1, integrator: the kind colours, sticky tints, radii, the grid. */
+@import url('../css/computer-tokens.css');
+/* K1, integrator: #lolcomputer, .comp-side, .comp-main, .comp-drawer layout. */
+@import url('../css/computer-shell.css');
+/* K1-U2 */
+@import url('../css/computer-library.css');
+/* K1-U3, extended by K3-U3 */
+@import url('../css/computer-runbar.css');
+/* K1-U3, extended by K2-U3 */
+@import url('../css/computer-drawer.css');
+/* K2-U3: the Sent/Got/Cost panel inside the drawer. */
+@import url('../css/computer-transcript.css');
+/* K3-U2: the six control parts' bodies (the OK/Cancel row, the question field, the switch). */
+@import url('../css/computer-parts.css');
+/* K3-U3: what RUNNING looks like — states, the per-box play, barred and back wires. */
+@import url('../css/computer-states.css');
+/* K4-U1: the Text part — rendered markdown, the source swap, the lock. */
+@import url('../css/computer-text.css');
+/* K4-U2: the Image part and what intake looks like. */
+@import url('../css/computer-image.css');
+/* K4-U3: the Preview family — markdown/SVG bodies, the snapshot tile, "Open live". */
+@import url('../css/computer-preview.css');
+/* K5-U1 owns css/computer-preview.css (above) for the creative boxes' code editor — no new sheet. */
+/* K5-U2: the grouped ＋ menu and the first-run offer on an empty canvas. */
+@import url('../css/computer-palette.css');
+/* K5-U3: the Learn shelf and the tutorial step rail. */
+@import url('../css/computer-rail.css');
+/* K6-U1: the "takes:" line on a box that holds a file, and the Instruction's model line. */
+@import url('../css/computer-takes.css');
+/* K6-U2: the Document (PDF) box — the file, the reading state, the extracted text. */
+@import url('../css/computer-document.css');
+/* K6-U3: the Sound box — the file, the player, why it is not sent. */
+@import url('../css/computer-audio.css');
+/* K7 (addendum KG): the debug log's switch at the right end of the run bar. */
+@import url('../css/computer-recorder.css');
+/* K4-U4, LAST on purpose: the warmed-up look (§9) and the three annotation parts. It warms what
+   the sheets above drew, and the cascade is the only mechanism it may use. */
+@import url('../css/computer-look.css');

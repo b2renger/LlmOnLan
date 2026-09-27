@@ -1,0 +1,208 @@
+/* computer-text.css — K4-U1's sheet: the Text part (COMPUTER_PLAN §6.2, addendum KD-4).
+   One stylesheet per unit (§3.6): K4-U1 owns this file and touches no other sheet.
+
+   What lands here: the rendered/source swap, the scrolling body, the "from input" marker with its
+   clear action, the lock control, the quiet line that says a run kept your words — and the
+   markdown itself. `css/markdown.css` is scoped to `#lolchat`, so the Computer cannot inherit it;
+   these rules are the Computer's own, deliberately smaller (a box is 260px wide, not a column).
+
+   Colours come from var(--…) only — lint rule 3 counts colour literals, and the count is 0. */
+
+#lolcomputer .graph-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  /* K-3: the box is exactly part.w × part.h and its main field fills it — the body or the source
+     grows and shrinks with the box and scrolls inside it (critic R1 A3). */
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* ---- the head: where this content came from, and the two controls that decide that ---------- */
+
+#lolcomputer .graph-text-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 18px;
+}
+
+#lolcomputer .graph-text-from {
+  font-size: 10px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 1px 7px;
+  white-space: nowrap;
+}
+#lolcomputer .graph-text-from[hidden] { display: none; }
+#lolcomputer .graph-text-from[data-from='input'] { color: var(--accent-hover); }
+#lolcomputer .graph-text-from[data-from='locked'],
+#lolcomputer .graph-text-from[data-from='editing'] { color: var(--amber); border-color: var(--amber); }
+
+#lolcomputer .graph-text-clear,
+#lolcomputer .graph-text-edit,
+#lolcomputer .graph-text-copy,
+#lolcomputer .graph-text-lock {
+  font: inherit;
+  font-size: 11px;
+  padding: 1px 8px;
+  border-radius: 7px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--muted);
+  cursor: pointer;
+  white-space: nowrap;
+}
+#lolcomputer .graph-text-clear[hidden],
+#lolcomputer .graph-text-edit[hidden],
+#lolcomputer .graph-text-copy[hidden] { display: none; }
+#lolcomputer .graph-text-clear:hover,
+#lolcomputer .graph-text-edit:hover,
+#lolcomputer .graph-text-copy:hover,
+#lolcomputer .graph-text-lock:hover { border-color: var(--accent-hover); color: var(--text); }
+/* ✎ and Copy are quiet until the box is touched (hovered, selected, or holding the focus): a canvas
+   of twenty answers must not read as a wall of forty buttons. They keep their box, so nothing
+   reflows when they appear, and a keyboard focus shows them at once. */
+#lolcomputer .graph-text-edit,
+#lolcomputer .graph-text-copy { opacity: 0; transition: opacity 120ms ease; }
+#lolcomputer .graph-part:hover :is(.graph-text-edit, .graph-text-copy),
+#lolcomputer .graph-part[aria-selected='true'] :is(.graph-text-edit, .graph-text-copy),
+#lolcomputer .graph-part:focus-within :is(.graph-text-edit, .graph-text-copy),
+#lolcomputer :is(.graph-text-edit, .graph-text-copy):focus-visible { opacity: 1; }
+#lolcomputer .graph-text-copy[data-copied='true'] { color: var(--green); border-color: var(--green); }
+#lolcomputer .graph-text-copy[data-copied='false'] { color: var(--danger); border-color: var(--danger); }
+#lolcomputer .graph-text-lock { margin-left: auto; }
+#lolcomputer .graph-text-lock[aria-pressed='true'] {
+  color: var(--text);
+  border-color: var(--amber);
+  background: color-mix(in srgb, var(--amber) 14%, var(--surface-2));
+}
+
+/* ---- the two faces of the body -------------------------------------------------------------- */
+
+/* The rendered words are a SELECTABLE ZONE (contract K-1, critic R1 A7): `.graph-part` says
+   `user-select: none` for its chrome, and this takes it back for the text, so a drag selects words
+   and Ctrl+C copies them. The box is dragged by its title bar. */
+#lolcomputer .graph-text-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  overflow-wrap: anywhere;
+  padding: 2px 2px 2px 0;
+  cursor: text;
+  user-select: text;
+  -webkit-user-select: text;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text);
+}
+#lolcomputer .graph-text-body[hidden] { display: none; }
+
+/* No native grip (critic R1 A3): one resize handle, on the box, is what sizes a Text box — a grip
+   in here changed a height that was never saved and moved no port. */
+#lolcomputer .graph-text-source {
+  flex: 1 1 auto;
+  width: 100%;
+  min-height: 36px;
+  box-sizing: border-box;
+  resize: none;
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.5;
+  padding: 4px 6px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+}
+#lolcomputer .graph-text-source[hidden] { display: none; }
+#lolcomputer .graph-text-source:focus {
+  outline: none;
+  border-color: var(--accent-hover);
+}
+
+#lolcomputer .graph-text-notice {
+  margin: 0;
+  font-size: 11px;
+  color: var(--muted);
+}
+#lolcomputer .graph-text-notice[hidden] { display: none; }
+
+/* ---- the markdown a Text box renders (render/dom.mjs's tree, and only that tree) ------------- */
+
+#lolcomputer .graph-text-body > :first-child { margin-top: 0; }
+#lolcomputer .graph-text-body > :last-child { margin-bottom: 0; }
+#lolcomputer .graph-text-body p { margin: 0 0 8px; }
+#lolcomputer .graph-text-body h1,
+#lolcomputer .graph-text-body h2,
+#lolcomputer .graph-text-body h3,
+#lolcomputer .graph-text-body h4,
+#lolcomputer .graph-text-body h5,
+#lolcomputer .graph-text-body h6 {
+  margin: 12px 0 5px;
+  line-height: 1.25;
+  font-weight: 650;
+  color: var(--text);
+}
+#lolcomputer .graph-text-body h1 { font-size: 16px; }
+#lolcomputer .graph-text-body h2 { font-size: 14px; }
+#lolcomputer .graph-text-body h3 { font-size: 13px; }
+#lolcomputer .graph-text-body h4,
+#lolcomputer .graph-text-body h5,
+#lolcomputer .graph-text-body h6 { font-size: 12px; color: var(--muted); }
+#lolcomputer .graph-text-body ul,
+#lolcomputer .graph-text-body ol { margin: 0 0 8px; padding-left: 18px; }
+#lolcomputer .graph-text-body li { margin: 2px 0; }
+#lolcomputer .graph-text-body strong { font-weight: 650; color: var(--text); }
+#lolcomputer .graph-text-body em { font-style: italic; }
+#lolcomputer .graph-text-body del { color: var(--grey); }
+#lolcomputer .graph-text-body hr {
+  margin: 10px 0;
+  border: 0;
+  border-top: 1px solid var(--border);
+}
+#lolcomputer .graph-text-body blockquote {
+  margin: 0 0 8px;
+  padding-left: 10px;
+  border-left: 2px solid var(--border);
+  color: var(--muted);
+}
+#lolcomputer .graph-text-body a {
+  color: var(--text);
+  text-decoration: underline;
+  text-decoration-color: var(--accent);
+}
+#lolcomputer .graph-text-body a:hover { text-decoration-color: var(--accent-hover); }
+#lolcomputer .graph-text-body code {
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: 11px;
+  padding: 1px 4px;
+  border-radius: 5px;
+  background: var(--surface-2);
+}
+#lolcomputer .graph-text-body pre {
+  margin: 0 0 8px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  overflow: auto;
+}
+#lolcomputer .graph-text-body pre code { padding: 0; background: none; }
+#lolcomputer .graph-text-body table {
+  border-collapse: collapse;
+  margin: 0 0 8px;
+  font-size: 11px;
+}
+#lolcomputer .graph-text-body th,
+#lolcomputer .graph-text-body td {
+  border: 1px solid var(--border);
+  padding: 2px 6px;
+  text-align: left;
+}
+#lolcomputer .graph-text-body th { color: var(--muted); font-weight: 600; }
+#lolcomputer .graph-text-body img { max-width: 100%; height: auto; border-radius: 6px; }

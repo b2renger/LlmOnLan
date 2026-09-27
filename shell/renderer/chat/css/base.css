@@ -1,0 +1,180 @@
+/* LOL Chat base (P0 kickoff, integrator-owned): the #lolchat layout grid, buttons, utilities.
+   ComfyQ tokens only; tints via color-mix(). Scoped under #lolchat so nothing leaks into the shell
+   chrome. Loaded after styles.css, so these rules win over the legacy LOL Chat block until the P1
+   landing removes it.
+
+   THE `.chat-layer` ESCAPE HATCH. The layout rules below are #lolchat-only on purpose, but the
+   shared primitives - .btn-accent / .btn-ghost / .chat-icon / .visually-hidden / .hidden /
+   :focus-visible / border-box / reduced-motion - are ALSO published under `.chat-layer`. A node
+   that has to live outside #lolchat (P1-U4 `createDialogs`: a modal, a popover or a toast mounted
+   on document.body to escape the `overflow-y:auto` clipping of .chat-messages/.chat-threads) MUST
+   put `.chat-layer` on its root, or it renders with unstyled native buttons and no focus ring.
+   Everything else belongs inside #lolchat. */
+
+/* PANEL FILLS. ComfyQ's palette steps `--surface` 15/255 away from `--bg` in the dark theme but
+   only 5/255 in the light one (#ffffff on #fafafa), so code fences, notes and the user bubble had
+   almost no panel reading in light - only their 1px border said they were there (caught by the
+   light screenshot at the P1 fix round). These two tokens keep the palette untouched and derive a
+   fill that steps the SAME way in both themes; everything that paints a panel uses them. */
+#lolchat, .chat-layer { --chat-panel: var(--surface); --chat-bubble: var(--surface-2); }
+:root.light #lolchat, :root.light .chat-layer {
+  --chat-panel: color-mix(in srgb, var(--surface) 93%, var(--text));
+  --chat-bubble: color-mix(in srgb, var(--surface-2) 94%, var(--text));
+}
+
+#lolchat {
+  position: absolute; inset: 0;
+  display: grid;
+  /* Three columns since the S0 kickoff: the workbench column is 0px wide (and els.work carries
+     .hidden) until ui/workbench.mjs sets a width state. css/workbench.css owns the rest. */
+  grid-template-columns: 240px minmax(0, 1fr) var(--chat-work-w, 0px);
+  grid-template-rows: minmax(0, 1fr);
+  background: var(--bg); color: var(--text);
+  font-family: 'Inter', system-ui, Avenir, Helvetica, Arial, sans-serif;
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+}
+#lolchat.hidden, #lolchat .hidden, .chat-layer.hidden, .chat-layer .hidden { display: none !important; }
+/* The `hidden` PROPERTY must win too. The UA sheet's `[hidden] { display: none }` is beaten by any
+   author rule that sets `display` on the same element, so a component that hides a node with
+   `el.hidden = true` (render/code.mjs's SVG preview pane, which css/markdown.css lays out with
+   `display: flex`) stayed on screen. Caught at the P1 landing by the light/dark screenshots: the
+   SVG preview was painted under the code even with the Code tab selected. */
+#lolchat [hidden], .chat-layer [hidden] { display: none !important; }
+#lolchat *, #lolchat *::before, #lolchat *::after,
+.chat-layer, .chat-layer *, .chat-layer *::before, .chat-layer *::after { box-sizing: border-box; }
+
+/* ---- fallback (shown only if main.mjs never runs) ---- */
+#lolchat .chat-fallback {
+  grid-column: 1 / -1; align-self: center; justify-self: center;
+  color: var(--muted); font-size: 13px;
+}
+
+/* ---- sidebar ---- */
+#lolchat .chat-side {
+  display: flex; flex-direction: column; gap: 8px; min-height: 0;
+  padding: 10px; background: var(--surface); border-right: 1px solid var(--border);
+  width: auto; flex: none;
+}
+#lolchat .chat-side-head { display: flex; gap: 6px; align-items: stretch; }
+#lolchat .chat-side-head .chat-new { flex: 1; width: auto; }
+#lolchat .chat-side-tools:empty, #lolchat .chat-side-foot:empty { display: none; }
+#lolchat .chat-threads {
+  flex: 1; min-height: 0; overflow-y: auto;
+  display: flex; flex-direction: column; gap: 4px;
+}
+#lolchat .chat-side-foot { display: flex; gap: 6px; align-items: center; padding-top: 6px; border-top: 1px solid var(--border); }
+
+/* ---- main column ---- */
+#lolchat .chat-main {
+  position: relative; min-width: 0; min-height: 0;
+  display: flex; flex-direction: column;
+}
+#lolchat .chat-banner:empty { display: none; }
+#lolchat .chat-banner { display: flex; flex-direction: column; gap: 1px; }
+#lolchat .chat-banner > * {
+  padding: 7px 14px; font-size: 12.5px; color: var(--text);
+  background: color-mix(in srgb, var(--amber) 14%, var(--surface));
+  border-bottom: 1px solid color-mix(in srgb, var(--amber) 35%, var(--border));
+}
+#lolchat .chat-banner > .chat-banner-loader {
+  background: color-mix(in srgb, var(--danger) 14%, var(--surface));
+  border-bottom-color: color-mix(in srgb, var(--danger) 35%, var(--border));
+}
+#lolchat .chat-topline {
+  display: flex; align-items: center; gap: 10px; min-height: 45px;
+  padding: 8px 14px; border-bottom: 1px solid var(--border);
+}
+#lolchat .chat-thread-header { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; }
+#lolchat .chat-model {
+  background: var(--surface-2); color: var(--text); border: 1px solid var(--border);
+  border-radius: 8px; padding: 5px 8px; font-size: 12px; font-family: inherit; max-width: 40%;
+}
+#lolchat .chat-strip:empty { display: none; }
+#lolchat .chat-messages {
+  position: relative; flex: 1; min-height: 0; overflow-y: auto;
+  padding: 18px 22px; display: flex; flex-direction: column; gap: 14px;
+  anchor-name: --chat-messages;      /* .chat-empty is a SIBLING; see below */
+}
+#lolchat .chat-jump {
+  position: sticky; bottom: 8px; align-self: center; order: 9999;
+  border-radius: 999px; padding: 5px 12px; font-size: 12px;
+  background: var(--surface-2); color: var(--text); border: 1px solid var(--border); cursor: pointer;
+}
+/* The empty state covers the MESSAGES box exactly. It is a sibling of #chat-messages (§3.5), so it
+   tracks it by anchor instead of by hard-coded insets: the topline grows with `.chat-banner` and
+   `.chat-strip`, and the composer grows with its tray and a textarea that expands to 200px, at
+   which point a fixed "46px 0 96px 0" would put the centred text behind the composer. The insets
+   below are the fallback for a renderer without CSS anchor positioning (Chromium 148 in Electron
+   42 has it; verified in the harness). */
+#lolchat .chat-empty {
+  position: absolute; inset: 46px 0 96px 0; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 6px; color: var(--muted); pointer-events: none;
+  position-anchor: --chat-messages;
+  top: anchor(top); right: anchor(right); bottom: anchor(bottom); left: anchor(left);
+}
+#lolchat .chat-empty p { margin: 0; }
+#lolchat .chat-empty .detail { font-size: 12px; color: var(--grey); }
+
+/* ---- composer ---- */
+#lolchat .chat-form {
+  display: flex; flex-direction: column; gap: 6px;
+  padding: 12px 16px; border-top: 1px solid var(--border); align-items: stretch;
+}
+#lolchat .chat-composer-above:empty, #lolchat .chat-composer-tray:empty,
+#lolchat .chat-composer-tools:empty, #lolchat .chat-composer-meter:empty { display: none; }
+#lolchat .chat-composer-tray { display: flex; flex-wrap: wrap; gap: 6px; }
+#lolchat .chat-composer-row { display: flex; gap: 8px; align-items: flex-end; }
+#lolchat .chat-composer-tools { display: flex; gap: 4px; align-items: center; }
+#lolchat .chat-composer-meter { align-self: center; font-size: 11px; color: var(--grey); font-variant-numeric: tabular-nums; }
+#lolchat .chat-form textarea {
+  flex: 1; min-width: 0; resize: none; background: var(--surface-2); color: var(--text);
+  border: 1px solid var(--border); border-radius: 8px; padding: 9px 11px;
+  font-family: inherit; font-size: 14px; line-height: 1.45; max-height: 200px;
+}
+#lolchat .chat-form textarea:focus { outline: none; border-color: var(--accent); }
+
+/* ---- buttons ---- */
+#lolchat .btn-accent, .chat-layer .btn-accent,
+#lolchat .btn-ghost, .chat-layer .btn-ghost {
+  appearance: none; font-family: inherit; font-size: 13px; font-weight: 600; line-height: 1.2;
+  padding: 8px 14px; border-radius: 8px; cursor: pointer; white-space: nowrap;
+}
+#lolchat .btn-accent, .chat-layer .btn-accent {
+  background: var(--accent); color: var(--on-accent); border: 1px solid var(--accent);
+}
+#lolchat .btn-accent:hover:not(:disabled), .chat-layer .btn-accent:hover:not(:disabled) { filter: brightness(1.08); }
+#lolchat .btn-ghost, .chat-layer .btn-ghost {
+  background: var(--surface-2); color: var(--text); border: 1px solid var(--border); font-weight: 500;
+}
+#lolchat .btn-ghost:hover:not(:disabled), .chat-layer .btn-ghost:hover:not(:disabled) { border-color: var(--accent); }
+#lolchat .btn-accent:disabled, #lolchat .btn-ghost:disabled,
+.chat-layer .btn-accent:disabled, .chat-layer .btn-ghost:disabled { opacity: .55; cursor: default; filter: none; }
+#lolchat .chat-icon, .chat-layer .chat-icon { flex: none; vertical-align: middle; }
+
+/* ---- utilities ---- */
+#lolchat .visually-hidden, .chat-layer .visually-hidden {
+  position: absolute !important; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; border: 0;
+}
+#lolchat :focus-visible, .chat-layer :focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent-hover) 70%, transparent);
+  outline-offset: 2px;
+}
+#lolchat textarea:focus-visible, #lolchat select:focus-visible,
+.chat-layer textarea:focus-visible, .chat-layer select:focus-visible { outline-offset: 0; }
+
+/* NATIVE FORM CONTROLS follow the palette. An unstyled checkbox paints the UA's own blue - the one
+   colour literal nobody wrote and lint cannot see (spotted in the P2 settings popover, where the
+   Notifications toggle was the only blue pixel in the app). markdown.css already does this for the
+   task-list checkboxes; this is the same rule for every control we render ourselves. */
+#lolchat input[type="checkbox"], #lolchat input[type="radio"],
+.chat-layer input[type="checkbox"], .chat-layer input[type="radio"] { accent-color: var(--accent); }
+
+@media (prefers-reduced-motion: reduce) {
+  #lolchat *, #lolchat *::before, #lolchat *::after,
+  .chat-layer, .chat-layer *, .chat-layer *::before, .chat-layer *::after {
+    animation-duration: 0.01ms !important; animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important; scroll-behavior: auto !important;
+  }
+}

@@ -1,0 +1,51 @@
+/* computer-tokens.css — the Computer's own token layer (K1 kickoff, integrator-owned).
+   COMPUTER_PLAN §3.6 / §9. ComfyQ tokens only — NO colour literals (chat-lint rule 3): every hue
+   here is a color-mix() of tokens that already exist.
+
+   A note the plan makes and this file honours (§0.3): tokens.css makes `--blue` identical to
+   `--accent` and to a grey in BOTH themes, so a kind palette built on --blue collapses to grey.
+   Only --green, --amber and --danger are real hues. The kind slots below therefore lean on those
+   three plus tinted surfaces, and K4-U3's look pass (css/computer-look.css) is where the full
+   treatment lands. Units read these variables; they do not redefine them. */
+
+#lolcomputer {
+  /* Surfaces. The Computer is a canvas tool, so its ground steps one notch away from the chat's. */
+  --comp-ground: var(--bg);
+  --comp-panel: var(--surface);
+  --comp-panel-2: var(--surface-2);
+  --comp-line: var(--border);
+
+  /* Radii (ComfyQ conventions: cards 12, panels 10, buttons/inputs 8, chips 7, pills 999). */
+  --comp-r-card: 12px;
+  --comp-r-panel: 10px;
+  --comp-r-btn: 8px;
+  --comp-r-chip: 7px;
+
+  /* The canvas grid. */
+  --comp-grid: color-mix(in srgb, var(--border) 55%, transparent);
+  --comp-grid-step: 24px;
+
+  /* Kind slots: the five value kinds a part can carry. Tinted surfaces, not saturated fills, so a
+     graph of forty boxes stays readable. K4-U3 may re-balance the percentages; the NAMES are
+     frozen here so every unit's sheet refers to the same five. */
+  --comp-kind-text: color-mix(in srgb, var(--muted) 45%, var(--surface-2));
+  --comp-kind-code: color-mix(in srgb, var(--green) 22%, var(--surface-2));
+  --comp-kind-image: color-mix(in srgb, var(--amber) 22%, var(--surface-2));
+  --comp-kind-list: color-mix(in srgb, var(--accent-hover) 30%, var(--surface-2));
+  --comp-kind-error: color-mix(in srgb, var(--danger) 22%, var(--surface-2));
+
+  /* Run states. */
+  --comp-state-running: var(--green);
+  --comp-state-stale: var(--amber);
+  --comp-state-error: var(--danger);
+  --comp-state-idle: var(--grey);
+
+  /* Sticky-note tint, for the Note part and the annotation parts (K3/K4). */
+  --comp-sticky: color-mix(in srgb, var(--amber) 14%, var(--surface));
+
+  /* Layout knobs the shell sheet and the units both read. Widths come back from kv at boot; the
+     values here are the defaults a first launch sees. */
+  --comp-side-w: 260px;
+  --comp-drawer-w: 380px;
+  --comp-runbar-h: 44px;
+}

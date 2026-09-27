@@ -1,0 +1,27 @@
+/* LOL Chat stylesheet entry (integrator-owned). One @import per unit area; units own css/<area>.css.
+   ComfyQ tokens only — no colour literals (lint rule 3). */
+@import url('css/base.css');
+/* P1. Each file is a kickoff stub until its unit lands; the @import must exist from the start,
+   because a 404 on an @import is a console network error and would fail every harness scenario. */
+@import url('css/composer.css');
+@import url('css/sidebar.css');
+@import url('css/dialogs.css');
+@import url('css/thread.css');
+@import url('css/markdown.css');
+/* P2. Same rule: each file is a kickoff stub until its unit lands, and every unit REPLACES its own
+   file wholesale. Nobody edits chat.css. */
+@import url('css/strip.css');
+@import url('css/meter.css');
+@import url('css/tree.css');
+@import url('css/library.css');
+/* S0 (Studio rails). Same rule again: the file is a kickoff stub until its unit lands, and a unit
+   REPLACES its own file wholesale. Nobody edits chat.css. */
+@import url('css/workbench.css');
+@import url('css/queue.css');
+@import url('css/projects.css');
+/* C1 (the Computer panel). Same rule again: a kickoff stub until C1-U2 lands, replaced
+   wholesale by its unit. Nobody edits chat.css. */
+@import url('css/graph.css');
+/* C3 (the sandbox parts). Same rule again: a kickoff stub until C3-U1 lands, replaced wholesale
+   by its unit. Nobody edits chat.css. */
+@import url('css/sandbox.css');

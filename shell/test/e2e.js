@@ -106,9 +106,13 @@ async function main() {
     }
 
     // OWUI is the primary surface; LOL Chat sits behind the topbar toggle.
+    // K1 replaced the single #view-toggle button with the three-way .viewseg group; the chat is
+    // #view-chat. Click it unconditionally — a missing button used to make this check silently
+    // skip itself, which is how the rename shipped without anyone noticing.
     await evalJs(`(() => {
-        const b = document.getElementById('view-toggle');
-        if (b && document.getElementById('lolchat').classList.contains('hidden')) b.click();
+        const b = document.getElementById('view-chat');
+        if (!b) return false;
+        b.click();
         return document.getElementById('lolchat').classList.contains('hidden') === false;
     })()`).then((visible) => { if (!visible) throw new Error('LOL Chat did not open via the toggle'); });
 

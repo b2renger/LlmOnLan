@@ -1,0 +1,194 @@
+/* computer-runbar.css — Run all · Stop · the counts · the cap meter · zoom · ?
+   OWNED BY K1-U3, extended by K3-U3 (the plan range and the waits counter)
+   (COMPUTER_PLAN §3.6, §8.3). ComfyQ tokens only — no colour literals (chat-lint rule 3).
+   The run bar's PLACE in the frame belongs to css/computer-shell.css. */
+
+/* ---- the two buttons -------------------------------------------------------------------------
+   Run all is the accent button; Stop takes its place rather than sitting beside it, so the bar
+   never offers two ways to think about a run that is already going. */
+#lolcomputer .comp-run-all,
+#lolcomputer .comp-run-stop,
+#lolcomputer .comp-run-help {
+  appearance: none;
+  font: inherit;
+  font-size: 12px;
+  line-height: 1;
+  padding: 6px 12px;
+  border: 1px solid var(--comp-line);
+  border-radius: var(--comp-r-btn);
+  background: var(--comp-panel-2);
+  color: var(--text);
+  cursor: pointer;
+}
+
+#lolcomputer .comp-run-all {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+  font-weight: 600;
+}
+#lolcomputer .comp-run-all:hover:not(:disabled) { filter: brightness(1.08); }
+#lolcomputer .comp-run-all:disabled { opacity: 0.5; cursor: default; }
+
+#lolcomputer .comp-run-stop {
+  border-color: color-mix(in srgb, var(--danger) 55%, var(--comp-line));
+  color: var(--danger);
+}
+#lolcomputer .comp-run-stop:hover { background: color-mix(in srgb, var(--danger) 14%, var(--comp-panel-2)); }
+
+#lolcomputer .comp-run-all:focus-visible,
+#lolcomputer .comp-run-stop:focus-visible,
+#lolcomputer .comp-run-help:focus-visible { outline: 2px solid var(--accent-hover); outline-offset: 1px; }
+
+/* ---- the counts ------------------------------------------------------------------------------
+   Tabular numerals: a count that shifts sideways every time a digit changes reads as flicker, and
+   these two change on every part of every run. */
+#lolcomputer .comp-run-counts {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#lolcomputer .comp-run-parts { color: var(--text); }
+
+/* The cap as a spent/limit meter (§8.3). Amber past 80 % — the ONE place in the bar that changes
+   colour, so it means something when it does. */
+#lolcomputer .comp-run-cap {
+  padding: 3px 8px;
+  border: 1px solid var(--comp-line);
+  border-radius: var(--comp-r-chip);
+  background: var(--comp-panel-2);
+}
+#lolcomputer .comp-run-cap[data-amber='true'] {
+  border-color: color-mix(in srgb, var(--amber) 60%, var(--comp-line));
+  background: color-mix(in srgb, var(--amber) 16%, var(--comp-panel-2));
+  color: var(--text);
+}
+
+/* ---- the `?` ------------------------------------------------------------------------------ */
+#lolcomputer .comp-run-help {
+  margin-left: auto;             /* pins ? and the Record switch right (the zoom chip that did is gone) */
+  width: 26px;
+  padding: 6px 0;
+  border-radius: 999px;
+  color: var(--muted);
+  text-align: center;
+}
+#lolcomputer .comp-run-help:disabled { opacity: 0.45; cursor: default; }
+
+/* ---- what the bar says -----------------------------------------------------------------------
+   One line, after a run that had nothing to do. It is `role=status`, so a screen reader hears it
+   without the focus moving. */
+#lolcomputer .comp-run-status {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+#lolcomputer .comp-run-status:empty { display: none; }
+
+/* ---- the waits counter (K3-U3, COMPUTER_PLAN §8.3) -------------------------------------------
+   "Waiting: the part's own inline control, and the run bar counts them." Amber like the waiting
+   box itself, so the two read as one fact seen from two places, and a button that puts the canvas
+   on the oldest question — a run that is asking must never look like a run that is stuck. */
+#lolcomputer .comp-run-waits {
+  padding: 3px 8px;
+  border: 1px solid color-mix(in srgb, var(--amber) 60%, var(--comp-line));
+  border-radius: var(--comp-r-chip);
+  background: color-mix(in srgb, var(--amber) 16%, var(--comp-panel-2));
+  color: var(--text);
+}
+#lolcomputer .comp-run-show-waiting {
+  font: inherit;
+  font-size: 12px;
+  padding: 3px 8px;
+  border-radius: var(--comp-r-btn);
+  border: 1px solid var(--comp-line);
+  background: var(--comp-panel-2);
+  color: var(--text);
+  cursor: pointer;
+}
+#lolcomputer .comp-run-show-waiting:hover { border-color: var(--accent-hover); }
+#lolcomputer .comp-run-show-waiting:focus-visible { outline: 2px solid var(--accent-hover); outline-offset: 1px; }
+
+/* ---- "Run everything again" (critic R1 A1) ----------------------------------------------------
+   Offered only when a run found every box up to date: the way to a NEW answer (new seeds) that
+   used to require editing something first. A ghost button, like the waits button beside it. */
+#lolcomputer .comp-run-again {
+  font: inherit;
+  font-size: 12px;
+  padding: 3px 10px;
+  border-radius: var(--comp-r-btn);
+  border: 1px solid var(--comp-line);
+  background: var(--comp-panel-2);
+  color: var(--text);
+  cursor: pointer;
+  white-space: nowrap;
+}
+#lolcomputer .comp-run-again:hover { filter: brightness(1.08); border-color: var(--accent-hover); }
+#lolcomputer .comp-run-again:focus-visible { outline: 2px solid var(--accent-hover); outline-offset: 1px; }
+#lolcomputer .comp-run-again[hidden] { display: none; }
+
+/* ---- the Instruction's seed row and last-run line (critic R1 A1, A2, A8; R2 N1) --------------
+   The seed is part of RUNNING a box, so its few rules live with the run bar's; the box sheet
+   (graph.css) is the canvas's. `Seed [ new each run ] 🎲 ✕` sits under Model and Answer shape, and
+   `last run: 48213 · Keep` is folded into the same row (critic R2, N1): at the 300 px an
+   Instruction had before R1 they share one line; a narrower box wraps the last-run half under the
+   field. The "cut off" chip has a line of its own. */
+#lolcomputer .graph-ins-seed {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+#lolcomputer .graph-ins-seed-field {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1 1 80px;
+  min-width: 0;
+}
+#lolcomputer .graph-ins-seed-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+}
+#lolcomputer .graph-ins-seed-input[aria-invalid='true'] { border-color: var(--danger); }
+#lolcomputer .graph-ins-seed-btn {
+  flex: 0 0 auto;
+  font-size: 11px;
+  padding: 2px 5px;
+  border-radius: 7px;
+  line-height: 1.3;
+}
+#lolcomputer .graph-ins-seed-btn:focus-visible { outline: 2px solid var(--accent-hover); outline-offset: 1px; }
+#lolcomputer .graph-ins-run {
+  display: flex;
+  flex: 0 1 auto;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  margin-left: auto;
+}
+#lolcomputer .graph-ins-run[hidden],
+#lolcomputer .graph-ins-run > [hidden],
+#lolcomputer .graph-ins-cut[hidden],
+#lolcomputer .graph-ins-inline-wrap[hidden] { display: none; }
+#lolcomputer .graph-ins-cut { color: var(--amber); white-space: normal; line-height: 1.3; }
+#lolcomputer .graph-ins-hint {
+  margin: 2px 0 0;
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--muted);
+}

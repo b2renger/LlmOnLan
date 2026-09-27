@@ -1,0 +1,211 @@
+/* markdown.css — everything render/dom.mjs can produce, plus the code chrome render/code.mjs
+   bolts onto a fence (P1-U3).
+
+   Two containers hold rendered markdown: `.chat-body` (an assistant answer) and `.chat-part-text`
+   (a user message's text part). Every rule below applies to both, so a user turn and an answer
+   render identically — the only difference is the bubble thread.css draws around the user row.
+
+   ComfyQ tokens only. The restricted grammar (plan §3.8) means there is a small, CLOSED set of
+   tags to style: no definition lists, no footnotes, no nested tables. */
+
+#lolchat .chat-body, #lolchat .chat-part-text {
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+/* The first and last block never add outer margin: the row already owns its spacing. */
+#lolchat .chat-body > :first-child, #lolchat .chat-part-text > :first-child { margin-top: 0; }
+#lolchat .chat-body > :last-child, #lolchat .chat-part-text > :last-child { margin-bottom: 0; }
+
+/* ---- text blocks ------------------------------------------------------------------------- */
+
+#lolchat .chat-body p, #lolchat .chat-part-text p { margin: 0 0 10px; }
+
+#lolchat .chat-body h1, #lolchat .chat-body h2, #lolchat .chat-body h3,
+#lolchat .chat-body h4, #lolchat .chat-body h5, #lolchat .chat-body h6,
+#lolchat .chat-part-text h1, #lolchat .chat-part-text h2, #lolchat .chat-part-text h3,
+#lolchat .chat-part-text h4, #lolchat .chat-part-text h5, #lolchat .chat-part-text h6 {
+  margin: 18px 0 8px;
+  line-height: 1.3;
+  font-weight: 600;
+  color: var(--text);
+}
+#lolchat .chat-body h1, #lolchat .chat-part-text h1 { font-size: 20px; }
+#lolchat .chat-body h2, #lolchat .chat-part-text h2 { font-size: 17px; }
+#lolchat .chat-body h3, #lolchat .chat-part-text h3 { font-size: 15px; }
+#lolchat .chat-body h4, #lolchat .chat-body h5, #lolchat .chat-body h6,
+#lolchat .chat-part-text h4, #lolchat .chat-part-text h5, #lolchat .chat-part-text h6 {
+  font-size: 14px;
+  color: var(--muted);
+}
+
+#lolchat .chat-body hr, #lolchat .chat-part-text hr {
+  border: 0;
+  border-top: 1px solid var(--border);
+  margin: 16px 0;
+}
+
+#lolchat .chat-body blockquote, #lolchat .chat-part-text blockquote {
+  margin: 10px 0;
+  padding: 2px 0 2px 12px;
+  border-left: 3px solid var(--border);
+  color: var(--muted);
+}
+
+#lolchat .chat-body ul, #lolchat .chat-body ol,
+#lolchat .chat-part-text ul, #lolchat .chat-part-text ol {
+  margin: 8px 0;
+  padding-left: 22px;
+}
+#lolchat .chat-body li, #lolchat .chat-part-text li { margin: 3px 0; }
+#lolchat .chat-body li > ul, #lolchat .chat-body li > ol,
+#lolchat .chat-part-text li > ul, #lolchat .chat-part-text li > ol { margin: 3px 0; }
+
+#lolchat .chat-body li.chat-taskitem, #lolchat .chat-part-text li.chat-taskitem { list-style: none; margin-left: -18px; }
+#lolchat .chat-body .chat-task, #lolchat .chat-part-text .chat-task {
+  margin-right: 6px;
+  accent-color: var(--accent);
+  vertical-align: baseline;
+}
+
+#lolchat .chat-body strong, #lolchat .chat-part-text strong { font-weight: 650; color: var(--text); }
+#lolchat .chat-body del, #lolchat .chat-part-text del { color: var(--grey); }
+
+/* ---- links, citations, image chips -------------------------------------------------------- */
+
+#lolchat .chat-body a, #lolchat .chat-part-text a {
+  color: var(--text);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--accent-hover) 60%, transparent);
+  text-underline-offset: 2px;
+}
+#lolchat .chat-body a:hover, #lolchat .chat-part-text a:hover { text-decoration-color: var(--accent-hover); }
+
+#lolchat .chat-cite { font-size: 10px; line-height: 0; }
+#lolchat .chat-cite a {
+  text-decoration: none;
+  padding: 1px 4px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--muted);
+}
+#lolchat .chat-cite a:hover { color: var(--text); border-color: var(--accent); }
+
+/* A markdown image is a CHIP, never a fetch: render/dom.mjs turns it into a link on purpose. */
+#lolchat .chat-imgchip {
+  display: inline-block;
+  padding: 1px 7px;
+  border-radius: 7px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  font-size: 12px;
+  text-decoration: none;
+  color: var(--muted);
+}
+
+/* ---- tables ------------------------------------------------------------------------------ */
+
+#lolchat .chat-body .chat-table, #lolchat .chat-part-text .chat-table {
+  display: block;
+  width: max-content;
+  max-width: 100%;
+  overflow-x: auto;
+  border-collapse: collapse;
+  margin: 10px 0;
+  font-size: 13px;
+}
+#lolchat .chat-body .chat-table th, #lolchat .chat-body .chat-table td,
+#lolchat .chat-part-text .chat-table th, #lolchat .chat-part-text .chat-table td {
+  border: 1px solid var(--border);
+  padding: 5px 9px;
+  text-align: left;
+  vertical-align: top;
+}
+#lolchat .chat-body .chat-table th, #lolchat .chat-part-text .chat-table th {
+  background: var(--surface-2);
+  font-weight: 600;
+}
+#lolchat .chat-body .chat-table td[align='right'], #lolchat .chat-part-text .chat-table td[align='right'],
+#lolchat .chat-body .chat-table th[align='right'], #lolchat .chat-part-text .chat-table th[align='right'] { text-align: right; }
+#lolchat .chat-body .chat-table td[align='center'], #lolchat .chat-part-text .chat-table td[align='center'],
+#lolchat .chat-body .chat-table th[align='center'], #lolchat .chat-part-text .chat-table th[align='center'] { text-align: center; }
+
+/* ---- code -------------------------------------------------------------------------------- */
+
+#lolchat .chat-code-inline {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: .9em;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 1px 4px;
+}
+
+#lolchat .chat-codeblock {
+  margin: 10px 0;
+  background: var(--chat-panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+#lolchat .chat-codeblock .chat-code {
+  margin: 0;
+  padding: 10px 12px;
+  overflow-x: auto;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12.5px;
+  line-height: 1.5;
+  tab-size: 2;
+}
+#lolchat .chat-codeblock .chat-code code { font: inherit; background: none; border: 0; padding: 0; }
+/* Wrap is one preference for the whole chat (kv `ui:wrap`), applied to every fence at once. */
+#lolchat .chat-codeblock[data-wrap='1'] .chat-code { white-space: pre-wrap; overflow-x: hidden; }
+
+/* An OPEN fence is still arriving: mark it so a reader can tell the block is not finished. */
+#lolchat .chat-codeblock[data-closed='0'] { border-style: dashed; }
+
+/* ---- the code chrome (render/code.mjs) ---------------------------------------------------- */
+
+#lolchat .chat-code-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px 5px 12px;
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--border);
+  font-size: 11px;
+}
+#lolchat .chat-code-lang {
+  color: var(--grey);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  text-transform: lowercase;
+}
+#lolchat .chat-code-tools { display: flex; align-items: center; gap: 4px; margin-left: auto; }
+#lolchat .chat-code-tabs { display: flex; align-items: center; gap: 2px; margin-right: 6px; }
+#lolchat .chat-code-btn {
+  appearance: none;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: var(--grey);
+  font-family: inherit;
+  font-size: 11px;
+  line-height: 1;
+  padding: 4px 7px;
+  cursor: pointer;
+}
+#lolchat .chat-code-btn:hover { color: var(--text); border-color: var(--border); background: var(--surface); }
+#lolchat .chat-code-btn[aria-pressed='true'] {
+  color: var(--text);
+  border-color: var(--border);
+  background: var(--surface);
+}
+
+#lolchat .chat-svg-preview {
+  padding: 12px;
+  display: flex;
+  justify-content: center;
+  background: var(--surface-2);
+}
+#lolchat .chat-svg { max-width: 100%; max-height: 420px; }

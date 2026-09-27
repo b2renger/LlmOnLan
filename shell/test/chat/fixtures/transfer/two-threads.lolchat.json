@@ -1,0 +1,112 @@
+{
+  "lolchat": 1,
+  "exportedAt": "2026-09-14T09:12:00.000Z",
+  "app": "LlmOnLan LOL Chat",
+  "threads": [
+    {
+      "id": "th-rig",
+      "title": "Rig notes",
+      "titleSource": "user",
+      "createdAt": 1789000000000,
+      "updatedAt": 1789000300000,
+      "headId": "m-rig-3",
+      "pinned": true,
+      "ephemeral": false,
+      "recipeId": null,
+      "systemOverride": "Answer like a rigger.",
+      "params": { "temperature": 0.2 },
+      "model": "assistant",
+      "modelSource": "user",
+      "farmId": "farm-a",
+      "draft": null,
+      "legacyId": "1789000000000-abc",
+      "legacyHash": "deadbeef"
+    },
+    {
+      "id": "th-elephant",
+      "title": "Éléphant",
+      "titleSource": "auto",
+      "createdAt": 1789000400000,
+      "updatedAt": 1789000500000,
+      "headId": "m-ele-2",
+      "pinned": false,
+      "ephemeral": true,
+      "imported": false,
+      "somethingFromTheFuture": { "nested": true }
+    }
+  ],
+  "messages": [
+    {
+      "id": "m-rig-1",
+      "threadId": "th-rig",
+      "parentId": null,
+      "role": "user",
+      "createdAt": 1789000000000,
+      "updatedAt": 1789000000000,
+      "parts": [{ "type": "text", "text": "how do I mirror weights?" }, { "type": "image", "attId": "att-shot" }],
+      "content": "how do I mirror weights?",
+      "status": "done",
+      "pinned": false
+    },
+    {
+      "id": "m-rig-2",
+      "threadId": "th-rig",
+      "parentId": "m-rig-1",
+      "role": "assistant",
+      "createdAt": 1789000100000,
+      "updatedAt": 1789000100000,
+      "parts": [],
+      "content": "Use the mirror modifier:\n\n```python\nbpy.ops.object.modifier_add(type='MIRROR')\n```\n",
+      "reasoning": "weights are symmetric here",
+      "model": "assistant",
+      "underlying": "Qwen3.8-27B-UD-Q2_K_XL",
+      "status": "done",
+      "stats": { "promptTokens": 12, "completionTokens": 40, "ttftMs": 210, "tokPerSec": 48, "finishReason": "stop", "text": "40 tok" }
+    },
+    {
+      "id": "m-rig-3",
+      "threadId": "th-rig",
+      "parentId": "m-rig-1",
+      "role": "assistant",
+      "createdAt": 1789000300000,
+      "updatedAt": 1789000300000,
+      "parts": [],
+      "content": "Second try: symmetrize instead.",
+      "status": "done"
+    },
+    {
+      "id": "m-ele-1",
+      "threadId": "th-elephant",
+      "parentId": null,
+      "role": "user",
+      "createdAt": 1789000400000,
+      "updatedAt": 1789000400000,
+      "parts": [{ "type": "text", "text": "parle-moi de l’Éléphant de la Bastille" }],
+      "content": "parle-moi de l’Éléphant de la Bastille",
+      "status": "done"
+    },
+    {
+      "id": "m-ele-2",
+      "threadId": "th-elephant",
+      "parentId": "m-ele-1",
+      "role": "assistant",
+      "createdAt": 1789000500000,
+      "updatedAt": 1789000500000,
+      "parts": [],
+      "content": "Un monument jamais achevé.",
+      "status": "done"
+    }
+  ],
+  "attachments": [
+    {
+      "id": "att-shot",
+      "threadId": "th-rig",
+      "name": "viewport.png",
+      "mime": "image/png",
+      "size": 5,
+      "sha256": "0f1e2d",
+      "status": "ready",
+      "blobBase64": "TE9MIQ=="
+    }
+  ]
+}

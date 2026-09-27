@@ -851,7 +851,26 @@ function publishFarm() {
     ? ((f.models.find((m) => m.default) || f.models[0]).id || null)
     : null;
   window.__lolFarm = f
-    ? { name: f.name, openaiBaseUrl: farmEndpoint(f), defaultModel, busy: f.busy || null, apiKey: f._key || null }
+    // LOL Chat vNext needs more of the snapshot than the endpoint: the served catalog for its
+    // picker, the backend's context-per-slot for its budget meter, the seat counts for the seat
+    // gate, and the plugin URLs. Every field below is ADDITIVE and read off the same main-shaped
+    // farm object; the OWUI path never looks at window.__lolFarm.
+    ? {
+      name: f.name, openaiBaseUrl: farmEndpoint(f), defaultModel, busy: f.busy || null, apiKey: f._key || null,
+      id: f.id || null, requiresKey: !!f.requiresKey, healthy: f.healthy !== false,
+      stale: !!f._stale, lastSeen: f._lastSeen || null, host: f._host || null, httpPort: f.httpPort || null,
+      models: Array.isArray(f.models) ? f.models.map((m) => ({ id: m.id, underlying: m.underlying || null, default: !!m.default })) : [],
+      backend: f.backend ? {
+        engine: f.backend.engine || null, alias: f.backend.alias || null,
+        contextLength: f.backend.contextLength ?? null, contextPerSlot: f.backend.contextPerSlot ?? null,
+        slots: f.backend.slots ?? null,
+      } : null,
+      capacity: f.capacity || null, perf: f.perf || null,
+      usage: f.usage ? { gpuUtil: f.usage.gpuUtil ?? null } : null,
+      searxngUrl: f.searxngUrl || null,
+      ttsUrl: f.ttsUrl || null, ttsVoice: f.ttsVoice || 'af_heart', ttsModel: f.ttsModel || 'kokoro',
+      extract: f.extract && f.extract.url && f.extract.key ? { url: f.extract.url, key: f.extract.key } : null,
+    }
     : (sidecarState && sidecarState.endpoint ? { name: 'farm', openaiBaseUrl: sidecarState.endpoint, defaultModel: null } : null);
   if (window.__lolChatRefresh) window.__lolChatRefresh();
   // The overlay is FARM-driven in this build, but renderSidecar used to run only
@@ -861,21 +880,39 @@ function publishFarm() {
 }
 
 // OWUI is the primary surface; the topbar toggle switches the main area to LOL
-// Chat (the Studio-style fast view) and back. The webview keeps running while
-// hidden, so switching back is instant and never re-authenticates.
+// Chat or the Computer and back. The webview keeps running while hidden, so
+// switching back is instant and never re-authenticates.
+//
+// The FIRST LINE of this comment is an anchor: shell/test/chat-harness/extract-app-bridge.js
+// slices publishFarm out of this file and ends the slice on the literal
+// "// OWUI is the primary surface". Reword it and every harness run throws.
 (() => {
-  const btn = $('view-toggle');
+  const VIEWS = ['owui', 'chat', 'computer'];
   const chat = $('lolchat');
-  if (!btn || !chat) return;
-  let chatMode = false;
-  btn.addEventListener('click', () => {
-    chatMode = !chatMode;
-    chat.classList.toggle('hidden', !chatMode);
-    if (els.webview) els.webview.classList.toggle('hidden', chatMode);
-    btn.textContent = chatMode ? 'LOL Chat' : 'Open WebUI';
-    if (chatMode) publishFarm();
-  });
+  const computer = $('lolcomputer');
+  // KEEP this guard: everything below, setInterval(publishFarm) included, dies with this IIFE if
+  // it throws — a missing section would silently stop all farm republishing.
+  if (!chat || !computer) return;
+  let view = 'owui';
+  function show(next) {
+    if (!VIEWS.includes(next)) next = 'owui';
+    if (NO_OWUI && next === 'owui') next = 'chat';
+    view = next;
+    chat.classList.toggle('hidden', view !== 'chat');
+    computer.classList.toggle('hidden', view !== 'computer');
+    if (els.webview) els.webview.classList.toggle('hidden', view !== 'owui');
+    // styles.css keeps #overlay/#owui out of the way on the other two surfaces, so renderSidecar()
+    // never has to know a view exists (COMPUTER_PLAN §2.2a).
+    document.body.dataset.view = view;
+    for (const b of document.querySelectorAll('[data-view]')) b.setAttribute('aria-pressed', String(b.dataset.view === view));
+    try { localStorage.setItem('lol:view', view); } catch (e) { /* private mode */ }
+    publishFarm();
+  }
+  for (const b of document.querySelectorAll('[data-view]')) b.addEventListener('click', () => show(b.dataset.view));
+  if (NO_OWUI) { const o = $('view-owui'); if (o) o.classList.add('hidden'); }
+  let saved = null;
+  try { saved = localStorage.getItem('lol:view'); } catch (e) { /* private mode */ }
+  show(saved || (NO_OWUI ? 'chat' : 'owui'));
   // Keep the endpoint fresh while the farm is being (re)selected.
   setInterval(publishFarm, 4000);
-  publishFarm();
 })();

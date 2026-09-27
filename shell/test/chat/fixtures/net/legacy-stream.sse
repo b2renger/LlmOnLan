@@ -1,0 +1,17 @@
+: ping
+
+data: {"id":"chatcmpl-mock","object":"chat.completion.chunk","created":1,"model":"assistant","choices":[{"index":0,"delta":{"reasoning_content":"think0 "},"finish_reason":null}]}
+
+data: {"id":"chatcmpl-mock","object":"chat.completion.chunk","created":1,"model":"assistant","choices":[{"index":0,"delta":{"reasoning":"think1 "},"finish_reason":null}]}
+
+event: chunk
+data: {"id":"chatcmpl-mock","object":"chat.completion.chunk","created":1,"model":"assistant","choices":[{"index":0,"delta":{"content":"Hello "},"finish_reason":null}]}
+
+data: {"id":"chatcmpl-mock","object":"chat.completion.chunk","created":1,"model":"assistant",
+data: "choices":[{"index":0,"delta":{"content":"world"},"finish_reason":null}]}
+
+: keep-alive
+data: {"id":"chatcmpl-mock","object":"chat.completion.chunk","created":1,"model":"assistant","choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":{"completion_tokens":2,"prompt_tokens":7,"total_tokens":9}}
+
+data: [DONE]
+

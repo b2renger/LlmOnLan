@@ -1,0 +1,28 @@
+# Inputs
+
+## topic
+accessibility in museums for autistic persons
+
+## societal research
+## Findings
+
+Museums report that autistic visitors most often leave because of the sound of the room, not
+because of the exhibit. Three sites that introduced a quiet hour saw repeat visits rise.
+
+- Predictability matters more than quiet: a published route beats a silent one.
+- Staff training changed outcomes more than any building work.
+
+## environmental research
+### 1
+Lighting is the second most cited barrier. Fluorescent flicker is invisible to most people and
+exhausting to some; several sites replaced it during routine maintenance at no extra cost.
+
+### 2
+Wayfinding failures concentrate at thresholds: doors, lifts and the first ten metres of a new
+room. A floor plan given at the entrance removed most of the reported distress.
+
+## Input 1
+a loose note nobody named
+
+# Instruction
+write a problematic about the topic taking into account: societal research, environmental research

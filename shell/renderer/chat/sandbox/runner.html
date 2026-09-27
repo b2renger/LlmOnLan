@@ -1,0 +1,820 @@
+<!doctype html>
+<!-- The sandbox guest. Loaded ONLY by sandbox/host.mjs into an iframe with
+     sandbox="allow-scripts" (no allow-same-origin, ever) - the opaque origin is what gives a
+     generated infinite loop its own process, so it costs the host ~12 ms instead of freezing the
+     client that holds the user's chats. The main process vetoes every other subframe navigation
+     (shell/src/main/index.ts, mirrored in shell/test/chat-harness/main.cjs).
+     The CSP below is BYTE-FROZEN: lint rule 9 compares it to RUNNER_CSP in sandbox/protocol.mjs.
+     Nothing here loads from disk or from a network: the sketch, the vendored libraries and the
+     project's own lib/ files all arrive as TEXT over postMessage and are evaluated inline.
+     Rules 1 and 2 of the chat lint do not apply to this file (it IS the containment boundary, so
+     innerHTML and eval are its job); every other rule does.
+     Owner: C3-U1. Studio plan 3.7, protocol table 3.7.2. -->
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval' blob:; style-src 'unsafe-inline'; img-src data: blob:; media-src data: blob:; connect-src 'none'; frame-src 'none'; child-src blob:; worker-src blob:; font-src data:; form-action 'none'; base-uri 'none'">
+<style>html,body{margin:0;padding:0;height:100%;background:transparent;overflow:hidden}#root{width:100%;height:100%;position:relative}#root>canvas{display:block}</style>
+<div id="root"></div>
+<script>
+(function () {
+  'use strict';
+
+  // ---- protocol (mirrors sandbox/protocol.mjs; this file cannot import - default-src 'none') ---
+  var V = 1;
+  var CMDS = ['boot', 'libs', 'run', 'compute', 'params', 'snapshot', 'stop', 'ping', 'dispose'];
+  var RUN_KINDS = ['canvas', 'dom', 'three', 'p5', 'svg'];
+  var tok = null;
+  var root = document.getElementById('root');
+  var styleEl = document.createElement('style');
+  document.head.appendChild(styleEl);
+  var limits = { maxLogs: 200, maxErrors: 20, logBytes: 2048, resultBytes: 1024 * 1024, maxPx: 1024 };
+  var logsLeft = 0, errsLeft = 0, logsDropped = 0, errsDropped = 0;
+  var params = {};
+  var onParams = [];
+  // K-9: a LIVE guest (the host says so in `boot`) runs inside a box on the canvas, visible, with
+  // real input: nothing is flushed early for a photograph, `lol.orbit` listens, and Escape hands
+  // the keyboard back. A snapshot guest never becomes live, and the reverse.
+  var liveMode = false;
+
+  function send(kind, payload) {
+    var msg = { v: V, tok: tok || '', kind: kind };
+    for (var k in payload) if (Object.prototype.hasOwnProperty.call(payload, k)) msg[k] = payload[k];
+    try { parent.postMessage(msg, '*'); } catch (e) { /* the host went away */ }
+  }
+
+  // Stacks are sanitised HERE so no file:/blob: path can ever travel back into the host UI or
+  // into a prompt sent to the farm (studio plan 3.7.3).
+  function clean(s) {
+    return String(s === null || s === undefined ? '' : s)
+      .replace(/(?:file|blob|data):[^\s)]*/g, 'sketch.js')
+      .slice(0, 4096);
+  }
+
+  // ---- line numbers ----------------------------------------------------------------------------
+  // A `new Function` body's stack lines are offset by the wrapper the engine writes around it
+  // ("function anonymous(lol\n) {"). The offset is MEASURED once at boot rather than assumed, so an
+  // engine bump shifts nothing: a sketch that throws on its line 7 reports line 7.
+  var LINE_OFFSET = 3;
+  function stackLine(stack) {
+    var m = /<anonymous>:(\d+):(\d+)/.exec(String(stack || ''));
+    if (!m) return null;
+    return { line: Number(m[1]), col: Number(m[2]) };
+  }
+  (function measure() {
+    try {
+      // The `throw` sits on line 2 of the body, exactly where a sketch's line 1 will sit
+      // (both are preceded by the same one prologue line the guest prepends).
+      new Function('"use strict";\nthrow new Error("probe");')();
+    } catch (e) {
+      var at = stackLine(e && e.stack);
+      if (at) LINE_OFFSET = at.line - 1;
+    }
+  }());
+
+  function errOf(e, phase) {
+    if (!e) return null;
+    var at = stackLine(e && e.stack);
+    return {
+      message: clean(e.message !== undefined && e.message !== null ? e.message : e),
+      stack: clean(e && e.stack ? e.stack : ''),
+      line: at ? Math.max(0, at.line - LINE_OFFSET) : 0,
+      col: at ? at.col : 0,
+      phase: phase || 'run'
+    };
+  }
+
+  function report(phase, e, at) {
+    if (errsLeft <= 0) { errsDropped++; return; }
+    errsLeft--;
+    var info = errOf(e, phase) || { message: clean(e), stack: '', line: 0, col: 0 };
+    if (at && at.line) { info.line = Math.max(0, at.line - LINE_OFFSET); info.col = at.col || 0; }
+    send('error', {
+      phase: phase, message: info.message, stack: info.stack,
+      line: info.line, col: info.col, n: errsLeft === 0 ? errsDropped + 1 : 0
+    });
+  }
+
+  // ---- reset bookkeeping: everything the guest issued, so `run`/`stop` can take it all back ----
+  // `tracking` is off while a LIBRARY is being evaluated: a library's own boot-time listeners and
+  // timers belong to the library, not to the sketch, and must survive the next run's reset (p5
+  // installs several). They die with the frame, which is the only lifetime a library has.
+  var tracking = true;
+  var rafs = [], timers = [], workers = [], listeners = [], audios = [], sketches = [];
+  var _raf = window.requestAnimationFrame, _caf = window.cancelAnimationFrame;
+  var _st = window.setTimeout, _si = window.setInterval;
+  var _ct = window.clearTimeout, _ci = window.clearInterval;
+  // THE FIRST FRAME (critic R1 A8). The guest is an off-screen frame, where the browser throttles
+  // animation frames, and the host photographs it right after the run. A sketch that paints only
+  // inside a requestAnimationFrame loop - a three.js `animate()`, `renderer.setAnimationLoop`,
+  // p5's own draw loop in instance mode - was photographed BLANK. So every callback a run queues
+  // is recorded (`queued`, live only while the run's code executes) and called ONCE, synchronously,
+  // before `ran` is sent: the frame the browser would have painted next. It re-queues itself as it
+  // always would, and the browser's own call of the one it replaced does nothing (`done`), so an
+  // animation keeps exactly one loop.
+  var FRAME_MS = 1000 / 60;
+  var queued = null;
+  // How many animation-frame callbacks the page has run (K-7): `lol.orbit` reads it to tell a
+  // scene with its own loop (which will re-render the moved camera) from a scene drawn once.
+  var pageFrames = 0;
+  window.requestAnimationFrame = function (fn) {
+    var entry = { fn: fn, done: false };
+    var h = _raf.call(window, function (ts) {
+      if (entry.done) return;
+      entry.done = true;
+      pageFrames++;
+      fn(ts);
+    });
+    if (tracking) rafs.push(h);
+    if (queued && typeof fn === 'function') queued.push(entry);
+    return h;
+  };
+
+  // Call each recorded callback once. The timestamp is one frame ahead - the time of the frame
+  // being painted - which is what makes p5's frame-rate gate draw it rather than skip it.
+  function flushFirstFrame(list) {
+    var ts = (window.performance && performance.now ? performance.now() : Date.now()) + FRAME_MS;
+    for (var i = 0; i < list.length; i++) {
+      var entry = list[i];
+      if (entry.done) continue;
+      entry.done = true;
+      try { entry.fn(ts); } catch (e) { report('runtime', e); }
+    }
+  }
+  window.setTimeout = function (fn, ms) {
+    var h = _st.call(window, fn, ms);
+    if (tracking) timers.push(['t', h]);
+    return h;
+  };
+  window.setInterval = function (fn, ms) {
+    var h = _si.call(window, fn, ms);
+    if (tracking) timers.push(['i', h]);
+    return h;
+  };
+  var _Worker = window.Worker;
+  if (_Worker) {
+    window.Worker = function (u, o) {
+      var w = new _Worker(u, o);
+      if (tracking) workers.push(w);
+      return w;
+    };
+  }
+  var _AC = window.AudioContext || window.webkitAudioContext;
+  if (_AC) {
+    window.AudioContext = function (o) {
+      var c = new _AC(o);
+      if (tracking) audios.push(c);
+      return c;
+    };
+    window.webkitAudioContext = window.AudioContext;
+  }
+  var _addWin = window.addEventListener;
+  var _addDoc = document.addEventListener;
+  window.addEventListener = function (type, fn, o) {
+    if (tracking) listeners.push([window, type, fn, o]);
+    return _addWin.call(window, type, fn, o);
+  };
+  document.addEventListener = function (type, fn, o) {
+    if (tracking) listeners.push([document, type, fn, o]);
+    return _addDoc.call(document, type, fn, o);
+  };
+
+  // Bumped by every reset, so a run still waiting for its frame size (whenSized) is dropped when a
+  // stop, a dispose or the next run arrives first.
+  var runSeq = 0;
+
+  function reset() {
+    var i;
+    runSeq++;
+    queued = null;
+    disposeOrbits();
+    lastRender = null;
+    for (i = 0; i < sketches.length; i++) { try { sketches[i].remove(); } catch (e) { /* gone */ } }
+    for (i = 0; i < rafs.length; i++) { try { _caf.call(window, rafs[i]); } catch (e) { /* gone */ } }
+    for (i = 0; i < timers.length; i++) {
+      try { (timers[i][0] === 't' ? _ct : _ci).call(window, timers[i][1]); } catch (e) { /* gone */ }
+    }
+    for (i = 0; i < workers.length; i++) { try { workers[i].terminate(); } catch (e) { /* gone */ } }
+    for (i = 0; i < listeners.length; i++) {
+      try { listeners[i][0].removeEventListener(listeners[i][1], listeners[i][2], listeners[i][3]); } catch (e) { /* gone */ }
+    }
+    for (i = 0; i < audios.length; i++) { try { audios[i].close(); } catch (e) { /* gone */ } }
+    rafs = []; timers = []; workers = []; listeners = []; audios = []; sketches = [];
+    params = {}; onParams = [];
+    try { root.replaceChildren(); } catch (e) { root.textContent = ''; }
+    styleEl.textContent = '';
+    logsLeft = limits.maxLogs; errsLeft = limits.maxErrors;
+    logsDropped = 0; errsDropped = 0;
+  }
+
+  // ---- console capture -------------------------------------------------------------------------
+  function preview(v, depth) {
+    if (v === null) return 'null';
+    if (v === undefined) return 'undefined';
+    var t = typeof v;
+    if (t === 'string') return v;
+    if (t === 'number' || t === 'boolean') return String(v);
+    if (t === 'function') return 'function ' + (v.name || '');
+    if (t === 'symbol' || t === 'bigint') return String(v);
+    if (v instanceof Error) return String(v.name + ': ' + v.message);
+    if (depth <= 0) return Array.isArray(v) ? '[Array(' + v.length + ')]' : '[object]';
+    var parts = [], k;
+    if (Array.isArray(v)) {
+      for (k = 0; k < v.length && k < 20; k++) parts.push(preview(v[k], depth - 1));
+      if (v.length > 20) parts.push('+' + (v.length - 20) + ' more');
+      return '[' + parts.join(', ') + ']';
+    }
+    if (v && v.nodeType) return '<' + String(v.nodeName || 'node').toLowerCase() + '>';
+    var n = 0;
+    for (k in v) {
+      if (!Object.prototype.hasOwnProperty.call(v, k)) continue;
+      if (++n > 20) { parts.push('...'); break; }
+      try { parts.push(k + ': ' + preview(v[k], depth - 1)); } catch (e) { parts.push(k + ': ?'); }
+    }
+    return '{' + parts.join(', ') + '}';
+  }
+
+  ['log', 'info', 'warn', 'error'].forEach(function (level) {
+    var orig = console[level];
+    console[level] = function () {
+      if (logsLeft > 0) {
+        logsLeft--;
+        var parts = [];
+        for (var i = 0; i < arguments.length; i++) {
+          try { parts.push(preview(arguments[i], 2)); } catch (e) { parts.push('?'); }
+        }
+        send('log', {
+          level: level,
+          text: parts.join(' ').slice(0, limits.logBytes),
+          n: logsLeft === 0 ? logsDropped + 1 : 0
+        });
+      } else {
+        logsDropped++;
+      }
+      try { orig.apply(console, arguments); } catch (e) { /* no devtools */ }
+    };
+  });
+
+  window.onerror = function (m, src, line, col, e) {
+    report('runtime', e || { message: m }, { line: line, col: col });
+    return true;
+  };
+  window.onunhandledrejection = function (ev) { report('rejection', ev && ev.reason); };
+
+  // ---- run ------------------------------------------------------------------------------------
+  function defaultHtml(kind) {
+    if (kind === 'canvas' || kind === 'three') return '<canvas></canvas>';
+    return '';
+  }
+
+  function fitCanvas(c) {
+    var w = Math.max(1, Math.round(root.clientWidth || 640));
+    var h = Math.max(1, Math.round(root.clientHeight || 480));
+    if (!c.getAttribute('width')) c.width = w;
+    if (!c.getAttribute('height')) c.height = h;
+    c.style.width = '100%';
+    c.style.height = '100%';
+  }
+
+  // ---- the drawing size (contract K-4) ----------------------------------------------------------
+  // A run may carry `size: {w, h}`, the Preview box's Width x Height. The host sizes this frame to
+  // it before posting `run`, so `innerWidth`/`innerHeight` (p5's windowWidth, three's W and H),
+  // `lol.size` and the default canvas all equal it - the box's fields tell the truth. The root is
+  // sized too, so the snapshot is w x h even in the rare case the frame's new size has not reached
+  // this process when the wait below gives up.
+  var SIZE_MAX = 4096;
+  var SIZE_WAIT_MS = 750;
+  var sized = null;
+
+  function sizeOf(v) {
+    if (!v || typeof v !== 'object') return null;
+    var w = Math.round(Number(v.w)), h = Math.round(Number(v.h));
+    if (!isFinite(w) || !isFinite(h) || w < 1 || h < 1) return null;
+    return { w: Math.min(SIZE_MAX, w), h: Math.min(SIZE_MAX, h) };
+  }
+
+  function applySize(size) {
+    sized = size;
+    root.style.width = size ? size.w + 'px' : '';
+    root.style.height = size ? size.h + 'px' : '';
+  }
+
+  // The frame's new size travels to this process on its own path, not with the `run` message, so
+  // it can arrive a frame later. Wait for it - on a MessageChannel, which an off-screen frame does
+  // not throttle the way it throttles timers and animation frames - but never for long.
+  function whenSized(size, then) {
+    var fits = function () { return window.innerWidth === size.w && window.innerHeight === size.h; };
+    if (!size || fits() || typeof MessageChannel !== 'function') { then(); return; }
+    var until = Date.now() + SIZE_WAIT_MS;
+    var ch = new MessageChannel();
+    ch.port1.onmessage = function () {
+      if (fits() || Date.now() >= until) { ch.port1.onmessage = null; then(); return; }
+      ch.port2.postMessage(0);
+    };
+    ch.port2.postMessage(0);
+  }
+
+  // ---- K-7: lol.orbit(camera, opts?) ---------------------------------------------------------
+  // Camera controls for a three.js scene, first-party because the official OrbitControls ship
+  // only as an ES module importing 'three' (using them would mean editing a vendored file, rule 14).
+  // Drag rotates about a target, the wheel or a pinch zooms, right-drag or Shift-drag pans, with
+  // damping. In a snapshot there is no mouse: it is a harmless no-op that returns the same shape.
+  // The math between the two ORBIT-MATH markers is pure (no DOM, no THREE) and is exercised in
+  // Node by shell/test/chat/unit/sandbox-live.test.mjs, which evaluates exactly these lines.
+  // ORBIT-MATH BEGIN
+  var ORBIT_EPS = 1e-6;
+  var ORBIT_MIN_PHI = 0.0001;
+  var ORBIT_MIN_R = 1e-3, ORBIT_MAX_R = 1e6;
+
+  /** A fresh orbit state around `target` ({x, y, z}), damping in [0, 1): 0 applies input at once. */
+  function orbitState(target, damping) {
+    var d = Number(damping);
+    return {
+      target: target,
+      damping: isFinite(d) && d > 0 && d < 1 ? d : (isFinite(d) && d === 0 ? 0 : 0.15),
+      dTheta: 0, dPhi: 0, logScale: 0, pan: { x: 0, y: 0, z: 0 },
+      first: true
+    };
+  }
+
+  /** The camera's place around the target, as the sphere the orbit moves it on. */
+  function orbitSphere(st, cam) {
+    var ox = cam.position.x - st.target.x, oy = cam.position.y - st.target.y, oz = cam.position.z - st.target.z;
+    var r = Math.sqrt(ox * ox + oy * oy + oz * oz);
+    if (!(r > ORBIT_MIN_R)) return { r: ORBIT_MIN_R, theta: 0, phi: Math.PI / 2 };
+    return { r: r, theta: Math.atan2(ox, oz), phi: Math.acos(Math.max(-1, Math.min(1, oy / r))) };
+  }
+
+  /** A drag of (dx, dy) px on a view `h` px tall turns the camera: a full height is a full turn. */
+  function orbitRotate(st, dx, dy, h) {
+    var k = 2 * Math.PI / Math.max(1, h);
+    st.dTheta -= dx * k;
+    st.dPhi -= dy * k;
+  }
+
+  /** A pan of (dx, dy) px moves the target in the camera's own plane, so the point under the
+   * pointer follows it (at the target's depth). */
+  function orbitPan(st, cam, dx, dy, h) {
+    var s = orbitSphere(st, cam);
+    var unit;
+    if (cam.isOrthographicCamera) {
+      unit = (Number(cam.top) - Number(cam.bottom)) / (Number(cam.zoom) || 1) / Math.max(1, h);
+    } else {
+      var fov = (Number(cam.fov) || 50) * Math.PI / 180;
+      unit = 2 * s.r * Math.tan(fov / 2) / Math.max(1, h);
+    }
+    var st1 = Math.sin(s.theta), ct = Math.cos(s.theta), sp = Math.sin(s.phi), cp = Math.cos(s.phi);
+    // right = (cos t, 0, -sin t); up = (-cos p sin t, sin p, -cos p cos t)
+    st.pan.x += -dx * unit * ct + dy * unit * (-cp * st1);
+    st.pan.y += dy * unit * sp;
+    st.pan.z += dx * unit * st1 + dy * unit * (-cp * ct);
+  }
+
+  /** Zoom by `factor` (> 1 moves away, < 1 comes closer). */
+  function orbitZoom(st, factor) {
+    var f = Number(factor);
+    if (isFinite(f) && f > 0) st.logScale += Math.log(f);
+  }
+
+  /** What a wheel event means: pixels (or lines/pages) of scroll, or a pinch (ctrl + wheel). */
+  function orbitWheelFactor(deltaY, deltaMode, pinch) {
+    var dy = Number(deltaY) || 0;
+    if (deltaMode === 1) dy *= 16;
+    else if (deltaMode === 2) dy *= 400;
+    return Math.exp(dy * (pinch ? 0.01 : 0.0015));
+  }
+
+  /** One step: move the camera by (a damped share of) what input asked for, then look at the
+   * target. `advance` false re-applies without spending damping (a second update in one frame).
+   * Returns true when the camera moved. */
+  function orbitStep(st, cam, advance) {
+    var k = advance === false ? 0 : (st.damping > 0 ? st.damping : 1);
+    var s = orbitSphere(st, cam);
+    var dT = st.dTheta * k, dP = st.dPhi * k, dL = st.logScale * k;
+    var px = st.pan.x * k, py = st.pan.y * k, pz = st.pan.z * k;
+    st.dTheta -= dT; st.dPhi -= dP; st.logScale -= dL;
+    st.pan.x -= px; st.pan.y -= py; st.pan.z -= pz;
+    if (Math.abs(st.dTheta) < ORBIT_EPS) st.dTheta = 0;
+    if (Math.abs(st.dPhi) < ORBIT_EPS) st.dPhi = 0;
+    if (Math.abs(st.logScale) < ORBIT_EPS) st.logScale = 0;
+    if (Math.abs(st.pan.x) + Math.abs(st.pan.y) + Math.abs(st.pan.z) < ORBIT_EPS) { st.pan.x = 0; st.pan.y = 0; st.pan.z = 0; }
+    var moved = st.first || Math.abs(dT) + Math.abs(dP) + Math.abs(dL) + Math.abs(px) + Math.abs(py) + Math.abs(pz) > ORBIT_EPS;
+    st.first = false;
+    if (!moved) return false;
+    var theta = s.theta + dT;
+    var phi = Math.max(ORBIT_MIN_PHI, Math.min(Math.PI - ORBIT_MIN_PHI, s.phi + dP));
+    var r = s.r;
+    if (dL) {
+      if (cam.isOrthographicCamera) {
+        cam.zoom = Math.max(ORBIT_MIN_R, (Number(cam.zoom) || 1) / Math.exp(dL));
+        if (typeof cam.updateProjectionMatrix === 'function') cam.updateProjectionMatrix();
+      } else {
+        r = Math.max(ORBIT_MIN_R, Math.min(ORBIT_MAX_R, r * Math.exp(dL)));
+      }
+    }
+    if (typeof st.target.set === 'function') st.target.set(st.target.x + px, st.target.y + py, st.target.z + pz);
+    else { st.target.x += px; st.target.y += py; st.target.z += pz; }
+    var sp = Math.sin(phi);
+    cam.position.x = st.target.x + r * sp * Math.sin(theta);
+    cam.position.y = st.target.y + r * Math.cos(phi);
+    cam.position.z = st.target.z + r * sp * Math.cos(theta);
+    if (typeof cam.lookAt === 'function') cam.lookAt(st.target.x, st.target.y, st.target.z);
+    return true;
+  }
+  // ORBIT-MATH END
+
+  // Every orbit the current run made; reset() takes them all back.
+  var orbits = [];
+  // The last `renderer.render(scene, camera)` (live mode, K-7): a scene drawn ONCE, with no loop
+  // of its own, is re-rendered by the orbit when it moves the camera.
+  var lastRender = null;
+
+  function disposeOrbits() {
+    var list = orbits;
+    orbits = [];
+    for (var i = 0; i < list.length; i++) { try { list[i].dispose(); } catch (e) { /* gone */ } }
+  }
+
+  // In live mode, three's renderer is wrapped ONCE (after the library text is evaluated) so the
+  // guest knows the last scene and camera it drew. The vendored file is not touched (rule 14):
+  // `window.THREE` becomes a copy of the library whose WebGLRenderer is a subclass, exactly the
+  // move the three.js prelude (graph/unfence.mjs) makes for its own reasons.
+  function trackThreeRenders() {
+    var T = window.THREE;
+    if (!T || typeof T.WebGLRenderer !== 'function' || T.__lolTracked) return;
+    var Base = T.WebGLRenderer;
+    var Tracked = class extends Base {
+      constructor(o) {
+        super(o);
+        var self = this;
+        var render = this.render;
+        if (typeof render === 'function') {
+          this.render = function (scene, camera) {
+            lastRender = { r: self, s: scene, c: camera };
+            return render.apply(this, arguments);
+          };
+        }
+      }
+    };
+    window.THREE = Object.assign({}, T, { WebGLRenderer: Tracked, __lolTracked: true });
+  }
+
+  function vec3(v) {
+    var a = Array.isArray(v) ? v : [0, 0, 0];
+    var x = Number(a[0]) || 0, y = Number(a[1]) || 0, z = Number(a[2]) || 0;
+    var T = window.THREE;
+    if (T && typeof T.Vector3 === 'function') return new T.Vector3(x, y, z);
+    return { x: x, y: y, z: z, set: function (nx, ny, nz) { this.x = nx; this.y = ny; this.z = nz; return this; } };
+  }
+
+  function makeOrbit(camera, opts) {
+    var o = opts && typeof opts === 'object' ? opts : {};
+    var st = orbitState(vec3(o.target), o.damping);
+    var controls = { target: st.target, enabled: true, update: function () { return false; }, dispose: function () {} };
+    if (!liveMode || !camera || !camera.position) return controls;   // a snapshot: nothing to hold
+
+    var el = document.documentElement;
+    var raf = 0;
+    var seen = pageFrames;
+    var lastStep = 0;
+    var drag = null;                    // {mode: 'rotate'|'pan', x, y}
+    var touches = {};                   // pointerId -> {x, y}, for a two-finger pinch
+    var pinchD = 0;
+    var gone = false;
+    var viewH = function () { return window.innerHeight || root.clientHeight || 1; };
+    try {
+      root.style.touchAction = 'none'; el.style.touchAction = 'none';
+      root.style.userSelect = 'none'; el.style.userSelect = 'none';
+    } catch (e) { /* no style */ }
+
+    function step(advance) {
+      if (gone) return false;
+      var now = window.performance && performance.now ? performance.now() : Date.now();
+      var spend = advance !== false && now - lastStep >= 8;
+      if (spend) lastStep = now;
+      return orbitStep(st, camera, spend);
+    }
+    function loop() {
+      if (gone) return;
+      raf = _raf.call(window, loop);
+      if (!controls.enabled) return;
+      var moved = step(true);
+      // No page frame ran since the last tick: the scene has no loop of its own, so nothing will
+      // draw the moved camera unless the orbit does.
+      var looping = pageFrames !== seen;
+      seen = pageFrames;
+      if (moved && !looping && lastRender && lastRender.c === camera) {
+        try { lastRender.r.render(lastRender.s, camera); } catch (e) { report('runtime', e); }
+      }
+    }
+    function touchList() { var out = []; for (var k in touches) if (Object.prototype.hasOwnProperty.call(touches, k)) out.push(touches[k]); return out; }
+    function spread(list) { var dx = list[0].x - list[1].x, dy = list[0].y - list[1].y; return Math.sqrt(dx * dx + dy * dy); }
+
+    function onDown(e) {
+      if (!controls.enabled) return;
+      if (e.pointerType === 'touch') {
+        touches[e.pointerId] = { x: e.clientX, y: e.clientY };
+        var list = touchList();
+        if (list.length === 2) { pinchD = spread(list); drag = { mode: 'pan', x: (list[0].x + list[1].x) / 2, y: (list[0].y + list[1].y) / 2 }; }
+        else if (list.length === 1) drag = { mode: 'rotate', x: e.clientX, y: e.clientY };
+      } else {
+        var pan = e.button === 2 || (e.button === 0 && (e.shiftKey || e.ctrlKey || e.metaKey));
+        if (e.button !== 0 && e.button !== 2) return;
+        drag = { mode: pan ? 'pan' : 'rotate', x: e.clientX, y: e.clientY };
+      }
+      // NOT preventDefault: the press must still give this frame the keyboard (a scene may listen
+      // for keys too). `touch-action` and `user-select` below keep the browser's own gestures out.
+      try { if (e.target && e.target.setPointerCapture) e.target.setPointerCapture(e.pointerId); } catch (err) { /* no capture */ }
+    }
+    function onMove(e) {
+      if (!drag) return;
+      if (e.pointerType === 'touch') {
+        if (!touches[e.pointerId]) return;
+        touches[e.pointerId] = { x: e.clientX, y: e.clientY };
+        var list = touchList();
+        if (list.length === 2) {
+          var d = spread(list);
+          if (pinchD > 0 && d > 0) orbitZoom(st, pinchD / d);
+          pinchD = d;
+          var cx = (list[0].x + list[1].x) / 2, cy = (list[0].y + list[1].y) / 2;
+          orbitPan(st, camera, cx - drag.x, cy - drag.y, viewH());
+          drag.x = cx; drag.y = cy;
+          return;
+        }
+      }
+      var dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+      drag.x = e.clientX; drag.y = e.clientY;
+      if (drag.mode === 'pan') orbitPan(st, camera, dx, dy, viewH());
+      else orbitRotate(st, dx, dy, viewH());
+    }
+    function onUp(e) {
+      if (e.pointerType === 'touch') {
+        delete touches[e.pointerId];
+        var list = touchList();
+        pinchD = 0;
+        drag = list.length === 1 ? { mode: 'rotate', x: list[0].x, y: list[0].y } : null;
+        return;
+      }
+      drag = null;
+    }
+    function onWheel(e) {
+      if (!controls.enabled) return;
+      if (e.cancelable) e.preventDefault();       // the scene zooms; nothing scrolls, nothing chains
+      orbitZoom(st, orbitWheelFactor(e.deltaY, e.deltaMode, !!e.ctrlKey));
+    }
+    function onMenu(e) { if (e.cancelable) e.preventDefault(); }
+
+    // On the document, not the canvas: a label a sketch lays over its canvas must not eat the drag.
+    document.addEventListener('pointerdown', onDown);
+    document.addEventListener('pointermove', onMove);
+    document.addEventListener('pointerup', onUp);
+    document.addEventListener('pointercancel', onUp);
+    document.addEventListener('wheel', onWheel, { passive: false });
+    document.addEventListener('contextmenu', onMenu);
+    raf = _raf.call(window, loop);
+
+    controls.update = function () { return step(false) || false; };
+    controls.dispose = function () {
+      if (gone) return;
+      gone = true;
+      if (raf) { try { _caf.call(window, raf); } catch (e) { /* gone */ } raf = 0; }
+      document.removeEventListener('pointerdown', onDown);
+      document.removeEventListener('pointermove', onMove);
+      document.removeEventListener('pointerup', onUp);
+      document.removeEventListener('pointercancel', onUp);
+      document.removeEventListener('wheel', onWheel, { passive: false });
+      document.removeEventListener('contextmenu', onMenu);
+    };
+    // The first step aims the camera at the target now, so the first frame the sketch draws is
+    // already the orbit's view (OrbitControls does the same in its constructor's update()).
+    step(true);
+    orbits.push(controls);
+    return controls;
+  }
+
+  function makeApi(kind) {
+    var canvas = root.querySelector('canvas');
+    if (canvas) fitCanvas(canvas);
+    return {
+      kind: kind,
+      root: root,
+      canvas: canvas,
+      params: params,
+      size: sized ? { w: sized.w, h: sized.h } : { w: root.clientWidth || 640, h: root.clientHeight || 480 },
+      live: liveMode,
+      log: function () { console.log.apply(console, arguments); },
+      onParams: function (fn) { if (typeof fn === 'function') onParams.push(fn); },
+      orbit: function (camera, opts) { return makeOrbit(camera, opts); }
+    };
+  }
+
+  function startP5(value) {
+    if (typeof window.p5 !== 'function') return;
+    var made = null;
+    if (typeof value === 'function') made = new window.p5(value, root);
+    else if (typeof window.setup === 'function' || typeof window.draw === 'function') made = new window.p5(undefined, root);
+    if (made) sketches.push(made);
+  }
+
+  // Re-create each inline <script> of a live page so it runs, in document order. A failing one is
+  // reported like any runtime error and does not stop the next.
+  function wakeScripts() {
+    var list = root.querySelectorAll('script');
+    for (var i = 0; i < list.length; i++) {
+      var old = list[i];
+      if (old.src) continue;                        // the CSP refuses it anyway; say nothing new
+      var type = String(old.type || '').toLowerCase();
+      if (type && type !== 'text/javascript' && type !== 'application/javascript') continue;
+      var s = document.createElement('script');
+      s.text = old.textContent || '';
+      try { old.parentNode.replaceChild(s, old); } catch (e) { report('runtime', e); }
+    }
+  }
+
+  function doRun(msg) {
+    reset();
+    var my = runSeq;
+    var t0 = Date.now();
+    var size = sizeOf(msg.size);
+    applySize(size);
+    whenSized(size, function () {
+      if (my === runSeq) runNow(msg, t0);
+    });
+  }
+
+  function runNow(msg, t0) {
+    var kind = RUN_KINDS.indexOf(String(msg.kind || '')) >= 0 ? String(msg.kind) : 'dom';
+    try {
+      // The guest MAY innerHTML: it is the containment boundary. `params.source` is the shape the
+      // Render part uses for markdown/SVG it has already turned into HTML.
+      var html = msg.html;
+      if (!html && msg.params && typeof msg.params.source === 'string') html = msg.params.source;
+      root.innerHTML = html ? String(html) : defaultHtml(kind);
+      styleEl.textContent = String(msg.css || '');
+      params = msg.params && typeof msg.params === 'object' ? msg.params : {};
+      var api = makeApi(kind);
+      var code = String(msg.code || '');
+      var value;
+      // Live: the frame is on screen and animates by itself, so nothing is recorded for an early
+      // first frame (flushing it would only draw one frame twice).
+      queued = liveMode ? null : [];
+      if (code.trim()) {
+        var fn = new Function('lol', '"use strict";\n' + code);
+        value = fn(api);
+      }
+      if (kind === 'p5') startP5(value);
+      // A LIVE web page is a page, not a picture of one: its own <script>s run (innerHTML leaves
+      // them inert). The CSP still decides what they may do — no network, nothing from disk.
+      if (liveMode && kind === 'dom') wakeScripts();
+      var first = queued;
+      queued = null;
+      if (first) flushFirstFrame(first);
+      send('ran', { id: msg.id, ok: true, ms: Date.now() - t0, error: null });
+    } catch (e) {
+      queued = null;
+      send('ran', { id: msg.id, ok: false, ms: Date.now() - t0, error: errOf(e, 'run') });
+    }
+  }
+
+  function doCompute(msg) {
+    var t0 = Date.now();
+    var done = function (ok, json, error) {
+      send('computed', { id: msg.id, ok: ok, ms: Date.now() - t0, json: json, error: error });
+    };
+    try {
+      var fn = new Function('inputs', 'lol', '"use strict";\n' + String(msg.code || ''));
+      var out = fn(msg.inputs || {}, { log: function () { console.log.apply(console, arguments); } });
+      Promise.resolve(out).then(function (value) {
+        var json = null;
+        try { json = value === undefined ? null : JSON.stringify(value); }
+        catch (e) { done(false, null, errOf(new Error('the result cannot be turned into JSON'), 'compute')); return; }
+        if (json !== null && json.length > limits.resultBytes) {
+          done(false, null, errOf(new Error('the result is too large'), 'compute'));
+          return;
+        }
+        done(true, json === undefined ? null : json, null);
+      }, function (e) { done(false, null, errOf(e, 'compute')); });
+    } catch (e) {
+      done(false, null, errOf(e, 'compute'));
+    }
+  }
+
+  // ---- snapshot --------------------------------------------------------------------------------
+  function scaled(w, h, maxPx) {
+    var longest = Math.max(w, h);
+    if (!longest) return { w: 1, h: 1 };
+    var k = longest > maxPx ? maxPx / longest : 1;
+    return { w: Math.max(1, Math.round(w * k)), h: Math.max(1, Math.round(h * k)) };
+  }
+
+  function sendFrame(id, source, w, h, maxPx) {
+    var to = scaled(w, h, maxPx);
+    var out = document.createElement('canvas');
+    out.width = to.w; out.height = to.h;
+    var ctx = out.getContext('2d');
+    ctx.drawImage(source, 0, 0, to.w, to.h);
+    send('frame', { id: id, dataUrl: out.toDataURL('image/png'), w: to.w, h: to.h });
+  }
+
+  // A WebGL canvas (three.js) is only readable if it still holds its drawing buffer: the host asks
+  // for the snapshot right after the run, and a sketch that needs to be photographed later should
+  // create its renderer with `preserveDrawingBuffer: true`. A 2D canvas has no such rule.
+  function doSnapshot(msg) {
+    var maxPx = Math.min(Number(msg.maxPx) || limits.maxPx, 4096);
+    var canvas = root.querySelector('canvas');
+    try {
+      if (canvas && canvas.width && canvas.height) {
+        sendFrame(msg.id, canvas, canvas.width, canvas.height, maxPx);
+        return;
+      }
+    } catch (e) {
+      send('ran', { id: msg.id, ok: false, ms: 0, error: errOf(e, 'run') });
+      return;
+    }
+    // No canvas: rasterise the DOM through an SVG foreignObject data: URL (img-src data: is the
+    // only image source the CSP allows, and a data: URL cannot taint the output canvas).
+    var w = Math.max(1, root.clientWidth || 640);
+    var h = Math.max(1, root.clientHeight || 480);
+    try {
+      var clone = root.cloneNode(true);
+      clone.setAttribute('xmlns', 'http://www.w3.org/1999/xhtml');
+      var body = new XMLSerializer().serializeToString(clone);
+      var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + w + '" height="' + h + '">'
+        + '<foreignObject width="100%" height="100%">'
+        + '<style xmlns="http://www.w3.org/1999/xhtml">' + String(styleEl.textContent || '').replace(/[<&]/g, ' ') + '</style>'
+        + body + '</foreignObject></svg>';
+      var img = new Image();
+      img.onload = function () {
+        try { sendFrame(msg.id, img, w, h, maxPx); }
+        catch (e) { send('ran', { id: msg.id, ok: false, ms: 0, error: errOf(e, 'run') }); }
+      };
+      img.onerror = function () {
+        send('ran', { id: msg.id, ok: false, ms: 0, error: errOf(new Error('there is nothing to photograph'), 'run') });
+      };
+      img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+    } catch (e) {
+      send('ran', { id: msg.id, ok: false, ms: 0, error: errOf(e, 'run') });
+    }
+  }
+
+  // ---- commands --------------------------------------------------------------------------------
+  function handle(msg) {
+    var cmd = msg.cmd;
+    if (cmd === 'boot') {
+      tok = String(msg.tok || '');
+      if (msg.limits) for (var k in msg.limits) limits[k] = msg.limits[k];
+      if (msg.live === true && !liveMode) {
+        liveMode = true;
+        // Escape inside a live sketch hands the keyboard back to the canvas: the guest cannot
+        // move the focus out of its own frame, so it asks the host to. Installed ONCE, untracked,
+        // so no run's reset can take it away.
+        _addWin.call(window, 'keydown', function (e) {
+          if (e && e.key === 'Escape') send('release', { why: 'escape' });
+        }, true);
+      }
+      reset();
+      send('ready', { ua: 'runner' });
+      return;
+    }
+    if (cmd === 'ping') { send('pong', { seq: msg.seq }); return; }
+    if (cmd === 'stop') { reset(); return; }
+    if (cmd === 'dispose') { reset(); send('bye', {}); return; }
+    if (cmd === 'params') {
+      var values = msg.values && typeof msg.values === 'object' ? msg.values : {};
+      for (var p in values) if (Object.prototype.hasOwnProperty.call(values, p)) params[p] = values[p];
+      for (var i = 0; i < onParams.length; i++) {
+        try { onParams[i](params); } catch (e) { report('runtime', e); }
+      }
+      return;
+    }
+    if (cmd === 'libs') {
+      var results = [];
+      var libs = Array.isArray(msg.libs) ? msg.libs : [];
+      tracking = false;                       // a library's own listeners live as long as the frame
+      for (var j = 0; j < libs.length; j++) {
+        try {
+          (0, eval)(String(libs[j].source));
+          results.push({ name: libs[j].name, ok: true, error: null });
+        } catch (e) {
+          results.push({ name: libs[j].name, ok: false, error: clean(e && e.message) });
+        }
+      }
+      tracking = true;
+      if (liveMode) trackThreeRenders();
+      send('libsDone', { results: results });
+      return;
+    }
+    if (cmd === 'compute') { doCompute(msg); return; }
+    if (cmd === 'run') { doRun(msg); return; }
+    if (cmd === 'snapshot') { doSnapshot(msg); }
+  }
+
+  _addWin.call(window, 'message', function (e) {
+    if (e.source !== window.parent) return;
+    var msg = e.data;
+    if (!msg || typeof msg !== 'object' || msg.v !== V) return;
+    if (CMDS.indexOf(msg.cmd) < 0) return;
+    if (tok === null) { if (msg.cmd !== 'boot') return; }
+    else if (String(msg.tok || '') !== tok) return;
+    try { handle(msg); } catch (err) { report('run', err); }
+  });
+}());
+</script>

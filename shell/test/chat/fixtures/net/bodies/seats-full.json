@@ -1,0 +1,7 @@
+{
+  "error": {
+    "message": "All 2 seats on this server are in use. A seat frees after ~15 min without activity — try again in a moment, or ask around who's done.",
+    "type": "rate_limit_error",
+    "code": "lol_seats_full"
+  }
+}

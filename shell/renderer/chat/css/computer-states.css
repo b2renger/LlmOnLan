@@ -1,0 +1,173 @@
+/* computer-states.css — K3-U3's sheet (COMPUTER_PLAN §3.6, §8.2, §8.3, §8.4, §9).
+   What RUNNING looks like, and nothing else. It is imported LAST by computer/computer.css, so it
+   is also where the Computer's run states win over the shared `css/graph.css` the chat once
+   rendered a graph with.
+
+   The FROZEN probes every K3 scenario reads, so the sheet and the tests cannot drift:
+     .graph-part[data-state="queued|running|waiting|stale|done|error|idle"]
+     .graph-part-play[data-part="<id>"]        the per-box ▶
+     .graph-wire[data-barred="true"]           a wire a barrier greyed
+     .graph-wire[data-back="true"]             a declared loop edge (dashed, ↺ on its pill)
+     .graph-wire[data-flow="true"]             the delivering wire's travelling dot
+     .graph-cap[data-notice]                   the §8.4 run-notice strip
+
+   No colour literals (chat-lint rule 3): every hue here is a token or a color-mix of one. The
+   three real hues in tokens.css are --green, --amber and --danger, so no state is told apart by
+   COLOUR alone — each carries a shape (dash, hatch, halo, edge) and every box keeps its written
+   state label in the title bar. That is §9's honest constraint applied to the run states. */
+
+/* ---- the per-box ▶ (§9's title-bar row) ------------------------------------------------------ */
+
+#lolcomputer .graph-part-play {
+  flex: 0 0 auto;
+  margin-left: 4px;
+  font: inherit;
+  font-size: 10px;
+  line-height: 1;
+  padding: 3px 6px;
+  border-radius: var(--comp-r-chip, 7px);
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  opacity: 0.55;
+}
+/* Quiet until the box is touched, then unmistakable: a canvas of 40 parts must not read as a wall
+   of 40 buttons, and the one under the pointer must look pressable. Plain hover/focus selectors
+   and no transition: a run patches a thousand boxes, and every extra invalidation set and every
+   running transition is paid on each of those patches (measured on the perf fixture). */
+#lolcomputer .graph-part:hover .graph-part-play,
+#lolcomputer .graph-part-play:focus-visible { opacity: 1; }
+#lolcomputer .graph-part-play:hover { color: var(--text); border-color: var(--accent-hover); }
+#lolcomputer .graph-part-play:focus-visible { outline: 2px solid var(--accent-hover); outline-offset: 1px; }
+#lolcomputer .graph-part-play:disabled { opacity: 0.3; cursor: default; }
+
+/* ---- the five run looks (§8.3) --------------------------------------------------------------- */
+
+/* Queued: a dashed outline. Nothing is happening here YET, and dash is the one mark that reads as
+   "pending" without borrowing a colour another state needs. */
+#lolcomputer .graph-part[data-state='queued'] {
+  outline: 1px dashed color-mix(in srgb, var(--accent-hover) 70%, transparent);
+  outline-offset: 2px;
+}
+
+/* Running: an accent halo and a 2 px indeterminate bar along the top edge. */
+#lolcomputer .graph-part[data-state='running'] {
+  border-color: var(--comp-state-running);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--comp-state-running) 22%, transparent);
+}
+#lolcomputer .graph-part[data-state='running'] .graph-part-head::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 2px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    var(--comp-state-running) 35%,
+    var(--comp-state-running) 65%,
+    transparent 100%
+  );
+  background-size: 40% 100%;
+  background-repeat: no-repeat;
+  animation: comp-indeterminate 1100ms linear infinite;
+}
+#lolcomputer .graph-part[data-state='running'] .graph-part-head { position: relative; }
+#lolcomputer .graph-part[data-state='running'] .graph-port {
+  animation: comp-port-pulse 1400ms ease-in-out infinite;
+}
+
+/* Waiting: parked on a human or a clock. Amber, and a SOLID ring rather than the running halo —
+   the difference a reader has to catch is "it is thinking" versus "it is waiting for me". */
+#lolcomputer .graph-part[data-state='waiting'] {
+  border-color: var(--amber);
+  box-shadow: inset 3px 0 0 0 var(--amber), 0 0 0 1px color-mix(in srgb, var(--amber) 45%, transparent);
+}
+#lolcomputer .graph-part[data-state='waiting'] .graph-dot {
+  background: var(--amber);
+  animation: comp-port-pulse 1600ms ease-in-out infinite;
+}
+
+/* Stale: a soft diagonal hatch and nothing else — "this will re-run", not "this went wrong". It
+   is why six boxes going grey after one typo explains itself. */
+#lolcomputer .graph-part[data-state='stale'] {
+  background-image: repeating-linear-gradient(
+    45deg,
+    color-mix(in srgb, var(--muted) 8%, transparent) 0 3px,
+    transparent 3px 6px
+  );
+}
+
+/* Error: a 2 px --danger left edge and the strip under the body. The last good value STAYS, greyed
+   behind it (§8.4) — a failed box that also loses its answer is punished twice. */
+#lolcomputer .graph-part[data-state='error'] {
+  border-color: var(--danger);
+  box-shadow: inset 3px 0 0 0 var(--danger);
+}
+#lolcomputer .graph-part[data-state='error'] .graph-value { opacity: 0.55; }
+
+/* Done: the duration stays bottom-right, where tldraw keeps it. */
+#lolcomputer .graph-part[data-state='done'] .graph-part-cost { opacity: 0.8; }
+
+@keyframes comp-indeterminate {
+  from { background-position: -40% 0; }
+  to { background-position: 140% 0; }
+}
+@keyframes comp-port-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+
+/* ---- the wires (§8.2, §6.6) ------------------------------------------------------------------ */
+
+/* A barrier greyed this branch. §6.6 calls it "most of the teaching": the value still flows, the
+   downstream simply did not run, and the picture has to say exactly that — faded, never absent. */
+#lolcomputer .graph-wire[data-barred='true'] { opacity: 0.35; }
+#lolcomputer .graph-wire-pill[data-barred='true'] { opacity: 0.45; }
+
+/* A declared loop edge: dashed, with the ↺ of §9 on its own name pill. */
+#lolcomputer .graph-wire[data-back='true'] { stroke-dasharray: 6 5; }
+#lolcomputer .graph-wire-pill[data-back='true']::before {
+  content: '\21BA';
+  margin-right: 3px;
+  color: var(--muted);
+}
+
+/* The travelling dot: one dash, running once from source to target on the wire that just
+   delivered. It is a stroke animation on the existing path — no new element, no per-frame JS. */
+#lolcomputer .graph-wire[data-flow='true'] {
+  stroke-dasharray: 1 14;
+  stroke-linecap: round;
+  stroke-width: 4;
+  animation: comp-flow 700ms linear 1;
+}
+@keyframes comp-flow {
+  from { stroke-dashoffset: 300; }
+  to { stroke-dashoffset: 0; }
+}
+
+/* ---- the §8.4 notice strip -------------------------------------------------------------------- */
+
+#lolcomputer .graph-cap-actions {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+#lolcomputer .graph-cap[data-notice^='limit'] { border-color: var(--amber); }
+#lolcomputer .graph-cap[data-notice='loop-ungated'] { border-color: var(--danger); }
+#lolcomputer .graph-cap-more:disabled { opacity: 0.45; cursor: default; }
+
+/* ---- reduced motion -------------------------------------------------------------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  #lolcomputer .graph-part[data-state='running'] .graph-part-head::after,
+  #lolcomputer .graph-part[data-state='running'] .graph-port,
+  #lolcomputer .graph-part[data-state='waiting'] .graph-dot,
+  #lolcomputer .graph-wire[data-flow='true'] { animation: none; }
+  /* §9: no pulse, a static ring instead — the state must still be visible without motion. */
+  #lolcomputer .graph-part[data-state='running'] .graph-part-head::after { background-size: 100% 100%; }
+  #lolcomputer .graph-wire[data-flow='true'] { stroke-dasharray: none; stroke-width: 3; }
+}

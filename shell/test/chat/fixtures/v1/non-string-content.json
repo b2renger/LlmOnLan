@@ -1,0 +1,26 @@
+[
+  {
+    "id": "1789000600000ddddd",
+    "title": "Mixed",
+    "messages": [
+      {
+        "role": "user",
+        "content": "ok"
+      },
+      {
+        "role": "assistant",
+        "content": {
+          "text": "an object, not a string"
+        }
+      },
+      {
+        "role": "system",
+        "content": "ignored"
+      },
+      {
+        "role": "assistant",
+        "content": "fine"
+      }
+    ]
+  }
+]

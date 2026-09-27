@@ -9,6 +9,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
 import { randomUUID } from 'crypto';
+import { pathToFileURL } from 'url';
 import { loadSettings, updateSettings } from './store';
 import { defaultDataDir, bundledOwuiVersion, sidecarRoot } from './paths';
 import { SidecarSupervisor } from './sidecar';
@@ -52,6 +53,43 @@ let currentExtract: { url: string; key: string } | null = null; // active farm's
 let currentCtxPerSlot: number | null = null; // active farm's per-slot context (→ whole-doc vs top-k RAG)
 let activeFarmId: string | null = null;
 let booted = false; // true once the initial sidecar start has been kicked off
+
+// ---- LOL Studio (S0) ---- (the Computer's debug log, COMPUTER_PLAN addendum KG; mirrored in chat-harness/main.cjs)
+// ONE recorder for the app, created on first use. Its folder is fixed HERE: the renderer never
+// names a path. createWindow() reports a crashed or hung renderer into the open recording, because
+// the renderer cannot do that for itself, and registerIpc() wires the lol:debugLog:* channels.
+const { createDebugLog } = require('./debugLog') as typeof import('./debugLog');
+let computerLog: ReturnType<typeof createDebugLog> | null = null;
+function debugLog(): ReturnType<typeof createDebugLog> {
+    if (!computerLog) {
+        computerLog = createDebugLog({
+            dir: path.join(app.getPath('userData'), 'logs', 'computer'),
+            facts: () => ({
+                app: app.getVersion(), electron: process.versions.electron, chrome: process.versions.chrome,
+                node: process.versions.node, platform: process.platform, arch: process.arch, os: os.release(),
+                cpus: os.cpus().length, ramGB: Math.round(os.totalmem() / 2 ** 30),
+            }),
+            capture: async () => {
+                if (!win || win.isDestroyed()) return null;
+                const img = await win.webContents.capturePage();
+                return img.isEmpty() ? null : img.toPNG();
+            },
+            shellApi: {
+                showItemInFolder: (target: string) => shell.showItemInFolder(target),
+                openPath: (target: string) => shell.openPath(target),
+            },
+        });
+    }
+    return computerLog;
+}
+// `before-quit`, not `will-quit`: the shell's own before-quit handler ends in app.exit(0), which
+// never emits will-quit. A beat of delay lets the page's last lines (sent from its pagehide as the
+// window closes) land first; the handler below waits for the sidecar for longer than that.
+app.on('before-quit', () => {
+    const log = computerLog;
+    if (log) setTimeout(() => log.close('quit'), 250);
+});
+// ---- /LOL Studio ----
 
 // Single place that records which farm is active, so discovery's fast poll always
 // follows it (see ACTIVE_POLL_MS). Assigning activeFarmId directly is how the two
@@ -385,6 +423,36 @@ function createWindow(): void {
     win.removeMenu();
     win.loadFile(path.join(app.getAppPath(), 'renderer', 'index.html'));
     win.webContents.on('did-finish-load', pushSidecarState);
+
+    // ---- LOL Studio (S0) ---- (navigation veto; mirrored in shell/test/chat-harness/main.cjs)
+    // The sandbox runner (S2) is a SUBFRAME: it may load itself once and must never navigate
+    // again, whatever the guest code tries. The app's own main-frame navigation is unaffected.
+    //
+    // EXACT MATCH, not a substring test (S0 review, finding 3). A regex over the whole URL also
+    // matched .../LOL Studio Projects/<id>/sandbox/runner.html — a two-segment .html path the
+    // projects API happily writes — so a project could host its own "runner" and the veto would
+    // wave it through. Only the app's own file is allowed, compared after query/hash are stripped.
+    const RUNNER_URL = pathToFileURL(path.join(app.getAppPath(), 'renderer', 'chat', 'sandbox', 'runner.html')).href;
+    const bareUrl = (u: string) => u.split('#')[0].split('?')[0];
+    win.webContents.on('will-frame-navigate', (e) => {
+        if (e.isMainFrame) return;
+        if (bareUrl(String(e.url || '')) === RUNNER_URL) return;
+        e.preventDefault();
+    });
+    // ---- /LOL Studio ----
+
+    // ---- LOL Studio (S0) ---- (the Computer's debug log: what the renderer cannot write itself)
+    // note() writes only while a recording is open, and synchronously: the renderer may be gone.
+    win.webContents.on('render-process-gone', (_e, d) => {
+        if (computerLog) computerLog.note({ k: 'main.renderer-gone', reason: d.reason, exitCode: d.exitCode });
+    });
+    win.webContents.on('preload-error', (_e, _p, error) => {
+        if (computerLog) computerLog.note({ k: 'main.preload-error', message: String(error && error.message) });
+    });
+    win.on('unresponsive', () => { if (computerLog) computerLog.note({ k: 'main.unresponsive' }); });
+    win.on('responsive', () => { if (computerLog) computerLog.note({ k: 'main.responsive' }); });
+    // ---- /LOL Studio ----
+
     configureWebviewPermissions();
     // Closing the window closes EVERYTHING (owner decision 2026-09-04): no
     // hide-to-tray, no background sidecar, no lingering farm presence. A client
@@ -466,6 +534,78 @@ function registerIpc(): void {
         if (typeof url === 'string' && /^https?:\/\//i.test(url)) return shell.openExternal(url);
         return false;
     });
+
+    // ---- LOL Studio (S0) ---- (the scratch-projects API, studio plan 3.8; reviewed separately)
+    // The projects root is computed HERE, in main, from the shell's own data folder: the renderer
+    // never sends an absolute path and only ever learns the string back from root()/path(), for
+    // display and "Copy path". The API is re-created when the user moves the data folder, so the
+    // projects follow it without a relaunch.
+    //
+    // Every handler checks arity and argument TYPES before the call, so a compromised renderer
+    // still cannot hand write() a number. What is deliberately NOT here: any absolute path as an
+    // input, directory creation/removal as such, openExternal, vscode://, child_process, watching.
+    const { createProjectsApi } = require('./projects') as typeof import('./projects');
+    type ProjectsApi = ReturnType<typeof createProjectsApi>;
+    let projectsApi: ProjectsApi | null = null;
+    let projectsRoot = '';
+    function projects(): ProjectsApi {
+        const rootDir = path.join(resolveDataDir(), 'LOL Studio Projects');
+        if (!projectsApi || projectsRoot !== rootDir) {
+            projectsRoot = rootDir;
+            projectsApi = createProjectsApi({
+                rootDir,
+                shellApi: {
+                    showItemInFolder: (target: string) => shell.showItemInFolder(target),
+                    openPath: (target: string) => shell.openPath(target),
+                },
+            });
+        }
+        return projectsApi;
+    }
+    const badArgs = Promise.resolve({ ok: false, code: 'E_PATH', message: 'bad arguments' });
+    const isStr = (v: unknown): v is string => typeof v === 'string';
+    const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object';
+
+    ipcMain.handle('lol:projects:root', () => projects().root());
+    ipcMain.handle('lol:projects:list', () => projects().list());
+    ipcMain.handle('lol:projects:create', (_e, input: unknown) => (
+        isObj(input) && isStr(input.name) && isStr(input.kind)
+            ? projects().create(input as never) : badArgs));
+    ipcMain.handle('lol:projects:meta', (_e, id: unknown) => (isStr(id) ? projects().meta(id) : badArgs));
+    ipcMain.handle('lol:projects:update', (_e, id: unknown, patch: unknown) => (
+        isStr(id) && isObj(patch) ? projects().update(id, patch as never) : badArgs));
+    ipcMain.handle('lol:projects:forget', (_e, id: unknown) => (isStr(id) ? projects().forget(id) : badArgs));
+    ipcMain.handle('lol:projects:listFiles', (_e, id: unknown) => (isStr(id) ? projects().listFiles(id) : badArgs));
+    ipcMain.handle('lol:projects:read', (_e, id: unknown, rel: unknown) => (
+        isStr(id) && isStr(rel) ? projects().read(id, rel) : badArgs));
+    ipcMain.handle('lol:projects:readBinary', (_e, id: unknown, rel: unknown) => (
+        isStr(id) && isStr(rel) ? projects().readBinary(id, rel) : badArgs));
+    ipcMain.handle('lol:projects:write', (_e, id: unknown, rel: unknown, text: unknown, o: unknown) => {
+        if (!isStr(id) || !isStr(rel) || !isStr(text)) return badArgs;
+        const ifMtime = isObj(o) && typeof o.ifMtime === 'number' ? o.ifMtime : undefined;
+        return projects().write(id, rel, text, ifMtime === undefined ? undefined : { ifMtime });
+    });
+    ipcMain.handle('lol:projects:writeBinary', (_e, id: unknown, rel: unknown, base64: unknown) => (
+        isStr(id) && isStr(rel) && isStr(base64) ? projects().writeBinary(id, rel, base64) : badArgs));
+    ipcMain.handle('lol:projects:remove', (_e, id: unknown, rel: unknown) => (
+        isStr(id) && isStr(rel) ? projects().remove(id, rel) : badArgs));
+    ipcMain.handle('lol:projects:reveal', (_e, id: unknown) => (isStr(id) ? projects().reveal(id) : badArgs));
+    ipcMain.handle('lol:projects:open', (_e, id: unknown) => (isStr(id) ? projects().open(id) : badArgs));
+    ipcMain.handle('lol:projects:path', (_e, id: unknown) => (isStr(id) ? projects().path(id) : badArgs));
+    // ---- /LOL Studio ----
+
+    // ---- LOL Studio (S0) ---- (the Computer's debug log, COMPUTER_PLAN addendum KG)
+    // Text in, nothing out: no channel reads a file back, and none takes a path. Types are checked
+    // here as well as in debugLog.ts, so a garbled call never reaches the fs.
+    const badLog = Promise.resolve({ ok: false, code: 'E_ARGS', message: 'bad arguments' });
+    ipcMain.handle('lol:debugLog:start', (_e, header: unknown) => (isStr(header) ? debugLog().start(header) : badLog));
+    ipcMain.handle('lol:debugLog:append', (_e, text: unknown) => (isStr(text) ? debugLog().append(text) : badLog));
+    ipcMain.handle('lol:debugLog:stop', (_e, footer: unknown) => (
+        footer === undefined || isStr(footer) ? debugLog().stop(footer) : badLog));
+    ipcMain.handle('lol:debugLog:mark', () => debugLog().mark());
+    ipcMain.handle('lol:debugLog:reveal', () => debugLog().reveal());
+    ipcMain.handle('lol:debugLog:status', () => debugLog().status());
+    // ---- /LOL Studio ----
 
     // Manual reload of the embedded OWUI (e.g. after a repoint).
     ipcMain.handle('reload-webview', () => { pushSidecarState(); return true; });

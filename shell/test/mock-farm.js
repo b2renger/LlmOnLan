@@ -1,104 +1,48 @@
-// Mock LOL farm for shell E2E testing: UDP beacon + OpenAI-compatible streaming
-// endpoint, no GPU needed. Mimics a farm-v0.0.15 box with the llama.cpp backend
-// (snapshot advertises the llamacpp alias first + default) and LiteLLM's CORS
-// behavior (allow_origins ["*"], no credentials).
+#!/usr/bin/env node
+// Mock LOL farm — a thin CLI over shell/test/mock/ (plan §2.3, §2.6 A).
 //
-// Usage (three terminals, see test/e2e.js for the full flow):
-//   node test/mock-farm.js [--coordinator]
+// An OpenAI-compatible proxy (open + optionally keyed), the farm snapshot on /lol/self,
+// and a control API the harness drives (/mock/*). No GPU, no weights, no beacon.
 //
-// --coordinator marks the mock as a coordinator so the shell deterministically
-// prefers it over any REAL farm broadcasting on the same LAN (pickLeastLoaded
-// routes via coordinators) — without it, a live farm with a lower GPU load wins
-// the selection and the test talks to the wrong box.
-const http = require('http');
-const dgram = require('dgram');
+//   node shell/test/mock-farm.js                         # slot 0: 4009 / 4010 / 4011 / 41987
+//   node shell/test/mock-farm.js --slot 1                # slot 1: 4029 / 4030 / 4031 / 42007
+//   node shell/test/mock-farm.js --port 4009 --keyed-port 4010 --key harness-pw \
+//        --services-port 4011 --http-port 41987
+//   node shell/test/mock-farm.js --coordinator           # snapshot flag only (see the beacon note)
+//
+// Flags: --slot n · --port · --keyed-port · --key · --services-port · --http-port ·
+//        --beacon-port (default 41998) · --beacon-host · --no-beacon · --coordinator · --quiet
+// A slot offsets the DEFAULT ports by 20n; an explicitly-passed port is used as given.
+//
+// THE BEACON IS OFF unless LOL_MOCK_BEACON_OK=1 is set AND --no-beacon is absent.
+// NEVER set that variable on a machine running an LlmOnLan client: the client listens on
+// 41998, prefers coordinators, and would switch itself to "Mock Farm" and restart Open
+// WebUI under a real user. The legacy e2e.js flow (mock --coordinator + the real app)
+// therefore runs only in CI or on a spare box. See shell/test/chat/README.md.
+'use strict';
 
-const PROXY_PORT = 4009;
-const BEACON_PORT = 41998;
-const COORDINATOR = process.argv.includes('--coordinator');
+const { startMock, parseArgs, FORBIDDEN_PORTS } = require('./mock/index.js');
 
-const snapshot = () => JSON.stringify({
-    v: 1, id: 'mockfarm0001', name: 'Mock Farm', proxyPort: PROXY_PORT, httpPort: 41997,
-    ips: ['127.0.0.1'], endpoint: `http://127.0.0.1:${PROXY_PORT}`,
-    openaiBaseUrl: `http://127.0.0.1:${PROXY_PORT}/v1`, requiresKey: false,
-    models: [
-        { id: 'assistant', underlying: 'Qwen3.8-27B-UD-Q2_K_XL', default: true },
-        { id: 'gemma4:12b', underlying: 'gemma4:12b', default: false },
-    ],
-    healthy: true, version: '0.0.15-mock', coordinator: COORDINATOR,
-    searxngUrl: null, ttsUrl: null, ttsVoice: null, ttsModel: null, extract: null,
-    plugins: {}, recommendedClientPlugins: [], deployments: 1,
-    health: { proxyUp: true, hostsUp: 1, hostsTotal: 1, loaded: [] },
-    host: { gpu: 'Mock RTX', vramGb: 12, ramGb: 64, cpuCores: 16 },
-    usage: { gpuUtil: 3, vramUsedGb: 10.6, vramTotalGb: 12, loaded: [], clients: 0 },
-    // What the client renders as "llama.cpp · <weights>" and "N of M slots in use".
-    // A farm that predates these sends neither, and the client falls back to a bare
-    // client count — worth keeping in mind when changing the farm card.
-    backend: {
-        engine: 'llama.cpp', alias: 'assistant', model: 'Qwen3.8-27B-UD-Q2_K_XL',
-        contextLength: 16384, contextPerSlot: 8192, slots: 2, mtp: true, kvCacheType: 'q4_0',
-    },
-    // Seat-gate shape (farm-v0.0.36+): seatsUsed is the ENFORCED count, clients is
-    // merely who has the app open, and they differ on purpose here so the client's
-    // "1 of 2 seats free · 3 connected" path is exercised rather than the legacy one.
-    capacity: { slots: 2, clients: 3, seatsUsed: 1, seatIdleSec: 900 },
-    busy: null,   // set to { label, message, percent } to exercise the switching UI
-    ts: Date.now(),
-});
-
-const CORS = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': '*',
-    'Access-Control-Allow-Headers': '*',
-};
-
-const srv = http.createServer((req, res) => {
-    if (req.method === 'OPTIONS') { res.writeHead(200, CORS); return res.end(); }
-    if (req.url === '/v1/models') {
-        res.writeHead(200, { 'content-type': 'application/json', ...CORS });
-        return res.end(JSON.stringify({ data: [{ id: 'assistant' }, { id: 'gemma4:12b' }] }));
+async function main() {
+    const argv = process.argv.slice(2);
+    if (argv.includes('--help') || argv.includes('-h')) {
+        // The header comment IS the help text; strip the comment markers.
+        console.log(require('fs').readFileSync(__filename, 'utf8')
+            .split('\n').slice(1, 22).map((l) => l.replace(/^\/\/ ?/, '')).join('\n'));
+        return 0;
     }
-    if (req.url === '/v1/chat/completions' && req.method === 'POST') {
-        let body = '';
-        req.on('data', (c) => { body += c; });
-        req.on('end', () => {
-            console.log('[mock] chat request, model =', (() => { try { return JSON.parse(body).model; } catch { return '?'; } })());
-            res.writeHead(200, { 'content-type': 'text/event-stream', ...CORS });
-            const send = (o) => res.write(`data: ${JSON.stringify(o)}\n\n`);
-            let i = 0;
-            const R = 100, C = 1000; // 100 reasoning deltas then 1000 content deltas
-            // Windows timer resolution is ~15ms, so burst several deltas per tick to
-            // reach ~330 deltas/s — above the farm's measured 154.8 tok/s, which is
-            // what makes this a real test of the client's streaming render path.
-            const iv = setInterval(() => {
-                for (let b = 0; b < 5; b++) {
-                    if (i < R) send({ choices: [{ delta: { reasoning_content: `think${i} ` } }] });
-                    else if (i < R + C) send({ choices: [{ delta: { content: `tok${i - R} ` } }] });
-                    else {
-                        send({ choices: [], usage: { completion_tokens: C, prompt_tokens: 12 } });
-                        res.write('data: [DONE]\n\n');
-                        clearInterval(iv);
-                        return res.end();
-                    }
-                    i++;
-                }
-            }, 15);
-            // req 'close' fires on request COMPLETION in modern Node — keying cleanup
-            // off it kills the stream before the first delta. The RESPONSE closing is
-            // the actual client-went-away signal.
-            res.on('close', () => clearInterval(iv));
-        });
-        return;
-    }
-    res.writeHead(404, CORS); res.end();
-});
-srv.listen(PROXY_PORT, '127.0.0.1', () => console.log(`[mock] proxy on 127.0.0.1:${PROXY_PORT}`));
+    const opts = parseArgs(argv, process.env);
+    const mock = await startMock(opts);
+    const stop = () => { mock.close().then(() => process.exit(0), () => process.exit(0)); };
+    process.on('SIGINT', stop);
+    process.on('SIGTERM', stop);
+    return null;   // keep the event loop alive: the servers are listening
+}
 
-const sock = dgram.createSocket('udp4');
-sock.bind(() => {
-    setInterval(() => {
-        const buf = Buffer.from(snapshot());
-        sock.send(buf, 0, buf.length, BEACON_PORT, '127.0.0.1');
-    }, 1500);
-    console.log(`[mock] beacon → 127.0.0.1:${BEACON_PORT} every 1.5s${COORDINATOR ? ' (coordinator)' : ''}`);
+main().catch((err) => {
+    console.error(`[mock] ${err && err.message ? err.message : err}`);
+    if (err && /forbidden port/.test(String(err.message))) {
+        console.error(`[mock] forbidden: ${FORBIDDEN_PORTS.join(', ')} — pick a free --slot instead`);
+    }
+    process.exit(1);
 });

@@ -1,0 +1,80 @@
+/* strip.css — the farm strip under the topline (P2-U1 owns this file and REPLACES it wholesale).
+
+   Scope: `#lolchat .chat-strip` (els.strip) and its children only. ComfyQ tokens only — no colour
+   literals (chat-lint rule 3).
+
+   Shape: ONE line, ellipsised, quiet. It is ambient information ("llama.cpp · 1/2 seats · GPU 3%"),
+   not a control, so it must never pull the eye away from the conversation — muted text, no border,
+   no background. `.chat-strip:empty` is already display:none in css/base.css, so a farmless boot
+   costs no vertical space at all.
+
+   Separators are drawn with ::before on every field but the first: the fields are real elements so
+   `data-field` can be asserted and styled, and a dot in the markup would be read aloud by a screen
+   reader on a node that carries role="status". */
+
+#lolchat .chat-strip {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  min-width: 0;
+  padding: 4px 16px 6px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#lolchat .chat-strip .chat-strip-field {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#lolchat .chat-strip .chat-strip-field + .chat-strip-field::before {
+  content: '·';
+  margin: 0 6px;
+  color: var(--grey);
+}
+
+/* The model is the one field worth reading first: it is what a reader compares against the answer
+   they got. Everything else stays at --muted. */
+#lolchat .chat-strip .chat-strip-field[data-field='model'] { color: var(--text); }
+
+/* Three states that are NOT ambient: the farm went quiet, it wants a password, or it is busy
+   switching models. They lead the line (ui/strip.mjs orders them first) and say so in colour. */
+#lolchat .chat-strip .chat-strip-field[data-field='silent'],
+#lolchat .chat-strip .chat-strip-field[data-field='key'] { color: var(--amber); }
+#lolchat .chat-strip .chat-strip-field[data-field='busy'] { color: var(--amber); }
+
+/* A full farm is worth seeing before pressing Send; the strip cannot know that on its own, so the
+   seat field simply stays legible rather than shouting. */
+#lolchat .chat-strip .chat-strip-field[data-field='seats'] { font-variant-numeric: tabular-nums; }
+#lolchat .chat-strip .chat-strip-field[data-field='gpu'],
+#lolchat .chat-strip .chat-strip-field[data-field='tokSec'] { font-variant-numeric: tabular-nums; }
+
+@media (max-width: 720px) {
+  /* Narrow window: the title attribute still carries every field, so dropping the tail here loses
+     nothing (ui/strip.mjs writes one field per line into `title`). */
+  #lolchat .chat-strip { padding-inline: 12px; }
+}
+
+/* ---- the Notifications settings section (SETTINGS_SECTIONS, rendered in P2-U4's gear popover) --
+   ui/notify.mjs is the only other surface this unit owns, and its two private class names had no
+   rules at all: the hint rendered as full-brightness body text with the UA's default <p> margins
+   next to P2-U2's dimmed .chat-ctx-help, so two halves of one popover read as two designs
+   (P2 review). Mirrors .chat-ctx-row / .chat-ctx-help in css/meter.css deliberately. */
+.chat-layer .chat-setting-row,
+#lolchat .chat-setting-row {
+  display: flex; align-items: center; gap: 7px;
+  font-size: 12.5px; color: var(--text);
+  cursor: pointer;
+}
+.chat-layer .chat-setting-row input[type='checkbox'],
+#lolchat .chat-setting-row input[type='checkbox'] { margin: 0; accent-color: var(--accent-hover); }
+.chat-layer .chat-setting-hint,
+#lolchat .chat-setting-hint {
+  margin: 5px 0 0; max-width: 320px;
+  font-size: 11.5px; line-height: 1.45; color: var(--muted);
+}
