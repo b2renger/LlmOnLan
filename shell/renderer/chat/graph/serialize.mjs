@@ -197,6 +197,11 @@ export function fromJson(obj, o) {
     delete next.stats;
     delete next.fanout;                 // a run's per-item record is not part of the PROGRAM, and an
                                         // imported one could be arbitrarily large (fix pass, finding 6)
+    // A Sound box's Listen sends a recording to the farm: only a person on THIS machine turns it on,
+    // never a file someone handed over (critic P1P2 S9) — the way outputs open disarmed.
+    if (next.type === 'audio' && next.settings && typeof next.settings === 'object' && next.settings.listen) {
+      next.settings = { ...next.settings, listen: false };
+    }
     if (next.value !== undefined) next.state = 'stale';   // a cached value survives, but it is not
     return next;                                          // proof this machine ran this graph
   });

@@ -41,6 +41,7 @@ export function voiceFor(setting, farmHasVoice, localHasVoice) {
 function sayLocally(text, signal) {
   const synth = /** @type {any} */ (globalThis).speechSynthesis;
   const Utterance = /** @type {any} */ (globalThis).SpeechSynthesisUtterance;
+  if (signal && signal.aborted) return Promise.resolve(true);   // Stop came first: say nothing
   return new Promise((resolve) => {
     let over = false;
     const finish = () => { if (!over) { over = true; clearTimeout(timer); resolve(true); } };

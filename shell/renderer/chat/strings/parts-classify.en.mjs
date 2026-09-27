@@ -20,7 +20,7 @@ registerStrings('parts', {
   classifyNoQuestion: 'Write the question first.',
   classifyTooMany: 'Too many items for one call ({n}); the farm takes at most {max}.',
   classifyErr_unauthorized: 'The farm refused the Classify key — the farm may have restarted. Run again in a few seconds.',
-  classifyErr_busy: 'Laya is busy with someone else. Run again in a moment — nothing was lost.',
+  classifyErr_busy: 'Laya is busy (maybe with your previous run). Run again in a moment — nothing was lost.',
   classifyErr_warming: 'Laya is still warming up on the farm. Run again in a few seconds.',
   classifyErr_tooMany: 'The farm refused that many items in one call.',
   classifyErr_farm: 'The farm’s Classify service answered badly ({message}).',

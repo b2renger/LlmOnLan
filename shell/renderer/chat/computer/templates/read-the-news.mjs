@@ -360,6 +360,9 @@ else if (spec.sort === 'smallest first') rows.sort((a, b) => a[measure] - b[meas
 else rows.sort((a, b) => b[measure] - a[measure]);
 
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+// The model's WORDS never carry a number onto the chart (a miscount would sit under "counts by the
+// code"): any digit it writes becomes an ellipsis. The numbers on this chart are the bars' own.
+const words = (s) => String(s || '').replace(/[0-9][0-9.,%]*/g, '…');
 const wrap = (text, n) => {
   const out = []; let line = '';
   for (const w of String(text).split(/\\s+/)) {
@@ -371,7 +374,7 @@ const wrap = (text, n) => {
 const W = 760, left = 170, barW = 440, rowH = 30, top = 104;
 const max = Math.max(1, ...rows.map((r) => r[measure]));
 const hi = String(spec.highlight || '').trim().toLowerCase();
-const insight = wrap(spec.insight || '', 92).slice(0, 3);
+const insight = wrap(words(spec.insight), 92).slice(0, 3);
 const unsure = (counts.unsure || []).slice(0, 6);
 let y = top;
 const bars = rows.map((r) => {
@@ -397,8 +400,8 @@ y += 28; tail += text(24, 11, '#a1a1aa', (counts.source || 'Source') + ' · ' + 
 const H = y + 16;
 return '<svg xmlns="http://www.w3.org/2000/svg" width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + ' ' + H + '" font-family="Inter, system-ui, sans-serif">'
   + '<rect width="' + W + '" height="' + H + '" fill="#fafafa"/>'
-  + '<text x="24" y="40" font-size="22" font-weight="700" fill="#18181b">' + esc(spec.title || 'What the front page talks about') + '</text>'
-  + '<text x="24" y="66" font-size="14" fill="#52525b">' + esc(spec.subtitle || ('By ' + measure)) + '</text>'
+  + '<text x="24" y="40" font-size="22" font-weight="700" fill="#18181b">' + esc(words(spec.title) || 'What the front page talks about') + '</text>'
+  + '<text x="24" y="66" font-size="14" fill="#52525b">' + esc(words(spec.subtitle) || ('By ' + measure)) + '</text>'
   + '<text x="24" y="90" font-size="12" fill="#a1a1aa">' + esc(measure) + ' per topic</text>'
   + bars + tail + '</svg>';`;
 

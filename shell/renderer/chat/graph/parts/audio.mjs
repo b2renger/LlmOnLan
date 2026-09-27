@@ -198,6 +198,7 @@ export async function playBytes(bytes, signal) {
   let buffer = null;
   try { buffer = await ac.decodeAudioData(bytes.slice(0)); } catch { return { ok: false, error: t('parts.audioUndecodable', { name: 'voice' }) }; }
   try { if (ac.state === 'suspended' && typeof ac.resume === 'function') await ac.resume(); } catch { /* keep going */ }
+  if (signal && signal.aborted) return { ok: true, seconds: 0 };   // Stop came while decoding: say nothing
   return new Promise((resolve) => {
     const src = ac.createBufferSource();
     src.buffer = buffer;

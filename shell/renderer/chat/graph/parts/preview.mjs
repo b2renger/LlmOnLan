@@ -373,10 +373,6 @@ function withGuest(fn) {
 }
 
 /**
- * Draw `code` in a FREE mode. No guest, no await. Throws a part failure.
- * @param {string} mode @param {string} code @returns {{mode: string, text?: string, svg?: string, removed?: string[]}}
- */
-/**
  * A PNG of a sanitised SVG, for a model that reads pictures (vision models take PNG or JPEG, never
  * SVG). Drawn on white: a transparent background reads as black to some models. null where there
  * is no DOM (Node) or the browser will not draw it.
@@ -401,6 +397,10 @@ export async function svgToPng(svg, maxPx) {
   try { return { dataUrl: canvas.toDataURL('image/png'), w: canvas.width, h: canvas.height }; } catch { return null; }
 }
 
+/**
+ * Draw `code` in a FREE mode. No guest, no await. Throws a part failure.
+ * @param {string} mode @param {string} code @returns {{mode: string, text?: string, svg?: string, removed?: string[]}}
+ */
 function drawFree(mode, code) {
   if (mode === 'markdown') return { mode, text: code };
   const clean = sanitizeSvg(code);

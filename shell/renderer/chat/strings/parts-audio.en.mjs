@@ -37,7 +37,7 @@ registerStrings('parts', {
   audioListenHint: 'On a run, the recording goes to the farm’s speech-to-text service, which writes down what is said and keeps nothing; the words flow on instead of the sound.',
   audioNoStt: 'This farm cannot listen: its Speech to text plugin is off. The farm’s operator can turn it on in the farm panel.',
   audioSttErr_unauthorized: 'The farm refused the speech-to-text key — the farm may have restarted. Run again in a few seconds.',
-  audioSttErr_busy: 'The farm is writing down someone else’s recording. Run again in a moment — nothing was lost.',
+  audioSttErr_busy: 'The farm is busy writing down a recording (maybe your previous run’s). Run again in a moment — nothing was lost.',
   audioSttErr_warming: 'The farm is still loading its speech-to-text model. Run again in a few seconds.',
   audioSttErr_tooBig: 'This recording is too big for the farm to write down.',
   audioSttErr_unreadable: 'The farm could not read this recording.',
