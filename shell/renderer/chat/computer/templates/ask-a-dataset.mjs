@@ -36,7 +36,7 @@ export default {
       },
       { id: 'q_data', type: 'opendata', x: 400, y: 140, w: 340, h: 180, settings: { link: 'https://www.data.gouv.fr/datasets/liste-des-festivals-en-france', rows: 200 }, value: { kind: 'json', data: SNAPSHOT } },
       { id: 'q_question', type: 'note', x: 400, y: 360, w: 340, h: 170, settings: { text: 'Which 5 regions have the most music festivals, and how many each?', locked: false } },
-      { id: 'q_agent', type: 'agent', x: 800, y: 140, w: 340, h: 380, settings: { task: TASK, hosts: 'tabular-api.data.gouv.fr', maxSteps: 8, model: '' } },
+      { id: 'q_agent', type: 'agent', x: 800, y: 140, w: 340, h: 460, settings: { task: TASK, hosts: 'tabular-api.data.gouv.fr', maxSteps: 8, model: '' } },
       { id: 'q_view', type: 'preview', x: 1200, y: 140, w: 600, h: 520, settings: { mode: 'markdown' } },
     ],
     wires: [

@@ -244,7 +244,8 @@ export const agentPart = /** @type {any} */ ({
   thinks: true,
   // The run plan counts one generation for a thinking box; an agent may spend one per step (topo.mjs).
   mostGenerations: (/** @type {any} */ part) => Math.max(1, Math.min(MAX_STEPS, Math.floor(Number(part && part.settings && part.settings.maxSteps) || DEFAULT_STEPS))),
-  size: { w: 320, h: 330 },
+  // Task, hosts, steps, model and the live line: 460 leaves the task ~128 px, an Instruction's (k9-fit).
+  size: { w: 340, h: 460 },
   // Lists arrive WHOLE (an agent works over the list; it is not run once per item).
   inputs: [{ name: 'in', label: t('parts.agentIn'), accepts: ['text', 'json', 'list'], many: true }],
   output: 'text',
@@ -292,10 +293,9 @@ export const agentPart = /** @type {any} */ ({
 
     const status = document.createElement('div');
     status.className = 'graph-fetch-status';
-    const wrap = document.createElement('div');
-    wrap.className = 'graph-fetch';
-    wrap.append(area, hostsF.node, stepsF.node, model, status);
-    host.replaceChildren(wrap);
+    // Straight into the body (a flex column), as the Instruction's: the task is the field that grows with the box.
+    const nodes = [area, hostsF.node, stepsF.node, model, status];
+    host.replaceChildren(...nodes);
 
     /** @param {any} p */
     const paint = (p) => { status.textContent = notes.get(String(p.id)) || ''; };
@@ -309,7 +309,7 @@ export const agentPart = /** @type {any} */ ({
         refreshModels(String(next.settings.model || ''));
         paint(next);
       },
-      destroy() { painters.delete(String(part.id)); wrap.remove(); },
+      destroy() { painters.delete(String(part.id)); for (const n of nodes) n.remove(); },
     };
   },
 

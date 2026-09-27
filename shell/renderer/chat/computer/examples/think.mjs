@@ -164,7 +164,7 @@ export const THINK = [
     ],
     parts: [
       { id: 'e_nums', type: 'note', x: 0, y: 0, w: 320, h: 170, settings: { text: '[12, 7, 30, 5, 18, 22, 9]', locked: false } },
-      { id: 'e_agent', type: 'agent', x: 380, y: 0, w: 320, h: 330, settings: { task: 'What are the average and the largest of these readings? Compute them with code, then answer in one sentence.', hosts: '', maxSteps: 4, model: '' } },
+      { id: 'e_agent', type: 'agent', x: 380, y: 0, w: 340, h: 460, settings: { task: 'What are the average and the largest of these readings? Compute them with code, then answer in one sentence.', hosts: '', maxSteps: 4, model: '' } },
       { id: 'e_view', type: 'preview', x: 760, y: 0, w: 380, h: 320, settings: view },
     ],
     wires: [
