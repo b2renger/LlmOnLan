@@ -17,25 +17,27 @@ ComfyUI workflows, LOL gives a workshop a private, local‑first chat assistant.
   │  LOL shell (Electron) — ComfyQ-styled chrome  │      │  lol farm  ·  UDP beacon ──┐        │
   │   topbar · settings · connection screen       │      │                            │        │
   │   ┌─ <webview> ─ Open WebUI (pinned, UNMOD) ─┐│ chat │   LiteLLM proxy (one OpenAI endpoint)│
-  │   │  all chats / docs / RAG vectors live     ││◄─────┤    ├─ llama-server  → the default    │
-  │   │  HERE, in a folder you choose (DATA_DIR) ││ only │    │                  model (alias)  │
-  │   └──────────────────────────────────────────┘│      │    └─ Ollama #1..#N → extra models,  │
-  │   └─ or LOL Chat (topbar toggle, minimal UI) ─┘│      │                       OCR vision    │
+  │   │  all chats / docs / RAG vectors live     ││◄─────┤    ├─ Ollama #1..#N → the default    │
+  │   │  HERE, in a folder you choose (DATA_DIR) ││ only │    │   (gemma4:12b) + OCR vision     │
+  │   └──────────────────────────────────────────┘│      │    └─ llama-server  → opt-in speed   │
+  │   └─ or LOL Chat · or the Computer (switch) ──┘│      │                       engine        │
   └───────────────────────────────────────────────┘      └──────────────────────────────────────┘
 ```
 
-**Two inference engines, one endpoint.** `llama-server` serves the single model everyone chats with
-(fastest path on a 12 GB card); Ollama serves the extra catalog + the OCR vision model. LiteLLM fronts
-both, so the client sees one OpenAI‑compatible endpoint and never knows which answered. Details:
-[`farm/README.md` ▸ Backends](farm/README.md#backends--llamacpp-default-and-ollama).
+**Inference engines, one endpoint.** By default the farm serves **`gemma4:12b` on Ollama** at its native
+context (vision‑native, so one model covers chat and the OCR plugin). `llama-server` is the **opt‑in**
+speed engine for one `.gguf` (speculative decoding); the engines are exclusive, and an `external`
+OpenAI‑compatible server (vLLM/SGLang) is a third, config‑only option. LiteLLM fronts whichever serves,
+so the client sees one OpenAI‑compatible endpoint and never knows which answered. Details:
+[`farm/README.md` ▸ Backends](farm/README.md#backends--ollama-default-and-llamacpp).
 
 ## The pieces
 
 | Piece | What it is | Where |
 |---|---|---|
-| **`lol`** — farm CLI | Node CLI. Reads `lol.config.json`; runs **llama.cpp + Ollama**, generates + runs a LiteLLM proxy (one OpenAI‑compatible, load‑balanced endpoint), runs a UDP discovery beacon. **Where models are chosen.** | [`farm/`](farm/) |
+| **`lol`** — farm CLI | Node CLI. Reads `lol.config.json`; runs **Ollama (default) or llama.cpp**, generates + runs a LiteLLM proxy (one OpenAI‑compatible, load‑balanced endpoint), runs a UDP discovery beacon. **Where models are chosen.** | [`farm/`](farm/) |
 | **Farm app** | Electron installer that runs the `lol` farm for a non‑technical operator: on first run it downloads its own Ollama + Python + the inference backend and weights, then hands over the farm **panel** (where the model, its name and the capacity are run). Its own Settings carry the share‑with‑LAN toggle, theme, launch‑at‑login and updates. **Update checks are manual** (a notice + a Download button — no in‑place install). | [`farm-app/`](farm-app/) |
-| **Client shell** | Electron + TypeScript. Supervises the bundled Open WebUI, discovers the farm, points OWUI at it, stores all data in a user‑chosen local folder. Owns the topbar / settings / connection screen. | [`shell/`](shell/) |
+| **Client shell** | Electron + TypeScript. Supervises the bundled Open WebUI, discovers the farm, points OWUI at it, stores all data in a user‑chosen local folder. Owns the topbar / settings / connection screen, and two surfaces of its own: **LOL Chat** and the **Computer**. | [`shell/`](shell/) |
 | **Open WebUI sidecar** | Vendored, version‑pinned, **unmodified**. We inherit all its features and never edit its source. | [`sidecar/`](sidecar/) |
 
 ## Prime directive (non‑negotiable)
@@ -51,15 +53,14 @@ rationale, and [`implementation_plan.md`](implementation_plan.md) for the milest
 
 ## Status
 
-**Shipped — client `v0.1.33` (self‑updating), Farm app `farm-v0.0.20` (manual update check), OWUI `0.10.2`.**
+**Shipped — client `v0.1.45` (self‑updating; `lolchat/vnext` in testing), Farm app `farm-v0.0.38` (manual update check), OWUI `0.10.2`.**
 
-*Chat + farm* — a **two‑engine farm**: [llama.cpp](farm/README.md#backends--llamacpp-default-and-ollama)
-(`llama-server`) serves the one model everyone chats with, Ollama serves the extra catalog and the OCR
-vision model, both behind a single load‑balanced LiteLLM endpoint. **Stable model aliases** mean the
-operator can swap the checkpoint underneath without breaking a single existing chat, and can
-[**name the model users see**](farm-app/README.md) from the Farm app's Settings. The client is the
-bundled, unmodified **Open WebUI**, with a topbar toggle to **LOL Chat** — a minimal, Studio‑style chat
-surface that talks straight to the farm.
+*Chat + farm* — the farm serves **`gemma4:12b` on [Ollama](farm/README.md#backends--ollama-default-and-llamacpp)**
+by default, with **llama.cpp** (`llama-server`) as the opt‑in speed engine; either sits behind a single
+load‑balanced LiteLLM endpoint. **Stable model aliases** mean the operator can swap the checkpoint
+underneath without breaking a single existing chat, and can **name the model users see** in the farm
+panel. The client is the bundled, unmodified **Open WebUI**, with a topbar switch between Open WebUI,
+**LOL Chat** (a Studio‑style chat straight to the farm) and the **Computer**.
 
 *Features* — **full multimodal** (image understanding + voice; Whisper STT runs on‑device); **web
 search** via a shared farm‑hosted [SearXNG](https://docs.searxng.org) (**on by default**, zero client
@@ -112,7 +113,7 @@ node bin/lol.js status         # health of hosts + proxy + loaded models
 ```
 
 Prereqs: **Node ≥ 20** and a Python 3.9–3.13 — `lol install` sets up everything else (Ollama, LiteLLM,
-the llama.cpp backend, the models). Then: [Backends](farm/README.md#backends--llamacpp-default-and-ollama)
+the llama.cpp backend, the models). Then: [Backends](farm/README.md#backends--ollama-default-and-llamacpp)
 · [Adding or changing models](farm/README.md#adding-or-changing-models) ·
 [Multiple users & capacity](farm/README.md#multiple-users--capacity).
 

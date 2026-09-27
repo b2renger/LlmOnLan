@@ -28,6 +28,10 @@
 > **NOTE (post-brief):** the live pin has since moved to **0.10.2** — `sidecar/OPENWEBUI_VERSION` is the
 > single source of truth. The 0.10.1 facts here (Python range, console script, `--port`, license rider,
 > External Document Loader contract) were re-verified to hold on 0.10.2.
+>
+> **NOTE (2026-09-27):** the sidecar bundles standalone **CPython 3.12**, not 3.11
+> (`sidecar/build-sidecar.mjs`), and a packaged client runs `<userData>/sidecar/python launcher.py serve`;
+> only dev runs `sidecar/.venv`'s `open-webui serve` console script (`shell/src/main/paths.ts`).
 
 **Conservative fallback:** v0.10.1 and v0.10.0 both shipped 2026-06-29 (brand-new); v0.10.1 is a single-bug fix on 0.10.0 ("shared-folder read-only chats no longer sign users out"). If you want a release with settling time, the prior stable is **v0.9.6** (2026-06-01). Recommended pin remains **v0.10.1**.
 
@@ -98,7 +102,7 @@
 | `WEBUI_SECRET_KEY` | (set explicitly) | Signs JWTs + encrypts data at rest. `open-webui serve` auto-generates + persists `.webui_secret_key` in CWD; **set it explicitly to a stable value** so tokens survive app re-creation. `openssl rand -hex 32`. |
 | `RAG_EMBEDDING_ENGINE` | **leave empty** | Empty = local SentenceTransformers (in-process). Do NOT set to `ollama`/`openai`. |
 | `RAG_EMBEDDING_MODEL` | `sentence-transformers/all-MiniLM-L6-v2` (default) | Local MiniLM; downloaded from HuggingFace on first use unless cached. |
-| `OFFLINE_MODE` | `true` (optional) | Sets `HF_HUB_OFFLINE=1` — first-party offline switch. **Requires a pre-seeded HF cache** under `DATA_DIR` or first RAG use fails. |
+| `OFFLINE_MODE` | `true` (optional) | Sets `HF_HUB_OFFLINE=1` — first-party offline switch. **Requires a pre-seeded HF cache** under `DATA_DIR` or first RAG use fails. *NOTE (2026-09-27): the client never sets `OFFLINE_MODE`; it sets `HF_HUB_OFFLINE=1` itself once both models are on disk (`shell/src/main/configBridge.ts` `hfModelsCached`). Verified on 0.10.2: MiniLM loads from the **default HF hub cache** (`~/.cache/huggingface/hub`, `SENTENCE_TRANSFORMERS_HOME` unset), not `DATA_DIR`; faster-whisper downloads to `WHISPER_MODEL_DIR` = `<DATA_DIR>/cache/whisper/models`.* |
 | `WEBUI_AUTH` | `false` (optional, kiosk) | Disables login; auto-creates `admin@localhost`/`admin` on fresh install only. |
 
 **Telemetry off** (consumed by *dependencies*, not OWUI's own code — but correct + harmless to set):
@@ -243,9 +247,9 @@ The CLAUDE.md mentions Electron **^42** (good) and treats `electron-builder` as 
 3. **Singular vs plural OpenAI env precedence** — set only one pair; verify the config.py reset bug (#19684/#19683) behavior on the pinned release.
 4. **`OPENAI_API_CONFIGS` env-parsing** — still `{}`-only in current config.py; confirm a later release hasn't added parsing on your pin (else use REST/UI for per-connection model limits).
 5. **`/v1` suffix on the OWUI base URL** — confirm OWUI's URL normalization for your pin; the `/v1`-suffixed base is the safe convention.
-6. **Full air-gap RAG** — confirm `OFFLINE_MODE=true` + a pre-seeded HF/sentence-transformers cache path under `DATA_DIR`; exact cache subpath not fully verified.
+6. **Full air-gap RAG** — confirm `OFFLINE_MODE=true` + a pre-seeded HF/sentence-transformers cache path under `DATA_DIR`; exact cache subpath not fully verified. *NOTE (2026-09-27): answered for 0.10.2 — see the `OFFLINE_MODE` row: MiniLM is in the HF hub cache, Whisper under `<DATA_DIR>/cache/whisper/models`, and the client flips `HF_HUB_OFFLINE` itself (docs review SA-2).*
 7. **`ANONYMIZED_TELEMETRY` effectiveness** — may be a no-op on Chroma ≥1.5.4; confirm bundled Chroma version.
 8. **LiteLLM Python floor** — `>=3.10,<3.14` for v1.91.0; the floor may rise — confirm the version you pin.
-9. **macOS ad-hoc auto-update** — the recipe's weakest link; validate end-to-end on real target Macs. Note the v26.0.13+ ad-hoc **Camera/Microphone regression (#9529)** if LlmOnLan ever touches AV devices (it likely doesn't).
+9. **macOS ad-hoc auto-update** — the recipe's weakest link; validate end-to-end on real target Macs. Note the v26.0.13+ ad-hoc **Camera/Microphone regression (#9529)** if LlmOnLan ever touches AV devices (it likely doesn't). *NOTE (2026-09-27): it does — the OWUI webview is granted mic and camera (`shell/src/main/index.ts` `configureWebviewPermissions`), voice is a headline feature, and the locked electron-builder is 26.15.3 (≥ 26.0.13). Now a rig check: "macOS ad-hoc build: OWUI voice (mic) and camera prompt and work" (docs/RIG_CHECKLIST.md).*
 10. **Windows NSIS install path / no-UAC** — `%LocalAppData%\Programs\<productName>` is clearest for `oneClick:false`+`perMachine:false`; verify the exact folder + silent-update behavior on a real Windows build. The no-UAC guarantee rides on `perMachine:false`.
 11. **macOS dual-job `latest-mac.yml` overwrite** — confirm CI builds both mac arches in one `macos-latest` job, and that the afterPack `codesign` step doesn't run on Linux/Windows runners.

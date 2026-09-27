@@ -52,7 +52,8 @@ farm.
 
 ## 1. Upgrade and migration (laptop A, v0.1.45 → vNext)
 - [ ] Auto-update (or install) the vNext build over v0.1.45. **Expected:** the app opens on Open WebUI
-      as before; the topbar toggle still reads "Open WebUI"/"LOL Chat".
+      as before; the topbar's three-way switch reads "Open WebUI" / "LOL Chat" / "Computer", and a
+      relaunch opens on the surface you last used.
 - [ ] **(C-21)** **Packaged build loads the modules** (`.mjs` inside `app.asar`, DISCUSS D-P3; static imports
       AND the dynamic `import()` loader both passed a synthetic packed-asar probe at the P0 landing, under
       the shipping CSP — re-runnable at any time with `node shell/test/asar-probe.js`, which exits
@@ -89,10 +90,11 @@ farm.
       **Expected:** the thread list is unchanged — LOL Chat history lives in the renderer profile
       (`%APPDATA%\LlmOnLan\IndexedDB`), not under `DATA_DIR`, so a move must not touch it. If threads
       disappear, stop and report: that is data loss, not a display bug.
-- [ ] **(P0 store)** A corrupt v1 history: on a spare profile, replace the `lolchat.threads.v1`
+- [ ] **(P0 store)** A corrupt v1 history: on a spare profile, replace the `lol.chat.threads.v1`
       localStorage value with `{`, then open LOL Chat. **Expected:** the chat opens on an empty list with
-      no crash, and Settings → Storage → "Remove old v1 copy" REFUSES (it must never delete history it
-      could not read).
+      no crash, and Settings → Storage → "Remove the old v1 copy" REFUSES (it must never delete history it
+      could not read). (The key is `lol.chat.threads.v1`, `state/migrate-v0.mjs` `V1_KEY` — a wrong key
+      corrupts nothing and so tests nothing.)
 
 ## 2. Basic chat on each engine
 ### 2.1 F1: Ollama `gemma4:12b`
@@ -241,6 +243,9 @@ farm.
       button. Record what the renderer actually received.
 
 ## 5. Images, documents, search
+
+> **NOT SHIPPED** — P3 (images, documents, web search in LOL Chat) was not built. Skip this section;
+> do not fail it. Open WebUI covers all three.
 - [ ] Paste a screenshot (Win+Shift+S) into the composer on F1 (gemma4, vision). **Expected:** a
       thumbnail chip; the reply describes the screenshot correctly.
 - [ ] Drop 5 images. **Expected:** 4 accepted, plus a toast about the limit.
@@ -265,6 +270,9 @@ farm.
 - [ ] Disable SearXNG on the farm. **Expected:** the globe toggle disappears within a few seconds.
 
 ## 6. Blender (laptop A, Blender 4.x + BlenderMCP addon)
+
+> **NOT SHIPPED** — P3-U4 (the Blender attach menu in LOL Chat) was not built. Skip this section; the
+> Blender tools in Open WebUI are covered by Preferences › Assistant tools.
 - [ ] Preferences → Assistant tools → enable, and start the MCP server in Blender. **Expected:** the attach
       menu in LOL Chat shows "Blender viewport" and "Blender scene".
 - [ ] **(C-21)** Attach viewport. **Expected:** a thumbnail of the actual viewport. If it fails, copy the
@@ -325,6 +333,8 @@ farm.
       sits streaming for ever.
 
 ## 9. Recipes and structured output
+
+> **NOT SHIPPED** — P4 (recipes, `/` commands, structured output) was not built. Skip this section.
 - [ ] Type `/names`, fill the form, send. **Expected:** a card deck; keep 3 → "More like these"
       references exactly those 3.
 - [ ] **(C-21)** `json_schema` on the llama.cpp farm: run Name deck on F2. **Expected:** cards render
@@ -355,8 +365,9 @@ farm.
     toast; that is expected, not a bug.
   - Clicking the toast: record whether the window comes to the front. On Windows a renderer
     `window.focus()` often only flashes the taskbar; if so, note it (DISCUSS D-C7), it is a known limit.
-- [ ] **(C-21)** **Read aloud** (farm with Kokoro TTS on): press Read aloud. **Expected:** audio plays
-      through WebAudio; Stop works. Record whether MP3 decoded or the WAV fallback was used.
+- [ ] **NOT SHIPPED** (P4-U4, not built — skip): **(C-21)** **Read aloud** (farm with Kokoro TTS on):
+      press Read aloud. **Expected:** audio plays through WebAudio; Stop works. Record whether MP3
+      decoded or the WAV fallback was used.
 - [ ] **Numbered steps with a code block** (P0 fix round 2): ask for "three numbered install steps,
       each with a bash code block". **Expected:** every code block starts at column 0 — no hanging
       three-space indent — and **Copy** puts exactly that on the clipboard. This is the shape the
@@ -399,6 +410,10 @@ farm.
 ## 12. Studio rails (S0, added at the S0 landing 2026-09-16)
 No panel ships in S0, so these are the rails themselves. Anything marked **(needs a panel)** waits
 for the Computer panel.
+
+> **Status (2026-09-27):** no workbench panel is registered anywhere — the Computer became its own
+> top-level surface instead — so the rail and width items below (Ctrl+\, Ctrl+1…4, Chat / Split /
+> Panel) are **untestable** in this build. Skip them rather than failing them.
 
 - [ ] **The workbench column, on a real display.** With a chat open, press **Ctrl+\** to cycle
       chat → split → work → chat, and **Ctrl+1** to open the first panel. **Expected:** the column
@@ -450,7 +465,9 @@ for the Computer panel.
       database; only a real profile proves it against a real one. If anything is missing, STOP and
       capture the profile before touching it again — the upgrade never deletes, so the data is
       recoverable.
-- [ ] **The queue chip on a real screen.** When a panel first runs a batch **(needs a panel)**:
+- [ ] **Untestable in this build** — nothing calls `app.ask.queue` (the Computer's runner keeps its
+      own queue), so the chip never appears. **The queue chip on a real screen.** When a panel first
+      runs a batch **(needs a panel)**:
       the chip must appear over the bottom-left of the chat area while the batch runs, read
       `<label> — i/n`, and disappear when it ends. Press its **Cancel**, and separately press
       **Escape** — both must stop the batch. Check it in both themes and at a narrow window: it must

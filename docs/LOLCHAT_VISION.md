@@ -96,7 +96,7 @@ Legend — **Value**: to *this* office (shared LAN farm, 12B–30B local models,
 | # | Feature | Value | Effort | Risk | In scope? | Verdict | Rationale |
 |---|---|---|---|---|---|---|---|
 | F40 | Message tree: edit user message → sibling; regenerate → sibling; `◀ 2/3 ▶` switcher; delete subtree | High | M | Low | Yes | **BUILD NOW** | Creative exploration without overwrites. |
-| F41 | "Regenerate with…" another recipe / temperature (sequential sibling, never parallel) | Med | S | Low | Yes | **BUILD NOW** | The honest version of "two takes" and compare mode on a one-engine farm. |
+| F41 | "Regenerate with…" another recipe / temperature (sequential sibling, never parallel) | Med | S | Low | Yes | **BUILD NOW** | The honest version of "two takes" and compare mode on a one-engine farm. *Shipped as two temperatures only — **More creative** (1.0) and **More precise** (0.2) (`ui/message-actions.mjs`); recipes were not built.* |
 | F42 | Fork thread from any message | Med | S | Low | Yes | **BUILD NOW** | Side quests; copies the path. |
 | F43 | Continue (`finish_reason:'length'` or interrupted) via trailing-assistant prefill, with fallback "continue exactly where you stopped" user turn | Med‑High | M | Med (prefill unverified) | Yes | **BUILD NOW** | Ollama and llama-server very likely continue a trailing assistant turn; the fallback makes it safe either way. Live check in C‑21. |
 | F44 | Rewrite-from-selection (truncate reply at a selection, continue differently) | Med | S (on F43) | Med | Yes | **BUILD NOW (stretch)** | Same code path as Continue. |
@@ -157,7 +157,7 @@ Legend — **Value**: to *this* office (shared LAN farm, 12B–30B local models,
 | F102 | Ghost-text autocomplete | DROP | The governor forbids it; OWUI's was disabled for the same reason. |
 | F103 | Automatic devil's-advocate notes | DROP (as automatic) | Ships as a user-run built-in recipe "Critique this answer". |
 | F104 | Cross-farm second opinion | DROP | Fleet territory — explicitly excluded by the owner. |
-| F105 | Instant-start handoff (LOL Chat as the view while OWUI boots; remember last view) | NEEDS OOS CHANGE | Strategic, but lives in `app.js` toggle logic (C‑1). |
+| F105 | Instant-start handoff (LOL Chat as the view while OWUI boots; remember last view) | **SHIPPED** (was NEEDS OOS CHANGE) | The view is remembered as `localStorage['lol:view']` (`app.js`), the switch is three-way (Open WebUI · LOL Chat · Computer), and the other surfaces are usable while OWUI boots (`styles.css` keeps the OWUI overlay off them). |
 | F106 | LOL Chat data under `DATA_DIR` | NEEDS OOS CHANGE | Needs preload/main (C‑2). |
 
 ### A.7 Tests & tooling
@@ -203,6 +203,8 @@ Legend — **Value**: to *this* office (shared LAN farm, 12B–30B local models,
 **Tier 2 — distinctive (must ship):** F21–F27, F30, F41–F43, F48, F50–F53, F59, F60, F62, F70–F74,
 F80, F90, F91.
 **Tier 3 — stretch (ship if Tier 1+2 are green):** F8, F44, F54, F58, F82.
+
+**Shipped (2026-09):** P0–P2 + S0; P3/P4 (F50–F52, F70, F72–F74, F80, F90–F91) not built.
 
 Size target (new/rewritten product code, excluding tests and vendored files): **~4,800 lines** for
 Tiers 1+2, **~5,700** with Tier 3. Tests + harness + mock: **~1,800** more. No vendored libraries in
@@ -309,7 +311,7 @@ shell/renderer/chat/
 rows. The streaming hot path bypasses events: `run.mjs` appends to the message string and asks
 `thread-view` to paint the tail at most once per animation frame.
 
-### B.4 Storage (IndexedDB database `lol-chat`, version 1)
+### B.4 Storage (IndexedDB database `lol-chat`, version 1 — now version 2: S0 added `graphs` + `projects`)
 
 | Store | Key | Record | Indexes |
 |---|---|---|---|

@@ -4221,16 +4221,20 @@ STREAM_OBSERVERS.onDone · repo.finalize · gov release (a hold placed by a hand
 
 #### 3.6.3 Transform order and precedence (authoritative)
 
+> **Status (2026-09-27, docs review):** three transforms are registered in the shipped build — 150
+> `thread-system` (`ui/thread-header.mjs`), 250 `params-resolve` (`app/controller.mjs`) and 800
+> `budget-trim` (`app/context.mjs`). The rows marked NOT BUILT belong to P3/P4, which were not built.
+
 | Order | Id | Owner | Does |
 |---|---|---|---|
-| 100 | `recipe` | P4-U1 | `req.system = recipe.system ?? req.system`; `req.paramLayers.recipe = recipe.params` |
+| 100 **NOT BUILT (P3/P4)** | `recipe` | P4-U1 | `req.system = recipe.system ?? req.system`; `req.paramLayers.recipe = recipe.params` |
 | 150 | `thread-system` | P2-U3 | if `thread.systemOverride != null`: `req.system = thread.systemOverride` (byte-stable) |
 | 250 | `params-resolve` | P1-U2 (controller registers it) | `req.params = resolveParams(req.paramLayers)`: whitelist (`temperature, top_p, max_tokens, seed, stop`) of `{...recipe, ...thread, ...call}`, so **call > thread > recipe** |
-| 300 | `documents` | P3-U2 | prepend `doc` blocks to their user messages |
-| 350 | `search-block` | P3-U3 | a `search` part → a `search` block before the user text. Preview with `draft.flags.search` and no search part yet → `req.meta.allowances.push({id:'search', tokens:700})` |
-| 380 | `blender-scene` | P3-U4 | a scene part → a `scene` block |
-| 400 | `images` | P3-U1 | image parts → image blocks (dataUrl only when `!ctx.preview`) |
-| 500 | `response-format` | P4-U2 | Ollama (unless `kv structuredMode:<farmId>:<underlying>==='prompt'`) → `req.responseFormat`; otherwise `req.systemAppend.push(schema instruction)` |
+| 300 **NOT BUILT (P3/P4)** | `documents` | P3-U2 | prepend `doc` blocks to their user messages |
+| 350 **NOT BUILT (P3/P4)** | `search-block` | P3-U3 | a `search` part → a `search` block before the user text. Preview with `draft.flags.search` and no search part yet → `req.meta.allowances.push({id:'search', tokens:700})` |
+| 380 **NOT BUILT (P3/P4)** | `blender-scene` | P3-U4 | a scene part → a `scene` block |
+| 400 **NOT BUILT (P3/P4)** | `images` | P3-U1 | image parts → image blocks (dataUrl only when `!ctx.preview`) |
+| 500 **NOT BUILT (P3/P4)** | `response-format` | P4-U2 | Ollama (unless `kv structuredMode:<farmId>:<underlying>==='prompt'`) → `req.responseFormat`; otherwise `req.systemAppend.push(schema instruction)` |
 | 800 | `budget-trim` | P2-U2 | sees the final system, `systemAppend`, `params.max_tokens` and allowances; trims history |
 
 - Transforms mutate `req` in place and never write to the repo.
@@ -4248,7 +4252,7 @@ STREAM_OBSERVERS.onDone · repo.finalize · gov release (a hold placed by a hand
   - `budget-trim` reserves the resolved `max_tokens`;
   - search allowance in preview.
 
-### 3.7 IndexedDB: database `lol-chat`, version 1
+### 3.7 IndexedDB: database `lol-chat`, version 2 (v2 = `graphs` + `projects`, S0)
 
 | Store | keyPath | Indexes |
 |---|---|---|
@@ -4257,9 +4261,13 @@ STREAM_OBSERVERS.onDone · repo.finalize · gov release (a hold placed by a hand
 | `attachments` | `id` | `threadId`, `threadSha` = `[threadId, sha256]` |
 | `recipes` | `id` | `trigger` |
 | `kv` | `key` | — |
+| `graphs` (v2) | `id` | `threadId`, `updatedAt` — the Computer's graph documents |
+| `projects` (v2) | `id` | `threadId`, `updatedAt` — a metadata mirror of the scratch projects on disk |
 
 - **Record shapes:** the §3.3 typedefs.
-- **`kv` keys:**
+- **`kv` keys:** the authoritative list is `KV_KEYS` in `shell/renderer/chat/core/types.mjs` (build keys
+  with it, never by hand). It has grown past this plan's original list — `ui:workWidth`, `ui:workPanel`,
+  `pref:queueMax` and the Computer's keys among them. The P0–P2 core:
   - `schemaVersion`, `v1RawHash`, `persistRequested`
   - `tokRatio:<underlying>`, `promptTokSec:<farmId>`, `cap:<farmId>:<underlying>:vision`
   - `continueMode:<underlying>`, `structuredMode:<farmId>:<underlying>`, `ttsFormat`
@@ -5368,7 +5376,10 @@ Files owned:
 
 ---
 
-### P3: Inputs (images, documents, web search, Blender)
+### P3: Inputs (images, documents, web search, Blender) — NOT BUILT
+
+> **NOT BUILT** (status 2026-09-27): no `attach/`, `blender/` or `voice/` modules exist, and
+> `net/extract.mjs` serves only the Computer. Kept as the plan, not a description of the build.
 
 **Goal.** Bring outside content into the chat without breaking the untrusted-content or data-flow rules:
 - pasted, dropped or picked images, downscaled locally, with a vision tri-state that is never probed with
@@ -5635,7 +5646,10 @@ Files owned:
 
 ---
 
-### P4: Recipes, structured output, and stretch
+### P4: Recipes, structured output, and stretch — NOT BUILT
+
+> **NOT BUILT** (status 2026-09-27): there is no `recipes/` module; the recipe transform, structured
+> output, the palette and read-aloud are plan only.
 
 **Goal.** Ship the sharing layer that fits a stateless farm:
 - `.lolrecipe.json` recipes: system prompt, `{{var}}` templates with widget forms, params, optional JSON
@@ -5854,7 +5868,8 @@ Files owned:
   - `node shell/test/chat-harness/run.js --strict --phase perf`
 - `shell/test/e2e.js` (unchanged) passes in CI or on a spare machine with no LlmOnLan client, using
   `LOL_MOCK_BEACON_OK=1` (rig checklist §0).
-- The owner ticks `LOLCHAT_RIG_CHECKLIST.md` §0–§11 on real machines, including every **(C-21)** item.
+- The owner ticks `LOLCHAT_RIG_CHECKLIST.md` §0–§4, §7, §8, §10–§17 on real machines, including every
+  **(C-21)** item (§5, §6 and §9 test the unbuilt P3/P4 features).
 - DISCUSS **D-S1** is decided (the CLAUDE.md wording), and no DISCUSS item is marked blocking.
 
 ---

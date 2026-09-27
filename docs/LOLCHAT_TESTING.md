@@ -51,12 +51,12 @@ Fresh profile = empty chat history (nothing to migrate) and the farm found by be
 **On another machine**, it is the ordinary route:
 
 ```bash
-git fetch && git switch lolchat/vnext     # once it is pushed — see §6
+git fetch && git switch lolchat/vnext
 cd shell && npm ci && npm run build && npx electron .
 ```
 
 The farm is found by the usual beacon; nothing about discovery, the sidecar or Open WebUI changed.
-Press the topbar toggle to reach **LOL Chat**.
+Press **LOL Chat** in the topbar's three-way switch.
 
 *Don't want to run Open WebUI at all while testing?* `shell/src/main/clientMode.ts` `OWUI_ENABLED` and
 the `NO_OWUI` const at the top of `renderer/app.js` still flip together, as before.
@@ -82,8 +82,8 @@ Worth poking at:
 
 ## 3. The Computer (C1–C3) — the part to really test
 
-Open a thread, then the **Computer** tab in the workbench column (right). Three widths: Chat / Split /
-Panel. `Ctrl+\` cycles panels; drag the divider; it remembers per thread.
+Open the **Computer** from the topbar's three-way switch. (The workbench column this used to describe —
+Chat / Split / Panel, `Ctrl+\` — is not registered in this build.)
 
 **A first graph (2 minutes).** Add a part → `Note`, type "Paris". Add `Ask`, wire Note → Ask, instruction
 "name three things to see". Add `Collect`, wire Ask → Collect. **Run** (or `Ctrl+Enter`). Each part shows
@@ -162,9 +162,7 @@ for the older plan — §§ on documents/OCR/search describe cancelled work; ign
 
 ## 6. State of the branch
 
-Nothing is committed — the work is a dirty working tree on `lolchat/vnext`, so that you could veto the
-direction before it became history. Say the word and I'll commit it phase by phase and push, which is
-also what makes §1's `git switch` possible on a second machine.
+The work is committed on `lolchat/vnext` and pushed to `origin/lolchat/vnext`.
 
 Automated gates, all green on this box (re-run by me, not taken from the builders' reports):
 
