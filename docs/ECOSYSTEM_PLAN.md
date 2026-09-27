@@ -290,6 +290,36 @@ laptops.
   git over HTTPS.
 - **OWUI**: 0.11.4 bump · bump on each upstream minor.
 
+## 8b. P3b design notes (written 2026-09-28 after P3a, for the next session)
+
+**How a trigger starts a run.** `computer/host.mjs` `start({mode:'from', seeds:[partId]})` runs a box and
+everything after it. Pressed mid-run, it **merges** its seeds into the live run (`runner.addToRun`) rather
+than being refused. An event is therefore an automatic ▶ on the Trigger box. No new scheduler is needed.
+
+**The Trigger box.** A "bring" box with a transport select:
+- OSC in (a UDP port), MQTT subscribe (broker, topic), WebSocket (an outbound client to a device's
+  `ws://`), and schedule (every N seconds).
+- Serial read waits for the Web Serial work (P3a-2).
+
+The listener lives in the **main process**, beside `outputs.ts` (a new `inputs.ts`: dgram / net / the
+global WebSocket), so there is one place that opens sockets. Main pushes events to the renderer on one
+channel (`lol:io:event`, a preload `onEvent` with the id-scoped payload).
+
+**The policy** (plan §4.2, critic must-change 7):
+1. Listeners run only while the graph is **armed**, the same arming as the outputs, and only while the
+   Computer is **shown**. Hiding it or closing the window stops them.
+2. A trigger keeps only its **latest** event while a run is busy. The merge carries the newest value, and
+   older ones are dropped and counted on the face ("12 events, 11 merged").
+3. Each armed graph has an **hourly generation budget** (default 60, a run-bar field). Past it, events
+   still update the Trigger's value but start nothing, and the bar says why.
+4. **Nothing stays armed after a quit**: main disarms on every reload, as P3a does.
+5. **Inbound listeners bind only to the interface a person picks** (loopback by default). The Trigger face
+   shows "listening on 0.0.0.0:9001" in plain words when the person chose the LAN.
+
+**Tests.** A harness scenario sends a real OSC packet to the Trigger's port, and checks that the run
+happens and that the downstream Send (dry run) reports the value. A second one hammers 50 events in a
+second: exactly one run is live at a time, the last value wins, and the budget stops runs at its limit.
+
 ## 9. Feedback loop
 
 **v1 → critic** ([reviews/ECOSYSTEM_PLAN_CRITIC_2026-09-27.md](reviews/ECOSYSTEM_PLAN_CRITIC_2026-09-27.md))
