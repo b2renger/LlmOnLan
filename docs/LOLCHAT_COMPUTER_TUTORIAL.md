@@ -62,6 +62,7 @@ for you, and nothing ticks by accident.
 | **2. wires carry values** | A box runs when the boxes that feed it have finished. | two per pass |
 | **3. arrow labels are names** | Name an arrow, and the Instruction can use that name. | one per run |
 | **4. make a picture** | Ask the model for an SVG, and watch it drawn. | one |
+| **5. code counts, the model names** | A Code box adds up a table; the model says what the totals show, in words only. | one per run |
 | **Research → problematic** (template) | One topic, five angles of research, one problematic, two design concepts. | about 8 |
 | **Creative coding** (template) | A brief becomes a p5.js sketch you can run, read and edit. | about 1 |
 | **Read the news** (template) | The Hacker News front page, labelled by the model from **your** categories, counted by code, charted as an SVG that answers **your** question. A copy of the page ships with it, so it runs offline too. | about 2 |
@@ -633,7 +634,7 @@ To report a bug: press **● Record log**, reproduce it, press **⚑ Mark bug**,
 
 ## What is not built yet
 
-- **Lessons 5–12** and the other templates from the plan. The shelf takes them as data files.
+- **Lessons 6–12** and the other templates from the plan. The shelf takes them as data files.
 - **A sound reaching a model**, and **a PDF sent to a model as a PDF** (a PDF always goes as text
   read by the farm).
 - **Boxes inside a Section do not move with it**, and **wires are grey**, not the colour of what

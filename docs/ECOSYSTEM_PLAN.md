@@ -260,7 +260,8 @@ Learn shelf**.
 | P5 Studio IDE | not started (P5-0: the DeepSeek Harness spike) | — |
 | P6 Home | not started (Home Assistant over the farm's MQTT bus is now possible) | — |
 
-Lessons 5–12 are still unbuilt; the templates and the ? examples carry the new capabilities for now.
+Lesson 5 (*code counts, the model names* — the numbers rule) is built (2026-09-28, on main); lessons 6–12 are still
+unbuilt, and the templates and the ? examples carry the new capabilities for now.
 
 Windows rig items the critic added: the firewall prompt (OSC-in, LAN serve), USB-serial drivers
 (CH340/CP210x need admin), paths with spaces in git and dsh, and Art-Net interface choice on multi-NIC

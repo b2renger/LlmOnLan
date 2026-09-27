@@ -98,4 +98,5 @@ export default {
       data: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300"><rect width="400" height="300" fill="#bfe3f2"/><circle cx="320" cy="70" r="36" fill="#f2b134"/><path d="M0 230 Q100 150 200 220 T400 210 V300 H0 Z" fill="#5b8c5a"/><path d="M0 260 Q120 200 260 250 T400 240 V300 H0 Z" fill="#4a7a49"/><rect x="150" y="170" width="70" height="55" fill="#e8d8c0"/><path d="M140 172 L185 135 L230 172 Z" fill="#b3452c"/><rect x="176" y="195" width="18" height="30" fill="#7a5a3a"/></svg>',
     },
   },
+  next: 'l05-code-counts',
 };

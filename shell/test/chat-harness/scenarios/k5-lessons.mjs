@@ -202,10 +202,10 @@ export default [
                 templates: Array.from(document.querySelectorAll('#lolcomputer .comp-template[data-template]'))
                     .map((el) => ({ id: el.getAttribute('data-template'), text: el.textContent, visible: !!(/** @type {any} */ (el).offsetParent) })),
             }));
-            h.eq(shelf.lessons.map((/** @type {any} */ l) => l.id).join(','), 'l00-tour,l01-hello-farm,l02-wires,l03-labels,l04-draw', 'the Tour, then lessons 1–4, in order');
+            h.eq(shelf.lessons.map((/** @type {any} */ l) => l.id).join(','), 'l00-tour,l01-hello-farm,l02-wires,l03-labels,l04-draw,l05-code-counts', 'the Tour, then lessons 1–5, in order');
             h.eq(shelf.templates.map((/** @type {any} */ x) => x.id).join(','), 'research-problematic,creative-coding,read-the-news,analyse-a-dataset,ask-a-dataset,ask-out-loud,talk-to-a-board,board-on-wifi', 'the eight templates');
             for (const row of [...shelf.lessons, ...shelf.templates]) h.assert(row.visible, `${row.id} is on screen`);
-            for (const [id, words] of [['l01-hello-farm', 'hello, farm'], ['l02-wires', 'wires carry values'], ['l03-labels', 'arrow labels are names'], ['l04-draw', 'make a picture']]) {
+            for (const [id, words] of [['l01-hello-farm', 'hello, farm'], ['l02-wires', 'wires carry values'], ['l03-labels', 'arrow labels are names'], ['l04-draw', 'make a picture'], ['l05-code-counts', 'code counts, the model names']]) {
                 const row = shelf.lessons.find((/** @type {any} */ l) => l.id === id);
                 h.assert(row.text.includes(words), `${id} is named on the shelf: ${row.text}`);
             }
@@ -373,7 +373,8 @@ export default [
             h.eq((await part(h, 'p_svg')).settings.locked, true, 'the lock on the SVG box keeps its code');
             await waitStep(h, 'done', 'the lock finishes the lesson');
             const rail = await h.computer.tutorial.rail();
-            h.assert(!rail.next, 'the last lesson points nowhere it cannot go');
+            // Lesson 4 is no longer the last (lesson 5, 2026-09-28): its end offers the next one.
+            h.assert(/code counts/.test(String(rail.next || '')), `lesson 4's end points at lesson 5: ${rail.next}`);
             h.eq((await completions(h)).length, 1, 'one generation');
         },
     },
@@ -531,7 +532,7 @@ export default [
                 if (seen.overlap.length) problems.push(`${what}: boxes drawn on top of each other: ${seen.overlap} (grown: ${seen.grown})`);
                 if (lesson && seen.covered.length) problems.push(`${what}: the rail covers ${seen.covered}`);
             };
-            for (const id of ['l01-hello-farm', 'l02-wires', 'l03-labels', 'l04-draw']) {
+            for (const id of ['l01-hello-farm', 'l02-wires', 'l03-labels', 'l04-draw', 'l05-code-counts']) {
                 await openLesson(h, id);
                 await h.waitFor(() => (document.querySelector('#lolcomputer .comp-rail .comp-rail-text') ? true : null), { timeout: 5000 });
                 judge(id, await layout(h, namedBy(lessonById(id))), true);
@@ -547,6 +548,41 @@ export default [
             }
             h.eq(problems.join(' || '), '', 'every lesson and template opens framed, readable, and with nothing under the rail');
             h.eq((await completions(h)).length, 0, 'opening lessons and templates asks the farm nothing');
+        },
+    },
+
+    {
+        // Lesson 5 (2026-09-28): the Code box counts in the REAL sandbox with no farm at all; only the sentence
+        // is a saved answer — and an edit to the table re-counts.
+        name: 'k5-lessons-code-counts-with-the-farm-absent-the-sandbox-counts-and-an-edit-recounts',
+        needsMock: true,
+        timeoutMs: 90000,
+        allowConsoleErrors: FARM_ERRORS,
+        async run(/** @type {any} */ h) {
+            await h.fresh();
+            await open(h);
+            await noFarm(h);
+            await openLesson(h, 'l05-code-counts');
+
+            h.eq((await h.computer.wire('p_data', 'p_code', 'in')).ok, true, 'the table wires into the Code box');
+            await waitStep(h, 1, 'the wire ticks step 1');
+            await play(h, 'p_code');
+            h.eq((await part(h, 'p_code')).value.data, { apples: 17, pears: 10, plums: 9 }, 'the sandbox added up the table');
+            await waitStep(h, 2, 'the count ticks step 2');
+
+            h.eq((await h.computer.wire('p_code', 'p_say', 'in')).ok, true);
+            await play(h, 'p_say');
+            h.eq((await part(h, 'p_say')).state, 'error', 'no farm: the sentence cannot be written');
+            h.eq(await useSaved(h), 'p_say', 'the rail offers the saved sentence');
+            await waitStep(h, 3, 'the saved answer ticks step 3');
+
+            await h.computer.set('p_data', { text: 'fruit,crates\napples,12\nplums,40' });
+            await play(h, 'p_data');
+            h.eq((await part(h, 'p_code')).value.data, { apples: 12, plums: 40 }, 'the edit re-counted, in code');
+            if ((await part(h, 'p_say')).state === 'error') h.eq(await useSaved(h), 'p_say');
+            else { await play(h, 'p_say'); h.eq(await useSaved(h), 'p_say'); }
+            await waitStep(h, 'done', 'the re-count and the saved sentence finish the lesson');
+            h.eq((await completions(h)).length, 0, 'with no farm, nothing was sent anywhere');
         },
     },
 ];

@@ -24,7 +24,7 @@ import '../../../renderer/chat/strings/lessons.en.mjs';
 
 const SPECS = specMap();
 const PRESETS = new Map(creativePresets().map((p) => [p.id, p]));
-const MINE = ['l01-hello-farm', 'l02-wires', 'l03-labels', 'l04-draw'];
+const MINE = ['l01-hello-farm', 'l02-wires', 'l03-labels', 'l04-draw', 'l05-code-counts'];
 
 /** The ONE rail-shaped corner of the canvas (COMPUTER_PLAN §10.1 mechanism 2: bottom-left,
  * ~300 px), in screen px, and the canvas the harness window gives the Computer (1280×860 minus
@@ -124,9 +124,9 @@ const fenced = (lang, code) => `Here you go:\n\n\`\`\`${lang}\n${code}\n\`\`\`\n
 export default (test) => {
   // ---- the shelf ------------------------------------------------------------------------------
 
-  test('the shelf: the Tour then lessons 1–4 in order, each pointing at the next, and three templates', () => {
+  test('the shelf: the Tour then lessons 1–5 in order, each pointing at the next, and the templates', () => {
     assert.deepEqual(LESSONS.map((l) => l.id), ['l00-tour', ...MINE]);
-    assert.deepEqual(LESSONS.map((l) => l.n), [0, 1, 2, 3, 4], 'n is the shelf number');
+    assert.deepEqual(LESSONS.map((l) => l.n), [0, 1, 2, 3, 4, 5], 'n is the shelf number');
     for (let i = 0; i < LESSONS.length - 1; i++) assert.equal(LESSONS[i].next, LESSONS[i + 1].id, `${LESSONS[i].id} → next`);
     assert.equal(LESSONS[LESSONS.length - 1].next, undefined, 'the last lesson ends the shelf');
     assert.deepEqual(TEMPLATES.map((x) => x.id), ['research-problematic', 'creative-coding', 'read-the-news', 'analyse-a-dataset', 'ask-a-dataset', 'ask-out-loud', 'talk-to-a-board', 'board-on-wifi']);
@@ -454,6 +454,47 @@ export default (test) => {
     const svg = lessonById('l04-draw').doc.parts.find((p) => p.id === 'p_svg');
     assert.equal(presetOf(svg), 'svg', 'the box the lesson ships IS the ＋ menu\'s "SVG"');
     assert.ok(svg.settings.source.includes('#e4572e'), 'step 2 names a colour that is really in the code');
+  });
+
+  // ---- lesson 5 -------------------------------------------------------------------------------
+
+  test('lesson 5: the table → code adds it up → the model answers in words; an edit re-counts', () => {
+    const lesson = lessonById('l05-code-counts');
+    const s = learner(lesson);
+    s.ran('p_code');
+    assert.equal(s.at(), 's1', 'running the Code box before the table is wired ticks nothing');
+    s.wire('p_data', 'p_code', 'in');
+    assert.equal(s.at(), 's2');
+    s.ran('p_code');
+    assert.equal(s.at(), 's3');
+    s.wire('p_code', 'p_say', 'in');
+    assert.equal(s.at(), 's3', 'the wire alone is half of step 3');
+    s.ran('p_say');
+    assert.equal(s.at(), 's4');
+    s.set('p_data', { text: 'fruit,crates\napples,12\nplums,40' });
+    s.ran('p_data', 'p_code', 'p_say');
+    assert.equal(s.at(), 'done');
+    // The program the lesson ships really counts — the numbers the learner sees are the table's.
+    const code = lesson.doc.parts.find((/** @type {any} */ p) => p.id === 'p_code').settings.code;
+    const table = lesson.doc.parts.find((/** @type {any} */ p) => p.id === 'p_data').settings.text;
+    assert.deepEqual(new Function('inputs', code)({ in: [table] }), { apples: 17, pears: 10, plums: 9 });
+    assert.deepEqual(new Function('inputs', code)({ in: ['fruit,crates\napples,12\nplums,40'] }), { apples: 12, plums: 40 });
+    assert.match(lesson.doc.parts.find((/** @type {any} */ p) => p.id === 'p_say').settings.instruction, /never write a number/);
+  });
+
+  test('lesson 5 walks to done with the farm absent: the code still counts, the sentence is the saved one', () => {
+    const s = learner(lessonById('l05-code-counts'));
+    s.wire('p_data', 'p_code', 'in');
+    s.ran('p_code');
+    s.wire('p_code', 'p_say', 'in');
+    s.failed('p_say');
+    assert.equal(s.at(), 's3', 'a failed run ticks nothing');
+    s.demo('p_say');
+    assert.equal(s.at(), 's4', 'a saved answer counts');
+    s.set('p_data', { text: 'fruit,crates\nplums,40' });
+    s.ran('p_data', 'p_code');
+    s.demo('p_say');
+    assert.equal(s.at(), 'done');
   });
 
   // ---- the templates --------------------------------------------------------------------------
