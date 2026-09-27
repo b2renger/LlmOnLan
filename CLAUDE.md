@@ -14,7 +14,10 @@
 
 ---
 
-## Build status (2026-09-27) — client `v0.1.45` + the Computer (on `main`) · Farm app `farm-v0.0.38` · OWUI `0.10.2`
+## Build status (2026-09-27) — released: client `v0.1.45` · Farm app `farm-v0.0.38` · OWUI `0.10.2`
+
+> `main` is ahead of both tags: LOL Chat vNext, the Computer and the 2026-09-27 review fixes (client and
+> farm) are merged but unreleased until the next `v*` / `farm-v*` tag. The bullets below describe `main`.
 
 The full plan is built, released and in multi-user testing; the dated build log with how
 each piece was tested lives in [docs/DEVLOG.md](docs/DEVLOG.md), the rig‑verification state in
@@ -29,7 +32,7 @@ docs) is `docs/reviews/DOCS_REVIEW_2026-09-27_{FARM,SHELL,COMPUTER}.md`. Snapsho
   - **Ollama — the default.** Serves the `models` catalog, default **`gemma4:12b`** (vision-native, also the
     OCR model; its sliding-window attention holds its native 262144 context in ~10 GB). `ollama.contextLength:
     'auto'` MEASURES the largest `num_ctx` that stays fully in VRAM: loads the default at 16k and 32k, takes
-    the per-token slope from `/api/ps`, aims at min(model native max, VRAM − 8%) and verifies with one more
+    the per-token slope from `/api/ps`, aims at min(model native max, VRAM − max(1 GB, 8%)) and verifies with one more
     load (one halving then 16k if that spills; 8k/4k if even 16k spills). The verdict caches per (model, VRAM,
     numParallel, kvCacheType). Per-arch KV math is deliberately NOT used (Gemma's sliding window makes it
     wildly over-estimate). It is applied as per-deployment `num_ctx` in the generated routing (+ the
@@ -54,9 +57,11 @@ docs) is `docs/reviews/DOCS_REVIEW_2026-09-27_{FARM,SHELL,COMPUTER}.md`. Snapsho
     installs/starts/restarts it. Health = `GET {baseUrl}/models`: unreachable at boot → fallback; dies later →
     the farm goes unhealthy and clients fail over. `contextLength`/`parallel` are operator DECLARATIONS (no
     portable endpoint reports them); they size the client RAG gate and the seats. While it serves, the panel's
-    Ollama/capacity/context controls stand down.
-  - The advertised name survives an engine switch and a fallback (`carryNameAcross`, per-model Ollama names
-    included), so bound chats keep working.
+    engine, capacity and context controls stand down; the Ollama catalog stays editable as standby edits.
+  - A name the operator GAVE the served model (per-model Rename, `modelAlias`, `llamacpp.alias`) survives an
+    engine switch and a fallback (`carryNameAcross`, `engineFallback`), so bound chats keep working. An
+    unnamed default is served under its raw id on Ollama (`gemma4:12b`) and as `llamacpp.alias` on llama.cpp,
+    so chats bound to it re-pick after a switch; non-default catalog models are never served under llama.cpp.
   - **Seat gate** (2026-09-04, `proxy.seatGate` default true): the public `proxy.port` is the farm's own
     streaming listener (`seats.js`) with LiteLLM on `127.0.0.1:proxy.internalPort` (default port+1). An IP's
     completions claim/refresh a seat (capacity = the serving engine's slots); a seat idle `proxy.seatIdleSec`
@@ -216,6 +221,13 @@ If a task seems to require breaking one of these, **stop and flag it**.
    run smoke tests. **No LOL code changes.** If an upgrade forces a code change in our shell,
    that's a separation defect to redesign, not absorb.
 
+> **Open wording question for the owner (2026-09-27 review; the invariants are left verbatim):**
+> - #3 says data lives "under a local `DATA_DIR`". It does stay on the client machine, but LOL Chat's
+>   history and the Computer's graphs live in the app's IndexedDB (userData), outside DATA_DIR, so a
+>   data-folder move does not carry them.
+> - #4 says "admin REST API". The only shipped REST writes use OWUI's **user-settings** API, plus two
+>   auth/config reads. The admin API is never used.
+
 ---
 
 ## The integration contract (the entire OWUI coupling)
@@ -272,7 +284,8 @@ Connection: `OPENAI_API_BASE_URL` + `OPENAI_API_KEY` (the farm is OpenAI‑compa
   parsed from env at startup (open‑webui#19017). Use the simple `*_BASE_URL(S)` env as the seed.
 
 Data locality:
-- `DATA_DIR` → user‑chosen local folder (all persistent data lives here).
+- `DATA_DIR` → user‑chosen local folder (all of OWUI's persistent data lives here; LOL Chat's history and the
+  Computer's graphs live in the app's IndexedDB — see the data-flow section).
 - **Keep default local embeddings** — we set **neither** `RAG_EMBEDDING_ENGINE` **nor**
   `RAG_EMBEDDING_MODEL`, so OWUI's in‑process default applies (`all-MiniLM-L6-v2`,
   cached in the default HF_HOME — `~/.cache/huggingface`, deliberately NOT under `DATA_DIR` so a
@@ -295,7 +308,8 @@ engine (inference must go to the farm, not the laptop).
 Node CLI, npm‑style (mirrors ComfyQ's config‑driven Node server). Single source of truth is a
 declarative config; the CLI orchestrates everything from it.
 
-`lol.config.json` (example — every key has a default; a real file holds only what differs):
+`lol.config.json` (example — every key has a default; the Farm app writes only what differs, while `lol init` /
+`lol install` scaffold the full default):
 ```jsonc
 {
   "name": "Studio Farm",                 // friendly name shown in the client
@@ -408,13 +422,14 @@ mDNS because ComfyQ proved multicast alone is flaky across consumer APs, and thi
   a unicast `/lol/self` sweep of the **search range** (default: the first non-internal IPv4's subnet; every
   60 s, 48 parallel, 1.5 s timeout, ≤4096 hosts); manual `host[:httpPort]` peers (default 41997, kept even
   when stale). The active farm is re-polled every 2 s; stale after 12 s, dropped after 120 s. Choice
-  (`farmSelect.ts`, one `connectTo()` that saves the whole farm context, password included): the pinned
+  (pure rules in `farmSelect.ts`; `index.ts` `connectTo()` saves the whole farm context, password included): the pinned
   farm → the current one (sticky) → last session's endpoint → the least-loaded healthy farm (coordinators
   first; load = clients/slots, else GPU%; ties within 15 points picked at random). Clicking a farm card pins
   it; the popover's "Automatic — least busy farm" row removes the pin; entering a password does not pin. A
   farm seen under two addresses keeps the one it was first reached at while that one answers (it moves
-  only after 12 s of silence). A password-protected farm qualifies only with a verified stored password
-  (re-checked ≤1/min).
+  only after 12 s of silence). The least-busy pick skips a password-protected farm
+  without a verified stored password (re-checked ≤1/min); a pinned, current or last-session farm is used
+  anyway, and after a rotated password main drops the stale key and the farm card asks again.
   `LOL_ENDPOINT` pins an endpoint (dev); `LOL_FED_GROUP/PORT/HTTP_PORT` override the group and ports.
 - **Fallbacks (mirror ComfyQ's controls):** manual add‑by‑address and the subnet sweep ("search range") —
   unicast crosses subnets that block broadcast. There is no baked-in address.
@@ -581,7 +596,10 @@ LlmOnLan/
   completion (from OWUI, LOL Chat, or a Computer Instruction — with an Image box's pixels when wired);
   web‑search queries to the farm's SearXNG (result pages are then fetched directly); TTS requests when
   the farm hosts Kokoro; and — with the default‑on farm OCR — an uploaded file's (or a Computer Document
-  box's) raw bytes, for text **extraction only** (the extracted text embeds locally).
+  box's) raw bytes, for text **extraction only** (the extracted text embeds locally); presence heartbeats
+  (`POST /lol/client-ping` every 10 s: hostname, platform, version, idle seconds).
+- **Beyond the farm (no user content):** GitHub, for the app update check and the chat-engine (sidecar)
+  download/update check; huggingface.co, until MiniLM and whisper-base are cached (then `HF_HUB_OFFLINE=1`).
 - **Never sent anywhere:** documents for **embedding** (local model), a Computer Sound box, and
   telemetry (off).
 
@@ -594,7 +612,8 @@ promise — flag it.
 
 **Do:** keep first‑party code in `shell/` and `farm/`; treat OWUI as an external product configured from
 outside; re‑verify the config surface on each version bump; keep env authoritative every launch
-(`ENABLE_PERSISTENT_CONFIG=false` — the admin API only for what env can't do, e.g. tool servers);
+(`ENABLE_PERSISTENT_CONFIG=false` — OWUI's user-settings REST API only for what env can't do: the
+web-search default and the tool server; never the admin API);
 default to local‑only; apply ComfyQ tokens to shell surfaces only.
 
 **Don't:** edit/fork/patch OWUI source; store user data server‑side or send documents to the farm for
