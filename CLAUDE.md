@@ -146,7 +146,7 @@ docs) is `docs/reviews/DOCS_REVIEW_2026-09-27_{FARM,SHELL,COMPUTER}.md`. Snapsho
   answering from anywhere on the Computer, never while typing. What leaves the machine: prompt text and an
   Image's pixels inside the Instruction's chat completion to the farm; a Document's PDF bytes to the farm
   OCR for text only; a Sound is never sent; a **Fetch** box (2026-09-27) sends ONE GET to the address a person
-  typed — run in main (): http(s), never loopback/link-local/farm ports, ≤ 1 MB text, keeps
+  typed — run in main (`src/main/io.ts`): http(s), never loopback/link-local/farm ports, ≤ 1 MB text, keeps
   its last copy offline. Where data lives: all of it in DATA_DIR — graphs and their
   files in the renderer's IndexedDB (`lol-chat` → `graphs`, `attachments`), which is the main window's
   session at `<DATA_DIR>/lol-client`, and File-box outputs in `<DATA_DIR>/LOL Studio Projects/` (one
