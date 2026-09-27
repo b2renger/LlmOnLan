@@ -39,6 +39,27 @@ const WS_GUID = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11';
 
 // ---- topics (MQTT 3.1.1 §4.7) ----------------------------------------------------------------------
 
+/**
+ * PURE: may a WebSocket from this Origin use the bus? No Origin (a board, a script), `null` or `file://` (the
+ * LlmOnLan Computer's page) and a page on this network — loopback, a private or link-local address, a
+ * one-label name, `*.local` — yes; a page from the public web, no (critic N3).
+ */
+function originOk(origin) {
+    if (origin === undefined || origin === null || origin === '' || origin === 'null') return true;
+    let u;
+    try { u = new URL(String(origin)); } catch { return false; }
+    if (u.protocol === 'file:') return true;
+    if (u.protocol !== 'http:' && u.protocol !== 'https:') return false;
+    const h = u.hostname.replace(/^\[|\]$/g, '').toLowerCase();
+    if (h === 'localhost' || h.endsWith('.local') || (!h.includes('.') && !h.includes(':'))) return true;
+    if (net.isIPv4(h)) {
+        const [a, b] = h.split('.').map(Number);
+        return a === 10 || a === 127 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 169 && b === 254);
+    }
+    if (net.isIPv6(h)) return h === '::1' || /^f[cd]/.test(h) || /^fe[89ab]/.test(h);
+    return false;
+}
+
 function validTopic(t) {
     return typeof t === 'string' && t.length > 0 && Buffer.byteLength(t) <= 65535 && !/[+#\u0000]/.test(t);
 }
@@ -259,7 +280,10 @@ function startBus({ host = '0.0.0.0', mqttPort = 1883, wsPort = 8893, oscPort = 
 
     function onMqttPacket(c, type, flags, body) {
         const r = reader(body);
-        const ack = (first, pid) => c.socket.write(Buffer.from([first, 2, pid >> 8, pid & 255]));
+        // Every reply goes through here (critic N2): a client that sends and never reads is dropped once
+        // SLOW_BYTES of replies wait for it, instead of growing the bus process until it dies.
+        const reply = (buf) => { if (c.socket.writableLength >= SLOW_BYTES) c.socket.destroy(); else c.socket.write(buf); };
+        const ack = (first, pid) => reply(Buffer.from([first, 2, pid >> 8, pid & 255]));
         if (!c.connected) {
             if (type !== 1) throw new Error('the first packet must be CONNECT');
             return onConnect(c, r);
@@ -293,7 +317,7 @@ function startBus({ host = '0.0.0.0', mqttPort = 1883, wsPort = 8893, oscPort = 
                     codes.push(ok ? 0 : 0x80);
                 }
                 if (!codes.length) throw new Error('empty SUBSCRIBE');
-                return c.socket.write(mqttPacket(0x90, Buffer.from([pid >> 8, pid & 255, ...codes])));
+                return reply(mqttPacket(0x90, Buffer.from([pid >> 8, pid & 255, ...codes])));
             }
             case 10: {                                   // UNSUBSCRIBE → UNSUBACK
                 if (flags !== 2) throw new Error('bad UNSUBSCRIBE flags');
@@ -301,7 +325,7 @@ function startBus({ host = '0.0.0.0', mqttPort = 1883, wsPort = 8893, oscPort = 
                 while (r.more()) c.filters.delete(r.str());
                 return ack(0xb0, pid);
             }
-            case 12: return c.socket.write(Buffer.from([0xd0, 0]));   // PINGREQ → PINGRESP
+            case 12: return reply(Buffer.from([0xd0, 0]));            // PINGREQ → PINGRESP
             case 14: return c.socket.end();                            // DISCONNECT
             case 4: case 5: case 7: return;              // acks of QoS > 0 deliveries, which we never send
             default: throw new Error('unexpected packet');
@@ -359,6 +383,9 @@ function startBus({ host = '0.0.0.0', mqttPort = 1883, wsPort = 8893, oscPort = 
         const wsKey = req.headers['sec-websocket-key'];
         if (String(req.headers.upgrade).toLowerCase() !== 'websocket' || !wsKey || req.headers['sec-websocket-version'] !== '13') return reject('400 Bad Request');
         if (wsConns.size >= MAX_CLIENTS) { once('cap ws', `WebSocket: ${MAX_CLIENTS} connections — refusing more (said once)`); return reject('503 Service Unavailable'); }
+        // A browser says where the page came from: a page from the public web may not use the bus (critic N3 —
+        // on an open farm any site a LAN user opened could publish to the topics boards act on).
+        if (!originOk(req.headers.origin)) { refused('WebSocket (origin)', ip); return reject('403 Forbidden'); }
         let given = null;
         try { given = new URL(req.url, 'http://bus').searchParams.get('key'); } catch { /* no key */ }
         if (!keyOk(given)) {
@@ -468,9 +495,12 @@ function startBus({ host = '0.0.0.0', mqttPort = 1883, wsPort = 8893, oscPort = 
 
     function onOsc(m, rinfo) {
         if (m.address === '/lol/listen' || m.address === '/lol/unlisten') {
-            // An integer argument is a reply port: the messages go to this address at that port instead of
-            // back to the sending port (TouchDesigner and Max send from one port and listen on another).
-            const replyPort = m.args.find((a) => Number.isInteger(a) && a > 0 && a < 65536);
+            // A reply port: the messages go to this address at that port instead of back to the sending port
+            // (TouchDesigner and Max send from one port and listen on another). With a password it is the THIRD
+            // argument only — a password typed as a number must not become the port (critic N4); an open farm,
+            // and /lol/unlisten (no password): the first integer.
+            const portArg = password && m.address === '/lol/listen' ? m.args[2] : m.args.find((a) => Number.isInteger(a));
+            const replyPort = Number.isInteger(portArg) && portArg > 0 && portArg < 65536 ? portArg : null;
             const to = { address: rinfo.address, port: replyPort || rinfo.port };
             const at = `${to.address}:${to.port}`;
             const filter = typeof m.args[0] === 'string' && m.args[0] ? m.args[0] : null;
@@ -482,7 +512,8 @@ function startBus({ host = '0.0.0.0', mqttPort = 1883, wsPort = 8893, oscPort = 
                 return;
             }
             if (!validFilter(filter)) return;
-            if (!keyOk(m.args[1])) return refused('OSC', rinfo.address);
+            // A password sent as an OSC int or float is compared as its text (critic N4).
+            if (!keyOk(m.args[1] == null ? null : String(m.args[1]))) return refused('OSC', rinfo.address);
             if (!l) {
                 if (oscListeners.size >= MAX_CLIENTS) return once('cap osc', `OSC: ${MAX_CLIENTS} listeners — refusing more (said once)`);
                 l = { filters: new Set(), expires: 0 };
@@ -629,6 +660,6 @@ if (require.main === module) {
 
 module.exports = {
     startBus, spawnBus, sendKey, busAlive, waitForBus,
-    topicMatches, validTopic, validFilter, toData, toPayload, oscEncode, oscDecode, mqttPacket,
+    topicMatches, validTopic, validFilter, originOk, toData, toPayload, oscEncode, oscDecode, mqttPacket,
     MAX_CLIENTS, MAX_PACKET, MAX_RATE,
 };

@@ -2381,6 +2381,7 @@ async function run(args) {
                 return { ok: false, error: 'The proxy did not come back — kept the previous setting.' };
             }
             if (beacon) beacon.kick();
+            sendBusKey(svcById.bus.child, config.proxy.masterKey);   // the bus hears a new password now, not at the next tick (critic N1)
             return { ok: true, message: clean
                 ? `Password set. Clients now ask for it before connecting.${warn || ''}`
                 : `Password removed — the farm is open to the LAN again.${warn || ''}` };
@@ -2466,6 +2467,7 @@ async function run(args) {
                     return { ok: false, error: `${err} Reverted — nothing changed.` };
                 }
                 if (beacon) beacon.kick();
+                sendBusKey(svcById.bus.child, config.proxy.masterKey);   // the bus hears a new password now, not at the next tick (critic N1)
                 return { ok: true, message: `Applied in one restart: ${applied.join(' · ')}.` };
             }
             // Ollama engine: everything lands in the routing → ONE proxy bounce.
@@ -2539,6 +2541,7 @@ async function run(args) {
                 return { ok: false, error: 'The proxy did not come back — reverted everything.' };
             }
             if (beacon) beacon.kick();
+            sendBusKey(svcById.bus.child, config.proxy.masterKey);   // the bus hears a new password now, not at the next tick (critic N1)
             return { ok: true, needsFarmRestart, message: `Applied in one restart: ${applied.join(' · ')}.` };
         });
     }

@@ -82,6 +82,11 @@ export function startMcpServer(deps: McpDeps, port = MCP_PORT): Promise<http.Ser
             res.end(body ? JSON.stringify(body) : '');
         };
         if ((req.url || '').split('?')[0] !== MCP_PATH) return send(404, { error: 'not found' });
+        // Defence in depth behind the bearer (critic N5; the MCP spec asks servers to check where a request came
+        // from): only a request addressed to THIS loopback server — a rebound DNS name carries another Host.
+        const bound = (server.address() as { port?: number } | null)?.port;
+        const host = String(req.headers.host || '').toLowerCase();
+        if (host !== `127.0.0.1:${bound}` && host !== `localhost:${bound}`) return send(403, { error: 'wrong host' });
         if (!tokenOk(req.headers.authorization, deps.token)) return send(401, { error: 'unauthorized' });
         if (req.method === 'GET') return send(405, { error: 'no server-sent stream: every answer comes in the POST' }, { allow: 'POST' });
         if (req.method === 'DELETE') return send(200, {});

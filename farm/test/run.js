@@ -2330,6 +2330,35 @@ test('bus OSC: /lol/listen <filter> <password> [reply port] relays MQTT as OSC; 
             await waitFor(() => b.counts().osc === 0, 2000, 'the unlisten by reply port');
         } finally { listener.close(); stranger.close(); tdIn.close(); m.end(); w.close(); }
     });
+    // Critic N4: a password a tool types as a NUMBER is compared as text, and never becomes the reply port.
+    await withBus({ key: '4242' }, async (p, b) => {
+        const numeric = await udpSocket();
+        try {
+            numeric.send(busMod.oscEncode('/lol/listen', ['sensors/#', 4242]), p.osc, '127.0.0.1');
+            await waitFor(() => numeric.got.some((x) => x.address === '/lol/listening'), 2000, 'the answer at the SENDING port, not at port 4242');
+            assert.equal(b.counts().osc, 1);
+        } finally { numeric.close(); }
+    });
+});
+
+test('bus WebSocket: a page from the public web is refused; a board, the Computer (null/file) and LAN pages are not (critic N3)', () => {
+    for (const ok of [undefined, '', 'null', 'file://', 'http://localhost:5173', 'http://127.0.0.1:8080', 'http://192.168.1.20', 'http://10.10.16.4:3000',
+        'https://studio-pc', 'http://farm.local', 'http://[::1]:9000', 'http://[fd00::5]']) assert.equal(busMod.originOk(ok), true, String(ok));
+    for (const no of ['https://evil.example', 'http://8.8.8.8', 'http://172.32.0.1', 'chrome-extension://abc', 'not a url']) assert.equal(busMod.originOk(no), false, no);
+});
+
+test('bus WebSocket: the hub itself answers 403 to a public Origin, and still opens for no Origin', async () => {
+    const net = require('net');
+    await withBus({}, async (p) => {
+        const ask = (origin) => new Promise((resolve) => {
+            const s = net.connect(p.ws, '127.0.0.1', () => s.write(`GET / HTTP/1.1\r\nHost: x\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n${origin ? `Origin: ${origin}\r\n` : ''}\r\n`));
+            let got = '';
+            s.on('data', (d) => { got += d; if (got.includes('\r\n\r\n')) { s.destroy(); resolve(got.split('\r\n')[0]); } });
+            s.on('error', () => resolve(got.split('\r\n')[0]));
+        });
+        assert.equal(await ask('https://evil.example'), 'HTTP/1.1 403 Forbidden');
+        assert.equal(await ask(null), 'HTTP/1.1 101 Switching Protocols');
+    });
 });
 
 test('bus: over 200 messages/s per client are dropped (said once); no payload or password ever reaches the log', async () => {

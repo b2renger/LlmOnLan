@@ -126,6 +126,16 @@ export default (test) => {
       assert.ok((await r.json()).result.tools.some((t) => t.name === 'add_box'));
       assert.equal((await post({ authorization: 'Bearer secret-token' }, { jsonrpc: '2.0', method: 'notifications/initialized' })).status, 202);
       assert.equal((await fetch(url, { headers: { authorization: 'Bearer secret-token' } })).status, 405, 'no server-sent stream');
+      // Critic N5: a request addressed to another name (DNS rebinding) is refused, even with the bearer.
+      const http = require('http');
+      const status = await new Promise((resolve, reject) => {
+        const req = http.request({ host: '127.0.0.1', port: srv.address().port, path: '/mcp', method: 'POST',
+          headers: { host: `evil.example:${srv.address().port}`, authorization: 'Bearer secret-token', 'content-type': 'application/json' } },
+        (res) => { res.resume(); resolve(res.statusCode); });
+        req.on('error', reject);
+        req.end(JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'ping' }));
+      });
+      assert.equal(status, 403);
     } finally { srv.close(); }
     const env = JSON.parse(CB.computerToolServer({ url: 'http://127.0.0.1:41995/mcp', token: 'secret-token' }));
     assert.deepEqual([env[0].type, env[0].auth_type, env[0].key, env[0].config.enable, env[0].info.id], ['mcp', 'bearer', 'secret-token', true, 'lol-computer']);
