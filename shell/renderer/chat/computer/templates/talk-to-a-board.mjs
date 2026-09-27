@@ -1,6 +1,6 @@
 // @ts-check
 // Template — Talk to a board (ecosystem plan v2 §8d, P3a-2). DATA only. GENERATED from
-// docs/examples/arduino/lol_serial/lol_serial.ino by shell/scripts/gen-talk-to-a-board.cjs (a unit test keeps
+// docs/examples/arduino/lol_serial/lol_serial.ino by shell/scripts/gen-board-templates.cjs (a unit test keeps
 // the embedded sketch equal to it).
 //
 // Both directions over one USB cable, and the round trip: the Computer tells the board a brightness

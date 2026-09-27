@@ -370,6 +370,16 @@ function createHelpers(ctx) {
             async self() { return (await req('GET', 'http://127.0.0.1:' + ports.self + '/lol/self')).body; },
         },
 
+        io: {
+            /** Answer fixed public addresses from a loopback fixture: {"https://www.data.gouv.fr/": "http://127.0.0.1:P/site/"}, or null. */
+            map(prefixes) {
+                const file = path.join(tmpDir, 'io-map.json');
+                if (!prefixes) { try { fs.unlinkSync(file); } catch (e) { /* already absent */ } return null; }
+                fs.writeFileSync(file, JSON.stringify(prefixes, null, 2));
+                return prefixes;
+            },
+        },
+
         blender: {
             set(conn) {
                 const file = path.join(tmpDir, 'blender.json');

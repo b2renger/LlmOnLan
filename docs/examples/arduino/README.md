@@ -9,6 +9,10 @@ on your own network. Nothing here goes to the internet.
 | [`lol_serial/`](lol_serial/lol_serial.ino) | Arduino Uno / Nano, ESP32 | Both ways over the USB cable: the Computer sets an LED; the board sends a light-sensor reading as one JSON line every 500 ms. |
 | [`lol_mqtt/`](lol_mqtt/lol_mqtt.ino) | ESP32 | Both ways over Wi-Fi, through the farm's message bus (MQTT): the board publishes `{"light":…}` on `lol/<board>/light` every second and sets its LED from `lol/<board>/led`. Needs the **PubSubClient** library and the farm's *Message bus* plugin. |
 
+**Compile-checked** on 2026-09-27 with arduino-cli 1.5.2, all warnings on, none in these sketches (not yet
+uploaded to a board): `lol_serial` on the Uno and the Nano (arduino:avr 1.8.8 — 7 KB of 32 KB, 352 bytes of
+RAM) and on an ESP32 (esp32:esp32 3.3.12); `lol_mqtt` on an ESP32 with PubSubClient 2.8.0 (70% of the flash).
+
 ## Using `lol_serial`
 
 1. Install the [Arduino IDE](https://www.arduino.cc/en/software) (for an ESP32, add the *esp32 by
@@ -39,6 +43,8 @@ the Computer only sends what you wire into Send and hands on whatever line the b
 5. In the Computer: a **Send** box with *Send by: the farm's message bus* writes to `lol/<board>/led`, a
    **Receive** box on `lol/+/light` hands on the readings, and a **Trigger** box on a topic starts a run on
    each message (only while you have armed the outputs).
+
+**Learn → Templates → A board on Wi-Fi** in the Computer wires this round trip, with the sketch in a Text box.
 
 The farm keeps nothing: a message goes to whoever is subscribed at that moment, and is gone. With a farm
 password, the board needs it too (username `lol`); a board with the wrong one sees state `5` in the Serial

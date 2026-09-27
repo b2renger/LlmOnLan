@@ -93,7 +93,7 @@ export default (test) => {
     const fs = await import('node:fs');
     const url = new URL('../../../../docs/examples/arduino/lol_serial/lol_serial.ino', import.meta.url);
     const { SKETCH, default: tpl } = await import('../../../renderer/chat/computer/templates/talk-to-a-board.mjs');
-    assert.equal(SKETCH, fs.readFileSync(url, 'utf8').replace(/\r\n/g, '\n'), 'the sketch changed: run node scripts/gen-talk-to-a-board.cjs');
+    assert.equal(SKETCH, fs.readFileSync(url, 'utf8').replace(/\r\n/g, '\n'), 'the sketch changed: run node scripts/gen-board-templates.cjs');
     const decide = new Function('inputs', tpl.doc.parts.find((/** @type {any} */ p) => p.id === 'b_decide').settings.code);
     assert.equal(decide({ in: [{ light: 120 }] }), 'led 1', 'dark: the LED goes on');
     assert.equal(decide({ in: [{ light: 800 }] }), 'led 0');

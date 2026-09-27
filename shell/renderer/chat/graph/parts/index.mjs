@@ -65,6 +65,8 @@ import { documentPart } from './document.mjs';
 import { audioPart } from './audio.mjs';
 // Ecosystem plan v2 §4.2: the way in for web data (one GET, checked in main).
 import { fetchPart } from './fetch.mjs';
+// Owner, 2026-09-27: a data.gouv.fr dataset from a pasted link (its description, profile and rows).
+import { openDataPart } from './opendata.mjs';
 // Ecosystem plan v2 §3.2: Laya on the farm, one multiple-choice question per item.
 import { classifyPart } from './classify.mjs';
 // Ecosystem plan v2 §3.3: says what arrives, with the farm's voice or this computer's.
@@ -105,7 +107,7 @@ const LEGACY = [fromThread, toThread, render];
  * @returns {PartSpec[]} */
 export function partSpecs() {
   return [textPart, instruction, classifyPart, splitPart, repeat, filter, code, collect, preview, speakPart, sendPart, receivePart, triggerPart, file, image,
-    documentPart, audioPart, fetchPart,
+    documentPart, audioPart, fetchPart, openDataPart,
     button, condition, confirm, dialog, toggle, timer,
     sticky, section, title];
 }
@@ -158,6 +160,7 @@ function partMeta() {
     document: { group: 'bring', order: 22, glyph: 'PDF', desc: t('palette.descDocument') },
     audio: { group: 'bring', order: 24, glyph: '♪', desc: t('palette.descAudio') },
     fetch: { group: 'bring', order: 32, glyph: 'URL', desc: t('palette.descFetch') },
+    opendata: { group: 'bring', order: 33, glyph: 'FR', desc: t('palette.descOpenData') },
     receive: { group: 'bring', order: 34, glyph: 'IN', desc: t('palette.descReceive') },
     trigger: { group: 'control', order: 620, glyph: '⚡', desc: t('palette.descTrigger') },
     file: { group: 'bring', order: 30, glyph: '⎘', desc: t('palette.descFile') },
@@ -195,7 +198,7 @@ function kwOf(type) {
 /** Each plain part's search-words key (strings/palette.en.mjs). */
 const KW = {
   note: 'palette.kwNote', image: 'palette.kwImage', file: 'palette.kwFile',
-  document: 'palette.kwDocument', audio: 'palette.kwAudio', fetch: 'palette.kwFetch', classify: 'palette.kwClassify', speak: 'palette.kwSpeak', send: 'palette.kwSend', receive: 'palette.kwReceive', trigger: 'palette.kwTrigger',
+  document: 'palette.kwDocument', audio: 'palette.kwAudio', fetch: 'palette.kwFetch', opendata: 'palette.kwOpenData', classify: 'palette.kwClassify', speak: 'palette.kwSpeak', send: 'palette.kwSend', receive: 'palette.kwReceive', trigger: 'palette.kwTrigger',
   ask: 'palette.kwAsk', split: 'palette.kwSplit', filter: 'palette.kwFilter',
   collect: 'palette.kwCollect', repeat: 'palette.kwRepeat',
   preview: 'palette.kwPreview', code: 'palette.kwCode',

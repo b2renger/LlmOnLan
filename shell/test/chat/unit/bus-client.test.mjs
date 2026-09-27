@@ -86,4 +86,20 @@ export default (test) => {
     assert.equal((await O.send({ transport: 'bus', topic: 'lol/+/led', value: 1 }, deps)).code, 'E_TARGET', 'a publish names one topic');
     O.resetForTests();
   });
+
+  test('A board on Wi-Fi: the sketch in the template IS the repo\'s lol_mqtt; the Trigger\'s message decides the LED', async () => {
+    const url = new URL('../../../../docs/examples/arduino/lol_mqtt/lol_mqtt.ino', import.meta.url);
+    const { SKETCH, default: tpl } = await import('../../../renderer/chat/computer/templates/board-on-wifi.mjs');
+    assert.equal(SKETCH, fs.readFileSync(url, 'utf8').replace(/\r\n/g, '\n'), 'the sketch changed: run node scripts/gen-board-templates.cjs');
+    const code = (/** @type {string} */ id) => new Function('inputs', tpl.doc.parts.find((/** @type {any} */ p) => p.id === id).settings.code);
+    const decide = code('b_decide');
+    assert.equal(decide({ in: [{ topic: 'lol/board1/light', data: { light: 300 } }] }), 1, 'dark: full brightness (the sketch reads 0..1 as a fraction)');
+    assert.equal(decide({ in: [{ topic: 'lol/board1/light', data: { light: 3000 } }] }), 0);
+    assert.equal(decide({ in: [{ topic: 'lol/board1/light', data: 'garbage' }] }), 0, 'no reading: off, never a guess');
+    assert.match(code('b_say')({ in: [{ topic: 'lol/board1/light', data: { light: 300 } }, 1] }), /board1 says[\s\S]*300[\s\S]*`1`/);
+    const trig = tpl.doc.parts.find((/** @type {any} */ p) => p.type === 'trigger');
+    const send = tpl.doc.parts.find((/** @type {any} */ p) => p.type === 'send');
+    assert.ok(topicMatches(trig.settings.topic, 'lol/board1/light') && send.settings.topic === 'lol/board1/led', 'the sketch\'s own topics');
+    assert.equal(tpl.needsFarm, 'one');
+  });
 };

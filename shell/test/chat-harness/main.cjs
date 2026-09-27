@@ -128,12 +128,21 @@ let harnessWin = null;
 // Ecosystem plan v2 §4.2: the Fetch box's ONE main-side GET, the REAL io.js with loopback allowed —
 // the ONLY difference from the shell, because the harness's fixture servers live on 127.0.0.1.
 const IO_BUILD = path.join(__dirname, '..', '..', 'build', 'main', 'io.js');
+/** h.io.map(): a fixed public address (data.gouv.fr for the Open data box) answered by a scenario's loopback
+ * fixture instead — <userData>/io-map.json is {"https://www.data.gouv.fr/": "http://127.0.0.1:P/site/"}. No
+ * file: every address goes where it says. @param {string} url */
+function mapped(url) {
+    let map = {};
+    try { map = JSON.parse(fs.readFileSync(path.join(tmpDir(), 'io-map.json'), 'utf8')) || {}; } catch { return url; }
+    for (const [from, to] of Object.entries(map)) if (url.startsWith(from)) return to + url.slice(from.length);
+    return url;
+}
 function wireIo() {
     let fetchText = null;
     try { if (fs.existsSync(IO_BUILD)) fetchText = require(IO_BUILD).fetchText; } catch (e) { console.error('[harness-main] io build unloadable:', e && e.message); }
     if (typeof fetchText !== 'function') return false;
     ipcMain.handle('lol:io:fetch', (_e, url) => (typeof url === 'string' && url.length <= 2048
-        ? fetchText(url, { allowLoopback: true }) : { ok: false, code: 'E_URL', message: 'bad arguments' }));
+        ? fetchText(mapped(url), { allowLoopback: true }) : { ok: false, code: 'E_URL', message: 'bad arguments' }));
     // The outputs choke point, the REAL outputs.js (it allows this machine anyway: OSC to 127.0.0.1).
     const OUT_BUILD = path.join(__dirname, '..', '..', 'build', 'main', 'outputs.js');
     if (fs.existsSync(OUT_BUILD)) {

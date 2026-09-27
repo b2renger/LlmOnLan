@@ -121,6 +121,51 @@ export const BRING = [
     wires: [{ from: 'e_src', to: 'e_code', port: 'in' }, { from: 'e_code', to: 'e_view', port: 'content' }],
   },
   {
+    key: 'opendata',
+    title: 'Open data',
+    what: 'Reads a dataset of data.gouv.fr, the French government\'s open data, from a link you paste: its description, the counts data.gouv.fr made over the WHOLE file (for every column: how many values, the most common ones, the smallest and largest), and a sample of its rows. It keeps its last copy, so the graph still runs offline.',
+    inputs: [],
+    output: 'JSON: { dataset: {title, organization, licence, page…}, total, columns: [{name, distinct, missing, tops: [{value, count}]…}], rows: [{column: value…}] }.',
+    howto: [
+      'On www.data.gouv.fr, open a dataset (or one of its files) and copy the address from the browser. The box reads CSV and Excel files that data.gouv.fr turned into tables.',
+      'For whole-file numbers use columns (data.gouv.fr counted them); rows is only a sample — "Rows to read", up to 1000.',
+      'The "Analyse a dataset" template on the Learn shelf turns it into a report, a chart and answers to your own question.',
+    ],
+    parts: [
+      {
+        id: 'e_src', type: 'opendata', x: 0, y: 0, w: 340, h: 180,
+        settings: { link: 'https://www.data.gouv.fr/datasets/liste-des-festivals-en-france', rows: 200 },
+        value: {
+          kind: 'json',
+          data: {
+            source: 'data.gouv.fr',
+            dataset: { title: 'Liste des festivals en France', organization: 'Ministère de la Culture', licence: 'lov2', updated: '2026-09-17', page: 'https://www.data.gouv.fr/datasets/liste-des-festivals-en-france', description: '' },
+            file: { id: '47ac11c2-8a00-46a7-9fa8-9b802643f975', title: 'festivals-global-festivals', format: 'csv' },
+            total: 7283,
+            read: 2,
+            columns: [
+              { name: 'Nom du festival', format: 'string', distinct: 7171, missing: 0 },
+              { name: 'Discipline dominante', format: 'string', distinct: 6, missing: 0, tops: [{ value: 'Musique', count: 3229 }, { value: 'Spectacle vivant', count: 1634 }, { value: 'Livre, littérature', count: 892 }, { value: 'Cinéma, audiovisuel', count: 684 }, { value: 'Pluridisciplinaire', count: 462 }, { value: 'Arts visuels, arts numériques', count: 382 }] },
+            ],
+            rows: [
+              { 'Nom du festival': 'Des Planches et des Vaches', 'Discipline dominante': 'Livre, littérature' },
+              { 'Nom du festival': 'Festival celte en Gevaudan', 'Discipline dominante': 'Musique' },
+            ],
+          },
+        },
+      },
+      {
+        id: 'e_code', type: 'code', x: 400, y: 0, w: 340, h: 220,
+        settings: {
+          code: 'const d = inputs.in[0] || { columns: [] };\nconst col = d.columns.find((c) => c.tops) || { tops: [] };\nreturn "## " + col.name + " (all " + d.total + " rows)\\n" + col.tops.map((t) => "- " + t.value + ": " + t.count).join("\\n");',
+          about: 'Lists the most common values of the first column that has them, counted over the whole file.', folded: false,
+        },
+      },
+      { id: 'e_view', type: 'preview', x: 400, y: 280, w: 340, h: 260, settings: view },
+    ],
+    wires: [{ from: 'e_src', to: 'e_code', port: 'in' }, { from: 'e_code', to: 'e_view', port: 'content' }],
+  },
+  {
     key: 'receive',
     title: 'Receive',
     what: 'Hands on what a board (an Arduino, an ESP32) says over the USB cable: one line per message. A line that is JSON, like {"light": 512}, flows on as data. Nothing leaves this computer.',

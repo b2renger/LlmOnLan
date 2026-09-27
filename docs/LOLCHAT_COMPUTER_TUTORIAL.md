@@ -440,6 +440,9 @@ publish and listen on the same **topics**, like `lol/board1/light`.
 
 The ESP32 side is [`docs/examples/arduino/lol_mqtt`](examples/arduino/lol_mqtt/lol_mqtt.ino): it publishes
 its light sensor and sets its LED from a topic. With a farm password, the board and the bus need it too.
+**Learn → Templates → A board on Wi-Fi** wires the round trip: a Trigger on `lol/+/light` runs the graph on
+each reading, a Code box decides (dark → LED on) and a Send writes `lol/board1/led` back; the sketch rides
+along in a Text box.
 
 ### Data from the web: the Fetch box
 
@@ -452,6 +455,29 @@ leaves this computer. The rules, so a graph someone hands you cannot misuse it:
 - at most **1 MB** of text, in at most 15 seconds;
 - when the network is gone, the box keeps the **last copy** it read and says **Offline — kept the last
   copy**. A refusal or an error from the site never falls back.
+
+### French open data: the Open data box
+
+**＋ → Bring in → Open data** reads a dataset of **data.gouv.fr**, the French government's open-data portal.
+Open a dataset on www.data.gouv.fr (or one of its files), copy the address from the browser, paste it in the
+box and press ▶. It hands on:
+
+- the dataset's **description** (title, publisher, licence, last update, its page);
+- its **columns**, with what data.gouv.fr counted over the **whole file**: how many values are empty, how
+  many are different, the ten most common with their counts, the smallest and largest numbers;
+- a **sample** of its rows (*Rows to read*, 200 by default, at most 1000).
+
+It reads CSV and Excel files that data.gouv.fr has turned into tables; for another file it says which formats
+the dataset has. Only requests to data.gouv.fr leave this computer (the public API that the datagouv-client
+library also uses), each checked like Fetch's, and offline it keeps its last copy.
+
+**Learn → Templates → Analyse a dataset** makes it a small project: paste a link, write your question, press
+**Run all**. Code turns data.gouv.fr's counts into facts; a model **reads them** (what the data is, what stands
+out, which questions it can answer — in words); the page adds a table of every column with data.gouv.fr's own
+numbers; a model **chooses the column to chart** and code draws it; and for **your own question** a model
+writes a small program that the Code box runs over the sample (its answer says how many rows it saw). As in
+*Read the news*, every number you see comes from data.gouv.fr or from the code: a digit a model writes becomes
+**…**. A copy of the festivals list ships with the template, so it also runs offline.
 
 ### Sorting many items fast: the Classify box
 
