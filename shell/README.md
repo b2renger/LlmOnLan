@@ -7,7 +7,7 @@ it in ComfyQ‑styled chrome (topbar · connection screen · preferences).
 The main area has **three surfaces**, switched in the topbar: **Open WebUI** (RAG, documents, web
 search, voice), **LOL Chat** (`renderer/chat/`, entry `chat/main.mjs`) — straight to the farm's OpenAI
 endpoint, tok/s + TTFT per reply, a message tree, seat-aware sending, a context meter; no RAG, uploads
-or tools; history in IndexedDB `lol-chat` — and the **Computer** (`renderer/chat/computer/`). The app
+or tools; history in IndexedDB `lol-chat`, in the data folder — and the **Computer** (`renderer/chat/computer/`). The app
 remembers the last surface (`localStorage['lol:view']`). Which surfaces ship is one constant —
 `src/main/clientMode.ts` `OWUI_ENABLED` (with a matching `NO_OWUI` in `renderer/app.js`; flip both) —
 so an OWUI-free build is a boolean flip, not a fork.
@@ -26,7 +26,9 @@ src/main/                       (TypeScript → build/ via tsc; Electron main pr
   sidecarManager.ts first-run download + staged update of the OWUI sidecar tarball
   updater.ts      app self-update (electron-updater, GitHub releases)
   mcpoSupervisor.ts opt-in local Blender assistant-tools server (mcpo)
-  dataMigration.ts move the OWUI data folder between locations
+  dataMigration.ts move the OWUI data folder between locations (lol-client excluded: it moves at the next boot)
+  clientData.ts   the main window's session in DATA_DIR/lol-client (LOL Chat + the Computer): the boot-time
+                  pending move, the writability fallback, the one-time v0.1.x import (pure fs; unit-tested)
   clientMode.ts   which surface this build ships (OWUI_ENABLED) — gates the whole sidecar lifecycle
   store.ts        shell settings (a hand-rolled userData/shell-settings.json) — incl. the last farm
                   context, which seeds the next cold boot so OWUI starts ONCE ("Launch time" below)
@@ -46,7 +48,21 @@ assets/                         icon.svg / icon.png
 The shell's own renderer (`app.js`) is intentionally thin: chrome + the `<webview>` of
 `http://127.0.0.1:<port>` (the local OWUI) + the settings UI; the shell's settings, discovery and the
 sidecar live in the main process. LOL Chat and the Computer (`renderer/chat/`) are the exception: they
-keep their state in the renderer's IndexedDB.
+keep their state in the renderer's IndexedDB — and the main window runs on
+`session.fromPath(<DATA_DIR>/lol-client)`, so that state lives in the user's data folder with OWUI's
+(owner rule 2026-09-27: all data in DATA_DIR). The OWUI `<webview>` keeps its `persist:owui` partition
+under userData (its token and caches only).
+
+**Data-folder changes restart the app.** Chromium holds the window's session open, so Preferences ▸
+Data location copies OWUI's data right away (sidecar stopped), saves `dataDir` plus a
+`pendingClientMove` marker, and relaunches without the quit prompt; the next boot — before app `ready`,
+before any session exists — moves `lol-client` via a staging folder, clears the marker, removes the old
+copy, and tells the user in a toast. A move that fails keeps the marker, opens the window on the
+untouched source and retries at the next launch. A DATA_DIR that cannot be written falls back to
+`<userData>/lol-client` for that session (toast + a line in Preferences); the first launch after an
+upgrade from v0.1.x copies the default session's `IndexedDB`, `Local Storage` and `WebStorage` into
+`lol-client` once and leaves the originals as a backup. Every step is logged to
+`<userData>/logs/client-data.log`.
 
 ## How the OWUI coupling works (the whole contract)
 

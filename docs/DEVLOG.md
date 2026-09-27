@@ -6,6 +6,70 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-09-27 — All data in DATA_DIR: LOL Chat and the Computer move into the data folder
+
+Owner rule: *"all data in data dir including lol chat projects and computer projects"*. Until now
+only OWUI's data and the Computer's File-box outputs lived in the user-chosen DATA_DIR; LOL Chat's
+history and the Computer's graphs + media (IndexedDB `lol-chat`) and the renderer's localStorage were
+the main window's **default session**, directly under `%APPDATA%\LlmOnLan` — a Preferences move left
+them behind (LOLCHAT_VISION C‑2). Invariant #3 is reworded to name them.
+
+**How.** The main window now runs on `session.fromPath(<DATA_DIR>/lol-client, { cache: false })`
+(`shell/src/main/clientData.ts`, pure fs + path). Measured on Electron 42 with a scratch probe: a
+`fromPath` session lays out `IndexedDB/file__0.indexeddb.leveldb` (+ `.blob`), `Local Storage/leveldb`
+and `WebStorage/QuotaManager` exactly like the default session, so copying those three folders carries a
+profile across — a 300 KB blob and the `lol:view` / `lol.chat.threads.v1` keys read back whole. The OWUI
+`<webview partition="persist:owui">` still resolves to `userData/Partitions/owui` (a partition is global,
+not the embedder's). Nothing else rode on the default session: no permission handler, no `will-download`
+(the harness had one — moved to the chat session), the CSP is a meta tag.
+
+**Boot order** (index.ts `prepareClientDataAtBoot`, at module load — BEFORE app `ready`, because Chromium
+opens the default session's Local Storage at startup and a held LevelDB `LOCK` cannot be copied on
+Windows; the copy skips `LOCK` files anyway):
+1. a Preferences move saved by the last run (`pendingClientMove`): copied to `<to>.moving`, renamed into
+   place, a history already at the target set aside as `.replaced-<time>`, then the source removed; six
+   tries 500 ms apart; a failure keeps the marker and opens the window on the untouched source;
+2. the DATA_DIR must be creatable + writable, else `<userData>/lol-client` for the session (toast + a red
+   line in Data location);
+3. a history such a fallback kept comes into the DATA_DIR when that is empty, else is set aside
+   (`.unmerged-<time>`), never merged;
+4. the one-time v0.1.x import (`legacyClientDataImported`), only into a folder with neither IndexedDB nor
+   Local Storage; the source stays as a backup. Done once, so a later "Start fresh" folder is not filled
+   with the stale copy. A fingerprint of the old IndexedDB taken then (`legacyClientDataStamp`) is
+   compared at every boot: an older build that wrote there since (a pre-change dev build sharing this
+   userData) gets a one-time warning naming the folder and the export/import way over. Measured: this
+   app never opens the default session's IndexedDB, so no false alarms — but the window's `<webview>`
+   makes Chromium open the default session's **Local Storage** at every start (LOG rotates; a large log
+   may be compacted), so that one is NOT watched, and an installed **v0.1.x** (whose history is only the
+   v1 localStorage key) that keeps being used after the import is not detected: what it writes stays
+   in `%APPDATA%\LlmOnLan`. On the dev box that is the realistic case — see LOLCHAT_TESTING §1.
+   A failed import runs the session on the default session (the old data) and retries.
+   Every step is logged to `<userData>/logs/client-data.log`; notices reach the user as toasts through a
+   new pull IPC (`get-data-notices`).
+
+**Preferences ▸ Data location.** The hint now says everything lives there. Changing the folder always
+asks first and says the app restarts. **Move** stops the sidecar, copies OWUI's data excluding
+`lol-client` (Chromium holds it open), saves `dataDir` + `pendingClientMove`, and relaunches without the
+quit prompt; the next boot does step 1 and removes the emptied old folder. **Start fresh** saves `dataDir`,
+drops any pending move, and relaunches. A data folder inside a client session folder is refused.
+
+**Tests.** `shell-main` (+12): `clientDataDir`; `migrateLegacy` copies into an empty target (no LOCK,
+Cache, Partitions or settings), never overwrites a target with a history, never deletes the source, and
+removes a half copy; `movePendingClientData` copies then removes, refuses nested paths, leaves the source
+intact on failure, sets an existing target aside; `moveDataDir {exclude}`; `prepareClientData` through
+the real `store.ts` clears the marker ON DISK after a move, keeps it on failure, imports once, warns on a
+stale legacy copy once per change, falls back and comes back. Harness: `main.cjs` runs the real
+`prepareClientData` with `<tmp userData>/owui-data` as the fake DATA_DIR, so every scenario now runs on
+the new session; `h1-data-dir` finds a saved thread's title in the bytes under
+`owui-data/lol-client/IndexedDB` and nothing new under `<userData>/IndexedDB` (checked red against the
+default session first). A packed-asar probe (the committed `asar-probe.js` fixture with a `fromPath`
+session) still runs the ES-module loader from `app.asar` and writes IndexedDB + localStorage under
+`owui-data/lol-client`. Gates: build; chat-unit 1621/1621; chat-lint 0 violations; unit 5/5; the full
+harness on slot 1, 371/371 with 0 skipped; `--phase perf` 9/9.
+
+**Needs a real machine** (RIG_CHECKLIST ▸ Data-folder change): the v0.1.45 → v0.2.0 upgrade on a spare
+profile, a Preferences move + relaunch, an unplugged data drive.
+
 ## 2026-09-25 (02:05, scheduled) — The Computer perf pass: off-screen boxes stop rendering
 
 The owner scheduled this pass at 21:01. K1–K6 had taken a 1000-part run from 0.06 to 0.33–0.40 ms/part

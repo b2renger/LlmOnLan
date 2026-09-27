@@ -37,14 +37,14 @@ so the client sees one OpenAI‑compatible endpoint and never knows which answer
 |---|---|---|
 | **`lol`** — farm CLI | Node CLI. Reads `lol.config.json`; runs **Ollama (default) or llama.cpp**, generates + runs a LiteLLM proxy (one OpenAI‑compatible, load‑balanced endpoint), runs a UDP discovery beacon. **Where models are chosen.** | [`farm/`](farm/) |
 | **Farm app** | Electron installer that runs the `lol` farm for a non‑technical operator: on first run it downloads its own Ollama + Python + the inference backend and weights, then hands over the farm **panel** (where the model, its name and the capacity are run). Its own Settings carry the share‑with‑LAN toggle, theme, launch‑at‑login and updates. **Update checks are manual** (a notice + a Download button — no in‑place install). | [`farm-app/`](farm-app/) |
-| **Client shell** | Electron + TypeScript. Supervises the bundled Open WebUI, discovers the farm, points OWUI at it, stores all data in a user‑chosen local folder. Owns the topbar / settings / connection screen, and two surfaces of its own: **LOL Chat** and the **Computer**. | [`shell/`](shell/) |
+| **Client shell** | Electron + TypeScript. Supervises the bundled Open WebUI, discovers the farm, points OWUI at it, stores all data — OWUI's, LOL Chat's and the Computer's — in a user‑chosen local folder. Owns the topbar / settings / connection screen, and two surfaces of its own: **LOL Chat** and the **Computer**. | [`shell/`](shell/) |
 | **Open WebUI sidecar** | Vendored, version‑pinned, **unmodified**. We inherit all its features and never edit its source. | [`sidecar/`](sidecar/) |
 
 ## Prime directive (non‑negotiable)
 
 1. **Open WebUI is vendored, version‑pinned, and UNMODIFIED** — zero OWUI source diffs in this repo, ever.
 2. **We keep Open WebUI's branding** (license convenience + product choice).
-3. **All persistent data stays on the client machine** under a user‑chosen `DATA_DIR`. The farm is stateless.
+3. **All persistent data stays on the client machine** under a user‑chosen `DATA_DIR` — OWUI's, LOL Chat's history, and the Computer's graphs, media and projects. The farm is stateless.
 4. **We touch OWUI only through its public surface** (env vars + admin REST API).
 5. **Upgrading OWUI is a version bump, not a merge** — no LOL code changes.
 

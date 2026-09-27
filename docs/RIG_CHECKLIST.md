@@ -53,9 +53,32 @@ risk; the build itself is implemented (see [DEVLOG.md](DEVLOG.md)).
 
 ## Data-folder change (M4)
 - [x] `moveDataDir`/`copyDataDir` unit-tested (9/9: copy, nested, src-removed, refuse-nested, empty-src).
-- [ ] The full UI flow on real data: pick a folder via the native dialog → **Move my data** → OWUI
-      restarts and the existing chats are present in the new folder; then **Start fresh** elsewhere.
-- [ ] Cross-volume move (e.g. C: → D:) with a non-trivial `vector_db`.
+- [x] **All data in DATA_DIR (2026-09-27):** `clientData.ts` unit-tested in `shell-main` (the v0.1.x import,
+      the boot-time move with its staging folder, refusals, failures, the settings marker on disk, the
+      writability fallback, the stale-legacy warning); the chat harness runs every scenario on
+      `session.fromPath(<DATA_DIR>/lol-client)` and `h1-data-dir` finds a saved thread's bytes under
+      `<DATA_DIR>/lol-client/IndexedDB` and nothing under `<userData>/IndexedDB`. A scratch Electron 42 probe
+      confirmed a v0.1.x-shaped default-session profile (IndexedDB + a 300 KB blob + localStorage keys)
+      copied before `ready` reads back whole in the `fromPath` session, and that
+      `<webview partition="persist:owui">` still resolves to `userData/Partitions/owui`.
+- [ ] **The upgrade path, on a spare Windows profile (not the dev box's real one):** install v0.1.45, make
+      some LOL Chat v1 history (a few threads; one Computer graph with a picture and a PDF), quit →
+      install v0.2.0 and launch → a toast says the history now lives in the data folder; the threads and
+      the graph (with its picture/PDF) are all there; `…\LlmOnLan\owui-data\lol-client\IndexedDB\file__0.indexeddb.leveldb`
+      exists and `%APPDATA%\LlmOnLan\IndexedDB` is still there, unchanged (the backup);
+      `%APPDATA%\LlmOnLan\logs\client-data.log` records the import. Relaunch → no toast, nothing copied again.
+- [ ] **Then a Preferences move:** Settings ⚙ ▸ Data location ▸ Change folder… → the panel says the app
+      restarts → **Move my data** → the path box shows the new folder, the app relaunches **without** the
+      "Quit LlmOnLan?" prompt → a toast "Your data now lives in …"; LOL Chat's threads, the Computer's
+      graphs (pictures, PDFs, sounds), `LOL Studio Projects` and Open WebUI's chats are all in the new
+      folder, and the old folder is gone. Repeat with **Start fresh** → everything starts empty, the old
+      folder is untouched.
+- [ ] **Move to an unplugged drive:** move to a USB stick, quit, unplug it, launch → a warning toast and
+      a red line in Data location; LOL Chat works (empty) from `%APPDATA%\LlmOnLan\lol-client`; plug the
+      stick back, relaunch → the stick's history is back, and what that session wrote is set aside as
+      `%APPDATA%\LlmOnLan\lol-client.unmerged-*`, named in a toast (never merged, never deleted).
+- [ ] Cross-volume move (e.g. C: → D:) with a non-trivial `vector_db` and a LOL Chat history of a few
+      hundred MB (the boot-time copy blocks the window for its duration — measure it).
 
 ## Packaging + auto-update (CI + real OSes) — the upgrade test
 - [x] `electron-builder --dir` packs a real `LlmOnLan.exe` (~100 MB, **no sidecar bundled**); the sidecar

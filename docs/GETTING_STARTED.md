@@ -217,14 +217,16 @@ with `LOL_ENDPOINT=http://<box-ip>:4000/v1` if discovery isn't available.
 - **Web search** — if the farm hosts it, it's **on by default**; just ask something current and it searches + cites pages.
 - **Voice** — click the microphone to talk (allow the mic prompt the first time). Speech-to-text runs **on your laptop** (Whisper); read-aloud uses the farm's **Kokoro** neural voice if enabled, otherwise your OS voices.
 - **Documents** — attach a PDF or a photo of a document and ask about it. Scanned pages and images are OCR'd by the farm's vision model; on farms with a large context window (≥ 24k tokens per chat) answers read the whole document; on smaller ones, the 8 most relevant passages.
-- **Where your data lives** — Open WebUI's chats, documents and RAG vectors, and the files the
-  Computer's File boxes write (`LOL Studio Projects`), sit in a folder on **your** machine (by default
-  `…/LlmOnLan/owui-data` in your user app‑data; see Settings ⚙ ▸ **Data location**, which can move it).
-  LOL Chat and the Computer's graphs are separate: LOL Chat's conversations, and the Computer's graphs
-  with the pictures, PDFs and sounds in them, live in the app's own local database (IndexedDB in the
-  app's user-data folder — not the Data location folder, so they don't move with it; export chats from
-  LOL Chat › Settings) and don't appear in Open WebUI. With farm OCR on, an uploaded file's bytes
-  transit to the trusted‑LAN farm for text extraction; nothing is stored there.
+- **Where your data lives** — everything sits in one folder on **your** machine (by default
+  `…/LlmOnLan/owui-data` in your user app‑data; Settings ⚙ ▸ **Data location** shows it and can move
+  it): Open WebUI's chats, documents and RAG vectors; LOL Chat's conversations and the Computer's graphs
+  with the pictures, PDFs and sounds in them (in its `lol-client` subfolder — the app's own local
+  database, so they don't appear in Open WebUI); and the files the Computer's File boxes write
+  (`LOL Studio Projects`). Changing the folder restarts the app: **Move my data** carries all of it,
+  **Start fresh** leaves the old folder as it was. Updating from v0.1.x copies your LOL Chat history
+  into that folder once, on the first launch, and keeps the old copy in the app's user-data folder as a
+  backup. With farm OCR on, an uploaded file's bytes transit to the trusted‑LAN farm for text
+  extraction; nothing is stored there.
 - **LOL Chat** — reopens your last chat on launch. Each reply shows tok/s and time to first token;
   **Regenerate** also offers **More creative** / **More precise**; ◀ ▶ walk a reply's versions;
   **Continue** picks up a reply that was cut short; each message's actions include **Delete from

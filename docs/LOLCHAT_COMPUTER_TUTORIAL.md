@@ -7,7 +7,9 @@ small visual program you assemble in a few minutes and re-run all afternoon, bec
 farm re-running costs nothing.
 
 It is **not** a mind map and not a chat with a diagram. There is no cloud and no API key. Every
-graph you make is saved on this computer, in the Computer's own library.
+graph you make is saved on this computer, in the Computer's own library — which lives in your data
+folder (Settings ⚙ ▸ **Data location**) with the pictures, PDFs and sounds in its boxes and the files
+its File boxes write, so moving that folder takes all of it along.
 
 > Rewritten on 2026-09-25 (critic S1-16) to describe the Computer as it is now: its own surface
 > with a library, the ＋ menu's boxes by their current names, pictures, PDFs and sounds in boxes,

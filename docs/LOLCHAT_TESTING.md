@@ -39,6 +39,18 @@ Two things to know first, neither of them a reason to use another machine:
    Copy-Item "$ud\shell-settings.json" "$ud\..\LlmOnLan-backup-settings.json" -Force
    ```
 
+   **Since 2026-09-27 (all data in the data folder)** a dev run keeps LOL Chat and the Computer in
+   `<data folder>\lol-client` (default `%APPDATA%\LlmOnLan\owui-data\lol-client`). Its first launch
+   COPIES `IndexedDB`, `Local Storage` and `WebStorage` from `%APPDATA%\LlmOnLan` there — the originals
+   are never modified — and marks that done in `shell-settings.json` (`legacyClientDataImported`).
+   From then on the installed v0.1.x client (which keeps writing `%APPDATA%\LlmOnLan\Local Storage`)
+   and the dev run keep **separate copies**, and a v0.2.0 installed later on this box inherits the
+   mark: **chats you make in the installed client after that first dev launch are not imported and
+   nothing warns about them** (only a change to the old *IndexedDB*, i.e. an older dev build, is
+   detected). To import again from `%APPDATA%\LlmOnLan`: quit, rename `owui-data\lol-client`, and set
+   `"legacyClientDataImported": false` in `shell-settings.json`. Or keep dev runs isolated (below).
+   What each boot did is logged to `%APPDATA%\LlmOnLan\logs\client-data.log`.
+
 **If you would rather not touch your real data at all**, run isolated — a different `userData` also gets
 its own single-instance lock, so it can run *alongside* your installed client. Junction the sidecar in so
 it doesn't re-download 2.4 GB:

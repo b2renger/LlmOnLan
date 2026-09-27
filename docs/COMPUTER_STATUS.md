@@ -34,8 +34,25 @@ The topbar has a three-way segmented control: **Open WebUI · LOL Chat · Comput
 its own surface with its own library of graphs down the left; your old per-thread graphs were migrated
 into it on first open.
 
-*(A dev run shares `%APPDATA%\LlmOnLan` with your installed client, as before. The backup from the 21st
-is still at `%APPDATA%\LlmOnLan-backup-20260921-*`.)*
+*(A dev run shares `%APPDATA%\LlmOnLan` — its settings, and the data folder — with your installed
+client. Since the data-folder change below, its first launch COPIES the installed client's LOL Chat
+history and graphs into `<data folder>\lol-client`, once; from then on the two keep separate copies,
+and what you chat in the installed v0.1.45 afterwards stays in `%APPDATA%\LlmOnLan` — neither the dev
+run nor a v0.2.0 installed later picks it up, and nothing warns (LOLCHAT_TESTING §1 says how to import
+again, or how to run the dev build isolated). The backup from the 21st is still at
+`%APPDATA%\LlmOnLan-backup-20260921-*`.)*
+
+## NEWEST (27 Sept, later) — your graphs live in your data folder
+
+Your rule — *"all data in data dir including lol chat projects and computer projects"* — is built.
+The graphs, the pictures, PDFs and sounds in their boxes, and LOL Chat's history now sit in
+`<data folder>\lol-client` (the app window's own storage, moved there as a whole), next to the File
+boxes' `LOL Studio Projects` and Open WebUI's data. Settings ⚙ ▸ **Data location** says so, and a
+change there restarts the app: **Move my data** carries everything, **Start fresh** leaves the old
+folder as it was. The first launch of this version copies what an older version kept under
+`%APPDATA%\LlmOnLan` into the data folder, once, and leaves the original as a backup. Tested by
+`shell-main` (unit: the copy, the move, the failures) and `h1-data-dir` (harness: a saved thread is
+on disk under the data folder, and nothing under userData).
 
 ## NEWEST (27 Sept) — the view tools sit together, and a docs review
 

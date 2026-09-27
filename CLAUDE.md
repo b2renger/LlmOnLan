@@ -100,6 +100,13 @@ docs) is `docs/reviews/DOCS_REVIEW_2026-09-27_{FARM,SHELL,COMPUTER}.md`. Snapsho
   import of the v1 `localStorage` history; no RAG, uploads or tools — those P3/P4 plans are NOT BUILT); and
   the **Computer** (next bullet). Whether OWUI ships is `src/main/clientMode.ts` `OWUI_ENABLED` + the
   renderer's `NO_OWUI` (flip both; a no-OWUI build hides the Open WebUI button).
+  **All of the client's data is in DATA_DIR** (owner rule 2026-09-27): the main window runs on
+  `session.fromPath(<DATA_DIR>/lol-client)` (`src/main/clientData.ts`), so LOL Chat's IndexedDB + the
+  window's localStorage live there, next to OWUI's data. Before app `ready` the boot applies a pending
+  Preferences move, falls back to `<userData>/lol-client` (with a toast) when the DATA_DIR cannot be
+  written, and imports a v0.1.x profile ONCE from the default session under userData (left there as a
+  backup; `legacyClientDataImported`). The OWUI `<webview>` keeps `persist:owui` (`userData/Partitions/owui`
+  — only its token and caches).
   Perf invariants worth keeping: the renderer CSP MUST carry `connect-src 'self' http: https:` (else LOL
   Chat and the Computer cannot reach the LAN farm at all); the whole farm context (endpoint, password,
   model, SearXNG, TTS, OCR, ctx/slot) is persisted so a cold launch spawns the sidecar **once**; OWUI's
@@ -138,10 +145,10 @@ docs) is `docs/reviews/DOCS_REVIEW_2026-09-27_{FARM,SHELL,COMPUTER}.md`. Snapsho
   camera control); a Preview box's **Edit code** opens a drawer editor. View tools: Select (V) · Hand (H) · − % + Fit,
   answering from anywhere on the Computer, never while typing. What leaves the machine: prompt text and an
   Image's pixels inside the Instruction's chat completion to the farm; a Document's PDF bytes to the farm
-  OCR for text only; a Sound is never sent. Where data lives: graphs and their files are in the renderer's
-  IndexedDB (`lol-chat` → `graphs`, `attachments`) under the app's userData, **not** DATA_DIR (a data-folder
-  move does not carry them — the same gap as LOL Chat); File-box outputs go to `<DATA_DIR>/LOL Studio
-  Projects/` (one project per graph). The opt-in **Record log** writes `%APPDATA%\LlmOnLan\logs\computer\*.jsonl`
+  OCR for text only; a Sound is never sent. Where data lives: all of it in DATA_DIR — graphs and their
+  files in the renderer's IndexedDB (`lol-chat` → `graphs`, `attachments`), which is the main window's
+  session at `<DATA_DIR>/lol-client`, and File-box outputs in `<DATA_DIR>/LOL Studio Projects/` (one
+  project per graph); a data-folder move carries both. The opt-in **Record log** writes `%APPDATA%\LlmOnLan\logs\computer\*.jsonl`
   (25 MB per file; 15 recordings kept + up to 30 with a marked bug; keys redacted; `src/main/debugLog.ts`,
   [docs/COMPUTER_DEBUG_LOG.md](docs/COMPUTER_DEBUG_LOG.md)). Learn shelf: the tour, lessons 1–4 and 2
   templates. Not built: the resume-after-close banner, lessons 5–12. Docs: [the user tutorial](docs/LOLCHAT_COMPUTER_TUTORIAL.md),
@@ -166,8 +173,9 @@ streamed gemma4 reply); **document‑locality** (a doc embedded into the local C
 
 **Still needs real two‑machine / installer verification** (see [docs/RIG_CHECKLIST.md](docs/RIG_CHECKLIST.md)):
 discovery across *physical* boxes / broadcast‑blocked Wi‑Fi, the full installer build + a live
-GitHub‑Release auto‑update cycle on mac/win/linux (the upgrade test), and the data‑folder move via the
-native dialog. When working here, keep honoring the **prime directive** below.
+GitHub‑Release auto‑update cycle on mac/win/linux (the upgrade test), the data‑folder move via the
+native dialog, and the v0.1.45 → v0.2.0 upgrade of a profile with LOL Chat history (the one-time import
+into `DATA_DIR/lol-client`, then a Preferences move + relaunch). When working here, keep honoring the **prime directive** below.
 
 ---
 
@@ -212,19 +220,16 @@ If a task seems to require breaking one of these, **stop and flag it**.
    This is the explicit product choice *and* a license convenience: the v0.6.6+ branding clause
    only constrains deployments over **50 aggregate users / 30 days**; keeping branding means no
    constraint and no enterprise license at any scale. (https://docs.openwebui.com/license/)
-3. **All persistent data stays on the client machine** — chats, folders, knowledge bases,
-   documents, RAG vectors — under a local `DATA_DIR` the user chooses. The farm is stateless and
-   stores nothing.
+3. **All persistent data stays on the client machine** — under a local `DATA_DIR` the user chooses:
+   OWUI's chats, folders, knowledge bases, documents and RAG vectors, LOL Chat's history, and the
+   Computer's graphs, media and projects. The farm is stateless and stores nothing.
 4. **We touch Open WebUI ONLY through its public config surface** (env vars + admin REST API). If
    a behavior needs Open WebUI internals, we don't build it.
 5. **Upgrading Open WebUI is a version bump, not a merge.** Bump one pin → rebuild the sidecar →
    run smoke tests. **No LOL code changes.** If an upgrade forces a code change in our shell,
    that's a separation defect to redesign, not absorb.
 
-> **Open wording question for the owner (2026-09-27 review; the invariants are left verbatim):**
-> - #3 says data lives "under a local `DATA_DIR`". It does stay on the client machine, but LOL Chat's
->   history and the Computer's graphs live in the app's IndexedDB (userData), outside DATA_DIR, so a
->   data-folder move does not carry them.
+> **Open wording question for the owner (2026-09-27 review; invariant #4 is left verbatim):**
 > - #4 says "admin REST API". The only shipped REST writes use OWUI's **user-settings** API, plus two
 >   auth/config reads. The admin API is never used.
 
@@ -284,8 +289,9 @@ Connection: `OPENAI_API_BASE_URL` + `OPENAI_API_KEY` (the farm is OpenAI‑compa
   parsed from env at startup (open‑webui#19017). Use the simple `*_BASE_URL(S)` env as the seed.
 
 Data locality:
-- `DATA_DIR` → user‑chosen local folder (all of OWUI's persistent data lives here; LOL Chat's history and the
-  Computer's graphs live in the app's IndexedDB — see the data-flow section).
+- `DATA_DIR` → user‑chosen local folder (all persistent data lives here: OWUI's, and — in its `lol-client`
+  subfolder, the main window's Chromium session — LOL Chat's history and the Computer's graphs and media;
+  File-box outputs in `LOL Studio Projects/`).
 - **Keep default local embeddings** — we set **neither** `RAG_EMBEDDING_ENGINE` **nor**
   `RAG_EMBEDDING_MODEL`, so OWUI's in‑process default applies (`all-MiniLM-L6-v2`,
   cached in the default HF_HOME — `~/.cache/huggingface`, deliberately NOT under `DATA_DIR` so a
@@ -382,10 +388,12 @@ touches in the contract table), and the shell config store (a hand-rolled `userD
 
 **Preferences panel** (LOL‑owned, ComfyQ‑styled), sections (data location · connection · **assistant
 tools** · startup & updates · about):
-- **Data location** — show the current `DATA_DIR`; "Change folder…" (Electron `dialog.showOpenDialog`).
-  On change: offer to **move existing data** to the new folder or start fresh, then restart the sidecar
-  pointing at the new `DATA_DIR`. Default: `<userData>/owui-data`. (LOL Chat's history and the Computer's
-  graphs live in the app's IndexedDB, not here.)
+- **Data location** — show the current `DATA_DIR` (everything: OWUI's data, LOL Chat's history, the
+  Computer's graphs, media and projects); "Change folder…" (Electron `dialog.showOpenDialog`). The panel
+  asks first and says the app restarts: **move** copies OWUI's data now (the sidecar stopped), saves
+  `dataDir` + a `pendingClientMove` marker, and relaunches (no quit prompt) — the next boot moves
+  `lol-client` before the window opens, then removes the old copy; **start fresh** saves `dataDir` and
+  relaunches (the old data stays where it was). Default: `<userData>/owui-data`.
 - **Connection** — "Auto-search the subnet", "Rescan now", the **Search range** (`a.b . c–d . e–f`), and
   "Add by address" + chips (ComfyQ pattern). The farm list and the choice of farm live in the topbar popover.
 - **Assistant tools** — the opt‑in Blender/mcpo toggle, a "Test connection" button (checks both the
@@ -542,11 +550,12 @@ doesn't report the unsigned app as "damaged"; not notarized → first‑launch s
 LlmOnLan/
   shell/                 # Electron + TypeScript — first-party client code
     src/main/            #   index (boot/IPC/selection), sidecar, sidecarManager, configBridge, discovery,
-                         #   store, paths, util, types, dataMigration, updater, mcpoSupervisor,
+                         #   store, paths, util, types, dataMigration, clientData (the window's session
+                         #   in DATA_DIR/lol-client), updater, mcpoSupervisor,
                          #   farmSelect (pure farm choice), clientMode.ts; projects/projectsPath/debugLog = the Computer's
     src/preload/
     renderer/            #   index.html + app.js (topbar, webview host, prefs); tokens.css (ComfyQ palette)
-      chat/              #   LOL Chat + the Computer — ES modules, no build; IndexedDB `lol-chat`
+      chat/              #   LOL Chat + the Computer — ES modules, no build; IndexedDB `lol-chat` (in DATA_DIR/lol-client)
         main.mjs         #     LOL Chat entry (+ app/ core/ ctx/ net/ render/ state/ ui/ strings/ css/)
         computer/        #     the Computer surface: layout, library, run bar, drawer (+ code editor),
                          #     host (session/runner/canvas), drops/intake/media, devlog + recorder,
@@ -588,10 +597,12 @@ LlmOnLan/
 
 ## Data‑flow & privacy boundary
 
-- **On the device:** every conversation, folder, prompt, document, and RAG vector (OWUI's under
-  `DATA_DIR`); embeddings computed locally. LOL Chat's history and the Computer's graphs live in the
-  app's own IndexedDB (userData), not under DATA_DIR; the Computer's File-box outputs go to
-  `DATA_DIR/LOL Studio Projects`.
+- **On the device, all under `DATA_DIR`:** every conversation, folder, prompt, document, and RAG vector
+  (OWUI's); LOL Chat's history and the Computer's graphs and media (the main window's session,
+  `DATA_DIR/lol-client`); the Computer's File-box outputs (`DATA_DIR/LOL Studio Projects`). Embeddings are
+  computed locally. Outside DATA_DIR, under userData, only app plumbing: settings, the downloaded engine,
+  OWUI's webview token/caches, logs, and — after an upgrade from v0.1.x — the old LOL Chat copy kept as a
+  backup.
 - **Over the network (all to the trusted‑LAN farm, which stores nothing):** the chat context per
   completion (from OWUI, LOL Chat, or a Computer Instruction — with an Image box's pixels when wired);
   web‑search queries to the farm's SearXNG (result pages are then fetched directly); TTS requests when
