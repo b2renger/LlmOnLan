@@ -34,13 +34,14 @@
             <img class="welcome-logo" src="../assets/icon.png" alt="" />
             <h1>Run an AI farm on this machine</h1>
             <p class="lead">
-                This turns this computer into a private LlmOnLan server for your network.
+                This turns this computer into an LlmOnLan server. It starts private to this
+                machine; turn on Share compute to serve your network.
                 Everything installs itself — no terminal, no setup.
             </p>
             <ul class="feature-list">
                 <li>Downloads its own AI engine (Ollama) and helpers</li>
-                <li>Fetches gemma4:12b plus a staged Qwen3.8-27B — about <strong>18&nbsp;GB</strong> in total</li>
-                <li>Serves chat, web search &amp; document reading to everyone on the LAN</li>
+                <li>Fetches gemma4:12b plus a staged Qwen3.8-27B — about <strong>18&nbsp;GB</strong>, plus its own Python/Ollama runtime</li>
+                <li>Serves chat, web search &amp; document reading — to everyone on the LAN once you turn on Share compute</li>
                 <li>Managed from the built-in panel: model, capacity, plugins</li>
             </ul>
             <div id="ram-warning" class="warn hidden"></div>
@@ -99,7 +100,8 @@
                 <p class="muted small share-hint">
                     Which engine runs, which model it serves, the name users see, how many
                     people it serves at once and the context window all live in the farm panel —
-                    the main window behind this drawer. They apply live, and are remembered.
+                    the main window behind this drawer. They apply live (except Ollama's people
+                    served at once, which takes effect after a farm restart), and are remembered.
                 </p>
             </div>
             <label class="row"><span>Theme</span>
@@ -116,7 +118,7 @@
                 <input type="checkbox" id="chk-autoupdate" />
             </label>
             <div class="row"><span>Panel access token</span><span class="name-row"><span id="admin-token" class="muted mono">—</span><button id="btn-copy-token" class="btn btn-xs">Copy</button></span></div>
-            <p class="muted small share-hint">To run this farm from another computer's browser: open the panel address shown on the main screen and paste this token.</p>
+            <p class="muted small share-hint">To run this farm from another computer's browser: with Share compute on, open http://&lt;this computer's LAN address&gt;:41997/lol/admin there and paste this token.</p>
             <div class="row"><span>App version</span><span id="app-version" class="muted">—</span></div>
             <div class="row"><button id="btn-check-update" class="btn btn-sm">Check for updates</button></div>
             <div id="update-status" class="muted small"></div>

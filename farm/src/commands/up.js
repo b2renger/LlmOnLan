@@ -2552,7 +2552,7 @@ async function run(args) {
                     // Ollama's registry refuses split GGUF repos outright — point the
                     // operator at the path that CAN serve them instead of dead-ending.
                     const hint = /sharded/i.test(failed)
-                        ? ' This repo is a SPLIT .gguf, which Ollama cannot pull. Use Model · llama.cpp ▸ Add a model with the file\'s download URL instead — the farm fetches all parts.'
+                        ? ' This repo is a SPLIT .gguf, which Ollama cannot pull. Switch Backend to llama.cpp first, then use Model · llama.cpp ▸ Add a model with the file\'s download URL — the farm fetches all parts.'
                         : '';
                     return { ok: false, error: `Could not pull "${want}": ${failed}${hint}` };
                 }

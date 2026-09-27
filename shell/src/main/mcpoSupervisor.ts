@@ -83,8 +83,9 @@ export class McpoSupervisor extends EventEmitter {
     private child: ChildProcess | null = null;
     private port = 0;
     private enabled = false;
-    // Stable per-session bearer key: OWUI holds it in TOOL_SERVER_CONNECTIONS, so
-    // keeping it constant across restarts avoids re-wiring the sidecar each bounce.
+    // Stable per-session bearer key: the renderer writes it into OWUI's user settings
+    // (ui.toolServers, via the user-settings API), so keeping it constant across mcpo
+    // restarts avoids rewriting that entry each bounce.
     private readonly apiKey = crypto.randomBytes(24).toString('hex');
     // Generation token: a superseding start()/stop() bumps it so an in-flight start
     // aborts at its awaits instead of clobbering a newer child (same discipline as
