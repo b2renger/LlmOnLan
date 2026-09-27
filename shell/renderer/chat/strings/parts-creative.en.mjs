@@ -48,7 +48,7 @@ registerStrings('parts', {
   writeAskHtml: 'A small page introducing a museum exhibition: a title, a short paragraph and three highlights.',
   // Owner, 2026-09-27: the code boxes are intimidating, so a model can write them from plain words.
   writeCodeLabel: 'Write code',
-  writeCodeDesc: 'Say in plain words what a Code box should compute; the model writes the code. Wire it into a Code box’s code port, and the data into its value port.',
+  writeCodeDesc: 'Say in plain words what a Code box should compute; the model writes the code. Wire it into a Code box’s code port, and the data into its Inputs port.',
   writeAskCode: 'Count how many items there are in each category, and add up their points.',
   writeLayaLabel: 'Write a Laya question',
   writeLayaDesc: 'The model writes the multiple-choice question Laya answers for every item, from your topics and a look at the data. Wire it into a Classify box’s question port.',

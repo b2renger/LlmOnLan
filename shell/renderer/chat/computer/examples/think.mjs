@@ -38,21 +38,21 @@ export const THINK = [
     inputs: [['in', 'text, JSON, a picture or a file: every arrow, each under its name']],
     output: 'Text (or a list, or JSON, by Answer shape).',
     howto: [
-      'Name the arrows coming in; write {name} in the instruction to put that value exactly there.',
+      'Name the arrows coming in and mention the names in the instruction. Tick "Fill in {names} with their values" and {name} is replaced by that value, exactly there.',
       'Answer shape List: one item per line, and the next box runs once per item. JSON: give a schema.',
       'Pick a model in the box, or keep the farm\'s default. One run = one generation.',
     ],
     parts: [
       { id: 'e_topic', type: 'note', x: 0, y: 0, w: 320, h: 160, settings: { text: 'the first warm day of spring', locked: false } },
-      { id: 'e_ask', type: 'ask', x: 380, y: 0, w: 340, h: 300, settings: { instruction: 'Write a haiku about {topic}.' } },
+      { id: 'e_ask', type: 'ask', x: 380, y: 0, w: 340, h: 300, settings: { instruction: 'Write a haiku about {topic}.', inlineVars: true } },
       { id: 'e_view', type: 'preview', x: 780, y: 0, w: 320, h: 260, settings: view },
     ],
     wires: [{ from: 'e_topic', to: 'e_ask', port: 'in', label: 'topic' }, { from: 'e_ask', to: 'e_view', port: 'content' }],
   },
-  writeFor('write-p5', 'Write a p5.js sketch', 'p5', 'A slow, colourful spiral that turns.', ['Wire it into a p5.js sketch box; press ▶ Live there to see it move and follow the mouse.']),
+  writeFor('write-p5', 'Write a p5.js sketch', 'p5', 'A slow, colourful spiral that turns.', ['Wire it into a p5.js sketch box; press ▶ Live there to see it move (and react to the mouse, if the code does).']),
   writeFor('write-three', 'Write a three.js scene', 'three', 'A few floating shapes in soft light.', ['Wire it into a three.js scene box; ▶ Live lets you orbit the camera.']),
   writeFor('write-svg', 'Write an SVG', 'svg', 'A simple landscape: a sun, two hills and a house.', ['Wire it into an SVG box: the drawing is cleaned (no scripts) and shown as a picture.']),
-  writeFor('write-html', 'Write an HTML page', 'html', 'A small page introducing a museum exhibition: a title, a paragraph and three highlights.', ['Wire it into an HTML page box: shown as a still picture, no JavaScript.']),
+  writeFor('write-html', 'Write an HTML page', 'html', 'A small page introducing a museum exhibition: a title, a paragraph and three highlights.', ['Wire it into an HTML page box: shown as a still picture (▶ Live runs it for real).']),
   {
     key: 'describe-image',
     title: 'Describe a picture',
@@ -79,9 +79,9 @@ export const THINK = [
     inputs: [['in', 'the data the code will run on, so the model sees its shape']],
     output: 'Code (JavaScript) for a Code box\'s code port.',
     howto: [
-      'Wire the data into BOTH this box and the Code box\'s value port; wire this box into the Code box\'s code port.',
+      'Wire the data into BOTH this box and the Code box\'s Inputs port; wire this box into the Code box\'s code port.',
       'Say it plainly: "add up the numbers at the end of each line".',
-      'Type in the Code box to make the code yours; "Use the model\'s code" gives it back. d3 is there for charts.',
+      'The model is TOLD to compute every number from the data; the Code box shows the program, so read it. Type in it to make it yours; "Use the model\'s code" gives it back.',
     ],
     parts: [
       { id: 'e_data', type: 'note', x: 0, y: 0, w: 300, h: 180, settings: { text: 'apples 3\npears 5\nplums 2', locked: false } },
@@ -135,8 +135,8 @@ export const THINK = [
     output: 'JSON: a label and a confidence per item, the unsure ones, and under check the unsure items\' text.',
     howto: [
       'Sure above (0.6) splits sure from unsure; an unsure answer is for a model or a person to check.',
-      'Wire it into an Instruction: "For each item under check, pick one of the topics." The model re-reads only the unsure ones.',
-      'Then a Code box counts: labels are in inputs.in.',
+      'For a second opinion, wire it AND the topics into an Instruction: "For each item under check, pick one of the topics." The model re-reads only the unsure ones.',
+      'Then a Code box counts: the labels are in inputs.in[0].labels.',
     ],
     parts: [
       { id: 'e_items', type: 'note', x: 0, y: 0, w: 320, h: 200, settings: { text: 'A new graphics card doubles the speed\nA comet is visible this weekend\nThe city council votes on bike lanes', locked: false } },
@@ -153,13 +153,13 @@ export const THINK = [
   {
     key: 'split',
     title: 'Split',
-    what: 'Cuts text into a list of items. Everything after it then runs once PER ITEM. No model, no farm.',
+    what: 'Cuts text into a list of items. A box after it that takes text (an Instruction) runs once PER ITEM; Collect, Filter, Code and Classify take the whole list. No model, no farm.',
     inputs: [['text', 'text or JSON to cut']],
     output: 'A list.',
     howto: [
       'Modes: lines · numbered (a model\'s "1. …" list) · json (an array) · separator (like a comma) · paragraphs.',
       'Into an Instruction: it runs once per item. Into Collect: the items come back together.',
-      'Nothing to cut is an error, never a silent empty list.',
+      'Separator: the character(s) between items, like a comma.',
     ],
     parts: [
       { id: 'e_text', type: 'note', x: 0, y: 0, w: 300, h: 150, settings: { text: 'red, green, blue', locked: false } },
@@ -180,9 +180,9 @@ export const THINK = [
     inputs: [['items', 'a list'], ['criterion (optional)', 'the words to look for, instead of typing them in the box']],
     output: 'A list: the items that passed.',
     howto: [
-      'contains "rain" keeps the lines that mention rain; Invert keeps the others.',
-      'length keeps the items between min and max characters.',
-      'model: "Is this a question?" asks the farm, one yes/no per item.',
+      'Keep when Contains "rain" keeps the lines that mention rain; "Keep the others instead" turns it around.',
+      'Length is keeps the items between min and max characters.',
+      'The model says yes: "Is this a question?" asks the farm, one yes/no per item.',
     ],
     parts: [
       { id: 'e_text', type: 'note', x: 0, y: 0, w: 300, h: 180, settings: { text: 'rain on Monday\nsun on Tuesday\nrain and wind on Friday', locked: false } },
@@ -205,7 +205,7 @@ export const THINK = [
     inputs: [['items', 'a list, texts or JSON: every arrow, in order']],
     output: 'Text (bullets, numbered, or your template) or JSON (a list).',
     howto: [
-      'Template: {item} is the value, {i} its number, {n} how many, like "{i}/{n}: {item}".',
+      'Template per item: {item} is the value, {i} its number, {n} how many, like "{i}/{n}: {item}".',
       'After Split → Instruction, Collect puts the answers back together, in order.',
       'JSON keeps data as data for a Code box.',
     ],
@@ -229,7 +229,7 @@ export const THINK = [
     output: 'A list of N items (its template can number them: {item} {i} {n}).',
     howto: [
       'Times 4 before an Instruction: 4 different answers.',
-      'Template "Idea {i} of {n}: {item}" tells each pass which one it is.',
+      'Each item "Idea {i} of {n}: {item}" tells each pass which one it is.',
       'Mind the cap: N passes over an Instruction are N generations.',
     ],
     parts: [

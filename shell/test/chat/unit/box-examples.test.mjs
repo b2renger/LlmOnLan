@@ -9,6 +9,11 @@ import { buildPalette } from '../../../renderer/chat/graph/palette.mjs';
 import { normaliseDoc } from '../../../renderer/chat/graph/model.mjs';
 import { fromJson } from '../../../renderer/chat/graph/serialize.mjs';
 import { mentions } from '../../../renderer/chat/graph/bind.mjs';
+import { TINTS } from '../../../renderer/chat/graph/parts/sticky.mjs';
+import { BRANCHES } from '../../../renderer/chat/graph/parts/condition.mjs';
+import { MODES as SPLIT_MODES } from '../../../renderer/chat/graph/parts/split.mjs';
+import { MODES as FILTER_MODES } from '../../../renderer/chat/graph/parts/filter.mjs';
+import { PREVIEW_MODES } from '../../../renderer/chat/graph/parts/preview.mjs';
 
 const specs = specMap();
 const entries = buildPalette(paletteCatalogue(), specs).map((e) => e.entry);
@@ -45,6 +50,23 @@ export default (test) => {
       for (const head of ['What it does', 'Output', 'How to use it']) assert.ok(text.includes(head), `${ex.key}: ${head}`);
       assert.ok(ex.howto.length >= 2, `${ex.key}: at least two ways to use it`);
       assert.ok(text.length < 1600, `${ex.key}: short enough to read on a sticky (${text.length})`);
+    }
+  });
+
+  test('box examples: every setting is a value the box really has (release critic R8: a "pink" sticky was yellow)', () => {
+    const allowed = {
+      sticky: ['colour', TINTS], condition: ['branch', BRANCHES], split: ['mode', SPLIT_MODES],
+      filter: ['mode', FILTER_MODES], preview: ['mode', PREVIEW_MODES], title: ['size', ['s', 'm', 'l']],
+    };
+    for (const ex of EXAMPLES) {
+      for (const p of exampleDoc(ex).parts) {
+        const rule = /** @type {any} */ (allowed)[p.type];
+        if (rule && p.settings && rule[0] in p.settings) assert.ok(rule[1].includes(p.settings[rule[0]]), `${ex.key}: ${p.type}.${rule[0]} = ${p.settings[rule[0]]}`);
+        for (const k of Object.keys(p.settings || {})) {
+          const defaults = specs.get(p.type).defaults ? specs.get(p.type).defaults() : {};
+          assert.ok(k in defaults, `${ex.key}: ${p.type} has no setting "${k}"`);
+        }
+      }
     }
   });
 

@@ -10,13 +10,13 @@ export const CONTROL = [
     key: 'button',
     title: 'Button',
     needsFarm: 'only for the Instruction after it.',
-    what: 'A gate you press. A run reaching an unpressed Button waits there, glowing "ready"; pressing it lets the run go on. Run all never presses it for you.',
+    what: 'A gate you press. Run all never presses it: the run stops before it, and the run bar says a button is waiting. Press its face and what comes after it runs.',
     inputs: [['in', 'anything: passed on when pressed']],
     output: 'What arrived, unchanged.',
     howto: [
       'Put it before an expensive branch (a long generation), so that branch runs only when you choose.',
-      'Its face and its ▶ are the same press.',
-      'Text: the words on the button.',
+      'Press the button itself (its face), not the ▶ in its title bar.',
+      'Label: the words on the button.',
     ],
     parts: [
       note('e_text', 'Tell me a short joke about computers.'),
@@ -32,7 +32,7 @@ export const CONTROL = [
     inputs: [['in', 'anything']],
     output: 'What arrived, unchanged (on its branch only).',
     howto: [
-      'Branch: which answer this box lets through.',
+      'Continue when: which answer this box lets through.',
       'Text mode (free) reads the first word: yes, true, oui → yes; no, false, non → no; anything else → maybe.',
       'Model mode: write a question ("Is this a complaint?"); one small generation, remembered.',
     ],
@@ -58,7 +58,7 @@ export const CONTROL = [
     output: 'What arrived, unchanged (onward only after OK).',
     howto: [
       'Message: what you are asked, like "Save this to a file?"',
-      'Timeout (seconds) cancels by itself when nobody answers; 0 waits.',
+      'Give up after (seconds) cancels by itself when nobody answers; 0 waits.',
       'Put it before a Send or a File box: nothing leaves until you say so.',
     ],
     parts: [
@@ -73,28 +73,28 @@ export const CONTROL = [
     title: 'Dialog',
     needsFarm: 'only for the Instruction after it.',
     what: 'Asks YOU a question in the box, with a field and Send, and hands your answer on. The rest of the graph keeps running while it waits.',
-    inputs: [['in (optional)', 'words shown with the question']],
+    inputs: [['Context (optional)', 'anything: it decides WHEN the question is asked (its words are not shown)']],
     output: 'Text: your answer.',
     howto: [
-      'Question and placeholder are what you read; Default is used when nobody answers.',
-      'Ask every run off: asked once, the answer is kept. On: asked each time.',
-      'Name the arrow out of it (animal) and write {animal} in an Instruction.',
+      'Question and Hint text are what you read. If the run is stopped before you answer, "If nobody answers" is handed on and the branch stops there.',
+      'Ask again every run off: asked once, the answer is kept. On: asked each time.',
+      'Name the arrow out of it (animal); an Instruction with "Fill in {names} with their values" ticked puts the answer where it says {animal}.',
     ],
     parts: [
       { id: 'e_dlg', type: 'dialog', x: 0, y: 0, w: 320, h: 220, settings: { question: 'What is your favourite animal?', placeholder: 'a fox', multiline: false, default: '', askEveryRun: false } },
-      { id: 'e_ask', type: 'ask', x: 380, y: 0, w: 340, h: 280, settings: { instruction: 'Write one surprising fact about {animal}.' } },
+      { id: 'e_ask', type: 'ask', x: 380, y: 0, w: 340, h: 280, settings: { instruction: 'Write one surprising fact about {animal}.', inlineVars: true } },
     ],
     wires: [{ from: 'e_dlg', to: 'e_ask', port: 'in', label: 'animal' }],
   },
   {
     key: 'toggle',
     title: 'Toggle',
-    what: 'A switch: on lets the run through, off stops it and still hands its value on. It is also what makes a loop legal: a ring of boxes needs something that can stop it.',
+    what: 'A switch: on lets the run through, off stops it and still hands its value on. Like every gate box, it makes a loop legal: a ring of boxes needs something that can stop it.',
     inputs: [['in', 'anything']],
     output: 'What arrived, unchanged.',
     howto: [
       'Flip it to switch a branch off without deleting it.',
-      'A loop (Write an SVG → SVG → Describe a picture → back) must pass through a Toggle; turn it off to stop the rounds.',
+      'A loop (Write an SVG → SVG → Describe a picture → back) must pass through a gate box: a Toggle, Button, Condition, Confirm, Dialog or Timer. With a Toggle, turn it off to stop the rounds.',
       'Flipping it marks what comes after as out of date; it does not run by itself.',
     ],
     parts: [
@@ -107,13 +107,13 @@ export const CONTROL = [
   {
     key: 'timer',
     title: 'Timer',
-    what: 'Waits a few seconds, then lets the run through, once or a set number of times. There is no "forever".',
+    what: 'Waits a few seconds, then lets the run through. There is no "forever".',
     inputs: [['in', 'anything']],
     output: 'What arrived, unchanged, after the wait.',
     howto: [
-      'Seconds: the wait (0.1 to 3600).',
-      'Repeats: how many times what comes after runs again. A run whose waits add up past its time limit is refused before it starts.',
-      'Timer → Send keeps a device at a gentle pace.',
+      'Wait (seconds): 0.1 to 3600.',
+      'Repeats: how many times the wait happens; what comes after runs once, after all of them. A run whose waits add up past its time limit is refused before it starts.',
+      'Put it before a step that must not come too soon: a Send to a device, a question to a person.',
     ],
     parts: [
       note('e_text', 'tick'),
@@ -132,7 +132,7 @@ export const CONTROL = [
       'Pick a colour to group ideas.',
       'Every example you open with ? starts with a yellow one like this.',
     ],
-    parts: [{ id: 'e_s', type: 'sticky', x: 0, y: 0, w: 320, h: 220, settings: { colour: 'pink', text: 'To do: check the chart numbers come from the Code box, never from a model.' } }],
+    parts: [{ id: 'e_s', type: 'sticky', x: 0, y: 0, w: 320, h: 220, settings: { colour: 'rose', text: 'To do: check the chart numbers come from the Code box, never from a model.' } }],
     wires: [],
   },
   {

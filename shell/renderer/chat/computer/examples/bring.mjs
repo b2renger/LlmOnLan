@@ -11,7 +11,7 @@ export const BRING = [
     inputs: [['in (optional)', 'text, JSON or a list: shown in the box and handed on']],
     output: 'Text: exactly what the box shows.',
     howto: [
-      'Name the arrow out of it (click the arrow, type topic): an Instruction then puts it where you write {topic}.',
+      'Name the arrow out of it (click the arrow, type topic). In an Instruction with "Fill in {names} with their values" ticked, {topic} is replaced by the text.',
       'Several lines → Split (lines): the next box runs once per line.',
       'Lock it when a run must not replace what you typed.',
     ],
@@ -79,11 +79,11 @@ export const BRING = [
     key: 'file',
     title: 'File',
     what: 'Writes what arrives to a file in this graph\'s own project folder, e.g. out/list.md. A second run overwrites it. Nothing leaves this computer.',
-    inputs: [['in', 'text, JSON, a list, a picture or a file: the file\'s content']],
+    inputs: [['in', 'text, JSON, a list or a picture: the file\'s content (a file arriving is written as its path)']],
     output: 'A file (its path in the project).',
     howto: [
       'Type the path: out/notes.md for text, out/picture.png for a picture.',
-      'The folder is <your data folder>/LOL Studio Projects/<this graph>.',
+      'The folder is <your data folder>/LOL Studio Projects/<this graph\'s name and a short code>, made at the first write.',
       'End a graph with it to keep the result outside the Computer.',
     ],
     parts: [

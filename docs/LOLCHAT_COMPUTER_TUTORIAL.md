@@ -232,8 +232,8 @@ A Code box does not have to be written by you:
 - **＋ → Think → Write code** is an Instruction you give in plain words (*count how many items there are in
   each category*). Wire the data into it too, so the model sees its shape, and wire its answer into the
   Code box's **code** port (the data goes into **Inputs** as usual). On **Run all** the model writes the
-  program and the Code box runs it, with numbers computed from the data, never typed by the model. The Code
-  box shows the program it ran. Type in it and it becomes **yours** (the model's next version is then
+  program and the Code box runs it. The model is *told* to compute every number from the data; nothing
+  forces it, so the Code box shows the program it ran: read it. Type in it and it becomes **yours** (the model's next version is then
   ignored); **Use the model's code** gives it back to the model. **d3** (v7) is there for any code that
   uses it: its scales and shapes turn counted numbers into an SVG chart a Preview draws.
 - **What it does** at the top of every Code box is a line of plain words. **Hide the code** folds the
@@ -383,12 +383,14 @@ choose where a graph sends. And the rules are the same for every graph, even one
 - **Arming asks first.** The run bar's **Outputs: dry run** button (it appears when the graph has a Send
   box) asks before arming and lists every target of the graph. Armed, it reads **Outputs: LIVE**; press
   it again to go back to a dry run.
-- **Panic** (next to it while armed) stops everything at once and sends a **blackout** to every DMX
-  universe the graph lit.
-- **Limits:** at most 20 messages a second to one target, and DMX at most **3 frames a second** — nothing
-  a graph sends may flash a light faster than that. A message over the limit is held back, and the box
+- **Panic** (next to it whenever the graph has a Send box, armed or not) stops the run and every output
+  at once and sends a **blackout** to every DMX universe the graph lit. Quitting the app does the same.
+- **Limits:** at most 20 messages a second to one target, and DMX at most **3 frames a second per
+  universe**, whatever address you send it to. That does **not** limit a fixture's own strobe channel, or
+  lights you drive over OSC, MQTT, WebSocket or HTTP: keep strobes off. A message over the limit is held back, and the box
   says so.
-- Never the farm's own ports. This computer is allowed: OSC to TouchDesigner or Max on `127.0.0.1` is a
+- Never the farm's own ports. This computer is allowed (the arming question marks such a target *this
+  computer*): OSC to TouchDesigner or Max on `127.0.0.1` is a
   normal target.
 
 ### Data from the web: the Fetch box

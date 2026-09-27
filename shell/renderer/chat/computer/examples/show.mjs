@@ -35,7 +35,7 @@ export const SHOW = [
     'A Code box can build the SVG from data (d3 helps) and wire it in: charts whose numbers come from the data.',
     'Wired from Write an SVG, the model\'s drawing shows here.',
   ]),
-  drawing('html', 'HTML page', 'A small web page drawn as a still picture in the sandbox: HTML and CSS, no JavaScript, nothing loaded from outside.', [
+  drawing('html', 'HTML page', 'A small web page drawn as a still picture in the sandbox, with nothing loaded from outside. ▶ Live runs it for real, scripts included.', [
     'Write only what goes inside <body>, with one <style> at the top.',
     'Good for a poster, a card, a menu, a small report.',
     'Wired from Write an HTML page, the model\'s page shows here.',
@@ -45,11 +45,11 @@ export const SHOW = [
     title: 'Markdown view',
     what: 'Shows markdown as a formatted page: headings, lists, tables, code. Wire an Instruction or a Text box into it to read the answer nicely.',
     inputs: [['content', 'text (markdown) or JSON']],
-    output: 'A picture of the page.',
+    output: 'Nothing: a markdown page is for reading. (The drawing modes, SVG, HTML, p5.js and three.js, hand on a picture.)',
     howto: [
       '# heading, **bold**, - lists, | tables | all work.',
       'The easiest end for a graph: whatever arrives is shown readably.',
-      'JSON arriving is shown as a code block.',
+      'JSON arriving is shown as its text.',
     ],
     parts: [
       { id: 'e_text', type: 'note', x: 0, y: 0, w: 320, h: 220, settings: { text: '# Today\n- **Morning**: reading\n- **Afternoon**: a walk\n\n| day | weather |\n|---|---|\n| Mon | rain |\n| Tue | sun |', locked: false } },
@@ -62,9 +62,9 @@ export const SHOW = [
     title: 'Preview',
     what: 'The box behind all five drawing boxes: "Read it as" picks how to show what arrives: Automatic, Markdown, SVG, web page, three.js or p5.js.',
     inputs: [['content', 'text or JSON: code, markdown or data']],
-    output: 'A picture of what it showed.',
+    output: 'A picture of what it drew (SVG, HTML, p5.js, three.js); a markdown page hands on nothing.',
     howto: [
-      'Automatic reads what arrives: an SVG from Write an SVG is drawn as an SVG, anything else as markdown.',
+      'Automatic reads what arrives: SVG code is drawn as an SVG, a page as HTML, a sketch as p5.js or three.js, anything else as markdown.',
       'Pick a mode to force it, for example SVG for a Code box that returns SVG text.',
       'The ＋ menu\'s p5.js, three.js, SVG, HTML and Markdown boxes are this box with a mode already set.',
     ],
@@ -106,7 +106,7 @@ export const SHOW = [
     output: 'Text: what was said.',
     howto: [
       'Voice: Automatic (the farm\'s if there is one, else this computer\'s), Farm, or This computer.',
-      'Instruction → Speak reads the answer aloud; Sound (Listen) → Instruction → Speak makes a talking loop.',
+      'Instruction → Speak reads the answer aloud; Sound (Listen) → Instruction → Speak answers a recorded question out loud.',
       'Stop stops the voice too.',
     ],
     parts: [
@@ -123,8 +123,8 @@ export const SHOW = [
     output: 'Text: what was sent, or what would have been (dry run).',
     howto: [
       'The run bar\'s "Outputs: dry run" arms them after asking, and lists every target; Panic stops all and blacks out the lights.',
-      'OSC to 127.0.0.1:9000 /lol reaches TouchDesigner on this computer. DMX: a list of levels, channel 1 first.',
-      'At most 20 messages a second per device, DMX 3 frames a second; never the farm\'s own ports.',
+      'OSC to 127.0.0.1:9000 /lol/level reaches TouchDesigner on this computer; a number typed in a Text box goes as a number. DMX: a list of levels, channel 1 first, like [255, 128, 0].',
+      'At most 20 messages a second per target, DMX 3 frames a second per universe; never the farm\'s own ports. This does not limit a fixture\'s own strobe channel: keep strobes off.',
     ],
     parts: [
       { id: 'e_val', type: 'note', x: 0, y: 0, w: 300, h: 150, settings: { text: '0.75', locked: false } },

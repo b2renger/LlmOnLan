@@ -382,7 +382,7 @@ let tail = '';
 for (const line of insight) { y += 18; tail += text(24, 14, '#18181b', line); }
 if (unsure.length) {
   y += 26; tail += text(24, 13, '#b45309', 'Check these (' + (counts.unsure || []).length + '):', 600);
-  for (const u of unsure) { y += 16; tail += text(36, 12, '#52525b', '#' + u.id + ' ' + u.title.slice(0, 80) + ' — ' + u.why); }
+  for (const u of unsure) { y += 16; tail += text(36, 12, '#52525b', '#' + u.id + ' ' + u.title.slice(0, 80) + ' — ' + words(u.why)); }
 }
 const lb = counts.labelledBy || {};
 y += 28; tail += text(24, 11, '#a1a1aa', (counts.source || 'Source') + ' · ' + counts.total + ' stories · labels: ' + (lb.laya || 0) + ' by Laya, ' + (lb.model || 0) + ' by the model · counts by the code');
