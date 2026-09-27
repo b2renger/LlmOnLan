@@ -153,7 +153,11 @@ docs) is `docs/reviews/DOCS_REVIEW_2026-09-27_{FARM,SHELL,COMPUTER}.md`. Snapsho
   port — and "Write a Laya question" — a model writes Classify's question + options into its **question**
   port), **Classify** (Laya on the farm: one multiple-choice question per item,
   with a confidence; unsure below 0.6; no Laya → every item passed on unsure; the unsure items' text rides a `check` list for a
-  second opinion), Split, Filter, Collect,
+  second opinion), **Agent** (P4, 2026-09-27, `graph/parts/agent.mjs`: a model in ≤ 12 short steps, each ONE tool —
+  `run_code` in the sandbox over the labelled inputs and earlier results, `fetch` on hosts a PERSON listed on the box
+  (exact names, through `io.ts`), `laya`, `answer` — JSON mode through the same ask door, one generation per step on
+  the Cap (the plan quotes `1–N` via `mostGenerations`); a failed or malformed step is fed back; the answer carries
+  every step and its result; no output tool, never arms), Split, Filter, Collect,
   Repeat (*think*); Preview (+ p5.js/three.js/SVG/HTML/Markdown presets; since 2026-09-27 it hands on a
   **PNG** of what it drew — SVG rasterised in the renderer — so a vision model can see its own work) and
   Code (a plain-words **What it does** line, and a fold that hides the program behind it), **Speak** (says text with the farm's voice or this computer's) and **Send** (OSC, Art-Net DMX, MQTT,
@@ -180,7 +184,9 @@ docs) is `docs/reviews/DOCS_REVIEW_2026-09-27_{FARM,SHELL,COMPUTER}.md`. Snapsho
   (its own-computer voice, `speechSynthesis`, sends nothing); a **Fetch** box (2026-09-27) sends ONE GET to the address a person
   typed — run in main (`src/main/io.ts`): http(s), never loopback/link-local/farm ports, ≤ 1 MB text, keeps
   its last copy offline; an **Open data** box sends GETs to www.data.gouv.fr and tabular-api.data.gouv.fr only,
-  derived from the dataset link a person pasted (nothing from the graph), each through the same `io.ts`. Where data lives: all of it in DATA_DIR — graphs and their
+  derived from the dataset link a person pasted (nothing from the graph), each through the same `io.ts`; an **Agent** box's prompts (its task, a sketch of its inputs and
+  results) go to the farm like an Instruction's, and its `fetch` steps GET addresses the MODEL picks, but only on the hosts a
+  person listed on the box, through `io.ts` (a URL can carry what the model read — the listed hosts are the boundary). Where data lives: all of it in DATA_DIR — graphs and their
   files in the renderer's IndexedDB (`lol-chat` → `graphs`, `attachments`), which is the main window's
   session at `<DATA_DIR>/lol-client`, and File-box outputs in `<DATA_DIR>/LOL Studio Projects/` (one
   project per graph); a data-folder move carries both. The opt-in **Record log** writes `%APPDATA%\LlmOnLan\logs\computer\*.jsonl`
@@ -657,7 +663,7 @@ LlmOnLan/
   box's) raw bytes, for text **extraction only** (the extracted text embeds locally); presence heartbeats
   (`POST /lol/client-ping` every 10 s: hostname, platform, version, idle seconds).
 - **To third parties a person names:** a Computer **Fetch** box's GET to the address typed in it (nothing
-  from the graph is sent with it); an **Open data** box's GETs to data.gouv.fr for the dataset pasted in it; a **Send** box's message to the device typed in it, only once a person
+  from the graph is sent with it); an **Open data** box's GETs to data.gouv.fr for the dataset pasted in it; an **Agent** box's GETs, only to hosts a person listed on it; a **Send** box's message to the device typed in it, only once a person
   armed the outputs (a dry run otherwise). A board on this computer's USB cable (Send by USB, Receive) stays
   on this computer; the farm's message bus carries what a graph publishes (armed) to whoever subscribed on the
   LAN, and keeps nothing.

@@ -48,3 +48,30 @@ index.html with the new title AND the rest of the page intact, within 4 calls.
   outputs. Native tool calls first; the JSON mode is the fallback for a model or engine without them.
 - **P5**: tool calling is not the blocker; the DeepSeek Harness spike (P5-0) now only has to prove the
   harness itself (install, skills, headless SDK) on Windows.
+
+## The Agent box, built — on the rig (2026-09-27, 22:55–23:25)
+
+The box (`shell/renderer/chat/graph/parts/agent.mjs`, commit 3f19c48) went JSON mode through the Computer's own
+ask door — not native tools — so every step is a generation on the run's Cap and uses the lane every Instruction
+uses (native tools stay the upgrade path). No output tool at all, so no Confirm was needed: an agent can only
+compute, read the hosts a person listed, ask Laya and answer.
+
+**Task** (the real app, the dev farm, live data.gouv.fr): an **Open data** box on *Fréquentation des Musées de
+France* (12,292 rows) wired into an Agent allowed ONE host, `tabular-api.data.gouv.fr`: *"Over the WHOLE file,
+which 5 regions had the most museum visitors in total, all years together?"* — the task text names the tabular
+API's `?<column>__groupby&<column>__sum` syntax. 8 steps at most.
+
+| Model (Ollama, same farm) | Steps | Time | Answer | What happened |
+|---|---|---|---|---|
+| gemma4:12b (the default) | 3 | 23 s | ✔ the 5 regions and sums, exactly the code's result | fetch `?region__groupby&total__sum` → sort in code → answer |
+| qwen3.8:latest | 3 | 15 s | ✔ same, as a table | same path; added "2001–2022" (from the input's column stats) and "nearly 9×" (its own arithmetic, correct) |
+| nemotron-3.5-lightning:30b | 4 | — | ✔ same | forgot the `?` → 404 fed back → fixed the URL next step |
+
+**What the first runs taught the box** (each fixed, then the table above): a step's 4096 tokens were all spent
+thinking (→ 16384, clamped to the window); a dataset's long description hid its `columns` in a 1500-character
+preview (→ inputs and results go as a SKETCH: long texts cut, lists shortened with a count); one malformed
+JSON step killed the run (→ fed back like a failed tool: at 90% per call, 8 steps would otherwise all have to
+land); gemma4 wrote `results[0]` five times running against `inputs.results[0]` (→ `results` is in the code's
+scope); code that `console.log`s returns null (→ the model is told to return). The rig's first runs also read
+the WRONG file: a changed Open data link does not re-run a box that already holds a value when ▶ is pressed on
+a box downstream — run the Open data box itself first (a Computer rule, not the Agent's).

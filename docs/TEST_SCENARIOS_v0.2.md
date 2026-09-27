@@ -76,6 +76,14 @@ and TouchDesigner or Max (OSC). Scenarios marked **(no farm)** work with the far
   link and change the question, run again. Check: numbers in the page's table and on the chart match the
   dataset's page on data.gouv.fr; the model's text has no digits (they show *…*); the answer starts *In the
   first 200 rows of …*. Unplug the network: it still runs from its copy and says *Offline*.
+- [ ] **3.13 The Agent.** ＋ Think ▸ **Agent**. (a) The **?** example (readings → Agent): ▶ — the answer gives
+  the average and the largest, and *How it got there* shows the run_code step with the numbers it computed.
+  (b) Wire an **Open data** box on *Fréquentation des Musées de France* (▶ it first) into an Agent, *Web hosts
+  it may read* = `tabular-api.data.gouv.fr`, task: *"Over the whole file, which 5 regions had the most museum
+  visitors in total? The tabular API …/api/resources/<file id>/data/?<column>__groupby&<column>__sum groups and
+  sums the whole file."* — expect Île-de-France first (≈ 362.7 million), in 3–4 steps. (c) Empty the hosts
+  field: fetch is no longer offered, and it can only work from what is wired in (the 200-row sample) — check
+  its answer says so rather than claiming whole-file totals. The run bar says *1–6 generations*.
 - [ ] **3.12 Different models.** Run *Analyse a dataset* and *Read the news* with gemma4:12b, then with
   qwen3.8 and nemotron if the farm serves them (each Instruction's model picker). Note which one writes a
   working program for 3.11's question.

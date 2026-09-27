@@ -479,6 +479,30 @@ writes a small program that the Code box runs over the sample (its answer says h
 *Read the news*, every number you see comes from data.gouv.fr or from the code: a digit a model writes becomes
 **…**. A copy of the festivals list ships with the template, so it also runs offline.
 
+### A model that works in steps: the Agent box
+
+**＋ → Think → Agent** is for a task that takes a few moves: *which 5 regions had the most museum visitors,
+all years together?* Write the task in plain words, wire in what it needs (each arrow under its name), and
+press ▶. Each **step** the model picks ONE tool and sees what came back:
+
+- **run_code** — JavaScript in the Computer's sandbox (no network), over what is wired in and every earlier
+  result. This is how numbers get computed: the agent is told to compute, never to guess.
+- **fetch** — ONE web address, only on the hosts **you** list in *Web hosts it may read* (exact names, e.g.
+  `tabular-api.data.gouv.fr`). Empty: no web at all. The same checks as the Fetch box apply.
+- **laya** — the farm's Classify, over a list an earlier step made (when the farm has Laya).
+- **answer** — the end.
+
+The box's face says what it is doing (*Step 2 of 6: fetch…*). Its answer comes with **How it got there**:
+every step, and what its tool gave back, so you can check where each number came from. A step that goes
+wrong (bad code, a host you did not list, an answer that is not the JSON asked for) is shown to the model,
+which usually fixes it on the next step. *Steps at most* (6) bounds it: each step is one generation on the
+run's Cap, and the run bar says *1–6 generations*. The agent has **no output tool**: it never sends to a
+device and never arms anything.
+
+Tip, from the rig: for data.gouv.fr, wire an **Open data** box into the agent, allow
+`tabular-api.data.gouv.fr`, and say in the task that `…/api/resources/<file id>/data/?<column>__groupby&<column>__sum`
+groups and sums the **whole** file on data.gouv.fr's side — gemma4 then answers in about three steps.
+
 ### Sorting many items fast: the Classify box
 
 **＋ → Think → Classify** asks **Laya**, a small decision model on the farm, ONE multiple-choice question
