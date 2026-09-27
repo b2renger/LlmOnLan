@@ -92,14 +92,14 @@ export function debugLogDoor() {
  * (src/main/io.ts: http(s) only, never this machine or link-local, never the farm's ports, ≤ 1 MB of
  * text). Every answer is {ok:true, url, status, contentType, text, bytes} or {ok:false, code,
  * message, status?}; on a shell without the `io` property this returns null, so the box can say why.
- * @returns {null | {get(url: string): Promise<any>}}
+ * @returns {null | {get(url: string, opts?: {hosts?: string[]}): Promise<any>}}
  */
 export function ioDoor() {
   const api = preloadProp('io', ['get']);
   if (!api) return null;
   return {
-    get: (url) => Promise.resolve()
-      .then(() => api.get(url))
+    get: (url, opts) => Promise.resolve()
+      .then(() => (opts ? api.get(url, opts) : api.get(url)))
       .then((r) => (r && typeof r === 'object' && (r.ok === true || typeof r.code === 'string')
         ? r : { ok: false, code: 'E_NET', message: 'no answer from the main process' }),
       (e) => ({ ok: false, code: 'E_NET', message: String(e && e.message ? e.message : e) })),

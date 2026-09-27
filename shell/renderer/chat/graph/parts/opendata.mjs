@@ -25,6 +25,8 @@ import '../../strings/parts-opendata.en.mjs';
 const SITE = 'https://www.data.gouv.fr';
 const TABULAR = 'https://tabular-api.data.gouv.fr';
 const HOSTS = new Set(['data.gouv.fr', 'www.data.gouv.fr', 'tabular-api.data.gouv.fr']);
+/** The only hosts a GET may reach, redirects included (main checks every hop; critic S3). */
+const DATA_GOUV_HOSTS = ['www.data.gouv.fr', 'tabular-api.data.gouv.fr'];
 const UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
 export const DEFAULT_ROWS = 200;
 // ponytail: a SAMPLE, not the file — 5 pages of 200 stay under a box's comfort; data.gouv.fr's profile
@@ -129,7 +131,7 @@ function failure(r) {
 export async function readDataset(door, where, want, signal) {
   const get = async (/** @type {string} */ url) => {
     if (signal && signal.aborted) throw partFail(t('parts.openDataStopped'), 'part');
-    const r = await door.get(url);
+    const r = await door.get(url, { hosts: DATA_GOUV_HOSTS });
     if (!r || r.ok !== true) throw failure(r);
     try { return JSON.parse(String(r.text || '')); } catch { throw new Error(t('parts.openDataBadAnswer')); }
   };

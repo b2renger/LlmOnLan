@@ -37,10 +37,13 @@ function farm(over = {}) {
     const n = Math.max(0, Math.min(Number(m[2]), 250 - from));
     return { data: Array.from({ length: n }, (_, i) => row(from + i + 1)), meta: { total: 250 }, links: { next: from + n < 250 ? 'more' : null } };
   };
+  /** @type {any[]} */ const hosts = [];
   return {
     asked,
-    get: async (/** @type {string} */ url) => {
+    hosts,
+    get: async (/** @type {string} */ url, /** @type {any} */ o) => {
       asked.push(url);
+      hosts.push(o && o.hosts);
       const a = url in answers ? answers[url] : page(url);
       if (a && a.fail) return a.fail;
       return a ? { ok: true, url, status: 200, contentType: 'application/json', text: JSON.stringify(a), bytes: 10 } : { ok: false, code: 'E_HTTP', status: 404, message: '' };
@@ -104,6 +107,7 @@ export default (test) => {
       addresses.rows(RID, 1, 200), addresses.rows(RID, 2, 200),
     ]);
     assert.ok(f.asked.every((u) => /^https:\/\/(www|tabular-api)\.data\.gouv\.fr\//.test(u)), 'data.gouv.fr only');
+    assert.ok(f.hosts.every((h) => JSON.stringify(h) === '["www.data.gouv.fr","tabular-api.data.gouv.fr"]'), 'and main is told so, for every hop (critic S3)');
     assert.equal(v.rows.length, 250);
     assert.deepEqual(v.rows[0], { Nom: 'Festival 1', Discipline: 'Musique' }, 'rows without __id and the BOM');
     assert.deepEqual([v.total, v.read, v.columns.length, v.file.id], [250, 250, 2, RID]);

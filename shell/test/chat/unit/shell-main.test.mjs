@@ -15,7 +15,7 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SHELL = path.join(HERE, '..', '..', '..');
 const BUILD = path.join(SHELL, 'build', 'main');
 const SRC = path.join(SHELL, 'src', 'main');
-const MODULES = ['farmSelect', 'discovery', 'configBridge', 'sidecar', 'sidecarManager', 'clientData', 'dataMigration', 'store', 'io', 'mcp'];
+const MODULES = ['farmSelect', 'discovery', 'configBridge', 'sidecar', 'sidecarManager', 'clientData', 'dataMigration', 'store', 'io', 'mcp', 'serial'];
 
 /** @type {string[]} */
 const temps = [];
@@ -760,6 +760,42 @@ export default (test) => {
     // Critic P1P2 S4: a Location the URL parser refuses is an answer, not a throw.
     r = await IO.fetchText('https://a.example/', { lookup: pub, fetchImpl: async () => new Response(null, { status: 302, headers: { location: 'http://exa mple.com/' } }) });
     assert.equal(r.code, 'E_URL');
+  });
+
+  test('io.fetchText with allowed hosts (critic S3): every hop, a redirect included, is checked BEFORE any request', async () => {
+    const IO = require(path.join(BUILD, 'io.js'));
+    const pub = async () => [{ address: '93.184.216.34' }];
+    /** @type {string[]} */ const asked = [];
+    const hosts = ['tabular-api.data.gouv.fr'];
+    // An open redirect on an allowed host must not carry the request to another one.
+    let r = await IO.fetchText('https://tabular-api.data.gouv.fr/go', { lookup: pub, hosts, fetchImpl: async (u) => {
+      asked.push(String(u));
+      return new Response(null, { status: 302, headers: { location: 'https://evil.example/?data=secret' } });
+    } });
+    assert.deepEqual([r.ok, r.code, r.message], [false, 'E_HOST', 'evil.example']);
+    assert.deepEqual(asked, ['https://tabular-api.data.gouv.fr/go'], 'the other host was never asked');
+    r = await IO.fetchText('https://evil.example/', { lookup: pub, hosts, fetchImpl: async () => { throw new Error('must not be called'); } });
+    assert.equal(r.code, 'E_HOST', 'a first address outside the list: no request at all');
+    r = await IO.fetchText('https://tabular-api.data.gouv.fr/x', { lookup: pub, hosts, fetchImpl: async () => new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } }) });
+    assert.equal(r.ok, true, 'an allowed host still reads');
+  });
+
+  test('serial (critic S2, S4): serial only for the app\'s own page; no device pre-granted; everything else as Electron\'s default', () => {
+    stubElectron();
+    const S = require(path.join(BUILD, 'serial.js'));
+    /** @type {any} */ let check = null;
+    let deviceHandler = false;
+    const ses = /** @type {any} */ ({
+      setPermissionCheckHandler: (/** @type {any} */ fn) => { check = fn; },
+      setDevicePermissionHandler: () => { deviceHandler = true; },
+      on: () => {},
+    });
+    S.configureSerial(ses);
+    assert.equal(check(null, 'serial', 'file:///', { securityOrigin: 'file:///' }), true, 'the app page may use serial');
+    assert.equal(check(null, 'serial', 'null', { securityOrigin: 'null' }), false, 'the sandbox guest may not');
+    assert.equal(check(null, 'deprecated-sync-clipboard-read', 'file:///', { securityOrigin: 'file:///' }), false);
+    assert.equal(check(null, 'media', 'file:///', { securityOrigin: 'file:///' }), true, 'the rest stays as it was');
+    assert.equal(deviceHandler, false, 'no device permission handler: a board is usable only once a person picked it');
   });
 
   test('cleanup', () => {

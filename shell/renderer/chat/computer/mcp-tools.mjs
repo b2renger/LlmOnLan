@@ -3,8 +3,11 @@
 // answer). They use the Computer's own doors — the SAME debug doors the harness drives — so this is not
 // a second way to edit a graph: a tool call is what a person's click would have done.
 //
-// One rule no tool may break: the outputs. No tool arms them, and run_graph is refused while a person
-// has them armed, so a model can never make a Send box talk to a real device (plan §3.5, §8c).
+// One rule no tool may break: the outputs. No tool arms them, and while a person has them armed NO tool
+// may change or run a graph (critic B1, 2026-09-27: arming is global and a Send box reads its target at run
+// time, so an edit under arming would retarget a live output the person never saw in the arming list).
+// And what only a PERSON may choose stays theirs (critic S1): where a box reads from, which hosts an agent
+// may read, which USB board, and a Sound box's Listen — a model's copy of those is dropped, and it is told.
 
 import { mcpDoor, outputsDoor } from '../projects/bridge.mjs';
 import { EXAMPLES } from './examples/index.mjs';
@@ -50,6 +53,26 @@ function boxTypes() {
   });
 }
 
+/** Per box type, the settings only a person may set. */
+export const PERSON_ONLY = Object.freeze({
+  fetch: ['url'], opendata: ['link'], agent: ['hosts'], audio: ['listen'],
+  send: ['serialPort', 'serialLabel'], receive: ['serialPort', 'serialLabel'],
+});
+
+/** PURE: a model's settings for a box of `type`, without what only a person may set. @param {string} type @param {any} settings */
+export function modelSettings(type, settings) {
+  const drop = /** @type {Record<string, string[]>} */ (PERSON_ONLY)[type] || [];
+  /** @type {Record<string, any>} */ const kept = {};
+  /** @type {string[]} */ const left = [];
+  for (const [k, v] of Object.entries(settings && typeof settings === 'object' ? settings : {})) {
+    if (drop.includes(k)) left.push(k); else kept[k] = v;
+  }
+  return { kept, left };
+}
+
+const LEFT_NOTE = 'left for a person to set in the Computer (only a person chooses where a box reads from, which web hosts an agent may read, a USB board, and Listen)';
+const MUTATING = new Set(['open_graph', 'new_graph', 'add_box', 'connect_boxes', 'set_box', 'run_graph']);
+
 /** Where a new box goes when the model gives no place: right of everything. @param {any} comp */
 function freeSpot(comp) {
   const parts = comp.doc().parts;
@@ -65,6 +88,10 @@ export async function runTool(name, args) {
   const a = args && typeof args === 'object' ? args : {};
   const { comp, lib } = doors();
   if (!comp || !lib) return no('The Computer is still starting. Try again in a moment.');
+  if (MUTATING.has(name)) {
+    const door = outputsDoor();
+    if (door && await door.armed()) return no('The outputs are armed: a person is working with live devices, so no graph can be changed or run from here until they disarm. Reading still works.');
+  }
   switch (name) {
     case 'list_graphs': {
       // The open graph is counted live: the library row lags behind the debounced save, and a model that
@@ -96,8 +123,9 @@ export async function runTool(name, args) {
       if (!id) return no(`The ${key} box could not be placed.`);
       const preset = creativePresets().find((p) => p.id === key);
       if (preset) comp.setSettings(id, preset.settings);
-      if (a.settings && typeof a.settings === 'object') comp.setSettings(id, a.settings);
-      return ok({ id, type: entry.box, preset: preset ? key : null });
+      const { kept, left } = modelSettings(entry.box, a.settings);
+      if (Object.keys(kept).length) comp.setSettings(id, kept);
+      return ok({ id, type: entry.box, preset: preset ? key : null, ...(left.length ? { left_for_a_person: left, note: LEFT_NOTE } : {}) });
     }
     case 'connect_boxes': {
       const d = comp.doc();
@@ -111,15 +139,15 @@ export async function runTool(name, args) {
       return ok({ id: w.id, from: a.from, to: a.to, port, label: a.label || '' });
     }
     case 'set_box': {
-      if (!comp.doc().parts.some((/** @type {any} */ p) => p.id === a.id)) return no(`No box ${a.id} in the open graph.`);
+      const box = comp.doc().parts.find((/** @type {any} */ p) => p.id === a.id);
+      if (!box) return no(`No box ${a.id} in the open graph.`);
       if (!a.settings || typeof a.settings !== 'object') return no('settings must be an object.');
-      comp.setSettings(String(a.id), a.settings);
-      return ok({ id: a.id, settings: comp.doc().parts.find((/** @type {any} */ p) => p.id === a.id).settings });
+      const { kept, left } = modelSettings(box.type, a.settings);
+      if (Object.keys(kept).length) comp.setSettings(String(a.id), kept);
+      return ok({ id: a.id, settings: comp.doc().parts.find((/** @type {any} */ p) => p.id === a.id).settings, ...(left.length ? { left_for_a_person: left, note: LEFT_NOTE } : {}) });
     }
     case 'run_graph': {
       if (!comp.docId()) return no('No graph is open. Use open_graph or new_graph.');
-      const door = outputsDoor();
-      if (door && await door.armed()) return no('The outputs are armed: only a person may run this graph now.');
       if (a.from && !comp.doc().parts.some((/** @type {any} */ p) => p.id === a.from)) return no(`No box ${a.from} in the open graph.`);
       await comp.run(a.from ? { mode: 'from', seeds: [String(a.from)] } : {});
       const until = Date.now() + RUN_WAIT_MS;

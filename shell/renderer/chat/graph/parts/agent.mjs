@@ -211,7 +211,8 @@ async function runTool(/** @type {any} */ step, /** @type {any} */ c) {
       if (!allowedUrl(step.url, c.hosts)) return { ok: false, error: t('parts.agentHostRefused', { hosts: c.hosts.join(', ') }) };
       const door = ioDoor();
       if (!door) return { ok: false, error: t('parts.fetchNoDoor') };
-      const r = await door.get(String(step.url));
+      // The hosts ride along: main refuses every hop outside them, a redirect included (critic S3).
+      const r = await door.get(String(step.url), { hosts: c.hosts });
       if (!r || r.ok !== true) return { ok: false, error: fetchError(r) };
       return { ok: true, value: toPlain(valueFromAnswer(r)) };
     }

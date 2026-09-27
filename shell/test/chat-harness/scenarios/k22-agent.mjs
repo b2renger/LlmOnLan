@@ -67,9 +67,19 @@ export default [
         timeoutMs: 90000,
         allowConsoleErrors: FARM_ERRORS,
         async run(/** @type {any} */ h) {
+            // Somewhere the agent must never reach, even through an open redirect on its allowed host (critic S3).
+            /** @type {string[]} */ const leaked = [];
+            const elsewhere = http.createServer((req, res) => { leaked.push(String(req.url)); res.end('{}'); });
+            await new Promise((r) => elsewhere.listen(0, '127.0.0.1', () => r(null)));
+            const elsewherePort = /** @type {any} */ (elsewhere.address()).port;
             /** @type {string[]} */ const asked = [];
             const server = http.createServer((req, res) => {
                 asked.push(String(req.url));
+                if (req.url === '/jump') {
+                    res.writeHead(302, { location: `http://127.0.0.1:${elsewherePort}/leak?data=secret` });
+                    res.end();
+                    return;
+                }
                 res.writeHead(200, { 'content-type': 'application/json' });
                 res.end(JSON.stringify({ data: [{ region: 'A', visitors: 120 }, { region: 'B', visitors: 80 }, { region: 'A', visitors: 30 }] }));
             });
@@ -80,23 +90,27 @@ export default [
                 h.io.map({ 'https://open.example.org/': `http://127.0.0.1:${port}/` });
                 await h.mock.state({ agentSteps: [
                     { tool: 'fetch', why: 'somewhere else first', code: '', url: 'https://other.example.org/x.json', answer: '' },
+                    { tool: 'fetch', why: 'through a redirect', code: '', url: 'https://open.example.org/jump', answer: '' },
                     { tool: 'fetch', why: 'the rows', code: '', url: 'https://open.example.org/visits.json', answer: '' },
-                    { tool: 'run_code', why: 'sum per region', code: 'const out = {}; for (const r of inputs.results[1].data) out[r.region] = (out[r.region] || 0) + r.visitors; return out;', url: '', answer: '' },
+                    { tool: 'run_code', why: 'sum per region', code: 'const out = {}; for (const r of results[2].data) out[r.region] = (out[r.region] || 0) + r.visitors; return out;', url: '', answer: '' },
                     { tool: 'answer', why: 'done', code: '', url: '', answer: 'Region A has the most visitors.' },
                 ] });
                 await open(h);
                 const agent = await h.computer.place('agent', 60, 60);
-                await h.computer.set(agent, { task: 'Which region has the most visitors?', model: 'mock-agent', hosts: 'open.example.org', maxSteps: 5 });
+                await h.computer.set(agent, { task: 'Which region has the most visitors?', model: 'mock-agent', hosts: 'open.example.org', maxSteps: 6 });
                 await h.computer.runFrom(agent);
                 const r = await settle(h, agent);
                 h.eq(r.state, 'done', `the agent answered: ${r.error}`);
-                h.eq(asked, ['/visits.json'], 'only the listed host was asked, once');
+                h.eq(asked, ['/jump', '/visits.json'], 'only the listed host was asked');
+                h.eq(leaked, [], 'the redirect off the listed host was refused before any request');
                 const text = String(r.value.data);
                 h.assert(/1\. \*\*fetch https:\/\/other\.example\.org\/x\.json\*\*[^\n]*\n {3}→ error: not an allowed host; you may only fetch from: open\.example\.org/.test(text), `the refusal is a step the model saw: ${text}`);
-                h.assert(/3\. \*\*run_code\*\* — sum per region\n {3}→ \{"A":150,"B":80\}/.test(text), `the sums come from the code: ${text}`);
+                h.assert(/2\. \*\*fetch https:\/\/open\.example\.org\/jump\*\*[^\n]*\n {3}→ error: That leads to 127\.0\.0\.1:\d+, which is not one of the hosts/.test(text), `the redirect's refusal too: ${text}`);
+                h.assert(/4\. \*\*run_code\*\* — sum per region\n {3}→ \{"A":150,"B":80\}/.test(text), `the sums come from the code: ${text}`);
             } finally {
                 h.io.map(null);
                 server.close();
+                elsewhere.close();
             }
         },
     },

@@ -89,7 +89,9 @@ export function targetsIn(doc) {
   for (const p of (doc && Array.isArray(doc.parts) ? doc.parts : [])) {
     if (p.type !== 'send') continue;
     const r = requestFor(p.settings || {}, null);
-    const where = r.transport === 'serial' ? String((p.settings && p.settings.serialLabel) || r.serialPort || '?') : r.transport === 'bus' ? String(r.topic || '?') : r.url || `${r.host}:${r.port}${r.address ? ' ' + r.address : ''}${r.topic ? ' ' + r.topic : ''}${r.transport === 'artnet' ? ' universe ' + r.universe : ''}`;
+    // A board: its label AND its id (critic S2) — a label is free text; the id is the port a person picked.
+    const board = [String((p.settings && p.settings.serialLabel) || ''), String(r.serialPort || '')].filter(Boolean);
+    const where = r.transport === 'serial' ? (board.length === 2 && board[0] !== board[1] ? `${board[0]} (${board[1]})` : board[0] || '?') : r.transport === 'bus' ? String(r.topic || '?') : r.url || `${r.host}:${r.port}${r.address ? ' ' + r.address : ''}${r.topic ? ' ' + r.topic : ''}${r.transport === 'artnet' ? ' universe ' + r.universe : ''}`;
     const name = t(/** @type {any} */ (TRANSPORT_KEY)[r.transport]);
     // A target on this very computer is said so: arming a shared graph must not hide a POST to a local service.
     let host = String(r.host || '');

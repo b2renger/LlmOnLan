@@ -119,7 +119,8 @@ export default (test) => {
     /** @type {string[]} */ const got = [];
     const saved = globalThis.window;
     const savedFetch = globalThis.fetch;
-    /** @type {any} */ (globalThis).window = { lol: { io: { get: async (/** @type {string} */ url) => { got.push(url); return { ok: true, url, status: 200, contentType: 'application/json', text: '{"data":[{"t":"a"},{"t":"b"}]}', bytes: 30 }; } } } };
+    /** @type {any[]} */ const opts = [];
+    /** @type {any} */ (globalThis).window = { lol: { io: { get: async (/** @type {string} */ url, /** @type {any} */ o) => { got.push(url); opts.push(o); return { ok: true, url, status: 200, contentType: 'application/json', text: '{"data":[{"t":"a"},{"t":"b"}]}', bytes: 30 }; } } } };
     /** @type {any} */ (globalThis).fetch = async () => ({ ok: true, status: 200, json: async () => ({ answers: [{ choice: 'music', confidence: 0.9 }, { choice: 'books', confidence: 0.4 }] }), text: async () => '' });
     try {
       const f = farm([
@@ -130,6 +131,7 @@ export default (test) => {
       ]);
       const out = await runAgent({ task: 'x', hosts: 'tabular-api.data.gouv.fr' }, f, { caps: { models: [], classify: { url: 'http://laya.test', key: 'k' } } });
       assert.deepEqual(got, ['https://tabular-api.data.gouv.fr/api/resources/x/data/?page_size=2']);
+      assert.deepEqual(opts, [{ hosts: ['tabular-api.data.gouv.fr'] }], 'the listed hosts go to main, which checks every hop (critic S3)');
       assert.match(f.calls[3].prompt, /result \(results\[2\]\): \[\{"text":"a","label":"music","confidence":0\.9\},\{"text":"b","label":"books","confidence":0\.4\}\]/);
       assert.deepEqual(f.calls[0].schema.properties.tool.enum, ['run_code', 'fetch', 'laya', 'answer']);
       assert.match(out.data, /3\. \*\*laya — Which kind\?\*\*/);

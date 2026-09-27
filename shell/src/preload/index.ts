@@ -95,7 +95,7 @@ contextBridge.exposeInMainWorld('lol', {
     },
     io: {
         // The Computer's Fetch box (ecosystem plan v2 §4.2): one capped GET, checked in main (io.ts).
-        get: (url: string) => ipcRenderer.invoke('lol:io:fetch', url),
+        get: (url: string, opts?: { hosts?: string[] }) => ipcRenderer.invoke('lol:io:fetch', url, opts),
         // Outputs to the world (plan v2 §3.5): the ONE choke point is in main (outputs.ts).
         send: (req: unknown) => ipcRenderer.invoke('lol:io:send', req),
         arm: (on: boolean) => ipcRenderer.invoke('lol:io:arm', on),

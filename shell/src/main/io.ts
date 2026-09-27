@@ -24,7 +24,7 @@ const MAX_REDIRECTS = 5;
 export const FARM_PORTS: ReadonlySet<number> = new Set([4000, 4001, 41997, 11434, 8081, 8880, 8888, 8890, 8891, 8892]);
 
 export type FetchCode = 'E_URL' | 'E_SCHEME' | 'E_CREDENTIALS' | 'E_FARM' | 'E_LOCAL' | 'E_DNS'
-    | 'E_TIMEOUT' | 'E_SIZE' | 'E_TYPE' | 'E_HTTP' | 'E_REDIRECTS' | 'E_NET';
+    | 'E_TIMEOUT' | 'E_SIZE' | 'E_TYPE' | 'E_HTTP' | 'E_REDIRECTS' | 'E_NET' | 'E_HOST';
 export type FetchAnswer =
     | { ok: true; url: string; status: number; contentType: string; text: string; bytes: number }
     | { ok: false; code: FetchCode; status?: number; message: string };
@@ -118,6 +118,9 @@ export interface FetchDeps {
     lookup?: (host: string) => Promise<{ address: string }[]>;
     allowLoopback?: boolean;      // the test harness only: fixture servers live on 127.0.0.1
     timeoutMs?: number;
+    // Only these hosts (`host[:port]`, lower case), for EVERY hop — a redirect included — before any request
+    // goes out (critic S3: an Agent's person-listed hosts, Open data's two data.gouv.fr hosts). None: any.
+    hosts?: string[];
 }
 
 /** One GET, following up to MAX_REDIRECTS redirects, each hop re-checked. Never throws. */
@@ -133,6 +136,7 @@ export async function fetchText(raw: unknown, deps: FetchDeps = {}): Promise<Fet
             const checked = checkUrl(next, allow);
             if (!checked.ok) return fail(checked.code, String(next));
             const url = checked.url;
+            if (deps.hosts && !deps.hosts.includes(url.host.toLowerCase())) return fail('E_HOST', url.host);
             const host = url.hostname.replace(/^\[|\]$/g, '');
             if (!net.isIP(host)) {
                 // ponytail: checked here, then resolved again by fetch — a DNS answer that changes

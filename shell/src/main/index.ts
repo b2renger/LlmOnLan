@@ -659,8 +659,13 @@ function registerIpc(): void {
     // ---- /LOL Studio ----
 
     // ---- LOL Studio (S0) ---- (the Computer's Fetch box: one capped GET, io.ts; ecosystem plan v2 §4.2)
-    ipcMain.handle('lol:io:fetch', (_e, url: unknown) => (
-        isStr(url) && url.length <= 2048 ? fetchText(url) : Promise.resolve({ ok: false, code: 'E_URL', message: 'bad arguments' })));
+    ipcMain.handle('lol:io:fetch', (_e, url: unknown, opts: unknown) => {
+        if (!isStr(url) || url.length > 2048) return Promise.resolve({ ok: false, code: 'E_URL', message: 'bad arguments' });
+        // An allowed-hosts list (the Agent's, Open data's): at most 32 short names, else refused whole.
+        const hosts = isObj(opts) && Array.isArray((opts as any).hosts) ? (opts as any).hosts : null;
+        if (hosts && (hosts.length > 32 || !hosts.every((h: unknown) => isStr(h) && h.length <= 255))) return Promise.resolve({ ok: false, code: 'E_URL', message: 'bad arguments' });
+        return fetchText(url, hosts ? { hosts: hosts.map((h: string) => h.toLowerCase()) } : {});
+    });
     // The Computer's outputs to the world: ONE choke point (outputs.ts; ecosystem plan v2 §3.5). Disarmed
     // by default and on every window (re)load — see createWindow — so a dry run is the default.
     ipcMain.handle('lol:io:send', (_e, req: unknown) => (
@@ -1017,11 +1022,13 @@ app.whenReady().then(async () => {
         if (loadSettings().mcpToken !== token) updateSettings({ mcpToken: token });
         const caller = pageCaller((msg) => { if (win && !win.isDestroyed()) win.webContents.send('lol:mcp:call', msg); else throw new Error('no window'); });
         ipcMain.handle('lol:mcp:answer', (_e, id: unknown, out: unknown) => caller.answered(String(id), out as { text: string; isError?: boolean }));
-        setComputerMcp({ url: `http://127.0.0.1:${MCP_PORT}${MCP_PATH}`, token });
-        void startMcpServer({ token, version: app.getVersion(), tools: () => MCP_TOOLS, call: caller.call }).then((srv) => {
-            if (!srv) { setComputerMcp(null); console.warn(`[mcp] port ${MCP_PORT} is taken: the Computer's MCP server is off this session`); }
-            else console.log(`[mcp] the Computer's MCP server on http://127.0.0.1:${MCP_PORT}${MCP_PATH}`);
-        });
+        // OWUI learns the address (and the bearer) only once THIS process holds the port (critic N6): a
+        // loopback listen settles in milliseconds, long before the first sidecar spawn.
+        const srv = await startMcpServer({ token, version: app.getVersion(), tools: () => MCP_TOOLS, call: caller.call });
+        if (srv) {
+            setComputerMcp({ url: `http://127.0.0.1:${MCP_PORT}${MCP_PATH}`, token });
+            console.log(`[mcp] the Computer's MCP server on http://127.0.0.1:${MCP_PORT}${MCP_PATH}`);
+        } else console.warn(`[mcp] port ${MCP_PORT} is taken: the Computer's MCP server is off this session`);
     }
     createWindow();
 

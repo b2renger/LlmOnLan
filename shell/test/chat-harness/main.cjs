@@ -137,12 +137,24 @@ function mapped(url) {
     for (const [from, to] of Object.entries(map)) if (url.startsWith(from)) return to + url.slice(from.length);
     return url;
 }
+/** The same map for an allowed-hosts list: a mapped host becomes its fixture's `host:port`. @param {string[]} hosts */
+function mappedHosts(hosts) {
+    let map = {};
+    try { map = JSON.parse(fs.readFileSync(path.join(tmpDir(), 'io-map.json'), 'utf8')) || {}; } catch { return hosts; }
+    return hosts.map((h) => {
+        for (const [from, to] of Object.entries(map)) {
+            try { if (new URL(from).host === h) return new URL(String(to)).host; } catch { /* not a URL: skip */ }
+        }
+        return h;
+    });
+}
 function wireIo() {
     let fetchText = null;
     try { if (fs.existsSync(IO_BUILD)) fetchText = require(IO_BUILD).fetchText; } catch (e) { console.error('[harness-main] io build unloadable:', e && e.message); }
     if (typeof fetchText !== 'function') return false;
-    ipcMain.handle('lol:io:fetch', (_e, url) => (typeof url === 'string' && url.length <= 2048
-        ? fetchText(mapped(url), { allowLoopback: true }) : { ok: false, code: 'E_URL', message: 'bad arguments' }));
+    ipcMain.handle('lol:io:fetch', (_e, url, opts) => (typeof url === 'string' && url.length <= 2048
+        ? fetchText(mapped(url), { allowLoopback: true, ...(opts && Array.isArray(opts.hosts) ? { hosts: mappedHosts(opts.hosts) } : {}) })
+        : { ok: false, code: 'E_URL', message: 'bad arguments' }));
     // The outputs choke point, the REAL outputs.js (it allows this machine anyway: OSC to 127.0.0.1).
     const OUT_BUILD = path.join(__dirname, '..', '..', 'build', 'main', 'outputs.js');
     if (fs.existsSync(OUT_BUILD)) {

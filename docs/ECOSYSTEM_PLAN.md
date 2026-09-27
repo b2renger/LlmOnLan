@@ -247,6 +247,21 @@ Learn shelf**.
 | **P5 Studio IDE** | P5-0 dsh spike → v1 IDE (no shell), local serve, git | build, serve and commit a three.js app from a prompt | <ul><li>dsh churn → pin plus fallback</li><li>shell → none in v1</li><li>Windows paths and ACLs → a rig on a non-admin account</li></ul> |
 | **P6 Home** | Home Assistant through MQTT (comes with P3); lessons 5–12 completed | — | cloud creep → HA local only |
 
+**Status, 2026-09-27 23:30** (details and commits in `docs/NIGHT_LOG_2026-09-27.md`):
+
+| Phase | State | On the Learn shelf |
+|---|---|---|
+| P0–P1c | done, released in v0.2.0 / farm-v0.0.39 | template *Read the news* |
+| P2 Speech | done, released in v0.2.0 | ? examples only — **no template yet** |
+| P3a Outputs | done (v0.2.0); + USB serial both ways (P3a-2, on main) | template *Talk to a board* |
+| P3b Triggers | done on main: the farm's message bus (MQTT · WebSocket · OSC), Receive/Send on it, the Trigger box | template *A board on Wi-Fi* |
+| P4 Agents | done on main: the Agent box (JSON mode through the ask door; run_code / fetch on listed hosts / laya / answer); rig: gemma4, qwen3.8, nemotron all correct on a whole-file data.gouv.fr question | ? example + a tutorial tip — **no template yet** |
+| Owner additions | on main: the Computer as an MCP server (§8c), LOL Chat → LOL Vibe, a ? example per box, **Open data** (data.gouv.fr) + template *Analyse a dataset* | — |
+| P5 Studio IDE | not started (P5-0: the DeepSeek Harness spike) | — |
+| P6 Home | not started (Home Assistant over the farm's MQTT bus is now possible) | — |
+
+Lessons 5–12 are still unbuilt; the templates and the ? examples carry the new capabilities for now.
+
 Windows rig items the critic added: the firewall prompt (OSC-in, LAN serve), USB-serial drivers
 (CH340/CP210x need admin), paths with spaces in git and dsh, and Art-Net interface choice on multi-NIC
 laptops.

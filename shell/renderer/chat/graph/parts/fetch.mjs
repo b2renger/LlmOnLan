@@ -36,6 +36,7 @@ const ERR_KEY = {
   E_HTTP: 'parts.fetchErr_E_HTTP',
   E_REDIRECTS: 'parts.fetchErr_E_REDIRECTS',
   E_NET: 'parts.fetchErr_E_NET',
+  E_HOST: 'parts.fetchErr_E_HOST',
 };
 
 /** The failures that mean "no network right now" — the only ones the last copy may cover. */

@@ -24,13 +24,17 @@ export function choicesOf(list: Array<{ portId: string; portName?: string; displ
 
 /** Web Serial for the window's own session (DATA_DIR/lol-client), never the OWUI webview's. */
 export function configureSerial(ses: Session): void {
-    // The check handler is what `navigator.serial` consults: allow serial here, keep Electron's default
-    // (granted) for everything else this window already used before P3a-2.
-    ses.setPermissionCheckHandler(() => true);
-    // A board the person picked stays usable after a reload (getPorts). ponytail: every USB serial device
-    // of this computer passes — they are local and the person still picks one per box. Upgrade path:
-    // remember the granted device ids.
-    ses.setDevicePermissionHandler((details) => details.deviceType === 'serial');
+    // The check handler is what `navigator.serial` consults. Serial: only the app's own page (file://) —
+    // never the sandbox guest's opaque origin. Everything else: exactly Electron's default without a
+    // handler (critic S4, 2026-09-27: `() => true` also granted deprecated-sync-clipboard-read).
+    ses.setPermissionCheckHandler((_wc, permission, _origin, details) => {
+        if (permission === 'serial') return String((details && details.securityOrigin) || '').startsWith('file://');
+        return permission !== 'deprecated-sync-clipboard-read';
+    });
+    // NO device permission handler (critic S2): with one, every serial device of this computer counted as
+    // granted, so an imported graph's Receive box opened — and reset — a matching board as it rendered, with
+    // no pick. Without it a port is usable once a person picked it, for this session (reloads included);
+    // after a restart the person picks the board again.
     ses.on('select-serial-port', (event, portList, webContents: WebContents, callback) => {
         event.preventDefault();
         if (pending) pending('');            // a chooser still open: that one is cancelled

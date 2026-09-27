@@ -24,4 +24,5 @@ registerStrings('parts', {
   fetchErr_E_HTTP: 'The address answered {status}.',
   fetchErr_E_REDIRECTS: 'The address redirected too many times.',
   fetchErr_E_NET: 'The address could not be reached: {message}',
+  fetchErr_E_HOST: 'That leads to {message}, which is not one of the hosts this box may read (a redirect is checked too).',
 });
