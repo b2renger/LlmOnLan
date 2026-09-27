@@ -43,13 +43,16 @@ test/                           unit.js, chat-unit.js (+chat/unit), chat-lint.js
 assets/                         icon.svg / icon.png
 ```
 
-The renderer is intentionally thin: chrome + the `<webview>` of `http://127.0.0.1:<port>` (the local
-OWUI) + the settings UI. Everything stateful lives in the main process.
+The shell's own renderer (`app.js`) is intentionally thin: chrome + the `<webview>` of
+`http://127.0.0.1:<port>` (the local OWUI) + the settings UI; the shell's settings, discovery and the
+sidecar live in the main process. LOL Chat and the Computer (`renderer/chat/`) are the exception: they
+keep their state in the renderer's IndexedDB.
 
 ## How the OWUI coupling works (the whole contract)
 
-We touch Open WebUI **only** through env vars (invariant #4). `configBridge.buildSidecarEnv()` is the
-entire coupling:
+We touch Open WebUI **only** through its public surface (invariant #4): env vars, plus the two
+user‑settings API writes (and the auth token/settings reads they need) listed at the end.
+`configBridge.buildSidecarEnv()` is the entire env side:
 
 - **Connection** — `OPENAI_API_BASE_URL` (+ a key) point OWUI at the farm's OpenAI‑compatible endpoint.
   `ENABLE_OLLAMA_API=false` so OWUI never talks to Ollama directly.
@@ -74,8 +77,9 @@ entire coupling:
   (`CONTENT_EXTRACTION_ENGINE=external` + `EXTERNAL_DOCUMENT_LOADER_URL/_API_KEY`). Speech‑to‑text is
   always local (`AUDIO_STT_ENGINE=''` → faster‑whisper, `WHISPER_MODEL=base`).
 - **Keeping the farm's slot for the user (TTFT)** — OWUI runs *extra* LLM calls around a chat, against
-  the same farm endpoint. The farm's `llama-server` has **one inference slot** by default
-  (`llamacpp.parallel`), so anything in flight makes the user's own completion queue behind it. Since
+  the same farm endpoint. A farm has **few inference slots** — 2 per box on the default Ollama engine
+  (`ollama.numParallel`), 1 on `llama-server` (`llamacpp.parallel`) — so anything in flight makes the
+  user's own completion queue behind it. Since
   v0.1.31 we set `ENABLE_FOLLOW_UP_GENERATION=false` and `ENABLE_TAGS_GENERATION=false` (both
   default-ON upstream and fired after *every* response — exactly while the user types the next one),
   and pin `ENABLE_AUTOCOMPLETE_GENERATION=false` so a pin bump can't silently enable per-keystroke
@@ -116,8 +120,10 @@ The pill's popover (**Servers on your network**) lists every farm found. **Click
 the client uses that farm whenever it is healthy. The **Automatic — least busy farm** row above the
 cards removes the pin. Without a pin the client stays on the farm it is using while it works, picks
 last session's farm on a cold boot, and otherwise the least busy healthy farm (coordinators first; load
-= clients/slots, else GPU%; ties within 15 points picked at random). A password-protected farm is a
-candidate only once its password was entered on its card and verified; entering it does not pin it.
+= clients/slots, else GPU%; ties within 15 points picked at random). The least-busy pick skips a
+password-protected farm until its password was entered on its card and verified; entering it does not
+pin it. A pinned, current or last-session farm is used anyway, and when a stored password stops working
+(the operator rotated it) the client drops it and the card asks again.
 
 A farm seen under two names (its beacon and a hostname or second IP you added) keeps the address it
 was first reached at while that address answers, so OWUI is not restarted every time the other name

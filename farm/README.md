@@ -26,10 +26,11 @@ no URL typed. Model choice lives in the config — the CLI never hand‑edits ro
 ## Quick start (fresh pull) — two commands
 
 On a GPU box with a fresh checkout you need **[Node ≥ 20](https://nodejs.org)** and
-**[Python 3.9–3.13](https://python.org)** — `lol install` builds the LiteLLM proxy into a venv but will
+**[Python 3.10–3.13](https://python.org)** (3.9 is enough for the LiteLLM proxy alone; the default-on web
+search and OCR need 3.10+) — `lol install` builds the LiteLLM proxy into a venv but will
 **not** install Python for you (without it the bootstrap stops at *"Bootstrap incomplete"* and the farm
-has no proxy). Everything else — Ollama, LiteLLM, the llama.cpp backend, the models, web search and OCR
-— one command installs; one runs the farm.
+has no proxy). Everything else — Ollama, LiteLLM, the models, web search and OCR (and the llama.cpp
+backend, only when enabled) — one command installs; one runs the farm.
 
 **Windows (PowerShell):**
 ```powershell
@@ -124,12 +125,16 @@ Both live behind the same LiteLLM proxy, but **one engine serves at a time**: wh
 engine, its alias is the only model routed or advertised, and the Ollama catalog is **standby** —
 installed and ready for an engine switch, and used internally by document OCR (which talks raw Ollama,
 never the proxy). Two engines advertising at once read as "both are running", and on a 12 GB card a
-client picking an Ollama model next to a resident llama-server overcommitted VRAM and crawled. The
-advertised **name survives an engine switch and a fallback** (`carryNameAcross`), so bound chats keep
-working: switching to llama.cpp makes the Ollama default's served name (its own **Rename**, else
-`modelAlias`) the `llamacpp.alias`; switching back writes `llamacpp.alias` onto the default's own name
-if it has one, else into `modelAlias`. A fallback gives an unnamed Ollama default the failed engine's
-alias **for that run only** (never written to the file).
+client picking an Ollama model next to a resident llama-server overcommitted VRAM and crawled. A
+**name you gave the model** (**Rename** / **Name users see**) **survives an engine switch and a
+fallback** (`carryNameAcross`), so bound chats keep working: switching to llama.cpp makes the Ollama
+default's served name (its own **Rename**, else `modelAlias`) the `llamacpp.alias`; switching back
+writes `llamacpp.alias` onto the default's own name if it has one, else into `modelAlias`. An
+**unnamed** default is served under its raw id on Ollama (`gemma4:12b`) and under `llamacpp.alias`
+(`assistant`) on llama.cpp — a raw checkpoint id is never carried — so chats bound to it re-pick after
+a switch (and a switch back names it `llamacpp.alias` via `modelAlias`); name the model first if chats
+should survive a switch. The other catalog models are never served under llama.cpp. A fallback gives
+an unnamed Ollama default the failed engine's alias **for that run only** (never written to the file).
 
 **A reachable Ollama is required even when llama.cpp or an external server serves.** `lol up` exits
 with *"No reachable Ollama host"* if none answers: Ollama is the fallback engine, and document OCR
@@ -250,8 +255,9 @@ real rather than cosmetic.
 
 These are ordinary Ollama tags. When **Ollama is the selected engine** they are what the farm serves —
 several at once, load-balanced across `ollama.hosts`. While llama.cpp is the engine they are
-**standby**: kept installed (the panel shows them greyed with Download/Delete only) so an engine
-switch is instant, and so document OCR has its vision model.
+**standby**: kept installed (the card carries a *standby* badge and a "Not served right now" hint; the
+rows keep **Rename** — except the default's — and **Delete**, but lose Offer/Stop and Make default) so
+an engine switch is instant, and so document OCR has its vision model.
 
 **From the panel** — the *Models · Ollama* card:
 
@@ -530,8 +536,10 @@ nothing. Shape:
 > uniqueness — the name IS the id clients request, so a duplicate would silently merge two models
 > into one route. Precedence: a per-model alias > the global `modelAlias` (which only names the
 > default model and is config-file only; the Backend card's **Name users see** is llama.cpp-only and
-> sets `llamacpp.alias`). The advertised name survives an engine switch and a fallback
-> (`carryNameAcross`), so bound chats keep working.
+> sets `llamacpp.alias`). A name you gave the model survives an engine switch and a fallback
+> (`carryNameAcross`), so bound chats keep working; an unnamed default is served under its raw id on
+> Ollama and under `llamacpp.alias` on llama.cpp, so name the model first if chats should survive a
+> switch ([Backends](#backends--ollama-default-and-llamacpp)).
 
 **`llamacpp.library`** is the list of `.gguf`s the panel offers under *Use this*, so an operator can
 switch weights without hunting for URLs. Each entry is
@@ -546,8 +554,9 @@ build for Blackwell cards (16 GB+); replace it freely.
 > single value is set here, and it rides the generated routing (`num_ctx` per deployment), so it applies
 > even on hosts this CLI never started.
 
-- **Model choice** — the model everyone gets is `llamacpp.model`; extra models in the picker are
-  `models` (or `lol models add`, or the `lol up` picker). Full recipe:
+- **Model choice** — on the default Ollama engine the picker offers `models` (or `lol models add`, or
+  the `lol up` picker), and the `default` entry is what clients auto-select; with llama.cpp serving,
+  the one model is `llamacpp.model` and `models` is standby (not routed or advertised). Full recipe:
   [Adding or changing models](#adding-or-changing-models). Each Ollama host becomes a deployment of the
   same `model_name`, so LiteLLM load‑balances + fails over automatically.
 - **Model aliases (important for stable chats):** an OWUI chat binds to the model *id* it started with —
@@ -583,8 +592,9 @@ build for Blackwell cards (16 GB+); replace it freely.
   Auth: the **admin token printed in the `lol up` banner** (regenerated each run; set
   `"admin": { "token": "…" }` in `lol.config.json` for a fixed one). The Farm app pins one and
   seeds it into its own window; its Settings ▸ **Panel access token** (Copy) is how you drive the
-  panel from another computer's browser. The HTTP routes are listed under
-  [Admin HTTP API](#admin-http-api).
+  panel from another computer's browser — with **Share compute** on (a private farm binds the panel to
+  `127.0.0.1`), open `http://<its LAN address>:41997/lol/admin` there and paste the token. The HTTP
+  routes are listed under [Admin HTTP API](#admin-http-api).
 - **Multiple GPU boxes:** either list every box in `ollama.hosts` (one farm balances them all), or run
   `lol up` per box and let clients auto‑spread (they pick the least‑loaded farm), or run one box with
   `--coordinator` to aggregate the others behind a single endpoint that clients prefer.

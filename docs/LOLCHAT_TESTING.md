@@ -3,6 +3,11 @@
 > For the owner, 2026-09-16. Everything below is on branch **`lolchat/vnext`**, built over phases
 > P0–P2 (the chat) and S0 + C1–C3 (the workbench and the Computer). The build stops here on purpose:
 > the vibecode bench (S2) and the design/board benches (S3) are planned but **not built**.
+>
+> **Since then (2026-09-27):** the branch was merged into `main` (`811451a`), and the Computer grew
+> past C3. §3 and §5 below describe it as of 2026-09-16 and are **superseded** — for the Computer as
+> built (Text, Instruction, Preview, Image/Document/Sound boxes; Live previews) see
+> [LOLCHAT_COMPUTER_TUTORIAL.md](LOLCHAT_COMPUTER_TUTORIAL.md) and [COMPUTER_STATUS.md](COMPUTER_STATUS.md).
 
 ---
 
@@ -82,6 +87,11 @@ Worth poking at:
 
 ## 3. The Computer (C1–C3) — the part to really test
 
+> **Superseded (2026-09-27).** This section uses the C3 box names (Note, Ask, Render, Look); today they
+> are Text, Instruction and Preview, with Image/Document/Sound boxes and Live previews. Follow
+> [LOLCHAT_COMPUTER_TUTORIAL.md](LOLCHAT_COMPUTER_TUTORIAL.md) and
+> [COMPUTER_STATUS.md](COMPUTER_STATUS.md) instead.
+
 Open the **Computer** from the topbar's three-way switch. (The workbench column this used to describe —
 Chat / Split / Panel, `Ctrl+\` — is not registered in this build.)
 
@@ -149,6 +159,11 @@ for the older plan — §§ on documents/OCR/search describe cancelled work; ign
 ---
 
 ## 5. Known gaps and deliberate omissions
+
+> **Superseded (2026-09-27)** for the Computer: image parts, Live previews and code editing have since
+> been built, and graphs live in the Computer's own library rather than one per thread — see
+> [COMPUTER_STATUS.md](COMPUTER_STATUS.md). The LOL Chat line (no RAG, documents or web search) still
+> holds.
 
 - **Not built:** the vibecode bench (live preview + scratch project editing), design tools (vision
   critique, token playground, SVG), board-aware ESP32/Arduino assistance. Specced in

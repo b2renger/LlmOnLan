@@ -73,9 +73,9 @@ cd LlmOnLan
 
 #### Prerequisites (Route B)
 - **[Node.js ≥ 20](https://nodejs.org)** (LTS).
-- **[Python 3.9–3.13](https://python.org)** — for the LiteLLM proxy, the **default-on** web search and document OCR, and (if you enable it) voice. `lol install` will **not** install Python for you. On Windows, `py -3.12` works after installing Python.
+- **[Python 3.10–3.13](https://python.org)** — for the LiteLLM proxy (3.9 is enough for it alone), the **default-on** web search and document OCR (these need 3.10+), and (if you enable it) voice. `lol install` will **not** install Python for you. On Windows, `py -3.12` works after installing Python.
 - **[git](https://git-scm.com)** (you already used it to clone).
-- **[Ollama](https://ollama.com)**, **LiteLLM** and the **llama.cpp** backend are installed **for you** by the next step.
+- **[Ollama](https://ollama.com)** and **LiteLLM** are installed **for you** by the next step — and the **llama.cpp** backend too, only if you enable it.
 - **GPU:** the shipped defaults target an **NVIDIA card with ≥ 12 GB VRAM**. The llama.cpp bootstrap is automatic on **Windows x64 + NVIDIA** and on the **DGX Spark** (linux-arm64 — our CI publishes the binary). Anywhere else the farm serves via **Ollama automatically** (no config edit needed); installing llama.cpp yourself and setting `llamacpp.binDir` re-enables the fast engine.
 
 ### Bootstrap (one command)
@@ -114,8 +114,8 @@ The defaults already give you a working farm (model + web search). `lol install`
   },
   "modelAlias": null,                    // stable id for the default OLLAMA model (used when
                                          //   llamacpp is disabled); swap the model underneath freely
-  "models": [ { "id": "gemma4:12b", "default": true },          // extra models in the picker
-              { "id": "qwen2.5-coder:14b", "alias": "coder" } ],  // per-model role name
+  "models": [ { "id": "gemma4:12b", "default": true },          // the Ollama catalog — standby (not in the
+              { "id": "qwen2.5-coder:14b", "alias": "coder" } ],  //   picker) while llamacpp serves; alias = role name
   "websearch": { "enabled": true, "port": 8888 },   // ON by default → web search on every client
                                                     //   (set enabled:false to turn it off)
   "tts":       { "enabled": false, "port": 8880, "voice": "af_heart", "model": "kokoro" }, // set true to opt in
@@ -217,13 +217,14 @@ with `LOL_ENDPOINT=http://<box-ip>:4000/v1` if discovery isn't available.
 - **Web search** — if the farm hosts it, it's **on by default**; just ask something current and it searches + cites pages.
 - **Voice** — click the microphone to talk (allow the mic prompt the first time). Speech-to-text runs **on your laptop** (Whisper); read-aloud uses the farm's **Kokoro** neural voice if enabled, otherwise your OS voices.
 - **Documents** — attach a PDF or a photo of a document and ask about it. Scanned pages and images are OCR'd by the farm's vision model; on farms with a large context window (≥ 24k tokens per chat) answers read the whole document; on smaller ones, the 8 most relevant passages.
-- **Where your data lives** — Open WebUI's chats, documents and RAG vectors, and the Computer's
-  projects (`LOL Studio Projects`), sit in a folder on **your** machine (by default
+- **Where your data lives** — Open WebUI's chats, documents and RAG vectors, and the files the
+  Computer's File boxes write (`LOL Studio Projects`), sit in a folder on **your** machine (by default
   `…/LlmOnLan/owui-data` in your user app‑data; see Settings ⚙ ▸ **Data location**, which can move it).
-  LOL Chat is separate: its conversations live in its own local database (IndexedDB in the app's
-  user-data folder — not the Data location folder; export from LOL Chat › Settings) and don't appear in
-  Open WebUI. With farm OCR on, an uploaded file's bytes transit to the trusted‑LAN farm for text
-  extraction; nothing is stored there.
+  LOL Chat and the Computer's graphs are separate: LOL Chat's conversations, and the Computer's graphs
+  with the pictures, PDFs and sounds in them, live in the app's own local database (IndexedDB in the
+  app's user-data folder — not the Data location folder, so they don't move with it; export chats from
+  LOL Chat › Settings) and don't appear in Open WebUI. With farm OCR on, an uploaded file's bytes
+  transit to the trusted‑LAN farm for text extraction; nothing is stored there.
 - **LOL Chat** — reopens your last chat on launch. Each reply shows tok/s and time to first token;
   **Regenerate** also offers **More creative** / **More precise**; ◀ ▶ walk a reply's versions;
   **Continue** picks up a reply that was cut short; each message's actions include **Delete from
@@ -332,9 +333,10 @@ documents locally, so "multi-user" here is purely a capacity question — how ma
 answer at once, which you set in the panel (*Backend* ▸ **People served at once**).
 
 Both ends show how full a box is. The panel's **Clients** card reads *"N of M seats in use"* and lists
-who is on (hostname, app version, idle time); each farm card in the desktop client shows the same, in
-amber once every seat is taken. When every seat is taken, a new question gets a clear "all seats in
-use" until someone has been idle 15 min — so the next person can pick a different box. Full reference:
+who is on (hostname, app version, idle time); each farm card in the desktop client shows the free
+seats (and how many are connected, when that differs), in amber once every seat is taken. When every
+seat is taken, a new question gets a clear "all seats in use" until someone has been idle 15 min — so
+the next person can pick a different box. Full reference:
 [`farm/README.md` ▸ Multiple users & capacity](../farm/README.md#multiple-users--capacity).
 
 **More GPU boxes** — run the farm on each and clients spread across them automatically:
@@ -366,11 +368,14 @@ under the old name will ask their user to re-pick the model; new chats are unaff
 (`tutor`, `coder`, …); empty puts the checkpoint name back. Duplicates are refused (the name is the id
 clients request).
 
-**Swap the model everyone gets.** *Model · llama.cpp* ▸ pick an entry and press **Use this**. To serve
-something not in the list, paste a `.gguf` link into **Add a model** first — on Hugging Face that is the
-file's *download* link (`…/resolve/main/….gguf`), not the page you were reading. The first **Use this**
-on a new model downloads several GB and shows progress; afterwards it is cached and switching back is
-quick. The alias stays the same, so existing chats keep working.
+**Swap the model everyone gets.** On the default Ollama engine: *Models · Ollama* ▸ **Download a model**
+if it is not there yet, then its **Make default** (the ★ one is what clients auto-select). While
+llama.cpp serves, the *Model · llama.cpp* card (shown only then) ▸ pick an entry and press **Use
+this**. To serve something not in the list, paste a `.gguf` link into **Add a model** first — on
+Hugging Face that is the file's *download* link (`…/resolve/main/….gguf`), not the page you were
+reading. The first **Use this** on a new model downloads several GB and shows progress; afterwards it
+is cached and switching back is quick. On llama.cpp the alias stays the same, so existing chats keep
+working.
 
 If the weights don't load, **the farm goes back to the model that was working** and says why. The two
 usual causes:
@@ -384,16 +389,21 @@ usual causes:
 
 **Switch engine.** *Backend* ▸ the two buttons. **One engine serves at a time**: llama.cpp serves its
 one model as fast as the hardware can; Ollama serves the catalog below it, so people can choose between
-several models. The other side goes **standby** — greyed out in the panel, invisible to clients. The
-model name carries across, so existing chats keep working. About a minute either way. While it runs,
-every client shows "*switching…*" instead of an error.
+several models. The other side goes **standby** — invisible to clients; in the panel the *Models ·
+Ollama* card carries a *standby* badge while llama.cpp serves, and the *Model · llama.cpp* card is
+hidden while Ollama serves. A name you gave the model (**Rename** / **Name users see**) survives the
+switch, so existing chats keep working; an unnamed default is served under its raw id on Ollama
+(`gemma4:12b`) and under `llamacpp.alias` (`assistant`) on llama.cpp, so name the model first if chats
+should survive a switch. About a minute either way. While it runs, every client shows "*switching…*"
+instead of an error.
 
 **Context window.** Leave it on **Automatic** (the default, on **both engines**): each box serves
-the largest context it holds for the current model — a 12 GB card lands around 36k, a 16 GB card
-near 78k, the Spark gets the model's full native window. On the Ollama engine the farm *measures*
-instead of computing (it loads the model once, checks nothing spilled to system RAM, and remembers
-the answer — e.g. gemma4:12b probes straight to its native 262k on a big card). Pick a number only
-to trade context for more slots.
+the largest context it holds for the current model — on llama.cpp with the shipped Qwen quant a 12 GB
+card lands around 36k, a 16 GB card near 78k, the Spark gets the model's full native window. On the
+Ollama engine the farm *measures* instead of computing (it loads the model at 16k and at 32k, aims at
+what the VRAM holds, verifies that with one more load — halving once if it spilled to system RAM —
+and remembers the answer; e.g. gemma4:12b probes straight to its native 262k on a big card). Pick a
+number only to trade context for more slots.
 
 **Attachments follow the context.** Clients read the farm's per-chat window from the beacon: with
 **24k or more** they inject attached documents *whole* (best answers); under that they fall back to
@@ -490,7 +500,7 @@ Terms that show up in the config and in this guide.
 | **context window** (`contextLength`, `num_ctx`) | How much text the model can consider at once — your question, the conversation so far, and any attached document. Bigger = longer documents, more VRAM. |
 | **KV cache** | The memory the model uses to hold that context while generating. It's allocated **in full when the model loads**, which is why the context window costs VRAM even on an idle farm. |
 | **slot** (`parallel`) | One generation the server runs at a time. llama.cpp slots share one context pool by default (`kvUnified`). |
-| **alias** | The model name clients see (`assistant` by default). It's a stable stand-in for the real checkpoint, so you can swap the model underneath without breaking chats. |
+| **alias** | The model name clients see. The default Ollama farm serves `gemma4:12b` with no alias (clients see the raw id); `assistant` is llama.cpp's default alias. It's a stable stand-in for the real checkpoint, so you can swap the model underneath without breaking chats. |
 | **`mmproj`** | The "vision projector" file that lets a model read images. Must come from the same repo as the weights. |
 | **`ngl`** | How many model layers go on the GPU. `999` = all of them; anything less spills to CPU and is dramatically slower. |
 | **MTP** (`mtp`) | Speculative decoding — the model drafts several tokens then checks them, which is faster. Only works on quants that still carry the extra "head" it needs (`UD-Q2_K_XL` and above). |

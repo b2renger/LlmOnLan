@@ -118,8 +118,9 @@ dev Electron boot to the welcome screen on the dev box.
 - [ ] **★ Manual update check:** with `farm-v0.0.N` installed, publish `farm-v0.0.N+1` as a prerelease →
       at launch (Notify on) the app shows "Version … is available" and Download opens the release page;
       the client's `v*` auto-update is unaffected.
-- [ ] **Farm version on the wire (FA-6):** `lol fleet` / a client's farm card shows the Farm app's release
-      (e.g. `farm v0.0.39`), not `0.1.0`.
+- [ ] **Farm version on the wire (FA-6):** `lol fleet` (and `version` in `http://<box>:41997/lol/self`)
+      shows the Farm app's release (e.g. `farm v0.0.39`), not `0.1.0`. (A client's farm card shows no farm
+      version.)
 
 ## Admin panel + plugins + presence (shipped 2026-07-03→05; needs a two-machine pass)
 - [ ] **Admin panel** from a second machine: open `http://<box>:41997/lol/admin`, paste the banner token →

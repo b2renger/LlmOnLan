@@ -33,8 +33,8 @@ you don't forget.
     computer-2026-09-24_21-15-03-mark-1.png     the screenshot for marker 1
 ```
 
-That is `C:\Users\<you>\AppData\Roaming\LlmOnLan\logs\computer\`. A dev run (`npx electron .`) and
-the installed client write to the same folder.
+That is `C:\Users\<you>\AppData\Roaming\LlmOnLan\logs\computer\`. A dev run
+(`npm run dev` in `shell/`) and the installed client write to the same folder.
 
 Limits, so a switch left on can't fill the disk:
 - **25 MB per file.** At the limit, one last line says so, the recording stops and a toast tells you.

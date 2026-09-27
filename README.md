@@ -53,7 +53,7 @@ rationale, and [`implementation_plan.md`](implementation_plan.md) for the milest
 
 ## Status
 
-**Shipped — client `v0.1.45` (self‑updating; `lolchat/vnext` in testing), Farm app `farm-v0.0.38` (manual update check), OWUI `0.10.2`.**
+**Shipped — client `v0.1.45` (self‑updating; `lolchat/vnext` merged to `main` 2026‑09‑27, unreleased until the next tag), Farm app `farm-v0.0.38` (manual update check), OWUI `0.10.2`.**
 
 *Chat + farm* — the farm serves **`gemma4:12b` on [Ollama](farm/README.md#backends--ollama-default-and-llamacpp)**
 by default, with **llama.cpp** (`llama-server`) as the opt‑in speed engine; either sits behind a single
@@ -88,16 +88,17 @@ The easiest way to host a farm is the **[LlmOnLan Farm app](farm-app/)** — a d
 installer that turns a GPU box into a running farm with **no terminal and no
 prerequisites**. (Its **update checks are manual**: it tells you a new build exists and links the
 download — unlike the client, it never installs one for you. Check it after each client release so the
-farm doesn't drift behind the fleet.) On first launch a wizard downloads its own Ollama + Python, the model weights and
-the llama.cpp backend, builds the service venvs, and starts the farm — budget **~28 GB of downloads
-and 30–45 minutes** on that first run ([breakdown](docs/GETTING_STARTED.md#first-run-download-both-routes)); from then on the window IS the farm's **admin panel**. Targets **Windows + NVIDIA**, **macOS Apple Silicon (≥16 GB)**, and the
+farm doesn't drift behind the fleet.) On first launch a wizard downloads its own Ollama + Python and
+the model weights, builds the service venvs, and starts the farm — budget **~18 GB of downloads plus
+its own Python/Ollama runtime** on that first run (the llama.cpp backend is fetched only if you enable
+it later) ([breakdown](docs/GETTING_STARTED.md#first-run-download-both-routes)); from then on the window IS the farm's **admin panel**. Targets **Windows + NVIDIA**, **macOS Apple Silicon (≥16 GB)**, and the
 **NVIDIA DGX Spark** (linux arm64). See [`farm-app/README.md`](farm-app/README.md).
 
-> **Serving a group?** A farm answers **one request at a time** by default. Raise `llamacpp.parallel`
-> (and `contextLength` with it) before a workshop — the sizing table is in
+> **Serving a group?** The default farm (gemma4 on Ollama) answers **two requests at a time per box**
+> (llama.cpp: one). Raise it before a workshop in the farm panel — the Farm app's window — under
+> *Backend* ▸ **People served at once** (on Ollama it applies after a farm restart). The sizing table is in
 > [`docs/GETTING_STARTED.md` ▸ capacity](docs/GETTING_STARTED.md#4-a-room-full-of-people-capacity--multiple-gpu-boxes),
-> the full reference in [`farm/README.md`](farm/README.md#multiple-users--capacity). It is a config edit,
-> not a Farm-app setting, today.
+> the full reference in [`farm/README.md`](farm/README.md#multiple-users--capacity).
 
 ## Quick start (farm operator, CLI)
 
@@ -107,13 +108,13 @@ Prefer the terminal? The `lol` CLI is the same farm the app manages:
 cd farm
 npm install
 node bin/lol.js init           # scaffold lol.config.json
-node bin/lol.js install        # Ollama + LiteLLM + models + the llama.cpp backend (several GB, once)
+node bin/lol.js install        # Ollama + LiteLLM + models (several GB, once); llama.cpp only if enabled
 node bin/lol.js up             # start the engines + LiteLLM + the beacon
 node bin/lol.js status         # health of hosts + proxy + loaded models
 ```
 
 Prereqs: **Node ≥ 20** and a Python 3.9–3.13 — `lol install` sets up everything else (Ollama, LiteLLM,
-the llama.cpp backend, the models). Then: [Backends](farm/README.md#backends--ollama-default-and-llamacpp)
+the models, and the llama.cpp backend only when `llamacpp.enabled`). Then: [Backends](farm/README.md#backends--ollama-default-and-llamacpp)
 · [Adding or changing models](farm/README.md#adding-or-changing-models) ·
 [Multiple users & capacity](farm/README.md#multiple-users--capacity).
 

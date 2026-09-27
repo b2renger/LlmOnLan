@@ -30,7 +30,7 @@ running screen (and auto-starts the farm).
 > **The first run is big: ~18 GB (gemma4:12b + the staged model + venvs) plus the Python/Ollama
 > runtime** ([breakdown](../docs/GETTING_STARTED.md#first-run-download-both-routes)). The start screen narrates
 > what `lol up` is doing — step lines ("Starting LiteLLM …") and live download
-> progress ("First start: fetching model weights — 43%") — so a working bootstrap is
+> progress ("llama.cpp: model weights — 43%") — so a working bootstrap is
 > distinguishable from a hang. The supervisor waits as long as the farm keeps making
 > progress and only errors after **5 silent minutes**. **Don't press "Start the farm"
 > while a download is running** — that kills it and restarts the download from zero.
@@ -46,7 +46,9 @@ preload reading it from the URL hash) so it unlocks with no prompt. Thin app chr
 adds: a **status dot**, **Start/Stop**, a **privacy line** (private vs. the shared
 LAN endpoint), and **Settings** (share compute, theme, launch-at-login, update
 notifications + **Check for updates**, the **panel access token** (Copy — to drive the
-panel from another computer's browser), and **Open data & logs folder**) — the model
+panel from another computer's browser: with Share compute on, open
+`http://<this computer's LAN address>:41997/lol/admin` there and paste it; a private farm binds the
+panel to `127.0.0.1`), and **Open data & logs folder**) — the model
 itself is run from the panel below.
 
 ## The model, its name, and capacity — in the panel, not in Settings
@@ -64,8 +66,10 @@ launch-at-login, update notifications + Check for updates, the panel access toke
 
 **Naming.** The model id clients receive *is* the name their picker shows — over an OpenAI-style
 connection there's no separate display-name channel — so this renames the served id: on llama.cpp,
-*Backend* ▸ **Name users see**; on Ollama, each model row's **Rename** (`models[].alias`). The name
-survives an engine switch and a fallback, so bound chats keep working. The real checkpoint stays
+*Backend* ▸ **Name users see**; on Ollama, each model row's **Rename** (`models[].alias`). A name you
+gave the model survives an engine switch and a fallback, so bound chats keep working; an unnamed
+default is served under its raw id on Ollama (`gemma4:12b`) and under `llamacpp.alias` (`assistant`)
+on llama.cpp, so name the model first if chats should survive a switch. The real checkpoint stays
 visible to clients as the beacon's `underlying` field: only the label is friendly, not the truth.
 
 > **Caveat:** it changes the model **id**, so chats a user started under the old name will ask them to

@@ -5868,7 +5868,7 @@ Files owned:
   - `node shell/test/chat-harness/run.js --strict --phase perf`
 - `shell/test/e2e.js` (unchanged) passes in CI or on a spare machine with no LlmOnLan client, using
   `LOL_MOCK_BEACON_OK=1` (rig checklist §0).
-- The owner ticks `LOLCHAT_RIG_CHECKLIST.md` §0–§4, §7, §8, §10–§17 on real machines, including every
+- The owner ticks `LOLCHAT_RIG_CHECKLIST.md` §0–§4, §7, §8, §10–§18 on real machines, including every
   **(C-21)** item (§5, §6 and §9 test the unbuilt P3/P4 features).
 - DISCUSS **D-S1** is decided (the CLAUDE.md wording), and no DISCUSS item is marked blocking.
 

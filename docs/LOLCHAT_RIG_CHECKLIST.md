@@ -67,15 +67,15 @@ farm.
       header and a Copy button; reasoning panels are collapsed.
 - [ ] Quit and reopen, then toggle again. **Expected:** no duplicate threads.
 - [ ] Settings (gear, bottom of the sidebar) → Storage. **Expected:** mode "saved on this computer",
-      a usage figure, and a "Remove old v1 copy" button.
-- [ ] Do **not** press "Remove old v1 copy" yet. Instead, roll back to v0.1.45 (reinstall).
+      a usage figure, and a "Remove the old v1 copy" button.
+- [ ] Do **not** press "Remove the old v1 copy" yet. Instead, roll back to v0.1.45 (reinstall).
       **Expected:** the v0.1.45 LOL Chat still shows the v1 threads (the key was not deleted).
 - [ ] **While on v0.1.45:** create one new thread ("rollback-new") and add one message to an existing old
       thread ("rollback-appended"). Then re-upgrade to vNext.
       **Expected:** "rollback-new" appears as a normal thread; "rollback-appended" appears once more as
       "{title} (older version)" with the extra message; the original migrated copy is unchanged; no other
       duplicates.
-- [ ] Settings → Storage → "Remove old v1 copy". **Expected:** if anything from the rollback was not yet
+- [ ] Settings → Storage → "Remove the old v1 copy". **Expected:** if anything from the rollback was not yet
       brought over, the button first offers to bring it over; only then it removes the key. After a
       restart every thread (including both rollback ones) is still present.
 - [ ] **Uninstall and reinstall** vNext (Windows NSIS per-user). **Expected:** LOL Chat history survives
@@ -83,7 +83,7 @@ farm.
 - [ ] Laptop B, fresh install with no history. **Expected:** the empty state, no errors, and a new
       chat works.
 - [ ] **(P0 store)** On each laptop, Settings → Storage: the mode must read "saved on this computer"
-      (IndexedDB). A "history is not being saved" / memory banner on a normal profile is a bug — record
+      (IndexedDB). A "History can't be saved on this machine…" banner on a normal profile is a bug — record
       the laptop, the OS and `window.LolChat.app.repo.mode` in DEVLOG. (The memory and late-attach paths
       are proven in the harness; the rig only has to prove the normal path is the one real machines take.)
 - [ ] **(P0 store)** Preferences → Data location → move the data folder, then reopen LOL Chat.
@@ -173,7 +173,8 @@ farm.
       farm can show the seat actually coming back.
 - [ ] **A wrong farm password says where to fix it** (P1 fix round 2). Point the client at F2 with the
       wrong password and send. **Expected:** "The farm refused the password" plus our own sentence
-      ("Check it in Preferences → Connection"), with LiteLLM's own jargon only in brackets after it.
+      ("Click the connection pill in the top bar and enter it again on the farm’s card"), with LiteLLM's
+      own jargon only in brackets after it.
 - [ ] **Busy farm / engine switch.** Switch F1's engine (or pull a model) from the admin panel while A has
       LOL Chat open. **Expected:** the strip shows the busy label with a percentage; a send during the
       switch shows the local "server is busy" note and sends nothing; after the switch the model list
@@ -386,8 +387,8 @@ farm.
       the buttons have names.
 - [ ] **High-DPI and small windows:** 150% scaling, window at 1024×700. **Expected:** no horizontal
       page scroll; tables and code scroll inside their own boxes.
-- [ ] **macOS arm64 + Intel, Linux AppImage:** sections 2.1, 5 (images + one PDF) and 7 (quit mid-stream)
-      pass on each.
+- [ ] **macOS arm64 + Intel, Linux AppImage:** sections 2.1 and 7 (quit mid-stream) pass on each.
+      (Section 5, images + one PDF, is NOT SHIPPED — skip it.)
 
 - [ ] **Both themes on a real screen.** Open a thread with a code block, a table and a reasoning
       panel, and toggle the theme from the topbar. **Expected:** the chat repaints in the other theme
@@ -398,9 +399,10 @@ farm.
       at a window size the harness never uses.
 
 ## 11. Privacy and data locality
-- [ ] With the farm's LiteLLM logs visible, attach a text file and a PDF and chat. **Expected:** **zero**
-      `/v1/embeddings` calls. The farm receives only chat completions, one OCR PUT for the PDF, and a
-      SearXNG query only when the globe is on.
+- [ ] LOL Chat has no attachments, OCR or web search (P3 NOT SHIPPED), so run this one in **Open
+      WebUI**: with the farm's LiteLLM logs visible, attach a text file and a PDF and chat.
+      **Expected:** **zero** `/v1/embeddings` calls. The farm receives only chat completions, one OCR
+      PUT for the PDF, and a SearXNG query only when the globe is on.
 - [ ] Nothing about LOL Chat history appears on the farm disk (`lol.config.json` directory, logs contain
       no thread titles beyond LiteLLM's normal request logging).
 - [ ] **Data folder move** in Preferences. **Expected (known limitation, DISCUSS D-C2):** LOL Chat
