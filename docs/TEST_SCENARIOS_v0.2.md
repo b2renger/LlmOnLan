@@ -63,6 +63,8 @@ and TouchDesigner or Max (OSC). Scenarios marked **(no farm)** work with the far
 - [ ] **3.7 Listen (speech to text on).** A Sound box with a recording, *Listen* on → an Instruction
   "answer the question in the recording". Run: the words flow on. Export the graph, import it: Listen is
   **off** after the import.
+- [ ] **3.7b Ask out loud** (on main after v0.2.1, in the next release). Learn ▸ Templates ▸ *Ask out loud*: record a
+  question, turn Listen on, Run all — the answer shows and is spoken.
 - [ ] **3.8 Speak.** Text → Speak (*This computer*): you hear it, nothing leaves. *Farm* voice (Kokoro on):
   the farm's voice. Stop during speech: it stops.
 - [ ] **3.9 d3.** A Code box: `const x = d3.scaleLinear().domain([0,10]).range([0,100]); return x(5);`

@@ -112,6 +112,15 @@ async function search(app, text) {
   input.value = text;
   input.dispatchEvent({ type: 'input' });
   await wait(240);
+  // Under load the debounced search may still be painting at 240 ms (an intermittent failure, 2026-09-28):
+  // wait until the list stops changing, at most 2 s.
+  let last = null;
+  for (let i = 0; i < 40; i++) {
+    const now = String(app.els.list.textContent);
+    if (now === last) break;
+    last = now;
+    await wait(50);
+  }
   return input;
 }
 

@@ -252,7 +252,7 @@ Learn shelf**.
 | Phase | State | On the Learn shelf |
 |---|---|---|
 | P0–P1c | done, released in v0.2.0 / farm-v0.0.39 | template *Read the news* |
-| P2 Speech | done, released in v0.2.0 | ? examples only — **no template yet** |
+| P2 Speech | done, released in v0.2.0 | template *Ask out loud* (on main, after v0.2.1) |
 | P3a Outputs | done (v0.2.0); + USB serial both ways (P3a-2, on main) | template *Talk to a board* |
 | P3b Triggers | done on main: the farm's message bus (MQTT · WebSocket · OSC), Receive/Send on it, the Trigger box | template *A board on Wi-Fi* |
 | P4 Agents | done on main: the Agent box (JSON mode through the ask door; run_code / fetch on listed hosts / laya / answer); rig: gemma4, qwen3.8, nemotron all correct on a whole-file data.gouv.fr question | template *Ask a dataset* |

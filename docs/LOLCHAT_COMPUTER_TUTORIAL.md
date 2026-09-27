@@ -361,7 +361,7 @@ afterwards. Its **Voice** is either **this computer's** (the voices your operati
 offline and sends nothing) or **the farm's** (Kokoro, when the farm offers it: the text goes to the farm
 to be spoken). **Automatic** uses the farm's voice when there is one. **Stop** stops the voice.
 Together with Listen, a graph can hear a question and answer it aloud: Sound (Listen) → Instruction →
-Speak.
+Speak — **Learn → Templates → Ask out loud** is that graph, ready to record into.
 
 ### Acting on the world: the Send box
 

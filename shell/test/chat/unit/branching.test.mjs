@@ -23,6 +23,9 @@ import '../../../renderer/chat/strings/tree.en.mjs';
 const realFetch = globalThis.fetch;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+/** Let the clock move one millisecond, so a regenerated answer is newer than the first, as in the app. */
+const laterMs = () => new Promise((r) => setTimeout(r, 2));
+
 async function settle() {
   for (let i = 0; i < 12; i++) await Promise.resolve();
   await sleep(0);
@@ -260,6 +263,7 @@ export default (test) => {
     try {
       const thread = controller.newThread();
       const first = await sendTurn(app, controller, 'question');
+      await laterMs();   // a real regeneration comes later: same-ms siblings order by their random id
       await branching.regenerate(first, {});
       await settle();
 
@@ -279,6 +283,7 @@ export default (test) => {
     try {
       const thread = controller.newThread();
       const first = await sendTurn(app, controller, 'question');
+      await laterMs();   // a real regeneration comes later: same-ms siblings order by their random id
       await branching.regenerate(first, {});
       await settle();
 
@@ -302,6 +307,7 @@ export default (test) => {
     try {
       const thread = controller.newThread();
       const first = await sendTurn(app, controller, 'question');
+      await laterMs();   // a real regeneration comes later: same-ms siblings order by their random id
       await branching.regenerate(first, {});
       await settle();
       const head = (await app.repo.getThread(thread.id)).headId;
@@ -459,6 +465,7 @@ export default (test) => {
     try {
       const thread = controller.newThread();
       const first = await sendTurn(app, controller, 'q1');
+      await laterMs();   // a real regeneration comes later: same-ms siblings order by their random id
       await branching.regenerate(first, {});
       await settle();
       const messages = await app.repo.getMessages(thread.id);
