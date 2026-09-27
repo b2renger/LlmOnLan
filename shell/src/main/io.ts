@@ -2,8 +2,9 @@
 // rather than in the renderer so an open-data API that sends no CORS header still answers. Every
 // rule below exists because a graph is a file anyone can hand you:
 //   - http(s) only, no credentials in the URL (a graph carries no secrets);
-//   - never this machine or a link-local address — checked on the literal host, AGAIN on every
-//     address DNS gives back, and again on every redirect hop (a redirect is a new request);
+//   - never this machine (loopback, or any of its own addresses) or a link-local address — checked on
+//     the literal host (an IPv4 carried inside an IPv6 literal included), AGAIN on every address DNS
+//     gives back, and again on every redirect hop (a redirect is a new request);
 //   - never the farm's own ports: the farm is reached through its proper doors (seat gate, OCR),
 //     not by a box that can loop;
 //   - at most FETCH_MAX_BYTES of text, in at most FETCH_TIMEOUT_MS.
@@ -11,6 +12,7 @@
 
 import { lookup as dnsLookup } from 'dns/promises';
 import * as net from 'net';
+import * as os from 'os';
 
 /** The largest value a Computer box may hold (renderer graph/serialize.mjs MAX_VALUE_BYTES). */
 export const FETCH_MAX_BYTES = 1024 * 1024;
@@ -19,7 +21,7 @@ const MAX_REDIRECTS = 5;
 
 // ponytail: the farm's well-known ports, not the ACTIVE farm's actual ones — a farm configured on
 // other ports is not covered. Upgrade path: derive the list from discovery's snapshots.
-export const FARM_PORTS: ReadonlySet<number> = new Set([4000, 4001, 41997, 11434, 8081, 8880, 8888, 8890, 8891]);
+export const FARM_PORTS: ReadonlySet<number> = new Set([4000, 4001, 41997, 11434, 8081, 8880, 8888, 8890, 8891, 8892]);
 
 export type FetchCode = 'E_URL' | 'E_SCHEME' | 'E_CREDENTIALS' | 'E_FARM' | 'E_LOCAL' | 'E_DNS'
     | 'E_TIMEOUT' | 'E_SIZE' | 'E_TYPE' | 'E_HTTP' | 'E_REDIRECTS' | 'E_NET';
@@ -27,18 +29,63 @@ export type FetchAnswer =
     | { ok: true; url: string; status: number; contentType: string; text: string; bytes: number }
     | { ok: false; code: FetchCode; status?: number; message: string };
 
-/** This machine, "any", or link-local — the addresses a graph may never reach. */
+/** An IPv6 literal as its eight 16-bit groups (a trailing dotted quad included), or null. */
+export function ipv6Groups(ip: string): number[] | null {
+    let s = String(ip).toLowerCase();
+    const quad = s.match(/(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+    if (quad) {
+        const p = quad.slice(1).map(Number);
+        if (p.some((n) => n > 255)) return null;
+        s = s.slice(0, -quad[0].length) + ((p[0] << 8) | p[1]).toString(16) + ':' + ((p[2] << 8) | p[3]).toString(16);
+    }
+    const halves = s.split('::');
+    if (halves.length > 2) return null;
+    const head = halves[0] ? halves[0].split(':') : [];
+    const tail = halves.length === 2 ? (halves[1] ? halves[1].split(':') : []) : null;
+    const groups = tail === null ? head : [...head, ...Array(Math.max(0, 8 - head.length - tail.length)).fill('0'), ...tail];
+    if (groups.length !== 8) return null;
+    const nums = groups.map((g) => (/^[0-9a-f]{1,4}$/.test(g) ? parseInt(g, 16) : NaN));
+    return nums.every(Number.isFinite) ? nums : null;
+}
+
+/** The IPv4 address an IPv6 literal carries — IPv4-mapped (::ffff:a.b.c.d, in dotted OR hex form, which is
+ * what `new URL` canonicalises it to), IPv4-compatible (::a.b.c.d) or NAT64 (64:ff9b::/96) — or null. */
+export function embeddedIpv4(ip: string): string | null {
+    const g = ipv6Groups(ip);
+    if (!g) return null;
+    const v4 = () => `${g[6] >> 8}.${g[6] & 255}.${g[7] >> 8}.${g[7] & 255}`;
+    const zeros = (from: number, to: number) => g.slice(from, to).every((n) => n === 0);
+    if (zeros(0, 5) && (g[5] === 0xffff || (g[5] === 0 && (g[6] !== 0 || g[7] > 1)))) return v4();
+    if (g[0] === 0x64 && g[1] === 0xff9b && zeros(2, 6)) return v4();
+    return null;
+}
+
+// This machine's own addresses (every interface), read once: a graph may not reach this computer by
+// its LAN address either. ponytail: read at first use — an address that arrives later (a new Wi-Fi)
+// is not in the list until the app restarts. Upgrade path: re-read on each check if that matters.
+let ownAddresses: Set<string> | null = null;
+function ownAddress(ip: string): boolean {
+    if (!ownAddresses) {
+        ownAddresses = new Set();
+        for (const list of Object.values(os.networkInterfaces())) for (const a of list || []) ownAddresses.add(String(a.address).toLowerCase().replace(/%.*$/, ''));
+    }
+    return ownAddresses.has(ip.toLowerCase());
+}
+
+/** This machine (loopback or any of its own addresses), "any", or link-local — never reachable. */
 export function blockedAddress(ip: string): boolean {
     if (net.isIPv4(ip)) {
         const [a, b] = ip.split('.').map(Number);
-        return a === 127 || a === 0 || (a === 169 && b === 254);
+        return a === 127 || a === 0 || (a === 169 && b === 254) || ownAddress(ip);
     }
     if (net.isIPv6(ip)) {
-        const s = ip.toLowerCase();
-        if (s === '::1' || s === '::') return true;
-        if (/^fe[89ab]/.test(s)) return true;                          // fe80::/10
-        const mapped = s.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);
-        return mapped ? blockedAddress(mapped[1]) : false;
+        const g = ipv6Groups(ip);
+        if (!g) return true;
+        if (g.slice(0, 7).every((n) => n === 0) && (g[7] === 0 || g[7] === 1)) return true;   // :: and ::1
+        if ((g[0] & 0xffc0) === 0xfe80) return true;                                            // fe80::/10
+        const v4 = embeddedIpv4(ip);
+        if (v4) return blockedAddress(v4);
+        return ownAddress(ip);
     }
     return true;
 }
@@ -105,7 +152,8 @@ export async function fetchText(raw: unknown, deps: FetchDeps = {}): Promise<Fet
                 return ac.signal.aborted ? fail('E_TIMEOUT', url.href) : fail('E_NET', String((e as Error)?.message || e));
             }
             if (res.status >= 300 && res.status < 400 && res.headers.get('location')) {
-                next = new URL(String(res.headers.get('location')), url).href;
+                try { await res.body?.cancel(); } catch { /* nothing to drain */ }
+                try { next = new URL(String(res.headers.get('location')), url).href; } catch { return fail('E_URL', String(res.headers.get('location'))); }
                 continue;
             }
             if (res.status >= 400) return fail('E_HTTP', url.href, res.status);
@@ -131,5 +179,6 @@ export async function fetchText(raw: unknown, deps: FetchDeps = {}): Promise<Fet
         return fail('E_REDIRECTS', String(raw));
     } finally {
         clearTimeout(timer);
+        ac.abort();   // an early return (E_HTTP, E_TYPE, E_SIZE) must not leave a download running
     }
 }

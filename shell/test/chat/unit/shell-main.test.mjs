@@ -631,6 +631,18 @@ export default (test) => {
     assert.equal(code('http://10.10.16.58:41997/lol/admin'), 'E_FARM', 'the admin panel port');
     assert.equal(code('http://127.0.0.1:5555/', true), 'ok', 'the harness may reach its own fixtures');
     assert.equal(IO.blockedAddress('::ffff:127.0.0.1'), true, 'an IPv4-mapped loopback');
+    // Critic P1P2 M1: `new URL` rewrites a mapped address to HEX, which a dotted-quad regex missed.
+    assert.equal(new URL('http://[::ffff:127.0.0.1]:9/').hostname, '[::ffff:7f00:1]', 'what the URL parser really hands us');
+    assert.equal(code('http://[::ffff:127.0.0.1]:5555/'), 'E_LOCAL', 'mapped loopback, hex form');
+    assert.equal(code('http://[::ffff:169.254.169.254]/'), 'E_LOCAL', 'mapped link-local');
+    assert.equal(code('http://[::ffff:0.0.0.0]:80/'), 'E_LOCAL', 'mapped any');
+    assert.equal(code('http://[::127.0.0.1]:80/'), 'E_LOCAL', 'IPv4-compatible form');
+    assert.equal(code('http://[64:ff9b::7f00:1]/'), 'E_LOCAL', 'NAT64 form');
+    assert.equal(code('http://2130706433/'), 'E_LOCAL', 'a decimal IPv4 (the URL parser makes it 127.0.0.1)');
+    assert.equal(code('http://[::ffff:8.8.8.8]/'), 'ok', 'a mapped PUBLIC address stays reachable');
+    assert.equal(code('http://example.org:8892/'), 'E_FARM', 'the speech-to-text port is a farm port too');
+    const own = Object.values(os.networkInterfaces()).flat().find((a) => a && a.family === 'IPv4' && !a.internal);
+    if (own) assert.equal(IO.blockedAddress(own.address), true, `this machine's own LAN address (${own.address})`);
     assert.equal(IO.blockedAddress('fe80::1'), true);
     assert.equal(IO.blockedAddress('8.8.8.8'), false);
     assert.equal(IO.isTextType('application/json; charset=utf-8'), true);
@@ -668,6 +680,9 @@ export default (test) => {
     assert.equal(r.code, 'E_NET');
     r = await IO.fetchText('https://nowhere.invalid/', { lookup: async () => { throw new Error('ENOTFOUND'); } });
     assert.equal(r.code, 'E_DNS');
+    // Critic P1P2 S4: a Location the URL parser refuses is an answer, not a throw.
+    r = await IO.fetchText('https://a.example/', { lookup: pub, fetchImpl: async () => new Response(null, { status: 302, headers: { location: 'http://exa mple.com/' } }) });
+    assert.equal(r.code, 'E_URL');
   });
 
   test('cleanup', () => {
