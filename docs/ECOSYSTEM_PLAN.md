@@ -1,7 +1,7 @@
 # LlmOnLan ecosystem plan
 
-> **Status: v1 (2026-09-27, 18:00). Awaiting the critic's review (§9).** This is written from the
-> owner's vision of 2026-09-27. The research facts are in
+> **Status: v2 (2026-09-27, 19:00). v1 went through one critic loop (§9).** The plan was written from the
+> owner's vision of 2026-09-27.
 > [research/ECOSYSTEM_RESEARCH_2026-09-27.md](research/ECOSYSTEM_RESEARCH_2026-09-27.md). This document
 > supersedes the forward-looking parts of LOLCHAT_STUDIO_VISION.md and COMPUTER_PLAN.md where they
 > disagree. Their "as built" sections stay true.
@@ -88,140 +88,232 @@
 5. **Two upstreams pinned in one client** (OWUI and dsh) doubles the "bump, rebuild, smoke-test" duty.
    dsh is a developer preview with breaking changes expected.
 
-## 3. Cross-cutting decisions (proposed)
+## 3. Cross-cutting decisions (v2)
 
-1. **Placement rule.**
-   - Models run **on the farm** (the GPU, shared once, weights downloaded once): LLMs, Laya, STT, TTS,
-     OCR.
-   - **The client's main process** does I/O with the local world: fetch, UDP (OSC, Art-Net), sockets,
-     serial permission, files, git, and the local web server.
-   - **The renderer** holds the UI, sandboxed user code, WebSocket/MQTT-over-WS clients and Web Serial.
+1. **Where things run.**
+   - **Models run on the farm**: LLMs, Laya, STT, TTS and OCR. The GPU and CPU are shared, and weights are
+     downloaded once.
+   - **The client's main process handles I/O with the world**: fetch, UDP (OSC, Art-Net), outbound
+     sockets, files, git and the local web server. All of it goes through **one I/O bridge** with **one
+     safety choke point**.
+   - **The renderer** holds the UI, sandboxed user code, WebSocket and MQTT-over-WS clients, Web Serial,
+     and `speechSynthesis`.
    - **Nothing is ever stored on the farm.**
-   - Exception: when data must not leave the laptop at all, a client-side model is allowed once it is
-     mature enough (kevala-class engines; revisit in P4).
-2. **Laya runs on the farm** as a plugin (`decide`), for four reasons:
-   - it is GPU-fast;
-   - the official `laya-serve` is mature;
-   - weights are downloaded once;
-   - it follows the OCR precedent.
-
-   The client sends the *state* (text or JSON) and the questions, and nothing is stored. With no farm
-   plugin, the Decide box says so and offers the Instruction box as the slower alternative.
-3. **STT and TTS run on the farm.**
-   - TTS: Kokoro is already there.
-   - STT: a new plugin.
-     - The **default engine is faster-whisper**, which works on every farm OS.
-     - **R2T2 is an opt-in engine** on Linux or WSL, following the `external` pattern: the operator runs
-       it, and we never ship its weights until its licence is read.
-4. **The privacy boundary is re-stated.** "Transient to the farm, never stored" covers the chat
-   context, OCR bytes, Laya states, STT audio and TTS text. CLAUDE.md, the data-flow section and the
-   in-app texts change in the same commit as each feature.
-5. **Real-world outputs are safe by default**: dry run until armed, per-output rate limits, a global
-   panic stop in the run bar, and Confirm for model-decided actions.
-6. **Skills are the extension unit** for LOL Chat and for the Computer's Agent box: `SKILL.md` folders
-   under `DATA_DIR/skills`, seeded with ponytail, agent-skills and graphify.
-7. **Education is first class.** Every new capability ships with a template or lesson on the Learn
-   shelf, and works on the mock farm, so a class can try it with no GPU.
+   - A client-side model is allowed only once it is mature and measured on the office laptops. kevala is
+     revisited when it is 3+ months old.
+2. **Laya runs on the farm as a `classify` plugin.**
+   - It is **CPU-first, off by default, and pinned** to an exact package version and weights revision.
+   - It **preloads at plugin start**, because the first call took 13.7 s.
+   - Threads are capped. It answers one **batched** request per run.
+   - v1 supports **`choice` questions only**, with confidence shown as **"uncalibrated"**.
+   - It is our own small FastAPI wrapper around `laya.Router`, following the OCR pattern: a venv, a port,
+     a bearer key, a per-IP cap of 1 plus a global cap, a 429 with `Retry-After`, and **no request bodies
+     in the logs**. `laya-serve` itself has no auth.
+   - The box is called **Classify** (Condition already "decides").
+   - With no plugin, the template falls back to the thinking model and says so.
+3. **Speech.**
+   - **Listen** is a *mode of the Sound box*: audio → text, with no new audio value kind.
+     - It uses the OpenAI transcription contract (`POST /v1/audio/transcriptions`) against a farm `stt`
+       plugin: **faster-whisper** by default (MIT code and weights).
+     - **R2T2** is only an operator-run `external`, and **its weight licence is read before any use**.
+     - The microphone starts only when a person presses it, and the recording state is always visible.
+     - A clip is capped, and armed triggers may never listen continuously in v1.
+   - **Speak** uses the OS voices through `speechSynthesis` (a platform feature, works offline), and the
+     farm's Kokoro when present.
+4. **The privacy boundary, restated before each feature ships.**
+   - **Transient to the farm, never stored, never logged:** chat context, OCR bytes, Classify states,
+     STT audio, TTS text.
+   - **To third parties the person names:** Fetch URLs, MQTT brokers and git remotes.
+   - The in-app text, CLAUDE.md's data flow and a classroom consent note change **in the same commit** as
+     each feature.
+   - **Plugin auth:** today the OCR key is broadcast in clear in the beacon.
+     - v1 keeps the same pattern for `classify`, documented as LAN-trust.
+     - A follow-up task derives plugin keys from the farm password when one is set (§5, P1b).
+5. **Outputs to the world are safe by default.**
+   - A dry run until a person arms the graph.
+   - Per-output limits, set by the person.
+   - DMX flashing is capped at 3 Hz.
+   - A global panic stop, which keeps sending a safe DMX frame.
+   - Confirm stays one wire away from any model-decided action.
+   - An imported or reloaded graph opens **disarmed**, and lists every host and output before its first run.
+6. **Numbers never come from a model.**
+   - The model outputs labels and enum chart specs, joined to the data by item id.
+   - Code computes every number and every coordinate.
+   - Items the model or Laya are unsure of are listed for a person.
+7. **Skills belong to the IDE in v1** (`DATA_DIR/skills`, pinned, with their licence files). The
+   Computer's Agent box waits for a measured tool-calling rate.
+8. **Education.**
+   - Every capability lands as one of the **unbuilt lessons 5–12**, or as a template on the one Learn
+     shelf (not a parallel track).
+   - It works on the mock farm with no GPU.
+   - Each phase's exit names its lesson.
+9. **Stay close to upstream OWUI:** the pin bump 0.10.2 → 0.11.4 moves **forward** into tonight's queue
+   (P1c).
 
 ## 4. The amended target, per surface
 
 ### 4.1 Farm
-- **New plugins**, each with its own venv, health check, advertisement and a concurrency cap with a
-  429:
-  - `decide` (laya-serve; CPU fallback when there is no CUDA);
-  - `stt` (faster-whisper by default; R2T2 as an operator-run external).
-- **Capacity**: the VRAM budget subtracts resident plugin models, and the admin panel lists each
-  plugin's VRAM.
-- Later: `graphify` enrichment calls go to the normal OpenAI endpoint; they need no plugin.
+- **Plugins**:
+  - `classify` (Laya, CPU, off by default);
+  - later `stt` (faster-whisper; R2T2 external);
+  - Kokoro TTS (exists).
+- Each plugin has a concurrency cap plus a 429 and logs no bodies. Boxes read the snapshot's `plugins`
+  map **at run time**, because the client can switch farms between runs.
+- **Before any plugin defaults to on**, measure `lol bench` tok/s with Classify or STT busy (CPU
+  contention).
+- VRAM accounting waits until a plugin is on the GPU.
 
-### 4.2 The Computer (local n8n + data + real world)
-- **Data**: a **Fetch** box (main-process `net.fetch`, GET, ≤ 5 MB, 15 s, http(s) only). JSON is parsed
-  in the existing Code box; CSV becomes a helper there when needed. d3 is vendored for Preview.
-- **Decide** box (Laya): typed questions (choice, score, yes/no) over each item, with probabilities and
-  a confidence threshold. It flags low-confidence items for a person, as Laya's own guidance says.
-- **Speech**: **Listen** (STT: microphone or Sound box → text) and **Speak** (TTS: text → audio,
-  played or saved).
-- **Connectors**:
-  - **Out**: OSC, Art-Net DMX, MQTT publish, WebSocket send, serial write, HTTP POST.
-  - **In**, as triggers: OSC, MQTT subscribe, WebSocket, serial read, webhook, schedule.
-- **Reactive runs**: an **Armed** graph keeps its triggers listening. Each event is an automatic Button
-  press downstream, with the same run limits per event plus a rate limit.
-- **Agent** box (later): a tool-calling loop whose tools are chosen boxes or connectors, bounded by the
-  run limits and gated by Confirm.
-- **graphify**: a box that runs graphify on a project folder and shows `graph.json` as a force graph
-  (d3).
+### 4.2 The Computer (a local n8n, data and the real world)
+- **Data (P1a, P1b)**
+  - **Fetch** box:
+    - main-process `net.fetch`, GET only;
+    - capped at **1 MB** (a stored value can't exceed `MAX_VALUE_BYTES`) and 15 s;
+    - http(s) only, and a person types the host;
+    - it refuses loopback, link-local and the farm's own ports;
+    - it **keeps the last response** in the box, so templates work offline and can be demonstrated;
+    - a graph carries no keys or credentials.
+  - JSON is parsed in the existing **Code** box.
+  - **Classify** box (Laya): it takes the list whole, shows its call in the transcript (sent, got, ms),
+    and stops on Stop.
+- **Visualisation**:
+  - Code draws SVG (bars and dots in ~40 lines, which is also the lesson).
+  - **d3 needs an owner decision.** The sandbox library budget is 2.0 MB, with 1774 KB already used. Either
+    raise it, or vendor only `d3-scale` + `d3-shape` (+ `d3-force` for graphify) and drop matter.js.
+- **Speech (P2)**: Sound → Listen mode (STT); **Speak** box.
+- **Connectors (P3)**:
+  - **P3a outputs first**: one **Send** box with presets (OSC, Art-Net DMX, MQTT publish, WebSocket send,
+    serial write, HTTP POST), through the single choke point.
+  - **P3b triggers**: one **Trigger** box with presets (OSC in, MQTT subscribe, WebSocket (outbound
+    client), serial read, schedule).
+  - **Cut from v1**: webhook-in and the WebSocket *server* (inbound listeners). An ESP32 reaches us
+    through MQTT, or we connect out to its WebSocket.
+- **Armed runs (P3b)**: this **does need runner work**. `run()` refuses while busy, `ask` refuses while
+  the Computer is hidden, and a Button carries no payload today. The policy:
+  - a trigger keeps only its **latest** event while a run is busy;
+  - an armed graph runs **only while the Computer is shown**;
+  - each graph has an **hourly generation budget**;
+  - **nothing stays armed after a quit**.
+- **Agent box (P4)**: only if the spike measures **≥ 80%** correct tool calls on our farm.
+- **graphify**: an **IDE skill** run by dsh (P5), because the client has no Python of its own besides
+  OWUI's sidecar, which must stay untouched. The Computer gets a `graph.json` view later (d3-force).
 
-### 4.3 LOL Chat → a Studio IDE on DeepSeek Harness
-- **Engine**: DeepSeek Harness **pinned and unmodified**, run as a second sidecar (Node), configured by
-  env or config.
-  - Model: the farm, through `llm-pi-ai`'s OpenAI-compatible route.
-  - Skills from `DATA_DIR/skills`.
-  - Workspace under `DATA_DIR/LOL Studio Projects/<project>`.
-  - Sandbox: `sandbox-local` / `sandbox-windows-acl`.
-- **UI**: the chat pane (today's tree and seat etiquette) plus a file tree, editor (`code-edit.mjs`),
-  diff view, terminal output and the sandbox preview. Whether we drive dsh through its **SDK** or
-  embed its web UI like OWUI is **decided by a spike**.
-- **Serve locally**: a static server in main per project, on loopback by default; LAN exposure is an
-  explicit toggle (the farm's private/share pattern).
-- **Git**: the system `git` when present (platform feature), else isomorphic-git. GitHub push uses the
-  user's own credentials in the OS keychain (`safeStorage`). This is hosting, not inference, so it is
-  compatible with local-first.
+### 4.3 LOL Chat → a Studio IDE on DeepSeek Harness (P5, after a spike)
+- **A spike first** (P5-0), with exit criteria:
+  1. dsh runs against the farm through `llm-pi-ai`'s OpenAI-compatible route;
+  2. ponytail and agent-skills load from a folder;
+  3. on Qwen3.8 or gemma4, a small task (a three.js page in a project folder) finishes with **≥ 80%**
+     correct tool calls;
+  4. the SDK can drive a session headless.
+
+  If it fails, the fallback is named in advance: **our own minimal loop** (read, edit, preview tools; no
+  shell), borrowing dsh's minimal-mode design.
+- **v1 IDE**: dsh pinned (exact version plus a lockfile hash), **no shell tool** in the first cut, a
+  workspace in `DATA_DIR/LOL Studio Projects/<project>`, and skills from `DATA_DIR/skills`. It has a file
+  tree, the editor (`code-edit.mjs`), a diff view and the sandbox preview.
+- **Local serving**: a static server per project on loopback, with LAN exposure as an explicit toggle.
+- **Git**: any git remote over HTTPS (GitHub, or a LAN Gitea for fully local use), through **one** code
+  path chosen in the spike. Credentials go in the OS keychain (`safeStorage`). v1 builds no GitHub-only
+  features.
+- **LOL Chat's chat** is **not** deleted before the IDE works. If the spike embeds dsh's web UI, the tree
+  and seat etiquette are replaced, not reused, and this section will say so.
 
 ### 4.4 Open WebUI
-- Stays pinned, unmodified and env-configured. **Bump the pin quarterly**, following the bump
-  procedure (INTEGRATION_BRIEF), with the smoke tests.
-- No new OWUI coupling. Speech and data features go to the Computer, not into OWUI.
+- **P1c (tonight if time allows)**: bump 0.10.2 → 0.11.4.
+  1. Read the changelog for env and config changes.
+  2. Build the sidecar.
+  3. Smoke-test it **standalone** on a free port with a temporary DATA_DIR. The owner's client on this box
+     must not be touched.
+  4. Re-verify the configBridge env surface.
+- Then bump on each upstream minor release.
 
 ## 5. Phases, with risks
 
-Each phase ends with gates green, a harness scenario on the mock farm, a rig check on the real farm,
-docs, and a Learn-shelf item.
+Each phase ends with gates green, a mock-farm harness scenario, a rig check, docs, and **its lesson on the
+Learn shelf**.
 
-| Phase | Scope | Exit | Main risks (likelihood × impact → mitigation) |
+| Phase | Scope | Exit | Main risks → mitigation |
 |---|---|---|---|
-| **P0 Plan** (tonight) | this plan, research, decisions, critic loop | v2 committed | — |
-| **P1 Data** (tonight) | Fetch box; farm `decide` plugin (Laya); Decide box; the template "Read the news" (HN → parse → Laya → Qwen, steered by the reader's instructions → SVG chart); d3 vendored | the template runs on the mock farm (the harness) and against a real `laya-serve`; farm unit tests for the plugin | <ul><li>Laya zero-shot accuracy is near chance on some tasks (high × med → confidence threshold, "check these" list, `choice` questions with few options, lesson text honest about it)</li><li>the fetch as SSRF (med × med → http(s) only, caps, a visible URL, user-started)</li><li>VRAM (low × med → CPU fallback, ~0.8 GB)</li></ul> |
-| **P2 Speech** | farm `stt` plugin (faster-whisper; R2T2 external); Listen and Speak boxes; microphone capture; the privacy text | a Sound box → Listen → text on the mock and real farm; Speak → playback | <ul><li>R2T2 licence and Linux-only (high × med → opt-in external)</li><li>audio privacy (med × high → the boundary rewritten first; farm stores nothing)</li><li>latency on CPU farms (med × low)</li></ul> |
-| **P3 Connectors + armed graphs** | an I/O bridge in main (UDP OSC/Art-Net, WS server, MQTT/TCP), renderer WS/MQTT-over-WS/Web Serial; trigger boxes; Armed mode; output safety | an ESP32 or simulator round trip; OSC in → model → DMX out in dry run and armed; panic stop | <ul><li>execution-model bugs (med × high → triggers reuse the Button path; per-event limits)</li><li>inbound listeners as an attack surface (med × high → off by default, bound to one interface, token)</li><li>hardware variance and testing (high × med → loopback simulators in the harness, then a rig kit)</li></ul> |
-| **P4 Agents + graphify** | Agent box; `DATA_DIR/skills`; graphify box + d3 force view; schedules | an agent completes a bounded task on the local model | weak local tool calling (high × high → small tool sets, plan-first, Confirm) |
-| **P5 Studio IDE (LOL Chat)** | dsh spike → pinned sidecar; IDE layout; local serve; git | build and serve a three.js app from a prompt, diff it, commit it | <ul><li>dsh preview churn (high × med → pin, smoke test)</li><li>shell access (high × high → dsh sandbox policy + our allow-list)</li><li>size on disk</li><li>Windows ACL sandbox maturity</li></ul> |
-| **P6 Home and polish** | Home Assistant over MQTT; OWUI pin bumps; lessons 5–12 | — | cloud creep (→ HA local only) |
+| **P0 Plan** | v1 → critic → v2 (this) | v2 committed | — |
+| **P1a Data, client only** (tonight) | Fetch box; the template "Read the news" with **Instruction labels** and a Code-drawn SVG; the reader's instructions in a Text box; the "check these" list | runs on the mock farm with a fixture HN copy (the harness), and on the owner's farm | <ul><li>SSRF → caps, a typed host, loopback/link-local/farm ports refused</li><li>value size → 1 MB</li><li>hallucinated numbers → the model outputs labels only</li></ul> |
+| **P1b Laya** (tonight) | farm `classify` plugin (CPU, off by default, pinned, preloaded, batched, capped, key); Classify box; the template upgraded to Laya → Qwen for the unsure items | farm unit tests; the plugin run standalone against the spike's Laya; the harness against a mock `/classify`; the template on the mock farm | <ul><li>Laya accuracy (≈7–8/10 on topics) → threshold 0.6 plus "check these", lesson text honest; confirm on 100+ titles</li><li>farm CPU contention → off by default, `lol bench` before any default-on</li><li>plugin key in the beacon → documented, follow-up</li></ul> |
+| **P1c OWUI 0.11.4** (tonight, if time) | pin bump, sidecar build, standalone smoke test, env surface re-verified | the bump notes in INTEGRATION_BRIEF; gates | breaking env changes → read the changelog first; roll back the pin if the smoke test fails |
+| **P2 Speech** | farm `stt` (faster-whisper); Sound → Listen; Speak (`speechSynthesis`, Kokoro); consent and privacy text | a Sound box → text on the mock and real farm; Speak plays | <ul><li>audio privacy → press-to-record, visible state, a cap, texts first</li><li>R2T2 licence → external only, licence read first</li></ul> |
+| **P3a Outputs** | an I/O bridge in main; Send box presets; the choke point; panic; dry run and arming; disarmed on import | a UDP/WS sink in the harness receives exact packets; panic sends a safe DMX frame | <ul><li>hardware harm → dry run, limits, 3 Hz, panic</li><li>multi-NIC Art-Net → an explicit interface choice</li></ul> |
+| **P3b Triggers + armed runs** | Trigger box presets; runner work (latest-event, shown-only, hourly budget, not after quit) | OSC in → model → Send (dry run) round trip in the harness | runner regressions → per-event limits, reuse the Button path, harness coverage |
+| **P4 Agents** | Agent box, **only if** the spike measures ≥ 80% | a bounded task done on the farm | weak local tool calling → small tool sets, Confirm |
+| **P5 Studio IDE** | P5-0 dsh spike → v1 IDE (no shell), local serve, git | build, serve and commit a three.js app from a prompt | <ul><li>dsh churn → pin plus fallback</li><li>shell → none in v1</li><li>Windows paths and ACLs → a rig on a non-admin account</li></ul> |
+| **P6 Home** | Home Assistant through MQTT (comes with P3); lessons 5–12 completed | — | cloud creep → HA local only |
 
-## 6. Tonight
+Windows rig items the critic added: the firewall prompt (OSC-in, LAN serve), USB-serial drivers
+(CH340/CP210x need admin), paths with spaces in git and dsh, and Art-Net interface choice on multi-NIC
+laptops.
 
-1. P0: this plan, the critic loop, v2.
-2. P1: Fetch → Laya plugin (farm) → Decide box → the template → d3 if time allows.
-3. P2 start: the STT placement written up, and the farm `stt` plugin skeleton if time allows.
+## 6. Tonight (v2)
 
-## 7. Open questions for the owner
+1. **P1a**: Fetch box → template "Read the news" (labels from the Instruction box, a Code-drawn SVG, the
+   reader's instructions) → mock-farm fixture → harness scenario → docs and lesson text.
+2. **P1b**: farm `classify` plugin → Classify box → the template upgraded → tests → docs.
+3. **P1c** if time allows: the OWUI 0.11.4 bump spike.
+4. Report in the night log. P2 is next, but only after P1 is done and reviewed.
 
-1. **Laya on the farm** (proposed) versus in the client (kevala, days old)? We start on the farm.
-2. **Audio to the farm** for STT: acceptable under the same rule as OCR (transient, never stored)?
-3. **The R2T2 weight licence**: read it before any bundling, and default to faster-whisper?
-4. **DeepSeek Harness as a second pinned upstream**: do we accept the churn of a developer preview?
-5. **Git hosting**: GitHub only, or also a LAN Gitea (fully local)?
-6. **Google Home and Alexa → Home Assistant** (local) instead of cloud skills?
+## 7. Open questions for the owner (with recommendations)
+
+1. **Laya**: on the farm, CPU-first, off by default. *(Recommended, and started.)*
+2. **Audio to the farm** under the OCR rule, with press-to-record, a visible state, a cap and a consent
+   note. *(Recommended.)*
+3. **R2T2**: licence read before any use; faster-whisper is the default. *(Recommended.)*
+4. **dsh** as a second pinned upstream: only if the spike's exit criteria pass, with the minimal-loop
+   fallback. *(Recommended.)*
+5. **Git**: any HTTPS remote; Gitea documented as the fully local option. *(Recommended.)*
+6. **Google Home and Alexa** → Home Assistant over MQTT, local only. *(Recommended.)*
+7. **d3**: raise the sandbox's 2.0 MB library budget, or vendor only `d3-scale`/`d3-shape`/`d3-force` and
+   drop matter.js? *(Needs your call.)*
+8. **Plugin keys**: accept the beacon's clear-text plugin key on a trusted LAN for now, or tie plugin keys
+   to the farm password? *(Recommended: the latter, as a follow-up.)*
 
 ## 8. Feature list (target), by surface
 
-- **Farm**: engines (have) · seat gate (have) · plugins: search, OCR, TTS (have) · **decide (Laya)** ·
-  **STT** · plugin concurrency caps · VRAM accounting for plugins.
+- **Farm**:
+  - have: engines, seat gate, search, OCR, TTS;
+  - to add: **classify (Laya)** · **STT** · plugin caps + 429 · no body logging · plugin keys tied to the
+    farm password.
 - **The Computer**:
-  - have: canvas and tools; 21 boxes; sandbox and Live; lessons.
-  - to add:
-    - data: **Fetch** · **Decide** · **d3** · a table view · CSV;
-    - speech: **Listen** · **Speak**;
-    - connectors: **OSC in/out** · **DMX out** · **MQTT** · **WebSocket in/out** · **Serial** ·
-      **Webhook in** · **Schedule**;
-    - runs: **Armed** runs · output safety;
-    - agents and graphs: **Agent** · **graphify** · skills;
-    - Learn shelf: a template per capability.
-- **LOL Chat / Studio**:
-  - have: chat tree; seat etiquette; budget.
-  - to add: **DeepSeek Harness** engine; skills (ponytail, agent-skills); file tree, editor, diff;
-    terminal output; sandbox preview; **local serve (LAN policy)**; **git** (diff, commit, pull, push);
-    app templates (web, three.js, agent).
-- **OWUI**: pinned; quarterly bumps.
+  - have: canvas; 21 boxes; sandbox and Live; lessons 1–4;
+  - data: **Fetch** · **Classify** · **d3** (if decided) · a table view later;
+  - speech: **Sound → Listen** · **Speak**;
+  - connectors: **Send** (OSC, DMX, MQTT, WS, serial, HTTP) · **Trigger** (OSC, MQTT, WS client, serial,
+    schedule);
+  - runs: **armed runs** · output safety · disarmed import;
+  - agents and graphs: **Agent** (gated on the spike) · a graph.json view;
+  - lessons: 5–12 as the capabilities land.
+- **LOL Chat / Studio**: the **dsh spike** · IDE v1 (tree, editor, diff, preview) · skills · local serve ·
+  git over HTTPS.
+- **OWUI**: 0.11.4 bump · bump on each upstream minor.
 
 ## 9. Feedback loop
-*(v1 → critic → v2: the critic's findings and what changed, recorded here)*
+
+**v1 → critic** ([reviews/ECOSYSTEM_PLAN_CRITIC_2026-09-27.md](reviews/ECOSYSTEM_PLAN_CRITIC_2026-09-27.md))
+**→ v2 (this).** The critic's verdict: "not tonight as written; yes once must-changes 1–4 are in." All 11
+must-changes were taken; where v2 applies them is listed below.
+
+| Must-change | Where v2 applies it |
+|---|---|
+| 1 (split P1) | §5, §6 |
+| 2 (Laya: CPU, off, pinned, preloaded, batched, choice only, "uncalibrated") | §3.2 |
+| 3 (labels and enum specs only; Code computes) | §3.6, template |
+| 4 (Fetch: 1 MB, typed host, refusals, last response kept, no keys, lint door) | §4.2 |
+| 5 (disarmed import) | §3.5 |
+| 6 (speech via the Sound box, `speechSynthesis`, OpenAI STT contract, press-to-record) | §3.3 |
+| 7 (armed runs need runner work, plus the policy) | §4.2 |
+| 8 (P3a outputs before P3b triggers; one Send/Trigger box; one choke point; no inbound listeners; safe-DMX panic; 3 Hz) | §4.2, §5 |
+| 9 (third parties in the privacy text; no body logging; plugin-key decision) | §3.4, §7.8 |
+| 10 (OWUI bump now) | §3.9, P1c |
+| 11 (dsh spike with ≥ 80% exit; skills IDE-only; no shell) | §4.3 |
+
+Should-changes taken: d3 out of P1 (now an owner question), **Classify** as the name, Classify bounded
+and visible like a generation, the test fixtures, the Windows rig items, graphify as an IDE skill, one git
+path, the CPU-contention bench, one Learn shelf, LOL Chat kept until the IDE works, and capabilities read
+per run. None were rejected.
+
+**The next loop** runs after P1b ships. The critic reviews the built template against §3.6 and the
+spike's accuracy on 100+ real titles.
