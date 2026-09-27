@@ -149,7 +149,7 @@ export default [
                     const img = document.querySelector(`#lolcomputer .graph-part[data-id="${id}"] img[src^="data:image/svg+xml"]`);
                     return img ? decodeURIComponent(String(img.getAttribute('src')).split(',')[1] || '') : '';
                 }, chart);
-                h.assert(/counts over all 7283 rows, by data\.gouv\.fr/.test(svg), 'the chart draws data.gouv.fr\'s whole-file counts');
+                h.assert(/rows per value, counted by data\.gouv\.fr over all 7283 rows/.test(svg), 'the chart draws data.gouv.fr\'s whole-file counts');
                 const music = src.value.data.rows.filter((/** @type {any} */ r) => r['Discipline dominante'] === 'Musique').length;
                 h.eq(String(codeBy(/^Runs the program/).value.data), `In the first 20 rows of 7283: ${music} music festivals.`,
                     'the model\'s program ran over the sample, and says so');
