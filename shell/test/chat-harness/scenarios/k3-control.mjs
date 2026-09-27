@@ -312,11 +312,13 @@ export default [
                 .filter((w) => barredIds.indexOf(w.from) >= 0 || barredIds.indexOf(w.to) >= 0)
                 .map((w) => w.id).sort();
             h.assert(want.length >= 2, `the barred boxes really do feed something: ${JSON.stringify(want)}`);
-            const grey = await h.waitFor(() => {
+            // Wait for ALL of them: returning at the first grey wire raced the canvas's own repaint
+            // (seen 2026-09-27 as 4 of 5 on a fast run).
+            const grey = await h.waitFor((n) => {
                 const on = Array.from(document.querySelectorAll('#lolcomputer .graph-wire[data-barred="true"]'))
                     .map((el) => el.getAttribute('data-wire')).sort();
-                return on.length ? on : null;
-            }, { timeout: 10000 });
+                return on.length >= n ? on : null;
+            }, { timeout: 10000, args: [want.length] });
             h.eq(JSON.stringify(grey), JSON.stringify(want),
                 'exactly the wires out of a barred box are grey, and that grey is most of the teaching');
 
