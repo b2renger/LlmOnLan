@@ -686,6 +686,12 @@ LlmOnLan/
   download/update check, and the IDE's coding-agent runtime when a person clicks Install; huggingface.co, until
   MiniLM and whisper-base are cached (then `HF_HUB_OFFLINE=1`). The coding agent itself talks only to the farm's
   `/v1` (its cloud, web and telemetry rows are off; checked with a netstat watch, 2026-09-28).
+- **The IDE's publishing, only on a person's click:** **Push** sends a project's committed files to the https git
+  server a person typed (GitHub or a LAN Gitea), with a token kept encrypted by the OS (`safeStorage`,
+  `<userData>/git-tokens.json`, never handed back to the page); **Pull** brings that server's commits here
+  (fast-forward only, local work committed first). **Share on the LAN** serves one project read-only to the LAN
+  until it is turned off or the app closes. A project's history (`.git`, isomorphic-git) stays in its folder in
+  DATA_DIR.
 - **Never sent anywhere:** documents for **embedding** (local model), a Computer Sound box's recording
   unless its Listen switch is on, and telemetry (off).
 

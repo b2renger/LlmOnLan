@@ -252,6 +252,44 @@ export default (test) => {
     } finally { await r.studio.dispose(); }
   });
 
+  test('studio: a remote is a clean https address; its token is kept per host and never handed back; a failure is a sentence', async () => {
+    assert.equal(S.remoteUrl('https://github.com/me/site.git'), 'https://github.com/me/site.git');
+    for (const bad of ['http://github.com/me/site.git', 'https://me:pw@github.com/x.git', 'https://github.com/x.git?a=1', 'git@github.com:me/x.git', 'nope', 42]) {
+      assert.equal(S.remoteUrl(bad), null, `refused: ${bad}`);
+    }
+    const data = tmp('remote');
+    const root = path.join(data, 'LOL Studio Projects');
+    fs.mkdirSync(path.join(root, PID), { recursive: true });
+    fs.writeFileSync(path.join(root, PID, 'index.html'), '<p>x</p>');
+    const kept = new Map();
+    const studio = S.createStudio({
+      dataDir: () => data, projectsRoot: () => root, farm: () => null, runtime: () => null, emit: () => {},
+      tokens: { safe: () => true, get: (h) => kept.get(h) || null, set: (h, t) => { if (t) kept.set(h, t); else kept.delete(h); return true; } },
+    });
+    assert.deepEqual(await studio.remote(PID), { ok: true, url: null, token: { saved: false, safe: true } });
+    assert.equal((await studio.token(PID, 'ghp_12345678')).code, 'E_ARGS', 'no address yet');
+    assert.equal((await studio.remote(PID, 'http://127.0.0.1/x.git')).code, 'E_ARGS');
+    const set = await studio.remote(PID, 'https://127.0.0.1:9/me/site.git');
+    assert.deepEqual(set, { ok: true, url: 'https://127.0.0.1:9/me/site.git', token: { saved: false, safe: true } });
+    assert.equal((await studio.token(PID, 'short')).code, 'E_ARGS');
+    assert.equal((await studio.token(PID, 'ghp_12345678')).ok, true);
+    assert.equal(kept.get('127.0.0.1:9'), 'ghp_12345678', 'kept by host');
+    const back = await studio.remote(PID);
+    assert.deepEqual(back.token, { saved: true, safe: true });
+    assert.ok(!JSON.stringify(back).includes('ghp_'), 'the token never comes back to the page');
+    const push = await studio.push(PID);
+    assert.equal(push.code, 'E_RUNTIME');
+    assert.match(push.message, /Could not push \(127\.0\.0\.1:9\)/, 'an unreachable host is a sentence');
+    assert.equal((await studio.token(PID, null)).ok, true);
+    assert.equal(kept.size, 0, 'forgotten');
+    const unsafe = S.createStudio({
+      dataDir: () => data, projectsRoot: () => root, farm: () => null, runtime: () => null, emit: () => {},
+      tokens: { safe: () => false, get: () => null, set: () => false },
+    });
+    assert.equal((await unsafe.token(PID, 'ghp_12345678')).code, 'E_RUNTIME', 'no encryption: nothing is kept');
+    await studio.dispose(); await unsafe.dispose();
+  });
+
   test('studio: sharing on the LAN is a toggle — off by default, answers to this machine\'s addresses, gone when off', async () => {
     const data = tmp('share');
     const root = path.join(data, 'LOL Studio Projects');

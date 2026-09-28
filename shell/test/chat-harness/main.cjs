@@ -228,6 +228,8 @@ function wireStudio() {
         seedSkills: path.join(__dirname, '..', '..', 'assets', 'skills'),
         // The share listens on loopback in the harness (no firewall prompt) and answers to a TEST-NET name.
         lan: { host: '127.0.0.1', addresses: () => ['192.0.2.10'] },
+        // Tokens in memory for the harness (the shell encrypts them with safeStorage).
+        tokens: (() => { const m = new Map(); return { safe: () => true, get: (h) => m.get(h) || null, set: (h, t) => { if (t) m.set(h, t); else m.delete(h); return true; } }; })(),
     });
     ipcMain.handle('lol:studio:prompt', (_e, o) => (o && typeof o === 'object' ? studio.prompt(o) : { ok: false, code: 'E_ARGS', message: 'bad arguments' }));
     ipcMain.handle('lol:studio:stop', () => studio.stop());
@@ -239,6 +241,10 @@ function wireStudio() {
     ipcMain.handle('lol:studio:changes', (_e, id, oid) => studio.changes(String(id), String(oid)));
     ipcMain.handle('lol:studio:commit', (_e, id, msg) => studio.commit(String(id), String(msg)));
     ipcMain.handle('lol:studio:restore', (_e, id, oid) => studio.restore(String(id), String(oid)));
+    ipcMain.handle('lol:studio:remote', (_e, id, url) => studio.remote(String(id), url === undefined ? undefined : String(url)));
+    ipcMain.handle('lol:studio:token', (_e, id, token) => studio.token(String(id), token === null ? null : String(token)));
+    ipcMain.handle('lol:studio:push', (_e, id) => studio.push(String(id)));
+    ipcMain.handle('lol:studio:pull', (_e, id) => studio.pull(String(id)));
     app.on('will-quit', () => { void studio.dispose(); });
     console.log('[harness-main] studio wired (mock dsh)');
     return true;

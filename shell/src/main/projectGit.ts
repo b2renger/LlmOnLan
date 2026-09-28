@@ -5,6 +5,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import git from 'isomorphic-git';
+import http from 'isomorphic-git/http/node';
 
 export const AGENT = { name: 'LOL Vibe agent', email: 'agent@llmonlan.local' };
 export const PERSON = { name: 'You', email: 'you@llmonlan.local' };
@@ -111,6 +112,51 @@ export async function changes(dir: string, oid: string): Promise<FileChange[]> {
         out.push({ path: p, before: x.text, after: y.text, binary: x.binary || y.binary });
     }
     return out;
+}
+
+// ---- a remote: push and pull over HTTPS (GitHub, or a Gitea on the LAN) ----------------------------------------
+
+/** The project's remote (`origin`), or null. */
+export async function getRemote(dir: string): Promise<string | null> {
+    if (!fs.existsSync(path.join(dir, '.git'))) return null;
+    const url = await git.getConfig({ fs, dir, path: 'remote.origin.url' });
+    return typeof url === 'string' && url ? url : null;
+}
+
+export async function setRemote(dir: string, url: string): Promise<void> {
+    await ensureRepo(dir);
+    await git.setConfig({ fs, dir, path: 'remote.origin.url', value: url });
+    await git.setConfig({ fs, dir, path: 'remote.origin.fetch', value: '+refs/heads/*:refs/remotes/origin/*' });
+}
+
+/** GitHub (and Gitea) take a token as the password of any user name; a refusal is never retried. */
+const auth = (token: string | null) => ({
+    onAuth: () => (token ? { username: 'x-access-token', password: token } : { cancel: true }),
+    onAuthFailure: () => ({ cancel: true }),
+});
+
+/** Send this project's history to its remote (branch `main`). What leaves is the committed files, nothing else. */
+export async function push(dir: string, token: string | null): Promise<void> {
+    await commitAll(dir, 'You: before pushing', PERSON);
+    const r = await git.push({ fs, http, dir, remote: 'origin', ref: 'main', ...auth(token) });
+    if (!r.ok) throw new Error(r.error || 'the remote refused the push');
+}
+
+/** Bring the remote's newer commits here — fast-forward only; local changes are committed first, so none is lost. */
+export async function pull(dir: string, token: string | null): Promise<void> {
+    await commitAll(dir, 'You: before pulling', PERSON);
+    if (!(await history(dir, 1)).length) {
+        // An empty project taking a remote's work: fetch, point main at it, check it out.
+        const f = await git.fetch({ fs, http, dir, remote: 'origin', ref: 'main', singleBranch: true, ...auth(token) });
+        if (!f.fetchHead) throw new Error('the remote has no main branch yet');
+        await git.writeRef({ fs, dir, ref: 'refs/heads/main', value: f.fetchHead, force: true });
+        await git.checkout({ fs, dir, ref: 'main', force: true });
+        return;
+    }
+    await git.pull({
+        fs, http, dir, remote: 'origin', ref: 'main', singleBranch: true, fastForward: true, fastForwardOnly: true,
+        author: { ...PERSON }, ...auth(token),
+    });
 }
 
 /**

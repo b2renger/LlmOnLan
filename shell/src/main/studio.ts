@@ -18,7 +18,9 @@ import * as path from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { killTree } from './util';
 import { projectDir, resolveIn, validateId } from './projectsPath';
-import { AGENT, PERSON, OID_RE, Commit, FileChange, commitAll, history, changes, restore } from './projectGit';
+import {
+    AGENT, PERSON, OID_RE, Commit, FileChange, commitAll, history, changes, restore, getRemote, setRemote, push, pull,
+} from './projectGit';
 
 /** The pinned upstream (the runtime download fetches exactly this; see docs/IDE_PLAN.md §3.5). */
 export const DSH_VERSION = '0.1.7-rc.2';
@@ -180,6 +182,8 @@ export interface StudioDeps {
     /** Sharing on the LAN: where the share listens (tests keep it on 127.0.0.1: no firewall prompt) and which
      *  addresses it answers to (default: this machine's non-internal IPv4 addresses). */
     lan?: { host?: string; addresses?: () => string[] };
+    /** Tokens for git remotes, per host, kept by main (safeStorage) — never handed to the page. */
+    tokens?: { get(host: string): string | null; set(host: string, token: string | null): boolean; safe(): boolean };
     /** A skills folder to copy into <DATA_DIR>/skills the first time (ponytail, with its licence). */
     seedSkills?: string;
     env?: NodeJS.ProcessEnv;
@@ -205,6 +209,34 @@ export function createStudio(deps: StudioDeps) {
         void commitAll(t.dir, `Agent${how}: ${first}`, AGENT)
             .catch((e) => { console.warn('[studio] could not record the reply in the project history:', (e as Error).message); })
             .finally(() => deps.emit({ turnId: t.id, done: error ? { reason, error } : { reason } }));
+    }
+
+    /** Push or pull, with the sentence a person can act on when it fails. */
+    async function sync(projectId: string, how: 'push' | 'pull'): Promise<{ ok: true } | StudioErr> {
+        const d = dirOf(projectId);
+        if ('ok' in d) return d;
+        if (turn && turn.dir === d.dir) return err('E_BUSY', 'The coding agent is working in this project. Stop it first.');
+        const now = await getRemote(d.dir);
+        if (!now) return err('E_ARGS', 'Save the repository address first.');
+        const host = new URL(now).host;
+        const token = deps.tokens ? deps.tokens.get(host) : null;
+        try {
+            await (how === 'push' ? push(d.dir, token) : pull(d.dir, token));
+            return { ok: true };
+        } catch (e) {
+            const x = e as { code?: string; data?: { statusCode?: number }; message?: string };
+            const status = x.data && x.data.statusCode;
+            if (x.code === 'UserCanceledError' || status === 401 || status === 403) {
+                return err('E_RUNTIME', token ? `${host} refused the token (or it may not write to this repository).` : `${host} needs a token: save one first.`);
+            }
+            if (x.code === 'FastForwardError' || x.code === 'MergeNotSupportedError' || x.code === 'PushRejectedError') {
+                return err('E_RUNTIME', how === 'pull'
+                    ? `${host} and this copy both have changes the other lacks, so the pull was refused (it only fast-forwards). Your work is kept and committed here.`
+                    : `${host} has changes this copy does not have: pull first.`);
+            }
+            if (x.code === 'HttpError' && status === 404) return err('E_RUNTIME', `${host} has no repository at that address.`);
+            return err('E_RUNTIME', `Could not ${how} (${host}): ${String(x.message || e).slice(0, 200)}`);
+        }
     }
 
     /** The project folder of a valid id, or an error. */
@@ -436,6 +468,34 @@ export function createStudio(deps: StudioDeps) {
             try { return { ok: true, oid: await restore(d.dir, oid) }; } catch (e) { return err('E_PROJECT', `Could not go back: ${(e as Error).message}`); }
         },
 
+        // ---- the project's remote: push and pull (owner: GitHub, not a priority; any HTTPS git server) ----
+        /** The remote and whether a token is kept for its host; with `url`, set the remote first (HTTPS only). */
+        async remote(projectId: string, url?: string): Promise<{ ok: true; url: string | null; token: { saved: boolean; safe: boolean } } | StudioErr> {
+            const d = dirOf(projectId);
+            if ('ok' in d) return d;
+            if (url !== undefined) {
+                const u = remoteUrl(url);
+                if (!u) return err('E_ARGS', 'Type the https:// address of the repository (like https://github.com/you/project.git), without a password in it.');
+                await setRemote(d.dir, u);
+            }
+            const now = await getRemote(d.dir);
+            const host = now ? new URL(now).host : '';
+            return { ok: true, url: now, token: { saved: !!(host && deps.tokens && deps.tokens.get(host)), safe: !!(deps.tokens && deps.tokens.safe()) } };
+        },
+        /** Keep (or forget, with null) the token for this project's remote host. It never comes back to the page. */
+        async token(projectId: string, token: string | null): Promise<{ ok: true } | StudioErr> {
+            const d = dirOf(projectId);
+            if ('ok' in d) return d;
+            const now = await getRemote(d.dir);
+            if (!now) return err('E_ARGS', 'Save the repository address first.');
+            if (!deps.tokens || (token && !deps.tokens.safe())) return err('E_RUNTIME', 'This computer cannot keep a token encrypted, so it keeps none.');
+            if (token !== null && (token.length < 8 || token.length > 400 || /\s/.test(token))) return err('E_ARGS', 'That does not look like a token.');
+            deps.tokens.set(new URL(now).host, token);
+            return { ok: true };
+        },
+        async push(projectId: string): Promise<{ ok: true } | StudioErr> { return sync(projectId, 'push'); },
+        async pull(projectId: string): Promise<{ ok: true } | StudioErr> { return sync(projectId, 'pull'); },
+
         /** Is `url` on one of the projects this app serves? (main's frame veto lets the Preview through.) */
         serves(url: string): boolean {
             let origin = '';
@@ -457,6 +517,15 @@ export function createStudio(deps: StudioDeps) {
 }
 
 export type Studio = ReturnType<typeof createStudio>;
+
+/** A remote a person typed: https only, a host, no user or password inside (a token is kept apart). */
+export function remoteUrl(raw: unknown): string | null {
+    if (typeof raw !== 'string' || raw.length > 300) return null;
+    let u: URL;
+    try { u = new URL(raw.trim()); } catch { return null; }
+    if (u.protocol !== 'https:' || !u.hostname || u.username || u.password || u.search || u.hash) return null;
+    return u.toString();
+}
 
 /** This machine's non-internal IPv4 addresses (what a person on the LAN types). */
 export function lanAddresses(): string[] {

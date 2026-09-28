@@ -160,6 +160,8 @@ export function serialDoor() {
  *   serve(projectId: string): Promise<any>, share(projectId: string, on: boolean): Promise<any>, install(): Promise<any>,
  *   history(projectId: string): Promise<any>, changes(projectId: string, oid: string): Promise<any>,
  *   commit(projectId: string, message: string): Promise<any>, restore(projectId: string, oid: string): Promise<any>,
+ *   remote(projectId: string, url?: string): Promise<any>, token(projectId: string, token: string|null): Promise<any>,
+ *   push(projectId: string): Promise<any>, pull(projectId: string): Promise<any>,
  *   onEvent(fn: (msg: any) => void): void}}
  */
 export function studioDoor() {
@@ -187,6 +189,11 @@ export function studioDoor() {
     changes: (projectId, oid) => opt('changes', [String(projectId), String(oid)]),
     commit: (projectId, message) => opt('commit', [String(projectId), String(message)]),
     restore: (projectId, oid) => opt('restore', [String(projectId), String(oid)]),
+    // The remote: its address (set with `url`), the token (write-only: the page never reads one back), push, pull.
+    remote: (projectId, url) => opt('remote', url === undefined ? [String(projectId)] : [String(projectId), String(url)]),
+    token: (projectId, token) => opt('token', [String(projectId), token == null ? null : String(token)]),
+    push: (projectId) => opt('push', [String(projectId)]),
+    pull: (projectId) => opt('pull', [String(projectId)]),
     // Optional: a shell from before the runtime download has no install.
     install: () => (typeof api.install === 'function' ? call('install', [])
       : Promise.resolve({ ok: false, code: 'E_RUNTIME', message: 'this app cannot install the coding agent' })),

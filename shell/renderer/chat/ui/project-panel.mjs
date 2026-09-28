@@ -173,6 +173,54 @@ function createPanel(host, app) {
   const commitList = make('ul', 'chat-proj-commits');
   const commitView = make('div', 'chat-proj-commit-view');
   paneHistory.append(commitList, commitView);
+
+  // GitHub (or any git server over https): the address, a token (write-only: main keeps it, encrypted), Push, Pull.
+  const gitBox = /** @type {HTMLDetailsElement} */ (make('details', 'chat-proj-git'));
+  gitBox.append(make('summary', 'chat-proj-git-title', t('project.gitTitle')));
+  const remoteIn = /** @type {HTMLInputElement} */ (make('input', 'chat-proj-name-in chat-proj-remote-in'));
+  remoteIn.type = 'url';
+  remoteIn.placeholder = t('project.remotePlaceholder');
+  remoteIn.setAttribute('aria-label', t('project.remotePlaceholder'));
+  const tokenIn = /** @type {HTMLInputElement} */ (make('input', 'chat-proj-name-in chat-proj-token-in'));
+  tokenIn.type = 'password';
+  tokenIn.autocomplete = 'off';
+  tokenIn.placeholder = t('project.tokenPlaceholder');
+  tokenIn.setAttribute('aria-label', t('project.tokenPlaceholder'));
+  const gitNote = make('p', 'chat-proj-note chat-proj-git-note');
+  gitNote.setAttribute('role', 'status');
+  const tokenNote = make('p', 'chat-proj-note chat-proj-token-note');
+  const gitRow = (/** @type {HTMLElement[]} */ ...els) => { const r = make('div', 'chat-proj-new'); r.append(...els); return r; };
+  const gitAct = async (/** @type {() => Promise<any>} */ fn, /** @type {string} */ ok) => {
+    gitNote.textContent = t('project.working');
+    const r = await fn();
+    gitNote.textContent = r && r.ok ? ok : String((r && r.message) || '');
+    await loadRemote();
+    if (r && r.ok) { reloads += 1; await refreshFiles(); picked = ''; await loadHistory(); mountFrame(true); }
+  };
+  const remoteHost = () => { try { return new URL(remoteIn.value).host; } catch { return ''; } };
+  gitBox.append(
+    gitRow(remoteIn, button(t('project.saveRemote'), 'chat-proj-save-remote', () => { if (door) void gitAct(() => door.remote(projectId, remoteIn.value.trim()), t('project.remoteSaved')); })),
+    gitRow(tokenIn,
+      button(t('project.saveToken'), 'chat-proj-save-token', () => { if (door && tokenIn.value) { const v = tokenIn.value; tokenIn.value = ''; void gitAct(() => door.token(projectId, v), t('project.tokenStored')); } }),
+      button(t('project.forgetToken'), 'chat-proj-forget-token', () => { if (door) void gitAct(() => door.token(projectId, null), t('project.tokenForgotten')); })),
+    tokenNote,
+    gitRow(
+      button(t('project.push'), 'chat-proj-push', () => { if (door) void gitAct(() => door.push(projectId), t('project.pushed', { host: remoteHost() })); }),
+      button(t('project.pull'), 'chat-proj-pull', () => { if (door) void gitAct(() => door.pull(projectId), t('project.pulled', { host: remoteHost() })); })),
+    gitNote,
+  );
+  paneHistory.prepend(gitBox);
+
+  /** The remote and the token's state (never the token) for this project. */
+  async function loadRemote() {
+    if (!door || !projectId) return;
+    const r = await door.remote(projectId);
+    if (!(r && r.ok)) return;
+    if (document.activeElement !== remoteIn) remoteIn.value = r.url || '';
+    const h = remoteHost();
+    tokenNote.textContent = !r.token.safe ? t('project.tokenUnsafe')
+      : !r.url ? '' : r.token.saved ? t('project.tokenSaved', { host: h }) : t('project.tokenNone', { host: h });
+  }
   /** @type {Array<{oid: string, message: string, author: string, time: number}>} */ let commits = [];
   let picked = '';
   view.append(tabs, panePreview, paneCode, paneChanges, paneHistory);
@@ -233,6 +281,7 @@ function createPanel(host, app) {
 
   async function loadHistory() {
     if (!door || !projectId) return;
+    void loadRemote();
     const mine = epoch;
     const r = await door.history(projectId);
     if (mine !== epoch) return;

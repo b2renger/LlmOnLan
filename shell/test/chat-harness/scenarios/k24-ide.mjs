@@ -155,6 +155,32 @@ export default [
             h.eq(after[0], 'Back to: Agent: write index.html: <h1 id="hi">hello</h1>');
             h.eq(await h.eval(async (url) => (await fetch(url)).text(), `${bound.serveUrl}index.html`), '<h1 id="hi">hello</h1>', 'the page is back to the first reply');
             await h.screenshot('k24-ide-history');
+
+            // GitHub: an https address only; a token is kept (the field clears, the page never reads it back); a push to
+            // an unreachable host is a sentence. (The real protocol is tested in project-git-remote.test.mjs.)
+            const gitNote = () => h.eval(() => (document.querySelector('#lolchat .chat-proj-git-note') || {}).textContent || '');
+            const typeInto = (/** @type {string} */ sel, /** @type {string} */ v) => h.eval((s, x) => {
+                const i = /** @type {HTMLInputElement} */ (document.querySelector(s)); i.value = x; return true;
+            }, sel, v);
+            await h.eval(() => { /** @type {any} */ (document.querySelector('#lolchat .chat-proj-git')).open = true; return true; });
+            await typeInto('#lolchat .chat-proj-remote-in', 'http://example.com/me/site.git');
+            await h.click('#lolchat .chat-proj-save-remote');
+            const refused = await h.waitFor(() => {
+                const n = document.querySelector('#lolchat .chat-proj-git-note');
+                return n && /https:\/\//.test(n.textContent || '') ? n.textContent : null;
+            }, { timeout: 10000 });
+            h.assert(/Type the https:\/\/ address/.test(refused), `an http address is refused in words: ${refused}`);
+            await typeInto('#lolchat .chat-proj-remote-in', 'https://127.0.0.1:9/me/site.git');
+            await h.click('#lolchat .chat-proj-save-remote');
+            await h.waitFor(() => (/Address saved/.test((document.querySelector('#lolchat .chat-proj-git-note') || {}).textContent || '') ? true : null), { timeout: 10000 });
+            h.assert(/No token for 127\.0\.0\.1:9/.test(await h.eval(() => document.querySelector('#lolchat .chat-proj-token-note').textContent)), 'says how to get a token');
+            await typeInto('#lolchat .chat-proj-token-in', 'ghp_harness_token_1');
+            await h.click('#lolchat .chat-proj-save-token');
+            await h.waitFor(() => (/A token is kept for 127\.0\.0\.1:9/.test((document.querySelector('#lolchat .chat-proj-token-note') || {}).textContent || '') ? true : null), { timeout: 10000 });
+            h.eq(await h.eval(() => /** @type {HTMLInputElement} */ (document.querySelector('#lolchat .chat-proj-token-in')).value), '', 'the token field clears');
+            await h.click('#lolchat .chat-proj-push');
+            await h.waitFor(() => (/Could not push \(127\.0\.0\.1:9\)/.test((document.querySelector('#lolchat .chat-proj-git-note') || {}).textContent || '') ? true : null), { timeout: 20000 });
+            h.assert(!/ghp_/.test(await gitNote()), 'no token in any sentence');
             h.eq((await panel(h)).frame, null, 'the Preview frame is gone while another tab is up (hidden means idle)');
 
             // 4. Stop ends a running turn.

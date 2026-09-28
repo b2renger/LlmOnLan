@@ -4,7 +4,7 @@
 // sidecar (pointed at the farm via config-bridge), and loads it in a <webview>.
 // Discovery (M3) and full Preferences (M4) layer onto this skeleton.
 
-import { app, BrowserWindow, ipcMain, shell, nativeTheme, dialog, session, powerMonitor, Session } from 'electron';
+import { app, BrowserWindow, ipcMain, shell, nativeTheme, dialog, session, powerMonitor, Session, safeStorage } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
@@ -665,10 +665,30 @@ function registerIpc(): void {
                 runtime: () => resolveRuntime(process.env, app.getPath('userData')),
                 emit: (m) => { if (win && !win.isDestroyed()) win.webContents.send('lol:studio:event', m); },
                 seedSkills: path.join(app.getAppPath(), 'assets', 'skills'),
+                // Git tokens per host, encrypted by the OS (safeStorage) in <userData>/git-tokens.json; none is kept
+                // where the OS cannot encrypt. Read only here, for a push or a pull.
+                tokens: {
+                    safe: () => safeStorage.isEncryptionAvailable(),
+                    get: (host) => {
+                        try {
+                            const all = JSON.parse(fs.readFileSync(gitTokensFile(), 'utf8'));
+                            return typeof all[host] === 'string' ? safeStorage.decryptString(Buffer.from(all[host], 'base64')) : null;
+                        } catch { return null; }
+                    },
+                    set: (host, token) => {
+                        if (token && !safeStorage.isEncryptionAvailable()) return false;
+                        let all: Record<string, string> = {};
+                        try { all = JSON.parse(fs.readFileSync(gitTokensFile(), 'utf8')) || {}; } catch { /* first token */ }
+                        if (token) all[host] = safeStorage.encryptString(token).toString('base64'); else delete all[host];
+                        fs.writeFileSync(gitTokensFile(), JSON.stringify(all));
+                        return true;
+                    },
+                },
             });
         }
         return studioApi;
     }
+    const gitTokensFile = () => path.join(app.getPath('userData'), 'git-tokens.json');
     const badStudio = Promise.resolve({ ok: false, code: 'E_ARGS', message: 'bad arguments' });
     ipcMain.handle('lol:studio:prompt', (_e, o: unknown) => {
         if (!isObj(o) || !isStr(o.projectId) || !isStr(o.threadId) || !isStr(o.model) || !isStr(o.text)) return badStudio;
@@ -688,6 +708,11 @@ function registerIpc(): void {
     ipcMain.handle('lol:studio:changes', (_e, id: unknown, oid: unknown) => (isStr(id) && isStr(oid) ? studio().changes(id, oid) : badStudio));
     ipcMain.handle('lol:studio:commit', (_e, id: unknown, msg: unknown) => (isStr(id) && isStr(msg) ? studio().commit(id, msg) : badStudio));
     ipcMain.handle('lol:studio:restore', (_e, id: unknown, oid: unknown) => (isStr(id) && isStr(oid) ? studio().restore(id, oid) : badStudio));
+    // The remote (a person-typed https address), its token (write-only from the page), push and pull.
+    ipcMain.handle('lol:studio:remote', (_e, id: unknown, url: unknown) => (isStr(id) && (url === undefined || isStr(url)) ? studio().remote(id, url as string | undefined) : badStudio));
+    ipcMain.handle('lol:studio:token', (_e, id: unknown, token: unknown) => (isStr(id) && (token === null || isStr(token)) ? studio().token(id, token as string | null) : badStudio));
+    ipcMain.handle('lol:studio:push', (_e, id: unknown) => (isStr(id) ? studio().push(id) : badStudio));
+    ipcMain.handle('lol:studio:pull', (_e, id: unknown) => (isStr(id) ? studio().pull(id) : badStudio));
     // Install the agent: this version's dsh-runtime-<platform>-<arch>.tar.gz from GitHub (the latest release's as a
     // fallback) into <userData>/dsh-runtime, where resolveRuntime finds it — the sidecar's own download + unpack.
     // A person's click, never automatic; progress rides the studio event channel.
