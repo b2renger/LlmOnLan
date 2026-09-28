@@ -77,7 +77,14 @@ over a person's pick), and the panel's model line follows the picker. It reaches
 5. **The runtime download** — CI builds `dsh-runtime-<platform>-<arch>.tar.gz` (a pinned Node 24 + `npm ci` from a
    committed lockfile of `@deepseek-ai/dsh@0.1.7-rc.2`) on the client release; the shell fetches it on first use
    (like the sidecar), with progress in the panel.
-6. **Later**: git over HTTPS (credentials in `safeStorage`), serve on the LAN (a toggle), the project's own
+6. **Built the night of 2026-09-28** (docs/NIGHT_LOG_2026-09-28.md): **Share on the LAN** (a per-project toggle,
+   off by default, forgotten at restart, read-only, the Host check extended to this machine's addresses);
+   **History** (`src/main/projectGit.ts`, isomorphic-git: a commit per reply and per Save, a line diff, *Go back to
+   this version* as a new commit); **GitHub push/pull** (an https remote, a token per host kept with `safeStorage`,
+   fast-forward-only pull). The user guide: [LOLVIBE_IDE_GUIDE.md](LOLVIBE_IDE_GUIDE.md). **Open question:** dsh's
+   `workspace-write` policy limits WRITES to the project; whether its `read` tool can open files elsewhere on the
+   disk is not tested yet (the guide claims only the writes).
+7. **Later**: the project's own
    `.dsh/skills`, pruning old dsh session logs.
 
 ## 4. Not in v1
