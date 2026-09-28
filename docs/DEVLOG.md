@@ -6,6 +6,36 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-09-29 (00:12) — Release v0.2.3: the IDE, mic and camera, lessons 7–12, the review
+
+Tag `v0.2.3` (`50af476`), cut with `scripts/release.mjs` after the full harness (405/405) and a real test of the
+packaged app (the entry below). CI: all six jobs green; **27 assets**, published (not a draft): the installers for
+windows-x64, mac-arm64, mac-x64, linux-x64 and linux-arm64 with their blockmaps and `latest*.yml` (latest.yml says
+0.2.3), and for each of the five platforms an `owui-sidecar-*` and — new — a `dsh-runtime-*` (110–133 MB: LOL Vibe's
+coding agent, fetched only when a person presses **Install the coding agent**). The farm has no change: no Farm app
+release.
+
+**Verified from the release itself:** Install the coding agent on a fresh profile (the 0.2.3 dev client — never the
+installer, which would replace the owner's app): the panel found `dsh-runtime-win32-x64.tar.gz` on the v0.2.3
+release, downloaded and unpacked it in 20 s, then a real turn ran on the installed runtime (3 steps, 16.6 s) and the
+fence refused an outside read on that runtime's own Node.
+
+**What is in it** (since v0.2.2): LOL Vibe's IDE (the Project panel, DeepSeek Harness on its own Node, the project
+fence, history with git, Share on the LAN, GitHub push/pull, graphify), the Computer's microphone and webcam, lessons
+7–12, the resume banner, the in-app review (~160 tooltips, every sentence checked against the code), and the fixes
+found on the way — among them the coding agent's skills failing to seed out of app.asar (it would not have started in
+any installed client), a Trigger-only graph that could not be armed, a bus Trigger drawn before the bus that never
+listened, an Instruction that sent no model on an endpoint-only farm, and the Agent reading a text as an array.
+
+**After the tag, on main (next release):** a free Condition hides the Question it never reads (`2500c4f`); a project
+chat is neither measured nor gated on its history (`f522637`).
+
+**Still for a person on the rig** (docs/TEST_SCENARIOS_v0.2.md): the auto-update from v0.2.2 on each OS; Share on the
+LAN from a second machine (the Windows firewall prompt); a GitHub push with a real token; lessons 7–10 with a real
+microphone, camera, bus and board.
+
+---
+
 ## 2026-09-28 (late night) — Everything a person reads, reviewed; tooltips; the resume banner; three bugs found on the way
 
 The owner, 22:08: "do a full review of the in app user facing documentation, tutorials, for the computer and lol
