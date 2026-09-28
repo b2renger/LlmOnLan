@@ -86,6 +86,20 @@ export default [
             await pick('assistant');
             await line(/good at editing code/, false);
 
+            // Share on the LAN: off by default; the toggle shows the address (the harness listens on loopback and
+            // answers to a TEST-NET name), and turning it off clears it.
+            h.eq((await panel(h)).lan, [], 'not shared by default');
+            await h.click('#lolchat .chat-proj-share');
+            const lan = await h.waitFor(() => {
+                const s = window.LolChat.debug.project.state();
+                const note = document.querySelector('#lolchat .chat-proj-share-note');
+                return s.lan.length && note && /192\.0\.2\.10/.test(note.textContent || '') ? s.lan : null;
+            }, { timeout: 10000 });
+            h.assert(/^http:\/\/192\.0\.2\.10:\d+\/$/.test(lan[0]), `the LAN address: ${lan[0]}`);
+            h.eq(await h.eval(() => document.querySelector('#lolchat .chat-proj-share').getAttribute('aria-pressed')), 'true');
+            await h.click('#lolchat .chat-proj-share');
+            await h.waitFor(() => (window.LolChat.debug.project.state().lan.length ? null : true), { timeout: 10000 });
+
             // 2. The agent writes the page.
             await send(h, 'write index.html: <h1 id="hi">hello</h1>');
             const first = await settled(h, 1);

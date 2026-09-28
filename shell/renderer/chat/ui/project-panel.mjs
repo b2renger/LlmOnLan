@@ -126,7 +126,12 @@ function createPanel(host, app) {
   const browser = /** @type {HTMLAnchorElement} */ (make('a', 'chat-proj-btn chat-proj-browser', t('project.browser')));
   browser.target = '_blank';
   browser.rel = 'noopener';
-  bar.append(nameEl, other, folder, browser);
+  // Share on the LAN (owner, 2026-09-28): a person's toggle per project, off by default, forgotten at restart.
+  /** @type {string[]} */ let lanUrls = [];
+  const shareBtn = button(t('project.share'), 'chat-proj-share', () => { void toggleShare(); });
+  bar.append(nameEl, other, folder, browser, shareBtn);
+  const shareNote = make('p', 'chat-proj-note chat-proj-share-note');
+  shareNote.setAttribute('role', 'status');
   const model = make('p', 'chat-proj-note chat-proj-model');
   const cols = make('div', 'chat-proj-cols');
   const fileList = make('ul', 'chat-proj-files');
@@ -164,7 +169,7 @@ function createPanel(host, app) {
   const paneChanges = make('div', 'chat-proj-pane chat-proj-pane-changes');
   view.append(tabs, panePreview, paneCode, paneChanges);
   cols.append(fileList, view);
-  main.append(bar, model, cols);
+  main.append(bar, shareNote, model, cols);
   root.append(empty, main);
 
   // ---- behaviour -----------------------------------------------------------------------------------
@@ -194,6 +199,28 @@ function createPanel(host, app) {
     model.textContent = !m ? '' : p.edits === 'good' ? t('project.modelGood', { model: m })
       : p.edits === 'weak' ? t('project.modelWeak', { model: m }) : t('project.modelUnknown', { model: m });
     model.classList.toggle('is-warn', p.edits === 'weak');
+  }
+
+  function paintShare() {
+    shareBtn.hidden = !door;
+    shareBtn.textContent = lanUrls.length ? t('project.unshare') : t('project.share');
+    shareBtn.setAttribute('aria-pressed', lanUrls.length ? 'true' : 'false');
+    shareNote.textContent = lanUrls.length ? t('project.shared', { urls: lanUrls.join(' · ') }) : '';
+  }
+
+  async function toggleShare() {
+    if (!door || !projectId) return;
+    const on = !lanUrls.length;
+    shareBtn.disabled = true;
+    const r = await door.share(projectId, on);
+    shareBtn.disabled = false;
+    if (r && r.ok) {
+      lanUrls = r.urls || [];
+      paintShare();
+      if (on && !lanUrls.length) shareNote.textContent = t('project.sharedNoLan');
+      return;
+    }
+    shareNote.textContent = String((r && r.message) || '');
   }
 
   function paintTabs() {
@@ -372,11 +399,14 @@ function createPanel(host, app) {
     if (mine !== epoch) return;
     projectName = meta && meta.ok ? meta.project.name : projectId;
     nameEl.textContent = projectName;
-    if (door && !serveUrl) {
+    if (door) {
+      // Asked every time: main answers from its cache, and says whether this project is shared on the LAN.
       const s = await door.serve(projectId);
       if (mine !== epoch) return;
       serveUrl = s && s.ok ? s.url : '';
+      lanUrls = s && s.ok && Array.isArray(s.lan) ? s.lan : [];
     }
+    paintShare();
     browser.href = serveUrl || '#';
     browser.hidden = !serveUrl;
     await refreshFiles();
@@ -412,7 +442,7 @@ function createPanel(host, app) {
       host.replaceChildren();
     },
     debug: {
-      state: () => ({ projectId, projectName, files: files.map((f) => f.path), tab, openFile, serveUrl, frame: frame ? frame.getAttribute('src') : null }),
+      state: () => ({ projectId, projectName, files: files.map((f) => f.path), tab, openFile, serveUrl, lan: lanUrls.slice(), frame: frame ? frame.getAttribute('src') : null }),
     },
   };
 }

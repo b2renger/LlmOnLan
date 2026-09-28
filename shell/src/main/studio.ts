@@ -13,6 +13,7 @@
 import { spawn, ChildProcess } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as http from 'node:http';
+import * as os from 'node:os';
 import * as path from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { killTree } from './util';
@@ -175,6 +176,9 @@ export interface StudioDeps {
     farm: () => StudioFarm | null;
     runtime: () => StudioRuntime | null;
     emit: (m: StudioEmit) => void;
+    /** Sharing on the LAN: where the share listens (tests keep it on 127.0.0.1: no firewall prompt) and which
+     *  addresses it answers to (default: this machine's non-internal IPv4 addresses). */
+    lan?: { host?: string; addresses?: () => string[] };
     /** A skills folder to copy into <DATA_DIR>/skills the first time (ponytail, with its licence). */
     seedSkills?: string;
     env?: NodeJS.ProcessEnv;
@@ -184,6 +188,7 @@ export function createStudio(deps: StudioDeps) {
     let rt: Rt | null = null;
     let turn: Turn | null = null;
     const servers = new Map<string, { server: http.Server; url: string }>();
+    const shared = new Map<string, { server: http.Server; urls: () => string[] }>();
 
     const homeOf = () => path.join(deps.dataDir(), 'lol-studio', 'dsh');
     const skillsOf = () => path.join(deps.dataDir(), 'skills');
@@ -346,39 +351,44 @@ export function createStudio(deps: StudioDeps) {
         },
 
         /** The project on http://127.0.0.1:<port>/ — the Preview, and "open it in a browser". */
-        async serve(projectId: string): Promise<{ ok: true; url: string } | StudioErr> {
+        /** `lan`: the addresses the project is shared on right now ([] when it is not — the default). */
+        async serve(projectId: string): Promise<{ ok: true; url: string; lan: string[] } | StudioErr> {
             const idv = validateId(projectId);
             if (!idv.ok) return err('E_ARGS', 'bad arguments');
             const root = deps.projectsRoot();
             if (!fs.existsSync(projectDir(root, idv.id))) return err('E_PROJECT', 'That project folder is gone.');
+            const lan = shared.has(idv.id) ? shared.get(idv.id)!.urls() : [];
             const had = servers.get(idv.id);
-            if (had) return { ok: true, url: had.url };
-            let port = 0;
-            const server = http.createServer((req, res) => {
-                const host = String(req.headers.host || '');
-                if (host !== `127.0.0.1:${port}` && host !== `localhost:${port}`) { res.writeHead(403).end(); return; }
-                if (req.method !== 'GET' && req.method !== 'HEAD') { res.writeHead(405, { allow: 'GET, HEAD' }).end(); return; }
-                let rel = '';
-                try { rel = decodeURIComponent(new URL(req.url || '/', 'http://x').pathname).replace(/^\/+/, ''); } catch { res.writeHead(400).end(); return; }
-                if (rel === '' || rel.endsWith('/')) rel += 'index.html';
-                const r = resolveIn(root, idv.id, rel);
-                if (!r.ok) { res.writeHead(404).end(); return; }
-                fs.stat(r.abs, (e, st) => {
-                    if (e || !st.isFile()) { res.writeHead(404).end(); return; }
-                    res.writeHead(200, {
-                        'content-type': MIME[r.ext] || 'application/octet-stream', 'content-length': st.size,
-                        'cache-control': 'no-store', 'x-content-type-options': 'nosniff',
-                    });
-                    if (req.method === 'HEAD') { res.end(); return; }
-                    fs.createReadStream(r.abs).on('error', () => res.destroy()).pipe(res);
-                });
-            });
-            await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', () => resolve()));
-            port = (server.address() as { port: number }).port;
+            if (had) return { ok: true, url: had.url, lan };
+            const { server, port } = await fileServer(root, idv.id, '127.0.0.1', () => []);
             const url = `http://127.0.0.1:${port}/`;
             servers.set(idv.id, { server, url });
-            return { ok: true, url };
+            return { ok: true, url, lan };
         },
+
+        /**
+         * Share a project on the LAN (owner, 2026-09-28: a per-project toggle, off by default, never remembered): a
+         * second listener on every interface, read-only like the Preview's, that answers to this machine's own LAN
+         * addresses. Off closes it; a restart forgets it. The first share may raise the OS firewall prompt.
+         */
+        async share(projectId: string, on: boolean): Promise<{ ok: true; urls: string[] } | StudioErr> {
+            const idv = validateId(projectId);
+            if (!idv.ok) return err('E_ARGS', 'bad arguments');
+            const had = shared.get(idv.id);
+            if (!on) {
+                if (had) { shared.delete(idv.id); had.server.close(); }
+                return { ok: true, urls: [] };
+            }
+            const root = deps.projectsRoot();
+            if (!fs.existsSync(projectDir(root, idv.id))) return err('E_PROJECT', 'That project folder is gone.');
+            if (had) return { ok: true, urls: had.urls() };
+            const addresses = deps.lan?.addresses || lanAddresses;
+            const { server, port } = await fileServer(root, idv.id, deps.lan?.host || '0.0.0.0', addresses);
+            const urls = () => addresses().map((a) => `http://${a}:${port}/`);
+            shared.set(idv.id, { server, urls });
+            return { ok: true, urls: urls() };
+        },
+
 
         /** Is `url` on one of the projects this app serves? (main's frame veto lets the Preview through.) */
         serves(url: string): boolean {
@@ -394,11 +404,54 @@ export function createStudio(deps: StudioDeps) {
             await stopRuntime();
             for (const s of servers.values()) s.server.close();
             servers.clear();
+            for (const s of shared.values()) s.server.close();
+            shared.clear();
         },
     };
 }
 
 export type Studio = ReturnType<typeof createStudio>;
+
+/** This machine's non-internal IPv4 addresses (what a person on the LAN types). */
+export function lanAddresses(): string[] {
+    const out: string[] = [];
+    for (const list of Object.values(os.networkInterfaces())) {
+        for (const a of list || []) if (a.family === 'IPv4' && !a.internal) out.push(a.address);
+    }
+    return out;
+}
+
+/**
+ * One project's files over HTTP: GET/HEAD only, the project folder only (resolveIn), no listing, no-store. A request
+ * must name the server by 127.0.0.1/localhost or one of `addresses()` (a DNS-rebinding guard).
+ */
+function fileServer(root: string, id: string, host: string, addresses: () => string[]): Promise<{ server: http.Server; port: number }> {
+    let port = 0;
+    const server = http.createServer((req, res) => {
+        const named = String(req.headers.host || '');
+        const ok = named === `127.0.0.1:${port}` || named === `localhost:${port}` || addresses().some((a) => named === `${a}:${port}`);
+        if (!ok) { res.writeHead(403).end(); return; }
+        if (req.method !== 'GET' && req.method !== 'HEAD') { res.writeHead(405, { allow: 'GET, HEAD' }).end(); return; }
+        let rel = '';
+        try { rel = decodeURIComponent(new URL(req.url || '/', 'http://x').pathname).replace(/^\/+/, ''); } catch { res.writeHead(400).end(); return; }
+        if (rel === '' || rel.endsWith('/')) rel += 'index.html';
+        const r = resolveIn(root, id, rel);
+        if (!r.ok) { res.writeHead(404).end(); return; }
+        fs.stat(r.abs, (e, st) => {
+            if (e || !st.isFile()) { res.writeHead(404).end(); return; }
+            res.writeHead(200, {
+                'content-type': MIME[r.ext] || 'application/octet-stream', 'content-length': st.size,
+                'cache-control': 'no-store', 'x-content-type-options': 'nosniff',
+            });
+            if (req.method === 'HEAD') { res.end(); return; }
+            fs.createReadStream(r.abs).on('error', () => res.destroy()).pipe(res);
+        });
+    });
+    return new Promise((resolve) => server.listen(0, host, () => {
+        port = (server.address() as { port: number }).port;
+        resolve({ server, port });
+    }));
+}
 
 function lastLine(s: string): string {
     const lines = s.split('\n').map((l) => l.trim()).filter(Boolean);

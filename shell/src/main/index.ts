@@ -681,6 +681,8 @@ function registerIpc(): void {
     ipcMain.handle('lol:studio:stop', () => studio().stop());
     ipcMain.handle('lol:studio:status', () => studio().status());
     ipcMain.handle('lol:studio:serve', (_e, id: unknown) => (isStr(id) ? studio().serve(id) : badStudio));
+    // Share a project on the LAN: a person's toggle, off by default, forgotten at restart (owner, 2026-09-28).
+    ipcMain.handle('lol:studio:share', (_e, id: unknown, on: unknown) => (isStr(id) ? studio().share(id, on === true) : badStudio));
     // Install the agent: this version's dsh-runtime-<platform>-<arch>.tar.gz from GitHub (the latest release's as a
     // fallback) into <userData>/dsh-runtime, where resolveRuntime finds it — the sidecar's own download + unpack.
     // A person's click, never automatic; progress rides the studio event channel.

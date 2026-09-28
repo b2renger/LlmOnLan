@@ -120,6 +120,7 @@ contextBridge.exposeInMainWorld('lol', {
         stop: () => ipcRenderer.invoke('lol:studio:stop'),
         status: () => ipcRenderer.invoke('lol:studio:status'),
         serve: (projectId: string) => ipcRenderer.invoke('lol:studio:serve', projectId),
+        share: (projectId: string, on: boolean) => ipcRenderer.invoke('lol:studio:share', projectId, on),
         install: () => ipcRenderer.invoke('lol:studio:install'),
         onEvent: (fn: (msg: unknown) => void) => { ipcRenderer.on('lol:studio:event', (_e, msg) => fn(msg)); },
     },

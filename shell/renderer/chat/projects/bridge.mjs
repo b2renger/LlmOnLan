@@ -157,7 +157,8 @@ export function serialDoor() {
  * the turn's own id — never a path, a URL or a password (the farm is main's). A turn's records arrive on onEvent,
  * tagged with that id. Every answer is {ok:true,...} or {ok:false, code, message}. null outside the app.
  * @returns {null | {prompt(o: any): Promise<any>, stop(): Promise<any>, status(): Promise<any>,
- *   serve(projectId: string): Promise<any>, install(): Promise<any>, onEvent(fn: (msg: any) => void): void}}
+ *   serve(projectId: string): Promise<any>, share(projectId: string, on: boolean): Promise<any>, install(): Promise<any>,
+ *   onEvent(fn: (msg: any) => void): void}}
  */
 export function studioDoor() {
   const api = preloadProp('studio', ['prompt', 'stop', 'status', 'serve', 'onEvent']);
@@ -173,6 +174,9 @@ export function studioDoor() {
     stop: () => call('stop', []),
     status: () => call('status', []),
     serve: (projectId) => call('serve', [String(projectId)]),
+    // Optional, like install: an older shell cannot share on the LAN.
+    share: (projectId, on) => (typeof api.share === 'function' ? call('share', [String(projectId), !!on])
+      : Promise.resolve({ ok: false, code: 'E_RUNTIME', message: 'this app cannot share a project on the LAN' })),
     // Optional: a shell from before the runtime download has no install.
     install: () => (typeof api.install === 'function' ? call('install', [])
       : Promise.resolve({ ok: false, code: 'E_RUNTIME', message: 'this app cannot install the coding agent' })),

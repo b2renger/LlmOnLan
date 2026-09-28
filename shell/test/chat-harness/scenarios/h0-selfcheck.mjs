@@ -77,7 +77,7 @@ export default [
             // P5 (docs/IDE_PLAN.md): ONE more additive property, `studio` (the IDE's coding agent) — a prompt names a
             // project, a thread and a model, never a path, a URL or a password.
             h.eq(shape.keys, ['getBlenderConnection', 'projects', 'debugLog', 'io', 'studio'], 'window.lol exposes more than the real preload');
-            h.eq(shape.studio, ['prompt', 'stop', 'status', 'serve', 'install', 'onEvent'], 'window.lol.studio is not the real preload method set');
+            h.eq(shape.studio, ['prompt', 'stop', 'status', 'serve', 'share', 'install', 'onEvent'], 'window.lol.studio is not the real preload method set');
             h.eq(shape.debugLog, ['start', 'append', 'stop', 'mark', 'reveal', 'status'], 'window.lol.debugLog is not the real preload method set');
             h.eq(shape.projects, [
                 'root', 'list', 'create', 'meta', 'update', 'forget', 'listFiles', 'read', 'readBinary',

@@ -237,4 +237,37 @@ export default (test) => {
       assert.equal((await get(s.url, { host: `127.0.0.1:${port}`, method: 'POST' })).status, 405);
     } finally { await r.studio.dispose(); }
   });
+
+  test('studio: sharing on the LAN is a toggle — off by default, answers to this machine\'s addresses, gone when off', async () => {
+    const data = tmp('share');
+    const root = path.join(data, 'LOL Studio Projects');
+    fs.mkdirSync(path.join(root, PID), { recursive: true });
+    fs.writeFileSync(path.join(root, PID, 'index.html'), '<h1>shared</h1>');
+    const studio = S.createStudio({
+      dataDir: () => data, projectsRoot: () => root, farm: () => null, runtime: () => null, emit: () => {},
+      lan: { host: '127.0.0.1', addresses: () => ['192.0.2.10'] },   // loopback in tests: no firewall prompt
+    });
+    try {
+      const first = await studio.serve(PID);
+      assert.deepEqual(first.lan, [], 'not shared until a person turns it on');
+      const on = await studio.share(PID, true);
+      assert.equal(on.ok, true);
+      assert.equal(on.urls.length, 1);
+      assert.match(on.urls[0], /^http:\/\/192\.0\.2\.10:\d+\/$/);
+      const port = new URL(on.urls[0]).port;
+      const lanUrl = `http://127.0.0.1:${port}/`;   // the TEST-NET name is only a Host header here
+      const page = await get(lanUrl, { host: `192.0.2.10:${port}` });
+      assert.equal(page.status, 200);
+      assert.equal(page.body, '<h1>shared</h1>');
+      assert.equal((await get(lanUrl, { host: `evil.example:${port}` })).status, 403, 'only this machine\'s names');
+      assert.equal((await get(lanUrl, { host: `192.0.2.10:${port}`, method: 'PUT' })).status, 405, 'read-only');
+      assert.deepEqual((await studio.serve(PID)).lan, on.urls, 'the panel learns the share state from serve()');
+      assert.deepEqual((await studio.share(PID, true)).urls, on.urls, 'turning it on twice keeps one listener');
+      assert.deepEqual((await studio.share(PID, false)).urls, []);
+      await sleep(50);
+      await assert.rejects(get(lanUrl, { host: `192.0.2.10:${port}` }), 'the port is closed');
+      assert.deepEqual((await studio.serve(PID)).lan, []);
+      assert.equal((await studio.share('gone-abcd1234', true)).code, 'E_PROJECT');
+    } finally { await studio.dispose(); }
+  });
 };

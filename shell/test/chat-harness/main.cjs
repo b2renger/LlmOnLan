@@ -226,12 +226,15 @@ function wireStudio() {
         runtime: () => ({ node: String(process.env.LOL_HARNESS_NODE), bin: path.join(__dirname, '..', 'mock-dsh.mjs') }),
         emit: (m) => { if (harnessWin && !harnessWin.isDestroyed()) harnessWin.webContents.send('lol:studio:event', m); },
         seedSkills: path.join(__dirname, '..', '..', 'assets', 'skills'),
+        // The share listens on loopback in the harness (no firewall prompt) and answers to a TEST-NET name.
+        lan: { host: '127.0.0.1', addresses: () => ['192.0.2.10'] },
     });
     ipcMain.handle('lol:studio:prompt', (_e, o) => (o && typeof o === 'object' ? studio.prompt(o) : { ok: false, code: 'E_ARGS', message: 'bad arguments' }));
     ipcMain.handle('lol:studio:stop', () => studio.stop());
     ipcMain.handle('lol:studio:status', () => studio.status());
     ipcMain.handle('lol:studio:serve', (_e, id) => (typeof id === 'string' ? studio.serve(id) : { ok: false, code: 'E_ARGS', message: 'bad arguments' }));
     ipcMain.handle('lol:studio:install', () => ({ ok: false, code: 'E_RUNTIME', message: 'the harness downloads nothing' }));
+    ipcMain.handle('lol:studio:share', (_e, id, on) => (typeof id === 'string' ? studio.share(id, on === true) : { ok: false, code: 'E_ARGS', message: 'bad arguments' }));
     app.on('will-quit', () => { void studio.dispose(); });
     console.log('[harness-main] studio wired (mock dsh)');
     return true;
