@@ -93,6 +93,21 @@ over a person's pick), and the panel's model line follows the picker. It reaches
 7. **Later**: the project's own
    `.dsh/skills`, pruning old dsh session logs.
 
+## 5. Autonomous agents — options for the owner (written 2026-09-28, night)
+
+The vision says LOL Vibe "builds web apps, three.js apps **and autonomous agents**, and serves them locally". v1 writes
+files and serves pages; it cannot RUN a program (no shell, by design). An agent is a program that keeps asking a
+model and acting with tools, in a loop. Three ways to get there, from the safest:
+
+| | What it is | Needs | Contained by | Limits |
+|---|---|---|---|---|
+| **A. Agents as web pages** *(recommended first)* | the project's page runs the agent loop in JavaScript and calls the farm's `/v1` from the browser — **the farm already answers any origin's CORS preflight** (checked on a farm, 2026-09-28) | a skill ("agent-page": the loop pattern, the farm call, tools a page has — fetch of listed public APIs, compute, draw, `speechSynthesis`); the loopback server serves `/lol-farm.json` {baseUrl, model} (**never** on the LAN share, and never a password: on a keyed farm the page asks the person); one lesson | the browser: the Preview's origin, no files, no hardware beyond Web APIs | runs while the page is open |
+| **B. Agents as Computer graphs** | the Computer's Agent box + Trigger + Send ARE an event-driven, armed, bounded agent today | "Open in the Computer": the IDE writes a `.lolgraph.json` the Computer imports | `RUN_LIMITS`, armed outputs, the sandbox | a graph, not code |
+| **C. Agents as programs** | a **Run** button: `node agent.js` in the project with the runtime's own Node | a real process sandbox (dsh has Windows-ACL / Seatbelt sandboxes for its shell tool) and a network allow-list (the farm only) — Node alone cannot be fenced | an OS sandbox, to be measured first | the most power (files, schedules, long runs) and the most risk |
+
+**Recommendation:** A now (a skill, `/lol-farm.json`, one lesson — about half a day), B as the Computer's side (already
+built; the import button later), C only after a measured sandbox review and your decision on the shell question.
+
 ## 4. Not in v1
 A shell tool; web fetch/search by the model; subagents; background jobs; editing outside the project folder; the
 dsh web UI.
