@@ -35,7 +35,7 @@ import { createWireLayer, portOffsetY, portPoint, wireAt, wireEnds, wireMid, SNA
 // Critic R1 (Package B): what a wheel, a resize handle, a dropped wire end and Ctrl+C MEAN is
 // decided in a pure module and pinned in Node; this file reads the DOM into it and writes back.
 import { wheelIntent, scrollRoom, zoomStep, resizeRect, rewireOutcome, shouldCopyParts, WHEEL_LATCH_MS } from './gestures.mjs';
-import { DEFAULT_MAX_ITEMS } from './runner.mjs';
+import { DEFAULT_MAX_ITEMS, kindWord } from './runner.mjs';
 import { tidy } from './tidy.mjs';
 import { toText, fromText, FILE_SUFFIX, MAX_IMPORT_BYTES } from './serialize.mjs';
 import { download, pickImportFile, slugify } from '../ui/transfer.mjs';
@@ -511,10 +511,13 @@ export function createCanvas(o) {
   const stopBtn = button('graph-btn graph-stop', t('graph.stop'));
   stopBtn.hidden = true;
   const addBtn = button('graph-btn graph-add', t('graph.add'));
+  addBtn.title = t('graph.addHint');
   addBtn.setAttribute('aria-haspopup', 'true');
   addBtn.setAttribute('aria-expanded', 'false');
   const undoBtn = button('graph-btn graph-undo', t('graph.undo'));
+  undoBtn.title = t('graph.undoHint');
   const redoBtn = button('graph-btn graph-redo', t('graph.redo'));
+  redoBtn.title = t('graph.redoHint');
   const fitBtn = button('graph-btn graph-fit', t('graph.fit'));
   fitBtn.title = `${t('graph.zoomFit')} (F, ${t('graph.zoomKeyFit')})`;
   const addWrap = el('div', 'graph-add-wrap');
@@ -588,6 +591,7 @@ export function createCanvas(o) {
   const tidyBtn = button('graph-btn graph-tidy', t('graph.tidy'));
   tidyBtn.title = t('graph.tidyHint');
   const exportBtn = button('graph-btn graph-export', t('graph.exportGraph'));
+  exportBtn.title = t('graph.exportHint');
   exportBtn.setAttribute('aria-haspopup', 'true');
   exportBtn.setAttribute('aria-expanded', 'false');
   const exportMenu = el('div', 'graph-export-menu');
@@ -622,6 +626,8 @@ export function createCanvas(o) {
   // place the default changes here, never in a settings section. The banner's button raises the
   // cap for ONE run and never touches this.
   const capField = /** @type {HTMLLabelElement} */ (el('label', 'graph-cap-field'));
+  // The hover covers the word "Cap" as well as the number: the word is what a reader points at.
+  capField.title = t('graph.capHint');
   capField.append(el('span', 'graph-cap-label', t('graph.capLabel')));
   const capInput = /** @type {HTMLInputElement} */ (document.createElement('input'));
   capInput.type = 'number';
@@ -749,7 +755,7 @@ export function createCanvas(o) {
       title: items > 0 ? t('graph.capItemsTitle', { items }) : t('graph.capTitle', { cap }),
       body: items > 0
         ? t('graph.capItemsBody', { cap, raise: raiseTo })
-        : t('graph.capBody', { n: Number((info && info.stopped) || 0) }),
+        : t('graph.capBody', { count: Number((info && info.stopped) || 0) }),
       actions: [
         {
           name: 'raise',
@@ -814,6 +820,16 @@ export function createCanvas(o) {
           : t('computer.limitWall', { minutes }),
       maxActivations: t('computer.limitActivations', { limit: lim }),
     };
+    // Review 2026-09-28: the second line says what the ceiling is for and what to do. A Timer plan's
+    // title already says both, so it has none.
+    /** @type {Record<string, string>} */
+    const body = {
+      maxIterations: t('graph.limitIterationsBody', { limit: lim }),
+      maxGenerations: t('graph.limitGenerationsBody'),
+      maxWallMs: limit.planned ? ''
+        : limit.partId ? t('graph.limitWallParkBody') : t('graph.limitWallBody', { minutes }),
+      maxActivations: t('graph.limitActivationsBody', { limit: lim }),
+    };
     const actions = [{
       name: 'raise',
       label: t('computer.limitRaise'),
@@ -827,7 +843,7 @@ export function createCanvas(o) {
     return setNotice({
       kind: `limit:${limit.ceiling}`,
       title: title[limit.ceiling] || t('computer.limitGenerations', { limit: lim }),
-      body: '',
+      body: body[limit.ceiling] || '',
       actions,
     });
   }
@@ -844,9 +860,10 @@ export function createCanvas(o) {
       title: t('computer.loopUngated'),
       body: '',
       // Critic S1-12: the lesson button appears only once a loops lesson ships; a disabled button
-      // that says "No lesson on loops yet" was a promise with nothing behind it.
-      actions: tut && typeof tut.has === 'function' && tut.has('l10-loops')
-        ? [{ name: 'lesson', label: t('computer.loopLesson'), onClick: () => tut.open('l10-loops') }]
+      // that says "No lesson on loops yet" was a promise with nothing behind it. Lesson 6 is that
+      // lesson (review 2026-09-28: the id asked for here was `l10-loops`, which never shipped).
+      actions: tut && typeof tut.has === 'function' && tut.has('l06-a-loop-that-stops')
+        ? [{ name: 'lesson', label: t('computer.loopLesson'), onClick: () => tut.open('l06-a-loop-that-stops') }]
         : [],
     });
   }
@@ -1171,6 +1188,14 @@ export function createCanvas(o) {
     live.textContent = text;
   }
 
+  /** Review 2026-09-28: a REFUSED wire snapped back with its reason only in the (visually hidden)
+   * live region, so a sighted person saw nothing happen and never learnt why. The same sentence,
+   * as a toast that fades by itself. @param {string} text */
+  function showRefusal(text) {
+    const dialogs = app && app.dialogs;
+    if (text && dialogs && typeof dialogs.toast === 'function') dialogs.toast(text, { kind: 'info' });
+  }
+
   const partById = (/** @type {string} */ id) => session.doc().parts.find((/** @type {any} */ p) => p.id === id) || null;
 
   const labelOf = (/** @type {any} */ part) => titleFor(part);
@@ -1291,8 +1316,10 @@ export function createCanvas(o) {
     return true;
   }
 
-  /** @param {string} from @param {string} to @param {string} port */
-  function wire(from, to, port) {
+  /** `show`: a PERSON drew it (the pointer paths), so a refusal is also shown, not only said — the
+   * debug door and the MCP tools stay quiet on screen.
+   * @param {string} from @param {string} to @param {string} port @param {{show?: boolean}} [opt] */
+  function wire(from, to, port, opt = {}) {
     const doc = session.doc();
     const out = addWire(doc, { from, to, port }, { specs, newId: app.newId, now: app.now });
     const fromPart = doc.parts.find((/** @type {any} */ p) => p.id === from);
@@ -1300,11 +1327,13 @@ export function createCanvas(o) {
     if (!out.ok) {
       const key = /** @type {any} */ (WIRE_REASON)[out.reason];
       const fromSpec = fromPart && specs.get(fromPart.type);
-      const vars = { from: labelOf(fromPart), to: labelOf(toPart), kind: (fromSpec && fromSpec.output) || '' };
-      announce(key ? t(/** @type {any} */ (WIRE_REASON)[out.reason], vars) : t('graph.wireRefused'));
+      const vars = { from: labelOf(fromPart), to: labelOf(toPart), kind: kindWord((fromSpec && fromSpec.output) || '') };
+      const said = key ? t(/** @type {any} */ (WIRE_REASON)[out.reason], vars) : t('graph.wireRefused');
+      announce(said);
       // §8.4: a refusal that names a CONCEPT gets the strip and the lesson button, because
       // "you can't draw that" with no way to learn why is the refusal people give up on.
       if (out.reason === 'loop-ungated') sayLoopUngated();
+      else if (opt.show) showRefusal(said);
       return { ok: false, reason: out.reason };
     }
     session.apply(out.doc, { label: 'wire' });
@@ -1372,10 +1401,12 @@ export function createCanvas(o) {
       // The wire stays exactly where it was; the reason is the same sentence drawing it would give.
       const fromPart = partById(was.from);
       const fromSpec = fromPart && specs.get(fromPart.type);
-      const vars = { from: labelOf(fromPart), to: labelOf(partById(target ? target.partId : '')), kind: (fromSpec && fromSpec.output) || '' };
+      const vars = { from: labelOf(fromPart), to: labelOf(partById(target ? target.partId : '')), kind: kindWord((fromSpec && fromSpec.output) || '') };
       const key = /** @type {any} */ (WIRE_REASON)[out.reason || ''];
-      announce(key ? t(/** @type {any} */ (WIRE_REASON)[out.reason || ''], vars) : t('graph.wireRefused'));
+      const said = key ? t(/** @type {any} */ (WIRE_REASON)[out.reason || ''], vars) : t('graph.wireRefused');
+      announce(said);
       if (out.reason === 'loop-ungated') sayLoopUngated();
+      else showRefusal(said);
     }
     schedule('wires');
     return out.kind;
@@ -1541,7 +1572,7 @@ export function createCanvas(o) {
       0,
     );
     session.apply(next, { label: 'tidy' });
-    announce(t('graph.tidyMoved', { n: moved }));
+    announce(t('graph.tidyMoved', { count: moved }));
     return moved;
   }
 
@@ -1768,6 +1799,7 @@ export function createCanvas(o) {
     // K5 kickoff (KE-7): the permanent badge on a lesson's RECORDED answer. Hidden unless
     // `part.demo`; syncBox owns it.
     const demo = el('span', 'graph-part-demo', t('computer.demoBadge'));
+    demo.title = t('computer.demoBadgeHint');
     demo.hidden = true;
     const state = el('span', 'graph-part-state');
     const dot = el('i', 'graph-dot');
@@ -1826,6 +1858,7 @@ export function createCanvas(o) {
     value.hidden = true;
     value.title = t('graph.valueOpen');
     const cost = el('span', 'graph-cost graph-part-cost');
+    cost.title = t('graph.costHint');
     foot.append(value, cost);
     const items = el('ul', 'graph-item-errors');
     items.hidden = true;
@@ -1956,7 +1989,12 @@ export function createCanvas(o) {
     // the difference between "something is happening" and "34 of my items are still to come".
     const fan = part.fanout && Number(part.fanout.n) > 0 ? part.fanout : null;
     const badge = fan ? t('graph.fanout', { done: fan.done || 0, n: fan.n }) : '';
-    if (last.fanout !== badge) { box.fanout.textContent = badge; box.fanout.hidden = !badge; last.fanout = badge; }
+    if (last.fanout !== badge) {
+      box.fanout.textContent = badge;
+      box.fanout.title = fan ? t('graph.fanoutHint', { done: fan.done || 0, n: fan.n }) : '';
+      box.fanout.hidden = !badge;
+      last.fanout = badge;
+    }
     // One bad item never kills the run, so the bad ones have to be READABLE, by number.
     const itemErrors = (fan && Array.isArray(fan.errors) ? fan.errors : []).slice(0, ITEM_ERRORS_SHOWN);
     const errKey = itemErrors.map((/** @type {any} */ e) => `${e.i}:${e.message}`).join('|');
@@ -2210,12 +2248,17 @@ export function createCanvas(o) {
     const doc = session.doc();
     const hit = bodyTarget(d, ev, doc);
     if (!hit) { announce(t('graph.wireDropNowhere')); return; }
-    if (hit.port) { wire(d.from, hit.partId, hit.port); return; }
-    if (hit.reason === 'no-input') { announce(t('graph.wireNoInput', { to: labelOf(partById(hit.partId)) })); return; }
+    if (hit.port) { wire(d.from, hit.partId, hit.port, { show: true }); return; }
+    if (hit.reason === 'no-input') {
+      const said = t('graph.wireNoInput', { to: labelOf(partById(hit.partId)) });
+      announce(said);
+      showRefusal(said);
+      return;
+    }
     // Every input refused: the first one's reason, in the words drawing to its dot would use.
     const part = partById(hit.partId);
     const first = part && ((specs.get(part.type) || {}).inputs || [])[0];
-    if (first) wire(d.from, hit.partId, first.name);
+    if (first) wire(d.from, hit.partId, first.name, { show: true });
     else announce(t('graph.wireDropNowhere'));
   }
 
@@ -2550,7 +2593,7 @@ export function createCanvas(o) {
       markDropTarget('');
       if (!d.armed) return;
       const to = portUnder(ev) || d.snap;
-      if (to) wire(d.from, to.partId, to.port);
+      if (to) wire(d.from, to.partId, to.port, { show: true });
       else dropOnBody(d, ev);
       schedule('wires');
       return;

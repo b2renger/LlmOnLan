@@ -449,10 +449,12 @@ export default [
             const loop = await strip(h);
             h.eq(loop.kind, 'loop-ungated');
             h.eq(loop.title, await str(h, 'computer.loopUngated'), 'with §8.4\'s exact sentence');
-            // Critic S1-12: no loops lesson ships (LESSONS has 0-4), so there is NO lesson button —
-            // a disabled "No lesson on loops yet" was a promise with nothing behind it. It comes
-            // back, enabled, the day `l10-loops` exists (canvas.mjs sayLoopUngated).
-            h.eq(loop.primary.hidden, true, 'no lesson button while no loops lesson ships');
+            // Critic S1-12: the lesson button shows only when a loops lesson ships — a disabled
+            // "No lesson on loops yet" was a promise with nothing behind it. Lesson 6 (`l06-a-loop-
+            // that-stops`) is that lesson, so the button is there, enabled (canvas.mjs sayLoopUngated).
+            h.eq(loop.primary.hidden, false, 'the loops lesson button is offered');
+            h.eq(loop.primary.disabled, false, 'and it can be pressed');
+            h.eq(loop.primary.label, await str(h, 'computer.loopLesson'), 'and it names lesson 6');
 
             // 4. and every one of them clears — a new run always starts with a clean strip.
             await h.eval(() => window.LolComputer.app.host.canvas.setNotice(null));

@@ -4,8 +4,7 @@
 import { registerStrings } from '../core/i18n.mjs';
 
 registerStrings('graph', {
-  panelLabel: 'Computer',
-  empty: 'Place a part to start. Wire it up, then press Run all.',
+  empty: 'Add a box to start: press ＋ Add a box, or double-click the canvas. Wire boxes together, then press Run all.',
   // K1 landing: a graph no longer belongs to a conversation, it belongs to a LIBRARY DOCUMENT.
   // (`noThread` was 'Open a chat to build a program…'; the Computer has no chat to open.)
   // Docs review B-2: the library button reads "New" (computer.libNew), with no ＋.
@@ -16,38 +15,45 @@ registerStrings('graph', {
   running: 'Running {i}/{n}',
   stop: 'Stop',
   add: '＋ Add a box',
-  addPart: 'Add {part}',
+  // Review 2026-09-28: the toolbar's hovers, each with its key where it has one.
+  addHint: 'Add a box. You can also double-click or right-click the canvas to add one right where you click.',
   undo: 'Undo',
+  undoHint: 'Undo (Ctrl+Z)',
   redo: 'Redo',
+  redoHint: 'Redo (Ctrl+Y or Ctrl+Shift+Z)',
   fit: 'Fit',
   zoom: '{percent}%',
-  zoomLabel: 'Zoom',
 
-  // wire refusals — one per reason code returned by graph/model.mjs addWire() (frozen, §2.6 BG-4)
-  wireSelf: 'A part cannot feed itself.',
-  wireCycle: 'That would make a loop. Use Repeat instead of feeding a value back.',
+  // wire refusals — one per reason code returned by graph/model.mjs addWire() (frozen, §2.6 BG-4).
+  // Review 2026-09-28: each says WHY and what to do instead, in box/wire/loop words.
+  wireSelf: 'A box cannot feed itself. To run it again on its own result, make a loop through a Toggle or a Condition, which can stop it.',
   // K3 kickoff (COMPUTER_PLAN §4.6): a loop is now LEGAL and declared — `wireCycle` survives for
   // a self-wire and for an old file. What a loop may not be is unstoppable.
-  wireLoopUngated: 'A loop needs something that can stop it. Add a Toggle.',
-  wireBack: 'loops back',
-  wireBackAria: '{from} loops back into {to}',
-  wireDuplicate: 'Those two are already wired together.',
-  wireNoOutput: 'That part has no output.',
-  wireUnknownPort: 'That input does not exist on this part.',
-  wireType: '{from} produces {kind}, which {to} does not accept.',
-  wireUnknownPart: 'One end of that wire is gone.',
-  wireRefused: 'That wire was refused.',
+  wireCycle: 'That would make a loop with nothing in it that can stop it. Put a Toggle or a Condition inside the loop first.',
+  wireLoopUngated: 'That would make a loop with nothing in it that can stop it. Put a Toggle, Condition, Button, Confirm, Dialog or Timer inside the loop, then draw this wire again.',
+  // `duplicate` is also what a one-wire input that is already taken answers (graph/model.mjs).
+  wireDuplicate: 'That input already has this wire, or it takes only one. To swap it, unplug the old wire first (its ✕).',
+  wireNoOutput: '{from} hands nothing on, so no wire can start from it.',
+  wireUnknownPort: '{to} has no input there. Drop the wire on a dot on its left edge, or on the box itself.',
+  wireType: '{to} cannot take {kind}, which is what {from} hands on. Wire {from} into a box that takes {kind} instead.',
+  wireUnknownPart: 'One of those boxes is gone, so the wire was not made.',
+  wireRefused: 'That wire cannot go there. Try another input or another box.',
+  // What a box hands on, in words (runner.mjs KIND_WORD / kindWord): the {kind} of the sentences
+  // above and of parts.errBadInput, never the engine's own kind name.
+  kindText: 'text',
+  kindImage: 'a picture',
+  kindList: 'a list',
+  kindJson: 'data (JSON)',
+  kindFile: 'a file',
+  kindOther: 'something',
 
-  // run reporting
-  runDone: '{n} parts ran in {sec}s',
-  runNothing: 'Nothing to run — every part is up to date.',
-  runStopped: 'Stopped. Finished parts kept their values.',
-  runCycle: 'This graph has a loop and cannot run.',
-  runErrors: '{n} parts failed',
+  // run reporting. The run bar now speaks for a run (computer.runOutcome*); these three stay
+  // registered because c1-landing and k10-run-outcomes still read them.
+  runNothing: 'Nothing to run — every box is up to date.',
   // C1 landing: two REAL run outcomes the runner reports that had no sentence of their own and were
   // announcing as runNothing. A yield is not a failure and not a stop — the person took the seat.
   runBusy: 'The farm went to someone else — press Run to pick up where it stopped.',
-  runCapped: 'Stopped at {cap} generations, {n} parts still to run.',
+  runCapped: 'Stopped at the Cap of {cap} generations, with {n} boxes still to run.',
 
   // part states, as the label next to the colour (never colour alone)
   stateIdle: 'Not run',
@@ -63,12 +69,10 @@ registerStrings('graph', {
 
   // canvas affordances
   canvasLabel: 'Graph canvas',
-  selectionCount: '{n} selected',
-  valueOpen: 'Open this value',
-  valueTitle: 'Value',
+  valueOpen: 'Show this box’s whole result',
   valueMore: '… {n} more characters',
-  portIn: '{label} in',
-  portOut: 'Output',
+  portIn: 'Input “{label}”: drop a wire here, from the dot on another box’s right edge',
+  portOut: 'Output: drag from this dot to another box to wire them together',
   partAria: '{label} — {state}',
   wireAria: 'Wire from {from} to {to}',
 
@@ -78,16 +82,17 @@ registerStrings('graph', {
   // answer, and the empty pill is where a reader finds that out.
   wireNameMe: 'name me',
   wireLabelAria: 'Name this arrow',
-  wireLabelHint: 'Click an arrow’s name to rename it. The instruction below refers to it by that name.',
+  // The pill's hover (graph/wires.mjs).
+  wireLabelHint: 'Name this arrow: click here, or select the wire and press F2. The box it feeds can use the name to tell its inputs apart.',
   saidWireNamed: 'Arrow named {name}',
   saidWireUnnamed: 'Arrow name cleared',
 
   // the live region: one line per change
   saidPlaced: '{part} placed',
-  saidDeleted: { one: '1 part deleted', other: '{count} parts deleted' },
+  saidDeleted: { one: '1 box deleted', other: '{count} boxes deleted' },
   saidWired: '{from} now feeds {to}',
   saidWireDeleted: 'Wire deleted',
-  saidSelected: { one: '1 part selected', other: '{count} parts selected' },
+  saidSelected: { one: '1 box selected', other: '{count} boxes selected' },
   saidNothingSelected: 'Nothing selected',
   saidMoved: '{part} moved to {x}, {y}',
   saidUndo: 'Undone',
@@ -96,44 +101,55 @@ registerStrings('graph', {
   saidNothingToRedo: 'Nothing to redo',
   saidFit: 'Fitted to the graph',
   saidZoom: 'Zoom {percent}%',
-  saidCopied: { one: '1 part copied', other: '{count} parts copied' },
-  saidPasted: { one: '1 part pasted', other: '{count} parts pasted' },
+  saidCopied: { one: '1 box copied', other: '{count} boxes copied' },
+  saidPasted: { one: '1 box pasted', other: '{count} boxes pasted' },
   saidNothingToPaste: 'Nothing to paste',
 
   // ---- C2 (§2.6 BH): fan-out, the cap, costs, and the chat-column inspector -------------------
   runningItems: 'Running {i}/{n} · item {item}/{items}',
   fanout: '{done}/{n}',
-  fanoutErrors: '{n} failed',
-  capTitle: 'This run stopped at {cap} generations',
-  capBody: '{n} parts were left for later, so a graph cannot quietly spend the farm.',
-  capRaise: 'Raise the cap for this run',
+  fanoutHint: '{done} of {n} items done',
+  capTitle: 'This run stopped at its Cap of {cap} generations',
+  // Review 2026-09-28: `count` = the boxes left; canvas.mjs setCapped passes it.
+  capBody: {
+    one: '1 box was left for later. A generation is one answer from the model; the Cap keeps a graph from quietly spending the farm. Raise it for this run, or change Cap in the toolbar for every run.',
+    other: '{count} boxes were left for later. A generation is one answer from the model; the Cap keeps a graph from quietly spending the farm. Raise it for this run, or change Cap in the toolbar for every run.',
+  },
+  capRaise: 'Raise the Cap for this run',
   capLabel: 'Cap',
-  capHint: 'How many generations one Run may spend.',
+  capHint: 'Cap: the most generations (answers from the model) one run may use, and the most items of a list one box may run through. A run that reaches it stops, keeps what it made, and offers to go on.',
   capSaid: 'Cap set to {cap} generations',
-  runCappedShort: 'Stopped at the cap of {cap}.',
-  capItemsTitle: 'One part would run {items} times',
-  capItemsBody: 'Your cap is {cap} items a run, so nothing ran. Raising it to {raise} runs them all.',
-  runCappedItems: 'Stopped: one part would run {items} times, over the cap of {cap}.',
+  capItemsTitle: 'One box would run {items} times',
+  capItemsBody: 'That is more than the Cap of {cap}, so nothing ran. Raise it to {raise} to run them all: for this run with the button, or for every run with Cap in the toolbar.',
   cost: '{sec}s · {tokens} tokens',
   costCalls: '{sec}s · {tokens} tokens · {calls} calls',
-  inspectTitle: 'Value',
+  costHint: 'This box’s last run: how long it took, how many tokens the model read and wrote, and (when more than one) how many answers it asked for',
+  // Review 2026-09-28: the second line of the run-notice strip for each ceiling (canvas.mjs
+  // setLimited) — what the limit is for and what to do. The first line is computer.limit*.
+  limitIterationsBody: 'A box may run at most {limit} times in one run, so a loop always ends. Check what should stop the loop, or raise the limit for this run.',
+  limitGenerationsBody: 'A generation is one answer from the model. Raise the limit for this run, or change Cap in the toolbar for every run.',
+  limitWallBody: 'A run may last {minutes} minutes, waits included. Raise the limit for this run to give it longer.',
+  limitWallParkBody: 'Answer it sooner next time, or raise the limit for this run.',
+  limitActivationsBody: 'A run may take {limit} steps (one step is one box running once), so a graph cannot run forever. Raise the limit for this run to let it finish.',
+  inspectTitle: 'Result',
   inspectClose: 'Close',
   inspectFrom: 'From {part}',
   inspectItem: 'Item {i} of {n}',
-  inspectEmpty: 'This part has no value yet.',
+  inspectEmpty: 'Nothing to show: this box has no result yet, or its result is empty. Run it to make one.',
 
   // ---- C3 (§2.6 BJ): tidy, and the sharing story. Seeded by the integrator; C3-U3 owns them.
   tidy: 'Tidy',
-  tidyHint: 'Lay the parts out left to right. One undo takes it back.',
-  tidyMoved: 'Moved {n} parts',
+  tidyHint: 'Lay the boxes out left to right. One undo (Ctrl+Z) takes it back.',
+  tidyMoved: { one: 'Moved 1 box', other: 'Moved {count} boxes' },
   tidyNothing: 'Everything is already in place.',
 
   exportGraph: 'Export…',
+  exportHint: 'Save this graph as a .lolgraph.json file, to keep a copy or share it.',
   exportDone: 'Saved {name}',
-  importDone: 'Imported {n} parts and {w} wires',
+  importDone: 'Imported: {n} boxes, {w} wires',
   importDropped: 'Imported, but {n} things were dropped: {why}',
   errImportNotGraph: 'That file is not a LOL graph.',
-  errImportVersion: 'That file was written by a newer version of the Computer.',
+  errImportVersion: 'That file was written by a newer version of the Computer. Update LlmOnLan, then open it again.',
   errImportUnreadable: 'That file could not be read.',
   errImportTooBig: 'That file is too big to open. A graph file has to stay under 8 MB.',
   // Docs review B-4: a dropped graph file REPLACES the open graph (after the replaceTitle question),
@@ -149,12 +165,12 @@ registerStrings('graph', {
   exportImages: 'Pictures it has already made are saved inside the file, which makes it bigger.',
   exportFailed: 'That file could not be saved.',
   importCancelled: 'Import cancelled — nothing on the canvas changed.',
-  importEmpty: 'That file is a graph, but it has no parts in it.',
-  dropPartUnknown: 'a part this version does not have',
-  dropPartDuplicate: 'a part that was in the file twice',
+  importEmpty: 'That file is a graph, but it has no boxes in it.',
+  dropPartUnknown: 'a box this version does not have',
+  dropPartDuplicate: 'a box that was in the file twice',
   dropWireEnd: 'a wire with nothing on one end',
-  dropWireCycle: 'a wire that would have made a loop',
-  dropWireType: 'a wire between two parts that do not fit',
+  dropWireCycle: 'a wire that would have made a loop with nothing to stop it',
+  dropWireType: 'a wire between two boxes that do not fit',
   dropValueTooBig: 'a saved picture too big to keep',
   dropOther: 'something this version could not read',
 });

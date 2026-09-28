@@ -58,9 +58,27 @@ import { cancelAll as cancelParks, answer as answerPark } from './parts/control-
 import { parseSeed, baseSeed, seedFor } from './bind.mjs';
 import { t } from '../core/i18n.mjs';
 import '../strings/parts.en.mjs';
+import '../strings/graph.en.mjs';
 
 /** @typedef {import('../core/types.mjs').RunReport} RunReport */
 /** @typedef {import('../core/types.mjs').GraphValue} GraphValue */
+
+/** A value kind → the words a person reads for it (review 2026-09-28: "a picture", never `image`).
+ * `parts.errBadInput` below and the canvas's wire refusals both say it this way. */
+const KIND_WORD = {
+  text: 'graph.kindText',
+  image: 'graph.kindImage',
+  list: 'graph.kindList',
+  json: 'graph.kindJson',
+  file: 'graph.kindFile',
+};
+
+/** @param {string} kind @returns {string} */
+export function kindWord(kind) {
+  return Object.prototype.hasOwnProperty.call(KIND_WORD, kind)
+    ? t(KIND_WORD[/** @type {keyof typeof KIND_WORD} */ (kind)])
+    : t('graph.kindOther');
+}
 
 /** Generations one Run may spend before it stops and asks (spec §2, `pref:computeMaxItems`). It is
  * also the ITEM ceiling: a single fan may not exceed it either (see the loop below). */
@@ -286,7 +304,7 @@ export function createRunner(o) {
           return { error: t('parts.errNoInput', { port: port.label }) };
         }
         const verdict = accepts(port.accepts, value);
-        if (verdict === 'no') return { error: t('parts.errBadInput', { port: port.label, kind: /** @type {any} */ (value).kind }) };
+        if (verdict === 'no') return { error: t('parts.errBadInput', { port: port.label, kind: kindWord(/** @type {any} */ (value).kind) }) };
         values.push(value);
         names.push(typeof wire.label === 'string' ? wire.label : '');
       }
@@ -1054,7 +1072,7 @@ export function createRunner(o) {
       const doc0 = session.doc();
       const ord0 = order(forwardEdges(doc0));
       // A cycle in the FORWARD graph cannot be BUILT (addWire declares a loop `back:true`), so this
-      // is the defensive path: a hand-edited or imported file. Nothing runs, `graph.runCycle`.
+      // is the defensive path: a hand-edited or imported file. Nothing runs, `computer.runOutcomeCycle`.
       if (!ord0.ok) {
         emit({ type: 'start', n: 0, cycle: true });
         return finish(true);

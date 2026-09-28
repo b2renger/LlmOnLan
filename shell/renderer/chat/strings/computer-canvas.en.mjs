@@ -27,7 +27,7 @@ registerStrings('graph', {
   toolSelect: 'Select',
   toolSelectHint: 'Select and move boxes (V). Drag on empty canvas to draw a selection box.',
   toolHand: 'Hand',
-  toolHandHint: 'Drag to move around the canvas (H). Hold Shift to draw a selection box instead.',
+  toolHandHint: 'Drag to move around the canvas (H). Hold Shift to draw a selection box instead. With Select, holding Space while you drag does the same.',
   // The key each tool shows on its button (owner, 2026-09-27) — they work anywhere on the Computer.
   toolSelectKey: 'V',
   toolHandKey: 'H',
@@ -36,12 +36,12 @@ registerStrings('graph', {
 
   // A5: unplugging a wire, by its ✕ or by dragging its end off the input.
   wireUnplug: 'Unplug this wire (Delete)',
-  portInWired: '{label} in — drag the wire off this dot to unplug it',
+  portInWired: 'Input “{label}”: drag the wire off this dot to unplug it',
   saidWireUnplugged: 'Wire from {from} to {to} removed. Ctrl+Z puts it back.',
   saidWireReplugged: '{from} now feeds {to} instead',
 
   // Duplicate (Ctrl+D) and pasting plain text onto the canvas.
-  saidDuplicated: { one: '1 part duplicated', other: '{count} parts duplicated' },
+  saidDuplicated: { one: '1 box duplicated', other: '{count} boxes duplicated' },
   saidPastedText: 'Text box made from the pasted text',
 
   // The right-click menus (tldraw tool #6): every keyboard-only action gets a visible door.

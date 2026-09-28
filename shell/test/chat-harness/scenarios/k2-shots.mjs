@@ -63,7 +63,7 @@ async function buildScene(/** @type {any} */ h) {
     await h.computer.save();
     await h.waitFor(() => {
         const card = document.querySelector('#lolcomputer .comp-list .comp-card');
-        return card && /\d+\s*part/.test(card.textContent || '') && !/0\s*parts/.test(card.textContent || '') ? true : null;
+        return card && /\d+\s*box/.test(card.textContent || '') && !/\b0\s*boxes/.test(card.textContent || '') ? true : null;
     }, { timeout: 8000 });
     await h.computer.transcript.open(ask, 'sent');
     return { topic, societal, country, aside, ask };

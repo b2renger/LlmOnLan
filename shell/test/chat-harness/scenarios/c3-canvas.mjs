@@ -376,7 +376,7 @@ export default [
             h.eq(Object.keys(moved).length, 4, 'tidy adds and removes nothing');
             h.eq((await h.graph.doc()).wires.length, 3, 'and rewires nothing');
             h.eq(JSON.stringify(moved) !== JSON.stringify(placed), true, 'the parts moved');
-            h.eq((await h.graph.state()).said, await str(h, 'graph.tidyMoved', { n: 4 }), 'it says how many moved');
+            h.eq((await h.graph.state()).said, await str(h, 'graph.tidyMoved', { count: 4 }), 'it says how many moved');
             h.eq((await h.graph.state()).undo.past, undoBefore + 1, 'one press is ONE undo entry');
 
             // Left to right, in wire order.

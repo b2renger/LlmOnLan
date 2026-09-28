@@ -229,6 +229,7 @@ export function createWireLayer(svg, o) {
     label.dataset.wire = wireId;
     label.setAttribute('role', 'textbox');
     label.setAttribute('aria-label', t('graph.wireLabelAria'));
+    label.title = t('graph.wireLabelHint');
     label.tabIndex = 0;
     // The placeholder is its own span (never the label's text) and carries the tab stop while the
     // label is hidden, so an UNNAMED arrow is reachable by keyboard as well as by mouse.
@@ -236,6 +237,7 @@ export function createWireLayer(svg, o) {
     ph.className = 'graph-wire-ph';
     ph.setAttribute('aria-label', t('graph.wireLabelAria'));
     ph.setAttribute('role', 'button');
+    ph.title = t('graph.wireLabelHint');
     ph.tabIndex = 0;
     ph.textContent = t('graph.wireNameMe');
     // Critic R1, A5: the ✕ that unplugs. It sits BESIDE the name (absolutely, so showing it on
