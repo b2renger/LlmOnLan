@@ -43,6 +43,27 @@ skills seed one by one; the user guide `docs/LOLVIBE_IDE_GUIDE.md`.
 history (3), push/pull against the loopback git server, linediff (4); k24 extended (share, History + go back, the
 GitHub section); h0 pins the preload's `studio` methods. The real runtime on a private test farm for the fence.
 
+**Lessons 7–12** (an agent, `28cfe73` + `f8969f4`): the Learn shelf now teaches every capability since lesson 6 —
+7 listen and speak, 8 a picture to a model, 9 act on the world (dry run → armed → Panic), 10 hear the world (a
+Trigger on a clock, armed only), 11 an agent with tools, 12 open data (code charts data.gouv.fr's counts, the model
+names them). Each walks on the mock farm with no GPU or hardware (a saved transcript and answers, the festivals copy
+offline). Tests: unit 1746/0, lint rule 15 (13 lessons), harness k5-lessons 19/19 + k9-fit. It found an app bug: a
+graph with a Trigger and no Send box could never be armed (the run bar showed Outputs only with a Send box) —
+fixed (`33598ff`, k16).
+
+**graphify** (decision at 21:30; an agent, `15b4de2` + `e72f8c5`): graphify itself needs Python, a shell and
+subagents and loads its viewer from a CDN, so `assets/skills/graphify` is adapted from its extraction spec
+(v0.9.71, Apache-2.0, NOTICE kept): the IDE's model writes `graphify-out/graph.json` + `GRAPH_REPORT.md` with file
+tools only. ONE d3-force viewer (`sandbox/graph-view.mjs`, the vendored d3 7.9) draws node-link JSON: the Computer's
+Preview gains a seventh mode, **Graph** (broken JSON names its line; > 1000 nodes / 5000 links is a sentence; Live
+drags), and the IDE's Preview draws a clicked `graph.json` in the panel's own sandbox guest (`09f2a10`). Real model:
+qwen3.8 on a 5-file project → 11 nodes, 19 links in graphify's vocabulary, read by the viewer, 91 s, no failed call.
+Tests: graph-view 7/7, k25 4/4, k24's graph step, the 30 Preview scenarios.
+
+**A lint rule tightened.** The Project panel had made its Preview iframe through a `make('iframe')` helper, which
+slipped past rule 12 ("one module makes iframes"). The frame now comes from `host.mjs` `servedFrame()` (only a page
+this app serves on 127.0.0.1), and rule 12 catches any call with `'iframe'` as its first argument.
+
 ---
 
 ## 2026-09-28 (afternoon) — LOL Vibe's IDE, v1 slices 1–4: DeepSeek Harness writes a project, the panel shows it
