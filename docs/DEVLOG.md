@@ -6,6 +6,45 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-09-28 (late night) — Everything a person reads, reviewed; tooltips; the resume banner; three bugs found on the way
+
+The owner, 22:08: "do a full review of the in app user facing documentation, tutorials, for the computer and lol
+vibe, add tool tips and ux refinement. Then cut a release to test." Two agents reviewed every sentence against
+the code (the Computer: `7f1e471`…`1eeca35`; LOL Vibe and the IDE: `b04223a`…`9c257b7`); I reviewed their changes.
+
+**Wrong claims corrected** (a sample): the ＋ menu said Sound only plays a dropped file (it records, and Listens),
+Image had no camera, Send listed five ways (seven), the Preview had no Graph mode; a lesson button looked for a
+lesson that never shipped (`l10-loops`), so it never showed; templates named boxes that do not exist ("Count",
+"Draw"); lesson 7 said ticking Listen sends the recording (the next run does); Stop on a Listen/Classify run said
+"the farm is busy". LOL Vibe: the Project button was missing on a first launch; **Continue on a coding-agent reply
+sent the chat to the farm's model, which wrote code into the chat** (no longer offered there); "not a text file:
+see it in the Preview" (the Preview showed index.html); the GitHub token is per server, not per project; the About
+page said only the conversation goes to the farm (a project chat sends the files the agent reads).
+
+**Tooltips:** ~119 in the Computer (the surface, the canvas, every box's face, the rail), ~42 in LOL Vibe (the Project
+panel, message actions, code blocks, the header button naming Ctrl+1). **UX:** a refused wire says why; a limit
+notice says what it is for and what to do; the Code tab follows the agent's edits, Go back and Pull **without ever
+overwriting an unsaved edit**; GitHub/Go back cannot fire twice; disabled buttons look disabled; plainer words
+("boxes", "chat").
+
+**The resume banner** (`43d82eb`) — the last unbuilt piece of COMPUTER_PLAN: a run cut short by the app's close is
+offered again when its graph opens ("N of M boxes finished. Resume · Dismiss"). Building it found `resumable()`
+offering an OLD crash after later runs (it now reads the newest row only).
+
+**Bugs found on the way, fixed with a test that fails without the fix:**
+- **A Trigger-only graph could never be armed** — the run bar showed Outputs only with a Send box (lessons build; k16).
+- **A bus Trigger drawn before the farm's bus was known never listened** (the review; k20).
+- **The coding agent would not have started in any installed client**: the bundled skills are inside `app.asar`, and
+  `fs.cpSync` fails there with ENOENT (probed on a real asar before the release; `copyTree`, and a unit test that
+  packs a real asar and copies out of it in Electron's own Node).
+- My own IDE Preview frame had slipped past lint rule 12 through a helper (`af736ac`: the frame comes from
+  `host.mjs servedFrame`; the rule catches helpers now).
+
+**Tested.** Unit 1749/0; lint 0; the agents' harness sweeps (the Computer 295/295 on slot 2; LOL Vibe on slot 3:
+p 89/89, s0 19/19, h0 13/13, h1 3/3, c4 and k24 green); the full harness run over the reviewed tree before the release (below, in the night log).
+
+---
+
 ## 2026-09-28 (night) — The IDE shares, remembers and publishes; the project fence
 
 The owner's night brief (docs/NIGHT_LOG_2026-09-28.md): the IDE's LAN serving and git first (isomorphic-git; a

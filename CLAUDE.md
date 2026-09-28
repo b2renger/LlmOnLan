@@ -223,7 +223,7 @@ docs) is `docs/reviews/DOCS_REVIEW_2026-09-27_{FARM,SHELL,COMPUTER}.md`. Snapsho
   them armed NO tool changes or runs a graph (reading stays open); what only a person chooses (a Fetch address, an Open data
   link, an Agent's hosts, a USB board, Listen) is dropped from a model's settings and reported as left for a person. Also a **? on every box** that opens that box's example (`computer/examples/`: one per ＋
   menu entry, a Sticky with what it does / inputs / output / how to use it next to a working setup, imported
-  as a library graph once and reopened after). Not built: the resume-after-close banner. Docs: [the user tutorial](docs/LOLCHAT_COMPUTER_TUTORIAL.md),
+  as a library graph once and reopened after). A run cut short by the app's close is offered again when its graph opens (the **resume banner**, host.mjs: Resume = Run all, only unfinished boxes re-run; Dismiss closes it — 2026-09-28). Docs: [the user tutorial](docs/LOLCHAT_COMPUTER_TUTORIAL.md),
   [status](docs/COMPUTER_STATUS.md), [plan](docs/COMPUTER_PLAN.md), [live plan](docs/COMPUTER_LIVE_PLAN.md).
 - **`sidecar/`** — `build-sidecar` bundles a relocatable standalone CPython 3.12 + OWUI + `launcher.py`;
   `OPENWEBUI_VERSION` is the pin (**OWUI `0.11.4`** since 2026-09-27, Python 3.11/3.12; the bump notes are in INTEGRATION_BRIEF). A packaged client runs
