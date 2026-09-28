@@ -1,0 +1,20 @@
+Graphify
+Copyright 2026 Safi Shamsi and the Graphify contributors.
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+Portions of this software were contributed under the MIT License prior to the
+relicensing and remain available under those terms. The original MIT license
+text is retained in LICENSE-MIT.
+
+---
+
+This folder (shell/assets/skills/graphify in LlmOnLan) ships SKILL.md, adapted by LlmOnLan
+from graphify v0.9.71 (https://github.com/Graphify-Labs/graphify, tag v0.9.71, commit
+d6eaa8aae8df155874ebb1044302c055c286342a): its extraction spec
+(graphify/skills/claude/references/extraction-spec.md, and the compact form in
+tools/skillgen/fragments/references/shared/extraction-spec-compact.md), the graph.json layout
+written by graphify/export.py (to_json) and the report sections of graphify/report.py. It was
+rewritten for a model that has only file tools (no Python, no shell, no subagents, no web).
+Modifications by LlmOnLan, 2026-09-28. LICENSE is graphify's Apache-2.0 text; LICENSE-MIT is
+graphify's retained MIT text, both unmodified.
