@@ -45,7 +45,7 @@ const TEXT_CAP = 20000;   // per diff side: the Changes view shows an edit, not 
 const clip = (s: unknown, n: number): string => (typeof s === 'string' ? (s.length > n ? s.slice(0, n) + '…' : s) : '');
 
 /** The profile patch (YAML; every string written as a JSON string, which YAML reads as-is). */
-export function buildPatch(o: { baseUrl: string; model: string; contextWindow: number; skillsDir: string }): string {
+export function buildPatch(o: { baseUrl: string; model: string; contextWindow: number; skillsDir: string; hooksConfig?: string }): string {
     const q = (s: string) => JSON.stringify(s);
     const off = [
         'tool-pwsh', 'tool-bash', 'tool-jobs', 'tool-goal', 'tool-ralph', 'command-goal', 'goal-round-driver',
@@ -76,6 +76,15 @@ export function buildPatch(o: { baseUrl: string; model: string; contextWindow: n
         '    includeDefaultRoots: false',
         `    customSkillDirs: [${q(o.skillsDir)}]`,
         ...off.map((id) => `- { id: ${id}, disabled: true }`),
+        // The project fence (FENCE_JS): Claude Code-style command hooks, before every file tool.
+        ...(o.hooksConfig ? [
+            '- insert:',
+            '    - id: hooks-claude-code',
+            "      name: '@deepseek-ai/dsh-hooks-claude-code'",
+            '      config:',
+            `        configPath: ${q(o.hooksConfig)}`,
+            '        defaultTimeoutMs: 10000',
+        ] : []),
         '',
     ].join('\n');
 }
@@ -305,7 +314,12 @@ export function createStudio(deps: StudioDeps) {
             seed();
             const prof = path.join(home, 'profiles', 'sdk');
             fs.mkdirSync(prof, { recursive: true });
-            const patch = buildPatch({ baseUrl: o.farm.endpoint, model: o.model, contextWindow: o.farm.ctxPerSlot || 32768, skillsDir: skillsOf() });
+            // The fence and its hooks config, rewritten every start (the runtime's own Node runs the fence).
+            const fence = path.join(home, 'lol-fence.mjs');
+            const hooks = path.join(home, 'lol-hooks.json');
+            fs.writeFileSync(fence, FENCE_JS);
+            fs.writeFileSync(hooks, fenceHooks(o.runtime.node, fence));
+            const patch = buildPatch({ baseUrl: o.farm.endpoint, model: o.model, contextWindow: o.farm.ctxPerSlot || 32768, skillsDir: skillsOf(), hooksConfig: hooks });
             fs.writeFileSync(path.join(prof, 'cordis.patch.yml.tmp'), patch);
             fs.renameSync(path.join(prof, 'cordis.patch.yml.tmp'), path.join(prof, 'cordis.patch.yml'));
         } catch (e) {
@@ -517,6 +531,74 @@ export function createStudio(deps: StudioDeps) {
 }
 
 export type Studio = ReturnType<typeof createStudio>;
+
+/**
+ * The project fence (2026-09-28): dsh confines WRITES to the workspace but not reads ("preserving the local
+ * filesystem's read behavior" — its dsh-fs-sandbox README), so the agent could read any file of this account and
+ * hand it to the model. This PreToolUse hook (dsh-hooks-claude-code, Claude Code's hook protocol: the call as JSON
+ * on stdin, exit 2 = refused, stderr = what the model reads) refuses every file tool whose path — after links — is
+ * outside the project, a glob that climbs out, and any request for wider sandbox rights. The bridge FAILS OPEN on a
+ * crash, so this script denies whenever it is unsure. (The one backslash in it, in the glob check, is doubled for
+ * this template string.)
+ */
+export const FENCE_JS = `// LlmOnLan: the IDE's coding agent reads and changes files ONLY inside its project (a dsh PreToolUse hook).
+import fs from 'node:fs';
+import path from 'node:path';
+const WIN = process.platform === 'win32';
+const fold = (p) => (WIN ? p.toLowerCase() : p);
+const deny = (why) => { process.stderr.write('LOL Vibe: ' + why); process.exit(2); };
+/** The real path of p, or of its nearest existing parent joined with the rest (a file about to be made). */
+function real(p) {
+  let cur = path.resolve(p);
+  const rest = [];
+  for (;;) {
+    try { return path.join(fs.realpathSync.native(cur), ...rest); } catch { /* not there yet */ }
+    const parent = path.dirname(cur);
+    if (parent === cur) return path.resolve(p);
+    rest.unshift(path.basename(cur));
+    cur = parent;
+  }
+}
+let raw = '';
+process.stdin.setEncoding('utf8');
+process.stdin.on('data', (d) => { raw += d; });
+process.stdin.on('end', () => {
+  let input;
+  try { input = JSON.parse(raw); } catch { deny('this tool call could not be checked, so it was refused.'); }
+  const args = (input && input.tool_input) || {};
+  if (args.sandbox_permissions) deny('the agent works only inside this project; it gets no wider access.');
+  const root = real(process.env.CLAUDE_PROJECT_DIR || input.cwd || process.cwd());
+  const inside = (p) => { const a = fold(real(path.resolve(root, p))); const r = fold(root); return a === r || a.startsWith(r + path.sep); };
+  for (const p of [args.file_path, args.path]) {
+    if (typeof p === 'string' && p && !inside(p)) deny('only files inside this project can be read or changed (' + p + ' is outside).');
+  }
+  const pat = typeof args.pattern === 'string' ? args.pattern : '';
+  if (input.tool_name === 'glob' && (path.isAbsolute(pat) || pat.split(/[\\\\/]/).includes('..'))) {
+    deny('a search must stay inside this project (' + pat + ').');
+  }
+  process.exit(0);
+});
+`;
+
+/**
+ * The hooks config dsh reads (Claude Code's format): the fence before every file tool. dsh runs a hook command
+ * through its shell layer — `bash -c` on POSIX, PowerShell on Windows — and PowerShell reads two quoted paths as two
+ * strings, not a command (a parse error = exit 1 = "pass": the fence silently off; seen on the real runtime,
+ * 2026-09-28). So on Windows the call operator `&` leads, and `exit $LASTEXITCODE` hands on the fence's own code:
+ * PowerShell otherwise turns a program's exit 2 (block) into its own 1 (pass).
+ */
+export function fenceHooks(node: string, fence: string, platform: string = process.platform): string {
+    const q = (s: string) => `"${s}"`;
+    const command = platform === 'win32' ? `& ${q(node)} ${q(fence)}; exit $LASTEXITCODE` : `${q(node)} ${q(fence)}`;
+    return JSON.stringify({
+        hooks: {
+            PreToolUse: [{
+                matcher: 'read|glob|grep|read_image|write|edit',
+                hooks: [{ type: 'command', command, timeout: 10 }],
+            }],
+        },
+    }, null, 2);
+}
 
 /** A remote a person typed: https only, a host, no user or password inside (a token is kept apart). */
 export function remoteUrl(raw: unknown): string | null {

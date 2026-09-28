@@ -112,7 +112,9 @@ docs) is `docs/reviews/DOCS_REVIEW_2026-09-27_{FARM,SHELL,COMPUTER}.md`. Snapsho
   thread to a folder in `DATA_DIR/LOL Studio Projects/`, and that thread's replies come from **DeepSeek Harness**
   (dsh 0.1.7-rc.2) run by main (`src/main/studio.ts`) over its SDK on its OWN Node (its addon refuses Electron 42),
   with a profile patch written from the current farm: 9 file tools, no shell/web/subagents, no DeepSeek cloud row,
-  telemetry off, skills only from `DATA_DIR/skills`. dsh sessions die with the process (no resume): a new one gets a
+  telemetry off, skills only from `DATA_DIR/skills`; and **the project fence** — a PreToolUse command hook
+  (`FENCE_JS`) that refuses any file tool outside the project, because dsh itself confines writes only (on Windows
+  dsh runs hooks through PowerShell: the command needs `&` and `; exit $LASTEXITCODE`, else it silently passes). dsh sessions die with the process (no resume): a new one gets a
   recap of the thread. Preview = a static server per project on 127.0.0.1 (main's frame veto lets exactly that
   origin in). The agent is NOT in the installer: CI builds `dsh-runtime-<platform>-<arch>.tar.gz` (`shell/dsh/`:
   a pinned Node + `npm ci` of a committed lockfile, 110–133 MB, boot-tested; dry run: `build-dsh-runtime.yml`) and the panel's **Install the coding agent** fetches it

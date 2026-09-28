@@ -30,8 +30,8 @@ The reply says what the agent did. **Thought for …** opens on its steps (*→ 
 how many steps and seconds it took. **Stop** stops it at once. Ask for changes the same way: *"add a speed slider in
 a corner; change nothing else."* Keep each request small: one change at a time works best with local models.
 
-The agent works with **files**: it reads, searches, writes and edits them, and it **changes files only inside the
-project folder**. It has no shell, runs no programs and has no web.
+The agent works with **files**: it reads, searches, writes and edits them — **only inside the project folder**
+(anything else it is refused, and it says so). It has no shell, runs no programs and has no web.
 
 ## 3. The panel
 

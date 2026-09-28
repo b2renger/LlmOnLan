@@ -81,9 +81,15 @@ over a person's pick), and the panel's model line follows the picker. It reaches
    off by default, forgotten at restart, read-only, the Host check extended to this machine's addresses);
    **History** (`src/main/projectGit.ts`, isomorphic-git: a commit per reply and per Save, a line diff, *Go back to
    this version* as a new commit); **GitHub push/pull** (an https remote, a token per host kept with `safeStorage`,
-   fast-forward-only pull). The user guide: [LOLVIBE_IDE_GUIDE.md](LOLVIBE_IDE_GUIDE.md). **Open question:** dsh's
-   `workspace-write` policy limits WRITES to the project; whether its `read` tool can open files elsewhere on the
-   disk is not tested yet (the guide claims only the writes).
+   fast-forward-only pull). The user guide: [LOLVIBE_IDE_GUIDE.md](LOLVIBE_IDE_GUIDE.md). **The project fence:**
+   dsh's `workspace-write` confines WRITES only ("preserving the local filesystem's read behavior") — on the real
+   runtime the agent read a file outside its project. Now a PreToolUse command hook (dsh-hooks-claude-code, inserted
+   by the patch; `FENCE_JS` in studio.ts, run by the runtime's own Node) refuses read/glob/grep/read_image/write/edit
+   outside the project (after links), a climbing glob, and any `sandbox_permissions` request; it denies when unsure,
+   because the bridge fails OPEN. Two Windows traps found on the real runtime: dsh runs hooks through PowerShell, so
+   the command needs `&` and `; exit $LASTEXITCODE` (else a parse error or a 2 turned into 1 = "pass"). Verified:
+   an outside read refused, the secret never reached the model, an inside read works. Cost: ~0.4 s per file tool on
+   Windows. Not yet run on macOS/Linux (bash -c; the plain command).
 7. **Later**: the project's own
    `.dsh/skills`, pruning old dsh session logs.
 

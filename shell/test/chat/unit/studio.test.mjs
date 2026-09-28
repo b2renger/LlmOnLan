@@ -252,6 +252,53 @@ export default (test) => {
     } finally { await r.studio.dispose(); }
   });
 
+  test('studio: the project fence refuses any file tool outside the project, a climbing glob and wider rights — and denies when unsure', async () => {
+    const { spawnSync } = await import('node:child_process');
+    const dir = tmp('fence');
+    const project = path.join(dir, 'proj');
+    fs.mkdirSync(path.join(project, 'src'), { recursive: true });
+    fs.writeFileSync(path.join(project, 'index.html'), 'x');
+    fs.writeFileSync(path.join(dir, 'secret.txt'), 'no');
+    const fence = path.join(dir, 'lol-fence.mjs');
+    fs.writeFileSync(fence, S.FENCE_JS);
+    const run = (/** @type {any} */ input, raw) => {
+      const r = spawnSync(process.execPath, [fence], { input: raw !== undefined ? raw : JSON.stringify(input), env: { ...process.env, CLAUDE_PROJECT_DIR: project }, encoding: 'utf8' });
+      return { code: r.status, why: r.stderr };
+    };
+    const call = (tool, args) => run({ hook_event_name: 'PreToolUse', tool_name: tool, tool_input: args, cwd: project });
+    assert.equal(call('read', { file_path: path.join(project, 'index.html') }).code, 0, 'inside: allowed');
+    assert.equal(call('read', { file_path: 'src/app.js' }).code, 0, 'relative inside');
+    assert.equal(call('write', { file_path: 'src/new/file.js', content: 'y' }).code, 0, 'a new file inside');
+    assert.equal(call('grep', { pattern: 'x' }).code, 0, 'no path: the project');
+    const out = call('read', { file_path: path.join(dir, 'secret.txt') });
+    assert.equal(out.code, 2, 'outside: refused');
+    assert.match(out.why, /only files inside this project/);
+    assert.equal(call('read', { file_path: '../secret.txt' }).code, 2, 'a relative escape');
+    assert.equal(call('grep', { pattern: 'x', path: dir }).code, 2, 'a search root outside');
+    assert.equal(call('glob', { pattern: '../*.txt' }).code, 2, 'a climbing glob');
+    assert.equal(call('glob', { pattern: path.join(dir, '*.txt') }).code, 2, 'an absolute glob');
+    assert.equal(call('glob', { pattern: 'src/**/*.js' }).code, 0);
+    assert.equal(call('write', { file_path: 'a.js', content: 'y', sandbox_permissions: 'danger-full-access' }).code, 2, 'no wider rights');
+    assert.equal(run(null, 'not json').code, 2, 'unsure: refused');
+    if (process.platform === 'win32') {
+      assert.equal(call('read', { file_path: path.join(project, 'index.html').toUpperCase() }).code, 0, 'Windows paths ignore case');
+    }
+    const link = path.join(project, 'escape');
+    try { fs.symlinkSync(dir, link, 'junction'); } catch { /* no links here: nothing more to check */ }
+    if (fs.existsSync(link)) assert.equal(call('read', { file_path: 'escape/secret.txt' }).code, 2, 'a link out of the project is followed, then refused');
+  });
+
+  test('studio: the patch mounts the fence through the hook bridge', () => {
+    const p = S.buildPatch({ baseUrl: 'http://x/v1', model: 'm', contextWindow: 8192, skillsDir: '/s', hooksConfig: 'C:\\home\\lol-hooks.json' });
+    assert.match(p, /- insert:\n\s+- id: hooks-claude-code\n\s+name: '@deepseek-ai\/dsh-hooks-claude-code'/);
+    assert.ok(p.includes(`configPath: ${JSON.stringify('C:\\home\\lol-hooks.json')}`));
+    const hooks = JSON.parse(S.fenceHooks('C:\\n o d e\\node.exe', 'C:\\h\\lol-fence.mjs', 'win32'));
+    assert.equal(hooks.hooks.PreToolUse[0].matcher, 'read|glob|grep|read_image|write|edit');
+    assert.equal(hooks.hooks.PreToolUse[0].hooks[0].command, '& "C:\\n o d e\\node.exe" "C:\\h\\lol-fence.mjs"; exit $LASTEXITCODE',
+      'PowerShell (dsh\'s Windows shell) needs the call operator and must hand on exit 2; paths with spaces stay quoted');
+    assert.equal(JSON.parse(S.fenceHooks('/opt/n o/node', '/h/f.mjs', 'linux')).hooks.PreToolUse[0].hooks[0].command, '"/opt/n o/node" "/h/f.mjs"', 'bash -c elsewhere');
+  });
+
   test('studio: a remote is a clean https address; its token is kept per host and never handed back; a failure is a sentence', async () => {
     assert.equal(S.remoteUrl('https://github.com/me/site.git'), 'https://github.com/me/site.git');
     for (const bad of ['http://github.com/me/site.git', 'https://me:pw@github.com/x.git', 'https://github.com/x.git?a=1', 'git@github.com:me/x.git', 'nope', 42]) {
