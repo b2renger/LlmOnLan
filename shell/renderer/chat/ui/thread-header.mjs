@@ -157,7 +157,7 @@ export function install(app) {
       b.type = 'button';
       b.className = 'chat-header-title';
       b.setAttribute('data-thread-title', current.id);
-      b.title = t('tree.titleHint');
+      b.title = current.title ? t('tree.titleHintNamed', { title: current.title }) : t('tree.titleHint');
       b.textContent = current.title || '';
       b.addEventListener('click', () => { void rename(); });
       return b;

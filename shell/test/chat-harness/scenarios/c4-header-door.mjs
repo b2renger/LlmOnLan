@@ -42,6 +42,13 @@ export default [
             await h.fresh();
             await h.waitFor(() => (window.LolChat && window.LolChat.ready ? true : null));
 
+            // A first launch — no chat at all yet — already shows the door, and its tooltip names the key.
+            const first = await h.waitFor(() => {
+                const b = document.querySelector('[data-workbench-toggle]');
+                return b ? { title: b.getAttribute('title') || '' } : null;
+            }, { timeout: 5000 });
+            h.assert(/^Open the Project panel \((Ctrl\+|⌃)1\)$/.test(first.title), `the door before any chat: "${first.title}"`);
+
             await h.submit('a thread to hang a workbench off');
             await h.waitReply();
 

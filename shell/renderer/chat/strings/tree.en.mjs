@@ -45,6 +45,8 @@ registerStrings('tree', {
   renameTitle: 'Rename this chat',
   renamePlaceholder: 'A name you will recognise',
   titleHint: 'Click to rename',
+  // The whole name too: beside the Project panel the header shows only its first letters.
+  titleHintNamed: '{title} — click to rename',
   systemPrompt: 'System prompt',
   systemPromptTitle: 'System prompt for this chat',
   systemPromptHint: 'Sent to the model before every message of this chat: tell it how to answer. Leave it empty for the model\'s own default. A project chat does not use it (the coding agent has its own instructions).',

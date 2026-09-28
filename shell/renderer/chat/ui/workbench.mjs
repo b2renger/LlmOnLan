@@ -760,6 +760,12 @@ export function install(app) {
     },
   });
 
+  // The header lists its items when it renders, and with no chat open its only render ran at ITS install — before
+  // this item and the panels existed — so on a first launch (no chat yet) the Project button was missing until the
+  // first message. Ask once more after every feature has installed (a microtask: install never reads another
+  // feature's API itself, §2.6 AA).
+  queueMicrotask(() => { if (app.threadHeader && typeof app.threadHeader.render === 'function') safe('threadHeader.render', () => app.threadHeader.render()); });
+
   const debug = window.LolChat && window.LolChat.debug;
   if (debug) {
     debug.work = {

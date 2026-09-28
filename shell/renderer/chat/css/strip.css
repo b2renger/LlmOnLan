@@ -27,10 +27,14 @@
 }
 
 #lolchat .chat-strip .chat-strip-field {
+  flex: 0 0 auto;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* Only the model's long name gives way: in a split view every field used to shrink at once and the line read
+   "assistant (Qwen… · llama.c… · 1/2 se… · GPU …". The short fields stay whole; the tooltip holds the whole line. */
+#lolchat .chat-strip .chat-strip-field[data-field='model'] { flex: 0 1 auto; }
 
 #lolchat .chat-strip .chat-strip-field + .chat-strip-field::before {
   content: '·';
