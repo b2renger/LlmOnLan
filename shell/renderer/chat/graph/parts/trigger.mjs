@@ -23,7 +23,7 @@ import '../../strings/parts-trigger.en.mjs';
 export const SOURCES = Object.freeze(['bus', 'schedule']);
 const SOURCE_KEY = { bus: 'parts.triggerSource_bus', schedule: 'parts.triggerSource_schedule' };
 /** Why an event started no run (chat-lint rule 5: a literal map). */
-const WHY_KEY = { unarmed: 'parts.triggerWhy_unarmed', hidden: 'parts.triggerWhy_hidden', budget: 'parts.triggerWhy_budget', gap: 'parts.triggerWhy_gap' };
+const WHY_KEY = { unarmed: 'parts.triggerWhy_unarmed', hidden: 'parts.triggerWhy_hidden', budget: 'parts.triggerWhy_budget', gap: 'parts.triggerWhy_gap', nobus: 'parts.busErrNoBus' };
 export const MIN_EVERY_SEC = 2;
 export const MIN_GAP_SEC = 1;
 
@@ -68,6 +68,7 @@ export const triggerPart = /** @type {any} */ ({
     const source = document.createElement('select');
     source.className = 'graph-receive-take';
     source.setAttribute('aria-label', t('parts.triggerSource'));
+    source.title = t('parts.triggerSourceHint');
     for (const k of SOURCES) {
       const o = document.createElement('option');
       o.value = k;
@@ -79,6 +80,10 @@ export const triggerPart = /** @type {any} */ ({
     const everyF = numberField(t('parts.triggerEvery'), Number(part.settings.every) || 10, MIN_EVERY_SEC, (n) => { ctx.update({ every: n }); ctx.commit(t('parts.triggerEvery')); }, 86400);
     const gapF = numberField(t('parts.triggerGap'), Number(part.settings.gapSec) || 2, MIN_GAP_SEC, (n) => { ctx.update({ gapSec: n }); ctx.commit(t('parts.triggerGap')); }, 3600);
     const perHourF = numberField(t('parts.triggerPerHour'), Number(part.settings.perHour) || 60, 1, (n) => { ctx.update({ perHour: n }); ctx.commit(t('parts.triggerPerHour')); }, 3600);
+    topicF.node.title = t('parts.triggerTopicHint');
+    everyF.node.title = t('parts.triggerEveryHint');
+    gapF.node.title = t('parts.triggerGapHint');
+    perHourF.node.title = t('parts.triggerPerHourHint');
     const status = document.createElement('p');
     status.className = 'graph-receive-live';
     wrap.append(source, topicF.node, everyF.node, gapF.node, perHourF.node, status);
@@ -124,9 +129,12 @@ export const triggerPart = /** @type {any} */ ({
       if (next === key) return;
       off(); off = () => {};
       key = next;
+      if (st.why === 'nobus') st.why = '';
       if (src === 'bus') {
         const caps = ctx.app && ctx.app.farm && typeof ctx.app.farm.get === 'function' ? ctx.app.farm.get() : null;
         const filter = String(s.topic || '').trim();
+        // A farm without a bus would leave this face counting zeros for ever: say why instead.
+        if (caps && !caps.bus) st.why = 'nobus';
         if (!filter || !caps || !caps.bus) return;
         const e = listenBus(`trigger:${id}`, caps, filter);
         const fn = (/** @type {string} */ topic, /** @type {any} */ data) => { void onEvent({ topic, data }); };

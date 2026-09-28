@@ -251,6 +251,7 @@ export const code = /** @type {any} */ ({
     about.className = 'graph-code-about';
     about.placeholder = t('parts.codeAboutPlaceholder');
     about.setAttribute('aria-label', t('parts.codeAbout'));
+    about.title = t('parts.codeAboutHint');
     about.value = String(part.settings.about || '');
     about.addEventListener('input', () => ctx.update({ about: about.value }, { stale: false }));
     about.addEventListener('change', () => ctx.commit(t('parts.codeAbout')));
@@ -258,6 +259,7 @@ export const code = /** @type {any} */ ({
     const fold = document.createElement('button');
     fold.type = 'button';
     fold.className = 'graph-code-fold';
+    fold.title = t('parts.codeFoldHint');
     fold.addEventListener('click', (e) => {
       e.preventDefault();
       ctx.update({ folded: !(ctx.part.settings && ctx.part.settings.folded) }, { stale: false, undoable: false });
@@ -283,6 +285,7 @@ export const code = /** @type {any} */ ({
     unlock.type = 'button';
     unlock.className = 'graph-code-unlock';
     unlock.textContent = t('parts.codeUseModel');
+    unlock.title = t('parts.codeUseModelHint');
     unlock.hidden = true;
     unlock.addEventListener('click', (e) => {
       e.preventDefault();

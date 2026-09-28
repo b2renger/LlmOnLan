@@ -642,6 +642,7 @@ export const preview = /** @type {any} */ ({
         redrawNow();
       },
     );
+    modeRow.title = t('parts.previewModeHint');
     const from = document.createElement('span');
     from.className = 'graph-preview-from';
     from.hidden = true;
@@ -687,6 +688,8 @@ export const preview = /** @type {any} */ ({
       if (liveH || liveStarting) { endLive('stopped'); return; }
       void goLive({ pressed: true });
     });
+    w.node.title = t('parts.previewSizeHint');
+    h.node.title = t('parts.previewSizeHint');
     sizeRow.append(w.node, h.node, liveBtn);
 
     // ---- the picture, what it is, and what went wrong ---------------------------------------

@@ -81,6 +81,8 @@ export const timer = /** @type {any} */ ({
       (v) => { ctx.update({ seconds: v }); ctx.commit(t('parts.timerSeconds')); }, MAX_SECONDS);
     const reps = numberField(t('parts.timerRepeats'), repeatsOf(part.settings), 1,
       (v) => { ctx.update({ repeats: v }); ctx.commit(t('parts.timerRepeats')); }, RUN_LIMITS.maxIterations);
+    secs.node.title = t('parts.timerSecondsHint');
+    reps.node.title = t('parts.timerRepeatsHint');
     const hint = document.createElement('p');
     hint.className = 'graph-part-hint';
     host.replaceChildren(secs.node, reps.node, hint);

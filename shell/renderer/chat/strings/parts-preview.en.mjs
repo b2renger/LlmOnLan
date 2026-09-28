@@ -11,9 +11,10 @@ import { registerStrings } from '../core/i18n.mjs';
 
 registerStrings('parts', {
   previewLabel: 'Preview',
-  previewHint: 'Shows what arrives: markdown, SVG, a web page, three.js, p5.js or a graph.',
+  previewHint: 'Shows what arrives: markdown, SVG, a web page, three.js, p5.js or a graph from JSON.',
   previewIn: 'Content',
   previewMode: 'Read it as',
+  previewModeHint: 'How to read what arrives. Automatic guesses from the text; pick one to be sure.',
   previewAuto: 'Automatic',
   previewMarkdown: 'Markdown',
   previewSvg: 'SVG',
@@ -22,6 +23,7 @@ registerStrings('parts', {
   previewP5: 'p5.js',
   previewWidth: 'Width',
   previewHeight: 'Height',
+  previewSizeHint: 'The size of the drawing area, in pixels.',
   previewEmpty: 'Nothing to show yet: write code below, or wire something in.',
   previewAlt: 'What the sandbox drew',
   previewSnapshot: 'A picture, drawn in the sandbox. ▶ Live runs it for real.',
@@ -41,7 +43,7 @@ registerStrings('parts', {
   // ---- K5-U1: the box's own code (addendum KE-3) ------------------------------------------
   previewSource: 'Code',
   previewSourceHint: 'Write code here, or wire an Instruction into this box.',
-  previewPress: 'Press ▶ to draw this code.',
+  previewPress: 'Press Run code (or ▶ in the title bar) to draw this code.',
   previewDrawing: 'Drawing…',
   previewLock: 'Keep my code',
   previewLockOn: 'Kept: what arrives on the wire is not drawn over your code. Click to let it through.',
@@ -50,7 +52,7 @@ registerStrings('parts', {
   previewLocked: 'Your code is kept',
   // Critic S1-12: a Preview has no Unlock; its control is “Keep my code” (previewLock).
   previewKept: 'Kept your code: what arrived was not drawn. Press “Keep my code” again to draw it.',
-  previewKeptEditing: 'Kept your code while you were typing. Press ▶ again to draw what arrived.',
+  previewKeptEditing: 'Kept your code while you were typing. Press ▶ in the title bar again to draw what arrived.',
   previewShowCode: 'Show code',
   previewHideCode: 'Hide code',
   previewSaveAs: 'Save .{ext}',

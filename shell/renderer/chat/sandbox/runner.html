@@ -685,9 +685,9 @@
       Promise.resolve(out).then(function (value) {
         var json = null;
         try { json = value === undefined ? null : JSON.stringify(value); }
-        catch (e) { done(false, null, errOf(new Error('the result cannot be turned into JSON'), 'compute')); return; }
+        catch (e) { done(false, null, errOf(new Error('the result cannot be turned into JSON: return text, a number, an array or a plain object'), 'compute')); return; }
         if (json !== null && json.length > limits.resultBytes) {
-          done(false, null, errOf(new Error('the result is too large'), 'compute'));
+          done(false, null, errOf(new Error('the result is too large to pass on (more than 1 MB): return less'), 'compute'));
           return;
         }
         done(true, json === undefined ? null : json, null);

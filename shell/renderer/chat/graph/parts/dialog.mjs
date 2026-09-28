@@ -70,6 +70,11 @@ export const dialog = /** @type {any} */ ({
       ctx.update({ askEveryRun: v });
       ctx.commit(t('parts.dlgAskEveryRun'));
     });
+    question.node.title = t('parts.dlgQuestionHint');
+    placeholder.node.title = t('parts.dlgPlaceholderHint');
+    fallback.node.title = t('parts.dlgDefaultHint');
+    multiline.node.title = t('parts.dlgMultilineHint');
+    every.node.title = t('parts.dlgAskEveryRunHint');
 
     // The answer row. `[data-action]` + `[data-part]` and `.graph-part-answer` are the FROZEN
     // probes the canvas and the harness both read. BOTH fields exist from the start and only the
@@ -89,6 +94,7 @@ export const dialog = /** @type {any} */ ({
     send.dataset.action = 'send';
     send.dataset.part = part.id;
     send.textContent = t('parts.dlgSend');
+    send.title = t('parts.dlgSendHint');
 
     // Which field is live now, not which was live when the box was drawn: `paint` moves it.
     let many = !!part.settings.multiline;

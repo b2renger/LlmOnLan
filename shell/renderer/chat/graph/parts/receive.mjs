@@ -90,6 +90,7 @@ export const receivePart = /** @type {any} */ ({
     const from = document.createElement('select');
     from.className = 'graph-receive-take';
     from.setAttribute('aria-label', t('parts.receiveFrom'));
+    from.title = t('parts.receiveFromHint');
     for (const k of TRANSPORTS) {
       const o = document.createElement('option');
       o.value = k;
@@ -99,9 +100,11 @@ export const receivePart = /** @type {any} */ ({
     from.addEventListener('change', () => { ctx.update({ transport: from.value }); ctx.commit(t('parts.receiveFrom')); });
     const board = boardRow(ctx, part);
     const topicF = textField(t('parts.receiveTopic'), part.settings.topic, { onInput: (v) => ctx.update({ topic: v }), onCommit: () => ctx.commit(t('parts.receiveTopic')), placeholder: 'lol/+/light' });
+    topicF.input.title = t('parts.receiveTopicHint');
     const take = document.createElement('select');
     take.className = 'graph-receive-take';
     take.setAttribute('aria-label', t('parts.receiveTake'));
+    take.title = t('parts.receiveTakeHint');
     for (const k of TAKES) {
       const o = document.createElement('option');
       o.value = k;
@@ -183,7 +186,7 @@ export const receivePart = /** @type {any} */ ({
       cursors.set(id, out.cursor);
       const vals = out.items.map((m) => valueOf('json', { topic: m.topic, data: m.data }));
       if (s.take === 'new') {
-        if (!vals.length) throw partFail(t('parts.receiveNothingNew'), 'empty');
+        if (!vals.length) throw partFail(t('parts.receiveNothingNewBus', { topic: filter }), 'empty');
         return listOf(vals);
       }
       if (!vals.length) throw partFail(t('parts.receiveNothingBus', { topic: filter }), 'empty');

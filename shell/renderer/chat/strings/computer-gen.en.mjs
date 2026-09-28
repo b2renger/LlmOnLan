@@ -19,16 +19,16 @@ registerStrings('parts', {
   genSeedNew: 'new each run',
   // Critic S1-13: the sameness a pinned seed promises is the Computer's OWN cache. Asked the farm
   // again with the same seed, Qwen3.8 repeated itself and gemma4:12b (through Ollama) did not.
-  genSeedHint: 'Empty: a new seed every run, so pressing ▶ again gives a new answer. A number: the same seed every time. While this window is open the Computer re-uses the answer it already has. Asked again, most models repeat it, but some still vary.',
+  genSeedHint: 'The seed is the number the model’s dice start from. Empty: a new seed every run, so pressing ▶ again gives a new answer. A number: the same seed every time — while this window is open the Computer re-uses the answer it already has, and asked again most models repeat it (some still vary).',
   genSeedDice: '🎲',
-  genSeedDiceTitle: 'Pin a random seed',
+  genSeedDiceTitle: 'Pick a random seed and keep it',
   genSeedClear: '✕',
   genSeedClearTitle: 'Back to a new seed each run',
   // Critic R2, N1: said INSIDE the Seed row now, so "seed" is not repeated.
   genSeedUsed: 'last run: {seed}',
   genSeedUsedPinned: 'last run: {seed} (pinned)',
   genSeedKeep: 'Keep',
-  genSeedKeepTitle: 'Pin this seed: the next run re-uses this answer instead of asking again.',
+  genSeedKeepTitle: 'Keep this seed: the next run re-uses this answer instead of asking the model again.',
 
   // ---- answers that hit max_tokens (A8) -----------------------------------------------------
   errCutOff: 'The answer was cut off after {n} tokens, so the code is incomplete. Ask for something smaller.',
@@ -181,5 +181,5 @@ registerStrings('computer', {
   genTxSeedPinned: '{seed} (pinned)',
   genCostSeed: 'seed {seed}',
   genCostSeedPinned: 'seed {seed} (pinned)',
-  genCostCut: 'The answer hit max_tokens and was cut off: the end is missing.',
+  genCostCut: 'The answer reached its length limit (max_tokens) and was cut off: the end is missing.',
 });

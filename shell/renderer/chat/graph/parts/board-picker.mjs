@@ -36,6 +36,7 @@ export function boardRow(ctx, part) {
     ctx.update({ baud: n });
     ctx.commit(t('parts.boardBaud'));
   }, 2000000);
+  baud.input.title = t('parts.boardBaudHint');
 
   pick.addEventListener('click', async (e) => {
     e.preventDefault();
@@ -78,6 +79,8 @@ export function boardRow(ctx, part) {
     const s = p.settings || {};
     name.textContent = s.serialPort ? t('parts.boardIs', { name: String(s.serialLabel || s.serialPort) }) : t('parts.boardNone');
     pick.disabled = !hasSerial();
+    // A greyed button says why (the one reason it is ever off).
+    pick.title = pick.disabled ? t('parts.boardErrNoSerial') : t('parts.boardChooseHint');
     baud.update(Number(s.baud) || DEFAULT_BAUD);
   };
   update(part);

@@ -83,7 +83,7 @@ export default [
                 const v = p.value.data;
                 h.eq([v.total, v.read, v.columns.map((/** @type {any} */ c) => c.name), v.rows[0]], [250, 250, ['Nom', 'Discipline'], { Nom: 'Festival 1', Discipline: 'Musique' }], 'the table, as a person reads it');
                 const face = await h.eval((id) => (document.querySelector(`#lolcomputer .graph-part[data-id="${id}"] .graph-fetch-status`) || {}).textContent || '', box);
-                h.assert(/Demo festivals · 250 rows · 2 columns · read 250/.test(face), `the face says what it read: ${face}`);
+                h.assert(/Demo festivals · 250 rows · 2 columns · 250 read as a sample/.test(face), `the face says what it read: ${face}`);
 
                 await h.computer.set(box, { link: 'https://example.org/datasets/demo-festivals' });
                 await h.computer.runFrom(box);

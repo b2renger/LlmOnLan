@@ -61,9 +61,13 @@ export const collect = /** @type {any} */ ({
     template.type = 'text';
     template.className = 'graph-collect-template';
     template.setAttribute('aria-label', t('parts.collectTemplateText'));
+    template.title = t('parts.collectTemplateHint');
     template.value = String(part.settings.template === undefined ? '{item}' : part.settings.template);
     template.addEventListener('input', () => ctx.update({ template: template.value }));
     template.addEventListener('change', () => ctx.commit(t('parts.collectTemplateText')));
+
+    const modeSel = mode.querySelector('select');
+    if (modeSel) modeSel.title = t('parts.collectModeHint');
 
     const hint = document.createElement('p');
     hint.className = 'graph-part-hint';

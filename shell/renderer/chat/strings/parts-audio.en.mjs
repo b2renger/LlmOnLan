@@ -7,7 +7,7 @@ import { registerStrings } from '../core/i18n.mjs';
 
 registerStrings('parts', {
   audioLabel: 'Sound',
-  audioEmpty: 'Drop a sound file here, or click to choose one.',
+  audioEmpty: 'Drop a sound file here or click to choose one — or record one with ● Record.',
   // What flows on, as TEXT, because no verified path carries the sound itself (addendum KF-1).
   audioValue: 'Sound file “{name}” ({duration}, {mb} MB). The sound itself was not sent: {why}',
   audioUnnamed: 'sound',
@@ -16,10 +16,16 @@ registerStrings('parts', {
   audioStop: '■ Stop',
   audioPlayAria: 'Play {name}',
   audioStopAria: 'Stop playing {name}',
+  audioPlayHint: 'Play the sound here, on this computer',
+  audioStopHint: 'Stop playing',
   audioTime: '{at} / {duration} · {mb} MB',
   audioReplace: 'Replace',
+  audioReplaceHint: 'Choose another sound file for this box',
+  audioRemoveHint: 'Take the sound out of this box',
   audioRecord: '● Record',
+  audioRecordHint: 'Record from this computer’s microphone (up to {min} minutes); press again to stop. It takes the place of any sound in this box. The recording is kept on this computer; it goes to the farm only when Listen is on.',
   audioRecording: '■ Stop · {time}',
+  audioRecordingHint: 'Stop recording and keep it in this box',
   audioRecordEmpty: 'Nothing was recorded — press ● Record and speak, then ■ Stop.',
   audioMicRefused: 'The microphone was refused. Allow it for apps in Windows Settings ▸ Privacy ▸ Microphone (or the system settings on a Mac), then try again.',
   audioNoMic: 'No microphone was found on this computer.',
@@ -39,7 +45,7 @@ registerStrings('parts', {
   audioNoPlayer: 'This window cannot play sound.',
   // Ecosystem plan v2 §3.3: Listen — the farm writes down what is said.
   audioListen: 'Listen: write down what is said',
-  audioListenHint: 'On a run, the recording goes to the farm’s speech-to-text service, which writes down what is said and keeps nothing; the words flow on instead of the sound.',
+  audioListenHint: 'On: at each run this sound goes to the farm’s speech to text, which writes down what is said and keeps nothing; the words flow on instead of the sound. Off: the sound never leaves this computer.',
   audioNoStt: 'This farm cannot listen: its Speech to text plugin is off. The farm’s operator can turn it on in the farm panel.',
   audioSttErr_unauthorized: 'The farm refused the speech-to-text key — the farm may have restarted. Run again in a few seconds.',
   audioSttErr_busy: 'The farm is busy writing down a recording (maybe your previous run’s). Run again in a moment — nothing was lost.',

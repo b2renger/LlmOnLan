@@ -163,6 +163,7 @@ export const file = /** @type {any} */ ({
       placeholder: DEFAULT_PATH,
     });
     field.input.classList.add('graph-file-path');
+    field.node.title = t('parts.filePathHint');
 
     const wrote = document.createElement('p');
     wrote.className = 'graph-part-note graph-file-wrote';
@@ -172,6 +173,7 @@ export const file = /** @type {any} */ ({
     reveal.type = 'button';
     reveal.className = 'graph-file-reveal';
     reveal.textContent = t('parts.fileReveal');
+    reveal.title = t('parts.fileRevealHint');
     reveal.hidden = true;
     reveal.addEventListener('click', (e) => {
       e.preventDefault();

@@ -43,6 +43,7 @@ export const toggle = /** @type {any} */ ({
       ctx.update({ on: v });
       ctx.commit(t('parts.togLabel'));
     });
+    on.node.title = t('parts.togSwitchHint');
     const state = document.createElement('p');
     state.className = 'graph-part-hint';
     host.replaceChildren(on.node, state);

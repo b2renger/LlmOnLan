@@ -80,6 +80,8 @@ export const repeat = /** @type {any} */ ({
       onCommit: () => ctx.commit(t('parts.repeatTemplate')),
       placeholder: t('parts.repeatTemplatePlaceholder'),
     });
+    times.input.title = t('parts.repeatTimesHint', { max: MAX_TIMES });
+    tpl.input.title = t('parts.repeatTemplateHint');
     const count = itemsLine();
     host.replaceChildren(times.node, tpl.node, count.node);
 

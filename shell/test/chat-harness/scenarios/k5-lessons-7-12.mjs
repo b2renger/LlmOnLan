@@ -266,7 +266,7 @@ export default [
                 await h.computer.set('p_trig', { gapSec: 6 });
                 await waitStep(h, 3, 'the next run after the new gap ticks step 3');
                 await h.waitFor((sel) => {
-                    const m = /(\d+) merged/.exec((document.querySelector(sel) || {}).textContent || '');
+                    const m = /(\d+) skipped/.exec((document.querySelector(sel) || {}).textContent || '');
                     return m && Number(m[1]) >= 1 ? true : null;
                 }, { timeout: 20000, args: [status] });
 

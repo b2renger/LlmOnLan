@@ -112,7 +112,7 @@ export default [
                 const face = await h.eval((pid) => (document.querySelector(`#lolcomputer .graph-part[data-id="${pid}"] .graph-fetch-status`) || {}).textContent || '', id);
                 h.assert(new RegExp(`200 · 1 KB · 127\\.0\\.0\\.1:${port}`).test(face), `the face says what it read: ${face}`);
 
-                for (const [url, words] of [['http://127.0.0.1:4000/v1/models', /farm’s own ports/], ['file:///C:/Windows/win.ini', /Only http/]]) {
+                for (const [url, words] of [['http://127.0.0.1:4000/v1/models', /farm’s own/], ['file:///C:/Windows/win.ini', /Only http/]]) {
                     await h.computer.set(id, { url });
                     await h.computer.runFrom(id);
                     p = (await settle(h, [id])).parts.find((/** @type {any} */ x) => x.id === id);

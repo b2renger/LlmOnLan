@@ -18,11 +18,12 @@ registerStrings('sandbox', {
   // host.start() re-arms it on the Computer (Run all, ▶ in a box's title bar — not ▶ Live or
   // Run code), so the sentence names only those.
   errPaused: 'The sandbox is paused: a sketch stopped answering three times in a minute. Press Run all (or ▶ in a box’s title bar) to start it again.',
-  errNotBuilt: 'This part of the sandbox is not built yet.',
+  // Only ever the fallback when the code failed and its error carried no message at all.
+  errNotBuilt: 'The code stopped with an error that does not say why.',
   errBoot: 'The sandbox did not answer while starting up — the preview is off.',
   errAborted: 'The run was stopped before the sandbox answered.',
   errResultJson: 'The result cannot be turned into JSON — return text, a number, an array or a plain object.',
-  errResultBig: 'The result is too large to carry on a wire.',
+  errResultBig: 'The result is too large to pass on (more than 1 MB). Return less.',
 
   // the restart ladder (studio plan §3.7.4)
   stalled: 'The sketch stopped responding — the preview was restarted.',

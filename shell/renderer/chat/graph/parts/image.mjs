@@ -169,10 +169,12 @@ export const image = /** @type {any} */ ({
     replace.type = 'button';
     replace.className = 'graph-part-control graph-image-btn';
     replace.textContent = t('parts.imageReplace');
+    replace.title = t('parts.imageReplaceHint');
     const remove = document.createElement('button');
     remove.type = 'button';
     remove.className = 'graph-part-control graph-image-btn';
     remove.textContent = t('parts.imageRemove');
+    remove.title = t('parts.imageRemoveHint');
     actions.append(replace, remove);
     foot.append(caption, actions);
 
@@ -188,6 +190,7 @@ export const image = /** @type {any} */ ({
     camBtn.type = 'button';
     camBtn.className = 'graph-part-control graph-image-camera';
     camBtn.textContent = t('parts.imageCamera');
+    camBtn.title = t('parts.imageCameraHint');
     const camWrap = document.createElement('div');
     camWrap.className = 'graph-image-live';
     const video = document.createElement('video');
@@ -201,10 +204,12 @@ export const image = /** @type {any} */ ({
     snapBtn.type = 'button';
     snapBtn.className = 'graph-part-control graph-image-camera-btn';
     snapBtn.textContent = t('parts.imageCameraSnap');
+    snapBtn.title = t('parts.imageCameraSnapHint');
     const cancelBtn = document.createElement('button');
     cancelBtn.type = 'button';
     cancelBtn.className = 'graph-part-control graph-image-camera-btn';
     cancelBtn.textContent = t('parts.imageCameraCancel');
+    cancelBtn.title = t('parts.imageCameraCancelHint');
     camRow.append(snapBtn, cancelBtn);
     camWrap.append(video, camRow);
     /** @type {any} */ let camera = null;

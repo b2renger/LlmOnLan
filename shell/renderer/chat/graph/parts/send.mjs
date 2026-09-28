@@ -120,6 +120,7 @@ export const sendPart = /** @type {any} */ ({
     const select = document.createElement('select');
     select.className = 'graph-send-transport';
     select.setAttribute('aria-label', t('parts.sendTransport'));
+    select.title = t('parts.sendTransportHint');
     for (const tr of TRANSPORTS) {
       const o = document.createElement('option');
       o.value = tr;
@@ -133,6 +134,12 @@ export const sendPart = /** @type {any} */ ({
     const uniF = numberField(t('parts.sendUniverse'), Number(part.settings.universe) || 0, 0, (n) => { ctx.update({ universe: n }); commit(t('parts.sendUniverse')); }, 32767);
     const topicF = textField(t('parts.sendTopic'), part.settings.topic, { onInput: (v) => ctx.update({ topic: v }), onCommit: () => commit(t('parts.sendTopic')), placeholder: 'lol/computer' });
     const urlF = textField(t('parts.sendUrl'), part.settings.url, { onInput: (v) => ctx.update({ url: v }), onCommit: () => commit(t('parts.sendUrl')), placeholder: 'ws://192.168.1.40:81/ or http://…' });
+    hostF.node.title = t('parts.sendHostHint');
+    portF.node.title = t('parts.sendPortHint');
+    addrF.node.title = t('parts.sendAddressHint');
+    uniF.node.title = t('parts.sendUniverseHint');
+    topicF.node.title = t('parts.sendTopicHint');
+    urlF.node.title = t('parts.sendUrlHint');
     const board = boardRow(ctx, part);
     const status = document.createElement('p');
     status.className = 'graph-send-status';

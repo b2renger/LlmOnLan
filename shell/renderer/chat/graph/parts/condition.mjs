@@ -186,6 +186,10 @@ export const condition = /** @type {any} */ ({
       setPicked(select, picked);
     }
 
+    branch.title = t('parts.condBranchHint');
+    mode.title = t('parts.condModeHint');
+    question.node.title = t('parts.condQuestionHint');
+    model.title = t('parts.condModelHint');
     const verdict = document.createElement('p');
     verdict.className = 'graph-part-hint graph-cond-verdict';
     const hint = document.createElement('p');

@@ -17,9 +17,9 @@ import { registerStrings } from '../core/i18n.mjs';
 registerStrings('parts', {
   // the Show group: boxes with their own code editor
   creativeP5Label: 'p5.js sketch',
-  creativeP5Desc: 'Draw and animate with p5.js code. Starts with a bouncing ball you can change; press Live and it follows your mouse.',
+  creativeP5Desc: 'Draw and animate with p5.js code. Starts with a bouncing ball you can change; press ▶ Live and hold the mouse down: it follows the pointer.',
   creativeThreeLabel: 'three.js scene',
-  creativeThreeDesc: 'A 3D scene written with three.js. Starts with a spinning cube; press Live and drag to orbit around it.',
+  creativeThreeDesc: 'A 3D scene written with three.js. Starts with a spinning cube; press ▶ Live and drag to turn around it.',
   creativeSvgLabel: 'SVG',
   creativeSvgDesc: 'A vector picture written in SVG. Redraws as you type.',
   creativeHtmlLabel: 'HTML page',
@@ -27,7 +27,7 @@ registerStrings('parts', {
   creativeMarkdownLabel: 'Markdown view',
   creativeMarkdownDesc: 'Shows markdown as a formatted page: headings, lists, tables.',
   creativeGraphLabel: 'Graph',
-  creativeGraphDesc: 'Draws a graph from JSON (nodes and links, like graphify\'s graph.json): coloured by community. Press Live to drag the nodes.',
+  creativeGraphDesc: 'Draws a graph of dots and lines from JSON (nodes and the links between them, like graphify\'s graph.json), coloured by group. Press ▶ Live to drag the dots and zoom.',
   // the Think group: an Instruction that answers in code
   writeP5Label: 'Write a p5.js sketch',
   writeP5Desc: 'Ask the model for a p5.js sketch. Wire it into a p5.js sketch box to see it.',

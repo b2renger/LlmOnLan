@@ -22,7 +22,7 @@ registerStrings('parts', {
   textIn: 'text',
 
   // What a received value looks like, and how to get your own words back (§6.2).
-  textFromInput: 'from input',
+  textFromInput: 'from the wire',
   textClear: '↺ Clear',
   textClearHint: 'Show what you typed instead of what arrived',
   textEditing: 'editing',

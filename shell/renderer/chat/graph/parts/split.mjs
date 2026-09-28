@@ -140,6 +140,10 @@ export const splitPart = /** @type {any} */ ({
       ctx.update({ limit: n });
       ctx.commit(t('parts.splitLimit'));
     });
+    const modeSel = mode.querySelector('select');
+    if (modeSel) modeSel.title = t('parts.splitModeHint');
+    sep.input.title = t('parts.splitSeparatorHint');
+    limit.input.title = t('parts.splitLimitHint');
     const count = itemsLine();
     host.replaceChildren(mode, sep.node, limit.node, count.node);
 

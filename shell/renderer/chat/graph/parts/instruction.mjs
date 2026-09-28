@@ -234,6 +234,7 @@ export const instruction = /** @type {any} */ ({
     schema.className = 'graph-ins-schema';
     schema.setAttribute('aria-label', t('parts.insSchema'));
     schema.placeholder = t('parts.insSchemaPlaceholder');
+    schema.title = t('parts.insSchemaHint');
     schema.value = String(part.settings.schema || '');
     schema.addEventListener('input', () => ctx.update({ schema: schema.value }));
     schema.addEventListener('change', () => ctx.commit(t('parts.insSchema')));
@@ -372,9 +373,9 @@ export const instruction = /** @type {any} */ ({
     fields.className = 'graph-part-fields graph-ins-fields';
     // Critic R3-1: the captions are visually hidden (graph.css), so each picker says what it is on hover.
     const modelSel = model.querySelector('select');
-    if (modelSel) modelSel.title = t('parts.insModel');
+    if (modelSel) modelSel.title = t('parts.insModelHint');
     const shapeSel = shape.querySelector('select');
-    if (shapeSel) shapeSel.title = t('parts.insShape');
+    if (shapeSel) shapeSel.title = t('parts.insShapeHint');
     fields.append(model, shape, seedRow);
 
     // The strip: what this box will spend, before it spends it. Clicking it opens the transcript,

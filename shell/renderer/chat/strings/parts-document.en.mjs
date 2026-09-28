@@ -9,7 +9,9 @@ registerStrings('parts', {
   docLabel: 'Document',
   docEmpty: 'Drop a PDF here, or click to choose one.',
   docReplace: 'Replace',
+  docReplaceHint: 'Choose another PDF for this box',
   docRemove: 'Remove',
+  docRemoveHint: 'Take the PDF out of this box',
   docMeta: '{mb} MB',
   docMetaPages: '{mb} MB · {pages} pages read',
   docMetaPage: '{mb} MB · 1 page read',
@@ -49,6 +51,6 @@ registerStrings('parts', {
   mediaUnreadable: '{name} could not be read.',
   mediaEmpty: '{name} is empty, so there is nothing to keep.',
   mediaNotPdf: '{name} does not contain a PDF (a PDF starts with “%PDF”), so it was not kept.',
-  mediaNoStore: 'This window cannot keep files on this computer right now, so {name} was not kept. Reload the Computer and try again.',
+  mediaNoStore: 'This window cannot keep files on this computer right now, so {name} was not kept. Quit LlmOnLan, open it again, and try again.',
   mediaMissing: 'The file for this box is not on this computer any more. Drop it here again.',
 });

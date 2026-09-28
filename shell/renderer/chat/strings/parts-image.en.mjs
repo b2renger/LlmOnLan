@@ -5,13 +5,18 @@ import { registerStrings } from '../core/i18n.mjs';
 
 registerStrings('parts', {
   imageLabel: 'Image',
-  imageHint: 'Drop, paste or choose a picture. Wire it into an Instruction to ask about it.',
-  imageEmpty: 'Drop a picture here, paste one, or click to choose.',
+  imageHint: 'Drop, paste or choose a picture, or take one with the camera. Wire it into an Instruction to ask about it.',
+  imageEmpty: 'Drop a picture here, paste one, or click to choose one.',
   imageChoose: 'Choose a picture…',
   imageReplace: 'Replace',
+  imageReplaceHint: 'Choose another picture for this box',
+  imageRemoveHint: 'Take the picture out of this box',
   imageCamera: 'Take a picture',
+  imageCameraHint: 'Shows this computer’s camera in the box; Capture keeps one frame. The picture is kept on this computer; it goes to the farm only inside an Instruction you wire it into.',
   imageCameraSnap: 'Capture',
+  imageCameraSnapHint: 'Keep this frame and close the camera',
   imageCameraCancel: 'Cancel',
+  imageCameraCancelHint: 'Close the camera without keeping a picture',
   imageCameraRefused: 'The camera was refused. Allow it for apps in Windows Settings ▸ Privacy ▸ Camera (or the system settings on a Mac), then try again.',
   imageNoCamera: 'No camera was found on this computer.',
   imageRemove: 'Remove',
@@ -24,7 +29,7 @@ registerStrings('parts', {
   imageTooBigFile: 'That picture is {mb} MB, over the {capMb} MB the Computer will open. Try a smaller file.',
   imageTooManyPixels: 'That picture is {mp} megapixels, over the {capMp} megapixels the Computer will open. Try a smaller image, or crop it first.',
   imageTooBig: 'Even resized, that picture is {mb} MB, over the {capMb} MB a box may carry. Try a smaller image, or crop it first.',
-  imageNotAnImage: 'That file is not a picture ({type}). Drop a PNG, JPEG, WebP or GIF.',
+  imageNotAnImage: 'That file is not a picture ({type}). Drop a PNG, JPEG, WebP, GIF, BMP or AVIF.',
   imageUnreadable: 'That picture could not be read.',
   imageWorking: 'Reading the picture…',
   // K4-U2. An unknown MIME type still has to read as a sentence, so `imageNotAnImage` never says
@@ -40,7 +45,7 @@ registerStrings('parts', {
   imageOnePicture: '{n} pictures arrived at this box, and an Image holds one. Wire one in, or add a second Image box.',
   imageWrongKind: 'A {kind} arrived at this box, and an Image holds a picture. Wire an Image in, or a file that is one.',
   imageFileUnreadable: '“{path}” could not be read from this graph’s folder.',
-  imageFileNotAPicture: '“{path}” is not a picture ({type}). An Image box shows PNG, JPEG, WebP or GIF.',
+  imageFileNotAPicture: '“{path}” is not a picture ({type}). An Image box shows PNG, JPEG, WebP, GIF, BMP or AVIF.',
   imageFileTooBig: '“{path}” is {mb} MB, over the {capMb} MB a box may carry. Resize it, or wire the Image box straight to the picture.',
   imageNoProject: 'That file value names no project folder, so there is nothing to read.',
 });

@@ -10,7 +10,7 @@ import { registerStrings } from '../core/i18n.mjs';
 
 registerStrings('parts', {
   stickyLabel: 'Sticky',
-  stickyHint: 'A note for the reader. It never runs and never costs anything.',
+  stickyHint: 'A note for the reader. Double-click to write in it. It never runs and never costs anything.',
   stickyPlaceholder: 'Say what this bit does…',
   stickyColour: 'Colour',
   stickyTintYellow: 'Yellow',
@@ -20,16 +20,16 @@ registerStrings('parts', {
   stickyTintPlain: 'Plain',
 
   sectionLabel: 'Section',
-  sectionHint: 'A labelled region. Lay the parts of one idea inside it.',
+  sectionHint: 'A labelled region. Lay the boxes of one idea inside it. It never runs.',
   sectionPlaceholder: 'Name this part of the canvas…',
 
   titleLabel: 'Title',
-  titleHint: 'Words written on the canvas.',
+  titleHint: 'Big words written on the canvas. It never runs.',
   titlePlaceholder: 'Write a heading…',
   titleSize: 'Size',
   titleSizeS: 'Small',
   titleSizeM: 'Medium',
   titleSizeL: 'Large',
 
-  annotateInert: 'Annotation — never runs, never costs a generation',
+  annotateInert: 'A note on the canvas — never runs, never costs a generation',
 });

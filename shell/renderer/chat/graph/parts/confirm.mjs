@@ -56,6 +56,9 @@ export const confirm = /** @type {any} */ ({
     const timeout = numberField(t('parts.confirmTimeout'), Number(part.settings.timeoutSec) || 0, 0,
       (v) => { ctx.update({ timeoutSec: v }); ctx.commit(t('parts.confirmTimeout')); }, 3600);
 
+    message.node.title = t('parts.confirmMessageHint');
+    timeout.node.title = t('parts.confirmTimeoutHint');
+
     // The inline control. `[data-action]` + `[data-part]` is the FROZEN probe the canvas and the
     // harness both read (K3 addendum): a control part never reaches for the runner itself.
     const row = document.createElement('div');
@@ -66,6 +69,7 @@ export const confirm = /** @type {any} */ ({
     ok.dataset.action = 'ok';
     ok.dataset.part = part.id;
     ok.textContent = t('parts.confirmOk');
+    ok.title = t('parts.confirmOkHint');
     ok.addEventListener('click', () => answer(part.id, { ok: true }));
     const no = document.createElement('button');
     no.type = 'button';
@@ -73,6 +77,7 @@ export const confirm = /** @type {any} */ ({
     no.dataset.action = 'cancel';
     no.dataset.part = part.id;
     no.textContent = t('parts.confirmCancel');
+    no.title = t('parts.confirmCancelHint');
     no.addEventListener('click', () => answer(part.id, { ok: false }));
     row.append(ok, no);
 

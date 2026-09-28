@@ -292,6 +292,7 @@ export const audioPart = /** @type {any} */ ({
     const recBtn = /** @type {HTMLButtonElement} */ (make('button', 'graph-part-control graph-audio-btn graph-audio-record'));
     recBtn.type = 'button';
     recBtn.textContent = t('parts.audioRecord');
+    recBtn.title = t('parts.audioRecordHint', { min: Math.round(AUDIO_MAX_SEC / 60) });
     /** @type {any} */ let recording = null;
     let recTimer = 0;
 
@@ -310,9 +311,11 @@ export const audioPart = /** @type {any} */ ({
     const replace = /** @type {HTMLButtonElement} */ (make('button', 'graph-part-control graph-audio-btn graph-audio-replace'));
     replace.type = 'button';
     replace.textContent = t('parts.audioReplace');
+    replace.title = t('parts.audioReplaceHint');
     const remove = /** @type {HTMLButtonElement} */ (make('button', 'graph-part-control graph-audio-btn graph-audio-remove'));
     remove.type = 'button';
     remove.textContent = t('parts.audioRemove');
+    remove.title = t('parts.audioRemoveHint');
     foot.append(time, replace, remove);
     player.append(row, bar, foot);
 
@@ -381,6 +384,7 @@ export const audioPart = /** @type {any} */ ({
       name.title = name.textContent;
       const on = !!handle;
       play.textContent = on ? t('parts.audioStop') : t('parts.audioPlay');
+      play.title = on ? t('parts.audioStopHint') : t('parts.audioPlayHint');
       play.setAttribute('aria-pressed', on ? 'true' : 'false');
       play.setAttribute('aria-label', on
         ? t('parts.audioStopAria', { name: String(s.name || '') })
@@ -397,6 +401,9 @@ export const audioPart = /** @type {any} */ ({
       note.hidden = !say;
       note.classList.toggle('is-error', !working && !loading && !!say);
       takes.refresh();
+      // With Listen on the WORDS flow on, not the sound: the takes line ("the sound is not sent, its name and length
+      // go along") would be false, so it steps aside (review 2026-09-28).
+      takes.el.hidden = !!s.listen;
     }
 
     function tick() {
@@ -551,6 +558,7 @@ export const audioPart = /** @type {any} */ ({
       recording = null;
       clearTimeout(recTimer);
       recBtn.textContent = t('parts.audioRecord');
+      recBtn.title = t('parts.audioRecordHint', { min: Math.round(AUDIO_MAX_SEC / 60) });
       recBtn.classList.remove('is-recording');
       const file = take ? await take.stop() : null;
       if (file) await takeFile(file);
@@ -571,6 +579,7 @@ export const audioPart = /** @type {any} */ ({
       }
       if (destroyed) { recording.cancel(); recording = null; return; }
       recBtn.classList.add('is-recording');
+      recBtn.title = t('parts.audioRecordingHint');
       paint(live);
       showRecording();
     });
@@ -637,7 +646,7 @@ export const audioPart = /** @type {any} */ ({
       if (!bytes) throw partFail(t('parts.mediaMissing'), 'part');
       const out = await transcribe({ url: svc.url, key: svc.key, bytes, name: String(s.name || 'recording'), mime: String(s.mime || ''), signal: input.signal });
       if ('error' in out) {
-        if (out.code === 'aborted') throw partFail(t('parts.audioSttErr_busy'), 'aborted');
+        if (out.code === 'aborted') throw partFail(t('parts.errAborted'), 'aborted');
         const message = t(/** @type {any} */ (STT_ERR)[out.code] || STT_ERR.farm, { message: out.error });
         throw partFail(message, out.code === 'busy' || out.code === 'warming' ? 'busy' : 'part');
       }

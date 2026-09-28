@@ -158,6 +158,13 @@ export const filter = /** @type {any} */ ({
       ctx.update({ model: v });
       ctx.commit(t('parts.filterModel'));
     });
+    const modeSel = mode.querySelector('select');
+    if (modeSel) modeSel.title = t('parts.filterModeHint');
+    text.input.title = t('parts.filterCriterionHint');
+    max.input.title = t('parts.filterMaxHint');
+    invert.node.title = t('parts.filterInvertHint');
+    const modelSel = model.querySelector('select');
+    if (modelSel) modelSel.title = t('parts.filterModelHint');
     const count = itemsLine();
     host.replaceChildren(mode, text.node, min.node, max.node, invert.node, model, count.node);
 

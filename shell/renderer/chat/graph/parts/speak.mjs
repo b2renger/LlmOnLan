@@ -72,6 +72,7 @@ export const speakPart = /** @type {any} */ ({
     const select = document.createElement('select');
     select.className = 'graph-speak-voice';
     select.setAttribute('aria-label', t('parts.speakVoice'));
+    select.title = t('parts.speakVoiceHint');
     for (const v of SPEAK_VOICES) {
       const o = document.createElement('option');
       o.value = v;

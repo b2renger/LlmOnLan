@@ -215,6 +215,7 @@ export const openDataPart = /** @type {any} */ ({
     input.addEventListener('change', () => ctx.commit(t('parts.openDataLink')));
     const rowsF = numberField(t('parts.openDataRows'), Number(part.settings.rows) || DEFAULT_ROWS, 1,
       (n) => { ctx.update({ rows: n }); ctx.commit(t('parts.openDataRows')); }, MAX_ROWS);
+    rowsF.input.title = t('parts.openDataRowsHint', { max: MAX_ROWS });
     const status = document.createElement('div');
     status.className = 'graph-fetch-status';
     wrap.append(input, rowsF.node, status);

@@ -141,6 +141,7 @@ export const classifyPart = /** @type {any} */ ({
     q.className = 'graph-classify-q';
     q.placeholder = t('parts.classifyQuestionPlaceholder');
     q.setAttribute('aria-label', t('parts.classifyQuestion'));
+    q.title = t('parts.classifyQuestionHint');
     q.value = String(part.settings.question || '');
     q.addEventListener('input', () => ctx.update({ question: q.value }));
     q.addEventListener('change', () => ctx.commit(t('parts.classifyQuestion')));
@@ -148,6 +149,7 @@ export const classifyPart = /** @type {any} */ ({
     opts.className = 'graph-classify-opts';
     opts.placeholder = t('parts.classifyOptionsPlaceholder');
     opts.setAttribute('aria-label', t('parts.classifyOptions'));
+    opts.title = t('parts.classifyOptionsHint');
     opts.value = String(part.settings.options || '');
     opts.addEventListener('input', () => ctx.update({ options: opts.value }));
     opts.addEventListener('change', () => ctx.commit(t('parts.classifyOptions')));
@@ -212,13 +214,13 @@ export const classifyPart = /** @type {any} */ ({
     });
     if ('error' in out) {
       notes.delete(id);
-      if (out.code === 'aborted') throw partFail(t('parts.classifyErr_busy'), 'aborted');
+      if (out.code === 'aborted') throw partFail(t('parts.errAborted'), 'aborted');
       const message = t(/** @type {any} */ (ERR_KEY)[out.code] || ERR_KEY.farm, { message: out.error });
       // "Not now" is the farm's etiquette, not a broken box: the runner puts it back to stale.
       throw partFail(message, out.code === 'busy' || out.code === 'warming' ? 'busy' : 'part');
     }
     const value = labelsFrom(rows, out.answers, threshold, out.ms);
-    const status = t('parts.classifyStatus', { n: rows.length, unsure: value.unsure.length, sec: (out.ms / 1000).toFixed(1) });
+    const status = t('parts.classifyStatus', { n: rows.length, unsure: value.unsure.length, thr: threshold, sec: (out.ms / 1000).toFixed(1) });
     notes.set(id, wired.question ? t('parts.classifyAsked', { question, options: options.join(', ') }) + ' · ' + status : status);
     return valueOf('json', value);
   },

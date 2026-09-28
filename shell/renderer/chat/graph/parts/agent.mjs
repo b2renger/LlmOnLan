@@ -37,6 +37,13 @@ const CODE_TIMEOUT_MS = 10000;
 const PREVIEW = 4000;        // what the model sees of one input or one result (its sketch)
 const MAX_LAYA_ITEMS = 200;
 
+/** chat-lint rule 5: a literal map — what the face says a step is doing, per tool. */
+const DOING = {
+  run_code: 'parts.agentDoing_run_code',
+  fetch: 'parts.agentDoing_fetch',
+  laya: 'parts.agentDoing_laya',
+};
+
 /** partId -> the face's live line. Never persisted (a render hint, like Fetch's). */
 const notes = new Map();
 /** partId -> repaint its face now: a running agent changes no document between steps, so the face is
@@ -268,12 +275,15 @@ export const agentPart = /** @type {any} */ ({
     hostsF.input.title = t('parts.agentHostsHint');
     const stepsF = numberField(t('parts.agentSteps'), Number(part.settings.maxSteps) || DEFAULT_STEPS, 1,
       (n) => { ctx.update({ maxSteps: n }); ctx.commit(t('parts.agentSteps')); }, MAX_STEPS);
+    stepsF.input.title = t('parts.agentStepsHint', { max: MAX_STEPS });
 
     let modelSig = optionSig(modelOptions(ctx.app, { named: true }));
     const model = pickerRow(t('parts.insModel'), modelOptions(ctx.app, { named: true }), String(part.settings.model || ''), (v) => {
       ctx.update({ model: v });
       ctx.commit(t('parts.insModel'));
     });
+    const modelSel = model.querySelector('select');
+    if (modelSel) modelSel.title = t('parts.agentModelHint');
     /** The farm's catalogue arrives after boot: rebuild the menu when it really moved. @param {string} picked */
     const refreshModels = (picked) => {
       const options = modelOptions(ctx.app, { named: true });
@@ -360,7 +370,8 @@ export const agentPart = /** @type {any} */ ({
         steps.push({ ...step, result: { ok: false, error: t('parts.agentNotATool', { tool: step.tool }) } });
         continue;
       }
-      say(id, t('parts.agentUsing', { k, max, tool: step.tool }));
+      const known = Object.prototype.hasOwnProperty.call(DOING, step.tool);
+      say(id, t('parts.agentUsing', { k, max, tool: known ? t(/** @type {any} */ (DOING)[step.tool]) : step.tool }));
       const result = await runTool(step, { input, inputs, steps, hosts, laya });
       steps.push({ ...step, result });
     }

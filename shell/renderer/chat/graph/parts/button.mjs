@@ -90,10 +90,12 @@ export const button = /** @type {any} */ ({
     face.className = 'graph-part-control graph-btn-face';
     face.dataset.action = 'press';
     face.dataset.part = part.id;
+    face.title = t('parts.btnFaceHint');
     const name = textField(t('parts.btnText'), String(part.settings.text || ''), {
       onInput: (v) => ctx.update({ text: v }),
       onCommit: () => ctx.commit(t('parts.btnText')),
     });
+    name.node.title = t('parts.btnTextHint');
     const hint = document.createElement('p');
     hint.className = 'graph-part-hint graph-btn-hint';
     host.replaceChildren(face, name.node, hint);

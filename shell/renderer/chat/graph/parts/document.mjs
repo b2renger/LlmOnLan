@@ -490,8 +490,10 @@ export const documentPart = /** @type {any} */ ({
     copy.hidden = true;
     const replace = /** @type {HTMLButtonElement} */ (el('button', 'graph-part-control graph-doc-btn graph-doc-replace', t('parts.docReplace')));
     replace.type = 'button';
+    replace.title = t('parts.docReplaceHint');
     const remove = /** @type {HTMLButtonElement} */ (el('button', 'graph-part-control graph-doc-btn graph-doc-remove', t('parts.docRemove')));
     remove.type = 'button';
+    remove.title = t('parts.docRemoveHint');
     actions.append(copy, replace, remove);
     head.append(glyph, who, actions);
     const takes = renderTakes({ app, partId: part.id, kind: 'pdf', doc });
