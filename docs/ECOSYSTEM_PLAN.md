@@ -210,6 +210,11 @@
 
   If it fails, the fallback is named in advance: **our own minimal loop** (read, edit, preview tools; no
   shell), borrowing dsh's minimal-mode design.
+
+  **Result (2026-09-28): PASS on all four** — docs/research/p5-spike/RESULTS.md. Owner decisions the same day:
+  qwen3.8 first, the IDE adapts to several models (nemotron, ornith, new ones — a per-model profile: token cap,
+  reasoning effort, "good at edits" earned by the spike's edit task); git to the real GitHub, not a priority.
+  gemma4 is not an editor (it thinks itself out of budget); nemotron is as good as qwen3.8 on edits.
 - **v1 IDE**: dsh pinned (exact version plus a lockfile hash), **no shell tool** in the first cut, a
   workspace in `DATA_DIR/LOL Studio Projects/<project>`, and skills from `DATA_DIR/skills`. It has a file
   tree, the editor (`code-edit.mjs`), a diff view and the sandbox preview.
@@ -257,7 +262,7 @@ Learn shelf**.
 | P3b Triggers | done on main: the farm's message bus (MQTT · WebSocket · OSC), Receive/Send on it, the Trigger box | template *A board on Wi-Fi* |
 | P4 Agents | done on main: the Agent box (JSON mode through the ask door; run_code / fetch on listed hosts / laya / answer); rig: gemma4, qwen3.8, nemotron all correct on a whole-file data.gouv.fr question | template *Ask a dataset* |
 | Owner additions | on main: the Computer as an MCP server (§8c), LOL Chat → LOL Vibe, a ? example per box, **Open data** (data.gouv.fr) + template *Analyse a dataset* | — |
-| P5 Studio IDE | not started (P5-0: the DeepSeek Harness spike) | — |
+| P5 Studio IDE | **P5-0 spike PASSED (2026-09-28)**: dsh 0.1.7-rc.2 over its SDK, qwen3.8 / nemotron, no shell — docs/research/p5-spike/RESULTS.md; the v1 IDE is next | — |
 | P6 Home | not started (Home Assistant over the farm's MQTT bus is now possible) | — |
 
 Lessons 5 (*code counts, the model names* — the numbers rule) and 6 (*a loop that stops* — gates and ceilings) are
