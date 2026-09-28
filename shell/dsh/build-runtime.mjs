@@ -6,11 +6,12 @@
 //                      addon refuses Electron 42's Node, so the agent brings its own
 //     node_modules/    `npm ci` of shell/dsh/package-lock.json (the pinned @deepseek-ai/dsh, every package hashed)
 //     RUNTIME.json     what is inside
-// then dsh-runtime-<platform>-<arch>.tar.gz in the current folder. CI runs it on every release job; the client
+// It then boots the result once (smoke(): dsh must answer `initialize` on its own Node) and only then writes
+// dsh-runtime-<platform>-<arch>.tar.gz in the current folder. CI runs it on every release job; the client
 // downloads the tarball when a person installs the agent from the Project panel (src/main/studio.ts resolves it).
 //
 //   node shell/dsh/build-runtime.mjs [--no-tar]
-import { execFileSync, execSync } from 'node:child_process';
+import { execFileSync, execSync, spawn } from 'node:child_process';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import https from 'node:https';
@@ -89,10 +90,50 @@ function installDsh() {
   return lock.packages['node_modules/@deepseek-ai/dsh'].version;
 }
 
+/**
+ * Boot the built runtime once on its own Node and ask `initialize` — the step that failed on Electron 42's Node
+ * ("host preparation failed": a native addon refusing to load). No farm is needed: dsh checks the route, not the
+ * server. A runtime that cannot boot is never packed.
+ */
+async function smoke() {
+  const home = fs.mkdtempSync(path.join(HERE, 'build', 'smoke-'));
+  fs.mkdirSync(path.join(home, 'profiles', 'sdk'), { recursive: true });
+  fs.writeFileSync(path.join(home, 'profiles', 'sdk', 'cordis.patch.yml'), [
+    '- id: llm-pi-ai', '  config:', '    providers:', '      lolfarm:', '        api: openai-completions',
+    '        baseURL: "http://127.0.0.1:9/v1"', '        apiKeyEnv: LOL_FARM_KEY', '        models:',
+    '          - id: "smoke"', '            contextWindow: 8192',
+    '- { id: session-telemetry-otel, disabled: true }', ''].join('\n'));
+  const node = path.join(OUT, 'node', WIN ? 'node.exe' : path.join('bin', 'node'));
+  const bin = path.join(OUT, 'node_modules', '@deepseek-ai', 'dsh', 'lib', 'bin.js');
+  const env = { ...process.env, DSH_HOME: home, LOL_FARM_KEY: 'smoke', DSH_TELEMETRY_DISABLED: '1' };
+  delete env.ELECTRON_RUN_AS_NODE;
+  const child = spawn(node, [bin, '--profile', 'sdk'], { cwd: home, env, stdio: ['pipe', 'pipe', 'pipe'] });
+  let err = '';
+  child.stderr.on('data', (d) => { err += d; });
+  const t0 = Date.now();
+  const answer = await new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(null), 120000);
+    child.stdout.on('data', (d) => { clearTimeout(timer); resolve(String(d)); });
+    child.on('exit', () => { clearTimeout(timer); resolve(null); });
+    child.stdin.write(JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { cwd: home, provider: 'lolfarm', model: 'smoke' } }) + '\n');
+  });
+  const ms = Date.now() - t0;
+  // The whole tree: on Windows a plain kill() leaves dsh's children holding files in `home`.
+  const gone = new Promise((r) => { if (child.exitCode !== null) r(); else child.once('exit', r); });
+  if (WIN) { try { execFileSync('taskkill', ['/pid', String(child.pid), '/T', '/F'], { stdio: 'ignore' }); } catch { /* already gone */ } } else child.kill('SIGKILL');
+  await gone;
+  try { fs.rmSync(home, { recursive: true, force: true, maxRetries: 10, retryDelay: 300 }); } catch { /* under build/, ignored by git */ }
+  if (!answer || !answer.includes('deepseek-harness-sdk-runtime')) {
+    throw new Error(`the built runtime did not boot: ${(answer || err || 'no answer in 120 s').trim().slice(-600)}`);
+  }
+  console.log(`[dsh-runtime] boots on its own Node (initialize answered in ${ms} ms)`);
+}
+
 fs.rmSync(OUT, { recursive: true, force: true });
 fs.mkdirSync(OUT, { recursive: true });
 const dsh = installDsh();
 await addNode();
+await smoke();
 fs.writeFileSync(path.join(OUT, 'RUNTIME.json'), JSON.stringify({ dsh, node: NODE_VERSION, platform: plat, builtAt: new Date().toISOString() }, null, 2) + '\n');
 if (!process.argv.includes('--no-tar')) {
   const name = `dsh-runtime-${plat}.tar.gz`;

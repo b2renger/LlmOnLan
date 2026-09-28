@@ -108,7 +108,10 @@ jobs:
       # The IDE's coding agent (docs/IDE_PLAN.md slice 5): a pinned Node + the pinned DeepSeek Harness (npm ci of
       # shell/dsh's lockfile), as dsh-runtime-<platform>-<arch>.tar.gz. Like the sidecar, NOT in the installer: the
       # client downloads it when a person installs the agent from the Project panel.
+      # Never fatal: a runtime that fails to build or boot is simply not uploaded for this OS (the panel then says
+      # there is none on the release), and the installers still ship. build-dsh-runtime.yml dry-runs it first.
       - name: Build the coding agent runtime
+        continue-on-error: true
         shell: bash
         run: node shell/dsh/build-runtime.mjs
 

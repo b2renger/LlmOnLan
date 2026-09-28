@@ -1,0 +1,39 @@
+# A dry run of the IDE's coding-agent runtime on every client platform (docs/IDE_PLAN.md slice 5).
+#
+# The release job (release.yml) builds dsh-runtime-<platform>-<arch>.tar.gz on each of its machines and uploads it
+# beside the sidecar. This workflow runs the SAME script on the same five machines WITHOUT a release, so a runtime
+# that does not build — or does not BOOT: build-runtime.mjs asks dsh `initialize` on its own Node before it packs —
+# shows up here, not in the middle of a release. It publishes nothing.
+#
+# Run it by hand (Actions ▸ build-dsh-runtime ▸ Run workflow, or `gh workflow run build-dsh-runtime.yml`), and on
+# every change to the pin (shell/dsh/).
+
+name: build-dsh-runtime
+
+on:
+  workflow_dispatch:
+  push:
+    paths: ['shell/dsh/**', '.github/workflows/build-dsh-runtime.yml']
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest, macos-15-intel, ubuntu-latest, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Build and boot the runtime
+        shell: bash
+        run: |
+          node shell/dsh/build-runtime.mjs
+          ls -la dsh-runtime-*.tar.gz | cat
