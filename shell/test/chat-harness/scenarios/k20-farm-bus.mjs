@@ -95,4 +95,41 @@ export default [
             }
         },
     },
+    {
+        // Found by the in-app review (2026-09-28): a Trigger drawn BEFORE the farm's bus was known kept its key and
+        // never listened until one of its settings changed. It must start listening when the bus arrives.
+        name: 'k20-farm-bus-a-trigger-drawn-before-the-bus-listens-once-the-bus-arrives',
+        needsMock: true,
+        timeoutMs: 90000,
+        allowConsoleErrors: FARM_ERRORS,
+        async run(/** @type {any} */ h) {
+            const { startBus } = require(FARM_BUS);
+            const bus = startBus({ host: '127.0.0.1', mqttPort: 0, wsPort: 0, oscPort: 0, key: null, log: () => {} });
+            const ports = await bus.ready;
+            const b = await board(ports.ws);
+            try {
+                await h.fresh();
+                await h.computer.bus(null);
+                await open(h);
+                const trig = await h.computer.place('trigger', 40, 60);
+                await h.computer.set(trig, { source: 'bus', topic: 'lol/+/button', gapSec: 1, perHour: 60 });
+                await sleep(500);
+                // Now the farm starts its bus; nothing about the box changes.
+                await h.computer.bus({ ws: `ws://127.0.0.1:${ports.ws}`, mqtt: `mqtt://127.0.0.1:${ports.mqtt}`, osc: `udp://127.0.0.1:${ports.osc}`, auth: false });
+                const face = () => h.eval((id) => (document.querySelector(`#lolcomputer .graph-part[data-id="${id}"] .graph-receive-live`) || {}).textContent || '', trig);
+                const end = Date.now() + 15000;
+                let seen = '';
+                while (Date.now() < end && !/^1 events/.test(seen)) {
+                    b.pub('lol/b1/button', { pressed: true });
+                    await sleep(700);
+                    seen = await face();
+                }
+                h.assert(/^[1-9]\d* events/.test(seen), `the Trigger heard the board once the bus arrived: ${seen}`);
+            } finally {
+                b.close();
+                await bus.close();
+                await h.computer.bus(null);
+            }
+        },
+    },
 ];

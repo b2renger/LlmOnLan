@@ -57,7 +57,7 @@ registerStrings('library', {
   removeV1Kept: 'The old copy was kept.',
   about: 'About',
   aboutBody: 'LOL Vibe keeps everything on this computer.',
-  aboutWhere: 'Chats, drafts and attachments live in this app’s own local database, inside your data folder (Preferences › Data location). Nothing is uploaded: only the text of the conversation you send goes to the farm, so it can answer.',
+  aboutWhere: 'Chats and drafts — and the Computer’s graphs with their pictures, PDFs and sounds — live in this app’s own local database, inside your data folder (Preferences › Data location). Nothing is uploaded: only the text of the conversation you send goes to the farm, so it can answer.',
 
   // ---- transfer ----
   exported: 'Exported {name}',

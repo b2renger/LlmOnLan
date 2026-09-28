@@ -16,6 +16,7 @@ import { listenBus } from './receive.mjs';
 import { outputsDoor } from '../../projects/bridge.mjs';
 import { textField, numberField } from './fields.mjs';
 import { t } from '../../core/i18n.mjs';
+import { EV } from '../../core/events.mjs';
 import '../../strings/parts-trigger.en.mjs';
 
 /** @typedef {import('../../core/types.mjs').PartSpec} PartSpec */
@@ -125,13 +126,15 @@ export const triggerPart = /** @type {any} */ ({
     /** @param {any} s */
     const arm = (s) => {
       const src = SOURCES.includes(String(s.source)) ? String(s.source) : 'bus';
-      const next = src === 'bus' ? `bus:${s.topic}` : `schedule:${s.every}`;
+      const caps = ctx.app && ctx.app.farm && typeof ctx.app.farm.get === 'function' ? ctx.app.farm.get() : null;
+      // The bus's own address is part of the key: a Trigger drawn before the farm (or its bus) was known used to keep
+      // its key and never listen until a setting changed (found by the in-app review, 2026-09-28).
+      const next = src === 'bus' ? `bus:${s.topic}|${caps && caps.bus ? caps.bus.ws : ''}` : `schedule:${s.every}`;
       if (next === key) return;
       off(); off = () => {};
       key = next;
       if (st.why === 'nobus') st.why = '';
       if (src === 'bus') {
-        const caps = ctx.app && ctx.app.farm && typeof ctx.app.farm.get === 'function' ? ctx.app.farm.get() : null;
         const filter = String(s.topic || '').trim();
         // A farm without a bus would leave this face counting zeros for ever: say why instead.
         if (caps && !caps.bus) st.why = 'nobus';
@@ -153,8 +156,15 @@ export const triggerPart = /** @type {any} */ ({
       timer = setTimeout(tick, everyMs);
       off = () => clearTimeout(timer);
     };
+    // The farm (or its bus) can arrive or change without the box being repainted (the canvas repaints on a catalogue
+    // change only): re-arm on every farm change, with the settings the box has now.
+    let current = part;
+    const offFarm = ctx.app && ctx.app.bus && typeof ctx.app.bus.on === 'function'
+      ? ctx.app.bus.on(EV.FARM_CHANGE, () => { arm(current.settings || {}); paintStatus(); })
+      : () => {};
     /** @param {any} p */
     const paint = (p) => {
+      current = p;
       const s = p.settings || {};
       const src = SOURCES.includes(String(s.source)) ? String(s.source) : 'bus';
       if (document.activeElement !== source) source.value = src;
@@ -168,7 +178,7 @@ export const triggerPart = /** @type {any} */ ({
       paintStatus();
     };
     paint(part);
-    return { update: paint, destroy() { off(); wrap.remove(); } };
+    return { update: paint, destroy() { off(); offFarm(); wrap.remove(); } };
   },
 
   async run(input) {
