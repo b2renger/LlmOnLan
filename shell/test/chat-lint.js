@@ -249,7 +249,9 @@ const DOORS = [
         rule: 12,
         what: 'an iframe',
         allow: ['sandbox/host.mjs'],
-        patterns: [/createElement\s*\(\s*['\"]iframe['\"]/g, /\bHTMLIFrameElement\b/g, /\bcontentWindow\b/g],
+        // A call with 'iframe' as its first argument, not only createElement: a helper (`make('iframe', …)`) slipped
+        // past the first pattern in the IDE panel (2026-09-28) — its frame now comes from host.mjs `servedFrame`.
+        patterns: [/createElement\s*\(\s*['\"]iframe['\"]/g, /\(\s*['\"]iframe['\"]\s*[,)]/g, /\bHTMLIFrameElement\b/g, /\bcontentWindow\b/g],
         note: 'the sandbox is the only guest surface (studio plan §3.7)',
     },
 ];

@@ -29,6 +29,23 @@ import '../strings/sandbox.en.mjs';
 
 /** @typedef {'idle'|'booting'|'ready'|'running'|'stalled'|'disabled'} SandboxState */
 
+/**
+ * The IDE's Preview frame (docs/IDE_PLAN.md): a page this app SERVES from a project folder on 127.0.0.1
+ * (src/main/studio.ts) — a real web page, not generated code for the opaque guest. It is another origin than this
+ * page, so the same-origin policy is its wall (allow-same-origin is ITS origin, never ours); it may use the network
+ * like any page the project makes (three.js from a CDN); main's frame veto lets exactly the served origins load.
+ * Made HERE so this stays the one module that makes iframes (lint rule 12). Anything but a served page is refused.
+ * @param {Document} doc @param {string} src @param {string} title @returns {HTMLIFrameElement}
+ */
+export function servedFrame(doc, src, title) {
+  if (!/^http:\/\/127\.0\.0\.1:\d+\//.test(String(src))) throw new Error('servedFrame: only a page this app serves on 127.0.0.1');
+  const frame = /** @type {HTMLIFrameElement} */ (doc.createElement('iframe'));
+  frame.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms allow-modals allow-pointer-lock');
+  frame.title = title;
+  frame.src = src;
+  return frame;
+}
+
 /** Which libraries a sketch of this kind needs before its first line runs. */
 const KIND_LIBS = Object.freeze({ three: ['three'], p5: ['p5'] });
 

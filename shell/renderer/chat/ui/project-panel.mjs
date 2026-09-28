@@ -13,11 +13,11 @@ import { getDoor, onInstall } from '../projects/agent.mjs';
 import { profileFor, pickEditor } from '../projects/models.mjs';
 import { tabEdit, newlineEdit, applyEdit } from '../computer/code-edit.mjs';
 import { diffLines, hunks } from '../projects/linediff.mjs';
+import { servedFrame } from '../sandbox/host.mjs';
 import '../strings/project.en.mjs';
 
 /** Files the Code tab opens as text (the projects API's text extensions). */
 const TEXT_RE = /\.(html?|m?js|css|json|md|txt|svg|csv|ya?ml|ini|glsl|frag|vert|ino|h|hpp|c|cpp)$/i;
-const FRAME_SANDBOX = 'allow-scripts allow-same-origin allow-forms allow-modals allow-pointer-lock';
 // A same-file literal map, so lint rule 5 can see every key a person reads.
 const TAB_LABEL = { preview: 'project.tabPreview', code: 'project.tabCode', changes: 'project.tabChanges', history: 'project.tabHistory' };
 
@@ -369,10 +369,8 @@ function createPanel(host, app) {
     const src = `${serveUrl}${page.split('/').map(encodeURIComponent).join('/')}?r=${reloads}`;
     if (frame && frame.getAttribute('src') === src && !again) return;
     unmountFrame();
-    frame = /** @type {HTMLIFrameElement} */ (make('iframe', 'chat-proj-frame'));
-    frame.setAttribute('sandbox', FRAME_SANDBOX);
-    frame.title = t('project.tabPreview');
-    frame.src = src;
+    frame = servedFrame(doc, src, t('project.tabPreview'));   // host.mjs: the one module that makes iframes
+    frame.className = 'chat-proj-frame';
     panePreview.append(frame);
   }
 
