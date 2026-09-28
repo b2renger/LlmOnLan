@@ -111,6 +111,7 @@
   text-overflow: ellipsis;
 }
 #lolcomputer .graph-audio-btn { font-size: 12px; padding: 2px 8px; }
+#lolcomputer .graph-audio-row .graph-audio-record { flex: 0 0 auto; white-space: nowrap; }
 #lolcomputer .graph-audio-btn[hidden] { display: none; }
 
 /* One line: "Reading the sound…", or the refusal. Never both, never a dialog. */

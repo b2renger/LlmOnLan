@@ -25,6 +25,8 @@ import { t } from '../../core/i18n.mjs';
 // K6-U1 (addendum KF-3): the box says whether the picture it holds can be USED where it is wired
 // — what the farm says the Instructions downstream can see. graph/takes-view.mjs draws the line.
 import { renderTakes } from '../takes-view.mjs';
+// The webcam (owner, 2026-09-28): one frame, then the same intake as a dropped picture (readImage's rules).
+import { openCamera } from './capture.mjs';
 import '../../strings/parts-image.en.mjs';
 
 /** @typedef {import('../../core/types.mjs').PartSpec} PartSpec */
@@ -181,8 +183,34 @@ export const image = /** @type {any} */ ({
     // `.graph-takes` (KF-3): 'takes: picture ✓', and the sentence whenever it is not a yes.
     const takes = renderTakes({ app, partId: String(part.id || ''), kind: 'image' });
 
+    // Take a picture: a live view in the box, Capture keeps ONE frame (the camera then closes), Cancel closes it.
+    const camBtn = document.createElement('button');
+    camBtn.type = 'button';
+    camBtn.className = 'graph-part-control graph-image-camera';
+    camBtn.textContent = t('parts.imageCamera');
+    const camWrap = document.createElement('div');
+    camWrap.className = 'graph-image-live';
+    const video = document.createElement('video');
+    video.style.width = '100%';
+    video.style.maxHeight = '240px';
+    video.style.background = '#000';
+    video.style.borderRadius = '8px';
+    const camRow = document.createElement('span');
+    camRow.className = 'graph-image-actions';
+    const snapBtn = document.createElement('button');
+    snapBtn.type = 'button';
+    snapBtn.className = 'graph-part-control graph-image-camera-btn';
+    snapBtn.textContent = t('parts.imageCameraSnap');
+    const cancelBtn = document.createElement('button');
+    cancelBtn.type = 'button';
+    cancelBtn.className = 'graph-part-control graph-image-camera-btn';
+    cancelBtn.textContent = t('parts.imageCameraCancel');
+    camRow.append(snapBtn, cancelBtn);
+    camWrap.append(video, camRow);
+    /** @type {any} */ let camera = null;
+
     host.classList.add('graph-image');
-    host.replaceChildren(figure, empty, foot, note, takes.el);
+    host.replaceChildren(figure, empty, camBtn, camWrap, foot, note, takes.el);
 
     /** @param {any} p */
     function paint(p) {
@@ -207,6 +235,9 @@ export const image = /** @type {any} */ ({
       const held = shown.from !== 'input';
       replace.hidden = !held;
       remove.hidden = !held;
+      camWrap.hidden = !camera;
+      camBtn.hidden = !!camera || !held;
+      if (camera) { figure.hidden = true; empty.hidden = true; foot.hidden = true; }
       note.textContent = working ? t('parts.imageWorking') : problem;
       note.hidden = !note.textContent;
       note.classList.toggle('is-error', !working && !!problem);
@@ -276,6 +307,35 @@ export const image = /** @type {any} */ ({
       }, () => done({ error: t('parts.imageUnreadable') }));
     }
 
+    const closeCamera = () => { if (camera) { camera.close(); camera = null; } paint(ctx.part || part); };
+    camBtn.addEventListener('click', async () => {
+      if (camera || working) return;
+      problem = '';
+      try {
+        camera = await openCamera(video);
+      } catch (e) {
+        camera = null;
+        problem = (e && /** @type {any} */ (e).code) === 'refused' ? t('parts.imageCameraRefused') : t('parts.imageNoCamera');
+        paint(ctx.part || part);
+        return;
+      }
+      if (destroyed) { camera.close(); camera = null; return; }
+      paint(ctx.part || part);
+    });
+    cancelBtn.addEventListener('click', closeCamera);
+    snapBtn.addEventListener('click', async () => {
+      const cam = camera;
+      const intake = app && app.intake;
+      if (!cam) return;
+      const file = await cam.snap();
+      camera = null;
+      if (!file || !intake || typeof intake.fromFile !== 'function') { problem = t('parts.imageUnreadable'); paint(ctx.part || part); return; }
+      working = true;
+      paint(ctx.part || part);
+      const done = takeIf(++takeSeq);
+      Promise.resolve(intake.fromFile(file)).then(done, () => done({ error: t('parts.imageUnreadable') }));
+    });
+
     empty.addEventListener('click', choose);
     replace.addEventListener('click', choose);
     remove.addEventListener('click', () => {
@@ -297,6 +357,7 @@ export const image = /** @type {any} */ ({
         host.removeEventListener('dragover', onDragOver);
         host.removeEventListener('dragleave', onDragLeave);
         host.removeEventListener('drop', onDrop);
+        if (camera) { camera.close(); camera = null; }
         host.classList.remove('graph-image', 'is-over');
         host.replaceChildren();
       },

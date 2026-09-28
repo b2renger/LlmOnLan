@@ -813,6 +813,11 @@ export default (test) => {
     assert.equal(check(null, 'deprecated-sync-clipboard-read', 'file:///', { securityOrigin: 'file:///' }), false);
     assert.equal(check(null, 'media', 'file:///', { securityOrigin: 'file:///' }), true, 'the rest stays as it was');
     assert.equal(deviceHandler, false, 'no device permission handler: a board is usable only once a person picked it');
+    // The microphone and camera (2026-09-28): only the app's own page may ask.
+    assert.equal(S.grantRequest('media', 'file:///C:/app/renderer/index.html'), true);
+    assert.equal(S.grantRequest('media', 'null'), false, 'not the sandbox guest');
+    assert.equal(S.grantRequest('media', 'http://127.0.0.1:8080/'), false, 'not a served page');
+    assert.equal(S.grantRequest('notifications', 'http://x/'), true, 'the rest as Electron without a handler');
   });
 
   test('cleanup', () => {

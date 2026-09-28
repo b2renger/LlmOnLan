@@ -9,7 +9,7 @@ a dev farm plus a dev client on this box (see [NIGHT_LOG_2026-09-27.md](NIGHT_LO
 you can check: the installers and the update, real boards and lights, and how it all feels.
 
 **You need:** the farm box with the Farm app, one client computer (two for the LAN scenarios), and for some
-scenarios an Arduino Uno/Nano or an ESP32 with a USB **data** cable, a microphone recording (any .wav/.mp3),
+scenarios an Arduino Uno/Nano or an ESP32 with a USB **data** cable, a microphone and a webcam (or a .wav/.mp3),
 and TouchDesigner or Max (OSC). Scenarios marked **(no farm)** work with the farm switched off.
 
 ---
@@ -63,8 +63,14 @@ and TouchDesigner or Max (OSC). Scenarios marked **(no farm)** work with the far
 - [ ] **3.7 Listen (speech to text on).** A Sound box with a recording, *Listen* on → an Instruction
   "answer the question in the recording". Run: the words flow on. Export the graph, import it: Listen is
   **off** after the import.
-- [ ] **3.7b Ask out loud** (v0.2.2). Learn ▸ Templates ▸ *Ask out loud*: record a
-  question, turn Listen on, Run all — the answer shows and is spoken.
+- [ ] **3.7b Ask out loud** (v0.2.2). Learn ▸ Templates ▸ *Ask out loud*: on the Sound box press **● Record**,
+  ask a question, **■ Stop**; turn Listen on, Run all — the answer shows and is spoken through the speakers.
+- [ ] **3.7c Microphone and webcam (no farm).** A Sound box: **● Record** — the first time, nothing asks (the app
+  grants its own page); the button counts the seconds; **■ Stop** — the box holds *recording <date>.webm*,
+  ▶ Play plays it back. An Image box: **Take a picture** — the camera shows in the box (the webcam light goes
+  on); **Capture** — the picture is in the box and the light goes **off**. **Cancel** instead keeps nothing and
+  the light goes off too. Then wire the Image into an Instruction "What is in this picture?" (farm on): the
+  model describes what the camera saw. No camera plugged in: the box says so in words.
 - [ ] **3.8 Speak.** Text → Speak (*This computer*): you hear it, nothing leaves. *Farm* voice (Kokoro on):
   the farm's voice. Stop during speech: it stops.
 - [ ] **3.9 d3.** A Code box: `const x = d3.scaleLinear().domain([0,10]).range([0,100]); return x(5);`

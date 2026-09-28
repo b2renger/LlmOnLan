@@ -341,14 +341,16 @@ one while it is selected.
 Every box that holds a file has a **takes:** line saying whether what it holds can be used where it
 is wired: ✓, ✗ with the reason, or ? when the farm does not say.
 
-- **Image.** Stored on this computer, downscaled. Wired into an Instruction, the picture goes to
+- **Image.** Stored on this computer, downscaled. **Take a picture** shows this computer's camera in
+  the box; **Capture** keeps one frame and the camera goes off at once (**Cancel** keeps nothing). Wired into an Instruction, the picture goes to
   **that Instruction's model** as part of the prompt. When the farm does not list that model as
   able to see pictures, the box says so and nothing is sent; pick a model that can in the box's
   **Model** menu.
 - **Document (PDF).** Kept on this computer. When a run needs the text, the farm's document reader
   reads it once, and only the text comes back and flows on. A PDF that states more than 60 pages is
   refused when you drop it; nothing is kept or sent.
-- **Sound.** Kept and playable in the box (**▶ Play** / **■ Stop**). A sound wired into an Instruction
+- **Sound.** **● Record** records this computer's microphone until you press **■ Stop** (at most
+  10 minutes, like a dropped file); the recording then works like a dropped sound file. It is kept and playable in the box (**▶ Play** / **■ Stop**). A sound wired into an Instruction
   passes on only its name and length, as text, and the box says so — unless you turn on **Listen: write
   down what is said**. Then, on a run, the recording goes to the farm's **speech to text**, which writes
   down what is said and keeps nothing, and the **words** flow on instead of the sound. The farm's

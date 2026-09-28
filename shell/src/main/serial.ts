@@ -22,6 +22,14 @@ export function choicesOf(list: Array<{ portId: string; portName?: string; displ
     }));
 }
 
+/** The window's permission REQUESTS (owner, 2026-09-28): the microphone and camera ('media' — the Computer's Sound
+ * ● Record and Image ▸ Take a picture) only for the app's own page (file://); anything else keeps what Electron does
+ * without a handler (granted). Pure, so its one check can run. */
+export function grantRequest(permission: string, requestingUrl: string): boolean {
+    if (permission === 'media') return String(requestingUrl || '').startsWith('file://');
+    return true;
+}
+
 /** Web Serial for the window's own session (DATA_DIR/lol-client), never the OWUI webview's. */
 export function configureSerial(ses: Session): void {
     // The check handler is what `navigator.serial` consults. Serial: only the app's own page (file://) —

@@ -20,7 +20,7 @@ export default {
         id: 'o_how', type: 'sticky', x: 40, y: 140, w: 320, h: 460,
         settings: {
           colour: 'yellow',
-          text: 'How it works\n\n1. Sound: record your question with the microphone (or drop a sound file on it).\n2. Turn on Listen on the Sound box: the farm’s speech to text writes the recording down. Only then does it leave this computer — it is written down and dropped, never kept.\n3. Press Run all: a model answers in a few sentences, the Preview shows the answer and Speak says it.\n\nSpeak uses the farm’s voice when the farm has one, otherwise this computer’s own voice (which sends nothing). Stop stops the voice too.',
+          text: 'How it works\n\n1. Sound: press ● Record, ask your question, then ■ Stop (or drop a sound file on the box).\n2. Turn on Listen on the Sound box: the farm’s speech to text writes the recording down. Only then does it leave this computer — it is written down and dropped, never kept.\n3. Press Run all: a model answers in a few sentences, the Preview shows the answer and Speak says it.\n\nSpeak uses the farm’s voice when the farm has one, otherwise this computer’s own voice (which sends nothing). Stop stops the voice too.',
         },
       },
       { id: 'o_snd', type: 'audio', x: 400, y: 140, w: 320, h: 220, settings: {} },

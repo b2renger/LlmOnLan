@@ -6,6 +6,31 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-09-28 (afternoon) — The Computer hears the microphone and sees the webcam
+
+The owner tried *Ask out loud*: "it should take input from the mic … We should also be able to take a picture for
+analysis from webcam." Until now a Sound box only held a dropped file (the template's note wrongly said you could
+record into it — fixed).
+
+**Built.** One door to the devices, `graph/parts/capture.mjs` (lint rule 16: `getUserMedia` / `new MediaRecorder`
+nowhere else): `startRecording` (webm/opus, the 10-minute cap the Sound box already had for files, the microphone let
+go at the end) and `openCamera` (the stream straight into a `<video>` — no URL — and one frame → a JPEG, then the
+camera goes off). The **Sound** box gets **● Record → ■ Stop · 0:07** (under the drop area when empty; beside ▶ Play
+once it holds a sound, so the box keeps its size); the **Image** box gets **Take a picture → Capture / Cancel**. Each
+take enters the box's own intake like a dropped file, so storage, the takes: line, Listen and "leaves only inside an
+Instruction's request" are unchanged. Main (`serial.ts` `grantRequest`) grants `media` only to the window's own
+`file://` page; every other permission is as before. Nothing is sent when you record or capture.
+
+**Tested.** Unit: `capture.test.mjs` (5 — a webm File from every chunk, the device released on stop, cancel and the
+cap; refused/no device → a code the box words; one frame → a JPEG and the camera closed) + `grantRequest`. Harness:
+**k23** (Chromium's fake microphone and camera, turned on in the harness main: ● Record → ■ Stop holds a ~1.6 s
+`recording … .webm`; Take a picture → Capture holds a ≤ 1536 px JPEG and the live view lets the camera go) and the
+52 scenarios that size or read the Sound/Image boxes, the examples and the templates (one caught ● Record pushing the
+takes: line out of the box → the row move above). *Not verifiable here:* the speakers — **3.7b/3.7c** in
+`docs/TEST_SCENARIOS_v0.2.md` are the owner's checks.
+
+---
+
 ## 2026-09-28 (morning) — Release v0.2.2 + farm-v0.0.41: the critic's last fixes, two lessons, a speech template
 
 On the owner's go (08:27), what the night committed after the v0.2.1 / farm-v0.0.40 tags

@@ -22,7 +22,7 @@ import { initAutoUpdate, checkForAppUpdate, quitAndInstallUpdate, setUpdateNotif
 import { OWUI_ENABLED } from './clientMode';
 import { fetchText } from './io';
 import { send as sendOutput, arm as armOutputs, isArmed as outputsArmed, panic as panicOutputs, SendRequest } from './outputs';
-import { configureSerial, registerSerialIpc } from './serial';
+import { configureSerial, registerSerialIpc, grantRequest } from './serial';
 import { startMcpServer, pageCaller, TOOLS as MCP_TOOLS, MCP_PORT, MCP_PATH } from './mcp';
 import { setComputerMcp } from './configBridge';
 import {
@@ -445,6 +445,12 @@ function createWindow(): void {
     const clientSes = mainWindowSession();
     // USB serial for the Computer (P3a-2): the window's own session, never the OWUI webview's.
     configureSerial(clientSes || session.defaultSession);
+    // The Computer's microphone and camera (Sound ● Record, Image ▸ Take a picture — owner, 2026-09-28): granted to
+    // the app's own page only (file://); the sandbox guest or anything else asking is refused. Every other request
+    // keeps what Electron does without a handler (granted). The OWUI webview has its own partition and handler.
+    (clientSes || session.defaultSession).setPermissionRequestHandler((_wc, permission, callback, details) => {
+        callback(grantRequest(permission, String((details as { requestingUrl?: string })?.requestingUrl || '')));
+    });
     win = new BrowserWindow({
         width: 1280,
         height: 860,

@@ -33,6 +33,8 @@ import { soundLength } from '../sound-length.mjs';
 import { sayOnlyOne, releaseUnused } from './document.mjs';
 import '../../strings/parts-audio.en.mjs';
 import { transcribe } from '../../net/stt.mjs';
+// The microphone (owner, 2026-09-28): a fourth door into the same intake — a recording is a file like any other.
+import { startRecording } from './capture.mjs';
 // `parts.mediaMissing` is the file store's sentence (K6-U2's table); imported so it is registered
 // wherever this box is.
 import '../../strings/parts-document.en.mjs';
@@ -286,6 +288,12 @@ export const audioPart = /** @type {any} */ ({
     const empty = /** @type {HTMLButtonElement} */ (make('button', 'graph-audio-empty'));
     empty.type = 'button';
     empty.textContent = t('parts.audioEmpty');
+    // ● Record: the microphone, until ■ Stop (or the length cap). The take enters takeFile() like a dropped file.
+    const recBtn = /** @type {HTMLButtonElement} */ (make('button', 'graph-part-control graph-audio-btn graph-audio-record'));
+    recBtn.type = 'button';
+    recBtn.textContent = t('parts.audioRecord');
+    /** @type {any} */ let recording = null;
+    let recTimer = 0;
 
     const player = make('div', 'graph-audio-player');
     const row = make('div', 'graph-audio-row');
@@ -323,7 +331,7 @@ export const audioPart = /** @type {any} */ ({
 
     const takes = renderTakes({ app, partId: part.id, kind: 'audio', doc });
     host.classList.add('graph-audio');
-    host.replaceChildren(empty, player, note, takes.el);
+    host.replaceChildren(empty, recBtn, player, note, takes.el);
 
     const settingsOf = (/** @type {any} */ p) => (p && p.settings) || {};
 
@@ -364,6 +372,10 @@ export const audioPart = /** @type {any} */ ({
       checkPresent();
       empty.hidden = has;
       player.hidden = !has;
+      // ● Record rides the ▶ Play row once a sound is held, so the box needs no extra row for it.
+      if (has ? recBtn.parentNode !== row : recBtn.parentNode !== host) {
+        if (has) row.append(recBtn); else host.insertBefore(recBtn, player);
+      }
       empty.disabled = working;
       name.textContent = has ? String(s.name || t('parts.audioUnnamed')) : '';
       name.title = name.textContent;
@@ -528,6 +540,41 @@ export const audioPart = /** @type {any} */ ({
       void takeFile(file);
     }
 
+    /** The button says how long the take is while it records (a setTimeout chain: rule 13, no setInterval). */
+    const showRecording = () => {
+      if (!recording || destroyed) return;
+      recBtn.textContent = t('parts.audioRecording', { time: clock((Date.now() - recording.startedAt) / 1000) });
+      recTimer = /** @type {any} */ (setTimeout(showRecording, 500));
+    };
+    const endRecording = async () => {
+      const take = recording;
+      recording = null;
+      clearTimeout(recTimer);
+      recBtn.textContent = t('parts.audioRecord');
+      recBtn.classList.remove('is-recording');
+      const file = take ? await take.stop() : null;
+      if (file) await takeFile(file);
+      else if (!destroyed) { problem = t('parts.audioRecordEmpty'); paint(live); }
+    };
+    recBtn.addEventListener('click', async () => {
+      if (working) return;
+      if (recording) { await endRecording(); return; }
+      stopMine();
+      problem = '';
+      try {
+        recording = await startRecording({ maxSec: AUDIO_MAX_SEC, onEnd: () => { void endRecording(); } });
+      } catch (e) {
+        recording = null;
+        problem = (e && /** @type {any} */ (e).code) === 'refused' ? t('parts.audioMicRefused') : t('parts.audioNoMic');
+        paint(live);
+        return;
+      }
+      if (destroyed) { recording.cancel(); recording = null; return; }
+      recBtn.classList.add('is-recording');
+      paint(live);
+      showRecording();
+    });
+
     empty.addEventListener('click', choose);
     replace.addEventListener('click', choose);
     play.addEventListener('click', () => { void toggle(); });
@@ -553,6 +600,8 @@ export const audioPart = /** @type {any} */ ({
       },
       destroy() {
         destroyed = true;
+        if (recording) { recording.cancel(); recording = null; }
+        clearTimeout(recTimer);
         stopMine();
         forget(String(settingsOf(live).fileId || ''));
         cancelFrame(frame);

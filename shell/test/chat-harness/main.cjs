@@ -9,6 +9,10 @@
 // Never run this against the owner's real userData: the driver always passes a fresh mkdtemp.
 
 const { app, BrowserWindow, ipcMain, session, shell } = require('electron');
+// The Computer's microphone and camera (2026-09-28): Chromium's own fake devices — a tone for the microphone, a
+// test pattern for the camera — and no permission prompt, so ● Record and Take a picture run for real (k23).
+app.commandLine.appendSwitch('use-fake-device-for-media-stream');
+app.commandLine.appendSwitch('use-fake-ui-for-media-stream');
 const path = require('path');
 const fs = require('fs');
 const { pathToFileURL } = require('url');

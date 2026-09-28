@@ -229,6 +229,13 @@ const DOORS = [
         patterns: [/\bfetch\s*\(/g, /new\s+XMLHttpRequest\b/g, /new\s+EventSource\b/g, /navigator\s*\.\s*sendBeacon\b/g, /new\s+WS\s*\(/g, /new\s+WebSocket\b/g],
     },
     {
+        rule: 16,
+        what: "this computer's microphone and camera",
+        // Owner, 2026-09-28 (Sound ● Record, Image ▸ Take a picture): ONE module asks for a device, and lets it go.
+        allow: ['graph/parts/capture.mjs'],
+        patterns: [/getUserMedia/g, /new\s+MediaRecorder\b/g],
+    },
+    {
         rule: 13,
         what: 'a wall clock',
         allow: ['sandbox/host.mjs'],

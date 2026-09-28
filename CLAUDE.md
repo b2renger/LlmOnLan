@@ -144,7 +144,10 @@ docs) is `docs/reviews/DOCS_REVIEW_2026-09-27_{FARM,SHELL,COMPUTER}.md`. Snapsho
   single-instance lock and the owner's real DATA_DIR make it unsafe on a box with a client open).
 - **The Computer** (third client surface, `shell/renderer/chat/{computer,graph,sandbox}/`) — a node-graph
   canvas where boxes wired by **named arrows** make a small program, kept in a library of graphs. Boxes:
-  Text, Image, Document, Sound (+ a **Listen** switch: the farm's speech to text writes it down), File, **Fetch**, **Open data**
+  Text, Image (+ **Take a picture**: one frame of this computer's webcam), Document, Sound (+ **● Record**: this computer's
+  microphone, and a **Listen** switch: the farm's speech to text writes it down) — mic and camera through ONE door,
+  `graph/parts/capture.mjs` (lint rule 16), granted by main only to the window's own `file://` page (`serial.ts`
+  `grantRequest`); the take is kept like a dropped file — File, **Fetch**, **Open data**
   (a data.gouv.fr dataset from a pasted link: its description, the whole-file column profile data.gouv.fr computed,
   a sample of ≤ 1000 rows — `graph/parts/opendata.mjs`, data.gouv.fr's public API v2 + tabular API only, every GET
   through `io.ts`), **Receive**
