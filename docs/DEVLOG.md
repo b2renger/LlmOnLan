@@ -6,6 +6,45 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-09-28 (night) — The IDE shares, remembers and publishes; the project fence
+
+The owner's night brief (docs/NIGHT_LOG_2026-09-28.md): the IDE's LAN serving and git first (isomorphic-git; a
+per-project LAN toggle, off by default, reset at restart), then lessons 7–12, graphify, documentation.
+
+**Share on the LAN.** A second, read-only listener per project (GET/HEAD, the project folder only) that answers
+only to this machine's own addresses; a person's toggle in the Project panel, never remembered. Tests listen on
+127.0.0.1 with a TEST-NET name, so no firewall prompt.
+
+**History.** `src/main/projectGit.ts` (isomorphic-git 1.42.3, MIT): a repository per project; each agent reply that
+changed files is one commit ("Agent: <the prompt's first line>", made before the page hears the turn ended), each
+Save one ("You: <file>"); the History tab lists them, shows a line diff (`projects/linediff.mjs`), and **Go back to
+this version** makes the files what they were — as a new commit, so nothing is ever rewritten. The first unit run
+caught isomorphic-git's status matrix missing a same-size edit in the same second (it trusts size + mtime): a
+change is now decided by the blob hash. The projects API never lists or counts `.git`.
+
+**GitHub push / pull.** A person-typed https address in the project's git config; a token per host kept by main
+with `safeStorage` (`<userData>/git-tokens.json`, never handed back to the page, none where the OS cannot encrypt);
+Push; Pull fast-forward only (local work committed first; an empty project takes the remote's work). Tested
+against a REAL git server on loopback (`git http-backend` behind a token check), never GitHub.
+
+**The project fence.** Writing the guide, I checked the claim "the agent stays in its project": dsh confines writes
+only, and on the real runtime the agent read a file outside the project and gave it to the model. Fixed with a
+PreToolUse command hook (dsh's Claude Code hook bridge) that refuses every file tool outside the project, a
+climbing glob and any request for wider rights, denying when unsure (the bridge fails open). Two Windows traps
+found on the real runtime — dsh runs hooks through PowerShell, which read the quoted command as strings (a parse
+error) and then turned the fence's exit 2 into its own 1: both mean "pass". With `&` and `exit $LASTEXITCODE` it
+holds: an outside read refused, the secret never reached the model, inside reads work (~0.4 s per file tool).
+
+**Also.** The runtime build boots dsh before packing it and `build-dsh-runtime.yml` dry-ran it on all five CI
+machines (all build and boot, 110–133 MB); project chats start on a model good at edits (`pickEditor`); bundled
+skills seed one by one; the user guide `docs/LOLVIBE_IDE_GUIDE.md`.
+
+**Tested.** Unit: studio (the share, the remote rules, the token store, the fence as dsh runs it — 13 cases), project
+history (3), push/pull against the loopback git server, linediff (4); k24 extended (share, History + go back, the
+GitHub section); h0 pins the preload's `studio` methods. The real runtime on a private test farm for the fence.
+
+---
+
 ## 2026-09-28 (afternoon) — LOL Vibe's IDE, v1 slices 1–4: DeepSeek Harness writes a project, the panel shows it
 
 On the owner's "yes start the build" (P5 v1, [docs/IDE_PLAN.md](IDE_PLAN.md)).
