@@ -60,7 +60,10 @@ by default, with **llama.cpp** (`llama-server`) as the opt‑in speed engine; ei
 load‑balanced LiteLLM endpoint. **Stable model aliases** mean the operator can swap the checkpoint
 underneath without breaking a single existing chat, and can **name the model users see** in the farm
 panel. The client is the bundled, unmodified **Open WebUI**, with a topbar switch between Open WebUI,
-**LOL Vibe** (a Studio‑style chat straight to the farm) and the **Computer**.
+**LOL Vibe** (a Studio‑style chat straight to the farm, with an **IDE**: a coding agent — DeepSeek Harness on the
+farm's model — builds web projects you preview, version and push to GitHub; [guide](docs/LOLVIBE_IDE_GUIDE.md)) and
+the **Computer** (boxes wired into small programs that read data, see, hear, speak and drive boards and lights;
+[tutorial](docs/LOLCHAT_COMPUTER_TUTORIAL.md)).
 
 *Features* — **full multimodal** (image understanding + voice; Whisper STT runs on‑device); **web
 search** via a shared farm‑hosted [SearXNG](https://docs.searxng.org) (**on by default**, zero client

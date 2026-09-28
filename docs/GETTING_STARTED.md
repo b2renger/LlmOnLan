@@ -206,8 +206,10 @@ with `LOL_ENDPOINT=http://<box-ip>:4000/v1` if discovery isn't available.
   `assistant` on a llama.cpp farm). That name is a stable id, so the operator can swap the
   checkpoint underneath without breaking your existing chats.
 - **Three surfaces** — the topbar switch picks **Open WebUI** (documents, RAG, web search, voice,
-  history), **LOL Vibe** (a fast chat straight to the farm; no documents) or the **Computer**; the app
-  remembers your last choice.
+  history), **LOL Vibe** (a fast chat straight to the farm; no documents — and its **IDE**, below) or the
+  **Computer** (boxes wired into small programs: data, pictures, the microphone and webcam, sound, boards and
+  lights — [the tutorial](LOLCHAT_COMPUTER_TUTORIAL.md), and the Learn shelf inside it); the app remembers your
+  last choice.
 - **The connection pill** (top bar) shows the farm and its free seats (`· 2/3 free`). Amber means wait —
   connecting, every seat busy, the farm not responding, or a password needed; red means a problem on the
   server. Click it for **Servers on your network**: one card per farm (seats, engine and model, plugins,
@@ -237,6 +239,11 @@ with `LOL_ENDPOINT=http://<box-ip>:4000/v1` if discovery isn't available.
   all chats**, **Import chats…** — `.json` / `.lolchat.json`, new ids, up to 512 MB), the send‑cost gate
   (**Ask before sending more than N tokens**), **Tell me when a long reply is done**, and About; each
   chat's … menu exports Markdown or `.lolchat.json`.
+- **LOL Vibe's IDE** — a chat's **Project** button ties it to a project folder: a coding agent (DeepSeek Harness,
+  thinking with the farm's model) writes and edits the files as you ask, and the panel shows the **Preview**, the
+  **Code**, the **Changes** and the **History** (go back to any version). A project can be shared read-only on the
+  LAN, or pushed to GitHub. The agent is a one-time ~120 MB install from the panel; it only touches files inside its
+  project. See [LOLVIBE_IDE_GUIDE.md](LOLVIBE_IDE_GUIDE.md).
 - **Closing the window quits** — the app asks "Quit LlmOnLan?" first, then stops the chat engine and frees
   your seat on the farm. Reopening takes a few seconds while Open WebUI starts again.
 - **Updates** — the app updates itself (Settings ▸ Startup & updates). The chat engine is separate:
