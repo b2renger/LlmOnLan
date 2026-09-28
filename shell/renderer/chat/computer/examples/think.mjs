@@ -111,7 +111,7 @@ export const THINK = [
     parts: [
       { id: 'e_items', type: 'note', x: 0, y: 0, w: 300, h: 180, settings: { text: 'apple\ncarrot\nbanana\nleek', locked: false } },
       { id: 'e_topics', type: 'note', x: 0, y: 240, w: 300, h: 150, settings: { text: 'fruit\nvegetable\nother', locked: false } },
-      { id: 'e_write', type: 'ask', x: 360, y: 0, w: 340, h: 320, settings: preset('write-laya', { instruction: 'Look at the items and the topics. Write the question Laya will answer for each item, one at a time, in under 12 words. The options are the topics, exactly as given.' }) },
+      { id: 'e_write', type: 'ask', x: 360, y: 0, w: 340, h: 320, settings: preset('write-laya', { instruction: 'Look at the items and the topics. Write the question Laya will answer for each item, one at a time, in under 12 words — the same for every item, so it names none of them (“this item”). The options are the topics, exactly as given.' }) },
       { id: 'e_cls', type: 'classify', x: 760, y: 0, w: 320, h: 240, settings: { question: 'What is this?', options: '', threshold: 0.6 } },
     ],
     wires: [

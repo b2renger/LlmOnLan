@@ -431,7 +431,7 @@ export default {
       {
         id: 'n_write', type: 'ask', x: 800, y: 240, w: 340, h: 300,
         settings: {
-          instruction: 'Look at the website and the topics. Write the question Laya will answer for every story on the website, one story at a time. Laya reads only a story’s title, so the question must be answerable from a title alone, in under 15 words. The options are the topics, written exactly as given in lowercase, plus other if it is missing.',
+          instruction: 'Look at the website and the topics. Write the question Laya will answer for every story on the website, one story at a time. Laya reads only a story’s title, so the question must be answerable from a title alone, in under 15 words. It is the SAME question for every story, so it names none of them: ask about “this story” (for example: What is this story mainly about?). The options are the topics, written exactly as given in lowercase, plus other if it is missing.',
           shape: 'json',
           schema: LAYA_QUESTION_SCHEMA,
         },

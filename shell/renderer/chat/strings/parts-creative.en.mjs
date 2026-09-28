@@ -54,5 +54,5 @@ registerStrings('parts', {
   writeAskCode: 'Count how many items there are in each category, and add up their points.',
   writeLayaLabel: 'Write a Laya question',
   writeLayaDesc: 'The model writes the multiple-choice question Laya answers for every item, from your topics and a look at the data. Wire it into a Classify box’s question port.',
-  writeLayaAsk: 'Write the question Laya will answer for every item of the data, one item at a time. Laya reads only one item’s title or text, so the question must be answerable from that alone, in under 15 words. The options are the topics, written exactly as given in lowercase, plus other if it is missing.',
+  writeLayaAsk: 'Write the question Laya will answer for every item of the data, one item at a time. Laya reads only one item’s title or text, so the question must be answerable from that alone, in under 15 words. It is the SAME question for every item, so it names none of them: ask about “this item” (for example: What is this item mainly about?). The options are the topics, written exactly as given in lowercase, plus other if it is missing.',
 });
