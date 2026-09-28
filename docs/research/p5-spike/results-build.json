@@ -1,0 +1,254 @@
+[
+  {
+    "model": "qwen3.8:latest",
+    "n": 1,
+    "exit": 0,
+    "seconds": 8,
+    "toolCalls": 3,
+    "completed": 3,
+    "failed": 0,
+    "tools": "skill → glob → write",
+    "ponytail": true,
+    "page": {
+      "file": true,
+      "bytes": 1282,
+      "three": true,
+      "scene": true,
+      "renderer": true,
+      "loop": true,
+      "cube": true
+    },
+    "final": "I've written `index.html` in the current folder: a single-file page loading three.js 0.160 as an ES module via an import map, with a slowly rotating cube lit by one directional light filling the windo"
+  },
+  {
+    "model": "qwen3.8:latest",
+    "n": 2,
+    "exit": 0,
+    "seconds": 6,
+    "toolCalls": 2,
+    "completed": 2,
+    "failed": 0,
+    "tools": "skill → write",
+    "ponytail": true,
+    "page": {
+      "file": true,
+      "bytes": 1192,
+      "three": true,
+      "scene": true,
+      "renderer": true,
+      "loop": true,
+      "cube": true
+    },
+    "final": "Wrote `index.html` — a minimal single-file page with a slowly rotating cube under one directional light, filling the window and resizing with it."
+  },
+  {
+    "model": "qwen3.8:latest",
+    "n": 3,
+    "exit": 0,
+    "seconds": 9,
+    "toolCalls": 3,
+    "completed": 3,
+    "failed": 0,
+    "tools": "skill → write → edit",
+    "ponytail": true,
+    "page": {
+      "file": true,
+      "bytes": 1171,
+      "three": true,
+      "scene": true,
+      "renderer": true,
+      "loop": true,
+      "cube": true
+    },
+    "final": "Done — `index.html` is created in this folder: a minimal single-file three.js page (import map to three@0.160.0) with a slowly rotating cube lit by one directional light, filling the window."
+  },
+  {
+    "model": "nemotron-3.5-lightning:30b",
+    "n": 1,
+    "exit": 0,
+    "seconds": 12,
+    "toolCalls": 1,
+    "completed": 1,
+    "failed": 0,
+    "tools": "write",
+    "ponytail": false,
+    "page": {
+      "file": true,
+      "bytes": 2063,
+      "three": true,
+      "scene": true,
+      "renderer": true,
+      "loop": true,
+      "cube": true
+    },
+    "final": "Created index.html with a minimal three.js scene showing a slowly rotating green cube lit by a directional light, filling the window."
+  },
+  {
+    "model": "nemotron-3.5-lightning:30b",
+    "n": 2,
+    "exit": 0,
+    "seconds": 4,
+    "toolCalls": 1,
+    "completed": 1,
+    "failed": 0,
+    "tools": "write",
+    "ponytail": false,
+    "page": {
+      "file": true,
+      "bytes": 1913,
+      "three": true,
+      "scene": true,
+      "renderer": true,
+      "loop": true,
+      "cube": true
+    },
+    "final": "Created index.html with a minimal three.js scene showing a slowly rotating green cube lit by a directional light, filling the window."
+  },
+  {
+    "model": "nemotron-3.5-lightning:30b",
+    "n": 3,
+    "exit": 0,
+    "seconds": 4,
+    "toolCalls": 2,
+    "completed": 2,
+    "failed": 0,
+    "tools": "write → read",
+    "ponytail": false,
+    "page": {
+      "file": true,
+      "bytes": 1908,
+      "three": true,
+      "scene": true,
+      "renderer": true,
+      "loop": true,
+      "cube": true
+    },
+    "final": "Created `index.html` — a minimal single-file three.js page with an ES module import from the CDN, a slowly rotating green cube lit by a directional light and ambient light, filling the window."
+  },
+  {
+    "model": "ornith-1.5:35b",
+    "n": 1,
+    "exit": 0,
+    "seconds": 13,
+    "toolCalls": 1,
+    "completed": 1,
+    "failed": 0,
+    "tools": "write",
+    "ponytail": false,
+    "page": {
+      "file": true,
+      "bytes": 1402,
+      "three": true,
+      "scene": true,
+      "renderer": true,
+      "loop": true,
+      "cube": true
+    },
+    "final": "Created `index.html` in the folder — a minimal single-file three.js scene with a slowly rotating `MeshStandardCube` lit by a point light, filling the window."
+  },
+  {
+    "model": "ornith-1.5:35b",
+    "n": 2,
+    "exit": 0,
+    "seconds": 6,
+    "toolCalls": 3,
+    "completed": 3,
+    "failed": 0,
+    "tools": "write → write → job_list",
+    "ponytail": false,
+    "page": {
+      "file": true,
+      "bytes": 1697,
+      "three": true,
+      "scene": true,
+      "renderer": true,
+      "loop": true,
+      "cube": true
+    },
+    "final": "Created `index.html` — a single-file three.js scene with a slowly rotating cube lit by a point light, filling the window, loading three.js as an ES module via an import map."
+  },
+  {
+    "model": "ornith-1.5:35b",
+    "n": 3,
+    "exit": 0,
+    "seconds": 4,
+    "toolCalls": 1,
+    "completed": 1,
+    "failed": 0,
+    "tools": "write",
+    "ponytail": false,
+    "page": {
+      "file": true,
+      "bytes": 1410,
+      "three": true,
+      "scene": true,
+      "renderer": true,
+      "loop": true,
+      "cube": true
+    },
+    "final": "Created `index.html` in this folder — a single-file three.js scene with a slowly rotating, standard-material cube lit by one point light (plus faint ambient light), filling the window and resizing wit"
+  },
+  {
+    "model": "gemma4:12b",
+    "n": 1,
+    "exit": 0,
+    "seconds": 24,
+    "toolCalls": 1,
+    "completed": 1,
+    "failed": 0,
+    "tools": "write",
+    "ponytail": false,
+    "page": {
+      "file": true,
+      "bytes": 1759,
+      "three": true,
+      "scene": true,
+      "renderer": true,
+      "loop": true,
+      "cube": true
+    },
+    "final": "I have created the index.html file as requested."
+  },
+  {
+    "model": "gemma4:12b",
+    "n": 2,
+    "exit": 0,
+    "seconds": 8,
+    "toolCalls": 1,
+    "completed": 1,
+    "failed": 0,
+    "tools": "write",
+    "ponytail": false,
+    "page": {
+      "file": true,
+      "bytes": 1811,
+      "three": true,
+      "scene": true,
+      "renderer": true,
+      "loop": true,
+      "cube": true
+    },
+    "final": "I have created the `index.html` file as requested."
+  },
+  {
+    "model": "gemma4:12b",
+    "n": 3,
+    "exit": 0,
+    "seconds": 9,
+    "toolCalls": 1,
+    "completed": 1,
+    "failed": 0,
+    "tools": "write",
+    "ponytail": false,
+    "page": {
+      "file": true,
+      "bytes": 1883,
+      "three": true,
+      "scene": true,
+      "renderer": true,
+      "loop": true,
+      "cube": true
+    },
+    "final": "The file index.html has been created with a minimal three.js scene featuring a rotating cube."
+  }
+]

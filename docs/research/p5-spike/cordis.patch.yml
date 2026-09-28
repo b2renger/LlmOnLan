@@ -1,0 +1,30 @@
+# P5-0 spike (2026-09-28): dsh against the LlmOnLan farm (the private test farm on 127.0.0.1:4100), qwen3.8 by
+# default, the other farm models selectable, and NO shell tool (the plan's first cut: read, edit, preview).
+- id: llm-pi-ai
+  config:
+    providers:
+      lolfarm:
+        displayName: LlmOnLan farm
+        api: openai-completions
+        baseURL: http://127.0.0.1:4100/v1
+        apiKeyEnv: LOL_FARM_KEY
+        models:
+          - id: qwen3.8:latest
+            contextWindow: 32768
+          - id: nemotron-3.5-lightning:30b
+            contextWindow: 32768
+          - id: ornith-1.5:35b
+            contextWindow: 32768
+          - id: gemma4:12b
+            contextWindow: 32768
+
+- id: agent-default-model
+  config:
+    provider: lolfarm
+    model: qwen3.8:latest
+
+- id: tool-pwsh
+  disabled: true
+
+- id: tool-bash
+  disabled: true
