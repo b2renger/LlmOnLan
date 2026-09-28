@@ -53,6 +53,12 @@ builds it on every job and uploads it beside the sidecar. The Project panel show
 `<userData>/dsh-runtime` through the sidecar's own `releaseAssetUrl` + `installFrom`, with progress in the panel.
 It first works for clients with the next release.
 
+**Evening follow-up.** The build now boots the runtime before packing it (dsh answers `initialize` on its own Node
+— no farm needed); `build-dsh-runtime.yml` ran it on all five CI machines: **every one builds and boots** (0.7–7.4 s;
+110–133 MB), and the release step is non-fatal. A project chat moves off a weak default (gemma4) to a model the farm
+serves that is good at edits, never over a person's own pick (`pickEditor`, 7 unit checks); the panel's model line
+follows the picker (k24 switches to gemma4 and back). `TEST_SCENARIOS_v0.2.md` §7b lists the owner's IDE checks.
+
 **Not yet.** Git (HTTPS, credentials in `safeStorage`); serving on the LAN; the project's own `.dsh/skills`.
 
 ---

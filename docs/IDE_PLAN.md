@@ -54,7 +54,12 @@ lockfile (594 packages, each hashed), `build-runtime.mjs` makes `dsh-runtime-<pl
 checked against nodejs.org's SHASUMS256 + `npm ci`, minus the unused 188 MB LibreOffice build: **110 MB**, 424 MB
 unpacked; the built runtime ran a turn on its own Node), the release job builds and uploads it, and the Project panel
 offers **Install the coding agent** (main downloads it from this version's release into `<userData>/dsh-runtime`
-with the sidecar's own download + unpack). It reaches clients with the next release; until then, in dev, set
+with the sidecar's own download + unpack). The build boots the runtime before packing it (dsh must answer
+`initialize` on its own Node), and `build-dsh-runtime.yml` dry-ran it on all five CI machines on 2026-09-28: it
+builds and boots everywhere (initialize in 0.7–7.4 s; win-x64 110 MB, darwin-arm64 115, darwin-x64 119, linux-x64
+131, linux-arm64 133). In the release job the step is non-fatal: a failure costs that OS its runtime, never its
+installers. A project chat starts on a model that is good at edits when the farm serves one (`pickEditor`, never
+over a person's pick), and the panel's model line follows the picker. It reaches clients with the next release; until then, in dev, set
 `LOL_DSH_DIR` to `shell/dsh/build/dsh-runtime` (its own Node) or to any folder with dsh installed + `LOL_DSH_NODE`.
 
 1. **Main runner** — `src/main/studio.ts`: runtime resolution (`LOL_DSH_DIR` + `LOL_DSH_NODE` in dev; the downloaded

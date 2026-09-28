@@ -115,7 +115,7 @@ docs) is `docs/reviews/DOCS_REVIEW_2026-09-27_{FARM,SHELL,COMPUTER}.md`. Snapsho
   telemetry off, skills only from `DATA_DIR/skills`. dsh sessions die with the process (no resume): a new one gets a
   recap of the thread. Preview = a static server per project on 127.0.0.1 (main's frame veto lets exactly that
   origin in). The agent is NOT in the installer: CI builds `dsh-runtime-<platform>-<arch>.tar.gz` (`shell/dsh/`:
-  a pinned Node + `npm ci` of a committed lockfile, ~110 MB) and the panel's **Install the coding agent** fetches it
+  a pinned Node + `npm ci` of a committed lockfile, 110–133 MB, boot-tested; dry run: `build-dsh-runtime.yml`) and the panel's **Install the coding agent** fetches it
   into `<userData>/dsh-runtime`; in dev, `LOL_DSH_DIR` (+ `LOL_DSH_NODE` when that folder has no Node of its own)); and
   the **Computer** (next bullet). **LOL Vibe was named LOL Chat until 2026-09-27** (owner): only what a person
   reads changed; the code and the data keep the old name (`renderer/chat/`, `#lolchat`, the `lol-chat` IndexedDB,

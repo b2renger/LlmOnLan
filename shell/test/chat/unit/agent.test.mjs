@@ -4,7 +4,7 @@
 // "done" with nothing in it; the recap keeps the newest turns; a model is trusted with edits only when measured.
 import assert from 'node:assert/strict';
 import { buildRecap, emptyTurn, applyRecord, resultOf, startAgentTurn } from '../../../renderer/chat/projects/agent.mjs';
-import { profileFor } from '../../../renderer/chat/projects/models.mjs';
+import { profileFor, pickEditor } from '../../../renderer/chat/projects/models.mjs';
 
 const REC = {
   thought: { kind: 'step', text: '', reasoning: 'I will write the page.', stopReason: 'toolUse', outTokens: 20 },
@@ -114,5 +114,16 @@ export default (test) => {
     assert.equal(profileFor('gemma4:12b').maxTokens, 4096);
     assert.deepEqual(profileFor('brand-new:7b'), { edits: 'unknown', maxTokens: 8192, measured: '' });
     assert.equal(profileFor(null).edits, 'unknown');
+  });
+
+  test('models: a project chat moves off a weak default to a good model the farm serves — never off a person\'s pick', () => {
+    const farm = [{ id: 'gemma4:12b' }, { id: 'Qwen3.8-latest', underlying: 'qwen3.8:latest' }, { id: 'nemotron-3.5-lightning:30b' }];
+    assert.equal(pickEditor('gemma4:12b', farm, false), 'Qwen3.8-latest', 'the first good one, judged behind its alias');
+    assert.equal(pickEditor('gemma4:12b', farm, true), 'gemma4:12b', 'a person chose it on this thread: it stays');
+    assert.equal(pickEditor('nemotron-3.5-lightning:30b', farm, false), 'nemotron-3.5-lightning:30b', 'already good');
+    assert.equal(pickEditor('assistant', [{ id: 'assistant', underlying: 'Qwen3.8-27B-UD-IQ2_S' }], false), 'assistant', 'good behind llama.cpp\'s alias');
+    assert.equal(pickEditor('gemma4:12b', [{ id: 'gemma4:12b' }], false), 'gemma4:12b', 'nothing better served: unchanged');
+    assert.equal(pickEditor('', farm, false), 'Qwen3.8-latest', 'no model yet');
+    assert.equal(pickEditor('x', null, false), 'x');
   });
 };

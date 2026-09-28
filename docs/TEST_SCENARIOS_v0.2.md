@@ -164,6 +164,31 @@ and TouchDesigner or Max (OSC). Scenarios marked **(no farm)** work with the far
 - [ ] **7.3 Never the outputs.** Arm the outputs in the Computer, then ask Open WebUI to run a graph: it
   answers that only a person may run it while the outputs are armed.
 
+## 7b. LOL Vibe's IDE — the coding agent (v0.2.3+; docs/IDE_PLAN.md)
+
+The agent is DeepSeek Harness on the farm's model. It works only inside one project folder, with file tools
+(no shell, no web). Best with qwen3.8 or nemotron on the farm.
+
+- [ ] **7b.1 Install.** LOL Vibe ▸ a chat ▸ **Project** (the button beside *System prompt*). The panel says the
+  agent is not installed: **Install the coding agent** — about 120 MB from GitHub, a progress line, then
+  *installed*. Quit and reopen the app: it is still installed (nothing downloads again).
+- [ ] **7b.2 A project.** Type a name, **New project**. The panel shows its name; the chat's model is qwen3.8 or
+  nemotron if the farm serves one (on a gemma4-only farm the model line warns that gemma4 is weak at edits).
+- [ ] **7b.3 It builds.** Ask: *"Make index.html: a three.js page with a slowly rotating cube, three 0.160.0 from
+  cdn.jsdelivr.net."* Within ~30 s: the reply says what it did, the stats say *N steps · s*, **Thought for…**
+  opens on the steps (*→ write index.html ✓*), the file list shows index.html and **Preview** shows the cube.
+- [ ] **7b.4 It edits.** Ask: *"Add a speed slider in a corner; change nothing else."* The **Changes** tab shows
+  the old and new text of each edit; the Preview reloads with the slider.
+- [ ] **7b.5 You edit.** **Code** tab ▸ index.html ▸ change a colour ▸ **Save** (or Ctrl+S) ▸ **Preview**: it
+  changed. **Open folder** shows the files in `<data folder>/LOL Studio Projects/`; **Open in browser** opens the
+  page (only this computer can reach it).
+- [ ] **7b.6 Stop.** Ask for something long, press **Stop**: the reply stops at once and says so. Ask again: it
+  works, and it still knows the earlier turns (it gets a recap).
+- [ ] **7b.7 Another model.** Pick nemotron in the model menu and ask for a small change: it works (the agent
+  restarts on the new model). Pick gemma4: the model line warns.
+- [ ] **7b.8 Nothing else leaves.** With a password on the farm (2.3), the agent still works. A normal chat (a
+  thread with no project) is answered by the farm as before, not by the agent.
+
 ## 8. After testing
 
 - [ ] Everything above is ticked, or each failure is written down with what you saw.

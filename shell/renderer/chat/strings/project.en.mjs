@@ -28,7 +28,7 @@ registerStrings('project', {
   modelWeak: '{model} is weak at editing code (it thinks itself out of room). Pick qwen3.8 or nemotron in the model menu.',
   modelUnknown: 'No one has measured {model} on code edits yet.',
   notInstalled: 'The coding agent is not installed on this computer yet.',
-  install: 'Install the coding agent (about 110 MB)',
+  install: 'Install the coding agent (about 120 MB)',
   installCheck: 'Looking for the coding agent on GitHub…',
   installing: 'Downloading the coding agent… {percent}%',
   unpacking: 'Unpacking the coding agent…',

@@ -10,7 +10,7 @@ import { SLOTS } from '../core/registry.mjs';
 import { EV } from '../core/events.mjs';
 import { t } from '../core/i18n.mjs';
 import { getDoor, onInstall } from '../projects/agent.mjs';
-import { profileFor } from '../projects/models.mjs';
+import { profileFor, pickEditor } from '../projects/models.mjs';
 import { tabEdit, newlineEdit, applyEdit } from '../computer/code-edit.mjs';
 import '../strings/project.en.mjs';
 
@@ -169,11 +169,24 @@ function createPanel(host, app) {
 
   // ---- behaviour -----------------------------------------------------------------------------------
 
-  const threadModel = () => (thread && thread.modelSource === 'user' && thread.model)
-    || (app.farm && typeof app.farm.get === 'function' && app.farm.get() && app.farm.get().defaultModel) || '';
+  const caps = () => (app.farm && typeof app.farm.get === 'function' ? app.farm.get() : null);
+  /** The model the next message goes to: the picker's, as the composer sends it. */
+  const onScreen = () => (app.picker && typeof app.picker.value === 'function' && app.picker.value())
+    || (thread && thread.modelSource === 'user' && thread.model) || (caps() && caps().defaultModel) || '';
+
+  /** A project chat starts on a model that is good at edits when the farm serves one (never over a person's pick). */
+  async function preferGoodModel() {
+    const c = caps();
+    if (!app.picker || typeof app.picker.set !== 'function' || !c || !app.state.threadId) return;
+    const current = onScreen();
+    const row = app.repo ? await app.repo.getThread(app.state.threadId) : null;
+    const chosen = !!(row && row.modelSource === 'user' && row.model === current);
+    const next = pickEditor(current, c.models || [], chosen);
+    if (next && next !== current) app.picker.set(next, { byUser: true });
+  }
 
   function paintModel() {
-    const shown = threadModel();
+    const shown = onScreen();
     // Judge the model behind a farm alias ("assistant" on llama.cpp), named as the farm names it.
     const info = shown && app.farm && typeof app.farm.modelInfo === 'function' ? app.farm.modelInfo(shown) : null;
     const m = (info && info.underlying) || shown;
@@ -329,6 +342,7 @@ function createPanel(host, app) {
       if (app.work) app.work.open('project');
     }
     if (app.work && typeof app.work.setStudio === 'function') app.work.setStudio({ projectId: id || null });
+    if (id) await preferGoodModel();
   }
 
   form.addEventListener('submit', (/** @type {Event} */ ev) => {
@@ -380,6 +394,9 @@ function createPanel(host, app) {
     void refreshFiles().then(() => { paintChanges(); mountFrame(true); if (openFile && tab === 'code' && TEXT_RE.test(openFile)) void openInCode(openFile); });
   };
   const off = app.bus.on(EV.STREAM_END, onEnd);
+  // The picker announces every change of the effective model on #chat-model (ui/model-picker.mjs announce()).
+  const onModel = () => paintModel();
+  doc.addEventListener('lolchat:model', onModel);
 
   return {
     show(/** @type {any} */ ctx) { visible = true; void load(ctx); },
@@ -391,6 +408,7 @@ function createPanel(host, app) {
       unmountFrame();
       if (typeof off === 'function') off();
       offInstall();
+      doc.removeEventListener('lolchat:model', onModel);
       host.replaceChildren();
     },
     debug: {

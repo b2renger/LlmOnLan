@@ -68,6 +68,24 @@ export default [
             });
             h.eq(stored, bound.projectId, 'the thread is bound to the project in the store');
 
+            // The model line follows the picker: the default (`assistant`, Qwen3.8 behind the alias) is good at edits;
+            // a person switching to gemma4 gets the warning at once; switching back clears it.
+            const line = (/** @type {RegExp} */ re, /** @type {boolean} */ warn) => h.waitFor((src, w) => {
+                const p = document.querySelector('#lolchat .chat-proj-model');
+                return p && new RegExp(src).test(p.textContent || '') && p.classList.contains('is-warn') === w ? p.textContent : null;
+            }, { timeout: 10000, args: [re.source, warn] });
+            h.assert(/Qwen3\.8/.test(await line(/good at editing code/, false)), 'judged on the model behind the alias');
+            const pick = (/** @type {string} */ id) => h.eval((v) => {
+                const s = /** @type {HTMLSelectElement} */ (document.getElementById('chat-model'));
+                s.value = v;
+                s.dispatchEvent(new Event('change', { bubbles: true }));
+                return s.value;
+            }, id);
+            h.eq(await pick('gemma4:12b'), 'gemma4:12b');
+            await line(/weak at editing code/, true);
+            await pick('assistant');
+            await line(/good at editing code/, false);
+
             // 2. The agent writes the page.
             await send(h, 'write index.html: <h1 id="hi">hello</h1>');
             const first = await settled(h, 1);

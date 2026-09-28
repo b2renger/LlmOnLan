@@ -14,6 +14,23 @@ const KNOWN = [
   { re: /^gemma4/i, edits: 'weak', maxTokens: 4096, measured: '1/3 edits: it thinks itself out of budget, 2026-09-28' },
 ];
 
+/**
+ * The model a project chat should start on: the current one when a person chose it on this thread or it is good at
+ * edits; otherwise the first model the farm serves that is (judged on the model behind an alias); otherwise the
+ * current one. A person's own pick is never overridden — the panel's model line says what it is.
+ * @param {string} current the model on screen @param {Array<{id: string, underlying?: string|null}>} catalog
+ * @param {boolean} chosen a person picked `current` on this thread
+ * @returns {string}
+ */
+export function pickEditor(current, catalog, chosen) {
+  const list = Array.isArray(catalog) ? catalog : [];
+  const good = (/** @type {any} */ m) => profileFor((m && m.underlying) || (m && m.id)).edits === 'good';
+  if (chosen && current) return current;
+  if (current && good(list.find((m) => m.id === current) || { id: current })) return current;
+  const alt = list.find(good);
+  return alt ? alt.id : current;
+}
+
 /** @param {string|null|undefined} model @returns {ModelProfile} */
 export function profileFor(model) {
   const id = String(model || '');
