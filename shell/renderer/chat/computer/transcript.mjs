@@ -296,6 +296,11 @@ export function install(app) {
     got: () => t('computer.txGot'),
     cost: () => t('computer.txCost'),
   };
+  const TAB_HINT = {
+    sent: () => t('computer.txSentHint'),
+    got: () => t('computer.txGotHint'),
+    cost: () => t('computer.txCostHint'),
+  };
 
   for (const name of TABS) {
     const b = document.createElement('button');
@@ -304,6 +309,7 @@ export function install(app) {
     b.setAttribute('data-tab', name);
     b.setAttribute('role', 'tab');
     b.textContent = TAB_LABEL[name]();
+    b.title = TAB_HINT[name]();
     b.addEventListener('click', () => { tab = name; paint(); });
     tabs.appendChild(b);
   }

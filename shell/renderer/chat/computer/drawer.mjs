@@ -119,12 +119,14 @@ export function install(app) {
   const grip = div('comp-drawer-grip');
   grip.setAttribute('role', 'separator');
   grip.setAttribute('aria-orientation', 'vertical');
+  grip.title = t('computer.drawerGripHint');
 
   const head = div('comp-drawer-head');
   const shut = document.createElement('button');
   shut.type = 'button';
   shut.className = 'comp-drawer-close';
   shut.textContent = t('computer.drawerClose');
+  shut.title = t('computer.drawerCloseHint');
   shut.addEventListener('click', () => api.close());
   head.appendChild(shut);
 
@@ -145,7 +147,7 @@ export function install(app) {
 
   root.replaceChildren(grip, head, mount, panels, empty);
   root.classList.add('hidden');
-  root.setAttribute('aria-label', t('computer.surface'));
+  root.setAttribute('aria-label', t('computer.drawerLabel'));
   root.style.width = `${width}px`;
 
   // ---- the value -------------------------------------------------------------------------------

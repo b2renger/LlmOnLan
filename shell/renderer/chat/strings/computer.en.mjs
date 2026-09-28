@@ -18,29 +18,38 @@ import { registerStrings } from '../core/i18n.mjs';
 registerStrings('computer', {
   // ---- the loader (integrator) ---------------------------------------------------------------
   surface: 'Computer',
-  loaderFailed: 'Part of the Computer failed to load ({key}) — see the developer console.',
+  loaderFailed: 'Part of the Computer did not load ({key}), so some of it may not work. Restart LlmOnLan to try again.',
 
   // ---- the library sidebar (K1-U2) -----------------------------------------------------------
   libTitle: 'Graphs',
   libNew: 'New',
+  libNewHint: 'Start a new, empty graph',
   libSearch: 'Search graphs',
-  libEmpty: 'No graphs yet. Press New to start one.',
-  libNoMatch: 'No graph matches “{q}”.',
+  libSearchHint: 'Find a graph by its title',
+  libEmpty: 'No graphs yet. Press New to start one, or open a lesson or a template from Learn.',
+  libNoMatch: 'No graph title has “{q}” in it. Clear the search to see every graph.',
   libUntitled: 'Untitled graph',
-  libParts: '{n} parts',
-  libPartsOne: '1 part',
+  libOpenHint: 'Open this graph. Double-click to rename it.',
+  libGripHint: 'Drag to make the list wider or narrower',
+  libParts: '{n} boxes',
+  libPartsOne: '1 box',
   libNeverRun: 'never run',
   libLastRun: 'last run {when}',
   libRename: 'Rename',
+  libRenameHint: 'Give this graph a new name',
+  libRenameKeys: 'Type the new name. Enter keeps it, Esc cancels.',
   libDuplicate: 'Duplicate',
+  libDuplicateHint: 'Make a copy of this graph, answers included',
   libDuplicateTitle: '{title} (copy)',
   libDelete: 'Delete',
+  libDeleteHint: 'Delete this graph from this computer (it asks first)',
   libDeleteAsk: 'Delete “{title}”? This cannot be undone — export it first if you want to keep it.',
   libDeleteConfirm: 'Delete',
   libExport: 'Export…',
+  libExportHint: 'Save this graph as a .lolgraph.json file, to keep or to share',
   libExportValues: 'Include results',
   libImport: 'Import…',
-  libImportFailed: 'That file is not a graph this Computer can open.',
+  libImportFailed: 'That file is not a graph this Computer can open. Pick a .lolgraph.json file (the kind Export… saves).',
   libImportNewer: 'This graph was made with a newer version of the Computer. Update LlmOnLan and open it again — nothing has been changed.',
 
   // ---- the migration (K1-U2) -----------------------------------------------------------------
@@ -48,44 +57,55 @@ registerStrings('computer', {
   migrateDoneOne: 'Brought one graph over from your chats.',
   migrateFromThread: 'From: {title}',
   migrateFromThreadUnknown: 'From a deleted chat',
-  migrateStranded: '{n} graphs could not be brought over from your chats. They are still there — reopen the Computer to try again.',
-  migrateStrandedOne: 'One graph could not be brought over from your chats. It is still there — reopen the Computer to try again.',
+  migrateStranded: '{n} graphs could not be brought over from your chats. They are still there — restart LlmOnLan to try again.',
+  migrateStrandedOne: 'One graph could not be brought over from your chats. It is still there — restart LlmOnLan to try again.',
 
   // ---- the run bar (K1-U3) -------------------------------------------------------------------
   runAll: 'Run all',
+  runAllHint: 'Run every box that is not up to date (Ctrl+Enter). Finished boxes keep their answers and are not asked again.',
   runStop: 'Stop',
-  runParts: '{n} parts',
-  runPartsOne: '1 part',
+  runStopHint: 'Stop the run (Esc). Finished boxes keep their answers.',
+  runParts: '{n} boxes',
+  runPartsOne: '1 box',
+  runPartsHint: 'Before a run: the boxes on the canvas. After a run: how many boxes ran.',
   runGenerations: '{n} generations',
   runGenerationsOne: '1 generation',
+  runGensHint: 'A generation is one answer written by the farm’s model. Before a run: how many the next run may ask for (a range when the graph has a loop). After a run: how many it asked for.',
+  runCapHint: 'Generations used, out of the Cap: the most model answers one run may ask for (amber past 80 %). Set the Cap in the canvas toolbar.',
   runHelp: 'What is this?',
   runNothing: 'Nothing to run — every box is up to date.',
 
   // ---- the drawer (K1-U3) --------------------------------------------------------------------
+  drawerLabel: 'Side panel: a result, what a box sent, or its code',
   drawerClose: 'Close',
-  drawerEmpty: 'Click a value on the canvas to read it here.',
+  drawerCloseHint: 'Close this panel (Esc)',
+  drawerGripHint: 'Drag to make this panel wider or narrower',
+  drawerEmpty: 'Click the result at the foot of a box to read it here.',
 
   // ---- the transcript (K2-U3, COMPUTER_PLAN §8.1) ---------------------------------------------
   // Three tabs on one thinking part: what WILL be sent (before a run, and for free), what came
   // back verbatim, and what it cost. Namespace `computer.tx*` is K2-U3's alone.
   txTitle: 'What gets sent',
   txSent: 'Sent',
+  txSentHint: 'The prompt, word for word, as it goes to the farm. You can read it before a run: it costs nothing.',
   txGot: 'Got',
+  txGotHint: 'The model’s answer, word for word',
   txCost: 'Cost',
-  txSentEmpty: 'Nothing is wired into this box yet, and it has no instruction.',
-  txGotEmpty: 'This box has not run yet. Open Sent to read the prompt before you spend a generation.',
-  txCostEmpty: 'No run to cost yet.',
-  txSystem: 'System',
+  txCostHint: 'How long the answer took, how many tokens it used, and which farm wrote it',
+  txSentEmpty: 'Nothing is wired into this box yet, and it has no instruction. Type an instruction in the box, or wire something into it.',
+  txGotEmpty: 'This box has not run yet. Press ▶ on it to ask the farm; Sent shows the prompt first, for free.',
+  txCostEmpty: 'This box has not run yet, so it has cost nothing.',
+  txSystem: 'System message',
   txInstruction: 'Instruction',
   txParamsAuto: 'automatic',
-  txLadderSchema: 'asked with schema',
-  txLadderProse: 'model returned prose with a fenced object',
-  txLadderExtract: 'extracted',
-  txLadderValid: 'validated ✓',
-  txLadderFailed: 'could not be validated',
+  txLadderSchema: 'asked for JSON of a set shape',
+  txLadderProse: 'the model wrapped the JSON in words',
+  txLadderExtract: 'the JSON was taken out',
+  txLadderValid: 'it fits the shape ✓',
+  txLadderFailed: 'it does not fit the shape',
   txCostLine: '{seconds} s · {tokens} tokens · {cached} · farm: {farm}',
-  txCached: 'cached',
-  txNotCached: 'not cached',
+  txCached: 'answer reused, nothing sent',
+  txNotCached: 'new answer',
   txUnknownFarm: 'no farm',
 
   // ---- K3: the scheduler, the ceilings, the waits and the journal (§4.6, §7.5, §8.3) ----------
@@ -94,25 +114,27 @@ registerStrings('computer', {
   // The rule §4.6 insists on: a ceiling is a STOP, never an error, and every sentence says what
   // was kept and offers the one button that raises it for this run.
   runRange: '{min}–{max} generations',
-  runWaiting: '{n} questions waiting',
-  runWaitingOne: '1 question waiting',
-  runWaitFor: 'Waiting for {part}',
+  // v0.2.3 review: a Timer waits too (control-bus park), so the count says boxes, not questions.
+  runWaiting: '{n} boxes waiting',
+  runWaitingOne: '1 box waiting',
+  runWaitFor: 'Waiting on the {part} box',
   runShowWaiting: 'Show me',
-  runBarred: '{n} boxes were stopped by a gate',
-  runBarredOne: '1 box was stopped by a gate',
-  runLeftStale: 'left stale by edits: {n}',
+  runShowWaitingHint: 'Go to the box that has waited longest: a question for you, or a Timer',
+  runBarred: '{n} boxes were skipped: a box before them closed the way (the grey arrows)',
+  runBarredOne: '1 box was skipped: a box before it closed the way (the grey arrow)',
+  runLeftStale: 'boxes changed during the run: {n} — Run all again to update them',
   runMerged: 'Added to the run.',
   // Critic S1-1: what a finished run SAYS — one sentence, the same in the bar and the live region
   // (computer/runbar.mjs outcomeOf). A yield is not "up to date": it says why nothing was sent.
   runOutcomeHidden: 'Paused: this window was in the background, so nothing was sent to the farm. Press Run all to carry on.',
   runOutcomeBusy: 'Paused: the farm was busy with someone else. Press Run all to carry on.',
-  runOutcomeAlready: 'A run is already going.',
+  runOutcomeAlready: 'A run is already going. Wait for it, or press Stop.',
   runOutcomeStopped: 'Stopped. Finished boxes kept their answers.',
-  runOutcomeCycle: 'This graph has a loop and cannot run.',
+  runOutcomeCycle: 'This graph has a loop with nothing to stop it, so it cannot run. Put a Toggle, a Condition or a Button in the loop.',
   runOutcomeErrors: '{n} boxes failed — each one says why.',
   runOutcomeErrorsOne: '1 box failed — it says why.',
-  runOutcomeCapped: 'Stopped at the cap of {cap} generations, {n} boxes still to run.',
-  runOutcomeCappedItems: 'Stopped: one box would run {items} times, over the cap of {cap}.',
+  runOutcomeCapped: 'Stopped at the Cap of {cap} generations, {n} boxes still to run. Raise the Cap to finish them.',
+  runOutcomeCappedItems: 'Stopped: one box would run {items} times, over the Cap of {cap}. Raise the Cap, or send it fewer items.',
   runOutcomeLimited: 'Stopped at one of this run’s limits. Nothing was lost.',
   runOutcomePlanned: 'Nothing ran: its Timers would take longer than this run’s time limit.',
   runOutcomeDone: '{n} boxes ran in {sec}s.',
@@ -127,26 +149,29 @@ registerStrings('computer', {
 
   limitIterations: 'This run reached its limit of {limit} passes through “{part}”. Nothing was lost.',
   limitGenerations: 'This run reached its limit of {limit} generations. Nothing was lost.',
-  limitWall: 'The run stopped after {minutes} minutes.',
+  limitWall: 'The run stopped at its time limit of {minutes} minutes. Nothing was lost.',
   limitWallPark: 'Nobody answered the question in “{part}”, so the run stopped after {minutes} minutes.',
   limitActivations: 'This run reached its limit of {limit} steps. Nothing was lost.',
   limitTimerPlan: 'That run would wait {minutes} minutes before it finished — longer than the {limitMinutes} minute limit. Shorten a Timer, or raise the limit for this run.',
   limitRaise: 'Raise it for this run',
   limitShowSpend: 'Show me what spent it',
 
-  resumeBanner: 'The last run stopped when the app closed — {done} of {total} boxes finished.',
+  resumeBanner: 'The last run stopped when the app closed — {done} of {total} boxes finished. Resume runs only the rest.',
   resumeAction: 'Resume',
-  resumeDismiss: 'Start fresh',
+  resumeActionHint: 'Run the boxes that did not finish. The finished ones keep their answers and are not asked again.',
+  // v0.2.3 review: it was "Start fresh", but it resets nothing — it only closes the offer for good.
+  resumeDismiss: 'Dismiss',
+  resumeDismissHint: 'Hide this for good. Nothing runs and nothing is deleted: Run all finishes the other boxes whenever you like.',
 
-  // Critic S1-12: no lesson number until a loops lesson ships (LESSONS has 0-4). Critic S2-5: the
-  // canvas (sayLoopUngated) draws the loopLesson button ONLY once `l10-loops` ships, and then it
-  // opens that lesson — so its label says what the click does.
-  loopUngated: 'A loop needs something that can stop it. Put a Toggle in the way.',
-  loopLesson: 'Open the lesson on loops',
+  // Critic S2-5: the canvas (sayLoopUngated) draws the loopLesson button only when the Learn shelf
+  // has the loops lesson, and then it opens that lesson — so its label says what the click does.
+  // The gate boxes named are graph/topo.mjs GATE_TYPES' commonest; lesson 6 builds one with a Toggle.
+  loopUngated: 'A loop needs a box that can stop it. Put a Toggle, a Condition or a Button in the loop.',
+  loopLesson: 'Open lesson 6 · a loop that stops',
 
   // ---- legacy parts, demoted at K1 (K1-U3) ---------------------------------------------------
   legacyBadge: 'legacy',
-  legacyNoThread: 'This part belonged to a chat. The Computer is its own surface now — delete it, or copy the text into a Text box.',
+  legacyNoThread: 'This box belonged to a chat. The Computer is its own surface now — delete it, or copy the text into a Text box.',
 
   // ---- K5 kickoff (addendum KE-7): a lesson's recorded answer, badged for good ----------------
   demoBadge: 'demo answer — not generated',
@@ -155,8 +180,8 @@ registerStrings('computer', {
   // ---- K7 (addendum KG): the debug-log switch, computer/recorder.mjs --------------------------
   recOff: 'Record log',
   recOn: 'Recording · {n} events',
-  recOffHint: 'Record everything you do here, and every error, into a log file on this computer — to hand over with a bug report. It also keeps the last few minutes before you pressed it.',
-  recOnHint: 'Recording to {name}. Press to stop.',
+  recOffHint: 'Record what you do here, every run and every error, into a log file in the LlmOnLan logs folder on this computer — to hand over with a bug report. It starts with what happened just before you pressed it, and keeps recording after a restart until you press it again. What you type and what is sent to the farm go in the file; passwords and keys never do. While it records, press Mark bug when something goes wrong.',
+  recOnHint: 'Recording to {name}. Press to stop. When something goes wrong, press Mark bug.',
   recStarting: 'Starting…',
   recMark: 'Mark bug',
   recMarkHint: 'Put a marker in the log right now, with a screenshot and a snapshot of this graph, and say in a sentence what went wrong.',
@@ -171,9 +196,9 @@ registerStrings('computer', {
   recSaved: 'Log saved: {name}',
   recSavedPartial: 'Log saved as {name}, but {n} batch(es) of lines could not be written to it.',
   recStopFailed: 'The log could not be closed properly: {message}',
-  recMarkFailed: 'The marker could not be written to the log.',
-  recFull: 'The log reached its size limit and stopped. It is saved as {name}.',
-  recFailed: 'Could not start the log: {message}',
+  recMarkFailed: 'The marker could not be written to the log. Press Mark bug again.',
+  recFull: 'The log reached its size limit (25 MB) and stopped. It is saved as {name}. Press Record log to start a new one.',
+  recFailed: 'Could not start the log: {message}. Press Record log to try again.',
 
   // ---- a drop or a paste that finished after a graph switch (critic R1 B17, Package C) ------
   // A big file takes a moment to read; the boxes it makes belong to the graph it was dropped on.

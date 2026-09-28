@@ -425,7 +425,7 @@ export default (test) => {
     assert.equal(lastRunAt(doc, []), 9000, 'no journal: the pre-K3 approximation stands');
     assert.equal(lastRunAt({ parts: [], updatedAt: 9000 }, []), 0);
     const now = Date.UTC(2026, 8, 24, 12);
-    assert.match(cardMeta({ parts: [{ id: 'a' }], updatedAt: now }, now, [{ startedAt: now - 1000, endedAt: now }]), /^1 part · /);
+    assert.match(cardMeta({ parts: [{ id: 'a' }], updatedAt: now }, now, [{ startedAt: now - 1000, endedAt: now }]), /^1 box · /);
   });
 
   // ---- B14: the migration ------------------------------------------------------------------------

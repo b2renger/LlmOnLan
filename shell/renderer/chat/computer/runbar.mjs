@@ -304,23 +304,29 @@ export function install(app) {
 
   // ---- the bar ---------------------------------------------------------------------------------
   const runBtn = button('comp-run-all', t('computer.runAll'), () => { runAll(); });
+  runBtn.title = t('computer.runAllHint');
   const stopBtn = button('comp-run-stop', t('computer.runStop'), () => {
     const r = runner();
     if (r && typeof r.stop === 'function') r.stop();
   });
+  stopBtn.title = t('computer.runStopHint');
   stopBtn.classList.add('hidden');
 
   const counts = document.createElement('div');
   counts.className = 'comp-run-counts';
   const partsChip = chip('comp-run-parts', partsLabel(0), counts);
+  partsChip.title = t('computer.runPartsHint');
   const gensChip = chip('comp-run-gens', generationsLabel(0), counts);
+  gensChip.title = t('computer.runGensHint');
   const capChip = chip('comp-run-cap', capMeter(0, cap).text, counts);
+  capChip.title = t('computer.runCapHint');
   // K3-U3 (§8.3: "Waiting: ... and the run bar counts them"). Two Dialogs open at once and the bar
   // says `2 questions waiting` — the one place a reader can see that the run is not stuck but
   // asking. The button beside it puts the canvas on the oldest question.
   const waitsChip = chip('comp-run-waits', '', counts);
   waitsChip.hidden = true;
   const waitsBtn = button('comp-run-show-waiting', t('computer.runShowWaiting'), () => { showWaiting(); });
+  waitsBtn.title = t('computer.runShowWaitingHint');
   waitsBtn.hidden = true;
   counts.appendChild(waitsBtn);
 
@@ -356,7 +362,7 @@ export function install(app) {
 
   // Order matters: the status line reads left-to-right after the counts it explains, and the `?`
   // carries `margin-left:auto`, so it and the Record switch after it are pinned to the right edge.
-  // Outputs (plan v2 §3.5): shown only when the graph has a Send box. DISARMED is a dry run; arming
+  // Outputs (plan v2 §3.5): shown only when the graph has a Send or a Trigger box. DISARMED is a dry run; arming
   // asks first and lists every target; Panic disarms and blacks out the DMX a graph lit. The truth is
   // in main (outputs.ts); `armed` here only mirrors it for the label.
   let armed = false;

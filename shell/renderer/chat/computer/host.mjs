@@ -475,10 +475,12 @@ export function createHost(app, els) {
   resumeGo.type = 'button';
   resumeGo.className = 'comp-resume-go';
   resumeGo.textContent = t('computer.resumeAction');
+  resumeGo.title = t('computer.resumeActionHint');
   const resumeFresh = document.createElement('button');
   resumeFresh.type = 'button';
   resumeFresh.className = 'comp-resume-fresh';
   resumeFresh.textContent = t('computer.resumeDismiss');
+  resumeFresh.title = t('computer.resumeDismissHint');
   resumeBar.append(resumeText, resumeGo, resumeFresh);
   if (els && els.banner) els.banner.appendChild(resumeBar);
   /** @type {{graphId: string, runId: string}|null} */ let resumeOf = null;

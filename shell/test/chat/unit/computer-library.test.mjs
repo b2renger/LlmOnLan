@@ -256,10 +256,10 @@ export default (test) => {
 
   test('the card line counts parts and says whether it has ever run', () => {
     const now = Date.UTC(2026, 8, 22, 12, 0, 0);
-    assert.equal(cardMeta({ parts: [], updatedAt: now }, now), '0 parts · never run');
-    assert.equal(cardMeta({ parts: [{ id: 'a' }], updatedAt: now }, now), '1 part · never run');
+    assert.equal(cardMeta({ parts: [], updatedAt: now }, now), '0 boxes · never run');
+    assert.equal(cardMeta({ parts: [{ id: 'a' }], updatedAt: now }, now), '1 box · never run');
     const ran = cardMeta({ parts: [{ id: 'a', stats: { calls: 1 } }, { id: 'b' }], updatedAt: now }, now);
-    assert.match(ran, /^2 parts · last run /);
+    assert.match(ran, /^2 boxes · last run /);
     assert.ok(!ran.includes('{when}'), 'the placeholder was substituted');
   });
 

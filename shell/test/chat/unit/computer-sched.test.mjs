@@ -927,7 +927,7 @@ export default (test) => {
     assert.equal(resumable([live, { id: 'r3', endedAt: 12, status: 'done' }]), null, 'an older crash a later run moved past is not offered');
   });
 
-  test('Start fresh closes the crashed run as stopped, so the banner does not come back (§7.5)', async () => {
+  test('Dismiss (it was Start fresh) closes the crashed run as stopped, so the banner does not come back (§7.5)', async () => {
     /** @type {Map<string, any>} */ const kv = new Map();
     const repo = { kvGet: async (/** @type {string} */ k, /** @type {any} */ d) => (kv.has(k) ? kv.get(k) : d), kvSet: async (/** @type {string} */ k, /** @type {any} */ v) => { kv.set(k, JSON.parse(JSON.stringify(v))); } };
     await repo.kvSet(journalKey('g1'), [{ id: 'r1', endedAt: 5, status: 'done' }, { id: 'r2', endedAt: null, status: 'running' }]);

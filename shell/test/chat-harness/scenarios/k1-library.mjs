@@ -96,7 +96,7 @@ export default [
             const betaCard = cards.find((/** @type {any} */ c) => c.id === beta);
             h.eq(betaCard.title, 'Beta');
             h.eq(betaCard.open, true, 'the open document is marked on its card');
-            h.assert(/0 parts/.test(betaCard.meta) && /never run/.test(betaCard.meta),
+            h.assert(/0 boxes/.test(betaCard.meta) && /never run/.test(betaCard.meta),
                 'a fresh document says it has no parts and has never run: ' + betaCard.meta);
 
             // …and all of it survives a reload, including WHICH document was open.

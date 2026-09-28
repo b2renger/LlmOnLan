@@ -362,6 +362,7 @@ export function createLibrary(app, els) {
     const newBtn = h('button', 'comp-btn comp-btn-accent', t('computer.libNew'));
     /** @type {any} */ (newBtn).type = 'button';
     newBtn.setAttribute('data-act', 'new');
+    newBtn.title = t('computer.libNewHint');
     newBtn.addEventListener('click', () => { void newDocument(); });
 
     const importBtn = h('button', 'comp-btn', t('computer.libImport'));
@@ -377,6 +378,7 @@ export function createLibrary(app, els) {
     search.type = 'search';
     search.placeholder = t('computer.libSearch');
     search.setAttribute('aria-label', t('computer.libSearch'));
+    search.title = t('computer.libSearchHint');
     search.addEventListener('input', () => { query = search.value; paint(); });
     searchInput = search;
 
@@ -395,6 +397,7 @@ export function createLibrary(app, els) {
     const grip = h('div', 'comp-side-grip');
     grip.setAttribute('role', 'separator');
     grip.setAttribute('aria-orientation', 'vertical');
+    grip.title = t('computer.libGripHint');
     els.side.appendChild(grip);
     let dragging = false;
     grip.addEventListener('pointerdown', (/** @type {any} */ ev) => {
@@ -492,6 +495,7 @@ export function createLibrary(app, els) {
     const openBtn = h('button', 'comp-card-open');
     /** @type {any} */ (openBtn).type = 'button';
     openBtn.setAttribute('data-act', 'open');
+    openBtn.title = t('computer.libOpenHint');
     const title = h('span', 'comp-card-title', row.title || t('computer.libUntitled'));
     const meta = h('span', 'comp-card-meta', cardMeta(row, nowMs, runsById.get(row.id)));
     openBtn.append(title, meta);
@@ -501,10 +505,10 @@ export function createLibrary(app, els) {
 
     const acts = h('div', 'comp-card-acts');
     acts.append(
-      action('rename', t('computer.libRename'), () => startRename(row.id)),
-      action('duplicate', t('computer.libDuplicate'), () => { void duplicateDocument(row.id); }),
-      action('export', t('computer.libExport'), (btn) => askExport(row.id, btn)),
-      action('delete', t('computer.libDelete'), () => { void deleteDocument(row.id); }),
+      action('rename', t('computer.libRename'), t('computer.libRenameHint'), () => startRename(row.id)),
+      action('duplicate', t('computer.libDuplicate'), t('computer.libDuplicateHint'), () => { void duplicateDocument(row.id); }),
+      action('export', t('computer.libExport'), t('computer.libExportHint'), (btn) => askExport(row.id, btn)),
+      action('delete', t('computer.libDelete'), t('computer.libDeleteHint'), () => { void deleteDocument(row.id); }),
     );
     el.appendChild(acts);
 
@@ -512,11 +516,12 @@ export function createLibrary(app, els) {
     return el;
   }
 
-  /** @param {string} act @param {string} label @param {(btn: HTMLElement) => void} fn */
-  function action(act, label, fn) {
+  /** @param {string} act @param {string} label @param {string} hint @param {(btn: HTMLElement) => void} fn */
+  function action(act, label, hint, fn) {
     const b = h('button', 'comp-card-act', label);
     /** @type {any} */ (b).type = 'button';
     b.setAttribute('data-act', act);
+    b.title = hint;
     b.addEventListener('click', (ev) => { ev.stopPropagation(); fn(b); });
     return b;
   }
@@ -529,6 +534,7 @@ export function createLibrary(app, els) {
     input.value = row.title || '';
     input.placeholder = t('computer.libUntitled');
     input.setAttribute('aria-label', t('computer.libRename'));
+    input.title = t('computer.libRenameKeys');
     let settled = false;
     const commit = (/** @type {boolean} */ keep) => {
       if (settled) return;
