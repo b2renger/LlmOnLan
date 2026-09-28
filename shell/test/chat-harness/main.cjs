@@ -235,6 +235,10 @@ function wireStudio() {
     ipcMain.handle('lol:studio:serve', (_e, id) => (typeof id === 'string' ? studio.serve(id) : { ok: false, code: 'E_ARGS', message: 'bad arguments' }));
     ipcMain.handle('lol:studio:install', () => ({ ok: false, code: 'E_RUNTIME', message: 'the harness downloads nothing' }));
     ipcMain.handle('lol:studio:share', (_e, id, on) => (typeof id === 'string' ? studio.share(id, on === true) : { ok: false, code: 'E_ARGS', message: 'bad arguments' }));
+    ipcMain.handle('lol:studio:history', (_e, id) => studio.history(String(id)));
+    ipcMain.handle('lol:studio:changes', (_e, id, oid) => studio.changes(String(id), String(oid)));
+    ipcMain.handle('lol:studio:commit', (_e, id, msg) => studio.commit(String(id), String(msg)));
+    ipcMain.handle('lol:studio:restore', (_e, id, oid) => studio.restore(String(id), String(oid)));
     app.on('will-quit', () => { void studio.dispose(); });
     console.log('[harness-main] studio wired (mock dsh)');
     return true;

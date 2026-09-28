@@ -158,6 +158,8 @@ export function serialDoor() {
  * tagged with that id. Every answer is {ok:true,...} or {ok:false, code, message}. null outside the app.
  * @returns {null | {prompt(o: any): Promise<any>, stop(): Promise<any>, status(): Promise<any>,
  *   serve(projectId: string): Promise<any>, share(projectId: string, on: boolean): Promise<any>, install(): Promise<any>,
+ *   history(projectId: string): Promise<any>, changes(projectId: string, oid: string): Promise<any>,
+ *   commit(projectId: string, message: string): Promise<any>, restore(projectId: string, oid: string): Promise<any>,
  *   onEvent(fn: (msg: any) => void): void}}
  */
 export function studioDoor() {
@@ -169,6 +171,9 @@ export function studioDoor() {
     .then((r) => (r && typeof r === 'object' && (r.ok === true || typeof r.code === 'string')
       ? r : { ok: false, code: 'E_IO', message: 'no answer from the main process' }),
     (e) => ({ ok: false, code: 'E_IO', message: String(e && e.message ? e.message : e) }));
+  /** An op an older shell may lack. @param {string} op @param {any[]} args */
+  const opt = (op, args) => (typeof api[op] === 'function' ? call(op, args)
+    : Promise.resolve({ ok: false, code: 'E_RUNTIME', message: 'this app has no project history' }));
   return {
     prompt: (o) => call('prompt', [o]),
     stop: () => call('stop', []),
@@ -177,6 +182,11 @@ export function studioDoor() {
     // Optional, like install: an older shell cannot share on the LAN.
     share: (projectId, on) => (typeof api.share === 'function' ? call('share', [String(projectId), !!on])
       : Promise.resolve({ ok: false, code: 'E_RUNTIME', message: 'this app cannot share a project on the LAN' })),
+    // Optional too: the project's history (src/main/projectGit.ts).
+    history: (projectId) => opt('history', [String(projectId)]),
+    changes: (projectId, oid) => opt('changes', [String(projectId), String(oid)]),
+    commit: (projectId, message) => opt('commit', [String(projectId), String(message)]),
+    restore: (projectId, oid) => opt('restore', [String(projectId), String(oid)]),
     // Optional: a shell from before the runtime download has no install.
     install: () => (typeof api.install === 'function' ? call('install', [])
       : Promise.resolve({ ok: false, code: 'E_RUNTIME', message: 'this app cannot install the coding agent' })),

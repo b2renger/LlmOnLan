@@ -12,13 +12,14 @@ import { t } from '../core/i18n.mjs';
 import { getDoor, onInstall } from '../projects/agent.mjs';
 import { profileFor, pickEditor } from '../projects/models.mjs';
 import { tabEdit, newlineEdit, applyEdit } from '../computer/code-edit.mjs';
+import { diffLines, hunks } from '../projects/linediff.mjs';
 import '../strings/project.en.mjs';
 
 /** Files the Code tab opens as text (the projects API's text extensions). */
 const TEXT_RE = /\.(html?|m?js|css|json|md|txt|svg|csv|ya?ml|ini|glsl|frag|vert|ino|h|hpp|c|cpp)$/i;
 const FRAME_SANDBOX = 'allow-scripts allow-same-origin allow-forms allow-modals allow-pointer-lock';
 // A same-file literal map, so lint rule 5 can see every key a person reads.
-const TAB_LABEL = { preview: 'project.tabPreview', code: 'project.tabCode', changes: 'project.tabChanges' };
+const TAB_LABEL = { preview: 'project.tabPreview', code: 'project.tabCode', changes: 'project.tabChanges', history: 'project.tabHistory' };
 
 /** @param {any} app */
 export function install(app) {
@@ -140,7 +141,7 @@ function createPanel(host, app) {
   const tabs = make('div', 'chat-proj-tabs');
   tabs.setAttribute('role', 'tablist');
   /** @type {Record<string, HTMLButtonElement>} */ const tabBtn = {};
-  for (const id of /** @type {Array<'preview'|'code'|'changes'>} */ (['preview', 'code', 'changes'])) {
+  for (const id of /** @type {Array<'preview'|'code'|'changes'|'history'>} */ (['preview', 'code', 'changes', 'history'])) {
     const b = button(t(TAB_LABEL[id]), `chat-proj-tab chat-proj-tab-${id}`, () => { tab = id; paintTabs(); if (id === 'preview') mountFrame(); });
     b.setAttribute('role', 'tab');
     tabBtn[id] = b;
@@ -167,7 +168,14 @@ function createPanel(host, app) {
   paneCode.append(codeHead, area);
   // Changes
   const paneChanges = make('div', 'chat-proj-pane chat-proj-pane-changes');
-  view.append(tabs, panePreview, paneCode, paneChanges);
+  // History: every reply and Save is a commit (src/main/projectGit.ts); going back is a new commit.
+  const paneHistory = make('div', 'chat-proj-pane chat-proj-pane-history');
+  const commitList = make('ul', 'chat-proj-commits');
+  const commitView = make('div', 'chat-proj-commit-view');
+  paneHistory.append(commitList, commitView);
+  /** @type {Array<{oid: string, message: string, author: string, time: number}>} */ let commits = [];
+  let picked = '';
+  view.append(tabs, panePreview, paneCode, paneChanges, paneHistory);
   cols.append(fileList, view);
   main.append(bar, shareNote, model, cols);
   root.append(empty, main);
@@ -223,6 +231,65 @@ function createPanel(host, app) {
     shareNote.textContent = String((r && r.message) || '');
   }
 
+  async function loadHistory() {
+    if (!door || !projectId) return;
+    const mine = epoch;
+    const r = await door.history(projectId);
+    if (mine !== epoch) return;
+    commits = r && r.ok ? r.commits : [];
+    if (!commits.some((c) => c.oid === picked)) picked = commits.length ? commits[0].oid : '';
+    paintHistory();
+    if (picked) void showCommit(picked);
+    else commitView.replaceChildren(make('p', 'chat-proj-note', r && !r.ok ? String(r.message || '') : t('project.noHistory')));
+  }
+
+  function paintHistory() {
+    commitList.replaceChildren(...commits.map((c) => {
+      const li = make('li', 'chat-proj-commit-row');
+      const b = button(c.message, 'chat-proj-commit', () => { picked = c.oid; paintHistory(); void showCommit(c.oid); });
+      b.classList.toggle('is-open', c.oid === picked);
+      li.append(b, make('span', 'chat-proj-note chat-proj-commit-time', new Date(c.time).toLocaleString()));
+      return li;
+    }));
+  }
+
+  /** One commit: going back to it (unless it is the newest), and what it changed, file by file. @param {string} oid */
+  async function showCommit(oid) {
+    if (!door) return;
+    const mine = epoch;
+    const r = await door.changes(projectId, oid);
+    if (mine !== epoch || oid !== picked) return;
+    /** @type {HTMLElement[]} */ const out = [];
+    const at = commits.findIndex((c) => c.oid === oid);
+    if (at > 0) out.push(button(t('project.goBack'), 'chat-proj-go-back', () => { void goBack(oid); }));
+    else if (at === 0) out.push(make('p', 'chat-proj-note', t('project.latest')));
+    if (r && !r.ok) out.push(make('p', 'chat-proj-note', String(r.message || '')));
+    for (const f of (r && r.ok ? r.files : [])) {
+      const box = make('div', 'chat-proj-change');
+      box.append(make('p', 'chat-proj-change-path', f.path));
+      if (f.binary) { box.append(make('p', 'chat-proj-note', t('project.binaryChanged'))); out.push(box); continue; }
+      const pre = make('pre', 'chat-proj-diff');
+      for (const l of hunks(diffLines(f.before, f.after))) {
+        const cls = l.kind === '-' ? 'chat-proj-del' : l.kind === '+' ? 'chat-proj-add' : l.kind === '…' ? 'chat-proj-gap' : 'chat-proj-keep';
+        pre.append(make('span', cls, l.kind === '…' ? '…\n' : `${l.kind} ${l.text}\n`));
+      }
+      box.append(pre);
+      out.push(box);
+    }
+    commitView.replaceChildren(...out);
+  }
+
+  /** Make the files what they were at `oid` — a new commit, so it can be undone the same way. @param {string} oid */
+  async function goBack(oid) {
+    if (!door) return;
+    const r = await door.restore(projectId, oid);
+    if (!(r && r.ok)) { commitView.prepend(make('p', 'chat-proj-note', String((r && r.message) || ''))); return; }
+    reloads += 1;
+    await refreshFiles();
+    picked = '';
+    await loadHistory();
+  }
+
   function paintTabs() {
     for (const [id, b] of Object.entries(tabBtn)) {
       b.setAttribute('aria-selected', id === tab ? 'true' : 'false');
@@ -231,7 +298,9 @@ function createPanel(host, app) {
     panePreview.hidden = tab !== 'preview';
     paneCode.hidden = tab !== 'code';
     paneChanges.hidden = tab !== 'changes';
+    paneHistory.hidden = tab !== 'history';
     if (tab !== 'preview') unmountFrame();
+    if (tab === 'history') void loadHistory();
   }
 
   /** The page to show: the open .html file, else index.html. */
@@ -325,7 +394,11 @@ function createPanel(host, app) {
   async function saveFile() {
     if (!projectId || !openFile || area.disabled) return;
     const r = await app.projects.write(projectId, openFile, area.value, openMtime ? { ifMtime: openMtime } : undefined);
-    if (r && r.ok) { openMtime = r.mtime; codeNote.textContent = t('project.saved'); reloads += 1; void refreshFiles(); return; }
+    if (r && r.ok) {
+      openMtime = r.mtime; codeNote.textContent = t('project.saved'); reloads += 1; void refreshFiles();
+      if (door) void door.commit(projectId, openFile);   // a person's Save is a commit too
+      return;
+    }
     codeNote.textContent = r && r.code === 'E_CONFLICT' ? t('project.conflict') : String((r && r.message) || '');
   }
 
@@ -421,7 +494,11 @@ function createPanel(host, app) {
     const m = p && p.message;
     if (!projectId || !m || !thread || m.threadId !== thread.id) return;
     reloads += 1;
-    void refreshFiles().then(() => { paintChanges(); mountFrame(true); if (openFile && tab === 'code' && TEXT_RE.test(openFile)) void openInCode(openFile); });
+    void refreshFiles().then(() => {
+      paintChanges(); mountFrame(true);
+      if (openFile && tab === 'code' && TEXT_RE.test(openFile)) void openInCode(openFile);
+      if (tab === 'history') { picked = ''; void loadHistory(); }
+    });
   };
   const off = app.bus.on(EV.STREAM_END, onEnd);
   // The picker announces every change of the effective model on #chat-model (ui/model-picker.mjs announce()).
@@ -442,7 +519,7 @@ function createPanel(host, app) {
       host.replaceChildren();
     },
     debug: {
-      state: () => ({ projectId, projectName, files: files.map((f) => f.path), tab, openFile, serveUrl, lan: lanUrls.slice(), frame: frame ? frame.getAttribute('src') : null }),
+      state: () => ({ projectId, projectName, files: files.map((f) => f.path), tab, openFile, serveUrl, lan: lanUrls.slice(), history: commits.map((c) => c.message), frame: frame ? frame.getAttribute('src') : null }),
     },
   };
 }

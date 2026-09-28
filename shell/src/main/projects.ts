@@ -223,6 +223,8 @@ export function createProjectsApi(opts: {
                 const abs = path.join(cur.abs, e.name);
                 if (e.isSymbolicLink()) continue;                       // never followed, never listed
                 if (e.isDirectory()) {
+                    // A project's history (the IDE's git, projectGit.ts) is never listed, counted or swept.
+                    if (e.name === '.git') continue;
                     if (cur.depth < 8) stack.push({ abs, rel, depth: cur.depth + 1 });
                     continue;
                 }

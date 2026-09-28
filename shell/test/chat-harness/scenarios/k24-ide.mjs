@@ -135,6 +135,26 @@ export default [
             }, { timeout: 10000 });
             h.assert(/- hello/.test(diff) && /\+ world/.test(diff), `the Changes tab: ${diff}`);
             await h.screenshot('k24-ide-changes');
+
+            // History (projectGit.ts): each reply is a commit; going back is a new commit, so it can be undone too.
+            await h.click('#lolchat .chat-proj-tab-history');
+            const log = await h.waitFor(() => {
+                const s = window.LolChat.debug.project.state();
+                const pre = document.querySelector('#lolchat .chat-proj-pane-history:not([hidden]) .chat-proj-diff');
+                return s.history.length === 2 && pre ? { history: s.history, diff: pre.textContent } : null;
+            }, { timeout: 10000 });
+            h.eq(log.history, ['Agent: replace hello with world in index.html', 'Agent: write index.html: <h1 id="hi">hello</h1>'], 'one commit per reply, newest first');
+            h.assert(/- <h1 id="hi">hello<\/h1>/.test(log.diff) && /\+ <h1 id="hi">world<\/h1>/.test(log.diff), `the newest commit's diff: ${log.diff}`);
+            await h.click('#lolchat .chat-proj-commit-row:nth-child(2) .chat-proj-commit');
+            await h.waitFor(() => (document.querySelector('#lolchat .chat-proj-go-back') ? true : null), { timeout: 10000 });
+            await h.click('#lolchat .chat-proj-go-back');
+            const after = await h.waitFor(() => {
+                const s = window.LolChat.debug.project.state();
+                return s.history.length === 3 ? s.history : null;
+            }, { timeout: 10000 });
+            h.eq(after[0], 'Back to: Agent: write index.html: <h1 id="hi">hello</h1>');
+            h.eq(await h.eval(async (url) => (await fetch(url)).text(), `${bound.serveUrl}index.html`), '<h1 id="hi">hello</h1>', 'the page is back to the first reply');
+            await h.screenshot('k24-ide-history');
             h.eq((await panel(h)).frame, null, 'the Preview frame is gone while another tab is up (hidden means idle)');
 
             // 4. Stop ends a running turn.

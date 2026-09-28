@@ -18,6 +18,7 @@ import * as path from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { killTree } from './util';
 import { projectDir, resolveIn, validateId } from './projectsPath';
+import { AGENT, PERSON, OID_RE, Commit, FileChange, commitAll, history, changes, restore } from './projectGit';
 
 /** The pinned upstream (the runtime download fetches exactly this; see docs/IDE_PLAN.md §3.5). */
 export const DSH_VERSION = '0.1.7-rc.2';
@@ -168,7 +169,7 @@ interface Rt {
     child: ChildProcess; key: string; buf: string; stderr: string; dead: boolean;
     next: number; pending: Map<number, (m: any) => void>; sessions: Map<string, string>;
 }
-interface Turn { id: string; sessionId: string; running: boolean; end: string | null; dir: string }
+interface Turn { id: string; sessionId: string; running: boolean; end: string | null; dir: string; prompt: string }
 
 export interface StudioDeps {
     dataDir: () => string;
@@ -193,11 +194,25 @@ export function createStudio(deps: StudioDeps) {
     const homeOf = () => path.join(deps.dataDir(), 'lol-studio', 'dsh');
     const skillsOf = () => path.join(deps.dataDir(), 'skills');
 
+    /** The turn is over: what it changed becomes one commit (projectGit.ts), THEN the page hears it is done — so the
+     *  History tab it refreshes always finds the commit. A commit that fails never holds the turn open. */
     function finish(reason: string, error?: string): void {
         if (!turn) return;
-        const id = turn.id;
+        const t = turn;
         turn = null;
-        deps.emit({ turnId: id, done: error ? { reason, error } : { reason } });
+        const how = reason === 'completed' ? '' : ` (${reason})`;
+        const first = t.prompt.split('\n').map((l) => l.trim()).find(Boolean) || 'a reply';
+        void commitAll(t.dir, `Agent${how}: ${first}`, AGENT)
+            .catch((e) => { console.warn('[studio] could not record the reply in the project history:', (e as Error).message); })
+            .finally(() => deps.emit({ turnId: t.id, done: error ? { reason, error } : { reason } }));
+    }
+
+    /** The project folder of a valid id, or an error. */
+    function dirOf(projectId: string): { dir: string } | StudioErr {
+        const idv = validateId(projectId);
+        if (!idv.ok) return err('E_ARGS', 'bad arguments');
+        const dir = projectDir(deps.projectsRoot(), idv.id);
+        return fs.existsSync(dir) ? { dir } : err('E_PROJECT', 'That project folder is gone.');
     }
 
     function onLine(line: string): void {
@@ -241,11 +256,15 @@ export function createStudio(deps: StudioDeps) {
         await killTree(r.child.pid);
     }
 
+    /** Each bundled skill a person does not have yet (a new one reaches an old install too); theirs are never touched. */
     function seed(): void {
         const dir = skillsOf();
-        if (fs.existsSync(dir)) return;
         fs.mkdirSync(dir, { recursive: true });
-        if (deps.seedSkills && fs.existsSync(deps.seedSkills)) fs.cpSync(deps.seedSkills, dir, { recursive: true });
+        if (!deps.seedSkills || !fs.existsSync(deps.seedSkills)) return;
+        for (const name of fs.readdirSync(deps.seedSkills)) {
+            const to = path.join(dir, name);
+            if (!fs.existsSync(to)) fs.cpSync(path.join(deps.seedSkills, name), to, { recursive: true });
+        }
     }
 
     async function startRuntime(o: { key: string; dir: string; model: string; maxTokens: number; farm: StudioFarm; runtime: StudioRuntime }): Promise<Rt | StudioErr> {
@@ -329,7 +348,7 @@ export function createStudio(deps: StudioDeps) {
             const text = fresh && o.recap ? `${o.recap}\n\n${o.text}` : o.text;
             // The page names the turn when it can, so it listens BEFORE the first record (they can beat this answer).
             const named = typeof o.turnId === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(o.turnId) ? o.turnId : '';
-            turn = { id: named || randomBytes(8).toString('hex'), sessionId, running: false, end: null, dir };
+            turn = { id: named || randomBytes(8).toString('hex'), sessionId, running: false, end: null, dir, prompt: o.text };
             const id = turn.id;
             const res = await call(r, 'session/prompt', { sessionId, contentBlocks: [{ type: 'text', text }] }, 30000);
             if (res.error) {
@@ -389,6 +408,33 @@ export function createStudio(deps: StudioDeps) {
             return { ok: true, urls: urls() };
         },
 
+
+        // ---- the project's history (projectGit.ts) ----
+        async history(projectId: string): Promise<{ ok: true; commits: Commit[] } | StudioErr> {
+            const d = dirOf(projectId);
+            if ('ok' in d) return d;
+            return { ok: true, commits: await history(d.dir) };
+        },
+        async changes(projectId: string, oid: string): Promise<{ ok: true; files: FileChange[] } | StudioErr> {
+            const d = dirOf(projectId);
+            if ('ok' in d) return d;
+            if (!OID_RE.test(String(oid))) return err('E_ARGS', 'bad arguments');
+            try { return { ok: true, files: await changes(d.dir, oid) }; } catch (e) { return err('E_PROJECT', `That change is not in this project: ${(e as Error).message}`); }
+        },
+        /** A person's own change (a Save in the Code tab) as one commit. */
+        async commit(projectId: string, message: string): Promise<{ ok: true; oid: string | null } | StudioErr> {
+            const d = dirOf(projectId);
+            if ('ok' in d) return d;
+            return { ok: true, oid: await commitAll(d.dir, `You: ${String(message || 'a change').slice(0, 160)}`, PERSON) };
+        },
+        /** Put the files back as they were at `oid`, as a new commit. Never while the agent is working. */
+        async restore(projectId: string, oid: string): Promise<{ ok: true; oid: string | null } | StudioErr> {
+            const d = dirOf(projectId);
+            if ('ok' in d) return d;
+            if (!OID_RE.test(String(oid))) return err('E_ARGS', 'bad arguments');
+            if (turn && turn.dir === d.dir) return err('E_BUSY', 'The coding agent is working in this project. Stop it first.');
+            try { return { ok: true, oid: await restore(d.dir, oid) }; } catch (e) { return err('E_PROJECT', `Could not go back: ${(e as Error).message}`); }
+        },
 
         /** Is `url` on one of the projects this app serves? (main's frame veto lets the Preview through.) */
         serves(url: string): boolean {

@@ -96,3 +96,13 @@
 .chat-proj-add { display: block; color: var(--green); background: color-mix(in srgb, var(--green) 10%, transparent); }
 .chat-proj-install { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-2); }
 .chat-proj-install[hidden] { display: none; }
+.chat-proj-pane-history { gap: 8px; }
+.chat-proj-commits { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; max-height: 220px; overflow: auto; }
+.chat-proj-commit-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.chat-proj-commit { flex: 1 1 auto; min-width: 0; justify-content: flex-start; overflow: hidden; text-overflow: ellipsis; background: transparent; border-color: transparent; }
+.chat-proj-commit.is-open { background: var(--surface-2); border-color: var(--border); }
+.chat-proj-commit-time { flex: 0 0 auto; white-space: nowrap; }
+.chat-proj-commit-view { display: flex; flex-direction: column; gap: 8px; min-height: 0; overflow: auto; }
+.chat-proj-go-back { align-self: flex-start; }
+.chat-proj-keep { display: block; color: var(--muted); }
+.chat-proj-gap { display: block; color: var(--grey); }

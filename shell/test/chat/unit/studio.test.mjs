@@ -154,6 +154,9 @@ export default (test) => {
       const patch = fs.readFileSync(path.join(r.data, 'lol-studio', 'dsh', 'profiles', 'sdk', 'cordis.patch.yml'), 'utf8');
       assert.match(patch, /baseURL: "http:\/\/127\.0\.0\.1:9\/v1"/, 'the patch was written before the start');
       assert.ok(fs.existsSync(path.join(r.data, 'skills', 'ponytail', 'SKILL.md')), 'ponytail is seeded into DATA_DIR/skills');
+      const log = await r.studio.history(PID);
+      assert.deepEqual(log.commits.map((c) => c.message), ['Agent: write index.html: <h1>hi</h1>'], 'the reply is one commit, named by the prompt');
+      assert.equal(log.commits[0].author, 'LOL Vibe agent');
 
       const b = await r.studio.prompt({ projectId: PID, threadId: 't1', model: 'qwen3.8:latest', text: 'replace hi with hello in index.html', recap: 'Earlier: nothing.' });
       assert.equal(b.ok && b.fresh, false, 'the same thread keeps its session');
@@ -161,6 +164,17 @@ export default (test) => {
       assert.doesNotMatch(r.said(b.turnId), /Earlier/, 'no recap inside a live session');
       const diff = r.got.find((m) => m.turnId === b.turnId && m.rec && m.rec.kind === 'result').rec.diffs;
       assert.deepEqual(diff, [{ path: 'index.html', oldText: 'hi', newText: 'hello' }], 'an absolute path in a diff comes back relative');
+      const two = (await r.studio.history(PID)).commits;
+      assert.equal(two.length, 2);
+      const ch = await r.studio.changes(PID, two[0].oid);
+      assert.deepEqual(ch.files, [{ path: 'index.html', before: '<h1>hi</h1>', after: '<h1>hello</h1>', binary: false }]);
+      assert.equal((await r.studio.changes(PID, 'not-an-oid')).code, 'E_ARGS');
+      const back = await r.studio.restore(PID, two[1].oid);
+      assert.equal(back.ok, true);
+      assert.equal(fs.readFileSync(path.join(r.dir, 'index.html'), 'utf8'), '<h1>hi</h1>', 'back to the first reply');
+      fs.writeFileSync(path.join(r.dir, 'index.html'), '<h1>mine</h1>');
+      assert.match((await r.studio.commit(PID, 'index.html')).oid, /^[0-9a-f]{40}$/, 'a person\'s Save is a commit');
+      assert.deepEqual((await r.studio.history(PID)).commits.map((c) => c.message).slice(0, 2), ['You: index.html', 'Back to: Agent: write index.html: <h1>hi</h1>']);
 
       const c = await r.studio.prompt({ projectId: PID, threadId: 't1', model: 'nemotron-3.5-lightning:30b', text: 'hello', recap: 'Earlier: two edits.' });
       assert.equal(c.ok && c.fresh, true, 'another model is another runtime, so a fresh session with the recap');

@@ -683,6 +683,11 @@ function registerIpc(): void {
     ipcMain.handle('lol:studio:serve', (_e, id: unknown) => (isStr(id) ? studio().serve(id) : badStudio));
     // Share a project on the LAN: a person's toggle, off by default, forgotten at restart (owner, 2026-09-28).
     ipcMain.handle('lol:studio:share', (_e, id: unknown, on: unknown) => (isStr(id) ? studio().share(id, on === true) : badStudio));
+    // The project's history (projectGit.ts): the log, one commit's changes, a person's Save, going back.
+    ipcMain.handle('lol:studio:history', (_e, id: unknown) => (isStr(id) ? studio().history(id) : badStudio));
+    ipcMain.handle('lol:studio:changes', (_e, id: unknown, oid: unknown) => (isStr(id) && isStr(oid) ? studio().changes(id, oid) : badStudio));
+    ipcMain.handle('lol:studio:commit', (_e, id: unknown, msg: unknown) => (isStr(id) && isStr(msg) ? studio().commit(id, msg) : badStudio));
+    ipcMain.handle('lol:studio:restore', (_e, id: unknown, oid: unknown) => (isStr(id) && isStr(oid) ? studio().restore(id, oid) : badStudio));
     // Install the agent: this version's dsh-runtime-<platform>-<arch>.tar.gz from GitHub (the latest release's as a
     // fallback) into <userData>/dsh-runtime, where resolveRuntime finds it — the sidecar's own download + unpack.
     // A person's click, never automatic; progress rides the studio event channel.

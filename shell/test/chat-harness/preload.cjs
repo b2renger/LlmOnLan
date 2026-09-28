@@ -42,6 +42,10 @@ if (process.argv.includes('--lol-studio=1')) api.studio = {
     status: () => ipcRenderer.invoke('lol:studio:status'),
     serve: (projectId) => ipcRenderer.invoke('lol:studio:serve', projectId),
     share: (projectId, on) => ipcRenderer.invoke('lol:studio:share', projectId, on),
+    history: (projectId) => ipcRenderer.invoke('lol:studio:history', projectId),
+    changes: (projectId, oid) => ipcRenderer.invoke('lol:studio:changes', projectId, oid),
+    commit: (projectId, message) => ipcRenderer.invoke('lol:studio:commit', projectId, message),
+    restore: (projectId, oid) => ipcRenderer.invoke('lol:studio:restore', projectId, oid),
     install: () => ipcRenderer.invoke('lol:studio:install'),
     onEvent: (fn) => { ipcRenderer.on('lol:studio:event', (_e, msg) => fn(msg)); },
 };

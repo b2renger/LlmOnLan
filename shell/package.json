@@ -23,7 +23,8 @@
     "release:major": "node scripts/release.mjs major"
   },
   "dependencies": {
-    "electron-updater": "^6.6.2"
+    "electron-updater": "^6.6.2",
+    "isomorphic-git": "^1.42.3"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
