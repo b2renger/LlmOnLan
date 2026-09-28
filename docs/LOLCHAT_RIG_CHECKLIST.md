@@ -119,7 +119,8 @@ farm.
       and it does not flip back to the farm default at any point.
 ### 2.2 F2: llama.cpp alias (password farm)
 - [ ] Select F2 on the farm card, without a password stored yet. **Expected:** the strip and composer
-      say "Password needed — enter it on the farm card", and no request is sent.
+      say "Password needed — click the connection pill in the top bar and enter it on the farm’s card.", and no
+      request is sent.
 - [ ] Enter the password on the farm card. **Expected:** the models load within 4 s and the alias
       `assistant` is preselected; a chat works; the strip shows the llama.cpp engine and, if published,
       tok/s from `perf`.
