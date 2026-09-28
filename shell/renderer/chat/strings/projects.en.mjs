@@ -1,22 +1,14 @@
 // @ts-check
 // Strings for the scratch-projects bridge (studio plan §3.8). The panels that show projects arrive
 // in S2/S3; what lives here is what the BRIDGE itself has to say — the one honest sentence when
-// this build has no projects folder, the two actions we ship (Reveal / Copy path), and a plain
-// sentence per error code so no surface ever has to print a raw E_* at a person.
+// this build has no projects folder, and a plain sentence per error code so no surface ever has to
+// print a raw E_* at a person. (The Reveal / Copy path / Forget labels were never used and are gone.)
 import { registerStrings } from '../core/i18n.mjs';
 
 registerStrings('projects', {
-  // degradation (bridge.mjs: window.lol.projects is absent — an older shell, or the harness)
+  // degradation (bridge.mjs: window.lol.projects is absent — an older shell, or the harness): the bridge keeps
+  // projects in memory only. Pinned verbatim by projects-bridge.test and s0-projects-memory.
   memoryNotice: 'this build has no projects folder; sketches run but are not saved',
-  unavailable: 'projects folder unavailable — {path}',
-  retry: 'Retry',
-
-  // the two actions this release ships (no editor handoff: O2 is a later, separate change)
-  reveal: 'Reveal in Explorer',
-  copyPath: 'Copy path',
-  pathCopied: 'Path copied',
-  folderMissing: 'folder missing',
-  forget: 'Forget',
 
   // one sentence per error code — err_<CODE>, because i18n keys are [A-Za-z0-9_.]
   err_E_ROOT: 'The projects folder could not be used.',
