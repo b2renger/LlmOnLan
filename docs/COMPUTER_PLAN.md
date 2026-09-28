@@ -1369,8 +1369,9 @@ and it teaches best right after lesson 10 scared them.
 
 **As built (2026-09-28).** 1–3 as above; 4 = *make a picture* (the owner's ask); this table's 4 (*many in, many
 out*) is the *Research → problematic* template; 5 = *code counts, the model names* (docs/ECOSYSTEM_PLAN.md v2,
-decision 6: numbers never come from a model). This table's 5–12 follow, each shifted by one, when they are
-written.
+decision 6: numbers never come from a model); 6 = this table's 10, *a loop that stops* (no farm: a Code box and a
+Toggle; the run's ceiling, then the brake). This table's 5–9 and 11–12 follow when they are written; its 8 (a human
+in the loop) first needs a check that can see a Confirm's Cancel (report.stopped is a stopped RUN).
 
 ### 10.4 First run
 

@@ -24,7 +24,7 @@ import '../../../renderer/chat/strings/lessons.en.mjs';
 
 const SPECS = specMap();
 const PRESETS = new Map(creativePresets().map((p) => [p.id, p]));
-const MINE = ['l01-hello-farm', 'l02-wires', 'l03-labels', 'l04-draw', 'l05-code-counts'];
+const MINE = ['l01-hello-farm', 'l02-wires', 'l03-labels', 'l04-draw', 'l05-code-counts', 'l06-a-loop-that-stops'];
 
 /** The ONE rail-shaped corner of the canvas (COMPUTER_PLAN §10.1 mechanism 2: bottom-left,
  * ~300 px), in screen px, and the canvas the harness window gives the Computer (1280×860 minus
@@ -101,6 +101,8 @@ function learner(lesson) {
       return s.tick();
     },
     /** The Got it button of a manual step. */
+    /** A run finished on this document with this report (the rail hands the runner's report to the checks). */
+    finished(report) { s.prog = advance(lesson, s.prog, { doc: s.doc, report, now: 5 }); return s; },
     got(stepId) { s.prog = tickManual(lesson, s.prog, stepId); return s.tick(); },
     /** The current step's id, or 'done'. */
     at() { return s.prog.step >= lesson.steps.length ? 'done' : lesson.steps[s.prog.step].id; },
@@ -124,9 +126,9 @@ const fenced = (lang, code) => `Here you go:\n\n\`\`\`${lang}\n${code}\n\`\`\`\n
 export default (test) => {
   // ---- the shelf ------------------------------------------------------------------------------
 
-  test('the shelf: the Tour then lessons 1–5 in order, each pointing at the next, and the templates', () => {
+  test('the shelf: the Tour then lessons 1–6 in order, each pointing at the next, and the templates', () => {
     assert.deepEqual(LESSONS.map((l) => l.id), ['l00-tour', ...MINE]);
-    assert.deepEqual(LESSONS.map((l) => l.n), [0, 1, 2, 3, 4, 5], 'n is the shelf number');
+    assert.deepEqual(LESSONS.map((l) => l.n), [0, 1, 2, 3, 4, 5, 6], 'n is the shelf number');
     for (let i = 0; i < LESSONS.length - 1; i++) assert.equal(LESSONS[i].next, LESSONS[i + 1].id, `${LESSONS[i].id} → next`);
     assert.equal(LESSONS[LESSONS.length - 1].next, undefined, 'the last lesson ends the shelf');
     assert.deepEqual(TEMPLATES.map((x) => x.id), ['research-problematic', 'creative-coding', 'read-the-news', 'analyse-a-dataset', 'ask-a-dataset', 'ask-out-loud', 'talk-to-a-board', 'board-on-wifi']);
@@ -141,7 +143,11 @@ export default (test) => {
       const l = lessonById(id);
       for (const k of ['title', 'subtitle', 'idea']) assert.ok(typeof l[k] === 'string' && l[k].trim().length > 5, `${id}.${k}`);
       assert.ok(Number.isInteger(l.minutes) && l.minutes >= 2 && l.minutes <= 10, `${id} takes minutes, not an hour`);
-      assert.equal(l.needsFarm, 'one', `${id} asks one farm`);
+      // 'no' (the offline chip) only for a lesson with no thinking box — the chip must never lie (lesson 6).
+      // A thinking box in the doc, or one a step has the learner add (lesson 4's Write an SVG).
+      const thinks = l.doc.parts.some((/** @type {any} */ p) => SPECS.get(p.type).thinks)
+        || l.steps.some((/** @type {any} */ st) => refsOf(st.check).presets.some((/** @type {string} */ pr) => SPECS.get(PRESETS.get(pr).type).thinks));
+      assert.equal(l.needsFarm, thinks ? 'one' : 'no', `${id}: needsFarm says whether it asks the farm`);
       assert.ok(l.steps.length >= 3 && l.steps.length <= 6, `${id}: a handful of steps, one sentence each`);
       for (const s of l.steps) {
         assert.ok(s.text.length <= 170, `${id} ${s.id}: one sentence (${s.text.length} chars)`);
@@ -495,6 +501,32 @@ export default (test) => {
     s.ran('p_data', 'p_code');
     s.demo('p_say');
     assert.equal(s.at(), 'done');
+  });
+
+  // ---- lesson 6 -------------------------------------------------------------------------------
+
+  test('lesson 6: close the ring, the ceiling stops the run, the Toggle is the brake — no farm, no generation', () => {
+    const lesson = lessonById('l06-a-loop-that-stops');
+    const s = learner(lesson);
+    // The reports are what a real run gave (harness probe, 2026-09-28): on → ran 16, limited by maxIterations 8;
+    // off → ran 2.
+    const roundAndRound = { ran: 16, generations: 0, errors: [], limited: { ceiling: 'maxIterations', limit: 8 } };
+    s.finished(roundAndRound);
+    assert.equal(s.at(), 's1', 'a report before the ring is closed ticks nothing');
+    s.wire('p_tog', 'p_count', 'in');
+    assert.equal(s.at(), 's2', 'the ring is legal: the Toggle is a gate');
+    s.finished({ ran: 2, generations: 0, errors: [] });
+    assert.equal(s.at(), 's2', 'a run that did not go round does not show the ceiling');
+    s.finished(roundAndRound);
+    assert.equal(s.at(), 's3');
+    s.finished({ ran: 2, generations: 0, errors: [] });
+    assert.equal(s.at(), 's3', 'one pass with the Toggle still ON is not the brake');
+    s.set('p_tog', { on: false });
+    s.ran('p_count');
+    s.finished({ ran: 2, generations: 0, errors: [] });
+    assert.equal(s.at(), 'done');
+    assert.equal(lesson.needsFarm, 'no');
+    assert.equal(lesson.doc.parts.filter((/** @type {any} */ p) => SPECS.get(p.type).thinks).length, 0, 'not one generation');
   });
 
   // ---- the templates --------------------------------------------------------------------------

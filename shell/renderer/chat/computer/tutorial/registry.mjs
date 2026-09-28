@@ -20,6 +20,7 @@ import l02 from './lessons/02-wires.mjs';
 import l03 from './lessons/03-labels.mjs';
 import l04 from './lessons/04-draw.mjs';
 import l05 from './lessons/05-code-counts.mjs';
+import l06 from './lessons/06-a-loop-that-stops.mjs';
 import researchProblematic from '../templates/research-problematic.mjs';
 import creativeCoding from '../templates/creative-coding.mjs';
 import readTheNews from '../templates/read-the-news.mjs';
@@ -33,7 +34,7 @@ import askOutLoud from '../templates/ask-out-loud.mjs';
 /** @typedef {import('../../core/types.mjs').Template} Template */
 
 /** @type {readonly Lesson[]} */
-export const LESSONS = Object.freeze(/** @type {any[]} */ ([tour, l01, l02, l03, l04, l05]));
+export const LESSONS = Object.freeze(/** @type {any[]} */ ([tour, l01, l02, l03, l04, l05, l06]));
 
 /** @type {readonly Template[]} */
 export const TEMPLATES = Object.freeze(/** @type {any[]} */ ([researchProblematic, creativeCoding, readTheNews, analyseADataset, askADataset, askOutLoud, talkToABoard, boardOnWifi]));

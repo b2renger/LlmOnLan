@@ -202,10 +202,10 @@ export default [
                 templates: Array.from(document.querySelectorAll('#lolcomputer .comp-template[data-template]'))
                     .map((el) => ({ id: el.getAttribute('data-template'), text: el.textContent, visible: !!(/** @type {any} */ (el).offsetParent) })),
             }));
-            h.eq(shelf.lessons.map((/** @type {any} */ l) => l.id).join(','), 'l00-tour,l01-hello-farm,l02-wires,l03-labels,l04-draw,l05-code-counts', 'the Tour, then lessons 1–5, in order');
+            h.eq(shelf.lessons.map((/** @type {any} */ l) => l.id).join(','), 'l00-tour,l01-hello-farm,l02-wires,l03-labels,l04-draw,l05-code-counts,l06-a-loop-that-stops', 'the Tour, then lessons 1–6, in order');
             h.eq(shelf.templates.map((/** @type {any} */ x) => x.id).join(','), 'research-problematic,creative-coding,read-the-news,analyse-a-dataset,ask-a-dataset,ask-out-loud,talk-to-a-board,board-on-wifi', 'the eight templates');
             for (const row of [...shelf.lessons, ...shelf.templates]) h.assert(row.visible, `${row.id} is on screen`);
-            for (const [id, words] of [['l01-hello-farm', 'hello, farm'], ['l02-wires', 'wires carry values'], ['l03-labels', 'arrow labels are names'], ['l04-draw', 'make a picture'], ['l05-code-counts', 'code counts, the model names']]) {
+            for (const [id, words] of [['l01-hello-farm', 'hello, farm'], ['l02-wires', 'wires carry values'], ['l03-labels', 'arrow labels are names'], ['l04-draw', 'make a picture'], ['l05-code-counts', 'code counts, the model names'], ['l06-a-loop-that-stops', 'a loop that stops']]) {
                 const row = shelf.lessons.find((/** @type {any} */ l) => l.id === id);
                 h.assert(row.text.includes(words), `${id} is named on the shelf: ${row.text}`);
             }
@@ -532,7 +532,7 @@ export default [
                 if (seen.overlap.length) problems.push(`${what}: boxes drawn on top of each other: ${seen.overlap} (grown: ${seen.grown})`);
                 if (lesson && seen.covered.length) problems.push(`${what}: the rail covers ${seen.covered}`);
             };
-            for (const id of ['l01-hello-farm', 'l02-wires', 'l03-labels', 'l04-draw', 'l05-code-counts']) {
+            for (const id of ['l01-hello-farm', 'l02-wires', 'l03-labels', 'l04-draw', 'l05-code-counts', 'l06-a-loop-that-stops']) {
                 await openLesson(h, id);
                 await h.waitFor(() => (document.querySelector('#lolcomputer .comp-rail .comp-rail-text') ? true : null), { timeout: 5000 });
                 judge(id, await layout(h, namedBy(lessonById(id))), true);
@@ -583,6 +583,34 @@ export default [
             else { await play(h, 'p_say'); h.eq(await useSaved(h), 'p_say'); }
             await waitStep(h, 'done', 'the re-count and the saved sentence finish the lesson');
             h.eq((await completions(h)).length, 0, 'with no farm, nothing was sent anywhere');
+        },
+    },
+
+    {
+        // Lesson 6 (2026-09-28): a real ring, stopped by the run's own ceiling — the rail must receive the report of
+        // a run the CEILING ended, not only of a run that finished — then the Toggle as the brake. No farm at all.
+        name: 'k5-lessons-a-loop-that-stops-at-its-ceiling-and-at-the-brake',
+        needsMock: true,
+        timeoutMs: 90000,
+        allowConsoleErrors: FARM_ERRORS,
+        async run(/** @type {any} */ h) {
+            await h.fresh();
+            await open(h);
+            await noFarm(h);
+            await openLesson(h, 'l06-a-loop-that-stops');
+
+            h.eq((await h.computer.wire('p_tog', 'p_count', 'in')).ok, true, 'the ring is legal: the Toggle is a gate');
+            await waitStep(h, 1, 'closing the ring ticks step 1');
+            await play(h, 'p_count');
+            h.eq((await part(h, 'p_count')).value.data, 8, 'the number went round 8 times');
+            await waitStep(h, 2, 'the run the ceiling stopped ticks step 2');
+
+            await h.computer.set('p_tog', { on: false });
+            await play(h, 'p_count');
+            h.eq((await part(h, 'p_count')).value.data, 9, 'one more pass, then the brake');
+            h.eq((await part(h, 'p_count')).state, 'done');
+            await waitStep(h, 'done', 'the brake finishes the lesson');
+            h.eq((await completions(h)).length, 0, 'a loop of code asks the farm nothing');
         },
     },
 ];

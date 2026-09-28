@@ -48,7 +48,7 @@ export default {
         id: 'n_rule', type: 'sticky', x: 460, y: 510, w: 240, h: 190,
         settings: { colour: 'slate', text: 'The numbers under the Code box were counted, not guessed. Change the table and they follow; the model never wrote one.' },
       },
-      { id: 'n_next', type: 'sticky', x: 760, y: 480, w: 300, h: 140, settings: { colour: 'green', text: 'Next up → the templates: open "Analyse a dataset" to see the same rule on real open data.' } },
+      { id: 'n_next', type: 'sticky', x: 760, y: 480, w: 300, h: 140, settings: { colour: 'green', text: 'Next up → 6 · a loop that stops. And open "Analyse a dataset" to see this rule on real open data.' } },
     ],
     wires: [],
   },
@@ -83,4 +83,5 @@ export default {
   demo: {
     p_say: { kind: 'text', data: 'Apples lead comfortably, while pears and plums trail well behind and are close to each other.' },
   },
+  next: 'l06-a-loop-that-stops',
 };
