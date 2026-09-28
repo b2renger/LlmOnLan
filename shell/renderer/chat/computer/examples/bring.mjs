@@ -7,13 +7,13 @@ export const BRING = [
   {
     key: 'note',
     title: 'Text',
-    what: 'Holds words you type — a question, a list, a paragraph — and hands them on. An arrow coming in fills it with what arrived; lock it and your own words stay.',
-    inputs: [['in (optional)', 'text, JSON or a list: shown in the box and handed on']],
+    what: 'Holds words you type — a question, a list, a paragraph — and hands them on. An arrow coming in fills it with what arrived; press Lock and your own words stay.',
+    inputs: [['text (optional)', 'text, JSON or a list: shown in the box and handed on']],
     output: 'Text: exactly what the box shows.',
     howto: [
-      'Name the arrow out of it (click the arrow, type topic). In an Instruction with "Fill in {names} with their values" ticked, {topic} is replaced by the text.',
-      'Several lines → Split (lines): the next box runs once per line.',
-      'Lock it when a run must not replace what you typed.',
+      'Press Run all: the Markdown view on the right shows the list formatted. Double-click the text (or press ✎ Edit) to change it.',
+      'Name the arrow out of it: click its "name me" tag and type topic. An Instruction with "Fill in {names} with their values" ticked puts the text where it says {topic}.',
+      'Several lines → Split (Lines): the next box runs once per line.',
     ],
     parts: [
       { id: 'e_text', type: 'note', x: 0, y: 0, w: 320, h: 200, settings: { text: '# A shopping list\n- apples\n- bread\n- a lot of tea', locked: false } },
@@ -26,11 +26,11 @@ export const BRING = [
     title: 'Image',
     needsFarm: 'one, for the Instruction that looks at the picture (a model that can see, like gemma4).',
     what: 'Holds a picture you drop, paste, choose — or take with this computer\'s camera (Take a picture). Wired into an Instruction, the picture goes with the request, so a model that can see describes, reads or judges it.',
-    inputs: [['file (optional)', 'a picture from another box: it is passed on']],
-    output: 'A picture (downscaled on the way in).',
+    inputs: [['Image (optional)', 'a picture from another box, or a picture file a File box wrote: shown and passed on']],
+    output: 'A picture, made smaller on the way in (1536 pixels on its long side at most).',
     howto: [
-      'Drop a picture on the box, or paste one onto the canvas: it becomes an Image box. Or press Take a picture, then Capture: the camera closes after one frame.',
-      'Wire it into an Instruction: "What is in this picture?"',
+      'Drop a picture on the box, paste one onto the canvas, or click the box to choose one. Or press Take a picture, then Capture: the camera closes after one frame.',
+      'Press Run all: the Instruction describes the picture. Change its question: "What is written on this sign?"',
       'The picture leaves this computer only inside that Instruction\'s request to the farm.',
     ],
     parts: [
@@ -41,14 +41,14 @@ export const BRING = [
   },
   {
     key: 'document',
-    title: 'Document (PDF)',
-    needsFarm: 'one with document OCR (on by default), to read the PDF; and a model for the Instruction.',
-    what: 'Holds a PDF. On a run, its bytes go to the farm\'s OCR for the TEXT only, and the text flows on. Nothing is sent when you drop it.',
+    title: 'Document',
+    needsFarm: 'one with Document OCR (on by default), to read the PDF; and a model for the Instruction.',
+    what: 'Holds a PDF. On a run, the file goes to the farm\'s document reader for its TEXT only, and the text flows on. Nothing is sent when you drop it.',
     inputs: [],
-    output: 'Text (markdown) of the document; a long one is cut, and the text says where.',
+    output: 'Text (markdown) of the document; a very long one is cut, and the text says where. A PDF of more than 60 pages is refused: split it.',
     howto: [
-      'Drop a PDF on the box.',
-      'Wire it into an Instruction: "Summarise the document in five bullet points."',
+      'Drop a PDF on the box (or click the box to choose one), then press Run all: the Instruction summarises it.',
+      'Change the Instruction: "List every date in the document", "Explain it to a ten-year-old".',
       'The text is kept with the file, so the same PDF is read only once.',
     ],
     parts: [
@@ -61,12 +61,12 @@ export const BRING = [
     key: 'audio',
     title: 'Sound',
     needsFarm: 'one with speech to text, for Listen (the farm\'s operator turns it on); and a model for the Instruction.',
-    what: 'Holds a recording — made here with ● Record, or a sound file — and plays it. With Listen on, a run sends it to the farm\'s speech to text and the WORDS flow on; with Listen off, only its name and length do.',
+    what: 'Holds a recording — made here with ● Record (this computer\'s microphone), or a sound file you drop — and plays it. With Listen on, a run sends it to the farm\'s speech to text and the WORDS flow on; with Listen off, only its name and length do.',
     inputs: [],
     output: 'Text: what was said (Listen on), or the file\'s name and length.',
     howto: [
-      'Press ● Record and speak, then ■ Stop — or drop a WAV, MP3, M4A or OGG on the box; ▶ Play to hear it.',
-      'Turn on Listen, then wire it into an Instruction: "Answer the question asked in the recording."',
+      'Press ● Record and ask a question, then ■ Stop — or drop a WAV, MP3, OGG, FLAC or M4A file on the box (10 minutes at most). ▶ Play to hear it.',
+      'Tick "Listen: write down what is said", then press Run all: the Instruction answers the question you asked.',
       'A graph someone hands you always opens with Listen off: only you decide that a recording leaves.',
     ],
     parts: [
@@ -79,10 +79,10 @@ export const BRING = [
     key: 'file',
     title: 'File',
     what: 'Writes what arrives to a file in this graph\'s own project folder, e.g. out/list.md. A second run overwrites it. Nothing leaves this computer.',
-    inputs: [['in', 'text, JSON, a list or a picture: the file\'s content (a file arriving is written as its path)']],
+    inputs: [['Value', 'text, JSON, a list or a picture: the file\'s content (a file arriving is written as its path)']],
     output: 'A file (its path in the project).',
     howto: [
-      'Type the path: out/notes.md for text, out/picture.png for a picture.',
+      'Type the path: out/notes.md for text, out/picture.png for a picture. Press Run all: the box says what it wrote, and Show folder opens its folder.',
       'The folder is <your data folder>/LOL Studio Projects/<this graph\'s name and a short code>, made at the first write.',
       'End a graph with it to keep the result outside the Computer.',
     ],
@@ -99,8 +99,8 @@ export const BRING = [
     inputs: [],
     output: 'JSON (an API) or text (a page, a CSV), at most 1 MB.',
     howto: [
-      'Paste the address of open data: a JSON API works best.',
-      'Wire it into a Code box to pick what you need (inputs.in[0] is the data), or into Classify to label every item.',
+      'Press Run all: Fetch reads the address, the Code box lists each story with its points, and the Markdown view shows them.',
+      'Paste your own address of open data (a JSON API works best, with no key or password in it). Wire it into a Code box to pick what you need (inputs.in[0] is the data), or into Classify to label every item.',
       'Never this computer, a link-local address or the farm\'s own ports: the box says why.',
     ],
     parts: [
@@ -123,13 +123,13 @@ export const BRING = [
   {
     key: 'opendata',
     title: 'Open data',
-    what: 'Reads a dataset of data.gouv.fr, the French government\'s open data, from a link you paste: its description, the counts data.gouv.fr made over the WHOLE file (for every column: how many values, the most common ones, the smallest and largest), and a sample of its rows. It keeps its last copy, so the graph still runs offline.',
+    what: 'Reads a dataset of data.gouv.fr, the French government\'s open data, from a link you paste: its description, the counts data.gouv.fr made over the WHOLE file (for every column: how many different values and empty ones, the most common values, the smallest, largest and mean), and a sample of its rows. It keeps its last copy, so the graph still runs offline.',
     inputs: [],
     output: 'JSON: { dataset: {title, organization, licence, page…}, total, columns: [{name, distinct, missing, tops: [{value, count}]…}], rows: [{column: value…}] }.',
     howto: [
-      'On www.data.gouv.fr, open a dataset (or one of its files) and copy the address from the browser. The box reads CSV and Excel files that data.gouv.fr turned into tables.',
+      'On www.data.gouv.fr, open a dataset (or one of its files), copy the address from the browser, paste it in Dataset link and press Run all. The box reads CSV and Excel files that data.gouv.fr turned into tables.',
       'For whole-file numbers use columns (data.gouv.fr counted them); rows is only a sample — "Rows to read", up to 1000.',
-      'The "Analyse a dataset" template on the Learn shelf turns it into a report, a chart and answers to your own question.',
+      'The "Analyse a dataset" and "Ask a dataset" templates on the Learn shelf turn it into a report, a chart and answers to your own question.',
     ],
     parts: [
       {
@@ -168,13 +168,15 @@ export const BRING = [
   {
     key: 'receive',
     title: 'Receive',
-    what: 'Hands on what a board (an Arduino, an ESP32) says over the USB cable: one line per message. A line that is JSON, like {"light": 512}, flows on as data. Nothing leaves this computer.',
+    needsFarm: 'only for "From: the farm\'s message bus" (its operator turns on the Message bus plugin). A board on USB needs no farm.',
+    what: 'Hands on what a board (an Arduino, an ESP32) says over the USB cable, one line per message — or what arrives on a topic of the farm\'s message bus. A line that is JSON, like {"light": 512}, flows on as data. Over USB, nothing leaves this computer.',
     inputs: [],
-    output: 'The latest line (text, or data when it is JSON), or a list of every new line since the last run.',
+    output: 'Hand on: the latest message (text, or data when it is JSON), or every new message since the last run, as a list. From the bus, each message is {topic, data}.',
     howto: [
-      'Put docs/examples/arduino/lol_serial on the board (it sends {"light": …} every half second), plug it in, press "Choose the board…" and pick it.',
-      'Wire it into a Code box: inputs.in[0].light is the reading. The box shows the last line live.',
-      'Close the Arduino Serial Monitor first: only one program can hold the board. The Send box talks back to it ("Send by: USB serial").',
+      'Put the lol_serial sketch on the board (the "Talk to a board" template holds it: copy it into the Arduino IDE), plug it in, press "Choose the board…", pick it and press Run all.',
+      'Wire it into a Code box: inputs.in[0].light is the reading. The box shows the board\'s last line live.',
+      'Close the Arduino Serial Monitor first: only one program can hold the board. Send talks back to it (Send by: USB serial).',
+      'From the farm\'s message bus: type a topic, like lol/+/light (+ is any one level) — the "A board on Wi-Fi" template does this.',
     ],
     parts: [
       { id: 'e_recv', type: 'receive', x: 0, y: 0, w: 320, h: 200, settings: { transport: 'serial', take: 'latest' } },

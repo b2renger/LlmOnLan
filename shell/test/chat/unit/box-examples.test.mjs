@@ -16,11 +16,13 @@ import { MODES as FILTER_MODES } from '../../../renderer/chat/graph/parts/filter
 import { PREVIEW_MODES } from '../../../renderer/chat/graph/parts/preview.mjs';
 
 const specs = specMap();
-const entries = buildPalette(paletteCatalogue(), specs).map((e) => e.entry);
+const menu = buildPalette(paletteCatalogue(), specs);
+const entries = menu.map((e) => e.entry);
 
 export default (test) => {
-  test('box examples: exactly one per ＋ menu entry, in menu order', () => {
+  test('box examples: exactly one per ＋ menu entry, in menu order, titled with the menu\'s own name', () => {
     assert.deepEqual(EXAMPLES.map((x) => x.key), entries);
+    assert.deepEqual(EXAMPLES.map((x) => x.title), menu.map((e) => e.label), 'the same name for a box everywhere');
     assert.equal(exampleByKey('nope'), null);
   });
 

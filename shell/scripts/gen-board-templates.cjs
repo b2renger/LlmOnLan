@@ -48,7 +48,7 @@ export default {
         id: 'b_how', type: 'sticky', x: 40, y: 140, w: 360, h: 560,
         settings: {
           colour: 'yellow',
-          text: 'How to start\\n\\n1. Copy the sketch in the Text box on the far right into the Arduino IDE, pick your board (Uno, Nano or ESP32) and its port, and Upload. Close the Serial Monitor afterwards: only one program can hold the board.\\n2. On each Send box and on the Receive box, press "Choose the board…" and pick it.\\n3. The Send boxes are a DRY RUN until you arm them: the run bar\\u2019s "Outputs: dry run" button asks first.\\n4. Press Run all.\\n\\nWhat happens\\n- Top: the Computer tells the board a brightness (0.75 = three quarters).\\n- Bottom: the board says {"light": …} every half second; Receive hands on the latest line; the Code box decides: dark → "led 1", bright → "led 0"; the second Send writes that back. That is the ROUND TRIP.\\n\\nNo farm, no model: everything stays on this computer and its USB cable.',
+          text: 'How to start\\n\\n1. Copy the sketch in the Text box on the far right into the Arduino IDE, pick your board (Uno, Nano or ESP32) and its port, and Upload. Close the Serial Monitor afterwards: only one program can hold the board.\\n2. On each Send box and on the Receive box, press "Choose the board…" and pick it.\\n3. The Send boxes are a DRY RUN until you arm the outputs: press "Outputs: dry run" in the run bar, read the list, then Arm.\\n4. Press Run all.\\n\\nWhat happens\\n- Top: the Computer tells the board a brightness (0.75 = three quarters).\\n- Bottom: the board says {"light": …} every half second; Receive hands on the latest message; the Code box decides: dark → "led 1", bright → "led 0"; the second Send writes that back. That is the ROUND TRIP.\\n\\nNo farm, no model: everything stays on this computer and its USB cable.',
         },
       },
       { id: 'b_level', type: 'note', x: 440, y: 140, w: 300, h: 130, settings: { text: '0.75', locked: false } },
@@ -94,9 +94,9 @@ const SAY_WIFI = [
 const HOW_WIFI = [
   'How to start',
   '',
-  '1. On the farm: admin panel ▸ Plugins ▸ Message bus ▸ Enable.',
+  '1. On the farm: admin panel ▸ Plugins ▸ Message bus ▸ Enable (it stays on until the farm restarts).',
   '2. Copy the sketch in the Text box on the far right into the Arduino IDE (an ESP32, and the PubSubClient library), fill in YOUR SETTINGS (your Wi-Fi, the farm\'s address, its password, BOARD = board1) and Upload.',
-  '3. Arm the outputs: the run bar\'s "Outputs: dry run" button asks first.',
+  '3. Arm the outputs: press "Outputs: dry run" in the run bar, read the list, then Arm. Nothing else to press: each reading starts a run.',
   '',
   'What happens',
   '- The board publishes {"light": …} on lol/board1/light every second. The Receive box at the top shows the latest one live, without running anything.',

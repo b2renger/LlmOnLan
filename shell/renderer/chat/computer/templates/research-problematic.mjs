@@ -28,12 +28,12 @@ export default {
     view: { x: 16, y: 8, zoom: 0.43 },
     parts: [
       { id: 't_title', type: 'title', x: 40, y: 24, w: 760, h: 106, settings: { text: 'Research → problematic', size: 'l' } },
-      { id: 't_sub', type: 'title', x: 40, y: 140, w: 1100, h: 84, settings: { text: 'Change the topic, press Run: five researches, one problematic, two design concepts.', size: 's' } },
+      { id: 't_sub', type: 'title', x: 40, y: 140, w: 1100, h: 84, settings: { text: 'Change the topic, press Run all: five researches, one problematic, two design concepts.', size: 's' } },
       {
         id: 't_change', type: 'sticky', x: 40, y: 250, w: 300, h: 460,
         settings: {
           colour: 'yellow',
-          text: 'What to change first\n\n1. Write your own topic in the Text box below.\n2. Press Run: eight generations on the farm.\n3. Click the strip under a box to read its answer.\n\nEvery research box reads the arrow named topic. The problematic reads each research by the name on its arrow — rename an arrow and the heading in its prompt changes with it.',
+          text: 'What to change first\n\n1. Write your own topic in the Text box below.\n2. Press Run all: eight generations on the farm.\n3. Click the answer at the bottom of a box to read all of it.\n\nEvery research Instruction reads the arrow named topic. The problematic reads each research by the name on its arrow — rename an arrow and the heading in its prompt changes with it.',
         },
       },
       { id: 't_topic', type: 'note', x: 40, y: 740, w: 300, h: 170, settings: { text: 'Accessibility in museums for autistic visitors.', locked: false } },

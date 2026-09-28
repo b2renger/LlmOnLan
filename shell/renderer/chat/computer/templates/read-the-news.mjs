@@ -417,12 +417,12 @@ export default {
     view: { x: 16, y: 8, zoom: 0.45 },
     parts: [
       { id: 'n_title', type: 'title', x: 40, y: 24, w: 820, h: 100, settings: { text: 'Read the news', size: 'l' } },
-      { id: 'n_sub', type: 'title', x: 40, y: 130, w: 1500, h: 80, settings: { text: 'Change the topics or the question, press Run: a model writes Laya’s question, Laya labels every story, the model checks the unsure ones and chooses the chart; the code counts and draws.', size: 's' } },
+      { id: 'n_sub', type: 'title', x: 40, y: 130, w: 1500, h: 80, settings: { text: 'Change the topics or the question, press Run all: a model writes Laya’s question, Laya labels every story, the model checks the unsure ones and chooses the chart; the code counts and draws.', size: 's' } },
       {
         id: 'n_how', type: 'sticky', x: 40, y: 240, w: 320, h: 600,
         settings: {
           colour: 'yellow',
-          text: 'How it works\n\n1. Website: Fetch reads the Hacker News front page (a copy ships with the template, so it also works offline).\n2. Write a Laya question: a model reads the website and your topics, and writes the ONE question Laya asks about every story. Your topics are its answers, exactly as you wrote them.\n3. Laya (Classify), the farm’s fast decision model, answers it for each story, with a confidence.\n4. Second opinion: the model looks again at the stories Laya was not sure of.\n5. Count (code, folded): every number is counted from the data — never by a model.\n6. Choose the chart: the model reads your question and the counts, and picks the measure, the order, a highlight and the words.\n7. Draw (code, folded) draws it.\n\nAnother website? Its data has another shape: add ＋ Think → Write code, say what to count, and wire it into Count’s code port.',
+          text: 'How it works\n\n1. Fetch reads the Hacker News front page (a copy ships with the template, so it also works offline).\n2. Write a Laya question: a model reads the website and your topics, and writes the ONE question Laya asks about every story. Your topics are its answers, exactly as you wrote them.\n3. Classify: Laya, the farm’s fast decision model, answers it for each story, with a confidence.\n4. Instruction, a second opinion: the model looks again at the stories Laya was not sure of.\n5. Code (folded) counts: every number comes from the data — never from a model.\n6. Instruction, the chart: the model reads your question and the counts, and picks the measure, the order, a highlight and the words.\n7. Code (folded) draws it in the SVG box.\n\nAnother website? Its data has another shape: add ＋ Think → Write code, say what to count, and wire it into the counting Code box’s code port.',
         },
       },
       { id: 'n_src', type: 'fetch', x: 400, y: 240, w: 340, h: 130, settings: { url: 'https://hn.algolia.com/api/v1/search?tags=front_page&hitsPerPage=30&attributesToRetrieve=title,url,points,num_comments' }, value: { kind: 'json', data: SNAPSHOT } },

@@ -31,7 +31,7 @@ export default {
         id: 'q_how', type: 'sticky', x: 40, y: 140, w: 320, h: 560,
         settings: {
           colour: 'yellow',
-          text: 'How it works\n\n1. Open data: paste the link of a dataset from www.data.gouv.fr and press ▶ on that box (a copy of the festivals list ships with the template).\n2. Your question: anything the data can answer — "which 5 regions have the most music festivals?"\n3. Press ▶ on the Agent. Step by step it reads what data.gouv.fr counted, asks data.gouv.fr’s tabular API to group, count or sum the WHOLE file (the only web host it may read), computes with code, then answers.\n\nUnder the answer, "How it got there" lists every step and what came back, so you can check each number. At most 8 steps, one generation each.',
+          text: 'How it works\n\n1. Open data: paste the link of a dataset from www.data.gouv.fr and press ▶ on that box (a copy of the festivals list ships with the template).\n2. The Text box below it: your question, anything the data can answer — "which 5 regions have the most music festivals?"\n3. Press ▶ on the Agent. Step by step it reads what data.gouv.fr counted, asks data.gouv.fr’s tabular API to group, count or sum the WHOLE file (the only web host it may read), computes with code, then answers.\n\nUnder the answer, "How it got there" lists every step and what came back, so you can check each number. At most 8 steps, one generation each.',
         },
       },
       { id: 'q_data', type: 'opendata', x: 400, y: 140, w: 340, h: 180, settings: { link: 'https://www.data.gouv.fr/datasets/liste-des-festivals-en-france', rows: 200 }, value: { kind: 'json', data: SNAPSHOT } },

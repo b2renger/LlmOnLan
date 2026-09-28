@@ -24,13 +24,13 @@ export default {
     view: { x: 16, y: 8, zoom: 0.75 },
     parts: [
       { id: 'c_title', type: 'title', x: 40, y: 24, w: 600, h: 106, settings: { text: 'Creative coding', size: 'l' } },
-      { id: 'c_sub', type: 'title', x: 40, y: 140, w: 680, h: 84, settings: { text: 'Change the brief, press Run: the model writes the sketch.', size: 's' } },
+      { id: 'c_sub', type: 'title', x: 40, y: 140, w: 680, h: 84, settings: { text: 'Change the brief, press Run all: the model writes the sketch.', size: 's' } },
       { id: 'c_brief', type: 'note', x: 40, y: 250, w: 300, h: 170, settings: { text: 'Falling leaves in autumn colours, drifting slowly to the right across a dark blue evening sky.', locked: false } },
       {
         id: 'c_change', type: 'sticky', x: 40, y: 450, w: 300, h: 300,
         settings: {
           colour: 'yellow',
-          text: 'What to change first\n\n1. Rewrite the brief above.\n2. Press Run: one generation.\n3. Edit the code in the sketch box and it redraws. Press “Keep my code” to keep your version when the model answers again.',
+          text: 'What to change first\n\n1. Rewrite the brief above.\n2. Press Run all: one generation. Then ▶ Live on the sketch box to see it move.\n3. Edit the code in the sketch box and it redraws. Press “Keep my code” to keep your version when the model answers again.',
         },
       },
       {

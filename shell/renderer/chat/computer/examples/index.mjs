@@ -7,7 +7,8 @@
 // An example is DATA, not a graph file: what the box does, its ports and output in words, a few
 // "how to use it" lines, and a tiny working setup (`parts`/`wires`, laid out from 0,0). `exampleDoc`
 // composes the graph the ? opens: a Title, a yellow Sticky holding the words, and the setup to its
-// right, zoomed so the whole thing fits the canvas. One layout for all 38, so they read alike.
+// right, zoomed so the whole thing fits the canvas. One layout for all of them, so they read alike;
+// the Sticky's title is the ＋ menu's own name for the box (a unit test holds the two equal).
 //
 // Keys are the ＋ menu's entry ids: a part type (`code`, `classify`) or a preset (`svg`,
 // `write-code`), because "a p5.js sketch" and "an SVG" are the same part type with different jobs.

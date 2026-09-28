@@ -10,13 +10,13 @@ export const CONTROL = [
     key: 'button',
     title: 'Button',
     needsFarm: 'only for the Instruction after it.',
-    what: 'A gate you press. Run all never presses it: the run stops before it, and the run bar says a button is waiting. Press its face and what comes after it runs.',
-    inputs: [['in', 'anything: passed on when pressed']],
+    what: 'A gate you press. Run all never presses it: the run stops at it, and the run bar says which button is waiting. Press its face and what comes after it runs.',
+    inputs: [['In', 'anything: passed on when pressed']],
     output: 'What arrived, unchanged.',
     howto: [
+      'Press Run all: the run stops at the button. Then press Go on, its face: the Instruction answers.',
+      'Press the face itself, not the ▶ in its title bar: the ▶ does not count as a press. Label: the words on the face ("Run this" when empty).',
       'Put it before an expensive branch (a long generation), so that branch runs only when you choose.',
-      'Press the button itself (its face), not the ▶ in its title bar.',
-      'Label: the words on the button.',
     ],
     parts: [
       note('e_text', 'Tell me a short joke about computers.'),
@@ -29,12 +29,12 @@ export const CONTROL = [
     key: 'condition',
     title: 'Condition',
     what: 'Reads what arrives as yes, no or maybe, and lets the run through only on ITS branch. Put two or three side by side for a yes / no / maybe fork: the other branches go grey.',
-    inputs: [['in', 'anything']],
+    inputs: [['In', 'anything']],
     output: 'What arrived, unchanged (on its branch only).',
     howto: [
-      'Continue when: which answer this box lets through.',
-      'Text mode (free) reads the first word: yes, true, oui → yes; no, false, non → no; anything else → maybe.',
-      'Model mode: write a question ("Is this a complaint?"); one small generation, remembered.',
+      'Continue when: which answer this box lets through. Press Run all: only the yes branch goes on; type no in the Text box and run again.',
+      'Decide by "reading the words" (free): the first word decides — yes, true, oui → yes; no, false, non → no; anything else → maybe.',
+      'Decide by "asking the model": write a Question ("Is this a complaint?"); one small generation, remembered.',
     ],
     parts: [
       note('e_text', 'yes'),
@@ -54,10 +54,10 @@ export const CONTROL = [
     key: 'confirm',
     title: 'Confirm',
     what: 'Stops THIS branch and asks OK or Cancel right on the box. OK lets the run go on; Cancel stops it there, while other branches keep going.',
-    inputs: [['in', 'anything']],
+    inputs: [['In', 'anything']],
     output: 'What arrived, unchanged (onward only after OK).',
     howto: [
-      'Message: what you are asked, like "Save this to a file?"',
+      'Press Run all, then OK on the Confirm box: the File box writes out/hello.md. Message: what you are asked, like "Save this to a file?"',
       'Give up after (seconds) cancels by itself when nobody answers; 0 waits.',
       'Put it before a Send or a File box: nothing leaves until you say so.',
     ],
@@ -76,9 +76,9 @@ export const CONTROL = [
     inputs: [['Context (optional)', 'anything: it decides WHEN the question is asked (its words are not shown)']],
     output: 'Text: your answer.',
     howto: [
-      'Question and Hint text are what you read. If the run is stopped before you answer, "If nobody answers" is handed on and the branch stops there.',
-      'Ask again every run off: asked once, the answer is kept. On: asked each time.',
-      'Name the arrow out of it (animal); an Instruction with "Fill in {names} with their values" ticked puts the answer where it says {animal}.',
+      'Press Run all: the box asks. Type an animal and press Send: the Instruction writes a fact about it.',
+      'Question and Hint text are what you read. If the run is stopped before you answer, "If nobody answers" is handed on and the branch stops there. Ask again every run off: asked once, the answer is kept.',
+      'The arrow out of it is named animal (click a "name me" tag to name yours); an Instruction with "Fill in {names} with their values" ticked puts the answer where it says {animal}.',
     ],
     parts: [
       { id: 'e_dlg', type: 'dialog', x: 0, y: 0, w: 320, h: 220, settings: { question: 'What is your favourite animal?', placeholder: 'a fox', multiline: false, default: '', askEveryRun: false } },
@@ -90,10 +90,10 @@ export const CONTROL = [
     key: 'toggle',
     title: 'Toggle',
     what: 'A switch: on lets the run through, off stops it and still hands its value on. Like every gate box, it makes a loop legal: a ring of boxes needs something that can stop it.',
-    inputs: [['in', 'anything']],
+    inputs: [['In', 'anything']],
     output: 'What arrived, unchanged.',
     howto: [
-      'Flip it to switch a branch off without deleting it.',
+      'Press Run all: the text reaches the Markdown view. Flip the Toggle off to switch a branch off without deleting it.',
       'A loop (Write an SVG → SVG → Describe a picture → back) must pass through a gate box: a Toggle, Button, Condition, Confirm, Dialog or Timer. With a Toggle, turn it off to stop the rounds.',
       'Flipping it marks what comes after as out of date; it does not run by itself.',
     ],
@@ -108,11 +108,11 @@ export const CONTROL = [
     key: 'timer',
     title: 'Timer',
     what: 'Waits a few seconds, then lets the run through. There is no "forever".',
-    inputs: [['in', 'anything']],
+    inputs: [['In', 'anything']],
     output: 'What arrived, unchanged, after the wait.',
     howto: [
-      'Wait (seconds): 0.1 to 3600.',
-      'Repeats: how many times the wait happens; what comes after runs once, after all of them. A run whose waits add up past its time limit is refused before it starts.',
+      'Press Run all: the Timer waits 2 seconds, 3 times, then tick reaches the Markdown view. Wait (seconds): 0.1 to 3600.',
+      'Repeats (8 at most): how many times the wait happens; what comes after runs once, after all of them. A run whose waits add up past 10 minutes is refused before it starts.',
       'Put it before a step that must not come too soon: a Send to a device, a question to a person.',
     ],
     parts: [
@@ -130,9 +130,9 @@ export const CONTROL = [
     inputs: [],
     output: 'The message that started the run, as {topic, data} (or {tick, at} on a schedule).',
     howto: [
-      'Arm the outputs in the run bar first: until then it only counts the messages.',
-      'Topic lol/+/button fires on any board\'s button; a Code box reads inputs.in[0].data.',
-      'At most one run every N seconds (the messages in between only update the value: latest wins), and at most N runs an hour.',
+      'This one ticks every 10 seconds. Press "Outputs: dry run" in the run bar, then Arm: the Code box and the Markdown view run by themselves. Until you arm, it only counts.',
+      'Start on a message on the farm\'s bus: topic lol/+/button fires on any board\'s button (+ is any one level); a Code box reads inputs.in[0].data.',
+      'At most one run every N seconds (the messages in between only update what it hands on: latest wins), and at most N runs per hour. Nothing starts while the Computer is not on screen.',
     ],
     parts: [
       { id: 'e_trig', type: 'trigger', x: 0, y: 0, w: 320, h: 250, settings: { source: 'schedule', every: 10, gapSec: 2, perHour: 60 } },
@@ -146,12 +146,12 @@ export const CONTROL = [
   },
   {
     key: 'sticky',
-    title: 'Sticky note',
-    what: 'A note on the canvas for people: what a part of the graph does, a to-do, a warning. It never runs and is never sent anywhere.',
+    title: 'Sticky',
+    what: 'A note on the canvas for people: what a part of the graph does, a to-do, a warning. It never runs and is never sent to the farm.',
     inputs: [],
     output: 'None.',
     howto: [
-      'Pick a colour to group ideas.',
+      'Double-click it to write. Colour: Yellow, Green, Rose, Slate or Plain, to group ideas.',
       'Every example you open with ? starts with a yellow one like this.',
     ],
     parts: [{ id: 'e_s', type: 'sticky', x: 0, y: 0, w: 320, h: 220, settings: { colour: 'rose', text: 'To do: check the chart numbers come from the Code box, never from a model.' } }],
@@ -160,7 +160,7 @@ export const CONTROL = [
   {
     key: 'section',
     title: 'Section',
-    what: 'A labelled frame that groups boxes: drag boxes into it to show they belong together.',
+    what: 'A labelled frame that groups boxes: drag boxes into it to show they belong together. Moving the section does not move the boxes in it.',
     inputs: [],
     output: 'None.',
     howto: [
@@ -176,7 +176,7 @@ export const CONTROL = [
   {
     key: 'title',
     title: 'Title',
-    what: 'A big heading on the canvas: the graph\'s name, or a chapter of it. Size S, M or L.',
+    what: 'A big heading on the canvas: the graph\'s name, or a chapter of it. Size: Small, Medium or Large.',
     inputs: [],
     output: 'None.',
     howto: ['Put one at the top of every graph you share.', 'Pair it with a Sticky that says what the graph is for.'],
