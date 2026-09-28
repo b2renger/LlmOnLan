@@ -129,6 +129,16 @@ export default (test) => {
     } finally { delete globalThis.window; }
   });
 
+  test('a farm known only by its endpoint (no default) gets the first model it lists, never none', async () => {
+    const { app } = stubApp({ caps: { defaultModel: null, models: [] } });
+    app.farm.fetchModels = async () => ({ ids: ['qwen3.8:latest', 'gemma4:12b'], state: 'ok' });
+    const { api } = createAsk(app);
+    const farm = fakeFarm(() => 'hello');
+    const r = await withFarm(farm, () => api.text({ task: 'instruction', prompt: 'hi' }));
+    assert.equal(r.ok, true);
+    assert.equal(farm.posts[0].body.model, 'qwen3.8:latest');
+  });
+
   // ---- the schema rung -------------------------------------------------------------------------
 
   test('the schema rung sends strict json_schema and parses a bare object', async () => {

@@ -250,8 +250,15 @@ export function createAsk(app) {
    */
   async function once(o) {
     const started = app.now ? app.now() : Date.now();
-    const { model, underlying } = resolveModel(o);
+    let { model, underlying } = resolveModel(o);
     const c = caps();
+    // A farm known only by its endpoint (the fallback branch: no /lol/self, so no default) — take the first model it
+    // lists, as the picker does, rather than send none (the farm answers "model=None"; found on a real run 2026-09-28).
+    if (!model && c && c.present && app.farm && typeof app.farm.fetchModels === 'function') {
+      const listed = await app.farm.fetchModels();
+      model = (listed && listed.ids && listed.ids[0]) || null;
+      underlying = model || '';
+    }
     /** @param {AskResult} r */
     const refuse = (r) => ({ refusal: r, content: '', reasoning: '', usage: null, error: null, ms: 0, model, underlying, finishReason: null });
 

@@ -127,6 +127,11 @@ export function preview(v, n = PREVIEW) {
   return s.length > n ? `${s.slice(0, n)}… (${s.length - n} more characters)` : s;
 }
 
+/** PURE: a value's JavaScript type, as the prompt names it. @param {unknown} v */
+const kindOf = (v) => (typeof v === 'string' ? 'a string'
+  : Array.isArray(v) ? `an array of ${v.length}`
+    : v === null ? 'null' : typeof v === 'object' ? 'an object' : `a ${typeof v}`);
+
 /** The words of one tool, for the prompt. @param {string} tool @param {string[]} hosts */
 function toolLine(tool, hosts) {
   if (tool === 'run_code') return t('parts.agentToolCode');
@@ -146,7 +151,9 @@ export function promptFor(o) {
   const names = Object.keys(o.inputs);
   lines.push('## Inputs');
   if (!names.length) lines.push(t('parts.agentNoInputs'));
-  for (const name of names) lines.push(`- inputs[${JSON.stringify(name)}]: ${preview(o.inputs[name])}`);
+  // Each input's JS type is named: a Text box holding "[12, 7, 30]" printed bare looks like an array, and on the rig
+  // (lesson 11, qwen3.8, 2026-09-28) the model called .reduce on the string twice running.
+  for (const name of names) lines.push(`- inputs[${JSON.stringify(name)}] (${kindOf(o.inputs[name])}): ${preview(o.inputs[name])}`);
   lines.push('', '## Tools');
   for (const tool of o.tools) lines.push(`- ${tool}: ${toolLine(tool, o.hosts)}`);
   lines.push('', '## Steps so far');
@@ -164,7 +171,7 @@ export function promptFor(o) {
 
 /** PURE: the box's answer — the model's words, then every step it took with a look at its result. @param {string} answer @param {any[]} steps */
 export function reportOf(answer, steps) {
-  const out = [String(answer || '').trim(), '', '---', t('parts.agentHow', { n: steps.length })];
+  const out = [String(answer || '').trim(), '', '---', steps.length === 1 ? t('parts.agentHowOne') : t('parts.agentHow', { n: steps.length })];
   steps.forEach((s, i) => {
     let what = s.tool;
     if (s.tool === 'fetch') what += ' ' + s.url;

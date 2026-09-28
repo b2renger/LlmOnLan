@@ -26,6 +26,7 @@ registerStrings('parts', {
   agentNoAnswer: 'No answer after {max} steps ({tools}). Give it more steps, a smaller task, or the data it needs.',
   agentBadStep: 'your answer was not the JSON object asked for (it began: {raw}). Answer with the JSON object only.',
   agentHow: '**How it got there** — {n} steps (each result is what the tool gave back):',
+  agentHowOne: '**How it got there** — 1 step (its result is what the tool gave back):',
   agentNoInputs: '(nothing is wired in)',
   agentNoSteps: '(none yet)',
   agentNoSandbox: 'the code sandbox is not available',

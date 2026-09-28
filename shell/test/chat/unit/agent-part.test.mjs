@@ -70,7 +70,10 @@ export default (test) => {
     });
     assert.match(system, /ONE tool/);
     assert.match(prompt, /## Task\nFind the average\./);
-    assert.match(prompt, /inputs\["readings"\]: \[1,2,3\]/);
+    assert.match(prompt, /inputs\["readings"\] \(an array of 3\): \[1,2,3\]/);
+    // A Text box's "[1, 2, 3]" is a string, and the prompt says so (a bare one read as an array on the rig).
+    assert.match(promptFor({ task: 'x', inputs: { readings: '[1, 2, 3]' }, hosts: [], k: 1, max: 3, tools: ['answer'], steps: [] }).prompt,
+      /inputs\["readings"\] \(a string\): \[1, 2, 3\]/);
     assert.match(prompt, /- run_code: run JavaScript/);
     assert.match(prompt, /1\. run_code — sum them\n {3}code: return 6\n {3}result \(results\[0\]\): 6/);
     assert.match(prompt, /step 2 of at most 3/);
@@ -85,7 +88,7 @@ export default (test) => {
     ]);
     const out = await runAgent({ task: 'Average and largest?' }, f);
     assert.equal(out.kind, 'text');
-    assert.match(out.data, /^The average is 14\.71 and the largest is 30\.\n\n---\n\*\*How it got there\*\* — 1 steps/);
+    assert.match(out.data, /^The average is 14\.71 and the largest is 30\.\n\n---\n\*\*How it got there\*\* — 1 step \(/);
     assert.match(out.data, /1\. \*\*run_code\*\* — average and max\n {3}→ \{"avg":14\.714285714285714,"max":30\}/);
     assert.equal(f.calls.length, 2, 'two generations');
     assert.match(f.calls[1].prompt, /result \(results\[0\]\): \{"avg":14\.714285714285714,"max":30\}/, 'the model saw the computed numbers');
@@ -155,5 +158,6 @@ export default (test) => {
     assert.equal(agentPart.mostGenerations({ settings: { maxSteps: 99 } }), MAX_STEPS);
     assert.deepEqual(agentPart.inputs[0].accepts, ['text', 'json', 'list'], 'a list arrives whole');
     assert.match(reportOf('Hi', []), /^Hi\n\n---\n/);
+    assert.match(reportOf('Hi', [{ tool: 'answer', why: 'done' }]), /— 1 step \(/, 'one step, not "1 steps"');
   });
 };
