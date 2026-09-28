@@ -43,6 +43,7 @@ jobs:
               echo "| \`-linux-arm64.AppImage\` | ARM Linux (DGX Spark) |"
               echo ""
               echo "The \`owui-sidecar-*\` archives download automatically on first run — never needed by hand."
+              echo "The \`dsh-runtime-*\` archives are LOL Vibe's coding agent, downloaded when you press **Install the coding agent** in the Project panel — never needed by hand either."
             } > /tmp/notes.md
             gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes-file /tmp/notes.md --verify-tag
           fi
