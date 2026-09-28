@@ -6,6 +6,30 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-09-28 (morning) — Release v0.2.2 + farm-v0.0.41: the critic's last fixes, two lessons, a speech template
+
+On the owner's go (08:27), what the night committed after the v0.2.1 / farm-v0.0.40 tags
+(`docs/NIGHT_LOG_2026-09-27.md`; the rig checklist `docs/TEST_SCENARIOS_v0.2.md` covers it: 3.7b, 3.15, 6.6).
+
+**Farm.** The message bus, from the pre-release critic's nits (`docs/reviews/POST020_CRITIC_2026-09-27.md`): it hears a
+new farm password at once (not at the next health tick); MQTT replies go through one writer that drops a client
+which stops reading (no unbounded buffer); the WebSocket hub refuses a browser page from the public web (no Origin,
+`null`, `file://`, loopback, private, link-local, one-label and `.local` names pass); an OSC password sent as a
+number works and never becomes the reply port.
+
+**Client.** The Computer's MCP server refuses a request addressed to another Host (defence in depth behind the
+bearer). The Learn shelf: **lesson 5 — code counts, the model names** (a table → a Code box adds it up → the model
+says what the totals show, in words only), **lesson 6 — a loop that stops** (a ring through a Toggle stops at the
+run's ceiling; the Toggle is the brake; no farm), and the template **Ask out loud** (record a question → the farm
+writes it down → a model answers → Speak). Two intermittent unit tests made steady (a same-millisecond sibling
+order; a fixed wait under load).
+
+**Tested.** Unit 1693/0 · lint 0 · scope clean · app tests 5/5 · farm 141/141 · shell + farm-app typecheck · the chat
+harness 389/0 (03:38) and perf 9/9 (08:30) on this tree; lessons 5 and 6 walked in the browser with no farm; the
+MCP Host check and each bus fix with its own test.
+
+---
+
 ## 2026-09-28 (night) — Release v0.2.1 + farm-v0.0.40: boards, a message bus, open data, an agent, and Open WebUI driving the Computer
 
 The rest of the night of 2026-09-27 (`docs/NIGHT_LOG_2026-09-27.md`), on the owner's directions; the manual rig

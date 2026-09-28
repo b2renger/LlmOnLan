@@ -63,7 +63,7 @@ and TouchDesigner or Max (OSC). Scenarios marked **(no farm)** work with the far
 - [ ] **3.7 Listen (speech to text on).** A Sound box with a recording, *Listen* on → an Instruction
   "answer the question in the recording". Run: the words flow on. Export the graph, import it: Listen is
   **off** after the import.
-- [ ] **3.7b Ask out loud** (on main after v0.2.1, in the next release). Learn ▸ Templates ▸ *Ask out loud*: record a
+- [ ] **3.7b Ask out loud** (v0.2.2). Learn ▸ Templates ▸ *Ask out loud*: record a
   question, turn Listen on, Run all — the answer shows and is spoken.
 - [ ] **3.8 Speak.** Text → Speak (*This computer*): you hear it, nothing leaves. *Farm* voice (Kokoro on):
   the farm's voice. Stop during speech: it stops.
@@ -90,6 +90,11 @@ and TouchDesigner or Max (OSC). Scenarios marked **(no farm)** work with the far
   default question (the 5 regions with the most music festivals). Expect Provence-Alpes-Côte d'Azur 416,
   Auvergne-Rhône-Alpes 408, Occitanie 386, Nouvelle-Aquitaine 345, Bretagne 315 (whole file, 2026-09-28),
   with every step shown. Ask your own question; paste another dataset.
+- [ ] **3.15 Lessons 5 and 6** (v0.2.2). Learn ▸ Lessons ▸ *5 · code counts, the model names*: wire the table into
+  the Code box, ▶ — the totals appear (apples 17, pears 10, plums 9); wire them into the Instruction, ▶ — an answer
+  in words, no digits; change a number, ▶ the Text box — the totals follow. Then *6 · a loop that stops* (no farm):
+  close the ring, ▶ the Code box — it counts to 8 and stops by itself; Toggle off, ▶ — one pass (9). Each step
+  ticks on the rail.
 - [ ] **3.12 Different models.** Run *Analyse a dataset* and *Read the news* with gemma4:12b, then with
   qwen3.8 and nemotron if the farm serves them (each Instruction's model picker). Note which one writes a
   working program for 3.11's question.
@@ -138,7 +143,8 @@ and TouchDesigner or Max (OSC). Scenarios marked **(no farm)** work with the far
   they resume. The hourly cap stops runs and says so.
 - [ ] **6.6 OSC.** TouchDesigner sends `/light 0.5` to `<farm>:9001`: a Receive box on `osc/light` gets
   0.5. On a farm with a password, OSC **writes** need no password but land only under `osc/…` (owner
-  decision, 2026-09-27); reading needs it.
+  decision, 2026-09-27); reading needs it. On farm-v0.0.41, a password typed as a NUMBER in TouchDesigner
+  (`/lol/listen # 1234`) works too, and does not become the reply port.
 - [ ] **6.7 A board on Wi-Fi.** Learn ▸ Templates ▸ *A board on Wi-Fi* with the ESP32 of 6.2 (BOARD =
   board1). Arm the outputs: the Trigger runs the graph on each reading, the page shows *board1 says …*,
   covering the sensor switches the LED on (the answer goes back on `lol/board1/led`).
