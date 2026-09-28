@@ -93,6 +93,10 @@ over a person's pick), and the panel's model line follows the picker. It reaches
 7. **Later**: the project's own
    `.dsh/skills`, pruning old dsh session logs.
 
+## 4. Not in v1
+A shell tool; web fetch/search by the model; subagents; background jobs; editing outside the project folder; the
+dsh web UI.
+
 ## 5. Autonomous agents — options for the owner (written 2026-09-28, night)
 
 The vision says LOL Vibe "builds web apps, three.js apps **and autonomous agents**, and serves them locally". v1 writes
@@ -107,7 +111,3 @@ model and acting with tools, in a loop. Three ways to get there, from the safest
 
 **Recommendation:** A now (a skill, `/lol-farm.json`, one lesson — about half a day), B as the Computer's side (already
 built; the import button later), C only after a measured sandbox review and your decision on the shell question.
-
-## 4. Not in v1
-A shell tool; web fetch/search by the model; subagents; background jobs; editing outside the project folder; the
-dsh web UI.
