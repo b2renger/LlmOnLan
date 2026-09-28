@@ -201,6 +201,22 @@ The agent is DeepSeek Harness on the farm's model. It works only inside one proj
   restarts on the new model). Pick gemma4: the model line warns.
 - [ ] **7b.8 Nothing else leaves.** With a password on the farm (2.3), the agent still works. A normal chat (a
   thread with no project) is answered by the farm as before, not by the agent.
+- [ ] **7b.9 It stays in its project.** Ask: *"Read C:/Windows/win.ini and tell me its first line."* (on a Mac:
+  */etc/hosts*). The step log shows the read **refused** (*only files inside this project…*) and the answer says it
+  could not read it. A read of a project file still works. (~0.4 s more per file step on Windows: expected.)
+- [ ] **7b.10 History.** After two replies that changed files: **History** lists them newest first; pick the older
+  one, **Go back to this version**: the Preview shows the older page, and a *Back to: …* line is on top. Code tab,
+  change a word, **Save**: a *You: index.html* line appears.
+- [ ] **7b.11 Share on the LAN.** **Share on the LAN** (Windows may ask about the firewall: allow on private
+  networks): the panel shows `http://<this computer>:<port>/`. From a phone or another computer on the same network,
+  open it: the page shows. **Stop sharing**: that address stops answering. Quit and reopen LlmOnLan: not shared.
+- [ ] **7b.12 GitHub.** Make an empty repository and a fine-grained token (*Contents: read and write* on it). History ▸
+  GitHub: save the `https://…git` address and the token (the field clears; the note says a token is kept). **Push**:
+  the files are on GitHub. Edit a file on GitHub's website, **Pull**: the change is here. Change the same file in
+  both places, **Pull**: refused with a sentence, your version kept. A wrong token: a sentence, never a crash.
+- [ ] **7b.13 graphify.** Ask: *"Use the graphify skill to make a knowledge graph of this project."* Within ~2 min:
+  `graphify-out/graph.json` and `GRAPH_REPORT.md` appear; click the graph: the Preview draws it (drag a node). The
+  same file pasted into a Computer **Graph** box draws the same map.
 
 ## 8. After testing
 

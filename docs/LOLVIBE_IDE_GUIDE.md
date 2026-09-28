@@ -45,6 +45,15 @@ The agent works with **files**: it reads, searches, writes and edits them — **
 Buttons on top: **Other project** (tie the chat to another one), **Open folder**, **Open in browser** (the page in
 your usual browser, on this computer only), **Share on the LAN** (below).
 
+### A map of the project (graphify)
+
+Ask: *"Use the graphify skill to make a knowledge graph of this project."* The agent reads the files and writes
+`graphify-out/graph.json` (and a short `GRAPH_REPORT.md`): the files, functions and ideas of the project, and how
+they connect. Click `graphify-out/graph.json` in the file list: the **Preview** draws it — colours are groups, drag
+the nodes, zoom with the wheel. (The skill is adapted from [graphify](https://github.com/Graphify-Labs/graphify);
+here it needs no Python — the model does the reading. On a 5-file project qwen3.8 took about 90 seconds.) The same
+file opens in the Computer's **Graph** box.
+
 ## 4. Share on the LAN
 
 **Share on the LAN** lets anyone on your network open the project in their browser: the panel shows the address
