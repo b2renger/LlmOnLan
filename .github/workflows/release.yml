@@ -105,6 +105,13 @@ jobs:
           printf '{"owuiVersion":"%s"}\n' "$ver" > owui-sidecar-manifest.json
           ls -la owui-sidecar-* | cat
 
+      # The IDE's coding agent (docs/IDE_PLAN.md slice 5): a pinned Node + the pinned DeepSeek Harness (npm ci of
+      # shell/dsh's lockfile), as dsh-runtime-<platform>-<arch>.tar.gz. Like the sidecar, NOT in the installer: the
+      # client downloads it when a person installs the agent from the Project panel.
+      - name: Build the coding agent runtime
+        shell: bash
+        run: node shell/dsh/build-runtime.mjs
+
       - name: Install shell deps
         if: ${{ !matrix.sidecarOnly }}
         working-directory: shell
@@ -142,6 +149,6 @@ jobs:
           GH_REPO: ${{ github.repository }}
         run: |
           shopt -s nullglob
-          files=(shell/dist/*.exe shell/dist/*.dmg shell/dist/*.zip shell/dist/*.AppImage shell/dist/*.blockmap shell/dist/latest*.yml owui-sidecar-*.tar.gz owui-sidecar-manifest.json)
+          files=(shell/dist/*.exe shell/dist/*.dmg shell/dist/*.zip shell/dist/*.AppImage shell/dist/*.blockmap shell/dist/latest*.yml owui-sidecar-*.tar.gz owui-sidecar-manifest.json dsh-runtime-*.tar.gz)
           echo "Uploading ${#files[@]} file(s): ${files[*]}"
           gh release upload "$GITHUB_REF_NAME" "${files[@]}" --clobber

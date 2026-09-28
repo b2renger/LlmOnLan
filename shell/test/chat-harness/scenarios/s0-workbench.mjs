@@ -33,7 +33,8 @@ const requireReal = async (/** @type {any} */ h) => {
         if (failed.work) throw new Error(`S0-U1 needs the REAL ui/workbench.mjs: ${failed.work.error}`);
         const app = window.LolChat.app;
         if (!app.work) throw new Error('ui/workbench.mjs loaded but installed nothing (app.work is missing)');
-        const want = ['open', 'close', 'current', 'width', 'panels', 'request', 'on'];
+        // P5 (docs/IDE_PLAN.md) added setStudio: a panel binding the open thread to its project.
+        const want = ['open', 'close', 'current', 'width', 'panels', 'request', 'on', 'setStudio'];
         const got = Object.keys(app.work).sort();
         if (got.join(',') !== want.slice().sort().join(',')) {
             throw new Error(`app.work must be exactly ${want.join('/')}, got ${got.join('/')}`);
@@ -55,7 +56,7 @@ const installPanels = (/** @type {any} */ h, ids = ['alpha', 'beta']) => h.eval(
     list.forEach((id, i) => {
         app.registry.add(app.SLOTS.WORKBENCH_PANELS, {
             id,
-            order: 100 + i,
+            order: 1 + i,   // ahead of the chat's own Project panel (order 10, P5): Ctrl+1/2 reach these first
             label: `Panel ${id}`,
             defaultWidth: 'split',
             create(host) {

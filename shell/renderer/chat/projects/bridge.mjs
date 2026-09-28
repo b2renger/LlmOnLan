@@ -152,6 +152,34 @@ export function serialDoor() {
   };
 }
 
+/**
+ * The IDE's coding agent (src/main/studio.ts, docs/IDE_PLAN.md): a prompt names a project id, a thread, a model and
+ * the turn's own id — never a path, a URL or a password (the farm is main's). A turn's records arrive on onEvent,
+ * tagged with that id. Every answer is {ok:true,...} or {ok:false, code, message}. null outside the app.
+ * @returns {null | {prompt(o: any): Promise<any>, stop(): Promise<any>, status(): Promise<any>,
+ *   serve(projectId: string): Promise<any>, install(): Promise<any>, onEvent(fn: (msg: any) => void): void}}
+ */
+export function studioDoor() {
+  const api = preloadProp('studio', ['prompt', 'stop', 'status', 'serve', 'onEvent']);
+  if (!api) return null;
+  /** @param {string} op @param {any[]} args */
+  const call = (op, args) => Promise.resolve()
+    .then(() => api[op](...args))
+    .then((r) => (r && typeof r === 'object' && (r.ok === true || typeof r.code === 'string')
+      ? r : { ok: false, code: 'E_IO', message: 'no answer from the main process' }),
+    (e) => ({ ok: false, code: 'E_IO', message: String(e && e.message ? e.message : e) }));
+  return {
+    prompt: (o) => call('prompt', [o]),
+    stop: () => call('stop', []),
+    status: () => call('status', []),
+    serve: (projectId) => call('serve', [String(projectId)]),
+    // Optional: a shell from before the runtime download has no install.
+    install: () => (typeof api.install === 'function' ? call('install', [])
+      : Promise.resolve({ ok: false, code: 'E_RUNTIME', message: 'this app cannot install the coding agent' })),
+    onEvent: (fn) => { try { api.onEvent(fn); } catch { /* no main: no events */ } },
+  };
+}
+
 /** Whatever came back over IPC, shaped like an answer. @param {any} r */
 function normalise(r) {
   if (!r || typeof r !== 'object') return { ok: false, code: 'E_IO', message: t('projects.err_E_IO') };

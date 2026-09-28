@@ -102,6 +102,9 @@ const MODULES = [
   { key: 'queue',      path: './ui/queue.mjs',          role: 'feature',   fake: null,         phase: 'S0' },
   { key: 'caps',       path: './app/caps.mjs',          role: 'feature',   fake: null,         phase: 'S0' },
   { key: 'projects',   path: './projects/bridge.mjs',   role: 'feature',   fake: null,         phase: 'S0' },
+  // P5 (docs/IDE_PLAN.md): the IDE's Project panel — the workbench's first tenant since K1. A project thread's
+  // replies come from the coding agent (app/controller.mjs → projects/agent.mjs); this panel shows the folder.
+  { key: 'projectPanel', path: './ui/project-panel.mjs', role: 'feature',  fake: null,         phase: 'P5' },
   // C1's `computer` row is GONE (K1 landing, COMPUTER_PLAN §11). The Computer stopped being a
   // workbench panel and became the third top-level surface: `graph/panel.mjs` and `graph/store.mjs`
   // are deleted, and `chat/computer/main.mjs` — its own loader, its own App — mounts `#lolcomputer`

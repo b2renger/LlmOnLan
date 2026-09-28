@@ -36,6 +36,9 @@ registerStrings('core', {
   errorNote: '[error: {message}]',
   busyFailNote: '⏳ The server is busy: {label}. Try again in a moment.',
   stats: '{tokens} tok · {tokPerSec} tok/s · first token {ttft}s',
+  // A reply from the IDE's coding agent: its time is mostly tool work, so tokens per second would mislead.
+  agentStats: '{steps} steps · {seconds} s',
+  agentStatsOne: '1 step · {seconds} s',
   alreadyRunning: 'A reply is already running.',
   deleteThread: 'Delete',
 });

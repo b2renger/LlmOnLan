@@ -209,7 +209,35 @@ function wireDebugLog() {
 }
 // ---- /LOL Studio ----
 
-function createWindow(hasProjects, hasDebugLog, hasIo) {
+// The IDE's coding agent (docs/IDE_PLAN.md): the REAL createStudio from the compiled main output, over the
+// harness's projects root, with test/mock-dsh.mjs as the runtime (on the harness runner's own Node) — never a real
+// dsh or a real farm. The endpoint only lands in the patch file: the mock never calls it.
+const STUDIO_BUILD = path.join(__dirname, '..', '..', 'build', 'main', 'studio.js');
+/** @type {any} */
+let studio = null;
+function wireStudio() {
+    let factory = null;
+    try { if (fs.existsSync(STUDIO_BUILD)) factory = require(STUDIO_BUILD).createStudio; } catch (e) { console.error('[harness-main] studio build unloadable:', e && e.message); }
+    if (typeof factory !== 'function' || !process.env.LOL_HARNESS_NODE) return false;
+    studio = factory({
+        dataDir: () => tmpDir(),
+        projectsRoot: () => path.join(tmpDir(), 'projects'),
+        farm: () => ({ endpoint: 'http://127.0.0.1:9/v1', key: null, ctxPerSlot: 32768 }),
+        runtime: () => ({ node: String(process.env.LOL_HARNESS_NODE), bin: path.join(__dirname, '..', 'mock-dsh.mjs') }),
+        emit: (m) => { if (harnessWin && !harnessWin.isDestroyed()) harnessWin.webContents.send('lol:studio:event', m); },
+        seedSkills: path.join(__dirname, '..', '..', 'assets', 'skills'),
+    });
+    ipcMain.handle('lol:studio:prompt', (_e, o) => (o && typeof o === 'object' ? studio.prompt(o) : { ok: false, code: 'E_ARGS', message: 'bad arguments' }));
+    ipcMain.handle('lol:studio:stop', () => studio.stop());
+    ipcMain.handle('lol:studio:status', () => studio.status());
+    ipcMain.handle('lol:studio:serve', (_e, id) => (typeof id === 'string' ? studio.serve(id) : { ok: false, code: 'E_ARGS', message: 'bad arguments' }));
+    ipcMain.handle('lol:studio:install', () => ({ ok: false, code: 'E_RUNTIME', message: 'the harness downloads nothing' }));
+    app.on('will-quit', () => { void studio.dispose(); });
+    console.log('[harness-main] studio wired (mock dsh)');
+    return true;
+}
+
+function createWindow(hasProjects, hasDebugLog, hasIo, hasStudio) {
     // The same session the shell gives its main window (see the client-session block above).
     const chatSession = clientDir ? session.fromPath(clientDir, { cache: false }) : session.defaultSession;
     clientFacts.sessionPath = chatSession.getStoragePath();
@@ -224,7 +252,7 @@ function createWindow(hasProjects, hasDebugLog, hasIo) {
             backgroundThrottling: false,
             preload: path.join(__dirname, 'preload.cjs'),
             session: chatSession,
-            additionalArguments: [hasProjects && '--lol-projects=1', hasDebugLog && '--lol-debuglog=1', hasIo && '--lol-io=1'].filter(Boolean),
+            additionalArguments: [hasProjects && '--lol-projects=1', hasDebugLog && '--lol-debuglog=1', hasIo && '--lol-io=1', hasStudio && '--lol-studio=1'].filter(Boolean),
         },
     });
     harnessWin = win;
@@ -241,6 +269,7 @@ function createWindow(hasProjects, hasDebugLog, hasIo) {
         if (e.isMainFrame) return;
         const u = String(e.url || '');
         if (bareUrl(u) === RUNNER_URL) return;
+        if (studio && studio.serves(u)) return;   // the IDE's Preview (mirrors shell/src/main/index.ts)
         e.preventDefault();
         windowOpens.push({ url: u, action: 'dropped', ts: Date.now(), frameNavigate: true });
         writeJson(path.join(tmpDir(), 'window-opens.json'), windowOpens);
@@ -304,7 +333,7 @@ app.whenReady().then(() => {
     writeJson(path.join(tmpDir(), 'window-opens.json'), windowOpens);
     writeJson(path.join(tmpDir(), 'downloads.json'), downloads);
     writeJson(path.join(tmpDir(), 'shell-calls.json'), shellCalls);
-    createWindow(wireProjects(), wireDebugLog(), wireIo());
+    createWindow(wireProjects(), wireDebugLog(), wireIo(), wireStudio());
 });
 
 // Nothing here should ever reach the system browser.

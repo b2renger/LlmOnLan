@@ -43,3 +43,56 @@
   color: var(--danger);
   font-size: 12px;
 }
+
+/* ---- The Project panel: LOL Vibe's IDE (ui/project-panel.mjs, docs/IDE_PLAN.md) ------------------------------ */
+.chat-proj { display: flex; flex-direction: column; min-height: 100%; padding: 10px; gap: 8px; box-sizing: border-box; }
+.chat-proj-empty, .chat-proj-main { display: flex; flex-direction: column; gap: 8px; min-height: 0; flex: 1 1 auto; }
+.chat-proj-empty[hidden], .chat-proj-main[hidden] { display: none; }
+.chat-proj-title { margin: 0; font-size: 15px; color: var(--text); }
+.chat-proj-note { margin: 0; font-size: 12px; line-height: 1.45; color: var(--muted); }
+.chat-proj-note:empty { display: none; }
+.chat-proj-model.is-warn { color: var(--amber); }
+.chat-proj-new { display: flex; gap: 6px; }
+.chat-proj-name-in {
+  flex: 1 1 auto; min-width: 0; padding: 6px 8px; font: inherit; font-size: 13px;
+  color: var(--text); background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px;
+}
+.chat-proj-btn {
+  display: inline-flex; align-items: center; padding: 4px 10px; font: inherit; font-size: 12px; line-height: 1.4;
+  color: var(--text); background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px;
+  cursor: pointer; text-decoration: none; white-space: nowrap;
+}
+.chat-proj-btn:hover { border-color: var(--accent-hover); }
+.chat-proj-btn[hidden] { display: none; }
+.chat-proj-create { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+.chat-proj-create:hover { filter: brightness(1.08); }
+.chat-proj-list, .chat-proj-files { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.chat-proj-pick, .chat-proj-file { width: 100%; justify-content: flex-start; overflow: hidden; text-overflow: ellipsis; }
+.chat-proj-file { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11px; background: transparent; border-color: transparent; }
+.chat-proj-file.is-open { background: var(--surface-2); border-color: var(--border); }
+.chat-proj-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.chat-proj-name { flex: 1 1 auto; min-width: 0; font-weight: 600; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chat-proj-cols { display: grid; grid-template-columns: minmax(110px, 26%) minmax(0, 1fr); gap: 8px; flex: 1 1 auto; min-height: 320px; }
+.chat-proj-files { overflow: auto; min-height: 0; }
+.chat-proj-view { display: flex; flex-direction: column; min-width: 0; min-height: 0; gap: 6px; }
+.chat-proj-tabs { display: flex; gap: 4px; }
+.chat-proj-tab.is-on { background: var(--surface); border-color: var(--accent-hover); }
+.chat-proj-pane { display: flex; flex-direction: column; gap: 6px; flex: 1 1 auto; min-height: 0; }
+.chat-proj-pane[hidden] { display: none; }
+.chat-proj-reload { align-self: flex-start; }
+.chat-proj-frame { flex: 1 1 auto; width: 100%; min-height: 300px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); }
+.chat-proj-code-head { display: flex; align-items: center; gap: 8px; }
+.chat-proj-code-name { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; }
+.chat-proj-code {
+  flex: 1 1 auto; min-height: 300px; resize: none; padding: 8px; tab-size: 2;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; line-height: 1.5;
+  color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+}
+.chat-proj-change { border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+.chat-proj-change-path { margin: 0; padding: 4px 8px; font-size: 12px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: var(--surface-2); }
+.chat-proj-change-new { margin: 0; font-size: 12px; color: var(--green); }
+.chat-proj-diff { margin: 0; padding: 6px 8px; font-size: 11px; line-height: 1.45; overflow: auto; max-height: 360px; }
+.chat-proj-del { display: block; color: var(--danger); background: color-mix(in srgb, var(--danger) 10%, transparent); }
+.chat-proj-add { display: block; color: var(--green); background: color-mix(in srgb, var(--green) 10%, transparent); }
+.chat-proj-install { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-2); }
+.chat-proj-install[hidden] { display: none; }

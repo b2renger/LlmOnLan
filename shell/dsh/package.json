@@ -1,0 +1,9 @@
+{
+  "name": "lol-dsh-runtime",
+  "private": true,
+  "description": "The IDE's coding agent (DeepSeek Harness), pinned. Built into dsh-runtime-<platform>-<arch>.tar.gz by build-runtime.mjs (docs/IDE_PLAN.md slice 5).",
+  "license": "MIT",
+  "dependencies": {
+    "@deepseek-ai/dsh": "0.1.7-rc.2"
+  }
+}

@@ -21,13 +21,14 @@ import { clientDataDir, prepareClientData, isInside, CLIENT_DIR_NAME, ClientData
 import { initAutoUpdate, checkForAppUpdate, quitAndInstallUpdate, setUpdateNotifier } from './updater';
 import { OWUI_ENABLED } from './clientMode';
 import { fetchText } from './io';
+import { createStudio, resolveRuntime, Studio } from './studio';
 import { send as sendOutput, arm as armOutputs, isArmed as outputsArmed, panic as panicOutputs, SendRequest } from './outputs';
 import { configureSerial, registerSerialIpc, grantRequest } from './serial';
 import { startMcpServer, pageCaller, TOOLS as MCP_TOOLS, MCP_PORT, MCP_PATH } from './mcp';
 import { setComputerMcp } from './configBridge';
 import {
     ensureSidecar, applyPendingSidecar, isSidecarInstalled,
-    checkOwuiUpdate, downloadOwuiUpdate, SidecarProgress,
+    checkOwuiUpdate, downloadOwuiUpdate, SidecarProgress, releaseAssetUrl, installFrom,
 } from './sidecarManager';
 import { ShellSettings, DiscoveredFarm, ScanRange, McpoState } from './types';
 import {
@@ -51,6 +52,8 @@ if (!gotSingleInstanceLock) {
 }
 
 let win: BrowserWindow | null = null;
+// The IDE's coding agent (studio.ts): made on first use; a window reload or a quit ends its turn and its runtime.
+let studioApi: Studio | null = null;
 const sidecar = new SidecarSupervisor();
 const mcpo = new McpoSupervisor(); // local Blender assistant-tools server (opt-in)
 let discovery: Discovery | null = null;
@@ -477,9 +480,9 @@ function createWindow(): void {
     // (the sandbox, a Live guest), which disarmed a graph mid-run while the bar still said LIVE
     // (release critic R1). A crashed renderer disarms too.
     win.webContents.on('did-start-navigation', (d: { isMainFrame?: boolean; isSameDocument?: boolean }) => {
-        if (d && d.isMainFrame && !d.isSameDocument) armOutputs(false);
+        if (d && d.isMainFrame && !d.isSameDocument) { armOutputs(false); void studioApi?.dispose(); }
     });
-    win.webContents.on('render-process-gone', () => { armOutputs(false); });
+    win.webContents.on('render-process-gone', () => { armOutputs(false); void studioApi?.dispose(); });
 
     // ---- LOL Studio (S0) ---- (navigation veto; mirrored in shell/test/chat-harness/main.cjs)
     // The sandbox runner (S2) is a SUBFRAME: it may load itself once and must never navigate
@@ -494,6 +497,8 @@ function createWindow(): void {
     win.webContents.on('will-frame-navigate', (e) => {
         if (e.isMainFrame) return;
         if (bareUrl(String(e.url || '')) === RUNNER_URL) return;
+        // The IDE's Preview: a project this app serves on 127.0.0.1 (studio.ts), by exact origin.
+        if (studioApi && studioApi.serves(String(e.url || ''))) return;
         e.preventDefault();
     });
     // ---- /LOL Studio ----
@@ -649,6 +654,58 @@ function registerIpc(): void {
     ipcMain.handle('lol:projects:reveal', (_e, id: unknown) => (isStr(id) ? projects().reveal(id) : badArgs));
     ipcMain.handle('lol:projects:open', (_e, id: unknown) => (isStr(id) ? projects().open(id) : badArgs));
     ipcMain.handle('lol:projects:path', (_e, id: unknown) => (isStr(id) ? projects().path(id) : badArgs));
+    // The IDE's coding agent (studio.ts, docs/IDE_PLAN.md): a prompt runs in ONE project folder on the farm's model;
+    // its records come back on 'lol:studio:event'. The farm, the password and the paths are main's, never the page's.
+    function studio(): Studio {
+        if (!studioApi) {
+            studioApi = createStudio({
+                dataDir: resolveDataDir,
+                projectsRoot: () => path.join(resolveDataDir(), 'LOL Studio Projects'),
+                farm: () => (currentEndpoint ? { endpoint: currentEndpoint, key: currentKey, ctxPerSlot: currentCtxPerSlot } : null),
+                runtime: () => resolveRuntime(process.env, app.getPath('userData')),
+                emit: (m) => { if (win && !win.isDestroyed()) win.webContents.send('lol:studio:event', m); },
+                seedSkills: path.join(app.getAppPath(), 'assets', 'skills'),
+            });
+        }
+        return studioApi;
+    }
+    const badStudio = Promise.resolve({ ok: false, code: 'E_ARGS', message: 'bad arguments' });
+    ipcMain.handle('lol:studio:prompt', (_e, o: unknown) => {
+        if (!isObj(o) || !isStr(o.projectId) || !isStr(o.threadId) || !isStr(o.model) || !isStr(o.text)) return badStudio;
+        if (o.text.length > 100000 || o.model.length > 200 || o.threadId.length > 200) return badStudio;
+        if (o.recap !== undefined && (!isStr(o.recap) || o.recap.length > 20000)) return badStudio;
+        if (o.maxTokens !== undefined && typeof o.maxTokens !== 'number') return badStudio;
+        if (o.turnId !== undefined && (!isStr(o.turnId) || o.turnId.length > 64)) return badStudio;
+        return studio().prompt({ projectId: o.projectId, threadId: o.threadId, model: o.model, text: o.text, recap: o.recap as string | undefined, maxTokens: o.maxTokens as number | undefined, turnId: o.turnId as string | undefined });
+    });
+    ipcMain.handle('lol:studio:stop', () => studio().stop());
+    ipcMain.handle('lol:studio:status', () => studio().status());
+    ipcMain.handle('lol:studio:serve', (_e, id: unknown) => (isStr(id) ? studio().serve(id) : badStudio));
+    // Install the agent: this version's dsh-runtime-<platform>-<arch>.tar.gz from GitHub (the latest release's as a
+    // fallback) into <userData>/dsh-runtime, where resolveRuntime finds it — the sidecar's own download + unpack.
+    // A person's click, never automatic; progress rides the studio event channel.
+    let installing: Promise<unknown> | null = null;
+    ipcMain.handle('lol:studio:install', () => {
+        if (installing) return installing;
+        const name = `dsh-runtime-${process.platform}-${process.arch}.tar.gz`;
+        const say = (p: SidecarProgress) => { if (win && !win.isDestroyed()) win.webContents.send('lol:studio:event', { turnId: '', install: p }); };
+        installing = (async () => {
+            try {
+                say({ phase: 'check' });
+                const url = (await releaseAssetUrl(`v${app.getVersion()}`, name).catch(() => null))
+                    || (await releaseAssetUrl('latest', name).catch(() => null));
+                if (!url) return { ok: false, code: 'E_RUNTIME', message: `There is no ${name} on the release yet.` };
+                await studioApi?.dispose();
+                await installFrom(url, path.join(app.getPath('userData'), 'dsh-runtime'), say, { precompile: false, label: 'the coding agent' });
+                say({ phase: 'done' });
+                return { ok: true };
+            } catch (e) {
+                say({ phase: 'error', message: (e as Error).message });
+                return { ok: false, code: 'E_RUNTIME', message: `The coding agent could not be installed: ${(e as Error).message}` };
+            } finally { installing = null; }
+        })();
+        return installing;
+    });
     // ---- /LOL Studio ----
 
     // ---- LOL Studio (S0) ---- (the Computer's debug log, COMPUTER_PLAN addendum KG)
@@ -1148,7 +1205,7 @@ app.on('before-quit', async (e) => {
     // either way: a lingering background process is the exact thing the owner
     // asked to be rid of (2026-09-10).
     // Lights a graph turned on go dark when the app quits (release critic: Panic on the way out).
-    const cleanup = Promise.allSettled([sidecar.stop(), mcpo.stop(), panicOutputs()]);
+    const cleanup = Promise.allSettled([sidecar.stop(), mcpo.stop(), panicOutputs(), studioApi ? studioApi.dispose() : Promise.resolve()]);
     const deadline = new Promise((r) => setTimeout(r, 4000));
     await Promise.race([cleanup, deadline]);
     app.exit(0);

@@ -104,6 +104,16 @@ async function findSidecarAsset(tagOrLatest: string): Promise<FoundAsset | null>
     return { url: asset.browser_download_url, owuiVersion };
 }
 
+/** The download URL of one asset on a release of this repo ('latest' or a tag), or null. Also the IDE's
+ *  coding-agent runtime (dsh-runtime-<platform>-<arch>.tar.gz, docs/IDE_PLAN.md slice 5). */
+export async function releaseAssetUrl(tagOrLatest: string, name: string): Promise<string | null> {
+    const rel = tagOrLatest === 'latest'
+        ? await ghJson(`/repos/${REPO}/releases/latest`)
+        : await ghJson(`/repos/${REPO}/releases/tags/${tagOrLatest}`);
+    const asset = rel && Array.isArray(rel.assets) ? rel.assets.find((a: any) => a.name === name) : null;
+    return asset ? asset.browser_download_url : null;
+}
+
 // Download <tarball-url> and extract it into destDir (replacing it atomically).
 // Extraction is platform-split (see the tar call below): RELATIVE paths on Windows,
 // ABSOLUTE paths everywhere else. `precompile` is for a tree that is about to RUN (the
@@ -111,16 +121,17 @@ async function findSidecarAsset(tagOrLatest: string): Promise<FoundAsset | null>
 // python.exe from inside sidecar.pending, and on Windows a running exe under that folder
 // makes the pending→live rename fail — "Restart to apply" then lost the update (docs review
 // SA-6). applyPendingSidecar() precompiles the live tree after the swap instead.
-async function installFrom(url: string, destDir: string, onProgress?: ProgressCb, opts: { precompile?: boolean } = {}): Promise<void> {
+export async function installFrom(url: string, destDir: string, onProgress?: ProgressCb, opts: { precompile?: boolean; label?: string } = {}): Promise<void> {
+    const label = opts.label || 'the chat engine';
     const tmp = path.join(app.getPath('temp'), `lol-sidecar-${process.pid}-${Date.now()}.tar.gz`);
-    onProgress?.({ phase: 'download', message: 'Downloading the chat engine…', percent: 0 });
+    onProgress?.({ phase: 'download', message: `Downloading ${label}…`, percent: 0 });
     await downloadTo(url, tmp, (recv, total) => {
         onProgress?.({
             phase: 'download', receivedMB: Math.round(recv / 1e6), totalMB: Math.round(total / 1e6),
             percent: total ? Math.round((recv / total) * 100) : undefined,
         });
     });
-    onProgress?.({ phase: 'extract', message: 'Unpacking the chat engine…' });
+    onProgress?.({ phase: 'extract', message: `Unpacking ${label}…` });
     const stage = destDir + '.stage';
     fs.rmSync(stage, { recursive: true, force: true });
     fs.mkdirSync(stage, { recursive: true });

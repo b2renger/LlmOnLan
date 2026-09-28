@@ -24,6 +24,9 @@ sidecar/build/
 sidecar/.work/
 sidecar/openwebui-src/
 
+# --- The IDE's coding-agent runtime (shell/dsh/build-runtime.mjs writes it here; CI uploads it) ---
+/dsh-runtime-*.tar.gz
+
 # --- Farm runtime (generated; never committed) ---
 farm/litellm/config.generated.yaml
 farm/.lol-runtime.json

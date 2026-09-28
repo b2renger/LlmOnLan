@@ -1,0 +1,37 @@
+// @ts-check
+// Strings for the Project panel — LOL Vibe's IDE (ui/project-panel.mjs, docs/IDE_PLAN.md).
+import { registerStrings } from '../core/i18n.mjs';
+
+registerStrings('project', {
+  label: 'Project',
+  emptyTitle: 'Build with the coding agent',
+  emptyBody: 'Pick a project, or make a new one. Then ask in the chat: "make a three.js page with a rotating cube". The agent writes the files in the project folder on this computer, with the farm\'s model; nothing is kept on the farm.',
+  newPlaceholder: 'New project name',
+  create: 'New project',
+  other: 'Other project',
+  folder: 'Open folder',
+  browser: 'Open in browser',
+  files: 'Files',
+  noFiles: 'No files yet.',
+  tabPreview: 'Preview',
+  tabCode: 'Code',
+  tabChanges: 'Changes',
+  reload: 'Reload',
+  save: 'Save',
+  saved: 'Saved.',
+  conflict: 'The file changed on disk since you opened it (the agent?). Open it again from the list first.',
+  binary: 'Not a text file: see it in the Preview.',
+  noIndex: 'There is no {page} yet. Ask the agent to make one.',
+  noChanges: 'The agent\'s last reply changed nothing.',
+  newFile: 'New file: {path}',
+  modelGood: '{model} is good at editing code.',
+  modelWeak: '{model} is weak at editing code (it thinks itself out of room). Pick qwen3.8 or nemotron in the model menu.',
+  modelUnknown: 'No one has measured {model} on code edits yet.',
+  notInstalled: 'The coding agent is not installed on this computer yet.',
+  install: 'Install the coding agent (about 110 MB)',
+  installCheck: 'Looking for the coding agent on GitHub…',
+  installing: 'Downloading the coding agent… {percent}%',
+  unpacking: 'Unpacking the coding agent…',
+  installed: 'The coding agent is installed.',
+  noApp: 'The coding agent runs in the LlmOnLan app, not here.',
+});

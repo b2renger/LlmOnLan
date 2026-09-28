@@ -34,4 +34,14 @@ if (process.argv.includes('--lol-io=1')) api.io = {
     armed: () => ipcRenderer.invoke('lol:io:armed'),
     panic: () => ipcRenderer.invoke('lol:io:panic'),
 };
+// The IDE's coding agent (docs/IDE_PLAN.md), the SAME shape as shell/src/preload/index.ts, present only when
+// main.cjs wired the real runner over the mock dsh (build/main/studio.js exists).
+if (process.argv.includes('--lol-studio=1')) api.studio = {
+    prompt: (o) => ipcRenderer.invoke('lol:studio:prompt', o),
+    stop: () => ipcRenderer.invoke('lol:studio:stop'),
+    status: () => ipcRenderer.invoke('lol:studio:status'),
+    serve: (projectId) => ipcRenderer.invoke('lol:studio:serve', projectId),
+    install: () => ipcRenderer.invoke('lol:studio:install'),
+    onEvent: (fn) => { ipcRenderer.on('lol:studio:event', (_e, msg) => fn(msg)); },
+};
 contextBridge.exposeInMainWorld('lol', api);

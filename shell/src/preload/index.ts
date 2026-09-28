@@ -113,4 +113,14 @@ contextBridge.exposeInMainWorld('lol', {
         onChoose: (fn: (list: unknown) => void) => { ipcRenderer.on('lol:serial:choose', (_e, list) => fn(list)); },
         chosen: (portId: string) => ipcRenderer.invoke('lol:serial:chosen', portId),
     },
+    // The IDE's coding agent (src/main/studio.ts): a prompt names a project id, a thread and a model — never a path
+    // or a URL; the farm and the password stay in main. A turn's records arrive on onEvent.
+    studio: {
+        prompt: (o: unknown) => ipcRenderer.invoke('lol:studio:prompt', o),
+        stop: () => ipcRenderer.invoke('lol:studio:stop'),
+        status: () => ipcRenderer.invoke('lol:studio:status'),
+        serve: (projectId: string) => ipcRenderer.invoke('lol:studio:serve', projectId),
+        install: () => ipcRenderer.invoke('lol:studio:install'),
+        onEvent: (fn: (msg: unknown) => void) => { ipcRenderer.on('lol:studio:event', (_e, msg) => fn(msg)); },
+    },
 });

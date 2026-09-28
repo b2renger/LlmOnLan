@@ -31,8 +31,11 @@ async function withDom(fn) {
   }
 }
 
+// Each thread made is 1 ms older than the one before: the lists are newest-first, and `Date.now()` here used to let a
+// busy machine stamp t2 a millisecond after t1 and flip the expected order (a flake seen twice, 2026-09-28).
+let stamp = Date.now();
 const thread = (/** @type {string} */ id, /** @type {string} */ title, patch = {}) => ({
-  id, title, pinned: false, ephemeral: false, updatedAt: Date.now(), ...patch,
+  id, title, pinned: false, ephemeral: false, updatedAt: stamp--, ...patch,
 });
 
 function fakeRepo(threads = [], messages = []) {

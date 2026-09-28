@@ -290,6 +290,7 @@ async function main() {
         const electronBin = require(path.join(SHELL_DIR, 'node_modules', 'electron'));
         const env = { ...process.env };
         delete env.ELECTRON_RUN_AS_NODE;          // VS Code exports it; electron would run as plain node
+        env.LOL_HARNESS_NODE = process.execPath;  // the IDE's agent (a mock dsh) runs on a real Node, as dsh does
         const initialQuery = [
             'farm=mock', 'refreshMs=4000', `proxy=${ports.proxy}`, `keyed=${ports.keyed}`,
             `self=${ports.self}`, `key=${MOCK_KEY}`,

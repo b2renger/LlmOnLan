@@ -674,6 +674,22 @@ export function install(app) {
     panels: () => syncRail().map((p) => ({ id: p.id, label: p.label, available: p.available, reason: p.reason })),
     /** A panel (or a feature) asking the workbench to show it. @param {string} id @param {string} [state] */
     request: (/** @type {string} */ id, /** @type {any} */ state) => open(id, { width: state }),
+    /**
+     * A panel binding the open thread to something of its own — the IDE's project (docs/IDE_PLAN.md). Merged into
+     * the workbench's copy (which every width or tab change rewrites), written AT ONCE (the next message must find
+     * it), and told to the live panel through onThread.
+     * @param {{projectId?: string|null}} patch
+     */
+    setStudio: (patch) => {
+      if (!patch || !('projectId' in patch)) return studio;
+      const next = mergeStudio(studio, { projectId: patch.projectId || null }, { now: app.now(), panels: panelIds() });
+      if (next === studio) return studio;
+      studio = next;
+      if (thread) thread.studio = next;
+      if (app.state.threadId) { writer.put(app.state.threadId, next); writer.flush(); }
+      if (live) safe(`${liveId}.onThread()`, () => live.onThread(ctx()));
+      return next;
+    },
     /** @param {(s: any) => void} fn */
     on: (fn) => {
       if (typeof fn !== 'function') return () => { };

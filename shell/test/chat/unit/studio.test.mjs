@@ -1,0 +1,240 @@
+// @ts-check
+// The IDE's coding-agent runner (src/main/studio.ts; docs/IDE_PLAN.md): the profile patch keeps dsh on the farm with
+// no shell, no web and no telemetry; a recorded session projects to small path-relative records; the runner speaks
+// the SDK protocol (against test/mock-dsh.mjs), starts a fresh session with the recap, stops by killing the process,
+// and says why when it cannot start; the Preview server serves the project folder only, to 127.0.0.1 only.
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import http from 'node:http';
+import os from 'node:os';
+import path from 'node:path';
+import { createRequire } from 'node:module';
+import { fileURLToPath } from 'node:url';
+
+const require = createRequire(import.meta.url);
+const HERE = path.dirname(fileURLToPath(import.meta.url));
+const SHELL = path.join(HERE, '..', '..', '..');
+const BUILD = path.join(SHELL, 'build', 'main');
+const MOCK = path.join(SHELL, 'test', 'mock-dsh.mjs');
+const FIXTURE = path.join(SHELL, 'test', 'chat', 'fixtures', 'dsh', 'write-edit-error.jsonl');
+const PID = 'demo-abcd1234';
+
+const tmp = (name) => fs.mkdtempSync(path.join(os.tmpdir(), `lol-studio-${name}-`));
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/** GET with a chosen Host header. @returns {Promise<{status: number, type: string, body: string}>} */
+function get(url, o = {}) {
+  return new Promise((resolve, reject) => {
+    const u = new URL(url);
+    const req = http.request({ host: u.hostname, port: u.port, path: o.path || u.pathname, method: o.method || 'GET', headers: o.host ? { host: o.host } : {} }, (res) => {
+      let body = '';
+      res.setEncoding('utf8');
+      res.on('data', (d) => { body += d; });
+      res.on('end', () => resolve({ status: res.statusCode || 0, type: String(res.headers['content-type'] || ''), body }));
+    });
+    req.on('error', reject);
+    req.end();
+  });
+}
+
+export default (test) => {
+  const built = path.join(BUILD, 'studio.js');
+  test('studio: build/main/studio.js is current', () => {
+    assert.ok(fs.existsSync(built) && fs.statSync(built).mtimeMs >= fs.statSync(path.join(SHELL, 'src', 'main', 'studio.ts')).mtimeMs,
+      'build/main/studio.js is older than studio.ts — run: npm --prefix shell run build');
+  });
+  /** @type {any} */ const S = require(built);
+
+  test('studio: the patch points dsh at the farm, pins the skills and turns off the shell, the web and telemetry', () => {
+    const p = S.buildPatch({ baseUrl: 'http://10.0.0.5:4000/v1', model: 'qwen3.8:latest', contextWindow: 1000, skillsDir: 'C:\\Users\\a b\\LOL: data\\skills' });
+    assert.match(p, /baseURL: "http:\/\/10\.0\.0\.5:4000\/v1"/);
+    assert.match(p, /- id: "qwen3\.8:latest"\n\s+contextWindow: 4096/, 'a tiny window is raised to a floor');
+    assert.match(p, /apiKeyEnv: LOL_FARM_KEY/, 'the password travels by env, never in the file');
+    assert.match(p, /includeDefaultRoots: false/, 'no ~/.claude or ~/.agents skills');
+    assert.ok(p.includes(JSON.stringify('C:\\Users\\a b\\LOL: data\\skills')), 'a path with a colon and spaces stays one quoted string');
+    for (const id of ['tool-pwsh', 'tool-bash', 'tool-web', 'web-fetch-http', 'web-search-deepseek', 'session-telemetry-otel',
+      'session-log-deepseek', 'deepseek-account', 'llm-deepseek', 'tool-subagent', 'tool-workflow', 'tool-jobs', 'tool-goal']) {
+      assert.ok(p.includes(`- { id: ${id}, disabled: true }`), `${id} is off`);
+    }
+  });
+
+  test('studio: the runtime env carries our settings and none of the shell\'s other secrets', () => {
+    const env = S.runtimeEnv({ PATH: '/bin', OPENAI_API_KEY: 'x', DEEPSEEK_API_KEY: 'y', ELECTRON_RUN_AS_NODE: '1', HF_TOKEN: 'z' }, { home: '/h', key: 'pw' });
+    assert.equal(env.PATH, '/bin');
+    for (const k of ['OPENAI_API_KEY', 'DEEPSEEK_API_KEY', 'ELECTRON_RUN_AS_NODE', 'HF_TOKEN']) assert.equal(env[k], undefined, `${k} is not passed`);
+    assert.equal(env.LOL_FARM_KEY, 'pw');
+    assert.equal(env.DSH_TELEMETRY_DISABLED, '1');
+    assert.equal(env.DSH_MAX_TOKENS_AS_SUCCESS, 'false', 'running out of tokens is never "done"');
+    assert.equal(env.DSH_HOME, '/h');
+  });
+
+  test('studio: a recorded session (write, edit, a failed read) becomes small records with project paths', () => {
+    const dir = '<PROJECT>';
+    const recs = fs.readFileSync(FIXTURE, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l))
+      .filter((m) => m.method === 'session.event').map((m) => S.projectEvent(m.params.event, dir)).filter(Boolean);
+    assert.deepEqual(recs.map((r) => r.kind + (r.name ? ':' + r.name : '')),
+      ['step', 'call:write', 'result', 'step', 'call:edit', 'result', 'step', 'call:read', 'result', 'step', 'end']);
+    assert.equal(recs[1].target, 'notes.txt');
+    assert.equal(recs[2].ok, true);
+    assert.equal(recs[2].created, true, 'a write that made a file says so');
+    assert.equal(recs[2].callId, recs[1].callId, 'a result names its call');
+    assert.deepEqual(recs[5].diffs, [{ path: 'notes.txt', oldText: 'one', newText: 'two' }]);
+    assert.equal(recs[8].ok, false);
+    assert.match(recs[8].error, /not found/);
+    assert.ok(!recs[8].error.includes('<PROJECT>'), 'the project folder is not spelled out');
+    assert.match(recs[9].text, /notes\.txt/);
+    assert.equal(recs[9].stopReason, 'stop');
+    assert.equal(recs[10].reason, 'completed');
+  });
+
+  test('studio: paths are made relative to the project, and one outside it is left as it is', () => {
+    const d = tmp('rel');
+    assert.equal(S.relPath(path.join(d, 'src', 'a.js'), d), 'src/a.js');
+    assert.equal(S.relPath('./b.css', d), 'b.css');
+    const outside = path.join(os.tmpdir(), 'elsewhere.txt');
+    assert.equal(S.relPath(outside, d), outside);
+  });
+
+  test('studio: the runtime is found with its own Node, or LOL_DSH_NODE, and is absent otherwise', () => {
+    const d = tmp('rt');
+    assert.equal(S.resolveRuntime({ LOL_DSH_DIR: d }, d), null, 'no dsh');
+    const bin = path.join(d, 'node_modules', '@deepseek-ai', 'dsh', 'lib', 'bin.js');
+    fs.mkdirSync(path.dirname(bin), { recursive: true });
+    fs.writeFileSync(bin, '');
+    assert.equal(S.resolveRuntime({ LOL_DSH_DIR: d }, d), null, 'dsh without a Node');
+    assert.deepEqual(S.resolveRuntime({ LOL_DSH_DIR: d, LOL_DSH_NODE: '/n' }, d), { node: '/n', bin });
+    const own = path.join(d, 'node', process.platform === 'win32' ? 'node.exe' : path.join('bin', 'node'));
+    fs.mkdirSync(path.dirname(own), { recursive: true });
+    fs.writeFileSync(own, '');
+    assert.deepEqual(S.resolveRuntime({ LOL_DSH_DIR: d }, d), { node: own, bin });
+    assert.deepEqual(S.resolveRuntime({}, d), null, 'the default folder is <userData>/dsh-runtime');
+  });
+
+  /** A studio over a temp data folder with one project, the mock dsh and a recording emit. */
+  function rig(o = {}) {
+    const data = tmp('data');
+    const root = path.join(data, 'LOL Studio Projects');
+    fs.mkdirSync(path.join(root, PID), { recursive: true });
+    const seed = tmp('seed');
+    fs.mkdirSync(path.join(seed, 'ponytail'));
+    fs.writeFileSync(path.join(seed, 'ponytail', 'SKILL.md'), '---\nname: ponytail\n---\n');
+    /** @type {any[]} */ const got = [];
+    const studio = S.createStudio({
+      dataDir: () => data,
+      projectsRoot: () => root,
+      farm: () => ('farm' in o ? o.farm : { endpoint: 'http://127.0.0.1:9/v1', key: null, ctxPerSlot: null }),
+      runtime: () => ('runtime' in o ? o.runtime : { node: process.execPath, bin: MOCK }),
+      emit: (m) => got.push(m),
+      seedSkills: seed,
+    });
+    const done = async (turnId, ms = 15000) => {
+      const t0 = Date.now();
+      while (Date.now() - t0 < ms) {
+        const d = got.find((m) => m.turnId === turnId && m.done);
+        if (d) return d.done;
+        await sleep(20);
+      }
+      throw new Error(`turn ${turnId} did not end`);
+    };
+    const said = (turnId) => got.filter((m) => m.turnId === turnId && m.rec && m.rec.kind === 'step').map((m) => m.rec.text).join('|');
+    return { data, root, studio, got, done, said, dir: path.join(root, PID) };
+  }
+
+  test('studio: a prompt runs a turn in the project folder — the file appears, the records and the end arrive', async () => {
+    const r = rig();
+    try {
+      const a = await r.studio.prompt({ projectId: PID, threadId: 't1', model: 'qwen3.8:latest', text: 'write index.html: <h1>hi</h1>', recap: 'Earlier: nothing.' });
+      assert.equal(a.ok, true, JSON.stringify(a));
+      assert.equal(a.fresh, true);
+      assert.deepEqual(await r.done(a.turnId), { reason: 'completed' });
+      assert.equal(fs.readFileSync(path.join(r.dir, 'index.html'), 'utf8'), '<h1>hi</h1>');
+      const kinds = r.got.filter((m) => m.turnId === a.turnId && m.rec).map((m) => m.rec.kind + (m.rec.name ? ':' + m.rec.name : ''));
+      assert.deepEqual(kinds, ['step', 'call:write', 'result', 'step', 'end']);
+      assert.match(r.said(a.turnId), /Earlier: nothing\./, 'a fresh session starts with the recap');
+      const patch = fs.readFileSync(path.join(r.data, 'lol-studio', 'dsh', 'profiles', 'sdk', 'cordis.patch.yml'), 'utf8');
+      assert.match(patch, /baseURL: "http:\/\/127\.0\.0\.1:9\/v1"/, 'the patch was written before the start');
+      assert.ok(fs.existsSync(path.join(r.data, 'skills', 'ponytail', 'SKILL.md')), 'ponytail is seeded into DATA_DIR/skills');
+
+      const b = await r.studio.prompt({ projectId: PID, threadId: 't1', model: 'qwen3.8:latest', text: 'replace hi with hello in index.html', recap: 'Earlier: nothing.' });
+      assert.equal(b.ok && b.fresh, false, 'the same thread keeps its session');
+      await r.done(b.turnId);
+      assert.doesNotMatch(r.said(b.turnId), /Earlier/, 'no recap inside a live session');
+      const diff = r.got.find((m) => m.turnId === b.turnId && m.rec && m.rec.kind === 'result').rec.diffs;
+      assert.deepEqual(diff, [{ path: 'index.html', oldText: 'hi', newText: 'hello' }], 'an absolute path in a diff comes back relative');
+
+      const c = await r.studio.prompt({ projectId: PID, threadId: 't1', model: 'nemotron-3.5-lightning:30b', text: 'hello', recap: 'Earlier: two edits.' });
+      assert.equal(c.ok && c.fresh, true, 'another model is another runtime, so a fresh session with the recap');
+      await r.done(c.turnId);
+      assert.match(r.said(c.turnId), /Earlier: two edits\./);
+    } finally { await r.studio.dispose(); }
+  });
+
+  test('studio: one turn at a time; Stop ends it at once and the next prompt starts a fresh session', async () => {
+    const r = rig();
+    try {
+      const a = await r.studio.prompt({ projectId: PID, threadId: 't1', model: 'm', text: 'slow' });
+      assert.equal(a.ok, true);
+      const busy = await r.studio.prompt({ projectId: PID, threadId: 't2', model: 'm', text: 'hi' });
+      assert.equal(busy.code, 'E_BUSY');
+      assert.equal(r.studio.status().running, true);
+      await r.studio.stop();
+      assert.deepEqual(await r.done(a.turnId, 2000), { reason: 'stopped' });
+      assert.equal(r.studio.status().running, false);
+      const b = await r.studio.prompt({ projectId: PID, threadId: 't1', model: 'm', text: 'again', recap: 'RECAP' });
+      assert.equal(b.ok && b.fresh, true, 'the killed process took the session with it');
+      await r.done(b.turnId);
+      assert.match(r.said(b.turnId), /RECAP/);
+    } finally { await r.studio.dispose(); }
+  });
+
+  test('studio: a runtime that dies mid-turn ends the turn with an error, and the next prompt starts again', async () => {
+    const r = rig();
+    try {
+      const a = await r.studio.prompt({ projectId: PID, threadId: 't1', model: 'm', text: 'crash' });
+      const end = await r.done(a.turnId);
+      assert.equal(end.reason, 'error');
+      assert.ok(end.error, 'with a sentence');
+      const b = await r.studio.prompt({ projectId: PID, threadId: 't1', model: 'm', text: 'hi' });
+      assert.equal(b.ok, true);
+      await r.done(b.turnId);
+    } finally { await r.studio.dispose(); }
+  });
+
+  test('studio: no farm, no runtime, no project or a runtime that cannot start — each is a sentence', async () => {
+    assert.equal((await rig({ farm: null }).studio.prompt({ projectId: PID, threadId: 't', model: 'm', text: 'x' })).code, 'E_FARM');
+    assert.equal((await rig({ runtime: null }).studio.prompt({ projectId: PID, threadId: 't', model: 'm', text: 'x' })).code, 'E_RUNTIME');
+    assert.equal((await rig().studio.prompt({ projectId: 'gone-abcd1234', threadId: 't', model: 'm', text: 'x' })).code, 'E_PROJECT');
+    assert.equal((await rig().studio.prompt({ projectId: '../x', threadId: 't', model: 'm', text: 'x' })).code, 'E_ARGS');
+    const bad = path.join(tmp('bad'), 'bad.mjs');
+    fs.writeFileSync(bad, "process.stderr.write('dsh: fatal uncaught exception: Error: cannot load\\n'); process.exit(1);\n");
+    const r = rig({ runtime: { node: process.execPath, bin: bad } });
+    const res = await r.studio.prompt({ projectId: PID, threadId: 't', model: 'm', text: 'x' });
+    assert.equal(res.code, 'E_START');
+    assert.match(res.message, /cannot load/, 'the runtime\'s own reason');
+    assert.equal(r.studio.status().running, false);
+  });
+
+  test('studio: the Preview serves the project folder to 127.0.0.1 only — no escape, no other Host, no writes', async () => {
+    const r = rig();
+    try {
+      fs.writeFileSync(path.join(r.dir, 'index.html'), '<h1>page</h1>');
+      fs.writeFileSync(path.join(r.dir, 'app.js'), 'console.log(1)');
+      fs.writeFileSync(path.join(r.root, 'secret.txt'), 'no');
+      const s = await r.studio.serve(PID);
+      assert.equal(s.ok, true);
+      assert.match(s.url, /^http:\/\/127\.0\.0\.1:\d+\/$/);
+      assert.deepEqual(await r.studio.serve(PID), s, 'one server per project');
+      const port = new URL(s.url).port;
+      const home = await get(s.url, { host: `127.0.0.1:${port}` });
+      assert.equal(home.status, 200);
+      assert.equal(home.body, '<h1>page</h1>');
+      assert.match(home.type, /text\/html/);
+      assert.match((await get(s.url, { host: `localhost:${port}`, path: '/app.js' })).type, /javascript/);
+      assert.equal((await get(s.url, { host: `127.0.0.1:${port}`, path: '/../secret.txt' })).status, 404);
+      assert.equal((await get(s.url, { host: `127.0.0.1:${port}`, path: '/%2e%2e/secret.txt' })).status, 404);
+      assert.equal((await get(s.url, { host: `127.0.0.1:${port}`, path: '/nope.html' })).status, 404);
+      assert.equal((await get(s.url, { host: `evil.example:${port}` })).status, 403, 'a rebound name is refused');
+      assert.equal((await get(s.url, { host: `127.0.0.1:${port}`, method: 'POST' })).status, 405);
+    } finally { await r.studio.dispose(); }
+  });
+};

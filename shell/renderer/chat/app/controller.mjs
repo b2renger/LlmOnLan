@@ -221,6 +221,15 @@ export function createController(app) {
 
   /** @param {any} result @param {number} deltas the content-delta count (the no-usage fallback) */
   function statsFrom(result, deltas) {
+    if (result && Number.isFinite(result.agentSteps)) {
+      return {
+        promptTokens: null, completionTokens: null, ttftMs: null, tokPerSec: null,
+        finishReason: result.finishReason || null,
+        text: result.agentSteps === 1
+          ? t('core.agentStatsOne', { seconds: ((Number(result.durationMs) || 0) / 1000).toFixed(1) })
+          : t('core.agentStats', { steps: result.agentSteps, seconds: ((Number(result.durationMs) || 0) / 1000).toFixed(1) }),
+      };
+    }
     const usage = (result && result.usage) || null;
     const completion = usage && usage.completion_tokens != null ? Number(usage.completion_tokens) : null;
     const tokens = completion != null && completion > 0 ? completion : deltas;
@@ -471,13 +480,24 @@ export function createController(app) {
           ? target.id
           : (o.parentId === undefined ? target.parentId : o.parentId);
         const path = await repo().getPath(threadId, head || null);
-        const req = await buildRequest({
-          thread, path, mode, model, params: o.params || null, draft: o.draft || null,
-          preview: false, extraBlocks: o.extraBlocks, extraTurns: o.extraTurns, noImages: !!o.noImages,
-        });
-        target.params = req.params || null;
-        // Image blocks carry their own dataUrl by then (P3-U1's transform sets it).
-        const body = toOpenAIBody(req, {});
+        // A thread bound to a project (thread.studio.projectId) is answered by the IDE's coding agent in that
+        // folder (docs/IDE_PLAN.md): same reply row, same Stop, same seat — a different writer. It keeps its own
+        // history, so no request body is built; a fresh agent session gets a recap of this path instead. Loaded
+        // only here, so a broken agent module costs project threads alone.
+        const projectId = thread.studio && thread.studio.projectId && mode !== 'continue' ? String(thread.studio.projectId) : '';
+        const agentMod = projectId ? await import('../projects/agent.mjs') : null;
+        const modelsMod = projectId ? await import('../projects/models.mjs') : null;
+        /** @type {any} */
+        let body = null;
+        if (!agentMod) {
+          const req = await buildRequest({
+            thread, path, mode, model, params: o.params || null, draft: o.draft || null,
+            preview: false, extraBlocks: o.extraBlocks, extraTurns: o.extraTurns, noImages: !!o.noImages,
+          });
+          target.params = req.params || null;
+          // Image blocks carry their own dataUrl by then (P3-U1's transform sets it).
+          body = toOpenAIBody(req, {});
+        }
 
         const baseContent = mode === 'continue' ? (target.content || '') : '';
         const baseReasoning = mode === 'continue' ? (target.reasoning || '') : '';
@@ -545,28 +565,42 @@ export function createController(app) {
           })();
         };
 
-        generation = startGeneration({
-          url: `${c.baseUrl}/chat/completions`,
-          headers: { 'content-type': 'application/json', ...(app.farm.headers() || {}) },
-          body,
-          requiresKey: !!c.requiresKey,
-          onFirstToken: () => {},
-          onTail: (/** @type {any} */ state) => {
-            lastState = state;
-            const len = (state && state.content && state.content.length) || 0;
-            if (len > seen) { deltas += 1; seen = len; }
-            maybeFirstChunk(false);
-            paint();
-          },
-          onCheckpoint: (/** @type {any} */ state) => {
-            lastState = state || lastState;
-            if (decision === 'abort') return;
-            if ((active && active.dead) || isDead(threadId)) return;   // deleted: never write it back
-            target.content = baseContent + ((lastState && lastState.content) || '');
-            target.reasoning = joinReasoning(baseReasoning, (lastState && lastState.reasoning) || '') || null;
-            repo().checkpoint(target);
-          },
-        });
+        const onTail = (/** @type {any} */ state) => {
+          lastState = state;
+          const len = (state && state.content && state.content.length) || 0;
+          if (len > seen) { deltas += 1; seen = len; }
+          maybeFirstChunk(false);
+          paint();
+        };
+        const onCheckpoint = (/** @type {any} */ state) => {
+          lastState = state || lastState;
+          if (decision === 'abort') return;
+          if ((active && active.dead) || isDead(threadId)) return;   // deleted: never write it back
+          target.content = baseContent + ((lastState && lastState.content) || '');
+          target.reasoning = joinReasoning(baseReasoning, (lastState && lastState.reasoning) || '') || null;
+          repo().checkpoint(target);
+        };
+        if (agentMod && modelsMod) {
+          const asked = path.length ? path[path.length - 1] : null;
+          generation = agentMod.startAgentTurn({
+            projectId, threadId, model: model || '',
+            text: String((asked && asked.role === 'user' && asked.content) || ''),
+            recap: agentMod.buildRecap(path.slice(0, -1)),
+            // The model behind a farm alias ("assistant" on llama.cpp) is what the profile knows.
+            maxTokens: modelsMod.profileFor((info && info.underlying) || model).maxTokens,
+            onTail, onCheckpoint,
+          });
+        } else {
+          generation = startGeneration({
+            url: `${c.baseUrl}/chat/completions`,
+            headers: { 'content-type': 'application/json', ...(app.farm.headers() || {}) },
+            body,
+            requiresKey: !!c.requiresKey,
+            onFirstToken: () => {},
+            onTail,
+            onCheckpoint,
+          });
+        }
         active = { generation, msgId: target.id, threadId, dead: false };
 
         const result = await generation.done;
@@ -592,6 +626,11 @@ export function createController(app) {
         const reasoningMs = baseReasoningMs + (Number(result && result.reasoningMs) || 0);
         target.reasoningMs = reasoningMs || null;
         target.sawToolCalls = !!(st.sawToolCalls || (result && result.sawToolCalls));
+        // The agent's edits and new files ride on the reply: the Project panel's Changes tab reads them there.
+        if (agentMod && generation && generation.state) {
+          target.changes = generation.state.changes.slice(0, 50);
+          target.created = generation.state.created.slice(0, 50);
+        }
         target.updatedAt = app.now();
 
         const stats = statsFrom(result, Number(st.contentDeltas) || deltas);
