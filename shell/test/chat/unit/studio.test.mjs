@@ -312,7 +312,10 @@ export default (test) => {
     // installed app does — in Electron's own Node.
     const { spawnSync } = await import('node:child_process');
     const asar = require(path.join(SHELL, 'node_modules', '@electron', 'asar'));
-    const electron = /** @type {string} */ (require(path.join(SHELL, 'node_modules', 'electron')));
+    // The executable's path the way electron/index.js finds it — NOT require('…/electron'): shell-main.test.mjs stubs
+    // that module in the require cache, so in a full run the require returned the stub object.
+    const eDir = path.join(SHELL, 'node_modules', 'electron');
+    const electron = path.join(eDir, 'dist', fs.readFileSync(path.join(eDir, 'path.txt'), 'utf8').trim());
     const dir = tmp('asar');
     fs.mkdirSync(path.join(dir, 'src', 'assets', 'skills', 'graphify', 'refs'), { recursive: true });
     fs.writeFileSync(path.join(dir, 'src', 'package.json'), '{}');
