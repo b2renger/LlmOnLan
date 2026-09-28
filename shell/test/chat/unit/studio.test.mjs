@@ -288,6 +288,24 @@ export default (test) => {
     if (fs.existsSync(link)) assert.equal(call('read', { file_path: 'escape/secret.txt' }).code, 2, 'a link out of the project is followed, then refused');
   });
 
+  test('studio: the fence\'s hook command, run through the shell dsh uses, hands on the refusal (exit 2) and the pass (0)', async () => {
+    // dsh runs a hook command through its shell layer: PowerShell on Windows, `bash -c` elsewhere. Both traps found on
+    // the real runtime (a parse error, then 2 turned into 1 — each reads as "pass") live in THAT hop, not in the script.
+    const { spawnSync } = await import('node:child_process');
+    const dir = tmp('fence-shell');
+    const project = path.join(dir, 'p');
+    fs.mkdirSync(project);
+    const fence = path.join(dir, 'lol fence.mjs');   // a space in the path, like a real user folder
+    fs.writeFileSync(fence, S.FENCE_JS);
+    const command = JSON.parse(S.fenceHooks(process.execPath, fence)).hooks.PreToolUse[0].hooks[0].command;
+    const shell = process.platform === 'win32' ? ['powershell', ['-NoProfile', '-NonInteractive', '-Command', command]] : ['bash', ['-c', command]];
+    const via = (/** @type {any} */ input) => spawnSync(shell[0], shell[1], { input: JSON.stringify(input), env: { ...process.env, CLAUDE_PROJECT_DIR: project }, encoding: 'utf8' });
+    const out = via({ tool_name: 'read', tool_input: { file_path: path.join(dir, 'elsewhere.txt') }, cwd: project });
+    assert.equal(out.status, 2, `the refusal survives the shell: ${out.stderr}`);
+    assert.match(out.stderr, /only files inside this project/);
+    assert.equal(via({ tool_name: 'read', tool_input: { file_path: 'a.txt' }, cwd: project }).status, 0, 'and so does a pass');
+  });
+
   test('studio: the patch mounts the fence through the hook bridge', () => {
     const p = S.buildPatch({ baseUrl: 'http://x/v1', model: 'm', contextWindow: 8192, skillsDir: '/s', hooksConfig: 'C:\\home\\lol-hooks.json' });
     assert.match(p, /- insert:\n\s+- id: hooks-claude-code\n\s+name: '@deepseek-ai\/dsh-hooks-claude-code'/);
