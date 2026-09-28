@@ -5,7 +5,8 @@
 //   2. A message in that thread is answered by the agent, in the project folder: the file appears in the panel, the
 //      reply shows the step log, and the Preview frame shows the page served on 127.0.0.1 (main's frame veto lets
 //      exactly that origin through).
-//   3. The next message edits the file: the Changes tab shows the old and the new text.
+//   3. The next message edits the file: the Changes tab shows the old and the new text, and the Code tab (opened on
+//      the file before, left for the Preview) holds the new text — so does it after Go back.
 //   4. Stop ends a running turn at once; the reply says it was stopped.
 
 const FARM_ERRORS = [/Failed to load resource/, /net::ERR_/];
@@ -123,6 +124,17 @@ export default [
             const dropped = (await h.windowOpens()).filter((w) => w.frameNavigate && String(w.url).startsWith(bound.serveUrl));
             h.eq(dropped, [], 'main\'s frame veto let the served page in (an empty frame would look the same)');
 
+            // The Code tab follows the files whichever tab is up: open index.html there, go back to the Preview; after
+            // the next reply the Code tab holds the agent's edit (a stale one's Save was refused).
+            await h.eval(() => {
+                const b = Array.from(document.querySelectorAll('#lolchat .chat-proj-file')).find((x) => x.textContent === 'index.html');
+                /** @type {any} */ (b).click();
+                return true;
+            });
+            await h.waitFor(() => (/hello/.test(/** @type {HTMLTextAreaElement} */ (document.querySelector('#lolchat .chat-proj-code')).value) ? true : null), { timeout: 10000 });
+            h.eq((await panel(h)).tab, 'code', 'a text file opens in the Code tab');
+            await h.click('#lolchat .chat-proj-tab-preview');
+
             // 3. The agent edits it; the Changes tab shows the edit.
             await send(h, 'replace hello with world in index.html');
             const second = await settled(h, 2);
@@ -135,6 +147,9 @@ export default [
             }, { timeout: 10000 });
             h.assert(/- hello/.test(diff) && /\+ world/.test(diff), `the Changes tab: ${diff}`);
             await h.screenshot('k24-ide-changes');
+            await h.click('#lolchat .chat-proj-tab-code');
+            await h.waitFor(() => (/world/.test(/** @type {HTMLTextAreaElement} */ (document.querySelector('#lolchat .chat-proj-code')).value) ? true : null), { timeout: 10000 });
+            h.eq((await panel(h)).tab, 'code');
 
             // History (projectGit.ts): each reply is a commit; going back is a new commit, so it can be undone too.
             await h.click('#lolchat .chat-proj-tab-history');
@@ -154,6 +169,7 @@ export default [
             }, { timeout: 10000 });
             h.eq(after[0], 'Back to: Agent: write index.html: <h1 id="hi">hello</h1>');
             h.eq(await h.eval(async (url) => (await fetch(url)).text(), `${bound.serveUrl}index.html`), '<h1 id="hi">hello</h1>', 'the page is back to the first reply');
+            await h.waitFor(() => (/hello/.test(/** @type {HTMLTextAreaElement} */ (document.querySelector('#lolchat .chat-proj-code')).value) ? true : null), { timeout: 10000 });
             await h.screenshot('k24-ide-history');
 
             // GitHub: an https address only; a token is kept (the field clears, the page never reads it back); a push to

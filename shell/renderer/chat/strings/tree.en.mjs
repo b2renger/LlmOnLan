@@ -40,7 +40,7 @@ registerStrings('tree', {
   titleHint: 'Click to rename',
   systemPrompt: 'System prompt',
   systemPromptTitle: 'System prompt for this chat',
-  systemPromptHint: 'Sent as the system message of every reply in this chat. Empty = the farm decides.',
+  systemPromptHint: 'Sent to the model before every message of this chat: tell it how to answer. Leave it empty for the model\'s own default. A project chat does not use it (the coding agent has its own instructions).',
   systemPromptPlaceholder: 'You are a Blender assistant. Answer in French.',
   systemSave: 'Save',
   systemClear: 'Clear',

@@ -24,6 +24,7 @@ import { SLOTS } from '../core/registry.mjs';
 import { icon } from './layout.mjs';
 import { exportAll, importChats } from './transfer.mjs';
 import '../strings/library.en.mjs';
+import '../strings/project.en.mjs';
 
 /** Lucide `settings` (the gear), trimmed to two paths. */
 const GEAR = [
@@ -88,6 +89,7 @@ export function install(app) {
     render: (/** @type {HTMLElement} */ el) => {
       el.appendChild(h('p', 'chat-settings-line', t('library.aboutBody')));
       el.appendChild(h('p', 'chat-settings-detail', t('library.aboutWhere')));
+      el.appendChild(h('p', 'chat-settings-detail', t('project.aboutAgent')));
     },
   });
 
@@ -98,7 +100,7 @@ export function install(app) {
   const gear = /** @type {HTMLButtonElement} */ (h('button', 'chat-settings-gear'));
   gear.type = 'button';
   gear.setAttribute('aria-label', t('library.settings'));
-  gear.title = t('library.settings');
+  gear.title = t('library.settingsTitle');   // "LOL Vibe settings": not the app's Preferences (the top bar's gear)
   gear.setAttribute('aria-haspopup', 'dialog');
   gear.appendChild(icon(GEAR, { size: 15 }));
   gear.appendChild(h('span', 'chat-settings-gear-label', t('library.settings')));

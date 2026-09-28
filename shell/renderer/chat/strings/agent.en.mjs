@@ -18,7 +18,7 @@ registerStrings('agent', {
 
   // When a turn does not end with an answer.
   noApp: 'The coding agent runs in the LlmOnLan app, not here.',
-  outOfRoom: 'The model ran out of room before it finished (its output cap). Try again, or pick a model that is good at editing code.',
+  outOfRoom: 'The model ran out of room before it finished. Ask for a smaller change, or pick a model that is good at editing code (the Project panel says which).',
   endedEarly: 'The coding agent stopped before it answered ({reason}).',
   noAnswer: 'The coding agent finished without a word. The Changes tab shows what it did.',
 });

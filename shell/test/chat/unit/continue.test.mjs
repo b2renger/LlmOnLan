@@ -177,6 +177,7 @@ export default (test) => {
     assert.equal(canContinue({ ...base, status: 'streaming' }), false);
     assert.equal(canContinue({ ...base, role: 'user' }), false);
     assert.equal(canContinue(null), false);
+    assert.equal(canContinue({ ...base, status: 'aborted', changes: [] }), false, 'a coding-agent reply is asked again, never continued by the farm directly');
   });
 
   test('the Continue action is a MESSAGE_ACTIONS item, visible on exactly those messages', async () => {

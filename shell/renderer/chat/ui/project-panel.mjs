@@ -23,8 +23,11 @@ import '../strings/project.en.mjs';
 
 /** Files the Code tab opens as text (the projects API's text extensions). */
 const TEXT_RE = /\.(html?|m?js|css|json|md|txt|svg|csv|ya?ml|ini|glsl|frag|vert|ino|h|hpp|c|cpp)$/i;
+/** Pictures and sounds the Preview can show on its own (main serves them with their type; anything else would download). */
+const MEDIA_RE = /\.(png|jpe?g|gif|webp|ico|wav|mp3|ogg)$/i;
 // A same-file literal map, so lint rule 5 can see every key a person reads.
 const TAB_LABEL = { preview: 'project.tabPreview', code: 'project.tabCode', changes: 'project.tabChanges', history: 'project.tabHistory' };
+const TAB_TIP = { preview: 'project.tipTabPreview', code: 'project.tipTabCode', changes: 'project.tipTabChanges', history: 'project.tipTabHistory' };
 
 /** @param {any} app */
 export function install(app) {
@@ -52,13 +55,15 @@ function createPanel(host, app) {
     if (text != null) e.textContent = text;
     return e;
   };
-  /** @param {string} label @param {string} cls @param {() => void} fn */
-  const button = (label, cls, fn) => {
+  /** @param {string} label @param {string} cls @param {() => void} fn @param {string} [tip] what it does, where the label alone does not say */
+  const button = (label, cls, fn, tip) => {
     const b = /** @type {HTMLButtonElement} */ (make('button', `chat-proj-btn ${cls}`, label));
     b.type = 'button';
+    if (tip) b.title = tip;
     b.addEventListener('click', fn);
     return b;
   };
+  const saveKeys = /Mac/i.test(String((doc.defaultView && doc.defaultView.navigator && doc.defaultView.navigator.platform) || '')) ? '⌘S' : 'Ctrl+S';
 
   /** @type {any} */ let thread = null;
   let projectId = '';
@@ -67,6 +72,8 @@ function createPanel(host, app) {
   let tab = 'preview';
   let openFile = '';
   let openMtime = 0;
+  /** What the Code tab last read or saved: an editor holding anything else holds a person's unsaved edit. */
+  let openText = '';
   let serveUrl = '';
   let reloads = 0;
   let visible = false;
@@ -117,6 +124,7 @@ function createPanel(host, app) {
   nameIn.setAttribute('aria-label', t('project.newPlaceholder'));
   const createBtn = /** @type {HTMLButtonElement} */ (make('button', 'chat-proj-btn chat-proj-create', t('project.create')));
   createBtn.type = 'submit';
+  createBtn.title = t('project.tipCreate');
   form.append(nameIn, createBtn);
   const list = make('ul', 'chat-proj-list');
   const status = make('p', 'chat-proj-note chat-proj-status');
@@ -127,14 +135,15 @@ function createPanel(host, app) {
   const main = make('div', 'chat-proj-main');
   const bar = make('div', 'chat-proj-bar');
   const nameEl = make('span', 'chat-proj-name');
-  const other = button(t('project.other'), 'chat-proj-other', () => { void bind(''); });
-  const folder = button(t('project.folder'), 'chat-proj-folder', () => { if (projectId && app.projects) void app.projects.reveal(projectId); });
+  const other = button(t('project.other'), 'chat-proj-other', () => { void bind(''); }, t('project.tipOther'));
+  const folder = button(t('project.folder'), 'chat-proj-folder', () => { if (projectId && app.projects) void app.projects.reveal(projectId); }, t('project.tipFolder'));
   const browser = /** @type {HTMLAnchorElement} */ (make('a', 'chat-proj-btn chat-proj-browser', t('project.browser')));
   browser.target = '_blank';
   browser.rel = 'noopener';
+  browser.title = t('project.tipBrowser');
   // Share on the LAN (owner, 2026-09-28): a person's toggle per project, off by default, forgotten at restart.
   /** @type {string[]} */ let lanUrls = [];
-  const shareBtn = button(t('project.share'), 'chat-proj-share', () => { void toggleShare(); });
+  const shareBtn = button(t('project.share'), 'chat-proj-share', () => { void toggleShare(); }, t('project.tipShare'));
   bar.append(nameEl, other, folder, browser, shareBtn);
   const shareNote = make('p', 'chat-proj-note chat-proj-share-note');
   shareNote.setAttribute('role', 'status');
@@ -147,7 +156,7 @@ function createPanel(host, app) {
   tabs.setAttribute('role', 'tablist');
   /** @type {Record<string, HTMLButtonElement>} */ const tabBtn = {};
   for (const id of /** @type {Array<'preview'|'code'|'changes'|'history'>} */ (['preview', 'code', 'changes', 'history'])) {
-    const b = button(t(TAB_LABEL[id]), `chat-proj-tab chat-proj-tab-${id}`, () => { tab = id; paintTabs(); if (id === 'preview') mountFrame(); });
+    const b = button(t(TAB_LABEL[id]), `chat-proj-tab chat-proj-tab-${id}`, () => { tab = id; paintTabs(); if (id === 'preview') mountFrame(); }, t(TAB_TIP[id]));
     b.setAttribute('role', 'tab');
     tabBtn[id] = b;
     tabs.append(b);
@@ -155,7 +164,7 @@ function createPanel(host, app) {
   // Preview
   const panePreview = make('div', 'chat-proj-pane chat-proj-pane-preview');
   const previewNote = make('p', 'chat-proj-note');
-  const reload = button(t('project.reload'), 'chat-proj-reload', () => { reloads += 1; mountFrame(true); });
+  const reload = button(t('project.reload'), 'chat-proj-reload', () => { reloads += 1; mountFrame(true); }, t('project.tipReload'));
   /** @type {HTMLIFrameElement|null} */ let frame = null;
   // The graph view's own sandbox (made on first use) and its live guest.
   const graphMount = make('div', 'chat-proj-graph');
@@ -167,7 +176,7 @@ function createPanel(host, app) {
   const paneCode = make('div', 'chat-proj-pane chat-proj-pane-code');
   const codeHead = make('div', 'chat-proj-code-head');
   const codeName = make('span', 'chat-proj-code-name');
-  const save = button(t('project.save'), 'chat-proj-save', () => { void saveFile(); });
+  const save = button(t('project.save'), 'chat-proj-save', () => { void saveFile(); }, t('project.tipSave', { keys: saveKeys }));
   const codeNote = make('span', 'chat-proj-note chat-proj-code-note');
   codeNote.setAttribute('role', 'status');
   codeHead.append(codeName, save, codeNote);
@@ -205,18 +214,18 @@ function createPanel(host, app) {
     const r = await fn();
     gitNote.textContent = r && r.ok ? ok : String((r && r.message) || '');
     await loadRemote();
-    if (r && r.ok) { reloads += 1; await refreshFiles(); picked = ''; await loadHistory(); mountFrame(true); }
+    if (r && r.ok) { reloads += 1; await refreshFiles(); picked = ''; await loadHistory(); mountFrame(true); void refreshOpen(); }
   };
   const remoteHost = () => { try { return new URL(remoteIn.value).host; } catch { return ''; } };
   gitBox.append(
-    gitRow(remoteIn, button(t('project.saveRemote'), 'chat-proj-save-remote', () => { if (door) void gitAct(() => door.remote(projectId, remoteIn.value.trim()), t('project.remoteSaved')); })),
+    gitRow(remoteIn, button(t('project.saveRemote'), 'chat-proj-save-remote', () => { if (door) void gitAct(() => door.remote(projectId, remoteIn.value.trim()), t('project.remoteSaved')); }, t('project.tipSaveRemote'))),
     gitRow(tokenIn,
-      button(t('project.saveToken'), 'chat-proj-save-token', () => { if (door && tokenIn.value) { const v = tokenIn.value; tokenIn.value = ''; void gitAct(() => door.token(projectId, v), t('project.tokenStored')); } }),
-      button(t('project.forgetToken'), 'chat-proj-forget-token', () => { if (door) void gitAct(() => door.token(projectId, null), t('project.tokenForgotten')); })),
+      button(t('project.saveToken'), 'chat-proj-save-token', () => { if (door && tokenIn.value) { const v = tokenIn.value; tokenIn.value = ''; void gitAct(() => door.token(projectId, v), t('project.tokenStored')); } }, t('project.tipSaveToken')),
+      button(t('project.forgetToken'), 'chat-proj-forget-token', () => { if (door) void gitAct(() => door.token(projectId, null), t('project.tokenForgotten')); }, t('project.tipForgetToken'))),
     tokenNote,
     gitRow(
-      button(t('project.push'), 'chat-proj-push', () => { if (door) void gitAct(() => door.push(projectId), t('project.pushed', { host: remoteHost() })); }),
-      button(t('project.pull'), 'chat-proj-pull', () => { if (door) void gitAct(() => door.pull(projectId), t('project.pulled', { host: remoteHost() })); })),
+      button(t('project.push'), 'chat-proj-push', () => { if (door) void gitAct(() => door.push(projectId), t('project.pushed', { host: remoteHost() })); }, t('project.tipPush')),
+      button(t('project.pull'), 'chat-proj-pull', () => { if (door) void gitAct(() => door.pull(projectId), t('project.pulled', { host: remoteHost() })); }, t('project.tipPull'))),
     gitNote,
   );
   paneHistory.prepend(gitBox);
@@ -270,6 +279,7 @@ function createPanel(host, app) {
   function paintShare() {
     shareBtn.hidden = !door;
     shareBtn.textContent = lanUrls.length ? t('project.unshare') : t('project.share');
+    shareBtn.title = lanUrls.length ? t('project.tipUnshare') : t('project.tipShare');
     shareBtn.setAttribute('aria-pressed', lanUrls.length ? 'true' : 'false');
     shareNote.textContent = lanUrls.length ? t('project.shared', { urls: lanUrls.join(' · ') }) : '';
   }
@@ -305,7 +315,7 @@ function createPanel(host, app) {
   function paintHistory() {
     commitList.replaceChildren(...commits.map((c) => {
       const li = make('li', 'chat-proj-commit-row');
-      const b = button(c.message, 'chat-proj-commit', () => { picked = c.oid; paintHistory(); void showCommit(c.oid); });
+      const b = button(c.message, 'chat-proj-commit', () => { picked = c.oid; paintHistory(); void showCommit(c.oid); }, c.message);
       b.classList.toggle('is-open', c.oid === picked);
       li.append(b, make('span', 'chat-proj-note chat-proj-commit-time', new Date(c.time).toLocaleString()));
       return li;
@@ -320,7 +330,7 @@ function createPanel(host, app) {
     if (mine !== epoch || oid !== picked) return;
     /** @type {HTMLElement[]} */ const out = [];
     const at = commits.findIndex((c) => c.oid === oid);
-    if (at > 0) out.push(button(t('project.goBack'), 'chat-proj-go-back', () => { void goBack(oid); }));
+    if (at > 0) out.push(button(t('project.goBack'), 'chat-proj-go-back', () => { void goBack(oid); }, t('project.tipGoBack')));
     else if (at === 0) out.push(make('p', 'chat-proj-note', t('project.latest')));
     if (r && !r.ok) out.push(make('p', 'chat-proj-note', String(r.message || '')));
     for (const f of (r && r.ok ? r.files : [])) {
@@ -347,6 +357,7 @@ function createPanel(host, app) {
     await refreshFiles();
     picked = '';
     await loadHistory();
+    void refreshOpen();
   }
 
   function paintTabs() {
@@ -362,8 +373,8 @@ function createPanel(host, app) {
     if (tab === 'history') void loadHistory();
   }
 
-  /** The page to show: the open .html file, else index.html. */
-  const pagePath = () => (/\.html?$/i.test(openFile) ? openFile : 'index.html');
+  /** The page to show: the open .html file, or a picture or sound picked in the list, else index.html. */
+  const pagePath = () => (/\.html?$/i.test(openFile) || MEDIA_RE.test(openFile) ? openFile : 'index.html');
 
   function unmountFrame() {
     if (frame) { frame.remove(); frame = null; }
@@ -424,7 +435,7 @@ function createPanel(host, app) {
   function paintFiles() {
     const rows = files.map((f) => {
       const li = make('li', 'chat-proj-file-row');
-      const b = button(f.path, 'chat-proj-file', () => { void openInCode(f.path); });
+      const b = button(f.path, 'chat-proj-file', () => { void openInCode(f.path); }, f.path);
       b.classList.toggle('is-open', f.path === openFile);
       li.append(b);
       return li;
@@ -472,13 +483,20 @@ function createPanel(host, app) {
   async function openInCode(rel) {
     openFile = rel;
     paintFiles();
-    if (!TEXT_RE.test(rel)) { codeName.textContent = rel; area.value = ''; area.disabled = true; codeNote.textContent = t('project.binary'); tab = 'preview'; paintTabs(); mountFrame(); return; }
+    if (!TEXT_RE.test(rel)) {
+      // A picture or a sound is shown by the Preview; anything else (a font…) cannot be shown here at all.
+      const media = MEDIA_RE.test(rel);
+      codeName.textContent = rel; area.value = ''; openText = ''; area.disabled = true;
+      codeNote.textContent = media ? t('project.binary') : t('project.binaryOther');
+      tab = media ? 'preview' : 'code'; paintTabs(); mountFrame(); return;
+    }
     const mine = epoch;
     const r = await app.projects.read(projectId, rel);
     if (mine !== epoch) return;
     codeName.textContent = rel;
     area.disabled = !(r && r.ok);
     area.value = r && r.ok ? r.text : '';
+    openText = area.value;
     openMtime = r && r.ok ? r.mtime : 0;
     codeNote.textContent = r && r.ok ? '' : String((r && r.message) || '');
     // A graph (graphify's graph.json) opens as a drawing in the Preview; its text waits in Code.
@@ -489,13 +507,30 @@ function createPanel(host, app) {
 
   async function saveFile() {
     if (!projectId || !openFile || area.disabled) return;
-    const r = await app.projects.write(projectId, openFile, area.value, openMtime ? { ifMtime: openMtime } : undefined);
+    const text = area.value;
+    const r = await app.projects.write(projectId, openFile, text, openMtime ? { ifMtime: openMtime } : undefined);
     if (r && r.ok) {
-      openMtime = r.mtime; codeNote.textContent = t('project.saved'); reloads += 1; void refreshFiles();
+      openMtime = r.mtime; openText = text; codeNote.textContent = t('project.saved'); reloads += 1; void refreshFiles();
       if (door) void door.commit(projectId, openFile);   // a person's Save is a commit too
       return;
     }
     codeNote.textContent = r && r.code === 'E_CONFLICT' ? t('project.conflict') : String((r && r.message) || '');
+  }
+
+  /**
+   * The open text file changed on disk (a reply, Go back, Pull): show the new text in the Code tab, whichever tab is
+   * up — a Code tab left stale showed the old file and its Save was then refused. A person's unsaved edit is never
+   * overwritten: the editor keeps it, and Save's mtime check says the file moved.
+   */
+  async function refreshOpen() {
+    const rel = openFile;
+    if (!projectId || !rel || !TEXT_RE.test(rel) || area.value !== openText) return;
+    const mine = epoch;
+    const r = await app.projects.read(projectId, rel);
+    if (mine !== epoch || rel !== openFile || area.value !== openText || !(r && r.ok)) return;
+    area.value = r.text;
+    openText = r.text;
+    openMtime = r.mtime;
   }
 
   /** Tab indents, Enter keeps the indent, Ctrl+S saves — the Computer's editor rules (code-edit.mjs). */
@@ -521,7 +556,7 @@ function createPanel(host, app) {
     if (mine !== epoch) return;
     const rows = (r && r.ok ? r.projects : []).filter((p) => !p.hidden).sort((a, b) => b.updatedAt - a.updatedAt).map((p) => {
       const li = make('li', 'chat-proj-list-row');
-      li.append(button(p.name, 'chat-proj-pick', () => { void bind(p.id); }));
+      li.append(button(p.name, 'chat-proj-pick', () => { void bind(p.id); }, t('project.tipPick')));
       return li;
     });
     list.replaceChildren(...rows);
@@ -544,7 +579,8 @@ function createPanel(host, app) {
   form.addEventListener('submit', (/** @type {Event} */ ev) => {
     ev.preventDefault();
     const name = nameIn.value.trim();
-    if (!name || !app.projects) return;
+    if (!name) { nameIn.focus(); return; }           // the button with no name did nothing at all: show where it goes
+    if (!app.projects) return;
     createBtn.disabled = true;
     void app.projects.create({ name, kind: 'dom' }).then((/** @type {any} */ r) => {
       createBtn.disabled = false;
@@ -558,7 +594,7 @@ function createPanel(host, app) {
     const mine = epoch;
     thread = ctx && ctx.thread ? ctx.thread : thread;
     const id = (ctx && ctx.studio && ctx.studio.projectId) || (thread && thread.studio && thread.studio.projectId) || '';
-    if (id !== projectId) { projectId = id; openFile = ''; files = []; serveUrl = ''; area.value = ''; codeName.textContent = ''; tab = 'preview'; }
+    if (id !== projectId) { projectId = id; openFile = ''; files = []; serveUrl = ''; area.value = ''; openText = ''; codeName.textContent = ''; tab = 'preview'; }
     empty.hidden = !!projectId;
     main.hidden = !projectId;
     paintModel();
@@ -592,7 +628,7 @@ function createPanel(host, app) {
     reloads += 1;
     void refreshFiles().then(() => {
       paintChanges(); mountFrame(true);
-      if (openFile && tab === 'code' && TEXT_RE.test(openFile)) void openInCode(openFile);
+      void refreshOpen();
       if (tab === 'history') { picked = ''; void loadHistory(); }
     });
   };

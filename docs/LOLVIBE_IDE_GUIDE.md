@@ -29,6 +29,8 @@ Write what you want in the chat, like any message:
 The reply says what the agent did. **Thought for …** opens on its steps (*→ write index.html ✓*), and the stats say
 how many steps and seconds it took. **Stop** stops it at once. Ask for changes the same way: *"add a speed slider in
 a corner; change nothing else."* Keep each request small: one change at a time works best with local models.
+**Regenerate** on a reply asks the agent again. The chat's *System prompt* and *Regenerate with…* make no
+difference here (the agent has its own instructions), and a stopped reply has no **Continue**: ask again.
 
 The agent works with **files**: it reads, searches, writes and edits them — **only inside the project folder**
 (anything else it is refused, and it says so). It has no shell, runs no programs and has no web.
@@ -37,8 +39,8 @@ The agent works with **files**: it reads, searches, writes and edits them — **
 
 | Tab | What it shows |
 |---|---|
-| **Preview** | the project's `index.html` (or the page you opened in the file list), live; it reloads after each reply. **Reload** redraws it. |
-| **Code** | the file you picked in the list. You can edit it: **Save** (or Ctrl+S). Tab indents, Enter keeps the indent. |
+| **Preview** | the project's `index.html` (or the page, picture or sound you opened in the file list), live; it reloads after each reply. **Reload** redraws it. |
+| **Code** | the file you picked in the list. You can edit it: **Save** (or Ctrl+S). Tab indents, Enter keeps the indent. It follows the agent: after a reply (or **Go back**, or **Pull**) it shows the new text — unless you have unsaved edits, which it keeps. |
 | **Changes** | what the agent's last reply changed: the old text and the new, edit by edit. |
 | **History** | every reply that changed a file, and every Save, newest first. Pick one to see what it changed. **Go back to this version** makes the files what they were then — as a new step, so you can come back again. |
 
@@ -67,7 +69,8 @@ History → **GitHub** (folded):
 1. Create an empty repository on GitHub and copy its `https://…/project.git` address. **Save address**.
 2. Make a token: GitHub ▸ Settings ▸ Developer settings ▸ Personal access tokens ▸ **Fine-grained**, with
    *Contents: read and write* on that repository only. Paste it, **Save token**. LlmOnLan keeps it **encrypted by
-   this computer** and never shows it again; **Forget the token** removes it.
+   this computer** and never shows it again; **Forget the token** removes it. There is one token per server: every
+   project that pushes to github.com uses the same one, so give it access to each of their repositories.
 3. **Push** sends the project's history to GitHub. **Pull** brings newer commits from GitHub here — only when this
    copy has nothing the other lacks (your own work is kept and committed first; if both sides changed, the pull
    is refused with a sentence).
@@ -90,6 +93,7 @@ A Gitea on your LAN works the same way (an `https://` address).
 | *The coding agent is not installed on this computer yet* | Press **Install the coding agent** (the panel). |
 | *No farm is connected* | The pill at the top: pick a farm. |
 | *The model ran out of room before it finished* | Ask for something smaller, or pick qwen3.8 / nemotron. |
+| *This file changed since you opened it … so it was not saved* | The agent edited it meanwhile. Copy your changes, click the file in the list (the new version opens), paste them back, **Save**. |
 | *The coding agent stopped before it answered* | Ask again: it restarts, and it gets a short recap of the chat. |
 | *… refused the token* | Make a new token with *Contents: read and write* on that repository, and save it again. |
 | *… both have changes the other lacks* | Your work is safe (committed). Push is refused too: bring the other side's work another way, or keep this copy. |

@@ -96,6 +96,9 @@ export function looksLikeRestart(partial, firstChunk) {
 export function canContinue(msg) {
   if (!msg || msg.role !== 'assistant') return false;
   if (msg.status === 'streaming' || msg.status === 'waiting' || msg.status === 'local') return false;
+  // A coding-agent reply (the IDE's; it carries `changes`) is not text to extend: a continue goes to the farm's model
+  // directly, which then wrote code into the chat instead of the project. Regenerate asks the agent again.
+  if (Array.isArray(msg.changes)) return false;
   const finish = msg.stats && msg.stats.finishReason;
   if (finish === 'length') return true;
   const hasText = !!String(msg.content || '').trim();
