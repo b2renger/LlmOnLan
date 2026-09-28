@@ -50,7 +50,7 @@ picks for the most common boxes.
 
 ## The fastest way in: the Learn shelf
 
-The **Learn** shelf in the sidebar holds a tour, four lessons and two templates. A lesson opens as
+The **Learn** shelf in the sidebar holds a tour, twelve lessons and eight templates. A lesson opens as
 **your own copy** of a small graph, with a **step rail** docked at the bottom-left of the canvas.
 The rail shows one step at a time and **ticks it when you have really done it**: nothing is typed
 for you, and nothing ticks by accident.
@@ -64,9 +64,18 @@ for you, and nothing ticks by accident.
 | **4. make a picture** | Ask the model for an SVG, and watch it drawn. | one |
 | **5. code counts, the model names** | A Code box adds up a table; the model says what the totals show, in words only. | one per run |
 | **6. a loop that stops** | Close a ring of boxes through a Toggle: the run stops by itself at its ceiling, and the Toggle is the brake. | not needed |
+| **7. listen and speak** | Record a question with ● Record, turn on **Listen**, and a model answers; **Speak** says it — then with this computer's own voice, which sends nothing. A farm whose Speech to text is off gets a saved transcript. | one |
+| **8. a picture to a model** | **Take a picture** with the webcam, wire it into an Instruction: the picture travels inside the request to a model that can see. Then ask the same picture something else. | one per run |
+| **9. act on the world** | A **Send** box does a dry run first; arming the outputs is your choice in a dialog that lists every target; then a real OSC message goes to port 9000 of this computer, and **Panic** stops it all. No hardware needed. | not needed |
+| **10. hear the world** | A **Trigger** on a clock runs the graph by itself — only while the outputs are armed and the Computer is on screen, at most one run every few seconds. (On a farm with the message bus, a board's message can start it instead.) | not needed |
+| **11. an agent with tools** | An **Agent** works in steps: code in the sandbox over the readings you wire in, then the answer, with every step under *How it got there*. **Steps at most** is its brake. | one per step |
+| **12. open data** | An **Open data** box reads a data.gouv.fr dataset (a copy ships with the lesson, so it runs offline); code charts a column with data.gouv.fr's counts; a model that can see says what the chart shows, in words. | one per run |
 | **Research → problematic** (template) | One topic, five angles of research, one problematic, two design concepts. | about 8 |
 | **Creative coding** (template) | A brief becomes a p5.js sketch you can run, read and edit. | about 1 |
 | **Read the news** (template) | The Hacker News front page, labelled by the model from **your** categories, counted by code, charted as an SVG that answers **your** question. A copy of the page ships with it, so it runs offline too. | about 2 |
+| **Analyse a dataset**, **Ask a dataset** (templates) | A data.gouv.fr dataset read, explained, charted and questioned — the second through an Agent. See [French open data](#french-open-data-the-open-data-box) below. | about 3 · up to 8 |
+| **Ask out loud** (template) | Lesson 7 as a ready graph. | about 1 |
+| **Talk to a board**, **A board on Wi-Fi** (templates) | An Arduino or ESP32 on the USB cable or the farm's message bus, both ways. | no generation (Wi-Fi: the farm's bus) |
 
 On the rail:
 
@@ -637,7 +646,7 @@ To report a bug: press **● Record log**, reproduce it, press **⚑ Mark bug**,
 
 ## What is not built yet
 
-- **Lessons 7–12** and the other templates from the plan. The shelf takes them as data files.
+- **The other templates from the plan.** The shelf takes them as data files.
 - **A sound reaching a model**, and **a PDF sent to a model as a PDF** (a PDF always goes as text
   read by the farm).
 - **Boxes inside a Section do not move with it**, and **wires are grey**, not the colour of what

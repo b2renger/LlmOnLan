@@ -101,6 +101,19 @@ and TouchDesigner or Max (OSC). Scenarios marked **(no farm)** work with the far
   in words, no digits; change a number, ▶ the Text box — the totals follow. Then *6 · a loop that stops* (no farm):
   close the ring, ▶ the Code box — it counts to 8 and stops by itself; Toggle off, ▶ — one pass (9). Each step
   ticks on the rail.
+- [ ] **3.16 Lessons 7–12** (v0.2.3). Learn ▸ Lessons; each step ticks on the rail. *7 · listen and speak*: ● Record
+  a question, ■ Stop, tick Listen, wire the Sound box into the Instruction, ▶ it — with the farm's Speech to text on,
+  the question is written down, answered and said out loud (without it, the rail offers the saved transcript); pick
+  *This computer's voice*, ▶ Speak. *8 · a picture to a model*: Take a picture ▸ Capture (the camera light goes off),
+  wire, ▶ — the answer describes the real frame; change the question, ▶. *9 · act on the world* (no farm): wire, ▶
+  Send — "Dry run — would send: OSC /lol/level 0.75"; **Outputs: dry run** lists `127.0.0.1:9000 /lol/level (this
+  computer)` ▸ Arm, Got it; level 0.2, ▶ the Text box — "Sent: …" (a tool listening on UDP 9000 receives it);
+  Panic, Got it. *10 · hear the world* (no farm): wire — the Trigger says *not armed*; arm — every 3 s the Code box
+  says "Tick N, heard at …"; gap 6 — *merged* grows; disarm — no more runs. *11 · an agent with tools*: wire, name
+  the arrow `readings`, ▶ the Agent — average about 14.7, largest 30, its run_code steps under *How it got there*;
+  Steps at most 2, ▶ — it answers by step 2. *12 · open data*: ▶ Open data (online: data.gouv.fr now; offline: the
+  copy), wire it into the Code box, ▶ the chart (on the copy: Musique 3229); wire the chart into the Instruction, ▶
+  — words, no digits; type `Région principale de déroulement`, ▶ the Text box — a new chart, new words.
 - [ ] **3.12 Different models.** Run *Analyse a dataset* and *Read the news* with gemma4:12b, then with
   qwen3.8 and nemotron if the farm serves them (each Instruction's model picker). Note which one writes a
   working program for 3.11's question.
