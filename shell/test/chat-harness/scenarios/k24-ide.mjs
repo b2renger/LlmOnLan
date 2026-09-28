@@ -181,13 +181,31 @@ export default [
             await h.click('#lolchat .chat-proj-push');
             await h.waitFor(() => (/Could not push \(127\.0\.0\.1:9\)/.test((document.querySelector('#lolchat .chat-proj-git-note') || {}).textContent || '') ? true : null), { timeout: 20000 });
             h.assert(!/ghp_/.test(await gitNote()), 'no token in any sentence');
+
+            // graphify: the agent writes graphify-out/graph.json; clicked in the file list, it is DRAWN in the Preview by
+            // the Computer's viewer, in the panel's own sandbox guest (not the served page).
+            await send(h, 'write graphify-out/graph.json: {"nodes":[{"id":"a","label":"App","community":0},{"id":"b","label":"Store","community":1},{"id":"c","label":"View","community":1}],"links":[{"source":"a","target":"b","relation":"calls"},{"source":"a","target":"c","relation":"imports"}]}');
+            h.eq((await settled(h, 3)).status, 'done');
+            await h.waitFor(() => (window.LolChat.debug.project.state().files.includes('graphify-out/graph.json') ? true : null), { timeout: 10000 });
+            await h.eval(() => {
+                const b = Array.from(document.querySelectorAll('#lolchat .chat-proj-file')).find((x) => x.textContent === 'graphify-out/graph.json');
+                /** @type {any} */ (b).click();
+                return true;
+            });
+            const drawn = await h.waitFor(() => {
+                const s = window.LolChat.debug.project.state();
+                const mount = /** @type {any} */ (document.querySelector('#lolchat .chat-proj-graph'));
+                return s.tab === 'preview' && s.graph && !/stopped|stalled/.test(s.graph) && mount && !mount.hidden && mount.querySelector('iframe') ? s : null;
+            }, { timeout: 20000 });
+            h.eq(drawn.frame, null, 'the graph replaces the served page in the Preview');
+            await h.screenshot('k24-ide-graph');
             h.eq((await panel(h)).frame, null, 'the Preview frame is gone while another tab is up (hidden means idle)');
 
             // 4. Stop ends a running turn.
             await send(h, 'slow');
             await h.waitFor(() => (document.querySelector('#lolchat .chat-msg.assistant[data-status="streaming"]') ? true : null), { timeout: 10000 });
             await h.eval(() => { window.LolChat.app.controller.stop(); return true; });
-            const third = await settled(h, 3);
+            const third = await settled(h, 4);
             h.eq(third.status, 'aborted', 'Stop stopped the agent');
             h.eq(await h.eval(async () => (await window.lol.studio.status()).running), false, 'main has no turn running');
         },

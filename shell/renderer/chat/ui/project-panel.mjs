@@ -13,7 +13,12 @@ import { getDoor, onInstall } from '../projects/agent.mjs';
 import { profileFor, pickEditor } from '../projects/models.mjs';
 import { tabEdit, newlineEdit, applyEdit } from '../computer/code-edit.mjs';
 import { diffLines, hunks } from '../projects/linediff.mjs';
-import { servedFrame } from '../sandbox/host.mjs';
+import { servedFrame, createSandbox } from '../sandbox/host.mjs';
+import { readNodeLink, graphProgram, MAX_NODES, MAX_LINKS } from '../sandbox/graph-view.mjs';
+import '../strings/parts-preview.en.mjs';
+
+/** graphify's output (graphify-out/graph.json), or any *graph.json: drawn, not served. */
+const GRAPH_RE = /(^|\/)[^/]*graph\.json$/i;
 import '../strings/project.en.mjs';
 
 /** Files the Code tab opens as text (the projects API's text extensions). */
@@ -152,7 +157,12 @@ function createPanel(host, app) {
   const previewNote = make('p', 'chat-proj-note');
   const reload = button(t('project.reload'), 'chat-proj-reload', () => { reloads += 1; mountFrame(true); });
   /** @type {HTMLIFrameElement|null} */ let frame = null;
-  panePreview.append(reload, previewNote);
+  // The graph view's own sandbox (made on first use) and its live guest.
+  const graphMount = make('div', 'chat-proj-graph');
+  graphMount.hidden = true;
+  /** @type {any} */ let sandbox = null;
+  /** @type {any} */ let graphLive = null;
+  panePreview.append(reload, previewNote, graphMount);
   // Code
   const paneCode = make('div', 'chat-proj-pane chat-proj-pane-code');
   const codeHead = make('div', 'chat-proj-code-head');
@@ -357,11 +367,48 @@ function createPanel(host, app) {
 
   function unmountFrame() {
     if (frame) { frame.remove(); frame = null; }
+    if (graphLive) { graphLive.stop(); graphLive = null; }
+    graphMount.hidden = true;
+  }
+
+  /** A graph.json (graphify's node-link) opened from the file list: drawn by the Computer's viewer
+   * (sandbox/graph-view.mjs) in this panel's OWN sandbox guest — drag, zoom, pan; never the served page. */
+  async function mountGraph() {
+    const mine = epoch;
+    const r = app.projects ? await app.projects.read(projectId, openFile) : null;
+    if (mine !== epoch || !visible || tab !== 'preview') return;
+    let graph;
+    try {
+      graph = readNodeLink(r && r.ok ? r.text : '');
+    } catch (err) {
+      const e = /** @type {any} */ (err);
+      const message = e.code === 'not-json' ? t('parts.previewGraphNotJson', { reason: String(e.message) }) : t('parts.previewGraphNoNodes');
+      previewNote.textContent = e.line ? t('parts.previewError', { message, line: e.line }) : message;
+      return;
+    }
+    if (!sandbox) { sandbox = createSandbox({ doc }); sandbox.mount(graphMount); }
+    graphMount.hidden = false;
+    const box = graphMount.getBoundingClientRect();
+    const size = { w: Math.max(240, Math.round(box.width) || 480), h: Math.max(240, Math.round(box.height) || 360) };
+    graphLive = sandbox.live({
+      mount: graphMount, mode: 'dom', size, inputs: { width: size.w, height: size.h, mode: 'dom' },
+      code: graphProgram(graph, {
+        tooMany: t('parts.previewGraphTooMany', { nodes: graph.total.nodes, links: graph.total.links, maxNodes: MAX_NODES, maxLinks: MAX_LINKS }),
+        empty: t('parts.previewGraphEmpty'),
+      }),
+    });
   }
 
   /** @param {boolean} [again] */
   function mountFrame(again) {
     if (!visible || tab !== 'preview' || !projectId) { unmountFrame(); return; }
+    if (GRAPH_RE.test(openFile)) {
+      if (graphLive && !again) return;
+      unmountFrame();
+      previewNote.textContent = '';
+      void mountGraph();
+      return;
+    }
     const page = pagePath();
     const has = files.some((f) => f.path === page);
     previewNote.textContent = !door ? t('project.noApp') : has ? '' : t('project.noIndex', { page });
@@ -434,8 +481,10 @@ function createPanel(host, app) {
     area.value = r && r.ok ? r.text : '';
     openMtime = r && r.ok ? r.mtime : 0;
     codeNote.textContent = r && r.ok ? '' : String((r && r.message) || '');
-    tab = 'code';
+    // A graph (graphify's graph.json) opens as a drawing in the Preview; its text waits in Code.
+    tab = GRAPH_RE.test(rel) ? 'preview' : 'code';
     paintTabs();
+    if (tab === 'preview') mountFrame(true);
   }
 
   async function saveFile() {
@@ -560,13 +609,14 @@ function createPanel(host, app) {
       visible = false;
       epoch += 1;
       unmountFrame();
+      if (sandbox) { sandbox.destroy(); sandbox = null; }
       if (typeof off === 'function') off();
       offInstall();
       doc.removeEventListener('lolchat:model', onModel);
       host.replaceChildren();
     },
     debug: {
-      state: () => ({ projectId, projectName, files: files.map((f) => f.path), tab, openFile, serveUrl, lan: lanUrls.slice(), history: commits.map((c) => c.message), frame: frame ? frame.getAttribute('src') : null }),
+      state: () => ({ projectId, projectName, files: files.map((f) => f.path), tab, openFile, serveUrl, lan: lanUrls.slice(), history: commits.map((c) => c.message), frame: frame ? frame.getAttribute('src') : null, graph: graphLive ? graphLive.state() : null }),
     },
   };
 }

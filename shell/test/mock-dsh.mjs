@@ -45,6 +45,7 @@ async function turn(sessionId, text) {
   const w = /write (\S+): ([^\n]+)/.exec(text);
   if (w) {
     await tool(sessionId, step++, 'write', { file_path: w[1], content: w[2] }, () => {
+      fs.mkdirSync(path.dirname(path.resolve(w[1])), { recursive: true });   // dsh's write makes the folders too
       fs.writeFileSync(path.resolve(w[1]), w[2]);
       return { text: `<path>${path.resolve(w[1])}</path>\nCreated file`, meta: { operation: 'create', diffs: [] } };
     });

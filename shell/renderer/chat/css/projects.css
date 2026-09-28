@@ -110,3 +110,5 @@
 .chat-proj-git[open] { padding-bottom: 10px; }
 .chat-proj-git-title { cursor: pointer; font-size: 12px; color: var(--muted); }
 .chat-proj-git .chat-proj-new { margin-top: 6px; }
+.chat-proj-graph { flex: 1 1 auto; min-height: 320px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); overflow: hidden; position: relative; }
+.chat-proj-graph[hidden] { display: none; }
