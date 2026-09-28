@@ -256,6 +256,22 @@ export default [
             // ---- the lesson-9 fan -------------------------------------------------------------
             // One Instruction, three Conditions (yes/no/maybe), three Confirms. The model is
             // scripted to say `yes`, so exactly one branch continues and the other two wires grey.
+            // The Question field shows only when the model decides: the free mode never reads it (the review, 2026-09-28).
+            const probe = await h.computer.place('condition', 400, 900);
+            const questionShown = () => h.eval((id) => {
+                const f = Array.from(document.querySelectorAll('#lolcomputer .graph-part[data-id="' + id + '"] .graph-part-field'))
+                    .find((x) => /Question/.test(x.textContent || ''));
+                return f ? !(/** @type {HTMLElement} */ (f).hidden) : null;
+            }, probe);
+            h.eq(await questionShown(), false, 'a free (text) Condition hides the Question it never reads');
+            await h.computer.set(probe, { mode: 'model' });
+            await h.waitFor((id) => {
+                const f = Array.from(document.querySelectorAll('#lolcomputer .graph-part[data-id="' + id + '"] .graph-part-field'))
+                    .find((x) => /Question/.test(x.textContent || ''));
+                return f && !(/** @type {HTMLElement} */ (f).hidden) ? true : null;
+            }, { timeout: 5000, args: [probe] });
+            await h.computer.remove([probe]);
+
             await h.mock.state({ verdicts: ['yes'] });
             const ins = await h.computer.place('ask', 40, 40);
             await h.computer.set(ins, { instruction: 'is the draft finished?', model: 'mock-echo' });

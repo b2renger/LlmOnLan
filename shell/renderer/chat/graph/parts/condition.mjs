@@ -200,6 +200,8 @@ export const condition = /** @type {any} */ ({
       question.update(String(p.settings.question || ''));
       const asking = modeOf(p.settings) === 'model';
       model.hidden = !asking;
+      // The free mode reads the words and never the question: showing it there invited typing into a field that did nothing.
+      question.node.hidden = !asking;
       refreshModels(String(p.settings.model || ''));
       // In model mode the verdict is the FARM's, not this box's reading of the value it passes on.
       const got = asking ? lastVerdict(p.id) : (p.value ? classify(p.value) : '');
