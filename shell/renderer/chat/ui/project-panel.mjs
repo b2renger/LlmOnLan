@@ -211,7 +211,11 @@ function createPanel(host, app) {
   const gitRow = (/** @type {HTMLElement[]} */ ...els) => { const r = make('div', 'chat-proj-new'); r.append(...els); return r; };
   const gitAct = async (/** @type {() => Promise<any>} */ fn, /** @type {string} */ ok) => {
     gitNote.textContent = t('project.working');
-    const r = await fn();
+    // One at a time: a second click on Push while the first is still going did it twice.
+    const buttons = Array.from(gitBox.querySelectorAll('button'));
+    for (const b of buttons) b.disabled = true;
+    let r = null;
+    try { r = await fn(); } finally { for (const b of buttons) b.disabled = false; }
     gitNote.textContent = r && r.ok ? ok : String((r && r.message) || '');
     await loadRemote();
     if (r && r.ok) { reloads += 1; await refreshFiles(); picked = ''; await loadHistory(); mountFrame(true); void refreshOpen(); }
@@ -220,7 +224,7 @@ function createPanel(host, app) {
   gitBox.append(
     gitRow(remoteIn, button(t('project.saveRemote'), 'chat-proj-save-remote', () => { if (door) void gitAct(() => door.remote(projectId, remoteIn.value.trim()), t('project.remoteSaved')); }, t('project.tipSaveRemote'))),
     gitRow(tokenIn,
-      button(t('project.saveToken'), 'chat-proj-save-token', () => { if (door && tokenIn.value) { const v = tokenIn.value; tokenIn.value = ''; void gitAct(() => door.token(projectId, v), t('project.tokenStored')); } }, t('project.tipSaveToken')),
+      button(t('project.saveToken'), 'chat-proj-save-token', () => { if (!tokenIn.value) { tokenIn.focus(); return; } if (door) { const v = tokenIn.value; tokenIn.value = ''; void gitAct(() => door.token(projectId, v), t('project.tokenStored')); } }, t('project.tipSaveToken')),
       button(t('project.forgetToken'), 'chat-proj-forget-token', () => { if (door) void gitAct(() => door.token(projectId, null), t('project.tokenForgotten')); }, t('project.tipForgetToken'))),
     tokenNote,
     gitRow(
@@ -330,7 +334,10 @@ function createPanel(host, app) {
     if (mine !== epoch || oid !== picked) return;
     /** @type {HTMLElement[]} */ const out = [];
     const at = commits.findIndex((c) => c.oid === oid);
-    if (at > 0) out.push(button(t('project.goBack'), 'chat-proj-go-back', () => { void goBack(oid); }, t('project.tipGoBack')));
+    if (at > 0) {
+      const back = button(t('project.goBack'), 'chat-proj-go-back', () => { back.disabled = true; void goBack(oid).finally(() => { back.disabled = false; }); }, t('project.tipGoBack'));
+      out.push(back);
+    }
     else if (at === 0) out.push(make('p', 'chat-proj-note', t('project.latest')));
     if (r && !r.ok) out.push(make('p', 'chat-proj-note', String(r.message || '')));
     for (const f of (r && r.ok ? r.files : [])) {
@@ -486,7 +493,7 @@ function createPanel(host, app) {
     if (!TEXT_RE.test(rel)) {
       // A picture or a sound is shown by the Preview; anything else (a font…) cannot be shown here at all.
       const media = MEDIA_RE.test(rel);
-      codeName.textContent = rel; area.value = ''; openText = ''; area.disabled = true;
+      codeName.textContent = rel; area.value = ''; openText = ''; area.disabled = true; save.disabled = true;
       codeNote.textContent = media ? t('project.binary') : t('project.binaryOther');
       tab = media ? 'preview' : 'code'; paintTabs(); mountFrame(); return;
     }
@@ -495,6 +502,7 @@ function createPanel(host, app) {
     if (mine !== epoch) return;
     codeName.textContent = rel;
     area.disabled = !(r && r.ok);
+    save.disabled = area.disabled;
     area.value = r && r.ok ? r.text : '';
     openText = area.value;
     openMtime = r && r.ok ? r.mtime : 0;

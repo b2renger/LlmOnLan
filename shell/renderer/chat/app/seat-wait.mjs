@@ -301,6 +301,7 @@ export function install(app) {
     order: 40,
     icon: null,
     label: t('etiquette.tryNow'),
+    hint: t('etiquette.tryNowTip'),
     visible: onWaitingRow,
     run: (/** @type {any} */ msg) => {
       // Only the row that IS the current wait can resend: a 'waiting' row left in the store by a
@@ -314,6 +315,7 @@ export function install(app) {
     order: 41,
     icon: null,
     label: t('dialogs.cancel'),
+    hint: t('etiquette.cancelWaitTip'),
     visible: onWaitingRow,
     run: () => { void stopWaiting('cancel'); },
   });

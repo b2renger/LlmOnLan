@@ -47,5 +47,5 @@ registerStrings('render', {
   replyFinished: 'Reply finished',
 
   // context (P2 fills setOutsideContext; the title is needed as soon as a row can carry the mark)
-  outsideContext: 'Outside the model’s context window for the next reply',
+  outsideContext: 'Not sent with the next message: the chat is longer than the model can read at once (Keep in context sends it anyway)',
 });

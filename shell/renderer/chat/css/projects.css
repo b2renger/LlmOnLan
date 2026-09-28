@@ -62,10 +62,12 @@
   color: var(--text); background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px;
   cursor: pointer; text-decoration: none; white-space: nowrap;
 }
-.chat-proj-btn:hover { border-color: var(--accent-hover); }
+.chat-proj-btn:hover:not(:disabled) { border-color: var(--accent-hover); }
+/* Busy (installing, sharing, a push in flight) or not for this file: it says so instead of looking clickable. */
+.chat-proj-btn:disabled { opacity: .55; cursor: default; }
 .chat-proj-btn[hidden] { display: none; }
 .chat-proj-create { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
-.chat-proj-create:hover { filter: brightness(1.08); }
+.chat-proj-create:hover:not(:disabled) { filter: brightness(1.08); }
 .chat-proj-list, .chat-proj-files { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
 .chat-proj-pick, .chat-proj-file { width: 100%; justify-content: flex-start; overflow: hidden; text-overflow: ellipsis; }
 .chat-proj-file { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11px; background: transparent; border-color: transparent; }

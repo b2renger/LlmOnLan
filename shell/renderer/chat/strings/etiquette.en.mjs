@@ -16,13 +16,15 @@ registerStrings('etiquette', {
   waitingSeats: 'Waiting for a seat — {used}/{slots} in use.',
   // After MAX_ATTEMPTS refused resends nothing is queued on the reader's behalf any more, so the
   // row must stop saying it is waiting: `seatDecision` returns 'manual' and only Try now moves it.
-  waitingManual: 'Asked {attempts} times and lost the race each time — nothing is queued now, press Try now for another go.',
+  waitingManual: 'Asked {attempts} times, and each time someone else took the free seat first. Nothing is waiting now: press Try now to ask again.',
   // Same state, other cause: a farm with no seat gate never tells us a seat freed, so we never guess.
   waitingUnknown: 'This farm does not report its seats, so nothing is queued — press Try now for another go.',
   sendWaiting: 'Waiting for a seat…',
   // What a send refused while the wait holds the slot says (gov.hold({note}) → the composer).
   refusedWaiting: 'Still waiting for a seat — nothing is running yet. Stop to give up the wait.',
   tryNow: 'Try now',
+  tryNowTip: 'Ask the farm for a seat again, now',
+  cancelWaitTip: 'Stop waiting for a seat. Nothing was sent; your message stays in the chat.',
   cancelled: 'Stopped waiting for a seat.',
   gaveUp: 'Gave up waiting for a seat after {minutes} min. Nothing was sent — try again, or ask around who is still generating.',
 
