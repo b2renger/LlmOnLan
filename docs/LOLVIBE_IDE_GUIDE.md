@@ -98,4 +98,5 @@ A Gitea on your LAN works the same way (an `https://` address).
 | *The coding agent stopped before it answered* | Ask again: it restarts, and it gets a short recap of the chat. |
 | *… refused the token* | Make a new token with *Contents: read and write* on that repository, and save it again. |
 | *… both have changes the other lacks* | Your work is safe (committed). Push is refused too: bring the other side's work another way, or keep this copy. |
+| *This project's folder is not there any more* | It was moved or deleted outside LlmOnLan: put it back in `LOL Studio Projects`, or press **Other project**. |
 | The Preview is blank | Open **Code**: is there an `index.html`? Ask the agent to make one, or pick another page in the list. |

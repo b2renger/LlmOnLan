@@ -620,6 +620,8 @@ function createPanel(host, app) {
       lanUrls = s && s.ok && Array.isArray(s.lan) ? s.lan : [];
     }
     paintShare();
+    // The folder was moved or deleted outside LlmOnLan: say so, rather than an empty list and "no index.html yet".
+    if (meta && !meta.ok && meta.code === 'E_MISSING') shareNote.textContent = t('project.gone');
     browser.href = serveUrl || '#';
     browser.hidden = !serveUrl;
     await refreshFiles();

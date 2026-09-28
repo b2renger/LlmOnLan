@@ -62,6 +62,7 @@ registerStrings('project', {
   unpacking: 'Unpacking the coding agent…',
   installed: 'The coding agent is installed.',
   noApp: 'The coding agent runs in the LlmOnLan app, not here.',
+  gone: 'This project\'s folder is not there any more (moved or deleted). Other project picks or makes another.',
   // LOL Vibe › Settings › About (ui/settings.mjs): what a project chat sends, beside the chat's own promise.
   aboutAgent: 'In a project chat, the coding agent also sends the files it reads to the farm\'s model. The project itself stays in its folder on this computer.',
 

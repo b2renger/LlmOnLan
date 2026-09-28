@@ -11,6 +11,7 @@ registerStrings('sidebar', {
   untitled: 'New chat',
   loading: 'Loading chats…',
   interrupted: 'This chat has a reply that was cut off.',
+  rowHint: '{title} — double-click to rename',
 
   // delete
   delete: 'Delete chat',

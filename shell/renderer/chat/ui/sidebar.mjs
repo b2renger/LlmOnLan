@@ -293,7 +293,7 @@ export function createSidebar(app, el) {
     if (!entry) { entry = makeRow(th); rows.set(th.id, entry); }
     const name = th.title || t('sidebar.untitled');
     if (entry.title.textContent !== name) entry.title.textContent = name;
-    entry.btn.title = name;
+    entry.btn.title = t('sidebar.rowHint', { title: name });   // the whole name, and the double-click nobody finds
     const active = app.state.threadId === th.id;
     entry.btn.classList.toggle('active', active);
     if (active) entry.btn.setAttribute('aria-current', 'true');
