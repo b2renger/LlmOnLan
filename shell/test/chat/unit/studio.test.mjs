@@ -406,6 +406,19 @@ export default (test) => {
       assert.equal(page.status, 200);
       assert.equal(page.body, '<h1>shared</h1>');
       assert.equal((await get(lanUrl, { host: `evil.example:${port}` })).status, 403, 'only this machine\'s names');
+      // Never a hidden file or folder: .git holds the whole history (files deleted since included), .env a secret.
+      // Windows folds case, so .GIT is the same folder. And never a link leading out of the project (a pulled
+      // repository can carry one).
+      fs.mkdirSync(path.join(root, PID, '.git'), { recursive: true });
+      fs.writeFileSync(path.join(root, PID, '.git', 'config'), '[remote "origin"]');
+      fs.writeFileSync(path.join(root, PID, '.env'), 'TOKEN=secret');
+      fs.writeFileSync(path.join(data, 'outside.txt'), 'outside the project');
+      let linked = true;
+      try { fs.symlinkSync(path.join(data, 'outside.txt'), path.join(root, PID, 'leak.txt'), 'file'); } catch { linked = false; }
+      for (const p of ['/.git/config', '/.GIT/config', '/.env', ...(linked ? ['/leak.txt'] : [])]) {
+        assert.equal((await get(lanUrl, { host: `192.0.2.10:${port}`, path: p })).status, 404, `${p} is not served on the LAN`);
+      }
+      if (!linked) console.log('     (no symlink permission on this machine: the link case is checked where links can be made)');
       assert.equal((await get(lanUrl, { host: `192.0.2.10:${port}`, method: 'PUT' })).status, 405, 'read-only');
       assert.deepEqual((await studio.serve(PID)).lan, on.urls, 'the panel learns the share state from serve()');
       assert.deepEqual((await studio.share(PID, true)).urls, on.urls, 'turning it on twice keeps one listener');

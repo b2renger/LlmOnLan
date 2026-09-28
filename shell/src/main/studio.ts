@@ -649,14 +649,23 @@ function fileServer(root: string, id: string, host: string, addresses: () => str
         if (rel === '' || rel.endsWith('/')) rel += 'index.html';
         const r = resolveIn(root, id, rel);
         if (!r.ok) { res.writeHead(404).end(); return; }
-        fs.stat(r.abs, (e, st) => {
+        // resolveIn judges the path as written; a link in the project (a pulled repository can carry one) would still
+        // be followed out of it — to any file of this account, served to the LAN. So the REAL path must be inside too.
+        let real = '';
+        try {
+            const fold = (p: string) => (process.platform === 'win32' ? p.toLowerCase() : p);
+            real = fs.realpathSync.native(r.abs);
+            if (!fold(real).startsWith(fold(fs.realpathSync.native(projectDir(root, id))) + path.sep)) real = '';
+        } catch { real = ''; }
+        if (!real) { res.writeHead(404).end(); return; }
+        fs.stat(real, (e, st) => {
             if (e || !st.isFile()) { res.writeHead(404).end(); return; }
             res.writeHead(200, {
                 'content-type': MIME[r.ext] || 'application/octet-stream', 'content-length': st.size,
                 'cache-control': 'no-store', 'x-content-type-options': 'nosniff',
             });
             if (req.method === 'HEAD') { res.end(); return; }
-            fs.createReadStream(r.abs).on('error', () => res.destroy()).pipe(res);
+            fs.createReadStream(real).on('error', () => res.destroy()).pipe(res);
         });
     });
     return new Promise((resolve) => server.listen(0, host, () => {
