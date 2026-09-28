@@ -304,7 +304,7 @@ export function createStudio(deps: StudioDeps) {
         if (!deps.seedSkills || !fs.existsSync(deps.seedSkills)) return;
         for (const name of fs.readdirSync(deps.seedSkills)) {
             const to = path.join(dir, name);
-            if (!fs.existsSync(to)) fs.cpSync(path.join(deps.seedSkills, name), to, { recursive: true });
+            if (!fs.existsSync(to)) copyTree(path.join(deps.seedSkills, name), to);
         }
     }
 
@@ -607,6 +607,21 @@ export function remoteUrl(raw: unknown): string | null {
     try { u = new URL(raw.trim()); } catch { return null; }
     if (u.protocol !== 'https:' || !u.hostname || u.username || u.password || u.search || u.hash) return null;
     return u.toString();
+}
+
+/**
+ * Copy a folder with the calls Electron's asar support covers (readdir, stat, read, write). The bundled skills live
+ * INSIDE app.asar in an installed app, and `fs.cpSync` fails there with ENOENT (probed on a real asar, 2026-09-28) —
+ * which would have stopped the coding agent from starting at all in every installed client.
+ */
+export function copyTree(from: string, to: string): void {
+    fs.mkdirSync(to, { recursive: true });
+    for (const name of fs.readdirSync(from)) {
+        const src = path.join(from, name);
+        const dest = path.join(to, name);
+        if (fs.statSync(src).isDirectory()) copyTree(src, dest);
+        else fs.writeFileSync(dest, fs.readFileSync(src));
+    }
 }
 
 /** This machine's non-internal IPv4 addresses (what a person on the LAN types). */

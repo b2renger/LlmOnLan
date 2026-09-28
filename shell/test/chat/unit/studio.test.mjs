@@ -306,6 +306,32 @@ export default (test) => {
     assert.equal(via({ tool_name: 'read', tool_input: { file_path: 'a.txt' }, cwd: project }).status, 0, 'and so does a pass');
   });
 
+  test('studio: the bundled skills are copied out of app.asar — the installed app\'s case, where fs.cpSync fails', async () => {
+    // In an installed client assets/skills/ lives INSIDE app.asar, and fs.cpSync fails there with ENOENT (probed
+    // 2026-09-28): seeding threw inside the agent's start-up. This packs a real asar and copies out of it the way the
+    // installed app does — in Electron's own Node.
+    const { spawnSync } = await import('node:child_process');
+    const asar = require(path.join(SHELL, 'node_modules', '@electron', 'asar'));
+    const electron = /** @type {string} */ (require(path.join(SHELL, 'node_modules', 'electron')));
+    const dir = tmp('asar');
+    fs.mkdirSync(path.join(dir, 'src', 'assets', 'skills', 'graphify', 'refs'), { recursive: true });
+    fs.writeFileSync(path.join(dir, 'src', 'package.json'), '{}');
+    fs.writeFileSync(path.join(dir, 'src', 'assets', 'skills', 'graphify', 'SKILL.md'), 'top');
+    fs.writeFileSync(path.join(dir, 'src', 'assets', 'skills', 'graphify', 'refs', 'deep.md'), 'deep');
+    await asar.createPackage(path.join(dir, 'src'), path.join(dir, 'app.asar'));
+    const probe = path.join(dir, 'probe.cjs');
+    fs.writeFileSync(probe, [
+      "const fs = require('fs'); const path = require('path');",
+      'const S = require(process.argv[2]);',
+      "const out = path.join(__dirname, 'out');",
+      "S.copyTree(path.join(__dirname, 'app.asar', 'assets', 'skills'), out);",
+      "console.log(JSON.stringify([fs.readFileSync(path.join(out, 'graphify', 'SKILL.md'), 'utf8'), fs.readFileSync(path.join(out, 'graphify', 'refs', 'deep.md'), 'utf8')]));",
+    ].join('\n'));
+    const r = spawnSync(electron, [probe, built], { env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' }, encoding: 'utf8' });
+    assert.equal(r.status, 0, r.stderr);
+    assert.deepEqual(JSON.parse(r.stdout.trim().split('\n').pop()), ['top', 'deep'], 'every file, nested folders too');
+  });
+
   test('studio: the patch mounts the fence through the hook bridge', () => {
     const p = S.buildPatch({ baseUrl: 'http://x/v1', model: 'm', contextWindow: 8192, skillsDir: '/s', hooksConfig: 'C:\\home\\lol-hooks.json' });
     assert.match(p, /- insert:\n\s+- id: hooks-claude-code\n\s+name: '@deepseek-ai\/dsh-hooks-claude-code'/);
