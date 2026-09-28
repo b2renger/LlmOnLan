@@ -6,6 +6,57 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-09-28 (afternoon) — LOL Vibe's IDE, v1 slices 1–4: DeepSeek Harness writes a project, the panel shows it
+
+On the owner's "yes start the build" (P5 v1, [docs/IDE_PLAN.md](IDE_PLAN.md)).
+
+**Probes first** (a private test farm on 127.0.0.1:4100, matched to the live farm's context so the shared Ollama
+never reloaded): dsh **refuses Electron 42's Node** (its addon supports Electron 43–45) → it runs on its own Node, as
+the sidecar runs on its own Python; a fresh `DSH_HOME` with only our patch boots; with the patch the model sees **9
+file tools** and **only our skills** (the spike had leaked the owner's `~/.claude` skills); a netstat watch over a
+whole session saw **no non-loopback connection**; a new dsh process **cannot continue** a session (no resume, no
+cancel) → the thread is the history and a fresh session gets a recap; events come **per step** with `meta.diffs` on
+edits (the Changes view needs no diff algorithm) and `stopReason` (max-tokens is never "done").
+
+**Built.**
+- `src/main/studio.ts` — the runner: the profile patch from the current farm (base URL, the one model, context per
+  slot; skills pinned to `DATA_DIR/skills`, seeded with ponytail + its MIT licence from `assets/skills/`; shell, jobs,
+  goals, subagents, workflows, web and every DeepSeek cloud row off), a curated env (`DSH_TELEMETRY_DISABLED=1`,
+  `DSH_MAX_TOKENS_AS_SUCCESS=false`, none of the shell's other secrets), spawn + JSON-RPC, one runtime per window
+  (another project/model/farm restarts it), Stop = kill the tree, the event projection (small, path-relative records),
+  and a static server per project on 127.0.0.1 with a Host check. IPC `lol:studio:*`, preload `lol.studio`; a window
+  reload or a quit ends the runtime; main's subframe veto lets exactly the served origins in.
+- `projects/agent.mjs` — an agent turn shaped like `startGeneration` ({done, abort}), so the controller keeps the
+  message tree, Stop and the seat: the answer as content, the steps ("→ edit index.html ✓ (1 change)") in the
+  collapsible block, the edits and new files on the reply (`changes`, `created`); the stats line says "3 steps ·
+  7.2 s", never tok/s. `app/controller.mjs` branches once: a thread with `studio.projectId` goes to the agent (the
+  module loaded only then). `projects/models.mjs` — per-model trust from the spike's edit task (qwen3.8/nemotron good,
+  gemma4 weak, a new model unknown), judged on the model behind a farm alias.
+- `ui/project-panel.mjs` — the workbench's first tenant since K1: pick or make a project (binds the thread through the
+  new `app.work.setStudio`), the files, **Preview** (the served page in a sandboxed frame, reloaded after each reply,
+  gone while hidden), **Code** (the Computer's editor rules, Ctrl+S, a conflict if the agent changed the file),
+  **Changes**, Open folder / Open in browser, and whether the model is good at edits.
+
+**Tested.** Unit: `studio.test.mjs` (11 — the patch, the env, a recorded session's projection, runtime resolution,
+the runner against `test/mock-dsh.mjs`: a real file written and edited, the recap only on a fresh session, Stop,
+a runtime dying mid-turn, a runtime that cannot start giving its own reason, the Preview server refusing escapes,
+other Hosts and writes) and `agent.test.mjs` (6). The REAL dsh through the runner on qwen3.8: a three.js page in 7 s.
+Harness **k24** (the real runner over the mock dsh in the page: make a project, the agent writes and edits, the
+Preview shows the served page, the Changes tab shows the edit, Stop stops).
+
+**The runtime download (slice 5).** `shell/dsh/package.json` + `package-lock.json` pin dsh (594 packages, sha512
+each); `shell/dsh/build-runtime.mjs` builds `dsh-runtime-<platform>-<arch>.tar.gz` = an official Node 24.14.0
+(checked against nodejs.org's SHASUMS256) + `npm ci` − the 188 MB LibreOffice build the IDE never uses (dsh ran
+without it): **110 MB** on win-x64. The built runtime ran a turn on its own Node through the runner. `release.yml`
+builds it on every job and uploads it beside the sidecar. The Project panel shows **Install the coding agent (about
+110 MB)** while it is missing; main fetches this version's asset (the latest release's as a fallback) into
+`<userData>/dsh-runtime` through the sidecar's own `releaseAssetUrl` + `installFrom`, with progress in the panel.
+It first works for clients with the next release.
+
+**Not yet.** Git (HTTPS, credentials in `safeStorage`); serving on the LAN; the project's own `.dsh/skills`.
+
+---
+
 ## 2026-09-28 (afternoon) — The Computer hears the microphone and sees the webcam
 
 The owner tried *Ask out loud*: "it should take input from the mic … We should also be able to take a picture for

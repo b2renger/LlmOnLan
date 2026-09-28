@@ -107,7 +107,16 @@ docs) is `docs/reviews/DOCS_REVIEW_2026-09-27_{FARM,SHELL,COMPUTER}.md`. Snapsho
   choice is remembered in `localStorage['lol:view']`): OWUI; **LOL Vibe** (`renderer/chat/main.mjs` + modules
   in `app/ core/ ctx/ net/ render/ state/ ui/ strings/ css/` — farm-direct, tok/s + TTFT per reply, a message
   tree, seat-aware sending, a context meter; history in the renderer's IndexedDB `lol-chat` v2 with a one-way
-  import of the v1 `localStorage` history; no RAG, uploads or tools — those P3/P4 plans are NOT BUILT); and
+  import of the v1 `localStorage` history; no RAG, uploads or tools — those P3/P4 plans are NOT BUILT; and
+  since 2026-09-28 the **IDE** (P5 v1, [docs/IDE_PLAN.md](docs/IDE_PLAN.md)): the workbench's **Project** panel binds a
+  thread to a folder in `DATA_DIR/LOL Studio Projects/`, and that thread's replies come from **DeepSeek Harness**
+  (dsh 0.1.7-rc.2) run by main (`src/main/studio.ts`) over its SDK on its OWN Node (its addon refuses Electron 42),
+  with a profile patch written from the current farm: 9 file tools, no shell/web/subagents, no DeepSeek cloud row,
+  telemetry off, skills only from `DATA_DIR/skills`. dsh sessions die with the process (no resume): a new one gets a
+  recap of the thread. Preview = a static server per project on 127.0.0.1 (main's frame veto lets exactly that
+  origin in). The agent is NOT in the installer: CI builds `dsh-runtime-<platform>-<arch>.tar.gz` (`shell/dsh/`:
+  a pinned Node + `npm ci` of a committed lockfile, ~110 MB) and the panel's **Install the coding agent** fetches it
+  into `<userData>/dsh-runtime`; in dev, `LOL_DSH_DIR` (+ `LOL_DSH_NODE` when that folder has no Node of its own)); and
   the **Computer** (next bullet). **LOL Vibe was named LOL Chat until 2026-09-27** (owner): only what a person
   reads changed; the code and the data keep the old name (`renderer/chat/`, `#lolchat`, the `lol-chat` IndexedDB,
   the `chat` view value, `.lolchat.json` exports), so no history moves and old exports still import. Whether OWUI ships is `src/main/clientMode.ts` `OWUI_ENABLED` + the
@@ -674,7 +683,9 @@ LlmOnLan/
   on this computer; the farm's message bus carries what a graph publishes (armed) to whoever subscribed on the
   LAN, and keeps nothing.
 - **Beyond the farm (no user content):** GitHub, for the app update check and the chat-engine (sidecar)
-  download/update check; huggingface.co, until MiniLM and whisper-base are cached (then `HF_HUB_OFFLINE=1`).
+  download/update check, and the IDE's coding-agent runtime when a person clicks Install; huggingface.co, until
+  MiniLM and whisper-base are cached (then `HF_HUB_OFFLINE=1`). The coding agent itself talks only to the farm's
+  `/v1` (its cloud, web and telemetry rows are off; checked with a netstat watch, 2026-09-28).
 - **Never sent anywhere:** documents for **embedding** (local model), a Computer Sound box's recording
   unless its Listen switch is on, and telemetry (off).
 
