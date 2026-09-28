@@ -558,10 +558,13 @@ export function install(app) {
     // "Run everything again" stands while the last run of THIS graph found nothing to do and
     // nothing has been edited since — an edit makes something stale, and then Run all is the
     // honest button again.
-    // Outputs: shown with a Send box; another graph opened while armed goes back to a dry run.
-    const hasSend = !!doc && Array.isArray(doc.parts) && doc.parts.some((/** @type {any} */ p) => p.type === 'send');
+    // Outputs: shown with a Send box — or a Trigger, which starts runs only while a person armed the outputs and says
+    // so on its face (a Trigger-only graph could never be armed; found by the lessons 7–12 build, 2026-09-28).
+    // Another graph opened while armed goes back to a dry run.
+    const has = (/** @type {string} */ type) => !!doc && Array.isArray(doc.parts) && doc.parts.some((/** @type {any} */ p) => p.type === type);
+    const hasSend = has('send');
     if (armed && here !== armedFor) { armed = false; const door = outputsDoor(); if (door) void door.arm(false); }
-    outBtn.hidden = !hasSend;
+    outBtn.hidden = !(hasSend || has('trigger'));
     // Panic stays with a Send box whether armed or not: disarming does not turn off the lights a run lit.
     panicBtn.hidden = !hasSend;
     const outText = armed ? t('computer.outputsLive') : t('computer.outputsDry');

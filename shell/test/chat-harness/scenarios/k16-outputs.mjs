@@ -119,4 +119,32 @@ export default [
             }
         },
     },
+    {
+        // Found by the lessons 7–12 build (2026-09-28): a Trigger starts runs only while the outputs are armed, and its
+        // face says "arm the outputs in the run bar" — but the control showed only with a Send box.
+        name: 'k16-outputs-a-trigger-alone-can-be-armed-panic-stays-with-a-send-box',
+        needsMock: true,
+        timeoutMs: 60000,
+        allowConsoleErrors: FARM_ERRORS,
+        async run(/** @type {any} */ h) {
+            await h.fresh();
+            await open(h);
+            const shown = () => h.eval(() => ({
+                outputs: !(/** @type {any} */ (document.querySelector('#lolcomputer .comp-run-outputs'))).hidden,
+                panic: !(/** @type {any} */ (document.querySelector('#lolcomputer .comp-run-panic'))).hidden,
+            }));
+            await h.computer.place('note', 60, 60);
+            h.eq(await shown(), { outputs: false, panic: false }, 'nothing to arm: no control');
+            await h.computer.place('trigger', 60, 300);
+            const withTrigger = await h.waitFor(() => {
+                const b = /** @type {any} */ (document.querySelector('#lolcomputer .comp-run-outputs'));
+                return b && !b.hidden ? true : null;
+            }, { timeout: 5000 });
+            h.assert(withTrigger, 'a Trigger alone brings the Outputs control');
+            h.eq((await shown()).panic, false, 'Panic belongs to Send boxes (it blacks out what they lit)');
+            await h.computer.place('send', 460, 60);
+            await h.waitFor(() => (!(/** @type {any} */ (document.querySelector('#lolcomputer .comp-run-panic'))).hidden ? true : null), { timeout: 5000 });
+            h.eq(await shown(), { outputs: true, panic: true });
+        },
+    },
 ];
