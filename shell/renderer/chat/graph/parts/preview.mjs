@@ -45,6 +45,12 @@
 // Leaving live shows the snapshot again. Run code (and Ctrl+Enter in the code) redraws — or
 // restarts the live sketch — with the code as it is now; Edit code opens the drawer's big editor
 // (K-8, `app.drawer.editCode`), two-way with the box's own field.
+//
+// GRAPH (owner, 2026-09-28, NIGHT_LOG 21:30): the seventh mode. The "code" is node-link JSON —
+// graphify's graph.json, or any {nodes, links|edges} — and what the guest runs is OUR viewer
+// (sandbox/graph-view.mjs, d3-force, the one the IDE reuses), never the JSON. So a broken JSON
+// names ITS line (read before the guest is asked), and a guest error names no line at all: a line of
+// the viewer is not a line of the person's JSON. ▶ Live lets the nodes be dragged.
 
 import { partFail, textOf, pickerRow, sandboxDownText, sandboxPaused } from './common.mjs';
 import { numberField } from './fields.mjs';
@@ -63,6 +69,7 @@ import {
 // where every sketch is drawn. Without it, the engine's own message is shown, as before.
 import * as unfence from '../unfence.mjs';
 import { presetTitle, saveFormats } from './creative.mjs';
+import { readNodeLink, graphProgram, MAX_NODES, MAX_LINKS } from '../../sandbox/graph-view.mjs';
 import { EV } from '../../core/events.mjs';
 import { t } from '../../core/i18n.mjs';
 import '../../strings/parts-preview.en.mjs';
@@ -72,14 +79,15 @@ import '../../strings/sandbox.en.mjs';
 /** @typedef {import('../../core/types.mjs').GraphValue} GraphValue */
 
 /** What the text is read as. `auto` reads the value's `format`/`lang` facet (§6.8); it NEVER
- * sniffs the bytes. Frozen: a seventh mode is a contract request, not a new string. */
-export const PREVIEW_MODES = Object.freeze(['auto', 'markdown', 'svg', 'html', 'three', 'p5']);
+ * sniffs the bytes. Frozen: a seventh mode is a contract request, not a new string — `graph` was
+ * one (owner, 2026-09-28), and `auto` never picks it: a graph is chosen, never guessed. */
+export const PREVIEW_MODES = Object.freeze(['auto', 'markdown', 'svg', 'html', 'three', 'p5', 'graph']);
 
 /** The modes this box draws itself, with no guest and no iframe. */
 export const FREE_MODES = Object.freeze(['markdown', 'svg']);
 
 /** The modes that cost one turn of the single sandbox guest and come back as a picture. */
-export const SANDBOX_MODES = Object.freeze(['html', 'three', 'p5']);
+export const SANDBOX_MODES = Object.freeze(['html', 'three', 'p5', 'graph']);
 
 /** The picture a box may hold. A four-megabyte tile in a document that is persisted whole would
  * be re-written on every edit of any part. */
@@ -152,11 +160,11 @@ export const PAGE_CSS = [
 
 /** What each Save button writes. */
 const SAVE_MIME = Object.freeze({
-  js: 'text/javascript', html: 'text/html', svg: 'image/svg+xml', md: 'text/markdown', png: 'image/png',
+  js: 'text/javascript', html: 'text/html', svg: 'image/svg+xml', md: 'text/markdown', json: 'application/json', png: 'image/png',
 });
 
 /** Every Save button a box owns, in DOM creation order; `paint` shows the ones its mode makes. */
-const SAVE_EXTS = Object.freeze(['js', 'html', 'svg', 'md', 'png']);
+const SAVE_EXTS = Object.freeze(['js', 'html', 'svg', 'md', 'json', 'png']);
 
 // ---------------------------------------------------------------------------------------------
 // runtime registries (keyed by part id, never persisted — a draw is not an edit of the program)
@@ -357,6 +365,33 @@ function svgFailure(code, reason) {
   return drawFail(at ? t('parts.previewError', { message, line: at.line }) : message, 'invalid', at ? at.line : 0);
 }
 
+/** A graph box's JSON as the viewer program the guest runs (sandbox/graph-view.mjs). Throws a part
+ * failure naming the line the JSON breaks on — read here, before the guest is asked.
+ * @param {string} code @returns {string} */
+export function graphCode(code) {
+  let graph;
+  try {
+    graph = readNodeLink(code);
+  } catch (err) {
+    const e = /** @type {any} */ (err);
+    const line = Number(e.line) || 0;
+    const message = e.code === 'not-json' ? t('parts.previewGraphNotJson', { reason: String(e.message) }) : t('parts.previewGraphNoNodes');
+    throw drawFail(line ? t('parts.previewError', { message, line }) : message, 'invalid', line);
+  }
+  return graphProgram(graph, {
+    tooMany: t('parts.previewGraphTooMany', { nodes: graph.total.nodes, links: graph.total.links, maxNodes: MAX_NODES, maxLinks: MAX_LINKS }),
+    empty: t('parts.previewGraphEmpty'),
+  });
+}
+
+/** What a guest error says, and the line it names in the person's code. A graph is drawn by OUR
+ * viewer, so no line the guest reports is a line of the person's JSON: it names none.
+ * @param {any} e @param {string} code @param {string} mode @returns {{message: string, line: number}} */
+function guestProblem(e, code, mode) {
+  if (mode === 'graph') return { message: sandboxMessage({ ...(e || {}), line: 0 }, undefined, mode), line: 0 };
+  return { message: sandboxMessage(e, code, mode), line: lineOf(e, code) };
+}
+
 // ---------------------------------------------------------------------------------------------
 // drawing (shared by a run and an edit)
 // ---------------------------------------------------------------------------------------------
@@ -424,17 +459,22 @@ async function drawInGuest(sandbox, mode, code, s, signal, app) {
   const size = { w: s.w, h: s.h };
   const req = mode === 'html'
     ? { kind: 'dom', code: '', html: code, css: PAGE_CSS, params, size }
-    : { kind: mode, code: shapeForGuest(mode, code), params, size };
+    : mode === 'graph'
+      ? { kind: 'dom', code: graphCode(code), params, size }
+      : { kind: mode, code: shapeForGuest(mode, code), params, size };
   const out = await sandbox.run(/** @type {any} */ ({ ...req, signal }));
   if (!out || !out.ok) {
-    const e = out && out.error;
-    throw drawFail(sandboxMessage(e, code, mode), 'part', lineOf(e, code));
+    const p = guestProblem(out && out.error, code, mode);
+    throw drawFail(p.message, 'part', p.line);
   }
   const maxPx = Math.min(LIMITS.maxPx, Math.max(s.w, s.h));
   const shot = await sandbox.snapshot({ maxPx, signal });
   // An error thrown AFTER the run returned (a draw() on a later frame) is still this code's error.
   const late = typeof sandbox.errors === 'function' ? sandbox.errors() : [];
-  if (Array.isArray(late) && late.length) throw drawFail(sandboxMessage(late[0], code, mode), 'part', lineOf(late[0], code));
+  if (Array.isArray(late) && late.length) {
+    const p = guestProblem(late[0], code, mode);
+    throw drawFail(p.message, 'part', p.line);
+  }
   if (!shot || !shot.dataUrl) throw drawFail(t('parts.previewNoPicture'), 'part');
   if (String(shot.dataUrl).length > MAX_TILE_BYTES) throw drawFail(t('parts.previewTooBig'), 'part');
   return { mode, dataUrl: String(shot.dataUrl), w: Number(shot.w) || s.w, h: Number(shot.h) || s.h };
@@ -590,6 +630,7 @@ export const preview = /** @type {any} */ ({
         { value: 'html', label: t('parts.previewHtml') },
         { value: 'three', label: t('parts.previewThree') },
         { value: 'p5', label: t('parts.previewP5') },
+        { value: 'graph', label: t('parts.previewGraph') },
       ],
       readSettings(part.settings).mode,
       (v) => {
@@ -1215,9 +1256,12 @@ export const preview = /** @type {any} */ ({
       live = { ...live, settings: { ...(live.settings || {}), live: on } };
     }
 
-    /** The code the guest runs for this mode (a web page goes as markup, untouched). */
+    /** The code the guest runs for this mode (a web page goes as markup, untouched; a graph as the
+     * viewer — or, when its JSON does not read, a program that says why). */
     function guestCode(/** @type {string} */ mode, /** @type {string} */ code) {
-      return mode === 'html' ? code : shapeForGuest(mode, code);
+      if (mode === 'html') return code;
+      if (mode !== 'graph') return shapeForGuest(mode, code);
+      try { return graphCode(code); } catch (err) { return `throw new Error(${JSON.stringify(String(/** @type {any} */ (err).message))});`; }
     }
 
     /** ▶ Live. `pressed` is the person's click (it takes over from another live box); otherwise
@@ -1276,7 +1320,8 @@ export const preview = /** @type {any} */ ({
     function liveError(/** @type {any} */ e) {
       if (liveErrShown) return;
       liveErrShown = true;
-      ERRORS.set(id, { message: sandboxMessage(e, liveCode, liveModeNow), line: lineOf(e, liveCode), via: 'live' });
+      const p = guestProblem(e, liveCode, liveModeNow);
+      ERRORS.set(id, { message: p.message, line: p.line, via: 'live' });
     }
 
     /** @param {any} hnd @param {any} ev */

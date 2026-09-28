@@ -399,7 +399,7 @@ export default (test) => {
   test('liveEndsChoice: a press, a takeover or a hang ends the choice; a pause does not', () => {
     for (const why of ['stopped', 'replaced', 'stalled', 'run-timeout', 'mode']) assert.equal(liveEndsChoice(why), true, why);
     for (const why of ['offscreen', 'page', 'hidden', 'gone', 'setting', 'switch']) assert.equal(liveEndsChoice(why), false, why);
-    assert.deepEqual(LIVE_MODES.slice(), ['html', 'three', 'p5'], 'SVG and markdown have nothing to interact with');
+    assert.deepEqual(LIVE_MODES.slice(), ['html', 'three', 'p5', 'graph'], 'SVG and markdown have nothing to interact with; a graph drags');
   });
 
   test('L1-3: Undo and Redo keep the PRESENT’s Live choice (view state, like the zoom) and stale nothing for it', () => {

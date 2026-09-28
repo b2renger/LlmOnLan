@@ -11,7 +11,7 @@ import { registerStrings } from '../core/i18n.mjs';
 
 registerStrings('parts', {
   previewLabel: 'Preview',
-  previewHint: 'Shows what arrives: markdown, SVG, a web page, three.js or p5.js.',
+  previewHint: 'Shows what arrives: markdown, SVG, a web page, three.js, p5.js or a graph.',
   previewIn: 'Content',
   previewMode: 'Read it as',
   previewAuto: 'Automatic',
@@ -73,4 +73,11 @@ registerStrings('parts', {
   previewRunLiveHint: 'Restart the live sketch with the code as it is now (Ctrl+Enter in the code)',
   previewEditCode: 'Edit code',
   previewEditCodeHint: 'Open this code in a large editor beside the canvas',
+
+  // ---- Graph (owner, 2026-09-28): node-link JSON drawn by sandbox/graph-view.mjs --------------
+  previewGraph: 'Graph (JSON)',
+  previewGraphNotJson: 'That graph is not JSON: {reason}.',
+  previewGraphNoNodes: 'That JSON is not a graph: it needs a "nodes" list, and "links" or "edges" between them (graphify\'s graph.json has both).',
+  previewGraphTooMany: 'This graph has {nodes} nodes and {links} links: more than this box draws ({maxNodes} nodes, {maxLinks} links). Split it, or keep one community.',
+  previewGraphEmpty: 'This graph has no nodes yet.',
 });

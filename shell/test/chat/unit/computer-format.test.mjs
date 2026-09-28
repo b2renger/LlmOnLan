@@ -112,9 +112,9 @@ export default (test) => {
     assert.equal(PREVIEW.inputs.length, 1);
     assert.equal(PREVIEW.inputs[0].name, 'content');
     assert.deepEqual(PREVIEW.inputs[0].accepts, ['text', 'json'], 'KD-6 freezes the port');
-    assert.deepEqual([...PREVIEW_MODES], ['auto', 'markdown', 'svg', 'html', 'three', 'p5']);
+    assert.deepEqual([...PREVIEW_MODES], ['auto', 'markdown', 'svg', 'html', 'three', 'p5', 'graph'], 'graph: the seventh mode (owner, 2026-09-28)');
     assert.deepEqual([...FREE_MODES], ['markdown', 'svg'], 'the two that cost nothing');
-    assert.deepEqual([...SANDBOX_MODES], ['html', 'three', 'p5'], 'the three that need the guest');
+    assert.deepEqual([...SANDBOX_MODES], ['html', 'three', 'p5', 'graph'], 'the four that need the guest');
     // `render` is out of the palette but still LOADABLE, so a C3 graph opens (KD-6).
     assert.ok(SPECS.get('render'), 'the legacy Render still loads');
   });

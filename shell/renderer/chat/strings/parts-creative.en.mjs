@@ -26,6 +26,8 @@ registerStrings('parts', {
   creativeHtmlDesc: 'A small web page you write in HTML, drawn safely in the sandbox.',
   creativeMarkdownLabel: 'Markdown view',
   creativeMarkdownDesc: 'Shows markdown as a formatted page: headings, lists, tables.',
+  creativeGraphLabel: 'Graph',
+  creativeGraphDesc: 'Draws a graph from JSON (nodes and links, like graphify\'s graph.json): coloured by community. Press Live to drag the nodes.',
   // the Think group: an Instruction that answers in code
   writeP5Label: 'Write a p5.js sketch',
   writeP5Desc: 'Ask the model for a p5.js sketch. Wire it into a p5.js sketch box to see it.',

@@ -58,9 +58,23 @@ export const SHOW = [
     wires: [{ from: 'e_text', to: 'e_md', port: 'content' }],
   },
   {
+    key: 'graph',
+    title: 'Graph',
+    what: 'Draws a graph from JSON: nodes and the links between them, coloured by community. It reads graphify\'s graph.json (what the IDE\'s graphify skill writes) and any {nodes, links} or {nodes, edges}. ▶ Live lets you drag the nodes, zoom and pan.',
+    inputs: [['content (optional)', 'node-link JSON from a File, Fetch or Code box: it replaces the box\'s own']],
+    output: 'A picture (PNG) of the graph: wire it into Describe a picture so a model can see it.',
+    howto: [
+      'A node needs an id (a label and a community colour it); a link needs a source and a target.',
+      'A dashed link is INFERRED, a dotted one AMBIGUOUS, a solid one EXTRACTED: graphify\'s confidence.',
+      'Up to 1000 nodes and 5000 links; a bigger graph says so instead of drawing. Save .json writes the JSON.',
+    ],
+    parts: [{ id: 'e_draw', type: 'preview', x: 0, y: 0, w: 400, h: 500, settings: preset('graph') }],
+    wires: [],
+  },
+  {
     key: 'preview',
     title: 'Preview',
-    what: 'The box behind all five drawing boxes: "Read it as" picks how to show what arrives: Automatic, Markdown, SVG, web page, three.js or p5.js.',
+    what: 'The box behind all six drawing boxes: "Read it as" picks how to show what arrives: Automatic, Markdown, SVG, web page, three.js, p5.js or a graph.',
     inputs: [['content', 'text or JSON: code, markdown or data']],
     output: 'A picture of what it drew (SVG, HTML, p5.js, three.js); a markdown page hands on nothing.',
     howto: [

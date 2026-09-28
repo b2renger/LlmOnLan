@@ -32,7 +32,7 @@ import '../../strings/parts-creative.en.mjs';
 /** The preset ids, frozen. Lessons (`preset:'svg'`), the ＋ menu (`data-entry="svg"`) and the
  * harness all spell them this way. None may equal a part type. */
 export const CREATIVE_PRESET_IDS = Object.freeze([
-  'p5', 'three', 'svg', 'html', 'markdown',
+  'p5', 'three', 'svg', 'html', 'markdown', 'graph',
   'write-p5', 'write-three', 'write-svg', 'write-html',
   'describe-image', 'write-code', 'write-laya',
 ]);
@@ -155,6 +155,31 @@ export const STARTER = Object.freeze({
     '- tables',
     '- `code`',
   ].join('\n'),
+  // Owner, 2026-09-28: a graph in graphify's graph.json shape (networkx node-link), small enough to
+  // read — what the `graphify` skill makes the IDE's model write. Colour = community; a dashed link
+  // is INFERRED, a solid one EXTRACTED.
+  graph: JSON.stringify({
+    directed: false,
+    multigraph: false,
+    graph: {},
+    nodes: [
+      { id: 'preview', label: 'Preview box', file_type: 'code', community: 0, community_name: 'The Computer' },
+      { id: 'graph_view', label: 'graph-view.mjs', file_type: 'code', community: 0, community_name: 'The Computer' },
+      { id: 'sandbox', label: 'Sandbox guest', file_type: 'code', community: 1, community_name: 'The sandbox' },
+      { id: 'd3', label: 'd3 7.9', file_type: 'code', community: 1, community_name: 'The sandbox' },
+      { id: 'skill', label: 'graphify skill', file_type: 'document', community: 2, community_name: 'The IDE' },
+      { id: 'graph_json', label: 'graph.json', file_type: 'document', community: 2, community_name: 'The IDE' },
+    ],
+    links: [
+      { source: 'preview', target: 'graph_view', relation: 'imports', confidence: 'EXTRACTED', confidence_score: 1.0 },
+      { source: 'preview', target: 'sandbox', relation: 'calls', confidence: 'EXTRACTED', confidence_score: 1.0 },
+      { source: 'graph_view', target: 'd3', relation: 'references', confidence: 'EXTRACTED', confidence_score: 1.0 },
+      { source: 'sandbox', target: 'd3', relation: 'contains', confidence: 'EXTRACTED', confidence_score: 1.0 },
+      { source: 'skill', target: 'graph_json', relation: 'references', confidence: 'EXTRACTED', confidence_score: 1.0 },
+      { source: 'graph_json', target: 'graph_view', relation: 'shares_data_with', confidence: 'INFERRED', confidence_score: 0.85 },
+    ],
+    hyperedges: [],
+  }, null, 2),
 });
 
 /** The presets, with their strings resolved NOW (a function, so a locale registered later is
@@ -193,6 +218,13 @@ export function creativePresets() {
       label: t('parts.creativeMarkdownLabel'), title: t('parts.creativeMarkdownLabel'), desc: t('parts.creativeMarkdownDesc'),
       keywords: ['text', 'report', 'format', 'document'],
       settings: show('markdown', 320, 240), match: { mode: 'markdown' }, size: { w: 340, h: 400 },
+    },
+    {
+      // Owner, 2026-09-28: node-link JSON (graphify's graph.json) as a d3-force graph. ▶ Live drags it.
+      id: 'graph', type: 'preview', group: 'show', order: 860, glyph: '◎',
+      label: t('parts.creativeGraphLabel'), title: t('parts.creativeGraphLabel'), desc: t('parts.creativeGraphDesc'),
+      keywords: ['network', 'knowledge graph', 'graphify', 'nodes', 'links', 'edges', 'd3', 'force', 'json', 'map', 'render'],
+      settings: show('graph', 400, 300), match: { mode: 'graph' }, size: { w: 380, h: 520 },
     },
     {
       id: 'write-p5', type: 'ask', group: 'think', order: 210, glyph: '✦',
@@ -282,6 +314,7 @@ export function saveFormats(mode) {
     case 'html': return ['html', 'png'];
     case 'svg': return ['svg'];
     case 'markdown': return ['md'];
+    case 'graph': return ['json', 'png'];
     default: return [];
   }
 }
