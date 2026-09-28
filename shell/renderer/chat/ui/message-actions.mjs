@@ -110,6 +110,7 @@ export function install(app) {
     order: 200,
     icon: ICONS.regenerate,
     label: t('tree.regenerate'),
+    hint: t('tree.regenerateTip'),
     visible: (/** @type {any} */ msg) => settledAssistant(msg),
     run: (/** @type {any} */ msg) => {
       const br = branching();
@@ -122,6 +123,7 @@ export function install(app) {
     order: 210,
     icon: ICONS.regenerateWith,
     label: t('tree.regenerateWith'),
+    hint: t('tree.regenerateWithTip'),
     visible: (/** @type {any} */ msg) => settledAssistant(msg),
     run: (/** @type {any} */ msg, /** @type {any} */ _app, /** @type {any} */ anchorEl) => openRegenerateMenu(msg, anchorEl),
   });
@@ -131,6 +133,7 @@ export function install(app) {
     order: 220,
     icon: ICONS.edit,
     label: t('tree.edit'),
+    hint: t('tree.editTip'),
     visible: (/** @type {any} */ msg) => editableUser(msg),
     run: (/** @type {any} */ msg) => { openEdit(app, msg); },
   });
@@ -140,6 +143,7 @@ export function install(app) {
     order: 230,
     icon: ICONS.fork,
     label: t('tree.fork'),
+    hint: t('tree.forkTip'),
     visible: (/** @type {any} */ msg) => realTurn(msg),
     run: (/** @type {any} */ msg) => {
       const br = branching();
@@ -152,6 +156,7 @@ export function install(app) {
     order: 240,
     icon: ICONS.delete,
     label: t('tree.delete'),
+    hint: t('tree.deleteTip'),
     visible: (/** @type {any} */ msg) => realTurn(msg),
     run: (/** @type {any} */ msg) => {
       const br = branching();

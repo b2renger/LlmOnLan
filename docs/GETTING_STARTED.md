@@ -229,11 +229,14 @@ with `LOL_ENDPOINT=http://<box-ip>:4000/v1` if discovery isn't available.
   into that folder once, on the first launch, and keeps the old copy in the app's user-data folder as a
   backup. With farm OCR on, an uploaded file's bytes transit to the trusted‑LAN farm for text
   extraction; nothing is stored there.
-- **LOL Vibe** — reopens your last chat on launch. Each reply shows tok/s and time to first token;
-  **Regenerate** also offers **More creative** / **More precise**; ◀ ▶ walk a reply's versions;
-  **Continue** picks up a reply that was cut short; each message's actions include **Delete from
-  here**; the chat header sets a **System prompt for this chat**. On a full farm the reply waits for a seat (**Try now** / **Cancel**) instead of
-  failing. Keys: **Esc** stops a reply (or cancels a seat wait), **↑** in an empty box edits your last
+- **LOL Vibe** — reopens your last chat on launch. Each reply shows tok/s and time to first token.
+  A message's icons (hover one to see what it does): **Regenerate**, **Regenerate with…** (**More creative** /
+  **More precise**), **Edit**, **Fork from here**, **Delete from here**, **Keep in context** (always sent, even
+  when older turns no longer fit); ◀ ▶ walk a reply's versions; **Continue** picks up a reply that was cut
+  short. The chat header sets a **System prompt** for this chat. The meter beside **Send** shows how much of
+  what the model can read at once this chat fills (click it for the details). On a full farm the reply waits
+  for a seat (**Try now** / **Cancel**) instead of failing.
+  Keys: **Esc** stops a reply (or cancels a seat wait), **↑** in an empty box edits your last
   message (**Ctrl+Enter** saves the edit), **Alt+← / Alt+→** walk the last reply's versions,
   **Ctrl+Shift+O** (⌘⇧O) starts a new chat. **LOL Vibe › Settings** holds Storage (space used, **Export
   all chats**, **Import chats…** — `.json` / `.lolchat.json`, new ids, up to 512 MB), the send‑cost gate
@@ -243,7 +246,7 @@ with `LOL_ENDPOINT=http://<box-ip>:4000/v1` if discovery isn't available.
   thinking with the farm's model) writes and edits the files as you ask, and the panel shows the **Preview**, the
   **Code**, the **Changes** and the **History** (go back to any version). A project can be shared read-only on the
   LAN, or pushed to GitHub. The agent is a one-time ~120 MB install from the panel; it only touches files inside its
-  project. See [LOLVIBE_IDE_GUIDE.md](LOLVIBE_IDE_GUIDE.md).
+  project. **Ctrl+1** opens or closes the panel. See [LOLVIBE_IDE_GUIDE.md](LOLVIBE_IDE_GUIDE.md).
 - **Closing the window quits** — the app asks "Quit LlmOnLan?" first, then stops the chat engine and frees
   your seat on the farm. Reopening takes a few seconds while Open WebUI starts again.
 - **Updates** — the app updates itself (Settings ▸ Startup & updates). The chat engine is separate:

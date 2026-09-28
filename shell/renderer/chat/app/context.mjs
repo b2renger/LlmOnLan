@@ -233,11 +233,12 @@ export function install(app) {
       : t('context.sendCost', { tokens });
   }
 
-  /** @param {string} label @param {boolean} isArmed */
-  function setSendLabel(label, isArmed) {
+  /** @param {string} label @param {boolean} isArmed @param {string} tip why Send is asking, on hover */
+  function setSendLabel(label, isArmed, tip) {
     if (!app.composer) return;
     myLabels.add(label);
     try { app.composer.setSendState({ label, armed: isArmed }); } catch (err) { console.warn('[lolchat] send label', err); }
+    if (app.els && app.els.send) app.els.send.title = tip;
   }
 
   /**
@@ -247,6 +248,9 @@ export function install(app) {
    */
   function restoreSendLabel() {
     if (!app.composer || !app.els || !app.els.send) return;
+    // The tooltip goes with our label, whoever holds the button now (a seat wait wears no tooltip of ours).
+    const tips = [t('context.sendCostTip'), t('context.tooLongTip')];
+    if (tips.includes(app.els.send.title)) app.els.send.removeAttribute('title');
     if (!myLabels.has(app.els.send.textContent || '')) return;
     try { app.composer.setSendState({ label: t('core.send'), armed: false }); } catch (err) { console.warn('[lolchat] send label', err); }
   }
@@ -288,7 +292,7 @@ export function install(app) {
       const label = blocked ? t('context.tooLong') : costLabel(req, verdict);
       // §2.6 AF: a macrotask, because unlock() restores the label after this null propagates.
       setTimeout(() => {
-        setSendLabel(label, !blocked);
+        setSendLabel(label, !blocked, blocked ? t('context.tooLongTip') : t('context.sendCostTip'));
         if (blocked) meter.open();
       }, 0);
       return null;
@@ -362,6 +366,7 @@ export function install(app) {
     order: 300,
     icon: PIN_ICON,
     label: t('context.pin'),
+    hint: t('context.pinTip'),
     visible: (/** @type {any} */ msg) => !!msg && !msg.pinned && msg.status !== 'streaming' && msg.status !== 'waiting',
     run: (/** @type {any} */ msg) => setPinned(msg, true),
   });
@@ -370,6 +375,7 @@ export function install(app) {
     order: 300,
     icon: UNPIN_ICON,
     label: t('context.unpin'),
+    hint: t('context.unpinTip'),
     visible: (/** @type {any} */ msg) => !!(msg && msg.pinned),
     run: (/** @type {any} */ msg) => setPinned(msg, false),
   });

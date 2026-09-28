@@ -394,7 +394,7 @@ export default [
                 return box ? { text: box.textContent || '', rows: box.querySelectorAll('.chat-meter-row').length } : null;
             });
             h.assert(popover && popover.rows >= 2, `the popover lists the breakdown: ${JSON.stringify(popover && popover.rows)}`);
-            h.assert(popover.text.includes('Window'), 'including the window it is measured against');
+            h.assert(popover.text.includes('Context window'), 'including the window it is measured against');
             await h.eval(() => {
                 const p = document.querySelector('.chat-popover');
                 if (p && p.hidePopover) p.hidePopover();

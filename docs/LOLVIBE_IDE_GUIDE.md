@@ -11,7 +11,8 @@ model**. Your project is a folder on this computer; nothing is kept on the farm.
 ## 1. Start
 
 1. Open **LOL Vibe** (the topbar: Open WebUI · **LOL Vibe** · Computer) and a chat.
-2. Press **Project** (beside *System prompt*). A panel opens on the right.
+2. Press **Project** (beside *System prompt*, or **Ctrl+1**). A panel opens on the right; **Chat · Split · Panel**
+   at its top set how much room it takes, and its left edge drags.
 3. The first time, press **Install the coding agent**: about 120 MB from GitHub, once. It stays installed.
 4. Type a name and press **New project**. The chat is now tied to that project folder:
    `<your data folder>/LOL Studio Projects/<name>…`.

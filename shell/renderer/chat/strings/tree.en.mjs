@@ -21,12 +21,19 @@ registerStrings('tree', {
   fork: 'Fork from here',
   delete: 'Delete from here',
   continueReply: 'Continue',
+  // Tooltips (the actions are icons): what each one does.
+  regenerateTip: 'Regenerate: write this reply again (the old one is kept: ◀ ▶)',
+  regenerateWithTip: 'Regenerate with…: write it again, more creative or more precise',
+  editTip: 'Edit: change your message and send it again (the old one is kept: ◀ ▶)',
+  forkTip: 'Fork from here: copy this chat, up to this message, into a new chat',
+  deleteTip: 'Delete from here: remove this message and every reply below it',
+  continueTip: 'Continue: carry on a reply that was cut short',
 
   // inline edit (ui/edit-inline.mjs)
   editLabel: 'Edit your message',
   editSave: 'Save & send',
   editCancel: 'Cancel',
-  editHint: 'Ctrl+Enter to send',
+  editHint: 'Ctrl+Enter sends · Esc cancels',
 
   // fork / delete
   forkTitle: '{title} (fork)',

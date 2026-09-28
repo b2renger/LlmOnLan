@@ -175,6 +175,7 @@ export function install(app) {
     order: 150,
     icon: CONTINUE_ICON,
     label: t('tree.continueReply'),
+    hint: t('tree.continueTip'),
     visible: (/** @type {any} */ msg) => canContinue(msg),
     run: (/** @type {any} */ msg) => { void run(msg); },
   });

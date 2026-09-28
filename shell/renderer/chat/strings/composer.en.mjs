@@ -15,7 +15,7 @@ registerStrings('composer', {
   partMenu: 'Options',
 
   // controller (app/controller.mjs) — local notes that never reach the farm
-  keyMissingNote: 'Password needed — enter it on the farm card',
-  noFarmNote: 'No farm yet — LOL Vibe is still looking for one on the network.',
+  keyMissingNote: 'Password needed — click the connection pill in the top bar and enter it on the farm’s card.',
+  noFarmNote: 'No farm yet — LOL Vibe is still looking for one on the network. Click the connection pill in the top bar to pick one, or add one by its address.',
   toolCallsNote: "The model tried to use a tool; LOL Vibe doesn't run tools.",
 });

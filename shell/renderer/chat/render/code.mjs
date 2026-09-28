@@ -77,6 +77,7 @@ export function install(app) {
     }
     for (const b of messages.querySelectorAll('.chat-code-wrap')) {
       b.textContent = wrap ? t('render.wrapOff') : t('render.wrapOn');
+      /** @type {HTMLElement} */ (b).title = wrap ? t('render.wrapOffTip') : t('render.wrapOnTip');
       b.setAttribute('aria-pressed', wrap ? 'true' : 'false');
     }
   };
@@ -112,6 +113,7 @@ export function install(app) {
         }
       });
       wrapBtn.setAttribute('aria-pressed', wrap ? 'true' : 'false');
+      wrapBtn.title = wrap ? t('render.wrapOffTip') : t('render.wrapOnTip');
 
       const copyBtn = button(t('render.copyCode'), 'chat-code-copy', async (b) => {
         const ok = await copyText(info.code);
@@ -119,6 +121,7 @@ export function install(app) {
         b.textContent = t('render.copied');
         setTimeout(() => { b.textContent = t('render.copyCode'); }, 1200);
       });
+      copyBtn.title = t('render.copyCodeTip');
 
       tools.append(wrapBtn, copyBtn);
       head.append(lang, tools);
@@ -158,8 +161,10 @@ export function install(app) {
       };
       const previewBtn = button(t('render.tabPreview'), 'chat-code-tab', () => show(true));
       previewBtn.dataset.tab = 'preview';
+      previewBtn.title = t('render.tabPreviewTip');
       const codeBtn = button(t('render.tabCode'), 'chat-code-tab', () => show(false));
       codeBtn.dataset.tab = 'code';
+      codeBtn.title = t('render.tabCodeTip');
       all.push(previewBtn, codeBtn);
       tabs.append(previewBtn, codeBtn);
 

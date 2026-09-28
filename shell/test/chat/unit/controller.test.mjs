@@ -409,7 +409,7 @@ export default (test) => {
       const path = await app.repo.getPath(thread.id);
       const assistant = path[path.length - 1];
       assert.equal(assistant.error.kind, 'key_missing');
-      assert.equal(assistant.error.message, 'Password needed — enter it on the farm card');
+      assert.equal(assistant.error.message, 'Password needed — click the connection pill in the top bar and enter it on the farm’s card.');
       assert.equal(calls.length, 0);
     } finally { calls.restore(); }
   });

@@ -291,6 +291,7 @@ export function install(app) {
     role: 'separator',
     'aria-orientation': 'vertical',
     'aria-label': t('studio.gripLabel'),
+    title: t('studio.gripTip'),
     tabindex: '0',
   });
   els.work.appendChild(grip);
@@ -709,7 +710,15 @@ export function install(app) {
   // unchanged.
   // The header host rebuilds its row on ITS own events, not on ours, so one subscription for the
   // life of the app keeps whichever button is currently mounted in step — no per-node observers.
-  const HEADER_HINT = { on: 'studio.headerClose', off: 'studio.headerOpen' };
+  const HEADER_HINT = { on: 'studio.headerClose', off: 'studio.headerOpen', onBare: 'studio.headerCloseBare', offBare: 'studio.headerOpenBare' };
+  const CTRL = /Mac/i.test(String((typeof navigator !== 'undefined' && navigator.platform) || '')) ? '⌃' : 'Ctrl+';
+
+  /** The header button's tooltip, naming the panel's own shortcut (Ctrl+1..4 = the n-th available panel). */
+  function headerHint(/** @type {boolean} */ on, /** @type {string} */ id, /** @type {string} */ label) {
+    const n = items().filter((p) => p.available).findIndex((p) => p.id === id) + 1;
+    const keys = n >= 1 && n <= 4 ? `${CTRL}${n}` : '';
+    return t(HEADER_HINT[`${on ? 'on' : 'off'}${keys ? '' : 'Bare'}`], { panel: label, keys });
+  }
 
   function syncHeaderButton() {
     const b = app.root && app.root.querySelector('[data-workbench-toggle]');
@@ -719,7 +728,7 @@ export function install(app) {
     const p = entry(on ? openId : id) || entry(id);
     b.classList.toggle('on', on);
     b.setAttribute('aria-pressed', on ? 'true' : 'false');
-    b.title = t(HEADER_HINT[on ? 'on' : 'off'], { panel: p ? p.label : t('studio.bodyLabel') });
+    b.title = headerHint(on, p ? p.id : id, p ? p.label : t('studio.bodyLabel'));
   }
   api.on(syncHeaderButton);
 
@@ -736,7 +745,7 @@ export function install(app) {
         class: live ? 'chat-header-work on' : 'chat-header-work',
         'data-workbench-toggle': target.id,
         'aria-pressed': live ? 'true' : 'false',
-        title: t(HEADER_HINT[live ? 'on' : 'off'], { panel: target.label }),
+        title: headerHint(live, target.id, target.label),
       });
       b.appendChild(icon(typeof target.item.icon === 'string' && target.item.icon ? target.item.icon : DEFAULT_ICON));
       const label = el('span');

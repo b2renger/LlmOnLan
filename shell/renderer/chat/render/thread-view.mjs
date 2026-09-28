@@ -377,7 +377,8 @@ export function createThreadView(app, el) {
       b.type = 'button';
       b.className = 'chat-action';
       b.setAttribute('data-action', a.id);
-      b.title = a.label;
+      // `hint` (optional): the tooltip, saying what an icon-only action does; the label stays its accessible name.
+      b.title = a.hint || a.label;
       b.setAttribute('aria-label', a.label);
       if (a.icon) b.appendChild(icon(a.icon, { size: 14 }));
       else b.textContent = a.label;

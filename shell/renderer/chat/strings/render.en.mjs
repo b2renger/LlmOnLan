@@ -30,6 +30,12 @@ registerStrings('render', {
   tabPreview: 'Preview',
   tabCode: 'Code',
   svgAlt: 'The SVG in this code block, drawn',
+  // Tooltips (wrap is one setting for every code block, kept across launches).
+  copyCodeTip: 'Copy this code',
+  wrapOnTip: 'Wrap long lines, in every code block',
+  wrapOffTip: 'Stop wrapping: long lines stay on one line and scroll sideways',
+  tabPreviewTip: 'Draw this SVG',
+  tabCodeTip: 'Show the code of this SVG',
 
   // branch bar (.chat-branch)
   branchPrev: 'Previous version',

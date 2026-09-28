@@ -18,6 +18,7 @@ registerStrings('studio', {
   widthSplitHint: 'Chat and panel side by side',
   widthWorkHint: 'Panel only',
   gripLabel: 'Resize the workbench',
+  gripTip: 'Drag to make the panel wider or narrower (← → when it has the focus)',
 
   // announcements (one per change, into els.live)
   announceOpen: '{panel} open, {width}',
@@ -35,6 +36,9 @@ registerStrings('studio', {
   // The header button. The rail lives INSIDE the workbench column, which is 0px wide while the
   // workbench is closed — so with only the rail, a shut workbench can be opened by keyboard alone
   // (Ctrl+\ / Ctrl+1..4). The owner opened the client and could not find the Computer at all.
-  headerOpen: 'Open {panel}',
-  headerClose: 'Close {panel}',
+  // {keys}: the panel's Ctrl+<n> shortcut, in the platform's spelling.
+  headerOpen: 'Open the {panel} panel ({keys})',
+  headerClose: 'Close the {panel} panel ({keys})',
+  headerOpenBare: 'Open the {panel} panel',
+  headerCloseBare: 'Close the {panel} panel',
 });
