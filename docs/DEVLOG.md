@@ -41,7 +41,28 @@ offering an OLD crash after later runs (it now reads the newest row only).
   `host.mjs servedFrame`; the rule catches helpers now).
 
 **Tested.** Unit 1749/0; lint 0; the agents' harness sweeps (the Computer 295/295 on slot 2; LOL Vibe on slot 3:
-p 89/89, s0 19/19, h0 13/13, h1 3/3, c4 and k24 green); the full harness run over the reviewed tree before the release (below, in the night log).
+p 89/89, s0 19/19, h0 13/13, h1 3/3, c4 and k24 green); **the full harness over the reviewed tree: 405/405**.
+
+**Then a real test** (the owner: "I closed apps so you can spawn new ones to make actual testing … use the logging
+system in client to check everything"). The **packaged** app (`electron-builder --dir`, a throwaway
+`--user-data-dir`, pinned by `LOL_ENDPOINT` to a private farm on 127.0.0.1:4100 serving qwen3.8, the dsh runtime
+from `shell/dsh/build`), then the dev client on the same profile, with the Computer's **Record log** on:
+- **The IDE from the packaged app:** a project made (skills seeded out of app.asar: graphify + ponytail), a real
+  agent turn wrote a canvas cube in 8.8 s (2 steps, committed "Agent: …", served on loopback); asked to read a file
+  outside the project, **the fence refused** and the file's content never reached the model.
+- **The Computer, lessons on the real model:** 1, 2, 3, 5, 11 and 12 (real data.gouv.fr) completed every step;
+  lesson 12's "press ▶ on the Text box" redraws the chart for another column and the words follow. The Creative coding
+  template: 2100 tokens in 11 s, the Preview drew and handed on its PNG. 4 and 6 need the ＋ menu or a whole run (the
+  harness covers them); 7–10 need a microphone, a camera, the bus or a person arming (the rig list).
+- **Three bugs, each read straight off the Record log and fixed with a failing test first** (`5db70db`):
+  a farm known only by its endpoint (no `/lol/self`, so no default model) made every Instruction send `model: null`
+  (the farm: "model=None") — the ask door now takes the first model the farm lists, as LOL Vibe's picker does;
+  **the Agent could not tell text from an array** — a Text box's `[12, 7, 30]` printed bare, qwen3.8 called
+  `.reduce` on the string twice running and gave up (the prompt now names each input's type; re-run: average 14.71,
+  largest 30, one step); "1 steps".
+- The logs after the fixes: 25 runs, 22 HTTP exchanges, no error, no console error. The main-process log: only the
+  expected `app-update.yml` ENOENT of a `--dir` build, and a `DEP0180 fs.Stats` deprecation notice from the packaged
+  runtime (not our code, harmless).
 
 ---
 
