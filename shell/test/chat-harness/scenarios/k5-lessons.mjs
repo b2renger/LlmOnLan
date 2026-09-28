@@ -10,13 +10,13 @@
 // checkpoint can be satisfied" — lessons 2 and 4 are walked with the farm GONE (h.setFarm(null)),
 // on their saved answers, and assert that nothing was sent anywhere; 1, 3 and 4 with the farm.
 
-import { lessonById, TEMPLATES } from '../../../renderer/chat/computer/tutorial/registry.mjs';
+import { lessonById, LESSONS, TEMPLATES } from '../../../renderer/chat/computer/tutorial/registry.mjs';
 import { refsOf } from '../../../renderer/chat/computer/tutorial/check.mjs';
 
-const FARM_ERRORS = [/Failed to load resource/, /net::ERR_/];
+export const FARM_ERRORS = [/Failed to load resource/, /net::ERR_/];
 
 /** The Computer, shown, a document open, the mock's counters at zero. */
-async function open(/** @type {any} */ h) {
+export async function open(/** @type {any} */ h) {
     await h.view('computer');
     await h.waitFor(() => (window.LolComputer.debug.computer.docId() ? true : null), { timeout: 20000 });
     await h.waitFor(() => (window.LolComputer.app.tutorial ? true : null), { timeout: 10000 });
@@ -25,7 +25,7 @@ async function open(/** @type {any} */ h) {
 }
 
 /** Click a lesson on the Learn shelf and wait for its rail. */
-async function openLesson(/** @type {any} */ h, /** @type {string} */ id) {
+export async function openLesson(/** @type {any} */ h, /** @type {string} */ id) {
     const visible = await h.eval((lid) => {
         const b = document.querySelector('#lolcomputer .comp-lesson[data-lesson="' + lid + '"]');
         return !!b && !!(/** @type {any} */ (b).offsetParent);
@@ -42,7 +42,7 @@ async function openLesson(/** @type {any} */ h, /** @type {string} */ id) {
 }
 
 /** Wait until the lesson has ticked `n` steps (or every step, for 'done'). */
-async function waitStep(/** @type {any} */ h, /** @type {number|string} */ n, /** @type {string} */ why) {
+export async function waitStep(/** @type {any} */ h, /** @type {number|string} */ n, /** @type {string} */ why) {
     try {
         return await h.waitFor((want) => {
             const a = window.LolComputer.app.tutorial.active();
@@ -63,7 +63,7 @@ async function idle(/** @type {any} */ h) {
 /** Press ▶ on a box and wait for the run it starts to settle. A box whose input failed may end
  * in any state, so this waits on the RUNNER, not on the box: first for the run to start (or the
  * box to leave idle/stale), then for it to finish. → the box's state. */
-async function play(/** @type {any} */ h, /** @type {string} */ id) {
+export async function play(/** @type {any} */ h, /** @type {string} */ id) {
     const stamp = await h.eval(() => window.LolComputer.debug.computer.doc().updatedAt);
     await h.computer.play(id);
     await h.waitFor((was) => {
@@ -74,13 +74,13 @@ async function play(/** @type {any} */ h, /** @type {string} */ id) {
     return (await part(h, id)).state;
 }
 
-const part = async (/** @type {any} */ h, /** @type {string} */ id) => (await h.computer.doc()).parts.find((/** @type {any} */ p) => p.id === id);
-const wireId = async (/** @type {any} */ h, /** @type {string} */ from, /** @type {string} */ to) =>
+export const part = async (/** @type {any} */ h, /** @type {string} */ id) => (await h.computer.doc()).parts.find((/** @type {any} */ p) => p.id === id);
+export const wireId = async (/** @type {any} */ h, /** @type {string} */ from, /** @type {string} */ to) =>
     ((await h.computer.doc()).wires.find((/** @type {any} */ w) => w.from === from && w.to === to) || {}).id;
 
 /** The rail offers the lesson's saved answer for a failed box: click it. → the part it filled.
  * "Filled" = a box that was in `error` before the click and is `done` + flagged after it. */
-async function useSaved(/** @type {any} */ h) {
+export async function useSaved(/** @type {any} */ h) {
     await h.waitFor(() => (document.querySelector('#lolcomputer .comp-rail .comp-rail-demo') ? true : null), { timeout: 10000 });
     const failed = (await h.computer.doc()).parts.filter((/** @type {any} */ p) => p.state === 'error').map((/** @type {any} */ p) => p.id);
     await h.computer.tutorial.press('demo');
@@ -105,7 +105,7 @@ async function useSaved(/** @type {any} */ h) {
 }
 
 /** The farm is gone, and the client knows it. */
-async function noFarm(/** @type {any} */ h) {
+export async function noFarm(/** @type {any} */ h) {
     await h.setFarm(null);
     await h.waitFor(() => {
         const caps = window.LolChat.app.farm.get();
@@ -114,7 +114,7 @@ async function noFarm(/** @type {any} */ h) {
 }
 
 /** What an SVG box shows: the data: URL of its picture, or ''. */
-const picture = (/** @type {any} */ h, /** @type {string} */ id) => h.eval((pid) => {
+export const picture = (/** @type {any} */ h, /** @type {string} */ id) => h.eval((pid) => {
     const img = document.querySelector('#lolcomputer .graph-part[data-id="' + pid + '"] img');
     return img ? decodeURIComponent(String(img.getAttribute('src') || '')) : '';
 }, id);
@@ -186,7 +186,7 @@ const typeCode = (/** @type {any} */ h, /** @type {string} */ id, /** @type {str
 /** Click a creative box's lock. */
 const lockBox = (/** @type {any} */ h, /** @type {string} */ id) => h.click('#lolcomputer .graph-part[data-id="' + id + '"] .graph-preview-lock');
 
-const completions = async (/** @type {any} */ h) => h.mock.log({ path: '/v1/chat/completions' });
+export const completions = async (/** @type {any} */ h) => h.mock.log({ path: '/v1/chat/completions' });
 
 export default [
     {
@@ -202,10 +202,10 @@ export default [
                 templates: Array.from(document.querySelectorAll('#lolcomputer .comp-template[data-template]'))
                     .map((el) => ({ id: el.getAttribute('data-template'), text: el.textContent, visible: !!(/** @type {any} */ (el).offsetParent) })),
             }));
-            h.eq(shelf.lessons.map((/** @type {any} */ l) => l.id).join(','), 'l00-tour,l01-hello-farm,l02-wires,l03-labels,l04-draw,l05-code-counts,l06-a-loop-that-stops', 'the Tour, then lessons 1–6, in order');
+            h.eq(shelf.lessons.map((/** @type {any} */ l) => l.id).join(','), 'l00-tour,l01-hello-farm,l02-wires,l03-labels,l04-draw,l05-code-counts,l06-a-loop-that-stops,l07-listen-and-speak,l08-a-picture-to-a-model,l09-act-on-the-world,l10-hear-the-world,l11-an-agent-with-tools,l12-open-data', 'the Tour, then lessons 1–12, in order');
             h.eq(shelf.templates.map((/** @type {any} */ x) => x.id).join(','), 'research-problematic,creative-coding,read-the-news,analyse-a-dataset,ask-a-dataset,ask-out-loud,talk-to-a-board,board-on-wifi', 'the eight templates');
             for (const row of [...shelf.lessons, ...shelf.templates]) h.assert(row.visible, `${row.id} is on screen`);
-            for (const [id, words] of [['l01-hello-farm', 'hello, farm'], ['l02-wires', 'wires carry values'], ['l03-labels', 'arrow labels are names'], ['l04-draw', 'make a picture'], ['l05-code-counts', 'code counts, the model names'], ['l06-a-loop-that-stops', 'a loop that stops']]) {
+            for (const [id, words] of [['l01-hello-farm', 'hello, farm'], ['l02-wires', 'wires carry values'], ['l03-labels', 'arrow labels are names'], ['l04-draw', 'make a picture'], ['l05-code-counts', 'code counts, the model names'], ['l06-a-loop-that-stops', 'a loop that stops'], ['l07-listen-and-speak', 'listen and speak'], ['l08-a-picture-to-a-model', 'a picture to a model'], ['l09-act-on-the-world', 'act on the world'], ['l10-hear-the-world', 'hear the world'], ['l11-an-agent-with-tools', 'an agent with tools'], ['l12-open-data', 'open data']]) {
                 const row = shelf.lessons.find((/** @type {any} */ l) => l.id === id);
                 h.assert(row.text.includes(words), `${id} is named on the shelf: ${row.text}`);
             }
@@ -519,7 +519,7 @@ export default [
     {
         name: 'k5-lessons-every-lesson-and-template-opens-readable-and-framed',
         needsMock: true,
-        timeoutMs: 90000,
+        timeoutMs: 180000,
         allowConsoleErrors: FARM_ERRORS,
         async run(/** @type {any} */ h) {
             await h.fresh();
@@ -532,7 +532,7 @@ export default [
                 if (seen.overlap.length) problems.push(`${what}: boxes drawn on top of each other: ${seen.overlap} (grown: ${seen.grown})`);
                 if (lesson && seen.covered.length) problems.push(`${what}: the rail covers ${seen.covered}`);
             };
-            for (const id of ['l01-hello-farm', 'l02-wires', 'l03-labels', 'l04-draw', 'l05-code-counts', 'l06-a-loop-that-stops']) {
+            for (const id of LESSONS.filter((/** @type {any} */ l) => l.n > 0).map((/** @type {any} */ l) => l.id)) {
                 await openLesson(h, id);
                 await h.waitFor(() => (document.querySelector('#lolcomputer .comp-rail .comp-rail-text') ? true : null), { timeout: 5000 });
                 judge(id, await layout(h, namedBy(lessonById(id))), true);

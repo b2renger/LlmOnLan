@@ -19,12 +19,15 @@ import { toJson, fromJson } from '../../../renderer/chat/graph/serialize.mjs';
 import { bindInputs, mentions, labelKey, planFor } from '../../../renderer/chat/graph/bind.mjs';
 import { isValue } from '../../../renderer/chat/graph/values.mjs';
 import { unfence, codeValue } from '../../../renderer/chat/graph/unfence.mjs';
+import { reportOf } from '../../../renderer/chat/graph/parts/agent.mjs';
+import { parseLink } from '../../../renderer/chat/graph/parts/opendata.mjs';
 import { t } from '../../../renderer/chat/core/i18n.mjs';
 import '../../../renderer/chat/strings/lessons.en.mjs';
 
 const SPECS = specMap();
 const PRESETS = new Map(creativePresets().map((p) => [p.id, p]));
-const MINE = ['l01-hello-farm', 'l02-wires', 'l03-labels', 'l04-draw', 'l05-code-counts', 'l06-a-loop-that-stops'];
+const MINE = ['l01-hello-farm', 'l02-wires', 'l03-labels', 'l04-draw', 'l05-code-counts', 'l06-a-loop-that-stops',
+  'l07-listen-and-speak', 'l08-a-picture-to-a-model', 'l09-act-on-the-world', 'l10-hear-the-world', 'l11-an-agent-with-tools', 'l12-open-data'];
 
 /** The ONE rail-shaped corner of the canvas (COMPUTER_PLAN §10.1 mechanism 2: bottom-left,
  * ~300 px), in screen px, and the canvas the harness window gives the Computer (1280×860 minus
@@ -126,9 +129,9 @@ const fenced = (lang, code) => `Here you go:\n\n\`\`\`${lang}\n${code}\n\`\`\`\n
 export default (test) => {
   // ---- the shelf ------------------------------------------------------------------------------
 
-  test('the shelf: the Tour then lessons 1–6 in order, each pointing at the next, and the templates', () => {
+  test('the shelf: the Tour then lessons 1–12 in order, each pointing at the next, and the templates', () => {
     assert.deepEqual(LESSONS.map((l) => l.id), ['l00-tour', ...MINE]);
-    assert.deepEqual(LESSONS.map((l) => l.n), [0, 1, 2, 3, 4, 5, 6], 'n is the shelf number');
+    assert.deepEqual(LESSONS.map((l) => l.n), [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], 'n is the shelf number');
     for (let i = 0; i < LESSONS.length - 1; i++) assert.equal(LESSONS[i].next, LESSONS[i + 1].id, `${LESSONS[i].id} → next`);
     assert.equal(LESSONS[LESSONS.length - 1].next, undefined, 'the last lesson ends the shelf');
     assert.deepEqual(TEMPLATES.map((x) => x.id), ['research-problematic', 'creative-coding', 'read-the-news', 'analyse-a-dataset', 'ask-a-dataset', 'ask-out-loud', 'talk-to-a-board', 'board-on-wifi']);
@@ -527,6 +530,243 @@ export default (test) => {
     assert.equal(s.at(), 'done');
     assert.equal(lesson.needsFarm, 'no');
     assert.equal(lesson.doc.parts.filter((/** @type {any} */ p) => SPECS.get(p.type).thinks).length, 0, 'not one generation');
+  });
+
+  // ---- lessons 7–12 (2026-09-28: one lesson per capability built since lesson 6) ---------------
+
+  /** What ● Record → ■ Stop (or a dropped file) writes into a Sound box: the box HOLDS a recording. */
+  const RECORDING = { fileId: 'take-1', name: 'recording 21-40-02.webm', mime: 'audio/webm', size: 24000, durationSec: 3 };
+
+  test('lesson 7: record, Listen, wire, the answer is said — then this computer’s own voice', () => {
+    const s = learner(lessonById('l07-listen-and-speak'));
+    s.ran('p_ask', 'p_speak');
+    assert.equal(s.at(), 's1', 'answering with no recording ticks nothing');
+    s.set('p_snd', RECORDING);
+    assert.equal(s.at(), 's2');
+    s.ran('p_snd', 'p_ask', 'p_speak');
+    assert.equal(s.at(), 's2', 'a run with Listen off is not Listen');
+    s.set('p_snd', { listen: true });
+    assert.equal(s.at(), 's3');
+    s.ran('p_snd', 'p_ask', 'p_speak');
+    assert.equal(s.at(), 's3', 'the Instruction has not heard the recording until it is wired');
+    s.wire('p_snd', 'p_ask', 'in');
+    assert.equal(s.at(), 's3', 'the new wire staled the answer');
+    s.ran('p_snd', 'p_ask', 'p_speak');   // ▶ on the Instruction: pulls the Sound box, pushes Speak
+    assert.equal(s.at(), 's4');
+    s.set('p_speak', { voice: 'farm' });
+    s.ran('p_speak');
+    assert.equal(s.at(), 's4', 'the farm’s voice is not this computer’s');
+    s.set('p_speak', { voice: 'local' });
+    assert.equal(s.at(), 's4', 'picking the voice is half: it has to speak');
+    s.ran('p_speak');
+    assert.equal(s.at(), 'done');
+  });
+
+  test('lesson 7 with a farm that cannot listen (or none): a saved transcript, a saved answer, this computer’s voice', () => {
+    const lesson = lessonById('l07-listen-and-speak');
+    const s = learner(lesson);
+    s.set('p_snd', RECORDING);
+    s.set('p_snd', { listen: true });
+    s.wire('p_snd', 'p_ask', 'in');
+    s.failed('p_snd');                   // "This farm cannot listen: its Speech to text plugin is off."
+    assert.equal(s.at(), 's3');
+    s.demo('p_snd');
+    assert.equal(partById(s.doc, 'p_snd').value.data, 'Why is the sky blue?', 'the saved transcript is words, as Listen hands on');
+    s.failed('p_ask');
+    s.demo('p_ask');
+    assert.equal(s.at(), 's3', 'Speak has not said it yet');
+    s.ran('p_speak');
+    assert.equal(s.at(), 's4');
+    s.set('p_speak', { voice: 'local' });
+    s.ran('p_speak');
+    assert.equal(s.at(), 'done');
+    const snd = lesson.doc.parts.find((/** @type {any} */ p) => p.id === 'p_snd');
+    assert.equal(normaliseDoc({ ...lesson.doc, id: 'x', threadId: null }, { specs: SPECS, now }).doc.parts.find((p) => p.id === 'p_snd').settings.listen, false,
+      'the Sound box ships with Listen OFF: a recording leaves only when a person turns it on');
+    assert.deepEqual(snd.settings, {}, 'and with no recording in it');
+  });
+
+  test('lesson 8: a webcam picture, wired into an Instruction, then another question about the same picture', () => {
+    const s = learner(lessonById('l08-a-picture-to-a-model'));
+    s.ran('p_look');
+    assert.equal(s.at(), 's1', 'an answer with no picture ticks nothing');
+    s.set('p_img', { dataUrl: 'data:image/jpeg;base64,/9j/AAAA', name: 'camera 21-40-02.jpg', w: 640, h: 480 });
+    assert.equal(s.at(), 's2', 'the answer from before the picture is not the answer about it');
+    s.wire('p_img', 'p_look', 'in');
+    assert.equal(partById(s.doc, 'p_look').state, 'stale', 'the wire staled the old answer');
+    assert.equal(s.at(), 's2');
+    s.ran('p_img', 'p_look');
+    assert.equal(s.at(), 's3');
+    s.ran('p_look');
+    assert.equal(s.at(), 's3', 'running again without a new question is not step 3');
+    s.set('p_look', { instruction: 'What is the mood of this picture?' });
+    s.ran('p_look');
+    assert.equal(s.at(), 'done');
+  });
+
+  test('lesson 8 with the farm absent: the saved description says it did not see the picture', () => {
+    const lesson = lessonById('l08-a-picture-to-a-model');
+    const s = learner(lesson);
+    s.set('p_img', { dataUrl: 'data:image/jpeg;base64,/9j/AAAA', name: 'camera.jpg', w: 640, h: 480 });
+    s.wire('p_img', 'p_look', 'in');
+    s.failed('p_look');
+    s.demo('p_look');
+    assert.equal(s.at(), 's3');
+    s.set('p_look', { instruction: 'What is missing from this picture?' });
+    s.failed('p_look');
+    s.demo('p_look');
+    assert.equal(s.at(), 'done');
+    assert.match(lesson.demo.p_look.data, /did not see your picture/, 'a saved description never pretends it looked');
+  });
+
+  test('lesson 9: a dry run, arming is a person’s Got it, a new level goes out, then Panic — no farm, no hardware', () => {
+    const lesson = lessonById('l09-act-on-the-world');
+    const s = learner(lesson);
+    s.failed('p_send');                  // ▶ on an unwired Send: "Nothing to send"
+    assert.equal(s.at(), 's1');
+    s.wire('p_level', 'p_send', 'in');
+    assert.equal(s.at(), 's2');
+    s.ran('p_send');                     // "Dry run — would send: OSC /lol/level 0.75"
+    assert.equal(s.at(), 's3');
+    s.set('p_level', { text: '0.2' });   // changed BEFORE step 4 asked
+    s.ran('p_level', 'p_send');
+    assert.equal(s.at(), 's3', 'arming is a dialog no check can see: only Got it passes it');
+    s.got('s3');
+    assert.equal(s.at(), 's4', 'the edit made before step 4 asked does not count');
+    s.set('p_level', { text: '0.4' });
+    s.ran('p_level', 'p_send');
+    assert.equal(s.at(), 's5');
+    s.got('s5');
+    assert.equal(s.at(), 'done');
+    const send = lesson.doc.parts.find((/** @type {any} */ p) => p.id === 'p_send');
+    assert.deepEqual([send.settings.transport, send.settings.host, send.settings.port], ['osc', '127.0.0.1', 9000], 'it sends to THIS computer, never a farm port');
+  });
+
+  test('lesson 10: the Trigger runs the graph by itself once armed, is slowed by its gap, and rests when disarmed', () => {
+    const lesson = lessonById('l10-hear-the-world');
+    const s = learner(lesson);
+    s.ran('p_heard', 'p_send');          // ▶ on the unwired Code box: "Tick undefined…"
+    assert.equal(s.at(), 's1');
+    s.wire('p_trig', 'p_heard', 'in');
+    assert.equal(s.at(), 's2', 'the wire staled what ran before it');
+    s.ran('p_trig', 'p_heard', 'p_send'); // a tick, armed: the Trigger's own run
+    assert.equal(s.at(), 's3');
+    s.set('p_trig', { gapSec: 6 });
+    assert.equal(s.at(), 's3', 'the new gap staled the Code box: the next tick has to run it');
+    s.ran('p_trig', 'p_heard', 'p_send');
+    assert.equal(s.at(), 's4');
+    s.got('s4');
+    assert.equal(s.at(), 'done');
+    const trig = lesson.doc.parts.find((/** @type {any} */ p) => p.id === 'p_trig');
+    assert.equal(trig.settings.source, 'schedule', 'a clock: the one source that works with no farm');
+    assert.ok(lesson.doc.parts.some((/** @type {any} */ p) => p.type === 'send'), 'a Send box: the run bar shows the Outputs control only with one');
+    // The Code box's program reads a real tick.
+    const code = lesson.doc.parts.find((/** @type {any} */ p) => p.id === 'p_heard').settings.code;
+    assert.match(new Function('inputs', code)({ in: [{ tick: 4, at: '2026-09-28T19:40:02.000Z' }] }), /^Tick 4, heard at /);
+  });
+
+  test('lesson 11: wire and name, the Agent’s steps, read them, then its brake', () => {
+    const s = learner(lessonById('l11-an-agent-with-tools'));
+    s.wire('p_data', 'p_agent', 'in');
+    assert.equal(s.at(), 's1', 'an unnamed arrow reaches the Agent as input1: name it');
+    s.label('p_data', 'p_agent', 'Readings');
+    assert.equal(s.at(), 's2', 'a name is compared as the Agent binds it');
+    s.ran('p_agent', 'p_view');          // ▶ on the Agent pushes the Preview
+    assert.equal(s.at(), 's4');
+    s.set('p_agent', { maxSteps: 3 });
+    s.ran('p_agent', 'p_view');
+    assert.equal(s.at(), 's4', 'three steps is not the brake step 4 asks for');
+    s.set('p_agent', { maxSteps: 2 });
+    assert.equal(s.at(), 's4', 'the new brake staled the answer: run it');
+    s.ran('p_agent', 'p_view');
+    assert.equal(s.at(), 'done');
+  });
+
+  test('lesson 11 with the farm absent: the saved answer is the report the Agent box itself writes', () => {
+    const lesson = lessonById('l11-an-agent-with-tools');
+    const s = learner(lesson);
+    s.wire('p_data', 'p_agent', 'in');
+    s.label('p_data', 'p_agent', 'readings');
+    s.failed('p_agent');
+    s.demo('p_agent');
+    assert.equal(s.at(), 's3', 'the Preview has not shown it yet');
+    s.ran('p_view');
+    s.set('p_agent', { maxSteps: 2 });
+    s.failed('p_agent');
+    s.demo('p_agent');
+    assert.equal(s.at(), 'done');
+    // The saved answer, byte for byte what agent.mjs reportOf writes for those two steps, with the numbers the
+    // readings really give.
+    const readings = JSON.parse(lesson.doc.parts.find((/** @type {any} */ p) => p.id === 'p_data').settings.text);
+    const stats = { average: readings.reduce((a, b) => a + b, 0) / readings.length, largest: Math.max(...readings) };
+    const report = reportOf('The average of the seven readings is about 14.7, and the largest is 30.', [
+      { tool: 'run_code', why: 'read the readings as a list of numbers', result: { ok: true, value: readings } },
+      { tool: 'run_code', why: 'add them up, divide by how many there are, and take the largest', result: { ok: true, value: stats } },
+    ]);
+    assert.equal(lesson.demo.p_agent.data, report);
+    assert.equal(stats.largest, 30);
+    assert.equal(Math.round(stats.average * 10) / 10, 14.7);
+    const agent = lesson.doc.parts.find((/** @type {any} */ p) => p.id === 'p_agent');
+    assert.equal(agent.settings.hosts, '', 'no web host is listed: it cannot read the web');
+    assert.equal(SPECS.get('agent').mostGenerations(agent), 4, 'at most four generations as shipped');
+  });
+
+  test('lesson 12: the dataset, a chart drawn by code, the model names it, another column', () => {
+    const lesson = lessonById('l12-open-data');
+    const s = learner(lesson);
+    s.ran('p_data');                     // offline: the copy it holds
+    assert.equal(s.at(), 's2');
+    s.ran('p_draw', 'p_chart');
+    assert.equal(s.at(), 's2', 'a chart of nothing is not the chart');
+    s.wire('p_data', 'p_draw', 'in');
+    s.ran('p_draw', 'p_chart');
+    assert.equal(s.at(), 's3');
+    s.wire('p_chart', 'p_ask', 'in');
+    s.ran('p_ask');
+    assert.equal(s.at(), 's4');
+    s.set('p_col', { text: 'Région principale de déroulement' });
+    s.ran('p_col', 'p_draw', 'p_chart');
+    assert.equal(s.at(), 's4', 'the words have not followed yet');
+    s.ran('p_ask');
+    assert.equal(s.at(), 'done');
+  });
+
+  test('lesson 12 with the farm absent and no web: the copy, the chart in code, the saved words', () => {
+    const lesson = lessonById('l12-open-data');
+    const s = learner(lesson);
+    s.ran('p_data');
+    s.wire('p_data', 'p_draw', 'in');
+    s.ran('p_draw', 'p_chart');
+    s.wire('p_chart', 'p_ask', 'in');
+    s.failed('p_ask');
+    s.demo('p_ask');
+    assert.equal(s.at(), 's4');
+    s.set('p_col', { text: 'Région principale de déroulement' });
+    s.ran('p_col', 'p_draw', 'p_chart');
+    s.failed('p_ask');
+    s.demo('p_ask');
+    assert.equal(s.at(), 'done');
+    assert.doesNotMatch(lesson.demo.p_ask.data, /[0-9]/, 'the saved words carry no number either');
+  });
+
+  test('lesson 12: the chart’s numbers are data.gouv.fr’s, drawn by the code the lesson ships', () => {
+    const lesson = lessonById('l12-open-data');
+    const data = lesson.doc.parts.find((/** @type {any} */ p) => p.id === 'p_data');
+    assert.ok(parseLink(data.settings.link) && parseLink(data.settings.link).dataset, 'the link is a data.gouv.fr dataset');
+    assert.ok(isValue(data.value) && Array.isArray(data.value.data.columns), 'the box holds a copy, so it runs offline');
+    const draw = new Function('inputs', lesson.doc.parts.find((/** @type {any} */ p) => p.id === 'p_draw').settings.code);
+    const col = lesson.doc.parts.find((/** @type {any} */ p) => p.id === 'p_col').settings.text;
+    const chart = draw({ in: [col, data.value.data] });
+    assert.match(chart, /^<svg xmlns="http:\/\/www\.w3\.org\/2000\/svg"/);
+    const tops = data.value.data.columns.find((/** @type {any} */ c) => c.name === col).tops;
+    for (const t of tops.slice(0, 6)) {
+      assert.ok(chart.includes(`>${t.count}</text>`), `the bar for ${t.value} says ${t.count}, data.gouv.fr’s count`);
+    }
+    assert.match(chart, new RegExp(`counted over all ${data.value.data.total} rows`));
+    const regions = draw({ in: [data.value.data, '  région principale de déroulement '] });
+    assert.ok(regions.includes('Auvergne-Rhône-Alpes') && regions.includes('>947</text>'), 'step 4’s column, whatever the case and spaces');
+    assert.match(draw({ in: [data.value.data, 'Colour'] }), /No column named “colour”[\s\S]*Try one of these/, 'a wrong name is said, with columns to try');
+    assert.match(lesson.doc.parts.find((/** @type {any} */ p) => p.id === 'p_ask').settings.instruction, /never write a number/);
   });
 
   // ---- the templates --------------------------------------------------------------------------

@@ -32,7 +32,7 @@ export default {
         id: 'n_brake', type: 'sticky', x: 820, y: 440, w: 240, h: 190,
         settings: { colour: 'slate', text: 'On lets the run through. Off stops it — and still hands its value on, so nothing is lost.' },
       },
-      { id: 'n_next', type: 'sticky', x: 440, y: 470, w: 300, h: 120, settings: { colour: 'green', text: 'Next up → the templates: "A board on Wi-Fi" runs a graph again and again — with the same brakes.' } },
+      { id: 'n_next', type: 'sticky', x: 440, y: 470, w: 300, h: 120, settings: { colour: 'green', text: 'Next up → 7 · listen and speak. Lesson 10: a graph that runs by itself, with the same brakes.' } },
     ],
     wires: [
       { from: 'p_count', to: 'p_tog', port: 'in' },
@@ -58,4 +58,5 @@ export default {
       show: { partId: 'p_tog' },
     },
   ],
+  next: 'l07-listen-and-speak',
 };
