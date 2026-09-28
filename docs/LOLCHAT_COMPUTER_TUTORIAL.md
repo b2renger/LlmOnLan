@@ -233,8 +233,8 @@ sandbox.
 
 Two more boxes sit under *Show*. **Code** runs plain JavaScript in the sandbox on what arrives
 (`inputs.in` is an array; return text, a number, an array or an object). **Preview** is the box
-behind all five: its *Read it as* menu (**Automatic**, **Markdown**, **SVG**, **Web page**,
-**three.js**, **p5.js**) picks how to show what arrives.
+behind all six: its *Read it as* menu (**Automatic**, **Markdown**, **SVG**, **Web page**,
+**three.js**, **p5.js**, **Graph (JSON)**) picks how to show what arrives.
 
 ### No need to write the code yourself
 
@@ -280,6 +280,25 @@ inside that Instruction's request, like an Image box's.
   the camera in your own scenes; the **Write a three.js scene** Instruction tells the model to. In
   p5.js, `mouseX`, `mouseY`, `mouseIsPressed` and `keyPressed()` work when Live: the starter's ball
   follows the pointer while you hold the button, and any key turns it back.
+
+### A map of a project: the Graph box
+
+**＋ → Show → Graph** draws a graph from JSON: nodes, and the links between them. Its code is the JSON
+itself — the starter is a small graph of six nodes — and it reads **graphify's `graph.json`**, the file
+the IDE's **graphify** skill makes a model write for a project (`graphify-out/graph.json`), as well as
+any `{nodes, links}` or `{nodes, edges}` (a node needs an `id`; a link a `source` and a `target`).
+
+- **Colour is the community** (the group a node belongs to); the best-connected nodes are labelled (all
+  of them in a graph of up to 150). A **solid** link is *EXTRACTED* (written in the source), a
+  **dashed** one *INFERRED*, a **dotted** one *AMBIGUOUS* — graphify's confidence.
+- It is drawn in the sandbox with the d3 that ships with the app — nothing is loaded from the web — and
+  comes back as a picture, fitted to the box's Width × Height. **▶ Live** lets you **drag the nodes**
+  (the others follow), zoom with the wheel and pan by dragging the paper.
+- Wire in whatever holds the JSON — a Code box that builds it, a Fetch box, an Instruction that writes
+  it — and the box draws that instead of its own. **Save .json** writes the JSON, **Save .png** the
+  picture; like every Preview, it hands the picture on to *Describe a picture*.
+- A broken JSON says so and names its line (**Go to line N**). A graph bigger than **1000 nodes or
+  5000 links** shows a sentence instead of a drawing: split it, or keep one community.
 
 ### Step 8 — tidy, undo, change one word
 
