@@ -16,7 +16,9 @@ its File boxes write, so moving that folder takes all of it along.
 > the drawer on the right, and the Learn shelf. The design is in
 > [COMPUTER_PLAN.md](COMPUTER_PLAN.md); what works today and what does not is in
 > [COMPUTER_STATUS.md](COMPUTER_STATUS.md). Checked against the code again on 2026-09-27 (docs
-> review): the view tools, Live pausing, and the boxes and buttons it had left out.
+> review): the view tools, Live pausing, and the boxes and buttons it had left out; and on 2026-09-28
+> with the in-app texts (the v0.2.3 review): lessons 7–12, the Outputs control with a Trigger, the
+> resume banner, tooltips.
 
 ---
 
@@ -33,9 +35,11 @@ What you see, left to right:
   **Export…** and **Delete**. Below the list is the **Learn** shelf. Drag the sidebar's right edge
   to make it wider.
 - **The run bar**, above the canvas: **Run all** (with **Stop** beside it while a run is going),
-  counts of parts and generations, the generation cap, a sentence about the last run (and **Run
-  everything again** when nothing needed a re-run), **?** (what is this?), and **● Record log** (see
-  [COMPUTER_DEBUG_LOG.md](COMPUTER_DEBUG_LOG.md)).
+  counts of boxes and generations, how much of the Cap the last run used, a sentence about the last
+  run (and **Run everything again** when nothing needed a re-run), **Outputs** when the graph has a
+  Send or a Trigger box and **Panic** with a Send (see [the Send box](#acting-on-the-world-the-send-box)), **?**
+  (what is this?), and **● Record log** (see [COMPUTER_DEBUG_LOG.md](COMPUTER_DEBUG_LOG.md)). Hover
+  any button for what it does.
 - **The canvas**, with its toolbar: **＋ Add a box**, the **Select (V)** and **Hand (H)** tools, the
   zoom cluster (**−**, the zoom %, **+**, **Fit**), **Undo**, **Redo**, **Tidy**, **Export…**,
   **Replace from file…** and the **Cap** field.
@@ -89,14 +93,16 @@ On the rail:
   generated* badge, and you can finish the lesson.
 - The **–** folds the rail to a pill. A lesson resumes where you left it, even after a restart.
 
-The **?** in the run bar explains the Computer in two sentences and leads to the same shelf.
+The **?** in the run bar explains the Computer in a few sentences and leads to the same shelf.
 
 ### Every box has an example: its own **?**
 
 Each box has a small **?** in its title bar, next to ▶. It opens that box's **example**: a small graph in
 your library with a yellow note saying what the box does, what goes in, what comes out and how to use it
 on the Computer (with short snippets), next to a tiny setup that already works. Press **Run all** to watch
-it, change anything to try your own idea. The **?** opens the same example graph next time; delete it
+it (the note says what to press when Run all is not enough: ▶ on a drawing box, a Button's face, arming
+the outputs for a Trigger), and change anything to try your own idea. The graph is titled
+*Example — <the box's name>*. The **?** opens the same example graph next time; delete it
 from the library and the next **?** makes a fresh one. There is one for every box in the **＋** menu,
 including the presets (a p5.js sketch, *Write code*, *Describe a picture*…).
 
@@ -135,12 +141,14 @@ title bar. Boxes snap to a grid.
 Wire them: put the pointer on the **dot on the right edge of the Text box**, press, and drag. A
 line follows the pointer. Let go **on the Instruction** — on its left dot, or anywhere on the box:
 the box it will plug into is outlined while you hover it, and the wire goes into that box's first
-free input that takes what the wire carries. The canvas says *"Text now feeds Instruction"*.
+free input that takes what the wire carries. The wire stays drawn between them (a screen reader
+hears *"Text now feeds Instruction"*).
 
-A wire that cannot be made is refused **on the spot**, in one sentence: *"Those two are already
-wired together."*, *"A part cannot feed itself."*, a kind the box does not accept, or a loop with
-nothing in it that can stop it (see [Loops](#loops-and-the-limits-of-a-run)). Let go on empty
-canvas and nothing is made; the canvas says to drop the wire on a box or its dot.
+A wire that cannot be made is refused **on the spot**: it snaps back, and a short message says why and
+what to do instead: the input already has that wire (or takes only one), a box cannot feed itself, the box cannot
+take what the other one hands on, or a loop with nothing in it that can
+stop it (see [Loops](#loops-and-the-limits-of-a-run)). Let go on empty
+canvas and nothing is made.
 
 To unplug a wire, drag its end off the input and let go on empty canvas, or hover the wire and
 press the **✕** beside its name. Drop the end on another box (or its dot) instead, and it is
@@ -160,8 +168,8 @@ one accent, and two text colours. Give each a name and a hex value.
 
 Why name it: the model receives each wired input under a heading. A named arrow arrives as
 `## brief`; an unnamed one as `## Input 1`, and the model has to guess what it is. A name the
-instruction does not mention is flagged on the box (*unused: …*), and so is a name the instruction
-mentions but no arrow carries.
+instruction does not mention is flagged on the box (*not named, still sent: …* — it still goes to the
+model, under its heading), and so is a name the instruction mentions but no arrow carries.
 
 The Instruction's own controls:
 
@@ -178,7 +186,7 @@ Under the instruction, a grey line reads something like *sends 64 words · 1 nam
 it.** The drawer opens on the right on the **Sent** tab: the system message, each input under its
 heading, your instruction, and the call's settings — exactly what will be sent, before anything is
 spent. After a run, **Got** shows the reply word for word and **Cost** shows the time, the tokens
-and whether it came from the cache.
+and whether it is a *new answer* or an *answer reused, nothing sent*.
 
 ### Step 5 — run it
 
@@ -374,7 +382,7 @@ is wired: ✓, ✗ with the reason, or ? when the farm does not say.
   **that Instruction's model** as part of the prompt. When the farm does not list that model as
   able to see pictures, the box says so and nothing is sent; pick a model that can in the box's
   **Model** menu.
-- **Document (PDF).** Kept on this computer. When a run needs the text, the farm's document reader
+- **Document** (a PDF). Kept on this computer. When a run needs the text, the farm's document reader
   reads it once, and only the text comes back and flows on. A PDF that states more than 60 pages is
   refused when you drop it; nothing is kept or sent.
 - **Sound.** **● Record** records this computer's microphone until you press **■ Stop** (at most
@@ -391,7 +399,7 @@ is wired: ✓, ✗ with the reason, or ? when the farm does not say.
 **＋ → Show → Speak** says what arrives, out loud, and passes the same text on, so a graph can carry on
 afterwards. Its **Voice** is either **this computer's** (the voices your operating system has: it works
 offline and sends nothing) or **the farm's** (Kokoro, when the farm offers it: the text goes to the farm
-to be spoken). **Automatic** uses the farm's voice when there is one. **Stop** stops the voice.
+to be spoken). **Automatic** uses the farm's voice when there is one. **▶ Say it again** repeats it; the run bar's **Stop** stops the voice.
 Together with Listen, a graph can hear a question and answer it aloud: Sound (Listen) → Instruction →
 Speak — **Learn → Templates → Ask out loud** is that graph, ready to record into.
 
@@ -407,6 +415,7 @@ Speak — **Learn → Templates → Ask out loud** is that graph, ready to recor
 | **WebSocket** | `ws://…` address (an ESP32, for instance) | the text, or the JSON |
 | **HTTP POST** | `http://…` address | the text, or the JSON, as the body |
 | **USB serial (Arduino, ESP32)** | the board you pick with **Choose the board…**, and its speed (115200) | one line: the text, or the JSON of anything else |
+| **The farm's message bus** | a topic, like `lol/board1/led` (no `+` or `#`) | the text, or the JSON of anything else ([below](#boards-on-wi-fi-the-farms-message-bus-and-the-trigger-box)) |
 
 The target is always typed by you in the box: an arrow only brings the **value**, so a model can never
 choose where a graph sends. And the rules are the same for every graph, even one someone gave you:
@@ -414,10 +423,11 @@ choose where a graph sends. And the rules are the same for every graph, even one
 - **Dry run by default.** Until you arm the outputs, a Send box only shows **Dry run — would send: …**
   and nothing leaves. A graph always opens as a dry run, and so does the Computer after a restart.
 - **Arming asks first.** The run bar's **Outputs: dry run** button (it appears when the graph has a Send
-  box) asks before arming and lists every target of the graph. Armed, it reads **Outputs: LIVE**; press
-  it again to go back to a dry run.
+  or a Trigger box) asks before arming and lists every target of the graph. Armed, it reads **Outputs:
+  LIVE**; press it again to go back to a dry run. Opening another graph disarms.
 - **Panic** (next to it whenever the graph has a Send box, armed or not) stops the run and every output
-  at once and sends a **blackout** to every DMX universe the graph lit. Quitting the app does the same.
+  at once, sends a **blackout** to every DMX universe the graph lit, and goes back to a dry run.
+  Quitting the app does the same.
 - **Limits:** at most 20 messages a second to one target, and DMX at most **3 frames a second per
   universe**, whatever address you send it to. That does **not** limit a fixture's own strobe channel, or
   lights you drive over OSC, MQTT, WebSocket or HTTP: keep strobes off. A message over the limit is held back, and the box
@@ -435,7 +445,9 @@ create one, add boxes, draw the arrows, change settings and run the graph, and i
 answer you. You watch the graph appear on the Computer.
 
 What it can never do: arm the outputs. A graph with Send boxes stays a dry run, and while you have the
-outputs armed, a model's run is refused. The connection stays on this computer (127.0.0.1): no other
+outputs armed, the model can still read your graphs but cannot change or run one. What only you choose —
+a Fetch address, an Open data link, the web hosts an Agent may read, a USB board, Listen — is left out of
+what the model sets, and it tells you so. The connection stays on this computer (127.0.0.1): no other
 machine can drive your Computer.
 
 ### A board on the USB cable: Send by USB serial, and the Receive box
@@ -444,8 +456,8 @@ An Arduino or an ESP32 plugged into this computer talks with a graph both ways, 
 
 - **Send** with *Send by: USB serial* writes a line to the board (a typed number, `led 1`, or JSON), with the
   same rules as every output: a dry run until you arm the outputs.
-- **＋ → Bring in → Receive** hands on what the board writes: **the latest line**, or **every new line since
-  the last run** (a list). A line that is JSON, like `{"light": 512}`, flows on as data, so a Code box reads
+- **＋ → Bring in → Receive** hands on what the board writes: **the latest message** (its last line), or
+  **every new message since the last run** (a list). A line that is JSON, like `{"light": 512}`, flows on as data, so a Code box reads
   `inputs.in[0].light`. Its face shows the last line live. Reading sends nothing anywhere.
 - **Choose the board…** (on both) lists the boards plugged in; you pick one. Close the Arduino IDE's Serial
   Monitor first: only one program can hold a board.
@@ -467,7 +479,7 @@ publish and listen on the same **topics**, like `lol/board1/light`.
 - **＋ → Control → Trigger** starts a run **by itself**, on each message on a topic (a board's button) or
   every few seconds. It only does so **while you have armed the outputs and the Computer is on screen**; at
   most one run every few seconds (the messages in between only update what it hands on: the latest wins),
-  and at most so many runs an hour. Its face counts events, runs and merged messages, and says why nothing
+  and at most so many runs an hour. Its face counts events, runs and skipped messages, and says why nothing
   starts.
 
 The ESP32 side is [`docs/examples/arduino/lol_mqtt`](examples/arduino/lol_mqtt/lol_mqtt.ino): it publishes
@@ -524,7 +536,7 @@ press ▶. Each **step** the model picks ONE tool and sees what came back:
 - **laya** — the farm's Classify, over a list an earlier step made (when the farm has Laya).
 - **answer** — the end.
 
-The box's face says what it is doing (*Step 2 of 6: fetch…*). Its answer comes with **How it got there**:
+The box's face says what it is doing (*Step 2 of 6: reading the web…*). Its answer comes with **How it got there**:
 every step, and what its tool gave back, so you can check where each number came from. A step that goes
 wrong (bad code, a host you did not list, an answer that is not the JSON asked for) is shown to the model,
 which usually fixes it on the next step. *Steps at most* (6) bounds it: each step is one generation on the
@@ -551,7 +563,7 @@ item Laya was sure of. It answers all of them in one call, in about a fifth of a
 titles it got about 3 in 4 right; two thirds of them came above **Sure above** (0.6 by default), and 4 in 5
 of those were right. Every answer below the threshold is passed on as **unsure** for a thinking model or a
 person to check — but about one item in eight is confidently wrong (it likes to say *ai* about anything
-technical), so glance at the result. Its confidence is not calibrated, and the box says so.
+technical), so glance at the result. Its confidence is only a rough guide, and the hint on **Sure above** says so.
 
 Classify needs the farm's **Classify (Laya)** plugin, which is **off by default** (the operator turns it on
 in the farm panel). On a farm without it, nothing is sent: every item comes out unsure, and a graph built
@@ -579,10 +591,10 @@ The **Control** group holds the boxes that decide **whether and when** the rest 
 | **Condition** | Lets what arrives through when it reads as your chosen yes, no or maybe. It reads the words for free, or asks the model (one generation). |
 | **Confirm** | Stops and asks you **OK** or **Cancel** before going on. |
 | **Dialog** | Stops and asks you a question; your answer flows on. |
-| **Toggle** | A switch: off lets values through without running what follows. |
-| **Timer** | Waits a few seconds, and can repeat. |
+| **Toggle** | A switch: while it is off, the boxes after it do not run. |
+| **Timer** | Waits a few seconds (once, or several times in a row), then lets what follows run. |
 
-A box that is waiting for you says **Waiting for you**, and the run bar counts the questions
+A box that is waiting for you says **Waiting for you**, and the run bar counts the boxes
 waiting, with **Show me** to go to the oldest one.
 
 The **Annotate** group holds boxes for the reader of the graph:
@@ -590,7 +602,7 @@ The **Annotate** group holds boxes for the reader of the graph:
 | Box | What it does |
 |---|---|
 | **Sticky** | A coloured note for the reader. Never runs. |
-| **Section** | A labelled region to group the parts of one idea (its parts do not move with it yet). |
+| **Section** | A labelled region to group the boxes of one idea (the boxes inside do not move with it yet). |
 | **Title** | Big words on the canvas. Never runs. |
 
 ### Loops and the limits of a run
@@ -603,7 +615,7 @@ Every run has four limits, so no graph can quietly spend the farm or run for eve
 through any one box, **50** generations, **10 minutes** (time spent waiting for you included), and
 **2000** box runs in all. The generation cap is the **Cap** field in the toolbar, which remembers
 what you set. When a run stops at a limit, a notice above the canvas says which one, keeps every
-answer, and offers **Raise it for this run** (for the generation cap: **Raise the cap for this
+answer, and offers **Raise it for this run** (for the generation cap: **Raise the Cap for this
 run** and **Show me what spent it**). A plan whose Timers alone would outlast the time limit is
 refused before it starts, with the arithmetic.
 
@@ -613,6 +625,14 @@ A run asks the farm at **background priority**. When someone chats, they go firs
 and the run bar says so; press **Run all** to carry on, and nothing already finished is asked again.
 A run also sends nothing while the Computer's window is in the background.
 
+### When the app closed during a run
+
+Quit the app (or lose it to a crash) in the middle of a run, and the next time you open that graph a
+banner above the canvas says so: *The last run stopped when the app closed — 3 of 7 boxes finished.*
+**Resume** is **Run all**: the boxes that finished keep their answers and are not asked again, only the
+rest run. **Dismiss** hides the banner for good; nothing runs and nothing is deleted, and **Run all**
+finishes the other boxes whenever you like.
+
 ---
 
 ## Writing files
@@ -620,7 +640,8 @@ A run also sends nothing while the Computer's window is in the background.
 A **File** box writes what arrives into a file in **this graph's own project folder** on your
 machine — one folder per graph, made on its first write (a duplicated graph gets its own). Set
 *Path in the project*, for example `out/tokens.css`. After a run it says *Wrote out/tokens.css* and
-offers **Reveal in Explorer**. Running again overwrites the same file.
+offers **Show folder**. Running again overwrites the same file. The folders are in your data folder,
+under **LOL Studio Projects**.
 
 ---
 
@@ -654,8 +675,11 @@ The view keys — **V**, **H**, **F** and the other zoom keys — work anywhere 
 | A code answer was cut off | The model ran out of room before it finished — a thinking model can spend it all on thoughts. | Run it again, or pick a model that thinks less in the box's **Model** menu. The box says which of the two happened. |
 | A Code box shows a **Line 7** chip | Your JavaScript threw. | Click the chip to go to that line. `inputs.in` is an **array**, and a list arrives whole. |
 | A box says *"The sandbox is paused"* | A sketch or a Code box stopped answering three times in a minute (usually an endless loop), so the sandbox stopped restarting itself. | Fix the loop, then press **Run all** or the **▶** in a box's title bar: that starts the sandbox again. Editing the code, **▶ Live** or **Run code** alone does not. |
-| A wire will not connect | The canvas refused it and said why in one line: a duplicate, a kind the box does not accept, or a loop with nothing that can stop it. | Read the line. Put a Toggle (or another control box) in a loop. |
+| A wire will not connect | The canvas refused it and said why in one line: the input is taken, the box cannot take what arrives, or a loop with nothing that can stop it. | Read the line: it says what to do. Put a Toggle (or another control box) in a loop. |
 | The pictures stay home | The farm does not list the Instruction's model as able to see pictures. | Pick a model that can in that box's **Model** menu. |
+| A Send box says **Dry run — would send: …** | The outputs are not armed, so nothing left this computer. That is the default for every graph, and after every restart. | Press **Outputs: dry run** in the run bar, read the list of targets, and arm. |
+| A Trigger never starts a run | A Trigger starts runs only while the outputs are armed and the Computer is on screen; its face says which is missing. | Arm the outputs in the run bar and stay on the Computer. |
+| A Sound box sends only its name and length | **Listen** is off (a graph someone hands you always opens with it off), or the farm's speech to text is off. | Turn on **Listen** on the box; if the box says the farm cannot listen, ask the farm's operator. |
 | A lesson step will not tick | The rail ticks what you really did, in order, and a change only counts after the step asked for it. | Press **Show me**. If the farm cannot answer, use the saved answer the rail offers. |
 
 To report a bug: press **● Record log**, reproduce it, press **⚑ Mark bug**, and hand over the file
@@ -666,9 +690,9 @@ To report a bug: press **● Record log**, reproduce it, press **⚑ Mark bug**,
 ## What is not built yet
 
 - **The other templates from the plan.** The shelf takes them as data files.
-- **A sound reaching a model**, and **a PDF sent to a model as a PDF** (a PDF always goes as text
-  read by the farm).
+- **A sound reaching a model as sound** (with **Listen** on, the farm writes it down and the words go
+  on), and **a PDF sent to a model as a PDF** (a PDF always goes as text read by the farm).
 - **Boxes inside a Section do not move with it**, and **wires are grey**, not the colour of what
   they carry.
-- **No image, audio or video generation**, **no web search or fetch box**, **no sub-graphs**, and
-  no editing by several people at once.
+- **No image, audio or video generation**, **no web search box** (a **Fetch** box reads one address
+  you type), **no sub-graphs**, and no editing by several people at once.
