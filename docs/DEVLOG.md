@@ -27,8 +27,12 @@ found on the way — among them the coding agent's skills failing to seed out of
 any installed client), a Trigger-only graph that could not be armed, a bus Trigger drawn before the bus that never
 listened, an Instruction that sent no model on an endpoint-only farm, and the Agent reading a text as an array.
 
-**After the tag, on main (next release):** a free Condition hides the Question it never reads (`2500c4f`); a project
-chat is neither measured nor gated on its history (`f522637`).
+**After the tag, on main (next release):** **a security fix — the project server no longer follows a symbolic link
+out of the project** (`08f1574`; in v0.2.3 a link in a project, e.g. from a pulled repository, was followed to any
+file of the account: served to the LAN when shared, and readable by the project's own page in the Preview; a unit
+test with a real link, 200 before, 404 after); the Laya question names no item (`8222058`, found on the real model:
+one headline baked into the question asked of every story); a free Condition hides the Question it never reads
+(`2500c4f`); a project chat is neither measured nor gated on its history (`f522637`).
 
 **Still for a person on the rig** (docs/TEST_SCENARIOS_v0.2.md): the auto-update from v0.2.2 on each OS; Share on the
 LAN from a second machine (the Windows firewall prompt); a GitHub push with a real token; lessons 7–10 with a real
