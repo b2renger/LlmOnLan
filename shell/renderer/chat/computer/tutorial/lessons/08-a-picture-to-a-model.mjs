@@ -48,14 +48,14 @@ export default {
     },
     {
       id: 's2',
-      text: 'Wire the Image into the Instruction, then press ▶ on the Instruction: the picture rides with the words to a model that can see.',
+      text: 'Wire the Image box into the Instruction, then press ▶ on the Instruction: the picture rides with the words to a model that can see.',
       hint: 'No farm? Use the saved answer when it is offered.',
       check: { all: [{ wire: { from: 'p_img', to: 'p_look' } }, { ran: { partId: 'p_look' } }] },
       show: { partId: 'p_look' },
     },
     {
       id: 's3',
-      text: 'Ask the same picture something else — change the instruction (what is the mood? what is missing?) — and press ▶ again.',
+      text: 'Ask the same picture something else — change the instruction (what is the mood? what is missing?) — and press ▶ on it again.',
       hint: 'No farm? The saved answer is offered again.',
       check: { all: [{ edited: { partId: 'p_look', setting: 'instruction' } }, { ran: { partId: 'p_look' } }] },
       show: { partId: 'p_look' },

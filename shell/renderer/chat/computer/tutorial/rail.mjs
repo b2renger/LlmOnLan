@@ -142,7 +142,7 @@ export function install(app) {
   learn.type = 'button';
   learn.title = t('tutorial.learnHint');
   learn.append(h('span', 'comp-learn-name', t('tutorial.learn')),
-    h('span', 'comp-learn-count', t('tutorial.learnCount', { lessons: LESSONS.length, templates: TEMPLATES.length })));
+    h('span', 'comp-learn-count', t('tutorial.learnCount', { lessons: LESSONS.filter((l) => l.n).length, templates: TEMPLATES.length })));
   const body = h('div', 'comp-shelf-body');
   body.id = 'comp-learn-body';
   learn.setAttribute('aria-controls', body.id);
@@ -200,7 +200,7 @@ export function install(app) {
       glyph.setAttribute('aria-hidden', 'true');
       const main = h('span', 'comp-lesson-main');
       const meta = [x.needsFarm === 'no' ? t('tutorial.chipOffline') : t('tutorial.chipFarm')];
-      if (Number(x.generations) > 0) meta.push(t('tutorial.templateMeta', { n: x.generations }));
+      if (Number(x.generations) > 0) meta.push(t('tutorial.templateMeta', { n: x.generations, count: Number(x.generations) }));
       main.append(h('span', 'comp-template-title', x.title), h('span', 'comp-lesson-meta', meta.join(' · ')));
       b.append(glyph, main);
       b.title = x.subtitle;
@@ -354,7 +354,7 @@ export function install(app) {
         row.appendChild(button('comp-rail-next', t('tutorial.next', { title: titleOf(target) }), () => { void open(target.id); }, target.subtitle));
       } else {
         card.appendChild(h('p', 'comp-rail-hint', t('tutorial.lastLesson')));
-        row.appendChild(button('comp-rail-templates', t('tutorial.openTemplates'), () => showShelf('templates')));
+        row.appendChild(button('comp-rail-templates', t('tutorial.openTemplates'), () => showShelf('templates'), t('tutorial.openTemplatesHint')));
       }
       card.appendChild(row);
     } else {
@@ -374,7 +374,7 @@ export function install(app) {
       }
       if (s.check && 'manual' in s.check) {
         const stepId = s.id;
-        row.appendChild(button('comp-rail-got', t('tutorial.gotIt'), () => gotIt(stepId)));
+        row.appendChild(button('comp-rail-got', t('tutorial.gotIt'), () => gotIt(stepId), t('tutorial.gotItHint')));
       }
       if (row.childNodes.length) card.appendChild(row);
     }
@@ -385,7 +385,7 @@ export function install(app) {
       const [partId, name] = vm.offer;
       const offer = h('div', 'comp-rail-offer');
       offer.appendChild(h('p', 'comp-rail-demo-text', t('tutorial.demoOffer', { part: name })));
-      const b = button('comp-rail-demo', t('tutorial.demoUse'), () => useDemo(partId));
+      const b = button('comp-rail-demo', t('tutorial.demoUse'), () => useDemo(partId), t('tutorial.demoUseHint'));
       b.dataset.part = partId;
       offer.appendChild(b);
       card.appendChild(offer);
@@ -395,7 +395,7 @@ export function install(app) {
     }
 
     const foot = h('div', 'comp-rail-foot');
-    foot.appendChild(button('comp-rail-reset', t('tutorial.reset'), () => { void resetLesson(lesson.id, { confirm: true }); }));
+    foot.appendChild(button('comp-rail-reset', t('tutorial.reset'), () => { void resetLesson(lesson.id, { confirm: true }); }, t('tutorial.resetHint')));
     card.appendChild(foot);
     return card;
   }
@@ -408,10 +408,10 @@ export function install(app) {
     if (current && current.lesson.idea) card.appendChild(h('p', 'comp-explain-body', t('tutorial.explainLesson', { idea: current.lesson.idea })));
     const row = h('div', 'comp-rail-actions');
     if (lessonById('l00-tour') && !(current && current.lesson.id === 'l00-tour')) {
-      row.appendChild(button('comp-explain-tour', t('tutorial.explainTour'), () => { explainOpen = false; void open('l00-tour'); }));
+      row.appendChild(button('comp-explain-tour', t('tutorial.explainTour'), () => { explainOpen = false; void open('l00-tour'); }, t('tutorial.explainTourHint')));
     }
-    row.appendChild(button('comp-explain-learn', t('tutorial.explainLearn'), () => { explainOpen = false; paintRail(); showShelf('lessons'); }));
-    row.appendChild(button('comp-explain-close', t('tutorial.explainClose'), () => { explainOpen = false; paintRail(); }));
+    row.appendChild(button('comp-explain-learn', t('tutorial.explainLearn'), () => { explainOpen = false; paintRail(); showShelf('lessons'); }, t('tutorial.explainLearnHint')));
+    row.appendChild(button('comp-explain-close', t('tutorial.explainClose'), () => { explainOpen = false; paintRail(); }, t('tutorial.explainCloseHint')));
     card.appendChild(row);
     return card;
   }

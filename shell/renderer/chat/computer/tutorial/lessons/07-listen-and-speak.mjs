@@ -52,7 +52,7 @@ export default {
     },
     {
       id: 's2',
-      text: 'Tick Listen on the Sound box. Only now may the recording leave this computer: the farm writes it down and keeps nothing.',
+      text: 'Tick “Listen: write down what is said” on the Sound box. Now a run may send the recording to the farm, which writes it down and keeps nothing.',
       check: { has: { id: 'p_snd', setting: 'listen', equals: true } },
       show: { partId: 'p_snd' },
     },

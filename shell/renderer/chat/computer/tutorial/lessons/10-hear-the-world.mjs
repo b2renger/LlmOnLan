@@ -4,8 +4,8 @@
 // What the learner DOES: wires a Trigger into a Code box. The Trigger ticks on a SCHEDULE (every 3 s) — the one
 // source that works on any computer; its other source, a message on the farm's message bus, needs a farm with the
 // bus plugin on (the templates "A board on Wi-Fi" and "Talk to a board", and the sticky, say so). It starts runs only
-// once the outputs are armed — the run bar's "Outputs" control, which a graph shows only with a Send box, hence the
-// Send box (OSC to this computer, like lesson 9). Then the learner slows it (latest wins) and disarms it.
+// once the outputs are armed — the run bar's "Outputs" control, which shows with a Send box or a Trigger; the Send box
+// (OSC to this computer, like lesson 9) is what each tick sends. Then the learner slows it (latest wins) and disarms it.
 // A check sees the doc and the last run, never who pressed ▶: after a tick, a hand ▶ on the Code box also shows the
 // tick (the Trigger remembers it even disarmed), so s2–s3 tick on it too. Arming itself is a dialog: s4 is `manual`.
 
@@ -19,7 +19,7 @@ export default {
   id: 'l10-hear-the-world',
   n: 10,
   title: 'hear the world',
-  subtitle: 'A Trigger presses ▶ for you: on a clock here, on a board’s message on a farm with the message bus.',
+  subtitle: 'A Trigger presses ▶ for you: on a clock here, or on a board’s message when the farm has the message bus.',
   idea: 'A Trigger starts runs by itself, but only while a person has armed the outputs and the Computer is on screen — and at most one run every few seconds.',
   minutes: 4,
   needsFarm: 'no',
@@ -29,10 +29,10 @@ export default {
     view: { x: 0, y: 0, zoom: 0.65 },
     parts: [
       { id: 'n_title', type: 'title', x: 40, y: 24, w: 640, h: 106, settings: { text: '10 · hear the world', size: 'l' } },
-      { id: 'n_sub', type: 'title', x: 40, y: 140, w: 1200, h: 84, settings: { text: 'A Trigger presses ▶ for you: on a clock here, on a board’s message on a farm with the message bus.', size: 's' } },
+      { id: 'n_sub', type: 'title', x: 40, y: 140, w: 1200, h: 84, settings: { text: 'A Trigger presses ▶ for you: on a clock here, or on a board’s message when the farm has the message bus.', size: 's' } },
       {
         id: 'n_idea', type: 'sticky', x: 40, y: 250, w: 320, h: 330,
-        settings: { colour: 'yellow', text: 'A Trigger presses ▶ for you: every few seconds, or on each message on the farm’s message bus.\n\nIt starts runs ONLY while a person has armed the outputs (the Send box’s arming, in the run bar) and the Computer is on screen — at most one run every few seconds, and so many an hour.' },
+        settings: { colour: 'yellow', text: 'A Trigger presses ▶ for you: every few seconds, or on each message on the farm’s message bus.\n\nIt starts runs ONLY while a person has armed the outputs (the Outputs button in the run bar) and the Computer is on screen — at most one run every few seconds, and a set number an hour.' },
       },
       { id: 'p_trig', type: 'trigger', x: 420, y: 250, w: 320, h: 300, settings: { source: 'schedule', topic: 'lol/#', every: 3, gapSec: 2, perHour: 60 } },
       { id: 'p_heard', type: 'code', x: 800, y: 250, w: 300, h: 180, settings: { code: HEARD, about: 'Says which tick it heard, and when.', folded: false } },
@@ -56,13 +56,13 @@ export default {
     },
     {
       id: 's2',
-      text: 'Arm the outputs in the run bar (it asks first). Now each tick presses ▶ for you: the Code box says which tick it heard.',
+      text: 'Press “Outputs: dry run” in the run bar, read the list, press Arm. Now each tick presses ▶ for you: the Code box says which tick it heard.',
       check: { all: [{ ran: { partId: 'p_heard' } }, { ran: { partId: 'p_send' } }] },
       show: { partId: 'p_heard' },
     },
     {
       id: 's3',
-      text: 'Slow it down: set “At most one run every” to 6 seconds. The ticks in between only update the value (latest wins); the face counts them.',
+      text: 'Slow it down: on the Trigger, set “At most one run every (seconds)” to 6. The ticks in between only update the value (latest wins); the face counts them.',
       check: { all: [{ edited: { partId: 'p_trig', setting: 'gapSec' } }, { ran: { partId: 'p_heard' } }] },
       show: { partId: 'p_trig' },
     },

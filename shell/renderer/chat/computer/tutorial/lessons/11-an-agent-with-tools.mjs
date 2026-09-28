@@ -45,7 +45,7 @@ export default {
   steps: [
     {
       id: 's1',
-      text: 'Wire the readings into the Agent, then click the arrow and name it readings: the Agent finds each input by its name.',
+      text: 'Wire the readings (the Text box) into the Agent, click the arrow’s “name me” tag and type readings: the Agent finds each input by its name.',
       check: { wire: { from: 'p_data', to: 'p_agent', label: 'readings' } },
       show: { partId: 'p_agent' },
     },
@@ -58,13 +58,13 @@ export default {
     },
     {
       id: 's3',
-      text: 'Press ▶ on the Preview and read “How it got there”: each number is a step’s result, computed by code. The model chose the code and the words.',
+      text: 'Read “How it got there” in the Markdown view (empty? press its ▶): each number is a step’s result, computed by code. The model chose the code and the words.',
       check: { ran: { partId: 'p_view' } },
       show: { partId: 'p_view' },
     },
     {
       id: 's4',
-      text: 'Steps at most is its brake: each step is one generation on the run’s Cap. Set it to 2, and press ▶: it must answer by its second step.',
+      text: '“Steps at most” is its brake: each step spends one generation of the toolbar’s Cap. Set it to 2 and press ▶ on the Agent: it must answer by step 2.',
       hint: 'No farm? Use the saved answer again.',
       check: { all: [{ has: { id: 'p_agent', setting: 'maxSteps', equals: 2 } }, { ran: { partId: 'p_agent' } }] },
       show: { partId: 'p_agent' },

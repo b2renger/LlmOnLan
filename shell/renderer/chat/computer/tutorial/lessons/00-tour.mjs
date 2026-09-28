@@ -56,7 +56,7 @@ export default {
     },
     {
       id: 's-add',
-      text: 'Add a box: press “＋ Add a box” in the toolbar above the canvas (or double-click empty canvas), then pick Text.',
+      text: 'Add a box: press “＋ Add a box” in the toolbar above the canvas (or double-click or right-click empty canvas), then pick Text.',
       hint: 'The menu is grouped. Text is under “Bring in”, and you can type to search.',
       check: { has: { type: 'note' } },
       show: { menu: 'note' },
@@ -94,7 +94,8 @@ export default {
     },
     {
       id: 's-library',
-      text: 'Everything you make is saved in the library on the left. This tour is there too, as “The tour”.',
+      text: 'Everything you make is saved in the library on the left — this tour too, as “The tour”. Below it, the Learn shelf holds the lessons.',
+      hint: 'Every box has a ? next to its ▶: it opens a small working example of that box.',
       check: { manual: true },
     },
   ],

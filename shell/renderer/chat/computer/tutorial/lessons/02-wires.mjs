@@ -61,13 +61,13 @@ export default {
     },
     {
       id: 's2',
-      text: 'Click the grey line under the story’s instruction to read what will be sent: your Text box is in the prompt, word for word.',
+      text: 'Click the grey “sends … words” line under the story’s instruction: the drawer on the right shows the prompt, with your Text box in it word for word.',
       check: { manual: true },
       show: { partId: 'p_story' },
     },
     {
       id: 's3',
-      text: 'Press ▶ on the LAST box, the title. It cannot run before the story exists, so the story runs first.',
+      text: 'Press ▶ on the LAST box, the Instruction that writes the title. It cannot run before the story exists, so the story runs first.',
       check: { all: [{ ran: { partId: 'p_story' } }, { ran: { partId: 'p_title' } }] },
       show: { partId: 'p_title' },
     },
@@ -76,7 +76,7 @@ export default {
       text: 'Change the character in the Text box, then press ▶ on the Text box: everything below your change runs again, in order.',
       // Critic S1-12: with no farm, ▶ on the Text box re-asks the story every time, and it fails
       // every time; the way out is the title's ▶, which READS a story that has a value.
-      hint: 'No farm? Use the saved answer when it is offered, then press ▶ on the title and use its saved answer too.',
+      hint: 'No farm? Use the saved answer when it is offered, then press ▶ on the title’s Instruction and use its saved answer too.',
       check: { all: [{ edited: { partId: 'p_note', setting: 'text' } }, { ran: { partId: 'p_story' } }, { ran: { partId: 'p_title' } }] },
       show: { partId: 'p_note' },
     },

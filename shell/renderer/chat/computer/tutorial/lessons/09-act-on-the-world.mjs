@@ -11,7 +11,7 @@ export default {
   n: 9,
   title: 'act on the world',
   subtitle: 'A Send box hands a value to a device — but only once a person has armed the outputs.',
-  idea: 'Every run is a dry run until a person arms the outputs: the Send box shows what it would send, and nothing leaves. Panic, a reload or another graph disarms.',
+  idea: 'Every run is a dry run until a person arms the outputs: the Send box shows what it would send, and nothing leaves. Panic, reloading the app or opening another graph disarms them.',
   minutes: 4,
   needsFarm: 'no',
   doc: {

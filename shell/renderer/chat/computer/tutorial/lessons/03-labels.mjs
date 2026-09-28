@@ -17,7 +17,7 @@ export default {
   n: 3,
   title: 'arrow labels are names',
   subtitle: 'Name an arrow, and the Instruction can use that name.',
-  idea: 'A label is a variable, not decoration: rename it and the prompt changes with it.',
+  idea: 'An arrow’s name is not decoration: the Instruction uses it, so rename it and the prompt changes with it.',
   minutes: 6,
   needsFarm: 'one',
   doc: {
@@ -66,7 +66,7 @@ export default {
     },
     {
       id: 's3',
-      text: 'Click the grey line under the instruction to read what will be sent: the inputs are now headed before and after.',
+      text: 'Click the grey “sends … words” line under the instruction: in the drawer on the right, the inputs are now headed before and after.',
       check: { manual: true },
       show: { partId: 'p_ask' },
     },

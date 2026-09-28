@@ -46,7 +46,7 @@ export default {
       },
       {
         id: 'n_rule', type: 'sticky', x: 460, y: 510, w: 240, h: 190,
-        settings: { colour: 'slate', text: 'The numbers under the Code box were counted, not guessed. Change the table and they follow; the model never wrote one.' },
+        settings: { colour: 'slate', text: 'The numbers at the bottom of the Code box were counted, not guessed. Change the table and they follow; the model never wrote one.' },
       },
       { id: 'n_next', type: 'sticky', x: 760, y: 480, w: 300, h: 140, settings: { colour: 'green', text: 'Next up → 6 · a loop that stops. And open "Analyse a dataset" to see this rule on real open data.' } },
     ],
@@ -61,7 +61,7 @@ export default {
     },
     {
       id: 's2',
-      text: 'Press ▶ on the Code box. It adds up the crates per fruit; the totals appear under it. Open “Show the code” if you are curious — you do not need to read it.',
+      text: 'Press ▶ on the Code box. It adds up the crates per fruit; the totals appear at the bottom of the box. “Show the code” opens it — you need not read it.',
       check: { ran: { partId: 'p_code' } },
       show: { partId: 'p_code' },
     },

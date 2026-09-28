@@ -12,15 +12,15 @@
 // generation is in the demo pack. The middle of the view is left EMPTY: a box picked from the
 // toolbar's ＋ lands at the view centre (canvas.mjs placeEntry), which is where "Write an SVG"
 // belongs, to the left of the picture it will feed. Nothing sits below the SVG box: a creative
-// box grows with its picture and its code editor. The last lesson has no "next up" sticky — the
-// rail's own last-lesson card points at the templates.
+// box grows with its picture and its code editor. No "next up" sticky here: the rail's done card
+// names lesson 5.
 
 export default {
   id: 'l04-draw',
   n: 4,
   title: 'make a picture',
   subtitle: 'Ask the model for an SVG, and watch it drawn.',
-  idea: 'The model writes code; a creative box runs it in the sandbox, which cannot reach the network or your files.',
+  idea: 'The model writes code; the SVG box draws it in the sandbox, which cannot reach the network or your files.',
   minutes: 6,
   needsFarm: 'one',
   doc: {
@@ -36,7 +36,7 @@ export default {
       },
       {
         id: 'n_menu', type: 'sticky', x: 390, y: 590, w: 320, h: 120,
-        settings: { colour: 'slate', text: 'Boxes come from ＋ at the top of the canvas — or double-click an empty spot. “Write an SVG” is under Think.' },
+        settings: { colour: 'slate', text: 'Boxes come from “＋ Add a box” at the top of the canvas — or double-click an empty spot. “Write an SVG” is under Think.' },
       },
       {
         id: 'p_svg', type: 'preview', x: 780, y: 140, w: 380, h: 560,
@@ -69,7 +69,7 @@ export default {
     },
     {
       id: 's3',
-      text: 'Press ＋ and add “Write an SVG” — it is under Think.',
+      text: 'Press “＋ Add a box” above the canvas and add “Write an SVG” — it is under Think.',
       check: { has: { preset: 'write-svg' } },
       show: { menu: 'write-svg' },
     },

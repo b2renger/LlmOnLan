@@ -49,7 +49,7 @@ export default {
     },
     {
       id: 's2',
-      text: 'Press ▶ in the Instruction’s title bar. It goes queued, running, done: a model on the farm is writing, not this laptop.',
+      text: 'Press ▶ in the Instruction’s title bar. It goes Queued, Running, Done: a model on the farm is writing, not this laptop.',
       check: { ran: { partId: 'p_ask' } },
       show: { partId: 'p_ask' },
     },
@@ -61,7 +61,7 @@ export default {
     },
     {
       id: 's4',
-      text: 'Press the lock on the Text box. A locked box keeps what it shows, whatever arrives next.',
+      text: 'Press Lock on the Text box. A locked box keeps what it shows, whatever arrives next.',
       check: { has: { id: 'p_answer', setting: 'locked', equals: true } },
       show: { partId: 'p_answer' },
     },

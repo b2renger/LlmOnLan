@@ -23,6 +23,7 @@ import { reportOf } from '../../../renderer/chat/graph/parts/agent.mjs';
 import { parseLink } from '../../../renderer/chat/graph/parts/opendata.mjs';
 import { t } from '../../../renderer/chat/core/i18n.mjs';
 import '../../../renderer/chat/strings/lessons.en.mjs';
+import '../../../renderer/chat/strings/tutorial.en.mjs';
 
 const SPECS = specMap();
 const PRESETS = new Map(creativePresets().map((p) => [p.id, p]));
@@ -165,6 +166,9 @@ export default (test) => {
     assert.ok(note.includes(String(LESSONS.length)) && note.includes(String(TEMPLATES.length)), note);
     assert.equal(t('lessons.templateCost', { n: 8 }), 'about 8 generations');
     assert.ok(t('lessons.lessonsBlurb').length > 20 && t('lessons.templatesBlurb').length > 20);
+    // The shelf's template line (rail.mjs passes count): one generation is singular.
+    assert.equal(t('tutorial.templateMeta', { n: 1, count: 1 }), '~1 generation');
+    assert.equal(t('tutorial.templateMeta', { n: 8, count: 8 }), '~8 generations');
   });
 
   // ---- the lessons open, and never pre-tick ---------------------------------------------------

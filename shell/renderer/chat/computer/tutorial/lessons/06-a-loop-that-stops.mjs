@@ -12,7 +12,7 @@ export default {
   n: 6,
   title: 'a loop that stops',
   subtitle: 'A ring of boxes needs a brake — and every run has a ceiling underneath.',
-  idea: 'A loop is legal only through a gate box (a Toggle, a Condition, a Confirm…), and every run stops at its ceilings: 8 passes per box, 50 generations, 10 minutes.',
+  idea: 'A ring of boxes is allowed only through a box that can stop it (a Toggle, a Condition, a Confirm…), and every run stops at its limits: 8 passes per box, the Cap of 50 generations, 10 minutes.',
   minutes: 4,
   needsFarm: 'no',
   doc: {
@@ -53,7 +53,7 @@ export default {
     },
     {
       id: 's3',
-      text: 'Now pull the brake: switch the Toggle off, then press ▶ on the Code box again. One pass, and the loop rests.',
+      text: 'Now pull the brake: untick On in the Toggle, then press ▶ on the Code box again. One pass, and the loop rests.',
       check: { all: [{ has: { id: 'p_tog', setting: 'on', equals: false } }, { ran: { partId: 'p_count' } }, { report: { ran: '<=2' } }] },
       show: { partId: 'p_tog' },
     },

@@ -88,26 +88,26 @@ export default {
   steps: [
     {
       id: 's1',
-      text: 'Press ▶ on Open data: it reads the festivals dataset from data.gouv.fr. Offline, it hands on the copy it holds.',
+      text: 'Press ▶ on the Open data box: it reads the festivals dataset from data.gouv.fr. Offline, it hands on the copy it holds.',
       check: { ran: { partId: 'p_data' } },
       show: { partId: 'p_data' },
     },
     {
       id: 's2',
-      text: 'Wire Open data into the Code box, then press ▶ on the chart: code draws the column named in the Text box, with data.gouv.fr’s counts.',
+      text: 'Wire Open data into the Code box, then press ▶ on the SVG box (the chart): code draws the column named in the Text box, with data.gouv.fr’s counts.',
       check: { all: [{ wire: { from: 'p_data', to: 'p_draw' } }, { ran: { partId: 'p_chart' } }] },
       show: { partId: 'p_draw' },
     },
     {
       id: 's3',
-      text: 'Wire the chart into the Instruction and press ▶ on it: the model looks at the chart and says what it shows — in words, never a number.',
+      text: 'Wire the chart into the Instruction and press ▶ on the Instruction: the model looks at the chart and says what it shows — in words, never a number.',
       hint: 'No farm? Use the saved answer when it is offered.',
       check: { all: [{ wire: { from: 'p_chart', to: 'p_ask' } }, { ran: { partId: 'p_ask' } }] },
       show: { partId: 'p_ask' },
     },
     {
       id: 's4',
-      text: 'Chart another column: type Région principale de déroulement in the Text box and press ▶ on it. The chart and the words follow the data.',
+      text: 'Chart another column: type Région principale de déroulement in the Text box and press ▶ on the Text box. The chart and the words follow the data.',
       hint: 'No farm? The chart is still drawn; use the saved answer for the words.',
       check: { all: [{ edited: { partId: 'p_col', setting: 'text' } }, { ran: { partId: 'p_chart' } }, { ran: { partId: 'p_ask' } }] },
       show: { partId: 'p_col' },
