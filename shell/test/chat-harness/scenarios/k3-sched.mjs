@@ -146,11 +146,9 @@ export default [
             // 7. A CRASH MID-RUN (§7.5). The row is written the moment a run opens, so a reload
             //    that never reaches the end comes back with a row that says a run was live, and
             //    everything it left unfinished comes back `stale` — so re-running costs only those
-            //    boxes. That is the MECHANISM of Resume, and it is what this asserts.
-            //    NOT asserted here, because it is not built: the BANNER §7.5 asks for. The strings
-            //    (`computer.resumeBanner`/`resumeAction`/`resumeDismiss`) and `journal.resumable()`
-            //    are shipped and unit-tested, but nothing renders them yet — deferred to K4, and
-            //    said so in DEVLOG. A reader gets the cheap re-run; they are not yet OFFERED it.
+            //    boxes. That is the MECHANISM of Resume. Since 2026-09-28 the OFFER is built too: opening
+            //    the graph shows the banner (`computer/host.mjs` offerResume), which this now asserts, and
+            //    Start fresh closes the old run so the banner does not come back after another reload.
             await h.computer.set(ids.a, { text: 'delta' });
             // A Timer at the end of the chain parks the run on a clock, which is the only way a
             // scenario can hold a run open long enough to be interrupted the way a crash is.
@@ -175,11 +173,51 @@ export default [
             const stale = Object.keys(beforeResume).filter((id) => beforeResume[id].state === 'stale');
             h.eq(Object.keys(beforeResume).every((id) => beforeResume[id].state !== 'running'), true,
                 'nothing came back mid-flight after the reload (§7.5)');
+            const bannerText = () => h.waitFor(() => {
+                const b = /** @type {any} */ (document.querySelector('#lolcomputer .comp-resume'));
+                return b && !b.hidden ? b.textContent : null;
+            }, { timeout: 10000 });
+            const offered = await bannerText();
+            const doneNow = Object.keys(beforeResume).filter((id) => beforeResume[id].state === 'done').length;
+            h.assert(new RegExp(`The last run stopped when the app closed — ${doneNow} of \\d+ boxes finished\\.`).test(offered),
+                `the banner offers the cut-short run: ${offered}`);
             const resume = await h.computer.run({});
             h.eq(resume.ran <= stale.length, true,
                 `Resume ran ${resume.ran} of the ${stale.length} boxes the crash left unfinished, and nothing else`);
             now = await snap(h);
             h.eq(Object.keys(now).every((id) => now[id].state === 'done'), true, 'and it finished the graph');
+            h.eq(await h.eval(() => /** @type {any} */ (document.querySelector('#lolcomputer .comp-resume')).hidden), true, 'a run hides the offer');
+
+            // 8. Start fresh: another run cut short, the banner again; Start fresh closes it — and after another
+            //    reload the offer does not come back.
+            // A fresh Timer parks this run (the first one does not wait again after the reload: timers do not
+            // survive a close).
+            const timer2 = await h.computer.place('timer', 620, 520);
+            await h.computer.set(timer2, { seconds: 20, repeats: 1 });
+            await h.computer.wire(ids.d, timer2, 'in');
+            await h.computer.set(ids.a, { text: 'echo' });
+            await h.eval(() => { window.LolComputer.debug.computer.run({}); return true; });
+            await h.waitFor((id) => {
+                const p = window.LolComputer.debug.computer.doc().parts.find((x) => x.id === id);
+                return p && p.state === 'waiting' ? true : null;
+            }, { timeout: 20000, args: [timer2] });
+            await h.reload();
+            await open(h);
+            await bannerText();
+            await h.click('#lolcomputer .comp-resume-fresh');
+            await h.waitFor(() => (/** @type {any} */ (document.querySelector('#lolcomputer .comp-resume')).hidden ? true : null), { timeout: 5000 });
+            let settled = false;
+            for (let i = 0; i < 25 && !settled; i++) {
+                const rows = await h.computer.journal();
+                const last = rows[rows.length - 1];
+                settled = !!(last && last.endedAt !== null && last.status === 'stopped');
+                if (!settled) await new Promise((r) => setTimeout(r, 200));
+            }
+            h.assert(settled, 'Start fresh closed the cut-short run as stopped');
+            await h.reload();
+            await open(h);
+            await new Promise((r) => setTimeout(r, 800));
+            h.eq(await h.eval(() => /** @type {any} */ (document.querySelector('#lolcomputer .comp-resume')).hidden), true, 'Start fresh: no offer after the next reload');
         },
     },
 ];

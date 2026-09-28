@@ -62,11 +62,25 @@ export async function readRuns(repo, graphId) {
  * @param {RunJournal[]} rows @returns {RunJournal|null} */
 export function resumable(rows) {
   const list = Array.isArray(rows) ? rows : [];
-  for (let i = list.length - 1; i >= 0; i--) {
-    const r = list[i];
-    if (r && r.endedAt === null && (r.status === 'running' || r.status === 'waiting')) return r;
-  }
-  return null;
+  // Only the NEWEST run: an older crash that later runs have already moved past is not worth offering (it used to
+  // come back after every later run — found when the banner was built, 2026-09-28).
+  const r = list.length ? list[list.length - 1] : null;
+  return r && r.endedAt === null && (r.status === 'running' || r.status === 'waiting') ? r : null;
+}
+
+/**
+ * "Start fresh" on the resume banner: the crashed run is closed as `stopped`, so its offer does not come back. The
+ * boxes it left `stale` stay stale (the next Run all re-runs them). Never throws; false when there was nothing to close.
+ * @param {any} repo @param {string} graphId @param {string} runId @param {number} [at] @returns {Promise<boolean>}
+ */
+export async function settleCrashed(repo, graphId, runId, at = Date.now()) {
+  if (!repo || typeof repo.kvSet !== 'function' || !graphId) return false;
+  const rows = await readRuns(repo, graphId);
+  const r = rows.find((x) => x && x.id === runId);
+  if (!r || r.endedAt !== null) return false;
+  r.endedAt = at;
+  r.status = 'stopped';
+  try { await repo.kvSet(journalKey(graphId), prune(rows)); return true; } catch { return false; }
 }
 
 /**

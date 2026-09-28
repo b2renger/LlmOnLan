@@ -27,7 +27,7 @@ import { specMap } from '../graph/parts/index.mjs';
 import { createRunner } from '../graph/runner.mjs';
 // K3 kickoff: the journal's read side and the park registry. Both are PURE and both are read by
 // the debug door from hour one, so the door and the units' files land together (§11 K3).
-import { readRuns } from '../graph/journal.mjs';
+import { readRuns, resumable, settleCrashed } from '../graph/journal.mjs';
 import { pending as pendingParks, cancelAll as cancelParks } from '../graph/parts/control-bus.mjs';
 import { clearPresses } from '../graph/parts/button.mjs';
 import { createCanvas } from '../graph/canvas.mjs';
@@ -400,6 +400,7 @@ export function createHost(app, els) {
     // coming — and a press left in the registry would silently open that gate for some LATER run
     // the person never pressed anything for (K3 fix pass).
     if (!session.docId()) { clearPresses(); return null; }
+    hideResume();   // a new run makes the old offer moot (it becomes the newest row)
     const o = opts || {};
     // K3 kickoff (COMPUTER_PLAN §4.4): a ▶ pressed MID-RUN MERGES, never refuses — "the user's
     // press is never swallowed". A second `mode:'all'` is still a refusal (the Run button reads
@@ -457,7 +458,53 @@ export function createHost(app, els) {
   // The canvas re-renders itself from the session; the host only has to adopt the VIEW a freshly
   // loaded document carries (the canvas keeps the live one, the doc keeps the saved one).
   const offSession = session.on((/** @type {any} */ ev) => {
-    if (ev.type === 'doc' && ev.loaded) canvas.adoptView(ev.doc.view);
+    if (ev.type === 'doc' && ev.loaded) { canvas.adoptView(ev.doc.view); void offerResume(ev.doc); }
+  });
+
+  // §7.5 THE RESUME BANNER. A run the app's close (or a crash) cut short leaves its journal row open and its
+  // unfinished boxes `stale`. Opening that graph offers it again: Resume is literally Run all (every box already done
+  // is free — the dirty rule); Start fresh closes the old run, so the offer does not come back. The mechanism and the
+  // strings shipped at K3; this is the offer (2026-09-28).
+  const resumeBar = document.createElement('div');
+  resumeBar.className = 'comp-resume';
+  resumeBar.setAttribute('role', 'status');
+  resumeBar.hidden = true;
+  const resumeText = document.createElement('span');
+  resumeText.className = 'comp-resume-text';
+  const resumeGo = document.createElement('button');
+  resumeGo.type = 'button';
+  resumeGo.className = 'comp-resume-go';
+  resumeGo.textContent = t('computer.resumeAction');
+  const resumeFresh = document.createElement('button');
+  resumeFresh.type = 'button';
+  resumeFresh.className = 'comp-resume-fresh';
+  resumeFresh.textContent = t('computer.resumeDismiss');
+  resumeBar.append(resumeText, resumeGo, resumeFresh);
+  if (els && els.banner) els.banner.appendChild(resumeBar);
+  /** @type {{graphId: string, runId: string}|null} */ let resumeOf = null;
+  function hideResume() { resumeBar.hidden = true; resumeOf = null; }
+  /** @param {any} d the document just opened */
+  async function offerResume(d) {
+    hideResume();
+    const graphId = d && d.id ? String(d.id) : '';
+    if (!graphId || !app || !app.repo) return;
+    const row = resumable(await readRuns(app.repo, graphId));
+    if (!row || session.docId() !== graphId) return;
+    const kinds = specMap();
+    const runnable = (Array.isArray(d.parts) ? d.parts : []).filter((/** @type {any} */ p) => {
+      const s = /** @type {any} */ (kinds.get(p.type));
+      return !(s && s.inert);
+    });
+    const done = runnable.filter((/** @type {any} */ p) => p.state === 'done').length;
+    resumeText.textContent = t('computer.resumeBanner', { done, total: runnable.length });
+    resumeOf = { graphId, runId: String(row.id) };
+    resumeBar.hidden = false;
+  }
+  resumeGo.addEventListener('click', () => { void start({ mode: 'all' }); });
+  resumeFresh.addEventListener('click', () => {
+    const r = resumeOf;
+    hideResume();
+    if (r && app && app.repo) void settleCrashed(app.repo, r.graphId, r.runId);
   });
 
   let closed = false;

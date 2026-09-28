@@ -61,3 +61,20 @@
   background: var(--comp-panel);
   border-left: 1px solid var(--comp-line);
 }
+
+/* §7.5 the resume banner: a run cut short by the app's close is offered again when its graph opens. */
+#lolcomputer .comp-resume {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  padding: 8px 12px;
+  background: color-mix(in srgb, var(--amber) 14%, var(--surface));
+  border-bottom: 1px solid var(--border);
+  color: var(--text); font-size: 13px;
+}
+#lolcomputer .comp-resume[hidden] { display: none; }
+#lolcomputer .comp-resume-text { flex: 1 1 auto; min-width: 0; }
+#lolcomputer .comp-resume button {
+  font: inherit; font-size: 12px; padding: 4px 10px; border-radius: 8px; cursor: pointer;
+  border: 1px solid var(--border); background: var(--surface-2); color: var(--text);
+}
+#lolcomputer .comp-resume .comp-resume-go { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+#lolcomputer .comp-resume .comp-resume-go:hover { filter: brightness(1.08); }

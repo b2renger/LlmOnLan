@@ -21,7 +21,7 @@ import assert from 'node:assert/strict';
 
 import { RUN_LIMITS } from '../../../renderer/chat/core/types.mjs';
 import {
-  MAX_EVENTS, MAX_RUNS, journalKey, ring, prune, resumable, createJournal,
+  MAX_EVENTS, MAX_RUNS, journalKey, ring, prune, resumable, createJournal, readRuns, settleCrashed,
 } from '../../../renderer/chat/graph/journal.mjs';
 import {
   order, forwardEdges, backEdges, cycleFor, gatedLoop, manualRoots, activeSet, unrunAncestors,
@@ -924,6 +924,20 @@ export default (test) => {
     assert.equal(resumable([{ id: 'r1', endedAt: 9, status: 'done' }]), null);
     const live = { id: 'r2', endedAt: null, status: 'waiting' };
     assert.equal(resumable([{ id: 'r1', endedAt: 9, status: 'done' }, live]), live);
+    assert.equal(resumable([live, { id: 'r3', endedAt: 12, status: 'done' }]), null, 'an older crash a later run moved past is not offered');
+  });
+
+  test('Start fresh closes the crashed run as stopped, so the banner does not come back (§7.5)', async () => {
+    /** @type {Map<string, any>} */ const kv = new Map();
+    const repo = { kvGet: async (/** @type {string} */ k, /** @type {any} */ d) => (kv.has(k) ? kv.get(k) : d), kvSet: async (/** @type {string} */ k, /** @type {any} */ v) => { kv.set(k, JSON.parse(JSON.stringify(v))); } };
+    await repo.kvSet(journalKey('g1'), [{ id: 'r1', endedAt: 5, status: 'done' }, { id: 'r2', endedAt: null, status: 'running' }]);
+    assert.equal(resumable(await readRuns(repo, 'g1')).id, 'r2');
+    assert.equal(await settleCrashed(repo, 'g1', 'r2', 99), true);
+    const rows = await readRuns(repo, 'g1');
+    assert.equal(resumable(rows), null);
+    assert.deepEqual({ endedAt: rows[1].endedAt, status: rows[1].status }, { endedAt: 99, status: 'stopped' });
+    assert.equal(await settleCrashed(repo, 'g1', 'r2', 100), false, 'already closed');
+    assert.equal(await settleCrashed(null, 'g1', 'r2'), false);
   });
 
   test('a run writes a row, and closing it stores a verdict', async () => {
