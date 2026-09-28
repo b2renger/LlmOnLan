@@ -273,6 +273,7 @@ export function install(app) {
         return draft;
       }
       if (!app.controller || typeof app.controller.preview !== 'function') return draft;
+      if (await projectThread()) return draft;
 
       let req = null;
       try {
@@ -392,11 +393,24 @@ export function install(app) {
     }, ms);
   }
 
+  /** Is the open thread bound to a project? Its replies come from the coding agent, which keeps its own context and
+   * is sent only the new message (and a short recap in a fresh session) — never this chat's history, so there is no
+   * request here to measure or to gate (found by the in-app review, 2026-09-28). */
+  async function projectThread() {
+    try {
+      const id = app.state && app.state.threadId;
+      const th = id && app.repo && typeof app.repo.getThread === 'function' ? await app.repo.getThread(id) : null;
+      return !!(th && th.studio && th.studio.projectId);
+    } catch { return false; }
+  }
+
   async function recompute() {
     if (!app.controller || typeof app.controller.preview !== 'function') return;
     const c = caps();
     meter.setCaps(c);
-    if (!c || !c.present) {
+    const project = !!(c && c.present) && await projectThread();
+    if (project && meter.el) meter.el.hidden = true;     // setCaps just painted it; a normal thread's next recompute shows it
+    if (!c || !c.present || project) {
       // No farm, no budget, nothing outside it: a row left dimmed would claim a trim that is not
       // happening any more.
       previewSeq++;

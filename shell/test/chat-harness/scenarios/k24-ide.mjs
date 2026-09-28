@@ -217,13 +217,30 @@ export default [
             await h.screenshot('k24-ide-graph');
             h.eq((await panel(h)).frame, null, 'the Preview frame is gone while another tab is up (hidden means idle)');
 
-            // 4. Stop ends a running turn.
+            // A project chat is neither measured nor gated: the agent is sent only the new message, never this history
+            // (the in-app review, 2026-09-28). With the threshold at 1 token a normal chat would hold every Send for a
+            // second click, so the one-click send of step 4 below is the gate's check; the meter's is here.
+            const wasThreshold = await h.eval(() => { const c = window.LolChat.app.context; const was = c.threshold(); c.setThreshold(1); return was; });
+            await h.eval(() => {
+                const input = /** @type {HTMLTextAreaElement} */ (document.getElementById('chat-input'));
+                input.value = 'a draft the meter would count';
+                input.dispatchEvent(new Event('input', { bubbles: true }));
+                return true;
+            });
+            await h.sleep(900);
+            h.eq(await h.eval(() => {
+                const m = /** @type {HTMLElement|null} */ (document.querySelector('#lolchat .chat-meter'));
+                return m ? m.hidden : null;
+            }), true, 'no context meter in a project chat');
+
+            // 4. Stop ends a running turn (sent with ONE click, the threshold at 1).
             await send(h, 'slow');
             await h.waitFor(() => (document.querySelector('#lolchat .chat-msg.assistant[data-status="streaming"]') ? true : null), { timeout: 10000 });
             await h.eval(() => { window.LolChat.app.controller.stop(); return true; });
             const third = await settled(h, 4);
             h.eq(third.status, 'aborted', 'Stop stopped the agent');
             h.eq(await h.eval(async () => (await window.lol.studio.status()).running), false, 'main has no turn running');
+            await h.eval((v) => { window.LolChat.app.context.setThreshold(v); return true; }, wasThreshold);
         },
     },
 ];
