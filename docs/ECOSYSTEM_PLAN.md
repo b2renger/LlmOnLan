@@ -262,11 +262,11 @@ Learn shelf**.
 | P3b Triggers | done on main: the farm's message bus (MQTT · WebSocket · OSC), Receive/Send on it, the Trigger box | template *A board on Wi-Fi* |
 | P4 Agents | done on main: the Agent box (JSON mode through the ask door; run_code / fetch on listed hosts / laya / answer); rig: gemma4, qwen3.8, nemotron all correct on a whole-file data.gouv.fr question | template *Ask a dataset* |
 | Owner additions | on main: the Computer as an MCP server (§8c), LOL Chat → LOL Vibe, a ? example per box, **Open data** (data.gouv.fr) + template *Analyse a dataset* | — |
-| P5 Studio IDE | **P5-0 spike PASSED (2026-09-28)**: dsh 0.1.7-rc.2 over its SDK, qwen3.8 / nemotron, no shell — docs/research/p5-spike/RESULTS.md. **v1 built on main (2026-09-28, not released yet)** ([IDE_PLAN.md](IDE_PLAN.md), [guide](LOLVIBE_IDE_GUIDE.md)): the runner, the agent's replies, the Project panel (Preview · Code · Changes · History), the runtime download (5 platforms), Share on the LAN, git history + GitHub push/pull, the project fence. Still open: agent-skills (source unknown), graphify (in progress), a way to RUN a project's code (the vision's "autonomous agents") | — |
+| P5 Studio IDE | **P5-0 spike PASSED (2026-09-28)**: dsh 0.1.7-rc.2 over its SDK, qwen3.8 / nemotron, no shell — docs/research/p5-spike/RESULTS.md. **v1 released in v0.2.3 (2026-09-29)** ([IDE_PLAN.md](IDE_PLAN.md), [guide](LOLVIBE_IDE_GUIDE.md)): the runner, the agent's replies, the Project panel (Preview · Code · Changes · History), the runtime download (5 platforms), Share on the LAN, git history + GitHub push/pull, the project fence. graphify shipped as a skill + the graph viewer. Still open: agent-skills (source unknown), a way to RUN a project's code (the vision's "autonomous agents" — options A/B/C in IDE_PLAN §5) | — |
 | P6 Home | not started (Home Assistant over the farm's MQTT bus is now possible) | — |
 
 Lessons 5 (*code counts, the model names* — the numbers rule) and 6 (*a loop that stops* — gates and ceilings) are
-built (2026-09-28, on main); 7–12 are still unbuilt, and the templates and the ? examples carry the new capabilities.
+built (2026-09-28), and so are 7–12 (the night of 2026-09-28: listen and speak, a picture to a model, act on the world, hear the world, an agent with tools, open data) — all released in v0.2.3.
 
 Windows rig items the critic added: the firewall prompt (OSC-in, LAN serve), USB-serial drivers
 (CH340/CP210x need admin), paths with spaces in git and dsh, and Art-Net interface choice on multi-NIC
