@@ -6,7 +6,25 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
-## 2026-09-29 (17:24) — On a schedule: the agent starts by itself at set times
+## 2026-09-29 (17:45) — Use the Computer: the coding agent builds and runs graphs; all three together
+
+The last reach the owner chose for a looping agent — its project + the Computer and devices (`90455ca`). A per-project
+**Use the Computer** switch (off by default, forgotten at restart); with it on, and only when this session holds the
+Computer's MCP port, main adds that server to the dsh profile (an `mcp-client` row). Its bearer comes from the runtime's
+env through a `!!js` header (`LOL_MCP_TOKEN`), never written into the patch file (which lives in the data folder); the
+MCP server's rules keep devices a person's (no tool arms outputs; nothing runs while armed; person-only settings
+dropped). A refused arrow now names the ports that fit (nemotron looped on a bare `unknown-port` in the spike).
+
+**Tested.** Unit 1760/0 (the row only with the switch, one insert list with the fence, the bearer only in the env —
+the mock reports whether it arrived — never in the file; the step-log names); k19 (a wrong port says what fits — fails
+without it); p, h0, s0, c4, k24, k19 green. **Real, qwen3.8:** "build Room monitor on the Computer and run it at 24 and
+29" — 12 steps over MCP in 25 s (so dsh evaluated the `!!js` bearer), fine / too hot. **All three together:** a schedule
+in that project, each run opening the graph, setting a new reading, running it and logging the verdict — two runs,
+`log.md`: `30 → too hot`, `21 → fine` (6–10 s each, three Computer steps each).
+
+---
+
+## 2026-09-29 (17:28) — On a schedule: the agent starts by itself at set times
 
 The owner: "Continue developing." Next in the order he set: schedules (`43b6bcd`). dsh's own scheduler needs its web
 host (the spike), so it is ours (`renderer/chat/projects/schedule.mjs`): a person's per-project form (**Schedule…**):
