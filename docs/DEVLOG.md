@@ -6,6 +6,25 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-09-29 (17:24) — On a schedule: the agent starts by itself at set times
+
+The owner: "Continue developing." Next in the order he set: schedules (`43b6bcd`). dsh's own scheduler needs its web
+host (the spike), so it is ours (`renderer/chat/projects/schedule.mjs`): a person's per-project form (**Schedule…**):
+every N ≥ 5 minutes or each day at HH:MM, and the message. The app sends it by itself, marked ⏰, into the chat it was
+set from, with the model the picker showed at Start; forgotten at restart, only while the app is open, skipped (never
+queued) while a reply runs. The controller's `send()` now takes a `threadId`, and only the chat on screen owns its
+path (a scheduled reply into another chat must not join it).
+
+**Tested.** Unit 1758/0 (the next run, pure; a schedule sends into its own thread with its model, skips while a reply
+runs, stops); k24-schedule (a run lands in the project's chat, a later one too while another chat is on screen — fails
+without the `send()` change — and Stop ends it); p 89/89, h0, s0, c4, k24 green. **Real, qwen3.8:** the first try
+failed all three runs with "bad arguments" — a scheduled message carried no model (a typed one carries the picker's) and
+a farm known only by its address has no default; fixed (the schedule keeps the picker's model). Then three runs, two of
+them while another chat was on screen: `log.md` lines 1–3, three different facts, three commits, nothing in the chat on
+screen.
+
+---
+
 ## 2026-09-29 (16:28) — Keep going until done: agent loops in the IDE, started only by a person
 
 The owner's second answer after the spike: build loops into the IDE ("Keep going until done", qwen3.8), schedules
