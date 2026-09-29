@@ -55,8 +55,36 @@ const TEXT_CAP = 20000;   // per diff side: the Changes view shows an edit, not 
 const clip = (s: unknown, n: number): string => (typeof s === 'string' ? (s.length > n ? s.slice(0, n) + '…' : s) : '');
 
 /** The profile patch (YAML; every string written as a JSON string, which YAML reads as-is). */
-export function buildPatch(o: { baseUrl: string; model: string; contextWindow: number; skillsDir: string; hooksConfig?: string; goals?: boolean }): string {
+export function buildPatch(o: { baseUrl: string; model: string; contextWindow: number; skillsDir: string; hooksConfig?: string; goals?: boolean; computer?: { url: string } }): string {
     const q = (s: string) => JSON.stringify(s);
+    const inserts: string[] = [];
+    // The project fence (FENCE_JS): Claude Code-style command hooks, before every file tool.
+    if (o.hooksConfig) {
+        inserts.push(
+            '    - id: hooks-claude-code',
+            "      name: '@deepseek-ai/dsh-hooks-claude-code'",
+            '      config:',
+            `        configPath: ${q(o.hooksConfig)}`,
+            '        defaultTimeoutMs: 10000',
+        );
+    }
+    // "Use the Computer" (a person's switch): the Computer's MCP server as the agent's hands — build and run graphs.
+    // Its bearer is read from the runtime's env (LOL_MCP_TOKEN, runtimeEnv), never written into this file (it lives in
+    // the data folder). Devices stay a dry run: no MCP tool arms the outputs (mcp.ts).
+    if (o.computer) {
+        inserts.push(
+            '    - id: mcp-computer',
+            "      name: '@deepseek-ai/dsh-mcp-client'",
+            '      config:',
+            '        serverName: computer',
+            '        transport: streamable-http',
+            `        url: ${q(o.computer.url)}`,
+            '        headers:',
+            '          Authorization: !!js "`Bearer ${process.env.LOL_MCP_TOKEN}`"',
+            '        toolCallTimeoutMs: 180000',
+            '        failOnStartupError: false',
+        );
+    }
     // dsh's goal loop only when a person switched on "Keep going until done" — never on the model's own initiative
     // (create_goal's words invite it for any long request). command-goal stays off: nothing in the SDK reaches it.
     const goalOff = o.goals ? [] : ['tool-goal', 'goal-round-driver'];
@@ -97,15 +125,7 @@ export function buildPatch(o: { baseUrl: string; model: string; contextWindow: n
         '    maxTokens: 4096',
         ...(o.goals ? ['- id: goal', '  config:', `    defaultMaxGoalRounds: ${GOAL_ROUNDS}`] : []),
         ...off.map((id) => `- { id: ${id}, disabled: true }`),
-        // The project fence (FENCE_JS): Claude Code-style command hooks, before every file tool.
-        ...(o.hooksConfig ? [
-            '- insert:',
-            '    - id: hooks-claude-code',
-            "      name: '@deepseek-ai/dsh-hooks-claude-code'",
-            '      config:',
-            `        configPath: ${q(o.hooksConfig)}`,
-            '        defaultTimeoutMs: 10000',
-        ] : []),
+        ...(inserts.length ? ['- insert:', ...inserts] : []),
         '',
     ].join('\n');
 }
@@ -138,8 +158,11 @@ export function projectEvent(ev: any, dir: string): StudioRecord | null {
             try { args = JSON.parse(d.arguments || '{}') || {}; } catch { /* a garbled call still shows its name */ }
             const target = args.file_path != null ? relPath(args.file_path, dir)
                 : args.pattern != null ? clip(String(args.pattern), 120)
-                    : args.name != null ? clip(String(args.name), 120) : '';
-            return { kind: 'call', callId: String(d.callId || ''), name: String(d.name || ''), target };
+                    : args.name != null ? clip(String(args.name), 120)
+                        // "Use the Computer": a graph's title, or the kind of box
+                        : args.title != null ? clip(String(args.title), 120) : args.type != null ? clip(String(args.type), 60) : '';
+            const name = String(d.name || '').replace(/^mcp__computer__/, 'Computer: ');
+            return { kind: 'call', callId: String(d.callId || ''), name, target };
         }
         case 'tool/result': {
             const m = d.message || {};
@@ -186,7 +209,7 @@ export function resolveRuntime(env: NodeJS.ProcessEnv, userData: string): Studio
 }
 
 /** The env dsh starts with: what an OS process needs, and ours — never the shell's other secrets. */
-export function runtimeEnv(env: NodeJS.ProcessEnv, o: { home: string; key: string }): NodeJS.ProcessEnv {
+export function runtimeEnv(env: NodeJS.ProcessEnv, o: { home: string; key: string; mcpToken?: string }): NodeJS.ProcessEnv {
     const keep = ['PATH', 'Path', 'PATHEXT', 'SystemRoot', 'SYSTEMROOT', 'windir', 'COMSPEC', 'TEMP', 'TMP', 'TMPDIR',
         'HOME', 'USERPROFILE', 'APPDATA', 'LOCALAPPDATA', 'ProgramData', 'LANG', 'LC_ALL', 'TZ'];
     const out: NodeJS.ProcessEnv = {};
@@ -198,6 +221,8 @@ export function runtimeEnv(env: NodeJS.ProcessEnv, o: { home: string; key: strin
         LOL_FARM_KEY: o.key,
         DSH_TELEMETRY_DISABLED: '1',
         DSH_MAX_TOKENS_AS_SUCCESS: 'false',
+        // Only with "Use the Computer": the Computer's MCP bearer, read by the patch's !!js header (never on disk there).
+        ...(o.mcpToken ? { LOL_MCP_TOKEN: o.mcpToken } : {}),
     };
 }
 
@@ -240,6 +265,8 @@ export interface StudioDeps {
     env?: NodeJS.ProcessEnv;
     /** How long to wait for dsh's next goal round before the reply is over (tests shorten it). */
     roundWaitMs?: number;
+    /** The Computer's MCP server, when this session holds its port (mcp.ts) — for "Use the Computer". */
+    computer?: () => { url: string; token: string } | null;
 }
 
 export function createStudio(deps: StudioDeps) {
@@ -368,7 +395,7 @@ export function createStudio(deps: StudioDeps) {
         }
     }
 
-    async function startRuntime(o: { key: string; dir: string; model: string; maxTokens: number; farm: StudioFarm; runtime: StudioRuntime; goals: boolean }): Promise<Rt | StudioErr> {
+    async function startRuntime(o: { key: string; dir: string; model: string; maxTokens: number; farm: StudioFarm; runtime: StudioRuntime; goals: boolean; computer: { url: string; token: string } | null }): Promise<Rt | StudioErr> {
         const home = homeOf();
         try {
             seed();
@@ -379,7 +406,7 @@ export function createStudio(deps: StudioDeps) {
             const hooks = path.join(home, 'lol-hooks.json');
             fs.writeFileSync(fence, FENCE_JS);
             fs.writeFileSync(hooks, fenceHooks(o.runtime.node, fence));
-            const patch = buildPatch({ baseUrl: o.farm.endpoint, model: o.model, contextWindow: o.farm.ctxPerSlot || 32768, skillsDir: skillsOf(), hooksConfig: hooks, goals: o.goals });
+            const patch = buildPatch({ baseUrl: o.farm.endpoint, model: o.model, contextWindow: o.farm.ctxPerSlot || 32768, skillsDir: skillsOf(), hooksConfig: hooks, goals: o.goals, computer: o.computer ? { url: o.computer.url } : undefined });
             fs.writeFileSync(path.join(prof, 'cordis.patch.yml.tmp'), patch);
             fs.renameSync(path.join(prof, 'cordis.patch.yml.tmp'), path.join(prof, 'cordis.patch.yml'));
         } catch (e) {
@@ -387,7 +414,7 @@ export function createStudio(deps: StudioDeps) {
         }
         const child = spawn(o.runtime.node, [o.runtime.bin, '--profile', 'sdk'], {
             cwd: o.dir,
-            env: runtimeEnv(deps.env || process.env, { home, key: o.farm.key || 'sk-lol-lan' }),
+            env: runtimeEnv(deps.env || process.env, { home, key: o.farm.key || 'sk-lol-lan', mcpToken: o.computer ? o.computer.token : undefined }),
             stdio: ['pipe', 'pipe', 'pipe'],
             windowsHide: true,
             detached: process.platform !== 'win32',   // its own group, so killTree takes its children too
@@ -426,7 +453,7 @@ export function createStudio(deps: StudioDeps) {
 
     return {
         /** Send one prompt; the turn's records and its end arrive through deps.emit. */
-        async prompt(o: { projectId: string; threadId: string; model: string; text: string; recap?: string; maxTokens?: number; turnId?: string; goal?: boolean }):
+        async prompt(o: { projectId: string; threadId: string; model: string; text: string; recap?: string; maxTokens?: number; turnId?: string; goal?: boolean; computer?: boolean }):
             Promise<{ ok: true; turnId: string; fresh: boolean } | StudioErr> {
             const idv = validateId(o.projectId);
             if (!idv.ok || !o.threadId || !o.model || !o.text) return err('E_ARGS', 'bad arguments');
@@ -440,10 +467,12 @@ export function createStudio(deps: StudioDeps) {
             // "Keep going until done": a turn cut on max-tokens disarms the goal, and 8192 cut real goal work (P5-L spike).
             const goals = o.goal === true;
             const maxTokens = Math.min(65536, Math.max(goals ? 16384 : 512, Math.floor(Number(o.maxTokens) || 8192)));
-            const key = JSON.stringify([idv.id, o.model, maxTokens, farm.endpoint, farm.key, farm.ctxPerSlot, runtime.bin, goals]);
+            // "Use the Computer": only when a person switched it on AND this session holds the MCP server's port.
+            const computer = o.computer === true && deps.computer ? deps.computer() : null;
+            const key = JSON.stringify([idv.id, o.model, maxTokens, farm.endpoint, farm.key, farm.ctxPerSlot, runtime.bin, goals, !!computer]);
             if (!rt || rt.dead || rt.key !== key) {
                 await stopRuntime();
-                const started = await startRuntime({ key, dir, model: o.model, maxTokens, farm, runtime, goals });
+                const started = await startRuntime({ key, dir, model: o.model, maxTokens, farm, runtime, goals, computer });
                 if ('ok' in started) return started;
             }
             const r = rt!;
@@ -473,8 +502,8 @@ export function createStudio(deps: StudioDeps) {
             return { ok: true };
         },
 
-        status(): { ok: true; installed: boolean; running: boolean; version: string } {
-            return { ok: true, installed: !!deps.runtime(), running: !!turn, version: DSH_VERSION };
+        status(): { ok: true; installed: boolean; running: boolean; version: string; computer: boolean } {
+            return { ok: true, installed: !!deps.runtime(), running: !!turn, version: DSH_VERSION, computer: !!(deps.computer && deps.computer()) };
         },
 
         /** The project on http://127.0.0.1:<port>/ — the Preview, and "open it in a browser". */

@@ -52,6 +52,20 @@ simply done in one turn.
 - The switch is per project, off by default, and **off again when LlmOnLan closes**: a loop only ever runs because you
   asked for one. Best with **qwen3.8** (it checks its own work; nemotron did not, in our tests).
 
+### Use the Computer
+
+**Use the Computer** (in the same bar) gives the agent the Computer's own tools as well as files: it can make a graph,
+add and wire boxes, set them and run them, then read what they gave — for example *"On the Computer, build a graph
+'Room monitor': a Text box with a temperature, a Code box that says 'too hot' above 26, a Preview; run it with 24 and
+29"*. Its steps say what it did there (*→ Computer: add_box code ✓*), and the graph is in the Computer's library.
+
+- **Devices stay yours:** anything that would reach a device (a Send box, a USB board) is a **dry run** until *you* arm
+  the outputs; while they are armed the agent cannot change or run a graph at all. What only a person chooses — a Fetch
+  address, an Open data link, an Agent's hosts, a board, Listen — the agent cannot set; it says it left it for you.
+- It all stays on this computer (the Computer answers the agent on 127.0.0.1 only).
+- Per project, off by default, off again when LlmOnLan closes. It combines with **Keep going until done** and
+  **Schedule…** — a scheduled loop that checks something with a graph and reports.
+
 ### On a schedule
 
 **Schedule…** in the panel's top bar opens a small form: **Every … minutes** (5 at the least) or **Every day at …**, and
@@ -113,7 +127,10 @@ A Gitea on your LAN works the same way (an `https://` address).
   keeps nothing.
 - **Push** sends the project to the git server you typed, only when you press it. **Share on the LAN** serves it
   on your network until you stop it.
-- The agent's own telemetry and cloud features are switched off; it talks to nothing else.
+- The agent's own telemetry and cloud features are switched off; it talks to nothing else — except, with **Use the
+  Computer** on, the Computer on this same machine (127.0.0.1), whose boxes follow their own rules (a Send reaches a
+  device only once you armed the outputs).
+- **On a schedule** sends nothing new: each run is an ordinary message to the farm's model, like one you typed.
 - Everything else stays here: the project folder, its history (`.git` inside it), and the chat.
 
 ## 7. When something goes wrong

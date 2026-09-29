@@ -126,7 +126,10 @@ docs) is `docs/reviews/DOCS_REVIEW_2026-09-27_{FARM,SHELL,COMPUTER}.md`. Snapsho
   until the model marks it complete — as ONE reply (`◎ Round n of 10`), ≤ 10 rounds (`GOAL_ROUNDS`), maxTokens ≥ 16384;
   the goal plugins stay OFF otherwise. **On a schedule** (same day, `renderer/chat/projects/schedule.mjs`): a person's per-project
   form — every N ≥ 5 min or each day at HH:MM, and a message — sent by the app itself (marked ⏰) into the chat it was set
-  from, only while the app is open, forgotten at restart, skipped while a reply runs (dsh's own scheduler needs its web host). The patch also fits compaction to small windows (v0.2.5: with dsh's 65536-token
+  from, only while the app is open, forgotten at restart, skipped while a reply runs (dsh's own scheduler needs its web host). **Use the Computer** (same
+  day): a person's per-project switch that adds the Computer's MCP server to the agent's profile (an `mcp-client` row;
+  the bearer via `!!js` from `LOL_MCP_TOKEN` in the runtime env, never in the patch file) — the agent builds and runs
+  graphs; devices stay a dry run until a person arms the outputs (mcp.ts rules). The patch also fits compaction to small windows (v0.2.5: with dsh's 65536-token
   default headroom a 32k window never compacted). dsh sessions die with the process (no resume): a new one gets a
   recap of the thread. Preview = a static server per project on 127.0.0.1 (main's frame veto lets exactly that
   origin in). The agent is NOT in the installer: CI builds `dsh-runtime-<platform>-<arch>.tar.gz` (`shell/dsh/`:
@@ -703,7 +706,8 @@ LlmOnLan/
 - **Beyond the farm (no user content):** GitHub, for the app update check and the chat-engine (sidecar)
   download/update check, and the IDE's coding-agent runtime when a person clicks Install; huggingface.co, until
   MiniLM and whisper-base are cached (then `HF_HUB_OFFLINE=1`). The coding agent itself talks only to the farm's
-  `/v1` (its cloud, web and telemetry rows are off; checked with a netstat watch, 2026-09-28).
+  `/v1` (its cloud, web and telemetry rows are off; checked with a netstat watch, 2026-09-28) — and, with **Use the
+  Computer** on, to the Computer's MCP server on 127.0.0.1 (this machine).
 - **The IDE's publishing, only on a person's click:** **Push** sends a project's committed files to the https git
   server a person typed (GitHub or a LAN Gitea), with a token kept encrypted by the OS (`safeStorage`,
   `<userData>/git-tokens.json`, never handed back to the page); **Pull** brings that server's commits here

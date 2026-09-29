@@ -134,7 +134,17 @@ export async function runTool(name, args) {
       const spec = comp.session().specs.get(to.type);
       const port = String(a.port || (spec && spec.inputs && spec.inputs[0] ? spec.inputs[0].name : 'in'));
       const w = comp.wire(String(a.from), String(a.to), port);
-      if (!w || !w.ok) return no(`The arrow was refused (${(w && w.reason) || 'unknown'}).`);
+      if (!w || !w.ok) {
+        // Say what would fit, so the model can fix the arrow (a bare "unknown-port" sent weaker models round in circles:
+        // nemotron tried eight arrows in the P5-L spike; qwen3.8 guessed right the second time).
+        const from = d.parts.find((/** @type {any} */ p) => p.id === a.from);
+        const fromSpec = comp.session().specs.get(from.type);
+        const ins = spec && Array.isArray(spec.inputs) ? spec.inputs : [];
+        const takes = ins.length
+          ? `a ${to.type} box takes: ${ins.map((/** @type {any} */ p) => `${p.name} (${(p.accepts || []).join(' or ')})`).join(', ')}`
+          : `a ${to.type} box takes no input — it brings something in`;
+        return no(`The arrow was refused (${(w && w.reason) || 'unknown'}): ${takes}; the ${from.type} box gives ${(fromSpec && fromSpec.output) || 'a value'}.`);
+      }
       if (a.label) comp.label(w.id, String(a.label));
       return ok({ id: w.id, from: a.from, to: a.to, port, label: a.label || '' });
     }

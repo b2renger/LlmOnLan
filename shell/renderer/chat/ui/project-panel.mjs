@@ -9,7 +9,7 @@
 import { SLOTS } from '../core/registry.mjs';
 import { EV } from '../core/events.mjs';
 import { t } from '../core/i18n.mjs';
-import { getDoor, onInstall, keepGoing, setKeepGoing, GOAL_ROUNDS } from '../projects/agent.mjs';
+import { getDoor, onInstall, keepGoing, setKeepGoing, useComputer, setUseComputer, GOAL_ROUNDS } from '../projects/agent.mjs';
 import { setSchedule, clearSchedule, scheduleOf, onSchedules, MIN_EVERY_MIN } from '../projects/schedule.mjs';
 import { profileFor, pickEditor } from '../projects/models.mjs';
 import { tabEdit, newlineEdit, applyEdit } from '../computer/code-edit.mjs';
@@ -154,11 +154,21 @@ function createPanel(host, app) {
   // On a schedule (owner, 2026-09-29): a message this app sends by itself into this chat, set by a person, forgotten
   // at restart (projects/schedule.mjs). The button opens a small form under the bar.
   const schedBtn = button(t('project.schedule'), 'chat-proj-sched', () => { schedBox.hidden = !schedBox.hidden; paintSched(); }, t('project.tipSchedule'));
-  bar.append(nameEl, other, folder, browser, shareBtn, keepBtn, schedBtn);
+  // Use the Computer (owner, 2026-09-29: the agent's reach = its project + the Computer and devices): the same kind of
+  // switch; only when this session serves the Computer's MCP (status().computer).
+  let computerOk = false;
+  const compBtn = button(t('project.useComputer'), 'chat-proj-computer', () => {
+    if (!projectId || !computerOk) return;
+    setUseComputer(projectId, !useComputer(projectId));
+    paintComputer();
+  }, t('project.tipUseComputer'));
+  bar.append(nameEl, other, folder, browser, shareBtn, keepBtn, compBtn, schedBtn);
   const shareNote = make('p', 'chat-proj-note chat-proj-share-note');
   shareNote.setAttribute('role', 'status');
   const keepNote = make('p', 'chat-proj-note chat-proj-keep-note');
   keepNote.setAttribute('role', 'status');
+  const compNote = make('p', 'chat-proj-note chat-proj-computer-note');
+  compNote.setAttribute('role', 'status');
   const schedBox = make('div', 'chat-proj-sched-box');
   schedBox.hidden = true;
   const schedKind = /** @type {HTMLSelectElement} */ (make('select', 'chat-proj-sched-kind'));
@@ -291,7 +301,7 @@ function createPanel(host, app) {
   let picked = '';
   view.append(tabs, panePreview, paneCode, paneChanges, paneHistory);
   cols.append(fileList, view);
-  main.append(bar, shareNote, keepNote, schedBox, model, cols);
+  main.append(bar, shareNote, keepNote, compNote, schedBox, model, cols);
   root.append(empty, main);
 
   // ---- behaviour -----------------------------------------------------------------------------------
@@ -357,6 +367,16 @@ function createPanel(host, app) {
     const vars = { next: when, runs: s ? s.runs : 0, skipped: s ? s.skipped : 0 };
     schedNote.textContent = !s ? t('project.schedOff', { min: MIN_EVERY_MIN })
       : s.skipped ? t('project.schedOnSkipped', vars) : t('project.schedOn', vars);
+  }
+
+  function paintComputer() {
+    const on = !!projectId && computerOk && useComputer(projectId);
+    compBtn.hidden = !door;
+    compBtn.disabled = !computerOk;
+    compBtn.textContent = on ? t('project.useComputerOn') : t('project.useComputer');
+    compBtn.title = !computerOk ? t('project.tipUseComputerOff') : on ? t('project.tipUseComputerOn') : t('project.tipUseComputer');
+    compBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    compNote.textContent = on ? t('project.useComputerNote') : '';
   }
 
   function paintKeep() {
@@ -706,9 +726,13 @@ function createPanel(host, app) {
       if (mine !== epoch) return;
       serveUrl = s && s.ok ? s.url : '';
       lanUrls = s && s.ok && Array.isArray(s.lan) ? s.lan : [];
+      const st = typeof door.status === 'function' ? await door.status() : null;
+      if (mine !== epoch) return;
+      computerOk = !!(st && st.computer);
     }
     paintShare();
     paintKeep();
+    paintComputer();
     paintSched();
     // The folder was moved or deleted outside LlmOnLan: say so, rather than an empty list and "no index.html yet".
     if (meta && !meta.ok && meta.code === 'E_MISSING') shareNote.textContent = t('project.gone');
@@ -753,7 +777,7 @@ function createPanel(host, app) {
       host.replaceChildren();
     },
     debug: {
-      state: () => ({ projectId, projectName, files: files.map((f) => f.path), tab, openFile, serveUrl, lan: lanUrls.slice(), keepGoing: !!projectId && keepGoing(projectId), schedule: projectId ? scheduleOf(projectId) : null, history: commits.map((c) => c.message), frame: frame ? frame.getAttribute('src') : null, graph: graphLive ? graphLive.state() : null }),
+      state: () => ({ projectId, projectName, files: files.map((f) => f.path), tab, openFile, serveUrl, lan: lanUrls.slice(), keepGoing: !!projectId && keepGoing(projectId), useComputer: !!projectId && computerOk && useComputer(projectId), computerOk, schedule: projectId ? scheduleOf(projectId) : null, history: commits.map((c) => c.message), frame: frame ? frame.getAttribute('src') : null, graph: graphLive ? graphLive.state() : null }),
     },
   };
 }

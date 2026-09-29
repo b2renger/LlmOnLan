@@ -597,6 +597,8 @@ export function createController(app) {
             maxTokens: modelsMod.profileFor((info && info.underlying) || model).maxTokens,
             // "Keep going until done": a person's switch in the Project panel (off by default, forgotten at restart).
             goal: agentMod.keepGoing(projectId),
+            // "Use the Computer": the same kind of switch, for the Computer's MCP tools.
+            computer: agentMod.useComputer(projectId),
             onTail, onCheckpoint,
           });
         } else {

@@ -118,7 +118,7 @@ async function turn(sessionId, text) {
   }
   event(sessionId, 'assistant/message', {
     turn: 1, step, usage: { inputTokens: 120, outputTokens: 30, totalTokens: 150 },
-    message: { role: 'assistant', content: [{ type: 'reasoning', text: 'Done.' }, { type: 'text', text: `Done. I saw: ${text}` }], source: { kind: 'model', replayState: { response: { stopReason: 'stop' } } } },
+    message: { role: 'assistant', content: [{ type: 'reasoning', text: 'Done.' }, { type: 'text', text: `Done. I saw: ${text}${/mcp\?/.test(text) ? ` [the Computer's token: ${process.env.LOL_MCP_TOKEN ? 'set' : 'unset'}]` : ''}` }], source: { kind: 'model', replayState: { response: { stopReason: 'stop' } } } },
   });
   event(sessionId, 'turn/end', { turn: 1, reason: { kind: 'completed' } });
   status(sessionId, 'idle');

@@ -3,7 +3,7 @@
 // answer, a step log and the edits; a turn ends as done, stopped, refused or "ran out of room" — never a silent
 // "done" with nothing in it; the recap keeps the newest turns; a model is trusted with edits only when measured.
 import assert from 'node:assert/strict';
-import { buildRecap, emptyTurn, applyRecord, resultOf, startAgentTurn, keepGoing, setKeepGoing } from '../../../renderer/chat/projects/agent.mjs';
+import { buildRecap, emptyTurn, applyRecord, resultOf, startAgentTurn, keepGoing, setKeepGoing, useComputer, setUseComputer } from '../../../renderer/chat/projects/agent.mjs';
 import { profileFor, pickEditor } from '../../../renderer/chat/projects/models.mjs';
 
 const REC = {
@@ -137,6 +137,19 @@ export default (test) => {
     await turn.done;
     setKeepGoing('p-one', false);
     assert.equal(keepGoing('p-one'), false);
+
+    // "Use the Computer": the same kind of switch, carried the same way.
+    assert.equal(useComputer('p-one'), false);
+    setUseComputer('p-one', true);
+    assert.equal(useComputer('p-two'), false, 'per project');
+    const door2 = fakeDoor();
+    const turn2 = startAgentTurn({ projectId: 'p-one', threadId: 't', model: 'm', text: 'x', computer: useComputer('p-one'), door: door2 });
+    await Promise.resolve();
+    assert.equal(door2.prompts[0].computer, true);
+    assert.equal(door2.prompts[0].goal, undefined, 'the two switches are independent');
+    turn2.abort();
+    await turn2.done;
+    setUseComputer('p-one', false);
   });
 
   test('agent: outside the app (no door) the turn is refused in words', async () => {

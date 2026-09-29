@@ -102,6 +102,14 @@ export function setKeepGoing(projectId, on) { if (on) keep.add(String(projectId)
 /** @param {string} projectId */
 export function keepGoing(projectId) { return keep.has(String(projectId)); }
 
+/** "Use the Computer", per project: the same kind of switch — the agent gets the Computer's MCP tools (build and run
+ *  graphs; devices only once a person arms the outputs). */
+const computer = new Set();
+/** @param {string} projectId @param {boolean} on */
+export function setUseComputer(projectId, on) { if (on) computer.add(String(projectId)); else computer.delete(String(projectId)); }
+/** @param {string} projectId */
+export function useComputer(projectId) { return computer.has(String(projectId)); }
+
 /** How a finished turn reads as a result, from its state and main's end. @param {ReturnType<typeof emptyTurn>} s @param {{reason: string, error?: string}} done */
 export function resultOf(s, done) {
   const local = (/** @type {string} */ message, kind = 'local') => ({ kind, status: null, code: null, message, farmMessage: message, retryAfter: null });
@@ -149,7 +157,7 @@ export function onInstall(fn) {
 
 /**
  * One agent turn, shaped like a generation.
- * @param {{projectId: string, threadId: string, model: string, text: string, recap?: string, maxTokens?: number, goal?: boolean,
+ * @param {{projectId: string, threadId: string, model: string, text: string, recap?: string, maxTokens?: number, goal?: boolean, computer?: boolean,
  *   onTail?: (state: any) => void, onCheckpoint?: (state: any) => void, now?: () => number, door?: any}} o
  * @returns {{done: Promise<any>, abort: (reason?: string) => void, state: ReturnType<typeof emptyTurn>}}
  */
@@ -189,7 +197,7 @@ export function startAgentTurn(o) {
     }
     if (m.done) finish(m.done);
   });
-  const ask = { turnId, projectId: o.projectId, threadId: o.threadId, model: o.model, text: o.text, ...(o.recap ? { recap: o.recap } : {}), ...(o.maxTokens ? { maxTokens: o.maxTokens } : {}), ...(o.goal ? { goal: true } : {}) };
+  const ask = { turnId, projectId: o.projectId, threadId: o.threadId, model: o.model, text: o.text, ...(o.recap ? { recap: o.recap } : {}), ...(o.maxTokens ? { maxTokens: o.maxTokens } : {}), ...(o.goal ? { goal: true } : {}), ...(o.computer ? { computer: true } : {}) };
   Promise.resolve(d.prompt(ask)).then((r) => { if (!r || r.ok !== true) finish({ reason: 'refused', error: (r && r.message) || t('agent.endedEarly', { reason: 'error' }) }); });
   return {
     done,

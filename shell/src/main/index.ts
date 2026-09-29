@@ -54,6 +54,8 @@ if (!gotSingleInstanceLock) {
 let win: BrowserWindow | null = null;
 // The IDE's coding agent (studio.ts): made on first use; a window reload or a quit ends its turn and its runtime.
 let studioApi: Studio | null = null;
+/** The Computer's MCP server when this session holds its port — the coding agent's "Use the Computer". */
+let computerConn: { url: string; token: string } | null = null;
 const sidecar = new SidecarSupervisor();
 const mcpo = new McpoSupervisor(); // local Blender assistant-tools server (opt-in)
 let discovery: Discovery | null = null;
@@ -665,6 +667,7 @@ function registerIpc(): void {
                 runtime: () => resolveRuntime(process.env, app.getPath('userData')),
                 emit: (m) => { if (win && !win.isDestroyed()) win.webContents.send('lol:studio:event', m); },
                 seedSkills: path.join(app.getAppPath(), 'assets', 'skills'),
+                computer: () => computerConn,
                 // Git tokens per host, encrypted by the OS (safeStorage) in <userData>/git-tokens.json; none is kept
                 // where the OS cannot encrypt. Read only here, for a push or a pull.
                 tokens: {
@@ -697,7 +700,8 @@ function registerIpc(): void {
         if (o.maxTokens !== undefined && typeof o.maxTokens !== 'number') return badStudio;
         if (o.turnId !== undefined && (!isStr(o.turnId) || o.turnId.length > 64)) return badStudio;
         if (o.goal !== undefined && typeof o.goal !== 'boolean') return badStudio;
-        return studio().prompt({ projectId: o.projectId, threadId: o.threadId, model: o.model, text: o.text, recap: o.recap as string | undefined, maxTokens: o.maxTokens as number | undefined, turnId: o.turnId as string | undefined, goal: o.goal === true });
+        if (o.computer !== undefined && typeof o.computer !== 'boolean') return badStudio;
+        return studio().prompt({ projectId: o.projectId, threadId: o.threadId, model: o.model, text: o.text, recap: o.recap as string | undefined, maxTokens: o.maxTokens as number | undefined, turnId: o.turnId as string | undefined, goal: o.goal === true, computer: o.computer === true });
     });
     ipcMain.handle('lol:studio:stop', () => studio().stop());
     ipcMain.handle('lol:studio:status', () => studio().status());
@@ -1122,7 +1126,8 @@ app.whenReady().then(async () => {
         // loopback listen settles in milliseconds, long before the first sidecar spawn.
         const srv = await startMcpServer({ token, version: app.getVersion(), tools: () => MCP_TOOLS, call: caller.call });
         if (srv) {
-            setComputerMcp({ url: `http://127.0.0.1:${MCP_PORT}${MCP_PATH}`, token });
+            computerConn = { url: `http://127.0.0.1:${MCP_PORT}${MCP_PATH}`, token };
+            setComputerMcp(computerConn);
             console.log(`[mcp] the Computer's MCP server on http://127.0.0.1:${MCP_PORT}${MCP_PATH}`);
         } else console.warn(`[mcp] port ${MCP_PORT} is taken: the Computer's MCP server is off this session`);
     }

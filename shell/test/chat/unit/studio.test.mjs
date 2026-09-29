@@ -73,6 +73,21 @@ export default (test) => {
     for (const id of ['tool-bash', 'tool-web', 'tool-ralph']) assert.ok(on.includes(`- { id: ${id}, disabled: true }`), `${id} still off in a loop`);
   });
 
+  test('studio: "Use the Computer" adds the Computer\'s MCP server to the patch — its bearer only in the runtime env', () => {
+    const base = { baseUrl: 'http://x/v1', model: 'm', contextWindow: 32768, skillsDir: '/s', hooksConfig: '/h.json' };
+    const off = S.buildPatch(base);
+    assert.doesNotMatch(off, /mcp-client|mcp-computer/, 'files only by default');
+    const on = S.buildPatch({ ...base, computer: { url: 'http://127.0.0.1:41995/mcp' } });
+    assert.equal(on.split('\n').filter((l) => l === '- insert:').length, 1, 'the fence and the Computer share one insert list');
+    assert.match(on, /- id: hooks-claude-code[\s\S]*- id: mcp-computer\n {6}name: '@deepseek-ai\/dsh-mcp-client'/, 'the fence stays');
+    assert.match(on, /url: "http:\/\/127\.0\.0\.1:41995\/mcp"/);
+    assert.match(on, /Authorization: !!js "`Bearer \$\{process\.env\.LOL_MCP_TOKEN\}`"/, 'the bearer is read from the env, never written here');
+    assert.ok(!S.runtimeEnv({}, { home: '/h', key: 'k' }).LOL_MCP_TOKEN, 'no token without the switch');
+    assert.equal(S.runtimeEnv({}, { home: '/h', key: 'k', mcpToken: 'tok' }).LOL_MCP_TOKEN, 'tok');
+    const call = S.projectEvent({ type: 'tool/call', data: { callId: 'c', name: 'mcp__computer__add_box', arguments: '{"type":"code"}' } }, '/p');
+    assert.deepEqual(call, { kind: 'call', callId: 'c', name: 'Computer: add_box', target: 'code' }, 'the step log says what it did on the Computer');
+  });
+
   test('studio: goal events become goal and round records; a person\'s own message is not repeated', () => {
     const g = S.projectEvent({ type: 'goal/change', data: { operation: 'create', roundsStarted: 2, goal: { phase: 'active', maxGoalRounds: 10, objective: 'Build it' } } }, '/p');
     assert.deepEqual(g, { kind: 'goal', phase: 'active', rounds: 2, max: 10, objective: 'Build it', blocked: '' });
@@ -162,6 +177,7 @@ export default (test) => {
       emit: (m) => got.push(m),
       seedSkills: seed,
       ...(o.roundWaitMs ? { roundWaitMs: o.roundWaitMs } : {}),
+      ...('computer' in o ? { computer: () => o.computer } : {}),
     });
     const done = async (turnId, ms = 15000) => {
       const t0 = Date.now();
@@ -237,6 +253,31 @@ export default (test) => {
       assert.deepEqual(await r.done(b.turnId), { reason: 'completed' });
       assert.doesNotMatch(fs.readFileSync(patchFile, 'utf8'), /defaultMaxGoalRounds/, 'without the switch the loop is off again');
     } finally { await r.studio.dispose(); }
+  });
+
+  test('studio: "Use the Computer" reaches dsh only when a person asked AND this session serves the Computer', async () => {
+    const r = rig({ computer: { url: 'http://127.0.0.1:41995/mcp', token: 'tok-123' } });
+    const patchFile = path.join(r.data, 'lol-studio', 'dsh', 'profiles', 'sdk', 'cordis.patch.yml');
+    try {
+      assert.equal(r.studio.status().computer, true);
+      const a = await r.studio.prompt({ projectId: PID, threadId: 'c', model: 'm', text: 'mcp?', computer: true });
+      await r.done(a.turnId);
+      assert.match(r.said(a.turnId), /the Computer's token: set/, 'the bearer reached the runtime\'s env');
+      const patch = fs.readFileSync(patchFile, 'utf8');
+      assert.match(patch, /- id: mcp-computer/);
+      assert.ok(!patch.includes('tok-123'), 'and never the patch file (it lives in the data folder)');
+      const b = await r.studio.prompt({ projectId: PID, threadId: 'c', model: 'm', text: 'mcp?' });
+      await r.done(b.turnId);
+      assert.match(r.said(b.turnId), /token: unset/, 'switched off: a runtime without it');
+      assert.doesNotMatch(fs.readFileSync(patchFile, 'utf8'), /mcp-computer/);
+    } finally { await r.studio.dispose(); }
+    const n = rig();
+    try {
+      assert.equal(n.studio.status().computer, false, 'no MCP server this session');
+      const c = await n.studio.prompt({ projectId: PID, threadId: 'd', model: 'm', text: 'mcp?', computer: true });
+      await n.done(c.turnId);
+      assert.match(n.said(c.turnId), /token: unset/, 'asked for, but not there: files only');
+    } finally { await n.studio.dispose(); }
   });
 
   test('studio: "keep going" says why it ended early — max-tokens, a goal that stalled, our round cap', async () => {

@@ -39,6 +39,10 @@ export default [
             h.eq(json(await tool(h, 'connect_boxes', { from: code.id, to: view.id })).port, 'content');
             const bad = await tool(h, 'connect_boxes', { from: note.id, to: 'nope' });
             h.eq(bad.isError, true, 'a wrong id is a sentence the model reads, not a crash');
+            // A wrong port: the refusal says what would fit (a bare "unknown-port" sent models round in circles).
+            const wrongPort = await tool(h, 'connect_boxes', { from: note.id, to: view.id, port: 'value' });
+            h.eq(wrongPort.isError, true);
+            h.assert(/a preview box takes: content \(text or json\); the note box gives text/.test(wrongPort.text), `says what fits: ${wrongPort.text}`);
 
             const ran = json(await tool(h, 'run_graph'));
             const byId = (/** @type {string} */ id) => ran.boxes.find((/** @type {any} */ b) => b.id === id);

@@ -227,6 +227,11 @@ The agent is DeepSeek Harness on the farm's model. It works only inside one proj
   number, a dash, one short fact about snakes you have not written yet."* ▸ **Start**. The note says the next run. Wait
   ~6 min in another chat: two ⏰ messages and two replies appear in the project's chat (none in the one you read);
   log.md has lines 1 and 2. **Stop the schedule**: no more. Set one again, close and reopen LlmOnLan: it is gone.
+- [ ] **7b.16 Use the Computer** (v0.2.6+). In a project press **Use the Computer**; ask the agent to build a
+  "Room monitor" graph (a Text box with a temperature, a Code box: "too hot" above 26 else "fine", a Preview) and run it
+  with 24 and 29. The steps show *→ Computer: new_graph Room monitor ✓*…; the answer gives fine / too hot; the graph is
+  in the Computer's library. Ask it to add a Send box (OSC to 127.0.0.1:9000): the run says it stayed a dry run. Arm the
+  outputs yourself and ask for another run: the agent is refused (it may read, not run, while armed).
 
 ## 8. After testing
 

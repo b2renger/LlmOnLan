@@ -135,4 +135,9 @@ and devices, later); **only a person starts one**; qwen3.8. Built:
   sent through the controller into the chat it was set from, even when another chat is on screen (`send({threadId})`;
   only the chat on screen owns the controller's `cur`); skipped, never queued, while a reply runs.
 
-Next (owner's order): the Computer as the agent's hands (MCP), with devices only once a person arms the outputs.
+- **Use the Computer** (built the same day): the same kind of per-project switch; with it, main adds the Computer's MCP
+  server (127.0.0.1:41995) to the dsh profile as an `mcp-client` row — its bearer read from the runtime's env through a
+  `!!js` header (`LOL_MCP_TOKEN`), never written into the patch file in the data folder — only when this session holds
+  the MCP port. The agent then builds and runs graphs; the MCP server's own rules keep devices a person's (no tool arms
+  the outputs; nothing changes or runs while they are armed; person-only settings are dropped). A refused arrow now
+  names the ports that would fit (nemotron went round in circles on a bare `unknown-port` in the spike).
