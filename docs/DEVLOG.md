@@ -6,6 +6,28 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-09-29 (afternoon) — Agent loops with qwen3.8: the P5-L spike; v0.2.5 (the agent compacts on small windows)
+
+The owner: "I want to know if it's possible to do agents loops with qwen3.8 with the harness we have." Answers to
+four questions framed it (finish a project, watch and act, research and report, on a schedule; reach = project files
++ the Computer and devices; only a person starts one). The spike ([RESULTS](research/p5-loop-spike/RESULTS.md),
+driver `loop.mjs`) ran the SHIPPED profile patch with dsh's own goal loop turned back on and the Computer's MCP server
+as the agent's hands, on a private farm at 1M and at 32k context.
+
+**Yes, with qwen3.8:** an 8-requirement game 8/8; dsh's round driver ran 7 rounds by itself until the model marked the
+goal complete; a Computer graph built and run over MCP with the right verdicts; a report whose numbers a Code box on
+the Computer computed, right 3/3. nemotron failed the multi-tool research loop. **Two failure modes, explained:** a turn
+ending on max-tokens silently disarms a goal (8192 is too small for goal work; 16384 works); and **with a 32k window
+dsh never compacted** (its default headroom is 65536) — a long job stalled at round 5.
+
+**The second one was a bug in the IDE as shipped** → fixed (`392ea34`): the patch fits compaction to the window
+(headroomTokens / maxTokens 4096). Tests: the patch text, and dsh itself composing the profile (`--dump-config`) —
+both fail without the fix; real: the long job at a real 32k window on the shipped patch alone — 9 compactions, 7
+rounds, 12/12. The owner: fix and release it (v0.2.5), then build "Keep going until done" (goals in the IDE,
+qwen3.8), then schedules.
+
+---
+
 ## 2026-09-29 (08:18) — Release v0.2.4: the symlink fix
 
 The owner, 08:01: "Ok for the symlink and cutting a new release". Tag `v0.2.4` (`caf2f2a`). In it, everything on

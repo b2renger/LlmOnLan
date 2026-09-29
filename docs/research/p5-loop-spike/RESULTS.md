@@ -50,10 +50,10 @@ complete, and recovered from a failed edit (re-read, retried). Whether it opens 
 turn is simply done in one turn). The Send box stayed a dry run: no MCP tool arms the outputs.
 
 ## What the product needs (none of it built yet)
-1. **Compaction on small windows — a fix for the IDE as shipped**, loops or not: with a 32k window (also the IDE's
+1. **DONE (`392ea34`, v0.2.5) — compaction on small windows, a fix for the IDE as shipped**, loops or not: with a 32k window (also the IDE's
    fallback when a farm advertises none) dsh's compaction budget is negative and it never compacts; a long project
    conversation then dies on max-tokens. `- id: compaction-basic / config: { headroomTokens: 4096, maxTokens: 4096 }`
-   in `buildPatch` made the same job compact 17× and finish.
+   in `buildPatch` made the same job compact 17× and finish. With it in the shipped patch alone: 9 compactions, 7 rounds, 12/12 (471 s).
 2. **maxTokens ≥ 16384 for goal work** (8192 ended a turn mid-write and disarmed the goal).
 3. **Goals on** (`tool-goal`, `goal-round-driver`, a round cap), and the runner (`studio.ts`) must keep listening past
    the first `idle` while a goal is armed (today it finishes the turn on the first idle), show the goal and its rounds
