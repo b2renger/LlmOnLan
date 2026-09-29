@@ -75,6 +75,13 @@ export function buildPatch(o: { baseUrl: string; model: string; contextWindow: n
         '  config:',
         '    includeDefaultRoots: false',
         `    customSkillDirs: [${q(o.skillsDir)}]`,
+        // Compaction's defaults keep 65536 tokens of headroom: on a 32k window (also our fallback) its budget is
+        // negative and it NEVER compacts, so a long conversation dies on max-tokens (the P5-L spike: stalled at
+        // round 5; with this, 17 compactions and done — docs/research/p5-loop-spike/RESULTS.md).
+        '- id: compaction-basic',
+        '  config:',
+        '    headroomTokens: 4096',
+        '    maxTokens: 4096',
         ...off.map((id) => `- { id: ${id}, disabled: true }`),
         // The project fence (FENCE_JS): Claude Code-style command hooks, before every file tool.
         ...(o.hooksConfig ? [

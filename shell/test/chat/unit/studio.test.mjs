@@ -4,6 +4,7 @@
 // the SDK protocol (against test/mock-dsh.mjs), starts a fresh session with the recap, stops by killing the process,
 // and says why when it cannot start; the Preview server serves the project folder only, to 127.0.0.1 only.
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import http from 'node:http';
 import os from 'node:os';
@@ -56,6 +57,21 @@ export default (test) => {
       'session-log-deepseek', 'deepseek-account', 'llm-deepseek', 'tool-subagent', 'tool-workflow', 'tool-jobs', 'tool-goal']) {
       assert.ok(p.includes(`- { id: ${id}, disabled: true }`), `${id} is off`);
     }
+    // Compaction fits a small window: its default 65536-token headroom made it never compact on 32k (P5-L spike).
+    assert.match(p, /- id: compaction-basic\n {2}config:\n {4}headroomTokens: 4096\n {4}maxTokens: 4096/);
+  });
+
+  test('studio: dsh itself composes the patch — compaction gets our headroom (when the runtime is built)', () => {
+    const rt = path.join(HERE, '..', '..', '..', 'dsh', 'build', 'dsh-runtime');
+    const node = path.join(rt, 'node', process.platform === 'win32' ? 'node.exe' : path.join('bin', 'node'));
+    const bin = path.join(rt, 'node_modules', '@deepseek-ai', 'dsh', 'lib', 'bin.js');
+    if (!fs.existsSync(node) || !fs.existsSync(bin)) { console.log('     (no dsh runtime in shell/dsh/build: skipped)'); return; }
+    const home = tmp('dump');
+    fs.mkdirSync(path.join(home, 'profiles', 'sdk'), { recursive: true });
+    fs.writeFileSync(path.join(home, 'profiles', 'sdk', 'cordis.patch.yml'),
+      S.buildPatch({ baseUrl: 'http://127.0.0.1:1/v1', model: 'm', contextWindow: 32768, skillsDir: home.replace(/\\/g, '/') }));
+    const r = spawnSync(node, [bin, '--profile', 'sdk', '--dump-config'], { encoding: 'utf8', timeout: 60000, env: { ...S.runtimeEnv(process.env, { home, key: 'x' }) } });
+    assert.match(String(r.stdout), /- id: compaction-basic\n {2}name: '@deepseek-ai\/dsh-compaction-basic'\n {2}config:\n {4}headroomTokens: 4096/, String(r.stderr).slice(-400));
   });
 
   test('studio: the runtime env carries our settings and none of the shell\'s other secrets', () => {
