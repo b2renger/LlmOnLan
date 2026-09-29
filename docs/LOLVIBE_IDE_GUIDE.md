@@ -52,6 +52,19 @@ simply done in one turn.
 - The switch is per project, off by default, and **off again when LlmOnLan closes**: a loop only ever runs because you
   asked for one. Best with **qwen3.8** (it checks its own work; nemotron did not, in our tests).
 
+### On a schedule
+
+**Schedule…** in the panel's top bar opens a small form: **Every … minutes** (5 at the least) or **Every day at …**, and
+the message the agent should get each time — for example *"Check the page still works and add today's date to
+log.md"*. **Start**: the app then sends that message **by itself**, into **this chat** (marked ⏰), after the interval
+or at the time, and again and again. Each run is an ordinary message, so the reply, **Stop**, your farm seat and **Keep
+going until done** work as for one you typed.
+
+- It runs **only while LlmOnLan is open**, and is **forgotten when LlmOnLan closes** — start it again after you reopen.
+- While a reply is running, a run is **skipped** (never queued); the form counts runs sent and skipped.
+- The runs go into the chat you started it from, even while you read another chat.
+- **Stop the schedule** ends it.
+
 ## 3. The panel
 
 | Tab | What it shows |

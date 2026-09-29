@@ -66,6 +66,17 @@
 /* Busy (installing, sharing, a push in flight) or not for this file: it says so instead of looking clickable. */
 .chat-proj-btn:disabled { opacity: .55; cursor: default; }
 .chat-proj-btn[hidden] { display: none; }
+/* On a schedule: the small form under the bar. */
+.chat-proj-sched-box { display: flex; flex-direction: column; gap: 6px; padding: 8px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-2); }
+.chat-proj-sched-box[hidden] { display: none; }
+.chat-proj-sched-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.chat-proj-sched-text, .chat-proj-sched-kind, .chat-proj-sched-min, .chat-proj-sched-time {
+  font: inherit; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 4px 8px;
+}
+.chat-proj-sched-text { width: 100%; box-sizing: border-box; resize: vertical; }
+.chat-proj-sched-min { width: 5.5em; }
+.chat-proj-sched-min[hidden], .chat-proj-sched-time[hidden] { display: none; }
+.chat-proj-sched-box :disabled { opacity: .7; }
 /* A switch that is on (Share on the LAN, Keep going until done): seen at a glance, as in the composer. */
 .chat-proj-btn[aria-pressed='true'] {
   color: var(--text); border-color: var(--accent);

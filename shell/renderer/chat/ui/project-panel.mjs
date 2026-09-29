@@ -10,6 +10,7 @@ import { SLOTS } from '../core/registry.mjs';
 import { EV } from '../core/events.mjs';
 import { t } from '../core/i18n.mjs';
 import { getDoor, onInstall, keepGoing, setKeepGoing, GOAL_ROUNDS } from '../projects/agent.mjs';
+import { setSchedule, clearSchedule, scheduleOf, onSchedules, MIN_EVERY_MIN } from '../projects/schedule.mjs';
 import { profileFor, pickEditor } from '../projects/models.mjs';
 import { tabEdit, newlineEdit, applyEdit } from '../computer/code-edit.mjs';
 import { diffLines, hunks } from '../projects/linediff.mjs';
@@ -150,11 +151,45 @@ function createPanel(host, app) {
     setKeepGoing(projectId, !keepGoing(projectId));
     paintKeep();
   }, t('project.tipKeepGoing'));
-  bar.append(nameEl, other, folder, browser, shareBtn, keepBtn);
+  // On a schedule (owner, 2026-09-29): a message this app sends by itself into this chat, set by a person, forgotten
+  // at restart (projects/schedule.mjs). The button opens a small form under the bar.
+  const schedBtn = button(t('project.schedule'), 'chat-proj-sched', () => { schedBox.hidden = !schedBox.hidden; paintSched(); }, t('project.tipSchedule'));
+  bar.append(nameEl, other, folder, browser, shareBtn, keepBtn, schedBtn);
   const shareNote = make('p', 'chat-proj-note chat-proj-share-note');
   shareNote.setAttribute('role', 'status');
   const keepNote = make('p', 'chat-proj-note chat-proj-keep-note');
   keepNote.setAttribute('role', 'status');
+  const schedBox = make('div', 'chat-proj-sched-box');
+  schedBox.hidden = true;
+  const schedKind = /** @type {HTMLSelectElement} */ (make('select', 'chat-proj-sched-kind'));
+  schedKind.setAttribute('aria-label', t('project.schedKindLabel'));
+  const optEvery = /** @type {HTMLOptionElement} */ (make('option', '', t('project.schedEvery')));
+  optEvery.value = 'every';
+  const optAt = /** @type {HTMLOptionElement} */ (make('option', '', t('project.schedAt')));
+  optAt.value = 'at';
+  schedKind.append(optEvery, optAt);
+  schedKind.addEventListener('change', () => paintSched());
+  const schedMin = /** @type {HTMLInputElement} */ (make('input', 'chat-proj-sched-min'));
+  schedMin.type = 'number';
+  schedMin.min = String(MIN_EVERY_MIN);
+  schedMin.value = '60';
+  schedMin.setAttribute('aria-label', t('project.schedMinLabel'));
+  const schedTime = /** @type {HTMLInputElement} */ (make('input', 'chat-proj-sched-time'));
+  schedTime.type = 'time';
+  schedTime.value = '08:00';
+  schedTime.setAttribute('aria-label', t('project.schedTimeLabel'));
+  const schedText = /** @type {HTMLTextAreaElement} */ (make('textarea', 'chat-proj-sched-text'));
+  schedText.rows = 2;
+  schedText.placeholder = t('project.schedPlaceholder');
+  schedText.setAttribute('aria-label', t('project.schedTextLabel'));
+  const schedStart = button(t('project.schedStart'), 'chat-proj-sched-start', () => startSched(), t('project.tipSchedStart'));
+  const schedStop = button(t('project.schedStop'), 'chat-proj-sched-stop', () => { if (projectId) clearSchedule(projectId); }, t('project.tipSchedStop'));
+  const schedNote = make('p', 'chat-proj-note chat-proj-sched-note');
+  schedNote.setAttribute('role', 'status');
+  const schedRow = make('div', 'chat-proj-sched-row');
+  schedRow.append(schedKind, schedMin, schedTime, schedStart, schedStop);
+  schedBox.append(schedText, schedRow, schedNote);
+  const offSchedules = onSchedules(() => paintSched());
   const model = make('p', 'chat-proj-note chat-proj-model');
   const cols = make('div', 'chat-proj-cols');
   const fileList = make('ul', 'chat-proj-files');
@@ -256,7 +291,7 @@ function createPanel(host, app) {
   let picked = '';
   view.append(tabs, panePreview, paneCode, paneChanges, paneHistory);
   cols.append(fileList, view);
-  main.append(bar, shareNote, keepNote, model, cols);
+  main.append(bar, shareNote, keepNote, schedBox, model, cols);
   root.append(empty, main);
 
   // ---- behaviour -----------------------------------------------------------------------------------
@@ -286,6 +321,42 @@ function createPanel(host, app) {
     model.textContent = !m ? '' : p.edits === 'good' ? t('project.modelGood', { model: m })
       : p.edits === 'weak' ? t('project.modelWeak', { model: m }) : t('project.modelUnknown', { model: m });
     model.classList.toggle('is-warn', p.edits === 'weak');
+  }
+
+  /** Why a schedule could not start (chat-lint rule 5: a literal map). */
+  const SCHED_WHY = { text: 'project.schedNoText', thread: 'project.schedNoThread', spec: 'project.schedBadTime' };
+
+  function startSched() {
+    if (!projectId) return;
+    const spec = schedKind.value === 'at' ? { at: schedTime.value } : { every: Number(schedMin.value) };
+    // The model the picker shows now: a typed message carries it in its draft, and a scheduled one must too (on a farm
+    // known only by its address there is no default to fall back on — the real run on qwen3.8 found it).
+    const model = app.picker && typeof app.picker.value === 'function' ? String(app.picker.value() || '') : '';
+    const r = setSchedule(app, projectId, { spec, text: schedText.value, threadId: (app.state && app.state.threadId) || '', model });
+    if (!r.ok) schedNote.textContent = t(/** @type {any} */ (SCHED_WHY)[r.why] || SCHED_WHY.spec, { min: MIN_EVERY_MIN });
+  }
+
+  function paintSched() {
+    const s = projectId ? scheduleOf(projectId) : null;
+    schedBtn.hidden = !door;
+    schedBtn.textContent = s ? t('project.scheduleOn') : t('project.schedule');
+    schedBtn.title = s ? t('project.tipScheduleOn') : t('project.tipSchedule');
+    schedBtn.setAttribute('aria-pressed', s ? 'true' : 'false');
+    if (s) {
+      schedKind.value = 'at' in s.spec ? 'at' : 'every';
+      if ('at' in s.spec) schedTime.value = s.spec.at; else schedMin.value = String(s.spec.every);
+      schedText.value = s.text;
+    }
+    const at = schedKind.value === 'at';
+    schedMin.hidden = at;
+    schedTime.hidden = !at;
+    schedStart.hidden = !!s;
+    schedStop.hidden = !s;
+    for (const el of [schedKind, schedMin, schedTime, schedText]) /** @type {any} */ (el).disabled = !!s;
+    const when = s && Number.isFinite(s.next) ? new Date(s.next).toLocaleString([], { weekday: 'short', hour: '2-digit', minute: '2-digit' }) : '';
+    const vars = { next: when, runs: s ? s.runs : 0, skipped: s ? s.skipped : 0 };
+    schedNote.textContent = !s ? t('project.schedOff', { min: MIN_EVERY_MIN })
+      : s.skipped ? t('project.schedOnSkipped', vars) : t('project.schedOn', vars);
   }
 
   function paintKeep() {
@@ -638,6 +709,7 @@ function createPanel(host, app) {
     }
     paintShare();
     paintKeep();
+    paintSched();
     // The folder was moved or deleted outside LlmOnLan: say so, rather than an empty list and "no index.html yet".
     if (meta && !meta.ok && meta.code === 'E_MISSING') shareNote.textContent = t('project.gone');
     browser.href = serveUrl || '#';
@@ -676,11 +748,12 @@ function createPanel(host, app) {
       if (sandbox) { sandbox.destroy(); sandbox = null; }
       if (typeof off === 'function') off();
       offInstall();
+      offSchedules();
       doc.removeEventListener('lolchat:model', onModel);
       host.replaceChildren();
     },
     debug: {
-      state: () => ({ projectId, projectName, files: files.map((f) => f.path), tab, openFile, serveUrl, lan: lanUrls.slice(), keepGoing: !!projectId && keepGoing(projectId), history: commits.map((c) => c.message), frame: frame ? frame.getAttribute('src') : null, graph: graphLive ? graphLive.state() : null }),
+      state: () => ({ projectId, projectName, files: files.map((f) => f.path), tab, openFile, serveUrl, lan: lanUrls.slice(), keepGoing: !!projectId && keepGoing(projectId), schedule: projectId ? scheduleOf(projectId) : null, history: commits.map((c) => c.message), frame: frame ? frame.getAttribute('src') : null, graph: graphLive ? graphLive.state() : null }),
     },
   };
 }

@@ -223,6 +223,10 @@ The agent is DeepSeek Harness on the farm's model. It works only inside one proj
   are in the files; History has one commit. Then ask for it **one point per round**: the steps show *◎ Round 1 of 10*,
   *◎ Round 2 of 10*… in the same reply. Press **Stop** mid-loop: it ends at once. Close and reopen LlmOnLan: the switch
   is off again.
+- [ ] **7b.15 On a schedule** (v0.2.6+). **Schedule…** ▸ Every **5** minutes ▸ *"Add ONE line at the end of log.md: the run
+  number, a dash, one short fact about snakes you have not written yet."* ▸ **Start**. The note says the next run. Wait
+  ~6 min in another chat: two ⏰ messages and two replies appear in the project's chat (none in the one you read);
+  log.md has lines 1 and 2. **Stop the schedule**: no more. Set one again, close and reopen LlmOnLan: it is gone.
 
 ## 8. After testing
 

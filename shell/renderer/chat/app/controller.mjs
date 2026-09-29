@@ -351,9 +351,13 @@ export function createController(app) {
       if (!text && !extraParts.length) return;
 
       let thread = null;
-      if (app.state.threadId) thread = await repo().getThread(app.state.threadId);
-      if (!thread) thread = api.newThread();
+      // A scheduled message names its thread (projects/schedule.mjs), which may not be the one on screen: it goes
+      // there or nowhere (a deleted thread gets no new one).
+      const named = typeof d.threadId === 'string' && d.threadId ? d.threadId : null;
+      if (named || app.state.threadId) thread = await repo().getThread(named || app.state.threadId);
+      if (!thread && !named) thread = api.newThread();
       if (!thread) return;
+      const here = onScreen(thread.id);
 
       const firstTurn = !thread.headId;
       /** @type {any[]} */
@@ -366,9 +370,11 @@ export function createController(app) {
         status: 'done',
         ...(d.vars ? { vars: d.vars } : {}),
       });
-      cur.thread = thread;
-      cur.path = [...cur.path, user];
-      if (app.view) app.view.upsert(user);
+      if (here) {
+        cur.thread = thread;
+        cur.path = [...cur.path, user];
+        if (app.view) app.view.upsert(user);
+      }
 
       if (firstTurn && thread.titleSource === 'auto') {
         const title = titleFrom(text);
@@ -447,7 +453,8 @@ export function createController(app) {
             farmName: c.name || null,
             farmId: c.id || null,
           });
-          cur.path = [...cur.path, target];
+          // Only the thread on screen owns `cur`: a scheduled reply into another thread must not join its path.
+          if (onScreen(threadId)) cur.path = [...cur.path, target];
         }
         // The farm is switching model/backend: answer with the reason instead of a network error.
         if (c.busy && c.busy.label) {

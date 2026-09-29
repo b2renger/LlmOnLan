@@ -124,7 +124,9 @@ docs) is `docs/reviews/DOCS_REVIEW_2026-09-27_{FARM,SHELL,COMPUTER}.md`. Snapsho
   **Keep going until done** (2026-09-29, [IDE_PLAN §6](docs/IDE_PLAN.md)): a person's per-project switch (off by
   default, forgotten at restart) that turns on dsh's own goal loop — the model sets a goal, dsh starts round after round
   until the model marks it complete — as ONE reply (`◎ Round n of 10`), ≤ 10 rounds (`GOAL_ROUNDS`), maxTokens ≥ 16384;
-  the goal plugins stay OFF otherwise. The patch also fits compaction to small windows (v0.2.5: with dsh's 65536-token
+  the goal plugins stay OFF otherwise. **On a schedule** (same day, `renderer/chat/projects/schedule.mjs`): a person's per-project
+  form — every N ≥ 5 min or each day at HH:MM, and a message — sent by the app itself (marked ⏰) into the chat it was set
+  from, only while the app is open, forgotten at restart, skipped while a reply runs (dsh's own scheduler needs its web host). The patch also fits compaction to small windows (v0.2.5: with dsh's 65536-token
   default headroom a 32k window never compacted). dsh sessions die with the process (no resume): a new one gets a
   recap of the thread. Preview = a static server per project on 127.0.0.1 (main's frame veto lets exactly that
   origin in). The agent is NOT in the installer: CI builds `dsh-runtime-<platform>-<arch>.tar.gz` (`shell/dsh/`:

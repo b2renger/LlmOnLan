@@ -269,4 +269,86 @@ export default [
             h.eq((await panel(h)).keepGoing, false, 'and the switch goes off again');
         },
     },
+    {
+        // On a schedule (owner, 2026-09-29): a person starts it from the panel's form; the app then sends the message by
+        // itself into THAT chat — even while another chat is on screen — and Stop ends it. A minute is 300 ms here.
+        name: 'k24-schedule-sends-by-itself-into-its-own-chat-and-stops-when-stopped',
+        needsMock: true,
+        timeoutMs: 120000,
+        allowConsoleErrors: FARM_ERRORS,
+        async run(/** @type {any} */ h) {
+            await h.fresh();
+            await h.waitFor(() => (window.LolChat && window.LolChat.ready ? true : null));
+            await h.eval(() => { window.__lolChatTestFlags = Object.assign(window.__lolChatTestFlags || {}, { scheduleMinuteMs: 300 }); return true; });
+            await h.eval(() => { window.LolChat.app.work.open('project'); return true; });
+            await h.waitFor(() => (document.querySelector('#lolchat .chat-proj-empty:not([hidden]) .chat-proj-name-in') ? true : null));
+            await h.eval(() => {
+                /** @type {HTMLInputElement} */ (document.querySelector('#lolchat .chat-proj-name-in')).value = 'clock';
+                /** @type {HTMLFormElement} */ (document.querySelector('#lolchat .chat-proj-new')).requestSubmit();
+                return true;
+            });
+            const bound = await h.waitFor(() => {
+                const s = window.LolChat.debug.project && window.LolChat.debug.project.state();
+                return s && s.projectId ? s : null;
+            }, { timeout: 15000 });
+            const projectThread = await h.eval(() => window.LolChat.app.state.threadId);
+            h.eq(bound.schedule, null, 'no schedule until a person starts one');
+
+            // The form: every 5 "minutes" (1.5 s here), the message, Start.
+            await h.eval(() => { /** @type {HTMLButtonElement} */ (document.querySelector('#lolchat .chat-proj-sched')).click(); return true; });
+            const refused = await h.eval(() => {
+                /** @type {HTMLButtonElement} */ (document.querySelector('#lolchat .chat-proj-sched-start')).click();
+                return (document.querySelector('#lolchat .chat-proj-sched-note') || {}).textContent || '';
+            });
+            h.assert(/Write the message/.test(refused), `no message, no schedule: ${refused}`);
+            await h.eval(() => {
+                /** @type {HTMLSelectElement} */ (document.querySelector('#lolchat .chat-proj-sched-kind')).value = 'every';
+                /** @type {HTMLInputElement} */ (document.querySelector('#lolchat .chat-proj-sched-min')).value = '5';
+                /** @type {HTMLTextAreaElement} */ (document.querySelector('#lolchat .chat-proj-sched-text')).value = 'write tick.txt: tick';
+                /** @type {HTMLButtonElement} */ (document.querySelector('#lolchat .chat-proj-sched-start')).click();
+                return true;
+            });
+            const on = await h.waitFor(() => { const s = window.LolChat.debug.project.state().schedule; return s ? s : null; });
+            h.eq(on.spec.every, 5);
+            h.assert(/On: next run/.test(await h.eval(() => document.querySelector('#lolchat .chat-proj-sched-note').textContent)), 'the note says when');
+
+            // The first run: a marked message in this chat, and the agent's reply, which writes the file.
+            await h.waitFor(() => {
+                const rows = Array.from(document.querySelectorAll('#lolchat .chat-msg.assistant'));
+                const r = rows[0];
+                return r && r.getAttribute('data-status') === 'done' ? true : null;
+            }, { timeout: 20000 });
+            h.assert(/⏰ write tick\.txt: tick/.test(await h.eval(() => (document.querySelector('#lolchat .chat-msg.user') || {}).textContent || '')), 'the scheduled message is marked ⏰');
+            await h.waitFor(() => (window.LolChat.debug.project.state().files.includes('tick.txt') ? true : null), { timeout: 20000 });
+
+            // Another chat on screen: the next run still goes into the project's chat, not this one.
+            await h.eval(() => { window.LolChat.app.controller.newThread(); return true; });
+            const other = await h.waitFor((was) => { const id = window.LolChat.app.state.threadId; return id && id !== was ? id : null; }, { args: [projectThread] });
+            const countIn = (/** @type {string} */ id) => h.eval(async (tid) => {
+                const app = window.LolChat.app;
+                const path = await app.repo.getPath(tid, undefined);
+                return path.filter((/** @type {any} */ m) => m.role === 'user' && /^⏰/.test(m.content || '')).length;
+            }, id);
+            const deadline = Date.now() + 20000;
+            let n = 0;
+            while (Date.now() < deadline && (n = await countIn(projectThread)) < 2) await h.sleep(300);
+            h.assert(n >= 2, `a second run went into the project's chat (${n})`);
+            h.eq(await h.eval(() => document.querySelectorAll('#lolchat .chat-msg.user').length), 0, 'nothing landed in the chat on screen');
+            h.eq(await countIn(other), 0);
+
+            // Stop: back to the project's chat, stop the schedule, no more runs.
+            await h.eval((id) => window.LolChat.app.controller.selectThread(id), projectThread);
+            await h.waitFor(() => (document.querySelector('#lolchat .chat-proj-sched-stop') ? true : null));
+            await h.eval(() => {
+                const box = /** @type {HTMLElement} */ (document.querySelector('#lolchat .chat-proj-sched-box'));
+                if (box.hidden) /** @type {HTMLButtonElement} */ (document.querySelector('#lolchat .chat-proj-sched')).click();
+                /** @type {HTMLButtonElement} */ (document.querySelector('#lolchat .chat-proj-sched-stop')).click();
+                return true;
+            });
+            await h.waitFor(() => (window.LolChat.debug.project.state().schedule === null ? true : null));
+            const after = await countIn(projectThread);
+            await h.sleep(2500);
+            h.eq(await countIn(projectThread), after, 'stopped means no more runs');
+        },
+    },
 ];

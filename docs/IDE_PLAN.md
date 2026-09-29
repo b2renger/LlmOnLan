@@ -129,6 +129,10 @@ and devices, later); **only a person starts one**; qwen3.8. Built:
   loop stops early: max-tokens, no next round (30 s), our cap of **10 rounds** (whatever the model asked), blocked.
 - Compaction fitted to small windows (v0.2.5) — without it a long loop on a 32k farm died at round 5.
 
-Next (owner's order): schedules from our side (dsh's scheduler needs its web host) — a person switches on "every N
-minutes / at a time", only while the app is open; then the Computer as the agent's hands (MCP), with devices only
-once a person arms the outputs.
+- **On a schedule** (built the same day; dsh's own scheduler needs its web host, so it is ours:
+  `renderer/chat/projects/schedule.mjs`): a person's per-project form — every N ≥ 5 minutes, or each day at HH:MM, and
+  the message — forgotten at restart, running only while the app is open. Each run is an ordinary message (marked ⏰)
+  sent through the controller into the chat it was set from, even when another chat is on screen (`send({threadId})`;
+  only the chat on screen owns the controller's `cur`); skipped, never queued, while a reply runs.
+
+Next (owner's order): the Computer as the agent's hands (MCP), with devices only once a person arms the outputs.
