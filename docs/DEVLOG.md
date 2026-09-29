@@ -6,6 +6,28 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-09-29 (16:28) — Keep going until done: agent loops in the IDE, started only by a person
+
+The owner's second answer after the spike: build loops into the IDE ("Keep going until done", qwen3.8), schedules
+after. Built (`bef9f3f`, [IDE_PLAN §6](IDE_PLAN.md), the [guide](LOLVIBE_IDE_GUIDE.md#keep-going-until-done)):
+
+- A per-project switch in the Project panel, **off by default and forgotten at restart** (like Share on the LAN).
+- With it on, main starts dsh with its goal loop (never otherwise), `maxTokens` ≥ 16384, and the sentence that makes
+  the model set a goal. The reply **stays open across rounds** (an idle with the goal still active waits for dsh's next
+  round), shows `◎ Goal set / Round n of 10 / Goal done`, and ends with a sentence when the loop stops early:
+  max-tokens, no next round in 30 s, our cap of **10 rounds** (the runtime is stopped — the model may ask for more),
+  or blocked with the agent's reason. Stop ends it at once.
+
+**Tested.** Unit 1756/0 (the patch switch; the event mapping; the runner over a mock that acts out dsh's goal loop with
+the recorded event shapes — a whole loop is one reply and one commit, and each early end; the page's step log, early-end
+sentences and switch — the runner tests all fail against the old runner); k24 (switch on, a two-round loop in one reply,
+Stop mid-loop, switch off — fails without the controller change). **Real, qwen3.8 through the app, 32k window:** the
+8-point Snake game as a goal — Goal set → Goal done in 96 s, 8/8 in the files; the same **one point per round** —
+`Round 1 … 8 of 10` then Goal done, ONE reply, 65 steps, 737 s, 8/8, one commit; the agent ended by naming what it
+could not check itself (the beep, how swipes feel).
+
+---
+
 ## 2026-09-29 (afternoon) — Agent loops with qwen3.8: the P5-L spike; v0.2.5 (the agent compacts on small windows)
 
 The owner: "I want to know if it's possible to do agents loops with qwen3.8 with the harness we have." Answers to
