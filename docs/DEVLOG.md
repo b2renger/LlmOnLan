@@ -28,7 +28,7 @@ could not check itself (the beep, how swipes feel).
 
 ---
 
-## 2026-09-29 (afternoon) — Agent loops with qwen3.8: the P5-L spike; v0.2.5 (the agent compacts on small windows)
+## 2026-09-29 (afternoon) — Agent loops with qwen3.8: the P5-L spike; v0.2.5 released (the agent compacts on small windows)
 
 The owner: "I want to know if it's possible to do agents loops with qwen3.8 with the harness we have." Answers to
 four questions framed it (finish a project, watch and act, research and report, on a schedule; reach = project files
@@ -46,7 +46,7 @@ dsh never compacted** (its default headroom is 65536) — a long job stalled at 
 (headroomTokens / maxTokens 4096). Tests: the patch text, and dsh itself composing the profile (`--dump-config`) —
 both fail without the fix; real: the long job at a real 32k window on the shipped patch alone — 9 compactions, 7
 rounds, 12/12. The owner: fix and release it (v0.2.5), then build "Keep going until done" (goals in the IDE,
-qwen3.8), then schedules.
+qwen3.8), then schedules. **v0.2.5 released** (tag `565a0c9`, 16:36): six CI jobs green, 27 assets (five installers, a sidecar and a coding-agent runtime per platform), `latest.yml` at 0.2.5; before the tag: unit 1751/0, lint 0, the full harness 404/405 (k24 timed out under load, 3/3 alone; its waits widened in `565a0c9`).
 
 ---
 
