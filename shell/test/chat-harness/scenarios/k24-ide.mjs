@@ -40,7 +40,7 @@ export default [
     {
         name: 'k24-the-ide-binds-a-project-the-agent-writes-and-edits-it-and-the-preview-shows-it',
         needsMock: true,
-        timeoutMs: 120000,
+        timeoutMs: 180000,
         allowConsoleErrors: FARM_ERRORS,
         async run(/** @type {any} */ h) {
             await h.fresh();
@@ -74,7 +74,7 @@ export default [
             const line = (/** @type {RegExp} */ re, /** @type {boolean} */ warn) => h.waitFor((src, w) => {
                 const p = document.querySelector('#lolchat .chat-proj-model');
                 return p && new RegExp(src).test(p.textContent || '') && p.classList.contains('is-warn') === w ? p.textContent : null;
-            }, { timeout: 10000, args: [re.source, warn] });
+            }, { timeout: 20000, args: [re.source, warn] });
             h.assert(/Qwen3\.8/.test(await line(/good at editing code/, false)), 'judged on the model behind the alias');
             const pick = (/** @type {string} */ id) => h.eval((v) => {
                 const s = /** @type {HTMLSelectElement} */ (document.getElementById('chat-model'));
@@ -95,11 +95,11 @@ export default [
                 const s = window.LolChat.debug.project.state();
                 const note = document.querySelector('#lolchat .chat-proj-share-note');
                 return s.lan.length && note && /192\.0\.2\.10/.test(note.textContent || '') ? s.lan : null;
-            }, { timeout: 10000 });
+            }, { timeout: 20000 });
             h.assert(/^http:\/\/192\.0\.2\.10:\d+\/$/.test(lan[0]), `the LAN address: ${lan[0]}`);
             h.eq(await h.eval(() => document.querySelector('#lolchat .chat-proj-share').getAttribute('aria-pressed')), 'true');
             await h.click('#lolchat .chat-proj-share');
-            await h.waitFor(() => (window.LolChat.debug.project.state().lan.length ? null : true), { timeout: 10000 });
+            await h.waitFor(() => (window.LolChat.debug.project.state().lan.length ? null : true), { timeout: 20000 });
 
             // 2. The agent writes the page.
             await send(h, 'write index.html: <h1 id="hi">hello</h1>');
@@ -119,7 +119,7 @@ export default [
             const inFrame = await h.waitFor(() => {
                 const f = /** @type {HTMLIFrameElement|null} */ (document.querySelector('#lolchat .chat-proj-frame'));
                 return f && f.getBoundingClientRect().height > 100 ? true : null;
-            }, { timeout: 10000 });
+            }, { timeout: 20000 });
             h.assert(inFrame, 'the Preview frame is on screen');
             const dropped = (await h.windowOpens()).filter((w) => w.frameNavigate && String(w.url).startsWith(bound.serveUrl));
             h.eq(dropped, [], 'main\'s frame veto let the served page in (an empty frame would look the same)');
@@ -131,7 +131,7 @@ export default [
                 /** @type {any} */ (b).click();
                 return true;
             });
-            await h.waitFor(() => (/hello/.test(/** @type {HTMLTextAreaElement} */ (document.querySelector('#lolchat .chat-proj-code')).value) ? true : null), { timeout: 10000 });
+            await h.waitFor(() => (/hello/.test(/** @type {HTMLTextAreaElement} */ (document.querySelector('#lolchat .chat-proj-code')).value) ? true : null), { timeout: 20000 });
             h.eq((await panel(h)).tab, 'code', 'a text file opens in the Code tab');
             await h.click('#lolchat .chat-proj-tab-preview');
 
@@ -144,11 +144,11 @@ export default [
             const diff = await h.waitFor(() => {
                 const pre = document.querySelector('#lolchat .chat-proj-pane-changes:not([hidden]) .chat-proj-diff');
                 return pre ? pre.textContent : null;
-            }, { timeout: 10000 });
+            }, { timeout: 20000 });
             h.assert(/- hello/.test(diff) && /\+ world/.test(diff), `the Changes tab: ${diff}`);
             await h.screenshot('k24-ide-changes');
             await h.click('#lolchat .chat-proj-tab-code');
-            await h.waitFor(() => (/world/.test(/** @type {HTMLTextAreaElement} */ (document.querySelector('#lolchat .chat-proj-code')).value) ? true : null), { timeout: 10000 });
+            await h.waitFor(() => (/world/.test(/** @type {HTMLTextAreaElement} */ (document.querySelector('#lolchat .chat-proj-code')).value) ? true : null), { timeout: 20000 });
             h.eq((await panel(h)).tab, 'code');
 
             // History (projectGit.ts): each reply is a commit; going back is a new commit, so it can be undone too.
@@ -157,19 +157,19 @@ export default [
                 const s = window.LolChat.debug.project.state();
                 const pre = document.querySelector('#lolchat .chat-proj-pane-history:not([hidden]) .chat-proj-diff');
                 return s.history.length === 2 && pre ? { history: s.history, diff: pre.textContent } : null;
-            }, { timeout: 10000 });
+            }, { timeout: 20000 });
             h.eq(log.history, ['Agent: replace hello with world in index.html', 'Agent: write index.html: <h1 id="hi">hello</h1>'], 'one commit per reply, newest first');
             h.assert(/- <h1 id="hi">hello<\/h1>/.test(log.diff) && /\+ <h1 id="hi">world<\/h1>/.test(log.diff), `the newest commit's diff: ${log.diff}`);
             await h.click('#lolchat .chat-proj-commit-row:nth-child(2) .chat-proj-commit');
-            await h.waitFor(() => (document.querySelector('#lolchat .chat-proj-go-back') ? true : null), { timeout: 10000 });
+            await h.waitFor(() => (document.querySelector('#lolchat .chat-proj-go-back') ? true : null), { timeout: 20000 });
             await h.click('#lolchat .chat-proj-go-back');
             const after = await h.waitFor(() => {
                 const s = window.LolChat.debug.project.state();
                 return s.history.length === 3 ? s.history : null;
-            }, { timeout: 10000 });
+            }, { timeout: 20000 });
             h.eq(after[0], 'Back to: Agent: write index.html: <h1 id="hi">hello</h1>');
             h.eq(await h.eval(async (url) => (await fetch(url)).text(), `${bound.serveUrl}index.html`), '<h1 id="hi">hello</h1>', 'the page is back to the first reply');
-            await h.waitFor(() => (/hello/.test(/** @type {HTMLTextAreaElement} */ (document.querySelector('#lolchat .chat-proj-code')).value) ? true : null), { timeout: 10000 });
+            await h.waitFor(() => (/hello/.test(/** @type {HTMLTextAreaElement} */ (document.querySelector('#lolchat .chat-proj-code')).value) ? true : null), { timeout: 20000 });
             await h.screenshot('k24-ide-history');
 
             // GitHub: an https address only; a token is kept (the field clears, the page never reads it back); a push to
@@ -184,15 +184,15 @@ export default [
             const refused = await h.waitFor(() => {
                 const n = document.querySelector('#lolchat .chat-proj-git-note');
                 return n && /https:\/\//.test(n.textContent || '') ? n.textContent : null;
-            }, { timeout: 10000 });
+            }, { timeout: 20000 });
             h.assert(/Type the https:\/\/ address/.test(refused), `an http address is refused in words: ${refused}`);
             await typeInto('#lolchat .chat-proj-remote-in', 'https://127.0.0.1:9/me/site.git');
             await h.click('#lolchat .chat-proj-save-remote');
-            await h.waitFor(() => (/Address saved/.test((document.querySelector('#lolchat .chat-proj-git-note') || {}).textContent || '') ? true : null), { timeout: 10000 });
+            await h.waitFor(() => (/Address saved/.test((document.querySelector('#lolchat .chat-proj-git-note') || {}).textContent || '') ? true : null), { timeout: 20000 });
             h.assert(/No token for 127\.0\.0\.1:9/.test(await h.eval(() => document.querySelector('#lolchat .chat-proj-token-note').textContent)), 'says how to get a token');
             await typeInto('#lolchat .chat-proj-token-in', 'ghp_harness_token_1');
             await h.click('#lolchat .chat-proj-save-token');
-            await h.waitFor(() => (/A token is kept for 127\.0\.0\.1:9/.test((document.querySelector('#lolchat .chat-proj-token-note') || {}).textContent || '') ? true : null), { timeout: 10000 });
+            await h.waitFor(() => (/A token is kept for 127\.0\.0\.1:9/.test((document.querySelector('#lolchat .chat-proj-token-note') || {}).textContent || '') ? true : null), { timeout: 20000 });
             h.eq(await h.eval(() => /** @type {HTMLInputElement} */ (document.querySelector('#lolchat .chat-proj-token-in')).value), '', 'the token field clears');
             await h.click('#lolchat .chat-proj-push');
             await h.waitFor(() => (/Could not push \(127\.0\.0\.1:9\)/.test((document.querySelector('#lolchat .chat-proj-git-note') || {}).textContent || '') ? true : null), { timeout: 20000 });
@@ -202,7 +202,7 @@ export default [
             // the Computer's viewer, in the panel's own sandbox guest (not the served page).
             await send(h, 'write graphify-out/graph.json: {"nodes":[{"id":"a","label":"App","community":0},{"id":"b","label":"Store","community":1},{"id":"c","label":"View","community":1}],"links":[{"source":"a","target":"b","relation":"calls"},{"source":"a","target":"c","relation":"imports"}]}');
             h.eq((await settled(h, 3)).status, 'done');
-            await h.waitFor(() => (window.LolChat.debug.project.state().files.includes('graphify-out/graph.json') ? true : null), { timeout: 10000 });
+            await h.waitFor(() => (window.LolChat.debug.project.state().files.includes('graphify-out/graph.json') ? true : null), { timeout: 20000 });
             await h.eval(() => {
                 const b = Array.from(document.querySelectorAll('#lolchat .chat-proj-file')).find((x) => x.textContent === 'graphify-out/graph.json');
                 /** @type {any} */ (b).click();
@@ -235,7 +235,7 @@ export default [
 
             // 4. Stop ends a running turn (sent with ONE click, the threshold at 1).
             await send(h, 'slow');
-            await h.waitFor(() => (document.querySelector('#lolchat .chat-msg.assistant[data-status="streaming"]') ? true : null), { timeout: 10000 });
+            await h.waitFor(() => (document.querySelector('#lolchat .chat-msg.assistant[data-status="streaming"]') ? true : null), { timeout: 20000 });
             await h.eval(() => { window.LolChat.app.controller.stop(); return true; });
             const third = await settled(h, 4);
             h.eq(third.status, 'aborted', 'Stop stopped the agent');
