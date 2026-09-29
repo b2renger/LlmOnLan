@@ -217,6 +217,12 @@ The agent is DeepSeek Harness on the farm's model. It works only inside one proj
 - [ ] **7b.13 graphify.** Ask: *"Use the graphify skill to make a knowledge graph of this project."* Within ~2 min:
   `graphify-out/graph.json` and `GRAPH_REPORT.md` appear; click the graph: the Preview draws it (drag a node). The
   same file pasted into a Computer **Graph** box draws the same map.
+- [ ] **7b.14 Keep going until done** (v0.2.6+, qwen3.8). In a new project press **Keep going until done** (the note
+  says *at most 10*). Ask for the 8-point Snake game of docs/research/p5-loop-spike (score, restart, best score, arrows
+  + WASD, pause, levels, a Web Audio beep with mute, swipe). One reply: *◎ Goal set* … *◎ Goal done*; the eight points
+  are in the files; History has one commit. Then ask for it **one point per round**: the steps show *◎ Round 1 of 10*,
+  *◎ Round 2 of 10*… in the same reply. Press **Stop** mid-loop: it ends at once. Close and reopen LlmOnLan: the switch
+  is off again.
 
 ## 8. After testing
 

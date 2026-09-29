@@ -35,7 +35,17 @@ export type StudioRecord =
     | { kind: 'step'; text: string; reasoning: string; stopReason: string | null; outTokens: number | null }
     | { kind: 'call'; callId: string; name: string; target: string }
     | { kind: 'result'; callId: string; ok: boolean; created: boolean; diffs: StudioDiff[]; error: string | null }
-    | { kind: 'end'; reason: string };
+    | { kind: 'end'; reason: string }
+    // "Keep going until done" (dsh's goal loop): the goal as the model set it, and each round dsh starts on its own.
+    | { kind: 'goal'; phase: string; rounds: number; max: number | null; objective: string; blocked: string }
+    | { kind: 'round'; n: number };
+
+/** "Keep going until done": at most this many rounds, whatever the model asks for (a round is a whole agent turn).
+ *  ponytail: a constant; a per-project setting if people need longer loops. */
+export const GOAL_ROUNDS = 10;
+/** What a person's "keep going" switch adds to their message: only the model can start a dsh goal (create_goal). */
+export const GOAL_PROMPT = 'Take this on as a goal and keep working on it round after round until it is really finished; '
+    + 'check your own work in the files before you mark the goal complete.\n\n';
 
 export interface StudioFarm { endpoint: string; key: string | null; ctxPerSlot: number | null }
 export interface StudioRuntime { node: string; bin: string }
@@ -45,10 +55,13 @@ const TEXT_CAP = 20000;   // per diff side: the Changes view shows an edit, not 
 const clip = (s: unknown, n: number): string => (typeof s === 'string' ? (s.length > n ? s.slice(0, n) + '…' : s) : '');
 
 /** The profile patch (YAML; every string written as a JSON string, which YAML reads as-is). */
-export function buildPatch(o: { baseUrl: string; model: string; contextWindow: number; skillsDir: string; hooksConfig?: string }): string {
+export function buildPatch(o: { baseUrl: string; model: string; contextWindow: number; skillsDir: string; hooksConfig?: string; goals?: boolean }): string {
     const q = (s: string) => JSON.stringify(s);
+    // dsh's goal loop only when a person switched on "Keep going until done" — never on the model's own initiative
+    // (create_goal's words invite it for any long request). command-goal stays off: nothing in the SDK reaches it.
+    const goalOff = o.goals ? [] : ['tool-goal', 'goal-round-driver'];
     const off = [
-        'tool-pwsh', 'tool-bash', 'tool-jobs', 'tool-goal', 'tool-ralph', 'command-goal', 'goal-round-driver',
+        'tool-pwsh', 'tool-bash', 'tool-jobs', ...goalOff, 'tool-ralph', 'command-goal',
         'tool-subagent', 'tool-subagent-fork', 'tool-subagent-control', 'tool-subagent-list-agents',
         'tool-workflow', 'workflow-ptc', 'tool-web', 'web-search-deepseek', 'web-fetch-http', 'web',
         'session-telemetry-otel', 'session-log-deepseek', 'plugin-package-inventory-deepseek',
@@ -82,6 +95,7 @@ export function buildPatch(o: { baseUrl: string; model: string; contextWindow: n
         '  config:',
         '    headroomTokens: 4096',
         '    maxTokens: 4096',
+        ...(o.goals ? ['- id: goal', '  config:', `    defaultMaxGoalRounds: ${GOAL_ROUNDS}`] : []),
         ...off.map((id) => `- { id: ${id}, disabled: true }`),
         // The project fence (FENCE_JS): Claude Code-style command hooks, before every file tool.
         ...(o.hooksConfig ? [
@@ -142,6 +156,20 @@ export function projectEvent(ev: any, dir: string): StudioRecord | null {
         }
         case 'turn/end':
             return { kind: 'end', reason: String((d.reason && d.reason.kind) || 'completed') };
+        case 'goal/change': {
+            const g = d.goal || null;
+            return {
+                kind: 'goal', phase: g ? String(g.phase || '') : 'none',
+                rounds: Number.isFinite(d.roundsStarted) ? d.roundsStarted : 0,
+                max: g && Number.isFinite(g.maxGoalRounds) ? g.maxGoalRounds : null,
+                objective: g ? clip(g.objective, 300) : '', blocked: g ? clip(g.blockedReason, 300) : '',
+            };
+        }
+        case 'user/message': {
+            // Only the rounds dsh starts itself (source.kind "goal"); a person's own message is already on the page.
+            const s = d.source || (d.message && d.message.source) || null;
+            return s && s.kind === 'goal' && Number.isFinite(s.round) ? { kind: 'round', n: s.round } : null;
+        }
         default:
             return null;
     }
@@ -187,7 +215,14 @@ interface Rt {
     child: ChildProcess; key: string; buf: string; stderr: string; dead: boolean;
     next: number; pending: Map<number, (m: any) => void>; sessions: Map<string, string>;
 }
-interface Turn { id: string; sessionId: string; running: boolean; end: string | null; dir: string; prompt: string }
+interface Turn {
+    id: string; sessionId: string; running: boolean; end: string | null; dir: string; prompt: string;
+    /** "Keep going until done": the goal's phase as dsh reports it, the rounds it started, the wait for the next one. */
+    goal: string | null; rounds: number; waiting: NodeJS.Timeout | null;
+}
+/** After an idle with the goal still active, dsh starts the next round at once; this long without one means it
+ *  disarmed the goal (a max-tokens end, an error) and the reply is over. */
+const ROUND_WAIT_MS = 30000;
 
 export interface StudioDeps {
     dataDir: () => string;
@@ -203,6 +238,8 @@ export interface StudioDeps {
     /** A skills folder to copy into <DATA_DIR>/skills the first time (ponytail, with its licence). */
     seedSkills?: string;
     env?: NodeJS.ProcessEnv;
+    /** How long to wait for dsh's next goal round before the reply is over (tests shorten it). */
+    roundWaitMs?: number;
 }
 
 export function createStudio(deps: StudioDeps) {
@@ -220,6 +257,7 @@ export function createStudio(deps: StudioDeps) {
         if (!turn) return;
         const t = turn;
         turn = null;
+        if (t.waiting) clearTimeout(t.waiting);
         const how = reason === 'completed' ? '' : ` (${reason})`;
         const first = t.prompt.split('\n').map((l) => l.trim()).find(Boolean) || 'a reply';
         void commitAll(t.dir, `Agent${how}: ${first}`, AGENT)
@@ -278,10 +316,25 @@ export function createStudio(deps: StudioDeps) {
             const rec = projectEvent(p.event, turn.dir);
             if (!rec) return;
             if (rec.kind === 'end') turn.end = rec.reason;
+            if (rec.kind === 'goal') turn.goal = rec.phase;
+            if (rec.kind === 'round') turn.rounds = rec.n;
             deps.emit({ turnId: turn.id, rec });
+            // Our cap, whatever max_goal_rounds the model chose: a round past it is not run.
+            if (rec.kind === 'round' && rec.n > GOAL_ROUNDS) { finish('round-limit'); void stopRuntime(); }
         } else if (m.method === 'session.status') {
-            if (p.status === 'running') turn.running = true;
-            else if (p.status === 'idle' && turn.running) finish(turn.end || 'completed');
+            if (p.status === 'running') {
+                turn.running = true;
+                if (turn.waiting) { clearTimeout(turn.waiting); turn.waiting = null; }
+            } else if (p.status === 'idle' && turn.running) {
+                // A goal still active after a normal end: dsh queues the next round now — the reply goes on.
+                if (turn.goal === 'active' && (turn.end || 'completed') === 'completed') {
+                    turn.running = false;
+                    const t = turn;
+                    t.waiting = setTimeout(() => { if (turn === t) finish('stalled'); }, deps.roundWaitMs ?? ROUND_WAIT_MS);
+                    return;
+                }
+                finish(turn.goal === 'blocked' ? 'blocked' : (turn.end || 'completed'));
+            }
         }
     }
 
@@ -315,7 +368,7 @@ export function createStudio(deps: StudioDeps) {
         }
     }
 
-    async function startRuntime(o: { key: string; dir: string; model: string; maxTokens: number; farm: StudioFarm; runtime: StudioRuntime }): Promise<Rt | StudioErr> {
+    async function startRuntime(o: { key: string; dir: string; model: string; maxTokens: number; farm: StudioFarm; runtime: StudioRuntime; goals: boolean }): Promise<Rt | StudioErr> {
         const home = homeOf();
         try {
             seed();
@@ -326,7 +379,7 @@ export function createStudio(deps: StudioDeps) {
             const hooks = path.join(home, 'lol-hooks.json');
             fs.writeFileSync(fence, FENCE_JS);
             fs.writeFileSync(hooks, fenceHooks(o.runtime.node, fence));
-            const patch = buildPatch({ baseUrl: o.farm.endpoint, model: o.model, contextWindow: o.farm.ctxPerSlot || 32768, skillsDir: skillsOf(), hooksConfig: hooks });
+            const patch = buildPatch({ baseUrl: o.farm.endpoint, model: o.model, contextWindow: o.farm.ctxPerSlot || 32768, skillsDir: skillsOf(), hooksConfig: hooks, goals: o.goals });
             fs.writeFileSync(path.join(prof, 'cordis.patch.yml.tmp'), patch);
             fs.renameSync(path.join(prof, 'cordis.patch.yml.tmp'), path.join(prof, 'cordis.patch.yml'));
         } catch (e) {
@@ -373,7 +426,7 @@ export function createStudio(deps: StudioDeps) {
 
     return {
         /** Send one prompt; the turn's records and its end arrive through deps.emit. */
-        async prompt(o: { projectId: string; threadId: string; model: string; text: string; recap?: string; maxTokens?: number; turnId?: string }):
+        async prompt(o: { projectId: string; threadId: string; model: string; text: string; recap?: string; maxTokens?: number; turnId?: string; goal?: boolean }):
             Promise<{ ok: true; turnId: string; fresh: boolean } | StudioErr> {
             const idv = validateId(o.projectId);
             if (!idv.ok || !o.threadId || !o.model || !o.text) return err('E_ARGS', 'bad arguments');
@@ -384,11 +437,13 @@ export function createStudio(deps: StudioDeps) {
             const runtime = deps.runtime();
             if (!runtime) return err('E_RUNTIME', 'The coding agent is not installed on this computer yet.');
             if (turn) return err('E_BUSY', 'The coding agent is already working. Stop it first.');
-            const maxTokens = Math.min(65536, Math.max(512, Math.floor(Number(o.maxTokens) || 8192)));
-            const key = JSON.stringify([idv.id, o.model, maxTokens, farm.endpoint, farm.key, farm.ctxPerSlot, runtime.bin]);
+            // "Keep going until done": a turn cut on max-tokens disarms the goal, and 8192 cut real goal work (P5-L spike).
+            const goals = o.goal === true;
+            const maxTokens = Math.min(65536, Math.max(goals ? 16384 : 512, Math.floor(Number(o.maxTokens) || 8192)));
+            const key = JSON.stringify([idv.id, o.model, maxTokens, farm.endpoint, farm.key, farm.ctxPerSlot, runtime.bin, goals]);
             if (!rt || rt.dead || rt.key !== key) {
                 await stopRuntime();
-                const started = await startRuntime({ key, dir, model: o.model, maxTokens, farm, runtime });
+                const started = await startRuntime({ key, dir, model: o.model, maxTokens, farm, runtime, goals });
                 if ('ok' in started) return started;
             }
             const r = rt!;
@@ -398,10 +453,10 @@ export function createStudio(deps: StudioDeps) {
                 sessionId = `lol-${o.threadId.slice(0, 40)}-${Date.now().toString(36)}`;
                 r.sessions.set(o.threadId, sessionId);
             }
-            const text = fresh && o.recap ? `${o.recap}\n\n${o.text}` : o.text;
+            const text = (fresh && o.recap ? `${o.recap}\n\n` : '') + (goals ? GOAL_PROMPT : '') + o.text;
             // The page names the turn when it can, so it listens BEFORE the first record (they can beat this answer).
             const named = typeof o.turnId === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(o.turnId) ? o.turnId : '';
-            turn = { id: named || randomBytes(8).toString('hex'), sessionId, running: false, end: null, dir, prompt: o.text };
+            turn = { id: named || randomBytes(8).toString('hex'), sessionId, running: false, end: null, dir, prompt: o.text, goal: null, rounds: 0, waiting: null };
             const id = turn.id;
             const res = await call(r, 'session/prompt', { sessionId, contentBlocks: [{ type: 'text', text }] }, 30000);
             if (res.error) {

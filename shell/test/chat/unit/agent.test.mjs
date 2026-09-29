@@ -3,7 +3,7 @@
 // answer, a step log and the edits; a turn ends as done, stopped, refused or "ran out of room" — never a silent
 // "done" with nothing in it; the recap keeps the newest turns; a model is trusted with edits only when measured.
 import assert from 'node:assert/strict';
-import { buildRecap, emptyTurn, applyRecord, resultOf, startAgentTurn } from '../../../renderer/chat/projects/agent.mjs';
+import { buildRecap, emptyTurn, applyRecord, resultOf, startAgentTurn, keepGoing, setKeepGoing } from '../../../renderer/chat/projects/agent.mjs';
 import { profileFor, pickEditor } from '../../../renderer/chat/projects/models.mjs';
 
 const REC = {
@@ -97,6 +97,46 @@ export default (test) => {
     const rr = await refused.done;
     assert.equal(rr.status, 'error');
     assert.match(rr.error.message, /not installed/);
+  });
+
+  test('agent: "keep going" — the goal and each round in the step log, and an early end says why in words', async () => {
+    const s = emptyTurn();
+    applyRecord(s, { kind: 'goal', phase: 'active', rounds: 0, max: 25, objective: 'Build it', blocked: '' });
+    applyRecord(s, { kind: 'step', text: 'Round 1 done.', reasoning: '', stopReason: 'stop', outTokens: 5 });
+    applyRecord(s, { kind: 'round', n: 1 });
+    applyRecord(s, { kind: 'round', n: 2 });
+    applyRecord(s, { kind: 'goal', phase: 'complete', rounds: 2, max: 25, objective: 'Build it', blocked: '' });
+    const lines = s.reasoning.split('\n');
+    assert.match(lines[0], /Goal set/);
+    assert.deepEqual(lines.filter((l) => /Round/.test(l)), ['◎ Round 1 of 10', '◎ Round 2 of 10'], 'the model asked for 25: the page says our cap');
+    assert.match(lines[lines.length - 1], /Goal done/);
+    assert.equal(resultOf(s, { reason: 'completed' }).status, 'done');
+
+    for (const [reason, words] of [['max-tokens', /longer than the model may write/], ['stalled', /did not start its next round/], ['round-limit', /after 10 rounds/]]) {
+      const x = emptyTurn();
+      applyRecord(x, { kind: 'goal', phase: 'active', rounds: 0, max: 10, objective: 'o', blocked: '' });
+      const r = resultOf(x, { reason: /** @type {string} */ (reason) });
+      assert.equal(r.status, 'error', `${reason} is not "done"`);
+      assert.match(r.error.message, /** @type {RegExp} */ (words));
+      assert.match(r.error.message, /kept/, 'and the work so far is kept');
+    }
+    const b = emptyTurn();
+    applyRecord(b, { kind: 'goal', phase: 'blocked', rounds: 3, max: 10, objective: 'o', blocked: 'the API needs a key' });
+    assert.match(resultOf(b, { reason: 'blocked' }).error.message, /blocked: the API needs a key/);
+
+    // The switch is per project, off by default; a turn carries it to main.
+    assert.equal(keepGoing('p-one'), false);
+    setKeepGoing('p-one', true);
+    assert.equal(keepGoing('p-one'), true);
+    assert.equal(keepGoing('p-two'), false, 'per project');
+    const door = fakeDoor();
+    const turn = startAgentTurn({ projectId: 'p-one', threadId: 't', model: 'm', text: 'x', goal: keepGoing('p-one'), door });
+    await Promise.resolve();
+    assert.equal(door.prompts[0].goal, true);
+    turn.abort();
+    await turn.done;
+    setKeepGoing('p-one', false);
+    assert.equal(keepGoing('p-one'), false);
   });
 
   test('agent: outside the app (no door) the turn is refused in words', async () => {

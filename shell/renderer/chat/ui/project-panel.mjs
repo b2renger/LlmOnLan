@@ -9,7 +9,7 @@
 import { SLOTS } from '../core/registry.mjs';
 import { EV } from '../core/events.mjs';
 import { t } from '../core/i18n.mjs';
-import { getDoor, onInstall } from '../projects/agent.mjs';
+import { getDoor, onInstall, keepGoing, setKeepGoing, GOAL_ROUNDS } from '../projects/agent.mjs';
 import { profileFor, pickEditor } from '../projects/models.mjs';
 import { tabEdit, newlineEdit, applyEdit } from '../computer/code-edit.mjs';
 import { diffLines, hunks } from '../projects/linediff.mjs';
@@ -144,9 +144,17 @@ function createPanel(host, app) {
   // Share on the LAN (owner, 2026-09-28): a person's toggle per project, off by default, forgotten at restart.
   /** @type {string[]} */ let lanUrls = [];
   const shareBtn = button(t('project.share'), 'chat-proj-share', () => { void toggleShare(); }, t('project.tipShare'));
-  bar.append(nameEl, other, folder, browser, shareBtn);
+  // Keep going until done (owner, 2026-09-29: agent loops, started only by a person): the same kind of switch.
+  const keepBtn = button(t('project.keepGoing'), 'chat-proj-keep', () => {
+    if (!projectId) return;
+    setKeepGoing(projectId, !keepGoing(projectId));
+    paintKeep();
+  }, t('project.tipKeepGoing'));
+  bar.append(nameEl, other, folder, browser, shareBtn, keepBtn);
   const shareNote = make('p', 'chat-proj-note chat-proj-share-note');
   shareNote.setAttribute('role', 'status');
+  const keepNote = make('p', 'chat-proj-note chat-proj-keep-note');
+  keepNote.setAttribute('role', 'status');
   const model = make('p', 'chat-proj-note chat-proj-model');
   const cols = make('div', 'chat-proj-cols');
   const fileList = make('ul', 'chat-proj-files');
@@ -248,7 +256,7 @@ function createPanel(host, app) {
   let picked = '';
   view.append(tabs, panePreview, paneCode, paneChanges, paneHistory);
   cols.append(fileList, view);
-  main.append(bar, shareNote, model, cols);
+  main.append(bar, shareNote, keepNote, model, cols);
   root.append(empty, main);
 
   // ---- behaviour -----------------------------------------------------------------------------------
@@ -278,6 +286,15 @@ function createPanel(host, app) {
     model.textContent = !m ? '' : p.edits === 'good' ? t('project.modelGood', { model: m })
       : p.edits === 'weak' ? t('project.modelWeak', { model: m }) : t('project.modelUnknown', { model: m });
     model.classList.toggle('is-warn', p.edits === 'weak');
+  }
+
+  function paintKeep() {
+    const on = !!projectId && keepGoing(projectId);
+    keepBtn.hidden = !door;
+    keepBtn.textContent = on ? t('project.keepGoingOn') : t('project.keepGoing');
+    keepBtn.title = on ? t('project.tipKeepGoingOn') : t('project.tipKeepGoing');
+    keepBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    keepNote.textContent = on ? t('project.keepGoingNote', { max: GOAL_ROUNDS }) : '';
   }
 
   function paintShare() {
@@ -620,6 +637,7 @@ function createPanel(host, app) {
       lanUrls = s && s.ok && Array.isArray(s.lan) ? s.lan : [];
     }
     paintShare();
+    paintKeep();
     // The folder was moved or deleted outside LlmOnLan: say so, rather than an empty list and "no index.html yet".
     if (meta && !meta.ok && meta.code === 'E_MISSING') shareNote.textContent = t('project.gone');
     browser.href = serveUrl || '#';
@@ -662,7 +680,7 @@ function createPanel(host, app) {
       host.replaceChildren();
     },
     debug: {
-      state: () => ({ projectId, projectName, files: files.map((f) => f.path), tab, openFile, serveUrl, lan: lanUrls.slice(), history: commits.map((c) => c.message), frame: frame ? frame.getAttribute('src') : null, graph: graphLive ? graphLive.state() : null }),
+      state: () => ({ projectId, projectName, files: files.map((f) => f.path), tab, openFile, serveUrl, lan: lanUrls.slice(), keepGoing: !!projectId && keepGoing(projectId), history: commits.map((c) => c.message), frame: frame ? frame.getAttribute('src') : null, graph: graphLive ? graphLive.state() : null }),
     },
   };
 }

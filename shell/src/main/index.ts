@@ -696,7 +696,8 @@ function registerIpc(): void {
         if (o.recap !== undefined && (!isStr(o.recap) || o.recap.length > 20000)) return badStudio;
         if (o.maxTokens !== undefined && typeof o.maxTokens !== 'number') return badStudio;
         if (o.turnId !== undefined && (!isStr(o.turnId) || o.turnId.length > 64)) return badStudio;
-        return studio().prompt({ projectId: o.projectId, threadId: o.threadId, model: o.model, text: o.text, recap: o.recap as string | undefined, maxTokens: o.maxTokens as number | undefined, turnId: o.turnId as string | undefined });
+        if (o.goal !== undefined && typeof o.goal !== 'boolean') return badStudio;
+        return studio().prompt({ projectId: o.projectId, threadId: o.threadId, model: o.model, text: o.text, recap: o.recap as string | undefined, maxTokens: o.maxTokens as number | undefined, turnId: o.turnId as string | undefined, goal: o.goal === true });
     });
     ipcMain.handle('lol:studio:stop', () => studio().stop());
     ipcMain.handle('lol:studio:status', () => studio().status());

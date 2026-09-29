@@ -66,6 +66,11 @@
 /* Busy (installing, sharing, a push in flight) or not for this file: it says so instead of looking clickable. */
 .chat-proj-btn:disabled { opacity: .55; cursor: default; }
 .chat-proj-btn[hidden] { display: none; }
+/* A switch that is on (Share on the LAN, Keep going until done): seen at a glance, as in the composer. */
+.chat-proj-btn[aria-pressed='true'] {
+  color: var(--text); border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 22%, var(--surface-2));
+}
 .chat-proj-create { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
 .chat-proj-create:hover:not(:disabled) { filter: brightness(1.08); }
 .chat-proj-list, .chat-proj-files { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }

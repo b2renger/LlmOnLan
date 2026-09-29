@@ -241,6 +241,32 @@ export default [
             h.eq(third.status, 'aborted', 'Stop stopped the agent');
             h.eq(await h.eval(async () => (await window.lol.studio.status()).running), false, 'main has no turn running');
             await h.eval((v) => { window.LolChat.app.context.setThreshold(v); return true; }, wasThreshold);
+
+            // 5. Keep going until done (owner, 2026-09-29): a person's switch; dsh's rounds become ONE reply whose step log
+            //    shows each round, and the goal the agent completed. The mock acts out dsh's goal loop (test/mock-dsh.mjs).
+            const keep = () => h.eval(() => { /** @type {HTMLButtonElement} */ (document.querySelector('#lolchat .chat-proj-keep')).click(); return true; });
+            h.eq((await panel(h)).keepGoing, false, 'off by default');
+            await keep();
+            h.eq((await panel(h)).keepGoing, true, 'on for this project');
+            h.assert(/at most 10/.test(await h.eval(() => (document.querySelector('#lolchat .chat-proj-keep-note') || {}).textContent || '')), 'the note says what it does');
+            await send(h, 'rounds 2: finish the job');
+            const loop = await settled(h, 5);
+            h.eq(loop.status, 'done', `the loop ends done: ${loop.text}`);
+            h.assert(/Round 1 of 10[\s\S]*Round 2 of 10[\s\S]*Goal done/.test(loop.reasoning), `the step log shows each round, then the goal done: ${loop.reasoning.slice(0, 300)}`);
+            h.assert(/Goal complete after 2 rounds/.test(loop.text), 'the last round\'s words are the answer');
+            await h.waitFor(() => {
+                const f = window.LolChat.debug.project.state().files;
+                return f.includes('round-1.txt') && f.includes('round-2.txt') ? true : null;
+            }, { timeout: 20000 });
+
+            //    Stop in the middle of a loop ends it at once, like any reply.
+            await send(h, 'rounds 6: a long job');
+            await h.waitFor(() => (/Round 1 of 10/.test((document.querySelectorAll('#lolchat .chat-msg.assistant')[5] || {}).textContent || '') ? true : null), { timeout: 20000 });
+            await h.eval(() => { window.LolChat.app.controller.stop(); return true; });
+            h.eq((await settled(h, 6)).status, 'aborted', 'Stop ends the loop');
+            h.eq(await h.eval(async () => (await window.lol.studio.status()).running), false, 'no loop left running in main');
+            await keep();
+            h.eq((await panel(h)).keepGoing, false, 'and the switch goes off again');
         },
     },
 ];

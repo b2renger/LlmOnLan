@@ -7,6 +7,11 @@
 //   "read <file>"                      → a `read` call (a missing file is an isError result)
 //   "slow"                             → the turn waits 60 s before it answers (for Stop)
 //   "crash"                            → the process dies mid-turn (for the runtime-died path)
+// With the "keep going" sentence (studio.ts GOAL_PROMPT) it acts out dsh's goal loop, with the real event shapes
+// (goal/change; each round a user/message whose source is {kind:"goal", round}):
+//   "rounds N"                         → create_goal, then N rounds, each writing round-<n>.txt; the last completes it
+//   "goal-maxtokens"                   → create_goal, then the turn ends on max-tokens (dsh disarms the goal)
+//   "goal-stall"                       → create_goal, a normal end, and no round ever comes (a disarmed goal)
 // Its final answer quotes the whole prompt it received, so a test can see a recap arrive.
 import fs from 'node:fs';
 import path from 'node:path';
@@ -36,7 +41,50 @@ async function tool(sessionId, step, name, args, run) {
   });
 }
 
+/** dsh's goal loop, as the recorded sessions show it: the model creates the goal; after each idle dsh starts a round. */
+async function goalTurn(sessionId, text) {
+  const goal = { id: 'goal-mock', revision: 1, objective: text.split('\n\n').pop().slice(0, 200), phase: 'active', maxGoalRounds: 10 };
+  const change = (operation, rounds) => event(sessionId, 'goal/change', { kind: 'goal/change', version: 1, operation, goal: { ...goal }, roundsStarted: rounds });
+  const say = (turnN, words) => event(sessionId, 'assistant/message', {
+    turn: turnN, step: 9, usage: { inputTokens: 100, outputTokens: 10, totalTokens: 110 },
+    message: { role: 'assistant', content: [{ type: 'text', text: words }], source: { kind: 'model', replayState: { response: { stopReason: 'stop' } } } },
+  });
+  status(sessionId, 'running');
+  event(sessionId, 'turn/start', { turn: 1 });
+  await tool(sessionId, 1, 'create_goal', { objective: goal.objective }, () => { change('create', 0); return { text: JSON.stringify({ goal }) }; });
+  if (/goal-maxtokens/.test(text)) {
+    event(sessionId, 'turn/end', { turn: 1, reason: { kind: 'max-tokens' } });
+    status(sessionId, 'idle');
+    return;
+  }
+  say(1, 'Goal set: working on it round by round.');
+  event(sessionId, 'turn/end', { turn: 1, reason: { kind: 'completed' } });
+  status(sessionId, 'idle');
+  if (/goal-stall/.test(text)) return;
+  const n = Number((/rounds (\d+)/.exec(text) || [])[1] || 2);
+  for (let r = 1; r <= n; r++) {
+    await sleep(200);   // a real round takes seconds; this is still far quicker
+    status(sessionId, 'running');
+    event(sessionId, 'user/message', { content: [{ type: 'text', text: `<goal_round>\nRound: ${r}/${goal.maxGoalRounds}` }], source: { kind: 'goal', goalId: goal.id, revision: goal.revision, round: r }, role: 'user', id: `round-${r}` });
+    event(sessionId, 'turn/start', { turn: r + 1 });
+    await tool(sessionId, 1, 'write', { file_path: `round-${r}.txt`, content: `round ${r}` }, () => {
+      fs.writeFileSync(path.resolve(`round-${r}.txt`), `round ${r}`);
+      return { text: 'Created file', meta: { operation: 'create', diffs: [] } };
+    });
+    if (r === n) {
+      await tool(sessionId, 2, 'update_goal', { goal_id: goal.id, revision: goal.revision, action: 'complete' }, () => {
+        goal.phase = 'complete'; goal.revision += 1; change('complete', r);
+        return { text: JSON.stringify({ goal }) };
+      });
+    }
+    say(r + 1, r === n ? `Goal complete after ${n} rounds.` : `Round ${r} done.`);
+    event(sessionId, 'turn/end', { turn: r + 1, reason: { kind: 'completed' } });
+    status(sessionId, 'idle');
+  }
+}
+
 async function turn(sessionId, text) {
+  if (/Take this on as a goal/.test(text)) return goalTurn(sessionId, text);
   status(sessionId, 'running');
   event(sessionId, 'turn/start', { turn: 1 });
   if (/crash/.test(text)) { await sleep(50); process.exit(3); }

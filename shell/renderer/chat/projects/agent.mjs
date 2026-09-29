@@ -42,6 +42,8 @@ export function emptyTurn() {
     /** @type {string[]} */ created: [],
     /** @type {Record<string, {name: string, target: string}>} */ calls: {},
     outTokens: 0, stopReason: /** @type {string|null} */ (null), end: /** @type {string|null} */ (null),
+    // "Keep going until done": the goal's phase, its round cap, the rounds dsh started, why it is blocked.
+    goal: /** @type {string|null} */ (null), goalMax: 0, rounds: 0, blocked: '',
   };
 }
 
@@ -74,9 +76,31 @@ export function applyRecord(s, rec) {
     }
   } else if (rec.kind === 'end') {
     s.end = String(rec.reason || '');
+  } else if (rec.kind === 'goal') {
+    // "Keep going until done": dsh's goal as the model set it, then how it ended.
+    const was = s.goal;
+    s.goal = String(rec.phase || '');
+    if (Number.isFinite(rec.max)) s.goalMax = Math.min(Number(rec.max), GOAL_ROUNDS);
+    if (s.goal === 'active' && !was) line(t('agent.goalSet'));
+    else if (s.goal === 'complete') line(t('agent.goalDone'));
+    else if (s.goal === 'blocked') { s.blocked = String(rec.blocked || ''); line(t('agent.goalBlocked', { why: s.blocked || '—' })); }
+  } else if (rec.kind === 'round') {
+    s.rounds = Number(rec.n) || s.rounds;
+    line(t('agent.round', { n: s.rounds, max: s.goalMax || GOAL_ROUNDS }));
   }
   return s;
 }
+
+/** Main's cap on a loop's rounds (studio.ts GOAL_ROUNDS): the step log says "Round n of 10" even if the model asked for more. */
+export const GOAL_ROUNDS = 10;
+
+/** "Keep going until done", per project: a person's switch, off by default and forgotten at restart (like Share on the
+ *  LAN) — a loop only ever runs because someone asked for it. */
+const keep = new Set();
+/** @param {string} projectId @param {boolean} on */
+export function setKeepGoing(projectId, on) { if (on) keep.add(String(projectId)); else keep.delete(String(projectId)); }
+/** @param {string} projectId */
+export function keepGoing(projectId) { return keep.has(String(projectId)); }
 
 /** How a finished turn reads as a result, from its state and main's end. @param {ReturnType<typeof emptyTurn>} s @param {{reason: string, error?: string}} done */
 export function resultOf(s, done) {
@@ -84,6 +108,12 @@ export function resultOf(s, done) {
   if (done.reason === 'stopped') return { status: 'aborted', abortedBy: 'user', error: null };
   if (done.reason === 'refused') return { status: 'error', error: local(done.error || t('agent.noApp')) };
   if (done.reason === 'error') return { status: 'error', error: local(done.error || t('agent.endedEarly', { reason: 'error' }), 'stream_error') };
+  // A loop that ended before its goal: what was done is kept (in the reply and the files), and the note says why.
+  const LOOP_END = { 'max-tokens': 'agent.loopMaxTokens', stalled: 'agent.loopStalled', 'round-limit': 'agent.loopRoundLimit', blocked: 'agent.loopBlocked' };
+  if (s.goal && done.reason in LOOP_END) {
+    const why = t(/** @type {any} */ (LOOP_END)[done.reason], { max: s.goalMax || GOAL_ROUNDS, why: s.blocked || '—' });
+    return { status: 'error', error: local(why, 'stream_error') };
+  }
   if (!s.content && /length|max/i.test(String(s.stopReason || ''))) return { status: 'error', error: local(t('agent.outOfRoom'), 'stream_error') };
   if (done.reason !== 'completed') return { status: 'error', error: local(t('agent.endedEarly', { reason: done.reason }), 'stream_error') };
   if (!s.content) s.content = t('agent.noAnswer');
@@ -119,7 +149,7 @@ export function onInstall(fn) {
 
 /**
  * One agent turn, shaped like a generation.
- * @param {{projectId: string, threadId: string, model: string, text: string, recap?: string, maxTokens?: number,
+ * @param {{projectId: string, threadId: string, model: string, text: string, recap?: string, maxTokens?: number, goal?: boolean,
  *   onTail?: (state: any) => void, onCheckpoint?: (state: any) => void, now?: () => number, door?: any}} o
  * @returns {{done: Promise<any>, abort: (reason?: string) => void, state: ReturnType<typeof emptyTurn>}}
  */
@@ -159,7 +189,7 @@ export function startAgentTurn(o) {
     }
     if (m.done) finish(m.done);
   });
-  const ask = { turnId, projectId: o.projectId, threadId: o.threadId, model: o.model, text: o.text, ...(o.recap ? { recap: o.recap } : {}), ...(o.maxTokens ? { maxTokens: o.maxTokens } : {}) };
+  const ask = { turnId, projectId: o.projectId, threadId: o.threadId, model: o.model, text: o.text, ...(o.recap ? { recap: o.recap } : {}), ...(o.maxTokens ? { maxTokens: o.maxTokens } : {}), ...(o.goal ? { goal: true } : {}) };
   Promise.resolve(d.prompt(ask)).then((r) => { if (!r || r.ok !== true) finish({ reason: 'refused', error: (r && r.message) || t('agent.endedEarly', { reason: 'error' }) }); });
   return {
     done,

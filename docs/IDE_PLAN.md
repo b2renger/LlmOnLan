@@ -111,3 +111,24 @@ model and acting with tools, in a loop. Three ways to get there, from the safest
 
 **Recommendation:** A now (a skill, `/lol-farm.json`, one lesson — about half a day), B as the Computer's side (already
 built; the import button later), C only after a measured sandbox review and your decision on the shell question.
+
+## 6. Agent loops — "Keep going until done" (owner, 2026-09-29; built the same day)
+
+The owner asked whether qwen3.8 can run agent LOOPS in the harness we ship. The P5-L spike
+([results](research/p5-loop-spike/RESULTS.md)) answered yes: dsh has its own goal loop (the model creates a goal; dsh
+starts round after round until the model marks it complete), which our patch had switched off. Decisions: loops that
+finish a project, watch and act, research and report, and on a schedule; reach = the project's files (+ the Computer
+and devices, later); **only a person starts one**; qwen3.8. Built:
+
+- A **Keep going until done** switch in the Project panel, per project, off by default and forgotten at restart.
+- With it on, main starts dsh with `tool-goal` + `goal-round-driver` (never otherwise: create_goal's words invite the
+  model to use it on any long request), `maxTokens` ≥ 16384 (a turn cut on max-tokens disarms the goal), and prefixes
+  the message with the sentence that makes the model set a goal (`GOAL_PROMPT`; only the model can start one).
+- The reply stays open across rounds (`studio.ts`: an idle with the goal active waits for dsh's next round), shows
+  `◎ Goal set / Round n of 10 / Goal done` from the `goal/change` and round events, and ends with a sentence when the
+  loop stops early: max-tokens, no next round (30 s), our cap of **10 rounds** (whatever the model asked), blocked.
+- Compaction fitted to small windows (v0.2.5) — without it a long loop on a 32k farm died at round 5.
+
+Next (owner's order): schedules from our side (dsh's scheduler needs its web host) — a person switches on "every N
+minutes / at a time", only while the app is open; then the Computer as the agent's hands (MCP), with devices only
+once a person arms the outputs.

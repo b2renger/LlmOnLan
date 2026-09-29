@@ -588,6 +588,8 @@ export function createController(app) {
             recap: agentMod.buildRecap(path.slice(0, -1)),
             // The model behind a farm alias ("assistant" on llama.cpp) is what the profile knows.
             maxTokens: modelsMod.profileFor((info && info.underlying) || model).maxTokens,
+            // "Keep going until done": a person's switch in the Project panel (off by default, forgotten at restart).
+            goal: agentMod.keepGoing(projectId),
             onTail, onCheckpoint,
           });
         } else {

@@ -61,6 +61,25 @@ export default (test) => {
     assert.match(p, /- id: compaction-basic\n {2}config:\n {4}headroomTokens: 4096\n {4}maxTokens: 4096/);
   });
 
+  test('studio: dsh\'s goal loop is in the patch only when a person switched on "keep going"', () => {
+    const base = { baseUrl: 'http://x/v1', model: 'm', contextWindow: 32768, skillsDir: '/s' };
+    const off = S.buildPatch(base);
+    for (const id of ['tool-goal', 'goal-round-driver', 'command-goal']) assert.ok(off.includes(`- { id: ${id}, disabled: true }`), `${id} off by default`);
+    assert.doesNotMatch(off, /defaultMaxGoalRounds/);
+    const on = S.buildPatch({ ...base, goals: true });
+    for (const id of ['tool-goal', 'goal-round-driver']) assert.ok(!on.includes(`- { id: ${id}, disabled: true }`), `${id} on`);
+    assert.ok(on.includes('- { id: command-goal, disabled: true }'), 'the slash command stays off: nothing in the SDK reaches it');
+    assert.match(on, new RegExp(`- id: goal\\n {2}config:\\n {4}defaultMaxGoalRounds: ${S.GOAL_ROUNDS}`));
+    for (const id of ['tool-bash', 'tool-web', 'tool-ralph']) assert.ok(on.includes(`- { id: ${id}, disabled: true }`), `${id} still off in a loop`);
+  });
+
+  test('studio: goal events become goal and round records; a person\'s own message is not repeated', () => {
+    const g = S.projectEvent({ type: 'goal/change', data: { operation: 'create', roundsStarted: 2, goal: { phase: 'active', maxGoalRounds: 10, objective: 'Build it' } } }, '/p');
+    assert.deepEqual(g, { kind: 'goal', phase: 'active', rounds: 2, max: 10, objective: 'Build it', blocked: '' });
+    assert.deepEqual(S.projectEvent({ type: 'user/message', data: { source: { kind: 'goal', round: 3 }, content: [] } }, '/p'), { kind: 'round', n: 3 });
+    assert.equal(S.projectEvent({ type: 'user/message', data: { source: { kind: 'user' }, content: [] } }, '/p'), null);
+  });
+
   test('studio: dsh itself composes the patch — compaction gets our headroom (when the runtime is built)', () => {
     const rt = path.join(HERE, '..', '..', '..', 'dsh', 'build', 'dsh-runtime');
     const node = path.join(rt, 'node', process.platform === 'win32' ? 'node.exe' : path.join('bin', 'node'));
@@ -142,6 +161,7 @@ export default (test) => {
       runtime: () => ('runtime' in o ? o.runtime : { node: process.execPath, bin: MOCK }),
       emit: (m) => got.push(m),
       seedSkills: seed,
+      ...(o.roundWaitMs ? { roundWaitMs: o.roundWaitMs } : {}),
     });
     const done = async (turnId, ms = 15000) => {
       const t0 = Date.now();
@@ -196,6 +216,47 @@ export default (test) => {
       assert.equal(c.ok && c.fresh, true, 'another model is another runtime, so a fresh session with the recap');
       await r.done(c.turnId);
       assert.match(r.said(c.turnId), /Earlier: two edits\./);
+    } finally { await r.studio.dispose(); }
+  });
+
+  test('studio: "keep going" is ONE reply across the rounds dsh starts, until the model completes the goal', async () => {
+    const r = rig();
+    const patchFile = path.join(r.data, 'lol-studio', 'dsh', 'profiles', 'sdk', 'cordis.patch.yml');
+    try {
+      const a = await r.studio.prompt({ projectId: PID, threadId: 'g', model: 'm', text: 'rounds 3: build it', goal: true });
+      assert.equal(a.ok, true, JSON.stringify(a));
+      assert.deepEqual(await r.done(a.turnId), { reason: 'completed' }, 'the reply ends when the goal is complete — not at the first idle');
+      const recs = r.got.filter((m) => m.turnId === a.turnId && m.rec).map((m) => m.rec);
+      assert.deepEqual(recs.filter((x) => x.kind === 'round').map((x) => x.n), [1, 2, 3], 'each round dsh started reached the page');
+      assert.deepEqual(recs.filter((x) => x.kind === 'goal').map((x) => x.phase), ['active', 'complete']);
+      for (const n of [1, 2, 3]) assert.ok(fs.existsSync(path.join(r.dir, `round-${n}.txt`)), `round ${n} worked in the project`);
+      assert.match(fs.readFileSync(patchFile, 'utf8'), /defaultMaxGoalRounds/, 'the runtime started with the goal loop on');
+      assert.deepEqual((await r.studio.history(PID)).commits.map((c) => c.message), ['Agent: rounds 3: build it'], 'the whole loop is one commit');
+
+      const b = await r.studio.prompt({ projectId: PID, threadId: 'g', model: 'm', text: 'write a.txt: x' });
+      assert.deepEqual(await r.done(b.turnId), { reason: 'completed' });
+      assert.doesNotMatch(fs.readFileSync(patchFile, 'utf8'), /defaultMaxGoalRounds/, 'without the switch the loop is off again');
+    } finally { await r.studio.dispose(); }
+  });
+
+  test('studio: "keep going" says why it ended early — max-tokens, a goal that stalled, our round cap', async () => {
+    const r = rig({ roundWaitMs: 300 });
+    try {
+      const a = await r.studio.prompt({ projectId: PID, threadId: 'x', model: 'm', text: 'goal-maxtokens', goal: true });
+      assert.deepEqual(await r.done(a.turnId), { reason: 'max-tokens' }, 'dsh disarms the goal on a max-tokens end: the reply says so');
+      const b = await r.studio.prompt({ projectId: PID, threadId: 'x', model: 'm', text: 'goal-stall', goal: true });
+      assert.deepEqual(await r.done(b.turnId), { reason: 'stalled' }, 'no round came: the reply does not hang');
+      // A model that would go on for 30 rounds: at round cap+1 the runtime is stopped (a real round takes seconds;
+      // the mock's take 30 ms, so one may start before the kill lands — but none after it).
+      const c = await r.studio.prompt({ projectId: PID, threadId: 'y', model: 'm', text: 'rounds 30', goal: true });
+      assert.deepEqual(await r.done(c.turnId, 20000), { reason: 'round-limit' }, 'whatever max_goal_rounds the model set, our cap holds');
+      const rounds = () => fs.readdirSync(r.dir).filter((f) => /^round-\d+\.txt$/.test(f)).length;
+      await sleep(400);
+      const n1 = rounds();
+      await sleep(600);
+      assert.equal(rounds(), n1, 'the runtime is stopped: no round runs after the cap');
+      assert.ok(n1 >= S.GOAL_ROUNDS && n1 <= S.GOAL_ROUNDS + 2, `the rounds up to the cap ran, and about none past it (${n1})`);
+      assert.equal(r.studio.status().running, false);
     } finally { await r.studio.dispose(); }
   });
 

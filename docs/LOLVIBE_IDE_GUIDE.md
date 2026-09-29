@@ -36,6 +36,22 @@ difference here (the agent has its own instructions), and a stopped reply has no
 The agent works with **files**: it reads, searches, writes and edits them — **only inside the project folder**
 (anything else it is refused, and it says so). It has no shell, runs no programs and has no web.
 
+### Keep going until done
+
+For a bigger job, press **Keep going until done** in the panel's top bar (it turns to *…: on*). Your next messages
+then start a **loop**: the agent takes the job on as a goal and keeps working on it **round after round** — each round
+a whole turn of its own — until it has checked in the files that the job is done, then marks it complete. It all
+lands in **one reply**: its steps show *◎ Goal set*, *◎ Round 2 of 10*…, and *◎ Goal done*. A job that fits one turn is
+simply done in one turn.
+
+- **At most 10 rounds.** Past that it stops and says so; what it did is kept — send a message to go on.
+- **Stop** ends the loop at once, like any reply.
+- It also stops, and says why, when one of its replies was longer than the model may write at once, when it does not
+  start its next round, or when it says it is **blocked** (with its reason). The files keep what it did.
+- Each round is a full reply of the model on the farm, and a loop holds your farm seat until it ends.
+- The switch is per project, off by default, and **off again when LlmOnLan closes**: a loop only ever runs because you
+  asked for one. Best with **qwen3.8** (it checks its own work; nemotron did not, in our tests).
+
 ## 3. The panel
 
 | Tab | What it shows |
