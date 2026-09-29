@@ -6,6 +6,20 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-09-29 (08:18) — Release v0.2.4: the symlink fix
+
+The owner, 08:01: "Ok for the symlink and cutting a new release". Tag `v0.2.4` (`caf2f2a`). In it, everything on
+main after v0.2.3 (the entry below): **the project server no longer follows a symbolic link out of the project**
+(`08f1574` — in v0.2.3 a link in a project was followed to any file of the account, served to the LAN when shared and
+readable by the project's own page in the Preview); the Laya question names no item; a free Condition hides the
+Question it never reads; a project chat is neither measured nor gated on its history.
+
+**Tested before the tag:** unit 1750/0, lint 0, shell units 5/5; the full harness 403/405 — the two failures (k2-labels,
+k2-shots-light, both canvas wire scenarios nothing since v0.2.3 touches) pass 3/3 alone and 9/9 twice as the k2 group
+in order: a load flake deep in the long run, noted, not a regression (the same code passed 405/405 the night before).
+
+---
+
 ## 2026-09-29 (00:12) — Release v0.2.3: the IDE, mic and camera, lessons 7–12, the review
 
 Tag `v0.2.3` (`50af476`), cut with `scripts/release.mjs` after the full harness (405/405) and a real test of the
