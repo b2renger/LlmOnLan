@@ -12,6 +12,7 @@ import { fileURLToPath } from 'node:url';
 
 const require = createRequire(import.meta.url);
 const BUILD = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..', 'build', 'main', 'homeAssistant.js');
+const MCP = path.join(path.dirname(BUILD), 'mcp.js');
 const TOKEN = 'secret-long-lived-token-for-tests';
 
 const STATES = () => [
@@ -26,6 +27,10 @@ const STATES = () => [
   { entity_id: 'scene.movie', state: 'unknown', attributes: { friendly_name: 'Movie' } },
   { entity_id: 'media_player.living_room', state: 'playing', attributes: { friendly_name: 'Living Room' } },
   { entity_id: 'siren.hall', state: 'off', attributes: { friendly_name: 'Hall Siren' } },
+  { entity_id: 'valve.gas_main', state: 'closed', attributes: { friendly_name: 'Gas main', device_class: 'gas' } },
+  { entity_id: 'person.anne', state: 'not_home', attributes: { friendly_name: 'Anne', latitude: 48.8566, longitude: 2.3522, gps_accuracy: 12 } },
+  { entity_id: 'zone.home', state: '0', attributes: { friendly_name: 'Home', latitude: 48.85, longitude: 2.35, radius: 100 } },
+  { entity_id: 'camera.porch', state: 'idle', attributes: { friendly_name: 'Porch', access_token: 'cam-secret', entity_picture: '/api/camera_proxy/camera.porch?token=cam-secret' } },
 ];
 const SERVICES = [
   { domain: 'light', services: { turn_on: { fields: { brightness_pct: {}, advanced_fields: { collapsed: true, fields: { transition: {} } } } }, turn_off: { fields: {} }, toggle: { fields: {} } } },
@@ -38,10 +43,11 @@ const SERVICES = [
   { domain: 'scene', services: { turn_on: {}, apply: {}, create: {}, delete: {}, reload: {} } },
   { domain: 'media_player', services: { volume_set: { fields: { volume_level: {} } }, play_media: {}, media_pause: {} } },
   { domain: 'siren', services: { turn_on: {}, turn_off: {}, toggle: {} } },
+  { domain: 'valve', services: { open_valve: {}, close_valve: {}, set_valve_position: {}, stop_valve: {}, toggle: {} } },
 ];
 
 /** A fake Home Assistant: the REST routes the module uses, a bearer check, and every POST recorded. */
-function fakeHa() {
+function fakeHa(/** @type {{postDelayMs?: number}} */ opts = {}) {
   const states = STATES();
   /** @type {{path: string, body: any}[]} */ const posts = [];
   const server = http.createServer((req, res) => {
@@ -62,6 +68,7 @@ function fakeHa() {
       if (req.method === 'POST' && m) {
         const body = JSON.parse(raw || '{}');
         posts.push({ path: url, body });
+        if (opts.postDelayMs) return void setTimeout(() => send(200, []), opts.postDelayMs);
         const s = states.find((x) => x.entity_id === body.entity_id);
         if (s && m[2] === 'turn_on') s.state = 'on';
         if (s && m[2] === 'turn_off') s.state = 'off';
@@ -158,7 +165,7 @@ export default (test) => {
       assert.deepEqual([st.linked, st.url, st.name, st.version, st.armed], [true, ha.url, 'Test Home', '2026.9.4', 0]);
       assert.ok(!JSON.stringify(st).includes(TOKEN), 'the status the page reads never carries the token');
       const c = await home.check();
-      assert.deepEqual([c.ok, c.entities, c.devices], [true, 11, 9]);
+      assert.deepEqual([c.ok, c.entities, c.devices], [true, 15, 10]);
       await home.setLink('', '');
       assert.equal(store.kept(), null, 'forgetting clears the store');
       assert.equal(home.linked(), false);
@@ -174,11 +181,11 @@ export default (test) => {
       const home = H.createHome({ store: memoryStore() });
       await home.setLink(ha.url, TOKEN);
       const all = await home.call('home_devices', {});
-      assert.match(all.text, /Test Home: 11 of 11 entities/);
+      assert.match(all.text, /Test Home: 15 of 15 entities/);
       assert.match(all.text, /sensor\.outside · Outside Temperature · 14\.5 °C/);
       assert.match(all.text, /a dry run/);
       const lights = await home.call('home_devices', { domain: 'light' });
-      assert.match(lights.text, /1 of 11 entities match/);
+      assert.match(lights.text, /1 of 15 entities match/);
       assert.ok(!/sensor\./.test(lights.text));
       const search = await home.call('home_devices', { search: 'garage DOOR' });
       assert.match(search.text, /cover\.garage_door/);
@@ -220,9 +227,9 @@ export default (test) => {
       assert.equal(list.ok, true);
       assert.deepEqual(list.devices.map((/** @type {any} */ d) => d.id),
         ['alarm_control_panel.security', 'cover.garage_door', 'cover.hall_window', 'light.kitchen', 'lock.front_door',
-          'media_player.living_room', 'scene.movie', 'script.good_morning', 'siren.hall'],
-        'devices only: no sensor, no update');
-      assert.equal(home.arm(list.devices, list.generation), 9);
+          'media_player.living_room', 'scene.movie', 'script.good_morning', 'siren.hall', 'valve.gas_main'],
+        'devices only: no sensor, no update, no person, no camera');
+      assert.equal(home.arm(list.devices, list.generation), 10);
       const done = await home.call('home_command', { entity_id: 'light.kitchen', action: 'light.turn_on', data: { brightness_pct: 40, area_id: 'everywhere', entity_id: 'light.other' } });
       assert.equal(done.isError, undefined, done.text);
       assert.match(done.text, /^Done: light\.turn_on on Kitchen Light .* Kitchen Light is now on\./);
@@ -258,6 +265,8 @@ export default (test) => {
         [{ entity_id: 'scene.movie', action: 'apply', data: { entities: { 'lock.front_door': 'unlocked' } } }, /not an action a model may use/],
         [{ entity_id: 'media_player.living_room', action: 'play_media', data: { media_content_id: 'http://evil.example/?d=away' } }, /not an action a model may use/],
         [{ entity_id: 'siren.hall', action: 'turn_on' }, /Never by a model: sound a siren/],
+        [{ entity_id: 'valve.gas_main', action: 'open_valve' }, /Never by a model: open a valve/],
+        [{ entity_id: 'valve.gas_main', action: 'toggle' }, /Never by a model: open a valve/],
         [{ entity_id: 'cover.hall_window', action: 'open_cover' }, /Never by a model: open a cover that does not say/],
         [{ entity_id: 'light.gone', action: 'turn_on' }, /No entity light\.gone/],
       ];
@@ -268,6 +277,7 @@ export default (test) => {
       }
       assert.equal(ha.posts.length, 0, 'not one of them reached Home Assistant');
       assert.equal((await home.call('home_command', { entity_id: 'lock.front_door', action: 'lock' })).isError, undefined, 'locking is allowed');
+      assert.equal((await home.call('home_command', { entity_id: 'valve.gas_main', action: 'close_valve' })).isError, undefined, 'closing a valve is allowed');
     } finally { await ha.close(); }
   });
 
@@ -284,8 +294,97 @@ export default (test) => {
       assert.equal((await relink).ok, true);
       assert.equal(home.status().armed, 0, 'whatever was allowed while the relink ran is gone once it lands');
       const after = /** @type {any} */ (await home.armable());
-      assert.equal(home.arm(after.devices, after.generation), 9, 'a fresh allow works');
+      assert.equal(home.arm(after.devices, after.generation), 10, 'a fresh allow works');
       assert.equal(home.arm(null), 0, 'stop needs no generation');
+    } finally { await ha.close(); }
+  });
+
+  test('home: a model never gets a coordinate, a camera token or its picture URL', async () => {
+    const ha = await fakeHa();
+    try {
+      const home = H.createHome({ store: memoryStore() });
+      await home.setLink(ha.url, TOKEN);
+      const anne = JSON.parse((await home.call('home_state', { entity_id: 'person.anne' })).text);
+      assert.equal(anne.state, 'not_home', 'presence stays: "who is home?" is a home question');
+      assert.deepEqual(anne.attributes, {}, 'no latitude, longitude or accuracy');
+      const zone = JSON.parse((await home.call('home_state', { entity_id: 'zone.home' })).text);
+      assert.deepEqual(zone.attributes, { radius: 100 });
+      const cam = (await home.call('home_state', { entity_id: 'camera.porch' })).text;
+      assert.ok(!cam.includes('cam-secret'), cam);
+    } finally { await ha.close(); }
+  });
+
+  test('home: the token never follows a redirect — linking a redirecting address fails and says why', async () => {
+    /** @type {string[]} */ const seen = [];
+    const elsewhere = http.createServer((req, res) => { seen.push(String(req.headers.authorization || '')); res.end('{}'); });
+    await new Promise((r) => elsewhere.listen(0, '127.0.0.1', () => r(null)));
+    const to = `http://127.0.0.1:${/** @type {any} */ (elsewhere.address()).port}`;
+    const bouncer = http.createServer((req, res) => { res.writeHead(302, { location: to + req.url }); res.end(); });
+    await new Promise((r) => bouncer.listen(0, '127.0.0.1', () => r(null)));
+    try {
+      const store = memoryStore();
+      const home = H.createHome({ store });
+      const r = await home.setLink(`http://127.0.0.1:${/** @type {any} */ (bouncer.address()).port}`, TOKEN);
+      assert.equal(r.ok, false);
+      assert.match(r.message, /answered with a redirect; LlmOnLan never sends the token on/);
+      assert.deepEqual(seen, [], 'the other address never saw a request, let alone the token');
+      assert.equal(store.kept(), null);
+    } finally { await new Promise((r) => elsewhere.close(r)); await new Promise((r) => bouncer.close(r)); }
+  });
+
+  test('home: a command Home Assistant does not confirm in time is "sent, not confirmed" — never "did not answer"', async () => {
+    const ha = await fakeHa({ postDelayMs: 600 });
+    try {
+      const home = H.createHome({ store: memoryStore(), commandTimeoutMs: 150 });
+      await home.setLink(ha.url, TOKEN);
+      const al = /** @type {any} */ (await home.armable());
+      home.arm(al.devices, al.generation);
+      const out = await home.call('home_command', { entity_id: 'light.kitchen', action: 'toggle' });
+      assert.equal(out.isError, true);
+      assert.match(out.text, /^Sent, not confirmed: light\.toggle on Kitchen Light .* read the device with home_state before trying again\./);
+      assert.equal(ha.posts.length, 1);
+      await new Promise((r) => setTimeout(r, 700));
+    } finally { await ha.close(); }
+  });
+
+  test('home: a failed relink changes nothing — the link and the allowed list stay; a failed forget says so', async () => {
+    const ha = await fakeHa();
+    try {
+      const store = memoryStore();
+      const home = H.createHome({ store });
+      await home.setLink(ha.url, TOKEN);
+      const al = /** @type {any} */ (await home.armable());
+      home.arm(al.devices, al.generation);
+      for (const [u, t] of [['not an address', TOKEN], [ha.url, ''], ['http://127.0.0.1:9', TOKEN]]) {
+        assert.equal((await home.setLink(u, t)).ok, false, `${u} / ${t ? 'token' : 'no token'}`);
+        assert.deepEqual([home.status().url, home.status().armed], [ha.url, 10], 'still linked, still allowed');
+      }
+      assert.deepEqual(store.kept(), { url: ha.url, token: TOKEN });
+      const stuck = H.createHome({ store: { load: () => ({ url: ha.url, token: TOKEN }), save: () => false } });
+      const r = await stuck.setLink('', '');
+      assert.equal(r.ok, false);
+      assert.match(r.message, /could not be deleted: it comes back at the next start/);
+      assert.equal(stuck.linked(), false, 'forgotten for this session anyway');
+    } finally { await ha.close(); }
+  });
+
+  test('home: through the MCP server — the home tools are listed only while linked and answered in main, never by the page', async () => {
+    const M = require(MCP);
+    const ha = await fakeHa();
+    try {
+      const home = H.createHome({ store: memoryStore() });
+      /** @type {string[]} */ const toPage = [];
+      const deps = { token: 't', version: '0', ...H.withHome(home, () => M.TOOLS, async (/** @type {string} */ n) => { toPage.push(n); return { text: 'page' }; }) };
+      const names = async () => (/** @type {any} */ (await M.handleRpc({ jsonrpc: '2.0', id: 1, method: 'tools/list' }, deps))).result.tools.map((/** @type {any} */ t) => t.name);
+      assert.ok(!(await names()).some((/** @type {string} */ n) => n.startsWith('home_')), 'not linked: no home tool');
+      const refused = /** @type {any} */ (await M.handleRpc({ jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: 'home_devices', arguments: {} } }, deps));
+      assert.equal(refused.error.code, -32602);
+      await home.setLink(ha.url, TOKEN);
+      assert.deepEqual((await names()).filter((/** @type {string} */ n) => n.startsWith('home_')), ['home_devices', 'home_state', 'home_command']);
+      const hit = /** @type {any} */ (await M.handleRpc({ jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'home_devices', arguments: { domain: 'light' } } }, deps));
+      assert.match(hit.result.content[0].text, /light\.kitchen · Kitchen Light/);
+      await M.handleRpc({ jsonrpc: '2.0', id: 4, method: 'tools/call', params: { name: 'read_graph', arguments: {} } }, deps);
+      assert.deepEqual(toPage, ['read_graph'], 'the page answered its own tool, and never a home one');
     } finally { await ha.close(); }
   });
 
@@ -326,7 +425,7 @@ export default (test) => {
       ];
       await ha.close();
       outs.push(await home.call('home_devices', {}));
-      assert.match(outs[outs.length - 1].text, /did not answer at http:\/\/127\.0\.0\.1:\d+\./);
+      assert.match(outs[outs.length - 1].text, /did not answer at http:\/\/127\.0\.0\.1:\d+( \([A-Z_]+\))?\./);
       for (const o of outs) assert.ok(!o.text.includes(TOKEN), o.text);
       assert.deepEqual(H.HOME_TOOLS.map((/** @type {any} */ t) => t.name), ['home_devices', 'home_state', 'home_command']);
     } finally { await ha.close().catch(() => {}); }

@@ -25,7 +25,7 @@ import { createStudio, resolveRuntime, Studio } from './studio';
 import { send as sendOutput, arm as armOutputs, isArmed as outputsArmed, panic as panicOutputs, SendRequest } from './outputs';
 import { configureSerial, registerSerialIpc, grantRequest } from './serial';
 import { startMcpServer, pageCaller, TOOLS as MCP_TOOLS, MCP_PORT, MCP_PATH } from './mcp';
-import { createHome, HOME_TOOLS, HOME_TOOL_NAMES, armingText } from './homeAssistant';
+import { createHome, withHome, armingText } from './homeAssistant';
 import { setComputerMcp } from './configBridge';
 import {
     ensureSidecar, applyPendingSidecar, isSidecarInstalled,
@@ -69,11 +69,14 @@ const home = createHome({
                 return { url: j.url, token: safeStorage.decryptString(Buffer.from(j.token, 'base64')) };
             } catch { return null; }
         },
+        // false when it could not: no OS encryption, an unwritable settings folder, a file that cannot be deleted.
         save: (l) => {
-            if (!l) { try { fs.rmSync(homeFile(), { force: true }); } catch { /* already gone */ } return true; }
-            if (!safeStorage.isEncryptionAvailable()) return false;
-            fs.writeFileSync(homeFile(), JSON.stringify({ url: l.url, token: safeStorage.encryptString(l.token).toString('base64') }));
-            return true;
+            try {
+                if (!l) { fs.rmSync(homeFile(), { force: true }); return true; }
+                if (!safeStorage.isEncryptionAvailable()) return false;
+                fs.writeFileSync(homeFile(), JSON.stringify({ url: l.url, token: safeStorage.encryptString(l.token).toString('base64') }));
+                return true;
+            } catch { return false; }
         },
     },
 });
@@ -819,7 +822,7 @@ function registerIpc(): void {
             buttons: ['Allow commands', 'Cancel'], defaultId: 1, cancelId: 1, noLink: true,
             title: 'Allow home commands',
             message: `Let assistants switch these ${list.devices.length} devices of ${list.home}?`,
-            detail: `Home Assistant at ${list.url}. Until LlmOnLan closes, a model in Open WebUI or the IDE's agent may switch exactly these devices:\n\n${armingText(list.devices)}\n\nA switch, a button, a scene or a script does whatever your home made it do. Never by a model, even now: unlocking or opening a lock, disarming an alarm, sounding a siren, opening a door, a gate or a garage. At most one command a second per device.`,
+            detail: `Home Assistant at ${list.url}. Until LlmOnLan closes, a model in Open WebUI or the IDE's agent may switch exactly these devices:\n\n${armingText(list.devices)}\n\nA switch, a button, a helper, a number, a select, a scene or a script does whatever your home made it do. Never by a model, even now: unlocking or opening a lock, disarming an alarm, sounding a siren, opening a valve, a door, a gate or a garage. At most one command a second per device.`,
         };
         const r = win && !win.isDestroyed() ? await dialog.showMessageBox(win, opts) : await dialog.showMessageBox(opts);
         if (r.response !== 0) return { ok: false, cancelled: true };
@@ -1179,11 +1182,7 @@ app.whenReady().then(async () => {
         // loopback listen settles in milliseconds, long before the first sidecar spawn.
         // Home Assistant's tools join the list while a home is linked, and are answered HERE, in main — they need no
         // Computer on screen.
-        const srv = await startMcpServer({
-            token, version: app.getVersion(),
-            tools: () => (home.linked() ? [...MCP_TOOLS, ...HOME_TOOLS] : MCP_TOOLS),
-            call: (name, args) => (HOME_TOOL_NAMES.has(name) ? home.call(name, args) : caller.call(name, args)),
-        });
+        const srv = await startMcpServer({ token, version: app.getVersion(), ...withHome(home, () => MCP_TOOLS, caller.call) });
         if (srv) {
             computerConn = { url: `http://127.0.0.1:${MCP_PORT}${MCP_PATH}`, token };
             setComputerMcp(computerConn);

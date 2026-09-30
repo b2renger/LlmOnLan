@@ -14,7 +14,7 @@
 
 ---
 
-## Build status (2026-09-28) — released: client `v0.2.6` (OWUI `0.11.4`) · Farm app `farm-v0.0.41`
+## Build status (2026-09-30) — released: client `v0.2.6` (OWUI `0.11.4`) · Farm app `farm-v0.0.41`
 
 > v0.2.0 brought LOL Vibe vNext and the Computer (Fetch, Classify, Listen/Speak, Send, a ? on every box); v0.2.1
 > adds USB serial, the farm's message bus + Trigger, Open data (data.gouv.fr), the Agent box and the Computer as an
@@ -99,7 +99,7 @@ docs) is `docs/reviews/DOCS_REVIEW_2026-09-27_{FARM,SHELL,COMPUTER}.md`. Snapsho
     (`LOL_FARM_VERSION`), falling back to `farm/package.json`.
 - **`shell/`** (Electron + TS, **v0.2.6**) — boots the **unmodified** OWUI sidecar (config-bridge =
   env-authoritative, `ENABLE_PERSISTENT_CONFIG=false`), discovers the farm and auto-connects with **no
-  URL typed**, full Preferences (data folder + move/fresh migration, connection, assistant tools,
+  URL typed**, full Preferences (data folder + move/fresh migration, connection, assistant tools, Home Assistant,
   startup/updates, about). **Adaptive RAG**: whole-document injection (`RAG_FULL_CONTEXT=true`) on farms
   advertising `backend.contextPerSlot ≥ 24576` (or not advertising it), classic top-k (`RAG_TOP_K=8`) below —
   so a 16k farm can't context-overflow on an attachment; presence heartbeats to the farm (`POST
@@ -244,12 +244,15 @@ docs) is `docs/reviews/DOCS_REVIEW_2026-09-27_{FARM,SHELL,COMPUTER}.md`. Snapsho
   server also answers **Home Assistant** itself, in main (`src/main/homeAssistant.ts`, [docs/HOME_ASSISTANT.md](docs/HOME_ASSISTANT.md)), listed only
   while a home is linked in **Preferences ▸ Home Assistant** (a person-typed address + long-lived token, the token `safeStorage`-encrypted in
   `<userData>/home-assistant.json`, never handed back to the page): `home_devices`, `home_state`, `home_command` — reading free, a command a
-  DRY RUN until a person clicks **Allow commands…** (main's native dialog listing exactly the devices; forgotten at close, on relink — a
+  DRY RUN until a person clicks **Allow commands…** (main's native dialog listing exactly the devices, naming ≤ 30 per kind and counting the rest; forgotten at close, on a relink that lands — a
   link generation refuses an allow that raced one — and on a window reload/crash like the outputs; the top bar shows **Home commands on · N**,
   one click stops); one device per command and only an action on `ACTIONS`' per-domain ALLOWLIST (HA registers a service per script, and
   `scene.apply`, `play_media`, `send_command` reach past the device — a security review found the first, 2026-09-30); never unlock/open a
-  lock, disarm/trigger an alarm, sound a siren, or open a cover unless HA says it is a blind/curtain/shade/shutter/awning/window;
-  ≤ 1/s per device and 30/min. Also a **? on every box** that opens that box's example (`computer/examples/`: one per ＋
+  lock, disarm/trigger an alarm, sound a siren, open a valve, or open a cover unless HA says it is a blind/curtain/shade/shutter/awning/window;
+  helpers/number/select stay commandable and the dialog says a switch, button, helper, scene or script does whatever the home wired;
+  never a coordinate to a model (`HIDDEN_ATTRS`: latitude/longitude/gps_accuracy/altitude, a camera's token); a redirect is refused, never
+  followed; a command unconfirmed in 20 s is "sent, not confirmed" (HA shields the call, so it may still run); ≤ 1/s per device and 30/min.
+  The MCP composition is `withHome()` (tested through `handleRpc`). Also a **? on every box** that opens that box's example (`computer/examples/`: one per ＋
   menu entry, a Sticky with what it does / inputs / output / how to use it next to a working setup, imported
   as a library graph once and reopened after). A run cut short by the app's close is offered again when its graph opens (the **resume banner**, host.mjs: Resume = Run all, only unfinished boxes re-run; Dismiss closes it — 2026-09-28). Docs: [the user tutorial](docs/LOLCHAT_COMPUTER_TUTORIAL.md),
   [status](docs/COMPUTER_STATUS.md), [plan](docs/COMPUTER_PLAN.md), [live plan](docs/COMPUTER_LIVE_PLAN.md).
@@ -718,7 +721,8 @@ LlmOnLan/
   (`POST /lol/client-ping` every 10 s: hostname, platform, version, idle seconds).
 - **To third parties a person names:** a Computer **Fetch** box's GET to the address typed in it (nothing
   from the graph is sent with it); an **Open data** box's GETs to data.gouv.fr for the dataset pasted in it; an **Agent** box's GETs, only to hosts a person listed on it; a **Send** box's message to the device typed in it, only once a person
-  armed the outputs (a dry run otherwise); the **Home Assistant** a person linked (states and actions read when a model asks; a
+  armed the outputs (a dry run otherwise); the **Home Assistant** a person linked (states and actions read when a model asks — and what a model read can leave with its other
+  tools in the same chat, e.g. Open WebUI's `fetch_url` when web search is on, so the docs say to turn it off there; a
   command only while a person allowed home commands). A board on this computer's USB cable (Send by USB, Receive) stays
   on this computer; the farm's message bus carries what a graph publishes (armed) to whoever subscribed on the
   LAN, and keeps nothing.

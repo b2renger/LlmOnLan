@@ -250,7 +250,10 @@ Needs a Home Assistant: your own, or the private demo home in HOME_ASSISTANT.md.
   was switched and where to allow commands; the lights did not change.
 - [ ] **7c.4 Allow.** **Allow commands…**: LlmOnLan's own dialog lists the devices by kind, Cancel is the default.
   Allow: the top bar shows **Home commands on · N**. Ask again: the lights change.
-- [ ] **7c.5 Never.** Ask *"Unlock the front door"* (or open the garage): refused, even while allowed.
+- [ ] **7c.5 Never.** Ask *"Unlock the front door"* (or open the garage, or open a water valve): refused, even while
+  allowed. Ask *"Where is <a person>?"*: presence (home / away), never coordinates.
+- [ ] **7c.5b Web search off.** Preferences ▸ Home Assistant says to turn web search off in a chat that uses the home;
+  Open WebUI's Integrations menu under the message box has that chat's Web Search switch.
 - [ ] **7c.6 Stop.** Click **Home commands on** in the top bar: it disappears; a command is a dry run again. Close
   and reopen LlmOnLan: still linked, commands not allowed.
 - [ ] **7c.7 An agent acts.** In a project turn on **Use the Computer** (commands allowed) and ask: *"Read the

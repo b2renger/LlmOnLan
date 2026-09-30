@@ -6,6 +6,49 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-09-30 (14:32) — The pre-release critic on Home Assistant, and its fixes (for v0.2.7)
+
+The owner asked for a review by a critic with no stake in the code, then the fixes, then a release to test. The
+critic got only the `v0.2.6..HEAD` diff and CLAUDE.md, no earlier findings; its report is
+[reviews/RELEASE_CRITIC_2026-09-30.md](reviews/RELEASE_CRITIC_2026-09-30.md). Verdict: **ship after S1 and S2, no
+blocker**. Everything it raised is fixed:
+- **S1 — what a model reads can leave.** Confirmed in the pinned OWUI 0.11.4 (`utils/tools.py`): with web search on (our
+  default) a chat also gets `search_web` + `fetch_url`, so a steered model could fetch an address carrying what it read.
+  A model now never gets a coordinate (`HIDDEN_ATTRS`: latitude, longitude, gps_accuracy, altitude — the demo's
+  trackers carry all three); presence ("who is home?") stays. Preferences, HOME_ASSISTANT.md and CLAUDE.md now say it
+  plainly and say to turn web search off in a chat that uses the home (OWUI's per-chat switch is in its Integrations
+  menu — checked in its source map). "Nothing about the home is stored" became "LlmOnLan keeps no copy; the chat's
+  history does".
+- **S2 — valves.** A model may close a valve, never open one (water or gas); the four texts say so.
+- **S3 — helpers (owner's call).** Kept commandable ("turn on guest mode" is a fair ask), and named in every disclosure:
+  a switch, button, helper, number, select, scene or script does whatever the home wired. Making them read-only is one
+  line in `ACTIONS`.
+- **N2 — errors in words.** HA 2026.9's REST handler `shield`s the service call (read in its source), so a command whose
+  caller gave up still runs: a command now waits 20 s and, past that, answers "sent, not confirmed — read the device
+  before trying again" (a retried toggle would flip it back). A certificate this computer does not trust and a
+  redirect (which the token never follows) are named as such; other failures carry their code.
+- **N3/N4 — the link.** A Link that fails (bad address, no token, no answer) changes nothing, and Preferences says
+  "Still linked to <address>"; store errors are reported instead of throwing ("Linking…" forever) or being swallowed
+  (a Forget that could not delete says the link comes back at the next start).
+- **N1/N5/N6** — the docs say the dialog names ≤ 30 per kind and counts the rest; the Preferences hint says to turn on
+  the LlmOnLan Computer tool; CLAUDE.md's date and Preferences list; the unused `armedList` removed.
+- **Tests the critic asked for:** the token never follows a redirect (a second server never sees a request); no
+  coordinate, camera token or picture URL; "sent, not confirmed"; a failed relink keeps link + list; the MCP wiring,
+  now `withHome()`, through the real `handleRpc` (home tools listed only while linked, never carried to the page).
+- **Residual, not fixed:** a project's agent can write what it read into a page of the project, and the Preview's
+  loopback server sets no CSP — it needs a person to open the page. A CSP there would also constrain agent pages;
+  left for a later decision.
+
+**Re-verified live** (the isolated client, the demo Home Assistant): through the real MCP server a GPS tracker and the
+home zone come back without their coordinates, a valve cannot be opened but can be closed (a dry run), and a Link to
+a dead address answers "Still linked to http://127.0.0.1:8123. …" with the old link kept.
+
+**Tested.** Unit 1784/0 (home 17) · lint 0 · unit.js 5/5 · shell + farm-app typecheck · the full chat harness
+**406/406** on the tree before these fixes (they touch main and Preferences only, which the chat harness does not
+load).
+
+---
+
 ## 2026-09-30 (12:56) — Home Assistant: ask, command, and agents that act on the home (P6 v1)
 
 The owner's order after v0.2.6, and their answers: set up a Home Assistant (none yet); **ask and command** + **agents

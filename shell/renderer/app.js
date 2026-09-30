@@ -142,8 +142,13 @@ if (window.lol.home) {
   prefs.homeLink.addEventListener('click', async () => {
     prefs.homeStatus.classList.remove('err');
     prefs.homeStatus.textContent = 'Linking…';
-    const r = await window.lol.home.link(prefs.homeUrl.value, prefs.homeToken.value);
-    if (!r.ok) return homeLine(r);
+    let r;
+    try { r = await window.lol.home.link(prefs.homeUrl.value, prefs.homeToken.value); } catch (e) { r = { ok: false, message: String((e && e.message) || e) }; }
+    if (!r.ok) {
+      // A failed Link changes nothing: say which home is still linked, so the typed address is not mistaken for it.
+      const s = await window.lol.home.status();
+      return homeLine({ ok: false, message: s.linked ? `Still linked to ${s.url}. ${r.message}` : r.message });
+    }
     await refreshHome();
     homeLine(await window.lol.home.check());
   });
@@ -153,9 +158,10 @@ if (window.lol.home) {
     homeLine(await window.lol.home.check());
   });
   prefs.homeForget.addEventListener('click', async () => {
-    await window.lol.home.link('', '');
+    const r = await window.lol.home.link('', '');
     prefs.homeUrl.value = '';
     await refreshHome();
+    if (!r.ok) homeLine(r);
   });
   prefs.homeArm.addEventListener('click', async () => {
     const s = await window.lol.home.status();

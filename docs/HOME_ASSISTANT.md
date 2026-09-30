@@ -26,19 +26,22 @@ encrypt (some Linux desktops without a keyring), the token is not kept, and link
 ## Reading is free, commands are a dry run until you allow them
 
 Reading the home is always allowed: the list of devices and sensors, and one entity's state, attributes and
-actions.
+actions. A model never gets a coordinate: where people are and where the home is (latitude, longitude) are left out.
+Who is home or away is not: it is what "who is home?" asks.
 
 A **command** is a **dry run** until you click **Allow commands…**. The model is told what it would have done
 ("DRY RUN — nothing was switched. It would be light.turn_on on Bed Light…") and that you can allow commands.
 
 **Allow commands…** opens a dialog from LlmOnLan itself, not a web page, so no page and no model can press it. The
-dialog lists **every device** a model may then switch, grouped by kind. Exactly those devices: one added to the
-home later is refused until you allow commands again. While commands are allowed, the top bar shows
-**Home commands on · N**. Click it, or **Stop commands**, to stop. Allowing is forgotten when LlmOnLan closes and
-whenever the link changes.
+dialog lists the devices a model may then switch, grouped by kind: it names up to 30 of each kind and counts the rest,
+and the count at the top is the whole list. Exactly those devices: one added to the home later is refused until you
+allow commands again. While commands are allowed, the top bar shows
+**Home commands on · N**. Click it, or **Stop commands**, to stop. Allowing is forgotten when LlmOnLan closes, when its
+window reloads, and whenever the link changes (a Link that fails changes nothing).
 
 **Never by a model**, even when allowed: unlocking or opening a lock, disarming or triggering an alarm, sounding a
-siren, opening a door, a gate or a garage. You do those in Home Assistant. A cover (a garage door is a cover to Home
+siren, opening a valve (water or gas; a model may close one), opening a door, a gate or a garage. You do those in
+Home Assistant. A cover (a garage door is a cover to Home
 Assistant) opens only when Home Assistant says it is a blind, a curtain, a shade, a shutter, an awning or a window; one
 that does not say what it is can be closed, never opened. Also:
 
@@ -46,21 +49,34 @@ that does not say what it is can be closed, never opened. Also:
   temperature, volume, play/pause, position, a script or a scene started… Actions that reach past the one device are
   never used by a model: running another script by name, `scene.apply`/`create`, playing a URL on a speaker, sending a
   remote's raw codes. Area, device or label targets a model adds are dropped.
-- Only kinds of devices can be commanded (lights, switches, covers, climate, media players, fans, vacuums, valves,
-  scenes, scripts, buttons…). Sensors, updates, notifications and Home Assistant itself are read-only.
+- Only devices and the helpers that drive them can be commanded (lights, switches, covers, climate, media players,
+  fans, vacuums, valves, scenes, scripts, buttons, numbers, selects, and the helpers `input_boolean`, `input_number`,
+  `input_select`, `input_button`). Sensors, people, cameras, updates, notifications and Home Assistant itself are
+  read-only.
+- A command Home Assistant does not confirm within 20 s is reported as "sent, not confirmed": it may still be
+  happening, so the model is told to read the device before trying again.
 - At most one command a second per device, and 30 a minute in all.
 
-What LlmOnLan cannot know is what a switch, a button, a scene or a script is **wired** to in your home: a "switch" can
-be a gate's relay, a script can unlock a door. Allowing commands allows those too, and the dialog says so. If a model
+What LlmOnLan cannot know is what a switch, a button, a helper, a number, a select, a scene or a script is **wired**
+to in your home: a "switch" can be a gate's relay, a script can unlock a door, a helper such as "alarm bypass" can
+disarm through an automation. Allowing commands allows those too, and the dialog says so. If a model
 must never touch one of them, keep commands off while it could.
 
 ## What leaves this computer
 
-LlmOnLan's main process sends requests to the address **you** typed, with your token: it reads states and the list
-of actions, and it sends commands, only while you allow them. Nothing about the home is stored: a model sees what
-it asked for, inside that chat's context (which goes to the farm like any chat). Open WebUI and the project's agent
-reach the home through the Computer's MCP server on 127.0.0.1, which answers the three home tools
-(`home_devices`, `home_state`, `home_command`) itself: they work with the Computer closed.
+LlmOnLan's main process sends requests to the address **you** typed, with your token (never to another address:
+a redirect is refused, not followed): it reads states and the list of actions, and it sends commands, only while you
+allow them. Open WebUI and the project's agent reach the home through the Computer's MCP server on 127.0.0.1, which
+answers the three home tools (`home_devices`, `home_state`, `home_command`) itself: they work with the Computer
+closed.
+
+What a model read about your home is in that chat: it goes to the farm with the chat, like anything said in it, and
+the chat's history on this computer keeps it (LlmOnLan keeps no copy of its own). It can also leave **with the
+model's other tools in the same chat**. In Open WebUI, web search (on by default) gives the model a tool that fetches
+any web address; a web page, a document or even a text in Home Assistant could steer it into fetching an address
+that carries what it read (who is away, the alarm's state). **Turn web search off in a chat that uses your home**
+(Integrations, under the message box). A project's agent can likewise write what it read into a file of the
+project, and a page there runs when you open its Preview.
 
 ## Not built
 

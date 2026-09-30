@@ -11,11 +11,15 @@
 //     carry actions that reach past the one device (`scene.apply`, `remote.send_command`, `media_player.play_media`
 //     fetching a URL the model picks). Targeting keys a model adds (area_id, device_id…) are dropped;
 //   - never by a model, whatever was allowed: unlock or open a lock, disarm or trigger an alarm, sound a siren, open a
-//     cover that does not say it is a blind, curtain, shade, shutter, awning or window (it could be a door, a gate or
-//     a garage) — a person does those in Home Assistant;
+//     valve (water or gas), open a cover that does not say it is a blind, curtain, shade, shutter, awning or window (it
+//     could be a door, a gate or a garage) — a person does those in Home Assistant;
+//   - never a coordinate: where people and the home are (latitude, longitude…) is not handed to a model, because what a
+//     model reads can leave with its other tools in the same chat (Open WebUI's web search brings `fetch_url`);
 //   - at most one command a second per device (a light is not a strobe) and 30 a minute in all;
-//   - the token stays in main (safeStorage, like the IDE's git tokens) and is never handed to the page.
-// What this cannot know: what a switch, a button, a scene or a script is wired to. The dialog says so.
+//   - the token stays in main (safeStorage, like the IDE's git tokens), is never handed to the page, and never follows a
+//     redirect.
+// What this cannot know: what a switch, a button, a helper, a number, a select, a scene or a script is wired to. The
+// dialog says so.
 // ponytail: REST only (states, services, one call per command). Home Assistant's WebSocket API would push changes as
 // they happen (and give its own per-device "expose" list) — the upgrade path.
 
@@ -43,7 +47,7 @@ export const ACTIONS: Readonly<Record<string, readonly string[]>> = Object.freez
     water_heater: ['turn_on', 'turn_off', 'set_temperature', 'set_operation_mode', 'set_away_mode'],
     vacuum: ['start', 'pause', 'stop', 'return_to_base', 'locate', 'clean_spot', 'set_fan_speed'],
     lawn_mower: ['start_mowing', 'pause', 'dock'],
-    valve: ['open_valve', 'close_valve', 'set_valve_position', 'stop_valve', 'toggle'],
+    valve: ['close_valve'],
     lock: ['lock'],
     alarm_control_panel: ['alarm_arm_home', 'alarm_arm_away', 'alarm_arm_night', 'alarm_arm_vacation', 'alarm_arm_custom_bypass'],
     siren: ['turn_off'],
@@ -59,9 +63,15 @@ const OPENABLE_COVERS = ['awning', 'blind', 'curtain', 'shade', 'shutter', 'wind
 export const MIN_GAP_MS = 1000;
 export const PER_MINUTE = 30;
 const TIMEOUT_MS = 8000;
+/** Home Assistant keeps running a command whose caller gave up (its REST handler shields the call): wait longer, and
+ * past this say "sent, not confirmed" — a retried toggle would flip the device back. */
+const COMMAND_TIMEOUT_MS = 20_000;
 const MAX_LINES = 150;
 const MAX_NAMES = 30;
 const TARGET_KEYS = ['entity_id', 'device_id', 'area_id', 'floor_id', 'label_id'];
+/** Attributes a model never gets: noise, a camera's short-lived token and picture URL, and every coordinate. */
+const HIDDEN_ATTRS = ['friendly_name', 'supported_features', 'entity_picture', 'icon', 'access_token',
+    'latitude', 'longitude', 'gps_accuracy', 'altitude'];
 const WHERE = 'LlmOnLan ▸ Preferences ▸ Home Assistant';
 
 /** PURE: a Home Assistant address as `scheme://host[:port]`, or null. Home Assistant lives at the root; `/api` is forgiven. */
@@ -79,6 +89,7 @@ export function neverByModel(s: State, action: string): string | null {
     if (domain === 'lock' && (action === 'unlock' || action === 'open')) return 'unlock or open a lock';
     if (domain === 'alarm_control_panel' && (action === 'alarm_disarm' || action === 'alarm_trigger')) return 'disarm or trigger an alarm';
     if (domain === 'siren' && (action === 'turn_on' || action === 'toggle')) return 'sound a siren';
+    if (domain === 'valve' && ['open_valve', 'toggle', 'set_valve_position', 'stop_valve'].includes(action)) return 'open a valve (water or gas)';
     const cls = String(s.attributes?.device_class || '');
     if (domain === 'cover' && !OPENABLE_COVERS.includes(cls) && ['open_cover', 'toggle', 'set_cover_position', 'stop_cover'].includes(action)) {
         return ['door', 'gate', 'garage'].includes(cls) ? 'open a door, a gate or a garage'
@@ -125,13 +136,37 @@ export function armingText(devices: HomeDevice[]): string {
 export const HOME_TOOLS: McpTool[] = [
     { name: 'home_devices', description: 'List the devices and sensors of the home (Home Assistant), one per line: entity id · name · state. Filter by domain (light, switch, sensor, climate, cover…) or by words in the name. Also says whether home commands are allowed.', inputSchema: { type: 'object', properties: { domain: { type: 'string' }, search: { type: 'string' } } } },
     { name: 'home_state', description: 'One device or sensor of the home in detail, by entity id: its state, its attributes, and the actions a model may use on it, with their fields.', inputSchema: { type: 'object', properties: { entity_id: { type: 'string' } }, required: ['entity_id'] } },
-    { name: 'home_command', description: 'Tell ONE device of the home to do something: entity_id, action (one of home_state\'s actions, e.g. turn_on) and optional data (e.g. {"brightness_pct": 40}). A dry run unless a person has allowed home commands; unlocking, disarming an alarm, sounding a siren and opening a door or garage are never done by a model.', inputSchema: { type: 'object', properties: { entity_id: { type: 'string' }, action: { type: 'string' }, data: { type: 'object' } }, required: ['entity_id', 'action'] } },
+    { name: 'home_command', description: 'Tell ONE device of the home to do something: entity_id, action (one of home_state\'s actions, e.g. turn_on) and optional data (e.g. {"brightness_pct": 40}). A dry run unless a person has allowed home commands; unlocking, disarming an alarm, sounding a siren and opening a valve, a door or a garage are never done by a model.', inputSchema: { type: 'object', properties: { entity_id: { type: 'string' }, action: { type: 'string' }, data: { type: 'object' } }, required: ['entity_id', 'action'] } },
 ];
 export const HOME_TOOL_NAMES: ReadonlySet<string> = new Set(HOME_TOOLS.map((t) => t.name));
 
-export function createHome(deps: { store: HomeStore; fetch?: typeof fetch; now?: () => number }) {
+type HomeApi = ReturnType<typeof createHome>;
+/** The MCP server's tools and calls with the home in them: its tools listed only while a home is linked, and answered
+ * HERE, in main — never carried to the page. */
+export function withHome(home: HomeApi, pageTools: () => McpTool[], pageCall: (name: string, args: Record<string, unknown>) => Promise<Out>) {
+    return {
+        tools: () => (home.linked() ? [...pageTools(), ...HOME_TOOLS] : pageTools()),
+        call: (name: string, args: Record<string, unknown>) => (HOME_TOOL_NAMES.has(name) ? home.call(name, args) : pageCall(name, args)),
+    };
+}
+
+/** A failed request, in words: a timeout (`timeout`), a certificate this computer does not trust, a redirect the token
+ * will not follow, or no answer. */
+function failed(e: any, url: string, ms: number): Error & { timeout?: boolean } {
+    const code = String(e?.cause?.code || e?.code || '');
+    const text = `${e?.message || ''} ${e?.cause?.message || ''}`;
+    if (e?.name === 'TimeoutError' || e?.name === 'AbortError') {
+        return Object.assign(new Error(`Home Assistant at ${url} did not answer within ${Math.round(ms / 1000)} s.`), { timeout: true });
+    }
+    if (/CERT|SELF_SIGNED|UNABLE_TO_VERIFY/i.test(code)) return new Error(`This computer does not trust the certificate of Home Assistant at ${url} (${code}).`);
+    if (/redirect/i.test(text)) return new Error(`Home Assistant at ${url} answered with a redirect; LlmOnLan never sends the token on to another address. Link the address it redirects to.`);
+    return new Error(`Home Assistant did not answer at ${url}${code ? ` (${code})` : ''}.`);
+}
+
+export function createHome(deps: { store: HomeStore; fetch?: typeof fetch; now?: () => number; commandTimeoutMs?: number }) {
     const f = deps.fetch || fetch;
     const now = deps.now || Date.now;
+    const commandMs = deps.commandTimeoutMs || COMMAND_TIMEOUT_MS;
     let link: HomeLink | null | undefined;          // undefined = not read from the store yet (safeStorage needs app ready)
     let info: { name: string; version: string } | null = null;
     let armed: Map<string, string> | null = null;   // entity id → name, exactly what the person saw
@@ -142,17 +177,17 @@ export function createHome(deps: { store: HomeStore; fetch?: typeof fetch; now?:
 
     const current = () => { if (link === undefined) link = deps.store.load(); return link; };
 
-    async function api(path: string, init: RequestInit = {}, l = current()): Promise<any> {
+    async function api(path: string, init: RequestInit = {}, l = current(), ms = TIMEOUT_MS): Promise<any> {
         if (!l) throw new Error(`No Home Assistant is linked: a person links one in ${WHERE}.`);
         let r: Response;
         try {
             r = await f(l.url + path, {
                 ...init,
                 redirect: 'error',
-                signal: AbortSignal.timeout(TIMEOUT_MS),
+                signal: AbortSignal.timeout(ms),
                 headers: { authorization: `Bearer ${l.token}`, 'content-type': 'application/json' },
             });
-        } catch { throw new Error(`Home Assistant did not answer at ${l.url}.`); }
+        } catch (e) { throw failed(e, l.url, ms); }
         if (r.status === 401) throw new Error(`Home Assistant at ${l.url} refused the token: a person pastes a new long-lived token in ${WHERE}.`);
         if (r.status === 404) return null;
         if (!r.ok) {
@@ -193,20 +228,23 @@ export function createHome(deps: { store: HomeStore; fetch?: typeof fetch; now?:
         } catch (e) { return { ok: false, message: (e as Error).message }; }
     }
 
-    /** Link (test first, then keep) — or forget with an empty address. Any change of link forgets the allowed list,
-     * before its test AND after it, so an allow the person made while the test ran never carries over. */
+    /** Link (test first, then keep) — or forget with an empty address and token. A NEW link forgets the allowed list; an
+     * attempt that fails (a bad address, no token, no answer) changes nothing, while an allow the person made during its
+     * test is refused (the generation moved) and the list is dropped again once the new link lands. */
     async function setLink(url: string, token: string): Promise<{ ok: boolean; message?: string }> {
-        const mine = ++generation;
-        armed = null; services = null;
-        if (!url && !token) { deps.store.save(null); link = null; info = null; return { ok: true }; }
+        if (!url && !token) {
+            generation++; armed = null; services = null; link = null; info = null;
+            return deps.store.save(null) ? { ok: true } : { ok: false, message: 'Forgotten for this session, but the kept link could not be deleted: it comes back at the next start.' };
+        }
         const u = normaliseUrl(url);
         if (!u) return { ok: false, message: 'That is not a Home Assistant address: http(s)://host:port, e.g. http://homeassistant.local:8123.' };
         const t = String(token || '').trim();
         if (!t || /\s/.test(t) || t.length > 4096) return { ok: false, message: 'Paste a long-lived access token (Home Assistant ▸ your profile ▸ Security).' };
+        const mine = ++generation;
         const c = await check({ url: u, token: t });
         if (mine !== generation) return { ok: false, message: 'Another link was made meanwhile.' };
         if (!c.ok) return { ok: false, message: c.message };
-        if (!deps.store.save({ url: u, token: t })) return { ok: false, message: 'This computer cannot encrypt the token, so it is not kept.' };
+        if (!deps.store.save({ url: u, token: t })) return { ok: false, message: 'The token could not be kept: this computer cannot encrypt it, or cannot write the settings folder.' };
         link = { url: u, token: t };
         info = { name: c.name || '', version: c.version || '' };
         armed = null; services = null; generation++;
@@ -261,7 +299,7 @@ export function createHome(deps: { store: HomeStore; fetch?: typeof fetch; now?:
         const domain = id.split('.')[0];
         const attrs: Record<string, unknown> = {};
         for (const [k, v] of Object.entries(s.attributes || {})) {
-            if (['friendly_name', 'supported_features', 'entity_picture', 'icon', 'access_token'].includes(k)) continue;
+            if (HIDDEN_ATTRS.includes(k)) continue;
             attrs[k] = Array.isArray(v) && v.length > 20 ? [...v.slice(0, 20), `… ${v.length - 20} more`] : v;
         }
         const out: Record<string, unknown> = { entity_id: id, name: nameOf(s), state: shown(s), attributes: attrs, last_changed: s.last_changed };
@@ -302,7 +340,12 @@ export function createHome(deps: { store: HomeStore; fetch?: typeof fetch; now?:
         if (recent.length >= PER_MINUTE) return { text: `Too many commands: at most ${PER_MINUTE} a minute. Wait a little.`, isError: true };
         lastAt.set(id, t);
         recent.push(t);
-        await api(`/api/services/${domain}/${action}`, { method: 'POST', body: JSON.stringify({ entity_id: id, ...data }) });
+        try {
+            await api(`/api/services/${domain}/${action}`, { method: 'POST', body: JSON.stringify({ entity_id: id, ...data }) }, current(), commandMs);
+        } catch (e) {
+            if (!(e as { timeout?: boolean }).timeout) throw e;
+            return { text: `Sent, not confirmed: ${what} was sent, but Home Assistant did not answer within ${Math.round(commandMs / 1000)} s. It may still be doing it: read the device with home_state before trying again.`, isError: true };
+        }
         const after: State | null = await api(`/api/states/${id}`);
         return { text: `Done: ${what}. ${nameOf(s)} is now ${after ? shown(after) : 'unknown'}.` };
     }
@@ -319,5 +362,5 @@ export function createHome(deps: { store: HomeStore; fetch?: typeof fetch; now?:
         } catch (e) { return { text: (e as Error).message, isError: true }; }
     }
 
-    return { status, check, setLink, armable, arm, call, linked: () => !!current(), armedList: () => (armed ? [...armed.keys()] : []) };
+    return { status, check, setLink, armable, arm, call, linked: () => !!current() };
 }
