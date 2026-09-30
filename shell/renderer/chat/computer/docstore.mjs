@@ -71,16 +71,20 @@ export function createDocStore(o) {
     try { await r.putGraph(doc); } catch (err) { console.warn('[lolcomputer] graph save failed', err); }
   }
 
-  /** Write whatever is queued, now. Resolves when the store has it. */
+  /** Write whatever is queued, now. Resolves when the store has it — and when a write ANOTHER flush was about to make
+   * has landed too: a flush that found nothing queued used to return as soon as the older write finished, while the
+   * newest document was still on its way (a save before a reload, the teardown before a quit, could lose it). */
   async function flush() {
     if (timer) { clearTimeout(timer); timer = null; }
-    const doc = queued;
-    queued = null;
-    if (inFlight) await inFlight;
-    if (!doc) return;
-    inFlight = write(doc);
-    await inFlight;
-    inFlight = null;
+    for (;;) {
+      if (inFlight) { await inFlight; continue; }
+      const doc = queued;
+      queued = null;
+      if (!doc) return;
+      const w = write(doc);
+      inFlight = w;
+      try { await w; } finally { if (inFlight === w) inFlight = null; }
+    }
   }
 
   /** Queue `doc` for the next write. The LAST doc wins — an older snapshot never lands on a newer.

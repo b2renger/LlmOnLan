@@ -190,6 +190,9 @@ export default [
             await h.computer.save();
             await h.reload();
             await open(h);
+            // The canvas paints the arrows after the graph id is known: wait for them (a bare read raced the paint deep
+            // in the full run, twice — `got 0`).
+            await h.waitFor(() => (document.querySelector('#lolcomputer .graph-wire-pill') ? true : null), { timeout: 10000 }).catch(() => null);
             const back = await pills(h);
             h.eq(back.length, 1, 'the wire came back');
             h.eq(back[0].text, 'societal research', 'and so did its name');

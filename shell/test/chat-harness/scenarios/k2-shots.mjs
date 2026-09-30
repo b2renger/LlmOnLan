@@ -100,6 +100,10 @@ const inspect = () => {
     };
 };
 
+/** The four arrows' pills are painted after the scene is built: wait for them rather than a fixed pause (200 ms alone
+ * raced the paint deep in the full run — `got 0`). */
+const paintedPills = (/** @type {any} */ h) => h.waitFor(() => (document.querySelectorAll('#lolcomputer .graph-wire-pill').length >= 4 ? true : null), { timeout: 10000 }).catch(() => null);
+
 function check(/** @type {any} */ h, /** @type {any} */ m, /** @type {string} */ theme) {
     h.eq(m.theme, theme, 'the <html> class did not switch');
     h.assert(m.canvasRect && m.canvasRect.h > 200, 'the canvas is only ' + (m.canvasRect && m.canvasRect.h) + ' px tall');
@@ -147,6 +151,7 @@ export default [
             await buildScene(h);
             await h.eval(() => { document.documentElement.className = 'dark'; return true; });
             await new Promise((r) => setTimeout(r, 200));
+            await paintedPills(h);
             const m = await h.eval(inspect);
             check(h, m, 'dark');
             h.note('dark: strip "' + m.strip + '" · chips ' + JSON.stringify(m.chips)
@@ -164,6 +169,7 @@ export default [
             try {
                 await h.eval(() => { document.documentElement.className = 'light'; return true; });
                 await new Promise((r) => setTimeout(r, 200));
+                await paintedPills(h);
                 const m = await h.eval(inspect);
                 check(h, m, 'light');
                 h.note('light: drawer ' + JSON.stringify(m.drawerRect));

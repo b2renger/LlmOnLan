@@ -118,6 +118,32 @@ export default (test) => {
     assert.equal(store.pending(), false, 'now it is');
   });
 
+  test('a flush that finds nothing queued still waits for the doc another flush is about to write', async () => {
+    // The save() before a reload, or the teardown before the app quits: it must not resolve while the newest
+    // document is still on its way — else that last edit can be lost. (Found reading the code, 2026-09-30.)
+    const repo = fakeRepo();
+    const app = fakeApp(repo);
+    const store = createDocStore({ app, specs: map, debounceMs: 1000 });
+    const base = createDoc({ id: 'g1', threadId: null, now: app.now });
+    repo.holdWrites(true);
+    store.put({ ...base, rev: 1 });
+    const first = store.flush();                 // rev 1 in flight, held
+    await tick(0);
+    store.put({ ...base, rev: 2 });
+    const second = store.flush();                // takes rev 2, waits for rev 1
+    await tick(0);
+    let saved = false;
+    const save = store.flush().then(() => { saved = true; });   // nothing queued any more
+    repo.releaseAll();                           // rev 1 lands; rev 2's write starts, and is held
+    await tick(0); await tick(0); await tick(0);
+    assert.equal(saved, false, 'the save has not resolved: rev 2 has not landed yet');
+    repo.holdWrites(false);
+    repo.releaseAll();
+    await Promise.all([first, second, save]);
+    assert.equal(saved, true);
+    assert.equal(repo.rows[0].rev, 2, 'and the newest document is the one written');
+  });
+
   test('two overlapping flushes write the newest doc exactly once, in order', async () => {
     const repo = fakeRepo();
     const app = fakeApp(repo);
