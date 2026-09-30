@@ -6,6 +6,17 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-09-30 (15:10) — Release v0.2.7: Home Assistant
+
+The owner's order: a critic, its fixes, then a release to test. Tag `v0.2.7` (`18b108e`, `scripts/release.mjs`) on
+`b6fe76f` (the critic's fixes) after unit 1784/0, lint 0, unit.js 5/5, the full harness 406/406. CI run 36715526620:
+six jobs green, **27 assets** (installers for Windows, macOS arm64 + Intel and Linux x64 + arm64, the five
+`owui-sidecar-*` and five `dsh-runtime-*` tarballs, the updater feeds); `latest.yml` says 0.2.7, so installed clients
+are offered it. The rig list for it is TEST_SCENARIOS_v0.2.md §7c. Not yet tried by a person: a real Home Assistant
+with real devices, asking by voice, and a schedule driving the home.
+
+---
+
 ## 2026-09-30 (14:32) — The pre-release critic on Home Assistant, and its fixes (for v0.2.7)
 
 The owner asked for a review by a critic with no stake in the code, then the fixes, then a release to test. The
