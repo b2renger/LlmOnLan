@@ -14,13 +14,13 @@
 
 ---
 
-## Build status (2026-09-28) — released: client `v0.2.5` (OWUI `0.11.4`) · Farm app `farm-v0.0.41`
+## Build status (2026-09-28) — released: client `v0.2.6` (OWUI `0.11.4`) · Farm app `farm-v0.0.41`
 
 > v0.2.0 brought LOL Vibe vNext and the Computer (Fetch, Classify, Listen/Speak, Send, a ? on every box); v0.2.1
 > adds USB serial, the farm's message bus + Trigger, Open data (data.gouv.fr), the Agent box and the Computer as an
 > MCP server; v0.2.2 the bus and MCP hardening, lessons 5–6 and "Ask out loud"; v0.2.3 the IDE (LOL Vibe's Project
 > panel + the coding agent, history, LAN share, GitHub), mic and camera, lessons 7–12, the resume banner and a full
-> review of every in-app text with tooltips; v0.2.4 the project server stops following symbolic links out of a project; v0.2.5 the coding agent compacts on small context windows (docs/DEVLOG.md; the manual rig list is docs/TEST_SCENARIOS_v0.2.md).
+> review of every in-app text with tooltips; v0.2.4 the project server stops following symbolic links out of a project; v0.2.5 the coding agent compacts on small context windows; v0.2.6 agent loops (Keep going until done, schedules, Use the Computer), agent pages and the syntax check (docs/DEVLOG.md; the manual rig list is docs/TEST_SCENARIOS_v0.2.md).
 > The bullets below describe `main`.
 
 The full plan is built, released and in multi-user testing; the dated build log with how
@@ -97,7 +97,7 @@ docs) is `docs/reviews/DOCS_REVIEW_2026-09-27_{FARM,SHELL,COMPUTER}.md`. Snapsho
     LiteLLM venv, `models` + `preinstall` — ships a ~8.6 GB staged Qwen3.8-27B — the SearXNG/OCR venvs, and
     the llama.cpp build + weights only when enabled). The farm's advertised `version` is the Farm app's
     (`LOL_FARM_VERSION`), falling back to `farm/package.json`.
-- **`shell/`** (Electron + TS, **v0.2.5**) — boots the **unmodified** OWUI sidecar (config-bridge =
+- **`shell/`** (Electron + TS, **v0.2.6**) — boots the **unmodified** OWUI sidecar (config-bridge =
   env-authoritative, `ENABLE_PERSISTENT_CONFIG=false`), discovers the farm and auto-connects with **no
   URL typed**, full Preferences (data folder + move/fresh migration, connection, assistant tools,
   startup/updates, about). **Adaptive RAG**: whole-document injection (`RAG_FULL_CONTEXT=true`) on farms

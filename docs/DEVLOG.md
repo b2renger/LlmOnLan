@@ -6,6 +6,16 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-09-30 (12:16) — Release v0.2.6: agent loops, agent pages
+
+The owner's order: polish, agent pages, then v0.2.6. Tag `50791c4` after unit 1767/0, lint 0, the full harness **406/406**
+(the two k2 canvas tests that had failed twice now wait for the paint, `685f703`). CI: six jobs green, 27 assets, a
+sidecar and a coding-agent runtime per platform, `latest.yml` at 0.2.6. In it since v0.2.5: **Keep going until done**, **On
+a schedule**, **Use the Computer**, **agent pages**, the **syntax check**, a save that waits for the newest document, the
+polish (clearer refusals, 39 dead strings gone). Next: Home Assistant.
+
+---
+
 ## 2026-09-30 (09:41) — Polish; agent pages; the syntax check the real run asked for
 
 The owner: "Polish and harden, agents as web page, the release 0.2.6, then home assistant."
