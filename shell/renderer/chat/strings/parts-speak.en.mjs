@@ -12,7 +12,6 @@ registerStrings('parts', {
   speakVoiceFarm: 'The farm’s voice (Kokoro)',
   speakVoiceLocal: 'This computer’s voice',
   speakHint: 'Says what arrives, out loud. This computer’s own voice works offline and sends nothing; the farm’s voice sends the text to the farm to be spoken.',
-  speakAgain: '▶ Say it again',
   speakSaid: 'Said with {voice}: {text}',
   speakWithFarm: 'the farm’s voice',
   speakWithLocal: 'this computer’s voice',

@@ -11,7 +11,6 @@ import { registerStrings } from '../core/i18n.mjs';
 
 registerStrings('parts', {
   previewLabel: 'Preview',
-  previewHint: 'Shows what arrives: markdown, SVG, a web page, three.js, p5.js or a graph from JSON.',
   previewIn: 'Content',
   previewMode: 'Read it as',
   previewModeHint: 'How to read what arrives. Automatic guesses from the text; pick one to be sure.',
@@ -27,7 +26,6 @@ registerStrings('parts', {
   previewEmpty: 'Nothing to show yet: write code below, or wire something in.',
   previewAlt: 'What the sandbox drew',
   previewSnapshot: 'A picture, drawn in the sandbox. ▶ Live runs it for real.',
-  previewExport: 'Save…',
   // §6.5: a refusal names the port, what arrived, what the port takes, AND an action that exists.
   previewRefused: 'Preview: got {got} on `content`, which takes text or json. To look at a picture, put it in an Image box; to ask about it, wire it into an Instruction.',
   previewKindText: 'text',

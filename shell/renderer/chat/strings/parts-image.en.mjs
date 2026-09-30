@@ -5,9 +5,7 @@ import { registerStrings } from '../core/i18n.mjs';
 
 registerStrings('parts', {
   imageLabel: 'Image',
-  imageHint: 'Drop, paste or choose a picture, or take one with the camera. Wire it into an Instruction to ask about it.',
   imageEmpty: 'Drop a picture here, paste one, or click to choose one.',
-  imageChoose: 'Choose a picture…',
   imageReplace: 'Replace',
   imageReplaceHint: 'Choose another picture for this box',
   imageRemoveHint: 'Take the picture out of this box',
@@ -38,7 +36,6 @@ registerStrings('parts', {
   // What an ARRIVING value does (§6.4 + §6.2 revision 2: the arrival becomes the VALUE, and the
   // picture the person chose stays in `settings` untouched).
   imageFromInput: 'From the wire',
-  imageDropped: 'Dropped {name}.',
   imagePasted: 'Pasted {name}.',
   imageNoBox: 'Open a graph before pasting a picture.',
   // The wire refusals. Each names the port, what arrived, and what to do instead (§8.4).

@@ -6,9 +6,4 @@
 import { registerStrings } from '../core/i18n.mjs';
 
 registerStrings('lessons', {
-  shelfNote: '{lessons} lessons · {templates} templates · your graphs stay in this app',
-  lessonsBlurb: 'Build a small graph with the app watching: each step ticks when you have done it.',
-  templatesBlurb: 'Ready-made graphs to open, run and change. Each opens as a new graph in your library.',
-  templateCost: 'about {n} generations',
-  templateCostOne: 'about 1 generation',
 });

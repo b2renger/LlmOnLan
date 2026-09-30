@@ -162,10 +162,6 @@ export default (test) => {
   });
 
   test('strings about the shelf', () => {
-    const note = t('lessons.shelfNote', { lessons: LESSONS.length, templates: TEMPLATES.length });
-    assert.ok(note.includes(String(LESSONS.length)) && note.includes(String(TEMPLATES.length)), note);
-    assert.equal(t('lessons.templateCost', { n: 8 }), 'about 8 generations');
-    assert.ok(t('lessons.lessonsBlurb').length > 20 && t('lessons.templatesBlurb').length > 20);
     // The shelf's template line (rail.mjs passes count): one generation is singular.
     assert.equal(t('tutorial.templateMeta', { n: 1, count: 1 }), '~1 generation');
     assert.equal(t('tutorial.templateMeta', { n: 8, count: 8 }), '~8 generations');

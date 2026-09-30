@@ -65,15 +65,16 @@ export default [
             const lines = await h.eval(() => {
                 const t = window.LolChat.app.t;
                 return {
-                    busy: t('graph.runBusy'),
-                    capped: t('graph.runCapped', { cap: 50, n: 3 }),
+                    // The run bar's own sentences (computer/runbar.mjs); graph.runBusy/runCapped were retired unused.
+                    busy: t('computer.runOutcomeBusy'),
+                    capped: t('computer.runOutcomeCapped', { cap: 50, n: 3 }),
                     nothing: t('graph.runNothing'),
                 };
             });
             // A missing key resolves to the key itself (core/strings), which is the failure mode
             // this guards: the runner reports `yielded`/`capped`, so the panel must have a sentence.
             for (const [key, line] of Object.entries(lines)) {
-                h.assert(!/^graph\./.test(String(line)), 'graph.run' + key + ' is not registered: "' + line + '"');
+                h.assert(!/^(graph|computer)\./.test(String(line)), 'the ' + key + ' sentence is not registered: "' + line + '"');
             }
             h.assert(lines.capped.indexOf('50') >= 0 && lines.capped.indexOf('3') >= 0,
                 'runCapped does not interpolate the cap and the remainder: "' + lines.capped + '"');

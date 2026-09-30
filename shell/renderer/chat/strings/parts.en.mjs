@@ -6,9 +6,6 @@ import { registerStrings } from '../core/i18n.mjs';
 
 registerStrings('parts', {
   // Note (C1)
-  noteLabel: 'Note',
-  noteHint: 'Typed text. Wire it into anything, or leave it as a comment.',
-  notePlaceholder: 'Write something…',
 
   // Instruction (K2 — the part `ask.mjs` becomes; COMPUTER_PLAN §6.3). The TYPE ID stays `ask`
   // so every stored graph loads; the label, the file and these keys become `instruction`. The
@@ -32,7 +29,6 @@ registerStrings('parts', {
 
   // …and the chrome the box itself shows.
   insLabel: 'Instruction',
-  insHint: 'Names the arrows feeding it, then tells the model what to do with them.',
   insPlaceholder: 'What should the model do with these inputs?',
   insIn: 'Inputs',
   // Critic R1 A2: the owner could not tell what "Substitute short values in place" meant. The
@@ -80,13 +76,11 @@ registerStrings('parts', {
   collectJson: 'JSON array',
   collectTemplate: 'Template per item',
   collectTemplateText: 'Template',
-  collectSeparator: 'Separator',
 
   // ---- C2 (§2.6 BH): the fan-out family and the two bridges to the conversation -------------
 
   // Split
   splitLabel: 'Split',
-  splitHint: 'Text into items. The entry point to fan-out.',
   splitInput: 'Text',
   splitMode: 'Split by',
   splitMode_lines: 'Lines',
@@ -99,13 +93,11 @@ registerStrings('parts', {
 
   // Repeat
   repeatLabel: 'Repeat',
-  repeatHint: 'Runs whatever is downstream N times — the four-variants button.',
   repeatInput: 'Value',
   repeatTimes: 'Times',
 
   // Filter
   filterLabel: 'Filter',
-  filterHint: 'Keeps the items that match. Model mode spends one small generation per item.',
   filterItems: 'Items',
   filterCriterion: 'Criterion',
   filterMode: 'Keep when',
@@ -164,8 +156,6 @@ registerStrings('parts', {
   itemsCount: '{n} items',
 
   // fan-out, on the part
-  itemsRunning: '{i}/{n}',
-  itemsFailed: '{n} of {total} items failed',
   itemError: 'Item {i}: {message}',
 
   // failures a part reports on itself (never a silent empty, §1.2)
@@ -269,8 +259,6 @@ registerStrings('parts', {
   btnHint: 'Nothing runs until you press it. Press it and everything after it runs.',
   btnFaceHint: 'Press to run the boxes after this one.',
   btnTextHint: 'The words on the button. Empty, it says “Run this”.',
-  btnNotPressed: '{n} buttons not pressed',
-  btnNotPressedOne: '1 button not pressed',
   btnReady: 'ready — click to continue',
 
   condLabel: 'Condition',

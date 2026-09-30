@@ -56,7 +56,6 @@ registerStrings('tutorial', {
   demoOffer: 'The farm could not answer “{part}”. Continue with the lesson’s saved answer?',
   demoUse: 'Use the saved answer',
   demoUseHint: 'Put the lesson’s recorded answer in this box, marked “demo answer — not generated”, so you can go on',
-  demoTicked: 'done with the saved answer — not generated',
   demoNoteOne: 'One box shows the lesson’s saved answer. It is marked “demo answer — not generated”.',
   demoNoteMany: '{n} boxes show the lesson’s saved answers. Each is marked “demo answer — not generated”.',
 

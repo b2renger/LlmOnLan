@@ -21,7 +21,6 @@ registerStrings('core', {
 
   // loader (main.mjs)
   loaderFailed: 'Part of LOL Vibe failed to load ({key}).',
-  loaderFallback: 'LOL Vibe failed to load — see the developer console.',
 
   // development fakes (core/fakes.mjs) — harness only, never shown in production
   reasoning: 'reasoning',

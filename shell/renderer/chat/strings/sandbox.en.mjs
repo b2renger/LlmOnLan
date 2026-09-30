@@ -23,7 +23,6 @@ registerStrings('sandbox', {
   errBoot: 'The sandbox did not answer while starting up — the preview is off.',
   errAborted: 'The run was stopped before the sandbox answered.',
   errResultJson: 'The result cannot be turned into JSON — return text, a number, an array or a plain object.',
-  errResultBig: 'The result is too large to pass on (more than 1 MB). Return less.',
 
   // the restart ladder (studio plan §3.7.4)
   stalled: 'The sketch stopped responding — the preview was restarted.',

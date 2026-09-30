@@ -5,7 +5,6 @@ import { registerStrings } from '../core/i18n.mjs';
 registerStrings('sidebar', {
   // groups
   pinned: 'Pinned',
-  recent: 'Recent',
 
   // rows
   untitled: 'New chat',

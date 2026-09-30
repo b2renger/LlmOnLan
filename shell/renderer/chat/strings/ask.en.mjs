@@ -35,7 +35,4 @@ registerStrings('ask', {
   retry: 'Try again',
 
   // ---- the batch queue (app.ask.queue; ui/queue.mjs renders the chip) -------------------------
-  queueBusy: 'One batch at a time — let the running one finish or cancel it.',
-  queueStalled: 'The farm is busy — try again.',
-  queueCapped: 'Only the first {max} of {n} were queued.',
 });

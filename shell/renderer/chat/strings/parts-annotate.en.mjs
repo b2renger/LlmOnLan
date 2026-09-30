@@ -31,5 +31,4 @@ registerStrings('parts', {
   titleSizeM: 'Medium',
   titleSizeL: 'Large',
 
-  annotateInert: 'A note on the canvas — never runs, never costs a generation',
 });

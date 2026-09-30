@@ -19,9 +19,7 @@ registerStrings('library', {
   searchLabel: 'Search chats and messages',
   searchClear: 'Clear the search',
   searchNone: 'Nothing matches “{q}”',
-  searchHits: '{n} in this chat',
   searchResults: 'Results',
-  searchWorking: 'Searching…',
 
   // ---- the row … menu ----
   menu: 'More for this chat',

@@ -7,7 +7,6 @@ registerStrings('studio', {
   railLabel: 'Workbench panels',
   bodyLabel: 'Workbench',
   panelUnavailable: '{panel} — {reason}',
-  closeHint: 'Close',
 
   // the width control (a radiogroup in the head)
   widthLabel: 'Workbench width',
@@ -31,7 +30,6 @@ registerStrings('studio', {
 
   // The Computer was planned as the first workbench panel (docs/LOLCHAT_COMPUTER_SPEC.md). Since K1
   // it is its own surface (computer/main.mjs) and does not register a panel here; the label is kept.
-  panelComputer: 'Computer',
 
   // The header button. The rail lives INSIDE the workbench column, which is 0px wide while the
   // workbench is closed — so with only the rail, a shut workbench can be opened by keyboard alone

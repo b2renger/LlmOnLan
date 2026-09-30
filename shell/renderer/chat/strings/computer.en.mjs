@@ -53,8 +53,6 @@ registerStrings('computer', {
   libImportNewer: 'This graph was made with a newer version of the Computer. Update LlmOnLan and open it again — nothing has been changed.',
 
   // ---- the migration (K1-U2) -----------------------------------------------------------------
-  migrateDone: 'Brought {n} graphs over from your chats.',
-  migrateDoneOne: 'Brought one graph over from your chats.',
   migrateFromThread: 'From: {title}',
   migrateFromThreadUnknown: 'From a deleted chat',
   migrateStranded: '{n} graphs could not be brought over from your chats. They are still there — restart LlmOnLan to try again.',

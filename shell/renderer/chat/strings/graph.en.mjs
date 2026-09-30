@@ -52,8 +52,6 @@ registerStrings('graph', {
   runNothing: 'Nothing to run — every box is up to date.',
   // C1 landing: two REAL run outcomes the runner reports that had no sentence of their own and were
   // announcing as runNothing. A yield is not a failure and not a stop — the person took the seat.
-  runBusy: 'The farm went to someone else — press Run to pick up where it stopped.',
-  runCapped: 'Stopped at the Cap of {cap} generations, with {n} boxes still to run.',
 
   // part states, as the label next to the colour (never colour alone)
   stateIdle: 'Not run',

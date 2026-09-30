@@ -385,7 +385,7 @@ export default [
             h.eq(answered.value && answered.value.data, 'deep blue');
             const lines = await heard(h);
             const already = await str(h, 'computer.runOutcomeAlready');
-            const busy = await str(h, 'graph.runBusy');
+            const busy = await str(h, 'computer.runOutcomeBusy');
             h.assert(!lines.includes(already) && !lines.includes(busy),
                 `S1-15: the key never reached the canvas as "Run": ${JSON.stringify(lines)}`);
             h.eq(await h.computer.running(), false, 'and no second run was started');
