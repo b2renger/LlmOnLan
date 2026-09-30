@@ -34,7 +34,9 @@ a corner; change nothing else."* Keep each request small: one change at a time w
 difference here (the agent has its own instructions), and a stopped reply has no **Continue**: ask again.
 
 The agent works with **files**: it reads, searches, writes and edits them — **only inside the project folder**
-(anything else it is refused, and it says so). It has no shell, runs no programs and has no web.
+(anything else it is refused, and it says so). It has no shell, runs no programs and has no web. After each file it
+writes, LlmOnLan checks that its JavaScript parses (a script that does not parse makes a page do nothing at all, without
+a word); if not, the agent is told the line and the error at once, and fixes it in the same reply.
 
 ### Keep going until done
 
@@ -51,6 +53,20 @@ simply done in one turn.
 - Each round is a full reply of the model on the farm, and a loop holds your farm seat until it ends.
 - The switch is per project, off by default, and **off again when LlmOnLan closes**: a loop only ever runs because you
   asked for one. Best with **qwen3.8** (it checks its own work; nemotron did not, in our tests).
+
+### Agents as web pages
+
+Ask for a page that **thinks in steps** — *"make an agent page: a dice coach; I ask something about dice, it rolls and
+adds with tools and shows each step"*, a quiz master, a tutor, a planner. The agent builds it with its **agent-page**
+skill: the page's own JavaScript runs the loop with the farm's model, using the page's own tools (compute, draw, the
+board, speech, a public API you named), and shows each step. It runs while the page is open, in the **Preview** or
+with **Open in browser** on this computer.
+
+- LlmOnLan gives the page what it needs — the loop library and the farm's address — **never the farm's password**: on a
+  farm with one, the page asks you for it (kept for that page's session only).
+- On the LAN share the page opens, but it cannot reach the farm by itself (the farm's address is given on this computer
+  only).
+- Each step is one generation on the farm, like any message.
 
 ### Use the Computer
 

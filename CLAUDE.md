@@ -116,8 +116,12 @@ docs) is `docs/reviews/DOCS_REVIEW_2026-09-27_{FARM,SHELL,COMPUTER}.md`. Snapsho
   with a profile patch written from the current farm: 9 file tools, no shell/web/subagents, no DeepSeek cloud row,
   telemetry off, skills only from `DATA_DIR/skills`; and **the project fence** — a PreToolUse command hook
   (`FENCE_JS`) that refuses any file tool outside the project, because dsh itself confines writes only (on Windows
-  dsh runs hooks through PowerShell: the command needs `&` and `; exit $LASTEXITCODE`, else it silently passes).
-  Skills shipped (seeded one by one into `DATA_DIR/skills`): **ponytail**, and **graphify** (`assets/skills/graphify`,
+  dsh runs hooks through PowerShell: the command needs `&` and `; exit $LASTEXITCODE`, else it silently passes); and
+  **the syntax check** (2026-09-30) — a PostToolUse hook (`CHECK_JS`) after every write/edit that parses the file's
+  JavaScript (a .js/.mjs or each inline `<script>` of an .html) with `node:vm`, never running it, and on a SyntaxError
+  exits 2 so the model reads the line and fixes it in the same reply. dsh's hook sandbox forbids writing outside the
+  project AND starting a process (EPERM): a temp file or `node --check` would pass silently.
+  Skills shipped (seeded one by one into `DATA_DIR/skills`): **ponytail**, **agent-page** (agent pages, below), and **graphify** (`assets/skills/graphify`,
   adapted from Graphify-Labs/graphify v0.9.71, Apache-2.0 + NOTICE: the model writes `graphify-out/graph.json` with
   file tools only — no Python; the panel draws it with the Computer's graph viewer). History = git per project
   (`src/main/projectGit.ts`, isomorphic-git); **Share on the LAN** and **GitHub push/pull** are a person's clicks.
@@ -129,7 +133,10 @@ docs) is `docs/reviews/DOCS_REVIEW_2026-09-27_{FARM,SHELL,COMPUTER}.md`. Snapsho
   from, only while the app is open, forgotten at restart, skipped while a reply runs (dsh's own scheduler needs its web host). **Use the Computer** (same
   day): a person's per-project switch that adds the Computer's MCP server to the agent's profile (an `mcp-client` row;
   the bearer via `!!js` from `LOL_MCP_TOKEN` in the runtime env, never in the patch file) — the agent builds and runs
-  graphs; devices stay a dry run until a person arms the outputs (mcp.ts rules). The patch also fits compaction to small windows (v0.2.5: with dsh's 65536-token
+  graphs; devices stay a dry run until a person arms the outputs (mcp.ts rules). **Agent pages** (2026-09-30, IDE_PLAN §5 A):
+  the Preview's loopback server serves `/lol-agent.mjs` (the loop library, `assets/agent-page/`) and `/lol-farm.json`
+  (the farm's address, never its password) — never on the LAN share — and the **agent-page** skill has the agent write
+  pages whose own JavaScript runs a step loop with the farm's model and the page's tools. The patch also fits compaction to small windows (v0.2.5: with dsh's 65536-token
   default headroom a 32k window never compacted). dsh sessions die with the process (no resume): a new one gets a
   recap of the thread. Preview = a static server per project on 127.0.0.1 (main's frame veto lets exactly that
   origin in). The agent is NOT in the installer: CI builds `dsh-runtime-<platform>-<arch>.tar.gz` (`shell/dsh/`:

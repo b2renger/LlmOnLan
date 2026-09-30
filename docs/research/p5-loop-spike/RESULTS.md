@@ -66,3 +66,9 @@ turn is simply done in one turn). The Send box stayed a dry run: no MCP tool arm
    the Project panel, main sends the goal's prompt while the app is open — the Trigger box's rule.
 6. **Costs:** a loop holds one farm seat for its whole run; at 32k a long loop is ~3× slower (each compaction is a
    generation).
+
+## Correction (2026-09-30)
+The first spike runs passed the hooks config to `buildPatch` as the JSON itself, where the product passes a file path,
+so **the project fence was not loaded in those runs** (no task tried to leave its project, so no result changes).
+`loop.mjs` now writes the hooks file as `studio.ts` does — the fence and the new syntax check (`CHECK_JS`) — and a run
+asking to read `C:\Windows\win.ini` was blocked (`hook/result decision: block, exit 2`).

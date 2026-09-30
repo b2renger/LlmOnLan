@@ -668,6 +668,7 @@ function registerIpc(): void {
                 emit: (m) => { if (win && !win.isDestroyed()) win.webContents.send('lol:studio:event', m); },
                 seedSkills: path.join(app.getAppPath(), 'assets', 'skills'),
                 computer: () => computerConn,
+                agentLib: path.join(app.getAppPath(), 'assets', 'agent-page', 'lol-agent.mjs'),
                 // Git tokens per host, encrypted by the OS (safeStorage) in <userData>/git-tokens.json; none is kept
                 // where the OS cannot encrypt. Read only here, for a push or a pull.
                 tokens: {

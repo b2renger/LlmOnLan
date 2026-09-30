@@ -267,6 +267,8 @@ export interface StudioDeps {
     roundWaitMs?: number;
     /** The Computer's MCP server, when this session holds its port (mcp.ts) — for "Use the Computer". */
     computer?: () => { url: string; token: string } | null;
+    /** assets/agent-page/lol-agent.mjs, served to a project's page on this computer at /lol-agent.mjs. */
+    agentLib?: string;
 }
 
 export function createStudio(deps: StudioDeps) {
@@ -276,6 +278,20 @@ export function createStudio(deps: StudioDeps) {
     const shared = new Map<string, { server: http.Server; urls: () => string[] }>();
 
     const homeOf = () => path.join(deps.dataDir(), 'lol-studio', 'dsh');
+
+    /** Agent pages (IDE_PLAN §5 option A): what the Preview's server adds to a project — the loop library, and where
+     *  the farm is. Never the farm's password (on a farm that has one the page asks the person): any program on this
+     *  computer can reach the loopback server. */
+    function agentPageExtras(rel: string): { type: string; body: string } | null {
+        if (rel === 'lol-farm.json') {
+            const f = deps.farm();
+            return { type: 'application/json; charset=utf-8', body: JSON.stringify(f ? { baseUrl: f.endpoint, requiresKey: !!f.key } : { baseUrl: null, requiresKey: false }) };
+        }
+        if (rel === 'lol-agent.mjs' && deps.agentLib) {
+            try { return { type: 'text/javascript; charset=utf-8', body: fs.readFileSync(deps.agentLib, 'utf8') }; } catch { return null; }
+        }
+        return null;
+    }
     const skillsOf = () => path.join(deps.dataDir(), 'skills');
 
     /** The turn is over: what it changed becomes one commit (projectGit.ts), THEN the page hears it is done — so the
@@ -404,8 +420,10 @@ export function createStudio(deps: StudioDeps) {
             // The fence and its hooks config, rewritten every start (the runtime's own Node runs the fence).
             const fence = path.join(home, 'lol-fence.mjs');
             const hooks = path.join(home, 'lol-hooks.json');
+            const check = path.join(home, 'lol-check.mjs');
             fs.writeFileSync(fence, FENCE_JS);
-            fs.writeFileSync(hooks, fenceHooks(o.runtime.node, fence));
+            fs.writeFileSync(check, CHECK_JS);
+            fs.writeFileSync(hooks, fenceHooks(o.runtime.node, fence, process.platform, check));
             const patch = buildPatch({ baseUrl: o.farm.endpoint, model: o.model, contextWindow: o.farm.ctxPerSlot || 32768, skillsDir: skillsOf(), hooksConfig: hooks, goals: o.goals, computer: o.computer ? { url: o.computer.url } : undefined });
             fs.writeFileSync(path.join(prof, 'cordis.patch.yml.tmp'), patch);
             fs.renameSync(path.join(prof, 'cordis.patch.yml.tmp'), path.join(prof, 'cordis.patch.yml'));
@@ -518,7 +536,7 @@ export function createStudio(deps: StudioDeps) {
             const lan = shared.has(idv.id) ? shared.get(idv.id)!.urls() : [];
             const had = servers.get(idv.id);
             if (had) return { ok: true, url: had.url, lan };
-            const { server, port } = await fileServer(root, idv.id, '127.0.0.1', () => []);
+            const { server, port } = await fileServer(root, idv.id, '127.0.0.1', () => [], agentPageExtras);
             const url = `http://127.0.0.1:${port}/`;
             servers.set(idv.id, { server, url });
             return { ok: true, url, lan };
@@ -674,21 +692,93 @@ process.stdin.on('end', () => {
 `;
 
 /**
+ * After the agent writes or edits a file, a JavaScript syntax check (a dsh PostToolUse hook: exit 2 = the stderr is the
+ * tool's result the model reads). A page whose script does not parse runs NOTHING and says nothing where a person
+ * looks — the real run of an agent page (2026-09-30) wrote `cond ? a : throw …` and the page sat dead. Parsed (never
+ * run) with node:vm on the runtime's own Node — dsh's hook sandbox forbids temp files and child processes: a
+ * .js/.mjs/.cjs file, or each inline <script> of an .html (external and non-JavaScript scripts skipped), lines mapped
+ * back to the file. Anything it cannot read passes (it only ever helps).
+ * (Its backslashes are doubled for this template string.)
+ */
+export const CHECK_JS = `// LlmOnLan: a JavaScript syntax check after the coding agent writes a file (a dsh PostToolUse hook).
+import fs from 'node:fs';
+import path from 'node:path';
+import vm from 'node:vm';
+let raw = '';
+process.stdin.setEncoding('utf8');
+process.stdin.on('data', (d) => { raw += d; });
+process.stdin.on('end', () => {
+  let input = {};
+  try { input = JSON.parse(raw); } catch { process.exit(0); }
+  const args = (input && input.tool_input) || {};
+  if (typeof args.file_path !== 'string' || !args.file_path) process.exit(0);
+  const file = path.resolve(process.env.CLAUDE_PROJECT_DIR || input.cwd || process.cwd(), args.file_path);
+  const ext = path.extname(file).toLowerCase();
+  let text = '';
+  try { text = fs.readFileSync(file, 'utf8'); } catch { process.exit(0); }
+  const blocks = [];
+  if (ext === '.js' || ext === '.mjs' || ext === '.cjs') {
+    blocks.push({ code: text, line: 0, module: ext === '.mjs' || (ext === '.js' && /^\\s*(import|export)\\s/m.test(text)) });
+  } else if (ext === '.html' || ext === '.htm') {
+    const re = /<script\\b([^>]*)>([\\s\\S]*?)<\\/script>/gi;
+    let m;
+    while ((m = re.exec(text))) {
+      const attrs = m[1] || '';
+      const type = (/type\\s*=\\s*["']?([^"'\\s>]+)/i.exec(attrs) || [])[1] || '';
+      if (/\\bsrc\\s*=/i.test(attrs) || (type && !/^(module|text\\/javascript|application\\/javascript)$/i.test(type))) continue;
+      const opened = text.slice(0, m.index + m[0].indexOf('>') + 1);
+      blocks.push({ code: m[2], line: opened.split('\\n').length - 1, module: /^module$/i.test(type) });
+    }
+  } else process.exit(0);
+  // Parsed here, never run (constructing a vm.Script or vm.SourceTextModule compiles only). Not with node --check: dsh
+  // runs hooks in a sandbox that forbids both writing outside the project and starting another process (EPERM) — each
+  // made the check pass silently on the real runtime (2026-09-30).
+  const lineOf = (e) => { const at = /:(\\d+)\\r?\\n/.exec(String(e && e.stack)); return at ? Number(at[1]) : 0; };
+  // A module's SyntaxError carries no line: the same code as a script (imports blanked, export dropped, top-level
+  // await wrapped — every line kept where it was) usually fails at the same place, and gives it.
+  const asScript = (code) => '(async () => {' + code
+    .replace(/^[ \\t]*(import|export)\\b[^;]*?\\bfrom\\s*['"][^'"\\n]*['"][ \\t]*;?/gm, (m) => m.replace(/[^\\n]/g, ' '))
+    .replace(/^[ \\t]*import\\s*['"][^'"\\n]*['"][ \\t]*;?/gm, (m) => m.replace(/[^\\n]/g, ' '))
+    .replace(/\\bimport\\.meta\\b/g, '({})')
+    .replace(/^([ \\t]*)export\\s+(default\\s+)?/gm, '$1') + '\\n})';
+  const problems = [];
+  for (const b of blocks) {
+    try {
+      if (!b.module) new vm.Script(b.code);
+      else if (typeof vm.SourceTextModule === 'function') new vm.SourceTextModule(b.code);
+    } catch (e) {
+      if (!e || e.name !== 'SyntaxError') continue;
+      let line = b.module ? 0 : lineOf(e);
+      if (b.module) { try { new vm.Script(asScript(b.code)); } catch (e2) { line = lineOf(e2); } }
+      problems.push('line ' + (line ? b.line + line : '?') + ': SyntaxError: ' + e.message);
+    }
+  }
+  if (!problems.length) process.exit(0);
+  process.stderr.write('LlmOnLan checked ' + path.basename(file) + ': its JavaScript does not parse, so the page will not run at all — '
+    + problems.join('; ') + '. Fix it with edit, then carry on.');
+  process.exit(2);
+});
+`;
+
+/**
  * The hooks config dsh reads (Claude Code's format): the fence before every file tool. dsh runs a hook command
  * through its shell layer — `bash -c` on POSIX, PowerShell on Windows — and PowerShell reads two quoted paths as two
  * strings, not a command (a parse error = exit 1 = "pass": the fence silently off; seen on the real runtime,
  * 2026-09-28). So on Windows the call operator `&` leads, and `exit $LASTEXITCODE` hands on the fence's own code:
  * PowerShell otherwise turns a program's exit 2 (block) into its own 1 (pass).
  */
-export function fenceHooks(node: string, fence: string, platform: string = process.platform): string {
+export function fenceHooks(node: string, fence: string, platform: string = process.platform, check?: string): string {
     const q = (s: string) => `"${s}"`;
-    const command = platform === 'win32' ? `& ${q(node)} ${q(fence)}; exit $LASTEXITCODE` : `${q(node)} ${q(fence)}`;
+    const run = (script: string, flags = '') => (platform === 'win32' ? `& ${q(node)} ${flags}${q(script)}; exit $LASTEXITCODE` : `${q(node)} ${flags}${q(script)}`);
     return JSON.stringify({
         hooks: {
             PreToolUse: [{
                 matcher: 'read|glob|grep|read_image|write|edit',
-                hooks: [{ type: 'command', command, timeout: 10 }],
+                hooks: [{ type: 'command', command: run(fence), timeout: 10 }],
             }],
+            // The syntax check (CHECK_JS) after every write and edit.
+            // (vm.SourceTextModule, to parse a module without running it, still sits behind this flag.)
+            ...(check ? { PostToolUse: [{ matcher: 'write|edit', hooks: [{ type: 'command', command: run(check, '--no-warnings --experimental-vm-modules '), timeout: 20 }] }] } : {}),
         },
     }, null, 2);
 }
@@ -730,7 +820,8 @@ export function lanAddresses(): string[] {
  * One project's files over HTTP: GET/HEAD only, the project folder only (resolveIn), no listing, no-store. A request
  * must name the server by 127.0.0.1/localhost or one of `addresses()` (a DNS-rebinding guard).
  */
-function fileServer(root: string, id: string, host: string, addresses: () => string[]): Promise<{ server: http.Server; port: number }> {
+function fileServer(root: string, id: string, host: string, addresses: () => string[],
+    extras?: (rel: string) => { type: string; body: string } | null): Promise<{ server: http.Server; port: number }> {
     let port = 0;
     const server = http.createServer((req, res) => {
         const named = String(req.headers.host || '');
@@ -740,6 +831,13 @@ function fileServer(root: string, id: string, host: string, addresses: () => str
         let rel = '';
         try { rel = decodeURIComponent(new URL(req.url || '/', 'http://x').pathname).replace(/^\/+/, ''); } catch { res.writeHead(400).end(); return; }
         if (rel === '' || rel.endsWith('/')) rel += 'index.html';
+        // Agent pages (the Preview's server only — never the LAN share's): the loop library and where the farm is.
+        const extra = extras ? extras(rel) : null;
+        if (extra) {
+            res.writeHead(200, { 'content-type': extra.type, 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' });
+            res.end(req.method === 'HEAD' ? undefined : extra.body);
+            return;
+        }
         const r = resolveIn(root, id, rel);
         if (!r.ok) { res.writeHead(404).end(); return; }
         // resolveIn judges the path as written; a link in the project (a pulled repository can carry one) would still

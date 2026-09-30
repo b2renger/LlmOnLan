@@ -232,6 +232,10 @@ The agent is DeepSeek Harness on the farm's model. It works only inside one proj
   with 24 and 29. The steps show *→ Computer: new_graph Room monitor ✓*…; the answer gives fine / too hot; the graph is
   in the Computer's library. Ask it to add a Send box (OSC to 127.0.0.1:9000): the run says it stayed a dry run. Arm the
   outputs yourself and ask for another run: the agent is refused (it may read, not run, while armed).
+- [ ] **7b.17 An agent page** (v0.2.6+). Ask: *"Make an agent page: a dice coach — I ask something about dice, it rolls
+  and adds with tools and shows each step."* In the Preview ask *"roll 3 dice and tell me the total"*: the steps list
+  shows `roll_dice` then `sum` (or similar), and the answer's total is the sum of the faces shown. **Stop** mid-run ends
+  it. On a farm with a password: the page asks for it once, then works.
 
 ## 8. After testing
 

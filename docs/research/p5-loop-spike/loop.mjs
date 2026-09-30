@@ -146,13 +146,19 @@ const skills = path.join(home, 'skills');
 fs.mkdirSync(path.join(home, 'profiles', 'sdk'), { recursive: true });
 fs.mkdirSync(proj, { recursive: true });
 S.copyTree(path.join(REPO, 'shell', 'assets', 'skills'), skills);
-const fence = path.join(home, 'fence.js');
+const fence = path.join(home, 'fence.mjs');
+const check = path.join(home, 'check.mjs');
 fs.writeFileSync(fence, S.FENCE_JS);
+fs.writeFileSync(check, S.CHECK_JS);
 const runtime = S.resolveRuntime({ LOL_DSH_DIR: path.join(REPO, 'shell', 'dsh', 'build', 'dsh-runtime') }, home);
 if (!runtime) { console.error('no dsh runtime in shell/dsh/build/dsh-runtime'); process.exit(2); }
+// The hooks config is a FILE whose path the patch names, as in studio.ts (the first spike runs passed the JSON itself,
+// so the fence was not loaded then — no task tried to leave its project; corrected 2026-09-30).
+const hooksFile = path.join(home, 'hooks.json');
+fs.writeFileSync(hooksFile, S.fenceHooks(runtime.node, fence, process.platform, check));
 let patch = S.buildPatch({
   baseUrl: 'http://127.0.0.1:4100/v1', model, contextWindow: windowTokens, skillsDir: skills.replace(/\\/g, '/'),
-  hooksConfig: S.fenceHooks(runtime.node, fence, process.platform),
+  hooksConfig: hooksFile,
 });
 const ON = ['tool-goal', 'goal-round-driver', 'command-goal'];
 patch = patch.split('\n').filter((l) => !ON.some((id) => l.trim() === `- { id: ${id}, disabled: true }`)).join('\n');

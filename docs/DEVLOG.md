@@ -6,6 +6,38 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-09-30 (09:41) — Polish; agent pages; the syntax check the real run asked for
+
+The owner: "Polish and harden, agents as web page, the release 0.2.6, then home assistant."
+
+**Polish** (`e78dda4`, `32c3ae2`): the agent's refusals a person can cause are sentences (no model chosen; a message over
+100,000 characters); 39 strings nothing on screen used, removed (two harness guards moved to the run bar's own
+sentences; full harness 406/406); a wrong note corrected — the night log said the Code tab reads a link's target, but
+the projects API refuses any path through a link (`noLinks`, pinned by `projects-api.test.mjs`).
+
+**Agent pages** (IDE_PLAN §5 option A): a page's own JavaScript runs an agent loop with the farm's model. The Preview's
+loopback server serves `/lol-agent.mjs` (`shell/assets/agent-page/`: the Agent box's JSON-step loop — one of the page's
+tools per step, a wrong or malformed step fed back, the last step made to answer, the farm's failures as sentences) and
+`/lol-farm.json` (the address, never the password — a keyed farm's page asks the person), both never on the LAN share;
+the **agent-page** skill tells the coding agent how to write one. Real, qwen3.8: a dice coach (roll_dice → sum → "1 + 5
++ 6 = 12", 5 s) and a run pacer (5:30/km × 42.195 km → 3:52:04, right, 3 s), each built from one sentence.
+
+**The syntax check.** The first dice coach did nothing: the model wrote `cond ? 1 : throw …`, `throw` is not an
+expression, the whole module did not parse, and a page says nothing about that where a person looks. So a PostToolUse
+hook (`CHECK_JS`) now parses every .js/.mjs and each inline `<script>` the agent writes, and on a SyntaxError exits 2 —
+the model reads the line and fixes it in the same reply. Getting it to work inside dsh took three tries, each diagnosed
+from dsh's own `hook/result` events: a temp file (the hook sandbox forbids writing outside the project), then `node
+--check` (it forbids starting a process: EPERM) — both had passed silently; finally `node:vm` in-process (a module's
+error line found by re-parsing it as a script). On the way: **the fence is confirmed working inside dsh** (a read of
+`C:\Windows\win.ini`: `decision: block`), and the spike driver's first runs had not loaded it (corrected in RESULTS).
+
+**Tested.** Unit 1766/0 (the library: loop, feedback, the farm's failures; the server: the two paths on the Preview,
+neither on the LAN share, never the password; the checker: the real broken page caught at its line, external and JSON
+scripts skipped, only JavaScript checked; the hook config); lint 0. Real, inside dsh: the broken write blocked with
+"line 1: SyntaxError: Unexpected token 'throw'", then one edit, then pass.
+
+---
+
 ## 2026-09-29 (17:45) — Use the Computer: the coding agent builds and runs graphs; all three together
 
 The last reach the owner chose for a looping agent — its project + the Computer and devices (`90455ca`). A per-project

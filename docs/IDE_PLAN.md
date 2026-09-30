@@ -109,7 +109,14 @@ model and acting with tools, in a loop. Three ways to get there, from the safest
 | **B. Agents as Computer graphs** | the Computer's Agent box + Trigger + Send ARE an event-driven, armed, bounded agent today | "Open in the Computer": the IDE writes a `.lolgraph.json` the Computer imports | `RUN_LIMITS`, armed outputs, the sandbox | a graph, not code |
 | **C. Agents as programs** | a **Run** button: `node agent.js` in the project with the runtime's own Node | a real process sandbox (dsh has Windows-ACL / Seatbelt sandboxes for its shell tool) and a network allow-list (the farm only) — Node alone cannot be fenced | an OS sandbox, to be measured first | the most power (files, schedules, long runs) and the most risk |
 
-**Recommendation:** A now (a skill, `/lol-farm.json`, one lesson — about half a day), B as the Computer's side (already
+**A — built 2026-09-30** (the owner: "agents as web pages"): the Preview's loopback server serves `/lol-agent.mjs` (the
+loop library, `shell/assets/agent-page/`: the Agent box's JSON-step loop — one of the page's tools per step, a wrong
+or malformed step fed back, the last step made to answer, the farm's failures as sentences) and `/lol-farm.json`
+({baseUrl, requiresKey} — never the password: on a keyed farm the page asks the person, `setKey`, session only) — both
+never on the LAN share. The **agent-page** skill tells the coding agent how to write one (the page's tools, each step
+shown, a Stop button, 4–8 steps, no secret in the files).
+
+**Recommendation (as written 2026-09-28):** A now (a skill, `/lol-farm.json`, one lesson — about half a day), B as the Computer's side (already
 built; the import button later), C only after a measured sandbox review and your decision on the shell question.
 
 ## 6. Agent loops — "Keep going until done" (owner, 2026-09-29; built the same day)

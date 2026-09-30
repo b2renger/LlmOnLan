@@ -178,6 +178,7 @@ export default (test) => {
       seedSkills: seed,
       ...(o.roundWaitMs ? { roundWaitMs: o.roundWaitMs } : {}),
       ...('computer' in o ? { computer: () => o.computer } : {}),
+      ...(o.agentLib ? { agentLib: o.agentLib } : {}),
     });
     const done = async (turnId, ms = 15000) => {
       const t0 = Date.now();
@@ -252,6 +253,23 @@ export default (test) => {
       const b = await r.studio.prompt({ projectId: PID, threadId: 'g', model: 'm', text: 'write a.txt: x' });
       assert.deepEqual(await r.done(b.turnId), { reason: 'completed' });
       assert.doesNotMatch(fs.readFileSync(patchFile, 'utf8'), /defaultMaxGoalRounds/, 'without the switch the loop is off again');
+    } finally { await r.studio.dispose(); }
+  });
+
+  test('studio: agent pages — the Preview serves the loop library and where the farm is, never its password; the LAN share neither', async () => {
+    const lib = path.join(HERE, '..', '..', '..', 'assets', 'agent-page', 'lol-agent.mjs');
+    const r = rig({ agentLib: lib, farm: { endpoint: 'http://10.0.0.5:4000/v1', key: 'the-farm-password', ctxPerSlot: 32768 } });
+    try {
+      const s = await r.studio.serve(PID);
+      const port = new URL(s.url).port;
+      const info = await get(s.url, { host: `127.0.0.1:${port}`, path: '/lol-farm.json' });
+      assert.equal(info.status, 200);
+      assert.deepEqual(JSON.parse(info.body), { baseUrl: 'http://10.0.0.5:4000/v1', requiresKey: true });
+      assert.ok(!info.body.includes('the-farm-password'), 'never the password: the page asks the person');
+      const js = await get(s.url, { host: `127.0.0.1:${port}`, path: '/lol-agent.mjs' });
+      assert.equal(js.status, 200);
+      assert.match(js.type, /javascript/);
+      assert.match(js.body, /export async function runAgent/);
     } finally { await r.studio.dispose(); }
   });
 
@@ -472,6 +490,29 @@ export default (test) => {
     assert.equal(hooks.hooks.PreToolUse[0].hooks[0].command, '& "C:\\n o d e\\node.exe" "C:\\h\\lol-fence.mjs"; exit $LASTEXITCODE',
       'PowerShell (dsh\'s Windows shell) needs the call operator and must hand on exit 2; paths with spaces stay quoted');
     assert.equal(JSON.parse(S.fenceHooks('/opt/n o/node', '/h/f.mjs', 'linux')).hooks.PreToolUse[0].hooks[0].command, '"/opt/n o/node" "/h/f.mjs"', 'bash -c elsewhere');
+    const both = JSON.parse(S.fenceHooks('C:\\n\\node.exe', 'C:\\h\\f.mjs', 'win32', 'C:\\h\\check.mjs')).hooks;
+    assert.equal(both.PostToolUse[0].matcher, 'write|edit', 'the syntax check after every write and edit');
+    assert.equal(both.PostToolUse[0].hooks[0].command, '& "C:\\n\\node.exe" --no-warnings --experimental-vm-modules "C:\\h\\check.mjs"; exit $LASTEXITCODE',
+      'wrapped like the fence, with the flag vm modules need');
+    assert.equal(JSON.parse(S.fenceHooks('n', 'f', 'linux')).hooks.PostToolUse, undefined);
+  });
+
+  test('studio: the syntax check tells the agent at once when a page\'s JavaScript does not parse — with the file\'s line', () => {
+    const dir = tmp('check');
+    const check = path.join(dir, 'check.mjs');
+    fs.writeFileSync(check, S.CHECK_JS);
+    const run = (file, content) => {
+      fs.writeFileSync(path.join(dir, file), content);
+      return spawnSync(process.execPath, ['--no-warnings', '--experimental-vm-modules', check], { input: JSON.stringify({ tool_name: 'write', tool_input: { file_path: file }, cwd: dir }), encoding: 'utf8' });
+    };
+    // What the real agent page had (2026-09-30): `throw` is not an expression, so the whole module did not parse.
+    const bad = run('index.html', '<!doctype html>\n<p>x</p>\n<script type="module">\nimport { a } from "/lol-agent.mjs";\nconst f = (n) => n\n  ? 1\n  : throw new Error("x");\n</script>\n');
+    assert.equal(bad.status, 2, 'exit 2: the stderr is what the model reads');
+    assert.match(bad.stderr, /index\.html: its JavaScript does not parse[\s\S]*line 7: SyntaxError: Unexpected token 'throw'/, bad.stderr);
+    assert.equal(run('ok.html', '<script>let x = 1;</script><script src="a.js"></script><script type="application/json">{not js</script>').status, 0, 'external and non-JavaScript scripts are not checked');
+    assert.equal(run('app.mjs', 'export const a = ;\n').status, 2, 'a module file');
+    assert.equal(run('app.js', 'const ok = 1;\n').status, 0);
+    assert.equal(run('notes.md', 'const = broken').status, 0, 'only JavaScript is checked');
   });
 
   test('studio: a remote is a clean https address; its token is kept per host and never handed back; a failure is a sentence', async () => {
@@ -520,6 +561,7 @@ export default (test) => {
     const studio = S.createStudio({
       dataDir: () => data, projectsRoot: () => root, farm: () => null, runtime: () => null, emit: () => {},
       lan: { host: '127.0.0.1', addresses: () => ['192.0.2.10'] },   // loopback in tests: no firewall prompt
+      agentLib: path.join(HERE, '..', '..', '..', 'assets', 'agent-page', 'lol-agent.mjs'),
     });
     try {
       const first = await studio.serve(PID);
@@ -543,7 +585,7 @@ export default (test) => {
       fs.writeFileSync(path.join(data, 'outside.txt'), 'outside the project');
       let linked = true;
       try { fs.symlinkSync(path.join(data, 'outside.txt'), path.join(root, PID, 'leak.txt'), 'file'); } catch { linked = false; }
-      for (const p of ['/.git/config', '/.GIT/config', '/.env', ...(linked ? ['/leak.txt'] : [])]) {
+      for (const p of ['/.git/config', '/.GIT/config', '/.env', '/lol-farm.json', '/lol-agent.mjs', ...(linked ? ['/leak.txt'] : [])]) {
         assert.equal((await get(lanUrl, { host: `192.0.2.10:${port}`, path: p })).status, 404, `${p} is not served on the LAN`);
       }
       if (!linked) console.log('     (no symlink permission on this machine: the link case is checked where links can be made)');
