@@ -240,7 +240,16 @@ docs) is `docs/reviews/DOCS_REVIEW_2026-09-27_{FARM,SHELL,COMPUTER}.md`. Snapsho
   a per-install bearer, JSON responses over Streamable HTTP): Open WebUI's models list, build and run graphs
   through `computer/mcp-tools.mjs` — the Computer's own debug doors; no tool arms the outputs, and while a person has
   them armed NO tool changes or runs a graph (reading stays open); what only a person chooses (a Fetch address, an Open data
-  link, an Agent's hosts, a USB board, Listen) is dropped from a model's settings and reported as left for a person. Also a **? on every box** that opens that box's example (`computer/examples/`: one per ＋
+  link, an Agent's hosts, a USB board, Listen) is dropped from a model's settings and reported as left for a person. Since 2026-09-30 the same
+  server also answers **Home Assistant** itself, in main (`src/main/homeAssistant.ts`, [docs/HOME_ASSISTANT.md](docs/HOME_ASSISTANT.md)), listed only
+  while a home is linked in **Preferences ▸ Home Assistant** (a person-typed address + long-lived token, the token `safeStorage`-encrypted in
+  `<userData>/home-assistant.json`, never handed back to the page): `home_devices`, `home_state`, `home_command` — reading free, a command a
+  DRY RUN until a person clicks **Allow commands…** (main's native dialog listing exactly the devices; forgotten at close, on relink — a
+  link generation refuses an allow that raced one — and on a window reload/crash like the outputs; the top bar shows **Home commands on · N**,
+  one click stops); one device per command and only an action on `ACTIONS`' per-domain ALLOWLIST (HA registers a service per script, and
+  `scene.apply`, `play_media`, `send_command` reach past the device — a security review found the first, 2026-09-30); never unlock/open a
+  lock, disarm/trigger an alarm, sound a siren, or open a cover unless HA says it is a blind/curtain/shade/shutter/awning/window;
+  ≤ 1/s per device and 30/min. Also a **? on every box** that opens that box's example (`computer/examples/`: one per ＋
   menu entry, a Sticky with what it does / inputs / output / how to use it next to a working setup, imported
   as a library graph once and reopened after). A run cut short by the app's close is offered again when its graph opens (the **resume banner**, host.mjs: Resume = Run all, only unfinished boxes re-run; Dismiss closes it — 2026-09-28). Docs: [the user tutorial](docs/LOLCHAT_COMPUTER_TUTORIAL.md),
   [status](docs/COMPUTER_STATUS.md), [plan](docs/COMPUTER_PLAN.md), [live plan](docs/COMPUTER_LIVE_PLAN.md).
@@ -333,7 +342,7 @@ If a task seems to require breaking one of these, **stop and flag it**.
 | Lifecycle | Shell spawns the OWUI sidecar as a child process and supervises it. | Shell = process manager + window. |
 | Config → OWUI | Env vars at **every** launch, made authoritative by `ENABLE_PERSISTENT_CONFIG=false` — repointing the farm restarts the sidecar with new env. **Two exceptions**, both written from the authed webview via OWUI's user‑settings API `POST /api/v1/users/user/settings/update`: web search defaulted ON (`ui.webSearch='always'`, one‑time via a `lolWebSearchSeeded` marker) and the opt‑in Blender tool server (`ui.toolServers` + `ui.tools`). Neither has a usable env. | See gotchas below. |
 | Data | `DATA_DIR` → the user's chosen local folder; default local embeddings; telemetry off. | Enforces invariant #3. |
-| Net out of OWUI | Chat completions to the farm endpoint; plus, when the farm advertises them: SearXNG queries (then direct page fetches), Kokoro TTS requests, and uploaded‑file bytes to the farm OCR extractor; and MCP tool calls to the Computer on 127.0.0.1 (this machine). | Embeddings always stay local. |
+| Net out of OWUI | Chat completions to the farm endpoint; plus, when the farm advertises them: SearXNG queries (then direct page fetches), Kokoro TTS requests, and uploaded‑file bytes to the farm OCR extractor; and MCP tool calls to the Computer on 127.0.0.1 (this machine) — which answers the home tools against the Home Assistant a person linked. | Embeddings always stay local. |
 | Webview | The renderer reads the OWUI origin's `localStorage.token`, validates it with `GET /api/v1/auths/` (drop + reload, ≤4 tries) before revealing the webview, and reads `/api/config` before seeding web search; the `persist:owui` partition is granted mic/camera/clipboard only. | `renderer/app.js`, `src/main/index.ts`. |
 | Everything else | None. OWUI is a black box. | No DB poking, no template/CSS edits, no internal imports. |
 
@@ -481,7 +490,7 @@ touches in the contract table), and the shell config store (a hand-rolled `userD
 `store.ts`). The renderer hosts the chrome, the webview, the settings UI, LOL Vibe and the Computer.
 
 **Preferences panel** (LOL‑owned, ComfyQ‑styled), sections (data location · connection · **assistant
-tools** · startup & updates · about):
+tools** · **Home Assistant** · startup & updates · about):
 - **Data location** — show the current `DATA_DIR` (everything: OWUI's data, LOL Vibe's history, the
   Computer's graphs, media and projects); "Change folder…" (Electron `dialog.showOpenDialog`). The panel
   asks first and says the app restarts: **move** copies OWUI's data now (the sidecar stopped), saves
@@ -492,6 +501,8 @@ tools** · startup & updates · about):
   "Add by address" + chips (ComfyQ pattern). The farm list and the choice of farm live in the topbar popover.
 - **Assistant tools** — the opt‑in Blender/mcpo toggle, a "Test connection" button (checks both the
   local helper and whether Blender is listening), and the BlenderMCP socket port.
+- **Home Assistant** (2026-09-30) — address + long-lived token → **Link** (tested before anything is kept), **Test
+  connection**, **Forget**, and **Allow commands…** / **Stop commands** (main's native dialog lists the devices).
 - **Startup & updates** — "Launch at login"; "Install app updates automatically"; "Check for app updates"
   → "Restart & install update"; a close-means-close note. There is no update channel.
 - **About** — the app and Open WebUI versions, "Check for chat-engine update" (a staged sidecar update,
@@ -707,7 +718,8 @@ LlmOnLan/
   (`POST /lol/client-ping` every 10 s: hostname, platform, version, idle seconds).
 - **To third parties a person names:** a Computer **Fetch** box's GET to the address typed in it (nothing
   from the graph is sent with it); an **Open data** box's GETs to data.gouv.fr for the dataset pasted in it; an **Agent** box's GETs, only to hosts a person listed on it; a **Send** box's message to the device typed in it, only once a person
-  armed the outputs (a dry run otherwise). A board on this computer's USB cable (Send by USB, Receive) stays
+  armed the outputs (a dry run otherwise); the **Home Assistant** a person linked (states and actions read when a model asks; a
+  command only while a person allowed home commands). A board on this computer's USB cable (Send by USB, Receive) stays
   on this computer; the farm's message bus carries what a graph publishes (armed) to whoever subscribed on the
   LAN, and keeps nothing.
 - **Beyond the farm (no user content):** GitHub, for the app update check and the chat-engine (sidecar)

@@ -6,6 +6,70 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-09-30 (12:56) — Home Assistant: ask, command, and agents that act on the home (P6 v1)
+
+The owner's order after v0.2.6, and their answers: set up a Home Assistant (none yet); **ask and command** + **agents
+act on the home**; its **REST/WebSocket API** with a person-pasted address and long-lived token; commands **only once a
+person allows them**. User doc: [HOME_ASSISTANT.md](HOME_ASSISTANT.md).
+
+**Built.** `shell/src/main/homeAssistant.ts` holds every rule in main: three tools — `home_devices`, `home_state`
+(state, attributes, the actions with their fields, and what is never by a model), `home_command` — added to the
+Computer's MCP server while a home is linked and answered in main (they work with the Computer closed), so Open
+WebUI's chat (typed or spoken) and a project's agent with **Use the Computer** reach the home through the door they
+already had. Reading is free; a command is a **dry run** until a person clicks **Allow commands…**, a native dialog
+in main that lists exactly the devices (grouped by kind), Cancel by default; a device added later is refused;
+forgotten at close, on relink and on a window reload (like the outputs); the top bar shows **Home commands on · N**,
+one click stops. One device per command, and only an action on a per-domain allowlist (`ACTIONS`; targeting keys
+dropped). Never by a model: unlock/open a lock, disarm/trigger an alarm, sound a siren, open a cover unless Home
+Assistant says it is a blind, curtain, shade, shutter, awning or window. ≤ 1/s per device, 30/min. Preferences ▸ **Home Assistant**: address + token → Link (tested
+before anything is kept), Test connection, Forget; the token `safeStorage`-encrypted in `<userData>/home-assistant.json`
+and never handed back to the page. ponytail: REST only — HA's WebSocket push is the upgrade path; no Computer box yet.
+
+**The test home.** Home Assistant Core 2026.9.4 in WSL (uv's managed Python 3.14, the `demo` integration: 123
+entities), onboarded and given a token through its API. HA 2026.9 moved HTTP settings from YAML to `.storage/http` with
+a 5-minute confirm-or-revert: the YAML's `server_host: 127.0.0.1` was never promoted and HA restarted on its default
+(every interface) — pinned to loopback in the stored stable config instead (recipe in HOME_ASSISTANT.md).
+
+**Verified on the rig** (the isolated dev client, qwen3.8 on the private farm, 12:31–12:40):
+- Linked through the real Preferences (`…/api` forgiven; the token encrypted on disk, the field emptied).
+- The three tools through the real MCP server over HTTP: a filtered list, a lock's actions with `unlock`/`open` under
+  never, a dry run, a refused unlock.
+- The native dialog listed the 59 devices; allowed by a real mouse click found with UI Automation.
+- Open WebUI (the tool turned on under Integrations ▸ Tools): *"Is the bed light on? Turn it on at 30 %, then tell me
+  the outside temperature"* → 2 tool calls; HA: off → on, brightness 76 (30 %); 15.6 °C is the sensor's value.
+- Stopped from the top bar: *"Turn off the kitchen lights"* → a dry run, the lights stayed on; *"Unlock the front
+  door"* → refused, still locked.
+- A project's agent with Use the Computer: read the temperature and the window, closed the living room window (open 70
+  → closed 0) and wrote an accurate `home-report.md`, 6 steps / 18 s.
+- NOT tried: speaking the request (Open WebUI's local speech to text feeds the same chat), a real Home Assistant with
+  real devices, and a schedule driving the home.
+
+**Security review** (an independent reviewer, read-only) — its BLOCKER and four should-fixes fixed:
+- BLOCKER: "an action of the entity's own domain" let one allowed script run ANY script, since Home Assistant registers a
+  service per script (`script.unlock_front_door` beside `script.turn_on`) — including scripts added after allowing. Now a
+  per-domain action allowlist; checking HA's real service list showed more of the same kind, closed with it:
+  `scene.apply`/`create` (set other entities' states), `remote`/`vacuum` `send_command`, `media_player.play_media` (a URL
+  the model picks, fetched inside the home — the reviewer's exfiltration path).
+- Covers were a denylist: a garage cover with no `device_class` (common with MQTT/ESPHome) opened. Now a cover opens
+  only when it says it is a blind, curtain, shade, shutter, awning or window; `stop_cover` counts as opening.
+- A relink racing an allow could carry the old home's list to the new one: a link generation, bumped before and after
+  the link's test, refuses a stale allow.
+- A siren sounding is "trigger an alarm" by another name: a model may silence one, never sound it. The dialog and
+  Preferences now say what the code cannot know: a switch, button, scene or script does whatever the home wired it to.
+- Nits fixed: `Object.hasOwn` for action names (`constructor`), the dialog says "and N more" past 30 names, and a
+  window reload stops home commands like it disarms the outputs (the top bar could not show them otherwise).
+- Re-verified on the rig after the fixes (by 12:56): a class-less window, the garage, the siren, `play_media` and
+  `constructor` refused through the real MCP server; the new dialog text; allowed → reload → stopped; an allowed
+  command still switches (bed light off).
+
+**Tested.** Unit 1779/0 (+12: `home.test.mjs` against a fake Home Assistant — addresses, linking, the three tools, no
+POST on a dry run or a refusal, exactly-the-listed devices, the allowlist, never-by-a-model, the relink race, the rate
+caps, the token in no answer) ·
+lint 0 · unit.js 5/5 · shell + farm-app typecheck · harness k19 + both k24 3/3. `chat-scope` flags the main-side
+files — the LOL Chat phase gate, which main-process integrator work (the IDE, the MCP server) has always been outside.
+
+---
+
 ## 2026-09-30 (12:16) — Release v0.2.6: agent loops, agent pages
 
 The owner's order: polish, agent pages, then v0.2.6. Tag `50791c4` after unit 1767/0, lint 0, the full harness **406/406**

@@ -102,13 +102,23 @@ contextBridge.exposeInMainWorld('lol', {
         armed: () => ipcRenderer.invoke('lol:io:armed'),
         panic: () => ipcRenderer.invoke('lol:io:panic'),
     },
-    // USB serial (P3a-2): main forwards the plugged-in boards when the page asks for one; the page
-    // answers with the person's pick ('' = cancelled). The bytes go through the page's own Web Serial.
     // The Computer's MCP server (src/main/mcp.ts): main carries a tool call here, the page answers it.
     mcp: {
         onCall: (fn: (msg: unknown) => void) => { ipcRenderer.on('lol:mcp:call', (_e, msg) => fn(msg)); },
         answer: (id: string, out: unknown) => ipcRenderer.invoke('lol:mcp:answer', id, out),
     },
+    // Home Assistant (src/main/homeAssistant.ts): link, check, allow commands (main asks in a native dialog). The token
+    // goes in and never comes back.
+    home: {
+        status: () => ipcRenderer.invoke('lol:home:status'),
+        check: () => ipcRenderer.invoke('lol:home:check'),
+        link: (url: string, token: string) => ipcRenderer.invoke('lol:home:link', url, token),
+        arm: () => ipcRenderer.invoke('lol:home:arm'),
+        disarm: () => ipcRenderer.invoke('lol:home:disarm'),
+        onState: (fn: (s: unknown) => void) => { ipcRenderer.on('lol:home:state', (_e, s) => fn(s)); },
+    },
+    // USB serial (P3a-2): main forwards the plugged-in boards when the page asks for one; the page
+    // answers with the person's pick ('' = cancelled). The bytes go through the page's own Web Serial.
     serial: {
         onChoose: (fn: (list: unknown) => void) => { ipcRenderer.on('lol:serial:choose', (_e, list) => fn(list)); },
         chosen: (portId: string) => ipcRenderer.invoke('lol:serial:chosen', portId),

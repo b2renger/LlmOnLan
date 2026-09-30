@@ -64,6 +64,8 @@ const prefs = {
   addForm: $('pref-add-form'), addHost: $('pref-add-host'), chips: $('pref-chips'),
   launch: $('pref-launch'), autoUpdate: $('pref-autoupdate'),
   blender: $('pref-blender'), blenderStatus: $('pref-blender-status'), blenderPort: $('pref-blender-port'), blenderTest: $('pref-blender-test'),
+  homeUrl: $('pref-home-url'), homeToken: $('pref-home-token'), homeLink: $('pref-home-link'), homeCheck: $('pref-home-check'),
+  homeForget: $('pref-home-forget'), homeStatus: $('pref-home-status'), homeArm: $('pref-home-arm'), homeArmed: $('pref-home-armed'),
   verShell: $('ver-shell'), verOwui: $('ver-owui'), owuiLink: $('owui-link'),
   checkApp: $('check-app-update'), appStatus: $('app-update-status'),
   appRestartRow: $('app-restart-row'), appRestart: $('app-update-restart'),
@@ -105,6 +107,64 @@ async function refreshPrefs() {
   if (r.third) { prefs.t0.value = r.third[0]; prefs.t1.value = r.third[1]; }
   if (r.fourth) { prefs.f0.value = r.fourth[0]; prefs.f1.value = r.fourth[1]; }
   renderChips(p.manualPeers || []);
+  await refreshHome();
+}
+
+// ---- Home Assistant (src/main/homeAssistant.ts): the token goes in and never comes back; allowing commands is
+// main's native dialog, and while they are allowed the topbar says so, one click from stopping them.
+const homeLive = $('home-live');
+function showHome(s) {
+  const st = s || {};
+  for (const b of [prefs.homeCheck, prefs.homeForget, prefs.homeArm]) b.disabled = !st.linked;
+  prefs.homeArm.textContent = st.armed ? 'Stop commands' : 'Allow commands…';
+  prefs.homeArmed.textContent = !st.linked ? ''
+    : st.armed ? `Commands allowed for ${st.armed} devices, until LlmOnLan closes.` : 'Commands: a dry run.';
+  homeLive.classList.toggle('hidden', !st.armed);
+  $('home-live-text').textContent = `Home commands on · ${st.armed || 0}`;
+}
+function homeLine(r) {
+  prefs.homeStatus.classList.toggle('err', !r.ok);
+  prefs.homeStatus.textContent = !r.ok ? (r.message || 'Not linked.')
+    : `Linked: ${r.name || r.url}${r.version ? ` · Home Assistant ${r.version}` : ''}${r.entities != null ? ` · ${r.entities} entities, ${r.devices} devices` : ''}`;
+}
+async function refreshHome() {
+  if (!window.lol.home) return;
+  const s = await window.lol.home.status();
+  prefs.homeUrl.value = s.url || prefs.homeUrl.value;
+  prefs.homeToken.value = '';
+  prefs.homeToken.placeholder = s.linked ? 'A token is kept, encrypted. Paste a new one to replace it.'
+    : 'A long-lived access token (Home Assistant ▸ your profile ▸ Security)';
+  if (s.linked) homeLine({ ok: true, ...s });
+  else { prefs.homeStatus.classList.remove('err'); prefs.homeStatus.textContent = ''; }
+  showHome(s);
+}
+if (window.lol.home) {
+  prefs.homeLink.addEventListener('click', async () => {
+    prefs.homeStatus.classList.remove('err');
+    prefs.homeStatus.textContent = 'Linking…';
+    const r = await window.lol.home.link(prefs.homeUrl.value, prefs.homeToken.value);
+    if (!r.ok) return homeLine(r);
+    await refreshHome();
+    homeLine(await window.lol.home.check());
+  });
+  prefs.homeCheck.addEventListener('click', async () => {
+    prefs.homeStatus.classList.remove('err');
+    prefs.homeStatus.textContent = 'Testing…';
+    homeLine(await window.lol.home.check());
+  });
+  prefs.homeForget.addEventListener('click', async () => {
+    await window.lol.home.link('', '');
+    prefs.homeUrl.value = '';
+    await refreshHome();
+  });
+  prefs.homeArm.addEventListener('click', async () => {
+    const s = await window.lol.home.status();
+    if (s.armed) return showHome(await window.lol.home.disarm());
+    const r = await window.lol.home.arm();
+    if (!r.ok && !r.cancelled) homeLine(r);
+  });
+  homeLive.addEventListener('click', async () => showHome(await window.lol.home.disarm()));
+  window.lol.home.onState(showHome);
 }
 
 function renderChips(peers) {

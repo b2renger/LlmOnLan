@@ -28,6 +28,11 @@
         <span class="dot idle" id="status-dot"></span>
         <span id="status-text">Starting…</span>
       </button>
+      <!-- Shown only while a person has allowed home commands: one click stops them. -->
+      <button class="status hidden" id="home-live" title="Assistants may switch devices of your home. Click to stop.">
+        <span class="dot busy"></span>
+        <span id="home-live-text">Home commands on</span>
+      </button>
       <!-- Three surfaces since K1 (docs/COMPUTER_PLAN.md §2.1). Every button carries data-view;
            app.js's switch reads that attribute and nothing else, so adding a fourth surface is a
            button plus a section. -->
@@ -139,6 +144,31 @@
             <span class="pref-hint">Must match the port the <strong>BlenderMCP</strong> add-on panel shows (default 9876).</span>
           </div>
           <p class="pref-hint">You only need to set up <strong>Blender</strong>: install the <strong>BlenderMCP</strong> add-on, open its panel (sidebar ▸ BlenderMCP) and click <strong>Connect / Start MCP Server</strong> — then ask, e.g. “add a red cube and a sun lamp.” Works best with a tool-calling model (Qwen / Llama); gemma is weak at tools. Uncheck to turn the tools off if you don't use Blender.</p>
+        </section>
+
+        <!-- Home Assistant (src/main/homeAssistant.ts): the rules and the token live in main -->
+        <section class="pref-sec">
+          <h3>Home Assistant</h3>
+          <p class="pref-hint">Link your <strong>Home Assistant</strong> so assistants can read your home and, once you allow it, switch its devices: ask in Open WebUI (typed or spoken), or switch on <strong>Use the Computer</strong> for a project's agent. Reading is always allowed. Commands are a <strong>dry run</strong> until you click <strong>Allow commands</strong>, which lists the devices; that is forgotten when LlmOnLan closes. The address and the token stay on this computer, the token encrypted.</p>
+          <div class="pref-row">
+            <label class="pref-label" for="pref-home-url">Address</label>
+            <input id="pref-home-url" class="in-wide" type="text" placeholder="http://homeassistant.local:8123" spellcheck="false" />
+          </div>
+          <div class="pref-row">
+            <label class="pref-label" for="pref-home-token">Token</label>
+            <input id="pref-home-token" class="in-wide" type="password" placeholder="A long-lived access token (Home Assistant ▸ your profile ▸ Security)" spellcheck="false" autocomplete="off" />
+          </div>
+          <div class="pref-row">
+            <button class="btn-primary-sm" id="pref-home-link">Link</button>
+            <button class="btn-ghost" id="pref-home-check">Test connection</button>
+            <button class="btn-ghost" id="pref-home-forget">Forget</button>
+            <span class="pref-hint" id="pref-home-status"></span>
+          </div>
+          <div class="pref-row">
+            <button class="btn-ghost" id="pref-home-arm">Allow commands…</button>
+            <span class="pref-hint" id="pref-home-armed"></span>
+          </div>
+          <p class="pref-hint">Never by a model, even when allowed: unlocking or opening a lock, disarming an alarm, sounding a siren, opening a door, a gate or a garage (a cover opens only when Home Assistant says it is a blind, a curtain, a shade, a shutter, an awning or a window). A switch, a button, a scene or a script does whatever your home made it do. Works best with a tool-calling model (Qwen).</p>
         </section>
 
         <!-- Startup & updates -->

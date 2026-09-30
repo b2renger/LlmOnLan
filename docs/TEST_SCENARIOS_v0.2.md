@@ -237,6 +237,26 @@ The agent is DeepSeek Harness on the farm's model. It works only inside one proj
   shows `roll_dice` then `sum` (or similar), and the answer's total is the sum of the faces shown. **Stop** mid-run ends
   it. On a farm with a password: the page asks for it once, then works.
 
+## 7c. Home Assistant (v0.2.7+; docs/HOME_ASSISTANT.md)
+
+Needs a Home Assistant: your own, or the private demo home in HOME_ASSISTANT.md. Use a tool-calling model (qwen3.8).
+
+- [ ] **7c.1 Link.** Preferences ▸ Home Assistant: the address, a long-lived token, **Link**. The line reads
+  `Linked: <home> · Home Assistant <version> · N entities, M devices`; the token field empties. A wrong token says
+  Home Assistant refused it, and nothing is kept.
+- [ ] **7c.2 Ask.** In Open WebUI, turn on **LlmOnLan Computer** (Integrations ▸ Tools) and ask *"Which lights are
+  on at home?"*: the answer matches Home Assistant.
+- [ ] **7c.3 A dry run.** Ask *"Turn off the kitchen lights."* without allowing commands: the answer says nothing
+  was switched and where to allow commands; the lights did not change.
+- [ ] **7c.4 Allow.** **Allow commands…**: LlmOnLan's own dialog lists the devices by kind, Cancel is the default.
+  Allow: the top bar shows **Home commands on · N**. Ask again: the lights change.
+- [ ] **7c.5 Never.** Ask *"Unlock the front door"* (or open the garage): refused, even while allowed.
+- [ ] **7c.6 Stop.** Click **Home commands on** in the top bar: it disappears; a command is a dry run again. Close
+  and reopen LlmOnLan: still linked, commands not allowed.
+- [ ] **7c.7 An agent acts.** In a project turn on **Use the Computer** (commands allowed) and ask: *"Read the
+  outside temperature; if it is below 18 °C and the living room window is open, close it, then write
+  home-report.md."* The window and the report match.
+
 ## 8. After testing
 
 - [ ] Everything above is ticked, or each failure is written down with what you saw.

@@ -25,6 +25,7 @@ import { createStudio, resolveRuntime, Studio } from './studio';
 import { send as sendOutput, arm as armOutputs, isArmed as outputsArmed, panic as panicOutputs, SendRequest } from './outputs';
 import { configureSerial, registerSerialIpc, grantRequest } from './serial';
 import { startMcpServer, pageCaller, TOOLS as MCP_TOOLS, MCP_PORT, MCP_PATH } from './mcp';
+import { createHome, HOME_TOOLS, HOME_TOOL_NAMES, armingText } from './homeAssistant';
 import { setComputerMcp } from './configBridge';
 import {
     ensureSidecar, applyPendingSidecar, isSidecarInstalled,
@@ -56,6 +57,27 @@ let win: BrowserWindow | null = null;
 let studioApi: Studio | null = null;
 /** The Computer's MCP server when this session holds its port — the coding agent's "Use the Computer". */
 let computerConn: { url: string; token: string } | null = null;
+// Home Assistant (homeAssistant.ts): the link a person made in Preferences, its token encrypted by the OS in
+// <userData>/home-assistant.json (none is kept where the OS cannot encrypt). Read on first use, after 'ready'.
+const homeFile = () => path.join(app.getPath('userData'), 'home-assistant.json');
+const home = createHome({
+    store: {
+        load: () => {
+            try {
+                const j = JSON.parse(fs.readFileSync(homeFile(), 'utf8'));
+                if (typeof j.url !== 'string' || typeof j.token !== 'string' || !safeStorage.isEncryptionAvailable()) return null;
+                return { url: j.url, token: safeStorage.decryptString(Buffer.from(j.token, 'base64')) };
+            } catch { return null; }
+        },
+        save: (l) => {
+            if (!l) { try { fs.rmSync(homeFile(), { force: true }); } catch { /* already gone */ } return true; }
+            if (!safeStorage.isEncryptionAvailable()) return false;
+            fs.writeFileSync(homeFile(), JSON.stringify({ url: l.url, token: safeStorage.encryptString(l.token).toString('base64') }));
+            return true;
+        },
+    },
+});
+const pushHome = () => { if (win && !win.isDestroyed()) win.webContents.send('lol:home:state', home.status()); };
 const sidecar = new SidecarSupervisor();
 const mcpo = new McpoSupervisor(); // local Blender assistant-tools server (opt-in)
 let discovery: Discovery | null = null;
@@ -476,15 +498,15 @@ function createWindow(): void {
     });
     win.removeMenu();
     win.loadFile(path.join(app.getAppPath(), 'renderer', 'index.html'));
-    win.webContents.on('did-finish-load', pushSidecarState);
-    // Ecosystem plan v2 §3.5: nothing stays armed across a (re)load — outputs start as a dry run.
+    win.webContents.on('did-finish-load', () => { pushSidecarState(); pushHome(); });
+    // Ecosystem plan v2 §3.5: nothing stays armed across a (re)load — outputs start as a dry run, and so do home commands.
     // Disarm on a real reload of the window only: `did-start-loading` also fires for every iframe
     // (the sandbox, a Live guest), which disarmed a graph mid-run while the bar still said LIVE
     // (release critic R1). A crashed renderer disarms too.
     win.webContents.on('did-start-navigation', (d: { isMainFrame?: boolean; isSameDocument?: boolean }) => {
-        if (d && d.isMainFrame && !d.isSameDocument) { armOutputs(false); void studioApi?.dispose(); }
+        if (d && d.isMainFrame && !d.isSameDocument) { armOutputs(false); home.arm(null); void studioApi?.dispose(); }
     });
-    win.webContents.on('render-process-gone', () => { armOutputs(false); void studioApi?.dispose(); });
+    win.webContents.on('render-process-gone', () => { armOutputs(false); home.arm(null); void studioApi?.dispose(); });
 
     // ---- LOL Studio (S0) ---- (navigation veto; mirrored in shell/test/chat-harness/main.cjs)
     // The sandbox runner (S2) is a SUBFRAME: it may load itself once and must never navigate
@@ -776,6 +798,35 @@ function registerIpc(): void {
     ipcMain.handle('lol:io:armed', () => outputsArmed());
     ipcMain.handle('lol:io:panic', () => panicOutputs());
     // ---- /LOL Studio ----
+
+    // Home Assistant (homeAssistant.ts): the page links, checks and asks to allow commands; the token never comes back
+    // to it, and allowing is a NATIVE dialog here, which no page script and no model can click.
+    ipcMain.handle('lol:home:status', () => home.status());
+    ipcMain.handle('lol:home:check', async () => ({ ...(await home.check()), ...home.status() }));
+    ipcMain.handle('lol:home:link', async (_e, url: unknown, token: unknown) => {
+        if (typeof url !== 'string' || typeof token !== 'string' || url.length > 2048 || token.length > 8192) return { ok: false, message: 'bad arguments' };
+        const r = await home.setLink(url, token);
+        pushHome();
+        return r;
+    });
+    ipcMain.handle('lol:home:disarm', () => { home.arm(null); pushHome(); return home.status(); });
+    ipcMain.handle('lol:home:arm', async () => {
+        const list = await home.armable();
+        if (!list.ok) return { ok: false, message: list.message };
+        if (!list.devices.length) return { ok: false, message: 'This home has no device a model could switch.' };
+        const opts = {
+            type: 'warning' as const,
+            buttons: ['Allow commands', 'Cancel'], defaultId: 1, cancelId: 1, noLink: true,
+            title: 'Allow home commands',
+            message: `Let assistants switch these ${list.devices.length} devices of ${list.home}?`,
+            detail: `Home Assistant at ${list.url}. Until LlmOnLan closes, a model in Open WebUI or the IDE's agent may switch exactly these devices:\n\n${armingText(list.devices)}\n\nA switch, a button, a scene or a script does whatever your home made it do. Never by a model, even now: unlocking or opening a lock, disarming an alarm, sounding a siren, opening a door, a gate or a garage. At most one command a second per device.`,
+        };
+        const r = win && !win.isDestroyed() ? await dialog.showMessageBox(win, opts) : await dialog.showMessageBox(opts);
+        if (r.response !== 0) return { ok: false, cancelled: true };
+        if (home.arm(list.devices, list.generation) < 0) return { ok: false, message: 'The link changed while you were deciding: allow commands again.' };
+        pushHome();
+        return { ok: true, armed: list.devices.length };
+    });
 
     // Manual reload of the embedded OWUI (e.g. after a repoint).
     ipcMain.handle('reload-webview', () => { pushSidecarState(); return true; });
@@ -1126,7 +1177,13 @@ app.whenReady().then(async () => {
         ipcMain.handle('lol:mcp:answer', (_e, id: unknown, out: unknown) => caller.answered(String(id), out as { text: string; isError?: boolean }));
         // OWUI learns the address (and the bearer) only once THIS process holds the port (critic N6): a
         // loopback listen settles in milliseconds, long before the first sidecar spawn.
-        const srv = await startMcpServer({ token, version: app.getVersion(), tools: () => MCP_TOOLS, call: caller.call });
+        // Home Assistant's tools join the list while a home is linked, and are answered HERE, in main — they need no
+        // Computer on screen.
+        const srv = await startMcpServer({
+            token, version: app.getVersion(),
+            tools: () => (home.linked() ? [...MCP_TOOLS, ...HOME_TOOLS] : MCP_TOOLS),
+            call: (name, args) => (HOME_TOOL_NAMES.has(name) ? home.call(name, args) : caller.call(name, args)),
+        });
         if (srv) {
             computerConn = { url: `http://127.0.0.1:${MCP_PORT}${MCP_PATH}`, token };
             setComputerMcp(computerConn);

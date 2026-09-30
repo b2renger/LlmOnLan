@@ -145,7 +145,8 @@ A Gitea on your LAN works the same way (an `https://` address).
   on your network until you stop it.
 - The agent's own telemetry and cloud features are switched off; it talks to nothing else — except, with **Use the
   Computer** on, the Computer on this same machine (127.0.0.1), whose boxes follow their own rules (a Send reaches a
-  device only once you armed the outputs).
+  device only once you armed the outputs), and your Home Assistant when you linked one in Preferences (a command
+  switches a device only while you allow home commands; see [HOME_ASSISTANT.md](HOME_ASSISTANT.md)).
 - **On a schedule** sends nothing new: each run is an ordinary message to the farm's model, like one you typed.
 - Everything else stays here: the project folder, its history (`.git` inside it), and the chat.
 

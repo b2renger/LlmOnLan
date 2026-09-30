@@ -347,3 +347,10 @@ webview.hidden { display: none !important; }
    declaration fixes it for both non-OWUI surfaces without editing renderSidecar. */
 body[data-view="chat"] #overlay, body[data-view="computer"] #overlay,
 body[data-view="chat"] #owui, body[data-view="computer"] #owui { display: none !important; }
+
+/* Preferences ▸ Home Assistant: an address or a token takes the row. */
+.in-wide {
+  flex: 1; min-width: 220px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+  padding: 6px 8px; color: var(--text); font-family: inherit; font-size: 13px;
+}
+.in-wide::placeholder { color: var(--grey); }
