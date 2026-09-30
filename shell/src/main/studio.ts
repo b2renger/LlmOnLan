@@ -456,7 +456,9 @@ export function createStudio(deps: StudioDeps) {
         async prompt(o: { projectId: string; threadId: string; model: string; text: string; recap?: string; maxTokens?: number; turnId?: string; goal?: boolean; computer?: boolean }):
             Promise<{ ok: true; turnId: string; fresh: boolean } | StudioErr> {
             const idv = validateId(o.projectId);
-            if (!idv.ok || !o.threadId || !o.model || !o.text) return err('E_ARGS', 'bad arguments');
+            if (!idv.ok || !o.threadId || !o.text) return err('E_ARGS', 'bad arguments');
+            // The one a person can cause (a farm with no default model, and none picked): say what to do.
+            if (!o.model) return err('E_ARGS', 'No model is chosen for this chat: pick one in the model menu, then send again.');
             const dir = projectDir(deps.projectsRoot(), idv.id);
             if (!fs.existsSync(dir)) return err('E_PROJECT', 'That project folder is gone.');
             const farm = deps.farm();

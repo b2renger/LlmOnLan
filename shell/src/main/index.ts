@@ -695,7 +695,8 @@ function registerIpc(): void {
     const badStudio = Promise.resolve({ ok: false, code: 'E_ARGS', message: 'bad arguments' });
     ipcMain.handle('lol:studio:prompt', (_e, o: unknown) => {
         if (!isObj(o) || !isStr(o.projectId) || !isStr(o.threadId) || !isStr(o.model) || !isStr(o.text)) return badStudio;
-        if (o.text.length > 100000 || o.model.length > 200 || o.threadId.length > 200) return badStudio;
+        if (o.text.length > 100000) return Promise.resolve({ ok: false, code: 'E_ARGS', message: 'This message is too long for the coding agent (100,000 characters at most): put the long part in a file of the project and point to it.' });
+        if (o.model.length > 200 || o.threadId.length > 200) return badStudio;
         if (o.recap !== undefined && (!isStr(o.recap) || o.recap.length > 20000)) return badStudio;
         if (o.maxTokens !== undefined && typeof o.maxTokens !== 'number') return badStudio;
         if (o.turnId !== undefined && (!isStr(o.turnId) || o.turnId.length > 64)) return badStudio;

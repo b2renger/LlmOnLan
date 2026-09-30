@@ -255,6 +255,16 @@ export default (test) => {
     } finally { await r.studio.dispose(); }
   });
 
+  test('studio: no model chosen is a sentence that says what to do, not "bad arguments"', async () => {
+    const r = rig();
+    try {
+      const a = await r.studio.prompt({ projectId: PID, threadId: 't', model: '', text: 'hi' });
+      assert.equal(a.ok, false);
+      assert.match(a.message, /No model is chosen for this chat: pick one in the model menu/);
+      assert.equal((await r.studio.prompt({ projectId: 'bad id!', threadId: 't', model: 'm', text: 'hi' })).message, 'bad arguments', 'a programming error stays terse');
+    } finally { await r.studio.dispose(); }
+  });
+
   test('studio: "Use the Computer" reaches dsh only when a person asked AND this session serves the Computer', async () => {
     const r = rig({ computer: { url: 'http://127.0.0.1:41995/mcp', token: 'tok-123' } });
     const patchFile = path.join(r.data, 'lol-studio', 'dsh', 'profiles', 'sdk', 'cordis.patch.yml');
