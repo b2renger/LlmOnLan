@@ -6,7 +6,7 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
-## 2026-10-04 (18:20) — The workshop setting: "Free an idle seat after", applied live
+## 2026-10-04 (18:05) — The workshop setting: "Free an idle seat after", applied live
 
 Owner decision 1.2. The panel's Backend card gains **Free an idle seat after** (1, 2, 3, 5, 10, 15, 30 or
 60 min, plus the current value if it is not in that list), shown while the seat gate is on, including
@@ -46,7 +46,7 @@ All recorded in `multiuser_implementation_plan.md` §13 and the sections they to
   spike harness on a few machines. CLAUDE.md's "inference goes to the farm, not the laptop" would need
   the owner's amendment if it goes ahead.
 
-## 2026-10-04 (17:55) — The engine × model spike, in progress: harness and first results committed for the Spark run
+## 2026-10-04 (17:50) — The engine × model spike, in progress: harness and first results committed for the Spark run
 
 Phase 0.6 is running on the RTX PRO 6000. ComfyQ was stopped by the owner, so the card is free. vLLM 0.30
 is in its own WSL venv (`~/lol-spike`); Rtranslate's 0.14.0 is untouched.

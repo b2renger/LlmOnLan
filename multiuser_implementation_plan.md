@@ -549,7 +549,7 @@ card already lists clients; it has no revoke button.
 > - With vLLM, set seats near what the card serves at acceptable speed (the spike's latency-bounded
 >   count), and let vLLM's scheduler queue the rest. The 429 becomes a rare safety valve.
 > - **Workshop setting:** a panel control for the seat hold (`proxy.seatIdleSec`, 1–60 min), applied live.
->   **Built** (DEVLOG 2026-10-04 18:20): "Free an idle seat after" in the Backend card; alone it restarts
+>   **Built** (DEVLOG 2026-10-04 18:05): "Free an idle seat after" in the Backend card; alone it restarts
 >   nothing.
 > - The farm's fair queue below is built **only if** the 3.3 metrics show frequent refusals.
 
