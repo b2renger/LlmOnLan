@@ -23,7 +23,7 @@ const {
 } = require('../litellm');
 const { buildSnapshot, backendInfo } = require('../snapshot');
 const { patchSection, patchConfigFile, readRawConfig } = require('../configFile');
-const { detectHardware, gpuLiveStats } = require('../systemInfo');
+const { detectHardware, gpuLiveStats, gpuFreeGb } = require('../systemInfo');
 const perfMod = require('../perf');
 const ggufMod = require('../gguf');
 const fsMod = require('fs');
@@ -33,7 +33,7 @@ const { PeerListener } = require('../peerListener');
 const { selectModels } = require('../modelPicker');
 const { makeServices, pluginsSummary } = require('../plugins/registry');
 const { sendKey: sendBusKey } = require('../bus');
-const { farmId } = require('../identity');
+const { farmId, pluginKey } = require('../identity');
 const { startSelfServer } = require('../selfServer');
 const { createSeats, startSeatGate } = require('../seats');
 const {
@@ -480,6 +480,29 @@ async function run(args) {
     // honest weights size the VRAM budget wants.
     let lastModelPath = null;
 
+    // VRAM free for llama.cpp, measured each time it is sized (startLlamacpp) — null
+    // until then, or when nvidia-smi cannot say (unified memory): the whole card.
+    let vramFreeGb = null;
+    async function measureVramFreeGb() {
+        // startLlamacpp only runs with no llama-server of ours alive, but one stopped a
+        // moment ago may still be handing its memory back: read until it stops rising.
+        let free = await gpuFreeGb();
+        for (let i = 0; free != null && i < 5; i++) {
+            await new Promise((r) => setTimeout(r, 400));
+            const again = await gpuFreeGb();
+            if (again == null || again <= free + 0.25) break;
+            free = again;
+        }
+        if (free == null) return null;
+        // The farm's OWN Ollama models are not co-tenants: the pressure eviction frees
+        // them for llama.cpp (a switch from Ollama leaves its default loaded for good).
+        let ollamaGb = 0;
+        for (const h of (oll.reachable || []).filter(isLocalHost)) {
+            for (const m of await ollama.psModels(h)) ollamaGb += (m.sizeVram || 0) / 1024 ** 3;
+        }
+        return Math.round((free + ollamaGb) * 10) / 10;
+    }
+
     // VRAM budget for the CURRENT llama.cpp shape (or a would-be context size).
     // null when it cannot be computed — no GPU detected, or weights not on disk yet.
     // On unified-memory boxes (DGX Spark) detectHardware reports the RAM pool, so
@@ -514,6 +537,7 @@ async function run(args) {
             const nativeMax = (meta && meta.contextLength) || null;
             const budget = perfMod.fitBudget({
                 vramGb: hw && hw.vramGb, weightsGb, mmprojGb,
+                freeGb: vramFreeGb, reserveGb: config.llamacpp.gpuReserveGb,
                 kvCacheType: config.llamacpp.kvCacheType,
                 contextLength: at,
                 // The model's own KV geometry when the header carries it — exact,
@@ -529,7 +553,9 @@ async function run(args) {
                 ...budget,
                 maxContext,
                 nativeMax,
-                vramGb: (hw && hw.vramGb) || null,
+                // What llama.cpp may use of the GPU (free at its last start, less the
+                // reserve) — what every "this GPU has N GB" message must compare with.
+                vramGb: budget.usableGb ?? ((hw && hw.vramGb) || null),
                 weightsGb: Math.round(weightsGb * 10) / 10,
                 kvCacheType: config.llamacpp.kvCacheType,
             };
@@ -714,8 +740,10 @@ async function run(args) {
         // the panel onto a 12 GB card, 11.6/12 GB used at idle).
         //
         //   'auto' (the default) → the LARGEST context this box can hold:
-        //     min(model native max, what fits VRAM), both read from the real files.
+        //     min(model native max, what fits the VRAM free right now), read from the
+        //     real files and nvidia-smi — another app's share of the GPU is not ours.
         //   a number → honored, clamped (and the clamp persisted) if it cannot fit.
+        vramFreeGb = await measureVramFreeGb();
         const fit = computeFit(16384);   // maxContext is independent of the request
         if (config.llamacpp.contextLength === 'auto') {
             let target = (fit && fit.maxContext) || 16384;
@@ -723,7 +751,7 @@ async function run(args) {
             config.llamacpp.contextResolved = target;
             const why = [
                 fit && fit.nativeMax ? `model max ${fit.nativeMax}` : 'model max unknown',
-                fit && fit.vramGb ? `budget for ${fit.vramGb} GB` : null,
+                fit && fit.vramGb ? `budget for ${fit.vramGb} GB${hw && hw.vramGb > fit.vramGb ? ` of the GPU's ${hw.vramGb} (the rest in use or reserved)` : ''}` : null,
             ].filter(Boolean).join(', ');
             log.ok(`Context: auto → ${log.paint.bold(String(target))} tokens ${log.paint.grey(`(${why})`)}`);
         } else {
@@ -732,7 +760,7 @@ async function run(args) {
             // 2026-08-28: the admin may deliberately trade speed for window — the
             // boot used to clamp+persist, which silently undid that choice).
             if (fit && fit.maxContext != null && fit.maxContext >= 4096 && target > fit.maxContext) {
-                log.warn(`Context ${target} needs ~${computeFit(target).needGb} GB — this GPU has ${fit.vramGb} GB. ` +
+                log.warn(`Context ${target} needs ~${computeFit(target).needGb} GB — this GPU has ${fit.vramGb} GB free for it. ` +
                     `Honoring it (explicitly configured), but part of the model will live in system RAM: expect a few tokens/second. ` +
                     `${fit.maxContext} is the largest that fits; "auto" picks it for you.`);
             }
@@ -943,7 +971,7 @@ async function run(args) {
     // farm only recommends them via config.recommendedClientPlugins.)
     const services = makeServices();
     const svcById = Object.fromEntries(services.map((s) => [s.id, s]));
-    const pluginRuntime = { log, crypto, resolveOcrModel, isLocalHost, reachable: oll.reachable };
+    const pluginRuntime = { log, pluginKey, resolveOcrModel, isLocalHost, reachable: oll.reachable };
     for (const svc of services) {
         if (!svc.enabled(config) || svc.desc.late) continue;   // the late ones start once the farm is public
         const res = await svc.start(config, pluginRuntime);
@@ -992,8 +1020,8 @@ async function run(args) {
 
     // 5a. The seat gate — the public listener in front of LiteLLM (see the
     // seatGateOn block above and src/seats.js). Started BEFORE the beacon so
-    // the endpoint the farm advertises is never a dead port. Capacity and the
-    // idle timeout are thunks: a panel slot change applies to the gate live.
+    // the endpoint the farm advertises is never a dead port. Capacity, the idle
+    // timeout and the password are thunks: a panel change applies to the gate live.
     let seats = null;
     let seatGateServer = null;
     if (seatGateOn) {
@@ -1008,6 +1036,7 @@ async function run(args) {
                 upstreamPort: internalPort,
                 seats,
                 idleReleaseSec: () => config.proxy.seatIdleSec || 900,
+                password: () => config.proxy.masterKey || null,
             });
         } catch (e) {
             log.err(`Seat gate could not bind ${config.proxy.host}:${config.proxy.port} (${e.code || e.message}). Is another farm running?`);
@@ -1752,7 +1781,7 @@ async function run(args) {
             // says exactly what was traded. The admin's explicit choice is honored.
             const fitAt = computeFit(want);
             const overWarn = (fitAt && fitAt.fits === false && fitAt.maxContext != null)
-                ? ` ⚠ ${want} tokens needs ~${fitAt.needGb} GB — this GPU has ${fitAt.vramGb} GB, so part of the model now lives in system RAM. Expect a few tokens/second${fitAt.maxContext >= 4096 ? `; ${fitAt.maxContext} is the largest that fits` : ''}.`
+                ? ` ⚠ ${want} tokens needs ~${fitAt.needGb} GB — this GPU has ${fitAt.vramGb} GB free for it, so part of the model now lives in system RAM. Expect a few tokens/second${fitAt.maxContext >= 4096 ? `; ${fitAt.maxContext} is the largest that fits` : ''}.`
                 : '';
             const before = config.llamacpp.contextLength;
             const perSlot = Math.floor(want / Math.max(1, config.llamacpp.parallel));
@@ -2152,7 +2181,7 @@ async function run(args) {
             // pages instead of failing. Say so while the operator is still looking.
             const f = computeFit();
             const tight = (f && f.fits === false)
-                ? ` ⚠ This shape needs ~${f.needGb} GB of the GPU's ${f.vramGb} GB — expect it to run slowly.`
+                ? ` ⚠ This shape needs ~${f.needGb} GB of the ${f.vramGb} GB free on the GPU — expect it to run slowly.`
                 : '';
             return { ok: true, message: `Now serving ${label}.${mtpNote}${tight}${warn || ''}` };
         });

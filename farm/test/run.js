@@ -64,6 +64,8 @@ test('litellm config = models × hosts deployments', () => {
 test('litellm master_key only present when configured', () => {
     const c = defaultConfig();
     assert.ok(!('master_key' in buildLitellmConfig(c).general_settings));
+    // A client that leaves frees the engine slot on non-streaming calls too (test/litellm-cancel.js, plan 0.0).
+    assert.equal(buildLitellmConfig(c).general_settings.cancel_on_disconnect, true);
     c.proxy.masterKey = 'sk-secret';
     assert.equal(buildLitellmConfig(c).general_settings.master_key, 'sk-secret');
 });
@@ -1086,6 +1088,27 @@ test('fitBudget: refuses the exact shape that took AN-VR-01 down', () => {
     assert.equal(unknown.maxContext, null);
 });
 
+test('fitBudget: budgets against the VRAM FREE at sizing time, less the reserve — not the whole card (plan 0.7)', () => {
+    // The PRO 6000 beside ComfyUI: 96 GB card, ~45 GB held by another app.
+    const shape = { vramGb: 96, weightsGb: 7.8, mmprojGb: 0.9, kvCacheType: 'q4_0', contextLength: 262144 };
+    const alone = perfMod.fitBudget(shape);
+    const shared = perfMod.fitBudget({ ...shape, freeGb: 51 });
+    assert.equal(alone.usableGb, 96, 'free unknown → the whole card, as before');
+    assert.equal(shared.usableGb, 51);
+    assert.ok(shared.maxContext < alone.maxContext, `${shared.maxContext} < ${alone.maxContext}`);
+    const need = (ctx) => 7.8 + 0.9 + perfMod.OVERHEAD_GB + (ctx / 16384) * perfMod.KV_GB_PER_16K.q4_0;
+    assert.ok(need(shared.maxContext) <= 51 - perfMod.MARGIN_GB, 'the pool it picks fits what was free');
+    assert.ok(need(alone.maxContext) > 51, 'the old total-VRAM pick would not have');
+    assert.equal(perfMod.fitBudget({ ...shape, freeGb: 120 }).maxContext, alone.maxContext, 'free never counts past the card');
+    const reserved = perfMod.fitBudget({ ...shape, freeGb: 51, reserveGb: 10 });
+    assert.equal(reserved.usableGb, 41, 'llamacpp.gpuReserveGb comes off the top');
+    assert.ok(reserved.maxContext < shared.maxContext);
+    const small = perfMod.fitBudget({ ...shape, freeGb: 20 });
+    assert.deepEqual([alone.fits, small.fits], [true, false], '262144 fits the empty card, not 20 GB of it');
+    assert.equal(ConfigSchema.parse({}).llamacpp.gpuReserveGb, 0);
+    assert.equal(ConfigSchema.safeParse({ llamacpp: { gpuReserveGb: -1 } }).success, false);
+});
+
 test('shouldEvictOllama: only under pressure, only when idle, only llama.cpp engine', () => {
     const base = { llamacppOn: true, vramUsedGb: 11.5, vramTotalGb: 12, gpuUtil: 3, loadedCount: 1 };
     assert.equal(perfMod.shouldEvictOllama(base), true, 'full + idle + loaded → evict');
@@ -1520,15 +1543,32 @@ test('seats: an in-flight generation is never reaped, however long it streams', 
     assert.equal(s.admit('10.0.0.2').ok, true, 'released + idle → reclaimed');
 });
 
-test('seats: only completion POSTs are gated', () => {
-    assert.equal(seatsMod.isGated('POST', '/v1/chat/completions'), true);
-    assert.equal(seatsMod.isGated('POST', '/v1/chat/completions?x=1'), true);
-    assert.equal(seatsMod.isGated('POST', '/chat/completions'), true);
-    assert.equal(seatsMod.isGated('POST', '/v1/completions'), true);
+test('seats: only generation POSTs are gated — every route LiteLLM generates on (plan 0.2)', () => {
+    for (const p of ['/v1/chat/completions', '/v1/chat/completions?x=1', '/chat/completions', '/v1/completions', '/completions',
+        '/v1/chat/completions/', '/engines/m/chat/completions', '/openai/deployments/m/completions',
+        '/v1/responses', '/responses', '/openai/v1/responses', '/v1/responses/compact', '/v1/messages',
+        '/v1beta/models/m:generateContent', '/v1beta/models/m:streamGenerateContent', '/models/m:generateContent', '/v1beta/interactions',
+        '/v1/chat%2Fcompletions', '/v1/%63hat/completions', '/v1/%zz']) {   // uvicorn routes on the DECODED path; undecodable → gated
+        assert.equal(seatsMod.isGated('POST', p), true, p);
+    }
+    for (const p of ['/v1/models', '/v1/embeddings', '/v1/messages/count_tokens', '/v1/threads/t/messages', '/v1/responses/r/cancel', '/utils/token_counter']) {
+        assert.equal(seatsMod.isGated('POST', p), false, p);
+    }
     assert.equal(seatsMod.isGated('GET', '/v1/chat/completions'), false);
     assert.equal(seatsMod.isGated('GET', '/v1/models'), false);
-    assert.equal(seatsMod.isGated('POST', '/v1/models'), false);
-    assert.equal(seatsMod.isGated('POST', '/v1/embeddings'), false);
+});
+
+test('seats: a refusal says when the soonest IDLE seat frees; none when every seat is generating (plan 0.2)', () => {
+    let t = 1000000;
+    const s = seatsMod.createSeats({ capacity: () => 2, idleReleaseSec: () => 600, now: () => t });
+    s.admit('10.0.0.1');                            // generating (no release)
+    s.admit('10.0.0.2');
+    assert.equal(s.admit('10.0.0.3').retrySec, null, 'both generating → nothing to promise');
+    s.release('10.0.0.2');                         // done at t
+    t += 100 * 1000;
+    assert.equal(s.admit('10.0.0.3').retrySec, 500, '600 s window − 100 s idle');
+    t += 499.5 * 1000;
+    assert.equal(s.admit('10.0.0.3').retrySec, 1, 'rounds up, never 0');
 });
 
 test('seat gate: streams pass through, ungated GETs skip admit, full farm gets the OpenAI-style 429', async () => {
@@ -1546,9 +1586,9 @@ test('seat gate: streams pass through, ungated GETs skip admit, full farm gets t
     });
     await new Promise((r) => upstream.listen(0, '127.0.0.1', r));
     const upPort = upstream.address().port;
-    let admits = 0; let releases = 0; let full = false;
+    let admits = 0; let releases = 0; let full = false; let retrySec = null;
     const seats = {   // scriptable registry: loopback tests can't vary source IPs
-        admit: () => { admits++; return full ? { ok: false, cap: 2, used: 2 } : { ok: true, cap: 2, used: 1 }; },
+        admit: () => { admits++; return full ? { ok: false, cap: 2, used: 2, retrySec } : { ok: true, cap: 2, used: 1 }; },
         release: () => { releases++; },
         view: () => [],
     };
@@ -1558,7 +1598,7 @@ test('seat gate: streams pass through, ungated GETs skip admit, full farm gets t
         const req = http.request({ host: '127.0.0.1', port: gatePort, method, path: p, headers: { 'content-type': 'application/json' } }, (res) => {
             let buf = '';
             res.on('data', (c) => { buf += c; });
-            res.on('end', () => resolve({ status: res.statusCode, body: buf }));
+            res.on('end', () => resolve({ status: res.statusCode, headers: res.headers, body: buf }));
         });
         req.on('error', reject);
         if (body) req.write(body);
@@ -1580,9 +1620,106 @@ test('seat gate: streams pass through, ungated GETs skip admit, full farm gets t
         assert.equal(err.code, 'lol_seats_full');
         assert.ok(/seats on this server are in use/.test(err.message), 'human-readable refusal (OWUI shows error.message)');
         assert.equal(releases, 1, 'a refused request releases nothing');
+        // Retry-After and the sentence agree (plan 0.2): every seat generating → a short poll …
+        assert.equal(refused.headers['retry-after'], '30');
+        assert.ok(/generating right now/.test(err.message) && /15 min/.test(err.message), err.message);
+        // … an idle seat → the seconds until it is reclaimed, said the same way in words.
+        retrySec = 125;
+        const idle = await fetchRaw('POST', '/v1/responses', '{"input":"x"}');
+        assert.equal(idle.status, 429, '/v1/responses is gated too');
+        assert.equal(idle.headers['retry-after'], '125');
+        assert.ok(/frees in about 2 min/.test(JSON.parse(idle.body).error.message), idle.body);
     } finally {
         gate.close();
         upstream.close();
+    }
+});
+
+test('seat gate: on a passworded farm a missing or wrong key gets a 401 and NO seat; the right one is seated (plan 0.1)', async () => {
+    const http = require('http');
+    let upstreamHits = 0;
+    const upstream = http.createServer((req, res) => { upstreamHits++; req.resume(); res.writeHead(200, { 'content-type': 'application/json' }); res.end('{}'); });
+    await new Promise((r) => upstream.listen(0, '127.0.0.1', r));
+    const seats = seatsMod.createSeats({ capacity: () => 1, idleReleaseSec: () => 900 });
+    let pw = 'farm-pw';
+    const gate = await seatsMod.startSeatGate({ host: '127.0.0.1', port: 0, upstreamPort: upstream.address().port, seats, idleReleaseSec: () => 900, password: () => pw });
+    const post = (p, headers = {}) => new Promise((resolve, reject) => {
+        const req = http.request({ host: '127.0.0.1', port: gate.address().port, method: p === '/v1/models' ? 'GET' : 'POST', path: p, headers: { 'content-type': 'application/json', ...headers } }, (res) => {
+            let buf = ''; res.on('data', (c) => { buf += c; }); res.on('end', () => resolve({ status: res.statusCode, body: buf }));
+        });
+        req.on('error', reject);
+        req.end(p === '/v1/models' ? undefined : '{"messages":[]}');
+    });
+    try {
+        for (const headers of [{}, { authorization: 'Bearer nope' }, { authorization: 'Bearer farm-pw-and-more' }, { 'x-api-key': 'farm' }]) {
+            const r = await post('/v1/chat/completions', headers);
+            assert.equal(r.status, 401, JSON.stringify(headers));
+            const e = JSON.parse(r.body).error;
+            assert.equal(e.code, 'invalid_api_key');
+            assert.ok(/password/.test(e.message) && /Authorization/.test(e.message), 'says what is wrong, in words the client classes as auth');
+        }
+        assert.equal(seats.view().length, 0, 'no seat was claimed by a refused key');
+        assert.equal(upstreamHits, 0, 'nothing reached LiteLLM');
+        assert.equal((await post('/v1/models')).status, 200, 'ungated routes are LiteLLM\'s business, as before');
+        assert.equal((await post('/v1/chat/completions', { authorization: 'Bearer farm-pw' })).status, 200);
+        assert.equal((await post('/v1/messages', { 'x-api-key': 'farm-pw' })).status, 200, 'Anthropic-style clients send x-api-key');
+        assert.equal(seats.view().length, 1, 'the right key takes the seat');
+        pw = 'rotated';
+        assert.equal((await post('/v1/chat/completions', { authorization: 'Bearer farm-pw' })).status, 401, 'a password changed in the panel applies at once');
+        pw = null;
+        assert.equal((await post('/v1/chat/completions')).status, 200, 'no password → an open farm, unchanged');
+    } finally {
+        gate.close();
+        upstream.close();
+    }
+});
+
+test('lol bench --people simulates PEOPLE: one source address each, so the real gate turns the one too many away; --cancel stops streams; --out saves it all (plan 0.5)', async () => {
+    const http = require('http');
+    const net = require('net');
+    const canBind = await new Promise((r) => { const s = net.createServer(); s.once('error', () => r(false)); s.listen(0, '127.0.0.2', () => s.close(() => r(true))); });
+    if (!canBind) { console.log('       (skipped: this OS only routes 127.0.0.1 — macOS needs `ifconfig lo0 alias`)'); return; }
+    let aborted = 0;
+    const upstream = http.createServer((req, res) => {   // a mock LiteLLM: 10 tokens, 30 ms apart
+        req.resume();
+        res.writeHead(200, { 'content-type': 'text/event-stream' });
+        let n = 0;
+        const t = setInterval(() => {
+            if (++n <= 10) return res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: `t${n} ` } }] })}\n\n`);
+            clearInterval(t);
+            res.end(`data: ${JSON.stringify({ choices: [], usage: { completion_tokens: 10 } })}\n\ndata: [DONE]\n\n`);
+        }, 30);
+        res.on('close', () => { clearInterval(t); if (!res.writableEnded) aborted++; });
+    });
+    await new Promise((r) => upstream.listen(0, '127.0.0.1', r));
+    const bench = require('../src/commands/bench');
+    const out = path.join(os.tmpdir(), `lol-bench-test-${process.pid}.json`);
+    const quietly = async (fn) => { const { log: l, warn: w } = console; console.log = console.warn = () => {}; try { return await fn(); } finally { console.log = l; console.warn = w; } };
+    const benchAgainst = async (capacity, extra) => {
+        const seats = seatsMod.createSeats({ capacity: () => capacity, idleReleaseSec: () => 900 });
+        const gate = await seatsMod.startSeatGate({ host: '127.0.0.1', port: 0, upstreamPort: upstream.address().port, seats, idleReleaseSec: () => 900 });
+        try {
+            const code = await quietly(() => bench.run(['--people', '--users', '4', '--rounds', '1', '--url', `http://127.0.0.1:${gate.address().port}`, '--model', 'fake', '--max-tokens', '10', '--out', out, ...extra]));
+            return { code, seated: seats.view().map((s) => s.ip), saved: JSON.parse(fs.readFileSync(out, 'utf8')) };
+        } finally { gate.close(); }
+    };
+    try {
+        const full = await benchAgainst(3, []);
+        assert.equal(full.code, 0);
+        assert.equal(full.saved.sources, 'per-user');
+        assert.deepEqual(full.saved.requests.map((x) => x.source).sort(), ['127.0.0.2', '127.0.0.3', '127.0.0.4', '127.0.0.5']);
+        assert.equal(full.saved.summary.refused, 1, 'four people, three seats → exactly one 429');
+        assert.equal(full.saved.summary.ok, 3);
+        assert.equal(new Set(full.seated).size, 3, 'three distinct people hold the three seats');
+        assert.equal(full.saved.requests.find((x) => x.status === 429).tokens, undefined, 'the refused one got nothing');
+        const stop = await benchAgainst(4, ['--cancel', '0.5']);
+        assert.deepEqual([stop.saved.summary.ok, stop.saved.summary.cancelled, stop.saved.summary.refused], [4, 2, 0]);
+        assert.equal(stop.saved.requests.filter((x) => x.cancelled).every((x) => x.tokens === 5), true, 'stopped half-way (max-tokens 10)');
+        await waitFor(() => aborted === 2, 2000, 'the upstream to see two streams stop');
+        assert.equal(stop.saved.summary.tpsMedian > 0, true);
+    } finally {
+        upstream.close();
+        try { fs.unlinkSync(out); } catch { /* none */ }
     }
 });
 
@@ -1939,7 +2076,7 @@ test('plugin keys are tied to the farm password: off the beacon when one is set,
     const snapKeyed = buildSnapshot(keyed, health);
     assert.deepEqual([snapKeyed.extract.key, snapKeyed.classify.key, snapKeyed.stt.key], [null, null, null], 'a password: no key in clear');
     assert.match(snapKeyed.classify.keyId, /^[0-9a-f]{8}$/, 'a short non-secret id, so a client sees a new key');
-    assert.notEqual(buildSnapshot(keyed, { ...health, classifyKey: 'ck2' }).classify.keyId, snapKeyed.classify.keyId, 'a plugin restart changes it');
+    assert.notEqual(buildSnapshot(keyed, { ...health, classifyKey: 'ck2' }).classify.keyId, snapKeyed.classify.keyId, 'a new key changes it');
     assert.equal(snapOpen.classify.keyId, undefined, 'an open farm has the key itself');
     assert.ok(snapKeyed.extract.url && snapKeyed.classify.url && snapKeyed.stt.url, 'the services are still advertised');
     assert.ok(!JSON.stringify(snapKeyed).includes('"ek"'), 'nowhere in the snapshot');
@@ -1959,6 +2096,27 @@ test('plugin keys are tied to the farm password: off the beacon when one is set,
         password = null;
         assert.equal((await fetch(url, { headers: { authorization: 'Bearer pw' } })).status, 404, 'an open farm: the keys are in /lol/self');
     } finally { server.close(); }
+});
+
+test('plugin keys survive a farm restart, so no client restarts its Open WebUI (plan 0.3)', () => {
+    const { pluginKey } = require('../src/identity');
+    const file = path.join(os.tmpdir(), `lol-secret-test-${process.pid}`);
+    try { fs.unlinkSync(file); } catch { /* fresh */ }
+    const rt = { pluginKey: (id) => pluginKey(id, file), resolveOcrModel: () => 'gemma4:12b', isLocalHost: () => true, reachable: ['http://127.0.0.1:11434'] };
+    const start = () => Object.fromEntries(makeServices().filter((s) => ['ocr', 'classify', 'stt'].includes(s.id))
+        .map((s) => [s.id, s.desc.makeCtx(defaultConfig(), rt).key]));
+    try {
+        const first = start();
+        const second = start();   // the next `lol up`: a new process reads the same file
+        assert.deepEqual(second, first, 'the same key for each plugin across starts');
+        assert.equal(new Set(Object.values(first)).size, 3, 'one key per plugin');
+        for (const k of Object.values(first)) assert.match(k, /^[0-9a-f]{48}$/);
+        const keyed = defaultConfig(); keyed.proxy.masterKey = 'pw';
+        const keyId = (k) => buildSnapshot(keyed, { proxyUp: true, hostsUp: 1, extractUp: true, extractKey: k }).extract.keyId;
+        assert.equal(keyId(second.ocr), keyId(first.ocr), 'keyId stays put, so clients do not refetch');
+        fs.unlinkSync(file);
+        assert.notEqual(start().ocr, first.ocr, 'deleting the secret rotates the keys');
+    } finally { try { fs.unlinkSync(file); } catch { /* gone */ } }
 });
 
 test('classify + stt start AFTER the farm is public, and their installs never block the event loop (rig, 2026-09-27)', () => {
@@ -2002,7 +2160,7 @@ test('classify + stt waits: end early when the child exits or the model failed t
     }
 });
 
-test('classify + stt services: refusals and bookkeeping with stub models (farm/src/pysvc/check_services.py)', () => {
+test('classify + stt services: refusals and bookkeeping; OCR vision calls take turns (plan 0.4) — stub models (farm/src/pysvc/check_services.py)', () => {
     // Needs a Python with fastapi + httpx + python-multipart: LOL_PYSVC_PYTHON, or a farm venv that has them. Skips otherwise.
     const { spawnSync } = require('child_process');
     const bin = process.platform === 'win32' ? ['Scripts', 'python.exe'] : ['bin', 'python'];

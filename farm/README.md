@@ -58,7 +58,7 @@ the desktop clients auto‑discover it. To change which models are served, edit 
 | Piece | How | Skipped if already present |
 |---|---|---|
 | **Ollama** | Windows → `winget install Ollama.Ollama`; macOS → `brew install ollama`; Linux → the official `install.sh`. | CLI on PATH **or** a local daemon answering. |
-| **LiteLLM** | A local `farm/.venv` (your Python 3.9–3.13) with `litellm[proxy]` + the required fastapi bound. The farm auto‑uses this venv — no config edit. | `farm/.venv` already has `litellm`. |
+| **LiteLLM** | A local `farm/.venv` (your Python 3.9–3.13) with `litellm[proxy]==1.97.0` (pinned — the version the farm is tested with) + the required fastapi bound. The farm auto‑uses this venv — no config edit. | `farm/.venv` already has `litellm`. |
 | **Config** | Scaffolds `farm/lol.config.json` from the defaults (named after this host) if none exists. | A config is already there. |
 | **Models** | Pulls every model in `models` **and `preinstall`** on the local Ollama (over its HTTP API), derives `source` models with their `params`, and fetches any `draft` module. | Model already pulled. (`lol up` also pulls anything missing.) |
 | **Web search + OCR** | Builds the SearXNG and document-OCR venvs (both default-on) so the first `lol up` starts instantly. Non-fatal: `lol up` retries. | Already installed. |
@@ -74,7 +74,7 @@ The pieces `lol install` automates, done by hand:
 | Tool | Why | Install |
 |---|---|---|
 | **Ollama** | Serves the models. One instance per GPU box. | https://ollama.com |
-| **LiteLLM** | The OpenAI‑compatible proxy that load‑balances + fails over across boxes. | `pip install "litellm[proxy]" "fastapi>=0.136.3,<0.140.7"` (Python 3.9–3.13; a venv is fine — drop it at `farm/.venv` and the farm finds it, or point `litellm.command` at it). **The fastapi bound is mandatory** — outside it the proxy dies at startup with `ImportError: cannot import name 'get_flat_dependant'` and the farm never comes up. |
+| **LiteLLM** | The OpenAI‑compatible proxy that load‑balances + fails over across boxes. | `pip install "litellm[proxy]==1.97.0" "fastapi>=0.136.3,<0.140.7"` (Python 3.9–3.13; a venv is fine — drop it at `farm/.venv` and the farm finds it, or point `litellm.command` at it). **The fastapi bound is mandatory** — outside it the proxy dies at startup with `ImportError: cannot import name 'get_flat_dependant'` and the farm never comes up. |
 | **Node ≥ 20** | Runs this CLI. | https://nodejs.org |
 
 ```bash
@@ -96,7 +96,7 @@ npm link        # then just `lol <cmd>` anywhere
 | `lol down` | Stop the proxy + `llama-server` + SearXNG + TTS + OCR + beacon (and any Ollama this CLI started). |
 | `lol status` | Health of each Ollama host + the proxy + which models are loaded. Works from any shell. |
 | `lol fleet` | Every farm on the LAN (this box + peers): health, GPU load, VRAM, loaded models, roles, search URL. |
-| `lol bench` | Load‑test before a workshop: N concurrent chats → first‑token latency (p50/p95) + tokens/s. `--users N --rounds R --model id --url …`. |
+| `lol bench` | Load‑test before a workshop: N concurrent chats → first‑token latency (p50/p95) + tokens/s, and how many the seat gate turned away. `--users N --rounds R --model id --url … --people --cancel F --out file.json` (see [Multiple users & capacity](#multiple-users--capacity)). |
 | `lol models ls` | List configured models + presence on each host. |
 | `lol models add <id>` / `rm <id>` | Edit the served catalog, then run **`lol up --no-pick`** — on the OLLAMA engine, plain `lol up` prompts and pressing Enter serves only the default, dropping what you just added (with llama.cpp serving there is no prompt: the catalog is standby). There is no alias flag: to give the model a stable role name, add `"alias": "…"` to its entry in `models` by hand. |
 | `lol models pull` | Pull every configured model on every host. |
@@ -366,6 +366,12 @@ exactly), measures the GPU, and serves **the largest context that fits**:
 min(native max, VRAM budget). A 4070 gets ~36k, a 4080 ~78k, the DGX Spark the full native window
 — each box its own maximum, which is what thinking models and whole-document RAG want. Pin a
 number in the panel only when you need to trade context for slots.
+The budget is the VRAM **free** when llama.cpp is sized (nvidia-smi `memory.free`, read after the
+farm's own llama-server has stopped; models the farm's own Ollama holds count as free, since the
+pressure eviction frees them), not the card's total: another app on the GPU — ComfyUI keeps ~45 GB
+of a 96 GB card — is not room to fill. `llamacpp.gpuReserveGb` (default `0`) keeps more back for an
+app that is not running at that moment but will be. A unified-memory box (no `memory.free`) budgets
+against the whole pool, as before.
 
 **The Ollama engine sizes automatically too** (`ollama.contextLength: "auto"`, the default): GGUF
 math is unreliable for its zoo of architectures (Gemma's sliding-window layers make the naive KV
@@ -409,7 +415,15 @@ boxes in `ollama.hosts` — or more farms on the LAN — is how that side scales
 
 ```bash
 lol bench --users 8 --rounds 3      # first-token latency p50/p95 + tokens/s under real concurrency
+lol bench --people --users 8 --cancel 0.25 --out bench.json   # 8 PEOPLE; a quarter press Stop half-way; save it all
 ```
+
+By default every user comes from this machine's one address — one seat — so bench measures the
+engine's own queue. `--people` (with a loopback `--url`, i.e. run on the farm box) sends each user from
+its own `127.0.0.x`, so the seat gate sees eight **people** and users past the seats get the 429 a
+workshop would (Windows and Linux route all of `127/8`; macOS needs `sudo ifconfig lo0 alias 127.0.0.2`
+per address). Those seats stay held for `proxy.seatIdleSec` after the run, so use a test farm, or bench
+well before people arrive. From another machine, every user shares that machine's address.
 
 **Who's connected.** Clients POST presence to the farm every ~10 s (`/lol/client-ping`: install id,
 hostname, platform, app version, idle seconds). The admin panel's **Clients** card lists them with idle
@@ -450,8 +464,9 @@ LiteLLM's `master_key`) — and, since 2026-09-27, **the plugins**: the OCR, Cla
 keys leave the beacon and `/lol/self` (their `key` is `null`), and a client holding the password fetches
 them from `GET /lol/plugin-keys` (`Authorization: Bearer <farm password>`; 401 otherwise, 404 on an open
 farm, where the keys stay in the snapshot as before). A new password takes effect there at once; a
-client that fetched the keys under the old one keeps them until the farm restarts (the keys are made per
-run). What stays open, deliberately: discovery (`/lol/self`, the beacon) so
+client that fetched the keys under the old one keeps them. The keys are the same on every run (derived
+from one secret in `farm/.lol-secret`, so a farm restart no longer restarts every client's Open WebUI);
+delete that file and restart the farm to rotate them. What stays open, deliberately: discovery (`/lol/self`, the beacon) so
 clients can *find* the farm and ask for the password, `/health/liveliness` (the farm's own health
 checks), and the admin panel's own **token** gate, which is separate and unchanged. The
 [message bus](#message-bus) checks the same password itself (MQTT, WebSocket and OSC each carry it their
@@ -552,7 +567,8 @@ nothing. Shape:
                 "alias": "assistant",          // the name clients see and auto-select
                 "model": "https://huggingface.co/unsloth/Qwen3.8-27B-GGUF/resolve/main/Qwen3.8-27B-UD-IQ2_S.gguf",
                 "mmproj": "https://huggingface.co/unsloth/Qwen3.8-27B-GGUF/resolve/main/mmproj-F16.gguf",
-                "contextLength": "auto",       // DEFAULT: the largest that fits (or a number)
+                "contextLength": "auto",       // DEFAULT: the largest that fits the FREE VRAM (or a number)
+                "gpuReserveGb": 0,             // GB "auto" leaves for another app on the GPU
                 "parallel": 1,                 // concurrent slots; see "Multiple users & capacity"
                 "kvUnified": true,             // ONE shared context pool across slots: a person alone gets
                                                //   the FULL window, people arriving share it dynamically
@@ -637,6 +653,10 @@ build for Blackwell cards (16 GB+); replace it freely.
   opt a box out with `"ocr": { "enabled": false }` or `lol up --no-ocr`. The light path covers
   images/PDF/docx/pptx/xlsx/text, and `"docling": true` adds the rest (legacy `.doc`/`.ppt`/`.xls`,
   `.odt`/`.epub`/`.rtf`) at the cost of a multi‑GB torch install. Delete `farm/.extract/` to uninstall.
+  The vision calls take turns — one at a time (`OCR_CONCURRENCY` in the farm's environment raises it),
+  the rest **wait**, never refused — so a room dropping scans at once queues on the GPU instead of
+  stacking up beside chat; text-layer pages and office files never wait. Its log line counts pages,
+  never a file's name.
 - **Classify — Laya (OFF by default, 2026-09-27):** the Laya decision model (convaiinnovations/laya,
   Apache-2.0) for the Computer's **Classify** box: one multiple-choice question answered for every item of
   a list, with a confidence. `"classify": { "enabled": true, "port": 8891, "threads": 4, "maxItems": 200 }`.
@@ -717,7 +737,11 @@ build for Blackwell cards (16 GB+); replace it freely.
   ENFORCE who generates: an IP's first completion claims a **seat** (capacity = the engine's
   "people served at once"), every completion refreshes it, and a seat with no generation for
   **`proxy.seatIdleSec`** (default 900 = 15 min) frees for the next person. A generation on a full
-  farm gets a clear 429 ("All N seats are in use…") instead of silently queueing behind idlers.
+  farm gets a clear 429 ("All N seats are in use…") instead of silently queueing behind idlers; its
+  `Retry-After` is the seconds until the soonest idle seat frees (30 when every seat is generating).
+  With a `proxy.masterKey`, the gate checks it **before** seating anyone: a missing or wrong key
+  gets a 401 and no seat. Every route LiteLLM generates on is gated — chat completions, completions,
+  responses, Anthropic's `/v1/messages`, Google's `:generateContent`.
   Reading old chats, notes and menus never touches the proxy (client-local by design), so an
   evicted idler only loses starting NEW generations while the farm is full. `/v1/models`, health
   checks and the panel pass ungated. Coarse by design: one IP = one seat; a coordinator peer farm
@@ -775,17 +799,24 @@ build for Blackwell cards (16 GB+); replace it freely.
 
 - **Windows + LiteLLM banner:** the proxy is spawned with `PYTHONUTF8=1` / `PYTHONIOENCODING=utf-8`
   so its Unicode startup banner doesn't crash on a cp1252 console (`UnicodeEncodeError`).
-- Generated/runtime files (`litellm/config.generated.yaml`, `.lol-runtime.json`, `.lol-id`) and every
+- Generated/runtime files (`litellm/config.generated.yaml`, `.lol-runtime.json`, `.lol-id`, `.lol-secret`) and every
   on-box runtime dir (`.venv`, `.searxng`, `.extract`, `.kokoro`, `.models`, `.llamacpp`) are
   gitignored — never commit them. `.models` and `.llamacpp` are the big ones (GBs).
 
 ## Develop / test
 
 ```bash
-npm test        # unit tests for config, LiteLLM generation, snapshot, helpers
+npm test                      # unit tests for config, LiteLLM generation, snapshot, helpers
+node test/litellm-cancel.js   # does a person's Stop reach the engine? (starts a real LiteLLM, ~30 s)
 ```
 
 `npm test` also runs `src/pysvc/check_services.py` — the Classify and speech-to-text services' refusals
-(key, size, busy), their queue bookkeeping and their stop-when-the-client-leaves, against stub models (no
-Laya, no Whisper) — when it finds a Python with `fastapi` + `httpx` (`LOL_PYSVC_PYTHON=<python>`, or the
-`.classify` / `.stt` venv if one has httpx). Without one it says "skipped".
+(key, size, busy), their queue bookkeeping and their stop-when-the-client-leaves, and the OCR service's
+turn-taking on vision calls, against stub models (no Laya, no Whisper, no Ollama) — when it finds a Python
+with `fastapi` + `httpx` (`LOL_PYSVC_PYTHON=<python>`, or the `.classify` / `.stt` venv if one has httpx).
+Without one it says "skipped".
+
+`test/litellm-cancel.js` routes the farm's own generated config (both the `openai/` and the
+`ollama_chat/` shape) to a fake engine on loopback, behind the real seat gate, aborts streaming and
+non-streaming calls, and checks the engine sees each request close within 2 s with no retry. Run it after
+bumping the LiteLLM pin (`LOL_LITELLM=<path to litellm>` tests another install).

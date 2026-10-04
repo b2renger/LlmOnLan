@@ -141,6 +141,12 @@ function venvPython() {
 // litellm.proxy.proxy_server` succeeds with no dependency conflicts.
 // Re-derive this bound when bumping litellm.
 const FASTAPI_PIN = 'fastapi>=0.136.3,<0.140.7';
+// LiteLLM itself, pinned (multi-user plan 0.0): unpinned, every new box got whatever
+// was newest that day. 1.97.0 is what the Farm app's farms have run since 2026-08-17,
+// and the version test/litellm-cancel.js proves passes a client's cancel on to the
+// engine. A bump re-runs that check (and re-derives FASTAPI_PIN above). An existing
+// venv is left on its version: `lol install` only repairs fastapi there.
+const LITELLM_PIN = 'litellm[proxy]==1.97.0';
 
 function ensureLitellm() {
     if (venvLitellmPath()) {
@@ -161,9 +167,9 @@ function ensureLitellm() {
     log.step(`Creating LiteLLM venv with ${log.paint.bold(py.version)} …`);
     sh(`${py.cmd} -m venv "${VENV_DIR}"`);
     const vpy = venvPython();
-    log.step('Installing litellm[proxy] (this can take a minute) …');
+    log.step(`Installing ${LITELLM_PIN} (this can take a minute) …`);
     sh(`"${vpy}" -m pip install --upgrade pip`);
-    sh(`"${vpy}" -m pip install "litellm[proxy]" "${FASTAPI_PIN}"`);
+    sh(`"${vpy}" -m pip install "${LITELLM_PIN}" "${FASTAPI_PIN}"`);
     if (!venvLitellmPath()) { log.err('LiteLLM did not land in the venv as expected.'); return false; }
     log.ok(`LiteLLM installed → ${log.paint.grey(VENV_DIR)}`);
     return true;

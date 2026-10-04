@@ -6,6 +6,76 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-10-04 (13:39) — Multi-user Phase 0: the seat gate checks the password, stopping a reply reaches the engine, farm restarts stop rebooting clients
+
+Phase 0 of `multiuser_implementation_plan.md` (rev. 3), branch `multiuser-phase0`. No GPU was used: a
+measurement spike owned the card. Farm `npm test` went from 141 to **146 passed, 0 failed**, including
+`check_services.py`.
+
+- **Stop reaches the engine (0.0).** LiteLLM is pinned at `litellm[proxy]==1.97.0`
+  (`commands/install.js:149`): the version the Farm app has run since 08-17, where the repo's dev venv
+  had 1.90.0. Existing venvs are not upgraded.
+  - `farm/test/litellm-cancel.js` (~30 s, not in `npm test`) checks it. A fake engine speaks both of the
+    farm's routing shapes (`openai/`, `ollama_chat/`), the real seat gate sits in front, and LiteLLM
+    runs from the generated config.
+  - **Streams:** the engine saw the close 1–5 ms after the client aborted, on 1.90 and 1.97.
+  - **Non-streaming calls** (agent pages, OWUI's title) ran to the end for nobody, until the generated
+    config turned on LiteLLM's `general_settings.cancel_on_disconnect`. Now 1–2 ms.
+  - Still unmeasured: whether real llama-server and Ollama stop generating on that close.
+- **Seat gate (0.1, 0.2).**
+  - The farm password is checked **before** a seat is claimed (`seats.js` `keyOk`): `Authorization:
+    Bearer` or `x-api-key`, both hashed, constant-time compare. A wrong or missing key gets 401 and no
+    seat. Before this, a keyless POST held a seat for 15 min on a passworded farm.
+  - Every LiteLLM generation route is now gated: completions under all prefixes, responses,
+    `/v1/messages`, Gemini's `:generateContent`. Before, only 4 spellings were.
+  - The path is decoded first, which closes a `/v1/chat%2Fcompletions` bypass.
+  - `Retry-After` now says when the soonest idle seat frees, matching the message (it said 30 s against
+    "~15 min").
+- **Farm restarts no longer reboot every client's Open WebUI (0.3).** The OCR key was random per start
+  and rides into every client's OWUI env, so every farm restart or OCR toggle restarted every client's
+  sidecar. Plugin keys are now HMACs of one persisted secret, `farm/.lol-secret`, next to `.lol-id`;
+  `keyId` is stable. The secret is git-ignored and excluded from the Farm app's bundle and its copy
+  into `userData/farm`. Changing the password no longer rotates plugin keys; deleting the file does.
+- **OCR vision calls take turns (0.4).** A `BoundedSemaphore` (`OCR_CONCURRENCY`, default 1) around the
+  Ollama call only. Pages wait their turn and are never refused, since a 429 would be a failed upload in
+  OWUI. Text-layer pages skip the queue, and the log no longer names files.
+- **`lol bench --people` (0.5)** sends each simulated user from its own 127.0.0.x (binding verified on
+  Windows), so a bench can hold several seats. Also new: `--cancel F` and `--out file.json`. It is
+  opt-in, because those seats stay held for `seatIdleSec` after a run.
+- **llama.cpp auto context budgets against free VRAM (0.7).** On this box ComfyUI kept ~45 GB resident,
+  and auto sized against the card's total. Now it uses min(total, free at start) −
+  `llamacpp.gpuReserveGb` (a new key, default 0). The farm's own Ollama models still count as free,
+  because pressure eviction frees them (2026-08-26). Example, Qwen3.8-27B on the 96 GB card: 1,171,456
+  tokens against the whole card, 557,056 with 51 GB free.
+
+Not done here: the engine × model spike (0.6) is running separately (`docs/spike/`).
+
+## 2026-10-04 (11:40) — The multi-user plan: audited against the code, critiqued, revised with the owner's decisions
+
+The owner brought a multi-user brief written from the READMEs without the source. It was handled in
+three passes, all read-only on code:
+
+- **The audit:** three agents covered the farm, the shell + OWUI 0.11.4, and LOL Vibe + the Computer,
+  and every load-bearing claim was re-read by hand
+  (`docs/reviews/MULTIUSER_PLAN_AUDIT_2026-10-04.md`).
+  - Already implemented: cancel-on-disconnect, half of the background-task item.
+  - Wrong: OWUI 0.10.2, the admin API, `OPENAI_API_KEYS`, ~28 GB, the Computer as "many short calls".
+  - Latent bugs found: seats claimed before the password, per-start plugin keys rebooting OWUIs, and
+    bench being one seat.
+- **The critic:** an adversarial agent weighed revision 2 against the vision
+  (`docs/reviews/MULTIUSER_PLAN_CRITIC_2026-10-04.md`). It caught two wrong inferences of the reviser's:
+  - Bench *can* measure engine concurrency, since one seat admits unlimited streams.
+  - Raising slots is not a free click: the pool stops at the native max, so 16 slots means a 16k floor,
+    which flips RAG mode and reboots every OWUI.
+- **The owner's decisions** (revision 3):
+  - Optimise people × quality × context per **big** box.
+  - The 4070/4080-class GPUs are booked for 3D/VR and are not farm capacity.
+  - vLLM stays in scope.
+  - No per-person identity.
+  - A measured people-per-box table decides future purchases (Sparks vs RTX PRO 6000-class).
+- **Also found today:** ComfyUI (ComfyQ) keeps ~45 GB of the PRO 6000 resident while idle, and WSL's
+  only vLLM is Rtranslate's 0.14.0.
+
 ## 2026-09-30 (15:10) — Release v0.2.7: Home Assistant
 
 The owner's order: a critic, its fixes, then a release to test. Tag `v0.2.7` (`18b108e`, `scripts/release.mjs`) on

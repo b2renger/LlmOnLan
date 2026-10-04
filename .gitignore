@@ -31,6 +31,7 @@ sidecar/openwebui-src/
 farm/litellm/config.generated.yaml
 farm/.lol-runtime.json
 farm/.lol-id
+farm/.lol-secret
 farm/.searxng/
 farm/.kokoro/
 farm/.extract/

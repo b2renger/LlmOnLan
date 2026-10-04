@@ -58,4 +58,12 @@ async function gpuLiveStats() {
     };
 }
 
-module.exports = { detectHardware, gpuLiveStats };
+// VRAM free right now in GB (the first GPU, like detectHardware). null when
+// nvidia-smi cannot say: no NVIDIA GPU, or a unified-memory GPU reporting [N/A].
+async function gpuFreeGb() {
+    const out = await execFileP('nvidia-smi', ['--query-gpu=memory.free', '--format=csv,noheader,nounits'], 3000);
+    const mb = Number(((out || '').split(/\r?\n/)[0] || '').trim());
+    return out && Number.isFinite(mb) && mb >= 0 ? Math.round((mb / 1024) * 10) / 10 : null;
+}
+
+module.exports = { detectHardware, gpuLiveStats, gpuFreeGb };

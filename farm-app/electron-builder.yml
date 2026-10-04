@@ -39,6 +39,7 @@ extraResources:
       - "!.kokoro/**"
       - "!.lol-runtime.json"
       - "!.lol-id"
+      - "!.lol-secret"
       - "!lol.config.json"
       - "!litellm/config.generated.yaml"
   # electron-builder HARD-EXCLUDES any dir named node_modules encountered while

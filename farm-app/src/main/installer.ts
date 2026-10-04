@@ -35,7 +35,7 @@ const OLLAMA_BASE = `http://${OLLAMA_HOST}:${OLLAMA_PORT}`;
 
 // Runtime dirs a dev checkout's ../farm may carry — never copy them into the app's
 // writable farm (they're rebuilt on THIS box by `lol install`).
-const FARM_COPY_SKIP = new Set(['.venv', '.searxng', '.extract', '.kokoro', '.git', '.lol-runtime.json', '.lol-id', 'lol.config.json']);
+const FARM_COPY_SKIP = new Set(['.venv', '.searxng', '.extract', '.kokoro', '.git', '.lol-runtime.json', '.lol-id', '.lol-secret', 'lol.config.json']);
 
 type Emit = (p: SetupProgress) => void;
 

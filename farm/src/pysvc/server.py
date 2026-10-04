@@ -38,6 +38,8 @@ Env (set by farm/src/extract.js spawnExtract):
   OCR_PREPROCESS   "1" to enable Ollama-OCR's cv2 binarization (default off — a raw
                    image usually reads better on a vision LLM)
   OCR_DOCLING      "1" to route non-image docs through Docling (must be installed)
+  OCR_CONCURRENCY  vision calls to Ollama at once (default 1; the rest WAIT their turn) —
+                   not set by extract.js: inherited from the farm's own environment
 """
 
 import os
@@ -46,6 +48,7 @@ import hmac
 import time
 import shutil
 import tempfile
+import threading
 import urllib.parse
 
 import pymupdf
@@ -68,6 +71,16 @@ OCR_DOCLING = os.environ.get("OCR_DOCLING", "0") == "1"
 OCR_HTTP_TIMEOUT = int(os.environ.get("OCR_HTTP_TIMEOUT", "600"))
 
 OCR = OCRProcessor(model_name=OCR_MODEL, base_url=OCR_OLLAMA_URL, request_timeout=(10, OCR_HTTP_TIMEOUT))
+
+# The vision calls are the GPU work, and they bypass the seat gate: thirty people dropping
+# scans at a workshop would otherwise stack thirty vision generations on the card the chat
+# engine serves from (multi-user plan 0.4). So they take turns. A page WAITS for its turn,
+# never a 429 (in OWUI a refusal is a failed upload, and its loader sets no timeout); waiters
+# are woken oldest first. Text-layer pages and office files never touch it.
+# ponytail: a waiting page holds one of the threadpool's 40 threads; past ~40 queued scans a
+# text upload waits for a thread too. A real queue outside the threadpool if that ever bites.
+OCR_CONCURRENCY = max(1, int(os.environ.get("OCR_CONCURRENCY", "1")))
+_vision_turn = threading.BoundedSemaphore(OCR_CONCURRENCY)
 
 IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".webp", ".tif", ".tiff", ".bmp", ".gif"}
 TEXT_EXTS = {".txt", ".md", ".markdown", ".csv", ".tsv", ".log", ".rst"}
@@ -173,7 +186,8 @@ def _ocr_image(path):
     """Run a vision-model OCR pass. Ollama-OCR never raises — it returns an
     'Error processing image: …' string — so surface that as a 502 (Ollama down /
     model missing) rather than silently ingesting the error text."""
-    res = OCR.process_image(path, format_type=OCR_FORMAT, preprocess=OCR_PREPROCESS)
+    with _vision_turn:
+        res = OCR.process_image(path, format_type=OCR_FORMAT, preprocess=OCR_PREPROCESS)
     if isinstance(res, str) and res.startswith("Error processing image:"):
         raise HTTPException(status_code=502, detail=res)
     return res
@@ -324,14 +338,15 @@ async def process(request: Request):
     # One summary line per document in the farm log ([extract] prefix added by the
     # supervisor) — the operator's proof that OWUI is routed here at all, and the
     # first thing to read when an extraction "missed" content: it shows how each
-    # page was handled (text layer / vision OCR / hybrid).
+    # page was handled (text layer / vision OCR / hybrid). Counts only: never the
+    # file's name, which is the person's (ECOSYSTEM_PLAN §2.3.1).
     engines = {}
     chars = 0
     for p in pages:
         engines[p["metadata"].get("engine", "?")] = engines.get(p["metadata"].get("engine", "?"), 0) + 1
         chars += len(p.get("page_content") or "")
     summary = " + ".join(f"{n} {e}" for e, n in sorted(engines.items()))
-    print(f"{filename}: {len(pages)} page(s) → {summary} · {chars} chars · {time.monotonic() - t0:.1f}s", flush=True)
+    print(f"document: {len(pages)} page(s) → {summary} · {chars} chars · {time.monotonic() - t0:.1f}s", flush=True)
     return pages
 
 

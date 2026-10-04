@@ -35,6 +35,11 @@ ${log.paint.bold('lol')} — the LlmOnLan farm CLI
                           VRAM, loaded models, roles.
   ${log.paint.cyan('lol bench')}               Load-test: N concurrent chats → first-token latency +
                           tokens/s (--users N --rounds R --model id --url …).
+                          ${log.paint.grey('--people')} (loopback URL) sends each user from its own
+                          127.0.0.x, so the seat gate seats each one (they hold
+                          their seats ~15 min: a test farm, not a busy one).
+                          ${log.paint.grey('--cancel F')} stops that share half-way;
+                          ${log.paint.grey('--out file.json')} saves the results.
   ${log.paint.cyan('lol models')} ls|add|rm|pull   Manage the served model catalog.
 
   -h, --help              Show this help.

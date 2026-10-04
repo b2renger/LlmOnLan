@@ -648,7 +648,7 @@ function ctxOptions(cfg, resolved, fit, nativeMax) {
     const over = max != null && v > max;
     const label = fmtK(v) + ' tokens'
       + (nativeMax && v === nativeMax ? ' — everything this model can read' : '')
-      + (over ? ` — more than this ${fit.vramGb} GB GPU holds (slows to a crawl)` : '');
+      + (over ? ` — more than the ${fit.vramGb} GB free on this GPU holds (slows to a crawl)` : '');
     return `<option value="${v}"${v === now ? ' selected' : ''}${over ? ' data-over="1"' : ''}>${label}</option>`;
   }).join('');
 }

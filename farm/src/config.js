@@ -246,6 +246,11 @@ const LlamacppSchema = z.object({
     // once: 16384 wastes a 96 GB box, 65536 cripples a 12 GB one. A number pins
     // it explicitly (still clamped if it cannot fit).
     contextLength: z.union([z.literal('auto'), z.number().int().positive()]).default('auto'),
+    // 'auto' budgets against the VRAM FREE when llama.cpp is sized, not the card's
+    // total — another app on the GPU (ComfyUI kept ~45 GB of the PRO 6000) is not
+    // room to fill. This keeps GB back on top of that, for a co-tenant that is not
+    // running at that moment but will be (multi-user plan 0.7).
+    gpuReserveGb: z.number().min(0).default(0),
     ngl: z.number().int().default(999),          // offload everything; partial = the cliff
     parallel: z.number().int().positive().default(1),
     flashAttention: z.boolean().default(true),   // required for KV quantization

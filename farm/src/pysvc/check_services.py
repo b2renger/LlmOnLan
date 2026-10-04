@@ -1,20 +1,25 @@
-"""One runnable check for the Classify and STT services' refusals and bookkeeping, with stub models.
+"""One runnable check for the Classify and STT services' refusals and bookkeeping, and for the OCR
+service's turn-taking on vision calls, with stub models.
 
   <any python with fastapi + httpx> farm/src/pysvc/check_services.py
 
 Neither Laya nor Whisper is loaded: the startup hook (which loads them) only runs inside
-`with TestClient(...)`, which this never uses. `node farm/test/run.js` runs it when the classify or
-stt venv exists (and skips it otherwise).
+`with TestClient(...)`, which this never uses. The OCR service's Ollama call and pymupdf are stubbed,
+so no GPU and no OCR venv are needed. `node farm/test/run.js` runs it when the classify or stt venv
+exists (and skips it otherwise).
 """
 
 import asyncio
+import contextlib
+import io
 import json
 import os
 import sys
+import threading
 import time
 import types
 
-os.environ.update(CLASSIFY_API_KEY="k", CLASSIFY_MAX_ITEMS="2", STT_API_KEY="k", STT_MAX_MB="1")
+os.environ.update(CLASSIFY_API_KEY="k", CLASSIFY_MAX_ITEMS="2", STT_API_KEY="k", STT_MAX_MB="1", EXTRACT_API_KEY="k")
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from fastapi.testclient import TestClient  # noqa: E402
@@ -126,6 +131,54 @@ Whisper.yielded = 0
 code = asyncio.run(asgi(ss.app, "/v1/audio/transcriptions", {**KEY, "content-type": "multipart/form-data; boundary=b"}, form, False))
 check("stt: an upload that does not declare its length (chunked) -> 411, before any read", code == 411 and Whisper.yielded == 0)
 check("stt: nothing left counted as waiting or in flight", ss.waiting["n"] == 0 and not ss.per_client)
+
+
+# ---- OCR (server.py): vision calls take turns -----------------------------------------------
+class VisionModel:
+    """Stands in for the Ollama vision call: notes how many run at once, and in what order."""
+
+    def __init__(self, **_):
+        self.lock, self.running, self.peak, self.order = threading.Lock(), 0, 0, []
+
+    def process_image(self, path, format_type=None, preprocess=None):
+        with self.lock:
+            self.running += 1
+            self.peak = max(self.peak, self.running)
+            self.order.append(path)
+        time.sleep(0.2)
+        with self.lock:
+            self.running -= 1
+        return f"text of {path}"
+
+
+sys.modules["pymupdf"] = types.ModuleType("pymupdf")   # only the PDF path uses it
+sys.modules["ocr_processor"] = types.SimpleNamespace(OCRProcessor=VisionModel)
+import server as ocr  # noqa: E402
+
+text = {}
+ocr._vision_turn.acquire()   # a scan holds the turn …
+try:
+    t = threading.Thread(target=lambda: text.update(r=ocr._extract(b"hello", "a.txt", "text/plain")), daemon=True)
+    t.start()
+    t.join(2)
+    check("ocr: a text file never waits for a vision turn", "r" in text and text["r"][0]["page_content"] == "hello")
+finally:
+    ocr._vision_turn.release()
+pages = {}
+threads = [threading.Thread(target=lambda i=i: pages.update({i: ocr._ocr_image(f"p{i}")})) for i in range(5)]
+for t in threads:
+    t.start()
+    time.sleep(0.02)   # five scans arrive one after another, all while the first is being read
+for t in threads:
+    t.join()
+check("ocr: one vision call at a time by default", ocr.OCR.peak == 1)
+check("ocr: every scan waited for its turn and got its text (no refusal)", pages == {i: f"text of p{i}" for i in range(5)})
+check("ocr: turns go in arrival order", ocr.OCR.order == [f"p{i}" for i in range(5)])
+out = io.StringIO()
+with contextlib.redirect_stdout(out):
+    r = TestClient(ocr.app).put("/process", content=b"hello", headers={**KEY, "X-Filename": "Salaries%202026.txt", "Content-Type": "text/plain"})
+check("ocr: the log line counts pages, never the file's name",
+      r.status_code == 200 and "1 page(s)" in out.getvalue() and "Salaries" not in out.getvalue())
 
 print(f"{'FAILED ' + str(len(failures)) if failures else 'all passed'}")
 sys.exit(1 if failures else 0)

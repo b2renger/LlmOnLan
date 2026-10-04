@@ -14,7 +14,8 @@
 // full — which is the point.
 //
 // A seat is an IP holding the right to generate:
-//   • first gated request from an IP claims a free seat (or 429s when none);
+//   • first gated request from an IP claims a free seat (or 429s when none) —
+//     only once the farm password checks out (401 and no seat otherwise);
 //   • every gated request refreshes the seat's lastActive;
 //   • a seat with no in-flight request and no activity for idleReleaseSec is
 //     reclaimed LAZILY (pruned on the next admit/view — no sweeper needed);
@@ -29,30 +30,63 @@
 // as the open proxy).
 
 const http = require('http');
+const crypto = require('crypto');
 
 function normIp(ip) {
     return String(ip || '').replace(/^::ffff:/, '');
 }
 
-// The completion routes that consume a seat. Everything else (GET /v1/models,
-// health probes, the panel's checks) passes through ungated — a full farm must
-// still be discoverable and readable. LiteLLM serves both spellings.
-const GATED_PATHS = new Set(['/v1/chat/completions', '/chat/completions', '/v1/completions', '/completions']);
+// The routes that GENERATE, and so consume a seat — every one LiteLLM serves
+// (read from 1.90/1.97's routers, multi-user plan 0.2): OpenAI chat completions,
+// completions and responses under any of its prefixes (none, /v1, /openai/v1,
+// /engines/<m>, /openai/deployments/<m>), Anthropic's /v1/messages, and Google's
+// :generateContent / :streamGenerateContent and interactions. Only 4 spellings
+// were gated before; the others reached the engine with no seat at all.
+// Everything else (GET /v1/models, health probes, the panel's checks, embeddings,
+// token counting) passes through ungated — a full farm must still be
+// discoverable and readable.
+const GATED_RX = /(\/completions|\/responses(\/compact)?|\/v1\/messages|:(generateContent|streamGenerateContent)|\/interactions)$/;
 
 function isGated(method, url) {
     if (method !== 'POST') return false;
-    const pathOnly = String(url || '').split('?')[0].replace(/\/+$/, '');
-    return GATED_PATHS.has(pathOnly);
+    let pathOnly = String(url || '').split('?')[0];
+    // LiteLLM's server (uvicorn) routes on the percent-DECODED path, so match that:
+    // /v1/chat%2Fcompletions must not walk past the gate. Undecodable → gated.
+    try { pathOnly = decodeURIComponent(pathOnly); } catch { return true; }
+    return GATED_RX.test(pathOnly.replace(/\/+$/, ''));
+}
+
+// The farm password (proxy.masterKey), checked BEFORE a seat is claimed (multi-user
+// plan 0.1). LiteLLM checks it too, but only after the gate had seated the caller,
+// so a keyless POST held a seat for the whole idle window on a passworded farm.
+// Read the way LiteLLM reads it for these routes: `Authorization: Bearer`, else
+// Anthropic-style `x-api-key`. Both sides hashed first, so the compare is
+// constant-time and says nothing about the length. No password → open farm.
+function keyOk(req, password) {
+    if (!password) return true;
+    const m = /^Bearer\s+(.+)$/i.exec(req.headers.authorization || '');
+    const given = m ? m[1].trim() : String(req.headers['x-api-key'] || '');
+    const h = (s) => crypto.createHash('sha256').update(String(s)).digest();
+    return crypto.timingSafeEqual(h(given), h(password));
 }
 
 // capacity/idleReleaseSec are THUNKS: slots and the timeout are panel-tunable
 // at runtime and the registry must always see the current value.
 function createSeats({ capacity, idleReleaseSec, now = Date.now }) {
     const seats = new Map(); // ip → { since, lastActive, inFlight }
+    const windowMs = () => Math.max(60, idleReleaseSec() || 900) * 1000;
     const prune = () => {
-        const cutoff = now() - Math.max(60, idleReleaseSec() || 900) * 1000;
+        const cutoff = now() - windowMs();
         // Never reap a seat mid-generation, however long it streams.
         for (const [ip, s] of seats) if (s.inFlight <= 0 && s.lastActive < cutoff) seats.delete(ip);
+    };
+    // Seconds until the soonest IDLE seat is reclaimed (if its holder stays quiet),
+    // for an honest Retry-After. null when every seat is generating: those free only
+    // a whole idle window after their stream ends, which nothing here can predict.
+    const nextFreeSec = () => {
+        let soonest = Infinity;
+        for (const s of seats.values()) if (s.inFlight <= 0) soonest = Math.min(soonest, s.lastActive);
+        return soonest === Infinity ? null : Math.max(1, Math.ceil((soonest + windowMs() - now()) / 1000));
     };
     return {
         admit(rawIp) {
@@ -61,7 +95,7 @@ function createSeats({ capacity, idleReleaseSec, now = Date.now }) {
             const cap = Math.max(1, capacity() || 1);
             let s = seats.get(ip);
             if (!s) {
-                if (seats.size >= cap) return { ok: false, cap, used: seats.size };
+                if (seats.size >= cap) return { ok: false, cap, used: seats.size, retrySec: nextFreeSec() };
                 s = { since: now(), lastActive: now(), inFlight: 0 };
                 seats.set(ip, s);
             }
@@ -90,18 +124,35 @@ function createSeats({ capacity, idleReleaseSec, now = Date.now }) {
 // The gate itself: a dependency-free streaming pass-through to LiteLLM on
 // loopback. SSE streams ride the pipe untouched; a client that disconnects
 // mid-stream destroys the upstream request so the engine slot frees too.
-function startSeatGate({ host, port, upstreamPort, seats, idleReleaseSec }) {
+// `password` is a thunk like the others: the panel sets the farm password at runtime.
+function startSeatGate({ host, port, upstreamPort, seats, idleReleaseSec, password = () => null }) {
     const server = http.createServer((req, res) => {
         const ip = (req.socket && req.socket.remoteAddress) || '';
         const gated = isGated(req.method || '', req.url);
         if (gated) {
+            if (!keyOk(req, password())) {
+                res.writeHead(401, { 'content-type': 'application/json' });
+                return res.end(JSON.stringify({
+                    error: {
+                        message: 'Wrong or missing farm password. Send it as the API key (Authorization: Bearer <password>).',
+                        type: 'invalid_request_error',
+                        code: 'invalid_api_key',
+                    },
+                }));
+            }
             const a = seats.admit(ip);
             if (!a.ok) {
                 const mins = Math.max(1, Math.round((idleReleaseSec() || 900) / 60));
-                res.writeHead(429, { 'content-type': 'application/json', 'retry-after': '30' });
+                // Retry-After says when the soonest idle seat is reclaimed; with every
+                // seat generating nothing is predictable, so it is a short poll interval.
+                const wait = a.retrySec == null ? 30 : a.retrySec;
+                const when = a.retrySec == null
+                    ? `Every one is generating right now, and a seat frees ~${mins} min after its last reply — try again in a moment`
+                    : `The next one frees in about ${wait < 90 ? `${wait} s` : `${Math.round(wait / 60)} min`} if its holder stays quiet — try again then`;
+                res.writeHead(429, { 'content-type': 'application/json', 'retry-after': String(wait) });
                 return res.end(JSON.stringify({
                     error: {
-                        message: `All ${a.cap} seats on this server are in use. A seat frees after ~${mins} min without activity — try again in a moment, or ask around who's done.`,
+                        message: `All ${a.cap} seats on this server are in use. ${when}, or ask around who's done.`,
                         type: 'rate_limit_error',
                         code: 'lol_seats_full',
                     },

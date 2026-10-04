@@ -353,7 +353,13 @@ function buildLitellmConfig(config, peers = []) {
             // Don't phone home.
             telemetry: false,
         },
-        general_settings: {},
+        general_settings: {
+            // A person who leaves mid-answer frees the engine's slot: LiteLLM already
+            // drops a STREAM when its client goes, but finishes a non-streaming call
+            // (an agent page's step, OWUI's title) for nobody unless this is on.
+            // Measured both ways by test/litellm-cancel.js (multi-user plan 0.0).
+            cancel_on_disconnect: true,
+        },
     };
 
     // Auth: only require a key if the operator set one. An unset key => open proxy
