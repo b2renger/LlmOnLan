@@ -337,12 +337,16 @@ function spawnLlamacpp(config, modelPath, mmprojPath, binDirOverride) {
     return child;
 }
 
-function get(url, timeoutMs = 4000) {
+function get(url, timeoutMs = 4000, headers = {}) {
     return new Promise((resolve) => {
-        const req = http.get(url, { timeout: timeoutMs }, (res) => {
+        const req = (String(url).startsWith('https:') ? https : http).get(url, { timeout: timeoutMs, headers }, (res) => {
             let b = '';
             res.on('data', (c) => { b += c; });
             res.on('end', () => resolve({ status: res.statusCode, body: b }));
+            // A body that stalls is cut by the timeout and never ends: settle anyway, or
+            // the health tick awaiting this would wait forever (no-op after 'end').
+            res.on('close', () => resolve(null));
+            res.on('error', () => resolve(null));
         });
         req.on('timeout', () => req.destroy());
         req.on('error', () => resolve(null));
@@ -369,10 +373,12 @@ async function waitForLlamacpp(port, timeoutMs = 300000, isDead = () => false) {
     return false;
 }
 
-// Scrape llama-server's /metrics (enabled via --metrics in argsFor). Returns the
-// parsed { name: value } map, or null when the server is down/not serving them.
-async function fetchMetrics(port, timeoutMs = 3000) {
-    const r = await get(`http://127.0.0.1:${port}/metrics`, timeoutMs);
+// Scrape llama-server's /metrics (enabled via --metrics in argsFor) by port, or any
+// /metrics URL (an external vLLM's, with its bearer). Returns the parsed
+// { name: value } map, or null when the server is down/not serving them.
+async function fetchMetrics(target, timeoutMs = 3000, headers = {}) {
+    const url = typeof target === 'number' ? `http://127.0.0.1:${target}/metrics` : target;
+    const r = await get(url, timeoutMs, headers);
     if (!r || r.status !== 200) return null;
     return require('./perf').parsePrometheus(r.body);
 }

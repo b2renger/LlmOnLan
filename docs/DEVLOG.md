@@ -6,6 +6,36 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-10-04 (14:01) — An external vLLM, read: live load, a Performance card, a pool check; `capacity.mine`
+
+Phase 2 step (a) of the multi-user plan: the farm still never installs or starts the server (2026-09-07),
+but now **reads** it. Farm `npm test` 146 → **149 passed, 0 failed**. No GPU used and no live vLLM was up,
+so the metric fixture is built from vLLM's source (0.14.0 installed in WSL; v0.8.5 to main on GitHub), not
+a capture.
+
+- **Detection:** when `external` is a vLLM (its `/metrics` carries `vllm:` series; no new key), the health
+  tick reads it through the shared `fetchMetrics`, which now takes a URL, a bearer and https.
+- **What it feeds:**
+  - `capacity.busy/queued` ← `num_requests_running/waiting`.
+  - The Performance card shows running/waiting, KV used %, the KV pool in tokens, prefix-cache hits,
+    tok/s per person (generated tokens ÷ the inter-token-latency sum, which means the same as llama.cpp's
+    figure even under speculative decoding), tok/s all together, and draft acceptance.
+  - The 0.9 and 0.11 metric renames are read as fallbacks.
+- **Pool check:** the KV pool (`cache_config_info`: `kv_cache_size_tokens`, else blocks × block size, an
+  upper bound on hybrids) is checked against `parallel × contextLength`. It warns at boot and on the card
+  when the declared seats can't all hold their full window at once.
+- **Seats unchanged:** `slots` stay `external.parallel` and `slotsVerified` stays false. The metrics can
+  show a declaration does not fit, never that it does (no `max_num_seqs`/`max_model_len` metric), so
+  "verified" would be the pessimistic guess 2026-09-07a warns against.
+- **The panel:**
+  - llama.cpp's card is byte-identical: four render states diffed, and a test pins its key set.
+  - The "Capacity is unverified" row, with its Ollama advice, now shows only on Ollama. It wrongly
+    showed on external.
+- **`capacity.mine`:** unicast `GET /lol/self` now says whether the **caller's** IP holds a seat. The
+  beacon broadcast never carries it. This is the farm half of the Computer's own-seat fix (1.6).
+- **Fixed on the way:** a `/metrics` body that stalled never settled `get()`, which froze the whole health
+  tick, including the external engine's death probe.
+
 ## 2026-10-04 (13:39) — Multi-user Phase 0: the seat gate checks the password, stopping a reply reaches the engine, farm restarts stop rebooting clients
 
 Phase 0 of `multiuser_implementation_plan.md` (rev. 3), branch `multiuser-phase0`. No GPU was used: a

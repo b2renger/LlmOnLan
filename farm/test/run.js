@@ -2604,6 +2604,222 @@ test('bus: the registry runs it as its own process; the snapshot advertises it o
     assert.ok(/sendBusKey\(svcById\.bus\.child, config\.proxy\.masterKey\)/.test(upSrc), 'the health tick hands it the password');
 });
 
+// ---- an external vLLM read through its /metrics (multi-user plan Phase 2a) -----
+// What a vLLM serves, in prometheus_client's text format. Names and labels from vLLM
+// 0.14.0's own source (v1/metrics/loggers.py, v1/spec_decode/metrics.py, the
+// CacheConfig fields cache_config_info carries) — no live server was up to capture one.
+// `engines` > 1 = data parallel: one series per engine.
+function vllmMetrics(o = {}) {
+    const v = { running: 3, waiting: 2, kv: 0.42, queries: 10000, hits: 6000, gen: 5000, itlSum: 100, itlCount: 4000, draft: 3000, accepted: 2100, blocks: 8192, engines: 1, old: false, info: '', ...o };
+    const L = (e) => `engine="${e}",model_name="assistant"`;
+    const out = [
+        '# HELP python_gc_objects_collected_total Objects collected during gc',
+        '# TYPE python_gc_objects_collected_total counter',
+        'python_gc_objects_collected_total{generation="0"} 15432.0',
+        'process_resident_memory_bytes 4.21740544e+09',
+    ];
+    for (let e = 0; e < v.engines; e++) {
+        const kv = Array.isArray(v.kv) ? v.kv[e] : v.kv;
+        out.push(
+            '# HELP vllm:num_requests_running Number of requests in model execution batches.',
+            '# TYPE vllm:num_requests_running gauge',
+            `vllm:num_requests_running{${L(e)}} ${v.running}.0`,
+            `vllm:num_requests_waiting{${L(e)}} ${v.waiting}.0`,
+            `vllm:${v.old ? 'gpu_cache_usage_perc' : 'kv_cache_usage_perc'}{${L(e)}} ${kv}`,
+            `vllm:${v.old ? 'gpu_prefix_cache_queries' : 'prefix_cache_queries'}_total{${L(e)}} ${v.queries}.0`,
+            `vllm:${v.old ? 'gpu_prefix_cache_queries' : 'prefix_cache_queries'}_created{${L(e)}} 1.7596e+09`,
+            `vllm:${v.old ? 'gpu_prefix_cache_hits' : 'prefix_cache_hits'}_total{${L(e)}} ${v.hits}.0`,
+            `vllm:prompt_tokens_total{${L(e)}} 12000.0`,
+            `vllm:generation_tokens_total{${L(e)}} ${v.gen}.0`,
+            `vllm:generation_tokens_created{${L(e)}} 1.7596e+09`,
+            '# TYPE vllm:inter_token_latency_seconds histogram',
+            `vllm:${v.old ? 'time_per_output_token_seconds' : 'inter_token_latency_seconds'}_bucket{${L(e)},le="0.025"} 3900.0`,
+            `vllm:${v.old ? 'time_per_output_token_seconds' : 'inter_token_latency_seconds'}_bucket{${L(e)},le="+Inf"} ${v.itlCount}.0`,
+            `vllm:${v.old ? 'time_per_output_token_seconds' : 'inter_token_latency_seconds'}_count{${L(e)}} ${v.itlCount}.0`,
+            `vllm:${v.old ? 'time_per_output_token_seconds' : 'inter_token_latency_seconds'}_sum{${L(e)}} ${v.itlSum}`,
+            `vllm:time_to_first_token_seconds_count{${L(e)}} 40.0`,
+        );
+        if (v.draft != null) {
+            out.push(
+                `vllm:spec_decode_num_drafts_total{${L(e)}} 1000.0`,
+                `vllm:spec_decode_num_draft_tokens_total{${L(e)}} ${v.draft}.0`,
+                `vllm:spec_decode_num_accepted_tokens_total{${L(e)}} ${v.accepted}.0`,
+                `vllm:spec_decode_num_accepted_tokens_per_pos_total{${L(e)},position="0"} 900.0`,
+            );
+        }
+        out.push(
+            '# HELP vllm:cache_config_info Information of the LLMEngine CacheConfig',
+            '# TYPE vllm:cache_config_info gauge',
+            `vllm:cache_config_info{block_size="16",cache_dtype="fp8",calculate_kv_scales="False",cpu_offload_gb="0",enable_prefix_caching="True",engine="${e}",gpu_memory_utilization="0.9",is_attention_free="False",kv_cache_memory_bytes="None",mamba_block_size="None",num_cpu_blocks="None",num_gpu_blocks="${v.blocks}",num_gpu_blocks_override="None",prefix_caching_hash_algo="sha256",sliding_window="None",swap_space="4"${v.info}} 1.0`,
+        );
+    }
+    return out.join('\n') + '\n';
+}
+
+test('vLLM /metrics: the names vLLM itself uses → load, KV, cache hits, per-person + total tok/s, draft acceptance, pool', () => {
+    const s0 = perfMod.vllmSample(perfMod.parsePrometheus(vllmMetrics()), 0);
+    assert.equal(s0.busy, 3);
+    assert.equal(s0.queued, 2);
+    assert.equal(s0.kvUsed, 0.42);
+    assert.equal(s0.poolTokens, 8192 * 16, 'num_gpu_blocks × block_size');
+    // 10 s later: 1000 more tokens, of which streams spent 20 s decoding (several at once).
+    const s1 = perfMod.vllmSample(perfMod.parsePrometheus(vllmMetrics({ gen: 6000, itlSum: 120, queries: 12000, hits: 7500, draft: 4000, accepted: 2800 })), 10000);
+    const r = perfMod.sampleRates(s0, s1);
+    assert.equal(r.genTokSec, 50, 'per person while generating: tokens / decode seconds, not wall clock');
+    assert.equal(r.throughputTokSec, 100, 'everyone together: tokens / wall clock');
+    assert.equal(r.cacheHitRatio, 0.75, 'prefix-cache hits / queries over the window');
+    assert.equal(r.draftAcceptRatio, 0.7, 'accepted / drafted tokens');
+    assert.equal(r.promptTokSec, null, 'vLLM has no prefill-seconds counter — no reading speed rather than a wrong one');
+    assert.equal(perfMod.sampleRates(s1, perfMod.vllmSample(perfMod.parsePrometheus(vllmMetrics({ gen: 10 })), 20000)).reset, true, 'a restarted vLLM resets its counters');
+    assert.equal(perfMod.sampleRates(s0, perfMod.vllmSample(perfMod.parsePrometheus(vllmMetrics({ draft: null })), 10000)).draftAcceptRatio, null, 'no drafter → no acceptance');
+    // vLLM < 0.9 names (gpu_cache_usage_perc, gpu_prefix_cache_*, time_per_output_token_seconds).
+    const o0 = perfMod.vllmSample(perfMod.parsePrometheus(vllmMetrics({ old: true })), 0);
+    const o1 = perfMod.vllmSample(perfMod.parsePrometheus(vllmMetrics({ old: true, gen: 6000, itlSum: 120, queries: 12000, hits: 7500 })), 10000);
+    assert.equal(o0.kvUsed, 0.42);
+    assert.deepEqual([perfMod.sampleRates(o0, o1).genTokSec, perfMod.sampleRates(o0, o1).cacheHitRatio], [50, 0.75]);
+    // Data parallel: counts add up, the fullest engine's KV is the one that preempts, pools add up.
+    const dp = perfMod.vllmSample(perfMod.parsePrometheus(vllmMetrics({ engines: 2, kv: [0.2, 0.9] })), 0);
+    assert.deepEqual([dp.busy, dp.queued, dp.kvUsed, dp.poolTokens], [6, 4, 0.9, 2 * 8192 * 16]);
+    // vLLM >= 0.25 says its group-aware pool itself (blocks × block_size over-counts a hybrid model).
+    assert.equal(perfMod.vllmSample(perfMod.parsePrometheus(vllmMetrics({ info: ',kv_cache_size_tokens="60000",kv_cache_max_concurrency="1.83"' })), 0).poolTokens, 60000);
+    assert.equal(perfMod.vllmSample(perfMod.parsePrometheus(vllmMetrics({ blocks: 'None' })), 0).poolTokens, null, 'an unsized pool is unknown, not 0');
+    // Not a vLLM → null, so the caller keeps today's behaviour.
+    assert.equal(perfMod.vllmSample(perfMod.parsePrometheus('llamacpp:requests_processing 1\nllamacpp:tokens_predicted_total 5\n'), 0), null);
+    assert.equal(perfMod.vllmSample(perfMod.parsePrometheus('<html>{{ not metrics\u0000'), 0), null);
+    assert.equal(perfMod.vllmSample(null, 0), null);
+    assert.equal(perfMod.metricsUrlFor('http://10.0.0.5:8000/v1'), 'http://10.0.0.5:8000/metrics');
+    assert.equal(perfMod.metricsUrlFor('http://10.0.0.5:8000/v1/'), 'http://10.0.0.5:8000/metrics');
+    assert.equal(perfMod.metricsUrlFor('https://gpu.lan/vllm/v1'), 'https://gpu.lan/vllm/metrics');
+    // The declared seats × window against the pool.
+    const w = perfMod.poolShortfall(8, 32768, 131072);
+    assert.ok(/can't all hold their full window at once/.test(w) && /\(4 can\)/.test(w) && /262,144/.test(w), w);
+    assert.equal(perfMod.poolShortfall(4, 32768, 131072), null, 'an exact fit is a fit');
+    assert.ok(/not even one can/.test(perfMod.poolShortfall(1, 32768, 16000)));
+    assert.equal(perfMod.poolShortfall(8, 32768, null), null, 'unknown pool → no warning');
+});
+
+test('external vLLM, end to end: a fake /metrics feeds capacity.busy/queued, the card and its pool warning; seats unchanged (plan Phase 2a)', async () => {
+    const http = require('http');
+    const { makePerfSampler } = require('../src/commands/up');
+    let body = vllmMetrics();
+    let status = 200;
+    const auths = [];
+    const fake = http.createServer((req, res) => {
+        auths.push(req.headers.authorization || null);
+        if (req.url !== '/metrics') { res.writeHead(404); return res.end(); }
+        res.writeHead(status, { 'content-type': 'text/plain; version=0.0.4' });
+        res.end(body);
+    });
+    await new Promise((r) => fake.listen(0, '127.0.0.1', r));
+    const realNow = Date.now;
+    let t = 1000;
+    Date.now = () => t;
+    try {
+        const c = defaultConfig();
+        Object.assign(c.external, { enabled: true, baseUrl: `http://127.0.0.1:${fake.address().port}/v1`, parallel: 8, contextLength: 32768, apiKey: 'k-ext', label: 'Qwen3.6 (vLLM)' });
+        c.llamacpp.enabled = false;
+        const health = { engineUp: true, perf: null };
+        const sampler = makePerfSampler(c, health, () => false);
+        health.perf = await sampler.sample();
+        assert.equal(health.perf.engine, 'vllm');
+        assert.equal(auths[0], 'Bearer k-ext', 'the external bearer rides along');
+        t = 11000;
+        body = vllmMetrics({ gen: 6000, itlSum: 120, queries: 12000, hits: 7500, draft: 4000, accepted: 2800 });
+        health.perf = await sampler.sample();
+        const p = health.perf;
+        assert.deepEqual(
+            [p.busySlots, p.totalSlots, p.queued, p.kvUsed, p.lastGenTokSec, p.lastThroughputTokSec, p.lastCacheHitRatio, p.lastDraftAcceptRatio, p.kvPoolTokens, p.lastActiveTs],
+            [3, 8, 2, 0.42, 50, 100, 0.75, 0.7, 131072, 11000]);
+        // The snapshot: live load for clients, the seats still the declaration (owner 2026-09-07a).
+        const snap = buildSnapshot(c, health);
+        assert.deepEqual([snap.capacity.busy, snap.capacity.queued, snap.capacity.slots], [3, 2, 8]);
+        assert.equal(snap.backend.slotsVerified, false, 'metrics can show a declaration does not fit, never that it does');
+        assert.equal(snap.backend.contextPerSlot, 32768, 'the window is not re-derived from the pool');
+        // The card: a vLLM's numbers, its pool warning, and none of llama.cpp's VRAM warnings
+        // (a vLLM fills VRAM on purpose).
+        const render = loadPanel();
+        const ext = { engine: 'external', alias: 'assistant', model: 'Qwen3.6 (vLLM)', baseUrl: c.external.baseUrl, contextLength: 32768, contextPerSlot: 32768, contextAuto: false, slots: 8, slotsVerified: false };
+        const cap = { slots: 8, clients: 0, seats: [], seatIdleSec: 900, slotsVerified: false, unmanagedHosts: [], ollamaEnvAdvice: null };
+        const gpu = { vramUsedGb: 94, vramTotalGb: 96, gpuUtil: 2 };
+        const html = render(adminState({
+            backend: ext, capacity: cap, perf: p, perfHistory: sampler.history, models: [],
+            health: { hostsUp: 1, hostsTotal: 1, proxyUp: true, gpu, host: null },
+            poolWarning: perfMod.poolShortfall(c.external.parallel, c.external.contextLength, p.kvPoolTokens),
+        }));
+        for (const needle of ['<h2>Performance</h2>', '50 <small>tok/s while generating', 'Generating now <b>3/8</b>', 'Waiting <b>2</b>',
+            'Context memory used <b>42%</b>', 'Context memory <b>131,072 tokens</b>', 'All together <b>100 tok/s</b>',
+            'Context cache hits <b>75%</b>', 'Draft tokens accepted <b>70%</b>', 'can&#39;t all hold their full window at once']) {
+            assert.ok(html.includes(needle) || html.includes(needle.replace('&#39;', "'")), `card lost: ${needle}`);
+        }
+        assert.ok(!html.includes('nearly full while idle'), 'no llama.cpp VRAM warning on a vLLM');
+        assert.ok(!html.includes('Capacity is unverified'), 'the Ollama env advice never shows for an external server');
+        assert.ok(/poolWarning: config\.external\.enabled/.test(fs.readFileSync(path.join(__dirname, '..', 'src', 'commands', 'up.js'), 'utf8')), 'the admin state carries the warning');
+
+        // Graceful degradation — exactly today's external behaviour: perf null, no card,
+        // capacity.busy/queued null.
+        const fresh = async (h = { engineUp: true, perf: null }) => makePerfSampler(c, h, () => false).sample();
+        body = 'llamacpp:requests_processing 1\n';
+        assert.equal(await fresh(), null, 'answers, but not a vLLM');
+        body = '<html>{{ not metrics\u0000';
+        assert.equal(await fresh(), null, 'malformed');
+        status = 404;
+        assert.equal(await fresh(), null, 'no /metrics');
+        assert.equal(await fresh({ engineUp: false, perf: null }), null, 'a server that stopped answering is not read');
+        const none = buildSnapshot(c, { engineUp: true, perf: null });
+        assert.deepEqual([none.capacity.busy, none.capacity.queued, none.perf], [null, null, null]);
+        assert.ok(!render(adminState({ backend: ext, capacity: cap, perf: null })).includes('<h2>Performance</h2>'), 'no card until it proves to be a vLLM');
+        // One failed scrape keeps the last numbers (as on llama.cpp); a non-vLLM answer drops them.
+        status = 200; body = vllmMetrics();
+        const h2 = { engineUp: true, perf: null };
+        const s2 = makePerfSampler(c, h2, () => false);
+        h2.perf = await s2.sample();
+        status = 500;
+        assert.equal(await s2.sample(), h2.perf, 'a failed scrape must not blank the panel');
+        status = 200; body = 'sglang:num_running_reqs 1\n';
+        assert.equal(await s2.sample(), null);
+        // llama.cpp through the same sampler keeps exactly its old perf shape (so its card is unchanged).
+        const lc = defaultConfig();
+        Object.assign(lc.llamacpp, { enabled: true, port: fake.address().port, parallel: 2 });
+        body = 'llamacpp:tokens_predicted_total 10\nllamacpp:tokens_predicted_seconds_total 1\nllamacpp:requests_processing 1\nllamacpp:requests_deferred 0\n';
+        const lp = await makePerfSampler(lc, { perf: null }, () => true).sample();
+        assert.deepEqual(Object.keys(lp), ['engine', 'genTokSec', 'lastGenTokSec', 'lastPromptTokSec', 'lastCacheHitRatio', 'lastActiveTs', 'busySlots', 'totalSlots', 'queued', 'kvUsed']);
+        assert.deepEqual([lp.engine, lp.busySlots, lp.totalSlots], ['llama.cpp', 1, 2]);
+    } finally {
+        Date.now = realNow;
+        fake.close();
+    }
+});
+
+test('capacity.mine: unicast /lol/self says whether the CALLER holds a seat; the beacon never carries it', async () => {
+    const { DiscoveryBeacon } = require('../src/beacon');
+    const c = defaultConfig();
+    const seats = seatsMod.createSeats({ capacity: () => 2, idleReleaseSec: () => 900 });
+    const health = { proxyUp: true, getSeats: () => seats.view() };
+    const getSnapshot = (callerIp) => buildSnapshot(c, health, callerIp);   // up.js's shape
+    const server = startSelfServer({ httpPort: 0, getSnapshot, host: '127.0.0.1' });
+    await new Promise((r) => { if (server.listening) r(); else server.once('listening', r); });
+    const self = async () => (await (await fetch(`http://127.0.0.1:${server.address().port}/lol/self`)).json()).capacity;
+    try {
+        assert.equal((await self()).mine, false, 'no seat yet');
+        seats.admit('10.0.0.9');
+        assert.equal((await self()).mine, false, "someone else's seat is not mine");
+        seats.admit('::ffff:127.0.0.1');   // the gate sees a v4-mapped address: normalized like seats.js
+        const cap = await self();
+        assert.equal(cap.mine, true);
+        assert.equal(cap.seatsUsed, 2);
+        // The beacon builds the same snapshot with no caller: never `mine`.
+        const sent = [];
+        const b = new DiscoveryBeacon({ group: '239.255.43.10', port: 41998, intervalSec: 5, getSnapshot });
+        b.socket = { send: (buf) => sent.push(JSON.parse(buf.toString())) };
+        b._send();
+        assert.ok(sent.length >= 1);
+        assert.ok(sent.every((s) => !('mine' in s.capacity) && s.capacity.seatsUsed === 2), 'per-caller field kept out of the broadcast');
+        assert.equal(buildSnapshot(c, {}, '127.0.0.1').capacity.mine, false, 'gate off → nobody holds a seat');
+    } finally {
+        server.close();
+    }
+});
+
 (async () => {
     for (const { name, fn } of tests) {
         try { await fn(); console.log(`  ok  ${name}`); passed++; }

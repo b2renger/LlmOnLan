@@ -140,8 +140,8 @@ an unnamed Ollama default the failed engine's alias **for that run only** (never
 with *"No reachable Ollama host"* if none answers: Ollama is the fallback engine, and document OCR
 drives its vision model there. With another engine serving, a farm-started Ollama keeps models warm
 for only 5 minutes, and **pressure eviction** unloads Ollama models when VRAM is ≥ 92 % full and the
-GPU ≤ 20 % busy (never mid-extraction) — the farm log says so, and on llama.cpp so does the panel's
-Performance card.
+GPU ≤ 20 % busy (never mid-extraction) — the farm log says so, and on llama.cpp (or an external vLLM)
+so does the panel's Performance card.
 
 **If llama.cpp cannot start, the farm does not die.** No prebuilt exists for this platform (prebuilts
 cover win-x64 and linux-arm64/the Spark today), the download failed, the weights would not load:
@@ -393,7 +393,13 @@ speed for window). The warnings exist because a
 served a few tokens a second until someone guessed why. The **Performance card** is the other half:
 measured tok/s while generating (from llama-server’s own counters), slots busy, requests waiting, KV
 usage, and plain-language warnings for the two silent failure modes (VRAM full at idle; generating far
-below hardware speed). Verify rather than trust the table: `nvidia-smi` after load, and `lol status`. A workshop where people
+below hardware speed). On an [external vLLM](#config--lolconfigjson) the same card reads vLLM's
+`/metrics`: requests running / waiting, context memory used (`kv_cache_usage_perc`) and its size in
+tokens, prefix-cache hits, tok/s **per person** while generating (generated tokens over the
+inter-token-latency sum, so it means what llama.cpp's number means), **all together** (the generation
+counter over the window's wall clock) and, with a drafter, the share of draft tokens accepted. Its
+warnings are the KV pool against the declared seats and the Ollama model sharing the GPU — not the
+llama.cpp VRAM ones (a vLLM fills VRAM on purpose). Verify rather than trust the table: `nvidia-smi` after load, and `lol status`. A workshop where people
 type in bursts is usually happier with `parallel: 2-4`; a single power user is better off with `1` and a
 big window.
 
@@ -434,12 +440,16 @@ That count is also published against the slot count as `capacity: { slots, clien
 is what lets both ends show occupancy: every farm card in the desktop client turns amber once a box is
 full. Past `slots` the **seat gate** refuses NEW generations with a clear 429 (*"All N seats … in use"*)
 until a seat has been idle `proxy.seatIdleSec` (15 min). The panel's Clients card reads *"N of M seats
-in use"*. Set `proxy.seatGate: false` to go back to queueing.
+in use"*. Set `proxy.seatGate: false` to go back to queueing. A unicast `GET /lol/self` also says
+`capacity.mine: true` when the **caller's** IP holds one of those seats (`false` otherwise), so a
+client can count its own seat as its own; being per caller, it is never in the beacon broadcast.
 
 **"Capacity is unverified."** `OLLAMA_NUM_PARALLEL` / `OLLAMA_KV_CACHE_TYPE` only reach an Ollama the farm
 starts. When Ollama was already running as someone's service, the snapshot reports
 `slotsVerified: false`, and the panel's Clients card says *"Capacity is unverified"* with the exact env
-line to set on that service (the seats still use the configured number).
+line to set on that service (the seats still use the configured number). An external server is
+`slotsVerified: false` too — its seats are declared — but that row is Ollama's only; the Backend card
+says it for an external server.
 
 **What multi-user does *not* mean here.** There are no farm-side accounts and nothing to administer per
 person: each client is a single-user app whose chats, documents and RAG vectors live on that person's own
@@ -534,7 +544,7 @@ get *"the farm is busy"*).
 
 | Route | Does |
 |---|---|
-| `GET /lol/self` | The discovery snapshot (open, CORS `*`). |
+| `GET /lol/self` | The discovery snapshot (open, CORS `*`), plus `capacity.mine` for the caller. |
 | `POST /lol/client-ping` | Client presence heartbeat (open). |
 | `GET /lol/admin` | The panel page (open — it asks for the token). |
 | `GET /lol/admin/state` | Everything the panel renders. |
@@ -732,6 +742,19 @@ build for Blackwell cards (16 GB+); replace it freely.
   llama-server. `contextLength`/`parallel` are declarations, not measurements (no portable endpoint
   reports them), and they size the client's whole-document gate and the seat count — so get them right.
   There is no panel switch for this one: set `enabled` in `lol.config.json` and restart the farm.
+
+  **When the server is a vLLM** (its `/metrics`, at `baseUrl` without the `/v1`, carries `vllm:`
+  series — nothing to configure), the farm reads it on the health tick it already runs: the
+  snapshot's `capacity.busy` / `capacity.queued` come from `vllm:num_requests_running` /
+  `vllm:num_requests_waiting`, and the panel shows a **Performance card** for it (below). It also
+  reads the KV pool vLLM really allocated (`vllm:cache_config_info`: `kv_cache_size_tokens` on
+  vLLM ≥ 0.25, else `num_gpu_blocks × block_size`, which over-counts a hybrid model) and **warns** —
+  at `lol up` and on the card — when `parallel × contextLength` exceeds it: *"the declared seats can't
+  all hold their full window at once"*. The seats stay `parallel` and `slotsVerified` stays `false`:
+  the metrics can prove a declaration does not fit, never that it does (they carry neither
+  `max_num_seqs` nor `max_model_len`), and refusing people on a pessimistic guess is worse than the
+  queueing it would avoid (owner, 2026-09-07). Any other server (SGLang, a llama-server) is not read:
+  no card, `busy`/`queued` stay `null`.
 - **`proxy.seatGate`** (default `true`) — the public `proxy.port` is the farm's own listener and
   LiteLLM binds loopback-only behind it (`proxy.internalPort`, default port+1), so the farm can
   ENFORCE who generates: an IP's first completion claims a **seat** (capacity = the engine's
@@ -759,7 +782,9 @@ build for Blackwell cards (16 GB+); replace it freely.
 ## What `lol up` does, in order
 
 1. (`external.enabled`) Probe `GET {baseUrl}/models`: answering → the external server serves and
-   llama.cpp stands down; not answering → fall back to the built-in engine for this run (panel says why).
+   llama.cpp stands down (a vLLM's `/metrics` is read once: its KV pool, and a warning when the
+   declared seats × window exceed it); not answering → fall back to the built-in engine for this run
+   (panel says why).
 2. Ping each Ollama host (start a **local** one if it's down, with the concurrency/keep‑warm env). No
    reachable host → exit: Ollama is required even when another engine serves.
 3. (Ollama engine) **Pick the model(s) to serve** — interactive from what's installed (Enter = default),

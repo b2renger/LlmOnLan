@@ -1,6 +1,7 @@
 // Unicast discovery fallback + the farm ADMIN control API, on one built-in http
 // server (no framework). Routes:
-//   GET  /lol/self               → the discovery snapshot JSON (open; CORS *)
+//   GET  /lol/self               → the discovery snapshot JSON (open; CORS *), with
+//                                  capacity.mine = whether the caller's IP holds a seat
 //   POST /lol/client-ping        → desktop-client presence heartbeat (open)
 //   GET  /lol/admin              → the static admin page (open — it's just HTML/JS)
 //   GET  /lol/admin/state        → richer admin view (token)   → control.getAdminState()
@@ -78,7 +79,8 @@ function startSelfServer({ httpPort, getSnapshot, host = '0.0.0.0', control = nu
         // Discovery snapshot (open, cross-origin fetchable).
         if (method === 'GET' && (pathOnly === '/lol/self')) {
             let body;
-            try { body = JSON.stringify(getSnapshot()); }
+            // The caller's address: the snapshot says whether THIS caller holds a seat.
+            try { body = JSON.stringify(getSnapshot((req.socket && req.socket.remoteAddress) || '')); }
             catch { res.writeHead(500); return res.end('{"error":"snapshot"}'); }
             res.writeHead(200, { 'content-type': 'application/json', 'access-control-allow-origin': '*', 'cache-control': 'no-store' });
             return res.end(body);

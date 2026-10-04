@@ -11,6 +11,7 @@
 const { lanAddresses, primaryAddress, serviceHosts } = require('./net');
 const { servedEntries } = require('./litellm');
 const { farmId } = require('./identity');
+const { normIp } = require('./seats');
 
 const PKG_VERSION = require('../package.json').version;
 
@@ -65,7 +66,11 @@ function backendInfo(config, health = {}) {
     // Everything here is DECLARED by the operator, not measured: we did not start
     // the server and neither vLLM nor SGLang exposes its context/concurrency in a
     // portable way. So slotsVerified is false — same honesty rule as an Ollama
-    // daemon we did not start.
+    // daemon we did not start. It stays false when the server is a vLLM whose
+    // /metrics we read (2026-10-04): they give its KV pool, so they can show a
+    // declaration does NOT fit (the panel warns), never that it does — neither
+    // max_num_seqs nor max_model_len is in them, and on a hybrid model blocks x
+    // block_size over-counts the pool.
     const ex = config.external || {};
     if (ex.enabled) {
         const slots = Math.max(1, ex.parallel || 1);
@@ -149,7 +154,9 @@ function backendInfo(config, health = {}) {
 }
 
 // `health` is { proxyUp, hostsUp, hostsTotal, loaded } as gathered by status/up.
-function buildSnapshot(config, health = {}) {
+// `callerIp` is set only for a unicast GET /lol/self (it adds capacity.mine); the
+// beacon broadcast leaves it out.
+function buildSnapshot(config, health = {}, callerIp = null) {
     const ips = lanAddresses();
     const proxyPort = config.proxy.port;
     const primary = primaryAddress();
@@ -190,6 +197,7 @@ function buildSnapshot(config, health = {}) {
     // which read as "both engines are running" and let a picked Ollama model
     // overcommit a 12 GB card already holding llama-server).
     const lcModel = llamacppServedModel(config);
+    const seatList = typeof health.getSeats === 'function' ? (health.getSeats() || []) : null;
     const models = lcModel
         ? [lcModel]
         : servedEntries(config).map((e) => ({ id: e.servedName, underlying: e.underlying, default: e.isDefault }));
@@ -299,24 +307,29 @@ function buildSnapshot(config, health = {}) {
         capacity: {
             slots: backend().slots,
             clients: health.clientsConnected ?? 0,
-            seatsUsed: (typeof health.getSeats === 'function' ? (health.getSeats() || []).length : null),
+            seatsUsed: seatList ? seatList.length : null,
             // How long a seat survives without a generation. A client showing
             // "all seats in use" is only useful if it can also say when one frees
             // — otherwise a full farm looks permanently shut.
-            seatIdleSec: (typeof health.getSeats === 'function' ? (config.proxy.seatIdleSec || 900) : null),
-            // Live load when the engine reports it (llama.cpp /metrics): requests
-            // generating right now, and requests waiting for a slot.
+            seatIdleSec: seatList ? (config.proxy.seatIdleSec || 900) : null,
+            // Live load when the engine reports it (llama.cpp's /metrics, or an
+            // external vLLM's): requests generating right now, and requests waiting.
             busy: health.perf?.busySlots ?? null,
             queued: health.perf?.queued ?? null,
+            // Unicast /lol/self only: does the CALLER's IP hold a seat right now? A
+            // client counts its own seat as taken by itself, not by someone else.
+            // Per caller, so never in the beacon broadcast.
+            ...(callerIp != null ? { mine: !!seatList && seatList.some((s) => s.ip === normIp(callerIp)) } : {}),
         },
         // The one long admin operation in flight (model download / backend switch /
         // reload), or null. Clients read it to say "the server is switching models —
         // a moment" instead of surfacing a raw connection error while the proxy
         // bounces. health.getJob is a thunk so every beacon tick sees live progress.
         busy: (typeof health.getJob === 'function' ? health.getJob() : null) || null,
-        // Measured performance (llama.cpp engine only): true tok/s while generating,
-        // sticky last-active rate, prompt speed, KV usage. null on Ollama or before
-        // the first sample. The panel renders it; `lol status` and clients may too.
+        // Measured performance (llama.cpp, or an external server that is a vLLM): true
+        // tok/s while generating, sticky last-active rate, prompt speed, KV usage. null
+        // on Ollama, on a non-vLLM external server, or before the first sample. The
+        // panel renders it; `lol status` and clients may too.
         perf: health.perf || null,
         ts: Date.now(),
     };

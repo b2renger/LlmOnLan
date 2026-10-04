@@ -659,6 +659,14 @@ the cancel.
 
 ## 5. Phase 2 — vLLM engine (in scope: owner, 2026-10-04)
 
+> **Status, 2026-10-04:** step (a) is built (DEVLOG 2026-10-04 14:01).
+> - An external vLLM is detected by its `/metrics`. Its running and waiting counts feed
+>   `capacity.busy/queued`, and the Performance card shows vLLM's figures.
+> - The KV pool is checked against `parallel × contextLength`, with a warning when the declared seats
+>   don't fit.
+> - Seats and `slotsVerified` are unchanged (2026-09-07a).
+> - Not yet run against a live vLLM: the spike will be the first.
+
 **Step 1, the spike (Phase 0.6).** It picks the model and flags per box, and shows how far llama.cpp
 gets.
 

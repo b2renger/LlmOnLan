@@ -119,6 +119,9 @@ function spawnLocalOllama(config, baseUrl) {
     }
 }
 
+// The bearer an external server may want (most local servers are keyless).
+const externalHeaders = (ex) => (ex.apiKey ? { authorization: `Bearer ${ex.apiKey}` } : {});
+
 // Is the operator-run OpenAI-compatible backend answering? GET {baseUrl}/models
 // is the one call every such server implements (vLLM, SGLang, llama-server,
 // TensorRT-LLM's OpenAI shim). Short timeout: this runs on the health tick.
@@ -131,7 +134,7 @@ function externalAlive(ex, timeoutMs = 4000) {
         const req = mod.request(url, {
             method: 'GET',
             timeout: timeoutMs,
-            headers: ex.apiKey ? { authorization: `Bearer ${ex.apiKey}` } : {},
+            headers: externalHeaders(ex),
         }, (res) => {
             res.resume();
             // 2xx = serving. 401/403 = it IS there and our key is wrong — a
@@ -143,6 +146,72 @@ function externalAlive(ex, timeoutMs = 4000) {
         req.on('error', () => resolve(false));
         req.end();
     });
+}
+
+// Measured performance: the engine's /metrics, scraped on each health tick, read
+// as TRUE tok/s while generating (delta tokens / delta of the engine's own
+// generating-seconds — wall clock would average in idle time and read misleadingly
+// low). `last` keeps the most recent ACTIVE window sticky, so the panel can answer
+// "how fast was it just now" even between requests; `history` feeds a sparkline.
+// llama.cpp is read while its child runs. An external server is read while it
+// answers, and only when its /metrics is a vLLM's — anything else keeps perf null
+// as before (no card, capacity.busy/queued null). `health` is liveHealth.
+function makePerfSampler(config, health, llamacppUp) {
+    let prev = null;
+    const history = [];
+    let last = { genTokSec: null, promptTokSec: null, cacheHitRatio: null, throughputTokSec: null, draftAcceptRatio: null, ts: null };
+    async function sample() {
+        const ex = config.external;
+        let cur;
+        if (config.llamacpp.enabled && llamacppUp()) {
+            const m = await llamacpp.fetchMetrics(config.llamacpp.port);
+            if (!m) return health.perf; // one failed scrape must not blank the panel
+            cur = perfMod.metricsSample(m, Date.now());
+        } else if (ex.enabled && health.engineUp) {
+            const m = await llamacpp.fetchMetrics(perfMod.metricsUrlFor(ex.baseUrl), 3000, externalHeaders(ex));
+            if (!m) return health.perf;
+            cur = perfMod.vllmSample(m, Date.now());
+            if (!cur) { prev = null; return null; }   // it answers, but it is not a vLLM
+        } else { prev = null; return null; }
+        const rates = perfMod.sampleRates(prev, cur);
+        prev = cur;
+        if (rates && !rates.reset && rates.genTokSec != null) {
+            last = {
+                genTokSec: rates.genTokSec,
+                promptTokSec: rates.promptTokSec,
+                // Sticky like the speeds: the ratio of the LAST active window is
+                // what answers "did that turn hit the cache" between requests.
+                cacheHitRatio: rates.cacheHitRatio ?? last.cacheHitRatio,
+                throughputTokSec: rates.throughputTokSec ?? null,
+                draftAcceptRatio: rates.draftAcceptRatio ?? last.draftAcceptRatio,
+                ts: cur.ts,
+            };
+        }
+        history.push({ t: cur.ts, gen: (rates && !rates.reset && rates.genTokSec) || 0 });
+        if (history.length > 40) history.shift();
+        const out = {
+            engine: cur.vllm ? 'vllm' : 'llama.cpp',
+            genTokSec: (rates && !rates.reset) ? rates.genTokSec : null,   // this window
+            lastGenTokSec: last.genTokSec,                                 // sticky
+            lastPromptTokSec: last.promptTokSec,
+            lastCacheHitRatio: last.cacheHitRatio,                         // 0..1, null = no data yet
+            lastActiveTs: last.ts,
+            busySlots: cur.busy,
+            totalSlots: Math.max(1, (cur.vllm ? ex.parallel : config.llamacpp.parallel) || 1),
+            queued: cur.queued,
+            kvUsed: cur.kvUsed,   // null on llama.cpp b10670+ (upstream dropped the metric)
+        };
+        // vLLM's own numbers; llama.cpp's perf (and so its card) keeps exactly its old shape.
+        if (cur.vllm) {
+            Object.assign(out, {
+                lastThroughputTokSec: last.throughputTokSec,   // everyone together
+                lastDraftAcceptRatio: last.draftAcceptRatio,   // null without a drafter
+                kvPoolTokens: cur.poolTokens,                  // null when vLLM does not say
+            });
+        }
+        return out;
+    }
+    return { sample, history };
 }
 
 // Download-rate meter for long fetches. A percentage alone cannot answer the
@@ -434,6 +503,14 @@ async function run(args) {
         const ok = await externalAlive(config.external);
         if (ok) {
             log.ok(`External engine: ${log.paint.bold(config.external.alias)} via ${log.paint.cyan(config.external.baseUrl)} ${log.paint.grey('(operator-run — this farm routes to it, never restarts it)')}`);
+            // A vLLM says what it really allocated: warn now when the declared seats
+            // cannot all hold their window (the panel repeats it on the Performance card).
+            const v = perfMod.vllmSample(await llamacpp.fetchMetrics(perfMod.metricsUrlFor(config.external.baseUrl), 3000, externalHeaders(config.external)), Date.now());
+            if (v) {
+                log.ok(`It is a vLLM — its /metrics feed the live load and the Performance card${v.poolTokens ? ` (context memory: ${v.poolTokens.toLocaleString('en-US')} tokens)` : ''}.`);
+                const short = perfMod.poolShortfall(config.external.parallel, config.external.contextLength, v.poolTokens);
+                if (short) log.warn(short);
+            }
             if (config.llamacpp.enabled) {
                 log.info('llama.cpp stands down — one engine at a time.');
                 config.llamacpp.enabled = false;
@@ -1057,7 +1134,8 @@ async function run(args) {
         // clients must not keep saying "switching" after it is done.
         return j && !j.done ? { kind: j.kind, label: j.label, message: j.message, percent: j.percent } : null;
     };
-    const getSnapshot = () => buildSnapshot(config, liveHealth);
+    // `callerIp` only from unicast /lol/self (it adds capacity.mine); the beacon calls it bare.
+    const getSnapshot = (callerIp) => buildSnapshot(config, liveHealth, callerIp);
     const snapshot = getSnapshot();
 
     let beacon = null;
@@ -1202,47 +1280,8 @@ async function run(args) {
     // push a fresh beacon. Cheap (a few HTTP HEADs) and unref'd.
     const hosts = config.ollama.hosts.map(ollama.normalizeHost);
 
-    // --- measured performance (llama.cpp engine) --------------------------------
-    // Scrape llama-server's /metrics each tick and derive TRUE tok/s while
-    // generating (delta tokens / delta of the engine's own generating-seconds
-    // counter — wall-clock would average in idle time and read misleadingly low).
-    // `last` keeps the most recent ACTIVE rate sticky, so the panel can answer
-    // "how fast was it just now" even between requests. History feeds a sparkline.
-    let perfPrev = null;
-    const perfHistory = [];
-    let perfLast = { genTokSec: null, promptTokSec: null, cacheHitRatio: null, ts: null };
-    async function samplePerf() {
-        if (!config.llamacpp.enabled || !llamacppChild) { perfPrev = null; return null; }
-        const m = await llamacpp.fetchMetrics(config.llamacpp.port);
-        if (!m) return liveHealth.perf; // one failed scrape must not blank the panel
-        const cur = perfMod.metricsSample(m, Date.now());
-        const rates = perfMod.sampleRates(perfPrev, cur);
-        perfPrev = cur;
-        if (rates && !rates.reset && rates.genTokSec != null) {
-            perfLast = {
-                genTokSec: rates.genTokSec,
-                promptTokSec: rates.promptTokSec,
-                // Sticky like the speeds: the ratio of the LAST active window is
-                // what answers "did that turn hit the cache" between requests.
-                cacheHitRatio: rates.cacheHitRatio ?? perfLast.cacheHitRatio,
-                ts: cur.ts,
-            };
-        }
-        perfHistory.push({ t: cur.ts, gen: (rates && !rates.reset && rates.genTokSec) || 0 });
-        if (perfHistory.length > 40) perfHistory.shift();
-        return {
-            engine: 'llama.cpp',
-            genTokSec: (rates && !rates.reset) ? rates.genTokSec : null,   // this window
-            lastGenTokSec: perfLast.genTokSec,                             // sticky
-            lastPromptTokSec: perfLast.promptTokSec,
-            lastCacheHitRatio: perfLast.cacheHitRatio,                     // 0..1, null = no data yet
-            lastActiveTs: perfLast.ts,
-            busySlots: cur.busy,
-            totalSlots: Math.max(1, config.llamacpp.parallel || 1),
-            queued: cur.queued,
-            kvUsed: cur.kvUsed,   // null on b10670+ (upstream dropped the metric)
-        };
-    }
+    // Measured performance (llama.cpp, or an external vLLM) — see makePerfSampler.
+    const perfSampler = makePerfSampler(config, liveHealth, () => !!llamacppChild);
 
     let healthInFlight = false; // skip a tick if the previous probe round is still running
     const healthTimer = setInterval(async () => {
@@ -1278,7 +1317,7 @@ async function run(args) {
             // changed = every session made with the old one ends).
             sendBusKey(svcById.bus.child, config.proxy.masterKey);
             liveHealth.clientsConnected = freshClients().length; // decay the count when pings stop
-            liveHealth.perf = await samplePerf();
+            liveHealth.perf = await perfSampler.sample();
             // While another engine (llama.cpp, or an external server on this box)
             // serves, an Ollama model left in VRAM (OCR with keep-alive) starves it —
             // the live incident was a 12 GB card paging with both resident. Evict only
@@ -1588,7 +1627,12 @@ async function run(args) {
             fit: config.llamacpp.enabled ? computeFit() : null,
             // Measured throughput + a short history for the panel's sparkline.
             perf: liveHealth.perf,
-            perfHistory,
+            perfHistory: perfSampler.history,
+            // The declared seats x window vs a vLLM's real KV pool (null when they fit,
+            // or when the server does not say) — the Performance card's warning.
+            poolWarning: config.external.enabled && liveHealth.perf
+                ? perfMod.poolShortfall(config.external.parallel, config.external.contextLength, liveHealth.perf.kvPoolTokens)
+                : null,
             // Which Ollama model document reading drives (shown as a badge, and why
             // Delete refuses it) — null when OCR is off.
             ocrModel: config.ocr.enabled ? resolveOcrModel(config) : null,
@@ -2731,7 +2775,8 @@ async function run(args) {
     return new Promise(() => {});
 }
 
-// makeRateMeter/pullPhase are exported for the tests: both encode judgements that
-// are easy to break silently (a negative rate after a restart, a raw digest
-// leaking into the UI) and neither is reachable through `run`.
-module.exports = { run, resolveOcrModel, makeRateMeter, pullPhase };
+// makeRateMeter/pullPhase/makePerfSampler are exported for the tests: each encodes
+// judgements that are easy to break silently (a negative rate after a restart, a
+// raw digest leaking into the UI, a non-vLLM read as one) and none is reachable
+// through `run`.
+module.exports = { run, resolveOcrModel, makeRateMeter, pullPhase, makePerfSampler };

@@ -325,9 +325,12 @@ function render(s) {
     + `</div>`;
 
   // --- performance ---------------------------------------------------------------
-  // What the box is actually doing: measured tok/s while generating (from
-  // llama-server's own counters — wall-clock averages would understate), load,
-  // and the warnings that would have named the live incident: VRAM full at idle.
+  // What the engine is actually doing: measured tok/s while generating (from its
+  // own counters — wall-clock averages would understate), load, and the warnings
+  // that would have named the live incident: VRAM full at idle. Read from
+  // llama-server, or from an external server that is a vLLM (perf.engine 'vllm').
+  // The llama.cpp warnings stay llama.cpp's: a vLLM fills VRAM on purpose, and
+  // its own context is set where it was launched.
   const perf = s.perf || null;
   const hist = s.perfHistory || [];
   const hmax = Math.max(1, ...hist.map((x) => x.gen || 0));
@@ -350,8 +353,11 @@ function render(s) {
   // contention is surfaced instead of hidden, and the pressure-evict cleans up.
   if (be.engine === 'llama.cpp' && s.ocrModel && s.fit && s.fit.vramGb && s.fit.needGb + 6 > s.fit.vramGb)
     perfWarns.push(`Document reading shares this GPU and its vision model cannot fit next to the chat model — extractions will run slowly and be unloaded afterwards. For heavy document use: a bigger card, or OCR off on this box.`);
-  if (be.engine === 'llama.cpp' && loadedOll.length)
+  // Any engine but Ollama: the farm frees these the same way beside either.
+  if (be.engine !== 'ollama' && loadedOll.length)
     perfWarns.push(`Also in GPU memory: ${loadedOll.join(', ')} (document reading — freed automatically when the GPU is idle and full).`);
+  // A vLLM's real KV pool against the declared seats x window (worded by the farm).
+  if (s.poolWarning) perfWarns.push(s.poolWarning);
   const perfBits = [
     perf && perf.busySlots != null ? `Generating now <b>${perf.busySlots}/${perf.totalSlots}</b>` : '',
     perf && perf.queued ? `Waiting <b>${perf.queued}</b>` : '',
@@ -363,10 +369,16 @@ function render(s) {
     // the whole history.
     perf && perf.lastCacheHitRatio != null ? `Context cache hits <b>${Math.round(perf.lastCacheHitRatio * 100)}%</b>` : '',
     perf && perf.kvUsed != null ? `Context memory used <b>${Math.round(perf.kvUsed * 100)}%</b>` : '',
+    // vLLM only (llama.cpp's perf has none of these): the KV pool it allocated,
+    // everyone's tokens together, and how many speculative draft tokens it kept.
+    perf && perf.kvPoolTokens != null ? `Context memory <b>${perf.kvPoolTokens.toLocaleString('en-US')} tokens</b>` : '',
+    perf && perf.lastThroughputTokSec != null ? `All together <b>${perf.lastThroughputTokSec} tok/s</b>` : '',
+    perf && perf.lastDraftAcceptRatio != null ? `Draft tokens accepted <b>${Math.round(perf.lastDraftAcceptRatio * 100)}%</b>` : '',
     (g.vramUsedGb != null && g.vramTotalGb != null) ? `VRAM <b>${g.vramUsedGb}/${g.vramTotalGb} GB</b>` : '',
     g.gpuUtil != null ? `GPU <b>${g.gpuUtil}%</b>` : '',
   ].filter(Boolean).join('');
-  const perfCard = be.engine === 'llama.cpp'
+  // An external server shows the card only once it has proven to be a vLLM.
+  const perfCard = be.engine === 'llama.cpp' || (be.engine === 'external' && perf)
     ? `<div class="card"><h2>Performance</h2>`
       + `<div class="perfnum">${perf && perf.lastGenTokSec != null ? perf.lastGenTokSec : '—'} <small>tok/s while generating${perf && perf.lastActiveTs ? '' : ' · no traffic measured yet'}</small></div>`
       + `<div class="health">${perfBits}</div>`
@@ -507,8 +519,9 @@ function render(s) {
     : (cap.slots != null ? ` — ${cap.clients} of ${cap.slots} slot${cap.slots > 1 ? 's' : ''} in use` : '');
   // Ollama started by somebody else = our concurrency/KV env never applied, so
   // the slot (and therefore seat) count is a wish, not a measurement. Say so
-  // where the number is shown, with the exact line that makes it true.
-  const unverifiedRow = (cap.slotsVerified === false)
+  // where the number is shown, with the exact line that makes it true. Ollama
+  // only: an external server's seats are declared, which the Backend card says.
+  const unverifiedRow = (cap.slotsVerified === false && be.engine === 'ollama')
     ? `<div class="row"><span class="dot"></span><span><div class="mname">Capacity is unverified</div>`
       + `<div class="meta">Ollama on ${esc((cap.unmanagedHosts || []).join(', ') || 'this box')} was already running when the farm started, `
       + `so the farm's concurrency and KV settings never reached it — the ${cap.slots} seat${cap.slots > 1 ? 's' : ''} above `

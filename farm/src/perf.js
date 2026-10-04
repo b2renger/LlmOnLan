@@ -7,8 +7,8 @@
 // knew what would fit, so the farm was "back to too slow" with no visible cause.
 //
 // Three pure pieces live here so they can be unit-tested without a GPU:
-//   • parsePrometheus / sampleRates — read llama-server's --metrics endpoint into
-//     "how fast is it actually generating".
+//   • parsePrometheus / sampleRates — read llama-server's --metrics endpoint (or an
+//     external vLLM's, through vllmSample) into "how fast is it actually generating".
 //   • fitBudget — estimate whether weights + KV cache fit VRAM, and the largest
 //     context window that does. An ESTIMATE (the KV rate is measured, not derived),
 //     used to warn and clamp, deliberately with margin.
@@ -77,7 +77,102 @@ function sampleRates(prev, cur) {
     if (cur.cachedTok != null && dcTok >= 0 && dpTok >= 0 && dcTok + dpTok > 0) {
         out.cacheHitRatio = Math.round((dcTok / (dcTok + dpTok)) * 100) / 100;
     }
+    // A vLLM serves many people at once, so two numbers only its sample carries:
+    // everyone's tokens over the window's wall clock, and the share of speculative
+    // draft tokens the model accepted (null without a drafter).
+    if (cur.vllm) {
+        const wallSec = (cur.ts - prev.ts) / 1000;
+        out.throughputTokSec = dTok > 0 && wallSec > 0 ? Math.round(dTok / wallSec) : null;
+        const dDraft = (cur.drafted ?? 0) - (prev.drafted ?? 0);
+        const dAcc = (cur.accepted ?? 0) - (prev.accepted ?? 0);
+        out.draftAcceptRatio = cur.drafted != null && dDraft > 0 && dAcc >= 0 ? Math.round((dAcc / dDraft) * 100) / 100 : null;
+    }
     return out;
+}
+
+// --- an external vLLM's /metrics -----------------------------------------------
+// Names read from vLLM's own source (v1/metrics/loggers.py, v1/spec_decode/metrics.py,
+// config/cache.py — 0.14.0 as installed, and the v0.8.5 / v0.9.2 / v0.10.2 / main
+// tags). Every series carries {model_name, engine} labels, one per data-parallel
+// engine, and parsePrometheus keeps a labelled series' whole `name{labels}` as its
+// key — so a metric is every key that starts with its name. Older names are the
+// fallbacks: gpu_cache_usage_perc and gpu_prefix_cache_* became kv_cache_usage_perc
+// and prefix_cache_* in 0.9, time_per_output_token_seconds became
+// inter_token_latency_seconds in 0.11 (removed since).
+const vKeys = (m, name) => Object.keys(m).filter((k) => k === name || k.startsWith(`${name}{`));
+function vRead(m, names, combine) {
+    for (const n of names) {
+        const ks = vKeys(m, n);
+        if (ks.length) return ks.map((k) => m[k]).reduce(combine);
+    }
+    return null;
+}
+const vSum = (m, ...names) => vRead(m, names, (a, b) => a + b);
+
+// The KV pool in tokens, from vllm:cache_config_info — an info gauge whose numbers
+// are its labels. kv_cache_size_tokens (vLLM >= 0.25) is vLLM's own group-aware
+// "GPU KV cache size"; older builds only say num_gpu_blocks x block_size, exact for
+// one KV group and an UPPER bound for hybrid models (vLLM shares the blocks among
+// its KV groups) — so a shortfall read off it never warns falsely. Summed over
+// data-parallel engines; null when any engine does not say.
+function vllmPoolTokens(m) {
+    let total = 0;
+    for (const k of vKeys(m, 'vllm:cache_config_info')) {
+        const lab = (n) => Number((new RegExp(`[{,]${n}="([^"]*)"`).exec(k) || [])[1]);
+        const t = lab('kv_cache_size_tokens') || lab('num_gpu_blocks') * lab('block_size');
+        if (!(t > 0)) return null;
+        total += t;
+    }
+    return total || null;
+}
+
+// One vLLM sample in metricsSample's shape, so sampleRates and the panel need no
+// second path; null when the map is not a vLLM's (no vllm: series at all).
+//   • predTok/predSec — generated tokens over the inter-token-latency sum, the
+//     seconds streams spent decoding: TRUE tok/s per person while generating, like
+//     llama.cpp's. One latency per decode STEP, so speculative decoding stays right;
+//     each request's first token is the prefill's (outside the sum) — a fraction of
+//     a percent high on a real reply.
+//   • promptTok/cachedTok — prefix-cache misses and hits, so cacheHitRatio is
+//     hits / queries. No prefill-seconds counter, so no reading speed.
+function vllmSample(m, ts) {
+    if (!m || !Object.keys(m).some((k) => k.startsWith('vllm:'))) return null;
+    const queried = vSum(m, 'vllm:prefix_cache_queries_total', 'vllm:gpu_prefix_cache_queries_total');
+    const cached = vSum(m, 'vllm:prefix_cache_hits_total', 'vllm:gpu_prefix_cache_hits_total');
+    return {
+        ts,
+        vllm: true,
+        predTok: vSum(m, 'vllm:generation_tokens_total'),
+        predSec: vSum(m, 'vllm:inter_token_latency_seconds_sum', 'vllm:time_per_output_token_seconds_sum'),
+        promptTok: queried != null && cached != null ? queried - cached : null,
+        promptSec: null,
+        cachedTok: cached,
+        busy: vSum(m, 'vllm:num_requests_running') ?? 0,
+        queued: vSum(m, 'vllm:num_requests_waiting') ?? 0,
+        // 0..1 ("1 means 100 percent"); the fullest engine is the one that preempts.
+        kvUsed: vRead(m, ['vllm:kv_cache_usage_perc', 'vllm:gpu_cache_usage_perc'], (a, b) => Math.max(a, b)),
+        drafted: vSum(m, 'vllm:spec_decode_num_draft_tokens_total'),
+        accepted: vSum(m, 'vllm:spec_decode_num_accepted_tokens_total'),
+        poolTokens: vllmPoolTokens(m),
+    };
+}
+
+// vLLM serves /metrics at its root, beside /v1.
+function metricsUrlFor(baseUrl) {
+    return `${String(baseUrl).replace(/\/+$/, '').replace(/\/v1$/, '')}/metrics`;
+}
+
+// The declared seats x window against the pool the server really allocated. Over it,
+// the seats cannot all hold their full window at once — vLLM queues or preempts the
+// overflow. A warning only: the seats stay external.parallel (owner, 2026-09-07a —
+// refusing people on a pessimistic guess is worse than the queueing it would avoid).
+function poolShortfall(slots, contextLength, poolTokens) {
+    if (!(slots > 0) || !(contextLength > 0) || !(poolTokens > 0) || slots * contextLength <= poolTokens) return null;
+    const n = (x) => x.toLocaleString('en-US');
+    const fit = Math.floor(poolTokens / contextLength);
+    return `The declared ${slots} seat${slots > 1 ? 's' : ''} × ${n(contextLength)} tokens of context need ${n(slots * contextLength)} tokens of context memory, `
+        + `but the server holds ${n(poolTokens)} — the declared seats can't all hold their full window at once `
+        + `(${fit === 0 ? 'not even one can' : `${fit} can`}). Lower external.parallel or external.contextLength, or give the server more KV cache.`;
 }
 
 // --- VRAM budgeting ------------------------------------------------------------
@@ -138,6 +233,7 @@ function shouldEvictOllama({ otherEngineOn, llamacppOn, vramUsedGb, vramTotalGb,
 
 module.exports = {
     parsePrometheus, metricsSample, sampleRates,
+    vllmSample, metricsUrlFor, poolShortfall,
     fitBudget, KV_GB_PER_16K, OVERHEAD_GB, MARGIN_GB,
     shouldEvictOllama,
 };
