@@ -381,7 +381,17 @@ Small fixes that need no policy decision, and the measurements every later choic
 > - Not yet measured: whether real llama-server and Ollama stop generating on disconnect (no GPU was
 >   available).
 >
-> **0.6 (the spike) is running** (`docs/spike/`).
+> **0.6 is done on the RTX PRO 6000** (2026-10-04, 12:55–22:03; `docs/spike/RESULTS.md`; DEVLOG 2026-10-04 22:05).
+> vLLM 0.30 against llama.cpp b10670, Qwen3.6-35B-A3B / Nemotron 3.5 Lightning / Qwen3.8-27B, with the GPU
+> exclusive (ceiling numbers):
+> - **vLLM + Qwen3.6-35B-A3B** is the best "people × quality × context": 96 / 48 / 32 people at
+>   32k / 64k / 128k, counting everyone's first turn; 128 / 64 / 40 once people are out of step. It has the
+>   best quality score, and vision.
+> - **vLLM + Nemotron Lightning** carries the most people: 160–192 at 32k.
+> - **vLLM beats llama.cpp 24–40×** on the same model. llama.cpp + Qwen3.8 serves 1 person.
+> - **Thinking off cost no quality on the 28-item gate**, at 5–9× fewer tokens.
+>
+> The Spark run is tomorrow (`docs/spike/SPARK_HANDOFF.md`).
 
 ### 0.0 Pin LiteLLM and prove that a cancel reaches the engine (moved from 1.3)
 
@@ -942,6 +952,27 @@ write-up: which uses pass, on which machines.
 
 ## 8. Phase 5 — Capacity planner
 
+**The measured table, v1 (2026-10-04).** People per box, counted as `every turn / steady`. A level passes
+when TTFT p95 < 5 s and 90 % of replies stream at ≥ 15 tok/s. vLLM 0.30, GPU exclusive. Full detail is in
+`docs/spike/RESULTS.md`.
+
+| Box | Engine · model | 32k | 64k | 128k | Quality (thinking off) |
+| --- | --- | --- | --- | --- | --- |
+| RTX PRO 6000 96 GB | vLLM · Qwen3.6-35B-A3B NVFP4 | **96 / 128** | **48 / 64** | **32 / 40** | 28/28 |
+| RTX PRO 6000 96 GB | vLLM · Nemotron 3.5 Lightning NVFP4 | **160 / ≥ 192** | 16 / 64 | 24 / 48 | 26/28 |
+| RTX PRO 6000 96 GB | vLLM · Qwen3.8-27B NVFP4 | 16 / 32 | ≥ 24 | ≥ 12 | 28/28 |
+| RTX PRO 6000 96 GB | llama.cpp · Nemotron Q4_K_M (16 slots) | 4 / 8 | — | 0 / ≥ 4 | 26/28 (on) |
+| RTX PRO 6000 96 GB | llama.cpp · Qwen3.8 Q4_K_M | ≤ 1 | ≤ 1 | ≤ 1 | 26/28 (on) |
+| DGX Spark 128 GB | *the same matrix* | *run 2026-10-05* | | | |
+| RTX PRO 6000 + ComfyUI resident (~45 GB) | vLLM · Qwen3.6 | *estimated:* KV 58 → ~20 GiB, so ~14 people at 128k by capacity; throughput unchanged until KV binds, while ComfyUI is idle | | | |
+
+Reading it for a purchase:
+
+- **One PRO 6000 with vLLM serves a whole class or more at 32k**, and about 30–40 people at 128k.
+- The Spark has ~15 % of its memory bandwidth. If the Spark run lands near that ratio, one PRO 6000-class
+  card does the work of about 6 Sparks for these models, and the choice becomes **price per seat**. The
+  Spark's extra memory only helps where KV binds: dense models, or 128k.
+
 **Revision 3: Phase 5 is the purchase tool, built as a measured table first.**
 
 - **The table:** box × engine × model × context per person → people at TTFT p95 < 5 s and ≥ 15 tok/s,
@@ -1490,6 +1521,34 @@ These are recommendations, not decisions.
      (owner).
 8. **TLS** (§10). **ANSWERED (2026-10-04): cut.** It is a closed, trusted LAN. Revisit only if the
    school's IT or data-protection rules require encrypted Wi-Fi traffic.
+9. **Thinking (new, from the spike).** With `enable_thinking: false` every model scored the same or
+   better on the 28-item gate, with 5–9× fewer tokens. The thinking-on misses were runaway reasoning
+   hitting the 16k cap. Fewer tokens means more people per box and faster answers. Options:
+   - (a) Thinking off for the **Computer's structured calls and background tasks** only. The client sends
+     it; it isn't visible to people.
+   - (b) Also off by default for **chat**, with thinking on as an explicit choice: a second alias or a
+     per-chat switch.
+   - (c) Keep thinking on everywhere.
+
+   Recommendation: (a) now; (b) only after a broader quality check than 28 items.
+10. **vLLM's shape on each box (Phase 2), from the spike.**
+    - **Spark (native Linux):** a managed vLLM engine (2b) is straightforward, with the spike's install
+      script and flags.
+    - **The Windows PRO 6000** has a blocker the spike found. vLLM's **TCP port never answered under
+      WSL's mirrored networking** (the spike used a Unix socket), but the farm's LiteLLM on Windows needs
+      TCP. Fixes to try: WSL NAT networking, or a small TCP→socket relay in WSL. Then choose between
+      operator-run `external` (the spike's scripts as a documented recipe) and fully managed (a WSL
+      lifecycle with the stdin-EOF watchdog and toolchain pins).
+    - Recommendation: managed on the Spark; on the PRO 6000, first fix the TCP blocker, then `external`
+      with the recipe.
+11. **ComfyQ on the PRO 6000 (new).** These are ceiling numbers with ComfyUI stopped. With ComfyUI's
+    ~45 GB resident, vLLM's KV drops from 58 to ~20 GiB: long-context capacity falls about 3×, and image
+    generation competes for compute while it runs. Options:
+    - (a) Keep both on this box (fewer LLM people at long context).
+    - (b) Move ComfyQ to another machine.
+    - (c) Schedule (ComfyQ off during LLM-heavy classes).
+
+    Measure (a) before deciding: the spike harness beside a resident ComfyUI is a ~1-hour run.
 
 ## 13b. Gaps the critic raised (not yet planned)
 

@@ -421,11 +421,23 @@ class PromptFactory:
         elif a.profile == "followup":
             drng = random.Random(hash((run_nonce, uid)) & 0xFFFFFFFF)   # same context for every round of a user
             doc = prose(drng, self.tm.words_for(p["prompt_tokens"] - 400))
-            question = prose(rng, self.tm.words_for(300))
-            user = ("[session " + run_nonce + "-u" + str(uid) + "] Here is our working document:\n\n" + doc +
-                    "\n\nNew question (turn " + str(rnd_no) + "): " + question + "\nAnswer briefly.")
-            msgs = [{"role": "system", "content": "You are a helpful assistant in an office chat app."},
-                    {"role": "user", "content": user}]
+            msgs = [{"role": "system", "content": "You are a helpful assistant in an office chat app."}]
+            if a.append:
+                # OWUI-style multi-turn: every turn re-sends the whole history and appends one exchange, so the
+                # previous prompt is always a prefix of the next one (the earlier answers are synthetic text).
+                for t in range(rnd_no + 1):
+                    trng = random.Random(hash((run_nonce, uid, t)) & 0xFFFFFFFF)
+                    q = prose(trng, self.tm.words_for(150))
+                    head = ("[session " + run_nonce + "-u" + str(uid) + "] Here is our working document:\n\n" + doc +
+                            "\n\nQuestion: ") if t == 0 else "Next question: "
+                    msgs.append({"role": "user", "content": head + q + "\nAnswer briefly."})
+                    if t < rnd_no:
+                        msgs.append({"role": "assistant", "content": prose(trng, self.tm.words_for(150))})
+            else:
+                question = prose(rng, self.tm.words_for(300))
+                user = ("[session " + run_nonce + "-u" + str(uid) + "] Here is our working document:\n\n" + doc +
+                        "\n\nNew question (turn " + str(rnd_no) + "): " + question + "\nAnswer briefly.")
+                msgs.append({"role": "user", "content": user})
         else:
             doc = prose(rng, self.tm.words_for(p["prompt_tokens"] - 60))
             user = (tag + " Here is a document I pasted:\n\n" + doc + "\n\nSummarise the key points of this document "
@@ -616,7 +628,7 @@ async def run_level(session, args, pf, c, run_nonce):
         for r in range(args.rounds):
             body = pf.build(uid, r, run_nonce + "c" + str(c))
             if followup and r == 0:
-                body["max_tokens"] = 8   # the cold load: just get the context into the KV pool
+                body["max_tokens"] = args.cold_max_tokens   # the cold load: get the context into the KV pool
             res = await stream_request(session, args, body, t_origin)
             res["user"], res["round"] = uid, r
             if followup and r == 0:
@@ -669,9 +681,10 @@ async def cmd_bench(args):
         levels = [int(x) for x in args.levels.split(",") if x]
         extend = [int(x) for x in args.extend.split(",") if x] if args.extend else []
         os.makedirs(args.out_dir, exist_ok=True)
+        prof = args.profile + ("-append" if args.profile == "followup" and args.append else "")
         fname = os.path.join(args.out_dir, "%s__bench__%s__think-%s%s__%s.json" % (
-            args.label, args.profile, args.thinking, "__natural" if args.natural else "", now_stamp()))
-        doc = {"kind": "bench", "label": args.label, "profile": args.profile, "profile_params": pf.p,
+            args.label, prof, args.thinking, "__natural" if args.natural else "", now_stamp()))
+        doc = {"kind": "bench", "label": args.label, "profile": prof, "profile_params": pf.p,
                "thinking": args.thinking, "natural": args.natural, "model": args.model, "base_url": args.base_url,
                "server": info, "host": host_info(), "notes": args.notes, "started": datetime.now().isoformat(),
                "tokenizer_calibration": vars(tm), "criteria": {"ttft_p95_max_s": args.ttft_p95_max,
@@ -694,6 +707,9 @@ async def cmd_bench(args):
                 for k in range(args.warmup_burst):
                     b = pf.build(10000 + k, 0, run_nonce + "burst")
                     b["max_tokens"] = 64
+                    # Short prompts: the point is batch shapes, not prefill (a 128k-profile burst cost 15 min on llama.cpp).
+                    b["messages"] = [{"role": "user", "content": "warm-up " + str(k) + ": " +
+                                      prose(random.Random(k), 300)}]
                     bodies.append(b)
                 ws = await asyncio.gather(*[stream_request(session, args, b, t0) for b in bodies])
                 print("[bench] warm-up burst of %d: %d ok in %.1fs" % (
@@ -1195,6 +1211,9 @@ def main():
     b.add_argument("--abort-tps", type=float, default=3.0, help="stop the sweep once median decode falls below this")
     b.add_argument("--no-warmup", dest="warmup", action="store_false")
     b.add_argument("--warmup-burst", type=int, default=32, help="concurrent short requests before the sweep (0 = none)")
+    b.add_argument("--cold-max-tokens", type=int, default=8, help="followup: output tokens of the context-loading first turn")
+    b.add_argument("--append", action="store_true",
+                   help="followup: each turn appends (history + answer + new question) instead of replacing the question")
     b.add_argument("--no-save-requests", dest="save_requests", action="store_false",
                    help="drop the per-request timings from the JSON (kept by default)")
     b.set_defaults(func=lambda a: asyncio.run(cmd_bench(a)))

@@ -6,6 +6,42 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-10-04 (22:05) — The engine × model spike on the RTX PRO 6000: vLLM + Qwen3.6 serves ~100 people at 32k
+
+Phase 0.6, run 12:55–22:03 with the GPU exclusive (ComfyQ and the farm stopped), so these are ceilings.
+`docs/spike/RESULTS.md` has every table and the exact commands; `results/` holds the raw JSON.
+
+- **Setup:** vLLM 0.30.0 in its own WSL2 venv (torch 2.13 + cu132, FlashInfer 0.6.18), against the Farm
+  app's llama.cpp b10670. Three NVFP4 checkpoints, none gated: 67 GB downloaded at 10–16 MB/s.
+- **The pass rule:** TTFT p95 < 5 s and 90 % of replies at ≥ 15 tok/s. "Every turn" counts everyone's
+  first message with all of them starting within 3 s; "steady" counts later turns.
+- **vLLM + Qwen3.6-35B-A3B:** 96 / 128 people at 32k, 48 / 64 at 64k, 32 / 40 at 128k, and the best
+  quality (27/28, and 28/28 with thinking off). The pick for "people × quality × context".
+- **vLLM + Nemotron 3.5 Lightning:** 160 / ≥ 192 at 32k, up to 4,959 tok/s aggregate. Slightly lower
+  quality and no vision, so it suits the Computer and big head counts.
+- **vLLM + Qwen3.8-27B (dense):** 16 / 32 at 32k. It is KV-bound: 35 KB per token, against 11 KB for
+  Qwen3.6 and 3.9 KB for Nemotron.
+- **vLLM against llama.cpp:** 24–40× more people on the same model (Nemotron 160–192 vs 4–8).
+  - llama.cpp's aggregate flattens near 600 tok/s, against ~5,000.
+  - vLLM's prefill is 3× faster.
+  - llama.cpp is slightly faster for one person.
+  - **llama.cpp + Qwen3.8 serves 1 person.**
+- **Thinking off** scored the same or better on every model, using 5–9× fewer tokens.
+- **How people arrive matters most:** a class pressing Enter together binds the chat at 64. A cold 128k
+  prompt takes 5.7–20.9 s even alone, so long contexts only work built up turn by turn.
+- **NVFP4 on sm_120:** the MoE checkpoints' experts are W4A16, so they run through Marlin; dense FP4 is
+  native.
+- **WSL2 workarounds:**
+  - FlashInfer's compiler needed toolchain pins (nvcc/crt/nvvm at the runtime's 13.2) and a link shim.
+  - **vLLM's TCP port never answered under mirrored networking**, so the spike used a Unix socket. The
+    farm's Windows-side LiteLLM needs TCP, which blocks that path until fixed (plan §13 decision 10).
+  - The spike also used a stdin-EOF watchdog.
+- **The box afterwards:** VRAM back at 1.56 GB, no processes left; `~/lol-spike` is 71 GB.
+- **`SPARK_HANDOFF.md`** now matches the final README: the same 0.30.0 via `install_vllm.sh`, TCP,
+  192 sequences, a KV budget fitted to unified memory, and the `--append` follow-ups.
+- **New owner decisions** (plan §13): 9, thinking off where; 10, vLLM's shape per box, including the WSL
+  TCP blocker; 11, ComfyQ beside the farm on the PRO 6000.
+
 ## 2026-10-04 (18:05) — The workshop setting: "Free an idle seat after", applied live
 
 Owner decision 1.2. The panel's Backend card gains **Free an idle seat after** (1, 2, 3, 5, 10, 15, 30 or

@@ -22,15 +22,28 @@ quality gate passed, for each engine × model? Report two numbers:
 
 ## 2. Get the harness
 
-- The harness, quality set and PRO 6000 results are in the repo under **`docs/spike/`**:
-  `spike_bench.py`, `quality_set.json`, `README.md` (exact usage), `RESULTS.md` (the PRO 6000 rows and
-  the vLLM flags that worked there) and `results/*.json`.
-- **If `docs/spike/` is missing from your checkout,** the owner hasn't pushed it yet. Stop and ask for
-  the branch (expected: `multiuser-phase0`) or a copy of the folder. Never rewrite the harness: the two
-  boxes must be measured identically.
-- **Read `docs/spike/README.md` and `RESULTS.md` fully before starting.** Reuse the exact model ids,
-  vLLM flags and parsers that worked on the PRO 6000, changing only what the Spark's architecture
-  forces. Note every change.
+- It's on GitHub, on branch **`multiuser-phase0`**:
+  `git fetch origin && git checkout multiuser-phase0`. Everything is under **`docs/spike/`**:
+  - `spike_bench.py`, `quality_set.json`;
+  - `install_vllm.sh`, `download.sh`, `serve_vllm.sh`, `stop_vllm.sh`;
+  - `runs/`, the suites;
+  - `README.md` (exact usage, and a **"Re-run on another box (DGX Spark)"** section);
+  - `RESULTS.md` (the PRO 6000 numbers and the exact flags that worked);
+  - `results/`, the raw JSON.
+- **Never rewrite the harness:** the two boxes must be measured identically.
+- **Read `README.md` (especially "Re-run on another box") and `RESULTS.md` fully before starting.** Reuse
+  the exact model ids, vLLM flags and parsers from RESULTS.md's "Exact install and launch commands that
+  worked", changing only what the Spark forces. Note every change.
+
+**The PRO 6000 headline you are comparing against** (vLLM 0.30.0, GPU exclusive, `every turn / steady`):
+
+| Model | 32k | 64k | 128k |
+| --- | --- | --- | --- |
+| Qwen3.6-35B-A3B | 96 / 128 | 48 / 64 | 32 / 40 |
+| Nemotron 3.5 Lightning | 160 / ≥ 192 | 16 / 64 | 24 / 48 |
+| Qwen3.8-27B | 16 / 32 | ≥ 24 | ≥ 12 |
+
+llama.cpp: Nemotron 4 / 8 at 32k, Qwen3.8 ≤ 1.
 
 ## 3. Rules on this box
 
@@ -62,13 +75,24 @@ quality gate passed, for each engine × model? Report two numbers:
 
 ## 4. Install vLLM (linux-arm64, GB10 / CUDA 13)
 
-Pick ONE, record the exact version, and say why:
+**Use the same version as the PRO 6000: vLLM 0.30.0**, via the spike's own script, so the comparison is
+fair. Install `uv`, then:
 
-1. **A container**, often the least friction on DGX OS: NVIDIA's NGC vLLM image (`nvcr.io/nvidia/vllm`,
-   the latest tag compatible with the installed driver), or the official `vllm/vllm-openai` aarch64/cu130
-   image. Run it with `--gpus all --network host --ipc host`, mount the HF cache, and use the flags below.
-2. **A venv** in `~/lol-spike/.venv` with an aarch64 CUDA-13 wheel, if one is published for the current
-   release.
+```bash
+bash docs/spike/install_vllm.sh 0.30.0
+```
+
+It builds `~/lol-spike/.venv` (Python 3.12) and pins nvcc/crt/nvvm to the CUDA runtime's minor version.
+arm64 wheels exist; record the versions it prints. The pins and the link shim in `serve_vllm.sh` exist
+because FlashInfer JIT-compiles kernels on first use. On the PRO 6000 (sm_120), four toolchain failures
+came before those pins. Expect the same on sm_121.
+
+Only if the venv route fails after a real attempt, fall back to a container: NVIDIA's NGC vLLM image or
+`vllm/vllm-openai` aarch64/cu130, at the closest version. Then say so in the results, since it's a
+different build.
+
+Then `bash docs/spike/download.sh` (the same three NVFP4 checkpoints, ~67 GB), or point at an existing HF
+cache.
 
 Spark-specific notes from the research (§11.5; verify, don't trust):
 
@@ -82,15 +106,24 @@ Spark-specific notes from the research (§11.5; verify, don't trust):
 
 ## 5. The matrix (keep it identical to the PRO 6000 run)
 
-**vLLM:** for each model in `RESULTS.md`, in this order, Qwen3.6-35B-A3B → Nemotron 3.5 Lightning →
-Qwen3.8-27B:
+**vLLM:** follow README.md's "Re-run on another box (DGX Spark)" steps exactly. For each model, in this
+order, Qwen3.6-35B-A3B → Nemotron 3.5 Lightning → Qwen3.8-27B:
 
-1. Start with `--enable-prefix-caching`, the explicit `--kv-cache-memory-bytes`, `--max-model-len 131072`
-   (or the model max), `--max-num-seqs 64`, and the same reasoning and tool parsers as on the PRO 6000.
-2. Record the start-up log's **"GPU KV cache size"** and **"Maximum concurrency for N tokens per
-   request"** lines.
-3. Run the quality set (`--quality`), then the sweeps exactly as `docs/spike/README.md` says: chat,
-   long, agent, plus chat with thinking off.
+1. **Serve** through `serve_vllm.sh` with RESULTS.md's common and per-model flags, with two changes:
+   - **TCP** (`--host 127.0.0.1 --port 8100`), not `--uds`. The socket was a WSL workaround.
+   - **`--kv-cache-memory-bytes` fitted to unified memory.** The PRO 6000 ran 62277025792 (58 GiB). On
+     the Spark, start near 85 GB (≈ 91000000000) for one model's ~20 GB of weights, and lower it if
+     `free -g` drops under ~10 GB free during start-up or a sweep. Record the value you used.
+
+   Keep `--max-num-seqs 192`, `--max-model-len 131072`, `--enable-prefix-caching`,
+   `--mamba-cache-mode align`, `--enable-auto-tool-choice`, and the same reasoning/tool parsers.
+2. **Record** the start-up log's **"GPU KV cache size"** and **"Maximum concurrency for N tokens per
+   request"** lines, and which MoE backend it picked. Expect **Marlin**: the experts are W4A16.
+3. **Run the suites with a `spark-…` label:** `runs/vllm_all.sh` (quality via the `quality` subcommand,
+   chat, agent, cold, thinking off), then `runs/followup_levels.sh <label> 30000 <levels> … --append` (and
+   at 120000 where `runs/round_stats.py` shows round 1 much slower than round 2). The sweeps abort on their
+   own when a level fails. On a bandwidth-bound box, expect the high levels to fail early.
+4. **Summarize** with `python docs/spike/spike_bench.py summarize docs/spike/results/spark-*.json`.
 
 **llama.cpp baseline:**
 
