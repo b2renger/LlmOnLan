@@ -5,7 +5,8 @@
 //   POST /lol/client-ping        → desktop-client presence heartbeat (open)
 //   GET  /lol/admin              → the static admin page (open — it's just HTML/JS)
 //   GET  /lol/admin/state        → richer admin view (token)   → control.getAdminState()
-//   POST /lol/admin/apply        → name/slots/password/context in ONE restart (token)
+//   POST /lol/admin/apply        → name/slots/password/context in ONE restart, + the
+//                                  seat hold (seatIdleSec), live with no restart (token)
 //   POST /lol/admin/model/start  → serve + warm a model (token) → control.startModel(id)
 //   POST /lol/admin/model/stop   → unserve + evict a model (token) → control.stopModel(id)
 //   POST /lol/admin/model/default → make a served model the fleet default (token)

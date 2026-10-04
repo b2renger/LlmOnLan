@@ -1571,6 +1571,60 @@ test('seats: a refusal says when the soonest IDLE seat frees; none when every se
     assert.equal(s.admit('10.0.0.3').retrySec, 1, 'rounds up, never 0');
 });
 
+test('workshop setting: Apply\'s seatIdleSec is refused out of range, changes the live gate with no restart, persists (plan 1.2)', () => {
+    const f = path.join(os.tmpdir(), `lol-idle-${process.pid}.json`);
+    fs.writeFileSync(f, JSON.stringify({ name: 'Mine', proxy: { port: 4000 } }));
+    try {
+        const config = defaultConfig();
+        // The registry the farm builds, reading the same thunk up.js wires (config.proxy.seatIdleSec).
+        let t = 1000000;
+        const s = seatsMod.createSeats({ capacity: () => 1, idleReleaseSec: () => config.proxy.seatIdleSec || 900, now: () => t });
+        s.admit('10.0.0.1'); s.release('10.0.0.1');
+        t += 150 * 1000;
+        assert.equal(s.admit('10.0.0.2').retrySec, 750, 'the default 15 min: 900 − 150 s');
+
+        for (const bad of [30, 59, 3601, 90.5, '', 'two', true]) {
+            assert.match(upMod.seatIdleChange(config, f, bad).error, /1 to 60 minutes/, String(bad));
+        }
+        assert.equal(upMod.seatIdleChange(config, f, undefined), null, 'absent: unchanged');
+        assert.equal(upMod.seatIdleChange(config, f, 900), null, 'the current value: nothing to do');
+        assert.deepEqual(readRawConfig(f), { name: 'Mine', proxy: { port: 4000 } }, 'validating writes nothing');
+
+        const ch = upMod.seatIdleChange(config, f, '120');   // seconds; a string reads as its number, as slots does
+        assert.equal(ch.label, 'idle seats free after 2 min');
+        assert.equal(ch.apply(), null, 'saved without a warning');
+        // The same registry, never rebuilt: the idle seat is now past the hold and goes to the newcomer.
+        assert.equal(s.admit('10.0.0.2').ok, true, 'reclaimed at once under the 2 min hold');
+        s.release('10.0.0.2');
+        t += 30 * 1000;
+        assert.equal(s.admit('10.0.0.3').retrySec, 90, 'Retry-After follows: 120 − 30 s');
+        assert.deepEqual(readRawConfig(f), { name: 'Mine', proxy: { port: 4000, seatIdleSec: 120 } }, 'only the one key added');
+        assert.equal(ConfigSchema.parse(readRawConfig(f)).proxy.seatIdleSec, 120, 'and it boots with it');
+        assert.equal(upMod.seatIdleChange(config, null, 600).apply().includes('not saved'), true, 'an unwritable file says so; the change still applies');
+        assert.equal(config.proxy.seatIdleSec, 600);
+    } finally { fs.unlinkSync(f); }
+});
+
+test('panel: "Free an idle seat after" shows while the seat gate is on, minutes on screen over seconds in the value (plan 1.2)', () => {
+    const render = loadPanel();
+    const html = render(adminState({ capacity: { slots: 2, clients: 0, seats: [], seatIdleSec: 120, slotsVerified: true, unmanagedHosts: [] } }));
+    const sel = /<select id="idle-sel" data-orig="(\d+)">([\s\S]*?)<\/select>/.exec(html);
+    assert.ok(sel, 'the control is rendered');
+    assert.equal(sel[1], '120', 'compared in seconds, the value Apply sends');
+    assert.match(sel[2], /<option value="120" selected>2 min<\/option>/);
+    assert.match(sel[2], /<option value="900">15 min<\/option>/, 'the default is one click away');
+    assert.ok(html.includes('suits a workshop'));
+    assert.ok(/<option value="90" selected>1\.5 min</.test(render(adminState({ capacity: { slots: 2, clients: 0, seats: [], seatIdleSec: 90, slotsVerified: true, unmanagedHosts: [] } }))),
+        'a hand-set value is shown as it is');
+    assert.ok(!render(adminState({ capacity: { slots: 2, clients: 0, seats: null, seatIdleSec: null, slotsVerified: true, unmanagedHosts: [] } })).includes('idle-sel'),
+        'gate off (proxy.seatGate false): no control');
+    const ext = render(adminState({
+        backend: { engine: 'external', alias: 'assistant', model: 'm', baseUrl: 'http://10.0.0.5:8000/v1', contextLength: 32768, contextPerSlot: 32768, slots: 4, slotsVerified: false },
+        capacity: { slots: 4, clients: 0, seats: [], seatIdleSec: 900, slotsVerified: false, unmanagedHosts: [] },
+    }));
+    assert.ok(ext.includes('id="idle-sel"'), 'the gate is the farm\'s own, so an external server keeps the control');
+});
+
 test('seat gate: streams pass through, ungated GETs skip admit, full farm gets the OpenAI-style 429', async () => {
     const http = require('http');
     // Mock LiteLLM: echoes the path; the completions route streams two chunks.

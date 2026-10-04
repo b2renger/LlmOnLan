@@ -6,6 +6,26 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-10-04 (18:20) — The workshop setting: "Free an idle seat after", applied live
+
+Owner decision 1.2. The panel's Backend card gains **Free an idle seat after** (1, 2, 3, 5, 10, 15, 30 or
+60 min, plus the current value if it is not in that list), shown while the seat gate is on, including
+under an external server.
+
+- **How it applies:** it sets `proxy.seatIdleSec` through the one **Apply changes** and is written to
+  `lol.config.json` (raw patch).
+- **Alone it restarts nothing**: `applyFarmSettings` returns before any job. The gate and the snapshot
+  already read the value through a thunk, so the release window, `Retry-After`, the 429 wording and
+  `capacity.seatIdleSec` follow on the next request.
+- **With other changes,** it lands only after their restart succeeds, so a rollback still means "nothing
+  changed".
+- **The check:** `POST /lol/admin/apply` takes `seatIdleSec` (60–3600 s) and refuses anything else in
+  plain words, through one check, `seatIdleChange()`.
+- **A panel fix on the way:** the select joined `settingsDirty()`. Without it, the 5 s poll would reset an
+  unapplied change.
+- **Tests:** farm `npm test` 152 → **154** (the live gate and the file; the panel row). CLAUDE.md's
+  admin-panel line is updated.
+
 ## 2026-10-04 (18:00) — The owner settles the open multi-user decisions
 
 All recorded in `multiuser_implementation_plan.md` §13 and the sections they touch.

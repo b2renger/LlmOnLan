@@ -294,6 +294,20 @@ function render(s) {
             }</select></span></div>`;
       })())
 
+    // The seat hold (proxy.seatIdleSec, owner 2026-10-04): short for a class, back to
+    // 15 min after. Minutes here, seconds in the file. Only while the seat gate is on
+    // (seatIdleSec is null otherwise); the gate is the farm's own, so any engine.
+    + (cap.seatIdleSec == null ? '' : (() => {
+        const opts = [60, 120, 180, 300, 600, 900, 1800, 3600];
+        if (!opts.includes(cap.seatIdleSec)) opts.push(cap.seatIdleSec);
+        opts.sort((a, b) => a - b);
+        return `<div class="row"><span></span><span><div class="mname">Free an idle seat after</div>`
+          + `<div class="meta">a seat nobody generates on goes to the next person — 2 min suits a workshop, 15 min is the default · applies at once</div></span>`
+          + `<span class="badges"><select id="idle-sel" data-orig="${cap.seatIdleSec}">${
+              opts.map((v) => `<option value="${v}"${v === cap.seatIdleSec ? ' selected' : ''}>${+(v / 60).toFixed(1)} min</option>`).join('')
+            }</select></span></div>`;
+      })())
+
     // The shared farm password (ComfyQ-style). One string for everyone; clients
     // prompt for it when the beacon says requiresKey. Setting/clearing bounces
     // the proxy for a few seconds.
@@ -618,6 +632,8 @@ function render(s) {
     if (nameIn && nameIn.value.trim() && nameIn.value.trim() !== nameIn.dataset.orig) payload.name = nameIn.value.trim();
     const slotsSel = $('#slots-sel');
     if (slotsSel && slotsSel.value !== slotsSel.dataset.orig) payload.slots = parseInt(slotsSel.value, 10);
+    const idleSel = $('#idle-sel');
+    if (idleSel && idleSel.value !== idleSel.dataset.orig) payload.seatIdleSec = parseInt(idleSel.value, 10);
     const secIn = $('#sec-in');
     if (secIn && secIn.value.trim()) payload.password = secIn.value;
     const ctxSel = $('#ctx-sel');
@@ -799,7 +815,7 @@ function logout(msg) { localStorage.removeItem('lolAdminToken'); token = ''; tok
 // several poll ticks before the operator presses it.
 function settingsDirty() {
   if ((($('#sec-in') || {}).value || '') !== '') return true;
-  return ['#name-in', '#slots-sel', '#ctx-sel'].some((sel) => {
+  return ['#name-in', '#slots-sel', '#idle-sel', '#ctx-sel'].some((sel) => {
     const el = $(sel);
     return el && el.dataset.orig != null && el.value !== el.dataset.orig;
   });

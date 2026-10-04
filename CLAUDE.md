@@ -77,8 +77,9 @@ docs) is `docs/reviews/DOCS_REVIEW_2026-09-27_{FARM,SHELL,COMPUTER}.md`. Snapsho
     `lol up`; the Farm app pins one): the engine switch (llama.cpp ↔ Ollama); the `.gguf` library (add by
     URL — split files too — / Use this, with rollback); the name users see (llama.cpp) or per-model
     **Rename** (Ollama); people served at once, the context window (Automatic on both engines) and the farm
-    password under ONE **Apply changes** (one restart); Ollama download/offer/stop/delete/Make default;
-    plugin toggles and the Blender fleet recommendation; a Performance card (llama.cpp) and the clients with
+    password under ONE **Apply changes** (one restart), and **Free an idle seat after** (`proxy.seatIdleSec`,
+    1–60 min, the workshop setting — alone it applies live, no restart); Ollama download/offer/stop/delete/Make default;
+    plugin toggles and the Blender fleet recommendation; a Performance card (llama.cpp, or an external vLLM) and the clients with
     their seats. Long operations run as one job whose progress the panel polls. Everything persists to
     `lol.config.json` (`configFile.js` raw patch — never the schema-parsed config) **except** the plugin
     toggles and the Blender recommendation; Ollama's slot count applies after a farm restart.

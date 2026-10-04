@@ -548,8 +548,9 @@ card already lists clients; it has no revoke button.
 > **Decision:**
 > - With vLLM, set seats near what the card serves at acceptable speed (the spike's latency-bounded
 >   count), and let vLLM's scheduler queue the rest. The 429 becomes a rare safety valve.
-> - **Workshop setting:** a panel control for the seat hold (`proxy.seatIdleSec`, config-only today,
->   minimum 60 s), applied live.
+> - **Workshop setting:** a panel control for the seat hold (`proxy.seatIdleSec`, 1–60 min), applied live.
+>   **Built** (DEVLOG 2026-10-04 18:20): "Free an idle seat after" in the Backend card; alone it restarts
+>   nothing.
 > - The farm's fair queue below is built **only if** the 3.3 metrics show frequent refusals.
 
 The owner's 2026-09-04 ask was that **idle people** must not hold seats; the 429 was the mechanism
@@ -1456,7 +1457,8 @@ These are recommendations, not decisions.
 2. **Queue or 429** (1.2). **ANSWERED (2026-10-04): the engine queues, plus a workshop setting.**
    - With vLLM, seats are set near what the card really serves at acceptable speed (from the spike), and
      vLLM's own scheduler queues the rest. The 429 becomes a rare safety valve.
-   - A panel control shortens the seat hold (`seatIdleSec`, config-only today) for classes.
+   - A panel control shortens the seat hold (`seatIdleSec`) for classes. **Built 2026-10-04**, applied
+     live.
    - The farm's fair queue is built **only if** the 3.3 metrics show frequent refusals.
    - *Critic:* keep 429 + a workshop preset. Close to this.
 3. **Identity** (1.1). **ANSWERED (2026-10-04): no hard per-person identity**: complexity for users,
@@ -1499,8 +1501,9 @@ These are recommendations, not decisions.
   - Agent pages throw "busy".
 
   One table, with one honest wait message per surface.
-- **The workshop operator's flow.** `seatIdleSec` is config-file only, the slots are panel-capped at 16,
-  and Ollama slots apply after a restart. Who flips a pre-class preset, and when?
+- **The workshop operator's flow.** `seatIdleSec` now has a panel control, applied live (2026-10-04). Still
+  open: the slots are panel-capped at 16, Ollama slots apply after a restart, and who flips the setting
+  before a class, and when.
 - **Slots vs context.** More slots means less context per person, a RAG-mode flip that reboots every
   OWUI, and a coding agent that can't compact under "Keep going". The panel should show that trade
   before Apply.

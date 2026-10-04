@@ -259,6 +259,27 @@ function pullPhase(status) {
     return s.slice(0, 60);
 }
 
+// The workshop setting (owner 2026-10-04, multi-user plan 1.2): how long an idle seat
+// stays held, proxy.seatIdleSec — short for a class, back to 15 min after. Seconds here
+// and in the file; the panel speaks minutes. The gate reads it through a thunk
+// (seats.js), so applying it restarts nothing. null = absent or unchanged,
+// { error } = refused, else { sec, label, apply() → a not-saved warning or null }.
+function seatIdleChange(config, configPath, value) {
+    if (value == null) return null;
+    const sec = Number(value);
+    if (!Number.isInteger(sec) || sec < 60 || sec > 3600) return { error: 'An idle seat must free after 1 to 60 minutes (60–3600 s).' };
+    if (sec === (config.proxy.seatIdleSec || 900)) return null;
+    return {
+        sec,
+        label: `idle seats free after ${+(sec / 60).toFixed(1)} min`,
+        apply() {
+            config.proxy.seatIdleSec = sec;
+            const r = patchSection(configPath, 'proxy', { seatIdleSec: sec });
+            return r.ok ? null : ` (not saved to lol.config.json: ${r.error} — reverts on restart)`;
+        },
+    };
+}
+
 async function ensureOllama(config) {
     const hosts = config.ollama.hosts.map(ollama.normalizeHost);
     const reachable = [];
@@ -2473,6 +2494,7 @@ async function run(args) {
     // sends in ONE job with ONE restart chain. Field semantics match the individual
     // controls exactly (which stay, for API compatibility and the password-clear
     // flow). `password` here only SETS — clearing keeps its own confirmed control.
+    // `seatIdleSec` (the seat hold) is the one field that never needs a restart.
     function applyFarmSettings(body = {}) {
         if (busy()) return busyErr();
         // Under an external server only the password applies (it gates the farm's own
@@ -2515,9 +2537,18 @@ async function run(args) {
                 context = want === curCl ? null : want;
             }
         }
+        // The seat hold is the gate's, not the engine's — it applies under any engine.
+        const idle = seatIdleChange(config, configPath, body.seatIdleSec);
+        if (idle && idle.error) return { ok: false, error: idle.error };
         if (name == null && slots == null && password === undefined && context == null) {
-            return { ok: true, already: true, message: 'Nothing changed.' };
+            if (!idle) return { ok: true, already: true, message: 'Nothing changed.' };
+            // Alone it restarts nothing: the gate reads it live, and so does the snapshot.
+            const warn = idle.apply();
+            if (beacon) beacon.kick();
+            return { ok: true, message: `Applied at once, no restart: ${idle.label}.${warn || ''}` };
         }
+        // With other changes it lands only once their restart succeeded, so a rollback
+        // ("nothing changed") stays true.
         return runJob('settings', 'Applying the farm settings', async (progress) => {
             const applied = [];
             if (lcMode) {
@@ -2545,6 +2576,7 @@ async function run(args) {
                     if (Object.keys(patch).length) await reloadLlamacpp(() => {}); else await restartProxy();
                     return { ok: false, error: `${err} Reverted — nothing changed.` };
                 }
+                if (idle) { idle.apply(); applied.push(idle.label); }
                 if (beacon) beacon.kick();
                 sendBusKey(svcById.bus.child, config.proxy.masterKey);   // the bus hears a new password now, not at the next tick (critic N1)
                 return { ok: true, message: `Applied in one restart: ${applied.join(' · ')}.` };
@@ -2619,6 +2651,7 @@ async function run(args) {
                 await restartProxy();
                 return { ok: false, error: 'The proxy did not come back — reverted everything.' };
             }
+            if (idle) { idle.apply(); applied.push(idle.label); }
             if (beacon) beacon.kick();
             sendBusKey(svcById.bus.child, config.proxy.masterKey);   // the bus hears a new password now, not at the next tick (critic N1)
             return { ok: true, needsFarmRestart, message: `Applied in one restart: ${applied.join(' · ')}.` };
@@ -2781,8 +2814,8 @@ async function run(args) {
     return new Promise(() => {});
 }
 
-// makeRateMeter/pullPhase/makePerfSampler are exported for the tests: each encodes
-// judgements that are easy to break silently (a negative rate after a restart, a
-// raw digest leaking into the UI, a non-vLLM read as one) and none is reachable
-// through `run`.
-module.exports = { run, resolveOcrModel, makeRateMeter, pullPhase, makePerfSampler };
+// makeRateMeter/pullPhase/makePerfSampler/seatIdleChange are exported for the tests:
+// each encodes judgements that are easy to break silently (a negative rate after a
+// restart, a raw digest leaking into the UI, a non-vLLM read as one, a seat hold out
+// of range) and none is reachable through `run`.
+module.exports = { run, resolveOcrModel, makeRateMeter, pullPhase, makePerfSampler, seatIdleChange };

@@ -319,7 +319,9 @@ survives a restart. The exceptions, all deliberate:
 
 The *Backend* card's settings — the name (llama.cpp), people served at once, the context window and the
 farm password — are collected and applied by **one Apply changes** button: one restart for all of them,
-not one per field.
+not one per field. **Free an idle seat after** (shown while the seat gate is on) rides the same button but
+restarts nothing: the gate reads `proxy.seatIdleSec` live, so set it to 2 min before a workshop and back
+to 15 min after.
 
 **Under an external server** the panel's engine controls are off: the engine buttons, name, slots and
 context are refused (*"An external server is serving — set external.\* in lol.config.json and restart"*),
@@ -560,7 +562,7 @@ get *"the farm is busy"*).
 | `POST /lol/client-ping` | Client presence heartbeat (open). |
 | `GET /lol/admin` | The panel page (open — it asks for the token). |
 | `GET /lol/admin/state` | Everything the panel renders. |
-| `POST /lol/admin/apply` | `{ name?, slots?, password?, context? }` — the one **Apply changes**, one restart. |
+| `POST /lol/admin/apply` | `{ name?, slots?, password?, context?, seatIdleSec? }` — the one **Apply changes**, one restart; `seatIdleSec` (60–3600) alone applies live, no restart. |
 | `POST /lol/admin/backend` | `{ engine: "llamacpp" \| "ollama" }` — switch engines. |
 | `POST /lol/admin/name` · `/slots` · `/context` · `/security` | The single-field forms of Apply (`{ name }`, `{ slots }`, `{ tokens }`, `{ password }` — an empty password removes it). |
 | `POST /lol/admin/llamacpp/model` · `/llamacpp/library/add` · `/llamacpp/library/remove` | Load a library entry or URL; edit the `.gguf` library. |
@@ -771,7 +773,9 @@ build for Blackwell cards (16 GB+); replace it freely.
   LiteLLM binds loopback-only behind it (`proxy.internalPort`, default port+1), so the farm can
   ENFORCE who generates: an IP's first completion claims a **seat** (capacity = the engine's
   "people served at once"), every completion refreshes it, and a seat with no generation for
-  **`proxy.seatIdleSec`** (default 900 = 15 min) frees for the next person. A generation on a full
+  **`proxy.seatIdleSec`** (default 900 = 15 min; 60 minimum) frees for the next person. The panel's
+  **Free an idle seat after** sets it live, 1–60 min, no restart: a short hold (2 min) suits a
+  workshop, where an idle seat should not block the next person. A generation on a full
   farm gets a clear 429 ("All N seats are in use…") instead of silently queueing behind idlers; its
   `Retry-After` is the seconds until the soonest idle seat frees (30 when every seat is generating).
   With a `proxy.masterKey`, the gate checks it **before** seating anyone: a missing or wrong key
