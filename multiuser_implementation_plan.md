@@ -817,6 +817,7 @@ Scrape vLLM Prometheus `/metrics` on the farm's existing 10 s health tick: runni
 ### 3.3 Observability
 
 - **Minimal version first** (critic): a 429 count, peak seats and TTFT p95 in the existing snapshot and panel. No Prometheus, no per-install labels. What follows is the full version, only if that proves too little.
+  - **Status, 2026-10-04: the minimal version is built** (DEVLOG 2026-10-04 14:19). It counts generations let in, turned away, refused for the password and stopped, plus the fullest moment and the first-word wait p50/p95, over the last hour and since start. Counts only, in memory, in the panel and the admin state (not in the beacon). A week of normal use, or one workshop, answers decision 2.
 - `GET /metrics` (Prometheus) on the beacon port: seats used, queue depth, queue wait p50/p95, TTFT p50/p95, tok/s per active user, cancels, overflow count, engine KV usage.
 - Labels use install-id hashes, never hostnames or content. The "counts and refusals only" rule exists for the bus and the Python services, but **not farm-wide**: OCR logs filenames (Phase 0.4). Make it farm-wide first.
 - Panel: 15-minute sparklines for queue depth and TTFT.

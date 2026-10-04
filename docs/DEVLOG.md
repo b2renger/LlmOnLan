@@ -6,6 +6,25 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-10-04 (14:19) — Multi-user 3.3, minimal: what people met at the gate
+
+Decision 2 of the plan (keep the 429, or queue) now gets numbers instead of guesses.
+
+- **What the seat gate counts** (`seats.js` `createGateStats`), over the last hour and since start:
+  - generations let in, turned away (429) and refused for a wrong password (401);
+  - replies the person stopped, and how many of those before the first word;
+  - the fullest moment (N of M seats, at HH:MM);
+  - the wait for a stream's first word, from the request reaching the gate to its first byte (p50/p95).
+- **Privacy:** counts only, in memory. 60 one-minute buckets plus the totals, wait times binned, about
+  13 KB whatever the traffic. Never an address, id or content, and everything resets at restart.
+  - A test checks that every argument the gate hands the stats is a number or a boolean.
+  - These are counts of **requests**, not people: a retried 429 counts twice.
+- **Where it shows:** the panel's Clients card (its folded title says "N generations turned away in the
+  last hour" when there are any) and token-gated `/lol/admin/state` `capacity.metrics`. Not in the beacon
+  or the public snapshot, since no client reads it.
+- **Tests:** farm `npm test` 149 → **152 passed**; shell `chat-unit` still 1794/0 (the mock reads
+  `seats.js`).
+
 ## 2026-10-04 (14:08) — Multi-user 1.6: the client stops wasting seats (own seat, 429s, the agent's retries, small windows)
 
 Item 1.6 of the multi-user plan, in `shell/` only. Results: build clean, `test:unit` 5/5, `chat-unit`

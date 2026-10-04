@@ -444,6 +444,18 @@ in use"*. Set `proxy.seatGate: false` to go back to queueing. A unicast `GET /lo
 `capacity.mine: true` when the **caller's** IP holds one of those seats (`false` otherwise), so a
 client can count its own seat as its own; being per caller, it is never in the beacon broadcast.
 
+**What people met at the gate.** To answer "keep the 429 or queue?" with numbers, the gate counts, over
+the last hour and since the farm started: generations let in, turned away (the 429), refused for a wrong
+password (the 401), stopped by the person before the reply ended (and how many of those before the first
+word), the fullest moment (*"3 of 3 seats at 14:05"*, read at each generation request), and the wait for
+the first word of a streamed reply, from the request reaching the gate to the first byte back (queueing and
+prompt reading included; a non-streamed reply is let in but not timed), as *"within X s for half, Y s for
+95%"*. The Clients card shows them and adds *"N generations turned away in the last hour"* to its title;
+`GET /lol/admin/state` carries them as `capacity.metrics`. Counts only: no address, id or content is kept,
+nothing is written to disk, and they reset when the farm restarts. Memory is fixed (60 one-minute buckets
+plus the totals, the times in bins), so the percentiles are bin edges. They are not in the beacon: no
+client reads them. A request counts each time, so a client that retries a 429 counts again.
+
 **"Capacity is unverified."** `OLLAMA_NUM_PARALLEL` / `OLLAMA_KV_CACHE_TYPE` only reach an Ollama the farm
 starts. When Ollama was already running as someone's service, the snapshot reports
 `slotsVerified: false`, and the panel's Clients card says *"Capacity is unverified"* with the exact env

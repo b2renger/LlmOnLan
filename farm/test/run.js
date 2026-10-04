@@ -1674,6 +1674,150 @@ test('seat gate: on a passworded farm a missing or wrong key gets a 401 and NO s
     }
 });
 
+test('gate stats: counts, the rolling hour, the fullest moment, first-word percentiles, a fixed size (plan 3.3)', () => {
+    let t = 60000 * 29000000;                       // a minute boundary
+    const st = seatsMod.createGateStats({ now: () => t });
+    st.unauthorized();
+    st.admitted(1, 3);
+    st.admitted(3, 3);
+    st.refused(3, 3);
+    st.cancelled(true);
+    st.cancelled(false);
+    for (let i = 0; i < 18; i++) st.firstByte(400);
+    st.firstByte(2500);
+    st.firstByte(400000);                           // past the last bin edge
+    let h = st.view().lastHour;
+    assert.deepEqual([h.admitted, h.refused, h.unauthorized, h.cancelled, h.cancelledBeforeFirstByte], [2, 1, 1, 2, 1]);
+    assert.deepEqual([h.peakSeats, h.peakOf, h.peakAt], [3, 3, t]);
+    assert.equal(h.timed, 20);
+    assert.equal(h.ttfbP50Ms, 500, 'the 400 ms bin reads "within 0.5 s"');
+    assert.equal(h.ttfbP95Ms, 3000, '19 of 20 within 3 s');
+    assert.equal(h.ttfbMaxMs, 400000);
+    assert.equal(st.view().startedAt, 60000 * 29000000);
+
+    t += 5 * 60000;
+    st.admitted(3, 3);                              // as full again later: the LATEST time is kept
+    t += 25 * 60000;
+    st.refused(2, 3);
+    h = st.view().lastHour;
+    assert.deepEqual([h.refused, h.peakSeats, h.peakAt], [2, 3, 60000 * 29000000 + 5 * 60000]);
+
+    t = 60000 * 29000000 + 66 * 60000;              // minutes 0 and +5 are out of the hour; +30 is in
+    h = st.view().lastHour;
+    assert.deepEqual([h.admitted, h.refused, h.unauthorized, h.cancelled, h.timed], [0, 1, 0, 0, 0]);
+    assert.deepEqual([h.peakSeats, h.ttfbP50Ms, h.ttfbP95Ms, h.ttfbMaxMs], [2, null, null, null]);
+    t += 5 * 60000;
+    st.admitted(1, 3);
+    assert.equal(st.view().lastHour.peakSeats, 2, 'the fullest moment in the window, not the last one');
+    const all = st.view().sinceStart;
+    assert.deepEqual([all.admitted, all.refused, all.unauthorized, all.cancelled, all.timed, all.peakSeats], [4, 2, 1, 2, 20, 3]);
+
+    t += 3 * 3600 * 1000;
+    h = st.view().lastHour;
+    assert.deepEqual([h.admitted, h.refused, h.peakSeats, h.peakAt], [0, 0, 0, null], 'a quiet hour reads as quiet');
+
+    // Never more than the hour's 60 buckets, however long or busy: 100 000 events over 5 hours.
+    const small = seatsMod.createGateStats({ now: () => t }).minutes;
+    for (let i = 0; i < 100000; i++) { t += 180; st.admitted(i % 4, 3); st.firstByte(i % 9000); if (i % 7 === 0) st.refused(3, 3); }
+    assert.equal(st.minutes.length, 60);
+    assert.ok(st.minutes.every((b) => b.ttfb.length === small[0].ttfb.length), 'fixed bins');
+    assert.ok(JSON.stringify({ m: st.minutes, t: st.total }).length < 30000, 'a few KB, whatever the traffic');
+    assert.equal(st.view().sinceStart.admitted, 100004);
+    // The smallest times read as themselves, not as the first bin edge.
+    const quick = seatsMod.createGateStats({ now: () => t });
+    quick.firstByte(120); quick.firstByte(80);
+    assert.equal(quick.view().lastHour.ttfbP95Ms, 120);
+});
+
+test('seat gate: counts what people met — 401, 429, let in, stopped before/after the first word, the wait for it — never who (plan 3.3)', async () => {
+    const http = require('http');
+    const net = require('net');
+    const canBind = await new Promise((r) => { const s = net.createServer(); s.once('error', () => r(false)); s.listen(0, '127.0.0.2', () => s.close(() => r(true))); });
+    let upClosed = 0;
+    const upstream = http.createServer((req, res) => {
+        req.resume();
+        res.on('close', () => { upClosed++; });
+        const mode = req.headers['x-test'];
+        if (mode === 'json') { res.writeHead(200, { 'content-type': 'application/json' }); return res.end('{"choices":[]}'); }
+        if (mode === 'hang') return;                                      // queued forever: no first byte
+        res.writeHead(200, { 'content-type': 'text/event-stream' });
+        if (mode === 'drip') return res.write('data: one\n\n');          // a first word, then nothing
+        setTimeout(() => { res.write('data: hello\n\n'); res.end('data: [DONE]\n\n'); }, 300);
+    });
+    await new Promise((r) => upstream.listen(0, '127.0.0.1', r));
+    const seats = seatsMod.createSeats({ capacity: () => 1, idleReleaseSec: () => 900 });
+    const real = seatsMod.createGateStats();
+    const args = [];   // every value the gate ever hands the stats
+    const stats = new Proxy(real, { get: (o, k) => (typeof o[k] === 'function' ? (...a) => { args.push(...a); return o[k](...a); } : o[k]) });
+    const gate = await seatsMod.startSeatGate({ host: '127.0.0.1', port: 0, upstreamPort: upstream.address().port, seats, idleReleaseSec: () => 900, password: () => 'pw', stats });
+    const call = (mode, { key = 'pw', from, abortOn } = {}) => new Promise((resolve, reject) => {
+        const req = http.request({
+            host: '127.0.0.1', port: gate.address().port, method: 'POST', path: '/v1/chat/completions', localAddress: from,
+            headers: { 'content-type': 'application/json', 'x-test': mode, ...(key ? { authorization: `Bearer ${key}` } : {}) },
+        }, (res) => {
+            let buf = '';
+            res.on('data', (c) => { buf += c; if (abortOn === 'first') req.destroy(); });
+            res.on('end', () => resolve({ status: res.statusCode, body: buf }));
+            res.on('close', () => resolve({ status: res.statusCode, body: buf }));
+        });
+        req.on('error', () => resolve({ status: 0 }));
+        if (abortOn === 'wait') setTimeout(() => req.destroy(), 150);
+        req.end('{"messages":[]}');
+    });
+    const hour = () => real.view().lastHour;
+    try {
+        assert.equal((await call('stream', { key: null })).status, 401);
+        assert.equal((await call('stream')).status, 200);
+        assert.equal((await call('json')).status, 200);
+        assert.deepEqual([hour().unauthorized, hour().admitted, hour().timed], [1, 2, 1], 'a non-streamed reply is let in but not timed');
+        assert.ok(hour().ttfbMaxMs >= 280 && hour().ttfbP50Ms <= 500 && hour().ttfbP50Ms >= 280, JSON.stringify(hour()));
+        await call('hang', { abortOn: 'wait' });
+        await waitFor(() => hour().cancelled === 1, 2000, 'a cancel before the first word');
+        await call('drip', { abortOn: 'first' });
+        await waitFor(() => hour().cancelled === 2, 2000, 'a cancel after the first word');
+        assert.deepEqual([hour().cancelledBeforeFirstByte, hour().timed, hour().admitted], [1, 2, 4]);
+        await waitFor(() => upClosed >= 4, 2000, 'both stopped requests to reach the upstream');
+        if (canBind) {
+            assert.equal((await call('stream', { from: '127.0.0.2' })).status, 429, 'a second address on a one-seat farm');
+            assert.deepEqual([hour().refused, hour().peakSeats, hour().peakOf], [1, 1, 1]);
+        } else console.log('       (429 part skipped: this OS only routes 127.0.0.1)');
+        const before = JSON.stringify(real.view());
+        await new Promise((r) => http.get(`http://127.0.0.1:${gate.address().port}/v1/models`, (res) => { res.resume(); res.on('end', r); }));
+        assert.equal(JSON.stringify(real.view()), before, 'GET /v1/models counts nothing');
+        // Never who: the hooks only ever receive numbers and booleans, and the whole state holds no address.
+        assert.ok(args.every((a) => typeof a === 'number' || typeof a === 'boolean'), JSON.stringify(args));
+        assert.ok(!/127\.0\.0|::1|ffff/.test(JSON.stringify({ m: real.minutes, t: real.total, v: real.view() })), 'no address anywhere in the state');
+    } finally {
+        gate.close();
+        upstream.close();
+    }
+});
+
+test('panel: the Clients card shows what people met at the gate, and its headline says how many were turned away', () => {
+    const render = loadPanel();
+    const at = new Date(2026, 9, 4, 14, 5).getTime();
+    const realNow = Date.now;
+    Date.now = () => at + 10 * 60000;
+    try {
+        const zero = { admitted: 0, refused: 0, unauthorized: 0, cancelled: 0, cancelledBeforeFirstByte: 0, peakSeats: 0, peakAt: null, peakOf: null, timed: 0, ttfbP50Ms: null, ttfbP95Ms: null, ttfbMaxMs: null };
+        const hourStats = { ...zero, admitted: 42, refused: 3, cancelled: 2, cancelledBeforeFirstByte: 1, peakSeats: 3, peakAt: at, peakOf: 3, timed: 40, ttfbP50Ms: 1000, ttfbP95Ms: 3000 };
+        const html = render(adminState({ capacity: { slots: 3, clients: 0, seats: [], seatIdleSec: 900, slotsVerified: true, unmanagedHosts: [],
+            metrics: { startedAt: at - 3600e3, lastHour: hourStats, sinceStart: { ...hourStats, admitted: 120, refused: 5 } } } }));
+        assert.ok(html.includes('· 3 generations turned away in the last hour'), 'the headline, readable with the card folded');
+        for (const s of ['42 generations let in', '3 turned away (all seats in use)', '2 stopped before the end (1 before the first word)',
+            'fullest: 3 of 3 seats at', 'first word within 1 s for half, 3 s for 95%', '120 generations let in', 'never per person']) {
+            assert.ok(html.includes(s), s);
+        }
+        assert.ok(!html.includes('wrong password'), 'a zero count stays out of the sentence');
+        const quiet = render(adminState({ capacity: { slots: 3, clients: 0, seats: [], seatIdleSec: 900, slotsVerified: true, unmanagedHosts: [],
+            metrics: { startedAt: at, lastHour: zero, sinceStart: zero } } }));
+        assert.ok(!quiet.includes('turned away in the last hour') && quiet.includes('0 generations let in'), 'nobody turned away: no headline');
+        assert.ok(!render(adminState()).includes('Last hour'), 'an old farm or the gate off: no line at all');
+    } finally {
+        Date.now = realNow;
+    }
+});
+
 test('lol bench --people simulates PEOPLE: one source address each, so the real gate turns the one too many away; --cancel stops streams; --out saves it all (plan 0.5)', async () => {
     const http = require('http');
     const net = require('net');

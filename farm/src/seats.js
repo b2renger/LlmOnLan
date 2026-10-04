@@ -121,16 +121,97 @@ function createSeats({ capacity, idleReleaseSec, now = Date.now }) {
     };
 }
 
+// What people met at the gate (multi-user plan 3.3), for the owner's open question
+// (plan §13, decision 2: keep the 429, or queue?): how many generations were let in or
+// turned away, how full the seats got and when, how long the first word took, and how
+// many replies were stopped. COUNTS ONLY: the gate hands these hooks no address, id or
+// content, so nothing here can say who did what (§13b, identity privacy). In memory,
+// lost at restart: the farm stays stateless.
+// First-byte times land in bins (upper edges in ms, plus one bin for anything longer),
+// so a percentile reads "within X", capped by the slowest time actually seen.
+const TTFB_EDGES_MS = [250, 500, 1000, 1500, 2000, 3000, 5000, 7500, 10000, 15000, 20000, 30000, 60000, 120000, 300000];
+const COUNTS = ['admitted', 'refused', 'unauthorized', 'cancelled', 'cancelledBeforeFirstByte'];
+const emptyCounts = () => ({
+    admitted: 0, refused: 0, unauthorized: 0, cancelled: 0, cancelledBeforeFirstByte: 0,
+    peakSeats: 0, peakAt: null, peakOf: null,
+    ttfb: new Array(TTFB_EDGES_MS.length + 1).fill(0), ttfbMaxMs: 0,
+});
+
+function ttfbPercentile(c, p) {
+    const n = c.ttfb.reduce((a, b) => a + b, 0);
+    let seen = 0;
+    for (let i = 0; n && i < c.ttfb.length; i++) {
+        seen += c.ttfb[i];
+        if (seen >= p * n - 1e-9) return Math.min(TTFB_EDGES_MS[i] ?? Infinity, c.ttfbMaxMs);
+    }
+    return null;
+}
+
+function createGateStats({ now = Date.now } = {}) {
+    const startedAt = now();
+    // ponytail: a ring of 60 one-minute buckets plus the since-start totals, the same few
+    // hundred numbers whatever the traffic. A longer window = more buckets; exact
+    // percentiles would need kept samples, which choosing queue-or-429 does not.
+    const minutes = Array.from({ length: 60 }, () => ({ minute: -1, ...emptyCounts() }));
+    const total = emptyCounts();
+    const bump = (fn) => {
+        const m = Math.floor(now() / 60000);
+        const b = minutes[m % 60];
+        if (b.minute !== m) Object.assign(b, emptyCounts(), { minute: m });
+        fn(b); fn(total);
+    };
+    // Seats held, read at every generation request (the only moment the count grows).
+    // >= keeps the LATEST time it was that full.
+    const seated = (c, used, cap) => {
+        if (used >= c.peakSeats) { c.peakSeats = used; c.peakAt = now(); c.peakOf = cap; }
+    };
+    const summary = (c) => {
+        const timed = c.ttfb.reduce((a, b) => a + b, 0);
+        return {
+            ...Object.fromEntries(COUNTS.map((k) => [k, c[k]])),
+            peakSeats: c.peakSeats, peakAt: c.peakAt, peakOf: c.peakOf,
+            timed, ttfbP50Ms: ttfbPercentile(c, 0.5), ttfbP95Ms: ttfbPercentile(c, 0.95), ttfbMaxMs: timed ? c.ttfbMaxMs : null,
+        };
+    };
+    return {
+        minutes, total, // the whole state, readable so a test can prove it holds no address
+        admitted(used, cap) { bump((c) => { c.admitted++; seated(c, used, cap); }); },
+        refused(used, cap) { bump((c) => { c.refused++; seated(c, used, cap); }); },
+        unauthorized() { bump((c) => { c.unauthorized++; }); },
+        firstByte(ms) {
+            const i = TTFB_EDGES_MS.findIndex((e) => ms <= e);
+            bump((c) => { c.ttfb[i < 0 ? TTFB_EDGES_MS.length : i]++; c.ttfbMaxMs = Math.max(c.ttfbMaxMs, Math.round(ms)); });
+        },
+        cancelled(beforeFirstByte) { bump((c) => { c.cancelled++; if (beforeFirstByte) c.cancelledBeforeFirstByte++; }); },
+        view() {
+            const m = Math.floor(now() / 60000);
+            const hour = emptyCounts();
+            for (const b of minutes) {
+                if (b.minute <= m - 60 || b.minute > m) continue;
+                for (const k of COUNTS) hour[k] += b[k];
+                b.ttfb.forEach((v, i) => { hour.ttfb[i] += v; });
+                hour.ttfbMaxMs = Math.max(hour.ttfbMaxMs, b.ttfbMaxMs);
+                if (b.peakAt != null && (b.peakSeats > hour.peakSeats || (b.peakSeats === hour.peakSeats && b.peakAt > hour.peakAt))) {
+                    Object.assign(hour, { peakSeats: b.peakSeats, peakAt: b.peakAt, peakOf: b.peakOf });
+                }
+            }
+            return { startedAt, lastHour: summary(hour), sinceStart: summary(total) };
+        },
+    };
+}
+
 // The gate itself: a dependency-free streaming pass-through to LiteLLM on
 // loopback. SSE streams ride the pipe untouched; a client that disconnects
 // mid-stream destroys the upstream request so the engine slot frees too.
 // `password` is a thunk like the others: the panel sets the farm password at runtime.
-function startSeatGate({ host, port, upstreamPort, seats, idleReleaseSec, password = () => null }) {
+function startSeatGate({ host, port, upstreamPort, seats, idleReleaseSec, password = () => null, stats = createGateStats() }) {
     const server = http.createServer((req, res) => {
+        const t0 = Date.now();
         const ip = (req.socket && req.socket.remoteAddress) || '';
         const gated = isGated(req.method || '', req.url);
         if (gated) {
             if (!keyOk(req, password())) {
+                stats.unauthorized();
                 res.writeHead(401, { 'content-type': 'application/json' });
                 return res.end(JSON.stringify({
                     error: {
@@ -142,6 +223,7 @@ function startSeatGate({ host, port, upstreamPort, seats, idleReleaseSec, passwo
             }
             const a = seats.admit(ip);
             if (!a.ok) {
+                stats.refused(a.used, a.cap);
                 const mins = Math.max(1, Math.round((idleReleaseSec() || 900) / 60));
                 // Retry-After says when the soonest idle seat is reclaimed; with every
                 // seat generating nothing is predictable, so it is a short poll interval.
@@ -158,11 +240,14 @@ function startSeatGate({ host, port, upstreamPort, seats, idleReleaseSec, passwo
                     },
                 }));
             }
+            stats.admitted(a.used, a.cap);
         }
         // One release per gated request, however the response ends ('close'
         // fires after both a clean finish and an abort).
         let released = false;
         const releaseOnce = () => { if (gated && !released) { released = true; seats.release(ip); } };
+        let firstByte = false;
+        let upFailed = false;
 
         const up = http.request({
             host: '127.0.0.1',
@@ -173,8 +258,18 @@ function startSeatGate({ host, port, upstreamPort, seats, idleReleaseSec, passwo
         }, (ur) => {
             res.writeHead(ur.statusCode || 502, ur.headers);
             ur.pipe(res);
+            // A stream's first byte is the person's wait for the first word, queueing and
+            // prompt reading included. A non-streamed reply's first byte is the whole
+            // answer (and an error is JSON), so only streams are timed.
+            if (gated) {
+                ur.once('data', () => {
+                    firstByte = true;
+                    if (/event-stream/i.test(ur.headers['content-type'] || '')) stats.firstByte(Date.now() - t0);
+                });
+            }
         });
         up.on('error', () => {
+            upFailed = true;
             releaseOnce();
             if (!res.headersSent) {
                 res.writeHead(502, { 'content-type': 'application/json' });
@@ -189,7 +284,12 @@ function startSeatGate({ host, port, upstreamPort, seats, idleReleaseSec, passwo
             // Abandoned mid-stream → cancel upstream so llama-server/Ollama stop
             // generating for a reader who left. After a clean finish this is a no-op
             // guard (writableEnded), not a keep-alive socket kill.
-            if (!res.writableEnded) up.destroy();
+            if (!res.writableEnded) {
+                // The person left before the reply ended (Stop, a closed window), not a
+                // model server that failed.
+                if (gated && !upFailed) stats.cancelled(!firstByte);
+                up.destroy();
+            }
         });
         req.pipe(up);
     });
@@ -202,4 +302,4 @@ function startSeatGate({ host, port, upstreamPort, seats, idleReleaseSec, passwo
     });
 }
 
-module.exports = { createSeats, startSeatGate, isGated, normIp };
+module.exports = { createSeats, createGateStats, startSeatGate, isGated, normIp };

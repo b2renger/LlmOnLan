@@ -514,9 +514,11 @@ function render(s) {
   // generate right now. Clients below stay the heartbeat view (who has the
   // app open). Old farms / gate off → cap.seats is null and the label falls
   // back to the advisory slot count.
-  const capLabel = Array.isArray(cap.seats)
+  const met = cap.metrics;
+  const capLabel = (Array.isArray(cap.seats)
     ? ` — ${cap.seats.length} of ${cap.slots} seat${cap.slots > 1 ? 's' : ''} in use`
-    : (cap.slots != null ? ` — ${cap.clients} of ${cap.slots} slot${cap.slots > 1 ? 's' : ''} in use` : '');
+    : (cap.slots != null ? ` — ${cap.clients} of ${cap.slots} slot${cap.slots > 1 ? 's' : ''} in use` : ''))
+    + (met && met.lastHour.refused ? ` · ${met.lastHour.refused} generation${met.lastHour.refused === 1 ? '' : 's'} turned away in the last hour` : '');
   // Ollama started by somebody else = our concurrency/KV env never applied, so
   // the slot (and therefore seat) count is a wish, not a measurement. Say so
   // where the number is shown, with the exact line that makes it true. Ollama
@@ -533,6 +535,24 @@ function render(s) {
         ? 'Generation seats: ' + cap.seats.map((x) => esc(`${x.ip}${x.inFlight ? ' (generating)' : (x.idleSec != null ? ' (idle ' + dur(x.idleSec) + ')' : '')}`)).join(', ') + ' — '
         : 'No generation seats in use. '}A seat frees after ${Math.round((cap.seatIdleSec || 900) / 60)} min without generating; reading old chats never takes one.</div>`
     : '';
+  // What people met at the gate: counts only, kept in the farm's memory, reset at restart.
+  // The first-word times are bins, so "within" is the honest word.
+  const secs = (ms) => (ms >= 120000 ? Math.round(ms / 60000) + ' min' : +(ms / 1000).toPrecision(2) + ' s');
+  const when = (t) => new Date(t).toLocaleString([], Date.now() - t < 20 * 3600e3
+    ? { hour: '2-digit', minute: '2-digit' } : { weekday: 'short', hour: '2-digit', minute: '2-digit' });
+  const metParts = (x) => [
+    `${x.admitted} generation${x.admitted === 1 ? '' : 's'} let in`,
+    `${x.refused} turned away (all seats in use)`,
+    x.unauthorized ? `${x.unauthorized} with a wrong password` : '',
+    x.cancelled ? `${x.cancelled} stopped before the end (${x.cancelledBeforeFirstByte} before the first word)` : '',
+    x.peakAt != null ? `fullest: ${x.peakSeats} of ${x.peakOf} seats at ${when(x.peakAt)}` : '',
+    x.ttfbP50Ms != null ? `first word within ${secs(x.ttfbP50Ms)} for half, ${secs(x.ttfbP95Ms)} for 95%` : '',
+  ].filter(Boolean).map(esc).join(' · ');
+  const metricsRow = met
+    ? `<div class="meta" style="margin:4px 0 8px"><b>Last hour:</b> ${metParts(met.lastHour)}.<br>`
+      + `<b>Since the farm started (${esc(when(met.startedAt))}):</b> ${metParts(met.sinceStart)}.<br>`
+      + `Counts only, kept in the farm's memory and never per person; they reset when the farm restarts.</div>`
+    : '';
 
   app.innerHTML =
     `<header class="top"><h1>lol <span class="lol">${esc(s.name || 'farm')}</span></h1></header>`
@@ -543,7 +563,7 @@ function render(s) {
     + libCard
     + ollamaCard
     + `<div class="card"><h2>Plugins</h2>${pluginRows}${blenderRow}</div>`
-    + `<div class="card"><details id="clients-d"${clientsOpen ? ' open' : ''}><summary><h2>Clients (${clients.length})${capLabel}</h2></summary>${seatRows}${unverifiedRow}${clientRows}</details></div>`
+    + `<div class="card"><details id="clients-d"${clientsOpen ? ' open' : ''}><summary><h2>Clients (${clients.length})${capLabel}</h2></summary>${seatRows}${metricsRow}${unverifiedRow}${clientRows}</details></div>`
     + `<div class="card"><h2>This box</h2><div class="health">${healthBits}</div></div>`;
 
   app.querySelectorAll('button[data-act]').forEach((b) => { b.onclick = () => act(b.dataset.act, b.dataset.id, b); });

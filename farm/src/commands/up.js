@@ -35,7 +35,7 @@ const { makeServices, pluginsSummary } = require('../plugins/registry');
 const { sendKey: sendBusKey } = require('../bus');
 const { farmId, pluginKey } = require('../identity');
 const { startSelfServer } = require('../selfServer');
-const { createSeats, startSeatGate } = require('../seats');
+const { createSeats, createGateStats, startSeatGate } = require('../seats');
 const {
     readRuntime, writeRuntime, clearRuntime, isAlive, killTree, spawnLitellm,
 } = require('../proc');
@@ -1101,6 +1101,8 @@ async function run(args) {
     // timeout and the password are thunks: a panel change applies to the gate live.
     let seats = null;
     let seatGateServer = null;
+    // What people met at the gate (counts only, this run only) — the panel's Clients card.
+    const gateStats = seatGateOn ? createGateStats() : null;
     if (seatGateOn) {
         seats = createSeats({
             capacity: () => backendInfo(config, liveHealth).slots,
@@ -1114,6 +1116,7 @@ async function run(args) {
                 seats,
                 idleReleaseSec: () => config.proxy.seatIdleSec || 900,
                 password: () => config.proxy.masterKey || null,
+                stats: gateStats,
             });
         } catch (e) {
             log.err(`Seat gate could not bind ${config.proxy.host}:${config.proxy.port} (${e.code || e.message}). Is another farm running?`);
@@ -1609,6 +1612,9 @@ async function run(args) {
                 clients: freshClients().length,
                 seats: seats ? seats.view() : null,
                 seatIdleSec: seats ? (config.proxy.seatIdleSec || 900) : null,
+                // Let in, turned away, wrong password, stopped, the fullest moment and the
+                // wait for the first word: last hour + since start, counts only (seats.js).
+                metrics: gateStats ? gateStats.view() : null,
                 // false = the slot count (and therefore the seat count) is what the
                 // config asked for, not what the engine does — an Ollama daemon we
                 // did not start ignores our env. The panel explains + shows the fix.
