@@ -6,6 +6,26 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-10-04 (18:00) — The owner settles the open multi-user decisions
+
+All recorded in `multiuser_implementation_plan.md` §13 and the sections they touch.
+
+- **Full farm:** the engine queues. With vLLM, seats are set near what the card serves at acceptable
+  speed (the spike's latency-bounded count), and vLLM's scheduler queues the rest; the 429 becomes a
+  rare safety valve.
+  - Plus a **workshop setting**: a panel control for the seat hold (`proxy.seatIdleSec`).
+  - The farm's fair queue is built only if the gate's new metrics (3.3) show frequent refusals.
+- **Web search's per-message cost:** measure first (the query generation plus the injected pages), then
+  turn query generation off or make web search off by default.
+- **OCR beside vLLM:** reserve ~9 GB, about 14 % of the KV pool and free in practice, since memory isn't
+  the limit on hybrid models. The 2026-08-26 no-reserve rule stays for llama.cpp on small cards.
+- **Cut:** QVAC plugins (4.2), overflow to a weaker model (3.2, against the quality goal), TLS (a closed
+  LAN).
+- **Not cut:** the laptop model (4.3) becomes an open **use-case study**. Which uses (titles, the
+  Computer's small calls, offline chat), on which laptops, at what speed and quality, measured with the
+  spike harness on a few machines. CLAUDE.md's "inference goes to the farm, not the laptop" would need
+  the owner's amendment if it goes ahead.
+
 ## 2026-10-04 (17:55) — The engine × model spike, in progress: harness and first results committed for the Spark run
 
 Phase 0.6 is running on the RTX PRO 6000. ComfyQ was stopped by the owner, so the card is free. vLLM 0.30

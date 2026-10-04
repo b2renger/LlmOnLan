@@ -543,7 +543,14 @@ shared-IP case has been observed yet**; the critic recommends deferring 1.1 unti
 Touches: gate, snapshot (`capacity.identity`), shell, the panel Clients card (seats by hostname). The
 card already lists clients; it has no revoke button.
 
-### 1.2 Fair queue instead of 429 — DECISION (changes the 2026-09-04 mechanism)
+### 1.2 Fair queue instead of 429 — ANSWERED (owner, 2026-10-04): the engine queues + a workshop setting
+
+> **Decision:**
+> - With vLLM, set seats near what the card serves at acceptable speed (the spike's latency-bounded
+>   count), and let vLLM's scheduler queue the rest. The 429 becomes a rare safety valve.
+> - **Workshop setting:** a panel control for the seat hold (`proxy.seatIdleSec`, config-only today,
+>   minimum 60 s), applied live.
+> - The farm's fair queue below is built **only if** the 3.3 metrics show frequent refusals.
 
 The owner's 2026-09-04 ask was that **idle people** must not hold seats; the 429 was the mechanism
 (`seats.js:1-4`). This queue waits behind **active** people only. The 2026-09-07 decision also says
@@ -589,7 +596,11 @@ The gate already cancels upstream on disconnect. Verifying the LiteLLM hop and p
 Phase 0.0. What stays here: optionally link presence to seats (free a seat when its identity stops
 pinging for 30 s), once 1.1 exists.
 
-### 1.4 Background tasks off the main lane (half ALREADY IMPLEMENTED)
+### 1.4 Background tasks off the main lane (half ALREADY IMPLEMENTED) — ANSWERED: measure first
+
+> **Decision (owner, 2026-10-04):** measure the per-message cost first (the search-query generation and
+> the injected pages' prompt tokens). Then (c) turn query generation off with one env line if it's
+> significant, or make web search off by default if the pages dominate.
 
 - **Already done:** follow-ups, tags, autocomplete and retrieval-query generation are off.
 - **Remaining:** one **title** per chat, and **search-query generation on every message**, since web
@@ -611,7 +622,13 @@ pinging for 30 s), once 1.1 exists.
   patch, or send it with the task header.
 - **Not via an on-device model** (v1's 4.3 is recommended cut).
 
-### 1.5 Plugins in the capacity budget — DECISION (reverses 2026-08-26)
+### 1.5 Plugins in the capacity budget — ANSWERED (owner, 2026-10-04): reserve ~9 GB for OCR on vLLM boxes
+
+> **Decision:**
+> - vLLM's KV budget leaves room for the OCR model, costing ~14 % of the pool and nothing in practice.
+> - The 2026-08-26 no-reserve rule stays for llama.cpp on 12–16 GB cards.
+> - Built with Phase 2's sizing. The spike's 62 GB KV budget already leaves ~15 GiB free on the 96 GB
+>   card.
 
 The owner decided not to reserve OCR room in auto context: it "would collapse chat context to nothing" on
 12–16 GB cards. ECOSYSTEM_PLAN (2026-09-27) asks for plugins in the capacity maths.
@@ -808,7 +825,9 @@ Scrape vLLM Prometheus `/metrics` on the farm's existing 10 s health tick: runni
   `keep_alive` and aliasing).
 - **Payoff:** `cacheRam` and the prefix cache hit on returning turns.
 
-### 3.2 Overflow tier
+### 3.2 Overflow tier — CUT (owner, 2026-10-04)
+
+> Cut: a weaker model when busy works against the "good quality" goal. Kept for the record only.
 
 - Config `overflow: {alias, engine, model, triggerWaitSec}`; overflow model on Ollama or a peer farm (e.g. Nemotron 3.5 Lightning beside a Qwen main model). On one box, an Ollama overflow beside llama.cpp/vLLM breaks today's "no Ollama model routed while another engine serves" rule (2026-08-26, one engine at a time). A **peer farm** as overflow doesn't.
 - If estimated queue wait > `triggerWaitSec`, the gate rewrites the request's model to the overflow alias; the client's bound alias stays, so OWUI chats never break.
@@ -862,7 +881,9 @@ the idea of LAN model sharing, done with plain HTTP.
 
 Target: a new box on gigabit LAN goes from ~18 GB of internet downloads to minutes of local copy.
 
-### 4.2 Lighter plugin backends — recommended CUT, or reframe without QVAC (DECISION)
+### 4.2 Lighter plugin backends — CUT (owner, 2026-10-04)
+
+> Cut. What follows is kept for the record only.
 
 v1's spike question ("do QVAC addons run under Node ≥ 20?") is **already answered: no**. A Bare sidecar
 of ~805 MB+ per platform is not lighter than the ~1 GB of Python venvs it would replace.
@@ -873,12 +894,37 @@ of ~805 MB+ per platform is not lighter than the ~1 GB of Python venvs it would 
   i.e. non-Ollama engines.
 - **New TTS or translation plugins** are out of scope for multi-user.
 
-### 4.3 On-device fallback in the client — recommended CUT (DECISION)
+### 4.3 On-device model in the client — OPEN: a use-case study first (owner, 2026-10-04)
 
-v1 proposed running a small model on the laptop for offline use or when all farms are full. It
-contradicts CLAUDE.md: "Do NOT enable OWUI's built-in local inference engine (inference must go to the
-farm, not the laptop)". It also adds a model download per client. Full farms are better handled by
-Phase 3.0 (failover) and Phase 1.2 (queue).
+v1 proposed running a small model on the laptop, for offline use or when all farms are full. The owner
+keeps it open: "it should be able to run on any laptop … I think it's a good idea but I am afraid most
+laptops won't be able to have decent speed and quality. Depends on the use case, the space etc. We need
+to think further about use cases and if it is really pertinent." No code before the study.
+
+**Three questions the study must answer:**
+
+1. **Which uses could a laptop model serve acceptably?** Candidates, from least to most demanding:
+   - OWUI's background tasks: titles, the search query. Short and tolerant, and they free the farm.
+   - The Computer's small structured calls: Condition/Filter verdicts, short Instructions. With thinking
+     off, they are short.
+   - Offline single-person chat (no farm reachable: travel, home, a broken network).
+   - "The farm is full" overflow.
+   - The coding agent: almost certainly not, because it needs long context, tool calls and quality.
+2. **On which laptops?** The studio's real spread: RAM (8 / 16 / 32 GB), Apple Silicon vs Intel/AMD with
+   an integrated GPU vs a discrete NVIDIA, and free disk. A 3–4B model at Q4 is ~2–3 GB on disk and needs
+   ~4–6 GB of RAM while running. It also has to coexist with the person's other work (3D, VR, Adobe…).
+3. **At what speed and quality?** Measured, not guessed. The spike harness already provides both:
+   - `docs/spike/spike_bench.py --quality` at concurrency 1 for quality.
+   - A `chat` profile at c = 1 for tok/s and the first-word wait.
+   - Run it with llama.cpp on 3–4 representative laptops, with 2–3 small models.
+
+**The rule to revisit if it goes ahead:** CLAUDE.md says "Do NOT enable OWUI's built-in local inference
+engine (inference must go to the farm, not the laptop)". A client-side model would need an owner
+amendment to that rule (CLAUDE.md is the owner's), and the data-flow section would gain a line. It would
+also be **opt-in per laptop**, downloaded only on a person's click, and never the default.
+
+**Effort:** ~½ day to run the harness on a few laptops, once the owner names them, then a short
+write-up: which uses pass, on which machines.
 
 ### 4.4 Shared contract and drift check (minimum version)
 
@@ -1058,6 +1104,11 @@ KV reference points: Qwen3.8-27B ≈ 75 KB/token at q4_0 (repo-measured 1.2 GB/1
 ---
 
 ## 10. Security for larger groups
+
+> **Owner, 2026-10-04:** TLS is **cut** (a closed, trusted LAN; revisit only if the school's IT or
+> data-protection rules require encrypted Wi-Fi traffic). Revocation went with identity (1.1). What
+> remains here: the password check before a seat (built, Phase 0.1) and rate-limiting failed admin
+> attempts.
 
 - **First, Phase 0.1:** the gate checks the farm password before giving a seat. Today it never checks it.
 - **Revocation (only with 1.1 Option B, signed tokens):**
@@ -1319,9 +1370,14 @@ llama.cpp alternative (Windows or before Phase 2), OWUI chat with Qwen3.8-27B:
 3. **Phase 2:** the vLLM engine (step (a) integrated `external`, then (b) managed if chosen), with the
    model and flags the spike picked.
 4. **1.6 client fixes**, and slots/model per the measurements.
-5. **The open DECISIONs**, once answered: 1.4, 1.2, 1.5, TLS.
-6. **Phase 3** when a second big box arrives; 3.3 minimal metrics any time; 4.1 and 4.4 later. ~~1.1~~
-   is cut. 3.2 waits for 1.2.
+5. **The answered DECISIONs (2026-10-04):**
+   - the workshop setting for the seat hold (1.2), now;
+   - seats near the measured capacity (1.2), after the spike;
+   - the web-search cost (1.4), measured first;
+   - the OCR reserve (1.5), with Phase 2's sizing.
+6. **Phase 3** when a second big box arrives; 4.1 and 4.4 later.
+   - **Cut:** 1.1, 3.2, 4.2 and TLS.
+   - **4.3 (laptop model)** is an open study: run the harness on a few laptops first.
 
 | Item | Depends on | Effort | Done when |
 | --- | --- | --- | --- |
@@ -1397,30 +1453,41 @@ These are recommendations, not decisions.
    people × quality × context per box; the small GPUs are out.
    - Still open: the real head count per class, which sets the acceptance test.
    - *Critic:* one class on the PRO 6000 first.
-2. **Queue or 429** (1.2). Adopt the fair queue, keep 429, or make it per-farm?
-   - *Critic:* **keep 429**, add a workshop preset with a short idle release, and fix each surface's wait
-     message. The engine already queues admitted requests, and a gate queue adds state OWUI can't display.
+2. **Queue or 429** (1.2). **ANSWERED (2026-10-04): the engine queues, plus a workshop setting.**
+   - With vLLM, seats are set near what the card really serves at acceptable speed (from the spike), and
+     vLLM's own scheduler queues the rest. The 429 becomes a rare safety valve.
+   - A panel control shortens the seat hold (`seatIdleSec`, config-only today) for classes.
+   - The farm's fair queue is built **only if** the 3.3 metrics show frequent refusals.
+   - *Critic:* keep 429 + a workshop preset. Close to this.
 3. **Identity** (1.1). **ANSWERED (2026-10-04): no hard per-person identity**: complexity for users,
    unclear gains. Matches the critic's "neither for now".
-4. **OWUI's search-query generation and web pages** (1.4). A lane (needs a queue), a small tasks model
-   (needs a routing change beside non-Ollama engines), or off?
-   - *Critic:* **measure, then turn it off** with one env line if it costs more than ~15 % of slot time.
-     Revisit web search defaulting to `always`.
+4. **OWUI's search-query generation and web pages** (1.4). **ANSWERED (2026-10-04): measure first, then
+   decide.**
+   - Measure the per-message cost: the query generation and the prompt tokens of injected pages.
+   - Then (b) turn query generation off (one env line) if it's significant, or (c) make web search off by
+     default if the pages dominate.
+   - *Critic:* the same.
 5. **vLLM** (Phase 2). **ANSWERED (2026-10-04): in scope**, overriding the critic's cut.
    - Still open, decided from the spike: (a) integrated `external` or (b) fully managed.
    - The critic's caution stands as a test condition: WSL2 lifetimes on the PRO 6000 must be handled
      (stdin-EOF self-kill), and llama.cpp with a 3B-active MoE is measured beside it.
-6. **OCR reserve** (1.5). Reverse 2026-08-26 for non-Ollama engines?
-   - *Critic:* **no.** On ≥ 48 GB the pool stops at the native max, so nothing is starved.
-   - *Revision 3 note:* that held for llama.cpp. With vLLM sized by an explicit `--kv-cache-memory-bytes`,
-     the OCR model is just one line in the budget, next to ComfyUI's ~45 GB (0.7). So this becomes
-     "budget every co-tenant" rather than a policy reversal.
-7. **Cuts.** Drop 4.2 (QVAC plugins) and 4.3 (on-device inference, which contradicts CLAUDE.md)?
-   - *Critic:* **yes**, and also cut 3.2 (overflow), Phase 5 with the §9 catalog (replace it with a
-     measured table), and managed vLLM. Defer 1.1, 1.2, 3.1, 4.1 and 4.4.
-8. **TLS** (§10). Worth it on a closed LAN, given DHCP-assigned addresses and OWUI's CA-file-only trust?
-   - *Critic:* **no.** On a closed LAN with DHCP addresses and four separate trust stores, the cost
-     exceeds the threat.
+6. **OCR reserve** (1.5). **ANSWERED (2026-10-04): reserve ~9 GB for the OCR model on vLLM boxes.**
+   - vLLM's `--kv-cache-memory-bytes` leaves room for it. It costs ~14 % of the KV pool: Qwen3.6
+     168 → ~144 people at 32k, Nemotron 485 → ~415. Memory is not the limit on these models.
+   - The spike's 62 GB KV budget already leaves ~15 GiB free on the 96 GB card.
+   - The 2026-08-26 rule (no reserve) still holds for llama.cpp on 12–16 GB cards.
+   - Later, if Qwen3.6 wins: let the served vision model read documents itself (no second model).
+7. **Cuts. ANSWERED (2026-10-04):**
+   - **Cut:** 4.2 (QVAC plugins) and 3.2 (overflow to a weaker model, which works against the quality
+     goal).
+   - **4.3 is NOT cut: an open study.** The owner: "it should be able to run on any laptop … I think
+     it's a good idea but I am afraid most laptops won't be able to have decent speed and quality.
+     Depends on the use case, the space etc. We need to think further about use cases and if it is
+     really pertinent." See §7, 4.3.
+   - *Critic:* cut more (Phase 5 catalog, managed vLLM). Phase 5 became the measured table; vLLM stays
+     (owner).
+8. **TLS** (§10). **ANSWERED (2026-10-04): cut.** It is a closed, trusted LAN. Revisit only if the
+   school's IT or data-protection rules require encrypted Wi-Fi traffic.
 
 ## 13b. Gaps the critic raised (not yet planned)
 
