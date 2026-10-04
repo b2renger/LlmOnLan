@@ -1,0 +1,252 @@
+{
+ "kind": "bench",
+ "label": "pro6000-llamacpp-nemotron35L-q4km-p8",
+ "profile": "agent",
+ "profile_params": {
+  "prompt_tokens": 2000,
+  "prefix_tokens": 8000,
+  "max_tokens": 1024,
+  "tools": true
+ },
+ "thinking": "default",
+ "natural": false,
+ "model": "nemotron-3.5-lightning-q4km",
+ "base_url": "http://127.0.0.1:8190/v1",
+ "server": {
+  "models": [
+   {
+    "id": "nemotron-3.5-lightning-q4km",
+    "max_model_len": null,
+    "owned_by": "llamacpp",
+    "root": null
+   }
+  ],
+  "llamacpp": {
+   "build_info": "b10670-d077b4c21",
+   "total_slots": 8,
+   "n_ctx": 1048576,
+   "model_path": "C:\\Users\\ateliernum\\.ollama\\models\\blobs\\sha256-5c19f6282f4fc51cb114cb6c876d70ca2fc3b9cf0fbd0a018d9908f4fe1f63b3"
+  }
+ },
+ "host": {
+  "hostname": "AN-A6000PRO",
+  "machine": "x86_64",
+  "system": "Linux",
+  "release": "6.6.87.2-microsoft-standard-WSL2",
+  "python": "3.12.13"
+ },
+ "notes": "llama-server b10670 win-cuda-13.3, Ollama blob nemotron-3.5-lightning:30b Q4_K_M, --parallel 8 --ctx-size 1048576 --kv-unified -fa 1 -ctk/-ctv q8_0 --cache-reuse 256 --jinja (farm argv)",
+ "started": "2026-10-04T13:19:26.180374",
+ "tokenizer_calibration": {
+  "prose_tpw": 1.103654485049834,
+  "code_tpl": 7.61,
+  "json_tpc": 0.2604166666666667,
+  "source": "server /tokenize"
+ },
+ "criteria": {
+  "ttft_p95_max_s": 5.0,
+  "min_decode_tps": 15.0
+ },
+ "args": {
+  "cmd": "bench",
+  "base_url": "http://127.0.0.1:8190/v1",
+  "model": "nemotron-3.5-lightning-q4km",
+  "label": "pro6000-llamacpp-nemotron35L-q4km-p8",
+  "thinking": "default",
+  "template_kwargs": null,
+  "temperature": 0.6,
+  "top_p": 0.95,
+  "top_k": null,
+  "timeout": 1200.0,
+  "out_dir": "/mnt/c/Users/ateliernum/Documents/code/LlmOnLan/docs/spike/results",
+  "notes": "llama-server b10670 win-cuda-13.3, Ollama blob nemotron-3.5-lightning:30b Q4_K_M, --parallel 8 --ctx-size 1048576 --kv-unified -fa 1 -ctk/-ctv q8_0 --cache-reuse 256 --jinja (farm argv)",
+  "profile": "agent",
+  "levels": "1,4,8,16",
+  "extend": "",
+  "rounds": 2,
+  "stagger": 3.0,
+  "jitter": 0.2,
+  "natural": false,
+  "prompt_tokens": null,
+  "prefix_tokens": null,
+  "max_tokens": null,
+  "ttft_p95_max": 5.0,
+  "min_tps": 15.0,
+  "abort_ttft": 90.0,
+  "abort_tps": 3.0,
+  "warmup": true,
+  "save_requests": false
+ },
+ "levels": [
+  {
+   "concurrency": 1,
+   "requests": 2,
+   "errors": 0,
+   "wall_s": 7.49,
+   "ttft_p50": 0.312,
+   "ttft_p95": 0.321,
+   "ttft_max": 0.322,
+   "decode_tps_median": 298.45,
+   "decode_tps_p10": 298.45,
+   "decode_tps_min": 298.44,
+   "e2e_p50": 3.74,
+   "e2e_p95": 4.24,
+   "completion_tokens": 2045,
+   "completion_tokens_mean": 1022.5,
+   "prompt_tokens_mean": 10468.0,
+   "agg_tps_wall": 273.1,
+   "agg_tps_steady": 284.7,
+   "steady_window_s": 7.2,
+   "agg_tps": 284.7,
+   "pass_p10": true,
+   "pass_median": true,
+   "gpu": {
+    "vram_used_mib_max": 31072.0,
+    "gpu_util_mean": 81.5,
+    "power_w_mean": 471.2
+   },
+   "server_metrics": {
+    "gauges_max": {
+     "llamacpp:requests_processing": 1.0,
+     "llamacpp:requests_deferred": 0.0,
+     "llamacpp:n_busy_slots_per_decode": 4.1104
+    },
+    "counters_delta": {
+     "llamacpp:prompt_tokens_total": 4145.0,
+     "llamacpp:spec_decode_num_draft_tokens_total": 0.0,
+     "llamacpp:spec_decode_num_accepted_tokens_total": 0.0
+    }
+   }
+  },
+  {
+   "concurrency": 4,
+   "requests": 8,
+   "errors": 1,
+   "wall_s": 18.2,
+   "ttft_p50": 0.502,
+   "ttft_p95": 3.696,
+   "ttft_max": 3.89,
+   "decode_tps_median": 143.11,
+   "decode_tps_p10": 117.41,
+   "decode_tps_min": 94.49,
+   "e2e_p50": 8.85,
+   "e2e_p95": 11.51,
+   "completion_tokens": 6991,
+   "completion_tokens_mean": 998.7,
+   "prompt_tokens_mean": 10450.0,
+   "agg_tps_wall": 384.1,
+   "agg_tps_steady": 493.6,
+   "steady_window_s": 7.0,
+   "agg_tps": 493.6,
+   "pass_p10": false,
+   "pass_median": false,
+   "error_samples": [
+    "ServerDisconnectedError: Server disconnected"
+   ],
+   "gpu": {
+    "vram_used_mib_max": 31073.0,
+    "gpu_util_mean": 84.1,
+    "power_w_mean": 484.7
+   },
+   "server_metrics": {
+    "gauges_max": {
+     "llamacpp:requests_processing": 4.0,
+     "llamacpp:requests_deferred": 0.0,
+     "llamacpp:n_busy_slots_per_decode": 3.8598
+    },
+    "counters_delta": {
+     "llamacpp:prompt_tokens_total": 39568.0,
+     "llamacpp:spec_decode_num_draft_tokens_total": 0.0,
+     "llamacpp:spec_decode_num_accepted_tokens_total": 0.0
+    }
+   }
+  },
+  {
+   "concurrency": 8,
+   "requests": 16,
+   "errors": 3,
+   "wall_s": 34.15,
+   "ttft_p50": 5.669,
+   "ttft_p95": 9.366,
+   "ttft_max": 9.417,
+   "decode_tps_median": 82.62,
+   "decode_tps_p10": 62.45,
+   "decode_tps_min": 61.63,
+   "e2e_p50": 19.59,
+   "e2e_p95": 24.65,
+   "completion_tokens": 13293,
+   "completion_tokens_mean": 1022.5,
+   "prompt_tokens_mean": 10460.0,
+   "agg_tps_wall": 389.2,
+   "agg_tps_steady": 569.9,
+   "steady_window_s": 10.9,
+   "agg_tps": 569.9,
+   "pass_p10": false,
+   "pass_median": false,
+   "error_samples": [
+    "ServerDisconnectedError: Server disconnected"
+   ],
+   "gpu": {
+    "vram_used_mib_max": 31062.0,
+    "gpu_util_mean": 72.6,
+    "power_w_mean": 444.5
+   },
+   "server_metrics": {
+    "gauges_max": {
+     "llamacpp:requests_processing": 8.0,
+     "llamacpp:requests_deferred": 0.0,
+     "llamacpp:n_busy_slots_per_decode": 3.9795
+    },
+    "counters_delta": {
+     "llamacpp:prompt_tokens_total": 60427.0,
+     "llamacpp:spec_decode_num_draft_tokens_total": 0.0,
+     "llamacpp:spec_decode_num_accepted_tokens_total": 0.0
+    }
+   }
+  },
+  {
+   "concurrency": 16,
+   "requests": 32,
+   "errors": 3,
+   "wall_s": 58.04,
+   "ttft_p50": 12.24,
+   "ttft_p95": 21.692,
+   "ttft_max": 22.809,
+   "decode_tps_median": 76.59,
+   "decode_tps_p10": 71.28,
+   "decode_tps_min": 68.2,
+   "e2e_p50": 25.12,
+   "e2e_p95": 36.12,
+   "completion_tokens": 28446,
+   "completion_tokens_mean": 980.9,
+   "prompt_tokens_mean": 10464.0,
+   "agg_tps_wall": 490.1,
+   "agg_tps": 490.1,
+   "pass_p10": false,
+   "pass_median": false,
+   "error_samples": [
+    "ServerDisconnectedError: Server disconnected"
+   ],
+   "gpu": {
+    "vram_used_mib_max": 31085.0,
+    "gpu_util_mean": 74.0,
+    "power_w_mean": 443.4
+   },
+   "server_metrics": {
+    "gauges_max": {
+     "llamacpp:requests_processing": 8.0,
+     "llamacpp:requests_deferred": 8.0,
+     "llamacpp:n_busy_slots_per_decode": 4.3426
+    },
+    "counters_delta": {
+     "llamacpp:prompt_tokens_total": 60003.0,
+     "llamacpp:spec_decode_num_draft_tokens_total": 0.0,
+     "llamacpp:spec_decode_num_accepted_tokens_total": 0.0
+    }
+   }
+  }
+ ],
+ "finished": "2026-10-04T13:21:26.344399",
+ "people_latency_bounded_p10": 1,
+ "people_latency_bounded_median": 1
+}

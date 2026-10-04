@@ -1,0 +1,20 @@
+{
+ "log": "results/logs/vllm_nemotron.log",
+ "engine": "vllm",
+ "kv_tokens": 15905587,
+ "max_concurrency": {
+  "131072": 121.35
+ },
+ "weights_gib": 17.82,
+ "cuda_graphs_gib": 0.43,
+ "people_by_kv": {
+  "32k": 485.4,
+  "64k": 242.7,
+  "128k": 121.35
+ },
+ "people_by_kv_from_concurrency_line": {
+  "32k": 485.4,
+  "64k": 242.7,
+  "128k": 121.35
+ }
+}

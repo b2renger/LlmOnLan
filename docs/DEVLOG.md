@@ -6,6 +6,29 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-10-04 (17:55) — The engine × model spike, in progress: harness and first results committed for the Spark run
+
+Phase 0.6 is running on the RTX PRO 6000. ComfyQ was stopped by the owner, so the card is free. vLLM 0.30
+is in its own WSL venv (`~/lol-spike`); Rtranslate's 0.14.0 is untouched.
+
+- **The harness**, in `docs/spike/`, is committed now so tomorrow's Claude instance on the DGX Spark
+  can pull it (`SPARK_HANDOFF.md`):
+  - `spike_bench.py`: chat, long, agent and follow-up profiles, a concurrency sweep, thinking on/off.
+  - `quality_set.json`: coding with asserts, reasoning, and tool-calling round-trips.
+  - The serve and stop scripts, and `runs/` (the suites).
+- **Measured so far:**
+  - llama.cpp b10670 (Nemotron Lightning and Qwen3.8-27B at `--parallel` 8/16).
+  - vLLM: Qwen3.6-35B-A3B NVFP4 (two configs), then Nemotron 3.5 Lightning NVFP4.
+- **KV capacity on the 96 GB card** (vLLM's own figures, people = pool ÷ context):
+
+  | Model | Pool | 32k | 64k | 128k |
+  | --- | --- | --- | --- | --- |
+  | Qwen3.6 | 5.5M tokens | ~168 | ~84 | ~42 |
+  | Nemotron Lightning | 15.9M tokens | ~485 | ~243 | ~121 |
+
+  Memory is not the limit on hybrid models. The latency-bounded counts (TTFT p95 < 5 s and ≥ 15 tok/s)
+  and the quality scores come with `docs/spike/RESULTS.md` when the run ends.
+
 ## 2026-10-04 (14:19) — Multi-user 3.3, minimal: what people met at the gate
 
 Decision 2 of the plan (keep the 429, or queue) now gets numbers instead of guesses.

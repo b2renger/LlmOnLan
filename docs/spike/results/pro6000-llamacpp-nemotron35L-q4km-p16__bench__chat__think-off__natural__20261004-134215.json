@@ -1,0 +1,325 @@
+{
+ "kind": "bench",
+ "label": "pro6000-llamacpp-nemotron35L-q4km-p16",
+ "profile": "chat",
+ "profile_params": {
+  "prompt_tokens": 4000,
+  "prefix_tokens": 0,
+  "max_tokens": 512,
+  "tools": false
+ },
+ "thinking": "off",
+ "natural": true,
+ "model": "nemotron-3.5-lightning-q4km",
+ "base_url": "http://127.0.0.1:8190/v1",
+ "server": {
+  "models": [
+   {
+    "id": "nemotron-3.5-lightning-q4km",
+    "max_model_len": null,
+    "owned_by": "llamacpp",
+    "root": null
+   }
+  ],
+  "llamacpp": {
+   "build_info": "b10670-d077b4c21",
+   "total_slots": 16,
+   "n_ctx": 1048576,
+   "model_path": "C:\\Users\\ateliernum\\.ollama\\models\\blobs\\sha256-5c19f6282f4fc51cb114cb6c876d70ca2fc3b9cf0fbd0a018d9908f4fe1f63b3"
+  }
+ },
+ "host": {
+  "hostname": "AN-A6000PRO",
+  "machine": "x86_64",
+  "system": "Linux",
+  "release": "6.6.87.2-microsoft-standard-WSL2",
+  "python": "3.12.13"
+ },
+ "notes": "llama-server b10670 win-cuda-13.3, Ollama blob nemotron-3.5-lightning:30b Q4_K_M, --parallel 16 --ctx-size 2097152 (slot window capped at 1048576) --kv-unified -fa 1 -ctk/-ctv q8_0 --cache-reuse 256 --jinja (farm argv)",
+ "started": "2026-10-04T13:42:15.292318",
+ "tokenizer_calibration": {
+  "prose_tpw": 1.103654485049834,
+  "code_tpl": 7.61,
+  "json_tpc": 0.2604166666666667,
+  "source": "server /tokenize"
+ },
+ "criteria": {
+  "ttft_p95_max_s": 5.0,
+  "min_decode_tps": 15.0
+ },
+ "args": {
+  "cmd": "bench",
+  "base_url": "http://127.0.0.1:8190/v1",
+  "model": "nemotron-3.5-lightning-q4km",
+  "label": "pro6000-llamacpp-nemotron35L-q4km-p16",
+  "thinking": "off",
+  "template_kwargs": null,
+  "temperature": 0.6,
+  "top_p": 0.95,
+  "top_k": null,
+  "timeout": 1200.0,
+  "out_dir": "/mnt/c/Users/ateliernum/Documents/code/LlmOnLan/docs/spike/results",
+  "notes": "llama-server b10670 win-cuda-13.3, Ollama blob nemotron-3.5-lightning:30b Q4_K_M, --parallel 16 --ctx-size 2097152 (slot window capped at 1048576) --kv-unified -fa 1 -ctk/-ctv q8_0 --cache-reuse 256 --jinja (farm argv)",
+  "profile": "chat",
+  "levels": "1,4,8,16,24,32",
+  "extend": "",
+  "rounds": 2,
+  "stagger": 3.0,
+  "jitter": 0.2,
+  "natural": true,
+  "prompt_tokens": null,
+  "prefix_tokens": null,
+  "max_tokens": null,
+  "ttft_p95_max": 5.0,
+  "min_tps": 15.0,
+  "abort_ttft": 90.0,
+  "abort_tps": 3.0,
+  "warmup": true,
+  "save_requests": false
+ },
+ "levels": [
+  {
+   "concurrency": 1,
+   "requests": 2,
+   "errors": 0,
+   "wall_s": 2.99,
+   "ttft_p50": 0.476,
+   "ttft_p95": 0.479,
+   "ttft_max": 0.479,
+   "decode_tps_median": 317.95,
+   "decode_tps_p10": 317.87,
+   "decode_tps_min": 317.85,
+   "e2e_p50": 1.49,
+   "e2e_p95": 1.5,
+   "completion_tokens": 646,
+   "completion_tokens_mean": 323.0,
+   "prompt_tokens_mean": 4009,
+   "agg_tps_wall": 216.2,
+   "agg_tps_steady": 257.8,
+   "steady_window_s": 2.5,
+   "agg_tps": 257.8,
+   "pass_p10": true,
+   "pass_median": true,
+   "gpu": {
+    "vram_used_mib_max": 36752.0,
+    "gpu_util_mean": 89.5,
+    "power_w_mean": 382.9
+   },
+   "server_metrics": {
+    "gauges_max": {
+     "llamacpp:requests_processing": 1.0,
+     "llamacpp:requests_deferred": 0.0,
+     "llamacpp:n_busy_slots_per_decode": 10.1526
+    },
+    "counters_delta": {
+     "llamacpp:prompt_tokens_total": 8010.0,
+     "llamacpp:spec_decode_num_draft_tokens_total": 0.0,
+     "llamacpp:spec_decode_num_accepted_tokens_total": 0.0
+    }
+   }
+  },
+  {
+   "concurrency": 4,
+   "requests": 8,
+   "errors": 0,
+   "wall_s": 8.89,
+   "ttft_p50": 0.607,
+   "ttft_p95": 1.27,
+   "ttft_max": 1.452,
+   "decode_tps_median": 111.15,
+   "decode_tps_p10": 81.78,
+   "decode_tps_min": 76.85,
+   "e2e_p50": 4.06,
+   "e2e_p95": 5.84,
+   "completion_tokens": 2723,
+   "completion_tokens_mean": 340.4,
+   "prompt_tokens_mean": 4004.0,
+   "agg_tps_wall": 306.3,
+   "agg_tps_steady": 374.0,
+   "steady_window_s": 5.6,
+   "agg_tps": 374.0,
+   "pass_p10": true,
+   "pass_median": true,
+   "gpu": {
+    "vram_used_mib_max": 36754.0,
+    "gpu_util_mean": 88.6,
+    "power_w_mean": 488.1
+   },
+   "server_metrics": {
+    "gauges_max": {
+     "llamacpp:requests_processing": 4.0,
+     "llamacpp:requests_deferred": 0.0,
+     "llamacpp:n_busy_slots_per_decode": 9.928
+    },
+    "counters_delta": {
+     "llamacpp:prompt_tokens_total": 32030.0,
+     "llamacpp:spec_decode_num_draft_tokens_total": 0.0,
+     "llamacpp:spec_decode_num_accepted_tokens_total": 0.0
+    }
+   }
+  },
+  {
+   "concurrency": 8,
+   "requests": 16,
+   "errors": 0,
+   "wall_s": 16.36,
+   "ttft_p50": 0.825,
+   "ttft_p95": 2.166,
+   "ttft_max": 2.537,
+   "decode_tps_median": 56.54,
+   "decode_tps_p10": 42.68,
+   "decode_tps_min": 40.16,
+   "e2e_p50": 7.02,
+   "e2e_p95": 11.18,
+   "completion_tokens": 5314,
+   "completion_tokens_mean": 332.1,
+   "prompt_tokens_mean": 4012.0,
+   "agg_tps_wall": 324.7,
+   "agg_tps_steady": 413.9,
+   "steady_window_s": 10.1,
+   "agg_tps": 413.9,
+   "pass_p10": true,
+   "pass_median": true,
+   "gpu": {
+    "vram_used_mib_max": 36749.0,
+    "gpu_util_mean": 75.9,
+    "power_w_mean": 501.9
+   },
+   "server_metrics": {
+    "gauges_max": {
+     "llamacpp:requests_processing": 8.0,
+     "llamacpp:requests_deferred": 0.0,
+     "llamacpp:n_busy_slots_per_decode": 9.7264
+    },
+    "counters_delta": {
+     "llamacpp:prompt_tokens_total": 32130.0,
+     "llamacpp:spec_decode_num_draft_tokens_total": 0.0,
+     "llamacpp:spec_decode_num_accepted_tokens_total": 0.0
+    }
+   }
+  },
+  {
+   "concurrency": 16,
+   "requests": 32,
+   "errors": 0,
+   "wall_s": 32.38,
+   "ttft_p50": 2.132,
+   "ttft_p95": 7.615,
+   "ttft_max": 8.068,
+   "decode_tps_median": 28.38,
+   "decode_tps_p10": 20.33,
+   "decode_tps_min": 19.56,
+   "e2e_p50": 13.9,
+   "e2e_p95": 23.05,
+   "completion_tokens": 9970,
+   "completion_tokens_mean": 311.6,
+   "prompt_tokens_mean": 4015.0,
+   "agg_tps_wall": 307.9,
+   "agg_tps_steady": 387.5,
+   "steady_window_s": 20.8,
+   "agg_tps": 387.5,
+   "pass_p10": false,
+   "pass_median": false,
+   "gpu": {
+    "vram_used_mib_max": 36743.0,
+    "gpu_util_mean": 78.6,
+    "power_w_mean": 477.4
+   },
+   "server_metrics": {
+    "gauges_max": {
+     "llamacpp:requests_processing": 16.0,
+     "llamacpp:requests_deferred": 0.0,
+     "llamacpp:n_busy_slots_per_decode": 9.7922
+    },
+    "counters_delta": {
+     "llamacpp:prompt_tokens_total": 128360.0,
+     "llamacpp:spec_decode_num_draft_tokens_total": 0.0,
+     "llamacpp:spec_decode_num_accepted_tokens_total": 0.0
+    }
+   }
+  },
+  {
+   "concurrency": 24,
+   "requests": 48,
+   "errors": 0,
+   "wall_s": 50.07,
+   "ttft_p50": 7.838,
+   "ttft_p95": 16.969,
+   "ttft_max": 18.116,
+   "decode_tps_median": 23.43,
+   "decode_tps_p10": 18.44,
+   "decode_tps_min": 17.44,
+   "e2e_p50": 21.49,
+   "e2e_p95": 36.92,
+   "completion_tokens": 15610,
+   "completion_tokens_mean": 325.2,
+   "prompt_tokens_mean": 4015.0,
+   "agg_tps_wall": 311.8,
+   "agg_tps_steady": 329.7,
+   "steady_window_s": 11.1,
+   "agg_tps": 329.7,
+   "pass_p10": false,
+   "pass_median": false,
+   "gpu": {
+    "vram_used_mib_max": 36743.0,
+    "gpu_util_mean": 79.1,
+    "power_w_mean": 467.9
+   },
+   "server_metrics": {
+    "gauges_max": {
+     "llamacpp:requests_processing": 16.0,
+     "llamacpp:requests_deferred": 8.0,
+     "llamacpp:n_busy_slots_per_decode": 9.9314
+    },
+    "counters_delta": {
+     "llamacpp:prompt_tokens_total": 192210.0,
+     "llamacpp:spec_decode_num_draft_tokens_total": 0.0,
+     "llamacpp:spec_decode_num_accepted_tokens_total": 0.0
+    }
+   }
+  },
+  {
+   "concurrency": 32,
+   "requests": 64,
+   "errors": 0,
+   "wall_s": 68.25,
+   "ttft_p50": 17.285,
+   "ttft_p95": 23.927,
+   "ttft_max": 25.916,
+   "decode_tps_median": 21.13,
+   "decode_tps_p10": 18.17,
+   "decode_tps_min": 15.74,
+   "e2e_p50": 30.95,
+   "e2e_p95": 39.09,
+   "completion_tokens": 20492,
+   "completion_tokens_mean": 320.2,
+   "prompt_tokens_mean": 4015.0,
+   "agg_tps_wall": 300.2,
+   "agg_tps_steady": 298.2,
+   "steady_window_s": 17.2,
+   "agg_tps": 298.2,
+   "pass_p10": false,
+   "pass_median": false,
+   "gpu": {
+    "vram_used_mib_max": 36741.0,
+    "gpu_util_mean": 75.5,
+    "power_w_mean": 455.2
+   },
+   "server_metrics": {
+    "gauges_max": {
+     "llamacpp:requests_processing": 16.0,
+     "llamacpp:requests_deferred": 16.0,
+     "llamacpp:n_busy_slots_per_decode": 10.1436
+    },
+    "counters_delta": {
+     "llamacpp:prompt_tokens_total": 256180.0,
+     "llamacpp:spec_decode_num_draft_tokens_total": 0.0,
+     "llamacpp:spec_decode_num_accepted_tokens_total": 0.0
+    }
+   }
+  }
+ ],
+ "finished": "2026-10-04T13:45:17.598480",
+ "people_latency_bounded_p10": 8,
+ "people_latency_bounded_median": 8
+}

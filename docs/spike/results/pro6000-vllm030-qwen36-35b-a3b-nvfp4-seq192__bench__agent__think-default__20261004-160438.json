@@ -1,0 +1,311 @@
+{
+ "kind": "bench",
+ "label": "pro6000-vllm030-qwen36-35b-a3b-nvfp4-seq192",
+ "profile": "agent",
+ "profile_params": {
+  "prompt_tokens": 2000,
+  "prefix_tokens": 8000,
+  "max_tokens": 1024,
+  "tools": true
+ },
+ "thinking": "default",
+ "natural": false,
+ "model": "qwen3.6-35b-a3b-nvfp4",
+ "base_url": "http://localhost/v1",
+ "server": {
+  "models": [
+   {
+    "id": "qwen3.6-35b-a3b-nvfp4",
+    "max_model_len": 131072,
+    "owned_by": "vllm",
+    "root": "/home/ateliernum/lol-spike/hf/Qwen3.6-35B-A3B-NVFP4"
+   }
+  ],
+  "vllm_version": "0.30.0"
+ },
+ "host": {
+  "hostname": "AN-A6000PRO",
+  "machine": "x86_64",
+  "system": "Linux",
+  "release": "6.6.87.2-microsoft-standard-WSL2",
+  "python": "3.12.13"
+ },
+ "notes": "vLLM 0.30.0 (WSL2, --uds): same as the seq-64 run but --max-num-seqs 192 (CUDA graphs 0.65 GiB)",
+ "started": "2026-10-04T16:04:38.864170",
+ "tokenizer_calibration": {
+  "prose_tpw": 1.0870431893687709,
+  "code_tpl": 7.703333333333333,
+  "json_tpc": 0.2584635416666667,
+  "source": "server /tokenize"
+ },
+ "criteria": {
+  "ttft_p95_max_s": 5.0,
+  "min_decode_tps": 15.0
+ },
+ "args": {
+  "cmd": "bench",
+  "base_url": "http://localhost/v1",
+  "model": "qwen3.6-35b-a3b-nvfp4",
+  "uds": "/home/ateliernum/lol-spike/run/vllm.sock",
+  "label": "pro6000-vllm030-qwen36-35b-a3b-nvfp4-seq192",
+  "thinking": "default",
+  "template_kwargs": null,
+  "temperature": 0.6,
+  "top_p": 0.95,
+  "top_k": null,
+  "timeout": 1200.0,
+  "out_dir": "/mnt/c/Users/ateliernum/Documents/code/LlmOnLan/docs/spike/results",
+  "notes": "vLLM 0.30.0 (WSL2, --uds): same as the seq-64 run but --max-num-seqs 192 (CUDA graphs 0.65 GiB)",
+  "profile": "agent",
+  "levels": "64,96,128,160,192",
+  "extend": "",
+  "rounds": 2,
+  "stagger": 3.0,
+  "jitter": 0.2,
+  "natural": false,
+  "prompt_tokens": null,
+  "prefix_tokens": null,
+  "max_tokens": null,
+  "ttft_p95_max": 5.0,
+  "min_tps": 15.0,
+  "abort_ttft": 90.0,
+  "abort_tps": 3.0,
+  "warmup": true,
+  "save_requests": false
+ },
+ "levels": [
+  {
+   "concurrency": 64,
+   "requests": 128,
+   "errors": 0,
+   "wall_s": 56.63,
+   "ttft_p50": 0.47,
+   "ttft_p95": 4.088,
+   "ttft_max": 4.41,
+   "decode_tps_median": 41.37,
+   "decode_tps_p10": 36.28,
+   "decode_tps_min": 33.98,
+   "e2e_p50": 25.12,
+   "e2e_p95": 34.73,
+   "completion_tokens": 131457,
+   "completion_tokens_mean": 1027.0,
+   "prompt_tokens_mean": 10285.0,
+   "agg_tps_wall": 2321.2,
+   "agg_tps_steady": 2648.4,
+   "steady_window_s": 40.3,
+   "agg_tps": 2648.4,
+   "pass_p10": true,
+   "pass_median": true,
+   "gpu": {
+    "vram_used_mib_max": 86984.0,
+    "gpu_util_mean": 92.2,
+    "power_w_mean": 546.8
+   },
+   "server_metrics": {
+    "gauges_max": {
+     "vllm:num_requests_running": 64.0,
+     "vllm:num_requests_waiting": 29.0,
+     "vllm:num_requests_waiting_by_reason": 29.0,
+     "vllm:kv_cache_usage_perc": 0.1345
+    },
+    "counters_delta": {
+     "vllm:prefix_cache_queries_total": 1316513.0,
+     "vllm:prefix_cache_hits_total": 798576.0,
+     "vllm:external_prefix_cache_queries_total": 0.0,
+     "vllm:external_prefix_cache_hits_total": 0.0,
+     "vllm:num_preemptions_total": 0.0,
+     "vllm:prompt_tokens_total": 1316513.0,
+     "vllm:generation_tokens_total": 131457.0
+    },
+    "prefix_cache_hit_rate": 0.607
+   }
+  },
+  {
+   "concurrency": 96,
+   "requests": 192,
+   "errors": 0,
+   "wall_s": 78.53,
+   "ttft_p50": 0.545,
+   "ttft_p95": 7.541,
+   "ttft_max": 8.152,
+   "decode_tps_median": 29.63,
+   "decode_tps_p10": 25.46,
+   "decode_tps_min": 24.09,
+   "e2e_p50": 35.56,
+   "e2e_p95": 49.6,
+   "completion_tokens": 196821,
+   "completion_tokens_mean": 1025.1,
+   "prompt_tokens_mean": 10287.0,
+   "agg_tps_wall": 2506.3,
+   "agg_tps_steady": 2837.6,
+   "steady_window_s": 55.0,
+   "agg_tps": 2837.6,
+   "pass_p10": false,
+   "pass_median": false,
+   "gpu": {
+    "vram_used_mib_max": 86985.0,
+    "gpu_util_mean": 93.3,
+    "power_w_mean": 549.5
+   },
+   "server_metrics": {
+    "gauges_max": {
+     "vllm:num_requests_running": 96.0,
+     "vllm:num_requests_waiting": 61.0,
+     "vllm:num_requests_waiting_by_reason": 61.0,
+     "vllm:kv_cache_usage_perc": 0.2007
+    },
+    "counters_delta": {
+     "vllm:prefix_cache_queries_total": 1975012.0,
+     "vllm:prefix_cache_hits_total": 1207296.0,
+     "vllm:external_prefix_cache_queries_total": 0.0,
+     "vllm:external_prefix_cache_hits_total": 0.0,
+     "vllm:num_preemptions_total": 0.0,
+     "vllm:prompt_tokens_total": 1975012.0,
+     "vllm:generation_tokens_total": 196821.0
+    },
+    "prefix_cache_hit_rate": 0.611
+   }
+  },
+  {
+   "concurrency": 128,
+   "requests": 256,
+   "errors": 0,
+   "wall_s": 93.05,
+   "ttft_p50": 0.587,
+   "ttft_p95": 10.775,
+   "ttft_max": 11.744,
+   "decode_tps_median": 24.59,
+   "decode_tps_p10": 21.46,
+   "decode_tps_min": 19.71,
+   "e2e_p50": 41.47,
+   "e2e_p95": 59.97,
+   "completion_tokens": 261556,
+   "completion_tokens_mean": 1021.7,
+   "prompt_tokens_mean": 10288.0,
+   "agg_tps_wall": 2811.0,
+   "agg_tps_steady": 3196.1,
+   "steady_window_s": 64.3,
+   "agg_tps": 3196.1,
+   "pass_p10": false,
+   "pass_median": false,
+   "gpu": {
+    "vram_used_mib_max": 86985.0,
+    "gpu_util_mean": 93.4,
+    "power_w_mean": 573.1
+   },
+   "server_metrics": {
+    "gauges_max": {
+     "vllm:num_requests_running": 128.0,
+     "vllm:num_requests_waiting": 91.0,
+     "vllm:num_requests_waiting_by_reason": 91.0,
+     "vllm:kv_cache_usage_perc": 0.2662
+    },
+    "counters_delta": {
+     "vllm:prefix_cache_queries_total": 2633634.0,
+     "vllm:prefix_cache_hits_total": 1609728.0,
+     "vllm:external_prefix_cache_queries_total": 0.0,
+     "vllm:external_prefix_cache_hits_total": 0.0,
+     "vllm:num_preemptions_total": 0.0,
+     "vllm:prompt_tokens_total": 2633634.0,
+     "vllm:generation_tokens_total": 261556.0
+    },
+    "prefix_cache_hit_rate": 0.611
+   }
+  },
+  {
+   "concurrency": 160,
+   "requests": 320,
+   "errors": 0,
+   "wall_s": 111.02,
+   "ttft_p50": 0.658,
+   "ttft_p95": 14.28,
+   "ttft_max": 15.68,
+   "decode_tps_median": 20.78,
+   "decode_tps_p10": 18.18,
+   "decode_tps_min": 16.85,
+   "e2e_p50": 50.77,
+   "e2e_p95": 73.86,
+   "completion_tokens": 326248,
+   "completion_tokens_mean": 1019.5,
+   "prompt_tokens_mean": 10287.0,
+   "agg_tps_wall": 2938.7,
+   "agg_tps_steady": 3347.5,
+   "steady_window_s": 75.6,
+   "agg_tps": 3347.5,
+   "pass_p10": false,
+   "pass_median": false,
+   "gpu": {
+    "vram_used_mib_max": 86996.0,
+    "gpu_util_mean": 93.7,
+    "power_w_mean": 581.3
+   },
+   "server_metrics": {
+    "gauges_max": {
+     "vllm:num_requests_running": 160.0,
+     "vllm:num_requests_waiting": 123.0,
+     "vllm:num_requests_waiting_by_reason": 123.0,
+     "vllm:kv_cache_usage_perc": 0.3321
+    },
+    "counters_delta": {
+     "vllm:prefix_cache_queries_total": 3291862.0,
+     "vllm:prefix_cache_hits_total": 2012160.0,
+     "vllm:external_prefix_cache_queries_total": 0.0,
+     "vllm:external_prefix_cache_hits_total": 0.0,
+     "vllm:num_preemptions_total": 0.0,
+     "vllm:prompt_tokens_total": 3291862.0,
+     "vllm:generation_tokens_total": 326248.0
+    },
+    "prefix_cache_hit_rate": 0.611
+   }
+  },
+  {
+   "concurrency": 192,
+   "requests": 384,
+   "errors": 0,
+   "wall_s": 130.96,
+   "ttft_p50": 0.815,
+   "ttft_p95": 17.783,
+   "ttft_max": 19.636,
+   "decode_tps_median": 17.73,
+   "decode_tps_p10": 15.28,
+   "decode_tps_min": 14.05,
+   "e2e_p50": 60.58,
+   "e2e_p95": 87.18,
+   "completion_tokens": 394917,
+   "completion_tokens_mean": 1028.4,
+   "prompt_tokens_mean": 10286.0,
+   "agg_tps_wall": 3015.5,
+   "agg_tps_steady": 3420.7,
+   "steady_window_s": 87.6,
+   "agg_tps": 3420.7,
+   "pass_p10": false,
+   "pass_median": false,
+   "gpu": {
+    "vram_used_mib_max": 87006.0,
+    "gpu_util_mean": 94.2,
+    "power_w_mean": 574.1
+   },
+   "server_metrics": {
+    "gauges_max": {
+     "vllm:num_requests_running": 192.0,
+     "vllm:num_requests_waiting": 155.0,
+     "vllm:num_requests_waiting_by_reason": 155.0,
+     "vllm:kv_cache_usage_perc": 0.4003
+    },
+    "counters_delta": {
+     "vllm:prefix_cache_queries_total": 3949861.0,
+     "vllm:prefix_cache_hits_total": 2414592.0,
+     "vllm:external_prefix_cache_queries_total": 0.0,
+     "vllm:external_prefix_cache_hits_total": 0.0,
+     "vllm:num_preemptions_total": 0.0,
+     "vllm:prompt_tokens_total": 3949861.0,
+     "vllm:generation_tokens_total": 394917.0
+    },
+    "prefix_cache_hit_rate": 0.611
+   }
+  }
+ ],
+ "finished": "2026-10-04T16:12:29.465352",
+ "people_latency_bounded_p10": 64,
+ "people_latency_bounded_median": 64
+}
