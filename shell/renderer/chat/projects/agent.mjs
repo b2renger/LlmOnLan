@@ -7,6 +7,7 @@
 //   reasoning = its steps, one line each ("→ edit index.html ✓ (1 change)") — the reply's collapsible block
 //   changes   = every edit it made ({path, oldText, newText}) and created: the files it made — the Changes tab
 import { studioDoor } from './bridge.mjs';
+import { classifyHttp } from '../net/errors.mjs';
 import { t } from '../core/i18n.mjs';
 import '../strings/agent.en.mjs';
 
@@ -116,6 +117,14 @@ export function resultOf(s, done) {
   if (done.reason === 'stopped') return { status: 'aborted', abortedBy: 'user', error: null };
   if (done.reason === 'refused') return { status: 'error', error: local(done.error || t('agent.noApp')) };
   if (done.reason === 'error') return { status: 'error', error: local(done.error || t('agent.endedEarly', { reason: 'error' }), 'stream_error') };
+  // Multi-user 1.6: the farm's seat gate refused a step (main reports the 429 as 'seats-full'; dsh no longer retries it).
+  // The same seats_full a plain reply gets, so the seat-wait holds this reply and sends it again when a seat frees.
+  // dsh writes pi-ai's "429: <the farm's error JSON>" (or "429 <its sentence>"); net/errors reads the sentence out.
+  if (done.reason === 'seats-full') {
+    const body = String(done.error || '').replace(/^429:?\s*/, '');
+    const e = classifyHttp({ status: 429, bodyText: body });
+    return { status: 'error', error: e.farmMessage || !body ? e : { ...e, message: body, farmMessage: body } };
+  }
   // A loop that ended before its goal: what was done is kept (in the reply and the files), and the note says why.
   const LOOP_END = { 'max-tokens': 'agent.loopMaxTokens', stalled: 'agent.loopStalled', 'round-limit': 'agent.loopRoundLimit', blocked: 'agent.loopBlocked' };
   if (s.goal && done.reason in LOOP_END) {

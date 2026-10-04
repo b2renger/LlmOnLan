@@ -112,7 +112,7 @@ model and acting with tools, in a loop. Three ways to get there, from the safest
 **A — built 2026-09-30** (the owner: "agents as web pages"): the Preview's loopback server serves `/lol-agent.mjs` (the
 loop library, `shell/assets/agent-page/`: the Agent box's JSON-step loop — one of the page's tools per step, a wrong
 or malformed step fed back, the last step made to answer, the farm's failures as sentences) and `/lol-farm.json`
-({baseUrl, requiresKey} — never the password: on a keyed farm the page asks the person, `setKey`, session only) — both
+({baseUrl, requiresKey, defaultModel} — never the password: on a keyed farm the page asks the person, `setKey`, session only; `defaultModel` since 2026-10-04, multi-user 1.6) — both
 never on the LAN share. The **agent-page** skill tells the coding agent how to write one (the page's tools, each step
 shown, a Stop button, 4–8 steps, no secret in the files).
 

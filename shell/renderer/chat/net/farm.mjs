@@ -76,6 +76,8 @@ export function capsFromBridge(bridge) {
         slots: num(capacity.slots) ?? 0,
         clients: num(capacity.clients) ?? 0,
         idleSec: num(capacity.seatIdleSec) ?? 900,
+        // Multi-user 1.6: this client's IP holds one of the `used` seats (unicast /lol/self only; false on older farms).
+        mine: capacity.mine === true,
       }
       : null,
     busy: busyRaw && busyRaw.label ? { label: String(busyRaw.label), percent: num(busyRaw.percent) } : null,

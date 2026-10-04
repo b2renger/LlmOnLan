@@ -101,6 +101,23 @@ export default (test) => {
     assert.equal(gov.acquire('background', {}), null);
   });
 
+  // Multi-user 1.6: `used` counts OUR seat as well. A person who chatted a minute ago holds one of the two seats of a
+  // full farm, and the Computer must still run on it — the farm admits our IP there (`mine`, from unicast /lol/self).
+  test('a full farm on which one seat is OURS lets the background lane in; still one at a time, still yielding', () => {
+    const { app, caps } = stubApp({ seats: { used: 2, slots: 2, mine: true } });
+    const gov = createGovernor(app);
+    assert.equal(gov.canStart('background'), true, 'our own seat is free to us');
+    let aborted = 0;
+    const release = gov.acquire('background', { abort: () => { aborted++; } });
+    assert.equal(typeof release, 'function');
+    assert.equal(gov.acquire('background', {}), null, 'BACKGROUND_LIMIT = 1 still holds');
+    assert.equal(typeof gov.acquire('foreground', { holder: 'send' }), 'function', 'the reader always wins…');
+    assert.equal(aborted, 1, '…and the background call is cut');
+    caps.seats = { used: 2, slots: 2, mine: false };
+    const quiet = createGovernor(app);
+    assert.equal(quiet.canStart('background'), false, 'once our seat is gone (idle 15 min), a full farm is full again');
+  });
+
   test('background is refused while the foreground is busy or held', () => {
     const { app } = stubApp({ seats: { used: 0, slots: 2 } });
     const gov = createGovernor(app);

@@ -6,6 +6,44 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-10-04 (14:08) — Multi-user 1.6: the client stops wasting seats (own seat, 429s, the agent's retries, small windows)
+
+Item 1.6 of the multi-user plan, in `shell/` only. Results: build clean, `test:unit` 5/5, `chat-unit`
+**1794/0**, `chat-lint` 0.
+
+- **Phase 0 broke one test, now fixed.** `cfc3723` changed the farm's 429 sentence, and the shell's mock
+  copy (`test/mock/seats-body.js`, checked against `farm/src/seats.js` by `mock.test.mjs`) still had the
+  old one. Its 502 regex had also started matching the new 401 first. Both are fixed, and two fixture
+  sentences now match the new wording.
+- **The Computer's own seat.** Unicast `/lol/self` carries `capacity.mine`, and the farm half landed at
+  14:01. `discovery.ts` keeps the last unicast value when a beacon arrives without it, so the lane
+  doesn't flicker between polls. `freeSeat()` honours it: a person who chatted a minute ago can run
+  model boxes on a full farm. Still one background request at a time, and Send still aborts it.
+- **A 429 to a Computer box is `busy`:** no Cap generation, and the run yields. It is mapped once, at the
+  ask layer (`farmFailure`), so the runner's existing no-seat path takes over.
+- **The coding agent stops knocking on a full farm.**
+  - LOL's dsh patch now carries a `retryPolicy` without `RATE_LIMIT`. 5xx and timeouts are still retried,
+    since a LiteLLM restart answers 502.
+  - A refused turn ends as `seats-full` with the farm's sentence, and LOL Vibe's seat-wait resends it.
+  - Checked on the real dsh 0.1.7-rc.2 runtime against a fake farm: a 429 now gets **1 POST (was 5+)**,
+    and a 502 is still retried.
+  - `session-title-llm` is also off in LOL's patch. The sdk bundle already had it off, so this only pins
+    it against a version bump. The audit's "neither disabled" was half wrong.
+- **Small windows.**
+  - The agent's window is clamped as LOL Vibe clamps its meter (1024–262144). The live farm advertises 1M
+    per slot.
+  - "Keep going" lowers its reply room on small windows, so dsh's compaction still triggers at ≥ ¼ of the
+    window: 32k → 16384 (unchanged), 24k → 14336, 16k → 8192.
+- **Agent pages use the farm's default model.** `/lol-farm.json` gains `defaultModel`, still with no
+  credential (CLAUDE.md and IDE_PLAN updated). The old first-model fallback stays for older data.
+- **Not run:**
+  - The chat harness: it uses its own user-data and is safe beside the open client, but it starts
+    Electron with the GPU, and the spike owns the GPU. It runs after the spike.
+  - No live farm for (a): it was checked against the agreed contract and the farm's test.
+- **`chat-scope.js` reports 29 violations:** it is the LOL Chat vNext phase's allowlist gate, and every
+  `farm/` file on this branch is outside that allowlist by design. It is not part of the release
+  checks.
+
 ## 2026-10-04 (14:01) — An external vLLM, read: live load, a Performance card, a pool check; `capacity.mine`
 
 Phase 2 step (a) of the multi-user plan: the farm still never installs or starts the server (2026-09-07),

@@ -627,6 +627,15 @@ The owner decided not to reserve OCR room in auto context: it "would collapse ch
 
 ### 1.6 Client fixes the gate work depends on
 
+> **Status, 2026-10-04: all five are built** (DEVLOG 2026-10-04 14:08; `chat-unit` 1794/0).
+> - The own-seat fix uses `capacity.mine` (no identity).
+> - A 429 is `busy` at the ask layer.
+> - dsh doesn't retry 429s; a refused turn goes to seat-wait. Its title call was already off in the sdk
+>   bundle.
+> - The agent's window is clamped, and "Keep going" shrinks its reply room on small windows.
+> - Agent pages use `defaultModel`.
+> - Not yet run: the chat harness, after the spike frees the GPU.
+
 From code reading; rig-check each.
 
 - **The Computer's own seat.** Its background lane treats the client's **own** seat as taken: `freeSeat()`

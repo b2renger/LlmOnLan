@@ -279,6 +279,32 @@ export default (test) => {
     assert.equal(d.getFarms().length, 0, 'once the entry is removed, a silent farm is dropped as before');
   });
 
+  // Multi-user 1.6: whether THIS client holds a seat comes only from a unicast /lol/self (the farm sees our IP there);
+  // a beacon, which cannot know, must not erase it every 5 s between two 2 s active polls.
+  test('Discovery: capacity.mine — a unicast answer always says it, a beacon keeps the last unicast word', async () => {
+    const http = await import('node:http');
+    const answers = [{ seatsUsed: 2, slots: 2, mine: true }, { seatsUsed: 2, slots: 2 }];
+    const server = http.createServer((_req, res) => { res.end(JSON.stringify({ v: 1, id: 'studio', name: 'Studio', proxyPort: 4000, httpPort: 41997, healthy: true, models: [], capacity: answers.shift() })); });
+    await new Promise((r) => server.listen(0, '127.0.0.1', () => r(undefined)));
+    try {
+      const port = /** @type {any} */ (server.address()).port;
+      const d = new Discovery({ autoScan: false, scanRange: { base: '10.0', third: [0, 0], fourth: [1, 1] } });
+      const ours = await d.fetchSelf('127.0.0.1', port, 1500);
+      assert.equal(ours.capacity.mine, true);
+      const older = await d.fetchSelf('127.0.0.1', port, 1500);
+      assert.equal(older.capacity.mine, false, 'a farm that does not say (older, or not ours) is a definite no');
+      const beacon = { v: 1, id: 'studio', name: 'Studio', proxyPort: 4000, httpPort: 41997, healthy: true, models: [] };
+      d.merge(ours, '10.0.0.5', 'beacon');
+      d.merge({ ...beacon, capacity: { seatsUsed: 2, slots: 2 } }, '10.0.0.5', 'beacon');
+      assert.equal(d.getFarms()[0].capacity.mine, true, 'the beacon keeps the unicast answer');
+      assert.equal(d.getFarms()[0].capacity.seatsUsed, 2, 'and still refreshes the counts');
+      d.merge(older, '10.0.0.5', 'beacon');
+      assert.equal(d.getFarms()[0].capacity.mine, false, 'the next unicast answer wins');
+      d.merge({ ...beacon, capacity: { seatsUsed: 1, slots: 2 } }, '10.0.0.5', 'beacon');
+      assert.equal(d.getFarms()[0].capacity.mine, false);
+    } finally { server.close(); }
+  });
+
   test('SA-5 Discovery.notify() re-sends the list (the popover re-marks the pin at once)', () => {
     const d = new Discovery({ autoScan: false, scanRange: { base: '10.0', third: [0, 0], fourth: [1, 1] } });
     let n = 0;

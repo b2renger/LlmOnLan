@@ -53,6 +53,9 @@ export interface FarmSnapshot {
     // contextPerSlot is what ONE chat can actually hold — the client picks
     // whole-document vs top-k RAG from it (configBridge FULL_CONTEXT_MIN_CTX).
     backend?: { engine?: string; contextLength?: number | null; contextPerSlot?: number | null; slots?: number } | null;
+    // The seat gate's numbers (absent on farms older than the gate). `mine` is true when the caller's IP holds a seat:
+    // only a unicast /lol/self can say it (the beacon never carries it) — discovery.ts keeps the last unicast answer.
+    capacity?: { slots?: number; clients?: number; seatsUsed?: number; seatIdleSec?: number; mine?: boolean } | null;
     // Farm-side plugin state (web search / voice / OCR): { id: {label, runsOn, enabled, healthy} }.
     plugins?: Record<string, { label?: string; runsOn?: string; enabled?: boolean; healthy?: boolean }>;
     // Client-side plugins (e.g. "blender") the farm RECOMMENDS — the client auto-applies

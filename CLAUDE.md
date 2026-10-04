@@ -135,7 +135,7 @@ docs) is `docs/reviews/DOCS_REVIEW_2026-09-27_{FARM,SHELL,COMPUTER}.md`. Snapsho
   the bearer via `!!js` from `LOL_MCP_TOKEN` in the runtime env, never in the patch file) — the agent builds and runs
   graphs; devices stay a dry run until a person arms the outputs (mcp.ts rules). **Agent pages** (2026-09-30, IDE_PLAN §5 A):
   the Preview's loopback server serves `/lol-agent.mjs` (the loop library, `assets/agent-page/`) and `/lol-farm.json`
-  (the farm's address, never its password) — never on the LAN share — and the **agent-page** skill has the agent write
+  (the farm's address and default model, never its password) — never on the LAN share — and the **agent-page** skill has the agent write
   pages whose own JavaScript runs a step loop with the farm's model and the page's tools. The patch also fits compaction to small windows (v0.2.5: with dsh's 65536-token
   default headroom a 32k window never compacted). dsh sessions die with the process (no resume): a new one gets a
   recap of the thread. Preview = a static server per project on 127.0.0.1 (main's frame veto lets exactly that

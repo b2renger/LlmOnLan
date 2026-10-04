@@ -3,20 +3,21 @@
 // failures as sentences. A fake fetch plays LlmOnLan's server and the farm.
 import assert from 'node:assert/strict';
 
-/** @param {Array<string|{status: number}>} replies the model's replies in order @param {{requiresKey?: boolean}} [o] */
+/** @param {Array<string|{status: number}>} replies the model's replies in order @param {{requiresKey?: boolean, defaultModel?: string}} [o] */
 function fakeFarm(replies, o = {}) {
   /** @type {any[]} */ const bodies = [];
+  let listed = 0;
   const real = globalThis.fetch;
   globalThis.fetch = /** @type {any} */ (async (/** @type {string} */ url, /** @type {any} */ init) => {
-    if (url === '/lol-farm.json') return new Response(JSON.stringify({ baseUrl: 'http://farm:4000/v1', requiresKey: !!o.requiresKey }));
-    if (url.endsWith('/models')) return new Response(JSON.stringify({ data: [{ id: 'qwen3.8:latest' }] }));
+    if (url === '/lol-farm.json') return new Response(JSON.stringify({ baseUrl: 'http://farm:4000/v1', requiresKey: !!o.requiresKey, ...(o.defaultModel ? { defaultModel: o.defaultModel } : {}) }));
+    if (url.endsWith('/models')) { listed++; return new Response(JSON.stringify({ data: [{ id: 'qwen3.8:latest' }, { id: 'assistant' }] })); }
     const body = JSON.parse(init.body);
     bodies.push(body);
     const next = replies.shift();
     if (next && typeof next === 'object') return new Response('{}', { status: next.status });
     return new Response(JSON.stringify({ choices: [{ message: { content: next } }] }));
   });
-  return { bodies, restore: () => { globalThis.fetch = real; } };
+  return { bodies, listed: () => listed, restore: () => { globalThis.fetch = real; } };
 }
 const fresh = async () => import(`../../../assets/agent-page/lol-agent.mjs?${Math.random()}`);   // a new farm cache each time
 
@@ -29,11 +30,23 @@ export default (test) => {
       const r = await runAgent({ task: 'Add 2 and 3.', tools: { add: { description: 'adds two numbers', args: { a: 'number', b: 'number' }, run: (a) => a.a + a.b } }, onStep: (s) => seen.push(s) });
       assert.equal(r.answer, 'The sum is 5.');
       assert.deepEqual(r.steps.map((s) => [s.tool, s.ok, s.result]), [['add', true, 5]]);
-      assert.equal(f.bodies[0].model, 'qwen3.8:latest', 'the farm\'s first model by default');
+      assert.equal(f.bodies[0].model, 'qwen3.8:latest', 'a /lol-farm.json without a default (an older LlmOnLan): the farm\'s first model');
       assert.deepEqual(f.bodies[0].response_format, { type: 'json_object' });
       assert.match(f.bodies[0].messages[1].content, /- add: adds two numbers Args: \{"a":"number","b":"number"\}/);
       assert.match(f.bodies[1].messages[1].content, /1\. add \{"a":2,"b":3\} — sum them\n {3}result: 5/, 'the result reaches the next step');
       assert.deepEqual(seen.map((s) => s.tool), ['add', 'answer']);
+    } finally { f.restore(); }
+  });
+
+  test('lol-agent: the farm\'s default model (from /lol-farm.json) unless the page names one — no catalogue fetch', async () => {
+    const f = fakeFarm(['{"answer":"a"}', 'b'], { defaultModel: 'assistant' });
+    try {
+      const { runAgent, ask } = await fresh();
+      await runAgent({ task: 't' });
+      assert.equal(f.bodies[0].model, 'assistant', 'the farm\'s default, not the first id it lists');
+      await ask({ messages: [], model: 'qwen3.8:latest' });
+      assert.equal(f.bodies[1].model, 'qwen3.8:latest', 'a model the page names wins');
+      assert.equal(f.listed(), 0);
     } finally { f.restore(); }
   });
 

@@ -446,6 +446,12 @@ export function createAsk(app) {
    * @param {any} error @param {string} underlying @param {number} ms
    */
   function farmFailure(error, underlying, ms) {
+    // Multi-user 1.6: the seat gate's 429 is the farm saying "not now" — the same verdict as the governor's local "no
+    // free seat", so it is `busy` with the farm's own sentence: it took no generation (the runner's Cap skips it), the
+    // run yields, and Run picks it up again. As a farm error it cost a Cap generation and failed the box.
+    if (error && error.kind === 'seats_full') {
+      return fail('busy', str(error.farmMessage) || t('ask.farmError', { message: str(error.message) }), { ms });
+    }
     if (error && error.kind === 'vision_unsupported') {
       app.bus.emit(NO_VISION_EVENT, { underlying, farmId: (caps() || {}).id || null });
       return fail('no_vision', t('ask.noVision'), { ms });

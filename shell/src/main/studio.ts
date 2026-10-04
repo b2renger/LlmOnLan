@@ -35,7 +35,8 @@ export type StudioRecord =
     | { kind: 'step'; text: string; reasoning: string; stopReason: string | null; outTokens: number | null }
     | { kind: 'call'; callId: string; name: string; target: string }
     | { kind: 'result'; callId: string; ok: boolean; created: boolean; diffs: StudioDiff[]; error: string | null }
-    | { kind: 'end'; reason: string }
+    // `error`: only for 'seats-full' (the farm's 429, as pi-ai wrote it), which the page turns into a seat-wait.
+    | { kind: 'end'; reason: string; error?: string }
     // "Keep going until done" (dsh's goal loop): the goal as the model set it, and each round dsh starts on its own.
     | { kind: 'goal'; phase: string; rounds: number; max: number | null; objective: string; blocked: string }
     | { kind: 'round'; n: number };
@@ -47,7 +48,35 @@ export const GOAL_ROUNDS = 10;
 export const GOAL_PROMPT = 'Take this on as a goal and keep working on it round after round until it is really finished; '
     + 'check your own work in the files before you mark the goal complete.\n\n';
 
-export interface StudioFarm { endpoint: string; key: string | null; ctxPerSlot: number | null }
+/** `model`: the farm's default model id (an agent page's model when it names none) — never a credential. */
+export interface StudioFarm { endpoint: string; key: string | null; ctxPerSlot: number | null; model?: string | null }
+
+/** Compaction's headroom in the patch (the P5-L spike: dsh's 65536 default never compacted a 32k window). */
+const COMPACT_HEADROOM = 4096;
+/** "Keep going": a turn cut on max-tokens disarms dsh's goal, and 8192 cut real goal work (the P5-L spike). */
+const GOAL_MAX_TOKENS = 16384;
+
+/** The window dsh is told: the farm's context per slot clamped as LOL Vibe clamps its meter (renderer/chat/ctx/budget.mjs
+ *  trustedBudget — mirrored, main cannot import the renderer's modules): 1024–262144, 32768 when the farm says nothing.
+ *  A farm advertising 1M per slot would otherwise put dsh's compaction past anything the engine holds. */
+export function agentWindow(ctxPerSlot: number | null | undefined): number {
+    const n = Number(ctxPerSlot);
+    if (!Number.isFinite(n) || n <= 0) return 32768;
+    return Math.min(262144, Math.max(1024, Math.floor(n)));
+}
+
+/**
+ * The reply room a turn asks for. A plain turn: what the page asked (the model's profile), ≥ 512. "Keep going": at least
+ * GOAL_MAX_TOKENS, but dsh compacts at min(0.8·W, W − out − headroom) and at 16384 a 24k window compacted at 4k and a
+ * ≤ 20k one never — so on a small window the loop's room shrinks until the trigger stays at a quarter of the window,
+ * never below a plain turn's.
+ */
+export function agentMaxTokens(asked: unknown, window: number, goals: boolean): number {
+    const plain = Math.floor(Number(asked) || 8192);
+    const loop = goals ? Math.min(GOAL_MAX_TOKENS, Math.floor(window * 3 / 4) - COMPACT_HEADROOM) : 0;
+    return Math.min(65536, Math.max(512, plain, loop));
+}
+
 export interface StudioRuntime { node: string; bin: string }
 export interface StudioEmit { turnId: string; rec?: StudioRecord; done?: { reason: string; error?: string } }
 
@@ -88,8 +117,10 @@ export function buildPatch(o: { baseUrl: string; model: string; contextWindow: n
     // dsh's goal loop only when a person switched on "Keep going until done" — never on the model's own initiative
     // (create_goal's words invite it for any long request). command-goal stays off: nothing in the SDK reaches it.
     const goalOff = o.goals ? [] : ['tool-goal', 'goal-round-driver'];
+    // session-title-llm: a ≤ 64-token title call beside the first step (a second request on our seat) for a title LOL
+    // never shows — dsh's sdk bundle turns it off already; said here too, so a pin bump cannot bring it back unseen.
     const off = [
-        'tool-pwsh', 'tool-bash', 'tool-jobs', ...goalOff, 'tool-ralph', 'command-goal',
+        'session-title-llm', 'tool-pwsh', 'tool-bash', 'tool-jobs', ...goalOff, 'tool-ralph', 'command-goal',
         'tool-subagent', 'tool-subagent-fork', 'tool-subagent-control', 'tool-subagent-list-agents',
         'tool-workflow', 'workflow-ptc', 'tool-web', 'web-search-deepseek', 'web-fetch-http', 'web',
         'session-telemetry-otel', 'session-log-deepseek', 'plugin-package-inventory-deepseek',
@@ -105,6 +136,12 @@ export function buildPatch(o: { baseUrl: string; model: string; contextWindow: n
         '        api: openai-completions',
         `        baseURL: ${q(o.baseUrl)}`,
         '        apiKeyEnv: LOL_FARM_KEY',
+        // dsh retries a failed step itself (llm-retry: 5 tries, 0.5–10 s). Not a 429 (RATE_LIMIT): that is the farm's
+        // seat gate, and LOL Vibe's seat-wait waits for a free seat instead of knocking five times (projectEvent
+        // reports it). The rest stays retried: a LiteLLM restart answers 502 for a few seconds.
+        '        retryPolicy:',
+        '          mode: normal',
+        '          retryableCodes: [EMPTY_RESPONSE, SERVER, TIMEOUT, TRANSPORT]',
         '        models:',
         `          - id: ${q(o.model)}`,
         `            contextWindow: ${Math.max(4096, Math.floor(o.contextWindow))}`,
@@ -121,7 +158,7 @@ export function buildPatch(o: { baseUrl: string; model: string; contextWindow: n
         // round 5; with this, 17 compactions and done — docs/research/p5-loop-spike/RESULTS.md).
         '- id: compaction-basic',
         '  config:',
-        '    headroomTokens: 4096',
+        `    headroomTokens: ${COMPACT_HEADROOM}`,
         '    maxTokens: 4096',
         ...(o.goals ? ['- id: goal', '  config:', `    defaultMaxGoalRounds: ${GOAL_ROUNDS}`] : []),
         ...off.map((id) => `- { id: ${id}, disabled: true }`),
@@ -177,8 +214,12 @@ export function projectEvent(ev: any, dir: string): StudioRecord | null {
                 error: m.isError === true ? clip(text.split(dir).join('.'), 300) : null,
             };
         }
-        case 'turn/end':
+        case 'turn/end': {
+            // A 429 (pi-ai's RATE_LIMIT, never retried — buildPatch) is the farm's seat gate: the page's seat-wait takes it.
+            const e = d.reason && d.reason.kind === 'error' ? d.reason.error : null;
+            if (e && e.code === 'RATE_LIMIT') return { kind: 'end', reason: 'seats-full', error: clip(String(e.message || ''), 2000) };
             return { kind: 'end', reason: String((d.reason && d.reason.kind) || 'completed') };
+        }
         case 'goal/change': {
             const g = d.goal || null;
             return {
@@ -241,7 +282,7 @@ interface Rt {
     next: number; pending: Map<number, (m: any) => void>; sessions: Map<string, string>;
 }
 interface Turn {
-    id: string; sessionId: string; running: boolean; end: string | null; dir: string; prompt: string;
+    id: string; sessionId: string; running: boolean; end: string | null; error: string | null; dir: string; prompt: string;
     /** "Keep going until done": the goal's phase as dsh reports it, the rounds it started, the wait for the next one. */
     goal: string | null; rounds: number; waiting: NodeJS.Timeout | null;
 }
@@ -280,12 +321,15 @@ export function createStudio(deps: StudioDeps) {
     const homeOf = () => path.join(deps.dataDir(), 'lol-studio', 'dsh');
 
     /** Agent pages (IDE_PLAN §5 option A): what the Preview's server adds to a project — the loop library, and where
-     *  the farm is. Never the farm's password (on a farm that has one the page asks the person): any program on this
-     *  computer can reach the loopback server. */
+     *  the farm is and its default model. Never the farm's password (on a farm that has one the page asks the person):
+     *  any program on this computer can reach the loopback server. */
     function agentPageExtras(rel: string): { type: string; body: string } | null {
         if (rel === 'lol-farm.json') {
             const f = deps.farm();
-            return { type: 'application/json; charset=utf-8', body: JSON.stringify(f ? { baseUrl: f.endpoint, requiresKey: !!f.key } : { baseUrl: null, requiresKey: false }) };
+            return {
+                type: 'application/json; charset=utf-8',
+                body: JSON.stringify(f ? { baseUrl: f.endpoint, requiresKey: !!f.key, defaultModel: f.model || null } : { baseUrl: null, requiresKey: false, defaultModel: null }),
+            };
         }
         if (rel === 'lol-agent.mjs' && deps.agentLib) {
             try { return { type: 'text/javascript; charset=utf-8', body: fs.readFileSync(deps.agentLib, 'utf8') }; } catch { return null; }
@@ -358,7 +402,7 @@ export function createStudio(deps: StudioDeps) {
         if (m.method === 'session.event') {
             const rec = projectEvent(p.event, turn.dir);
             if (!rec) return;
-            if (rec.kind === 'end') turn.end = rec.reason;
+            if (rec.kind === 'end') { turn.end = rec.reason; turn.error = rec.error || null; }
             if (rec.kind === 'goal') turn.goal = rec.phase;
             if (rec.kind === 'round') turn.rounds = rec.n;
             deps.emit({ turnId: turn.id, rec });
@@ -376,7 +420,7 @@ export function createStudio(deps: StudioDeps) {
                     t.waiting = setTimeout(() => { if (turn === t) finish('stalled'); }, deps.roundWaitMs ?? ROUND_WAIT_MS);
                     return;
                 }
-                finish(turn.goal === 'blocked' ? 'blocked' : (turn.end || 'completed'));
+                finish(turn.goal === 'blocked' ? 'blocked' : (turn.end || 'completed'), turn.error || undefined);
             }
         }
     }
@@ -424,7 +468,7 @@ export function createStudio(deps: StudioDeps) {
             fs.writeFileSync(fence, FENCE_JS);
             fs.writeFileSync(check, CHECK_JS);
             fs.writeFileSync(hooks, fenceHooks(o.runtime.node, fence, process.platform, check));
-            const patch = buildPatch({ baseUrl: o.farm.endpoint, model: o.model, contextWindow: o.farm.ctxPerSlot || 32768, skillsDir: skillsOf(), hooksConfig: hooks, goals: o.goals, computer: o.computer ? { url: o.computer.url } : undefined });
+            const patch = buildPatch({ baseUrl: o.farm.endpoint, model: o.model, contextWindow: agentWindow(o.farm.ctxPerSlot), skillsDir: skillsOf(), hooksConfig: hooks, goals: o.goals, computer: o.computer ? { url: o.computer.url } : undefined });
             fs.writeFileSync(path.join(prof, 'cordis.patch.yml.tmp'), patch);
             fs.renameSync(path.join(prof, 'cordis.patch.yml.tmp'), path.join(prof, 'cordis.patch.yml'));
         } catch (e) {
@@ -484,13 +528,17 @@ export function createStudio(deps: StudioDeps) {
             const runtime = deps.runtime();
             if (!runtime) return err('E_RUNTIME', 'The coding agent is not installed on this computer yet.');
             if (turn) return err('E_BUSY', 'The coding agent is already working. Stop it first.');
-            // "Keep going until done": a turn cut on max-tokens disarms the goal, and 8192 cut real goal work (P5-L spike).
+            // "Keep going until done": a turn cut on max-tokens disarms the goal, and 8192 cut real goal work (P5-L spike)
+            // — 16384, unless the window is too small to compact around it (agentMaxTokens).
             const goals = o.goal === true;
-            const maxTokens = Math.min(65536, Math.max(goals ? 16384 : 512, Math.floor(Number(o.maxTokens) || 8192)));
+            const maxTokens = agentMaxTokens(o.maxTokens, agentWindow(farm.ctxPerSlot), goals);
             // "Use the Computer": only when a person switched it on AND this session holds the MCP server's port.
             const computer = o.computer === true && deps.computer ? deps.computer() : null;
             const key = JSON.stringify([idv.id, o.model, maxTokens, farm.endpoint, farm.key, farm.ctxPerSlot, runtime.bin, goals, !!computer]);
             if (!rt || rt.dead || rt.key !== key) {
+                if (goals && maxTokens < GOAL_MAX_TOKENS) {
+                    console.info(`[studio] keep going on a ${agentWindow(farm.ctxPerSlot)}-token window: each reply may write ${maxTokens} tokens, not ${GOAL_MAX_TOKENS}, so the agent can still compact`);
+                }
                 await stopRuntime();
                 const started = await startRuntime({ key, dir, model: o.model, maxTokens, farm, runtime, goals, computer });
                 if ('ok' in started) return started;
@@ -505,7 +553,7 @@ export function createStudio(deps: StudioDeps) {
             const text = (fresh && o.recap ? `${o.recap}\n\n` : '') + (goals ? GOAL_PROMPT : '') + o.text;
             // The page names the turn when it can, so it listens BEFORE the first record (they can beat this answer).
             const named = typeof o.turnId === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(o.turnId) ? o.turnId : '';
-            turn = { id: named || randomBytes(8).toString('hex'), sessionId, running: false, end: null, dir, prompt: o.text, goal: null, rounds: 0, waiting: null };
+            turn = { id: named || randomBytes(8).toString('hex'), sessionId, running: false, end: null, error: null, dir, prompt: o.text, goal: null, rounds: 0, waiting: null };
             const id = turn.id;
             const res = await call(r, 'session/prompt', { sessionId, contentBlocks: [{ type: 'text', text }] }, 30000);
             if (res.error) {

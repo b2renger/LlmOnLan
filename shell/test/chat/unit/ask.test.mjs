@@ -425,6 +425,22 @@ export default (test) => {
     assert.match(r.error.message, /engine fell over/);
   });
 
+  // Multi-user 1.6: kind `busy` is what the runner's Cap skips and what makes a run YIELD (graph-runner.test.mjs: "a
+  // refusal that took no seat does not eat the cap"); as kind `farm` a full farm cost a generation and failed the box.
+  test('the seat gate\'s 429 is busy, with the farm\'s own sentence — one request, no second rung', async () => {
+    const { app } = stubApp({ seats: { used: 1, slots: 2, clients: 1, idleSec: 900 } });
+    const { api } = createAsk(app);
+    const said = 'All 2 seats on this server are in use. Try again in a moment.';
+    const farm = fakeFarm(() => ({ status: 429, json: { error: { message: said, type: 'rate_limit_error', code: 'lol_seats_full' } } }));
+    await withFarm(farm, async () => {
+      const t = await api.text({ task: 't', prompt: 'p', priority: 'background' });
+      assert.deepEqual([t.ok, t.error.kind, t.error.message], [false, 'busy', said]);
+      const j = await api.json({ task: 'j', prompt: 'p', schema: SCHEMA, priority: 'background' });
+      assert.deepEqual([j.ok, j.error.kind, j.error.message], [false, 'busy', said]);
+    });
+    assert.equal(farm.posts.length, 2, 'a refusal is not retried down the ladder');
+  });
+
   // ---- the cache ----------------------------------------------------------------------------------
 
   test('an identical ask is answered from the cache, and cache:false is honoured', async () => {

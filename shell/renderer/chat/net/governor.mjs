@@ -58,6 +58,9 @@ export function createGovernor(app) {
     // `foreground === 'idle'`, and a foreground Send still aborts every background call. The
     // reader always wins, unchanged.
     if (!seats) return true;
+    // Multi-user 1.6: `used` counts OUR seat too, so on a full farm a person who chatted a minute ago could not run a
+    // single model box. A seat the farm says is ours (`mine`) is free to us: the gate admits our IP on it.
+    if (seats.mine) return true;
     return Number(seats.used) < Number(seats.slots);
   }
 

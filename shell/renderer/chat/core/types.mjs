@@ -13,7 +13,7 @@
  *   id?, requiresKey?, healthy?, stale?, lastSeen?, host?, httpPort?,
  *   models?: {id, underlying, default}[],
  *   backend?: {engine, alias, contextLength, contextPerSlot, slots} | null,
- *   capacity?: {slots, clients, seatsUsed, seatIdleSec, busy?, queued?} | null,
+ *   capacity?: {slots, clients, seatsUsed, seatIdleSec, busy?, queued?, mine?} | null,
  *   perf?: object|null, usage?: {gpuUtil}|null, searxngUrl?, ttsUrl?, ttsVoice?, ttsModel?,
  *   extract?: {url, key}|null }} FarmBridge
  */
@@ -22,7 +22,7 @@
  * @typedef {{ present, id, name, baseUrl, proxyRoot, apiKey, requiresKey, keyMissing, healthy, stale, lastSeen,
  *   defaultModel, models: {id, underlying, default}[], engine: 'ollama'|'llama.cpp'|'external'|null,
  *   budget: {tokens, advertised, source: 'advertised'|'default'},
- *   seats: {used, slots, clients, idleSec}|null, busy: {label, percent}|null, perf, gpuUtil,
+ *   seats: {used, slots, clients, idleSec, mine}|null, busy: {label, percent}|null, perf, gpuUtil,
  *   search: {url}|null, tts: {url, voice, model}|null, ocr: {url, key}|null,
  *   classify?: {url: string, key: string|null}|null, stt?: {url: string, key: string|null}|null,
  *   bus?: {ws: string, mqtt: string|null, osc: string|null, auth: boolean}|null }} FarmCaps

@@ -65,6 +65,19 @@ export default (test) => {
     assert.match(quiet.content, /Changes tab/, 'a turn with only tool calls still says something');
   });
 
+  // Multi-user 1.6: dsh no longer retries a 429 by itself (studio.ts), so the seat gate's refusal must become the SAME
+  // seats_full a plain reply gets — the kind app/seat-wait.mjs's error handler takes, holding the reply for a free seat.
+  test('agent: a step the seat gate refused is seats_full with the farm\'s own sentence, so the seat-wait takes it', () => {
+    const said = 'All 2 seats on this server are in use. Try again in a moment.';
+    const json = resultOf(emptyTurn(), { reason: 'seats-full', error: `429: ${JSON.stringify({ message: said, type: 'rate_limit_error', code: 'lol_seats_full' })}` });
+    assert.equal(json.status, 'error');
+    assert.deepEqual([json.error.kind, json.error.status, json.error.farmMessage, json.error.retryAfter], ['seats_full', 429, said, 30]);
+    const plain = resultOf(emptyTurn(), { reason: 'seats-full', error: `429 ${said}` });
+    assert.deepEqual([plain.error.kind, plain.error.farmMessage], ['seats_full', said], 'pi-ai\'s other spelling, a bare sentence');
+    const bare = resultOf(emptyTurn(), { reason: 'seats-full' });
+    assert.equal(bare.error.kind, 'seats_full', 'no text at all is still a full farm');
+  });
+
   test('agent: the recap keeps the newest turns within its budget, and is empty with no history', () => {
     assert.equal(buildRecap([]), '');
     const path = [];

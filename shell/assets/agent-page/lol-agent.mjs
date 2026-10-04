@@ -9,10 +9,10 @@
 // Agent box: a failed or malformed step is fed back, the last step must answer. Everything runs in the page: the model
 // sees only what the page sends it, and each step is one generation on the farm.
 
-/** @type {{baseUrl: string, requiresKey: boolean} | null} */
+/** @type {{baseUrl: string, requiresKey: boolean, defaultModel?: string | null} | null} */
 let farmInfo = null;
 
-/** Where the farm is (LlmOnLan tells the page). */
+/** Where the farm is, and its default model (LlmOnLan tells the page). */
 export async function farm() {
   if (farmInfo) return farmInfo;
   const r = await fetch('/lol-farm.json', { cache: 'no-store' }).catch(() => null);
@@ -37,7 +37,7 @@ function why(r, keyed) {
   return `The farm answered ${r.status}.`;
 }
 
-/** The models the farm serves; the first is the one ask() uses by default. */
+/** The models the farm serves. ask() uses the farm's default unless told otherwise (the first, from an older LlmOnLan). */
 export async function models() {
   const f = await farm();
   const r = await fetch(`${f.baseUrl}/models`, { headers: auth() });
@@ -52,7 +52,7 @@ export async function models() {
  */
 export async function ask(o) {
   const f = await farm();
-  const model = o.model || (await models())[0];
+  const model = o.model || f.defaultModel || (await models())[0];
   const r = await fetch(`${f.baseUrl}/chat/completions`, {
     method: 'POST',
     headers: { 'content-type': 'application/json', ...auth() },

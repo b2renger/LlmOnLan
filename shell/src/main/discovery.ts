@@ -171,7 +171,14 @@ export class Discovery extends EventEmitter {
                 if (res.statusCode !== 200) { res.resume(); return resolve(null); }
                 let b = '';
                 res.on('data', (c) => { b += c; if (b.length > 1_000_000) req.destroy(); });
-                res.on('end', () => { try { const s = JSON.parse(b); resolve(s && s.v != null ? s : null); } catch { resolve(null); } });
+                res.on('end', () => {
+                    try {
+                        const s = JSON.parse(b);
+                        // A unicast answer always says whether THIS client holds a seat (merge() keeps it over a beacon).
+                        if (s && s.capacity && typeof s.capacity === 'object') s.capacity.mine = s.capacity.mine === true;
+                        resolve(s && s.v != null ? s : null);
+                    } catch { resolve(null); }
+                });
             });
             req.on('timeout', () => req.destroy());
             req.on('error', () => resolve(null));
@@ -203,6 +210,10 @@ export class Discovery extends EventEmitter {
         // beacon saw it first): prune() must keep a farm the user added, stale or not.
         if (source === 'added') this.manualSeen.set(host, id);
         const prev = this.peers.get(id);
+        // `capacity.mine` (multi-user 1.6): the beacon cannot know who asks, so between two 2 s active polls a beacon
+        // would erase it every 5 s — and the Computer's background lane would flicker. A beacon keeps the last unicast word.
+        const mine = prev && prev.snap.capacity ? prev.snap.capacity.mine : undefined;
+        if (snap.capacity && snap.capacity.mine === undefined && typeof mine === 'boolean') snap = { ...snap, capacity: { ...snap.capacity, mine } };
         if (prev && prev.host !== host && now - prev.hostSeen <= STALE_MS) {
             this.peers.set(id, { ...prev, snap, lastSeen: now });
             return;

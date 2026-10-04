@@ -35,7 +35,7 @@ async function settle() {
 }
 
 /** The farm's own sentence, copied from shell/test/mock/seats-body.js (= farm/src/seats.js). */
-const FARM_SEATS_TEXT = "All 2 seats on this server are in use. A seat frees after ~15 min without activity — try again in a moment, or ask around who's done.";
+const FARM_SEATS_TEXT = "All 2 seats on this server are in use. Every one is generating right now, and a seat frees ~15 min after its last reply — try again in a moment, or ask around who's done.";
 
 const seatsFullResponse = () => new Response(
   JSON.stringify({ error: { message: FARM_SEATS_TEXT, type: 'rate_limit_error', code: 'lol_seats_full' } }),

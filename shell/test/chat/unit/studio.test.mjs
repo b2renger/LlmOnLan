@@ -4,7 +4,7 @@
 // the SDK protocol (against test/mock-dsh.mjs), starts a fresh session with the recap, stops by killing the process,
 // and says why when it cannot start; the Preview server serves the project folder only, to 127.0.0.1 only.
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import http from 'node:http';
 import os from 'node:os';
@@ -107,6 +107,64 @@ export default (test) => {
     const r = spawnSync(node, [bin, '--profile', 'sdk', '--dump-config'], { encoding: 'utf8', timeout: 60000, env: { ...S.runtimeEnv(process.env, { home, key: 'x' }) } });
     assert.match(String(r.stdout), /- id: compaction-basic\n {2}name: '@deepseek-ai\/dsh-compaction-basic'\n {2}config:\n {4}headroomTokens: 4096/, String(r.stderr).slice(-400));
   });
+
+  // Multi-user 1.6 (c): dsh's llm-retry knocked five times on a full farm and the reply never reached LOL Vibe's seat-wait.
+  const SEATS_429 = `429: ${JSON.stringify({ message: 'All 2 seats on this server are in use. Try again in a moment.', type: 'rate_limit_error', code: 'lol_seats_full' })}`;
+  test('studio: a 429 is the seat gate\'s — dsh never retries it and the turn ends as seats-full; the rest is still retried; no title call', () => {
+    const p = S.buildPatch({ baseUrl: 'http://x/v1', model: 'm', contextWindow: 32768, skillsDir: '/s' });
+    assert.match(p, /apiKeyEnv: LOL_FARM_KEY\n {8}retryPolicy:\n {10}mode: normal\n {10}retryableCodes: \[EMPTY_RESPONSE, SERVER, TIMEOUT, TRANSPORT\]\n {8}models:/);
+    assert.ok(p.includes('- { id: session-title-llm, disabled: true }'), 'no second request for a title nobody shows');
+    const end = (error) => S.projectEvent({ type: 'turn/end', data: { turn: 1, reason: { kind: 'error', error } } }, '/p');
+    assert.deepEqual(end({ code: 'RATE_LIMIT', message: SEATS_429 }), { kind: 'end', reason: 'seats-full', error: SEATS_429 });
+    assert.deepEqual(end({ code: 'SERVER', message: '502 Bad Gateway' }), { kind: 'end', reason: 'error' }, 'any other failure ends as before');
+  });
+
+  test('studio: the REAL dsh with our patch — one request on a 429, retries on a 502 (when the runtime is built)', async () => {
+    const rt = path.join(SHELL, 'dsh', 'build', 'dsh-runtime');
+    const node = path.join(rt, 'node', process.platform === 'win32' ? 'node.exe' : path.join('bin', 'node'));
+    const bin = path.join(rt, 'node_modules', '@deepseek-ai', 'dsh', 'lib', 'bin.js');
+    if (!fs.existsSync(node) || !fs.existsSync(bin)) { console.log('     (no dsh runtime in shell/dsh/build: skipped)'); return; }
+    /** Run one prompt against a fake farm that answers every completion with `status`; resolve at the turn's end or once `enough` POSTs came. */
+    const run = (status, enough) => new Promise((resolve, reject) => {
+      let posts = 0; /** @type {any} */ let child = null;
+      const server = http.createServer((req, res) => {
+        req.resume();
+        req.on('end', () => {
+          if (req.method === 'POST' && ++posts >= enough) finish(null);
+          res.writeHead(status, { 'content-type': 'application/json' });
+          res.end(status === 429 ? JSON.stringify({ error: JSON.parse(SEATS_429.slice(5)) }) : '{"error":{"message":"Bad Gateway"}}');
+        });
+      });
+      let over = false;
+      const finish = (/** @type {any} */ end) => { if (over) return; over = true; if (child) child.kill(); server.close(); resolve({ posts, end }); };
+      server.listen(0, '127.0.0.1', () => {
+        const home = tmp('retry');
+        fs.mkdirSync(path.join(home, 'profiles', 'sdk'), { recursive: true });
+        fs.writeFileSync(path.join(home, 'profiles', 'sdk', 'cordis.patch.yml'),
+          S.buildPatch({ baseUrl: `http://127.0.0.1:${/** @type {any} */ (server.address()).port}/v1`, model: 'm', contextWindow: 32768, skillsDir: home.split(path.sep).join('/') }));
+        child = spawn(node, [bin, '--profile', 'sdk'], { cwd: home, env: S.runtimeEnv(process.env, { home, key: 'x' }), stdio: ['pipe', 'pipe', 'pipe'] });
+        const send = (/** @type {any} */ m) => child.stdin.write(JSON.stringify({ jsonrpc: '2.0', ...m }) + '\n');
+        let buf = '';
+        child.stdout.on('data', (/** @type {Buffer} */ d) => {
+          buf += d;
+          let i;
+          while ((i = buf.indexOf('\n')) >= 0) {
+            let m; try { m = JSON.parse(buf.slice(0, i)); } catch { m = null; }
+            buf = buf.slice(i + 1);
+            if (m && m.id === 1) send({ id: 2, method: 'session/prompt', params: { sessionId: 's', contentBlocks: [{ type: 'text', text: 'hi' }] } });
+            if (m && m.method === 'session.event' && m.params.event.type === 'turn/end') finish(S.projectEvent(m.params.event, home));
+          }
+        });
+        child.on('error', reject);
+        send({ id: 1, method: 'initialize', params: { cwd: home, provider: 'lolfarm', model: 'm', maxTokens: 8192 } });
+      });
+    });
+    const full = /** @type {any} */ (await run(429, 99));
+    assert.equal(full.posts, 1, 'the seat gate is asked once — the seat-wait does the waiting');
+    assert.deepEqual(full.end, { kind: 'end', reason: 'seats-full', error: SEATS_429 }, 'pi-ai\'s text, as projectEvent reads it');
+    const down = /** @type {any} */ (await run(502, 2));
+    assert.equal(down.posts, 2, 'a 502 (LiteLLM restarting) is still retried');
+  }, { timeoutMs: 60000 });
 
   test('studio: the runtime env carries our settings and none of the shell\'s other secrets', () => {
     const env = S.runtimeEnv({ PATH: '/bin', OPENAI_API_KEY: 'x', DEEPSEEK_API_KEY: 'y', ELECTRON_RUN_AS_NODE: '1', HF_TOKEN: 'z' }, { home: '/h', key: 'pw' });
@@ -258,13 +316,13 @@ export default (test) => {
 
   test('studio: agent pages — the Preview serves the loop library and where the farm is, never its password; the LAN share neither', async () => {
     const lib = path.join(HERE, '..', '..', '..', 'assets', 'agent-page', 'lol-agent.mjs');
-    const r = rig({ agentLib: lib, farm: { endpoint: 'http://10.0.0.5:4000/v1', key: 'the-farm-password', ctxPerSlot: 32768 } });
+    const r = rig({ agentLib: lib, farm: { endpoint: 'http://10.0.0.5:4000/v1', key: 'the-farm-password', ctxPerSlot: 32768, model: 'assistant' } });
     try {
       const s = await r.studio.serve(PID);
       const port = new URL(s.url).port;
       const info = await get(s.url, { host: `127.0.0.1:${port}`, path: '/lol-farm.json' });
       assert.equal(info.status, 200);
-      assert.deepEqual(JSON.parse(info.body), { baseUrl: 'http://10.0.0.5:4000/v1', requiresKey: true });
+      assert.deepEqual(JSON.parse(info.body), { baseUrl: 'http://10.0.0.5:4000/v1', requiresKey: true, defaultModel: 'assistant' }, 'and the farm\'s default model (multi-user 1.6)');
       assert.ok(!info.body.includes('the-farm-password'), 'never the password: the page asks the person');
       const js = await get(s.url, { host: `127.0.0.1:${port}`, path: '/lol-agent.mjs' });
       assert.equal(js.status, 200);
@@ -327,6 +385,34 @@ export default (test) => {
       assert.ok(n1 >= S.GOAL_ROUNDS && n1 <= S.GOAL_ROUNDS + 2, `the rounds up to the cap ran, and about none past it (${n1})`);
       assert.equal(r.studio.status().running, false);
     } finally { await r.studio.dispose(); }
+  });
+
+  test('studio: a turn the seat gate refused ends as seats-full with the farm\'s text, for the page\'s seat-wait', async () => {
+    const r = rig();
+    try {
+      const a = await r.studio.prompt({ projectId: PID, threadId: 'f', model: 'm', text: 'farm-full' });
+      assert.deepEqual(await r.done(a.turnId), { reason: 'seats-full', error: SEATS_429 });
+      const b = await r.studio.prompt({ projectId: PID, threadId: 'f', model: 'm', text: 'write ok.txt: yes' });
+      assert.deepEqual(await r.done(b.turnId), { reason: 'completed' }, 'the next turn carries no stale error');
+    } finally { await r.studio.dispose(); }
+  });
+
+  // Multi-user 1.6 (d): dsh compacts at min(0.8·W, W − out − 4096). "Keep going" asked 16384 whatever the window: a 24k
+  // window compacted at 4k, a ≤ 20k one never — and the window itself was taken from the farm unclamped.
+  test('studio: the agent\'s window is clamped like LOL Vibe\'s meter; "keep going" shrinks its room on a small window', () => {
+    assert.deepEqual([null, undefined, 0, -5, 'x', 500, 16384, 1048576].map((w) => S.agentWindow(w)),
+      [32768, 32768, 32768, 32768, 32768, 1024, 16384, 262144]);
+    const trigger = (/** @type {number} */ w, /** @type {number} */ out) => Math.floor(Math.min(0.8 * w, w - out - 4096));
+    for (const w of [16384, 20480, 24576, 32768, 131072, 262144]) {
+      const loop = S.agentMaxTokens(8192, w, true);
+      assert.ok(loop >= 8192 && loop <= 16384, `${w}: between a plain turn's room and 16384 (${loop})`);
+      assert.ok(trigger(w, loop) >= w / 4, `${w}: compaction still starts at a quarter of the window or later (${trigger(w, loop)})`);
+    }
+    assert.equal(S.agentMaxTokens(8192, 32768, true), 16384, 'the P5-L room where it fits (a 32k window compacts at 12288)');
+    assert.equal(S.agentMaxTokens(8192, 24576, true), 14336);
+    assert.equal(S.agentMaxTokens(8192, 8192, true), 8192, 'never below a plain turn\'s room');
+    assert.deepEqual([S.agentMaxTokens(8192, 4096, false), S.agentMaxTokens(100, 32768, false), S.agentMaxTokens(undefined, 32768, false), S.agentMaxTokens(1e6, 32768, true)],
+      [8192, 512, 8192, 65536], 'a plain turn is unchanged: what was asked, 512–65536');
   });
 
   test('studio: one turn at a time; Stop ends it at once and the next prompt starts a fresh session', async () => {

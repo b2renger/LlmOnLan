@@ -688,7 +688,7 @@ function registerIpc(): void {
             studioApi = createStudio({
                 dataDir: resolveDataDir,
                 projectsRoot: () => path.join(resolveDataDir(), 'LOL Studio Projects'),
-                farm: () => (currentEndpoint ? { endpoint: currentEndpoint, key: currentKey, ctxPerSlot: currentCtxPerSlot } : null),
+                farm: () => (currentEndpoint ? { endpoint: currentEndpoint, key: currentKey, ctxPerSlot: currentCtxPerSlot, model: currentModel } : null),
                 runtime: () => resolveRuntime(process.env, app.getPath('userData')),
                 emit: (m) => { if (win && !win.isDestroyed()) win.webContents.send('lol:studio:event', m); },
                 seedSkills: path.join(app.getAppPath(), 'assets', 'skills'),

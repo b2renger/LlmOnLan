@@ -237,13 +237,16 @@ export default (test) => {
 
             // The wording must equal farm/src/seats.js, not our idea of it.
             const farmSrc = fs.readFileSync(FARM_SEATS, 'utf8');
-            const tmpl = /message: `([^`]*)`/.exec(farmSrc);
-            assert.ok(tmpl, 'could not find the 429 template in farm/src/seats.js');
-            const expected = tmpl[1].replace('${a.cap}', '2').replace('${mins}', '15');
+            // The 429 sentence is built from a `when` part; the mock sends the
+            // every-seat-generating variant (Retry-After 30), so expand that one.
+            const tmpl = /message: `(All [^`]*)`/.exec(farmSrc);
+            const when = /\? `(Every one[^`]*)`/.exec(farmSrc);
+            assert.ok(tmpl && when, 'could not find the 429 template in farm/src/seats.js');
+            const expected = tmpl[1].replace('${a.cap}', '2').replace('${when}', when[1]).replace('${mins}', '15');
             assert.equal(body.error.message, expected);
             assert.equal(seatsFullBody({ cap: 2, idleSec: 900 }).error.message, expected);
 
-            const up = /message: '([^']*)'/.exec(farmSrc);
+            const up = /message: '([^']*)',\s*type: 'api_error',\s*code: 'lol_upstream_down'/.exec(farmSrc);
             assert.ok(up, 'could not find the 502 message in farm/src/seats.js');
             assert.equal(upstreamDownBody().error.message, up[1]);
 
@@ -253,7 +256,7 @@ export default (test) => {
                 model: 'mock-echo', stream: true, messages: [],
             })).json();
             assert.match(b2.error.message, /^All 4 seats /);
-            assert.match(b2.error.message, /~2 min without activity/);
+            assert.match(b2.error.message, /~2 min after its last reply/);
         });
     });
 

@@ -72,13 +72,19 @@ export default (test) => {
     assert.equal(c.engine, 'llama.cpp');
     assert.equal(c.defaultModel, 'assistant');
     assert.equal(c.models.length, 2);
-    assert.deepEqual(c.seats, { used: 1, slots: 2, clients: 3, idleSec: 900 });
+    assert.deepEqual(c.seats, { used: 1, slots: 2, clients: 3, idleSec: 900, mine: false }, 'a farm that does not say is not ours');
     assert.equal(c.gpuUtil, 3);
     assert.equal(c.healthy, true);
     assert.equal(c.stale, false);
     assert.equal(c.search, null);
     assert.equal(c.tts, null);
     assert.equal(c.ocr, null);
+  });
+
+  test('multi-user 1.6: capacity.mine (unicast /lol/self) reaches the seats; only a literal true counts', () => {
+    const cap = { slots: 2, clients: 3, seatsUsed: 2, seatIdleSec: 900 };
+    assert.equal(capsFromBridge(fullBridge({ capacity: { ...cap, mine: true } })).seats.mine, true);
+    assert.equal(capsFromBridge(fullBridge({ capacity: { ...cap, mine: 'yes' } })).seats.mine, false);
   });
 
   test('the budget is the advertised context per slot', () => {
