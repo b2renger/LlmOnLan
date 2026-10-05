@@ -398,7 +398,8 @@ function buildLitellmConfig(config, peers = []) {
             // streams (~10 ms) and a lone non-streaming call (~1 s), but NOT a
             // non-streaming call while someone else streams: llama-server only checks
             // the client on a 1 s wait that every other request's result restarts
-            // (upstream server-queue.cpp recv_with_timeout) — it runs to its end.
+            // (upstream server-queue.cpp recv_with_timeout) — it runs to its end. Still
+            // so in b11406; open PR ggml-org/llama.cpp#29707 fixes it.
             cancel_on_disconnect: true,
         },
     };

@@ -174,7 +174,10 @@ export function buildSidecarEnv(input: SidecarEnvInput): Record<string, string> 
         // are never used; in retrieval mode OWUI falls back to embedding the user's
         // message itself, which is the standard RAG pattern anyway. Same class of
         // fix as the follow-up/tags trio below. (ENABLE_SEARCH_QUERY_GENERATION is
-        // a separate flag and stays ON — web search genuinely needs it.)
+        // a separate flag and stays ON: only OWUI's legacy function calling uses it.
+        // Under 0.11's default native function calling the model searches through
+        // its search_web/fetch_url tools and no query call runs — measured
+        // 2026-10-05, multi-user plan 1.4.)
         ENABLE_RETRIEVAL_QUERY_GENERATION: 'false',
 
         // --- default model capabilities (vision, + web_search when the farm has it) ---

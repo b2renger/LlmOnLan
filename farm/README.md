@@ -1061,5 +1061,7 @@ Measured 2026-10-04:
 - **Ollama 0.34** stops on every path within 16–71 ms.
 - **llama.cpp b10670** stops streams within ~10 ms, but a **non-streaming call abandoned while someone else
   streams runs to its end**. This is an upstream bug: the disconnect check sits on a 1 s wait that every
-  other request's result restarts. So the llama.cpp mode fails until a pinned build carries a fix. Bump
-  the pin and re-run it.
+  other request's result restarts. It is still there in b11406 (2026-10-05). Open PR
+  [#29707](https://github.com/ggml-org/llama.cpp/pull/29707) fixes it. So the llama.cpp mode fails until a
+  pinned build carries that fix. Bump the pin and re-run it. The reproduction is in
+  `docs/upstream/LLAMACPP_NONSTREAM_CANCEL.md`.

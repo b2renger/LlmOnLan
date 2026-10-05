@@ -6,6 +6,95 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-10-05 (12:42) — LiteLLM's delay halved; web search measured; thinking off on real engines; the llama.cpp bug has a fix upstream; prices per person
+
+The owner's answers this morning (plan revision 4): ComfyQ moved off the PRO 6000 yesterday; classes are
+usually 20–30 people, capped at 50; "A5500" means the new Blackwell card; the laptop study is low priority;
+file the llama.cpp bug upstream. Seven agents then ran the items that needed no decision (one GPU job at a
+time where timing mattered; the owner's Farm app came up on this box at ~11:40 and stayed healthy).
+
+- **LiteLLM's extra delay at 100–140 streams, halved** (`8f137c6`).
+  - **Cause, from a py-spy profile:** the farm's single LiteLLM Python process sat at one full core from
+    ~50 streams. It passed on ~3,400–4,000 tokens/s while vLLM made 5,300–5,800. Half its event loop was
+    the OpenAI SDK building typed objects for every streamed chunk (the `openai/` provider); ~15 % was
+    rebuilding each reply at its end.
+  - **Fix:** the external deployment uses `hosted_vllm/`, LiteLLM's own client and SSE parser.
+
+    | People at once (200-token reply, through the seat gate) | vLLM alone | before | after |
+    |---|---|---|---|
+    | 100 | 3.4–3.5 s | 4.6–5.3 s | 4.1–4.2 s |
+    | 140 | 4.0–4.2 s | 5.2–6.6 s | 4.9 s |
+
+  - **What stays the same:** reasoning, images, tool calls, usage and thinking off. Stop still stops vLLM
+    on all 10 paths, and `external.apiKey` still reaches the server.
+  - **The difference:** `hosted_vllm/` strips `strict` and `additionalProperties` from tool schemas and
+    forwards `reasoning_effort` and `stream_options`. No first-party client sends those.
+  - **What didn't help:** `--num_workers` loses 12–21 of 100 streams on Windows; Granian refuses workers
+    there; the WSL relay costs nothing.
+  - **Left:** ~0.7 s at 140. The fix for that (the gate streams straight to a lone external engine,
+    skipping LiteLLM) was prototyped (it matched vLLM alone) and is written up in `farm/README.md`, not
+    built. It is the owner's call: LiteLLM was kept on 2026-09-04.
+  - **Review:** one adversarial review; its findings are applied. Coordinator peers stay on `openai/`,
+    unmeasured, to revisit with Phase 3.0. The cancel test fails if a routing shape disappears.
+  - **Tests:** farm 155/0, then 160/0 with the next commits; `litellm-cancel` fake mode PASS on 1.97.0 and
+    1.90.0, vLLM mode 10/10.
+- **Web search per Open WebUI message, measured** (plan 1.4, decision 4). Open WebUI 0.11.4 ran with the
+  client's exact env against vLLM + Qwen3.6: 8 questions × 2 turns per condition, 138 messages, 401
+  completion calls, 238 searches.
+  - **The plan's premise was wrong.** OWUI 0.11.4 defaults to *native* function calling, and LOL leaves it
+    alone. The model loops over `search_web` / `fetch_url`; no search-query call runs, so turning query
+    generation off (option b) changes nothing.
+  - **Web search on:** a first message takes 7.8 generations against 3.1 (median 5, max 29). That is about
+    2.5× the GPU work per chat, and the median wait to the first word of the answer goes from 1.9 s to
+    5.4 s. Only 1 of 4 fresh-fact questions came back right: SearXNG here had only Bing answering, the
+    other engines being blocked by CAPTCHAs.
+  - **Runaways:** 4 of 36 native-mode follow-ups fell into degenerate repetition up to the 64k window.
+  - **The legacy flow the plan assumed:** the query call is 2.5 % of slot time. Whole pages, though,
+    overflowed 64k on 4 of 16 messages.
+  - **Recommendation:** (c) web search off by default, one click away on the globe toggle. Waiting on the
+    owner.
+- **Thinking off on real engines** (decision 9). It reaches Ollama 0.34 (gemma4:12b does think by default;
+  Qwen3.8) and llama.cpp b10670 through the farm's LiteLLM, streaming and not, and LiteLLM changes nothing.
+  - **The price on small models:** 2 of 9 toy reasoning answers were deterministically wrong without
+    thinking (gemma4 235 for 215; Qwen3.8 IQ2_S 385 for 395).
+  - **Next:** the Computer's real verdict and agent-step asks, both ways, on the target model, before
+    anything changes.
+- **The llama.cpp Stop bug** (plan 0.0). It is still there in today's b11406 and on master (`e5983d6`),
+  and it reproduces directly against llama-server, no proxy. Open PR ggml-org/llama.cpp#29707 already
+  carries the exact fix (a deadline + `wait_until`), framed as a router fix and without a reproduction.
+  - **Nothing was posted.** llama.cpp forbids AI-written issues and comments, and agent posting
+    (CONTRIBUTING AI Usage Policy item 5; AGENTS.md).
+  - **For the owner to post in their own words:** `docs/upstream/LLAMACPP_NONSTREAM_CANCEL.md`, the facts,
+    the log lines and a stdlib repro script. The farm's notes now point at the PR.
+- **Prices per person for a purchase** (`docs/spike/ESTIMATES_2026-10-05.md`, plan §8). NVIDIA lists a card
+  literally named after the A5500: the RTX PRO 5500, 84 GB. The estimates are scaled from the measured PRO
+  6000 (validated within one tested level on that card), Qwen3.6 at 32k, OCR on the card, prices in France
+  with VAT:
+
+  | Card | Price per person at 32k |
+  |---|---|
+  | PRO 6000, measured | €138–184 |
+  | PRO 5000 72 GB | €162–190 (needs a host PC) |
+  | PRO 5500 | €177–187 |
+  | PRO 5000 48 GB | ~€500 |
+
+  - Expect a PRO 6000 to do the work of 4–6.6 Sparks, not "about 6".
+  - **A correction to this morning's reading:** with the recipe's 50 GiB pool, a class of 30 fits at 128k
+    only if vLLM is started for 128k, and then thinly (32 against 34–36).
+- **Code, built in worktrees and reviewed** (`8c1f612`, `1dfbbf7`, `76f5ae1`; review fixes are running):
+  - **4.4, the snapshot contract:** `farm/contract/snapshot.schema.json`, a farm test that fails on drift,
+    and a shell test that reads today's farm, farm-v0.0.41 and the oldest allowed shape.
+  - **13b, one honest wait per surface:**
+    - Agent pages wait out a full farm (`onWait`).
+    - The pill says "· 12 waiting" when vLLM queues.
+    - The review found the gate's own 429/401/502 carry no CORS headers, so agent pages can't read them.
+      The fix is in progress.
+  - **13b, slots vs context:** the panel says, before Apply, the context each person gets and what the
+    clients do with it.
+  - **Tests on the integrated branch:** farm 160/0, shell chat-unit 1804/0, unit 6, lint 0.
+- **Stray Electron:** one of the agents' scratch Electron tests hit a fixed port twice and showed an
+  error dialog on the desktop. It was closed. Agents now use OS-assigned ports.
+
 ## 2026-10-05 (09:25) — vLLM on the Windows PRO 6000: the WSL recipe, checked live through the farm (owner decision 10)
 
 - **Why vLLM's TCP port never answered under WSL2's mirrored networking:** vLLM 0.30 binds its port at

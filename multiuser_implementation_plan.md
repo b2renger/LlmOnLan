@@ -29,7 +29,8 @@ Items that need an owner decision are marked **DECISION**.
   numbers are the real ones, not ceilings.
 - **Class size varies.** The owner caps it at **50 people**; most of the time it is **20–30**. The acceptance
   test uses both (§12).
-- **"A5500" means the new card:** the Blackwell RTX PRO 5000 class, not the 2022 Ampere RTX A5500 (§8).
+- **"A5500" means the new card**, a Blackwell one, not the 2022 Ampere RTX A5500. NVIDIA now lists an
+  RTX PRO 5500 (84 GB) beside the RTX PRO 5000 (48/72 GB); §8 estimates all three.
 - **The laptop study (4.3)** stays open but is low priority.
 - **The llama.cpp Stop bug** (0.0) goes upstream as an issue (approved).
 
@@ -159,7 +160,9 @@ it: unpinned LiteLLM, uncounted VRAM co-tenants, the ungated paths. §4a says wh
 - **Use cases (from the code; details in the audit §5).**
   - *OWUI chat*: OWUI → farm. Title generation runs once per chat, and **search-query generation runs on
     every message** (web search is seeded `always`). Follow-ups, tags, autocomplete and retrieval-query
-    generation are already off.
+    generation are already off. **Corrected 2026-10-05 by measurement (1.4):** OWUI 0.11.4 defaults to
+    *native* function calling, which LOL leaves alone. A searched message is then a loop of tool-call rounds
+    (`search_web`, `fetch_url`; median 5, up to 29), and no search-query call runs at all.
   - *LOL Vibe*: the client's own chat, farm-direct, streaming, with no tools. One request in flight per
     window, and a **seat-wait** row that resends when a seat frees.
   - *IDE / coding agent*: a mode of **project-bound** Vibe threads, DeepSeek Harness run by main. It uses
@@ -311,7 +314,9 @@ The analysis below (scale out vs scale up) is kept for the record. Scale-out acr
      `slotsVerified:false`). Changing it means editing the service's environment and restarting the
      shared Ollama.
    - Ollama's slot count applies only after a farm restart.
-2. **Two generations per OWUI message, and fat prompts.**
+2. **Two generations per OWUI message, and fat prompts.** *(Measured 2026-10-05, 1.4: under OWUI 0.11.4's
+   default native function calling it is worse: a searched first message takes ~7.8 generations, and no
+   search-query call runs.)*
    - Search-query generation runs on every message while web search is on, which it is by default. It is
      short, but it takes a slot and pays a prefill of the conversation.
    - Likely the bigger cost: with `RAG_FULL_CONTEXT=true`, OWUI returns **every item** of the attached
@@ -663,6 +668,34 @@ pinging for 30 s), once 1.1 exists.
   patch, or send it with the task header.
 - **Not via an on-device model:** 4.3 is a separate, open study.
 
+> **MEASURED 2026-10-05** (Open WebUI 0.11.4 with the client's exact env, vLLM + Qwen3.6 on the PRO 6000,
+> 8 questions × 2 turns per condition, one person at a time; summary in the DEVLOG). **The premise above is
+> wrong for what LOL ships.**
+> - OWUI 0.11.4 defaults to **native** function calling, and LOL leaves that alone (`shell/renderer/app.js`).
+>   The model gets `search_web` and `fetch_url` as tools and loops over them. **No search-query call runs**,
+>   and `RAG_FULL_CONTEXT` doesn't apply to web results. `ENABLE_SEARCH_QUERY_GENERATION=false` changes
+>   nothing (0 query calls with it on or off).
+> - **Cost of web search on (native):** a first message takes **7.8 generations** against 3.1 with it off
+>   (median 5, max 29), about **2.5× the GPU work per chat** (35 vs 14 slot-seconds over two turns), and a
+>   median wait to the answer's first word of **5.4 s** against 1.9 s. The pages themselves add only
+>   ~1.8k tokens, but OWUI replays the tool outputs in every later turn.
+> - **It mostly didn't pay off:** 1 of 4 fresh-fact questions came back right. `search_web` returns 3
+>   snippets, and this box's SearXNG had only Bing answering (DuckDuckGo, Startpage, Brave and Qwant were
+>   blocked by CAPTCHAs or rate limits).
+> - **Runaways:** 4 of 36 native-mode follow-ups fell into degenerate repetition up to the 64k window
+>   (5–6 min of a slot each), 3 with web search on, 1 off. None in legacy mode.
+> - **The legacy flow the plan assumed** (query + answer, whole pages): query generation is only **2.5 %**
+>   of slot time, so (b) is moot. But whole pages add ~16k tokens and **4 of 16 messages overflowed 64k**.
+>   Legacy with top-8 excerpts was the best variant measured (2–3 generations, +2.1k tokens, 3 of 4 right,
+>   no errors), but `RAG_FULL_CONTEXT` is global: uploaded documents would lose whole-document answers too.
+> - **Capacity:** if people per box scale with GPU work, web search on cuts the PRO 6000's 48 / 64 people at
+>   64k to roughly **19 / 25**. An estimate, not a load test.
+>
+> **Recommendation for decision 4: (c) web search off by default**, one click away on the chat's globe
+> toggle. Not (b). How: drop the one-time `ui.webSearch='always'` seed (`seedWebSearchDefault`,
+> `shell/renderer/app.js`); people already seeded keep "always" unless the same user-settings write switches
+> them off. **Owner's call.**
+
 ### 1.5 Plugins in the capacity budget — ANSWERED (owner, 2026-10-04): reserve ~9 GB for OCR on vLLM boxes
 
 > **Decision:**
@@ -997,16 +1030,35 @@ when TTFT p95 < 5 s and 90 % of replies stream at ≥ 15 tok/s. vLLM 0.30, GPU e
 | DGX Spark 128 GB | *the same matrix* | *run 2026-10-05* | | | |
 | ~~RTX PRO 6000 + ComfyUI resident (~45 GB)~~ | vLLM · Qwen3.6 | No longer applies: ComfyQ moved off the box on 2026-10-04. | | | |
 
+**Estimates for cards the studio doesn't own** (2026-10-05, vLLM + Qwen3.6 NVFP4, OCR model on the same
+card, `every turn / steady`). Full specs, prices, the method and its validation are in
+[docs/spike/ESTIMATES_2026-10-05.md](docs/spike/ESTIMATES_2026-10-05.md).
+
+| Card (price in France, VAT incl., card only) | 32k | 64k | 128k | € per person at 32k | Binds first |
+| --- | --- | --- | --- | --- | --- |
+| RTX PRO 6000 96 GB, **measured** (€17,680) | 96 / 128 | 48 / 64 | 32 / 40 | **€138–184** | decode, then KV |
+| RTX PRO 6000 96 GB, the farm's 50 GiB pool (OCR on the card) | 96–110 / 104–110 | 48–56 / 61–64 | 28–32 / 34–36 | €161–184 | KV |
+| RTX PRO 5500 84 GB, est. (€16,470) | 88–89 / 88–93 | 43–50 / 51–54 | 22–26 / 29–30 | €177–187 | KV |
+| RTX PRO 5000 72 GB, est. (€11,194) | 59–69 / 65–69 | 28–40 / 38–40 | 14–21 / 21–22 | €162–190 | first word, then KV |
+| RTX PRO 5000 48 GB, est. (€9,940) | 19–20 | 11 | 6 | ~€500 | KV (≈ 40 / 22 / 12 with OCR on another box) |
+| DGX Spark 128 GB (€6,600, a whole computer) | *measured 2026-10-05* | | | | |
+
 Reading it for a purchase:
 
-- **One PRO 6000 with vLLM serves a whole class or more at 32k**, and about 30–40 people at 128k.
-- **Against the owner's class sizes** (usually 20–30, at most 50):
-  - A usual class fits at **128k** each (32 people even when everyone presses Enter together).
-  - A full class of 50 fits at **64k** each (48 strictly, 64 once people are out of step).
-  - The farm's recipe declares 48 seats at 64k (`farm/vllm/`).
-- The Spark has ~15 % of its memory bandwidth. If the Spark run lands near that ratio, one PRO 6000-class
-  card does the work of about 6 Sparks for these models, and the choice becomes **price per seat**. The
-  Spark's extra memory only helps where KV binds: dense models, or 128k.
+- **One PRO 6000 with vLLM serves a whole class or more at 32k.**
+- **Against the owner's class sizes** (usually 20–30, at most 50), with the farm's recipe (50 GiB pool):
+  - A full class of 50 fits at **64k** each: 48 strictly, and 61–64 once people are out of step (at the
+    pool's edge). The recipe declares 48 seats at 64k (`farm/vllm/`).
+  - A usual class of 20–30 also fits at **128k**, but only if vLLM is started for 128k
+    (`--max-model-len 131072`; the recipe serves 65,536). Even then the margin is thin: 32 against 34–36.
+- **Per person, only the PRO 5000 72 GB comes close to the PRO 6000**, and it also needs a host PC. The
+  PRO 5500 costs 93 % of a PRO 6000 for 80–85 % of the people. The 48 GB PRO 5000 is the worst per person
+  unless the OCR model lives elsewhere.
+- **The Spark** has 15 % of the PRO 6000's memory bandwidth and 25 % of its compute. Expect one PRO 6000 to
+  do the work of **about 4–6.6 Sparks**, not "about 6". A PRO 6000 costs 2.7× a Spark, so it wins per person
+  only if it serves more than 2.7× the Spark's people. The Spark run settles it.
+- **Prices have doubled since launch** (PRO 6000: $8,565 in March 2025, $16,000 on NVIDIA's US store in
+  August 2026), so compare per person at today's prices.
 
 **Revision 3: Phase 5 is the purchase tool, built as a measured table first.**
 
@@ -1015,8 +1067,10 @@ Reading it for a purchase:
   in the panel.
 - **Hardware the studio is considering but doesn't own** (more Sparks, a second PRO 6000, an A5500-class
   card) gets a roofline estimate scaled from the measured box of the same family, always labelled
-  *estimated*. **ANSWERED (owner, 2026-10-05):** "A5500" means **the new card**, the Blackwell RTX PRO 5000
-  class, not the Ampere RTX A5500 (24 GB).
+  *estimated*. **ANSWERED (owner, 2026-10-05):** "A5500" means **the new card**, a Blackwell one, not the
+  Ampere RTX A5500 (24 GB). NVIDIA lists one literally named after it, the **RTX PRO 5500** (84 GB, listed
+  around 2026-09-15), beside the RTX PRO 5000 (48 or 72 GB). The estimates above cover all three. **Still
+  open: which one**, if a card is bought.
 - The interactive planner below (v1's design) is built only if the table proves too coarse. It generalizes a capacity calculator (an earlier prototype: platform × model × KV precision × users slider → memory split bar, guaranteed context per user, per-user speed at peak, verdict, and a chart of context-per-user vs users across platforms) into a planner built into the farm. It runs offline from a shipped catalog and improves as `lol bench` adds local measurements.
 
 ### 5.1 Where it appears
@@ -1042,8 +1096,9 @@ All three share one estimator module.
 **Profiles, from the code (audit §5), not v1's guesses.** The shares of users generating at once
 (v1: 40/70/80 %) are still assumptions, to be replaced by the Phase 0.6 measurements and the minimal 429/peak-seat counts (3.3). Replay recording is cut.
 
-- **OWUI chat:** two generations per message while web search is on (a short search query, then the
-  answer), plus one title per chat.
+- **OWUI chat:** with web search on, a first message takes ~7.8 generations (tool-call rounds under OWUI
+  0.11.4's native function calling, measured 2026-10-05), a follow-up ~1.3; with it off, ~3.1 and ~1.3.
+  Plus one title per chat.
 - **Coding agent:**
   - Each request needs `max_completion_tokens` (4–8k, ≥ 16k with "Keep going") + 4096 headroom +
     the prompt, inside `contextPerSlot`.
@@ -1213,9 +1268,9 @@ KV reference points: Qwen3.8-27B ≈ 75 KB/token at q4_0 (repo-measured 1.2 GB/1
 
 The surfaces load a farm differently (from the code, audit §5):
 
-- **OWUI chat:** bursty human-paced turns, documents and images, OCR and web search on. Each message is
-  **two generations** while web search is on: a short search query, then the answer. Sized by people
-  reading at once.
+- **OWUI chat:** bursty human-paced turns, documents and images, OCR and web search on. With web search
+  on, a first message is a loop of tool-call rounds (~7.8 generations, measured 2026-10-05, 1.4). Sized by
+  people reading at once.
 - **LOL Vibe chat:** one stream per window, history trimmed by the client.
 - **Coding agent** (project threads in LOL Vibe):
   - Back-to-back tool steps with 4–16k-token outputs, in a context that grows and then compacts.
@@ -1453,7 +1508,7 @@ llama.cpp alternative (Windows or before Phase 2), OWUI chat with Qwen3.8-27B:
 | 0.7 VRAM budget from free memory / co-tenant reserve | — | 1 day | llama.cpp auto context fits beside a co-tenant | **Built** |
 | 1.6 Client fixes | — | 2–3 days | Computer runs model boxes while holding its own seat on a full farm; a 429 costs no Cap; dsh doesn't self-retry 429 | **Built**; chat harness 406/406 |
 | 3.0 Fleet path (coordinator capacity, static peers, peer-429, failover) | 0.6 | 1 week | A coordinator over N boxes (across subnets) advertises their summed slots; a client off a full farm moves only when idle | Next, once the Spark serves |
-| 1.4 Background tasks | 0.6 | ½ day | Main-lane generations per OWUI message drop to 1 (search query off), if the measurement says so | Being measured (decision 4) |
+| 1.4 Web search's cost | 0.6 | ½ day | The owner chooses from the measurement | **Measured**: recommend web search off by default (decision 4) |
 | ~~1.1 Per-install identity~~ | — | — | — | Cut (owner, 2026-10-04) |
 | 1.2 Workshop setting; fair queue only if needed | 3.3 | ½ day; +1 week for a queue | The seat hold is set live from the panel; a queue only if the 3.3 counts show frequent refusals | Workshop setting **built**; queue not needed so far |
 | 1.5 OCR reserve beside vLLM | 2 | — | vLLM's KV pool leaves the OCR model room | **Built** into the recipe (a 50 GiB pool leaves 19.8 GiB free) |
@@ -1476,7 +1531,8 @@ llama.cpp alternative (Windows or before Phase 2), OWUI chat with Qwen3.8-27B:
 **Global acceptance tests** (only meaningful once bench simulates people, Phase 0.5):
 
 - **One PRO 6000 (LLM-only since 2026-10-04) and one Spark**, each with the model the spike picked:
-  50 simulated people (the owner's cap) at 64k each, and 30 (a usual class) at 128k each, give TTFT
+  50 simulated people (the owner's cap) at 64k each, and 30 (a usual class) at 128k each (vLLM started
+  with `--max-model-len 131072`; the margin there is thin, 34–36), give TTFT
   p95 < 5 s, ≥ 90 % of users above 15 tok/s, and the quality gate passed. Run it with
   `lol bench --people --users <n>` through the farm's seat gate. The workshop profile (3.4) isn't built;
   the spike's harness (`docs/spike/spike_bench.py`) gives the realistic mix.
@@ -1535,6 +1591,9 @@ These are recommendations, not decisions.
    - Then (b) turn query generation off (one env line) if it's significant, or (c) make web search off by
      default if the pages dominate.
    - *Critic:* the same.
+   - **MEASURED 2026-10-05 (1.4): (b) doesn't apply.** OWUI 0.11.4's native function calling never runs the
+     query call. Web search on costs ~2.5× the GPU work per chat through tool-call rounds, and got 1 of 4
+     fresh facts right. **Recommended: (c) web search off by default. Waiting on the owner.**
 5. **vLLM** (Phase 2). **ANSWERED (2026-10-04): in scope**, overriding the critic's cut.
    - Still open, decided from the spike: (a) integrated `external` or (b) fully managed.
    - The critic's caution stands as a test condition: WSL2 lifetimes on the PRO 6000 must be handled
@@ -1571,7 +1630,18 @@ These are recommendations, not decisions.
    - The farm's LiteLLM runs with `drop_params: true`, so delivery was measured, not assumed. Both keys
      reach a fake engine on the right routes (08:49).
    - On **real vLLM** it works: 393 tokens became 14 (09:25).
-   - Real Ollama and llama.cpp are being checked.
+   - On **real Ollama 0.34** (gemma4:12b, which does think by default, and Qwen3.8) and **llama.cpp b10670**
+     (Qwen3.8 IQ2_S, the farm's own argv) it works too, streaming and not, and LiteLLM changes nothing
+     (2026-10-05).
+   - **But it has a measured cost on small models.** On three toy reasoning prompts, 2 of 9 answers were
+     deterministically wrong without thinking: gemma4:12b answered 235 instead of 215, and Qwen3.8 IQ2_S
+     385 instead of 395. Qwen3.8 on Ollama sometimes moved its working into the answer instead (178
+     tokens of algebra in `content`), which matters for JSON asks that aren't schema-bound.
+   - **Reading:** titles, search queries and JSON or list extraction are safe with thinking off. The
+     Computer's **verdict** and **agent-step** asks need reasoning. On the target model (vLLM + Qwen3.6) the
+     spike's 28-item gate lost nothing, but the Computer's real verdict and agent asks haven't been run both
+     ways yet. **Next:** run them with thinking on and off on the target model, then the owner decides
+     whether verdicts and agent steps keep thinking.
 10. **vLLM's shape on each box (Phase 2), from the spike.**
     - **Spark (native Linux):** a managed vLLM engine (2b) is straightforward, with the spike's install
       script and flags.
@@ -1587,8 +1657,14 @@ These are recommendations, not decisions.
         TCP→socket relay.
       - The recipe is `farm/vllm/` plus the README (Qwen3.6, 48 seats at 64k, a 50 GiB KV pool).
       - Checked live through the farm: metrics, Stop, the thinking flag and vision.
-      - **Open:** LiteLLM adds 2.5–5 s per reply at 140 concurrent streams. The managed Spark engine
-        follows the Spark spike.
+      - **LiteLLM's extra delay, halved (2026-10-05).** Its one Python process was the ceiling: a full
+        core from ~50 streams, half of it spent building OpenAI SDK objects per streamed chunk. The external
+        deployment now uses `hosted_vllm/`. At 140 people a 200-token reply takes 4.9 s through the farm
+        instead of 5.2–6.6 s; vLLM alone takes 4.0–4.2 s. `--num_workers` loses streams on Windows. What is
+        left (~0.7 s at 140) and the option that closes it (the seat gate streaming straight to a lone
+        external engine, skipping LiteLLM) are in `farm/README.md`. That option is the owner's call: LiteLLM
+        was kept on 2026-09-04.
+      - The managed Spark engine follows the Spark spike.
     - Recommendation was: managed on the Spark; on the PRO 6000, first fix the TCP blocker, then `external`
       with the recipe.
 11. **ComfyQ on the PRO 6000 (new).** These are ceiling numbers with ComfyUI stopped. With ComfyUI's
@@ -1620,8 +1696,8 @@ These are recommendations, not decisions.
   before Apply.
 - **Thinking control.** It is the biggest demand lever, and unscheduled, for OWUI chats as well as the
   Computer. Options: a per-alias `chat_template_kwargs` in LiteLLM, or llama-server's reasoning budget.
-- **Web search `always` + whole-document injection.** Measure the cost and revisit the 2026-07-02
-  default.
+- **Web search `always` + whole-document injection.** **Measured 2026-10-05** (1.4): ~2.5× the GPU work
+  per chat, and native-mode runaways. Recommendation (c) is waiting on the owner.
 - **Subnets and shared boxes.** The coordinator needs static peers across subnets. Fleet boxes may be
   people's own workstations, so a farm there competes with their GPU work.
 - **Identity privacy.** Per-request install ids, per-install metric labels and recorded replays would
