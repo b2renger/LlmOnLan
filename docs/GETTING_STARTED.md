@@ -91,7 +91,7 @@ This installs the CLI's Node deps, then runs `lol install`, which:
 - **pulls the Ollama models** in your config (`gemma4:12b` by default — the model everyone chats with) — several GB on first run,
 - **fetches the llama.cpp backend** *only if you enabled it* (`llamacpp.enabled: true`) — the pinned
   `llama-server` build + CUDA runtime + `.gguf` weights — so the first `lol up` doesn't stall on it,
-- sets up **shared web search** (SearXNG) — **on by default**, so every client that connects gets web search with zero setup,
+- sets up **shared web search** (SearXNG) — **on by default**, so every client that connects can search the web with zero setup (off in each chat until the globe button turns it on),
 - sets up **shared document OCR** — **on by default**: scanned PDFs and photographed documents become readable + searchable in every client's chat (a small torch-free Python service that reuses the vision model you already serve).
 
 So a fresh install already gives you a working farm with the model downloaded and web search + document OCR ready — no config editing required. (Neural **voice** is the one extra you opt into — see below — because its install is multi-GB.)
@@ -116,7 +116,7 @@ The defaults already give you a working farm (model + web search). `lol install`
                                          //   llamacpp is disabled); swap the model underneath freely
   "models": [ { "id": "gemma4:12b", "default": true },          // the Ollama catalog — standby (not in the
               { "id": "qwen2.5-coder:14b", "alias": "coder" } ],  //   picker) while llamacpp serves; alias = role name
-  "websearch": { "enabled": true, "port": 8888 },   // ON by default → web search on every client
+  "websearch": { "enabled": true, "port": 8888 },   // ON by default → every client can search the web
                                                     //   (set enabled:false to turn it off)
   "tts":       { "enabled": false, "port": 8880, "voice": "af_heart", "model": "kokoro" }, // set true to opt in
   "ocr":       { "enabled": true, "port": 8890 },   // ON by default → scanned docs/images readable on every client
@@ -128,7 +128,7 @@ The defaults already give you a working farm (model + web search). `lol install`
 }
 ```
 
-**Web search and document OCR are on by default** — turn them off with `"websearch"/"ocr": { "enabled": false }` (or `lol up --no-websearch` / `--no-ocr`). **Voice (TTS) is off by default** because its install is multi-GB; enable it with `"tts": { "enabled": true }`. See the full reference in [`farm/README.md`](../farm/README.md).
+**Web search and document OCR are on by default** on the farm (each chat still starts with web search off; the globe button turns it on) — turn them off with `"websearch"/"ocr": { "enabled": false }` (or `lol up --no-websearch` / `--no-ocr`). **Voice (TTS) is off by default** because its install is multi-GB; enable it with `"tts": { "enabled": true }`. See the full reference in [`farm/README.md`](../farm/README.md).
 
 ### Run it
 
@@ -217,7 +217,7 @@ with `LOL_ENDPOINT=http://<box-ip>:4000/v1` if discovery isn't available.
   **Manage this farm ↗** for the operator's panel), the password field of a protected farm, add‑by‑address
   and Rescan. **Clicking a card pins that farm**; the **Automatic — least busy farm** row above the cards
   lets the app choose again.
-- **Web search** — if the farm hosts it, it's **on by default**; just ask something current and it searches + cites pages.
+- **Web search** — if the farm hosts it, it's **off by default; the globe button turns it on for a chat** (in Open WebUI 0.11: **Integrations** under the message box ▸ **Web Search**). Then ask something current and it searches + cites pages.
 - **Voice** — click the microphone to talk (allow the mic prompt the first time). Speech-to-text runs **on your laptop** (Whisper); read-aloud uses the farm's **Kokoro** neural voice if enabled, otherwise your OS voices.
 - **Documents** — attach a PDF or a photo of a document and ask about it. Scanned pages and images are OCR'd by the farm's vision model; on farms with a large context window (≥ 24k tokens per chat) answers read the whole document; on smaller ones, the 8 most relevant passages.
 - **Where your data lives** — everything sits in one folder on **your** machine (by default
@@ -256,9 +256,12 @@ with `LOL_ENDPOINT=http://<box-ip>:4000/v1` if discovery isn't available.
 - **No login, by design** — the chat surface is single‑user with authentication off, because the data is
   already local and per‑machine. Anyone who can use the laptop can read its chats: on a **shared**
   machine, use separate OS accounts.
-- **Web search is turned on for you** — the first time the client sees a farm hosting SearXNG it sets
-  Open WebUI's web‑search default to *always*, so every message searches and cites pages. Turn it off
-  per‑chat (the globe) or in Open WebUI's settings — your choice sticks; the client only sets it once.
+- **Web search is off by default; the globe button turns it on for a chat.** It costs: with it on, a
+  chat took about 2.5× the GPU work, so everyone waits longer on a busy farm. To have it on in every
+  chat, pick **Always** in Open WebUI's own settings (Interface ▸ **Web Search in Chat**); the client
+  keeps your choice.
+  Clients up to v0.2.7 turned it on for every chat; the first launch of a newer one switches that back
+  off once, and only if you had not changed it.
 
 ---
 
@@ -469,10 +472,10 @@ Work down this list — the first two causes account for most reports.
 3. **Something else is on the GPU.** Farm OCR loads a *second* (vision) model on Ollama whenever
    someone uploads an image or scanned PDF, and a browser or a game will take VRAM too. Watch it during
    a slow moment: `lol status` and the admin panel both show what's loaded.
-4. **Web search is on and you didn't expect it.** With a SearXNG-hosting farm, the client turns Open
-   WebUI's web search **on by default**, so every message searches, fetches pages and embeds them
-   locally before the model even starts. If replies are slow to *start* but fast once they begin, try
-   turning the globe off for a message and compare.
+4. **Web search is on in that chat.** It is off by default; the globe button turns it on for a chat,
+   and then the model may search, read pages and search again before it answers — about 2.5× the GPU
+   work per chat. If replies are slow to *start* but fast once they begin, turn the globe off and
+   compare. (Clients up to v0.2.7 turned it on for every chat; a newer one switches that back off.)
 5. **A big document is attached.** Whole-document mode sends the entire text with every message, so a
    long PDF makes every turn in that chat slower. Start a new chat when you're done with it.
 6. **Measure it** rather than guessing — on the farm box:

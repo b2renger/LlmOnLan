@@ -347,10 +347,10 @@ If a task seems to require breaking one of these, **stop and flag it**.
 | Direction | Mechanism | Notes |
 |---|---|---|
 | Lifecycle | Shell spawns the OWUI sidecar as a child process and supervises it. | Shell = process manager + window. |
-| Config → OWUI | Env vars at **every** launch, made authoritative by `ENABLE_PERSISTENT_CONFIG=false` — repointing the farm restarts the sidecar with new env. **Two exceptions**, both written from the authed webview via OWUI's user‑settings API `POST /api/v1/users/user/settings/update`: web search defaulted ON (`ui.webSearch='always'`, one‑time via a `lolWebSearchSeeded` marker) and the opt‑in Blender tool server (`ui.toolServers` + `ui.tools`). Neither has a usable env. | See gotchas below. |
+| Config → OWUI | Env vars at **every** launch, made authoritative by `ENABLE_PERSISTENT_CONFIG=false` — repointing the farm restarts the sidecar with new env. **Two exceptions**, both written from the authed webview via OWUI's user‑settings API `POST /api/v1/users/user/settings/update`: switching web search back off, once, on a profile a client up to v0.2.7 turned on (`ui.webSearch` 'always' → null, only while its `lolWebSearchSeeded` marker is there and the value is still 'always'; marked `lolWebSearchUnseeded`) — web search is off by default; the globe button turns it on for a chat — and the opt‑in Blender tool server (`ui.toolServers` + `ui.tools`). Neither has a usable env. | See gotchas below. |
 | Data | `DATA_DIR` → the user's chosen local folder; default local embeddings; telemetry off. | Enforces invariant #3. |
 | Net out of OWUI | Chat completions to the farm endpoint; plus, when the farm advertises them: SearXNG queries (then direct page fetches), Kokoro TTS requests, and uploaded‑file bytes to the farm OCR extractor; and MCP tool calls to the Computer on 127.0.0.1 (this machine) — which answers the home tools against the Home Assistant a person linked. | Embeddings always stay local. |
-| Webview | The renderer reads the OWUI origin's `localStorage.token`, validates it with `GET /api/v1/auths/` (drop + reload, ≤4 tries) before revealing the webview, and reads `/api/config` before seeding web search; the `persist:owui` partition is granted mic/camera/clipboard only. | `renderer/app.js`, `src/main/index.ts`. |
+| Webview | The renderer reads the OWUI origin's `localStorage.token`, validates it with `GET /api/v1/auths/` (drop + reload, ≤4 tries) before revealing the webview, and reads the user's settings once per session to undo the old web‑search seed; the `persist:owui` partition is granted mic/camera/clipboard only. | `renderer/app.js`, `src/main/index.ts`. |
 | Everything else | None. OWUI is a black box. | No DB poking, no template/CSS edits, no internal imports. |
 
 ### Verified OWUI config surface (re‑verify per pinned version; authoritative list = `shell/src/main/configBridge.ts`)
@@ -397,8 +397,8 @@ Connection: `OPENAI_API_BASE_URL` + `OPENAI_API_KEY` (the farm is OpenAI‑compa
   — env is authoritative on **every** launch, so repointing the farm is just a sidecar restart with new
   env, and no stale persisted URL can win. (OWUI's admin REST API is deliberately NOT used — it's
   session‑only while persistence is off. The two shipped writes both go to the user‑settings API
-  `POST /api/v1/users/user/settings/update` from the authed webview: the one‑time web‑search default and
-  the opt‑in Blender tool server.) Ref: https://docs.openwebui.com/reference/env-configuration/
+  `POST /api/v1/users/user/settings/update` from the authed webview: the one‑time undo of the old web‑search‑on
+  default and the opt‑in Blender tool server.) Ref: https://docs.openwebui.com/reference/env-configuration/
 - **Gotcha #2 — JSON config env.** `OPENAI_API_CONFIGS`/`OLLAMA_API_CONFIGS` historically weren't
   parsed from env at startup (open‑webui#19017). Use the simple `*_BASE_URL(S)` env as the seed.
 
@@ -733,7 +733,7 @@ LlmOnLan/
 - **To third parties a person names:** a Computer **Fetch** box's GET to the address typed in it (nothing
   from the graph is sent with it); an **Open data** box's GETs to data.gouv.fr for the dataset pasted in it; an **Agent** box's GETs, only to hosts a person listed on it; a **Send** box's message to the device typed in it, only once a person
   armed the outputs (a dry run otherwise); the **Home Assistant** a person linked (states and actions read when a model asks — and what a model read can leave with its other
-  tools in the same chat, e.g. Open WebUI's `fetch_url` when web search is on, so the docs say to turn it off there; a
+  tools in the same chat, e.g. Open WebUI's `fetch_url` when a person turns web search on, so the docs say to leave it off there; a
   command only while a person allowed home commands). A board on this computer's USB cable (Send by USB, Receive) stays
   on this computer; the farm's message bus carries what a graph publishes (armed) to whoever subscribed on the
   LAN, and keeps nothing.
@@ -769,8 +769,8 @@ non-trivial logic leaves ONE runnable check.
 
 **Do:** keep first‑party code in `shell/` and `farm/`; treat OWUI as an external product configured from
 outside; re‑verify the config surface on each version bump; keep env authoritative every launch
-(`ENABLE_PERSISTENT_CONFIG=false` — OWUI's user-settings REST API only for what env can't do: the
-web-search default and the tool server; never the admin API);
+(`ENABLE_PERSISTENT_CONFIG=false` — OWUI's user-settings REST API only for what env can't do: undoing
+the old web-search-on default, and the tool server; never the admin API);
 default to local‑only; apply ComfyQ tokens to shell surfaces only.
 
 **Don't:** edit/fork/patch OWUI source; store user data server‑side or send documents to the farm for

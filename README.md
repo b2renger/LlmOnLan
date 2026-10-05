@@ -66,8 +66,8 @@ the **Computer** (boxes wired into small programs that read data, see, hear, spe
 [tutorial](docs/LOLCHAT_COMPUTER_TUTORIAL.md)).
 
 *Features* — **full multimodal** (image understanding + voice; Whisper STT runs on‑device); **web
-search** via a shared farm‑hosted [SearXNG](https://docs.searxng.org) (**on by default**, zero client
-setup); **neural voice** via farm‑hosted [Kokoro](https://github.com/remsky/Kokoro-FastAPI) TTS
+search** via a shared farm‑hosted [SearXNG](https://docs.searxng.org) (hosted by default, zero client
+setup; **off by default in each chat — the globe button turns it on for a chat**); **neural voice** via farm‑hosted [Kokoro](https://github.com/remsky/Kokoro-FastAPI) TTS
 (opt‑in); **document OCR** — a shared farm service ([Ollama‑OCR](https://github.com/imanoop7/Ollama-OCR)
 for images + scanned PDFs, **on by default**, [details below](#document-ocr-optional)); **assistant
 tools** — drive a local **[Blender](#assistant-tools--control-blender-optional)** over MCP (opt‑in per

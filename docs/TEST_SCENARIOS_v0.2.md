@@ -26,6 +26,10 @@ and TouchDesigner or Max (OSC). Scenarios marked **(no farm)** work with the far
   a PDF attached in Open WebUI is read (the farm's OCR).
 - [ ] **1.5 The name.** The topbar says **LOL Vibe** (not LOL Chat). An old `.lolchat.json` export still
   imports.
+- [ ] **1.6 Web search off by default.** On a profile that v0.2.7 used with a farm hosting web search, update and
+  open the app: in Open WebUI a new chat has the globe off, and the Integrations menu's **Web Search** switch turns
+  it on. Settings ▸ Interface ▸ **Web Search in Chat** reads *Default*; set it to *Always*, quit and reopen: still
+  *Always*. A brand-new profile: *Default*, globe off.
 
 ## 2. The farm
 
@@ -252,7 +256,7 @@ Needs a Home Assistant: your own, or the private demo home in HOME_ASSISTANT.md.
   Allow: the top bar shows **Home commands on · N**. Ask again: the lights change.
 - [ ] **7c.5 Never.** Ask *"Unlock the front door"* (or open the garage, or open a water valve): refused, even while
   allowed. Ask *"Where is <a person>?"*: presence (home / away), never coordinates.
-- [ ] **7c.5b Web search off.** Preferences ▸ Home Assistant says to turn web search off in a chat that uses the home;
+- [ ] **7c.5b Web search off.** Preferences ▸ Home Assistant says to leave web search off in a chat that uses the home;
   Open WebUI's Integrations menu under the message box has that chat's Web Search switch.
 - [ ] **7c.6 Stop.** Click **Home commands on** in the top bar: it disappears; a command is a dry run again. Close
   and reopen LlmOnLan: still linked, commands not allowed.

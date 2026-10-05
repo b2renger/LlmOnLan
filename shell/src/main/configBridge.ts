@@ -189,7 +189,8 @@ export function buildSidecarEnv(input: SidecarEnvInput): Record<string, string> 
         // on for all models. The farm's per-model supports_vision still decides whether
         // LiteLLM actually forwards the image to Ollama, so a text-only model simply has
         // its image dropped at the proxy (harmless). `web_search` gates OWUI's per-chat
-        // globe toggle the same way — on only when the farm hosts a SearXNG.
+        // globe toggle the same way — offered only when the farm hosts a SearXNG. Web
+        // search is off by default; the globe button turns it on for a chat.
         // Env-authoritative every launch, so it's zero-config across all clients.
         DEFAULT_MODEL_METADATA: JSON.stringify({
             capabilities: { vision: true, ...(input.searxngUrl ? { web_search: true } : {}) },
@@ -330,7 +331,7 @@ export function buildSidecarEnv(input: SidecarEnvInput): Record<string, string> 
     // env-configured tool servers (upstream issue #18140 — env is "not a supported
     // method"). Instead the renderer registers the tool server through OWUI's own
     // supported user-settings API (POST /api/v1/users/user/settings/update) from the authed webview, the
-    // same way seedWebSearchDefault() sets the web-search default — see app.js.
+    // same way unseedWebSearch() switches off the web-search default older clients set — see app.js.
 
     // The Computer as a tool server Open WebUI's models can use (owner, 2026-09-27; this machine only).
     if (computerMcp) env.TOOL_SERVER_CONNECTIONS = computerToolServer(computerMcp);

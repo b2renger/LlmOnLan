@@ -527,31 +527,32 @@ let pendingReload = false; // a (re)start happened → reload the webview once i
 let webviewAuthed = false;
 let authReloads = 0;
 const MAX_AUTH_RELOADS = 4;
-let webSearchSeeded = false; // seed the web-search-on default at most once per session
+let webSearchChecked = false; // undo the old web-search-on seed at most once per session
 let blenderSeeded = false;   // register the Blender tool server with OWUI at most once per session
 
-// Turn web search ON BY DEFAULT (the workshop wants it, and there's no OWUI env
-// for it — it's the per-user `webSearch:'always'` interface setting, PR #9370). We
-// set it via OWUI's own settings API from inside the authed webview, but ONLY when
-// the farm actually hosts web search (config.features.enable_web_search, which the
-// client sets from the beacon's searxngUrl) — else forcing it on would make every
-// message try to search with no engine. A `lolWebSearchSeeded` marker in the user
-// settings (ui is an extra='allow' dict) makes this a ONE-TIME default: after the
-// first seed we never touch it again, so a user who turns it off stays off.
-// Returns 'set' (just enabled it) | 'already' | 'na' (no web search / not authed).
-async function seedWebSearchDefault() {
+// Web search is OFF by default in Open WebUI (owner, 2026-10-05: on, a chat cost ~2.5x the GPU
+// work and got 1 of 4 fresh facts right); a chat's globe switch (Integrations ▸ Web Search) turns
+// it on for that chat. Clients up to v0.2.7 turned it on for every chat, once per profile:
+// `ui.webSearch = 'always'` + a `ui.lolWebSearchSeeded` marker. This undoes that ONCE, only on a
+// profile LOL seeded, and only while it is still 'always' (what we wrote): a person who chose
+// otherwise keeps their choice. `lolWebSearchUnseeded` is written either way, so a person who
+// later picks 'always' themselves is never switched back. null, not a dropped key: OWUI 0.11
+// patches `ui` field by field (a missing key keeps its value, null removes it) and 0.10 replaces
+// `ui` whole (null reads as off) — null is what OWUI's own Interface toggle writes for off. A read
+// that fails finds no marker, so it never writes (0.10 would have replaced `ui` with ours).
+// Returns 'set' (wrote: reload, so the SPA's stale settings can't write 'always' back) |
+// 'already' (nothing to do) | 'na' (not authed / the write failed).
+async function unseedWebSearch() {
   try {
     return await els.webview.executeJavaScript(`(async () => {
       try {
         const t = window.localStorage && window.localStorage.token; if (!t) return 'na';
         const H = { authorization: 'Bearer ' + t };
-        const cfg = await (await fetch('/api/config')).json().catch(() => ({}));
-        if (!(cfg && cfg.features && cfg.features.enable_web_search)) return 'na';
         const cur = await (await fetch('/api/v1/users/user/settings', { headers: H })).json().catch(() => null);
         const ui = (cur && cur.ui) || {};
-        if (ui.lolWebSearchSeeded) return 'already';
-        ui.webSearch = 'always';
-        ui.lolWebSearchSeeded = true;
+        if (!ui.lolWebSearchSeeded || ui.lolWebSearchUnseeded) return 'already';
+        if (ui.webSearch === 'always') ui.webSearch = null;
+        ui.lolWebSearchUnseeded = true;
         const r = await fetch('/api/v1/users/user/settings/update', {
           method: 'POST', headers: { ...H, 'content-type': 'application/json' }, body: JSON.stringify({ ui })
         });
@@ -573,7 +574,7 @@ async function seedWebSearchDefault() {
 // idx = position among ENABLED tool servers (getToolServersData filters config.enable).
 // We do NOT touch function_calling: OWUI already defaults to native (the mode gate is
 // `!= 'legacy'`), so setting it was a no-op. Runs in the authed webview like
-// seedWebSearchDefault. Idempotent, keyed by info.id. Returns 'set'|'already'|'na'|'err:<code>'.
+// unseedWebSearch. Idempotent, keyed by info.id. Returns 'set'|'already'|'na'|'err:<code>'.
 async function seedBlenderToolServer(url, key) {
   try {
     return await els.webview.executeJavaScript(`(async () => {
@@ -675,12 +676,12 @@ async function ensureAuthenticated() {
     })()`);
     if (status === 'valid') {
       webviewAuthed = true; authReloads = 0;
-      // First authed load per session: enable web search by default if the farm has
-      // it. If we just set it, reload once so the SPA picks up the fresh setting
-      // (its $settings was loaded before we wrote it); the marker then no-ops.
-      if (!webSearchSeeded) {
-        webSearchSeeded = true;
-        if ((await seedWebSearchDefault()) === 'set') { try { els.webview.reload(); } catch { /* not ready */ } return; }
+      // First authed load per session: switch off the web-search default an older client
+      // set. If we wrote, reload once so the SPA picks up the fresh setting (its $settings
+      // was loaded before we wrote it); the marker then no-ops.
+      if (!webSearchChecked) {
+        webSearchChecked = true;
+        if ((await unseedWebSearch()) === 'set') { try { els.webview.reload(); } catch { /* not ready */ } return; }
       }
       // Register the local Blender tool server if mcpo is already up (else its
       // 'ready' push seeds it later). A 'set' reloads to surface the new tools.
@@ -767,7 +768,7 @@ function renderSidecar() {
   if (s.status === 'ready' && s.url) {
     if (s.url !== lastUrl) {
       // New OWUI origin → reset the auth-bootstrap gate (fresh per-origin storage).
-      lastUrl = s.url; webviewAuthed = false; authReloads = 0; webSearchSeeded = false; blenderSeeded = false;
+      lastUrl = s.url; webviewAuthed = false; authReloads = 0; webSearchChecked = false; blenderSeeded = false;
       els.webview.src = s.url; pendingReload = false;
     } else if (pendingReload) {
       // Same port reused after a repoint → src is unchanged, so force a reload to

@@ -103,10 +103,12 @@ user‑settings API writes (and the auth token/settings reads they need) listed 
 - **Branding kept** — we never set `WEBUI_NAME`, so OWUI keeps its own name/branding (invariant #2).
 - **Two non‑env exceptions**, both written from the authed webview through OWUI's own supported
   **user‑settings API** (`POST /api/v1/users/user/settings/update`) because neither has a working env:
-  1. **Web search defaulted ON** — `ui.webSearch='always'` (there is no env for OWUI's per‑user
-     interface setting). Written **once**, guarded by a `ui.lolWebSearchSeeded` marker so a user who
-     turns it back off keeps it off, and only when the farm actually advertises a SearXNG.
-     Consequence worth knowing: while on, **every message** runs a search + page fetch + local embed.
+  1. **Web search back to off** — web search is off by default; the globe button turns it on for a
+     chat. Clients up to v0.2.7 set `ui.webSearch='always'` once per profile (marked
+     `ui.lolWebSearchSeeded`); `unseedWebSearch` switches that back to `null` (what OWUI's own toggle
+     writes) **once**, only on a profile carrying that marker whose value is still `'always'`, and
+     marks it `ui.lolWebSearchUnseeded` so a person who later picks "always" keeps it. Why off
+     (2026‑10‑05): with it on, a chat cost ~2.5× the GPU work and got 1 of 4 fresh facts right.
   2. **The opt‑in Blender tool server** — appended to `ui.toolServers` and selected via a
      `direct_server:<idx>` entry in `ui.tools` (`TOOL_SERVER_CONNECTIONS` is unsupported upstream).
      Disabling it also renumbers the other `direct_server:<n>` selections, so a user's own OWUI tool

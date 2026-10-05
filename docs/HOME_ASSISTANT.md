@@ -72,10 +72,10 @@ closed.
 
 What a model read about your home is in that chat: it goes to the farm with the chat, like anything said in it, and
 the chat's history on this computer keeps it (LlmOnLan keeps no copy of its own). It can also leave **with the
-model's other tools in the same chat**. In Open WebUI, web search (on by default) gives the model a tool that fetches
-any web address; a web page, a document or even a text in Home Assistant could steer it into fetching an address
-that carries what it read (who is away, the alarm's state). **Turn web search off in a chat that uses your home**
-(Integrations, under the message box). A project's agent can likewise write what it read into a file of the
+model's other tools in the same chat**. In Open WebUI, web search (off by default; the globe button turns it on for a
+chat) gives the model a tool that fetches any web address; a web page, a document or even a text in Home Assistant
+could steer it into fetching an address that carries what it read (who is away, the alarm's state). **Leave web search
+off in a chat that uses your home** (Integrations, under the message box). A project's agent can likewise write what it read into a file of the
 project, and a page there runs when you open its Preview.
 
 ## Not built

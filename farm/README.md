@@ -834,8 +834,8 @@ build for Blackwell cards (16 GB+); replace it freely.
 - **Web search (ON by default):** `websearch.enabled` defaults to **`true`**, so a fresh farm hosts
   **one shared [SearXNG](https://docs.searxng.org)** on this box with no config edits. It's installed into
   `farm/.searxng/` at `lol install` time (and re‑checked on `lol up`; delete that folder to uninstall).
-  Clients discover it via the beacon and OWUI's per‑message web‑search toggle just works, zero client
-  setup. Searches + page fetching run from each client; this box only hosts the metasearch engine. Turn it
+  Clients discover it via the beacon and OWUI's per‑chat web‑search toggle just works, zero client
+  setup (off by default; the globe button turns it on for a chat). Searches + page fetching run from each client; this box only hosts the metasearch engine. Turn it
   off with `"websearch": { "enabled": false }` or `lol up --no-websearch`.
 - **Document OCR (ON by default):** the farm hosts **one shared OCR / document‑extraction service** on this
   box, so clients get scanned‑document + image OCR with zero setup — OWUI uses it as its content‑extraction

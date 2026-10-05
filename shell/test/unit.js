@@ -133,6 +133,95 @@ test('capacity: singular/plural reads correctly on a one-seat farm', () => {
     assert.match(capacityText(full)[0], /^all 1 seat busy — one frees after 10 min idle/);
 });
 
+// unseedWebSearch() runs a script inside the Open WebUI webview. Run that same script against a
+// fake Open WebUI whose settings write follows the real server's rule for `ui`: 0.11.4 patches it
+// field by field (a null removes the key, models/users.py update_user_settings_by_id), 0.10.x
+// replaces it whole. `on` is what OWUI's chat reads: (settings.webSearch ?? false) === 'always'.
+function fakeOwui(version, ui, { token = 't', readFails = false, writeOk = true } = {}) {
+    const src = fs.readFileSync(path.join(__dirname, '..', 'renderer', 'app.js'), 'utf8');
+    const start = src.indexOf('async function unseedWebSearch');
+    const end = src.indexOf('\n}\n', start);
+    assert.ok(start > 0 && end > start, 'unseedWebSearch moved — update the extraction anchors');
+    const owui = { ui: JSON.parse(JSON.stringify(ui)), writes: 0 };
+    const fetch = async (url, opts = {}) => {
+        if (url === '/api/v1/users/user/settings' && !opts.method) {
+            if (readFails) return { ok: false, json: async () => ({ detail: 'Unauthorized' }) };
+            return { ok: true, json: async () => ({ ui: JSON.parse(JSON.stringify(owui.ui)) }) };
+        }
+        if (url === '/api/v1/users/user/settings/update' && opts.method === 'POST') {
+            owui.writes++;
+            if (!writeOk) return { ok: false };
+            const sent = JSON.parse(opts.body).ui;
+            if (version === '0.10') owui.ui = sent;
+            else for (const [k, v] of Object.entries(sent)) { if (v === null) delete owui.ui[k]; else owui.ui[k] = v; }
+            return { ok: true };
+        }
+        throw new Error(`unexpected request ${opts.method || 'GET'} ${url}`);
+    };
+    const window = { localStorage: token ? { token } : {} };
+    const els = { webview: { executeJavaScript: (code) => new Function('window', 'fetch', `return ${code}`)(window, fetch) } };
+    owui.run = new Function('els', `${src.slice(start, end + 2)}; return unseedWebSearch;`)(els);
+    owui.on = () => (owui.ui.webSearch ?? false) === 'always';
+    return owui;
+}
+
+for (const version of ['0.11', '0.10']) {
+    test(`web search (OWUI ${version}): a fresh profile is left at Open WebUI's default, off, and never written`, async () => {
+        for (const ui of [{}, { theme: 'dark' }, { webSearch: 'always', theme: 'dark' }]) {
+            const owui = fakeOwui(version, ui);
+            assert.equal(await owui.run(), 'already');
+            assert.equal(owui.writes, 0, 'nothing LOL seeded: no write, even when the person chose always');
+            assert.deepEqual(owui.ui, ui);
+        }
+    });
+
+    test(`web search (OWUI ${version}): a profile LOL switched on is switched off once, the rest of its settings kept`, async () => {
+        const owui = fakeOwui(version, { webSearch: 'always', lolWebSearchSeeded: true, theme: 'dark', tools: ['direct_server:0'] });
+        assert.equal(owui.on(), true);
+        assert.equal(await owui.run(), 'set', 'wrote: the caller reloads the webview');
+        assert.equal(owui.on(), false);
+        assert.equal(owui.ui.lolWebSearchUnseeded, true);
+        assert.equal(owui.ui.theme, 'dark');
+        assert.deepEqual(owui.ui.tools, ['direct_server:0']);
+        assert.equal(await owui.run(), 'already', 'the second run does nothing');
+        assert.equal(owui.writes, 1);
+        // The person turns it back on in Open WebUI's settings: the marker keeps us out.
+        owui.ui.webSearch = 'always';
+        assert.equal(await owui.run(), 'already');
+        assert.equal(owui.on(), true);
+    });
+
+    test(`web search (OWUI ${version}): a profile LOL seeded that the person turned off keeps their choice`, async () => {
+        // OWUI's own Interface toggle stores off as null on 0.10; 0.11 removes the key instead.
+        const offByPerson = version === '0.10' ? { webSearch: null, lolWebSearchSeeded: true } : { lolWebSearchSeeded: true };
+        for (const ui of [offByPerson, { lolWebSearchSeeded: true, theme: 'light' }]) {
+            const owui = fakeOwui(version, ui);
+            assert.equal(await owui.run(), 'set', 'only the marker is written');
+            assert.equal(owui.on(), false);
+            assert.equal(owui.ui.lolWebSearchUnseeded, true);
+            assert.deepEqual({ ...owui.ui, lolWebSearchUnseeded: undefined }, { ...ui, lolWebSearchUnseeded: undefined });
+            // Later they pick 'always' themselves: never switched back.
+            owui.ui.webSearch = 'always';
+            assert.equal(await owui.run(), 'already');
+            assert.equal(owui.on(), true);
+            assert.equal(owui.writes, 1);
+        }
+    });
+}
+
+test('web search: no token, a failed read or a refused write changes nothing and reloads nothing', async () => {
+    const seeded = { webSearch: 'always', lolWebSearchSeeded: true, theme: 'dark' };
+    const noToken = fakeOwui('0.10', seeded, { token: null });
+    assert.equal(await noToken.run(), 'na');
+    // A failed read must not write: on 0.10 our `ui` would replace the person's whole settings.
+    const readFails = fakeOwui('0.10', seeded, { readFails: true });
+    assert.equal(await readFails.run(), 'already');
+    const writeRefused = fakeOwui('0.11', seeded, { writeOk: false });
+    assert.equal(await writeRefused.run(), 'na', 'not "set": no reload, and the next session tries again');
+    for (const o of [noToken, readFails, writeRefused]) assert.deepEqual(o.ui, seeded);
+    assert.equal(noToken.writes + readFails.writes, 0);
+});
+
 (async () => {
     for (const { name, fn } of tests) {
         try { await fn(); console.log(`  ok  ${name}`); passed++; }
