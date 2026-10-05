@@ -1026,9 +1026,10 @@ node test/litellm-cancel.js   # does a person's Stop reach the engine? and think
 ```
 
 `npm test` checks the snapshot of every engine (`contract/examples.js`, which also holds what farm-v0.0.41
-sent) against `contract/snapshot.schema.json`, so a new snapshot field fails until it is declared there:
-optional, because farms are updated by hand and clients meet old ones, with a line on who reads it. The
-client reads the same examples in `shell/test/chat/unit/farm-contract.test.mjs`.
+sent) against `contract/snapshot.schema.json`, so a new snapshot field fails until it is declared there.
+Declare it optional, because farms are updated by hand and clients meet old ones, with a line on who reads
+it. The exceptions are inside `host` and `perf`: their shapes belong to `systemInfo.js` and `perf.js` and stay
+open. The client reads the same examples in `shell/test/chat/unit/farm-contract.test.mjs`.
 
 `npm test` also runs `src/pysvc/check_services.py` — the Classify and speech-to-text services' refusals
 (key, size, busy), their queue bookkeeping and their stop-when-the-client-leaves, and the OCR service's

@@ -62,6 +62,8 @@ docs) is `docs/reviews/DOCS_REVIEW_2026-09-27_{FARM,SHELL,COMPUTER}.md`. Snapsho
     the farm goes unhealthy and clients fail over. `contextLength`/`parallel` are operator DECLARATIONS (no
     portable endpoint reports them); they size the client RAG gate and the seats. While it serves, the panel's
     engine, capacity and context controls stand down; the Ollama catalog stays editable as standby edits.
+    Routed as LiteLLM `hosted_vllm/` (2026-10-05), not `openai/`: the OpenAI SDK's per-chunk work held one
+    LiteLLM core full from ~50 streams. On Windows the vLLM recipe is `farm/vllm/` (WSL2, a loopback relay).
   - A name the operator GAVE the served model (per-model Rename, `modelAlias`, `llamacpp.alias`) survives an
     engine switch and a fallback (`carryNameAcross`, `engineFallback`), so bound chats keep working. An
     unnamed default is served under its raw id on Ollama (`gemma4:12b`) and as `llamacpp.alias` on llama.cpp,
@@ -70,7 +72,8 @@ docs) is `docs/reviews/DOCS_REVIEW_2026-09-27_{FARM,SHELL,COMPUTER}.md`. Snapsho
     streaming listener (`seats.js`) with LiteLLM on `127.0.0.1:proxy.internalPort` (default port+1). An IP's
     completions claim/refresh a seat (capacity = the serving engine's slots); a seat idle `proxy.seatIdleSec`
     (900 s) frees; a generation on a full farm gets an explicit 429 `lol_seats_full` instead of queueing
-    behind idlers.
+    behind idlers. The gate checks the farm password BEFORE a seat (401), gates every generation route, and
+    its own 401/429/502 carry CORS headers (agent pages read them); Retry-After = the soonest a seat can free.
   - `proxy.masterKey` = the shared **farm password** (LiteLLM `master_key`; panel-settable; clients prompt
     once, verify, remember per farm). Discovery, `/health/liveliness` and the admin token stay separate.
   - **Admin panel** at `http://<box>:41997/lol/admin` (bearer = `admin.token`, or a per-run token printed by
@@ -695,6 +698,8 @@ LlmOnLan/
     src/                 #   beacon.js, selfServer.js (+ admin/ panel page), snapshot.js, seats.js,
                          #   plugins/ (registry), pysvc/ (OCR service), extract.js, llamacpp.js/gguf.js,
                          #   litellm.js/ollama.js, configFile.js, commands/ (up/down/install/...)
+    contract/            #   snapshot.schema.json — the beacon / GET /lol/self shape; farm + shell tests check it
+    vllm/                #   the operator-run vLLM recipe for Windows (WSL2): install/serve/stop + relay.py
     litellm/             #   generated config.generated.yaml lives here at runtime
     README.md            #   prereqs (Ollama, LiteLLM) + usage + the full config reference
   docs/                  # DEVLOG (dated build log), GETTING_STARTED, RIG_CHECKLIST, LOLCHAT_*, COMPUTER_*,

@@ -40,6 +40,11 @@ const WRONG_KEY = 'The farm did not accept the password: ask the person for it a
 function why(r, keyed, text) {
   const refused = r.status === 401 || r.status === 403 || (r.status === 400 && /authenticat|api.?key|\bkey\b/i.test(text));
   if (refused) return keyed ? ('authorization' in auth() ? WRONG_KEY : NEEDS_KEY) : 'The farm refused the request.';
+  // The seat gate's own 502 (readable since it sends CORS headers) carries its sentence; an engine restarting is not a code.
+  if (r.status >= 502 && r.status <= 504) {
+    try { const m = JSON.parse(text).error.message; if (m) return String(m); } catch { /* not the gate's JSON */ }
+    return 'The farm\'s model server is not answering (it may be restarting): try again in a few minutes.';
+  }
   return `The farm answered ${r.status}.`;
 }
 

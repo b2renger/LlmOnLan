@@ -6,6 +6,53 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-10-05 (13:27) — The review round: honest waits end to end, the contract built from the farm's own code, the panel's line for older clients
+
+Each change from 12:42 had one adversarial review. Three agents fixed the findings in their own worktrees,
+a skeptic checked each fix, and the last findings were fixed here.
+
+- **Honest waits** (`19f9c2e` + this commit), plan §13b. The per-surface table is now in the plan.
+  - **The gate's own 401, 429 and 502 carry CORS headers** (`Access-Control-Allow-Origin: *`,
+    `Access-Control-Expose-Headers: Retry-After`). An agent page lives on another origin, so before this it
+    saw only "Failed to fetch". In Electron, a page with only the allow-origin header could read the status
+    but not Retry-After, hence the expose header. LiteLLM's own answers already allowed any origin.
+  - **Retry-After is no longer a poll interval.** When every seat is generating it says the idle window
+    (no seat can free sooner), not 30 s.
+  - **The 429 sentence an Open WebUI user reads** drops "try again in a moment" and "ask around who's done":
+    nobody can hand a seat back. LOL Vibe's two fallback sentences drop it too, and the quit dialog no longer
+    claims that quitting frees the seat.
+  - **Agent pages:**
+    - They wait as long as Retry-After says, and only when the page shows the wait (`onWait`). A page
+      written with the old skill fails at once with the farm's estimate, as before.
+    - A wrong password is named.
+    - The gate's 502 sentence is shown, not "answered 502".
+  - **The pill's tooltip on a full farm is true for everyone:** "a computer without one has its new message
+    refused". Farms before the unicast `mine` (farm-v0.0.41) never say which computer holds a seat. The
+    pill's colour, words and tooltip are one tested helper, `pillState`.
+  - **Bundled skills refresh** when a person hasn't edited their copy: a stamp file plus the one hash the
+    v0.2.6–v0.2.7 agent-page shipped with. A refresh copies beside, then swaps. A locked file can neither
+    stop the coding agent from starting nor leave half a skill.
+- **The snapshot contract** (`8aea3fd`), plan 4.4.
+  - The examples now build `plugins` and `busy` through the farm's own code (`pluginsSummary`; the job
+    projection moved from `up.js` into `buildSnapshot`, behaviour identical), so a field added there fails
+    the drift test.
+  - `host` stays open like `perf`, and the README says so.
+  - Five descriptions were corrected against the tags: `capacity` since v0.0.21, `seatIdleSec` since
+    v0.0.38, `httpPort`, `ips` (the Farm app reads it), `requiresKey`.
+  - Required fields are checked against what farm-v0.0.1 already sent.
+- **The panel's slots-vs-context line** (`ef502ca`).
+  - The coding agent's sentences say which clients behave that way: v0.2.7 and older still ask 16k replies
+    under Keep going.
+  - Ollama's Automatic note points the right way for fewer slots.
+  - The Context window row no longer restates the sum the line makes.
+  - **A pre-existing bug, fixed:** one Apply that changed the Ollama slots and measured Automatic filed the
+    measurement under the new count while the daemon still ran the old one. The cache key now uses the count
+    the daemon runs.
+- **Tests:**
+  - farm 161/0; shell chat-unit 1805/0; unit 8; lint 0.
+  - The chat harness (Electron over CDP, mock farm): 405/406. The one miss, `p1-stick-bottom` (LOL Vibe's scroll stickiness, which nothing here touches), passed 3 of 3 re-run alone: a timing flake under the full run's load.
+  - chat-scope still fails on this branch, by design (it gates LOL Vibe's carve-out).
+
 ## 2026-10-05 (12:42) — LiteLLM's delay halved; web search measured; thinking off on real engines; the llama.cpp bug has a fix upstream; prices per person
 
 The owner's answers this morning (plan revision 4): ComfyQ moved off the PRO 6000 yesterday; classes are

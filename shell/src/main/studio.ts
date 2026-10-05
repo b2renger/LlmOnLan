@@ -885,16 +885,27 @@ export function seedSkills(bundled: string, dir: string, stampFile: string): voi
         const from = path.join(bundled, name);
         const to = path.join(dir, name);
         const now = treeHash(from);
-        if (fs.existsSync(to)) {
-            let theirs = '';
-            try { theirs = treeHash(to); } catch { /* not a folder we can read: theirs, left alone */ }
-            if (theirs !== now) {
-                if (theirs !== stamps[name] && !SEEDED_BEFORE_STAMPS.has(theirs)) continue;
-                fs.rmSync(to, { recursive: true, force: true });
-                copyTree(from, to);
-            }
-        } else copyTree(from, to);
-        stamps[name] = now;
+        const next = `${to}.lol-new`;
+        try {
+            if (fs.existsSync(to)) {
+                let theirs = '';
+                try { theirs = treeHash(to); } catch { /* not a folder we can read: theirs, left alone */ }
+                if (theirs !== now) {
+                    if (theirs !== stamps[name] && !SEEDED_BEFORE_STAMPS.has(theirs)) continue;
+                    // Copy beside, then swap: a file locked part-way (Windows EBUSY/EPERM) must not leave half a skill.
+                    fs.rmSync(next, { recursive: true, force: true });
+                    copyTree(from, next);
+                    fs.rmSync(to, { recursive: true, force: true });
+                    fs.renameSync(next, to);
+                }
+            } else copyTree(from, to);
+            stamps[name] = now;
+        } catch {
+            // Seeding never stops the coding agent from starting. Put the bundled copy back over whatever is left and
+            // stamp what is there as ours, so the next start replaces it cleanly instead of taking it for a person's edit.
+            try { copyTree(from, to); stamps[name] = treeHash(to); } catch { /* left as it is; tried again next start */ }
+            try { fs.rmSync(next, { recursive: true, force: true }); } catch { /* a leftover beside it is harmless */ }
+        }
     }
     if (JSON.stringify(stamps) === before) return;
     fs.mkdirSync(path.dirname(stampFile), { recursive: true });

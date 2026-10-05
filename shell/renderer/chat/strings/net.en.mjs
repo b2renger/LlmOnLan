@@ -27,7 +27,7 @@ registerStrings('net', {
 
   // describe() bodies ({message} = the classified message, {status} = the HTTP status,
   // {seconds} = retry-after)
-  seatsFullBody: 'Every seat on this server is in use. Try again in {seconds} s, or ask around who is done.',
+  seatsFullBody: 'Every seat on this server is in use. A seat frees once its holder has been idle a while: try again in about {seconds} s.',
   upstreamDownBody: 'The farm answered, but the model behind it did not — it may be restarting. Try again in a few seconds.',
   // The password is entered on the farm's card in the connection popover (the top bar's pill) —
   // Preferences › Connection has no password field.

@@ -454,12 +454,14 @@ function capacityPill(c) {
 
 // The pill's tooltip: what a full farm, or that queue, means for the next message
 // ('' = nothing to add). A computer holding no seat on a full farm never reaches the
-// queue: the seat gate refuses its message until a seat frees.
+// queue: the seat gate refuses its message until a seat frees. Farms before the
+// unicast `mine` (farm-v0.0.41 and older) never say whether THIS computer holds one,
+// so the sentence must stay true for a computer that does.
 function capacityTip(c) {
   const q = c.queued ? `${c.queued} message${c.queued > 1 ? 's are' : ' is'} queued at the model.` : '';
   if (c.seatsKnown && c.full && !c.mine) {
     const when = c.idleMin ? ` (about ${c.idleMin} min after its holder's last reply)` : '';
-    return [`Every seat is taken: a new message is refused until one frees${when}.`, q].filter(Boolean).join(' ');
+    return [`Every seat is taken: a computer without one has its new message refused until one frees${when}.`, q].filter(Boolean).join(' ');
   }
   return q && `${q} A new one waits its turn, so the first word of its reply may be slow.`;
 }

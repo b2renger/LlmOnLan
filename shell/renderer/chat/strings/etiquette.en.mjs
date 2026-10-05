@@ -26,7 +26,7 @@ registerStrings('etiquette', {
   tryNowTip: 'Ask the farm for a seat again, now',
   cancelWaitTip: 'Stop waiting for a seat. Nothing was sent; your message stays in the chat.',
   cancelled: 'Stopped waiting for a seat.',
-  gaveUp: 'Gave up waiting for a seat after {minutes} min. Nothing was sent — try again, or ask around who is still generating.',
+  gaveUp: 'Gave up waiting for a seat after {minutes} min. Nothing was sent: try again later. Whoever runs the farm can free idle seats sooner.',
 
   // ---- the farm strip (ui/strip.mjs) --------------------------------------------------------
   // One line under the topline. Every field is omitted when its value is unknown — never a dash.

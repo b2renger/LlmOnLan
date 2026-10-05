@@ -3201,6 +3201,12 @@ test('panel: the slots-vs-context line says what an edit does before Apply (plan
     // Ollama: every request gets the whole window, whatever the slots.
     const ol = render(adminState());
     assert.ok(ol.includes('Each person gets <b>32k</b> of context: Ollama gives every request the whole window.'));
+    assert.ok(!ol.includes('every request gets the full window'), 'the Ollama row no longer restates what the line says');
+    // One Apply that changes the slots and measures Automatic files the verdict under the count the daemon RUNS
+    // (ensureOllama reports it), so the restart re-measures for the new count instead of reusing it (up.js).
+    const upSrc = fs.readFileSync(path.join(__dirname, '..', 'src', 'commands', 'up.js'), 'utf8');
+    assert.ok(/const cacheKey = `[^`]*\|\$\{oll\.numParallel\}\|/.test(upSrc), 'the Ollama context cache key uses the running count');
+    assert.ok(upSrc.includes('numParallel: config.ollama.numParallel };'), 'ensureOllama reports the count it started the daemon with');
     // Ollama holds people × window: more people at once can shrink Automatic, fewer can grow it.
     assert.ok(edit(4, 'auto').includes('sized again for 4 at once when the farm restarts, and can come out smaller'));
     assert.ok(edit(1, 'auto').includes('sized again for 1 at once when the farm restarts, and can come out larger'));

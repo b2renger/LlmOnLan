@@ -64,13 +64,14 @@ export default (test) => {
   });
 
   test('lol-agent: the farm\'s own failures end the run with a sentence — full (a page that shows no wait), a password', async () => {
-    const busy = fakeFarm([{ status: 429 }, { status: 429, retryAfter: '900' }]);
+    const busy = fakeFarm([{ status: 429 }, { status: 429, retryAfter: '40' }]);
     try {
       const { runAgent } = await fresh();
       await assert.rejects(runAgent({ task: 't', waitFor: 0 }), /^Error: The farm is full \(every seat is taken\): try again in a few minutes\.$/, 'no Retry-After to read: no estimate invented');
-      // A page written before onWait (the old skill) shows nothing while waiting: it fails at once, with the farm's estimate.
+      // A page written before onWait (the old skill) shows nothing while waiting: it fails at once, with the farm's
+      // estimate — even when that estimate (40 s) is well inside the 5 min a page that shows the wait would sit out.
       const t0 = Date.now();
-      await assert.rejects(runAgent({ task: 't' }), /^Error: The farm is full \(every seat is taken\): the next seat frees in about 15 min\.$/);
+      await assert.rejects(runAgent({ task: 't' }), /^Error: The farm is full \(every seat is taken\): the next seat frees in about 40 s\.$/);
       assert.ok(Date.now() - t0 < 500, 'no silent wait');
       assert.equal(busy.bodies.length, 2, 'one ask each');
     } finally { busy.restore(); }
@@ -80,7 +81,10 @@ export default (test) => {
     // LiteLLM refuses a wrong key with a 400 that names it; its context overflow is a 400 too, and is not the password.
     const lite400 = { status: 400, body: JSON.stringify({ error: { message: 'Authentication Error, Invalid proxy server token passed. Received Key=sk-...rong' } }) };
     const overflow = { status: 400, body: JSON.stringify({ error: { message: 'litellm.ContextWindowExceededError: maximum context length is 8192 tokens' } }) };
-    const keyed = fakeFarm([gate401, lite400, overflow], { requiresKey: true });
+    // The gate's own 502 (readable since its CORS headers) says what is wrong; a bare 503 gets a sentence, not a code.
+    const gate502 = { status: 502, headers: gate401.headers, body: JSON.stringify({ error: { message: 'The model server is not answering (it may be restarting) — try again in a few seconds.', code: 'lol_upstream_down' } }) };
+    const bare503 = { status: 503, body: 'Service Unavailable' };
+    const keyed = fakeFarm([gate401, lite400, overflow, gate502, bare503], { requiresKey: true });
     const kept = new Map();
     globalThis.sessionStorage = /** @type {any} */ ({ getItem: (/** @type {string} */ k) => kept.get(k) ?? null, setItem: (/** @type {string} */ k, /** @type {string} */ v) => kept.set(k, v) });
     try {
@@ -91,7 +95,9 @@ export default (test) => {
       await assert.rejects(ask({ messages: [] }), /^Error: The farm did not accept the password: ask the person for it again and call setKey\(password\)\.$/, 'the gate\'s 401');
       await assert.rejects(ask({ messages: [] }), /did not accept the password/, 'LiteLLM\'s 400 that names the key');
       await assert.rejects(ask({ messages: [] }), /^Error: The farm answered 400\.$/, 'a 400 about the context is not the password');
-      assert.equal(keyed.bodies.length, 3);
+      await assert.rejects(ask({ messages: [] }), /^Error: The model server is not answering \(it may be restarting\)/, 'the gate\'s 502 sentence');
+      await assert.rejects(ask({ messages: [] }), /^Error: The farm's model server is not answering \(it may be restarting\): try again in a few minutes\.$/, 'a bare 503');
+      assert.equal(keyed.bodies.length, 5);
     } finally { keyed.restore(); }
     // An older farm (farm-v0.0.41 and before): the gate's 401 had no CORS header, so the page saw only "Failed to fetch".
     const old = fakeFarm([], { requiresKey: true });

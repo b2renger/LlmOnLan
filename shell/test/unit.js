@@ -73,14 +73,14 @@ test('capacity: the pill names the engine\'s queue, the one reason an Open WebUI
     }
 });
 
-test('capacity: on a full farm the tooltip says a computer holding no seat is refused, not queued', () => {
+test('capacity: on a full farm the tooltip says a computer holding no seat is refused, not queued (and stays true for one that holds a seat on a farm too old to say)', () => {
     const { readCapacity, capacityTip } = rendererHelpers();
     const full = { slots: 50, seatsUsed: 50, seatIdleSec: 900, queued: 12 };
     const out = readCapacity({ capacity: full });
     assert.equal(out.mine, false, 'no `mine` (the beacon, an older farm) reads as no seat');
-    assert.equal(capacityTip(out), 'Every seat is taken: a new message is refused until one frees (about 15 min after its holder\'s last reply). 12 messages are queued at the model.');
+    assert.equal(capacityTip(out), 'Every seat is taken: a computer without one has its new message refused until one frees (about 15 min after its holder\'s last reply). 12 messages are queued at the model.');
     assert.equal(capacityTip(readCapacity({ capacity: { slots: 2, seatsUsed: 2, seatIdleSec: 600 } })),
-        'Every seat is taken: a new message is refused until one frees (about 10 min after its holder\'s last reply).');
+        'Every seat is taken: a computer without one has its new message refused until one frees (about 10 min after its holder\'s last reply).');
     // This computer holds one of the seats: its next message is let in, then waits at the engine like any other.
     const mine = readCapacity({ capacity: { ...full, mine: true } });
     assert.equal(mine.mine, true);

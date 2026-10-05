@@ -356,7 +356,7 @@ Revision 2 reorders v1 around measurement and the cheapest levers. Effort figure
 | 1. Seat gate v2 | Client fixes (1.6). Background-task and search cost (1.4) after measurement. The fair queue (1.2) only if adopted. ~~Identity (1.1)~~: **cut** by the owner. | 1 week core; +1 week with 1.2 | 1.6 and the workshop setting **built**. 1.4 being measured. The fair queue only if refusals are frequent |
 | 2. vLLM engine | **In scope (owner, 2026-10-04).** The spike runs in Phase 0.6. Then a farm engine sized against its GPU co-tenants: on Spark natively, on the Windows PRO 6000 via WSL2. Managed or operator-run is decided from the spike. | 3–4 weeks after the spike | (a) **built**. The PRO 6000 `external` recipe **built** and checked live. Managed on the Spark after its spike |
 | 3. Several big boxes | One endpoint over several Sparks/PRO 6000s as the studio buys them. Scale-out on the small GPUs is **out** (owner). | ~1 week, when a second big box exists | Next, once the Spark serves (the PRO 6000 + the Spark make two big boxes) |
-| 4. Distribution and contract | LAN model copy over plain HTTP; a minimal snapshot schema check. | 1–2 weeks | 4.2 **cut**. 4.3 an open study, low priority. 4.4 in progress. 4.1 later |
+| 4. Distribution and contract | LAN model copy over plain HTTP; a minimal snapshot schema check. | 1–2 weeks | 4.2 **cut**. 4.3 an open study, low priority. 4.4 **built**. 4.1 later |
 | 5. Capacity table (the purchase tool) | Measured people-per-box at 32k/64k/128k for each box × engine × model, in `farm/README.md` and the panel. Roofline estimates, clearly marked, for hardware not owned (the RTX PRO 5000 Blackwell class, a second PRO 6000). | 3–5 days after the spike | v1 **built** (PRO 6000, measured). Spark row 2026-10-05; PRO 5000 estimates in progress |
 | Security | ~~Revocation~~ (no identity). ~~TLS~~. | — | Both **cut** |
 | **Total** | Phase 0 with the spike: **~3 weeks**. The vLLM engine: +3–4 weeks. | | |
@@ -1003,6 +1003,18 @@ write-up: which uses pass, on which machines.
 
 ### 4.4 Shared contract and drift check (minimum version)
 
+> **BUILT 2026-10-05; reviewed twice.**
+> - `farm/contract/snapshot.schema.json` covers the beacon and `GET /lol/self`. Required is only what a
+>   client can't work without, checked against what farm-v0.0.1 already sent. Every property says who reads
+>   it.
+> - `farm/contract/examples.js` builds real snapshots for every engine through the farm's own code
+>   (`buildSnapshot`, `pluginsSummary`, the job projection), plus what farm-v0.0.41 sent.
+> - The farm test fails on an undeclared field anywhere except inside `host` and `perf`, whose shapes belong
+>   to `systemInfo.js` and `perf.js`.
+> - The client test sends today's farm, farm-v0.0.41, the required fields alone and a newer farm with unknown
+>   fields through discovery, farmSelect, the pill and LOL Vibe.
+> - Not built: "the shell warns on older farms" (no reader of `version` yet).
+
 - `contract/` (or `farm/contract/`) holds JSON Schemas for the beacon snapshot / `/lol/self`, and later
   `/lol/queue` and the Phase 5 catalog.
 - **One farm unit test** validates a real `buildSnapshot()` against the schema. The shell tests validate
@@ -1512,7 +1524,7 @@ llama.cpp alternative (Windows or before Phase 2), OWUI chat with Qwen3.8-27B:
 | ~~1.1 Per-install identity~~ | — | — | — | Cut (owner, 2026-10-04) |
 | 1.2 Workshop setting; fair queue only if needed | 3.3 | ½ day; +1 week for a queue | The seat hold is set live from the panel; a queue only if the 3.3 counts show frequent refusals | Workshop setting **built**; queue not needed so far |
 | 1.5 OCR reserve beside vLLM | 2 | — | vLLM's KV pool leaves the OCR model room | **Built** into the recipe (a 50 GiB pool leaves 19.8 GiB free) |
-| 4.4 Snapshot schema check | — | 1–2 days | A farm unit test fails when `buildSnapshot()` drifts from the schema (the snapshot already has tests, `farm/test/run.js:856`) | In progress |
+| 4.4 Snapshot schema check | — | 1–2 days | A farm unit test fails when `buildSnapshot()` drifts from the schema (the snapshot already has tests, `farm/test/run.js:856`) | **Built** (`farm/contract/`) |
 | 2 (a) vLLM as integrated `external` | 0.6 | 1 week | Seats, Performance card and `capacity.busy/queued` from vLLM's `/metrics` | **Built**, checked live |
 | PRO 6000 `external` recipe (decision 10) | 2 (a) | 2–3 days | vLLM in WSL2 reachable over TCP; a documented recipe | **Built** (`farm/vllm/`) |
 | 2.1–2.3 (b) Managed vLLM on the Spark | 2 (a), the Spark spike | 2 weeks | `lol up` serves the spike's model on a Spark, with fallback working | After the Spark spike |
@@ -1678,22 +1690,45 @@ These are recommendations, not decisions.
     LLM-only, so the spike's exclusive-GPU numbers are the real ones, not just ceilings. The farm keeps
     budgeting against free VRAM (0.7) either way.
 
-## 13b. Gaps the critic raised (not yet planned)
+## 13b. Gaps the critic raised (two built 2026-10-05)
 
-- **What a person sees while waiting, per surface.** Today:
-  - OWUI shows the 429 text and needs a manual resend.
-  - Vibe shows seat-wait.
-  - The Computer yields, but a 429 costs a Cap generation.
-  - The coding agent retries 5 times uselessly.
-  - Agent pages throw "busy".
+- **What a person sees while waiting, per surface. BUILT 2026-10-05** (with 1.6, and the honest-waits
+  commits; reviewed twice). With vLLM the usual wait is the engine's queue (a slow first word). The 429 is
+  the rare safety valve.
 
-  One table, with one honest wait message per surface.
+  | Surface | Farm full (the gate's 429) | Engine queue (a slow first word) | Farm unreachable |
+  | --- | --- | --- | --- |
+  | **Open WebUI** | The gate's sentence, verbatim, under the reply: "All 50 seats on this server are in use. The next one frees in about 40 s if its holder stays quiet: try again then. Whoever runs the farm can free idle seats sooner." When every seat is generating: "…a seat frees about 15 min after its holder's last reply: try again later." The person resends by hand. | Open WebUI says nothing. **The topbar pill** turns amber with "· 12 waiting", and its tooltip says the first word may be slow. | Open WebUI's "Server Connection Error"; the pill says "not responding…" |
+  | **LOL Vibe** | The waiting row ("Waiting for a seat"): it resends by itself when a seat frees, and gives up after 15 min. | An empty reply row until the first word; the pill as above. | "The farm is unreachable" with the reason. |
+  | **The Computer** | No Cap generation spent; the run pauses ("the farm was busy with someone else. Press Run all to carry on"). | The box runs longer. | The box fails: "The farm could not answer". |
+  | **The coding agent** | No self-retry; the refused turn goes to LOL Vibe's waiting row. | Slower. | The agent's own retries, then "stopped before it answered". |
+  | **Agent pages** | They wait as long as Retry-After says (a check at most every 60 s, up to 5 min) and show it through `onWait` ("a seat frees in about 2 min; checking again in 60 s"). A page without `onWait` (the old skill) fails at once with the farm's estimate. | The step takes longer. | "The farm did not answer…", naming the password on a keyed farm. |
+
+  - **What made the gate's refusals readable in agent pages:** the gate's own 401, 429 and 502 now carry
+    CORS headers (`Access-Control-Allow-Origin: *`, `Access-Control-Expose-Headers: Retry-After`). Before,
+    a page on another origin saw only "Failed to fetch". LiteLLM's answers already allowed any origin.
+  - **Retry-After is no longer a poll interval.** When every seat is generating, it says the idle window
+    (no seat can free sooner), not 30 s.
+  - **Two false sentences were fixed:**
+    - The quit dialog said quitting "frees your seat"; it frees once idle a while.
+    - "Ask around who's done" was dropped: nobody can hand a seat back.
+  - **Bundled skills refresh** (the agent-page skill's new wait status) when a person hasn't edited their
+    copy. Before, an existing install kept its first copy forever.
+  - **Note for the 3.3 counts:** an agent page's re-checks count as refusals too.
 - **The workshop operator's flow.** `seatIdleSec` now has a panel control, applied live (2026-10-04). Still
   open: the slots are panel-capped at 16, Ollama slots apply after a restart, and who flips the setting
   before a class, and when.
-- **Slots vs context.** More slots means less context per person, a RAG-mode flip that reboots every
-  OWUI, and a coding agent that can't compact under "Keep going". The panel should show that trade
-  before Apply.
+- **Slots vs context. BUILT 2026-10-05.** The Backend card's line under the slots and context controls
+  says, before Apply, three things:
+  - the context each person gets, using `backend.contextPerSlot`'s formula, tested against `snapshot.js`
+    for every engine;
+  - when Open WebUI switches documents to excerpts (below 24576 each) and restarts once;
+  - the coding agent's Keep-going reply room, saying which client versions behave that way (v0.2.7 and
+    older still ask 16k replies).
+
+  Automatic quotes the last measurement or says it isn't known yet, and the external engine shows its
+  declared values. A pre-existing probe bug was fixed with it: one Apply that changed the Ollama slots and
+  measured Automatic used to file the result under the new count while the daemon still ran the old one.
 - **Thinking control.** It is the biggest demand lever, and unscheduled, for OWUI chats as well as the
   Computer. Options: a per-alias `chat_template_kwargs` in LiteLLM, or llama-server's reasoning budget.
 - **Web search `always` + whole-document injection.** **Measured 2026-10-05** (1.4): ~2.5× the GPU work
