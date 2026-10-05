@@ -1576,6 +1576,9 @@ llama.cpp alternative (Windows or before Phase 2), OWUI chat with Qwen3.8-27B:
 - **The live dev box.** Every farm experiment on `AN-A6000PRO` risks real users (§0, item 7).
 - **vLLM:** on Spark, arm64 wheels and NVFP4 kernels move fast (pin, keep a Docker fallback). On Windows
   it only runs in WSL2, with its process-lifetime hazards.
+- **Runaways (measured 2026-10-05):** some replies loop until the 64k window is full: ~290 s of a seat,
+  then an empty reply (3 of 45 searched chats, and 4 of 36 native-mode follow-ups). **Owner: cap them at the
+  farm**, with a value measured never to cut a real answer. The root-cause study is running.
 - **Benchmarks:** most §9 numbers are single-author posts with different builds. No source measured
   exactly 10 concurrent users for Qwen3.6 or Lightning. Quality scores are vendor-reported. Local
   measurements decide.
@@ -1588,6 +1591,8 @@ These are recommendations, not decisions.
    people × quality × context per box; the small GPUs are out.
    - **Head count, ANSWERED (2026-10-05):** it varies. The owner caps a class at **50**; most of the time it
      is **20–30**. The acceptance test (§12) uses both.
+   - **Release (owner, 2026-10-05):** the merge into `main` and the farm-v0.0.42 / client v0.2.8 release
+     wait for the Spark results.
    - *Critic:* one class on the PRO 6000 first.
 2. **Queue or 429** (1.2). **ANSWERED (2026-10-04): the engine queues, plus a workshop setting.**
    - With vLLM, seats are set near what the card really serves at acceptable speed (from the spike), and
@@ -1614,7 +1619,14 @@ These are recommendations, not decisions.
      - Measure OWUI's own knobs (result count, fetch cap).
      - Prototype a light search-and-read service: search, fetch, extract, rank passages, and return real
        evidence in one call. It would sit behind OWUI's `WEB_SEARCH_ENGINE=external` (env only).
-     - Measure it end to end. Being built 2026-10-05.
+     - Measure it end to end.
+   - **MEASURED 2026-10-05 (afternoon), 12 fresh-fact questions:** today's web search got 2/12 right. Fixing
+     the engines plus two OWUI settings (config only) got 9/12. The search-and-read service got **10/12** at
+     2.3 generations per message, as cheap as web search off (2.4), with no runaways. On the laptop it costs
+     ~50 ms of CPU and ~1.5 MB per search; SearXNG stays on the farm. Details in the DEVLOG (17:03).
+   - **Owner (2026-10-05):** drop Yandex (queries would go to a Russian company) and re-check quality without
+     it. Being built: the engines without Yandex, the two settings, and the service in the client's main
+     process. Web search stays off by default until the service ships and a class-size check passes.
 5. **vLLM** (Phase 2). **ANSWERED (2026-10-04): in scope**, overriding the critic's cut.
    - Still open, decided from the spike: (a) integrated `external` or (b) fully managed.
    - The critic's caution stands as a test condition: WSL2 lifetimes on the PRO 6000 must be handled
@@ -1658,8 +1670,15 @@ These are recommendations, not decisions.
      deterministically wrong without thinking: gemma4:12b answered 235 instead of 215, and Qwen3.8 IQ2_S
      385 instead of 395. Qwen3.8 on Ollama sometimes moved its working into the answer instead (178
      tokens of algebra in `content`), which matters for JSON asks that aren't schema-bound.
-   - **Owner (2026-10-05): "I want a toggle to be able to put it back on."** A Computer-wide switch is being
-     built. Its default follows the test on the Computer's real asks (running 2026-10-05).
+   - **Owner (2026-10-05): "I want a toggle to be able to put it back on."** Built: the "Think first" box
+     beside the Cap.
+   - **MEASURED on the Computer's real asks (2026-10-05):** on vLLM + Qwen3.6, Condition questions that need
+     working out were right **44 % with thinking off and 91 % with it on**. Extraction and lists gained nothing,
+     at 10–25× the cost. Agent steps went 22/24 → 24/24 at 12× the time, and got worse on gemma4. Filter got
+     worse with thinking until a one-sentence prompt fix, after which it scored 36/36. **Decision 9 was wrong
+     for yes/no decisions.**
+   - **ANSWERED (owner, 2026-10-05): decisions think, the rest stays fast.** Condition and Filter think by
+     default, with the Filter fix. Ticking the box makes every structured ask think. Being built.
    - **Reading:** titles, search queries and JSON or list extraction are safe with thinking off. The
      Computer's **verdict** and **agent-step** asks need reasoning. On the target model (vLLM + Qwen3.6) the
      spike's 28-item gate lost nothing, but the Computer's real verdict and agent asks haven't been run both

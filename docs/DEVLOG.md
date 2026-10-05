@@ -6,6 +6,69 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-10-05 (17:03) — Web search off by default, and measured back to good; thinking measured on the Computer's real asks; four owner decisions
+
+Today's owner answers:
+- web search off by default, but "for an agent it is an important feature and it should be performant and
+  qualitative";
+- a toggle to put thinking back on;
+- the purchase choice is RTX Blackwell versus the GB10 (Spark), with the PRO 5500 only as a fallback;
+- no LiteLLM bypass.
+
+Seven agents built and measured beside the production farm, which was serving on this box: a 20 GB vLLM
+pool, a scratch Ollama on another port, and nothing loaded into the production daemon.
+
+- **Web search off by default** (`3717d6c`, verified).
+  - **New profiles** get no seed; the globe still turns it on for a chat.
+  - **Profiles an older client set to "always"** are switched back once. That happens only if they are still
+    "always", and a new marker stops it from running twice.
+  - **Checked against both Open WebUI versions:** live against throwaway 0.11.4 and 0.10.1 servers, whose
+    `ui` write rules differ. The value is set to `null`, not deleted: 0.11 patches `ui` key by key, so
+    deleting would have kept "always".
+  - **Docs:** CLAUDE.md, GETTING_STARTED and the READMEs say "off by default".
+- **A "Think first" box beside the Cap** (`3610e07`): one switch for the Computer's structured asks.
+- **Thinking measured on the Computer's real asks.** The prompts were rebuilt from the box parts, about 50
+  items × 3 runs on each engine, through the farm's LiteLLM. On the target, vLLM + Qwen3.6:
+  - **Condition questions that need working out:** **44 % right with thinking off, 91 % with it on.**
+  - **Easy questions, extraction and lists:** right either way (lists 89 → 100 %), at 10–25× the tokens with
+    thinking on.
+  - **Agent steps:** 22/24 → 24/24, at 12× the time. On gemma4:12b they got worse with thinking (24 → 21).
+  - **Filter got worse with thinking:** its system sentence never says what "keep" means. With a one-sentence
+    fix, thinking scored 36/36 on both engines.
+  - **Decision 9 (thinking off for every structured ask) was wrong for yes/no decisions.**
+  - **The owner chose:** decisions think, the rest stays fast, and the box makes everything think. Being
+    built.
+- **Web search v2, diagnosed, prototyped and measured end to end:** 15 questions per condition, 12 of them
+  needing fresh facts, with answers established today.
+
+  | | Fresh facts right | Generations per message | Wait to first word (median) | Runaways |
+  |---|---|---|---|---|
+  | Web search off | 0/12 | 2.4 | 2.5 s | 0 |
+  | Today's web search | 2/12 | 6.8 (max 34) | 5.3 s | 1 |
+  | B: engines fixed + 2 OWUI settings (config only) | 9/12 | 3.0 | 3.6 s | 2 |
+  | C: a search-and-read service (prototype) | **10/12** | **2.3** | 4.3 s | 0 |
+
+  - **Why today's search was poor:**
+    - From this IP only Bing answered: DuckDuckGo html and Startpage gave CAPTCHAs, Brave a 429, Qwant and
+      Mojeek a 403.
+    - `search_web` hands the model 3 snippets, about 290 tokens.
+    - `fetch_url` returns whole pages, about 6.6k tokens each, with no cap.
+  - **The service:** SearXNG on the farm, then the client reads the top 6 pages, keeps the best passages
+    (BM25) and returns them in one `search_web` call behind Open WebUI's `WEB_SEARCH_ENGINE=external`, env
+    only. The model then never called `fetch_url`.
+  - **On a laptop:** ~50 ms of CPU, ~1.5 MB of download and under 125 MB of memory per search, as a separate
+    process. SearXNG stays on the farm: one cache, and a school's laptops share one public IP anyway.
+- **Owner decisions after the measurements:**
+  - Decisions think, the rest stays fast.
+  - Drop Yandex from the engines: queries would go to a Russian company. Re-check quality without it.
+  - Cap runaways at the farm. Separately from web search, some replies loop until the 64k window is full:
+    ~290 s of a seat, then an empty reply.
+  - Hold the merge and release until the Spark results are in.
+- **Building now:** the thinking defaults, web search v2 (the engines without Yandex, the two settings, and
+  the service in the client's main process), the runaway study with a measured cap, and the quality re-check
+  without Yandex.
+- **Tests on the branch** (`3610e07`): farm 161/0, shell chat-unit 1809/0, unit 15, lint 0.
+
 ## 2026-10-05 (13:27) — The review round: honest waits end to end, the contract built from the farm's own code, the panel's line for older clients
 
 Each change from 12:42 had one adversarial review. Three agents fixed the findings in their own worktrees,
