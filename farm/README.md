@@ -509,10 +509,13 @@ W-token window, set `contextLength ≈ N × W` and check the total still fits VR
 allocated in full at load. `kvUnified: false` restores the hard split
 (`--ctx-size 16384 --parallel 2` → 8192 each).
 
-Both are panel controls — *Backend* → **People served at once** and **Context window** — and the panel
-spells out the arithmetic as you change them ("2 slot(s) sharing one 32768-token context pool (16384
-guaranteed each)"), which is the part that is easy to get wrong. They apply together with **Apply
-changes**, reloading the model once, and are written back to `lol.config.json`. If the new shape does
+Both are panel controls — *Backend* → **People served at once** and **Context window**. The line under
+them says, as you change them and before you apply, what each person gets (the `contextPerSlot` the farm
+will advertise) and what the clients then do: below 24576 each, Open WebUI reads the 8 most relevant
+passages of a document instead of all of it, and every connected Open WebUI restarts once when that
+flips; on small windows the coding agent's *Keep going until done* writes shorter replies. Automatic is
+sized when the engine starts, so the line quotes the last measurement and says so. They apply together
+with **Apply changes**, reloading the model once, and are written back to `lol.config.json`. If the new shape does
 not fit VRAM the model fails to load and the farm reverts to the shape that worked.
 
 **Budgeting VRAM.** For the shipped quant, weights are ~7.8 GB and quantized (`q4_0`) KV runs

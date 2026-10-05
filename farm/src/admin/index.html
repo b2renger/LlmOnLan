@@ -331,6 +331,10 @@ function render(s) {
         ? ctxOptions(lc.contextLength, lc.contextResolved || be.contextLength, s.fit, s.fit && s.fit.nativeMax)
         : ctxOptions((s.ollama && s.ollama.contextLength) ?? be.contextLength, be.contextLength, null, s.ollama && s.ollama.nativeMax)}</select></span></div>`)
 
+    // What the two settings above give each person, and what the clients do with it,
+    // updated as the operator edits (tradeLine). Under an external server: the declared values.
+    + `<div id="trade">${tradeLine(s)}</div>`
+
     // ONE Apply for everything above (owner ask 2026-08-31): each setting used to
     // carry its own button, and each press restarted the server — four restarts to
     // change four things. Edits are collected and applied together in one restart.
@@ -650,6 +654,11 @@ function render(s) {
     if (!Object.keys(payload).length) { toast('Nothing changed.'); return; }
     post('/lol/admin/apply', payload, settingsApply, 'Applying…');
   };
+  // The trade line follows the slots and context controls before Apply.
+  const slotsIn = $('#slots-sel'), ctxIn = $('#ctx-sel'), trade = $('#trade');
+  if (slotsIn && ctxIn && trade) slotsIn.onchange = ctxIn.onchange = () => {
+    trade.innerHTML = tradeLine(s, parseInt(slotsIn.value, 10), ctxIn.value === 'auto' ? 'auto' : parseInt(ctxIn.value, 10));
+  };
   // Clearing the password stays its own confirmed action — an empty field in the
   // batch means "unchanged", never "remove".
   const secClear = $('#sec-clear');
@@ -709,6 +718,77 @@ function fmtK(n) {
   if (!n) return '—';
   if (n % 1048576 === 0) return (n / 1048576) + 'M';
   return n % 1024 === 0 ? (n / 1024) + 'k' : String(n);
+}
+
+// Slots against context (plan §13b): more people at once can mean less context each,
+// and the clients change how they work below some sizes. The operator used to learn
+// that after the restart; the line under the controls says it while they edit.
+// The context each person gets, as snapshot.js backendInfo advertises it in
+// backend.contextPerSlot (a farm test holds the two together): llama.cpp divides its
+// window by its slots (with the shared pool, what a person keeps when every slot is
+// busy); Ollama and an external server give every request the whole window.
+function perPerson(engine, ctx, slots) {
+  return engine === 'llama.cpp' ? Math.floor(ctx / Math.max(1, slots)) : ctx;
+}
+// What the clients do with that number, mirrored from the shell (a farm test reads its
+// sources): configBridge.ts FULL_CONTEXT_MIN_CTX and RAG_TOP_K — Open WebUI reads whole
+// documents at or above it and the best passages below, and each Open WebUI restarts
+// when its farm crosses it. studio.ts agentWindow and agentMaxTokens — the coding agent
+// plans for 256k at most, and "Keep going until done" asks for 16k replies but shrinks
+// them to 3/4 of the window less 4k of headroom, never below a plain reply (8k for most
+// coding models in projects/models.mjs), so the agent can still summarise its history.
+const CLIENT = { fullDocs: 24576, topK: 8, agentMax: 262144, goalReply: 16384, headroom: 4096, plainReply: 8192 };
+// `slots` and `ctx` (a number or 'auto') are the controls' values; left out = as configured.
+function tradeLine(s, slots, ctx) {
+  const be = s.backend || {}, lc = s.llamacpp || {}, ol = s.ollama || {};
+  const isLc = be.engine === 'llama.cpp', ext = be.engine === 'external';
+  const slots0 = be.engine === 'ollama' ? (ol.numParallel || be.slots) : be.slots;
+  const ctx0 = ext ? be.contextLength : ((isLc ? lc.contextLength : ol.contextLength) ?? 'auto');
+  if (slots == null) slots = slots0;
+  if (ctx == null) ctx = ctx0;
+  const edited = slots !== slots0 || ctx !== ctx0;
+  // A number is exact. Automatic is sized when the engine starts, so the panel can
+  // only quote what was measured last, and says so.
+  let win = ctx === 'auto' ? null : ctx, note = '';
+  if (ctx === 'auto' && isLc) {
+    // The most the model reads or the GPU's free memory holds: the slots do not enter it.
+    win = ctx0 === 'auto' ? lc.contextResolved : ((s.fit && s.fit.maxContext) || null);
+    if (win == null) note = ' Automatic is sized at the restart, from the model and the GPU\'s free memory.';
+    else if (edited) note = ' Automatic reads the GPU\'s free memory again at the restart, so this can come out a little different.';
+  } else if (ctx === 'auto' && ctx0 !== 'auto') {
+    note = ' Automatic is measured when you apply, by loading the model a few times.';
+  } else if (ctx === 'auto') {
+    // Ollama keeps one verdict per number of people at once (up.js resolveOllamaContext).
+    win = ol.contextResolved;
+    if (slots !== slots0) note = ` Automatic is sized again for ${slots} at once when the farm restarts, and can come out smaller.`;
+  }
+  if (win == null) {
+    return `<div class="hint">How much context each person gets is not known yet.${note} `
+      + `Below <b>${fmtK(CLIENT.fullDocs)}</b> each, Open WebUI reads the ${CLIENT.topK} most relevant passages of an attached document instead of all of it, `
+      + `and every connected Open WebUI restarts once when that changes.</div>`;
+  }
+  const each = perPerson(be.engine, win, slots);
+  const lead = `${edited ? 'After Apply, each' : 'Each'} person gets ${isLc && slots > 1 && be.kvUnified ? 'at least ' : ''}<b>${fmtK(each)}</b> of context`;
+  const how = ext ? ', as declared in lol.config.json (external.contextLength).'
+    : !isLc ? ': Ollama gives every request the whole window.'
+    : slots > 1 ? (be.kvUnified ? `: ${fmtK(win)} shared by ${slots}, all of it for a person alone.` : `: ${fmtK(win)} split across ${slots}.`)
+    : '.';
+  const whole = each >= CLIENT.fullDocs;
+  const docs = whole ? 'Open WebUI reads attached documents whole.'
+    : `Open WebUI reads the ${CLIENT.topK} most relevant passages of an attached document, not all of it (that needs ${fmtK(CLIENT.fullDocs)} each).`;
+  // The coding agent: dsh is told min(each, 256k); "Keep going" replies as agentMaxTokens sizes them.
+  const w = Math.min(each, CLIENT.agentMax);
+  const loop = Math.min(CLIENT.goalReply, Math.floor(w * 3 / 4) - CLIENT.headroom);
+  const left = w - CLIENT.plainReply - CLIENT.headroom;   // what a plain reply leaves for the conversation
+  const agent = each > CLIENT.agentMax ? ` The coding agent uses ${fmtK(CLIENT.agentMax)} of it at most.`
+    : loop >= CLIENT.goalReply ? ''
+    : loop >= CLIENT.plainReply ? ` In the coding agent, Keep going until done writes replies of up to ${fmtK(loop)}, not ${fmtK(CLIENT.goalReply)}, so it can still summarise its history.`
+    : left > 0 ? ` In the coding agent, Keep going until done writes plain replies (${fmtK(CLIENT.plainReply)} for most models), which leave ${fmtK(left)} for the conversation before the agent has to summarise it.`
+    : ` The coding agent has no room to summarise its history (a ${fmtK(CLIENT.plainReply)} reply and ${fmtK(CLIENT.headroom)} kept free fill the window), so a long task stops when the window is full.`;
+  // The clients' rule: a farm that does not say keeps whole documents.
+  const wholeNow = be.contextPerSlot == null || be.contextPerSlot >= CLIENT.fullDocs;
+  return `<div class="hint">${lead}${how}${note}<br>${docs}${agent}</div>`
+    + (edited && whole !== wholeNow ? '<div class="warnline">Every connected Open WebUI restarts once to make that switch.</div>' : '');
 }
 
 // Wire an Apply button + its text field: Enter submits, an empty value is a no-op.

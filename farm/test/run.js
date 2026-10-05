@@ -1972,7 +1972,9 @@ function loadPanel() {
     const fn = new Function('document', 'localStorage', 'setInterval', 'fetch', 'confirm',
         `${m[1]}\n;return { render };`);
     const out = fn(document, localStorage, () => 0, () => new Promise(() => {}), () => false);
-    return (state) => { out.render(state); return el('#app').innerHTML; };
+    const render = (state) => { out.render(state); return el('#app').innerHTML; };
+    render.el = el;   // the stubs, for a test that edits a control after render
+    return render;
 }
 
 function adminState(over = {}) {
@@ -3103,6 +3105,121 @@ test('contract: a field the schema does not declare fails, so a new one is added
     walk(SNAPSHOT_SCHEMA, '$');
     for (const [k, d] of Object.entries(SNAPSHOT_SCHEMA.$defs)) walk(d, `$defs.${k}`);
     assert.deepEqual(undescribed, []);
+});
+
+// ---- the panel's slots-vs-context line (plan §13b) ----------------------------
+test('panel: the context it says each person gets is what the farm advertises, per engine', () => {
+    const html = fs.readFileSync(path.join(__dirname, '..', 'src', 'admin', 'index.html'), 'utf8');
+    const start = html.indexOf('function perPerson');
+    const end = html.indexOf('const CLIENT');
+    assert.ok(start > 0 && end > start, 'panel source moved — update the extraction anchors');
+    const ctx = {};
+    new Function('ctx', html.slice(start, end) + '; ctx.out = perPerson;')(ctx);
+    const perPerson = ctx.out;
+    const engines = [
+        ['ollama', (c, n, w) => { c.llamacpp.enabled = false; c.ollama.numParallel = n; c.ollama.contextLength = w; }],
+        ['llama.cpp', (c, n, w) => { c.llamacpp.enabled = true; c.llamacpp.parallel = n; c.llamacpp.contextLength = w; }],
+        ['llama.cpp', (c, n, w) => { c.llamacpp.enabled = true; c.llamacpp.kvUnified = false; c.llamacpp.parallel = n; c.llamacpp.contextLength = w; }],
+        ['external', (c, n, w) => { c.external.enabled = true; c.external.parallel = n; c.external.contextLength = w; }],
+    ];
+    for (const [engine, set] of engines) {
+        for (const n of [1, 2, 3, 4, 6, 8, 48]) {
+            for (const w of [8192, 16384, 65536, 100000, 262144]) {
+                const c = defaultConfig();
+                set(c, n, w);
+                const be = backendInfo(c, { hostsUp: 2 });
+                assert.equal(be.engine, engine);
+                assert.equal(perPerson(engine, w, n), be.contextPerSlot, `${engine} ${w} tokens, ${n} at once`);
+            }
+        }
+    }
+});
+
+test('panel: the slots-vs-context line says what an edit does before Apply (plan §13b)', () => {
+    const render = loadPanel();
+    const lcState = (over = {}) => adminState({
+        backend: { engine: 'llama.cpp', alias: 'assistant', model: 'q.gguf', contextLength: 65536, contextPerSlot: 32768, contextAuto: false, kvUnified: true, slots: 2, slotsVerified: true },
+        llamacpp: { enabled: true, running: true, alias: 'assistant', library: [], contextLength: 65536, contextResolved: 65536, parallel: 2 },
+        capacity: { slots: 2, clients: 0, seats: [], seatIdleSec: 900, slotsVerified: true, unmanagedHosts: [], ollamaEnvAdvice: null },
+        ...over,
+    });
+    const edit = (slots, ctx) => {
+        render.el('#slots-sel').value = String(slots);
+        render.el('#ctx-sel').value = String(ctx);
+        render.el('#ctx-sel').onchange();
+        return render.el('#trade').innerHTML;
+    };
+    // As configured: llama.cpp, 64k shared by 2 → at least 32k each, whole documents, nothing to warn of.
+    const now = render(lcState());
+    assert.ok(now.includes('id="trade"'), 'the line sits in the Backend card');
+    assert.ok(now.includes('Each person gets at least <b>32k</b> of context: 64k shared by 2'), now);
+    assert.ok(now.includes('reads attached documents whole') && !now.includes('restarts once'));
+    // 4 at once → 16k each: excerpts, every Open WebUI restarts, the agent's Keep going shrinks.
+    const four = edit(4, 65536);
+    assert.ok(four.includes('After Apply, each person gets at least <b>16k</b>'), four);
+    assert.ok(four.includes('the 8 most relevant passages') && four.includes('that needs 24k each'));
+    assert.ok(four.includes('class="warnline">Every connected Open WebUI restarts once'));
+    assert.ok(four.includes('Keep going until done writes replies of up to 8k, not 16k'), 'studio.ts agentMaxTokens(…, 16384, true) = 8192');
+    // 8 at once on 64k → 8k each: an 8k reply and 4k of headroom leave no room to summarise.
+    assert.ok(edit(8, 65536).includes('no room to summarise'));
+    // Back to 2 at once: no edit, no warning.
+    assert.ok(!edit(2, 65536).includes('warnline') && edit(2, 65536).startsWith('<div class="hint">Each person'));
+    // The hard split says so; 24k each sits on the client's line and keeps whole documents.
+    const split = render(lcState({ backend: { ...lcState().backend, kvUnified: false } }));
+    assert.ok(split.includes('<b>32k</b> of context: 64k split across 2'));
+    const at24 = edit(4, 98304);
+    assert.ok(at24.includes('<b>24k</b>') && at24.includes('reads attached documents whole') && !at24.includes('restarts once'));
+    assert.ok(at24.includes('up to 14k, not 16k'), 'agentMaxTokens(…, 24576, true) = 14336');
+    // llama.cpp Automatic: slots do not enter it, the restart measures the GPU again.
+    render(lcState({ llamacpp: { ...lcState().llamacpp, contextLength: 'auto', contextResolved: 131072 } }));
+    const auto = edit(4, 'auto');
+    assert.ok(auto.includes('at least <b>32k</b>') && auto.includes('can come out a little different'), auto);
+    // A pinned window switched to Automatic with no fit (weights not on disk): no number is invented.
+    render(lcState());
+    const lcPending = edit(2, 'auto');
+    assert.ok(lcPending.includes('not known yet') && lcPending.includes('sized at the restart'), lcPending);
+
+    // Ollama: every request gets the whole window, whatever the slots.
+    const ol = render(adminState());
+    assert.ok(ol.includes('Each person gets <b>32k</b> of context: Ollama gives every request the whole window.'));
+    assert.ok(edit(4, 'auto').includes('sized again for 4 at once when the farm restarts'));
+    // A pinned window switched to Automatic: measured on Apply — no number is invented.
+    render(adminState({ ollama: { ...adminState().ollama, contextLength: 16384, contextResolved: 16384 } }));
+    const pending = edit(2, 'auto');
+    assert.ok(pending.includes('not known yet') && pending.includes('measured when you apply') && !pending.includes('<b>16k</b> of context'), pending);
+
+    // An external server: nothing to edit; the declared values, the same consequences.
+    const ext = render(adminState({
+        backend: { engine: 'external', alias: 'assistant', model: 'qwen3.6', baseUrl: 'http://127.0.0.1:8100/v1', contextLength: 65536, contextPerSlot: 65536, contextAuto: false, slots: 48, slotsVerified: false },
+        capacity: { slots: 48, clients: 0, seats: [], seatIdleSec: 900, slotsVerified: false, unmanagedHosts: [], ollamaEnvAdvice: null },
+    }));
+    assert.ok(ext.includes('Each person gets <b>64k</b> of context, as declared in lol.config.json (external.contextLength).'));
+    assert.ok(ext.includes('reads attached documents whole') && !ext.includes('Keep going until done'));
+});
+
+test('panel: the client rules the line quotes are the shell\'s', () => {
+    const shell = path.join(__dirname, '..', '..', 'shell');
+    if (!fs.existsSync(shell)) return;   // a farm-only copy (the Farm app ships farm/ alone)
+    const read = (...p) => fs.readFileSync(path.join(shell, ...p), 'utf8');
+    const bridge = read('src', 'main', 'configBridge.ts');
+    const studio = read('src', 'main', 'studio.ts');
+    const models = read('renderer', 'chat', 'projects', 'models.mjs');
+    const num = (src, rx) => { const m = rx.exec(src); assert.ok(m, `${rx} not found in the shell — re-check the panel's CLIENT`); return Number(m[1]); };
+    const want = {
+        fullDocs: num(bridge, /FULL_CONTEXT_MIN_CTX = (\d+)/),
+        topK: num(bridge, /RAG_TOP_K: '(\d+)'/),
+        agentMax: num(studio, /Math\.min\((\d+), Math\.max\(1024, Math\.floor\(n\)\)\)/),
+        goalReply: num(studio, /GOAL_MAX_TOKENS = (\d+)/),
+        headroom: num(studio, /COMPACT_HEADROOM = (\d+)/),
+        plainReply: num(models, /\{ edits: 'unknown', maxTokens: (\d+), measured: '' \}/),
+    };
+    const html = fs.readFileSync(path.join(__dirname, '..', 'src', 'admin', 'index.html'), 'utf8');
+    const m = /const CLIENT = (\{[^}]*\});/.exec(html);
+    assert.ok(m, 'the panel\'s CLIENT moved');
+    assert.deepEqual(new Function(`return ${m[1]};`)(), want);
+    // The shapes the line restates: the clients' gate, and Keep going's 3/4-of-the-window replies.
+    assert.ok(bridge.includes('input.contextPerSlot == null || input.contextPerSlot >= FULL_CONTEXT_MIN_CTX'));
+    assert.ok(studio.includes('Math.min(GOAL_MAX_TOKENS, Math.floor(window * 3 / 4) - COMPACT_HEADROOM)'));
 });
 
 (async () => {
