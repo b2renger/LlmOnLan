@@ -357,6 +357,14 @@ export default (test) => {
     });
   });
 
+  test('decision 9 buildSidecarEnv: OWUI\'s background tasks answer without thinking; chats are untouched', () => {
+    const env = CB.buildSidecarEnv({ endpoint: 'http://10.0.0.5:4000/v1', dataDir: tempDir('tasks') });
+    // OWUI 0.11.4 copies these onto the title and web-search-query requests (routers/tasks.py
+    // apply_task_model_params); a set value replaces the title's own max_tokens 1000, hence restated.
+    assert.deepEqual(JSON.parse(env.TASK_MODEL_PARAMS), { chat_template_kwargs: { enable_thinking: false }, think: false, max_tokens: 1000 });
+    assert.equal(env.DEFAULT_MODEL_PARAMS, undefined, 'a chat keeps thinking');
+  });
+
   // ---------------------------------------------------------------- SA-1: a crash restart keeps every field
   test('SA-1 SidecarSupervisor: a crash restart and a data-folder move relaunch with EVERY field', async () => {
     const opts = {

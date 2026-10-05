@@ -368,7 +368,11 @@ Connection: `OPENAI_API_BASE_URL` + `OPENAI_API_KEY` (the farm is OpenAI‑compa
   (+ `"web_search":true` with a farm SearXNG) · `AUDIO_STT_ENGINE=''` + `WHISPER_MODEL=base` (local STT) ·
   `AUDIO_TTS_ENGINE=''` · the **TTFT trio** `ENABLE_FOLLOW_UP_GENERATION`/`ENABLE_TAGS_GENERATION`/
   `ENABLE_AUTOCOMPLETE_GENERATION` = `false` (OWUI's background calls would otherwise queue ahead of the user
-  on llama‑server's single slot; title generation stays ON) · `DEFAULT_LOCALE=en-US` (+ Chromium
+  on llama‑server's single slot; title generation stays ON) · `TASK_MODEL_PARAMS={"chat_template_kwargs":
+  {"enable_thinking":false},"think":false,"max_tokens":1000}` (owner decision 9, 2026‑10‑04: title and
+  web‑search‑query generation answer without thinking — OWUI 0.11 copies it onto those requests; `max_tokens`
+  restates the title default it would otherwise drop; chats untouched; 0.10.x ignores it — the Computer's
+  structured asks send the same pair) · `DEFAULT_LOCALE=en-US` (+ Chromium
   `--lang en-US`) · `ANONYMIZED_TELEMETRY=false` · `DO_NOT_TRACK=true` · `SCARF_NO_ANALYTICS=true` ·
   `HF_HUB_OFFLINE=1` when the models test as cached, else `HF_HUB_ETAG_TIMEOUT=2`.
 - **With a farm:** `ENABLE_OPENAI_API=true` · `OPENAI_API_BASE_URL=http://<host we reached it at>:<proxyPort>/v1`

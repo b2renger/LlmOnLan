@@ -220,6 +220,15 @@ export function buildSidecarEnv(input: SidecarEnvInput): Record<string, string> 
         ENABLE_FOLLOW_UP_GENERATION: 'false',
         ENABLE_TAGS_GENERATION: 'false',
 
+        // --- the background calls that are left answer WITHOUT thinking (owner decision 9) ---
+        // Title and web-search-query generation read OWUI 0.11's TASK_MODEL_PARAMS (config.py →
+        // routers/tasks.py apply_task_model_params), copied onto the task's request body for an
+        // OpenAI connection. Same pair as the Computer's structured asks (renderer/chat/net/request.mjs):
+        // the farm's LiteLLM forwards chat_template_kwargs to vLLM / llama-server and turns `think`
+        // into Ollama's own. Setting it drops OWUI's title default of max_tokens 1000, so that is
+        // restated (it now bounds the search-query call too). Chats are untouched; 0.10.x ignores it.
+        TASK_MODEL_PARAMS: JSON.stringify({ chat_template_kwargs: { enable_thinking: false }, think: false, max_tokens: 1000 }),
+
         // --- default UI language: English (backend fallback; the Chromium --lang
         // switch in index.ts is what the frontend detector actually reads) ---
         DEFAULT_LOCALE: 'en-US',

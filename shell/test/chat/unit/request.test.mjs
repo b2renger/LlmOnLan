@@ -181,6 +181,17 @@ export default (test) => {
     assert.deepEqual(toOpenAIBody(req, {}).response_format, req.responseFormat);
   });
 
+  test('decision 9: only a draft that says thinking:false turns thinking off — a chat draft never does', () => {
+    const chat = toOpenAIBody(draftFromPath(simplePath(), {}), {});
+    assert.equal('chat_template_kwargs' in chat, false);
+    assert.equal('think' in chat, false);
+    const req = draftFromPath(simplePath(), {});
+    req.thinking = false;
+    const body = toOpenAIBody(req, {});
+    assert.deepEqual(body.chat_template_kwargs, { enable_thinking: false });
+    assert.equal(body.think, false);
+  });
+
   test('meta carries the engine and the budget for the transforms downstream', () => {
     const req = draftFromPath(simplePath(), { engine: 'llama.cpp', budget: 16384 });
     assert.equal(req.meta.engine, 'llama.cpp');

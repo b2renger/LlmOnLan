@@ -266,6 +266,27 @@ export default (test) => {
     assert.ok(farm.posts[0].body.max_tokens >= MIN_MAX_TOKENS);
   });
 
+  test('decision 9: a structured ask turns thinking off on BOTH rungs; text() never does', async () => {
+    const { app } = stubApp();
+    const { api } = createAsk(app);
+    // The schema rung gets prose it cannot parse, so the prompt rung runs too.
+    const farm = fakeFarm((body) => (body.response_format ? 'I would rather not.' : JSON.stringify({ name: 'box', count: 1 })));
+    await withFarm(farm, async () => {
+      assert.equal((await api.json({ task: 't', schema: SCHEMA, prompt: 'p' })).ok, true);
+      assert.equal((await api.text({ task: 'blurb', prompt: 'p' })).ok, true);
+    });
+    assert.equal(farm.posts.length, 3);
+    assert.equal(farm.posts[0].body.response_format.type, 'json_schema');
+    assert.equal(farm.posts[1].body.response_format, undefined);
+    for (const { body } of farm.posts.slice(0, 2)) {
+      assert.deepEqual(body.chat_template_kwargs, { enable_thinking: false }, 'vLLM and llama-server read this one');
+      assert.equal(body.think, false, 'the farm\'s LiteLLM hands this one to Ollama');
+    }
+    const prose = farm.posts[2].body;
+    assert.equal('chat_template_kwargs' in prose, false, 'a prose or code answer thinks as before');
+    assert.equal('think' in prose, false);
+  });
+
   // ---- etiquette --------------------------------------------------------------------------------
 
   test('a busy governor refuses immediately and issues ZERO requests', async () => {

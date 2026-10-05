@@ -848,7 +848,7 @@ build for Blackwell cards (16 GB+); replace it freely.
 
 ```bash
 npm test                      # unit tests for config, LiteLLM generation, snapshot, helpers
-node test/litellm-cancel.js   # does a person's Stop reach the engine? (starts a real LiteLLM, ~30 s)
+node test/litellm-cancel.js   # does a person's Stop reach the engine? and thinking off? (starts a real LiteLLM, ~30 s)
 ```
 
 `npm test` also runs `src/pysvc/check_services.py` — the Classify and speech-to-text services' refusals
@@ -859,8 +859,11 @@ Without one it says "skipped".
 
 `test/litellm-cancel.js` routes the farm's own generated config (both the `openai/` and the
 `ollama_chat/` shape) to a fake engine on loopback, behind the real seat gate, aborts streaming and
-non-streaming calls, and checks the engine sees each request close within 2 s with no retry. Run it after
-bumping the LiteLLM pin (`LOL_LITELLM=<path to litellm>` tests another install).
+non-streaming calls, and checks the engine sees each request close within 2 s with no retry. It also checks
+that `drop_params` keeps the thinking-off pair the client sends on structured calls (owner decision 9):
+`chat_template_kwargs: {enable_thinking: false}` reaches the engine on `openai/` (vLLM, llama-server), and
+`think: false` becomes Ollama's own field on `ollama_chat/`. Run it after bumping the LiteLLM pin
+(`LOL_LITELLM=<path to litellm>` tests another install).
 
 **With a real engine** (opt-in, documented in the file's header), the check proves that generation itself
 stops, timed by the engine's own task log:

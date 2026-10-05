@@ -17,6 +17,8 @@
 //     it — the farm sizes its own window (CLAUDE.md: the client never sends one), and chat-lint
 //     rule 2 refuses even to let this file name it.
 //   - `options` (the Ollama-shaped param bag) is likewise absent: this endpoint is OpenAI-shaped.
+//   - thinking is turned off ONLY by a draft that says `thinking: false` (the Computer's structured
+//     asks, owner decision 9); a chat turn never sets it, so chat bodies are unchanged.
 
 /** @typedef {import('../core/types.mjs').RequestDraft} RequestDraft */
 /** @typedef {import('../core/types.mjs').Params} Params */
@@ -167,5 +169,14 @@ export function toOpenAIBody(req, opts) {
   // req.params directly.
   Object.assign(body, resolveParams({ call: req.params || {} }));
   if (req.responseFormat) body.response_format = req.responseFormat;
+  // Owner decision 9 (2026-10-04). Two keys, because each engine reads one — measured through the
+  // farm's LiteLLM 1.97 with drop_params on (DEVLOG 2026-10-05): `chat_template_kwargs` reaches
+  // vLLM and llama-server (--jinja) on the `openai/` deployments, and LiteLLM turns `think` into
+  // Ollama's own `think:false` on the `ollama_chat/` ones. Each engine ignores the other key, and a
+  // model that never thinks ignores both. Not `reasoning_effort`: LiteLLM drops it on `openai/`.
+  if (req.thinking === false) {
+    body.chat_template_kwargs = { enable_thinking: false };
+    body.think = false;
+  }
   return body;
 }

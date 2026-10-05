@@ -27,6 +27,10 @@
 //     (LiteLLM `drop_params`) the reply arrives as prose around a fenced object: that parses, so we
 //     RETURN it as `mode:'prompt'` instead of spending a second seat asking again — and we count it
 //     as a schema failure, so two of them flip the verdict to prompt mode for good.
+//   - THINKING OFF for `json()` only (owner decision 9, 2026-10-04: the spike scored the same or
+//     better with 5-9x fewer tokens). Both rungs send it; `text()` never does, so a prose or code
+//     answer thinks as before. A model that ignores the flag lands in the reasoning trap above,
+//     exactly as it did.
 //
 // The cache is in-memory and per-window: identical (farm, model, system, prompt, images, schema,
 // max_tokens, SEED, temperature) in, the same AskResult out, with `cached:true` added. Pass
@@ -222,7 +226,8 @@ export function createAsk(app) {
    * never grow its own idea of what a request looks like. `seed` and `temperature` ride in the
    * params the whitelist (PARAM_KEYS) already allows; null means "not set" and is not sent.
    * @param {{model: string|null, system: string|null, prompt: string, images: string[],
-   *          maxTokens: number, responseFormat: any, seed?: number|null, temperature?: number|null}} o
+   *          maxTokens: number, responseFormat: any, seed?: number|null, temperature?: number|null,
+   *          thinking?: false}} o
    */
   function buildBody(o) {
     const req = draftFromPath(
@@ -238,6 +243,7 @@ export function createAsk(app) {
     if (typeof o.temperature === 'number') params.temperature = o.temperature;
     /** @type {any} */ (req).params = params;
     /** @type {any} */ (req).responseFormat = o.responseFormat || null;
+    if (o.thinking === false) /** @type {any} */ (req).thinking = false;
     return toOpenAIBody(req);
   }
 
@@ -308,7 +314,7 @@ export function createAsk(app) {
         body: buildBody({
           model, system: o.system, prompt: o.prompt, images: o.images,
           maxTokens: o.maxTokens, responseFormat: o.responseFormat,
-          seed: o.seed, temperature: o.temperature,
+          seed: o.seed, temperature: o.temperature, thinking: o.thinking,
         }),
         requiresKey: !!c.requiresKey,
       });
@@ -478,7 +484,7 @@ export function createAsk(app) {
       ? { type: 'json_schema', json_schema: { name: o.task.replace(/[^a-zA-Z0-9_-]/g, '_') || 'answer', strict: true, schema: o.schema } }
       : null;
 
-    const out = await once({ ...o, system, responseFormat });
+    const out = await once({ ...o, system, responseFormat, thinking: false });
     if (out.refusal) return { result: out.refusal, degraded: false, hard: false };
     if (out.error) return { result: farmFailure(out.error, out.underlying, out.ms), degraded: false, hard: false };
     const finishReason = out.finishReason || null;

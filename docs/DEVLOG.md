@@ -6,6 +6,32 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-10-05 (08:49) — Thinking off for structured calls (owner decision 9)
+
+- **Which flag reaches which engine** was measured, not assumed: a fake engine recorded what the farm's own
+  LiteLLM config forwards (1.97.0 and 1.90.0, `drop_params: true`, the seat gate in front).
+  - `chat_template_kwargs: {enable_thinking:false}` reaches vLLM and llama-server (`openai/`) at the top
+    level.
+  - `think:false` becomes Ollama's own field (`ollama_chat/`).
+  - `reasoning_effort` is **dropped** on `openai/`, so it isn't used.
+  - The client therefore sends the pair `chat_template_kwargs` + `think`. No farm config change was
+    needed, and `test/litellm-cancel.js` now fails if a future LiteLLM drops either key.
+- **The Computer:** the structured asks (json, list, verdict, agent step) send the pair. Text and code
+  answers, LOL Vibe chat, OWUI chats and the coding agent are unchanged, and `thoughtOut`/`cutThinking`
+  still handle a model that ignores the flag.
+- **Open WebUI:** title and web-search-query generation get the same pair through `TASK_MODEL_PARAMS`
+  (env, every launch). In 0.11.4 it is read in `config.py`, applied in `routers/tasks.py`, and lifted to
+  the body's top level for an OpenAI connection. OWUI's own `generate_title`/`generate_queries`, run with
+  the env set, carried both keys.
+  - Setting it drops OWUI's title default of `max_tokens: 1000`, so that is restated. It now also caps
+    the search query.
+  - 0.10.x sidecars have no such setting and ignore it.
+- **gemma4:12b** (the Ollama default) does think, per Ollama's `gemma4` renderer read on GitHub main.
+  `think:false` is harmless on models that don't think.
+- **Tests:** shell `chat-unit` 1794 → **1797/0**, `test:unit` 5, lint 0; farm 154; the cancel check
+  passes on both LiteLLM versions, including the thinking keys.
+- **Not yet on a real engine:** the vLLM end-to-end check is with the recipe work.
+
 ## 2026-10-05 (08:30) — Does Stop stop the engine? Real engines measured; the chat harness 406/406; three more owner decisions
 
 - **Phase 0.0's last link, on real engines** (granite4.2:8b on the RTX PRO 6000, LiteLLM 1.97 and 1.90).

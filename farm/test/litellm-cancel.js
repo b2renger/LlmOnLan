@@ -10,9 +10,10 @@
 // `ollama_chat/<model>` (the default Ollama engine), least-busy with 3 retries, behind the
 // real seat gate. The client aborts mid-answer; the engine must see its request close within
 // ~2 s, and LiteLLM must not retry it — streaming, and non-streaming (which needs the
-// generated config's general_settings.cancel_on_disconnect). Loopback, OS-assigned ports
-// only — never a live farm's, and no GPU. Exits 0 when every cancel propagates (or when
-// there is no LiteLLM to test).
+// generated config's general_settings.cancel_on_disconnect). It also checks that drop_params
+// keeps the thinking-off pair the client sends (owner decision 9). Loopback, OS-assigned ports
+// only — never a live farm's, and no GPU. Exits 0 when every cancel propagates and thinking
+// off arrives (or when there is no LiteLLM to test).
 //
 // Real engines (opt-in, skipped unless LOL_CANCEL_ENGINE is set): does the engine STOP
 // GENERATING, not just see the close? One small model on this box's GPU, loopback only:
@@ -86,7 +87,7 @@ function fakeEngine() {
             let j = {};
             try { j = JSON.parse(body || '{}'); } catch { /* keep {} */ }
             const ollama = req.url.startsWith('/api/');
-            const r = { stream: !!j.stream, start: Date.now(), closedAt: null, finished: false, tokens: 0 };
+            const r = { stream: !!j.stream, start: Date.now(), closedAt: null, finished: false, tokens: 0, body: j };
             seen.push(r);
             let tick = null; let done = null;
             res.on('close', () => { r.closedAt = Date.now(); r.finished = res.writableEnded; clearInterval(tick); clearTimeout(done); });
@@ -112,9 +113,9 @@ function fakeEngine() {
     });
 }
 
-function post(port, model, stream, content) {
+function post(port, model, stream, content, extra = {}) {
     return http.request({ host: '127.0.0.1', port, method: 'POST', path: '/v1/chat/completions', headers: { 'content-type': 'application/json' } })
-        .end(JSON.stringify({ model, messages: [{ role: 'user', content }], stream }));
+        .end(JSON.stringify({ model, messages: [{ role: 'user', content }], stream, ...extra }));
 }
 
 // One chat completion through `port`; aborts after 3 content chunks (streaming) or after 1 s
@@ -151,9 +152,9 @@ async function trial(label, port, model, stream) {
 }
 
 // A call nobody cancels still answers (cancel_on_disconnect must not break it).
-function completes(port, model) {
+function completes(port, model, extra) {
     return new Promise((resolve) => {
-        const req = post(port, model, false, 'quick');
+        const req = post(port, model, false, 'quick', extra);
         req.on('response', (res) => { let b = ''; res.on('data', (c) => { b += c; }); res.on('end', () => resolve(res.statusCode === 200 && /"done"/.test(b))); });
         req.on('error', () => resolve(false));
     });
@@ -216,9 +217,21 @@ async function fakeMain(cmd, version) {
             const normal = await completes(gp, model);
             console.log(`${normal ? 'ok  ' : 'FAIL'} ${shape} non-stream, nobody cancels: the answer arrives`);
             results.push(normal);
+            // Owner decision 9: thinking off rides as two keys and drop_params must keep both. `openai/`
+            // passes the body on (vLLM and llama-server read chat_template_kwargs; a coordinator peer
+            // running Ollama needs `think`); `ollama_chat/` turns `think` into Ollama's own field.
+            const before = seen.length;
+            const answered = await completes(gp, model, { chat_template_kwargs: { enable_thinking: false }, think: false });
+            const b = (seen[before] && seen[before].body) || {};
+            const kept = shape === 'openai/'
+                ? !!b.chat_template_kwargs && b.chat_template_kwargs.enable_thinking === false && b.think === false
+                : b.think === false;
+            console.log(`${answered && kept ? 'ok  ' : 'FAIL'} ${shape} thinking off reaches the engine: ` +
+                `chat_template_kwargs ${JSON.stringify(b.chat_template_kwargs)}, think ${JSON.stringify(b.think)}${b.options ? `, options ${JSON.stringify(b.options)}` : ''}`);
+            results.push(answered && kept);
         }
         ok = results.every(Boolean);
-        console.log(ok ? 'PASS: a cancel reaches the engine' : 'FAIL: a cancel does not reach the engine (see above)');
+        console.log(ok ? 'PASS: a cancel reaches the engine, and so does thinking off' : 'FAIL: see above');
     } catch (e) {
         console.log(`FAIL: ${e.message}`);
     } finally {

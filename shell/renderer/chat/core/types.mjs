@@ -72,7 +72,7 @@
  *   messages: {msgId, role: 'user'|'assistant', pinned,
  *              blocks: ({type:'text', text, tag: 'user'|'doc'|'search'|'scene'|'assistant'|'continue'} | {type:'image', attId, dataUrl?})[] }[],
  *   paramLayers: {recipe: Params, thread: Params, call: Params}, params: Params,
- *   responseFormat: object|null, mode: 'new'|'continue',
+ *   responseFormat: object|null, mode: 'new'|'continue', thinking?: false,
  *   meta: {engine, budget, estimate, trimmedIds: string[], newTurnEstimate, allowances: {id, tokens}[]} }} RequestDraft
  */
 

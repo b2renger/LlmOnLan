@@ -261,6 +261,7 @@ export default (test) => {
     assert.equal(r.value, null);
     assert.equal(r.thought, true);
     assert.equal(cut.posts.length, 1, 'the same limit would cut a second rung too');
+    assert.equal(cut.posts[0].think, false, 'decision 9: thinking-off was sent; a model that ignores it fails exactly as before');
 
     const app2 = makeApp();
     const f8 = fakeFarm(() => ({ reasoning: '{"items": ["a", "b"]}', finish: 'stop' }));

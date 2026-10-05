@@ -1537,6 +1537,9 @@ These are recommendations, not decisions.
    - (c) Keep thinking on everywhere.
 
    **ANSWERED (owner, 2026-10-04): (a), thinking off for structured calls only.** Chat is unchanged.
+   **Built 2026-10-05** (DEVLOG 08:49). The Computer's structured asks and OWUI's title and search-query
+   calls (`TASK_MODEL_PARAMS`) send `chat_template_kwargs:{enable_thinking:false}` + `think:false`. It is
+   measured to pass the farm's LiteLLM to vLLM, llama.cpp and Ollama; a real-engine check is pending.
    Watch out: the farm's LiteLLM runs with `drop_params: true`, so check end to end that the flag reaches
    each engine (vLLM, llama.cpp, Ollama) rather than being dropped silently.
 10. **vLLM's shape on each box (Phase 2), from the spike.**
