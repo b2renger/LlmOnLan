@@ -1,0 +1,67 @@
+{
+  "query": "Quill latest stable version",
+  "number_of_results": 0,
+  "results": [
+    {
+      "url": "https://blog.example/2024/03/quill-6-is-here",
+      "title": "Quill 6.0 is here: the latest stable version of Quill",
+      "content": "Quill 6.0 is the latest stable version of the Quill editor, with a new plugin system.",
+      "engine": "bing", "engines": ["bing", "duckduckgo web"], "template": "default.html",
+      "parsed_url": ["https", "blog.example", "/2024/03/quill-6-is-here", "", "", ""],
+      "positions": [1, 2], "score": 3.5, "category": "general", "publishedDate": null
+    },
+    {
+      "url": "https://quill.example/download/",
+      "title": "Download Quill — the free text editor",
+      "content": "New in Quill 7.2 LTS. See all Quill features. Experimental builds have the newest changes.",
+      "engine": "seznam", "engines": ["seznam", "bing", "duckduckgo web"], "template": "default.html",
+      "parsed_url": ["https", "quill.example", "/download/", "", "", ""],
+      "positions": [2, 1, 1], "score": 3.0, "category": "general", "publishedDate": null
+    },
+    {
+      "url": "https://dictionary.example/definition/quill",
+      "title": "quill — definition, synonyms, pronunciation",
+      "content": "A quill is a writing tool made from a moulted flight feather of a large bird.",
+      "engine": "bing", "engines": ["bing"], "template": "default.html",
+      "parsed_url": ["https", "dictionary.example", "/definition/quill", "", "", ""],
+      "positions": [3], "score": 1.0, "category": "general", "publishedDate": null
+    },
+    {
+      "url": "https://wiki.example/wiki/Quill_(editor)",
+      "title": "Quill (editor) - Wiki",
+      "content": "Quill is a free and open-source text editor first released in 2011.",
+      "engine": "duckduckgo web", "engines": ["duckduckgo web", "wikipedia"], "template": "default.html",
+      "parsed_url": ["https", "wiki.example", "/wiki/Quill_(editor)", "", "", ""],
+      "positions": [3, 1], "score": 0.9, "category": "general", "publishedDate": null
+    },
+    {
+      "url": "https://quill.example/news/",
+      "title": "News — Quill",
+      "content": "Quill 7.2.1 fixes a crash when saving to a network folder.",
+      "engine": "seznam", "engines": ["seznam"], "template": "default.html",
+      "parsed_url": ["https", "quill.example", "/news/", "", "", ""],
+      "positions": [4], "score": 0.5, "category": "general", "publishedDate": null
+    },
+    {
+      "url": "https://quill.example/forum/t/which-version",
+      "title": "Which Quill version should I install? - Forum",
+      "content": "Most people here run the LTS.",
+      "engine": "bing", "engines": ["bing"], "template": "default.html",
+      "parsed_url": ["https", "quill.example", "/forum/t/which-version", "", "", ""],
+      "positions": [5], "score": 0.4, "category": "general", "publishedDate": null
+    },
+    {
+      "url": "https://slow.example/quill-tips",
+      "title": "Ten Quill tips",
+      "content": "Tips for the Quill editor: keyboard shortcuts, themes and plugins.",
+      "engine": "duckduckgo web", "engines": ["duckduckgo web"], "template": "default.html",
+      "parsed_url": ["https", "slow.example", "/quill-tips", "", "", ""],
+      "positions": [6], "score": 0.3, "category": "general", "publishedDate": null
+    }
+  ],
+  "answers": [],
+  "corrections": [],
+  "infoboxes": [],
+  "suggestions": ["quill editor download", "quill lts"],
+  "unresponsive_engines": [["qwant", "access denied"], ["mojeek", "Suspended: access denied"]]
+}

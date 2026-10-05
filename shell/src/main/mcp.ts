@@ -9,14 +9,18 @@
 //   - Never the outputs: a tool can never arm them, and a run is refused while a person has them armed
 //     (the page enforces it; outputs.ts is the source of truth).
 //   - Open WebUI finds it through its public TOOL_SERVER_CONNECTIONS env (configBridge.ts), no OWUI change.
+//   - The same listener answers Open WebUI's web search (POST /web/search, webSearch.ts) through OWUI's public
+//     external-search env — same Host check, same bearer.
 
 import * as http from 'http';
 import * as crypto from 'crypto';
 
 export const MCP_PORT = 41995;
 export const MCP_PATH = '/mcp';
+export const WEB_SEARCH_PATH = '/web/search';
 const PROTOCOL = '2025-06-18';
 const MAX_BODY = 1024 * 1024;
+const MAX_SEARCH_BODY = 64 * 1024;        // {query, count}
 const CALL_TIMEOUT_MS = 10 * 60 * 1000;   // a run may take minutes (the run's own wall-clock cap is 10 min)
 
 export interface McpTool { name: string; description: string; inputSchema: Record<string, unknown> }
@@ -26,6 +30,8 @@ export interface McpDeps {
     tools: () => McpTool[];
     /** Run one tool in the page. Resolves the tool's text result, or rejects with a sentence. */
     call: (name: string, args: Record<string, unknown>) => Promise<{ text: string; isError?: boolean }>;
+    /** Web search v2 for Open WebUI: [{link, title, snippet}], or rejects with a sentence. None: no /web/search. */
+    webSearch?: (query: string, count: number) => Promise<object[]>;
 }
 
 type Rpc = { jsonrpc?: string; id?: string | number | null; method?: string; params?: any };
@@ -81,25 +87,41 @@ export function startMcpServer(deps: McpDeps, port = MCP_PORT): Promise<http.Ser
             res.writeHead(status, { 'content-type': 'application/json', 'cache-control': 'no-store', ...extra });
             res.end(body ? JSON.stringify(body) : '');
         };
-        if ((req.url || '').split('?')[0] !== MCP_PATH) return send(404, { error: 'not found' });
+        const path = (req.url || '').split('?')[0];
+        const search = path === WEB_SEARCH_PATH && !!deps.webSearch;
+        if (path !== MCP_PATH && !search) return send(404, { error: 'not found' });
         // Defence in depth behind the bearer (critic N5; the MCP spec asks servers to check where a request came
         // from): only a request addressed to THIS loopback server — a rebound DNS name carries another Host.
         const bound = (server.address() as { port?: number } | null)?.port;
         const host = String(req.headers.host || '').toLowerCase();
         if (host !== `127.0.0.1:${bound}` && host !== `localhost:${bound}`) return send(403, { error: 'wrong host' });
         if (!tokenOk(req.headers.authorization, deps.token)) return send(401, { error: 'unauthorized' });
-        if (req.method === 'GET') return send(405, { error: 'no server-sent stream: every answer comes in the POST' }, { allow: 'POST' });
-        if (req.method === 'DELETE') return send(200, {});
+        if (req.method === 'GET' && !search) return send(405, { error: 'no server-sent stream: every answer comes in the POST' }, { allow: 'POST' });
+        if (req.method === 'DELETE' && !search) return send(200, {});
         if (req.method !== 'POST') return send(405, { error: 'POST only' }, { allow: 'POST' });
         let size = 0;
         const chunks: Buffer[] = [];
         req.on('data', (c: Buffer) => {
             size += c.length;
-            if (size > MAX_BODY) { send(413, { error: 'too big' }); req.destroy(); return; }
+            // `connection: close`: a client's keep-alive pool must not reuse the socket cut here.
+            if (size > (search ? MAX_SEARCH_BODY : MAX_BODY)) { send(413, { error: 'too big' }, { connection: 'close' }); req.destroy(); return; }
             chunks.push(c);
         });
         req.on('end', async () => {
             if (res.writableEnded) return;
+            if (search) {
+                // Open WebUI's external-search contract (retrieval/web/external.py, 0.10.x and 0.11.4 alike):
+                // {query, count} → [{link, title, snippet}]. An error status reads as "no results" there.
+                let body: { query?: unknown; count?: unknown };
+                try { body = JSON.parse(Buffer.concat(chunks).toString('utf8')) || {}; } catch { return send(400, { error: 'not JSON' }); }
+                const query = String(body.query ?? '').slice(0, 400).trim();
+                if (!query) return send(400, { error: 'no query' });
+                const count = Math.max(1, Math.min(10, Math.floor(Number(body.count)) || 5));
+                try { return send(200, await deps.webSearch!(query, count)); } catch (e) {
+                    console.warn(`[web] search failed: ${String((e as Error)?.message || e)}`);   // never the question
+                    return send(502, { error: String((e as Error)?.message || e) });
+                }
+            }
             let msg: Rpc | Rpc[];
             try { msg = JSON.parse(Buffer.concat(chunks).toString('utf8')); } catch { return send(400, fail(null, -32700, 'not JSON')); }
             const batch = Array.isArray(msg) ? msg : [msg];

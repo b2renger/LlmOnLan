@@ -23,6 +23,8 @@ src/main/                       (TypeScript → build/ via tsc; Electron main pr
   configBridge.ts the ONLY module that knows OWUI's config surface (env; the renderer's app.js
                   holds the few user-settings REST writes env cannot do)
   discovery.ts    LAN farm discovery — UDP beacon listener + subnet scan + manual peers
+  webSearch.ts    OWUI's web search (web search v2): the farm's SearXNG → the top pages, read through io.ts
+                  (public internet only) → their best passages; served at POST /web/search on mcp.ts's listener
   sidecarManager.ts first-run download + staged update of the OWUI sidecar tarball
   updater.ts      app self-update (electron-updater, GitHub releases)
   mcpoSupervisor.ts opt-in local Blender assistant-tools server (mcpo)
@@ -88,8 +90,10 @@ user‑settings API writes (and the auth token/settings reads they need) listed 
   `HF_HUB_ETAG_TIMEOUT=2`, so a dead internet cannot stall the boot.
 - **Model preselection + capabilities** — `DEFAULT_MODELS` (the farm's advertised default) and
   `DEFAULT_MODEL_METADATA` (vision on; `web_search` when the farm hosts SearXNG).
-- **Farm plugins ride the beacon** — when the farm advertises them: web search
-  (`ENABLE_WEB_SEARCH`/`SEARXNG_QUERY_URL`), neural voice (`AUDIO_TTS_*` → Kokoro), and document OCR
+- **Farm plugins ride the beacon** — when the farm advertises them: web search (`ENABLE_WEB_SEARCH`, 5
+  results, `fetch_url` cut at 12000 characters; `WEB_SEARCH_ENGINE=external` → this app's main at
+  `127.0.0.1:41995/web/search` while the MCP listener is up, else `SEARXNG_QUERY_URL` with `SEARXNG_LANGUAGE=auto`),
+  neural voice (`AUDIO_TTS_*` → Kokoro), and document OCR
   (`CONTENT_EXTRACTION_ENGINE=external` + `EXTERNAL_DOCUMENT_LOADER_URL/_API_KEY`). Speech‑to‑text is
   always local (`AUDIO_STT_ENGINE=''` → faster‑whisper, `WHISPER_MODEL=base`).
 - **Keeping the farm's slot for the user (TTFT)** — OWUI runs *extra* LLM calls around a chat, against

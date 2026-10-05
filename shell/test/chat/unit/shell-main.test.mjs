@@ -15,7 +15,8 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SHELL = path.join(HERE, '..', '..', '..');
 const BUILD = path.join(SHELL, 'build', 'main');
 const SRC = path.join(SHELL, 'src', 'main');
-const MODULES = ['farmSelect', 'discovery', 'configBridge', 'sidecar', 'sidecarManager', 'clientData', 'dataMigration', 'store', 'io', 'mcp', 'serial'];
+const MODULES = ['farmSelect', 'discovery', 'configBridge', 'sidecar', 'sidecarManager', 'clientData', 'dataMigration', 'store', 'io', 'mcp', 'serial', 'webSearch'];
+const WEB_FIXTURES = path.join(HERE, '..', 'fixtures', 'web');
 
 /** @type {string[]} */
 const temps = [];
@@ -829,6 +830,302 @@ export default (test) => {
     assert.equal(r.code, 'E_HOST', 'a first address outside the list: no request at all');
     r = await IO.fetchText('https://tabular-api.data.gouv.fr/x', { lookup: pub, hosts, fetchImpl: async () => new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } }) });
     assert.equal(r.ok, true, 'an allowed host still reads');
+  });
+
+  // ---------------------------------------------------------------- web search v2 (2026-10-05): io.ts + webSearch.ts
+  /** A loopback HTTP server for one test; `routes[path](req, res)`. Resolves {port, close, seen}. */
+  const serve = async (/** @type {Record<string, (req: any, res: any) => void>} */ routes) => {
+    const http = require('http');
+    /** @type {{path: string, host: string}[]} */ const seen = [];
+    const sockets = new Set();
+    const srv = http.createServer((req, res) => {
+      const p = String(req.url).split('?')[0];
+      seen.push({ path: p, host: String(req.headers.host) });
+      (routes[p] || ((_q, s) => { s.writeHead(404); s.end('no'); }))(req, res);
+    });
+    srv.on('connection', (s) => { sockets.add(s); s.on('close', () => sockets.delete(s)); });
+    await new Promise((resolve) => srv.listen(0, '127.0.0.1', resolve));
+    return { port: srv.address().port, seen, close: () => { for (const s of sockets) s.destroy(); srv.close(); } };
+  };
+  const webFixture = (/** @type {string} */ name) => fs.readFileSync(path.join(WEB_FIXTURES, name), 'utf8');
+
+  test('io.privateAddress: web search reads the public internet only — exactly 192.0.0/24 and 192.0.2/24, not all of 192.0/16', () => {
+    const IO = require(path.join(BUILD, 'io.js'));
+    const table = {
+      '192.0.66.31': false, '192.0.2.1': true, '192.0.0.8': true, '192.0.1.1': false, '8.8.8.8': false, '93.184.216.34': false,
+      '10.10.16.58': true, '172.16.0.1': true, '172.31.255.255': true, '172.32.0.1': false, '192.168.1.1': true,
+      '100.64.0.1': true, '100.127.255.254': true, '100.128.0.1': false, '169.254.169.254': true, '127.0.0.1': true, '0.0.0.0': true,
+      '198.18.0.1': true, '224.0.0.251': true, '239.255.43.10': true, '255.255.255.255': true,
+      '::1': true, '::': true, 'fd00::1': true, 'fc12::1': true, 'fe80::1': true, 'ff02::1': true, '2001:db8::1': true,
+      '2606:4700:4700::1111': false, '::ffff:10.0.0.1': true, '::ffff:8.8.8.8': false, '64:ff9b::a00:1': true, '64:ff9b::808:808': false,
+      'fe80::1%eth0': true, 'not-an-ip': true,
+    };
+    for (const [ip, priv] of Object.entries(table)) assert.equal(IO.privateAddress(ip), priv, ip);
+    const code = (u) => { const r = IO.checkUrl(u, false, true); return r.ok ? 'ok' : r.code; };
+    assert.equal(code('http://192.168.1.40/'), 'E_LOCAL');
+    assert.equal(code('http://[fd00::1]/'), 'E_LOCAL');
+    assert.equal(code('http://[::ffff:10.0.0.1]/'), 'E_LOCAL', 'a mapped LAN address, in the hex form the URL parser makes');
+    assert.equal(code('http://192.0.66.31/'), 'ok');
+    assert.equal(IO.checkUrl('http://192.168.1.40/').ok, true, 'without publicOnly the LAN stays reachable (the Fetch box)');
+  });
+
+  test('io.fetchText publicOnly: a name that resolves to the LAN, a LAN literal and a redirect to one are refused before any request', async () => {
+    const IO = require(path.join(BUILD, 'io.js'));
+    const never = async () => { throw new Error('must not be called'); };
+    const ok = (body = '<p>hi</p>') => new Response(body, { status: 200, headers: { 'content-type': 'text/html' } });
+    const lan = async () => [{ address: '10.0.0.5' }];
+    let r = await IO.fetchText('https://intranet.example/', { publicOnly: true, lookup: lan, fetchImpl: never });
+    assert.deepEqual([r.ok, r.code], [false, 'E_LOCAL']);
+    r = await IO.fetchText('https://intranet.example/', { lookup: lan, fetchImpl: async () => ok() });
+    assert.equal(r.ok, true, 'the Fetch box still reaches a LAN device');
+    r = await IO.fetchText('http://192.168.1.40/', { publicOnly: true, fetchImpl: never });
+    assert.equal(r.code, 'E_LOCAL');
+    /** @type {string[]} */ const asked = [];
+    r = await IO.fetchText('https://news.example/a', { publicOnly: true, lookup: async () => [{ address: '93.184.216.34' }],
+      fetchImpl: async (u) => { asked.push(String(u)); return new Response(null, { status: 302, headers: { location: 'http://10.1.2.3/admin' } }); } });
+    assert.deepEqual([r.code, asked], ['E_LOCAL', ['https://news.example/a']], 'the redirect to the LAN is never followed');
+    r = await IO.fetchText('https://cgnat.example/', { publicOnly: true, lookup: async () => [{ address: '93.184.216.34' }, { address: '100.70.0.1' }], fetchImpl: never });
+    assert.equal(r.code, 'E_LOCAL', 'one private address among the answers is enough to refuse');
+    r = await IO.fetchText('http://192.0.66.31/', { publicOnly: true, fetchImpl: async () => ok() });
+    assert.equal(r.ok, true);
+  });
+
+  test('io.fetchText: truncate keeps the top of a big page; the charset comes from the header, else the page\'s <meta>, else UTF-8', async () => {
+    const IO = require(path.join(BUILD, 'io.js'));
+    const pub = async () => [{ address: '93.184.216.34' }];
+    const big = 'x'.repeat(5000);
+    let r = await IO.fetchText('https://a.example/big', { lookup: pub, truncate: true, maxBytes: 1000,
+      fetchImpl: async () => new Response(big, { status: 200, headers: { 'content-type': 'text/html', 'content-length': '5000' } }) });
+    assert.deepEqual([r.ok, r.truncated, r.bytes, r.text.length], [true, true, 1000, 1000]);
+    r = await IO.fetchText('https://a.example/big', { lookup: pub, maxBytes: 1000, fetchImpl: async () => new Response(big, { status: 200, headers: { 'content-type': 'text/html' } }) });
+    assert.equal(r.code, 'E_SIZE', 'without truncate: refused, as before');
+    r = await IO.fetchText('https://a.example/small', { lookup: pub, fetchImpl: async () => new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } }) });
+    assert.equal(r.truncated, undefined, 'a page that fits says nothing about truncation');
+    const latin = Buffer.from([0x63, 0x61, 0x66, 0xe9, 0x20, 0x80]);   // "café €" in windows-1252
+    r = await IO.fetchText('https://a.example/fr', { lookup: pub, fetchImpl: async () => new Response(latin, { status: 200, headers: { 'content-type': 'text/plain; charset=windows-1252' } }) });
+    assert.equal(r.text, 'café €');
+    const meta = Buffer.concat([Buffer.from('<html><head><meta charset="iso-8859-1"></head><body>'), Buffer.from([0x63, 0x61, 0x66, 0xe9])]);
+    r = await IO.fetchText('https://a.example/m', { lookup: pub, fetchImpl: async () => new Response(meta, { status: 200, headers: { 'content-type': 'text/html' } }) });
+    assert.ok(r.text.endsWith('café'), r.text);
+    r = await IO.fetchText('https://a.example/u', { lookup: pub, fetchImpl: async () => new Response('café', { status: 200, headers: { 'content-type': 'text/plain' } }) });
+    assert.equal(r.text, 'café', 'no charset: UTF-8, as before');
+    r = await IO.fetchText('https://a.example/x', { lookup: pub, fetchImpl: async () => new Response('café', { status: 200, headers: { 'content-type': 'text/plain; charset=no-such-thing' } }) });
+    assert.equal(r.text, 'café', 'an unknown charset falls back to UTF-8');
+  });
+
+  test('io.fetchText connects to the address it checked (no second DNS answer), decompresses, and its time limit covers DNS', async () => {
+    const IO = require(path.join(BUILD, 'io.js'));
+    const zlib = require('zlib');
+    const page = '<html><body><p>pinned and gzipped: ça marche</p></body></html>';
+    const fx = await serve({
+      '/gz': (_q, res) => { res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'content-encoding': 'gzip' }); res.end(zlib.gzipSync(page)); },
+      '/br': (_q, res) => { res.writeHead(200, { 'content-type': 'text/html', 'content-encoding': 'br' }); res.end(zlib.brotliCompressSync(page)); },
+      '/go': (_q, res) => { res.writeHead(302, { location: '/gz' }); res.end(); },
+    });
+    try {
+      /** @type {string[]} */ const asked = [];
+      // pinned.test does not exist in any DNS: the request can only reach the fixture through the checked answer.
+      const lookup = async (/** @type {string} */ h) => { asked.push(h); return [{ address: '127.0.0.1' }]; };
+      let r = await IO.fetchText(`http://pinned.test:${fx.port}/go`, { lookup, allowLoopback: true });
+      assert.equal(r.ok, true, JSON.stringify(r));
+      assert.equal(r.text, page);
+      assert.equal(r.url, `http://pinned.test:${fx.port}/gz`);
+      assert.deepEqual(asked, ['pinned.test', 'pinned.test'], 'resolved once per hop');
+      assert.deepEqual(fx.seen.map((s) => s.host), [`pinned.test:${fx.port}`, `pinned.test:${fx.port}`]);
+      r = await IO.fetchText(`http://127.0.0.1:${fx.port}/br`, { allowLoopback: true });
+      assert.equal(r.text, page, 'brotli too');
+      r = await IO.fetchText(`http://127.0.0.1:${fx.port}/gz`);
+      assert.equal(r.code, 'E_LOCAL', 'without the test switch, this machine is refused as before');
+      const t0 = Date.now();
+      r = await IO.fetchText('https://slow-dns.test/', { lookup: () => new Promise(() => {}), timeoutMs: 150 });
+      assert.equal(r.code, 'E_TIMEOUT');
+      assert.ok(Date.now() - t0 < 2000, 'a resolver that never answers does not outlive the time limit');
+    } finally { fx.close(); }
+  });
+
+  test('webSearch.extract: nav, header, cookie banner, share buttons, footer and scripts dropped; a table row kept; the dates read', () => {
+    const WS = require(path.join(BUILD, 'webSearch.js'));
+    const dl = WS.extract(webFixture('download.html'));
+    const text = dl.blocks.map((b) => b.t).join('\n');
+    assert.equal(dl.title, 'Download Quill — the free text editor');
+    assert.equal(dl.description, 'Download Quill 7.2 LTS for Windows, macOS and Linux.');
+    assert.deepEqual([dl.published, dl.newest], ['published 2019-05-02, updated 2026-09-15', '2026-09-15'], 'from the JSON-LD');
+    assert.match(text, /The current stable version is Quill 7\.2\.1, released on 15 September 2026/);
+    for (const junk of [/cookies/i, /Features/, /Support the latest/, /Share on Social/, /Quill Foundation/, /Quill 1\.0/, /position: fixed/]) assert.doesNotMatch(text, junk);
+    assert.ok(dl.blocks.some((b) => b.h && b.t === 'Experimental builds'), 'headings are kept as headings');
+    const wiki = WS.extract(webFixture('wiki.html'));
+    const wtext = wiki.blocks.map((b) => b.t).join('\n');
+    assert.ok(wiki.blocks.some((b) => b.t === '7.2.1 | 2026-09-15 | Current stable version (LTS)'), 'a table row is one "a | b | c" line');
+    assert.deepEqual([wiki.published, wiki.newest], ['updated 2026-09-20', '2026-09-20'], 'from article:modified_time');
+    assert.doesNotMatch(wtext, /last edited|Random article|1 History/, 'footer, navigation and the table of contents dropped');
+    const blog = WS.extract(webFixture('blog.html'));
+    assert.deepEqual([blog.published, blog.newest], ['published 2024-03-01', '2024-03-01']);
+    assert.doesNotMatch(blog.blocks.map((b) => b.t).join('\n'), /Quill 5 review|Tags/, 'the related box and the navbar dropped');
+    const timeOnly = WS.extract('<html><body><article><time datetime="1889-03-31">31 March 1889</time><p>The tower opened in 1889 and is 330 metres tall today.</p></article></body></html>');
+    assert.deepEqual([timeOnly.published, timeOnly.newest], ['dated 1889-03-31', ''], 'a bare <time> is shown, never used as the page\'s own date');
+  });
+
+  test('webSearch.rank on a stored SearXNG answer: the answer passage chosen, the budgets held, a page with no evidence dropped', () => {
+    const WS = require(path.join(BUILD, 'webSearch.js'));
+    const sx = JSON.parse(webFixture('searxng.json'));
+    const picked = WS.pickPages(sx.results);
+    assert.deepEqual(picked.map((r) => new URL(r.url).hostname), ['blog.example', 'quill.example', 'dictionary.example', 'wiki.example', 'quill.example', 'slow.example'],
+      'SearXNG\'s order, at most two pages from one site (the forum, a third from quill.example, is left out), six in all');
+    const files = { 'https://blog.example/2024/03/quill-6-is-here': 'blog.html', 'https://quill.example/download/': 'download.html', 'https://dictionary.example/definition/quill': 'dictionary.html', 'https://wiki.example/wiki/Quill_(editor)': 'wiki.html' };
+    const pages = picked.map((r) => (files[r.url] ? { ok: true, url: r.url, ...WS.extract(webFixture(files[r.url])) } : { ok: false }));   // news and slow: not read
+    const now = Date.parse('2026-10-05T12:00:00Z');
+    for (const q of ['Quill latest stable version', 'Quill stable version', 'quill dernière version stable']) {
+      const r = WS.rank(q, picked, pages, 5, { now });
+      const links = r.out.map((o) => o.link);
+      assert.ok(r.out.some((o) => o.snippet.includes('Quill 7.2.1')), `${q}: the answer is in what the model reads`);
+      assert.ok(!links.includes('https://dictionary.example/definition/quill'), `${q}: the dictionary page has no evidence and is dropped`);
+      assert.ok(!links.includes('https://quill.example/news/') && !links.includes('https://slow.example/quill-tips'), `${q}: unread pages with no evidence are dropped too`);
+      assert.ok(r.tokens <= 3000, `${q}: ${r.tokens} tokens in all`);
+      for (const o of r.out) assert.ok(WS.tokensOf(o.snippet) <= 800 + 10, `${q}: ${o.link} ${WS.tokensOf(o.snippet)} tokens`);
+      assert.ok(r.out.every((o) => o.title && o.link.startsWith('https://')));
+    }
+    const wikiAll = WS.tokensOf(pages[3].blocks.map((b) => b.t).join('\n'));
+    const wikiOut = WS.rank('quill dernière version stable', picked, pages, 5, { now }).out.find((o) => o.link.includes('wiki.example'));
+    assert.ok(wikiAll > 850 && WS.tokensOf(wikiOut.snippet) <= 810, `the long page (${wikiAll} tokens) is cut to its best passages (${WS.tokensOf(wikiOut.snippet)})`);
+    assert.match(wikiOut.snippet, /^\(updated 2026-09-20\)/, 'the page\'s date leads its snippet');
+    // A search whose pages all failed still answers with the engines' own snippets.
+    const none = WS.rank('Quill latest stable version', picked, picked.map(() => ({ ok: false })), 5, { now });
+    assert.ok(none.out.length >= 1 && none.out[0].snippet.includes('Quill'));
+  });
+
+  test('webSearch.rank: when the question asks for the latest, a page dated over a year ago comes after current ones', () => {
+    const WS = require(path.join(BUILD, 'webSearch.js'));
+    const sx = JSON.parse(webFixture('searxng.json'));
+    const picked = WS.pickPages(sx.results);
+    const files = { 'https://blog.example/2024/03/quill-6-is-here': 'blog.html', 'https://quill.example/download/': 'download.html', 'https://wiki.example/wiki/Quill_(editor)': 'wiki.html' };
+    const pages = picked.map((r) => (files[r.url] ? { ok: true, url: r.url, ...WS.extract(webFixture(files[r.url])) } : { ok: false }));
+    const first = (q, now) => new URL(WS.rank(q, picked, pages, 5, { now: Date.parse(now) }).out[0].link).hostname;
+    const order = (q, now) => WS.rank(q, picked, pages, 5, { now: Date.parse(now) }).out.map((o) => new URL(o.link).hostname);
+    // Without a recency word the stale 2024 blog post, stuffed with the question's words, ranks first ...
+    assert.equal(first('Quill stable version', '2026-10-05'), 'blog.example');
+    // ... with one, it goes after the pages updated this year — in English and in French.
+    for (const q of ['Quill latest stable version', 'quill dernière version stable', 'Quill stable version now', 'version actuelle de Quill stable']) {
+      const o = order(q, '2026-10-05');
+      assert.notEqual(o[0], 'blog.example', q);
+      assert.equal(o[o.length - 1], 'blog.example', `${q}: ${o.join(', ')}`);
+    }
+    // The rule follows the page's date, not the words alone: in June 2024 that post was current.
+    assert.equal(first('Quill latest stable version', '2024-06-01'), 'blog.example');
+  });
+
+  test('/web/search: the bearer, the Host, POST only, the body cap; SearXNG down or silent is answered within the deadline', async () => {
+    const WS = require(path.join(BUILD, 'webSearch.js'));
+    const http = require('http');
+    // A port nothing listens on, and a SearXNG that accepts and never answers.
+    const gone = await new Promise((resolve) => { const s = http.createServer(); s.listen(0, '127.0.0.1', () => { const p = s.address().port; s.close(() => resolve(p)); }); });
+    const silent = await serve({ '/search': () => { /* never answers */ } });
+    let searxng = `http://127.0.0.1:${gone}`;
+    /** @type {any[]} */ const calls = [];
+    const deps = { token: 'web-token', version: '0', tools: () => MCP.TOOLS, call: async () => ({ text: '' }),
+      webSearch: (q, n) => { calls.push([q, n]); return WS.searchAndRead(q, n, { searxngUrl: searxng, deadlineMs: 600 }); } };
+    const srv = await MCP.startMcpServer(deps, 0);
+    const port = srv.address().port;
+    const raw = (/** @type {Record<string, string>} */ headers, /** @type {string} */ body, method = 'POST') => new Promise((resolve) => {
+      const req = http.request({ host: '127.0.0.1', port, path: '/web/search', method, headers: { host: `127.0.0.1:${port}`, 'content-type': 'application/json', ...headers } },
+        (res) => { let t = ''; res.on('data', (c) => { t += c; }); res.on('end', () => resolve({ status: res.statusCode, body: t })); });
+      req.on('error', (e) => resolve({ status: 0, error: e.code }));
+      req.end(body);
+    });
+    const auth = { authorization: 'Bearer web-token' };
+    try {
+      assert.equal((await raw({}, '{"query":"x"}')).status, 401);
+      assert.equal((await raw({ authorization: 'Bearer wrong-token' }, '{"query":"x"}')).status, 401);
+      assert.equal((await raw({ ...auth, host: `evil.example:${port}` }, '{"query":"x"}')).status, 403, 'a rebound name is refused, bearer or not');
+      assert.equal((await raw(auth, '', 'GET')).status, 405);
+      assert.equal((await raw(auth, 'not json')).status, 400);
+      assert.equal((await raw(auth, '{"count":3}')).status, 400, 'no query');
+      const big = await raw(auth, JSON.stringify({ query: 'x'.repeat(100 * 1024) }));
+      assert.ok(big.status === 413 || big.status === 0, `over 64 KB: refused (${big.status || big.error})`);
+      assert.equal(calls.length, 0, 'nothing above reached the search');
+      let t0 = Date.now();
+      let r = await raw(auth, JSON.stringify({ query: 'quill', count: 50 }));
+      assert.equal(r.status, 502, 'SearXNG down: an error Open WebUI reads as no results ' + JSON.stringify(r));
+      assert.ok(Date.now() - t0 < 2000, 'and at once');
+      assert.deepEqual(calls[0], ['quill', 10], 'the count is capped');
+      searxng = `http://127.0.0.1:${silent.port}`;
+      t0 = Date.now();
+      r = await raw(auth, JSON.stringify({ query: 'quill' }));
+      const took = Date.now() - t0;
+      assert.equal(r.status, 502);
+      assert.ok(took >= 500 && took < 2500, `a silent SearXNG is answered at the deadline (${took} ms), never left hanging`);
+      assert.doesNotMatch(r.body, /quill/, 'the error never carries the question');
+      // The MCP door on the same listener is unchanged; a listener without webSearch has no /web/search.
+      const bare = await MCP.startMcpServer({ token: 't', version: '0', tools: () => MCP.TOOLS, call: async () => ({ text: '' }) }, 0);
+      try {
+        const res = await fetch(`http://127.0.0.1:${bare.address().port}/web/search`, { method: 'POST', headers: { authorization: 'Bearer t' }, body: '{"query":"x"}' });
+        assert.equal(res.status, 404);
+      } finally { bare.close(); }
+    } finally { srv.close(); silent.close(); }
+  });
+
+  test('web search end to end: a mock SearXNG and fixture pages on 127.0.0.1, through the listener, within the deadline', async () => {
+    const WS = require(path.join(BUILD, 'webSearch.js'));
+    const zlib = require('zlib');
+    const html = (/** @type {string} */ name, gzip = false) => (_q, res) => {
+      res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', ...(gzip ? { 'content-encoding': 'gzip' } : {}) });
+      res.end(gzip ? zlib.gzipSync(webFixture(name)) : webFixture(name));
+    };
+    /** @type {any} */ let asked = null;
+    const pagesSrv = await serve({ '/download': html('download.html'), '/wiki': html('wiki.html', true), '/blog': html('blog.html'), '/news': html('download.html'), '/slow': () => { /* never answers */ } });
+    // The stored SearXNG answer, its pages moved onto the fixture server: two "sites" (127.0.0.1 and localhost) of two pages each.
+    const at = { 'blog.example': 'localhost', 'quill.example/download': '127.0.0.1', 'wiki.example': '127.0.0.1', 'quill.example/news': '127.0.0.1', 'slow.example': 'localhost' };
+    const pathOf = { 'blog.example': '/blog', 'quill.example/download': '/download', 'wiki.example': '/wiki', 'quill.example/news': '/news', 'slow.example': '/slow' };
+    const sx = JSON.parse(webFixture('searxng.json'));
+    sx.results = sx.results.flatMap((r) => {
+      const k = Object.keys(at).find((key) => r.url.includes(key));
+      return k ? [{ ...r, url: `http://${at[k]}:${pagesSrv.port}${pathOf[k]}` }] : [];
+    });
+    const searx = await serve({ '/search': (req, res) => {
+      asked = Object.fromEntries(new URL(req.url, 'http://x').searchParams);
+      res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify(sx));
+    } });
+    const srv = await MCP.startMcpServer({ token: 'e2e', version: '0', tools: () => MCP.TOOLS, call: async () => ({ text: '' }),
+      // loopback allowed ONLY here: the fixture pages live on this machine
+      webSearch: (q, n) => WS.searchAndRead(q, n, { searxngUrl: `http://127.0.0.1:${searx.port}/`, deadlineMs: 2500, allowLoopback: true }) }, 0);
+    try {
+      const t0 = Date.now();
+      const res = await fetch(`http://127.0.0.1:${srv.address().port}/web/search`, { method: 'POST', headers: { authorization: 'Bearer e2e', 'content-type': 'application/json' }, body: JSON.stringify({ query: 'Quill latest stable version', count: 5 }) });
+      const took = Date.now() - t0;
+      assert.equal(res.status, 200);
+      const out = await res.json();
+      assert.deepEqual(asked, { q: 'Quill latest stable version', format: 'json', language: 'auto', safesearch: '1' });
+      assert.ok(Array.isArray(out) && out.length >= 2 && out.length <= 5);
+      for (const o of out) assert.deepEqual(Object.keys(o).sort(), ['link', 'snippet', 'title'], 'Open WebUI\'s external-search contract');
+      assert.ok(out.some((o) => /The current stable version is Quill 7\.2\.1/.test(o.snippet)), 'read from the page, not the engine\'s snippet');
+      assert.ok(out.some((o) => o.link.endsWith('/wiki') && /7\.2\.1 \| 2026-09-15/.test(o.snippet)), 'the gzipped page was read and its table kept');
+      assert.ok(!/blog$/.test(out[0].link), 'the stale post does not lead');
+      assert.ok(took < 2500 + 1500, `answered within the deadline although one page never answers (${took} ms)`);
+      const paths = pagesSrv.seen.map((s) => s.path).sort();
+      assert.deepEqual(paths, ['/blog', '/download', '/slow', '/wiki'], 'two pages a site: the third from 127.0.0.1 (/news) is never asked');
+      assert.ok(pagesSrv.seen.some((s) => s.host === `localhost:${pagesSrv.port}`), 'a page found by name went through DNS and the pinned connection');
+    } finally { srv.close(); searx.close(); pagesSrv.close(); }
+  });
+
+  test('configBridge web search: through main while the listener is up, else OWUI\'s own searxng engine with the measured knobs', () => {
+    const base = { endpoint: 'http://10.0.0.5:4000/v1', dataDir: tempDir('web'), searxngUrl: 'http://10.0.0.5:8888/' };
+    const keys = ['ENABLE_WEB_SEARCH', 'WEB_SEARCH_ENGINE', 'SEARXNG_QUERY_URL', 'SEARXNG_LANGUAGE', 'EXTERNAL_WEB_SEARCH_URL', 'EXTERNAL_WEB_SEARCH_API_KEY',
+      'WEB_SEARCH_RESULT_COUNT', 'WEB_SEARCH_CONCURRENT_REQUESTS', 'WEB_FETCH_MAX_CONTENT_LENGTH', 'WEB_LOADER_ENGINE', 'EXTERNAL_WEB_LOADER_URL'];
+    const web = (env) => Object.fromEntries(keys.filter((k) => env[k] !== undefined).map((k) => [k, env[k]]));
+    try {
+      CB.setComputerMcp(null);   // the port was taken: OWUI asks SearXNG itself
+      assert.deepEqual(web(CB.buildSidecarEnv(base)), {
+        ENABLE_WEB_SEARCH: 'true', WEB_SEARCH_ENGINE: 'searxng', SEARXNG_QUERY_URL: 'http://10.0.0.5:8888/search?q=<query>', SEARXNG_LANGUAGE: 'auto',
+        WEB_SEARCH_RESULT_COUNT: '5', WEB_SEARCH_CONCURRENT_REQUESTS: '10', WEB_FETCH_MAX_CONTENT_LENGTH: '12000',
+      });
+      CB.setComputerMcp({ url: 'http://127.0.0.1:41995/mcp', token: 'install-token' });
+      const env = CB.buildSidecarEnv(base);
+      assert.deepEqual(web(env), {
+        ENABLE_WEB_SEARCH: 'true', WEB_SEARCH_ENGINE: 'external', EXTERNAL_WEB_SEARCH_URL: 'http://127.0.0.1:41995/web/search', EXTERNAL_WEB_SEARCH_API_KEY: 'install-token',
+        WEB_SEARCH_RESULT_COUNT: '5', WEB_SEARCH_CONCURRENT_REQUESTS: '10', WEB_FETCH_MAX_CONTENT_LENGTH: '12000',
+      }, 'no external page loader: attaching a LAN page keeps working (ENABLE_LOCAL_WEB_FETCH)');
+      assert.equal(env.ENABLE_LOCAL_WEB_FETCH, 'true');
+      assert.deepEqual(web(CB.buildSidecarEnv({ ...base, searxngUrl: null })), {}, 'a farm without SearXNG: no web search at all');
+    } finally { CB.setComputerMcp(null); }
   });
 
   test('serial (critic S2, S4): serial only for the app\'s own page; no device pre-granted; everything else as Electron\'s default', () => {

@@ -880,8 +880,16 @@ build for Blackwell cards (16 GB+); replace it freely.
   **one shared [SearXNG](https://docs.searxng.org)** on this box with no config edits. It's installed into
   `farm/.searxng/` at `lol install` time (and re‑checked on `lol up`; delete that folder to uninstall).
   Clients discover it via the beacon and OWUI's per‑chat web‑search toggle just works, zero client
-  setup (off by default; the globe button turns it on for a chat). Searches + page fetching run from each client; this box only hosts the metasearch engine. Turn it
-  off with `"websearch": { "enabled": false }` or `lol up --no-websearch`.
+  setup (off by default; the globe button turns it on for a chat). Searches + page fetching run from each client
+  (since client web search v2, its main process asks this SearXNG and reads the top pages itself); this box only
+  hosts the metasearch engine. Turn it off with `"websearch": { "enabled": false }` or `lol up --no-websearch`.
+  **Engines** (the generated `farm/.searxng/settings.yml`, v3 since 2026-10-05): only the engines that answered
+  when probed from one box, plus two with their own index that fail fast where refused — `duckduckgo web`,
+  `bing`, `seznam`, `mojeek`, `qwant`, `wikipedia` (`keep_only`: the ~250 others are not even loaded; no
+  Yandex, the owner's call). Moderate safe search, the question's own language, engines cut at 3 s (5 s at
+  most), and a longer back-off (10 min, 1 h for a CAPTCHA) when an engine refuses this box's IP. A file `lol up`
+  generated earlier is rewritten to v3 on the next `lol up`, keeping its secret; a hand-written one is yours and
+  is left alone.
 - **Document OCR (ON by default):** the farm hosts **one shared OCR / document‑extraction service** on this
   box, so clients get scanned‑document + image OCR with zero setup — OWUI uses it as its content‑extraction
   engine, routing images + scanned PDFs to a **vision model on this box's Ollama**

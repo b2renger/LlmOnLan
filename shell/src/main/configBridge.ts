@@ -21,6 +21,7 @@ import * as path from 'path';
 import * as crypto from 'crypto';
 import * as os from 'os';
 import { app } from 'electron';
+import { WEB_SEARCH_PATH } from './mcp';
 
 // Stable WEBUI_SECRET_KEY (signs JWTs / encrypts at rest). Generated once and
 // persisted so OWUI sessions survive restarts. OWUI would auto-generate one in
@@ -285,16 +286,34 @@ export function buildSidecarEnv(input: SidecarEnvInput): Record<string, string> 
     }
 
     // Web search — the farm hosts one shared SearXNG and advertises it in the
-    // beacon; point OWUI at it. The `/search?q=<query>` suffix is mandatory
-    // (OWUI substitutes <query>). Search runs from THIS machine: OWUI queries
-    // SearXNG, then fetches + locally embeds the result pages (data stays local).
+    // beacon. Search runs from THIS machine. Web search v2 (2026-10-05): OWUI's
+    // search_web goes to this app's main process (webSearch.ts, behind the
+    // Computer's loopback listener and its bearer), which asks the farm's SearXNG,
+    // reads the top pages and hands back their best passages. OWUI 0.10.x and
+    // 0.11.4 POST {query, count} with no timeout; main answers within its own
+    // deadline. When that listener could not start (its port taken), OWUI asks
+    // SearXNG itself (the `/search?q=<query>` suffix is mandatory: OWUI substitutes
+    // <query>), in the question's own language. Both: 5 results, and a page the model
+    // fetches itself (fetch_url) cut at 12000 characters. Measured on 12 fresh facts
+    // (OWUI 0.11.4): 2/12 right with OWUI's searxng engine and 3 results, 9/12 with
+    // tuned engines (Yandex still among them then) and these knobs, 10/12 through
+    // main — at 2.3 generations a message, as cheap as web search off. Every knob
+    // here exists in 0.10.x too.
     // No searxngUrl → no env → the feature stays hidden, exactly as before.
     if (input.searxngUrl) {
         env.ENABLE_WEB_SEARCH = 'true';
-        env.WEB_SEARCH_ENGINE = 'searxng';
-        env.SEARXNG_QUERY_URL = `${input.searxngUrl.replace(/\/+$/, '')}/search?q=<query>`;
-        env.WEB_SEARCH_RESULT_COUNT = '3';
+        env.WEB_SEARCH_RESULT_COUNT = '5';
         env.WEB_SEARCH_CONCURRENT_REQUESTS = '10';
+        env.WEB_FETCH_MAX_CONTENT_LENGTH = '12000';
+        if (computerMcp) {
+            env.WEB_SEARCH_ENGINE = 'external';
+            env.EXTERNAL_WEB_SEARCH_URL = new URL(WEB_SEARCH_PATH, computerMcp.url).href;
+            env.EXTERNAL_WEB_SEARCH_API_KEY = computerMcp.token;
+        } else {
+            env.WEB_SEARCH_ENGINE = 'searxng';
+            env.SEARXNG_QUERY_URL = `${input.searxngUrl.replace(/\/+$/, '')}/search?q=<query>`;
+            env.SEARXNG_LANGUAGE = 'auto';
+        }
     }
 
     // Neural TTS — the farm hosts a shared Kokoro voice server and advertises it in

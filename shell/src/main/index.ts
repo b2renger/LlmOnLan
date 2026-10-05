@@ -21,6 +21,7 @@ import { clientDataDir, prepareClientData, isInside, CLIENT_DIR_NAME, ClientData
 import { initAutoUpdate, checkForAppUpdate, quitAndInstallUpdate, setUpdateNotifier } from './updater';
 import { OWUI_ENABLED } from './clientMode';
 import { fetchText } from './io';
+import { searchAndRead } from './webSearch';
 import { createStudio, resolveRuntime, Studio } from './studio';
 import { send as sendOutput, arm as armOutputs, isArmed as outputsArmed, panic as panicOutputs, SendRequest } from './outputs';
 import { configureSerial, registerSerialIpc, grantRequest } from './serial';
@@ -1181,13 +1182,16 @@ app.whenReady().then(async () => {
         // OWUI learns the address (and the bearer) only once THIS process holds the port (critic N6): a
         // loopback listen settles in milliseconds, long before the first sidecar spawn.
         // Home Assistant's tools join the list while a home is linked, and are answered HERE, in main — they need no
-        // Computer on screen.
-        const srv = await startMcpServer({ token, version: app.getVersion(), ...withHome(home, () => MCP_TOOLS, caller.call) });
+        // Computer on screen. So is Open WebUI's web search (webSearch.ts), against the active farm's SearXNG.
+        const srv = await startMcpServer({
+            token, version: app.getVersion(), ...withHome(home, () => MCP_TOOLS, caller.call),
+            webSearch: (query, count) => searchAndRead(query, count, { searxngUrl: currentSearxng }),
+        });
         if (srv) {
             computerConn = { url: `http://127.0.0.1:${MCP_PORT}${MCP_PATH}`, token };
             setComputerMcp(computerConn);
             console.log(`[mcp] the Computer's MCP server on http://127.0.0.1:${MCP_PORT}${MCP_PATH}`);
-        } else console.warn(`[mcp] port ${MCP_PORT} is taken: the Computer's MCP server is off this session`);
+        } else console.warn(`[mcp] port ${MCP_PORT} is taken: the Computer's MCP server (and web search v2) is off this session`);
     }
     createWindow();
 
