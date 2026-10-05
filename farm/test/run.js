@@ -1489,10 +1489,11 @@ test('external engine is exclusive: it alone is routed, peers still aggregate', 
     const names = doc.model_list.map((m) => m.model_name);
     assert.deepEqual([...new Set(names)], ['assistant'], 'nothing but the external alias is served');
     const local = doc.model_list[0];
-    assert.equal(local.litellm_params.model, 'openai/deepseek-v4-flash-0731', 'backend is asked for ITS id');
+    assert.equal(local.litellm_params.model, 'hosted_vllm/deepseek-v4-flash-0731', 'backend is asked for ITS id');
     assert.equal(local.litellm_params.api_base, 'http://127.0.0.1:8000/v1');
     assert.equal(doc.model_list.length, 2, 'local + the peer that serves the alias');
     assert.equal(doc.model_list[1].litellm_params.api_base, 'http://10.0.0.9:4000/v1');
+    assert.equal(doc.model_list[1].litellm_params.model, 'openai/assistant', 'a peer is another farm\'s LiteLLM: plain OpenAI');
     // No Ollama deployment may survive — one engine at a time.
     assert.equal(doc.model_list.some((m) => /ollama/.test(m.litellm_params.model)), false);
 });
@@ -1502,7 +1503,7 @@ test('external engine: alias passes through when no backend model id is set', ()
     c.external.enabled = true;
     c.external.alias = 'assistant';
     const doc = buildLitellmConfig(c, []);
-    assert.equal(doc.model_list[0].litellm_params.model, 'openai/assistant');
+    assert.equal(doc.model_list[0].litellm_params.model, 'hosted_vllm/assistant');
     assert.equal(doc.model_list[0].litellm_params.api_key, 'sk-lol-external', 'keyless backends still need a value');
 });
 

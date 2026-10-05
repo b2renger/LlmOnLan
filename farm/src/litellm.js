@@ -199,6 +199,27 @@ function buildLitellmConfig(config, peers = []) {
     // deployment shape as llama.cpp below; it just points off-box-or-off-port
     // instead of at a child we spawned. Exclusive for the same reason: two engines
     // sharing one GPU overcommit VRAM and everything crawls.
+    //
+    // `hosted_vllm/`, not `openai/`: the provider sets LiteLLM's cost per streamed token, and
+    // an external engine is the one that streams to 50-140 people at once through ONE LiteLLM
+    // process (--num_workers loses connections on Windows: 12-21 of 100 streams never got an
+    // answer; Granian refuses workers there). `openai/` rebuilds every chunk as OpenAI SDK
+    // objects and makes and drops an async generator per chunk; `hosted_vllm/` is LiteLLM's
+    // own HTTP client and SSE parser. Not quite the same request: it strips `strict` and
+    // `additionalProperties: false` from tool schemas (a tool parameter literally named `strict`
+    // disappears), and forwards `reasoning_effort` and `stream_options`, which `openai/` dropped
+    // (vLLM refuses `stream_options` on a non-streaming call). No first-party client sends any
+    // of those. Measured 2026-10-05 on the
+    // PRO 6000 (vLLM 0.30, Qwen3.6, 200-token replies, through the seat gate): 100 people at
+    // once got their reply in 4.1-4.2 s instead of 4.6-5.3 s (vLLM alone 3.4-3.5 s), 140 in
+    // 4.9 s instead of 5.2-6.6 s (alone 4.0-4.2 s). Clients get the same reasoning, images,
+    // tool calls, usage and thinking-off results, and Stop still stops vLLM. llama.cpp keeps
+    // `openai/` (it serves a handful at once). Coordinator peers keep it too, unmeasured: once a
+    // coordinator fronts a second big box (plan Phase 3.0), its external branch's peers should
+    // move to `hosted_vllm/` as well. ponytail: one LiteLLM process
+    // still caps the farm at ~5,000 streamed tokens/s on that CPU (a second one on its own port
+    // bought 0.2 s more at 140); past it, the seat gate streams straight to a lone external deployment
+    // (farm/README.md, "LiteLLM's cost per streamed token").
     const ex = config.external || {};
     if (ex.enabled) {
         const entry = {
@@ -207,7 +228,7 @@ function buildLitellmConfig(config, peers = []) {
                 // `model` is what the BACKEND is asked for; model_name is what clients
                 // request. null = pass the alias through (a server started with
                 // --served-model-name <alias> already answers to it).
-                model: `openai/${ex.model || ex.alias}`,
+                model: `hosted_vllm/${ex.model || ex.alias}`,
                 api_base: ex.baseUrl,
                 api_key: ex.apiKey || 'sk-lol-external',   // keyless servers ignore it
             },

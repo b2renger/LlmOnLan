@@ -291,6 +291,60 @@ lower `parallel` to what the farm's pool warning says fits, or move ComfyUI or O
 LiteLLM's `drop_params` passes both through. Measured through the farm, one short answer took 393 completion
 tokens with thinking and 14 without.
 
+**LiteLLM's cost per streamed token.** Every token a person reads passes through LiteLLM, and LiteLLM is one
+Python process. Measured on the PRO 6000 on 2026-10-05: N people press Enter together, each gets a 200-token
+reply, and the table gives the median time to the whole reply (p95 in brackets).
+
+| N | vLLM alone | through the farm, before | through the farm, now |
+|---|---|---|---|
+| 50 | 2.1–2.2 s | 2.5–2.6 s | 2.3–2.4 s |
+| 100 | 3.4–3.5 s | 4.6–5.3 s | 4.1–4.2 s |
+| 140 | 4.0–4.2 s (5.2–5.3 s) | 5.2–6.6 s (7.0–8.2 s) | 4.9 s (5.5 s) |
+
+- **Why.** Before, LiteLLM's process sat at one full core from 50 streams on. It passed on at most
+  ~3,400–4,000 tokens/s, while vLLM alone made ~5,300–5,800. A py-spy profile put about half of its event
+  loop's samples in the OpenAI SDK, which rebuilds every streamed chunk as typed objects, and ~15 % in
+  rebuilding each whole reply once it ends. That path also makes and drops an async generator for every
+  chunk, because `CustomStreamWrapper.__anext__` iterates the SDK's stream afresh each time.
+- **The fix.** The external engine's deployment is now `hosted_vllm/`, which uses LiteLLM's own HTTP client
+  and SSE parser. Through the farm, the client gets the same reasoning, images, tool calls, usage and
+  thinking-off results. A person's Stop still stops vLLM on all 10 paths (`LOL_CANCEL_ENGINE=vllm`), and
+  `external.apiKey` still reaches a server started with `--api-key`. One LiteLLM process now passes on
+  ~5,000 tokens/s.
+  - **What `hosted_vllm/` changes in a request:** it strips `strict` and `additionalProperties: false` from
+    tool schemas, so a tool parameter literally named `strict` disappears. It also forwards
+    `reasoning_effort` and `stream_options`, which `openai/` dropped, and vLLM refuses `stream_options` on a
+    non-streaming call. No first-party client (Open WebUI 0.11.4's built-in tools, LOL Vibe, the Computer, the
+    coding agent, Home Assistant) sends any of those; a third-party tool server might.
+  - **llama.cpp keeps `openai/`:** it serves a handful of people at once.
+  - **Coordinator peers keep `openai/` too, unmeasured.** Once a coordinator fronts a second big box (plan
+    Phase 3.0), half a class streams through that peer deployment: move the external branch's peers to
+    `hosted_vllm/` then, and measure.
+- **What did not help.** LiteLLM's `--num_workers` loses connections on Windows: 12 and 21 of 100
+  simultaneous streams never got an answer. Granian refuses to run several workers on Windows. With
+  `hosted_vllm/`, a second LiteLLM on its own port bought only 0.2 s more at 140. On `openai/`, two
+  processes landed where one `hosted_vllm/` process is, at twice the CPU. Granian with one worker changed
+  nothing. The relay costs nothing: inside WSL, 140 streams through it and straight to vLLM's socket took
+  the same 4.1 s.
+- **What is left.** ~0.7 s at 140 people and 0.6–0.7 s at 100, with LiteLLM's one core full again. If the
+  measured class sizes ever need it, the next step is for the seat gate to stream a lone external deployment
+  straight to vLLM. It would skip LiteLLM for `POST /v1/chat/completions` only, and only while the external
+  engine serves with no peers. A scratch prototype matched vLLM alone (4.1 s (5.3 s) at 140, 3.6–3.7 s at 100)
+  at 0.2 of a core. It is ~60 lines in `seats.js` plus a thunk from `up.js`, and it has to take over:
+  - **the name:** rewrite `model` from the alias to `external.model`, or start vLLM with the alias first in
+    `--served-model-name`;
+  - **the key:** send `external.apiKey` in place of the farm password;
+  - **retries:** LiteLLM retries a failed call 3 times;
+  - **dropped params:** under `drop_params`, LiteLLM removes what the server would refuse. vLLM ignores unknown
+    fields, but the real clients' requests (Open WebUI, LOL Vibe, the coding agent) would need checking;
+  - **images:** a text-only model would refuse an image instead of having it stripped.
+
+  Auth (the gate checks the password since Phase 0.1), `/v1/models`, Stop and the gate's counts already
+  live in the gate. The farm keeps no usage or spend records, so there is nothing to move there.
+- **To measure it again** after a LiteLLM or vLLM bump, compare the farm with vLLM alone, on the farm box:
+  `lol bench --users 140 --max-tokens 200` (through the gate) against
+  `lol bench --users 140 --max-tokens 200 --url http://127.0.0.1:8100 --model <the served name>`.
+
 ## Adding or changing models
 
 **The panel is the normal way.** Open `http://<box>:41997/lol/admin` (the Farm app shows it as its own
@@ -969,11 +1023,12 @@ turn-taking on vision calls, against stub models (no Laya, no Whisper, no Ollama
 with `fastapi` + `httpx` (`LOL_PYSVC_PYTHON=<python>`, or the `.classify` / `.stt` venv if one has httpx).
 Without one it says "skipped".
 
-`test/litellm-cancel.js` routes the farm's own generated config (both the `openai/` and the
-`ollama_chat/` shape) to a fake engine on loopback, behind the real seat gate, aborts streaming and
+`test/litellm-cancel.js` routes the farm's own generated config (the `hosted_vllm/`, `openai/` and
+`ollama_chat/` shapes) to a fake engine on loopback, behind the real seat gate, aborts streaming and
 non-streaming calls, and checks the engine sees each request close within 2 s with no retry. It also checks
 that `drop_params` keeps the thinking-off pair the client sends on structured calls (owner decision 9):
-`chat_template_kwargs: {enable_thinking: false}` reaches the engine on `openai/` (vLLM, llama-server), and
+`chat_template_kwargs: {enable_thinking: false}` reaches the engine on `hosted_vllm/` (external servers) and
+`openai/` (llama-server, coordinator peers), and
 `think: false` becomes Ollama's own field on `ollama_chat/`. Run it after bumping the LiteLLM pin
 (`LOL_LITELLM=<path to litellm>` tests another install).
 

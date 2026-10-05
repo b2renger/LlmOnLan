@@ -171,9 +171,10 @@ export function toOpenAIBody(req, opts) {
   if (req.responseFormat) body.response_format = req.responseFormat;
   // Owner decision 9 (2026-10-04). Two keys, because each engine reads one — measured through the
   // farm's LiteLLM 1.97 with drop_params on (DEVLOG 2026-10-05): `chat_template_kwargs` reaches
-  // vLLM and llama-server (--jinja) on the `openai/` deployments, and LiteLLM turns `think` into
-  // Ollama's own `think:false` on the `ollama_chat/` ones. Each engine ignores the other key, and a
-  // model that never thinks ignores both. Not `reasoning_effort`: LiteLLM drops it on `openai/`.
+  // vLLM (`hosted_vllm/`) and llama-server (`openai/`, --jinja), and LiteLLM turns `think` into
+  // Ollama's own `think:false` on the `ollama_chat/` deployments. Each engine ignores the other key,
+  // and a model that never thinks ignores both. Not `reasoning_effort`: LiteLLM drops it on
+  // `openai/` (llama.cpp), so it would not reach every engine.
   if (req.thinking === false) {
     body.chat_template_kwargs = { enable_thinking: false };
     body.think = false;

@@ -5,12 +5,12 @@
 //   LOL_LITELLM=<path to litellm(.exe)> node test/litellm-cancel.js
 //
 // A fake engine streams a token every 100 ms and notes when each request is torn down. It
-// speaks both of the farm's deployment shapes, and LiteLLM routes to it with the farm's OWN
-// generated config: `openai/<alias>` (llama.cpp, external servers, coordinator peers) and
-// `ollama_chat/<model>` (the default Ollama engine), least-busy with 3 retries, behind the
-// real seat gate. The client aborts mid-answer; the engine must see its request close within
-// ~2 s, and LiteLLM must not retry it — streaming, and non-streaming (which needs the
-// generated config's general_settings.cancel_on_disconnect). It also checks that drop_params
+// speaks all of the farm's deployment shapes, and LiteLLM routes to it with the farm's OWN
+// generated config: `hosted_vllm/<alias>` (external servers), `openai/<alias>` (llama.cpp,
+// coordinator peers) and `ollama_chat/<model>` (the default Ollama engine), least-busy with 3
+// retries, behind the real seat gate. The client aborts mid-answer; the engine must see its
+// request close within ~2 s, and LiteLLM must not retry it — streaming, and non-streaming
+// (which needs the generated config's general_settings.cancel_on_disconnect). It also checks that drop_params
 // keeps the thinking-off pair the client sends (owner decision 9). Loopback, OS-assigned ports
 // only — never a live farm's, and no GPU. Exits 0 when every cancel propagates and thinking
 // off arrives (or when there is no LiteLLM to test).
@@ -199,17 +199,23 @@ async function fakeMain(cmd, version) {
     const engine = fakeEngine();
     await new Promise((r) => engine.listen(0, '127.0.0.1', r));
     const base = `http://127.0.0.1:${engine.address().port}`;
-    // The farm's two routing shapes, generated exactly as `lol up` generates them, in one file.
+    // The farm's three routing shapes, generated exactly as `lol up` generates them, in one file:
+    // an external server (hosted_vllm/), llama.cpp and coordinator peers (openai/), Ollama (ollama_chat/).
     const ext = defaultConfig();
     ext.llamacpp.enabled = false;
     ext.external = { ...ext.external, enabled: true, alias: 'fake', baseUrl: `${base}/v1` };
+    const lcc = defaultConfig();
+    lcc.llamacpp = { ...lcc.llamacpp, enabled: true, alias: 'fake-llamacpp', host: '127.0.0.1', port: engine.address().port };
     const oll = defaultConfig();
     oll.llamacpp.enabled = false;
     oll.models = [{ id: 'fake-ollama', default: true }];
     oll.ollama.hosts = [base];
     oll.ollama.contextResolved = 4096;
     const doc = buildLitellmConfig(ext);
-    doc.model_list.push(...buildLitellmConfig(oll).model_list);
+    doc.model_list.push(...buildLitellmConfig(lcc).model_list, ...buildLitellmConfig(oll).model_list);
+    const shapes = doc.model_list.map((m) => [`${m.litellm_params.model.split('/')[0]}/`, m.model_name]);
+    // A builder that stops emitting its shape must fail here, not silently skip that shape's checks.
+    if (new Set(shapes.map((s) => s[0])).size !== 3) throw new Error(`expected 3 routing shapes, got ${JSON.stringify(shapes)}`);
     const stack = await startStack(doc, cmd);
     const { lp, gp } = stack;
     console.log(`LiteLLM ${version} (${cmd}) on 127.0.0.1:${lp} → fake engine :${engine.address().port}`);
@@ -217,7 +223,7 @@ async function fakeMain(cmd, version) {
     try {
         await stack.up();
         const results = [];
-        for (const [shape, model] of [['openai/', 'fake'], ['ollama_chat/', 'fake-ollama']]) {
+        for (const [shape, model] of shapes) {
             results.push(await trial(`${shape} stream, client → seat gate → LiteLLM → engine`, gp, model, true));
             results.push(await trial(`${shape} stream, client → LiteLLM → engine (no gate)`, lp, model, true));
             results.push(await trial(`${shape} non-stream, client → seat gate → LiteLLM → engine`, gp, model, false));
@@ -225,12 +231,13 @@ async function fakeMain(cmd, version) {
             console.log(`${normal ? 'ok  ' : 'FAIL'} ${shape} non-stream, nobody cancels: the answer arrives`);
             results.push(normal);
             // Owner decision 9: thinking off rides as two keys and drop_params must keep both. `openai/`
-            // passes the body on (vLLM and llama-server read chat_template_kwargs; a coordinator peer
-            // running Ollama needs `think`); `ollama_chat/` turns `think` into Ollama's own field.
+            // and `hosted_vllm/` pass the body on (vLLM and llama-server read chat_template_kwargs; a
+            // coordinator peer running Ollama needs `think`); `ollama_chat/` turns `think` into Ollama's
+            // own field.
             const before = seen.length;
             const answered = await completes(gp, model, { chat_template_kwargs: { enable_thinking: false }, think: false });
             const b = (seen[before] && seen[before].body) || {};
-            const kept = shape === 'openai/'
+            const kept = shape !== 'ollama_chat/'
                 ? !!b.chat_template_kwargs && b.chat_template_kwargs.enable_thinking === false && b.think === false
                 : b.think === false;
             console.log(`${answered && kept ? 'ok  ' : 'FAIL'} ${shape} thinking off reaches the engine: ` +
