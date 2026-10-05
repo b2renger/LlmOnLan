@@ -6,6 +6,57 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-10-05 (09:25) — vLLM on the Windows PRO 6000: the WSL recipe, checked live through the farm (owner decision 10)
+
+- **Why vLLM's TCP port never answered under WSL2's mirrored networking:** vLLM 0.30 binds its port at
+  start-up, but only calls `listen()` once the model is loaded, 1.5–2.5 min later. Mirrored networking
+  stops forwarding a port left bound that long without listening. A plain Python socket reproduces it at
+  a 75 s gap; 12–15 s still works. No flag listens earlier.
+  - **The fix:** `farm/vllm/serve.sh` serves vLLM on a Unix socket behind `relay.py`, a ~50-line asyncio
+    TCP→socket relay. The relay binds **127.0.0.1 only**, so the LAN can't bypass the seat gate. The
+    same stdin-EOF watchdog stops both.
+  - No `.wslconfig` change and no `wsl --shutdown` were needed. Windows `curl :8100/v1/models` → 200 in
+    3 ms.
+- **The recipe** (`farm/vllm/`: `install.sh`, `serve.sh`, `stop.sh`, `relay.py`; farm/README "Serving
+  with vLLM on Windows (WSL2)"):
+  - **Model:** Qwen3.6-35B-A3B NVFP4.
+  - **`external`:** `parallel 48`, `contextLength 65536`, `vision true`. 48 is the spike's strictest
+    figure at 64k (everyone pressing Enter together). vLLM pages its KV cache, so a seat is admission,
+    not reserved memory.
+  - **50 GiB KV pool:** that leaves 19.8 GiB free at peak, so the OCR model fits (owner decision 6), and
+    the card stays at ~88.7 %, under the farm's 92 % eviction line.
+  - **Stopping:** all three ways leave nothing behind (killing the launcher, closing the window, and
+    `stop.sh`).
+- **Live through a scratch test farm** (its own ports, beacon and plugins off, a stub Ollama), the first
+  live check of `45d86c7`:
+  - The farm reads the pool vLLM logs exactly (4,313,303 tokens).
+  - 140 streams showed `busy` 128 and `queued` up to 8.
+  - The perf block shows ~51 tok/s per person and 4,171–6,508 tok/s all together.
+  - The pool warning fires at `parallel 96` ("68 can"), vision works, and an unhealthy server is followed
+    by "is back".
+  - Every metric name and label matches the fixture-based code.
+  - **Fixed:** the panel said "Generating now 128/48". vLLM counts requests and 48 is seats, so it now
+    says "N requests" for a vLLM.
+- **Stop on vLLM:** `test/litellm-cancel.js` gains `LOL_CANCEL_ENGINE=vllm`, and all 10 paths pass,
+  including **a non-streaming call abandoned while someone else streams**, the case llama.cpp b10670
+  fails.
+- **Thinking off reaches vLLM** through the farm's LiteLLM (`drop_params` on): 393 tokens, 984 characters
+  of reasoning and 2.1 s become 14 tokens, no reasoning and 96 ms. vLLM ignores `think:false`.
+- **One-box farms no longer cool their only deployment.**
+  - The farm sets `allowed_fails: 1` for fast failover between hosts, which puts LiteLLM on its legacy
+    cooldown path, past its own "never cool a single-deployment group" rule.
+  - Once, under 140 streams, two dropped connections answered "No deployments available, try again in
+    60 s" to everyone.
+  - `buildLitellmConfig` now sets `disable_cooldowns` when no served name has 2+ deployments; several
+    hosts and coordinator peers keep the cooldown.
+  - **Honest note:** a sequential repro (500s, or dropped connections, on LiteLLM 1.90 and 1.97) did NOT
+    lock out the next request, so the fix is defensive. LiteLLM accepts the key and starts fine, but its
+    effect on that exact failure is unproven.
+- **Open:** at 140 concurrent streams, LiteLLM adds 2.5–5 s per 200-token reply over going straight to
+  vLLM (7–10 s vs 4.7 s).
+- **Tests:** farm `npm test` **155/0** (the cooldown test, and the panel needle); the cancel check passes
+  in fake mode.
+
 ## 2026-10-05 (08:49) — Thinking off for structured calls (owner decision 9)
 
 - **Which flag reaches which engine** was measured, not assumed: a fake engine recorded what the farm's own

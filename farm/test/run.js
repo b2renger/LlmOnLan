@@ -59,6 +59,29 @@ test('litellm config = models × hosts deployments', () => {
     // work while an idle deployment takes it (the PAIR idea, inside LiteLLM).
     assert.equal(doc.router_settings.routing_strategy, 'least-busy');
     assert.equal(doc.litellm_settings.telemetry, false);
+    // Two hosts → somewhere to fail over to → the fast cooldown stays on.
+    assert.equal(doc.router_settings.allowed_fails, 1);
+    assert.ok(!('disable_cooldowns' in doc.router_settings));
+});
+
+test('litellm: a one-box farm never cools its only deployment (one glitch locked everyone out 60 s)', () => {
+    // allowed_fails puts LiteLLM on its legacy cooldown path, which ignores its own
+    // single-deployment rule — so with nowhere to fail over to, cooldowns are off.
+    const one = defaultConfig();
+    one.llamacpp.enabled = false;
+    one.models = [{ id: 'gemma4:12b', default: true }, { id: 'qwen3:8b' }];   // 2 models, ONE host each
+    assert.equal(buildLitellmConfig(one).router_settings.disable_cooldowns, true);
+    const ext = defaultConfig();
+    ext.external.enabled = true;
+    const doc = buildLitellmConfig(ext);
+    assert.equal(doc.model_list.filter((d) => d.model_name === ext.external.alias).length, 1);
+    assert.equal(doc.router_settings.disable_cooldowns, true);
+    // A coordinator peer adds a second deployment of the served name → failover → cooldown back on.
+    const coord = buildLitellmConfig(defaultConfig(), [{ openaiBaseUrl: 'http://peer:4000/v1', models: ['gemma4:12b'] }]);
+    const counts = {};
+    for (const d of coord.model_list) counts[d.model_name] = (counts[d.model_name] || 0) + 1;
+    assert.ok(Object.values(counts).some((n) => n > 1), 'the peer is a second deployment of the served name');
+    assert.ok(!('disable_cooldowns' in coord.router_settings));
 });
 
 test('litellm master_key only present when configured', () => {
@@ -2944,7 +2967,7 @@ test('external vLLM, end to end: a fake /metrics feeds capacity.busy/queued, the
             health: { hostsUp: 1, hostsTotal: 1, proxyUp: true, gpu, host: null },
             poolWarning: perfMod.poolShortfall(c.external.parallel, c.external.contextLength, p.kvPoolTokens),
         }));
-        for (const needle of ['<h2>Performance</h2>', '50 <small>tok/s while generating', 'Generating now <b>3/8</b>', 'Waiting <b>2</b>',
+        for (const needle of ['<h2>Performance</h2>', '50 <small>tok/s while generating', 'Generating now <b>3</b> requests', 'Waiting <b>2</b>',
             'Context memory used <b>42%</b>', 'Context memory <b>131,072 tokens</b>', 'All together <b>100 tok/s</b>',
             'Context cache hits <b>75%</b>', 'Draft tokens accepted <b>70%</b>', 'can&#39;t all hold their full window at once']) {
             assert.ok(html.includes(needle) || html.includes(needle.replace('&#39;', "'")), `card lost: ${needle}`);

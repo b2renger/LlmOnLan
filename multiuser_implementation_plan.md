@@ -1552,6 +1552,13 @@ These are recommendations, not decisions.
       lifecycle with the stdin-EOF watchdog and toolchain pins).
     - **ANSWERED (owner, 2026-10-04): managed on the Spark; on the PRO 6000, fix the TCP blocker, then
       operator-run `external` from a documented recipe.**
+    - **PRO 6000 part built 2026-10-05** (DEVLOG 09:25).
+      - The TCP blocker was vLLM binding its port ~2 min before listening. The fix: a loopback-only
+        TCP→socket relay.
+      - The recipe is `farm/vllm/` plus the README (Qwen3.6, 48 seats at 64k, a 50 GiB KV pool).
+      - Checked live through the farm: metrics, Stop, the thinking flag and vision.
+      - **Open:** LiteLLM adds 2.5–5 s per reply at 140 concurrent streams. The managed Spark engine
+        follows the Spark spike.
     - Recommendation was: managed on the Spark; on the PRO 6000, first fix the TCP blocker, then `external`
       with the recipe.
 11. **ComfyQ on the PRO 6000 (new).** These are ceiling numbers with ComfyUI stopped. With ComfyUI's

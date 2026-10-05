@@ -22,6 +22,13 @@
 //       node test/litellm-cancel.js
 //   LOL_CANCEL_ENGINE=ollama LOL_CANCEL_MODEL=<a pulled tag, e.g. granite4.2:8b>
 //       [LOL_CANCEL_OLLAMA=http://127.0.0.1:11434] [LOL_CANCEL_OLLAMA_LOG=<its server.log>] node test/litellm-cancel.js
+//   LOL_CANCEL_ENGINE=vllm [LOL_CANCEL_VLLM=http://127.0.0.1:8100/v1] node test/litellm-cancel.js
+//
+// vllm uses a server that is already running (farm/vllm/serve.sh) and its first served model. Its
+// evidence is /metrics, read after each abort (2 s and 3.5 s after it): requests running (0, or 1
+// while the other person streams; one more = a retry), tokens generated (nothing after +2 s when
+// alone), and requests that ran to max_tokens (none). vLLM's finished_reason="abort" counter does
+// not count a client that left (0.30.0, measured 2026-10-05), so it is not used.
 //
 // llamacpp starts its own llama-server (--parallel 2 --ctx-size 8192 --jinja) on a free port.
 // ollama uses the running daemon: it loads the model at the context Ollama picks and unloads
@@ -456,11 +463,91 @@ async function realTrial(E, gpu, label, t) {
         `${retried ? '; a NEW task started after it (a retry)' : ''}${util}${afterText}`);
 }
 
+async function vllmEngine() {
+    const base = (process.env.LOL_CANCEL_VLLM || 'http://127.0.0.1:8100/v1').replace(/\/+$/, '');
+    let model;
+    try { model = (await (await fetch(`${base}/models`)).json()).data[0].id; } catch { return { skip: `no vLLM answering at ${base}/models (start farm/vllm/serve.sh)` }; }
+    const metricsUrl = `${base.replace(/\/v1$/, '')}/metrics`;
+    const sum = (m, pred) => Object.keys(m).filter(pred).reduce((s, k) => s + m[k], 0);
+    const cfg = defaultConfig();
+    cfg.llamacpp.enabled = false;
+    cfg.external = { ...cfg.external, enabled: true, alias: 'cancel-test', baseUrl: base, model };
+    const u = new URL(base);
+    const direct = { host: u.hostname, port: Number(u.port) || 80, path: `${u.pathname}/chat/completions` };
+    return {
+        name: `vLLM ${model} at ${base}`,
+        doc: buildLitellmConfig(cfg),
+        trial: vllmTrial,
+        metrics: async () => {
+            const m = await fetchMetrics(metricsUrl);
+            if (!m) throw new Error(`no /metrics at ${metricsUrl}`);
+            return {
+                running: sum(m, (k) => k.startsWith('vllm:num_requests_running{')),
+                gen: sum(m, (k) => k.startsWith('vllm:generation_tokens_total{')),
+                length: sum(m, (k) => k.startsWith('vllm:request_success_total{') && k.includes('finished_reason="length"')),
+            };
+        },
+        trials: (lp, gp) => {
+            const via = (p) => ({ host: '127.0.0.1', port: p, path: '/v1/chat/completions' });
+            const stream = (to, m) => ({ ...to, body: openaiBody(m, true) });
+            return [
+                ['direct, stream (control: still generating 3 s in)', { ...stream(direct, model), holdMs: 3000 }],
+                ['direct, stream', stream(direct, model)],
+                ['direct, non-stream', { ...direct, body: openaiBody(model, false) }],
+                ['direct, non-stream while another person streams', { ...direct, body: openaiBody(model, false), side: stream(direct, model) }],
+                ['client → LiteLLM, stream', stream(via(lp), 'cancel-test')],
+                ['client → LiteLLM, non-stream', { ...via(lp), body: openaiBody('cancel-test', false) }],
+                ['client → seat gate → LiteLLM, stream', stream(via(gp), 'cancel-test')],
+                ['client → seat gate → LiteLLM, non-stream', { ...via(gp), body: openaiBody('cancel-test', false) }],
+                ['client → seat gate → LiteLLM, stream while another person streams', { ...stream(via(gp), 'cancel-test'), side: stream(via(gp), 'cancel-test') }],
+                ['client → seat gate → LiteLLM, non-stream while another person streams', { ...via(gp), body: openaiBody('cancel-test', false), side: stream(via(gp), 'cancel-test') }],
+            ];
+        },
+        close: async () => {},
+    };
+}
+
+// One vLLM trial: /metrics before, then 2 s and 3.5 s after the abort (see the header).
+async function vllmTrial(E, gpu, label, t) {
+    const say = (ok, text) => { console.log(`${ok ? 'ok  ' : 'FAIL'} ${label}: ${text}`); return ok; };
+    const settle = async (want) => { for (let i = 0; i < 300; i++) { if ((await E.metrics()).running <= want) return true; await sleep(200); } return false; };
+    if (!(await settle(0))) return say(false, 'the engine never went idle before the trial');
+    let side = null;
+    if (t.side) {   // another person streaming, started first
+        side = send(t.side);
+        let started = false;
+        for (let i = 0; i < 300 && !started; i++) { started = (await E.metrics()).running >= 1; if (!started) await sleep(200); }
+        if (!started) { side.req.destroy(); return say(false, 'the other person\'s stream never started'); }
+    }
+    const m0 = await E.metrics();
+    const r = send(t);
+    await sleep(t.holdMs || HOLD_MS);   // an idle vLLM starts in tens of ms
+    if (r.ended) { if (side) side.req.destroy(); return say(false, `it finished before the abort (HTTP ${r.status}) — the count is too short to test`); }
+    const abortAt = Date.now();
+    r.req.destroy();
+    await sleep(STOP_MS);
+    const m1 = await E.metrics();
+    await sleep(1500);   // a LiteLLM retry would be running here
+    const m2 = await E.metrics();
+    if (side) side.req.destroy();
+    await settle(0);
+    const want = side ? 1 : 0;
+    const g = gpu.history;
+    const before = [...g].reverse().find((s) => s.at <= abortAt);
+    const idle = !side && g.find((s) => s.at > abortAt && s.util <= IDLE_UTIL);
+    const util = before ? `; GPU ${before.util}% at the abort${side ? '' : `, ${idle ? `≤${IDLE_UTIL}% ${idle.at - abortAt} ms after` : 'never idle after'}`}` : '';
+    const ok = m1.running === want && m2.running === want && m2.length === m0.length && (side || m2.gen === m1.gen);
+    return say(ok, `requests running ${m1.running} at +2 s and ${m2.running} at +3.5 s (want ${want}); ` +
+        `${m1.gen - m0.gen} tokens generated from the send to +2 s${side ? ' (both people)' : ''}, ${m2.gen - m1.gen} after; ` +
+        `${m2.length - m0.length} ran to max_tokens${util}`);
+}
+
 async function realMain(cmd, version) {
     const kind = process.env.LOL_CANCEL_ENGINE;
     const E = kind === 'llamacpp' ? await llamacppEngine()
         : kind === 'ollama' ? await ollamaEngine()
-            : { skip: `LOL_CANCEL_ENGINE=${kind}: use llamacpp or ollama` };
+            : kind === 'vllm' ? await vllmEngine()
+                : { skip: `LOL_CANCEL_ENGINE=${kind}: use llamacpp, ollama or vllm` };
     if (E.skip) { console.log(`skipped: ${E.skip}`); return true; }
     if (E.fail) { console.log(`FAIL: ${E.fail}`); return false; }
     const gpu = gpuWatch();
@@ -470,7 +557,7 @@ async function realMain(cmd, version) {
     try {
         await stack.up();
         const results = [];
-        for (const [label, t] of E.trials(stack.lp, stack.gp)) results.push(await realTrial(E, gpu, label, t));
+        for (const [label, t] of E.trials(stack.lp, stack.gp)) results.push(await (E.trial || realTrial)(E, gpu, label, t));
         ok = results.every(Boolean);
         console.log(ok ? 'PASS: the engine stops generating when the client leaves' : 'FAIL: the engine kept generating for a client that left (see above)');
     } catch (e) {

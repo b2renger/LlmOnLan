@@ -177,6 +177,13 @@ function engineFallback(config, engine) {
 // proxies (each of which balances across its own Ollama) — one endpoint, whole
 // fleet, same failover. Empty in the normal single-box case.
 function buildLitellmConfig(config, peers = []) {
+    // True when some served name has 2+ deployments (several Ollama hosts, coordinator peers):
+    // only then can LiteLLM route around a failing one, so only then is a cooldown useful.
+    const hasFailover = (list) => {
+        const n = new Map();
+        for (const m of list) n.set(m.model_name, (n.get(m.model_name) || 0) + 1);
+        return [...n.values()].some((c) => c > 1);
+    };
     const provider = config.litellm.provider; // 'ollama_chat' | 'ollama'
     const model_list = [];
 
@@ -345,6 +352,14 @@ function buildLitellmConfig(config, peers = []) {
             allowed_fails: 1,
             // … and keep it out for a minute before retrying it.
             cooldown_time: 60,
+            // … but only where there is somewhere ELSE to go. Setting allowed_fails
+            // puts LiteLLM on its legacy cooldown path, which skips its own
+            // "never cool a single-deployment group" rule: one transient error then
+            // answered "No deployments available, try again in 60 s" to EVERY person
+            // on a one-box farm (seen live on an external vLLM, 2026-10-05). With no
+            // group of 2+ deployments (one box: llama.cpp, external, one Ollama host)
+            // there is nothing to fail over to, so no cooldown at all.
+            ...(hasFailover(model_list) ? {} : { disable_cooldowns: true }),
         },
         litellm_settings: {
             // Silently drop params a model doesn't support instead of erroring —

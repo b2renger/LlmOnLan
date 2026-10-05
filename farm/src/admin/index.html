@@ -373,7 +373,11 @@ function render(s) {
   // A vLLM's real KV pool against the declared seats x window (worded by the farm).
   if (s.poolWarning) perfWarns.push(s.poolWarning);
   const perfBits = [
-    perf && perf.busySlots != null ? `Generating now <b>${perf.busySlots}/${perf.totalSlots}</b>` : '',
+    // A vLLM counts requests, not seats: one person can run several, up to its --max-num-seqs
+    // (measured: "128/48" on a 48-seat farm), so it gets no seat denominator.
+    perf && perf.busySlots != null ? (perf.engine === 'vllm'
+      ? `Generating now <b>${perf.busySlots}</b> request${perf.busySlots === 1 ? '' : 's'}`
+      : `Generating now <b>${perf.busySlots}/${perf.totalSlots}</b>`) : '',
     perf && perf.queued ? `Waiting <b>${perf.queued}</b>` : '',
     // Reading speed (prefill) — was measured all along, never shown.
     perf && perf.lastPromptTokSec != null ? `Reading <b>${perf.lastPromptTokSec} tok/s</b>` : '',

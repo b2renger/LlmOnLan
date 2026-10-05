@@ -1,0 +1,116 @@
+#!/bin/bash
+# Serve a model with vLLM as a LlmOnLan farm's `external` engine. Operator-run: the farm routes to it and reads
+# its /metrics, but never starts or stops it (farm/README.md, "Serving with vLLM on Windows (WSL2)").
+# Keep it in the foreground of a window that stays open:
+#
+#   wsl -d Ubuntu -- bash /mnt/c/<path to the repo>/farm/vllm/serve.sh [extra vllm serve args...]   (Windows)
+#   bash farm/vllm/serve.sh [extra vllm serve args...]                                             (Linux)
+#
+# It serves http://127.0.0.1:$LOL_VLLM_PORT/v1 through relay.py, while vLLM itself listens on a Unix socket: under
+# WSL2's mirrored networking vLLM's own TCP port never answers (relay.py says why). Defaults: the Qwen3.6-35B-A3B
+# NVFP4 checkpoint install.sh downloads, a 64k window, up to 128 requests at once, and a 50 GiB KV pool sized for
+# a 96 GB card that also holds the farm's OCR model. Extra args go after the defaults, and a repeated flag keeps
+# its last value, so `serve.sh --kv-cache-memory-bytes 40000000000` overrides the pool.
+#
+# Stop it with Ctrl+C, by closing the window, or with `bash stop.sh`. When stdin closes (the window or wsl.exe
+# goes away), a watchdog stops the whole process group: vLLM, its EngineCore and the relay. Killing wsl.exe
+# alone leaves Linux processes running.
+#
+# Env: LOL_VLLM_ROOT (default ~/lol-vllm: venv, weights, logs), LOL_VLLM_PORT (8100), LOL_VLLM_MODEL (a checkpoint
+# folder or a Hugging Face repo id). Log: $LOL_VLLM_ROOT/logs/vllm.log.
+set -u
+ROOT="${LOL_VLLM_ROOT:-$HOME/lol-vllm}"
+PORT="${LOL_VLLM_PORT:-8100}"
+MODEL="${LOL_VLLM_MODEL:-$ROOT/hf/Qwen3.6-35B-A3B-NVFP4}"
+HERE="$(cd "$(dirname "$0")" && pwd)"
+if [ "$(ps -o pgid= -p $$ | tr -d ' ')" != "$$" ]; then
+  exec setsid --wait bash "$0" "$@"   # become a process-group leader, so stopping the group is exact
+fi
+PGID=$$
+[ -x "$ROOT/.venv/bin/vllm" ] || { echo "No vLLM in $ROOT/.venv: run install.sh first, or set LOL_VLLM_ROOT."; exit 1; }
+mkdir -p "$ROOT/logs" "$ROOT/run"
+LOG="$ROOT/logs/vllm.log"
+SOCK="$ROOT/run/vllm.sock"
+PGF="$ROOT/run/vllm.pgid"
+if [ -f "$PGF" ] && pgrep -g "$(cat "$PGF")" >/dev/null 2>&1; then
+  echo "A server from $ROOT is already running (process group $(cat "$PGF")): stop it first with stop.sh."; exit 1
+fi
+echo "$PGID" > "$PGF"
+rm -f "$SOCK"   # a socket file left by the last server makes the next bind fail (EADDRINUSE)
+{
+  echo "[serve] $(date -Is) host=$(hostname) pgid=$PGID port=$PORT model=$MODEL"
+  echo "[serve] GPU before start: $(nvidia-smi --query-gpu=memory.used,memory.total --format=csv,noheader 2>/dev/null | head -1)"
+} | tee -a "$LOG"
+
+exec 3<&0
+(
+  trap '' INT TERM HUP
+  while read -r -u 3 _; do :; done
+  echo "[watchdog] $(date -Is) stdin closed: stopping process group $PGID" >> "$LOG"
+  kill -TERM -- "-$PGID" 2>/dev/null
+  sleep 30
+  kill -KILL -- "-$PGID" 2>/dev/null
+) &
+WATCHDOG=$!
+
+# FlashInfer JIT-compiles kernels at first use (sm_120): it needs the venv's ninja and the pip CUDA toolkit's nvcc
+# on PATH, CUDA_HOME, and unversioned library names to link against (the pip toolkit ships only libcudart.so.13,
+# and the driver's libcuda.so lives in /usr/lib/wsl/lib on WSL). install.sh pins nvcc/crt/nvvm to the runtime.
+export PATH="$ROOT/.venv/bin:$PATH"
+CU=$(ls -d "$ROOT"/.venv/lib/python3*/site-packages/nvidia/cu1[0-9] 2>/dev/null | tail -1)
+SHIM="$ROOT/cudalib"; mkdir -p "$SHIM"
+if [ -n "$CU" ] && [ -x "$CU/bin/nvcc" ]; then
+  export CUDA_HOME="$CU" PATH="$CU/bin:$PATH"
+  for so in "$CU"/lib/lib*.so.[0-9]*; do b=$(basename "$so"); ln -sf "$so" "$SHIM/${b%%.so.*}.so"; done
+fi
+DRV_SO=$(ls /usr/lib/wsl/lib/libcuda.so.1 2>/dev/null || ldconfig -p | awk '/libcuda.so.1 /{print $NF; exit}')
+[ -n "$DRV_SO" ] && ln -sf "$DRV_SO" "$SHIM/libcuda.so"
+export FLASHINFER_EXTRA_LDFLAGS="-L$SHIM"
+[ -d "$MODEL" ] && export HF_HUB_OFFLINE="${HF_HUB_OFFLINE:-1}"   # local weights: never ask huggingface.co
+
+"$ROOT/.venv/bin/python" "$HERE/relay.py" 127.0.0.1 "$PORT" "$SOCK" >> "$LOG" 2>&1 < /dev/null 3<&- &
+RELAY=$!
+sleep 1
+if ! kill -0 "$RELAY" 2>/dev/null; then
+  echo "The relay could not listen on 127.0.0.1:$PORT (is the port in use?). See $LOG."
+  kill -KILL "$WATCHDOG" 2>/dev/null; rm -f "$PGF"; exit 1
+fi
+
+ARGS=(
+  --uds "$SOCK"
+  --served-model-name qwen3.6-35b-a3b
+  --max-model-len 65536
+  --max-num-seqs 128
+  --kv-cache-memory-bytes 53687091200   # 50 GiB (README: sizing). Never --gpu-memory-utilization: a fraction of
+                                        # TOTAL VRAM, and its start-up profiler aborts when Ollama loads beside it
+  --kv-cache-dtype fp8
+  --enable-prefix-caching --mamba-cache-mode align
+  --reasoning-parser qwen3
+  --enable-auto-tool-choice --tool-call-parser qwen3_xml
+)
+"$ROOT/.venv/bin/vllm" serve "$MODEL" "${ARGS[@]}" "$@" >> "$LOG" 2>&1 < /dev/null 3<&- &
+VLLM=$!
+tail -n 0 -f --pid="$VLLM" "$LOG" 3<&- &
+(
+  until curl -sf -o /dev/null -m 5 --unix-socket "$SOCK" http://localhost/health; do
+    kill -0 "$VLLM" 2>/dev/null || exit
+    sleep 3
+  done
+  echo "[serve] $(date -Is) ready: http://127.0.0.1:$PORT/v1" >> "$LOG"
+) 3<&- &
+
+stop_server() {
+  trap '' INT TERM HUP
+  echo "[serve] $(date -Is) stopping" >> "$LOG"
+  kill -TERM "$VLLM" "$RELAY" 2>/dev/null
+  for _ in $(seq 1 30); do kill -0 "$VLLM" 2>/dev/null || break; sleep 1; done
+}
+trap stop_server INT TERM HUP
+wait "$VLLM"; rc=$?
+kill -TERM "$RELAY" 2>/dev/null
+sleep 1
+for p in $(pgrep -g "$PGID"); do [ "$p" != "$$" ] && kill -KILL "$p" 2>/dev/null; done   # EngineCore, watchdog, tail
+rm -f "$SOCK" "$PGF"
+msg="[serve] $(date -Is) vLLM exited (status $rc); the relay and the watchdog are stopped."
+echo "$msg" >> "$LOG"; echo "$msg" 2>/dev/null   # the log first: the window may already be gone
+exit "$rc"

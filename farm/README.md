@@ -181,6 +181,116 @@ default model is named by its own `alias` (the panel's **Rename**), else the glo
 > The shipped default quant (`UD-IQ2_S`) is one of those, so `mtp` defaults to **false**. Turn it on only
 > together with a `UD-Q2_K_XL`-or-above `model`.
 
+## Serving with vLLM on Windows (WSL2)
+
+On a big card, vLLM serves far more people than llama.cpp. On the studio's RTX PRO 6000 (96 GB), the spike
+([docs/spike/RESULTS.md](../docs/spike/RESULTS.md)) measured Qwen3.6-35B-A3B NVFP4 on vLLM at **96–128 people
+at 32k of context each, 48–64 at 64k and 32–40 at 128k**. The best llama.cpp configuration served 4–8 people at
+32k. vLLM runs only on Linux, so on Windows it runs in WSL2, **operator-run** as the farm's
+[`external`](#config--lolconfigjson) engine (owner, 2026-10-04): you start it, and the farm routes to it and
+reads its `/metrics`, but never installs, starts or stops it. The scripts are in `farm/vllm/`. Every step below
+was run on that box on 2026-10-05.
+
+**You need:** Windows 11 with WSL2 Ubuntu, the NVIDIA driver (the Windows one is enough), about 40 GB of disk
+in WSL (the 23.5 GB model plus the venv), and [uv](https://docs.astral.sh/uv/) in WSL
+(`curl -LsSf https://astral.sh/uv/install.sh | sh`). Below, `<repo>` is this repository seen from WSL, e.g.
+`/mnt/c/Users/<you>/LlmOnLan`.
+
+1. **Install, once** (about 15 min plus the download). This installs vLLM 0.30.0, the version measured, into
+   `~/lol-vllm/.venv`, pins the CUDA compiler packages that FlashInfer's kernel build needs on this card, and
+   downloads `nvidia/Qwen3.6-35B-A3B-NVFP4` into `~/lol-vllm/hf/`. Run it again to resume or repair.
+   ```powershell
+   wsl -d Ubuntu -- bash <repo>/farm/vllm/install.sh
+   ```
+2. **Start vLLM before the farm**, in a window you leave open:
+   ```powershell
+   wsl -d Ubuntu -- bash <repo>/farm/vllm/serve.sh
+   ```
+   The first start compiles kernels (~3 min); later starts take ~1.5 min. It is ready when the window prints
+   `[serve] … ready: http://127.0.0.1:8100/v1`. Check it from Windows with
+   `curl http://127.0.0.1:8100/v1/models`. Before that line, a connection to 8100 is accepted and closed at once,
+   so the farm sees the server as down.
+3. **Point the farm at it**, then restart the farm. With the Farm app, the file is
+   `%APPDATA%\LlmOnLan Farm\farm\lol.config.json`: quit and reopen the app after editing it. If vLLM is not
+   answering when the farm starts, the farm serves with its built-in engine for that whole run. Start vLLM
+   first, or restart the farm once vLLM is up.
+   ```json
+   "external": {
+     "enabled": true,
+     "alias": "assistant",
+     "baseUrl": "http://127.0.0.1:8100/v1",
+     "model": "qwen3.6-35b-a3b",
+     "contextLength": 65536,
+     "parallel": 48,
+     "vision": true,
+     "label": "Qwen3.6-35B-A3B (vLLM)"
+   }
+   ```
+4. **Stop it** in one of three ways: close the vLLM window, press Ctrl+C in it, or run
+   `wsl -d Ubuntu -- bash <repo>/farm/vllm/stop.sh`. A watchdog in `serve.sh` then stops vLLM, its EngineCore
+   process and the relay together, because killing `wsl.exe` alone leaves Linux processes running and holding
+   the GPU. Check that `nvidia-smi` is back to the desktop's ~1.5 GB. A running farm notices within 10 s and goes
+   unhealthy, so clients fail over. When vLLM answers again, the farm serves it again with no restart.
+
+`serve.sh` takes `LOL_VLLM_ROOT` (default `~/lol-vllm`), `LOL_VLLM_PORT` (8100) and `LOL_VLLM_MODEL`. Any
+arguments you add go to `vllm serve` after its defaults, and a repeated flag keeps its last value. The log is
+`~/lol-vllm/logs/vllm.log`. Other models from the spike also work: `bash install.sh <repo id>`, then
+`LOL_VLLM_MODEL=~/lol-vllm/hf/<name> bash serve.sh --served-model-name <name> …` with that model's parsers from
+[RESULTS.md](../docs/spike/RESULTS.md#exact-install-and-launch-commands-that-worked). Nemotron 3.5 Lightning
+has no vision, so set `"vision": false` for it.
+
+**Why there is a relay.** Under WSL2's mirrored networking (`networkingMode=mirrored` in `.wslconfig`), vLLM's
+own TCP port never answers. vLLM binds its port when it starts but only listens once the model is loaded,
+1.5–2.5 min later, and mirrored networking stops forwarding a port that has been bound that long without
+listening. SYNs then time out from WSL, and Windows gets "connection refused", even though `ss` shows LISTEN.
+A plain Python socket reproduces it with a 75 s gap; with a 12–15 s gap it works. No vLLM flag changes when
+vLLM listens. So `serve.sh` runs vLLM on a Unix socket (`--uds`), and `relay.py`, which listens as soon as it
+binds, carries `127.0.0.1:8100` to that socket. Each connection is closed on both sides when either side
+leaves, so a person's Stop still aborts vLLM's request: streaming or not, alone or while others stream,
+through the seat gate and LiteLLM (`LOL_CANCEL_ENGINE=vllm node test/litellm-cancel.js`). The relay is harmless
+on native Linux.
+
+**Why 48 seats at 64k.** vLLM pages its KV cache, so a seat reserves no memory. A seat is admission: how many
+people the farm lets generate. The spike counts a person as served when the first word arrives within 5 s
+(p95) and the reply streams at 15 tok/s or more (p10).
+- **The window.** At 64k, 48 people pass even when everyone starts at once, and 64 pass in steady use, with
+  every person generating non-stop. Real people read and type between messages, and a seat stays held only
+  `proxy.seatIdleSec` after a person's last message, so 48 seats is the safe head count. Raise it toward 64 for
+  a class that does not type in sync.
+- **The client.** 64k keeps the client's whole-document mode on: it switches on at `contextPerSlot` ≥ 24576,
+  and an external server advertises its full `contextLength` per seat. It also leaves the coding agent room for
+  "Keep going", which asks for ≥ 16k tokens of output.
+- **The pool.** The KV pool holds 4,313,303 tokens, 65 full 64k windows, so the farm's pool warning (below)
+  stays quiet.
+- **Other shapes.** For a large class with short chats, use `contextLength: 32768, parallel: 96` and add
+  `--max-model-len 32768` to `serve.sh`. For long documents, use `131072` with `32`. A cold 128k prompt takes
+  ~8 s even alone (RESULTS.md, finding 8).
+- **Overflow.** vLLM runs up to 128 requests at once (`--max-num-seqs`) and queues the rest, so a burst waits
+  instead of failing.
+
+**Why a 50 GiB KV pool.** `--kv-cache-memory-bytes` is absolute. Never use `--gpu-memory-utilization`: it is a
+fraction of the card's total, and its start-up profiler aborts when Ollama loads a model beside it. Measured
+on the 96 GB card (97,887 MiB):
+- **vLLM itself.** Qwen3.6 needs 20.4 GiB of weights plus ~4 GiB of runtime at 64k and 128 requests.
+- **What vLLM leaves free.** The card holds 76,950 MiB idle, the Windows desktop included, and 77,587 MiB at
+  peak (140 streams, then 32 prompts of 36k tokens at once). That leaves ~19.8 GiB free.
+- **What that free memory holds.** It fits the OCR vision model (~9 GB, owner decision 6) with room to spare,
+  and with that model loaded the card stays under 92 %. Above 92 %, the farm unloads idle Ollama models, so the
+  OCR model would have to reload for each document.
+- **The cost.** The spike's 58 GiB left too little room for OCR. 50 GiB is ~14 % less pool, which costs
+  nothing here: on this model, speed and first-word time run out before the pool does (RESULTS.md, finding 5).
+
+To size the pool for another card or a co-tenant, use:
+`pool ≈ 0.92 × card − (weights + ~4 GiB) − desktop − OCR model − anything else resident at its peak`
+(read the last term from `nvidia-smi` while that app works). Pass the result as `--kv-cache-memory-bytes`. With
+ComfyUI's ~45 GB still on this card, about 8 GiB remains: ~0.7M tokens, or ~10 people at 64k. In that case,
+lower `parallel` to what the farm's pool warning says fits, or move ComfyUI or OCR to another box.
+
+**Thinking.** Qwen3.6 thinks by default. The client turns thinking off for its structured calls with
+`chat_template_kwargs: {"enable_thinking": false}` and also sends `think: false`, which vLLM ignores.
+LiteLLM's `drop_params` passes both through. Measured through the farm, one short answer took 393 completion
+tokens with thinking and 14 without.
+
 ## Adding or changing models
 
 **The panel is the normal way.** Open `http://<box>:41997/lol/admin` (the Farm app shows it as its own
@@ -755,7 +865,9 @@ build for Blackwell cards (16 GB+); replace it freely.
   reason in the panel; dying later → the farm goes unhealthy so clients fail over, exactly like a dead
   llama-server. `contextLength`/`parallel` are declarations, not measurements (no portable endpoint
   reports them), and they size the client's whole-document gate and the seat count — so get them right.
-  There is no panel switch for this one: set `enabled` in `lol.config.json` and restart the farm.
+  There is no panel switch for this one: set `enabled` in `lol.config.json` and restart the farm. A tested
+  vLLM recipe for a Windows box is in
+  [Serving with vLLM on Windows (WSL2)](#serving-with-vllm-on-windows-wsl2).
 
   **When the server is a vLLM** (its `/metrics`, at `baseUrl` without the `/v1`, carries `vllm:`
   series — nothing to configure), the farm reads it on the health tick it already runs: the
@@ -872,6 +984,14 @@ stops, timed by the engine's own task log:
   afterwards.
 - `LOL_CANCEL_ENGINE=llamacpp LOL_CANCEL_LLAMA_SERVER=<exe> LOL_CANCEL_GGUF=<file>` starts its own
   llama-server.
+- `LOL_CANCEL_ENGINE=vllm [LOL_CANCEL_VLLM=http://127.0.0.1:8100/v1]` uses a vLLM that is already running
+  (`farm/vllm/serve.sh`). Its evidence is vLLM's `/metrics`, read 2 s and 3.5 s after each abort: requests
+  running, tokens generated, and requests that ran to `max_tokens`.
+
+Measured 2026-10-05: **vLLM 0.30.0** (Qwen3.6, through `farm/vllm/relay.py`) stops on all 10 paths. That
+covers streaming and not, direct, through LiteLLM, and through the seat gate, both alone and while another
+person streams. Alone, the GPU idles 0.2–0.6 s after the abort and no token follows. While someone else streams,
+only their request is left running.
 
 Measured 2026-10-04:
 
