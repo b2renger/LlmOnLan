@@ -3042,6 +3042,69 @@ test('capacity.mine: unicast /lol/self says whether the CALLER holds a seat; the
     }
 });
 
+// ---- the snapshot contract (multi-user plan 4.4) ---------------------------
+// contract/snapshot.schema.json describes the beacon and GET /lol/self. No JSON Schema validator is
+// a farm dependency, so this is the smallest one for the subset the schema uses: type, enum,
+// required, properties, additionalProperties, items and a local $ref. Returns the problems found.
+function schemaErrors(schema, value, root = schema, at = '$') {
+    if (schema.$ref) return schemaErrors(root.$defs[schema.$ref.split('/').pop()], value, root, at);
+    const kind = value === null ? 'null' : Array.isArray(value) ? 'array' : Number.isInteger(value) ? 'integer' : typeof value;
+    const types = [].concat(schema.type || []);
+    if (types.length && !types.includes(kind) && !(kind === 'integer' && types.includes('number'))) return [`${at}: ${kind}, expected ${types.join(' or ')}`];
+    if (schema.enum && !schema.enum.includes(value)) return [`${at}: ${JSON.stringify(value)} is not one of ${schema.enum.join(', ')}`];
+    const errs = [];
+    if (kind === 'array' && schema.items) value.forEach((v, i) => errs.push(...schemaErrors(schema.items, v, root, `${at}[${i}]`)));
+    if (kind === 'object') {
+        for (const k of schema.required || []) if (!(k in value)) errs.push(`${at}.${k}: missing`);
+        for (const [k, v] of Object.entries(value)) {
+            const sub = Object.hasOwn(schema.properties || {}, k) ? schema.properties[k] : schema.additionalProperties;
+            if (sub === false) errs.push(`${at}.${k}: not in the schema`);
+            else if (sub && sub !== true) errs.push(...schemaErrors(sub, v, root, `${at}.${k}`));
+        }
+    }
+    return errs;
+}
+const SNAPSHOT_SCHEMA = require('../contract/snapshot.schema.json');
+const contractExamples = require('../contract/examples');
+
+test('contract: every engine\'s snapshot, and what farm-v0.0.41 sent, match contract/snapshot.schema.json', () => {
+    const all = contractExamples();
+    // "not in the schema": a new field goes into contract/snapshot.schema.json, optional, with who reads it.
+    for (const { label, snap } of all) {
+        const errs = schemaErrors(SNAPSHOT_SCHEMA, snap);
+        assert.deepEqual(errs, [], `${label}: ${errs.join('; ')}`);
+    }
+    // The examples cover what they claim: each engine, a password, a coordinator, GET /lol/self and the beacon.
+    assert.deepEqual([...new Set(all.map((e) => e.snap.backend.engine))].sort(), ['external', 'llama.cpp', 'ollama']);
+    assert.ok(all.some((e) => e.snap.requiresKey) && all.some((e) => e.snap.coordinator));
+    assert.ok(all.some((e) => e.snap.capacity.mine === true) && all.some((e) => !('mine' in e.snap.capacity)));
+    // farm-v0.0.41 passing is what keeps `required` honest: a field made required that an old farm
+    // does not send would cut every client off from that farm.
+    assert.ok(all.some((e) => e.snap.version === '0.0.41'));
+});
+
+test('contract: a field the schema does not declare fails, so a new one is added on purpose', () => {
+    const snap = require('../contract/snapshot.farm-v0.0.41.json');   // frozen, so only the checker is under test
+    assert.deepEqual(schemaErrors(SNAPSHOT_SCHEMA, { ...snap, contractVersion: 2 }), ['$.contractVersion: not in the schema']);
+    assert.deepEqual(schemaErrors(SNAPSHOT_SCHEMA, { ...snap, capacity: { ...snap.capacity, metrics: {} } }), ['$.capacity.metrics: not in the schema']);
+    const { name, ...nameless } = snap;
+    assert.deepEqual(schemaErrors(SNAPSHOT_SCHEMA, nameless), ['$.name: missing']);
+    assert.deepEqual(schemaErrors(SNAPSHOT_SCHEMA, { ...snap, capacity: { ...snap.capacity, slots: '2' } }), ['$.capacity.slots: string, expected integer']);
+    assert.deepEqual(schemaErrors(SNAPSHOT_SCHEMA, { ...snap, backend: { ...snap.backend, engine: 'vllm' } }), ['$.backend.engine: "vllm" is not one of ollama, llama.cpp, external']);
+    assert.deepEqual(schemaErrors(SNAPSHOT_SCHEMA, { ...snap, extract: { key: null } }), ['$.extract.url: missing'], 'through the $ref');
+    assert.deepEqual(schemaErrors(SNAPSHOT_SCHEMA, { ...snap, models: [{ id: 'a' }, { default: true }] }), ['$.models[1].id: missing']);
+    // Every property says who reads it (the schema is the one place a reader looks that up).
+    const undescribed = [];
+    const walk = (s, at) => {
+        for (const [k, p] of Object.entries(s.properties || {})) { if (!p.description) undescribed.push(`${at}.${k}`); walk(p, `${at}.${k}`); }
+        if (s.items) walk(s.items, `${at}[]`);
+        if (s.additionalProperties && typeof s.additionalProperties === 'object') walk(s.additionalProperties, `${at}.*`);
+    };
+    walk(SNAPSHOT_SCHEMA, '$');
+    for (const [k, d] of Object.entries(SNAPSHOT_SCHEMA.$defs)) walk(d, `$defs.${k}`);
+    assert.deepEqual(undescribed, []);
+});
+
 (async () => {
     for (const { name, fn } of tests) {
         try { await fn(); console.log(`  ok  ${name}`); passed++; }

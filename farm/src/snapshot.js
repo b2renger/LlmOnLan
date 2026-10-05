@@ -5,8 +5,9 @@
 //   • UDP beacon  (broadcast/multicast, M3)
 //   • GET /lol/self  (unicast HTTP fallback for broadcast-blocked LANs, M3)
 //
-// Shape (v=1): { v, id, name, proxyPort, ips, endpoint, openaiBaseUrl,
-//                requiresKey, models, healthy, version, ts }
+// Shape (v=1): contract/snapshot.schema.json. Its required fields are what a client
+// cannot work without; a new field goes there, optional and with who reads it, or
+// test/run.js fails (multi-user plan 4.4). Farms are updated by hand, so clients meet old ones.
 
 const { lanAddresses, primaryAddress, serviceHosts } = require('./net');
 const { servedEntries } = require('./litellm');

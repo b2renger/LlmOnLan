@@ -1,20 +1,21 @@
 // Shared types for the shell's main process + the renderer IPC contract.
 
-// The discovery snapshot a farm advertises (UDP beacon / GET /lol/self). Mirrors
-// farm/src/snapshot.js buildSnapshot() — keep the two in sync.
+// The discovery snapshot a farm advertises (UDP beacon / GET /lol/self). The contract is
+// farm/contract/snapshot.schema.json: only its required fields are non-optional here, because
+// clients meet farms of every age (test/chat/unit/farm-contract.test.mjs reads them).
 export interface FarmSnapshot {
     v: number;
     id: string;
     name: string;
     proxyPort: number;
     httpPort?: number;       // admin/discovery HTTP port → the /lol/admin page lives here
-    ips: string[];
-    endpoint: string;        // http://<ip>:<proxyPort>
+    ips?: string[];
+    endpoint?: string;       // http://<ip>:<proxyPort>
     openaiBaseUrl: string;   // http://<ip>:<proxyPort>/v1  — exactly what OWUI wants
     requiresKey: boolean;
     models: { id: string; default?: boolean; underlying?: string }[];
     healthy: boolean;
-    version: string;
+    version?: string;
     health?: {
         proxyUp: boolean | null;
         hostsUp: number | null;
@@ -61,7 +62,7 @@ export interface FarmSnapshot {
     // Client-side plugins (e.g. "blender") the farm RECOMMENDS — the client auto-applies
     // what it can run (see applyFarmRecommendations); the farm can't run them itself.
     recommendedClientPlugins?: string[];
-    ts: number;
+    ts?: number;
 }
 
 // A farm in the shell's discovered map, annotated with how/when we saw it.

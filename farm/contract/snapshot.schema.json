@@ -1,0 +1,164 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "LlmOnLan farm snapshot",
+  "description": "What a farm advertises: the UDP beacon and GET /lol/self send this same object (farm/src/snapshot.js buildSnapshot). Required = what a client cannot work without; everything else is optional, because farms are updated by hand and the field runs mixed versions, and readers skip what they do not know. Checked by farm/test/run.js (a field missing here fails) and shell/test/chat/unit/farm-contract.test.mjs (the client reads today's farm, farm-v0.0.41 and the required fields alone).",
+  "type": "object",
+  "required": ["v", "id", "name", "proxyPort", "openaiBaseUrl", "requiresKey", "models", "healthy"],
+  "additionalProperties": false,
+  "properties": {
+    "v": { "type": "integer", "description": "Shape version, 1 since the first farm. The client's discovery and the coordinator's peer listener drop a snapshot without it." },
+    "id": { "type": "string", "description": "The farm's stable id (farm/.lol-id). The client keys its farm list, the pin and stored passwords by it; the coordinator tells peers apart by it." },
+    "name": { "type": "string", "description": "The farm's name. The client's farm cards, pill and list order; lol fleet." },
+    "proxyPort": { "type": "integer", "description": "The OpenAI port (the seat gate). The client builds Open WebUI's and LOL Vibe's base URL from the address it reached plus this port (farmSelect.ts farmEndpoint)." },
+    "httpPort": { "type": "integer", "description": "Where /lol/self, /lol/plugin-keys and /lol/admin live. The client's polls, plugin-key fetch and Manage this farm button; 41997 when absent." },
+    "ips": { "type": "array", "items": { "type": "string" }, "description": "The farm's LAN addresses. Informational; no reader yet." },
+    "endpoint": { "type": "string", "description": "The OpenAI root at the farm's primary address. The client files a beacon under this host (discovery.ts endpointHost)." },
+    "openaiBaseUrl": { "type": "string", "description": "endpoint + /v1. The coordinator routes to a peer through it (up.js); lol fleet prints it. The client builds its own from the address it reached." },
+    "requiresKey": { "type": "boolean", "description": "A farm password is set. The client asks for it once and sends it as the Bearer; the coordinator skips such peers. Absent reads as an open farm." },
+    "models": {
+      "type": "array",
+      "description": "The served names (the /v1/models ids). The client's DEFAULT_MODELS and LOL Vibe's picker; the coordinator routes a peer's models.",
+      "items": {
+        "type": "object",
+        "required": ["id"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string", "description": "The served name a chat binds to." },
+          "underlying": { "type": "string", "description": "The real weights behind it. Farm cards and LOL Vibe's picker." },
+          "default": { "type": "boolean", "description": "The model clients select by default (Open WebUI's DEFAULT_MODELS, LOL Vibe)." }
+        }
+      }
+    },
+    "healthy": { "type": "boolean", "description": "Proxy and engine are up. The client only connects to a healthy farm by itself; the coordinator skips unhealthy peers." },
+    "version": { "type": "string", "description": "The Farm app's release (LOL_FARM_VERSION), else farm/package.json. lol fleet prints it." },
+    "coordinator": { "type": "boolean", "description": "This farm balances its peers. The client prefers it (farmSelect.ts pickLeastLoaded); a coordinator never aggregates another." },
+    "searxngUrl": { "type": ["string", "null"], "description": "The shared SearXNG, null when off or down. Open WebUI's web search (configBridge.ts); the farm card's web search tag." },
+    "ttsUrl": { "type": ["string", "null"], "description": "The shared Kokoro, /v1 included, null when off or down. Open WebUI's AUDIO_TTS_* and the Computer's Speak box." },
+    "ttsVoice": { "type": ["string", "null"], "description": "Kokoro's voice. Open WebUI's AUDIO_TTS_VOICE (af_heart when null)." },
+    "ttsModel": { "type": ["string", "null"], "description": "Kokoro's model. Open WebUI's AUDIO_TTS_MODEL (kokoro when null)." },
+    "extract": { "$ref": "#/$defs/service", "description": "The OCR loader. Open WebUI's EXTERNAL_DOCUMENT_LOADER_* and the Computer's Document box." },
+    "classify": { "$ref": "#/$defs/service", "description": "The Laya service. The Computer's Classify box." },
+    "stt": { "$ref": "#/$defs/service", "description": "Speech to text (POST {url}/v1/audio/transcriptions). The Computer's Sound box, in Listen mode." },
+    "bus": {
+      "type": ["object", "null"],
+      "description": "The message bus, null when off or down. The Computer's Receive, Send and Trigger boxes talk to its WebSocket hub.",
+      "required": ["ws"],
+      "additionalProperties": false,
+      "properties": {
+        "mqtt": { "type": "string", "description": "mqtt://host:port, for boards." },
+        "ws": { "type": "string", "description": "ws://host:port, the hub the Computer uses (net/bus.mjs)." },
+        "osc": { "type": "string", "description": "udp://host:port, the OSC relay." },
+        "auth": { "type": "boolean", "description": "The farm password is required on the bus. The password itself is never here." }
+      }
+    },
+    "plugins": {
+      "type": "object",
+      "description": "Farm plugin states by id (websearch, tts, ocr, bus, classify, stt). The client's farm cards.",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "label": { "type": "string", "description": "What the card shows." },
+          "runsOn": { "type": "string", "description": "farm (client plugins are recommendedClientPlugins)." },
+          "enabled": { "type": "boolean", "description": "Turned on in lol.config.json." },
+          "healthy": { "type": "boolean", "description": "Running and answering; the card says starting otherwise." }
+        }
+      }
+    },
+    "recommendedClientPlugins": { "type": "array", "items": { "type": "string" }, "description": "Client plugins the farm recommends (blender). The client turns one on unless a person chose (index.ts applyFarmRecommendations)." },
+    "deployments": { "type": ["integer", "null"], "description": "Balanced deployments behind the endpoint (hosts and peers). Farm cards and lol fleet." },
+    "health": {
+      "type": "object",
+      "description": "Proxy and Ollama host detail. Farm cards (hosts up) and lol fleet.",
+      "additionalProperties": false,
+      "properties": {
+        "proxyUp": { "type": ["boolean", "null"], "description": "LiteLLM answers." },
+        "hostsUp": { "type": ["integer", "null"], "description": "Ollama hosts that answer." },
+        "hostsTotal": { "type": ["integer", "null"], "description": "Ollama hosts in the config." },
+        "loaded": { "type": "array", "items": { "type": "string" }, "description": "Models in VRAM." }
+      }
+    },
+    "host": {
+      "type": ["object", "null"],
+      "description": "The box's hardware, detected at boot. Farm cards and lol fleet.",
+      "additionalProperties": false,
+      "properties": {
+        "gpu": { "type": "string", "description": "GPU name." },
+        "vramGb": { "type": "number", "description": "GPU memory." },
+        "ramGb": { "type": "number", "description": "System memory." },
+        "cpuCores": { "type": "integer", "description": "CPU threads." }
+      }
+    },
+    "usage": {
+      "type": "object",
+      "description": "Live GPU use and connected clients. Farm cards; GPU % is the client's load figure for farms without capacity (farmSelect.ts farmLoad).",
+      "additionalProperties": false,
+      "properties": {
+        "gpuUtil": { "type": ["number", "null"], "description": "GPU use in %." },
+        "vramUsedGb": { "type": ["number", "null"], "description": "GPU memory in use." },
+        "vramTotalGb": { "type": ["number", "null"], "description": "GPU memory in all." },
+        "loaded": { "type": "array", "items": { "type": "string" }, "description": "Models in VRAM." },
+        "clients": { "type": ["integer", "null"], "description": "Desktop clients heartbeating this farm (absent before presence)." }
+      }
+    },
+    "backend": {
+      "type": ["object", "null"],
+      "description": "The engine that answers and its context window (absent before farm-v0.0.22). Farm cards; contextPerSlot sets Open WebUI's document mode (configBridge.ts) and LOL Vibe's context budget.",
+      "additionalProperties": false,
+      "properties": {
+        "engine": { "enum": ["ollama", "llama.cpp", "external"], "description": "Which engine serves. Farm cards; the Computer's takes (no audio on Ollama)." },
+        "alias": { "type": ["string", "null"], "description": "The served name of the default model." },
+        "model": { "type": ["string", "null"], "description": "The real weights. Farm cards." },
+        "baseUrl": { "type": "string", "description": "External engine only: the server the farm routes to." },
+        "contextLength": { "type": ["integer", "null"], "description": "The whole window; null until an automatic size is measured." },
+        "contextAuto": { "type": "boolean", "description": "The window is sized automatically." },
+        "contextPerSlot": { "type": ["integer", "null"], "description": "What one chat can count on when every seat is busy. The client's document mode and LOL Vibe's budget." },
+        "kvUnified": { "type": "boolean", "description": "llama.cpp only: the seats share one context pool." },
+        "slots": { "type": "integer", "description": "People served at once." },
+        "slotsVerified": { "type": "boolean", "description": "false when slots is what the config asked for, not what the engine does." },
+        "mtp": { "type": "boolean", "description": "llama.cpp multi-token prediction." },
+        "kvCacheType": { "type": ["string", "null"], "description": "Context-memory precision; null when unknown." }
+      }
+    },
+    "capacity": {
+      "type": ["object", "null"],
+      "description": "Seats (absent before farm-v0.0.36's seat gate). The client's pill and cards, its least-busy pick, LOL Vibe's and the Computer's seat-aware sending.",
+      "additionalProperties": false,
+      "properties": {
+        "slots": { "type": "integer", "description": "Seats in all (backend.slots)." },
+        "clients": { "type": "integer", "description": "Desktop clients connected; not seats." },
+        "seatsUsed": { "type": ["integer", "null"], "description": "Seats held now; null when the seat gate is off." },
+        "seatIdleSec": { "type": ["integer", "null"], "description": "A seat frees after this long without a generation; null when the gate is off." },
+        "busy": { "type": ["integer", "null"], "description": "Requests generating now, when the engine reports it (llama.cpp, vLLM)." },
+        "queued": { "type": ["integer", "null"], "description": "Requests waiting, when the engine reports it." },
+        "mine": { "type": "boolean", "description": "GET /lol/self only, since multi-user 1.6: the caller's address holds a seat. Never in the beacon; a client reads absent as no." }
+      }
+    },
+    "busy": {
+      "type": ["object", "null"],
+      "description": "The admin job in flight (a model switch, a download), null when none. Farm cards and LOL Vibe say why the farm went quiet.",
+      "additionalProperties": false,
+      "properties": {
+        "kind": { "type": "string", "description": "The job's kind." },
+        "label": { "type": "string", "description": "What the card and LOL Vibe show." },
+        "message": { "type": ["string", "null"], "description": "The current step." },
+        "percent": { "type": ["number", "null"], "description": "Progress, when known." }
+      }
+    },
+    "perf": { "type": ["object", "null"], "description": "Measured speed on llama.cpp or an external vLLM, null otherwise; its shape belongs to farm/src/perf.js. The admin panel; LOL Vibe's strip reads lastGenTokSec." },
+    "ts": { "type": "integer", "description": "When the farm built this snapshot (ms). Informational." }
+  },
+  "$defs": {
+    "service": {
+      "type": ["object", "null"],
+      "description": "A farm plugin's address and key, null when off or down. On a farm with a password key is null and keyId names the key a client fetches from /lol/plugin-keys.",
+      "required": ["url"],
+      "additionalProperties": false,
+      "properties": {
+        "url": { "type": "string", "description": "The service's base URL." },
+        "key": { "type": ["string", "null"], "description": "Its Bearer key; null on a farm with a password." },
+        "keyId": { "type": "string", "description": "The start of the key's sha256, so a client knows when to fetch again." }
+      }
+    }
+  }
+}

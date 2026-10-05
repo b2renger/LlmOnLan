@@ -1,0 +1,120 @@
+{
+  "v": 1,
+  "id": "6f1c2b0e-4a7d-4e55-9a0b-0d3c41e2a9f1",
+  "name": "LlmOnLan Farm",
+  "proxyPort": 4000,
+  "httpPort": 41997,
+  "ips": [
+    "10.0.0.5"
+  ],
+  "endpoint": "http://10.0.0.5:4000",
+  "openaiBaseUrl": "http://10.0.0.5:4000/v1",
+  "requiresKey": false,
+  "models": [
+    {
+      "id": "gemma4:12b",
+      "underlying": "gemma4:12b",
+      "default": true
+    }
+  ],
+  "healthy": true,
+  "version": "0.0.41",
+  "coordinator": false,
+  "searxngUrl": "http://10.0.0.5:8888",
+  "ttsUrl": null,
+  "ttsVoice": null,
+  "ttsModel": null,
+  "extract": {
+    "url": "http://10.0.0.5:8890",
+    "key": "ocr-key-example"
+  },
+  "classify": null,
+  "stt": null,
+  "bus": null,
+  "plugins": {
+    "websearch": {
+      "label": "Web search",
+      "runsOn": "farm",
+      "enabled": true,
+      "healthy": true
+    },
+    "tts": {
+      "label": "Voice (TTS)",
+      "runsOn": "farm",
+      "enabled": false,
+      "healthy": false
+    },
+    "ocr": {
+      "label": "Document OCR",
+      "runsOn": "farm",
+      "enabled": true,
+      "healthy": true
+    },
+    "bus": {
+      "label": "Message bus (MQTT · WebSocket · OSC)",
+      "runsOn": "farm",
+      "enabled": false,
+      "healthy": false
+    },
+    "classify": {
+      "label": "Classify (Laya)",
+      "runsOn": "farm",
+      "enabled": false,
+      "healthy": false
+    },
+    "stt": {
+      "label": "Speech to text",
+      "runsOn": "farm",
+      "enabled": false,
+      "healthy": false
+    }
+  },
+  "recommendedClientPlugins": [],
+  "deployments": 1,
+  "health": {
+    "proxyUp": true,
+    "hostsUp": 1,
+    "hostsTotal": 1,
+    "loaded": [
+      "gemma4:12b"
+    ]
+  },
+  "host": {
+    "gpu": "NVIDIA GeForce RTX 4070",
+    "vramGb": 12,
+    "ramGb": 64,
+    "cpuCores": 16
+  },
+  "usage": {
+    "gpuUtil": 7,
+    "vramUsedGb": 10.4,
+    "vramTotalGb": 12,
+    "loaded": [
+      "gemma4:12b"
+    ],
+    "clients": 3
+  },
+  "backend": {
+    "engine": "ollama",
+    "alias": "gemma4:12b",
+    "model": "gemma4:12b",
+    "contextLength": 32768,
+    "contextAuto": true,
+    "contextPerSlot": 32768,
+    "slots": 2,
+    "slotsVerified": true,
+    "mtp": false,
+    "kvCacheType": "q8_0"
+  },
+  "capacity": {
+    "slots": 2,
+    "clients": 3,
+    "seatsUsed": 1,
+    "seatIdleSec": 900,
+    "busy": null,
+    "queued": null
+  },
+  "busy": null,
+  "perf": null,
+  "ts": 1790577087000
+}

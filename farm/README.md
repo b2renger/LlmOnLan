@@ -722,7 +722,7 @@ get *"the farm is busy"*).
 
 | Route | Does |
 |---|---|
-| `GET /lol/self` | The discovery snapshot (open, CORS `*`), plus `capacity.mine` for the caller. |
+| `GET /lol/self` | The discovery snapshot (open, CORS `*`), plus `capacity.mine` for the caller. Its shape, and who reads each field: [`contract/snapshot.schema.json`](contract/snapshot.schema.json). |
 | `POST /lol/client-ping` | Client presence heartbeat (open). |
 | `GET /lol/admin` | The panel page (open — it asks for the token). |
 | `GET /lol/admin/state` | Everything the panel renders. |
@@ -1016,6 +1016,11 @@ build for Blackwell cards (16 GB+); replace it freely.
 npm test                      # unit tests for config, LiteLLM generation, snapshot, helpers
 node test/litellm-cancel.js   # does a person's Stop reach the engine? and thinking off? (starts a real LiteLLM, ~30 s)
 ```
+
+`npm test` checks the snapshot of every engine (`contract/examples.js`, which also holds what farm-v0.0.41
+sent) against `contract/snapshot.schema.json`, so a new snapshot field fails until it is declared there:
+optional, because farms are updated by hand and clients meet old ones, with a line on who reads it. The
+client reads the same examples in `shell/test/chat/unit/farm-contract.test.mjs`.
 
 `npm test` also runs `src/pysvc/check_services.py` — the Classify and speech-to-text services' refusals
 (key, size, busy), their queue bookkeeping and their stop-when-the-client-leaves, and the OCR service's
