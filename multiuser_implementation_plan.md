@@ -23,6 +23,16 @@ Items that need an owner decision are marked **DECISION**.
 
 §1b, Phase 0.6, Phase 2, 3.0, Phase 5 and §13 are rewritten accordingly.
 
+**Revision 4 (2026-10-05, owner answers).**
+
+- **ComfyQ moved** off the RTX PRO 6000 on 2026-10-04. The box is LLM-only, so the spike's exclusive-GPU
+  numbers are the real ones, not ceilings.
+- **Class size varies.** The owner caps it at **50 people**; most of the time it is **20–30**. The acceptance
+  test uses both (§12).
+- **"A5500" means the new card:** the Blackwell RTX PRO 5000 class, not the 2022 Ampere RTX A5500 (§8).
+- **The laptop study (4.3)** stays open but is low priority.
+- **The llama.cpp Stop bug** (0.0) goes upstream as an issue (approved).
+
 ---
 
 ## 0. Instructions for the coding agent
@@ -45,7 +55,8 @@ You are working in the LlmOnLan repository (`b2renger/LlmOnLan`). This file is a
 
 ## 1. Repository facts this plan relies on
 
-Verified against the code on 2026-10-04 (citations in the audit):
+Verified against the code on 2026-10-04, before Phase 0 (citations in the audit). Phase 0 changed some of
+it: unpinned LiteLLM, uncounted VRAM co-tenants, the ungated paths. §4a says what changed.
 
 - **Topology.**
   - The Electron client (`shell/`) has **three surfaces**: Open WebUI, **LOL Vibe** (named LOL Chat until
@@ -334,20 +345,31 @@ Items 2–4 cost days, not weeks. Items 1 and 6 cost about a week each (1: measu
 
 Revision 2 reorders v1 around measurement and the cheapest levers. Effort figures are rough.
 
-| Phase | Outcome | Effort | Status |
+| Phase | Outcome | Effort | Status (2026-10-05) |
 | --- | --- | --- | --- |
-| **0. Hardening + measurement** (new) | LiteLLM pinned and cancel proven. The gate checks the password before seating, refuses ungated generation paths, and sends an honest `Retry-After`. Plugin keys are persisted (no more OWUI reboots on farm restart). OCR gets a semaphore. Bench uses distinct source addresses and realistic load. A measured baseline exists: engines, slots, models, prompt cost per OWUI message. | 7–10 days | Ready |
-| 1. Seat gate v2 | Client fixes (1.6). Background-task and search cost (1.4) after measurement. The fair queue (1.2) only if adopted. ~~Identity (1.1)~~: **cut** by the owner. | 1 week core; +1 week with 1.2 | 1.2 and 1.4 are **DECISIONs** |
-| 2. vLLM engine | **In scope (owner, 2026-10-04).** The spike runs in Phase 0.6. Then a farm engine sized against its GPU co-tenants: on Spark natively, on the Windows PRO 6000 via WSL2. Managed or operator-run is decided from the spike. | 3–4 weeks after the spike | Ready after 0.6 |
-| 3. Several big boxes | One endpoint over several Sparks/PRO 6000s as the studio buys them. Scale-out on the small GPUs is **out** (owner). | ~1 week, when a second big box exists | Later |
-| 4. Distribution and contract | LAN model copy over plain HTTP; a minimal snapshot schema check. (v1's QVAC plugin swap and on-device fallback: recommended **cut**.) | 1–2 weeks | **DECISION** on cuts |
-| 5. Capacity table (the purchase tool) | Measured people-per-box at 32k/64k/128k for each box × engine × model, in `farm/README.md` and the panel. Roofline estimates, clearly marked, for hardware not owned (A5500-class, a second PRO 6000). | 3–5 days after the spike | After 0.6 |
-| Security | ~~Revocation~~ (no identity). Optional TLS. | 1 week | TLS is a **DECISION** |
+| **0. Hardening + measurement** (new) | LiteLLM pinned and cancel proven. The gate checks the password before seating, refuses ungated generation paths, and sends an honest `Retry-After`. Plugin keys are persisted (no more OWUI reboots on farm restart). OCR gets a semaphore. Bench uses distinct source addresses and realistic load. A measured baseline exists: engines, slots, models, prompt cost per OWUI message. | 7–10 days | **Built** (0.0–0.5, 0.7). 0.6 done on the PRO 6000; the Spark run is 2026-10-05 |
+| 1. Seat gate v2 | Client fixes (1.6). Background-task and search cost (1.4) after measurement. The fair queue (1.2) only if adopted. ~~Identity (1.1)~~: **cut** by the owner. | 1 week core; +1 week with 1.2 | 1.6 and the workshop setting **built**. 1.4 being measured. The fair queue only if refusals are frequent |
+| 2. vLLM engine | **In scope (owner, 2026-10-04).** The spike runs in Phase 0.6. Then a farm engine sized against its GPU co-tenants: on Spark natively, on the Windows PRO 6000 via WSL2. Managed or operator-run is decided from the spike. | 3–4 weeks after the spike | (a) **built**. The PRO 6000 `external` recipe **built** and checked live. Managed on the Spark after its spike |
+| 3. Several big boxes | One endpoint over several Sparks/PRO 6000s as the studio buys them. Scale-out on the small GPUs is **out** (owner). | ~1 week, when a second big box exists | Next, once the Spark serves (the PRO 6000 + the Spark make two big boxes) |
+| 4. Distribution and contract | LAN model copy over plain HTTP; a minimal snapshot schema check. | 1–2 weeks | 4.2 **cut**. 4.3 an open study, low priority. 4.4 in progress. 4.1 later |
+| 5. Capacity table (the purchase tool) | Measured people-per-box at 32k/64k/128k for each box × engine × model, in `farm/README.md` and the panel. Roofline estimates, clearly marked, for hardware not owned (the RTX PRO 5000 Blackwell class, a second PRO 6000). | 3–5 days after the spike | v1 **built** (PRO 6000, measured). Spark row 2026-10-05; PRO 5000 estimates in progress |
+| Security | ~~Revocation~~ (no identity). ~~TLS~~. | — | Both **cut** |
 | **Total** | Phase 0 with the spike: **~3 weeks**. The vLLM engine: +3–4 weeks. | | |
 
 ---
 
 ## 3. Current state and gaps
+
+> **This table is the state before Phase 0 (2026-10-04, morning).** Fixed since, on `multiuser-phase0`:
+> - The seat now comes after the password check, and every generation path is gated.
+> - LiteLLM is pinned, and a cancel reaches the engine.
+> - OCR is bounded and no longer logs filenames.
+> - Plugin keys persist, so farm restarts no longer reboot clients.
+> - The bench simulates distinct people.
+> - An external vLLM is read from its `/metrics`.
+> - The gate counts what people met (3.3).
+>
+> See §4a and the DEVLOG.
 
 The farm already has the right choke point: every generation passes through the seat gate on `proxy.port`, with LiteLLM on loopback behind it. Most multi-user work is small gate fixes, measurement and the fleet path, not a re-architecture. A new engine comes only if the measurements call for one.
 
@@ -384,8 +406,9 @@ Small fixes that need no policy decision, and the measurements every later choic
 >     someone else streams runs to its end**. Its disconnect check sits on a 1 s wait that every other
 >     request's result restarts (upstream `server-queue.cpp` `recv_with_timeout`, per the agent's reading
 >     of the source).
->   - Open: an upstream report or fix, then a pin bump. vLLM, the target engine, is not yet tested for
->     this (do it with the PRO 6000 recipe).
+>   - Open: an upstream report (approved by the owner 2026-10-05), then a pin bump.
+>   - **vLLM 0.30**, the target engine, stops on all 10 paths, including this one (2026-10-05,
+>     `LOL_CANCEL_ENGINE=vllm`).
 >
 > **0.6 is done on the RTX PRO 6000** (2026-10-04, 12:55–22:03; `docs/spike/RESULTS.md`; DEVLOG 2026-10-04 22:05).
 > vLLM 0.30 against llama.cpp b10670, Qwen3.6-35B-A3B / Nemotron 3.5 Lightning / Qwen3.8-27B, with the GPU
@@ -397,7 +420,8 @@ Small fixes that need no policy decision, and the measurements every later choic
 > - **vLLM beats llama.cpp 24–40×** on the same model. llama.cpp + Qwen3.8 serves 1 person.
 > - **Thinking off cost no quality on the 28-item gate**, at 5–9× fewer tokens.
 >
-> The Spark run is tomorrow (`docs/spike/SPARK_HANDOFF.md`).
+> The Spark run is on 2026-10-05, by a separate agent on the Spark (`docs/spike/SPARK_HANDOFF.md`).
+> ComfyQ moved off the PRO 6000 on 2026-10-04, so these exclusive-GPU numbers are the real ones.
 
 ### 0.0 Pin LiteLLM and prove that a cancel reaches the engine (moved from 1.3)
 
@@ -583,7 +607,7 @@ Options:
   recommendation.
 - Make it per-farm.
 
-**Before deciding,** count real 429s: the snapshot and panel have no counter today. If adopted:
+**Before deciding,** count real 429s. The 3.3 counters do that since 2026-10-04 (the panel's Clients card). If adopted:
 
 - **Queueing:**
   - One FIFO per identity, served round-robin.
@@ -637,7 +661,7 @@ pinging for 30 s), once 1.1 exists.
     search should stay `always` by default, given the injected pages.
 - **Coding agent:** its title call (≤ 64 tokens) belongs to the same lane. Disable it in the profile
   patch, or send it with the task header.
-- **Not via an on-device model** (v1's 4.3 is recommended cut).
+- **Not via an on-device model:** 4.3 is a separate, open study.
 
 ### 1.5 Plugins in the capacity budget — ANSWERED (owner, 2026-10-04): reserve ~9 GB for OCR on vLLM boxes
 
@@ -668,7 +692,7 @@ The owner decided not to reserve OCR room in auto context: it "would collapse ch
 >   bundle.
 > - The agent's window is clamped, and "Keep going" shrinks its reply room on small windows.
 > - Agent pages use `defaultModel`.
-> - Not yet run: the chat harness, after the spike frees the GPU.
+> - The chat harness passed **406/406**, perf 9/9, on 2026-10-05 (DEVLOG 08:30).
 
 From code reading; rig-check each.
 
@@ -708,7 +732,8 @@ the cancel.
 > - The KV pool is checked against `parallel × contextLength`, with a warning when the declared seats
 >   don't fit.
 > - Seats and `slotsVerified` are unchanged (2026-09-07a).
-> - Not yet run against a live vLLM: the spike will be the first.
+> - **Checked against a live vLLM on 2026-10-05** (DEVLOG 09:25), with the PRO 6000 recipe in `farm/vllm/`.
+>   The farm reads the exact pool vLLM logs, and `busy` and `queued` follow load.
 
 **Step 1, the spike (Phase 0.6).** It picks the model and flags per box, and shows how far llama.cpp
 gets.
@@ -970,11 +995,15 @@ when TTFT p95 < 5 s and 90 % of replies stream at ≥ 15 tok/s. vLLM 0.30, GPU e
 | RTX PRO 6000 96 GB | llama.cpp · Nemotron Q4_K_M (16 slots) | 4 / 8 | — | 0 / ≥ 4 | 26/28 (on) |
 | RTX PRO 6000 96 GB | llama.cpp · Qwen3.8 Q4_K_M | ≤ 1 | ≤ 1 | ≤ 1 | 26/28 (on) |
 | DGX Spark 128 GB | *the same matrix* | *run 2026-10-05* | | | |
-| RTX PRO 6000 + ComfyUI resident (~45 GB) | vLLM · Qwen3.6 | *estimated:* KV 58 → ~20 GiB, so ~14 people at 128k by capacity; throughput unchanged until KV binds, while ComfyUI is idle | | | |
+| ~~RTX PRO 6000 + ComfyUI resident (~45 GB)~~ | vLLM · Qwen3.6 | No longer applies: ComfyQ moved off the box on 2026-10-04. | | | |
 
 Reading it for a purchase:
 
 - **One PRO 6000 with vLLM serves a whole class or more at 32k**, and about 30–40 people at 128k.
+- **Against the owner's class sizes** (usually 20–30, at most 50):
+  - A usual class fits at **128k** each (32 people even when everyone presses Enter together).
+  - A full class of 50 fits at **64k** each (48 strictly, 64 once people are out of step).
+  - The farm's recipe declares 48 seats at 64k (`farm/vllm/`).
 - The Spark has ~15 % of its memory bandwidth. If the Spark run lands near that ratio, one PRO 6000-class
   card does the work of about 6 Sparks for these models, and the choice becomes **price per seat**. The
   Spark's extra memory only helps where KV binds: dense models, or 128k.
@@ -986,8 +1015,8 @@ Reading it for a purchase:
   in the panel.
 - **Hardware the studio is considering but doesn't own** (more Sparks, a second PRO 6000, an A5500-class
   card) gets a roofline estimate scaled from the measured box of the same family, always labelled
-  *estimated*. **DECISION:** which "A5500" is meant: the RTX A5500 (Ampere, 24 GB, ~768 GB/s) or a
-  Blackwell RTX PRO 5000-class card (48 GB)? The answer changes the estimate a lot.
+  *estimated*. **ANSWERED (owner, 2026-10-05):** "A5500" means **the new card**, the Blackwell RTX PRO 5000
+  class, not the Ampere RTX A5500 (24 GB).
 - The interactive planner below (v1's design) is built only if the table proves too coarse. It generalizes a capacity calculator (an earlier prototype: platform × model × KV precision × users slider → memory split bar, guaranteed context per user, per-user speed at peak, verdict, and a chart of context-per-user vs users across platforms) into a planner built into the farm. It runs offline from a shipped catalog and improves as `lol bench` adds local measurements.
 
 ### 5.1 Where it appears
@@ -1398,9 +1427,7 @@ llama.cpp alternative (Windows or before Phase 2), OWUI chat with Qwen3.8-27B:
 
 ## 12. Sequencing, effort and acceptance
 
-**Order:**
-
-**Order:**
+**Order** (status 2026-10-05 in the table):
 
 1. **Phase 0**: 0.0 pin + cancel, 0.1–0.4 leaks, 0.5 bench, **0.6 the engine × model spike**, 0.7 VRAM
    budget from free memory.
@@ -1413,44 +1440,46 @@ llama.cpp alternative (Windows or before Phase 2), OWUI chat with Qwen3.8-27B:
    - seats near the measured capacity (1.2), after the spike;
    - the web-search cost (1.4), measured first;
    - the OCR reserve (1.5), with Phase 2's sizing.
-6. **Phase 3** when a second big box arrives; 4.1 and 4.4 later.
-   - **Cut:** 1.1, 3.2, 4.2 and TLS.
-   - **4.3 (laptop model)** is an open study: run the harness on a few laptops first.
+6. **Phase 3** once the Spark serves beside the PRO 6000 (two big boxes); 4.4 now; 4.1 later.
+   - **Cut:** 1.1, 3.2, 4.2, revocation and TLS.
+   - **4.3 (laptop model)** is an open study, low priority: run the harness on a few laptops first.
 
-| Item | Depends on | Effort | Done when |
-| --- | --- | --- | --- |
-| 0.0 Pin LiteLLM, prove cancel reaches the engine | — | 1–2 days | LiteLLM pinned in `lol install`; a cancelled stream frees its **engine** slot within 1 s on a test farm |
-| 0.1–0.4 Password before seat, gated paths, persisted plugin keys, OCR semaphore | — | 3–4 days | A keyless POST gets 401 and no seat; a farm restart no longer restarts connected OWUIs; OCR vision calls are bounded and queued |
-| 0.5 Bench with distinct source addresses + realistic load | — | 1–2 days | `lol bench --users 8` holds 8 seats on a test farm |
-| 0.6 Engine × model spike | 0.0, 0.5 | ~1–1.5 weeks (vLLM venv in WSL2, Spark access, weights, quality gate) | One row per box × engine × model × context: people at TTFT p95 < 5 s and ≥ 15 tok/s, quality-gate result, VRAM; generations + prompt tokens per OWUI message |
-| 0.7 VRAM budget from free memory / co-tenant reserve | — | 1 day | llama.cpp auto context fits beside ComfyUI's resident ~45 GB |
-| 1.6 Client fixes | — | 2–3 days | Computer runs model boxes while holding its own seat on a full farm; a 429 costs no Cap; dsh doesn't self-retry 429 |
-| 3.0 Fleet path (coordinator capacity, static peers, peer-429, failover) | 0.6 | 1 week | A coordinator over N boxes (across subnets) advertises their summed slots; a client off a full farm moves only when idle |
-| 1.4 Background tasks (DECISION a/b/c) | 0.6 | ½ day (c) – 1 week (a, needs 1.2) | Main-lane generations per OWUI message drop to 1 (search query moved or off) |
-| ~~1.1 Per-install identity~~ | — | — | Cut (owner, 2026-10-04) |
-| 1.2 Fair queue (DECISION) | 1.1 | 1 week | No 429 below `queueMax`; queue depth shown in the shell; a queue survives a LiteLLM restart |
-| 1.5 Plugin budget (DECISION; critic: cut) | — | 2–3 days | Beside a non-Ollama engine, auto context leaves OCR's VRAM free |
-| 4.4 Snapshot schema check | — | 1–2 days | A farm unit test fails when `buildSnapshot()` drifts from the schema (the snapshot already has tests, `farm/test/run.js:856`) |
-| 2 (a) vLLM as integrated `external` | 0.6 | 1 week | Seats, Performance card and `capacity.busy/queued` from vLLM's `/metrics` |
-| 2.1–2.3 (b) Managed vLLM (DECISION from the spike) | 2 (a) | 2 weeks | `lol up` serves the spike's model on a Spark and in WSL2 on the PRO 6000, with fallback working |
-| 2.4–2.5 vLLM sizing and metrics | 2.1–2.3 | 1–2 weeks | Beacon `slots` matches vLLM's pool; Performance card live per engine |
-| 3.1 Cache affinity | 1.1, 3.0 | 1 week | Returning turns hit the prefix cache > 80 % in a two-box test |
-| 3.2 Overflow tier | 1.2 | 1 week | Saturated main model serves overflow within `triggerWaitSec` |
-| 3.3 Minimal metrics (429 count, peak seats, TTFT p95 in the snapshot) | — | 1–2 days | The panel shows them; no per-install labels |
-| 5 Measured capacity table (purchase tool) | 0.6 | 3–5 days | People-per-box at 32k/64k/128k for Spark and PRO 6000, measured; labelled estimates for boxes not owned |
-| 5.1–5.4 Interactive planner (only if the table is too coarse) | 5 table, 4.4 | 2–3 weeks | Golden tests pass on the studio's big boxes; estimates within ±25 % of local measurements |
-| 5.5 Planner learns from bench | 5.1–5.4, 0.5 | 3–4 days | Local bench points override catalog points in the panel |
-| 4.1 LAN model sharing (critic: defer) | 4.4 | 1–2 weeks | Second box installs from a peer with verified hashes |
-| Revocation (DECISION) | 1.1 B | 3 days | Revoked install refused |
-| TLS (DECISION; critic: cut) | — | 1 week+ | TLS works with OWUI's CA-file env and the three other trust stores |
-| ~~4.2 Plugin backends (QVAC)~~, ~~4.3 On-device fallback~~ | — | — | Recommended cut (DECISION) |
+| Item | Depends on | Effort | Done when | Status (2026-10-05) |
+| --- | --- | --- | --- | --- |
+| 0.0 Pin LiteLLM, prove cancel reaches the engine | — | 1–2 days | LiteLLM pinned in `lol install`; a cancelled stream frees its **engine** slot within 1 s on a test farm | **Built.** Ollama and vLLM stop on every path; llama.cpp misses one (upstream issue) |
+| 0.1–0.4 Password before seat, gated paths, persisted plugin keys, OCR semaphore | — | 3–4 days | A keyless POST gets 401 and no seat; a farm restart no longer restarts connected OWUIs; OCR vision calls are bounded and queued | **Built** |
+| 0.5 Bench with distinct source addresses + realistic load | — | 1–2 days | `lol bench --users 8` holds 8 seats on a test farm | **Built** (`--people`, `--cancel`, `--out`) |
+| 0.6 Engine × model spike | 0.0, 0.5 | ~1–1.5 weeks (vLLM venv in WSL2, Spark access, weights, quality gate) | One row per box × engine × model × context: people at TTFT p95 < 5 s and ≥ 15 tok/s, quality-gate result, VRAM; generations + prompt tokens per OWUI message | PRO 6000 **done**; Spark 2026-10-05; per-OWUI-message cost being measured |
+| 0.7 VRAM budget from free memory / co-tenant reserve | — | 1 day | llama.cpp auto context fits beside a co-tenant | **Built** |
+| 1.6 Client fixes | — | 2–3 days | Computer runs model boxes while holding its own seat on a full farm; a 429 costs no Cap; dsh doesn't self-retry 429 | **Built**; chat harness 406/406 |
+| 3.0 Fleet path (coordinator capacity, static peers, peer-429, failover) | 0.6 | 1 week | A coordinator over N boxes (across subnets) advertises their summed slots; a client off a full farm moves only when idle | Next, once the Spark serves |
+| 1.4 Background tasks | 0.6 | ½ day | Main-lane generations per OWUI message drop to 1 (search query off), if the measurement says so | Being measured (decision 4) |
+| ~~1.1 Per-install identity~~ | — | — | — | Cut (owner, 2026-10-04) |
+| 1.2 Workshop setting; fair queue only if needed | 3.3 | ½ day; +1 week for a queue | The seat hold is set live from the panel; a queue only if the 3.3 counts show frequent refusals | Workshop setting **built**; queue not needed so far |
+| 1.5 OCR reserve beside vLLM | 2 | — | vLLM's KV pool leaves the OCR model room | **Built** into the recipe (a 50 GiB pool leaves 19.8 GiB free) |
+| 4.4 Snapshot schema check | — | 1–2 days | A farm unit test fails when `buildSnapshot()` drifts from the schema (the snapshot already has tests, `farm/test/run.js:856`) | In progress |
+| 2 (a) vLLM as integrated `external` | 0.6 | 1 week | Seats, Performance card and `capacity.busy/queued` from vLLM's `/metrics` | **Built**, checked live |
+| PRO 6000 `external` recipe (decision 10) | 2 (a) | 2–3 days | vLLM in WSL2 reachable over TCP; a documented recipe | **Built** (`farm/vllm/`) |
+| 2.1–2.3 (b) Managed vLLM on the Spark | 2 (a), the Spark spike | 2 weeks | `lol up` serves the spike's model on a Spark, with fallback working | After the Spark spike |
+| 2.4–2.5 vLLM sizing and metrics | 2.1–2.3 | 1–2 weeks | Beacon `slots` matches vLLM's pool; Performance card live per engine | Metrics part **built** with 2 (a) |
+| 3.1 Cache affinity | 3.0 | 1 week | Returning turns hit the prefix cache > 80 % in a two-box test | Later |
+| ~~3.2 Overflow tier~~ | — | — | — | Cut (owner, 2026-10-04) |
+| 3.3 Minimal metrics (429 count, peak seats, TTFT p95) | — | 1–2 days | The panel shows them; no per-install labels | **Built** |
+| 5 Measured capacity table (purchase tool) | 0.6 | 3–5 days | People-per-box at 32k/64k/128k for Spark and PRO 6000, measured; labelled estimates for boxes not owned | PRO 6000 **done**; Spark today; PRO 5000 estimates in progress |
+| 5.1–5.4 Interactive planner (only if the table is too coarse) | 5 table, 4.4 | 2–3 weeks | Golden tests pass on the studio's big boxes; estimates within ±25 % of local measurements | Only if needed |
+| 5.5 Planner learns from bench | 5.1–5.4, 0.5 | 3–4 days | Local bench points override catalog points in the panel | Only if needed |
+| 4.1 LAN model sharing (critic: defer) | 4.4 | 1–2 weeks | Second box installs from a peer with verified hashes | Later |
+| ~~Revocation~~, ~~TLS~~ | — | — | — | Cut (owner, 2026-10-04) |
+| ~~4.2 Plugin backends (QVAC)~~ | — | — | — | Cut (owner, 2026-10-04) |
+| 4.3 On-device model (study) | — | ½ day | Which uses pass on which laptops | Open, low priority |
 
 **Global acceptance tests** (only meaningful once bench simulates people, Phase 0.5):
 
-- **One PRO 6000 (beside ComfyUI) and one Spark**, each with the model the spike picked:
-  `lol bench --profile workshop --users <real head count>` at ≥ 32k context per person gives TTFT
-  p95 < 5 s, ≥ 90 % of users above 15 tok/s, the quality gate passed, and zero 429s below the queue
-  limit if 1.2 is adopted.
+- **One PRO 6000 (LLM-only since 2026-10-04) and one Spark**, each with the model the spike picked:
+  50 simulated people (the owner's cap) at 64k each, and 30 (a usual class) at 128k each, give TTFT
+  p95 < 5 s, ≥ 90 % of users above 15 tok/s, and the quality gate passed. Run it with
+  `lol bench --people --users <n>` through the farm's seat gate. The workshop profile (3.4) isn't built;
+  the spike's harness (`docs/spike/spike_bench.py`) gives the realistic mix.
 - v1's targets (one PRO 6000 + Nemotron under vLLM at 50 users, one Spark + Qwen3.6 at 10 users at
   ≥ 20 tok/s) remain stretch targets for Phase 2.
 
@@ -1473,12 +1502,11 @@ llama.cpp alternative (Windows or before Phase 2), OWUI chat with Qwen3.8-27B:
 
 - **Field version drift.** Clients run 0.10.x OWUI sidecars and farms update manually. Every new env var
   and snapshot field must degrade gracefully.
-- **LiteLLM is unpinned.** Cancel propagation, header passing and routing behaviour can change under a
-  reinstall. Pin it in Phase 1.3.
-- **The live dev box.** Every farm experiment on `AN-A6000PRO` risks real users (§0.7).
+- **LiteLLM upgrades.** It is pinned at 1.97.0 (Phase 0.0), and `farm/test/litellm-cancel.js` fails if a
+  new version stops forwarding a cancel or the thinking keys. Re-run it before any pin bump.
+- **The live dev box.** Every farm experiment on `AN-A6000PRO` risks real users (§0, item 7).
 - **vLLM:** on Spark, arm64 wheels and NVFP4 kernels move fast (pin, keep a Docker fallback). On Windows
   it only runs in WSL2, with its process-lifetime hazards.
-- **Overflow quality:** keep it opt-in and always labelled.
 - **Benchmarks:** most §9 numbers are single-author posts with different builds. No source measured
   exactly 10 concurrent users for Qwen3.6 or Lightning. Quality scores are vendor-reported. Local
   measurements decide.
@@ -1489,7 +1517,8 @@ These are recommendations, not decisions.
 
 1. **Target. ANSWERED (2026-10-04):** scale up on the big boxes (PRO 6000, Sparks), optimising
    people × quality × context per box; the small GPUs are out.
-   - Still open: the real head count per class, which sets the acceptance test.
+   - **Head count, ANSWERED (2026-10-05):** it varies. The owner caps a class at **50**; most of the time it
+     is **20–30**. The acceptance test (§12) uses both.
    - *Critic:* one class on the PRO 6000 first.
 2. **Queue or 429** (1.2). **ANSWERED (2026-10-04): the engine queues, plus a workshop setting.**
    - With vLLM, seats are set near what the card really serves at acceptable speed (from the spike), and
@@ -1538,10 +1567,11 @@ These are recommendations, not decisions.
 
    **ANSWERED (owner, 2026-10-04): (a), thinking off for structured calls only.** Chat is unchanged.
    **Built 2026-10-05** (DEVLOG 08:49). The Computer's structured asks and OWUI's title and search-query
-   calls (`TASK_MODEL_PARAMS`) send `chat_template_kwargs:{enable_thinking:false}` + `think:false`. It is
-   measured to pass the farm's LiteLLM to vLLM, llama.cpp and Ollama; a real-engine check is pending.
-   Watch out: the farm's LiteLLM runs with `drop_params: true`, so check end to end that the flag reaches
-   each engine (vLLM, llama.cpp, Ollama) rather than being dropped silently.
+   calls (`TASK_MODEL_PARAMS`) send `chat_template_kwargs:{enable_thinking:false}` + `think:false`.
+   - The farm's LiteLLM runs with `drop_params: true`, so delivery was measured, not assumed. Both keys
+     reach a fake engine on the right routes (08:49).
+   - On **real vLLM** it works: 393 tokens became 14 (09:25).
+   - Real Ollama and llama.cpp are being checked.
 10. **vLLM's shape on each box (Phase 2), from the spike.**
     - **Spark (native Linux):** a managed vLLM engine (2b) is straightforward, with the spike's install
       script and flags.
@@ -1568,9 +1598,9 @@ These are recommendations, not decisions.
     - (b) Move ComfyQ to another machine.
     - (c) Schedule (ComfyQ off during LLM-heavy classes).
 
-    **ANSWERED (owner, 2026-10-04): (b), move ComfyQ to another machine.** The PRO 6000 becomes LLM-only,
-    so the spike's exclusive-GPU numbers are the real ones, not just ceilings. The move is the owner's;
-    the farm keeps budgeting against free VRAM (0.7) either way.
+    **ANSWERED (owner, 2026-10-04): (b), move ComfyQ to another machine. Done 2026-10-04.** The PRO 6000 is
+    LLM-only, so the spike's exclusive-GPU numbers are the real ones, not just ceilings. The farm keeps
+    budgeting against free VRAM (0.7) either way.
 
 ## 13b. Gaps the critic raised (not yet planned)
 
