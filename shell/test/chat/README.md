@@ -57,6 +57,7 @@ integrator uses slot 0.
 
 ```bash
 # unit tests (dependency-free, Node >= 22) — the mock's own tests are "mock"
+# except farm-contract: it runs the farm's code and the compiled client (npm ci in farm/, npm run build in shell/)
 node shell/test/chat-unit.js                 # every shell/test/chat/unit/*.test.mjs
 node shell/test/chat-unit.js mock md         # only files whose name contains "mock" or "md"
 node shell/test/unit.js                      # the existing app.js tests, must stay green

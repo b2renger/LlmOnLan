@@ -1151,13 +1151,9 @@ async function run(args) {
     // bouncing proxy ("switching models…") instead of showing a raw error. jobBox is
     // indirection: the job system is defined further down, but the beacon can tick
     // before that code runs — a thunk that answers null until wired is TDZ-safe.
+    // buildSnapshot keeps only an active job's kind, label, message and percent.
     const jobBox = { view: null };
-    liveHealth.getJob = () => {
-        const j = jobBox.view ? jobBox.view() : null;
-        // Only the ACTIVE job is "busy" — a finished one lingers for the panel, but
-        // clients must not keep saying "switching" after it is done.
-        return j && !j.done ? { kind: j.kind, label: j.label, message: j.message, percent: j.percent } : null;
-    };
+    liveHealth.getJob = () => (jobBox.view ? jobBox.view() : null);
     // `callerIp` only from unicast /lol/self (it adds capacity.mine); the beacon calls it bare.
     const getSnapshot = (callerIp) => buildSnapshot(config, liveHealth, callerIp);
     const snapshot = getSnapshot();

@@ -1,23 +1,22 @@
 // The farms a client meets in the field, as their snapshots cross the wire (JSON, so an undefined
-// value is simply absent): what THIS farm sends with each engine, built by the real buildSnapshot(),
-// and what farm-v0.0.41 sent (snapshot.farm-v0.0.41.json: that release's own buildSnapshot, run with
-// the Farm app's defaults of the time; it predates capacity.mine). farm/test/run.js checks every one
-// against snapshot.schema.json; shell/test/chat/unit/farm-contract.test.mjs has the client read them.
-// A new engine, plugin or seat state belongs here.
+// value is simply absent): what THIS farm sends with each engine, built by the real buildSnapshot()
+// with the real plugin registry, and what farm-v0.0.41 sent (snapshot.farm-v0.0.41.json: that
+// release's own buildSnapshot, run with the Farm app's defaults of the time; it predates
+// capacity.mine). farm/test/run.js checks every one against snapshot.schema.json;
+// shell/test/chat/unit/farm-contract.test.mjs has the client read them. A new engine, plugin or seat
+// state belongs here. `host` and `perf` are written by hand: their shape belongs to the code that
+// measures them, so the schema leaves both open.
 
 const { defaultConfig } = require('../src/config');
 const { buildSnapshot } = require('../src/snapshot');
+const { makeServices, pluginsSummary } = require('../src/plugins/registry');
 
 const wire = (snap) => JSON.parse(JSON.stringify(snap));
-const plugin = (label, on) => ({ label, runsOn: 'farm', enabled: on, healthy: on });
-const plugins = (on) => ({
-    websearch: plugin('Web search', true),
-    tts: plugin('Voice (TTS)', on),
-    ocr: plugin('Document OCR', true),
-    bus: plugin('Message bus (MQTT · WebSocket · OSC)', on),
-    classify: plugin('Classify (Laya)', on),
-    stt: plugin('Speech to text', on),
-});
+// The way up.js builds it: the plugin map from the registry, each plugin up when its health flag says so.
+const snapshot = (config, health, callerIp) => {
+    const plugins = pluginsSummary(makeServices().map((s) => Object.assign(s, { up: !!health[s.healthKey] })), config);
+    return wire(buildSnapshot(config, { ...health, plugins }, callerIp));
+};
 const seatsOf = (...ips) => ips.map((ip) => ({ ip, since: 0, lastActive: 0 }));
 
 function examples() {
@@ -30,7 +29,7 @@ function examples() {
         host: { gpu: 'NVIDIA GeForce RTX 4070', vramGb: 12, ramGb: 64, cpuCores: 16 },
         gpu: { gpuUtil: 7, vramUsedGb: 10.4, vramTotalGb: 12 },
         clientsConnected: 3, getSeats: () => seatsOf('10.0.0.21'),
-        searxngUp: true, extractUp: true, extractKey: 'ocr-key', plugins: plugins(false),
+        searxngUp: true, extractUp: true, extractKey: 'ocr-key',
         deployments: 1, getJob: () => null, perf: null,
     };
 
@@ -47,8 +46,13 @@ function examples() {
         clientsConnected: 4, getSeats: () => seatsOf('10.0.0.21', '10.0.0.22'),
         searxngUp: true, ttsUp: true, busUp: true,
         extractUp: true, extractKey: 'ocr-key', classifyUp: true, classifyKey: 'laya-key', sttUp: true, sttKey: 'stt-key',
-        plugins: plugins(true), deployments: 1,
-        getJob: () => ({ kind: 'model', label: 'Loading Qwen3.8-27B-UD-IQ2_S', message: 'Loading the weights…', percent: 40 }),
+        deployments: 1,
+        // up.js's whole job view; buildSnapshot keeps what clients read.
+        getJob: () => ({
+            id: 'mf3k2-4', kind: 'model', label: 'Loading Qwen3.8-27B-UD-IQ2_S', message: 'Loading the weights…',
+            percent: 40, done: false, ok: null, error: null, startedAt: 1790577080000, finishedAt: null,
+            bytes: null, total: null, bytesPerSec: null, etaSec: null,
+        }),
         perf: { engine: 'llama.cpp', genTokSec: 31.2, lastGenTokSec: 31.2, lastPromptTokSec: 905, lastCacheHitRatio: 0.82, lastActiveTs: 1790577087000, busySlots: 2, totalSlots: 2, queued: 1, kvUsed: null },
     };
 
@@ -61,7 +65,7 @@ function examples() {
         host: { gpu: 'NVIDIA RTX PRO 6000 Blackwell', vramGb: 96, ramGb: 256, cpuCores: 48 },
         gpu: { gpuUtil: 88, vramUsedGb: 90.1, vramTotalGb: 96 },
         clientsConnected: 28, getSeats: () => seatsOf(...Array.from({ length: 25 }, (_, i) => `10.0.0.${30 + i}`)),
-        searxngUp: true, extractUp: true, extractKey: 'ocr-key', plugins: plugins(false), getJob: () => null,
+        searxngUp: true, extractUp: true, extractKey: 'ocr-key', getJob: () => null,
         perf: { engine: 'vllm', genTokSec: 48, lastGenTokSec: 50, lastThroughputTokSec: 1210, lastCacheHitRatio: 0.75, lastDraftAcceptRatio: 0.7, kvPoolTokens: 1310720, lastActiveTs: 1790577087000, busySlots: 24, totalSlots: 48, queued: 0, kvUsed: 0.42 },
     };
 
@@ -74,11 +78,11 @@ function examples() {
     const bareHealth = { proxyUp: true, hostsUp: 0, hostsTotal: 1, ollamaManaged: false };
 
     return [
-        { label: 'Ollama, open, GET /lol/self from the seat holder', snap: wire(buildSnapshot(ollama, ollamaHealth, '10.0.0.21')) },
-        { label: 'Ollama, open, beacon', snap: wire(buildSnapshot(ollama, ollamaHealth)) },
-        { label: 'llama.cpp, password, every plugin, seats full, a model switch', snap: wire(buildSnapshot(llama, llamaHealth, '10.0.0.40')) },
-        { label: 'external vLLM, coordinator', snap: wire(buildSnapshot(vllm, vllmHealth, '10.0.0.30')) },
-        { label: 'Ollama not started by the farm, gate and plugins off, engine down', snap: wire(buildSnapshot(bare, bareHealth)) },
+        { label: 'Ollama, open, GET /lol/self from the seat holder', snap: snapshot(ollama, ollamaHealth, '10.0.0.21') },
+        { label: 'Ollama, open, beacon', snap: snapshot(ollama, ollamaHealth) },
+        { label: 'llama.cpp, password, every plugin, seats full, a model switch', snap: snapshot(llama, llamaHealth, '10.0.0.40') },
+        { label: 'external vLLM, coordinator', snap: snapshot(vllm, vllmHealth, '10.0.0.30') },
+        { label: 'Ollama not started by the farm, gate and plugins off, engine down', snap: snapshot(bare, bareHealth) },
         { label: 'farm-v0.0.41, GET /lol/self', snap: wire(require('./snapshot.farm-v0.0.41.json')) },
     ];
 }

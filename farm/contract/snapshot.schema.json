@@ -10,11 +10,11 @@
     "id": { "type": "string", "description": "The farm's stable id (farm/.lol-id). The client keys its farm list, the pin and stored passwords by it; the coordinator tells peers apart by it." },
     "name": { "type": "string", "description": "The farm's name. The client's farm cards, pill and list order; lol fleet." },
     "proxyPort": { "type": "integer", "description": "The OpenAI port (the seat gate). The client builds Open WebUI's and LOL Vibe's base URL from the address it reached plus this port (farmSelect.ts farmEndpoint)." },
-    "httpPort": { "type": "integer", "description": "Where /lol/self, /lol/plugin-keys and /lol/admin live. The client's polls, plugin-key fetch and Manage this farm button; 41997 when absent." },
-    "ips": { "type": "array", "items": { "type": "string" }, "description": "The farm's LAN addresses. Informational; no reader yet." },
+    "httpPort": { "type": "integer", "description": "Where /lol/self, /lol/plugin-keys and /lol/admin live. The client's polls and plugin-key fetch use it, else 41997 (discovery.ts, index.ts); without it the farm card hides Manage this farm (app.js) and no presence heartbeat is sent (index.ts)." },
+    "ips": { "type": "array", "items": { "type": "string" }, "description": "The farm's LAN addresses. The Farm app's reachable-at addresses, read from its own farm's /lol/self (farmSupervisor.ts), and lol up's banner; the client does not read them." },
     "endpoint": { "type": "string", "description": "The OpenAI root at the farm's primary address. The client files a beacon under this host (discovery.ts endpointHost)." },
     "openaiBaseUrl": { "type": "string", "description": "endpoint + /v1. The coordinator routes to a peer through it (up.js); lol fleet prints it. The client builds its own from the address it reached." },
-    "requiresKey": { "type": "boolean", "description": "A farm password is set. The client asks for it once and sends it as the Bearer; the coordinator skips such peers. Absent reads as an open farm." },
+    "requiresKey": { "type": "boolean", "description": "A farm password is set. The client asks for it once and sends it as the Bearer; the coordinator skips such peers." },
     "models": {
       "type": "array",
       "description": "The served names (the /v1/models ids). The client's DEFAULT_MODELS and LOL Vibe's picker; the coordinator routes a peer's models.",
@@ -53,7 +53,7 @@
     },
     "plugins": {
       "type": "object",
-      "description": "Farm plugin states by id (websearch, tts, ocr, bus, classify, stt). The client's farm cards.",
+      "description": "Farm plugin states by id (websearch, tts, ocr, bus, classify, stt), from registry.js pluginsSummary. The client's farm cards.",
       "additionalProperties": {
         "type": "object",
         "additionalProperties": false,
@@ -78,17 +78,7 @@
         "loaded": { "type": "array", "items": { "type": "string" }, "description": "Models in VRAM." }
       }
     },
-    "host": {
-      "type": ["object", "null"],
-      "description": "The box's hardware, detected at boot. Farm cards and lol fleet.",
-      "additionalProperties": false,
-      "properties": {
-        "gpu": { "type": "string", "description": "GPU name." },
-        "vramGb": { "type": "number", "description": "GPU memory." },
-        "ramGb": { "type": "number", "description": "System memory." },
-        "cpuCores": { "type": "integer", "description": "CPU threads." }
-      }
-    },
+    "host": { "type": ["object", "null"], "description": "The box's hardware, detected at boot ({ gpu, vramGb, ramGb, cpuCores }); its shape belongs to farm/src/systemInfo.js detectHardware. Farm cards (gpu, vramGb) and lol fleet." },
     "usage": {
       "type": "object",
       "description": "Live GPU use and connected clients. Farm cards; GPU % is the client's load figure for farms without capacity (farmSelect.ts farmLoad).",
@@ -103,7 +93,7 @@
     },
     "backend": {
       "type": ["object", "null"],
-      "description": "The engine that answers and its context window (absent before farm-v0.0.22). Farm cards; contextPerSlot sets Open WebUI's document mode (configBridge.ts) and LOL Vibe's context budget.",
+      "description": "The engine that answers and its context window (absent before farm-v0.0.21). Farm cards; contextPerSlot sets Open WebUI's document mode (configBridge.ts) and LOL Vibe's context budget.",
       "additionalProperties": false,
       "properties": {
         "engine": { "enum": ["ollama", "llama.cpp", "external"], "description": "Which engine serves. Farm cards; the Computer's takes (no audio on Ollama)." },
@@ -122,7 +112,7 @@
     },
     "capacity": {
       "type": ["object", "null"],
-      "description": "Seats (absent before farm-v0.0.36's seat gate). The client's pill and cards, its least-busy pick, LOL Vibe's and the Computer's seat-aware sending.",
+      "description": "Seats: slots and clients since farm-v0.0.21, busy and queued since v0.0.22, seatsUsed since the seat gate (v0.0.36), seatIdleSec since v0.0.38. The client's pill and cards, its least-busy pick, LOL Vibe's and the Computer's seat-aware sending.",
       "additionalProperties": false,
       "properties": {
         "slots": { "type": "integer", "description": "Seats in all (backend.slots)." },

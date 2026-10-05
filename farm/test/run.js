@@ -1059,12 +1059,12 @@ const perfMod = require('../src/perf');
 
 test('snapshot carries the in-flight admin job as `busy` (live thunk, active only)', () => {
     const c = defaultConfig();
-    const job = { kind: 'model', label: 'Loading X', message: 'downloading', percent: 40, done: false };
-    const s1 = buildSnapshot(c, { getJob: () => ({ kind: job.kind, label: job.label, message: job.message, percent: job.percent }) });
-    assert.equal(s1.busy.label, 'Loading X');
-    assert.equal(s1.busy.percent, 40);
+    const job = { id: 'j-1', kind: 'model', label: 'Loading X', message: 'downloading', percent: 40, done: false, bytes: 10, total: 25 };
+    const s1 = buildSnapshot(c, { getJob: () => job });
+    assert.deepEqual(s1.busy, { kind: 'model', label: 'Loading X', message: 'downloading', percent: 40 }, 'what clients read, not the panel\'s job view');
     const s2 = buildSnapshot(c, { getJob: () => null });
     assert.equal(s2.busy, null, 'no job → busy null');
+    assert.equal(buildSnapshot(c, { getJob: () => ({ ...job, done: true }) }).busy, null, 'a finished job lingers for the panel, not for clients');
     const s3 = buildSnapshot(c, {});
     assert.equal(s3.busy, null, 'older farms without the thunk stay well-formed');
 });
@@ -3080,9 +3080,14 @@ test('contract: every engine\'s snapshot, and what farm-v0.0.41 sent, match cont
     assert.deepEqual([...new Set(all.map((e) => e.snap.backend.engine))].sort(), ['external', 'llama.cpp', 'ollama']);
     assert.ok(all.some((e) => e.snap.requiresKey) && all.some((e) => e.snap.coordinator));
     assert.ok(all.some((e) => e.snap.capacity.mine === true) && all.some((e) => !('mine' in e.snap.capacity)));
-    // farm-v0.0.41 passing is what keeps `required` honest: a field made required that an old farm
-    // does not send would cut every client off from that farm.
     assert.ok(all.some((e) => e.snap.version === '0.0.41'));
+    // A field made required that an old farm does not send would cut every client off from that farm.
+    // farm-v0.0.41 passing above reaches back to that release only; these are the top-level keys the
+    // first one sent (git show farm-v0.0.1:farm/src/snapshot.js), frozen.
+    const FARM_V0_0_1_KEYS = ['v', 'id', 'name', 'proxyPort', 'httpPort', 'ips', 'endpoint', 'openaiBaseUrl', 'requiresKey', 'models',
+        'healthy', 'version', 'coordinator', 'searxngUrl', 'ttsUrl', 'ttsVoice', 'ttsModel', 'extract', 'plugins',
+        'recommendedClientPlugins', 'deployments', 'health', 'host', 'usage', 'ts'];
+    assert.deepEqual(SNAPSHOT_SCHEMA.required.filter((k) => !FARM_V0_0_1_KEYS.includes(k)), [], 'required, but farm-v0.0.1 does not send it');
 });
 
 test('contract: a field the schema does not declare fails, so a new one is added on purpose', () => {

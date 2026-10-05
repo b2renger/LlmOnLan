@@ -199,6 +199,7 @@ function buildSnapshot(config, health = {}, callerIp = null) {
     // overcommit a 12 GB card already holding llama-server).
     const lcModel = llamacppServedModel(config);
     const seatList = typeof health.getSeats === 'function' ? (health.getSeats() || []) : null;
+    const job = typeof health.getJob === 'function' ? health.getJob() : null;
     const models = lcModel
         ? [lcModel]
         : servedEntries(config).map((e) => ({ id: e.servedName, underlying: e.underlying, default: e.isDefault }));
@@ -326,7 +327,9 @@ function buildSnapshot(config, health = {}, callerIp = null) {
         // reload), or null. Clients read it to say "the server is switching models —
         // a moment" instead of surfacing a raw connection error while the proxy
         // bounces. health.getJob is a thunk so every beacon tick sees live progress.
-        busy: (typeof health.getJob === 'function' ? health.getJob() : null) || null,
+        // Only the ACTIVE job is busy: a finished one lingers for the panel, but
+        // clients must not keep saying "switching" after it is done.
+        busy: job && !job.done ? { kind: job.kind, label: job.label, message: job.message, percent: job.percent } : null,
         // Measured performance (llama.cpp, or an external server that is a vLLM): true
         // tok/s while generating, sticky last-active rate, prompt speed, KV usage. null
         // on Ollama, on a non-vLLM external server, or before the first sample. The

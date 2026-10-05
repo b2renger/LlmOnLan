@@ -75,6 +75,7 @@ export default (test) => {
   }
 
   test('contract: discovery takes every farm in, over GET /lol/self and over the beacon', async () => {
+    assert.ok(farms.length, 'farm examples did not load: see the first contract test');
     let answer = null;
     const server = http.createServer((_req, res) => { res.setHeader('content-type', 'application/json'); res.end(JSON.stringify(answer)); });
     await new Promise((r) => server.listen(0, '127.0.0.1', () => r(undefined)));
@@ -104,6 +105,7 @@ export default (test) => {
   });
 
   test('contract: farmSelect chooses among every farm and builds Open WebUI\'s context from each', () => {
+    assert.ok(farms.length, 'farm examples did not load: see the first contract test');
     const list = listed();
     for (const f of list) {
       const label = byId(f.id);
@@ -135,6 +137,7 @@ export default (test) => {
   });
 
   test('contract: the renderer reads every farm — publishFarm, the capacity line and LOL Vibe\'s caps', () => {
+    assert.ok(farms.length, 'farm examples did not load: see the first contract test');
     const { readCapacity, capacityPill, capacityText } = capacityHelpers();
     const seen = {};
     for (const f of listed()) {
