@@ -1081,8 +1081,9 @@ Reading it for a purchase:
   card) gets a roofline estimate scaled from the measured box of the same family, always labelled
   *estimated*. **ANSWERED (owner, 2026-10-05):** "A5500" means **the new card**, a Blackwell one, not the
   Ampere RTX A5500 (24 GB). NVIDIA lists one literally named after it, the **RTX PRO 5500** (84 GB, listed
-  around 2026-09-15), beside the RTX PRO 5000 (48 or 72 GB). The estimates above cover all three. **Still
-  open: which one**, if a card is bought.
+  around 2026-09-15), beside the RTX PRO 5000 (48 or 72 GB). The estimates above cover all three.
+  **Owner (2026-10-05):** the purchase choice is **RTX Blackwell versus the GB10 (DGX Spark)**, which is why
+  the Spark is being measured. The PRO 5500 is only the fallback if no PRO 6000 can be bought.
 - The interactive planner below (v1's design) is built only if the table proves too coarse. It generalizes a capacity calculator (an earlier prototype: platform × model × KV precision × users slider → memory split bar, guaranteed context per user, per-user speed at peak, verdict, and a chart of context-per-user vs users across platforms) into a planner built into the farm. It runs offline from a shipped catalog and improves as `lol bench` adds local measurements.
 
 ### 5.1 Where it appears
@@ -1605,7 +1606,15 @@ These are recommendations, not decisions.
    - *Critic:* the same.
    - **MEASURED 2026-10-05 (1.4): (b) doesn't apply.** OWUI 0.11.4's native function calling never runs the
      query call. Web search on costs ~2.5× the GPU work per chat through tool-call rounds, and got 1 of 4
-     fresh facts right. **Recommended: (c) web search off by default. Waiting on the owner.**
+     fresh facts right. **Recommended: (c) web search off by default.**
+   - **ANSWERED (owner, 2026-10-05): off by default, and make it good.** The owner: "web search for an agent
+     is an important feature and it should be performant and qualitative", and asked whether it is light
+     enough to run on any laptop. **Web search v2** is the follow-up:
+     - Fix SearXNG's engines.
+     - Measure OWUI's own knobs (result count, fetch cap).
+     - Prototype a light search-and-read service: search, fetch, extract, rank passages, and return real
+       evidence in one call. It would sit behind OWUI's `WEB_SEARCH_ENGINE=external` (env only).
+     - Measure it end to end. Being built 2026-10-05.
 5. **vLLM** (Phase 2). **ANSWERED (2026-10-04): in scope**, overriding the critic's cut.
    - Still open, decided from the spike: (a) integrated `external` or (b) fully managed.
    - The critic's caution stands as a test condition: WSL2 lifetimes on the PRO 6000 must be handled
@@ -1649,6 +1658,8 @@ These are recommendations, not decisions.
      deterministically wrong without thinking: gemma4:12b answered 235 instead of 215, and Qwen3.8 IQ2_S
      385 instead of 395. Qwen3.8 on Ollama sometimes moved its working into the answer instead (178
      tokens of algebra in `content`), which matters for JSON asks that aren't schema-bound.
+   - **Owner (2026-10-05): "I want a toggle to be able to put it back on."** A Computer-wide switch is being
+     built. Its default follows the test on the Computer's real asks (running 2026-10-05).
    - **Reading:** titles, search queries and JSON or list extraction are safe with thinking off. The
      Computer's **verdict** and **agent-step** asks need reasoning. On the target model (vLLM + Qwen3.6) the
      spike's 28-item gate lost nothing, but the Computer's real verdict and agent asks haven't been run both
@@ -1674,8 +1685,8 @@ These are recommendations, not decisions.
         deployment now uses `hosted_vllm/`. At 140 people a 200-token reply takes 4.9 s through the farm
         instead of 5.2–6.6 s; vLLM alone takes 4.0–4.2 s. `--num_workers` loses streams on Windows. What is
         left (~0.7 s at 140) and the option that closes it (the seat gate streaming straight to a lone
-        external engine, skipping LiteLLM) are in `farm/README.md`. That option is the owner's call: LiteLLM
-        was kept on 2026-09-04.
+        external engine, skipping LiteLLM) are in `farm/README.md`. **Owner (2026-10-05): not built**; +5–9 %
+        per reply at the class sizes is fine.
       - The managed Spark engine follows the Spark spike.
     - Recommendation was: managed on the Spark; on the PRO 6000, first fix the TCP blocker, then `external`
       with the recipe.
