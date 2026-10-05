@@ -398,36 +398,8 @@ function renderPill() {
     // and point at the fix.
     const locked = !a && farmState.farms.some((f) => f.requiresKey && !f._hasKey && !f._stale);
     if (locked) { cls = 'busy'; text = 'Server needs a password — click here'; }
-    else if (a) {
-      cls = 'ready';
-      // Live load next to the name — at-a-glance "can I send a message right now".
-      // Free SEATS, not connected clients: since the seat gate a full farm refuses
-      // the next generation, so "0 free" is the one number that changes what the
-      // user can do. GPU% is the fallback for farms too old to report either
-      // (it looks alarming at 100% while being exactly what a healthy box does
-      // mid-answer, which is why it lost the top spot).
-      const capInfo = readCapacity(a);
-      text = a.name + capacityPill(capInfo);
-      tip = capacityTip(capInfo);
-      // A farm with no free seat is not broken, but it will refuse the next
-      // message — amber says "wait" without saying "error". A queue at the
-      // engine is the other wait: the next message is let in, then waits there.
-      if ((capInfo.seatsKnown && capInfo.full) || capInfo.queued) cls = 'busy';
-      // The farm advertises its in-flight admin job (model download, backend
-      // switch) as `busy`. While one runs the proxy can bounce — without this the
-      // pill (and the user's mental model) flips to "broken" for something the
-      // operator did on purpose. Say what is happening instead.
-      if (a.busy && a.busy.label) {
-        cls = 'busy';
-        text = `${a.name} · ${a.busy.label}…`;
-        tip = '';
-      }
-      // The engine-down signal (snapshot.healthy=false) and beacon silence must
-      // reach the ONE trust indicator users look at — a dead farm stayed a green
-      // pill for up to 120 s otherwise.
-      if (a._stale) { cls = 'busy'; text = `${a.name} · not responding…`; tip = ''; }
-      else if (a.healthy === false) { cls = 'error'; text = `${a.name} · problem on the server`; tip = ''; }
-    } else { cls = 'busy'; text = 'No server'; }
+    else if (a) ({ cls, text, tip } = pillState(readCapacity(a), a));
+    else { cls = 'busy'; text = 'No server'; }
   }
   els.statusDot.className = 'dot ' + cls;
   els.statusText.textContent = text;
@@ -456,6 +428,8 @@ function readCapacity(f) {
     slots: cap.slots != null ? cap.slots : null,
     clients: cap.clients != null ? cap.clients : (u.clients != null ? u.clients : null),
     seatsUsed: cap.seatsUsed != null ? cap.seatsUsed : null,
+    // This computer holds one of the seats (unicast /lol/self only; absent = no): a full farm still lets it in.
+    mine: cap.mine === true,
     queued: cap.queued || null,
     idleMin: cap.seatIdleSec ? Math.round(cap.seatIdleSec / 60) : null,
     full: seatsKnown ? free === 0 : (cap.slots != null && (cap.clients || 0) >= cap.slots),
@@ -478,10 +452,41 @@ function capacityPill(c) {
   return c.gpuUtil != null ? ` · ${c.gpuUtil}% GPU${q}` : q;
 }
 
-// The pill's tooltip: what that queue means for the next message ('' = none).
+// The pill's tooltip: what a full farm, or that queue, means for the next message
+// ('' = nothing to add). A computer holding no seat on a full farm never reaches the
+// queue: the seat gate refuses its message until a seat frees.
 function capacityTip(c) {
-  if (!c.queued) return '';
-  return `${c.queued} message${c.queued > 1 ? 's are' : ' is'} queued at the model. A new one waits its turn, so the first word of its reply may be slow.`;
+  const q = c.queued ? `${c.queued} message${c.queued > 1 ? 's are' : ' is'} queued at the model.` : '';
+  if (c.seatsKnown && c.full && !c.mine) {
+    const when = c.idleMin ? ` (about ${c.idleMin} min after its holder's last reply)` : '';
+    return [`Every seat is taken: a new message is refused until one frees${when}.`, q].filter(Boolean).join(' ');
+  }
+  return q && `${q} A new one waits its turn, so the first word of its reply may be slow.`;
+}
+
+// The pill for the farm in use: its colour, its words and its tooltip.
+function pillState(c, a) {
+  // Live load next to the name — at-a-glance "can I send a message right now".
+  // Free SEATS, not connected clients: since the seat gate a full farm refuses
+  // the next generation, so "0 free" is the one number that changes what the
+  // user can do. GPU% is the fallback for farms too old to report either
+  // (it looks alarming at 100% while being exactly what a healthy box does
+  // mid-answer, which is why it lost the top spot).
+  // A farm with no free seat is not broken, but it will refuse the next
+  // message — amber says "wait" without saying "error". A queue at the
+  // engine is the other wait: the next message is let in, then waits there.
+  const s = { cls: (c.seatsKnown && c.full) || c.queued ? 'busy' : 'ready', text: a.name + capacityPill(c), tip: capacityTip(c) };
+  // The farm advertises its in-flight admin job (model download, backend
+  // switch) as `busy`. While one runs the proxy can bounce — without this the
+  // pill (and the user's mental model) flips to "broken" for something the
+  // operator did on purpose. Say what is happening instead.
+  if (a.busy && a.busy.label) Object.assign(s, { cls: 'busy', text: `${a.name} · ${a.busy.label}…`, tip: '' });
+  // The engine-down signal (snapshot.healthy=false) and beacon silence must
+  // reach the ONE trust indicator users look at — a dead farm stayed a green
+  // pill for up to 120 s otherwise.
+  if (a._stale) Object.assign(s, { cls: 'busy', text: `${a.name} · not responding…`, tip: '' });
+  else if (a.healthy === false) Object.assign(s, { cls: 'error', text: `${a.name} · problem on the server`, tip: '' });
+  return s;
 }
 
 // The card's capacity line, as plain language.

@@ -230,7 +230,7 @@ export default (test) => {
                 model: 'assistant', stream: true, messages: [{ role: 'user', content: 'hi' }],
             });
             assert.equal(res.status, 429);
-            assert.equal(res.headers.get('retry-after'), '30');
+            assert.equal(res.headers.get('retry-after'), '900', 'every seat generating: the idle window, as the farm sends');
             const body = await res.json();
             assert.equal(body.error.code, 'lol_seats_full');
             assert.equal(body.error.type, 'rate_limit_error');
@@ -238,7 +238,7 @@ export default (test) => {
             // The wording must equal farm/src/seats.js, not our idea of it.
             const farmSrc = fs.readFileSync(FARM_SEATS, 'utf8');
             // The 429 sentence is built from a `when` part; the mock sends the
-            // every-seat-generating variant (Retry-After 30), so expand that one.
+            // every-seat-generating variant (Retry-After = the idle window), so expand that one.
             const tmpl = /message: `(All [^`]*)`/.exec(farmSrc);
             const when = /\? `(Every one[^`]*)`/.exec(farmSrc);
             assert.ok(tmpl && when, 'could not find the 429 template in farm/src/seats.js');
@@ -256,7 +256,7 @@ export default (test) => {
                 model: 'mock-echo', stream: true, messages: [],
             })).json();
             assert.match(b2.error.message, /^All 4 seats /);
-            assert.match(b2.error.message, /~2 min after its last reply/);
+            assert.match(b2.error.message, /about 2 min after its holder's last reply/);
         });
     });
 
@@ -396,7 +396,7 @@ export default (test) => {
         await withMock({}, async (mock) => {
             const r429 = await post(`${mock.urls.proxy}/v1/chat/completions`, { model: 'mock-429', messages: [] });
             assert.equal(r429.status, 429);
-            assert.equal(r429.headers.get('retry-after'), '30');
+            assert.equal(r429.headers.get('retry-after'), '900');
             assert.equal((await r429.json()).error.code, 'lol_seats_full');
 
             const r502 = await post(`${mock.urls.proxy}/v1/chat/completions`, { model: 'mock-502', messages: [] });

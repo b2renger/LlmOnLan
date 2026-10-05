@@ -6,7 +6,7 @@
 'use strict';
 
 const { CORS, modelList, modelGroupInfo, handleCompletion } = require('./scenario-models');
-const { seatsFullBody, SEATS_FULL_HEADERS } = require('./seats-body');
+const { seatsFullBody, seatsFullHeaders } = require('./seats-body');
 
 const MAX_BODY = 32 * 1024 * 1024;   // images and documents are big; 32 MB is plenty
 
@@ -106,7 +106,7 @@ function createProxyHandler({ store, role, key }) {
             if (store.seatsFull()) {
                 const cap = (store.state.capacity && store.state.capacity.slots) || 0;
                 const idleSec = (store.state.capacity && store.state.capacity.seatIdleSec) || 900;
-                res.writeHead(429, { ...SEATS_FULL_HEADERS, ...CORS });
+                res.writeHead(429, { ...seatsFullHeaders(idleSec), ...CORS });
                 return res.end(JSON.stringify(seatsFullBody({ cap, idleSec })));
             }
             // state.structuredDrop (S0 kickoff) reproduces LiteLLM's drop_params on a deployment

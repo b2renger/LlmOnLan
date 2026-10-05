@@ -685,4 +685,39 @@ export default (test) => {
       assert.equal((await studio.share('gone-abcd1234', true)).code, 'E_PROJECT');
     } finally { await studio.dispose(); }
   });
+
+  test('studio: a bundled skill nobody edited is refreshed when the app brings a newer one; an edited one, or a person\'s own, is left', () => {
+    const bundled = tmp('bundled');
+    const dir = tmp('skills');
+    const stamp = path.join(tmp('home'), 'lol-studio', 'skills-seeded.json');
+    const put = (root, name, text) => { fs.mkdirSync(path.join(root, name), { recursive: true }); fs.writeFileSync(path.join(root, name, 'SKILL.md'), text); };
+    const read = (name) => fs.readFileSync(path.join(dir, name, 'SKILL.md'), 'utf8');
+    put(bundled, 'agent-page', 'v1');
+    fs.writeFileSync(path.join(bundled, 'agent-page', 'old.md'), 'dropped in v2');
+    put(bundled, 'ponytail', 'p1');
+    put(dir, 'ponytail', 'mine');   // a folder of the person's own by that name
+    S.seedSkills(bundled, dir, stamp);
+    assert.equal(read('agent-page'), 'v1', 'one they do not have: copied');
+    assert.equal(read('ponytail'), 'mine', 'their own: never touched');
+    put(bundled, 'agent-page', 'v2');
+    fs.rmSync(path.join(bundled, 'agent-page', 'old.md'));
+    put(bundled, 'ponytail', 'p2');
+    S.seedSkills(bundled, dir, stamp);
+    assert.equal(read('agent-page'), 'v2', 'unedited: the newer bundled one replaces it');
+    assert.ok(!fs.existsSync(path.join(dir, 'agent-page', 'old.md')), 'whole, not merged');
+    assert.equal(read('ponytail'), 'mine');
+    fs.writeFileSync(path.join(dir, 'agent-page', 'SKILL.md'), 'v2 and my own rule');
+    put(bundled, 'agent-page', 'v3');
+    S.seedSkills(bundled, dir, stamp);
+    assert.equal(read('agent-page'), 'v2 and my own rule', 'edited: left as the person wrote it');
+    // An install from before the stamp (v0.2.6–v0.2.7) has the agent-page those releases shipped: it is refreshed too.
+    const old = spawnSync('git', ['cat-file', 'blob', '71bfb9524743d25184ee30cc741d028310aace1e'], { cwd: SHELL });
+    if (old.status !== 0) { console.log('     (no git history here: the pre-stamp agent-page is checked in a full clone)'); return; }
+    const legacy = tmp('legacy');
+    fs.mkdirSync(path.join(legacy, 'agent-page'));
+    fs.writeFileSync(path.join(legacy, 'agent-page', 'SKILL.md'), old.stdout);
+    const real = path.join(SHELL, 'assets', 'skills');
+    S.seedSkills(real, legacy, path.join(tmp('home'), 'skills-seeded.json'));
+    assert.equal(fs.readFileSync(path.join(legacy, 'agent-page', 'SKILL.md'), 'utf8'), fs.readFileSync(path.join(real, 'agent-page', 'SKILL.md'), 'utf8'));
+  });
 };

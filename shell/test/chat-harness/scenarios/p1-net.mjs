@@ -175,7 +175,7 @@ export default [
       h.eq(r.error.kind, 'seats_full');
       h.eq(r.error.status, 429);
       h.eq(r.error.code, 'lol_seats_full');
-      h.eq(r.error.retryAfter, 30, 'read from the retry-after header');
+      h.eq(r.error.retryAfter, 900, 'read from the retry-after header (the idle window: every seat generating)');
       h.assert(/seats on this server are in use/.test(r.error.farmMessage), 'the farm sentence is kept verbatim');
       h.eq(r.contentLen, 0);
     },

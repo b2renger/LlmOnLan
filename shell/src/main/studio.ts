@@ -15,7 +15,7 @@ import * as fs from 'node:fs';
 import * as http from 'node:http';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { killTree } from './util';
 import { projectDir, resolveIn, validateId } from './projectsPath';
 import {
@@ -301,7 +301,7 @@ export interface StudioDeps {
     lan?: { host?: string; addresses?: () => string[] };
     /** Tokens for git remotes, per host, kept by main (safeStorage) — never handed to the page. */
     tokens?: { get(host: string): string | null; set(host: string, token: string | null): boolean; safe(): boolean };
-    /** A skills folder to copy into <DATA_DIR>/skills the first time (ponytail, with its licence). */
+    /** The bundled skills folder, copied into <DATA_DIR>/skills and refreshed while a copy is unedited (seedSkills). */
     seedSkills?: string;
     env?: NodeJS.ProcessEnv;
     /** How long to wait for dsh's next goal round before the reply is over (tests shorten it). */
@@ -444,15 +444,11 @@ export function createStudio(deps: StudioDeps) {
         await killTree(r.child.pid);
     }
 
-    /** Each bundled skill a person does not have yet (a new one reaches an old install too); theirs are never touched. */
+    /** The bundled skills into DATA_DIR/skills (seedSkills below); a person's own edits are never touched. */
     function seed(): void {
         const dir = skillsOf();
         fs.mkdirSync(dir, { recursive: true });
-        if (!deps.seedSkills || !fs.existsSync(deps.seedSkills)) return;
-        for (const name of fs.readdirSync(deps.seedSkills)) {
-            const to = path.join(dir, name);
-            if (!fs.existsSync(to)) copyTree(path.join(deps.seedSkills, name), to);
-        }
+        if (deps.seedSkills && fs.existsSync(deps.seedSkills)) seedSkills(deps.seedSkills, dir, path.join(deps.dataDir(), 'lol-studio', 'skills-seeded.json'));
     }
 
     async function startRuntime(o: { key: string; dir: string; model: string; maxTokens: number; farm: StudioFarm; runtime: StudioRuntime; goals: boolean; computer: { url: string; token: string } | null }): Promise<Rt | StudioErr> {
@@ -853,6 +849,56 @@ export function copyTree(from: string, to: string): void {
         if (fs.statSync(src).isDirectory()) copyTree(src, dest);
         else fs.writeFileSync(dest, fs.readFileSync(src));
     }
+}
+
+/** A folder's file names and bytes, hashed (the same asar-safe calls as copyTree). */
+export function treeHash(dir: string): string {
+    const h = createHash('sha256');
+    const walk = (d: string, rel: string): void => {
+        for (const name of fs.readdirSync(d).sort()) {
+            const p = path.join(d, name);
+            if (fs.statSync(p).isDirectory()) walk(p, `${rel}${name}/`);
+            else h.update(`${rel}${name}\n${createHash('sha256').update(fs.readFileSync(p)).digest('hex')}\n`);
+        }
+    };
+    walk(dir, '');
+    return h.digest('hex');
+}
+
+/** Copies that installs made before skills-seeded.json existed: still LlmOnLan's own, so a newer bundled skill
+ *  replaces them. Only agent-page changed since (ponytail and graphify still match), and every seed since keeps a
+ *  stamp, so this never grows. */
+const SEEDED_BEFORE_STAMPS = new Set([
+    '1605f0cefb089d47cef06f7b423de36bcefa307a0cab9f7bff2f5479d38f8735',   // agent-page as v0.2.6–v0.2.7 shipped it (blob 71bfb95)
+]);
+
+/**
+ * Each bundled skill into a person's skills folder: copied when they have none by that name (a new one reaches an old
+ * install too), and replaced by a newer bundled one while their copy is still exactly what was copied last (its hash,
+ * stamped in `stampFile`). A copy a person changed, or a folder of their own by that name, is never touched.
+ */
+export function seedSkills(bundled: string, dir: string, stampFile: string): void {
+    let stamps: Record<string, string> = {};
+    try { stamps = JSON.parse(fs.readFileSync(stampFile, 'utf8')) || {}; } catch { /* none yet */ }
+    const before = JSON.stringify(stamps);
+    for (const name of fs.readdirSync(bundled)) {
+        const from = path.join(bundled, name);
+        const to = path.join(dir, name);
+        const now = treeHash(from);
+        if (fs.existsSync(to)) {
+            let theirs = '';
+            try { theirs = treeHash(to); } catch { /* not a folder we can read: theirs, left alone */ }
+            if (theirs !== now) {
+                if (theirs !== stamps[name] && !SEEDED_BEFORE_STAMPS.has(theirs)) continue;
+                fs.rmSync(to, { recursive: true, force: true });
+                copyTree(from, to);
+            }
+        } else copyTree(from, to);
+        stamps[name] = now;
+    }
+    if (JSON.stringify(stamps) === before) return;
+    fs.mkdirSync(path.dirname(stampFile), { recursive: true });
+    fs.writeFileSync(stampFile, JSON.stringify(stamps));
 }
 
 /** This machine's non-internal IPv4 addresses (what a person on the LAN types). */

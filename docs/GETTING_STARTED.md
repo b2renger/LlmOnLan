@@ -248,8 +248,8 @@ with `LOL_ENDPOINT=http://<box-ip>:4000/v1` if discovery isn't available.
   **Code**, the **Changes** and the **History** (go back to any version). A project can be shared read-only on the
   LAN, or pushed to GitHub. The agent is a one-time ~120 MB install from the panel; it only touches files inside its
   project. **Ctrl+1** opens or closes the panel. See [LOLVIBE_IDE_GUIDE.md](LOLVIBE_IDE_GUIDE.md).
-- **Closing the window quits** — the app asks "Quit LlmOnLan?" first, then stops the chat engine and frees
-  your seat on the farm. Reopening takes a few seconds while Open WebUI starts again.
+- **Closing the window quits** — the app asks "Quit LlmOnLan?" first, then stops the chat engine; your seat on
+  the farm frees once it has been idle a while. Reopening takes a few seconds while Open WebUI starts again.
 - **Updates** — the app updates itself (Settings ▸ Startup & updates). The chat engine is separate:
   Settings ▸ About ▸ **Check for chat‑engine update** downloads a newer Open WebUI, applied on the next
   launch (**Restart to apply**).

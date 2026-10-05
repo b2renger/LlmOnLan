@@ -300,7 +300,7 @@ export default [
             }, { timeout: 20000 });
             h.assert(!/^HTTP \d+$/.test(seatsNote), `"${seatsNote}" is the old raw-status text`);
             h.assert(seatsNote.includes('seats on this server are in use'), seatsNote);
-            h.assert(seatsNote.includes('ask around'), 'the farm sentence is quoted verbatim');
+            h.assert(seatsNote.includes('Whoever runs the farm can free idle seats sooner'), 'the farm sentence is quoted verbatim');
             const seatsRecord = await lastRecord(h);
             h.eq(seatsRecord.status, 'waiting', 'a full farm is waited on, not reported as an error');
             h.eq(seatsRecord.error.kind, 'seats_full');

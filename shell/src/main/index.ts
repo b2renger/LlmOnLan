@@ -568,7 +568,7 @@ function createWindow(): void {
                 cancelId: 1,
                 title: 'Quit LlmOnLan',
                 message: 'Quit LlmOnLan?',
-                detail: 'This stops the chat engine and frees your seat on the server. '
+                detail: 'This stops the chat engine; your seat on the server frees once it has been idle a while. '
                     + 'Your chats and documents stay on this machine. Opening the app again takes a few seconds while the engine restarts.',
                 noLink: true,
             }) }

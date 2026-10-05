@@ -30,9 +30,11 @@ import { runAgent, ask, setKey } from '/lol-agent.mjs';
   short steps: at each one it picks ONE of `tools` (or answers). The library runs the tool, shows the model its result
   at the next step, feeds back a wrong or malformed step, and makes the last step answer. `stopped: 'max-steps'` means
   it never answered.
-- When the farm is full (every seat taken), the library waits for a seat and tries again by itself, for up to 5
-  minutes. Before each wait it calls `onWait({ seconds, waited, message })`; `message` is a sentence to show as it
-  is, like "The farm is full: trying again in 40 s." Stop (`signal`) ends the wait too.
+- When the farm is full (every seat taken) and you pass `onWait`, the library waits for a seat and tries again by
+  itself, for up to 5 minutes, when the farm says one frees by then. Before each wait it calls
+  `onWait({ seconds, waited, message })`; `message` is a sentence to show as it is, like "The farm is full: a seat
+  frees in about 2 min; checking again in 60 s." Stop (`signal`) ends the wait too. Without `onWait` it does not
+  wait: it throws at once.
 - A tool: `{ description: 'what it does, in a sentence', args: { name: 'string' | 'number' | … }, run: async (args) =>
   result }`. Whatever `run` returns is the result; whatever it throws is an error the model reads and can fix.
 - `ask({ messages, json, maxTokens, onWait, signal })` → the model's text, for a single answer without a loop.
@@ -51,9 +53,9 @@ import { runAgent, ask, setKey } from '/lol-agent.mjs';
 5. **Small loops**: `maxSteps` 4–8. Every step is one generation on the farm, and the farm is shared.
 6. **Say why it is waiting**: pass `onWait` and show its `message` in a status line, so a full farm reads as a wait
    and not as a frozen page. Clear the line at the next step and when the run ends.
-7. **Errors are sentences**: `runAgent` throws with a readable message when the farm needs its password, does not
-   answer, or stayed full for 5 minutes; show it. If it says the farm needs its password, show a password field, call
-   `setKey(value)`, and let the person try again.
+7. **Errors are sentences**: `runAgent` throws with a readable message when the farm needs its password, did not
+   accept it, does not answer, or stays full longer than the page waits; show it. Whenever the message names
+   `setKey`, show a password field, call `setKey(value)`, and let the person try again.
 8. One `index.html` with a `<script type="module">` is enough; add a `.js` file only when it is long.
 
 ## A skeleton

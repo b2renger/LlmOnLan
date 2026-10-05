@@ -430,9 +430,9 @@ export default (test) => {
   // ---------------------------------------------------------------- errors
   test('an HTTP failure keeps the farm sentence verbatim in the note', async () => {
     const { app, controller } = await makeWorld();
-    const seats = "All 2 seats on this server are in use. Every one is generating right now, and a seat frees ~15 min after its last reply — try again in a moment, or ask around who's done.";
+    const seats = "All 2 seats on this server are in use. Every one is generating right now, and a seat frees about 15 min after its holder's last reply: try again later. Whoever runs the farm can free idle seats sooner.";
     const calls = stubFetch(() => new Response(JSON.stringify({ error: { message: seats, type: 'rate_limit_error', code: 'lol_seats_full' } }), {
-      status: 429, headers: { 'content-type': 'application/json', 'retry-after': '30' },
+      status: 429, headers: { 'content-type': 'application/json', 'retry-after': '900' },
     }));
     try {
       const thread = controller.newThread();
@@ -444,7 +444,7 @@ export default (test) => {
       assert.equal(assistant.error.kind, 'seats_full');
       assert.ok(assistant.error.message.includes(seats), `the note must quote the farm: ${assistant.error.message}`);
       assert.notEqual(assistant.error.message.trim(), 'HTTP 429');
-      assert.equal(assistant.error.retryAfter, 30);
+      assert.equal(assistant.error.retryAfter, 900);
     } finally { calls.restore(); }
   });
 

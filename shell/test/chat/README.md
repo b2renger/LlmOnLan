@@ -110,7 +110,7 @@ await mock.close();     // destroys open sockets first, so an SSE stream cannot 
   `{"error":{"message":"Authentication Error, Invalid proxy server token passed…","type":"auth_error","code":"400"}}`
   (a 400, not a 401 — that is what the client must learn to read).
 - **Seat simulation.** When `state.capacity.seatsUsed >= state.capacity.slots`, *every* completion POST
-  gets **429**, `retry-after: 30` and the farm's own sentence — `mock/seats-body.js` is a verbatim copy
+  gets **429**, `retry-after` = the idle window (as the farm sends when every seat is generating) and the farm's own sentence — `mock/seats-body.js` is a verbatim copy
   of `farm/src/seats.js` and `mock.test.mjs` re-reads that farm file and fails if the wording drifts.
 - **`state.proxyDown: true`** destroys incoming sockets on both listeners (what a killed LiteLLM looks
   like to `fetch`: a `TypeError`, not an HTTP status).

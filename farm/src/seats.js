@@ -200,6 +200,15 @@ function createGateStats({ now = Date.now } = {}) {
     };
 }
 
+// The gate's OWN answers (401, 429, 502) carry the CORS header LiteLLM's answers already
+// carry, so a page on another origin (an agent page in the client's Preview) can read why
+// it was refused, Retry-After included, instead of the browser's bare "Failed to fetch".
+const OWN_HEADERS = {
+    'content-type': 'application/json',
+    'access-control-allow-origin': '*',
+    'access-control-expose-headers': 'Retry-After',
+};
+
 // The gate itself: a dependency-free streaming pass-through to LiteLLM on
 // loopback. SSE streams ride the pipe untouched; a client that disconnects
 // mid-stream destroys the upstream request so the engine slot frees too.
@@ -212,7 +221,7 @@ function startSeatGate({ host, port, upstreamPort, seats, idleReleaseSec, passwo
         if (gated) {
             if (!keyOk(req, password())) {
                 stats.unauthorized();
-                res.writeHead(401, { 'content-type': 'application/json' });
+                res.writeHead(401, OWN_HEADERS);
                 return res.end(JSON.stringify({
                     error: {
                         message: 'Wrong or missing farm password. Send it as the API key (Authorization: Bearer <password>).',
@@ -224,17 +233,20 @@ function startSeatGate({ host, port, upstreamPort, seats, idleReleaseSec, passwo
             const a = seats.admit(ip);
             if (!a.ok) {
                 stats.refused(a.used, a.cap);
-                const mins = Math.max(1, Math.round((idleReleaseSec() || 900) / 60));
-                // Retry-After says when the soonest idle seat is reclaimed; with every
-                // seat generating nothing is predictable, so it is a short poll interval.
-                const wait = a.retrySec == null ? 30 : a.retrySec;
+                // Retry-After says when the soonest idle seat is reclaimed. With every seat
+                // generating none can free sooner than a whole idle window after its reply
+                // ends, so that window is the honest floor (createSeats clamps it the same way).
+                // Nobody can hand a seat back; only the operator's shorter window frees one sooner.
+                const idle = Math.max(60, idleReleaseSec() || 900);
+                const mins = Math.round(idle / 60);
+                const wait = a.retrySec == null ? idle : a.retrySec;
                 const when = a.retrySec == null
-                    ? `Every one is generating right now, and a seat frees ~${mins} min after its last reply — try again in a moment`
-                    : `The next one frees in about ${wait < 90 ? `${wait} s` : `${Math.round(wait / 60)} min`} if its holder stays quiet — try again then`;
-                res.writeHead(429, { 'content-type': 'application/json', 'retry-after': String(wait) });
+                    ? `Every one is generating right now, and a seat frees about ${mins} min after its holder's last reply: try again later`
+                    : `The next one frees in about ${wait < 90 ? `${wait} s` : `${Math.round(wait / 60)} min`} if its holder stays quiet: try again then`;
+                res.writeHead(429, { ...OWN_HEADERS, 'retry-after': String(wait) });
                 return res.end(JSON.stringify({
                     error: {
-                        message: `All ${a.cap} seats on this server are in use. ${when}, or ask around who's done.`,
+                        message: `All ${a.cap} seats on this server are in use. ${when}. Whoever runs the farm can free idle seats sooner.`,
                         type: 'rate_limit_error',
                         code: 'lol_seats_full',
                     },
@@ -272,7 +284,7 @@ function startSeatGate({ host, port, upstreamPort, seats, idleReleaseSec, passwo
             upFailed = true;
             releaseOnce();
             if (!res.headersSent) {
-                res.writeHead(502, { 'content-type': 'application/json' });
+                res.writeHead(502, OWN_HEADERS);
                 res.end(JSON.stringify({ error: { message: 'The model server is not answering (it may be restarting) — try again in a few seconds.', type: 'api_error', code: 'lol_upstream_down' } }));
             } else {
                 res.destroy();

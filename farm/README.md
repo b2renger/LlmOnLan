@@ -946,9 +946,12 @@ build for Blackwell cards (16 GB+); replace it freely.
   **Free an idle seat after** sets it live, 1–60 min, no restart: a short hold (2 min) suits a
   workshop, where an idle seat should not block the next person. A generation on a full
   farm gets a clear 429 ("All N seats are in use…") instead of silently queueing behind idlers; its
-  `Retry-After` is the seconds until the soonest idle seat frees (30 when every seat is generating).
+  `Retry-After` is the seconds until the soonest idle seat frees (the whole idle window when every seat
+  is generating: none frees sooner).
   With a `proxy.masterKey`, the gate checks it **before** seating anyone: a missing or wrong key
-  gets a 401 and no seat. Every route LiteLLM generates on is gated — chat completions, completions,
+  gets a 401 and no seat. The gate's own 401, 429 and 502 carry `Access-Control-Allow-Origin: *` (as
+  LiteLLM's answers do) and expose `Retry-After`, so an agent page on another origin can read them.
+  Every route LiteLLM generates on is gated — chat completions, completions,
   responses, Anthropic's `/v1/messages`, Google's `:generateContent`.
   Reading old chats, notes and menus never touches the proxy (client-local by design), so an
   evicted idler only loses starting NEW generations while the farm is full. `/v1/models`, health

@@ -4,7 +4,7 @@
 // and the farm.
 import assert from 'node:assert/strict';
 
-/** @param {Array<string|{status: number, retryAfter?: string}>} replies the model's replies in order @param {{requiresKey?: boolean, defaultModel?: string}} [o] */
+/** @param {Array<string|{status: number, retryAfter?: string, body?: string, headers?: Record<string, string>}>} replies the model's replies in order @param {{requiresKey?: boolean, defaultModel?: string}} [o] */
 function fakeFarm(replies, o = {}) {
   /** @type {any[]} */ const bodies = [];
   let listed = 0;
@@ -15,7 +15,7 @@ function fakeFarm(replies, o = {}) {
     const body = JSON.parse(init.body);
     bodies.push(body);
     const next = replies.shift();
-    if (next && typeof next === 'object') return new Response('{}', { status: next.status, headers: next.retryAfter ? { 'retry-after': next.retryAfter } : {} });
+    if (next && typeof next === 'object') return new Response(next.body || '{}', { status: next.status, headers: { ...next.headers, ...(next.retryAfter ? { 'retry-after': next.retryAfter } : {}) } });
     return new Response(JSON.stringify({ choices: [{ message: { content: next } }] }));
   });
   return { bodies, listed: () => listed, restore: () => { globalThis.fetch = real; } };
@@ -63,23 +63,48 @@ export default (test) => {
     } finally { f.restore(); }
   });
 
-  test('lol-agent: the farm\'s own failures end the run with a sentence — full (told not to wait), a password', async () => {
-    const busy = fakeFarm([{ status: 429 }]);
+  test('lol-agent: the farm\'s own failures end the run with a sentence — full (a page that shows no wait), a password', async () => {
+    const busy = fakeFarm([{ status: 429 }, { status: 429, retryAfter: '900' }]);
     try {
       const { runAgent } = await fresh();
-      await assert.rejects(runAgent({ task: 't', waitFor: 0 }), /^Error: The farm is full \(every seat is taken\): try again in about 30 s\.$/, 'no Retry-After: 30 s, as the shell assumes');
+      await assert.rejects(runAgent({ task: 't', waitFor: 0 }), /^Error: The farm is full \(every seat is taken\): try again in a few minutes\.$/, 'no Retry-After to read: no estimate invented');
+      // A page written before onWait (the old skill) shows nothing while waiting: it fails at once, with the farm's estimate.
+      const t0 = Date.now();
+      await assert.rejects(runAgent({ task: 't' }), /^Error: The farm is full \(every seat is taken\): the next seat frees in about 15 min\.$/);
+      assert.ok(Date.now() - t0 < 500, 'no silent wait');
+      assert.equal(busy.bodies.length, 2, 'one ask each');
     } finally { busy.restore(); }
-    const keyed = fakeFarm([{ status: 401 }], { requiresKey: true });
+    // The seat gate's own 401 (farm/src/seats.js): readable in a page since the gate sends CORS headers.
+    const gate401 = { status: 401, headers: { 'access-control-allow-origin': '*', 'access-control-expose-headers': 'Retry-After' },
+      body: JSON.stringify({ error: { message: 'Wrong or missing farm password. Send it as the API key (Authorization: Bearer <password>).', type: 'invalid_request_error', code: 'invalid_api_key' } }) };
+    // LiteLLM refuses a wrong key with a 400 that names it; its context overflow is a 400 too, and is not the password.
+    const lite400 = { status: 400, body: JSON.stringify({ error: { message: 'Authentication Error, Invalid proxy server token passed. Received Key=sk-...rong' } }) };
+    const overflow = { status: 400, body: JSON.stringify({ error: { message: 'litellm.ContextWindowExceededError: maximum context length is 8192 tokens' } }) };
+    const keyed = fakeFarm([gate401, lite400, overflow], { requiresKey: true });
     const kept = new Map();
     globalThis.sessionStorage = /** @type {any} */ ({ getItem: (/** @type {string} */ k) => kept.get(k) ?? null, setItem: (/** @type {string} */ k, /** @type {string} */ v) => kept.set(k, v) });
     try {
       const { ask, setKey } = await fresh();
-      await assert.rejects(ask({ messages: [] }), /needs its password: ask the person/);
-      assert.equal(keyed.bodies.length, 0, 'no password yet: said before asking, since the gate\'s own 401 may be unreadable in a page');
+      await assert.rejects(ask({ messages: [] }), /^Error: The farm needs its password: ask the person for it and call setKey\(password\)\.$/);
+      assert.equal(keyed.bodies.length, 0, 'no password yet: said before asking, since an older farm\'s 401 is unreadable in a page');
       setKey('wrong');
-      await assert.rejects(ask({ messages: [] }), /needs its password: ask the person/);
-      assert.equal(keyed.bodies.length, 1, 'a wrong one: the farm\'s 401 says so');
-    } finally { keyed.restore(); delete globalThis.sessionStorage; }
+      await assert.rejects(ask({ messages: [] }), /^Error: The farm did not accept the password: ask the person for it again and call setKey\(password\)\.$/, 'the gate\'s 401');
+      await assert.rejects(ask({ messages: [] }), /did not accept the password/, 'LiteLLM\'s 400 that names the key');
+      await assert.rejects(ask({ messages: [] }), /^Error: The farm answered 400\.$/, 'a 400 about the context is not the password');
+      assert.equal(keyed.bodies.length, 3);
+    } finally { keyed.restore(); }
+    // An older farm (farm-v0.0.41 and before): the gate's 401 had no CORS header, so the page saw only "Failed to fetch".
+    const old = fakeFarm([], { requiresKey: true });
+    const fake = globalThis.fetch;
+    globalThis.fetch = /** @type {any} */ (async (/** @type {string} */ url, /** @type {any} */ init) => {
+      if (url.endsWith('/chat/completions')) throw new TypeError('Failed to fetch');
+      return fake(url, init);
+    });
+    try {
+      const { ask } = await fresh();
+      await assert.rejects(ask({ messages: [] }), /^Error: The farm did not answer, or did not accept the password: ask the person for it again and call setKey\(password\)\. It may also be off the network, restarting, or full\.$/,
+        'the password is named, so the page shows its password field');
+    } finally { old.restore(); delete globalThis.sessionStorage; }
   });
 
   test('lol-agent: "Failed to fetch" becomes a sentence — the browser hides whether the farm is down or refused without CORS', async () => {
@@ -91,7 +116,7 @@ export default (test) => {
     });
     try {
       const { ask } = await fresh();
-      await assert.rejects(ask({ messages: [] }), /^Error: The farm did not answer \(it may be off the network, restarting, or full\): try again in a moment\.$/);
+      await assert.rejects(ask({ messages: [] }), /^Error: The farm did not answer \(it may be off the network, restarting, or full\): try again in a few minutes\.$/);
       const ctl = new AbortController();
       ctl.abort();
       globalThis.fetch = /** @type {any} */ (async (/** @type {string} */ url, /** @type {any} */ init) => {
@@ -102,7 +127,7 @@ export default (test) => {
     } finally { f.restore(); }
   });
 
-  test('lol-agent: a full farm is waited out — Retry-After honoured, the page told, then the step goes on', async () => {
+  test('lol-agent: a full farm is waited out — Retry-After honoured, the page told the farm\'s estimate, then the step goes on', async () => {
     const f = fakeFarm([{ status: 429, retryAfter: '1' }, '{"answer":"done"}']);
     try {
       const { runAgent } = await fresh();
@@ -110,27 +135,36 @@ export default (test) => {
       const t0 = Date.now();
       const r = await runAgent({ task: 't', onWait: (w) => waits.push(w) });
       assert.equal(r.answer, 'done');
-      assert.deepEqual(waits, [{ seconds: 1, waited: 0, message: 'The farm is full: trying again in 1 s.' }]);
+      assert.deepEqual(waits, [{ seconds: 1, waited: 0, message: 'The farm is full: a seat frees in about 1 s; checking again in 1 s.' }]);
       assert.ok(Date.now() - t0 >= 950, 'it really waited the second the farm asked for');
       assert.equal(f.bodies.length, 2, 'one refused ask, one answered');
     } finally { f.restore(); }
   });
 
-  test('lol-agent: the wait is bounded — a minute at most at a time, waitFor in all, and Stop ends it', async () => {
-    const long = fakeFarm([{ status: 429, retryAfter: '900' }]);
+  test('lol-agent: the wait is bounded — a minute at most at a time, waitFor in all, the farm\'s estimate past it, and Stop ends it', async () => {
+    const two = fakeFarm([{ status: 429, retryAfter: '120' }]);
     try {
       const { ask } = await fresh();
       const ctl = new AbortController();
-      /** @type {number[]} */ const waits = [];
+      /** @type {any[]} */ const waits = [];
       const t0 = Date.now();
-      await assert.rejects(ask({ messages: [], signal: ctl.signal, onWait: (w) => { waits.push(w.seconds); ctl.abort(); } }), /^Error: stopped$/);
-      assert.deepEqual(waits, [60], 'a 15-minute Retry-After is polled every minute, not slept through');
+      await assert.rejects(ask({ messages: [], signal: ctl.signal, onWait: (w) => { waits.push(w); ctl.abort(); } }), /^Error: stopped$/);
+      assert.deepEqual(waits, [{ seconds: 60, waited: 0, message: 'The farm is full: a seat frees in about 2 min; checking again in 60 s.' }], 'checked a minute apart, the estimate said');
       assert.ok(Date.now() - t0 < 500, 'Stop ends the wait at once');
+    } finally { two.restore(); }
+    // Every seat generating: the farm sends its idle window (15 min), past the 5 a page waits: said at once, not slept on.
+    const long = fakeFarm([{ status: 429, retryAfter: '900' }]);
+    try {
+      const { ask } = await fresh();
+      /** @type {any[]} */ const waits = [];
+      await assert.rejects(ask({ messages: [], onWait: (w) => waits.push(w) }), /^Error: The farm is full \(every seat is taken\): the next seat frees in about 15 min\.$/);
+      assert.deepEqual(waits, []);
+      assert.equal(long.bodies.length, 1);
     } finally { long.restore(); }
     const full = fakeFarm([{ status: 429, retryAfter: '1' }, { status: 429, retryAfter: '1' }, '{"answer":"never"}']);
     try {
       const { ask } = await fresh();
-      await assert.rejects(ask({ messages: [], waitFor: 1 }), /^Error: The farm stayed full for 1 s \(every seat is taken\): try again later\.$/);
+      await assert.rejects(ask({ messages: [], waitFor: 1 }), /^Error: The farm stayed full for 1 s \(every seat is taken\): the next seat frees in about 1 s\.$/);
       assert.equal(full.bodies.length, 2, 'gave up instead of asking a third time');
     } finally { full.restore(); }
   });

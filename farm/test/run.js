@@ -1698,8 +1698,8 @@ test('seat gate: streams pass through, ungated GETs skip admit, full farm gets t
         assert.equal(err.code, 'lol_seats_full');
         assert.ok(/seats on this server are in use/.test(err.message), 'human-readable refusal (OWUI shows error.message)');
         assert.equal(releases, 1, 'a refused request releases nothing');
-        // Retry-After and the sentence agree (plan 0.2): every seat generating → a short poll …
-        assert.equal(refused.headers['retry-after'], '30');
+        // Retry-After and the sentence agree (plan 0.2): every seat generating → the idle window …
+        assert.equal(refused.headers['retry-after'], '900');
         assert.ok(/generating right now/.test(err.message) && /15 min/.test(err.message), err.message);
         // … an idle seat → the seconds until it is reclaimed, said the same way in words.
         retrySec = 125;
@@ -3225,6 +3225,48 @@ test('panel: the client rules the line quotes are the shell\'s', () => {
     // The shapes the line restates: the clients' gate, and Keep going's 3/4-of-the-window replies.
     assert.ok(bridge.includes('input.contextPerSlot == null || input.contextPerSlot >= FULL_CONTEXT_MIN_CTX'));
     assert.ok(studio.includes('Math.min(GOAL_MAX_TOKENS, Math.floor(window * 3 / 4) - COMPACT_HEADROOM)'));
+});
+
+test('seat gate: its own 401, 429 and 502 are readable from another origin, and the 429 says honestly when a seat can free', async () => {
+    const http = require('http');
+    // A port nothing listens on: what the gate lets through gets the gate's own 502.
+    const dead = http.createServer();
+    await new Promise((r) => dead.listen(0, '127.0.0.1', r));
+    const deadPort = dead.address().port;
+    await new Promise((r) => dead.close(r));
+    let retrySec = null;
+    const seats = { admit: () => ({ ok: false, cap: 50, used: 50, retrySec }), release: () => {}, view: () => [] };
+    const gate = await seatsMod.startSeatGate({ host: '127.0.0.1', port: 0, upstreamPort: deadPort, seats, idleReleaseSec: () => 600, password: () => 'pw' });
+    const ask = (method, p, headers = {}) => new Promise((resolve, reject) => {
+        const req = http.request({ host: '127.0.0.1', port: gate.address().port, method, path: p, headers: { 'content-type': 'application/json', origin: 'http://127.0.0.1:5555', ...headers } }, (res) => {
+            let buf = '';
+            res.on('data', (c) => { buf += c; });
+            res.on('end', () => resolve({ status: res.statusCode, headers: res.headers, body: buf }));
+        });
+        req.on('error', reject);
+        req.end(method === 'POST' ? '{"messages":[]}' : undefined);
+    });
+    try {
+        const wrongKey = await ask('POST', '/v1/chat/completions', { authorization: 'Bearer nope' });
+        const full = await ask('POST', '/v1/chat/completions', { authorization: 'Bearer pw' });
+        const down = await ask('GET', '/v1/models');
+        assert.deepEqual([wrongKey.status, full.status, down.status], [401, 429, 502]);
+        // An agent page (the Preview, another origin) read only "Failed to fetch" without these.
+        for (const r of [wrongKey, full, down]) {
+            assert.equal(r.headers['access-control-allow-origin'], '*', `${r.status}: LiteLLM's own answers carry the same`);
+            assert.equal(r.headers['access-control-expose-headers'], 'Retry-After', `${r.status}: the page may read Retry-After`);
+        }
+        // Every seat generating: none can free sooner than the idle window after its holder's last reply.
+        assert.equal(full.headers['retry-after'], '600', 'the idle window, not a 30 s poll');
+        assert.equal(JSON.parse(full.body).error.message, 'All 50 seats on this server are in use. Every one is generating right now, and a seat frees about 10 min after its holder\'s last reply: try again later. Whoever runs the farm can free idle seats sooner.');
+        // An idle seat: when it frees, if its holder stays quiet. Nobody "in a moment", nobody asked to give a seat back.
+        retrySec = 40;
+        const idle = await ask('POST', '/v1/chat/completions', { authorization: 'Bearer pw' });
+        assert.equal(idle.headers['retry-after'], '40');
+        assert.equal(JSON.parse(idle.body).error.message, 'All 50 seats on this server are in use. The next one frees in about 40 s if its holder stays quiet: try again then. Whoever runs the farm can free idle seats sooner.');
+    } finally {
+        gate.close();
+    }
 });
 
 (async () => {

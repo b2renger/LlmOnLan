@@ -11,7 +11,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { seatsFullBody, upstreamDownBody, SEATS_FULL_HEADERS } = require('./seats-body');
+const { seatsFullBody, upstreamDownBody, seatsFullHeaders } = require('./seats-body');
 
 const FIXTURE_MD = path.join(__dirname, '..', 'chat', 'fixtures', 'md');
 const PERF_NAMES = ['mixed', 'list-500', 'table-300', 'paragraph-20k', 'nested-fence', 'reasoning-40k'];
@@ -582,7 +582,7 @@ function handleCompletion({ model, res, body, store }) {
     if (id === 'mock-429') {
         const cap = (store.state.capacity && store.state.capacity.slots) || 2;
         const idleSec = (store.state.capacity && store.state.capacity.seatIdleSec) || 900;
-        res.writeHead(429, { ...SEATS_FULL_HEADERS, ...CORS });
+        res.writeHead(429, { ...seatsFullHeaders(idleSec), ...CORS });
         res.end(JSON.stringify(seatsFullBody({ cap, idleSec })));
         return true;
     }

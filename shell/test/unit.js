@@ -22,7 +22,7 @@ function rendererHelpers() {
     const end = src.indexOf('// ---- sidecar → webview + overlay ----');
     assert.ok(start > 0 && end > start, 'renderer capacity helpers moved — update the extraction anchors');
     const ctx = {};
-    new Function('ctx', src.slice(start, end) + '; ctx.out = { readCapacity, capacityPill, capacityText, capacityTip };')(ctx);
+    new Function('ctx', src.slice(start, end) + '; ctx.out = { readCapacity, capacityPill, capacityText, capacityTip, pillState };')(ctx);
     return ctx.out;
 }
 
@@ -63,7 +63,7 @@ test('capacity: the pill names the engine\'s queue, the one reason an Open WebUI
     assert.equal(c.queued, 12, '…and waits at the engine, which is what turns the pill amber');
     assert.equal(capacityPill(c), ' · 19/50 free · 12 waiting');
     assert.equal(capacityTip(c), '12 messages are queued at the model. A new one waits its turn, so the first word of its reply may be slow.');
-    assert.match(capacityTip(readCapacity({ capacity: { slots: 4, seatsUsed: 4, queued: 1 } })), /^1 message is queued at the model\./);
+    assert.match(capacityTip(readCapacity({ capacity: { slots: 4, seatsUsed: 4, queued: 1, mine: true } })), /^1 message is queued at the model\. A new one waits its turn/);
     // No queue now, or a farm too old to say (no `queued`): exactly the old pill, and no tooltip of its own.
     for (const cap of [{ slots: 2, seatsUsed: 1, queued: 0 }, { slots: 2, seatsUsed: 1, queued: null }, { slots: 2, seatsUsed: 1 }]) {
         const q = readCapacity({ capacity: cap });
@@ -71,6 +71,40 @@ test('capacity: the pill names the engine\'s queue, the one reason an Open WebUI
         assert.equal(capacityPill(q), ' · 1/2 free');
         assert.equal(capacityTip(q), '');
     }
+});
+
+test('capacity: on a full farm the tooltip says a computer holding no seat is refused, not queued', () => {
+    const { readCapacity, capacityTip } = rendererHelpers();
+    const full = { slots: 50, seatsUsed: 50, seatIdleSec: 900, queued: 12 };
+    const out = readCapacity({ capacity: full });
+    assert.equal(out.mine, false, 'no `mine` (the beacon, an older farm) reads as no seat');
+    assert.equal(capacityTip(out), 'Every seat is taken: a new message is refused until one frees (about 15 min after its holder\'s last reply). 12 messages are queued at the model.');
+    assert.equal(capacityTip(readCapacity({ capacity: { slots: 2, seatsUsed: 2, seatIdleSec: 600 } })),
+        'Every seat is taken: a new message is refused until one frees (about 10 min after its holder\'s last reply).');
+    // This computer holds one of the seats: its next message is let in, then waits at the engine like any other.
+    const mine = readCapacity({ capacity: { ...full, mine: true } });
+    assert.equal(mine.mine, true);
+    assert.equal(capacityTip(mine), '12 messages are queued at the model. A new one waits its turn, so the first word of its reply may be slow.');
+    assert.equal(capacityTip(readCapacity({ capacity: { slots: 2, seatsUsed: 2, mine: true } })), '', 'a seat of its own and no queue: nothing to add');
+});
+
+test('pill: amber for a queue or a full farm, green otherwise; the tooltip gives way to an admin job, silence or a broken server', () => {
+    const { readCapacity, pillState } = rendererHelpers();
+    const farm = (cap, extra = {}) => ({ name: 'Studio', capacity: cap, ...extra });
+    const state = (f) => pillState(readCapacity(f), f);
+    const queued = state(farm({ slots: 50, seatsUsed: 31, queued: 12 }));
+    assert.equal(queued.cls, 'busy', 'a queue at the engine turns the pill amber');
+    assert.equal(queued.text, 'Studio · 19/50 free · 12 waiting');
+    assert.match(queued.tip, /^12 messages are queued at the model\./);
+    for (const q of [0, null]) {
+        const s = state(farm({ slots: 50, seatsUsed: 31, queued: q }));
+        assert.deepEqual(s, { cls: 'ready', text: 'Studio · 19/50 free', tip: '' }, `queued ${q}: green, no tooltip of its own`);
+    }
+    assert.equal(state(farm({ slots: 2, seatsUsed: 2 })).cls, 'busy', 'no free seat: amber');
+    const cap = { slots: 2, seatsUsed: 2, seatIdleSec: 900, queued: 3 };
+    assert.deepEqual(state(farm(cap, { busy: { label: 'Switching model' } })), { cls: 'busy', text: 'Studio · Switching model…', tip: '' });
+    assert.deepEqual(state(farm(cap, { _stale: true })), { cls: 'busy', text: 'Studio · not responding…', tip: '' });
+    assert.deepEqual(state(farm(cap, { healthy: false })), { cls: 'error', text: 'Studio · problem on the server', tip: '' });
 });
 
 test('capacity: farms older than the seat gate keep the old advisory wording', () => {

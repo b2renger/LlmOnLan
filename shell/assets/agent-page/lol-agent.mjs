@@ -31,16 +31,23 @@ function auth() {
 }
 
 const NEEDS_KEY = 'The farm needs its password: ask the person for it and call setKey(password).';
-/** The farm refused or failed: a sentence the page can show. @param {Response} r @param {boolean} keyed */
-function why(r, keyed) {
-  if (r.status === 401 || r.status === 403) return keyed ? NEEDS_KEY : 'The farm refused the request.';
+const WRONG_KEY = 'The farm did not accept the password: ask the person for it again and call setKey(password).';
+/**
+ * The farm refused or failed: a sentence the page can show. A refused password is the seat gate's 401, or LiteLLM's
+ * 400 that names the key (a 400 about the context window is the conversation's length, not the password).
+ * @param {Response} r @param {boolean} keyed @param {string} text the answer's body
+ */
+function why(r, keyed, text) {
+  const refused = r.status === 401 || r.status === 403 || (r.status === 400 && /authenticat|api.?key|\bkey\b/i.test(text));
+  if (refused) return keyed ? ('authorization' in auth() ? WRONG_KEY : NEEDS_KEY) : 'The farm refused the request.';
   return `The farm answered ${r.status}.`;
 }
 
-// A full farm (its seat gate answers 429 with Retry-After: when the soonest idle seat frees) is waited out, not thrown:
-// at most a minute per wait, so a page polls a long Retry-After instead of sleeping through a seat that freed early,
-// and at most `waitFor` seconds in all (default 5 min). Once a page holds a seat its next steps are let in, so in
-// practice only the first step of a run waits.
+// A full farm answers 429 with Retry-After: the soonest a seat can free (the soonest idle seat, if its holder stays
+// quiet; a whole idle window after its holder's last reply when every seat is generating). No seat frees sooner,
+// unless the farm's operator shortens that window. When it is within `waitFor` seconds the page waits, checking at
+// most a minute apart so the person sees the wait move and a shortened window is found; when it is not, the farm's
+// estimate is said at once. Once a page holds a seat its next steps are let in, so only the first step of a run waits.
 const WAIT_STEP = 60;
 const WAIT_FOR = 300;
 /** Seconds the way a person reads them. @param {number} s */
@@ -59,24 +66,26 @@ function pause(s, signal) {
 export async function models() {
   const f = await farm();
   const r = await fetch(`${f.baseUrl}/models`, { headers: auth() });
-  if (!r.ok) throw new Error(why(r, f.requiresKey));
+  if (!r.ok) throw new Error(why(r, f.requiresKey, await r.text().catch(() => '')));
   const j = await r.json();
   return (j.data || []).map((/** @type {any} */ m) => m.id);
 }
 
 /**
- * One answer from the farm's model. A full farm is waited out (see WAIT_STEP): `onWait({seconds, waited, message})`
- * is told before each wait, so the page can show "The farm is full: trying again in 40 s."; `waitFor` (seconds,
- * default 300) bounds the waiting, and 0 gives up at once.
+ * One answer from the farm's model. A full farm is waited out (see WAIT_STEP) only by a page that shows the wait:
+ * `onWait({seconds, waited, message})` is told before each wait, so the page can show "The farm is full: a seat frees
+ * in about 2 min; checking again in 60 s."; `waitFor` (seconds, default 300 with onWait, 0 without) bounds the
+ * waiting, and 0 gives up at once.
  * @param {{messages: Array<{role: string, content: string}>, json?: boolean, maxTokens?: number, model?: string, signal?: AbortSignal,
  *   onWait?: (w: {seconds: number, waited: number, message: string}) => void, waitFor?: number}} o
  */
 export async function ask(o) {
   const f = await farm();
-  // No password yet on a farm that has one: said before asking, because the gate's refusal may be unreadable (below).
+  // No password yet on a farm that has one: said before asking, because an older farm's refusal is unreadable (below).
   if (f.requiresKey && !('authorization' in auth())) throw new Error(NEEDS_KEY);
   const model = o.model || f.defaultModel || (await models())[0];
-  const budget = o.waitFor == null ? WAIT_FOR : Math.max(0, Number(o.waitFor) || 0);
+  // A page written before onWait shows nothing while it waits, so it fails fast, as it always did.
+  const budget = o.waitFor == null ? (o.onWait ? WAIT_FOR : 0) : Math.max(0, Number(o.waitFor) || 0);
   let waited = 0;
   for (;;) {
     const r = await fetch(`${f.baseUrl}/chat/completions`, {
@@ -86,26 +95,34 @@ export async function ask(o) {
       signal: o.signal,
     }).catch((e) => {
       // The browser says only "Failed to fetch" for a farm it cannot reach — and for an answer this page may not read:
-      // a seat gate that sends its own 429/401/502 without CORS headers (farm/src/seats.js up to farm-v0.0.41).
-      if (e && e.name === 'TypeError') throw new Error('The farm did not answer (it may be off the network, restarting, or full): try again in a moment.');
+      // a seat gate that sends its own 429/401/502 without CORS headers (farm/src/seats.js up to farm-v0.0.41), so on
+      // a farm with a password this may be the password refused.
+      if (e && e.name === 'TypeError') {
+        throw new Error(f.requiresKey
+          ? 'The farm did not answer, or did not accept the password: ask the person for it again and call setKey(password). It may also be off the network, restarting, or full.'
+          : 'The farm did not answer (it may be off the network, restarting, or full): try again in a few minutes.');
+      }
       throw e;
     });
     if (r.status === 429) {
       await r.text().catch(() => '');
-      // 30 s when there is no Retry-After to read: a page on another origin reads it only if the farm exposes it (CORS).
+      // Checked every 30 s when there is no Retry-After to read (a farm that does not expose it to another origin).
       const after = Math.ceil(Number(r.headers.get('retry-after')));
-      const told = after > 0 ? after : 30;
-      const s = Math.min(WAIT_STEP, told);
-      if (waited + s > budget) {
-        throw new Error(waited ? `The farm stayed full for ${secs(waited)} (every seat is taken): try again later.`
-          : `The farm is full (every seat is taken): try again in about ${secs(told)}.`);
+      const known = after > 0;
+      const s = Math.min(WAIT_STEP, known ? after : 30);
+      if (known ? waited + after > budget : waited + s > budget) {
+        const full = waited ? `The farm stayed full for ${secs(waited)} (every seat is taken)` : 'The farm is full (every seat is taken)';
+        throw new Error(known ? `${full}: the next seat frees in about ${secs(after)}.` : `${full}: try again in a few minutes.`);
       }
-      if (o.onWait) o.onWait({ seconds: s, waited, message: `The farm is full: trying again in ${secs(s)}.` });
+      if (o.onWait) {
+        o.onWait({ seconds: s, waited, message: known ? `The farm is full: a seat frees in about ${secs(after)}; checking again in ${secs(s)}.`
+          : `The farm is full: checking again in ${secs(s)}.` });
+      }
       await pause(s, o.signal);
       waited += s;
       continue;
     }
-    if (!r.ok) throw new Error(why(r, f.requiresKey));
+    if (!r.ok) throw new Error(why(r, f.requiresKey, await r.text().catch(() => '')));
     const j = await r.json();
     return String((j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content) || '');
   }

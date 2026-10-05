@@ -35,11 +35,11 @@ async function settle() {
 }
 
 /** The farm's own sentence, copied from shell/test/mock/seats-body.js (= farm/src/seats.js). */
-const FARM_SEATS_TEXT = "All 2 seats on this server are in use. Every one is generating right now, and a seat frees ~15 min after its last reply — try again in a moment, or ask around who's done.";
+const FARM_SEATS_TEXT = "All 2 seats on this server are in use. Every one is generating right now, and a seat frees about 15 min after its holder's last reply: try again later. Whoever runs the farm can free idle seats sooner.";
 
 const seatsFullResponse = () => new Response(
   JSON.stringify({ error: { message: FARM_SEATS_TEXT, type: 'rate_limit_error', code: 'lol_seats_full' } }),
-  { status: 429, headers: { 'content-type': 'application/json', 'retry-after': '30' } },
+  { status: 429, headers: { 'content-type': 'application/json', 'retry-after': '900' } },
 );
 
 const chunk = (delta, finish = null) => ({ id: 'x', object: 'chat.completion.chunk', model: 'assistant', choices: [{ index: 0, delta, finish_reason: finish }] });
