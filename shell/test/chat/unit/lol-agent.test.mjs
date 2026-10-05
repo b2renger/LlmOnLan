@@ -1,9 +1,10 @@
 // assets/agent-page/lol-agent.mjs — the loop project pages use (IDE_PLAN §5 option A): the farm from /lol-farm.json,
 // one of the page's tools per step, a malformed or wrong step fed back, the last step made to answer, the farm's own
-// failures as sentences. A fake fetch plays LlmOnLan's server and the farm.
+// failures as sentences, a full farm waited out (Retry-After, bounded, abortable). A fake fetch plays LlmOnLan's server
+// and the farm.
 import assert from 'node:assert/strict';
 
-/** @param {Array<string|{status: number}>} replies the model's replies in order @param {{requiresKey?: boolean, defaultModel?: string}} [o] */
+/** @param {Array<string|{status: number, retryAfter?: string}>} replies the model's replies in order @param {{requiresKey?: boolean, defaultModel?: string}} [o] */
 function fakeFarm(replies, o = {}) {
   /** @type {any[]} */ const bodies = [];
   let listed = 0;
@@ -14,7 +15,7 @@ function fakeFarm(replies, o = {}) {
     const body = JSON.parse(init.body);
     bodies.push(body);
     const next = replies.shift();
-    if (next && typeof next === 'object') return new Response('{}', { status: next.status });
+    if (next && typeof next === 'object') return new Response('{}', { status: next.status, headers: next.retryAfter ? { 'retry-after': next.retryAfter } : {} });
     return new Response(JSON.stringify({ choices: [{ message: { content: next } }] }));
   });
   return { bodies, listed: () => listed, restore: () => { globalThis.fetch = real; } };
@@ -62,16 +63,75 @@ export default (test) => {
     } finally { f.restore(); }
   });
 
-  test('lol-agent: the farm\'s own failures end the run with a sentence — busy, a password', async () => {
+  test('lol-agent: the farm\'s own failures end the run with a sentence — full (told not to wait), a password', async () => {
     const busy = fakeFarm([{ status: 429 }]);
     try {
       const { runAgent } = await fresh();
-      await assert.rejects(runAgent({ task: 't' }), /The farm is busy/);
+      await assert.rejects(runAgent({ task: 't', waitFor: 0 }), /^Error: The farm is full \(every seat is taken\): try again in about 30 s\.$/, 'no Retry-After: 30 s, as the shell assumes');
     } finally { busy.restore(); }
     const keyed = fakeFarm([{ status: 401 }], { requiresKey: true });
+    const kept = new Map();
+    globalThis.sessionStorage = /** @type {any} */ ({ getItem: (/** @type {string} */ k) => kept.get(k) ?? null, setItem: (/** @type {string} */ k, /** @type {string} */ v) => kept.set(k, v) });
+    try {
+      const { ask, setKey } = await fresh();
+      await assert.rejects(ask({ messages: [] }), /needs its password: ask the person/);
+      assert.equal(keyed.bodies.length, 0, 'no password yet: said before asking, since the gate\'s own 401 may be unreadable in a page');
+      setKey('wrong');
+      await assert.rejects(ask({ messages: [] }), /needs its password: ask the person/);
+      assert.equal(keyed.bodies.length, 1, 'a wrong one: the farm\'s 401 says so');
+    } finally { keyed.restore(); delete globalThis.sessionStorage; }
+  });
+
+  test('lol-agent: "Failed to fetch" becomes a sentence — the browser hides whether the farm is down or refused without CORS', async () => {
+    const f = fakeFarm([]);
+    const fake = globalThis.fetch;
+    globalThis.fetch = /** @type {any} */ (async (/** @type {string} */ url, /** @type {any} */ init) => {
+      if (url.endsWith('/chat/completions')) throw new TypeError('Failed to fetch');
+      return fake(url, init);
+    });
     try {
       const { ask } = await fresh();
-      await assert.rejects(ask({ messages: [] }), /needs its password: ask the person/);
-    } finally { keyed.restore(); }
+      await assert.rejects(ask({ messages: [] }), /^Error: The farm did not answer \(it may be off the network, restarting, or full\): try again in a moment\.$/);
+      const ctl = new AbortController();
+      ctl.abort();
+      globalThis.fetch = /** @type {any} */ (async (/** @type {string} */ url, /** @type {any} */ init) => {
+        if (url.endsWith('/chat/completions')) throw new DOMException('This operation was aborted', 'AbortError');
+        return fake(url, init);
+      });
+      await assert.rejects(ask({ messages: [], signal: ctl.signal }), { name: 'AbortError' }, 'Stop stays a Stop');
+    } finally { f.restore(); }
+  });
+
+  test('lol-agent: a full farm is waited out — Retry-After honoured, the page told, then the step goes on', async () => {
+    const f = fakeFarm([{ status: 429, retryAfter: '1' }, '{"answer":"done"}']);
+    try {
+      const { runAgent } = await fresh();
+      /** @type {any[]} */ const waits = [];
+      const t0 = Date.now();
+      const r = await runAgent({ task: 't', onWait: (w) => waits.push(w) });
+      assert.equal(r.answer, 'done');
+      assert.deepEqual(waits, [{ seconds: 1, waited: 0, message: 'The farm is full: trying again in 1 s.' }]);
+      assert.ok(Date.now() - t0 >= 950, 'it really waited the second the farm asked for');
+      assert.equal(f.bodies.length, 2, 'one refused ask, one answered');
+    } finally { f.restore(); }
+  });
+
+  test('lol-agent: the wait is bounded — a minute at most at a time, waitFor in all, and Stop ends it', async () => {
+    const long = fakeFarm([{ status: 429, retryAfter: '900' }]);
+    try {
+      const { ask } = await fresh();
+      const ctl = new AbortController();
+      /** @type {number[]} */ const waits = [];
+      const t0 = Date.now();
+      await assert.rejects(ask({ messages: [], signal: ctl.signal, onWait: (w) => { waits.push(w.seconds); ctl.abort(); } }), /^Error: stopped$/);
+      assert.deepEqual(waits, [60], 'a 15-minute Retry-After is polled every minute, not slept through');
+      assert.ok(Date.now() - t0 < 500, 'Stop ends the wait at once');
+    } finally { long.restore(); }
+    const full = fakeFarm([{ status: 429, retryAfter: '1' }, { status: 429, retryAfter: '1' }, '{"answer":"never"}']);
+    try {
+      const { ask } = await fresh();
+      await assert.rejects(ask({ messages: [], waitFor: 1 }), /^Error: The farm stayed full for 1 s \(every seat is taken\): try again later\.$/);
+      assert.equal(full.bodies.length, 2, 'gave up instead of asking a third time');
+    } finally { full.restore(); }
   });
 };

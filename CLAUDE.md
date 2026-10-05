@@ -486,7 +486,8 @@ Notes:
 Layout (mirrors ComfyQ's desktop shell): a sticky **topbar** (logo · "powered by Open WebUI" · connection
 pill · surface switch Open WebUI / LOL Vibe / Computer · theme · gear) over the OWUI `<webview>`
 (`http://127.0.0.1:<port>`), LOL Vibe or the Computer. **The pill** shows the farm and its free seats
-(`· 2/3 free`); amber = connecting, seats full, not responding or password needed; red = a server problem.
+(`· 2/3 free`, plus `· 12 waiting` with a tooltip when the engine reports a queue); amber = connecting, seats full,
+a queue at the engine, not responding or password needed; red = a server problem.
 Clicking it opens **Servers on your network**: farm cards with live load, password entry, "Manage this
 farm ↗" (`/lol/admin`), add-by-address, auto-search and Rescan. **The connection overlay** covers OWUI
 while it starts, reconnects, fails (Retry) or downloads the engine on first run. The gear opens
@@ -584,8 +585,8 @@ Ship `shell/renderer/tokens.css` mirroring ComfyQ exactly:
 Conventions: **Inter** (system‑ui fallback), 14px base, antialiased. Radii: cards 12px, panels 10px,
 buttons/inputs 8px, chips 7px, pills 999px. 1px `--border` everywhere. Accent buttons use
 `filter: brightness(1.08)` on hover; secondary = ghost buttons on `--surface-2`. Status dots use
-`color-mix` glow (green = ready, amber = waiting — connecting, seats full, not responding, password
-needed — red = error, grey = idle). The theme toggle shows the **current** mode's icon (moon in dark, sun
+`color-mix` glow (green = ready, amber = waiting — connecting, seats full, a queue at the engine, not responding,
+password needed — red = error, grey = idle). The theme toggle shows the **current** mode's icon (moon in dark, sun
 in light), as ComfyQ does. Icons: inline Lucide‑style SVG (moon/sun, gear), no icon font.
 
 ---

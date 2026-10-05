@@ -210,9 +210,10 @@ with `LOL_ENDPOINT=http://<box-ip>:4000/v1` if discovery isn't available.
   **Computer** (boxes wired into small programs: data, pictures, the microphone and webcam, sound, boards and
   lights — [the tutorial](LOLCHAT_COMPUTER_TUTORIAL.md), and the Learn shelf inside it); the app remembers your
   last choice.
-- **The connection pill** (top bar) shows the farm and its free seats (`· 2/3 free`). Amber means wait —
-  connecting, every seat busy, the farm not responding, or a password needed; red means a problem on the
-  server. Click it for **Servers on your network**: one card per farm (seats, engine and model, plugins,
+- **The connection pill** (top bar) shows the farm and its free seats (`· 2/3 free`), and how many messages
+  are queued at the model when the farm reports it (`· 12 waiting`: a new message waits its turn, so its first
+  word is slow). Amber means wait — connecting, every seat busy, messages queued, the farm not responding, or
+  a password needed; red means a problem on the server. Click it for **Servers on your network**: one card per farm (seats, engine and model, plugins,
   **Manage this farm ↗** for the operator's panel), the password field of a protected farm, add‑by‑address
   and Rescan. **Clicking a card pins that farm**; the **Automatic — least busy farm** row above the cards
   lets the app choose again.

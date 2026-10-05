@@ -26,13 +26,16 @@ So a page never needs a URL or a password written in it. **Never** put a passwor
 import { runAgent, ask, setKey } from '/lol-agent.mjs';
 ```
 
-- `runAgent({ task, tools, maxSteps, onStep, signal })` → `{ answer, steps, stopped? }`. The model works in short
-  steps: at each one it picks ONE of `tools` (or answers). The library runs the tool, shows the model its result at
-  the next step, feeds back a wrong or malformed step, and makes the last step answer. `stopped: 'max-steps'` means
+- `runAgent({ task, tools, maxSteps, onStep, onWait, signal })` → `{ answer, steps, stopped? }`. The model works in
+  short steps: at each one it picks ONE of `tools` (or answers). The library runs the tool, shows the model its result
+  at the next step, feeds back a wrong or malformed step, and makes the last step answer. `stopped: 'max-steps'` means
   it never answered.
+- When the farm is full (every seat taken), the library waits for a seat and tries again by itself, for up to 5
+  minutes. Before each wait it calls `onWait({ seconds, waited, message })`; `message` is a sentence to show as it
+  is, like "The farm is full: trying again in 40 s." Stop (`signal`) ends the wait too.
 - A tool: `{ description: 'what it does, in a sentence', args: { name: 'string' | 'number' | … }, run: async (args) =>
   result }`. Whatever `run` returns is the result; whatever it throws is an error the model reads and can fix.
-- `ask({ messages, json, maxTokens, signal })` → the model's text, for a single answer without a loop.
+- `ask({ messages, json, maxTokens, onWait, signal })` → the model's text, for a single answer without a loop.
 - `setKey(password)` — only for a farm with a password: ask the PERSON (an input field on the page), never guess it.
 
 ## Write the page like this
@@ -46,10 +49,12 @@ import { runAgent, ask, setKey } from '/lol-agent.mjs';
    the end. Print them in a list, so the person sees the agent think.
 4. **A Stop button**: an `AbortController`; pass `signal`.
 5. **Small loops**: `maxSteps` 4–8. Every step is one generation on the farm, and the farm is shared.
-6. **Errors are sentences**: `runAgent` throws with a readable message when the farm is busy or needs its password;
-   show it. If it says the farm needs its password, show a password field, call `setKey(value)`, and let the person
-   try again.
-7. One `index.html` with a `<script type="module">` is enough; add a `.js` file only when it is long.
+6. **Say why it is waiting**: pass `onWait` and show its `message` in a status line, so a full farm reads as a wait
+   and not as a frozen page. Clear the line at the next step and when the run ends.
+7. **Errors are sentences**: `runAgent` throws with a readable message when the farm needs its password, does not
+   answer, or stayed full for 5 minutes; show it. If it says the farm needs its password, show a password field, call
+   `setKey(value)`, and let the person try again.
+8. One `index.html` with a `<script type="module">` is enough; add a `.js` file only when it is long.
 
 ## A skeleton
 
@@ -58,7 +63,7 @@ import { runAgent, ask, setKey } from '/lol-agent.mjs';
 <meta charset="utf-8">
 <title>Dice coach</title>
 <input id="q" placeholder="Ask me about dice…"> <button id="go">Ask</button> <button id="stop" disabled>Stop</button>
-<ol id="steps"></ol><p id="answer"></p>
+<p id="status"></p><ol id="steps"></ol><p id="answer"></p>
 <script type="module">
 import { runAgent } from '/lol-agent.mjs';
 const tools = {
@@ -72,18 +77,21 @@ document.getElementById('go').onclick = async () => {
   ctl = new AbortController();
   document.getElementById('stop').disabled = false;
   const list = document.getElementById('steps'); list.textContent = '';
+  const status = document.getElementById('status');
   try {
     const r = await runAgent({ task: document.getElementById('q').value, tools, maxSteps: 6, signal: ctl.signal,
-      onStep: (s) => { const li = document.createElement('li');
+      onWait: (w) => { status.textContent = w.message; },
+      onStep: (s) => { status.textContent = ''; const li = document.createElement('li');
         li.textContent = s.tool === 'answer' ? 'answer' : `${s.tool} ${JSON.stringify(s.args)} → ${s.ok ? JSON.stringify(s.result) : s.error}`;
         list.append(li); } });
     document.getElementById('answer').textContent = r.answer || 'No answer within the steps allowed.';
   } catch (e) { document.getElementById('answer').textContent = e.message; }
+  status.textContent = '';
   document.getElementById('stop').disabled = true;
 };
 document.getElementById('stop').onclick = () => ctl && ctl.abort();
 </script>
 ```
 
-Then check your own files: the import path is exactly `/lol-agent.mjs`, every tool has a description, and nothing
-holds a secret. The page runs in the project's **Preview**.
+Then check your own files: the import path is exactly `/lol-agent.mjs`, every tool has a description, `onWait` shows
+its message, and nothing holds a secret. The page runs in the project's **Preview**.

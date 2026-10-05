@@ -22,7 +22,7 @@ function rendererHelpers() {
     const end = src.indexOf('// ---- sidecar → webview + overlay ----');
     assert.ok(start > 0 && end > start, 'renderer capacity helpers moved — update the extraction anchors');
     const ctx = {};
-    new Function('ctx', src.slice(start, end) + '; ctx.out = { readCapacity, capacityPill, capacityText };')(ctx);
+    new Function('ctx', src.slice(start, end) + '; ctx.out = { readCapacity, capacityPill, capacityText, capacityTip };')(ctx);
     return ctx.out;
 }
 
@@ -53,6 +53,24 @@ test('capacity: queued generations surface when the engine reports them', () => 
     const { readCapacity, capacityText } = rendererHelpers();
     const c = readCapacity({ capacity: { slots: 2, seatsUsed: 2, clients: 4, seatIdleSec: 900, queued: 2 } });
     assert.ok(capacityText(c).includes('2 waiting'));
+});
+
+test('capacity: the pill names the engine\'s queue, the one reason an Open WebUI user\'s first word is slow', () => {
+    const { readCapacity, capacityPill, capacityTip } = rendererHelpers();
+    // Seats free, but the engine queues past what the card serves (plan §13, decision 2).
+    const c = readCapacity({ capacity: { slots: 50, seatsUsed: 31, clients: 31, seatIdleSec: 900, busy: 24, queued: 12 } });
+    assert.equal(c.full, false, 'free seats: the next message is let in…');
+    assert.equal(c.queued, 12, '…and waits at the engine, which is what turns the pill amber');
+    assert.equal(capacityPill(c), ' · 19/50 free · 12 waiting');
+    assert.equal(capacityTip(c), '12 messages are queued at the model. A new one waits its turn, so the first word of its reply may be slow.');
+    assert.match(capacityTip(readCapacity({ capacity: { slots: 4, seatsUsed: 4, queued: 1 } })), /^1 message is queued at the model\./);
+    // No queue now, or a farm too old to say (no `queued`): exactly the old pill, and no tooltip of its own.
+    for (const cap of [{ slots: 2, seatsUsed: 1, queued: 0 }, { slots: 2, seatsUsed: 1, queued: null }, { slots: 2, seatsUsed: 1 }]) {
+        const q = readCapacity({ capacity: cap });
+        assert.equal(q.queued, null);
+        assert.equal(capacityPill(q), ' · 1/2 free');
+        assert.equal(capacityTip(q), '');
+    }
 });
 
 test('capacity: farms older than the seat gate keep the old advisory wording', () => {

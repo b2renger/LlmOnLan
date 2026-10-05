@@ -386,7 +386,7 @@ const activeFarm = () => farmState.farms.find((f) => sidecarState && farmEndpoin
 
 // ---- topbar connection pill (combines sidecar + farm state) ----
 function renderPill() {
-  let cls = 'idle', text = 'Idle';
+  let cls = 'idle', text = 'Idle', tip = '';
   const st = sidecarState && sidecarState.status;
   if (st === 'error') { cls = 'error'; text = 'Error'; }
   else if (st === 'starting') { cls = 'busy'; text = farmState.farms.length ? 'Connecting…' : 'Searching…'; }
@@ -408,9 +408,11 @@ function renderPill() {
       // mid-answer, which is why it lost the top spot).
       const capInfo = readCapacity(a);
       text = a.name + capacityPill(capInfo);
+      tip = capacityTip(capInfo);
       // A farm with no free seat is not broken, but it will refuse the next
-      // message — amber says "wait" without saying "error".
-      if (capInfo.seatsKnown && capInfo.full) cls = 'busy';
+      // message — amber says "wait" without saying "error". A queue at the
+      // engine is the other wait: the next message is let in, then waits there.
+      if ((capInfo.seatsKnown && capInfo.full) || capInfo.queued) cls = 'busy';
       // The farm advertises its in-flight admin job (model download, backend
       // switch) as `busy`. While one runs the proxy can bounce — without this the
       // pill (and the user's mental model) flips to "broken" for something the
@@ -418,16 +420,18 @@ function renderPill() {
       if (a.busy && a.busy.label) {
         cls = 'busy';
         text = `${a.name} · ${a.busy.label}…`;
+        tip = '';
       }
       // The engine-down signal (snapshot.healthy=false) and beacon silence must
       // reach the ONE trust indicator users look at — a dead farm stayed a green
       // pill for up to 120 s otherwise.
-      if (a._stale) { cls = 'busy'; text = `${a.name} · not responding…`; }
-      else if (a.healthy === false) { cls = 'error'; text = `${a.name} · problem on the server`; }
+      if (a._stale) { cls = 'busy'; text = `${a.name} · not responding…`; tip = ''; }
+      else if (a.healthy === false) { cls = 'error'; text = `${a.name} · problem on the server`; tip = ''; }
     } else { cls = 'busy'; text = 'No server'; }
   }
   els.statusDot.className = 'dot ' + cls;
   els.statusText.textContent = text;
+  els.status.title = tip || 'Connection';
 }
 
 // ---- farm capacity, read once ------------------------------------------------
@@ -463,10 +467,21 @@ function readCapacity(f) {
 // is the only figure that changes what the user can do next. GPU% is the fallback
 // for farms too old to report capacity — it looks alarming at 100% while being
 // exactly what a healthy box does mid-answer, which is why it lost the top spot.
+// Plus the engine's own queue when it reports one (llama.cpp, vLLM): with seats
+// near what the card serves, the engine queues the rest (plan §13, decision 2),
+// so the usual wait is a slow first word — and an Open WebUI chat, whose
+// requests the shell cannot see, has nothing else to say why.
 function capacityPill(c) {
-  if (c.seatsKnown) return ` · ${c.free}/${c.slots} free`;
-  if (c.slots != null) return ` · ${c.clients || 0}/${c.slots}`;
-  return c.gpuUtil != null ? ` · ${c.gpuUtil}% GPU` : '';
+  const q = c.queued ? ` · ${c.queued} waiting` : '';
+  if (c.seatsKnown) return ` · ${c.free}/${c.slots} free${q}`;
+  if (c.slots != null) return ` · ${c.clients || 0}/${c.slots}${q}`;
+  return c.gpuUtil != null ? ` · ${c.gpuUtil}% GPU${q}` : q;
+}
+
+// The pill's tooltip: what that queue means for the next message ('' = none).
+function capacityTip(c) {
+  if (!c.queued) return '';
+  return `${c.queued} message${c.queued > 1 ? 's are' : ' is'} queued at the model. A new one waits its turn, so the first word of its reply may be slow.`;
 }
 
 // The card's capacity line, as plain language.
