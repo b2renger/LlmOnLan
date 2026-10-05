@@ -113,4 +113,39 @@ export default [
             h.eq(await h.eval(() => window.LolComputer.debug.computer.doc().parts.length), 1, 'Delete in the run bar deleted nothing');
         },
     },
+    {
+        name: 'k12-view-tools-a-clicked-think-box-leaves-the-keys-to-the-canvas',
+        needsMock: true,
+        allowConsoleErrors: FARM_ERRORS,
+        // Review of 3610e07: the toolbar's think box is a checkbox, and a focused checkbox counted as
+        // typing, so V/H/Delete/undo went dead until the canvas was clicked. It takes no text: the
+        // canvas keys answer, and Space stays the box's own (it ticks it), as a focused button keeps it.
+        async run(/** @type {any} */ h) {
+            await open(h);
+            const box = '#lolcomputer .graph-think-input';
+            const checked = () => h.eval((s) => /** @type {any} */ (document.querySelector(s)).checked, box);
+            const focused = () => h.eval((s) => document.activeElement === document.querySelector(s), box);
+            const before = await checked();
+            await h.input.click(box);
+            h.eq(await focused(), true, 'a real click leaves the focus on the box');
+            h.eq(await checked(), !before, 'and ticks it');
+            await h.input.key('h');
+            h.eq(await toolNow(h), 'hand', 'H with the box focused switches to the Hand');
+            await h.input.key('v');
+            h.eq(await toolNow(h), 'select', 'V switches back to Select');
+
+            await h.input.key(' ');
+            h.eq(await checked(), before, 'Space is the box\'s own: it ticks it back instead of starting a pan');
+
+            // Delete removes the selected box and Ctrl+Z puts it back, with the focus still on the box.
+            await h.eval(() => window.LolComputer.debug.computer.select(window.LolComputer.debug.computer.doc().parts.map((p) => p.id)));
+            await h.eval((s) => { /** @type {any} */ (document.querySelector(s)).focus(); return true; }, box);
+            h.eq(await focused(), true);
+            await h.input.key('Delete');
+            h.eq(await h.eval(() => window.LolComputer.debug.computer.doc().parts.length), 0, 'Delete removed the selected box');
+            await h.input.key('z', { ctrl: true });
+            h.eq(await h.eval(() => window.LolComputer.debug.computer.doc().parts.length), 1, 'Ctrl+Z put it back');
+            h.eq(await checked(), before, 'and the box itself never changed on the way');
+        },
+    },
 ];

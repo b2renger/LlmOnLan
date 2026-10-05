@@ -106,7 +106,9 @@ registerStrings('parts', {
   filterMode_length: 'Length is',
   filterMode_model: 'The model says yes',
   filterInvert: 'Keep the others instead',
-  filterSystem: 'Answer only with whether the item matches the criterion.',
+  // Owner, 2026-10-05, measured: the old sentence never said what "keep" means, and thinking made
+  // the Filter WORSE with it; with this one it was right 36/36 thinking on, on each of vLLM and gemma4.
+  filterSystem: 'Answer only with whether the item matches the criterion: {"keep": true} when it matches, {"keep": false} when it does not.',
 
   // From thread / To thread
   fromThreadLabel: 'From thread',

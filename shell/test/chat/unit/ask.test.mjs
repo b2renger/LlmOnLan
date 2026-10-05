@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import { createAsk, install, MIN_MAX_TOKENS, QUEUE_EVENT, NO_VISION_EVENT } from '../../../renderer/chat/app/ask.mjs';
 import { createGovernor } from '../../../renderer/chat/net/governor.mjs';
 import { createBus, EV } from '../../../renderer/chat/core/events.mjs';
-import { API_KEYS, KV_KEYS, DEFAULT_THINK } from '../../../renderer/chat/core/types.mjs';
+import { API_KEYS, KV_KEYS, DEFAULT_THINK, THINKING_TASKS } from '../../../renderer/chat/core/types.mjs';
 import { createCaps, install as installCaps, readModelGroupInfo } from '../../../renderer/chat/app/caps.mjs';
 
 const FARM_ID = 'farm-1';
@@ -266,13 +266,14 @@ export default (test) => {
     assert.ok(farm.posts[0].body.max_tokens >= MIN_MAX_TOKENS);
   });
 
-  test('decision 9: a structured ask turns thinking off on BOTH rungs; text() never does', async () => {
+  test('decision 9: a structured ask that does not think turns it off on BOTH rungs; text() never does', async () => {
     const { app } = stubApp();
     const { api } = createAsk(app);
     // The schema rung gets prose it cannot parse, so the prompt rung runs too.
     const farm = fakeFarm((body) => (body.response_format ? 'I would rather not.' : JSON.stringify({ name: 'box', count: 1 })));
     await withFarm(farm, async () => {
-      assert.equal((await api.json({ task: 't', schema: SCHEMA, prompt: 'p' })).ok, true);
+      // `think: false` said out loud, so flipping DEFAULT_THINK moves only the pin test below.
+      assert.equal((await api.json({ task: 't', schema: SCHEMA, prompt: 'p', think: false })).ok, true);
       assert.equal((await api.text({ task: 'blurb', prompt: 'p' })).ok, true);
     });
     assert.equal(farm.posts.length, 3);
@@ -287,7 +288,7 @@ export default (test) => {
     assert.equal('think' in prose, false);
   });
 
-  test('"Think first": think:true sends NOTHING about thinking on both rungs; think:false sends the pair', async () => {
+  test('the think box: think:true sends NOTHING about thinking on both rungs; think:false sends the pair', async () => {
     const { app } = stubApp();
     const { api } = createAsk(app);
     const farm = fakeFarm((body) => (body.response_format ? 'I would rather not.' : JSON.stringify({ name: 'box', count: 1 })));
@@ -306,7 +307,7 @@ export default (test) => {
     }
   });
 
-  test('"Think first": an ask that says nothing follows DEFAULT_THINK, and the box is part of the cache key', async () => {
+  test('the think box: an ask that says nothing follows DEFAULT_THINK, and the box is part of the cache key', async () => {
     const { app } = stubApp();
     const { api } = createAsk(app);
     const farm = fakeFarm(() => JSON.stringify({ name: 'box', count: 1 }));
@@ -322,10 +323,50 @@ export default (test) => {
     assert.equal('think' in farm.posts[1].body, DEFAULT_THINK);
   });
 
-  test('"Think first" default: off (owner decision 9) until a measurement says otherwise', () => {
-    // Flipping it is ONE edit in core/types.mjs, and this line with it; every other test reads the constant.
+  test('the think box default: off (owner decision 9, kept by the 2026-10-05 measurement), and the decisions that think anyway', () => {
+    // Flipping it is ONE edit in core/types.mjs, and this line with it; every other test reads the
+    // constant or says `think:` out loud.
     assert.equal(DEFAULT_THINK, false);
+    assert.deepEqual([...THINKING_TASKS], ['graph:condition', 'graph:filter'], 'the yes/no decisions, by the task their parts ask with');
     assert.equal(KV_KEYS.prefComputeThink, 'pref:computeThink', 'the spelling is contract: the harness reads it literally');
+  });
+
+  test('the per-kind rule: unticked, a yes/no decision sends nothing about thinking and a json, list or agent step sends the pair; ticked, none does', async () => {
+    const { app } = stubApp();
+    const { api } = createAsk(app);
+    const farm = fakeFarm(() => JSON.stringify({ name: 'box', count: 1 }));
+    // The four tasks the Computer's structured asks go out under: Condition, Filter, the
+    // Instruction's json/list (and its presets'), the Agent's steps.
+    const tasks = ['graph:condition', 'graph:filter', 'graph:ask', 'graph:agent'];
+    await withFarm(farm, async () => {
+      for (const think of [false, true]) {
+        for (const task of tasks) assert.equal((await api.json({ task, schema: SCHEMA, prompt: `${task} ${think}`, think })).ok, true);
+      }
+    });
+    assert.equal(farm.posts.length, 8, 'one schema rung each');
+    const pairSent = farm.posts.map(({ body }) => 'chat_template_kwargs' in body || 'think' in body);
+    assert.deepEqual(pairSent, [false, false, true, true, false, false, false, false],
+      'unticked: Condition and Filter think, json/list and agent steps do not; ticked: everything thinks');
+    for (const { body } of farm.posts.filter((_, i) => pairSent[i])) {
+      assert.deepEqual(body.chat_template_kwargs, { enable_thinking: false });
+      assert.equal(body.think, false);
+    }
+  });
+
+  test('a yes/no decision is the same question ticked or not: one generation, and a caller that says nothing thinks too', async () => {
+    const { app } = stubApp();
+    const { api } = createAsk(app);
+    const verdict = { type: 'object', properties: { verdict: { type: 'string', enum: ['yes', 'no', 'maybe'] } }, required: ['verdict'], additionalProperties: false };
+    const farm = fakeFarm(() => JSON.stringify({ verdict: 'yes' }));
+    await withFarm(farm, async () => {
+      assert.equal((await api.json({ task: 'graph:condition', schema: verdict, prompt: 'p', think: false })).ok, true);
+      assert.equal((await api.json({ task: 'graph:condition', schema: verdict, prompt: 'p', think: true })).cached, true,
+        'ticking the box does not make a decision a new question: it thought the first time too');
+      assert.equal((await api.json({ task: 'graph:condition', schema: verdict, prompt: 'p' })).cached, true);
+    });
+    assert.equal(farm.posts.length, 1);
+    assert.equal('chat_template_kwargs' in farm.posts[0].body, false);
+    assert.equal('think' in farm.posts[0].body, false);
   });
 
   // ---- etiquette --------------------------------------------------------------------------------

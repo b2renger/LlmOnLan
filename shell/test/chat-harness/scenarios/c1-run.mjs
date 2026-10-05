@@ -391,10 +391,11 @@ export default [
         name: 'c1-run-think-first',
         needsMock: true,
         allowConsoleErrors: FARM_ERRORS,
-        // The toolbar's "Think first" box (owner, 2026-10-05) IS `pref:computeThink`: a click writes
+        // The toolbar's "Think all" box (owner, 2026-10-05) IS `pref:computeThink`: a click writes
         // it, the NEXT run's structured ask carries it to the wire — ticked, nothing about thinking;
-        // unticked, the pair decision 9 sends — and a re-opened panel shows it again. Written from
-        // whatever the box starts at, so flipping DEFAULT_THINK does not break it.
+        // unticked, the pair decision 9 sends — and a re-opened panel shows it again. Yes/no
+        // decisions think either way. Written from whatever the box starts at, so flipping
+        // DEFAULT_THINK does not break it.
         async run(h) {
             await open(h);
             const ids = await build(h, { model: 'mock-studio-json', shape: 'list' });
@@ -429,8 +430,44 @@ export default [
                 }
             }
 
-            // Leave it the other way from the start, then reload: the NEW canvas re-seeds it from the store.
-            await h.click('#lolcomputer .graph-think-input');
+            // Yes/no decisions think whatever the box says (core/types.mjs THINKING_TASKS, owner
+            // 2026-10-05): with the box UNTICKED, where the Instruction above sent the pair, a
+            // Condition and a Filter asking the model send nothing about thinking, and the Filter's
+            // sentence says what "keep" means.
+            if (first.checked) {
+                await h.click('#lolcomputer .graph-think-input');
+                await h.waitFor(() => window.LolChat.app.repo.kvGet('pref:computeThink', null).then((v) => (v === false ? true : null)));
+            }
+            const cond = await h.graph.place('condition', 320, 320);
+            await h.graph.set(cond, { branch: 'yes', mode: 'model', question: 'Is it a city?', model: 'mock-studio-json' });
+            h.eq((await h.graph.wire(ids.note, cond, 'in')).ok, true, 'Note feeds the Condition');
+            // The Filter's list as c2-fanout-parts builds it: a numbered Note, Split.
+            const cities = await h.graph.place('note', 40, 560);
+            await h.graph.set(cities, { text: '1. Paris\n2. Rome\n3. Lisbon' });
+            const split = await h.graph.place('split', 320, 560);
+            await h.graph.set(split, { mode: 'numbered' });
+            const filt = await h.graph.place('filter', 620, 560);
+            await h.graph.set(filt, { mode: 'model', text: 'Keep the capitals.', model: 'mock-studio-json' });
+            h.eq((await h.graph.wire(cities, split, 'text')).ok, true);
+            h.eq((await h.graph.wire(split, filt, 'items')).ok, true, 'the list feeds the Filter');
+            for (const id of [cond, cities]) {
+                const report = await h.graph.runFrom(id);
+                h.eq(report.errors.length, 0, JSON.stringify(report.errors));
+            }
+            const verdicts = (await posts(h, 'mock-studio-json')).slice(sent);
+            h.eq(verdicts.length, 4, 'one verdict from the Condition, then one per city');
+            for (const { body } of verdicts) {
+                h.eq(body.response_format.type, 'json_schema', 'a structured ask');
+                h.eq('chat_template_kwargs' in body, false, 'unticked, a yes/no decision still thinks: nothing sent');
+                h.eq('think' in body, false);
+            }
+            const filterSystem = await str(h, 'parts.filterSystem');
+            h.assert(/\{"keep": true\} when it matches, \{"keep": false\} when it does not/.test(filterSystem), filterSystem);
+            h.eq(verdicts[3].body.messages[0].content, filterSystem, 'the Filter\'s system sentence is the one on the wire');
+
+            // Leave it the other way from the start (it is unticked here), then reload: the NEW canvas
+            // re-seeds it from the store.
+            if (!first.checked) await h.click('#lolcomputer .graph-think-input');
             await h.waitFor((w) => window.LolChat.app.repo.kvGet('pref:computeThink', null).then((v) => (v === w ? true : null)), { args: [!first.checked] });
             await h.graph.save();
             await h.reload();

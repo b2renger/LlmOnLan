@@ -644,6 +644,7 @@ export function createCanvas(o) {
   const thinkInput = /** @type {HTMLInputElement} */ (document.createElement('input'));
   thinkInput.type = 'checkbox';
   thinkInput.className = 'graph-think-input';
+  thinkInput.title = t('graph.thinkHint');
   thinkInput.checked = DEFAULT_THINK;
   thinkField.append(thinkInput, el('span', 'graph-think-label', t('graph.thinkLabel')));
   // Owner, 2026-09-27: the view controls live TOGETHER — the two tools, then the zoom cluster with
@@ -2784,9 +2785,11 @@ export function createCanvas(o) {
 
   /** Is the keystroke going into something that edits text? True whatever FLAVOUR of
    * contenteditable it is — the label pill is `plaintext-only` (fix pass, finding 5) — so the
-   * guard holds even for a key path that never reaches the pill's own handler. */
+   * guard holds even for a key path that never reaches the pill's own handler. A checkbox takes
+   * no text: the toolbar's think box, once clicked, used to silence V/H/F/Delete/undo/arrows until
+   * the canvas was clicked (review of 3610e07). */
   const isTyping = (/** @type {any} */ target) => !!(target && target.closest
-    && target.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"])'));
+    && target.closest('input:not([type="checkbox"]), textarea, select, [contenteditable]:not([contenteditable="false"])'));
 
   /** K-9 (docs/COMPUTER_LIVE_PLAN.md, builder L): is this event aimed at a LIVE preview? Input
    * over a live sketch lands in the sketch's own document and never reaches this one; what does
@@ -2875,8 +2878,8 @@ export function createCanvas(o) {
     if (!mod && !ev.altKey && (ev.key === 'h' || ev.key === 'H')) { ev.preventDefault(); setTool('hand'); return; }
     if (!mod && !ev.altKey && (ev.key === 'v' || ev.key === 'V')) { ev.preventDefault(); setTool('select'); return; }
     if (ev.key === ' ') {
-      // A focused button keeps Space (it is how a keyboard presses it).
-      if (ev.target && ev.target.tagName === 'BUTTON') return;
+      // A focused button or checkbox keeps Space (it is how a keyboard presses or ticks it).
+      if (ev.target && (ev.target.tagName === 'BUTTON' || ev.target.type === 'checkbox')) return;
       ev.preventDefault();
       setSpace(true);
       return;

@@ -6,7 +6,8 @@
 //   S2-2  a box behind an unpressed Button is `held`: the report names the Button, the bar says
 //         "press “…”", and "Run everything again" is not offered; a press then runs it;
 //   S2-3  the pure half of Tab in a box bigger than the view (the real-input half is k10);
-//   S2-4  a verdict's 4096 ceiling is clamped to what its prompt leaves of the window.
+//   S2-4  a verdict's ceiling (4096, 8192 since 2026-10-05) is clamped to what its prompt leaves
+//         of the window.
 import assert from 'node:assert/strict';
 import { createAsk } from '../../../renderer/chat/app/ask.mjs';
 import { createGovernor } from '../../../renderer/chat/net/governor.mjs';
@@ -23,6 +24,7 @@ import { budgetFor } from '../../../renderer/chat/ctx/budget.mjs';
 import { outcomeOf, outcomeText, nothingRan, faceNamesIn } from '../../../renderer/chat/computer/runbar.mjs';
 import { fitsView, controlRect, panToShow } from '../../../renderer/chat/graph/canvas.mjs';
 import { t } from '../../../renderer/chat/core/i18n.mjs';
+import { THINKING_TASKS } from '../../../renderer/chat/core/types.mjs';
 import '../../../renderer/chat/strings/ask.en.mjs';
 import '../../../renderer/chat/strings/parts.en.mjs';
 import '../../../renderer/chat/strings/computer.en.mjs';
@@ -283,7 +285,9 @@ export default (test) => {
     const [first, second] = asked;
     assert.ok(first.maxTokens <= 8192 - 6000 - 256, `the long item is clamped: ${first.maxTokens}`);
     assert.equal(first.maxTokens, 8192 - promptTokensOf(first.system, first.prompt, 0) - MAX_TOKENS_MARGIN);
-    assert.equal(second.maxTokens, VERDICT_MAX_TOKENS, 'a short item keeps the whole 4096 ceiling');
+    // 2026-10-05: the ceiling is 8192 now, so even a short item is clamped on an 8k window.
+    assert.equal(second.maxTokens, 8192 - promptTokensOf(second.system, second.prompt, 0) - MAX_TOKENS_MARGIN,
+      'a short item gets what its prompt leaves of the 8k window');
 
     // No farm caps at all: the conservative default window, and the ceiling stands for a short prompt.
     asked.length = 0;
@@ -291,5 +295,30 @@ export default (test) => {
       part: { id: 'c2', settings: { mode: 'model', question: 'q' } }, inputs: { in: [valueOf('text', 'yes')] }, ask, app: {},
     }));
     assert.equal(asked[0].maxTokens, VERDICT_MAX_TOKENS);
+  });
+
+  test('2026-10-05: both verdicts ask under a THINKING_TASKS name, with the 8192 ceiling, and the Filter says what "keep" means', async () => {
+    // The measurement behind the number: of 270 verdicts with thinking on (vLLM Qwen3.6, Ollama
+    // gemma4:12b), the longest that finished used 2037 tokens; one gemma4 verdict was still
+    // thinking at 4096, which failed its box (and a Filter's whole list).
+    assert.equal(VERDICT_MAX_TOKENS, 8192);
+    /** @type {any[]} */ const asked = [];
+    const ask = { json: async (/** @type {any} */ o) => { asked.push(o); return { ok: true, value: { verdict: 'yes', keep: true } }; } };
+    const roomy = { farm: { get: () => ({ budget: { tokens: 32768 } }) } };
+    await condition.run(/** @type {any} */ ({
+      part: { id: 'c3', settings: { mode: 'model', question: 'Is it long?', branch: 'yes' } },
+      inputs: { in: [valueOf('text', 'short')] }, ask, app: roomy,
+    }));
+    await filter.run(/** @type {any} */ ({
+      part: { id: 'f3', settings: { mode: 'model', text: 'Keep the long ones.' } },
+      inputs: { items: [listOf([valueOf('text', 'short')])] }, ask, app: roomy,
+    }));
+    assert.deepEqual(asked.map((o) => o.task), ['graph:condition', 'graph:filter']);
+    assert.ok(asked.every((o) => THINKING_TASKS.includes(o.task)), 'app/ask.mjs lets exactly these think with the box unticked');
+    assert.deepEqual(asked.map((o) => o.maxTokens), [VERDICT_MAX_TOKENS, VERDICT_MAX_TOKENS], 'a short item keeps the whole ceiling on a 32k window');
+    // The measured sentence, word for word: the old one never said what `keep` means, and thinking
+    // made the Filter worse with it. With this one: 36/36 right with thinking on, on both engines.
+    assert.equal(asked[1].system,
+      'Answer only with whether the item matches the criterion: {"keep": true} when it matches, {"keep": false} when it does not.');
   });
 };

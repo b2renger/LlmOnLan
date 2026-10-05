@@ -23,8 +23,12 @@ import { clampMaxTokens, promptTokensOf } from '../bind.mjs';
 import { trustedBudget } from '../../ctx/budget.mjs';
 
 /** Room for a thinking model to reason before its verdict (critic S1). A CEILING: what is sent is
- * clamped to what the prompt leaves of the farm's window (critic S2-4, `verdictMaxTokens`). */
-export const VERDICT_MAX_TOKENS = 4096;
+ * clamped to what the prompt leaves of the farm's window (critic S2-4, `verdictMaxTokens`). The
+ * Condition's and the Filter's one number. 8192 since a verdict always thinks (2026-10-05): of 270
+ * measured verdicts with thinking on, the longest that finished used 2037 tokens (gemma4:12b; vLLM
+ * Qwen3.6 1930), and one gemma4 verdict ran out at 4096 still weighing "maybe" (32 s), which failed
+ * its box — and a Filter's whole list. Twice the room costs nothing to an answer that ends sooner. */
+export const VERDICT_MAX_TOKENS = 8192;
 
 /**
  * Critic S2-4: the verdict's `max_tokens` really sent — its ceiling clamped to what this prompt

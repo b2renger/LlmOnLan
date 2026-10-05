@@ -352,7 +352,7 @@ export default (test) => {
       'while `skipped` counts only the parts never reached — the capped one is stale, not skipped');
   });
 
-  test('"Think first": every json ask of a run carries the stored box, text asks never do, unset is DEFAULT_THINK', async () => {
+  test('the think box: every json ask of a run carries the stored box, text asks never do, unset is DEFAULT_THINK', async () => {
     const specs = runnableSpecs({
       ask: async (/** @type {any} */ input) => {
         const verdict = await input.ask.json({ task: 'graph:verdict', prompt: `json:${input.part.id}`, schema: {} });
@@ -375,6 +375,25 @@ export default (test) => {
     assert.equal(await runWith({ 'pref:computeThink': true }), true, 'ticked: the model thinks');
     assert.equal(await runWith({ 'pref:computeThink': false }), false, 'unticked: it answers straight away');
     assert.equal(await runWith({ 'pref:computeThink': 'yes' }), DEFAULT_THINK, 'a row that is not a boolean is the default');
+  });
+
+  test('the Cap and the think box are read at once at the start of a run, not one after the other', async () => {
+    const specs = runnableSpecs();
+    const session = fakeSession(specs);
+    session.add('ask');
+    const app = fakeApp();
+    /** @type {[string, boolean][]} */ const reads = [];
+    let answered = false;
+    app.repo.kvGet = async (/** @type {string} */ k, /** @type {any} */ dflt) => {
+      reads.push([k, answered]);
+      await Promise.resolve();
+      answered = true;
+      return dflt;
+    };
+    assert.equal((await createRunner({ session, app }).run({})).ran, 1);
+    const both = reads.filter(([k]) => k === 'pref:computeMaxItems' || k === 'pref:computeThink');
+    assert.deepEqual(both, [['pref:computeMaxItems', false], ['pref:computeThink', false]],
+      'the second read started before the first one answered');
   });
 
   test('a refusal that took no seat does not eat the cap', async () => {

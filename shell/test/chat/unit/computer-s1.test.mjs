@@ -256,7 +256,8 @@ export default (test) => {
     const schema = { type: 'object', properties: { items: { type: 'array', items: { type: 'string' } } }, required: ['items'] };
     const app = makeApp();
     const cut = fakeFarm(() => ({ reasoning: 'Maybe {"items": ["a", "b"]} — or should it be three?', finish: 'length' }));
-    const r = await withFarm(cut, () => app.ask.json({ task: 'list', schema, prompt: 'p', maxTokens: 2048 }));
+    // `think: false` said out loud (a list with the box unticked), so it does not ride DEFAULT_THINK.
+    const r = await withFarm(cut, () => app.ask.json({ task: 'list', schema, prompt: 'p', maxTokens: 2048, think: false }));
     assert.equal(r.ok, false);
     assert.equal(r.value, null);
     assert.equal(r.thought, true);

@@ -555,11 +555,20 @@ export const RUN_LIMITS = Object.freeze({
   maxActivations: 2000,    // total part executions in one run
 });
 
-/** Do the Computer's structured asks (a yes/no verdict, a list or JSON, an agent step) let the model
- * think, when nobody ticked the toolbar's "Think first" box? Owner decision 9 (2026-10-04) turned
- * thinking off for them; on small models that made 2 of 9 toy reasoning answers wrong (2026-10-05),
- * hence the box. THE one default: the runner, the box and app/ask.mjs all read it. */
+/** Does EVERY structured ask of the Computer (a list or JSON, an agent step) let the model think,
+ * when nobody ticked the toolbar's "Think all" box? Owner decision 9 (2026-10-04) turned thinking
+ * off for them, and the 2026-10-05 measurement (vLLM Qwen3.6, Ollama gemma4:12b) kept it so:
+ * extraction was as right without it (48/48), lists nearly (34/36 off, 36/36 on), and agent steps
+ * gained 2 of 24 on vLLM at ~12x the time and lost 3 of 24 on gemma4. THE one default: the runner,
+ * the box and app/ask.mjs read it. */
 export const DEFAULT_THINK = false;
+
+/** The structured asks that think whatever the box says: the yes/no decisions (a Condition, a
+ * Filter in model mode), by their ask `task`. Owner decision 2026-10-05, from the same measurement:
+ * Condition questions that need working out were right 20/45 thinking off and 41/45 on (vLLM
+ * Qwen3.6), and a Filter with its fixed sentence 36/36 on each engine thinking on. Read in ONE
+ * place, app/ask.mjs, which sends these nothing about thinking. */
+export const THINKING_TASKS = Object.freeze(['graph:condition', 'graph:filter']);
 
 // ---------------------------------------------------------------------------------------------
 // K2 — arrow labels as named parameters (COMPUTER_PLAN §5, graph/bind.mjs). PURE shapes: nothing
@@ -831,7 +840,7 @@ export const KV_KEYS = Object.freeze({
   workPanel: 'ui:workPanel',               // the last panel opened, for a brand-new thread (S0-U1)
   prefQueueMax: 'pref:queueMax',           // batch size cap, default 4 (S0-U3)
   prefComputeMaxItems: 'pref:computeMaxItems', // the Computer's generation cap, default 50 (C2)
-  prefComputeThink: 'pref:computeThink',       // the Computer's "Think first" box, default DEFAULT_THINK
+  prefComputeThink: 'pref:computeThink',       // the Computer's "Think all" box, default DEFAULT_THINK
   // K3 (COMPUTER_PLAN §7.3): the run journal, one row per graph, last 5 runs, pruned on write.
   /** @param {string} graphId */ computerRuns: (graphId) => `computer:runs:${graphId}`,
   /** @param {string} underlying */ editPolicy: (underlying) => `editPolicy:${underlying}`,

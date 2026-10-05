@@ -24,8 +24,8 @@ import { t } from '../../core/i18n.mjs';
 import { itemsOf, textOf, pickerRow, partFail, isControl, setPicked, slicer, failFromAsk } from './common.mjs';
 import { modelOptions, optionSig } from './instruction.mjs';
 import { itemsLine, numberField, textField, checkField } from './fields.mjs';
-// Room for a thinking model to reason before its verdict (critic S1): the Condition's 4096
-// ceiling, clamped to what each item's prompt leaves of the window (critic S2-4).
+// Room for a thinking model to reason before its verdict (critic S1): the Condition's ceiling
+// (VERDICT_MAX_TOKENS), clamped to what each item's prompt leaves of the window (critic S2-4).
 import { verdictMaxTokens } from './condition.mjs';
 
 /** @typedef {import('../../core/types.mjs').PartSpec} PartSpec */

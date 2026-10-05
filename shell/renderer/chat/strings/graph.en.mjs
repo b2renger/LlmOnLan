@@ -118,11 +118,14 @@ registerStrings('graph', {
   capHint: 'Cap: the most generations (answers from the model) one run may use, and the most items of a list one box may run through. A run that reaches it stops, keeps what it made, and offers to go on.',
   capSaid: 'Cap set to {cap} generations',
   // Owner, 2026-10-05: the toolbar box beside Cap (canvas.mjs). Its default is core/types.mjs
-  // DEFAULT_THINK, so no sentence here says which way it starts.
-  thinkLabel: 'Think first',
-  thinkHint: 'Think first: the model works it out before it answers a yes/no question, writes a list or JSON, or takes an agent step. Off is faster and lighter on the farm. On is more careful on decisions that need reasoning, and spends several times the tokens. It applies from the next run.',
-  thinkOn: 'Think first is on: the next run reasons before its yes/no answers, lists and agent steps',
-  thinkOff: 'Think first is off: the next run answers yes/no questions, lists and agent steps straight away',
+  // DEFAULT_THINK, so no sentence here says which way it starts. Yes/no decisions think either way
+  // (core/types.mjs THINKING_TASKS): the box only adds the rest. The label stays this short: at the
+  // harness window the toolbar has 0.4 px to spare with "Think first", and any label wider than
+  // ~48 px wraps it to two rows (k5-lessons-every-lesson-and-template-opens-readable-and-framed).
+  thinkLabel: 'Think all',
+  thinkHint: 'Think all. Unticked, the model still thinks before a yes/no decision (Condition, Filter) and before writing text or code, and answers lists, JSON and agent steps straight away. Ticked, it thinks before all of them: more careful, but several times slower and heavier on the farm. It applies from the next run.',
+  thinkOn: 'Think all is on: from the next run, lists, JSON and agent steps think too',
+  thinkOff: 'Think all is off: from the next run, lists, JSON and agent steps answer straight away; yes/no decisions still think',
   capItemsTitle: 'One box would run {items} times',
   capItemsBody: 'That is more than the Cap of {cap}, so nothing ran. Raise it to {raise} to run them all: for this run with the button, or for every run with Cap in the toolbar.',
   cost: '{sec}s · {tokens} tokens',

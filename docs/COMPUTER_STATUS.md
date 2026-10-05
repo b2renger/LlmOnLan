@@ -42,9 +42,13 @@ run nor a v0.2.0 installed later picks it up, and nothing warns (LOLCHAT_TESTING
 again, or how to run the dev build isolated). The backup from the 21st is still at
 `%APPDATA%\LlmOnLan-backup-20260921-*`.)*
 
-## NEWEST (5 Oct) — Think first
+## NEWEST (5 Oct) — yes/no decisions think, the rest stays fast
 
-- **Think first**, a box beside **Cap** in the canvas toolbar, puts thinking back on for the yes/no answers, lists, JSON and agent steps that owner decision 9 asks without it (on gemma4:12b and Qwen3.8 IQ2, thinking off made 2 of 9 toy reasoning answers wrong): ticked, those asks send nothing about thinking; unticked, they send `chat_template_kwargs:{enable_thinking:false}` + `think:false`. It is remembered (`pref:computeThink`), read once per run (runs started by the MCP server too), and starts at `DEFAULT_THINK` in `core/types.mjs` (off). Tested by `ask` and `graph-runner` (unit) and `c1-run-think-first` (harness).
+- **A yes/no decision thinks.** A **Condition** or a **Filter** that asks the model sends nothing about thinking, whatever the toolbar says (`THINKING_TASKS` in `core/types.mjs`, read only by `app/ask.mjs`). Lists, JSON and agent steps still send `chat_template_kwargs:{enable_thinking:false}` + `think:false`, as owner decision 9 has it. Your call of 5 Oct, from a measurement through the farm's own LiteLLM (vLLM Qwen3.6 and Ollama gemma4:12b, 3 runs per item): Condition questions that need working out were right 20/45 with thinking off and 41/45 on (vLLM; gemma4 36/45 → 38/45); extraction was right 48/48 either way, lists 34/36 off and 36/36 on; agent steps gained 2 of 24 on vLLM at ~12x the time and lost 3 of 24 on gemma4.
+- **Think all** (was "Think first"), the box beside **Cap**, now adds the rest: ticked, no structured ask sends the pair. It is remembered (`pref:computeThink`), read once per run together with the Cap (runs started by the MCP server too), and starts at `DEFAULT_THINK` (off). A clicked box no longer silences V, H, F, Delete, undo and the arrows; Space ticks it. The label stays short on purpose: at the harness window the toolbar fits on one row with 0.4 px to spare, and a longer label wraps it, which pushes a template box off screen (`k5-lessons-every-lesson-and-template-opens-readable-and-framed` fails with "Think before every answer" or even "Always think").
+- **The Filter's sentence says what `keep` means**: `{"keep": true}` when the item matches, `{"keep": false}` when it does not. With the old sentence, thinking made the Filter worse; with this one it was right 36/36 with thinking on, on each engine.
+- **A verdict may use 8192 tokens** (was 4096; `VERDICT_MAX_TOKENS`, still clamped to the window). Of 270 verdicts with thinking on, the longest that finished used 2037; one gemma4 verdict was still thinking at 4096, and that failed its box (a Filter fails its whole list).
+- Tested by `ask`, `graph-runner` and `computer-s2` (unit), and `c1-run-think-first` and `k12-view-tools-a-clicked-think-box-leaves-the-keys-to-the-canvas` (harness).
 
 ## NEWEST (27 Sept, later) — your graphs live in your data folder
 

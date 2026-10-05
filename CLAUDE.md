@@ -375,9 +375,10 @@ Connection: `OPENAI_API_BASE_URL` + `OPENAI_API_KEY` (the farm is OpenAI‑compa
   {"enable_thinking":false},"think":false,"max_tokens":1000}` (owner decision 9, 2026‑10‑04: title and
   web‑search‑query generation answer without thinking — OWUI 0.11 copies it onto those requests; `max_tokens`
   restates the title default it would otherwise drop; chats untouched; 0.10.x ignores it — the Computer's
-  structured asks send the same pair unless a person ticks the canvas toolbar's **Think first** box,
-  `pref:computeThink`, default `DEFAULT_THINK` = off, MCP runs included) · `DEFAULT_LOCALE=en-US` (+ Chromium
-  `--lang en-US`) · `ANONYMIZED_TELEMETRY=false` · `DO_NOT_TRACK=true` · `SCARF_NO_ANALYTICS=true` ·
+  lists, JSON and agent steps send the same pair unless a person ticks the canvas toolbar's **Think all**
+  box, `pref:computeThink`, default `DEFAULT_THINK` = off, MCP runs included; its yes/no decisions, Condition
+  and Filter, think either way, `THINKING_TASKS`, owner 2026‑10‑05 from a measurement) · `DEFAULT_LOCALE=en-US`
+  (+ Chromium `--lang en-US`) · `ANONYMIZED_TELEMETRY=false` · `DO_NOT_TRACK=true` · `SCARF_NO_ANALYTICS=true` ·
   `HF_HUB_OFFLINE=1` when the models test as cached, else `HF_HUB_ETAG_TIMEOUT=2`.
 - **With a farm:** `ENABLE_OPENAI_API=true` · `OPENAI_API_BASE_URL=http://<host we reached it at>:<proxyPort>/v1`
   · `OPENAI_API_KEY`=<farm password> or `sk-lol-lan` · `DEFAULT_MODELS`=<the farm's default id, when listed>.

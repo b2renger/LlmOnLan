@@ -289,10 +289,13 @@ To size the pool for another card or a co-tenant, use:
 ComfyUI's ~45 GB still on this card, about 8 GiB remains: ~0.7M tokens, or ~10 people at 64k. In that case,
 lower `parallel` to what the farm's pool warning says fits, or move ComfyUI or OCR to another box.
 
-**Thinking.** Qwen3.6 thinks by default. The client turns thinking off for its structured calls with
-`chat_template_kwargs: {"enable_thinking": false}` and also sends `think: false`, which vLLM ignores.
-LiteLLM's `drop_params` passes both through. Measured through the farm, one short answer took 393 completion
-tokens with thinking and 14 without.
+**Thinking.** Qwen3.6 thinks by default. The client turns thinking off for most of the Computer's structured
+calls (lists, JSON, agent steps) with `chat_template_kwargs: {"enable_thinking": false}` and also sends
+`think: false`, which vLLM ignores. LiteLLM's `drop_params` passes both through. A yes/no decision (a Condition,
+a Filter) sends neither and thinks, and so does every structured call once a person ticks the Computer's
+**Think all**. Chat messages and the Computer's prose and code answers never send them; Open WebUI's titles
+and search queries do. Measured through the farm, one short answer took 393 completion tokens with thinking
+and 14 without.
 
 **LiteLLM's cost per streamed token.** Every token a person reads passes through LiteLLM, and LiteLLM is one
 Python process. Measured on the PRO 6000 on 2026-10-05: N people press Enter together, each gets a 200-token
@@ -1108,7 +1111,8 @@ Without one it says "skipped".
 `test/litellm-cancel.js` routes the farm's own generated config (the `hosted_vllm/`, `openai/` and
 `ollama_chat/` shapes) to a fake engine on loopback, behind the real seat gate, aborts streaming and
 non-streaming calls, and checks the engine sees each request close within 2 s with no retry. It also checks
-that `drop_params` keeps the thinking-off pair the client sends on structured calls (owner decision 9):
+that `drop_params` keeps the thinking-off pair the client sends on the structured calls that do not think
+(owner decision 9; yes/no decisions think since 2026-10-05):
 `chat_template_kwargs: {enable_thinking: false}` reaches the engine on `hosted_vllm/` (external servers) and
 `openai/` (llama-server, coordinator peers), and
 `think: false` becomes Ollama's own field on `ollama_chat/`. And it checks the reply limit

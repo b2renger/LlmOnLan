@@ -273,7 +273,7 @@ export function createRunner(o) {
     }
   }
 
-  /** The toolbar's "Think first" box (`pref:computeThink`), read once per run like the cap, so one
+  /** The toolbar's "Think all" box (`pref:computeThink`), read once per run with the cap, so one
    * run never mixes the two. A run from the MCP server reads the same row. @returns {Promise<boolean>} */
   async function thinkFor() {
     const repo = app && app.repo;
@@ -382,9 +382,8 @@ export function createRunner(o) {
     let spent = 0;
     /** Tokens this run has spent, across every part — the journal's cost record is the RUN's. */
     let tokensTotal = 0;
-    const cap = await capFor(opts);
+    const [cap, think] = await Promise.all([capFor(opts), thinkFor()]);
     limits.maxGenerations = cap;
-    const think = await thinkFor();
 
     /** The active set `A` — MUTABLE for the whole run (merge, barriers). */
     /** @type {Set<string>} */ const A = new Set();
@@ -557,8 +556,8 @@ export function createRunner(o) {
      *
      * `given.seed` passes through untouched. The meter notes THAT a seed was sent (so the box can
      * show "last run: seed 48213") and whether any answer was cut off at max_tokens. Every `json`
-     * ask carries this run's `think` (the "Think first" box); a `text` ask never turns thinking
-     * off, so it has nothing to carry.
+     * ask carries this run's `think` (the toolbar box), and app/ask.mjs adds the yes/no decisions,
+     * which think either way; a `text` ask never turns thinking off, so it has nothing to carry.
      * @param {{tokens: number, calls: number, seeded?: boolean, cut?: boolean}} meter
      * @param {number|string|null} salt
      */

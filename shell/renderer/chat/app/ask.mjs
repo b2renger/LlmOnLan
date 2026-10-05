@@ -31,8 +31,10 @@
 //     better with 5-9x fewer tokens). Both rungs send it; `text()` never does, so a prose or code
 //     answer thinks as before. A model that ignores the flag lands in the reasoning trap above,
 //     exactly as it did. `think: true` sends nothing about thinking (the model's own default): the
-//     Computer's "Think first" box, which the runner passes on every json ask; unset means
-//     DEFAULT_THINK. It is keyed, so ticking the box never replays an answer made without thought.
+//     Computer's "Think all" box, which the runner passes on every json ask; unset means
+//     DEFAULT_THINK. A yes/no decision (THINKING_TASKS, by `task`) thinks either way (owner,
+//     2026-10-05, from a measurement). It is keyed, so ticking the box never replays an answer
+//     made without thought.
 //
 // The cache is in-memory and per-window: identical (farm, model, system, prompt, images, schema,
 // max_tokens, SEED, temperature, think) in, the same AskResult out, with `cached:true` added. Pass
@@ -47,7 +49,7 @@
 // that decides whether a cut answer is still an answer (prose) or a failure (code).
 
 import { EV } from '../core/events.mjs';
-import { KV_KEYS, DEFAULT_THINK } from '../core/types.mjs';
+import { KV_KEYS, DEFAULT_THINK, THINKING_TASKS } from '../core/types.mjs';
 import { draftFromPath, toOpenAIBody } from '../net/request.mjs';
 import { startGeneration } from '../net/run.mjs';
 import { t } from '../core/i18n.mjs';
@@ -373,8 +375,9 @@ export function createAsk(app) {
       // picks". It is sent AND keyed, so a new seed is a new generation.
       seed: seedOf(opts.seed),
       temperature: temperatureOf(opts.temperature),
-      // The Computer's "Think first" box: only a real boolean counts, anything else is the default.
-      think: typeof opts.think === 'boolean' ? opts.think : DEFAULT_THINK,
+      // The Computer's box: only a real boolean counts, anything else is the default. A yes/no
+      // decision thinks whatever it says, so the cache key below is the same both ways.
+      think: (typeof opts.think === 'boolean' ? opts.think : DEFAULT_THINK) || THINKING_TASKS.includes(str(opts.task)),
     };
   }
 
