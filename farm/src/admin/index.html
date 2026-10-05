@@ -318,15 +318,11 @@ function render(s) {
     <span class="badges"><input id="sec-in" type="password" placeholder="${s.requiresKey ? '••••••••' : 'choose a password'}" maxlength="128" spellcheck="false" autocomplete="new-password" data-orig="" />${
       s.requiresKey ? `<button id="sec-clear" class="stop"${jobRunning ? ' disabled' : ''}>Remove</button>` : ''}</span></div>`
 
-    // Context window — now honest about which engine it hits. Hidden under an
+    // Context window. What it gives each person is the line below (tradeLine), which
+    // follows an edit — a static sum here contradicted it mid-edit. Hidden under an
     // external server: its window is whatever that server was launched with.
     + (be.engine === 'external' ? '' : `<div class="row"><span></span><span><div class="mname">Context window</div>`
-    + `<div class="meta">how much text the model reads at once — bigger fits whole documents, costs VRAM${
-        be.engine === 'llama.cpp'
-          ? (be.kvUnified
-              ? ` · one shared pool: the full ${fmtK(be.contextLength)} when alone, ${fmtK(perSlot)} guaranteed with ${be.slots} at once`
-              : (be.slots > 1 ? ` · shared across ${be.slots} slots, so each user gets ${fmtK(perSlot)}` : ''))
-          : ' · every request gets the full window'}</div></span>`
+    + `<div class="meta">how much text the model reads at once — bigger fits whole documents, costs VRAM</div></span>`
     + `<span class="badges"><select id="ctx-sel" data-orig="${esc(String((be.engine === 'llama.cpp' ? lc.contextLength : (s.ollama && s.ollama.contextLength)) ?? 'auto'))}">${be.engine === 'llama.cpp'
         ? ctxOptions(lc.contextLength, lc.contextResolved || be.contextLength, s.fit, s.fit && s.fit.nativeMax)
         : ctxOptions((s.ollama && s.ollama.contextLength) ?? be.contextLength, be.contextLength, null, s.ollama && s.ollama.nativeMax)}</select></span></div>`)
@@ -755,12 +751,16 @@ function tradeLine(s, slots, ctx) {
     win = ctx0 === 'auto' ? lc.contextResolved : ((s.fit && s.fit.maxContext) || null);
     if (win == null) note = ' Automatic is sized at the restart, from the model and the GPU\'s free memory.';
     else if (edited) note = ' Automatic reads the GPU\'s free memory again at the restart, so this can come out a little different.';
-  } else if (ctx === 'auto' && ctx0 !== 'auto') {
-    note = ' Automatic is measured when you apply, by loading the model a few times.';
   } else if (ctx === 'auto') {
-    // Ollama keeps one verdict per number of people at once (up.js resolveOllamaContext).
-    win = ol.contextResolved;
-    if (slots !== slots0) note = ` Automatic is sized again for ${slots} at once when the farm restarts, and can come out smaller.`;
+    // Ollama keeps one verdict per number of people at once, measured on a daemon that runs
+    // that many (up.js resolveOllamaContext), so a new number is sized at the farm restart.
+    // Ollama holds people × window: more people can make the window smaller, fewer larger.
+    const again = slots === slots0 ? '' : ` sized again for ${slots} at once when the farm restarts`;
+    if (ctx0 !== 'auto') note = ` Automatic is measured when you apply, by loading the model a few times${again ? `, and${again}` : ''}.`;
+    else {
+      win = ol.contextResolved;
+      if (again) note = ` Automatic is${again}, and can come out ${slots > slots0 ? 'smaller' : 'larger'}.`;
+    }
   }
   if (win == null) {
     return `<div class="hint">How much context each person gets is not known yet.${note} `
@@ -777,14 +777,20 @@ function tradeLine(s, slots, ctx) {
   const docs = whole ? 'Open WebUI reads attached documents whole.'
     : `Open WebUI reads the ${CLIENT.topK} most relevant passages of an attached document, not all of it (that needs ${fmtK(CLIENT.fullDocs)} each).`;
   // The coding agent: dsh is told min(each, 256k); "Keep going" replies as agentMaxTokens sizes them.
+  // Both came after v0.2.7, and a farm meets older clients: v0.2.7 tells dsh the whole window and
+  // asks 16k replies under Keep going on any window, so dsh's compaction trigger
+  // min(0.8·W, W − reply − headroom) is never above 0 at 16k + 4k = 20k each or less.
   const w = Math.min(each, CLIENT.agentMax);
   const loop = Math.min(CLIENT.goalReply, Math.floor(w * 3 / 4) - CLIENT.headroom);
   const left = w - CLIENT.plainReply - CLIENT.headroom;   // what a plain reply leaves for the conversation
-  const agent = each > CLIENT.agentMax ? ` The coding agent uses ${fmtK(CLIENT.agentMax)} of it at most.`
+  const newer = 'In the coding agent (clients newer than v0.2.7), Keep going until done writes';
+  const oldMin = CLIENT.goalReply + CLIENT.headroom;
+  const old = each <= oldMin ? ` v0.2.7 and older still ask for ${fmtK(CLIENT.goalReply)} replies under Keep going, and at ${fmtK(oldMin)} each or less that leaves no room to summarise.` : '';
+  const agent = each > CLIENT.agentMax ? ` The coding agent (clients newer than v0.2.7) uses ${fmtK(CLIENT.agentMax)} of it at most.`
     : loop >= CLIENT.goalReply ? ''
-    : loop >= CLIENT.plainReply ? ` In the coding agent, Keep going until done writes replies of up to ${fmtK(loop)}, not ${fmtK(CLIENT.goalReply)}, so it can still summarise its history.`
-    : left > 0 ? ` In the coding agent, Keep going until done writes plain replies (${fmtK(CLIENT.plainReply)} for most models), which leave ${fmtK(left)} for the conversation before the agent has to summarise it.`
-    : ` The coding agent has no room to summarise its history (a ${fmtK(CLIENT.plainReply)} reply and ${fmtK(CLIENT.headroom)} kept free fill the window), so a long task stops when the window is full.`;
+    : loop >= CLIENT.plainReply ? ` ${newer} replies of up to ${fmtK(loop)}, not ${fmtK(CLIENT.goalReply)}, so it can still summarise its history.${old}`
+    : left > 0 ? ` ${newer} plain replies (${fmtK(CLIENT.plainReply)} for most models), which leave ${fmtK(left)} for the conversation before the agent has to summarise it.${old}`
+    : ` The coding agent has no room to summarise its history (a reply, ${fmtK(CLIENT.plainReply)} for most models, and ${fmtK(CLIENT.headroom)} kept free fill the window), so a long task stops when the window is full.`;
   // The clients' rule: a farm that does not say keeps whole documents.
   const wholeNow = be.contextPerSlot == null || be.contextPerSlot >= CLIENT.fullDocs;
   return `<div class="hint">${lead}${how}${note}<br>${docs}${agent}</div>`

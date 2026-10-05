@@ -3159,14 +3159,22 @@ test('panel: the slots-vs-context line says what an edit does before Apply (plan
     assert.ok(now.includes('id="trade"'), 'the line sits in the Backend card');
     assert.ok(now.includes('Each person gets at least <b>32k</b> of context: 64k shared by 2'), now);
     assert.ok(now.includes('reads attached documents whole') && !now.includes('restarts once'));
+    assert.ok(!now.includes('guaranteed with'), 'the Context window row no longer restates the sum the line makes');
     // 4 at once → 16k each: excerpts, every Open WebUI restarts, the agent's Keep going shrinks.
     const four = edit(4, 65536);
     assert.ok(four.includes('After Apply, each person gets at least <b>16k</b>'), four);
     assert.ok(four.includes('the 8 most relevant passages') && four.includes('that needs 24k each'));
     assert.ok(four.includes('class="warnline">Every connected Open WebUI restarts once'));
-    assert.ok(four.includes('Keep going until done writes replies of up to 8k, not 16k'), 'studio.ts agentMaxTokens(…, 16384, true) = 8192');
-    // 8 at once on 64k → 8k each: an 8k reply and 4k of headroom leave no room to summarise.
-    assert.ok(edit(8, 65536).includes('no room to summarise'));
+    assert.ok(four.includes('(clients newer than v0.2.7), Keep going until done writes replies of up to 8k, not 16k'), 'studio.ts agentMaxTokens(…, 16384, true) = 8192');
+    // v0.2.7 asks 16k on any window: 16k + 4k of headroom leave dsh no trigger at 20k or less.
+    assert.ok(four.includes('v0.2.7 and older still ask for 16k replies under Keep going, and at 20k each or less that leaves no room to summarise.'), four);
+    // 8 at once on 64k → 8k each: a plain reply and 4k of headroom leave no room to summarise, on any client.
+    const eight = edit(8, 65536);
+    assert.ok(eight.includes('no room to summarise its history (a reply, 8k for most models, and 4k kept free fill the window)') && !eight.includes('v0.2.7'), eight);
+    // 6 at once on 80k → 13653 each: Keep going falls back to plain replies, 1365 left before summarising.
+    const six = edit(6, 81920);
+    assert.ok(six.includes('<b>13653</b>') && six.includes('writes plain replies') && six.includes('leave 1365 for the conversation'), six);
+    assert.ok(six.includes('v0.2.7 and older still ask for 16k'));
     // Back to 2 at once: no edit, no warning.
     assert.ok(!edit(2, 65536).includes('warnline') && edit(2, 65536).startsWith('<div class="hint">Each person'));
     // The hard split says so; 24k each sits on the client's line and keeps whole documents.
@@ -3175,6 +3183,12 @@ test('panel: the slots-vs-context line says what an edit does before Apply (plan
     const at24 = edit(4, 98304);
     assert.ok(at24.includes('<b>24k</b>') && at24.includes('reads attached documents whole') && !at24.includes('restarts once'));
     assert.ok(at24.includes('up to 14k, not 16k'), 'agentMaxTokens(…, 24576, true) = 14336');
+    assert.ok(!at24.includes('v0.2.7 and older'), 'above 20k each a v0.2.7 client still summarises');
+    // A 1M-native model at 1 slot: the option is offered, and the agent plans for 256k of it.
+    const big = render(lcState({ fit: { nativeMax: 1048576, maxContext: 1048576, vramGb: 96, needGb: 40 } }));
+    assert.ok(big.includes('<option value="1048576"'), 'the model\'s own max is on the menu');
+    const oneM = edit(1, 1048576);
+    assert.ok(oneM.includes('<b>1M</b> of context') && oneM.includes('(clients newer than v0.2.7) uses 256k of it at most'), oneM);
     // llama.cpp Automatic: slots do not enter it, the restart measures the GPU again.
     render(lcState({ llamacpp: { ...lcState().llamacpp, contextLength: 'auto', contextResolved: 131072 } }));
     const auto = edit(4, 'auto');
@@ -3187,11 +3201,17 @@ test('panel: the slots-vs-context line says what an edit does before Apply (plan
     // Ollama: every request gets the whole window, whatever the slots.
     const ol = render(adminState());
     assert.ok(ol.includes('Each person gets <b>32k</b> of context: Ollama gives every request the whole window.'));
-    assert.ok(edit(4, 'auto').includes('sized again for 4 at once when the farm restarts'));
+    // Ollama holds people × window: more people at once can shrink Automatic, fewer can grow it.
+    assert.ok(edit(4, 'auto').includes('sized again for 4 at once when the farm restarts, and can come out smaller'));
+    assert.ok(edit(1, 'auto').includes('sized again for 1 at once when the farm restarts, and can come out larger'));
     // A pinned window switched to Automatic: measured on Apply — no number is invented.
     render(adminState({ ollama: { ...adminState().ollama, contextLength: 16384, contextResolved: 16384 } }));
     const pending = edit(2, 'auto');
     assert.ok(pending.includes('not known yet') && pending.includes('measured when you apply') && !pending.includes('<b>16k</b> of context'), pending);
+    assert.ok(!pending.includes('sized again'));
+    // With new slots in the same Apply, the measurement is the running daemon's (up.js keys it so)
+    // and the restart sizes the new number.
+    assert.ok(edit(4, 'auto').includes('measured when you apply, by loading the model a few times, and sized again for 4 at once when the farm restarts.'));
 
     // An external server: nothing to edit; the declared values, the same consequences.
     const ext = render(adminState({

@@ -513,8 +513,10 @@ Both are panel controls — *Backend* → **People served at once** and **Contex
 them says, as you change them and before you apply, what each person gets (the `contextPerSlot` the farm
 will advertise) and what the clients then do: below 24576 each, Open WebUI reads the 8 most relevant
 passages of a document instead of all of it, and every connected Open WebUI restarts once when that
-flips; on small windows the coding agent's *Keep going until done* writes shorter replies. Automatic is
-sized when the engine starts, so the line quotes the last measurement and says so. They apply together
+flips. On small windows, in clients newer than v0.2.7, the coding agent's *Keep going until done* writes
+shorter replies; v0.2.7 and older still ask for 16k replies and, at 20k each or less, cannot summarise the
+agent's history. Automatic is sized when the engine starts, so the line quotes the last measurement and
+says so. They apply together
 with **Apply changes**, reloading the model once, and are written back to `lol.config.json`. If the new shape does
 not fit VRAM the model fails to load and the farm reverts to the shape that worked.
 

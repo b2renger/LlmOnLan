@@ -336,7 +336,9 @@ async function ensureOllama(config) {
             `OLLAMA_CONTEXT_LENGTH=${typeof config.ollama.contextLength === 'number' ? config.ollama.contextLength : 16384}`
         );
     }
-    return { reachable, spawnedPids, unmanagedHosts: alreadyUp };
+    // numParallel: what the daemon runs until the farm restarts (its env applies only
+    // at start) — a live slot change writes the config, not this.
+    return { reachable, spawnedPids, unmanagedHosts: alreadyUp, numParallel: config.ollama.numParallel };
 }
 
 async function pullMissing(config, reachable) {
@@ -715,7 +717,12 @@ async function run(args) {
         const cacheFile = pathMod.join(ollama.modelsDir(), 'ollama-ctx.json');
         // kvCacheType is part of the key: q8_0 halves the per-token cost, so a
         // verdict probed under one cache type must never be served under another.
-        const cacheKey = `${def}|${vram ?? '?'}|${config.ollama.numParallel}|${config.ollama.kvCacheType || 'f16'}`;
+        // The parallel count is the one the daemon RUNS (oll.numParallel): after a
+        // live slot change the probe still loads on the old daemon, and filing that
+        // verdict under the new count let the restart reuse a window measured for
+        // fewer people (KV spilling to RAM). The restart sizes the new count on a
+        // daemon that runs it.
+        const cacheKey = `${def}|${vram ?? '?'}|${oll.numParallel}|${config.ollama.kvCacheType || 'f16'}`;
         let cache = {};
         try { cache = JSON.parse(fsMod.readFileSync(cacheFile, 'utf8')) || {}; } catch { /* first probe */ }
         if (typeof cache[cacheKey] === 'number') {
