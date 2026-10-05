@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import { createAsk, install, MIN_MAX_TOKENS, QUEUE_EVENT, NO_VISION_EVENT } from '../../../renderer/chat/app/ask.mjs';
 import { createGovernor } from '../../../renderer/chat/net/governor.mjs';
 import { createBus, EV } from '../../../renderer/chat/core/events.mjs';
-import { API_KEYS, KV_KEYS } from '../../../renderer/chat/core/types.mjs';
+import { API_KEYS, KV_KEYS, DEFAULT_THINK } from '../../../renderer/chat/core/types.mjs';
 import { createCaps, install as installCaps, readModelGroupInfo } from '../../../renderer/chat/app/caps.mjs';
 
 const FARM_ID = 'farm-1';
@@ -285,6 +285,47 @@ export default (test) => {
     const prose = farm.posts[2].body;
     assert.equal('chat_template_kwargs' in prose, false, 'a prose or code answer thinks as before');
     assert.equal('think' in prose, false);
+  });
+
+  test('"Think first": think:true sends NOTHING about thinking on both rungs; think:false sends the pair', async () => {
+    const { app } = stubApp();
+    const { api } = createAsk(app);
+    const farm = fakeFarm((body) => (body.response_format ? 'I would rather not.' : JSON.stringify({ name: 'box', count: 1 })));
+    await withFarm(farm, async () => {
+      assert.equal((await api.json({ task: 't', schema: SCHEMA, prompt: 'on', think: true })).ok, true);
+      assert.equal((await api.json({ task: 't', schema: SCHEMA, prompt: 'off', think: false })).ok, true);
+    });
+    assert.equal(farm.posts.length, 4, 'two rungs each');
+    for (const { body } of farm.posts.slice(0, 2)) {
+      assert.equal('chat_template_kwargs' in body, false, 'the model\'s own default: nothing sent');
+      assert.equal('think' in body, false);
+    }
+    for (const { body } of farm.posts.slice(2)) {
+      assert.deepEqual(body.chat_template_kwargs, { enable_thinking: false });
+      assert.equal(body.think, false);
+    }
+  });
+
+  test('"Think first": an ask that says nothing follows DEFAULT_THINK, and the box is part of the cache key', async () => {
+    const { app } = stubApp();
+    const { api } = createAsk(app);
+    const farm = fakeFarm(() => JSON.stringify({ name: 'box', count: 1 }));
+    await withFarm(farm, async () => {
+      assert.equal((await api.json({ task: 't', schema: SCHEMA, prompt: 'p' })).ok, true);
+      const same = await api.json({ task: 't', schema: SCHEMA, prompt: 'p', think: DEFAULT_THINK });
+      assert.equal(same.cached, true, 'unset IS the default, so it is the same question');
+      const flipped = await api.json({ task: 't', schema: SCHEMA, prompt: 'p', think: !DEFAULT_THINK });
+      assert.equal(flipped.cached, undefined, 'ticking the box never replays an answer made the other way');
+    });
+    assert.equal(farm.posts.length, 2);
+    assert.equal('think' in farm.posts[0].body, !DEFAULT_THINK, 'the default decides the first wire');
+    assert.equal('think' in farm.posts[1].body, DEFAULT_THINK);
+  });
+
+  test('"Think first" default: off (owner decision 9) until a measurement says otherwise', () => {
+    // Flipping it is ONE edit in core/types.mjs, and this line with it; every other test reads the constant.
+    assert.equal(DEFAULT_THINK, false);
+    assert.equal(KV_KEYS.prefComputeThink, 'pref:computeThink', 'the spelling is contract: the harness reads it literally');
   });
 
   // ---- etiquette --------------------------------------------------------------------------------

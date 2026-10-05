@@ -42,6 +42,10 @@ run nor a v0.2.0 installed later picks it up, and nothing warns (LOLCHAT_TESTING
 again, or how to run the dev build isolated). The backup from the 21st is still at
 `%APPDATA%\LlmOnLan-backup-20260921-*`.)*
 
+## NEWEST (5 Oct) — Think first
+
+- **Think first**, a box beside **Cap** in the canvas toolbar, puts thinking back on for the yes/no answers, lists, JSON and agent steps that owner decision 9 asks without it (on gemma4:12b and Qwen3.8 IQ2, thinking off made 2 of 9 toy reasoning answers wrong): ticked, those asks send nothing about thinking; unticked, they send `chat_template_kwargs:{enable_thinking:false}` + `think:false`. It is remembered (`pref:computeThink`), read once per run (runs started by the MCP server too), and starts at `DEFAULT_THINK` in `core/types.mjs` (off). Tested by `ask` and `graph-runner` (unit) and `c1-run-think-first` (harness).
+
 ## NEWEST (27 Sept, later) — your graphs live in your data folder
 
 Your rule — *"all data in data dir including lol chat projects and computer projects"* — is built.

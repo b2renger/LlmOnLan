@@ -22,7 +22,7 @@
 // `setCapped` are told, by the module that read the report (computer/runbar.mjs).
 
 import { t } from '../core/i18n.mjs';
-import { KV_KEYS } from '../core/types.mjs';
+import { KV_KEYS, DEFAULT_THINK } from '../core/types.mjs';
 import { EV } from '../core/events.mjs';
 import { paletteCatalogue, groupLabel } from './parts/index.mjs';
 // K5 kickoff (addendum KE-2): the ＋ menu is K5-U2's module; this file only decides WHERE a pick
@@ -637,13 +637,22 @@ export function createCanvas(o) {
   capInput.title = t('graph.capHint');
   capInput.value = String(DEFAULT_MAX_ITEMS);
   capField.appendChild(capInput);
+  // Owner, 2026-10-05: the other run-wide preference (`pref:computeThink`), beside the Cap and kept
+  // the same way. Every run reads it once (graph/runner.mjs); app/ask.mjs turns it into the wire.
+  const thinkField = /** @type {HTMLLabelElement} */ (el('label', 'graph-think-field'));
+  thinkField.title = t('graph.thinkHint');
+  const thinkInput = /** @type {HTMLInputElement} */ (document.createElement('input'));
+  thinkInput.type = 'checkbox';
+  thinkInput.className = 'graph-think-input';
+  thinkInput.checked = DEFAULT_THINK;
+  thinkField.append(thinkInput, el('span', 'graph-think-label', t('graph.thinkLabel')));
   // Owner, 2026-09-27: the view controls live TOGETHER — the two tools, then the zoom cluster with
   // Fit at its end — instead of the zoom at the far right and Fit among the edit buttons. The run
   // bar's own zoom chip is gone: one zoom control, next to the tools.
   zoomWrap.insertBefore(fitBtn, zoomMenu);
   toolbar.append(
     runBtn, stopBtn, addWrap, toolsWrap, zoomWrap, undoBtn, redoBtn, tidyBtn, exportWrap, importBtn,
-    capField,
+    capField, thinkField,
   );
 
   /** What the raise button should ask for: twice the cap the LAST run stopped at, or — when an
@@ -676,6 +685,24 @@ export function createCanvas(o) {
       if (acceptSeed(stored, {
         destroyed, edited: capEdited, focused: document.activeElement === capInput,
       })) capInput.value = String(Math.floor(stored));
+    } catch { /* the default stands */ }
+  })();
+  /** Has the reader clicked the box? Then a seed landing late is behind it, as with the Cap. */
+  let thinkEdited = false;
+  thinkInput.addEventListener('change', () => {
+    thinkEdited = true;
+    const repo = app && app.repo;
+    if (repo && typeof repo.kvSet === 'function') {
+      Promise.resolve(repo.kvSet(KV_KEYS.prefComputeThink, thinkInput.checked)).catch(() => { /* the store speaks through its own banner */ });
+    }
+    announce(thinkInput.checked ? t('graph.thinkOn') : t('graph.thinkOff'));
+  });
+  (async () => {
+    const repo = app && app.repo;
+    if (!repo || typeof repo.kvGet !== 'function') return;
+    try {
+      const stored = await repo.kvGet(KV_KEYS.prefComputeThink, DEFAULT_THINK);
+      if (typeof stored === 'boolean' && !destroyed && !thinkEdited) thinkInput.checked = stored;
     } catch { /* the default stands */ }
   })();
 

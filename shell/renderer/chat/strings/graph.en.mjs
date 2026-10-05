@@ -117,6 +117,12 @@ registerStrings('graph', {
   capLabel: 'Cap',
   capHint: 'Cap: the most generations (answers from the model) one run may use, and the most items of a list one box may run through. A run that reaches it stops, keeps what it made, and offers to go on.',
   capSaid: 'Cap set to {cap} generations',
+  // Owner, 2026-10-05: the toolbar box beside Cap (canvas.mjs). Its default is core/types.mjs
+  // DEFAULT_THINK, so no sentence here says which way it starts.
+  thinkLabel: 'Think first',
+  thinkHint: 'Think first: the model works it out before it answers a yes/no question, writes a list or JSON, or takes an agent step. Off is faster and lighter on the farm. On is more careful on decisions that need reasoning, and spends several times the tokens. It applies from the next run.',
+  thinkOn: 'Think first is on: the next run reasons before its yes/no answers, lists and agent steps',
+  thinkOff: 'Think first is off: the next run answers yes/no questions, lists and agent steps straight away',
   capItemsTitle: 'One box would run {items} times',
   capItemsBody: 'That is more than the Cap of {cap}, so nothing ran. Raise it to {raise} to run them all: for this run with the button, or for every run with Cap in the toolbar.',
   cost: '{sec}s · {tokens} tokens',

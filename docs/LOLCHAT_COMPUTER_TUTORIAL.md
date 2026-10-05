@@ -42,7 +42,10 @@ What you see, left to right:
   any button for what it does.
 - **The canvas**, with its toolbar: **＋ Add a box**, the **Select (V)** and **Hand (H)** tools, the
   zoom cluster (**−**, the zoom %, **+**, **Fit**), **Undo**, **Redo**, **Tidy**, **Export…**,
-  **Replace from file…** and the **Cap** field.
+  **Replace from file…**, the **Cap** field and the **Think first** box. Off, the model answers
+  yes/no questions, lists, JSON and agent steps straight away: faster and lighter on the farm. On, it
+  reasons first: more careful when a decision needs reasoning, and several times the tokens. It
+  starts off, the app remembers it, and it applies from the next run.
 - **The drawer**, on the right, when something is open in it: a value you clicked, or what a box
   sent and got (see [Read the prompt before you pay](#step-4--read-the-prompt-before-you-pay)).
   Drag its left edge to resize it.

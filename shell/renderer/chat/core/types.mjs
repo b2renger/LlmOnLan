@@ -555,6 +555,12 @@ export const RUN_LIMITS = Object.freeze({
   maxActivations: 2000,    // total part executions in one run
 });
 
+/** Do the Computer's structured asks (a yes/no verdict, a list or JSON, an agent step) let the model
+ * think, when nobody ticked the toolbar's "Think first" box? Owner decision 9 (2026-10-04) turned
+ * thinking off for them; on small models that made 2 of 9 toy reasoning answers wrong (2026-10-05),
+ * hence the box. THE one default: the runner, the box and app/ask.mjs all read it. */
+export const DEFAULT_THINK = false;
+
 // ---------------------------------------------------------------------------------------------
 // K2 — arrow labels as named parameters (COMPUTER_PLAN §5, graph/bind.mjs). PURE shapes: nothing
 // here knows a farm, a DOM node or a part type. Frozen at the K2 kickoff.
@@ -825,6 +831,7 @@ export const KV_KEYS = Object.freeze({
   workPanel: 'ui:workPanel',               // the last panel opened, for a brand-new thread (S0-U1)
   prefQueueMax: 'pref:queueMax',           // batch size cap, default 4 (S0-U3)
   prefComputeMaxItems: 'pref:computeMaxItems', // the Computer's generation cap, default 50 (C2)
+  prefComputeThink: 'pref:computeThink',       // the Computer's "Think first" box, default DEFAULT_THINK
   // K3 (COMPUTER_PLAN §7.3): the run journal, one row per graph, last 5 runs, pruned on write.
   /** @param {string} graphId */ computerRuns: (graphId) => `computer:runs:${graphId}`,
   /** @param {string} underlying */ editPolicy: (underlying) => `editPolicy:${underlying}`,

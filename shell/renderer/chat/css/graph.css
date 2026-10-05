@@ -568,6 +568,19 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* "Think first", right of the Cap: the same small muted label, and the whole label is the target. */
+:is(#lolchat, #lolcomputer) .graph-think-field {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+:is(#lolchat, #lolcomputer) .graph-think-input { margin: 0; }
+
 :is(#lolchat, #lolcomputer) .graph-item-errors { list-style: disc; }
 :is(#lolchat, #lolcomputer) .graph-item-error { margin: 1px 0; }
 

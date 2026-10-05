@@ -30,10 +30,12 @@
 //   - THINKING OFF for `json()` only (owner decision 9, 2026-10-04: the spike scored the same or
 //     better with 5-9x fewer tokens). Both rungs send it; `text()` never does, so a prose or code
 //     answer thinks as before. A model that ignores the flag lands in the reasoning trap above,
-//     exactly as it did.
+//     exactly as it did. `think: true` sends nothing about thinking (the model's own default): the
+//     Computer's "Think first" box, which the runner passes on every json ask; unset means
+//     DEFAULT_THINK. It is keyed, so ticking the box never replays an answer made without thought.
 //
 // The cache is in-memory and per-window: identical (farm, model, system, prompt, images, schema,
-// max_tokens, SEED, temperature) in, the same AskResult out, with `cached:true` added. Pass
+// max_tokens, SEED, temperature, think) in, the same AskResult out, with `cached:true` added. Pass
 // `cache:false` for anything a reader pressed Retry on — a Retry that replays a cached answer is a
 // lie.
 //
@@ -45,7 +47,7 @@
 // that decides whether a cut answer is still an answer (prose) or a failure (code).
 
 import { EV } from '../core/events.mjs';
-import { KV_KEYS } from '../core/types.mjs';
+import { KV_KEYS, DEFAULT_THINK } from '../core/types.mjs';
 import { draftFromPath, toOpenAIBody } from '../net/request.mjs';
 import { startGeneration } from '../net/run.mjs';
 import { t } from '../core/i18n.mjs';
@@ -371,6 +373,8 @@ export function createAsk(app) {
       // picks". It is sent AND keyed, so a new seed is a new generation.
       seed: seedOf(opts.seed),
       temperature: temperatureOf(opts.temperature),
+      // The Computer's "Think first" box: only a real boolean counts, anything else is the default.
+      think: typeof opts.think === 'boolean' ? opts.think : DEFAULT_THINK,
     };
   }
 
@@ -414,6 +418,7 @@ export function createAsk(app) {
       salt: o.cacheSalt || null,
       seed: o.seed === null || o.seed === undefined ? null : o.seed,
       temperature: o.temperature === null || o.temperature === undefined ? null : o.temperature,
+      think: lane === 'json' ? o.think : null,   // text() never sends it, so it never splits text's cache
     });
   }
 
@@ -484,7 +489,7 @@ export function createAsk(app) {
       ? { type: 'json_schema', json_schema: { name: o.task.replace(/[^a-zA-Z0-9_-]/g, '_') || 'answer', strict: true, schema: o.schema } }
       : null;
 
-    const out = await once({ ...o, system, responseFormat, thinking: false });
+    const out = await once({ ...o, system, responseFormat, thinking: o.think ? undefined : false });
     if (out.refusal) return { result: out.refusal, degraded: false, hard: false };
     if (out.error) return { result: farmFailure(out.error, out.underlying, out.ms), degraded: false, hard: false };
     const finishReason = out.finishReason || null;

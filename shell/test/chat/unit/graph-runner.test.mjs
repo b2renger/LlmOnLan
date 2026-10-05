@@ -23,6 +23,7 @@ import { createRunner } from '../../../renderer/chat/graph/runner.mjs';
 import { createDoc, addPart, addWire, patchPart, partById } from '../../../renderer/chat/graph/model.mjs';
 import { valueOf, listOf } from '../../../renderer/chat/graph/values.mjs';
 import { t } from '../../../renderer/chat/core/i18n.mjs';
+import { DEFAULT_THINK } from '../../../renderer/chat/core/types.mjs';
 import '../../../renderer/chat/strings/parts.en.mjs';
 import { clock, ids } from './graph-fixture.mjs';
 
@@ -349,6 +350,31 @@ export default (test) => {
       '`stopped` counts every part the cap left unrun, the interrupted one included');
     assert.equal(report.skipped, 1,
       'while `skipped` counts only the parts never reached — the capped one is stale, not skipped');
+  });
+
+  test('"Think first": every json ask of a run carries the stored box, text asks never do, unset is DEFAULT_THINK', async () => {
+    const specs = runnableSpecs({
+      ask: async (/** @type {any} */ input) => {
+        const verdict = await input.ask.json({ task: 'graph:verdict', prompt: `json:${input.part.id}`, schema: {} });
+        const prose = await input.ask.text({ task: 'graph:ask', prompt: `text:${input.part.id}` });
+        return text(`${verdict.value}|${prose.value}`);
+      },
+    });
+    /** @param {any} kv */
+    const runWith = async (kv) => {
+      const session = fakeSession(specs);
+      session.add('ask');
+      const app = fakeApp({ kv });
+      const report = await createRunner({ session, app }).run({});
+      assert.equal(report.ran, 1);
+      const [json, prose] = app.log();
+      assert.equal('think' in prose, false, 'a prose or code answer is never sent thinking-off, so it carries nothing');
+      return json.think;
+    };
+    assert.equal(await runWith({}), DEFAULT_THINK, 'nothing stored: the one default');
+    assert.equal(await runWith({ 'pref:computeThink': true }), true, 'ticked: the model thinks');
+    assert.equal(await runWith({ 'pref:computeThink': false }), false, 'unticked: it answers straight away');
+    assert.equal(await runWith({ 'pref:computeThink': 'yes' }), DEFAULT_THINK, 'a row that is not a boolean is the default');
   });
 
   test('a refusal that took no seat does not eat the cap', async () => {

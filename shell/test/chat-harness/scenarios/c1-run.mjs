@@ -388,6 +388,62 @@ export default [
     },
 
     {
+        name: 'c1-run-think-first',
+        needsMock: true,
+        allowConsoleErrors: FARM_ERRORS,
+        // The toolbar's "Think first" box (owner, 2026-10-05) IS `pref:computeThink`: a click writes
+        // it, the NEXT run's structured ask carries it to the wire — ticked, nothing about thinking;
+        // unticked, the pair decision 9 sends — and a re-opened panel shows it again. Written from
+        // whatever the box starts at, so flipping DEFAULT_THINK does not break it.
+        async run(h) {
+            await open(h);
+            const ids = await build(h, { model: 'mock-studio-json', shape: 'list' });
+            const box = () => h.eval(() => {
+                const el = /** @type {any} */ (document.querySelector('#lolcomputer .graph-think-input'));
+                return el ? { checked: !!el.checked, inToolbar: !!el.closest('.graph-toolbar') } : null;
+            });
+            const first = await box();
+            h.assert(first && first.inToolbar, 'the box is a toolbar control, beside the Cap');
+
+            let sent = 0;
+            for (const want of [!first.checked, first.checked]) {
+                await h.click('#lolcomputer .graph-think-input');
+                await h.waitFor((w) => window.LolChat.app.repo.kvGet('pref:computeThink', null).then((v) => (v === w ? true : null)), { args: [want] });
+                // The second pass goes in through the call the MCP server's run_graph makes
+                // (computer/mcp-tools.mjs: `comp.run({mode:'from', seeds})`), so its runs follow the box too.
+                const report = want === first.checked
+                    ? await h.graph.run({ mode: 'from', seeds: [ids.ask] })
+                    : await h.graph.runFrom(ids.ask);
+                h.eq(report.errors.length, 0, JSON.stringify(report.errors));
+                const log = await posts(h, 'mock-studio-json');
+                h.eq(log.length, sent + 1, 'one structured ask per run');
+                const body = log[sent].body;
+                sent = log.length;
+                h.eq(body.response_format.type, 'json_schema', 'it really was a structured ask');
+                if (want) {
+                    h.eq('chat_template_kwargs' in body, false, 'ticked: the model\'s own default, nothing sent');
+                    h.eq('think' in body, false);
+                } else {
+                    h.eq(body.chat_template_kwargs, { enable_thinking: false }, 'unticked: vLLM and llama-server read this one');
+                    h.eq(body.think, false, 'and the farm\'s LiteLLM hands this one to Ollama');
+                }
+            }
+
+            // Leave it the other way from the start, then reload: the NEW canvas re-seeds it from the store.
+            await h.click('#lolcomputer .graph-think-input');
+            await h.waitFor((w) => window.LolChat.app.repo.kvGet('pref:computeThink', null).then((v) => (v === w ? true : null)), { args: [!first.checked] });
+            await h.graph.save();
+            await h.reload();
+            await requireReal(h);
+            await h.graph.open();
+            await h.waitFor((w) => {
+                const el = /** @type {any} */ (document.querySelector('#lolcomputer .graph-think-input'));
+                return el && el.checked === w ? true : null;
+            }, { args: [!first.checked], timeout: 20000 });
+        },
+    },
+
+    {
         name: 'c1-run-no-farm',
         needsMock: true,
         allowConsoleErrors: FARM_ERRORS,
