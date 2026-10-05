@@ -378,8 +378,14 @@ Small fixes that need no policy decision, and the measurements every later choic
 > - Non-streaming calls needed LiteLLM's `cancel_on_disconnect` to cancel at all. It is now on in the
 >   generated config.
 > - `lol bench --people` is **opt-in**, because the seats it takes stay held for `seatIdleSec`.
-> - Not yet measured: whether real llama-server and Ollama stop generating on disconnect (no GPU was
->   available).
+> - **Real engines** (measured 2026-10-04, `test/litellm-cancel.js` real-engine mode):
+>   - **Ollama 0.34** stops on every path within 16–71 ms.
+>   - **llama.cpp b10670** stops streams within ~10 ms, but **a non-streaming call abandoned while
+>     someone else streams runs to its end**. Its disconnect check sits on a 1 s wait that every other
+>     request's result restarts (upstream `server-queue.cpp` `recv_with_timeout`, per the agent's reading
+>     of the source).
+>   - Open: an upstream report or fix, then a pin bump. vLLM, the target engine, is not yet tested for
+>     this (do it with the PRO 6000 recipe).
 >
 > **0.6 is done on the RTX PRO 6000** (2026-10-04, 12:55–22:03; `docs/spike/RESULTS.md`; DEVLOG 2026-10-04 22:05).
 > vLLM 0.30 against llama.cpp b10670, Qwen3.6-35B-A3B / Nemotron 3.5 Lightning / Qwen3.8-27B, with the GPU
@@ -1530,7 +1536,9 @@ These are recommendations, not decisions.
      per-chat switch.
    - (c) Keep thinking on everywhere.
 
-   Recommendation: (a) now; (b) only after a broader quality check than 28 items.
+   **ANSWERED (owner, 2026-10-04): (a), thinking off for structured calls only.** Chat is unchanged.
+   Watch out: the farm's LiteLLM runs with `drop_params: true`, so check end to end that the flag reaches
+   each engine (vLLM, llama.cpp, Ollama) rather than being dropped silently.
 10. **vLLM's shape on each box (Phase 2), from the spike.**
     - **Spark (native Linux):** a managed vLLM engine (2b) is straightforward, with the spike's install
       script and flags.
@@ -1539,7 +1547,9 @@ These are recommendations, not decisions.
       TCP. Fixes to try: WSL NAT networking, or a small TCP→socket relay in WSL. Then choose between
       operator-run `external` (the spike's scripts as a documented recipe) and fully managed (a WSL
       lifecycle with the stdin-EOF watchdog and toolchain pins).
-    - Recommendation: managed on the Spark; on the PRO 6000, first fix the TCP blocker, then `external`
+    - **ANSWERED (owner, 2026-10-04): managed on the Spark; on the PRO 6000, fix the TCP blocker, then
+      operator-run `external` from a documented recipe.**
+    - Recommendation was: managed on the Spark; on the PRO 6000, first fix the TCP blocker, then `external`
       with the recipe.
 11. **ComfyQ on the PRO 6000 (new).** These are ceiling numbers with ComfyUI stopped. With ComfyUI's
     ~45 GB resident, vLLM's KV drops from 58 to ~20 GiB: long-context capacity falls about 3×, and image
@@ -1548,7 +1558,9 @@ These are recommendations, not decisions.
     - (b) Move ComfyQ to another machine.
     - (c) Schedule (ComfyQ off during LLM-heavy classes).
 
-    Measure (a) before deciding: the spike harness beside a resident ComfyUI is a ~1-hour run.
+    **ANSWERED (owner, 2026-10-04): (b), move ComfyQ to another machine.** The PRO 6000 becomes LLM-only,
+    so the spike's exclusive-GPU numbers are the real ones, not just ceilings. The move is the owner's;
+    the farm keeps budgeting against free VRAM (0.7) either way.
 
 ## 13b. Gaps the critic raised (not yet planned)
 

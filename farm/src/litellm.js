@@ -357,7 +357,12 @@ function buildLitellmConfig(config, peers = []) {
             // A person who leaves mid-answer frees the engine's slot: LiteLLM already
             // drops a STREAM when its client goes, but finishes a non-streaming call
             // (an agent page's step, OWUI's title) for nobody unless this is on.
-            // Measured both ways by test/litellm-cancel.js (multi-user plan 0.0).
+            // Measured by test/litellm-cancel.js (multi-user plan 0.0), real engines
+            // 2026-10-04: Ollama stops on every path (16-71 ms). llama.cpp b10670 stops
+            // streams (~10 ms) and a lone non-streaming call (~1 s), but NOT a
+            // non-streaming call while someone else streams: llama-server only checks
+            // the client on a 1 s wait that every other request's result restarts
+            // (upstream server-queue.cpp recv_with_timeout) — it runs to its end.
             cancel_on_disconnect: true,
         },
     };

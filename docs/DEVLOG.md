@@ -6,6 +6,32 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-10-05 (08:30) — Does Stop stop the engine? Real engines measured; the chat harness 406/406; three more owner decisions
+
+- **Phase 0.0's last link, on real engines** (granite4.2:8b on the RTX PRO 6000, LiteLLM 1.97 and 1.90).
+  `farm/test/litellm-cancel.js` gains an opt-in real-engine mode (`LOL_CANCEL_ENGINE=llamacpp|ollama`),
+  timed by the engine's own task log (`cancel task`, `release … n_tokens`). It never polls `/metrics`
+  mid-trial: polling would itself cause the bug it measures.
+  - **Ollama 0.34** stops on every path (direct `/api/chat` and `/v1`, via LiteLLM, via the seat gate;
+    stream and not) within 16–71 ms, and answers the next request in < 60 ms.
+  - **llama.cpp b10670** stops streams within 8–13 ms, and a lone non-streaming call ~1 s after the abort.
+  - **But a non-streaming call abandoned while someone else streams runs to its end** (9.8 s, all 2,000
+    tokens). The handler only checks for a closed client when a 1 s wait times out, and every result
+    posted for any request restarts that wait (upstream `server-queue.cpp` `recv_with_timeout`, still on
+    master, per the agent's source reading). So the llama.cpp mode fails on purpose until a pinned build
+    is fixed.
+  - The default fake-engine mode still passes. The `litellm.js` comment and `farm/README.md` now say
+    this.
+- **The chat harness** (shell, beside the owner's open client; own user-data, non-beaconing mock):
+  **406/406** and perf **9/9**, the same as v0.2.7. Multi-user 1.6 and the new 429 sentence needed no
+  fixture change.
+- **Owner decisions** (plan §13, 9–11):
+  - Thinking off for **structured calls only**: the Computer's json/list/verdict/agent asks and
+    background tasks; chat unchanged.
+  - vLLM **managed on the Spark**. On the PRO 6000, fix the WSL TCP blocker first, then an
+    operator-run `external` **recipe**.
+  - **Move ComfyQ** off the PRO 6000, which makes the spike's exclusive-GPU numbers the real ones.
+
 ## 2026-10-04 (22:05) — The engine × model spike on the RTX PRO 6000: vLLM + Qwen3.6 serves ~100 people at 32k
 
 Phase 0.6, run 12:55–22:03 with the GPU exclusive (ComfyQ and the farm stopped), so these are ceilings.

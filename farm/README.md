@@ -861,3 +861,19 @@ Without one it says "skipped".
 `ollama_chat/` shape) to a fake engine on loopback, behind the real seat gate, aborts streaming and
 non-streaming calls, and checks the engine sees each request close within 2 s with no retry. Run it after
 bumping the LiteLLM pin (`LOL_LITELLM=<path to litellm>` tests another install).
+
+**With a real engine** (opt-in, documented in the file's header), the check proves that generation itself
+stops, timed by the engine's own task log:
+
+- `LOL_CANCEL_ENGINE=ollama LOL_CANCEL_MODEL=<small model>` uses the running daemon and unloads the model
+  afterwards.
+- `LOL_CANCEL_ENGINE=llamacpp LOL_CANCEL_LLAMA_SERVER=<exe> LOL_CANCEL_GGUF=<file>` starts its own
+  llama-server.
+
+Measured 2026-10-04:
+
+- **Ollama 0.34** stops on every path within 16–71 ms.
+- **llama.cpp b10670** stops streams within ~10 ms, but a **non-streaming call abandoned while someone else
+  streams runs to its end**. This is an upstream bug: the disconnect check sits on a 1 s wait that every
+  other request's result restarts. So the llama.cpp mode fails until a pinned build carries a fix. Bump
+  the pin and re-run it.
