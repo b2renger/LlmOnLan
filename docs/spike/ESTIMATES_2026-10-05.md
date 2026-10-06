@@ -68,7 +68,7 @@ All prices are retail and include VAT unless marked. They were fetched 2026-10-0
 | PRO 5000 48 GB, headless Linux, OCR elsewhere, est. | 19.9 GiB (993) | 41–43 | KV | 24–25 | KV | 13–14 | KV | same |
 | PRO 5000 72 GB, OCR elsewhere, est. | 40.2 GiB (2,010) | 59–85 / 81–89 | TTFT / decode–KV | 28–42 / 49–51 | TTFT / decode–KV | 14–21 / 27–29 | TTFT / KV | same |
 | PRO 5500, OCR elsewhere, est. | 51.2 GiB (2,560) | 89 / 96 | decode | 43–50 / 55 | TTFT / decode | 22–26 / 30 | TTFT / decode | same |
-| DGX Spark 128 GB | measured today | — | | — | | — | | — |
+| **DGX Spark 128 GB, MEASURED** (same 58 GiB pool) | 58 GiB (same as the PRO 6000) | **8 / 8** | decode + TTFT | **8 / 8** | decode | **4 / 4** | decode | 6.1 / 15.2 / 38.7 s (measured) |
 
 **Against the class sizes** (usually 20–30, at most 50):
 - **PRO 5000 72 GB:** covers 50 at 32k. At 64k it covers a usual class (28–40) but not 50 pressing Enter together.
@@ -119,7 +119,7 @@ Seat = one person, counted `every turn / steady`. Estimates use the assumed setu
 | RTX PRO 5000 72 GB | €11,194 | 59–69 / 65–69 | €162–190 / €162–172 | 28–40 / 38–40 | €280–400 / €280–295 | estimated |
 | RTX PRO 5000 48 GB (OCR on the card) | €9,940 | 19–20 | €497–523 | 11 | €904 | estimated |
 | RTX PRO 5000 48 GB (OCR on another box) | €9,940 | 38–40 | €249–262 | 22–23 | €432–452 | estimated |
-| DGX Spark 128 GB | €6,600 (Founders, LDLC) · from ~€6,046 TTC (Lenovo PGX 1 TB, €5,038 HT) | *measured today* | *method below* | *measured today* | *method below* | to measure |
+| DGX Spark 128 GB | €6,600 (Founders, LDLC) · from ~€6,046 TTC (Lenovo PGX 1 TB, €5,038 HT) | 8 / 8 | **€825** (OEM €756) | 8 / 8 | **€825** (OEM €756) | **measured** 2026-10-06 |
 
 **Reading it:**
 - **Per seat, the PRO 5000 72 GB is close to the PRO 6000.** It is ~€162–190 at 32k against €161–184, but it needs a host PC and has less headroom: KV binds at 65–69 people.
@@ -127,7 +127,16 @@ Seat = one person, counted `every turn / steady`. Estimates use the assumed setu
 - **The PRO 5000 48 GB is the worst per seat** unless OCR lives elsewhere.
 - **Host cost.** If a card needs a new host, add the host's price ÷ people. For example, a €3,000 host (an assumption) adds ~€43–50 per seat on a PRO 5000 72 GB at 32k, and ~€27–31 on a PRO 6000.
 
-**Spark row: method only (no numbers until today's run).**
+**Spark row: measured on 2026-10-06** (docs/spike/RESULTS.md, *PRO 6000 vs Spark*).
+- **Per seat:** a Spark costs **€825 per seat** for Qwen3.6, at 32k and at 64k, against the PRO 6000's €138–184
+  at 32k and €276–368 at 64k. That is 4.5–6× more per seat at 32k and 2.2–3× more at 64k, before the PRO 6000's
+  host PC (~€27–31 per seat).
+- **With Nemotron:** 16 people at 32k, so €413 per seat.
+- **KV never binds on the Spark:** the KV-bound people (168 at 32k) are far above the measured 8, so the farm
+  conversion (step 3) changes nothing.
+- **Sparks per PRO 6000:** the measured people ratio is **12–16× at 32k and 6–8× at 64k** for Qwen3.6, and 10–12×
+  for Nemotron at 32k. Step 5's bandwidth fit was not run; the measured ratio replaces it.
+- **The method that was planned:**
 1. **Run** SPARK_HANDOFF.md §5 unchanged: the same harness and profiles, `followup_levels.sh … --append` at 30k / 62k / 120k, and the same pass rule.
 2. **People at 32k and 64k** = the highest passing tested level, as `every turn / steady`, from `spike_bench.py summarize` + `runs/round_stats.py`.
 3. **Convert to the farm config, so it compares with the rows above.** Take the start-up "GPU KV cache size / Maximum concurrency" lines, then:

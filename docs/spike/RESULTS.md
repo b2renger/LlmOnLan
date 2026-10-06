@@ -529,8 +529,10 @@ checkpoint, not the box.
    - The pre-run expectation was ~6×, from the bandwidth ratio (0.15).
    - Single-user decode lands better than bandwidth (0.28–0.39×). The batched aggregate (0.17×) and prefill (~0.2×)
      land at or below it, and those are what set head counts.
-   - So the purchase decision is **price per seat**: a Spark is worth buying for multi-user serving only if it
-     costs well under 1/8 of a PRO 6000 build.
+   - **Price per seat** (prices from `ESTIMATES_2026-10-05.md`): a Spark at €6,600 for 8 people (Qwen3.6) costs
+     **€825 per seat** at 32k and at 64k. A PRO 6000 at €17,680 costs €138–184 per seat at 32k and €276–368 at 64k,
+     plus its host. **The PRO 6000 is 4.5–6× cheaper per seat at 32k and 2.2–3× at 64k.** With Nemotron, the
+     Spark comes to €413 per seat at 32k.
 2. **The Spark's 128 GB does not buy people.**
    - With the same 58 GiB pool, its KV capacity is identical to the PRO 6000's (168 / 485 people at 32k for
      Qwen3.6 / Nemotron), and it serves 8–16.
