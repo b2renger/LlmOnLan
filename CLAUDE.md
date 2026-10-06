@@ -348,10 +348,10 @@ If a task seems to require breaking one of these, **stop and flag it**.
 | Direction | Mechanism | Notes |
 |---|---|---|
 | Lifecycle | Shell spawns the OWUI sidecar as a child process and supervises it. | Shell = process manager + window. |
-| Config → OWUI | Env vars at **every** launch, made authoritative by `ENABLE_PERSISTENT_CONFIG=false` — repointing the farm restarts the sidecar with new env. **Two exceptions**, both written from the authed webview via OWUI's user‑settings API `POST /api/v1/users/user/settings/update`: switching web search back off, once, on a profile a client up to v0.2.7 turned on (`ui.webSearch` 'always' → null, only while its `lolWebSearchSeeded` marker is there and the value is still 'always'; marked `lolWebSearchUnseeded`) — web search is off by default; the globe button turns it on for a chat — and the opt‑in Blender tool server (`ui.toolServers` + `ui.tools`). Neither has a usable env. | See gotchas below. |
+| Config → OWUI | Env vars at **every** launch, made authoritative by `ENABLE_PERSISTENT_CONFIG=false` — repointing the farm restarts the sidecar with new env. **Three exceptions**, all written from the authed webview via OWUI's user‑settings API `POST /api/v1/users/user/settings/update`: switching web search back off, once, on a profile a client up to v0.2.7 turned on (`ui.webSearch` 'always' → null, only while its `lolWebSearchSeeded` marker is there and the value is still 'always'; marked `lolWebSearchUnseeded`) — web search is off by default; the globe button turns it on for a chat; the **date line** (2026‑10‑05: the model otherwise believes it is 2025): `ui.system` = `Today is {{CURRENT_WEEKDAY}} {{CURRENT_DATE}}.`, once per profile and only when the person's system prompt is empty (marked `lolDateLineSeeded` either way, so a prompt they wrote or emptied is never touched; OWUI fills the variables at each message, on chat requests only, not title generation); and the opt‑in Blender tool server (`ui.toolServers` + `ui.tools`). None has a usable env (`DEFAULT_MODEL_PARAMS.system` never reaches a farm model's messages; 0.11's `DEFAULT_INTERFACE_SETTINGS` is missing from 0.10 and comes back when a person empties it). | See gotchas below. |
 | Data | `DATA_DIR` → the user's chosen local folder; default local embeddings; telemetry off. | Enforces invariant #3. |
 | Net out of OWUI | Chat completions to the farm endpoint; plus, when the farm advertises them: web searches, Kokoro TTS requests, and uploaded‑file bytes to the farm OCR extractor; and MCP tool calls to the Computer on 127.0.0.1 (this machine) — which answers the home tools against the Home Assistant a person linked. **Web search v2** (2026-10-05): OWUI's searches go to this app's main on 127.0.0.1 (`POST /web/search` on the MCP listener, OWUI's external-search env); main sends the query to the farm's SearXNG and itself reads the top pages of each search — up to 6 automatic GETs, public internet only (`webSearch.ts` through `io.ts`) — instead of OWUI fetching only the pages the model picks; a page the model still fetches itself (`fetch_url`) is OWUI's own GET. That is native tool calling, OWUI's default; a chat set to Legacy function calling gets main's results too, but OWUI then loads those pages itself (its web loader). When that port is taken, OWUI queries SearXNG directly, as before. | Embeddings always stay local. |
-| Webview | The renderer reads the OWUI origin's `localStorage.token`, validates it with `GET /api/v1/auths/` (drop + reload, ≤4 tries) before revealing the webview, and reads the user's settings once per session to undo the old web‑search seed; the `persist:owui` partition is granted mic/camera/clipboard only. | `renderer/app.js`, `src/main/index.ts`. |
+| Webview | The renderer reads the OWUI origin's `localStorage.token`, validates it with `GET /api/v1/auths/` (drop + reload, ≤4 tries) before revealing the webview, and reads the user's settings once per session to undo the old web‑search seed and write the date line (a failed read writes nothing); the `persist:owui` partition is granted mic/camera/clipboard only. | `renderer/app.js`, `src/main/index.ts`. |
 | Everything else | None. OWUI is a black box. | No DB poking, no template/CSS edits, no internal imports. |
 
 ### Verified OWUI config surface (re‑verify per pinned version; authoritative list = `shell/src/main/configBridge.ts`)
@@ -403,9 +403,9 @@ Connection: `OPENAI_API_BASE_URL` + `OPENAI_API_KEY` (the farm is OpenAI‑compa
   and **take precedence over env on later starts.** The shipped strategy: `ENABLE_PERSISTENT_CONFIG=false`
   — env is authoritative on **every** launch, so repointing the farm is just a sidecar restart with new
   env, and no stale persisted URL can win. (OWUI's admin REST API is deliberately NOT used — it's
-  session‑only while persistence is off. The two shipped writes both go to the user‑settings API
+  session‑only while persistence is off. The three shipped writes all go to the user‑settings API
   `POST /api/v1/users/user/settings/update` from the authed webview: the one‑time undo of the old web‑search‑on
-  default and the opt‑in Blender tool server.) Ref: https://docs.openwebui.com/reference/env-configuration/
+  default, the one‑time date line in an empty system prompt, and the opt‑in Blender tool server.) Ref: https://docs.openwebui.com/reference/env-configuration/
 - **Gotcha #2 — JSON config env.** `OPENAI_API_CONFIGS`/`OLLAMA_API_CONFIGS` historically weren't
   parsed from env at startup (open‑webui#19017). Use the simple `*_BASE_URL(S)` env as the seed.
 
@@ -780,7 +780,7 @@ non-trivial logic leaves ONE runnable check.
 **Do:** keep first‑party code in `shell/` and `farm/`; treat OWUI as an external product configured from
 outside; re‑verify the config surface on each version bump; keep env authoritative every launch
 (`ENABLE_PERSISTENT_CONFIG=false` — OWUI's user-settings REST API only for what env can't do: undoing
-the old web-search-on default, and the tool server; never the admin API);
+the old web-search-on default, the date line, and the tool server; never the admin API);
 default to local‑only; apply ComfyQ tokens to shell surfaces only.
 
 **Don't:** edit/fork/patch OWUI source; store user data server‑side or send documents to the farm for

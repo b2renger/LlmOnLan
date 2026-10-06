@@ -68,7 +68,7 @@ upgrade from v0.1.x copies the default session's `IndexedDB`, `Local Storage` an
 
 ## How the OWUI coupling works (the whole contract)
 
-We touch Open WebUI **only** through its public surface (invariant #4): env vars, plus the two
+We touch Open WebUI **only** through its public surface (invariant #4): env vars, plus the three
 user‑settings API writes (and the auth token/settings reads they need) listed at the end.
 `configBridge.buildSidecarEnv()` is the entire env side:
 
@@ -105,8 +105,8 @@ user‑settings API writes (and the auth token/settings reads they need) listed 
   and pin `ENABLE_AUTOCOMPLETE_GENERATION=false` so a pin bump can't silently enable per-keystroke
   completions. Title generation stays ON: once per chat, and it's what names chats in the sidebar.
 - **Branding kept** — we never set `WEBUI_NAME`, so OWUI keeps its own name/branding (invariant #2).
-- **Two non‑env exceptions**, both written from the authed webview through OWUI's own supported
-  **user‑settings API** (`POST /api/v1/users/user/settings/update`) because neither has a working env:
+- **Three non‑env exceptions**, all written from the authed webview through OWUI's own supported
+  **user‑settings API** (`POST /api/v1/users/user/settings/update`) because none has a working env:
   1. **Web search back to off** — web search is off by default; the globe button turns it on for a
      chat. Clients up to v0.2.7 set `ui.webSearch='always'` once per profile (marked
      `ui.lolWebSearchSeeded`); `unseedWebSearch` switches that back to `null` (what OWUI's own toggle
@@ -117,6 +117,13 @@ user‑settings API writes (and the auth token/settings reads they need) listed 
      `direct_server:<idx>` entry in `ui.tools` (`TOOL_SERVER_CONNECTIONS` is unsupported upstream).
      Disabling it also renumbers the other `direct_server:<n>` selections, so a user's own OWUI tool
      servers keep pointing at the right entries.
+  3. **The date line** — without it the model believes it is 2025 (it searches for "2025" and calls a
+     2026 fact "the future"). `seedDateLine` writes `ui.system` = `Today is {{CURRENT_WEEKDAY}}
+     {{CURRENT_DATE}}.` once per profile, only when the person's system prompt is empty, and marks
+     `ui.lolDateLineSeeded` either way, so a prompt they wrote or later emptied is never touched. OWUI
+     fills both variables at each message (chat requests only; title generation never sees it). No env:
+     `DEFAULT_MODEL_PARAMS.system` never reaches a farm model's messages, and 0.11's
+     `DEFAULT_INTERFACE_SETTINGS` is missing from 0.10 and comes back when a person empties it.
 
 ## Launch time (why OWUI boots once)
 

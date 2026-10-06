@@ -527,7 +527,7 @@ let pendingReload = false; // a (re)start happened → reload the webview once i
 let webviewAuthed = false;
 let authReloads = 0;
 const MAX_AUTH_RELOADS = 4;
-let webSearchChecked = false; // undo the old web-search-on seed at most once per session
+let settingsChecked = false; // the one-time user-settings fixes below (web search, date line), once per session
 let blenderSeeded = false;   // register the Blender tool server with OWUI at most once per session
 
 // Web search is OFF by default in Open WebUI (owner, 2026-10-05: on, a chat cost ~2.5x the GPU
@@ -553,6 +553,41 @@ async function unseedWebSearch() {
         if (!ui.lolWebSearchSeeded || ui.lolWebSearchUnseeded) return 'already';
         if (ui.webSearch === 'always') ui.webSearch = null;
         ui.lolWebSearchUnseeded = true;
+        const r = await fetch('/api/v1/users/user/settings/update', {
+          method: 'POST', headers: { ...H, 'content-type': 'application/json' }, body: JSON.stringify({ ui })
+        });
+        return r.ok ? 'set' : 'na';
+      } catch (e) { return 'na'; }
+    })()`);
+  } catch { return 'na'; }
+}
+
+// Tell the model the date (owner, 2026-10-05): without it the model believes it is 2025, searches for
+// "2025" and rejects a 2026 fact as "the future", the largest cause of wrong web answers measured. No
+// env does it on both versions: DEFAULT_MODEL_PARAMS.system never reaches a farm model's messages (OWUI
+// drops `system` from the request params and adds it only for a Workspace model saved in its database),
+// and 0.11's DEFAULT_INTERFACE_SETTINGS is missing from 0.10 and comes back when a person empties it.
+// So this writes the person's own system prompt (Settings ▸ General ▸ System Prompt, `ui.system`),
+// once per profile and only when it is empty. Open WebUI sends it with every chat message and fills
+// both variables at each send (the page's clock, else the sidecar's), so the date is always the day of
+// the message; title generation never sees it. `lolDateLineSeeded` is written either way: a prompt the
+// person wrote is never touched, and one they empty later stays empty. Unlike unseedWebSearch, an
+// empty read here WOULD write, so a read that fails or is not JSON returns 'na' before anything is
+// written (0.10 would replace `ui` with ours); a profile that never saved a setting reads as `null`.
+// Returns 'set' (wrote: reload) | 'already' | 'na' (not authed / the read or the write failed).
+async function seedDateLine() {
+  try {
+    return await els.webview.executeJavaScript(`(async () => {
+      try {
+        const t = window.localStorage && window.localStorage.token; if (!t) return 'na';
+        const H = { authorization: 'Bearer ' + t };
+        const got = await fetch('/api/v1/users/user/settings', { headers: H });
+        if (!got.ok) return 'na';
+        const cur = await got.json();
+        const ui = (cur && cur.ui) || {};
+        if (ui.lolDateLineSeeded) return 'already';
+        if (!ui.system) ui.system = 'Today is {{CURRENT_WEEKDAY}} {{CURRENT_DATE}}.';
+        ui.lolDateLineSeeded = true;
         const r = await fetch('/api/v1/users/user/settings/update', {
           method: 'POST', headers: { ...H, 'content-type': 'application/json' }, body: JSON.stringify({ ui })
         });
@@ -677,11 +712,15 @@ async function ensureAuthenticated() {
     if (status === 'valid') {
       webviewAuthed = true; authReloads = 0;
       // First authed load per session: switch off the web-search default an older client
-      // set. If we wrote, reload once so the SPA picks up the fresh setting (its $settings
-      // was loaded before we wrote it); the marker then no-ops.
-      if (!webSearchChecked) {
-        webSearchChecked = true;
-        if ((await unseedWebSearch()) === 'set') { try { els.webview.reload(); } catch { /* not ready */ } return; }
+      // set, and write the date line into an empty system prompt. One after the other: on
+      // 0.10 each write replaces `ui` whole, so the second reads what the first wrote. If
+      // either wrote, reload once so the SPA picks up the fresh settings (its $settings was
+      // loaded before we wrote them); the markers then no-op.
+      if (!settingsChecked) {
+        settingsChecked = true;
+        const webSearch = await unseedWebSearch();
+        const dateLine = await seedDateLine();
+        if (webSearch === 'set' || dateLine === 'set') { try { els.webview.reload(); } catch { /* not ready */ } return; }
       }
       // Register the local Blender tool server if mcpo is already up (else its
       // 'ready' push seeds it later). A 'set' reloads to surface the new tools.
@@ -768,7 +807,7 @@ function renderSidecar() {
   if (s.status === 'ready' && s.url) {
     if (s.url !== lastUrl) {
       // New OWUI origin → reset the auth-bootstrap gate (fresh per-origin storage).
-      lastUrl = s.url; webviewAuthed = false; authReloads = 0; webSearchChecked = false; blenderSeeded = false;
+      lastUrl = s.url; webviewAuthed = false; authReloads = 0; settingsChecked = false; blenderSeeded = false;
       els.webview.src = s.url; pendingReload = false;
     } else if (pendingReload) {
       // Same port reused after a repoint → src is unchanged, so force a reload to

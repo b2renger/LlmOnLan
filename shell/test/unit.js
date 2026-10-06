@@ -133,35 +133,43 @@ test('capacity: singular/plural reads correctly on a one-seat farm', () => {
     assert.match(capacityText(full)[0], /^all 1 seat busy — one frees after 10 min idle/);
 });
 
-// unseedWebSearch() runs a script inside the Open WebUI webview. Run that same script against a
-// fake Open WebUI whose settings write follows the real server's rule for `ui`: 0.11.4 patches it
-// field by field (a null removes the key, models/users.py update_user_settings_by_id), 0.10.x
-// replaces it whole. `on` is what OWUI's chat reads: (settings.webSearch ?? false) === 'always'.
-function fakeOwui(version, ui, { token = 't', readFails = false, writeOk = true } = {}) {
+// unseedWebSearch() and seedDateLine() run a script inside the Open WebUI webview. Run those same
+// scripts against a fake Open WebUI whose settings write follows the real server's rule for `ui`:
+// 0.11.4 patches it field by field (a null removes the key, models/users.py
+// update_user_settings_by_id), 0.10.x replaces it whole. `ui: null` is a profile that never saved a
+// setting: the real server reads it as `null`. `on` is what OWUI's chat reads:
+// (settings.webSearch ?? false) === 'always'.
+function fakeOwui(version, ui, { token = 't', readFails = false, readNotJson = false, writeOk = true } = {}) {
     const src = fs.readFileSync(path.join(__dirname, '..', 'renderer', 'app.js'), 'utf8');
-    const start = src.indexOf('async function unseedWebSearch');
-    const end = src.indexOf('\n}\n', start);
-    assert.ok(start > 0 && end > start, 'unseedWebSearch moved — update the extraction anchors');
-    const owui = { ui: JSON.parse(JSON.stringify(ui)), writes: 0 };
+    const clone = (o) => JSON.parse(JSON.stringify(o));
+    const owui = { ui: clone(ui), writes: 0 };
     const fetch = async (url, opts = {}) => {
         if (url === '/api/v1/users/user/settings' && !opts.method) {
             if (readFails) return { ok: false, json: async () => ({ detail: 'Unauthorized' }) };
-            return { ok: true, json: async () => ({ ui: JSON.parse(JSON.stringify(owui.ui)) }) };
+            if (readNotJson) return { ok: true, json: async () => { throw new SyntaxError("Unexpected token '<'"); } };
+            return { ok: true, json: async () => (owui.ui === null ? null : { ui: clone(owui.ui) }) };
         }
         if (url === '/api/v1/users/user/settings/update' && opts.method === 'POST') {
             owui.writes++;
             if (!writeOk) return { ok: false };
             const sent = JSON.parse(opts.body).ui;
             if (version === '0.10') owui.ui = sent;
-            else for (const [k, v] of Object.entries(sent)) { if (v === null) delete owui.ui[k]; else owui.ui[k] = v; }
+            else for (const [k, v] of Object.entries(sent)) { owui.ui = owui.ui || {}; if (v === null) delete owui.ui[k]; else owui.ui[k] = v; }
             return { ok: true };
         }
         throw new Error(`unexpected request ${opts.method || 'GET'} ${url}`);
     };
     const window = { localStorage: token ? { token } : {} };
     const els = { webview: { executeJavaScript: (code) => new Function('window', 'fetch', `return ${code}`)(window, fetch) } };
-    owui.run = new Function('els', `${src.slice(start, end + 2)}; return unseedWebSearch;`)(els);
-    owui.on = () => (owui.ui.webSearch ?? false) === 'always';
+    const extract = (name) => {
+        const start = src.indexOf(`async function ${name}`);
+        const end = src.indexOf('\n}\n', start);
+        assert.ok(start > 0 && end > start, `${name} moved — update the extraction anchors`);
+        return new Function('els', `${src.slice(start, end + 2)}; return ${name};`)(els);
+    };
+    owui.run = extract('unseedWebSearch');
+    owui.seedDate = extract('seedDateLine');
+    owui.on = () => ((owui.ui || {}).webSearch ?? false) === 'always';
     return owui;
 }
 
@@ -220,6 +228,81 @@ test('web search: no token, a failed read or a refused write changes nothing and
     assert.equal(await writeRefused.run(), 'na', 'not "set": no reload, and the next session tries again');
     for (const o of [noToken, readFails, writeRefused]) assert.deepEqual(o.ui, seeded);
     assert.equal(noToken.writes + readFails.writes, 0);
+});
+
+// The date line goes into the person's own system prompt (Settings ▸ General ▸ System Prompt).
+// Emptying it there removes the key on both versions: 0.11 sends `system: null`, 0.10 `undefined`,
+// which JSON drops before the whole `ui` is replaced.
+const DATE_LINE = 'Today is {{CURRENT_WEEKDAY}} {{CURRENT_DATE}}.';
+
+for (const version of ['0.11', '0.10']) {
+    test(`date line (OWUI ${version}): an empty system prompt gets the date line once, the rest of the settings kept`, async () => {
+        for (const ui of [null, {}, { system: '' }, { theme: 'dark', tools: ['direct_server:0'] }]) {
+            const owui = fakeOwui(version, ui);
+            assert.equal(await owui.seedDate(), 'set', 'wrote: the caller reloads the webview');
+            assert.equal(owui.ui.system, DATE_LINE, 'the variables stay for Open WebUI to fill at each message');
+            assert.equal(owui.ui.lolDateLineSeeded, true);
+            assert.deepEqual({ ...owui.ui, system: undefined, lolDateLineSeeded: undefined }, { ...ui, system: undefined, lolDateLineSeeded: undefined });
+            assert.equal(await owui.seedDate(), 'already', 'the second run does nothing');
+            assert.equal(owui.writes, 1);
+        }
+    });
+
+    test(`date line (OWUI ${version}): a system prompt the person wrote is never touched, even once they empty it`, async () => {
+        const owui = fakeOwui(version, { system: 'Answer in French.', theme: 'dark' });
+        assert.equal(await owui.seedDate(), 'set', 'only the marker is written');
+        assert.deepEqual(owui.ui, { system: 'Answer in French.', theme: 'dark', lolDateLineSeeded: true });
+        delete owui.ui.system; // the person empties it later
+        assert.equal(await owui.seedDate(), 'already');
+        assert.equal(owui.ui.system, undefined);
+        assert.equal(owui.writes, 1);
+    });
+
+    test(`date line (OWUI ${version}): a person who empties or edits the date line keeps their choice`, async () => {
+        const owui = fakeOwui(version, { theme: 'dark' });
+        assert.equal(await owui.seedDate(), 'set');
+        delete owui.ui.system;
+        assert.equal(await owui.seedDate(), 'already', 'emptied: not seeded again');
+        assert.equal(owui.ui.system, undefined);
+        owui.ui.system = `${DATE_LINE} Keep answers short.`;
+        assert.equal(await owui.seedDate(), 'already');
+        assert.equal(owui.ui.system, `${DATE_LINE} Keep answers short.`);
+        assert.equal(owui.writes, 1);
+    });
+
+    test(`date line (OWUI ${version}): a profile already seeded is not written`, async () => {
+        const owui = fakeOwui(version, { lolDateLineSeeded: true, theme: 'dark' });
+        assert.equal(await owui.seedDate(), 'already');
+        assert.equal(owui.writes, 0);
+        assert.equal(owui.ui.system, undefined);
+    });
+
+    test(`web search + date line (OWUI ${version}): one after the other, each keeps what the other wrote`, async () => {
+        const owui = fakeOwui(version, { webSearch: 'always', lolWebSearchSeeded: true, theme: 'dark' });
+        assert.equal(await owui.run(), 'set');
+        assert.equal(await owui.seedDate(), 'set');
+        assert.equal(owui.on(), false);
+        assert.equal(owui.ui.lolWebSearchUnseeded, true);
+        assert.equal(owui.ui.system, DATE_LINE);
+        assert.equal(owui.ui.lolDateLineSeeded, true);
+        assert.equal(owui.ui.theme, 'dark');
+    });
+}
+
+test('date line: no token, a failed read, a read that is not JSON or a refused write changes nothing and reloads nothing', async () => {
+    const fresh = { theme: 'dark' };
+    const noToken = fakeOwui('0.10', fresh, { token: null });
+    assert.equal(await noToken.seedDate(), 'na');
+    // A failed read must not write: it would look like an empty prompt, and on 0.10 our `ui`
+    // would replace the person's whole settings.
+    const readFails = fakeOwui('0.10', fresh, { readFails: true });
+    assert.equal(await readFails.seedDate(), 'na');
+    const readNotJson = fakeOwui('0.10', fresh, { readNotJson: true });
+    assert.equal(await readNotJson.seedDate(), 'na');
+    const writeRefused = fakeOwui('0.11', fresh, { writeOk: false });
+    assert.equal(await writeRefused.seedDate(), 'na', 'not "set": no reload, and the next session tries again');
+    for (const o of [noToken, readFails, readNotJson, writeRefused]) assert.deepEqual(o.ui, fresh);
+    assert.equal(noToken.writes + readFails.writes + readNotJson.writes, 0);
 });
 
 (async () => {
