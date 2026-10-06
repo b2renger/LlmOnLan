@@ -205,6 +205,8 @@ function pinnedGet(url: URL, signal: AbortSignal, headers: Record<string, string
                 const h = new Headers();
                 for (let i = 0; i < res.rawHeaders.length; i += 2) h.append(res.rawHeaders[i], res.rawHeaders[i + 1]);
                 const status = res.statusCode || 0;
+                // A Response cannot hold a status outside 200–599 (LinkedIn refuses with 999): say it as the HTTP answer it is.
+                if (status < 200 || status > 599) { res.destroy(); reject(Object.assign(new Error(`HTTP ${status}`), { status })); return; }
                 resolve(new Response([204, 205, 304].includes(status) ? null : Readable.toWeb(body) as unknown as ReadableStream<Uint8Array>, { status, headers: h }));
             } catch (e) { res.destroy(); reject(e); }
         });
@@ -247,6 +249,8 @@ export async function fetchText(raw: unknown, deps: FetchDeps = {}): Promise<Fet
                     ? await deps.fetchImpl(url, { redirect: 'manual', signal: ac.signal, headers })
                     : await pinnedGet(url, ac.signal, headers, pinned);
             } catch (e) {
+                const status = (e as { status?: number })?.status;
+                if (status) return fail('E_HTTP', url.href, status);
                 return ac.signal.aborted ? fail('E_TIMEOUT', url.href) : fail('E_NET', String((e as Error)?.message || e));
             }
             if (res.status >= 300 && res.status < 400 && res.headers.get('location')) {

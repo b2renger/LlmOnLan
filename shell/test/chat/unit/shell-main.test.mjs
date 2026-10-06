@@ -943,6 +943,20 @@ export default (test) => {
     } finally { fx.close(); }
   });
 
+  test('io.fetchText: a status a fetch Response cannot hold (LinkedIn\'s 999) is an HTTP refusal with its code, not a network error', async () => {
+    const IO = require(path.join(BUILD, 'io.js'));
+    const fx = await serve({
+      '/999': (_q, res) => { res.writeHead(999, { 'content-type': 'text/html' }); res.end('<p>Request denied</p>'); },
+      '/403': (_q, res) => { res.writeHead(403, { 'content-type': 'text/plain' }); res.end('Forbidden here'); },
+    });
+    try {
+      let r = await IO.fetchText(`http://127.0.0.1:${fx.port}/999`, { allowLoopback: true });
+      assert.deepEqual([r.ok, r.code, r.status, r.message], [false, 'E_HTTP', 999, `http://127.0.0.1:${fx.port}/999`], JSON.stringify(r));
+      r = await IO.fetchText(`http://127.0.0.1:${fx.port}/403`, { allowLoopback: true });
+      assert.deepEqual([r.code, r.status, r.detail], ['E_HTTP', 403, 'Forbidden here'], 'an ordinary refusal reads as before');
+    } finally { fx.close(); }
+  });
+
   test('webSearch.extract: nav, header, cookie banner, share buttons, footer and scripts dropped; a table row kept; the dates read', () => {
     const WS = require(path.join(BUILD, 'webSearch.js'));
     const dl = WS.extract(webFixture('download.html'));
@@ -965,12 +979,100 @@ export default (test) => {
     assert.deepEqual([timeOnly.published, timeOnly.newest], ['dated 1889-03-31', ''], 'a bare <time> is shown, never used as the page\'s own date');
   });
 
+  test('webSearch.extract: linear on a hostile page (no closing ">", unclosed comment, CDATA, doctype, quote); the fixtures read exactly as before', () => {
+    const WS = require(path.join(BUILD, 'webSearch.js'));
+    const crypto = require('crypto');
+    // b7829c2's output on the four fixtures (sha256 of the JSON, 16 hex): the linear tokenizer changed nothing on them.
+    const before = { 'download.html': '836bb6510b6f5b37', 'wiki.html': '7c0651e02db870c4', 'blog.html': 'a05af86d0e097fe5', 'dictionary.html': 'fcf992a91d2635b9' };
+    for (const [file, hash] of Object.entries(before)) {
+      assert.equal(crypto.createHash('sha256').update(JSON.stringify(WS.extract(webFixture(file)))).digest('hex').slice(0, 16), hash, file);
+    }
+    // Pages are untrusted and this runs on the main process. Before: 64 KB of "<a" took 1.9 s, and the time grew
+    // with the square of the size (a 2 MB page: about half an hour). Now each of these is a single pass.
+    const hostile = {
+      'no closing ">"': (/** @type {number} */ n) => '<a'.repeat(n / 2),
+      'a tag name that never ends': (/** @type {number} */ n) => '<a' + 'b'.repeat(n),
+      'unclosed comments': (/** @type {number} */ n) => '<!--'.repeat(n / 4),
+      'unclosed CDATA': (/** @type {number} */ n) => '<![CDATA['.repeat(n / 9),
+      'unclosed doctypes': (/** @type {number} */ n) => '<!doctype'.repeat(n / 9),
+      'unclosed "<?"': (/** @type {number} */ n) => '<?'.repeat(n / 2),
+      'unclosed quotes': (/** @type {number} */ n) => '<a x="'.repeat(n / 6),
+    };
+    for (const [name, make] of Object.entries(hostile)) {
+      for (const [kb, limitMs] of [[64, 300], [2048, 4000]]) {
+        const page = make(kb * 1024);
+        const t0 = process.hrtime.bigint();
+        WS.extract(page);
+        const ms = Number(process.hrtime.bigint() - t0) / 1e6;
+        assert.ok(ms < limitMs, `${name}, ${kb} KB: ${ms.toFixed(0)} ms (limit ${limitMs})`);
+      }
+    }
+    const text = (/** @type {string} */ html) => WS.extract(html).blocks.map((b) => b.t);
+    assert.deepEqual(text('<p>first 1</p><!-- a comment --><p>second 2</p><![CDATA[ x < y ]]><p>third 3</p>'), ['first 1', 'second 2', 'third 3']);
+    assert.deepEqual(text('<p>kept 1</p><!-- never closed <p>hidden 2</p>'), ['kept 1'], 'an unclosed comment runs to the end of the page, as in a browser');
+    assert.deepEqual(text('<p>kept 1</p><![CDATA[ never closed <p>hidden 2</p>'), ['kept 1']);
+    // A stray quote in a tag (seen on a real page): the tag ends at its '>' and its text is read, no markup leaks.
+    assert.deepEqual(text('<p><span style="color:#fff";font-size:1em;">Septembre 2026</span></p>'), ['Septembre 2026']);
+  });
+
+  test('webSearch.passages: each sentence counted once — the same passages as before, on the fixtures and on random text', () => {
+    const WS = require(path.join(BUILD, 'webSearch.js'));
+    // b7829c2's passages(), as it was: it re-split the growing part for every sentence (a 2 MB block of one-word
+    // sentences: 1.2 s; now 0.15 s).
+    const before = (/** @type {{t: string, h: boolean}[]} */ blocks, maxWords = 160, minWords = 60) => {
+      /** @type {{text: string, head: string}[]} */ const out = []; /** @type {string[]} */ let cur = []; let words = 0; let head = '';
+      const push = () => { if (cur.length) out.push({ text: cur.join('\n'), head }); cur = []; words = 0; };
+      for (const b of blocks) {
+        if (b.h) { push(); head = b.t.slice(0, 160); continue; }
+        const w = b.t.split(/\s+/).length;
+        if (w > maxWords) {
+          push();
+          let part = '';
+          for (const s of b.t.split(/(?<=[.!?…])\s+/)) {
+            if ((part + ' ' + s).split(/\s+/).length > maxWords && part) { out.push({ text: part.trim(), head }); part = ''; }
+            part += ' ' + s;
+          }
+          if (part.trim()) out.push({ text: part.trim().slice(0, maxWords * 12), head });
+          continue;
+        }
+        cur.push(b.t); words += w;
+        if (words >= minWords) push();
+      }
+      push();
+      return out;
+    };
+    for (const f of ['download.html', 'wiki.html', 'blog.html', 'dictionary.html']) {
+      const blocks = WS.extract(webFixture(f)).blocks;
+      assert.deepEqual(WS.passages(blocks), before(blocks), f);
+      assert.deepEqual(WS.passages(blocks, 12, 4), before(blocks, 12, 4), `${f}, short passages`);
+    }
+    // Random blocks with every kind of white space at either end (the count must merge runs exactly as split does).
+    let seed = 7;
+    const rnd = () => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648; };
+    const pick = (/** @type {string[]} */ a) => a[Math.floor(rnd() * a.length)];
+    const WORDS = ['Quill', '7.2.1', 'stable', 'la', 'version', 'é', 'x', 'Ça'];
+    const SEPS = [' ', ' ', ' ', '  ', '\t', '\n', ' ', ' \n '];
+    const ENDS = ['', '', '', '.', '!', '?', '…', '...'];
+    for (let i = 0; i < 400; i++) {
+      /** @type {{t: string, h: boolean}[]} */ const blocks = [];
+      for (let b = 0, nb = 1 + Math.floor(rnd() * 5); b < nb; b++) {
+        if (rnd() < 0.15) { blocks.push({ t: `Heading ${b}`, h: true }); continue; }
+        let t = rnd() < 0.2 ? pick(SEPS) : '';
+        for (let w = 0, nw = Math.floor(rnd() * 300); w < nw; w++) t += pick(WORDS) + pick(ENDS) + pick(SEPS);
+        blocks.push({ t: rnd() < 0.5 ? t.trimEnd() : t, h: false });
+      }
+      for (const [maxWords, minWords] of [[160, 60], [20, 5]]) {
+        assert.deepEqual(WS.passages(blocks, maxWords, minWords), before(blocks, maxWords, minWords), `random case ${i} (${maxWords}/${minWords})`);
+      }
+    }
+  });
+
   test('webSearch.rank on a stored SearXNG answer: the answer passage chosen, the budgets held, a page with no evidence dropped', () => {
     const WS = require(path.join(BUILD, 'webSearch.js'));
     const sx = JSON.parse(webFixture('searxng.json'));
     const picked = WS.pickPages(sx.results);
-    assert.deepEqual(picked.map((r) => new URL(r.url).hostname), ['blog.example', 'quill.example', 'dictionary.example', 'wiki.example', 'quill.example', 'slow.example'],
-      'SearXNG\'s order, at most two pages from one site (the forum, a third from quill.example, is left out), six in all');
+    assert.deepEqual(picked.map((r) => new URL(r.url).hostname), ['blog.example', 'quill.example', 'wiki.example', 'quill.example', 'slow.example', 'dictionary.example'],
+      'SearXNG\'s order, the dictionary page last, at most two pages from one site (the forum, a third from quill.example, is left out), six in all');
     const files = { 'https://blog.example/2024/03/quill-6-is-here': 'blog.html', 'https://quill.example/download/': 'download.html', 'https://dictionary.example/definition/quill': 'dictionary.html', 'https://wiki.example/wiki/Quill_(editor)': 'wiki.html' };
     const pages = picked.map((r) => (files[r.url] ? { ok: true, url: r.url, ...WS.extract(webFixture(files[r.url])) } : { ok: false }));   // news and slow: not read
     const now = Date.parse('2026-10-05T12:00:00Z');
@@ -984,7 +1086,7 @@ export default (test) => {
       for (const o of r.out) assert.ok(WS.tokensOf(o.snippet) <= 800 + 10, `${q}: ${o.link} ${WS.tokensOf(o.snippet)} tokens`);
       assert.ok(r.out.every((o) => o.title && o.link.startsWith('https://')));
     }
-    const wikiAll = WS.tokensOf(pages[3].blocks.map((b) => b.t).join('\n'));
+    const wikiAll = WS.tokensOf(pages[picked.findIndex((r) => r.url.includes('wiki.example'))].blocks.map((b) => b.t).join('\n'));
     const wikiOut = WS.rank('quill dernière version stable', picked, pages, 5, { now }).out.find((o) => o.link.includes('wiki.example'));
     assert.ok(wikiAll > 850 && WS.tokensOf(wikiOut.snippet) <= 810, `the long page (${wikiAll} tokens) is cut to its best passages (${WS.tokensOf(wikiOut.snippet)})`);
     assert.match(wikiOut.snippet, /^\(updated 2026-09-20\)/, 'the page\'s date leads its snippet');
@@ -1011,6 +1113,67 @@ export default (test) => {
     }
     // The rule follows the page's date, not the words alone: in June 2024 that post was current.
     assert.equal(first('Quill latest stable version', '2024-06-01'), 'blog.example');
+  });
+
+  test('webSearch.rank: on a version question, a line with a version number next to "current", "stable", "LTS"… survives the cut', () => {
+    const WS = require(path.join(BUILD, 'webSearch.js'));
+    const advice = 'Picking the latest stable version of Quill matters: the latest stable version is the one to install, and a stable version gets the fixes first. Use the latest stable version in class.';
+    const read = (/** @type {string} */ line, /** @type {string} */ q) => {
+      const picked = [{ url: 'https://quill.example/releases/', title: 'Quill releases', content: '' }, { url: 'https://blog.example/quill', title: 'Which Quill to install', content: '' }];
+      const page = (/** @type {number} */ i, /** @type {{t: string, h: boolean}[]} */ blocks) => ({ ok: true, url: picked[i].url, title: picked[i].title, published: '', newest: '', description: '', blocks });
+      const pages = [
+        page(0, [{ t: 'Releases', h: true }, { t: line, h: false }, { t: 'Older', h: true }, { t: 'Every Quill version ever released can be downloaded from the archive page.', h: false }]),
+        page(1, [{ t: 'Advice', h: true }, { t: advice, h: false }, { t: 'More', h: true }, { t: advice.replace('in class', 'at home'), h: false }]),
+      ];
+      return WS.rank(q, picked, pages, 5, { now: Date.parse('2026-10-06') }).out.some((o) => o.snippet.includes(line));
+    };
+    // The blog's passages, full of the question's words, set the bar; the releases line names the version.
+    assert.equal(read('Quill 7.2.1 (current stable), 15 September 2026.', 'Quill latest stable version'), true, 'the version line is read');
+    assert.equal(read('Quill (current stable), 15 September 2026.', 'Quill latest stable version'), false, 'the same line without a version number is cut: the number is what counts');
+  });
+
+  test('webSearch.rank: the "now" words say when, not what — they no longer pull a page whose title holds them', () => {
+    const WS = require(path.join(BUILD, 'webSearch.js'));
+    // The live replay (2026-10-06): with the dictionaries gone, "aujourd'hui" put a TV show above the minister's page.
+    const picked = [{ url: 'https://ministere.example/ministre', title: 'Ministère de la Culture — la ministre', content: '' },
+      { url: 'https://podcasts.example/show', title: "Ça commence aujourd'hui", content: '' }];
+    const page = (/** @type {number} */ i, /** @type {string[]} */ texts) => ({ ok: true, url: picked[i].url, title: picked[i].title, published: '', newest: '', description: '',
+      blocks: texts.flatMap((t, k) => [{ t: `Part ${k}`, h: true }, { t, h: false }]) });
+    // Many passages share "ministre" and "Culture" (common, so they weigh little); the show's title alone holds the rare
+    // "aujourd'hui" — as a term it put every passage of the show first and the minister's page under the floor.
+    const pages = [
+      page(0, ['Catherine Pégard est ministre de la Culture depuis le 26 février 2026.', 'La ministre de la Culture présente le budget du ministère.',
+        'Le ministre de la Culture de 1959 à 1969 fut André Malraux.', 'Jack Lang, ministre de la Culture, lance la Fête de la musique en 1982.',
+        'Le ministère de la Culture compte des directions régionales.', 'La ministre de la Culture préside la commission du patrimoine.']),
+      page(1, ["Tous les jours, l'émission accueille des invités qui racontent leur histoire, diffusée à 13h55.", 'Des témoignages forts, du lundi au vendredi, à 13h55.']),
+    ];
+    const r = WS.rank("Qui est ministre de la Culture en France aujourd'hui ?", picked, pages, 5, { now: Date.parse('2026-10-06') });
+    assert.ok(r.out[0].link === picked[0].url && /Pégard/.test(r.out[0].snippet), JSON.stringify(r.out.map((o) => o.link)));
+    assert.ok(!r.out.some((o) => o.link === picked[1].url), 'the show has no evidence once "aujourd\'hui" is not a search term');
+    // A question made only of such words still ranks (on them).
+    assert.ok(WS.rank("aujourd'hui", picked, pages, 5).out.length >= 1);
+  });
+
+  test('webSearch.pickPages: dictionary and translation pages come after every other result — read only when nothing else came back', () => {
+    const WS = require(path.join(BUILD, 'webSearch.js'));
+    const dictionaries = ['https://www.linguee.fr/anglais-francais/traduction/latest.html', 'https://www.larousse.fr/dictionnaires/francais/combien/17379',
+      'https://dictionnaire.lerobert.com/definition/qui', 'https://www.wordreference.com/enfr/latest', 'https://context.reverso.net/traduction/anglais-francais/latest',
+      'https://fr.wiktionary.org/wiki/vainqueur', 'https://translate.google.com/?sl=en&tl=fr', 'https://www.deepl.com/translator',
+      'https://dictionary.cambridge.org/dictionary/english/latest', 'https://www.merriam-webster.com/dictionary/latest', 'https://www.dictionary.com/browse/latest',
+      'https://www.collinsdictionary.com/dictionary/english/latest', 'https://leconjugueur.lefigaro.fr/conjugaison/verbe/renouveler.html',
+      // seen in the re-check's French searches, from a question's "qui", "quel" or "combien"
+      'https://www.lalanguefrancaise.com/dictionnaire/definition/qui', 'https://www.dictionnaire-academie.fr/article/A9Q0222', 'https://www.linternaute.fr/dictionnaire/fr/definition/qui/',
+      'https://www.le-dictionnaire.com/definition/combien', 'https://www.projet-voltaire.fr/regles-orthographe/quel-quelle-qu-elle/', 'https://conjugaison.bescherelle.com/verbes/renouveler'];
+    const others = ['https://www.blender.org/download/', 'https://www.larousse.fr/encyclopedie/divers/Tour_de_France/147506', 'https://en.wikipedia.org/wiki/Blender_(software)',
+      'https://news.example/2026/10/translation-ai-startup-raises', 'https://dictionary-of-things.example/x', 'https://a.example/1', 'https://c.example/3'];
+    const r = (/** @type {string} */ url) => ({ url, title: url, content: '' });
+    // SearXNG's order mixes them; the six slots go to the others, in SearXNG's order (Larousse's encyclopedia is not its
+    // dictionary; a slug or a host that only contains the word is not one either).
+    const mixed = dictionaries.flatMap((d, i) => [d, others[i]].filter(Boolean)).map(r);
+    assert.deepEqual(WS.pickPages(mixed).map((x) => x.url), others.slice(0, 6));
+    // Nothing else came back (a question about a word): the dictionaries are read, two per site at most as ever.
+    assert.deepEqual(WS.pickPages(dictionaries.map(r)).map((x) => x.url), dictionaries.slice(0, 6));
+    assert.deepEqual(WS.pickPages([dictionaries[0], others[4]].map(r)).map((x) => x.url), [others[4], dictionaries[0]]);
   });
 
   test('/web/search: the bearer, the Host, POST only, the body cap; SearXNG down or silent is answered within the deadline', async () => {
@@ -1104,6 +1267,29 @@ export default (test) => {
       assert.deepEqual(paths, ['/blog', '/download', '/slow', '/wiki'], 'two pages a site: the third from 127.0.0.1 (/news) is never asked');
       assert.ok(pagesSrv.seen.some((s) => s.host === `localhost:${pagesSrv.port}`), 'a page found by name went through DNS and the pinned connection');
     } finally { srv.close(); searx.close(); pagesSrv.close(); }
+  });
+
+  test('web search: main reads at most 4 MB of the farm\'s search answer — bigger, or endless, fails as "not JSON" at once', async () => {
+    const WS = require(path.join(BUILD, 'webSearch.js'));
+    const big = JSON.stringify({ results: [], pad: 'x'.repeat(5 * 1024 * 1024) });   // valid JSON, over the cap
+    const chunk = Buffer.alloc(64 * 1024, 'x');
+    const searx = await serve({ '/search': (req, res) => {
+      const q = new URL(req.url, 'http://x').searchParams.get('q');
+      res.writeHead(200, { 'content-type': 'application/json' });
+      if (q === 'big') return res.end(big);
+      if (q === 'small') return res.end(JSON.stringify({ results: [] }));
+      res.write('{"results":[], "pad":"');   // endless: writes as long as the client reads
+      const more = () => { while (!res.destroyed && res.write(chunk)) { /* until the buffer is full */ } if (!res.destroyed) res.once('drain', more); };
+      more();
+    } });
+    const ask = (/** @type {string} */ q) => WS.searchAndRead(q, 5, { searxngUrl: `http://127.0.0.1:${searx.port}`, deadlineMs: 8000 });
+    try {
+      await assert.rejects(ask('big'), /did not answer in JSON/);
+      const t0 = Date.now();
+      await assert.rejects(ask('endless'), /did not answer in JSON/);
+      assert.ok(Date.now() - t0 < 3000, `an endless answer is cut at 4 MB, not at the 6 s time limit (${Date.now() - t0} ms)`);
+      assert.deepEqual(await ask('small'), [], 'an ordinary answer still reads');
+    } finally { searx.close(); }
   });
 
   test('configBridge web search: through main while the listener is up, else OWUI\'s own searxng engine with the measured knobs', () => {

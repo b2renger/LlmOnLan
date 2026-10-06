@@ -13,6 +13,7 @@ import { fetchText, FetchAnswer } from './io';
 const PAGES = 6;                       // pages read per search
 const PER_HOST = 2;                    // at most this many from one site
 const SEARCH_MS = 6_000;               // the farm's SearXNG (its own engines stop at 5 s)
+const SEARCH_MAX_BYTES = 4 * 1024 * 1024; // its JSON answer (~40 results: under 100 KB)
 const PAGE_MS = 5_000;                 // one page, DNS to last byte
 export const DEADLINE_MS = 10_000;     // the whole search: Open WebUI's external search waits with NO timeout
 const PAGE_MAX_BYTES = 2 * 1024 * 1024;   // the top of a bigger page is kept (1 page in 12 measured was over 1 MB)
@@ -71,11 +72,20 @@ export function extract(html: string, classes = true): Extracted {
         }
         cur = ''; curLink = 0;
     };
-    const re = /<!--[\s\S]*?-->|<\?[^>]*>|<!\[CDATA\[[\s\S]*?\]\]>|<!doctype[^>]*>|<\/?([a-zA-Z][\w:-]*)((?:[^>"']|"[^"]*"|'[^']*')*)>|[^<]+|</gi;
+    // Linear on any input (a page is untrusted, and this runs on the main process): no rule scans across a '<'
+    // outside quotes, a tag name is matched whole (it cannot trade characters with the attributes), and a
+    // comment or CDATA jumps to its end with indexOf. Before (critic, 2026-10-05): 64 KB of "<a" took 1.9 s.
+    // A tag that does not close before the next '<' (a stray quote, a cut page) ends there, as a tag — never as text.
+    const re = /<!--|<!\[CDATA\[|<\?[^<>]*>|<!doctype[^<>]*>|<\/?([a-zA-Z][\w:-]*)(?![\w:-])(?:((?:[^<>"']|"[^"]*"|'[^']*')*)>|([^<>]*)>?)|[^<]+|</gi;
     let m: RegExpExecArray | null;
     while ((m = re.exec(html))) {
         const tok = m[0];
         if (m[1] === undefined) {                       // text, comment, doctype, stray '<'
+            if (tok === '<!--' || tok.startsWith('<![')) {   // to the end of the comment / CDATA, or of the page
+                const end = html.indexOf(tok === '<!--' ? '-->' : ']]>', re.lastIndex);
+                re.lastIndex = end < 0 ? html.length : end + 3;
+                continue;
+            }
             if (tok[0] === '<' && tok.length > 1) continue;
             if (inTitle) { out.title += tok; continue; }
             if (skipTag) continue;
@@ -83,7 +93,7 @@ export function extract(html: string, classes = true): Extracted {
             cur += text; if (inA) curLink += text.replace(/\s+/g, ' ').length;
             continue;
         }
-        const name = m[1].toLowerCase(); const close = tok[1] === '/'; const a = m[2] || '';
+        const name = m[1].toLowerCase(); const close = tok[1] === '/'; const a = m[2] ?? m[3] ?? '';
         if (!close && RAW.has(name)) {                  // skip its raw content entirely
             if (name === 'script' && /application\/ld\+json/i.test(a)) {
                 const end = lower.indexOf('</script', re.lastIndex);
@@ -172,10 +182,14 @@ export function passages(blocks: Block[], maxWords = 160, minWords = 60): { text
         const w = b.t.split(/\s+/).length;
         if (w > maxWords) {                                  // a long block: cut at sentence ends
             push();
-            let part = '';
+            // n = part.split(/\s+/).length, kept as sentences are added (each counted once, not the growing part again):
+            // joining with a space adds the sentence's count, less one for each side that already ends in a space.
+            let part = ''; let n = 1;
+            const joined = (s: string, sn: number) => n + sn - (/\s/.test(part.slice(-1)) ? 1 : 0) - (/\s/.test(s.slice(0, 1)) ? 1 : 0);
             for (const s of b.t.split(/(?<=[.!?…])\s+/)) {
-                if ((part + ' ' + s).split(/\s+/).length > maxWords && part) { out.push({ text: part.trim(), head }); part = ''; }
-                part += ' ' + s;
+                const sn = s.split(/\s+/).length;
+                if (joined(s, sn) > maxWords && part) { out.push({ text: part.trim(), head }); part = ''; n = 1; }
+                n = joined(s, sn); part += ' ' + s;
             }
             if (part.trim()) out.push({ text: part.trim().slice(0, maxWords * 12), head });
             continue;
@@ -202,10 +216,19 @@ function bm25(docs: { tf: Tf }[], q: string[], k1 = 1.2, b = 0.75): number[] {
 }
 const jaccard = (a: Set<string>, b: Set<string>) => { let i = 0; for (const x of a) if (b.has(x)) i++; return i / (a.size + b.size - i || 1); };
 
-/** SearXNG's order, at most PER_HOST pages from one site, PAGES in all. */
+// Dictionary, translation and spelling pages say what a WORD means, never the answer: a question's "qui", "quel",
+// "combien" or "latest" put one among what the model read in 14 of the 54 searches the re-check replayed
+// (2026-10-05), and up to six in one search's results. A whole host label or path segment names them
+// (larousse.fr/dictionnaires/…, dictionnaire.lerobert.com, …/definition/…, www.linguee.fr): Larousse's encyclopedia
+// is not its dictionary, and a slug like "translation-ai-startup" is not a translator.
+const DICTIONARY = /(^|[./])(dictionnaires?|dictionary|definitions?|traductions?|translate|translator|translation|conjugaison|orthographe|regles-orthographe|linguee|wordreference|reverso|deepl|wiktionary|collinsdictionary|le-dictionnaire|dictionnaire-academie)([./]|$)/i;
+const dictionary = (r: SearxResult): boolean => { try { const u = new URL(String(r.url)); return DICTIONARY.test(u.hostname + u.pathname); } catch { return false; } };
+
+/** SearXNG's order, at most PER_HOST pages from one site, PAGES in all; dictionary pages after every other
+ * result, so they are read only when nothing else came back (a question about a word). */
 export function pickPages(results: SearxResult[]): SearxResult[] {
     const perHost = new Map<string, number>(); const picked: SearxResult[] = [];
-    for (const r of results) {
+    for (const r of [...results.filter((x) => !dictionary(x)), ...results.filter(dictionary)]) {
         if (!r.url || picked.length >= PAGES) continue;
         let host: string; try { host = new URL(r.url).hostname; } catch { continue; }
         if ((perHost.get(host) || 0) >= PER_HOST) continue;
@@ -217,15 +240,28 @@ export function pickPages(results: SearxResult[]): SearxResult[] {
 
 // A question about the latest / current / now (English and French).
 const RECENT = /\b(latest|newest|current|currently|now|today|recent|recently|this (week|month|year)|derniere?s?|actuel(le)?s?|actuellement|aujourd'?hui|maintenant|en ce moment|recente?s?|cette (semaine|annee))\b/;
+// Its adverbs of "now" ("latest", "current", "dernière" stay terms: they label versions and release lines).
+const NOW_WORDS = /\b(now|today|currently|this (week|month|year)|actuellement|aujourd'?hui|maintenant|en ce moment|cette (semaine|annee))\b/g;
+// A question about a version or a release ("latest stable version of Blender", "dernière version LTS de Node.js"),
+// and a passage holding a version number within 40 characters of a word that marks the newest one ("Blender 5.2
+// LTS (current stable release)", "Latest Node.js version: 24.19.0"): such a passage counts double (see the floor
+// in rank). Not "version" or "release" alone: on Wikipedia's Blender page they lifted history ("with the release
+// of version 2.80") into what the model reads (2026-10-06 replay).
+const VERSION_Q = /\b(versions?|releases?|lts)\b/;
+const VERSION_LINE = /\b(lts|stable|current|latest|newest|derniere|actuelle)\b.{0,40}?\bv?\d+\.\d+(\.\d+)?\b|\bv?\d+\.\d+(\.\d+)?\b.{0,40}?\b(lts|stable|current|latest|newest|derniere|actuelle)\b/s;
 
 /** PURE: the question, the picked search results and their read pages → Open WebUI's [{link, title, snippet}].
  * Every passage of every page competes (the engine's own snippet too: it often states the answer); a page's
  * title counts in each of its passages; the top of a page and SearXNG's order weigh a little. */
 export function rank(query: string, picked: SearxResult[], pages: Page[], count: number, opt: { now?: number } = {}): { out: WebResult[]; passages: number; chosen: number; tokens: number } {
-    const q = terms(query);
+    // The "now" words say WHEN, not WHAT: the recency rule reads them, the ranking does not (as terms, with the
+    // dictionaries gone, "aujourd'hui" put a TV show called "Ça commence aujourd'hui" above the minister's own page).
+    const what = terms(fold(query).replace(NOW_WORDS, ' '));
+    const q = what.length ? what : terms(query);
     const recent = RECENT.test(fold(query));
+    const versions = VERSION_Q.test(fold(query));
     const now = opt.now ?? Date.now();
-    type Doc = { page: number; pos: number; text: string; head: string; tf?: Tf; set?: Set<string>; tokens?: number; score?: number };
+    type Doc = { page: number; pos: number; text: string; head: string; tf?: Tf; set?: Set<string>; tokens?: number; plain?: number; score?: number };
     const docs: Doc[] = [];
     pages.forEach((p, i) => {
         const r = picked[i];
@@ -247,11 +283,14 @@ export function rank(query: string, picked: SearxResult[], pages: Page[], count:
     }
     const scores = bm25(docs as { tf: Tf }[], q);
     docs.forEach((d, i) => {
-        d.score = scores[i] * (1 + 0.15 * (1 - d.page / Math.max(1, picked.length)))
+        d.plain = scores[i] * (1 + 0.15 * (1 - d.page / Math.max(1, picked.length)))
             * (d.pos >= 0 ? 1 + 0.3 / (1 + d.pos) : 1) * (stale[d.page] ? 0.5 : 1);
+        d.score = d.plain * (versions && VERSION_LINE.test(fold(d.text)) ? 2 : 1);
     });
     const order = docs.filter((d) => d.score! > 0).sort((a, b) => b.score! - a.score!);
-    const top = order.length ? order[0].score! : 0;
+    // The floor follows the best passage WITHOUT the version factor: a version line passes it twice as easily and
+    // is chosen first, every other passage passes it as before.
+    const top = order.reduce((best, d) => Math.max(best, d.plain!), 0);
     const used = new Map<number, number>(); let total = 0; const chosen: Doc[] = [];
     for (const d of order) {
         if (d.score! < FLOOR * top) break;
@@ -310,7 +349,16 @@ export async function searchAndRead(query: string, count: number, opts: { searxn
     const res = await fetch(u, { signal: AbortSignal.timeout(Math.min(SEARCH_MS, left())) });
     if (!res.ok) throw new Error(`the farm's search engine answered ${res.status}`);
     let results: SearxResult[];
-    try { results = ((await res.json()) as { results?: SearxResult[] }).results || []; } catch { throw new Error('the farm\'s search engine did not answer in JSON in time'); }
+    try {
+        // At most SEARCH_MAX_BYTES read: whatever answers on that port, main never holds more.
+        const reader = res.body!.getReader(); const chunks: Uint8Array[] = []; let bytes = 0;
+        for (let r = await reader.read(); !r.done; r = await reader.read()) {
+            bytes += r.value.byteLength;
+            if (bytes > SEARCH_MAX_BYTES) { reader.cancel().catch(() => { /* already closed */ }); throw new Error('too big'); }
+            chunks.push(r.value);
+        }
+        results = (JSON.parse(Buffer.concat(chunks).toString('utf8')) as { results?: SearxResult[] }).results || [];
+    } catch { throw new Error('the farm\'s search engine did not answer in JSON in time'); }
     const picked = pickPages(results);
     const headers = { 'User-Agent': UA, Accept: 'text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.5', 'Accept-Language': langHeader(query) };
     const read = await Promise.all(picked.map((r) => fetchText(r.url, {
