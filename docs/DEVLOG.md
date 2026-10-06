@@ -6,6 +6,31 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-10-06 (11:45) — The engine × model spike on the DGX Spark: one PRO 6000 serves 8–16× the people
+
+The same harness, flags and 58 GiB KV pool as the PRO 6000 run, on `spark-59f9` (GB10, 128 GB unified), from
+2026-10-05 13:51 to 2026-10-06 11:37. `docs/spike/RESULTS.md` has the Spark tables and a "PRO 6000 vs Spark"
+section; `results/spark-*.json` holds the raw data.
+
+- **People at 32k / 128k (every turn):**
+  - vLLM + Qwen3.6: 8 / 4, against 96 / 32 on the PRO 6000.
+  - vLLM + Nemotron: 16 / 4, against 160 / 24.
+  - Qwen3.8-27B (dense) fails at 1 user: it decodes 12 tok/s, and the bar is 15.
+  - llama.cpp + Nemotron: 2 at 32k.
+- **Why:** the Spark's batched aggregate and prefill run at ~0.17–0.2× the PRO 6000's. Those two set head
+  counts. Single-user decode does better, at 0.28–0.39×.
+- **The 128 GB buys nothing here:** throughput binds ~10× before the KV pool. Quality was the same on both boxes.
+- **Found on the way:** the GB10 had been stuck at 702 MHz since a unified-memory OOM on 2026-09-16, a known
+  NVIDIA power-delivery latch. A reboot did not clear it; a cold power drain did. Every number was measured after
+  the drain.
+- **Also:**
+  - The vLLM venv needs uv's own Python, because the system Python has no `Python.h`.
+  - Qwen3.8's FlashInfer JIT needs `MAX_JOBS=4`: the memory guard (`runs/spark_guard.sh`) caught a 116 GB spike.
+- **Tested:** the full matrix ran unattended (`runs/spark_matrix.sh`). Thermals levelled at 80–88 °C. The box was
+  left at baseline, with OpenClaw and Agent Studio restarted.
+
+---
+
 ## 2026-10-06 (10:51) — Web search measured at 17/18 fresh facts, as cheap as web search off; the last review findings
 
 - **The final measurement of the shipping web search** (the client's search-and-read service in a worker,

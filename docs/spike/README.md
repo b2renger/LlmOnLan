@@ -18,12 +18,15 @@ with 32k / 64k / 128k of context each, by vLLM and by llama.cpp, for a short lis
 | `download.sh` | Downloads the checkpoints into `~/lol-spike/hf/<name>`. |
 | `serve_vllm.sh` / `stop_vllm.sh` | Start `vllm serve` with a stdin-EOF watchdog, which kills the server's whole process group when its launcher dies; stop it. |
 | `serve_llamacpp.ps1` | Starts the farm's own `llama-server.exe` (b10670) with the farm's argv (`farm/src/llamacpp.js`). Windows. |
+| `serve_llamacpp.sh` / `stop_llamacpp.sh` | The same on Linux (DGX Spark): the farm's linux-arm64 `llama-server`, same argv, port 8190; stop it. |
 | `runs/vllm_suite.sh` | Quality (thinking on), then chat, agent, cold 32k, chat with thinking off, cold 64k / 128k, then quality (thinking off). |
 | `runs/vllm_extend.sh` | 64–192 users for chat and agent, then follow-ups at 32k / 64k / 128k. Use with `--max-num-seqs 192`. |
 | `runs/vllm_all.sh` | `vllm_suite.sh` followed by `vllm_extend.sh` against one server. |
 | `runs/followup_levels.sh` | Extra follow-up levels, for example with `--append`. |
 | `runs/llamacpp_suite.sh` | The reduced llama.cpp suite. |
 | `runs/round_stats.py` | Per-turn TTFT and decode statistics from a follow-up result. |
+| `runs/spark_matrix.sh` | DGX Spark: the whole matrix unattended (vLLM ×3 models, then llama.cpp), one engine at a time. `MAX_JOBS=4` for FlashInfer's JIT. |
+| `runs/spark_guard.sh` | DGX Spark: logs temperature/clock/power/memory every 10 s and stops the engine below 8 GB free or at 90 °C (a unified-memory OOM can latch the GB10 at ~700 MHz). |
 
 ## The harness
 
@@ -176,7 +179,8 @@ Windows' 127.0.0.1). Stop it with `Stop-Process -Id (Get-Content $env:TEMP\lol-s
 
 ## Re-run on another box (DGX Spark)
 
-1. Install `uv`, then run `bash install_vllm.sh 0.30.0`. arm64 wheels exist; record the versions it prints. If
+1. Install `uv`, then run `UV_PYTHON_PREFERENCE=only-managed bash install_vllm.sh 0.30.0` (uv's own Python ships
+   `Python.h`, which Triton's JIT needs; the system Python had no headers). arm64 wheels exist; record the versions it prints. If
    vLLM picks a different CUDA, the nvcc/crt/nvvm pin follows the runtime automatically.
 2. Run `bash download.sh`, or point at an existing HF cache.
 3. Serve each model with the flags in RESULTS.md.

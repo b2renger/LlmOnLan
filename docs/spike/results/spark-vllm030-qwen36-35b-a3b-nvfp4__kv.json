@@ -1,0 +1,20 @@
+{
+ "log": "/home/ateliernum/LlmOnLan/docs/spike/results/logs/spark_vllm_qwen36.log",
+ "engine": "vllm",
+ "kv_tokens": 5510722,
+ "max_concurrency": {
+  "131072": 42.04
+ },
+ "weights_gib": 20.37,
+ "cuda_graphs_gib": 0.06,
+ "people_by_kv": {
+  "32k": 168.17,
+  "64k": 84.09,
+  "128k": 42.04
+ },
+ "people_by_kv_from_concurrency_line": {
+  "32k": 168.16,
+  "64k": 84.08,
+  "128k": 42.04
+ }
+}

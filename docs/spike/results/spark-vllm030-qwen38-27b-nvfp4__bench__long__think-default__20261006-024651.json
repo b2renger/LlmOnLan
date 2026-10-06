@@ -1,0 +1,178 @@
+{
+ "kind": "bench",
+ "label": "spark-vllm030-qwen38-27b-nvfp4",
+ "profile": "long",
+ "profile_params": {
+  "prompt_tokens": 120000,
+  "prefix_tokens": 0,
+  "max_tokens": 256,
+  "tools": false
+ },
+ "thinking": "default",
+ "natural": false,
+ "model": "qwen3.8-27b-nvfp4",
+ "base_url": "http://127.0.0.1:8100/v1",
+ "server": {
+  "models": [
+   {
+    "id": "qwen3.8-27b-nvfp4",
+    "max_model_len": 131072,
+    "owned_by": "vllm",
+    "root": "/home/ateliernum/lol-spike/hf/Qwen3.8-27B-NVFP4"
+   }
+  ],
+  "vllm_version": "0.30.0"
+ },
+ "host": {
+  "hostname": "spark-59f9",
+  "machine": "aarch64",
+  "system": "Linux",
+  "release": "6.17.0-1032-nvidia",
+  "python": "3.12.13"
+ },
+ "notes": "vLLM 0.30.0 (DGX Spark GB10, native, TCP): vllm serve /home/ateliernum/lol-spike/hf/Qwen3.8-27B-NVFP4 --served-model-name qwen3.8-27b-nvfp4 --host 127.0.0.1 --port 8100 --max-model-len 131072 --max-num-seqs 192 --kv-cache-memory-bytes 62277025792 --enable-prefix-caching --mamba-cache-mode align --enable-auto-tool-choice --kv-cache-dtype fp8_e4m3 --reasoning-parser qwen3 --tool-call-parser qwen3_coder; no NVFP4 MoE backend line (128k prompts)",
+ "started": "2026-10-06T02:46:51.329486",
+ "tokenizer_calibration": {
+  "prose_tpw": 1.0870431893687709,
+  "code_tpl": 7.703333333333333,
+  "json_tpc": 0.2584635416666667,
+  "source": "server /tokenize"
+ },
+ "criteria": {
+  "ttft_p95_max_s": 5.0,
+  "min_decode_tps": 15.0
+ },
+ "args": {
+  "cmd": "bench",
+  "base_url": "http://127.0.0.1:8100/v1",
+  "model": "qwen3.8-27b-nvfp4",
+  "uds": null,
+  "label": "spark-vllm030-qwen38-27b-nvfp4",
+  "thinking": "default",
+  "template_kwargs": null,
+  "temperature": 0.6,
+  "top_p": 0.95,
+  "top_k": null,
+  "timeout": 1200.0,
+  "out_dir": "/home/ateliernum/LlmOnLan/docs/spike/results",
+  "notes": "vLLM 0.30.0 (DGX Spark GB10, native, TCP): vllm serve /home/ateliernum/lol-spike/hf/Qwen3.8-27B-NVFP4 --served-model-name qwen3.8-27b-nvfp4 --host 127.0.0.1 --port 8100 --max-model-len 131072 --max-num-seqs 192 --kv-cache-memory-bytes 62277025792 --enable-prefix-caching --mamba-cache-mode align --enable-auto-tool-choice --kv-cache-dtype fp8_e4m3 --reasoning-parser qwen3 --tool-call-parser qwen3_coder; no NVFP4 MoE backend line (128k prompts)",
+  "profile": "long",
+  "levels": "1,2,4",
+  "extend": "",
+  "rounds": 2,
+  "stagger": 3.0,
+  "jitter": 0.2,
+  "natural": false,
+  "prompt_tokens": 120000,
+  "prefix_tokens": null,
+  "max_tokens": null,
+  "ttft_p95_max": 5.0,
+  "min_tps": 15.0,
+  "abort_ttft": 90.0,
+  "abort_tps": 3.0,
+  "warmup": true,
+  "warmup_burst": 32,
+  "cold_max_tokens": 8,
+  "append": false,
+  "save_requests": true
+ },
+ "levels": [
+  {
+   "concurrency": 1,
+   "requests": 2,
+   "errors": 0,
+   "wall_s": 237.19,
+   "ttft_p50": 93.147,
+   "ttft_p95": 93.192,
+   "ttft_max": 93.197,
+   "decode_tps_median": 9.98,
+   "decode_tps_p10": 9.97,
+   "decode_tps_min": 9.97,
+   "e2e_p50": 118.56,
+   "e2e_p95": 122.81,
+   "completion_tokens": 509,
+   "completion_tokens_mean": 254.5,
+   "prompt_tokens_mean": 119804.0,
+   "agg_tps_wall": 2.1,
+   "agg_tps_steady": 3.5,
+   "steady_window_s": 144.1,
+   "agg_tps": 3.5,
+   "ttft_p50_steady": 93.197,
+   "ttft_p95_steady": 93.197,
+   "decode_tps_p10_steady": 9.97,
+   "ttft_p95_round0": 93.097,
+   "pass_steady": false,
+   "pass_p10": false,
+   "pass_median": false,
+   "gpu": {
+    "vram_used_mib_max": null,
+    "gpu_util_mean": 95.9,
+    "power_w_mean": 78.9
+   },
+   "server_metrics": {
+    "gauges_max": {
+     "vllm:num_requests_running": 1.0,
+     "vllm:num_requests_waiting": 0.0,
+     "vllm:num_requests_waiting_by_reason": 0.0,
+     "vllm:kv_cache_usage_perc": 0.071
+    },
+    "counters_delta": {
+     "vllm:prefix_cache_queries_total": 239609.0,
+     "vllm:prefix_cache_hits_total": 0.0,
+     "vllm:external_prefix_cache_queries_total": 0.0,
+     "vllm:external_prefix_cache_hits_total": 0.0,
+     "vllm:num_preemptions_total": 0.0,
+     "vllm:prompt_tokens_total": 239609.0,
+     "vllm:generation_tokens_total": 509.0
+    },
+    "prefix_cache_hit_rate": 0.0
+   },
+   "requests_detail": [
+    {
+     "ok": true,
+     "err": null,
+     "t_start": 0.034318769998208154,
+     "ttft": 93.09685946899845,
+     "t_end": 113.87553178900271,
+     "ntok": 208,
+     "prompt_tokens": 119806,
+     "decode_tps": 9.978661970542703,
+     "finish": "length",
+     "n_events": 208,
+     "content_chars": 0,
+     "reasoning_chars": 1036,
+     "tool_call_chunks": 0,
+     "max_tokens": 208,
+     "e2e": 113.8412106350006,
+     "t_first": 93.13118062300055,
+     "user": 0,
+     "round": 0
+    },
+    {
+     "ok": true,
+     "err": null,
+     "t_start": 113.90896896400227,
+     "ttft": 93.19748342800449,
+     "t_end": 237.18919856999855,
+     "ntok": 301,
+     "prompt_tokens": 119803,
+     "decode_tps": 9.972524424047348,
+     "finish": "length",
+     "n_events": 301,
+     "content_chars": 0,
+     "reasoning_chars": 1493,
+     "tool_call_chunks": 0,
+     "max_tokens": 301,
+     "e2e": 123.28022706200136,
+     "t_first": 207.10645493600168,
+     "user": 0,
+     "round": 1
+    }
+   ]
+  }
+ ],
+ "finished": "2026-10-06T02:52:36.735247",
+ "people_latency_bounded_p10": 0,
+ "people_latency_bounded_median": 0,
+ "people_latency_bounded_steady": 0
+}

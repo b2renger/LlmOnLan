@@ -1,5 +1,10 @@
 # Engine × model spike — results (multiuser plan 0.6)
 
+Two boxes, the same harness, the same flags:
+- the **RTX PRO 6000** (2026-10-04), the sections from here down to *Not done, and why*;
+- a **DGX Spark** (2026-10-05/06), the section [DGX Spark (GB10)](#dgx-spark-gb10) and
+  [PRO 6000 vs Spark](#pro-6000-vs-spark) at the end.
+
 **Box:** `AN-A6000PRO`: one NVIDIA RTX PRO 6000 Blackwell Workstation Edition, 96 GB (97,887 MiB), sm_120,
 ~1.8 TB/s, driver 596.36 (CUDA 13.2), Windows 11 + WSL2 Ubuntu 26.04 (16 vCPU and 94 GB RAM given to WSL).
 **Date:** 2026-10-04. **The GPU was exclusive** (ComfyUI and the live farm were stopped), so these are ceiling
@@ -143,7 +148,8 @@ with `--kv-cache-memory-bytes 62277025792` (58 GiB), which left 9.1–12.9 GB of
     6000's memory bandwidth (273 vs ~1,800 GB/s) and ~1.3× its memory. If its people-per-box land near that
     bandwidth ratio, one PRO 6000-class card does the work of ~6 Sparks for these models, and the decision becomes
     price per seat. The Spark's extra memory only helps where KV binds (dense models, 128k). This is an
-    expectation; the Spark run decides.
+    expectation; the Spark run decides. **Measured (see [PRO 6000 vs Spark](#pro-6000-vs-spark)): the gap
+    is wider than bandwidth alone predicted. One PRO 6000 serves 6–16× more people than one Spark.**
 12. **vLLM in WSL2 worked for the whole spike**, with three workarounds: Unix-socket serving, the FlashInfer
     toolchain pins, and the stdin-EOF watchdog (*What broke*). Its overhead against native Linux on this card was
     not measured. The native-Linux Spark should need only the toolchain pins.
@@ -356,3 +362,190 @@ too:** the nvcc/crt/nvvm pins and the link shim, if FlashInfer JIT-compiles for 
   passes only alone: at 4 users the TTFT p95 is 5.05 s, and its aggregate tops out at ~190 tok/s.
 - **The `followup` profile at 64k with `--append` for Nemotron and Qwen3.6:** not rerun. Their replace-mode runs
   hit the cache at the ideal rate (0.65 of 0.667), so append would not change them.
+
+---
+
+# DGX Spark (GB10)
+
+**Box:** `spark-59f9`, an NVIDIA DGX Spark (Founders Edition): GB10, sm_121, 128 GB unified LPDDR5x (121 GiB
+visible), ~273 GB/s, 20 Grace cores. DGX OS 7.5.0, kernel 6.17.0-1032-nvidia, driver 580.173.02 (CUDA 13.0). Native
+Linux, no WSL. **Dates:** 2026-10-05 13:51 to 2026-10-06 11:37.
+
+**The engine had the GPU to itself.**
+- **Paused for the run:** OpenClaw's gateway, Agent Studio and their timers.
+- **Ollama:** the daemon stayed up, idle with no model loaded.
+- **Still resident (~2.7 GB):** the Farm app's stt/classify sidecars.
+
+**Engines:**
+- **vLLM 0.30.0** (torch 2.13.0+cu132, CUDA 13.2, FlashInfer 0.6.18.post1, Python 3.12.13): the same versions as the
+  PRO 6000, from the same `install_vllm.sh`.
+- **llama.cpp b10670**, `llama-b10670-bin-linux-cuda-arm64`: the Farm app's own build, read in place.
+
+**Same models, flags and suites as the PRO 6000**, including the KV pool: `--kv-cache-memory-bytes 62277025792`
+(58 GiB). Every "people by KV capacity" figure therefore matches the PRO 6000's. See *What differed* for why the
+Spark's extra memory was not used.
+
+Raw JSON: `results/spark-*.json`. KV figures: `results/spark-*__kv.json`. Temperature, clock, power and memory every
+10 s: `results/logs/spark_guard_thermal_memory.csv`. Driver: `runs/spark_matrix.sh`.
+
+## Headline table (DGX Spark)
+
+People are `every turn / steady`, with the same pass rule: TTFT p95 < 5 s and decode p10 ≥ 15 tok/s.
+
+| Engine · model (weights) | Context per person | **People at this context** | People by KV capacity | 4k chat message | Agent step | Cold prompt of this size | Quality gate: thinking on / off (tokens used) | Memory used (unified) |
+|---|---|---|---|---|---|---|---|---|
+| **vLLM · Qwen3.6-35B-A3B** (NVFP4, experts W4A16 via Marlin) | 32k | **8 / 8** | 168 | 8 / 16 | 8 / 16 | 0 (6.1 s alone) | **27/28 (89k) / 26/28 (12k)** | ~90–96 GB |
+| | 64k | **8 / 8** | 84 | | | 0 (15.2 s alone) | | |
+| | 128k | **4 / 4** ¹ | 42 | | | 0 (38.7 s alone) | | |
+| **vLLM · Nemotron 3.5 Lightning** (NVFP4, experts W4A16 via Marlin) | 32k | **16 / 16** | 485 | 8 / 16 | 16 / 16 | 0 (5.7 s alone) | 26/28 (61k) / **27/28 (7k)** | ~85–95 GB |
+| | 64k | **< 8** ² | 243 | | | 0 (13.0 s alone) | | |
+| | 128k | **4 / 4** | 121 | | | 0 (29.8 s alone) | | |
+| **vLLM · Qwen3.8-27B** (NVFP4 W4A4 dense, native FP4 GEMM) | 32k / 64k / 128k | **0** ³ | 54 / 27 / 13 | 0 | 0 | 0 (14.7 / 36.7 / 93.2 s alone) | 26/28 (24k) / **28/28 (11k)** | ~90–108 GB |
+| **llama.cpp · Nemotron 3.5 Lightning** (Q4_K_M), `--parallel 16`, 2M-token pool | 32k | **2 / 2** ¹ | 16 (slots) | 1 / 4 | 1 / 4 | 0 (15.4 s alone) | 26/28 (62k) | ~48 GB |
+| | 128k | **1 / 1** ¹ | 16 (slots) | | | — | | |
+| **llama.cpp · Qwen3.8-27B** (Q4_K_M), `--parallel 8` / `16` | 32k | **0** ³ | 8 / 16 (slots) | 0 | 0 | 0 (47.0 s alone) | 25/28 (18k) | ~40–52 GB |
+
+¹ The `--append` follow-up, where each turn re-sends the history plus one exchange.
+- As on the PRO 6000, a *replaced* question misses Qwen3.6's hybrid prefix cache at 128k: 105 s at 4 users.
+- Qwen3.6 at 128k collapses at 40 users (TTFT p95 227 s), near the pool's 42 × 128k.
+
+² 64k: the sweep started at 8 users. Those 8 missed by a hair (TTFT p95 6.0 s, decode p10 15.6 tok/s), so 4–6
+probably pass, but they were not measured.
+
+³ **Qwen3.8 fails the 15 tok/s bar with one user:**
+- vLLM decodes 12.1 tok/s alone, llama.cpp 11.7. It is bandwidth-bound: ~14 GB of weights read per token at
+  ~273 GB/s.
+- **At a 10 tok/s bar, vLLM would serve about 4 people** (chat c=4: p10 10.2, TTFT p95 4.6 s; agent c=4: p10 10.7,
+  3.1 s).
+- Its KV binds as on the PRO 6000: follow-ups collapse at 48 users at 32k and at 16 users at 128k.
+
+## Detail (DGX Spark)
+
+| vLLM, agent step: decode p10 tok/s · TTFT p95 every turn / steady (s) · aggregate tok/s | c=1 | c=4 | c=8 | c=16 | c=32 | c=64 | c=128 | c=192 |
+|---|---|---|---|---|---|---|---|---|
+| Qwen3.6 | 74 · 1.6 · 73 | 41 · 1.6 · 171 | 28 · 2.4 · 237 | 18 · 7.2 / 1.3 · 309 | 11 · 17 / 1.6 · 391 | 6.7 · 40 / 2.1 · 475 | 3.9 · 85 / 5.3 · 559 | (160: 3.3 · 585) |
+| Nemotron | 69 · 0.42 · 68 | 40 · 0.83 · 167 | 28 · 1.1 · 235 | 18 · 3.0 / 0.54 · 300 | 12 · 8.0 / 0.90 · 417 | 8.3 · 18 / 1.5 · 573 | 5.4 · 41 / 1.6 · 751 | 4.1 · 68 / 2.4 · 858 |
+| Qwen3.8 | 12 · 3.8 · 12 | 11 · 3.1 · 43 | 9.4 · 5.4 · 78 | 7.7 · 13 / 1.7 · 128 | 5.5 · 30 / 3.1 · 189 | 3.5 · 67 / 3.9 · 243 | (96: 2.6 · 272) | |
+
+| Follow-ups, decode p10 · TTFT p95 (s) | 2 | 4 | 8 | 16 | 32 |
+|---|---|---|---|---|---|
+| Qwen3.6, 32k (append) | | 35 · 0.83 | **22 · 1.5** | 14 · 2.9 | 7.7 · 5.7 |
+| Qwen3.6, 64k | | | **17 · 3.0** | 9.7 · 5.8 | 5.2 · 12 |
+| Qwen3.6, 128k (append) | 32 · 2.0 | **21 · 1.5** | 12 · 2.7 | 6.8 · 5.1 | 3.6 · 9.1 |
+| Nemotron, 32k (append) | | 37 · 0.82 | 24 · 1.5 | **16 · 2.9** | 9.8 · 5.3 |
+| Nemotron, 64k | | | 15.6 · 6.0 | 8.9 · 12 | 5.3 · 24 |
+| Nemotron, 128k (append) | 39 · 2.2 | **24 · 3.6** | 14 · 7.2 | 7.5 · 15 | 4.2 · 29 |
+| llama.cpp Nemotron, 32k (append) | **39 · 2.7** | 22 · 5.6 | 11 · 8.4 | 5.4 · 20 | |
+
+**llama.cpp on the Spark:**
+- **Nemotron:** 73 tok/s alone, but the aggregate flattens at ~95–130 tok/s against vLLM's ~860.
+- **Concurrent cold 32k prompts** collapse decode for everyone: 8.9 tok/s at 2 users, 1.5 at 8.
+- **Qwen3.8:** ~11 tok/s alone, and an aggregate of ~34 tok/s at 8 users.
+
+## What differed from the PRO 6000 run, and what broke
+
+1. **The same KV pool (58 GiB), not a bigger one.**
+   - The Spark could hold ~75 GiB of KV next to one model. We kept 58 GiB so the box keeps ~25–30 GB spare.
+   - **Reason:** a unified-memory OOM is what wedged this GPU (item 2).
+   - **It changes nothing in the people numbers.** Compute and bandwidth bind long before the KV pool on every MoE.
+     Qwen3.8 is KV-bound too, but it already fails at 1 user on speed.
+2. **The GPU was stuck at 702 MHz when the spike started.** NVIDIA's forums report the same bug (threads 376039,
+   366590, 361294).
+   - **When:** since a unified-memory OOM and two hard resets on 2026-09-16.
+   - **What it looked like:** 11–14 W at 92–96 % utilisation, no throttle reason, and power limits reading N/A.
+   - **Fix:** a warm reboot did not fix it. A **cold drain** did: power off, unplug the brick at the wall,
+     30 s on the power button, wait, boot.
+   - **After:** 2,464 MHz and 71 W under load, prefill 2.6× and decode 1.8× faster.
+   - **Every Spark number here was taken after the drain.** The clock held 2.4–2.48 GHz throughout.
+   - The 702 MHz numbers were deleted.
+3. **Python headers.**
+   - `uv` built the venv on the system Python 3.12.3, which has no `Python.h`. Triton's JIT helper failed to
+     compile, and vLLM aborted with `Model architectures ['Qwen3_5MoeForConditionalGeneration'] failed to be
+     inspected`.
+   - **Fix (no sudo):** rebuild the venv on uv's own Python with
+     `UV_PYTHON_PREFERENCE=only-managed bash install_vllm.sh 0.30.0`. That is Python 3.12.13, the PRO 6000's
+     version.
+4. **Qwen3.8's start-up tripped the memory guard.**
+   - FlashInfer JIT-compiles the native-FP4 CUTLASS kernels with one job per core (20). With the 58 GiB pool,
+     memory went from 35 to 116 GB used in 30 s.
+   - `runs/spark_guard.sh` stopped it at 5 GB free.
+   - **Fix:** `MAX_JOBS=4` (in `runs/spark_matrix.sh`). The start-up peak was then 108 GB.
+   - The MoE models do not JIT those kernels: they use Marlin.
+5. **Plain TCP**, with no `--uds` and no watchdog pipe trick. The pins and link shim in `serve_vllm.sh` worked
+   unchanged on sm_121.
+6. **Thermals:** 80–88 °C at sustained full load, levelling off, with no clock drop and no power-off. The guard's
+   90 °C stop never fired.
+
+**Exact commands:**
+
+```bash
+UV_PYTHON_PREFERENCE=only-managed bash docs/spike/install_vllm.sh 0.30.0
+bash docs/spike/download.sh
+bash docs/spike/runs/spark_guard.sh ~/lol-spike/logs/guard.csv 8 90 &      # memory/thermal guard + log
+bash docs/spike/runs/spark_matrix.sh                                       # every engine x model below
+```
+
+`spark_matrix.sh` serves each model in turn, then runs `vllm_all.sh` and the `--append` follow-ups at 32k and 128k.
+- **vLLM:** `serve_vllm.sh <run> <model dir>` with RESULTS.md's common and per-model flags, `--port 8100` in place
+  of `--uds`.
+- **llama.cpp:** `serve_llamacpp.sh <gguf> <parallel> <ctx> <log>`, the Linux twin of `serve_llamacpp.ps1` with the
+  same farm argv, on port 8190.
+
+# PRO 6000 vs Spark
+
+The same harness, flags and KV pool on both boxes, one run each. **Best config on each box: vLLM, with Qwen3.6
+(quality) or Nemotron (head count).**
+
+| People per box (every turn / steady) | RTX PRO 6000 | DGX Spark | Ratio |
+|---|---|---|---|
+| Qwen3.6, 32k | 96 / 128 | 8 / 8 | 12–16× |
+| Qwen3.6, 64k | 48 / 64 | 8 / 8 | 6–8× |
+| Qwen3.6, 128k | 32 / 40 | 4 / 4 | 8–10× |
+| Nemotron, 32k | 160 / ≥ 192 | 16 / 16 | 10–12× |
+| Nemotron, 128k | 24 / 48 | 4 / 4 | 6–12× |
+| Qwen3.8 (dense), 32k | 16 / 32 | 0 (12 tok/s alone) | — |
+| llama.cpp Nemotron, 32k | 4 / 8 | 2 / 2 | 2–4× |
+
+| Raw speed (vLLM) | PRO 6000 | Spark | Spark ÷ PRO 6000 |
+|---|---|---|---|
+| One user's decode (Qwen3.6 / Nemotron / Qwen3.8) | 193 / 243 / 64 tok/s | 76 / 69 / 12 | 0.39 / 0.28 / 0.19 |
+| Peak aggregate, agent step (Qwen3.6 / Nemotron) | 3,431 / 4,959 tok/s | 585 / 858 | 0.17 |
+| Cold 32k prefill (Qwen3.6 / Nemotron / Qwen3.8) | 1.1 / 1.1 / 3.3 s | 6.1 / 5.7 / 14.7 s | 4.5–5.4× slower |
+| Cold 128k prefill | 5.7–20.9 s | 30–93 s | ~5× slower |
+
+**Quality:** the same on both boxes, within the noise of a 28-item gate. It is a property of the
+checkpoint, not the box.
+
+| Model (vLLM) | PRO 6000, thinking on / off | Spark, thinking on / off |
+|---|---|---|
+| Qwen3.6 | 27/28 / 28/28 | 27/28 / 26/28 |
+| Nemotron | 25/28 / 26/28 | 26/28 / 27/28 |
+| Qwen3.8 | 26/28 / 28/28 | 26/28 / 28/28 |
+
+**What this means for the purchase (one run per box, so a caveat on every number):**
+
+1. **For multi-user serving, one PRO 6000 does the work of roughly 8–16 Sparks** on the 3B-active MoEs at 32k,
+   and 6–12 at 128k.
+   - The pre-run expectation was ~6×, from the bandwidth ratio (0.15).
+   - Single-user decode lands better than bandwidth (0.28–0.39×). The batched aggregate (0.17×) and prefill (~0.2×)
+     land at or below it, and those are what set head counts.
+   - So the purchase decision is **price per seat**: a Spark is worth buying for multi-user serving only if it
+     costs well under 1/8 of a PRO 6000 build.
+2. **The Spark's 128 GB does not buy people.**
+   - With the same 58 GiB pool, its KV capacity is identical to the PRO 6000's (168 / 485 people at 32k for
+     Qwen3.6 / Nemotron), and it serves 8–16.
+   - Throughput binds ~10× before memory does.
+   - Its memory matters only for *fitting* a model the PRO 6000 can't: gpt-oss-120b class, or several models
+     resident at once. That was not measured.
+3. **Dense models are a non-starter on the Spark** for this gate. Qwen3.8-27B decodes 12 tok/s for one person.
+   Use a 3B-active MoE.
+4. **On a Spark, use vLLM, not llama.cpp,** as on the PRO 6000. Nemotron serves 16 vs 2 people at 32k, and the
+   aggregate is ~860 vs ~130 tok/s. The gap is smaller than on the PRO 6000 (24–40×), because the Spark's vLLM is
+   itself bandwidth-limited.
+5. **A Spark fits a small group.** It holds ~8 people on Qwen3.6, or ~16 on Nemotron at 32k, with steady TTFT
+   under 2 s, for example one workshop table.
+6. **Spark operations risk:** a unified-memory OOM can latch the GPU at ~700 MHz until a cold power drain. NVIDIA
+   has no fix yet, and it happened on this box.
+   - A farm Spark needs a memory guard and headroom (sizing `--kv-cache-memory-bytes`, never
+     `--gpu-memory-utilization`).
+   - It also needs a clock check after any crash: under load, clocks.sm should be ≥ 1,400 MHz and power ≥ 40 W.
