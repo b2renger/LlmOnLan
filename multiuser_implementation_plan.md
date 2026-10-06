@@ -976,6 +976,22 @@ keeps it open: "it should be able to run on any laptop … I think it's a good i
 laptops won't be able to have decent speed and quality. Depends on the use case, the space etc. We need
 to think further about use cases and if it is really pertinent." No code before the study.
 
+**A candidate (owner, 2026-10-06): Ternary-Bonsai-2-27B** (prism-ml).
+- **What it is:** Qwen3.8-27B with ternary weights: 5.95 GB (PTQ1_0) or 7.21 GB (PQ2_0). Its context is 262k,
+  with vision through a 0.63 GB add-on, under Apache 2.0.
+- **PrismML's own numbers:** 98.2 % of the full model's score. It loses 5.7 points on knowledge and 5.2 on
+  images.
+- **Speed for one person** (vendor figures): 28 tok/s on an M5 Pro, 32 on an L4, 130 on an RTX 5090.
+- **Limits:** it runs only on PrismML's llama.cpp fork, which ships Windows/Linux x64 CUDA and macOS builds
+  but no arm64 CUDA. It needs flash attention on, and Ollama can't run it.
+- **Not a fit for the farm's multi-user job:**
+  - It is dense, so about 9× the compute per word of Qwen3.6-A3B.
+  - It is llama.cpp only, and the spike measured its base model there at 1 person at 32k.
+  - The Spark isn't short of memory.
+- **A good fit for this study, and for one-person boxes.**
+- **Trial, no code change:** point `llamacpp.binDir` and `llamacpp.model` at the fork's build and the .gguf,
+  then run the spike's quality set and a one-person speed run on 2–3 laptops.
+
 **Three questions the study must answer:**
 
 1. **Which uses could a laptop model serve acceptably?** Candidates, from least to most demanding:
@@ -1578,7 +1594,12 @@ llama.cpp alternative (Windows or before Phase 2), OWUI chat with Qwen3.8-27B:
   it only runs in WSL2, with its process-lifetime hazards.
 - **Runaways (measured 2026-10-05):** some replies loop until the 64k window is full: ~290 s of a seat,
   then an empty reply (3 of 45 searched chats, and 4 of 36 native-mode follow-ups). **Owner: cap them at the
-  farm**, with a value measured never to cut a real answer. The root-cause study is running.
+  farm**, with a value measured never to cut a real answer.
+  - **Fixed 2026-10-05 at the root:** Qwen3.6 lacked the `presence_penalty` 1.5 its model card asks for.
+    With it, 0 runaways in 1,057 replays; `external.presencePenalty` sets it.
+  - **Safety net:** `proxy.maxReplyTokens` 32,768. On Ollama and llama.cpp it is a default for requests that
+    name no limit; on vLLM, serve.sh makes it a ceiling. Details in farm/README.md, "Replies that never
+    end".
 - **Benchmarks:** most §9 numbers are single-author posts with different builds. No source measured
   exactly 10 concurrent users for Qwen3.6 or Lightning. Quality scores are vendor-reported. Local
   measurements decide.
@@ -1627,6 +1648,17 @@ These are recommendations, not decisions.
    - **Owner (2026-10-05):** drop Yandex (queries would go to a Russian company) and re-check quality without
      it. Being built: the engines without Yandex, the two settings, and the service in the client's main
      process. Web search stays off by default until the service ships and a class-size check passes.
+   - **Built 2026-10-05/06** (`b7829c2`, `4aed37c`).
+     - **The engines:** DuckDuckGo (web), Bing, Seznam, **Swisscows** (owner: added, as Yandex's
+       replacement), Mojeek, Qwant and Wikipedia.
+     - **The service:** in the client's main process, behind `WEB_SEARCH_ENGINE=external`.
+     - **The retrieval fixes** from the re-check.
+     - **Measured without Yandex and with Swisscows:** the answer was in the evidence for 17/18 questions,
+       and 14/18 fresh facts were right in chats.
+   - **The model's date (owner, 2026-10-05):** "Today is {{CURRENT_WEEKDAY}} {{CURRENT_DATE}}." is written
+     into Open WebUI's system prompt, once, and only when the prompt is empty (`0497615`). It was the largest
+     remaining cause of wrong answers.
+   - **The final end-to-end measurement** of the shipping build is running.
 5. **vLLM** (Phase 2). **ANSWERED (2026-10-04): in scope**, overriding the critic's cut.
    - Still open, decided from the spike: (a) integrated `external` or (b) fully managed.
    - The critic's caution stands as a test condition: WSL2 lifetimes on the PRO 6000 must be handled
@@ -1678,7 +1710,8 @@ These are recommendations, not decisions.
      worse with thinking until a one-sentence prompt fix, after which it scored 36/36. **Decision 9 was wrong
      for yes/no decisions.**
    - **ANSWERED (owner, 2026-10-05): decisions think, the rest stays fast.** Condition and Filter think by
-     default, with the Filter fix. Ticking the box makes every structured ask think. Being built.
+     default, with the Filter fix. Ticking the box makes every structured ask think. **Built 2026-10-05**
+     (`ce46b18`; the box is labelled "Think all").
    - **Reading:** titles, search queries and JSON or list extraction are safe with thinking off. The
      Computer's **verdict** and **agent-step** asks need reasoning. On the target model (vLLM + Qwen3.6) the
      spike's 28-item gate lost nothing, but the Computer's real verdict and agent asks haven't been run both

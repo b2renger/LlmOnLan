@@ -6,6 +6,93 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-10-06 (09:48) — Decisions think; web search v2 built (no Yandex, with Swisscows); runaways fixed at the root; Open WebUI told the date
+
+The owner's answers at the end of 2026-10-05:
+- yes/no decisions think, the rest stays fast;
+- drop Yandex and re-check, then add Swisscows (Swiss, no account, no key);
+- cap runaway replies at the farm;
+- write the date into an EMPTY Open WebUI system prompt;
+- the merge and release wait for the Spark results.
+
+Every change below was built in its own worktree and checked by a skeptic, and its findings were fixed. The
+last small findings are being fixed now.
+
+- **Decisions think, the rest stays fast** (`ce46b18`, `b9076c0`).
+  - The rule lives in one place (`THINKING_TASKS` in `core/types.mjs`, read by `app/ask.mjs`). Condition and
+    Filter verdicts send nothing about thinking, so the model's own default applies; json/list extraction
+    and Agent steps send the thinking-off pair. The box, now labelled **Think all**, makes everything think.
+  - Filter's system sentence now says what `keep` means: thinking scored 36/36 with it.
+  - Verdicts get 8,192 tokens instead of 4,096.
+  - The review fixes: the default flips with one edit; the hint is on the checkbox (tested); a focused
+    checkbox no longer swallows the canvas keys; the Cap and the box are read at once.
+- **Runaways, fixed at the root** (`64d4362`).
+  - **The root cause:** Qwen3.6 was served without the `presence_penalty` 1.5 its model card asks for in
+    thinking mode.
+  - **The measurement:** replaying Open WebUI's saved requests, 8 of 500 replies looped until the 64k window
+    was full. With the penalty, 0 of 1,057 did. The spike's quality set scored 81/84 with it against 83/84
+    without, within noise.
+  - `external.presencePenalty` (the recipe sets 1.5) rides the LiteLLM route as a default a request
+    overrides.
+  - **The safety net:** `proxy.maxReplyTokens` 32,768. On Ollama and llama.cpp it is a default for requests
+    that name no limit. On vLLM, serve.sh's `--override-generation-config` makes it a server-wide ceiling;
+    the review caught the docs calling it a default there, and that wording is being fixed.
+  - **Why it matters on the production farm:** Ollama 0.34 shifts its window and carries on up to 10× the
+    window, so a loop on its qwen3.8 ran almost unbounded.
+- **Web search v2** (`b7829c2`, `4aed37c`).
+  - **The farm's SearXNG keeps only the engines that answer from here:** DuckDuckGo (web), Bing, Seznam,
+    Swisscows, Mojeek, Qwant and Wikipedia (settings v4; generated files upgrade, the secret is kept).
+  - **The client's main process reads the pages:** it reads the top 6 pages of each search, keeps the best
+    passages (BM25, ≤ 800 tokens a page, ≤ 3,000 a search) and serves them on the Computer's loopback
+    listener (`/web/search`, the same bearer and Host check). Open WebUI uses it through
+    `WEB_SEARCH_ENGINE=external`, env only.
+  - **The fallback:** if that port is taken, Open WebUI's own SearXNG path gets 5 results, a 12,000-character
+    fetch cap and `SEARXNG_LANGUAGE=auto`.
+  - **What `io.ts` gained:** a public-only address rule, so 192.0.66.31 is allowed but not 192.0.2.x; a
+    pinned connect address, which closes the DNS-rebinding gap for the Computer's Fetch, Open data and Agent
+    boxes too; charset decoding; and truncation.
+  - **What the review found:**
+    - The HTML reader was quadratic on unclosed tags. A crafted 2 MB page would have frozen the client for
+      about 30 minutes; it now takes 0.84 s, and moving reading off the main thread is in progress.
+    - A 999 status lost its code.
+    - The farm's SearXNG answer had no size cap.
+    - Open WebUI's Legacy mode still loads pages itself.
+  - **Retrieval:**
+    - Dictionary sites go last.
+    - "Now/aujourd'hui" no longer counts as a search term, because a TV show called "Ça commence aujourd'hui"
+      outranked a minister's page.
+    - Version lines get a boost when the question asks for the latest release.
+- **Quality without Yandex, measured** (18 fresh questions; answer present in the passages):
+
+  | Engine set | Answer in passages |
+  |---|---|
+  | with Yandex | 14/18 |
+  | without Yandex | 13/18 |
+  | without Yandex, with Swisscows | **17/18** (French 9/9) |
+
+  In full chats, without Yandex and with Swisscows: 14/18 fresh facts right, 2.4 generations per message,
+  0 runaways.
+  - **The largest remaining cause of wrong answers:** the model believes it is 2025.
+- **The date line** (`0497615`).
+  - **What it writes:** "Today is {{CURRENT_WEEKDAY}} {{CURRENT_DATE}}.", into Open WebUI's system prompt,
+    once, only when it is empty, with a marker so an emptied prompt stays empty. Open WebUI fills the date in
+    at every message.
+  - **Why no env route:** `DEFAULT_MODEL_PARAMS.system` never reaches a farm model (only Workspace models
+    get it), and `DEFAULT_INTERFACE_SETTINGS` exists only in 0.11 and comes back when emptied.
+  - **Tested:** live against throwaway Open WebUI 0.11.4 and 0.10.1 servers.
+- **Ternary Bonsai 2 27B, the owner's question.**
+  - **What it is:** Qwen3.8-27B in 6–7 GB, 98 % of its score by PrismML's own numbers.
+  - **Not for the Spark's multi-user job:** the Spark isn't short of memory; it's a dense model, so about
+    9× the compute per word of Qwen3.6-A3B; it runs only on a llama.cpp fork, with no vLLM and no Ollama;
+    and the spike measured its base model on llama.cpp at 1 person at 32k.
+  - **A strong candidate** for the laptop study (4.3) and for one-person boxes. Plan 4.3 has the trial
+    steps.
+- **Integration:**
+  - The CLAUDE.md conflict between two commits was resolved by hand.
+  - farm 164/0, shell chat-unit 1830/0, unit 26, lint 0.
+  - The final end-to-end measurement of the shipping build failed to run the first time: the measuring
+    agent answered the owner's Bonsai question instead. It is running again.
+
 ## 2026-10-05 (17:03) — Web search off by default, and measured back to good; thinking measured on the Computer's real asks; four owner decisions
 
 Today's owner answers:
