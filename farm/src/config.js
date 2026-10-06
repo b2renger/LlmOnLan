@@ -78,6 +78,16 @@ const ProxySchema = z.object({
     seatGate: z.boolean().default(true),
     seatIdleSec: z.number().int().min(60).default(900),          // 15 min of no generation → seat frees
     internalPort: z.number().int().positive().nullable().default(null), // LiteLLM's loopback port behind the gate (default: port + 1)
+    // The most a reply may write (thinking included) when its request names no limit: Open WebUI's chats
+    // and LOL Vibe's name none; the Computer, agent pages and the coding agent always name their own, and a
+    // request's own limit always wins. A model sometimes falls into a loop ("Let's go. (Self-Correction):
+    // I'll do it.") and never ends the reply: replaying Open WebUI's follow-ups on vLLM + Qwen3.6 on
+    // 2026-10-05, 1.6 % of replies did, each until the 64k window was full (~290 s of a seat, then an empty
+    // answer), and Ollama does not even stop at its window. The longest real reply measured that day was
+    // 9,747 tokens in Open WebUI and 15,515 for a Computer ask with thinking on; 32,768 is twice that, and
+    // Qwen's own recommended output length. Applied per engine: litellm.js (Ollama, llama.cpp) and
+    // farm/vllm/serve.sh (vLLM). null = no limit from the farm.
+    maxReplyTokens: z.number().int().min(1024).nullable().default(32768),
 }).strict();
 
 const OllamaSchema = z.object({
@@ -320,6 +330,13 @@ const ExternalSchema = z.object({
     parallel: z.number().int().positive().default(4),   // vLLM handles real concurrency
     // Does it accept images? No probe exists, so declare it.
     vision: z.boolean().default(false),
+    // presence_penalty for every request that names none (a request's own wins). For Qwen3.6, 1.5: its model
+    // card's setting "to reduce endless repetitions". Without it, Open WebUI's follow-ups replayed on vLLM looped
+    // until the window was full 8 times in 500; with it, 0 in 633 (2026-10-05; README "Replies that never end"
+    // has the quality check). vLLM cannot default it (its generation config takes only temperature, top_k,
+    // top_p, min_p, repetition_penalty and max_new_tokens) and Open WebUI sends no sampling at all, so the
+    // farm's LiteLLM adds it. null = none.
+    presencePenalty: z.number().min(-2).max(2).nullable().default(null),
     // Shown in the panel + client cards instead of a .gguf filename.
     label: z.string().nullable().default(null),
 }).strict();

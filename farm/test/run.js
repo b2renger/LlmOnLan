@@ -3295,6 +3295,34 @@ test('seat gate: its own 401, 429 and 502 are readable from another origin, and 
     }
 });
 
+// ---- the reply limit (proxy.maxReplyTokens) ------------------------------------
+test('reply limit: a request naming no max_tokens gets 32768 on Ollama and llama.cpp, vLLM gets it from serve.sh', () => {
+    const c = defaultConfig();
+    assert.equal(c.proxy.maxReplyTokens, 32768);
+    c.llamacpp.enabled = false;
+    c.ollama.hosts = ['http://a:11434', 'http://b:11434'];
+    // Every Ollama host carries it as a default (the request's own max_tokens wins: test/litellm-cancel.js);
+    // a coordinator peer does not: its own farm sets its own.
+    const doc = buildLitellmConfig(c, [{ openaiBaseUrl: 'http://peer:4000/v1', models: [] }]);
+    assert.deepEqual(doc.model_list.map((d) => d.litellm_params.max_tokens), [32768, 32768, undefined]);
+    c.llamacpp.enabled = true;
+    assert.equal(buildLitellmConfig(c).model_list[0].litellm_params.max_tokens, 32768);
+    // vLLM refuses a prompt plus max_tokens past its window, so the external server gets none from LiteLLM…
+    c.external.enabled = true;
+    assert.ok(!('max_tokens' in buildLitellmConfig(c).model_list[0].litellm_params));
+    // (Qwen3.6's presence_penalty rides the same way, only when the operator declares it.)
+    assert.ok(!('presence_penalty' in buildLitellmConfig(c).model_list[0].litellm_params));
+    c.external.presencePenalty = 1.5;
+    assert.equal(buildLitellmConfig(c).model_list[0].litellm_params.presence_penalty, 1.5);
+    // … and serve.sh gives vLLM the same number as its own default (it cannot read lol.config.json).
+    const serve = fs.readFileSync(path.join(__dirname, '..', 'vllm', 'serve.sh'), 'utf8');
+    assert.ok(serve.includes(`--override-generation-config '{"max_new_tokens": ${c.proxy.maxReplyTokens}}'`));
+    c.external.enabled = false;
+    c.proxy.maxReplyTokens = null;   // the operator's "no limit"
+    assert.ok(buildLitellmConfig(c).model_list.every((d) => !('max_tokens' in d.litellm_params)));
+    assert.equal(ConfigSchema.safeParse({ proxy: { maxReplyTokens: 100 } }).success, false, 'too small to finish a thought');
+});
+
 (async () => {
     for (const { name, fn } of tests) {
         try { await fn(); console.log(`  ok  ${name}`); passed++; }

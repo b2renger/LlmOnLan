@@ -11,9 +11,10 @@
 // retries, behind the real seat gate. The client aborts mid-answer; the engine must see its
 // request close within ~2 s, and LiteLLM must not retry it — streaming, and non-streaming
 // (which needs the generated config's general_settings.cancel_on_disconnect). It also checks that drop_params
-// keeps the thinking-off pair the client sends (owner decision 9). Loopback, OS-assigned ports
+// keeps the thinking-off pair the client sends (owner decision 9), and that the farm's reply limit
+// (proxy.maxReplyTokens) reaches the engine only when a request names none. Loopback, OS-assigned ports
 // only — never a live farm's, and no GPU. Exits 0 when every cancel propagates and thinking
-// off arrives (or when there is no LiteLLM to test).
+// off and the limit arrive as they should (or when there is no LiteLLM to test).
 //
 // Real engines (opt-in, skipped unless LOL_CANCEL_ENGINE is set): does the engine STOP
 // GENERATING, not just see the close? One small model on this box's GPU, loopback only:
@@ -204,7 +205,7 @@ async function fakeMain(cmd, version) {
     // an external server (hosted_vllm/), llama.cpp and coordinator peers (openai/), Ollama (ollama_chat/).
     const ext = defaultConfig();
     ext.llamacpp.enabled = false;
-    ext.external = { ...ext.external, enabled: true, alias: 'fake', baseUrl: `${base}/v1` };
+    ext.external = { ...ext.external, enabled: true, alias: 'fake', baseUrl: `${base}/v1`, presencePenalty: 1.5 };
     const lcc = defaultConfig();
     lcc.llamacpp = { ...lcc.llamacpp, enabled: true, alias: 'fake-llamacpp', host: '127.0.0.1', port: engine.address().port };
     const oll = defaultConfig();
@@ -244,9 +245,45 @@ async function fakeMain(cmd, version) {
             console.log(`${answered && kept ? 'ok  ' : 'FAIL'} ${shape} thinking off reaches the engine: ` +
                 `chat_template_kwargs ${JSON.stringify(b.chat_template_kwargs)}, think ${JSON.stringify(b.think)}${b.options ? `, options ${JSON.stringify(b.options)}` : ''}`);
             results.push(answered && kept);
+            // proxy.maxReplyTokens: what the engine is told to write at most. A request that names no limit gets
+            // the farm's on Ollama (num_predict) and llama.cpp (max_tokens), and nothing on an external server
+            // (vLLM refuses prompt + max_tokens past its window; serve.sh sets its own default). A request's
+            // own limit always wins.
+            const cap = ext.proxy.maxReplyTokens;
+            const sent = async (extra) => {
+                const at = seen.length;
+                const answered2 = await completes(gp, model, extra);
+                const e = (seen[at] && seen[at].body) || {};
+                const told = shape === 'ollama_chat/' ? { num_predict: (e.options || {}).num_predict } : { max_tokens: e.max_tokens, max_completion_tokens: e.max_completion_tokens };
+                return { answered: answered2, told: JSON.stringify(told) };
+            };
+            const none = { 'hosted_vllm/': {}, 'openai/': { max_tokens: cap }, 'ollama_chat/': { num_predict: cap } }[shape];
+            const own = (n, key) => JSON.stringify(shape === 'ollama_chat/' ? { num_predict: n } : { [key]: n });
+            // max_completion_tokens is what the coding agent's SDK sends (pi-ai picks it for a provider it does not
+            // know). openai/ forwards the farm's max_tokens beside it; llama-server obeys max_completion_tokens when
+            // it has both (b10670, measured 2026-10-05: 200 + 12 wrote 12), as vLLM does.
+            const newer = shape === 'openai/' ? JSON.stringify({ max_tokens: cap, max_completion_tokens: 88 }) : own(88, 'max_completion_tokens');
+            for (const [label, extra, expect] of [['names no limit', {}, JSON.stringify(none)], ['names max_tokens 77', { max_tokens: 77 }, own(77, 'max_tokens')],
+                ['names max_completion_tokens 88', { max_completion_tokens: 88 }, newer]]) {
+                const r = await sent(extra);
+                const good = r.answered && r.told === expect;
+                console.log(`${good ? 'ok  ' : 'FAIL'} ${shape} a request that ${label}: the engine is told ${r.told} (want ${expect})`);
+                results.push(good);
+            }
+            // external.presencePenalty (Qwen3.6's 1.5): the same kind of default, and a request's own 0 still wins.
+            if (shape === 'hosted_vllm/') {
+                for (const [label, extra, expect] of [['names no presence_penalty', {}, 1.5], ['names presence_penalty 0', { presence_penalty: 0 }, 0]]) {
+                    const at = seen.length;
+                    const answered3 = await completes(gp, model, extra);
+                    const got = ((seen[at] && seen[at].body) || {}).presence_penalty;
+                    const good = answered3 && got === expect;
+                    console.log(`${good ? 'ok  ' : 'FAIL'} ${shape} a request that ${label}: the engine gets presence_penalty ${got} (want ${expect})`);
+                    results.push(good);
+                }
+            }
         }
         ok = results.every(Boolean);
-        console.log(ok ? 'PASS: a cancel reaches the engine, and so does thinking off' : 'FAIL: see above');
+        console.log(ok ? 'PASS: a cancel reaches the engine, and so do thinking off and the reply limit' : 'FAIL: see above');
     } catch (e) {
         console.log(`FAIL: ${e.message}`);
     } finally {

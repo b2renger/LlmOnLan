@@ -223,9 +223,12 @@ in WSL (the 23.5 GB model plus the venv), and [uv](https://docs.astral.sh/uv/) i
      "contextLength": 65536,
      "parallel": 48,
      "vision": true,
+     "presencePenalty": 1.5,
      "label": "Qwen3.6-35B-A3B (vLLM)"
    }
    ```
+   `presencePenalty` stops Qwen3.6's endless replies (see [Replies that never end](#replies-that-never-end)).
+   Leave it out for another model unless its model card asks for it.
 4. **Stop it** in one of three ways: close the vLLM window, press Ctrl+C in it, or run
    `wsl -d Ubuntu -- bash <repo>/farm/vllm/stop.sh`. A watchdog in `serve.sh` then stops vLLM, its EngineCore
    process and the relay together, because killing `wsl.exe` alone leaves Linux processes running and holding
@@ -344,6 +347,44 @@ reply, and the table gives the median time to the whole reply (p95 in brackets).
 - **To measure it again** after a LiteLLM or vLLM bump, compare the farm with vLLM alone, on the farm box:
   `lol bench --users 140 --max-tokens 200` (through the gate) against
   `lol bench --users 140 --max-tokens 200 --url http://127.0.0.1:8100 --model <the served name>`.
+
+### Replies that never end
+
+Qwen3.6 on vLLM sometimes falls into a loop while it thinks ("Let's go. (Self-Correction): I'll do it.", over
+and over) and never ends its reply: it writes until the 64k window is full, holding a seat for ~290 s, and
+Open WebUI then shows an empty answer. On 2026-10-05 Open WebUI's real follow-ups (211 requests, saved as
+sent) were replayed straight to vLLM, 2 to 8 times each, with a 32,768-token limit so a loop ended sooner:
+
+| Sampling | Replies | Looped to the limit |
+|---|---|---|
+| vLLM's defaults (the model's `generation_config.json`: temperature 1.0, top_k 20, top_p 0.95) | 500 | 8 (1.6 %) |
+| + `repetition_penalty: 1.05` | 422 | 1 (0.2 %) |
+| + `presence_penalty: 1.0` | 633 | 0 |
+| + `presence_penalty: 1.5` | 633 | 0 |
+
+- **The cause.** Qwen's model card asks for `presence_penalty: 1.5` with thinking on, "to reduce endless
+  repetitions", and nothing on the way applies it. Open WebUI sends no sampling at all, the checkpoint's
+  `generation_config.json` carries only temperature, top_k and top_p, and vLLM 0.30 cannot default a presence
+  penalty: its generation config takes only temperature, top_k, top_p, min_p, repetition_penalty and
+  max_new_tokens. A loop is a per-reply accident, not a property of a prompt: the 8 loops came from 8
+  different requests, and the requests that looped in Open WebUI looped 2 times in 72 replays.
+- **The fix.** `"presencePenalty": 1.5` in `external` (step 3 above): the farm's LiteLLM adds it to every
+  request that names none, and a request's own value wins. 1.5 is the model card's value; 1.0 did as well here.
+- **What it costs.** Nothing this set can measure. On the spike's quality set (28 items: code checked by
+  tests, exact answers, tool calls) with thinking on, 83 of 84 answers passed at vLLM's defaults, 81 of 84
+  with 1.5 and 54 of 56 with 1.0. A difference of one or two items is within the set's noise, and every
+  setting had an answer that thought past 16k tokens. With thinking off (how the Computer asks), 28 of 28
+  passed with 1.5 against 26 of 28 without. Qwen warns of "slight performance decreases" and asks for 0 on
+  precise coding; the coding agent's SDK sends no presence penalty, so it gets 1.5 too (code items: 28 of 30
+  with it, 29 of 30 without).
+- **The backstop.** `serve.sh` also gives vLLM a default reply limit of 32,768 tokens
+  (`--override-generation-config '{"max_new_tokens": 32768}'`, the farm's `proxy.maxReplyTokens`), so a loop
+  that still happens holds a seat for half as long. If you pass your own `--override-generation-config`, it
+  replaces this one: put `max_new_tokens` in yours.
+- **Checked end to end** through the farm's own LiteLLM config, with vLLM started by this `serve.sh`: the same
+  follow-ups twice each, with no `max_tokens`. With `presencePenalty: 1.5`, 0 of 424 looped. With each request
+  sending its own `presence_penalty: 0` (it wins), 6 of 424 looped and every one stopped at exactly 32,768
+  tokens. A 47k-token prompt was still answered.
 
 ## Adding or changing models
 
@@ -753,7 +794,8 @@ nothing. Shape:
                                                //   copied from llamacpp.alias on an engine switch
   "beacon": { "enabled": true, "group": "239.255.43.10", "port": 41998,
               "intervalSec": 5, "httpPort": 41997 },   // distinct from ComfyQ's 239.255.42.99
-  "proxy":  { "port": 4000, "host": "0.0.0.0", "masterKey": null },
+  "proxy":  { "port": 4000, "host": "0.0.0.0", "masterKey": null,
+              "maxReplyTokens": 32768 },        // the longest reply when a request names no max_tokens (null = none)
   "models": [ { "id": "gemma4:12b", "default": true },
               { "id": "qwen2.5-coder:14b", "alias": "coder" } ],  // per-model role alias
   "llamacpp": { "enabled": true,               // OPT-IN speed engine (default false) — serves ONE model as `alias`
@@ -899,6 +941,32 @@ build for Blackwell cards (16 GB+); replace it freely.
   `--coordinator` to aggregate the others behind a single endpoint that clients prefer.
 - **`proxy.masterKey`** — leave `null` for an open proxy on a trusted LAN, or set a key clients must
   send (`Authorization: Bearer <key>`).
+- **`proxy.maxReplyTokens`** (default `32768`; `null` = no limit) — the most a reply may write, thinking
+  included, when its request names no `max_tokens`. Open WebUI's chats and LOL Vibe's name none; the
+  Computer, agent pages and the coding agent always name their own, and a request's own limit always wins.
+  - **Why.** A model sometimes falls into a loop and never ends its reply. Replaying Open WebUI's real
+    follow-ups on vLLM + Qwen3.6 (2026-10-05), 8 of 500 replies (1.6 %) did. On vLLM such a reply runs until
+    the 64k window is full: ~290 s of a seat, ~57k tokens, then an empty answer. Ollama 0.34 does not stop at
+    its window at all: it starts its runner with `--context-shift` and goes on (a 512-token window wrote 1,000
+    tokens when asked to, and was still writing 150 s later with no limit).
+  - **Why 32,768.** The longest real replies measured that day: 9,747 tokens in Open WebUI (717 chat calls;
+    one more, 22,552 tokens, looped through most of its thinking before it ended), 15,357 on the spike's
+    quality set with thinking on (and one answer in 84 still thinking at the set's 16,384 limit), and 15,515
+    for a correct Computer agent step with thinking on. 32,768 is twice the longest, and Qwen's own
+    recommended output length.
+  - **What a person sees when it hits.** The reply stops there. Every loop measured (15 of 15) was still in
+    its thinking, so Open WebUI shows the thinking and an empty answer, as before, but after 32,768 tokens
+    instead of the whole window: 164 s alone on the PRO 6000 (measured through the farm's LiteLLM),
+    4–6.5 min while 32 others generate. LOL Vibe offers Continue on a reply that stopped there. A real
+    answer that long would end mid-sentence; none was measured.
+  - **Where.** LiteLLM sends it as the default `max_tokens` (Ollama's `num_predict`) on the Ollama and
+    llama.cpp routes; LiteLLM puts a request's own values over a route's, so it is never a ceiling. An
+    external server gets none from the farm: vLLM refuses a request whose prompt plus `max_tokens` passes
+    its window (a 33k-token document on a 64k window would get a 400). `farm/vllm/serve.sh` gives vLLM the
+    same number as its own default instead (`--override-generation-config '{"max_new_tokens": 32768}'`),
+    which vLLM shrinks to what the window leaves. If you run vLLM yourself, add that flag.
+  - **Checked by** `npm test` (the routes) and `test/litellm-cancel.js` (what the engine is told, per route,
+    with and without a request's own `max_tokens` or `max_completion_tokens`).
 - **`proxy.host`** — where the farm listens: the seat gate, `/lol/self` + the admin panel, **and** the
   plugins (SearXNG, OCR, Kokoro), which follow it. `0.0.0.0` (default) = the LAN; `127.0.0.1` = this
   machine only (the Farm app's private mode, with `beacon.enabled: false`) — the plugin URLs then
@@ -1043,7 +1111,10 @@ non-streaming calls, and checks the engine sees each request close within 2 s wi
 that `drop_params` keeps the thinking-off pair the client sends on structured calls (owner decision 9):
 `chat_template_kwargs: {enable_thinking: false}` reaches the engine on `hosted_vllm/` (external servers) and
 `openai/` (llama-server, coordinator peers), and
-`think: false` becomes Ollama's own field on `ollama_chat/`. Run it after bumping the LiteLLM pin
+`think: false` becomes Ollama's own field on `ollama_chat/`. And it checks the reply limit
+(`proxy.maxReplyTokens`): a request naming no limit reaches Ollama with `num_predict` 32768 and llama-server with
+`max_tokens` 32768, an external server with none, and a request's own `max_tokens` or `max_completion_tokens`
+(what the coding agent sends) always gets through. Run it after bumping the LiteLLM pin
 (`LOL_LITELLM=<path to litellm>` tests another install).
 
 **With a real engine** (opt-in, documented in the file's header), the check proves that generation itself

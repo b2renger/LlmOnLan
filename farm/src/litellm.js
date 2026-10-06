@@ -186,6 +186,18 @@ function buildLitellmConfig(config, peers = []) {
     };
     const provider = config.litellm.provider; // 'ollama_chat' | 'ollama'
     const model_list = [];
+    // A request that names no max_tokens gets proxy.maxReplyTokens (config.js says why and how it was measured).
+    // LiteLLM's router builds each call as { ...the deployment's litellm_params, ...the request } (router.py
+    // _acompletion, 1.97.0), so a request's own max_tokens always wins: a default, never a ceiling
+    // (test/litellm-cancel.js checks it on every routing shape). Local engines only:
+    //   • Ollama never ends a reply at its window: its runner shifts the window and goes on (0.34 runs it with
+    //     --context-shift; 2026-10-05: 1,000 tokens on a 512 window, still going 150 s later with no limit).
+    //     ollama_chat/ sends it as num_predict.
+    //   • llama-server ends it at the slot's window (b10670), and "auto" makes that window large.
+    //   • NOT an external server: vLLM refuses a request whose prompt plus max_tokens passes its window (a
+    //     33k-token document on a 64k window would get a 400), so farm/vllm/serve.sh sets vLLM's own default
+    //     (max_new_tokens, which vLLM shrinks to fit the prompt). Nor coordinator peers: each farm sets its own.
+    const replyCap = config.proxy.maxReplyTokens ? { max_tokens: config.proxy.maxReplyTokens } : {};
 
     // llama.cpp backend: one OpenAI-compatible deployment, exactly the shape already
     // used for peer farms. The engines are EXCLUSIVE: while llama.cpp serves, NO
@@ -231,6 +243,8 @@ function buildLitellmConfig(config, peers = []) {
                 model: `hosted_vllm/${ex.model || ex.alias}`,
                 api_base: ex.baseUrl,
                 api_key: ex.apiKey || 'sk-lol-external',   // keyless servers ignore it
+                // A default like replyCap above: the request's own presence_penalty wins (config.js says why).
+                ...(ex.presencePenalty != null ? { presence_penalty: ex.presencePenalty } : {}),
             },
         };
         // No projector to inspect and no portable capability endpoint — the operator
@@ -265,6 +279,7 @@ function buildLitellmConfig(config, peers = []) {
                 model: `openai/${lc.alias}`,
                 api_base: `http://${host}:${lc.port}/v1`,
                 api_key: 'sk-lol-llamacpp',   // llama-server is keyless; LiteLLM wants a value
+                ...replyCap,
             },
         };
         // Vision only when the model actually HAS a projector — a text-only .gguf
@@ -324,6 +339,7 @@ function buildLitellmConfig(config, peers = []) {
                     // a llama.cpp→Ollama fallback that default is 5m, and every user
                     // after a pause ate a 30-60 s model reload.
                     keep_alive: keepAliveValue(config.ollama.keepAlive),
+                    ...replyCap,
                 },
             };
             // Tell LiteLLM this deployment accepts images so drop_params doesn't
