@@ -1065,6 +1065,13 @@ export default (test) => {
         assert.deepEqual(WS.passages(blocks, maxWords, minWords), before(blocks, maxWords, minWords), `random case ${i} (${maxWords}/${minWords})`);
       }
     }
+    // A loose bound, so the re-splitting loop cannot come back unnoticed: a page-cap block of 700k one-word sentences
+    // (2026-10-06, this box: 0.15 s now, 1.15 s with the loop above).
+    const block = [{ t: 'x. '.repeat(700_000).trim(), h: false }];
+    const t0 = performance.now();
+    assert.equal(WS.passages(block).length, 4403);
+    const ms = performance.now() - t0;
+    assert.ok(ms < 700, `700k one-word sentences: ${ms.toFixed(0)} ms (limit 700)`);
   });
 
   test('webSearch.rank on a stored SearXNG answer: the answer passage chosen, the budgets held, a page with no evidence dropped', () => {
@@ -1106,7 +1113,7 @@ export default (test) => {
     // Without a recency word the stale 2024 blog post, stuffed with the question's words, ranks first ...
     assert.equal(first('Quill stable version', '2026-10-05'), 'blog.example');
     // ... with one, it goes after the pages updated this year — in English and in French.
-    for (const q of ['Quill latest stable version', 'quill dernière version stable', 'Quill stable version now', 'version actuelle de Quill stable']) {
+    for (const q of ['Quill latest stable version', 'quill dernière version stable', 'Quill stable version now', 'version actuelle de Quill stable', 'Quill stable version aujourd’hui']) {
       const o = order(q, '2026-10-05');
       assert.notEqual(o[0], 'blog.example', q);
       assert.equal(o[o.length - 1], 'blog.example', `${q}: ${o.join(', ')}`);
@@ -1118,11 +1125,11 @@ export default (test) => {
   test('webSearch.rank: on a version question, a line with a version number next to "current", "stable", "LTS"… survives the cut', () => {
     const WS = require(path.join(BUILD, 'webSearch.js'));
     const advice = 'Picking the latest stable version of Quill matters: the latest stable version is the one to install, and a stable version gets the fixes first. Use the latest stable version in class.';
-    const read = (/** @type {string} */ line, /** @type {string} */ q) => {
+    const read = (/** @type {string} */ line, /** @type {string} */ q, newest = '') => {
       const picked = [{ url: 'https://quill.example/releases/', title: 'Quill releases', content: '' }, { url: 'https://blog.example/quill', title: 'Which Quill to install', content: '' }];
-      const page = (/** @type {number} */ i, /** @type {{t: string, h: boolean}[]} */ blocks) => ({ ok: true, url: picked[i].url, title: picked[i].title, published: '', newest: '', description: '', blocks });
+      const page = (/** @type {number} */ i, /** @type {{t: string, h: boolean}[]} */ blocks, nw = '') => ({ ok: true, url: picked[i].url, title: picked[i].title, published: '', newest: nw, description: '', blocks });
       const pages = [
-        page(0, [{ t: 'Releases', h: true }, { t: line, h: false }, { t: 'Older', h: true }, { t: 'Every Quill version ever released can be downloaded from the archive page.', h: false }]),
+        page(0, [{ t: 'Releases', h: true }, { t: line, h: false }, { t: 'Older', h: true }, { t: 'Every Quill version ever released can be downloaded from the archive page.', h: false }], newest),
         page(1, [{ t: 'Advice', h: true }, { t: advice, h: false }, { t: 'More', h: true }, { t: advice.replace('in class', 'at home'), h: false }]),
       ];
       return WS.rank(q, picked, pages, 5, { now: Date.parse('2026-10-06') }).out.some((o) => o.snippet.includes(line));
@@ -1130,6 +1137,13 @@ export default (test) => {
     // The blog's passages, full of the question's words, set the bar; the releases line names the version.
     assert.equal(read('Quill 7.2.1 (current stable), 15 September 2026.', 'Quill latest stable version'), true, 'the version line is read');
     assert.equal(read('Quill (current stable), 15 September 2026.', 'Quill latest stable version'), false, 'the same line without a version number is cut: the number is what counts');
+    // A dotted date is not a version number (it was: "06.10.2026" lifted this line like "7.2.1").
+    assert.equal(read('Quill (current stable), 06.10.2026.', 'Quill latest stable version'), false, 'a dotted date is not boosted');
+    // A stale page's line counts half and is not lifted back: on a page updated this year it is read, on one last
+    // updated in 2024 it is cut (doubled, it passed the bar a fresh page's passage sets).
+    const line = 'Quill 7.2.1 (latest stable), 15 September 2026.';
+    assert.equal(read(line, 'Quill latest stable version', '2026-09-15'), true, 'a fresh page\'s version line is read');
+    assert.equal(read(line, 'Quill latest stable version', '2024-01-10'), false, 'a stale page\'s version line does not outrank the fresh passages');
   });
 
   test('webSearch.rank: the "now" words say when, not what — they no longer pull a page whose title holds them', () => {
@@ -1150,6 +1164,11 @@ export default (test) => {
     const r = WS.rank("Qui est ministre de la Culture en France aujourd'hui ?", picked, pages, 5, { now: Date.parse('2026-10-06') });
     assert.ok(r.out[0].link === picked[0].url && /Pégard/.test(r.out[0].snippet), JSON.stringify(r.out.map((o) => o.link)));
     assert.ok(!r.out.some((o) => o.link === picked[1].url), 'the show has no evidence once "aujourd\'hui" is not a search term');
+    // The same word with a typographic apostrophe (’, as phones and word processors type it; ‘ and ʼ too).
+    for (const apo of ['’', '‘', 'ʼ']) {
+      const typed = WS.rank(`Qui est ministre de la Culture en France aujourd${apo}hui ?`, picked, pages, 5, { now: Date.parse('2026-10-06') });
+      assert.deepEqual(typed.out.map((o) => o.link), r.out.map((o) => o.link), `aujourd${apo}hui is a "now" word too`);
+    }
     // A question made only of such words still ranks (on them).
     assert.ok(WS.rank("aujourd'hui", picked, pages, 5).out.length >= 1);
   });
@@ -1174,6 +1193,17 @@ export default (test) => {
     // Nothing else came back (a question about a word): the dictionaries are read, two per site at most as ever.
     assert.deepEqual(WS.pickPages(dictionaries.map(r)).map((x) => x.url), dictionaries.slice(0, 6));
     assert.deepEqual(WS.pickPages([dictionaries[0], others[4]].map(r)).map((x) => x.url), [others[4], dictionaries[0]]);
+    // One by one (2026-10-06): a dictionary's NAME is a host label, its WORD a folder; a translation API's docs and a
+    // dictionary type's page keep their slot, and the French sites the stored searches held still go last.
+    const last = (/** @type {string} */ url) => WS.pickPages([url, 'https://neutral.example/'].map(r))[0].url !== url;
+    const docs = ['https://cloud.google.com/translate/docs/overview', 'https://docs.aws.amazon.com/translate/latest/dg/what-is.html',
+      'https://learn.microsoft.com/en-us/azure/ai-services/translator/overview', 'https://docs.djangoproject.com/en/5.2/topics/i18n/translation/',
+      'https://developer.apple.com/documentation/swift/dictionary', 'https://support.google.com/translate/answer/6350850'];
+    for (const url of [...docs, ...others]) assert.equal(last(url), false, `${url} keeps its slot`);
+    const french = ['https://www.lalanguefrancaise.com/conjugaison', 'https://www.lalanguefrancaise.com/orthographe/nouvel-ou-nouveau-orthographe',
+      'https://www.xn--cours-franais-rgb.fr/francais/orthographe/homophones/quel-quelle-qu-elle-qu-elles/', 'https://www.cnrtl.fr/definition/qui',
+      'https://dictionnaire.reverso.net/francais-definition/qui', 'https://www.larousse.fr/conjugaison/francais/renouveler/7339'];
+    for (const url of [...dictionaries, ...french]) assert.equal(last(url), true, `${url} goes last`);
   });
 
   test('/web/search: the bearer, the Host, POST only, the body cap; SearXNG down or silent is answered within the deadline', async () => {
@@ -1267,6 +1297,32 @@ export default (test) => {
       assert.deepEqual(paths, ['/blog', '/download', '/slow', '/wiki'], 'two pages a site: the third from 127.0.0.1 (/news) is never asked');
       assert.ok(pagesSrv.seen.some((s) => s.host === `localhost:${pagesSrv.port}`), 'a page found by name went through DNS and the pinned connection');
     } finally { srv.close(); searx.close(); pagesSrv.close(); }
+  });
+
+  test('web search: the pages are read and ranked in a worker — a hostile 2 MB page never holds the main thread; a late worker leaves the snippets', async () => {
+    const WS = require(path.join(BUILD, 'webSearch.js'));
+    // 2 MB of "<a" (the page cap) gives no text and takes 0.8 s to read: on the main thread until 2026-10-06.
+    const hostile = Buffer.from('<a'.repeat(1024 * 1024));
+    const pagesSrv = await serve({
+      '/hostile': (_q, res) => { res.writeHead(200, { 'content-type': 'text/html' }); res.end(hostile); },
+      '/download': (_q, res) => { res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }); res.end(webFixture('download.html')); },
+    });
+    const results = [{ url: `http://127.0.0.1:${pagesSrv.port}/hostile`, title: 'Quill', content: 'Quill, a text editor.' },
+      { url: `http://localhost:${pagesSrv.port}/download`, title: 'Download Quill', content: 'Download Quill for Windows.' }];
+    const searx = await serve({ '/search': (_q, res) => { res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify({ results })); } });
+    const ask = (/** @type {number} */ workMs) => WS.searchAndRead('Quill latest stable version', 5, { searxngUrl: `http://127.0.0.1:${searx.port}`, deadlineMs: 5000, allowLoopback: true, workMs });
+    try {
+      // The longest the main thread went without a turn of its event loop while the search ran.
+      let last = performance.now(); let longest = 0; let spin = true;
+      const tick = () => { const t = performance.now(); longest = Math.max(longest, t - last); last = t; if (spin) setImmediate(tick); };
+      setImmediate(tick);
+      const out = await ask(30_000).finally(() => { spin = false; });
+      assert.ok(longest < 100, `the main thread was held ${longest.toFixed(0)} ms at most (limit 100)`);
+      assert.ok(out.some((o) => /The current stable version is Quill 7\.2\.1/.test(o.snippet)), 'the other page was read, in the worker');
+      // A worker that has not answered in time: the engines' own snippets, as when no page could be read.
+      const late = await ask(1);
+      assert.deepEqual(late.map((o) => o.snippet).sort(), ['Download Quill for Windows.', 'Quill, a text editor.']);
+    } finally { pagesSrv.close(); searx.close(); }
   });
 
   test('web search: main reads at most 4 MB of the farm\'s search answer — bigger, or endless, fails as "not JSON" at once', async () => {

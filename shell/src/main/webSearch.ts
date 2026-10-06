@@ -7,7 +7,9 @@
 // engine and the old engine set, 10/12 with this (tuned engines, Yandex still among them then), at 2.3
 // generations per message — as cheap as web search off — and no fetch_url rounds. Per search here (median,
 // p90): 50 / 160 ms of CPU, 1.4 / 4 MB of pages, 2.1 / 3.8 s. Nothing is kept between searches.
+// The pages are read and ranked in a worker thread (this same file, see readAndRank): never on the main process.
 
+import { Worker, isMainThread, parentPort, workerData } from 'worker_threads';
 import { fetchText, FetchAnswer } from './io';
 
 const PAGES = 6;                       // pages read per search
@@ -17,6 +19,7 @@ const SEARCH_MAX_BYTES = 4 * 1024 * 1024; // its JSON answer (~40 results: under
 const PAGE_MS = 5_000;                 // one page, DNS to last byte
 export const DEADLINE_MS = 10_000;     // the whole search: Open WebUI's external search waits with NO timeout
 const PAGE_MAX_BYTES = 2 * 1024 * 1024;   // the top of a bigger page is kept (1 page in 12 measured was over 1 MB)
+const WORK_MS = 3_000;                 // reading + ranking the pages in the worker (the six largest real pages: 0.2 s); longer: the snippets
 const PER_RESULT_TOKENS = 800;         // tuned on 24 questions: the answer in what the model reads 24/24,
 const TOTAL_TOKENS = 3_000;            // ~2.1k tokens a search (OWUI's three snippets: ~0.3k, 15/24)
 const FLOOR = 0.35;                    // passages under 35 % of the best one's score are left out
@@ -72,7 +75,7 @@ export function extract(html: string, classes = true): Extracted {
         }
         cur = ''; curLink = 0;
     };
-    // Linear on any input (a page is untrusted, and this runs on the main process): no rule scans across a '<'
+    // Linear on any input (a page is untrusted; a search waits for this, in its worker): no rule scans across a '<'
     // outside quotes, a tag name is matched whole (it cannot trade characters with the attributes), and a
     // comment or CDATA jumps to its end with indexOf. Before (critic, 2026-10-05): 64 KB of "<a" took 1.9 s.
     // A tag that does not close before the next '<' (a stray quote, a cut page) ends there, as a tag — never as text.
@@ -166,7 +169,8 @@ export function extract(html: string, classes = true): Extracted {
 const STOP = new Set(('a an and are as at be by for from has have how i in is it its of on or that the this to was were what when where which who why will with ' +
     'au aux avec ce ces cette dans de des du elle en est et il ils je la le les leur lui mais me meme mes moi mon ne nos notre nous on ou par pas pour qu que qui sa se ses son sur ta te tes toi ton tu un une vos votre vous y ' +
     'quel quelle quels quelles comment combien quand est-ce sont ete etre fait faire plus tres').split(' '));
-const fold = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+// Accents off, and a typographic apostrophe (’ ‘ ʼ) is "'": "aujourd’hui" is a "now" word as "aujourd'hui" is.
+const fold = (s: string) => s.toLowerCase().replace(/[‘’ʼ]/g, "'").normalize('NFD').replace(/[̀-ͯ]/g, '');
 export function terms(s: string): string[] {
     return fold(s).split(/[^a-z0-9]+/)
         .filter((w) => w && (w.length > 1 || /\d/.test(w)) && !STOP.has(w))
@@ -218,11 +222,17 @@ const jaccard = (a: Set<string>, b: Set<string>) => { let i = 0; for (const x of
 
 // Dictionary, translation and spelling pages say what a WORD means, never the answer: a question's "qui", "quel",
 // "combien" or "latest" put one among what the model read in 14 of the 54 searches the re-check replayed
-// (2026-10-05), and up to six in one search's results. A whole host label or path segment names them
-// (larousse.fr/dictionnaires/…, dictionnaire.lerobert.com, …/definition/…, www.linguee.fr): Larousse's encyclopedia
-// is not its dictionary, and a slug like "translation-ai-startup" is not a translator.
-const DICTIONARY = /(^|[./])(dictionnaires?|dictionary|definitions?|traductions?|translate|translator|translation|conjugaison|orthographe|regles-orthographe|linguee|wordreference|reverso|deepl|wiktionary|collinsdictionary|le-dictionnaire|dictionnaire-academie)([./]|$)/i;
-const dictionary = (r: SearxResult): boolean => { try { const u = new URL(String(r.url)); return DICTIONARY.test(u.hostname + u.pathname); } catch { return false; } };
+// (2026-10-05), and up to six in one search's results. A dictionary's NAME is a whole label of the host
+// (dictionnaire.lerobert.com, www.linguee.fr, translate.google.com); its WORD is a whole folder of the path
+// (larousse.fr/dictionnaires/…, …/definition/qui), and a French one may end the path (lalanguefrancaise.com/conjugaison).
+// So a translation API's docs (cloud.google.com/translate/docs, docs.aws.amazon.com/translate/…, …/translator/,
+// docs.djangoproject.com/…/translation/), a type's page (developer.apple.com/…/swift/dictionary), Larousse's
+// encyclopedia and a slug like "translation-ai-startup" keep their slot (2026-10-06). Of the 930 dictionary pages the
+// old rule found among the 35k addresses the measurements stored, this finds all but two: an archived copy of one
+// on web.archive.org, and Google Translate's help.
+const DICT_HOST = /(^|\.)(dictionnaires?|dictionary|definitions?|translate|traductions?|conjugaison|linguee|wordreference|reverso|deepl|wiktionary|collinsdictionary|le-dictionnaire|dictionnaire-academie)\./i;
+const DICT_PATH = /\/(dictionary|definitions?)\/|\/(dictionnaires?|conjugaison|orthographe|regles-orthographe)(\/|$)/i;
+const dictionary = (r: SearxResult): boolean => { try { const u = new URL(String(r.url)); return DICT_HOST.test(u.hostname) || DICT_PATH.test(u.pathname); } catch { return false; } };
 
 /** SearXNG's order, at most PER_HOST pages from one site, PAGES in all; dictionary pages after every other
  * result, so they are read only when nothing else came back (a question about a word). */
@@ -244,11 +254,12 @@ const RECENT = /\b(latest|newest|current|currently|now|today|recent|recently|thi
 const NOW_WORDS = /\b(now|today|currently|this (week|month|year)|actuellement|aujourd'?hui|maintenant|en ce moment|cette (semaine|annee))\b/g;
 // A question about a version or a release ("latest stable version of Blender", "dernière version LTS de Node.js"),
 // and a passage holding a version number within 40 characters of a word that marks the newest one ("Blender 5.2
-// LTS (current stable release)", "Latest Node.js version: 24.19.0"): such a passage counts double (see the floor
-// in rank). Not "version" or "release" alone: on Wikipedia's Blender page they lifted history ("with the release
-// of version 2.80") into what the model reads (2026-10-06 replay).
+// LTS (current stable release)", "Latest Node.js version: 24.19.0"): such a passage counts double, unless its page
+// is stale (see the floor in rank). Not "version" or "release" alone: on Wikipedia's Blender page they lifted
+// history ("with the release of version 2.80") into what the model reads (2026-10-06 replay).
 const VERSION_Q = /\b(versions?|releases?|lts)\b/;
 const VERSION_LINE = /\b(lts|stable|current|latest|newest|derniere|actuelle)\b.{0,40}?\bv?\d+\.\d+(\.\d+)?\b|\bv?\d+\.\d+(\.\d+)?\b.{0,40}?\b(lts|stable|current|latest|newest|derniere|actuelle)\b/s;
+const DOTTED_DATE = /\b\d{1,2}\.\d{1,2}\.\d{4}\b/g;   // a date (06.10.2026), never read as a version number
 
 /** PURE: the question, the picked search results and their read pages → Open WebUI's [{link, title, snippet}].
  * Every passage of every page competes (the engine's own snippet too: it often states the answer); a page's
@@ -285,7 +296,11 @@ export function rank(query: string, picked: SearxResult[], pages: Page[], count:
     docs.forEach((d, i) => {
         d.plain = scores[i] * (1 + 0.15 * (1 - d.page / Math.max(1, picked.length)))
             * (d.pos >= 0 ? 1 + 0.3 / (1 + d.pos) : 1) * (stale[d.page] ? 0.5 : 1);
-        d.score = d.plain * (versions && VERSION_LINE.test(fold(d.text)) ? 2 : 1);
+        // Never a stale page's line (it counts half, and stays so), nor a passage that cannot be chosen (no word of
+        // the question, or over a page's budget alone).
+        const versionLine = versions && !stale[d.page] && d.plain > 0 && d.tokens! <= PER_RESULT_TOKENS
+            && VERSION_LINE.test(fold(d.text).replace(DOTTED_DATE, ' '));
+        d.score = d.plain * (versionLine ? 2 : 1);
     });
     const order = docs.filter((d) => d.score! > 0).sort((a, b) => b.score! - a.score!);
     // The floor follows the best passage WITHOUT the version factor: a version line passes it twice as easily and
@@ -334,14 +349,14 @@ function readPage(r: FetchAnswer): Page {
     return { ok: true, url: r.url, ...ex };
 }
 
-/** One search: the farm's SearXNG, the top pages read in parallel, ranked. Answers within `deadlineMs`
+/** One search: the farm's SearXNG, the top pages read in parallel, ranked. Answers within `deadlineMs` + WORK_MS
  * (Open WebUI waits as long as this takes); a page that is not read in time keeps its engine snippet.
- * Throws when the farm's search engine cannot be asked. `allowLoopback` is for tests only.
+ * Throws when the farm's search engine cannot be asked. `allowLoopback` and `workMs` are for tests only.
  * ponytail: pages are read directly, never through a proxy (Node's http ignores the system's and HTTP(S)_PROXY):
  * on a network that reaches the web only through a proxy every page fails within PAGE_MS and the model gets the
  * engines' snippets — the old quality, not an error. Upgrade path: a CONNECT tunnel to a configured proxy in
  * io.ts's pinnedGet (the address check then moves to the proxy). */
-export async function searchAndRead(query: string, count: number, opts: { searxngUrl: string | null; deadlineMs?: number; allowLoopback?: boolean }): Promise<WebResult[]> {
+export async function searchAndRead(query: string, count: number, opts: { searxngUrl: string | null; deadlineMs?: number; allowLoopback?: boolean; workMs?: number }): Promise<WebResult[]> {
     if (!opts.searxngUrl) throw new Error('this farm has no search engine');
     const deadline = Date.now() + (opts.deadlineMs || DEADLINE_MS);
     const left = () => Math.max(1, deadline - Date.now());
@@ -364,9 +379,34 @@ export async function searchAndRead(query: string, count: number, opts: { searxn
     const read = await Promise.all(picked.map((r) => fetchText(r.url, {
         publicOnly: true, truncate: true, maxBytes: PAGE_MAX_BYTES, timeoutMs: Math.min(PAGE_MS, left()), headers, allowLoopback: opts.allowLoopback,
     })));
-    // Extraction is synchronous (~4 ms a page, 30–70 ms for a 2 MB one, measured on 126 real pages): one page per
-    // turn of the event loop, so the window and IPC never wait long on the main process.
-    const pages: Page[] = [];
-    for (const r of read) { pages.push(readPage(r)); await new Promise((done) => setImmediate(done)); }
-    return rank(query, picked, pages, count).out;
+    return readAndRank(query, picked, read, count, opts.workMs || WORK_MS);
+}
+
+/** The pages' text and the ranking, in a worker thread. A page is untrusted and up to 2 MB: its reading is linear but
+ * not short (2 MB of "<a": 0.8 s; six passage-rich pages rank in 0.3 s), and on the main process that was the
+ * window, IPC and the Computer frozen as long (2026-10-06, this box: one hostile page held it 0.8 s; now six of
+ * them hold it 35 ms at most, a 1 MB Wikipedia page 5 ms). The worker is this same file, started fresh per search
+ * (~20 ms) and gone after it; Electron's main starts it from inside app.asar (probed on Electron 42.5, 2026-10-06).
+ * Past WORK_MS, or if the worker fails, the engines' own snippets answer, as when no page could be read. */
+function readAndRank(query: string, picked: SearxResult[], read: FetchAnswer[], count: number, workMs: number): Promise<WebResult[]> {
+    const snippets = () => rank(query, picked, picked.map((): Page => ({ ok: false })), count).out;
+    return new Promise((resolve) => {
+        let worker: Worker;
+        try { worker = new Worker(__filename, { workerData: { webPages: { query, picked, read, count } } }); } catch { resolve(snippets()); return; }
+        let settled = false;
+        const done = (out?: WebResult[]) => {
+            if (settled) return;
+            settled = true; clearTimeout(timer); void worker.terminate();
+            resolve(out || snippets());
+        };
+        const timer = setTimeout(done, workMs);
+        worker.once('message', done);
+        worker.once('error', () => done());
+        worker.once('exit', () => done());
+    });
+}
+// This file as readAndRank's worker: read the pages, rank them, answer once (the thread then ends).
+if (!isMainThread && workerData?.webPages) {
+    const { query, picked, read, count } = workerData.webPages as { query: string; picked: SearxResult[]; read: FetchAnswer[]; count: number };
+    parentPort!.postMessage(rank(query, picked, read.map(readPage), count).out);
 }
