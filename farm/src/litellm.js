@@ -188,15 +188,20 @@ function buildLitellmConfig(config, peers = []) {
     const model_list = [];
     // A request that names no max_tokens gets proxy.maxReplyTokens (config.js says why and how it was measured).
     // LiteLLM's router builds each call as { ...the deployment's litellm_params, ...the request } (router.py
-    // _acompletion, 1.97.0), so a request's own max_tokens always wins: a default, never a ceiling
-    // (test/litellm-cancel.js checks it on every routing shape). Local engines only:
-    //   • Ollama never ends a reply at its window: its runner shifts the window and goes on (0.34 runs it with
-    //     --context-shift; 2026-10-05: 1,000 tokens on a 512 window, still going 150 s later with no limit).
-    //     ollama_chat/ sends it as num_predict.
-    //   • llama-server ends it at the slot's window (b10670), and "auto" makes that window large.
+    // _acompletion, 1.97.0), so a request's own max_tokens wins, above the cap too: on these routes a default,
+    // never a ceiling (test/litellm-cancel.js checks it on every routing shape, with 77 and with 40000). Local
+    // engines only:
+    //   • Ollama does not end a reply at its window: its runner shifts the window and goes on (0.34 runs it with
+    //     --context-shift; 2026-10-05: 1,000 tokens on a 512 window, still going 150 s later with no limit) until
+    //     10 times the window (0.33/0.34 llm/llama_server.go, openEndedGenerationContextMultiplier): over a
+    //     million tokens on a 128k window. ollama_chat/ sends it as num_predict.
+    //   • llama-server ends it at the slot's window (b10670), and "auto" makes that window large. A request's
+    //     max_completion_tokens rides beside the route's max_tokens, and llama-server obeys it either way
+    //     (b10670, 2026-10-06: max_tokens 12 + max_completion_tokens 40 wrote 40, 40 + 12 wrote 12).
     //   • NOT an external server: vLLM refuses a request whose prompt plus max_tokens passes its window (a
-    //     33k-token document on a 64k window would get a 400), so farm/vllm/serve.sh sets vLLM's own default
-    //     (max_new_tokens, which vLLM shrinks to fit the prompt). Nor coordinator peers: each farm sets its own.
+    //     33k-token document on a 64k window would get a 400), so farm/vllm/serve.sh gives vLLM max_new_tokens
+    //     itself. vLLM 0.30 makes that a CEILING, not a default: every request gets the smallest of what the
+    //     window leaves, its own max_tokens and 32768. Nor coordinator peers: each farm sets its own.
     const replyCap = config.proxy.maxReplyTokens ? { max_tokens: config.proxy.maxReplyTokens } : {};
 
     // llama.cpp backend: one OpenAI-compatible deployment, exactly the shape already

@@ -9,8 +9,8 @@
 # It serves http://127.0.0.1:$LOL_VLLM_PORT/v1 through relay.py, while vLLM itself listens on a Unix socket: under
 # WSL2's mirrored networking vLLM's own TCP port never answers (relay.py says why). Defaults: the Qwen3.6-35B-A3B
 # NVFP4 checkpoint install.sh downloads, a 64k window, up to 128 requests at once, a 50 GiB KV pool sized for
-# a 96 GB card that also holds the farm's OCR model, and replies of at most 32,768 tokens when a request names no
-# limit. Extra args go after the defaults, and a repeated flag keeps its last value, so
+# a 96 GB card that also holds the farm's OCR model, and replies of at most 32,768 tokens, whatever a request asks.
+# Extra args go after the defaults, and a repeated flag keeps its last value, so
 # `serve.sh --kv-cache-memory-bytes 40000000000` overrides the pool.
 #
 # Stop it with Ctrl+C, by closing the window, or with `bash stop.sh`. When stdin closes (the window or wsl.exe
@@ -88,10 +88,14 @@ ARGS=(
   --enable-prefix-caching --mamba-cache-mode align
   --reasoning-parser qwen3
   --enable-auto-tool-choice --tool-call-parser qwen3_xml
-  --override-generation-config '{"max_new_tokens": 32768}'   # the farm's proxy.maxReplyTokens (config.js says why):
-                                        # vLLM's default for a request that names no max_tokens, shrunk to what the
-                                        # window leaves. The farm cannot send it (vLLM refuses prompt + max_tokens past
-                                        # the window). An --override-generation-config of yours replaces this one.
+  --override-generation-config '{"max_new_tokens": 32768}'   # the farm's proxy.maxReplyTokens (config.js says why),
+                                        # a CEILING on vLLM 0.30, not a default: every request gets min(what the window
+                                        # leaves, its own max_tokens, this) (entrypoints/serve/utils/api_utils.py
+                                        # get_max_tokens), so one asking 40000 gets 32768. First-party callers ask
+                                        # 16384 at most. The farm cannot send a default instead (vLLM refuses prompt +
+                                        # max_tokens past the window), and proxy.maxReplyTokens does not change this
+                                        # number. An --override-generation-config of yours replaces this one: put
+                                        # max_new_tokens in it.
 )
 "$ROOT/.venv/bin/vllm" serve "$MODEL" "${ARGS[@]}" "$@" >> "$LOG" 2>&1 < /dev/null 3<&- &
 VLLM=$!

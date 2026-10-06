@@ -236,7 +236,9 @@ in WSL (the 23.5 GB model plus the venv), and [uv](https://docs.astral.sh/uv/) i
    unhealthy, so clients fail over. When vLLM answers again, the farm serves it again with no restart.
 
 `serve.sh` takes `LOL_VLLM_ROOT` (default `~/lol-vllm`), `LOL_VLLM_PORT` (8100) and `LOL_VLLM_MODEL`. Any
-arguments you add go to `vllm serve` after its defaults, and a repeated flag keeps its last value. The log is
+arguments you add go to `vllm serve` after its defaults, and a repeated flag keeps its last value. So an
+`--override-generation-config` of your own replaces `serve.sh`'s, and with it the reply limit of 32,768 tokens
+([Replies that never end](#replies-that-never-end)): put `"max_new_tokens": 32768` in yours. The log is
 `~/lol-vllm/logs/vllm.log`. Other models from the spike also work: `bash install.sh <repo id>`, then
 `LOL_VLLM_MODEL=~/lol-vllm/hf/<name> bash serve.sh --served-model-name <name> …` with that model's parsers from
 [RESULTS.md](../docs/spike/RESULTS.md#exact-install-and-launch-commands-that-worked). Nemotron 3.5 Lightning
@@ -380,14 +382,19 @@ sent) were replayed straight to vLLM, 2 to 8 times each, with a 32,768-token lim
   passed with 1.5 against 26 of 28 without. Qwen warns of "slight performance decreases" and asks for 0 on
   precise coding; the coding agent's SDK sends no presence penalty, so it gets 1.5 too (code items: 28 of 30
   with it, 29 of 30 without).
-- **The backstop.** `serve.sh` also gives vLLM a default reply limit of 32,768 tokens
+- **The backstop.** `serve.sh` also gives vLLM a reply limit of 32,768 tokens
   (`--override-generation-config '{"max_new_tokens": 32768}'`, the farm's `proxy.maxReplyTokens`), so a loop
-  that still happens holds a seat for half as long. If you pass your own `--override-generation-config`, it
+  that still happens holds a seat for half as long. On vLLM 0.30 it caps every request, not only those that
+  name no `max_tokens`: a request asking 40,000 gets 32,768 (see
+  [`proxy.maxReplyTokens`](#config--lolconfigjson)). If you pass your own `--override-generation-config`, it
   replaces this one: put `max_new_tokens` in yours.
 - **Checked end to end** through the farm's own LiteLLM config, with vLLM started by this `serve.sh`: the same
   follow-ups twice each, with no `max_tokens`. With `presencePenalty: 1.5`, 0 of 424 looped. With each request
   sending its own `presence_penalty: 0` (it wins), 6 of 424 looped and every one stopped at exactly 32,768
-  tokens. A 47k-token prompt was still answered.
+  tokens. The set's longest prompt, 47,117 tokens, was still answered, with what the window left. Each run sent
+  428 requests: the 4 not counted are 2 prompts longer than the whole 64k window, sent twice, which vLLM
+  refuses with or without a limit. In a separate check through the same stack, a 39,223-token prompt with no
+  `max_tokens` was answered, and the same prompt sending `max_tokens: 32768` got vLLM's 400.
 
 ## Adding or changing models
 
@@ -798,7 +805,8 @@ nothing. Shape:
   "beacon": { "enabled": true, "group": "239.255.43.10", "port": 41998,
               "intervalSec": 5, "httpPort": 41997 },   // distinct from ComfyQ's 239.255.42.99
   "proxy":  { "port": 4000, "host": "0.0.0.0", "masterKey": null,
-              "maxReplyTokens": 32768 },        // the longest reply when a request names no max_tokens (null = none)
+              "maxReplyTokens": 32768 },        // the longest reply (null = none): a default on Ollama and llama.cpp;
+                                               //   vLLM's is serve.sh's own number, a ceiling
   "models": [ { "id": "gemma4:12b", "default": true },
               { "id": "qwen2.5-coder:14b", "alias": "coder" } ],  // per-model role alias
   "llamacpp": { "enabled": true,               // OPT-IN speed engine (default false) — serves ONE model as `alias`
@@ -955,13 +963,16 @@ build for Blackwell cards (16 GB+); replace it freely.
 - **`proxy.masterKey`** — leave `null` for an open proxy on a trusted LAN, or set a key clients must
   send (`Authorization: Bearer <key>`).
 - **`proxy.maxReplyTokens`** (default `32768`; `null` = no limit) — the most a reply may write, thinking
-  included, when its request names no `max_tokens`. Open WebUI's chats and LOL Vibe's name none; the
-  Computer, agent pages and the coding agent always name their own, and a request's own limit always wins.
+  included. Open WebUI's chats and LOL Vibe's name no limit of their own. The Computer names one (16,384 at most
+  for code or an agent step, 8,192 for a text answer or a verdict), so does the coding agent (16,384 at most,
+  with Keep going on), and an agent page asks 2,048 unless its code asks more. On Ollama and llama.cpp the
+  farm's limit is a default for a request that names none; on vLLM it is a ceiling for every request (below).
   - **Why.** A model sometimes falls into a loop and never ends its reply. Replaying Open WebUI's real
     follow-ups on vLLM + Qwen3.6 (2026-10-05), 8 of 500 replies (1.6 %) did. On vLLM such a reply runs until
     the 64k window is full: ~290 s of a seat, ~57k tokens, then an empty answer. Ollama 0.34 does not stop at
-    its window at all: it starts its runner with `--context-shift` and goes on (a 512-token window wrote 1,000
-    tokens when asked to, and was still writing 150 s later with no limit).
+    its window: it starts its runner with `--context-shift` and goes on until 10 times the window, where 0.33
+    and 0.34 end a reply that names no limit. That is over a million tokens on a 128k window. (A 512-token
+    window wrote 1,000 tokens when asked to, and was still writing 150 s later with no limit.)
   - **Why 32,768.** The longest real replies measured that day: 9,747 tokens in Open WebUI (717 chat calls;
     one more, 22,552 tokens, looped through most of its thinking before it ended), 15,357 on the spike's
     quality set with thinking on (and one answer in 84 still thinking at the set's 16,384 limit), and 15,515
@@ -972,14 +983,21 @@ build for Blackwell cards (16 GB+); replace it freely.
     instead of the whole window: 164 s alone on the PRO 6000 (measured through the farm's LiteLLM),
     4–6.5 min while 32 others generate. LOL Vibe offers Continue on a reply that stopped there. A real
     answer that long would end mid-sentence; none was measured.
-  - **Where.** LiteLLM sends it as the default `max_tokens` (Ollama's `num_predict`) on the Ollama and
-    llama.cpp routes; LiteLLM puts a request's own values over a route's, so it is never a ceiling. An
-    external server gets none from the farm: vLLM refuses a request whose prompt plus `max_tokens` passes
-    its window (a 33k-token document on a 64k window would get a 400). `farm/vllm/serve.sh` gives vLLM the
-    same number as its own default instead (`--override-generation-config '{"max_new_tokens": 32768}'`),
-    which vLLM shrinks to what the window leaves. If you run vLLM yourself, add that flag.
+  - **On Ollama and llama.cpp, a default.** LiteLLM sends it as the default `max_tokens` (Ollama's
+    `num_predict`) on those routes, and puts a request's own values over a route's: a request asking 40,000
+    gets 40,000. (llama-server obeys a request's `max_completion_tokens` over the route's `max_tokens`, above
+    or below it.)
+  - **On vLLM, a ceiling.** The farm sends vLLM no limit: vLLM refuses a request whose prompt plus
+    `max_tokens` passes its window (a 33k-token document on a 64k window would get a 400). `farm/vllm/serve.sh`
+    gives vLLM the number itself (`--override-generation-config '{"max_new_tokens": 32768}'`), and vLLM 0.30
+    holds every request to it: each gets the smallest of what the window leaves, its own limit and 32,768,
+    so a request asking 40,000 gets 32,768. No first-party caller asks more than 16,384, so it cuts
+    none of them. If you run vLLM yourself, add that flag.
+  - **On an external server, this key changes nothing.** `serve.sh` hard-codes 32,768: to change it, edit
+    `serve.sh`, or pass your own `--override-generation-config` with `max_new_tokens` in it. Any other
+    external server (SGLang, TensorRT-LLM, a vLLM started without that flag) gets no limit from the farm.
   - **Checked by** `npm test` (the routes) and `test/litellm-cancel.js` (what the engine is told, per route,
-    with and without a request's own `max_tokens` or `max_completion_tokens`).
+    with and without a request's own `max_tokens` or `max_completion_tokens`, below the limit and above it).
 - **`proxy.host`** — where the farm listens: the seat gate, `/lol/self` + the admin panel, **and** the
   plugins (SearXNG, OCR, Kokoro), which follow it. `0.0.0.0` (default) = the LAN; `127.0.0.1` = this
   machine only (the Farm app's private mode, with `beacon.enabled: false`) — the plugin URLs then
@@ -996,9 +1014,12 @@ build for Blackwell cards (16 GB+); replace it freely.
     "model": "deepseek-v4-flash-0731",          // null = send the alias through unchanged
     "apiKey": null,                             // most local servers are keyless
     "contextLength": 384000, "parallel": 8,     // DECLARED — the farm cannot read these back
-    "vision": false, "label": "DeepSeek v4 Flash (vLLM)"
+    "vision": false, "label": "DeepSeek v4 Flash (vLLM)",
+    "presencePenalty": null                     // presence_penalty for requests that name none (null = none)
   }
   ```
+  `presencePenalty` is a default the farm's LiteLLM adds to every request that names no `presence_penalty`
+  (a request's own wins): 1.5 for Qwen3.6, which otherwise loops ([Replies that never end](#replies-that-never-end)).
   The farm does everything **around** the model — discovery, the seat gate, the shared password, OWUI
   wiring, web search, the panel — and never installs, starts, restarts or configures the server. It
   polls `GET {baseUrl}/models`: unreachable at boot → it falls back to the built-in engine with the
@@ -1128,7 +1149,8 @@ that `drop_params` keeps the thinking-off pair the client sends on the structure
 `think: false` becomes Ollama's own field on `ollama_chat/`. And it checks the reply limit
 (`proxy.maxReplyTokens`): a request naming no limit reaches Ollama with `num_predict` 32768 and llama-server with
 `max_tokens` 32768, an external server with none, and a request's own `max_tokens` or `max_completion_tokens`
-(what the coding agent sends) always gets through. Run it after bumping the LiteLLM pin
+(what the coding agent sends) gets through untouched, 77 or 88 below the limit and 40,000 above it (only a
+number above it tells a default from a ceiling). Run it after bumping the LiteLLM pin
 (`LOL_LITELLM=<path to litellm>` tests another install).
 
 **With a real engine** (opt-in, documented in the file's header), the check proves that generation itself

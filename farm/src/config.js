@@ -78,15 +78,17 @@ const ProxySchema = z.object({
     seatGate: z.boolean().default(true),
     seatIdleSec: z.number().int().min(60).default(900),          // 15 min of no generation → seat frees
     internalPort: z.number().int().positive().nullable().default(null), // LiteLLM's loopback port behind the gate (default: port + 1)
-    // The most a reply may write (thinking included) when its request names no limit: Open WebUI's chats
-    // and LOL Vibe's name none; the Computer, agent pages and the coding agent always name their own, and a
-    // request's own limit always wins. A model sometimes falls into a loop ("Let's go. (Self-Correction):
-    // I'll do it.") and never ends the reply: replaying Open WebUI's follow-ups on vLLM + Qwen3.6 on
-    // 2026-10-05, 1.6 % of replies did, each until the 64k window was full (~290 s of a seat, then an empty
-    // answer), and Ollama does not even stop at its window. The longest real reply measured that day was
-    // 9,747 tokens in Open WebUI and 15,515 for a Computer ask with thinking on; 32,768 is twice that, and
-    // Qwen's own recommended output length. Applied per engine: litellm.js (Ollama, llama.cpp) and
-    // farm/vllm/serve.sh (vLLM). null = no limit from the farm.
+    // The most a reply may write (thinking included). Open WebUI's chats and LOL Vibe's name no limit; the
+    // Computer, agent pages and the coding agent name their own (16,384 at most). A model sometimes falls into
+    // a loop ("Let's go. (Self-Correction): I'll do it.") and never ends the reply: replaying Open WebUI's
+    // follow-ups on vLLM + Qwen3.6 on 2026-10-05, 1.6 % of replies did, each until the 64k window was full
+    // (~290 s of a seat, then an empty answer), and Ollama stops only at 10 times its window. The longest real
+    // reply measured that day was 9,747 tokens in Open WebUI and 15,515 for a Computer ask with thinking on;
+    // 32,768 is twice that, and Qwen's own recommended output length. Applied per engine: litellm.js on Ollama
+    // and llama.cpp, as a DEFAULT for a request that names no limit (a request's own wins, above it too);
+    // farm/vllm/serve.sh on vLLM, as a CEILING for every request (vLLM 0.30 sends the smallest of what the
+    // window leaves, the request's own and it) that hard-codes 32,768: this key does not change it, and an
+    // external server started otherwise gets no limit from the farm. null = no limit from the farm.
     maxReplyTokens: z.number().int().min(1024).nullable().default(32768),
 }).strict();
 

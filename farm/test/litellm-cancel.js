@@ -12,7 +12,8 @@
 // request close within ~2 s, and LiteLLM must not retry it — streaming, and non-streaming
 // (which needs the generated config's general_settings.cancel_on_disconnect). It also checks that drop_params
 // keeps the thinking-off pair the client sends (owner decision 9), and that the farm's reply limit
-// (proxy.maxReplyTokens) reaches the engine only when a request names none. Loopback, OS-assigned ports
+// (proxy.maxReplyTokens) reaches the engine only when a request names none, never over a request's own, even
+// one above it. Loopback, OS-assigned ports
 // only — never a live farm's, and no GPU. Exits 0 when every cancel propagates and thinking
 // off and the limit arrive as they should (or when there is no LiteLLM to test).
 //
@@ -247,9 +248,13 @@ async function fakeMain(cmd, version) {
             results.push(answered && kept);
             // proxy.maxReplyTokens: what the engine is told to write at most. A request that names no limit gets
             // the farm's on Ollama (num_predict) and llama.cpp (max_tokens), and nothing on an external server
-            // (vLLM refuses prompt + max_tokens past its window; serve.sh sets its own default). A request's
-            // own limit always wins.
+            // (vLLM refuses prompt + max_tokens past its window; serve.sh gives vLLM its own number, which vLLM
+            // 0.30 applies as a ceiling: a fake engine cannot show that). Through LiteLLM a request's own limit
+            // reaches the engine untouched, below the farm's (77, 88) and above it (40000): only a limit above
+            // the cap tells a default from a ceiling.
             const cap = ext.proxy.maxReplyTokens;
+            const big = 40000;
+            if (!(big > cap)) throw new Error(`the above-the-cap case needs more than ${cap}`);
             const sent = async (extra) => {
                 const at = seen.length;
                 const answered2 = await completes(gp, model, extra);
@@ -261,10 +266,13 @@ async function fakeMain(cmd, version) {
             const own = (n, key) => JSON.stringify(shape === 'ollama_chat/' ? { num_predict: n } : { [key]: n });
             // max_completion_tokens is what the coding agent's SDK sends (pi-ai picks it for a provider it does not
             // know). openai/ forwards the farm's max_tokens beside it; llama-server obeys max_completion_tokens when
-            // it has both (b10670, measured 2026-10-05: 200 + 12 wrote 12), as vLLM does.
-            const newer = shape === 'openai/' ? JSON.stringify({ max_tokens: cap, max_completion_tokens: 88 }) : own(88, 'max_completion_tokens');
+            // it has both, below or above (b10670, measured 2026-10-05/06: 200 + 12 wrote 12, 12 + 40 wrote 40), as
+            // vLLM does.
+            const newer = (n) => (shape === 'openai/' ? JSON.stringify({ max_tokens: cap, max_completion_tokens: n }) : own(n, 'max_completion_tokens'));
             for (const [label, extra, expect] of [['names no limit', {}, JSON.stringify(none)], ['names max_tokens 77', { max_tokens: 77 }, own(77, 'max_tokens')],
-                ['names max_completion_tokens 88', { max_completion_tokens: 88 }, newer]]) {
+                ['names max_completion_tokens 88', { max_completion_tokens: 88 }, newer(88)],
+                [`names max_tokens ${big}`, { max_tokens: big }, own(big, 'max_tokens')],
+                [`names max_completion_tokens ${big}`, { max_completion_tokens: big }, newer(big)]]) {
                 const r = await sent(extra);
                 const good = r.answered && r.told === expect;
                 console.log(`${good ? 'ok  ' : 'FAIL'} ${shape} a request that ${label}: the engine is told ${r.told} (want ${expect})`);
