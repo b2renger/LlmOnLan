@@ -6,6 +6,51 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-10-06 (10:51) — Web search measured at 17/18 fresh facts, as cheap as web search off; the last review findings
+
+- **The final measurement of the shipping web search** (the client's search-and-read service in a worker,
+  SearXNG without Yandex and with Swisscows, vLLM + Qwen3.6 with presence penalty 1.5 and the 32,768
+  ceiling; 18 fresh-fact questions plus 3 stable ones, one chat each, 84 messages):
+
+  | | Fresh facts right | Generations per message | Slot time per chat (median) | Wait to first word (median / p90) | Runaways |
+  |---|---|---|---|---|---|
+  | With the date line | **17/18** | **2.33** | 9.0 s | 4.0 / 5.9 s | 0 |
+  | Without it | 14/18 | 2.72 | 11.0 s | 5.4 / 12.0 s | 0 |
+  | Web search off (2026-10-05) | 0/12 | 2.4 | 13.9 s | 2.5 / 4.2 s | 0 |
+  | Today's web search before v2 (2026-10-05) | 2/12 | 6.8 | 21.0 s | 5.3 / 26.3 s | 1 |
+
+  - **With the date line:** the answer was in the evidence for 18/18 questions, and 0 of 29 queries asked
+    for a stale year (9 of 32 did without it).
+  - **The one miss:** the model wrote the right answer inside its thinking and returned an empty reply.
+  - **Every miss without the date line was a year mistake.**
+  - **Search costs:** a median 2.1 s per search, 58 ms of reading and ranking in the worker, and about 1.9 MB
+    downloaded.
+  - **The engines:**
+    - **Answered:** Bing, Seznam and Swisscows on (almost) every search, and DuckDuckGo (web) on 53 of 61.
+    - **Refused:** Qwant and Mojeek refuse this IP.
+    - **Rate-limited:** Wikipedia was rate-limited mid-run.
+  - **Verdict:** good enough to turn web search back on by default after a class-size check: the engines
+    under a class's burst from one IP, ~5.5k uncached prompt tokens per chat, and the wait under load.
+    Web search stays OFF by default until then.
+- **The last review findings, fixed** (`56acb16`, `5c6b5bd`, `7567dfd`):
+  - **Reading in a worker.** Page reading and ranking run in a `worker_thread`, which is `webSearch.js`
+    itself and was checked loading from inside `app.asar` with Electron 42.5.1. Six hostile 2 MB pages now
+    hold the main thread 25–34 ms, down from 0.8–1.8 s. After 3 s the answer falls back to the engines'
+    snippets.
+  - **Retrieval rules:**
+    - The dictionary rule spares official docs (Google/AWS/Microsoft translate docs, Django, Apple).
+    - Curly apostrophes count as apostrophes.
+    - A stale page's version line is no longer boosted, and a dotted date isn't read as a version.
+  - **The date line's wiring is tested.** The Blender tool-server write now waits for the first load's
+    settings fixes; on Open WebUI 0.10, which replaces `ui` whole, one write could otherwise be lost.
+    GETTING_STARTED says it applies to Open WebUI only, and how to add `{{CURRENT_DATE}}` to your own
+    prompt.
+  - **The runaway docs say what vLLM really does:** the reply limit is a server-wide ceiling there (vLLM
+    0.30 takes the minimum), and a default on Ollama and llama.cpp. 32,768 is above every first-party ask
+    (16,384 at most). The cancel test now checks a request above the limit on every route.
+- **Tests:** farm 164/0; litellm-cancel PASS; shell chat-unit 1831/0, unit 29, lint 0; chat harness
+  **408/408**.
+
 ## 2026-10-06 (09:48) — Decisions think; web search v2 built (no Yandex, with Swisscows); runaways fixed at the root; Open WebUI told the date
 
 The owner's answers at the end of 2026-10-05:

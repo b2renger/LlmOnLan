@@ -1658,7 +1658,26 @@ These are recommendations, not decisions.
    - **The model's date (owner, 2026-10-05):** "Today is {{CURRENT_WEEKDAY}} {{CURRENT_DATE}}." is written
      into Open WebUI's system prompt, once, and only when the prompt is empty (`0497615`). It was the largest
      remaining cause of wrong answers.
-   - **The final end-to-end measurement** of the shipping build is running.
+   - **MEASURED, final (2026-10-06, the shipping build, 18 fresh questions):**
+
+     | | Fresh facts right | Generations per message | Wait to first word (median) | Runaways |
+     |---|---|---|---|---|
+     | With the date line | **17/18** | 2.33 (web search off: 2.4) | 4.0 s | 0 |
+     | Without the date line | 14/18 | 2.72 | 5.4 s | 0 |
+
+     - With the date line, the answer was in the evidence for 18/18, and no query asked for a stale year.
+     - The one miss: the model wrote a right answer inside its thinking and left the reply empty (about 2
+       in 1,000 answers across three runs, a model/parser quirk).
+     - Reading and ranking run in a worker: a median 58 ms per search, and the main thread is never held
+       more than 13 ms, even on hostile pages.
+   - **Verdict:** good enough to turn web search back on by default **after a class-size check**:
+     - the search engines under a class's burst from one public IP (Wikipedia was already rate-limited at
+       ~3.6 searches a minute; Qwant and Mojeek refuse this IP; Bing, Seznam and Swisscows carried the
+       answers);
+     - about 5.5k uncached prompt tokens per chat, against ~1.1k with web search off;
+     - the first word under load.
+   - **Left:** a person who wrote their own system prompt gets no date line and 14/18-level quality: the
+     docs tell them to add `{{CURRENT_DATE}}`.
 5. **vLLM** (Phase 2). **ANSWERED (2026-10-04): in scope**, overriding the critic's cut.
    - Still open, decided from the spike: (a) integrated `external` or (b) fully managed.
    - The critic's caution stands as a test condition: WSL2 lifetimes on the PRO 6000 must be handled
