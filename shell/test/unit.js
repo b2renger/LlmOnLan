@@ -138,12 +138,23 @@ test('capacity: singular/plural reads correctly on a one-seat farm', () => {
 // 0.11.4 patches it field by field (a null removes the key, models/users.py
 // update_user_settings_by_id), 0.10.x replaces it whole. `ui: null` is a profile that never saved a
 // setting: the real server reads it as `null`. `on` is what OWUI's chat reads:
-// (settings.webSearch ?? false) === 'always'.
-function fakeOwui(version, ui, { token = 't', readFails = false, readNotJson = false, writeOk = true } = {}) {
-    const src = fs.readFileSync(path.join(__dirname, '..', 'renderer', 'app.js'), 'utf8');
+// (settings.webSearch ?? false) === 'always'. `slow` answers each request on a later turn, as over
+// HTTP, so two scripts can interleave; `onRead` is called as a settings read arrives.
+const APP_JS = fs.readFileSync(path.join(__dirname, '..', 'renderer', 'app.js'), 'utf8');
+function appFunction(name) {
+    const start = APP_JS.indexOf(`async function ${name}(`);
+    const end = APP_JS.indexOf('\n}\n', start);
+    assert.ok(start > 0 && end > start, `${name} moved — update the extraction anchors`);
+    return APP_JS.slice(start, end + 2);
+}
+
+function fakeOwui(version, ui, { token = 't', readFails = false, readNotJson = false, writeOk = true, slow = false } = {}) {
     const clone = (o) => JSON.parse(JSON.stringify(o));
-    const owui = { ui: clone(ui), writes: 0 };
+    const owui = { ui: clone(ui), writes: 0, onRead: null };
     const fetch = async (url, opts = {}) => {
+        if (url === '/api/v1/users/user/settings' && !opts.method && owui.onRead) owui.onRead();
+        if (slow) await new Promise(setImmediate);
+        if (url === '/api/v1/auths/' && !opts.method) return { ok: true };
         if (url === '/api/v1/users/user/settings' && !opts.method) {
             if (readFails) return { ok: false, json: async () => ({ detail: 'Unauthorized' }) };
             if (readNotJson) return { ok: true, json: async () => { throw new SyntaxError("Unexpected token '<'"); } };
@@ -160,13 +171,8 @@ function fakeOwui(version, ui, { token = 't', readFails = false, readNotJson = f
         throw new Error(`unexpected request ${opts.method || 'GET'} ${url}`);
     };
     const window = { localStorage: token ? { token } : {} };
-    const els = { webview: { executeJavaScript: (code) => new Function('window', 'fetch', `return ${code}`)(window, fetch) } };
-    const extract = (name) => {
-        const start = src.indexOf(`async function ${name}`);
-        const end = src.indexOf('\n}\n', start);
-        assert.ok(start > 0 && end > start, `${name} moved — update the extraction anchors`);
-        return new Function('els', `${src.slice(start, end + 2)}; return ${name};`)(els);
-    };
+    owui.page = { executeJavaScript: (code) => new Function('window', 'fetch', `return ${code}`)(window, fetch) };
+    const extract = (name) => new Function('els', `${appFunction(name)}; return ${name};`)({ webview: owui.page });
     owui.run = extract('unseedWebSearch');
     owui.seedDate = extract('seedDateLine');
     owui.on = () => ((owui.ui || {}).webSearch ?? false) === 'always';
@@ -304,6 +310,68 @@ test('date line: no token, a failed read, a read that is not JSON or a refused w
     for (const o of [noToken, readFails, readNotJson, writeRefused]) assert.deepEqual(o.ui, fresh);
     assert.equal(noToken.writes + readFails.writes + readNotJson.writes, 0);
 });
+
+// ensureAuthenticated() runs those scripts on the webview's first authed load, and maybeSeedBlender()
+// writes the Blender tool server, also on the Blender helper's 'ready' push. Slice them out of app.js
+// with the state they share and run them on the fake Open WebUI's page; `fakes` replaces any of the
+// functions by name. A reload only counts: the test runs the load after it (did-finish-load).
+function fakeShell(owui, { blender = { url: 'http://127.0.0.1:8000', apiKey: 'k' }, fakes = {} } = {}) {
+    const stateStart = APP_JS.indexOf('let webviewAuthed');
+    const stateEnd = APP_JS.indexOf('\n', APP_JS.indexOf('let blenderSeeded'));
+    assert.ok(stateStart > 0 && stateEnd > stateStart, 'the webview auth state moved — update the extraction anchors');
+    const names = ['unseedWebSearch', 'seedDateLine', 'seedBlenderToolServer', 'maybeSeedBlender', 'ensureAuthenticated'].filter((n) => !fakes[n]);
+    const sh = { reloads: 0, renders: 0 };
+    const els = { webview: { ...owui.page, reload: () => { sh.reloads++; } } };
+    const window = { lol: { getBlenderConnection: async () => blender } };
+    const scope = new Function('els', 'window', 'renderSidecar', ...Object.keys(fakes),
+        `${APP_JS.slice(stateStart, stateEnd)}\n${names.map(appFunction).join('\n')}\nreturn { ensureAuthenticated, maybeSeedBlender };`);
+    return Object.assign(sh, scope(els, window, () => { sh.renders++; }, ...Object.values(fakes)));
+}
+
+test('first authed load: web search, then the date line, then one reload if either wrote', async () => {
+    for (const ws of ['set', 'already', 'na']) for (const dl of ['set', 'already', 'na']) {
+        const calls = [];
+        const fix = (name, res) => async () => { calls.push(`${name}…`); await new Promise(setImmediate); calls.push(`${name} ${res}`); return res; };
+        const sh = fakeShell(fakeOwui('0.11', {}), { fakes: {
+            unseedWebSearch: fix('web search', ws), seedDateLine: fix('date line', dl),
+            maybeSeedBlender: async () => { calls.push('blender'); return false; },
+        } });
+        const wrote = ws === 'set' || dl === 'set';
+        await sh.ensureAuthenticated();
+        assert.deepEqual(calls, ['web search…', `web search ${ws}`, 'date line…', `date line ${dl}`, ...(wrote ? [] : ['blender'])], `${ws} + ${dl}`);
+        // A reload keeps the overlay up until its own load: the page then has the new settings.
+        assert.deepEqual([sh.reloads, sh.renders], wrote ? [1, 0] : [0, 1], `${ws} + ${dl}`);
+        calls.length = 0;
+        await sh.ensureAuthenticated(); // the next load: the fixes ran once this session
+        assert.deepEqual(calls, ['blender']);
+        assert.deepEqual([sh.reloads, sh.renders], wrote ? [1, 1] : [0, 2]);
+    }
+});
+
+for (const version of ['0.11', '0.10']) {
+    test(`first authed load (OWUI ${version}): the Blender helper ready during the fixes waits for them, and no write is lost`, async () => {
+        const fixesWrite = { webSearch: 'always', lolWebSearchSeeded: true, theme: 'dark' };
+        const fixesDone = { lolWebSearchSeeded: true, lolWebSearchUnseeded: true, system: 'Answer in French.', lolDateLineSeeded: true, theme: 'dark' };
+        for (const ui of [fixesWrite, fixesDone]) {
+            const owui = fakeOwui(version, ui, { slow: true });
+            const sh = fakeShell(owui);
+            let push;
+            owui.onRead = () => { owui.onRead = null; push = sh.maybeSeedBlender(); }; // the 'ready' push lands mid-read
+            await sh.ensureAuthenticated();
+            assert.equal(await push, false, 'the push wrote nothing');
+            for (let load = 0; load < 3 && !sh.renders; load++) await sh.ensureAuthenticated(); // each reload's load
+            assert.equal(sh.renders, 1, 'the overlay lifts');
+            assert.equal(owui.on(), false, 'web search stays off');
+            assert.equal(owui.ui.lolWebSearchUnseeded, true);
+            assert.equal(owui.ui.system, ui.system || DATE_LINE);
+            assert.equal(owui.ui.lolDateLineSeeded, true);
+            assert.deepEqual(owui.ui.toolServers.map((c) => c.info.id), ['lol-blender']);
+            assert.deepEqual(owui.ui.tools, ['direct_server:0'], 'and selected');
+            assert.equal(owui.ui.theme, 'dark');
+            assert.equal(owui.writes, ui === fixesWrite ? 3 : 1, 'the fixes, then Blender');
+        }
+    });
+}
 
 (async () => {
     for (const { name, fn } of tests) {

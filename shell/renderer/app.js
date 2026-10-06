@@ -528,6 +528,7 @@ let webviewAuthed = false;
 let authReloads = 0;
 const MAX_AUTH_RELOADS = 4;
 let settingsChecked = false; // the one-time user-settings fixes below (web search, date line), once per session
+let settingsFixing = false;  // ...and they are writing right now: the Blender write waits (maybeSeedBlender)
 let blenderSeeded = false;   // register the Blender tool server with OWUI at most once per session
 
 // Web search is OFF by default in Open WebUI (owner, 2026-10-05: on, a chat cost ~2.5x the GPU
@@ -686,9 +687,13 @@ async function unseedBlenderToolServer() {
 // Seed the Blender tool server once per session, if the local mcpo is ready and the
 // webview is authed. Called on auth success AND when mcpo reports 'ready' (whichever
 // is later — on first launch mcpo installs for ~1 min, so it's usually the latter).
-// Returns true if it registered + kicked a reload (so callers can bail).
+// Returns true if it registered + kicked a reload (so callers can bail). Not while the one-time
+// fixes write: each write sends back the whole `ui` it read, so of two at once one is lost (0.10
+// replaces `ui` whole; on 0.11 the Blender write's stale webSearch 'always' turns web search back
+// on). ensureAuthenticated calls this again once they are done, or on the load after the reload
+// they kick.
 async function maybeSeedBlender() {
-  if (blenderSeeded || !webviewAuthed) return false;
+  if (blenderSeeded || !webviewAuthed || settingsFixing) return false;
   let conn = null;
   try { conn = await window.lol.getBlenderConnection(); } catch { conn = null; }
   if (!conn || !conn.url) return false; // mcpo not ready yet — retry on its 'ready' push
@@ -717,9 +722,10 @@ async function ensureAuthenticated() {
       // either wrote, reload once so the SPA picks up the fresh settings (its $settings was
       // loaded before we wrote them); the markers then no-op.
       if (!settingsChecked) {
-        settingsChecked = true;
+        settingsChecked = true; settingsFixing = true;
         const webSearch = await unseedWebSearch();
         const dateLine = await seedDateLine();
+        settingsFixing = false; // neither throws: each returns 'na' on any failure
         if (webSearch === 'set' || dateLine === 'set') { try { els.webview.reload(); } catch { /* not ready */ } return; }
       }
       // Register the local Blender tool server if mcpo is already up (else its
