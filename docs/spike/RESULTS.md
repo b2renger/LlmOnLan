@@ -50,6 +50,19 @@ per-token speed. The quality column shows that token bill.
 **KV capacity** = the engine's KV pool ÷ the context per person. For vLLM this is its own start-up figure. For
 llama.cpp it is the pool ÷ context, capped by `--parallel`.
 
+> **Correction (2026-10-06, `ESTIMATES_2026-10-05.md` § Method):** for the hybrid models, the vLLM figures in the
+> "People by KV capacity" columns overstate capacity, on both boxes.
+> - **The cause:** they are the pool's tokens ÷ the window. vLLM 0.30 also charges every request its recurrent
+>   state in pages: 6 blocks (128.8 MB) per person for Qwen3.6 and 8 (102.6 MB) for Nemotron, rounded up to whole
+>   2,096- or 4,176-token blocks.
+> - **The real capacity at the 58 GiB pool:**
+>   - Qwen3.6: **132 / 76 / 42** people at 32k / 64k / 128k, not 168 / 84 / 42.
+>   - Nemotron: **303 / 202 / 121**, not 485 / 243 / 121.
+>   - Qwen3.8 holds **46.6** conversations of 30k. That is exactly why it collapsed at 48 users (footnote ³): 48 ×
+>     26 = 1,248 blocks is more than its 1,212. It is not an early collapse.
+> - **What doesn't change:** the measured "people" columns, and the conclusion that throughput, not KV, binds
+>   first on the 96 GB card and on the Spark.
+
 ## Headline table (RTX PRO 6000, GPU exclusive)
 
 People are given as `every turn / steady`. **≥ N** means N was the highest level tested and it passed.

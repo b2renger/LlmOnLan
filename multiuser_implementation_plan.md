@@ -352,12 +352,12 @@ Revision 2 reorders v1 around measurement and the cheapest levers. Effort figure
 
 | Phase | Outcome | Effort | Status (2026-10-05) |
 | --- | --- | --- | --- |
-| **0. Hardening + measurement** (new) | LiteLLM pinned and cancel proven. The gate checks the password before seating, refuses ungated generation paths, and sends an honest `Retry-After`. Plugin keys are persisted (no more OWUI reboots on farm restart). OCR gets a semaphore. Bench uses distinct source addresses and realistic load. A measured baseline exists: engines, slots, models, prompt cost per OWUI message. | 7–10 days | **Built** (0.0–0.5, 0.7). 0.6 done on the PRO 6000; the Spark run is 2026-10-05 |
+| **0. Hardening + measurement** (new) | LiteLLM pinned and cancel proven. The gate checks the password before seating, refuses ungated generation paths, and sends an honest `Retry-After`. Plugin keys are persisted (no more OWUI reboots on farm restart). OCR gets a semaphore. Bench uses distinct source addresses and realistic load. A measured baseline exists: engines, slots, models, prompt cost per OWUI message. | 7–10 days | **Built** (0.0–0.5, 0.7). 0.6 **done on both boxes** (PRO 6000 2026-10-04, Spark 2026-10-06) |
 | 1. Seat gate v2 | Client fixes (1.6). Background-task and search cost (1.4) after measurement. The fair queue (1.2) only if adopted. ~~Identity (1.1)~~: **cut** by the owner. | 1 week core; +1 week with 1.2 | 1.6 and the workshop setting **built**. 1.4 being measured. The fair queue only if refusals are frequent |
 | 2. vLLM engine | **In scope (owner, 2026-10-04).** The spike runs in Phase 0.6. Then a farm engine sized against its GPU co-tenants: on Spark natively, on the Windows PRO 6000 via WSL2. Managed or operator-run is decided from the spike. | 3–4 weeks after the spike | (a) **built**. The PRO 6000 `external` recipe **built** and checked live. Managed on the Spark after its spike |
-| 3. Several big boxes | One endpoint over several Sparks/PRO 6000s as the studio buys them. Scale-out on the small GPUs is **out** (owner). | ~1 week, when a second big box exists | Next, once the Spark serves (the PRO 6000 + the Spark make two big boxes) |
+| 3. Several big boxes | One endpoint over several Sparks/PRO 6000s as the studio buys them. Scale-out on the small GPUs is **out** (owner). | ~1 week, when a second big box exists | **When a second PRO-class card arrives.** The Spark is not worth fronting with the PRO 6000: 8 seats beside 48–96, at 5× slower prefill (§8) |
 | 4. Distribution and contract | LAN model copy over plain HTTP; a minimal snapshot schema check. | 1–2 weeks | 4.2 **cut**. 4.3 an open study, low priority. 4.4 **built**. 4.1 later |
-| 5. Capacity table (the purchase tool) | Measured people-per-box at 32k/64k/128k for each box × engine × model, in `farm/README.md` and the panel. Roofline estimates, clearly marked, for hardware not owned (the RTX PRO 5000 Blackwell class, a second PRO 6000). | 3–5 days after the spike | v1 **built** (PRO 6000, measured). Spark row 2026-10-05; PRO 5000 estimates in progress |
+| 5. Capacity table (the purchase tool) | Measured people-per-box at 32k/64k/128k for each box × engine × model, in `farm/README.md` and the panel. Roofline estimates, clearly marked, for hardware not owned (the RTX PRO 5000 Blackwell class, a second PRO 6000). | 3–5 days after the spike | **Built**: PRO 6000 and Spark measured; estimates for the PRO 5000/5500 (`docs/spike/ESTIMATES_2026-10-05.md`) |
 | Security | ~~Revocation~~ (no identity). ~~TLS~~. | — | Both **cut** |
 | **Total** | Phase 0 with the spike: **~3 weeks**. The vLLM engine: +3–4 weeks. | | |
 
@@ -425,7 +425,10 @@ Small fixes that need no policy decision, and the measurements every later choic
 > - **vLLM beats llama.cpp 24–40×** on the same model. llama.cpp + Qwen3.8 serves 1 person.
 > - **Thinking off cost no quality on the 28-item gate**, at 5–9× fewer tokens.
 >
-> The Spark run is on 2026-10-05, by a separate agent on the Spark (`docs/spike/SPARK_HANDOFF.md`).
+> **The Spark run is done** (2026-10-05 13:51 → 2026-10-06 11:37, DEVLOG 2026-10-06 11:45). It used the same
+> harness and pool, and found the same quality. **vLLM + Qwen3.6 serves 8 / 8 / 4 people at 32k / 64k / 128k**
+> (the PRO 6000 serves 96 / 48 / 32), and Nemotron serves 16 at 32k. The dense Qwen3.8 fails with one person
+> (12 tok/s). See §8 for what it means for a purchase.
 > ComfyQ moved off the PRO 6000 on 2026-10-04, so these exclusive-GPU numbers are the real ones.
 
 ### 0.0 Pin LiteLLM and prove that a cancel reaches the engine (moved from 1.3)
@@ -1055,7 +1058,10 @@ when TTFT p95 < 5 s and 90 % of replies stream at ≥ 15 tok/s. vLLM 0.30, GPU e
 | RTX PRO 6000 96 GB | vLLM · Qwen3.8-27B NVFP4 | 16 / 32 | ≥ 24 | ≥ 12 | 28/28 |
 | RTX PRO 6000 96 GB | llama.cpp · Nemotron Q4_K_M (16 slots) | 4 / 8 | — | 0 / ≥ 4 | 26/28 (on) |
 | RTX PRO 6000 96 GB | llama.cpp · Qwen3.8 Q4_K_M | ≤ 1 | ≤ 1 | ≤ 1 | 26/28 (on) |
-| DGX Spark 128 GB | *the same matrix* | *run 2026-10-05* | | | |
+| **DGX Spark 128 GB** | vLLM · Qwen3.6-35B-A3B NVFP4 | **8 / 8** | **8 / 8** | **4 / 4** | 27/28 on, 26/28 off |
+| DGX Spark 128 GB | vLLM · Nemotron 3.5 Lightning NVFP4 | **16 / 16** | < 8 | 4 / 4 | 26/28 on, 27/28 off |
+| DGX Spark 128 GB | vLLM · Qwen3.8-27B NVFP4 (dense) | 0 (12 tok/s alone) | 0 | 0 | 26/28 on, 28/28 off |
+| DGX Spark 128 GB | llama.cpp · Nemotron Q4_K_M | 2 / 2 | — | 1 / 1 | 26/28 (on) |
 | ~~RTX PRO 6000 + ComfyUI resident (~45 GB)~~ | vLLM · Qwen3.6 | No longer applies: ComfyQ moved off the box on 2026-10-04. | | | |
 
 **Estimates for cards the studio doesn't own** (2026-10-05, vLLM + Qwen3.6 NVFP4, OCR model on the same
@@ -1069,7 +1075,7 @@ card, `every turn / steady`). Full specs, prices, the method and its validation 
 | RTX PRO 5500 84 GB, est. (€16,470) | 88–89 / 88–93 | 43–50 / 51–54 | 22–26 / 29–30 | €177–187 | KV |
 | RTX PRO 5000 72 GB, est. (€11,194) | 59–69 / 65–69 | 28–40 / 38–40 | 14–21 / 21–22 | €162–190 | first word, then KV |
 | RTX PRO 5000 48 GB, est. (€9,940) | 19–20 | 11 | 6 | ~€500 | KV (≈ 40 / 22 / 12 with OCR on another box) |
-| DGX Spark 128 GB (€6,600, a whole computer) | *measured 2026-10-05* | | | | |
+| DGX Spark 128 GB, **measured** (€6,600, a whole computer) | 8 / 8 | 8 / 8 | 4 / 4 | **€825** (€413 with Nemotron's 16) | decode and prefill (~0.17–0.2× the PRO 6000) |
 
 Reading it for a purchase:
 
@@ -1082,9 +1088,19 @@ Reading it for a purchase:
 - **Per person, only the PRO 5000 72 GB comes close to the PRO 6000**, and it also needs a host PC. The
   PRO 5500 costs 93 % of a PRO 6000 for 80–85 % of the people. The 48 GB PRO 5000 is the worst per person
   unless the OCR model lives elsewhere.
-- **The Spark** has 15 % of the PRO 6000's memory bandwidth and 25 % of its compute. Expect one PRO 6000 to
-  do the work of **about 4–6.6 Sparks**, not "about 6". A PRO 6000 costs 2.7× a Spark, so it wins per person
-  only if it serves more than 2.7× the Spark's people. The Spark run settles it.
+- **The Spark, measured (2026-10-06): one PRO 6000 does the work of 8–16 Sparks** on these models (12–16× at
+  32k, 6–8× at 64k). That is more than the 4–6.6× the specs suggested: its batched throughput (0.17×) and
+  prefill (~0.2×) are what set head counts, and those land below its bandwidth ratio.
+  - **Per person** it costs **€825** with Qwen3.6, against €138–184 on a PRO 6000, so the PRO 6000 is **4.5–6×
+    cheaper per person at 32k** and 2.2–3× at 64k.
+  - **Its 128 GB buys no people:** throughput binds about 10× before memory does.
+  - **The verdict for the purchase: RTX Blackwell, not GB10.** Buy a PRO 6000, or a PRO 5500 or a 72 GB
+    PRO 5000 if none can be found.
+  - **What a Spark is good for:** one workshop table (8 people on Qwen3.6, 16 on Nemotron at 32k), or a model
+    too big for 96 GB, for a few people.
+  - **An operational risk on the Spark:** a unified-memory OOM latched this GB10 at 702 MHz from 2026-09-16
+    until a cold power drain; a reboot did not clear it. A Spark farm needs a memory guard and a clock check
+    after a crash.
 - **Prices have doubled since launch** (PRO 6000: $8,565 in March 2025, $16,000 on NVIDIA's US store in
   August 2026), so compare per person at today's prices.
 
@@ -1536,7 +1552,7 @@ llama.cpp alternative (Windows or before Phase 2), OWUI chat with Qwen3.8-27B:
 | 0.6 Engine × model spike | 0.0, 0.5 | ~1–1.5 weeks (vLLM venv in WSL2, Spark access, weights, quality gate) | One row per box × engine × model × context: people at TTFT p95 < 5 s and ≥ 15 tok/s, quality-gate result, VRAM; generations + prompt tokens per OWUI message | PRO 6000 **done**; Spark 2026-10-05; per-OWUI-message cost being measured |
 | 0.7 VRAM budget from free memory / co-tenant reserve | — | 1 day | llama.cpp auto context fits beside a co-tenant | **Built** |
 | 1.6 Client fixes | — | 2–3 days | Computer runs model boxes while holding its own seat on a full farm; a 429 costs no Cap; dsh doesn't self-retry 429 | **Built**; chat harness 406/406 |
-| 3.0 Fleet path (coordinator capacity, static peers, peer-429, failover) | 0.6 | 1 week | A coordinator over N boxes (across subnets) advertises their summed slots; a client off a full farm moves only when idle | Next, once the Spark serves |
+| 3.0 Fleet path (coordinator capacity, static peers, peer-429, failover) | 0.6 | 1 week | A coordinator over N boxes (across subnets) advertises their summed slots; a client off a full farm moves only when idle | When a second PRO-class card arrives (not the Spark: §8) |
 | 1.4 Web search's cost | 0.6 | ½ day | The owner chooses from the measurement | **Measured**: recommend web search off by default (decision 4) |
 | ~~1.1 Per-install identity~~ | — | — | — | Cut (owner, 2026-10-04) |
 | 1.2 Workshop setting; fair queue only if needed | 3.3 | ½ day; +1 week for a queue | The seat hold is set live from the panel; a queue only if the 3.3 counts show frequent refusals | Workshop setting **built**; queue not needed so far |
@@ -1544,12 +1560,12 @@ llama.cpp alternative (Windows or before Phase 2), OWUI chat with Qwen3.8-27B:
 | 4.4 Snapshot schema check | — | 1–2 days | A farm unit test fails when `buildSnapshot()` drifts from the schema (the snapshot already has tests, `farm/test/run.js:856`) | **Built** (`farm/contract/`) |
 | 2 (a) vLLM as integrated `external` | 0.6 | 1 week | Seats, Performance card and `capacity.busy/queued` from vLLM's `/metrics` | **Built**, checked live |
 | PRO 6000 `external` recipe (decision 10) | 2 (a) | 2–3 days | vLLM in WSL2 reachable over TCP; a documented recipe | **Built** (`farm/vllm/`) |
-| 2.1–2.3 (b) Managed vLLM on the Spark | 2 (a), the Spark spike | 2 weeks | `lol up` serves the spike's model on a Spark, with fallback working | After the Spark spike |
+| 2.1–2.3 (b) Managed vLLM on the Spark | 2 (a), the Spark spike | 2 weeks | `lol up` serves the spike's model on a Spark, with fallback working | **Reconsidered:** the recipe on Linux + a systemd unit gives the same 8 seats (owner to decide) |
 | 2.4–2.5 vLLM sizing and metrics | 2.1–2.3 | 1–2 weeks | Beacon `slots` matches vLLM's pool; Performance card live per engine | Metrics part **built** with 2 (a) |
 | 3.1 Cache affinity | 3.0 | 1 week | Returning turns hit the prefix cache > 80 % in a two-box test | Later |
 | ~~3.2 Overflow tier~~ | — | — | — | Cut (owner, 2026-10-04) |
 | 3.3 Minimal metrics (429 count, peak seats, TTFT p95) | — | 1–2 days | The panel shows them; no per-install labels | **Built** |
-| 5 Measured capacity table (purchase tool) | 0.6 | 3–5 days | People-per-box at 32k/64k/128k for Spark and PRO 6000, measured; labelled estimates for boxes not owned | PRO 6000 **done**; Spark today; PRO 5000 estimates in progress |
+| 5 Measured capacity table (purchase tool) | 0.6 | 3–5 days | People-per-box at 32k/64k/128k for Spark and PRO 6000, measured; labelled estimates for boxes not owned | **Done**: PRO 6000 and Spark measured; PRO 5000/5500 estimated |
 | 5.1–5.4 Interactive planner (only if the table is too coarse) | 5 table, 4.4 | 2–3 weeks | Golden tests pass on the studio's big boxes; estimates within ±25 % of local measurements | Only if needed |
 | 5.5 Planner learns from bench | 5.1–5.4, 0.5 | 3–4 days | Local bench points override catalog points in the panel | Only if needed |
 | 4.1 LAN model sharing (critic: defer) | 4.4 | 1–2 weeks | Second box installs from a peer with verified hashes | Later |
@@ -1758,7 +1774,11 @@ These are recommendations, not decisions.
         left (~0.7 s at 140) and the option that closes it (the seat gate streaming straight to a lone
         external engine, skipping LiteLLM) are in `farm/README.md`. **Owner (2026-10-05): not built**; +5–9 %
         per reply at the class sizes is fine.
-      - The managed Spark engine follows the Spark spike.
+      - **The managed Spark engine, reconsidered after the Spark spike (2026-10-06).** A Spark farm with vLLM
+        serves about 8 people (16 with Nemotron), against 2 with llama.cpp. The 2 weeks of a managed engine
+        buy little over the operator-run recipe: `farm/vllm/serve.sh` already runs natively on Linux, with no
+        WSL relay needed, plus a systemd unit to start it at boot. **Recommendation: use the recipe on the
+        Spark; defer the managed engine.** The owner decides.
     - Recommendation was: managed on the Spark; on the PRO 6000, first fix the TCP blocker, then `external`
       with the recipe.
 11. **ComfyQ on the PRO 6000 (new).** These are ceiling numbers with ComfyUI stopped. With ComfyUI's
