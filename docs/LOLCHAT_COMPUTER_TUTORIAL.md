@@ -42,10 +42,10 @@ What you see, left to right:
   any button for what it does.
 - **The canvas**, with its toolbar: **＋ Add a box**, the **Select (V)** and **Hand (H)** tools, the
   zoom cluster (**−**, the zoom %, **+**, **Fit**), **Undo**, **Redo**, **Tidy**, **Export…**,
-  **Replace from file…**, the **Cap** field and the **Think all** box. The model always thinks
-  before a yes/no decision (a **Condition** or a **Filter** that asks the model) and before it writes
+  **Replace from file…**, the **Cap** field and the **Think all** box. The model is left to think
+  (its own default; the measured models do) before a yes/no decision (a **Condition** or a **Filter** that asks the model) and before it writes
   text or code. Unticked, it answers lists, JSON and agent steps straight away: faster and lighter on
-  the farm, and measured as right on those. Ticked, it thinks before all of them: more careful, but
+  the farm, and nearly as right on those in a measurement. Ticked, it thinks before all of them: more careful, but
   several times slower. It starts unticked, the app remembers it, and it applies from the next run.
 - **The drawer**, on the right, when something is open in it: a value you clicked, or what a box
   sent and got (see [Read the prompt before you pay](#step-4--read-the-prompt-before-you-pay)).

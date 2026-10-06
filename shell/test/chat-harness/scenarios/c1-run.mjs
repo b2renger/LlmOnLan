@@ -405,6 +405,8 @@ export default [
             });
             const first = await box();
             h.assert(first && first.inToolbar, 'the box is a toolbar control, beside the Cap');
+            // The trade is on the input itself too, so a screen reader hears it with the checkbox.
+            h.eq(await h.eval(() => /** @type {any} */ (document.querySelector('#lolcomputer .graph-think-input')).title), await str(h, 'graph.thinkHint'), 'the hint is on the checkbox');
 
             let sent = 0;
             for (const want of [!first.checked, first.checked]) {

@@ -568,7 +568,7 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* "Think first", right of the Cap: the same small muted label, and the whole label is the target. */
+/* "Think all", right of the Cap: the same small muted label, and the whole label is the target. */
 :is(#lolchat, #lolcomputer) .graph-think-field {
   display: flex;
   align-items: center;
