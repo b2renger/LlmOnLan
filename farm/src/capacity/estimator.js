@@ -1,7 +1,8 @@
 /* LlmOnLan capacity estimator - "which model, how much context, on what hardware".
    Plain functions, no imports. Browser: window.Estimator. Node: module.exports.
    Estimator.init(catalog, measured) once, then Estimator.estimate(hwId, modelId, opts).
-   Constants fitted by _est/calibrate.js on measured.json; checked by _est/validate.js (2026-10-07). */
+   Constants fitted by docs/spike/explorer/calibrate/calibrate.js on measured.json; checked by calibrate/validate.js
+   (2026-10-07). The farm serves this file to /lol/capacity; docs/spike/explorer/README.md says how to rebuild. */
 (function (root) {
   'use strict';
   const GiB = 1073741824;

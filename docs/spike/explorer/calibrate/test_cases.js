@@ -1,6 +1,6 @@
 // A few end-to-end cases through the public API (node calibrate/test_cases.js). Output is pasted into estimator-validation.md.
-const E = require('../estimator.js');
-E.init(require('../catalog.json'), require('../measured.json'));
+const E = require('../../../../farm/src/capacity/estimator.js');
+E.init(require('../../../../farm/src/capacity/catalog.json'), require('../measured.json'));
 const t = r => `${r.low}/${r.mid}/${r.high}`, f = (r, d = 1) => `${r.mid.toFixed(d)} (${r.low.toFixed(d)}-${r.high.toFixed(d)})`;
 function show(label, hw, model, opts) {
   const r = E.estimate(hw, model, opts), m = r.memory;

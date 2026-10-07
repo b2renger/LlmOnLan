@@ -1122,6 +1122,10 @@ Reading it for a purchase:
   (including two Sparks linked over ConnectX-7) and 29 models (including near-frontier open-weight ones for 1–2
   people). Its estimator, calibrated on the PRO 6000, predicted the Spark's measured people in 17 of 18 cells.
   Sources and updating: `docs/spike/explorer/` (README).
+  **On the farm (owner, 2026-10-07):** the farm serves it at `/lol/capacity` (open, offline; the panel's **Plan
+  capacity ↗**), with usage scenarios (documents for 5, vibe-coding for 10, a class of 30, a Computer workshop,
+  long reports, a near-frontier model, your own) that rank hardware × model pairs by the head count they cover,
+  and this box marked from `/lol/self`. The files are `farm/src/capacity/`.
 - The interactive planner below (v1's design) is built only if the table proves too coarse. It generalizes a capacity calculator (an earlier prototype: platform × model × KV precision × users slider → memory split bar, guaranteed context per user, per-user speed at peak, verdict, and a chart of context-per-user vs users across platforms) into a planner built into the farm. It runs offline from a shipped catalog and improves as `lol bench` adds local measurements.
 
 ### 5.1 Where it appears

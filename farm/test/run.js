@@ -3497,6 +3497,128 @@ test('reply limit: a request naming no max_tokens gets 32768 on Ollama and llama
     assert.equal(ConfigSchema.safeParse({ proxy: { maxReplyTokens: 100 } }).success, false, 'too small to finish a thought');
 });
 
+// ---- the capacity explorer (/lol/capacity) ---------------------------------------
+test('capacity explorer: /lol/capacity serves its page, scripts and data, open, and asks nothing off the farm', async () => {
+    // No admin control: the page stays open, like /lol/self (it holds no secret and changes nothing).
+    const server = startSelfServer({ httpPort: 0, getSnapshot: () => ({ name: 'T' }), host: '127.0.0.1' });
+    await new Promise((r) => { if (server.listening) r(); else server.once('listening', r); });
+    const base = `http://127.0.0.1:${server.address().port}`;
+    try {
+        const page = await fetch(`${base}/lol/capacity`);
+        assert.equal(page.status, 200);
+        assert.match(page.headers.get('content-type'), /^text\/html/);
+        const html = await page.text();
+        assert.ok(!/https?:\/\//i.test(html), 'no outside address (fonts, CDN): the page must work on a farm cut off from the internet');
+        // Everything it loads comes from this server, with its type.
+        const refs = [...new Set([...html.matchAll(/(?:src="|get\(')(\/lol\/capacity\/[^"']+)/g)].map((m) => m[1]))].sort();
+        assert.deepEqual(refs, ['/lol/capacity/catalog.json', '/lol/capacity/estimator.js', '/lol/capacity/measured.json', '/lol/capacity/scenarios.js']);
+        for (const ref of refs) {
+            const r = await fetch(base + ref);
+            assert.equal(r.status, 200, ref);
+            const body = await r.text();
+            if (ref.endsWith('.json')) { assert.equal(r.headers.get('content-type'), 'application/json', ref); JSON.parse(body); }
+            else { assert.match(r.headers.get('content-type'), /^text\/javascript/, ref); assert.ok(!/https?:\/\//i.test(body), `${ref} names no outside address`); }
+        }
+        assert.equal((await fetch(`${base}/lol/capacity/`)).status, 200, 'a trailing slash still finds the page');
+        assert.equal((await fetch(`${base}/lol/capacity/selfServer.js`)).status, 404, 'a fixed list of files, not a folder');
+        assert.ok(html.includes('href="/lol/admin"'), 'the page links back to the panel');
+    } finally {
+        server.close();
+    }
+    // The panel links to it in a new tab, which the Farm app opens in the system browser.
+    const admin = fs.readFileSync(path.join(__dirname, '..', 'src', 'admin', 'index.html'), 'utf8');
+    assert.ok(admin.includes('href="/lol/capacity" target="_blank"'), 'the panel links to the explorer');
+    const farmApp = path.join(__dirname, '..', '..', 'farm-app');
+    if (fs.existsSync(farmApp)) {   // a farm-only copy (the Farm app ships farm/ alone)
+        assert.ok(/<webview id="admin"[^>]*\ballowpopups\b/.test(fs.readFileSync(path.join(farmApp, 'renderer', 'index.html'), 'utf8')),
+            'without allowpopups Electron drops the panel\'s new-tab links before any handler sees them');
+        assert.ok(/'web-contents-created'[^\n]*'webview'[^\n]*openLinksOutside/.test(fs.readFileSync(path.join(farmApp, 'src', 'main', 'index.ts'), 'utf8')),
+            'the Farm app sends the webview\'s new-tab links to the system browser');
+    }
+});
+
+test('capacity scenarios: needs filter the models, the picks cover the head count with room to spare, the answers are sane and stable', () => {
+    const dir = path.join(__dirname, '..', 'src', 'capacity');
+    const E = require(path.join(dir, 'estimator.js'));
+    const Sc = require(path.join(dir, 'scenarios.js'));
+    const cat = JSON.parse(fs.readFileSync(path.join(dir, 'catalog.json'), 'utf8'));
+    E.init(cat, JSON.parse(fs.readFileSync(path.join(dir, 'measured.json'), 'utf8')));
+    const model = (id) => cat.models.find((m) => m.id === id);
+    const card = (id) => Sc.card(Sc.SCENARIOS.find((s) => s.id === id));
+    const run = (id, hwId) => Sc.recommend(E, cat, card(id), { hwId });
+    const names = (res) => res.picks.map((p) => `${p.model.id}@${p.hw.id}`);
+
+    // Needs. The coding agent: tool calling and a strong agentic-coding score (Nemotron's SWE-bench Verified 52.8
+    // and Gemma 4 26B's 17.4 are under the bar). A class sends pictures. Long documents: 128k and a good model.
+    const coding = card('xr').need;
+    assert.equal(Sc.unmet(model('nemotron-3.5-lightning-30b-a3b'), coding), 'no strong agentic-coding score');
+    assert.equal(Sc.unmet(model('gemma-4-26b-a4b'), coding), 'no strong agentic-coding score');
+    assert.equal(Sc.unmet(model('qwen3.6-35b-a3b'), coding), null);
+    assert.equal(Sc.unmet(model('qwen3.8-27b'), coding), null);
+    assert.equal(Sc.unmet({ ...model('qwen3.6-35b-a3b'), tools: false }, coding), 'no tool calling');
+    assert.equal(Sc.unmet(model('nemotron-3.5-lightning-30b-a3b'), card('class').need), 'cannot read images');
+    assert.equal(Sc.unmet({ ...model('qwen3.6-35b-a3b'), context_native: 65536 }, card('reports').need), 'reads at most 64k');
+    assert.equal(Sc.unmet(model('gpt-oss-120b'), card('reports').need), 'a weaker model than this needs');
+
+    const all = Sc.SCENARIOS.map((s) => run(s.id));
+    for (const res of all) {
+        const sc = res.scenario, n = sc.people;
+        assert.ok(res.picks.length >= 1 && res.picks.length <= 3, `${sc.id}: 1-3 picks`);
+        assert.equal(new Set(res.picks.map((p) => p.hw.id)).size, res.picks.length, `${sc.id}: one pick per box`);
+        for (const p of res.picks) {
+            const at = `${sc.id}: ${p.model.id}@${p.hw.id}`;
+            assert.ok(p.r.people.low >= n && p.r.people.mid >= Math.ceil(n * 1.2), `${at} covers ${n} with room to spare`);
+            assert.equal(Sc.unmet(p.model, sc.need), null, `${at} meets the needs`);
+            if (n > 2) assert.ok(!p.r.checkpoint.gguf, `${at}: llama.cpp-only pairs never carry more than two people`);
+            assert.ok(/^Covers your \d+ with \d+/.test(p.reason) && p.reason.includes(p.r.confidence), `${at} says why, and how sure`);
+        }
+        const key = sc.rank === 'quality' ? (p) => -(Sc.score(p.model) ?? -1) : (p) => p.hw.price_eur_ttc || Infinity;
+        res.picks.forEach((p, i) => i && assert.ok(key(res.picks[i - 1]) <= key(p), `${sc.id}: ranked by ${sc.rank}`));
+    }
+    // Documents with 5: the cheapest box that serves 5 with room to spare is one DGX Spark, measured.
+    const rag = all[0];
+    assert.equal(names(rag)[0], 'qwen3.6-35b-a3b@dgx-spark');
+    assert.equal(rag.picks[0].r.confidence, 'measured');
+    // A class of 30: no Spark, and the card says why; the studio's PRO 6000 covers it with Qwen3.6, measured.
+    const cls = run('class', 'rtx-pro-6000-ws');
+    assert.ok(!cls.picks.some((p) => p.hw.id.startsWith('dgx-spark')));
+    assert.ok(cls.whyNot.some((w) => w.hw.id === 'dgx-spark' && /not your 30/.test(w.text)), 'why not a Spark');
+    assert.equal(cls.thisFarm.model.id, 'qwen3.6-35b-a3b');
+    assert.ok(cls.thisFarm.covers && cls.thisFarm.r.confidence === 'measured');
+    // Vibe-coding with 10 on a Spark farm: this farm falls short (measured 8 at 64k), and says so.
+    const xr = run('xr', 'dgx-spark');
+    assert.equal(xr.thisFarm.model.id, 'qwen3.6-35b-a3b');
+    assert.ok(!xr.thisFarm.covers && /not your 10/.test(xr.thisFarm.reason));
+    // The Computer on a Spark: Nemotron, the head-count model (plan §8's golden case). And where several models
+    // cover the workshop (the PRO 6000: Qwen3.8, Qwen3.6, Nemotron), it still takes the one serving the most.
+    assert.equal(run('workshop', 'dgx-spark').thisFarm.model.id, 'nemotron-3.5-lightning-30b-a3b');
+    assert.equal(run('workshop', 'rtx-pro-6000-ws').thisFarm.model.id, 'nemotron-3.5-lightning-30b-a3b');
+    // A 12 GB card: nothing fits it on vLLM, so it says what llama.cpp would do and that it is not enough.
+    const small = run('rag', 'rtx-4070').thisFarm;
+    assert.ok(small.llama && !small.covers && /llama\.cpp/.test(small.reason));
+    // Stable: the same answers twice.
+    assert.deepEqual(Sc.SCENARIOS.map((s) => names(run(s.id))), all.map(names));
+    // Your own: the use's needs and inputs, with the person's head count and way of working.
+    const own = Sc.scenario('coding', 3, 'every');
+    assert.deepEqual([own.people, own.est.mode, own.est.context, own.need.tools], [3, 'every', 65536, true]);
+
+    // This farm: the GPU nvidia-smi names maps to its catalog box; an unknown one to the largest box with no more memory.
+    const hw = (gpu, vramGb) => Sc.matchHardware(cat, { gpu, vramGb });
+    assert.deepEqual(hw('NVIDIA GB10', 119), { id: 'dgx-spark', exact: true, gpu: 'NVIDIA GB10', vramGb: 119 });
+    assert.equal(hw('NVIDIA RTX PRO 6000 Blackwell Workstation Edition', 96).id, 'rtx-pro-6000-ws');
+    assert.equal(hw('NVIDIA RTX PRO 6000 Blackwell Max-Q Workstation Edition', 96).id, 'rtx-pro-6000-maxq');
+    assert.equal(hw('NVIDIA RTX PRO 5000 Blackwell', 72).id, 'rtx-pro-5000-72');
+    assert.equal(hw('NVIDIA GeForce RTX 4070', 12).id, 'rtx-4070');
+    assert.deepEqual(hw('NVIDIA RTX A6000', 48), { id: 'rtx-pro-5000-48', exact: false, gpu: 'NVIDIA RTX A6000', vramGb: 48 });
+    assert.equal(hw('Unknown GPU', 0), null);
+    // ... and the model it serves to its catalog entry, whatever the engine calls it.
+    assert.equal(Sc.matchModel(cat, 'gemma4:12b').id, 'gemma-4-12b');
+    assert.equal(Sc.matchModel(cat, 'nvidia/Qwen3.6-35B-A3B-NVFP4').id, 'qwen3.6-35b-a3b');
+    assert.equal(Sc.matchModel(cat, 'Qwen3.8-27B-UD-IQ2_S').id, 'qwen3.8-27b');
+    assert.equal(Sc.matchModel(cat, 'nemotron-3.5-lightning:30b').id, 'nemotron-3.5-lightning-30b-a3b');
+    assert.equal(Sc.matchModel(cat, 'assistant'), null);
+});
+
 (async () => {
     for (const { name, fn } of tests) {
         try { await fn(); console.log(`  ok  ${name}`); passed++; }

@@ -1,8 +1,8 @@
 // Fits estimator.js's constants from measured.json (run: node calibrate/calibrate.js; writes calibrate/calibration.json).
 // Stage 1 = the PRO 6000 only. Stage 2 = + GB10 platform factors and per-model extra bytes from ONE single-user
 // Spark decode. Leave-one-model-out (LOO) lines show how a factor fitted without a model predicts that model.
-const E = require('../estimator.js'), lstsq = require('./lsq.js');
-const cat = require('../catalog.json'), meas = require('../measured.json'), rows = require('./rows.json');
+const E = require('../../../../farm/src/capacity/estimator.js'), lstsq = require('./lsq.js');
+const cat = require('../../../../farm/src/capacity/catalog.json'), meas = require('../measured.json'), rows = require('./rows.json');
 E.init(cat, null);
 const I = E._internal, MODELS = { qwen36: 'qwen3.6-35b-a3b', nemotron: 'nemotron-3.5-lightning-30b-a3b', qwen38: 'qwen3.8-27b' };
 const HWID = { pro6000: 'rtx-pro-6000-ws', spark: 'dgx-spark' }, ks = Object.keys(MODELS);

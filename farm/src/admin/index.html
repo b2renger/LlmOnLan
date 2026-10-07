@@ -17,6 +17,9 @@
   header.top { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 4px; }
   h1 { font-size: 20px; margin: 0; font-weight: 650; }
   h1 .lol { color: var(--muted); font-weight: 500; }
+  a.plan { color: var(--muted); font-size: 12.5px; text-decoration: none; border: 1px solid var(--border); border-radius: 8px; padding: 4px 10px; white-space: nowrap; }
+  a.plan:hover { color: var(--text); border-color: var(--accent2); }
+  .hint a.plan { border: 0; padding: 0; text-decoration: underline; }
   .sub { color: var(--muted); font-size: 12.5px; margin: 2px 0 18px; }
   .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; margin-bottom: 16px; }
   h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 10px; font-weight: 600; }
@@ -160,7 +163,8 @@ function tokenPanel(errMsg) {
     + '<p class="hint">Enter the admin token printed in the farm\'s startup banner.</p>'
     + (errMsg ? '<p class="err">' + esc(errMsg) + '</p>' : '')
     + '<input id="tok" type="password" placeholder="admin token" autocomplete="off" />'
-    + '<button id="tok-go">Unlock</button></div>';
+    + '<button id="tok-go">Unlock</button>'
+    + '<p class="hint" style="margin-top:18px">No token needed to <a class="plan" href="/lol/capacity" target="_blank" rel="noopener">plan capacity ↗</a>: which hardware and model serve how many people.</p></div>';
   const go = () => { const v = $('#tok').value.trim(); if (!v) return; token = v; localStorage.setItem('lolAdminToken', v); refresh(); };
   $('#tok-go').onclick = go;
   $('#tok').addEventListener('keydown', (e) => { if (e.key === 'Enter') go(); });
@@ -579,7 +583,8 @@ function render(s) {
     : '';
 
   app.innerHTML =
-    `<header class="top"><h1>lol <span class="lol">${esc(s.name || 'farm')}</span></h1></header>`
+    `<header class="top"><h1>lol <span class="lol">${esc(s.name || 'farm')}</span></h1>`
+    + `<a class="plan" href="/lol/capacity" target="_blank" rel="noopener" title="Which hardware and model serve how many people, with ready-made scenarios and this farm marked">Plan capacity ↗</a></header>`
     + `<p class="sub">Changes apply to the running farm and are saved to lol.config.json, except the plugin toggles and the Blender recommendation (this session only) and Ollama's "people served at once" (after a farm restart).</p>`
     + jobBar
     + backendCard

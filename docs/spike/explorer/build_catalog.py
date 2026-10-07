@@ -1,9 +1,9 @@
-# Builds ../catalog.json from curated facts (below) + the Hugging Face API dumps in hf/ (fetched 2026-10-07).
+# Builds farm/src/capacity/catalog.json (the copy the farm serves at /lol/capacity) from curated facts (below) + the Hugging Face API dumps in hf/ (fetched 2026-10-07).
 # Every number below carries a source id (see SOURCES) or is marked derived/estimated.
 import json, math, os
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-OUT = os.path.join(HERE, "..", "catalog.json")
+OUT = os.path.join(HERE, "..", "..", "..", "farm", "src", "capacity", "catalog.json")
 GiB = 1024 ** 3
 
 def hf(rid):

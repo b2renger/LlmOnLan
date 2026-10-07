@@ -910,6 +910,7 @@ get *"the farm is busy"*).
 | `GET /lol/self` | The discovery snapshot (open, CORS `*`), plus `capacity.mine` for the caller. Its shape, and who reads each field: [`contract/snapshot.schema.json`](contract/snapshot.schema.json). |
 | `POST /lol/client-ping` | Client presence heartbeat (open). |
 | `GET /lol/admin` | The panel page (open — it asks for the token). |
+| `GET /lol/capacity` | The capacity explorer (open, read-only): usage scenarios and a models × hardware table, this box marked from `/lol/self`. Its scripts and data are `/lol/capacity/{estimator.js,scenarios.js,catalog.json,measured.json}` (`src/capacity/`); it asks nothing off the farm. How to rebuild: [docs/spike/explorer](../docs/spike/explorer/README.md). |
 | `GET /lol/admin/state` | Everything the panel renders. |
 | `POST /lol/admin/apply` | `{ name?, slots?, password?, context?, seatIdleSec? }` — the one **Apply changes**, one restart; `seatIdleSec` (60–3600) alone applies live, no restart. |
 | `POST /lol/admin/backend` | `{ engine: "llamacpp" \| "ollama" }` — switch engines. |
@@ -1085,7 +1086,9 @@ build for Blackwell cards (16 GB+); replace it freely.
   seeds it into its own window; its Settings ▸ **Panel access token** (Copy) is how you drive the
   panel from another computer's browser — with **Share compute** on (a private farm binds the panel to
   `127.0.0.1`), open `http://<its LAN address>:41997/lol/admin` there and paste the token. The HTTP
-  routes are listed under [Admin HTTP API](#admin-http-api).
+  routes are listed under [Admin HTTP API](#admin-http-api). Its **Plan capacity ↗** link (no token
+  needed) opens the capacity explorer at `/lol/capacity`: usage scenarios (documents for 5, vibe-coding
+  for 10, a class of 30…) with the hardware and model that serve them, and this box marked.
 - **Multiple GPU boxes:** either list every box in `ollama.hosts` (one farm balances them all), or run
   `lol up` per box and let clients auto‑spread (they pick the least‑loaded farm), or run one box with
   `--coordinator` to aggregate the others behind a single endpoint that clients prefer.

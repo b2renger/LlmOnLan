@@ -9,7 +9,7 @@
 //                  LAN address, settings + self-update. The FarmSupervisor keeps
 //                  `lol up` alive.
 
-import { app, BrowserWindow, ipcMain, shell, nativeTheme, session, clipboard } from 'electron';
+import { app, BrowserWindow, ipcMain, shell, nativeTheme, session, clipboard, WebContents } from 'electron';
 import * as path from 'path';
 import * as os from 'os';
 import * as url from 'url';
@@ -91,14 +91,23 @@ function createWindow(): void {
 
     // Keep external links (the "Schedule a job" style openExternal, docs, …) in the
     // system browser.
-    win.webContents.setWindowOpenHandler(({ url: u }) => {
-        if (/^https?:\/\//i.test(u)) shell.openExternal(u);
-        return { action: 'deny' };
-    });
+    openLinksOutside(win.webContents);
 
     // Grant the embedded admin webview clipboard (its copy buttons) on its partition.
     configureWebviewPermissions();
 }
+
+// A link that asks for a new window (target=_blank) opens in the system browser, never in an
+// Electron window. The admin panel's own (Plan capacity ↗) is in the <webview>, a webContents of
+// its own: it needs this handler too, and `allowpopups` on the tag (renderer/index.html), without
+// which Electron drops the click before any handler sees it (checked on Electron 42, 2026-10-07).
+function openLinksOutside(wc: WebContents): void {
+    wc.setWindowOpenHandler(({ url: u }) => {
+        if (/^https?:\/\//i.test(u)) shell.openExternal(u);
+        return { action: 'deny' };
+    });
+}
+app.on('web-contents-created', (_e, wc) => { if (wc.getType() === 'webview') openLinksOutside(wc); });
 
 const ADMIN_ALLOWED_PERMS = new Set(['clipboard-read', 'clipboard-sanitized-write']);
 function configureWebviewPermissions(): void {

@@ -1,15 +1,19 @@
-<title>LlmOnLan Capacity Explorer</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Capacity Explorer</title>
+<!-- The farm serves this page at /lol/capacity (farm/src/selfServer.js) with its scripts and data beside it: it makes no
+     request off the farm. docs/spike/explorer/build_page.js inlines them into one file for sharing. -->
 <style>
-/* Layout: a control strip over a models x hardware matrix; the clicked cell opens a detail sheet below. */
+/* Layout: this farm, then scenario cards, then a control strip over a models x hardware matrix; the clicked cell opens a detail sheet below. */
 :root {
   --bg: #f4f6f7; --surface: #ffffff; --surface-2: #eef1f3; --ink: #14181d; --muted: #5a636d; --line: #d9dee3;
   --accent: #0e7468; --accent-ink: #ffffff; --heat-0: #ffffff; --heat-1: #0e7468;
   --good: #1d7a3a; --warn: #a85a06; --bad: #b42318; --measured: #0e7468; --calibrated: #6d5bd0; --estimated: #8a929c;
-  --sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
-  --mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --mono: ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
 }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
   --bg: #0c0f12; --surface: #14181d; --surface-2: #1b2027; --ink: #e6eaee; --muted: #98a2ad; --line: #2a3038;
@@ -20,7 +24,7 @@
   --accent: #3cc7b5; --accent-ink: #06201c; --heat-0: #14181d; --heat-1: #3cc7b5;
   --good: #4cc27a; --warn: #e3a14a; --bad: #f07a6e; --measured: #3cc7b5; --calibrated: #a597ff; --estimated: #8a939e; color-scheme: dark }
 * { box-sizing: border-box }
-body { background: var(--bg); color: var(--ink); font: 14px/1.5 var(--sans); padding-inline: 16px; padding-block: 20px 48px; -webkit-font-smoothing: antialiased }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.5 var(--sans); padding-inline: 16px; padding-block: 20px 48px; -webkit-font-smoothing: antialiased }
 .wrap { max-width: 1240px; margin: 0 auto; display: grid; gap: 18px }
 h1, h2, h3 { margin: 0; text-wrap: balance; letter-spacing: -0.01em }
 h1 { font-size: 26px; font-weight: 700 }
@@ -31,10 +35,34 @@ p { margin: 0 }
 .muted { color: var(--muted) }
 header { display: grid; gap: 6px }
 header .lede { color: var(--muted); max-width: 78ch }
+.farm { background: var(--surface); border: 1px solid var(--line); border-left: 3px solid var(--accent); border-radius: 10px; padding: 10px 14px; font-size: 13.5px; max-width: 95ch }
+.farm:empty { display: none }
 .facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px }
 .fact { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; display: grid; gap: 4px; min-width: 0 }
 .fact b { font-family: var(--mono); font-size: 18px; font-weight: 600 }
 .fact span { color: var(--muted); font-size: 13px }
+
+/* Scenarios */
+.scenarios { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr)); gap: 12px }
+.sc { border: 1px solid var(--line); border-radius: 10px; padding: 12px; display: grid; gap: 8px; align-content: start; min-width: 0; background: var(--surface) }
+.sc-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px }
+.sc-head h3 { text-transform: none; letter-spacing: -0.005em; color: var(--ink); font-size: 15px }
+.who { font-family: var(--mono); font-size: 12px; color: var(--accent); white-space: nowrap }
+.what { font-size: 13px; color: var(--muted) }
+.setup { font-family: var(--mono); font-size: 11.5px; color: var(--muted) }
+.recs { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px }
+.rec { width: 100%; text-align: left; font: inherit; color: var(--ink); background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; display: grid; gap: 2px; cursor: pointer }
+.rec:hover { border-color: var(--accent) }
+.rec .rt { font-size: 13.5px }
+.rec .rt i { font-style: normal; color: var(--muted) }
+.rec .rf { font-family: var(--mono); font-size: 11.5px; color: var(--muted); font-variant-numeric: tabular-nums }
+.rec .rw { font-size: 12px; color: var(--muted) }
+.here-line { font-size: 12.5px; border-left: 3px solid var(--accent); padding: 2px 0 2px 8px }
+.here-line .rec { margin-top: 4px }
+.whynot { font-size: 12px; color: var(--warn) }
+.none { font-size: 12.5px; color: var(--muted) }
+.custom .row { gap: 10px 14px }
+.custom input[type="number"] { width: 72px }
 
 /* Controls */
 .controls { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px; display: grid; gap: 12px }
@@ -45,7 +73,7 @@ header .lede { color: var(--muted); max-width: 78ch }
 .seg button { font: 500 13px var(--sans); color: var(--ink); background: transparent; border: 0; padding: 6px 11px; cursor: pointer; border-right: 1px solid var(--line) }
 .seg button:last-child { border-right: 0 }
 .seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink) }
-.seg button:focus-visible, select:focus-visible, input:focus-visible, summary:focus-visible, .cell:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
+.seg button:focus-visible, select:focus-visible, input:focus-visible, summary:focus-visible, .cell:focus-visible, .rec:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
 select, input[type="number"] { font: 500 13px var(--sans); color: var(--ink); background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px }
 input[type="number"] { width: 84px; font-family: var(--mono) }
 details.adv { border-top: 1px dashed var(--line); padding-top: 10px }
@@ -66,6 +94,9 @@ table.matrix { border-collapse: separate; border-spacing: 3px; min-width: 980px;
 .matrix th { font-size: 12px; font-weight: 600; text-align: left; vertical-align: bottom; padding: 4px 6px; color: var(--ink) }
 .matrix thead th { min-width: 88px }
 .matrix thead th small { display: block; font-weight: 400; color: var(--muted); font-family: var(--mono); font-size: 11px }
+.matrix th.here { color: var(--accent) }
+.tag { display: inline-block; font: 600 10px var(--sans); text-transform: uppercase; letter-spacing: 0.06em; background: var(--accent); color: var(--accent-ink); border-radius: 999px; padding: 1px 7px; vertical-align: 1px }
+.matrix td.here { background: color-mix(in oklab, var(--accent) 12%, transparent); border-radius: 7px }
 .matrix th.model { min-width: 200px; max-width: 250px; font-weight: 500 }
 .matrix th.model small { display: block; color: var(--muted); font-weight: 400; font-size: 11px }
 .matrix tr.group th { padding-top: 12px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted) }
@@ -111,21 +142,33 @@ table.q { border-collapse: collapse; font-size: 13px; width: 100% }
 .q td, .q th { border-bottom: 1px solid var(--line); padding: 5px 8px; text-align: left }
 .q td.num { text-align: right }
 footer { font-size: 12.5px; color: var(--muted); display: grid; gap: 8px; max-width: 95ch }
-footer a, .detail a { color: var(--accent) }
+footer a, .detail a, .farm a { color: var(--accent) }
+.bad { color: var(--bad) }
 @media (max-width: 640px) { h1 { font-size: 22px } .kpi .v { font-size: 18px } }
 @media (prefers-reduced-motion: no-preference) { .cell { transition: background-color .15s, outline-color .15s } }
 </style>
-
+</head>
+<body>
 <div class="wrap">
   <header>
     <h1>LlmOnLan Capacity Explorer</h1>
-    <p class="lede">Which model, how much context per person, on which hardware: how many people at once, how fast, at what price. The RTX PRO 6000 and one DGX Spark were measured (October 2026); every other cell is calibrated on them or estimated, and says so.</p>
+    <p class="lede">Which model, how much context per person, on which hardware: how many people at once, how fast, at what price. The RTX PRO 6000 and one DGX Spark were measured (October 2026); every other figure is calibrated on them or estimated, and says so.</p>
   </header>
+  <p class="farm" id="farm" aria-live="polite"></p>
 
   <section class="facts" aria-label="What the measurements say">
     <div class="fact"><b>8–16×</b><span>the people one RTX PRO 6000 serves compared with one DGX Spark, on the same models (measured).</span></div>
     <div class="fact"><b>€138–184 vs €825</b><span>price per person at 32k with Qwen3.6: RTX PRO 6000 vs DGX Spark (card only; the PRO 6000 also needs a host PC).</span></div>
     <div class="fact"><b>≤ 220 GiB</b><span>what two linked Sparks can hold for one or two people: models too big for 96 GB. Linked over ConnectX-7 (200 Gb/s), not NVLink.</span></div>
+  </section>
+
+  <section class="panel" aria-labelledby="h-sc">
+    <div class="panel-head">
+      <h2 id="h-sc">What do you want to do?</h2>
+      <div class="legend"><span><i class="conf measured"></i>measured</span><span><i class="conf calibrated"></i>calibrated on a measured model</span><span><i class="conf estimated"></i>estimated</span></div>
+    </div>
+    <p class="hint">Each card is a way people use LlmOnLan, with the hardware and model pairs that serve that many people with room to spare: the cheapest box first (the strongest model first for the last card). One pick per box. Click one to see it in the table and in detail below.</p>
+    <div class="scenarios" id="scenarios"><p class="muted">Loading the catalog…</p></div>
   </section>
 
   <section class="controls" aria-label="Parameters">
@@ -168,7 +211,7 @@ footer a, .detail a { color: var(--accent) }
         <div class="ctl"><label for="aReply">Reply length (tokens)</label><input id="aReply" type="number" min="64" max="4096" step="64" value="256"></div>
         <div class="ctl"><label for="aAllr">Two Sparks: delay per layer exchange (µs)</label><input id="aAllr" type="number" min="5" max="500" step="5" value="55"></div>
       </div>
-      <p class="hint">The pass rule is the spike's: a level counts when 95 % of first words arrive within the delay and 90 % of replies stream at least that fast. "A class" means everyone presses Enter together; "normal use" means people are out of step. The two-Spark delay was fitted to two community reports, not measured on your boxes.</p>
+      <p class="hint">The pass rule is the spike's: a level counts when 95 % of first words arrive within the delay and 90 % of replies stream at least that fast. "A class" means everyone presses Enter together; "normal use" means people are out of step. The two-Spark delay was fitted to two community reports, not measured on your boxes. The scenario cards use the first two and the last; each card sets its own reply length.</p>
     </details>
   </section>
 
@@ -188,20 +231,36 @@ footer a, .detail a { color: var(--accent) }
 
   <footer>
     <p><b>Where the numbers come from.</b> Measured cells are the spike runs: vLLM 0.30 with NVFP4 checkpoints and an fp8 KV cache, each person's own conversation already in the cache, a 256-token reply, one run per box (RTX PRO 6000 on 2026-10-04, DGX Spark on 2026-10-05/06). Calibrated cells use those models' fitted speeds scaled to the other box. Estimated cells derive bytes read per token from active parameters × bits and the attention cache, scaled by memory bandwidth and compute. Calibrated on the PRO 6000 alone, the method predicted the Spark's measured people within the measured range in 17 of 18 cases (mean error 1 %).</p>
-    <p><b>Not modelled.</b> Speculative decoding, sparse attention (long-context figures are pessimistic for GLM-5.3, DeepSeek-V4, MiniMax-M3), engines other than vLLM (llama.cpp served 2–24× fewer people in the spike), and people pausing to read. Prices are French retail with VAT on 2026-10-05/07, card only. Benchmark scores are mostly the vendors' own.</p>
+    <p><b>Not modelled.</b> Speculative decoding, sparse attention (long-context figures are pessimistic for GLM-5.3, DeepSeek-V4, MiniMax-M3), engines other than vLLM (llama.cpp served 2–24× fewer people in the spike), and people pausing to read. Prices are French retail with VAT on 2026-10-05/07, card only. Benchmark scores are mostly the vendors' own; the scenario cards rank quality by BenchLM's open-model index, a third-party aggregate.</p>
     <p id="srcline"></p>
+    <p id="back" hidden><a href="/lol/admin">Back to the farm's admin panel</a></p>
   </footer>
 </div>
 
-<script id="catalog-data" type="application/json">/*__CATALOG__*/</script>
-<script id="measured-data" type="application/json">/*__MEASURED__*/</script>
-<script>/*__ESTIMATOR__*/</script>
+<script id="catalog-data" type="application/json"></script>
+<script id="measured-data" type="application/json"></script>
+<script src="/lol/capacity/estimator.js"></script>
+<script src="/lol/capacity/scenarios.js"></script>
 <script>
-(function () {
+(async function () {
   'use strict';
-  const CAT = JSON.parse(document.getElementById('catalog-data').textContent);
-  const MEAS = JSON.parse(document.getElementById('measured-data').textContent);
+  // Data: inlined by build_page.js (the shareable single file), else fetched from this farm.
+  const inline = (id) => { const t = document.getElementById(id).textContent.trim(); return t ? JSON.parse(t) : null; };
+  const get = async (u) => { const r = await fetch(u, { cache: 'no-store' }); if (!r.ok) throw new Error(u + ': ' + r.status); return r.json(); };
+  const STANDALONE = !!inline('catalog-data');
+  let CAT, MEAS;
+  try {
+    CAT = inline('catalog-data') || await get('/lol/capacity/catalog.json');
+    MEAS = inline('measured-data') || await get('/lol/capacity/measured.json');
+  } catch (e) {
+    document.getElementById('scenarios').innerHTML = '<p class="bad">Could not load the catalog (' + esc(e.message) + ').</p>';
+    return;
+  }
+  // This farm: its snapshot says which GPU it has and what it serves (same origin; open, like the beacon).
+  let SELF = null;
+  if (!STANDALONE) { try { SELF = await get('/lol/self'); } catch (e) { /* not served by a farm */ } }
   const E = window.Estimator; E.init(CAT, MEAS);
+  const Sc = window.Scenarios;
 
   const HW = CAT.hardware;
   const MODELS = CAT.models;
@@ -223,18 +282,23 @@ footer a, .detail a { color: var(--accent) }
   };
 
   const S = { ctx: 32768, mode: 'every', thinking: 1, budget: 'farm', metric: 'people', filter: 'all', classSize: 30, sel: ['rtx-pro-6000-ws', 'qwen3.6-35b-a3b'],
-    assume: { passTtftS: 5, passDecodeTps: 15, replyTokens: 256, allReduceUs: 55 } };
-  try { const saved = JSON.parse(localStorage.getItem('lol-capacity') || 'null'); if (saved) Object.assign(S, saved, { assume: Object.assign(S.assume, saved.assume || {}) }); } catch (e) { /* storage blocked */ }
+    assume: { passTtftS: 5, passDecodeTps: 15, replyTokens: 256, allReduceUs: 55 }, own: { people: 12, use: 'chat', mode: 'steady' } };
+  try { const saved = JSON.parse(localStorage.getItem('lol-capacity') || 'null'); if (saved) Object.assign(S, saved, { assume: Object.assign(S.assume, saved.assume || {}), own: Object.assign(S.own, saved.own || {}) }); } catch (e) { /* storage blocked */ }
   const save = () => { try { localStorage.setItem('lol-capacity', JSON.stringify(S)); } catch (e) { /* storage blocked */ } };
+
+  // The catalog box this farm runs on, preselected in the table.
+  const FARM = SELF ? Sc.matchHardware(CAT, SELF.host) : null;
+  const SERVED = SELF && SELF.backend ? Sc.matchModel(CAT, SELF.backend.model) : null;
+  if (FARM) S.sel = [FARM.id, SERVED ? SERVED.id : S.sel[1]];
 
   const fmtK = (t) => t >= 1000000 ? (t / 1048576).toFixed(t % 1048576 ? 1 : 0) + 'M' : Math.round(t / 1024) + 'k';
   const fmt = (x, d = 0) => (x == null || !isFinite(x)) ? '—' : x.toLocaleString('en-GB', { maximumFractionDigits: d, minimumFractionDigits: d });
   const eur = (x) => '€' + fmt(x);
   const price = (h) => h.price_eur_ttc || null;
+  const allReduce = () => [S.assume.allReduceUs * 1.27, S.assume.allReduceUs, S.assume.allReduceUs * 0.73];
 
   function opts(extra) {
-    const assume = { passTtftS: S.assume.passTtftS, passDecodeTps: S.assume.passDecodeTps, replyTokens: S.assume.replyTokens,
-      allReduceUs: [S.assume.allReduceUs * 1.27, S.assume.allReduceUs, S.assume.allReduceUs * 0.73] };
+    const assume = { passTtftS: S.assume.passTtftS, passDecodeTps: S.assume.passDecodeTps, replyTokens: S.assume.replyTokens, allReduceUs: allReduce() };
     return Object.assign({ context: S.ctx, mode: S.mode, thinking: S.thinking, kvDtype: 'fp8', budget: S.budget, replyTokens: S.assume.replyTokens, assume }, extra || {});
   }
   const cache = new Map();
@@ -243,6 +307,82 @@ footer a, .detail a { color: var(--accent) }
     if (!cache.has(key)) { let r; try { r = E.estimate(hw, model, opts(extra)); } catch (e) { r = { fits: false, error: String(e) }; } cache.set(key, r); }
     return cache.get(key);
   }
+
+  /* ---- this farm ---- */
+  (function renderFarm() {
+    const el = document.getElementById('farm');
+    if (STANDALONE) return;
+    if (!SELF) { el.textContent = 'This page could not read the farm it came from (/lol/self), so nothing below is marked "this farm".'; return; }
+    const host = SELF.host || {}, be = SELF.backend || {};
+    let html = '<b>This farm' + (SELF.name ? ', ' + esc(SELF.name) : '') + ':</b> ';
+    if (!FARM) html += esc(host.gpu && !/unknown/i.test(host.gpu) ? host.gpu + ' (' + (host.vramGb || '?') + ' GB) is not in the catalog.' : 'its GPU could not be read.');
+    else html += esc(FARM.gpu + ' (' + FARM.vramGb + ' GB)') + ' → the <b>' + esc(Sc.SHORT[FARM.id]) + '</b> column'
+      + (FARM.exact ? '' : ', the catalog box closest to it by memory (its speed will differ)') + '.';
+    if (be.model) html += ' It serves ' + esc(be.model) + (be.engine ? ' on ' + esc(be.engine === 'external' ? 'an external server' : be.engine) : '')
+      + (SERVED ? ' (' + esc(Sc.modelName(SERVED)) + ' in the catalog)' : '') + '.';
+    el.innerHTML = html;
+  })();
+
+  /* ---- scenarios ---- */
+  const scAssume = () => ({ passTtftS: S.assume.passTtftS, passDecodeTps: S.assume.passDecodeTps, allReduceUs: allReduce() });
+  const MODE = { every: 'everyone at once', steady: 'out of step' };
+  const BUDGET = { farm: 'OCR model on the card', farm_no_ocr: 'OCR elsewhere', single_user: 'all the memory to the model' };
+  const LIVE = {};   // scenario id -> scenario object, for the clicks
+  function setupLine(sc) {
+    const e = sc.est;
+    return fmtK(e.context) + ' each · ' + MODE[e.mode] + ' · replies ' + fmt(e.replyTokens * e.thinking) + ' tokens' + (e.thinking > 1 ? ' with thinking' : '') + ' · ' + BUDGET[e.budget];
+  }
+  function recButton(sc, p, n) {
+    const r = p.r, h = p.hw, pp = price(h) && r.people.mid ? eur(price(h) / r.people.mid) + ' a person' : 'no price';
+    return '<button type="button" class="rec" data-sc="' + esc(sc.id) + '" data-hw="' + esc(h.id) + '" data-m="' + esc(p.model.id) + '">'
+      + '<span class="rt">' + (n ? n + '. ' : '') + '<b>' + esc(Sc.modelName(p.model)) + '</b> <i>on</i> <b>' + esc(Sc.hwName(h)) + '</b>' + (FARM && FARM.id === h.id ? ' <span class="tag">this farm</span>' : '') + '</span>'
+      + '<span class="rf"><i class="conf ' + r.confidence + '" aria-label="' + r.confidence + '"></i>' + fmt(r.people.mid) + ' people · '
+      + (r.singleUserTps ? fmt(r.singleUserTps.mid) + ' tok/s alone' : '—') + ' · ' + (r.coldPromptS ? fmt(r.coldPromptS.mid, 1) + ' s to the first word (new ' + fmtK(sc.est.context) + ')' : '—') + ' · ' + pp + '</span>'
+      + '<span class="rw">' + esc(p.reason) + '</span></button>';
+  }
+  function results(sc) {
+    LIVE[sc.id] = sc;
+    const res = Sc.recommend(E, CAT, sc, { hwId: FARM && FARM.id, assume: scAssume() });
+    let html = res.picks.length ? '<ol class="recs">' + res.picks.map((p, i) => '<li>' + recButton(sc, p, i + 1) + '</li>').join('') + '</ol>'
+      : '<p class="none">No box in the catalog serves ' + sc.people + ' people this way with room to spare. Try fewer people, a shorter context, or several boxes behind one farm.</p>';
+    const f = res.thisFarm, at = res.picks.indexOf(f);
+    if (f) html += '<div class="here-line"><b>On this farm (' + esc(Sc.hwName(f.hw)) + ')</b>'
+      + (f.none ? ': no model that meets these needs fits it.' : at >= 0 ? ': pick ' + (at + 1) + ' above.' : ':' + recButton(sc, f, 0)) + '</div>';
+    for (const w of res.whyNot) html += '<p class="whynot">' + esc(w.text) + '</p>';
+    return html;
+  }
+  function renderScenarios() {
+    const el = document.getElementById('scenarios');
+    let html = Sc.SCENARIOS.map((c) => {
+      const sc = Sc.card(c);
+      return '<article class="sc" aria-labelledby="sc-' + c.id + '"><div class="sc-head"><h3 id="sc-' + c.id + '">' + esc(c.title) + '</h3><span class="who">' + sc.people + ' ' + (sc.people === 1 ? 'person' : 'people') + '</span></div>'
+        + '<p class="what">' + esc(sc.what) + '</p><p class="setup">' + esc(setupLine(sc)) + '</p>' + results(sc) + '</article>';
+    }).join('');
+    html += '<article class="sc custom" aria-labelledby="sc-own"><div class="sc-head"><h3 id="sc-own">Your own</h3></div><div class="row">'
+      + '<div class="ctl"><label for="ownPeople">People</label><input id="ownPeople" type="number" min="1" max="500" value="' + S.own.people + '"></div>'
+      + '<div class="ctl"><label for="ownUse">What they do</label><select id="ownUse">' + Object.entries(Sc.USES).map(([k, u]) => '<option value="' + k + '"' + (k === S.own.use ? ' selected' : '') + '>' + esc(u.label) + '</option>').join('') + '</select></div>'
+      + '<div class="ctl"><label for="ownMode">How they work</label><select id="ownMode"><option value="every"' + (S.own.mode === 'every' ? ' selected' : '') + '>All at once (a class)</option><option value="steady"' + (S.own.mode === 'steady' ? ' selected' : '') + '>Out of step</option></select></div>'
+      + '</div><div id="own-out"></div></article>';
+    el.innerHTML = html;
+    const own = () => {
+      const sc = Sc.scenario(S.own.use, S.own.people, S.own.mode, { id: 'own' });
+      document.getElementById('own-out').innerHTML = '<p class="what">' + esc(sc.what) + '</p><p class="setup">' + esc(setupLine(sc)) + '</p>' + results(sc);
+    };
+    const ownBind = (id, key, cast) => document.getElementById(id).addEventListener('change', (ev) => {
+      const v = cast(ev.target.value); if (cast === Number && !(v >= 1)) return; S.own[key] = v; save(); own();
+    });
+    ownBind('ownPeople', 'people', Number); ownBind('ownUse', 'use', String); ownBind('ownMode', 'mode', String);
+    own();
+  }
+  // A recommendation opens in the table and the detail, with the settings its card used.
+  document.getElementById('scenarios').addEventListener('click', (ev) => {
+    const b = ev.target.closest('button.rec'); if (!b) return;
+    const sc = LIVE[b.dataset.sc]; if (!sc) return;
+    Object.assign(S, { ctx: sc.est.context, mode: sc.est.mode, thinking: sc.est.thinking, budget: sc.est.budget, classSize: sc.people, sel: [b.dataset.hw, b.dataset.m] });
+    S.assume.replyTokens = sc.est.replyTokens;
+    cache.clear(); save(); syncControls(); render();
+    document.getElementById('detail').scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+  });
 
   /* ---- controls ---- */
   function seg(id, items, key, cast) {
@@ -254,19 +394,22 @@ footer a, .detail a { color: var(--accent) }
       el.appendChild(b);
     }
   }
-  seg('ctx', [[8192, '8k'], [16384, '16k'], [32768, '32k'], [65536, '64k'], [131072, '128k'], [262144, '256k']], 'ctx', Number);
-  seg('mode', [['every', 'A class, all at once'], ['steady', 'Normal use, out of step']], 'mode', String);
-  seg('think', [[1, 'Off'], [4, 'On (replies ×4)']], 'thinking', Number);
-  const bind = (id, key, cast, sub) => {
+  const FIELDS = [['budget', 'budget', String], ['metric', 'metric', String], ['filter', 'filter', String], ['classSize', 'classSize', Number],
+    ['aTtft', 'passTtftS', Number, true], ['aDec', 'passDecodeTps', Number, true], ['aReply', 'replyTokens', Number, true], ['aAllr', 'allReduceUs', Number, true]];
+  function syncControls() {
+    seg('ctx', [[8192, '8k'], [16384, '16k'], [32768, '32k'], [65536, '64k'], [131072, '128k'], [262144, '256k']], 'ctx', Number);
+    seg('mode', [['every', 'A class, all at once'], ['steady', 'Normal use, out of step']], 'mode', String);
+    seg('think', [[1, 'Off'], [4, 'On (replies ×4)']], 'thinking', Number);
+    for (const [id, key, , sub] of FIELDS) document.getElementById(id).value = sub ? S.assume[key] : S[key];
+  }
+  for (const [id, key, cast, sub] of FIELDS) {
     const el = document.getElementById(id);
-    el.value = sub ? S.assume[key] : S[key];
     el.addEventListener('change', () => {
       const v = cast(el.value); if (cast === Number && !isFinite(v)) return;
       if (sub) S.assume[key] = v; else S[key] = v; cache.clear(); save(); render();
+      if (sub && key !== 'replyTokens') renderScenarios();   // the cards keep their own reply length
     });
-  };
-  bind('budget', 'budget', String); bind('metric', 'metric', String); bind('filter', 'filter', String); bind('classSize', 'classSize', Number);
-  bind('aTtft', 'passTtftS', Number, true); bind('aDec', 'passDecodeTps', Number, true); bind('aReply', 'replyTokens', Number, true); bind('aAllr', 'allReduceUs', Number, true);
+  }
 
   /* ---- matrix ---- */
   function cellValue(r, h) {
@@ -294,7 +437,8 @@ footer a, .detail a { color: var(--accent) }
       .sort((a, b) => (ORDER.indexOf(a.id) + 1 || 999) - (ORDER.indexOf(b.id) + 1 || 999));
     const res = models.map((m) => HW.map((h) => est(h.id, m.id)));
     const vals = res.flatMap((row, i) => row.map((r, j) => { const c = cellValue(r, HW[j]); return c ? c.v : null; }));
-    let html = '<thead><tr><th scope="col">Model</th>' + HW.map((h) => '<th scope="col">' + SHORT[h.id][0] + '<small>' + SHORT[h.id][1] + (price(h) ? ' · ' + eur(price(h)) : '') + '</small></th>').join('') + '</tr></thead><tbody>';
+    const here = (h) => FARM && FARM.id === h.id;
+    let html = '<thead><tr><th scope="col">Model</th>' + HW.map((h) => '<th scope="col"' + (here(h) ? ' class="here"' : '') + '>' + SHORT[h.id][0] + '<small>' + SHORT[h.id][1] + (price(h) ? ' · ' + eur(price(h)) : '') + '</small>' + (here(h) ? '<span class="tag">this farm</span>' : '') + '</th>').join('') + '</tr></thead><tbody>';
     let lastGroup = null;
     models.forEach((m, i) => {
       const g = groupOf(m);
@@ -302,20 +446,20 @@ footer a, .detail a { color: var(--accent) }
       const act = m.params_active_b, tot = m.params_total_b;
       html += '<tr><th scope="row" class="model" title="' + esc(m.role || '') + '">' + esc(m.name) + '<small>' + (tot ? fmt(tot) + 'B' : '') + (act && act !== tot ? ' · ' + fmt(act, act < 10 ? 1 : 0) + 'B active' : act ? ' dense' : '') + '</small></th>';
       res[i].forEach((r, j) => {
-        const h = HW[j]; const c = cellValue(r, h);
+        const h = HW[j]; const c = cellValue(r, h); const td = here(h) ? '<td class="here">' : '<td>';
         const sel = S.sel[0] === h.id && S.sel[1] === m.id;
         if (!c) {
           // Under a farm budget, say whether the model would fit one or two people given all the memory.
           const alone = r && r.fits === false && S.budget !== 'single_user' && est(h.id, m.id, { budget: 'single_user' }).fits;
           const txt = r && r.fits === false ? (alone ? 'alone only' : 'too big') : '—';
           const why = alone ? 'Fits only with the budget "One or two people, all the memory"' : 'The weights do not fit this hardware';
-          html += '<td><div class="cell no" title="' + esc(why) + '"><span class="v">' + txt + '</span><span class="r">' + (alone ? 'all memory' : '&nbsp;') + '</span></div></td>';
+          html += td + '<div class="cell no" title="' + esc(why) + '"><span class="v">' + txt + '</span><span class="r">' + (alone ? 'all memory' : '&nbsp;') + '</span></div></td>';
           return;
         }
         const k = heat(c.v, S.metric, vals);
         const ok = S.metric === 'people' && c.v >= S.classSize;
         const bg = 'color-mix(in oklab, var(--heat-1) ' + Math.round(k * 88) + '%, var(--heat-0))';
-        html += '<td><button type="button" class="cell' + (ok ? ' ok-class' : '') + (k > 0.55 ? ' hot' : '') + '" style="background:' + bg + '" aria-pressed="' + sel + '" data-hw="' + h.id + '" data-m="' + m.id + '" title="' + esc(m.name + ' on ' + h.name + ': ' + (r.binding || '')) + '">'
+        html += td + '<button type="button" class="cell' + (ok ? ' ok-class' : '') + (k > 0.55 ? ' hot' : '') + '" style="background:' + bg + '" aria-pressed="' + sel + '" data-hw="' + h.id + '" data-m="' + m.id + '" title="' + esc(m.name + ' on ' + h.name + ': ' + (r.binding || '')) + '">'
           + '<i class="conf c ' + r.confidence + '" aria-label="' + r.confidence + '"></i><span class="v">' + c.txt + '</span><span class="r">' + (c.sub || '&nbsp;') + '</span></button></td>';
       });
       html += '</tr>';
@@ -370,7 +514,7 @@ footer a, .detail a { color: var(--accent) }
     const el = document.getElementById('detail');
     if (!h || !m) { el.innerHTML = '<p class="muted">Click a cell in the table to see that setup in detail.</p>'; return; }
     const r = est(hwId, modelId);
-    let html = '<div class="panel-head"><h2>' + esc(m.name) + ' on ' + esc(h.name) + '</h2><span class="muted mono">' + fmtK(S.ctx) + ' per person · ' + (S.mode === 'every' ? 'a class, all at once' : 'normal use') + ' · thinking ' + (S.thinking > 1 ? 'on' : 'off') + '</span></div>';
+    let html = '<div class="panel-head"><h2>' + esc(m.name) + ' on ' + esc(h.name) + (FARM && FARM.id === hwId ? ' <span class="tag">this farm</span>' : '') + '</h2><span class="muted mono">' + fmtK(S.ctx) + ' per person · ' + (S.mode === 'every' ? 'a class, all at once' : 'normal use') + ' · thinking ' + (S.thinking > 1 ? 'on' : 'off') + ' · replies ' + fmt(S.assume.replyTokens) + ' tokens</span></div>';
     if (!r.fits) {
       el.innerHTML = html + '<p>This model does not fit this hardware with this budget' + (r.checkpoint && r.checkpoint.weightsGiB ? ': its smallest usable checkpoint needs ' + fmt(r.checkpoint.weightsGiB, 1) + ' GiB for the weights alone.' : '.') + ' Try "One or two people, all the memory", or a box with more memory.</p>';
       return;
@@ -433,10 +577,13 @@ footer a, .detail a { color: var(--accent) }
     el.innerHTML = html;
   }
   function kpi(k, v, s) { return '<div class="kpi"><span class="k">' + esc(k) + '</span><span class="v">' + v + '</span><span class="s">' + (s || '&nbsp;') + '</span></div>'; }
-  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
 
   function render() { renderMatrix(); renderDetail(); }
   document.getElementById('srcline').textContent = 'Data: ' + (E.meta ? E.meta.data : '') + '. Repo: b2renger/LlmOnLan, docs/spike/RESULTS.md and ESTIMATES_2026-10-05.md.';
-  render();
+  document.getElementById('back').hidden = STANDALONE;
+  syncControls(); renderScenarios(); render();
 })();
+function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
 </script>
+</body>
+</html>

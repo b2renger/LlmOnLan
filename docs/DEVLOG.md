@@ -38,6 +38,38 @@ scratch profile and data folder, against the non-beaconing mock farm, Open WebUI
   client over CDP; no committed test drives the real `app.js` webview.
 - **Not done:** a boot log in the packaged client. The owner's installed client is v0.2.7 and still runs Open
   WebUI 0.10.2, downloaded 2026-07-01: the engine only updates from About ▸ Check for chat-engine update.
+## 2026-10-07 (18:14) — The capacity explorer on the farm, with usage scenarios
+
+The owner asked for the explorer to be on the farm, for operators to go through, with usage scenarios ("RAG with 5
+people: what hardware, what model, what context"; "vibe-code a three.js XR app with 10").
+- **The farm serves it** at `/lol/capacity` (open like `/lol/self`, read-only), with its scripts and data beside
+  it under `/lol/capacity/`. The files moved to `farm/src/capacity/`, so the Farm app ships them. One copy of each:
+  the docs scripts now write there (`build_catalog.py`, `build_page.js`) and the calibration reads from there.
+  `measured.json` ships trimmed to what the page reads (31 KB of 338; every estimate unchanged, checked over all
+  pairs at 32k/64k/128k in both modes).
+- **Local only:** no Google Fonts any more (a system font stack); the page asks nothing off the farm.
+- **This farm:** the page reads `/lol/self`, maps the GPU nvidia-smi names to the catalog (GB10 → DGX Spark, RTX PRO
+  6000, Max-Q, PRO 5000 48/72 GB by memory, 5090/4080/4070; anything else → the largest box with no more memory,
+  said to be a stand-in), marks its column, opens its detail on the model it serves, and says in every scenario
+  what this box can do.
+- **Scenarios** (`scenarios.js`, a pure module): documents for 5, vibe-coding for 10, a class of 30, a Computer
+  workshop for 20, long reports for 2, a near-frontier model for 1–2, and "your own". Each turns how a surface
+  loads the farm into estimator inputs and model needs, then picks up to three hardware × model pairs (one per box)
+  that cover the head count with room to spare, cheapest box first, each with people at once, speed alone, the
+  first word on a new document, the price per person, how sure, and a one-line reason. "Why not a Spark?" when a
+  popular box falls short. Clicking a pick opens it in the table and the detail with the card's settings.
+  - What comes out today: documents for 5 → Qwen3.6 on one DGX Spark (8, measured); vibe-coding for 10 → Qwen3.6 on
+    a PRO 5000 72 GB (35, calibrated), not a Spark (8 at 64k); a class of 30 → Gemma 4 26B on a PRO 5000 72 GB
+    (74, estimated), then Qwen3.6 on a PRO 5500 or the PRO 6000 (96, measured); the Computer → Nemotron 3.5
+    Lightning, the head-count model.
+- **The panel links to it** (Plan capacity ↗, also on the token screen). The Farm app's window dropped
+  new-tab links from its webview: Electron needs `allowpopups` on the tag before the webview's window-open handler
+  is even called (checked with a scratch Electron 42 app). The app now opens them in the system browser.
+- **Tests:** farm 170/0 (two new: the routes, types, the no-outside-address rule, the links; the scenarios'
+  filter, ranking, this-farm cases and GPU/model matching). Each fails with its fix reverted, checked in a scratch
+  copy. Shell unchanged: build, chat-unit 1834/0, unit 29, lint 0. Headless-Chrome screenshots of the page served
+  by the farm's own HTTP server on a scratch port (a PRO 6000 farm, light and dark; a GB10 farm), and of the single
+  file offline.
 ## 2026-10-07 (17:48) — The studio's PRO 6000 farm now serves vLLM: 48 people at 64k instead of 2
 
 The owner gave the go ("we can switch to vllm now"). It was done with `docs/PRO6000_VLLM_SWITCH.md`, while the

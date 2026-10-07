@@ -5,8 +5,8 @@
 //  S2  shipped constants (+ GB10 factors and per-model extra bytes from one single-user Spark decode)
 //  G   shipped physics with the model treated as never measured (leave-one-model-out generic constants)
 // S0/S1/S2/G use the spike's own block remainder (all users had the same context); "class" uses the explorer default.
-const E = require('../estimator.js'), lstsq = require('./lsq.js'), fs = require('fs');
-const cat = require('../catalog.json'), meas = require('../measured.json'), rows = require('./rows.json'), calib = require('./calibration.json');
+const E = require('../../../../farm/src/capacity/estimator.js'), lstsq = require('./lsq.js'), fs = require('fs');
+const cat = require('../../../../farm/src/capacity/catalog.json'), meas = require('../measured.json'), rows = require('./rows.json'), calib = require('./calibration.json');
 E.init(cat, null);                         // no measured lookup: we want the model's own numbers
 const I = E._internal;
 const MODELS = { qwen36: 'qwen3.6-35b-a3b', nemotron: 'nemotron-3.5-lightning-30b-a3b', qwen38: 'qwen3.8-27b' };

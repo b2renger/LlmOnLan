@@ -4,6 +4,7 @@
 //                                  capacity.mine = whether the caller's IP holds a seat
 //   POST /lol/client-ping        → desktop-client presence heartbeat (open)
 //   GET  /lol/admin              → the static admin page (open — it's just HTML/JS)
+//   GET  /lol/capacity[/<file>]  → the capacity explorer: its page, scripts and data (open, read-only)
 //   GET  /lol/admin/state        → richer admin view (token)   → control.getAdminState()
 //   POST /lol/admin/apply        → name/slots/password/context in ONE restart, + the
 //                                  seat hold (seatIdleSec), live with no restart (token)
@@ -45,6 +46,25 @@ function adminPage() {
         catch { _pageCache = '<!doctype html><meta charset="utf-8"><title>lol admin</title><p>Admin page missing.</p>'; }
     }
     return _pageCache;
+}
+
+// The capacity explorer (src/capacity/): which hardware and model serve how many people. Open like /lol/self,
+// since it holds no secret and changes nothing; the page reads /lol/self for this box's GPU and makes no request
+// off the farm. A fixed list, read once and served from memory.
+const CAPACITY = {
+    '/lol/capacity': ['index.html', 'text/html; charset=utf-8'],
+    '/lol/capacity/estimator.js': ['estimator.js', 'text/javascript; charset=utf-8'],
+    '/lol/capacity/scenarios.js': ['scenarios.js', 'text/javascript; charset=utf-8'],
+    '/lol/capacity/catalog.json': ['catalog.json', 'application/json'],
+    '/lol/capacity/measured.json': ['measured.json', 'application/json'],
+};
+const _capacityCache = {};
+function capacityFile(file) {
+    if (!(file in _capacityCache)) {
+        try { _capacityCache[file] = fs.readFileSync(path.join(__dirname, 'capacity', file)); }
+        catch { _capacityCache[file] = null; }
+    }
+    return _capacityCache[file];
 }
 
 // Constant-time bearer check against the admin token.
@@ -110,6 +130,15 @@ function startSelfServer({ httpPort, getSnapshot, host = '0.0.0.0', control = nu
                 return sendJson(res, 401, { error: 'unauthorized' });
             }
             return sendJson(res, 200, keys);
+        }
+
+        // The capacity explorer (open, read-only, like the admin page's HTML).
+        if (method === 'GET' && CAPACITY[pathOnly]) {
+            const [file, type] = CAPACITY[pathOnly];
+            const body = capacityFile(file);
+            if (!body) { res.writeHead(404, { 'content-type': 'text/plain' }); return res.end('capacity explorer missing'); }
+            res.writeHead(200, { 'content-type': type, 'cache-control': 'no-store' });
+            return res.end(body);
         }
 
         // Admin page (open — it prompts for the token client-side).

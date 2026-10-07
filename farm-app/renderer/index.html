@@ -79,7 +79,8 @@
             <p id="overlay-msg">Starting the farm…</p>
             <button id="btn-overlay-action" class="btn btn-sm hidden"></button>
         </div>
-        <webview id="admin" class="admin-webview hidden" partition="persist:lol-admin"></webview>
+        <!-- allowpopups: the panel's target=_blank links reach main, which opens them in the system browser -->
+        <webview id="admin" class="admin-webview hidden" partition="persist:lol-admin" allowpopups></webview>
     </main>
 
     <!-- Settings drawer -->
