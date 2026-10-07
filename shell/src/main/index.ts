@@ -172,15 +172,21 @@ let clientDir: string | null = null;          // where the main window's session
 let clientSession: Session | null = null;     // created on first use, after 'ready'
 let clientNotices: ClientDataNotice[] = [];   // told to the user once the window asks (get-data-notices)
 
-function clientDataLog(lines: string[]): void {
-    if (!lines.length) return;
-    for (const l of lines) console.log('[client-data]', l);
+// A few lines a launch in <userData>/logs/<file>.log; past 1 MB the file starts over (the old one kept as .1).
+function logLine(file: string, lines: string[]): void {
     try {
         const dir = path.join(app.getPath('userData'), 'logs');
         fs.mkdirSync(dir, { recursive: true });
+        const f = path.join(dir, `${file}.log`);
+        try { if (fs.statSync(f).size > 1 << 20) fs.renameSync(f, `${f}.1`); } catch { /* no file yet */ }
         const at = new Date().toISOString();
-        fs.appendFileSync(path.join(dir, 'client-data.log'), lines.map((l) => `${at} ${l}\n`).join(''));
+        fs.appendFileSync(f, lines.map((l) => `${at} ${l}\n`).join(''));
     } catch { /* the log is a convenience */ }
+}
+function clientDataLog(lines: string[]): void {
+    if (!lines.length) return;
+    for (const l of lines) console.log('[client-data]', l);
+    logLine('client-data', lines);
 }
 
 function prepareClientDataAtBoot(): void {
@@ -465,8 +471,14 @@ function applyTheme(theme: ShellSettings['theme']): void {
 }
 
 // --- renderer push ----------------------------------------------------------
+// Each Open WebUI state, with the seconds since launch, in logs/boot.log: how long a boot took and whether
+// a farm restarted it (a slow load reported in the field was not measurable without it, 2026-10-07).
+let lastBootLine = '';
 function pushSidecarState(): void {
-    if (win && !win.isDestroyed()) win.webContents.send('sidecar-state', sidecar.getState());
+    const s = sidecar.getState();
+    const l = `${(process.uptime()).toFixed(1)}s ${s.status}${s.endpoint ? ` farm=${s.endpoint}` : ''}${s.message ? ` (${s.message})` : ''}`;
+    if (l.slice(l.indexOf(' ')) !== lastBootLine) { lastBootLine = l.slice(l.indexOf(' ')); logLine('boot', [l]); }
+    if (win && !win.isDestroyed()) win.webContents.send('sidecar-state', s);
 }
 
 // First-run / update download progress for the OWUI sidecar.

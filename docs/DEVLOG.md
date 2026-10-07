@@ -6,6 +6,39 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-10-07 (18:36) — Review fixes for the capacity page and the Open WebUI boot; a boot log
+
+Both 18:14 and 18:18 pieces had an independent verifier. The boot fix came back **ok** with three minors; the
+capacity page came back **fix-needed** with one major and three minors. All seven are handled here.
+- **Capacity, major: a one-person card recommended to groups.** The GeForce RTX 5090 was the first pick for "a
+  Computer workshop, 20 people" ("covers your 20 with 27"), while the catalog names it a *single-person
+  reference* and the page's own table says "32 GB, 1 person". A 5090 was never measured with a group. The
+  single-person GeForce cards now count only for one or two people, like the llama.cpp-only pairs. On its own
+  farm, such a card says "A card for one person: about N on paper, but never measured with a group, so not
+  your 20".
+- **Capacity, minors:**
+  - The Computer card picks Nemotron, which reads no images. Its reason now says the Image box and Describe a
+    picture need another model.
+  - "On this farm" now starts with the model the farm serves, when that model covers the head count. Before,
+    the studio's PRO 6000 on Qwen3.6 was told "Qwen3.8-27B covers your 10", which reads as an advised switch.
+  - A GeForce name no longer claims an exact match when the memory differs by more than 2 GB (a 16 GB 4070 Ti
+    SUPER is not the 12 GB 4070).
+  - Tests: the farm test gained these four checks; with the old `scenarios.js`, the first one already fails
+    (rag: Qwen3.6 on a 5090).
+- **Boot, minor: a reload the restart would kill.** Main sends the farm list before it decides to restart Open
+  WebUI (`repoint` sets "restarting" in the same tick). The renderer's reload check now waits 500 ms, and any
+  state other than ready drops the flag. A farm that comes back with a changed launch env therefore restarts
+  Open WebUI once, without a wasted reload first.
+- **A boot log.** The owner's slow load stays unexplained by data: the packaged client logged no boot timeline,
+  and the owner's profile already had its farm saved. Now each Open WebUI state goes to
+  `<userData>/logs/boot.log` with the seconds since launch: starting, ready, restarting and the farm, or an
+  error. The log starts over past 1 MB and keeps the old file as `.1`. The next slow launch will show whether
+  it was the boot itself, the discovery wait or a restart. The second boot minor (discovery lagging the page
+  load) is rare (a warm page takes 12 s, the sweep starts at 0.8 s) and is left as it is.
+- **The standalone explorer** (`scratchpad/farm-capacity/explorer.html`) is rebuilt with the fixed scenarios,
+  for the Artifact.
+- **Tests:** farm 170/0; shell build OK, chat-unit 1836/0, unit 29, lint 0.
+
 ## 2026-10-07 (18:18) — Open WebUI slow to load: a farm found during the boot was never saved; the per-boot Hugging Face check had no timeout
 
 The owner: "the owui takes ages to load, we had fixed that though." The packaged client keeps no boot log (main's

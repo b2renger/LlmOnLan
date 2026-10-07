@@ -755,7 +755,9 @@ els.webview.addEventListener('did-finish-load', ensureAuthenticated);
 // 2026-10-07: neither its model picker nor New Chat asks again). A page that loaded while the farm
 // in use was not answering (down, restarting, not found yet) lists no model, and when that same
 // farm answers again nothing OWUI is launched with has changed, so nothing restarts or reloads it.
-// Reload it once, when the farm answers.
+// Reload it once, when the farm answers. Main sends the farm list BEFORE it decides to restart OWUI
+// (a farm back with a changed launch env): the check waits a moment, and a restart drops the flag,
+// so the page the restart is about to kill is not reloaded first.
 let loadedWithoutFarm = false;
 const farmAnswers = () => { const a = activeFarm(); return !!(a && !a._stale && a.healthy !== false); };
 els.webview.addEventListener('did-finish-load', () => { loadedWithoutFarm = !farmAnswers(); });
@@ -1063,8 +1065,8 @@ els.autoScan.addEventListener('change', () => window.lol.setAutoScan(els.autoSca
 els.rescanBtn.addEventListener('click', () => { window.lol.rescan(); toast('Rescanning…'); });
 
 // ---- wire IPC ----
-window.lol.onSidecarState((s) => { sidecarState = s; renderSidecar(); if (!els.popover.classList.contains('hidden')) renderPopover(); });
-window.lol.onFarms((data) => { farmState = data; if (NO_OWUI) publishFarm(); renderPill(); reloadIfFarmBack(); if (!els.popover.classList.contains('hidden')) renderPopover(); });
+window.lol.onSidecarState((s) => { sidecarState = s; if (s.status !== 'ready') loadedWithoutFarm = false; renderSidecar(); if (!els.popover.classList.contains('hidden')) renderPopover(); });
+window.lol.onFarms((data) => { farmState = data; if (NO_OWUI) publishFarm(); renderPill(); setTimeout(reloadIfFarmBack, 500); if (!els.popover.classList.contains('hidden')) renderPopover(); });
 window.lol.getSidecarState().then((s) => { sidecarState = s; renderSidecar(); });
 window.lol.getFarms().then((data) => { farmState = data; renderPill(); });
 initTheme();

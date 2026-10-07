@@ -3570,6 +3570,7 @@ test('capacity scenarios: needs filter the models, the picks cover the head coun
             assert.ok(p.r.people.low >= n && p.r.people.mid >= Math.ceil(n * 1.2), `${at} covers ${n} with room to spare`);
             assert.equal(Sc.unmet(p.model, sc.need), null, `${at} meets the needs`);
             if (n > 2) assert.ok(!p.r.checkpoint.gguf, `${at}: llama.cpp-only pairs never carry more than two people`);
+            if (n > 2) assert.ok(!/single-person/i.test(p.hw.name), `${at}: a single-person GeForce card never carries a group`);
             assert.ok(/^Covers your \d+ with \d+/.test(p.reason) && p.reason.includes(p.r.confidence), `${at} says why, and how sure`);
         }
         const key = sc.rank === 'quality' ? (p) => -(Sc.score(p.model) ?? -1) : (p) => p.hw.price_eur_ttc || Infinity;
@@ -3593,6 +3594,16 @@ test('capacity scenarios: needs filter the models, the picks cover the head coun
     // cover the workshop (the PRO 6000: Qwen3.8, Qwen3.6, Nemotron), it still takes the one serving the most.
     assert.equal(run('workshop', 'dgx-spark').thisFarm.model.id, 'nemotron-3.5-lightning-30b-a3b');
     assert.equal(run('workshop', 'rtx-pro-6000-ws').thisFarm.model.id, 'nemotron-3.5-lightning-30b-a3b');
+    // ... and says what it cannot do: Nemotron reads no images.
+    assert.ok(/cannot read images/.test(run('workshop', 'dgx-spark').thisFarm.reason));
+    // What the farm serves now comes first on its own box when it covers the head count (the PRO 6000 on Qwen3.6).
+    const served = Sc.recommend(E, cat, card('workshop'), { hwId: 'rtx-pro-6000-ws', servedId: 'qwen3.6-35b-a3b' }).thisFarm;
+    assert.ok(served.served && served.model.id === 'qwen3.6-35b-a3b' && served.covers);
+    // ... but not when it falls short (vibe-coding with 10 on a Spark: the best there is shown, not served).
+    assert.ok(!Sc.recommend(E, cat, card('xr'), { hwId: 'dgx-spark', servedId: 'qwen3.6-35b-a3b' }).thisFarm.served);
+    // A GeForce farm with 20 people: the card says it is a one-person card, not a covering pick.
+    const g = run('workshop', 'rtx-5090').thisFarm;
+    assert.ok(g && !g.covers && /one person/.test(g.reason), g && g.reason);
     // A 12 GB card: nothing fits it on vLLM, so it says what llama.cpp would do and that it is not enough.
     const small = run('rag', 'rtx-4070').thisFarm;
     assert.ok(small.llama && !small.covers && /llama\.cpp/.test(small.reason));
@@ -3609,6 +3620,7 @@ test('capacity scenarios: needs filter the models, the picks cover the head coun
     assert.equal(hw('NVIDIA RTX PRO 6000 Blackwell Max-Q Workstation Edition', 96).id, 'rtx-pro-6000-maxq');
     assert.equal(hw('NVIDIA RTX PRO 5000 Blackwell', 72).id, 'rtx-pro-5000-72');
     assert.equal(hw('NVIDIA GeForce RTX 4070', 12).id, 'rtx-4070');
+    assert.equal(hw('NVIDIA GeForce RTX 4070 Ti SUPER', 16).exact, false, 'a 16 GB 4070 is not the 12 GB catalog card');
     assert.deepEqual(hw('NVIDIA RTX A6000', 48), { id: 'rtx-pro-5000-48', exact: false, gpu: 'NVIDIA RTX A6000', vramGb: 48 });
     assert.equal(hw('Unknown GPU', 0), null);
     // ... and the model it serves to its catalog entry, whatever the engine calls it.

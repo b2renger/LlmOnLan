@@ -342,11 +342,11 @@ footer a, .detail a, .farm a { color: var(--accent) }
   }
   function results(sc) {
     LIVE[sc.id] = sc;
-    const res = Sc.recommend(E, CAT, sc, { hwId: FARM && FARM.id, assume: scAssume() });
+    const res = Sc.recommend(E, CAT, sc, { hwId: FARM && FARM.id, servedId: SERVED && SERVED.id, assume: scAssume() });
     let html = res.picks.length ? '<ol class="recs">' + res.picks.map((p, i) => '<li>' + recButton(sc, p, i + 1) + '</li>').join('') + '</ol>'
       : '<p class="none">No box in the catalog serves ' + sc.people + ' people this way with room to spare. Try fewer people, a shorter context, or several boxes behind one farm.</p>';
     const f = res.thisFarm, at = res.picks.indexOf(f);
-    if (f) html += '<div class="here-line"><b>On this farm (' + esc(Sc.hwName(f.hw)) + ')</b>'
+    if (f) html += '<div class="here-line"><b>On this farm (' + esc(Sc.hwName(f.hw)) + ')</b>' + (f.served ? ', with the model it serves now' : '')
       + (f.none ? ': no model that meets these needs fits it.' : at >= 0 ? ': pick ' + (at + 1) + ' above.' : ':' + recButton(sc, f, 0)) + '</div>';
     for (const w of res.whyNot) html += '<p class="whynot">' + esc(w.text) + '</p>';
     return html;

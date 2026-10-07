@@ -111,12 +111,14 @@
   // The popular boxes a "why not" hint names when they fall short.
   const POPULAR = { 'dgx-spark': 'a DGX Spark', 'dgx-spark-x2': 'two linked DGX Sparks', 'rtx-pro-6000-ws': 'an RTX PRO 6000' };
 
-  // E: the estimator, already init()ed with this catalog. opts: { hwId: this farm's box, assume: {...} }.
+  // E: the estimator, already init()ed with this catalog. opts: { hwId: this farm's box, servedId: the catalog model it
+  // serves now, assume: {...} }.
   // Returns { picks: up to 3 pairs that cover the head count (one per box), thisFarm, whyNot: [...] }.
   // A pair = { hw, model, r (the estimate), covers, reason }. "Covers" = with room to spare: the middle estimate is
   // 20 % over the head count and even the pessimistic one reaches it (measured cells: the highest level that passed).
-  // GGUF-only pairs run on llama.cpp, which served 2–24× fewer people than vLLM in the spike, so they count only for
-  // one or two people.
+  // GGUF-only pairs run on llama.cpp, which served 2–24× fewer people than vLLM in the spike, and the GeForce cards are
+  // the catalog's single-person references (never measured with a group), so both count only for one or two people.
+  const solo = (hw) => /single-person/i.test(hw.name);
   function recommend(E, catalog, sc, opts) {
     opts = opts || {};
     const o = Object.assign({}, sc.est, opts.assume ? { assume: opts.assume } : {});
@@ -125,20 +127,23 @@
     for (const hw of catalog.hardware) for (const model of models) {
       let r; try { r = E.estimate(hw.id, model.id, o); } catch (e) { continue; }
       if (!r.fits) continue;
-      const llama = r.checkpoint.gguf && sc.people > 2;
-      (perBox[hw.id] = perBox[hw.id] || []).push({ hw, model, r, llama, covers: !llama && covers(r, sc.people) });
+      const llama = r.checkpoint.gguf && sc.people > 2, one = !llama && solo(hw) && sc.people > 2;
+      (perBox[hw.id] = perBox[hw.id] || []).push({ hw, model, r, llama, one, covers: !llama && !one && covers(r, sc.people) });
     }
     const best = (list, order) => list.slice().sort(order)[0] || null;
-    // The best pair on one box: one that covers the head count, else the one serving the most. llama = allow the
-    // llama.cpp-only pairs (this farm's own box, when nothing else fits it).
-    const boxBest = (id, llama) => { const l = (perBox[id] || []).filter((p) => llama || !p.llama);
+    // The best pair on one box: one that covers the head count, else the one serving the most. any = allow the
+    // llama.cpp-only and single-person pairs (this farm's own box, when nothing else fits it).
+    const boxBest = (id, any) => { const l = (perBox[id] || []).filter((p) => any || !(p.llama || p.one));
       return best(l.filter((p) => p.covers), byModel(sc)) || best(l, mostPeople(sc)); };
     const picks = Object.keys(perBox).map((id) => boxBest(id)).filter((p) => p && p.covers).sort(byBox(sc)).slice(0, 3);
     for (const p of picks) p.reason = reason(sc, p);
     let thisFarm = null;
     if (opts.hwId) {
-      const p = boxBest(opts.hwId) || boxBest(opts.hwId, true);
-      thisFarm = p ? Object.assign(p, { reason: reason(sc, p) }) : { hw: catalog.hardware.find((h) => h.id === opts.hwId), none: true };
+      // What the farm serves now comes first when it covers the head count: an operator should not read a switch
+      // into a card their current model already answers.
+      const served = opts.servedId && (perBox[opts.hwId] || []).find((p) => p.model.id === opts.servedId && p.covers);
+      const p = served || boxBest(opts.hwId) || boxBest(opts.hwId, true);
+      thisFarm = p ? Object.assign(p, { served: !!served, reason: reason(sc, p) }) : { hw: catalog.hardware.find((h) => h.id === opts.hwId), none: true };
     }
     const whyNot = Object.keys(POPULAR).filter((id) => !picks.some((p) => p.hw.id === id) && id !== opts.hwId)
       .map((id) => ({ id, p: boxBest(id) })).filter((x) => !x.p || !x.p.covers).slice(0, 2)
@@ -166,12 +171,15 @@
     const r = p.r, m = p.model, bits = [];
     if (p.llama) bits.push('Only on llama.cpp here: about ' + peopleText(r) + ' at ' + fmtK(sc.est.context) + ' if it batched like vLLM, '
       + 'but llama.cpp served 2–24× fewer people in the spike, so not your ' + sc.people);
+    else if (p.one) bits.push('A card for one person: about ' + peopleText(r) + ' at ' + fmtK(sc.est.context) + ' on paper, '
+      + 'but never measured with a group, so not your ' + sc.people);
     else bits.push((p.covers ? 'Covers your ' + sc.people + ' with ' : 'Serves ') + peopleText(r) + ' at ' + fmtK(sc.est.context) + ', ' + r.confidence
       + (p.covers ? '' : shortOf(sc, r)));
     const feats = [];
     if (m.tools && (sc.need.tools || sc.need.coding)) feats.push('tool calling');
     if (m.vision) feats.push('reads images');
     if (feats.length) bits.push(feats.join(', '));
+    if (sc.use === 'computer' && !m.vision) bits.push('cannot read images: the Image box and Describe a picture need another model');
     const gate = spikeGate(m), ce = sc.need.coding && codingEvidence(m), s = score(m);
     if (gate != null) bits.push(gate + '/28 on the spike\'s coding and reasoning check');
     else if (ce) bits.push(ce.benchmark + ' ' + ce.score + (ce.vendor_reported ? ' (vendor)' : ''));
@@ -191,14 +199,19 @@
     : ': not your ' + sc.people + ' (limited by ' + (BIND[r.binding] || r.binding) + ')');
 
   // ---- This farm: the catalog entry for the box's GPU (snapshot host.gpu, host.vramGb), and its served model.
-  // exact = the name matched; else the largest single box with no more memory, as a rough stand-in.
+  // exact = the name matched with the card's memory (a 16 GB "4070 Ti SUPER" or an 8 GB laptop 4070 is not the 12 GB
+  // card); else the largest single box with no more memory, as a rough stand-in.
   const NAMES = [[/GB10|DGX Spark/i, 'dgx-spark'], [/RTX PRO 6000.*Max-?Q/i, 'rtx-pro-6000-maxq'], [/RTX PRO 6000/i, 'rtx-pro-6000-ws'],
     [/RTX PRO 5500/i, 'rtx-pro-5500'], [/RTX PRO 5000/i, (gb) => (gb > 60 ? 'rtx-pro-5000-72' : 'rtx-pro-5000-48')],
     [/RTX 5090/i, 'rtx-5090'], [/RTX 4080/i, 'rtx-4080'], [/RTX 4070/i, 'rtx-4070']];
   function matchHardware(catalog, host) {
     const gpu = (host && host.gpu) || '', gb = (host && host.vramGb) || 0;
     if (!gpu || /unknown/i.test(gpu)) return null;
-    for (const [re, id] of NAMES) if (re.test(gpu)) return { id: typeof id === 'function' ? id(gb) : id, exact: true, gpu, vramGb: gb };
+    for (const [re, id] of NAMES) if (re.test(gpu)) {
+      const hid = typeof id === 'function' ? id(gb) : id, h = catalog.hardware.find((x) => x.id === hid);
+      if (gb && h && h.kind === 'pcie-card' && Math.abs(gb - h.memory_gib_visible) > 2) break;
+      return { id: hid, exact: true, gpu, vramGb: gb };
+    }
     const near = catalog.hardware.filter((h) => h.kind !== 'cluster' && h.memory_gib_visible <= gb + 1)
       .sort((a, b) => b.memory_gib_visible - a.memory_gib_visible)[0];
     return near ? { id: near.id, exact: false, gpu, vramGb: gb } : null;

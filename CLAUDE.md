@@ -86,7 +86,11 @@ docs) is `docs/reviews/DOCS_REVIEW_2026-09-27_{FARM,SHELL,COMPUTER}.md`. Snapsho
     plugin toggles and the Blender fleet recommendation; a Performance card (llama.cpp, or an external vLLM) and the clients with
     their seats. Long operations run as one job whose progress the panel polls. Everything persists to
     `lol.config.json` (`configFile.js` raw patch — never the schema-parsed config) **except** the plugin
-    toggles and the Blender recommendation; Ollama's slot count applies after a farm restart.
+    toggles and the Blender recommendation; Ollama's slot count applies after a farm restart. The header's
+    **Plan capacity ↗** opens `/lol/capacity` (2026-10-07, `farm/src/capacity/`, open like `/lol/self`, offline):
+    the capacity explorer with this farm's box and model marked, and usage scenarios (documents for 5, vibe-coding
+    for 10, a class of 30, …) whose picks come from the spike's measurements and the calibrated estimator
+    (`scenarios.js`; the GeForce cards count as one-person boxes; the model served now comes first when it covers).
   - **Plugins** (`plugins/registry.js`): web search (SearXNG, ON), document OCR (`farm/src/pysvc` +
     `extract.js`, ON — hybrid text/vision PDF extraction), Kokoro TTS (OFF), and since 2026-09-27 **Classify**
     (Laya on the CPU, `classify.js` + `pysvc/classify_server.py`, OFF) and **speech to text** (faster-whisper on
@@ -175,7 +179,9 @@ docs) is `docs/reviews/DOCS_REVIEW_2026-09-27_{FARM,SHELL,COMPUTER}.md`. Snapsho
   silently blocked), `HF_HUB_OFFLINE=1` when MiniLM (HF cache) + whisper-base (OWUI 0.10.2 and 0.11.4 keep
   it under `DATA_DIR/cache/whisper/models`) are cached (`HF_HUB_ETAG_TIMEOUT=2` until then), and health
   polling at 300 ms. A page OWUI loaded while the farm was not answering lists no model until reloaded:
-  the renderer reloads it once when that farm answers (`app.js` `reloadIfFarmBack`).
+  the renderer reloads it once when that farm answers (`app.js` `reloadIfFarmBack`). Each OWUI state, with
+  the seconds since launch, goes to `<userData>/logs/boot.log` (1 MB, then `.1`): the timeline a slow-load
+  report needs.
   **Close means close** (owner decisions 2026-09-04 + 2026-09-10, replacing the keep-warm/tray behavior of
   v0.1.x–v0.1.43): the window's X asks "Quit LlmOnLan?" (Quit/Cancel), then quits EVERYTHING on all
   platforms (mac included — deliberate convention break); cleanup gets 4 s, then the app exits regardless.
