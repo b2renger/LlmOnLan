@@ -1067,7 +1067,7 @@ function vllmCard(s, jobRunning) {
     const where = `into ${esc(v.distro || v.root || 'this computer')}${v.distro && v.root ? `, in ${esc(v.root)}` : ''}`;
     const model = chosen && chosen.repo && !chosen.downloaded ? ` and ${esc(chosen.label)}${chosen.sizeGb ? ` (${chosen.sizeGb} GB)` : ''}` : '';
     out.push(`<div class="row"><span></span><span><div class="mname">Install vLLM</div>`
-      + `<div class="meta">Downloads vLLM ${esc(v.pinned || '')} (about 8 GB)${model} ${where}. About 45 minutes on a typical connection. The farm keeps serving while it downloads; a stopped download continues where it left off.</div></span>`
+      + `<div class="meta">Downloads vLLM ${esc(v.pinned || '')} (about 8 GB)${model} ${where}. About 45 minutes on a typical connection. The farm keeps serving while it downloads; a stopped download keeps the files it finished.</div></span>`
       + `<span class="badges"><button class="start" data-vinstall${off(!!dl)}>Install vLLM</button></span></div>`);
   }
   // The model list.

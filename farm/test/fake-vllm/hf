@@ -7,8 +7,8 @@ here="$(cd "$(dirname "$0")" && pwd)"
 dir=; prev=
 for a in "$@"; do [ "$prev" = --local-dir ] && dir=$a; prev=$a; done
 case "${FAKE_HF:-ok}" in
-  ok)    mkdir -p "$dir"; echo '{"max_position_embeddings": 4096}' > "$dir/config.json"
-         find "$dir" -name '*.incomplete' -delete 2>/dev/null   # a finished download leaves no unfinished file, as hf's
+  ok)    mkdir -p "$dir"; echo '{"max_position_embeddings": 4096}' > "$dir/config.json"   # as hf 1.33: an earlier,
+         # stopped attempt's .incomplete file stays (each attempt writes a file of its own; install.sh clears them)
          printf 'Fetching 2 files:  50%%|#####     | 1/2\rFetching 2 files: 100%%|##########| 2/2\n'; exit 0;;
   gated) echo "huggingface_hub.errors.GatedRepoError: 401 Client Error. Cannot access gated repo for url https://huggingface.co/x/y."; exit 1;;
   404)   echo "huggingface_hub.errors.RepositoryNotFoundError: 404 Client Error. Repository Not Found for url: https://huggingface.co/x/y."; exit 1;;

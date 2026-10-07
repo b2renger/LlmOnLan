@@ -754,8 +754,8 @@ async function run(args) {
             if (!vllmProbe.st) { log.step('vLLM: no answer, checking once more …'); vllmProbe = await vllmMod.probe(config); }
             vllmTarget = vllmMod.targetOf(config, vllmProbe);
             const st = vllmProbe.st;
-            // A download left running by a farm that crashed: this run tracks none, so stop it (it continues
-            // where it left off when someone presses Download again).
+            // A download left running by a farm that crashed: this run tracks none, so stop it (Download goes on
+            // from the files it finished).
             if (st && st.installing && vllmTarget) {
                 log.step('Stopping a vLLM download left running by the last farm (Download continues it) …');
                 await vllmMod.stopInstall(vllmTarget);
@@ -2946,7 +2946,7 @@ async function run(args) {
         });
     }
     // Download a model of the vLLM list, in the download slot (D7): it runs while vLLM serves another model, and
-    // a stopped download continues where it left off.
+    // a stopped download keeps the files it finished.
     function vllmDownload(id) {
         const e = (config.vllm.library || []).find((x) => x.id === id);
         if (!e) return { ok: false, error: 'That model is not in the vLLM list.' };
@@ -2969,14 +2969,14 @@ async function run(args) {
                     else progress(vllmMod.installStepText(p.step, { label: e.label, version: config.vllm.version }), null);
                 });
             await checkVllm().catch(() => null);
-            if (ctl.cancelled()) return { ok: false, error: 'Stopped. Press Download again to continue where it left off.' };
+            if (ctl.cancelled()) return { ok: false, error: 'Stopped. Press Download again to go on: the files it finished are kept.' };
             if (!r.ok) return { ok: false, error: vllmMod.downloadFailure(r, e.repo) };
             return { ok: true, message: `${e.label} is downloaded.` };
         }, { cancel: () => (target ? vllmMod.stopInstall(target) : null), about: e.id, onSettled: writeRuntimeState });
     }
     // Install vLLM, or update it to the version this farm was tested with (§4.3), in the download slot: install.sh
     // makes its Python environment and installs vLLM (about 8 GB), then downloads the chosen model. The farm keeps
-    // serving meanwhile, and a stopped install continues where it left off. Refused while vLLM runs from that folder:
+    // serving meanwhile, and a stopped install keeps what it finished. Refused while vLLM runs from that folder:
     // its files are in use.
     function vllmInstall() {
         if (!vllmSup.ok) return { ok: false, error: vllmMod.UNSUPPORTED };
@@ -3004,7 +3004,7 @@ async function run(args) {
                 else progress(vllmMod.installStepText(p.step, { label, version: config.vllm.version }), null);
             });
             await checkVllm().catch(() => null);
-            if (ctl.cancelled()) return { ok: false, error: `Stopped. Press ${button} again to continue where it left off.` };
+            if (ctl.cancelled()) return { ok: false, error: `Stopped. Press ${button} again to go on: what it finished is kept.` };
             if (!r.ok) {
                 return { ok: false, error: r.kind ? vllmMod.downloadFailure(r, e && e.repo, button)
                     : `${update ? 'Updating' : 'Installing'} vLLM stopped: ${String(r.error || 'no answer').slice(0, 200)}. Press ${button} again to try once more.` };
@@ -3020,7 +3020,7 @@ async function run(args) {
         if (!(vllmTarget && vllmProbe && vllmProbe.st && vllmProbe.st.installing)) return { ok: false, error: 'Nothing is running there.' };
         await vllmMod.stopInstall(vllmTarget);
         await checkVllm().catch(() => null);
-        return { ok: true, message: 'Stopped. A download continues where it left off when you press Download again.' };
+        return { ok: true, message: 'Stopped. Press Download again to go on: the files it finished are kept.' };
     }
     // Add a model to the vLLM list (§4.4): a Hugging Face name or link, or a folder already on this computer. It only
     // remembers it: Download, then Use this.

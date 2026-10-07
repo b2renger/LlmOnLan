@@ -91,7 +91,7 @@ async function run() {
                 if (r.ok) { log.ok('vLLM stopped.'); killed++; } else log.err(r.error);
             }
             if (s.st.installing) {
-                log.step('Stopping the vLLM download (it continues where it left off next time) …');
+                log.step('Stopping the vLLM download (the files it finished are kept) …');
                 await vllm.stopInstall({ ...t, root: s.st.root });
             }
         }

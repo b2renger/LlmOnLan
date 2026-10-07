@@ -4150,7 +4150,7 @@ test('the download slot: outside serialize and busy(), a restart and a switch ru
         progress('downloading Qwen3.6 — 1 of 23 GB', 4, { bytes: 1e9, total: 23e9 });
         await held;
         cancelledSeen = ctl.cancelled();
-        return ctl.cancelled() ? { ok: false, error: 'Stopped. Press Download again to continue where it left off.' } : { ok: true };
+        return ctl.cancelled() ? { ok: false, error: 'Stopped. Press Download again to go on: the files it finished are kept.' } : { ok: true };
     }, { cancel: () => { cancelRan++; release(); } });
     assert.equal(d.ok, true);
     await new Promise((r) => setImmediate(r));
@@ -4295,7 +4295,7 @@ test('vLLM plumbing helpers: the distribution\'s disk folder, install steps and 
     assert.equal(V.downloadFailure({ kind: 'gated' }, 'a/b'), 'Hugging Face asks for an account to download this model. Pick another model.');
     assert.equal(V.downloadFailure({ kind: 'notfound' }, 'a/b'), 'There is no model named a/b on Hugging Face. Check the name.');
     assert.equal(V.downloadFailure({ kind: 'disk' }, 'a/b'), 'The disk is full. Free some space, then press Download again.');
-    assert.equal(V.downloadFailure({ kind: 'network', error: 'httpx.ReadTimeout: The read operation timed out' }, 'a/b'), 'The download stopped: The read operation timed out. Press Download again to continue where it left off.');
+    assert.equal(V.downloadFailure({ kind: 'network', error: 'httpx.ReadTimeout: The read operation timed out' }, 'a/b'), 'The download stopped: The read operation timed out. Press Download again to go on: the files it finished are kept.');
     // The share path a log is read through, never through a shell.
     assert.equal(V.logFile({ platform: 'win32', distro: 'Ubuntu', root: '/home/me/lol-vllm' }), '\\\\wsl.localhost\\Ubuntu\\home\\me\\lol-vllm\\logs\\vllm.log');
     assert.equal(V.logFile({ platform: 'linux', root: '/home/me/lol-vllm' }), '/home/me/lol-vllm/logs/vllm.log');
@@ -4543,7 +4543,7 @@ test('panel: the vLLM card — the checklist, Install only when not installed, D
     assert.equal(card(render(adminState({ vllm: fresh }))), '', 'not open, nothing downloading: no card');
     // The card shows once a download of its own runs, or after the button opened it; here a download runs.
     const withDl = card(render(adminState({ vllm: fresh, download: { kind: 'download', label: 'Downloading Fake', done: false, about: 'qwen3.6-35b-a3b' } })));
-    assert.ok(withDl.includes('Downloads vLLM 0.30.0 (about 8 GB) and Qwen3.6 35B-A3B · NVFP4 (23.4 GB) into Ubuntu, in /home/me/lol-spike. About 45 minutes on a typical connection. The farm keeps serving while it downloads; a stopped download continues where it left off.'), withDl);
+    assert.ok(withDl.includes('Downloads vLLM 0.30.0 (about 8 GB) and Qwen3.6 35B-A3B · NVFP4 (23.4 GB) into Ubuntu, in /home/me/lol-spike. About 45 minutes on a typical connection. The farm keeps serving while it downloads; a stopped download keeps the files it finished.'), withDl);
     assert.ok(withDl.includes('<span class="badge">downloading</span>') && !withDl.includes('data-vdl="qwen3.6-35b-a3b"') && !withDl.includes('data-vrm="qwen3.6-35b-a3b"'), 'the row being downloaded');
     // An older vLLM: said, with Update; an install started earlier: said, with Stop it.
     const older = card(render(vllmState({ version: '0.29.0', probe: { at: 1, oks: [], problems: ['A download started earlier is still running. Wait for it, or stop it here.'], warnings: ['vLLM 0.29.0 is installed; this farm was tested with 0.30.0.'] } })));
@@ -4650,8 +4650,8 @@ test('panel: the job bar and the download bar, each with Stop when it can stop (
     assert.ok(bars[0].includes('running for 50s'));
     assert.ok(bars[1].includes('<b>Downloading Nemotron</b>') && bars[1].includes('data-cancel="download"') && bars[1].includes('<b>12.0 GB</b> of 21.6 GB · 30 MB/s · about 5 min left'), bars[1]);
     const done = render(vllmState({}, { job: { label: 'Starting vLLM', done: true, ok: false, error: 'Stopped. vLLM is not running: press Start vLLM.', cancellable: false },
-        download: { label: 'Downloading Nemotron', done: true, ok: false, error: 'Stopped. Press Download again to continue where it left off.', cancellable: false } }));
-    assert.ok(done.includes('Stopped. vLLM is not running: press Start vLLM.') && done.includes('Stopped. Press Download again to continue where it left off.'));
+        download: { label: 'Downloading Nemotron', done: true, ok: false, error: 'Stopped. Press Download again to go on: the files it finished are kept.', cancellable: false } }));
+    assert.ok(done.includes('Stopped. vLLM is not running: press Start vLLM.') && done.includes('Stopped. Press Download again to go on: the files it finished are kept.'));
     assert.ok(!done.includes('data-cancel="job"') && !done.includes('data-cancel="download"'), 'finished: no Stop');
     assert.ok(!render(vllmState({}, { job: { label: 'Applying the farm settings', message: 'x', done: false, cancellable: false } })).includes('data-cancel'), 'a job that cannot stop halfway has no Stop');
     // The page polls every second while either runs.

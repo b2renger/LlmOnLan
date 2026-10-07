@@ -804,7 +804,7 @@ Switching to vLLM refuses up front when it is not installed, the model is not do
   - an older card (a warning): "This GPU is older than the cards these models were measured on (RTX PRO 6000, DGX Spark): they may not load. If a start fails, llama.cpp is the engine for this card."
   - an older version: "vLLM <v> is installed; this farm was tested with <pin>." [Update vLLM]
   - an install already running: "A download started earlier is still running. Wait for it, or stop it here." [Stop it]
-- [Install vLLM], with its hint: "Downloads vLLM <pin> (about 8 GB) and <model label> (<n> GB) into <Ubuntu>, in <root>. About 45 minutes on a typical connection. The farm keeps serving while it downloads; a stopped download continues where it left off."
+- [Install vLLM], with its hint: "Downloads vLLM <pin> (about 8 GB) and <model label> (<n> GB) into <Ubuntu>, in <root>. About 45 minutes on a typical connection. The farm keeps serving while it downloads; a stopped download keeps the files it finished."
 - Library rows: label · "<size> GB" · note. Badges: "serving", "downloaded", "partly downloaded". Buttons: [Download] when not downloaded; [Use this] and [Remove] when downloaded and not active. An unknown family adds: "Not one of the measured models: answers work, but tools and thinking may not show until a developer adds its settings."
 - Confirms:
   - Use this: "Serve <label>? vLLM restarts with it: about 2 minutes during which nobody can chat."
@@ -818,12 +818,12 @@ Switching to vLLM refuses up front when it is not installed, the model is not do
 
 ### 7.3 The job bar and the download bar.
 - The admin job bar is as today, with [Stop] when cancellable. After a cancelled start: "Stopped. vLLM is not running: press Start vLLM."
-- The download bar is separate and shows the same fields (step, GB of GB, speed, time left) with [Stop]. After a cancel: "Stopped. Press <Install vLLM|Download> again to continue where it left off."
+- The download bar is separate and shows the same fields (step, GB of GB, speed, time left) with [Stop]. After a cancel: "Stopped. Press Download again to go on: the files it finished are kept." (Install vLLM: "… what it finished is kept."; hf 1.33 starts a stopped file again, each attempt writing a file of its own, which install.sh clears after a download that ends.)
 - Download failures:
   - gated: "Hugging Face asks for an account to download this model. Pick another model."
   - not found: "There is no model named <repo> on Hugging Face. Check the name."
   - disk: "The disk is full. Free some space, then press Download again."
-  - network: "The download stopped: <short reason>. Press Download again to continue where it left off."
+  - network: "The download stopped: <short reason>. Press Download again to go on: the files it finished are kept."
 
 ### 7.4 The take-over card: §9.2.
 

@@ -270,6 +270,11 @@ t_install() {
   check "stop.sh install: exit 0" [ "$rc" = 0 ]
   check "the install stops (143)" exits $P 20 143
   check "nothing of it left, its pgid file removed" bash -c "! pgrep -g $P >/dev/null && [ ! -e '$ROOT/run/install.pgid' ]"
+  # Download again (seen live 2026-10-08): hf leaves the stopped attempt's .incomplete file and never reuses it.
+  check "the stopped attempt left its unfinished file" [ -e "$ROOT/hf/Big/.cache/huggingface/download/w.safetensors.incomplete" ]
+  LOL_VLLM_STEPS=model bash "$D/install.sh" org/Big > "$OUT" 2>&1; rc=$?
+  st
+  check "Download again: exit 0, the unfinished file gone, the model whole (partial=0)" bash -c "[ $rc = 0 ] && [ -z \"\$(find '$ROOT/hf/Big' -name '*.incomplete')\" ] && grep -qE '^model=Big [0-9]+ vision=0 native=4096 partial=0$' '$ST'"
 }
 t_stopscope() {
   echo "stop.sh stops its own group and reports on that group only"

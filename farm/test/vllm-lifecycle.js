@@ -365,7 +365,7 @@ const STEPS = {
         check('…while the download still runs', s.download && s.download.done === false, JSON.stringify(s.download && { done: s.download.done, message: s.download.message }));
         const c = await admin('job/cancel', { slot: 'download' });
         const dd = await waitFor(async () => { const x = await state(); return x.download && x.download.done && x; }, 60000, 'the download to stop');
-        check('Stop on the download: stopped, resumable', c.ok && dd.download.cancelled && /continue where it left off/.test(dd.download.error || ''), dd.download.error);
+        check('Stop on the download: stopped, resumable', c.ok && dd.download.cancelled && /the files it finished are kept/.test(dd.download.error || ''), dd.download.error);
         const st = await status();
         check('…install.sh is gone', !st.installing);
         fakeEnv(['FAKE_DELAY=3']);

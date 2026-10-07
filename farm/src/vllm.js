@@ -693,7 +693,7 @@ function downloadFailure(r, repo, button = 'Download') {
     if (r.kind === 'noinstall') return 'vLLM is not installed on this computer yet: press Install vLLM first.';
     // A Python exception's type name says nothing to a person: "httpx.ReadTimeout: …", "OSError: …".
     const why = String(r.error || '').replace(/^(\w+(\.\w+)+|\w+(Error|Exception)):\s*/, '').slice(0, 160) || 'no answer';
-    return `The download stopped: ${why}. Press ${button} again to continue where it left off.`;
+    return `The download stopped: ${why}. Press ${button} again to go on: the files it finished are kept.`;
 }
 
 // ---- what blocks it on this computer -------------------------------------------------------------------------------

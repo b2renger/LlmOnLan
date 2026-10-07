@@ -84,6 +84,10 @@ if [[ "$STEPS" == *,model,* ]]; then
     else kind=network; fi
     echo "[lol-error] $kind $last"; exit "$rc"
   fi
+  # hf (huggingface_hub 1.33) writes each file to a temporary file of its own attempt, removed only when that attempt
+  # ends by itself. A stopped download (stop.sh install) leaves its file, which no later attempt reuses: status.sh would
+  # call the model partly downloaded forever, and it holds the disk. Every file is complete here.
+  find "$ROOT/hf/$FOLDER" -name '*.incomplete' -delete 2>/dev/null || true
 fi
 echo "[lol-step] done"
 echo "Installed. Start it with: bash $(cd "$(dirname "$0")" && pwd)/serve.sh   (weights: $ROOT/hf/$FOLDER)"
