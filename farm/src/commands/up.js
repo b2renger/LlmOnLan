@@ -19,7 +19,7 @@ const proxyApi = require('../proxy');
 const { loadConfig } = require('../config');
 const {
     writeLitellmConfig, servedEntries, ollamaServes, defaultModelEntry,
-    carryNameAcross, applyNamePlan, engineFallback,
+    carryNameAcross, applyNamePlan, engineFallback, engineOf,
 } = require('../litellm');
 const { buildSnapshot, backendInfo } = require('../snapshot');
 const { patchSection, patchConfigFile, readRawConfig } = require('../configFile');
@@ -550,6 +550,16 @@ async function run(args) {
             log.warn(externalBootError);
             logFallbackNames(engineFallback(config, 'external'));
         }
+    }
+
+    // 0c-ter. vLLM run by the farm (docs/VLLM_MANAGED_PLAN.md): its settings and its pure planning are in this
+    //     version, its start and supervision are not yet. A config that selects it serves with Ollama for this
+    //     run, in memory only, so the file keeps the choice for the version that runs it.
+    let vllmBootError = null;
+    if (engineOf(config) === 'vllm') {
+        vllmBootError = 'This version of the farm cannot run vLLM yet: serving with Ollama instead.';
+        log.warn(vllmBootError);
+        logFallbackNames(engineFallback(config, 'vllm'));
     }
 
     let llamacppBootError = null;
@@ -1130,7 +1140,7 @@ async function run(args) {
         // unhealthy and clients fail over (same contract as llama-server).
         engineUp: config.external.enabled ? true : (config.llamacpp.enabled ? !!llamacppChild : null),
         // Why the configured engine is not the one serving (panel shows it).
-        engineFallbackReason: externalBootError || null,
+        engineFallbackReason: externalBootError || vllmBootError || null,
     };
     if (liveHealth.host) log.ok(`Hardware: ${log.paint.bold(liveHealth.host.gpu)} · ${liveHealth.host.vramGb}GB VRAM · ${liveHealth.host.ramGb}GB RAM · ${liveHealth.host.cpuCores} cores`);
 
@@ -2148,7 +2158,7 @@ async function run(args) {
                 });
             };
             const warn = persistLlamacpp({ enabled: on });
-            const plan = carryNameAcross(config, on);
+            const plan = carryNameAcross(config, on ? 'ollama' : 'llamacpp', on ? 'llamacpp' : 'ollama');
             applyNamePlan(config, plan);
             persistNamePlan(plan);
             if (on) {

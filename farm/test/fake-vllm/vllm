@@ -1,0 +1,5 @@
+#!/bin/bash
+# Stand-in for `vllm serve <model> [args...]`: finds --uds (the last one wins, as in vLLM) and runs fake_vllm.py.
+sock=; prev=
+for a in "$@"; do [ "$prev" = --uds ] && sock=$a; prev=$a; done
+exec /usr/bin/python3 "$(dirname "$0")/fake_vllm.py" "$sock" "$@"

@@ -1,6 +1,13 @@
 #!/bin/bash
-# Serve a model with vLLM as a LlmOnLan farm's `external` engine. Operator-run: the farm routes to it and reads
-# its /metrics, but never starts or stops it (farm/README.md, "Serving with vLLM on Windows (WSL2)" and "on Linux").
+# Serve a model with vLLM for a LlmOnLan farm. Two ways:
+#
+# - Run by the farm (the `vllm` engine, docs/VLLM_MANAGED_PLAN.md): the farm sets LOL_VLLM_ARGS_B64 (the whole
+#   `vllm serve` argv after the model, NUL-separated, base64) with LOL_VLLM_DAEMON=1, and nothing below is a
+#   default any more: no built-in flags, no extra args. That start writes $LOL_VLLM_ROOT/run/managed-by-farm,
+#   and from then on a start WITHOUT LOL_VLLM_ARGS_B64 (the old log-on task, lol-vllm.service, a hand) only
+#   says so and exits 0: the farm owns that root. Remove the file to run it by hand again.
+# - Operator-run, as the `external` engine: the farm routes to it and reads its /metrics, but never starts or
+#   stops it (farm/README.md, "Serving with vLLM on Windows (WSL2)" and "on Linux").
 # Keep it in the foreground of a window that stays open:
 #
 #   wsl -d Ubuntu -- bash /mnt/c/<path to the repo>/farm/vllm/serve.sh [extra vllm serve args...]   (Windows)
@@ -24,23 +31,35 @@
 # Env: LOL_VLLM_ROOT (default ~/lol-vllm: venv, weights, logs), LOL_VLLM_PORT (8100), LOL_VLLM_MODEL (a checkpoint
 # folder or a Hugging Face repo id), LOL_VLLM_DAEMON (1 = no watchdog), LOL_VLLM_MIN_FREE_GB (unset = off: the
 # memory guard for a box whose GPU shares the system memory, the DGX Spark; when MemAvailable falls under this many
-# GB, it stops vLLM and exits 3). Log: $LOL_VLLM_ROOT/logs/vllm.log.
+# GB, it stops vLLM and exits 3), LOL_VLLM_ARGS_B64 (run by the farm, above). Log: $LOL_VLLM_ROOT/logs/vllm.log,
+# moved to vllm.log.1 at a start once it passes 50 MB.
 set -u
 {   # parsed whole before it runs, so saving this file in place (an editor, cp) under a running server changes nothing
-ROOT="${LOL_VLLM_ROOT:-$HOME/lol-vllm}"
+ROOT="${LOL_VLLM_ROOT:-$HOME/lol-vllm}"; ROOT="${ROOT/#\~/$HOME}"
 PORT="${LOL_VLLM_PORT:-8100}"
 MODEL="${LOL_VLLM_MODEL:-$ROOT/hf/Qwen3.6-35B-A3B-NVFP4}"
 DAEMON="${LOL_VLLM_DAEMON:-0}"
 MIN_FREE="${LOL_VLLM_MIN_FREE_GB:-}"
-case "$MIN_FREE" in *[!0-9]*) echo "LOL_VLLM_MIN_FREE_GB must be a whole number of GB, not '$MIN_FREE'."; exit 1;; esac
+MANAGED="${LOL_VLLM_ARGS_B64:-}"
+LOG="$ROOT/logs/vllm.log"
+mkdir -p "$ROOT/logs" 2>/dev/null
+# A refusal goes to the log too: started by the farm or by a scheduled task, nobody reads this script's output.
+say() { echo "$1"; echo "[serve] $(date -Is) $1" >> "$LOG" 2>/dev/null; }
+if [ -z "$MANAGED" ] && [ -e "$ROOT/run/managed-by-farm" ]; then
+  say "The LlmOnLan farm runs this vLLM now (its panel starts and stops it): this start does nothing."; exit 0
+fi
+case "$MIN_FREE" in *[!0-9]*) say "LOL_VLLM_MIN_FREE_GB must be a whole number of GB, not '$MIN_FREE'."; exit 1;; esac
 HERE="$(cd "$(dirname "$0")" && pwd)"
 if [ "$(ps -o pgid= -p $$ | tr -d ' ')" != "$$" ]; then
   exec setsid --wait bash "$0" "$@"   # become a process-group leader, so stopping the group is exact
 fi
 PGID=$$
-[ -x "$ROOT/.venv/bin/vllm" ] || { echo "No vLLM in $ROOT/.venv: run install.sh first, or set LOL_VLLM_ROOT."; exit 1; }
+[ -x "$ROOT/.venv/bin/vllm" ] || { say "No vLLM in $ROOT/.venv: run install.sh first, or set LOL_VLLM_ROOT."; exit 1; }
 mkdir -p "$ROOT/logs" "$ROOT/run"
-LOG="$ROOT/logs/vllm.log"
+if [ -n "$MANAGED" ]; then
+  mapfile -d '' -t X < <(printf %s "$MANAGED" | base64 -d 2>/dev/null)
+  [ "${#X[@]}" -gt 0 ] || { say "LOL_VLLM_ARGS_B64 holds no arguments."; exit 1; }
+fi
 SOCK="$ROOT/run/vllm.sock"
 PGF="$ROOT/run/vllm.pgid"
 GUARDF="$ROOT/run/vllm.guard"   # the memory guard stopped this run
@@ -49,10 +68,12 @@ GUARDF="$ROOT/run/vllm.guard"   # the memory guard stopped this run
 # process (or this very script), which would block every autostart.
 G=$(cat "$PGF" 2>/dev/null)
 if [ -n "$G" ] && [ "$G" != "$$" ] && grep -qa 'serve\.sh' "/proc/$G/cmdline" 2>/dev/null; then
-  MSG="A server from $ROOT is already running (process group $G): stop it first with stop.sh."
-  echo "$MSG"; echo "[serve] $(date -Is) $MSG" >> "$ROOT/logs/vllm.log"; exit 1
+  say "A server from $ROOT is already running (process group $G): stop it first with stop.sh."; exit 1
 fi
+# No server writes the log now (checked just above), so it can move aside: this one plus vllm.log.1 stay under 100 MB.
+[ "$(stat -c %s "$LOG" 2>/dev/null || echo 0)" -gt 52428800 ] && mv -f "$LOG" "$LOG.1"
 echo "$PGID" > "$PGF"
+[ -n "$MANAGED" ] && : > "$ROOT/run/managed-by-farm"   # the farm owns this root from now on (header)
 rm -f "$SOCK" "$GUARDF"   # a socket file left by the last server makes the next bind fail (EADDRINUSE)
 {
   echo "[serve] $(date -Is) host=$(hostname) pgid=$PGID port=$PORT model=$MODEL daemon=$DAEMON min_free_gb=${MIN_FREE:-off}"
@@ -92,10 +113,14 @@ export FLASHINFER_EXTRA_LDFLAGS="-L$SHIM"
 RELAY=$!
 sleep 1
 if ! kill -0 "$RELAY" 2>/dev/null; then
-  echo "The relay could not listen on 127.0.0.1:$PORT (is the port in use?). See $LOG."
+  say "The relay could not listen on 127.0.0.1:$PORT (is the port in use?). See $LOG."
   kill -KILL "$WATCHDOG" 2>/dev/null; rm -f "$PGF"; exit 1
 fi
 
+if [ -n "$MANAGED" ]; then   # run by the farm: its argv, whole (vllm.js planFor), and nothing else
+  ARGS=(--uds "$SOCK" "${X[@]}")
+  set --
+else
 ARGS=(
   --uds "$SOCK"
   --served-model-name qwen3.6-35b-a3b
@@ -116,6 +141,7 @@ ARGS=(
                                         # number. An --override-generation-config of yours replaces this one: put
                                         # max_new_tokens in it.
 )
+fi
 "$ROOT/.venv/bin/vllm" serve "$MODEL" "${ARGS[@]}" "$@" >> "$LOG" 2>&1 < /dev/null 3<&- &
 VLLM=$!
 [ "$DAEMON" = 1 ] || { tail -n 0 -f --pid="$VLLM" "$LOG" 3<&- & }

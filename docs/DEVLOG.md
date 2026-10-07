@@ -6,6 +6,86 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-10-07 (19:58) — vLLM run by the farm, slice A: the scripts, the config and routing, the pure planning
+
+The owner asked for vLLM to be an engine the farm runs, switched to and from in the panel, with no config file
+("I want the farm operator to be able to do everything from the app"). That replaces the 2026-09-07 rule (the
+farm never starts an external server) and the 2026-10-06 recipe plus autostart. The design, its build order and
+the owner's four questions with their defaults are in [VLLM_MANAGED_PLAN.md](VLLM_MANAGED_PLAN.md):
+- the take-over is one click by a person;
+- Stop does not survive a farm restart;
+- an unmeasured card says so, with the Plan capacity link;
+- WSL is installed from written instructions.
+
+This slice is the plan's §12 items 1-3, on the `vllm-managed` branch. Nothing starts vLLM yet: a config that
+selects it serves with Ollama ("This version of the farm cannot run vLLM yet"), and the panel does not offer it.
+
+- **The scripts (`farm/vllm/`).**
+  - `serve.sh` takes the farm's whole argv in `LOL_VLLM_ARGS_B64` (NUL-separated, base64), with none of its own
+    defaults and no extra args. It then writes `run/managed-by-farm`.
+  - With that marker and no argv (the old log-on task, the Spark's unit, a hand), it says so, logs it and exits 0.
+    `start-windows.ps1` then logs "The farm runs vLLM now" and only opens the Farm app.
+  - It also expands `~` in the root, moves a log over 50 MB to `vllm.log.1` at a start, and logs its early refusals
+    (no vLLM, port taken, bad floor), so a launch with no one reading its output still explains itself.
+  - `status.sh` is new and read-only. It reports this Linux, the GPU, memory, disk, the installs (and a `.venv`
+    that is a link), the models (vision, window, partial), the running server's env and exact argv, every `serve.sh`
+    on the computer (`found=`), the guard, an install in progress and the marker.
+  - `stop.sh install` stops an install. Its last line now speaks of its own group only: it used to list every vLLM
+    on the box, production's included. It exits 1, keeping its files, when something survives the KILL.
+  - `install.sh` gets steps (`LOL_VLLM_STEPS=model` = download only), `[lol-step]` markers and
+    `[lol-error] gated|notfound|disk|network`. It installs uv itself, runs as its own process group, and refuses the
+    venv steps when `.venv` is a link (the live test borrows production's).
+- **The config, routing and names.**
+  - A strict `vllm` block holds the library of the three measured NVFP4 models with the spike's flags.
+  - `engineOf` resolves external > vLLM > llama.cpp > Ollama.
+  - `serverRoute` is shared by external and vLLM (`hosted_vllm/`, the model's presence penalty and vision).
+  - `carryNameAcross(config, from, to)` covers four engines, and `engineFallback('vllm')` serves Ollama under vLLM's
+    name, in memory only.
+  - The snapshot's `backend.engine` can be `vllm` (contract enum, plus two examples: starting and healthy with
+    `busy`, then serving).
+- **`farm/src/vllm.js`, pure.** It decodes `wsl -l -v`'s UTF-16 and skips Docker Desktop's distribution, and
+  parses `status.sh`. From there it works out:
+  - the checklist with every plain sentence (on Windows the disk is the smaller of WSL's virtual disk and the drive
+    that holds it);
+  - the root;
+  - the pool (52 GiB on the PRO 6000 with OCR, 8 beside ComfyUI, 59 on a Spark before the cap);
+  - people per pool (67 at 64k in 50 GiB; vLLM itself said 65.82x);
+  - the Automatic seats (measured, never above what the pool holds);
+  - `--max-num-seqs`;
+  - the exact argv and env;
+  - adoption by settings;
+  - the boot, crash and orphan decisions;
+  - the start phases from vLLM's log, and the failure sentences.
+- **Changes to the design found while building** (listed in the plan's Build status):
+  - the kernels pattern no longer matches the engine's config line;
+  - a Spark's Automatic pool is 27 GiB once §3.2's own cap applies;
+  - the checklist has non-blocking warnings;
+  - a few helpers are pure so they are tested now;
+  - `status.sh` creates nothing.
+- **Tests.**
+  - farm `node test/run.js` **186** passed, from 170: sixteen new tests for §11.1 items 1-14. Two of them are golden:
+    the take-over's routing equals production's external routing apart from `api_key` (so the take-over needs no
+    proxy restart), and production's running server is adopted, read from `serve.sh`'s own ARGS block and
+    `lol-vllm.service`'s ExecStart. The phase test reads the real 17:45-17:47 start, cut read-only from
+    `~/lol-spike/logs/vllm.log` with its `\r` bars.
+  - `farm/vllm/test_scripts.sh` under WSL: **98/98**. That is the 35 checks from before, two more on the guard and
+    the bad floor, and 61 new ones, with `farm/test/fake-vllm` (vllm and hf) on `/tmp` roots and free ports.
+  - `start-windows.ps1` was run against a marked root: it logged the exit-0 line and opened its stand-in app.
+  - LiteLLM 1.97 `test/litellm-cancel.js` PASS. Shell: build ok, `chat-unit` 1836, `test:unit` 29, `chat-lint` 0.
+  - Every new test fails with its fix reverted, checked in scratch copies. With the b2944fe farm sources, the
+    engine, config and contract tests fail. With `vllm.js` stubbed, its nine tests fail. With the b2944fe
+    scripts, 36 of the new script checks fail; the others (such as "answers") hold either way.
+- **Production untouched.** The scripts ran on `/tmp/lol-as-*` roots and free ports only. Production's vLLM still
+  serves through pgid 401, and `127.0.0.1:4000/v1/models` still lists Qwen3.6 (checked after the last run).
+- **Left for the next slices** (§12 item 4 onward):
+  - the process half of `vllm.js` and `up.js`'s lifecycle: the boot job, health, supervision, fallback, the orphan
+    rule, `lol down`, the gate's 503 and the download slot;
+  - then the panel, `setBackend` over four engines (and its `restoreNames` over every alias), Apply, the library,
+    install and download, the take-over, and the Farm app supervisor;
+  - then the docs (farm/README, PRO6000_VLLM_SWITCH, CLAUDE.md);
+  - `problemsFrom` reports any `installing=` as blocking. Once the farm's own download slot runs model-only
+    downloads, it must not block using another model.
+
 ## 2026-10-07 (18:36) — Review fixes for the capacity page and the Open WebUI boot; a boot log
 
 Both 18:14 and 18:18 pieces had an independent verifier. The boot fix came back **ok** with three minors; the

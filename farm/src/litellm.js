@@ -11,6 +11,7 @@
 const fs = require('fs');
 const path = require('path');
 const yaml = require('js-yaml');
+const { vllmEntry, baseUrl: vllmBaseUrl } = require('./vllm');
 
 // Model families that accept IMAGE input (Ollama multimodal). We flag these with
 // `model_info.supports_vision` below. Why it matters: with `drop_params: true`,
@@ -61,14 +62,24 @@ function servedEntries(config) {
     });
 }
 
-// Is the OLLAMA engine the one answering chat? One engine at a time (owner decision
-// 2026-08-26): while llama.cpp or an operator-run external server serves, the Ollama
-// catalog is STANDBY inventory — not routed, not advertised — and nothing may warm,
-// probe or re-route it as if it were serving. Every exclusivity check goes through
-// this; testing only `llamacpp.enabled` (as the code once did) treated an external
-// engine as "Ollama serves" and let the panel load models next to vLLM.
+// Which engine answers chat. One engine at a time (owner decision 2026-08-26), chosen by the engines' own
+// `enabled` flags with this precedence: an external server (one the farm does not run) > vLLM (run by the farm)
+// > llama.cpp > Ollama. The panel's switch writes exactly one of them true; the precedence only settles a file
+// written by hand. Every "which engine serves" check goes through here (ponytail: no top-level `engine` key —
+// the upgrade path is one key with a one-time migration).
+function engineOf(config) {
+    if (config.external && config.external.enabled) return 'external';
+    if (config.vllm && config.vllm.enabled) return 'vllm';
+    if (config.llamacpp && config.llamacpp.enabled) return 'llamacpp';
+    return 'ollama';
+}
+
+// Is the OLLAMA engine the one answering chat? While another engine serves, the Ollama catalog is STANDBY
+// inventory — not routed, not advertised — and nothing may warm, probe or re-route it as if it were serving.
+// Testing only `llamacpp.enabled` (as the code once did) treated an external engine as "Ollama serves" and let
+// the panel load models next to vLLM.
 function ollamaServes(config) {
-    return !(config.llamacpp && config.llamacpp.enabled) && !(config.external && config.external.enabled);
+    return engineOf(config) === 'ollama';
 }
 
 // The catalog entry clients auto-select on the Ollama engine (same rule as
@@ -87,31 +98,39 @@ function nameTakenByOther(config, name) {
 
 // A NAME PLAN is how the advertised name moves between engines, as data: keys present
 // are set, absent keys are left alone.
-//   { llamacppAlias }  → config.llamacpp.alias
+//   { llamacppAlias } / { vllmAlias } / { externalAlias } → that engine's `alias`
 //   { modelAlias }     → config.modelAlias (null clears it)
 //   { defaultAlias }   → the default catalog entry's own `alias` (null removes it)
 // Plans are computed by the pure functions below and applied by applyNamePlan (memory)
 // and, for a real engine switch only, persisted by the caller (up.js).
 
-// Carry the advertised name across an engine SWITCH. The name IS the model id clients
-// bind to, so a switch that renames the model makes every open chat ask to re-pick.
-//   → llama.cpp: the default Ollama model's SERVED name (its own alias, else the
-//     global modelAlias) becomes llamacpp.alias. A raw checkpoint id is not carried —
-//     llama.cpp serving a different model under "gemma4:12b" would be a lie. modelAlias
-//     is cleared so llamacpp.alias is the ONE source of truth while llama.cpp serves
-//     (a stale copy would win a later fallback).
-//   → Ollama: llamacpp.alias goes onto the default entry's own alias when it has one
-//     (per-model naming is how the panel names Ollama models), else into modelAlias.
-function carryNameAcross(config, toLlamacpp) {
-    const plan = {};
-    const lc = config.llamacpp || {};
-    if (toLlamacpp) {
+// The name an engine serves the model clients auto-select under; on Ollama it is "raw" when it is the
+// checkpoint id itself (nobody named it).
+function servedNameOf(config, engine) {
+    if (engine === 'ollama') {
         const def = servedEntries(config).find((e) => e.isDefault);
-        if (def && def.servedName !== def.underlying && def.servedName !== lc.alias) plan.llamacppAlias = def.servedName;
-        if ((config.modelAlias || '').trim()) plan.modelAlias = null;
+        return def ? { name: def.servedName, raw: def.servedName === def.underlying } : { name: '', raw: true };
+    }
+    return { name: ((config[engine] || {}).alias || '').trim(), raw: false };
+}
+
+// Carry the advertised name across an engine SWITCH from `from` to `to` ('ollama', 'llamacpp', 'vllm',
+// 'external'). The name IS the model id clients bind to, so a switch that renames the model makes every open
+// chat ask to re-pick.
+//   → a named engine (llama.cpp, vLLM, external): the current name becomes its alias. A raw Ollama checkpoint id
+//     is not carried — another model served under "gemma4:12b" would be a lie. Leaving Ollama clears modelAlias,
+//     so the serving engine's alias is the ONE source of truth (a stale copy would win a later fallback).
+//   → Ollama: the name goes onto the default entry's own alias when it has one (per-model naming is how the
+//     panel names Ollama models), else into modelAlias; skipped when another catalog model already has it.
+function carryNameAcross(config, from, to) {
+    const plan = {};
+    if (from === to) return plan;
+    const { name, raw } = servedNameOf(config, from);
+    if (to !== 'ollama') {
+        if (name && !raw && name !== servedNameOf(config, to).name) plan[`${to}Alias`] = name;
+        if (from === 'ollama' && (config.modelAlias || '').trim()) plan.modelAlias = null;
         return plan;
     }
-    const name = (lc.alias || '').trim();
     const def = defaultModelEntry(config);
     if (!name || !def || nameTakenByOther(config, name)) return plan;
     const own = (def.alias || '').trim();
@@ -137,7 +156,7 @@ function fallbackNamePlan(config, engineAlias) {
 // Apply a name plan to the in-memory config. Returns the config.
 function applyNamePlan(config, plan) {
     if (!plan) return config;
-    if ('llamacppAlias' in plan) config.llamacpp.alias = plan.llamacppAlias;
+    for (const e of ['llamacpp', 'vllm', 'external']) if (`${e}Alias` in plan) config[e].alias = plan[`${e}Alias`];
     if ('modelAlias' in plan) config.modelAlias = plan.modelAlias;
     if ('defaultAlias' in plan) {
         const def = defaultModelEntry(config);
@@ -149,8 +168,9 @@ function applyNamePlan(config, plan) {
 // A configured engine is off for THIS RUN (boot probe failed, no prebuilt, start
 // failure, crashed twice). IN MEMORY ONLY: the operator's file keeps the engine
 // enabled so the next boot retries, and the fallback's names are never written.
-//   'external' → the built-in engine that stands in (llama.cpp when enabled, else
-//                Ollama) serves under the external alias.
+//   'external' → the engine that stands in (vLLM when enabled, else llama.cpp when
+//                enabled, else Ollama) serves under the external alias.
+//   'vllm'     → Ollama serves (never llama.cpp), under vllm.alias unless the default is named.
 //   'llamacpp' → Ollama serves, under llamacpp.alias unless the default is named.
 // Returns the plan it applied (for the log line).
 function engineFallback(config, engine) {
@@ -158,15 +178,52 @@ function engineFallback(config, engine) {
     if (engine === 'external') {
         const alias = (config.external.alias || '').trim();
         config.external.enabled = false;
-        plan = config.llamacpp.enabled
-            ? (alias && alias !== config.llamacpp.alias ? { llamacppAlias: alias } : {})
-            : fallbackNamePlan(config, alias);
+        const next = engineOf(config);
+        plan = next === 'ollama'
+            ? fallbackNamePlan(config, alias)
+            : (alias && alias !== config[next].alias ? { [`${next}Alias`]: alias } : {});
+    } else if (engine === 'vllm') {
+        config.vllm.enabled = false;
+        config.llamacpp.enabled = false;
+        plan = fallbackNamePlan(config, config.vllm.alias);
     } else {
         config.llamacpp.enabled = false;
         plan = fallbackNamePlan(config, config.llamacpp.alias);
     }
     applyNamePlan(config, plan);
     return plan;
+}
+
+// The route to an OpenAI-compatible server (an external one, or the vLLM the farm runs): one `hosted_vllm/`
+// deployment, plus the coordinator peers that serve the same name. No reply cap here: such a server enforces
+// its own (see buildLitellmConfig).
+function serverRoute(name, servedModel, apiBase, apiKey, { presencePenalty = null, vision = false } = {}, peers = []) {
+    const out = [{
+        model_name: name,
+        litellm_params: {
+            // `model` is what the SERVER is asked for; model_name is what clients request.
+            model: `hosted_vllm/${servedModel}`,
+            api_base: apiBase,
+            api_key: apiKey,   // keyless servers ignore it
+            // A default like replyCap: the request's own presence_penalty wins (config.js says why).
+            ...(presencePenalty != null ? { presence_penalty: presencePenalty } : {}),
+        },
+        // Flagging a text-only model as vision makes OWUI offer an image upload that then fails.
+        ...(vision ? { model_info: { supports_vision: true } } : {}),
+    }];
+    // Peers still aggregate: exclusivity is about this box's engines, not the fleet (same rule as the
+    // llama.cpp branch — see the note there).
+    for (const peer of peers) {
+        if (!peer || !peer.openaiBaseUrl) continue;
+        const peerModels = new Set((peer.models || []).map((m) => (typeof m === 'string' ? m : m.id)));
+        if (peerModels.size && !peerModels.has(name)) continue;
+        out.push({
+            model_name: name,
+            litellm_params: { model: `openai/${name}`, api_base: peer.openaiBaseUrl, api_key: peer.key || 'sk-lol-coordinator' },
+            ...(vision ? { model_info: { supports_vision: true } } : {}),
+        });
+    }
+    return out;
 }
 
 // Build the config.yaml object (model_list × hosts + router/proxy settings).
@@ -198,10 +255,11 @@ function buildLitellmConfig(config, peers = []) {
     //   • llama-server ends it at the slot's window (b10670), and "auto" makes that window large. A request's
     //     max_completion_tokens rides beside the route's max_tokens, and llama-server obeys it either way
     //     (b10670, 2026-10-06: max_tokens 12 + max_completion_tokens 40 wrote 40, 40 + 12 wrote 12).
-    //   • NOT an external server: vLLM refuses a request whose prompt plus max_tokens passes its window (a
-    //     33k-token document on a 64k window would get a 400), so farm/vllm/serve.sh gives vLLM max_new_tokens
-    //     itself. vLLM 0.30 makes that a CEILING, not a default: every request gets the smallest of what the
-    //     window leaves, its own max_tokens and 32768. Nor coordinator peers: each farm sets its own.
+    //   • NOT an external server, nor the vLLM the farm runs: vLLM refuses a request whose prompt plus max_tokens
+    //     passes its window (a 33k-token document on a 64k window would get a 400), so vLLM gets max_new_tokens
+    //     in its launch (vllm.js planFor; farm/vllm/serve.sh's 32768 when an operator runs it). vLLM 0.30 makes
+    //     that a CEILING, not a default: every request gets the smallest of what the window leaves, its own
+    //     max_tokens and it. Nor coordinator peers: each farm sets its own.
     const replyCap = config.proxy.maxReplyTokens ? { max_tokens: config.proxy.maxReplyTokens } : {};
 
     // llama.cpp backend: one OpenAI-compatible deployment, exactly the shape already
@@ -237,46 +295,25 @@ function buildLitellmConfig(config, peers = []) {
     // still caps the farm at ~5,000 streamed tokens/s on that CPU (a second one on its own port
     // bought 0.2 s more at 140); past it, the seat gate streams straight to a lone external deployment
     // (farm/README.md, "LiteLLM's cost per streamed token").
+    const engine = engineOf(config);
     const ex = config.external || {};
-    if (ex.enabled) {
-        const entry = {
-            model_name: ex.alias,
-            litellm_params: {
-                // `model` is what the BACKEND is asked for; model_name is what clients
-                // request. null = pass the alias through (a server started with
-                // --served-model-name <alias> already answers to it).
-                model: `hosted_vllm/${ex.model || ex.alias}`,
-                api_base: ex.baseUrl,
-                api_key: ex.apiKey || 'sk-lol-external',   // keyless servers ignore it
-                // A default like replyCap above: the request's own presence_penalty wins (config.js says why).
-                ...(ex.presencePenalty != null ? { presence_penalty: ex.presencePenalty } : {}),
-            },
-        };
-        // No projector to inspect and no portable capability endpoint — the operator
-        // declares it (config.external.vision). Flagging a text-only model as vision
-        // makes OWUI offer an image upload that then fails.
-        if (ex.vision) entry.model_info = { supports_vision: true };
-        model_list.push(entry);
-        // Peers still aggregate: exclusivity is about this box's engines, not the
-        // fleet (same rule as the llama.cpp branch — see the note there).
-        for (const peer of peers) {
-            if (!peer || !peer.openaiBaseUrl) continue;
-            const peerModels = new Set((peer.models || []).map((m) => (typeof m === 'string' ? m : m.id)));
-            if (peerModels.size && !peerModels.has(ex.alias)) continue;
-            model_list.push({
-                model_name: ex.alias,
-                litellm_params: {
-                    model: `openai/${ex.alias}`,
-                    api_base: peer.openaiBaseUrl,
-                    api_key: peer.key || 'sk-lol-coordinator',
-                },
-                ...(ex.vision ? { model_info: { supports_vision: true } } : {}),
-            });
-        }
+    if (engine === 'external') {
+        // A null model passes the alias through (a server started with --served-model-name <alias> answers to
+        // it). No projector to inspect and no portable capability endpoint: the operator declares vision.
+        model_list.push(...serverRoute(ex.alias, ex.model || ex.alias, ex.baseUrl, ex.apiKey || 'sk-lol-external',
+            { presencePenalty: ex.presencePenalty, vision: ex.vision }, peers));
+    }
+    // The vLLM the farm runs: the same route, to serve.sh's relay. vLLM serves the model under its library id
+    // (--served-model-name), which never changes, so a rename only changes model_name: one proxy bounce, and vLLM
+    // keeps running. Its reply limit is part of its own launch (vllm.js planFor).
+    if (engine === 'vllm') {
+        const v = config.vllm; const e = vllmEntry(config) || {};
+        model_list.push(...serverRoute(v.alias, v.model, vllmBaseUrl(config), 'sk-lol-vllm',
+            { presencePenalty: e.presencePenalty, vision: e.vision ?? !!v.visionResolved }, peers));
     }
 
     const lc = config.llamacpp || {};
-    if (lc.enabled && !ex.enabled) {
+    if (engine === 'llamacpp') {
         const host = lc.host === '0.0.0.0' ? '127.0.0.1' : lc.host;
         const entry = {
             model_name: lc.alias,
@@ -456,5 +493,5 @@ function writeLitellmConfig(config, outPath = generatedConfigPath(), peers = [])
 
 module.exports = {
     buildLitellmConfig, toYaml, generatedConfigPath, writeLitellmConfig, modelSupportsVision, servedEntries,
-    ollamaServes, defaultModelEntry, carryNameAcross, fallbackNamePlan, applyNamePlan, engineFallback,
+    engineOf, ollamaServes, defaultModelEntry, carryNameAcross, fallbackNamePlan, applyNamePlan, engineFallback, serverRoute,
 };

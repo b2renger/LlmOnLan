@@ -341,7 +341,8 @@ Items 2–4 cost days, not weeks. Items 1 and 6 cost about a week each (1: measu
   (0.6): llama.cpp against vLLM, on the PRO 6000 (WSL2) and on a Spark, with short-listed models, at
   32k/64k/128k per person.
 - **Phase 2:** turn the winning vLLM setup into a farm engine, **sized against what else shares the
-  GPU** (ComfyUI, Ollama's OCR).
+  GPU** (ComfyUI, Ollama's OCR). Owner, 2026-10-07: the farm runs it itself, from the panel —
+  [docs/VLLM_MANAGED_PLAN.md](docs/VLLM_MANAGED_PLAN.md).
 - **Phase 5,** reshaped: a measured capacity table per box, which is the purchase tool.
 - **Cut:** identity (owner). **Out of scope:** scale-out on the small GPUs (owner). The queue, search
   cost, OCR reserve and TLS are still open (§13).
@@ -762,6 +763,11 @@ the cancel.
 
 ## 5. Phase 2 — vLLM engine (in scope: owner, 2026-10-04)
 
+> **Status, 2026-10-07: step (b), fully managed, is chosen by the owner** ("I want the farm operator to be able
+> to do everything from the app. No config file etc."). It replaces the 2026-09-07 and 2026-10-06 decisions below.
+> The design, its build order and its status: [docs/VLLM_MANAGED_PLAN.md](docs/VLLM_MANAGED_PLAN.md). Slice A
+> (the scripts, the config, the routing and the pure planning) is built on the `vllm-managed` branch.
+>
 > **Status, 2026-10-04:** step (a) is built (DEVLOG 2026-10-04 14:01).
 > - An external vLLM is detected by its `/metrics`. Its running and waiting counts feed
 >   `capacity.busy/queued`, and the Performance card shows vLLM's figures.

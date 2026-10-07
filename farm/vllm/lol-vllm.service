@@ -1,5 +1,7 @@
 # vLLM for a LlmOnLan farm on Linux, sized for a DGX Spark, started at boot (farm/README.md, "Serving with vLLM on
-# Linux (DGX Spark)"). A template: set User= and the path to serve.sh in ExecStart=, then
+# Linux (DGX Spark)"): for a vLLM the OPERATOR runs (the farm's `external` engine). Once the farm runs vLLM from this
+# root itself (run/managed-by-farm), a start of this unit does nothing and exits 0; `sudo systemctl disable lol-vllm`
+# then removes it. A template: set User= and the path to serve.sh in ExecStart=, then
 #   sudo cp lol-vllm.service /etc/systemd/system/ && sudo systemctl daemon-reload && sudo systemctl enable --now lol-vllm
 # A start returns once vLLM answers (ExecStartPost), so a farm started after it finds vLLM at its first probe.
 # Logs: journalctl -u lol-vllm (serve.sh's own lines) and ~/lol-vllm/logs/vllm.log (everything).

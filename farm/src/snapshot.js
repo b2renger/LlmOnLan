@@ -10,7 +10,8 @@
 // test/run.js fails (multi-user plan 4.4). Farms are updated by hand, so clients meet old ones.
 
 const { lanAddresses, primaryAddress, serviceHosts } = require('./net');
-const { servedEntries } = require('./litellm');
+const { servedEntries, engineOf } = require('./litellm');
+const { vllmEntry, flagMap } = require('./vllm');
 const { farmId } = require('./identity');
 const { normIp } = require('./seats');
 
@@ -39,15 +40,14 @@ function ggufName(url) {
     } catch { return 'llama.cpp'; }   // not a URL — keep the generic label
 }
 
-// The llama.cpp backend's advertised entry, or null when disabled.
-// The single advertised model when a non-Ollama engine serves. External outranks
-// llama.cpp (same precedence as the routing in litellm.js and backendInfo below).
-function llamacppServedModel(config) {
-    const ex = config.external || {};
-    if (ex.enabled) return { id: ex.alias, underlying: ex.label || ex.model || ex.alias, default: true };
-    const lc = config.llamacpp || {};
-    if (!lc.enabled) return null;
-    return { id: lc.alias, underlying: ggufName(lc.model), default: true };
+// The single advertised model when a non-Ollama engine serves, or null on Ollama (same precedence as the
+// routing in litellm.js and backendInfo below: engineOf).
+function servedEngineModel(config) {
+    const engine = engineOf(config);
+    if (engine === 'external') { const ex = config.external; return { id: ex.alias, underlying: ex.label || ex.model || ex.alias, default: true }; }
+    if (engine === 'vllm') { const e = vllmEntry(config); return { id: config.vllm.alias, underlying: e ? e.label : config.vllm.model, default: true }; }
+    if (engine === 'llamacpp') return { id: config.llamacpp.alias, underlying: ggufName(config.llamacpp.model), default: true };
+    return null;
 }
 
 // Which engine actually answers the model clients auto-select, and how many people
@@ -72,8 +72,9 @@ function backendInfo(config, health = {}) {
     // declaration does NOT fit (the panel warns), never that it does — neither
     // max_num_seqs nor max_model_len is in them, and on a hybrid model blocks x
     // block_size over-counts the pool.
+    const engine = engineOf(config);
     const ex = config.external || {};
-    if (ex.enabled) {
+    if (engine === 'external') {
         const slots = Math.max(1, ex.parallel || 1);
         return {
             engine: 'external',
@@ -91,8 +92,26 @@ function backendInfo(config, health = {}) {
             kvCacheType: null,
         };
     }
+    // The vLLM the farm runs: the farm launched it with this exact argv, so these are facts. Each person gets the
+    // whole window (vLLM's pool is shared, not split); the seats are the resolved Automatic number once vLLM is
+    // planned or adopted (parallelResolved), the operator's number otherwise.
+    if (engine === 'vllm') {
+        const v = config.vllm; const e = vllmEntry(config);
+        return {
+            engine: 'vllm',
+            alias: v.alias,
+            model: e ? e.label : v.model,
+            contextLength: v.contextLength,
+            contextAuto: false,
+            contextPerSlot: v.contextLength,
+            slots: Math.max(1, v.parallelResolved ?? (typeof v.parallel === 'number' ? v.parallel : 4)),
+            slotsVerified: true,
+            mtp: false,
+            kvCacheType: e && /^fp8/.test(String(flagMap(e.args || [])['--kv-cache-dtype'] || '')) ? 'fp8' : 'auto',
+        };
+    }
     const lc = config.llamacpp || {};
-    if (lc.enabled) {
+    if (engine === 'llamacpp') {
         const slots = Math.max(1, lc.parallel || 1);
         // 'auto' resolves at model load (lol up sets contextResolved); until then
         // report null rather than the string — arithmetic consumers must never
@@ -197,7 +216,7 @@ function buildSnapshot(config, health = {}, callerIp = null) {
     // inventory, not routed and not shown to clients (it used to stay selectable,
     // which read as "both engines are running" and let a picked Ollama model
     // overcommit a 12 GB card already holding llama-server).
-    const lcModel = llamacppServedModel(config);
+    const lcModel = servedEngineModel(config);
     const seatList = typeof health.getSeats === 'function' ? (health.getSeats() || []) : null;
     const job = typeof health.getJob === 'function' ? health.getJob() : null;
     const models = lcModel

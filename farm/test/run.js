@@ -2206,7 +2206,7 @@ test('an engine switch carries the served name both ways, per-model alias includ
     const defId = (c) => buildSnapshot(c, {}).models.find((m) => m.default).id;
     const switchTo = (c, toLc) => {
         const snapshotBefore = JSON.stringify(c);
-        const plan = carryNameAcross(c, toLc);
+        const plan = carryNameAcross(c, toLc ? 'ollama' : 'llamacpp', toLc ? 'llamacpp' : 'ollama');
         assert.equal(JSON.stringify(c), snapshotBefore, 'carryNameAcross is pure — it only returns a plan');
         applyNamePlan(c, plan);
         c.llamacpp.enabled = toLc;
@@ -2250,7 +2250,7 @@ test('an engine switch carries the served name both ways, per-model alias includ
     c = defaultConfig();
     c.llamacpp.enabled = true;
     c.models = [{ id: 'gemma4:12b', default: true }, { id: 'qwen3:8b', alias: 'assistant' }];
-    assert.deepEqual(carryNameAcross(c, false), {}, 'skip rather than merge two models into one name');
+    assert.deepEqual(carryNameAcross(c, 'llamacpp', 'ollama'), {}, 'skip rather than merge two models into one name');
 });
 
 test('a fallback serves the name chats are bound to, in memory only (FA-3)', () => {
@@ -3251,7 +3251,7 @@ test('contract: every engine\'s snapshot, and what farm-v0.0.41 sent, match cont
         assert.deepEqual(errs, [], `${label}: ${errs.join('; ')}`);
     }
     // The examples cover what they claim: each engine, a password, a coordinator, GET /lol/self and the beacon.
-    assert.deepEqual([...new Set(all.map((e) => e.snap.backend.engine))].sort(), ['external', 'llama.cpp', 'ollama']);
+    assert.deepEqual([...new Set(all.map((e) => e.snap.backend.engine))].sort(), ['external', 'llama.cpp', 'ollama', 'vllm']);
     assert.ok(all.some((e) => e.snap.requiresKey) && all.some((e) => e.snap.coordinator));
     assert.ok(all.some((e) => e.snap.capacity.mine === true) && all.some((e) => !('mine' in e.snap.capacity)));
     assert.ok(all.some((e) => e.snap.version === '0.0.41'));
@@ -3271,7 +3271,7 @@ test('contract: a field the schema does not declare fails, so a new one is added
     const { name, ...nameless } = snap;
     assert.deepEqual(schemaErrors(SNAPSHOT_SCHEMA, nameless), ['$.name: missing']);
     assert.deepEqual(schemaErrors(SNAPSHOT_SCHEMA, { ...snap, capacity: { ...snap.capacity, slots: '2' } }), ['$.capacity.slots: string, expected integer']);
-    assert.deepEqual(schemaErrors(SNAPSHOT_SCHEMA, { ...snap, backend: { ...snap.backend, engine: 'vllm' } }), ['$.backend.engine: "vllm" is not one of ollama, llama.cpp, external']);
+    assert.deepEqual(schemaErrors(SNAPSHOT_SCHEMA, { ...snap, backend: { ...snap.backend, engine: 'sglang' } }), ['$.backend.engine: "sglang" is not one of ollama, llama.cpp, vllm, external']);
     assert.deepEqual(schemaErrors(SNAPSHOT_SCHEMA, { ...snap, extract: { key: null } }), ['$.extract.url: missing'], 'through the $ref');
     assert.deepEqual(schemaErrors(SNAPSHOT_SCHEMA, { ...snap, models: [{ id: 'a' }, { default: true }] }), ['$.models[1].id: missing']);
     // Every property says who reads it (the schema is the one place a reader looks that up).
@@ -3629,6 +3629,453 @@ test('capacity scenarios: needs filter the models, the picks cover the head coun
     assert.equal(Sc.matchModel(cat, 'Qwen3.8-27B-UD-IQ2_S').id, 'qwen3.8-27b');
     assert.equal(Sc.matchModel(cat, 'nemotron-3.5-lightning:30b').id, 'nemotron-3.5-lightning-30b-a3b');
     assert.equal(Sc.matchModel(cat, 'assistant'), null);
+});
+
+// ---- vLLM run by the farm (docs/VLLM_MANAGED_PLAN.md §11.1, items 1-14) ------------------------------------
+const V = require('../src/vllm');
+const { engineOf } = require('../src/litellm');
+const FIX = path.join(__dirname, 'fixtures');
+const GIB = 2 ** 30;
+const PRO = 'NVIDIA RTX PRO 6000 Blackwell Workstation Edition';
+// The production box's operator-run vLLM, as its lol.config.json declared it on 2026-10-07 (the external block).
+const PROD_EXTERNAL = { enabled: true, alias: 'Qwen3.6', baseUrl: 'http://127.0.0.1:8100/v1', model: 'qwen3.6-35b-a3b', contextLength: 65536, parallel: 48, vision: true, label: 'Qwen3.6-35B-A3B (vLLM)', presencePenalty: 1.5 };
+// What the take-over (§9.3) builds from it: the same model, name and settings, now run by the farm.
+function takeOverConfig() {
+    const c = defaultConfig();
+    Object.assign(c.vllm, { enabled: true, root: '/home/ateliernum/lol-spike', port: 8100, alias: 'Qwen3.6', model: 'qwen3.6-35b-a3b', contextLength: 65536, parallel: 48, kvCacheGib: 50 });
+    return c;
+}
+// serve.sh's own ARGS block (the operator's path), as `vllm serve` receives it: read from the script, so the
+// adoption test and the script cannot drift apart.
+function serveShArgv(root) {
+    const sh = fs.readFileSync(path.join(__dirname, '..', 'vllm', 'serve.sh'), 'utf8');
+    const block = /\nARGS=\(\n([\s\S]*?)\n\)\n/.exec(sh)[1];
+    const words = [];
+    for (const line of block.split('\n')) {
+        for (const m of line.replace(/(^|\s)#.*$/, '').matchAll(/'([^']*)'|"([^"]*)"|(\S+)/g)) words.push(m[1] ?? m[2] ?? m[3]);
+    }
+    const folder = /MODEL="\$\{LOL_VLLM_MODEL:-\$ROOT\/hf\/([^}]+)\}"/.exec(sh)[1];
+    return [`${root}/hf/${folder}`, ...words.map((w) => w.replace('$SOCK', `${root}/run/vllm.sock`))];
+}
+const serveOn = (c, e) => { c.llamacpp.enabled = e === 'llamacpp'; c.vllm.enabled = e === 'vllm'; c.external.enabled = e === 'external'; };
+
+test('vLLM config: its defaults, the three measured models, and what it refuses (§11.1-1)', () => {
+    const v = defaultConfig().vllm;
+    assert.deepEqual(
+        { ...v, library: undefined },
+        { enabled: false, root: null, distro: null, port: 8100, alias: 'assistant', model: 'qwen3.6-35b-a3b', contextLength: 65536, parallel: 'auto', maxNumSeqs: 'auto', kvCacheGib: 'auto', ocrReserveGib: 9, marginPct: 8, minFreeGb: 'auto', version: '0.30.0', extraArgs: [], library: undefined },
+    );
+    assert.deepEqual(v.library.map((e) => [e.id, e.repo, e.vision, e.presencePenalty, e.measured]), [
+        ['qwen3.6-35b-a3b', 'nvidia/Qwen3.6-35B-A3B-NVFP4', true, 1.5, 'qwen36'],
+        ['nemotron-3.5-lightning', 'nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4', false, null, 'nemotron'],
+        ['qwen3.8-27b-nvfp4', 'nvidia/Qwen3.8-27B-NVFP4', true, null, 'qwen38'],
+    ]);
+    assert.equal(v.library[0].args.join(' '), '--kv-cache-dtype fp8 --enable-prefix-caching --mamba-cache-mode align --reasoning-parser qwen3 --enable-auto-tool-choice --tool-call-parser qwen3_xml', 'the spike\'s flags, as serve.sh runs them');
+    assert.ok(defaultConfig().vllm.library[0].args !== v.library[0].args, 'each config gets its own copy of the library');
+    const ok = (vllm) => ConfigSchema.safeParse({ vllm }).success;
+    assert.ok(!ok({ bogus: 1 }), 'strict: an unknown key in the block');
+    assert.ok(!ok({ library: [{ id: 'a', label: 'A', bogus: 1 }] }), 'strict: an unknown key in a model');
+    for (const id of ['Qwen', '-a', 'a b', 'a/b', 'x'.repeat(65)]) assert.ok(!ok({ library: [{ id, label: 'x' }] }), `id ${id}`);
+    assert.ok(ok({ library: [{ id: 'qwen3-0.6b_x', label: 'x', folder: 'Qwen3-0.6B', repo: 'Qwen/Qwen3-0.6B' }] }));
+    assert.ok(!ok({ library: [{ id: 'a', label: 'x', folder: '../etc' }] }) && !ok({ library: [{ id: 'a', label: 'x', repo: 'no-owner' }] }));
+    for (const root of ['~', '~/lol-vllm', '/home/me/lol-vllm', '/srv/a.b/c-d']) assert.ok(ok({ root }), root);
+    for (const root of ['lol-vllm', '/home/me/../root', '~/..', '/a/./b', '/a b', '~user/x', 'C:\\vllm', '/a/']) assert.ok(!ok({ root }), root);
+    assert.ok(ok({ parallel: 1 }) && ok({ parallel: 512 }) && !ok({ parallel: 0 }) && !ok({ parallel: 513 }) && !ok({ parallel: 'many' }));
+    assert.ok(ok({ kvCacheGib: 1 }) && ok({ kvCacheGib: 'auto' }) && !ok({ kvCacheGib: 0.5 }));
+    assert.ok(ok({ contextLength: 4096 }) && !ok({ contextLength: 4095 }));
+    assert.ok(ok({ minFreeGb: 0 }) && !ok({ minFreeGb: -1 }) && !ok({ distro: 'Ubuntu 24' }));
+});
+
+test('engineOf: external > vLLM > llama.cpp > Ollama over every combination, with or without a vllm block (§11.1-2)', () => {
+    for (let i = 0; i < 16; i++) {
+        const c = defaultConfig();
+        c.external.enabled = !!(i & 1); c.vllm.enabled = !!(i & 2); c.llamacpp.enabled = !!(i & 4);
+        if (i & 8) delete c.vllm;   // a config from before vLLM was an engine
+        const want = c.external.enabled ? 'external' : (c.vllm && c.vllm.enabled) ? 'vllm' : c.llamacpp.enabled ? 'llamacpp' : 'ollama';
+        assert.equal(engineOf(c), want, `combination ${i}`);
+        assert.equal(ollamaServes(c), want === 'ollama', `combination ${i}`);
+    }
+});
+
+test('vLLM route: hosted_vllm to serve.sh\'s relay, the model\'s presence penalty and vision, no reply cap, no Ollama, peers (§11.1-3)', () => {
+    const c = defaultConfig();
+    c.vllm.enabled = true;
+    let doc = buildLitellmConfig(c);
+    assert.equal(doc.model_list.length, 1, 'no Ollama deployment beside it');
+    const [d] = doc.model_list;
+    assert.equal(d.model_name, 'assistant');
+    assert.deepEqual(d.litellm_params, { model: 'hosted_vllm/qwen3.6-35b-a3b', api_base: 'http://127.0.0.1:8100/v1', api_key: 'sk-lol-vllm', presence_penalty: 1.5 });
+    assert.deepEqual(d.model_info, { supports_vision: true });
+    assert.equal(doc.router_settings.disable_cooldowns, true, 'alone: nothing to fail over to');
+    c.vllm.model = 'nemotron-3.5-lightning'; c.vllm.port = 8299;
+    doc = buildLitellmConfig(c);
+    assert.deepEqual(doc.model_list[0].litellm_params, { model: 'hosted_vllm/nemotron-3.5-lightning', api_base: 'http://127.0.0.1:8299/v1', api_key: 'sk-lol-vllm' });
+    assert.ok(!('model_info' in doc.model_list[0]), 'Nemotron does not see images');
+    // A model whose vision the checkpoint says (null in the list): what the farm read from its folder.
+    c.vllm.library.push({ ...c.vllm.library[1], id: 'mine', vision: null }); c.vllm.model = 'mine';
+    assert.ok(!('model_info' in buildLitellmConfig(c).model_list[0]));
+    c.vllm.visionResolved = true;
+    assert.deepEqual(buildLitellmConfig(c).model_list[0].model_info, { supports_vision: true });
+    // Coordinator peers serving the same name aggregate; the others do not.
+    c.vllm.model = 'qwen3.6-35b-a3b';
+    doc = buildLitellmConfig(c, [{ openaiBaseUrl: 'http://10.0.0.9:4000/v1', models: ['assistant'] }, { openaiBaseUrl: 'http://10.0.0.8:4000/v1', models: ['other'] }]);
+    assert.deepEqual(doc.model_list.map((x) => x.litellm_params.model), ['hosted_vllm/qwen3.6-35b-a3b', 'openai/assistant']);
+    assert.ok(!doc.router_settings.disable_cooldowns, 'two deployments: failover');
+});
+
+test('vLLM route, golden: the take-over\'s routing is production\'s external routing apart from api_key, so the take-over need not restart the proxy (§11.1-3)', () => {
+    const ext = defaultConfig();
+    Object.assign(ext.external, PROD_EXTERNAL);
+    const managed = takeOverConfig();
+    const a = toYaml(buildLitellmConfig(ext)); const b = toYaml(buildLitellmConfig(managed));
+    assert.notEqual(a, b);
+    assert.equal(b.replace('api_key: sk-lol-vllm', 'api_key: sk-lol-external'), a);
+});
+
+test('vLLM in the snapshot: the engine, its seats and window, its one name; healthy while it starts, not once stopped (§11.1-4)', () => {
+    const c = defaultConfig();
+    Object.assign(c.vllm, { enabled: true, alias: 'Qwen3.6', parallelResolved: 48 });
+    const be = backendInfo(c, {});
+    assert.deepEqual(be, { engine: 'vllm', alias: 'Qwen3.6', model: 'Qwen3.6 35B-A3B · NVFP4', contextLength: 65536, contextAuto: false, contextPerSlot: 65536, slots: 48, slotsVerified: true, mtp: false, kvCacheType: 'fp8' });
+    delete c.vllm.parallelResolved;
+    assert.equal(backendInfo(c, {}).slots, 4, 'Automatic, before it is worked out');
+    c.vllm.parallel = 12;
+    assert.equal(backendInfo(c, {}).slots, 12);
+    c.vllm.parallelResolved = 48;
+    const job = { kind: 'engine', label: 'Starting vLLM', message: 'reading the model', percent: null, done: false };
+    const starting = buildSnapshot(c, { proxyUp: true, engineUp: true, getJob: () => job });
+    assert.deepEqual(starting.models, [{ id: 'Qwen3.6', underlying: 'Qwen3.6 35B-A3B · NVFP4', default: true }], 'one model; the Ollama catalog is standby');
+    assert.equal(starting.healthy, true, 'a planned start keeps clients on this farm');
+    assert.deepEqual(starting.busy, { kind: 'engine', label: 'Starting vLLM', message: 'reading the model', percent: null });
+    assert.equal(starting.capacity.slots, 48);
+    for (const [why, getJob] of [['stopped', () => null], ['the memory guard', () => null], ['the restart after a crash', () => ({ ...job, label: 'Restarting vLLM after it stopped unexpectedly' })]]) {
+        assert.equal(buildSnapshot(c, { proxyUp: true, engineUp: false, getJob }).healthy, false, `${why}: clients go elsewhere`);
+    }
+    // The contract carries both: starting (healthy, busy) and serving.
+    const ex = contractExamples().filter((e) => e.snap.backend.engine === 'vllm');
+    assert.deepEqual(ex.map((e) => [e.snap.healthy, e.snap.busy && e.snap.busy.label]), [[true, 'Starting vLLM'], [true, null]]);
+});
+
+test('names move across all four engines: the name chats are bound to survives every switch (§11.1-5)', () => {
+    const E = ['ollama', 'llamacpp', 'vllm', 'external'];
+    const own = { llamacpp: 'lc-name', vllm: 'vl-name', external: 'ex-name' };
+    const defId = (c) => buildSnapshot(c, {}).models.find((m) => m.default).id;
+    const variants = {
+        'a per-model Ollama name': (c) => { c.models = [{ id: 'gemma4:12b', default: true, alias: 'tutor' }, { id: 'qwen3:8b' }]; },
+        'the global Ollama name': (c) => { c.modelAlias = 'helper'; },
+        'an unnamed Ollama default': () => {},
+    };
+    let n = 0;
+    for (const [vname, setup] of Object.entries(variants)) {
+        for (const from of E) {
+            for (const to of E) {
+                const c = defaultConfig(); setup(c);
+                for (const e of Object.keys(own)) c[e].alias = own[e];
+                serveOn(c, from);
+                const before = defId(c); const frozen = JSON.stringify(c);
+                const plan = carryNameAcross(c, from, to);
+                assert.equal(JSON.stringify(c), frozen, 'carryNameAcross is pure');
+                if (from === to) { assert.deepEqual(plan, {}); continue; }
+                applyNamePlan(c, plan); serveOn(c, to);
+                if (from === 'ollama' && before === 'gemma4:12b') assert.equal(defId(c), own[to], `${vname}: ${from} → ${to}: a raw checkpoint id is not carried`);
+                else assert.equal(defId(c), before, `${vname}: ${from} → ${to} keeps "${before}"`);
+                if (from === 'ollama') assert.equal(c.modelAlias ?? null, null, 'the serving engine holds the one name');
+                n++;
+            }
+        }
+    }
+    assert.equal(n, 36);
+    // Never two models under one name: another catalog model already answers to it.
+    const c = defaultConfig();
+    c.models = [{ id: 'gemma4:12b', default: true }, { id: 'qwen3:8b', alias: 'vl-name' }];
+    c.vllm.alias = 'vl-name'; serveOn(c, 'vllm');
+    assert.deepEqual(carryNameAcross(c, 'vllm', 'ollama'), {});
+});
+
+test('a vLLM that cannot serve falls back to Ollama under its name, in memory only; an external server falls to vLLM first (§11.1-5)', () => {
+    const snapId = (c) => buildSnapshot(c, {}).models.find((m) => m.default).id;
+    let c = defaultConfig();
+    Object.assign(c.vllm, { enabled: true, alias: 'Qwen3.6' }); c.llamacpp.enabled = true;
+    assert.deepEqual(engineFallback(c, 'vllm'), { modelAlias: 'Qwen3.6' });
+    assert.equal(engineOf(c), 'ollama', 'Ollama, never llama.cpp');
+    assert.equal(snapId(c), 'Qwen3.6');
+    c = defaultConfig();
+    Object.assign(c.vllm, { enabled: true, alias: 'Qwen3.6' });
+    c.models = [{ id: 'gemma4:12b', default: true, alias: 'tutor' }];
+    assert.deepEqual(engineFallback(c, 'vllm'), {}, 'the operator\'s own Ollama name wins');
+    c = defaultConfig();
+    Object.assign(c.external, { enabled: true, alias: 'deepseek' }); c.vllm.enabled = true;
+    assert.deepEqual(engineFallback(c, 'external'), { vllmAlias: 'deepseek' });
+    assert.equal(engineOf(c), 'vllm');
+    assert.equal(snapId(c), 'deepseek');
+    engineFallback(c, 'vllm');
+    assert.equal(snapId(c), 'deepseek', 'and Ollama after it, still under the name chats are bound to');
+});
+
+test('vLLM launch: the farm\'s whole argv, its environment, and how a script runs on Windows and Linux (§11.1-6)', () => {
+    const st = V.parseStatus(['home=/home/me', 'arch=x86_64', `gpu=${PRO}, 97887, 95272, 12.0`, 'mem_total_kb=98875528', 'mem_available_kb=91993964',
+        'disk_free_kb=600000000', 'install=/home/me/lol-vllm 0.30.0', 'model=Qwen3.6-35B-A3B-NVFP4 22880000 vision=1 native=262144 partial=0'].join('\n'));
+    const c = defaultConfig();
+    c.vllm.enabled = true;
+    const mem = { unified: false, totalGib: 95.59, freeGib: 93.04 };
+    let p = V.planFor(c, st, mem);
+    assert.ok(p.ok, p.reason);
+    assert.equal(p.folderPath, '/home/me/lol-vllm/hf/Qwen3.6-35B-A3B-NVFP4');
+    assert.deepEqual([p.seats, p.seatsSource, p.maxNumSeqs, p.kvGib, p.peopleFit], [48, 'measured', 128, 52, 69]);
+    assert.deepEqual(p.argv, ['--served-model-name', 'qwen3.6-35b-a3b', '--max-model-len', '65536', '--max-num-seqs', '128', '--kv-cache-memory-bytes', String(52 * GIB),
+        ...c.vllm.library[0].args, '--override-generation-config', '{"max_new_tokens":32768}']);
+    assert.deepEqual(Buffer.from(p.env.LOL_VLLM_ARGS_B64, 'base64').toString('utf8').split('\0'), p.argv, 'serve.sh decodes exactly this');
+    assert.deepEqual({ ...p.env, LOL_VLLM_ARGS_B64: undefined }, { LOL_VLLM_DAEMON: '1', LOL_VLLM_ROOT: '/home/me/lol-vllm', LOL_VLLM_PORT: '8100', LOL_VLLM_MODEL: p.folderPath, LOL_VLLM_ARGS_B64: undefined });
+    c.proxy.maxReplyTokens = null; c.vllm.extraArgs = ['--enforce-eager'];
+    p = V.planFor(c, st, mem);
+    assert.ok(!p.argv.includes('--override-generation-config'), 'no reply limit: no override');
+    assert.equal(p.argv[p.argv.length - 1], '--enforce-eager', 'the extra flags come last');
+    // Unified memory (DGX Spark): the memory guard's 8 GB and 4 compile jobs.
+    p = V.planFor(c, { ...st, gpu: { name: 'NVIDIA GB10', totalGib: null, freeGib: null, cap: 12.1 } }, { unified: true, totalGib: 119.2, memAvailableGib: 110 });
+    // The pool is 59 GiB uncapped (poolGib, §6), then capped at what 32 requests at once can hold at 64k, plus 10 %.
+    assert.deepEqual([p.env.LOL_VLLM_MIN_FREE_GB, p.env.MAX_JOBS, p.seats, p.maxNumSeqs, p.kvGib, p.kvWhy.capped], ['8', '4', 8, 32, 27, true]);
+    // A model the list does not have, and an explicit pool under one person: refused with the reason.
+    c.vllm.model = 'nope';
+    assert.match(V.planFor(c, st, mem).reason, /is not in the vLLM list/);
+    c.vllm.model = 'qwen3.6-35b-a3b'; c.vllm.kvCacheGib = 1; c.vllm.contextLength = 262144;
+    assert.match(V.planFor(c, st, mem).reason, /less than one person's conversation needs/);
+    // How a script runs: Windows through wsl.exe from farm\vllm's Windows path (a space in it), Linux with bash there.
+    const dir = 'C:\\Users\\a b\\AppData\\Roaming\\LlmOnLan Farm\\farm\\vllm';
+    const baseEnv = { PATH: 'p', ELECTRON_RUN_AS_NODE: '1', PYTHONHOME: 'h', LOL_PYTHON: 'x', PYTHONPATH: 'y' };
+    const w = V.scriptCommand(c, 'serve.sh', { A: '1', B: 'x y' }, { platform: 'win32', distro: 'Ubuntu', dir, baseEnv });
+    assert.deepEqual([w.cmd, w.args], ['wsl.exe', ['-d', 'Ubuntu', '--cd', dir, '-e', 'env', 'A=1', 'B=x y', 'bash', './serve.sh']]);
+    assert.deepEqual(w.env, { PATH: 'p' }, 'the farm\'s Electron and Python variables stay out');
+    assert.deepEqual(V.scriptCommand(c, 'stop.sh', {}, { platform: 'win32', distro: null, dir, baseEnv, args: ['install'] }).args, ['--cd', dir, '-e', 'env', 'bash', './stop.sh', 'install'], 'no distribution named: WSL\'s default');
+    const l = V.scriptCommand(c, 'status.sh', { LOL_VLLM_ROOT: '/r' }, { platform: 'linux', dir: '/opt/farm/vllm', baseEnv });
+    assert.deepEqual([l.cmd, l.args, l.cwd, l.env], ['bash', ['./status.sh'], '/opt/farm/vllm', { PATH: 'p', LOL_VLLM_ROOT: '/r' }]);
+});
+
+test('vLLM golden adoption: the take-over keeps the server production runs, read from serve.sh and lol-vllm.service themselves (§11.1-7)', () => {
+    const running = { pgid: 401, port: 8100, minFreeGb: null, argv: serveShArgv('/home/ateliernum/lol-spike'), ready: true };
+    assert.equal(running.argv.length, 23, 'serve.sh\'s ARGS block was read: the model and 22 words');
+    const a = V.adoptable(takeOverConfig(), running, { unified: false, gpuName: PRO });
+    assert.deepEqual(a, { ok: true, resolved: { kvGib: 50, maxNumSeqs: 128, seats: 48 }, diff: [] });
+    // Automatic everywhere keeps it too (D9): the pool it holds is accepted, 67 people fit in it at 64k, the card's
+    // measured 48 are the seats, and 48 seats ask for 128 at once.
+    const auto = takeOverConfig();
+    Object.assign(auto.vllm, { parallel: 'auto', kvCacheGib: 'auto' });
+    assert.deepEqual(V.adoptable(auto, running, { gpuName: PRO }), { ok: true, resolved: { kvGib: 50, maxNumSeqs: 128, seats: 48 }, diff: [] });
+    // An explicit setting that differs from the running server: not kept, and the diff says what.
+    for (const [what, set, key] of [
+        ['the pool', (v) => { v.kvCacheGib = 40; }, '--kv-cache-memory-bytes'],
+        ['the context', (v) => { v.contextLength = 32768; }, '--max-model-len'],
+        ['the model', (v) => { v.model = 'nemotron-3.5-lightning'; }, 'model'],
+        ['the port', (v) => { v.port = 8101; }, 'port'],
+        ['the seats', (v) => { v.parallel = 80; }, '--max-num-seqs'],
+        ['the memory guard', (v) => { v.minFreeGb = 8; }, 'minFreeGb'],
+    ]) {
+        const c = takeOverConfig(); set(c.vllm);
+        const r = V.adoptable(c, running, { gpuName: PRO });
+        assert.equal(r.ok, false, what); assert.ok(r.diff.includes(key), `${what}: ${r.diff}`);
+    }
+    // The DGX Spark's unit: serve.sh's defaults plus the unit's overrides (the last value wins), its memory guard.
+    const unit = fs.readFileSync(path.join(__dirname, '..', 'vllm', 'lol-vllm.service'), 'utf8');
+    const extra = /^ExecStart=\S+ \S+serve\.sh (.*)$/m.exec(unit)[1].split(/\s+/);
+    const floor = Number(/^Environment=LOL_VLLM_MIN_FREE_GB=(\d+)$/m.exec(unit)[1]);
+    const spark = { pgid: 7, port: 8100, minFreeGb: floor, argv: [...serveShArgv('/home/me/lol-vllm'), ...extra], ready: true };
+    const c = defaultConfig();
+    Object.assign(c.vllm, { enabled: true, root: '/home/me/lol-vllm', contextLength: 65536, parallel: 8, kvCacheGib: 58 });
+    assert.deepEqual(V.adoptable(c, spark, { unified: true, gpuName: 'NVIDIA GB10' }), { ok: true, resolved: { kvGib: 58, maxNumSeqs: 32, seats: 8 }, diff: [] });
+    assert.ok(!V.adoptable(c, spark, { unified: false, gpuName: 'NVIDIA GB10' }).ok, 'its guard is not this farm\'s Automatic on a discrete GPU');
+});
+
+test('vLLM sizing: the pool, people per pool, Automatic seats and vLLM\'s own cap, on the measured boxes (§11.1-8, §6)', () => {
+    const pro = { totalGib: 95.59, freeGib: 93.04, weightsGib: 20.37, ocrReserveGib: 9, marginPct: 8 };
+    assert.equal(V.poolGib(pro).gib, 52, 'RTX PRO 6000, alone, document reading on');
+    assert.equal(V.poolGib({ ...pro, freeGib: 49.5 }).gib, 8, 'with ComfyUI holding ~45 GB');
+    assert.equal(V.poolGib({ ...pro, ocrReserveGib: 0 }).gib, 61, 'document reading off: +9');
+    assert.equal(V.poolGib({ totalGib: 119.2, unified: true, memAvailableGib: 110, weightsGib: 20.37, ocrReserveGib: 9, marginPct: 8, minFreeGb: 8 }).gib, 59, 'DGX Spark');
+    const capped = V.poolGib({ ...pro, cap: 7 });
+    assert.deepEqual([capped.gib, capped.why.capped, capped.ok], [7, true, true], 'a small model gets what its seats can use');
+    const short = V.poolGib({ ...pro, freeGib: 36, personGib: 0.75 });
+    assert.equal(short.ok, false);
+    assert.equal(short.reason, 'The GPU has 36 GB free. After the model (20 GB), document reading (9 GB) and a safety margin, 0 GB are left for conversations: less than one person\'s conversation needs (0.8 GB). Close what else uses the GPU, or lower the context per person.');
+    assert.match(V.poolGib({ totalGib: 119.2, unified: true, memAvailableGib: 40, weightsGib: 20.37, ocrReserveGib: 9, marginPct: 8, minFreeGb: 8 }).reason, /^This computer has 40 GB of memory available\. After the model .*, the 8 GB kept so the computer cannot run out and a safety margin, 0 GB are left/);
+    const lib = defaultConfig().vllm.library;
+    const q36 = V.facts(lib[0]);
+    assert.deepEqual(q36, { kvBytesPerToken: 10240, stateBytes: 128778240, nativeCtx: 262144 });
+    assert.equal(V.peopleFit(50, 65536, q36), 67, 'vLLM itself said 65.82x for this pool');
+    assert.equal(V.peopleFit(8, 65536, q36), 10);
+    assert.equal(V.facts({ ...lib[0], args: [] }).kvBytesPerToken, 20480, 'no fp8 flag: 16-bit context memory');
+    assert.equal(V.facts(lib[2]).kvBytesPerToken, 32768, 'fp8_e4m3 is fp8');
+    assert.equal(V.peopleFit(50, 65536, V.facts({ id: 'x', catalog: null })), null, 'unknown model: unknown');
+    assert.deepEqual([1, 8, 16, 17, 48, 64, 96, 200, 512].map(V.maxNumSeqsAuto), [32, 32, 32, 64, 128, 128, 256, 512, 512]);
+    const seats = (e, gpu, ctx, fit = null) => V.seatsAuto(e, gpu, ctx, fit);
+    assert.deepEqual([32768, 65536, 131072].map((x) => seats(lib[0], PRO, x).seats), [96, 48, 32], 'PRO 6000 + Qwen3.6');
+    assert.deepEqual([32768, 65536, 131072].map((x) => seats(lib[0], 'NVIDIA GB10', x).seats), [8, 8, 4], 'DGX Spark + Qwen3.6');
+    assert.deepEqual(seats(lib[1], PRO, 65536), { seats: 16, source: 'measured', label: '16' }, 'Nemotron at 64k');
+    assert.deepEqual(seats(lib[1], 'NVIDIA GB10', 65536), { seats: 4, source: 'measured', label: '< 8' }, '"< 8": half of it');
+    assert.deepEqual(seats(lib[2], PRO, 65536), { seats: 24, source: 'measured', label: '≥ 24' }, '"≥ 24": 24');
+    assert.equal(seats(lib[0], PRO, 8192).seats, 96, 'a smaller context counts on the nearest measured one above');
+    assert.deepEqual(seats(lib[0], PRO, 65536, 10), { seats: 10, source: 'memory', label: '48' }, 'never more than the pool holds (8 GB → 10)');
+    assert.deepEqual(seats(lib[0], PRO, 262144, 30), { seats: 16, source: 'memory', label: null }, 'past the measured contexts');
+    assert.deepEqual(seats(lib[0], 'NVIDIA RTX PRO 6000 Blackwell Max-Q Workstation Edition', 65536), { seats: 4, source: 'default', label: null }, 'a Max-Q was not measured');
+    assert.equal(seats(lib[0], 'NVIDIA GeForce RTX 5090', 65536, 9).seats, 9);
+    assert.deepEqual(V.measuredFor(lib[0], PRO).at[65536], { every: '48', steady: '≥ 64' });
+    assert.equal(V.measuredFor(lib[0], 'NVIDIA RTX A6000'), null);
+});
+
+test('vLLM flags compare as a map: order, --uds, repeats, JSON (§11.1-9)', () => {
+    const a = V.flagMap(['/model', '--a', '1', '--b', '--uds', '/x.sock', '--c=z', '--override-generation-config', '{"max_new_tokens": 32768}']);
+    assert.deepEqual(a, { '--a': '1', '--b': true, '--c': 'z', '--override-generation-config': { max_new_tokens: 32768 } });
+    assert.deepEqual(V.flagMap(['--c', 'z', '--override-generation-config', '{"max_new_tokens":32768}', '--b', '--a', '1']), a, 'whatever the order and the JSON spacing');
+    assert.equal(V.flagMap(['--kv', '1', '--kv', '2'])['--kv'], '2', 'the last value wins, as in vLLM');
+    assert.equal(V.flagMap(['--n', '-1'])['--n'], '-1');
+});
+
+test('vLLM decisions: at boot, when it stops answering, and an orphan left by a crash (§11.1-10)', () => {
+    const run = (ready) => ({ pgid: 9, ready });
+    assert.deepEqual(V.bootDecision({ supported: { ok: false, why: 'mac' } }), { action: 'unavailable', reason: V.UNSUPPORTED });
+    assert.deepEqual(V.bootDecision({ problems: ['vLLM is not installed on this computer yet: press Install vLLM.', 'x'] }), { action: 'unavailable', reason: 'vLLM is not installed on this computer yet: press Install vLLM.' });
+    assert.equal(V.bootDecision({ running: run(true), adopt: { ok: true } }).action, 'adopt');
+    assert.equal(V.bootDecision({ running: run(false), adopt: { ok: true } }).action, 'wait', 'a farm crash in the middle of a start');
+    assert.equal(V.bootDecision({ running: run(true), adopt: { ok: false } }).action, 'restart');
+    assert.equal(V.bootDecision({}).action, 'start');
+    const now = 1e9;
+    assert.equal(V.downDecision({ guard: true, lastRestartAt: now - 1000, now }), 'guard', 'the memory guard\'s stop is never undone');
+    assert.equal(V.downDecision({ running: true, ready: true, portAnswers: true, now }), 'none', 'slow, but it answers');
+    assert.equal(V.downDecision({ running: true, ready: true, portAnswers: false, now }), 'restart', 'the socket answers, the port does not: the relay died');
+    assert.equal(V.downDecision({ running: true, ready: false, portAnswers: false, now }), 'restart', 'hung');
+    assert.equal(V.downDecision({ now }), 'restart');
+    assert.equal(V.downDecision({ lastRestartAt: now - 4 * 60e3, now }), 'fallback', 'a second time within 5 minutes');
+    assert.equal(V.downDecision({ lastRestartAt: now - 6 * 60e3, now }), 'restart');
+    const st = (managed) => ({ running: { pgid: 9 }, managed });
+    assert.deepEqual(['ollama', 'llamacpp', 'external', 'vllm'].map((e) => V.isOrphan(e, st(true))), [true, true, true, false], 'the farm\'s own vLLM beside another engine: stop it');
+    assert.equal(V.isOrphan('ollama', st(false)), false, 'no marker: someone else\'s, left alone');
+    assert.equal(V.isOrphan('ollama', { running: null, managed: true }), false);
+});
+
+test('vLLM start phases, read from its real log (vLLM 0.30, 2026-10-07 17:45-17:47) with its carriage-return bars (§11.1-11)', () => {
+    const log = fs.readFileSync(path.join(FIX, 'vllm-start.log'), 'utf8');
+    assert.ok(/Capturing CUDA graphs[^\n]*\r[^\n]*Capturing CUDA graphs/.test(log), 'the fixture keeps vLLM\'s \\r updates inside one line');
+    const end = V.startPhase(log);
+    assert.deepEqual([end.key, end.poolTokens, end.peopleFit, end.weightsGib], ['ready', 4313303, 65, 20.37]);
+    // As the farm reads it: new bytes at a time, the last result carried along.
+    let s = null; const keys = []; const pct = new Set(); const texts = new Set();
+    for (const chunk of log.split('\n')) {
+        s = V.startPhase(`${chunk}\n`, s);
+        if (keys[keys.length - 1] !== s.key) keys.push(s.key);
+        if (s.key === 'weights') { pct.add(s.percent); texts.add(s.text); }
+    }
+    assert.deepEqual(keys, ['starting', 'reading', 'weights', 'kernels', 'graphs', 'almost', 'ready']);
+    assert.ok([33, 67, 100].every((p) => pct.has(p)), [...pct].join());
+    assert.ok(texts.has('loading the model weights (2 of 3)'));
+    s = V.startPhase('[serve] 2026-10-07T18:00:00+02:00 vLLM exited (status 1); the relay and the watchdog are stopped.\n', s);
+    assert.deepEqual([s.key, s.status, s.text], ['exited', 1, 'stopped']);
+    s = V.startPhase('[serve] 2026-10-07T18:01:00+02:00 host=x pgid=77 port=8100 model=/m daemon=1 min_free_gb=off\n', s);
+    assert.deepEqual([s.key, s.poolTokens], ['starting', null], 'a new start begins again');
+    // serve.sh moves a log over 50 MB aside at a start: a file smaller than the saved offset is read from 0.
+    assert.equal(V.logOffset(100, 5000), 0);
+    assert.equal(V.logOffset(6000, 5000), 5000);
+});
+
+test('vLLM start failures, in plain words (§11.1-12, §7.5)', () => {
+    const ctx = { root: '/home/me/lol-vllm', port: 8100, label: 'Qwen3.6 35B-A3B · NVFP4', otherGpuGb: 45.2 };
+    const say = (code, lines) => V.explainFailure(code, lines, ctx);
+    assert.equal(say(3, ['[guard] 2026-10-07T18:00:00+02:00 5 GB of memory available, under LOL_VLLM_MIN_FREE_GB=8: stopping vLLM']),
+        'vLLM was stopped because this computer was running out of memory (5 GB left; it stops below 8 GB, before the GPU gets stuck at a slow speed). Close what is using the memory, then press Start vLLM.');
+    assert.match(say(3, []), /^vLLM was stopped because this computer was running out of memory\. Close/);
+    assert.equal(say(1, ['(EngineCore pid=7) torch.OutOfMemoryError: CUDA out of memory. Tried to allocate 2.00 GiB']),
+        'vLLM ran out of GPU memory while starting. Lower GPU memory for conversations or the context, or close other programs using the GPU (they use 45 GB now).');
+    assert.match(say(1, ['ValueError: No available memory for the cache blocks.']), /ran out of GPU memory/);
+    assert.equal(say(1, ['[serve] x A server from /home/me/lol-vllm is already running (process group 401): stop it first with stop.sh.']),
+        'A vLLM from /home/me/lol-vllm is already running but does not answer. Press Stop vLLM, then Start vLLM.');
+    assert.equal(say(1, ['[serve] x The relay could not listen on 127.0.0.1:8100 (is the port in use?).']),
+        'Another program uses port 8100, maybe a vLLM started outside the farm. Stop it, then press Start vLLM.');
+    assert.equal(say(1, ['[serve] x No vLLM in /home/me/lol-vllm/.venv: run install.sh first, or set LOL_VLLM_ROOT.']), 'vLLM is not installed in /home/me/lol-vllm. Press Install vLLM.');
+    assert.equal(say(1, ['ValueError: Model architectures [\'Foo\'] failed to be inspected.']), 'This vLLM version cannot load Qwen3.6 35B-A3B · NVFP4. Pick another model.');
+    assert.equal(say('stall', []), 'vLLM stopped making progress for 10 minutes. Show the log for details.');
+    assert.equal(say('cap', []), 'vLLM was still not ready after 30 minutes. Show the log for details.');
+    assert.equal(say(1, ['(APIServer pid=5) INFO a', '(EngineCore pid=6) ERROR 10-07 17:46:07 [core.py:12] EngineCore failed to start.', 'Traceback (most recent call last):', '  File "x.py"', 'RuntimeError: CUDA error: no kernel image is available']),
+        'vLLM stopped while starting. Its last error: RuntimeError: CUDA error: no kernel image is available');
+    assert.equal(say(1, ['(EngineCore pid=6) ERROR 10-07 17:46:07 [core.py:12] EngineCore failed to start.']), 'vLLM stopped while starting. Its last error: EngineCore failed to start.');
+    assert.equal(say(1, ['INFO nothing useful']), 'vLLM stopped while starting (status 1). Show the log for details.');
+});
+
+test('vLLM on this computer: the checklist, every blocking sentence, and the disk that counts (§11.1-13, §7.2)', () => {
+    const c = defaultConfig();
+    const status = (lines) => V.parseStatus(['home=/home/me', 'arch=x86_64', 'curl=/usr/bin/curl', `gpu=${PRO}, 97887, 95000, 12.0`,
+        'mem_total_kb=98875528', 'mem_available_kb=91993964', 'disk_free_kb=600000000', 'install=/home/me/lol-vllm 0.30.0',
+        'model=Qwen3.6-35B-A3B-NVFP4 22880000 vision=1 native=262144 partial=0', ...lines].join('\n'));
+    const ubuntu = { list: [{ name: 'Ubuntu', state: 'Running', version: 2, isDefault: true }] };
+    const win = (over = {}) => ({ platform: 'win32', arch: 'x64', wsl: ubuntu, st: status([]), hostDiskFreeGb: 500, hostDrive: 'C', ...over });
+    const lin = (over = {}) => ({ platform: 'linux', arch: 'x64', st: status([]), ...over });
+    const P = (probe, cfg = c) => V.problemsFrom(probe, cfg);
+    let r = P(win());
+    assert.deepEqual(r.problems, []);
+    assert.deepEqual(r.oks, ['WSL is installed, with Ubuntu on WSL 2.', `Ubuntu sees the GPU: ${PRO} (96 GB).`, 'Found an existing vLLM in /home/me/lol-vllm: the farm will use it.', '500 GB free for vLLM and its models.']);
+    assert.deepEqual(P({ platform: 'darwin', arch: 'arm64' }).problems, [V.UNSUPPORTED]);
+    assert.match(P(win({ wsl: { error: 'no-wsl' } })).problems[0], /^WSL is not installed\. .*run {2}wsl --install -d Ubuntu , and restart the computer/);
+    assert.equal(P(win({ wsl: { error: 'timeout' } })).problems[0], 'WSL did not answer within a minute. Restart the computer, then press Check again.');
+    assert.equal(P(win({ st: null })).problems[0], 'WSL did not answer within a minute. Restart the computer, then press Check again.', 'status.sh timed out');
+    assert.match(P(win({ wsl: { list: [] } })).problems[0], /^WSL has no Ubuntu yet\./);
+    assert.equal(P(win({ wsl: { list: [{ name: 'Ubuntu', version: 1, isDefault: true }] } })).problems[0], 'Ubuntu runs on WSL 1, which cannot use the GPU. In PowerShell, run  wsl --set-version Ubuntu 2  (a few minutes), then press Check again.');
+    r = P(win({ wsl: { list: [{ name: 'docker-desktop', version: 2, isDefault: true }, { name: 'Ubuntu-24.04', version: 2, isDefault: false }] } }));
+    assert.equal(r.oks[0], 'WSL is installed, with Ubuntu-24.04 on WSL 2.', 'Docker Desktop\'s default distribution is skipped');
+    const noGpu = V.parseStatus('home=/home/me\narch=x86_64\ncurl=/usr/bin/curl\n');
+    assert.equal(P(win({ st: noGpu })).problems[0], 'Ubuntu cannot see the GPU. Install the latest NVIDIA driver for Windows (it also serves WSL), restart the computer, then press Check again.');
+    assert.equal(P(lin({ st: noGpu })).problems[0], 'No NVIDIA GPU was found (nvidia-smi does not answer). vLLM needs an NVIDIA GPU and its driver.');
+    assert.equal(P(lin({ st: { ...status([]), arch: 'armv7l' } })).problems[0], 'vLLM needs a 64-bit Intel, AMD or ARM processor.');
+    assert.ok(P(lin({ st: { ...status([]), curl: null } })).problems.includes('curl is missing. In a terminal, run  sudo apt install curl , then press Check again.'));
+    const small = V.parseStatus(['home=/home/me', 'arch=x86_64', 'curl=/usr/bin/curl', 'gpu=NVIDIA GeForce RTX 4070, 12282, 11000, 8.9'].join('\n'));
+    r = P(lin({ st: small }));
+    assert.ok(r.problems.includes('This GPU has 12 GB: too little for any model in the vLLM list (the smallest needs about 24 GB). llama.cpp is the engine for this card.'), r.problems.join('|'));
+    assert.deepEqual(r.warnings, ['This GPU is older than the cards these models were measured on (RTX PRO 6000, DGX Spark): they may not load. If a start fails, llama.cpp is the engine for this card.']);
+    const spark = V.parseStatus(['home=/home/me', 'arch=aarch64', 'curl=/usr/bin/curl', 'gpu=NVIDIA GB10, [N/A], [N/A], 12.1', 'mem_total_kb=124991588', 'mem_available_kb=115343360', 'disk_free_kb=3000000000', 'install=/home/me/lol-vllm 0.29.0'].join('\n'));
+    r = P(lin({ st: spark }), { ...c, vllm: { ...c.vllm, root: '~/lol-vllm' } });
+    assert.ok(r.oks.includes('GPU: NVIDIA GB10 (119 GB shared with the system).') && r.oks.includes('vLLM 0.29.0 is installed (in /home/me/lol-vllm).'), r.oks.join('|'));
+    assert.ok(r.warnings.includes('vLLM 0.29.0 is installed; this farm was tested with 0.30.0.'));
+    assert.ok(r.problems.includes('Qwen3.6 35B-A3B · NVFP4 is not downloaded yet: press Download next to it.'));
+    const partly = status(['installing=88']);
+    partly.models = V.parseStatus('model=Qwen3.6-35B-A3B-NVFP4 2000000 vision=0 native= partial=1').models;
+    r = P(lin({ st: partly }));
+    assert.ok(r.problems.includes('Qwen3.6 35B-A3B · NVFP4 is only partly downloaded: press Download to finish it.') && r.problems.includes('A download started earlier is still running. Wait for it, or stop it here.'), r.problems.join('|'));
+    r = P(lin({ st: { ...status([]), installs: [] } }));
+    assert.ok(r.problems.includes('vLLM is not installed on this computer yet: press Install vLLM.'));
+    // Disk: on Windows the smaller of WSL's own virtual disk and the Windows drive that holds it.
+    const fresh = { ...status([]), installs: [], models: [] };
+    r = P(win({ st: fresh, hostDiskFreeGb: 20 }));
+    assert.ok(r.problems.includes('Not enough free disk: vLLM and Qwen3.6 35B-A3B · NVFP4 need about 33 GB, and 20 GB are free. Ubuntu\'s disk lives on drive C:. Free some space, then press Check again.'), r.problems.join('|'));
+    assert.ok(!P(win({ st: fresh, hostDiskFreeGb: 40 })).problems.some((x) => x.startsWith('Not enough free disk')));
+    assert.ok(P(lin({ st: { ...fresh, diskFreeGb: 30 } })).problems.some((x) => x.startsWith('Not enough free disk: vLLM and')));
+    // Where vLLM lives.
+    assert.equal(V.resolveRoot(c, status([])), '/home/me/lol-vllm');
+    assert.equal(V.resolveRoot(c, { ...status([]), installs: [{ root: '/home/me/lol-spike' }] }), '/home/me/lol-spike', 'the spike\'s install is reused');
+    assert.equal(V.resolveRoot({ vllm: { root: '~/x' } }, status([])), '/home/me/x');
+    assert.equal(V.resolveRoot(c, null), '~/lol-vllm');
+});
+
+test('vLLM: wsl.exe\'s UTF-16, its list, and status.sh\'s report as recorded (§11.1-14)', () => {
+    const bytes = fs.readFileSync(path.join(FIX, 'wsl-l-v.bin'));
+    assert.ok(bytes[1] === 0 && bytes[0] !== 0xff, 'recorded as wsl.exe writes it: UTF-16LE, no BOM');
+    assert.match(V.decodeWsl(bytes), /NAME\s+STATE\s+VERSION/);
+    assert.equal(V.decodeWsl(Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from('Ubuntu', 'utf16le')])), 'Ubuntu');
+    assert.equal(V.decodeWsl(Buffer.from('Ubuntu ✓', 'utf8')), 'Ubuntu ✓');
+    const list = V.parseWslList(bytes);
+    assert.deepEqual(list, [{ name: 'Ubuntu', state: 'Running', version: 2, isDefault: true }]);
+    assert.equal(V.defaultDistro(list), 'Ubuntu');
+    const fr = V.parseWslList(Buffer.from('  NOM               ÉTAT                    VERSION\r\n* docker-desktop    En cours d\'exécution    2\r\n  Ubuntu            Arrêté                  1\r\n  Debian            Arrêté                  2\r\n', 'utf16le'));
+    assert.deepEqual(fr.map((d) => [d.name, d.state, d.version]), [['docker-desktop', 'En cours d\'exécution', 2], ['Ubuntu', 'Arrêté', 1], ['Debian', 'Arrêté', 2]]);
+    assert.equal(V.defaultDistro(fr), 'Debian', 'not Docker Desktop\'s, not a WSL 1 one');
+    // status.sh's report, recorded by farm/vllm/test_scripts.sh with two fake servers beside the production one.
+    const st = V.parseStatus(fs.readFileSync(path.join(FIX, 'vllm-status.txt'), 'utf8'));
+    assert.equal(st.home, '/home/ateliernum');
+    assert.deepEqual([st.gpu.name, Math.round(st.gpu.totalGib * 100) / 100, st.gpu.cap], [PRO, 95.59, 12]);
+    assert.deepEqual(st.installs.map((i) => [i.root, i.version, i.link]), [['/tmp/lol-as-root', '0.30.0', false], ['/tmp/lol-as-root2', '0.30.0', false], ['/tmp/lol-as-link', '0.30.0', true]]);
+    assert.deepEqual(st.models.map((m) => [m.folder, m.vision, m.native, m.partial]), [['M1', true, 262144, false], ['M2', false, 32768, true]]);
+    assert.deepEqual({ ...st.running, argv: st.running.argv.slice(0, 3) }, { pgid: 6843, port: 46361, minFreeGb: null, managedArgs: null, argv: ['/tmp/lol-as-root/hf/Qwen3.6-35B-A3B-NVFP4', '--uds', '/tmp/lol-as-root/run/vllm.sock'], ready: true });
+    assert.equal(st.running.argv[st.running.argv.length - 1], '{"max_new_tokens": 32768}');
+    assert.deepEqual(st.found, [{ root: '/home/ateliernum/lol-spike', port: 8100, pgid: 401 }, { root: '/tmp/lol-as-root', port: 46361, pgid: 6843 }, { root: '/tmp/lol-as-root2', port: 47463, pgid: 6844 }]);
+    assert.deepEqual([st.managed, st.installing, st.guardLine], [false, null, null]);
+    const b64 = Buffer.from(['--served-model-name', 'm', '--x', 'a b'].join('\0')).toString('base64');
+    const m = V.parseStatus(`running=5\nenv=LOL_VLLM_ARGS_B64=${b64}\nenv=LOL_VLLM_MIN_FREE_GB=8\nmanaged=1\nguard=[guard] t 5 GB\n`);
+    assert.deepEqual([m.running.managedArgs, m.running.minFreeGb, m.running.port, m.running.ready, m.managed, m.guardLine], [['--served-model-name', 'm', '--x', 'a b'], 8, 8100, false, true, '[guard] t 5 GB']);
+    assert.deepEqual(V.memOf(V.parseStatus('gpu=NVIDIA GB10, [N/A], [N/A], 12.1\nmem_total_kb=124991588\nmem_available_kb=115343360\n')).unified, true);
 });
 
 (async () => {

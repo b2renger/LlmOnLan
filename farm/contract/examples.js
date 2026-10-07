@@ -69,6 +69,23 @@ function examples() {
         perf: { engine: 'vllm', genTokSec: 48, lastGenTokSec: 50, lastThroughputTokSec: 1210, lastCacheHitRatio: 0.75, lastDraftAcceptRatio: 0.7, kvPoolTokens: 1310720, lastActiveTs: 1790577087000, busySlots: 24, totalSlots: 48, queued: 0, kvUsed: 0.42 },
     };
 
+    // The vLLM the farm runs itself (docs/VLLM_MANAGED_PLAN.md), with the production box's settings: while it
+    // starts, the farm stays healthy and says so in `busy` (clients keep their farm and show "Starting vLLM"),
+    // then it serves with the seats it resolved.
+    const managed = defaultConfig();
+    Object.assign(managed.vllm, { enabled: true, alias: 'Qwen3.6', parallelResolved: 48 });
+    const managedHealth = {
+        proxyUp: true, hostsUp: 1, hostsTotal: 1, loaded: [], engineUp: true, deployments: 1,
+        host: { gpu: 'NVIDIA RTX PRO 6000 Blackwell Workstation Edition', vramGb: 96, ramGb: 94, cpuCores: 16 },
+        gpu: { gpuUtil: 3, vramUsedGb: 21.8, vramTotalGb: 96 },
+        clientsConnected: 12, getSeats: () => seatsOf('10.0.0.31'),
+        searxngUp: true, extractUp: true, extractKey: 'ocr-key',
+        getJob: () => ({ id: 'mf3l9-1', kind: 'engine', label: 'Starting vLLM', message: 'loading the model weights (2 of 3)', percent: 67, done: false }),
+        perf: null,
+    };
+    const managedServing = { ...managedHealth, gpu: { gpuUtil: 71, vramUsedGb: 75.2, vramTotalGb: 96 }, getJob: () => null,
+        perf: { engine: 'vllm', genTokSec: 52, lastGenTokSec: 55, lastThroughputTokSec: 980, lastCacheHitRatio: 0.81, kvPoolTokens: 4313303, lastActiveTs: 1790577087000, busySlots: 9, totalSlots: 48, queued: 0, kvUsed: 0.12 } };
+
     // An Ollama somebody else started, the seat gate and every plugin off, the engine down: the
     // nulls a client must read without stumbling.
     const bare = defaultConfig();
@@ -82,6 +99,8 @@ function examples() {
         { label: 'Ollama, open, beacon', snap: snapshot(ollama, ollamaHealth) },
         { label: 'llama.cpp, password, every plugin, seats full, a model switch', snap: snapshot(llama, llamaHealth, '10.0.0.40') },
         { label: 'external vLLM, coordinator', snap: snapshot(vllm, vllmHealth, '10.0.0.30') },
+        { label: 'vLLM run by the farm, starting', snap: snapshot(managed, managedHealth, '10.0.0.31') },
+        { label: 'vLLM run by the farm, serving', snap: snapshot(managed, managedServing) },
         { label: 'Ollama not started by the farm, gate and plugins off, engine down', snap: snapshot(bare, bareHealth) },
         { label: 'farm-v0.0.41, GET /lol/self', snap: wire(require('./snapshot.farm-v0.0.41.json')) },
     ];

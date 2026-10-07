@@ -17,3 +17,6 @@
 *.jpg  binary
 *.ico  binary
 *.icns binary
+
+# Test fixtures are byte-exact recordings (vLLM log lines carry carriage-return progress updates; wsl.exe writes UTF-16).
+farm/test/fixtures/** -text

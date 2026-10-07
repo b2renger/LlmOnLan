@@ -96,7 +96,7 @@
       "description": "The engine that answers and its context window (absent before farm-v0.0.21). Farm cards; contextPerSlot sets Open WebUI's document mode (configBridge.ts) and LOL Vibe's context budget.",
       "additionalProperties": false,
       "properties": {
-        "engine": { "enum": ["ollama", "llama.cpp", "external"], "description": "Which engine serves. Farm cards; the Computer's takes (no audio on Ollama)." },
+        "engine": { "enum": ["ollama", "llama.cpp", "vllm", "external"], "description": "Which engine serves (vllm: a vLLM the farm runs itself; external: a server the farm only routes to). Farm cards; the Computer's takes (no audio on Ollama)." },
         "alias": { "type": ["string", "null"], "description": "The served name of the default model." },
         "model": { "type": ["string", "null"], "description": "The real weights. Farm cards." },
         "baseUrl": { "type": "string", "description": "External engine only: the server the farm routes to." },

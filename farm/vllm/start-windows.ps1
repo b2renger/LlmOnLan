@@ -1,3 +1,7 @@
+# For a vLLM the OPERATOR runs (the farm's `external` engine). A vLLM the farm runs itself needs none of this: the
+# Farm app starts it. Once the farm has taken this root over (run/managed-by-farm), serve.sh does nothing here and
+# this script only opens the Farm app, which starts vLLM.
+#
 # Start vLLM in WSL, wait until it answers, then start the Farm app: for a scheduled task "At log on", so vLLM comes
 # back after a reboot (farm/README.md, "Start vLLM at logon"). The farm probes its external engine only when it
 # starts, and a Farm app that starts before vLLM answers serves its built-in engine for that whole run. So turn the
@@ -44,6 +48,7 @@ while ($true) {
     Start-Sleep -Seconds 5
 }
 if ($ready) { Say "vLLM answers at $url" }
+elseif ($wsl.HasExited -and $wsl.ExitCode -eq 0) { Say "The farm runs vLLM now: opening the Farm app, which starts it." }
 elseif ($wsl.HasExited) { Say "serve.sh stopped (exit code $($wsl.ExitCode)) before vLLM answered: no vLLM installed in its LOL_VLLM_ROOT, a server already running from it, or a failed start (see logs/vllm.log there). The farm will serve its built-in engine." }
 else { Say "vLLM did not answer at $url within $TimeoutSec s. The farm will serve its built-in engine: quit and reopen the Farm app once vLLM answers." }
 

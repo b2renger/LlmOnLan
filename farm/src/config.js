@@ -86,9 +86,10 @@ const ProxySchema = z.object({
     // reply measured that day was 9,747 tokens in Open WebUI and 15,515 for a Computer ask with thinking on;
     // 32,768 is twice that, and Qwen's own recommended output length. Applied per engine: litellm.js on Ollama
     // and llama.cpp, as a DEFAULT for a request that names no limit (a request's own wins, above it too);
-    // farm/vllm/serve.sh on vLLM, as a CEILING for every request (vLLM 0.30 sends the smallest of what the
-    // window leaves, the request's own and it) that hard-codes 32,768: this key does not change it, and an
-    // external server started otherwise gets no limit from the farm. null = no limit from the farm.
+    // on the vLLM the farm runs, as vLLM's --override-generation-config max_new_tokens (vllm.js planFor), a
+    // CEILING for every request (vLLM 0.30 sends the smallest of what the window leaves, the request's own and
+    // it), so changing it restarts vLLM. An external server keeps its own setting (farm/vllm/serve.sh run by an
+    // operator hard-codes 32,768; a server started otherwise gets no limit from the farm). null = no limit.
     maxReplyTokens: z.number().int().min(1024).nullable().default(32768),
 }).strict();
 
@@ -343,6 +344,85 @@ const ExternalSchema = z.object({
     label: z.string().nullable().default(null),
 }).strict();
 
+// vLLM, run BY THE FARM (owner, 2026-10-07; docs/VLLM_MANAGED_PLAN.md): the fourth engine, for many people at
+// once on a big NVIDIA GPU, on Linux or inside WSL2 on Windows. The farm installs it (farm/vllm/install.sh),
+// starts it (serve.sh with the farm's own argv, vllm.js planFor), supervises it and stops it (stop.sh); the
+// operator only ever sees the panel. Everything here is set by the panel; nobody edits the file.
+// Units are GiB (2^30) throughout, as nvidia-smi and vLLM report them.
+const VllmModelSchema = z.object({
+    id: z.string().regex(/^[a-z0-9][a-z0-9._-]{0,63}$/),   // the key; vLLM's --served-model-name
+    label: z.string(),
+    repo: z.string().regex(/^[A-Za-z0-9][\w.-]*\/[\w.-]+$/).nullable().default(null),   // null = a folder already on disk
+    folder: z.string().regex(/^[\w.-]+$/).nullable().default(null),   // under <root>/hf; null = the repo's name
+    sizeGb: z.number().nullable().default(null),       // the download
+    weightsGib: z.number().nullable().default(null),   // vLLM's "Model loading took X GiB"; null = its size on disk
+    vision: z.boolean().nullable().default(null),      // null = what the checkpoint says (vision_config)
+    presencePenalty: z.number().min(-2).max(2).nullable().default(null),   // see external.presencePenalty
+    args: z.array(z.string()).default([]),             // this model's `vllm serve` flags (parsers, KV precision)
+    catalog: z.string().nullable().default(null),      // its id in src/capacity/catalog.json (memory per person)
+    measured: z.string().nullable().default(null),     // its model in src/capacity/measured.json (people at once)
+    note: z.string().default(''),
+}).strict();
+
+// The library: the three checkpoints the spike measured (docs/spike/RESULTS.md, "Exact install and launch
+// commands"), with the flags it ran them with.
+const QWEN36_ARGS = ['--kv-cache-dtype', 'fp8', '--enable-prefix-caching', '--mamba-cache-mode', 'align',
+    '--reasoning-parser', 'qwen3', '--enable-auto-tool-choice', '--tool-call-parser', 'qwen3_xml'];
+const NEMOTRON_ARGS = ['--kv-cache-dtype', 'fp8', '--enable-prefix-caching', '--mamba-cache-mode', 'align',
+    '--mamba-backend', 'flashinfer', '--reasoning-parser', 'nemotron_v3', '--enable-auto-tool-choice', '--tool-call-parser', 'qwen3_coder'];
+const QWEN38_ARGS = ['--kv-cache-dtype', 'fp8_e4m3', '--enable-prefix-caching', '--mamba-cache-mode', 'align',
+    '--reasoning-parser', 'qwen3', '--enable-auto-tool-choice', '--tool-call-parser', 'qwen3_coder'];
+const VLLM_LIBRARY = [
+    {
+        id: 'qwen3.6-35b-a3b', label: 'Qwen3.6 35B-A3B · NVFP4', repo: 'nvidia/Qwen3.6-35B-A3B-NVFP4',
+        sizeGb: 23.4, weightsGib: 20.37, vision: true, presencePenalty: 1.5, args: QWEN36_ARGS,
+        catalog: 'qwen3.6-35b-a3b', measured: 'qwen36',
+        note: 'Default. Sees images. Measured: 48 people at 64k on an RTX PRO 6000, 8 on a DGX Spark.',
+    },
+    {
+        id: 'nemotron-3.5-lightning', label: 'Nemotron 3.5 Lightning 30B-A3B · NVFP4', repo: 'nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4',
+        sizeGb: 21.6, weightsGib: 17.82, vision: false, presencePenalty: null, args: NEMOTRON_ARGS,
+        catalog: 'nemotron-3.5-lightning-30b-a3b', measured: 'nemotron',
+        note: 'The most people at 32k (160 on an RTX PRO 6000, 16 on a DGX Spark). Does not see images.',
+    },
+    {
+        id: 'qwen3.8-27b-nvfp4', label: 'Qwen3.8 27B · NVFP4', repo: 'nvidia/Qwen3.8-27B-NVFP4',
+        sizeGb: 21.9, weightsGib: 19.92, vision: true, presencePenalty: null, args: QWEN38_ARGS,
+        catalog: 'qwen3.8-27b', measured: 'qwen38',
+        note: 'The best answers of the three and the fewest people (16 at 32k on an RTX PRO 6000). Too slow on a DGX Spark.',
+    },
+];
+
+const VllmSchema = z.object({
+    // Serves when true, unless an external server does (litellm.js engineOf: external > vllm > llama.cpp > Ollama).
+    enabled: z.boolean().default(false),
+    // Where vLLM lives, a Linux path ("~" allowed, no ".."): its venv, the weights (hf/), logs/ and run/. null = the
+    // first install found (~/lol-vllm, then ~/lol-spike), else ~/lol-vllm; the absolute path is written here
+    // after an install or a take-over.
+    root: z.string().regex(/^(~|(\/[\w.-]+)+|~(\/[\w.-]+)+)$/).refine((p) => !/(^|\/)\.\.?(\/|$)/.test(p), 'no . or .. in the path')
+        .nullable().default(null),
+    distro: z.string().regex(/^[\w.-]+$/).nullable().default(null),   // Windows: the WSL distribution; null = WSL's default
+    port: z.number().int().positive().max(65535).default(8100),       // serve.sh's relay on 127.0.0.1 (LOL_VLLM_PORT)
+    alias: z.string().default('assistant'),           // the name people see
+    model: z.string().default('qwen3.6-35b-a3b'),     // a library id
+    contextLength: z.number().int().min(4096).default(65536),   // per person: --max-model-len
+    parallel: z.union([z.literal('auto'), z.number().int().min(1).max(512)]).default('auto'),     // people at once (seats)
+    // vLLM's own cap on requests at once (--max-num-seqs); auto = min(512, max(32, the power of 2 at or above 2 x seats)).
+    maxNumSeqs: z.union([z.literal('auto'), z.number().int().min(1).max(1024)]).default('auto'),
+    // GPU memory for conversations (--kv-cache-memory-bytes = GiB x 2^30); auto = what is free at the start, less
+    // the model, ocrReserveGib and a margin (vllm.js poolGib). Never --gpu-memory-utilization: a fraction of the
+    // TOTAL memory, and its start-up profiler aborts when Ollama loads beside it.
+    kvCacheGib: z.union([z.literal('auto'), z.number().min(1)]).default('auto'),
+    ocrReserveGib: z.number().min(0).default(9),      // kept for document reading (Ollama) when OCR is on
+    marginPct: z.number().min(0).max(30).default(8),  // of the GPU's memory, kept free
+    // serve.sh's memory guard (LOL_VLLM_MIN_FREE_GB): stop vLLM below this many GB of system memory. auto = 8 where
+    // the GPU shares the system memory (DGX Spark: an out-of-memory there latches its clock), else off. 0 = off.
+    minFreeGb: z.union([z.literal('auto'), z.number().int().min(0)]).default('auto'),
+    version: z.string().default('0.30.0'),            // the vLLM install.sh installs, measured in docs/spike/RESULTS.md
+    extraArgs: z.array(z.string()).default([]),       // appended last; a take-over keeps unknown running flags here
+    library: z.array(VllmModelSchema).default(VLLM_LIBRARY),
+}).strict();
+
 const WebsearchSchema = z.object({
     // One shared SearXNG metasearch instance on this box; clients discover it via
     // the beacon (snapshot.searxngUrl) and OWUI uses it for per-message web search.
@@ -509,9 +589,10 @@ const ConfigSchema = z.object({
     ]),
     ollama: OllamaSchema.default({}),
     llamacpp: LlamacppSchema.default({}),
-    // Route to an OpenAI-compatible server we do NOT run (vLLM/SGLang/…). Outranks
-    // both built-in engines when enabled — see ExternalSchema.
+    // Route to an OpenAI-compatible server we do NOT run (SGLang, TensorRT-LLM, another machine). Outranks
+    // every engine when enabled — see ExternalSchema.
     external: ExternalSchema.default({}),
+    vllm: VllmSchema.default({}),
     litellm: LiteLLMSchema.default({}),
     websearch: WebsearchSchema.default({}),
     tts: TtsSchema.default({}),
