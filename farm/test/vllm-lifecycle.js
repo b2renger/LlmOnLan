@@ -26,6 +26,13 @@
 //  12 the panel's controls through the admin API (slice C): a switch to Ollama and back, the name following; Download
 //     then Use this (an Apply with another model, refused while its window is shorter than the context); the list's
 //     add and remove (with its files); the log; Install refused while vLLM runs from its folder
+//  13 the take-over (§9, the plan's §11.3-12): a vLLM started the operator's way (serve.sh with none of the farm's
+//     argv) that the farm routes to as an external server: offered, taken over (same process, same LiteLLM, the file
+//     rewritten without its external block, the copy, serve.sh's marker; serve.sh the old way then does nothing),
+//     Undo puts it all back; taken over again, `lol down` stops it. Then with nothing running: offered, and the
+//     take-over starts it.
+//  14 Windows only (§11.3-13): step 13's take-over, Undo and `lol down` from a copy of the farm in a folder whose
+//     name has a space, as the Farm app's own copy is (%APPDATA%/LlmOnLan Farm/farm)
 
 const fs = require('fs');
 const os = require('os');
@@ -40,7 +47,9 @@ if (process.env.LOL_VLLM_FAKE !== '1') { console.log('skipped: set LOL_VLLM_FAKE
 if (!V.supported().ok) { console.log(`skipped: ${V.UNSUPPORTED}`); process.exit(0); }
 
 const FARM = path.join(__dirname, '..');
-const LOL = path.join(FARM, 'bin', 'lol.js');
+let FARM_DIR = FARM;   // the farm that runs: this worktree's, or step 14's copy
+const LOL = () => path.join(FARM_DIR, 'bin', 'lol.js');
+const readRt = () => { try { return JSON.parse(fs.readFileSync(path.join(FARM_DIR, '.lol-runtime.json'), 'utf8')); } catch { return null; } };
 const LITELLM = process.env.LOL_LITELLM || venvLitellmPath();
 const PORTS = { gate: 4300, litellm: 4301, ollama: 4302, panel: 41897, vllm: 8299 };
 const TOKEN = 'lifecycle-test-token';
@@ -114,7 +123,7 @@ function up() {
     out = '';
     const env = { ...process.env };
     delete env.ELECTRON_RUN_AS_NODE;
-    const child = spawn(process.execPath, [LOL, 'up', '--no-pick'], { cwd: scratch, env, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
+    const child = spawn(process.execPath, [LOL(), 'up', '--no-pick'], { cwd: scratch, env, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
     const tap = (d) => { const s = d.toString(); out += s; fs.appendFileSync(farmLog, s); };
     child.stdout.on('data', tap); child.stderr.on('data', tap);
     farm = child;
@@ -122,7 +131,7 @@ function up() {
 }
 function lolDown() {
     const env = { ...process.env }; delete env.ELECTRON_RUN_AS_NODE;
-    try { return execFileSync(process.execPath, [LOL, 'down'], { cwd: scratch, env, encoding: 'utf8', timeout: 240000, windowsHide: true }); }
+    try { return execFileSync(process.execPath, [LOL(), 'down'], { cwd: scratch, env, encoding: 'utf8', timeout: 240000, windowsHide: true }); }
     catch (e) { return `${e.stdout || ''}${e.stderr || ''}`; }
 }
 // `lol down`, then the farm must be gone: its process ended and its ports closed. One that lives on is a failure
@@ -458,7 +467,115 @@ const STEPS = {
             JSON.stringify(s.vllm && { seatsAuto: s.vllm.seatsAuto, facts: s.vllm.facts }));
         await stopFarm();
     },
+    async 13() { await takeOver({ notRunning: true }); },
+    async 14() {
+        if (!WIN) { console.log('  (Windows only)'); return; }
+        // The farm from a copy in a folder whose name has a space, as the Farm app's is: its scripts then run through
+        // `wsl.exe --cd "<…>\\LlmOnLan Farm\\farm\\vllm"`. Its own node_modules is a junction to this one's.
+        const copy = path.join(scratch, 'LlmOnLan Farm', 'farm');
+        for (const x of ['bin', 'src', 'vllm', 'package.json']) fs.cpSync(path.join(FARM, x), path.join(copy, x), { recursive: true });
+        fs.symlinkSync(fs.realpathSync(path.join(FARM, 'node_modules')), path.join(copy, 'node_modules'), 'junction');
+        FARM_DIR = copy;
+        try { await takeOver({ notRunning: false }); } finally {
+            FARM_DIR = FARM;
+            execFileSync('cmd', ['/c', 'rmdir', path.join(copy, 'node_modules')], { windowsHide: true });   // the link only, never what it points to
+        }
+    },
 };
+
+// A vLLM started the operator's way (serve.sh with none of the farm's argv, as the old log-on task does), on the fake
+// root's port; the farm's file routes to it as an external server, with no vllm block (production's file).
+const EXT = { enabled: true, alias: 'fake-ext', baseUrl: `http://127.0.0.1:${PORTS.vllm}/v1`, model: 'qwen3.6-35b-a3b', contextLength: 65536, parallel: 48, vision: true, presencePenalty: 1.5, label: 'Fake (vLLM)' };
+function writeExternalConfig(vllm = null, ext = {}) {
+    fs.writeFileSync(path.join(scratch, 'lol.config.json'), JSON.stringify({
+        name: 'Fake vLLM farm',
+        beacon: { enabled: false, httpPort: PORTS.panel },
+        proxy: { host: '127.0.0.1', port: PORTS.gate, internalPort: PORTS.litellm },
+        models: [{ id: 'fake-ollama:1b', default: true }],
+        preinstall: [],
+        ollama: { hosts: [`http://127.0.0.1:${PORTS.ollama}`], contextLength: 8192 },
+        litellm: { command: LITELLM },
+        websearch: { enabled: false }, ocr: { enabled: false },
+        admin: { token: TOKEN },
+        external: { ...EXT, ...ext },
+        ...(vllm ? { vllm } : {}),
+    }, null, 2));
+    return fs.readFileSync(path.join(scratch, 'lol.config.json'), 'utf8');
+}
+async function startOperatorWay() {
+    guardRoot();
+    killFake(); touch('run/managed-by-farm', false);
+    fakeEnv(['FAKE_DELAY=3']);
+    sh(`mkdir -p ${q(`${ROOT}/hf/fake-a`)} && echo '{"max_position_embeddings": 32768}' > ${q(`${ROOT}/hf/fake-a/config.json`)}`);   // step 12 deletes it
+    const { child } = await V.start(target, { env: { LOL_VLLM_DAEMON: '1', LOL_VLLM_ROOT: ROOT, LOL_VLLM_PORT: String(PORTS.vllm), LOL_VLLM_MODEL: `${ROOT}/hf/fake-a` } });
+    child.unref();
+    await waitFor(() => V.answers(`http://127.0.0.1:${PORTS.vllm}/v1`, 2000), 60000, 'the fake started the operator\'s way');
+    return pgid();
+}
+const marked = () => /yes/.test(sh(`test -e ${q(`${ROOT}/run/managed-by-farm`)} && echo yes`).out);
+async function takeOver({ notRunning }) {
+    const cfgPath = path.join(scratch, 'lol.config.json');
+    const backup = `${cfgPath}.before-managed-vllm`;
+    const before = await startOperatorWay();
+    check('the fake runs the operator\'s way: not marked as the farm\'s', !!before && !marked() && !(await status()).managed);
+    const original = writeExternalConfig();
+    up();
+    await waitFor(self, 120000, 'the panel');
+    check('the farm serves it as an external server', (await self()).backend.engine === 'external' && replyOf(await chat('fake-ext')) === 'fake reply');
+    const offered = await waitFor(async () => { const x = await state(); return x.vllm.takeOver && x; }, 120000, 'the offer');
+    check('the panel offers to let the farm run it, from its own folder', offered.vllm.takeOver.root === ROOT && offered.vllm.takeOver.running === true, JSON.stringify(offered.vllm.takeOver));
+    const litellm = readRt().litellmPid;
+    const r = await admin('vllm/take-over');
+    check('taken over: "Nothing was restarted."', r.ok && /^The farm now runs vLLM\. Nothing was restarted\./.test(r.message || ''), JSON.stringify(r));
+    const s = await state();
+    check('…vLLM serves, kept as it ran: the same process, adopted, no job', s.backend.engine === 'vllm' && s.vllm.phase === 'ready' && s.vllm.adopted && !s.job && (await pgid()) === before,
+        JSON.stringify({ engine: s.backend.engine, phase: s.vllm.phase, adopted: s.vllm.adopted, job: s.job && s.job.label }));
+    check('…LiteLLM was not restarted (the same process)', readRt().litellmPid === litellm && require('../src/proc').isAlive(litellm));
+    const snap = await self();
+    check('…clients see the same: the name, 48 people at once, 64k each', snap.healthy && snap.models[0].id === 'fake-ext' && snap.backend.slots === 48 && snap.backend.contextPerSlot === 65536, JSON.stringify(snap.backend));
+    check('…and a chat goes through', replyOf(await chat('fake-ext')) === 'fake reply');
+    const now = readConfig();
+    check('the file: the vllm block in, the external block out', !('external' in now) && now.vllm.enabled === true && now.vllm.root === ROOT && now.vllm.port === PORTS.vllm && now.vllm.kvCacheGib === 50 && now.vllm.parallel === 48 && now.vllm.alias === 'fake-ext',
+        JSON.stringify(now.vllm));
+    check('…a copy of it as it was', fs.existsSync(backup) && fs.readFileSync(backup, 'utf8') === original);
+    check('…serve.sh\'s marker in its folder', marked() && (await status()).managed);
+    check('…the runtime file says where vLLM lives (for `lol down`)', readRt().vllm && readRt().vllm.root === ROOT);
+    check('the panel says so, with Undo', s.vllm.takenOver && s.vllm.takenOver.undo === true && s.vllm.takeOver === null, JSON.stringify(s.vllm.takenOver));
+    // The old launchers: serve.sh without the farm's argv now does nothing.
+    const old = await V.spawnScript({ vllm: { distro } }, 'serve.sh', { LOL_VLLM_DAEMON: '1', LOL_VLLM_ROOT: ROOT, LOL_VLLM_PORT: String(PORTS.vllm) }, { timeoutMs: 30000, distro });
+    check('serve.sh started the old way now does nothing, and says why', old.code === 0 && /The LlmOnLan farm runs this vLLM now/.test(old.out) && (await pgid()) === before, `${old.code} ${old.out.slice(0, 200)}`);
+    // Undo.
+    const u = await admin('vllm/take-over/undo');
+    check('Undo: back as before', u.ok && /Back as before/.test(u.message || ''), JSON.stringify(u));
+    check('…the file byte for byte, and its copy used up', fs.readFileSync(cfgPath, 'utf8') === original && !fs.existsSync(backup));
+    check('…the marker gone', !marked());
+    const s2 = await state();
+    check('…routed as an external server again, the same vLLM and LiteLLM, the offer back', s2.backend.engine === 'external' && (await pgid()) === before && readRt().litellmPid === litellm && s2.vllm.takeOver && !s2.vllm.takenOver,
+        JSON.stringify({ engine: s2.backend.engine, takeOver: s2.vllm.takeOver }));
+    check('…and a chat goes through', replyOf(await chat('fake-ext')) === 'fake reply');
+    // Taken over again: now `lol down` stops it, as the farm's.
+    const r2 = await admin('vllm/take-over');
+    check('taken over again', r2.ok && (await state()).backend.engine === 'vllm', JSON.stringify(r2));
+    const said = await stopFarm();
+    check('…`lol down` stops it now', /Stopping vLLM/.test(said) && !(await pgid()) && !leftInRoot(), said);
+    if (!notRunning) return;
+    // Nothing runs: the farm's file still routes to an external server on this computer, whose folder has the model.
+    touch('run/managed-by-farm', false);
+    const original2 = writeExternalConfig({ root: ROOT, ...(distro ? { distro } : {}), kvCacheGib: 2, minFreeGb: 0, ocrReserveGib: 0, library: LIB }, { model: 'fake-a', contextLength: 8192, parallel: 4, vision: false, presencePenalty: null });
+    up();
+    await waitFor(self, 120000, 'the panel');
+    check('nothing answers: the farm serves with Ollama for now', (await self()).backend.engine === 'ollama');
+    const o2 = await waitFor(async () => { const x = await state(); return x.vllm.takeOver && x; }, 120000, 'the offer');
+    check('…and offers to run vLLM, starting it', o2.vllm.takeOver.running === false && o2.vllm.takeOver.root === ROOT);
+    const r3 = await admin('vllm/take-over');
+    check('taken over: the start is a job', r3.ok && r3.started && r3.job.label === 'Starting vLLM', JSON.stringify(r3));
+    const j = await jobDone('Starting vLLM');
+    check('…vLLM started by the farm serves under the same name', j.job.ok && j.backend.engine === 'vllm' && j.vllm.phase === 'ready' && replyOf(await chat('fake-ext')) === 'fake reply', j.job.error || '');
+    check('…the file says vLLM, no external block, and its copy is there', readConfig().vllm.enabled === true && !('external' in readConfig()) && fs.readFileSync(backup, 'utf8') === original2);
+    check('…no Undo for a vLLM the farm started', j.vllm.takenOver && j.vllm.takenOver.undo === false);
+    await stopFarm();
+    fs.rmSync(backup, { force: true });
+}
 
 async function main() {
     console.log(`scratch ${scratch} (the farm's output: farm.log)`);
@@ -478,6 +595,9 @@ async function main() {
     // What runs elsewhere on this computer is read before and after, never touched.
     const foundBefore = ((await V.status(target)).st || { found: [] }).found.filter((f) => f.root !== ROOT);
     console.log(`left alone: ${foundBefore.map((f) => `${f.root} :${f.port} pgid ${f.pgid}`).join(', ') || 'no other vLLM'}`);
+    // The take-over writes a marker that makes a root's old launchers do nothing: never in another root than the fake's.
+    const markers = () => ['~/lol-vllm', '~/lol-spike', ...foundBefore.map((f) => f.root)].map((r) => `${r}:${sh(`test -e ${r.replace(/^~/, home)}/run/managed-by-farm && echo 1 || echo 0`).out.trim()}`).join(' ');
+    const markersBefore = markers();
     makeRoot();
     fakeOllama = await startFakeOllama(PORTS.ollama);
     writeConfig();
@@ -496,6 +616,7 @@ async function main() {
         await fakeOllama.close();
         const foundAfter = ((await V.status(target)).st || { found: [] }).found.filter((f) => f.root !== ROOT);
         check('every other vLLM on this computer is as it was', JSON.stringify(foundAfter) === JSON.stringify(foundBefore), `${JSON.stringify(foundBefore)} → ${JSON.stringify(foundAfter)}`);
+        check(`no other folder got the farm's marker (${markersBefore})`, markers() === markersBefore, markers());
         guardRoot();
         sh(`rm -rf ${q(ROOT)}`);
     }

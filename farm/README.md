@@ -92,8 +92,8 @@ npm link        # then just `lol <cmd>` anywhere
 |---|---|
 | `lol install` / `setup` | One‑time bootstrap: install Ollama + LiteLLM, pull every `models` + `preinstall` entry, set up shared web search (SearXNG) + document OCR (both on by default), and — only when `llamacpp.enabled` — fetch the llama.cpp build + weights. Idempotent. |
 | `lol init [--force]` | Scaffold a `lol.config.json` in the current directory. |
-| `lol up` / `lol serve` | Ensure Ollama, **pick the Ollama model(s) to serve** (interactive, from what's installed; Enter = default), pull anything missing, start `llama-server` if enabled (fetching build + weights on first run), generate + run the LiteLLM proxy behind the seat gate, start SearXNG + OCR (if enabled) + the beacon + the admin panel. Foreground; Ctrl‑C stops. |
-| `lol down` | Stop the proxy + `llama-server` + SearXNG + TTS + OCR + beacon (and any Ollama this CLI started). |
+| `lol up` / `lol serve` | Ensure Ollama, **pick the Ollama model(s) to serve** (interactive, from what's installed; Enter = default), pull anything missing, start `llama-server` if enabled (fetching build + weights on first run), generate + run the LiteLLM proxy behind the seat gate, start SearXNG + OCR (if enabled) + the beacon + the admin panel, then (vLLM) start or keep vLLM as a job. Foreground; Ctrl‑C stops (vLLM too). |
+| `lol down` | Stop the proxy + `llama-server` + SearXNG + TTS + OCR + beacon (and any Ollama this CLI started), and the vLLM the farm runs (from the runtime file, or the config when that file is gone). |
 | `lol status` | Health of each Ollama host + the proxy + which models are loaded. Works from any shell. |
 | `lol fleet` | Every farm on the LAN (this box + peers): health, GPU load, VRAM, loaded models, roles, search URL. |
 | `lol bench` | Load‑test before a workshop: N concurrent chats → first‑token latency (p50/p95) + tokens/s, and how many the seat gate turned away. `--users N --rounds R --model id --url … --people --cancel F --out file.json` (see [Multiple users & capacity](#multiple-users--capacity)). |
@@ -109,9 +109,10 @@ voice toggle (off by default) · `--ocr` / `--no-ocr` override the document‑OC
 
 ## Backends — Ollama (default) and llama.cpp
 
-A farm knows **two** built-in engines — plus an operator-run [`external`](#config--lolconfigjson) server
-(vLLM/SGLang, config file only) — and serves through **one at a time**. Knowing which one is serving is
-the thing to understand before changing models or sizing for a group.
+A farm knows **three** built-in engines — Ollama, llama.cpp (this section) and
+[vLLM](#vllm-run-by-the-farm), each switched to from the panel — plus an [`external`](#config--lolconfigjson)
+server a developer configures (SGLang, TensorRT-LLM, another machine), and serves through **one at a time**.
+Knowing which one is serving is the thing to understand before changing models or sizing for a group.
 
 | | **llama.cpp** (`llama-server`) | **Ollama** |
 |---|---|---|
@@ -136,7 +137,7 @@ a switch (and a switch back names it `llamacpp.alias` via `modelAlias`); name th
 should survive a switch. The other catalog models are never served under llama.cpp. A fallback gives
 an unnamed Ollama default the failed engine's alias **for that run only** (never written to the file).
 
-**A reachable Ollama is required even when llama.cpp or an external server serves.** `lol up` exits
+**A reachable Ollama is required even when llama.cpp, vLLM or an external server serves.** `lol up` exits
 with *"No reachable Ollama host"* if none answers: Ollama is the fallback engine, and document OCR
 drives its vision model there. With another engine serving, a farm-started Ollama keeps models warm
 for only 5 minutes, and **pressure eviction** unloads Ollama models when VRAM is ≥ 92 % full and the
@@ -163,8 +164,8 @@ folder holding `llama-server`; the farm says so rather than failing obscurely.
 **Which one is running, and switching between them.** The admin panel
 (`http://<box>:41997/lol/admin`, and the Farm app's own window) opens on a **Backend** card that
 names the model users see, the engine behind it, the actual `.gguf` or Ollama tag, and how many
-people it serves at once. The two engines are a pair of buttons; picking the other one reloads the
-model and regenerates the routing, in about a minute. It is also written to `lol.config.json`, so it
+people it serves at once. The engines are buttons (Ollama, llama.cpp, vLLM); picking another one stops the
+current engine, loads the model and regenerates the routing, in about a minute (about 2 for vLLM). It is also written to `lol.config.json`, so it
 survives a restart.
 
 Clients see the same thing from the outside: each farm card in the desktop app shows
@@ -181,24 +182,295 @@ default model is named by its own `alias` (the panel's **Rename**), else the glo
 > The shipped default quant (`UD-IQ2_S`) is one of those, so `mtp` defaults to **false**. Turn it on only
 > together with a `UD-Q2_K_XL`-or-above `model`.
 
-## Serving with vLLM on Windows (WSL2)
+## vLLM, run by the farm
 
-On a big card, vLLM serves far more people than llama.cpp. On the studio's RTX PRO 6000 (96 GB), the spike
-([docs/spike/RESULTS.md](../docs/spike/RESULTS.md)) measured Qwen3.6-35B-A3B NVFP4 on vLLM at **96–128 people
-at 32k of context each, 48–64 at 64k and 32–40 at 128k**. The best llama.cpp configuration served 4–8 people at
-32k. vLLM runs only on Linux, so on Windows it runs in WSL2, **operator-run** as the farm's
-[`external`](#config--lolconfigjson) engine (owner, 2026-10-04): you start it, and the farm routes to it and
-reads its `/metrics`, but never installs, starts or stops it. The scripts are in `farm/vllm/`. Every step below
-was run on that box on 2026-10-05.
+On a big NVIDIA card, vLLM serves far more people than llama.cpp. On the studio's RTX PRO 6000 (96 GB), the spike
+([docs/spike/RESULTS.md](../docs/spike/RESULTS.md)) measured Qwen3.6-35B-A3B NVFP4 on vLLM at **96–128 people at
+32k of context each, 48–64 at 64k and 32–40 at 128k**, where the best llama.cpp configuration served 4–8 at 32k;
+a DGX Spark serves 8 at 64k. Since 2026-10-07 vLLM is the farm's third built-in engine (the owner: "I want the farm
+operator to be able to do everything from the app. No config file etc."): the farm installs it, starts it, sizes
+it, watches it and stops it, and the operator does all of it from the panel. The design, with its decisions, is
+[docs/VLLM_MANAGED_PLAN.md](../docs/VLLM_MANAGED_PLAN.md). The farm drives the scripts in `farm/vllm/`
+(`serve.sh`, `stop.sh`, `install.sh`, `status.sh`); it does not re-implement them.
 
-**You need:** Windows 11 with WSL2 Ubuntu, the NVIDIA driver (the Windows one is enough), about 40 GB of disk
-in WSL (the 23.5 GB model plus the venv), and [uv](https://docs.astral.sh/uv/) in WSL
-(`curl -LsSf https://astral.sh/uv/install.sh | sh`). Below, `<repo>` is this repository seen from WSL, e.g.
-`/mnt/c/Users/<you>/LlmOnLan`.
+**Where it runs:** Windows x64 inside WSL2 (Ubuntu), and Linux x86_64 or arm64 (the DGX Spark), with an NVIDIA GPU
+and its driver (on Windows, the Windows driver serves WSL too). Not on a Mac. The panel's **vLLM** button checks
+this computer and says what is missing, in plain words:
+- **WSL** is installed by an administrator, once: `wsl --install -d Ubuntu` in an administrator PowerShell, a
+  restart, then Ubuntu opened once from the Start menu to choose a user name. The panel says exactly that; it has
+  no button that asks for administrator rights (the owner's question (d), 2026-10-07).
+- WSL 2 (not 1), the GPU visible inside it, a 64-bit processor, `curl`, and free disk: about 10 GB for vLLM and
+  the model's size. On Windows the free disk is the smaller of WSL's own (a virtual disk that reports up to 1 TB)
+  and the Windows drive that holds it.
+- A card smaller than the smallest model in the list (its weights + ~6 GB) is refused; a card older than compute
+  capability 12.0 (Blackwell) gets a warning: the list's NVFP4 checkpoints were measured on Blackwell only.
 
-1. **Install, once** (about 15 min plus the download). This installs vLLM 0.30.0, the version measured, into
-   `~/lol-vllm/.venv`, pins the CUDA compiler packages that FlashInfer's kernel build needs on this card, and
-   downloads `nvidia/Qwen3.6-35B-A3B-NVFP4` into `~/lol-vllm/hf/`. Run it again to resume or repair.
+**Install vLLM** (the vLLM card) runs `install.sh` into the vLLM folder (`vllm.root`, default `~/lol-vllm`; an
+existing install in `~/lol-vllm` or `~/lol-spike` is used as it is): `uv` if missing (user-local, no sudo), a
+Python 3.12 environment of uv's own, vLLM 0.30.0 and its GPU libraries (about 8 GB), the CUDA compiler packages
+FlashInfer's kernel build needs, a GPU check, then the chosen model. About 45 minutes on a typical connection. It
+runs in the farm's **download slot**: the farm keeps serving meanwhile, clients do not see it as busy, and Stop
+keeps what was fetched (Install again continues). An install refuses while vLLM runs from that folder.
+`lol install` does not install vLLM.
+
+**The models** are a list in the vLLM card: the three NVFP4 checkpoints the spike measured, with the flags it ran
+them with.
+
+| Model | Sees images | Measured |
+|---|---|---|
+| Qwen3.6 35B-A3B (the default) | yes | 48 people at 64k on an RTX PRO 6000, 8 on a DGX Spark |
+| Nemotron 3.5 Lightning 30B-A3B | no | 160 at 32k on an RTX PRO 6000, 16 on a DGX Spark |
+| Qwen3.8 27B | yes | 16 at 32k on an RTX PRO 6000; too slow on a Spark |
+
+**Download** fetches one (in the download slot, while vLLM serves another), **Use this** serves it (vLLM restarts
+with it), **Remove** takes it off the list and, asked again, deletes its files. **Add a model** takes a Hugging
+Face name or link (`owner/name`) and gives it its family's flags (Qwen3.5/3.6, Qwen3.8, Nemotron, other Qwen3);
+a model of no known family gets prefix caching only, and the panel says tools and thinking may not show. Folders
+already in `<root>/hf` show as "Also on this computer", with **Add to the list**.
+
+**Switching engines.** The Backend card's buttons are Ollama, llama.cpp and vLLM (and "External server" only while
+the file holds an [`external`](#config--lolconfigjson) block). A switch stops the current engine first, and a stop
+that fails changes nothing: two engines never share the GPU. Into vLLM it takes about 2 minutes (longer the very
+first time, while it compiles kernels); out of it, about a minute. The name people see moves with the switch
+(`carryNameAcross`), so open chats keep working. A switch to vLLM is refused up front, with the reason, when it is
+not installed, the model is not downloaded, an install runs, or a set memory cannot hold one person's window.
+
+**Its settings**, under the panel's one **Apply changes** (which asks the farm first, and asks the operator only
+when vLLM would restart):
+- **Name users see** — renaming bounces LiteLLM only; vLLM keeps running (its own `--served-model-name` is the
+  list's id).
+- **People served at once** (`vllm.parallel`, the seat gate's seats). Automatic: what was measured on this card
+  with this model at this context (or the nearest measured context above), never more than the memory holds;
+  else what the memory holds, at most 16; else 4. A card and model nobody measured says so, with the Plan
+  capacity link (the owner's question (c)).
+- **Context per person** (`vllm.contextLength`, `--max-model-len`), at most what the model reads.
+- **GPU memory for conversations** (`vllm.kvCacheGib`, `--kv-cache-memory-bytes`). Automatic, worked out at each
+  start: the GPU's free memory, less 8 % of the card, the model's weights, ~4 GB of vLLM's own and 9 GB kept for
+  document reading (`vllm.ocrReserveGib`, when OCR is on); on a DGX Spark, from what the system has available,
+  less the memory guard's 8 GB. Capped at what vLLM's request cap can use, so a small model does not take the
+  card. On the PRO 6000 alone that is 52 GB; beside ComfyUI's ~45 GB, about 8 GB (then 10 people at 64k, which
+  the Automatic people follow). Never `--gpu-memory-utilization`: a fraction of the card's total, and its start-up
+  profiler aborts when Ollama loads a model beside it.
+- vLLM's own request cap (`--max-num-seqs`) is Automatic: twice the people, as a power of 2, from 32 to 512
+  (48 → 128). A new model, context, memory or request cap restarts vLLM (about 2 minutes); people at once inside
+  the cap, the name and the password apply in seconds. So 48 → 40 people keeps it running, 48 → 80 restarts it
+  (128 → 256).
+- The farm's reply limit (`proxy.maxReplyTokens`, 32,768) becomes `--override-generation-config` (a ceiling on
+  vLLM 0.30, [below](#replies-that-never-end)); changing it restarts vLLM.
+
+The farm owns the whole `vllm serve` argv (`src/vllm.js` `planFor`, as `llamacpp.js` owns llama-server's) and hands
+it to `serve.sh` in `LOL_VLLM_ARGS_B64`; `serve.sh` then adds none of its own defaults, and writes
+`<root>/run/managed-by-farm` (its marker: from then on a start of `serve.sh` without the farm's argv, by the old
+log-on task, `lol-vllm.service` or a hand, says so and does nothing).
+
+**Starting and stopping.**
+- The farm's boot never waits for vLLM: the proxy, the seat gate, the panel and the beacon come up in seconds, and
+  vLLM starts as the job "Starting vLLM". A **planned** start (the boot, Start, a switch, an Apply, Use this)
+  keeps the farm healthy and says busy, so clients keep their farm and show "Starting vLLM"; a chat sent meanwhile
+  gets the gate's 503, "This farm's model is starting: about 2 minutes. Try again then." The panel shows the
+  start's steps, read from vLLM's log.
+- vLLM is **stopped on purpose only**: `lol down`, Ctrl-C, the Farm app's Quit and Stop (both run `lol down`
+  first), the panel's **Stop vLLM**, a switch, an Apply that restarts it. Stop vLLM makes the farm unhealthy
+  (clients go to another farm) and does not survive a farm restart: the next start starts vLLM (the owner's
+  question (b)).
+- A crash of `lol up` or of the Farm app leaves vLLM running, and the next `lol up` keeps it at once when it runs
+  with these settings (an Automatic setting accepts what it runs with), waits for one still starting, and
+  restarts one launched otherwise. The Farm app's **Share compute with the network** switch restarts the farm and keeps
+  vLLM running. CLI note: a farm that crashed leaves vLLM running until the next `lol up` or `lol down`.
+- At boot, a vLLM the farm started (its marker) that still runs while another engine is chosen (a crash in the
+  middle of a switch) is stopped; one without the marker is someone else's and is left alone.
+- **Watched**: three missed answers in a row (10 s each) and the farm looks before acting. Slow but answering:
+  nothing. Stopped by the memory guard: stays stopped, the farm unhealthy, until the operator presses Start.
+  Otherwise one restart ("Restarting vLLM after it stopped unexpectedly"); a second stop within 5 minutes falls
+  back to Ollama for the run, under vLLM's name, with the reason on the panel. A start that fails falls back the
+  same way; the file keeps vLLM, so the next farm start tries again.
+- On a DGX Spark the memory guard (`vllm.minFreeGb`, Automatic: 8 GB where the GPU shares the system memory) and
+  four compile jobs are on by themselves ([On Linux (DGX Spark)](#on-linux-dgx-spark) says why).
+
+**Document reading beside it.** Ollama still reads documents (OCR), directly, in the memory kept for it. With
+another engine serving, the farm prefers `gemma4:12b` for it when that model is installed; the Performance card
+warns when the reading model does not fit the 9 GB kept (production's `qwen3.8:latest` would not: 17.7 GB).
+Before vLLM or llama.cpp starts, Ollama's loaded models leave the GPU.
+
+**Its files and its log.** Everything lives in the vLLM folder, inside WSL's Ubuntu on Windows: `.venv` (vLLM),
+`hf/<model>` (the weights), `logs/vllm.log` (moved to `vllm.log.1` at a start once past 50 MB) and `run/` (the
+process group, the socket, the marker). The panel's **Show the log** reads its last lines; it records no
+conversations, but an error line can quote a few words of a reply. `lol down` from a terminal stops it too: from
+the runtime file, or from the config when that file is gone.
+
+**Taking over a vLLM you started.** A farm whose engine is an [external server](#external-a-vllm-you-run-yourself)
+on this computer, started from `farm/vllm` (the recipe below), is offered **Let the farm run vLLM** on the panel
+(looked for once the farm is up, and at Check again). The farm never takes it over by itself: a person clicks (the
+owner's question (a)). It keeps the same model, name and settings, and restarts nothing:
+- the server keeps running (the same process); LiteLLM is not restarted, its routing being the same apart from
+  its key;
+- `lol.config.json` is copied to `lol.config.json.before-managed-vllm`, then gets a `vllm` block (the folder, the
+  port, the name, the model, the context and people the external block declared, the memory and request cap the
+  server runs with, and any other flag it runs with in `vllm.extraArgs`) and loses its `external` block;
+- `serve.sh`'s marker is written in the server's folder, so the old launchers do nothing from then on: on Windows
+  the log-on task only opens the Farm app (its `serve.sh` exits 0 and `start-windows.ps1` says "The farm runs vLLM
+  now"), and on Linux `lol-vllm.service` starts nothing (`sudo systemctl disable lol-vllm` removes it). No task or
+  unit is changed.
+
+It is offered only when the farm can keep the server exactly as it runs (not, for instance, a server started with
+`--api-key`, or without a flag the farm would add). With nothing running on that port but the model in that
+folder, it is offered too, and the farm then starts vLLM. **Undo** (on the panel, until a setting changes or the
+farm restarts) puts the copy back, removes the marker and routes to the server as before; vLLM keeps running. By
+hand, later: quit the Farm app (which stops vLLM), copy `lol.config.json.before-managed-vllm` over
+`lol.config.json`, remove `<root>/run/managed-by-farm`, and start vLLM the old way
+([docs/PRO6000_VLLM_SWITCH.md](../docs/PRO6000_VLLM_SWITCH.md), Part 2). **A farm-v0.0.42 or older refuses a file
+with a `vllm` block**: put the copy back before installing an older Farm app.
+
+**At login.** The Farm app's Launch at login starts the farm, and the farm starts vLLM (WSL boots in about 5 s,
+then about 1.5 min). On Linux the app writes `~/.config/autostart/llmonlan-farm.desktop` for its AppImage, which
+needs a graphical login; a box without one keeps `lol up` in a service of its own (or the external recipe).
+
+### Why there is a relay
+
+Under WSL2's mirrored networking (`networkingMode=mirrored` in `.wslconfig`), vLLM's
+own TCP port never answers. vLLM binds its port when it starts but only listens once the model is loaded,
+1.5–2.5 min later, and mirrored networking stops forwarding a port that has been bound that long without
+listening. SYNs then time out from WSL, and Windows gets "connection refused", even though `ss` shows LISTEN.
+A plain Python socket reproduces it with a 75 s gap; with a 12–15 s gap it works. No vLLM flag changes when
+vLLM listens. So `serve.sh` runs vLLM on a Unix socket (`--uds`), and `relay.py`, which listens as soon as it
+binds, carries `127.0.0.1:8100` to that socket. Each connection is closed on both sides when either side
+leaves, so a person's Stop still aborts vLLM's request: streaming or not, alone or while others stream,
+through the seat gate and LiteLLM (`LOL_CANCEL_ENGINE=vllm node test/litellm-cancel.js`). The relay is harmless
+on native Linux.
+
+### Thinking
+
+Qwen3.6 thinks by default. The client turns thinking off for most of the Computer's structured
+calls (lists, JSON, agent steps) with `chat_template_kwargs: {"enable_thinking": false}` and also sends
+`think: false`, which vLLM ignores. LiteLLM's `drop_params` passes both through. A yes/no decision (a Condition,
+a Filter) sends neither and thinks, and so does every structured call once a person ticks the Computer's
+**Think all**. Chat messages and the Computer's prose and code answers never send them; Open WebUI's titles
+and search queries do. Measured through the farm, one short answer took 393 completion tokens with thinking
+and 14 without.
+
+### LiteLLM's cost per streamed token
+
+Every token a person reads passes through LiteLLM, and LiteLLM is one
+Python process. Measured on the PRO 6000 on 2026-10-05: N people press Enter together, each gets a 200-token
+reply, and the table gives the median time to the whole reply (p95 in brackets).
+
+| N | vLLM alone | through the farm, before | through the farm, now |
+|---|---|---|---|
+| 50 | 2.1–2.2 s | 2.5–2.6 s | 2.3–2.4 s |
+| 100 | 3.4–3.5 s | 4.6–5.3 s | 4.1–4.2 s |
+| 140 | 4.0–4.2 s (5.2–5.3 s) | 5.2–6.6 s (7.0–8.2 s) | 4.9 s (5.5 s) |
+
+- **Why.** Before, LiteLLM's process sat at one full core from 50 streams on. It passed on at most
+  ~3,400–4,000 tokens/s, while vLLM alone made ~5,300–5,800. A py-spy profile put about half of its event
+  loop's samples in the OpenAI SDK, which rebuilds every streamed chunk as typed objects, and ~15 % in
+  rebuilding each whole reply once it ends. That path also makes and drops an async generator for every
+  chunk, because `CustomStreamWrapper.__anext__` iterates the SDK's stream afresh each time.
+- **The fix.** The route to vLLM (the farm's own, and an external server) is `hosted_vllm/`, which uses LiteLLM's own HTTP client
+  and SSE parser. Through the farm, the client gets the same reasoning, images, tool calls, usage and
+  thinking-off results. A person's Stop still stops vLLM on all 10 paths (`LOL_CANCEL_ENGINE=vllm`), and
+  `external.apiKey` still reaches a server started with `--api-key`. One LiteLLM process now passes on
+  ~5,000 tokens/s.
+  - **What `hosted_vllm/` changes in a request:** it strips `strict` and `additionalProperties: false` from
+    tool schemas, so a tool parameter literally named `strict` disappears. It also forwards
+    `reasoning_effort` and `stream_options`, which `openai/` dropped, and vLLM refuses `stream_options` on a
+    non-streaming call. No first-party client (Open WebUI 0.11.4's built-in tools, LOL Vibe, the Computer, the
+    coding agent, Home Assistant) sends any of those; a third-party tool server might.
+  - **llama.cpp keeps `openai/`:** it serves a handful of people at once.
+  - **Coordinator peers keep `openai/` too, unmeasured.** Once a coordinator fronts a second big box (plan
+    Phase 3.0), half a class streams through that peer deployment: move the vLLM route's peers to
+    `hosted_vllm/` then, and measure.
+- **What did not help.** LiteLLM's `--num_workers` loses connections on Windows: 12 and 21 of 100
+  simultaneous streams never got an answer. Granian refuses to run several workers on Windows. With
+  `hosted_vllm/`, a second LiteLLM on its own port bought only 0.2 s more at 140. On `openai/`, two
+  processes landed where one `hosted_vllm/` process is, at twice the CPU. Granian with one worker changed
+  nothing. The relay costs nothing: inside WSL, 140 streams through it and straight to vLLM's socket took
+  the same 4.1 s.
+- **What is left.** ~0.7 s at 140 people and 0.6–0.7 s at 100, with LiteLLM's one core full again. If the
+  measured class sizes ever need it, the next step is for the seat gate to stream a lone vLLM deployment
+  straight to vLLM. It would skip LiteLLM for `POST /v1/chat/completions` only, and only while vLLM (the farm's
+  or an external one) serves with no peers. A scratch prototype matched vLLM alone (4.1 s (5.3 s) at 140, 3.6–3.7 s at 100)
+  at 0.2 of a core. It is ~60 lines in `seats.js` plus a thunk from `up.js`, and it has to take over:
+  - **the name:** rewrite `model` from the alias to the served model (`external.model`, the list's id), or
+    start vLLM with the alias first in `--served-model-name`;
+  - **the key:** send `external.apiKey` (or the farm's own) in place of the farm password;
+  - **retries:** LiteLLM retries a failed call 3 times;
+  - **dropped params:** under `drop_params`, LiteLLM removes what the server would refuse. vLLM ignores unknown
+    fields, but the real clients' requests (Open WebUI, LOL Vibe, the coding agent) would need checking;
+  - **images:** a text-only model would refuse an image instead of having it stripped.
+
+  Auth (the gate checks the password since Phase 0.1), `/v1/models`, Stop and the gate's counts already
+  live in the gate. The farm keeps no usage or spend records, so there is nothing to move there.
+- **To measure it again** after a LiteLLM or vLLM bump, compare the farm with vLLM alone, on the farm box:
+  `lol bench --users 140 --max-tokens 200` (through the gate) against
+  `lol bench --users 140 --max-tokens 200 --url http://127.0.0.1:8100 --model <the served name>`.
+
+### Replies that never end
+
+Qwen3.6 on vLLM sometimes falls into a loop while it thinks ("Let's go. (Self-Correction): I'll do it.", over
+and over) and never ends its reply: it writes until the 64k window is full, holding a seat for ~290 s, and
+Open WebUI then shows an empty answer. On 2026-10-05 Open WebUI's real follow-ups (211 requests, saved as
+sent) were replayed straight to vLLM, 2 to 8 times each, with a 32,768-token limit so a loop ended sooner:
+
+| Sampling | Replies | Looped to the limit |
+|---|---|---|
+| vLLM's defaults (the model's `generation_config.json`: temperature 1.0, top_k 20, top_p 0.95) | 500 | 8 (1.6 %) |
+| + `repetition_penalty: 1.05` | 422 | 1 (0.2 %) |
+| + `presence_penalty: 1.0` | 633 | 0 |
+| + `presence_penalty: 1.5` | 633 | 0 |
+
+- **The cause.** Qwen's model card asks for `presence_penalty: 1.5` with thinking on, "to reduce endless
+  repetitions", and nothing on the way applies it. Open WebUI sends no sampling at all, the checkpoint's
+  `generation_config.json` carries only temperature, top_k and top_p, and vLLM 0.30 cannot default a presence
+  penalty: its generation config takes only temperature, top_k, top_p, min_p, repetition_penalty and
+  max_new_tokens. A loop is a per-reply accident, not a property of a prompt: the 8 loops came from 8
+  different requests, and the requests that looped in Open WebUI looped 2 times in 72 replays.
+- **The fix.** A presence penalty of 1.5 that the farm's LiteLLM adds to every request that names none (a
+  request's own value wins): the vLLM list's Qwen3.6 entry carries it (`presencePenalty`), and so does an
+  external server's block. 1.5 is the model card's value; 1.0 did as well here.
+- **What it costs.** Nothing this set can measure. On the spike's quality set (28 items: code checked by
+  tests, exact answers, tool calls) with thinking on, 83 of 84 answers passed at vLLM's defaults, 81 of 84
+  with 1.5 and 54 of 56 with 1.0. A difference of one or two items is within the set's noise, and every
+  setting had an answer that thought past 16k tokens. With thinking off (how the Computer asks), 28 of 28
+  passed with 1.5 against 26 of 28 without. Qwen warns of "slight performance decreases" and asks for 0 on
+  precise coding; the coding agent's SDK sends no presence penalty, so it gets 1.5 too (code items: 28 of 30
+  with it, 29 of 30 without).
+- **The backstop.** The farm starts its vLLM with a reply limit of 32,768 tokens
+  (`--override-generation-config '{"max_new_tokens": 32768}'`, from `proxy.maxReplyTokens`; `serve.sh`'s own
+  defaults, for a vLLM started by hand, carry the same number), so a loop that still happens holds a seat for half
+  as long. On vLLM 0.30 it caps every request, not only those that
+  name no `max_tokens`: a request asking 40,000 gets 32,768 (see
+  [`proxy.maxReplyTokens`](#config--lolconfigjson)). If you pass your own `--override-generation-config`, it
+  replaces this one: put `max_new_tokens` in yours.
+- **Checked end to end** through the farm's own LiteLLM config, with vLLM started by `serve.sh`: the same
+  follow-ups twice each, with no `max_tokens`. With `presencePenalty: 1.5`, 0 of 424 looped. With each request
+  sending its own `presence_penalty: 0` (it wins), 6 of 424 looped and every one stopped at exactly 32,768
+  tokens. The set's longest prompt, 47,117 tokens, was still answered, with what the window left. Each run sent
+  428 requests: the 4 not counted are 2 prompts longer than the whole 64k window, sent twice, which vLLM
+  refuses with or without a limit. In a separate check through the same stack, a 39,223-token prompt with no
+  `max_tokens` was answered, and the same prompt sending `max_tokens: 32768` got vLLM's 400.
+
+## External: a vLLM you run yourself
+
+The farm can also route to an OpenAI-compatible server it does not run: SGLang, TensorRT-LLM, a server on another
+machine, or a vLLM started by hand from `farm/vllm`. That is the [`external`](#config--lolconfigjson) engine,
+which a developer sets up in `lol.config.json`; the panel shows its button only while the file holds one, and
+never offers it otherwise. The farm routes to it and reads a vLLM's `/metrics`, but never installs, starts, stops
+or configures it. Until 2026-10-07 this recipe was the only way to serve vLLM (the studio's PRO 6000 ran on it). A
+vLLM on this computer started this way is offered to the farm on the panel
+([Taking over a vLLM you started](#vllm-run-by-the-farm)); once the farm runs a folder (its marker
+`run/managed-by-farm`), `serve.sh` started by hand from it does nothing until the marker is removed (the panel's
+Undo does it).
+
+### On Windows (WSL2)
+
+Every step below was run on the PRO 6000 on 2026-10-05. **You need:** Windows 11 with WSL2 Ubuntu, the NVIDIA
+driver (the Windows one is enough) and about 40 GB of disk in WSL (the 23.5 GB model plus the venv). Below,
+`<repo>` is this repository seen from WSL, e.g. `/mnt/c/Users/<you>/LlmOnLan`.
+
+1. **Install, once** (about 15 min plus the download). This installs uv if it is missing, then vLLM 0.30.0, the
+   version measured, into `~/lol-vllm/.venv`, pins the CUDA compiler packages that FlashInfer's kernel build
+   needs on this card, and downloads `nvidia/Qwen3.6-35B-A3B-NVFP4` into `~/lol-vllm/hf/`. Run it again to
+   resume or repair.
    ```powershell
    wsl -d Ubuntu -- bash <repo>/farm/vllm/install.sh
    ```
@@ -245,17 +517,6 @@ arguments you add go to `vllm serve` after its defaults, and a repeated flag kee
 [RESULTS.md](../docs/spike/RESULTS.md#exact-install-and-launch-commands-that-worked). Nemotron 3.5 Lightning
 has no vision, so set `"vision": false` for it.
 
-**Why there is a relay.** Under WSL2's mirrored networking (`networkingMode=mirrored` in `.wslconfig`), vLLM's
-own TCP port never answers. vLLM binds its port when it starts but only listens once the model is loaded,
-1.5–2.5 min later, and mirrored networking stops forwarding a port that has been bound that long without
-listening. SYNs then time out from WSL, and Windows gets "connection refused", even though `ss` shows LISTEN.
-A plain Python socket reproduces it with a 75 s gap; with a 12–15 s gap it works. No vLLM flag changes when
-vLLM listens. So `serve.sh` runs vLLM on a Unix socket (`--uds`), and `relay.py`, which listens as soon as it
-binds, carries `127.0.0.1:8100` to that socket. Each connection is closed on both sides when either side
-leaves, so a person's Stop still aborts vLLM's request: streaming or not, alone or while others stream,
-through the seat gate and LiteLLM (`LOL_CANCEL_ENGINE=vllm node test/litellm-cancel.js`). The relay is harmless
-on native Linux.
-
 **Why 48 seats at 64k.** vLLM pages its KV cache, so a seat reserves no memory. A seat is admission: how many
 people the farm lets generate. The spike counts a person as served when the first word arrives within 5 s
 (p95) and the reply streams at 15 tok/s or more (p10).
@@ -292,112 +553,7 @@ To size the pool for another card or a co-tenant, use:
 ComfyUI's ~45 GB still on this card, about 8 GiB remains: ~0.7M tokens, or ~10 people at 64k. In that case,
 lower `parallel` to what the farm's pool warning says fits, or move ComfyUI or OCR to another box.
 
-**Thinking.** Qwen3.6 thinks by default. The client turns thinking off for most of the Computer's structured
-calls (lists, JSON, agent steps) with `chat_template_kwargs: {"enable_thinking": false}` and also sends
-`think: false`, which vLLM ignores. LiteLLM's `drop_params` passes both through. A yes/no decision (a Condition,
-a Filter) sends neither and thinks, and so does every structured call once a person ticks the Computer's
-**Think all**. Chat messages and the Computer's prose and code answers never send them; Open WebUI's titles
-and search queries do. Measured through the farm, one short answer took 393 completion tokens with thinking
-and 14 without.
-
-**LiteLLM's cost per streamed token.** Every token a person reads passes through LiteLLM, and LiteLLM is one
-Python process. Measured on the PRO 6000 on 2026-10-05: N people press Enter together, each gets a 200-token
-reply, and the table gives the median time to the whole reply (p95 in brackets).
-
-| N | vLLM alone | through the farm, before | through the farm, now |
-|---|---|---|---|
-| 50 | 2.1–2.2 s | 2.5–2.6 s | 2.3–2.4 s |
-| 100 | 3.4–3.5 s | 4.6–5.3 s | 4.1–4.2 s |
-| 140 | 4.0–4.2 s (5.2–5.3 s) | 5.2–6.6 s (7.0–8.2 s) | 4.9 s (5.5 s) |
-
-- **Why.** Before, LiteLLM's process sat at one full core from 50 streams on. It passed on at most
-  ~3,400–4,000 tokens/s, while vLLM alone made ~5,300–5,800. A py-spy profile put about half of its event
-  loop's samples in the OpenAI SDK, which rebuilds every streamed chunk as typed objects, and ~15 % in
-  rebuilding each whole reply once it ends. That path also makes and drops an async generator for every
-  chunk, because `CustomStreamWrapper.__anext__` iterates the SDK's stream afresh each time.
-- **The fix.** The external engine's deployment is now `hosted_vllm/`, which uses LiteLLM's own HTTP client
-  and SSE parser. Through the farm, the client gets the same reasoning, images, tool calls, usage and
-  thinking-off results. A person's Stop still stops vLLM on all 10 paths (`LOL_CANCEL_ENGINE=vllm`), and
-  `external.apiKey` still reaches a server started with `--api-key`. One LiteLLM process now passes on
-  ~5,000 tokens/s.
-  - **What `hosted_vllm/` changes in a request:** it strips `strict` and `additionalProperties: false` from
-    tool schemas, so a tool parameter literally named `strict` disappears. It also forwards
-    `reasoning_effort` and `stream_options`, which `openai/` dropped, and vLLM refuses `stream_options` on a
-    non-streaming call. No first-party client (Open WebUI 0.11.4's built-in tools, LOL Vibe, the Computer, the
-    coding agent, Home Assistant) sends any of those; a third-party tool server might.
-  - **llama.cpp keeps `openai/`:** it serves a handful of people at once.
-  - **Coordinator peers keep `openai/` too, unmeasured.** Once a coordinator fronts a second big box (plan
-    Phase 3.0), half a class streams through that peer deployment: move the external branch's peers to
-    `hosted_vllm/` then, and measure.
-- **What did not help.** LiteLLM's `--num_workers` loses connections on Windows: 12 and 21 of 100
-  simultaneous streams never got an answer. Granian refuses to run several workers on Windows. With
-  `hosted_vllm/`, a second LiteLLM on its own port bought only 0.2 s more at 140. On `openai/`, two
-  processes landed where one `hosted_vllm/` process is, at twice the CPU. Granian with one worker changed
-  nothing. The relay costs nothing: inside WSL, 140 streams through it and straight to vLLM's socket took
-  the same 4.1 s.
-- **What is left.** ~0.7 s at 140 people and 0.6–0.7 s at 100, with LiteLLM's one core full again. If the
-  measured class sizes ever need it, the next step is for the seat gate to stream a lone external deployment
-  straight to vLLM. It would skip LiteLLM for `POST /v1/chat/completions` only, and only while the external
-  engine serves with no peers. A scratch prototype matched vLLM alone (4.1 s (5.3 s) at 140, 3.6–3.7 s at 100)
-  at 0.2 of a core. It is ~60 lines in `seats.js` plus a thunk from `up.js`, and it has to take over:
-  - **the name:** rewrite `model` from the alias to `external.model`, or start vLLM with the alias first in
-    `--served-model-name`;
-  - **the key:** send `external.apiKey` in place of the farm password;
-  - **retries:** LiteLLM retries a failed call 3 times;
-  - **dropped params:** under `drop_params`, LiteLLM removes what the server would refuse. vLLM ignores unknown
-    fields, but the real clients' requests (Open WebUI, LOL Vibe, the coding agent) would need checking;
-  - **images:** a text-only model would refuse an image instead of having it stripped.
-
-  Auth (the gate checks the password since Phase 0.1), `/v1/models`, Stop and the gate's counts already
-  live in the gate. The farm keeps no usage or spend records, so there is nothing to move there.
-- **To measure it again** after a LiteLLM or vLLM bump, compare the farm with vLLM alone, on the farm box:
-  `lol bench --users 140 --max-tokens 200` (through the gate) against
-  `lol bench --users 140 --max-tokens 200 --url http://127.0.0.1:8100 --model <the served name>`.
-
-### Replies that never end
-
-Qwen3.6 on vLLM sometimes falls into a loop while it thinks ("Let's go. (Self-Correction): I'll do it.", over
-and over) and never ends its reply: it writes until the 64k window is full, holding a seat for ~290 s, and
-Open WebUI then shows an empty answer. On 2026-10-05 Open WebUI's real follow-ups (211 requests, saved as
-sent) were replayed straight to vLLM, 2 to 8 times each, with a 32,768-token limit so a loop ended sooner:
-
-| Sampling | Replies | Looped to the limit |
-|---|---|---|
-| vLLM's defaults (the model's `generation_config.json`: temperature 1.0, top_k 20, top_p 0.95) | 500 | 8 (1.6 %) |
-| + `repetition_penalty: 1.05` | 422 | 1 (0.2 %) |
-| + `presence_penalty: 1.0` | 633 | 0 |
-| + `presence_penalty: 1.5` | 633 | 0 |
-
-- **The cause.** Qwen's model card asks for `presence_penalty: 1.5` with thinking on, "to reduce endless
-  repetitions", and nothing on the way applies it. Open WebUI sends no sampling at all, the checkpoint's
-  `generation_config.json` carries only temperature, top_k and top_p, and vLLM 0.30 cannot default a presence
-  penalty: its generation config takes only temperature, top_k, top_p, min_p, repetition_penalty and
-  max_new_tokens. A loop is a per-reply accident, not a property of a prompt: the 8 loops came from 8
-  different requests, and the requests that looped in Open WebUI looped 2 times in 72 replays.
-- **The fix.** `"presencePenalty": 1.5` in `external` (step 3 above): the farm's LiteLLM adds it to every
-  request that names none, and a request's own value wins. 1.5 is the model card's value; 1.0 did as well here.
-- **What it costs.** Nothing this set can measure. On the spike's quality set (28 items: code checked by
-  tests, exact answers, tool calls) with thinking on, 83 of 84 answers passed at vLLM's defaults, 81 of 84
-  with 1.5 and 54 of 56 with 1.0. A difference of one or two items is within the set's noise, and every
-  setting had an answer that thought past 16k tokens. With thinking off (how the Computer asks), 28 of 28
-  passed with 1.5 against 26 of 28 without. Qwen warns of "slight performance decreases" and asks for 0 on
-  precise coding; the coding agent's SDK sends no presence penalty, so it gets 1.5 too (code items: 28 of 30
-  with it, 29 of 30 without).
-- **The backstop.** `serve.sh` also gives vLLM a reply limit of 32,768 tokens
-  (`--override-generation-config '{"max_new_tokens": 32768}'`, the farm's `proxy.maxReplyTokens`), so a loop
-  that still happens holds a seat for half as long. On vLLM 0.30 it caps every request, not only those that
-  name no `max_tokens`: a request asking 40,000 gets 32,768 (see
-  [`proxy.maxReplyTokens`](#config--lolconfigjson)). If you pass your own `--override-generation-config`, it
-  replaces this one: put `max_new_tokens` in yours.
-- **Checked end to end** through the farm's own LiteLLM config, with vLLM started by this `serve.sh`: the same
-  follow-ups twice each, with no `max_tokens`. With `presencePenalty: 1.5`, 0 of 424 looped. With each request
-  sending its own `presence_penalty: 0` (it wins), 6 of 424 looped and every one stopped at exactly 32,768
-  tokens. The set's longest prompt, 47,117 tokens, was still answered, with what the window left. Each run sent
-  428 requests: the 4 not counted are 2 prompts longer than the whole 64k window, sent twice, which vLLM
-  refuses with or without a limit. In a separate check through the same stack, a 39,223-token prompt with no
-  `max_tokens` was answered, and the same prompt sending `max_tokens: 32768` got vLLM's 400.
-
-### Start vLLM at logon
+#### Start vLLM at logon
 
 So that vLLM comes back after a reboot, a scheduled task runs `farm/vllm/start-windows.ps1` when you log on. The
 script starts `serve.sh` hidden in WSL, waits until `http://127.0.0.1:8100/v1/models` answers, then starts the Farm
@@ -432,25 +588,26 @@ folder. vLLM's own log is still `~/lol-vllm/logs/vllm.log`.
 Checked on 2026-10-07 with a stand-in for vLLM (no GPU) on a spare port: the Farm app started only once the
 server answered; the distro and the server were still up 60 s after the script exited, with no other `wsl.exe`;
 `stop.sh` ended the script's `wsl.exe` and the distro stopped 10 s later; a 12 s timeout and a `serve.sh` that
-stopped at once both still started the Farm app. The scheduled task itself has not been registered on the farm
-box yet.
+stopped at once both still started the Farm app. The task runs on the PRO 6000 since 2026-10-07
+([docs/PRO6000_VLLM_SWITCH.md](../docs/PRO6000_VLLM_SWITCH.md)); after the farm takes that vLLM over, it only opens
+the Farm app.
 
-## Serving with vLLM on Linux (DGX Spark)
+### On Linux (DGX Spark)
 
 The same scripts run vLLM natively on Linux. On the DGX Spark (GB10, 128 GB of memory shared by the CPU and the
 GPU), the spike measured vLLM serving **8 people at once on Qwen3.6-35B-A3B, at 32k or 64k of context each, or 16
 on Nemotron 3.5 Lightning at 32k** ([RESULTS.md, DGX Spark](../docs/spike/RESULTS.md#dgx-spark-gb10)). That is a
-workshop table, not a class: llama.cpp served 2 there, and a PRO 6000 serves 48 at 64k. Here the Spark runs vLLM
-as a systemd service, so it comes back after a reboot, with a memory guard. The service and the guard were checked
-on 2026-10-07 under systemd with a stand-in for vLLM, not yet on the Spark itself. Below, `<repo>` is your checkout
-of this repository.
+workshop table, not a class: llama.cpp served 2 there, and a PRO 6000 serves 48 at 64k. In this recipe the Spark runs
+vLLM as a systemd service, so it comes back after a reboot, with a memory guard (the farm's own vLLM sets the same
+guard and compile jobs by itself). The service and the guard were checked on 2026-10-07 under systemd with a
+stand-in for vLLM, not yet on the Spark itself. Below, `<repo>` is your checkout of this repository.
 
 1. **Install, once**, as your user (about 40 GB of disk):
    ```bash
-   UV_PYTHON_PREFERENCE=only-managed bash <repo>/farm/vllm/install.sh
+   bash <repo>/farm/vllm/install.sh
    ```
-   `UV_PYTHON_PREFERENCE=only-managed` builds the venv on uv's own Python 3.12. The Spark's system Python has no
-   headers, and vLLM then stops with `Model architectures [...] failed to be inspected`. For Nemotron, also run
+   It builds the venv on uv's own Python 3.12 (`UV_PYTHON_PREFERENCE=only-managed`): the Spark's system Python has
+   no headers, and vLLM then stops with `Model architectures [...] failed to be inspected`. For Nemotron, also run
    `bash <repo>/farm/vllm/install.sh nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4`.
 2. **Install the service.** Copy `farm/vllm/lol-vllm.service` to `/etc/systemd/system/`. Set `User=` and the path
    to `serve.sh` in `ExecStart=`: a checkout of this repository, or the Farm app's own copy,
@@ -488,7 +645,8 @@ of this repository.
      ```bash
      until curl -s -o /dev/null http://127.0.0.1:8100/v1/models; do sleep 5; done; lol up
      ```
-   - **The Farm app (AppImage):** its Launch at login works only on Windows and macOS. Start it at login from
+   - **The Farm app (AppImage):** its own Launch at login starts it at once, without waiting (right when the farm
+     runs vLLM itself). For this recipe, turn it off and start it at login from
      `~/.config/autostart/lol-farm.desktop`, which waits for vLLM first, up to 15 minutes (put in the path of your
      AppImage):
      ```ini
@@ -912,8 +1070,14 @@ get *"the farm is busy"*).
 | `GET /lol/admin` | The panel page (open — it asks for the token). |
 | `GET /lol/capacity` | The capacity explorer (open, read-only): usage scenarios and a models × hardware table, this box marked from `/lol/self`. Its scripts and data are `/lol/capacity/{estimator.js,scenarios.js,catalog.json,measured.json}` (`src/capacity/`); it asks nothing off the farm. How to rebuild: [docs/spike/explorer](../docs/spike/explorer/README.md). |
 | `GET /lol/admin/state` | Everything the panel renders. |
-| `POST /lol/admin/apply` | `{ name?, slots?, password?, context?, seatIdleSec? }` — the one **Apply changes**, one restart; `seatIdleSec` (60–3600) alone applies live, no restart. |
-| `POST /lol/admin/backend` | `{ engine: "llamacpp" \| "ollama" }` — switch engines. |
+| `POST /lol/admin/apply` | `{ name?, slots?, password?, context?, seatIdleSec? }` — the one **Apply changes**, one restart; `seatIdleSec` (60–3600) alone applies live, no restart. With vLLM also `{ model?, kvCacheGib?, dryRun? }`: `dryRun` answers `{ restart, changes }` and changes nothing. |
+| `POST /lol/admin/backend` | `{ engine: "ollama" \| "llamacpp" \| "vllm" }` (`"external"` only while the file holds one) — switch engines. |
+| `POST /lol/admin/vllm/check` · `/vllm/start` · `/vllm/stop` | Check this computer (and look for a vLLM to take over); start or stop the farm's vLLM (a job). |
+| `POST /lol/admin/vllm/install` · `/vllm/download` | Install or update vLLM; download a list model `{ id }` — both in the download slot. |
+| `POST /lol/admin/vllm/library/add` · `/vllm/library/remove` | `{ repo \| folder, label? }`; `{ id, deleteFiles? }`. |
+| `GET /lol/admin/vllm/log?lines=200` | vLLM's own log, its last lines. |
+| `POST /lol/admin/vllm/take-over` · `/vllm/take-over/undo` | Let the farm run the vLLM it routes to as an external server on this computer; undo it (until a setting changes or the farm restarts). |
+| `POST /lol/admin/job/cancel` | `{ slot: "job" \| "download" }` — Stop on either bar. |
 | `POST /lol/admin/name` · `/slots` · `/context` · `/security` | The single-field forms of Apply (`{ name }`, `{ slots }`, `{ tokens }`, `{ password }` — an empty password removes it). |
 | `POST /lol/admin/llamacpp/model` · `/llamacpp/library/add` · `/llamacpp/library/remove` | Load a library entry or URL; edit the `.gguf` library. |
 | `POST /lol/admin/model/start` · `/model/stop` · `/model/default` · `/model/alias` | Offer / stop / make default / rename an Ollama model (`{ id }`, `{ id, alias }`). |
@@ -936,7 +1100,7 @@ nothing. Shape:
               "intervalSec": 5, "httpPort": 41997 },   // distinct from ComfyQ's 239.255.42.99
   "proxy":  { "port": 4000, "host": "0.0.0.0", "masterKey": null,
               "maxReplyTokens": 32768 },        // the longest reply (null = none): a default on Ollama and llama.cpp;
-                                               //   vLLM's is serve.sh's own number, a ceiling
+                                               //   a ceiling the farm's vLLM starts with
   "models": [ { "id": "gemma4:12b", "default": true },
               { "id": "qwen2.5-coder:14b", "alias": "coder" } ],  // per-model role alias
   "llamacpp": { "enabled": true,               // OPT-IN speed engine (default false) — serves ONE model as `alias`
@@ -977,6 +1141,13 @@ nothing. Shape:
   "ocr": { "enabled": true, "port": 8890, "preprocess": false,   // shared document OCR (ON by default) — omit `model` to
            "format": "markdown",                       // auto-use the served default vision model; markdown|text|…
            "pdfEngine": "auto", "docling": false },    // auto: text layer / vision / hybrid on mixed pages; docling adds office formats
+  "vllm": { "enabled": false,                  // OPT-IN: vLLM run by the farm (set by the panel; see below)
+            "root": null, "distro": null,      // its folder in Linux (null = ~/lol-vllm, or an install found);
+                                               //   the WSL distribution (null = WSL's default)
+            "port": 8100, "alias": "assistant", "model": "qwen3.6-35b-a3b",   // a list id
+            "contextLength": 65536, "parallel": "auto", "maxNumSeqs": "auto",
+            "kvCacheGib": "auto", "ocrReserveGib": 9, "marginPct": 8, "minFreeGb": "auto",
+            "version": "0.30.0", "extraArgs": [], "library": [ /* the three measured NVFP4 models */ ] },
   "coordinator": false                          // aggregate LAN peers into one balanced endpoint
 }
 ```
@@ -1119,24 +1290,26 @@ build for Blackwell cards (16 GB+); replace it freely.
     `num_predict`) on those routes, and puts a request's own values over a route's: a request asking 40,000
     gets 40,000. (llama-server obeys a request's `max_completion_tokens` over the route's `max_tokens`, above
     or below it.)
-  - **On vLLM, a ceiling.** The farm sends vLLM no limit: vLLM refuses a request whose prompt plus
-    `max_tokens` passes its window (a 33k-token document on a 64k window would get a 400). `farm/vllm/serve.sh`
-    gives vLLM the number itself (`--override-generation-config '{"max_new_tokens": 32768}'`), and vLLM 0.30
-    holds every request to it: each gets the smallest of what the window leaves, its own limit and 32,768,
-    so a request asking 40,000 gets 32,768. No first-party caller asks more than 16,384, so it cuts
-    none of them. If you run vLLM yourself, add that flag.
-  - **On an external server, this key changes nothing.** `serve.sh` hard-codes 32,768: to change it, edit
-    `serve.sh`, or pass your own `--override-generation-config` with `max_new_tokens` in it. Any other
-    external server (SGLang, TensorRT-LLM, a vLLM started without that flag) gets no limit from the farm.
+  - **On vLLM, a ceiling.** The route sends vLLM no limit: vLLM refuses a request whose prompt plus
+    `max_tokens` passes its window (a 33k-token document on a 64k window would get a 400). The farm starts its
+    vLLM with the number instead (`--override-generation-config '{"max_new_tokens": 32768}'`; changing the key
+    restarts vLLM), and vLLM 0.30 holds every request to it: each gets the smallest of what the window leaves,
+    its own limit and 32,768, so a request asking 40,000 gets 32,768. No first-party caller asks more than
+    16,384, so it cuts none of them.
+  - **On an external server, this key changes nothing.** `serve.sh`'s own defaults (a vLLM started by hand)
+    hard-code 32,768: to change it, edit `serve.sh`, or pass your own `--override-generation-config` with
+    `max_new_tokens` in it. Any other external server (SGLang, TensorRT-LLM, a vLLM started without that flag)
+    gets no limit from the farm.
   - **Checked by** `npm test` (the routes) and `test/litellm-cancel.js` (what the engine is told, per route,
     with and without a request's own `max_tokens` or `max_completion_tokens`, below the limit and above it).
 - **`proxy.host`** — where the farm listens: the seat gate, `/lol/self` + the admin panel, **and** the
   plugins (SearXNG, OCR, Kokoro), which follow it. `0.0.0.0` (default) = the LAN; `127.0.0.1` = this
   machine only (the Farm app's private mode, with `beacon.enabled: false`) — the plugin URLs then
   advertise `127.0.0.1`, which is what a client on the same box needs.
-- **`external`** — route to an OpenAI-compatible server the farm does **not** run (vLLM, SGLang,
-  TensorRT-LLM, a llama-server you started yourself). A third engine, exclusive like llama.cpp: while
-  it serves, no local Ollama deployment is routed or advertised. Use it for stacks we can never bundle
+- **`external`** — route to an OpenAI-compatible server the farm does **not** run (SGLang, TensorRT-LLM, a
+  server on another machine, a vLLM or llama-server you started yourself). The fourth engine, exclusive like
+  the others and above them all (`engineOf`: external > vllm > llama.cpp > Ollama): while it serves, no local
+  Ollama deployment is routed or advertised. Use it for stacks we can never bundle
   — a Docker vLLM recipe, or NVFP4 W4A4 weights (vLLM/SGLang-only, Blackwell). Example:
   ```json
   "external": {
@@ -1158,10 +1331,22 @@ build for Blackwell cards (16 GB+); replace it freely.
   reason in the panel; dying later → the farm goes unhealthy so clients fail over, exactly like a dead
   llama-server. `contextLength`/`parallel` are declarations, not measurements (no portable endpoint
   reports them), and they size the client's whole-document gate and the seat count — so get them right.
-  There is no panel switch for this one: set `enabled` in `lol.config.json` and restart the farm. A tested
-  vLLM recipe for a Windows box is in
-  [Serving with vLLM on Windows (WSL2)](#serving-with-vllm-on-windows-wsl2), and for a DGX Spark in
-  [Serving with vLLM on Linux (DGX Spark)](#serving-with-vllm-on-linux-dgx-spark).
+  The panel shows an **External server** button only while the file holds this block (a developer wrote it),
+  and switching away from it works from the panel; it never offers it otherwise. The tested vLLM recipe is
+  [External: a vLLM you run yourself](#external-a-vllm-you-run-yourself); a vLLM on this computer started that
+  way is offered to the farm to run ([vLLM, run by the farm](#vllm-run-by-the-farm), "Taking over").
+- **`vllm`** — vLLM run by the farm ([vLLM, run by the farm](#vllm-run-by-the-farm)). The panel sets every key:
+  the engine switch writes `enabled` (exactly one engine flag is true after a switch); Install and the first
+  start write `root` (absolute); Apply writes `alias`, `parallel`, `contextLength`, `kvCacheGib` and `model`;
+  the list's Add and Remove write `library`. `root` is a Linux path (`~` allowed, no `..`); `port` is
+  `serve.sh`'s relay on 127.0.0.1. `parallel`, `maxNumSeqs`, `kvCacheGib` and `minFreeGb` take `"auto"` (the
+  rules are in that section) or a number; `ocrReserveGib` (9) is kept for document reading when OCR is on, and
+  `marginPct` (8) of the card stays free. `version` is the vLLM `install.sh` installs. `extraArgs` go last on
+  `vllm serve` (a take-over keeps there the flags a server ran with that the list's entry does not give). Each
+  `library` entry is `{ id, label, repo, folder, sizeGb, weightsGib, vision, presencePenalty, args, catalog,
+  measured, note }`: `id` (lowercase) is vLLM's `--served-model-name`, `folder` its folder in `<root>/hf`
+  (default: the repo's name), `args` its own `vllm serve` flags, `catalog`/`measured` its entries in
+  `src/capacity/` (memory per person, people measured). A farm-v0.0.42 or older refuses a file with this block.
 
   **When the server is a vLLM** (its `/metrics`, at `baseUrl` without the `/v1`, carries `vllm:`
   series — nothing to configure), the farm reads it on the health tick it already runs: the
@@ -1214,6 +1399,12 @@ build for Blackwell cards (16 GB+); replace it freely.
    llama.cpp stands down (a vLLM's `/metrics` is read once: its KV pool, and a warning when the
    declared seats × window exceed it); not answering → fall back to the built-in engine for this run
    (panel says why).
+   - (vLLM, another engine chosen) A vLLM this farm started (its marker) that still runs from its folder is
+     stopped: a crash in the middle of a switch must not leave two engines on one GPU.
+   - (`vllm.enabled`) Check this computer once (`status.sh`; on Windows through WSL). A vLLM that runs with
+     these settings is kept at once; one still starting is waited for, one launched otherwise restarts, and
+     otherwise one starts, both at step 13, once the farm is public. What blocks it (not installed, no model,
+     WSL) → Ollama for this run, with the reason on the panel.
 2. Ping each Ollama host (start a **local** one if it's down, with the concurrency/keep‑warm env). No
    reachable host → exit: Ollama is required even when another engine serves.
 3. (Ollama engine) **Pick the model(s) to serve** — interactive from what's installed (Enter = default),
@@ -1234,7 +1425,11 @@ build for Blackwell cards (16 GB+); replace it freely.
     still serves chat.
 11. Start the seat gate on `proxy.port` (LiteLLM stays on loopback behind it), then the discovery beacon
     (+ the unicast `/lol/self` endpoint + the admin panel).
-12. Write `.lol-runtime.json` (so `status`/`down` work elsewhere) and supervise until Ctrl‑C.
+12. Write `.lol-runtime.json` (so `status`/`down` work elsewhere; for vLLM, where it lives, not a pid) and
+    supervise until Ctrl‑C (which stops vLLM too).
+13. (vLLM) Start it, or wait for it, as the job "Starting vLLM": the farm stays healthy and says busy, and the
+    gate answers a chat with "starting" until it is ready. (An external server on this computer) Look for a
+    vLLM the farm could run, for the panel's take-over offer.
 
 ## If the farm won't start
 

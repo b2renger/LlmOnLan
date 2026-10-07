@@ -4583,6 +4583,7 @@ test('D10: no text a person reads names a config file or key — the panel in ev
         ollamaWithVllm({ phase: 'failed', bootError: 'vLLM could not start: it stopped.' }),
         vllmState({ probe: { at: 1, oks: [], problems: ['vLLM is not installed on this computer yet: press Install vLLM.'], warnings: ['vLLM 0.29.0 is installed; this farm was tested with 0.30.0.'] }, installed: false }),
         vllmState({ supported: false }), vllmState({ takeOver: { root: '/r', running: true } }), vllmState({}, { ocrFits: false, ocrModel: 'qwen3.8:latest', ocrGb: 17 }),
+        vllmState({ takenOver: { root: '/r', platform: 'win32', undo: true } }), vllmState({ takenOver: { root: '/r', platform: 'linux', undo: false } }),
     ];
     for (const s of states) {
         const html = render(s);
@@ -4599,7 +4600,7 @@ test('D10: no text a person reads names a config file or key — the panel in ev
     assert.deepEqual(hits, [], `config wording a person would read:\n${hits.join('\n')}`);
 });
 
-test('admin routes for vLLM: install, the list, the log, all behind the token, each reaching its control (§3.6)', async () => {
+test('admin routes for vLLM: install, the list, the log, the take-over and its Undo, all behind the token, each reaching its control (§3.6)', async () => {
     const http = require('http');
     const seen = [];
     const control = new Proxy({}, { get: (_, k) => (k === 'then' ? undefined : (...a) => { seen.push([k, ...a]); return { ok: true, k }; }) });
@@ -4620,6 +4621,8 @@ test('admin routes for vLLM: install, the list, the log, all behind the token, e
             ['/lol/admin/vllm/library/remove', { id: 'x', deleteFiles: true }, 'vllmLibraryRemove', [{ id: 'x', deleteFiles: true }]],
             ['/lol/admin/apply', { model: 'nemotron-3.5-lightning', dryRun: true }, 'applyFarmSettings', [{ model: 'nemotron-3.5-lightning', dryRun: true }]],
             ['/lol/admin/backend', { engine: 'vllm' }, 'setBackend', ['vllm']],
+            ['/lol/admin/vllm/take-over', {}, 'vllmTakeOver', []],
+            ['/lol/admin/vllm/take-over/undo', {}, 'vllmUndoTakeOver', []],
         ]) {
             assert.equal((await call('POST', p, body, null)).status, 401, `${p} needs the token`);
             seen.length = 0;
@@ -4632,6 +4635,137 @@ test('admin routes for vLLM: install, the list, the log, all behind the token, e
         assert.equal((await call('GET', '/lol/admin/vllm/log?lines=50')).status, 200);
         assert.deepEqual(seen, [['vllmLog', '50']]);
     } finally { srv.close(); }
+});
+
+// ---- "Let the farm run vLLM": the take-over (docs/VLLM_MANAGED_PLAN.md §9) ------------------------------------------
+// status.sh as it reads production's operator-run vLLM (pgid 401, ~/lol-spike, :8100), its argv from serve.sh itself.
+function prodStatus(over = {}) {
+    const root = '/home/ateliernum/lol-spike';
+    return {
+        home: '/home/ateliernum', root, distro: 'Ubuntu', arch: 'x86_64', gpu: { name: PRO, totalGib: 95.59, freeGib: 20.8, cap: 12 },
+        installs: [{ root, version: '0.30.0', link: false }], models: [{ folder: 'Qwen3.6-35B-A3B-NVFP4', gb: 23.4, vision: true, native: 262144, partial: false }],
+        running: { pgid: 401, port: 8100, minFreeGb: null, managedArgs: null, argv: serveShArgv(root), ready: true },
+        found: [{ root, port: 8100, pgid: 401 }], guardLine: null, installing: null, managed: false, ...over,
+    };
+}
+// A raw lol.config.json as the farm reads it (every default filled in).
+const loadConfigFrom = (raw) => ConfigSchema.parse(JSON.parse(JSON.stringify(raw)));
+function prodExternalConfig() {
+    const c = defaultConfig();
+    Object.assign(c.external, PROD_EXTERNAL);
+    return c;
+}
+
+test('take-over, golden: production\'s operator-run vLLM becomes the farm\'s with the same model, name and settings, kept running, the routing unchanged apart from its key (§9.3, §11.1-7)', () => {
+    const plan = V.takeOverPlan(prodExternalConfig(), prodStatus(), 8100, { answering: true });
+    assert.ok(plan, 'offered');
+    assert.deepEqual({ ...plan, block: undefined }, { root: '/home/ateliernum/lol-spike', distro: 'Ubuntu', port: 8100, running: true, ready: true, pgid: 401, block: undefined, resolved: { kvGib: 50, maxNumSeqs: 128, seats: 48 } });
+    assert.deepEqual(plan.block, {
+        enabled: true, root: '/home/ateliernum/lol-spike', distro: 'Ubuntu', port: 8100, alias: 'Qwen3.6', model: 'qwen3.6-35b-a3b',
+        contextLength: 65536, parallel: 48, kvCacheGib: 50, maxNumSeqs: 'auto', minFreeGb: 'auto', extraArgs: [],
+    }, 'no copy of the list: the measured entry is the one it runs');
+    // What the farm then runs with (the block in a file, parsed) routes as production's external engine did.
+    const managed = loadConfigFrom({ vllm: plan.block });
+    assert.equal(toYaml(buildLitellmConfig(managed)).replace('api_key: sk-lol-vllm', 'api_key: sk-lol-external'), toYaml(buildLitellmConfig(prodExternalConfig())));
+    assert.deepEqual(V.adoptable(managed, prodStatus().running, { gpuName: PRO }), { ok: true, resolved: { kvGib: 50, maxNumSeqs: 128, seats: 48 }, diff: [] });
+    // The DGX Spark's unit: the last value of a repeated flag, its memory guard.
+    const unit = fs.readFileSync(path.join(__dirname, '..', 'vllm', 'lol-vllm.service'), 'utf8');
+    const extra = /^ExecStart=\S+ \S+serve\.sh (.*)$/m.exec(unit)[1].split(/\s+/);
+    const root = '/home/me/lol-vllm';
+    const spark = prodStatus({ root, distro: null, gpu: { name: 'NVIDIA GB10', totalGib: null, freeGib: null, cap: 12.1 }, installs: [{ root, version: '0.30.0' }],
+        running: { pgid: 7, port: 8100, minFreeGb: 8, argv: [...serveShArgv(root), ...extra], ready: true }, found: [{ root, port: 8100, pgid: 7 }] });
+    const sc = prodExternalConfig(); sc.external.parallel = 8;
+    const sp = V.takeOverPlan(sc, spark, 8100, { answering: true });
+    assert.deepEqual([sp.block.kvCacheGib, sp.block.maxNumSeqs, sp.block.minFreeGb, sp.block.extraArgs, 'distro' in sp.block, sp.resolved.maxNumSeqs], [58, 'auto', 8, [], false, 32]);
+});
+
+test('take-over: what it keeps from the server, and when it offers nothing (§9.1, §9.3)', () => {
+    const c = prodExternalConfig();
+    const withArgs = (more, over = {}) => prodStatus({ running: { ...prodStatus().running, argv: [...prodStatus().running.argv, ...more] }, ...over });
+    // A flag the measured entry does not have, or another value for one it has: kept, last.
+    let p = V.takeOverPlan(c, withArgs(['--enforce-eager', '--tool-call-parser', 'hermes']), 8100, { answering: true });
+    assert.deepEqual(p.block.extraArgs, ['--tool-call-parser', 'hermes', '--enforce-eager']);
+    assert.ok(V.adoptable(loadConfigFrom({ vllm: p.block }), withArgs(['--enforce-eager', '--tool-call-parser', 'hermes']).running, { gpuName: PRO }).ok);
+    // Another reply limit than the farm's: kept as it runs.
+    p = V.takeOverPlan(c, withArgs(['--override-generation-config', '{"max_new_tokens": 8192}']), 8100, { answering: true });
+    assert.deepEqual(p.block.extraArgs, ['--override-generation-config', '{"max_new_tokens":8192}']);
+    // Another request cap than Automatic gives: a number.
+    p = V.takeOverPlan(c, withArgs(['--max-num-seqs', '64']), 8100, { answering: true });
+    assert.deepEqual([p.block.maxNumSeqs, p.resolved.maxNumSeqs], [64, 64]);
+    // Another presence penalty, and a folder of another name: the entry is copied with them, and a note.
+    const cp = prodExternalConfig(); cp.external.presencePenalty = 1.0;
+    const st = prodStatus(); st.running.argv[0] = '/home/ateliernum/lol-spike/hf/qwen36'; st.models = [{ folder: 'qwen36', gb: 23, partial: false }];
+    p = V.takeOverPlan(cp, st, 8100, { answering: true });
+    const e = p.block.library.find((x) => x.id === 'qwen3.6-35b-a3b');
+    assert.deepEqual([e.folder, e.presencePenalty, p.block.library.length], ['qwen36', 1.0, 3]);
+    assert.match(e.note, /Kept as it ran when the farm took it over\.$/);
+    assert.equal(toYaml(buildLitellmConfig(loadConfigFrom({ vllm: p.block }))).replace('api_key: sk-lol-vllm', 'api_key: sk-lol-external'), toYaml(buildLitellmConfig(cp)), 'the same routing');
+    // A model the list does not have: a new entry with its family's flags.
+    const nst = prodStatus(); nst.running.argv = nst.running.argv.map((a) => (a === 'qwen3.6-35b-a3b' ? 'my-qwen' : a));
+    const nc = prodExternalConfig(); nc.external.model = 'my-qwen';
+    p = V.takeOverPlan(nc, nst, 8100, { answering: true });
+    assert.deepEqual([p.block.model, p.block.library.length, p.block.library[3].id, p.block.library[3].folder, p.block.library[3].vision], ['my-qwen', 4, 'my-qwen', 'Qwen3.6-35B-A3B-NVFP4', true]);
+    // Nothing to offer.
+    const none = (why, st2, port = 8100, answering = true, cfg = c) => assert.equal(V.takeOverPlan(cfg, st2, port, { answering }), null, why);
+    none('no install in that root', prodStatus({ installs: [] }));
+    none('a serve.sh on that port from another root', prodStatus({ found: [{ root: '/home/x/other', port: 8100, pgid: 900 }] }));
+    none('the server checks a key the farm would not send', withArgs(['--api-key', 'secret']));
+    none('a flag the farm adds that the server runs without', prodStatus({ running: { ...prodStatus().running, argv: prodStatus().running.argv.filter((a, i, all) => a !== '--enable-prefix-caching') } }));
+    none('a served name that cannot be a model id', prodStatus({ running: { ...prodStatus().running, argv: prodStatus().running.argv.map((a) => (a === 'qwen3.6-35b-a3b' ? 'Qwen 3.6' : a)) } }));
+    none('a model outside the root\'s hf folder', prodStatus({ running: { ...prodStatus().running, argv: ['/mnt/models/qwen', ...prodStatus().running.argv.slice(1)] } }));
+    none('the external server is on another port than this serve.sh', prodStatus(), 8000, true);
+    none('this root runs a server on another port', prodStatus(), 8000, false);
+    // Nothing runs: offered when this root has the model, to start it; never when something else answers there.
+    const idle = prodStatus({ running: null, found: [] });
+    p = V.takeOverPlan(c, idle, 8100, { answering: false });
+    assert.equal(p.running, false);
+    assert.deepEqual(p.block, { enabled: true, root: '/home/ateliernum/lol-spike', distro: 'Ubuntu', port: 8100, alias: 'Qwen3.6', model: 'qwen3.6-35b-a3b', contextLength: 65536, parallel: 48 },
+        'what the farm declared; the rest stays the farm\'s own (Automatic), since nothing runs to keep');
+    none('something that is not a serve.sh answers on that port', idle, 8100, true);
+    none('the model is not downloaded', prodStatus({ running: null, found: [], models: [{ folder: 'Qwen3.6-35B-A3B-NVFP4', gb: 3, partial: true }] }), 8100, false);
+});
+
+test('take-over in the file: a copy first, the vllm block in, the external block out, every other key kept; Undo puts the copy back byte for byte (§9.3, §9.4, §11.1-15)', () => {
+    const { takeOverFile, undoTakeOverFile, BACKUP_SUFFIX } = require('../src/configFile');
+    const dir = fs.mkdtempSync(path.join(require('os').tmpdir(), 'lol-takeover-'));
+    try {
+        const p = path.join(dir, 'lol.config.json');
+        const original = '{\n    "name": "Studio",\n  "proxy": { "port": 4000, "masterKey": "pw" },\n  "external": ' + JSON.stringify(PROD_EXTERNAL) + ',\n  "llamacpp": { "enabled": false, "alias": "x" }\n}\n';
+        fs.writeFileSync(p, original);
+        const plan = V.takeOverPlan(prodExternalConfig(), prodStatus(), 8100, { answering: true });
+        const r = takeOverFile(p, plan.block);
+        assert.deepEqual(r, { ok: true, backup: p + BACKUP_SUFFIX, error: null });
+        assert.equal(fs.readFileSync(p + BACKUP_SUFFIX, 'utf8'), original, 'the copy is the file as it was');
+        const now = JSON.parse(fs.readFileSync(p, 'utf8'));
+        assert.deepEqual(Object.keys(now), ['name', 'proxy', 'llamacpp', 'vllm']);
+        assert.deepEqual([now.name, now.proxy, now.llamacpp], ['Studio', { port: 4000, masterKey: 'pw' }, { enabled: false, alias: 'x' }]);
+        assert.deepEqual(now.vllm, plan.block);
+        assert.equal(engineOf(loadConfigFrom(now)), 'vllm', 'the next farm start serves vLLM');
+        assert.deepEqual(undoTakeOverFile(p), { ok: true, error: null });
+        assert.equal(fs.readFileSync(p, 'utf8'), original, 'byte for byte');
+        assert.ok(!fs.existsSync(p + BACKUP_SUFFIX), 'the copy is used up');
+        assert.equal(undoTakeOverFile(p).ok, false, 'no copy: nothing to put back');
+        assert.equal(fs.readFileSync(p, 'utf8'), original);
+        assert.equal(takeOverFile(path.join(dir, 'missing.json'), plan.block).ok, false, 'no file: nothing written');
+    } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('panel: after the take-over, what changed and Undo while it is possible; the routes exist (§9.2, §9.4, §11.1-18)', () => {
+    const render = loadPanel();
+    const card = (html) => (/<h2>vLLM on this computer<\/h2>[\s\S]*?(?=<div class="card">)/.exec(html) || [''])[0];
+    const win = card(render(vllmState({ adopted: true, takenOver: { root: '/home/ateliernum/lol-spike', platform: 'win32', undo: true } })));
+    assert.ok(win.includes('The farm now runs vLLM, from /home/ateliernum/lol-spike: you change its model, people and context here, and it starts and stops with the farm. If this computer started vLLM at log on before, that now only opens the Farm app.'), win);
+    assert.ok(win.includes('Undo puts it back as it was: the farm routes to this vLLM without running it, and vLLM keeps running. Possible until a setting changes or the farm restarts.') && /<button data-vundo>Undo<\/button>/.test(win));
+    const lin = card(render(vllmState({ takenOver: { root: '/home/me/lol-vllm', platform: 'linux', undo: false } })));
+    assert.ok(lin.includes('If a service started it at boot before (lol-vllm), that service starts nothing now: to remove it, run  sudo systemctl disable lol-vllm .'), lin);
+    assert.ok(!lin.includes('data-vundo'), 'a setting changed, or vLLM restarted: no Undo');
+    assert.ok(render(vllmState({ takenOver: { root: '/r', platform: 'win32', undo: true } }, { job: { label: 'x', done: false } })).includes('data-vundo disabled'), 'not while a job runs');
+    const panelSrc = fs.readFileSync(path.join(__dirname, '..', 'src', 'admin', 'index.html'), 'utf8');
+    const srvSrc = fs.readFileSync(path.join(__dirname, '..', 'src', 'selfServer.js'), 'utf8');
+    for (const r of ['vllm/take-over', 'vllm/take-over/undo']) assert.ok(panelSrc.includes(`'/lol/admin/${r}'`) && srvSrc.includes(`'/lol/admin/${r}'`), r);
+    // The admin state the farm gives: the offer, then what was done.
+    const upSrc = fs.readFileSync(path.join(__dirname, '..', 'src', 'commands', 'up.js'), 'utf8');
+    assert.ok(/takeOver: takeOverOffer \?/.test(upSrc) && /takenOver: takeOverDone \?/.test(upSrc));
 });
 
 (async () => {

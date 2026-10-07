@@ -1103,9 +1103,21 @@ function vllmCard(s, jobRunning) {
 }
 
 // "Let the farm run vLLM" (§9.2): a vLLM on this computer that the farm routes to without running it. The farm
-// offers it; a person clicks it (the owner's question (a)). Filled by the take-over slice.
+// offers it; a person clicks it (the owner's question (a)). Once done, the card says so until the farm restarts,
+// with Undo while vLLM still runs as it was taken over and no setting changed since (§9.4).
 function takeOverCard(s, jobRunning) {
   const t = s.vllm && s.vllm.takeOver;
+  const d = s.vllm && s.vllm.takenOver;
+  if (!t && d) {
+    const tail = d.platform === 'win32'
+      ? 'If this computer started vLLM at log on before, that now only opens the Farm app.'
+      : 'If a service started it at boot before (lol-vllm), that service starts nothing now: to remove it, run  sudo systemctl disable lol-vllm .';
+    return `<div class="card"><h2>vLLM on this computer</h2>`
+      + `<div class="hint">The farm now runs vLLM, from ${esc(d.root)}: you change its model, people and context here, and it starts and stops with the farm. ${tail}</div>`
+      + (d.undo ? `<div class="row"><span class="meta">Undo puts it back as it was: the farm routes to this vLLM without running it, and vLLM keeps running. Possible until a setting changes or the farm restarts.</span><span></span>`
+        + `<span class="badges"><button data-vundo${jobRunning ? ' disabled' : ''}>Undo</button></span></div>` : '')
+      + '</div>';
+  }
   if (!t) return '';
   const tail = t.running
     ? 'It keeps the same model, name and settings and keeps running: nobody is interrupted.'
@@ -1160,7 +1172,8 @@ function wireVllm(s) {
   on('button[data-vstart]', (b) => post('/lol/admin/vllm/start', {}, b, 'Starting vLLM…'));
   on('button[data-vlog]', () => showVllmLog());
   on('button[data-vloghide]', () => { vllmLogLines = null; render(s); });
-  on('button[data-vtake]', (b) => post('/lol/admin/vllm/take-over', {}, b, 'The farm runs vLLM now.'));
+  on('button[data-vtake]', (b) => post('/lol/admin/vllm/take-over', {}, b, 'The farm runs vLLM now and is starting it.'));
+  on('button[data-vundo]', (b) => post('/lol/admin/vllm/take-over/undo', {}, b, 'Back as before.'));
   bindApply('#vllm-add', '#vllm-repo', (val) => post('/lol/admin/vllm/library/add', { repo: val }, $('#vllm-add'), 'Added to the list.'));
   // The card's first open checks this computer once per page (never per poll, and not again when the farm could
   // not answer it: Check again is there for that).

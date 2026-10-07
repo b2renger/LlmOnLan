@@ -765,8 +765,16 @@ the cancel.
 
 > **Status, 2026-10-07: step (b), fully managed, is chosen by the owner** ("I want the farm operator to be able
 > to do everything from the app. No config file etc."). It replaces the 2026-09-07 and 2026-10-06 decisions below.
-> The design, its build order and its status: [docs/VLLM_MANAGED_PLAN.md](docs/VLLM_MANAGED_PLAN.md). Slice A
-> (the scripts, the config, the routing and the pure planning) is built on the `vllm-managed` branch.
+> The design, its build order and its status: [docs/VLLM_MANAGED_PLAN.md](docs/VLLM_MANAGED_PLAN.md). Built on the
+> `vllm-managed` branch, 2026-10-07, in four slices, each tested against a fake vLLM inside WSL:
+> - A: the scripts, the config, the routing and the pure planning;
+> - B: the lifecycle (a boot that never waits, adoption, the watch, the fallback, `lol down`, the download slot);
+> - C: the panel (the engine grid, the vLLM card, Apply with its dry run; no config wording anywhere);
+> - D: the take-over of the operator-run vLLM ("Let the farm run vLLM", Undo), the Farm app's stops, Linux
+>   autostart, and the docs (farm/README "vLLM, run by the farm"; docs/PRO6000_VLLM_SWITCH.md Part 2).
+>
+> Left: the live test with a real vLLM beside production (VLLM_MANAGED_PLAN §11.4), a Farm app release, then the
+> production take-over with the owner (§9.6). The steps (a) and (b) below are history: (b) is what was built.
 >
 > **Status, 2026-10-04:** step (a) is built (DEVLOG 2026-10-04 14:01).
 > - An external vLLM is detected by its `/metrics`. Its running and waiting counts feed

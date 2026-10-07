@@ -15,13 +15,13 @@ const ollama = require('../ollama');
 const llamacpp = require('../llamacpp');
 const vllmMod = require('../vllm');
 const proxyApi = require('../proxy');
-const { loadConfig } = require('../config');
+const { loadConfig, ConfigSchema } = require('../config');
 const {
-    writeLitellmConfig, servedEntries, ollamaServes, defaultModelEntry,
+    writeLitellmConfig, buildLitellmConfig, servedEntries, ollamaServes, defaultModelEntry,
     carryNameAcross, applyNamePlan, engineFallback, engineOf,
 } = require('../litellm');
 const { buildSnapshot, backendInfo } = require('../snapshot');
-const { patchSection, patchConfigFile, readRawConfig } = require('../configFile');
+const { patchSection, patchConfigFile, readRawConfig, takeOverFile, undoTakeOverFile } = require('../configFile');
 const { detectHardware, gpuLiveStats, gpuFreeGb } = require('../systemInfo');
 const perfMod = require('../perf');
 const ggufMod = require('../gguf');
@@ -707,6 +707,8 @@ async function run(args) {
     let vllmBootError = null;
     let vllmBootJob = null;        // 'start' | 'restart' | 'wait', run once the farm is public
     let vllmChild = null;          // the serve.sh the farm spawned (wsl.exe on Windows), null when adopted or stopped
+    let takeOverOffer = null;      // "Let the farm run vLLM" (§9): what the panel offers (vllm.takeOverPlan), or null
+    let takeOverDone = null;       // what the take-over replaced: the panel's Undo, until a setting changes or a restart
     // phase: starting (planned) | ready | down (not answering, being checked) | restarting (after an unplanned
     // stop) | stopping | stopped (the operator's Stop, a cancelled start) | guard | failed (fell back to Ollama).
     const vllmState = {
@@ -2744,13 +2746,108 @@ async function run(args) {
             installable: !!(st && st.gpu && st.curl && ['x86_64', 'aarch64'].includes(st.arch)),
             venvLink: !!(inst && inst.link),
             installing: !!(st && st.installing),
-            takeOver: null,   // "Let the farm run vLLM" (§9): the next slice fills it
+            // "Let the farm run vLLM" (§9): the offer, then what was done, with Undo while it is possible.
+            takeOver: takeOverOffer ? { root: takeOverOffer.root, running: takeOverOffer.running, distro: takeOverOffer.distro } : null,
+            takenOver: takeOverDone ? { root: takeOverDone.offer.root, platform: process.platform, undo: takeOverUndoable() } : null,
         };
     }
-    // Check this computer again (the panel's Check again, and the first open of the vLLM card).
+    // Check this computer again (the panel's Check again, and the first open of the vLLM card), and whether a vLLM
+    // the farm routes to as an external server can be taken over.
     async function vllmCheck() {
         await checkVllm();
+        await detectTakeOver();
         return { ok: true, vllm: vllmAdminState() };
+    }
+
+    // ---- "Let the farm run vLLM" (§9): a vLLM on this computer that the farm routes to as an external server ----
+    // The farm offers it and a person clicks it (the owner's question (a)): looked for once the farm is public (it
+    // can boot WSL's distribution, so it never holds the boot up) and on Check again.
+    // The configured engine is an external server on this computer: its port, else null. Read from the file: a farm
+    // whose external server did not answer at its start serves another engine in memory.
+    function localExternalPort() {
+        const raw = readRawConfig(configPath);
+        if (!(raw && raw.external && raw.external.enabled === true) || !isLocalHost(config.external.baseUrl)) return null;
+        const u = new URL(config.external.baseUrl);
+        return Number(u.port) || (u.protocol === 'https:' ? 443 : 80);
+    }
+    async function detectTakeOver() {
+        const port = vllmSup.ok && !takeOverDone ? localExternalPort() : null;
+        if (!port) { takeOverOffer = null; return null; }
+        const pr = await vllmMod.takeOverProbe(config, port);
+        const plan = vllmMod.takeOverPlan(config, pr.st, port, { answering: await externalAlive(config.external, 3000) });
+        takeOverOffer = plan && { ...plan, probe: pr };
+        if (plan) log.info(`A vLLM on this computer, from ${plan.root}: the panel offers to let the farm run it.`);
+        return takeOverOffer;
+    }
+    // The routing LiteLLM runs with, its keys aside: a take-over that leaves it the same restarts nothing.
+    const routingOf = () => JSON.stringify(buildLitellmConfig(config, peers), (k, v) => (k === 'api_key' ? undefined : v));
+    const takeOverTail = () => (process.platform === 'win32'
+        ? ' If this computer started vLLM at log on before, that now only opens the Farm app.'
+        : ' If a service started it at boot before (lol-vllm), that service starts nothing now: to remove it, run  sudo systemctl disable lol-vllm .');
+    // §9.3: the file first (a copy, then the vllm block in and the external block out), then serve.sh's marker (the
+    // old launchers do nothing from now on), then in memory. A server that serves as the external engine now is kept
+    // as it runs: same process, and LiteLLM is not restarted when its routing stays the same. Otherwise (it did not
+    // answer when the farm started, or it is still starting) the farm switches to it as a boot does.
+    async function vllmTakeOverRun() {
+        if (takeOverDone) return { ok: true, already: true };
+        const offer = await detectTakeOver();   // what runs now, not what ran when the panel was drawn
+        if (!offer) return { ok: false, error: 'There is no vLLM on this computer that the farm can run as it is now. Press Check again.' };
+        const before = { external: { ...config.external }, vllm: config.vllm, target: vllmTarget, probe: vllmProbe };
+        const routeBefore = routingOf();
+        const from = engineOf(config);
+        const f = takeOverFile(configPath, offer.block);
+        if (!f.ok) return { ok: false, error: `The farm could not save its settings (${f.error}), so nothing changed.` };
+        const t = { platform: process.platform, distro: offer.distro, root: offer.root, port: offer.port };
+        const m = await vllmMod.setMarker(t, true);
+        if (!m.ok) { undoTakeOverFile(configPath); return { ok: false, error: `${m.error} Nothing changed.` }; }
+        config.vllm = ConfigSchema.shape.vllm.parse(readRawConfig(configPath).vllm);
+        config.external.enabled = false;
+        vllmTarget = t; vllmProbe = offer.probe; vllmBootError = null; takeOverOffer = null;
+        if (liveReady) liveHealth.engineFallbackReason = null;
+        if (offer.running && offer.ready && from === 'external') {
+            adoptVllm(offer.resolved);
+            const same = routingOf() === routeBefore;
+            if (same) writeLitellmConfig(config, yamlPath, peers);   // the file only: LiteLLM already routes this way
+            else await restartProxy();
+            setEngineUp(true);
+            writeRuntimeState();
+            takeOverDone = { offer, before, wrote: fsMod.readFileSync(configPath, 'utf8') };
+            log.ok(`The farm runs the vLLM from ${offer.root} now: kept running${same ? ', nothing restarted' : ''}.`);
+            return { ok: true, message: `The farm now runs vLLM. ${same ? 'Nothing was restarted.' : 'vLLM kept running.'}${takeOverTail()}` };
+        }
+        if (from === 'llamacpp') await stopLlamacpp();   // the stand-in engine leaves the GPU (Ollama's models: startVllm)
+        config.llamacpp.enabled = false;
+        setVllmPhase('starting', 'starting vLLM');
+        if (routingOf() !== routeBefore) await restartProxy(); else writeLitellmConfig(config, yamlPath, peers);
+        await refreshOcrModel();
+        writeRuntimeState();
+        takeOverDone = { offer, before: null, wrote: null };
+        log.ok(`The farm runs the vLLM from ${offer.root} now, and starts it.`);
+        return startVllmJob('Starting vLLM', { waitOnly: offer.running });
+    }
+    // Undo (§9.4), while vLLM still runs as it was taken over and nothing was saved since: the copy of the file back,
+    // the marker away, the external server routed again; vLLM keeps running.
+    function takeOverUndoable() {
+        const d = takeOverDone;
+        if (!d || !d.before || vllmState.phase !== 'ready' || !vllmState.adopted) return false;
+        try { return fsMod.readFileSync(configPath, 'utf8') === d.wrote; } catch { return false; }
+    }
+    async function vllmUndoTakeOver() {
+        if (!takeOverUndoable()) return { ok: false, error: 'Undo is possible only until a setting changes or the farm restarts.' };
+        const d = takeOverDone; const t = vllmTarget;
+        const m = await vllmMod.setMarker(t, false);
+        if (!m.ok) return { ok: false, error: `${m.error} Nothing changed.` };
+        const f = undoTakeOverFile(configPath);
+        if (!f.ok) { await vllmMod.setMarker(t, true); return { ok: false, error: `The farm could not put its settings back (${f.error}), so nothing changed.` }; }
+        const routeNow = routingOf();
+        config.external = d.before.external; config.vllm = d.before.vllm; vllmTarget = d.before.target; vllmProbe = d.before.probe;
+        vllmState.adopted = false; vllmState.launchSettings = null; setVllmPhase(null);
+        if (routingOf() === routeNow) writeLitellmConfig(config, yamlPath, peers); else await restartProxy();
+        writeRuntimeState();
+        kickBox.fn();
+        takeOverDone = null; takeOverOffer = d.offer;   // offered again
+        log.ok(`Take-over undone: the farm routes to the vLLM from ${t.root} without running it.`);
+        return { ok: true, message: 'Back as before: the farm routes to vLLM without running it.' };
     }
     function vllmStart() {
         if (engineOf(config) !== 'vllm') return { ok: false, error: 'vLLM is not this farm\'s engine: switch to it first.' };
@@ -3638,12 +3735,17 @@ async function run(args) {
         vllmLibraryAdd: (b) => busy() ? busyErr() : serialize(() => vllmLibraryAdd(b)),
         vllmLibraryRemove: (b) => busy() ? busyErr() : serialize(() => vllmLibraryRemove(b)),
         vllmLog,
+        // "Let the farm run vLLM" and its Undo (§9): a few seconds each, or a start job when nothing runs.
+        vllmTakeOver: () => (busy() ? busyErr() : serialize(() => vllmTakeOverRun())),
+        vllmUndoTakeOver: () => (busy() ? busyErr() : serialize(() => vllmUndoTakeOver())),
         cancel: (slot) => (slot === 'download' ? cancelDownload() : jobs.cancel('job')),
     });
     engineDownBox.fn = onEngineDown;   // serialize + liveHealth exist now — arm supervision
     // vLLM: watched from now on, and the start the boot queued runs as the job everyone sees (D5).
     watchVllm();
     if (vllmBootJob) startVllmJob('Starting vLLM', { waitOnly: vllmBootJob === 'wait' });
+    // A vLLM on this computer that the farm routes to as an external server: the panel offers to run it (§9).
+    void detectTakeOver().catch((e) => log.warn(`Looking for a vLLM the farm could run: ${e.message}`));
     // If llama-server died DURING the boot window (between its health-OK and
     // this line — proxy/plugin startup can take a minute), the exit handler
     // found fn null and only cleared llamacppChild. Handle it now instead of

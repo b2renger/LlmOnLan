@@ -6,6 +6,82 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-10-07 (23:09) — vLLM run by the farm, slice D: "Let the farm run vLLM", the Farm app's stops, Linux autostart, the docs
+
+The plan's §12 item 7, on the `vllm-managed` branch ([VLLM_MANAGED_PLAN.md](VLLM_MANAGED_PLAN.md), Build status). With
+it, the production farm can move from its operator-run vLLM to the farm's own with one click, and back.
+
+- **The take-over (§9).**
+  - A farm whose engine is an external server on this computer, a vLLM started from `farm/vllm`, now shows the card
+    "vLLM on this computer" with **Let the farm run vLLM**. The farm looks once it is up and at Check again, never
+    during its boot. It never takes over by itself (the owner's question (a)).
+  - The click keeps the same model, name and settings, and restarts nothing. vLLM is the same process, and LiteLLM
+    is not restarted, because the routing is the same apart from its key.
+  - The file: a copy (`lol.config.json.before-managed-vllm`), then the `vllm` block in and the `external` block out.
+    The block holds the folder, the port, the name, the declared context and people, the memory and request cap
+    the server runs with, and its other flags in `extraArgs`.
+  - `serve.sh`'s marker goes in the server's folder, so the old log-on task and `lol-vllm.service` do nothing
+    from then on. No task or unit is changed.
+  - It is offered only when the farm can keep the server exactly as it runs (`adoptable` is checked on the block it
+    would write). Not, for instance, a server with `--api-key`, or one missing a flag the farm would add.
+  - With nothing running but the model in the folder, it is offered too, and the farm starts vLLM, as a boot does.
+  - **Undo** stays on the card until a setting changes or the farm restarts: the copy back byte for byte, the
+    marker removed, vLLM still running.
+- **The Farm app (§3.12, §3.13).**
+  - Quit and Stop run `lol down` first, which stops vLLM too, then tree-kill `lol up` as a backstop.
+  - The **Share compute with the network** switch keeps vLLM running: only `lol up`'s own pid is killed, never its
+    tree, and the next `lol up` keeps vLLM.
+  - A crash restart reaps the dead run's recorded processes first. On Windows its LiteLLM outlived it and made every
+    restart fail with "Farm already running". `reapStaleFarm` now also reaps llama-server, Classify, speech to text
+    and the bus, and still never stops vLLM.
+  - Launch at login works on Linux: an XDG autostart entry for the AppImage.
+- **Docs.**
+  - farm/README:
+    - a new "vLLM, run by the farm" section: where it runs, install, models, switching, settings, start and stop,
+      document reading, files and log, the take-over, at login;
+    - the general vLLM notes moved under it: the relay, thinking, LiteLLM's cost, replies that never end;
+    - the recipe is now "External: a vLLM you run yourself", trimmed;
+    - the `vllm` and `external` config keys, `lol up`'s order, the admin routes.
+  - docs/PRO6000_VLLM_SWITCH.md Part 2: the steps, the checks, Undo, the rollback by hand, and the downgrade warning
+    (farm-v0.0.42 refuses a file with a `vllm` block).
+  - CLAUDE.md: four engines, and the 2026-09-07 rule replaced. Also the multiuser plan's Phase 2 status.
+  - The owner's four questions keep their defaults:
+    - (a) one click by a person;
+    - (b) Stop vLLM does not survive a farm restart;
+    - (c) an unmeasured pair says so, with Plan capacity;
+    - (d) WSL from written instructions.
+- **Tests.**
+  - farm `node test/run.js`: **204** passed (200 before). Four new tests:
+    - the golden take-over from production's real `serve.sh` argv and external block (the routing the same apart
+      from its key) and the Spark unit;
+    - what a take-over keeps, and when it offers nothing;
+    - the file (§11.1-15);
+    - the panel's result card with Undo.
+    The D10 check and the routes test now cover the take-over too.
+  - Farm app: `npm run build` OK, and a new `farm-app/test/supervisor.test.js` (`npm test`): **6** passed (§11.1-19).
+    It drives the compiled supervisor with stubs and checks `lol down` before the tree-kill, `keepEngine`, the reap
+    before a crash restart, a `reapStaleFarm` that runs no `lol down`, and the autostart entry's quoting.
+  - Lifecycle (`LOL_VLLM_FAKE=1 node test/vllm-lifecycle.js`): **135 passed, 0 failed** in one run of all 14 steps.
+    - Step 13 (§11.3-12), 27 checks: a fake vLLM started the operator's way is offered, taken over (same process
+      group, same LiteLLM pid, the file, the copy, the marker; `serve.sh` the old way then exits 0 and says why),
+      undone byte for byte, taken over again and stopped by `lol down`. With nothing running it is offered and
+      started.
+    - Step 14 (§11.3-13, Windows), 21 checks: the same from a copy of the farm in `…\LlmOnLan Farm\farm`.
+    - The run also checks that no other folder got the marker.
+  - Every new test fails with its fix reverted: 21 reverts in scratch copies (13 farm, 8 Farm app), each failing its
+    own test.
+  - Unchanged and still green: LiteLLM 1.97 `test/litellm-cancel.js` PASS; `farm/vllm/test_scripts.sh` 98/98;
+    shell build OK, chat-unit 1836, `test:unit` 29, chat-lint 0.
+- **Production untouched.** The runs used ports 4300-4302, 41897 and 8299, `~/lol-fake-a` (removed after), and
+  scratch folders. Production's vLLM still answers on 8100 as process group 401, and `~/lol-spike` has no marker
+  (checked after the last run). The production Farm app has been stopped since 20:46 (slice B's entry). It was
+  left as found.
+- **Left:**
+  - the live test with a real vLLM beside production (§11.4), with A16 (the Farm app's code refresh over a running
+    `serve.sh`);
+  - a Farm app release;
+  - then the production take-over with the owner (PRO6000_VLLM_SWITCH Part 2).
+
 ## 2026-10-07 (22:17) — vLLM run by the farm, slice C: the panel, and everything an operator does with vLLM in it
 
 The plan's §12 items 5-6, on the `vllm-managed` branch ([VLLM_MANAGED_PLAN.md](VLLM_MANAGED_PLAN.md), Build status).

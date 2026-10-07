@@ -116,6 +116,43 @@ Built in slices, each tested, logged in docs/DEVLOG.md and pushed on the `vllm-m
     clients leave (what D5 forbids). The tick now ignores a probe taken during a planned restart, and a restart that
     succeeds says up at once. Step 12 samples `/lol/self` every 200 ms through two switches: unhealthy in 3 runs of 3
     before, healthy throughout after.
+- **Slice D (2026-10-07): §12 item 7.** The take-over (§9): detection once the farm is public and at Check again
+  (`vllm.takeOverProbe`, `vllm.takeOverPlan`), the card's offer and its result with Undo, `vllmTakeOverRun` (the copy
+  of the file, the vllm block in and the external block out through `configFile.takeOverFile`, the marker through
+  `vllm.setMarker`, then adoption with no proxy restart), Undo (`undoTakeOverFile`, the marker removed); the Farm
+  app's supervisor (§3.12: `lol down` first, `keepEngine` for the share toggle, the crash restart reaps first,
+  `reapStaleFarm` never stops vLLM) and Linux autostart (§3.13); the docs (farm/README "vLLM, run by the farm" and
+  "External: a vLLM you run yourself", PRO6000_VLLM_SWITCH Part 2, CLAUDE.md, the multiuser plan's Phase 2 status).
+  Tests: §11.1 items 15 and 19 (`farm-app/test/supervisor.test.js`), the take-over's plan and panel, §11.3 items 12-13
+  (lifecycle steps 13 and 14).
+- What slice D changed in the design:
+  - Detection runs once the farm is public (and at Check again), not in the boot's step 0c-ter: the check can boot
+    WSL's distribution (up to a minute), and D5 says the boot never waits for vLLM.
+  - The offer is made only when `adoptable()` holds for the block it would write (checked, not assumed "by
+    construction"): a server started with `--api-key` (the farm's route sends its own key), one without a flag the
+    farm would add, a model outside `<root>/hf`, or a served name that cannot be a list id is not offered.
+  - The block keeps a running server's memory, request cap and guard (`kvCacheGib`, `maxNumSeqs`, `minFreeGb`) and
+    its other flags (`extraArgs`, in the order `adoptable` lists them). A server that does not run gets only what the
+    external block declared (the name, the model, context, people); the rest stays the farm's own.
+  - On a box whose GPU shares the memory, a running server without `LOL_VLLM_MIN_FREE_GB` gets `minFreeGb: 0`, not
+    `'auto'` (which means 8 there), so it is adopted as it runs.
+  - A list entry whose folder, presence penalty or vision differ from what runs is copied with them (same id) and a
+    note; the routing then stays the external route apart from its key.
+  - The take-over compares the routing before and after (keys aside) and restarts LiteLLM only when they differ; on
+    production they do not (the golden test).
+  - Undo is offered while vLLM still runs as it was adopted and the file is still the one the take-over wrote (no
+    setting changed since); a take-over that started vLLM (nothing ran) has no Undo. Undo removes the copy once it
+    is back.
+  - The not-running take-over switches to vLLM as a boot does: the stand-in engine (llama.cpp) stops, LiteLLM routes
+    to vLLM (the gate says "starting"), then the job "Starting vLLM". One still starting is waited for.
+  - The Farm app's stop runs `lol down` only when there was a farm (a child, or a runtime file): a Quit after Stop
+    does not run it again (it could boot WSL for nothing). `reapStaleFarm` now also reaps llama-server, Classify,
+    speech to text and the bus (the share toggle's no-tree kill on Windows leaves them otherwise).
+  - Launch at login on Linux is also re-applied at each start while it is on (an AppImage update can move it).
+  - The lifecycle's step 13 also covers the not-running take-over; step 14 runs the whole farm from a copy in a
+    folder whose name has a space (the scripts through `wsl.exe --cd "...\LlmOnLan Farm\farm\vllm"`).
+- **Left:** §11.4, the live test with a real vLLM beside production (and A16, the code refresh over a running
+  `serve.sh`, its step 10), then §11.5 / §9.6 with the owner (a release of the Farm app first).
 
 ## 0. Decisions
 

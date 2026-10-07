@@ -17,7 +17,7 @@ const { spawn } = require('child_process');
 const path = require('path');
 const CATALOG = require('./capacity/catalog.json');
 const MEASURED = require('./capacity/measured.json');
-const { VLLM_LIBRARY } = require('./config');
+const { VLLM_LIBRARY, ConfigSchema } = require('./config');
 
 const GIB = 2 ** 30;
 const RUNTIME_GIB = 4;   // vLLM's own use beside weights and pool: production runs 74.9 GiB = 50 pool + 20.37 weights + ~1.4 desktop + ~3
@@ -524,6 +524,79 @@ function isOrphan(engine, st) {
     return engine !== 'vllm' && !!(st && st.running && st.managed);
 }
 
+// ---- taking over a vLLM the farm routes to as an external server (§9) ---------------------------------------------
+
+// "Let the farm run vLLM": the external server the farm routes to on `port` runs on this computer from farm/vllm's
+// scripts, so the farm can run it itself. → null (nothing to offer), or {root, distro, port, running, ready, pgid,
+// block, resolved}: `block` is the farm's vllm block for it, with the model, name and settings it runs with (and its
+// other flags last, in extraArgs). A running server is offered only when the farm can keep it exactly as it runs
+// (adoptable), so taking over restarts nothing. `st` = status.sh at the root a serve.sh on that port runs from, else
+// at an install; `answering` = whether something answers on that port now (then it must be that serve.sh).
+function takeOverPlan(config, st, port, { answering = false } = {}) {
+    const ex = config.external;
+    if (!st || !st.root || !st.installs.some((i) => i.root === st.root)) return null;
+    const found = st.found.find((f) => f.port === port);
+    const run = found && st.running && found.root === st.root && found.pgid === st.running.pgid && st.running.argv.length ? st.running : null;
+    // A serve.sh on that port from another root; or, with none there, a server that is not one, or this root's own
+    // server on another port: not ours to take.
+    if (found ? !run : (answering || st.running)) return null;
+    const have = run ? flagMap(run.argv.slice(1)) : {};
+    if (have['--api-key']) return null;   // the farm's route sends its own key: a server that checks one would refuse it
+    const id = run ? have['--served-model-name'] : ex.model;
+    const lib = config.vllm.library || [];
+    const base = lib.find((e) => e.id === id);
+    const prefix = `${st.root}/hf/`;
+    const folder = run ? (String(run.argv[0]).startsWith(prefix) ? run.argv[0].slice(prefix.length) : null) : folderOf(base);
+    if (typeof id !== 'string' || !folder || !FOLDER_RX.test(folder)) return null;
+    if (!run && !(base && st.models.some((m) => m.folder === folder && !m.partial))) return null;
+    // The model: its entry in the list, kept as the server runs it where that differs (its folder; the presence
+    // penalty and vision the farm sent it as an external server, so the routing stays the same); else a new entry.
+    const entry = base ? { ...base } : {
+        id, label: id, repo: null, folder, sizeGb: null, weightsGib: null, vision: null, presencePenalty: null,
+        args: familyArgs(folder), catalog: null, measured: null, note: '',
+    };
+    if (folderOf(entry) !== folder) entry.folder = folder;
+    if ((entry.presencePenalty ?? null) !== (ex.presencePenalty ?? null)) entry.presencePenalty = ex.presencePenalty ?? null;
+    if (entry.vision !== !!ex.vision) entry.vision = !!ex.vision;
+    const changed = !base || JSON.stringify(entry) !== JSON.stringify(base);
+    if (changed) entry.note = `${base && base.note ? `${base.note} ` : ''}Kept as it ran when the farm took it over.`;
+    const num = (k) => (/^\d+$/.test(String(have[k] ?? '')) ? Number(have[k]) : null);
+    const seqs = num('--max-num-seqs'); const kvBytes = num('--kv-cache-memory-bytes');
+    const unified = memOf(st).unified;
+    // What the farm declared (the name, people at once, context), and what the server runs with when it runs; a
+    // server that does not run keeps the farm's own settings for the rest (Automatic, unless set before).
+    const block = {
+        enabled: true, root: st.root, ...(st.distro ? { distro: st.distro } : {}), port, alias: ex.alias, model: id,
+        contextLength: num('--max-model-len') || ex.contextLength, parallel: ex.parallel,
+        ...(run ? {
+            kvCacheGib: kvBytes ? kvBytes / GIB : 'auto',
+            maxNumSeqs: seqs == null || seqs === maxNumSeqsAuto(ex.parallel) ? 'auto' : seqs,
+            // The memory guard as it runs: none on a box whose GPU shares the memory is 0 there (Automatic is 8).
+            minFreeGb: run.minFreeGb != null ? run.minFreeGb : unified ? 0 : 'auto',
+            extraArgs: [],
+        } : {}),
+        ...(changed ? { library: base ? lib.map((e) => (e.id === id ? entry : e)) : [...lib, entry] } : {}),
+    };
+    const parse = () => {
+        const r = ConfigSchema.shape.vllm.safeParse(JSON.parse(JSON.stringify({ library: lib, ...block })));
+        return r.success ? { ...config, vllm: r.data } : null;
+    };
+    const out = { root: st.root, distro: st.distro || null, port, running: !!run, ready: !!(run && run.ready), pgid: run ? run.pgid : null, block, resolved: null };
+    if (!run) return parse() ? out : null;
+    // The server's other flags, and any value that differs from the entry's, go last (vLLM keeps a repeated flag's
+    // last value, and so does flagMap). A flag the farm would add that the server runs without cannot be said: no offer.
+    const opts = { unified, gpuName: st.gpu && st.gpu.name, root: st.root };
+    let cfg = parse();
+    if (!cfg) return null;
+    for (const k of adoptable(cfg, run, opts).diff) {
+        if (!(k in have) || ['model', 'port', 'minFreeGb'].includes(k)) return null;
+        block.extraArgs.push(k, ...(have[k] === true ? [] : [typeof have[k] === 'object' ? JSON.stringify(have[k]) : String(have[k])]));
+    }
+    cfg = parse();
+    const a = cfg && adoptable(cfg, run, opts);
+    return a && a.ok ? { ...out, resolved: a.resolved } : null;
+}
+
 // ---- reading vLLM's log --------------------------------------------------------------------------------------------
 
 const PHASES = {
@@ -1017,17 +1090,47 @@ async function install(t, { steps = 'venv,model', repo = null, folder = null, ve
     return { ok: false, kind: kind || (r.timedOut ? 'network' : null), error: error || lastLine(tail.join('\n')) || r.error || `status ${r.code}`, code: r.code };
 }
 
+// A command in the target's Linux, as a direct argv (no shell): through wsl.exe on Windows.
+function linuxCmd(t, argv, timeoutMs) {
+    return t.platform === 'win32'
+        ? runCmd('wsl.exe', [...(t.distro ? ['-d', t.distro] : []), '-e', ...argv], { timeoutMs })
+        : runCmd(argv[0], argv.slice(1), { timeoutMs });
+}
+const goodRoot = (root) => ROOT_RX.test(root || '') && !/(^|\/)\.\.?(\/|$)/.test(root);
+
 // Delete a model's folder: a direct argv (no shell), the root and the folder checked against their patterns first.
 // The caller refuses the configured model, the running one and one being downloaded.
 async function removeFolder(t, folder) {
-    if (!ROOT_RX.test(t.root || '') || /(^|\/)\.\.?(\/|$)/.test(t.root) || !FOLDER_RX.test(folder || '') || /^\.+$/.test(folder)) {
+    if (!goodRoot(t.root) || !FOLDER_RX.test(folder || '') || /^\.+$/.test(folder)) {
         return { ok: false, error: 'That is not a model folder.' };
     }
-    const p = `${t.root}/hf/${folder}`;
-    const r = t.platform === 'win32'
-        ? await runCmd('wsl.exe', [...(t.distro ? ['-d', t.distro] : []), '-e', 'rm', '-rf', '--', p], { timeoutMs: 120000 })
-        : await runCmd('rm', ['-rf', '--', p], { timeoutMs: 120000 });
+    const r = await linuxCmd(t, ['rm', '-rf', '--', `${t.root}/hf/${folder}`], 120000);
     return r.code === 0 ? { ok: true, error: null } : { ok: false, error: `Could not delete ${folder}: ${lastLine(r.err || r.error)}` };
+}
+
+// The check a take-over is offered from (§9.1): the usual check, then status.sh again at the root a serve.sh on
+// `port` runs from, when that is another root (an operator's ~/lol-spike while nothing is configured, a folder of
+// one's own), so `running` describes that server.
+async function takeOverProbe(config, port) {
+    const pr = await probe(config);
+    const f = pr.st && pr.st.found.find((x) => x.port === port);
+    if (f && f.root !== pr.st.root && goodRoot(f.root)) {
+        const s = await status({ platform: pr.platform, distro: pr.distro, root: f.root, port }, { roots: CANDIDATE_ROOTS });
+        pr.st = s.st; pr.stError = s.error;
+    }
+    return pr;
+}
+
+// serve.sh's marker (its header): while it is there, a start that does not come from the farm (the old log-on task,
+// lol-vllm.service, a start by hand) does nothing. Written by a take-over, removed by its Undo.
+async function setMarker(t, on) {
+    if (!goodRoot(t.root)) return { ok: false, error: 'That is not a vLLM folder.' };
+    const steps = on ? [['mkdir', '-p', '--', `${t.root}/run`], ['touch', '--', `${t.root}/run/managed-by-farm`]] : [['rm', '-f', '--', `${t.root}/run/managed-by-farm`]];
+    for (const argv of steps) {
+        const r = await linuxCmd(t, argv, 30000);
+        if (r.code !== 0) return { ok: false, error: `The farm could not write in ${t.root} (${lastLine(r.err || r.error) || `status ${r.code}`}).` };
+    }
+    return { ok: true, error: null };
 }
 
 module.exports = {
@@ -1036,7 +1139,7 @@ module.exports = {
     parseStatus, memOf, vllmEntry, folderOf, resolveRoot, facts, peopleFit, measuredFor, seatsAuto, maxNumSeqsAuto, poolGib,
     familyArgs, isGeneric, repoOf, newLibraryEntry, applyChange, ocrFit,
     settingsOf, argvFor, planFor, flagMap, adoptable,
-    bootDecision, downDecision, isOrphan, startPhase, logOffset, explainFailure, installStepText, downloadFailure, problemsFrom, baseUrl,
+    bootDecision, downDecision, isOrphan, takeOverPlan, startPhase, logOffset, explainFailure, installStepText, downloadFailure, problemsFrom, baseUrl,
     answers, runCmd, spawnScript, wslDistros, lxssBasePath, hostDiskFree, status, probe, targetOf, logFile, readLog,
-    start, waitReady, stop, stopInstall, folderBytes, install, removeFolder,
+    start, waitReady, stop, stopInstall, folderBytes, install, removeFolder, takeOverProbe, setMarker,
 };

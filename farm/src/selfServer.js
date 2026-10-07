@@ -28,6 +28,7 @@
 //   POST /lol/admin/vllm/library/add    → add a model to its list, {repo} or {folder}, {label?} (token)
 //   POST /lol/admin/vllm/library/remove → drop one, {id, deleteFiles?} (token)
 //   GET  /lol/admin/vllm/log?lines=200  → vLLM's own log, its last lines (token)
+//   POST /lol/admin/vllm/take-over[/undo] → let the farm run the vLLM it routes to as an external server, or undo it (token)
 //   POST /lol/admin/job/cancel    → stop the job or the download, {slot} (token)
 //   (vLLM's model, context, memory and people at once go through /lol/admin/apply, with dryRun.)
 //   POST /lol/admin/plugin/<id>/enable|disable → toggle a farm plugin (token)
@@ -217,6 +218,9 @@ function startSelfServer({ httpPort, getSnapshot, host = '0.0.0.0', control = nu
                     '/lol/admin/vllm/download': (b) => control.vllmDownload(b.id),
                     '/lol/admin/vllm/library/add': (b) => control.vllmLibraryAdd(b),
                     '/lol/admin/vllm/library/remove': (b) => control.vllmLibraryRemove(b),
+                    // "Let the farm run vLLM" (a vLLM it routed to as an external server) and its Undo.
+                    '/lol/admin/vllm/take-over': () => control.vllmTakeOver(),
+                    '/lol/admin/vllm/take-over/undo': () => control.vllmUndoTakeOver(),
                     // Stop what runs in a slot: {slot: 'job' | 'download'}.
                     '/lol/admin/job/cancel': (b) => control.cancel(b.slot),
                 };
