@@ -751,6 +751,20 @@ async function ensureAuthenticated() {
 }
 els.webview.addEventListener('did-finish-load', ensureAuthenticated);
 
+// OWUI reads the farm's model list once, as its page loads, and not again on its own (measured
+// 2026-10-07: neither its model picker nor New Chat asks again). A page that loaded while the farm
+// in use was not answering (down, restarting, not found yet) lists no model, and when that same
+// farm answers again nothing OWUI is launched with has changed, so nothing restarts or reloads it.
+// Reload it once, when the farm answers.
+let loadedWithoutFarm = false;
+const farmAnswers = () => { const a = activeFarm(); return !!(a && !a._stale && a.healthy !== false); };
+els.webview.addEventListener('did-finish-load', () => { loadedWithoutFarm = !farmAnswers(); });
+function reloadIfFarmBack() {
+  if (!loadedWithoutFarm || !webviewAuthed || !sidecarState || sidecarState.status !== 'ready' || !farmAnswers()) return;
+  loadedWithoutFarm = false;
+  try { els.webview.reload(); } catch { /* not ready */ }
+}
+
 // ---- first-run / update download of the OWUI sidecar (not bundled in the
 // installer; fetched to userData on first launch) ----
 let installState = null; // {phase, percent, receivedMB, totalMB, message} while downloading
@@ -1050,7 +1064,7 @@ els.rescanBtn.addEventListener('click', () => { window.lol.rescan(); toast('Resc
 
 // ---- wire IPC ----
 window.lol.onSidecarState((s) => { sidecarState = s; renderSidecar(); if (!els.popover.classList.contains('hidden')) renderPopover(); });
-window.lol.onFarms((data) => { farmState = data; if (NO_OWUI) publishFarm(); renderPill(); if (!els.popover.classList.contains('hidden')) renderPopover(); });
+window.lol.onFarms((data) => { farmState = data; if (NO_OWUI) publishFarm(); renderPill(); reloadIfFarmBack(); if (!els.popover.classList.contains('hidden')) renderPopover(); });
 window.lol.getSidecarState().then((s) => { sidecarState = s; renderSidecar(); });
 window.lol.getFarms().then((data) => { farmState = data; renderPill(); });
 initTheme();

@@ -34,7 +34,7 @@ import {
 } from './sidecarManager';
 import { ShellSettings, DiscoveredFarm, ScanRange, McpoState } from './types';
 import {
-    farmEndpoint, chooseActive as pickActive, farmContext, sameContext, persistedContext, FarmContext,
+    farmEndpoint, chooseActive as pickActive, farmContext, connectPlan, FarmContext,
     applyPluginKeys, PluginKeyEntry, keepPendingExtract,
 } from './farmSelect';
 
@@ -379,7 +379,13 @@ function connectTo(chosen: DiscoveredFarm): void {
     setActiveFarm(chosen.id);
     const key = farmKey(chosen as { id: string; requiresKey?: boolean });
     const next = keepPendingExtract(farmContext(withPluginKeys(chosen, key), key), chosen, currentExtract);
-    if (sameContext(next, currentContext())) return;
+    // Persist the whole farm context, not just the endpoint — it seeds the next
+    // cold launch so the first sidecar boot is already correctly configured and
+    // the first beacon doesn't force a restart (see ShellSettings.lastFarmModel).
+    // Saved even when OWUI already runs it, as after a boot that found the farm (connectPlan).
+    const plan = connectPlan(next, currentContext(), loadSettings());
+    if (plan.save) updateSettings(plan.save);
+    if (!plan.repoint) return;
     currentEndpoint = next.endpoint;
     currentKey = next.key;
     currentModel = next.model;
@@ -387,10 +393,6 @@ function connectTo(chosen: DiscoveredFarm): void {
     currentTts = next.tts;
     currentExtract = next.extract;
     currentCtxPerSlot = next.ctxPerSlot;
-    // Persist the whole farm context, not just the endpoint — it seeds the next
-    // cold launch so the first sidecar boot is already correctly configured and
-    // the first beacon doesn't force a restart (see ShellSettings.lastFarmModel).
-    updateSettings(persistedContext(next));
     // A keyed farm connects with its stored password (farmKey); an open farm sends none. The
     // default model + SearXNG + TTS + OCR ride along so OWUI auto-selects the model
     // and gets web search + neural voice + document OCR, all with zero clicks.

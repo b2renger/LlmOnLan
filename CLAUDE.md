@@ -162,15 +162,20 @@ docs) is `docs/reviews/DOCS_REVIEW_2026-09-27_{FARM,SHELL,COMPUTER}.md`. Snapsho
   — only its token and caches).
   Perf invariants worth keeping: the renderer CSP MUST carry `connect-src 'self' http: https:` (else LOL
   Chat and the Computer cannot reach the LAN farm at all); the whole farm context (endpoint, password,
-  model, SearXNG, TTS, OCR, ctx/slot) is persisted so a cold launch spawns the sidecar **once**; OWUI's
+  model, SearXNG, TTS, OCR, ctx/slot) is persisted so a cold launch spawns the sidecar **once** — saved
+  whenever the settings lack it (`farmSelect.ts` `connectPlan`), not only when OWUI restarts (until
+  2026-10-07 a client that found its farm during the boot never saved it); OWUI's
   follow-up/tags/autocomplete generation is disabled so background calls can't queue ahead of the user on
-  llama-server's single slot. **Boot time** (the OWUI boot is ~10 s warm, dominated by OWUI's own Python
-  import chain — untouchable): `repoint` restarts ONLY when the effective launch env differs (not when an
-  input differs), `sidecarManager` precompiles the freshly-unpacked tree to bytecode in the background (a
-  fresh install otherwise pays parse+compile for ~27k files on first launch), `HF_HUB_OFFLINE=1` when MiniLM
-  (HF cache) + whisper-base (OWUI 0.10.2 and 0.11.4 keep it under `DATA_DIR/cache/whisper/models`) are cached (OWUI
-  otherwise asks huggingface.co on every boot — a hang on a closed LAN; `HF_HUB_ETAG_TIMEOUT=2` until then),
-  and health polling at 300 ms.
+  llama-server's single slot. **Boot time** (the OWUI boot is ~10–12 s warm, ~30 s when its files are cold
+  after a reboot, dominated by OWUI's own Python import chain — untouchable): `repoint` restarts ONLY when
+  the effective launch env differs (not when an input differs), `sidecarManager` precompiles the
+  freshly-unpacked tree to bytecode in the background (a fresh install otherwise pays parse+compile for
+  ~27k files on first launch), `RAG_EMBEDDING_MODEL_AUTO_UPDATE=false` (OWUI otherwise asks huggingface.co
+  for MiniLM's latest revision on every boot, a request with no timeout: 21 s per boot where the site is
+  silently blocked), `HF_HUB_OFFLINE=1` when MiniLM (HF cache) + whisper-base (OWUI 0.10.2 and 0.11.4 keep
+  it under `DATA_DIR/cache/whisper/models`) are cached (`HF_HUB_ETAG_TIMEOUT=2` until then), and health
+  polling at 300 ms. A page OWUI loaded while the farm was not answering lists no model until reloaded:
+  the renderer reloads it once when that farm answers (`app.js` `reloadIfFarmBack`).
   **Close means close** (owner decisions 2026-09-04 + 2026-09-10, replacing the keep-warm/tray behavior of
   v0.1.x–v0.1.43): the window's X asks "Quit LlmOnLan?" (Quit/Cancel), then quits EVERYTHING on all
   platforms (mac included — deliberate convention break); cleanup gets 4 s, then the app exits regardless.
@@ -383,7 +388,8 @@ Connection: `OPENAI_API_BASE_URL` + `OPENAI_API_KEY` (the farm is OpenAI‑compa
   box, `pref:computeThink`, default `DEFAULT_THINK` = off, MCP runs included; its yes/no decisions, Condition
   and Filter, think either way, `THINKING_TASKS`, owner 2026‑10‑05 from a measurement) · `DEFAULT_LOCALE=en-US`
   (+ Chromium `--lang en-US`) · `ANONYMIZED_TELEMETRY=false` · `DO_NOT_TRACK=true` · `SCARF_NO_ANALYTICS=true` ·
-  `HF_HUB_OFFLINE=1` when the models test as cached, else `HF_HUB_ETAG_TIMEOUT=2`.
+  `RAG_EMBEDDING_MODEL_AUTO_UPDATE=false` (no per-boot huggingface.co revision check; a missing MiniLM is still
+  downloaded) · `HF_HUB_OFFLINE=1` when the models test as cached, else `HF_HUB_ETAG_TIMEOUT=2`.
 - **With a farm:** `ENABLE_OPENAI_API=true` · `OPENAI_API_BASE_URL=http://<host we reached it at>:<proxyPort>/v1`
   · `OPENAI_API_KEY`=<farm password> or `sk-lol-lan` · `DEFAULT_MODELS`=<the farm's default id, when listed>.
   **Without:** `ENABLE_OPENAI_API=false` (a no‑farm boot must not fall back to api.openai.com).

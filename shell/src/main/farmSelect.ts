@@ -120,14 +120,27 @@ export function sameContext(a: FarmContext | null, b: FarmContext | null): boole
 
 // The settings that seed the next cold launch — every field, so the first sidecar boot is
 // already right and the first beacon does not force a second OWUI boot.
-export function persistedContext(c: FarmContext): {
+export interface SavedContext {
     lastEndpoint: string; lastFarmKey: string | null; lastFarmModel: string | null; lastFarmSearxng: string | null;
     lastFarmTts: FarmContext['tts']; lastFarmExtract: FarmContext['extract']; lastFarmCtxPerSlot: number | null;
-} {
+}
+export function persistedContext(c: FarmContext): SavedContext {
     return {
         lastEndpoint: c.endpoint, lastFarmKey: c.key, lastFarmModel: c.model, lastFarmSearxng: c.searxng,
         lastFarmTts: c.tts, lastFarmExtract: c.extract, lastFarmCtxPerSlot: c.ctxPerSlot,
     };
+}
+
+// Connecting to a farm with context `next`: `repoint` when OWUI runs anything else (it restarts), and
+// `save` (the settings patch) whenever the settings do not hold `next` yet. The two are independent. A boot
+// that found the farm already runs `next`, and saving only on a repoint left that client without a
+// lastEndpoint for good: every launch waited up to 4.5 s for discovery before starting OWUI, and a launch
+// with the farm not seen yet booted OWUI without it, then again when the farm came (chat at 32 s instead of
+// 12 s, measured 2026-10-07). `saved` is the settings; unchanged settings are not rewritten on every beacon.
+export function connectPlan(next: FarmContext, running: FarmContext | null, saved: Partial<Record<keyof SavedContext, unknown>>): { repoint: boolean; save: SavedContext | null } {
+    const p = persistedContext(next);
+    const held = (Object.keys(p) as (keyof SavedContext)[]).every((k) => JSON.stringify(p[k]) === JSON.stringify(saved[k] ?? null));
+    return { repoint: !sameContext(next, running), save: held ? null : p };
 }
 
 // Plugin keys are tied to the farm password (owner, 2026-09-27): a farm with a password leaves its

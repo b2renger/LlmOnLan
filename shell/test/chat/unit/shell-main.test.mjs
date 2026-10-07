@@ -243,6 +243,37 @@ export default (test) => {
     assert.equal(FS.sameContext(JSON.parse(JSON.stringify(reboot)), ctx), true, 'the first beacon after a relaunch is a no-op');
   });
 
+  // 2026-10-07 (OWUI slow to load): the context was saved only when OWUI restarted, so a client that found its
+  // farm during the boot never saved it — every launch waited for discovery, and one with the farm not seen yet
+  // booted OWUI without it, then a second time when it came.
+  test('connectPlan: a boot that found the farm saves it although OWUI already runs it; an unchanged beacon writes nothing', () => {
+    const ctx = FS.farmContext(farm({
+      id: 'f', extra: {
+        searxngUrl: 'http://10.0.0.5:8888', ttsUrl: 'http://10.0.0.5:8880/v1',
+        extract: { url: 'http://10.0.0.5:8890', key: 'ocr' }, backend: { contextPerSlot: 65536 },
+      },
+    }), null);
+    const fresh = { autoScan: true, lastEndpoint: null, lastFarmModel: null };   // the store's defaults: nothing saved
+    const first = FS.connectPlan(ctx, ctx, fresh);
+    assert.equal(first.repoint, false, 'OWUI already runs this farm: no restart');
+    assert.deepEqual(first.save, FS.persistedContext(ctx), 'but the next launch must boot with it');
+    // The settings file as the store reads it back: the next beacon has nothing to do, so nothing is written.
+    const settings = JSON.parse(JSON.stringify({ ...fresh, ...first.save }));
+    assert.deepEqual(FS.connectPlan(ctx, ctx, settings), { repoint: false, save: null });
+    // A cold boot runs the saved context; the farm's first beacon then changes nothing either.
+    const booted = {
+      endpoint: settings.lastEndpoint, key: settings.lastFarmKey, model: settings.lastFarmModel, searxng: settings.lastFarmSearxng,
+      tts: settings.lastFarmTts, extract: settings.lastFarmExtract, ctxPerSlot: settings.lastFarmCtxPerSlot,
+    };
+    assert.deepEqual(FS.connectPlan(ctx, booted, settings), { repoint: false, save: null });
+    // The farm serves another model: OWUI restarts and the settings follow.
+    const plan = FS.connectPlan({ ...ctx, model: 'Qwen3.6' }, booted, settings);
+    assert.equal(plan.repoint, true);
+    assert.equal(plan.save && plan.save.lastFarmModel, 'Qwen3.6');
+    // A boot with no farm at all (OWUI runs without one): restart, and save.
+    assert.equal(FS.connectPlan(ctx, null, fresh).repoint, true);
+  });
+
   // ---------------------------------------------------------------- SA-3: the host does not flip
   test('SA-3 Discovery: a farm seen as a beacon AND as an added hostname keeps one host', () => {
     const d = new Discovery({ autoScan: false, scanRange: { base: '10.0', third: [0, 0], fourth: [1, 1] } });
@@ -355,6 +386,17 @@ export default (test) => {
       assert.equal(after.HF_HUB_OFFLINE, '1');
       assert.equal(after.HF_HUB_ETAG_TIMEOUT, undefined);
       assert.equal(after.DATA_DIR, data);
+    });
+  });
+
+  // 2026-10-07: until Whisper was cached (first use of OWUI's mic) every boot asked huggingface.co for MiniLM's latest
+  // revision with no timeout — 21 s per boot where that site is silently blocked; the etag timeout never covered it.
+  test('buildSidecarEnv: OWUI never asks huggingface.co for a newer MiniLM at boot, cached or not', async () => {
+    const data = tempDir('noupdate');
+    await withEnv({ HF_HOME: tempDir('hfempty'), HF_HUB_CACHE: undefined, SENTENCE_TRANSFORMERS_HOME: undefined, WHISPER_MODEL_DIR: undefined }, () => {
+      const env = CB.buildSidecarEnv({ endpoint: 'http://10.0.0.5:4000/v1', dataDir: data });
+      assert.equal(env.HF_HUB_OFFLINE, undefined, 'nothing cached: the hub stays reachable for the first downloads');
+      assert.equal(env.RAG_EMBEDDING_MODEL_AUTO_UPDATE, 'false');
     });
   });
 

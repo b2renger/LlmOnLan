@@ -253,10 +253,17 @@ export function buildSidecarEnv(input: SidecarEnvInput): Record<string, string> 
     // --- boot time + offline resilience: skip the per-boot Hugging Face check ---
     // OWUI's startup asks huggingface.co for the embedding model's latest revision
     // even when it is fully cached (boot-profiled). Online that's a wasted round
-    // trip; on a closed/flaky LAN it is a hang waiting to happen. Once BOTH models
-    // OWUI might pull at runtime are cached — MiniLM (embeddings, loaded at boot,
-    // in the HF hub) and faster-whisper base (STT, loaded on first mic use, under
-    // this DATA_DIR) — go hub-offline.
+    // trip; where huggingface.co is silently blocked it held every boot until the
+    // system's connect timeout, 21 s on Windows, for every profile whose Whisper was
+    // never fetched (measured 2026-10-07: the request has no timeout of its own, and
+    // the etag timeout below does not cover it). Not asking for updates removes the
+    // request: a cached MiniLM loads from disk, a missing one is still downloaded by
+    // SentenceTransformer at that boot (OWUI 0.10.x and 0.11.4, retrieval/utils.py
+    // get_model_path).
+    env.RAG_EMBEDDING_MODEL_AUTO_UPDATE = 'false';
+    // Once BOTH models OWUI might pull at runtime are cached — MiniLM (embeddings,
+    // loaded at boot, in the HF hub) and faster-whisper base (STT, loaded on first
+    // mic use, under this DATA_DIR) — go hub-offline.
     // While either is missing the flag stays off so the one-time download works —
     // the etag timeout below then keeps a dead internet from stalling those
     // metadata checks for more than a moment (downloads are unaffected).

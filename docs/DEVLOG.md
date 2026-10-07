@@ -6,6 +6,38 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-10-07 (18:18) — Open WebUI slow to load: a farm found during the boot was never saved; the per-boot Hugging Face check had no timeout
+
+The owner: "the owui takes ages to load, we had fixed that though." The packaged client keeps no boot log (main's
+console goes nowhere), so the owner's launches could not be timed. Measured here instead: the dev client from a
+scratch profile and data folder, against the non-beaconing mock farm, Open WebUI 0.11.4 from `sidecar/build`.
+- **Open WebUI's own boot is unchanged:** 11.9–12.2 s warm (0.10.1: 10.7–12.2 s), about 31 s when its files are
+  cold (the first boot after they sat unused, both versions). A warm launch shows the chat input at 12.4 s.
+  Nothing in v0.2.8's env varies between launches: the MCP listener is decided once, before the first spawn.
+- **Cause 1, ours: the farm context was saved only when Open WebUI restarted.** A client that found its farm
+  during the boot (every fresh install whose farm answers within 4.5 s) already ran that context, so it never
+  saved it. Every launch then waited up to 4.5 s for discovery before starting Open WebUI. A launch with the
+  farm down or not seen yet (today, during the vLLM switch) booted Open WebUI without it, then booted it again
+  when the farm came. Measured: Open WebUI started at 4.9 s, showed no farm at 16.9 s, restarted at 20.3 s,
+  and the chat came at 31.9 s instead of 12 s. Fix: `farmSelect.ts` `connectPlan` separates "restart Open WebUI"
+  from "save the context"; `connectTo` saves whenever the settings lack it. After: the first launch saves it, the
+  next one with the farm down starts Open WebUI at 0.2 s and needs no restart when the farm comes back.
+- **What a saved context had always done, now fixed too:** a page Open WebUI loaded while the farm was down kept
+  an empty model list. Neither its model picker nor New Chat asks again; only a reload does. The renderer now
+  reloads it once when that farm answers (`app.js` `reloadIfFarmBack`). Measured: the farm back at 20 s, the
+  model listed and selected at 20.5 s. A launch with the farm up does not reload.
+- **Cause 2, ours where the network silently drops huggingface.co:** Open WebUI asks it for MiniLM's latest
+  revision on every boot, with no timeout. `HF_HUB_ETAG_TIMEOUT` never covered that request. `HF_HUB_OFFLINE`
+  waits for Whisper, which only the first use of Open WebUI's microphone fetches (the owner's profile never
+  has). Measured with huggingface.co blackholed: healthy at 32.5 s (0.10.1: 31.8 s); with
+  `RAG_EMBEDDING_MODEL_AUTO_UPDATE=false`, 11.6 s (10.4 s). On this LAN the check costs 0.15–0.3 s. A missing
+  MiniLM is still downloaded at that boot (checked with an empty HF cache: healthy at 22.9 s, the download).
+- **Tests:** `shell-main.test.mjs`: `connectPlan` (a boot that found the farm saves it; an unchanged beacon writes
+  nothing) and the env (`RAG_EMBEDDING_MODEL_AUTO_UPDATE=false` cached or not). Both fail with the fixes
+  reverted. chat-unit 1836/0, unit 29, lint 0, farm 168, harness h0 13/13. The reload was checked with the dev
+  client over CDP; no committed test drives the real `app.js` webview.
+- **Not done:** a boot log in the packaged client. The owner's installed client is v0.2.7 and still runs Open
+  WebUI 0.10.2, downloaded 2026-07-01: the engine only updates from About ▸ Check for chat-engine update.
 ## 2026-10-07 (17:48) — The studio's PRO 6000 farm now serves vLLM: 48 people at 64k instead of 2
 
 The owner gave the go ("we can switch to vllm now"). It was done with `docs/PRO6000_VLLM_SWITCH.md`, while the
