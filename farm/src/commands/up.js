@@ -280,6 +280,13 @@ function seatIdleChange(config, configPath, value) {
     };
 }
 
+// llama.cpp's 'auto' context: the largest that fits (computeFit's maxContext), never under 4096.
+// maxContext 0 means not even 4096 fits the free VRAM, so the floor, not 16384; only no verdict
+// at all (no model file, no VRAM reading) falls back to 16384.
+function autoLlamacppContext(fit) {
+    return Math.max(4096, fit && fit.maxContext != null ? fit.maxContext : 16384);
+}
+
 async function ensureOllama(config) {
     const hosts = config.ollama.hosts.map(ollama.normalizeHost);
     const reachable = [];
@@ -851,8 +858,7 @@ async function run(args) {
         vramFreeGb = await measureVramFreeGb();
         const fit = computeFit(16384);   // maxContext is independent of the request
         if (config.llamacpp.contextLength === 'auto') {
-            let target = (fit && fit.maxContext) || 16384;
-            target = Math.max(4096, target);
+            const target = autoLlamacppContext(fit);
             config.llamacpp.contextResolved = target;
             const why = [
                 fit && fit.nativeMax ? `model max ${fit.nativeMax}` : 'model max unknown',
@@ -1309,6 +1315,8 @@ async function run(args) {
 
     // Measured performance (llama.cpp, or an external vLLM) — see makePerfSampler.
     const perfSampler = makePerfSampler(config, liveHealth, () => !!llamacppChild);
+    // A GPU latched at a low clock (a DGX Spark after a unified-memory OOM) — the panel says so.
+    const clockWatch = perfMod.makeClockWatch();
 
     let healthInFlight = false; // skip a tick if the previous probe round is still running
     const healthTimer = setInterval(async () => {
@@ -1321,6 +1329,7 @@ async function run(args) {
             const loadedLists = await Promise.all(hosts.map((h) => ollama.loadedModels(h)));
             liveHealth.loaded = [...new Set(loadedLists.flat())];
             liveHealth.gpu = await gpuLiveStats();
+            liveHealth.gpu.stuckMhz = clockWatch(liveHealth.gpu);
             // The external backend is not our child — there is no exit event to
             // catch, so polling is the only way to know it died. Flipping engineUp
             // makes snapshot.healthy false and clients fail over to another farm.
@@ -2817,8 +2826,8 @@ async function run(args) {
     return new Promise(() => {});
 }
 
-// makeRateMeter/pullPhase/makePerfSampler/seatIdleChange are exported for the tests:
-// each encodes judgements that are easy to break silently (a negative rate after a
+// makeRateMeter/pullPhase/makePerfSampler/seatIdleChange/autoLlamacppContext are exported for
+// the tests: each encodes judgements that are easy to break silently (a negative rate after a
 // restart, a raw digest leaking into the UI, a non-vLLM read as one, a seat hold out
-// of range) and none is reachable through `run`.
-module.exports = { run, resolveOcrModel, makeRateMeter, pullPhase, makePerfSampler, seatIdleChange };
+// of range, a "nothing fits" read as "unknown") and none is reachable through `run`.
+module.exports = { run, resolveOcrModel, makeRateMeter, pullPhase, makePerfSampler, seatIdleChange, autoLlamacppContext };

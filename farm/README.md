@@ -213,7 +213,8 @@ in WSL (the 23.5 GB model plus the venv), and [uv](https://docs.astral.sh/uv/) i
 3. **Point the farm at it**, then restart the farm. With the Farm app, the file is
    `%APPDATA%\LlmOnLan Farm\farm\lol.config.json`: quit and reopen the app after editing it. If vLLM is not
    answering when the farm starts, the farm serves with its built-in engine for that whole run. Start vLLM
-   first, or restart the farm once vLLM is up.
+   first, or restart the farm once vLLM is up. This needs farm-v0.0.42 or newer: an older farm refuses
+   `presencePenalty` and does not start.
    ```json
    "external": {
      "enabled": true,
@@ -268,8 +269,8 @@ people the farm lets generate. The spike counts a person as served when the firs
 - **The pool.** The KV pool holds 4,313,303 tokens, 65 full 64k windows, so the farm's pool warning (below)
   stays quiet.
 - **Other shapes.** For a large class with short chats, use `contextLength: 32768, parallel: 96` and add
-  `--max-model-len 32768` to `serve.sh`. For long documents, use `131072` with `32`. A cold 128k prompt takes
-  ~8 s even alone (RESULTS.md, finding 8).
+  `--max-model-len 32768` to `serve.sh`. For long documents, use `contextLength: 131072, parallel: 32` and add
+  `--max-model-len 131072` to `serve.sh`. A cold 128k prompt takes ~8 s even alone (RESULTS.md, finding 8).
 - **Overflow.** vLLM runs up to 128 requests at once (`--max-num-seqs`) and queues the rest, so a burst waits
   instead of failing.
 

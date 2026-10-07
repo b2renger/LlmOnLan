@@ -30,8 +30,10 @@ const firewallNote = (c) => (serviceHosts(c.proxy && c.proxy.host).loopback
     : ' (first LAN bind may show a Windows Firewall prompt: allow it)');
 
 // Each descriptor delegates to an existing module; see the header. `runtime` (passed to
-// start/makeCtx) carries { log, pluginKey, resolveOcrModel, isLocalHost, reachable }; pluginKey(id) is
-// identity.js's, the same bearer key on every run (a new one restarted every client's Open WebUI).
+// start/makeCtx) carries { log, pluginKey, resolveOcrModel, isLocalHost, reachable }; pluginKey(id, password)
+// is identity.js's, the same bearer key on every run (a new one restarted every client's Open WebUI) until
+// the farm password changes. makeCtx runs at each plugin start, so it reads the password of that start.
+const farmPassword = (c) => (c.proxy && c.proxy.masterKey) || null;
 const DESCRIPTORS = [
     {
         id: 'websearch', label: 'Web search', logPrefix: 'searxng', configKey: 'websearch', healthKey: 'searxngUp', runsOn: 'farm',
@@ -71,7 +73,7 @@ const DESCRIPTORS = [
             // Prefer a normalized + confirmed-reachable host (rt.reachable); fall back to config.
             const hosts = (rt.reachable && rt.reachable.length) ? rt.reachable : c.ollama.hosts;
             const localOllama = hosts.find(rt.isLocalHost) || hosts[0];
-            return { key: rt.pluginKey('ocr'), model: rt.resolveOcrModel(c), ollamaUrl: localOllama.replace(/\/+$/, '') + '/api/generate' };
+            return { key: rt.pluginKey('ocr', farmPassword(c)), model: rt.resolveOcrModel(c), ollamaUrl: localOllama.replace(/\/+$/, '') + '/api/generate' };
         },
         ensure: (c) => extract.ensureExtract(c),
         spawn: (c, ctx) => extract.spawnExtract(c, ctx),
@@ -113,7 +115,7 @@ const DESCRIPTORS = [
         late: true,   // started after the farm is public (up.js): a first start installs ~1 GB
         enabled: (c) => !!(c.classify && c.classify.enabled),
         port: (c) => c.classify.port,
-        makeCtx: (c, rt) => ({ key: rt.pluginKey('classify') }),
+        makeCtx: (c, rt) => ({ key: rt.pluginKey('classify', farmPassword(c)) }),
         ensure: () => classify.ensureClassify(),
         spawn: (c, ctx) => classify.spawnClassify(c, ctx),
         stepMessage: (c) => `Classify: preparing Laya on the CPU (port ${c.classify.port}) — first run installs torch + downloads its weights …`,
@@ -131,7 +133,7 @@ const DESCRIPTORS = [
         late: true,   // started after the farm is public (up.js): a first start downloads the model
         enabled: (c) => !!(c.stt && c.stt.enabled),
         port: (c) => c.stt.port,
-        makeCtx: (c, rt) => ({ key: rt.pluginKey('stt') }),
+        makeCtx: (c, rt) => ({ key: rt.pluginKey('stt', farmPassword(c)) }),
         ensure: () => stt.ensureStt(),
         spawn: (c, ctx) => stt.spawnStt(c, ctx),
         stepMessage: (c) => `Speech to text: preparing faster-whisper "${c.stt.model}" on the CPU (port ${c.stt.port}) — first run installs it and downloads the model …`,

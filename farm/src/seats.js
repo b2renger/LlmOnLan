@@ -42,9 +42,8 @@ function normIp(ip) {
 // /engines/<m>, /openai/deployments/<m>), Anthropic's /v1/messages, and Google's
 // :generateContent / :streamGenerateContent and interactions. Only 4 spellings
 // were gated before; the others reached the engine with no seat at all.
-// Everything else (GET /v1/models, health probes, the panel's checks, embeddings,
-// token counting) passes through ungated — a full farm must still be
-// discoverable and readable.
+// The other routes the gate forwards (ALLOWED below: the model list, the health
+// probe) pass ungated — a full farm must still be discoverable and readable.
 const GATED_RX = /(\/completions|\/responses(\/compact)?|\/v1\/messages|:(generateContent|streamGenerateContent)|\/interactions)$/;
 
 function isGated(method, url) {
@@ -54,6 +53,46 @@ function isGated(method, url) {
     // /v1/chat%2Fcompletions must not walk past the gate. Undecodable → gated.
     try { pathOnly = decodeURIComponent(pathOnly); } catch { return true; }
     return GATED_RX.test(pathOnly.replace(/\/+$/, ''));
+}
+
+// What the gate forwards at all: an ALLOWLIST (pre-release review 2026-10-07). LiteLLM serves far
+// more than the farm uses: its admin API, a /health that runs a real completion on every model, and
+// pass-through routes (/vllm/, /azure/, /anthropic/ …) that forward a path to the engine as given.
+// With the external engine on `hosted_vllm/`, POST /vllm/../invocations reached vLLM's root API with
+// no seat (httpx resolves a decoded '..'), and /azure/chat/completions%23/assistant reached its chat.
+// So only these routes pass, matched on the decoded path like isGated:
+//   • the generation routes, each seated by isGated, under LiteLLM's own prefixes: chat completions
+//     (what every client and a coordinator's peer deployments send) and completions (none, /v1,
+//     /engines/<m>, /openai/deployments/<m>), responses (none, /v1, /openai/v1; + /compact),
+//     Anthropic's /v1/messages, Google's :generateContent / :streamGenerateContent and interactions;
+//   • the catalogue: GET /v1/models and /models (Open WebUI, LOL Vibe, the coding agent, agent pages,
+//     lol status and bench), /v1/models/<id> (an OpenAI SDK's models.retrieve), and
+//     /model_group/info (LOL Vibe's vision check, app/caps.mjs);
+//   • GET /health/liveliness (lol status; the farm's own probes talk to LiteLLM's loopback port).
+// For a third-party tool on the LAN that is the OpenAI-compatible surface a chat needs. Embeddings,
+// token counting, files, batches, audio and images are left out: no farm serves a model for them
+// (documents embed on each laptop) and no client calls them. A CORS preflight (OPTIONS) passes for
+// these routes, for the browser pages that call the farm.
+const ALLOWED = [
+    /^POST (\/v1|\/engines\/.+|\/openai\/deployments\/.+)?\/(chat\/)?completions$/,
+    /^POST (\/v1|\/openai\/v1)?\/responses(\/compact)?$/,
+    /^POST \/v1\/messages$/,
+    /^POST (\/v1beta)?\/models\/.+:(generateContent|streamGenerateContent)$/,
+    /^POST (\/v1beta)?\/interactions$/,
+    /^GET (\/v1)?\/models(\/[^/]+)?$/,
+    /^GET \/model_group\/info$/,
+    /^GET \/health\/liveliness$/,
+];
+
+// 0 = forward it; else the status the gate answers itself. A path that does not decode, or decodes to
+// a '..' segment, a '?', a '#' or a NUL is a 400: no route needs one, and they re-aim a forwarded URL.
+function refusal(method, url) {
+    let p = String(url || '').split('?')[0];
+    try { p = decodeURIComponent(p); } catch { return 400; }
+    if (/[?#\0]|(^|\/)\.\.(\/|$)/.test(p)) return 400;
+    p = p.replace(/\/+$/, '');
+    const asks = method === 'OPTIONS' ? ['POST', 'GET'] : [method];
+    return asks.some((m) => ALLOWED.some((rx) => rx.test(`${m} ${p}`))) ? 0 : 404;
 }
 
 // The farm password (proxy.masterKey), checked BEFORE a seat is claimed (multi-user
@@ -217,6 +256,16 @@ function startSeatGate({ host, port, upstreamPort, seats, idleReleaseSec, passwo
     const server = http.createServer((req, res) => {
         const t0 = Date.now();
         const ip = (req.socket && req.socket.remoteAddress) || '';
+        // Before anything else: a route the farm does not serve never reaches LiteLLM, nor a seat.
+        const refused = refusal(req.method || '', req.url);
+        if (refused) {
+            res.writeHead(refused, OWN_HEADERS);
+            return res.end(JSON.stringify({
+                error: refused === 400
+                    ? { message: 'This request path is not valid here.', type: 'invalid_request_error', code: 'lol_bad_path' }
+                    : { message: 'This farm does not serve that route. It answers the OpenAI-compatible chat API under /v1: /v1/chat/completions, /v1/models.', type: 'invalid_request_error', code: 'lol_not_found' },
+            }));
+        }
         const gated = isGated(req.method || '', req.url);
         if (gated) {
             if (!keyOk(req, password())) {
@@ -314,4 +363,4 @@ function startSeatGate({ host, port, upstreamPort, seats, idleReleaseSec, passwo
     });
 }
 
-module.exports = { createSeats, createGateStats, startSeatGate, isGated, normIp };
+module.exports = { createSeats, createGateStats, startSeatGate, isGated, refusal, normIp };

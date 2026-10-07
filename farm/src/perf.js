@@ -231,9 +231,30 @@ function shouldEvictOllama({ otherEngineOn, llamacppOn, vramUsedGb, vramTotalGb,
     return true;
 }
 
+// --- a GPU stuck at a low clock ---------------------------------------------------
+// On a DGX Spark a unified-memory OOM latched the GB10 at ~700 MHz under full load (no
+// throttle reason, a third of its speed) until the box was fully powered off; a warm reboot
+// did not clear it (docs/spike/RESULTS.md, "PRO 6000 vs Spark" 6). Nothing else tells the
+// operator: the farm just answers slowly. Owner decision 2026-10-07: the panel says so.
+// Fed each health tick's gpuLiveStats(). An idle GPU clocks down on purpose, so only BUSY
+// samples (≥ 80 % utilisation) count: STUCK_SAMPLES of them in a row under half the max SM
+// clock raise it, one busy sample at a normal clock clears it, and idle samples change
+// nothing (the latch outlives the load). Returns the low clock to report, or null.
+const STUCK_SAMPLES = 3;
+function makeClockWatch() {
+    let low = 0;
+    let mhz = null;
+    return (g) => {
+        if (g && g.gpuUtil != null && g.gpuUtil >= 80 && g.smMhz != null && g.smMaxMhz > 0) {
+            if (g.smMhz < g.smMaxMhz / 2) { low += 1; mhz = g.smMhz; } else { low = 0; mhz = null; }
+        }
+        return low >= STUCK_SAMPLES ? mhz : null;
+    };
+}
+
 module.exports = {
     parsePrometheus, metricsSample, sampleRates,
     vllmSample, metricsUrlFor, poolShortfall,
     fitBudget, KV_GB_PER_16K, OVERHEAD_GB, MARGIN_GB,
-    shouldEvictOllama,
+    shouldEvictOllama, makeClockWatch,
 };

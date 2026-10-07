@@ -1169,6 +1169,16 @@ test('fitBudget: budgets against the VRAM FREE at sizing time, less the reserve 
     assert.equal(ConfigSchema.safeParse({ llamacpp: { gpuReserveGb: -1 } }).success, false);
 });
 
+test('llama.cpp auto context: nothing fits the free VRAM → the 4096 floor, not 16384; no verdict → 16384 (review 2026-10-07)', () => {
+    const { autoLlamacppContext } = require('../src/commands/up');
+    const full = perfMod.fitBudget({ vramGb: 96, freeGb: 9, weightsGb: 7.8, mmprojGb: 0.9, kvCacheType: 'q4_0', contextLength: 16384 });
+    assert.equal(full.maxContext, 0, 'the weights alone fill what is free');
+    assert.equal(autoLlamacppContext(full), 4096);
+    assert.equal(autoLlamacppContext({ maxContext: 65536 }), 65536, 'what fits');
+    assert.equal(autoLlamacppContext({ maxContext: null }), 16384, 'no VRAM reading');
+    assert.equal(autoLlamacppContext(null), 16384, 'no model file to read');
+});
+
 test('shouldEvictOllama: only under pressure, only when idle, only llama.cpp engine', () => {
     const base = { llamacppOn: true, vramUsedGb: 11.5, vramTotalGb: 12, gpuUtil: 3, loadedCount: 1 };
     assert.equal(perfMod.shouldEvictOllama(base), true, 'full + idle + loaded → evict');
@@ -1177,6 +1187,34 @@ test('shouldEvictOllama: only under pressure, only when idle, only llama.cpp eng
     assert.equal(perfMod.shouldEvictOllama({ ...base, llamacppOn: false }), false, 'Ollama engine keeps its own models');
     assert.equal(perfMod.shouldEvictOllama({ ...base, loadedCount: 0 }), false);
     assert.equal(perfMod.shouldEvictOllama({ ...base, vramTotalGb: 0 }), false, 'unknown VRAM → hands off');
+});
+
+test('clock watch: a GPU busy but stuck under half its max clock (the GB10 latch) is said on the panel; idle clocks and a dip are not (owner 2026-10-07)', () => {
+    const feed = (w, g, n = 1) => { let r; for (let i = 0; i < n; i++) r = w(g); return r; };
+    const healthy = { gpuUtil: 94, smMhz: 2464, smMaxMhz: 2502 };   // the Spark after the drain, under load
+    const latched = { gpuUtil: 94, smMhz: 702, smMaxMhz: 2502 };    // the Spark before it (92–96 % at 702 MHz)
+    const idle = { gpuUtil: 0, smMhz: 202, smMaxMhz: 3090 };        // an idle PRO 6000 clocks down on purpose
+    let w = perfMod.makeClockWatch();
+    assert.equal(feed(w, healthy, 5), null);
+    assert.equal(feed(w, idle, 10), null, 'an idle GPU at a low clock is normal');
+    assert.equal(feed(w, latched, 2), null, 'two busy samples are not yet sustained');
+    assert.equal(w(latched), 702, 'the third in a row raises it');
+    assert.equal(feed(w, { ...latched, gpuUtil: 3 }, 20), 702, 'idle samples keep it: the latch outlives the load');
+    assert.equal(w(healthy), null, 'one busy sample at a normal clock clears it');
+    w = perfMod.makeClockWatch();
+    const dip = { gpuUtil: 90, smMhz: 900, smMaxMhz: 2502 };
+    assert.equal([dip, dip, healthy, dip, dip].map(w).every((r) => r === null), true, 'a dip that recovers never raises it');
+    assert.equal(w({ ...dip, smMhz: 1300 }), null, 'half the max clock or above is not stuck');
+    for (const g of [{ ...latched, smMaxMhz: null }, { ...latched, smMhz: null }, { ...latched, gpuUtil: null }, null]) {
+        w = perfMod.makeClockWatch();
+        assert.equal(feed(w, g, 5), null, `no verdict without the readings: ${JSON.stringify(g)}`);
+    }
+    const render = loadPanel();
+    const gpu = { gpuUtil: 94, vramUsedGb: 80, vramTotalGb: 119, smMhz: 702, smMaxMhz: 2502 };
+    const html = render(adminState({ health: { hostsUp: 1, hostsTotal: 1, proxyUp: true, host: null, gpu: { ...gpu, stuckMhz: 702 } } }));
+    assert.ok(html.includes('The GPU is stuck at a low clock (702 MHz): fully power the box off (unplug it for a minute), then start it again.'), 'the warning line');
+    assert.ok(!render(adminState({ health: { hostsUp: 1, hostsTotal: 1, proxyUp: true, host: null, gpu: { ...gpu, stuckMhz: null } } })).includes('stuck at a low clock'), 'no latch, no line');
+    assert.ok(!render(adminState()).includes('stuck at a low clock'), 'no GPU readings, no line');
 });
 
 test('llama-server argv exposes /metrics for the performance monitor', () => {
@@ -1617,6 +1655,71 @@ test('seats: only generation POSTs are gated — every route LiteLLM generates o
     }
     assert.equal(seatsMod.isGated('GET', '/v1/chat/completions'), false);
     assert.equal(seatsMod.isGated('GET', '/v1/models'), false);
+});
+
+// The routes the gate forwards at all (pre-release review 2026-10-07): LiteLLM's pass-through routes
+// reached vLLM with no seat, and a decoded '..', '?' or '#' re-aimed them.
+const GATE_ALLOWED = [
+    ['POST', '/v1/chat/completions'], ['POST', '/chat/completions'], ['POST', '/v1/completions'], ['POST', '/completions'],
+    ['POST', '/v1/chat/completions?x=1'], ['POST', '/v1/chat/completions/'], ['POST', '/v1/chat%2Fcompletions'],
+    ['POST', '/engines/m/chat/completions'], ['POST', '/engines/m/completions'], ['POST', '/openai/deployments/m/chat/completions'],
+    ['POST', '/openai/deployments/m/completions'], ['POST', '/v1/responses'], ['POST', '/responses'], ['POST', '/openai/v1/responses'],
+    ['POST', '/v1/responses/compact'], ['POST', '/v1/messages'], ['POST', '/v1beta/models/m:generateContent'],
+    ['POST', '/v1beta/models/m:streamGenerateContent?alt=sse'], ['POST', '/models/m:generateContent'], ['POST', '/v1beta/interactions'],
+    ['POST', '/interactions'], ['GET', '/v1/models'], ['GET', '/models'], ['GET', '/v1/models/gemma4:12b'],
+    ['GET', '/model_group/info'], ['GET', '/health/liveliness'], ['OPTIONS', '/v1/chat/completions'], ['OPTIONS', '/v1/models'],
+];
+const GATE_REFUSED = [
+    ['POST', '/vllm/../invocations', 400], ['POST', '/vllm/%2E%2E/x', 400], ['POST', '/v1/%2e%2e/invocations', 400],
+    ['POST', '/vllm/chat/completions%3Fx', 400], ['POST', '/azure/chat/completions%23/assistant', 400],
+    ['POST', '/azure_ai/x%23/assistant', 400], ['POST', '/azure/chat/completions%3F/assistant', 400],
+    ['GET', '/v1/models%00', 400], ['POST', '/v1/%zz', 400],
+    ['POST', '/vllm/chat/completions', 404], ['POST', '/vllm/messages', 404], ['POST', '/vllm/invocations', 404],
+    ['POST', '/azure/chat/completions', 404], ['POST', '/anthropic/v1/messages', 404], ['POST', '/openai/v1/chat/completions', 404],
+    ['POST', '/cursor/chat/completions', 404], ['POST', '/queue/chat/completions', 404], ['POST', '/bedrock/model/m/invoke', 404],
+    ['GET', '/health', 404], ['GET', '/health/readiness', 404], ['POST', '/v1/embeddings', 404], ['POST', '/v1/messages/count_tokens', 404],
+    ['POST', '/key/generate', 404], ['GET', '/model/info', 404], ['GET', '/ui', 404], ['GET', '/', 404], ['POST', '/v1/models', 404],
+    ['GET', '/v1/chat/completions', 404], ['OPTIONS', '/vllm/chat/completions', 404], ['POST', '/tokenize', 404], ['POST', '/invocations', 404],
+];
+
+test('seat gate: forwards only the routes the farm serves; LiteLLM\'s pass-through routes and re-aimed paths never reach it, nor a seat (review 2026-10-07)', async () => {
+    for (const [m, p] of GATE_ALLOWED) assert.equal(seatsMod.refusal(m, p), 0, `${m} ${p}`);
+    for (const [m, p, code] of GATE_REFUSED) assert.equal(seatsMod.refusal(m, p), code, `${m} ${p}`);
+    // Every generation route the gate lets through takes a seat: the allowlist never opens an unseated way in.
+    for (const [m, p] of GATE_ALLOWED) if (m === 'POST') assert.equal(seatsMod.isGated(m, p), true, `${m} ${p} is seated`);
+
+    const http = require('http');
+    const reached = [];
+    const upstream = http.createServer((req, res) => { reached.push(`${req.method} ${req.url}`); req.resume(); res.writeHead(200, { 'content-type': 'application/json' }); res.end('{}'); });
+    await new Promise((r) => upstream.listen(0, '127.0.0.1', r));
+    let admits = 0;
+    const real = seatsMod.createSeats({ capacity: () => 1, idleReleaseSec: () => 900 });
+    const seats = { ...real, admit: (ip) => { admits++; return real.admit(ip); } };
+    const gate = await seatsMod.startSeatGate({ host: '127.0.0.1', port: 0, upstreamPort: upstream.address().port, seats, idleReleaseSec: () => 900 });
+    const send = (method, p) => new Promise((resolve, reject) => {
+        const req = http.request({ host: '127.0.0.1', port: gate.address().port, method, path: p, headers: { 'content-type': 'application/json', origin: 'null' } }, (res) => {
+            let buf = ''; res.on('data', (c) => { buf += c; }); res.on('end', () => resolve({ status: res.statusCode, headers: res.headers, body: buf }));
+        });
+        req.on('error', reject);
+        req.end(method === 'POST' ? '{"model":"assistant","messages":[]}' : undefined);
+    });
+    try {
+        for (const [m, p, code] of GATE_REFUSED) {
+            const r = await send(m, p);
+            assert.equal(r.status, code, `${m} ${p}`);
+            assert.equal(r.headers['access-control-allow-origin'], '*', 'a page on another origin can read why');
+            assert.equal(JSON.parse(r.body).error.code, code === 400 ? 'lol_bad_path' : 'lol_not_found');
+        }
+        assert.deepEqual(reached, [], 'nothing refused reached LiteLLM');
+        assert.equal(admits, 0, 'and none asked for a seat');
+        assert.equal(real.view().length, 0, 'no seat is held');
+        for (const [m, p] of GATE_ALLOWED) assert.equal((await send(m, p)).status, 200, `${m} ${p}`);
+        assert.deepEqual(reached, GATE_ALLOWED.map(([m, p]) => `${m} ${p}`), 'every allowed route reaches it, its path untouched');
+        assert.equal(admits, GATE_ALLOWED.filter(([m]) => m === 'POST').length, 'each generation through a seat, nothing else');
+    } finally {
+        gate.close();
+        upstream.close();
+    }
 });
 
 test('seats: a refusal says when the soonest IDLE seat frees; none when every seat is generating (plan 0.2)', () => {
@@ -2363,9 +2466,12 @@ test('plugin keys survive a farm restart, so no client restarts its Open WebUI (
     const { pluginKey } = require('../src/identity');
     const file = path.join(os.tmpdir(), `lol-secret-test-${process.pid}`);
     try { fs.unlinkSync(file); } catch { /* fresh */ }
-    const rt = { pluginKey: (id) => pluginKey(id, file), resolveOcrModel: () => 'gemma4:12b', isLocalHost: () => true, reachable: ['http://127.0.0.1:11434'] };
-    const start = () => Object.fromEntries(makeServices().filter((s) => ['ocr', 'classify', 'stt'].includes(s.id))
-        .map((s) => [s.id, s.desc.makeCtx(defaultConfig(), rt).key]));
+    const rt = { pluginKey: (id, pw) => pluginKey(id, pw, file), resolveOcrModel: () => 'gemma4:12b', isLocalHost: () => true, reachable: ['http://127.0.0.1:11434'] };
+    const start = (password = null) => {
+        const c = defaultConfig(); c.proxy.masterKey = password;
+        return Object.fromEntries(makeServices().filter((s) => ['ocr', 'classify', 'stt'].includes(s.id))
+            .map((s) => [s.id, s.desc.makeCtx(c, rt).key]));
+    };
     try {
         const first = start();
         const second = start();   // the next `lol up`: a new process reads the same file
@@ -2374,10 +2480,32 @@ test('plugin keys survive a farm restart, so no client restarts its Open WebUI (
         for (const k of Object.values(first)) assert.match(k, /^[0-9a-f]{48}$/);
         const keyed = defaultConfig(); keyed.proxy.masterKey = 'pw';
         const keyId = (k) => buildSnapshot(keyed, { proxyUp: true, hostsUp: 1, extractUp: true, extractKey: k }).extract.keyId;
-        assert.equal(keyId(second.ocr), keyId(first.ocr), 'keyId stays put, so clients do not refetch');
+        assert.deepEqual(start('pw'), start('pw'), 'with a password too, the same keys on every start');
+        assert.equal(keyId(start('pw').ocr), keyId(start('pw').ocr), 'keyId stays put, so clients do not refetch');
+        // A password set or changed gives new keys at the next start (review 2026-10-07): a device that read the
+        // keys from the beacon while the farm was open, or that knew the old password, loses the plugins.
+        const set = start('pw');
+        const changed = start('pw2');
+        for (const id of ['ocr', 'classify', 'stt']) {
+            assert.notEqual(set[id], first[id], `${id}: setting a password rotates it`);
+            assert.notEqual(changed[id], set[id], `${id}: changing it rotates it again`);
+        }
+        assert.notEqual(keyId(changed.ocr), keyId(set.ocr), 'and keyId changes, so a client holding the new password fetches again');
+        assert.deepEqual(start(), first, 'back to no password: the open farm\'s keys');
         fs.unlinkSync(file);
         assert.notEqual(start().ocr, first.ocr, 'deleting the secret rotates the keys');
     } finally { try { fs.unlinkSync(file); } catch { /* gone */ } }
+});
+
+test('panel: the password row says what it protects — the plugins too — and that old plugin access lasts until the farm restarts (review 2026-10-07)', () => {
+    const render = loadPanel();
+    const set = render(adminState({ requiresKey: true }));
+    assert.ok(set.includes('Protects chat (everything on /v1), document reading, Classify, speech to text and the message bus.'), 'what it protects');
+    assert.ok(set.includes('Web search, voice and discovery stay open on the LAN.'), 'what stays open');
+    assert.ok(set.includes('When the password is set or changed, a device that could already use document reading, Classify or speech to text keeps them until the farm restarts.'), 'a device that had the plugins keeps them until then');
+    const open = render(adminState({ requiresKey: false }));
+    assert.ok(open.includes('protects chat, document reading, Classify, speech to text and the message bus; web search, voice and discovery stay open'));
+    for (const html of [set, open]) assert.ok(!/document reading( and|,) discovery stay open|document reading \/ discovery/.test(html), 'no longer says document reading stays open');
 });
 
 test('classify + stt start AFTER the farm is public, and their installs never block the event loop (rig, 2026-09-27)', () => {

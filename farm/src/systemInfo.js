@@ -37,16 +37,17 @@ async function detectHardware() {
     return { gpu, vramGb, ramGb, cpuCores };
 }
 
-// Live GPU stats (refreshed on the health timer): util% + VRAM used/total in GB.
-// All null if nvidia-smi is unavailable.
+// Live GPU stats (refreshed on the health timer): util% + VRAM used/total in GB, and the
+// SM clock now and at most in MHz (perf.js makeClockWatch reads them). All null if
+// nvidia-smi is unavailable; a field it reports as [N/A] is null.
 async function gpuLiveStats() {
     const out = await execFileP(
         'nvidia-smi',
-        ['--query-gpu=utilization.gpu,memory.used,memory.total', '--format=csv,noheader,nounits'],
+        ['--query-gpu=utilization.gpu,memory.used,memory.total,clocks.sm,clocks.max.sm', '--format=csv,noheader,nounits'],
         3000
     );
-    if (!out) return { gpuUtil: null, vramUsedGb: null, vramTotalGb: null };
-    const [util, used, total] = (out.split(/\r?\n/)[0] || '').split(',').map((s) => Number((s || '').trim()));
+    if (!out) return { gpuUtil: null, vramUsedGb: null, vramTotalGb: null, smMhz: null, smMaxMhz: null };
+    const [util, used, total, sm, smMax] = (out.split(/\r?\n/)[0] || '').split(',').map((s) => Number((s || '').trim()));
     // Unified-memory GPUs report memory.total as 0 (see detectHardware) — fall back to
     // the system RAM pool so the card shows the real capacity, not "0 GB".
     const ramGb = Math.round(os.totalmem() / (1024 ** 3));
@@ -55,6 +56,8 @@ async function gpuLiveStats() {
         gpuUtil: Number.isFinite(util) ? util : null,
         vramUsedGb: Number.isFinite(used) ? Math.round((used / 1024) * 10) / 10 : null,
         vramTotalGb: totalGb,
+        smMhz: Number.isFinite(sm) ? sm : null,
+        smMaxMhz: Number.isFinite(smMax) && smMax > 0 ? smMax : null,
     };
 }
 
