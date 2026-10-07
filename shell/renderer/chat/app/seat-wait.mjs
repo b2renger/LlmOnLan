@@ -37,6 +37,13 @@ export const DEFAULT_JITTER_MS = 5000;
 export const MAX_ATTEMPTS = 5;
 
 /**
+ * A seat this computer can take: a free one, or one the farm says is already ours (`mine`: the gate admits our IP on
+ * it, e.g. after this computer's Open WebUI took the seat that freed), as the governor counts it (net/governor.mjs).
+ * @param {any} seats
+ */
+const seatFree = (seats) => !!seats && (seats.mine === true || Number(seats.used) < Number(seats.slots));
+
+/**
  * PURE. What a waiting message should do at this instant.
  *
  * Order matters and the unit table pins it:
@@ -44,7 +51,7 @@ export const MAX_ATTEMPTS = 5;
  *   2. too many refusals → the reader presses Try now;
  *   3. seats unknown → we cannot tell a free farm from a full one, so we never guess;
  *   4. nobody is looking → wait (and the caller drops any pending schedule);
- *   5. a seat is free and nothing is scheduled → schedule one, jittered;
+ *   5. a seat is free (or already ours) and nothing is scheduled → schedule one, jittered;
  *   6. a seat is free and the schedule is due → resend.
  *
  * @param {{caps: any, visible: boolean, pageVisible: boolean, waitingSince: number, now: number,
@@ -58,8 +65,7 @@ export function seatDecision(o) {
   const seats = o.caps && o.caps.seats;
   if (!seats) return 'manual';
   if (!(o.visible && o.pageVisible)) return 'wait';
-  const free = Number(seats.used) < Number(seats.slots);
-  if (!free) return 'wait';
+  if (!seatFree(seats)) return 'wait';
   if (o.scheduledAt == null) return 'schedule';
   return o.now >= o.scheduledAt ? 'resend' : 'wait';
 }
@@ -352,8 +358,7 @@ export function install(app) {
       // This is not theoretical: one publish emits FARM_CHANGE *and* FARM_TICK back to back, so a
       // blanket `scheduledAt = null` here made the pair "schedule, then immediately forget" and the
       // resend never happened (caught by p2-seat-wait, 4 runs out of 5).
-      const seats = c && c.seats;
-      const free = !!seats && Number(seats.used) < Number(seats.slots);
+      const free = seatFree(c && c.seats);
       const lookedAt = !!(app.state.visible && app.state.pageVisible);
       if (!free || !lookedAt) w.scheduledAt = null;
       return;

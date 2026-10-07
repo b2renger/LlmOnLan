@@ -34,11 +34,17 @@ const NEEDS_KEY = 'The farm needs its password: ask the person for it and call s
 const WRONG_KEY = 'The farm did not accept the password: ask the person for it again and call setKey(password).';
 /**
  * The farm refused or failed: a sentence the page can show. A refused password is the seat gate's 401, or LiteLLM's
- * 400 that names the key (a 400 about the context window is the conversation's length, not the password).
- * @param {Response} r @param {boolean} keyed @param {string} text the answer's body
+ * 400 "Authentication Error" (a 400 about the context window is the conversation's length, not the password). A model
+ * the farm no longer serves (an engine switch, a renamed default) is LiteLLM's 400 "Invalid model name … for your
+ * key": not the password either, and the farm's details (its default model) are read again at the next ask.
+ * @param {Response} r @param {boolean} keyed @param {string} text the answer's body @param {string} [model] the model asked for
  */
-function why(r, keyed, text) {
-  const refused = r.status === 401 || r.status === 403 || (r.status === 400 && /authenticat|api.?key|\bkey\b/i.test(text));
+function why(r, keyed, text, model) {
+  if (r.status === 400 && /Invalid model name/i.test(text)) {
+    farmInfo = null;
+    return `The farm no longer serves the model ${model}: reload the page.`;
+  }
+  const refused = r.status === 401 || r.status === 403 || (r.status === 400 && /authenticat|api.?key/i.test(text));
   if (refused) return keyed ? ('authorization' in auth() ? WRONG_KEY : NEEDS_KEY) : 'The farm refused the request.';
   // The seat gate's own 502 (readable since it sends CORS headers) carries its sentence; an engine restarting is not a code.
   if (r.status >= 502 && r.status <= 504) {
@@ -127,7 +133,7 @@ export async function ask(o) {
       waited += s;
       continue;
     }
-    if (!r.ok) throw new Error(why(r, f.requiresKey, await r.text().catch(() => '')));
+    if (!r.ok) throw new Error(why(r, f.requiresKey, await r.text().catch(() => ''), model));
     const j = await r.json();
     return String((j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content) || '');
   }

@@ -851,11 +851,15 @@ export function copyTree(from: string, to: string): void {
     }
 }
 
-/** A folder's file names and bytes, hashed (the same asar-safe calls as copyTree). */
+/** Files an OS writes into a folder a person only looked at (Finder, a Mac on a non-Mac disk, Explorer): not an edit. */
+const OS_FILES = /^(\.DS_Store|\._.*|Thumbs\.db|desktop\.ini)$/i;
+
+/** A folder's file names and bytes, hashed (the same asar-safe calls as copyTree), leaving out OS_FILES. */
 export function treeHash(dir: string): string {
     const h = createHash('sha256');
     const walk = (d: string, rel: string): void => {
         for (const name of fs.readdirSync(d).sort()) {
+            if (OS_FILES.test(name)) continue;
             const p = path.join(d, name);
             if (fs.statSync(p).isDirectory()) walk(p, `${rel}${name}/`);
             else h.update(`${rel}${name}\n${createHash('sha256').update(fs.readFileSync(p)).digest('hex')}\n`);

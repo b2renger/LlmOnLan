@@ -113,6 +113,22 @@ export default (test) => {
     } finally { old.restore(); delete globalThis.sessionStorage; }
   });
 
+  test('lol-agent: a model the farm no longer serves is said as such, not as a refused password; the farm is read again', async () => {
+    // LiteLLM's 400 (route_llm_request.py, 1.97) ends "…for your key": it is not the password.
+    const gone = (/** @type {string} */ m) => ({ status: 400, body: JSON.stringify({ error: { message: `acompletion: Invalid model name passed in model=${m}. Call \`/v1/models\` to view available models for your key.`, type: 'None', param: 'None', code: '400' } }) });
+    const o = { requiresKey: true, defaultModel: 'gemma4:12b' };
+    const f = fakeFarm([gone('gemma4:12b'), 'hello'], o);
+    const kept = new Map([['lol-farm-key', 'right']]);
+    globalThis.sessionStorage = /** @type {any} */ ({ getItem: (/** @type {string} */ k) => kept.get(k) ?? null, setItem: (/** @type {string} */ k, /** @type {string} */ v) => kept.set(k, v) });
+    try {
+      const { ask } = await fresh();
+      await assert.rejects(ask({ messages: [] }), /^Error: The farm no longer serves the model gemma4:12b: reload the page\.$/);
+      o.defaultModel = 'assistant';   // the farm switched engines: its default is now served as `assistant`
+      assert.equal(await ask({ messages: [] }), 'hello');
+      assert.deepEqual(f.bodies.map((b) => b.model), ['gemma4:12b', 'assistant'], 'the farm\'s details were read again');
+    } finally { f.restore(); delete globalThis.sessionStorage; }
+  });
+
   test('lol-agent: "Failed to fetch" becomes a sentence — the browser hides whether the farm is down or refused without CORS', async () => {
     const f = fakeFarm([]);
     const fake = globalThis.fetch;

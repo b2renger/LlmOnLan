@@ -166,6 +166,14 @@ export default (test) => {
   test('seatDecision: a full farm waits, however long it has been waiting', () => {
     assert.equal(seatDecision({ ...base, caps: { seats: { used: 2, slots: 2 } } }), 'wait');
     assert.equal(seatDecision({ ...base, caps: { seats: { used: 3, slots: 2 } }, scheduledAt: 1000 }), 'wait');
+    assert.equal(seatDecision({ ...base, caps: { seats: { used: 2, slots: 2, mine: false } } }), 'wait');
+  });
+
+  test('seatDecision: a full farm where this computer holds a seat (mine) is free to us, as the governor counts it', () => {
+    const mine = { seats: { used: 2, slots: 2, mine: true } };
+    assert.equal(seatDecision({ ...base, caps: mine }), 'schedule');
+    assert.equal(seatDecision({ ...base, caps: mine, scheduledAt: 2000 }), 'resend');
+    assert.equal(seatDecision({ ...base, caps: mine, visible: false }), 'wait', 'still never while nobody looks');
   });
 
   test('seatDecision: a hidden chat never takes a seat, and a minimised one does not either', () => {
@@ -508,6 +516,25 @@ export default (test) => {
       app.bus.emit(EV.FARM_TICK, { caps: farm.caps, now: app.now() });
       await settle();
       assert.equal(app.seatWait.state().scheduledAt, null, 'the reason to hurry is gone');
+    } finally { calls.restore(); }
+  });
+
+  test('a seat this computer holds (mine) on a full farm: the twin events schedule a resend and keep it', async () => {
+    // This computer's Open WebUI took the seat that freed: the farm is full again, but the gate admits our IP.
+    const { app, farm } = await makeWorld({ flags: { seatJitterMs: 5000 } });
+    const calls = stubFetch((n) => (n === 0 ? seatsFullResponse() : sseOk('at last')));
+    try {
+      await app.controller.send({ text: 'hello farm', parts: [], model: 'assistant' });
+      await settle();
+      farm.caps.seats = { used: 2, slots: 2, clients: 3, idleSec: 900, mine: true };
+      app.bus.emit(EV.FARM_CHANGE, { caps: farm.caps, prev: null, changed: ['seats'] });
+      await settle();
+      const scheduled = app.seatWait.state().scheduledAt;
+      assert.ok(scheduled != null, 'a resend is scheduled');
+      app.bus.emit(EV.FARM_TICK, { caps: farm.caps, now: app.now() });
+      await settle();
+      assert.equal(app.seatWait.state().scheduledAt, scheduled, 'the twin event kept it: the seat is ours, not taken');
+      assert.equal(calls.length, 1);
     } finally { calls.restore(); }
   });
 

@@ -257,10 +257,12 @@ with `LOL_ENDPOINT=http://<box-ip>:4000/v1` if discovery isn't available.
 - **No login, by design** — the chat surface is single‑user with authentication off, because the data is
   already local and per‑machine. Anyone who can use the laptop can read its chats: on a **shared**
   machine, use separate OS accounts.
-- **Web search is off by default; the globe button turns it on for a chat.** It costs: with it on, a
-  chat took about 2.5× the GPU work, so everyone waits longer on a busy farm. To have it on in every
-  chat, pick **Always** in Open WebUI's own settings (Interface ▸ **Web Search in Chat**); the client
-  keeps your choice.
+- **Web search is off by default; the globe button turns it on for a chat.** With it on, a message costs
+  the farm about as much work as with it off, but the first word comes a few seconds later (a search
+  takes about 2 s) and the model reads a few thousand more tokens of search results per chat. It stays
+  off by default until it has been checked with a whole class searching from one school network. To have
+  it on in every chat, pick **Always** in Open WebUI's own settings (Interface ▸ **Web Search in
+  Chat**); the client keeps your choice.
   Clients up to v0.2.7 turned it on for every chat; the first launch of a newer one switches that back
   off once, and only if you had not changed it.
 
@@ -474,9 +476,9 @@ Work down this list — the first two causes account for most reports.
    someone uploads an image or scanned PDF, and a browser or a game will take VRAM too. Watch it during
    a slow moment: `lol status` and the admin panel both show what's loaded.
 4. **Web search is on in that chat.** It is off by default; the globe button turns it on for a chat,
-   and then the model may search, read pages and search again before it answers — about 2.5× the GPU
-   work per chat. If replies are slow to *start* but fast once they begin, turn the globe off and
-   compare. (Clients up to v0.2.7 turned it on for every chat; a newer one switches that back off.)
+   and then the model may search, read pages and search again before it answers, so the first word
+   comes a few seconds later (about 2 s per search). If replies are slow to *start* but fast once they
+   begin, turn the globe off and compare. (Clients up to v0.2.7 turned it on for every chat; a newer one switches that back off.)
 5. **A big document is attached.** Whole-document mode sends the entire text with every message, so a
    long PDF makes every turn in that chat slower. Start a new chat when you're done with it.
 6. **Measure it** rather than guessing — on the farm box:

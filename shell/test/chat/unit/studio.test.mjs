@@ -706,6 +706,11 @@ export default (test) => {
     assert.equal(read('agent-page'), 'v2', 'unedited: the newer bundled one replaces it');
     assert.ok(!fs.existsSync(path.join(dir, 'agent-page', 'old.md')), 'whole, not merged');
     assert.equal(read('ponytail'), 'mine');
+    // Looked at in Finder (or Explorer, or from a non-Mac disk): the files the OS adds are not a person's edit.
+    for (const f of ['.DS_Store', '._SKILL.md', 'Thumbs.db', 'desktop.ini']) fs.writeFileSync(path.join(dir, 'agent-page', f), 'os');
+    put(bundled, 'agent-page', 'v2.1');
+    S.seedSkills(bundled, dir, stamp);
+    assert.equal(read('agent-page'), 'v2.1', 'only browsed: still refreshed');
     fs.writeFileSync(path.join(dir, 'agent-page', 'SKILL.md'), 'v2 and my own rule');
     put(bundled, 'agent-page', 'v3');
     S.seedSkills(bundled, dir, stamp);
