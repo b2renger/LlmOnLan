@@ -11,7 +11,8 @@
 # in docs/spike/RESULTS.md), LOL_VLLM_STEPS (default "venv,model"; "model" only downloads and never touches the venv).
 #
 # For the farm, which reads this script's output: "[lol-step] uv|venv|vllm|cuda-pins|check|model <repo>|done"
-# before each step, and "[lol-error] gated|notfound|disk|network <text>" when the download fails. It runs as its
+# before each step, and "[lol-error] gated|notfound|disk|network|noinstall <text>" when the download fails (noinstall:
+# a download asked of a root with no vLLM, whose `hf` it uses). It runs as its
 # own process group, recorded in $LOL_VLLM_ROOT/run/install.pgid: `stop.sh install` stops it, download included.
 set -euo pipefail
 VER="${LOL_VLLM_VERSION:-0.30.0}"
@@ -30,7 +31,10 @@ if [ "$(ps -o pgid= -p $$ | tr -d ' ')" != "$$" ]; then
 fi
 mkdir -p "$ROOT/hf" "$ROOT/run" "$ROOT/logs"
 G=$(cat "$ROOT/run/install.pgid" 2>/dev/null || true)
-if [ -n "$G" ] && [ "$G" != "$$" ] && grep -qa 'install\.sh' "/proc/$G/cmdline" 2>/dev/null; then
+# Ours only when that leader is an install.sh into this root (its LOL_VLLM_ROOT): a file left by a reboot can name
+# another root's install.
+rootof() { local r; [ -r "/proc/$1/environ" ] || return 0; r=$(tr '\0' '\n' < "/proc/$1/environ" | sed -n 's/^LOL_VLLM_ROOT=//p' | head -1); r="${r:-$HOME/lol-vllm}"; r="${r/#\~/$HOME}"; echo "${r%/}"; }
+if [ -n "$G" ] && [ "$G" != "$$" ] && grep -qa 'install\.sh' "/proc/$G/cmdline" 2>/dev/null && [ "$(rootof "$G")" = "${ROOT%/}" ]; then
   echo "An install into $ROOT is already running (process group $G)."; exit 1
 fi
 echo "$$" > "$ROOT/run/install.pgid"
@@ -66,7 +70,7 @@ fi
 
 if [[ "$STEPS" == *,model,* ]]; then
   echo "[lol-step] model $REPO"
-  [ -x "$ROOT/.venv/bin/hf" ] || { echo "[lol-error] network vLLM is not installed in $ROOT yet (no hf command)."; exit 1; }
+  [ -x "$ROOT/.venv/bin/hf" ] || { echo "[lol-error] noinstall vLLM is not installed in $ROOT yet (no hf command)."; exit 1; }
   OUT="$ROOT/logs/download.last"
   set +e
   "$ROOT/.venv/bin/hf" download "$REPO" --local-dir "$ROOT/hf/$FOLDER" --exclude "*.png" --exclude ".eval_results/*" 2>&1 | tee "$OUT"

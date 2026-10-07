@@ -88,7 +88,7 @@ another farm meanwhile, or wait.
 
 1. **Quit the Farm app** (farm-v0.0.42). Its code does not touch vLLM, which keeps running.
 2. **Install the new Farm app** over the old one, and open it. At its first start it copies its farm code into
-   `%APPDATA%LlmOnLan Farmarm`, `farmllm` included, while the log-on task's `serve.sh` runs from there.
+   `%APPDATA%\LlmOnLan Farm\farm`, `farm\vllm` included, while the log-on task's `serve.sh` runs from there.
 3. **Check that the copy landed:** the panel's Backend card shows a **vLLM** button. If it does not, `farm.log`
    (Settings ▸ Open data & logs folder) says why the code refresh failed: quit and reopen the app.
 4. **Click "Let the farm run vLLM"** on the card "vLLM on this computer" (it shows a few seconds after the farm is
@@ -96,7 +96,7 @@ another farm meanwhile, or wait.
    - the panel says "The farm now runs vLLM. Nothing was restarted.", the engine is vLLM, kept running, with 48
      people at once and 64k each;
    - vLLM is the same process: `wsl -d Ubuntu -- cat /home/ateliernum/lol-spike/run/vllm.pgid` still says 401;
-   - the copy of the old settings is there: `%APPDATA%LlmOnLan Farmarmlol.config.json.before-managed-vllm`;
+   - the copy of the old settings is there: `%APPDATA%\LlmOnLan Farm\farm\lol.config.json.before-managed-vllm`;
    - the marker is there: `wsl -d Ubuntu -- ls /home/ateliernum/lol-spike/run/managed-by-farm`;
    - a client: nothing changed (the farm, the name Qwen3.6, a reply).
 5. **At the next log on**, the "LlmOnLan vLLM" task still runs: its `serve.sh` now says "The LlmOnLan farm runs
@@ -116,7 +116,7 @@ instead of `qwen3.8:latest` (17.7 GB, which does not).
 - **Later, by hand** (PowerShell):
   ```powershell
   # 1. Quit the Farm app: this stops vLLM. Then:
-  $cfg = "$env:APPDATALlmOnLan Farmarmlol.config.json"
+  $cfg = "$env:APPDATA\LlmOnLan Farm\farm\lol.config.json"
   Copy-Item "$cfg.before-managed-vllm" $cfg -Force                          # 2. the settings from before
   wsl -d Ubuntu -- rm -f /home/ateliernum/lol-spike/run/managed-by-farm    # 3. serve.sh starts vLLM again
   Start-ScheduledTask 'LlmOnLan vLLM'                                      # 4. vLLM, then the Farm app

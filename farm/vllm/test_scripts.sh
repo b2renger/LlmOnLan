@@ -6,7 +6,7 @@
 #   Windows: wsl -d Ubuntu --cd <repo>\farm\vllm -e bash ./test_scripts.sh
 D="$(cd "$(dirname "$0")" && pwd)"
 FAKE="$(cd "$D/../test/fake-vllm" && pwd)"
-TESTS="${*:-daemon stopsh interactive devnull guard badfloor crash rewrite managed marker refusals rotation tilde status install stopscope}"
+TESTS="${*:-daemon stopsh interactive devnull guard badfloor crash rewrite managed marker refusals rotation tilde status install stopscope foreign}"
 ROOT=/tmp/lol-as-root; ROOT2=/tmp/lol-as-root2; LINK=/tmp/lol-as-link; EMPTY=/tmp/lol-as-empty; TH=/tmp/lol-as-home
 mkroot() {   # a root whose vllm and hf are the fakes, with the dist-info folder an install of vLLM 0.30.0 has
   pkill -KILL -f "$1/" 2>/dev/null
@@ -232,6 +232,7 @@ t_status() {
   check "model= a whole one: vision, its window" grep -qE '^model=M1 [0-9]+ vision=1 native=262144 partial=0$' "$ST"
   check "model= a partial one" grep -qE '^model=M2 [0-9]+ vision=0 native=32768 partial=1$' "$ST"
   check "no model= for a folder that is no model; no guard=, installing= or managed=" lacks '^model=notes|^guard=|^installing=|^managed=' "$ST"
+  check "cc= the C compiler vLLM needs at a start (this Linux has one)" grep -qE '^cc=/' "$ST"
   st "$ROOT2"
   check "the other root: its floor in env=" bash -c "grep -qx 'running=$P2' '$ST' && grep -qx 'env=LOL_VLLM_MIN_FREE_GB=1' '$ST'"
   bash "$D/stop.sh" > /dev/null; LOL_VLLM_ROOT="$ROOT2" bash "$D/stop.sh" > /dev/null
@@ -253,6 +254,8 @@ t_install() {
     FAKE_HF=${k%%:*} LOL_VLLM_STEPS=model bash "$D/install.sh" org/x > "$OUT" 2>&1; rc=$?
     check "hf says ${k%%:*}: [lol-error] ${k##*:}" bash -c "[ $rc != 0 ] && grep -q '^\[lol-error\] ${k##*:} .' '$OUT'"
   done
+  LOL_VLLM_ROOT="$EMPTY" LOL_VLLM_STEPS=model bash "$D/install.sh" org/x > "$OUT" 2>&1; rc=$?
+  check "a download into a root with no vLLM: [lol-error] noinstall" bash -c "[ $rc != 0 ] && grep -q '^\[lol-error\] noinstall .' '$OUT'"
   LOL_VLLM_ROOT="$LINK" bash "$D/install.sh" org/x > "$OUT" 2>&1; rc=$?
   check "a .venv that is a link: the venv steps are refused before anything" bash -c "[ $rc = 1 ] && grep -q 'link to another install' '$OUT' && ! grep -q 'lol-step' '$OUT'"
   LOL_VLLM_ROOT="$LINK" LOL_VLLM_STEPS=model bash "$D/install.sh" org/Linked > "$OUT" 2>&1; rc=$?
@@ -283,6 +286,28 @@ t_stopscope() {
   check "stops (143)" exits $P 50 143
   LOL_VLLM_ROOT="$ROOT2" bash "$D/stop.sh" > /dev/null
   check "the other one stops when asked (143)" exits $P2 50 143
+}
+t_foreign() {
+  echo "a pid file left in one root that names ANOTHER root's live server (WSL reuses low pids after a reboot)"
+  daemon &
+  local P=$!
+  check "answers" wait_answers 30
+  mkdir -p "$ROOT2/run"; echo "$P" > "$ROOT2/run/vllm.pgid"; echo "$P" > "$ROOT2/run/install.pgid"
+  st "$ROOT2"
+  check "status.sh at the other root: no running=, no installing=" lacks '^running=|^ready=|^installing=' "$ST"
+  LOL_VLLM_ROOT="$ROOT2" bash "$D/stop.sh" > "$ROOT/stop.out" 2>&1; local rc=$?
+  check "stop.sh at the other root: exit 0, says the file was stale" bash -c "[ $rc = 0 ] && grep -qF 'not a running serve.sh from $ROOT2' '$ROOT/stop.out'"
+  LOL_VLLM_ROOT="$ROOT2" bash "$D/stop.sh" install > /dev/null 2>&1
+  check "...and stopped nothing: this root's server still runs and answers" bash -c "$(declare -f alive answers); alive $P && answers $PORT"
+  check "...the stale files are gone" bash -c "[ ! -e '$ROOT2/run/vllm.pgid' ] && [ ! -e '$ROOT2/run/install.pgid' ]"
+  echo "$P" > "$ROOT2/run/vllm.pgid"
+  LOL_VLLM_ROOT="$ROOT2" LOL_VLLM_PORT="$PORT2" daemon &
+  local P2=$!
+  check "serve.sh at the other root starts (not 'already running')" wait_answers 30 "$PORT2"
+  check "status.sh at the other root sees its own server" bash -c "st() { LOL_VLLM_ROOT='$ROOT2' bash '$D/status.sh'; }; st | grep -qx 'running=$P2'"
+  bash "$D/stop.sh" > /dev/null; LOL_VLLM_ROOT="$ROOT2" bash "$D/stop.sh" > /dev/null
+  check "both stop when asked at their own root (143)" bash -c "$(declare -f alive); for _ in \$(seq 1 50); do alive $P || alive $P2 || exit 0; sleep 1; done; exit 1"
+  wait $P $P2 2>/dev/null
 }
 
 for t in $TESTS; do clean; "t_$t"; done

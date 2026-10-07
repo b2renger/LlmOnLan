@@ -1,5 +1,5 @@
 // `lol down` — stop a running farm (proxy + any Ollama we spawned + beacon), and the
-// vLLM it runs.
+// vLLM it runs (never one it does not run: see run()).
 //
 // Reads .lol-runtime.json (written by `lol up`) and tree-kills the recorded pids.
 // Killing the proxy also makes a foreground `lol up` notice and exit. vLLM is not one
@@ -13,16 +13,18 @@ const vllm = require('../vllm');
 const { engineOf } = require('../litellm');
 const { loadConfig } = require('../config');
 
-// Where the farm's vLLM lives: what the runtime file recorded, else the config's choice when it is vLLM.
+// Where the farm's vLLM lives: what the runtime file recorded, else the config's choice when it is vLLM. `serving`:
+// the farm serves with that vLLM (a runtime file of a farm that only downloaded into a root says false).
 async function vllmTarget(rt) {
     if (rt && rt.vllm && rt.vllm.root) return rt.vllm;
     if (!vllm.supported().ok) return null;
     let config;
     try { ({ config } = loadConfig()); } catch { return null; }
     if (engineOf(config) !== 'vllm') return null;
-    if (config.vllm.root) return { platform: process.platform, distro: config.vllm.distro, root: config.vllm.root, port: config.vllm.port };
+    if (config.vllm.root) return { platform: process.platform, distro: config.vllm.distro, root: config.vllm.root, port: config.vllm.port, serving: true };
     // No root saved yet: the one the farm would use (an install in the candidate roots).
-    return vllm.targetOf(config, await vllm.probe(config));
+    const t = vllm.targetOf(config, await vllm.probe(config));
+    return t && { ...t, serving: true };
 }
 
 async function run() {
@@ -80,7 +82,10 @@ async function run() {
     if (t) {
         const s = await vllm.status(t);
         if (s.st && (s.st.running || s.st.installing)) {
-            if (s.st.running) {
+            // Only the farm's own vLLM: the one it serves with, or one its marker says it owns (left by a switch).
+            // A vLLM someone else runs from that root (an operator's, which this farm only downloaded a model for)
+            // keeps running; only the farm's download stops.
+            if (s.st.running && (t.serving || s.st.managed)) {
                 log.step('Stopping vLLM (this frees its GPU memory) …');
                 const r = await vllm.stop({ ...t, root: s.st.root }, { alive: () => vllm.answers(`http://127.0.0.1:${t.port}/v1`, 2000) });
                 if (r.ok) { log.ok('vLLM stopped.'); killed++; } else log.err(r.error);

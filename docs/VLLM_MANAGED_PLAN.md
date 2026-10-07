@@ -151,6 +151,46 @@ Built in slices, each tested, logged in docs/DEVLOG.md and pushed on the `vllm-m
   - Launch at login on Linux is also re-applied at each start while it is on (an AppImage update can move it).
   - The lifecycle's step 13 also covers the not-running take-over; step 14 runs the whole farm from a copy in a
     folder whose name has a space (the scripts through `wsl.exe --cd "...\LlmOnLan Farm\farm\vllm"`).
+- **Review fixes (2026-10-08).** Two reviews of slices A-D (lifecycle and safety; panel and compatibility). What
+  they changed in the design:
+  - `lol down` stops a running vLLM only when it is the farm's own: the runtime file's `vllm.serving` (the farm
+    serves with it), or the root's marker. A download into an operator's root (the external engine, before the
+    take-over) records `serving: false`, and the runtime file forgets the root once the download ends
+    (`runDownload`'s `onSettled`). §3.7's "the target = rt.vllm" was not enough.
+  - The scripts own a pid file (`run/vllm.pgid`, `run/install.pgid`) only when its leader runs from their root (its
+    `LOL_VLLM_ROOT`, default `~/lol-vllm`): WSL reuses low pids at every boot, and a stale file in one root could
+    name another root's live server, which `stop.sh` would then kill.
+  - A start refuses when something already answers on vLLM's port ("Another program uses port …"), and counts as
+    ready only once `serve.sh` logged its own server ready (or `status.sh` says so): the port alone could be
+    another program's, which the farm would have routed to.
+  - Ollama never loads beside a vLLM whose stop failed: the fallback stops vLLM first, and on a failed stop the farm
+    stays on vLLM, phase `stopped`, unhealthy, saying why (§5.5's rule, now for every fallback). At boot a running
+    server that is adoptable is kept even when the check lists a problem (one `nvidia-smi` miss), the check is
+    asked twice before giving up on WSL, and the farm's own server that cannot serve as it is is stopped before
+    Ollama serves.
+  - The watch pauses only for a job that starts or stops vLLM itself (`engine`, `backend`, `settings`), not for an
+    Ollama download or a password change.
+  - §4.2 gains a requirement: a C compiler (`build-essential`; Triton builds its launcher at every start, and a
+    fresh WSL Ubuntu has none). `status.sh` prints `cc=`. Install is not offered without it, nor on a GPU too small
+    for any model of the list; Download only once vLLM is installed (`install.sh` says `noinstall` otherwise).
+  - Install, Update and Download check the disk before they start and leave 10 GB free beside what they fetch
+    (`vllm.diskCheck`): WSL's disk grows on drive C: and never shrinks.
+  - The take-over turns a `llamacpp.enabled` left on in the file off (one engine on), and every "llama.cpp serves"
+    test asks `engineOf`; at boot a file with vLLM and llama.cpp both on serves vLLM, llama.cpp standing down.
+  - On a farm whose external server is a vLLM the farm can take over, the vLLM button IS the take-over (the panel
+    and `setBackend` both); the External button never shows while it would point at the port of the vLLM the farm
+    runs; leaving a loopback external server always says it keeps its GPU share, with the take-over pointed out.
+  - Document reading prefers `gemma4:12b` only beside vLLM (§1.4 said "any other engine"): a llama.cpp farm chose its
+    standby vision default to fit beside llama-server.
+  - The panel's starting line names the job clients see (a switch or an Apply is not "Starting vLLM"); an unplanned
+    restart says clients see a problem and may move; a `stopped` phase with a reason says it.
+  - The Farm app: Quit and Stop run `lol down` whenever a farm ran since the last stop (a crash loop leaves neither a
+    child nor a runtime file); the state is `stopping` while it runs (the window says so, Start waits); closing the
+    window goes through Quit, so it stays up until the farm stopped; a second launch meanwhile never touches a
+    destroyed window.
+  - docs/PRO6000_VLLM_SWITCH.md Part 2 had its Windows paths' backslashes eaten (form feed and vertical tab bytes);
+    put back, and a test now refuses control characters in the docs.
+  - Tests: lifecycle steps 15-20.
 - **Left:** §11.4, the live test with a real vLLM beside production (and A16, the code refresh over a running
   `serve.sh`, its step 10), then §11.5 / §9.6 with the owner (a release of the Farm app first).
 

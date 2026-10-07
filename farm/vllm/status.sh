@@ -3,6 +3,7 @@
 # Read-only: it starts, stops and creates nothing. Env: LOL_VLLM_ROOT (default ~/lol-vllm), LOL_VLLM_ROOTS (more
 # roots to look for an install in, colon-separated).
 #   home= arch= root= distro= uv= curl=      this Linux, and the tools install.sh needs
+#   cc=                                       a C compiler (vLLM builds a small GPU launcher with it at each start)
 #   gpu=<name>, <MiB total>, <MiB free>, <compute capability>   (no line: nvidia-smi sees no GPU)
 #   mem_total_kb= mem_available_kb= disk_free_kb=   (the disk under the root)
 #   install=<root> <vLLM version>             one per root with a vLLM, and venv_link=<root> when its .venv is a link
@@ -13,10 +14,16 @@
 set -u
 ex() { echo "${1/#\~/$HOME}"; }
 leader() { [ -n "$1" ] && grep -qa "$2" "/proc/$1/cmdline" 2>/dev/null; }
+# The root a process runs from: its LOL_VLLM_ROOT, default ~/lol-vllm (empty when its environment is not readable).
+rootof() { local r; [ -r "/proc/$1/environ" ] || return; r=$(tr '\0' '\n' < "/proc/$1/environ" 2>/dev/null | sed -n 's/^LOL_VLLM_ROOT=//p' | head -1); r=$(ex "${r:-$HOME/lol-vllm}"); echo "${r%/}"; }
+# A pid file names this root's own script only when that leader runs from this root: WSL hands out the same low pids
+# at every boot, so a file left in one root can name another root's live server.
+ours() { leader "$1" "$2" && [ "$(rootof "$1")" = "${ROOT%/}" ]; }
 ROOT=$(ex "${LOL_VLLM_ROOT:-$HOME/lol-vllm}")
 echo "home=$HOME"; echo "arch=$(uname -m)"; echo "root=$ROOT"; echo "distro=${WSL_DISTRO_NAME:-}"
 echo "uv=$(command -v uv || { [ -x "$HOME/.local/bin/uv" ] && echo "$HOME/.local/bin/uv"; })"
 echo "curl=$(command -v curl)"
+echo "cc=$(command -v gcc || command -v cc || command -v clang)"
 g=$(nvidia-smi --query-gpu=name,memory.total,memory.free,compute_cap --format=csv,noheader,nounits 2>/dev/null | head -1)
 [ -n "$g" ] && echo "gpu=$g"
 awk '/^MemTotal:/{print "mem_total_kb=" $2} /^MemAvailable:/{print "mem_available_kb=" $2}' /proc/meminfo
@@ -41,7 +48,7 @@ for m in "$ROOT"/hf/*/; do
   echo "model=$(basename "$m") $(du -sk "$m" | cut -f1) vision=$vis native=${nat:-} partial=$part"
 done
 G=$(cat "$ROOT/run/vllm.pgid" 2>/dev/null)
-if leader "$G" 'serve\.sh'; then
+if ours "$G" 'serve\.sh'; then
   echo "running=$G"
   tr '\0' '\n' < "/proc/$G/environ" 2>/dev/null | grep -E '^LOL_VLLM_(PORT|MIN_FREE_GB|ARGS_B64)=' | sed 's/^/env=/'
   p=$(pgrep -o -g "$G" -f ' serve ')   # vLLM's API server: `… vllm serve <model> <flags>`
@@ -50,12 +57,11 @@ if leader "$G" 'serve\.sh'; then
 fi
 for p in $(pgrep -f 'serve\.sh'); do
   [ "$(cut -d' ' -f5 "/proc/$p/stat" 2>/dev/null)" = "$p" ] && leader "$p" 'serve\.sh' || continue   # a group leader
-  e=$(tr '\0' '\n' < "/proc/$p/environ" 2>/dev/null)
-  r=$(sed -n 's/^LOL_VLLM_ROOT=//p' <<< "$e"); pt=$(sed -n 's/^LOL_VLLM_PORT=//p' <<< "$e")
-  echo "found=$(ex "${r:-$HOME/lol-vllm}") ${pt:-8100} $p"
+  pt=$(tr '\0' '\n' < "/proc/$p/environ" 2>/dev/null | sed -n 's/^LOL_VLLM_PORT=//p')
+  echo "found=$(rootof "$p") ${pt:-8100} $p"
 done
 [ -e "$ROOT/run/vllm.guard" ] && echo "guard=$(grep '^\[guard\]' "$ROOT/logs/vllm.log" 2>/dev/null | tail -1)"
 I=$(cat "$ROOT/run/install.pgid" 2>/dev/null)
-leader "$I" 'install\.sh' && echo "installing=$I"
+ours "$I" 'install\.sh' && echo "installing=$I"
 [ -e "$ROOT/run/managed-by-farm" ] && echo "managed=1"
 exit 0

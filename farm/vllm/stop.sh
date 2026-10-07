@@ -9,10 +9,12 @@ if [ "${1:-}" = install ]; then F="$ROOT/run/install.pgid"; LEADER='install\.sh'
 else F="$ROOT/run/vllm.pgid"; LEADER='serve\.sh'; LEFT=("$F" "$ROOT/run/vllm.sock"); fi
 [ -f "$F" ] || { echo "No process recorded in $F."; exit 0; }
 G=$(cat "$F")
-# Only a group whose leader is that script is ours: a file left by a power cut or a WSL shutdown can name an
-# unrelated process group after the next boot, and that one must never be killed.
-if ! grep -qa "$LEADER" "/proc/$G/cmdline" 2>/dev/null; then
-  echo "Process group $G is not a running ${LEADER/\\/} (a file left by an unclean stop): removing it."
+# Only a group whose leader is that script, run from THIS root, is ours: a file left by a power cut or a WSL shutdown
+# can name an unrelated process group after the next boot (WSL hands out the same low pids at every boot), even
+# another root's server, and that one must never be killed. A leader's root is its LOL_VLLM_ROOT (default ~/lol-vllm).
+rootof() { local r; [ -r "/proc/$1/environ" ] || return; r=$(tr '\0' '\n' < "/proc/$1/environ" | sed -n 's/^LOL_VLLM_ROOT=//p' | head -1); r="${r:-$HOME/lol-vllm}"; r="${r/#\~/$HOME}"; echo "${r%/}"; }
+if ! grep -qa "$LEADER" "/proc/$G/cmdline" 2>/dev/null || [ "$(rootof "$G")" != "${ROOT%/}" ]; then
+  echo "Process group $G is not a running ${LEADER/\\/} from $ROOT (a file left by an unclean stop): removing it."
   rm -f "${LEFT[@]}"; exit 0
 fi
 pgrep -g "$G" >/dev/null || { echo "Process group $G is already gone."; rm -f "${LEFT[@]}"; exit 0; }

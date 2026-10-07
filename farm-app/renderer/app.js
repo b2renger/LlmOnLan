@@ -103,14 +103,16 @@ async function beginSetup() {
 
 // --- running ----------------------------------------------------------------
 
+// Moving between running and stopped: the toggle waits, and the overlay says what is happening.
+const transient = (status) => status === 'starting' || status === 'restarting' || status === 'stopping';
 function statusClass(status) {
     if (status === 'ready') return 'ready';
-    if (status === 'starting' || status === 'restarting') return 'busy';
+    if (transient(status)) return 'busy';
     if (status === 'error') return 'error';
     return '';
 }
 function statusLabel(status) {
-    return { ready: 'Running', starting: 'Starting…', restarting: 'Restarting…', stopped: 'Stopped', error: 'Error', idle: 'Idle' }[status] || status;
+    return { ready: 'Running', starting: 'Starting…', restarting: 'Restarting…', stopping: 'Stopping…', stopped: 'Stopped', error: 'Error', idle: 'Idle' }[status] || status;
 }
 
 async function ensureWebview() {
@@ -137,10 +139,10 @@ function renderFarmState(s) {
     // Chrome status dot + Start/Stop label.
     $('#status-dot').className = 'dot ' + statusClass(s.status);
     $('#status-text').textContent = statusLabel(s.status);
-    const running = s.status === 'ready' || s.status === 'starting' || s.status === 'restarting';
+    const running = s.status === 'ready' || s.status === 'starting' || s.status === 'restarting' || s.status === 'stopping';
     const toggle = $('#btn-toggle');
     toggle.textContent = running ? 'Stop' : 'Start';
-    toggle.disabled = s.status === 'starting' || s.status === 'restarting';
+    toggle.disabled = transient(s.status);
 
     // LAN address / privacy posture (only meaningful once the farm is up).
     const lanBar = $('#lan-bar');
@@ -173,12 +175,13 @@ function renderFarmState(s) {
     } else {
         wv.classList.add('hidden');
         overlay.classList.remove('hidden');
-        $('.spinner').style.display = (s.status === 'starting' || s.status === 'restarting') ? '' : 'none';
+        $('.spinner').style.display = transient(s.status) ? '' : 'none';
         // While starting, prefer the supervisor's live message — the first boot
         // after an install/update downloads multi-GB weights, and the supervisor
         // streams "<tag>: <what> — N%" (e.g. "llama.cpp: model weights — 43%") through `message`.
         const msg = s.status === 'stopped' ? 'The farm is stopped.'
             : s.status === 'error' ? (s.message || 'The farm hit an error.')
+            : s.status === 'stopping' ? (s.message || 'Stopping the farm…')
             : (s.message || 'Starting the farm…');
         $('#overlay-msg').textContent = msg;
         const action = $('#btn-overlay-action');

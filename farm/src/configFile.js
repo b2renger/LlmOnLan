@@ -70,7 +70,14 @@ const BACKUP_SUFFIX = '.before-managed-vllm';
 function takeOverFile(configPath, block) {
     const backup = configPath + BACKUP_SUFFIX;
     try { fs.copyFileSync(configPath, backup); } catch (e) { return { ok: false, backup: null, error: String((e && e.code) || e) }; }
-    const r = patchConfigFile(configPath, (raw) => { raw.vllm = { ...(raw.vllm || {}), ...block }; delete raw.external; return raw; });
+    // One engine on, as a switch writes it: a llama.cpp left on in the file (it served before the external server)
+    // would otherwise start beside vLLM at the next farm start.
+    const r = patchConfigFile(configPath, (raw) => {
+        raw.vllm = { ...(raw.vllm || {}), ...block };
+        delete raw.external;
+        if (raw.llamacpp && raw.llamacpp.enabled) raw.llamacpp = { ...raw.llamacpp, enabled: false };
+        return raw;
+    });
     return r.ok ? { ok: true, backup, error: null } : { ok: false, backup: null, error: r.error };
 }
 // Undo: the copy goes back, byte for byte (written beside and renamed, like every write here), then away.

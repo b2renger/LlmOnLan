@@ -63,11 +63,13 @@ fi
 SOCK="$ROOT/run/vllm.sock"
 PGF="$ROOT/run/vllm.pgid"
 GUARDF="$ROOT/run/vllm.guard"   # the memory guard stopped this run
-# A recorded group counts as a running server only if its leader is a serve.sh and not this one: after a power
-# cut, a hard reset or a WSL shutdown the file survives, and at the next boot its number can name an unrelated
-# process (or this very script), which would block every autostart.
+# A recorded group counts as a running server only if its leader is a serve.sh from this root and not this one:
+# after a power cut, a hard reset or a WSL shutdown the file survives, and at the next boot its number can name an
+# unrelated process, another root's server (WSL hands out the same low pids at every boot) or this very script,
+# which would block every autostart. A leader's root is its LOL_VLLM_ROOT (default ~/lol-vllm).
+rootof() { local r; [ -r "/proc/$1/environ" ] || return; r=$(tr '\0' '\n' < "/proc/$1/environ" | sed -n 's/^LOL_VLLM_ROOT=//p' | head -1); r="${r:-$HOME/lol-vllm}"; r="${r/#\~/$HOME}"; echo "${r%/}"; }
 G=$(cat "$PGF" 2>/dev/null)
-if [ -n "$G" ] && [ "$G" != "$$" ] && grep -qa 'serve\.sh' "/proc/$G/cmdline" 2>/dev/null; then
+if [ -n "$G" ] && [ "$G" != "$$" ] && grep -qa 'serve\.sh' "/proc/$G/cmdline" 2>/dev/null && [ "$(rootof "$G")" = "${ROOT%/}" ]; then
   say "A server from $ROOT is already running (process group $G): stop it first with stop.sh."; exit 1
 fi
 # No server writes the log now (checked just above), so it can move aside: this one plus vllm.log.1 stay under 100 MB.

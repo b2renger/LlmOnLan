@@ -3,6 +3,7 @@
 //   /api/generate (a warm-up loads, keep_alive 0 unloads — the farm's eviction, recorded), /api/chat (a tiny
 //   reply, streamed as NDJSON or not: what LiteLLM's ollama_chat/ asks when the farm falls back to Ollama).
 // `requests` keeps one line per call ("POST /api/generate unload fake-ollama:1b"), for the test to read.
+// /api/pull streams a download's progress for `knobs.pullMs` (a test sets it), then succeeds.
 //   node test/fake-ollama.js [port]   (standalone)
 
 const http = require('http');
@@ -10,6 +11,7 @@ const http = require('http');
 function startFakeOllama(port, { models = ['fake-ollama:1b'], loaded = models.slice(0, 1) } = {}) {
     const inVram = new Set(loaded);
     const requests = [];
+    const knobs = { pullMs: 3000 };
     const server = http.createServer((req, res) => {
         let raw = '';
         req.on('data', (c) => { raw += c; });
@@ -35,12 +37,27 @@ function startFakeOllama(port, { models = ['fake-ollama:1b'], loaded = models.sl
                 res.write(`${JSON.stringify({ model: j.model, created_at: end.created_at, message: { role: 'assistant', content: 'fake ollama reply' }, done: false })}\n`);
                 return res.end(`${JSON.stringify({ ...end, message: { role: 'assistant', content: '' } })}\n`);
             }
+            if (p === '/api/pull') {
+                res.writeHead(200, { 'content-type': 'application/x-ndjson' });
+                const t0 = Date.now(); const total = 1e9;
+                const tick = setInterval(() => {
+                    const part = Math.min(1, (Date.now() - t0) / knobs.pullMs);
+                    if (part >= 1) {
+                        clearInterval(tick);
+                        if (!models.includes(j.model)) models.push(j.model);
+                        return res.end(`${JSON.stringify({ status: 'success' })}\n`);
+                    }
+                    res.write(`${JSON.stringify({ status: 'pulling 0123456789ab', digest: 'sha256:0123456789ab', total, completed: Math.round(part * total) })}\n`);
+                }, 500);
+                res.on('close', () => clearInterval(tick));
+                return undefined;
+            }
             return send({ error: 'not here' }, 404);
         });
     });
     return new Promise((resolve, reject) => {
         server.once('error', reject);
-        server.listen(port, '127.0.0.1', () => resolve({ server, requests, inVram, close: () => new Promise((r) => server.close(r)) }));
+        server.listen(port, '127.0.0.1', () => resolve({ server, requests, inVram, knobs, close: () => new Promise((r) => { server.closeAllConnections(); server.close(r); }) }));
     });
 }
 

@@ -4,6 +4,7 @@ root=/tmp/lol-as-root
 distro=Ubuntu
 uv=/home/ateliernum/.local/bin/uv
 curl=/usr/bin/curl
+cc=/usr/bin/gcc
 gpu=NVIDIA RTX PRO 6000 Blackwell Workstation Edition, 97887, 19895, 12.0
 mem_total_kb=98875528
 mem_available_kb=91963788

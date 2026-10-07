@@ -601,16 +601,7 @@ function render(s) {
   app.querySelectorAll('button[data-dact]').forEach((b) => { b.onclick = () => defaultAct(b.dataset.id, b); });
   app.querySelectorAll('button[data-pact]').forEach((b) => { b.onclick = () => pluginAct(b.dataset.pact, b.dataset.id, b); });
   app.querySelectorAll('button[data-ract]').forEach((b) => { b.onclick = () => recommendAct(b.dataset.ract, b.dataset.id, b); });
-  app.querySelectorAll('button[data-engine]').forEach((b) => {
-    b.onclick = () => {
-      const to = b.dataset.engine;
-      // vLLM not set up here yet: open its card and check this computer, without switching (§7.1).
-      if (to === 'vllm' && !vllmUsable(s.vllm)) { openVllmCard(s); return; }
-      // A switch stops one engine and loads another: downtime for everyone connected, said first.
-      if (!confirm(switchConfirm(s, to))) return;
-      post('/lol/admin/backend', { engine: to }, b, 'Switching…');
-    };
-  });
+  app.querySelectorAll('button[data-engine]').forEach((b) => { b.onclick = () => engineClick(s, b.dataset.engine, b); });
   // Stop on either bar (the job, the download).
   app.querySelectorAll('button[data-cancel]').forEach((b) => { b.onclick = () => post('/lol/admin/job/cancel', { slot: b.dataset.cancel }, b, 'Stopping…'); });
   wireVllm(s);
@@ -873,6 +864,7 @@ function vllmUsable(v) { return !!(v && v.supported && v.probe && !v.probe.probl
 function vllmEngineSub(v) {
   const lead = 'Many people at once on a big NVIDIA GPU.';
   if (!v || v.supported === false) return 'Not available on this computer: vLLM needs an NVIDIA GPU on Linux, or Windows with WSL.';
+  if (v.takeOver) return `${lead} The vLLM already on this computer: press to let the farm run it, as it runs now.`;
   if (!v.probe) return `${lead} Press to check this computer.`;
   if (!v.probe.problems.length) return `${lead} One model; it takes about 2 minutes to start.`;
   return `${lead} Not set up on this computer yet: press to see how.`;
@@ -882,15 +874,38 @@ const isLoopback = (url) => /^https?:\/\/(127\.|localhost[:/]|\[::1\])/i.test(St
 // What a switch costs, said before it happens (§7.1).
 function switchConfirm(s, to) {
   const be = s.backend || {}; const name = ENGINE_LABEL[to] || to;
-  if (to === 'vllm') return 'Switch to vLLM? Chat stops for about 2 minutes while vLLM loads the model (longer the very first time, while it prepares the GPU).';
   if (be.engine === 'vllm') return `Switch to ${name}? vLLM stops and ${name} loads its model: about a minute, and anyone connected waits.`;
-  // A server on this computer the farm does not run keeps its share of the GPU after the switch (§1.2).
-  if (be.engine === 'external' && isLoopback(be.baseUrl) && !(s.vllm && s.vllm.takeOver)) {
+  const cost = to === 'vllm' ? 'Chat stops for about 2 minutes while vLLM loads the model (longer the very first time, while it prepares the GPU).'
+    : `${name} loads its model: about a minute, and anyone connected waits.`;
+  // A server on this computer the farm does not run keeps its share of the GPU after the switch (§1.2); when it is a
+  // vLLM the farm can run as it is, the way to keep it serving is said too.
+  if (be.engine === 'external' && isLoopback(be.baseUrl)) {
     const g = (s.health && s.health.gpu) || {};
     const free = g.vramTotalGb != null && g.vramUsedGb != null ? Math.round((g.vramTotalGb - g.vramUsedGb) * 10) / 10 : null;
-    return `Switch to ${name}? The server at ${be.baseUrl} keeps running and keeps its share of the GPU: ${name} gets only what is left${free != null ? ` (${free} GB free now)` : ''}.`;
+    return `Switch to ${name}? ${cost} The server at ${be.baseUrl} keeps running and keeps its share of the GPU: ${name} gets only what is left${free != null ? ` (${free} GB free now)` : ''}.`
+      + (s.vllm && s.vllm.takeOver ? ' To keep it serving as this farm\'s own vLLM instead, press Let the farm run vLLM.' : '');
   }
-  return `Switch to ${name}? ${name} loads its model: about a minute, and anyone connected waits.`;
+  return `Switch to ${name}? ${cost}`;
+}
+// A press on an engine button (§7.1).
+function engineClick(s, to, b) {
+  // The vLLM the farm routes to runs on this computer and can be kept as the farm's own (§9): that is what vLLM
+  // means then, with nothing restarted, not a stop and a 2-minute start of the same thing.
+  if (to === 'vllm' && s.vllm && s.vllm.takeOver) {
+    if (confirm(takeOverConfirm(s.vllm.takeOver))) post('/lol/admin/vllm/take-over', {}, b, 'The farm runs vLLM now.');
+    return;
+  }
+  // vLLM not set up here yet: open its card and check this computer, without switching (§7.1).
+  if (to === 'vllm' && !vllmUsable(s.vllm)) { openVllmCard(s); return; }
+  // A switch stops one engine and loads another: downtime for everyone connected, said first.
+  if (!confirm(switchConfirm(s, to))) return;
+  post('/lol/admin/backend', { engine: to }, b, 'Switching…');
+}
+// "Let the farm run vLLM" (§9.2), from its card or from the vLLM button: what it does, before it does it.
+function takeOverConfirm(t) {
+  return t.running
+    ? 'Let the farm run the vLLM already on this computer? It keeps the same model, name and settings and keeps running: nobody is interrupted.'
+    : 'Let the farm run the vLLM on this computer? It keeps the same model, name and settings and starts it now: about 2 minutes, during which nobody can chat.';
 }
 
 // The line under the Backend title: where vLLM is in its life (§1.5, §7.1).
@@ -903,11 +918,15 @@ function vllmStatusLine(s) {
   }
   const hint = (t) => `<div class="hint">${t}</div>`;
   const warn = (t) => `<div class="warnline">${t}</div>`;
+  // What clients show while the farm says it is busy: the job's own label (a start, a switch, an Apply).
+  const job = s.job && !s.job.done && s.job.label ? s.job.label : 'Starting vLLM';
   switch (v.phase) {
-    case 'starting': case 'restarting':
-      return hint(`vLLM is starting: ${esc(v.phaseText || 'starting vLLM')}. About 2 minutes, longer the first time. Until it is ready, people connected see “Starting vLLM”, and a message sent meanwhile is answered with “try again in a moment”.`);
+    case 'starting':
+      return hint(`vLLM is starting: ${esc(v.phaseText || 'starting vLLM')}. About 2 minutes, longer the first time. Until it is ready, people connected see “${esc(job)}”, and a message sent meanwhile is answered that the model is starting, to try again in about 2 minutes.`);
+    case 'restarting':
+      return warn(`vLLM stopped unexpectedly and is starting again: ${esc(v.phaseText || 'starting vLLM')}. About 2 minutes. Until it is ready nobody can chat here: people connected see a problem on this farm and may move to another one, and a message sent meanwhile is answered to try again later.`);
     case 'stopping': return hint('vLLM is stopping.');
-    case 'stopped': return warn('vLLM is stopped, so nobody can chat. Press Start vLLM below, or switch to another engine.');
+    case 'stopped': return warn(esc(v.phaseText || 'vLLM is stopped, so nobody can chat. Press Start vLLM below, or switch to another engine.'));
     case 'guard': return warn(esc(v.phaseText || 'vLLM was stopped because this computer was running out of memory. Close what is using the memory, then press Start vLLM.'));
     case 'down': return warn('vLLM is not answering. The farm is checking it.');
     case 'ready': return v.adopted ? hint('vLLM was already running with these settings, so the farm kept it running.') : '';
@@ -1062,7 +1081,8 @@ function vllmCard(s, jobRunning) {
     const meta = [size ? `${size} GB` : '', e.note].filter(Boolean).join(' · ');
     const files = e.downloaded || e.partial ? (e.gbOnDisk || e.sizeGb || 0) : 0;
     const btns = [
-      !e.downloaded && e.repo && !downloading ? `<button class="start" data-vdl="${esc(e.id)}"${off(!!dl)}>Download</button>` : '',
+      // A download uses vLLM's own tools: only once vLLM is installed (Install downloads the chosen model with it).
+      !e.downloaded && e.repo && !downloading && v.installed ? `<button class="start" data-vdl="${esc(e.id)}"${off(!!dl)}>Download</button>` : '',
       e.downloaded && !e.active ? `<button class="start" data-vuse="${esc(e.id)}" data-label="${esc(e.label)}"${off(jobRunning)}>Use this</button>` : '',
       !e.active && !downloading ? `<button class="stop" data-vrm="${esc(e.id)}" data-label="${esc(e.label)}" data-files="${files}"${off(jobRunning)}>Remove</button>` : '',
     ].join('');

@@ -35,9 +35,10 @@ stub('util', {
     waitForHttp: async () => true,
     httpGetJson: async () => ({ ips: [], proxyPort: 4000 }),
 });
+let lolDownGate = null;   // a promise `lol down` waits for (a slow vLLM stop), when a test sets one
 stub('farmProcess', {
     reapStaleFarm: async () => { calls.push(['reap']); },
-    lolDown: async (env) => { calls.push(['lolDown', env.ELECTRON_RUN_AS_NODE]); },
+    lolDown: async (env) => { calls.push(['lolDown', env.ELECTRON_RUN_AS_NODE]); if (lolDownGate) await lolDownGate; },
     runtimeFile: () => path.join(farmDir, '.lol-runtime.json'),
 });
 // `lol up` itself: a fake child.
@@ -107,10 +108,52 @@ test('a crash of `lol up` is restarted only after the dead run\'s processes are 
     assert.ok(!calls.some((c) => c[0] === 'spawn'), JSON.stringify(calls));
 });
 
-test('the share toggle in index.ts keeps the engine; Quit and Stop do not', () => {
+test('Quit after the farm kept crashing still runs `lol down`: a `lol up` that kept vLLM may have left no runtime file', async () => {
+    const { FarmSupervisor } = fresh('farmSupervisor');
+    const sup = new FarmSupervisor();
+    await sup.start();
+    sup.crashRestarts = 5;   // the restarts used up (each reaped the dead run's runtime file)
+    spawned[spawned.length - 1].emit('exit', 1);
+    await settle();
+    assert.equal(sup.getState().status, 'error', 'it gave up after 5 restarts');
+    assert.ok(!fs.existsSync(path.join(farmDir, '.lol-runtime.json')), 'no runtime file, no child');
+    calls.length = 0;
+    await sup.stop();
+    assert.deepEqual(calls, [['lolDown', '1'], ['reap']], JSON.stringify(calls));
+});
+
+test('a stop says "stopping" while `lol down` runs, and a Start meanwhile waits for it to end', async () => {
+    const { FarmSupervisor } = fresh('farmSupervisor');
+    const sup = new FarmSupervisor();
+    await sup.start();
+    let release; lolDownGate = new Promise((r) => { release = r; });
+    const states = []; sup.on('state', (s) => states.push(s.status));
+    calls.length = 0;
+    const stopped = sup.stop();
+    await settle();
+    assert.equal(sup.getState().status, 'stopping');
+    assert.match(sup.getState().message, /^Stopping the farm… With vLLM this can take a minute, while it frees the GPU\.$/);
+    const started = sup.start();
+    await settle();
+    assert.ok(!calls.some((c) => c[0] === 'spawn'), 'no `lol up` while `lol down` stops vLLM: it would keep the vLLM being stopped');
+    lolDownGate = null; release();
+    await stopped; await started;
+    assert.deepEqual(calls.map((c) => c[0]), ['lolDown', 'killTree', 'reap', 'spawn'], JSON.stringify(calls));
+    assert.deepEqual(states.slice(0, 2), ['stopping', 'stopped']);
+    assert.equal(sup.getState().status, 'ready');
+    calls.length = 0;
+    await sup.stop({ keepState: true, keepEngine: true });
+    assert.ok(!states.slice(-1).includes('stopping') && sup.getState().status === 'ready', 'the share toggle\'s restart shows no stop');
+});
+
+test('the share toggle in index.ts keeps the engine; Quit and Stop do not; Quit keeps the window up while the farm stops', () => {
     const src = fs.readFileSync(path.join(__dirname, '..', 'src', 'main', 'index.ts'), 'utf8');
     assert.ok(/set-share-network[\s\S]*?supervisor\.stop\(\{ keepState: true, keepEngine: true \}\)/.test(src));
-    assert.ok(/before-quit[\s\S]*?await supervisor\.stop\(\);/.test(src) && /farm-stop', async \(\) => \{ await supervisor\.stop\(\);/.test(src));
+    assert.ok(/before-quit[\s\S]*?supervisor\.stop\(\)\.finally\(\(\) => app\.exit\(0\)\)/.test(src) && /farm-stop', async \(\) => \{ await supervisor\.stop\(\);/.test(src));
+    assert.ok(/win\.on\('close', \(e\) => \{ if \(process\.platform !== 'darwin'\) \{ e\.preventDefault\(\); app\.quit\(\); \} \}\)/.test(src), 'closing the window goes through Quit, the window kept');
+    assert.ok(/win\.on\('closed', \(\) => \{ win = null; \}\)/.test(src) && /second-instance', \(\) => \{ if \(win && !win\.isDestroyed\(\)\)/.test(src), 'a second launch during a stop never touches a destroyed window');
+    const ui = fs.readFileSync(path.join(__dirname, '..', 'renderer', 'app.js'), 'utf8');
+    assert.ok(/stopping: 'Stopping…'/.test(ui) && /toggle\.disabled = transient\(s\.status\)/.test(ui) && /status === 'stopping'/.test(ui), 'the window says it and Start/Stop waits');
 });
 
 test('reapStaleFarm kills what the runtime file records and never runs `lol down` (vLLM is not a pid there)', async () => {

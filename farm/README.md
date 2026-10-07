@@ -199,9 +199,12 @@ this computer and says what is missing, in plain words:
 - **WSL** is installed by an administrator, once: `wsl --install -d Ubuntu` in an administrator PowerShell, a
   restart, then Ubuntu opened once from the Start menu to choose a user name. The panel says exactly that; it has
   no button that asks for administrator rights (the owner's question (d), 2026-10-07).
-- WSL 2 (not 1), the GPU visible inside it, a 64-bit processor, `curl`, and free disk: about 10 GB for vLLM and
-  the model's size. On Windows the free disk is the smaller of WSL's own (a virtual disk that reports up to 1 TB)
-  and the Windows drive that holds it.
+- WSL 2 (not 1), the GPU visible inside it, a 64-bit processor, `curl`, a C compiler (`sudo apt install
+  build-essential`: vLLM builds a small GPU launcher with it at every start, and a fresh Ubuntu in WSL has none),
+  and free disk: about 10 GB for vLLM and the model's size. On Windows the free disk is the smaller of WSL's own (a
+  virtual disk that reports up to 1 TB) and the Windows drive that holds it. Install, Update and Download check it
+  before they start, and leave 10 GB free beside what they fetch: WSL's disk grows on drive C: and never gives the
+  space back.
 - A card smaller than the smallest model in the list (its weights + ~6 GB) is refused; a card older than compute
   capability 12.0 (Blackwell) gets a warning: the list's NVFP4 checkpoints were measured on Blackwell only.
 
@@ -222,7 +225,8 @@ them with.
 | Nemotron 3.5 Lightning 30B-A3B | no | 160 at 32k on an RTX PRO 6000, 16 on a DGX Spark |
 | Qwen3.8 27B | yes | 16 at 32k on an RTX PRO 6000; too slow on a Spark |
 
-**Download** fetches one (in the download slot, while vLLM serves another), **Use this** serves it (vLLM restarts
+**Download** fetches one once vLLM is installed (in the download slot, while vLLM serves another; it uses vLLM's own
+`hf`), **Use this** serves it (vLLM restarts
 with it), **Remove** takes it off the list and, asked again, deletes its files. **Add a model** takes a Hugging
 Face name or link (`owner/name`) and gives it its family's flags (Qwen3.5/3.6, Qwen3.8, Nemotron, other Qwen3);
 a model of no known family gets prefix caching only, and the panel says tools and thinking may not show. Folders
@@ -234,6 +238,10 @@ that fails changes nothing: two engines never share the GPU. Into vLLM it takes 
 first time, while it compiles kernels); out of it, about a minute. The name people see moves with the switch
 (`carryNameAcross`), so open chats keep working. A switch to vLLM is refused up front, with the reason, when it is
 not installed, the model is not downloaded, an install runs, or a set memory cannot hold one person's window.
+While the external server is a vLLM the farm can run as it is ([Taking over](#vllm-run-by-the-farm), below), the
+vLLM button is that take-over, with nothing restarted; and the External button never shows while it would point at
+the port of the vLLM the farm runs. Leaving an external server on this computer says that it keeps running and
+keeps its share of the GPU.
 
 **Its settings**, under the panel's one **Apply changes** (which asks the farm first, and asks the operator only
 when vLLM would restart):
@@ -268,14 +276,19 @@ log-on task, `lol-vllm.service` or a hand, says so and does nothing).
   vLLM starts as the job "Starting vLLM". A **planned** start (the boot, Start, a switch, an Apply, Use this)
   keeps the farm healthy and says busy, so clients keep their farm and show "Starting vLLM"; a chat sent meanwhile
   gets the gate's 503, "This farm's model is starting: about 2 minutes. Try again then." The panel shows the
-  start's steps, read from vLLM's log.
+  start's steps, read from vLLM's log. A start counts once `serve.sh` logged its own server ready (or `status.sh`
+  says so), never because something answers on the port; and it refuses to start when another program already
+  answers there ("Another program uses port …"), so chats never go to someone else's model.
 - vLLM is **stopped on purpose only**: `lol down`, Ctrl-C, the Farm app's Quit and Stop (both run `lol down`
-  first), the panel's **Stop vLLM**, a switch, an Apply that restarts it. Stop vLLM makes the farm unhealthy
+  first; the window stays up, saying "Stopping the farm…", until it is done), the panel's **Stop vLLM**, a switch,
+  an Apply that restarts it. `lol down` stops only the farm's own vLLM: the one it serves with, or one its marker
+  says it started; never an operator's vLLM in a folder the farm only downloaded a model into. Stop vLLM makes the farm unhealthy
   (clients go to another farm) and does not survive a farm restart: the next start starts vLLM (the owner's
   question (b)).
 - A crash of `lol up` or of the Farm app leaves vLLM running, and the next `lol up` keeps it at once when it runs
   with these settings (an Automatic setting accepts what it runs with), waits for one still starting, and
-  restarts one launched otherwise. The Farm app's **Share compute with the network** switch restarts the farm and keeps
+  restarts one launched otherwise. A server that runs with these settings is kept even when the check of this
+  computer misses something (WSL is asked twice before the farm gives up on it). The Farm app's **Share compute with the network** switch restarts the farm and keeps
   vLLM running. CLI note: a farm that crashed leaves vLLM running until the next `lol up` or `lol down`.
 - At boot, a vLLM the farm started (its marker) that still runs while another engine is chosen (a crash in the
   middle of a switch) is stopped; one without the marker is someone else's and is left alone.
@@ -283,12 +296,16 @@ log-on task, `lol-vllm.service` or a hand, says so and does nothing).
   nothing. Stopped by the memory guard: stays stopped, the farm unhealthy, until the operator presses Start.
   Otherwise one restart ("Restarting vLLM after it stopped unexpectedly"); a second stop within 5 minutes falls
   back to Ollama for the run, under vLLM's name, with the reason on the panel. A start that fails falls back the
-  same way; the file keeps vLLM, so the next farm start tries again.
+  same way; the file keeps vLLM, so the next farm start tries again. vLLM is stopped before Ollama loads anything:
+  when that stop fails (something still answers on its port), the farm stays on vLLM, stopped and unhealthy, and
+  says why. The watch keeps looking during the panel's other jobs (an Ollama download, a password): only a job that
+  starts or stops vLLM itself pauses it.
 - On a DGX Spark the memory guard (`vllm.minFreeGb`, Automatic: 8 GB where the GPU shares the system memory) and
   four compile jobs are on by themselves ([On Linux (DGX Spark)](#on-linux-dgx-spark) says why).
 
-**Document reading beside it.** Ollama still reads documents (OCR), directly, in the memory kept for it. With
-another engine serving, the farm prefers `gemma4:12b` for it when that model is installed; the Performance card
+**Document reading beside it.** Ollama still reads documents (OCR), directly, in the memory kept for it. Beside
+vLLM, the farm prefers `gemma4:12b` for it when that model is installed (beside llama.cpp or an external server it
+keeps its own choice, the Ollama list's vision default); the Performance card
 warns when the reading model does not fit the 9 GB kept (production's `qwen3.8:latest` would not: 17.7 GB).
 Before vLLM or llama.cpp starts, Ollama's loaded models leave the GPU.
 
@@ -306,7 +323,8 @@ owner's question (a)). It keeps the same model, name and settings, and restarts 
   its key;
 - `lol.config.json` is copied to `lol.config.json.before-managed-vllm`, then gets a `vllm` block (the folder, the
   port, the name, the model, the context and people the external block declared, the memory and request cap the
-  server runs with, and any other flag it runs with in `vllm.extraArgs`) and loses its `external` block;
+  server runs with, and any other flag it runs with in `vllm.extraArgs`) and loses its `external` block (a
+  `llamacpp.enabled` left on is turned off: one engine on, as a switch writes it);
 - `serve.sh`'s marker is written in the server's folder, so the old launchers do nothing from then on: on Windows
   the log-on task only opens the Farm app (its `serve.sh` exits 0 and `start-windows.ps1` says "The farm runs vLLM
   now"), and on Linux `lol-vllm.service` starts nothing (`sudo systemctl disable lol-vllm` removes it). No task or

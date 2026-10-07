@@ -37,6 +37,11 @@ export class FarmSupervisor extends EventEmitter {
     private state: FarmState = { status: 'idle', adminUrl: null, selfUrl: null, lanUrls: [] };
     // Last time the child produced ANY output — the health-wait's liveness signal.
     private lastActivity = 0;
+    // A `lol up` ran since the last stop: Quit and Stop then run `lol down` even when neither that child nor its
+    // runtime file is left (crash restarts reap the file; a `lol up` that kept vLLM can die before writing one).
+    private ranSinceStop = false;
+    // The stop in progress: a Start waits for it, so it never boots a farm that keeps the vLLM `lol down` is stopping.
+    private stopping: Promise<void> | null = null;
 
     getState(): FarmState { return this.state; }
 
@@ -68,6 +73,7 @@ export class FarmSupervisor extends EventEmitter {
 
     // Start (or no-op if already ready).
     async start(): Promise<void> {
+        if (this.stopping) await this.stopping;
         if (this.state.status === 'ready' && this.child) return;
         const myGen = ++this.gen;
 
@@ -92,6 +98,7 @@ export class FarmSupervisor extends EventEmitter {
             stdio: ['ignore', 'pipe', 'pipe'],
         });
         this.child = child;
+        this.ranSinceStop = true;
         this.lastActivity = Date.now();
         child.stdout?.on('data', (d) => this.logChild(d));
         child.stderr?.on('data', (d) => this.logChild(d));
@@ -171,14 +178,26 @@ export class FarmSupervisor extends EventEmitter {
     // recorded PIDs are reaped: `lol up`'s plugins spawn detached, so a group-kill can miss them.
     // `keepEngine` (the share toggle, which starts the farm again at once): vLLM keeps running and the next `lol up`
     // keeps it (D4). So no `lol down`, and only `lol up` itself is killed (killOne), never its tree.
+    // While it runs the state says 'stopping' (not with keepState: the toggle's restart follows at once), so the
+    // window can say why Quit takes a while (vLLM frees the GPU) and Start waits for it.
     async stop(opts: { keepState?: boolean; keepEngine?: boolean } = {}): Promise<void> {
+        if (this.stopping) await this.stopping;
+        const run = this.doStop(opts);
+        this.stopping = run;
+        try { await run; } finally { if (this.stopping === run) this.stopping = null; }
+    }
+    private async doStop(opts: { keepState?: boolean; keepEngine?: boolean }): Promise<void> {
         this.gen++;                 // supersede any in-flight start()
         const child = this.child;
         this.child = null;          // null BEFORE killing so the exit event is ignored
-        if (!opts.keepEngine && (child || fs.existsSync(runtimeFile()))) await lolDown(this.env());
+        if (!opts.keepState) this.setState({ status: 'stopping', message: 'Stopping the farm… With vLLM this can take a minute, while it frees the GPU.' });
+        if (!opts.keepEngine && (child || this.ranSinceStop || fs.existsSync(runtimeFile()))) {
+            await lolDown(this.env());
+            this.ranSinceStop = false;
+        }
         if (child) await (opts.keepEngine ? killOne(child.pid) : killTree(child.pid));
         await reapStaleFarm();
-        if (!opts.keepState) this.setState({ status: 'stopped', adminUrl: null, selfUrl: null });
+        if (!opts.keepState) this.setState({ status: 'stopped', adminUrl: null, selfUrl: null, message: undefined });
     }
 
     // Refresh the LAN addresses from /lol/self (the machine may gain/lose an interface).

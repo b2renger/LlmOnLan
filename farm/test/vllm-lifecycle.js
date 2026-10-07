@@ -33,6 +33,14 @@
 //     take-over starts it.
 //  14 Windows only (§11.3-13): step 13's take-over, Undo and `lol down` from a copy of the farm in a folder whose
 //     name has a space, as the Farm app's own copy is (%APPDATA%/LlmOnLan Farm/farm)
+// The review of 2026-10-07:
+//  15 `lol down` never stops a vLLM the farm does not run: an operator's, routed to as an external server, whose
+//     folder the farm downloads a model into (during the download, and once it ended)
+//  16 another program on vLLM's port: the start says so, starts nothing, never routes to it; Ollama serves
+//  17 vLLM and llama.cpp both on in the file: llama.cpp never starts beside vLLM
+//  18 an Ollama download (an admin job) does not hide a vLLM that died: seen at once, restarted after the download
+//  19 a fallback whose stop leaves vLLM's port answering: no Ollama beside it; the farm stays on vLLM, stopped
+//  20 at boot, the farm's own vLLM that cannot serve as it is: stopped before Ollama serves
 
 const fs = require('fs');
 const os = require('os');
@@ -480,6 +488,136 @@ const STEPS = {
             FARM_DIR = FARM;
             execFileSync('cmd', ['/c', 'rmdir', path.join(copy, 'node_modules')], { windowsHide: true });   // the link only, never what it points to
         }
+    },
+    // ---- the review of 2026-10-07 ----
+    async 15() {
+        // `lol down` never stops a vLLM the farm does not run: an operator's (no marker), which the farm routes to as an
+        // external server and downloads a second model for (production before the take-over, Download on its card).
+        const before = await startOperatorWay();
+        writeExternalConfig({ root: ROOT, ...(distro ? { distro } : {}), port: PORTS.vllm, library: LIB });
+        fakeEnv(['FAKE_DELAY=3', 'FAKE_HF=slow']);
+        up();
+        await waitFor(self, 120000, 'the panel');
+        const d = await admin('vllm/download', { id: 'fake-b' });
+        await waitFor(async () => { const s = await status(); return s && s.installing; }, 60000, 'install.sh');
+        check('the external engine, a download into the operator\'s folder: recorded as not the farm\'s engine', d.ok && d.started && readRt().vllm && readRt().vllm.root === ROOT && readRt().vllm.serving === false,
+            JSON.stringify({ d, vllm: readRt() && readRt().vllm }));
+        const said = await stopFarm();
+        const after = await status();
+        check('`lol down` during it: the operator\'s vLLM keeps running (the same process group, answering)', !/Stopping vLLM \(this frees/.test(said)
+            && after.running && after.running.pgid === before && await V.answers(`http://127.0.0.1:${PORTS.vllm}/v1`, 3000), `${said} | running ${JSON.stringify(after.running && after.running.pgid)} before ${before}`);
+        check('…and the download stopped', !after.installing, JSON.stringify(after.installing));
+        // A download that ended is not recorded any more.
+        fakeEnv(['FAKE_DELAY=3']);
+        up();
+        await waitFor(self, 120000, 'the panel');
+        await admin('vllm/download', { id: 'fake-b' });
+        const dd = await waitFor(async () => { const x = await state(); return x.download && x.download.done && x; }, 120000, 'the download');
+        await sleep(500);
+        check('a download that ended: done, and the runtime file no longer names the folder', dd.download.ok && !readRt().vllm, JSON.stringify({ dl: dd.download.error, vllm: readRt().vllm }));
+        const said2 = await stopFarm();
+        check('…`lol down` leaves the operator\'s vLLM running', !/Stopping vLLM/.test(said2) && (await pgid()) === before, said2);
+        killFake();
+    },
+    async 16() {
+        // Another program answers on vLLM's port: the start says so, starts nothing, and never takes that program's
+        // answers for its own (it would route chats to someone else's model).
+        killFake(); touch('run/managed-by-farm', false);
+        // Once the last fake's relay let the port go: under WSL's mirrored networking Windows holds a port while
+        // Linux keeps a connection to it in TIME_WAIT (60 s).
+        const other = await waitFor(() => new Promise((r) => {
+            const srv = http.createServer((q, s) => { s.writeHead(200, { 'content-type': 'application/json' }); s.end('{"object":"list","data":[{"id":"someone-else"}]}'); });
+            srv.once('error', () => r(null));
+            srv.listen(PORTS.vllm, '127.0.0.1', () => r(srv));
+        }), 150000, 'the port to be free');
+        try {
+            writeConfig();
+            fakeEnv(['FAKE_DELAY=3']);
+            up();
+            await waitFor(self, 120000, 'the panel');
+            const s = await waitFor(async () => { const x = await state(); return x.vllm.phase === 'failed' && x; }, 120000, 'the start to give up');
+            check('another program on vLLM\'s port: the start says so and starts nothing', /Another program uses port 8299/.test(s.vllm.bootError || '') && !/vLLM: starting Fake A/.test(out) && !(await pgid()),
+                `${s.vllm.bootError} ${out.split('\n').filter((l) => /vLLM/.test(l)).slice(-4).join(' | ')}`);
+            check('…Ollama serves instead, never that program', s.backend.engine === 'ollama' && replyOf(await chat('assistant')) === 'fake ollama reply');
+            await stopFarm();
+        } finally { await new Promise((r) => other.close(r)); }
+    },
+    async 17() {
+        // vLLM and llama.cpp both on in the file (a farm that served llama.cpp before an operator's vLLM, then taken
+        // over): vLLM serves, and llama.cpp is never started beside it.
+        writeConfig();
+        const cfg = readConfig(); cfg.llamacpp = { enabled: true, binDir: path.join(scratch, 'no-llama-here') };
+        fs.writeFileSync(path.join(scratch, 'lol.config.json'), JSON.stringify(cfg, null, 2));
+        fakeEnv(['FAKE_DELAY=3']);
+        const s = await bootReady();
+        check('vLLM and llama.cpp both on: llama.cpp stands down, never started', /llama\.cpp stands down — one engine at a time\./.test(out) && !/llama\.cpp backend:|llama\.cpp: /.test(out),
+            out.split('\n').filter((l) => /llama/.test(l)).join(' | '));
+        check('…vLLM serves, a chat goes through', s.backend.engine === 'vllm' && s.llamacpp.enabled === false && replyOf(await chat()) === 'fake reply');
+        await stopFarm();
+    },
+    async 18() {
+        // An Ollama download (an admin job) does not hide a vLLM that died: the farm says so at once, so clients go
+        // elsewhere; the restart follows once the download ends. Adopted, so no process of its own tells the farm.
+        writeConfig();
+        fakeEnv(['FAKE_DELAY=3']);
+        await bootReady();
+        await crashFarm();
+        up();
+        await waitFor(self, 120000, 'the panel');
+        const s0 = await state();
+        check('adopted after a farm crash: only its port tells it is alive', s0.vllm.phase === 'ready' && s0.vllm.adopted);
+        fakeOllama.knobs.pullMs = 90000;
+        try {
+            const p = await admin('ollama/pull', { id: 'slow:1b' });
+            check('an Ollama download: the job', p.ok && p.started, JSON.stringify(p));
+            killFake();
+            const t0 = Date.now();
+            const seen = await waitFor(async () => { const x = await state(); const y = await self(); return x.vllm.phase !== 'ready' && y && y.healthy === false && x; }, 60000, 'the farm to see it').catch(() => null);
+            check(`vLLM died during the download: seen in ${Math.round((Date.now() - t0) / 1000)} s, the farm unhealthy, the download still running`,
+                !!seen && !!seen.job && seen.job.kind === 'pull' && !seen.job.done, seen ? JSON.stringify({ phase: seen.vllm.phase, job: seen.job && seen.job.label }) : 'not seen while the download ran');
+            const j = await jobDone('Restarting vLLM after it stopped unexpectedly');
+            check('…restarted once the download ended', j.job.ok && j.vllm.phase === 'ready', j.job.error || '');
+        } finally { fakeOllama.knobs.pullMs = 3000; }
+        await stopFarm();
+    },
+    async 19() {
+        // vLLM stops twice in 5 minutes and the farm falls back, but its stop leaves something answering on vLLM's
+        // port: the farm does not load Ollama's model beside it. It stays on vLLM, stopped, and says why.
+        writeConfig();
+        fakeEnv(['FAKE_DELAY=3']);
+        await bootReady();
+        killFake();
+        await jobDone('Restarting vLLM after it stopped unexpectedly');
+        const loads = () => fakeOllama.requests.filter((r) => r === 'POST /api/chat' || /^POST \/api\/generate$/.test(r)).length;
+        const loadsBefore = loads();
+        // The second time: its port dies (the relay), vLLM itself still runs; stopped, a copy keeps the port.
+        touch('fake-linger');
+        sh(`pkill -f ${q(`relay.py 127.0.0.1 ${PORTS.vllm} ${ROOT}/run/vllm.sock`)} || true`);
+        try {
+            const s = await waitFor(async () => { const x = await state(); return x.vllm.phase === 'stopped' && x.vllm.phaseText && x; }, 180000, 'the fallback that cannot stop vLLM');
+            check('the stop failed: still vLLM, stopped, saying why', s.backend.engine === 'vllm' && /does not start Ollama beside it/.test(s.vllm.phaseText) && /still answers on port 8299/.test(s.vllm.phaseText), s.vllm.phaseText);
+            const snap = await self();
+            check('…the farm unhealthy, and Ollama never loaded a model', snap.healthy === false && loads() === loadsBefore && readConfig().vllm.enabled === true, JSON.stringify({ healthy: snap.healthy, loads: loads() - loadsBefore }));
+            check('…a chat is told it is stopped', /stopped for now/.test(((await chat()).json || { error: {} }).error.message || ''));
+        } finally { touch('fake-linger', false); killFake(); }
+        await stopFarm();
+    },
+    async 20() {
+        // At boot, the farm's own vLLM runs but cannot serve as it is, and the check says why (here: the model the
+        // file now names is not on disk): it is stopped before Ollama serves, never left beside it.
+        writeConfig();
+        fakeEnv(['FAKE_DELAY=3']);
+        await bootReady();
+        await crashFarm();
+        check('the farm crashed with its vLLM running', !!(await pgid()) && (await status()).managed);
+        sh(`rm -rf ${q(`${ROOT}/hf/fake-b`)}`);
+        writeConfig({ model: 'fake-b' });
+        up();
+        await waitFor(self, 120000, 'the panel');
+        const s = await state();
+        check('…the next boot cannot use it: stopped first, then Ollama serves, saying why', s.backend.engine === 'ollama' && !(await pgid()) && /Fake B is not downloaded yet/.test(s.vllm.bootError || ''),
+            JSON.stringify({ engine: s.backend.engine, pgid: await pgid(), why: s.vllm.bootError }));
+        await stopFarm();
     },
 };
 

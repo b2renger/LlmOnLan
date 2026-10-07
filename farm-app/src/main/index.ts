@@ -108,6 +108,11 @@ function createWindow(): void {
     });
     win.removeMenu();
     win.loadFile(path.join(app.getAppPath(), 'renderer', 'index.html'));
+    // Closing the window quits (except on macOS, where an app outlives its windows): through app.quit(), so the
+    // window stays up and says "Stopping the farm…" while `lol down` stops it (vLLM can take a minute to free the
+    // GPU); app.exit() closes it once that is done.
+    win.on('close', (e) => { if (process.platform !== 'darwin') { e.preventDefault(); app.quit(); } });
+    win.on('closed', () => { win = null; });
 
     // Keep external links (the "Schedule a job" style openExternal, docs, …) in the
     // system browser.
@@ -259,7 +264,7 @@ function registerIpc(): void {
 
 // --- lifecycle --------------------------------------------------------------
 
-app.on('second-instance', () => { if (win) { if (win.isMinimized()) win.restore(); win.focus(); } });
+app.on('second-instance', () => { if (win && !win.isDestroyed()) { if (win.isMinimized()) win.restore(); win.focus(); } });
 
 app.whenReady().then(() => {
     const settings = loadSettings();
@@ -293,13 +298,15 @@ app.whenReady().then(() => {
     app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
 });
 
+// Quit: the farm stops first (`lol down`, vLLM included), the window showing it, then the app exits. A second Quit
+// meanwhile waits for the same stop; app.exit() skips this event and every window's close.
 let quitting = false;
-app.on('before-quit', async (e) => {
+app.on('before-quit', (e) => {
+    e.preventDefault();
     if (quitting) return;
     quitting = true;
-    e.preventDefault();
-    await supervisor.stop();
-    app.exit(0);
+    if (win && !win.isDestroyed()) win.show();
+    void supervisor.stop().finally(() => app.exit(0));
 });
 
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });

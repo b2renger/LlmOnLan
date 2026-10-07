@@ -81,7 +81,7 @@ function scriptCommand(config, script, env = {}, { platform = process.platform, 
 
 function parseStatus(text) {
     const out = {
-        home: null, arch: null, root: null, distro: null, uv: null, curl: null, gpu: null,
+        home: null, arch: null, root: null, distro: null, uv: null, curl: null, cc: null, gpu: null,
         memTotalGib: null, memAvailableGib: null, diskFreeGb: null,
         installs: [], models: [], running: null, found: [], guardLine: null, installing: null, managed: false,
     };
@@ -92,7 +92,7 @@ function parseStatus(text) {
         if (i < 1) continue;
         const k = line.slice(0, i); const v = line.slice(i + 1);
         switch (k) {
-        case 'home': case 'arch': case 'root': case 'distro': case 'uv': case 'curl': out[k] = v || null; break;
+        case 'home': case 'arch': case 'root': case 'distro': case 'uv': case 'curl': case 'cc': out[k] = v || null; break;
         case 'gpu': {   // name, MiB total, MiB free, compute capability ([N/A] where the GPU shares the system memory)
             const p = v.split(','); const cap = p.pop(); const free = p.pop(); const total = p.pop();
             out.gpu = { name: p.join(',').trim(), totalGib: num(total) != null ? num(total) / 1024 : null, freeGib: num(free) != null ? num(free) / 1024 : null, cap: num(cap) };
@@ -500,11 +500,12 @@ function applyChange(config, body = {}, { st = null, launch = null, root = confi
 // ---- what to do ----------------------------------------------------------------------------------------------------
 
 // At boot, with vLLM the engine: serve with the running server at once, wait for one that is starting, restart one
-// launched otherwise, or start one.
+// launched otherwise, or start one. A server that runs with these settings is kept whatever the check says: a
+// problem there (a GPU nvidia-smi missed once, a slow disk check) would otherwise send the farm to Ollama beside it.
 function bootDecision({ supported: sup = { ok: true }, problems = [], running = null, adopt = null }) {
     if (!sup.ok) return { action: 'unavailable', reason: UNSUPPORTED };
-    if (problems.length) return { action: 'unavailable', reason: problems[0] };
     if (running && adopt && adopt.ok) return { action: running.ready ? 'adopt' : 'wait', reason: null };
+    if (problems.length) return { action: 'unavailable', reason: problems[0] };
     return { action: running ? 'restart' : 'start', reason: null };
 }
 
@@ -689,6 +690,7 @@ function downloadFailure(r, repo, button = 'Download') {
     if (r.kind === 'gated') return 'Hugging Face asks for an account to download this model. Pick another model.';
     if (r.kind === 'notfound') return `There is no model named ${repo} on Hugging Face. Check the name.`;
     if (r.kind === 'disk') return `The disk is full. Free some space, then press ${button} again.`;
+    if (r.kind === 'noinstall') return 'vLLM is not installed on this computer yet: press Install vLLM first.';
     // A Python exception's type name says nothing to a person: "httpx.ReadTimeout: …", "OSError: …".
     const why = String(r.error || '').replace(/^(\w+(\.\w+)+|\w+(Error|Exception)):\s*/, '').slice(0, 160) || 'no answer';
     return `The download stopped: ${why}. Press ${button} again to continue where it left off.`;
@@ -700,8 +702,8 @@ function downloadFailure(r, repo, button = 'Download') {
 // `probe` = {platform, arch, wsl: {list} | {error: 'no-wsl'|'no-distro'|'timeout'}, distro, st (parseStatus) | null,
 // stError, hostDiskFreeGb, hostDrive}; `entry` = the model to check (the selected one by default).
 function problemsFrom(probe, config, entry = vllmEntry(config)) {
-    const oks = []; const problems = []; const warnings = [];
-    const done = () => ({ oks, problems, warnings });
+    const oks = []; const problems = []; const warnings = []; let gpuTooSmall = false;
+    const done = () => ({ oks, problems, warnings, gpuTooSmall });
     const sup = supported(probe.platform, probe.arch);
     if (!sup.ok) { problems.push(UNSUPPORTED); return done(); }
     const win = probe.platform === 'win32';
@@ -744,12 +746,18 @@ function problemsFrom(probe, config, entry = vllmEntry(config)) {
     const weights = (e) => e.weightsGib ?? (e.sizeGb || 0) * 1e9 / GIB;
     const smallest = lib.length ? Math.min(...lib.map(weights)) + RUNTIME_GIB + 2 : 0;
     if (lib.length && (mem.totalGib || 0) < smallest) {
+        gpuTooSmall = true;   // nothing to install for: the panel offers no Install
         problems.push(`This GPU has ${gpuGb} GB: too little for any model in the vLLM list (the smallest needs about ${r1(smallest)} GB). llama.cpp is the engine for this card.`);
     }
     if (st.gpu.cap != null && st.gpu.cap < 12) {
         warnings.push('This GPU is older than the cards these models were measured on (RTX PRO 6000, DGX Spark): they may not load. If a start fails, llama.cpp is the engine for this card.');
     }
-    if (!st.curl) problems.push('curl is missing. In a terminal, run  sudo apt install curl , then press Check again.');
+    // What a person types, and where: on Windows in the distribution's own window (the Start menu opens it).
+    const apt = (pkg) => `${win ? `Open ${distro} from the Start menu, run` : 'In a terminal, run'}  sudo apt install ${pkg} , then press Check again.`;
+    if (!st.curl) problems.push(`curl is missing. ${apt('curl')}`);
+    // vLLM compiles a small GPU launcher (Triton) and kernels (FlashInfer) at a start, with the system's C compiler;
+    // a fresh Ubuntu in WSL has none, and the start would fail with a Python error nobody can act on.
+    if (!st.cc) problems.push(`vLLM needs a C compiler to prepare the GPU, and this ${win ? `${distro}` : 'computer'} has none. ${apt('build-essential')}`);
     const root = resolveRoot(config, st);
     const inst = st.installs.find((i) => i.root === root);
     if (inst) {
@@ -766,16 +774,28 @@ function problemsFrom(probe, config, entry = vllmEntry(config)) {
     if (!entry) problems.push(`The model "${config.vllm.model}" is not in the vLLM list: pick one there.`);
     else if (!m) problems.push(`${label} is not downloaded yet: press Download next to it.`);
     else if (m.partial) problems.push(`${label} is only partly downloaded: press Download to finish it.`);
-    // Disk: about 10 GB for vLLM itself, plus what is left of the model; on Windows the smaller of WSL's own disk
-    // (a virtual disk that reports up to 1 TB) and the Windows drive that holds it.
-    const need = (inst ? 0 : 10) + (entry && !(m && !m.partial) ? Math.max(0, (entry.sizeGb || 0) - (m ? m.gb : 0)) : 0);
-    const free = Math.min(st.diskFreeGb ?? Infinity, probe.hostDiskFreeGb ?? Infinity);
-    if (need > 0 && free < need) {
-        problems.push(`Not enough free disk: ${inst ? `${label} needs` : `vLLM and ${label} need`} about ${r1(need)} GB, and ${r1(free)} GB are free.${win && probe.hostDrive ? ` ${distro}'s disk lives on drive ${probe.hostDrive}:.` : ''} Free some space, then press Check again.`);
-    } else if (Number.isFinite(free)) {
-        oks.push(`${r1(free)} GB free for vLLM and its models.`);
-    }
+    const disk = diskCheck(probe, entry, { venv: !inst, distro });
+    if (disk.problem) problems.push(disk.problem);
+    else if (Number.isFinite(disk.free)) oks.push(`${r1(disk.free)} GB free for vLLM and its models.`);
     return done();
+}
+
+// The disk an install or a download needs (§4.2): about 10 GB for vLLM itself when its Python environment is (re)made
+// (`venv`), plus what is left of the model; against what is free, on Windows the smaller of WSL's own disk (a virtual
+// disk that reports up to 1 TB) and the Windows drive that holds it. A download also leaves `keepGb` free: WSL's disk
+// grows on drive C: and never gives the space back, and a full C: stops Windows itself. → {need, free, problem}.
+function diskCheck(probe, entry, { venv = false, keepGb = 0, button = 'Check', distro = null } = {}) {
+    const st = (probe && probe.st) || {};
+    const m = entry && (st.models || []).find((x) => x.folder === folderOf(entry));
+    const model = entry && !(m && !m.partial) ? Math.max(0, (entry.sizeGb || 0) - (m ? m.gb : 0)) : 0;
+    const need = (venv ? 10 : 0) + model;
+    const free = Math.min(st.diskFreeGb ?? Infinity, (probe && probe.hostDiskFreeGb) ?? Infinity);
+    if (!(need > 0 && free < need + keepGb)) return { need, free, problem: null };
+    const label = entry ? entry.label : 'the model';
+    const what = !venv ? `${label} needs` : model ? `vLLM and ${label} need` : 'vLLM needs';
+    const where = probe && probe.platform === 'win32' && probe.hostDrive ? ` ${distro || probe.distro || st.distro || 'WSL'}'s disk lives on drive ${probe.hostDrive}:.` : '';
+    const keep = keepGb ? ` (the farm leaves ${keepGb} GB free beside it)` : '';
+    return { need, free, problem: `Not enough free disk: ${what} about ${r1(need)} GB, and ${r1(Math.max(0, free))} GB are free${keep}.${where} Free some space, then press ${button} again.` };
 }
 
 // Does document reading's model (Ollama's, driven directly) fit the memory kept for it beside vLLM (§1.4)? Its size
@@ -982,8 +1002,10 @@ async function start(t, plan) {
 // Wait for a start: every 3 s, is the port answering, and what did the log say since `fromByte`? Fails fast when
 // the child exits or the log says vLLM exited; gives up after 10 min with no new log line, or 30 min in all (a
 // first start on a DGX Spark compiles kernels for minutes, silently). With no child (a start found in progress at
-// boot), `isDead` (status.sh) is asked every 30 s. → {ok, code, lines, phase, cancelled}.
-async function waitReady(t, { child = null, alive, isDead = null, isCancelled = () => false, onPhase = () => {}, onLine = () => {},
+// boot), `isDead` (status.sh) is asked every 30 s. A start of its own (`child`) counts only once serve.sh logged
+// this server ready, or status.sh says this root's server is (`isReady`, asked at most every 30 s): the port alone
+// can be another program's, and routing to it would serve someone else's model. → {ok, code, lines, phase, cancelled}.
+async function waitReady(t, { child = null, alive, isDead = null, isReady = null, isCancelled = () => false, onPhase = () => {}, onLine = () => {},
     fromByte = 0, pollMs = 3000, stallMs = 10 * 60e3, capMs = 30 * 60e3 } = {}) {
     let exited = null;
     if (child) {
@@ -991,7 +1013,7 @@ async function waitReady(t, { child = null, alive, isDead = null, isCancelled = 
         child.once('error', () => { exited = -1; });
     }
     let off = fromByte; let phase = null; const lines = [];
-    const t0 = Date.now(); let grew = t0; let deadAt = t0;
+    const t0 = Date.now(); let grew = t0; let deadAt = t0; let askedAt = 0;
     const readOn = async () => {
         const r = await readLog(t, { fromByte: off });
         if (r.size < off) off = 0;
@@ -1011,7 +1033,10 @@ async function waitReady(t, { child = null, alive, isDead = null, isCancelled = 
         if (isCancelled()) return { ok: false, cancelled: true, lines, phase };
         await readOn();
         if (phase && phase.key === 'exited') return { ok: false, code: phase.status, lines, phase };
-        if (await alive()) return { ok: true, lines, phase };
+        if (await alive()) {
+            if (!child || (phase && phase.key === 'ready')) return { ok: true, lines, phase };
+            if (isReady && Date.now() - askedAt >= 30e3) { askedAt = Date.now(); if (await isReady()) return { ok: true, lines, phase }; }
+        }
         if (exited != null) { await sleep(500); await readOn(); return { ok: false, code: exited, lines, phase }; }
         const now = Date.now();
         if (!child && isDead && now - deadAt >= 30e3) { deadAt = now; if (await isDead()) return { ok: false, code: 'gone', lines, phase }; }
@@ -1139,7 +1164,7 @@ module.exports = {
     parseStatus, memOf, vllmEntry, folderOf, resolveRoot, facts, peopleFit, measuredFor, seatsAuto, maxNumSeqsAuto, poolGib,
     familyArgs, isGeneric, repoOf, newLibraryEntry, applyChange, ocrFit,
     settingsOf, argvFor, planFor, flagMap, adoptable,
-    bootDecision, downDecision, isOrphan, takeOverPlan, startPhase, logOffset, explainFailure, installStepText, downloadFailure, problemsFrom, baseUrl,
+    bootDecision, downDecision, isOrphan, takeOverPlan, startPhase, logOffset, explainFailure, installStepText, downloadFailure, problemsFrom, diskCheck, baseUrl,
     answers, runCmd, spawnScript, wslDistros, lxssBasePath, hostDiskFree, status, probe, targetOf, logFile, readLog,
     start, waitReady, stop, stopInstall, folderBytes, install, removeFolder, takeOverProbe, setMarker,
 };

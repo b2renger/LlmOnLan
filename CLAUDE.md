@@ -80,7 +80,13 @@ docs) is `docs/reviews/DOCS_REVIEW_2026-09-27_{FARM,SHELL,COMPUTER}.md`. Snapsho
     (other flags in `extraArgs`), `configFile.takeOverFile` copies `lol.config.json.before-managed-vllm` then
     swaps the blocks, the marker is written, the server is adopted and LiteLLM NOT restarted (routing equal apart
     from api_key); Undo until a setting changes or a restart. A farm-v0.0.42 refuses a file with a `vllm` block
-    (strict zod). Tests: `farm/test/vllm-lifecycle.js` (`LOL_VLLM_FAKE=1`, `test/fake-vllm` inside WSL, 14 steps).
+    (strict zod). The review fixes (2026-10-08): `lol down` stops only the farm's own vLLM (the one it serves
+    with, or one carrying its marker), never an operator's in a folder it downloaded into; the scripts own a pid
+    file only when its leader runs from their root (WSL reuses pids after a reboot); a start refuses a port another
+    program answers on and counts only once `serve.sh` logged it ready; Ollama never loads beside a vLLM whose stop
+    failed (the farm stays on vLLM, stopped); the check needs a C compiler (`build-essential`); Install/Download
+    check the disk and leave 10 GB free; the take-over writes llama.cpp off. Tests: `farm/test/vllm-lifecycle.js`
+    (`LOL_VLLM_FAKE=1`, `test/fake-vllm` inside WSL, 20 steps).
   - **external — config file only, for servers the farm cannot run** (SGLang/TensorRT-LLM/another machine/a vLLM
     run by hand; 2026-09-07). The farm never installs/starts/stops it. Its panel button shows only while the file
     holds an `external` block (a developer wrote it); switching away from it works from the panel. Health = `GET
@@ -348,7 +354,8 @@ into `DATA_DIR/lol-client`, then a Preferences move + relaunch). When working he
    launch-at-login, update notifications + Check for updates, the panel access token, logs folder); it
    deliberately never re-applies model settings at boot, which used to overwrite the panel's. Its Quit and Stop run
    `lol down` FIRST (so the vLLM the farm runs stops too), then tree-kill `lol up` as a backstop; the share toggle
-   restarts the farm keeping vLLM (`keepEngine`: only `lol up`'s own pid is killed, never its tree); a crash
+   restarts the farm keeping vLLM (`keepEngine`: only `lol up`'s own pid is killed, never its tree); Quit keeps the
+   window up ("Stopping the farm…", status `stopping`, Start waits) until `lol down` is done; a crash
    restart reaps the dead run's recorded pids first (`reapStaleFarm`, which never stops vLLM). Launch at login on
    Linux writes an XDG autostart entry for the AppImage (`farm-app/test/supervisor.test.js` checks all of it).
    Released on `farm-v*` tags as GitHub prereleases (Windows x64, macOS arm64, Linux arm64 AppImage). No
@@ -520,7 +527,7 @@ CLI commands:
 | `lol up` / `serve` | Probe an external engine; ensure Ollama (start a local one if down); pick the Ollama models (prompt / `--model` / `--no-pick`); pull what's missing; start llama-server if enabled (fall back to Ollama on failure); check vLLM if it is the engine (keep a matching one, else queue its start); size the Ollama context; generate `litellm/config.generated.yaml`; start LiteLLM on loopback + the seat gate on `proxy.port`; start the plugins; start the beacon, `/lol/self` and the admin panel; print the admin token; start vLLM as the job "Starting vLLM". Foreground. |
 | `lol models ls` / `add <id>` / `rm <id>` / `pull` | Manage the Ollama catalog in `models` (then `lol up --no-pick`). |
 | `lol status` | Health of each Ollama host + the proxy + which models are loaded. |
-| `lol down` / `stop` | Stop the proxy + `llama-server` + SearXNG/TTS/OCR + beacon (and any Ollama it started), and the vLLM the farm runs (from the runtime file, else the config). |
+| `lol down` / `stop` | Stop the proxy + `llama-server` + SearXNG/TTS/OCR + beacon (and any Ollama it started), and the vLLM the farm runs (from the runtime file, else the config; never an operator's vLLM the farm only downloaded a model for). |
 | `lol install` / `setup` | One-time, idempotent bootstrap: Ollama, the LiteLLM venv, every `models` + `preinstall` entry, the SearXNG + OCR venvs, and (only when `llamacpp.enabled`) the llama.cpp build + weights. |
 | `lol fleet` / `lol bench` | Every farm on the LAN; load-test N concurrent chats before a workshop. |
 
