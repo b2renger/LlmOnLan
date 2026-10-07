@@ -1,0 +1,86 @@
+{
+ "CAL": {
+  "qwen3.6-35b-a3b": {
+   "key": "qwen36",
+   "stepMs": 4.1,
+   "extraGB": 0.29,
+   "effLin": 0.257,
+   "effAttn": 0.227,
+   "group": 8
+  },
+  "nemotron-3.5-lightning-30b-a3b": {
+   "key": "nemotron",
+   "stepMs": 2.9,
+   "extraGB": 0.95,
+   "effLin": 0.21,
+   "effAttn": 0.314,
+   "group": 16
+  },
+  "qwen3.8-27b": {
+   "key": "qwen38",
+   "stepMs": 2.81,
+   "extraGB": 0,
+   "effLin": 0.734,
+   "effAttn": 0.234,
+   "group": 6
+  }
+ },
+ "out": {
+  "gb10PrefillEff": 0.83,
+  "stateCost": 1.145,
+  "kvEff": 0.757,
+  "interleave": 0.746,
+  "stage1": {
+   "qwen3.6-35b-a3b": {
+    "key": "qwen36",
+    "stepMs": 4.26,
+    "extraGB": 0,
+    "effLin": 0.257,
+    "effAttn": 0.227,
+    "group": 8
+   },
+   "nemotron-3.5-lightning-30b-a3b": {
+    "key": "nemotron",
+    "stepMs": 3.43,
+    "extraGB": 0,
+    "effLin": 0.21,
+    "effAttn": 0.314,
+    "group": 16
+   },
+   "qwen3.8-27b": {
+    "key": "qwen38",
+    "stepMs": 2.81,
+    "extraGB": 0,
+    "effLin": 0.734,
+    "effAttn": 0.234,
+    "group": 6
+   }
+  },
+  "stage1assume": {
+   "stateCost": 1.145,
+   "kvEff": 0.757,
+   "interleave": 0.746
+  },
+  "loo": {
+   "qwen36": {
+    "stateCost": 1.452,
+    "kvEff": 0.881,
+    "interleave": 0.785
+   },
+   "nemotron": {
+    "stateCost": 0.936,
+    "kvEff": 0.669,
+    "interleave": 0.424
+   },
+   "qwen38": {
+    "stateCost": 1.059,
+    "kvEff": 0.699,
+    "interleave": 0.728
+   }
+  },
+  "unifiedMemGain": 1.04,
+  "ttftBaseS": 0.25,
+  "ttftPhi": 1.071,
+  "r1Theta": 0.335
+ }
+}

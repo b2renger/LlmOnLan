@@ -1,0 +1,442 @@
+<title>LlmOnLan Capacity Explorer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: a control strip over a models x hardware matrix; the clicked cell opens a detail sheet below. */
+:root {
+  --bg: #f4f6f7; --surface: #ffffff; --surface-2: #eef1f3; --ink: #14181d; --muted: #5a636d; --line: #d9dee3;
+  --accent: #0e7468; --accent-ink: #ffffff; --heat-0: #ffffff; --heat-1: #0e7468;
+  --good: #1d7a3a; --warn: #a85a06; --bad: #b42318; --measured: #0e7468; --calibrated: #6d5bd0; --estimated: #8a929c;
+  --sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0c0f12; --surface: #14181d; --surface-2: #1b2027; --ink: #e6eaee; --muted: #98a2ad; --line: #2a3038;
+  --accent: #3cc7b5; --accent-ink: #06201c; --heat-0: #14181d; --heat-1: #3cc7b5;
+  --good: #4cc27a; --warn: #e3a14a; --bad: #f07a6e; --measured: #3cc7b5; --calibrated: #a597ff; --estimated: #8a939e; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #0c0f12; --surface: #14181d; --surface-2: #1b2027; --ink: #e6eaee; --muted: #98a2ad; --line: #2a3038;
+  --accent: #3cc7b5; --accent-ink: #06201c; --heat-0: #14181d; --heat-1: #3cc7b5;
+  --good: #4cc27a; --warn: #e3a14a; --bad: #f07a6e; --measured: #3cc7b5; --calibrated: #a597ff; --estimated: #8a939e; color-scheme: dark }
+* { box-sizing: border-box }
+body { background: var(--bg); color: var(--ink); font: 14px/1.5 var(--sans); padding-inline: 16px; padding-block: 20px 48px; -webkit-font-smoothing: antialiased }
+.wrap { max-width: 1240px; margin: 0 auto; display: grid; gap: 18px }
+h1, h2, h3 { margin: 0; text-wrap: balance; letter-spacing: -0.01em }
+h1 { font-size: 26px; font-weight: 700 }
+h2 { font-size: 17px; font-weight: 600 }
+h3 { font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted) }
+p { margin: 0 }
+.num, .mono { font-family: var(--mono); font-variant-numeric: tabular-nums }
+.muted { color: var(--muted) }
+header { display: grid; gap: 6px }
+header .lede { color: var(--muted); max-width: 78ch }
+.facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px }
+.fact { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; display: grid; gap: 4px; min-width: 0 }
+.fact b { font-family: var(--mono); font-size: 18px; font-weight: 600 }
+.fact span { color: var(--muted); font-size: 13px }
+
+/* Controls */
+.controls { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px; display: grid; gap: 12px }
+.row { display: flex; flex-wrap: wrap; gap: 14px 22px; align-items: flex-end }
+.ctl { display: grid; gap: 5px; min-width: 0 }
+.ctl > label, .ctl > .lab { font-size: 12px; color: var(--muted); font-weight: 500; letter-spacing: 0.02em }
+.seg { display: inline-flex; flex-wrap: wrap; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--surface-2) }
+.seg button { font: 500 13px var(--sans); color: var(--ink); background: transparent; border: 0; padding: 6px 11px; cursor: pointer; border-right: 1px solid var(--line) }
+.seg button:last-child { border-right: 0 }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink) }
+.seg button:focus-visible, select:focus-visible, input:focus-visible, summary:focus-visible, .cell:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
+select, input[type="number"] { font: 500 13px var(--sans); color: var(--ink); background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px }
+input[type="number"] { width: 84px; font-family: var(--mono) }
+details.adv { border-top: 1px dashed var(--line); padding-top: 10px }
+details.adv summary { cursor: pointer; color: var(--muted); font-size: 13px; font-weight: 500 }
+details.adv .row { margin-top: 10px }
+.hint { font-size: 12px; color: var(--muted); max-width: 70ch }
+
+/* Matrix */
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px; display: grid; gap: 12px; min-width: 0 }
+.panel-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 16px; align-items: baseline }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12px; color: var(--muted); align-items: center }
+.conf { display: inline-block; width: 9px; height: 9px; border-radius: 50%; vertical-align: 1px; margin-right: 5px }
+.conf.measured { background: var(--measured) }
+.conf.calibrated { background: transparent; border: 2px solid var(--calibrated) }
+.conf.estimated { background: transparent; border: 1.5px dashed var(--estimated) }
+.scroll { overflow-x: auto; min-width: 0 }
+table.matrix { border-collapse: separate; border-spacing: 3px; min-width: 980px; width: 100% }
+.matrix th { font-size: 12px; font-weight: 600; text-align: left; vertical-align: bottom; padding: 4px 6px; color: var(--ink) }
+.matrix thead th { min-width: 88px }
+.matrix thead th small { display: block; font-weight: 400; color: var(--muted); font-family: var(--mono); font-size: 11px }
+.matrix th.model { min-width: 200px; max-width: 250px; font-weight: 500 }
+.matrix th.model small { display: block; color: var(--muted); font-weight: 400; font-size: 11px }
+.matrix tr.group th { padding-top: 12px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted) }
+.cell { position: relative; border-radius: 6px; padding: 6px 7px 5px; min-height: 44px; cursor: pointer; border: 1px solid var(--line); background: var(--heat-0); color: var(--ink); text-align: left; font: inherit; width: 100%; display: grid; gap: 1px }
+.cell .v { font-family: var(--mono); font-weight: 600; font-size: 14px; font-variant-numeric: tabular-nums }
+.cell .r { font-family: var(--mono); font-size: 10.5px; color: var(--muted) }
+.cell .c { position: absolute; top: 6px; right: 6px }
+.cell.no { background: var(--surface-2); color: var(--muted); cursor: default; border-style: dashed }
+.cell.no .v { font-weight: 400 }
+.cell.ok-class::after { content: ""; position: absolute; left: 6px; right: 6px; bottom: 3px; height: 2px; border-radius: 2px; background: var(--good) }
+.cell[aria-pressed="true"] { outline: 2px solid var(--ink); outline-offset: 1px }
+.cell.hot .v, .cell.hot .r { color: var(--accent-ink) }
+
+/* Detail */
+.detail { display: grid; gap: 14px }
+.chips { display: flex; flex-wrap: wrap; gap: 6px }
+.chip { font-size: 12px; border: 1px solid var(--line); border-radius: 999px; padding: 2px 9px; background: var(--surface-2); white-space: nowrap }
+.chip.measured { border-color: var(--measured); color: var(--measured) }
+.chip.calibrated { border-color: var(--calibrated); color: var(--calibrated) }
+.chip.estimated { border-color: var(--estimated); color: var(--muted) }
+.chip.bind { border-color: var(--warn); color: var(--warn) }
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px }
+.kpi { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; display: grid; gap: 2px; min-width: 0 }
+.kpi .k { font-size: 12px; color: var(--muted) }
+.kpi .v { font-family: var(--mono); font-size: 20px; font-weight: 600; font-variant-numeric: tabular-nums }
+.kpi .s { font-family: var(--mono); font-size: 11.5px; color: var(--muted) }
+.membar { display: flex; height: 22px; border-radius: 6px; overflow: hidden; border: 1px solid var(--line); background: var(--surface-2) }
+.membar span { display: block; height: 100% }
+.mem-legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: var(--muted) }
+.sw { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px }
+.charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px }
+.chart { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; display: grid; gap: 6px; min-width: 0 }
+.chart svg { width: 100%; height: auto; display: block; overflow: visible }
+.chart text { fill: var(--muted); font: 11px var(--mono) }
+.chart .grid { stroke: var(--line); stroke-width: 1 }
+.chart .ln { fill: none; stroke: var(--accent); stroke-width: 2 }
+.chart .band { fill: var(--accent); opacity: 0.14 }
+.chart .bar { stroke: var(--bad); stroke-width: 1.2; stroke-dasharray: 4 3 }
+.chart .meas { fill: var(--measured); stroke: var(--surface); stroke-width: 1.5 }
+.chart .meas.fail { fill: var(--surface); stroke: var(--bad); stroke-width: 1.5 }
+.notes { display: grid; gap: 4px; font-size: 13px; color: var(--muted); padding-left: 18px; margin: 0 }
+table.q { border-collapse: collapse; font-size: 13px; width: 100% }
+.q td, .q th { border-bottom: 1px solid var(--line); padding: 5px 8px; text-align: left }
+.q td.num { text-align: right }
+footer { font-size: 12.5px; color: var(--muted); display: grid; gap: 8px; max-width: 95ch }
+footer a, .detail a { color: var(--accent) }
+@media (max-width: 640px) { h1 { font-size: 22px } .kpi .v { font-size: 18px } }
+@media (prefers-reduced-motion: no-preference) { .cell { transition: background-color .15s, outline-color .15s } }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>LlmOnLan Capacity Explorer</h1>
+    <p class="lede">Which model, how much context per person, on which hardware: how many people at once, how fast, at what price. The RTX PRO 6000 and one DGX Spark were measured (October 2026); every other cell is calibrated on them or estimated, and says so.</p>
+  </header>
+
+  <section class="facts" aria-label="What the measurements say">
+    <div class="fact"><b>8–16×</b><span>the people one RTX PRO 6000 serves compared with one DGX Spark, on the same models (measured).</span></div>
+    <div class="fact"><b>€138–184 vs €825</b><span>price per person at 32k with Qwen3.6: RTX PRO 6000 vs DGX Spark (card only; the PRO 6000 also needs a host PC).</span></div>
+    <div class="fact"><b>≤ 220 GiB</b><span>what two linked Sparks can hold for one or two people: models too big for 96 GB. Linked over ConnectX-7 (200 Gb/s), not NVLink.</span></div>
+  </section>
+
+  <section class="controls" aria-label="Parameters">
+    <div class="row">
+      <div class="ctl"><span class="lab" id="lab-ctx">Context per person</span><div class="seg" role="group" aria-labelledby="lab-ctx" id="ctx"></div></div>
+      <div class="ctl"><span class="lab" id="lab-mode">How people work</span><div class="seg" role="group" aria-labelledby="lab-mode" id="mode"></div></div>
+      <div class="ctl"><span class="lab" id="lab-think">Thinking</span><div class="seg" role="group" aria-labelledby="lab-think" id="think"></div></div>
+    </div>
+    <div class="row">
+      <div class="ctl"><label for="budget">Memory budget</label>
+        <select id="budget">
+          <option value="farm">Farm, OCR model on the same card</option>
+          <option value="farm_no_ocr">Farm, OCR elsewhere</option>
+          <option value="single_user">One or two people, all the memory</option>
+        </select></div>
+      <div class="ctl"><label for="metric">Show in the table</label>
+        <select id="metric">
+          <option value="people">People at once</option>
+          <option value="speed">Speed for one person (tok/s)</option>
+          <option value="price">Price per person (€)</option>
+          <option value="cold">First word on a new document (s)</option>
+          <option value="maxctx">Longest context for one person</option>
+        </select></div>
+      <div class="ctl"><label for="filter">Models</label>
+        <select id="filter">
+          <option value="all">All models</option>
+          <option value="measured">Measured in the spike</option>
+          <option value="one">Fit one Spark or one PRO 6000</option>
+          <option value="two">Need two Sparks</option>
+          <option value="small">Small or single-person</option>
+          <option value="big">Too big, for reference</option>
+        </select></div>
+      <div class="ctl"><label for="classSize">Class size to cover</label><input id="classSize" type="number" min="1" max="200" value="30"></div>
+    </div>
+    <details class="adv">
+      <summary>Assumptions you can change</summary>
+      <div class="row">
+        <div class="ctl"><label for="aTtft">First word within (s, p95)</label><input id="aTtft" type="number" min="1" max="30" step="0.5" value="5"></div>
+        <div class="ctl"><label for="aDec">Reading speed at least (tok/s, p10)</label><input id="aDec" type="number" min="3" max="60" step="1" value="15"></div>
+        <div class="ctl"><label for="aReply">Reply length (tokens)</label><input id="aReply" type="number" min="64" max="4096" step="64" value="256"></div>
+        <div class="ctl"><label for="aAllr">Two Sparks: delay per layer exchange (µs)</label><input id="aAllr" type="number" min="5" max="500" step="5" value="55"></div>
+      </div>
+      <p class="hint">The pass rule is the spike's: a level counts when 95 % of first words arrive within the delay and 90 % of replies stream at least that fast. "A class" means everyone presses Enter together; "normal use" means people are out of step. The two-Spark delay was fitted to two community reports, not measured on your boxes.</p>
+    </details>
+  </section>
+
+  <section class="panel" aria-labelledby="h-matrix">
+    <div class="panel-head">
+      <h2 id="h-matrix">Models × hardware</h2>
+      <div class="legend">
+        <span><i class="conf measured"></i>measured</span><span><i class="conf calibrated"></i>calibrated on a measured model</span><span><i class="conf estimated"></i>estimated</span>
+        <span id="legend-class"></span>
+      </div>
+    </div>
+    <p class="hint" id="matrix-hint"></p>
+    <div class="scroll"><table class="matrix" id="matrix"></table></div>
+  </section>
+
+  <section class="panel detail" id="detail" aria-live="polite"></section>
+
+  <footer>
+    <p><b>Where the numbers come from.</b> Measured cells are the spike runs: vLLM 0.30 with NVFP4 checkpoints and an fp8 KV cache, each person's own conversation already in the cache, a 256-token reply, one run per box (RTX PRO 6000 on 2026-10-04, DGX Spark on 2026-10-05/06). Calibrated cells use those models' fitted speeds scaled to the other box. Estimated cells derive bytes read per token from active parameters × bits and the attention cache, scaled by memory bandwidth and compute. Calibrated on the PRO 6000 alone, the method predicted the Spark's measured people within the measured range in 17 of 18 cases (mean error 1 %).</p>
+    <p><b>Not modelled.</b> Speculative decoding, sparse attention (long-context figures are pessimistic for GLM-5.3, DeepSeek-V4, MiniMax-M3), engines other than vLLM (llama.cpp served 2–24× fewer people in the spike), and people pausing to read. Prices are French retail with VAT on 2026-10-05/07, card only. Benchmark scores are mostly the vendors' own.</p>
+    <p id="srcline"></p>
+  </footer>
+</div>
+
+<script id="catalog-data" type="application/json">/*__CATALOG__*/</script>
+<script id="measured-data" type="application/json">/*__MEASURED__*/</script>
+<script>/*__ESTIMATOR__*/</script>
+<script>
+(function () {
+  'use strict';
+  const CAT = JSON.parse(document.getElementById('catalog-data').textContent);
+  const MEAS = JSON.parse(document.getElementById('measured-data').textContent);
+  const E = window.Estimator; E.init(CAT, MEAS);
+
+  const HW = CAT.hardware;
+  const MODELS = CAT.models;
+  const GROUPS = [
+    { id: 'measured', name: 'Measured in the spike', ids: ['qwen3.6-35b-a3b', 'nemotron-3.5-lightning-30b-a3b', 'qwen3.8-27b'] },
+    { id: 'small', name: 'Small or single-person', ids: ['gemma-4-12b', 'gemma-4-26b-a4b', 'ternary-bonsai-2-27b'] },
+    { id: 'one', name: 'Fit one Spark or one PRO 6000', ids: ['gpt-oss-120b', 'qwen3-coder-next', 'mistral-small-4-119b', 'nemotron-3-super-120b-a12b', 'qwen3.5-122b-a10b', 'mistral-medium-3.5-128b', 'llama-4-scout'] },
+    { id: 'two', name: 'Need two Sparks', ids: ['qwen3.8-flash-next', 'deepseek-v4-flash-0731', 'minimax-m2.7', 'mimo-v2.6-flash', 'glm-5.3-flash', 'glm-4.7', 'qwen3.5-397b-a17b', 'minimax-m3', 'llama-4-maverick'] },
+    { id: 'big', name: 'Too big for two Sparks, for reference', ids: ['deepseek-v4.1-flash', 'glm-5.3', 'nemotron-3-ultra-550b-a55b', 'kimi-k2.6', 'mistral-large-3-675b', 'qwen3.8-2.4t-a95b', 'kimi-k3'] },
+  ];
+  const groupOf = (m) => (GROUPS.find((g) => g.ids.includes(m.id)) || GROUPS[4]).id;
+  const ORDER = GROUPS.flatMap((g) => g.ids);
+
+  const SHORT = {
+    'rtx-pro-6000-ws': ['PRO 6000', '96 GB'], 'rtx-pro-6000-maxq': ['PRO 6000 Max-Q', '96 GB, 300 W'],
+    'rtx-pro-5500': ['PRO 5500', '84 GB'], 'rtx-pro-5000-72': ['PRO 5000', '72 GB'], 'rtx-pro-5000-48': ['PRO 5000', '48 GB'],
+    'dgx-spark': ['DGX Spark', '128 GB, ×1'], 'dgx-spark-x2': ['2 × DGX Spark', '2 × 128 GB'],
+    'rtx-5090': ['RTX 5090', '32 GB, 1 person'], 'rtx-4080': ['RTX 4080', '16 GB, 1 person'], 'rtx-4070': ['RTX 4070', '12 GB, 1 person'],
+  };
+
+  const S = { ctx: 32768, mode: 'every', thinking: 1, budget: 'farm', metric: 'people', filter: 'all', classSize: 30, sel: ['rtx-pro-6000-ws', 'qwen3.6-35b-a3b'],
+    assume: { passTtftS: 5, passDecodeTps: 15, replyTokens: 256, allReduceUs: 55 } };
+  try { const saved = JSON.parse(localStorage.getItem('lol-capacity') || 'null'); if (saved) Object.assign(S, saved, { assume: Object.assign(S.assume, saved.assume || {}) }); } catch (e) { /* storage blocked */ }
+  const save = () => { try { localStorage.setItem('lol-capacity', JSON.stringify(S)); } catch (e) { /* storage blocked */ } };
+
+  const fmtK = (t) => t >= 1000000 ? (t / 1048576).toFixed(t % 1048576 ? 1 : 0) + 'M' : Math.round(t / 1024) + 'k';
+  const fmt = (x, d = 0) => (x == null || !isFinite(x)) ? '—' : x.toLocaleString('en-GB', { maximumFractionDigits: d, minimumFractionDigits: d });
+  const eur = (x) => '€' + fmt(x);
+  const price = (h) => h.price_eur_ttc || null;
+
+  function opts(extra) {
+    const assume = { passTtftS: S.assume.passTtftS, passDecodeTps: S.assume.passDecodeTps, replyTokens: S.assume.replyTokens,
+      allReduceUs: [S.assume.allReduceUs * 1.27, S.assume.allReduceUs, S.assume.allReduceUs * 0.73] };
+    return Object.assign({ context: S.ctx, mode: S.mode, thinking: S.thinking, kvDtype: 'fp8', budget: S.budget, replyTokens: S.assume.replyTokens, assume }, extra || {});
+  }
+  const cache = new Map();
+  function est(hw, model, extra) {
+    const key = hw + '|' + model + '|' + JSON.stringify(opts(extra));
+    if (!cache.has(key)) { let r; try { r = E.estimate(hw, model, opts(extra)); } catch (e) { r = { fits: false, error: String(e) }; } cache.set(key, r); }
+    return cache.get(key);
+  }
+
+  /* ---- controls ---- */
+  function seg(id, items, key, cast) {
+    const el = document.getElementById(id); el.innerHTML = '';
+    for (const [val, label] of items) {
+      const b = document.createElement('button'); b.type = 'button'; b.textContent = label; b.dataset.v = val;
+      b.setAttribute('aria-pressed', String(String(S[key]) === String(val)));
+      b.addEventListener('click', () => { S[key] = cast(val); cache.clear(); save(); render(); seg(id, items, key, cast); });
+      el.appendChild(b);
+    }
+  }
+  seg('ctx', [[8192, '8k'], [16384, '16k'], [32768, '32k'], [65536, '64k'], [131072, '128k'], [262144, '256k']], 'ctx', Number);
+  seg('mode', [['every', 'A class, all at once'], ['steady', 'Normal use, out of step']], 'mode', String);
+  seg('think', [[1, 'Off'], [4, 'On (replies ×4)']], 'thinking', Number);
+  const bind = (id, key, cast, sub) => {
+    const el = document.getElementById(id);
+    el.value = sub ? S.assume[key] : S[key];
+    el.addEventListener('change', () => {
+      const v = cast(el.value); if (cast === Number && !isFinite(v)) return;
+      if (sub) S.assume[key] = v; else S[key] = v; cache.clear(); save(); render();
+    });
+  };
+  bind('budget', 'budget', String); bind('metric', 'metric', String); bind('filter', 'filter', String); bind('classSize', 'classSize', Number);
+  bind('aTtft', 'passTtftS', Number, true); bind('aDec', 'passDecodeTps', Number, true); bind('aReply', 'replyTokens', Number, true); bind('aAllr', 'allReduceUs', Number, true);
+
+  /* ---- matrix ---- */
+  function cellValue(r, h) {
+    if (!r || !r.fits) return null;
+    switch (S.metric) {
+      case 'people': return { v: r.people.mid, lo: r.people.low, hi: r.people.high, txt: fmt(r.people.mid), sub: r.people.low === r.people.high ? '' : fmt(r.people.low) + '–' + fmt(r.people.high) };
+      case 'speed': return r.singleUserTps ? { v: r.singleUserTps.mid, txt: fmt(r.singleUserTps.mid), sub: fmt(r.singleUserTps.low) + '–' + fmt(r.singleUserTps.high) } : null;
+      case 'price': { const p = price(h); if (!p || !r.people.mid) return { v: null, txt: r.people.mid ? 'no price' : '0 people', sub: '' };
+        return { v: p / r.people.mid, txt: eur(p / r.people.mid), sub: r.people.high && r.people.low ? eur(p / r.people.high) + '–' + (r.people.low ? eur(p / r.people.low) : '∞') : '' }; }
+      case 'cold': return r.coldPromptS ? { v: r.coldPromptS.mid, txt: fmt(r.coldPromptS.mid, 1) + ' s', sub: fmtK(S.ctx) + ' prompt' } : null;
+      case 'maxctx': { const m = r.maxContextOnePerson || {}; const t = Math.min(m.byKv || 0, m.native || m.tokens || 0) || m.tokens; return { v: t, txt: t ? fmtK(t) : '—', sub: m.byKv && m.native && m.byKv < m.native ? 'memory-bound' : 'model limit' }; }
+    }
+  }
+  function heat(v, metric, all) {
+    if (v == null) return 0;
+    if (metric === 'people') return Math.min(1, v / Math.max(S.classSize * 2, 8));
+    const vals = all.filter((x) => x != null && isFinite(x)); if (!vals.length) return 0;
+    const lo = Math.min(...vals), hi = Math.max(...vals); if (hi === lo) return 0.5;
+    const t = (v - lo) / (hi - lo);
+    return metric === 'price' || metric === 'cold' ? 1 - t : t;   // cheaper / quicker = darker
+  }
+  function renderMatrix() {
+    const t = document.getElementById('matrix');
+    const models = MODELS.filter((m) => S.filter === 'all' || groupOf(m) === S.filter)
+      .sort((a, b) => (ORDER.indexOf(a.id) + 1 || 999) - (ORDER.indexOf(b.id) + 1 || 999));
+    const res = models.map((m) => HW.map((h) => est(h.id, m.id)));
+    const vals = res.flatMap((row, i) => row.map((r, j) => { const c = cellValue(r, HW[j]); return c ? c.v : null; }));
+    let html = '<thead><tr><th scope="col">Model</th>' + HW.map((h) => '<th scope="col">' + SHORT[h.id][0] + '<small>' + SHORT[h.id][1] + (price(h) ? ' · ' + eur(price(h)) : '') + '</small></th>').join('') + '</tr></thead><tbody>';
+    let lastGroup = null;
+    models.forEach((m, i) => {
+      const g = groupOf(m);
+      if (S.filter === 'all' && g !== lastGroup) { html += '<tr class="group"><th colspan="' + (HW.length + 1) + '">' + GROUPS.find((x) => x.id === g).name + '</th></tr>'; lastGroup = g; }
+      const act = m.params_active_b, tot = m.params_total_b;
+      html += '<tr><th scope="row" class="model" title="' + esc(m.role || '') + '">' + esc(m.name) + '<small>' + (tot ? fmt(tot) + 'B' : '') + (act && act !== tot ? ' · ' + fmt(act, act < 10 ? 1 : 0) + 'B active' : act ? ' dense' : '') + '</small></th>';
+      res[i].forEach((r, j) => {
+        const h = HW[j]; const c = cellValue(r, h);
+        const sel = S.sel[0] === h.id && S.sel[1] === m.id;
+        if (!c) {
+          // Under a farm budget, say whether the model would fit one or two people given all the memory.
+          const alone = r && r.fits === false && S.budget !== 'single_user' && est(h.id, m.id, { budget: 'single_user' }).fits;
+          const txt = r && r.fits === false ? (alone ? 'alone only' : 'too big') : '—';
+          const why = alone ? 'Fits only with the budget "One or two people, all the memory"' : 'The weights do not fit this hardware';
+          html += '<td><div class="cell no" title="' + esc(why) + '"><span class="v">' + txt + '</span><span class="r">' + (alone ? 'all memory' : '&nbsp;') + '</span></div></td>';
+          return;
+        }
+        const k = heat(c.v, S.metric, vals);
+        const ok = S.metric === 'people' && c.v >= S.classSize;
+        const bg = 'color-mix(in oklab, var(--heat-1) ' + Math.round(k * 88) + '%, var(--heat-0))';
+        html += '<td><button type="button" class="cell' + (ok ? ' ok-class' : '') + (k > 0.55 ? ' hot' : '') + '" style="background:' + bg + '" aria-pressed="' + sel + '" data-hw="' + h.id + '" data-m="' + m.id + '" title="' + esc(m.name + ' on ' + h.name + ': ' + (r.binding || '')) + '">'
+          + '<i class="conf c ' + r.confidence + '" aria-label="' + r.confidence + '"></i><span class="v">' + c.txt + '</span><span class="r">' + (c.sub || '&nbsp;') + '</span></button></td>';
+      });
+      html += '</tr>';
+    });
+    t.innerHTML = html + '</tbody>';
+    t.querySelectorAll('button.cell').forEach((b) => b.addEventListener('click', () => { S.sel = [b.dataset.hw, b.dataset.m]; save(); renderMatrix(); renderDetail(); document.getElementById('detail').scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' }); }));
+    const metricHint = {
+      people: 'People who can use it at once at ' + fmtK(S.ctx) + ' each, ' + (S.mode === 'every' ? 'everyone pressing Enter together' : 'out of step') + '. Range = pessimistic to optimistic assumptions. A green line marks cells that cover a class of ' + S.classSize + '.',
+      speed: 'How fast one person alone sees the reply (tokens per second, roughly 0.75 words each).',
+      price: 'Card price ÷ people at once (middle estimate). PRO cards also need a host PC; a Spark is a whole computer.',
+      cold: 'Time to the first word when one person sends a brand-new ' + fmtK(S.ctx) + '-token document (nothing cached).',
+      maxctx: 'The longest conversation one person can have alone: the model\'s own limit or what memory allows.',
+    };
+    document.getElementById('matrix-hint').textContent = metricHint[S.metric];
+    document.getElementById('legend-class').innerHTML = S.metric === 'people' ? '<span class="sw" style="background:var(--good);height:3px;vertical-align:3px"></span>covers ' + S.classSize : '';
+  }
+
+  /* ---- detail ---- */
+  function svgChart(w, h, xs, series, opt) {
+    const pad = { l: 40, r: 10, t: 10, b: 28 };
+    const xmin = Math.min(...xs), xmax = Math.max(...xs);
+    const ymax = opt.ymax || Math.max(1, ...series.flatMap((s) => s.pts.map((p) => p.y)).filter(isFinite));
+    const xl = (x) => opt.logx ? pad.l + (Math.log2(x) - Math.log2(xmin)) / ((Math.log2(xmax) - Math.log2(xmin)) || 1) * (w - pad.l - pad.r) : pad.l + (x - xmin) / ((xmax - xmin) || 1) * (w - pad.l - pad.r);
+    const yl = (y) => pad.t + (1 - Math.min(y, ymax) / ymax) * (h - pad.t - pad.b);
+    let s = '<svg viewBox="0 0 ' + w + ' ' + h + '" role="img" aria-label="' + esc(opt.label) + '">';
+    const ticks = 4;
+    for (let i = 0; i <= ticks; i++) { const yv = ymax * i / ticks; s += '<line class="grid" x1="' + pad.l + '" x2="' + (w - pad.r) + '" y1="' + yl(yv) + '" y2="' + yl(yv) + '"/><text x="' + (pad.l - 6) + '" y="' + (yl(yv) + 4) + '" text-anchor="end">' + fmt(yv, yv < 10 && ymax < 10 ? 1 : 0) + '</text>'; }
+    for (const x of opt.xticks || xs) s += '<text x="' + xl(x) + '" y="' + (h - 8) + '" text-anchor="middle">' + (opt.xfmt ? opt.xfmt(x) : x) + '</text>';
+    if (opt.bar != null) s += '<line class="bar" x1="' + pad.l + '" x2="' + (w - pad.r) + '" y1="' + yl(opt.bar) + '" y2="' + yl(opt.bar) + '"/><text x="' + (w - pad.r) + '" y="' + (yl(opt.bar) - 4) + '" text-anchor="end">' + esc(opt.barLabel) + '</text>';
+    for (const se of series) {
+      const pts = se.pts.filter((p) => isFinite(p.y));
+      if (se.band) { const top = pts.map((p) => xl(p.x) + ',' + yl(p.hi)).join(' '), bot = pts.slice().reverse().map((p) => xl(p.x) + ',' + yl(p.lo)).join(' '); s += '<polygon class="band" points="' + top + ' ' + bot + '"/>'; }
+      if (se.line && pts.length) s += '<polyline class="ln" points="' + pts.map((p) => xl(p.x) + ',' + yl(p.y)).join(' ') + '"/>';
+      if (se.dots) for (const p of pts) s += '<circle class="meas' + (p.fail ? ' fail' : '') + '" cx="' + xl(p.x) + '" cy="' + yl(p.y) + '" r="4"><title>' + esc(p.t || '') + '</title></circle>';
+    }
+    return s + '</svg>';
+  }
+  const BOX = { 'rtx-pro-6000-ws': 'pro6000', 'dgx-spark': 'spark' };
+  const KEY = { 'qwen3.6-35b-a3b': 'qwen36', 'nemotron-3.5-lightning-30b-a3b': 'nemotron', 'qwen3.8-27b': 'qwen38' };
+  function measuredLevels(hw, model) {
+    const cfg = BOX[hw] && KEY[model] && MEAS.configs.find((c) => c.id === BOX[hw] + '/vllm/' + KEY[model]);
+    if (!cfg) return null;
+    const ck = { 32768: '32k', 65536: '64k', 131072: '128k' }[S.ctx];
+    if (!ck) return null;
+    const prof = cfg.profiles['followup_' + ck + '_append'] || cfg.profiles['followup_' + ck + '_replace'];
+    if (!prof) return null;
+    const round = S.mode === 'every' ? 'r1' : 'r2';
+    return prof.levels.filter((l) => l[round]).map((l) => ({ N: l.c, dec: l[round].dec_p10, ttft: l[round].ttft_p95, pass: l[round].pass }));
+  }
+  function renderDetail() {
+    const [hwId, modelId] = S.sel; const h = HW.find((x) => x.id === hwId), m = MODELS.find((x) => x.id === modelId);
+    const el = document.getElementById('detail');
+    if (!h || !m) { el.innerHTML = '<p class="muted">Click a cell in the table to see that setup in detail.</p>'; return; }
+    const r = est(hwId, modelId);
+    let html = '<div class="panel-head"><h2>' + esc(m.name) + ' on ' + esc(h.name) + '</h2><span class="muted mono">' + fmtK(S.ctx) + ' per person · ' + (S.mode === 'every' ? 'a class, all at once' : 'normal use') + ' · thinking ' + (S.thinking > 1 ? 'on' : 'off') + '</span></div>';
+    if (!r.fits) {
+      el.innerHTML = html + '<p>This model does not fit this hardware with this budget' + (r.checkpoint && r.checkpoint.weightsGiB ? ': its smallest usable checkpoint needs ' + fmt(r.checkpoint.weightsGiB, 1) + ' GiB for the weights alone.' : '.') + ' Try "One or two people, all the memory", or a box with more memory.</p>';
+      return;
+    }
+    const conf = { measured: 'Measured on this box', calibrated: 'Calibrated: this model measured on a sibling box', estimated: 'Estimated from specs' }[r.confidence];
+    html += '<div class="chips"><span class="chip ' + r.confidence + '">' + conf + '</span><span class="chip bind">Limited first by: ' + esc(r.binding) + '</span>'
+      + '<span class="chip">' + esc(r.engine) + '</span><span class="chip">' + esc(r.checkpoint.format) + ' · ' + fmt(r.checkpoint.weightsGiB, 1) + ' GiB</span>'
+      + (r.cluster === 'tp' ? '<span class="chip">Split across both Sparks (tensor parallel)</span>' : r.copies > 1 ? '<span class="chip">One copy per Spark (×' + r.copies + ')</span>' : '') + '</div>';
+    const p = price(h);
+    const rng = (o, d = 0) => o ? fmt(o.low, d) + '–' + fmt(o.high, d) : '';
+    html += '<div class="kpis">'
+      + kpi('People at once, a class', fmt(r.peopleEvery.mid), rng(r.peopleEvery))
+      + kpi('People at once, normal use', fmt(r.peopleSteady.mid), rng(r.peopleSteady))
+      + kpi('Price per person', p && r.people.mid ? eur(p / r.people.mid) : '—', p ? 'card ' + eur(p) + (h.needs_host_pc ? ' + host PC' : '') : 'no price')
+      + kpi('Speed for one person', r.singleUserTps ? fmt(r.singleUserTps.mid) + ' tok/s' : '—', rng(r.singleUserTps))
+      + kpi('First word, new ' + fmtK(S.ctx) + ' document', r.coldPromptS ? fmt(r.coldPromptS.mid, 1) + ' s' : '—', rng(r.coldPromptS, 1))
+      + kpi('Longest context, one person', r.maxContextOnePerson ? fmtK(Math.min(r.maxContextOnePerson.byKv || Infinity, r.maxContextOnePerson.native || Infinity)) : '—', r.maxContextOnePerson && r.maxContextOnePerson.max ? 'model max ' + fmtK(r.maxContextOnePerson.max) : '')
+      + '</div>';
+    // memory bar
+    const mm = r.memory;
+    if (mm) {
+      const parts = [['Weights', mm.weightsGiB, 'var(--ink)'], ['Engine runtime', mm.runtimeGiB, 'var(--muted)'], ['Conversation memory (KV pool)', mm.kvPoolGiB, 'var(--accent)'], ['Kept free (OCR, OS, headroom)', mm.reservedGiB, 'var(--warn)']];
+      const tot = mm.visibleGiB || parts.reduce((a, x) => a + (x[1] || 0), 0);
+      html += '<div class="ctl"><h3>Memory' + (mm.perCopy && r.copies > 1 ? ', per Spark' : '') + ' — ' + fmt(tot) + ' GiB visible</h3><div class="membar" role="img" aria-label="Memory split">'
+        + parts.map((x) => '<span style="width:' + Math.max(0, (x[1] || 0) / tot * 100).toFixed(2) + '%;background:' + x[2] + '" title="' + x[0] + ' ' + fmt(x[1], 1) + ' GiB"></span>').join('') + '</div>'
+        + '<div class="mem-legend">' + parts.map((x) => '<span><i class="sw" style="background:' + x[2] + '"></i>' + x[0] + ' ' + fmt(x[1], 1) + ' GiB</span>').join('')
+        + '<span>Per person: ' + fmt(mm.perPersonMiB.total) + ' MiB (' + fmt(mm.perPersonMiB.kv) + ' context' + (mm.perPersonMiB.state ? ' + ' + fmt(mm.perPersonMiB.state) + ' model state' : '') + ')</span></div></div>';
+    }
+    // charts
+    const Ns = [1, 2, 4, 8, 12, 16, 24, 32, 48, 64, 96, 128, 160, 192].filter((n) => n <= Math.max(16, (r.people.high || 1) * 2.2));
+    let cur = []; try { cur = E.curve(hwId, modelId, opts(), Ns); } catch (e) { cur = []; }
+    const meas = measuredLevels(hwId, modelId);
+    const decPts = cur.map((c) => ({ x: c.N, y: c.decodeTps }));
+    const ttPts = cur.map((c) => ({ x: c.N, y: c.firstTurnTtftS }));
+    const mDec = meas ? meas.map((l) => ({ x: l.N, y: l.dec, fail: !l.pass, t: l.N + ' people: ' + fmt(l.dec, 1) + ' tok/s (p10), measured' })) : [];
+    const mTt = meas ? meas.map((l) => ({ x: l.N, y: l.ttft, fail: !l.pass, t: l.N + ' people: first word ' + fmt(l.ttft, 2) + ' s (p95), measured' })) : [];
+    const xs = Ns.concat(meas ? meas.map((l) => l.N) : []).filter((n) => n <= Ns[Ns.length - 1] * 1.6);
+    const xt = [1, 4, 16, 64, 128].filter((n) => n <= Math.max(...xs));
+    html += '<div class="charts">'
+      + '<div class="chart"><h3>Reading speed per person as people join</h3>' + svgChart(420, 210, xs, [{ pts: decPts, line: true }, { pts: mDec, dots: true }], { label: 'Decode speed per person versus people', logx: true, xticks: xt, bar: S.assume.passDecodeTps, barLabel: S.assume.passDecodeTps + ' tok/s', ymax: Math.max(S.assume.passDecodeTps * 2, ...decPts.map((p) => p.y), ...mDec.map((p) => p.y)) * 1.05 }) + '<p class="hint">Line: model' + (meas ? '; dots: measured (hollow = that level failed the pass rule)' : '') + '. Slowest 10 % of replies.</p></div>'
+      + '<div class="chart"><h3>Wait for the first word as people join</h3>' + svgChart(420, 210, xs, [{ pts: ttPts, line: true }, { pts: mTt, dots: true }], { label: 'Time to first word versus people', logx: true, xticks: xt, bar: S.assume.passTtftS, barLabel: S.assume.passTtftS + ' s', ymax: Math.min(Math.max(S.assume.passTtftS * 2, ...ttPts.map((p) => p.y).filter(isFinite)), S.assume.passTtftS * 6) }) + '<p class="hint">Everyone pressing Enter together, each with a ' + fmtK(S.ctx) + ' conversation. Slowest 5 %.</p></div>';
+    const ctxs = [8192, 16384, 32768, 65536, 131072, 262144];
+    const pc = ctxs.map((c) => { const x = est(hwId, modelId, { context: c }); return x.fits ? { x: c, y: x.people.mid, lo: x.people.low, hi: x.people.high } : { x: c, y: NaN }; });
+    html += '<div class="chart"><h3>People at once against context per person</h3>' + svgChart(420, 210, ctxs, [{ pts: pc, line: true, band: true }], { label: 'People versus context', logx: true, xfmt: fmtK, bar: S.classSize, barLabel: 'class of ' + S.classSize }) + '<p class="hint">Middle estimate, with the pessimistic–optimistic band.</p></div></div>';
+    // notes + limits
+    const lim = r.limits ? Object.entries(r.limits).map(([k, v]) => k + ': ' + fmt(v)).join(' · ') : '';
+    const notes = (r.notes || []).slice();
+    if (h.needs_host_pc) notes.push('A PRO card needs a host PC (not in the price).');
+    if (hwId === 'dgx-spark-x2') notes.push('Two Sparks link over ConnectX-7 at 200 Gb/s (about 185 Gb/s measured by others), not NVLink. A model that fits one Spark runs as one copy per Spark; a bigger one is split, which costs speed per layer.');
+    if (/llama\.cpp/.test(r.engine)) notes.push('This model runs only on llama.cpp here; in the spike llama.cpp served far fewer people than vLLM.');
+    html += '<div class="ctl"><h3>People each limit allows (middle estimate)</h3><p class="mono" style="font-size:12.5px">' + esc(lim) + '</p></div>';
+    if (notes.length) html += '<ul class="notes">' + notes.map((n) => '<li>' + esc(n) + '</li>').join('') + '</ul>';
+    // model facts
+    const q = (m.quality || []).slice(0, 8);
+    html += '<div class="ctl"><h3>About the model</h3><p>' + [m.vendor, m.released ? 'released ' + m.released : '', m.license, m.context_native ? 'native context ' + fmtK(m.context_native) : '', m.vision ? 'images' : '', m.tools ? 'tools' : ''].filter(Boolean).map(esc).join(' · ') + '</p>';
+    if (m.role) html += '<p class="muted">' + esc(m.role) + '</p>';
+    if (m.spike_quality) { const sq = m.spike_quality; html += '<p class="muted">The spike\'s 28-question reasoning and coding check, thinking on / off: RTX PRO 6000 ' + esc(sq.pro6000_think_on_off || '—') + '; DGX Spark ' + esc(sq.spark_think_on_off || '—') + '.</p>'; }
+    if (q.length) html += '<div class="scroll"><table class="q"><thead><tr><th>Benchmark</th><th style="text-align:right">Score</th><th>Reported by</th></tr></thead><tbody>' + q.map((x) => '<tr><td>' + esc(x.benchmark) + '</td><td class="num mono">' + fmt(x.score, 1) + '</td><td class="muted">' + (x.vendor_reported ? 'the vendor' : 'a third party') + '</td></tr>').join('') + '</tbody></table></div>';
+    html += '</div>';
+    el.innerHTML = html;
+  }
+  function kpi(k, v, s) { return '<div class="kpi"><span class="k">' + esc(k) + '</span><span class="v">' + v + '</span><span class="s">' + (s || '&nbsp;') + '</span></div>'; }
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+
+  function render() { renderMatrix(); renderDetail(); }
+  document.getElementById('srcline').textContent = 'Data: ' + (E.meta ? E.meta.data : '') + '. Repo: b2renger/LlmOnLan, docs/spike/RESULTS.md and ESTIMATES_2026-10-05.md.';
+  render();
+})();
+</script>

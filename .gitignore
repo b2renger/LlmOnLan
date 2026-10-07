@@ -68,3 +68,5 @@ Thumbs.db
 # --- stray root lockfile (there is NO root package.json â€” an accidental npm
 # run at the repo root keeps regenerating an empty package-lock.json) ---
 /package-lock.json
+docs/spike/explorer/explorer.html
+docs/spike/explorer/calibrate/rows.json

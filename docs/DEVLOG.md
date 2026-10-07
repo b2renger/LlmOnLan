@@ -6,6 +6,35 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-10-07 (10:07) — The capacity explorer: model × context × hardware, measured where it can be, estimated and labelled elsewhere
+
+The owner asked for "a comparison table or a web visualisation where I can change parameters": which model, how
+much context, on what hardware. A second DGX Spark has also arrived. It will be linked to the first over ConnectX-7
+(200 Gb/s, not NVLink), for near-frontier models used by one or two people.
+
+- **Data**, three agents:
+  - Every measured point from both spike runs went into `measured.json`. It was cross-checked against RESULTS.md:
+    87 rows agree, and the 12 disagreements are listed (missing "≥" on steady counts, pooled vs per-round rules
+    for Spark llama.cpp and Nemotron 64k).
+  - A catalog of 10 hardware entries and 29 current open-weight models, with sizes, attention layout,
+    checkpoints, prices, benchmarks, and community speed reports for two linked Sparks.
+  - An estimator, calibrated on the PRO 6000, predicted the Spark's measured people inside the measured range in
+    **17 of 18** cells (mean error 1 %, worst 14 %). The previous method got 7 of 18.
+- **The page** (a private Artifact, https://claude.ai/artifact/5voKHTLBktJuUpf9CLk9jt):
+  - a models × hardware matrix, showing people, speed for one person, € per person, first word on a new document,
+    or the longest context;
+  - controls for context per person, a class or normal use, thinking, the memory budget, class size and the
+    filters, plus the pass rule, the reply length and the two-Spark link delay as assumptions you can change;
+  - a detail panel with the memory split, speed and first word as people join (with the measured points), and
+    people against context.
+  - Under a farm budget, a model that fits only with all the memory says "alone only".
+  - Checked: 6,960 parameter combinations, none failing; the scripts parse; one headless-Chrome screenshot.
+- **The sources live in `docs/spike/explorer/`**, with a README on how far to trust it and how to update it after
+  the two Sparks are measured.
+- **What the explorer confirms:** many people at once → RTX PRO 6000. Near-frontier models for one or two people
+  → two Sparks: DeepSeek-V4-Flash, MiniMax-M2.7, Qwen3.5-397B and GLM-5.3-Flash fit, at roughly 15–40 tok/s for
+  one person. A model that fits 96 GB runs faster on the PRO 6000, even for one person.
+
 ## 2026-10-06 (11:45) — The engine × model spike on the DGX Spark: one PRO 6000 serves 8–16× the people
 
 The same harness, flags and 58 GiB KV pool as the PRO 6000 run, on `spark-59f9` (GB10, 128 GB unified), from
