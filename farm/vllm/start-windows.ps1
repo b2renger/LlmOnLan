@@ -20,6 +20,9 @@ $ProgressPreference = 'SilentlyContinue'
 # Task Scheduler starts a task below normal priority by default, and everything this script starts would inherit
 # it: the Farm app, lol up, the seat gate, LiteLLM, Ollama, OCR. Put this process back to Normal first.
 [Diagnostics.Process]::GetCurrentProcess().PriorityClass = 'Normal'
+# Run from a shell an Electron app started (VS Code's terminal, an agent), ELECTRON_RUN_AS_NODE=1 is inherited and
+# makes the Farm app start as plain Node and exit at once, with no window and no log (seen 2026-10-07).
+Remove-Item Env:ELECTRON_RUN_AS_NODE -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force -Path (Split-Path $Log) | Out-Null
 function Say([string]$m) { Add-Content -Path $Log -Value "$(Get-Date -Format s) $m" -Encoding UTF8 }
 

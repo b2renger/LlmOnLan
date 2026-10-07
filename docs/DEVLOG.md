@@ -6,6 +6,33 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-10-07 (17:48) — The studio's PRO 6000 farm now serves vLLM: 48 people at 64k instead of 2
+
+The owner gave the go ("we can switch to vllm now"). It was done with `docs/PRO6000_VLLM_SWITCH.md`, while the
+farm was down, so nobody was cut off.
+
+- **Install:** Farm app farm-v0.0.42 (silent install). Its first launch copied the farm code (0.0.42, with
+  `vllm\`) and came up on Ollama as before.
+  - **A trap on the way:** the agent's shell inherits `ELECTRON_RUN_AS_NODE=1` from VS Code, so the Farm app
+    started as plain Node and exited at once, with no window and no log. It was launched again without it.
+    `start-windows.ps1` now clears the variable, and memory notes it.
+- **The switch:**
+  - The logon task "LlmOnLan vLLM" is registered (`start-windows.ps1 -Root /home/ateliernum/lol-spike`,
+    priority 4).
+  - `lol.config.json` gained the `external` block: Qwen3.6, 48 seats, 64k, vision, presence penalty 1.5. The old
+    file is kept as `lol.config.json.before-vllm`.
+  - The Farm app was closed cleanly (its window: the farm stopped in 2 s), and `ollama stop qwen3.8:latest` freed
+    35 GB.
+  - The task was started: vLLM answered after 1 min 43 s, then the Farm app opened by itself.
+- **Checked:**
+  - The snapshot says engine external, "Qwen3.6-35B-A3B (vLLM)", 48 slots, 65,536 per person, healthy.
+  - `/v1/models` lists `Qwen3.6`, and a real reply came back through the seat gate.
+  - The GPU holds 76.6 GB.
+  - Sent as raw bytes, `/vllm/%2E%2E/…`, `/vllm/../invocations` and `/azure/x/../../…` get a 400, and
+    `/vllm/v1/chat/completions` a 404. curl had shown a 200 only because it normalised `%2E%2E` itself.
+- **For people:** new chats use Qwen3.6. Chats bound to "Qwen3.8-latest" need the model picked once.
+- **Rollback, if needed:** the three commands in the switch document.
+
 ## 2026-10-07 (11:35) — Release client v0.2.8 and Farm app farm-v0.0.42: the multi-user work
 
 Released from `main` at `957ac71`. `multiuser-phase0` (47 commits since v0.2.7) was fast-forwarded into it after
