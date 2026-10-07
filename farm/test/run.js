@@ -2096,7 +2096,8 @@ test('lol bench --people simulates PEOPLE: one source address each, so the real 
 // The admin panel's own script, run against a DOM stub: render(state) returns the
 // HTML it would put on screen. Every handler is wired onto inert stubs, so this
 // exercises exactly what an operator would SEE for a given /lol/admin/state.
-function loadPanel() {
+// `fetch` and `confirm` can be stubbed, for a test that clicks a button and reads what the panel asked and sent.
+function loadPanel({ fetch: fetchFn = () => new Promise(() => {}), confirm: confirmFn = () => false } = {}) {
     const html = fs.readFileSync(path.join(__dirname, '..', 'src', 'admin', 'index.html'), 'utf8');
     const m = /<script>([\s\S]*)<\/script>/.exec(html);
     assert.ok(m, 'panel script block moved — update loadPanel');
@@ -2116,10 +2117,11 @@ function loadPanel() {
     const localStorage = { getItem: () => null, setItem() {}, removeItem() {} };
     // eslint-disable-next-line no-new-func
     const fn = new Function('document', 'localStorage', 'setInterval', 'fetch', 'confirm',
-        `${m[1]}\n;return { render };`);
-    const out = fn(document, localStorage, () => 0, () => new Promise(() => {}), () => false);
+        `${m[1]}\n;return { render, switchConfirm: typeof switchConfirm === 'function' ? switchConfirm : () => '' };`);
+    const out = fn(document, localStorage, () => 0, fetchFn, confirmFn);
     const render = (state) => { out.render(state); return el('#app').innerHTML; };
     render.el = el;   // the stubs, for a test that edits a control after render
+    render.switchConfirm = out.switchConfirm;
     return render;
 }
 
@@ -3402,7 +3404,7 @@ test('panel: the slots-vs-context line says what an edit does before Apply (plan
         backend: { engine: 'external', alias: 'assistant', model: 'qwen3.6', baseUrl: 'http://127.0.0.1:8100/v1', contextLength: 65536, contextPerSlot: 65536, contextAuto: false, slots: 48, slotsVerified: false },
         capacity: { slots: 48, clients: 0, seats: [], seatIdleSec: 900, slotsVerified: false, unmanagedHosts: [], ollamaEnvAdvice: null },
     }));
-    assert.ok(ext.includes('Each person gets <b>64k</b> of context, as declared in lol.config.json (external.contextLength).'));
+    assert.ok(ext.includes('Each person gets <b>64k</b> of context, as that server was set up.'), 'plain words, no config key (D10)');
     assert.ok(ext.includes('reads attached documents whole') && !ext.includes('Keep going until done'));
 });
 
@@ -4231,6 +4233,405 @@ test('vLLM plumbing helpers: the distribution\'s disk folder, install steps and 
     assert.equal(V.logFile({ platform: 'win32', distro: 'Ubuntu', root: '/home/me/lol-vllm' }), '\\\\wsl.localhost\\Ubuntu\\home\\me\\lol-vllm\\logs\\vllm.log');
     assert.equal(V.logFile({ platform: 'linux', root: '/home/me/lol-vllm' }), '/home/me/lol-vllm/logs/vllm.log');
     assert.equal(V.logFile({ platform: 'linux', root: '~/lol-vllm' }), null, 'only an absolute root');
+});
+
+// ---- vLLM, run by the farm: the panel and its admin controls (slice C: §11.1 items 17-18) ----------------------
+
+// The checks of this computer the panel tests work from: an RTX PRO 6000 with Qwen3.6 and Nemotron downloaded.
+const proStatus = () => V.parseStatus(['home=/home/me', 'arch=x86_64', 'curl=/usr/bin/curl', `gpu=${PRO}, 97887, 90000, 12.0`,
+    'disk_free_kb=900000000', 'install=/home/me/lol-vllm 0.30.0',
+    'model=Qwen3.6-35B-A3B-NVFP4 23400000 vision=1 native=262144 partial=0',
+    'model=NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4 21600000 vision=0 native=262144 partial=0',
+    'model=Qwen3.8-27B-NVFP4 9000000 vision=1 native=262144 partial=1'].join('\n'));
+
+test('vLLM Apply: what restarts it is decided against what it runs with — 48 → 40 people no, 48 → 80 yes, a context yes, a name no, Automatic memory kept (§5.6, §11.1-17)', () => {
+    const c = defaultConfig();
+    c.vllm.enabled = true; c.vllm.root = '/home/me/lol-vllm'; c.vllm.parallel = 48;
+    const st = proStatus();
+    // What production runs: 48 people, Automatic memory resolved to 50 GiB, vLLM's own cap 128.
+    const launch = { ...V.settingsOf(c, '/home/me/lol-vllm'), kvGib: 50, maxNumSeqs: 128, seats: 48 };
+    const ch = (body, l = launch) => V.applyChange(c, body, { st, launch: l, root: '/home/me/lol-vllm' });
+    assert.equal(ch({ slots: 40 }).restart, false, '48 → 40: inside the cap of 128 requests, applied live');
+    assert.deepEqual(ch({ slots: 40 }).patch, { parallel: 40 });
+    assert.equal(ch({ slots: 80 }).restart, true, '48 → 80: the cap goes 128 → 256, a restart');
+    assert.equal(ch({ context: 32768 }).restart, true, 'a context restarts');
+    assert.equal(ch({ name: 'Studio' }).restart, false, 'a name does not');
+    assert.deepEqual(ch({ name: 'Studio' }).changes, ['name "Studio"']);
+    assert.deepEqual(ch({ kvCacheGib: 'auto' }), { patch: {}, restart: false, seats: 48, changes: [] }, 'Automatic → Automatic: nothing (D9: never worked out again while it runs)');
+    assert.equal(ch({ kvCacheGib: 40 }).restart, true, 'a set amount other than what it runs with');
+    assert.equal(ch({ kvCacheGib: 50 }).restart, false, 'the amount it runs with, now set: the same launch');
+    assert.equal(ch({ model: 'nemotron-3.5-lightning' }).restart, true, 'another model');
+    assert.deepEqual(ch({ slots: 'auto' }).patch, { parallel: 'auto' });
+    assert.equal(ch({ slots: 'auto' }).restart, false, 'Automatic at 64k with 50 GiB is the measured 48: the same cap');
+    // Not running: every change is saved for the next start.
+    for (const b of [{ slots: 80 }, { context: 32768 }, { kvCacheGib: 40 }]) assert.equal(ch(b, null).restart, false, JSON.stringify(b));
+    // Refused, with what to do.
+    assert.match(ch({ slots: 0 }).error, /Automatic, or between 1 and 512/);
+    assert.match(ch({ slots: 600 }).error, /between 1 and 512/);
+    assert.match(ch({ context: 2048 }).error, /between 4096 and 262144 tokens \(this model's maximum\)/);
+    assert.match(ch({ context: 524288 }).error, /this model's maximum/);
+    assert.match(ch({ kvCacheGib: 200 }).error, /between 1 and 95 GB/);
+    assert.equal(ch({ model: 'nope' }).error, 'That model is not in the vLLM list.');
+    assert.equal(ch({ model: 'qwen3.8-27b-nvfp4' }).error, 'Qwen3.8 27B · NVFP4 is not downloaded yet: press Download next to it.', 'partly downloaded is not downloaded');
+    assert.match(ch({ kvCacheGib: 1, context: 262144 }).error, /less than one person's conversation needs at this context/);
+    // Another model that reads less than the context per person: refused, unless the context comes with it.
+    const small = { id: 'small', label: 'Small', folder: 'small', repo: null, args: ['--enable-prefix-caching'] };
+    const c2 = { ...c, vllm: { ...c.vllm, library: [...c.vllm.library, small] } };
+    const st2 = { ...st, models: [...st.models, { folder: 'small', gb: 1, vision: false, native: 4096, partial: false }] };
+    assert.equal(V.applyChange(c2, { model: 'small' }, { st: st2, launch }).error, 'Small reads at most 4096 tokens: choose a context per person of 4096 or less with it.');
+    assert.deepEqual(V.applyChange(c2, { model: 'small', context: 4096 }, { st: st2, launch }).patch, { model: 'small', contextLength: 4096 });
+    // up.js runs exactly this decision (the logic lives in vllm.js, §3.5).
+    const upSrc = fs.readFileSync(path.join(__dirname, '..', 'src', 'commands', 'up.js'), 'utf8');
+    assert.ok(/vllmMod\.applyChange\(config, \{ \.\.\.body, name \}, \{ st, launch: running \? L : null/.test(upSrc), 'applyVllmSettings uses applyChange');
+    assert.ok(/if \(body\.dryRun\) return \{ ok: true, dryRun: true, restart, changes/.test(upSrc), 'and answers a dry run with it');
+});
+
+test('the vLLM list: a model added by name or link gets its family\'s flags, a folder on disk too, never twice (§4.4)', () => {
+    const lib = defaultConfig().vllm.library;
+    assert.equal(V.repoOf('nvidia/Qwen3.6-35B-A3B-NVFP4'), 'nvidia/Qwen3.6-35B-A3B-NVFP4');
+    assert.equal(V.repoOf('https://huggingface.co/Qwen/Qwen3-0.6B/tree/main'), 'Qwen/Qwen3-0.6B');
+    assert.equal(V.repoOf('https://huggingface.co/Qwen/Qwen3-0.6B'), 'Qwen/Qwen3-0.6B');
+    for (const bad of ['', 'qwen', 'https://example.com/a/b', 'a b/c', '../x/y']) assert.equal(V.repoOf(bad), null, bad);
+    // Families: the measured models' own flags for theirs; a generic Qwen3 set; else prefix caching only.
+    assert.deepEqual(V.familyArgs('nvidia/Qwen3.5-122B-A10B-NVFP4'), lib[0].args);
+    assert.deepEqual(V.familyArgs('nvidia/Qwen3.8-14B-NVFP4'), lib[2].args);
+    assert.deepEqual(V.familyArgs('nvidia/NVIDIA-Nemotron-Nano-9B'), lib[1].args);
+    assert.deepEqual(V.familyArgs('Qwen/Qwen3-0.6B'), ['--enable-prefix-caching', '--reasoning-parser', 'qwen3', '--enable-auto-tool-choice', '--tool-call-parser', 'hermes']);
+    assert.deepEqual(V.familyArgs('mistralai/Mistral-Small'), ['--enable-prefix-caching']);
+    assert.ok(V.isGeneric({ args: ['--enable-prefix-caching'] }) && !V.isGeneric(lib[0]), 'no thinking parser: the panel says tools and thinking may not show');
+    const a = V.newLibraryEntry({ repo: 'https://huggingface.co/Qwen/Qwen3-0.6B' }, lib);
+    assert.equal(a.entry.id, 'qwen3-0.6b');
+    assert.equal(a.entry.label, 'Qwen3-0.6B');
+    assert.equal(a.entry.repo, 'Qwen/Qwen3-0.6B');
+    assert.equal(a.entry.folder, null, 'its folder is the repo\'s name');
+    // What it adds boots: the strict schema takes it.
+    assert.ok(ConfigSchema.safeParse({ vllm: { library: [...lib, a.entry] } }).success, 'the strict schema accepts the new entry');
+    assert.equal(V.newLibraryEntry({ repo: 'nvidia/qwen3.6-35b-a3b-nvfp4' }, lib).error, 'nvidia/qwen3.6-35b-a3b-nvfp4 is already in the list.');
+    assert.match(V.newLibraryEntry({ repo: 'not a model' }, lib).error, /Give the name of a model on Hugging Face/);
+    // Another owner's model of the same name gets its own folder; a slug already taken gets a number.
+    const twin = V.newLibraryEntry({ repo: 'someone/Qwen3.6-35B-A3B-NVFP4' }, lib).entry;
+    assert.equal(twin.folder, 'someone--Qwen3.6-35B-A3B-NVFP4');
+    assert.equal(twin.id, 'qwen3.6-35b-a3b-nvfp4');
+    assert.equal(V.newLibraryEntry({ repo: 'other/qwen3.6-35b-a3b' }, lib).entry.id, 'qwen3.6-35b-a3b-2');
+    // A folder found on this computer: its size and whether it sees images come from the check.
+    const f = V.newLibraryEntry({ folder: 'my-model' }, lib, [{ folder: 'my-model', gb: 12.34, vision: true }]).entry;
+    assert.deepEqual([f.repo, f.folder, f.sizeGb, f.vision, f.label], [null, 'my-model', 12, true, 'my-model']);
+    assert.equal(V.newLibraryEntry({ folder: '..' }, lib).error, 'That is not a model folder.');
+    assert.equal(V.newLibraryEntry({ folder: 'Qwen3.6-35B-A3B-NVFP4' }, lib).error, 'Qwen3.6-35B-A3B-NVFP4 is already in the list.');
+});
+
+test('document reading beside vLLM: its model fits the memory kept for it, or the Performance card says so (§1.4, §7.6)', () => {
+    assert.deepEqual(V.ocrFit({ sizeBytes: 7.6e9, reserveGib: 9 }), { gb: 8.1, fits: true }, 'gemma4:12b on disk + 1 GiB');
+    assert.deepEqual(V.ocrFit({ sizeBytes: 17.7e9, reserveGib: 9 }), { gb: 17, fits: false }, 'production\'s qwen3.8:latest');
+    assert.deepEqual(V.ocrFit({ sizeBytes: 7.6e9, vramBytes: 10.5 * GIB, reserveGib: 9 }), { gb: 11, fits: false }, 'loaded: what it holds in the GPU');
+    assert.equal(V.ocrFit({ reserveGib: 9 }), null, 'unknown size: no verdict');
+    const render = loadPanel();
+    const vstate = (over) => adminState({ backend: { engine: 'vllm', alias: 'Qwen3.6', model: 'Qwen3.6', contextLength: 65536, contextPerSlot: 65536, slots: 48, slotsVerified: true },
+        vllm: { ...vllmPanel(), ocrReserveGib: 9 }, ...over });
+    const html = render(vstate({ ocrModel: 'qwen3.8:latest', ocrFits: false, ocrGb: 18.7 }));
+    assert.ok(html.includes('Document reading uses qwen3.8:latest (18.7 GB), which does not fit the 9 GB kept for it beside vLLM: documents will read slowly. Download gemma4:12b in the Ollama list below; the farm then uses it.'), 'the warning with what to do');
+    assert.ok(render(vstate({ ocrModel: 'gemma4:12b', ocrFits: false, ocrGb: 11 })).includes('documents will read slowly.</div>'), 'already gemma4:12b: no advice to download it');
+    assert.ok(!render(vstate({ ocrModel: 'gemma4:12b', ocrFits: true, ocrGb: 8.1 })).includes('Document reading uses'));
+    const upSrc = fs.readFileSync(path.join(__dirname, '..', 'src', 'commands', 'up.js'), 'utf8');
+    assert.ok(/ocrFits: ocrSize \? ocrSize\.fits : null/.test(upSrc) && /reserveGib: config\.vllm\.ocrReserveGib/.test(upSrc), 'the admin state carries it');
+});
+
+// The vLLM part of /lol/admin/state as up.js vllmAdminState gives it: production's farm, adopted and ready.
+function vllmPanel(over = {}) {
+    const lib = defaultConfig().vllm.library.map((e, i) => ({ ...e, downloaded: i < 2, partial: false, gbOnDisk: i < 2 ? e.sizeGb : null, active: i === 0, generic: false }));
+    return {
+        enabled: true, supported: true, installed: true, version: '0.30.0', pinned: '0.30.0', root: '/home/me/lol-spike', distro: 'Ubuntu', port: 8100, hostDrive: 'C',
+        probe: { at: Date.now(), oks: ['WSL is installed, with Ubuntu on WSL 2.', `Ubuntu sees the GPU: ${PRO} (96 GB).`, 'vLLM 0.30.0 is installed (in /home/me/lol-spike).'], problems: [], warnings: [] },
+        alias: 'Qwen3.6', model: 'qwen3.6-35b-a3b', library: lib, foundFolders: [],
+        contextLength: 65536, parallel: 'auto', parallelResolved: 48, maxNumSeqs: 'auto', maxNumSeqsResolved: 128, kvCacheGib: 'auto', kvResolvedGib: 50,
+        phase: 'ready', phaseText: null, percent: null, adopted: false, bootError: null, poolTokens: 4313303, peopleFit: 65, guardLine: null, running: true,
+        measured: V.measuredFor(defaultConfig().vllm.library[0], PRO), launchSettings: null,
+        facts: V.facts(defaultConfig().vllm.library[0]), autoKvGib: 50, seatsAuto: { seats: 48, source: 'measured', label: '48' },
+        cardGib: 95.6, unified: false, ocrReserveGib: 9, minFreeGb: null, installable: true, venvLink: false, installing: false, takeOver: null,
+        ...over,
+    };
+}
+const vllmBackend = { engine: 'vllm', alias: 'Qwen3.6', model: 'Qwen3.6 35B-A3B · NVFP4', contextLength: 65536, contextPerSlot: 65536, contextAuto: false, slots: 48, slotsVerified: true };
+const vllmState = (v = {}, over = {}) => adminState({ backend: vllmBackend, vllm: vllmPanel(v), externalConfigured: false,
+    capacity: { slots: 48, clients: 12, seats: [], seatIdleSec: 900, slotsVerified: true, unmanagedHosts: [], ollamaEnvAdvice: null }, ...over });
+const ollamaWithVllm = (v = {}, over = {}) => adminState({ vllm: vllmPanel({ enabled: false, phase: null, running: false, adopted: false, ...v }), externalConfigured: false, ...over });
+
+test('panel: the engine grid — Ollama, llama.cpp, vLLM, and External only while a developer configured one; vLLM\'s button by what this computer has (§7.1, §11.1-18)', () => {
+    const render = loadPanel();
+    const engines = (html) => [...html.matchAll(/data-engine="(\w+)"/g)].map((m) => m[1]);
+    assert.deepEqual(engines(render(ollamaWithVllm())), ['ollama', 'llamacpp', 'vllm'], 'three buttons');
+    const ext = render(ollamaWithVllm({}, { externalConfigured: true }));
+    assert.deepEqual(engines(ext), ['ollama', 'llamacpp', 'vllm', 'external'], 'four only while the file holds an external server');
+    assert.ok(ext.includes('A server this farm does not run, set up by a developer.'));
+    const html = render(ollamaWithVllm());
+    assert.ok(fs.readFileSync(path.join(__dirname, '..', 'src', 'admin', 'index.html'), 'utf8').includes('.engines { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));'), 'three or four buttons fit one grid');
+    assert.ok(html.includes('The models below. Several to choose from, for a few people at once.'));
+    assert.ok(html.includes('Many people at once on a big NVIDIA GPU. One model; it takes about 2 minutes to start.'), 'ready to use');
+    assert.ok(render(ollamaWithVllm({ probe: { at: 1, oks: [], problems: ['vLLM is not installed on this computer yet: press Install vLLM.'], warnings: [] } }))
+        .includes('Many people at once on a big NVIDIA GPU. Not set up on this computer yet: press to see how.'), 'not set up');
+    assert.ok(render(ollamaWithVllm({ probe: null })).includes('Many people at once on a big NVIDIA GPU. Press to check this computer.'), 'not checked yet: no guess');
+    const unsup = render(ollamaWithVllm({ supported: false, probe: null }));
+    assert.ok(unsup.includes('Not available on this computer: vLLM needs an NVIDIA GPU on Linux, or Windows with WSL.'));
+    assert.ok(/data-engine="vllm" disabled/.test(unsup), 'unsupported: the button is off');
+    assert.ok(render(ollamaWithVllm({}, { llamacppAvailable: false })).includes('Not available on this computer: there is no ready-made llama.cpp for it.'));
+    assert.ok(html.includes('Switching stops the current engine and starts the other: about a minute for Ollama or llama.cpp, about 2 minutes for vLLM.'));
+    // The active engine's badge says where vLLM is in its life.
+    const badge = (phase) => (/data-engine="vllm"[^>]*><div class="mname">vLLM <span class="badge on">([^<]+)</.exec(render(vllmState({ phase }))) || [])[1];
+    assert.deepEqual(['ready', 'starting', 'stopped', 'guard', 'down'].map(badge), ['running', 'starting', 'stopped', 'stopped', 'not answering']);
+    // Switching away from an external server is allowed now (§1.2): its buttons are live.
+    const extServing = render(adminState({ backend: { engine: 'external', alias: 'a', model: 'm', baseUrl: 'http://127.0.0.1:8100/v1', contextLength: 65536, contextPerSlot: 65536, slots: 48, slotsVerified: false },
+        externalConfigured: true, vllm: vllmPanel({ enabled: false, phase: null, probe: null }) }));
+    assert.ok(/data-engine="ollama">/.test(extServing) && /data-engine="vllm">/.test(extServing), 'not disabled under an external server');
+    assert.ok(extServing.includes('Serving through a server this farm does not run, at <b>http://127.0.0.1:8100/v1</b>. Its model, context and people at once are set where that server runs. To serve from this farm instead, pick Ollama, llama.cpp or vLLM above.'));
+    // What each switch costs, said before it (§7.1, §1.2).
+    const sc = render.switchConfirm;
+    assert.equal(sc(ollamaWithVllm(), 'vllm'), 'Switch to vLLM? Chat stops for about 2 minutes while vLLM loads the model (longer the very first time, while it prepares the GPU).');
+    assert.equal(sc(vllmState(), 'ollama'), 'Switch to Ollama? vLLM stops and Ollama loads its model: about a minute, and anyone connected waits.');
+    assert.equal(sc(vllmState(), 'llamacpp'), 'Switch to llama.cpp? vLLM stops and llama.cpp loads its model: about a minute, and anyone connected waits.');
+    const extState = adminState({ backend: { engine: 'external', baseUrl: 'http://127.0.0.1:8100/v1' }, health: { gpu: { vramUsedGb: 75, vramTotalGb: 96 } }, vllm: vllmPanel() });
+    assert.equal(sc(extState, 'ollama'), 'Switch to Ollama? The server at http://127.0.0.1:8100/v1 keeps running and keeps its share of the GPU: Ollama gets only what is left (21 GB free now).');
+    assert.equal(sc({ ...extState, backend: { engine: 'external', baseUrl: 'http://10.0.0.5:8000/v1' } }, 'ollama'), 'Switch to Ollama? Ollama loads its model: about a minute, and anyone connected waits.', 'another machine keeps its own GPU');
+    assert.ok(!sc({ ...extState, vllm: vllmPanel({ takeOver: { root: '/r', running: true } }) }, 'ollama').includes('keeps running'), 'a take-over offered: that card says what to do instead');
+});
+
+test('panel: vLLM\'s line for each phase, its hero, and a start that fell back to Ollama (§1.5, §7.1)', () => {
+    const render = loadPanel();
+    const html = render(vllmState({ adopted: true }));
+    assert.ok(html.includes('<div class="hero-meta">vLLM · Qwen3.6 35B-A3B · NVFP4</div>'));
+    assert.ok(html.includes('48 people at once · 64k of context each · <b>12</b> connected now'));
+    assert.ok(html.includes('vLLM was already running with these settings, so the farm kept it running.'), 'adopted');
+    assert.ok(!render(vllmState()).includes('already running with these settings'), 'started by the farm: no line');
+    assert.ok(render(vllmState({ phase: 'starting', phaseText: 'loading the model weights (2 of 3)' })).includes(
+        'vLLM is starting: loading the model weights (2 of 3). About 2 minutes, longer the first time. Until it is ready, people connected see “Starting vLLM”, and a message sent meanwhile is answered with “try again in a moment”.'));
+    assert.ok(render(vllmState({ phase: 'stopped' })).includes('<div class="warnline">vLLM is stopped, so nobody can chat. Press Start vLLM below, or switch to another engine.</div>'));
+    const guard = 'vLLM was stopped because this computer was running out of memory (6 GB left; it stops below 8 GB, before the GPU gets stuck at a slow speed). Close what is using the memory, then press Start vLLM.';
+    assert.ok(render(vllmState({ phase: 'guard', phaseText: guard })).includes(`<div class="warnline">${guard}</div>`));
+    assert.ok(render(vllmState({ phase: 'down' })).includes('vLLM is not answering. The farm is checking it.'));
+    // Fell back: Ollama serves, with vLLM's reason, once.
+    const failed = render(ollamaWithVllm({ phase: 'failed', bootError: 'vLLM could not start: vLLM ran out of GPU memory while starting. Lower GPU memory for conversations or the context.' }));
+    assert.ok(failed.includes('<div class="warnline">vLLM could not start: vLLM ran out of GPU memory while starting. Lower GPU memory for conversations or the context. The farm serves with Ollama for now. Fix the cause, then switch back to vLLM.</div>'), failed.slice(0, 600));
+    assert.ok(failed.includes('<h2>Model · vLLM</h2>'), 'its card stays, for the log');
+    assert.ok(!render(adminState({ backend: { engine: 'llama.cpp', alias: 'a', model: 'm', contextLength: 8192, contextPerSlot: 8192, slots: 1 }, vllm: vllmPanel({ bootError: 'x', enabled: false }) })).includes('The farm serves with Ollama for now'), 'only while Ollama serves');
+});
+
+test('panel: the vLLM card — the checklist, Install only when not installed, Download / Use this / Remove by state, Start, Stop, the log, the take-over offer (§7.2, §9.2, §11.1-18)', () => {
+    const render = loadPanel();
+    const card = (html) => (/<h2>Model · vLLM<\/h2>[\s\S]*?(?=<div class="card"><h2>)/.exec(html) || [''])[0];
+    assert.equal(card(render(ollamaWithVllm())), '', 'not shown while another engine serves and nobody asked');
+    const c = card(render(vllmState()));
+    assert.ok(c.includes('vLLM is an engine made for serving many people at once on a big NVIDIA GPU. On Windows it runs inside WSL, the Linux that comes with Windows. The farm installs it, starts it and stops it.'));
+    assert.ok(c.includes('<div class="meta">✓ WSL is installed, with Ubuntu on WSL 2.</div>'), 'what is in place, muted');
+    assert.ok(c.includes('data-vcheck') && c.includes('Check again'));
+    assert.ok(!c.includes('data-vinstall'), 'installed: no Install');
+    // The list: the one serving, one downloaded (Use this, Remove), one to download.
+    assert.ok(/Qwen3\.6 35B-A3B · NVFP4<\/div>[\s\S]*?<span class="badge on">serving<\/span><span class="badge">downloaded<\/span><\/span>/.test(c), 'serving + downloaded, no buttons');
+    assert.ok(c.includes('data-vuse="nemotron-3.5-lightning"') && c.includes('data-vrm="nemotron-3.5-lightning"'), 'downloaded: Use this and Remove');
+    assert.ok(c.includes('data-vdl="qwen3.8-27b-nvfp4"') && !c.includes('data-vuse="qwen3.8-27b-nvfp4"'), 'not downloaded: Download, no Use this');
+    assert.ok(!c.includes('data-vrm="qwen3.6-35b-a3b"') && !c.includes('data-vdl="qwen3.6-35b-a3b"'), 'the one serving cannot be removed');
+    assert.ok(c.includes('data-files="21.6"'), 'Remove knows how much it can delete');
+    assert.ok(c.includes('Stop vLLM') && !c.includes('Start vLLM'), 'ready: Stop');
+    assert.ok(card(render(vllmState({ phase: 'stopped' }))).includes('Start vLLM') && !card(render(vllmState({ phase: 'stopped' }))).includes('Stop vLLM'), 'stopped: Start');
+    assert.ok(!/data-vstart|data-vstop/.test(card(render(vllmState({ phase: 'starting' })))), 'starting: neither (the job bar stops it)');
+    assert.ok(c.includes('vLLM\'s own log, for when something goes wrong. It does not record conversations, but an error line can quote a few words of a reply.') && c.includes('Show the log'));
+    assert.ok(c.includes('the name of a model on Hugging Face (owner/name), made for vLLM. Adding only remembers it: press Download, then Use this.') && c.includes('placeholder="nvidia/Qwen3.6-35B-A3B-NVFP4"'));
+    // Not installed yet, on a computer that can run it: the problems, then Install with what it downloads.
+    const fresh = vllmPanel({ installed: false, version: null, phase: null, enabled: false,
+        probe: { at: 1, oks: ['WSL is installed, with Ubuntu on WSL 2.'], problems: ['vLLM is not installed on this computer yet: press Install vLLM.'], warnings: [] },
+        library: vllmPanel().library.map((e) => ({ ...e, downloaded: false, gbOnDisk: null })) });
+    const f = card(render(adminState({ vllm: fresh, download: { kind: 'download', label: 'x', done: false, about: 'nope' } })));
+    assert.ok(f.includes('<div class="warnline">✗ vLLM is not installed on this computer yet: press Install vLLM.</div>'), 'what blocks it');
+    assert.ok(f.includes('data-vinstall disabled'), 'one download at a time');
+    assert.equal(card(render(adminState({ vllm: fresh }))), '', 'not open, nothing downloading: no card');
+    // The card shows once a download of its own runs, or after the button opened it; here a download runs.
+    const withDl = card(render(adminState({ vllm: fresh, download: { kind: 'download', label: 'Downloading Fake', done: false, about: 'qwen3.6-35b-a3b' } })));
+    assert.ok(withDl.includes('Downloads vLLM 0.30.0 (about 8 GB) and Qwen3.6 35B-A3B · NVFP4 (23.4 GB) into Ubuntu, in /home/me/lol-spike. About 45 minutes on a typical connection. The farm keeps serving while it downloads; a stopped download continues where it left off.'), withDl);
+    assert.ok(withDl.includes('<span class="badge">downloading</span>') && !withDl.includes('data-vdl="qwen3.6-35b-a3b"') && !withDl.includes('data-vrm="qwen3.6-35b-a3b"'), 'the row being downloaded');
+    // An older vLLM: said, with Update; an install started earlier: said, with Stop it.
+    const older = card(render(vllmState({ version: '0.29.0', probe: { at: 1, oks: [], problems: ['A download started earlier is still running. Wait for it, or stop it here.'], warnings: ['vLLM 0.29.0 is installed; this farm was tested with 0.30.0.'] } })));
+    assert.ok(/⚠ vLLM 0\.29\.0 is installed; this farm was tested with 0\.30\.0\. <button class="start" data-vinstall[^>]*>Update vLLM<\/button>/.test(older), older);
+    assert.ok(/✗ A download started earlier is still running\. Wait for it, or stop it here\. <button class="stop" data-cancel="download"[^>]*>Stop it<\/button>/.test(older));
+    // A model of no known family; a folder on disk not in the list.
+    const custom = card(render(vllmState({ library: [...vllmPanel().library, { id: 'mistral', label: 'Mistral', repo: 'm/Mistral', args: ['--enable-prefix-caching'], downloaded: false, partial: true, gbOnDisk: 3, active: false, generic: true }], foundFolders: [{ folder: 'old-model', gb: 12 }] })));
+    assert.ok(custom.includes('Not one of the measured models: answers work, but tools and thinking may not show until a developer adds its settings.'));
+    assert.ok(custom.includes('<span class="badge">partly downloaded</span>') && custom.includes('data-vdl="mistral"'), 'partly downloaded: Download finishes it');
+    assert.ok(custom.includes('Also on this computer: old-model (12 GB)') && custom.includes('data-vfolder="old-model"'));
+    // Unsupported, and not checked yet.
+    assert.ok(card(render(vllmState({ supported: false, probe: null }))).includes('✗ Not available on this computer: vLLM needs an NVIDIA GPU on Linux, or Windows with WSL.'));
+    assert.ok(card(render(vllmState({ probe: null }))).includes('Checking this computer…'));
+    // The take-over offer (§9.2; the next slice makes the farm fill it).
+    const to = render(adminState({ backend: { engine: 'external', alias: 'Qwen3.6', model: 'm', baseUrl: 'http://127.0.0.1:8100/v1', contextLength: 65536, contextPerSlot: 65536, slots: 48 }, externalConfigured: true,
+        vllm: vllmPanel({ enabled: false, phase: null, takeOver: { root: '/home/me/lol-spike', running: true } }) }));
+    assert.ok(to.includes('<h2>vLLM on this computer</h2>') && to.includes('The vLLM this farm routes to runs on this computer, from /home/me/lol-spike. The farm can run it itself: then you change its model, people and context here, and it starts and stops with the farm. It keeps the same model, name and settings and keeps running: nobody is interrupted.') && to.includes('Let the farm run vLLM'));
+    assert.ok(render(adminState({ vllm: vllmPanel({ takeOver: { root: '/r', running: false } }) })).includes('and starts it now: about 2 minutes, during which nobody can chat.'));
+    assert.ok(!render(vllmState()).includes('vLLM on this computer'), 'nothing to take over: no card');
+    // The panel's requests for these buttons reach routes that exist.
+    const panelSrc = fs.readFileSync(path.join(__dirname, '..', 'src', 'admin', 'index.html'), 'utf8');
+    const srvSrc = fs.readFileSync(path.join(__dirname, '..', 'src', 'selfServer.js'), 'utf8');
+    for (const r of ['vllm/check', 'vllm/install', 'vllm/download', 'vllm/library/add', 'vllm/library/remove', 'vllm/stop', 'vllm/start', 'job/cancel', 'vllm/log']) {
+        assert.ok(panelSrc.includes(`/lol/admin/${r}`) && srvSrc.includes(`/lol/admin/${r}`), r);
+    }
+});
+
+test('panel: vLLM\'s rows, its trade line and the Apply text; Apply asks the farm first and confirms only a restart (§7.1, §5.6)', async () => {
+    const render = loadPanel();
+    const html = render(vllmState());
+    const sel = (id) => (new RegExp(`<select id="${id}" data-orig="([^"]*)">([\\s\\S]*?)</select>`).exec(html) || []).slice(1);
+    const [slotsOrig, slotsOpts] = sel('slots-sel');
+    assert.equal(slotsOrig, 'auto');
+    assert.ok(slotsOpts.includes('<option value="auto" selected>Automatic — 48, measured on this card</option>'));
+    assert.deepEqual([...slotsOpts.matchAll(/value="(\d+)"/g)].map((m) => Number(m[1])), [1, 2, 4, 8, 12, 16, 24, 32, 48, 64, 96, 128]);
+    assert.ok(render(vllmState({ seatsAuto: { seats: 10, source: 'memory' } })).includes('Automatic — 10, what the memory holds'));
+    assert.ok(render(vllmState({ seatsAuto: { seats: 4, source: 'default' } })).includes('Automatic — 4 to start with'));
+    assert.ok(html.includes('people who can write to the model at the same time. They share the GPU, so each reply slows as more write at once; past this number a new message waits for a free seat.'));
+    const [ctxOrig, ctxOpts] = sel('ctx-sel');
+    assert.equal(ctxOrig, '65536');
+    assert.deepEqual([...ctxOpts.matchAll(/value="(\d+)"/g)].map((m) => Number(m[1])), [8192, 16384, 32768, 65536, 131072, 262144]);
+    assert.ok(ctxOpts.includes('256k tokens — everything this model can read'));
+    assert.ok(html.includes('the longest conversation or document one person can use. A longer context means fewer people fit in the GPU\'s memory.'));
+    const [kvOrig, kvOpts] = sel('kv-sel');
+    assert.equal(kvOrig, 'auto');
+    assert.ok(kvOpts.includes('Automatic — what the GPU has free, less the model, 9 GB for document reading and a safety margin (now 50 GB)'));
+    assert.deepEqual([...kvOpts.matchAll(/value="(\d+)"/g)].map((m) => Number(m[1])), [16, 24, 32, 40, 50, 60, 70, 80], 'all below the 95.6 GB card');
+    assert.ok(render(vllmState({ unified: true, minFreeGb: 8, cardGib: 119, autoKvGib: 27 })).includes('Automatic — from what the computer has free, less the model, 9 GB for document reading and a safety margin, keeping 8 GB so it cannot run out (now 27 GB)'));
+    assert.ok(html.includes('memory vLLM keeps for everyone\'s conversations. Automatic is worked out again at each start.'));
+    assert.ok(html.includes('what appears in the model picker. Renaming takes a few seconds; vLLM keeps running.'));
+    // The trade line, as configured: vLLM's own count of whole conversations, and what was measured.
+    assert.ok(html.includes('Each person gets <b>64k</b> of context. The memory for conversations holds <b>65</b> people at that size. Measured on this card with this model: 48 at 64k when everyone writes at once, ≥ 64 in normal use.'), html.slice(html.indexOf('id="trade"'), html.indexOf('id="trade"') + 500));
+    assert.ok(html.includes('Open WebUI reads attached documents whole.'));
+    // Edited: worked out from the model's memory per person; a set number past what was measured, or past what fits.
+    const edit = (slots, ctx, kv) => {
+        render.el('#slots-sel').value = String(slots); render.el('#ctx-sel').value = String(ctx); render.el('#kv-sel').value = String(kv);
+        render.el('#ctx-sel').onchange();
+        return render.el('#trade').innerHTML;
+    };
+    const e80 = edit(80, 65536, 'auto');
+    assert.ok(e80.includes('After Apply, each person gets <b>64k</b>'), e80);
+    assert.ok(e80.includes('The memory for conversations holds <b>67</b> people at that size.'), '50 GiB at 64k, worked out: 67 (§6; vLLM itself said 65.82x)');
+    assert.ok(e80.includes('<div class="warnline">More people than measured on this card: when everyone writes at once, replies may slow below a comfortable reading speed.</div>'));
+    assert.ok(e80.includes('<div class="warnline">The memory holds only 67 people at 64k: past that, vLLM makes people wait. Lower the people or the context, or give it more memory.</div>'));
+    assert.ok(!edit('auto', 131072, 'auto').includes('warnline">More people'), 'Automatic never goes past what was measured');
+    assert.ok(edit('auto', 131072, 'auto').includes('Measured on this card with this model: 32 at 128k'), 'another context: its own measurement');
+    const e16 = edit(4, 16384, 16);
+    assert.ok(e16.includes('<b>16k</b>') && e16.includes('the 8 most relevant passages') && e16.includes('Every connected Open WebUI restarts once'), e16);
+    // A card and model nobody measured: said, with the estimator (the owner's question (c)).
+    const nm = render(vllmState({ measured: null }));
+    assert.ok(nm.includes('Not measured on this card with this model: start with fewer people and watch the Performance card. <a class="plan" href="/lol/capacity" target="_blank" rel="noopener">Plan capacity ↗</a> estimates it.'));
+    assert.ok(html.includes('Changes above apply together. A new context, memory or model restarts vLLM: about 2 minutes during which nobody can chat. People at once, the name and the password apply in a few seconds.'));
+    assert.ok(render(adminState()).includes('Changes above apply together — one restart for all of them.'), 'Ollama keeps its own');
+
+    // Apply on vLLM: a dry run first; the confirm only when it restarts; nothing sent when the operator says no.
+    for (const [restart, answer, sends] of [[true, false, 0], [true, true, 1], [false, false, 1]]) {
+        const calls = []; const asked = [];
+        const p = loadPanel({
+            fetch: async (url, o) => { const body = o && o.body ? JSON.parse(o.body) : null; calls.push([url, body]); return { status: 200, json: async () => (body && body.dryRun ? { ok: true, dryRun: true, restart, changes: ['80 people at once'] } : { ok: true, started: true }) }; },
+            confirm: (q) => { asked.push(q); return answer; },
+        });
+        p(vllmState());
+        for (const id of ['#name-in', '#idle-sel', '#ctx-sel', '#kv-sel', '#sec-in']) { p.el(id).value = ''; p.el(id).dataset.orig = ''; }
+        p.el('#slots-sel').value = '80'; p.el('#slots-sel').dataset.orig = 'auto';
+        await p.el('#settings-apply').onclick();
+        await new Promise((r) => setTimeout(r, 10));
+        const applies = calls.filter(([u, b]) => u === '/lol/admin/apply' && !b.dryRun);
+        assert.deepEqual(calls[0], ['/lol/admin/apply', { slots: 80, dryRun: true }], 'the dry run goes first, with the number');
+        assert.deepEqual(asked, restart ? ['Apply now? vLLM restarts: about 2 minutes during which nobody can chat.'] : [], `restart ${restart}`);
+        assert.equal(applies.length, sends, `restart ${restart}, answer ${answer}`);
+        if (sends) assert.deepEqual(applies[0][1], { slots: 80 });
+    }
+});
+
+test('panel: the job bar and the download bar, each with Stop when it can stop (§7.3)', () => {
+    const render = loadPanel();
+    const html = render(vllmState({ phase: 'starting' }, {
+        job: { kind: 'engine', label: 'Starting vLLM', message: 'loading the model weights (2 of 3)', percent: 67, done: false, cancellable: true, startedAt: Date.now() - 50000 },
+        download: { kind: 'download', label: 'Downloading Nemotron', message: 'downloading Nemotron — 12 of 21.6 GB', percent: 55, bytes: 12e9, total: 21.6e9, bytesPerSec: 30e6, etaSec: 320, done: false, cancellable: true, about: 'nemotron-3.5-lightning', startedAt: Date.now() - 400000 },
+    }));
+    const bars = html.split('<div class="jobbar').slice(1).map((x) => x.split('<div class="card">')[0]);
+    assert.equal(bars.length, 2, 'two bars');
+    assert.ok(bars[0].includes('<b>Starting vLLM</b>') && bars[0].includes('loading the model weights (2 of 3) · 67%') && bars[0].includes('data-cancel="job"'), bars[0]);
+    assert.ok(bars[0].includes('running for 50s'));
+    assert.ok(bars[1].includes('<b>Downloading Nemotron</b>') && bars[1].includes('data-cancel="download"') && bars[1].includes('<b>12.0 GB</b> of 21.6 GB · 30 MB/s · about 5 min left'), bars[1]);
+    const done = render(vllmState({}, { job: { label: 'Starting vLLM', done: true, ok: false, error: 'Stopped. vLLM is not running: press Start vLLM.', cancellable: false },
+        download: { label: 'Downloading Nemotron', done: true, ok: false, error: 'Stopped. Press Download again to continue where it left off.', cancellable: false } }));
+    assert.ok(done.includes('Stopped. vLLM is not running: press Start vLLM.') && done.includes('Stopped. Press Download again to continue where it left off.'));
+    assert.ok(!done.includes('data-cancel="job"') && !done.includes('data-cancel="download"'), 'finished: no Stop');
+    assert.ok(!render(vllmState({}, { job: { label: 'Applying the farm settings', message: 'x', done: false, cancellable: false } })).includes('data-cancel'), 'a job that cannot stop halfway has no Stop');
+    // The page polls every second while either runs.
+    assert.ok(/lastState\.download && !lastState\.download\.done/.test(fs.readFileSync(path.join(__dirname, '..', 'src', 'admin', 'index.html'), 'utf8')));
+});
+
+// D10: no text a person reads names a config file or key — not the panel, not an admin error, not a job result.
+const D10_NEEDLES = ['lol.config.json', 'external.', 'binDir', 'enabled=', '.parallel'];
+// The string literals of a source's lines that are not comments and not log lines (the terminal and farm.log are
+// for whoever runs the farm by hand; the README documents the keys).
+function personStrings(src) {
+    const out = [];
+    src.split('\n').forEach((line, i) => {
+        const t = line.trim();
+        if (/^(\/\/|\*|\/\*)/.test(t) || /\blog\.(warn|err|info|ok|step|plain)\(|console\.(log|warn|error)\(/.test(line)) return;
+        const code = line.replace(/\/\/ .*$/, '').replace(/\$\{[^}]*\}/g, '');
+        for (const m of code.matchAll(/'((?:[^'\\]|\\.)*)'|"((?:[^"\\]|\\.)*)"|`((?:[^`\\]|\\.)*)`/g)) out.push({ line: i + 1, text: m[1] ?? m[2] ?? m[3] });
+    });
+    return out;
+}
+test('D10: no text a person reads names a config file or key — the panel in every engine and vLLM phase, and every admin result in the sources (§11.1-18)', () => {
+    const render = loadPanel();
+    const states = [
+        adminState(), adminState({ llamacppAvailable: false, llamacppBootError: 'Not available on this computer: there is no ready-made llama.cpp for it. The farm serves with Ollama.' }),
+        adminState({ backend: { engine: 'llama.cpp', alias: 'a', model: 'm', contextLength: 65536, contextPerSlot: 65536, slots: 1 }, llamacpp: { enabled: true, alias: 'a', library: [], contextLength: 'auto', contextResolved: 65536, parallel: 1 } }),
+        adminState({ backend: { engine: 'external', alias: 'a', model: 'm', baseUrl: 'http://127.0.0.1:8100/v1', contextLength: 65536, contextPerSlot: 65536, slots: 48, slotsVerified: false }, externalConfigured: true }),
+        ...['ready', 'starting', 'restarting', 'stopping', 'stopped', 'guard', 'down'].map((phase) => vllmState({ phase, adopted: phase === 'ready' })),
+        ollamaWithVllm({ phase: 'failed', bootError: 'vLLM could not start: it stopped.' }),
+        vllmState({ probe: { at: 1, oks: [], problems: ['vLLM is not installed on this computer yet: press Install vLLM.'], warnings: ['vLLM 0.29.0 is installed; this farm was tested with 0.30.0.'] }, installed: false }),
+        vllmState({ supported: false }), vllmState({ takeOver: { root: '/r', running: true } }), vllmState({}, { ocrFits: false, ocrModel: 'qwen3.8:latest', ocrGb: 17 }),
+    ];
+    for (const s of states) {
+        const html = render(s);
+        for (const n of D10_NEEDLES) assert.ok(!html.includes(n), `the panel shows "${n}" for ${s.backend.engine}/${s.vllm && s.vllm.phase}: …${html.slice(Math.max(0, html.indexOf(n) - 80), html.indexOf(n) + 40)}…`);
+    }
+    // Every string the farm can hand the panel (an admin error, a job result, a warning) and the panel's own texts.
+    const files = ['src/commands/up.js', 'src/perf.js', 'src/llamacpp.js', 'src/vllm.js', 'src/seats.js', 'src/admin/index.html'];
+    const hits = [];
+    for (const f of files) {
+        for (const { line, text } of personStrings(fs.readFileSync(path.join(__dirname, '..', f), 'utf8'))) {
+            for (const n of D10_NEEDLES) if (text.includes(n)) hits.push(`${f}:${line} "${text.slice(0, 90)}"`);
+        }
+    }
+    assert.deepEqual(hits, [], `config wording a person would read:\n${hits.join('\n')}`);
+});
+
+test('admin routes for vLLM: install, the list, the log, all behind the token, each reaching its control (§3.6)', async () => {
+    const http = require('http');
+    const seen = [];
+    const control = new Proxy({}, { get: (_, k) => (k === 'then' ? undefined : (...a) => { seen.push([k, ...a]); return { ok: true, k }; }) });
+    const srv = startSelfServer({ httpPort: 0, host: '127.0.0.1', getSnapshot: () => ({}), control, adminToken: 'tok' });
+    await new Promise((r) => srv.once('listening', r));
+    const port = srv.address().port;
+    const call = (method, p, body, tok = 'tok') => new Promise((resolve) => {
+        const data = body ? JSON.stringify(body) : null;
+        const req = http.request({ host: '127.0.0.1', port, method, path: p, headers: { ...(tok ? { authorization: `Bearer ${tok}` } : {}), ...(data ? { 'content-type': 'application/json' } : {}) } }, (res) => {
+            let b = ''; res.on('data', (c) => { b += c; }); res.on('end', () => resolve({ status: res.statusCode, json: JSON.parse(b) }));
+        });
+        req.end(data || undefined);
+    });
+    try {
+        for (const [p, body, k, args] of [
+            ['/lol/admin/vllm/install', {}, 'vllmInstall', []],
+            ['/lol/admin/vllm/library/add', { repo: 'Qwen/Qwen3-0.6B' }, 'vllmLibraryAdd', [{ repo: 'Qwen/Qwen3-0.6B' }]],
+            ['/lol/admin/vllm/library/remove', { id: 'x', deleteFiles: true }, 'vllmLibraryRemove', [{ id: 'x', deleteFiles: true }]],
+            ['/lol/admin/apply', { model: 'nemotron-3.5-lightning', dryRun: true }, 'applyFarmSettings', [{ model: 'nemotron-3.5-lightning', dryRun: true }]],
+            ['/lol/admin/backend', { engine: 'vllm' }, 'setBackend', ['vllm']],
+        ]) {
+            assert.equal((await call('POST', p, body, null)).status, 401, `${p} needs the token`);
+            seen.length = 0;
+            const r = await call('POST', p, body);
+            assert.equal(r.status, 200, p);
+            assert.deepEqual(seen, [[k, ...args]], p);
+        }
+        assert.equal((await call('GET', '/lol/admin/vllm/log?lines=50', null, null)).status, 401);
+        seen.length = 0;
+        assert.equal((await call('GET', '/lol/admin/vllm/log?lines=50')).status, 200);
+        assert.deepEqual(seen, [['vllmLog', '50']]);
+    } finally { srv.close(); }
 });
 
 (async () => {

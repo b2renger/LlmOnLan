@@ -60,7 +60,7 @@
   .hero-name { font-size: 22px; font-weight: 650; letter-spacing: -.01em; }
   .hero-meta { color: var(--muted); font-size: 12.5px; }
   .hero-meta b { color: var(--text); }
-  .engines { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 4px 0 8px; }
+  .engines { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; margin: 4px 0 8px; }
   .engine { text-align: left; padding: 10px 12px; min-width: 0; background: var(--surface2); }
   .engine .meta { margin-top: 2px; }
   .engine.active { border-color: color-mix(in srgb, var(--ok) 45%, var(--border)); background: color-mix(in srgb, var(--ok) 7%, var(--surface2)); opacity: 1; }
@@ -111,6 +111,12 @@ let lastState = null;
 // The Clients section is collapsible; the 5s poll rebuilds the DOM, so its
 // open/closed state lives here (and in localStorage) instead of in the element.
 let clientsOpen = localStorage.getItem('lolClientsOpen') === '1';
+// The vLLM card stays open once the operator pressed the vLLM button (same reason); the check of this computer
+// runs once per open, never per poll; the log is shown until hidden.
+let vllmOpen = localStorage.getItem('lolVllmOpen') === '1';
+let vllmChecking = false;
+let vllmAutoChecked = false;
+let vllmLogLines = null;
 
 function toast(msg) {
   const t = $('#toast'); t.textContent = msg; t.classList.add('show');
@@ -182,56 +188,41 @@ function render(s) {
   const job = s.job || null;
   const jobRunning = !!(job && !job.done);
 
-  // --- the running job ---------------------------------------------------------
+  // --- the running job, and the download -----------------------------------------
   // Switching backend or model means downloading and reloading gigabytes; without
   // this the panel looked frozen for ten minutes and an operator would reasonably
   // conclude the farm had hung and restart it mid-download.
-  // The numbers line under the bar. A percentage alone left the operator asking
-  // "is this moving at all?" through a 30 GB pull (owner report 2026-09-10), and
-  // Ollama's own per-layer figures made it look like it kept restarting. This
-  // shows the aggregate: how far, how fast, how much longer.
-  const jobBits = [];
-  if (jobRunning) {
-    if (job.bytes != null && job.total) jobBits.push(`<b>${esc(sizeOf(job.bytes))}</b> of ${esc(sizeOf(job.total))}`);
-    else if (job.bytes != null) jobBits.push(`<b>${esc(sizeOf(job.bytes))}</b> so far`);
-    if (job.bytesPerSec) jobBits.push(esc(rateOf(job.bytesPerSec)));
-    if (job.etaSec != null) jobBits.push(esc(etaOf(job.etaSec)));
-    // Elapsed is the honest fallback while a phase reports no bytes at all
-    // (reading the index, verifying, saving) - it still proves time is passing.
-    if (!jobBits.length && job.startedAt) jobBits.push('running for ' + esc(dur(Math.round((Date.now() - job.startedAt) / 1000))));
-  }
-  const jobBar = job
-    ? `<div class="jobbar${job.done ? (job.ok ? ' done' : ' failed') : ''}">`
-      + `<div class="jobtop"><b>${esc(job.label)}</b><span>${esc(job.done ? (job.ok ? 'done' : (job.error || 'failed')) : job.message)}${jobRunning && job.percent != null ? ' · ' + job.percent + '%' : ''}</span></div>`
-      + (jobRunning
-        ? `<div class="bar"><i style="width:${job.percent == null ? 100 : job.percent}%"${job.percent == null ? ' class="indet"' : ''}></i></div>`
-          + (jobBits.length ? `<div class="jobmeta">${jobBits.join(' · ')}</div>` : '')
-        : '')
-      + '</div>'
-    : '';
+  // Two bars (docs/VLLM_MANAGED_PLAN.md §7.3): the JOB (a switch, a start, an Apply,
+  // an Ollama pull) and the DOWNLOAD (installing vLLM, a vLLM model), which runs
+  // while the farm keeps serving. Each gets Stop when it can be stopped halfway.
+  const jobBar = barOf(job, 'job') + barOf(s.download, 'download');
 
   // --- backend ------------------------------------------------------------------
   // The headline answers the two questions the panel never used to: what is users'
   // model actually called, and which engine is behind it.
-  const engineName = be.engine === 'llama.cpp' ? 'llama.cpp' : (be.engine === 'external' ? 'External server' : 'Ollama');
-  // An operator-run backend (vLLM/SGLang/…): the farm routes to it but never
-  // started it, so none of the engine controls below apply — say so plainly
-  // rather than offering switches that would fight the config file.
+  const engineName = ENGINE_LABEL[be.engine] || 'Ollama';
+  const v = s.vllm || {};
+  const isV = be.engine === 'vllm';
+  // A server this farm does not run (set up by a developer): its model, context and
+  // people at once are its own, so none of the controls below apply to it (§7.7).
   const externalRow = be.engine === 'external'
-    ? `<div class="warnline">Serving through an external OpenAI-compatible server at <b>${esc(be.baseUrl || '')}</b>. `
-      + `This farm routes to it and never starts, stops or configures it — the model, its context and its concurrency `
-      + `are whatever that server was launched with (declared in <b>lol.config.json</b> under <b>external</b>). `
-      + `Set <b>external.enabled=false</b> and restart the farm to go back to the built-in engines.</div>`
+    ? `<div class="warnline">Serving through a server this farm does not run, at <b>${esc(be.baseUrl || '')}</b>. `
+      + `Its model, context and people at once are set where that server runs. `
+      + `To serve from this farm instead, pick Ollama, llama.cpp or vLLM above.</div>`
     : '';
   const perSlot = be.contextPerSlot || be.contextLength || 0;
-  const slotLine = be.slots > 1
+  const slotLine = isV
+    ? `${be.slots} people at once · ${fmtK(be.contextLength)} of context each`
+    : be.slots > 1
     ? (be.kvUnified
         ? `${be.slots} people at once · up to ${fmtK(be.contextLength)} of context (shared pool, ${fmtK(perSlot)} guaranteed)`
         : `${be.slots} people at once · ${fmtK(perSlot)} of context each`)
     : `1 person at a time · ${fmtK(perSlot)} of context`;
+  // The badge on the engine that serves: vLLM says where it is in its life (§1.5).
+  const VLLM_BADGE = { starting: 'starting', restarting: 'starting', stopping: 'stopping', stopped: 'stopped', guard: 'stopped', down: 'not answering' };
   const engineBtn = (id, title, sub, active, blocked) =>
     `<button class="engine${active ? ' active' : ''}" data-engine="${id}"${active || jobRunning || blocked ? ' disabled' : ''}>`
-    + `<div class="mname">${title}${active ? ' <span class="badge on">running</span>' : ''}</div>`
+    + `<div class="mname">${title}${active ? ` <span class="badge on">${id === 'vllm' ? (VLLM_BADGE[v.phase] || 'running') : 'running'}</span>` : ''}</div>`
     + `<div class="meta">${sub}</div></button>`;
 
   const lcAvailable = s.llamacppAvailable !== false;
@@ -252,42 +243,41 @@ function render(s) {
     + bootErr
     + clockErr
     + externalRow
+    + vllmStatusLine(s)
     + `<div class="hero"><div class="hero-name">${esc(be.alias || '—')}</div>`
     + `<div class="hero-meta">${esc(engineName)} · ${esc(be.model || '—')}</div>`
     + `<div class="hero-meta">${esc(slotLine)}${cap.clients != null ? ` · <b>${cap.clients}</b> connected now` : ''}</div></div>`
     + `<div class="engines">`
+    // `active` must be an explicit equality: with the external engine serving, none
+    // of the farm's own engines runs, and marking one "running" would be a lie on
+    // the one card that answers "what is actually serving".
+    + engineBtn('ollama', 'Ollama', 'The models below. Several to choose from, for a few people at once.', be.engine === 'ollama', false)
     + engineBtn('llamacpp', 'llama.cpp',
         lcAvailable
           ? 'One model, fastest. Quantised KV cache; speculative decoding (MTP) on quants that keep their MTP head.'
-          : 'Not available on this machine — no prebuilt llama.cpp for this platform. Install it yourself and set llamacpp.binDir.',
-        be.engine === 'llama.cpp', !lcAvailable || be.engine === 'external')
-    // `active` must be an explicit equality, not "not llama.cpp": with the
-    // external engine serving, neither built-in is running and marking Ollama
-    // "running" would be a straight lie on the one card that answers "what is
-    // actually serving". Both are blocked while external owns the box.
-    + engineBtn('ollama', 'Ollama', 'The models below. Several to choose from, slower.',
-        be.engine === 'ollama', be.engine === 'external')
+          : 'Not available on this computer: there is no ready-made llama.cpp for it.',
+        be.engine === 'llama.cpp', !lcAvailable)
+    + engineBtn('vllm', 'vLLM', vllmEngineSub(v), isV, v.supported === false)
+    // Only while a developer configured one (D2): the panel never offers it otherwise.
+    + (s.externalConfigured ? engineBtn('external', 'External server', 'A server this farm does not run, set up by a developer.', be.engine === 'external', false) : '')
     + `</div>`
-    + `<div class="hint">${be.engine === 'external'
-        ? 'Engine switching is off while an external server is configured — change <b>external.enabled</b> in lol.config.json and restart the farm.'
-        : 'Switching reloads the model — about a minute, or longer if the weights still have to download.'}</div>`
+    + `<div class="hint">Switching stops the current engine and starts the other: about a minute for Ollama or llama.cpp, about 2 minutes for vLLM.</div>`
 
-    // The advertised name — llama.cpp only: it IS that engine's one served alias.
+    // The advertised name — llama.cpp and vLLM: it IS that engine's one served alias.
     // On the Ollama engine names live on the model rows (per-model Rename); a
     // global field here silently fought them (owner report 2026-08-31).
-    + (be.engine === 'llama.cpp'
+    + (be.engine === 'llama.cpp' || isV
       ? `<div class="row"><span></span><span><div class="mname">Name users see</div>`
-        + `<div class="meta">what appears in the model picker — not the checkpoint's technical name</div></span>`
+        + `<div class="meta">${isV ? 'what appears in the model picker. Renaming takes a few seconds; vLLM keeps running.' : 'what appears in the model picker — not the checkpoint\'s technical name'}</div></span>`
         + `<span class="badges"><input id="name-in" type="text" maxlength="48" spellcheck="false" value="${esc(be.alias || '')}" data-orig="${esc(be.alias || '')}" /></span></div>`
       : '')
 
-    // Capacity. The knob that decides whether a workshop works, previously reachable
-    // only by hand-editing lol.config.json. Hidden under an external server: its
-    // concurrency is its own (external.parallel only declares it).
+    // Capacity. The knob that decides whether a workshop works. Hidden under an
+    // external server: its concurrency is its own.
     // On Ollama the setting is PER BOX (ollama.numParallel) while be.slots is the
     // farm total (x reachable hosts) — showing the total and writing it back as the
     // per-box value made "2 hosts x 2" read "4", and picking 8 gave 16.
-    + (be.engine === 'external' ? '' : (() => {
+    + (be.engine === 'external' ? '' : isV ? vllmSlotsRow(v) : (() => {
         const cur = be.engine === 'ollama' ? ((s.ollama && s.ollama.numParallel) || be.slots) : be.slots;
         const opts = [1, 2, 3, 4, 6, 8];
         if (cur && !opts.includes(cur)) opts.push(cur);
@@ -300,7 +290,7 @@ function render(s) {
                   : 'llama.cpp splits its context window across slots, so more slots means less context each')
               : `requests each Ollama box runs in parallel${manyHosts ? ` (${be.slots} across the farm now)` : ''} — applies after a farm restart`}</div></span>`
           + `<span class="badges"><select id="slots-sel" data-orig="${cur}">${
-              opts.map((v) => `<option value="${v}"${v === cur ? ' selected' : ''}>${v}</option>`).join('')
+              opts.map((n) => `<option value="${n}"${n === cur ? ' selected' : ''}>${n}</option>`).join('')
             }</select></span></div>`;
       })())
 
@@ -314,7 +304,7 @@ function render(s) {
         return `<div class="row"><span></span><span><div class="mname">Free an idle seat after</div>`
           + `<div class="meta">a seat nobody generates on goes to the next person — 2 min suits a workshop, 15 min is the default · applies at once</div></span>`
           + `<span class="badges"><select id="idle-sel" data-orig="${cap.seatIdleSec}">${
-              opts.map((v) => `<option value="${v}"${v === cap.seatIdleSec ? ' selected' : ''}>${+(v / 60).toFixed(1)} min</option>`).join('')
+              opts.map((n) => `<option value="${n}"${n === cap.seatIdleSec ? ' selected' : ''}>${+(n / 60).toFixed(1)} min</option>`).join('')
             }</select></span></div>`;
       })())
 
@@ -331,20 +321,24 @@ function render(s) {
     // Context window. What it gives each person is the line below (tradeLine), which
     // follows an edit — a static sum here contradicted it mid-edit. Hidden under an
     // external server: its window is whatever that server was launched with.
-    + (be.engine === 'external' ? '' : `<div class="row"><span></span><span><div class="mname">Context window</div>`
+    + (be.engine === 'external' ? '' : isV ? vllmCtxRow(v) + vllmKvRow(v) : `<div class="row"><span></span><span><div class="mname">Context window</div>`
     + `<div class="meta">how much text the model reads at once — bigger fits whole documents, costs VRAM</div></span>`
     + `<span class="badges"><select id="ctx-sel" data-orig="${esc(String((be.engine === 'llama.cpp' ? lc.contextLength : (s.ollama && s.ollama.contextLength)) ?? 'auto'))}">${be.engine === 'llama.cpp'
         ? ctxOptions(lc.contextLength, lc.contextResolved || be.contextLength, s.fit, s.fit && s.fit.nativeMax)
         : ctxOptions((s.ollama && s.ollama.contextLength) ?? be.contextLength, be.contextLength, null, s.ollama && s.ollama.nativeMax)}</select></span></div>`)
 
-    // What the two settings above give each person, and what the clients do with it,
+    // What the settings above give each person, and what the clients do with it,
     // updated as the operator edits (tradeLine). Under an external server: the declared values.
-    + `<div id="trade">${tradeLine(s)}</div>`
+    + `<div id="trade">${isV ? vllmTrade(s) : tradeLine(s)}</div>`
 
     // ONE Apply for everything above (owner ask 2026-08-31): each setting used to
     // carry its own button, and each press restarted the server — four restarts to
     // change four things. Edits are collected and applied together in one restart.
-    + `<div class="row"><span></span><span><div class="meta">Changes above apply together — one restart for all of them.</div></span>`
+    // On vLLM some changes restart it and some do not: the row says which, and Apply
+    // asks the farm first (a dry run) and confirms only a restart.
+    + `<div class="row"><span></span><span><div class="meta">${isV
+        ? 'Changes above apply together. A new context, memory or model restarts vLLM: about 2 minutes during which nobody can chat. People at once, the name and the password apply in a few seconds.'
+        : 'Changes above apply together — one restart for all of them.'}</div></span>`
     + `<span class="badges"><button id="settings-apply"${jobRunning ? ' disabled' : ''}>Apply changes</button></span></div>`
     + `</div>`;
 
@@ -382,6 +376,12 @@ function render(s) {
     perfWarns.push(`Also in GPU memory: ${loadedOll.join(', ')} (document reading — freed automatically when the GPU is idle and full).`);
   // A vLLM's real KV pool against the declared seats x window (worded by the farm).
   if (s.poolWarning) perfWarns.push(s.poolWarning);
+  // Document reading drives Ollama beside vLLM, in the memory kept for it (§1.4, §7.6).
+  if (be.engine === 'vllm' && s.ocrFits === false && s.ocrModel) {
+    const gemma = /^gemma4:12b$/.test(String(s.ocrModel));
+    perfWarns.push(`Document reading uses ${s.ocrModel} (${s.ocrGb} GB), which does not fit the ${(s.vllm && s.vllm.ocrReserveGib) || 0} GB kept for it beside vLLM: documents will read slowly.`
+      + (gemma ? '' : ' Download gemma4:12b in the Ollama list below; the farm then uses it.'));
+  }
   const perfBits = [
     // A vLLM counts requests, not seats: one person can run several, up to its --max-num-seqs
     // (measured: "128/48" on a 48-seat farm), so it gets no seat denominator.
@@ -405,8 +405,8 @@ function render(s) {
     (g.vramUsedGb != null && g.vramTotalGb != null) ? `VRAM <b>${g.vramUsedGb}/${g.vramTotalGb} GB</b>` : '',
     g.gpuUtil != null ? `GPU <b>${g.gpuUtil}%</b>` : '',
   ].filter(Boolean).join('');
-  // An external server shows the card only once it has proven to be a vLLM.
-  const perfCard = be.engine === 'llama.cpp' || (be.engine === 'external' && perf)
+  // An external server shows the card only once it has proven to be a vLLM; the farm's own vLLM always does.
+  const perfCard = be.engine === 'llama.cpp' || be.engine === 'vllm' || (be.engine === 'external' && perf)
     ? `<div class="card"><h2>Performance</h2>`
       + `<div class="perfnum">${perf && perf.lastGenTokSec != null ? perf.lastGenTokSec : '—'} <small>tok/s while generating${perf && perf.lastActiveTs ? '' : ' · no traffic measured yet'}</small></div>`
       + `<div class="health">${perfBits}</div>`
@@ -471,9 +471,9 @@ function render(s) {
     // default, admin-overridable — setModelAlias). Renamed rows lead with the
     // name users see; the checkpoint id moves into the meta line.
     const renamed = m.servedAs && m.servedAs !== m.id;
-    // Not on the default row while llama.cpp serves: a switch back gives the default
-    // llama.cpp's name (so bound chats survive), so it is renamed up in Backend.
-    const rnBtn = m.served && !(be.engine === 'llama.cpp' && m.isDefault)
+    // Not on the default row while llama.cpp or vLLM serves: a switch back gives the
+    // default that engine's name (so bound chats survive), so it is renamed up in Backend.
+    const rnBtn = m.served && !((be.engine === 'llama.cpp' || be.engine === 'vllm') && m.isDefault)
       ? `<button data-rn="${esc(m.id)}" data-cur="${esc(m.servedAs || m.id)}" title="The name users see for this model"${jobRunning ? ' disabled' : ''}>Rename</button>` : '';
     const metaLine = [renamed ? `checkpoint ${m.id}` : '', meta].filter(Boolean).join(' · ');
     return `<div class="row"><span class="${dotCls}"></span>`
@@ -585,9 +585,11 @@ function render(s) {
   app.innerHTML =
     `<header class="top"><h1>lol <span class="lol">${esc(s.name || 'farm')}</span></h1>`
     + `<a class="plan" href="/lol/capacity" target="_blank" rel="noopener" title="Which hardware and model serve how many people, with ready-made scenarios and this farm marked">Plan capacity ↗</a></header>`
-    + `<p class="sub">Changes apply to the running farm and are saved to lol.config.json, except the plugin toggles and the Blender recommendation (this session only) and Ollama's "people served at once" (after a farm restart).</p>`
+    + `<p class="sub">Changes apply to the running farm and are kept for the next start, except the plugin toggles and the Blender recommendation (this session only) and Ollama's people served at once (after a farm restart).</p>`
     + jobBar
+    + takeOverCard(s, jobRunning)
     + backendCard
+    + vllmCard(s, jobRunning)
     + perfCard
     + libCard
     + ollamaCard
@@ -601,11 +603,17 @@ function render(s) {
   app.querySelectorAll('button[data-ract]').forEach((b) => { b.onclick = () => recommendAct(b.dataset.ract, b.dataset.id, b); });
   app.querySelectorAll('button[data-engine]').forEach((b) => {
     b.onclick = () => {
-      // A switch reloads the model: ~a minute of downtime for everyone connected.
-      if (!confirm('Switch the serving engine? The model reloads — about a minute, and anyone connected waits.')) return;
-      post('/lol/admin/backend', { engine: b.dataset.engine }, b, 'Switching backend…');
+      const to = b.dataset.engine;
+      // vLLM not set up here yet: open its card and check this computer, without switching (§7.1).
+      if (to === 'vllm' && !vllmUsable(s.vllm)) { openVllmCard(s); return; }
+      // A switch stops one engine and loads another: downtime for everyone connected, said first.
+      if (!confirm(switchConfirm(s, to))) return;
+      post('/lol/admin/backend', { engine: to }, b, 'Switching…');
     };
   });
+  // Stop on either bar (the job, the download).
+  app.querySelectorAll('button[data-cancel]').forEach((b) => { b.onclick = () => post('/lol/admin/job/cancel', { slot: b.dataset.cancel }, b, 'Stopping…'); });
+  wireVllm(s);
   app.querySelectorAll('button[data-lcuse]').forEach((b) => { b.onclick = () => post('/lol/admin/llamacpp/model', { id: b.dataset.lcuse }, b, 'Loading the model…'); });
   app.querySelectorAll('button[data-lcdel]').forEach((b) => { b.onclick = () => post('/lol/admin/llamacpp/library/remove', { id: b.dataset.lcdel }, b, 'Removed'); });
   // Inline rename editor. window.prompt() is NOT supported inside Electron (the
@@ -641,12 +649,16 @@ function render(s) {
   // The settings block applies as ONE change set — a single restart instead of
   // one per field. Only fields that differ from their rendered value are sent.
   const settingsApply = $('#settings-apply');
-  if (settingsApply) settingsApply.onclick = () => {
+  // vLLM's selects carry 'auto' beside numbers (people at once, memory for conversations).
+  const num = (x) => (x === 'auto' ? 'auto' : Number(x));
+  if (settingsApply) settingsApply.onclick = async () => {
     const payload = {};
     const nameIn = $('#name-in');
     if (nameIn && nameIn.value.trim() && nameIn.value.trim() !== nameIn.dataset.orig) payload.name = nameIn.value.trim();
     const slotsSel = $('#slots-sel');
-    if (slotsSel && slotsSel.value !== slotsSel.dataset.orig) payload.slots = parseInt(slotsSel.value, 10);
+    if (slotsSel && slotsSel.value !== slotsSel.dataset.orig) payload.slots = isV ? num(slotsSel.value) : parseInt(slotsSel.value, 10);
+    const kvSel = $('#kv-sel');
+    if (kvSel && kvSel.value !== kvSel.dataset.orig) payload.kvCacheGib = num(kvSel.value);
     const idleSel = $('#idle-sel');
     if (idleSel && idleSel.value !== idleSel.dataset.orig) payload.seatIdleSec = parseInt(idleSel.value, 10);
     const secIn = $('#sec-in');
@@ -659,13 +671,24 @@ function render(s) {
       payload.context = ctxSel.value === 'auto' ? 'auto' : parseInt(ctxSel.value, 10);
     }
     if (!Object.keys(payload).length) { toast('Nothing changed.'); return; }
+    // On vLLM, ask the farm first whether this restarts vLLM (a dry run changes nothing), and confirm only then.
+    if (isV) {
+      let d;
+      try { d = await api('/lol/admin/apply', { method: 'POST', body: JSON.stringify({ ...payload, dryRun: true }) }); }
+      catch (e) { if (e.unauthorized) { logout('Session expired — re-enter the token.'); return; } toast('Error: ' + (e.message || e)); return; }
+      if (d && d.ok === false) { toast(d.error || 'Action failed'); return; }
+      if (d && d.restart && !confirm('Apply now? vLLM restarts: about 2 minutes during which nobody can chat.')) return;
+    }
     post('/lol/admin/apply', payload, settingsApply, 'Applying…');
   };
-  // The trade line follows the slots and context controls before Apply.
-  const slotsIn = $('#slots-sel'), ctxIn = $('#ctx-sel'), trade = $('#trade');
-  if (slotsIn && ctxIn && trade) slotsIn.onchange = ctxIn.onchange = () => {
-    trade.innerHTML = tradeLine(s, parseInt(slotsIn.value, 10), ctxIn.value === 'auto' ? 'auto' : parseInt(ctxIn.value, 10));
+  // The trade line follows the people, context (and, on vLLM, memory) controls before Apply.
+  const slotsIn = $('#slots-sel'), ctxIn = $('#ctx-sel'), kvIn = $('#kv-sel'), trade = $('#trade');
+  const retrade = () => {
+    trade.innerHTML = isV
+      ? vllmTrade(s, num(slotsIn.value), parseInt(ctxIn.value, 10), kvIn ? num(kvIn.value) : undefined)
+      : tradeLine(s, parseInt(slotsIn.value, 10), ctxIn.value === 'auto' ? 'auto' : parseInt(ctxIn.value, 10));
   };
+  if (slotsIn && ctxIn && trade) { slotsIn.onchange = retrade; ctxIn.onchange = retrade; if (kvIn) kvIn.onchange = retrade; }
   // Clearing the password stays its own confirmed action — an empty field in the
   // batch means "unchanged", never "remove".
   const secClear = $('#sec-clear');
@@ -780,10 +803,19 @@ function tradeLine(s, slots, ctx) {
   }
   const each = perPerson(be.engine, win, slots);
   const lead = `${edited ? 'After Apply, each' : 'Each'} person gets ${isLc && slots > 1 && be.kvUnified ? 'at least ' : ''}<b>${fmtK(each)}</b> of context`;
-  const how = ext ? ', as declared in lol.config.json (external.contextLength).'
+  const how = ext ? ', as that server was set up.'
     : !isLc ? ': Ollama gives every request the whole window.'
     : slots > 1 ? (be.kvUnified ? `: ${fmtK(win)} shared by ${slots}, all of it for a person alone.` : `: ${fmtK(win)} split across ${slots}.`)
     : '.';
+  const { whole, docs, agent } = clientSay(each);
+  // The clients' rule: a farm that does not say keeps whole documents.
+  const wholeNow = be.contextPerSlot == null || be.contextPerSlot >= CLIENT.fullDocs;
+  return `<div class="hint">${lead}${how}${note}<br>${docs}${agent}</div>`
+    + (edited && whole !== wholeNow ? '<div class="warnline">Every connected Open WebUI restarts once to make that switch.</div>' : '');
+}
+
+// What the clients do with `each` tokens of context a person: Open WebUI's documents, the coding agent's replies.
+function clientSay(each) {
   const whole = each >= CLIENT.fullDocs;
   const docs = whole ? 'Open WebUI reads attached documents whole.'
     : `Open WebUI reads the ${CLIENT.topK} most relevant passages of an attached document, not all of it (that needs ${fmtK(CLIENT.fullDocs)} each).`;
@@ -802,10 +834,337 @@ function tradeLine(s, slots, ctx) {
     : loop >= CLIENT.plainReply ? ` ${newer} replies of up to ${fmtK(loop)}, not ${fmtK(CLIENT.goalReply)}, so it can still summarise its history.${old}`
     : left > 0 ? ` ${newer} plain replies (${fmtK(CLIENT.plainReply)} for most models), which leave ${fmtK(left)} for the conversation before the agent has to summarise it.${old}`
     : ` The coding agent has no room to summarise its history (a reply, ${fmtK(CLIENT.plainReply)} for most models, and ${fmtK(CLIENT.headroom)} kept free fill the window), so a long task stops when the window is full.`;
-  // The clients' rule: a farm that does not say keeps whole documents.
+  return { whole, docs, agent };
+}
+
+// ---- vLLM, run by the farm (docs/VLLM_MANAGED_PLAN.md §7) -------------------------------------------------------
+const ENGINE_LABEL = { ollama: 'Ollama', 'llama.cpp': 'llama.cpp', llamacpp: 'llama.cpp', vllm: 'vLLM', external: 'External server' };
+const GIB = 2 ** 30;
+
+// One bar: the job (slot 'job') or the download (slot 'download'). The numbers line under it says how far, how
+// fast and how much longer; Stop when the farm can stop it halfway. A percentage alone left the operator asking
+// "is this moving at all?" through a 30 GB pull (owner report 2026-09-10).
+function barOf(x, slot) {
+  if (!x) return '';
+  const running = !x.done;
+  const bits = [];
+  if (running) {
+    if (x.bytes != null && x.total) bits.push(`<b>${esc(sizeOf(x.bytes))}</b> of ${esc(sizeOf(x.total))}`);
+    else if (x.bytes != null) bits.push(`<b>${esc(sizeOf(x.bytes))}</b> so far`);
+    if (x.bytesPerSec) bits.push(esc(rateOf(x.bytesPerSec)));
+    if (x.etaSec != null) bits.push(esc(etaOf(x.etaSec)));
+    // Elapsed is the honest fallback while a phase reports no bytes at all (installing vLLM's libraries, reading
+    // the model index, verifying) - it still proves time is passing.
+    if (!bits.length && x.startedAt) bits.push('running for ' + esc(dur(Math.round((Date.now() - x.startedAt) / 1000))));
+  }
+  return `<div class="jobbar${x.done ? (x.ok ? ' done' : ' failed') : ''}">`
+    + `<div class="jobtop"><b>${esc(x.label)}</b><span>${esc(x.done ? (x.ok ? (x.message || 'done') : (x.error || 'failed')) : x.message)}${running && x.percent != null ? ' · ' + x.percent + '%' : ''}`
+    + `${x.cancellable ? ` <button class="stop" data-cancel="${slot}" style="min-width:0;margin-left:8px">Stop</button>` : ''}</span></div>`
+    + (running
+      ? `<div class="bar"><i style="width:${x.percent == null ? 100 : x.percent}%"${x.percent == null ? ' class="indet"' : ''}></i></div>`
+        + (bits.length ? `<div class="jobmeta">${bits.join(' · ')}</div>` : '')
+      : '')
+    + '</div>';
+}
+
+// Can a switch to vLLM go ahead from here: checked, and nothing in the checklist blocks it.
+function vllmUsable(v) { return !!(v && v.supported && v.probe && !v.probe.problems.length); }
+
+function vllmEngineSub(v) {
+  const lead = 'Many people at once on a big NVIDIA GPU.';
+  if (!v || v.supported === false) return 'Not available on this computer: vLLM needs an NVIDIA GPU on Linux, or Windows with WSL.';
+  if (!v.probe) return `${lead} Press to check this computer.`;
+  if (!v.probe.problems.length) return `${lead} One model; it takes about 2 minutes to start.`;
+  return `${lead} Not set up on this computer yet: press to see how.`;
+}
+
+const isLoopback = (url) => /^https?:\/\/(127\.|localhost[:/]|\[::1\])/i.test(String(url || ''));
+// What a switch costs, said before it happens (§7.1).
+function switchConfirm(s, to) {
+  const be = s.backend || {}; const name = ENGINE_LABEL[to] || to;
+  if (to === 'vllm') return 'Switch to vLLM? Chat stops for about 2 minutes while vLLM loads the model (longer the very first time, while it prepares the GPU).';
+  if (be.engine === 'vllm') return `Switch to ${name}? vLLM stops and ${name} loads its model: about a minute, and anyone connected waits.`;
+  // A server on this computer the farm does not run keeps its share of the GPU after the switch (§1.2).
+  if (be.engine === 'external' && isLoopback(be.baseUrl) && !(s.vllm && s.vllm.takeOver)) {
+    const g = (s.health && s.health.gpu) || {};
+    const free = g.vramTotalGb != null && g.vramUsedGb != null ? Math.round((g.vramTotalGb - g.vramUsedGb) * 10) / 10 : null;
+    return `Switch to ${name}? The server at ${be.baseUrl} keeps running and keeps its share of the GPU: ${name} gets only what is left${free != null ? ` (${free} GB free now)` : ''}.`;
+  }
+  return `Switch to ${name}? ${name} loads its model: about a minute, and anyone connected waits.`;
+}
+
+// The line under the Backend title: where vLLM is in its life (§1.5, §7.1).
+function vllmStatusLine(s) {
+  const v = s.vllm || {}; const be = s.backend || {};
+  if (be.engine !== 'vllm') {
+    if (!v.bootError || be.engine !== 'ollama') return '';
+    const why = String(v.bootError).replace(/^vLLM could not start:\s*/, '').replace(/[.\s]+$/, '');
+    return `<div class="warnline">vLLM could not start: ${esc(why)}. The farm serves with Ollama for now. Fix the cause, then switch back to vLLM.</div>`;
+  }
+  const hint = (t) => `<div class="hint">${t}</div>`;
+  const warn = (t) => `<div class="warnline">${t}</div>`;
+  switch (v.phase) {
+    case 'starting': case 'restarting':
+      return hint(`vLLM is starting: ${esc(v.phaseText || 'starting vLLM')}. About 2 minutes, longer the first time. Until it is ready, people connected see “Starting vLLM”, and a message sent meanwhile is answered with “try again in a moment”.`);
+    case 'stopping': return hint('vLLM is stopping.');
+    case 'stopped': return warn('vLLM is stopped, so nobody can chat. Press Start vLLM below, or switch to another engine.');
+    case 'guard': return warn(esc(v.phaseText || 'vLLM was stopped because this computer was running out of memory. Close what is using the memory, then press Start vLLM.'));
+    case 'down': return warn('vLLM is not answering. The farm is checking it.');
+    case 'ready': return v.adopted ? hint('vLLM was already running with these settings, so the farm kept it running.') : '';
+    default: return '';
+  }
+}
+
+// People at once (§7.1): Automatic says where its number comes from.
+function vllmSlotsRow(v) {
+  const cur = v.parallel;
+  const opts = [1, 2, 4, 8, 12, 16, 24, 32, 48, 64, 96, 128];
+  if (typeof cur === 'number' && !opts.includes(cur)) { opts.push(cur); opts.sort((a, b) => a - b); }
+  const a = v.seatsAuto;
+  const auto = !a ? 'Automatic'
+    : a.source === 'measured' ? `Automatic — ${a.seats}, measured on this card`
+    : a.source === 'memory' ? `Automatic — ${a.seats}, what the memory holds`
+    : 'Automatic — 4 to start with';
+  return `<div class="row"><span></span><span><div class="mname">People served at once</div>`
+    + `<div class="meta">people who can write to the model at the same time. They share the GPU, so each reply slows as more write at once; past this number a new message waits for a free seat.</div></span>`
+    + `<span class="badges"><select id="slots-sel" data-orig="${esc(String(cur))}">`
+    + `<option value="auto"${cur === 'auto' ? ' selected' : ''}>${esc(auto)}</option>`
+    + opts.map((n) => `<option value="${n}"${n === cur ? ' selected' : ''}>${n}</option>`).join('')
+    + `</select></span></div>`;
+}
+
+// Context per person: 8k to 256k, and the model's own maximum, never past what it reads.
+function vllmCtxRow(v) {
+  const native = (v.facts && v.facts.nativeCtx) || null;
+  const list = [8192, 16384, 32768, 65536, 131072, 262144].filter((n) => !native || n <= native);
+  if (native && !list.includes(native)) list.push(native);
+  if (v.contextLength && !list.includes(v.contextLength)) list.push(v.contextLength);
+  list.sort((a, b) => a - b);
+  return `<div class="row"><span></span><span><div class="mname">Context per person</div>`
+    + `<div class="meta">the longest conversation or document one person can use. A longer context means fewer people fit in the GPU's memory.</div></span>`
+    + `<span class="badges"><select id="ctx-sel" data-orig="${esc(String(v.contextLength))}">`
+    + list.map((n) => `<option value="${n}"${n === v.contextLength ? ' selected' : ''}>${fmtK(n)} tokens${native && n === native ? ' — everything this model can read' : ''}</option>`).join('')
+    + `</select></span></div>`;
+}
+
+// GPU memory for conversations: Automatic says what it is made of, and how much that is now.
+function vllmKvRow(v) {
+  const cur = v.kvCacheGib;
+  const opts = [16, 24, 32, 40, 50, 60, 70, 80].filter((g) => !v.cardGib || g < v.cardGib);
+  if (typeof cur === 'number' && !opts.includes(cur)) { opts.push(cur); opts.sort((a, b) => a - b); }
+  const auto = `Automatic — ${v.unified ? 'from what the computer has free' : 'what the GPU has free'}, less the model`
+    + `${v.ocrReserveGib ? `, ${v.ocrReserveGib} GB for document reading` : ''} and a safety margin`
+    + `${v.unified && v.minFreeGb ? `, keeping ${v.minFreeGb} GB so it cannot run out` : ''}`
+    + `${v.autoKvGib != null ? ` (now ${v.autoKvGib} GB)` : ''}`;
+  return `<div class="row"><span></span><span><div class="mname">GPU memory for conversations</div>`
+    + `<div class="meta">memory vLLM keeps for everyone's conversations. Automatic is worked out again at each start.</div></span>`
+    + `<span class="badges"><select id="kv-sel" data-orig="${esc(String(cur))}">`
+    + `<option value="auto"${cur === 'auto' ? ' selected' : ''}>${esc(auto)}</option>`
+    + opts.map((g) => `<option value="${g}"${g === cur ? ' selected' : ''}>${g} GB</option>`).join('')
+    + `</select></span></div>`;
+}
+
+// What was measured on this card with this model, at the context asked or the nearest measured one above it.
+function measuredAt(m, ctx) {
+  if (!m || !m.at) return null;
+  const key = Object.keys(m.at).map(Number).sort((a, b) => a - b).find((c) => c >= ctx);
+  return key && m.at[key] && m.at[key].every ? { ctx: key, every: m.at[key].every, steady: m.at[key].steady } : null;
+}
+// A measured label as a number of people: "48" → 48, "≥ 64" → 64, "< 8" → 4 (as vllm.js reads it).
+function labelSeats(label) {
+  const m = /^(≥|<)?\s*(\d+)$/.exec(String(label == null ? '' : label).trim());
+  if (!m) return null;
+  return m[1] === '<' ? Math.max(1, Math.floor(Number(m[2]) / 2)) : Math.max(1, Number(m[2]));
+}
+
+// The trade line on vLLM (§7.1): the context each person gets, how many whole conversations the memory holds,
+// what was measured on this card, then what the clients do with it. `slots`, `ctx`, `kv` = the controls' values
+// (left out = as configured).
+function vllmTrade(s, slots, ctx, kv) {
+  const v = s.vllm || {}; const be = s.backend || {};
+  if (slots == null) slots = v.parallel;
+  if (ctx == null) ctx = v.contextLength;
+  if (kv == null) kv = v.kvCacheGib;
+  const edited = slots !== v.parallel || ctx !== v.contextLength || kv !== v.kvCacheGib;
+  // The memory: a set amount, else what vLLM runs with (Automatic is not worked out again while it runs), else
+  // what the last check of this computer worked out.
+  const pool = kv === 'auto' ? (v.phase === 'ready' && v.kvResolvedGib != null ? v.kvResolvedGib : v.autoKvGib) : kv;
+  const f = v.facts || {};
+  const person = f.kvBytesPerToken ? ctx * f.kvBytesPerToken + (f.stateBytes || 0) : null;
+  // vLLM's own figure once it runs as configured; otherwise worked out from the model's memory per person.
+  const fit = !edited && v.peopleFit != null ? v.peopleFit : (person && pool != null ? Math.floor(pool * GIB / person) : null);
+  const meas = measuredAt(v.measured, ctx);
+  const plan = '<a class="plan" href="/lol/capacity" target="_blank" rel="noopener">Plan capacity ↗</a>';
+  const { whole, docs, agent } = clientSay(ctx);
+  const lines = [
+    `${edited ? 'After Apply, each' : 'Each'} person gets <b>${fmtK(ctx)}</b> of context.`,
+    fit != null ? ` The memory for conversations holds <b>${fit}</b> people at that size.` : '',
+    meas ? ` Measured on this card with this model: ${esc(meas.every)} at ${fmtK(meas.ctx)} when everyone writes at once${meas.steady ? `, ${esc(meas.steady)} in normal use` : ''}.`
+      : ` Not measured on this card with this model: start with fewer people and watch the Performance card. ${plan} estimates it.`,
+  ].join('');
+  // Automatic never goes past what was measured or what the memory holds; a set number can.
+  const n = slots === 'auto' ? null : slots;
+  const warns = [];
+  const measN = meas ? labelSeats(meas.every) : null;
+  if (n != null && measN != null && n > measN) warns.push('More people than measured on this card: when everyone writes at once, replies may slow below a comfortable reading speed.');
+  if (n != null && fit != null && n > fit) warns.push(`The memory holds only ${fit} people at ${fmtK(ctx)}: past that, vLLM makes people wait. Lower the people or the context, or give it more memory.`);
   const wholeNow = be.contextPerSlot == null || be.contextPerSlot >= CLIENT.fullDocs;
-  return `<div class="hint">${lead}${how}${note}<br>${docs}${agent}</div>`
-    + (edited && whole !== wholeNow ? '<div class="warnline">Every connected Open WebUI restarts once to make that switch.</div>' : '');
+  if (edited && whole !== wholeNow) warns.push('Every connected Open WebUI restarts once to make that switch.');
+  return `<div class="hint">${lines}<br>${docs}${agent}</div>` + warns.map((w) => `<div class="warnline">${w}</div>`).join('');
+}
+
+// The vLLM card ("Model · vLLM", §7.2): while vLLM is the engine, after the operator pressed the vLLM button, while
+// one of its downloads runs, or after it could not start (its log says why). What this computer has and lacks,
+// Install, the model list, and the engine's own controls (Stop, Start, the log).
+function vllmCard(s, jobRunning) {
+  const v = s.vllm || {}; const be = s.backend || {};
+  const dl = s.download && !s.download.done ? s.download : null;
+  if (!(be.engine === 'vllm' || vllmOpen || dl || v.bootError)) return '';
+  const isV = be.engine === 'vllm';
+  const off = (blocked) => (blocked ? ' disabled' : '');
+  const out = [`<div class="card"><h2>Model · vLLM</h2>`,
+    `<div class="hint">vLLM is an engine made for serving many people at once on a big NVIDIA GPU. On Windows it runs inside WSL, the Linux that comes with Windows. The farm installs it, starts it and stops it.</div>`];
+  // The checklist: what is in place (muted), what blocks it (✗), what is said without blocking (⚠).
+  if (v.supported === false) out.push(`<div class="warnline">✗ Not available on this computer: vLLM needs an NVIDIA GPU on Linux, or Windows with WSL.</div>`);
+  else if (!v.probe) out.push(`<div class="meta">Checking this computer… (up to a minute while WSL wakes up)</div>`);
+  else {
+    for (const t of v.probe.oks || []) out.push(`<div class="meta">✓ ${esc(t)}</div>`);
+    for (const t of v.probe.problems || []) {
+      const stop = /started earlier is still running/.test(t) ? ` <button class="stop" data-cancel="download" style="min-width:0"${off(!!dl)}>Stop it</button>` : '';
+      out.push(`<div class="warnline">✗ ${esc(t)}${stop}</div>`);
+    }
+    for (const t of v.probe.warnings || []) {
+      const upd = /this farm was tested with/.test(t) && v.installed ? ` <button class="start" data-vinstall style="min-width:0"${off(!!dl)}>Update vLLM</button>` : '';
+      out.push(`<div class="warnline">⚠ ${esc(t)}${upd}</div>`);
+    }
+  }
+  if (v.supported !== false) {
+    out.push(`<div class="row"><span></span><span><div class="meta">${v.probe ? `Checked at ${esc(new Date(v.probe.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }))}.` : ''}</div></span>`
+      + `<span class="badges"><button data-vcheck${off(vllmChecking)}>Check again</button></span></div>`);
+  }
+  // Install: once the check sees a GPU vLLM can use, and vLLM is not there yet.
+  const chosen = (v.library || []).find((e) => e.active) || null;
+  if (v.installable && !v.installed && !v.venvLink) {
+    const where = `into ${esc(v.distro || v.root || 'this computer')}${v.distro && v.root ? `, in ${esc(v.root)}` : ''}`;
+    const model = chosen && chosen.repo && !chosen.downloaded ? ` and ${esc(chosen.label)}${chosen.sizeGb ? ` (${chosen.sizeGb} GB)` : ''}` : '';
+    out.push(`<div class="row"><span></span><span><div class="mname">Install vLLM</div>`
+      + `<div class="meta">Downloads vLLM ${esc(v.pinned || '')} (about 8 GB)${model} ${where}. About 45 minutes on a typical connection. The farm keeps serving while it downloads; a stopped download continues where it left off.</div></span>`
+      + `<span class="badges"><button class="start" data-vinstall${off(!!dl)}>Install vLLM</button></span></div>`);
+  }
+  // The model list.
+  for (const e of v.library || []) {
+    const downloading = !!(dl && dl.about === e.id);
+    const badges = [
+      e.active ? `<span class="badge on">${isV ? 'serving' : 'chosen'}</span>` : '',
+      downloading ? '<span class="badge">downloading</span>' : e.downloaded ? '<span class="badge">downloaded</span>' : e.partial ? '<span class="badge">partly downloaded</span>' : '',
+    ].join('');
+    const size = e.sizeGb || e.gbOnDisk;
+    const meta = [size ? `${size} GB` : '', e.note].filter(Boolean).join(' · ');
+    const files = e.downloaded || e.partial ? (e.gbOnDisk || e.sizeGb || 0) : 0;
+    const btns = [
+      !e.downloaded && e.repo && !downloading ? `<button class="start" data-vdl="${esc(e.id)}"${off(!!dl)}>Download</button>` : '',
+      e.downloaded && !e.active ? `<button class="start" data-vuse="${esc(e.id)}" data-label="${esc(e.label)}"${off(jobRunning)}>Use this</button>` : '',
+      !e.active && !downloading ? `<button class="stop" data-vrm="${esc(e.id)}" data-label="${esc(e.label)}" data-files="${files}"${off(jobRunning)}>Remove</button>` : '',
+    ].join('');
+    out.push(`<div class="row"><span class="dot${e.active && isV ? ' served' : ''}"></span>`
+      + `<span><div class="mname">${esc(e.label)}</div>${meta ? `<div class="meta">${esc(meta)}</div>` : ''}`
+      + (e.generic ? `<div class="meta">Not one of the measured models: answers work, but tools and thinking may not show until a developer adds its settings.</div>` : '')
+      + `</span><span class="badges">${badges}${btns}</span></div>`);
+  }
+  for (const f of v.foundFolders || []) {
+    out.push(`<div class="row"><span></span><span><div class="meta">Also on this computer: ${esc(f.folder)}${f.gb != null ? ` (${f.gb} GB)` : ''}</div></span>`
+      + `<span class="badges"><button data-vfolder="${esc(f.folder)}">Add to the list</button></span></div>`);
+  }
+  out.push(`<div class="row"><span></span><span><div class="mname">Add a model</div>`
+    + `<div class="meta">the name of a model on Hugging Face (owner/name), made for vLLM. Adding only remembers it: press Download, then Use this.</div></span>`
+    + `<span class="badges"><input id="vllm-repo" type="text" placeholder="nvidia/Qwen3.6-35B-A3B-NVFP4" spellcheck="false" /><button id="vllm-add">Add</button></span></div>`);
+  // The engine's own controls, while it is the engine: Stop and Start (a start in progress stops from its bar).
+  if (isV) {
+    const canStop = ['ready', 'down'].includes(v.phase);
+    const canStart = !['ready', 'down', 'starting', 'restarting', 'stopping'].includes(v.phase);
+    out.push(`<div class="row"><span class="dot${v.phase === 'ready' ? ' served' : ''}"></span><span><div class="mname">Run vLLM</div>`
+      + `<div class="meta">${canStop ? `Running, from ${esc(v.root || 'its folder')}.` : canStart ? 'Not running.' : 'Busy: the bar at the top of the page shows how far it is.'}</div></span>`
+      + `<span class="badges">`
+      + (canStop ? `<button class="stop" data-vstop${off(jobRunning)}>Stop vLLM</button>` : '')
+      + (canStart ? `<button class="start" data-vstart${off(jobRunning)}>Start vLLM</button>` : '')
+      + `</span></div>`);
+  }
+  out.push(`<div class="row"><span></span><span><div class="mname">vLLM's log</div>`
+    + `<div class="meta">vLLM's own log, for when something goes wrong. It does not record conversations, but an error line can quote a few words of a reply.</div></span>`
+    + `<span class="badges">`
+    + `<button data-vlog>${vllmLogLines ? 'Refresh' : 'Show the log'}</button>`
+    + (vllmLogLines ? '<button data-vloghide>Hide</button>' : '')
+    + `</span></div>`);
+  if (vllmLogLines) {
+    out.push(`<pre style="max-height:320px;overflow:auto;font-size:11.5px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 10px;white-space:pre-wrap">${esc(vllmLogLines.join('\n') || '(empty)')}</pre>`);
+  }
+  out.push('</div>');
+  return out.join('');
+}
+
+// "Let the farm run vLLM" (§9.2): a vLLM on this computer that the farm routes to without running it. The farm
+// offers it; a person clicks it (the owner's question (a)). Filled by the take-over slice.
+function takeOverCard(s, jobRunning) {
+  const t = s.vllm && s.vllm.takeOver;
+  if (!t) return '';
+  const tail = t.running
+    ? 'It keeps the same model, name and settings and keeps running: nobody is interrupted.'
+    : 'It keeps the same model, name and settings and starts it now: about 2 minutes, during which nobody can chat.';
+  return `<div class="card"><h2>vLLM on this computer</h2>`
+    + `<div class="hint">The vLLM this farm routes to runs on this computer, from ${esc(t.root)}. The farm can run it itself: then you change its model, people and context here, and it starts and stops with the farm. ${tail}</div>`
+    + `<div class="row"><span></span><span></span><span class="badges"><button class="start" data-vtake${jobRunning ? ' disabled' : ''}>Let the farm run vLLM</button></span></div></div>`;
+}
+
+function openVllmCard(s) {
+  vllmOpen = true;
+  try { localStorage.setItem('lolVllmOpen', '1'); } catch { /* private window */ }
+  render(s);
+  if (s.vllm && s.vllm.supported !== false && !s.vllm.probe) { vllmAutoChecked = true; vllmCheck(); }
+}
+async function vllmCheck() {
+  if (vllmChecking) return;
+  vllmChecking = true;
+  try { await post('/lol/admin/vllm/check', {}, null, 'Checked this computer.'); } finally { vllmChecking = false; }
+}
+async function showVllmLog() {
+  try {
+    const r = await api('/lol/admin/vllm/log?lines=200');
+    vllmLogLines = (r && r.lines) || [];
+  } catch (e) {
+    if (e.unauthorized) { logout('Session expired — re-enter the token.'); return; }
+    toast('Error: ' + (e.message || e));
+  }
+  if (lastState) render(lastState);
+}
+
+function wireVllm(s) {
+  const v = s.vllm || {};
+  const on = (sel, fn) => app.querySelectorAll(sel).forEach((b) => { b.onclick = () => fn(b); });
+  on('button[data-vcheck]', () => vllmCheck());
+  on('button[data-vinstall]', (b) => post('/lol/admin/vllm/install', {}, b, 'Installing vLLM…'));
+  on('button[data-vdl]', (b) => post('/lol/admin/vllm/download', { id: b.dataset.vdl }, b, 'Downloading…'));
+  on('button[data-vuse]', (b) => {
+    // While vLLM serves, Use this restarts it with the other model (an Apply with `model`, §5.6).
+    if ((s.backend || {}).engine === 'vllm' && !confirm(`Serve ${b.dataset.label}? vLLM restarts with it: about 2 minutes during which nobody can chat.`)) return;
+    post('/lol/admin/apply', { model: b.dataset.vuse }, b, 'Applying…');
+  });
+  on('button[data-vrm]', (b) => {
+    if (!confirm(`Remove ${b.dataset.label} from the list?`)) return;
+    const gbs = Number(b.dataset.files) || 0;
+    const where = v.distro ? ` The space goes back to ${v.distro}; drive ${v.hostDrive || 'C'}: does not shrink.` : '';
+    const deleteFiles = gbs > 0 && confirm(`Also delete its files from this computer (${gbs} GB)?${where}`);
+    post('/lol/admin/vllm/library/remove', { id: b.dataset.vrm, deleteFiles }, b, 'Removed.');
+  });
+  on('button[data-vfolder]', (b) => post('/lol/admin/vllm/library/add', { folder: b.dataset.vfolder }, b, 'Added to the list.'));
+  on('button[data-vstop]', (b) => { if (confirm('Stop vLLM? Nobody can chat until you start it again or switch engine.')) post('/lol/admin/vllm/stop', {}, b, 'Stopping vLLM…'); });
+  on('button[data-vstart]', (b) => post('/lol/admin/vllm/start', {}, b, 'Starting vLLM…'));
+  on('button[data-vlog]', () => showVllmLog());
+  on('button[data-vloghide]', () => { vllmLogLines = null; render(s); });
+  on('button[data-vtake]', (b) => post('/lol/admin/vllm/take-over', {}, b, 'The farm runs vLLM now.'));
+  bindApply('#vllm-add', '#vllm-repo', (val) => post('/lol/admin/vllm/library/add', { repo: val }, $('#vllm-add'), 'Added to the list.'));
+  // The card's first open checks this computer once per page (never per poll, and not again when the farm could
+  // not answer it: Check again is there for that).
+  if (!vllmAutoChecked && (vllmOpen || (s.backend || {}).engine === 'vllm') && v.supported !== false && !v.probe) { vllmAutoChecked = true; vllmCheck(); }
 }
 
 // Wire an Apply button + its text field: Enter submits, an empty value is a no-op.
@@ -916,7 +1275,8 @@ function logout(msg) { localStorage.removeItem('lolAdminToken'); token = ''; tok
 // several poll ticks before the operator presses it.
 function settingsDirty() {
   if ((($('#sec-in') || {}).value || '') !== '') return true;
-  return ['#name-in', '#slots-sel', '#idle-sel', '#ctx-sel'].some((sel) => {
+  if ((($('#vllm-repo') || {}).value || '') !== '') return true;   // a model name half typed
+  return ['#name-in', '#slots-sel', '#idle-sel', '#ctx-sel', '#kv-sel'].some((sel) => {
     const el = $(sel);
     return el && el.dataset.orig != null && el.value !== el.dataset.orig;
   });
@@ -938,11 +1298,11 @@ async function refresh(force) {
   }
 }
 
-// 5 s idle; 1 s while a job runs so the progress bar actually moves.
+// 5 s idle; 1 s while a job or a download runs so the progress bar actually moves.
 let tick = 0;
 setInterval(() => {
   if (busy || !token) return;
-  const running = lastState && lastState.job && !lastState.job.done;
+  const running = lastState && ((lastState.job && !lastState.job.done) || (lastState.download && !lastState.download.done));
   if (running || ++tick >= 5) { tick = 0; refresh(); }
 }, 1000);
 refresh();

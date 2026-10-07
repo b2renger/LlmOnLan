@@ -17,6 +17,7 @@ const { spawn } = require('child_process');
 const path = require('path');
 const CATALOG = require('./capacity/catalog.json');
 const MEASURED = require('./capacity/measured.json');
+const { VLLM_LIBRARY } = require('./config');
 
 const GIB = 2 ** 30;
 const RUNTIME_GIB = 4;   // vLLM's own use beside weights and pool: production runs 74.9 GiB = 50 pool + 20.37 weights + ~1.4 desktop + ~3
@@ -159,6 +160,61 @@ function resolveRoot(config, st) {
         if (st && st.installs.some((i) => i.root === rootPath(c, home))) return rootPath(c, home);
     }
     return rootPath('~/lol-vllm', home);
+}
+
+// ---- the model list: a model the operator adds (§4.4) -----------------------------------------------------------
+
+// The `vllm serve` flags a model the operator adds gets, by its family, matched on its repo or folder name: the
+// measured models' own flags for their families (the default list's), a generic Qwen3 set, else prefix caching only.
+// ponytail: a family this table does not know gets no thinking or tool parser, and the panel says so; the upgrade
+// path is per-entry args.
+const argsOf = (id) => [...VLLM_LIBRARY.find((e) => e.id === id).args];
+const FAMILY_ARGS = [
+    [/qwen3\.[56]|qwen3-?next/i, () => argsOf('qwen3.6-35b-a3b')],
+    [/qwen3\.8/i, () => argsOf('qwen3.8-27b-nvfp4')],
+    [/nemotron/i, () => argsOf('nemotron-3.5-lightning')],
+    [/qwen3/i, () => ['--enable-prefix-caching', '--reasoning-parser', 'qwen3', '--enable-auto-tool-choice', '--tool-call-parser', 'hermes']],
+];
+function familyArgs(name) {
+    const f = FAMILY_ARGS.find(([rx]) => rx.test(String(name || '')));
+    return f ? f[1]() : ['--enable-prefix-caching'];
+}
+// A model with no thinking parser: answers work, tools and thinking may not show (the panel's note).
+const isGeneric = (entry) => !(entry.args || []).includes('--reasoning-parser');
+
+// "owner/name", or a Hugging Face link to it (https://huggingface.co/owner/name, and anything after) → the repo, or
+// null.
+function repoOf(input) {
+    const m = /^(?:https?:\/\/(?:www\.)?huggingface\.co\/)?([A-Za-z0-9][\w.-]*\/[\w.-]+?)(?:\.git)?(?:[/?#].*)?$/.exec(String(input || '').trim());
+    return m ? m[1] : null;
+}
+
+// A new entry of the list, from {repo} (a name or a link) or {folder} (a folder already in <root>/hf, `disk` =
+// parseStatus's models), with an optional label. Adding only remembers it: nothing downloads. → {entry} | {error}.
+function newLibraryEntry(input = {}, library = [], disk = []) {
+    const ids = new Set(library.map((e) => e.id));
+    const idFor = (name) => {
+        const base = String(name).toLowerCase().replace(/[^a-z0-9._-]+/g, '-').replace(/^[^a-z0-9]+|-+$/g, '').slice(0, 60) || 'model';
+        let id = base; let n = 2;
+        while (ids.has(id)) id = `${base}-${n++}`;
+        return id;
+    };
+    const label = (fallback) => String(input.label || fallback).replace(/[\r\n\t]/g, ' ').trim().slice(0, 80) || fallback;
+    const blank = { repo: null, folder: null, sizeGb: null, weightsGib: null, vision: null, presencePenalty: null, catalog: null, measured: null, note: '' };
+    if (input.folder != null) {
+        const folder = String(input.folder).trim();
+        if (!FOLDER_RX.test(folder) || /^\.+$/.test(folder)) return { error: 'That is not a model folder.' };
+        if (library.some((e) => folderOf(e) === folder)) return { error: `${folder} is already in the list.` };
+        const m = disk.find((x) => x.folder === folder);
+        return { entry: { ...blank, id: idFor(folder), label: label(folder), folder, sizeGb: m ? r1(m.gb) : null, vision: m ? !!m.vision : null, args: familyArgs(folder) } };
+    }
+    const repo = repoOf(input.repo);
+    if (!repo) return { error: 'Give the name of a model on Hugging Face, like nvidia/Qwen3.6-35B-A3B-NVFP4.' };
+    if (library.some((e) => e.repo && e.repo.toLowerCase() === repo.toLowerCase())) return { error: `${repo} is already in the list.` };
+    const [owner, name] = repo.split('/');
+    // Two owners' models of the same name would share a folder: the second one gets its owner's name in front.
+    const folder = library.some((e) => folderOf(e) === name) ? `${owner}--${name}` : null;
+    return { entry: { ...blank, id: idFor(name), label: label(name), repo, folder, args: familyArgs(repo) } };
 }
 
 // The memory one person's conversation takes, from src/capacity/catalog.json: the context memory per token (twice
@@ -374,6 +430,73 @@ function adoptable(config, running, { unified = false, gpuName = null, root = co
     return { ok: diff.length === 0, resolved: { kvGib, maxNumSeqs, seats }, diff };
 }
 
+// Apply on vLLM, the pure half (§5.6): the panel's fields checked against the list and the last check of this
+// computer, and whether the EFFECTIVE launch changes against what vLLM runs with (D9: an Automatic memory keeps the
+// amount vLLM was started with; it is worked out again only at the next start). A new model, context, memory or
+// request cap restarts vLLM (48 → 80 people does, through the cap 128 → 256); people at once inside the cap and the
+// name do not. `body.name` comes checked; `launch` = what vLLM runs with, null when it does not run.
+// → {error} | {patch, restart, seats, changes}.
+function applyChange(config, body = {}, { st = null, launch = null, root = config.vllm.root } = {}) {
+    const v = config.vllm;
+    const patch = {};
+    if (body.name != null && body.name !== v.alias) patch.alias = body.name;
+    if (body.slots != null) {
+        const n = body.slots === 'auto' ? 'auto' : Math.round(Number(body.slots));
+        if (n !== 'auto' && (!Number.isFinite(n) || n < 1 || n > 512)) return { error: 'People at once must be Automatic, or between 1 and 512.' };
+        if (n !== v.parallel) patch.parallel = n;
+    }
+    if (body.model != null && body.model !== v.model) {
+        const e = (v.library || []).find((x) => x.id === body.model);
+        if (!e) return { error: 'That model is not in the vLLM list.' };
+        const m = st && st.models.find((f) => f.folder === folderOf(e));
+        if (!m || m.partial) return { error: `${e.label} is not downloaded yet: press Download next to it.` };
+        patch.model = e.id;
+    }
+    const entry = vllmEntry({ vllm: { ...v, ...patch } });
+    if (body.context != null) {
+        const ctx = Math.round(Number(body.context));
+        const disk = st && entry && st.models.find((f) => f.folder === folderOf(entry));
+        const native = facts(entry).nativeCtx || (disk && disk.native) || null;
+        if (!Number.isFinite(ctx) || ctx < 4096 || (native && ctx > native)) {
+            return { error: `Context per person must be between 4096 and ${native ? `${native} tokens (this model's maximum)` : 'the model\'s maximum'}.` };
+        }
+        if (ctx !== v.contextLength) patch.contextLength = ctx;
+    } else if ('model' in patch) {
+        // Another model with the same context per person: vLLM refuses a context longer than the model reads.
+        const disk = st && st.models.find((f) => f.folder === folderOf(entry));
+        const native = facts(entry).nativeCtx || (disk && disk.native) || null;
+        if (native && v.contextLength > native) return { error: `${entry.label} reads at most ${native} tokens: choose a context per person of ${native} or less with it.` };
+    }
+    if (body.kvCacheGib != null) {
+        const kv = body.kvCacheGib === 'auto' ? 'auto' : Number(body.kvCacheGib);
+        const card = st && st.gpu ? memOf(st).totalGib : null;
+        if (kv !== 'auto' && (!Number.isFinite(kv) || kv < 1 || (card && kv > card))) {
+            return { error: `GPU memory for conversations must be Automatic, or between 1 and ${card ? `${Math.floor(card)} GB` : 'the card\'s size'}.` };
+        }
+        if (kv !== v.kvCacheGib) patch.kvCacheGib = kv;
+    }
+    const next = { ...v, ...patch };
+    const s = settingsOf({ ...config, vllm: next }, root);
+    const f = facts(entry);
+    const kvEff = next.kvCacheGib === 'auto' ? (launch ? launch.kvGib : null) : next.kvCacheGib;
+    const seats = next.parallel === 'auto'
+        ? seatsAuto(entry, st && st.gpu ? st.gpu.name : null, next.contextLength, peopleFit(kvEff, next.contextLength, f)).seats : next.parallel;
+    const maxNumSeqs = next.maxNumSeqs === 'auto' ? maxNumSeqsAuto(seats) : next.maxNumSeqs;
+    const pb = personBytes(next.contextLength, f);
+    if (kvEff != null && pb != null && kvEff * GIB < pb) {
+        return { error: `${kvEff} GB of GPU memory for conversations is less than one person's conversation needs at this context (${r1(pb / GIB)} GB): give vLLM more, or lower the context per person.` };
+    }
+    const restart = !!launch && (s.modelId !== launch.modelId || s.ctx !== launch.ctx || kvEff !== launch.kvGib
+        || maxNumSeqs !== launch.maxNumSeqs || s.maxReply !== launch.maxReply || JSON.stringify(s.extraArgs) !== JSON.stringify(launch.extraArgs));
+    const changes = [];
+    if ('alias' in patch) changes.push(`name "${patch.alias}"`);
+    if ('parallel' in patch) changes.push(patch.parallel === 'auto' ? `people at once automatic (${seats})` : `${patch.parallel} people at once`);
+    if ('contextLength' in patch) changes.push(`${Math.round(patch.contextLength / 1024)}k of context each`);
+    if ('kvCacheGib' in patch) changes.push(patch.kvCacheGib === 'auto' ? 'GPU memory for conversations automatic' : `${patch.kvCacheGib} GB for conversations`);
+    if ('model' in patch) changes.push(entry.label);
+    return { patch, restart, seats, changes };
+}
+
 // ---- what to do ----------------------------------------------------------------------------------------------------
 
 // At boot, with vLLM the engine: serve with the running server at once, wait for one that is starting, restart one
@@ -489,13 +612,13 @@ function installStepText(step, { label = 'the model', version = '', bytes = null
 }
 
 // A download that failed, in the words §7.3 gives (install.sh's [lol-error] kind).
-function downloadFailure(r, repo) {
+function downloadFailure(r, repo, button = 'Download') {
     if (r.kind === 'gated') return 'Hugging Face asks for an account to download this model. Pick another model.';
     if (r.kind === 'notfound') return `There is no model named ${repo} on Hugging Face. Check the name.`;
-    if (r.kind === 'disk') return 'The disk is full. Free some space, then press Download again.';
+    if (r.kind === 'disk') return `The disk is full. Free some space, then press ${button} again.`;
     // A Python exception's type name says nothing to a person: "httpx.ReadTimeout: …", "OSError: …".
     const why = String(r.error || '').replace(/^(\w+(\.\w+)+|\w+(Error|Exception)):\s*/, '').slice(0, 160) || 'no answer';
-    return `The download stopped: ${why}. Press Download again to continue where it left off.`;
+    return `The download stopped: ${why}. Press ${button} again to continue where it left off.`;
 }
 
 // ---- what blocks it on this computer -------------------------------------------------------------------------------
@@ -580,6 +703,14 @@ function problemsFrom(probe, config, entry = vllmEntry(config)) {
         oks.push(`${r1(free)} GB free for vLLM and its models.`);
     }
     return done();
+}
+
+// Does document reading's model (Ollama's, driven directly) fit the memory kept for it beside vLLM (§1.4)? Its size
+// in the GPU when it is loaded, else its size on disk + 1 GiB. → {gb, fits}, or null when its size is unknown.
+function ocrFit({ sizeBytes = 0, vramBytes = 0, reserveGib = 0 } = {}) {
+    const b = vramBytes || (sizeBytes ? sizeBytes + GIB : 0);
+    if (!b) return null;
+    return { gb: r1(b / GIB), fits: b / GIB <= reserveGib };
 }
 
 function baseUrl(config) { return `http://127.0.0.1:${config.vllm.port}/v1`; }
@@ -903,6 +1034,7 @@ module.exports = {
     GIB, VLLM_DIR, UNSUPPORTED, CANDIDATE_ROOTS,
     supported, decodeWsl, parseWslList, defaultDistro, scriptCommand,
     parseStatus, memOf, vllmEntry, folderOf, resolveRoot, facts, peopleFit, measuredFor, seatsAuto, maxNumSeqsAuto, poolGib,
+    familyArgs, isGeneric, repoOf, newLibraryEntry, applyChange, ocrFit,
     settingsOf, argvFor, planFor, flagMap, adoptable,
     bootDecision, downDecision, isOrphan, startPhase, logOffset, explainFailure, installStepText, downloadFailure, problemsFrom, baseUrl,
     answers, runCmd, spawnScript, wslDistros, lxssBasePath, hostDiskFree, status, probe, targetOf, logFile, readLog,

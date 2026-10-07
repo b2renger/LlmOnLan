@@ -80,6 +80,42 @@ Built in slices, each tested, logged in docs/DEVLOG.md and pushed on the `vllm-m
   - Left for later slices: `ocrFits` and the panel (slice 5); Install and Update, the library's add, remove and
     Use this (slice 6; the plumbing exists); the take-over (slice 7). An Ollama pull still holds the job slot, so a
     vLLM crash during one waits for it.
+- **Slice C (2026-10-07): §12 items 5-6.** The admin routes (§3.6: `vllm/install`, `vllm/library/add|remove`,
+  `GET vllm/log`; model, memory and the dry run through `apply`); the panel (§7: the engine grid with Ollama,
+  llama.cpp, vLLM and External only while configured; vLLM's line for each phase and its hero; its rows, trade line
+  and Apply text, with the dry run; the vLLM card with the checklist, Install and Update, the list with Download, Use
+  this and Remove, Add a model, folders found on disk, Start, Stop and the log; both bars with Stop; the document
+  reading warning; the take-over card, empty until slice D); the D10 sweep; `ocrFits`; Install and Update in the
+  download slot; the list's add and remove. Tests: §11.1 items 17-18 (the D10 check included) and lifecycle step 12
+  (a switch away and back, Download then Use this, the list, the log, through the admin API).
+- What slice C changed in the design:
+  - Apply's decision is `vllm.js applyChange`, pure (the logic in vllm.js, §3.5), so §11.1-17 tests it alone. It also
+    refuses a model whose window is shorter than the context per person, unless a context comes with it ("<model>
+    reads at most N tokens: choose a context per person of N or less with it."): vLLM would refuse to start.
+  - The vLLM button has a fourth subtitle before any check: "Many people at once on a big NVIDIA GPU. Press to check
+    this computer." (§7.1's "Not set up on this computer yet" would be wrong on a box where vLLM is installed and not
+    checked yet; the check runs on request only, §4.1).
+  - Use this while another engine serves chooses the model a switch to vLLM serves (Apply with `model`, saved, nothing
+    restarts); its row then says "chosen", and "serving" once vLLM is the engine.
+  - Remove shows on every row that is not the chosen one and not downloading, downloaded or not (a model added by
+    name and never downloaded must be removable); the second confirm, about the files, only when there are some. On
+    Windows it names the drive that holds WSL's disk (`hostDrive`), not always C:.
+  - The engine's Start and Stop have their own row ("Run vLLM"); the log row is always in the card; the card also
+    shows after a start that fell back to Ollama, so "Show the log for details" has a log to show.
+  - The checklist does not list the farm's own install or download as one "started earlier" (the download bar shows
+    it, with Stop); a switch and a start still refuse during an install. "Stop it" on one started earlier runs
+    `stop.sh install` (`job/cancel` with the download slot, when the farm runs none).
+  - The D10 sweep went past §3.15's list: the "not saved" warnings (four places in up.js, now one `notSaved`, the
+    reason in the farm's log), the name's result, llama.cpp's "no model chosen", and `ensureLlamacpp`'s message.
+    Lines the farm only logs (the terminal and farm.log, for whoever runs `lol` by hand) keep their keys; the D10
+    test reads every string the farm can hand the panel and the panel's own.
+  - Install with a model that is a folder on disk (no repo) runs only the Python environment and vLLM steps.
+  - The admin state reads Ollama's `/api/ps` with sizes (for `ocrFits`), where it read the names only.
+  - Found by lifecycle step 12, and older than this work: the 10 s health tick recorded a probe that met a PLANNED
+    LiteLLM restart, so after every switch, Apply or model start the farm could say unhealthy for up to 10 s, and
+    clients leave (what D5 forbids). The tick now ignores a probe taken during a planned restart, and a restart that
+    succeeds says up at once. Step 12 samples `/lol/self` every 200 ms through two switches: unhealthy in 3 runs of 3
+    before, healthy throughout after.
 
 ## 0. Decisions
 

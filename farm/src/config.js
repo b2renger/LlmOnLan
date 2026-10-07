@@ -671,6 +671,7 @@ function writeConfig(p, config) {
 
 module.exports = {
     CONFIG_FILENAME,
+    VLLM_LIBRARY,   // vllm.js gives a model the operator adds the flags of its measured family
     ConfigSchema,
     defaultConfig,
     resolveConfigPath,

@@ -23,6 +23,9 @@
 //   9 a switch to Ollama whose vLLM stop fails: nothing changes, vLLM keeps serving
 //  10 the orphan rule: Ollama chosen while the farm's vLLM still runs: the boot stops it
 //  11 `lol down` stops vLLM; with the runtime file gone, it still does (from the config)
+//  12 the panel's controls through the admin API (slice C): a switch to Ollama and back, the name following; Download
+//     then Use this (an Apply with another model, refused while its window is shorter than the context); the list's
+//     add and remove (with its files); the log; Install refused while vLLM runs from its folder
 
 const fs = require('fs');
 const os = require('os');
@@ -165,7 +168,8 @@ function req(method, port, p, body = null, { headers = {}, timeoutMs = 30000 } =
 }
 const self = async () => (await req('GET', PORTS.panel, '/lol/self', null, { timeoutMs: 3000 })).json;
 const admin = async (p, body = {}) => (await req('POST', PORTS.panel, `/lol/admin/${p}`, body, { headers: { authorization: `Bearer ${TOKEN}` }, timeoutMs: 120000 })).json;
-const state = async () => (await req('GET', PORTS.panel, '/lol/admin/state', null, { headers: { authorization: `Bearer ${TOKEN}` } })).json;
+const get = async (p) => (await req('GET', PORTS.panel, p, null, { headers: { authorization: `Bearer ${TOKEN}` } })).json;
+const state = () => get('/lol/admin/state');
 const chat = (model = 'assistant') => req('POST', PORTS.gate, '/v1/chat/completions', { model, messages: [{ role: 'user', content: 'hi' }], stream: false }, { timeoutMs: 60000 });
 const replyOf = (r) => (r.json && r.json.choices && r.json.choices[0] && r.json.choices[0].message && r.json.choices[0].message.content) || '';
 
@@ -388,6 +392,71 @@ const STEPS = {
         check('a crashed farm left vLLM running, and no runtime file', !!(await pgid()) && !fs.existsSync(RUNTIME_FILE));
         const said2 = lolDown();
         check('`lol down` still stops it, from the config', /Stopping vLLM/.test(said2) && !(await pgid()) && !leftInRoot(), said2);
+    },
+    async 12() {
+        writeConfig({ alias: 'fake-12' });
+        fakeEnv(['FAKE_DELAY=3']);
+        await bootReady();
+        // A planned switch never says unhealthy (D5: clients would scatter to slower farms and stay there): sampled
+        // every 200 ms through both switches, LiteLLM's two restarts included.
+        const unhealthy = []; let sampling = true;
+        const sampler = (async () => { while (sampling) { const x = await self(); if (x && x.healthy === false) unhealthy.push(`${new Date().toISOString().slice(11, 19)} ${x.busy ? x.busy.label : '-'} proxy ${(((await state()) || {}).health || {}).proxyUp ? 'up' : 'down'}`); await sleep(200); } })();
+        // A switch to Ollama: vLLM stops first; chats bound to vLLM's name keep working.
+        const r = await admin('backend', { engine: 'ollama' });
+        check('a switch to Ollama through the admin API: a job', r.ok && r.started, JSON.stringify(r));
+        const j = await jobDone('Switching to Ollama');
+        check('…done: vLLM stopped, Ollama serves', j.job.ok && !(await pgid()) && j.backend.engine === 'ollama' && !leftInRoot(), `${j.job.error || ''} ${leftInRoot()}`);
+        check('…under vLLM\'s name', replyOf(await chat('fake-12')) === 'fake ollama reply');
+        check('…saved: vLLM no longer the engine', readConfig().vllm.enabled === false);
+        // And back: the farm stays healthy while vLLM starts, and serves under the same name.
+        const r2 = await admin('backend', { engine: 'vllm' });
+        check('a switch back to vLLM: a job', r2.ok && r2.started, JSON.stringify(r2));
+        const during = await self();
+        check('…healthy while it starts, busy says so', during.healthy === true && during.busy && during.busy.label === 'Switching to vLLM',
+            JSON.stringify({ healthy: during.healthy, busy: during.busy, health: (await state()).health }));
+        const j2 = await jobDone('Switching to vLLM');
+        check('…done: vLLM serves under the same name', j2.job.ok && j2.vllm.phase === 'ready' && replyOf(await chat('fake-12')) === 'fake reply', j2.job.error || '');
+        check('…saved: vLLM the engine, with its name', readConfig().vllm.enabled === true && readConfig().vllm.alias === 'fake-12', JSON.stringify(readConfig().vllm.alias));
+        sampling = false; await sampler;
+        check('…healthy at every sample through both switches', unhealthy.length === 0, unhealthy.slice(0, 5).join(', '));
+        // Download, then Use this: an Apply with another model of the list.
+        const d = await admin('vllm/download', { id: 'fake-b' });
+        const dd = await waitFor(async () => { const x = await state(); return x.download && x.download.done && x; }, 120000, 'the download');
+        const b = dd.vllm.library.find((e) => e.id === 'fake-b');
+        check('Download: in its own slot, done, and the list says downloaded', d.ok && dd.download.ok && b && b.downloaded, JSON.stringify({ d, dl: dd.download && dd.download.error, b }));
+        const refused = await admin('apply', { model: 'fake-b', dryRun: true });
+        check('Use this, with a context longer than the model reads: refused, saying why', refused.ok === false && /reads at most 4096 tokens/.test(refused.error), JSON.stringify(refused));
+        const dry = await admin('apply', { model: 'fake-b', context: 4096, dryRun: true });
+        check('…with a context it reads: the dry run says vLLM restarts', dry.ok && dry.restart === true, JSON.stringify(dry));
+        const before = await pgid();
+        const u = await admin('apply', { model: 'fake-b', context: 4096 });
+        const ju = await jobDone('Applying the farm settings');
+        const run = (await status()).running;
+        check('Use this: one restart of vLLM, now serving fake-b', u.started && ju.job.ok && (await pgid()) !== before && run && /\/hf\/fake-b$/.test(run.argv[0]) && run.argv.includes('fake-b'), `${ju.job.error || ''} ${run && run.argv.slice(0, 4).join(' ')}`);
+        check('…saved, and a chat goes through', readConfig().vllm.model === 'fake-b' && readConfig().vllm.contextLength === 4096 && replyOf(await chat('fake-12')) === 'fake reply');
+        // The list: add by a link, never twice; the model serving is never removed; another goes, with its files.
+        const add = await admin('vllm/library/add', { repo: 'https://huggingface.co/fake/Fake-C' });
+        const added = readConfig().vllm.library.find((e) => e.repo === 'fake/Fake-C');
+        check('Add a model by its link: saved in the list', add.ok && added && added.id === add.id, JSON.stringify(add));
+        check('…not twice', (await admin('vllm/library/add', { repo: 'fake/Fake-C' })).ok === false);
+        check('the model serving cannot be removed', /is the model vLLM serves/.test((await admin('vllm/library/remove', { id: 'fake-b' })).error || ''));
+        const rmC = await admin('vllm/library/remove', { id: add.id });
+        check('…another can', rmC.ok && !readConfig().vllm.library.some((e) => e.repo === 'fake/Fake-C'));
+        const rmA = await admin('vllm/library/remove', { id: 'fake-a', deleteFiles: true });
+        check('Remove with its files: out of the list, its folder deleted', rmA.ok && !readConfig().vllm.library.some((e) => e.id === 'fake-a') && !/yes/.test(sh(`test -d ${q(`${ROOT}/hf/fake-a`)} && echo yes`).out), JSON.stringify(rmA));
+        // The log, through the panel's route.
+        const lg = await get('/lol/admin/vllm/log?lines=50');
+        const last = lg && lg.lines ? lg.lines.filter(Boolean).pop() : null;
+        const tail = sh(`tail -n 20 ${q(`${ROOT}/logs/vllm.log`)}`).out.split('\n').map((l) => l.split('\r').filter(Boolean).pop() || '');
+        check('the log: vLLM\'s last lines, as its file ends', lg && lg.ok && lg.lines.length > 0 && lg.lines.length <= 51 && tail.includes(last), JSON.stringify({ last, tail: tail.slice(-3) }));
+        // Install refuses while vLLM runs from its folder.
+        const ins = await admin('vllm/install');
+        check('Install is refused while vLLM runs from its folder, saying what to do', ins.ok === false && /press Stop vLLM first/.test(ins.error || ''), JSON.stringify(ins));
+        // What the panel reads to show its rows.
+        const s = await state();
+        check('the admin state carries the panel\'s fields', s.vllm && s.vllm.seatsAuto && s.vllm.facts && 'autoKvGib' in s.vllm && 'ocrFits' in s && s.vllm.takeOver === null && s.externalConfigured === false,
+            JSON.stringify(s.vllm && { seatsAuto: s.vllm.seatsAuto, facts: s.vllm.facts }));
+        await stopFarm();
     },
 };
 
