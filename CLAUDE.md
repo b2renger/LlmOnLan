@@ -72,8 +72,9 @@ docs) is `docs/reviews/DOCS_REVIEW_2026-09-27_{FARM,SHELL,COMPUTER}.md`. Snapsho
     streaming listener (`seats.js`) with LiteLLM on `127.0.0.1:proxy.internalPort` (default port+1). An IP's
     completions claim/refresh a seat (capacity = the serving engine's slots); a seat idle `proxy.seatIdleSec`
     (900 s) frees; a generation on a full farm gets an explicit 429 `lol_seats_full` instead of queueing
-    behind idlers. The gate checks the farm password BEFORE a seat (401), gates every generation route, and
-    its own 401/429/502 carry CORS headers (agent pages read them); Retry-After = the soonest a seat can free.
+    behind idlers. The gate checks the farm password BEFORE a seat (401), gates every generation route, forwards
+    only the routes clients use, and its own 401/429/502 carry CORS headers (agent pages read them); Retry-After =
+    the soonest a seat can free.
   - `proxy.masterKey` = the shared **farm password** (LiteLLM `master_key`; panel-settable; clients prompt
     once, verify, remember per farm). Discovery, `/health/liveliness` and the admin token stay separate.
   - **Admin panel** at `http://<box>:41997/lol/admin` (bearer = `admin.token`, or a per-run token printed by
@@ -92,7 +93,8 @@ docs) is `docs/reviews/DOCS_REVIEW_2026-09-27_{FARM,SHELL,COMPUTER}.md`. Snapsho
     the CPU, `stt.js` + `pysvc/stt_server.py`, OFF), and the **message bus** (`bus.js`, Node stdlib, OFF: an MQTT
     3.1.1 broker :1883, a WebSocket hub :8893 and an OSC relay :9001 sharing one topic space, tied to the farm
     password — MQTT user `lol`, `?key=`, `/lol/listen <filter> <pw>`; never logs a payload). They bind to `proxy.host`; the Python ones share one
-    shape (own venv, a Bearer key per run, one job at a time + 429, no body ever logged). **Plugin keys are
+    shape (own venv, a Bearer key that stays the same across runs — an HMAC of `farm/.lol-secret` and the farm
+    password — one job at a time + 429, no body ever logged). **Plugin keys are
     tied to the farm password** (2026-09-27): on an open farm the key rides the snapshot; with a password
     it is `null` there and a client holding the password fetches it from `GET /lol/plugin-keys`
     (`selfServer.js`; the client side is `farmSelect.ts` `applyPluginKeys` + `index.ts`).
@@ -131,7 +133,8 @@ docs) is `docs/reviews/DOCS_REVIEW_2026-09-27_{FARM,SHELL,COMPUTER}.md`. Snapsho
   (`src/main/projectGit.ts`, isomorphic-git); **Share on the LAN** and **GitHub push/pull** are a person's clicks.
   **Keep going until done** (2026-09-29, [IDE_PLAN §6](docs/IDE_PLAN.md)): a person's per-project switch (off by
   default, forgotten at restart) that turns on dsh's own goal loop — the model sets a goal, dsh starts round after round
-  until the model marks it complete — as ONE reply (`◎ Round n of 10`), ≤ 10 rounds (`GOAL_ROUNDS`), maxTokens ≥ 16384;
+  until the model marks it complete — as ONE reply (`◎ Round n of 10`), ≤ 10 rounds (`GOAL_ROUNDS`), maxTokens 16384,
+  lowered on small windows so dsh can still compact (`studio.ts` `agentMaxTokens`);
   the goal plugins stay OFF otherwise. **On a schedule** (same day, `renderer/chat/projects/schedule.mjs`): a person's per-project
   form — every N ≥ 5 min or each day at HH:MM, and a message — sent by the app itself (marked ⏰) into the chat it was set
   from, only while the app is open, forgotten at restart, skipped while a reply runs (dsh's own scheduler needs its web host). **Use the Computer** (same
@@ -338,8 +341,8 @@ If a task seems to require breaking one of these, **stop and flag it**.
    that's a separation defect to redesign, not absorb.
 
 > **Open wording question for the owner (2026-09-27 review; invariant #4 is left verbatim):**
-> - #4 says "admin REST API". The only shipped REST writes use OWUI's **user-settings** API, plus two
->   auth/config reads. The admin API is never used.
+> - #4 says "admin REST API". The only shipped REST writes use OWUI's **user-settings** API, plus the
+>   auth check and the user-settings read. The admin API is never used.
 
 ---
 
@@ -479,9 +482,10 @@ CLI commands:
 
 Notes:
 - The CLI **generates** `litellm/config.generated.yaml` (routing least-busy, `num_retries` 3,
-  `allowed_fails` 1, cooldown 60 s). On Ollama each host becomes a deployment of the same `model_name`
+  `allowed_fails` 1, cooldown 60 s — none when no model has a second deployment to fail over to). On Ollama
+  each host becomes a deployment of the same `model_name`
   (e.g. `gemma4:12b`), so LiteLLM load‑balances + fails over; with llama.cpp or external serving, one
-  OpenAI deployment (+ coordinator peers) replaces the Ollama catalog. LOL never hand‑edits routing; it's
+  OpenAI‑compatible deployment (+ coordinator peers) replaces the Ollama catalog. LOL never hand‑edits routing; it's
   derived from `lol.config.json`.
 - Model choice = the admin panel (live), or edit `models` (or `lol models add`) + `lol up`. Clients see the
   catalog via the endpoint's `/v1/models`; OWUI's and LOL Vibe's pickers handle per‑chat selection.

@@ -264,6 +264,106 @@ Needs a Home Assistant: your own, or the private demo home in HOME_ASSISTANT.md.
   outside temperature; if it is below 18 °C and the living room window is open, close it, then write
   home-report.md."* The window and the report match.
 
+## 7d. v0.2.8 and farm-v0.0.42 — seats, web search, thinking (docs/DEVLOG.md, 2026-10-04 to 10-06)
+
+What the tests cannot show: the installed client, an updated Farm app, real engines under load. Install the client
+from the release, not a dev build, on Windows and on macOS or Linux: web search reads its pages in a worker started
+from inside the installed app, and if that fails it quietly falls back to the search engines' one-line snippets. For
+the Computer use a thinking model (Qwen3.6 on vLLM, or qwen3.8). Put back every farm setting a check changes. The
+`curl` lines are for a bash shell (Git Bash, macOS, Linux).
+
+- [ ] **7d.1 Web search off, once.** Do 1.6 with the installed v0.2.8 updated from v0.2.7, on Windows and on macOS or
+  Linux. On the first launch Open WebUI reloads once by itself; on the next launch it does not.
+- [ ] **7d.2 The date line.** On a profile whose Open WebUI system prompt was empty (Settings ▸ General ▸ **System
+  Prompt**), after the update it reads `Today is {{CURRENT_WEEKDAY}} {{CURRENT_DATE}}.`, and in a new chat with the
+  globe off *"What is today's date?"* gets today's weekday and date. On a profile where you had written a system
+  prompt before the update, it is unchanged. Empty it, quit and reopen: it stays empty.
+- [ ] **7d.3 Web search reads the pages.** A farm with web search on. In Open WebUI, Admin Panel ▸ Settings ▸ **Web
+  Search** shows the engine *external* at `http://127.0.0.1:41995/web/search`. Turn the globe on and ask about
+  something from this week (a match result, a software release): the answer is right and names its sources. Open the
+  search's results under the answer: each is several paragraphs of its page, often with a *(published …)* line, not
+  a one-line snippet (one-liners on every result: the page reader failed, write down the OS). The first word comes a
+  few seconds later than with the globe off.
+- [ ] **7d.4 Web search when its port is taken.** Quit LlmOnLan, take the port in a terminal
+  (`python -m http.server 41995 --bind 127.0.0.1`) and open LlmOnLan. Admin Panel ▸ Settings ▸ Web Search shows
+  *searxng* and the farm's address; a question with the globe on still gets an answer with sources (shorter: the
+  engines' snippets); the tools menu has no *LlmOnLan Computer* this time. Stop the server, quit and reopen:
+  *external* again.
+- [ ] **7d.5 The queue in the pill.** On a vLLM farm, from the farm box:
+  `lol bench --users 140 --rounds 1 --max-tokens 1000` (vLLM runs 128 at once; on llama.cpp with one slot,
+  `--users 3`). While it runs, a client's pill is amber and reads *<farm> · 47/48 free · 12 waiting* (the numbers vary), and its tooltip says the messages are
+  queued at the model and a new one waits its turn. When the bench ends, it goes back. On Ollama it never shows
+  (Ollama does not report a queue).
+- [ ] **7d.6 Think all.** The Computer's toolbar has **Think all** beside Cap, unticked. A Text box *"A train leaves at
+  9:40 and the trip takes 2 h 35 min. The meeting starts at 12:20."* → a Condition, *Decide by: asking the model*,
+  question *"Does the train arrive before the meeting starts?"*: ▶ — it reads **yes** (12:15), and its cost line shows
+  several seconds and hundreds of tokens (a yes/no decision thinks either way). An Instruction, *Answer shape: List*,
+  *"The prime numbers between 1 and 30"*: ▶ — fast, few tokens. Tick **Think all** and ▶ the list again: several
+  times the time and tokens, the same list. Untick it, quit and reopen: still unticked.
+- [ ] **7d.7 An agent page waits for a seat.** Farm panel: *People served at once* **1** ▸ **Apply changes** (on
+  Ollama, then restart the farm; under vLLM, `"parallel": 1` in `external` and a farm restart), and *Free an idle
+  seat after* **1 min**. A second computer chats once in LOL Vibe: it holds the only seat. Here, ask the agent page
+  of 7b.17 something: its status line says *The farm is full: a seat frees in about …; checking again in …*, and
+  about a minute after the other computer's reply the page goes on by itself and answers. Ask again and press
+  **Stop** during the wait: it ends at once.
+- [ ] **7d.8 An agent page and a wrong password.** On a farm with a password, give the agent page a wrong one: it
+  says the farm did not accept the password and asks again (never *Failed to fetch*). The right one works.
+- [ ] **7d.9 The Farm app update.** On a test box first. Copy the `secret_key` line of `.searxng/settings.yml` in the
+  Farm app's farm folder (`%APPDATA%\LlmOnLan Farm\farm\` on Windows), then install farm-v0.0.42 over farm-v0.0.41
+  and open it. The panel shows the model, its settings and the password as before. The first line of settings.yml
+  now says *lol-settings v4* (or later), the `secret_key` is the same, and the engine list has Swisscows and no
+  Yandex; a search on the farm box's `http://127.0.0.1:8888` names Swisscows beside some results. Each connected
+  client's Open WebUI restarts once (the plugin keys become permanent), and not again at the next farm restart
+  (7d.15).
+- [ ] **7d.10 The seat gate's answers.** On a farm with a password, from a client:
+  `curl -i http://<farm>:4000/v1/chat/completions -H "content-type: application/json" -d '{"model":"assistant","messages":[{"role":"user","content":"hi"}]}'`
+  → **401**, *Wrong or missing farm password…*, and the panel's *Generation seats* line shows no new seat. With one
+  seat (as in 7d.7) held by another computer, the same with `-H "Authorization: Bearer <password>"` → **429**, *All 1
+  seats on this server are in use…*, and a `Retry-After` header.
+- [ ] **7d.11 Only the routes clients use.** On the vLLM farm:
+  `curl -i --path-as-is -X POST http://<farm>:4000/vllm/../invocations -H "content-type: application/json" -d '{"model":"assistant"}'`,
+  then the same with `/vllm/%2E%2E/tokenize`: the farm refuses both (never a 200), and vLLM's log
+  (`~/lol-vllm/logs/vllm.log`) shows no request for them. Then everything still works through the farm: an Open WebUI
+  chat and its title, a PDF attached, LOL Vibe, a Computer Instruction, the coding agent (7b.3), an agent page
+  (7b.17), `lol status` and `lol bench`.
+- [ ] **7d.12 Seats against context, before Apply.** Farm panel, under *People served at once* and *Context window*: a
+  line says what each person gets (*Each person gets 32k of context…*) and what Open WebUI does with it. Change
+  *People served at once* without applying: it reads *After Apply, each person gets…*. On llama.cpp, pick a number
+  that takes each person under 24k: it says Open WebUI reads the 8 most relevant passages of a document, and that
+  every connected Open WebUI restarts once. Put it back: that warning goes. Under an external vLLM the line shows
+  the declared values.
+- [ ] **7d.13 The workshop setting.** Farm panel ▸ *Free an idle seat after* ▸ **2 min** ▸ **Apply changes**: it
+  applies at once (the farm does not restart, no client reloads). Chat once from a client and wait: about 2 min after
+  the reply the panel's *Generation seats* line drops it and the client's pill shows one more free seat. Restart the
+  farm: still 2 min (`"seatIdleSec": 120` in lol.config.json). Put it back to 15 min.
+- [ ] **7d.14 The reply limit.** On an Ollama farm, add `"maxReplyTokens": 1024` to `proxy` in lol.config.json and
+  restart the farm. In Open WebUI ask *"Write a 3,000-word story about a lighthouse."*: the reply stops mid-sentence
+  after about 750 words. The same request in a Computer Instruction writes on past that (a request's own limit wins on
+  Ollama and llama.cpp). Remove the line and restart. On vLLM the limit is serve.sh's: the start of vLLM's log names
+  `max_new_tokens` 32768 among its settings.
+- [ ] **7d.15 Plugin keys: the same after a restart, new after a password change.** On a farm with no password, note
+  `extract.key` in `http://<farm>:41997/lol/self`. Restart the farm (Stop, then Start): the same key, and no connected
+  client's Open WebUI restarts. Set a password ▸ Apply changes: after its restart `extract.key` is `null` and
+  `extract.keyId` is new; a client given the password reads PDFs again (2.3), and the old key is refused:
+  `curl -i -X PUT http://<farm>:8890/process -H "Authorization: Bearer <old key>" --data-binary @notes.txt` → **401**.
+  Restart again: the same `keyId`. Change the password: a new `keyId`.
+- [ ] **7d.16 vLLM on the Windows PRO 6000.** On farm-v0.0.42 (update the Farm app first: an older farm refuses
+  `presencePenalty` and does not start), follow farm/README *Serving with vLLM on Windows (WSL2)*: the vLLM window
+  prints *ready*, the panel names the external engine with its declared seats and a Performance card, a client chats,
+  and **Stop** in LOL Vibe ends a reply at once. Close the vLLM window: `nvidia-smi` is back to the desktop's ~1.5 GB,
+  the farm goes unhealthy within 10 s and clients fail over, and it serves again once serve.sh is back, with no farm
+  restart. Reboot the box: the startup task brings vLLM back, and it keeps running (serve.sh stops when its input
+  closes); a farm that started before *ready* serves its built-in engine until it is restarted.
+- [ ] **7d.17 vLLM on a DGX Spark.** On the Spark (Linux, no WSL): farm/vllm's `install.sh`, then
+  `serve.sh --max-model-len 32768`, with `"contextLength": 32768, "parallel": 8` in `external` (the Spark serves about
+  8 people on Qwen3.6, docs/spike/RESULTS.md). Start serve.sh at boot (a systemd unit; it must keep serve.sh's input
+  open) and reboot: vLLM comes back before the farm, and a client chats. Write down anything the recipe needed on the
+  Spark.
+- [ ] **7d.18 The GB10 clock.** On the Spark under load (`lol bench --users 8`),
+  `nvidia-smi --query-gpu=clocks.sm,power.draw --format=csv -l 5` shows at least 1,400 MHz and 40 W. Near 700 MHz the
+  GPU is latched after an out-of-memory crash: a reboot does not clear it, a cold power drain does (RESULTS.md,
+  finding 6). Check that the warning is where an operator setting up a Spark reads it.
+
 ## 8. After testing
 
 - [ ] Everything above is ticked, or each failure is written down with what you saw.

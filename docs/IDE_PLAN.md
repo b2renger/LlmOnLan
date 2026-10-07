@@ -129,7 +129,8 @@ and devices, later); **only a person starts one**; qwen3.8. Built:
 
 - A **Keep going until done** switch in the Project panel, per project, off by default and forgotten at restart.
 - With it on, main starts dsh with `tool-goal` + `goal-round-driver` (never otherwise: create_goal's words invite the
-  model to use it on any long request), `maxTokens` ≥ 16384 (a turn cut on max-tokens disarms the goal), and prefixes
+  model to use it on any long request), `maxTokens` 16384 (a turn cut on max-tokens disarms the goal), lowered on small
+  windows so dsh can still compact (`studio.ts` `agentMaxTokens`), and prefixes
   the message with the sentence that makes the model set a goal (`GOAL_PROMPT`; only the model can start one).
 - The reply stays open across rounds (`studio.ts`: an idle with the goal active waits for dsh's next round), shows
   `◎ Goal set / Round n of 10 / Goal done` from the `goal/change` and round events, and ends with a sentence when the
