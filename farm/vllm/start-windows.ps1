@@ -17,6 +17,9 @@ param(
     [string]$Log = "$env:APPDATA\LlmOnLan Farm\vllm-start.log"
 )
 $ProgressPreference = 'SilentlyContinue'
+# Task Scheduler starts a task below normal priority by default, and everything this script starts would inherit
+# it: the Farm app, lol up, the seat gate, LiteLLM, Ollama, OCR. Put this process back to Normal first.
+[Diagnostics.Process]::GetCurrentProcess().PriorityClass = 'Normal'
 New-Item -ItemType Directory -Force -Path (Split-Path $Log) | Out-Null
 function Say([string]$m) { Add-Content -Path $Log -Value "$(Get-Date -Format s) $m" -Encoding UTF8 }
 
@@ -38,7 +41,7 @@ while ($true) {
     Start-Sleep -Seconds 5
 }
 if ($ready) { Say "vLLM answers at $url" }
-elseif ($wsl.HasExited) { Say "serve.sh stopped (exit code $($wsl.ExitCode)) before vLLM answered: see logs/vllm.log in its LOL_VLLM_ROOT. The farm will serve its built-in engine." }
+elseif ($wsl.HasExited) { Say "serve.sh stopped (exit code $($wsl.ExitCode)) before vLLM answered: no vLLM installed in its LOL_VLLM_ROOT, a server already running from it, or a failed start (see logs/vllm.log there). The farm will serve its built-in engine." }
 else { Say "vLLM did not answer at $url within $TimeoutSec s. The farm will serve its built-in engine: quit and reopen the Farm app once vLLM answers." }
 
 if (Get-Process -Name ([IO.Path]::GetFileNameWithoutExtension($FarmApp)) -ErrorAction SilentlyContinue) {

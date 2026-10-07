@@ -413,7 +413,7 @@ folder. vLLM's own log is still `~/lol-vllm/logs/vllm.log`.
    from farm-v0.0.42 on and is refreshed by each Farm app update. The same file in a checkout of this repository
    works too.
    ```powershell
-   Register-ScheduledTask -TaskName 'LlmOnLan vLLM' -Trigger (New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME) -Action (New-ScheduledTaskAction -Execute powershell.exe -Argument "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$env:APPDATA\LlmOnLan Farm\farm\vllm\start-windows.ps1`"")
+   Register-ScheduledTask -TaskName 'LlmOnLan vLLM' -Trigger (New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME) -Settings (New-ScheduledTaskSettingsSet -Priority 4 -ExecutionTimeLimit 0 -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries) -Action (New-ScheduledTaskAction -Execute powershell.exe -Argument "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$env:APPDATA\LlmOnLan Farm\farm\vllm\start-windows.ps1`"")
    ```
    Options go at the end of `-Argument`, after the path: `-Root /home/<you>/lol-spike` for another
    `LOL_VLLM_ROOT` (a Linux path, without `~`), `-Distro` (`Ubuntu`), `-Port` (8100), `-TimeoutSec` (900) and
@@ -424,7 +424,9 @@ folder. vLLM's own log is still `~/lol-vllm/logs/vllm.log`.
    task's `wsl.exe`, and a distro keeps running while a `wsl.exe` is attached to it, so `wsl.conf` and
    `.wslconfig` need no keep-alive.
 4. **Stopping and crashes.** `stop.sh` stops it, as in step 4 above. Nothing restarts a vLLM that stops or crashes:
-   run the task again (`Start-ScheduledTask 'LlmOnLan vLLM'`), then quit and reopen the Farm app. While vLLM still
+   run the task again (`Start-ScheduledTask 'LlmOnLan vLLM'`). A farm that started on vLLM serves it again by
+   itself once it answers; quit and reopen the Farm app only if the farm started while vLLM was down (its panel then
+   shows the fallback reason). While vLLM still
    runs, a second start is refused by `serve.sh` and changes nothing.
 
 Checked on 2026-10-07 with a stand-in for vLLM (no GPU) on a spare port: the Farm app started only once the
@@ -502,7 +504,8 @@ of this repository.
    sets `LOL_VLLM_MIN_FREE_GB=8`: every 2 s `serve.sh` reads the box's `MemAvailable`, and below 8 GB it stops
    vLLM (TERM, then KILL after 5 s) and exits 3. systemd does not restart after a 3. The `[guard]` line in
    `vllm.log` says how much memory was left: find what took it (`free -g`, `ps aux --sort=-rss | head`), then
-   `sudo systemctl start lol-vllm`. The unit also sets `MAX_JOBS=4`: compiling kernels with one job per core took
+   `sudo systemctl reset-failed lol-vllm && sudo systemctl start lol-vllm` (after three failed starts in an hour,
+   systemd refuses a plain start). The unit also sets `MAX_JOBS=4`: compiling kernels with one job per core took
    Qwen3.8's start from 35 to 116 GB in 30 s, and 4 jobs kept it to 108 GB.
    - **Why not a systemd memory limit** (`MemoryMax=`). It bounds only what the kernel charges to the unit. The
      farm, its plugins, Ollama's OCR model and the desktop take the same memory from outside the unit, and
@@ -831,10 +834,12 @@ What it protects: **every `/v1` route** — chat, models, everything the proxy s
 LiteLLM's `master_key`) — and, since 2026-09-27, **the plugins**: the OCR, Classify and speech-to-text
 keys leave the beacon and `/lol/self` (their `key` is `null`), and a client holding the password fetches
 them from `GET /lol/plugin-keys` (`Authorization: Bearer <farm password>`; 401 otherwise, 404 on an open
-farm, where the keys stay in the snapshot as before). A new password takes effect there at once; a
-client that fetched the keys under the old one keeps them. The keys are the same on every run (derived
-from one secret in `farm/.lol-secret`, so a farm restart no longer restarts every client's Open WebUI);
-delete that file and restart the farm to rotate them. What stays open, deliberately: discovery (`/lol/self`, the beacon) so
+farm, where the keys stay in the snapshot as before). A new password takes effect there at once. The keys
+are the same on every run (derived from one secret in `farm/.lol-secret` and the farm password, so a farm
+restart no longer restarts every client's Open WebUI). Setting or changing the password gives the plugins
+new keys at the next farm restart: until then, a device that fetched the old keys keeps them, and the
+restart costs every connected Open WebUI one more restart. Delete `.lol-secret` and restart the farm to
+rotate the keys without changing the password. What stays open, deliberately: discovery (`/lol/self`, the beacon) so
 clients can *find* the farm and ask for the password, `/health/liveliness` (the farm's own health
 checks), and the admin panel's own **token** gate, which is separate and unchanged. The
 [message bus](#message-bus) checks the same password itself (MQTT, WebSocket and OSC each carry it their
@@ -1183,8 +1188,12 @@ build for Blackwell cards (16 GB+); replace it freely.
   Every route LiteLLM generates on is gated — chat completions, completions,
   responses, Anthropic's `/v1/messages`, Google's `:generateContent`.
   Reading old chats, notes and menus never touches the proxy (client-local by design), so an
-  evicted idler only loses starting NEW generations while the farm is full. `/v1/models`, health
-  checks and the panel pass ungated. Coarse by design: one IP = one seat; a coordinator peer farm
+  evicted idler only loses starting NEW generations while the farm is full. The gate forwards only
+  the routes clients use: the generation routes above (seated), `GET /v1/models`, `/models`,
+  `/v1/models/<id>`, `/model_group/info`, `/health/liveliness`, and their CORS preflights. Everything
+  else (LiteLLM's admin API and `/ui`, its pass-through routes such as `/vllm/…`, embeddings, the full
+  `/health`) gets the gate's own 404, and a path with a decoded `..`, `?` or `#` a 400. The panel is
+  on its own port and never goes through the gate. Coarse by design: one IP = one seat; a coordinator peer farm
   counts as one seat on this box (its own gate does the per-user work). `false` restores the old
   direct LiteLLM bind.
 - **`litellm.command`** — leave it `"litellm"` and the farm auto‑uses `farm/.venv` if `lol install`

@@ -237,16 +237,21 @@ function shouldEvictOllama({ otherEngineOn, llamacppOn, vramUsedGb, vramTotalGb,
 // did not clear it (docs/spike/RESULTS.md, "PRO 6000 vs Spark" 6). Nothing else tells the
 // operator: the farm just answers slowly. Owner decision 2026-10-07: the panel says so.
 // Fed each health tick's gpuLiveStats(). An idle GPU clocks down on purpose, so only BUSY
-// samples (≥ 80 % utilisation) count: STUCK_SAMPLES of them in a row under half the max SM
-// clock raise it, one busy sample at a normal clock clears it, and idle samples change
-// nothing (the latch outlives the load). Returns the low clock to report, or null.
+// samples (≥ 80 % utilisation) count: STUCK_SAMPLES of them in a row under STUCK_MHZ (and under
+// half the max SM clock when the GPU reports one) raise it, one busy sample at a normal clock
+// clears it, and idle samples change nothing (the latch outlives the load). The fixed floor
+// matters twice: a GB10 may not report clocks.max.sm (the latched Spark read its power limits
+// as N/A), and a power-capped card (a 300 W Max-Q mid-prefill) can dip under half its max
+// while healthy, but not to a third of it. Returns the low clock to report, or null.
 const STUCK_SAMPLES = 3;
+const STUCK_MHZ = 1000;
 function makeClockWatch() {
     let low = 0;
     let mhz = null;
     return (g) => {
-        if (g && g.gpuUtil != null && g.gpuUtil >= 80 && g.smMhz != null && g.smMaxMhz > 0) {
-            if (g.smMhz < g.smMaxMhz / 2) { low += 1; mhz = g.smMhz; } else { low = 0; mhz = null; }
+        if (g && g.gpuUtil != null && g.gpuUtil >= 80 && g.smMhz != null) {
+            const stuck = g.smMhz < STUCK_MHZ && !(g.smMaxMhz > 0 && g.smMhz >= g.smMaxMhz / 2);
+            if (stuck) { low += 1; mhz = g.smMhz; } else { low = 0; mhz = null; }
         }
         return low >= STUCK_SAMPLES ? mhz : null;
     };

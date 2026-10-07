@@ -1205,10 +1205,16 @@ test('clock watch: a GPU busy but stuck under half its max clock (the GB10 latch
     const dip = { gpuUtil: 90, smMhz: 900, smMaxMhz: 2502 };
     assert.equal([dip, dip, healthy, dip, dip].map(w).every((r) => r === null), true, 'a dip that recovers never raises it');
     assert.equal(w({ ...dip, smMhz: 1300 }), null, 'half the max clock or above is not stuck');
-    for (const g of [{ ...latched, smMaxMhz: null }, { ...latched, smMhz: null }, { ...latched, gpuUtil: null }, null]) {
+    for (const g of [{ ...latched, smMhz: null }, { ...latched, gpuUtil: null }, null]) {
         w = perfMod.makeClockWatch();
         assert.equal(feed(w, g, 5), null, `no verdict without the readings: ${JSON.stringify(g)}`);
     }
+    // A GB10 may not report its max clock: the fixed floor still catches the latch.
+    w = perfMod.makeClockWatch();
+    assert.equal(feed(w, { ...latched, smMaxMhz: null }, 3), 702, 'no max clock reported: 702 MHz busy is still stuck');
+    // A 300 W card dipping under half its max mid-prefill, but well above the floor, is not stuck.
+    w = perfMod.makeClockWatch();
+    assert.equal(feed(w, { gpuUtil: 99, smMhz: 1350, smMaxMhz: 2850 }, 5), null, 'a power-capped dip above the floor is not stuck');
     const render = loadPanel();
     const gpu = { gpuUtil: 94, vramUsedGb: 80, vramTotalGb: 119, smMhz: 702, smMaxMhz: 2502 };
     const html = render(adminState({ health: { hostsUp: 1, hostsTotal: 1, proxyUp: true, host: null, gpu: { ...gpu, stuckMhz: 702 } } }));
@@ -2492,6 +2498,9 @@ test('plugin keys survive a farm restart, so no client restarts its Open WebUI (
         }
         assert.notEqual(keyId(changed.ocr), keyId(set.ocr), 'and keyId changes, so a client holding the new password fetches again');
         assert.deepEqual(start(), first, 'back to no password: the open farm\'s keys');
+        // An open farm keeps farm-v0.0.41's keys at the upgrade: no restart wave across the clients.
+        const secret = fs.readFileSync(file, 'utf8').trim();
+        assert.equal(first.ocr, require('crypto').createHmac('sha256', secret).update('ocr').digest('hex').slice(0, 48), 'open farm: the v0.0.41 derivation');
         fs.unlinkSync(file);
         assert.notEqual(start().ocr, first.ocr, 'deleting the secret rotates the keys');
     } finally { try { fs.unlinkSync(file); } catch { /* gone */ } }

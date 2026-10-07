@@ -44,8 +44,13 @@ LOG="$ROOT/logs/vllm.log"
 SOCK="$ROOT/run/vllm.sock"
 PGF="$ROOT/run/vllm.pgid"
 GUARDF="$ROOT/run/vllm.guard"   # the memory guard stopped this run
-if [ -f "$PGF" ] && pgrep -g "$(cat "$PGF")" >/dev/null 2>&1; then
-  echo "A server from $ROOT is already running (process group $(cat "$PGF")): stop it first with stop.sh."; exit 1
+# A recorded group counts as a running server only if its leader is a serve.sh and not this one: after a power
+# cut, a hard reset or a WSL shutdown the file survives, and at the next boot its number can name an unrelated
+# process (or this very script), which would block every autostart.
+G=$(cat "$PGF" 2>/dev/null)
+if [ -n "$G" ] && [ "$G" != "$$" ] && grep -qa 'serve\.sh' "/proc/$G/cmdline" 2>/dev/null; then
+  MSG="A server from $ROOT is already running (process group $G): stop it first with stop.sh."
+  echo "$MSG"; echo "[serve] $(date -Is) $MSG" >> "$ROOT/logs/vllm.log"; exit 1
 fi
 echo "$PGID" > "$PGF"
 rm -f "$SOCK" "$GUARDF"   # a socket file left by the last server makes the next bind fail (EADDRINUSE)

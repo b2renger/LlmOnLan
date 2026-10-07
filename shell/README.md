@@ -113,6 +113,9 @@ user‑settings API writes (and the auth token/settings reads they need) listed 
      writes) **once**, only on a profile carrying that marker whose value is still `'always'`, and
      marks it `ui.lolWebSearchUnseeded` so a person who later picks "always" keeps it. Why off
      (2026‑10‑05): with it on, a chat cost ~2.5× the GPU work and got 1 of 4 fresh facts right.
+     Web search v2 (2026‑10‑06: the client's `/web/search` and the date line) costs about the same
+     as off (2.33 vs 2.4 generations per message) and got 17/18 fresh facts; it stays off until a
+     check with a whole class searching from one school network.
   2. **The opt‑in Blender tool server** — appended to `ui.toolServers` and selected via a
      `direct_server:<idx>` entry in `ui.tools` (`TOOL_SERVER_CONNECTIONS` is unsupported upstream).
      Disabling it also renumbers the other `direct_server:<n>` selections, so a user's own OWUI tool

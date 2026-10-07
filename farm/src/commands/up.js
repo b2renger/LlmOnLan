@@ -1044,6 +1044,11 @@ async function run(args) {
     // must see LiteLLM itself, not the gate's 502 while it restarts).
     const baseUrl = `http://127.0.0.1:${internalPort}`;
     log.step(`Starting LiteLLM proxy on ${config.proxy.host}:${config.proxy.port} …${seatGateOn ? log.paint.grey(` (seat gate on — LiteLLM on loopback :${internalPort})`) : ''}`);
+    // The gate is also what keeps LiteLLM's pass-through routes (/vllm/…, /azure/…) off the LAN: with an
+    // external engine on hosted_vllm/ they reach the server with no seat and no password check of ours.
+    if (!seatGateOn && config.external && config.external.enabled) {
+        log.warn('proxy.seatGate is false with an external engine: LiteLLM answers the LAN directly, and its pass-through routes (/vllm/…) reach the engine unfiltered. Keep the seat gate on unless this LAN is yours alone.');
+    }
     // `child` is a `let` so the admin control API can bounce the proxy in place
     // (restartProxy below) to change the served model set without a full `lol up`.
     let child = spawnLitellm(config, yamlPath, litellmBind);

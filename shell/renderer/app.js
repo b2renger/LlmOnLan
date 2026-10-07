@@ -532,7 +532,8 @@ let settingsFixing = false;  // ...and they are writing right now: the Blender w
 let blenderSeeded = false;   // register the Blender tool server with OWUI at most once per session
 
 // Web search is OFF by default in Open WebUI (owner, 2026-10-05: on, a chat cost ~2.5x the GPU
-// work and got 1 of 4 fresh facts right); a chat's globe switch (Integrations ▸ Web Search) turns
+// work and got 1 of 4 fresh facts right; v2 since 2026-10-06 costs about the same as off and got 17/18,
+// but stays off until a class-size check); a chat's globe switch (Integrations ▸ Web Search) turns
 // it on for that chat. Clients up to v0.2.7 turned it on for every chat, once per profile:
 // `ui.webSearch = 'always'` + a `ui.lolWebSearchSeeded` marker. This undoes that ONCE, only on a
 // profile LOL seeded, and only while it is still 'always' (what we wrote): a person who chose

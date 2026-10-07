@@ -6,6 +6,67 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-10-07 (10:23) — Pre-release review: the seat gate forwards only what clients use; vLLM autostart on both boxes; the GB10 clock latch on the panel
+
+Before tagging client v0.2.8 and Farm app farm-v0.0.42, five reviewers went over everything since v0.2.7 (farm,
+the client's main process, the renderer, upgrade and compatibility, release mechanics and docs). A skeptic then
+re-checked each finding, and four fix sets followed, each checked again. The owner's answers today: the Spark gets
+the operator-run recipe with autostart (not the managed engine); release once the review is clean; switch the
+production PRO 6000 to vLLM at a moment the owner picks.
+
+- **Major, fixed (`ddb0556`): the seat gate forwards only the routes clients use.** With the external engine on
+  `hosted_vllm/`, LiteLLM's pass-through routes (`/vllm/{path}` and others) forwarded to vLLM with no seat. httpx
+  resolves a decoded `..`, so `POST /vllm/../invocations` reached the engine; a reviewer reproduced it on a
+  scratch LiteLLM.
+  - **The gate now decodes the path once:** a decoded `..`, `?`, `#` or NUL gets a 400.
+  - **It forwards only:** the generation routes (seated); `GET /v1/models`, `/models`, `/v1/models/<id>`,
+    `/model_group/info` and `/health/liveliness`; and their preflights. Everything else, including LiteLLM's
+    admin API and `/ui`, embeddings and the full `/health`, gets the gate's own 404.
+  - **Every caller was checked before the cut:** Open WebUI, LOL Vibe (which needs `/model_group/info`), the
+    Computer, the coding agent, agent pages, `lol status`, the bench, coordinator peers and the README's curl
+    examples.
+  - **Live check:** the gate in front of a real LiteLLM 1.97. A farm that turns the gate off with an external
+    engine now gets a warning at `lol up`.
+- **Plugin keys follow the farm password.**
+  - A password set or changed gives OCR, Classify and speech to text new keys at the next farm restart.
+    Before, a device that read them from an open farm kept them for good.
+  - An open farm keeps exactly farm-v0.0.41's keys, so the upgrade restarts no client's Open WebUI; a test
+    pins it.
+  - The panel's password row now says what is true: it protects the plugins, and old access lasts until the
+    restart.
+- **The GB10 clock latch on the panel.**
+  - The farm's GPU sampler now reads the SM clock. Three busy samples in a row under 1,000 MHz (and under half
+    the max when the GPU reports one) show: "The GPU is stuck at a low clock (702 MHz): fully power the box
+    off (unplug it for a minute), then start it again."
+  - The fixed floor matters twice: a GB10 may not report its max clock, and a 300 W card can dip under half
+    its max while healthy.
+- **vLLM autostart** (`ef8dce0`, plus the fixes here).
+  - **serve.sh has a daemon mode** (`LOL_VLLM_DAEMON=1`): no stdin watchdog, a clean stop on SIGTERM, and a
+    memory guard that stops vLLM below `LOL_VLLM_MIN_FREE_GB` (exit 3, not restarted).
+  - **Spark:** a systemd unit with the Spark's numbers as overrides. It is ready only once vLLM answers, and
+    it restarts at most 3 times an hour.
+  - **PRO 6000:** a log-on task launcher, `start-windows.ps1`. It starts vLLM in WSL, waits until it answers,
+    then starts the Farm app.
+  - **Fixed after the skeptic:**
+    - A stale `run/vllm.pgid` left by a power cut no longer blocks the next start: a recorded group counts
+      only if its leader is a `serve.sh`, and `stop.sh` never kills an unrelated group.
+    - The scheduled task no longer runs the whole farm below normal priority: the launcher resets itself to
+      Normal, and the registration line sets priority 4.
+    - `stop.sh` during a start no longer makes systemd restart vLLM.
+    - The README and the unit name `reset-failed` after three failures.
+  - **Tests:** `serve.sh`'s suite with a stand-in vLLM passes 35/35, plus a stale-file check. Neither the
+    scheduled task nor the unit was run on the real boxes: that is the rig list's 7d.16–7d.17.
+- **Shell fixes** (`c6aea2a`):
+  - The skill refresh ignores files the OS adds (.DS_Store, Thumbs.db).
+  - Agent pages say "the farm no longer serves the model X" instead of blaming the password.
+  - LOL Vibe's seat wait counts a seat this computer holds.
+  - Preferences no longer says closing frees your seat.
+  - GETTING_STARTED and shell/README give web search v2's real cost.
+- **Docs** (`77768e7`): the v0.2.8 / farm-v0.0.42 rig checks (TEST_SCENARIOS 7d, 18 checks), and the CLAUDE.md
+  and IDE_PLAN lines the branch had made false.
+- **Tests on the release candidate:** farm 168/0; litellm-cancel PASS (1.97.0); shell chat-unit 1834/0, unit 29,
+  lint 0; chat harness 406/408 in a full run; the two misses (c1-landing-one-document, c2-bridges-legacy-out-of-the-palette, both under 0.5 s) passed 3/3 alone and in their family's run in sequence (c: 72/72): a load flake. A second full run before tagging.
+
 ## 2026-10-07 (10:07) — The capacity explorer: model × context × hardware, measured where it can be, estimated and labelled elsewhere
 
 The owner asked for "a comparison table or a web visualisation where I can change parameters": which model, how

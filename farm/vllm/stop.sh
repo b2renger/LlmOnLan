@@ -6,6 +6,12 @@ ROOT="${LOL_VLLM_ROOT:-$HOME/lol-vllm}"
 F="$ROOT/run/vllm.pgid"
 [ -f "$F" ] || { echo "No server recorded in $F."; exit 0; }
 G=$(cat "$F")
+# Only a group whose leader is serve.sh is ours: a file left by a power cut or a WSL shutdown can name an
+# unrelated process group after the next boot, and that one must never be killed.
+if ! grep -qa 'serve\.sh' "/proc/$G/cmdline" 2>/dev/null; then
+  echo "Process group $G is not a running serve.sh (a file left by an unclean stop): removing it."
+  rm -f "$F" "$ROOT/run/vllm.sock"; exit 0
+fi
 pgrep -g "$G" >/dev/null || { echo "Process group $G is already gone."; rm -f "$F" "$ROOT/run/vllm.sock"; exit 0; }
 echo "Stopping process group $G: $(pgrep -g "$G" | tr '\n' ' ')"
 kill -TERM -- "-$G" 2>/dev/null

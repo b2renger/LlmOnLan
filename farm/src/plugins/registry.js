@@ -32,7 +32,8 @@ const firewallNote = (c) => (serviceHosts(c.proxy && c.proxy.host).loopback
 // Each descriptor delegates to an existing module; see the header. `runtime` (passed to
 // start/makeCtx) carries { log, pluginKey, resolveOcrModel, isLocalHost, reachable }; pluginKey(id, password)
 // is identity.js's, the same bearer key on every run (a new one restarted every client's Open WebUI) until
-// the farm password changes. makeCtx runs at each plugin start, so it reads the password of that start.
+// the farm password changes. makeCtx runs at each plugin start, so it reads the password of that start: a
+// password change reaches the plugins at the next full farm restart (identity.js says what that costs).
 const farmPassword = (c) => (c.proxy && c.proxy.masterKey) || null;
 const DESCRIPTORS = [
     {
