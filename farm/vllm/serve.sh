@@ -1,6 +1,6 @@
 #!/bin/bash
 # Serve a model with vLLM as a LlmOnLan farm's `external` engine. Operator-run: the farm routes to it and reads
-# its /metrics, but never starts or stops it (farm/README.md, "Serving with vLLM on Windows (WSL2)").
+# its /metrics, but never starts or stops it (farm/README.md, "Serving with vLLM on Windows (WSL2)" and "on Linux").
 # Keep it in the foreground of a window that stays open:
 #
 #   wsl -d Ubuntu -- bash /mnt/c/<path to the repo>/farm/vllm/serve.sh [extra vllm serve args...]   (Windows)
@@ -17,12 +17,22 @@
 # goes away), a watchdog stops the whole process group: vLLM, its EngineCore and the relay. Killing wsl.exe
 # alone leaves Linux processes running.
 #
+# Started by the system instead (lol-vllm.service, start-windows.ps1), stdin is /dev/null or a console nobody
+# types in: LOL_VLLM_DAEMON=1 drops the watchdog and the copy of the log on stdout. A SIGTERM to the process group
+# (systemctl stop) or stop.sh then stops it, and it exits 143.
+#
 # Env: LOL_VLLM_ROOT (default ~/lol-vllm: venv, weights, logs), LOL_VLLM_PORT (8100), LOL_VLLM_MODEL (a checkpoint
-# folder or a Hugging Face repo id). Log: $LOL_VLLM_ROOT/logs/vllm.log.
+# folder or a Hugging Face repo id), LOL_VLLM_DAEMON (1 = no watchdog), LOL_VLLM_MIN_FREE_GB (unset = off: the
+# memory guard for a box whose GPU shares the system memory, the DGX Spark; when MemAvailable falls under this many
+# GB, it stops vLLM and exits 3). Log: $LOL_VLLM_ROOT/logs/vllm.log.
 set -u
+{   # parsed whole before it runs, so saving this file in place (an editor, cp) under a running server changes nothing
 ROOT="${LOL_VLLM_ROOT:-$HOME/lol-vllm}"
 PORT="${LOL_VLLM_PORT:-8100}"
 MODEL="${LOL_VLLM_MODEL:-$ROOT/hf/Qwen3.6-35B-A3B-NVFP4}"
+DAEMON="${LOL_VLLM_DAEMON:-0}"
+MIN_FREE="${LOL_VLLM_MIN_FREE_GB:-}"
+case "$MIN_FREE" in *[!0-9]*) echo "LOL_VLLM_MIN_FREE_GB must be a whole number of GB, not '$MIN_FREE'."; exit 1;; esac
 HERE="$(cd "$(dirname "$0")" && pwd)"
 if [ "$(ps -o pgid= -p $$ | tr -d ' ')" != "$$" ]; then
   exec setsid --wait bash "$0" "$@"   # become a process-group leader, so stopping the group is exact
@@ -33,26 +43,30 @@ mkdir -p "$ROOT/logs" "$ROOT/run"
 LOG="$ROOT/logs/vllm.log"
 SOCK="$ROOT/run/vllm.sock"
 PGF="$ROOT/run/vllm.pgid"
+GUARDF="$ROOT/run/vllm.guard"   # the memory guard stopped this run
 if [ -f "$PGF" ] && pgrep -g "$(cat "$PGF")" >/dev/null 2>&1; then
   echo "A server from $ROOT is already running (process group $(cat "$PGF")): stop it first with stop.sh."; exit 1
 fi
 echo "$PGID" > "$PGF"
-rm -f "$SOCK"   # a socket file left by the last server makes the next bind fail (EADDRINUSE)
+rm -f "$SOCK" "$GUARDF"   # a socket file left by the last server makes the next bind fail (EADDRINUSE)
 {
-  echo "[serve] $(date -Is) host=$(hostname) pgid=$PGID port=$PORT model=$MODEL"
+  echo "[serve] $(date -Is) host=$(hostname) pgid=$PGID port=$PORT model=$MODEL daemon=$DAEMON min_free_gb=${MIN_FREE:-off}"
   echo "[serve] GPU before start: $(nvidia-smi --query-gpu=memory.used,memory.total --format=csv,noheader 2>/dev/null | head -1)"
 } | tee -a "$LOG"
 
-exec 3<&0
-(
-  trap '' INT TERM HUP
-  while read -r -u 3 _; do :; done
-  echo "[watchdog] $(date -Is) stdin closed: stopping process group $PGID" >> "$LOG"
-  kill -TERM -- "-$PGID" 2>/dev/null
-  sleep 30
-  kill -KILL -- "-$PGID" 2>/dev/null
-) &
-WATCHDOG=$!
+WATCHDOG=
+if [ "$DAEMON" != 1 ]; then
+  exec 3<&0
+  (
+    trap '' INT TERM HUP
+    while read -r -u 3 _; do :; done
+    echo "[watchdog] $(date -Is) stdin closed: stopping process group $PGID" >> "$LOG"
+    kill -TERM -- "-$PGID" 2>/dev/null
+    sleep 30
+    kill -KILL -- "-$PGID" 2>/dev/null
+  ) &
+  WATCHDOG=$!
+fi
 
 # FlashInfer JIT-compiles kernels at first use (sm_120): it needs the venv's ninja and the pip CUDA toolkit's nvcc
 # on PATH, CUDA_HOME, and unversioned library names to link against (the pip toolkit ships only libcudart.so.13,
@@ -99,7 +113,7 @@ ARGS=(
 )
 "$ROOT/.venv/bin/vllm" serve "$MODEL" "${ARGS[@]}" "$@" >> "$LOG" 2>&1 < /dev/null 3<&- &
 VLLM=$!
-tail -n 0 -f --pid="$VLLM" "$LOG" 3<&- &
+[ "$DAEMON" = 1 ] || { tail -n 0 -f --pid="$VLLM" "$LOG" 3<&- & }
 (
   until curl -sf -o /dev/null -m 5 --unix-socket "$SOCK" http://localhost/health; do
     kill -0 "$VLLM" 2>/dev/null || exit
@@ -107,6 +121,25 @@ tail -n 0 -f --pid="$VLLM" "$LOG" 3<&- &
   done
   echo "[serve] $(date -Is) ready: http://127.0.0.1:$PORT/v1" >> "$LOG"
 ) 3<&- &
+# The memory guard (LOL_VLLM_MIN_FREE_GB). On a DGX Spark the GPU allocates from the system memory, and a
+# system-wide out-of-memory there latched the GPU at ~700 MHz until a cold power drain (docs/spike/RESULTS.md, DGX
+# Spark). So it stops vLLM while the box still has memory left: it reads MemAvailable every 2 s, as the spike's
+# guard did every 10 s, which caught a 30-second climb from 35 to 116 GB at 5 GB free.
+if [ -n "$MIN_FREE" ]; then
+  (
+    trap '' INT TERM HUP
+    while sleep 2 && kill -0 "$VLLM" 2>/dev/null; do
+      free=$(awk '/^MemAvailable:/{print int($2/1048576)}' /proc/meminfo)
+      [ "$free" -ge "$MIN_FREE" ] && continue
+      echo "[guard] $(date -Is) ${free} GB of memory available, under LOL_VLLM_MIN_FREE_GB=$MIN_FREE: stopping vLLM" >> "$LOG"
+      : > "$GUARDF"
+      kill -TERM -- "-$PGID" 2>/dev/null
+      sleep 5   # then KILL what is left, all but serve.sh and this guard: memory cannot wait for a slow exit
+      for p in $(pgrep -g "$PGID"); do [ "$p" != "$$" ] && [ "$p" != "$BASHPID" ] && kill -KILL "$p" 2>/dev/null; done
+      exit
+    done
+  ) 3<&- &
+fi
 
 stop_server() {
   trap '' INT TERM HUP
@@ -120,6 +153,8 @@ kill -TERM "$RELAY" 2>/dev/null
 sleep 1
 for p in $(pgrep -g "$PGID"); do [ "$p" != "$$" ] && kill -KILL "$p" 2>/dev/null; done   # EngineCore, watchdog, tail
 rm -f "$SOCK" "$PGF"
+[ -f "$GUARDF" ] && rc=3   # lol-vllm.service does not restart after this one (RestartPreventExitStatus=3)
 msg="[serve] $(date -Is) vLLM exited (status $rc); the relay and the watchdog are stopped."
 echo "$msg" >> "$LOG"; echo "$msg" 2>/dev/null   # the log first: the window may already be gone
 exit "$rc"
+}

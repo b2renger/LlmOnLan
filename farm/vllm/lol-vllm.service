@@ -1,0 +1,38 @@
+# vLLM for a LlmOnLan farm on Linux, sized for a DGX Spark, started at boot (farm/README.md, "Serving with vLLM on
+# Linux (DGX Spark)"). A template: set User= and the path to serve.sh in ExecStart=, then
+#   sudo cp lol-vllm.service /etc/systemd/system/ && sudo systemctl daemon-reload && sudo systemctl enable --now lol-vllm
+# A start returns once vLLM answers (ExecStartPost), so a farm started after it finds vLLM at its first probe.
+# Logs: journalctl -u lol-vllm (serve.sh's own lines) and ~/lol-vllm/logs/vllm.log (everything).
+[Unit]
+Description=vLLM for the LlmOnLan farm (farm/vllm/serve.sh)
+# A vLLM that keeps failing gets 3 starts an hour, then stays down until `sudo systemctl start lol-vllm`.
+StartLimitIntervalSec=1h
+StartLimitBurst=3
+
+[Service]
+Type=simple
+User=<you>
+# Daemon mode: stdin is /dev/null here, which would stop serve.sh's watchdog at once.
+Environment=LOL_VLLM_DAEMON=1
+Environment=LOL_VLLM_PORT=8100
+# The memory guard: serve.sh stops vLLM when the box has under 8 GB available, and exits 3. The Spark's GPU
+# allocates from the same memory, and a system-wide out-of-memory latched it at ~700 MHz until a cold power drain.
+Environment=LOL_VLLM_MIN_FREE_GB=8
+# FlashInfer compiles kernels at a first start, one job per core by default: on the Spark, Qwen3.8's compile took the
+# memory used from 35 to 116 GB in 30 s, and 4 jobs kept it to 108 GB.
+Environment=MAX_JOBS=4
+# The Spark's sizing (docs/spike/RESULTS.md, DGX Spark) goes after serve.sh's defaults, which stay the PRO 6000's:
+# serve.sh's model, Qwen3.6-35B-A3B NVFP4, at 64k (8 people at once, as at 32k), the spike's 58 GiB KV pool, and
+# 32 requests at once. Nemotron 3.5 Lightning (16 people at 32k): the README.
+ExecStart=/bin/bash /home/<you>/LlmOnLan/farm/vllm/serve.sh --kv-cache-memory-bytes 62277025792 --max-num-seqs 32
+# (systemd waits for this line even when serve.sh has stopped, hence the kill -0)
+ExecStartPost=/bin/sh -c 'until curl -s -o /dev/null -m 5 http://127.0.0.1:${LOL_VLLM_PORT}/v1/models; do kill -0 "$MAINPID" 2>/dev/null || exit 1; sleep 5; done'
+TimeoutStartSec=30min
+Restart=on-failure
+RestartSec=30s
+# 143: stopped on purpose (systemctl stop, stop.sh). 3: stopped by the memory guard; find what took the memory first.
+SuccessExitStatus=143
+RestartPreventExitStatus=3
+
+[Install]
+WantedBy=multi-user.target

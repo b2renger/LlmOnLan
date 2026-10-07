@@ -397,6 +397,129 @@ sent) were replayed straight to vLLM, 2 to 8 times each, with a 32,768-token lim
   refuses with or without a limit. In a separate check through the same stack, a 39,223-token prompt with no
   `max_tokens` was answered, and the same prompt sending `max_tokens: 32768` got vLLM's 400.
 
+### Start vLLM at logon
+
+So that vLLM comes back after a reboot, a scheduled task runs `farm/vllm/start-windows.ps1` when you log on. The
+script starts `serve.sh` hidden in WSL, waits until `http://127.0.0.1:8100/v1/models` answers, then starts the Farm
+app, so the farm finds vLLM when it starts. If vLLM has not answered after 15 minutes, or `serve.sh` stopped, the
+script starts the Farm app anyway: the farm then serves its built-in engine until you quit and reopen it once vLLM
+answers. The script's log is `%APPDATA%\LlmOnLan Farm\vllm-start.log`, next to `farm.log` in the Farm app's logs
+folder. vLLM's own log is still `~/lol-vllm/logs/vllm.log`.
+
+1. **Turn off the Farm app's Launch at login** (Settings). Otherwise the Farm app starts before vLLM answers and
+   serves its built-in engine for that whole run. When that happens, the script's log says the Farm app was
+   already running.
+2. **Register the task once**, in PowerShell. This line runs the Farm app's own copy of `farm/vllm`, which exists
+   from farm-v0.0.42 on and is refreshed by each Farm app update. The same file in a checkout of this repository
+   works too.
+   ```powershell
+   Register-ScheduledTask -TaskName 'LlmOnLan vLLM' -Trigger (New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME) -Action (New-ScheduledTaskAction -Execute powershell.exe -Argument "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$env:APPDATA\LlmOnLan Farm\farm\vllm\start-windows.ps1`"")
+   ```
+   Options go at the end of `-Argument`, after the path: `-Root /home/<you>/lol-spike` for another
+   `LOL_VLLM_ROOT` (a Linux path, without `~`), `-Distro` (`Ubuntu`), `-Port` (8100), `-TimeoutSec` (900) and
+   `-FarmApp` (`%LOCALAPPDATA%\Programs\llmonlan-farm-app\LlmOnLan Farm.exe`). To try it without logging off:
+   `Start-ScheduledTask 'LlmOnLan vLLM'`. To remove it: `Unregister-ScheduledTask 'LlmOnLan vLLM' -Confirm:$false`.
+3. **Nothing to set in WSL.** The script runs `serve.sh` in daemon mode (`LOL_VLLM_DAEMON=1`), which turns the
+   stdin watchdog off, so how its window was started does not matter. `serve.sh` stays in the foreground of the
+   task's `wsl.exe`, and a distro keeps running while a `wsl.exe` is attached to it, so `wsl.conf` and
+   `.wslconfig` need no keep-alive.
+4. **Stopping and crashes.** `stop.sh` stops it, as in step 4 above. Nothing restarts a vLLM that stops or crashes:
+   run the task again (`Start-ScheduledTask 'LlmOnLan vLLM'`), then quit and reopen the Farm app. While vLLM still
+   runs, a second start is refused by `serve.sh` and changes nothing.
+
+Checked on 2026-10-07 with a stand-in for vLLM (no GPU) on a spare port: the Farm app started only once the
+server answered; the distro and the server were still up 60 s after the script exited, with no other `wsl.exe`;
+`stop.sh` ended the script's `wsl.exe` and the distro stopped 10 s later; a 12 s timeout and a `serve.sh` that
+stopped at once both still started the Farm app. The scheduled task itself has not been registered on the farm
+box yet.
+
+## Serving with vLLM on Linux (DGX Spark)
+
+The same scripts run vLLM natively on Linux. On the DGX Spark (GB10, 128 GB of memory shared by the CPU and the
+GPU), the spike measured vLLM serving **8 people at once on Qwen3.6-35B-A3B, at 32k or 64k of context each, or 16
+on Nemotron 3.5 Lightning at 32k** ([RESULTS.md, DGX Spark](../docs/spike/RESULTS.md#dgx-spark-gb10)). That is a
+workshop table, not a class: llama.cpp served 2 there, and a PRO 6000 serves 48 at 64k. Here the Spark runs vLLM
+as a systemd service, so it comes back after a reboot, with a memory guard. The service and the guard were checked
+on 2026-10-07 under systemd with a stand-in for vLLM, not yet on the Spark itself. Below, `<repo>` is your checkout
+of this repository.
+
+1. **Install, once**, as your user (about 40 GB of disk):
+   ```bash
+   UV_PYTHON_PREFERENCE=only-managed bash <repo>/farm/vllm/install.sh
+   ```
+   `UV_PYTHON_PREFERENCE=only-managed` builds the venv on uv's own Python 3.12. The Spark's system Python has no
+   headers, and vLLM then stops with `Model architectures [...] failed to be inspected`. For Nemotron, also run
+   `bash <repo>/farm/vllm/install.sh nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4`.
+2. **Install the service.** Copy `farm/vllm/lol-vllm.service` to `/etc/systemd/system/`. Set `User=` and the path
+   to `serve.sh` in `ExecStart=`: a checkout of this repository, or the Farm app's own copy,
+   `"/home/<you>/.config/LlmOnLan Farm/farm/vllm/serve.sh"` (farm-v0.0.42 and later, in double quotes because of
+   the space). Then:
+   ```bash
+   sudo systemctl daemon-reload && sudo systemctl enable --now lol-vllm
+   ```
+   The start returns once `http://127.0.0.1:8100/v1/models` answers; the first one compiles kernels for a few
+   minutes. The unit:
+   - runs `serve.sh` in daemon mode (`LOL_VLLM_DAEMON=1`): under systemd stdin is `/dev/null`, and the stdin
+     watchdog would stop the server at once;
+   - restarts it 30 s after a crash, at most 3 starts an hour, then leaves it stopped;
+   - leaves it stopped after `sudo systemctl stop lol-vllm` or `stop.sh`;
+   - logs `serve.sh`'s own lines to `journalctl -u lol-vllm`, and everything to `~/lol-vllm/logs/vllm.log`.
+3. **The Spark's numbers** are arguments in `ExecStart=`, after `serve.sh`'s defaults, which stay the PRO 6000's:
+
+   | | Qwen3.6-35B-A3B (the unit as shipped) | Nemotron 3.5 Lightning |
+   |---|---|---|
+   | People at once, measured | 8 at 32k or 64k, 4 at 128k | 16 at 32k, fewer than 8 at 64k, 4 at 128k |
+   | In `ExecStart=`, after `serve.sh` | `--kv-cache-memory-bytes 62277025792 --max-num-seqs 32` | the same, plus `--max-model-len 32768 --served-model-name nemotron-3.5-lightning --mamba-backend flashinfer --reasoning-parser nemotron_v3 --tool-call-parser qwen3_coder`, and a line `Environment=LOL_VLLM_MODEL=/home/<you>/lol-vllm/hf/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4` |
+   | In the farm's `external` block (step 3 of the Windows section) | `"model": "qwen3.6-35b-a3b"`, `"contextLength": 65536`, `"parallel": 8`, `"vision": true`, `"presencePenalty": 1.5` | `"model": "nemotron-3.5-lightning"`, `"contextLength": 32768`, `"parallel": 16`, `"vision": false`, no `presencePenalty` |
+
+   - **The KV pool, 58 GiB**, is the spike's. With it the box used ~90–96 GB on Qwen3.6, the Farm app's
+     speech-to-text and Classify included, which leaves room for the OCR model (~9 GB) above the guard's floor.
+     The people use little of it: 8 people at 64k fill about a tenth, and speed runs out long before the pool. A
+     box that also does other work can shrink it without serving fewer people; that was not measured.
+   - **32 requests at once.** At 32, each stream still gets ~11–12 tok/s (p10), against 18 at 16, so a burst past
+     the seats runs slower instead of waiting.
+   - **Speed.** One person's reply streams at 69–76 tok/s. A cold 32k prompt takes 6 s alone and a cold 128k
+     document 30–39 s, so long documents belong on a PRO 6000.
+4. **Start the farm after vLLM.** The farm probes vLLM only when it starts: if vLLM is not answering then, the
+   farm serves its built-in engine for that whole run.
+   - **From a terminal:**
+     ```bash
+     until curl -s -o /dev/null http://127.0.0.1:8100/v1/models; do sleep 5; done; lol up
+     ```
+   - **The Farm app (AppImage):** its Launch at login works only on Windows and macOS. Start it at login from
+     `~/.config/autostart/lol-farm.desktop`, which waits for vLLM first, up to 15 minutes (put in the path of your
+     AppImage):
+     ```ini
+     [Desktop Entry]
+     Type=Application
+     Name=LlmOnLan Farm
+     Exec=sh -c "timeout 900 sh -c 'until curl -s -o /dev/null http://127.0.0.1:8100/v1/models; do sleep 5; done'; exec /home/<you>/LlmOnLan-Farm-0.0.42-arm64.AppImage"
+     ```
+     The Farm app's config is `~/.config/LlmOnLan Farm/farm/lol.config.json`: quit and reopen the app after
+     editing it.
+5. **The memory guard.** On the Spark the GPU allocates from the system memory. After an out-of-memory and two
+   hard resets on 2026-09-16, the GPU stayed latched at ~700 MHz until a cold power drain (step 6). So the unit
+   sets `LOL_VLLM_MIN_FREE_GB=8`: every 2 s `serve.sh` reads the box's `MemAvailable`, and below 8 GB it stops
+   vLLM (TERM, then KILL after 5 s) and exits 3. systemd does not restart after a 3. The `[guard]` line in
+   `vllm.log` says how much memory was left: find what took it (`free -g`, `ps aux --sort=-rss | head`), then
+   `sudo systemctl start lol-vllm`. The unit also sets `MAX_JOBS=4`: compiling kernels with one job per core took
+   Qwen3.8's start from 35 to 116 GB in 30 s, and 4 jobs kept it to 108 GB.
+   - **Why not a systemd memory limit** (`MemoryMax=`). It bounds only what the kernel charges to the unit. The
+     farm, its plugins, Ollama's OCR model and the desktop take the same memory from outside the unit, and
+     whether the GB10 driver charges the GPU's own allocations to it was not measured. At the limit, the kernel's
+     out-of-memory killer would end vLLM in the middle of an allocation, the kind of event that came before the
+     latch. The guard watches what the whole box has left, the number the spike's guard watched, and stops vLLM
+     in order while 8 GB remain. The spike's guard checked every 10 s and caught a start-up climb at 5 GB free;
+     this one checks every 2 s.
+6. **After any crash, check the GPU clock.** While a reply streams,
+   `nvidia-smi --query-gpu=clocks.sm,power.draw,utilization.gpu --format=csv -l 2` should read 1,400 MHz or more
+   and 40 W or more. A GPU stuck near 700 MHz and 11–14 W while 90 % busy is the latch. NVIDIA's forums report it,
+   with no fix yet. A warm reboot does not clear it; a cold drain does: power off, unplug the power brick at the
+   wall, hold the power button for 30 s, wait, then boot.
+
+`serve.sh` from a terminal works on a Spark too, with the same settings:
+`LOL_VLLM_MIN_FREE_GB=8 MAX_JOBS=4 bash <repo>/farm/vllm/serve.sh --kv-cache-memory-bytes 62277025792 --max-num-seqs 32`.
+
 ## Adding or changing models
 
 **The panel is the normal way.** Open `http://<box>:41997/lol/admin` (the Farm app shows it as its own
@@ -1029,7 +1152,8 @@ build for Blackwell cards (16 GB+); replace it freely.
   reports them), and they size the client's whole-document gate and the seat count — so get them right.
   There is no panel switch for this one: set `enabled` in `lol.config.json` and restart the farm. A tested
   vLLM recipe for a Windows box is in
-  [Serving with vLLM on Windows (WSL2)](#serving-with-vllm-on-windows-wsl2).
+  [Serving with vLLM on Windows (WSL2)](#serving-with-vllm-on-windows-wsl2), and for a DGX Spark in
+  [Serving with vLLM on Linux (DGX Spark)](#serving-with-vllm-on-linux-dgx-spark).
 
   **When the server is a vLLM** (its `/metrics`, at `baseUrl` without the `/v1`, carries `vllm:`
   series — nothing to configure), the farm reads it on the health tick it already runs: the
