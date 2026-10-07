@@ -1,6 +1,9 @@
 #!/bin/bash
 # Stand-in for `hf download <repo> --local-dir <dir> ...` (farm/vllm/test_scripts.sh). FAKE_HF picks what happens:
-# ok (default), gated, 404, disk, net, or slow (leaves a .incomplete file and waits, for `stop.sh install`).
+# ok (default), gated, 404, disk, net, or slow (leaves a .incomplete file and waits, for `stop.sh install`). From the
+# environment, or from <root>/fake.env beside the fake's .venv (a farm passes only its own variables to install.sh).
+here="$(cd "$(dirname "$0")" && pwd)"
+[ -f "$here/../../fake.env" ] && { set -a; . "$here/../../fake.env"; set +a; }
 dir=; prev=
 for a in "$@"; do [ "$prev" = --local-dir ] && dir=$a; prev=$a; done
 case "${FAKE_HF:-ok}" in

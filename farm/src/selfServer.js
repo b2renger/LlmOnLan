@@ -22,6 +22,9 @@
 //   POST /lol/admin/llamacpp/library/remove → drop one from the library (token)
 //   POST /lol/admin/ollama/pull   → download an Ollama model (token)
 //   POST /lol/admin/ollama/remove → delete an Ollama model (token)
+//   POST /lol/admin/vllm/check|start|stop → the vLLM the farm runs (token)
+//   POST /lol/admin/vllm/download → download a model of its list, {id} (token)
+//   POST /lol/admin/job/cancel    → stop the job or the download, {slot} (token)
 //   POST /lol/admin/plugin/<id>/enable|disable → toggle a farm plugin (token)
 //   POST /lol/admin/plugin/recommend → recommend a client plugin, {id,on} (token)
 //
@@ -197,6 +200,13 @@ function startSelfServer({ httpPort, getSnapshot, host = '0.0.0.0', control = nu
                     '/lol/admin/apply': (b) => control.applyFarmSettings(b),
                     '/lol/admin/ollama/pull': (b) => control.pullOllamaModel(b.id),
                     '/lol/admin/ollama/remove': (b) => control.removeOllamaModel(b.id),
+                    // The vLLM the farm runs: check this computer, start, stop, download a model of its list.
+                    '/lol/admin/vllm/check': () => control.vllmCheck(),
+                    '/lol/admin/vllm/start': () => control.vllmStart(),
+                    '/lol/admin/vllm/stop': () => control.vllmStop(),
+                    '/lol/admin/vllm/download': (b) => control.vllmDownload(b.id),
+                    // Stop what runs in a slot: {slot: 'job' | 'download'}.
+                    '/lol/admin/job/cancel': (b) => control.cancel(b.slot),
                 };
                 if (method === 'POST' && POSTS[pathOnly]) {
                     const body = await readJson(req);

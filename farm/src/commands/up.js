@@ -8,13 +8,12 @@
 // work from another shell.
 
 const os = require('os');
-const http = require('http');
-const https = require('https');
 const crypto = require('crypto');
 const { spawn } = require('child_process');
 const log = require('../log');
 const ollama = require('../ollama');
 const llamacpp = require('../llamacpp');
+const vllmMod = require('../vllm');
 const proxyApi = require('../proxy');
 const { loadConfig } = require('../config');
 const {
@@ -56,8 +55,15 @@ function isLocalHost(baseUrl) {
 // else the default (so it at least runs — a text-only model just OCRs poorly). This
 // is the real Ollama tag (`underlying`), since Ollama-OCR hits raw Ollama, not the
 // alias-fronted proxy.
-function resolveOcrModel(config) {
+// While another engine serves (vLLM, llama.cpp, an external server), Ollama only reads
+// documents, beside that engine and in the memory kept for it (vllm.ocrReserveGib, 9 GB):
+// gemma4:12b (vision, ~8 GB) when it is installed on a local host (`installed`, the local
+// /api/tags names), rather than a standby default that may not fit (production's was
+// qwen3.8, 17.7 GB on disk; docs/VLLM_MANAGED_PLAN.md §1.4).
+const OCR_BESIDE = 'gemma4:12b';
+function resolveOcrModel(config, installed = []) {
     if (config.ocr.model) return config.ocr.model;
+    if (!ollamaServes(config) && installed.some((n) => n === OCR_BESIDE)) return OCR_BESIDE;
     const entries = servedEntries(config);
     const pick = entries.find((e) => e.isDefault && e.vision)
         || entries.find((e) => e.vision)
@@ -119,33 +125,15 @@ function spawnLocalOllama(config, baseUrl) {
     }
 }
 
+const sleepMs = (ms) => new Promise((r) => setTimeout(r, ms));
+
 // The bearer an external server may want (most local servers are keyless).
 const externalHeaders = (ex) => (ex.apiKey ? { authorization: `Bearer ${ex.apiKey}` } : {});
 
-// Is the operator-run OpenAI-compatible backend answering? GET {baseUrl}/models
-// is the one call every such server implements (vLLM, SGLang, llama-server,
-// TensorRT-LLM's OpenAI shim). Short timeout: this runs on the health tick.
+// Is the operator-run OpenAI-compatible backend answering? (vllm.answers: GET {baseUrl}/models,
+// 401/403 count as there.) Short timeout: this runs on the health tick.
 function externalAlive(ex, timeoutMs = 4000) {
-    return new Promise((resolve) => {
-        let url;
-        try { url = new URL(`${String(ex.baseUrl).replace(/\/+$/, '')}/models`); }
-        catch { return resolve(false); }
-        const mod = url.protocol === 'https:' ? https : http;
-        const req = mod.request(url, {
-            method: 'GET',
-            timeout: timeoutMs,
-            headers: externalHeaders(ex),
-        }, (res) => {
-            res.resume();
-            // 2xx = serving. 401/403 = it IS there and our key is wrong — a
-            // different problem, and reporting "down" would send the operator
-            // hunting the wrong thing, so treat reachability as the question here.
-            resolve((res.statusCode >= 200 && res.statusCode < 300) || res.statusCode === 401 || res.statusCode === 403);
-        });
-        req.on('timeout', () => { req.destroy(); resolve(false); });
-        req.on('error', () => resolve(false));
-        req.end();
-    });
+    return vllmMod.answers(ex.baseUrl, timeoutMs, externalHeaders(ex));
 }
 
 // Measured performance: the engine's /metrics, scraped on each health tick, read
@@ -155,20 +143,24 @@ function externalAlive(ex, timeoutMs = 4000) {
 // "how fast was it just now" even between requests; `history` feeds a sparkline.
 // llama.cpp is read while its child runs. An external server is read while it
 // answers, and only when its /metrics is a vLLM's — anything else keeps perf null
-// as before (no card, capacity.busy/queued null). `health` is liveHealth.
-function makePerfSampler(config, health, llamacppUp) {
+// as before (no card, capacity.busy/queued null). The vLLM the farm runs is read while it
+// is ready (`vllmReady`). `health` is liveHealth.
+function makePerfSampler(config, health, llamacppUp, vllmReady = () => false) {
     let prev = null;
     const history = [];
     let last = { genTokSec: null, promptTokSec: null, cacheHitRatio: null, throughputTokSec: null, draftAcceptRatio: null, ts: null };
     async function sample() {
         const ex = config.external;
+        const engine = engineOf(config);
         let cur;
-        if (config.llamacpp.enabled && llamacppUp()) {
+        if (engine === 'llamacpp' && llamacppUp()) {
             const m = await llamacpp.fetchMetrics(config.llamacpp.port);
             if (!m) return health.perf; // one failed scrape must not blank the panel
             cur = perfMod.metricsSample(m, Date.now());
-        } else if (ex.enabled && health.engineUp) {
-            const m = await llamacpp.fetchMetrics(perfMod.metricsUrlFor(ex.baseUrl), 3000, externalHeaders(ex));
+        } else if ((engine === 'external' && health.engineUp) || (engine === 'vllm' && vllmReady())) {
+            const m = engine === 'vllm'
+                ? await llamacpp.fetchMetrics(perfMod.metricsUrlFor(vllmMod.baseUrl(config)), 3000)
+                : await llamacpp.fetchMetrics(perfMod.metricsUrlFor(ex.baseUrl), 3000, externalHeaders(ex));
             if (!m) return health.perf;
             cur = perfMod.vllmSample(m, Date.now());
             if (!cur) { prev = null; return null; }   // it answers, but it is not a vLLM
@@ -197,7 +189,7 @@ function makePerfSampler(config, health, llamacppUp) {
             lastCacheHitRatio: last.cacheHitRatio,                         // 0..1, null = no data yet
             lastActiveTs: last.ts,
             busySlots: cur.busy,
-            totalSlots: Math.max(1, (cur.vllm ? ex.parallel : config.llamacpp.parallel) || 1),
+            totalSlots: backendInfo(config, health).slots,
             queued: cur.queued,
             kvUsed: cur.kvUsed,   // null on llama.cpp b10670+ (upstream dropped the metric)
         };
@@ -240,6 +232,138 @@ function makeRateMeter(smoothing = 0.25) {
             bps = (bps == null) ? inst : (bps * (1 - smoothing) + inst * smoothing);
             return { bytesPerSec: bps };
         },
+    };
+}
+
+// The farm's two slots for long work (docs/VLLM_MANAGED_PLAN.md §3.5).
+// - The JOB slot: what changes what the farm serves (a switch, a restart, an Apply, an Ollama pull). Strictly
+//   one at a time, and its body runs in `serialize`, the one chain every quick admin change takes too: two
+//   proxy restarts interleaving tear the farm down. It rides the snapshot as `busy`, so clients say "switching…".
+// - The DOWNLOAD slot: installing vLLM and downloading its models (minutes to most of an hour). One at a time
+//   too, but OUTSIDE serialize and outside busy(): a crash of vLLM during a 23 GB download is handled at once,
+//   and an engine switch is never refused because of one. Never in the snapshot's `busy`.
+// Either can carry a `cancel` (the panel's Stop): the job is marked cancelled and the cancel runs in the
+// background; the body reads ctl.cancelled() and returns.
+function makeJobs({ kick = () => {}, logger = log } = {}) {
+    let mutating = Promise.resolve();
+    const serialize = (fn) => { const p = mutating.then(fn, fn); mutating = p.catch(() => {}); return p; };
+    let job = null; let dl = null; let seq = 0;
+    const view = (j) => j && {
+        id: j.id, kind: j.kind, label: j.label, message: j.message,
+        percent: j.percent, done: j.done, ok: j.ok, error: j.error,
+        startedAt: j.startedAt, finishedAt: j.finishedAt || null,
+        // Structured progress, so the panel renders numbers instead of parsing a
+        // sentence: bytes done / total, live speed, seconds remaining. null on
+        // jobs that move no bytes (a proxy bounce, an engine switch).
+        bytes: j.bytes ?? null, total: j.total ?? null,
+        bytesPerSec: j.bytesPerSec ?? null, etaSec: j.etaSec ?? null,
+        cancellable: !!(j.cancel && !j.done && !j.cancelled), cancelled: !!j.cancelled,
+    };
+    // A body that returned is not busy, even in the few microtasks before `done` is set: a restart queued from
+    // inside serialize (onVllmDown) must not be refused by the job it follows.
+    const busy = () => !!(job && !job.done && !job.settled);
+    const busyErr = () => ({ ok: false, error: `The farm is busy: ${job.label}. Wait for it to finish.`, job: view(job) });
+    function open(kind, label, cancel) {
+        const j = {
+            id: `${Date.now().toString(36)}-${++seq}`, kind, label,
+            message: 'starting …', percent: null, done: false, ok: null, error: null,
+            startedAt: Date.now(), finishedAt: null,
+            bytes: null, total: null, bytesPerSec: null, etaSec: null, cancel, cancelled: false, settled: false,
+        };
+        // `detail` (optional) carries { bytes, total } for jobs that download.
+        // Kept a separate argument so the dozens of existing progress('x', pct)
+        // calls stay valid — a job that moves no bytes simply never passes it.
+        // Speed and ETA are derived HERE, from one meter per job, so every
+        // download path (Ollama pull, llama.cpp weights, shards, vLLM's models)
+        // reports them identically and none of them has to know about rates.
+        const meter = makeRateMeter();
+        j.progress = (message, percent, detail = null) => {
+            if (j.done) return;
+            j.message = String(message == null ? '' : message).slice(0, 200);
+            j.percent = (typeof percent === 'number' && Number.isFinite(percent))
+                ? Math.max(0, Math.min(100, Math.round(percent))) : null;
+            if (detail && detail.bytes != null) {
+                j.bytes = detail.bytes;
+                j.total = detail.total ?? null;
+                const moreToCome = j.total == null || j.total > j.bytes;
+                // Once the bytes are all in, a speed and a countdown are noise at
+                // best and a lie at worst — the remaining phases (verifying,
+                // saving, restarting the proxy) move no bytes, and a decaying
+                // "15 MB/s · a few seconds left" made a finished download look
+                // stuck. Keep the totals, drop the motion numbers.
+                j.bytesPerSec = moreToCome ? meter.sample(detail.bytes).bytesPerSec : null;
+                j.etaSec = (j.bytesPerSec && moreToCome)
+                    ? Math.round((j.total - j.bytes) / j.bytesPerSec) : null;
+            } else {
+                // A phase that reports no bytes at all (a proxy bounce, a model
+                // load): whatever rate we last measured belongs to the previous
+                // phase, so stop showing it rather than let it go stale.
+                j.bytesPerSec = null;
+                j.etaSec = null;
+            }
+        };
+        return j;
+    }
+    function settle(j, label, p) {
+        return p.then((res) => {
+            j.ok = !(res && res.ok === false);
+            j.error = (res && res.error) || null;
+            j.message = (res && res.message) || (j.ok ? 'Done.' : (j.error || 'Failed.'));
+            if (j.ok) logger.ok(`${label}: ${j.message}`); else logger.err(`${label}: ${j.error || j.message}`);
+        }).catch((e) => {
+            j.ok = false;
+            j.error = String((e && e.message) || e);
+            j.message = 'Failed.';
+            logger.err(`${label}: ${j.error}`);
+        }).finally(() => {
+            j.done = true;
+            j.finishedAt = Date.now();
+            kick();
+        });
+    }
+    const ctl = (j) => ({ cancelled: () => j.cancelled, job: j });
+    function runJob(kind, label, fn, { cancel = null } = {}) {
+        if (busy()) return busyErr();
+        const j = open(kind, label, cancel);
+        job = j;
+        // Tell the fleet NOW, not at the next 10 s health tick: clients switch to
+        // "the server is switching models…" before the proxy bounce can surface as
+        // a raw connection error in someone's chat.
+        kick();
+        logger.step(`${label} …`);
+        // The job body runs INSIDE the same serialize chain as the quick ops
+        // (start/stop/plugin/default): two admin tabs used to be able to run
+        // startModel's restartProxy concurrently with a backend switch's — the
+        // interleaved kill/spawn could tear the whole farm down.
+        settle(j, label, Promise.resolve().then(() => serialize(async () => {
+            try { return await fn(j.progress, ctl(j)); } finally { j.settled = true; }
+        })));
+        return { ok: true, started: true, job: view(j) };
+    }
+    function runDownload(kind, label, fn, { cancel = null } = {}) {
+        if (dl && !dl.done) return { ok: false, error: `A download is already running: ${dl.label}.`, download: view(dl) };
+        const j = open(kind, label, cancel);
+        dl = j;
+        logger.step(`${label} …`);
+        settle(j, label, Promise.resolve().then(() => fn(j.progress, ctl(j))));
+        return { ok: true, started: true, download: view(j) };
+    }
+    // The panel's Stop, for the job slot ('job') or the download slot ('download').
+    function cancel(slot) {
+        const j = slot === 'download' ? dl : job;
+        if (!j || j.done) return { ok: false, error: 'Nothing is running there.' };
+        if (!j.cancel) return { ok: false, error: `${j.label} cannot be stopped halfway.` };
+        if (j.cancelled) return { ok: true, already: true };
+        j.cancelled = true;
+        j.message = 'stopping …';
+        Promise.resolve().then(j.cancel).catch((e) => logger.warn(`Stopping ${j.label}: ${(e && e.message) || e}`));
+        kick();
+        return { ok: true };
+    }
+    return {
+        serialize, runJob, runDownload, cancel, busy, busyErr,
+        jobView: () => view(job), downloadView: () => view(dl),
+        downloading: () => (dl && !dl.done ? dl : null),
     };
 }
 
@@ -511,6 +635,11 @@ async function run(args) {
         clearRuntime();
     }
 
+    // The job and download slots (makeJobs). They exist from the start; the beacon's kick is wired once it does.
+    const kickBox = { fn: () => {} };
+    const jobs = makeJobs({ kick: () => kickBox.fn() });
+    const { serialize } = jobs;
+
     log.info(`Bringing up ${log.paint.bold(config.name)} …`);
 
     // 0b. Detect hardware FIRST — the llama.cpp VRAM budget needs it before spawn
@@ -552,14 +681,77 @@ async function run(args) {
         }
     }
 
-    // 0c-ter. vLLM run by the farm (docs/VLLM_MANAGED_PLAN.md): its settings and its pure planning are in this
-    //     version, its start and supervision are not yet. A config that selects it serves with Ollama for this
-    //     run, in memory only, so the file keeps the choice for the version that runs it.
+    // 0c-ter. vLLM run by the farm (docs/VLLM_MANAGED_PLAN.md). The farm's boot never waits for vLLM (D5): the
+    //     proxy, gate, panel and beacon come up in seconds and a start runs as the job "Starting vLLM", during
+    //     which the farm stays healthy and says busy (clients keep it), and the gate answers "starting".
+    //     a) The orphan rule: a vLLM this farm started (its marker) that still runs from its root while another
+    //        engine is chosen was left by a crash in the middle of a switch: stop it, or two engines share a GPU.
+    //        One without the marker is someone else's and is left alone.
+    //     b) vLLM is the engine: check this computer once (cached; never per panel poll), then keep a server
+    //        that already runs with these settings (a farm crash, a Farm app restart: D4, adopted at once), wait
+    //        for one that is starting, or queue the start. What blocks it (not installed, no model, WSL) serves
+    //        with Ollama for this run, with the reason on the panel.
+    const vllmSup = vllmMod.supported();
+    let vllmProbe = null;          // the last check (vllm.probe), refreshed after a start, a stop, a download
+    let vllmTarget = null;         // {platform, distro, root, port} where it lives (vllm.targetOf)
     let vllmBootError = null;
+    let vllmBootJob = null;        // 'start' | 'restart' | 'wait', run once the farm is public
+    let vllmChild = null;          // the serve.sh the farm spawned (wsl.exe on Windows), null when adopted or stopped
+    // phase: starting (planned) | ready | down (not answering, being checked) | restarting (after an unplanned
+    // stop) | stopping | stopped (the operator's Stop, a cancelled start) | guard | failed (fell back to Ollama).
+    const vllmState = {
+        phase: null, text: null, percent: null, adopted: false, startedAt: null, poolTokens: null, peopleFit: null,
+        weightsGib: null, lastRestartAt: null, launchSettings: null, misses: 0, guardLine: null,
+    };
+    const staleVllm = existing && existing.vllm;
+    if (vllmSup.ok && engineOf(config) !== 'vllm' && (config.vllm.root || (staleVllm && staleVllm.root))) {
+        const t = {
+            platform: process.platform, port: config.vllm.port,
+            root: config.vllm.root || staleVllm.root, distro: config.vllm.distro || (staleVllm && staleVllm.distro) || null,
+        };
+        const s = await vllmMod.status(t);
+        if (vllmMod.isOrphan(engineOf(config), s.st)) {
+            log.step(`Stopping a vLLM left running from ${s.st.root} …`);
+            const r = await vllmMod.stop({ ...t, root: s.st.root }, { alive: () => vllmMod.answers(`http://127.0.0.1:${t.port}/v1`, 2000) });
+            if (r.ok) log.ok(`Stopped a vLLM left running from ${s.st.root}: this farm serves with ${engineOf(config) === 'llamacpp' ? 'llama.cpp' : engineOf(config) === 'external' ? 'an external server' : 'Ollama'} now.`);
+            else log.warn(`A vLLM left running from ${s.st.root} did not stop: ${r.error}`);
+        }
+    }
     if (engineOf(config) === 'vllm') {
-        vllmBootError = 'This version of the farm cannot run vLLM yet: serving with Ollama instead.';
-        log.warn(vllmBootError);
-        logFallbackNames(engineFallback(config, 'vllm'));
+        let why = null;
+        if (!vllmSup.ok) why = vllmMod.UNSUPPORTED;
+        else {
+            log.step('vLLM: checking this computer …');
+            vllmProbe = await vllmMod.probe(config);
+            vllmTarget = vllmMod.targetOf(config, vllmProbe);
+            const st = vllmProbe.st;
+            // A download left running by a farm that crashed: this run tracks none, so stop it (it continues
+            // where it left off when someone presses Download again).
+            if (st && st.installing && vllmTarget) {
+                log.step('Stopping a vLLM download left running by the last farm (Download continues it) …');
+                await vllmMod.stopInstall(vllmTarget);
+                st.installing = null;
+            }
+            const pr = vllmMod.problemsFrom(vllmProbe, config);
+            const mem = st ? vllmMod.memOf(st) : { unified: false };
+            const running = st && st.running;
+            const adopt = running ? vllmMod.adoptable(config, running, { unified: mem.unified, gpuName: st.gpu && st.gpu.name, root: vllmTarget.root }) : null;
+            const d = vllmMod.bootDecision({ supported: vllmSup, problems: pr.problems, running, adopt });
+            if (d.action === 'unavailable') why = d.reason;
+            else if (d.action === 'adopt') {
+                adoptVllm(adopt.resolved);
+                log.ok(`vLLM is already running from ${vllmTarget.root} with these settings: kept running (${config.vllm.parallelResolved} people at once).`);
+            } else {
+                if (running && !adopt.ok) log.info(`vLLM runs from ${vllmTarget.root} with other settings (${adopt.diff.join(', ')}): it restarts with this farm's.`);
+                vllmBootJob = d.action;
+                setVllmPhase('starting', d.action === 'wait' ? 'starting vLLM' : null);
+            }
+        }
+        if (why) {
+            vllmBootError = why;
+            log.warn(`vLLM: ${why} Serving with Ollama for now.`);
+            logFallbackNames(engineFallback(config, 'vllm'));
+        }
     }
 
     let llamacppBootError = null;
@@ -573,6 +765,15 @@ async function run(args) {
     // 1. Ollama
     const oll = await ensureOllama(config);
     if (!oll) return 1;
+    // The models on this box's own Ollama: which one reads documents beside another engine (resolveOcrModel).
+    // Read again after a pull or a removal.
+    let ocrInstalled = [];
+    const readOcrInstalled = async () => {
+        const names = [];
+        for (const h of oll.reachable.filter(isLocalHost)) names.push(...await ollama.listModels(h));
+        ocrInstalled = names;
+    };
+    await readOcrInstalled();
 
     // 1b. Choose which installed model(s) to serve (interactive picker, or
     //     --model / --no-pick / non-TTY → the configured catalog). Drives THIS run.
@@ -865,6 +1066,8 @@ async function run(args) {
         //     min(model native max, what fits the VRAM free right now), read from the
         //     real files and nvidia-smi — another app's share of the GPU is not ours.
         //   a number → honored, clamped (and the clamp persisted) if it cannot fit.
+        // Ollama's models leave the GPU first: a switch from Ollama leaves its default loaded for good (§1.4).
+        await evictOllama(onProgress);
         vramFreeGb = await measureVramFreeGb();
         const fit = computeFit(16384);   // maxContext is independent of the request
         if (config.llamacpp.contextLength === 'auto') {
@@ -984,6 +1187,266 @@ async function run(args) {
         log.warn(`llama.cpp still answering on :${config.llamacpp.port} after 15s — the next start may fail to bind.`);
     }
 
+    // Before vLLM or llama.cpp starts, every model loaded on a local Ollama leaves the GPU (a switch from Ollama
+    // leaves its default loaded with keep_alive -1), then the free memory is read until it stops rising
+    // (measureVramFreeGb). Document reading reloads its model on demand, in the memory kept for it.
+    async function evictOllama(progress = () => {}) {
+        let n = 0;
+        for (const h of (oll.reachable || []).filter(isLocalHost)) {
+            for (const m of await ollama.psModels(h)) { if (await ollama.evictModel(h, m.name)) n++; }
+        }
+        if (!n) return;
+        progress('freeing the GPU memory Ollama used', null);
+        await measureVramFreeGb();
+    }
+
+    // ---- vLLM, run by the farm: the lifecycle (docs/VLLM_MANAGED_PLAN.md §1.5, §5) --------------------------
+    // vllm.js runs the scripts and decides; this is the glue. Health by phase (§1.5): a PLANNED start (boot, Start,
+    // switch, Apply) keeps the farm healthy and says busy, and the gate answers "starting" (clients keep their farm
+    // instead of scattering to slower ones); only an unplanned death, the operator's Stop and the memory guard
+    // make the farm unhealthy, so clients fail over.
+    let liveReady = false;   // liveHealth exists (it is built once the proxy is up)
+    const vllmAlive = (ms = 3000) => vllmMod.answers(vllmMod.baseUrl(config), ms);
+    const vllmReady = () => engineOf(config) === 'vllm' && vllmState.phase === 'ready';
+    function setVllmPhase(phase, text = null, percent = null) {
+        vllmState.phase = phase; vllmState.text = text; vllmState.percent = percent; vllmState.misses = 0;
+    }
+    function setEngineUp(v) {
+        if (liveReady) liveHealth.engineUp = v;
+        kickBox.fn();
+    }
+    async function checkVllm() {
+        vllmProbe = await vllmMod.probe(config);
+        const t = vllmMod.targetOf(config, vllmProbe);
+        if (t) vllmTarget = t;
+        return vllmProbe;
+    }
+    // Keep a server that runs with these settings (D9): what it was launched with becomes this run's numbers.
+    function adoptVllm(resolved) {
+        const v = config.vllm;
+        v.parallelResolved = resolved.seats; v.maxNumSeqsResolved = resolved.maxNumSeqs; v.kvResolvedGib = resolved.kvGib;
+        vllmState.launchSettings = { ...vllmMod.settingsOf(config, vllmTarget.root), kvGib: resolved.kvGib, maxNumSeqs: resolved.maxNumSeqs, seats: resolved.seats };
+        vllmState.adopted = true; vllmState.startedAt = Date.now();
+        setVllmPhase('ready');
+    }
+    function enterGuard(line, message = null) {
+        vllmState.guardLine = line || null;
+        const msg = message || vllmMod.explainFailure(3, line || '');
+        setVllmPhase('guard', msg);
+        setEngineUp(false);
+        log.err(msg);
+    }
+    // The serve.sh the farm spawned: its end while vLLM is ready is a crash (a start reads it itself, in waitReady).
+    function watchVllmChild(child) {
+        child.once('exit', (code) => {
+            if (vllmChild !== child) return;   // stopped on purpose (stopVllmProcess nulls it first), or replaced
+            vllmChild = null;
+            if (vllmState.phase !== 'ready') return;
+            if (code === 3) return enterGuard(null);
+            onVllmDown(`its process ended (status ${code})`);
+        });
+    }
+    // Stop vLLM (vllm.stop: stop.sh, until nothing runs and the port is quiet). → {ok, error}.
+    async function stopVllmProcess() {
+        if (!vllmTarget) return { ok: true, error: null };
+        const child = vllmChild;
+        vllmChild = null;   // identity guard first: this exit is not a crash
+        const r = await vllmMod.stop(vllmTarget, { alive: () => vllmAlive(2000) });
+        if (!r.ok && child && child.exitCode === null && child.signalCode === null) vllmChild = child;   // still ours
+        return r;
+    }
+
+    // Start vLLM with the current settings (§5.2), each step refusing with its reason before anything is stopped
+    // where it can. `waitOnly`: a start found in progress at boot, waited for without spawning. → {ok, message,
+    // code, cancelled}.
+    async function startVllm(progress = () => {}, { isCancelled = () => false, phase = 'starting', waitOnly = false } = {}) {
+        const dl = jobs.downloading();
+        if (dl && dl.kind === 'install') return { ok: false, message: 'vLLM is being installed: wait for it, or stop it.' };
+        const say = (text, pct = null) => { setVllmPhase(phase, text, pct); progress(text, pct); };
+        vllmState.adopted = false; vllmState.poolTokens = null; vllmState.peopleFit = null; vllmState.weightsGib = null;
+        let plan = null; let child = null; let fromByte = 0;
+        if (!waitOnly) {
+            await evictOllama(say);
+            say('checking this computer');
+            await checkVllm();
+            if (vllmProbe.st && vllmProbe.st.running) {
+                say('stopping the vLLM that runs with other settings');
+                const s = await stopVllmProcess();
+                if (!s.ok) return { ok: false, message: s.error };
+                await checkVllm();
+            }
+            const pr = vllmMod.problemsFrom({ ...vllmProbe, installKind: dl ? dl.kind : null }, config);
+            if (pr.problems.length || !vllmTarget) return { ok: false, message: pr.problems[0] || 'This computer did not answer the check.' };
+            if (isCancelled()) return { ok: false, cancelled: true };
+            plan = vllmMod.planFor(config, vllmProbe.st, vllmMod.memOf(vllmProbe.st));
+            if (!plan.ok) return { ok: false, message: plan.reason };
+            if (!config.vllm.root) { config.vllm.root = plan.root; persist('vllm', { root: plan.root }); }   // used once: remembered
+            log.step(`vLLM: starting ${plan.entry.label} from ${plan.root} — ${plan.seats} people at once, ${plan.kvGib} GB for conversations …`);
+            say('starting vLLM');
+            ({ child, fromByte } = await vllmMod.start(vllmTarget, plan));
+            vllmChild = child;
+            watchVllmChild(child);
+        } else {
+            say('starting vLLM');
+            fromByte = Math.max(0, (await vllmMod.readLog(vllmTarget, { fromByte: 0, maxBytes: 1 })).size - 256 * 1024);
+        }
+        const r = await vllmMod.waitReady(vllmTarget, {
+            child, fromByte, isCancelled,
+            alive: () => vllmAlive(3000),
+            isDead: async () => { const s = await vllmMod.status(vllmTarget); return !!(s.st && !s.st.running); },
+            onPhase: (p) => {
+                if (p.poolTokens != null) vllmState.poolTokens = p.poolTokens;
+                if (p.peopleFit != null) vllmState.peopleFit = p.peopleFit;
+                if (p.weightsGib != null) vllmState.weightsGib = p.weightsGib;
+                if (p.key && p.key !== 'exited' && p.key !== 'ready') say(p.text, p.percent);
+            },
+            onLine: log.childPrefix('vllm'),
+        });
+        if (!r.ok) {
+            if (r.cancelled || isCancelled()) {   // a Stop whose stop ended the child before waitReady looked again
+                // A stop in the first second can come before serve.sh wrote its group: stop until the child is gone.
+                for (let i = 0; i < 4 && child && child.exitCode === null && child.signalCode === null; i++) {
+                    await stopVllmProcess();
+                    await sleepMs(2000);
+                }
+                return { ok: false, cancelled: true };
+            }
+            for (const l of r.lines.filter((x) => /\bERROR\b|Error\b|Traceback|\[guard\]/.test(x)).slice(-6)) log.childPrefix('vllm')(l);
+            if (r.code !== 3) await stopVllmProcess();   // nothing half-alive keeps the GPU (the guard stopped it already)
+            const after = (await checkVllm()).st;
+            const otherGpuGb = after && after.gpu && after.gpu.totalGib != null && after.gpu.freeGib != null ? after.gpu.totalGib - after.gpu.freeGib : null;
+            return {
+                ok: false, code: r.code,
+                message: vllmMod.explainFailure(r.code, r.lines, { root: vllmTarget.root, port: config.vllm.port, label: (vllmMod.vllmEntry(config) || {}).label, otherGpuGb }),
+            };
+        }
+        if (waitOnly) {
+            const st = (await checkVllm()).st;
+            const a = st && st.running ? vllmMod.adoptable(config, st.running, { unified: vllmMod.memOf(st).unified, gpuName: st.gpu && st.gpu.name, root: vllmTarget.root }) : null;
+            if (!a || !a.resolved) return { ok: false, message: 'vLLM was starting, but the farm could not read its settings. Press Start vLLM.' };
+            const fit = vllmState.peopleFit;
+            adoptVllm(a.resolved);
+            vllmState.peopleFit = fit;
+        } else {
+            const v = config.vllm;
+            v.parallelResolved = plan.seats; v.maxNumSeqsResolved = plan.maxNumSeqs; v.kvResolvedGib = plan.kvGib;
+            vllmState.launchSettings = { ...plan.settings, kvGib: plan.kvGib, maxNumSeqs: plan.maxNumSeqs, seats: plan.seats };
+            if (vllmState.peopleFit == null) vllmState.peopleFit = plan.peopleFit;
+            vllmState.startedAt = Date.now();
+            setVllmPhase('ready');
+        }
+        vllmBootError = null;
+        if (liveReady) liveHealth.engineFallbackReason = null;
+        setEngineUp(true);
+        log.ok(`vLLM is ready on :${config.vllm.port} — ${config.vllm.parallelResolved} people at once${vllmState.peopleFit != null ? `, room for ${vllmState.peopleFit} whole conversations` : ''}.`);
+        return { ok: true };
+    }
+
+    // vLLM failed for good this run: Ollama serves (in memory only, under vLLM's name; the file keeps vLLM, so
+    // the next farm start tries again), with the reason on the panel.
+    // The farm says healthy again only once LiteLLM routes to Ollama: a client told "healthy" earlier would get the
+    // gate's 502 while the proxy restarts (found by the lifecycle test).
+    async function fallbackToOllama(reason) {
+        vllmBootError = reason;
+        log.warn(`vLLM: ${reason} Serving with Ollama for now.`);
+        logFallbackNames(engineFallback(config, 'vllm'));
+        setEngineUp(false);
+        await stopVllmProcess();
+        await resolveOllamaContext();
+        await restartProxy();
+        await refreshOcrModel();
+        setVllmPhase('failed', reason);
+        if (liveReady) liveHealth.engineFallbackReason = reason;
+        setEngineUp(null);
+        writeRuntimeState();
+    }
+
+    // A start as the job everyone sees ("Starting vLLM"); Stop cancels it. A failure falls back to Ollama, except
+    // the memory guard's (never restarted, never a fallback: the operator frees memory and presses Start).
+    function startVllmJob(label, { phase = 'starting', waitOnly = false } = {}) {
+        if (phase === 'starting') setVllmPhase('starting', 'starting vLLM');
+        return runJob('engine', label, async (progress, ctl) => {
+            const r = await startVllm(progress, { isCancelled: ctl.cancelled, phase, waitOnly });
+            if (r.ok) return { ok: true, message: 'vLLM is ready.' };
+            if (r.cancelled) {
+                setVllmPhase('stopped');
+                setEngineUp(false);
+                return { ok: false, error: 'Stopped. vLLM is not running: press Start vLLM.' };
+            }
+            if (r.code === 3) { enterGuard(null, r.message); return { ok: false, error: r.message }; }
+            await fallbackToOllama(`vLLM could not start: ${r.message}`);
+            return { ok: false, error: `vLLM could not start: ${r.message} The farm serves with Ollama for now.` };
+        }, { cancel: () => stopVllmProcess() });
+    }
+
+    // vLLM stopped answering, or its process ended (§5.7): look before acting. A server that is running and ready
+    // and whose port answers was only slow; the memory guard's stop is never undone; otherwise ONE restart, and a
+    // second stop within 5 minutes falls back to Ollama. In serialize, which downloads never hold.
+    let vllmDownRunning = false;
+    function onVllmDown(why) {
+        if (stopping || vllmDownRunning || engineOf(config) !== 'vllm') return;
+        vllmDownRunning = true;
+        log.err(`vLLM stopped answering: ${why}.`);
+        setVllmPhase('down');
+        setEngineUp(false);
+        serialize(async () => {
+            if (stopping || engineOf(config) !== 'vllm' || vllmState.phase !== 'down') return;   // handled meanwhile
+            const st = vllmTarget ? (await vllmMod.status(vllmTarget)).st : null;
+            const decision = vllmMod.downDecision({
+                guard: !!(st && st.guardLine), running: !!(st && st.running), ready: !!(st && st.running && st.running.ready),
+                portAnswers: await vllmAlive(15000), lastRestartAt: vllmState.lastRestartAt,
+            });
+            if (decision === 'none') {
+                log.info('vLLM was only slow: it runs and answers, nothing to do.');
+                setVllmPhase('ready');
+                setEngineUp(true);
+            } else if (decision === 'guard') enterGuard(st.guardLine);
+            else if (decision === 'fallback') await fallbackToOllama(`vLLM stopped twice in 5 minutes (the second time, ${why}).`);
+            else {
+                vllmState.lastRestartAt = Date.now();
+                const r = startVllmJob('Restarting vLLM after it stopped unexpectedly', { phase: 'restarting' });
+                if (!r.ok) log.warn(`vLLM restarts once the farm is free: ${r.error}`);   // the watch tries again
+            }
+        }).finally(() => { vllmDownRunning = false; });
+    }
+
+    // Every 10 s while vLLM is ready and no job runs: three misses in a row (10 s each, asked again at once after
+    // a miss) and onVllmDown looks. A server that stays down while a job held the farm is looked at again after.
+    function watchVllm(delayMs = 10000) {
+        const t = setTimeout(async () => {
+            if (stopping) return;
+            let next = 10000;
+            try {
+                if (engineOf(config) === 'vllm' && !busy()) {
+                    if (vllmState.phase === 'ready') {
+                        if (await vllmAlive(10000)) vllmState.misses = 0;
+                        else if (vllmState.phase === 'ready' && ++vllmState.misses >= 3) onVllmDown('it did not answer for 30 seconds');
+                        else if (vllmState.phase === 'ready') next = 0;
+                    } else if (vllmState.phase === 'down' && !vllmDownRunning) onVllmDown('it still does not answer');
+                }
+            } catch { /* never throw from a timer */ }
+            watchVllm(next);
+        }, delayMs);
+        if (t.unref) t.unref();
+    }
+
+    // Document reading follows the engine (§1.4): a change of its model restarts that plugin.
+    async function refreshOcrModel() {
+        const svc = svcById.ocr;
+        if (!config.ocr.enabled || !svc || !svc.pid || !svc.ctx) return;
+        const want = resolveOcrModel(config, ocrInstalled);
+        if (svc.ctx.model === want) return;
+        log.step(`Document reading now uses ${want} …`);
+        await bringDown(svc);
+        await bringUp(svc);
+        writeRuntimeState();
+    }
+
+    // What the farm's vLLM target is in the runtime file, so `lol down` from another shell stops it and the next
+    // `lol up` finds a vLLM left running (the orphan rule): while vLLM is the engine, or a download runs.
+    const vllmRuntime = () => ((engineOf(config) === 'vllm' || jobs.downloading()) && vllmTarget
+        ? { platform: vllmTarget.platform, distro: vllmTarget.distro, root: vllmTarget.root, port: vllmTarget.port } : null);
+
     // 2b. llama.cpp backend (the default). Runs INSTEAD of Ollama for its alias —
     //     LiteLLM skips the Ollama deployments for that model_name — because it is the
     //     only way to get speculative decoding on a 12 GB card (see LlamacppSchema).
@@ -1027,11 +1490,11 @@ async function run(args) {
     const backends = config.ollama.hosts.length + peers.length;
     // Name the engine that is actually routed: with llama.cpp or an external
     // server serving, the Ollama catalog is standby and contributes no deployment.
-    const routedWhat = config.external.enabled
-        ? `external ${config.external.baseUrl}`
-        : (config.llamacpp.enabled
-            ? `llama.cpp :${config.llamacpp.port}`
-            : `${config.models.length} model × ${config.ollama.hosts.length} host`);
+    const routedWhat = {
+        external: `external ${config.external.baseUrl}`,
+        vllm: `vLLM :${config.vllm.port}`,
+        llamacpp: `llama.cpp :${config.llamacpp.port}`,
+    }[engineOf(config)] || `${config.models.length} model × ${config.ollama.hosts.length} host`;
     log.ok(`Generated LiteLLM routing → ${log.paint.grey(yamlPath)} (${routedWhat}${peers.length ? ` + ${peers.length} peer` : ''})`);
     if (ollamaServes(config)) {
         const def = servedEntries(config).find((e) => e.isDefault);
@@ -1097,7 +1560,7 @@ async function run(args) {
     // farm only recommends them via config.recommendedClientPlugins.)
     const services = makeServices();
     const svcById = Object.fromEntries(services.map((s) => [s.id, s]));
-    const pluginRuntime = { log, pluginKey, resolveOcrModel, isLocalHost, reachable: oll.reachable };
+    const pluginRuntime = { log, pluginKey, resolveOcrModel: (c) => resolveOcrModel(c, ocrInstalled), isLocalHost, reachable: oll.reachable };
     for (const svc of services) {
         if (!svc.enabled(config) || svc.desc.late) continue;   // the late ones start once the farm is public
         const res = await svc.start(config, pluginRuntime);
@@ -1138,10 +1601,12 @@ async function run(args) {
         // external engine, `true` here — boot already probed it, and the health
         // tick below keeps it current so a backend that dies flips the farm
         // unhealthy and clients fail over (same contract as llama-server).
-        engineUp: config.external.enabled ? true : (config.llamacpp.enabled ? !!llamacppChild : null),
+        // vLLM: true while it starts too — a PLANNED start keeps the farm healthy (busy says "Starting vLLM").
+        engineUp: { external: true, vllm: true, llamacpp: !!llamacppChild }[engineOf(config)] ?? null,
         // Why the configured engine is not the one serving (panel shows it).
         engineFallbackReason: externalBootError || vllmBootError || null,
     };
+    liveReady = true;
     if (liveHealth.host) log.ok(`Hardware: ${log.paint.bold(liveHealth.host.gpu)} · ${liveHealth.host.vramGb}GB VRAM · ${liveHealth.host.ramGb}GB RAM · ${liveHealth.host.cpuCores} cores`);
 
     // 5a. The seat gate — the public listener in front of LiteLLM (see the
@@ -1165,6 +1630,13 @@ async function run(args) {
                 seats,
                 idleReleaseSec: () => config.proxy.seatIdleSec || 900,
                 password: () => config.proxy.masterKey || null,
+                // §3.10: while the farm's vLLM is not ready, a generation gets a 503 that says why.
+                unavailable: () => {
+                    if (engineOf(config) !== 'vllm' || vllmState.phase === 'ready') return null;
+                    return vllmState.phase === 'starting' || vllmState.phase === 'stopping'
+                        ? 'This farm\'s model is starting: about 2 minutes. Try again then.'
+                        : 'This farm\'s model is stopped for now. Try again later.';
+                },
                 stats: gateStats,
             });
         } catch (e) {
@@ -1198,6 +1670,7 @@ async function run(args) {
     } else {
         log.info('Discovery beacon disabled (config.beacon.enabled=false).');
     }
+    kickBox.fn = () => { if (beacon) beacon.kick(); };
     // The admin control API is populated with the real functions below; selfServer only
     // calls control.* at REQUEST time (after startup completes — there is no `await`
     // between here and the Object.assign), so late assignment is safe. The stub methods
@@ -1220,6 +1693,11 @@ async function run(args) {
         removeOllamaModel: async () => ({ ok: false, error: 'farm still starting' }),
         setContextLength: async () => ({ ok: false, error: 'farm still starting' }),
         setDefaultModel: async () => ({ ok: false, error: 'farm still starting' }),
+        vllmCheck: async () => ({ ok: false, error: 'farm still starting' }),
+        vllmStart: async () => ({ ok: false, error: 'farm still starting' }),
+        vllmStop: async () => ({ ok: false, error: 'farm still starting' }),
+        vllmDownload: async () => ({ ok: false, error: 'farm still starting' }),
+        cancel: async () => ({ ok: false, error: 'farm still starting' }),
     };
 
     // Connected desktop clients — each shell POSTs /lol/client-ping every ~10 s with
@@ -1329,7 +1807,7 @@ async function run(args) {
     const hosts = config.ollama.hosts.map(ollama.normalizeHost);
 
     // Measured performance (llama.cpp, or an external vLLM) — see makePerfSampler.
-    const perfSampler = makePerfSampler(config, liveHealth, () => !!llamacppChild);
+    const perfSampler = makePerfSampler(config, liveHealth, () => !!llamacppChild, vllmReady);
     // A GPU latched at a low clock (a DGX Spark after a unified-memory OOM) — the panel says so.
     const clockWatch = perfMod.makeClockWatch();
 
@@ -1407,6 +1885,8 @@ async function run(args) {
         busPid: svcById.bus.pid,
         ollamaPids: oll.spawnedPids,
         llamacppPid: llamacppChild ? llamacppChild.pid : null,
+        // Not a pid: vLLM outlives a crashed farm on purpose (D4). Where it lives, so `lol down` stops it.
+        vllm: vllmRuntime(),
         proxyPort: config.proxy.port,
         endpoint: snapshot.endpoint,
         openaiBaseUrl: snapshot.openaiBaseUrl,
@@ -1442,6 +1922,15 @@ async function run(args) {
         for (const svc of services) { if (svc.pid) await killTree(svc.pid); }
         if (llamacppChild && llamacppChild.pid) await killTree(llamacppChild.pid);
         for (const pid of oll.spawnedPids) await killTree(pid);
+        // vLLM is stopped on purpose here (Ctrl-C, SIGTERM): only a crash leaves it for the next farm to adopt.
+        if (vllmTarget && (engineOf(config) === 'vllm' || jobs.downloading())) {
+            if (engineOf(config) === 'vllm') {
+                log.step('Stopping vLLM (this frees its GPU memory) …');
+                const r = await stopVllmProcess();
+                if (!r.ok) log.err(r.error);
+            }
+            if (jobs.downloading()) await vllmMod.stopInstall(vllmTarget);
+        }
         clearRuntime();
         log.ok('Farm stopped.');
         process.exit(0);
@@ -1506,6 +1995,10 @@ async function run(args) {
             if (!ok || ncExited) {                         // the new proxy never came up — don't leave a zombie
                 log.err('Proxy restart failed — the new LiteLLM did not become healthy.');
                 await killTree(nc.pid);
+                // `lol down` from another shell during the restart: it cleared the runtime file and killed this
+                // LiteLLM, and onProxyExit stayed quiet (a restart). Stop as it asked, instead of living on with no
+                // proxy and holding the farm's ports (found by the vLLM lifecycle test).
+                if (!readRuntime()) { restartingProxy = false; shutdown('lol down'); }
                 return false;
             }
             return true;
@@ -1684,12 +2177,17 @@ async function run(args) {
             perfHistory: perfSampler.history,
             // The declared seats x window vs a vLLM's real KV pool (null when they fit,
             // or when the server does not say) — the Performance card's warning.
-            poolWarning: config.external.enabled && liveHealth.perf
-                ? perfMod.poolShortfall(config.external.parallel, config.external.contextLength, liveHealth.perf.kvPoolTokens)
+            poolWarning: ['external', 'vllm'].includes(engineOf(config)) && liveHealth.perf
+                ? perfMod.poolShortfall(backendInfo(config, liveHealth).slots, backendInfo(config, liveHealth).contextLength, liveHealth.perf.kvPoolTokens, engineOf(config))
                 : null,
             // Which Ollama model document reading drives (shown as a badge, and why
             // Delete refuses it) — null when OCR is off.
-            ocrModel: config.ocr.enabled ? resolveOcrModel(config) : null,
+            ocrModel: config.ocr.enabled ? resolveOcrModel(config, ocrInstalled) : null,
+            // The vLLM the farm runs (§3.5): its phase and what the last check found. The check itself runs only
+            // on request (vllm/check), never per poll.
+            vllm: vllmAdminState(),
+            externalConfigured: externalConfigured(),
+            download: downloadView(),
             // Whether the llama.cpp engine is even possible here, and why it fell
             // back at boot if it did. The panel disables the engine button on these.
             llamacppAvailable: llamacpp.installed(config.llamacpp.binDir) || llamacpp.supported(),
@@ -1811,6 +2309,7 @@ async function run(args) {
         // DECLARES it (external.contextLength). Changing Ollama's here would do nothing
         // for chat and, under 'auto', load models into the GPU vLLM is using.
         if (config.external.enabled) return externalRefusal();
+        if (engineOf(config) === 'vllm') return applyFarmSettings({ context: tokens });
         // 'auto' = the largest context this box can hold for the current model,
         // recomputed at every model load — the right choice on every card at once,
         // and the default. A number pins it.
@@ -2003,96 +2502,10 @@ async function run(args) {
     // --- long jobs ---------------------------------------------------------------
     // Fetching a model is minutes of work; an admin HTTP request is seconds. So every
     // route that downloads weights STARTS a job and returns at once, and the panel —
-    // already polling /lol/admin/state every 5 s — renders the progress. Strictly one
-    // at a time: each ends in a llama-server reload or a proxy bounce, and two of those
-    // racing is exactly how you end up with a farm that has no backend.
-    let job = null;
-    const jobView = () => (job && {
-        id: job.id, kind: job.kind, label: job.label, message: job.message,
-        percent: job.percent, done: job.done, ok: job.ok, error: job.error,
-        startedAt: job.startedAt, finishedAt: job.finishedAt || null,
-        // Structured progress, so the panel renders numbers instead of parsing a
-        // sentence: bytes done / total, live speed, seconds remaining. null on
-        // jobs that move no bytes (a proxy bounce, an engine switch).
-        bytes: job.bytes ?? null, total: job.total ?? null,
-        bytesPerSec: job.bytesPerSec ?? null, etaSec: job.etaSec ?? null,
-    });
+    // already polling /lol/admin/state every 5 s — renders the progress. The job slot
+    // and the download slot are makeJobs' (module level, tested on their own).
+    const { runJob, runDownload, busy, busyErr, jobView, downloadView } = jobs;
     jobBox.view = jobView;   // from here on, the snapshot can report `busy`
-    const busy = () => !!(job && !job.done);
-    const busyErr = () => ({ ok: false, error: `The farm is busy: ${job.label}. Wait for it to finish.`, job: jobView() });
-    let jobSeq = 0;
-    function runJob(kind, label, fn) {
-        if (busy()) return busyErr();
-        const j = {
-            id: `${Date.now().toString(36)}-${++jobSeq}`, kind, label,
-            message: 'starting …', percent: null, done: false, ok: null, error: null,
-            startedAt: Date.now(), finishedAt: null,
-            bytes: null, total: null, bytesPerSec: null, etaSec: null,
-        };
-        job = j;
-        // Tell the fleet NOW, not at the next 10 s health tick: clients switch to
-        // "the server is switching models…" before the proxy bounce can surface as
-        // a raw connection error in someone's chat.
-        if (beacon) beacon.kick();
-        log.step(`${label} …`);
-        // `detail` (optional) carries { bytes, total } for jobs that download.
-        // Kept a separate argument so the dozens of existing progress('x', pct)
-        // calls stay valid — a job that moves no bytes simply never passes it.
-        // Speed and ETA are derived HERE, from one meter per job, so every
-        // download path (Ollama pull, llama.cpp weights, shards) reports them
-        // identically and none of them has to know about rates.
-        const meter = makeRateMeter();
-        const progress = (message, percent, detail = null) => {
-            if (job !== j) return;                       // superseded — never write into a stale job
-            j.message = String(message == null ? '' : message).slice(0, 200);
-            j.percent = (typeof percent === 'number' && Number.isFinite(percent))
-                ? Math.max(0, Math.min(100, Math.round(percent))) : null;
-            if (detail && detail.bytes != null) {
-                j.bytes = detail.bytes;
-                j.total = detail.total ?? null;
-                const moreToCome = j.total == null || j.total > j.bytes;
-                // Once the bytes are all in, a speed and a countdown are noise at
-                // best and a lie at worst — the remaining phases (verifying,
-                // saving, restarting the proxy) move no bytes, and a decaying
-                // "15 MB/s · a few seconds left" made a finished download look
-                // stuck. Keep the totals, drop the motion numbers.
-                j.bytesPerSec = moreToCome ? meter.sample(detail.bytes).bytesPerSec : null;
-                j.etaSec = (j.bytesPerSec && moreToCome)
-                    ? Math.round((j.total - j.bytes) / j.bytesPerSec) : null;
-            } else {
-                // A phase that reports no bytes at all (a proxy bounce, a model
-                // load): whatever rate we last measured belongs to the previous
-                // phase, so stop showing it rather than let it go stale.
-                j.bytesPerSec = null;
-                j.etaSec = null;
-            }
-        };
-        // The job body runs INSIDE the same serialize chain as the quick ops
-        // (start/stop/plugin/default): two admin tabs used to be able to run
-        // startModel's restartProxy concurrently with a backend switch's — the
-        // interleaved kill/spawn could tear the whole farm down (the exact hazard
-        // the serialize comment documents, which these routes then bypassed).
-        Promise.resolve()
-            .then(() => serialize(() => fn(progress)))
-            .then((res) => {
-                j.ok = !(res && res.ok === false);
-                j.error = (res && res.error) || null;
-                j.message = (res && res.message) || (j.ok ? 'Done.' : (j.error || 'Failed.'));
-                if (j.ok) log.ok(`${label}: ${j.message}`); else log.err(`${label}: ${j.error || j.message}`);
-            })
-            .catch((e) => {
-                j.ok = false;
-                j.error = String((e && e.message) || e);
-                j.message = 'Failed.';
-                log.err(`${label}: ${j.error}`);
-            })
-            .finally(() => {
-                j.done = true;
-                j.finishedAt = Date.now();
-                if (beacon) beacon.kick();
-            });
-        return { ok: true, started: true, job: jobView() };
-    }
 
     // --- backend control ---------------------------------------------------------
     // Reload llama-server for whatever the in-memory config now says, then regenerate
@@ -2109,97 +2522,233 @@ async function run(args) {
         return { ok: true };
     }
 
-    // Switch which engine answers the model clients auto-select. llama.cpp = one model,
-    // fastest, speculative decoding; Ollama = the catalog, many models, slower. This is
-    // the control that used to be invisible: nothing in the panel said which of the two
-    // was live, so a farm serving llama.cpp looked identical to one serving Ollama under
-    // the same alias.
-    function setBackend(engine) {
-        const want = String(engine || '').toLowerCase();
-        if (want !== 'llamacpp' && want !== 'ollama') return { ok: false, error: 'Backend must be "llamacpp" or "ollama".' };
-        // An external server owns the box: starting llama-server (or re-routing to
-        // Ollama) next to it would fight the config file and share its GPU.
-        if (config.external.enabled) return externalRefusal();
-        const on = want === 'llamacpp';
-        if (!!config.llamacpp.enabled === on) return { ok: true, already: true, engine: want };
+    // Switch which engine answers the model clients auto-select (§5.5): Ollama (the catalog, a few people), llama.cpp
+    // (one model, fastest on a small card), vLLM (one model, many people on a big NVIDIA GPU), or an external server
+    // (only while the file names one: a developer set it up). One engine at a time: the current one stops FIRST, and
+    // a stop that fails changes nothing (two engines on one GPU is the failure this prevents). The flags are written
+    // so exactly one is true; the name moves with the switch (carryNameAcross). A target that does not come up puts
+    // the flags, the names and the previous engine back.
+    const ENGINE_NAMES = { ollama: 'Ollama', llamacpp: 'llama.cpp', vllm: 'vLLM', external: 'the external server' };
+    function externalConfigured() {
+        const raw = readRawConfig(configPath);
+        return !!(raw && raw.external && typeof raw.external === 'object');
+    }
+    // Why vLLM cannot be switched to or started now (checked up front, before anything stops), or null.
+    async function vllmRefusal() {
+        if (!vllmSup.ok) return vllmMod.UNSUPPORTED;
+        const d = jobs.downloading();
+        if (d && d.kind === 'install') return 'vLLM is being installed: wait for it, or stop it.';
+        if (!vllmProbe || !vllmProbe.st) await checkVllm();
+        const pr = vllmMod.problemsFrom({ ...vllmProbe, installKind: d ? d.kind : null }, config);
+        if (pr.problems.length) return pr.problems[0];
+        // An explicit memory for conversations can be checked against one person's window now; Automatic is
+        // worked out at the start, once the current engine has left the GPU.
+        if (config.vllm.kvCacheGib !== 'auto') {
+            const plan = vllmMod.planFor(config, vllmProbe.st, vllmMod.memOf(vllmProbe.st));
+            if (!plan.ok) return plan.reason;
+        }
+        return null;
+    }
+    function snapshotEngineState() {
+        const defEntry = defaultModelEntry(config);
+        const mem = {
+            flags: Object.fromEntries(['external', 'vllm', 'llamacpp'].map((s) => [s, !!config[s].enabled])),
+            alias: Object.fromEntries(['external', 'vllm', 'llamacpp'].map((s) => [s, config[s].alias])),
+            modelAlias: config.modelAlias ?? null,
+            defAlias: defEntry ? defEntry.alias : undefined,
+        };
+        // The FILE goes back to exactly what it held, so a fallback's in-memory names are never written by a rollback.
+        const raw = readRawConfig(configPath);
+        const disk = raw && JSON.parse(JSON.stringify({
+            sections: Object.fromEntries(['external', 'vllm', 'llamacpp'].map((s) => [s, s in raw ? { v: raw[s] } : null])),
+            modelAlias: 'modelAlias' in raw ? { v: raw.modelAlias } : null,
+            models: 'models' in raw ? { v: raw.models } : null,
+        }));
+        return () => {
+            for (const s of ['external', 'vllm', 'llamacpp']) { config[s].enabled = mem.flags[s]; config[s].alias = mem.alias[s]; }
+            config.modelAlias = mem.modelAlias;
+            if (defEntry) { if (mem.defAlias) defEntry.alias = mem.defAlias; else delete defEntry.alias; }
+            if (!disk) return;
+            patchConfigFile(configPath, (r) => {
+                for (const [s, v] of Object.entries(disk.sections)) { if (v) r[s] = v.v; else delete r[s]; }
+                if (disk.modelAlias) r.modelAlias = disk.modelAlias.v; else delete r.modelAlias;
+                if (disk.models) r.models = disk.models.v; else delete r.models;
+                return r;
+            });
+        };
+    }
+    function setEngineFlags(want) {
+        for (const s of ['external', 'vllm', 'llamacpp']) config[s].enabled = s === want;
+        const r = patchConfigFile(configPath, (raw) => {
+            raw.llamacpp = { ...(raw.llamacpp || {}), enabled: want === 'llamacpp' };
+            if (raw.vllm || want === 'vllm') raw.vllm = { ...(raw.vllm || {}), enabled: want === 'vllm' };
+            if (raw.external) raw.external = { ...raw.external, enabled: want === 'external' };
+            return raw;
+        });
+        return r.ok ? null : ` (not saved: ${r.error} — reverts on restart)`;
+    }
+    async function stopEngine(e, progress) {
+        if (e === 'llamacpp') { progress('stopping llama.cpp', null); await stopLlamacpp(); return { ok: true }; }
+        if (e === 'ollama') { await evictOllama(progress); return { ok: true }; }
+        if (e === 'vllm') {
+            progress('stopping vLLM', null);
+            const was = vllmState.phase;
+            setVllmPhase('stopping');
+            const r = await stopVllmProcess();
+            setVllmPhase(r.ok ? 'stopped' : was);
+            return r;
+        }
+        return { ok: true };   // an external server is not ours to stop
+    }
+    async function startEngine(e, progress) {
+        if (e === 'vllm') return startVllm(progress);
+        if (e === 'llamacpp') return startLlamacpp(progress);
+        if (e === 'external') {
+            return (await externalAlive(config.external)) ? { ok: true }
+                : { ok: false, message: `The external server at ${config.external.baseUrl} does not answer.` };
+        }
+        progress('sizing the context window', null);
+        await resolveOllamaContext(progress);
+        return { ok: true };
+    }
+    async function setBackend(engine) {
+        const want = String(engine || '').toLowerCase().replace('llama.cpp', 'llamacpp');
+        if (!['ollama', 'llamacpp', 'vllm', ...(externalConfigured() ? ['external'] : [])].includes(want)) {
+            return { ok: false, error: 'Pick Ollama, llama.cpp or vLLM.' };
+        }
+        const from = engineOf(config);
+        if (from === want) return { ok: true, already: true, engine: want };
         if (busy()) return busyErr();
-        return runJob('backend', on ? 'Switching to llama.cpp' : 'Switching to Ollama', async (progress) => {
-            // carryNameAcross MOVES the advertised name between llamacpp.alias and
-            // the Ollama default's name (its own alias, or the global modelAlias),
-            // in memory and on disk. A failed switch must put ALL of it back —
-            // restoring only `enabled` used to leave modelAlias nulled on disk, so
-            // the recovered Ollama routing served raw ids and every chat bound to the
-            // alias broke, surviving reboots. Memory goes back to what it was (a
-            // fallback's in-memory names included); the FILE goes back to exactly
-            // what it held, so a fallback's names are never written by a rollback.
-            const defEntry = defaultModelEntry(config);
-            const memBefore = {
-                lcAlias: config.llamacpp.alias,
-                modelAlias: config.modelAlias ?? null,
-                defAlias: defEntry ? defEntry.alias : undefined,
-            };
-            const rawBefore = readRawConfig(configPath);
-            const diskBefore = rawBefore && JSON.parse(JSON.stringify({
-                lc: rawBefore.llamacpp && 'alias' in rawBefore.llamacpp ? { v: rawBefore.llamacpp.alias } : null,
-                modelAlias: 'modelAlias' in rawBefore ? { v: rawBefore.modelAlias } : null,
-                models: 'models' in rawBefore ? { v: rawBefore.models } : null,
-            }));
-            const restoreNames = () => {
-                config.llamacpp.alias = memBefore.lcAlias;
-                config.modelAlias = memBefore.modelAlias;
-                if (defEntry) { if (memBefore.defAlias) defEntry.alias = memBefore.defAlias; else delete defEntry.alias; }
-                if (!diskBefore) return;
-                patchConfigFile(configPath, (raw) => {
-                    raw.llamacpp = { ...(raw.llamacpp || {}) };
-                    if (diskBefore.lc) raw.llamacpp.alias = diskBefore.lc.v; else delete raw.llamacpp.alias;
-                    if (diskBefore.modelAlias) raw.modelAlias = diskBefore.modelAlias.v; else delete raw.modelAlias;
-                    if (diskBefore.models) raw.models = diskBefore.models.v; else delete raw.models;
-                    return raw;
-                });
-            };
-            const warn = persistLlamacpp({ enabled: on });
-            const plan = carryNameAcross(config, on ? 'ollama' : 'llamacpp', on ? 'llamacpp' : 'ollama');
+        if (want === 'llamacpp' && !(llamacpp.installed(config.llamacpp.binDir) || llamacpp.supported())) {
+            return { ok: false, error: 'Not available on this computer: there is no ready-made llama.cpp for it.' };
+        }
+        if (want === 'vllm') { const why = await vllmRefusal(); if (why) return { ok: false, error: why }; }
+        if (busy()) return busyErr();   // the check above can take a while
+        return runJob('backend', `Switching to ${ENGINE_NAMES[want]}`, async (progress) => {
+            const restore = snapshotEngineState();
+            const stopped = await stopEngine(from, progress);
+            if (!stopped.ok) return { ok: false, error: `${stopped.error} Nothing changed: ${ENGINE_NAMES[from]} keeps serving.` };
+            const warn = setEngineFlags(want);
+            const plan = carryNameAcross(config, from, want);
             applyNamePlan(config, plan);
             persistNamePlan(plan);
-            if (on) {
-                const r = await startLlamacpp(progress);
-                if (!r.ok) {
-                    persistLlamacpp({ enabled: false });     // roll the intent back with the state
-                    restoreNames();
-                    await restartProxy();
-                    return { ok: false, error: r.message };
-                }
-            } else {
-                progress('stopping llama.cpp', null);
-                await stopLlamacpp();
-                // Size the Ollama engine's context before its routing is generated
-                // ('auto' probes once and caches — instant on later switches).
-                progress('sizing the context window', null);
-                await resolveOllamaContext(progress);
+            if (want === 'vllm') setVllmPhase('starting', 'starting vLLM');
+            let r = await startEngine(want, progress);
+            if (r.ok) {
+                progress('reloading routing', null);
+                if (!(await restartProxy())) r = { ok: false, message: 'The proxy did not come back.' };
             }
-            progress('reloading routing', null);
-            if (!(await restartProxy())) {
-                // A farm with no proxy serves NOBODY — undo the whole switch and
-                // bring the previous engine's routing back rather than returning
-                // an error over a dead endpoint.
-                progress('proxy failed — undoing the switch', null);
-                persistLlamacpp({ enabled: !on });
-                restoreNames();
-                if (!on) { await startLlamacpp(() => {}).catch(() => null); }
-                else { await stopLlamacpp(); }
-                await restartProxy();
-                if (beacon) beacon.kick();
-                return { ok: false, error: 'The proxy did not come back — the switch was undone.' };
+            if (r.ok) {
+                if (want !== 'vllm') setVllmPhase(null);
+                setEngineUp(want === 'ollama' ? null : true);
+                if (liveReady) liveHealth.engineFallbackReason = null;
+                await refreshOcrModel();
+                writeRuntimeState();
+                return { ok: true, message: `${ENGINE_NAMES[want]} is now serving.${warn || ''}` };
             }
-            if (beacon) beacon.kick();
-            return { ok: true, message: `${on ? 'llama.cpp' : 'Ollama'} is now serving.${warn || ''}` };
+            // Undo: nothing half-started keeps the GPU, then the flags, the names and the previous engine come back.
+            progress('undoing the switch', null);
+            if (want !== from) await stopEngine(want, () => {});
+            restore();
+            const back = await startEngine(from, () => {});
+            if (from !== 'vllm') setVllmPhase(null);
+            await restartProxy();
+            await refreshOcrModel();
+            writeRuntimeState();
+            kickBox.fn();
+            return { ok: false, error: `${r.message} The switch was undone${back.ok ? '' : `, but ${ENGINE_NAMES[from]} did not come back either: ${back.message}`}.` };
         });
+    }
+
+    // ---- vLLM's own controls (the panel's vLLM card, §7.2) ----------------------------------------------------
+    function vllmAdminState() {
+        const v = config.vllm; const e = vllmMod.vllmEntry(config);
+        const st = vllmProbe && vllmProbe.st;
+        const dl = jobs.downloading();
+        const pr = vllmProbe ? vllmMod.problemsFrom({ ...vllmProbe, installKind: dl ? dl.kind : null }, config) : null;
+        const inst = st && vllmTarget ? st.installs.find((i) => i.root === vllmTarget.root) : null;
+        const onDisk = (x) => st && st.models.find((m) => m.folder === vllmMod.folderOf(x));
+        const gb = (n) => Math.round(n * 10) / 10;
+        return {
+            enabled: !!v.enabled, supported: vllmSup.ok,
+            probe: vllmProbe ? { at: vllmProbe.at, oks: pr.oks, problems: pr.problems, warnings: pr.warnings } : null,
+            installed: !!inst, version: inst ? inst.version : null, pinned: v.version,
+            root: vllmTarget ? vllmTarget.root : v.root, distro: vllmTarget ? vllmTarget.distro : v.distro, port: v.port,
+            alias: v.alias, model: v.model,
+            library: (v.library || []).map((x) => {
+                const m = onDisk(x);
+                return { ...x, downloaded: !!(m && !m.partial), partial: !!(m && m.partial), gbOnDisk: m ? gb(m.gb) : null, active: x.id === v.model };
+            }),
+            foundFolders: st ? st.models.filter((m) => !(v.library || []).some((x) => vllmMod.folderOf(x) === m.folder)).map((m) => ({ folder: m.folder, gb: gb(m.gb) })) : [],
+            contextLength: v.contextLength, parallel: v.parallel, parallelResolved: v.parallelResolved ?? null,
+            maxNumSeqs: v.maxNumSeqs, maxNumSeqsResolved: v.maxNumSeqsResolved ?? null,
+            kvCacheGib: v.kvCacheGib, kvResolvedGib: v.kvResolvedGib ?? null,
+            phase: vllmState.phase, phaseText: vllmState.text, percent: vllmState.percent, adopted: vllmState.adopted,
+            bootError: vllmBootError, poolTokens: vllmState.poolTokens, peopleFit: vllmState.peopleFit, guardLine: vllmState.guardLine,
+            running: vllmState.phase === 'ready' || !!vllmChild,
+            measured: e && st && st.gpu ? vllmMod.measuredFor(e, st.gpu.name) : null,
+            launchSettings: vllmState.launchSettings,
+        };
+    }
+    // Check this computer again (the panel's Check again, and the first open of the vLLM card).
+    async function vllmCheck() {
+        await checkVllm();
+        return { ok: true, vllm: vllmAdminState() };
+    }
+    function vllmStart() {
+        if (engineOf(config) !== 'vllm') return { ok: false, error: 'vLLM is not this farm\'s engine: switch to it first.' };
+        if (vllmState.phase === 'ready') return { ok: true, already: true };
+        if (busy()) return busyErr();
+        const d = jobs.downloading();
+        if (d && d.kind === 'install') return { ok: false, error: 'vLLM is being installed: wait for it, or stop it.' };
+        return startVllmJob('Starting vLLM');
+    }
+    // The operator's Stop: nobody can chat until Start or a switch, so the farm says it is unhealthy and clients
+    // fail over. Not kept across a farm restart (the owner's question (b): the next start starts vLLM).
+    function vllmStop() {
+        if (engineOf(config) !== 'vllm') return { ok: false, error: 'vLLM is not this farm\'s engine.' };
+        if (busy()) return busyErr();
+        return runJob('engine', 'Stopping vLLM', async (progress) => {
+            const r = await stopEngine('vllm', progress);
+            if (!r.ok) return { ok: false, error: r.error };
+            setEngineUp(false);
+            writeRuntimeState();
+            return { ok: true, message: 'vLLM is stopped, so nobody can chat. Press Start vLLM, or switch to another engine.' };
+        });
+    }
+    // Download a model of the vLLM list, in the download slot (D7): it runs while vLLM serves another model, and
+    // a stopped download continues where it left off.
+    function vllmDownload(id) {
+        const e = (config.vllm.library || []).find((x) => x.id === id);
+        if (!e) return { ok: false, error: 'That model is not in the vLLM list.' };
+        if (!e.repo) return { ok: false, error: `${e.label} is a folder on this computer: there is nothing to download.` };
+        if (!vllmSup.ok) return { ok: false, error: vllmMod.UNSUPPORTED };
+        let target = null;
+        return runDownload('download', `Downloading ${e.label}`, async (progress, ctl) => {
+            progress('checking this computer', null);
+            if (!vllmTarget) await checkVllm();
+            target = vllmTarget;
+            if (!target) return { ok: false, error: 'This computer did not answer the check. Press Check again.' };
+            writeRuntimeState();
+            const r = await vllmMod.install(target, { steps: 'model', repo: e.repo, folder: vllmMod.folderOf(e), version: config.vllm.version, sizeGb: e.sizeGb },
+                (p) => {
+                    if (p.bytes != null) progress(vllmMod.installStepText('model', { label: e.label, bytes: p.bytes, total: p.total }), p.total ? (p.bytes / p.total) * 100 : null, { bytes: p.bytes, total: p.total });
+                    else progress(vllmMod.installStepText(p.step, { label: e.label, version: config.vllm.version }), null);
+                });
+            await checkVllm().catch(() => null);
+            writeRuntimeState();
+            if (ctl.cancelled()) return { ok: false, error: 'Stopped. Press Download again to continue where it left off.' };
+            if (!r.ok) return { ok: false, error: vllmMod.downloadFailure(r, e.repo) };
+            return { ok: true, message: `${e.label} is downloaded.` };
+        }, { cancel: () => (target ? vllmMod.stopInstall(target) : null) });
     }
 
     // Persist a name plan from carryNameAcross (litellm.js — the pure half, where the
     // rule and its tests live). Only an operator's engine SWITCH persists names; a
     // fallback applies its plan in memory only (engineFallback).
     function persistNamePlan(plan) {
+        if ('vllmAlias' in plan) persist('vllm', { alias: plan.vllmAlias });
+        if ('externalAlias' in plan) persist('external', { alias: plan.externalAlias });
         if ('llamacppAlias' in plan) persist('llamacpp', { alias: plan.llamacppAlias });
         if ('modelAlias' in plan) patchConfigFile(configPath, (raw) => { raw.modelAlias = plan.modelAlias; return raw; });
         if ('defaultAlias' in plan) persistModels();
@@ -2334,6 +2883,7 @@ async function run(args) {
     // OLLAMA_NUM_PARALLEL, which only applies to an Ollama this CLI starts — so there it
     // needs a farm restart, not a proxy bounce, and we say so instead of pretending.
     function setSlots(count) {
+        if (engineOf(config) === 'vllm') return applyFarmSettings({ slots: count });   // its own bounds (1–512) and rules
         const want = Math.round(Number(count));
         if (!Number.isFinite(want) || want < 1 || want > 16) return { ok: false, error: 'Slots must be between 1 and 16.' };
         // An external server's concurrency is its own (external.parallel only
@@ -2379,6 +2929,7 @@ async function run(args) {
     function setAdvertisedName(name) {
         // The external engine's name is external.alias in the config file.
         if (config.external.enabled) return externalRefusal();
+        if (engineOf(config) === 'vllm') return applyFarmSettings({ name });
         if (busy()) return busyErr();
         const clean = String(name == null ? '' : name).replace(/[\r\n\t]/g, ' ').trim().slice(0, 48);
         if (!clean) return { ok: false, error: 'Give the model a name.' };
@@ -2445,8 +2996,10 @@ async function run(args) {
         // While llama.cpp serves, the Ollama DEFAULT's name is not its own: a switch
         // back gives it llama.cpp's name (carryNameAcross) so bound chats keep working.
         // A standby rename here would be silently overwritten — say where it lives.
-        if (config.llamacpp.enabled && isDefault) {
-            return { ok: false, error: `${entry.id} is the Ollama default — on a switch back to Ollama it takes the name llama.cpp serves ("${config.llamacpp.alias}"). Rename it under Backend ▸ Name users see.` };
+        const serving = engineOf(config);
+        if ((serving === 'llamacpp' || serving === 'vllm') && isDefault) {
+            const eng = serving === 'vllm' ? 'vLLM' : 'llama.cpp';
+            return { ok: false, error: `${entry.id} is the Ollama default — on a switch back to Ollama it takes the name ${eng} serves ("${config[serving].alias}"). Rename it under Backend ▸ Name users see.` };
         }
         const clean = String(alias == null ? '' : alias).replace(/[\r\n\t]/g, ' ').trim().slice(0, 48) || null;
         if (clean && NAME_BAD_RX.test(clean)) return { ok: false, error: 'Use letters, numbers, spaces and . - + : only.' };
@@ -2457,6 +3010,7 @@ async function run(args) {
             // default carries back on a switch or a fallback.
             const taken = config.models.some((m) => m !== entry && ((m.alias || '').trim() || m.id) === clean)
                 || (config.llamacpp.enabled && clean === config.llamacpp.alias)
+                || (engineOf(config) === 'vllm' && clean === config.vllm.alias)
                 || (config.external.enabled && !isDefault && clean === config.external.alias)
                 || (!isDefault && clean === (config.modelAlias || '').trim());
             if (taken) return { ok: false, error: `"${clean}" is already another model's name.` };
@@ -2524,6 +3078,7 @@ async function run(args) {
     // `seatIdleSec` (the seat hold) is the one field that never needs a restart.
     function applyFarmSettings(body = {}) {
         if (busy()) return busyErr();
+        if (engineOf(config) === 'vllm') return applyVllmSettings(body);
         // Under an external server only the password applies (it gates the farm's own
         // proxy); name, slots and context are that server's, declared in the file.
         if (config.external.enabled
@@ -2685,6 +3240,141 @@ async function run(args) {
         });
     }
 
+    // Apply on vLLM (§5.6): name, people at once, context per person, GPU memory for conversations, model, password,
+    // the idle seat. It compares the EFFECTIVE launch with what vLLM runs with (D9: an Automatic memory keeps the
+    // amount it was started with): a new model, context, memory or vLLM request cap restarts vLLM (about 2 minutes;
+    // 48 → 80 people does, through the cap 128 → 256), while people at once inside the cap, the name and the
+    // password apply in seconds. `dryRun` answers {restart, changes} and changes nothing (the panel confirms a
+    // restart first). A restart that fails goes back to the previous settings; if those fail too, Ollama serves.
+    function applyVllmSettings(body = {}) {
+        const v = config.vllm;
+        const st = vllmProbe && vllmProbe.st;
+        let name = null;
+        if (body.name != null && String(body.name).trim() !== '') {
+            name = String(body.name).replace(/[\r\n\t]/g, ' ').trim().slice(0, 48);
+            if (NAME_BAD_RX.test(name)) return { ok: false, error: 'Name: use letters, numbers, spaces and . - + : only.' };
+            if (name === v.alias) name = null;
+        }
+        const patch = {};
+        if (name != null) patch.alias = name;
+        if (body.slots != null) {
+            const n = body.slots === 'auto' ? 'auto' : Math.round(Number(body.slots));
+            if (n !== 'auto' && (!Number.isFinite(n) || n < 1 || n > 512)) return { ok: false, error: 'People at once must be Automatic, or between 1 and 512.' };
+            if (n !== v.parallel) patch.parallel = n;
+        }
+        if (body.model != null && body.model !== v.model) {
+            const e = (v.library || []).find((x) => x.id === body.model);
+            if (!e) return { ok: false, error: 'That model is not in the vLLM list.' };
+            const m = st && st.models.find((f) => f.folder === vllmMod.folderOf(e));
+            if (!m || m.partial) return { ok: false, error: `${e.label} is not downloaded yet: press Download next to it.` };
+            patch.model = e.id;
+        }
+        const next = { ...v, ...patch };
+        const entry = vllmMod.vllmEntry({ vllm: next });
+        if (body.context != null) {
+            const ctx = Math.round(Number(body.context));
+            const disk = st && entry && st.models.find((f) => f.folder === vllmMod.folderOf(entry));
+            const native = vllmMod.facts(entry).nativeCtx || (disk && disk.native) || null;
+            if (!Number.isFinite(ctx) || ctx < 4096 || (native && ctx > native)) {
+                return { ok: false, error: `Context per person must be between 4096 and ${native ? `${native} tokens (this model's maximum)` : 'the model\'s maximum'}.` };
+            }
+            if (ctx !== v.contextLength) patch.contextLength = ctx;
+        }
+        if (body.kvCacheGib != null) {
+            const kv = body.kvCacheGib === 'auto' ? 'auto' : Number(body.kvCacheGib);
+            const card = st && st.gpu ? vllmMod.memOf(st).totalGib : null;
+            if (kv !== 'auto' && (!Number.isFinite(kv) || kv < 1 || (card && kv > card))) {
+                return { ok: false, error: `GPU memory for conversations must be Automatic, or between 1 and ${card ? `${Math.floor(card)} GB` : 'the card\'s size'}.` };
+            }
+            if (kv !== v.kvCacheGib) patch.kvCacheGib = kv;
+        }
+        let password;   // undefined = untouched
+        if (typeof body.password === 'string' && body.password.trim() !== '') {
+            password = body.password.trim().slice(0, 128);
+            if ((config.proxy.masterKey || null) === password) password = undefined;
+        }
+        const idle = seatIdleChange(config, configPath, body.seatIdleSec);
+        if (idle && idle.error) return { ok: false, error: idle.error };
+        Object.assign(next, patch);
+
+        // The effective launch, against what vLLM runs with.
+        const L = vllmState.launchSettings;
+        const running = vllmState.phase === 'ready' && !!L;
+        const s = vllmMod.settingsOf({ ...config, vllm: next }, vllmTarget && vllmTarget.root);
+        const f = vllmMod.facts(entry);
+        const kvEff = next.kvCacheGib === 'auto' ? (L ? L.kvGib : null) : next.kvCacheGib;
+        const gpuName = st && st.gpu ? st.gpu.name : null;
+        const seatsEff = next.parallel === 'auto' ? vllmMod.seatsAuto(entry, gpuName, next.contextLength, vllmMod.peopleFit(kvEff, next.contextLength, f)).seats : next.parallel;
+        const mnsEff = next.maxNumSeqs === 'auto' ? vllmMod.maxNumSeqsAuto(seatsEff) : next.maxNumSeqs;
+        const restart = running && (s.modelId !== L.modelId || s.ctx !== L.ctx || kvEff !== L.kvGib || mnsEff !== L.maxNumSeqs
+            || s.maxReply !== L.maxReply || JSON.stringify(s.extraArgs) !== JSON.stringify(L.extraArgs));
+        const person = f.kvBytesPerToken ? (next.contextLength * f.kvBytesPerToken + (f.stateBytes || 0)) / vllmMod.GIB : null;
+        if (kvEff != null && person != null && kvEff < person) {
+            return { ok: false, error: `${kvEff} GB of GPU memory for conversations is less than one person's conversation needs at this context (${Math.round(person * 10) / 10} GB): give vLLM more, or lower the context per person.` };
+        }
+        const changes = [];
+        if ('alias' in patch) changes.push(`name "${patch.alias}"`);
+        if ('parallel' in patch) changes.push(patch.parallel === 'auto' ? `people at once automatic (${seatsEff})` : `${patch.parallel} people at once`);
+        if ('contextLength' in patch) changes.push(`${Math.round(patch.contextLength / 1024)}k of context each`);
+        if ('kvCacheGib' in patch) changes.push(patch.kvCacheGib === 'auto' ? 'GPU memory for conversations automatic' : `${patch.kvCacheGib} GB for conversations`);
+        if ('model' in patch) changes.push(entry.label);
+        if (password !== undefined) changes.push('password set');
+        if (!changes.length) {
+            if (body.dryRun) return { ok: true, dryRun: true, restart: false, changes: idle ? [idle.label] : [] };
+            if (!idle) return { ok: true, already: true, message: 'Nothing changed.' };
+            const warn = idle.apply();
+            kickBox.fn();
+            return { ok: true, message: `Applied at once, no restart: ${idle.label}.${warn || ''}` };
+        }
+        if (body.dryRun) return { ok: true, dryRun: true, restart, changes: changes.concat(idle ? [idle.label] : []) };
+        return runJob('settings', 'Applying the farm settings', async (progress) => {
+            const before = Object.fromEntries(Object.keys(patch).map((k) => [k, v[k]]));
+            const rawV = (readRawConfig(configPath) || {}).vllm || {};
+            const beforePw = config.proxy.masterKey || null;
+            const warn = persist('vllm', patch);
+            Object.assign(v, patch);
+            if (password !== undefined) { config.proxy.masterKey = password; persist('proxy', { masterKey: password }); }
+            const revert = () => {   // memory, and the file exactly as it was
+                Object.assign(v, before);
+                persist('vllm', Object.fromEntries(Object.keys(patch).map((k) => [k, k in rawV ? rawV[k] : undefined])));
+                if (password !== undefined) { config.proxy.masterKey = beforePw; persist('proxy', { masterKey: beforePw ?? undefined }); }
+            };
+            const done = (msg) => {
+                if (idle) { idle.apply(); changes.push(idle.label); }
+                kickBox.fn();
+                sendBusKey(svcById.bus.child, config.proxy.masterKey);
+                return { ok: true, message: `${msg}: ${changes.join(' · ')}.${warn || ''}` };
+            };
+            if (!restart) {
+                if (running && 'parallel' in patch) v.parallelResolved = seatsEff;   // the gate's seats, live
+                if ('alias' in patch || password !== undefined) {
+                    progress('reloading routing', null);
+                    if (!(await restartProxy())) { revert(); await restartProxy(); return { ok: false, error: 'The proxy did not come back. Reverted: nothing changed.' }; }
+                }
+                return done(running ? 'Applied without restarting vLLM' : 'Saved, for the next start of vLLM');
+            }
+            progress('stopping vLLM', null);
+            setVllmPhase('stopping');
+            const stopped = await stopVllmProcess();
+            if (!stopped.ok) { revert(); setVllmPhase('ready'); return { ok: false, error: `${stopped.error} Nothing changed.` }; }
+            let r = await startVllm(progress);
+            if (r.ok) {
+                progress('reloading routing', null);
+                if (!(await restartProxy())) r = { ok: false, message: 'The proxy did not come back.' };
+            }
+            if (r.ok) return done('Applied in one restart of vLLM');
+            progress('going back to the previous settings', null);
+            revert();
+            const back = await startVllm(progress);
+            if (!back.ok) {
+                await fallbackToOllama(`${r.message} The previous settings did not come back either: ${back.message}`);
+                return { ok: false, error: `${r.message} The previous settings did not come back either (${back.message}): the farm serves with Ollama for now.` };
+            }
+            await restartProxy();
+            return { ok: false, error: `${r.message} Back to the previous settings.` };
+        });
+    }
+
     // --- Ollama catalog management -----------------------------------------------
     // Download a model onto every LOCAL host. Remote hosts are deliberately untouched:
     // this CLI does not own them, and quietly filling someone else's disk is worse than
@@ -2734,6 +3424,9 @@ async function run(args) {
                     return { ok: false, error: `Could not pull "${want}": ${failed}${hint}` };
                 }
             }
+            // gemma4:12b downloaded while another engine serves becomes the model that reads documents (§1.4).
+            await readOcrInstalled();
+            await refreshOcrModel();
             // Serve it too — an "add a model" that leaves the model invisible to clients
             // is not what anyone means by adding a model. This restarts the proxy, so
             // say so: it is the several-second tail an operator otherwise reads as a
@@ -2771,8 +3464,8 @@ async function run(args) {
         if (isServed && config.models.length <= 1) {
             return { ok: false, error: 'This is the only model in the catalog — add another before removing it.' };
         }
-        if (config.ocr.enabled && norm(resolveOcrModel(config)) === norm(want)) {
-            return { ok: false, error: 'Document reading (OCR) uses this model — turn OCR off first, or set ocr.model to another one.' };
+        if (config.ocr.enabled && norm(resolveOcrModel(config, ocrInstalled)) === norm(want)) {
+            return { ok: false, error: 'Document reading uses this model: turn document reading off first, or download another model that sees images.' };
         }
         const targets = oll.reachable.filter(isLocalHost);
         return runJob('remove', `Removing ${want}`, async (progress) => {
@@ -2787,6 +3480,7 @@ async function run(args) {
                 const r = await ollama.deleteModel(h, want);
                 if (!r.ok) failures.push(`${h}: ${r.error}`);
             }
+            await readOcrInstalled();
             const warn = persistModels();
             if (beacon) beacon.kick();
             if (failures.length) return { ok: false, error: `Un-served, but the files could not be deleted — ${failures.join('; ')}` };
@@ -2794,13 +3488,11 @@ async function run(args) {
         });
     }
 
-    // Serialize mutations: the admin page's client-side `busy` flag doesn't bind a second
-    // browser tab, another device sharing the token, or a curl script, and two overlapping
-    // restarts share `restartingProxy` — one's finally clears it while the other is still
-    // mid-restart, which could unmask onProxyExit and tear the farm down. A single in-flight
-    // chain makes start/stop/plugin-toggle atomic regardless of how many callers hit at once.
-    let mutating = Promise.resolve();
-    const serialize = (fn) => { const p = mutating.then(fn, fn); mutating = p.catch(() => {}); return p; };
+    // Serialize mutations (jobs.serialize): the admin page's client-side `busy` flag doesn't
+    // bind a second browser tab, another device sharing the token, or a curl script, and two
+    // overlapping restarts share `restartingProxy` — one's finally clears it while the other is
+    // still mid-restart, which could unmask onProxyExit and tear the farm down. A single
+    // in-flight chain makes start/stop/plugin-toggle atomic regardless of how many callers hit.
     Object.assign(control, {
         getAdminState,                                     // read-only — no lock needed
         // Quick ops: refuse while a JOB runs (its model reload owns the farm),
@@ -2828,8 +3520,18 @@ async function run(args) {
         applyFarmSettings,
         pullOllamaModel,
         removeOllamaModel,
+        // vLLM (docs/VLLM_MANAGED_PLAN.md): the check runs on request only; start and stop are jobs; a download
+        // is in its own slot; Stop on either slot cancels (job/cancel).
+        vllmCheck,
+        vllmStart,
+        vllmStop,
+        vllmDownload,
+        cancel: (slot) => jobs.cancel(slot === 'download' ? 'download' : 'job'),
     });
     engineDownBox.fn = onEngineDown;   // serialize + liveHealth exist now — arm supervision
+    // vLLM: watched from now on, and the start the boot queued runs as the job everyone sees (D5).
+    watchVllm();
+    if (vllmBootJob) startVllmJob('Starting vLLM', { waitOnly: vllmBootJob === 'wait' });
     // If llama-server died DURING the boot window (between its health-OK and
     // this line — proxy/plugin startup can take a minute), the exit handler
     // found fn null and only cleared llamacppChild. Handle it now instead of
@@ -2845,4 +3547,4 @@ async function run(args) {
 // the tests: each encodes judgements that are easy to break silently (a negative rate after a
 // restart, a raw digest leaking into the UI, a non-vLLM read as one, a seat hold out
 // of range, a "nothing fits" read as "unknown") and none is reachable through `run`.
-module.exports = { run, resolveOcrModel, makeRateMeter, pullPhase, makePerfSampler, seatIdleChange, autoLlamacppContext };
+module.exports = { run, resolveOcrModel, makeRateMeter, makeJobs, pullPhase, makePerfSampler, seatIdleChange, autoLlamacppContext };

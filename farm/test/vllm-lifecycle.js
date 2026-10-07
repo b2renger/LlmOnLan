@@ -1,0 +1,437 @@
+// The vLLM the farm runs, end to end with a FAKE vLLM (docs/VLLM_MANAGED_PLAN.md §11.3, items 1-11). Opt-in, a few
+// minutes, no GPU used:
+//
+//   LOL_VLLM_FAKE=1 [LOL_LITELLM=<path to litellm(.exe)>] node test/vllm-lifecycle.js [step numbers...]
+//
+// A real `lol up` from this worktree (cwd = a temp folder with its own lol.config.json), farm/vllm's real scripts,
+// test/fake-vllm in place of vLLM (inside WSL on Windows, as the farm runs it), test/fake-ollama.js in place of
+// Ollama, and a real LiteLLM (farm/.venv's, or LOL_LITELLM). It touches ONLY: ports 4300 (the gate), 4301
+// (LiteLLM), 4302 (the fake Ollama), 41897 (the panel) and 8299 (the fake vLLM); the folder ~/lol-fake-a inside
+// Linux (WSL); a temp folder; and this worktree's farm/.lol-runtime.json. A vLLM or a farm running elsewhere on
+// this computer is only ever read (status.sh lists every serve.sh; nothing here stops one outside ~/lol-fake-a).
+//
+// Steps (the plan's numbering):
+//   1 boot: the panel answers while vLLM starts, the farm healthy and busy "Starting vLLM", the gate's 503, Ollama
+//     evicted first; then a chat through the gate
+//   2 `lol up` killed alone: vLLM survives; the next `lol up` keeps it (same process group, no job)
+//   3 restarted with another context: stopped and started; with Automatic memory: kept (D9)
+//   4 Apply: the dry run; a name keeps vLLM running; a context restarts it
+//   5 slow but answering: no restart; killed: one restart; killed again within 5 min: Ollama serves, with why
+//   6 the memory guard: phase guard, the farm unhealthy, no restart, no fallback
+//   7 Stop and Start; Stop on a start, at once and once it runs: nothing left
+//   8 a download in its own slot; vLLM killed during it: restarted at once, not after the download
+//   9 a switch to Ollama whose vLLM stop fails: nothing changes, vLLM keeps serving
+//  10 the orphan rule: Ollama chosen while the farm's vLLM still runs: the boot stops it
+//  11 `lol down` stops vLLM; with the runtime file gone, it still does (from the config)
+
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+const http = require('http');
+const { spawn, execFileSync } = require('child_process');
+const V = require('../src/vllm');
+const { killTree, readRuntime, RUNTIME_FILE, venvLitellmPath } = require('../src/proc');
+const { startFakeOllama } = require('./fake-ollama');
+
+if (process.env.LOL_VLLM_FAKE !== '1') { console.log('skipped: set LOL_VLLM_FAKE=1 to run it'); process.exit(0); }
+if (!V.supported().ok) { console.log(`skipped: ${V.UNSUPPORTED}`); process.exit(0); }
+
+const FARM = path.join(__dirname, '..');
+const LOL = path.join(FARM, 'bin', 'lol.js');
+const LITELLM = process.env.LOL_LITELLM || venvLitellmPath();
+const PORTS = { gate: 4300, litellm: 4301, ollama: 4302, panel: 41897, vllm: 8299 };
+const TOKEN = 'lifecycle-test-token';
+const WIN = process.platform === 'win32';
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const ONLY = process.argv.slice(2).map(Number).filter(Boolean);
+
+let distro = null; let home = null; let ROOT = null; let target = null;
+const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'lol-vllm-lifecycle-'));
+const farmLog = path.join(scratch, 'farm.log');
+let pass = 0; let fail = 0;
+const check = (name, ok, detail = '') => {
+    if (ok) { pass++; console.log(`  PASS ${name}`); } else { fail++; console.log(`  FAIL ${name}${detail ? `\n       ${detail}` : ''}`); }
+    return ok;
+};
+
+// ---- Linux side --------------------------------------------------------------------------------------------------
+function sh(script, { timeoutMs = 60000 } = {}) {
+    const [cmd, args] = WIN ? ['wsl.exe', ['-d', distro, '-e', 'bash', '-c', script]] : ['bash', ['-c', script]];
+    try { return { code: 0, out: execFileSync(cmd, args, { encoding: 'utf8', timeout: timeoutMs, windowsHide: true }) }; }
+    catch (e) { return { code: e.status ?? 1, out: `${e.stdout || ''}${e.stderr || ''}` }; }
+}
+const q = (s) => `'${String(s).replace(/'/g, "'\\''")}'`;
+function guardRoot() { if (!/^\/[\w./-]+\/lol-fake-a$/.test(ROOT)) throw new Error(`refusing a root that is not a lol-fake-* folder: ${ROOT}`); }
+function makeRoot() {
+    guardRoot();
+    const fake = WIN ? sh(`wslpath -a ${q(path.join(__dirname, 'fake-vllm'))}`).out.trim() : path.join(__dirname, 'fake-vllm');
+    const r = sh([
+        'set -e', `R=${q(ROOT)}`, `F=${q(fake)}`,
+        'pkill -KILL -f "$R/" 2>/dev/null || true', 'rm -rf "$R"',
+        'mkdir -p "$R/.venv/bin" "$R/.venv/lib/python3.12/site-packages/vllm-0.30.0.dist-info" "$R/hf/fake-a"',
+        'cp "$F/vllm" "$F/fake_vllm.py" "$F/hf" "$R/.venv/bin/"', 'chmod +x "$R/.venv/bin/vllm" "$R/.venv/bin/hf"',
+        'ln -s /usr/bin/python3 "$R/.venv/bin/python"',
+        'echo \'{"max_position_embeddings": 32768}\' > "$R/hf/fake-a/config.json"', ': > "$R/fake.env"', 'echo made',
+    ].join('\n'));
+    if (!/made/.test(r.out)) throw new Error(`could not make ${ROOT}: ${r.out}`);
+}
+const fakeEnv = (lines) => { guardRoot(); sh(`printf '%s\\n' ${lines.map(q).join(' ')} > ${q(`${ROOT}/fake.env`)}`); };
+const touch = (name, on = true) => { guardRoot(); sh(on ? `: > ${q(`${ROOT}/${name}`)}` : `rm -f ${q(`${ROOT}/${name}`)}`); };
+const killFake = () => { guardRoot(); sh(`pkill -KILL -f ${q(`${ROOT}/.venv/bin/fake_vllm.py`)} || true`); };
+const leftInRoot = () => { guardRoot(); return sh(`pgrep -af ${q(`${ROOT}/`)} | grep -v pgrep || true`).out.trim(); };
+const status = async () => (await V.status(target)).st;
+const pgid = async () => { const s = await status(); return s && s.running ? s.running.pgid : null; };
+
+// ---- the farm ----------------------------------------------------------------------------------------------------
+const LIB = [
+    { id: 'fake-a', label: 'Fake A', folder: 'fake-a', sizeGb: 0.1, weightsGib: 0.1, vision: false, args: ['--enable-prefix-caching'] },
+    { id: 'fake-b', label: 'Fake B', repo: 'fake/fake-b', sizeGb: 0.1, weightsGib: 0.1, vision: false, args: ['--enable-prefix-caching'] },
+];
+function writeConfig(vllm = {}) {
+    fs.writeFileSync(path.join(scratch, 'lol.config.json'), JSON.stringify({
+        name: 'Fake vLLM farm',
+        beacon: { enabled: false, httpPort: PORTS.panel },
+        proxy: { host: '127.0.0.1', port: PORTS.gate, internalPort: PORTS.litellm },
+        models: [{ id: 'fake-ollama:1b', default: true }],
+        preinstall: [],
+        ollama: { hosts: [`http://127.0.0.1:${PORTS.ollama}`], contextLength: 8192 },
+        litellm: { command: LITELLM },
+        websearch: { enabled: false }, ocr: { enabled: false },
+        admin: { token: TOKEN },
+        vllm: {
+            enabled: true, root: ROOT, ...(distro ? { distro } : {}), port: PORTS.vllm, model: 'fake-a', contextLength: 8192,
+            parallel: 4, kvCacheGib: 2, ocrReserveGib: 0, minFreeGb: 0, library: LIB, ...vllm,
+        },
+    }, null, 2));
+}
+const readConfig = () => JSON.parse(fs.readFileSync(path.join(scratch, 'lol.config.json'), 'utf8'));
+
+let farm = null; let out = '';
+function up() {
+    out = '';
+    const env = { ...process.env };
+    delete env.ELECTRON_RUN_AS_NODE;
+    const child = spawn(process.execPath, [LOL, 'up', '--no-pick'], { cwd: scratch, env, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
+    const tap = (d) => { const s = d.toString(); out += s; fs.appendFileSync(farmLog, s); };
+    child.stdout.on('data', tap); child.stderr.on('data', tap);
+    farm = child;
+    return child;
+}
+function lolDown() {
+    const env = { ...process.env }; delete env.ELECTRON_RUN_AS_NODE;
+    try { return execFileSync(process.execPath, [LOL, 'down'], { cwd: scratch, env, encoding: 'utf8', timeout: 240000, windowsHide: true }); }
+    catch (e) { return `${e.stdout || ''}${e.stderr || ''}`; }
+}
+// `lol down`, then the farm must be gone: its process ended and its ports closed. One that lives on is a failure
+// (it would answer the next step's checks in place of the farm under test), and is killed.
+async function stopFarm() {
+    const said = lolDown();
+    fs.appendFileSync(farmLog, `\n--- lol down ---\n${said}\n`);
+    if (farm) {
+        const c = farm;
+        const gone = await waitFor(() => c.exitCode !== null || c.signalCode !== null, 30000, 'lol up to exit').catch(() => false);
+        if (!gone) { check('`lol up` exits after `lol down`', false, `pid ${c.pid} still running: killed`); await killTree(c.pid); }
+    }
+    farm = null;
+    const closed = await waitFor(async () => !(await self()), 15000, 'the panel to close').catch(() => false);
+    if (!closed) throw new Error(`a farm still answers on ${PORTS.panel} after \`lol down\``);
+    return said;
+}
+// A crash of `lol up` alone (Windows: taskkill without /T, so its wsl.exe child lives on), then what the Farm app's
+// crash restart does first (§3.12): the recorded LiteLLM, which outlives it on Windows, is reaped.
+async function crashFarm() {
+    const rt = readRuntime();
+    if (WIN) execFileSync('taskkill', ['/F', '/PID', String(farm.pid)], { windowsHide: true, stdio: 'ignore' });
+    else process.kill(farm.pid, 'SIGKILL');
+    const c = farm;
+    await waitFor(() => c.exitCode !== null || c.signalCode !== null, 10000);
+    if (rt && rt.litellmPid) await killTree(rt.litellmPid);
+    farm = null;
+    await sleep(1500);
+}
+
+function req(method, port, p, body = null, { headers = {}, timeoutMs = 30000 } = {}) {
+    return new Promise((resolve) => {
+        const data = body ? JSON.stringify(body) : null;
+        const r = http.request({ host: '127.0.0.1', port, method, path: p, timeout: timeoutMs,
+            headers: { ...(data ? { 'content-type': 'application/json', 'content-length': Buffer.byteLength(data) } : {}), ...headers } }, (res) => {
+            let buf = ''; res.on('data', (c) => { buf += c; });
+            res.on('end', () => { let json = null; try { json = JSON.parse(buf); } catch { /* text */ } resolve({ status: res.statusCode, json, text: buf, headers: res.headers }); });
+        });
+        r.on('timeout', () => r.destroy());
+        r.on('error', () => resolve({ status: 0, json: null, text: '' }));
+        r.end(data || undefined);
+    });
+}
+const self = async () => (await req('GET', PORTS.panel, '/lol/self', null, { timeoutMs: 3000 })).json;
+const admin = async (p, body = {}) => (await req('POST', PORTS.panel, `/lol/admin/${p}`, body, { headers: { authorization: `Bearer ${TOKEN}` }, timeoutMs: 120000 })).json;
+const state = async () => (await req('GET', PORTS.panel, '/lol/admin/state', null, { headers: { authorization: `Bearer ${TOKEN}` } })).json;
+const chat = (model = 'assistant') => req('POST', PORTS.gate, '/v1/chat/completions', { model, messages: [{ role: 'user', content: 'hi' }], stream: false }, { timeoutMs: 60000 });
+const replyOf = (r) => (r.json && r.json.choices && r.json.choices[0] && r.json.choices[0].message && r.json.choices[0].message.content) || '';
+
+async function waitFor(fn, ms, what = 'a condition') {
+    const end = Date.now() + ms;
+    for (;;) {
+        const v = await fn();
+        if (v) return v;
+        if (Date.now() > end) throw new Error(`timed out after ${Math.round(ms / 1000)} s waiting for ${what}`);
+        await sleep(500);
+    }
+}
+const ready = () => waitFor(async () => { const s = await state(); return s && s.vllm && s.vllm.phase === 'ready' && s; }, 180000, 'vLLM ready');
+const jobDone = (label) => waitFor(async () => { const s = await state(); return s && s.job && (!label || s.job.label === label) && s.job.done && s; }, 240000, `the job ${label || ''}`);
+async function bootReady() { up(); await waitFor(self, 120000, 'the panel'); return ready(); }
+
+// ---- the steps ----------------------------------------------------------------------------------------------------
+let fakeOllama = null;
+const STEPS = {
+    async 1() {
+        fakeEnv(['FAKE_DELAY=10']);
+        const t0 = Date.now();
+        up();
+        const snap = await waitFor(self, 120000, 'the panel');
+        const tSelf = (Date.now() - t0) / 1000;
+        const s0 = await state();
+        check(`the panel answers before vLLM is ready (after ${tSelf.toFixed(1)} s, LiteLLM's own start included)`, s0.vllm.phase !== 'ready', `phase ${s0.vllm.phase}`);
+        check('healthy while it starts, busy says "Starting vLLM"', snap.healthy === true && snap.busy && snap.busy.label === 'Starting vLLM', JSON.stringify({ healthy: snap.healthy, busy: snap.busy }));
+        check('the engine is vLLM', snap.backend.engine === 'vllm');
+        const r = await chat();
+        check('a chat meanwhile gets 503 "starting"', r.status === 503 && r.json && r.json.error.code === 'lol_engine_starting' && /starting/.test(r.json.error.message), `${r.status} ${r.text.slice(0, 200)}`);
+        const evicted = await waitFor(() => fakeOllama.requests.includes('POST /api/generate unload fake-ollama:1b'), 20000, 'the eviction').catch(() => false);
+        check('Ollama\'s loaded model was evicted before the start', evicted, fakeOllama.requests.join(', '));
+        const seen = new Set();
+        await waitFor(async () => { const s = await state(); if (s.vllm.phaseText) seen.add(s.vllm.phaseText); return s.vllm.phase === 'ready'; }, 120000, 'vLLM ready');
+        check(`the panel saw the start's phases (${[...seen].join(' / ')})`, [...seen].some((x) => /loading the model weights|capturing GPU graphs|almost ready|reading the model/.test(x)));
+        const s1 = await state();
+        check('ready: 4 people at once, the pool read from vLLM\'s log', s1.vllm.parallelResolved === 4 && s1.vllm.poolTokens === 50000 && s1.backend.slots === 4, JSON.stringify({ seats: s1.vllm.parallelResolved, pool: s1.vllm.poolTokens }));
+        const c = await chat();
+        check('a chat through the gate reaches vLLM', c.status === 200 && replyOf(c) === 'fake reply', `${c.status} ${c.text.slice(0, 200)}`);
+        const snap2 = await self();
+        check('busy is gone, healthy', snap2.busy === null && snap2.healthy === true);
+        check('the runtime file records where vLLM lives', readRuntime() && readRuntime().vllm && readRuntime().vllm.root === ROOT, JSON.stringify(readRuntime() && readRuntime().vllm));
+    },
+    async 2() {
+        const before = await pgid();
+        await crashFarm();
+        check('`lol up` killed alone: vLLM survives', (await pgid()) === before && await V.answers(`http://127.0.0.1:${PORTS.vllm}/v1`, 3000), `pgid ${before} → ${await pgid()}`);
+        up();
+        await waitFor(self, 120000, 'the panel');
+        const s = await state();
+        check('the next `lol up` keeps it at once: ready, adopted, no job', s.vllm.phase === 'ready' && s.vllm.adopted === true && s.job === null, JSON.stringify({ phase: s.vllm.phase, adopted: s.vllm.adopted, job: s.job && s.job.label }));
+        check('same process group', (await pgid()) === before);
+        check('a chat goes through', replyOf(await chat()) === 'fake reply');
+    },
+    async 3() {
+        const before = await pgid();
+        await crashFarm();
+        const cfg = readConfig(); cfg.vllm.contextLength = 16384; fs.writeFileSync(path.join(scratch, 'lol.config.json'), JSON.stringify(cfg, null, 2));
+        await bootReady();
+        const after = await pgid();
+        check('another context: stopped and started again (a new process group)', after && after !== before, `${before} → ${after}`);
+        check('the farm said why', /restarts with this farm's/.test(out));
+        await crashFarm();
+        const cfg2 = readConfig(); cfg2.vllm.kvCacheGib = 'auto'; fs.writeFileSync(path.join(scratch, 'lol.config.json'), JSON.stringify(cfg2, null, 2));
+        up();
+        await waitFor(self, 120000, 'the panel');
+        const s = await state();
+        check('Automatic memory accepts what runs (D9): kept, same group', s.vllm.phase === 'ready' && s.vllm.adopted && (await pgid()) === after, JSON.stringify({ phase: s.vllm.phase, adopted: s.vllm.adopted }));
+        check('…with the amount it runs with', s.vllm.kvResolvedGib === 2, String(s.vllm.kvResolvedGib));
+    },
+    async 4() {
+        const before = await pgid();
+        const dryCtx = await admin('apply', { context: 8192, kvCacheGib: 2, dryRun: true });
+        const dryName = await admin('apply', { name: 'fake-renamed', dryRun: true });
+        check('the dry run: a context restarts vLLM, a name does not', dryCtx.dryRun && dryCtx.restart === true && dryName.dryRun && dryName.restart === false, JSON.stringify({ dryCtx, dryName }));
+        const r1 = await admin('apply', { name: 'fake-renamed' });
+        check('Apply a name: a job', r1.ok && r1.started);
+        const j1 = await jobDone('Applying the farm settings');
+        check('…done, vLLM kept running (same group)', j1.job.ok && (await pgid()) === before, j1.job.error || j1.job.message);
+        check('…clients see the new name', replyOf(await chat('fake-renamed')) === 'fake reply');
+        const r2 = await admin('apply', { context: 8192, kvCacheGib: 2 });
+        check('Apply a context: a job', r2.ok && r2.started, JSON.stringify(r2));
+        const j2 = await jobDone('Applying the farm settings');
+        const after = await pgid();
+        check('…done in one restart of vLLM (a new group)', j2.job.ok && after && after !== before, `${j2.job.error || j2.job.message} ${before} → ${after}`);
+        check('…saved for the next start', readConfig().vllm.contextLength === 8192 && readConfig().vllm.alias === 'fake-renamed');
+    },
+    async 5() {
+        if (!farm) { writeConfig({ alias: 'fake-renamed' }); await bootReady(); }   // run on its own
+        const before = await pgid();
+        touch('fake-slow-models');
+        const mark = out.length;
+        await waitFor(() => /vLLM was only slow/.test(out.slice(mark)), 120000, 'the slow check');
+        touch('fake-slow-models', false);
+        const s = await state();
+        check('slow but answering: looked at, not restarted (same group, no job)', (await pgid()) === before && (!s.job || s.job.label !== 'Restarting vLLM after it stopped unexpectedly') && s.vllm.phase === 'ready');
+        killFake();
+        const j = await jobDone('Restarting vLLM after it stopped unexpectedly');
+        const after = await pgid();
+        check('killed: one restart, at once', j.job.ok && after && after !== before && j.vllm.phase === 'ready', `${j.job.error || ''} ${before} → ${after}`);
+        check('…a chat goes through again', replyOf(await chat('fake-renamed')) === 'fake reply');
+        killFake();
+        // Healthy means it answers: the first moment the farm says healthy on Ollama, a chat must go through.
+        const first = await waitFor(async () => { const x = await self(); return x && x.healthy && x.backend.engine === 'ollama' && chat('fake-renamed'); }, 120000, 'the farm healthy on Ollama');
+        check('…the farm says healthy only once Ollama is routed', first.status === 200, `${first.status} ${first.text.slice(0, 160)}`);
+        const f = await waitFor(async () => { const x = await state(); return x.vllm.phase === 'failed' && x; }, 120000, 'the fallback to Ollama');
+        check('killed again within 5 minutes: Ollama serves, with why', /stopped twice in 5 minutes/.test(f.vllm.bootError || ''), f.vllm.bootError);
+        const snap = await self();
+        check('…the farm healthy, no vLLM left', snap.healthy === true && !(await pgid()));
+        const c = await chat('fake-renamed');
+        check('…a chat under vLLM\'s name goes to Ollama', c.status === 200 && replyOf(c) === 'fake ollama reply', `${c.status} ${c.text.slice(0, 200)}`);
+        check('…the file still says vLLM (the next start tries it again)', readConfig().vllm.enabled === true);
+        await stopFarm();
+    },
+    async 6() {
+        writeConfig({ minFreeGb: 100000 });
+        fakeEnv(['FAKE_DELAY=8']);
+        up();
+        await waitFor(self, 120000, 'the panel');
+        const s = await waitFor(async () => { const x = await state(); return x.vllm.phase === 'guard' && x; }, 120000, 'the guard');
+        check('the memory guard stopped it: phase guard, said in plain words', /running out of memory/.test(s.vllm.phaseText || ''), s.vllm.phaseText);
+        const snap = await self();
+        check('…the farm unhealthy (clients fail over), still on vLLM', snap.healthy === false && snap.backend.engine === 'vllm');
+        await sleep(25000);
+        const s2 = await state();
+        check('…no restart, no fallback', s2.vllm.phase === 'guard' && s2.backend.engine === 'vllm' && !(await pgid()) && !(s2.job && /Restarting/.test(s2.job.label)));
+        const r = await chat();
+        check('…a chat gets 503 "stopped"', r.status === 503 && /stopped for now/.test((r.json && r.json.error.message) || ''), r.text.slice(0, 200));
+        await stopFarm();
+    },
+    async 7() {
+        writeConfig();
+        fakeEnv(['FAKE_DELAY=3']);
+        await bootReady();
+        const r = await admin('vllm/stop');
+        check('Stop: a job', r.ok && r.started, JSON.stringify(r));
+        const j = await jobDone('Stopping vLLM');
+        const snap = await self();
+        check('…stopped: nothing runs, the farm unhealthy', j.job.ok && j.vllm.phase === 'stopped' && !(await pgid()) && snap.healthy === false, j.job.error || '');
+        check('…a chat gets 503 "stopped"', /stopped for now/.test(((await chat()).json || { error: {} }).error.message || ''));
+        check('Start: a job', (await admin('vllm/start')).started);
+        await jobDone('Starting vLLM');
+        check('…ready, a chat goes through', (await state()).vllm.phase === 'ready' && replyOf(await chat()) === 'fake reply');
+        await admin('vllm/stop'); await jobDone('Stopping vLLM');
+        // Stop on a start at once (before anything was spawned), then once its process group runs.
+        fakeEnv(['FAKE_DELAY=30']);
+        await admin('vllm/start');
+        const c1 = await admin('job/cancel', { slot: 'job' });
+        const j1 = await jobDone('Starting vLLM');
+        check('Stop on a start at once: cancelled, phase stopped', c1.ok && j1.job.cancelled && j1.vllm.phase === 'stopped', JSON.stringify({ c1, cancelled: j1.job.cancelled, phase: j1.vllm.phase }));
+        await sleep(3000);
+        check('…nothing left running', !(await pgid()) && !leftInRoot(), leftInRoot());
+        await admin('vllm/start');
+        await waitFor(pgid, 60000, 'the start\'s process group');
+        await admin('job/cancel', { slot: 'job' });
+        const j2 = await jobDone('Starting vLLM');
+        await sleep(3000);
+        check('Stop on a start that runs: cancelled, nothing left', j2.job.cancelled && j2.vllm.phase === 'stopped' && !(await pgid()) && !leftInRoot(), leftInRoot());
+        check('…the message says how to go on', /press Start vLLM/.test(j2.job.error || ''), j2.job.error);
+    },
+    async 8() {
+        fakeEnv(['FAKE_DELAY=3', 'FAKE_HF=slow']);
+        if ((await state()).vllm.phase !== 'ready') { await admin('vllm/start'); await ready(); }
+        const before = await pgid();
+        const d = await admin('vllm/download', { id: 'fake-b' });
+        check('a download starts in its own slot', d.ok && d.started, JSON.stringify(d));
+        await waitFor(async () => { const s = await status(); return s && s.installing; }, 60000, 'install.sh');
+        const snap = await self();
+        check('…clients do not see it (not busy)', snap.busy === null && snap.healthy === true, JSON.stringify(snap.busy));
+        killFake();
+        const t0 = Date.now();
+        const j = await jobDone('Restarting vLLM after it stopped unexpectedly');
+        const s = await state();
+        check(`vLLM killed during the download: restarted at once (${Math.round((Date.now() - t0) / 1000)} s)`, j.job.ok && s.vllm.phase === 'ready' && (await pgid()) !== before);
+        check('…while the download still runs', s.download && s.download.done === false, JSON.stringify(s.download && { done: s.download.done, message: s.download.message }));
+        const c = await admin('job/cancel', { slot: 'download' });
+        const dd = await waitFor(async () => { const x = await state(); return x.download && x.download.done && x; }, 60000, 'the download to stop');
+        check('Stop on the download: stopped, resumable', c.ok && dd.download.cancelled && /continue where it left off/.test(dd.download.error || ''), dd.download.error);
+        const st = await status();
+        check('…install.sh is gone', !st.installing);
+        fakeEnv(['FAKE_DELAY=3']);
+    },
+    async 9() {
+        if ((await state()).vllm.phase !== 'ready') { await admin('vllm/start'); await ready(); }
+        touch('fake-linger');
+        const r = await admin('backend', { engine: 'ollama' });
+        check('a switch to Ollama: a job', r.ok && r.started, JSON.stringify(r));
+        const j = await jobDone('Switching to Ollama');
+        check('…vLLM\'s stop fails (its port still answers): the switch says so and changes nothing', !j.job.ok && /still answers on port 8299/.test(j.job.error) && /Nothing changed/.test(j.job.error), j.job.error);
+        check('…still on vLLM, in memory and in the file', j.backend.engine === 'vllm' && readConfig().vllm.enabled === true && readConfig().llamacpp === undefined);
+        const c = await chat();
+        check('…and it keeps serving', c.status === 200 && replyOf(c) === 'fake reply', `${c.status} ${c.text.slice(0, 160)}`);
+        touch('fake-linger', false);
+        killFake();
+        await stopFarm();
+    },
+    async 10() {
+        writeConfig();
+        await bootReady();
+        const before = await pgid();
+        await crashFarm();
+        check('the farm crashed with vLLM running (marked as the farm\'s)', (await pgid()) === before && (await status()).managed);
+        writeConfig({ enabled: false });
+        up();
+        await waitFor(self, 120000, 'the panel');
+        check('Ollama chosen: the boot stopped the vLLM left running', /Stopped a vLLM left running from .*: this farm serves with Ollama now\./.test(out) && !(await pgid()), out.split('\n').filter((l) => /vLLM/.test(l)).join(' | '));
+        check('…and serves with Ollama', (await self()).backend.engine !== 'vllm' && replyOf(await chat('fake-ollama:1b')) === 'fake ollama reply');
+        await stopFarm();
+    },
+    async 11() {
+        writeConfig();
+        await bootReady();
+        const said = await stopFarm();
+        check('`lol down` stops vLLM', /Stopping vLLM/.test(said) && !(await pgid()) && !leftInRoot(), said);
+        check('…and clears the runtime file', !fs.existsSync(RUNTIME_FILE));
+        await bootReady();
+        await crashFarm();
+        try { fs.unlinkSync(RUNTIME_FILE); } catch { /* gone */ }
+        check('a crashed farm left vLLM running, and no runtime file', !!(await pgid()) && !fs.existsSync(RUNTIME_FILE));
+        const said2 = lolDown();
+        check('`lol down` still stops it, from the config', /Stopping vLLM/.test(said2) && !(await pgid()) && !leftInRoot(), said2);
+    },
+};
+
+async function main() {
+    console.log(`scratch ${scratch} (the farm's output: farm.log)`);
+    if (!LITELLM || !fs.existsSync(LITELLM)) { console.log('skipped: no LiteLLM (set LOL_LITELLM, or run `lol install`)'); return; }
+    for (const [name, port] of Object.entries(PORTS)) {
+        if (await V.answers(`http://127.0.0.1:${port}`, 1500) || (await req('GET', port, '/', null, { timeoutMs: 1500 })).status) throw new Error(`port ${port} (${name}) is in use: this test needs it free`);
+    }
+    if (fs.existsSync(RUNTIME_FILE)) throw new Error(`${RUNTIME_FILE} exists: a farm from this folder may be running`);
+    if (WIN) {
+        const list = await V.wslDistros();
+        distro = Array.isArray(list) ? V.defaultDistro(list) : null;
+        if (!distro) throw new Error(`no WSL distribution (${JSON.stringify(list)})`);
+    }
+    home = sh('echo $HOME').out.trim();
+    ROOT = `${home}/lol-fake-a`;
+    target = { platform: process.platform, distro, root: ROOT, port: PORTS.vllm };
+    // What runs elsewhere on this computer is read before and after, never touched.
+    const foundBefore = ((await V.status(target)).st || { found: [] }).found.filter((f) => f.root !== ROOT);
+    console.log(`left alone: ${foundBefore.map((f) => `${f.root} :${f.port} pgid ${f.pgid}`).join(', ') || 'no other vLLM'}`);
+    makeRoot();
+    fakeOllama = await startFakeOllama(PORTS.ollama);
+    writeConfig();
+    try {
+        for (const n of Object.keys(STEPS).map(Number)) {
+            if (ONLY.length && !ONLY.includes(n)) continue;
+            console.log(`\nstep ${n}`);
+            try { await STEPS[n](); } catch (e) { check(`step ${n} ran to its end`, false, e.message); await stopFarm().catch((x) => check('the farm stopped', false, x.message)); }
+        }
+    } finally {
+        if (farm || fs.existsSync(RUNTIME_FILE)) await stopFarm().catch((e) => check('the farm stopped', false, e.message));
+        lolDown();
+        killFake();
+        touch('fake-linger', false);
+        sh(`pkill -KILL -f ${q(`${ROOT}/`)} || true`);
+        await fakeOllama.close();
+        const foundAfter = ((await V.status(target)).st || { found: [] }).found.filter((f) => f.root !== ROOT);
+        check('every other vLLM on this computer is as it was', JSON.stringify(foundAfter) === JSON.stringify(foundBefore), `${JSON.stringify(foundBefore)} → ${JSON.stringify(foundAfter)}`);
+        guardRoot();
+        sh(`rm -rf ${q(ROOT)}`);
+    }
+    console.log(`\n${pass} passed, ${fail} failed`);
+    process.exitCode = fail ? 1 : 0;
+}
+
+main().catch((e) => { console.error(e); process.exitCode = 1; });

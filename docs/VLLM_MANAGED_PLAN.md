@@ -57,6 +57,29 @@ Built in slices, each tested, logged in docs/DEVLOG.md and pushed on the `vllm-m
     exists, so a check stays read-only.
   - `stop.sh` exits 1, and keeps its files, when something of the group survives the KILL, so the farm's retry (§3.2
     `stop`) still finds it.
+- **Slice B (2026-10-07): §12 item 4.** `vllm.js`'s process half (the check, start, wait, stop, the log through
+  `\\wsl.localhost`, install, folder removal) and `up.js`'s lifecycle: the boot that never waits for vLLM, adoption,
+  health by phase (§1.5), the watch (three misses), `onVllmDown` with one restart then Ollama, the guard, the orphan
+  rule, shutdown, the runtime record, document reading beside another engine (§1.4), Ollama evicted before vLLM and
+  llama.cpp start; `lol down` (runtime file, else the config); `poolShortfall` in plain words; the gate's 503; the
+  download slot; Stop on either slot. Tests: §11.1 item 16 and §11.3 items 1-11 (`farm/test/vllm-lifecycle.js`,
+  opt-in `LOL_VLLM_FAKE=1`, a fake vLLM inside WSL and a fake Ollama).
+- What slice B changed in the design:
+  - Pulled forward from slices 5 and 6, because §11.3 items 4, 7, 8 and 9 drive them: `setBackend` over the four
+    engines (§5.5), Apply's vLLM branch with its dry run (§5.6), and the controls and admin routes `vllm/check`,
+    `vllm/start`, `vllm/stop`, `vllm/download` and `job/cancel`. No panel for them yet (slice 5).
+  - The fallback to Ollama says healthy (and `failed`) only once LiteLLM routes to Ollama; §5.2's order said it
+    before the proxy restart, and a client then met the gate's 502 (found by the lifecycle test).
+  - `restartProxy`: when `lol down` ran from another shell during a proxy restart (the runtime file is gone), the
+    farm stops, instead of living on with no proxy and holding its ports (found by the lifecycle test).
+  - A download left running by a farm that crashed is stopped at boot (this run tracks none; Download continues it).
+    The farm's own model download never blocks using another model (`problemsFrom`'s `installKind`).
+  - The gate says "starting" during `stopping` too (a planned switch or Apply), "stopped" otherwise.
+  - `makeJobs` (the job and download slots) moved to module level, so §11.1-16 tests it alone. A job body that has
+    returned no longer counts as busy, so the restart `onVllmDown` queues from inside `serialize` is not refused.
+  - Left for later slices: `ocrFits` and the panel (slice 5); Install and Update, the library's add, remove and
+    Use this (slice 6; the plumbing exists); the take-over (slice 7). An Ollama pull still holds the job slot, so a
+    vLLM crash during one waits for it.
 
 ## 0. Decisions
 

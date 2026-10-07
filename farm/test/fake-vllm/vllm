@@ -1,5 +1,9 @@
 #!/bin/bash
 # Stand-in for `vllm serve <model> [args...]`: finds --uds (the last one wins, as in vLLM) and runs fake_vllm.py.
+# FAKE_* settings come from the environment, or from <root>/fake.env beside the fake's .venv: a farm passes only its
+# own variables to serve.sh.
+here="$(cd "$(dirname "$0")" && pwd)"
+[ -f "$here/../../fake.env" ] && { set -a; . "$here/../../fake.env"; set +a; }
 sock=; prev=
 for a in "$@"; do [ "$prev" = --uds ] && sock=$a; prev=$a; done
-exec /usr/bin/python3 "$(dirname "$0")/fake_vllm.py" "$sock" "$@"
+exec /usr/bin/python3 "$here/fake_vllm.py" "$sock" "$@"

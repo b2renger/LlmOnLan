@@ -6,6 +6,67 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-10-07 (21:12) — vLLM run by the farm, slice B: the farm starts, watches, restarts and stops it
+
+The plan's §12 item 4, on the `vllm-managed` branch ([VLLM_MANAGED_PLAN.md](VLLM_MANAGED_PLAN.md), Build status).
+A farm whose engine is vLLM now runs it: no panel for it yet (slice 5), but every behaviour below runs and was
+tested end to end against a fake vLLM.
+
+- **The boot never waits for vLLM.**
+  - The proxy, gate, panel and beacon come up in seconds: the panel answered after 5.1 s in the test, LiteLLM's own
+    start included.
+  - vLLM then starts as the job "Starting vLLM". Meanwhile the farm stays healthy and says busy, so clients keep
+    it, and the gate answers a chat with a 503: "This farm's model is starting: about 2 minutes. Try again then."
+  - A vLLM already running with these settings is kept at once, with no job (a crashed `lol up`, a Farm app
+    restart). One starting is waited for. One with other settings is stopped and started again.
+  - What blocks it (not installed, model missing, WSL) serves with Ollama, with the reason.
+- **Watched.** Three missed answers in a row, 10 s each, and the farm looks before acting:
+  - a server that runs and answers was only slow, so nothing happens;
+  - the memory guard's stop is never undone: the farm is unhealthy until the operator presses Start;
+  - otherwise ONE restart ("Restarting vLLM after it stopped unexpectedly"). A second stop within 5 minutes falls
+    back to Ollama, under vLLM's name, with the reason.
+- **Stopped on purpose only.** `lol down`, Ctrl-C, Stop, a switch and an Apply that changes the launch run
+  `stop.sh` until nothing runs and the port is quiet. A crash leaves vLLM for the next farm to adopt.
+  - `lol down` finds it from the runtime file, or from the config when the file is gone.
+  - At boot, a vLLM this farm started that still runs while another engine is chosen is stopped (the orphan rule);
+    someone else's is left alone.
+- **Downloads have their own slot**, outside the one-at-a-time job chain and never "busy" for clients: a crash of
+  vLLM during a download is restarted at once (8 s in the test, not 23 GB later), and Stop on a download keeps
+  what it fetched.
+- **Also in this slice:**
+  - Ollama's models leave the GPU before vLLM or llama.cpp starts.
+  - Document reading uses gemma4:12b beside another engine when it is installed (production's would have been
+    qwen3.8, 17.7 GB, over the 9 GB kept for it).
+  - The pool warning is in plain words, and the gate gives its 503.
+  - Pulled forward because the tests drive them (no panel yet): switching between the four engines, where a vLLM
+    that does not stop changes nothing; Apply on vLLM with its dry run (48 → 40 people keeps it running, a new
+    context restarts it); Stop and Start; Download; Stop on either slot.
+- **Two bugs the lifecycle test found, fixed:**
+  - the fallback said "healthy" before LiteLLM routed to Ollama, so a client met a 502;
+  - a `lol down` during a proxy restart left `lol up` alive with no proxy, holding the farm's ports. It now stops.
+- **Tests.**
+  - farm `node test/run.js`: **190** passed, from 186. The four new tests cover the download slot (§11.1-16), the
+    gate's 503, the OCR rule, and the plumbing's pure helpers.
+  - `farm/test/vllm-lifecycle.js` (`LOL_VLLM_FAKE=1`, opt-in): **64 passed, 0 failed** in one run of all eleven
+    §11.3 steps. It runs a real `lol up` from this worktree with the real scripts, a fake vLLM inside WSL
+    (`farm/test/fake-vllm`, now printing vLLM 0.30's start lines with their `\r` bars, `/metrics`, a tiny chat, and
+    the slow, OOM and port-held modes), `farm/test/fake-ollama.js` and LiteLLM 1.97. It used ports
+    4300/4301/4302/41897/8299 and `~/lol-fake-a` only. It reads every other vLLM on the computer before and after:
+    production's (pgid 401, :8100) was untouched.
+  - `farm/vllm/test_scripts.sh` under WSL: **98/98** with the changed fake.
+  - Every new test fails with its fix reverted, checked in a scratch copy (seven reverts, each with its failing
+    test). Step 1 of the lifecycle fails with the previous `up.js`, and step 11 with the previous `down.js`.
+  - No shell or Farm app change in this slice.
+- **Production.** The Farm app stopped at 20:46:13: its farm.log ends there with no shutdown line, and its runtime
+  file was removed at 20:46:17. Production's vLLM on :8100 keeps answering. Nothing in this slice's runs reaches
+  the Farm app: the test farms used only the ports and folders above, and the worktree's own runtime file. It was
+  left as found for the owner, not restarted.
+- **Left for the next slices:**
+  - the panel (Backend and vLLM cards, both bars, the D10 sweep, `ocrFits`);
+  - Install and Update, and the library's add, remove and Use this;
+  - the take-over, and the Farm app's supervisor.
+  - An Ollama pull still runs in the job slot, so a vLLM crash during one waits for it.
+
 ## 2026-10-07 (19:58) — vLLM run by the farm, slice A: the scripts, the config and routing, the pure planning
 
 The owner asked for vLLM to be an engine the farm runs, switched to and from in the panel, with no config file

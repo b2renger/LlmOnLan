@@ -3,12 +3,17 @@
 // of re-implementing them: serve.sh starts (daemon mode, the relay, the CUDA shims, the memory guard, the process
 // group), stop.sh stops, install.sh installs and downloads, status.sh reports. On Windows they run inside WSL2.
 //
-// This file holds the PURE half: what the farm decides from what status.sh printed and what the config says —
+// The PURE half comes first: what the farm decides from what status.sh printed and what the config says —
 // which problems block, how much GPU memory goes to conversations, how many people fit, the exact `vllm serve`
 // argv, whether a running server can be kept (adopted), what a crash means, how far a start has got, and what to
-// tell the operator when it fails. Every text a person reads is plain words (the panel is for non-technical
-// operators) and never names a config key. The process half (spawning the scripts) arrives with the lifecycle.
+// tell the operator when it fails. The PROCESS half follows (running the scripts: the check, start, wait, stop,
+// the log, install); up.js holds the lifecycle that drives it. Every text a person reads is plain words (the
+// panel is for non-technical operators) and never names a config key.
 
+const fs = require('fs');
+const http = require('http');
+const https = require('https');
+const { spawn } = require('child_process');
 const path = require('path');
 const CATALOG = require('./capacity/catalog.json');
 const MEASURED = require('./capacity/measured.json');
@@ -466,6 +471,33 @@ function explainFailure(code, lines, ctx = {}) {
     return `vLLM stopped while starting. Its last error: ${clean}`;
 }
 
+// What an install or a download is doing, from install.sh's [lol-step] (§4.3).
+function installStepText(step, { label = 'the model', version = '', bytes = null, total = null } = {}) {
+    if (step === 'model' && bytes != null) {
+        const gb = (n) => (n / 1e9 >= 10 ? Math.round(n / 1e9) : Math.round(n / 1e8) / 10);
+        return `downloading ${label} — ${gb(bytes)}${total ? ` of ${gb(total)}` : ''} GB`;
+    }
+    return {
+        uv: 'getting the installer (uv)',
+        venv: 'creating the Python environment',
+        vllm: `downloading vLLM${version ? ` ${version}` : ''} and its GPU libraries (about 8 GB)`,
+        'cuda-pins': 'matching the CUDA compiler to the GPU libraries',
+        check: 'checking the GPU',
+        model: `downloading ${label}`,
+        done: 'finishing',
+    }[step] || 'working';
+}
+
+// A download that failed, in the words §7.3 gives (install.sh's [lol-error] kind).
+function downloadFailure(r, repo) {
+    if (r.kind === 'gated') return 'Hugging Face asks for an account to download this model. Pick another model.';
+    if (r.kind === 'notfound') return `There is no model named ${repo} on Hugging Face. Check the name.`;
+    if (r.kind === 'disk') return 'The disk is full. Free some space, then press Download again.';
+    // A Python exception's type name says nothing to a person: "httpx.ReadTimeout: …", "OSError: …".
+    const why = String(r.error || '').replace(/^(\w+(\.\w+)+|\w+(Error|Exception)):\s*/, '').slice(0, 160) || 'no answer';
+    return `The download stopped: ${why}. Press Download again to continue where it left off.`;
+}
+
 // ---- what blocks it on this computer -------------------------------------------------------------------------------
 
 // The checklist the panel shows: `oks` (done), `problems` (each blocks a start) and `warnings` (said, not blocking).
@@ -530,7 +562,9 @@ function problemsFrom(probe, config, entry = vllmEntry(config)) {
     } else {
         problems.push('vLLM is not installed on this computer yet: press Install vLLM.');
     }
-    if (st.installing) problems.push('A download started earlier is still running. Wait for it, or stop it here.');
+    // The farm's own model download (installKind 'download') never blocks using another model; an install, or a
+    // download nobody here started, does.
+    if (st.installing && probe.installKind !== 'download') problems.push('A download started earlier is still running. Wait for it, or stop it here.');
     const label = entry ? entry.label : config.vllm.model;
     const m = entry && st.models.find((x) => x.folder === folderOf(entry));
     if (!entry) problems.push(`The model "${config.vllm.model}" is not in the vLLM list: pick one there.`);
@@ -550,10 +584,327 @@ function problemsFrom(probe, config, entry = vllmEntry(config)) {
 
 function baseUrl(config) { return `http://127.0.0.1:${config.vllm.port}/v1`; }
 
+// ---- the process half: running the scripts --------------------------------------------------------------------
+// A TARGET is where one vLLM lives: {platform, distro (Windows: the WSL distribution, null = WSL's default), root
+// (absolute, or "~/…" which the scripts expand), port}. Every wsl.exe call has a timeout: WSL can hang.
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const CANDIDATE_ROOTS = '~/lol-vllm:~/lol-spike';   // ponytail: the second is where this project's spike installed vLLM
+const ROOT_RX = /^(\/[\w.-]+)+$/;
+const FOLDER_RX = /^[\w.-]+$/;
+const lastLine = (s) => String(s || '').split(/\r\n|\r|\n/).map((l) => l.trim()).filter(Boolean).pop() || '';
+const asConfig = (t) => ({ vllm: { distro: t.distro || null } });
+
+// Is an OpenAI-compatible server answering at baseUrl? GET {baseUrl}/models is the one call every such server has
+// (vLLM, SGLang, llama-server, TensorRT-LLM's shim). 401/403 count as answering: it IS there, the key is the
+// problem. Never throws.
+function answers(base, timeoutMs = 4000, headers = {}) {
+    return new Promise((resolve) => {
+        let url;
+        try { url = new URL(`${String(base).replace(/\/+$/, '')}/models`); } catch { return resolve(false); }
+        const req = (url.protocol === 'https:' ? https : http).request(url, { method: 'GET', timeout: timeoutMs, headers }, (res) => {
+            res.resume();
+            resolve((res.statusCode >= 200 && res.statusCode < 300) || res.statusCode === 401 || res.statusCode === 403);
+        });
+        req.on('timeout', () => { req.destroy(); resolve(false); });
+        req.on('error', () => resolve(false));
+        req.end();
+    });
+}
+
+// Run a command to its end, or kill it at its timeout. Never throws: {code, out, err, timedOut, error}. `onLine`
+// gets each stdout line as it comes (\r ends a line too: progress bars).
+function runCmd(cmd, args, { cwd, env, timeoutMs = 60000, onLine = null } = {}) {
+    return new Promise((resolve) => {
+        let child;
+        try { child = spawn(cmd, args, { cwd, env, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] }); }
+        catch (e) { return resolve({ code: null, out: '', err: '', timedOut: false, error: e.code || e.message }); }
+        const out = []; const err = []; let rest = ''; let done = false;
+        const finish = (r) => { if (!done) { done = true; clearTimeout(timer); resolve(r); } };
+        const timer = setTimeout(() => {
+            try { child.kill(); } catch { /* gone */ }
+            finish({ code: null, out: decodeWsl(Buffer.concat(out)), err: decodeWsl(Buffer.concat(err)), timedOut: true, error: 'timeout' });
+        }, timeoutMs);
+        child.stdout.on('data', (d) => {
+            out.push(d);
+            if (!onLine) return;
+            const parts = (rest + d.toString('utf8')).split(/\r\n|\r|\n/);
+            rest = parts.pop();
+            for (const l of parts) if (l) onLine(l);
+        });
+        child.stderr.on('data', (d) => err.push(d));
+        child.on('error', (e) => finish({ code: null, out: '', err: '', timedOut: false, error: e.code || e.message }));
+        child.on('close', (code) => {
+            if (onLine && rest) onLine(rest);
+            finish({ code, out: decodeWsl(Buffer.concat(out)), err: decodeWsl(Buffer.concat(err)), timedOut: false, error: null });
+        });
+    });
+}
+
+function spawnScript(config, script, env = {}, { timeoutMs = 60000, onLine = null, args = [], distro } = {}) {
+    const c = scriptCommand(config, script, env, { args, ...(distro !== undefined ? { distro } : {}) });
+    return runCmd(c.cmd, c.args, { cwd: c.cwd, env: c.env, timeoutMs, onLine });
+}
+
+// WSL's distributions, or {error: 'no-wsl' | 'no-distro' | 'timeout'}. `wsl -l -v` lists them without booting the VM.
+async function wslDistros() {
+    const r = await runCmd('wsl.exe', ['-l', '-v'], { timeoutMs: 15000 });
+    if (r.timedOut) return { error: 'timeout' };
+    if (r.error) return { error: 'no-wsl' };
+    const list = parseWslList(r.out);
+    if (list.length) return list;
+    return /is not installed|n'est pas install/i.test(`${r.out}\n${r.err}`) ? { error: 'no-wsl' } : { error: 'no-distro' };
+}
+
+// The Windows folder a distribution's virtual disk lives in, from `reg query …\Lxss /s` (pure, for the tests).
+function lxssBasePath(regOut, distro) {
+    let name = null; let base = null;
+    for (const line of String(regOut || '').split(/\r?\n/)) {
+        if (/^HKEY_/.test(line)) { if (name === distro && base) return base; name = null; base = null; continue; }
+        const m = /^\s+(DistributionName|BasePath)\s+REG_\w+\s+(.*?)\s*$/.exec(line);
+        if (m && m[1] === 'DistributionName') name = m[2];
+        else if (m) base = m[2].replace(/^\\\\\?\\/, '');
+    }
+    return name === distro && base ? base : null;
+}
+
+// Free space on the Windows drive that holds the distribution: WSL's own `df` reports its virtual disk (up to 1 TB),
+// not what drive C: has left. Linux: nothing to add.
+async function hostDiskFree(distro) {
+    if (process.platform !== 'win32') return { gb: null, drive: null };
+    const r = await runCmd('reg', ['query', 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Lxss', '/s'], { timeoutMs: 10000 });
+    const base = (distro && lxssBasePath(r.out, distro)) || process.env.LOCALAPPDATA || 'C:\\';
+    try {
+        const s = fs.statfsSync(base);
+        return { gb: (s.bavail * s.bsize) / 1e9, drive: (/^([A-Za-z]):/.exec(base) || [])[1]?.toUpperCase() || null };
+    } catch { return { gb: null, drive: null }; }
+}
+
+// status.sh for one target → {st (parseStatus) | null, error, timedOut}.
+async function status(t, { roots = '', timeoutMs = 60000 } = {}) {
+    const r = await spawnScript(asConfig(t), 'status.sh', {
+        LOL_VLLM_ROOT: t.root || '~/lol-vllm', LOL_VLLM_PORT: String(t.port || 8100), ...(roots ? { LOL_VLLM_ROOTS: roots } : {}),
+    }, { timeoutMs, distro: t.distro || null });
+    if (r.timedOut) return { st: null, error: 'timeout', timedOut: true };
+    if (r.code !== 0 || !/^home=/m.test(r.out)) return { st: null, error: lastLine(r.err || r.out || r.error).slice(0, 200) || `status ${r.code}`, timedOut: false };
+    return { st: parseStatus(r.out), error: null, timedOut: false };
+}
+
+// The check of this computer (§4.1), never per panel poll: on Windows WSL's list first, then status.sh (60 s: it
+// boots a stopped distribution) and the host drive. With no root configured it looks in the candidate roots, and
+// asks again from the one an install was found in, so `running` describes that root.
+async function probe(config, { roots = CANDIDATE_ROOTS } = {}) {
+    const platform = process.platform; const arch = process.arch;
+    const out = { at: Date.now(), platform, arch, wsl: null, distro: null, st: null, stError: null, hostDiskFreeGb: null, hostDrive: null };
+    if (!supported(platform, arch).ok) return out;
+    if (platform === 'win32') {
+        const w = await wslDistros();
+        out.wsl = Array.isArray(w) ? { list: w } : w;
+        if (!Array.isArray(w)) return out;
+        out.distro = config.vllm.distro || defaultDistro(w);
+        const d = w.find((x) => x.name === out.distro);
+        if (!d || d.version !== 2) return out;
+    }
+    const at = (root) => status({ platform, distro: out.distro, root, port: config.vllm.port }, { roots });
+    let s = await at(config.vllm.root || '~/lol-vllm');
+    if (s.st && !config.vllm.root) {
+        const want = resolveRoot(config, s.st);
+        if (want !== s.st.root) s = await at(want);
+    }
+    out.st = s.st; out.stError = s.error;
+    if (s.timedOut && platform === 'win32') out.wsl = { error: 'timeout' };
+    if (platform === 'win32') { const h = await hostDiskFree(out.distro); out.hostDiskFreeGb = h.gb; out.hostDrive = h.drive; }
+    return out;
+}
+
+// Where the check says vLLM lives (null until a check answered).
+function targetOf(config, pr) {
+    if (!pr || !pr.st) return null;
+    return { platform: pr.platform, distro: pr.distro || pr.st.distro || null, root: resolveRoot(config, pr.st), port: config.vllm.port };
+}
+
+// vLLM's log as a file this process can read: on Windows through the \\wsl.localhost share (no wsl.exe per read).
+function logFile(t) {
+    if (!t || !t.root || !t.root.startsWith('/')) return null;
+    if (t.platform !== 'win32') return `${t.root}/logs/vllm.log`;
+    return t.distro ? path.win32.join(`\\\\wsl.localhost\\${t.distro}`, ...t.root.split('/').filter(Boolean), 'logs', 'vllm.log') : null;
+}
+
+// The log from `fromByte` on (rotation-safe: a file smaller than the offset is a new one), or its last `lastLines`
+// lines as a terminal shows them (a \r progress bar keeps only its last state). → {text, size}.
+async function readLog(t, { fromByte = null, lastLines = null, maxBytes = 1 << 20 } = {}) {
+    const file = logFile(t);
+    if (file) {
+        try {
+            const size = fs.statSync(file).size;
+            let from = fromByte == null ? Math.max(0, size - (lastLines ? 256 * 1024 : maxBytes)) : logOffset(size, fromByte);
+            from = Math.max(from, size - maxBytes);
+            const buf = Buffer.alloc(size - from);
+            const fd = fs.openSync(file, 'r');
+            try { fs.readSync(fd, buf, 0, buf.length, from); } finally { fs.closeSync(fd); }
+            return { text: lastLines ? tailLines(buf.toString('utf8'), lastLines) : buf.toString('utf8'), size };
+        } catch (e) {
+            if (e.code === 'ENOENT' || t.platform !== 'win32') return { text: '', size: e.code === 'ENOENT' ? 0 : (fromByte || 0) };
+        }
+    }
+    if (t.platform !== 'win32' || !t.root) return { text: '', size: fromByte || 0 };
+    // No share: tail through wsl.exe.
+    const r = await runCmd('wsl.exe', [...(t.distro ? ['-d', t.distro] : []), '-e', 'tail',
+        ...(lastLines ? ['-n', String(lastLines)] : ['-c', `+${(fromByte || 0) + 1}`]), `${t.root}/logs/vllm.log`], { timeoutMs: 15000 });
+    const text = r.code === 0 ? r.out : '';
+    return { text: lastLines ? tailLines(text, lastLines) : text, size: (fromByte || 0) + Buffer.byteLength(text) };
+}
+
+function tailLines(text, n) {
+    return text.split('\n').map((l) => l.split('\r').filter(Boolean).pop() || '').slice(-n - 1).join('\n').replace(/^\n+/, '');
+}
+
+async function logSize(t) {
+    const file = logFile(t);
+    try { return file ? fs.statSync(file).size : 0; } catch { return 0; }
+}
+
+// Start serve.sh in daemon mode with the plan's env (its argv in LOL_VLLM_ARGS_B64). Detached: a crash of the farm
+// leaves vLLM running and the next farm adopts it (D4). The child is wsl.exe on Windows, bash on Linux; it exits
+// with serve.sh's status when vLLM ends (3 = the memory guard). → {child, fromByte}.
+async function start(t, plan) {
+    const fromByte = await logSize(t);
+    const c = scriptCommand(asConfig(t), 'serve.sh', plan.env, { distro: t.distro || null });
+    const child = spawn(c.cmd, c.args, { cwd: c.cwd, env: c.env, detached: true, stdio: 'ignore', windowsHide: true });
+    child.on('error', () => { /* seen as an exit by waitReady */ });
+    return { child, fromByte };
+}
+
+// Wait for a start: every 3 s, is the port answering, and what did the log say since `fromByte`? Fails fast when
+// the child exits or the log says vLLM exited; gives up after 10 min with no new log line, or 30 min in all (a
+// first start on a DGX Spark compiles kernels for minutes, silently). With no child (a start found in progress at
+// boot), `isDead` (status.sh) is asked every 30 s. → {ok, code, lines, phase, cancelled}.
+async function waitReady(t, { child = null, alive, isDead = null, isCancelled = () => false, onPhase = () => {}, onLine = () => {},
+    fromByte = 0, pollMs = 3000, stallMs = 10 * 60e3, capMs = 30 * 60e3 } = {}) {
+    let exited = null;
+    if (child) {
+        child.once('exit', (code) => { exited = code == null ? -1 : code; });
+        child.once('error', () => { exited = -1; });
+    }
+    let off = fromByte; let phase = null; const lines = [];
+    const t0 = Date.now(); let grew = t0; let deadAt = t0;
+    const readOn = async () => {
+        const r = await readLog(t, { fromByte: off });
+        if (r.size < off) off = 0;
+        if (!r.text) { off = r.size; return; }
+        off = r.size; grew = Date.now();
+        phase = startPhase(r.text, phase);
+        onPhase(phase);
+        for (const l of r.text.split('\n')) {
+            const shown = l.split('\r').filter(Boolean).pop();
+            if (!shown) continue;
+            lines.push(shown);
+            if (/^\[(serve|guard)\]/.test(shown)) onLine(shown);
+        }
+        if (lines.length > 200) lines.splice(0, lines.length - 200);
+    };
+    for (;;) {
+        if (isCancelled()) return { ok: false, cancelled: true, lines, phase };
+        await readOn();
+        if (phase && phase.key === 'exited') return { ok: false, code: phase.status, lines, phase };
+        if (await alive()) return { ok: true, lines, phase };
+        if (exited != null) { await sleep(500); await readOn(); return { ok: false, code: exited, lines, phase }; }
+        const now = Date.now();
+        if (!child && isDead && now - deadAt >= 30e3) { deadAt = now; if (await isDead()) return { ok: false, code: 'gone', lines, phase }; }
+        if (now - grew > stallMs) return { ok: false, code: 'stall', lines, phase };
+        if (now - t0 > capMs) return { ok: false, code: 'cap', lines, phase };
+        await sleep(pollMs);
+    }
+}
+
+// Stop the vLLM of a target: stop.sh (TERM, then KILL, its process group only), again until status.sh shows no
+// running group (a stop in the first second of a start can come before serve.sh wrote its group), then until the
+// port no longer answers. → {ok, error}: a failed stop must stop a switch before the next engine starts.
+async function stop(t, { alive = null, attempts = 3, gapMs = 10000, portWaitMs = 15000 } = {}) {
+    for (let i = 0; ; i++) {
+        const r = await spawnScript(asConfig(t), 'stop.sh', { LOL_VLLM_ROOT: t.root }, { timeoutMs: 60000, distro: t.distro || null });
+        const s = await status(t);
+        if (s.st && !s.st.running) break;
+        if (i + 1 >= attempts) {
+            return { ok: false, error: s.st
+                ? `vLLM did not stop: ${lastLine(r.out || r.err || r.error) || 'it is still running'}.`
+                : `The farm could not check that vLLM stopped (${s.error || 'no answer'}).` };
+        }
+        await sleep(gapMs);
+    }
+    if (alive) {
+        const end = Date.now() + portWaitMs;
+        while (await alive()) {
+            if (Date.now() > end) return { ok: false, error: `vLLM stopped, but something still answers on port ${t.port}, maybe a vLLM started outside the farm. Stop it, then try again.` };
+            await sleep(1000);
+        }
+    }
+    return { ok: true, error: null };
+}
+
+// Stop an install.sh (a download included): its own process group.
+function stopInstall(t) {
+    return spawnScript(asConfig(t), 'stop.sh', { LOL_VLLM_ROOT: t.root }, { timeoutMs: 60000, args: ['install'], distro: t.distro || null });
+}
+
+// The bytes under <root>/hf/<folder> so far (unfinished files included), for a download's meter; null when unreadable.
+function folderBytes(t, folder) {
+    const file = logFile(t);
+    if (!file || !FOLDER_RX.test(folder || '')) return null;
+    const dir = t.platform === 'win32' ? path.win32.join(path.win32.dirname(path.win32.dirname(file)), 'hf', folder) : `${t.root}/hf/${folder}`;
+    let total = 0;
+    const walk = (d) => {
+        for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+            const p = path.join(d, e.name);
+            if (e.isDirectory()) walk(p); else if (e.isFile()) total += fs.statSync(p).size;
+        }
+    };
+    try { walk(dir); return total; } catch { return null; }
+}
+
+// install.sh: `steps` 'venv,model' (Install, Update) or 'model' (Download). Reads its [lol-step] and [lol-error]
+// lines; during the model step it measures the folder every 5 s for the meter. → {ok, kind, error, code}.
+async function install(t, { steps = 'venv,model', repo = null, folder = null, version = null, sizeGb = null } = {}, onProgress = () => {}) {
+    let kind = null; let error = null; let timer = null; const tail = [];
+    const total = sizeGb ? sizeGb * 1e9 : null;
+    const measure = () => { const b = folderBytes(t, folder); if (b != null) onProgress({ step: 'model', bytes: b, total }); };
+    const r = await spawnScript(asConfig(t), 'install.sh', {
+        LOL_VLLM_ROOT: t.root, LOL_VLLM_STEPS: steps, ...(version ? { LOL_VLLM_VERSION: version } : {}),
+    }, {
+        timeoutMs: 6 * 3600e3, distro: t.distro || null, args: repo ? [repo, folder || repo.split('/').pop()] : [],
+        onLine: (l) => {
+            tail.push(l); if (tail.length > 40) tail.shift();
+            let m;
+            if ((m = /^\[lol-step\] (\S+)/.exec(l))) {
+                onProgress({ step: m[1] });
+                if (m[1] === 'model' && !timer) { timer = setInterval(measure, 5000); if (timer.unref) timer.unref(); measure(); }
+            } else if ((m = /^\[lol-error\] (\w+) ?(.*)$/.exec(l))) { kind = m[1]; error = m[2]; }
+        },
+    });
+    clearInterval(timer);
+    if (r.code === 0) return { ok: true, kind: null, error: null, code: 0 };
+    return { ok: false, kind: kind || (r.timedOut ? 'network' : null), error: error || lastLine(tail.join('\n')) || r.error || `status ${r.code}`, code: r.code };
+}
+
+// Delete a model's folder: a direct argv (no shell), the root and the folder checked against their patterns first.
+// The caller refuses the configured model, the running one and one being downloaded.
+async function removeFolder(t, folder) {
+    if (!ROOT_RX.test(t.root || '') || /(^|\/)\.\.?(\/|$)/.test(t.root) || !FOLDER_RX.test(folder || '') || /^\.+$/.test(folder)) {
+        return { ok: false, error: 'That is not a model folder.' };
+    }
+    const p = `${t.root}/hf/${folder}`;
+    const r = t.platform === 'win32'
+        ? await runCmd('wsl.exe', [...(t.distro ? ['-d', t.distro] : []), '-e', 'rm', '-rf', '--', p], { timeoutMs: 120000 })
+        : await runCmd('rm', ['-rf', '--', p], { timeoutMs: 120000 });
+    return r.code === 0 ? { ok: true, error: null } : { ok: false, error: `Could not delete ${folder}: ${lastLine(r.err || r.error)}` };
+}
+
 module.exports = {
-    GIB, VLLM_DIR, UNSUPPORTED,
+    GIB, VLLM_DIR, UNSUPPORTED, CANDIDATE_ROOTS,
     supported, decodeWsl, parseWslList, defaultDistro, scriptCommand,
     parseStatus, memOf, vllmEntry, folderOf, resolveRoot, facts, peopleFit, measuredFor, seatsAuto, maxNumSeqsAuto, poolGib,
     settingsOf, argvFor, planFor, flagMap, adoptable,
-    bootDecision, downDecision, isOrphan, startPhase, logOffset, explainFailure, problemsFrom, baseUrl,
+    bootDecision, downDecision, isOrphan, startPhase, logOffset, explainFailure, installStepText, downloadFailure, problemsFrom, baseUrl,
+    answers, runCmd, spawnScript, wslDistros, lxssBasePath, hostDiskFree, status, probe, targetOf, logFile, readLog,
+    start, waitReady, stop, stopInstall, folderBytes, install, removeFolder,
 };

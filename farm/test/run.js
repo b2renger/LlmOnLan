@@ -3090,10 +3090,14 @@ test('vLLM /metrics: the names vLLM itself uses → load, KV, cache hits, per-pe
     assert.equal(perfMod.metricsUrlFor('https://gpu.lan/vllm/v1'), 'https://gpu.lan/vllm/metrics');
     // The declared seats × window against the pool.
     const w = perfMod.poolShortfall(8, 32768, 131072);
-    assert.ok(/can't all hold their full window at once/.test(w) && /\(4 can\)/.test(w) && /262,144/.test(w), w);
+    assert.equal(w, 'The server holds context memory for 4 people at 32k, fewer than the 8 this farm lets in at once: past 4, people wait.');
     assert.equal(perfMod.poolShortfall(4, 32768, 131072), null, 'an exact fit is a fit');
-    assert.ok(/not even one can/.test(perfMod.poolShortfall(1, 32768, 16000)));
+    assert.ok(/not even one person's whole conversation fits/.test(perfMod.poolShortfall(1, 32768, 16000)));
     assert.equal(perfMod.poolShortfall(8, 32768, null), null, 'unknown pool → no warning');
+    // The vLLM the farm runs: the panel's own controls are the fix (§3.9); no config key in either wording (D10).
+    const v = perfMod.poolShortfall(48, 65536, 655360, 'vllm');
+    assert.equal(v, 'The memory for conversations holds 10 people at 64k, fewer than the 48 this farm lets in at once: past 10, people wait. Lower People at once or Context per person, or give vLLM more GPU memory for conversations.');
+    for (const s of [w, v, perfMod.poolShortfall(3, 40000, 50000)]) assert.ok(!/external\.|\.parallel|contextLength|lol\.config/.test(s), s);
 });
 
 test('external vLLM, end to end: a fake /metrics feeds capacity.busy/queued, the card and its pool warning; seats unchanged (plan Phase 2a)', async () => {
@@ -3146,12 +3150,12 @@ test('external vLLM, end to end: a fake /metrics feeds capacity.busy/queued, the
         }));
         for (const needle of ['<h2>Performance</h2>', '50 <small>tok/s while generating', 'Generating now <b>3</b> requests', 'Waiting <b>2</b>',
             'Context memory used <b>42%</b>', 'Context memory <b>131,072 tokens</b>', 'All together <b>100 tok/s</b>',
-            'Context cache hits <b>75%</b>', 'Draft tokens accepted <b>70%</b>', 'can&#39;t all hold their full window at once']) {
+            'Context cache hits <b>75%</b>', 'Draft tokens accepted <b>70%</b>', 'holds context memory for 4 people at 32k']) {
             assert.ok(html.includes(needle) || html.includes(needle.replace('&#39;', "'")), `card lost: ${needle}`);
         }
         assert.ok(!html.includes('nearly full while idle'), 'no llama.cpp VRAM warning on a vLLM');
         assert.ok(!html.includes('Capacity is unverified'), 'the Ollama env advice never shows for an external server');
-        assert.ok(/poolWarning: config\.external\.enabled/.test(fs.readFileSync(path.join(__dirname, '..', 'src', 'commands', 'up.js'), 'utf8')), 'the admin state carries the warning');
+        assert.ok(/poolWarning: \['external', 'vllm'\]\.includes\(engineOf\(config\)\)/.test(fs.readFileSync(path.join(__dirname, '..', 'src', 'commands', 'up.js'), 'utf8')), 'the admin state carries the warning, for an external server and the farm\'s vLLM');
 
         // Graceful degradation — exactly today's external behaviour: perf null, no card,
         // capacity.busy/queued null.
@@ -4076,6 +4080,157 @@ test('vLLM: wsl.exe\'s UTF-16, its list, and status.sh\'s report as recorded (§
     const m = V.parseStatus(`running=5\nenv=LOL_VLLM_ARGS_B64=${b64}\nenv=LOL_VLLM_MIN_FREE_GB=8\nmanaged=1\nguard=[guard] t 5 GB\n`);
     assert.deepEqual([m.running.managedArgs, m.running.minFreeGb, m.running.port, m.running.ready, m.managed, m.guardLine], [['--served-model-name', 'm', '--x', 'a b'], 8, 8100, false, true, '[guard] t 5 GB']);
     assert.deepEqual(V.memOf(V.parseStatus('gpu=NVIDIA GB10, [N/A], [N/A], 12.1\nmem_total_kb=124991588\nmem_available_kb=115343360\n')).unified, true);
+});
+
+test('the download slot: outside serialize and busy(), a restart and a switch run during it, one download at a time, Stop cancels (§11.1-16, D7)', async () => {
+    const { makeJobs } = require('../src/commands/up');
+    const quiet = { ok() {}, err() {}, step() {}, warn() {} };
+    let kicks = 0;
+    const jobs = makeJobs({ kick: () => { kicks++; }, logger: quiet });
+    let release; const held = new Promise((r) => { release = r; });
+    let cancelledSeen = null; let cancelRan = 0;
+    const d = jobs.runDownload('download', 'Downloading Qwen3.6', async (progress, ctl) => {
+        progress('downloading Qwen3.6 — 1 of 23 GB', 4, { bytes: 1e9, total: 23e9 });
+        await held;
+        cancelledSeen = ctl.cancelled();
+        return ctl.cancelled() ? { ok: false, error: 'Stopped. Press Download again to continue where it left off.' } : { ok: true };
+    }, { cancel: () => { cancelRan++; release(); } });
+    assert.equal(d.ok, true);
+    await new Promise((r) => setImmediate(r));
+    assert.equal(jobs.busy(), false, 'a download is not the busy job: clients never see it, nothing is refused because of it');
+    assert.equal(jobs.jobView(), null);
+    assert.deepEqual([jobs.downloadView().label, jobs.downloadView().bytes, jobs.downloadView().total, jobs.downloadView().cancellable], ['Downloading Qwen3.6', 1e9, 23e9, true]);
+    // serialize is free: the crash handler (onVllmDown) runs at once, not after 23 GB.
+    let ranInSerialize = false;
+    await jobs.serialize(async () => { ranInSerialize = true; });
+    assert.ok(ranInSerialize, 'serialize does not wait for the download');
+    // A restart job, then a switch, run to their end while the download still runs.
+    const order = [];
+    const r1 = jobs.runJob('engine', 'Restarting vLLM after it stopped unexpectedly', async () => { order.push('restart'); return { ok: true }; });
+    assert.equal(r1.ok, true, 'the restart is not refused');
+    assert.equal(jobs.busy(), true, 'the restart job is what clients see');
+    assert.equal(jobs.runJob('backend', 'Switching to Ollama', async () => ({ ok: true })).ok, false, 'one admin job at a time still');
+    await new Promise((r) => setTimeout(r, 20));
+    assert.deepEqual(order, ['restart']);
+    assert.equal(jobs.jobView().done, true);
+    const r2 = jobs.runJob('backend', 'Switching to Ollama', async () => { order.push('switch'); return { ok: true }; });
+    assert.equal(r2.ok, true, 'a switch to another engine is not refused by the download');
+    await new Promise((r) => setTimeout(r, 20));
+    assert.deepEqual(order, ['restart', 'switch']);
+    assert.equal(jobs.downloadView().done, false, 'the download is still running');
+    // One download at a time, and the panel says which.
+    const second = jobs.runDownload('download', 'Downloading Nemotron', async () => ({ ok: true }));
+    assert.deepEqual([second.ok, second.error], [false, 'A download is already running: Downloading Qwen3.6.']);
+    // Stop.
+    assert.equal(jobs.cancel('download').ok, true);
+    assert.equal(jobs.downloadView().cancellable, false, 'Stop shows once');
+    assert.equal(jobs.cancel('download').already, true);
+    await new Promise((r) => setTimeout(r, 20));
+    assert.equal(cancelRan, 1);
+    assert.equal(cancelledSeen, true, 'the body reads the cancel');
+    assert.deepEqual([jobs.downloadView().done, jobs.downloadView().ok, jobs.downloadView().cancelled], [true, false, true]);
+    assert.equal(jobs.downloading(), null);
+    assert.equal(jobs.runDownload('download', 'Downloading Nemotron', async () => ({ ok: true })).ok, true, 'the next one may start');
+    assert.equal(jobs.cancel('job').ok, false, 'nothing runs in the job slot now');
+    // A job whose body has returned does not refuse the one queued from inside serialize (onVllmDown → restart).
+    let refused = null;
+    jobs.runJob('engine', 'Checking', async () => {
+        jobs.serialize(async () => { refused = jobs.runJob('engine', 'Restarting', async () => ({ ok: true })).ok === false; });
+        return { ok: true };
+    });
+    await new Promise((r) => setTimeout(r, 20));
+    assert.equal(refused, false, 'the restart queued while a job ran is not refused by that finished job');
+    // The model download of the farm's own slot never blocks using another model; an install does (§3.5).
+    const V = require('../src/vllm');
+    const c = defaultConfig();
+    const st = V.parseStatus(['home=/home/me', 'arch=x86_64', 'curl=/usr/bin/curl', 'gpu=NVIDIA RTX PRO 6000 Blackwell Workstation Edition, 97887, 90000, 12.0',
+        'disk_free_kb=900000000', 'install=/home/me/lol-vllm 0.30.0', 'model=Qwen3.6-35B-A3B-NVFP4 23400000 vision=1 native=262144 partial=0', 'installing=77'].join('\n'));
+    const probe = { platform: 'linux', arch: 'x64', st };
+    const blocking = 'A download started earlier is still running. Wait for it, or stop it here.';
+    assert.ok(!V.problemsFrom({ ...probe, installKind: 'download' }, c).problems.includes(blocking), 'downloading model Y never blocks using model X');
+    assert.ok(V.problemsFrom({ ...probe, installKind: 'install' }, c).problems.includes(blocking));
+    assert.ok(V.problemsFrom(probe, c).problems.includes(blocking), 'one nobody here started blocks too');
+    const upSrc = fs.readFileSync(path.join(__dirname, '..', 'src', 'commands', 'up.js'), 'utf8');
+    assert.equal((upSrc.match(/d && d\.kind === 'install'\) return/g) || []).length, 2, 'Start and the switch to vLLM refuse while an install runs');
+    assert.ok(upSrc.includes("if (dl && dl.kind === 'install') return { ok: false, message: 'vLLM is being installed: wait for it, or stop it.' }"), 'and so does every start');
+});
+
+test('the gate: while the farm\'s vLLM is not ready a generation gets 503 with why, after the password and before a seat (§3.10)', async () => {
+    const http = require('http');
+    const seatsMod = require('../src/seats');
+    const upstream = http.createServer((req, res) => { res.writeHead(200, { 'content-type': 'application/json' }); res.end('{"data":[]}'); });
+    await new Promise((r) => upstream.listen(0, '127.0.0.1', r));
+    const seats = seatsMod.createSeats({ capacity: () => 4, idleReleaseSec: () => 900 });
+    let down = 'This farm\'s model is starting: about 2 minutes. Try again then.';
+    const gate = await seatsMod.startSeatGate({ host: '127.0.0.1', port: 0, upstreamPort: upstream.address().port, seats, idleReleaseSec: () => 900, password: () => 'pw', unavailable: () => down });
+    const send = (method, p, key) => new Promise((resolve, reject) => {
+        const req = http.request({ host: '127.0.0.1', port: gate.address().port, method, path: p, headers: { 'content-type': 'application/json', ...(key ? { authorization: `Bearer ${key}` } : {}) } }, (res) => {
+            let buf = ''; res.on('data', (ch) => { buf += ch; }); res.on('end', () => resolve({ status: res.statusCode, headers: res.headers, body: buf }));
+        });
+        req.on('error', reject);
+        req.end(method === 'POST' ? '{"model":"assistant","messages":[]}' : undefined);
+    });
+    try {
+        assert.equal((await send('POST', '/v1/chat/completions', 'nope')).status, 401, 'the password is checked first');
+        const r = await send('POST', '/v1/chat/completions', 'pw');
+        assert.equal(r.status, 503);
+        assert.equal(r.headers['retry-after'], '60');
+        assert.equal(r.headers['access-control-allow-origin'], '*');
+        assert.deepEqual(JSON.parse(r.body).error, { message: down, type: 'api_error', code: 'lol_engine_starting' });
+        assert.equal(seats.view().length, 0, 'no seat is held for a model that is not there');
+        assert.equal((await send('GET', '/v1/models', 'pw')).status, 200, 'the model list stays open');
+        down = 'This farm\'s model is stopped for now. Try again later.';
+        assert.equal(JSON.parse((await send('POST', '/v1/chat/completions', 'pw')).body).error.message, down);
+        down = null;
+        assert.equal((await send('POST', '/v1/chat/completions', 'pw')).status, 200, 'ready: through');
+        assert.equal(seats.view().length, 1);
+    } finally { gate.close(); upstream.close(); }
+});
+
+test('document reading beside another engine uses gemma4:12b when it is installed (§1.4)', () => {
+    const c = defaultConfig();
+    c.models = [{ id: 'qwen3.8:latest', default: true, vision: true }];
+    assert.equal(resolveOcrModel(c, ['qwen3.8:latest', 'gemma4:12b']), 'qwen3.8:latest', 'Ollama serves: its own default reads');
+    c.vllm.enabled = true;
+    assert.equal(resolveOcrModel(c, ['qwen3.8:latest', 'gemma4:12b']), 'gemma4:12b', 'vLLM serves: the model that fits the 9 GB kept for it');
+    assert.equal(resolveOcrModel(c, ['qwen3.8:latest']), 'qwen3.8:latest', 'not installed: today\'s choice');
+    assert.equal(resolveOcrModel(c), 'qwen3.8:latest');
+    c.vllm.enabled = false; c.llamacpp.enabled = true;
+    assert.equal(resolveOcrModel(c, ['gemma4:12b']), 'gemma4:12b', 'beside llama.cpp too');
+    c.ocr.model = 'mine:1b';
+    assert.equal(resolveOcrModel(c, ['gemma4:12b']), 'mine:1b', 'an explicit choice wins');
+});
+
+test('vLLM plumbing helpers: the distribution\'s disk folder, install steps and download failures in plain words', () => {
+    const V = require('../src/vllm');
+    const reg = [
+        'HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Lxss',
+        '    DefaultDistribution    REG_SZ    {919701f6}',
+        '',
+        'HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Lxss\\{1111}',
+        '    BasePath    REG_SZ    \\\\?\\D:\\wsl\\docker',
+        '    DistributionName    REG_SZ    docker-desktop',
+        '',
+        'HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Lxss\\{919701f6}',
+        '    DistributionName    REG_SZ    Ubuntu',
+        '    Version    REG_DWORD    0x2',
+        '    BasePath    REG_SZ    C:\\Users\\me\\AppData\\Local\\wsl\\{919701f6}',
+    ].join('\r\n');
+    assert.equal(V.lxssBasePath(reg, 'Ubuntu'), 'C:\\Users\\me\\AppData\\Local\\wsl\\{919701f6}');
+    assert.equal(V.lxssBasePath(reg, 'docker-desktop'), 'D:\\wsl\\docker', 'the \\\\?\\ prefix goes');
+    assert.equal(V.lxssBasePath(reg, 'Debian'), null);
+    assert.equal(V.installStepText('vllm', { version: '0.30.0' }), 'downloading vLLM 0.30.0 and its GPU libraries (about 8 GB)');
+    assert.equal(V.installStepText('model', { label: 'Qwen3.6', bytes: 12.34e9, total: 23.4e9 }), 'downloading Qwen3.6 — 12 of 23 GB');
+    assert.equal(V.installStepText('model', { label: 'Qwen3.6', bytes: 1.25e9, total: 2.5e9 }), 'downloading Qwen3.6 — 1.3 of 2.5 GB');
+    assert.equal(V.installStepText('cuda-pins'), 'matching the CUDA compiler to the GPU libraries');
+    assert.equal(V.downloadFailure({ kind: 'gated' }, 'a/b'), 'Hugging Face asks for an account to download this model. Pick another model.');
+    assert.equal(V.downloadFailure({ kind: 'notfound' }, 'a/b'), 'There is no model named a/b on Hugging Face. Check the name.');
+    assert.equal(V.downloadFailure({ kind: 'disk' }, 'a/b'), 'The disk is full. Free some space, then press Download again.');
+    assert.equal(V.downloadFailure({ kind: 'network', error: 'httpx.ReadTimeout: The read operation timed out' }, 'a/b'), 'The download stopped: The read operation timed out. Press Download again to continue where it left off.');
+    // The share path a log is read through, never through a shell.
+    assert.equal(V.logFile({ platform: 'win32', distro: 'Ubuntu', root: '/home/me/lol-vllm' }), '\\\\wsl.localhost\\Ubuntu\\home\\me\\lol-vllm\\logs\\vllm.log');
+    assert.equal(V.logFile({ platform: 'linux', root: '/home/me/lol-vllm' }), '/home/me/lol-vllm/logs/vllm.log');
+    assert.equal(V.logFile({ platform: 'linux', root: '~/lol-vllm' }), null, 'only an absolute root');
 });
 
 (async () => {
