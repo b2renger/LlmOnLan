@@ -6,6 +6,30 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-10-07 (11:35) — Release client v0.2.8 and Farm app farm-v0.0.42: the multi-user work
+
+Released from `main` at `957ac71`. `multiuser-phase0` (47 commits since v0.2.7) was fast-forwarded into it after
+the pre-release review was clean and every gate passed: farm 168/0, litellm-cancel PASS, shell chat-unit 1834/0,
+unit 29, lint 0, and the chat harness 408/408 on a second full run.
+- **Client v0.2.8** (tag `v0.2.8`, commit `1dc0e9e`, CI run 37597610724): 6 jobs green, 27 assets, the same set as
+  v0.2.7. That is the installers for Windows x64, macOS arm64 and x64, and Linux x64 and arm64; the
+  `owui-sidecar-*` (Open WebUI 0.11.4, unchanged); the `dsh-runtime-*`; and `latest*.yml` saying 0.2.8.
+  Installed clients update themselves. At first launch each one switches web search back off once (where an
+  older client had turned it on), writes the date line into an empty Open WebUI system prompt, and reloads Open
+  WebUI once.
+- **Farm app farm-v0.0.42** (tag `farm-v0.0.42`, commit `957ac71`, CI run 37597624651): a prerelease, as usual.
+  Files: the Windows installer, macOS arm64 and the Linux arm64 AppImage. Installed by hand. On its first `lol up`
+  the SearXNG settings move to v4 (no Yandex, Swisscows added; the secret kept). An open farm keeps its plugin
+  keys, so no client restarts.
+- **`build-llamacpp-arm64`** ran on the push to `main` (because `llamacpp.js` changed) and rebuilt the same pinned
+  b10670 for the Spark: success.
+- **What is in it:** the DEVLOG entries from 2026-10-04 11:40 to 2026-10-07 10:23 and the plan,
+  `multiuser_implementation_plan.md` (revision 4 and the statuses).
+- **Next:**
+  - Switch the production PRO 6000 farm to vLLM at a moment the owner picks (`docs/PRO6000_VLLM_SWITCH.md`).
+  - Run the rig checks of TEST_SCENARIOS 7d on installed builds.
+  - Measure the two linked Sparks once they are cabled, then update the capacity explorer.
+
 ## 2026-10-07 (10:23) — Pre-release review: the seat gate forwards only what clients use; vLLM autostart on both boxes; the GB10 clock latch on the panel
 
 Before tagging client v0.2.8 and Farm app farm-v0.0.42, five reviewers went over everything since v0.2.7 (farm,
