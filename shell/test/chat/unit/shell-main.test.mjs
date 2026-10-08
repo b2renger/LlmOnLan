@@ -54,13 +54,31 @@ async function withEnv(/** @type {Record<string, string|undefined>} */ vars, /**
 }
 
 /** A Hugging Face cache entry the way snapshot_download leaves it. */
-function seedHf(/** @type {string} */ root, /** @type {string} */ repo) {
-  const snap = path.join(root, repo, 'snapshots', '0123abcd');
-  fs.mkdirSync(snap, { recursive: true });
-  fs.writeFileSync(path.join(snap, 'config.json'), '{}');
-}
 const MINILM = 'models--sentence-transformers--all-MiniLM-L6-v2';
 const WHISPER = 'models--Systran--faster-whisper-base';
+// What a finished download leaves in a snapshot — the files the sidecar's loaders were measured to need, one left out
+// at a time (2026-10-08), written here from that measurement rather than copied from configBridge's list.
+// [a, b] = either one. MiniLM without sentence_bert_config.json loads at the wrong length; Whisper needs its vocabulary.
+const HF_NEEDS = {
+  [MINILM]: ['modules.json', 'config.json', 'sentence_bert_config.json', '1_Pooling/config.json', ['tokenizer.json', 'vocab.txt'], ['model.safetensors', 'pytorch_model.bin']],
+  [WHISPER]: ['config.json', 'model.bin', 'tokenizer.json', ['vocabulary.txt', 'vocabulary.json']],
+};
+/** A model in an HF cache, the way huggingface_hub lays it out: refs/main → snapshots/<rev>. `only` = just those
+ *  files (a download cut off half-way), `rev` = another revision, `ref:false` = no ref written. */
+function seedHf(/** @type {string} */ root, /** @type {string} */ repo, /** @type {string[]=} */ only, /** @type {{rev?:string, ref?:boolean}} */ o = {}) {
+  const rev = o.rev || '0123abcd';
+  const snap = path.join(root, repo, 'snapshots', rev);
+  fs.mkdirSync(snap, { recursive: true });
+  for (const f of only || HF_NEEDS[repo].map((x) => [x].flat()[0])) {
+    fs.mkdirSync(path.dirname(path.join(snap, f)), { recursive: true });
+    fs.writeFileSync(path.join(snap, f), '{}');
+  }
+  if (o.ref !== false) {
+    fs.mkdirSync(path.join(root, repo, 'refs'), { recursive: true });
+    fs.writeFileSync(path.join(root, repo, 'refs', 'main'), rev);   // hub writes the hash with no newline
+  }
+  return snap;
+}
 
 /** A farm the way discovery hands it to index.ts. */
 function farm(/** @type {Record<string, any>} */ o) {
@@ -397,6 +415,74 @@ export default (test) => {
       const env = CB.buildSidecarEnv({ endpoint: 'http://10.0.0.5:4000/v1', dataDir: data });
       assert.equal(env.HF_HUB_OFFLINE, undefined, 'nothing cached: the hub stays reachable for the first downloads');
       assert.equal(env.RAG_EMBEDDING_MODEL_AUTO_UPDATE, 'false');
+    });
+  });
+
+  // 2026-10-08 (the embeddings study reproduced it with the bundled sidecar): a first download cut off half-way left a
+  // snapshot with some files; asked locally, huggingface_hub hands it back and OWUI failed to load MiniLM at every boot
+  // after, so every upload failed. "Cached" now follows refs/main to the folder the hub hands back and needs every file.
+  test('a model downloaded half-way, or damaged, is not cached: judged on the snapshot refs/main points at', () => {
+    const state = (/** @type {(hub:string)=>void} */ seed) => { const home = tempDir('st'); seed(path.join(home, '.cache', 'huggingface', 'hub')); return CB.miniLmState({}, home); };
+    assert.equal(state(() => {}), 'missing');
+    // The exact state a first download cut off at the weights left (reproduced with the sidecar's own downloader).
+    assert.equal(state((hub) => seedHf(hub, MINILM, ['modules.json', 'config_sentence_transformers.json', 'README.md', 'sentence_bert_config.json', 'config.json', '1_Pooling/config.json'])), 'partial');
+    // The hub writes refs/main and the empty snapshot folder before the first byte.
+    assert.equal(state((hub) => seedHf(hub, MINILM, [])), 'partial', 'cut off on the very first file');
+    assert.equal(state((hub) => seedHf(hub, MINILM)), 'cached');
+    assert.equal(state((hub) => seedHf(hub, MINILM, undefined, { ref: false })), 'missing', 'no ref: the hub finds nothing locally');
+    assert.equal(state((hub) => { seedHf(hub, MINILM, undefined, { rev: 'old' }); seedHf(hub, MINILM, ['config.json'], { rev: 'new' }); }), 'partial',
+      'a whole old revision does not count: the hub hands back the one refs/main names');
+    // Each needed file, left out in turn (the other half of an [a, b] pair still counts).
+    for (const repo of [MINILM, WHISPER]) {
+      for (const need of HF_NEEDS[repo]) {
+        for (const pick of [need].flat()) {
+          const files = HF_NEEDS[repo].filter((x) => x !== need).map((x) => [x].flat()[0]);
+          const other = [need].flat().find((x) => x !== pick);
+          const home = tempDir('loo'); const data = tempDir('lood');
+          const hub = path.join(home, '.cache', 'huggingface', 'hub');
+          const wdir = path.join(data, 'cache', 'whisper', 'models');
+          seedHf(hub, MINILM, repo === MINILM ? files : undefined);
+          seedHf(wdir, WHISPER, repo === WHISPER ? files : undefined);
+          assert.equal(CB.hfModelsCached(data, {}, home), false, `${repo} without ${[need].flat().join(' or ')} is not cached`);
+          if (other) {
+            seedHf(repo === MINILM ? hub : wdir, repo, [...files, other]);
+            assert.equal(CB.hfModelsCached(data, {}, home), true, `${repo} with ${other} in place of ${pick} is cached`);
+          }
+        }
+      }
+    }
+    // A dangling link in the snapshot (hub 1.33's whole-repository download on a cache with symlinks).
+    const home = tempDir('dang');
+    const snap = seedHf(path.join(home, '.cache', 'huggingface', 'hub'), MINILM);
+    fs.mkdirSync(path.join(snap, 'onnx'));
+    let linked = true;
+    try { fs.symlinkSync(path.join(home, 'no-such-blob'), path.join(snap, 'onnx', 'model_qint8_avx512.onnx'), 'file'); }
+    catch { linked = false; }   // Windows without the symlink right: the copy layout has no links to dangle
+    if (linked) assert.equal(CB.miniLmState({}, home), 'partial', 'a dangling link: the hub refuses the snapshot');
+    // SENTENCE_TRANSFORMERS_HOME wins over the hub, as for OWUI.
+    const st = tempDir('sthome');
+    seedHf(st, MINILM);
+    assert.equal(CB.miniLmState({ SENTENCE_TRANSFORMERS_HOME: st }, tempDir('emptyhome')), 'cached');
+  });
+
+  test('repairMiniLm: a half MiniLM is removed before the start (snapshots and the file list, never the bytes); OWUI still never asks for updates', async () => {
+    const home = tempDir('rephome');
+    const repo = path.join(home, '.cache', 'huggingface', 'hub', MINILM);
+    assert.equal(CB.repairMiniLm({}, home), null, 'missing: nothing to do');
+    seedHf(path.dirname(repo), MINILM);
+    assert.equal(CB.repairMiniLm({}, home), null, 'whole: left alone');
+    fs.rmSync(path.join(repo, 'snapshots', '0123abcd', 'model.safetensors'));
+    for (const d of ['blobs', 'trees']) { fs.mkdirSync(path.join(repo, d), { recursive: true }); fs.writeFileSync(path.join(repo, d, 'x'), '1'); }
+    assert.match(String(CB.repairMiniLm({}, home)), /removed a half-downloaded/);
+    assert.equal(fs.existsSync(path.join(repo, 'snapshots')), false);
+    assert.equal(fs.existsSync(path.join(repo, 'trees')), false, 'the hub\'s file list would refuse the new 11-file snapshot');
+    assert.equal(fs.existsSync(path.join(repo, 'blobs', 'x')), true, 'downloaded bytes are kept');
+    assert.equal(CB.miniLmState({}, home), 'missing', 'so OWUI\'s loader fetches it again');
+    // The env never turns OWUI's update back on: a whole-repository download (0.94 GB) is what broke caches.
+    const hfHome = tempDir('repenv');
+    await withEnv({ HF_HOME: hfHome, HF_HUB_CACHE: undefined, SENTENCE_TRANSFORMERS_HOME: undefined, WHISPER_MODEL_DIR: undefined }, () => {
+      seedHf(path.join(hfHome, 'hub'), MINILM, ['config.json']);
+      assert.equal(CB.buildSidecarEnv({ endpoint: null, dataDir: tempDir('repdata') }).RAG_EMBEDDING_MODEL_AUTO_UPDATE, 'false');
     });
   });
 

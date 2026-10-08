@@ -8,7 +8,7 @@
 import { EventEmitter } from 'events';
 import { spawn, ChildProcess } from 'child_process';
 import { resolveSidecarCommand, sidecarExists } from './paths';
-import { buildSidecarEnv } from './configBridge';
+import { buildSidecarEnv, repairMiniLm } from './configBridge';
 import { findFreePort, killTree, waitForHttp } from './util';
 import { SidecarState } from './types';
 
@@ -97,6 +97,10 @@ export class SidecarSupervisor extends EventEmitter {
         if (myGen !== this.gen) return;
         const url = `http://${HOST}:${this.port}`;
         this.setState({ status: 'starting', url: null, dataDir: this.dataDir, endpoint: this.endpoint, message: undefined });
+
+        // No Open WebUI runs now (the old child is gone): the one moment a broken embedding model can be removed.
+        try { const did = repairMiniLm(); if (did) console.log(`[sidecar] ${did}`); }
+        catch (e) { console.warn(`[sidecar] could not remove a broken embedding model: ${(e as Error).message}`); }
 
         const env = {
             ...process.env,

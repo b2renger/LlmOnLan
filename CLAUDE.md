@@ -178,7 +178,11 @@ docs) is `docs/reviews/DOCS_REVIEW_2026-09-27_{FARM,SHELL,COMPUTER}.md`. Snapsho
   for MiniLM's latest revision on every boot, a request with no timeout: 21 s per boot where the site is
   silently blocked), `HF_HUB_OFFLINE=1` when MiniLM (HF cache) + whisper-base (OWUI 0.10.2 and 0.11.4 keep
   it under `DATA_DIR/cache/whisper/models`) are cached (`HF_HUB_ETAG_TIMEOUT=2` until then), and health
-  polling at 300 ms. A page OWUI loaded while the farm was not answering lists no model until reloaded:
+  polling at 300 ms. "Cached" is judged as huggingface_hub judges it (`configBridge.ts` `hfModelState`: the
+  snapshot `refs/main` names, every file the loader needs, no dangling link), and a half-downloaded or
+  damaged MiniLM is removed before each start (`repairMiniLm`, its snapshots and file list, never its blobs)
+  so OWUI's loader fetches the 11 files it needs (~92 MB) — with update checks off, a first download cut off
+  half-way otherwise broke every upload for good (2026-10-08, reproduced with the bundled sidecar). A page OWUI loaded while the farm was not answering lists no model until reloaded:
   the renderer reloads it once when that farm answers (`app.js` `reloadIfFarmBack`). Each OWUI state, with
   the seconds since launch, goes to `<userData>/logs/boot.log` (1 MB, then `.1`): the timeline a slow-load
   report needs.
@@ -395,7 +399,8 @@ Connection: `OPENAI_API_BASE_URL` + `OPENAI_API_KEY` (the farm is OpenAI‑compa
   and Filter, think either way, `THINKING_TASKS`, owner 2026‑10‑05 from a measurement) · `DEFAULT_LOCALE=en-US`
   (+ Chromium `--lang en-US`) · `ANONYMIZED_TELEMETRY=false` · `DO_NOT_TRACK=true` · `SCARF_NO_ANALYTICS=true` ·
   `RAG_EMBEDDING_MODEL_AUTO_UPDATE=false` (no per-boot huggingface.co revision check; a missing MiniLM is still
-  downloaded) · `HF_HUB_OFFLINE=1` when the models test as cached, else `HF_HUB_ETAG_TIMEOUT=2`.
+  downloaded, and a half-downloaded one is removed before the start so it is too) · `HF_HUB_OFFLINE=1` when the
+  models test as cached (every needed file in the snapshot `refs/main` names), else `HF_HUB_ETAG_TIMEOUT=2`.
 - **With a farm:** `ENABLE_OPENAI_API=true` · `OPENAI_API_BASE_URL=http://<host we reached it at>:<proxyPort>/v1`
   · `OPENAI_API_KEY`=<farm password> or `sk-lol-lan` · `DEFAULT_MODELS`=<the farm's default id, when listed>.
   **Without:** `ENABLE_OPENAI_API=false` (a no‑farm boot must not fall back to api.openai.com).

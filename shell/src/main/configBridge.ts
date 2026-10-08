@@ -70,17 +70,63 @@ export function hfHubDir(env: NodeJS.ProcessEnv = process.env, home: string = os
 //     on for a real install (docs review SA-2). A "Start fresh" data folder correctly stays online
 //     until Whisper has been fetched into it.
 // Gates HF_HUB_OFFLINE.
+//
+// "Cached" is judged as huggingface_hub judges it when OWUI asks for a model locally
+// (snapshot_download(local_files_only=True), hub 1.33): it follows refs/main to ONE snapshot folder
+// and hands that folder back as the model, whatever is in it. So: no ref, or no such folder →
+// 'missing' (OWUI then lets its loader download the model); the folder holds every file the model
+// needs to load and no dangling link → 'cached'; anything else → 'partial'. A first download cut
+// off half-way leaves 'partial' (reproduced 2026-10-08 with the bundled sidecar: every boot after
+// failed to load MiniLM, so every upload failed), and so does hub 1.33's whole-repository download
+// on a cache with symlinks: one of MiniLM's three identical onnx files comes back a dangling link,
+// and the hub's file list then refuses the snapshot at every local lookup.
+// The files: what each loader reads (measured file by file, 2026-10-08) — MiniLM without
+// sentence_bert_config.json loads with the wrong length (512, other vectors), without modules.json
+// loses its normalisation; faster-whisper needs its vocabulary, .txt or .json.
+// ponytail: a hub file list claiming files that are simply absent (a whole-repository download cut
+// off after the files above) still reads 'cached'; only OWUI's own update (off since 2026-10-07)
+// wrote those lists.
+type HfModel = { repo: string; files: (string | string[])[] };
+const MINILM: HfModel = { repo: 'models--sentence-transformers--all-MiniLM-L6-v2',
+    files: ['modules.json', 'config.json', 'sentence_bert_config.json', '1_Pooling/config.json',
+        ['tokenizer.json', 'vocab.txt'], ['model.safetensors', 'pytorch_model.bin']] };
+const WHISPER: HfModel = { repo: 'models--Systran--faster-whisper-base',
+    files: ['config.json', 'model.bin', 'tokenizer.json', ['vocabulary.txt', 'vocabulary.json']] };
+export type HfState = 'cached' | 'partial' | 'missing';
+const hasDanglingLink = (dir: string): boolean => fs.readdirSync(dir, { withFileTypes: true }).some((e) => {
+    const p = path.join(dir, e.name);
+    return e.isSymbolicLink() ? !fs.existsSync(p) : e.isDirectory() && hasDanglingLink(p);
+});
+export function hfModelState(root: string, m: HfModel): HfState {
+    const repo = path.join(root, m.repo);
+    let snap: string;
+    try { snap = path.join(repo, 'snapshots', fs.readFileSync(path.join(repo, 'refs', 'main'), 'utf8')); } catch { return 'missing'; }
+    if (!fs.existsSync(snap)) return 'missing';
+    try {
+        const whole = m.files.every((f) => [f].flat().some((x) => fs.existsSync(path.join(snap, x))));
+        return whole && !hasDanglingLink(snap) ? 'cached' : 'partial';
+    } catch { return 'partial'; }
+}
+const miniLmRoot = (env: NodeJS.ProcessEnv, home: string) => env.SENTENCE_TRANSFORMERS_HOME || hfHubDir(env, home);
+export function miniLmState(env: NodeJS.ProcessEnv = process.env, home: string = os.homedir()): HfState {
+    return hfModelState(miniLmRoot(env, home), MINILM);
+}
 export function hfModelsCached(dataDir: string, env: NodeJS.ProcessEnv = process.env, home: string = os.homedir()): boolean {
-    const cached = (root: string, repo: string): boolean => {
-        try {
-            const snaps = path.join(root, repo, 'snapshots');
-            return fs.readdirSync(snaps).some((d) => fs.readdirSync(path.join(snaps, d)).length > 0);
-        } catch { return false; }
-    };
-    const embeddings = env.SENTENCE_TRANSFORMERS_HOME || hfHubDir(env, home);
     const whisper = env.WHISPER_MODEL_DIR || path.join(dataDir, 'cache', 'whisper', 'models');
-    return cached(embeddings, 'models--sentence-transformers--all-MiniLM-L6-v2')
-        && cached(whisper, 'models--Systran--faster-whisper-base');
+    return miniLmState(env, home) === 'cached' && hfModelState(whisper, WHISPER) === 'cached';
+}
+
+// Run before every Open WebUI start (sidecar.ts): a 'partial' MiniLM is removed — its snapshots/ and
+// the hub's file list (trees/), never the downloaded bytes (blobs/, reused) — so OWUI's local lookup
+// misses and its loader fetches the 11 files it needs: ~92 MB, healthy at 22.6 s, then offline-proof
+// (measured 2026-10-08). OWUI's own update would complete it too, but fetches the whole repository
+// (0.94 GB: once 196 s, past the 180 s start wait) and leaves the dangling link above. Returns what
+// it did, for the log; null when there was nothing to do.
+export function repairMiniLm(env: NodeJS.ProcessEnv = process.env, home: string = os.homedir()): string | null {
+    if (miniLmState(env, home) !== 'partial') return null;
+    const dir = path.join(miniLmRoot(env, home), MINILM.repo);
+    for (const sub of ['snapshots', 'trees']) fs.rmSync(path.join(dir, sub), { recursive: true, force: true });
+    return `removed a half-downloaded or damaged embedding model (${dir}): Open WebUI downloads it again (~92 MB)`;
 }
 
 // Whole-document RAG needs the whole document to FIT. Below this per-slot context
@@ -259,7 +305,8 @@ export function buildSidecarEnv(input: SidecarEnvInput): Record<string, string> 
     // the etag timeout below does not cover it). Not asking for updates removes the
     // request: a cached MiniLM loads from disk, a missing one is still downloaded by
     // SentenceTransformer at that boot (OWUI 0.10.x and 0.11.4, retrieval/utils.py
-    // get_model_path).
+    // get_model_path). A half-downloaded or damaged one is removed before the start
+    // (repairMiniLm, sidecar.ts), so it too is fetched like a missing one.
     env.RAG_EMBEDDING_MODEL_AUTO_UPDATE = 'false';
     // Once BOTH models OWUI might pull at runtime are cached — MiniLM (embeddings,
     // loaded at boot, in the HF hub) and faster-whisper base (STT, loaded on first

@@ -6,6 +6,47 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-10-08 (02:02) — Gemma embeddings, studied: not now. And a half-downloaded search model no longer breaks uploads
+
+**Question.** The owner asked whether Gemma embeddings could be interesting for us. A workflow answered it: the
+models as of October 2026, how Open WebUI 0.11.4 and LlmOnLan use embeddings, a CPU measurement on this box with
+French retrieval sets, a recommendation, and a critic who re-measured. The result is in `docs/EMBEDDINGS_STUDY.md`.
+- **"Gemma 2 embeddings" is EmbeddingGemma 2, released by Google on 6 October 2026.** Open WebUI 0.11.4 pins
+  transformers 5.5.4 and sentence-transformers 5.5.1, and the model needs newer versions, so it can't run in the
+  sidecar until Open WebUI raises those pins. On French it is no better than the first EmbeddingGemma.
+- **Recommendation: no change now.** On the studio farm (64k per person) Open WebUI reads attached files whole, so the
+  search model barely matters. A switch costs every laptop a download, slower uploads and a Reindex click.
+- **When to revisit:** French knowledge bases in real use, or a farm with less than 24k per person serving French
+  users. Then switch to IBM granite-97m first: French 0.73 against MiniLM's 0.44, 211 MB, about 2× MiniLM's time.
+  EmbeddingGemma 300M scores 0.79 but costs 1.27 GB and about 9× the time.
+- **Decision:** the owner's.
+
+**The bug the study found, fixed before v0.2.9.**
+- **The cause.** Since 2026-10-07 (`0b69dd0`) Open WebUI never asks huggingface.co for updates. In that mode
+  huggingface_hub hands back whatever snapshot `refs/main` names, even a half one. So a first MiniLM download cut off
+  half-way failed to load at every boot after ("no file named model.safetensors"), and every upload failed.
+  `hfModelsCached` also counted any non-empty folder as cached. Reproduced with the bundled sidecar.
+- **A first fix was rejected by its own end-to-end check.** It turned Open WebUI's update back on for a half model.
+  That fetched the whole repository (0.94 GB, once 196 s, past the app's 180 s start wait). With hub 1.33's shared
+  blobs it also left one of MiniLM's three identical onnx files as a dangling link, and the hub's file list then
+  refused the snapshot. The next start with huggingface.co unreachable took 305 s, or never finished.
+- **The fix** (`configBridge.ts`, `sidecar.ts`):
+  - `hfModelState` judges a model as huggingface_hub does. It follows `refs/main`; each file the loader needs must be
+    there (MiniLM: modules, config, sentence_bert_config, pooling, tokenizer.json or vocab.txt, the weights;
+    Whisper: config, model.bin, tokenizer, vocabulary). A dangling link counts as damage.
+  - `repairMiniLm()` runs before each Open WebUI start. It removes a half or damaged MiniLM's snapshots and the hub's
+    file list, never the downloaded bytes, and keeps update checks off. Open WebUI's loader then fetches the 11 files
+    it needs, measured at about 92 MB and healthy at 22.6 s, then offline-proof (11.6 s with the network dropped).
+  - Whisper's vocabulary is now required, so a half Whisper no longer turns the hub offline and leaves speech to
+    text broken.
+- **Tests:**
+  - shell chat-unit 1838/0 (two new tests: the exact cut-off state, a leave-one-out over every needed file written
+    from the measurement, refs/main cases, a dangling link, the repair keeping the bytes); unit 29; lint 0.
+  - A mutation run on the built code: all 9 mutants caught (each needed file, both "either one" pairs, the
+    dangling-link check).
+  - The rejected first fix was measured end to end with the real sidecar (cases A–L, `scratchpad/halfdl/`); the
+    adopted repair was measured there too (case G). An end-to-end run of the final code follows.
+
 ## 2026-10-07 (18:36) — Review fixes for the capacity page and the Open WebUI boot; a boot log
 
 Both 18:14 and 18:18 pieces had an independent verifier. The boot fix came back **ok** with three minors; the
