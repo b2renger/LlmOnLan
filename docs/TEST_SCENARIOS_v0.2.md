@@ -438,6 +438,44 @@ lines only check what happened.
   the chat opens (a little longer: the model downloads again) and a PDF attached is answered. A next start where
   huggingface.co does not answer (as in 7e.11) shows no message: the model is on disk now.
 
+## 7f. Document search on the farm (branch `embed-farm`, docs/DEVLOG.md 2026-10-08)
+
+What the tests cannot show: the farm's document search on the installed Farm app (its llama.cpp build after the pin
+bump, on RTX cards and on a DGX Spark), beside vLLM on the PRO 6000, and real laptops with real knowledge bases.
+Already tested without you: the plugin alone with an official llama.cpp b11512, and the built Open WebUI 0.11.4
+indexing and searching a French text through it (DEVLOG). Use a laptop whose data folder you can spare, or move it
+in Preferences first: the switch is for good for that folder.
+
+- [ ] **7f.1 It is on by itself.** On an NVIDIA farm updated to a build with document search: the panel's Plugins
+  card shows **Document search** on, with its sentence (*Laptops send the text of their documents here…*). On a PC
+  with no NVIDIA GPU (or a Mac), it is off. Write down the first start's time (it downloads llama.cpp and about
+  0.6 GB) and the GPU memory before and after (`nvidia-smi`): about 1.2 GB more.
+- [ ] **7f.2 A laptop that had documents.** On a laptop that used an older farm and has a knowledge base with a
+  French PDF: connect to the farm. The app says once *Documents are now indexed on the farm…* with the Reindex
+  steps. Before pressing anything, ask in a chat with that knowledge base: write down what it finds (expected:
+  nothing, on a farm under 24k tokens per person). Press **Admin Panel ▸ Settings ▸ Documents ▸ Reindex** (next to
+  *Reindex Knowledge and Memory Vectors*), then ask again in English about the French document: it is found.
+  `DATA_DIR\lol-embedding.json` exists.
+- [ ] **7f.3 A new laptop.** A fresh client: no search model is downloaded from huggingface.co
+  (`%USERPROFILE%\.cache\huggingface\hub` has no MiniLM), no Reindex message, and a 50-page PDF attached in Open
+  WebUI is answered. Write down the upload time.
+- [ ] **7f.4 Nothing stays on the farm.** Put a made-up word in a document (for example *Quorvellisande*), upload
+  it, ask about it, then on the farm search the Farm app's data folder and its `farm.log` for the word
+  (`findstr /s /m Quorvellisande *` in `%APPDATA%\LlmOnLan Farm`): nothing. On the laptop the word is in the data
+  folder (that is where documents live).
+- [ ] **7f.5 A farm without it.** Turn **Document search** off in the panel (or connect the same laptop to a farm
+  without it): the app says *This farm does not index documents the way your documents are indexed…*; uploading a
+  document fails in Open WebUI; chat works; nothing new appears in `%USERPROFILE%\.cache\huggingface\hub`. Turn it
+  back on: within a few seconds uploads work again (Open WebUI restarts once).
+- [ ] **7f.6 With a farm password.** Set a password in the panel, restart the farm, enter it on the laptop:
+  uploads are indexed (the laptop fetched the document search key with the password). On a second laptop without the
+  password, the farm card asks for it.
+- [ ] **7f.7 Beside vLLM (PRO 6000).** With vLLM the engine and document search on: the vLLM card's *GPU memory for
+  conversations* says *1.5 GB for document search* only while document search is not running yet; ten laptops
+  uploading a 50-page PDF at once while people chat: write down the upload times and whether chat slows.
+- [ ] **7f.8 Many uploads.** Ten laptops upload at once: each is indexed (write down the times), and `farm.log`
+  holds no line per piece of text (only the plugin's start and any warning).
+
 ## 8. After testing
 
 - [ ] Everything above is ticked, or each failure is written down with what you saw.

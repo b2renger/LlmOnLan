@@ -313,8 +313,8 @@ function render(s) {
     // the proxy for a few seconds.
     + `<div class="row"><span></span><span><div class="mname">Farm password</div>
     <div class="meta">${s.requiresKey
-        ? '<b>Set.</b> Protects chat (everything on /v1), document reading, Classify, speech to text and the message bus. Web search, voice and discovery stay open on the LAN. When the password is set or changed, a device that could already use document reading, Classify or speech to text keeps them until the farm restarts. Use <b>Remove</b> to take it off.'
-        : 'Not set — anyone on the network can use this farm. Type one to require it (protects chat, document reading, Classify, speech to text and the message bus; web search, voice and discovery stay open).'}</div></span>
+        ? '<b>Set.</b> Protects chat (everything on /v1), document reading, document search, Classify, speech to text and the message bus. Web search, voice and discovery stay open on the LAN. When the password is set or changed, a device that could already use document reading, document search, Classify or speech to text keeps them until the farm restarts. Use <b>Remove</b> to take it off.'
+        : 'Not set — anyone on the network can use this farm. Type one to require it (protects chat, document reading, document search, Classify, speech to text and the message bus; web search, voice and discovery stay open).'}</div></span>
     <span class="badges"><input id="sec-in" type="password" placeholder="${s.requiresKey ? '••••••••' : 'choose a password'}" maxlength="128" spellcheck="false" autocomplete="new-password" data-orig="" />${
       s.requiresKey ? `<button id="sec-clear" class="stop"${jobRunning ? ' disabled' : ''}>Remove</button>` : ''}</span></div>`
 
@@ -503,6 +503,10 @@ function render(s) {
 
   // Farm plugins — live enable/disable toggles.
   const plugins = s.plugins || {};
+  // What a person should know before turning one on or off (owner, 2026-10-08: Document search).
+  const PLUGIN_NOTES = {
+    embed: 'Laptops send the text of their documents here to make them searchable, in many languages, and keep what comes back. Nothing is kept on this farm. Uses about 1.2 GB of GPU memory. Turned off, laptops that use it cannot add documents until it is back.',
+  };
   const pluginRows = Object.keys(plugins).map((k) => {
     const p = plugins[k] || {};
     const on = !!p.enabled;
@@ -513,7 +517,7 @@ function render(s) {
       : `<button class="start" data-pact="enable" data-id="${esc(k)}">Enable</button>`;
     return `<div class="row"><span class="${dotCls}"></span>`
       + `<span><div class="mname">${esc(p.label || k)} <span class="badge">farm</span></div>`
-      + `<div class="meta">runs on this box · ${state}</div></span>`
+      + `<div class="meta">runs on this box · ${state}</div>${PLUGIN_NOTES[k] ? `<div class="meta">${PLUGIN_NOTES[k]}</div>` : ''}</span>`
       + `<span class="badges">${btn}</span></div>`;
   }).join('');
   // Client-side plugin (Blender) — the farm can only RECOMMEND it to the fleet.
@@ -988,7 +992,7 @@ function vllmKvRow(v) {
   const opts = [16, 24, 32, 40, 50, 60, 70, 80].filter((g) => !v.cardGib || g < v.cardGib);
   if (typeof cur === 'number' && !opts.includes(cur)) { opts.push(cur); opts.sort((a, b) => a - b); }
   const auto = `Automatic — ${v.unified ? 'from what the computer has free' : 'what the GPU has free'}, less the model`
-    + `${v.ocrReserveGib ? `, ${v.ocrReserveGib} GB for document reading` : ''} and a safety margin`
+    + `${v.ocrReserveGib ? `, ${v.ocrReserveGib} GB for document reading` : ''}${v.embedReserveGib ? `, ${v.embedReserveGib} GB for document search` : ''} and a safety margin`
     + `${v.unified && v.minFreeGb ? `, keeping ${v.minFreeGb} GB so it cannot run out` : ''}`
     + `${v.autoKvGib != null ? ` (now ${v.autoKvGib} GB)` : ''}`;
   return `<div class="row"><span></span><span><div class="mname">GPU memory for conversations</div>`

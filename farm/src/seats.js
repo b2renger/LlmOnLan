@@ -70,9 +70,11 @@ function isGated(method, url) {
 //     /model_group/info (LOL Vibe's vision check, app/caps.mjs);
 //   • GET /health/liveliness (lol status; the farm's own probes talk to LiteLLM's loopback port).
 // For a third-party tool on the LAN that is the OpenAI-compatible surface a chat needs. Embeddings,
-// token counting, files, batches, audio and images are left out: no farm serves a model for them
-// (documents embed on each laptop) and no client calls them. A CORS preflight (OPTIONS) passes for
-// these routes, for the browser pages that call the farm.
+// token counting, files, batches, audio and images are left out: LiteLLM serves no model for them and
+// no client sends them here. Document search has its own plugin port and key, outside this gate and
+// its seats (src/embed.js: the laptops send document text there to be turned into vectors, and the
+// farm keeps nothing). A CORS preflight (OPTIONS) passes for these routes, for the browser pages
+// that call the farm.
 const ALLOWED = [
     /^POST (\/v1|\/engines\/.+|\/openai\/deployments\/.+)?\/(chat\/)?completions$/,
     /^POST (\/v1|\/openai\/v1)?\/responses(\/compact)?$/,

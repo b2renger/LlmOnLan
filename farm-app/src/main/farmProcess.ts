@@ -31,7 +31,7 @@ export async function reapStaleFarm(): Promise<void> {
     try { state = JSON.parse(fs.readFileSync(rt, 'utf8')); } catch { return; } // no stale run
     const pids: number[] = [
         state.litellmPid, state.searxngPid, state.kokoroPid, state.extractPid,
-        state.classifyPid, state.sttPid, state.busPid, state.llamacppPid,
+        state.classifyPid, state.sttPid, state.busPid, state.embedPid, state.llamacppPid,
         ...(Array.isArray(state.ollamaPids) ? state.ollamaPids : []),
     ].filter((p) => typeof p === 'number' && p > 0);
     for (const pid of pids) {

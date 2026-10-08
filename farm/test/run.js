@@ -663,10 +663,12 @@ test('snapshot usage.clients mirrors clientsConnected (null on older farms)', ()
 // ---- plugin registry -------------------------------------------------------
 const { makeServices, pluginsSummary, FarmService } = require('../src/plugins/registry');
 
-test('registry: six farm services, config-gated (websearch+ocr on, tts+classify+stt+bus off)', () => {
+test('registry: seven farm services, config-gated (websearch+ocr on, tts+classify+stt+bus off, document search automatic)', () => {
     const c = defaultConfig();
     const svcs = makeServices();
-    assert.deepEqual(svcs.map((s) => s.id), ['websearch', 'tts', 'ocr', 'bus', 'classify', 'stt']);
+    assert.deepEqual(svcs.map((s) => s.id), ['websearch', 'tts', 'ocr', 'bus', 'embed', 'classify', 'stt']);
+    assert.equal(c.embed.enabled, 'auto', 'document search: automatic until the boot looks at the GPU');
+    assert.equal(svcs.find((s) => s.id === 'embed').enabled(c), false, 'automatic is not on until resolved');
     assert.equal(svcs.find((s) => s.id === 'bus').enabled(c), false, 'the message bus is off by default (three more LAN ports)');
     assert.equal(svcs.find((s) => s.id === 'stt').enabled(c), false, 'speech to text off by default (plan v2: CPU first)');
     assert.equal(svcs.find((s) => s.id === 'classify').enabled(c), false, 'Classify off by default (plan v2: CPU contention first)');
@@ -2443,6 +2445,128 @@ test('classify plugin: pinned CPU install, bound like the others, key in env, ad
     assert.equal(buildSnapshot(defaultConfig(), { proxyUp: true, hostsUp: 1, classifyUp: true, classifyKey: 'kk' }).classify, null, 'off in the config: never advertised');
 });
 
+// ---- document search (owner, 2026-10-08: EmbeddingGemma 2 on the farm, src/embed.js) -------------------------
+const embedMod = require('../src/embed');
+
+test('document search: one pinned model, its contract, and llama-server run with no way to keep or show a text', () => {
+    const M = embedMod.MODEL;
+    assert.deepEqual([M.id, M.dims, M.contract, M.queryPrefix, M.docPrefix], ['embeddinggemma-2', 768, 'embeddinggemma-2/768/v1', 'task: search result | query: ', 'title: none | text: ']);
+    assert.match(M.url, /^https:\/\/huggingface\.co\/ggml-org\/embeddinggemma-2-GGUF\/resolve\/[0-9a-f]{40}\/embeddinggemma-2-BF16\.gguf$/, 'ggml-org\'s own conversion, pinned to a revision');
+    assert.match(M.sha256, /^[0-9a-f]{64}$/, 'and by its sha256');
+    const c = defaultConfig();
+    assert.deepEqual([c.embed.enabled, c.embed.port], ['auto', 8894]);
+    for (const [proxyHost, want] of [['127.0.0.1', '127.0.0.1'], ['0.0.0.0', '0.0.0.0'], ['10.0.0.5', '10.0.0.5']]) {
+        c.proxy.host = proxyHost;
+        const args = embedMod.argsFor(c);
+        assert.equal(args[args.indexOf('--host') + 1], want, `bound where proxy.host says (${proxyHost})`);
+    }
+    const args = embedMod.argsFor(c);
+    const val = (f) => args[args.indexOf(f) + 1];
+    for (const f of ['--embeddings', '--no-webui', '--no-slots']) assert.ok(args.includes(f), f);
+    assert.deepEqual([val('--alias'), val('--port'), val('--cache-ram'), val('--parallel'), val('--ctx-size'), val('--ubatch-size')], ['embeddinggemma-2', '8894', '0', '8', '16384', '2048']);
+    assert.match(val('--model'), /embeddinggemma-2-BF16\.gguf$/);
+    assert.ok(!args.some((a) => /api-key|slot-save|log-prompts|metrics|props/.test(a)), 'no key in the process list, no saved slots, no prompt log, no extra endpoints');
+    // The farm's log drops llama-server's three lines per text (600 for a 50-page document), keeps the rest.
+    const skip = makeServices().find((s) => s.id === 'embed').desc.logSkip;
+    for (const l of ['0.52.781.843 I slot launch_slot_: id  6 | task 2 | processing task, is_child = 0', '0.01.839.068 I slot      release: id  7 | task 0 | stop processing: n_tokens = 19, truncated = 0', '0.52.781.833 I slot get_availabl: id  6 | task -1 | selected slot by LRU, t_last = -1']) assert.ok(skip.test(l), l);
+    for (const l of ['0.04.676.281 E srv    send_error: task id = 10, error: input (3209 tokens) is too large to process. increase the physical batch size (current batch size: 2048)', '0.02.164.612 I srv  llama_server: listening on http://127.0.0.1:18894']) assert.ok(!skip.test(l), l);
+    // The key rides LLAMA_API_KEY; the box's own LLAMA_* variables (which set llama-server's flags) never reach it.
+    const calls = [];
+    const saved = process.env.LLAMA_ARG_LOG_PROMPTS_DIR;
+    process.env.LLAMA_ARG_LOG_PROMPTS_DIR = 'prompts-leak';
+    try { embedMod.spawnEmbed(c, { key: 'kk' }, (cmd, a, opts) => { calls.push({ cmd, a, opts }); return { pid: null, on() {} }; }); }
+    finally { if (saved === undefined) delete process.env.LLAMA_ARG_LOG_PROMPTS_DIR; else process.env.LLAMA_ARG_LOG_PROMPTS_DIR = saved; }
+    assert.equal(calls[0].opts.env.LLAMA_API_KEY, 'kk');
+    assert.equal(calls[0].opts.env.LLAMA_ARG_LOG_PROMPTS_DIR, undefined, 'a LLAMA_ARG_* from the box is dropped');
+    assert.ok(calls[0].opts.env.PATH || calls[0].opts.env.Path, 'the rest of the environment stays');
+    assert.equal(calls[0].cmd, path.join(require('../src/llamacpp').BIN_DIR, process.platform === 'win32' ? 'llama-server.exe' : 'llama-server'), 'the farm\'s own llama.cpp build');
+    c.llamacpp.binDir = path.join(os.tmpdir(), 'my-llama');
+    embedMod.spawnEmbed(c, { key: 'kk' }, (cmd) => { calls.push({ cmd }); return { pid: null, on() {} }; });
+    assert.equal(calls[1].cmd, path.join(os.tmpdir(), 'my-llama', process.platform === 'win32' ? 'llama-server.exe' : 'llama-server'), 'or the folder a developer chose');
+});
+
+test('document search: available only from a llama.cpp that knows the model; automatic = on with an NVIDIA GPU', () => {
+    const llamacpp = require('../src/llamacpp');
+    const c = defaultConfig();
+    const build = Number(llamacpp.PINNED_BUILD.slice(1));
+    const a = embedMod.available(c);
+    if (!llamacpp.supported()) assert.match(a.message, /no ready-made llama\.cpp/);
+    else if (build < embedMod.MIN_BUILD) assert.equal(a.message, `Document search needs a newer llama.cpp than this farm has (${llamacpp.PINNED_BUILD}): it comes with a farm update.`);
+    else assert.deepEqual(a, { ok: true, message: null });
+    c.llamacpp.binDir = '/opt/llama';
+    assert.deepEqual(embedMod.available(c), { ok: true, message: null }, 'a llama.cpp a developer chose is trusted');
+    const gpu = { gpu: 'NVIDIA GeForce RTX 4070', vramGb: 12 };
+    assert.equal(embedMod.autoEnabled(c, gpu), true);
+    assert.equal(embedMod.autoEnabled(c, { gpu: 'Unknown GPU', vramGb: 0 }), false, 'no NVIDIA GPU: off');
+    const r = defaultConfig(); r.llamacpp.binDir = '/opt/llama';
+    assert.equal(embedMod.resolveEnabled(r, gpu), true);
+    assert.equal(r.embed.enabled, true, 'resolved in memory');
+    const off = defaultConfig(); off.embed.enabled = false; off.llamacpp.binDir = '/opt/llama';
+    assert.equal(embedMod.resolveEnabled(off, gpu), false, 'an explicit choice stays');
+    const up = fs.readFileSync(path.join(__dirname, '..', 'src', 'commands', 'up.js'), 'utf8');
+    assert.ok(up.indexOf("embedMod.resolveEnabled(config, hw)") > up.indexOf('const hw = await detectHardware();'), 'resolved at boot, once the GPU is known');
+    assert.match(fs.readFileSync(path.join(__dirname, '..', 'src', 'commands', 'install.js'), 'utf8'), /embed\.ensureEmbed\(config/, '`lol install` downloads it');
+});
+
+test('document search: its key is tied to the farm password; advertised with its contract only while it runs', async () => {
+    const { pluginKey } = require('../src/identity');
+    const file = path.join(os.tmpdir(), `lol-secret-embed-${process.pid}`);
+    const rt = { pluginKey: (id, pw) => pluginKey(id, pw, file) };
+    const svc = makeServices().find((s) => s.id === 'embed');
+    try {
+        const c = defaultConfig();
+        const open = svc.desc.makeCtx(c, rt).key;
+        assert.match(open, /^[0-9a-f]{48}$/);
+        assert.equal(svc.desc.makeCtx(c, rt).key, open, 'the same on every start');
+        c.proxy.masterKey = 'pw';
+        assert.notEqual(svc.desc.makeCtx(c, rt).key, open, 'a password rotates it');
+        assert.equal(svc.desc.makeCtx(c, rt).key, pluginKey('embed', 'pw', file));
+    } finally { try { fs.unlinkSync(file); } catch { /* gone */ } }
+    const on = defaultConfig(); on.embed.enabled = true;
+    assert.equal(buildSnapshot(on, { proxyUp: true, hostsUp: 1 }).embed, null, 'not advertised until it is up');
+    assert.equal(buildSnapshot(defaultConfig(), { proxyUp: true, hostsUp: 1, embedUp: true, embedKey: 'ek' }).embed, null, 'automatic, not resolved on: never advertised');
+    const snap = buildSnapshot(on, { proxyUp: true, hostsUp: 1, embedUp: true, embedKey: 'ek' });
+    assert.deepEqual(snap.embed, { url: snap.embed.url, key: 'ek', model: 'embeddinggemma-2', dims: 768, contract: 'embeddinggemma-2/768/v1' });
+    assert.match(snap.embed.url, /^http:\/\/[^/]+:8894$/, 'no /v1: the client adds it');
+    on.proxy.masterKey = 'pw';
+    const keyed = buildSnapshot(on, { proxyUp: true, hostsUp: 1, embedUp: true, embedKey: 'ek' }).embed;
+    assert.equal(keyed.key, null, 'a password: no key in clear');
+    assert.match(keyed.keyId, /^[0-9a-f]{8}$/);
+    const errs = schemaErrors(SNAPSHOT_SCHEMA, JSON.parse(JSON.stringify(buildSnapshot(on, { proxyUp: true, hostsUp: 1, embedUp: true, embedKey: 'ek' }))));
+    assert.deepEqual(errs, [], 'the contract schema has it');
+    const up = fs.readFileSync(path.join(__dirname, '..', 'src', 'commands', 'up.js'), 'utf8');
+    assert.ok(/embed: liveHealth\.embedKey \|\| null/.test(up), '/lol/plugin-keys hands it to a client holding the password');
+    assert.ok(/embedPid: svcById\.embed\.pid/.test(up) && /rt\.embedPid/.test(fs.readFileSync(path.join(__dirname, '..', 'src', 'commands', 'down.js'), 'utf8')), '`lol down` stops it');
+});
+
+test('document search: started before the engine sizes its memory, and kept out of vLLM\'s Automatic memory while it is not running', () => {
+    const up = fs.readFileSync(path.join(__dirname, '..', 'src', 'commands', 'up.js'), 'utf8');
+    const early = up.indexOf('if (!svc.enabled(config) || !svc.isEarly(config)) continue;');
+    const llama = up.indexOf("if (engineOf(config) === 'llamacpp') {   // the engine that serves");
+    const probe = up.indexOf("await resolveOllamaContext((what) => log.step(`Context: ${what} …`));");
+    assert.ok(early > 0 && llama > early && probe > early, 'before llama.cpp measures the free memory and before Ollama\'s context probe');
+    assert.ok(up.includes("${svcById.embed.up ? '|embed' : ''}"), 'an Ollama context measured without it is measured again with it');
+    const svc = makeServices().find((s) => s.id === 'embed');
+    const c = defaultConfig();
+    assert.equal(svc.isEarly(c), embedMod.ready(c));
+    assert.equal(svc.isLate(c), !embedMod.ready(c), 'a first download waits until the farm is public');
+    // vLLM: the pool leaves its 1.5 GB while it is on and not running yet; up.js passes it at every plan.
+    const st = V.parseStatus(['home=/home/me', 'arch=x86_64', `gpu=${PRO}, 97887, 95272, 12.0`, 'mem_total_kb=98875528', 'mem_available_kb=91993964',
+        'disk_free_kb=600000000', 'install=/home/me/lol-vllm 0.30.0', 'model=Qwen3.6-35B-A3B-NVFP4 22880000 vision=1 native=262144 partial=0'].join('\n'));
+    const v = defaultConfig(); v.vllm.enabled = true;
+    const mem = { unified: false, totalGib: 95.59, freeGib: 93.04 };
+    assert.equal(V.planFor(v, st, mem).kvGib, 52);
+    const p = V.planFor(v, st, mem, { embedReserveGib: embedMod.RESERVE_GIB });
+    assert.deepEqual([p.kvGib, p.kvWhy.embedReserveGib], [50, 1.5], 'RTX PRO 6000: 52 → 50 GB for conversations');
+    assert.ok(V.poolGib({ totalGib: 95.59, freeGib: 20, weightsGib: 20.37, ocrReserveGib: 9, embedReserveGib: 1.5, marginPct: 8 }).reason
+        .startsWith('The GPU has 20 GB free. After the model (20 GB), document reading (9 GB), document search (1.5 GB) and a safety margin'));
+    assert.equal((up.match(/vllmMod\.planFor\(/g) || []).length, (up.match(/embedReserveGib: embedReserveGib\(\)/g) || []).length - 1, 'every plan gets it (and the panel shows it)');
+    assert.ok(up.includes('svcById.embed.enabled(config) && !svcById.embed.up ? embedMod.RESERVE_GIB : 0'), 'only while it is not running: then its memory is already taken');
+    const fitOff = V.gpuFit(v, 24).needGib;
+    v.embed.enabled = true;
+    assert.ok(Math.abs(V.gpuFit(v, 24).needGib - fitOff - embedMod.RESERVE_GIB / (1 - v.vllm.marginPct / 100)) < 1e-9, 'an empty card must hold it beside vLLM too');
+});
+
 test('plugin keys are tied to the farm password: off the beacon when one is set, served to its holder only', async () => {
     const health = { proxyUp: true, hostsUp: 1, extractUp: true, extractKey: 'ek', classifyUp: true, classifyKey: 'ck', sttUp: true, sttKey: 'sk' };
     const open = defaultConfig(); open.classify.enabled = true; open.stt.enabled = true;
@@ -2515,20 +2639,22 @@ test('plugin keys survive a farm restart, so no client restarts its Open WebUI (
 test('panel: the password row says what it protects — the plugins too — and that old plugin access lasts until the farm restarts (review 2026-10-07)', () => {
     const render = loadPanel();
     const set = render(adminState({ requiresKey: true }));
-    assert.ok(set.includes('Protects chat (everything on /v1), document reading, Classify, speech to text and the message bus.'), 'what it protects');
+    assert.ok(set.includes('Protects chat (everything on /v1), document reading, document search, Classify, speech to text and the message bus.'), 'what it protects');
     assert.ok(set.includes('Web search, voice and discovery stay open on the LAN.'), 'what stays open');
-    assert.ok(set.includes('When the password is set or changed, a device that could already use document reading, Classify or speech to text keeps them until the farm restarts.'), 'a device that had the plugins keeps them until then');
+    assert.ok(set.includes('When the password is set or changed, a device that could already use document reading, document search, Classify or speech to text keeps them until the farm restarts.'), 'a device that had the plugins keeps them until then');
     const open = render(adminState({ requiresKey: false }));
-    assert.ok(open.includes('protects chat, document reading, Classify, speech to text and the message bus; web search, voice and discovery stay open'));
+    assert.ok(open.includes('protects chat, document reading, document search, Classify, speech to text and the message bus; web search, voice and discovery stay open'));
     for (const html of [set, open]) assert.ok(!/document reading( and|,) discovery stay open|document reading \/ discovery/.test(html), 'no longer says document reading stays open');
 });
 
 test('classify + stt start AFTER the farm is public, and their installs never block the event loop (rig, 2026-09-27)', () => {
     const svcs = makeServices();
-    assert.deepEqual(svcs.filter((s) => s.desc.late).map((s) => s.id), ['bus', 'classify', 'stt'], 'the two heavy first starts are late, and the quick bus before them');
+    const c = defaultConfig();
+    assert.deepEqual(svcs.filter((s) => s.desc.late === true).map((s) => s.id), ['bus', 'classify', 'stt'], 'the two heavy first starts are late, and the quick bus before them');
+    assert.deepEqual(svcs.filter((s) => s.isLate(c)).map((s) => s.id), ['bus', 'embed', 'classify', 'stt'], 'document search too while its first download is ahead');
     const upSrc = fs.readFileSync(path.join(__dirname, '..', 'src', 'commands', 'up.js'), 'utf8');
-    const boot = upSrc.indexOf('if (!svc.enabled(config) || svc.desc.late) continue;');
-    const late = upSrc.indexOf('if (!svc.desc.late || !svc.enabled(config)) continue;');
+    const boot = upSrc.indexOf('if (!svc.enabled(config) || svc.isLate(config) || svc.isEarly(config)) continue;');
+    const late = upSrc.indexOf('if (!svc.isLate(config) || !svc.enabled(config)) continue;');
     const gate = upSrc.indexOf('seatGateServer = await startSeatGate(');
     assert.ok(boot > 0 && late > 0 && gate > 0, 'both loops and the seat gate are where they should be');
     assert.ok(boot < gate && gate < late, 'boot plugins before the seat gate; the late ones after it');

@@ -9,7 +9,7 @@ import { EventEmitter } from 'events';
 import { spawn, ChildProcess } from 'child_process';
 import { resolveSidecarCommand, sidecarExists } from './paths';
 import { net } from 'electron';
-import { buildSidecarEnv, envProxy, hubAnswers, miniLmState, repairMiniLm } from './configBridge';
+import { adoptEmbedding, buildSidecarEnv, embedAnswers, embeddingBlocked, embeddingContract, envProxy, FarmEmbed, folderContract, hubAnswers, miniLmState, repairMiniLm } from './configBridge';
 import { findFreePort, killTree, waitForHttp } from './util';
 import { SidecarState } from './types';
 
@@ -24,8 +24,12 @@ export interface SidecarStartOpts {
     searxngUrl?: string | null;
     tts?: { url: string; voice: string; model: string } | null;
     extract?: { url: string; key: string } | null;
+    embed?: FarmEmbed | null;
     contextPerSlot?: number | null;
 }
+// Told once when a launch is ready (app.js toasts it). Plain words: the person acts on them.
+const REINDEX_NOTICE = 'Documents are now indexed on the farm, with a model that understands many languages. The documents you added before need indexing again, once: in Open WebUI open Admin Panel ▸ Settings ▸ Documents, then press Reindex next to "Reindex Knowledge and Memory Vectors". A file attached straight to an older chat: attach it again.';
+const BLOCKED_NOTICE = 'This farm does not index documents the way your documents are indexed, so uploading a document fails here: nothing is indexed with another model. Chat works. Uploads work again on a farm that indexes documents.';
 const HEALTH_PATH = '/health';
 const MAX_CRASH_RESTARTS = 5;
 
@@ -39,6 +43,7 @@ export class SidecarSupervisor extends EventEmitter {
     private searxngUrl: string | null = null;   // farm's shared SearXNG → OWUI web search
     private tts: { url: string; voice: string; model: string } | null = null; // farm Kokoro → OWUI AUDIO_TTS_*
     private extract: { url: string; key: string } | null = null; // farm lol-extract → OWUI external document loader (OCR)
+    private embed: FarmEmbed | null = null;         // farm document search → OWUI's embedding engine (configBridge)
     private contextPerSlot: number | null = null; // farm's per-slot context → whole-doc vs top-k RAG mode
     // Generation token: every start()/stop() bumps it, so an in-flight start()
     // that was superseded (by a repoint/stop/crash-restart) aborts at its awaits
@@ -65,7 +70,7 @@ export class SidecarSupervisor extends EventEmitter {
     private launchOpts(): SidecarStartOpts {
         return {
             endpoint: this.endpoint, dataDir: this.dataDir, apiKey: this.apiKey, defaultModel: this.defaultModel,
-            searxngUrl: this.searxngUrl, tts: this.tts, extract: this.extract, contextPerSlot: this.contextPerSlot,
+            searxngUrl: this.searxngUrl, tts: this.tts, extract: this.extract, embed: this.embed, contextPerSlot: this.contextPerSlot,
         };
     }
 
@@ -78,6 +83,7 @@ export class SidecarSupervisor extends EventEmitter {
         this.searxngUrl = opts.searxngUrl ?? null;
         this.tts = opts.tts ?? null;
         this.extract = opts.extract ?? null;
+        this.embed = opts.embed ?? null;
         this.contextPerSlot = opts.contextPerSlot ?? null;
         const myGen = ++this.gen;
 
@@ -100,26 +106,50 @@ export class SidecarSupervisor extends EventEmitter {
         const url = `http://${HOST}:${this.port}`;
         this.setState({ status: 'starting', url: null, dataDir: this.dataDir, endpoint: this.endpoint, message: undefined });
 
+        // The first meeting of this data folder with a farm that indexes documents: the folder adopts its contract for
+        // good (configBridge EMBEDDING_CONTRACTS), before the env is built from it — once one search answered from
+        // this computer (a firewall closing the farm's port would otherwise switch the folder and fail every upload;
+        // this launch then stays on MiniLM). A folder MiniLM had indexed is told to Reindex once; the app never presses
+        // it (Open WebUI's admin API is not ours to call). Per launch, like hubOffline: repoint's comparison never sees it.
+        let embed = this.embed;
+        if (embed && !folderContract(this.dataDir) && embeddingContract(this.dataDir, embed) && !(await embedAnswers(embed))) {
+            console.warn(`[sidecar] the farm's document search at ${embed.url} does not answer from this computer: this launch indexes documents here, as before`);
+            embed = null;
+        }
+        if (myGen !== this.gen) return;
+        let adopted: ReturnType<typeof adoptEmbedding> = null;
+        try {
+            adopted = adoptEmbedding(this.dataDir, embed);
+            if (adopted) console.log(`[sidecar] this data folder now indexes documents on the farm (${folderContract(this.dataDir)})`);
+        } catch (e) { console.warn(`[sidecar] could not record the data folder's document search: ${(e as Error).message}`); }
+        // MiniLM only matters to a folder still on it: Open WebUI never loads it with the farm's engine.
+        const onMiniLm = !embeddingContract(this.dataDir, embed);
+        const blocked = embeddingBlocked(this.dataDir, embed);
+        if (blocked) console.log('[sidecar] this farm does not offer the document search this data folder uses: uploads fail rather than mix two models');
         // No Open WebUI runs now (the old child is gone): the one moment a broken embedding model can be removed.
-        try { const did = repairMiniLm(); if (did) console.log(`[sidecar] ${did}`); }
-        catch (e) { console.warn(`[sidecar] could not remove a broken embedding model: ${(e as Error).message}`); }
+        if (onMiniLm) {
+            try { const did = repairMiniLm(); if (did) console.log(`[sidecar] ${did}`); }
+            catch (e) { console.warn(`[sidecar] could not remove a broken embedding model: ${(e as Error).message}`); }
+        }
         // A MiniLM not on disk can only come from huggingface.co. Where that site does not answer (a closed LAN),
         // the hub's own retries (5 per file, each up to the system's connect timeout) held the boot 123-466 s, past
         // the 180 s wait below, so the chat never opened (measured 2026-10-08). Asked once, 3 s: no answer → this
         // launch runs hub-offline, the chat opens in ~12 s and uploads wait for a start with the network. Per launch,
         // outside buildSidecarEnv, so repoint()'s comparison never sees it. Probed through Electron's network stack
         // (the system proxy, which the hub's httpx also reads), and not at all behind an env proxy.
-        const hubOffline = miniLmState() !== 'cached' && !envProxy()
+        const hubOffline = onMiniLm && miniLmState() !== 'cached' && !envProxy()
             && !(await hubAnswers(undefined, undefined, (u, init) => net.fetch(u, init)));
         if (myGen !== this.gen) return;
         if (hubOffline) console.log('[sidecar] huggingface.co does not answer and the embedding model is not on disk: starting offline (uploads wait for a start with the network)');
-        this.notice = hubOffline
-            ? 'Document uploads need one start with internet access: the search model (about 92 MB) is not on this computer yet, and huggingface.co does not answer. Chat works. Quit and reopen LlmOnLan once this computer is online.'
-            : undefined;
+        this.notice = [
+            hubOffline ? 'Document uploads need one start with internet access: the search model (about 92 MB) is not on this computer yet, and huggingface.co does not answer. Chat works. Quit and reopen LlmOnLan once this computer is online.' : '',
+            adopted === 'reindex' ? REINDEX_NOTICE : '',
+            blocked ? BLOCKED_NOTICE : '',
+        ].filter(Boolean).join(' ') || undefined;
 
         const env = {
             ...process.env,
-            ...buildSidecarEnv(this.launchOpts()),
+            ...buildSidecarEnv({ ...this.launchOpts(), embed }),
             ...(hubOffline ? { HF_HUB_OFFLINE: '1' } : {}),
             // OWUI logs Unicode (loguru/rich) → force UTF-8 so it doesn't crash a
             // Windows cp1252 console (same class of bug as LiteLLM's banner).
@@ -177,10 +207,11 @@ export class SidecarSupervisor extends EventEmitter {
     // DEFAULT_MODELS / SEARXNG_QUERY_URL) takes effect — env is authoritative
     // (config-bridge). Model + searxng are in the change check so switching either
     // on the farm (same endpoint) still restarts to re-apply.
-    async repoint(endpoint: string | null, apiKey: string | null = null, defaultModel: string | null = null, searxngUrl: string | null = null, tts: { url: string; voice: string; model: string } | null = null, extract: { url: string; key: string } | null = null, contextPerSlot: number | null = null): Promise<void> {
+    async repoint(endpoint: string | null, apiKey: string | null = null, defaultModel: string | null = null, searxngUrl: string | null = null, tts: { url: string; voice: string; model: string } | null = null, extract: { url: string; key: string } | null = null, contextPerSlot: number | null = null, embed: FarmEmbed | null = null): Promise<void> {
         if (endpoint === this.endpoint && apiKey === this.apiKey && defaultModel === this.defaultModel
             && searxngUrl === this.searxngUrl && JSON.stringify(tts) === JSON.stringify(this.tts)
             && JSON.stringify(extract) === JSON.stringify(this.extract)
+            && JSON.stringify(embed) === JSON.stringify(this.embed)
             && contextPerSlot === this.contextPerSlot) return;
         // A restart costs a full OWUI boot (~10-30 s of Python imports), so restart
         // only when the EFFECTIVE launch env differs — not when an input differs.
@@ -188,18 +219,18 @@ export class SidecarSupervisor extends EventEmitter {
         // but not the RAG mode it selects, so the running sidecar is already
         // correct; adopt the new inputs and keep it alive.
         const oldEnv = buildSidecarEnv(this.launchOpts());
-        const newEnv = buildSidecarEnv({ endpoint, dataDir: this.dataDir, apiKey, defaultModel, searxngUrl, tts, extract, contextPerSlot });
+        const newEnv = buildSidecarEnv({ endpoint, dataDir: this.dataDir, apiKey, defaultModel, searxngUrl, tts, extract, embed, contextPerSlot });
         if (this.child && JSON.stringify(oldEnv) === JSON.stringify(newEnv)) {
             this.endpoint = endpoint; this.apiKey = apiKey; this.defaultModel = defaultModel;
-            this.searxngUrl = searxngUrl; this.tts = tts; this.extract = extract;
+            this.searxngUrl = searxngUrl; this.tts = tts; this.extract = extract; this.embed = embed;
             this.contextPerSlot = contextPerSlot;
             console.log(`[sidecar] repoint: inputs changed but the launch env is identical — keeping the running sidecar (ctx/slot now ${contextPerSlot})`);
             return;
         }
-        console.log(`[sidecar] repoint ${this.endpoint} → ${endpoint} (model ${this.defaultModel} → ${defaultModel}, search ${this.searxngUrl} → ${searxngUrl}, tts ${this.tts?.url} → ${tts?.url}, ocr ${this.extract?.url} → ${extract?.url}, ctx/slot ${this.contextPerSlot} → ${contextPerSlot})`);
+        console.log(`[sidecar] repoint ${this.endpoint} → ${endpoint} (model ${this.defaultModel} → ${defaultModel}, search ${this.searxngUrl} → ${searxngUrl}, tts ${this.tts?.url} → ${tts?.url}, ocr ${this.extract?.url} → ${extract?.url}, documents ${this.embed?.url} → ${embed?.url}, ctx/slot ${this.contextPerSlot} → ${contextPerSlot})`);
         this.setState({ status: 'restarting', endpoint });
         await this.stop({ keepState: true });
-        await this.start({ endpoint, dataDir: this.dataDir, apiKey, defaultModel, searxngUrl, tts, extract, contextPerSlot });
+        await this.start({ endpoint, dataDir: this.dataDir, apiKey, defaultModel, searxngUrl, tts, extract, embed, contextPerSlot });
     }
 
     // Move to a new data folder (restart pointing at it).

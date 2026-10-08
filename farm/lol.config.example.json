@@ -72,6 +72,10 @@
     "preprocess": false,
     "docling": false
   },
+  "embed": {
+    "enabled": "auto",
+    "port": 8894
+  },
   "admin": {
     "token": null
   },

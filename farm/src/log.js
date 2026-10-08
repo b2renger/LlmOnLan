@@ -23,13 +23,14 @@ function warn(msg) { console.warn(`${TAG} ${paint.yellow('!')} ${msg}`); }
 function err(msg) { console.error(`${TAG} ${paint.red('✗')} ${msg}`); }
 function plain(msg) { console.log(msg); }
 
-// Prefix a child process's lines so its logs are distinguishable in `lol up`.
-function childPrefix(name) {
+// Prefix a child process's lines so its logs are distinguishable in `lol up`. `skip` (a RegExp) drops the lines a
+// busy service writes for every request.
+function childPrefix(name, skip = null) {
     const tag = paint.grey(`[${name}]`);
     return (chunk) => {
         const text = chunk.toString();
         for (const line of text.split(/\r?\n/)) {
-            if (line.length) console.log(`${tag} ${line}`);
+            if (line.length && !(skip && skip.test(line))) console.log(`${tag} ${line}`);
         }
     };
 }

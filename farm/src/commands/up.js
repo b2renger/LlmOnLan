@@ -31,6 +31,7 @@ const { DiscoveryBeacon } = require('../beacon');
 const { PeerListener } = require('../peerListener');
 const { selectModels } = require('../modelPicker');
 const { makeServices, pluginsSummary } = require('../plugins/registry');
+const embedMod = require('../embed');
 const { sendKey: sendBusKey } = require('../bus');
 const { farmId, pluginKey } = require('../identity');
 const { startSelfServer } = require('../selfServer');
@@ -647,7 +648,7 @@ async function run(args) {
         // SearXNG/Kokoro/OCR plugins spawn detached (their own process group), so a crash or
         // hard-kill of the previous `lol up` can orphan them still holding their ports —
         // which would then block THIS run's plugins from binding. Best-effort per pid.
-        for (const pid of [existing.searxngPid, existing.kokoroPid, existing.extractPid, existing.llamacppPid, ...(existing.ollamaPids || [])]) {
+        for (const pid of [existing.searxngPid, existing.kokoroPid, existing.extractPid, existing.embedPid, existing.llamacppPid, ...(existing.ollamaPids || [])]) {
             if (pid && isAlive(pid)) { try { await killTree(pid); } catch { /* already gone */ } }
         }
         clearRuntime();
@@ -663,6 +664,11 @@ async function run(args) {
     // 0b. Detect hardware FIRST — the llama.cpp VRAM budget needs it before spawn
     //     (it used to be detected only when the snapshot was built, long after).
     const hw = await detectHardware();
+    // Document search's 'auto': on with an NVIDIA GPU this farm can run it on (in memory, for this run).
+    if (config.embed.enabled === 'auto') {
+        embedMod.resolveEnabled(config, hw);
+        log.info(`Document search: ${config.embed.enabled ? 'on' : 'off'} ${log.paint.grey(`(automatic: ${config.embed.enabled ? 'an NVIDIA GPU' : embedMod.available(config).message || 'no NVIDIA GPU'})`)}`);
+    }
 
     // 0c. Can this platform run the llama.cpp engine at all? No prebuilt asset and
     //     no binDir means the answer is no (linux-arm64 — the DGX Spark — today), and
@@ -834,6 +840,24 @@ async function run(args) {
     // 2. Models — pull any chosen model a host is missing (no-op for picked ones).
     await pullMissing(config, oll.reachable);
 
+    // The farm's plugins (registry.js). Most start at 4b below; Document search, which holds GPU memory, starts here
+    // when it is on disk: BEFORE llama.cpp measures the free memory and Ollama's context probe loads the model, so
+    // both size themselves around it (owner, 2026-10-08). A first download starts it late instead, once the farm is
+    // public. While it runs, vLLM's Automatic memory finds it already taken (embedReserveGib).
+    const services = makeServices();
+    const svcById = Object.fromEntries(services.map((s) => [s.id, s]));
+    const pluginRuntime = { log, pluginKey, resolveOcrModel: (c) => resolveOcrModel(c, ocrInstalled), isLocalHost, reachable: oll.reachable };
+    for (const svc of services) {
+        if (!svc.enabled(config) || !svc.isEarly(config)) continue;
+        const res = await svc.start(config, pluginRuntime);
+        if (res && res.level && res.message) log[res.level](res.message);
+    }
+    // What vLLM's Automatic memory keeps for Document search: its share while it is on but not running yet (a toggle
+    // from the panel, a start that is still downloading), nothing once its memory is taken.
+    const embedReserveGib = () => (svcById.embed.enabled(config) && !svcById.embed.up ? embedMod.RESERVE_GIB : 0);
+    // Plugins started before the farm is public go down with a boot that gives up.
+    const stopServices = async () => { for (const svc of services) { if (svc.pid) await killTree(svc.pid); } };
+
     let llamacppChild = null;
     // Crash supervision is LATE-BOUND: the exit handler can fire during boot
     // (llama-server dies in its first second — the mtp-on-stripped-quant case),
@@ -981,7 +1005,8 @@ async function run(args) {
         // verdict under the new count let the restart reuse a window measured for
         // fewer people (KV spilling to RAM). The restart sizes the new count on a
         // daemon that runs it.
-        const cacheKey = `${def}|${vram ?? '?'}|${oll.numParallel}|${config.ollama.kvCacheType || 'f16'}`;
+        // Document search running beside it holds ~1.2 GB of the GPU: a verdict measured without it would not fit with it.
+        const cacheKey = `${def}|${vram ?? '?'}|${oll.numParallel}|${config.ollama.kvCacheType || 'f16'}${svcById.embed.up ? '|embed' : ''}`;
         let cache = {};
         try { cache = JSON.parse(fsMod.readFileSync(cacheFile, 'utf8')) || {}; } catch { /* first probe */ }
         if (typeof cache[cacheKey] === 'number') {
@@ -1349,7 +1374,7 @@ async function run(args) {
             const pr = vllmMod.problemsFrom({ ...vllmProbe, installKind: dl ? dl.kind : null }, config);
             if (pr.problems.length || !vllmTarget) return { ok: false, message: pr.problems[0] || 'This computer did not answer the check.' };
             if (isCancelled()) return { ok: false, cancelled: true };
-            plan = vllmMod.planFor(config, vllmProbe.st, vllmMod.memOf(vllmProbe.st));
+            plan = vllmMod.planFor(config, vllmProbe.st, vllmMod.memOf(vllmProbe.st), { embedReserveGib: embedReserveGib() });
             if (!plan.ok) return { ok: false, message: plan.reason };
             // Nothing of this root runs now (stopped just above), so whatever answers on the port is another program's:
             // serve.sh's relay could not listen, and the start must not take that server's answers for its own.
@@ -1660,10 +1685,11 @@ async function run(args) {
     wireProxyIo(child);
 
     const up = await proxyApi.waitForProxy(baseUrl, { timeoutMs: 90000 });
-    if (spawnFailed) return 1;
+    if (spawnFailed) { await stopServices(); return 1; }
     if (!up) {
         log.err('LiteLLM did not become healthy in time. Check the [litellm] logs above.');
         await killTree(child.pid);
+        await stopServices();
         return 1;
     }
 
@@ -1676,11 +1702,9 @@ async function run(args) {
     // timer, and teardown share ONE path. Auxiliary: a failure warns and the farm still
     // comes up without that plugin. (Client-side plugins like Blender aren't here — the
     // farm only recommends them via config.recommendedClientPlugins.)
-    const services = makeServices();
-    const svcById = Object.fromEntries(services.map((s) => [s.id, s]));
-    const pluginRuntime = { log, pluginKey, resolveOcrModel: (c) => resolveOcrModel(c, ocrInstalled), isLocalHost, reachable: oll.reachable };
     for (const svc of services) {
-        if (!svc.enabled(config) || svc.desc.late) continue;   // the late ones start once the farm is public
+        // The late ones start once the farm is public; the early ones (Document search) already started, before the engine.
+        if (!svc.enabled(config) || svc.isLate(config) || svc.isEarly(config)) continue;
         const res = await svc.start(config, pluginRuntime);
         if (res && res.level && res.message) log[res.level](res.message);
     }
@@ -1704,6 +1728,8 @@ async function run(args) {
         sttUp: svcById.stt.up,                // advertise stt{} so the Computer's Sound box can listen
         sttKey: svcById.stt.up ? svcById.stt.ctx.key : null,
         busUp: svcById.bus.up,                // advertise bus{} so boards and Computers meet here
+        embedUp: svcById.embed.up,            // advertise embed{} so laptops index their documents here
+        embedKey: svcById.embed.up ? svcById.embed.ctx.key : null,
         plugins: pluginsSummary(services, config), // generic map for the admin page + clients
         clientsConnected: 0,             // desktop clients heartbeating us (see onClientPing)
         // false when ANY reachable Ollama was already running before this farm
@@ -1761,6 +1787,7 @@ async function run(args) {
         } catch (e) {
             log.err(`Seat gate could not bind ${config.proxy.host}:${config.proxy.port} (${e.code || e.message}). Is another farm running?`);
             await killTree(child.pid);
+            await stopServices();
             return 1;
         }
         liveHealth.getSeats = () => seats.view();
@@ -1872,7 +1899,7 @@ async function run(args) {
     // Plugin keys are tied to the farm password: with one set, a client fetches them here with it.
     const getPluginKeys = () => ({
         password: config.proxy.masterKey || null,
-        keys: { extract: liveHealth.extractKey || null, classify: liveHealth.classifyKey || null, stt: liveHealth.sttKey || null },
+        keys: { extract: liveHealth.extractKey || null, classify: liveHealth.classifyKey || null, stt: liveHealth.sttKey || null, embed: liveHealth.embedKey || null },
     });
     const selfServer = startSelfServer({ httpPort: config.beacon.httpPort, getSnapshot, host: config.proxy.host, control, adminToken, onClientPing, getPluginKeys });
     log.ok(`Unicast discovery → ${log.paint.grey(`http://<ip>:${config.beacon.httpPort}/lol/self`)}`);
@@ -1890,6 +1917,7 @@ async function run(args) {
         if (svc.id === 'ocr') liveHealth.extractKey = svc.up ? svc.ctx.key : null;
         if (svc.id === 'classify') liveHealth.classifyKey = svc.up ? svc.ctx.key : null;
         if (svc.id === 'stt') liveHealth.sttKey = svc.up ? svc.ctx.key : null;
+        if (svc.id === 'embed') liveHealth.embedKey = svc.up ? svc.ctx.key : null;
         refreshPluginHealth();
     };
     for (const svc of services) {
@@ -1918,7 +1946,7 @@ async function run(args) {
     let recordRuntime = () => {};
     void (async () => {
         for (const svc of services) {
-            if (!svc.desc.late || !svc.enabled(config)) continue;
+            if (!svc.isLate(config) || !svc.enabled(config)) continue;
             try { await bringUp(svc); } catch (e) { log.warn(`${svc.label} did not start: ${e.message}`); }
             recordRuntime();
             if (beacon) beacon.kick();
@@ -2020,6 +2048,7 @@ async function run(args) {
         classifyPid: svcById.classify.pid,
         sttPid: svcById.stt.pid,
         busPid: svcById.bus.pid,
+        embedPid: svcById.embed.pid,
         ollamaPids: oll.spawnedPids,
         llamacppPid: llamacppChild ? llamacppChild.pid : null,
         // Not a pid: vLLM outlives a crashed farm on purpose (D4). Where it lives, so `lol down` stops it.
@@ -2696,7 +2725,7 @@ async function run(args) {
         // An explicit memory for conversations can be checked against one person's window now; Automatic is
         // worked out at the start, once the current engine has left the GPU.
         if (config.vllm.kvCacheGib !== 'auto') {
-            const plan = vllmMod.planFor(config, vllmProbe.st, vllmMod.memOf(vllmProbe.st));
+            const plan = vllmMod.planFor(config, vllmProbe.st, vllmMod.memOf(vllmProbe.st), { embedReserveGib: embedReserveGib() });
             if (!plan.ok) return plan.reason;
         }
         return null;
@@ -2843,7 +2872,7 @@ async function run(args) {
         let autoKvGib = null;
         if (v.kvCacheGib === 'auto' && vllmState.phase === 'ready') autoKvGib = v.kvResolvedGib ?? null;
         else if (mem && e && !st.running) {
-            const p = vllmMod.planFor({ ...config, vllm: { ...v, kvCacheGib: 'auto' } }, st, mem);
+            const p = vllmMod.planFor({ ...config, vllm: { ...v, kvCacheGib: 'auto' } }, st, mem, { embedReserveGib: embedReserveGib() });
             autoKvGib = p.ok ? p.kvGib : null;
         }
         const pool = vllmState.phase === 'ready' && v.kvResolvedGib != null ? v.kvResolvedGib : (v.kvCacheGib === 'auto' ? autoKvGib : v.kvCacheGib);
@@ -2876,6 +2905,7 @@ async function run(args) {
             autoKvGib, seatsAuto: auto,
             cardGib: mem ? gb(mem.totalGib) : null, unified: mem ? !!mem.unified : null,
             ocrReserveGib: config.ocr.enabled ? v.ocrReserveGib : 0,
+            embedReserveGib: embedReserveGib(),
             minFreeGb: v.minFreeGb === 'auto' ? (mem && mem.unified ? 8 : null) : (v.minFreeGb || null),
             // Install is offered once the check sees a GPU this vLLM can use, big enough for a model of the list, and
             // the tools a start needs; Update when another version is there.

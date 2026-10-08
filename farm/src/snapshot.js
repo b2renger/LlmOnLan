@@ -14,6 +14,7 @@ const { servedEntries, engineOf } = require('./litellm');
 const { vllmEntry, flagMap } = require('./vllm');
 const { farmId } = require('./identity');
 const { normIp } = require('./seats');
+const { MODEL: EMBED_MODEL } = require('./embed');
 
 const PKG_VERSION = require('../package.json').version;
 
@@ -275,6 +276,12 @@ function buildSnapshot(config, health = {}, callerIp = null) {
         // the OpenAI contract.
         stt: (config.stt?.enabled && health.sttUp && health.sttKey)
             ? plug(`http://${svcHost}:${config.stt.port}`, health.sttKey)
+            : null,
+        // Document search (null when off/down): Open WebUI's embedding engine, POST {url}/v1/embeddings. `contract`
+        // names the vectors (model, 768 numbers, the prefixes): a laptop uses it only when it knows that contract, and
+        // never mixes it with another model's vectors in one data folder (shell configBridge.ts).
+        embed: (config.embed?.enabled === true && health.embedUp && health.embedKey)
+            ? { ...plug(`http://${svcHost}:${config.embed.port}`, health.embedKey), model: EMBED_MODEL.id, dims: EMBED_MODEL.dims, contract: EMBED_MODEL.contract }
             : null,
         // The message bus (null when off/down): where boards and Computers meet. `auth` = the farm password
         // is required (MQTT user "lol" + the password, WebSocket ?key=<password>, OSC /lol/listen's second

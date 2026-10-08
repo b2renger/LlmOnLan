@@ -24,12 +24,13 @@ function examples() {
     // client that holds the seat (GET /lol/self), and the same farm's beacon.
     const ollama = defaultConfig();
     ollama.ollama.contextResolved = 32768;   // what `lol up` measured
+    ollama.embed.enabled = true;             // document search: 'auto' resolved on a GPU box
     const ollamaHealth = {
         proxyUp: true, hostsUp: 1, hostsTotal: 1, loaded: ['gemma4:12b'], engineUp: true,
         host: { gpu: 'NVIDIA GeForce RTX 4070', vramGb: 12, ramGb: 64, cpuCores: 16 },
         gpu: { gpuUtil: 7, vramUsedGb: 10.4, vramTotalGb: 12 },
         clientsConnected: 3, getSeats: () => seatsOf('10.0.0.21'),
-        searxngUp: true, extractUp: true, extractKey: 'ocr-key',
+        searxngUp: true, extractUp: true, extractKey: 'ocr-key', embedUp: true, embedKey: 'embed-key',
         deployments: 1, getJob: () => null, perf: null,
     };
 
@@ -38,7 +39,7 @@ function examples() {
     const llama = defaultConfig();
     Object.assign(llama.llamacpp, { enabled: true, parallel: 2, contextResolved: 65536 });
     llama.proxy.masterKey = 'farm-password';
-    for (const k of ['tts', 'classify', 'stt', 'bus']) llama[k].enabled = true;
+    for (const k of ['tts', 'classify', 'stt', 'bus', 'embed']) llama[k].enabled = true;
     const llamaHealth = {
         proxyUp: true, hostsUp: 1, hostsTotal: 1, loaded: [], engineUp: true,
         host: { gpu: 'NVIDIA RTX A6000', vramGb: 48, ramGb: 128, cpuCores: 32 },
@@ -46,6 +47,7 @@ function examples() {
         clientsConnected: 4, getSeats: () => seatsOf('10.0.0.21', '10.0.0.22'),
         searxngUp: true, ttsUp: true, busUp: true,
         extractUp: true, extractKey: 'ocr-key', classifyUp: true, classifyKey: 'laya-key', sttUp: true, sttKey: 'stt-key',
+        embedUp: true, embedKey: 'embed-key',
         deployments: 1,
         // up.js's whole job view; buildSnapshot keeps what clients read.
         getJob: () => ({

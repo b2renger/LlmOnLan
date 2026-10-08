@@ -39,6 +39,20 @@
     "extract": { "$ref": "#/$defs/service", "description": "The OCR loader. Open WebUI's EXTERNAL_DOCUMENT_LOADER_* and the Computer's Document box." },
     "classify": { "$ref": "#/$defs/service", "description": "The Laya service. The Computer's Classify box." },
     "stt": { "$ref": "#/$defs/service", "description": "Speech to text (POST {url}/v1/audio/transcriptions). The Computer's Sound box, in Listen mode." },
+    "embed": {
+      "type": ["object", "null"],
+      "description": "Document search, null when off or down (farms after farm-v0.0.43): POST {url}/v1/embeddings. Open WebUI's RAG_EMBEDDING_* and RAG_OPENAI_* (configBridge.ts), only when the client knows `contract`; on a farm with a password key is null and keyId names the key fetched from /lol/plugin-keys.",
+      "required": ["url", "contract"],
+      "additionalProperties": false,
+      "properties": {
+        "url": { "type": "string", "description": "The service's base URL (no /v1)." },
+        "key": { "type": ["string", "null"], "description": "Its Bearer key; null on a farm with a password." },
+        "keyId": { "type": "string", "description": "The start of the key's sha256, so a client knows when to fetch again." },
+        "model": { "type": "string", "description": "The model name a request sends (embeddinggemma-2)." },
+        "dims": { "type": "integer", "description": "Numbers per vector (768)." },
+        "contract": { "type": "string", "description": "Names the vectors (model, size, prefixes): a data folder keeps one contract for good (DATA_DIR/lol-embedding.json)." }
+      }
+    },
     "bus": {
       "type": ["object", "null"],
       "description": "The message bus, null when off or down. The Computer's Receive, Send and Trigger boxes talk to its WebSocket hub.",
@@ -53,7 +67,7 @@
     },
     "plugins": {
       "type": "object",
-      "description": "Farm plugin states by id (websearch, tts, ocr, bus, classify, stt), from registry.js pluginsSummary. The client's farm cards.",
+      "description": "Farm plugin states by id (websearch, tts, ocr, bus, embed, classify, stt), from registry.js pluginsSummary. The client's farm cards.",
       "additionalProperties": {
         "type": "object",
         "additionalProperties": false,

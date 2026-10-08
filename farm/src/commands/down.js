@@ -58,7 +58,7 @@ async function run() {
             await killTree(rt.extractPid);
             killed++;
         }
-        for (const [pid, label] of [[rt.classifyPid, 'Classify'], [rt.sttPid, 'speech to text'], [rt.busPid, 'the message bus']]) {
+        for (const [pid, label] of [[rt.classifyPid, 'Classify'], [rt.sttPid, 'speech to text'], [rt.busPid, 'the message bus'], [rt.embedPid, 'document search']]) {
             if (pid && isAlive(pid)) {
                 log.step(`Stopping ${label} (pid ${pid}) …`);
                 await killTree(pid);

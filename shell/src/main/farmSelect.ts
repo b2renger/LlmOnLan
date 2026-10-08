@@ -92,6 +92,9 @@ export interface FarmContext {
     // Shared OCR loader → CONTENT_EXTRACTION_ENGINE=external. Needs both a url and a key
     // (OWUI's loader mandates the key).
     extract: { url: string; key: string } | null;
+    // The farm's document search → Open WebUI's embedding engine (configBridge decides whether this client uses it:
+    // only a contract it knows). Needs a url, a key and a contract.
+    embed: { url: string; key: string; contract: string } | null;
     // The context window ONE chat gets (llama.cpp splits --ctx-size across slots; Ollama's
     // num_ctx is already per request) → whole-document vs top-k RAG in configBridge. Null on
     // farms older than farm-v0.0.22 — the bridge then keeps the historic whole-document default.
@@ -109,6 +112,7 @@ export function farmContext(f: DiscoveredFarm, key: string | null): FarmContext 
         searxng: f.searxngUrl || null,
         tts: f.ttsUrl ? { url: f.ttsUrl, voice: f.ttsVoice || 'af_heart', model: f.ttsModel || 'kokoro' } : null,
         extract: f.extract?.url && f.extract.key ? { url: f.extract.url, key: f.extract.key } : null,
+        embed: f.embed?.url && f.embed.key && f.embed.contract ? { url: f.embed.url, key: f.embed.key, contract: f.embed.contract } : null,
         ctxPerSlot: typeof ctx === 'number' && ctx > 0 ? ctx : null,
     };
 }
@@ -122,12 +126,12 @@ export function sameContext(a: FarmContext | null, b: FarmContext | null): boole
 // already right and the first beacon does not force a second OWUI boot.
 export interface SavedContext {
     lastEndpoint: string; lastFarmKey: string | null; lastFarmModel: string | null; lastFarmSearxng: string | null;
-    lastFarmTts: FarmContext['tts']; lastFarmExtract: FarmContext['extract']; lastFarmCtxPerSlot: number | null;
+    lastFarmTts: FarmContext['tts']; lastFarmExtract: FarmContext['extract']; lastFarmEmbed: FarmContext['embed']; lastFarmCtxPerSlot: number | null;
 }
 export function persistedContext(c: FarmContext): SavedContext {
     return {
         lastEndpoint: c.endpoint, lastFarmKey: c.key, lastFarmModel: c.model, lastFarmSearxng: c.searxng,
-        lastFarmTts: c.tts, lastFarmExtract: c.extract, lastFarmCtxPerSlot: c.ctxPerSlot,
+        lastFarmTts: c.tts, lastFarmExtract: c.extract, lastFarmEmbed: c.embed, lastFarmCtxPerSlot: c.ctxPerSlot,
     };
 }
 
@@ -146,7 +150,7 @@ export function connectPlan(next: FarmContext, running: FarmContext | null, save
 // Plugin keys are tied to the farm password (owner, 2026-09-27): a farm with a password leaves its
 // plugins' keys out of the beacon, and a client holding the password fetches them from the farm's
 // /lol/plugin-keys (index.ts). These are the pure rules; `hit` is the cached answer for this farm.
-export const PLUGIN_KEYS = ['extract', 'classify', 'stt'] as const;
+export const PLUGIN_KEYS = ['extract', 'classify', 'stt', 'embed'] as const;
 export interface PluginKeyEntry { sig: string; keys: Record<string, string | null>; retryAt: number }
 
 /** The farm with its plugin keys filled in from `hit`, and `fetchSig` when they must be fetched
@@ -165,10 +169,15 @@ export function applyPluginKeys<T extends { requiresKey?: boolean }>(f: T, key: 
     return { farm: out as unknown as T, fetchSig: due ? sig : null };
 }
 
-/** While a keyed farm's plugin keys are still being fetched, keep the OCR loader Open WebUI already
- * has for the SAME address: a pending fetch must not change the launch env, or a cold launch boots
- * Open WebUI three times (release critic R2). */
-export function keepPendingExtract<T extends { requiresKey?: boolean; extract?: { url?: string } | null }>(next: FarmContext, farm: T, known: FarmContext['extract']): FarmContext {
-    if (next.extract || !farm.requiresKey || !farm.extract || !farm.extract.url || !known || known.url !== farm.extract.url) return next;
-    return { ...next, extract: known };
+/** While a keyed farm's plugin keys are still being fetched, keep the OCR loader and the document search Open WebUI
+ * already has for the SAME address: a pending fetch must not change the launch env, or a cold launch boots
+ * Open WebUI three times (release critic R2). `known` = what Open WebUI runs with (or the saved context). */
+export function keepPending<T extends { requiresKey?: boolean; extract?: { url?: string } | null; embed?: { url?: string } | null }>(next: FarmContext, farm: T, known: Pick<FarmContext, 'extract' | 'embed'>): FarmContext {
+    if (!farm.requiresKey) return next;
+    const out = { ...next };
+    for (const k of ['extract', 'embed'] as const) {
+        const had = known[k];
+        if (!out[k] && farm[k] && farm[k]!.url && had && had.url === farm[k]!.url) (out as Record<string, unknown>)[k] = had;
+    }
+    return out;
 }

@@ -18,6 +18,7 @@ const extract = require('../extract');
 const classify = require('../classify');
 const stt = require('../stt');
 const bus = require('../bus');
+const embed = require('../embed');
 const { serviceHosts } = require('../net');
 
 // Where the farm's own health checks reach a plugin: the plugins bind where
@@ -111,6 +112,30 @@ const DESCRIPTORS = [
         alive: (c) => bus.busAlive(c.bus.wsPort, probeHost(c)),
     },
     {
+        // Document search (owner, 2026-10-08; src/embed.js): the laptops' document text in, vectors out, nothing kept.
+        // It holds GPU memory, so a boot starts it BEFORE the engine sizes its own (up.js: `early`) when everything is
+        // on disk; a first download waits until the farm is public instead (`late`), like Classify's.
+        id: 'embed', label: 'Document search', logPrefix: 'embed', configKey: 'embed', healthKey: 'embedUp', runsOn: 'farm',
+        // llama-server writes three lines per text (its slot taking it, a token count, releasing it): 600 lines for a
+        // 50-page document. The farm's log keeps its other lines (start, warnings, errors); none of them holds a text.
+        logSkip: / slot +(get_availabl|launch_slot_|release): /,
+        early: (c) => embed.ready(c),
+        late: (c) => !embed.ready(c),
+        enabled: (c) => !!(c.embed && c.embed.enabled === true),
+        port: (c) => c.embed.port,
+        makeCtx: (c, rt) => ({ key: rt.pluginKey('embed', farmPassword(c)) }),
+        ensure: (c) => embed.ensureEmbed(c),
+        spawn: (c, ctx) => embed.spawnEmbed(c, ctx),
+        stepMessage: (c) => `Document search: preparing ${embed.MODEL.id} on llama-server (port ${c.embed.port}) — a first start downloads llama.cpp and the model …`,
+        waitReady: async (c, ctx, isDead) => {
+            const r = await embed.waitForEmbed(c.embed.port, ctx.key, probeHost(c), isDead);
+            if (r.error) return { ok: false, level: 'warn', message: `Document search did not start: ${r.error}. Continuing without it.` };
+            if (r.up) return { ok: true, level: 'ok', message: `Document search up (${embed.MODEL.id}, ${embed.MODEL.dims} numbers per text) — laptops index their documents here; nothing is kept${firewallNote(c)}.` };
+            return { ok: false, level: 'warn', message: `Document search did not become ready on port ${c.embed.port} (see the [embed] log). Continuing without it.` };
+        },
+        alive: (c) => embed.embedAlive(c.embed.port, probeHost(c)),
+    },
+    {
         // Ecosystem plan v2 §3.2: Laya for the Computer's Classify box. CPU-first, off by default.
         id: 'classify', label: 'Classify (Laya)', logPrefix: 'classify', configKey: 'classify', healthKey: 'classifyUp', runsOn: 'farm',
         late: true,   // started after the farm is public (up.js): a first start installs ~1 GB
@@ -164,6 +189,10 @@ class FarmService {
     get configKey() { return this.desc.configKey; }
     get pid() { return this.child ? this.child.pid : null; }
     enabled(config) { return this.desc.enabled(config); }
+    // When a boot starts it: `early` = before the engine sizes its memory, `late` = once the farm is public, neither =
+    // with the others before the farm is public. A descriptor's flag may depend on the config (Document search).
+    isEarly(config) { const e = this.desc.early; return typeof e === 'function' ? !!e(config) : !!e; }
+    isLate(config) { const l = this.desc.late; return typeof l === 'function' ? !!l(config) : !!l; }
     port(config) { return this.desc.port(config); }
 
     // ensure install → spawn → health-wait. Returns { ok, level, message } for the caller
@@ -190,8 +219,8 @@ class FarmService {
             }
         });
         child.on('error', (e) => log.warn(`${this.label} failed to start: ${e.message}`));
-        if (child.stdout) child.stdout.on('data', log.childPrefix(this.desc.logPrefix));
-        if (child.stderr) child.stderr.on('data', log.childPrefix(this.desc.logPrefix));
+        if (child.stdout) child.stdout.on('data', log.childPrefix(this.desc.logPrefix, this.desc.logSkip));
+        if (child.stderr) child.stderr.on('data', log.childPrefix(this.desc.logPrefix, this.desc.logSkip));
         let res;
         try { res = await this.desc.waitReady(config, this.ctx, () => exited); }
         catch { res = { ok: false, level: 'warn', message: `${this.label} health check failed — continuing without it.` }; }

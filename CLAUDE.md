@@ -21,7 +21,10 @@
 > MCP server; v0.2.2 the bus and MCP hardening, lessons 5–6 and "Ask out loud"; v0.2.3 the IDE (LOL Vibe's Project
 > panel + the coding agent, history, LAN share, GitHub), mic and camera, lessons 7–12, the resume banner and a full
 > review of every in-app text with tooltips; v0.2.4 the project server stops following symbolic links out of a project; v0.2.5 the coding agent compacts on small context windows; v0.2.6 agent loops (Keep going until done, schedules, Use the Computer), agent pages and the syntax check; v0.2.7 Home Assistant — ask, command, and agents that act on the home, reviewed by two critics; v0.2.8 + farm-v0.0.42 the multi-user work (multiuser_implementation_plan.md): the seat gate checks the password before a seat and forwards only the routes clients use, Stop reaches the engine, honest waits on every surface, an external vLLM routed through `hosted_vllm/` with its metrics read, a reply limit and Qwen's presence penalty against runaway replies, web search v2 (off by default, the client's search-and-read service, the date line), the Computer's yes/no decisions think, and the vLLM recipe with autostart; v0.2.9 + farm-v0.0.43: vLLM run by the farm (installed, started, stopped, configured and switched from the panel, and the take-over of an operator-run vLLM), the capacity page with usage scenarios, Open WebUI booting once, and the search model's repair and offline start (docs/DEVLOG.md; the manual rig lists are docs/TEST_SCENARIOS_v0.2.md, sections 7d and 7e).
-> The bullets below describe `main` (= `multiuser-phase0`, 2026-10-08).
+> The bullets below describe `main` (= `multiuser-phase0`, 2026-10-08). Branch `embed-farm` (2026-10-08, not merged, not
+> released) adds **document search on the farm** (owner decision 2026-10-08, docs/EMBEDDINGS_STUDY.md "The decision"):
+> the farm turns the laptops' document text into vectors with EmbeddingGemma 2 and keeps nothing; the bullets below
+> include it.
 
 The full plan is built, released and in multi-user testing; the dated build log with how
 each piece was tested lives in [docs/DEVLOG.md](docs/DEVLOG.md), the rig‑verification state in
@@ -67,7 +70,7 @@ docs) is `docs/reviews/DOCS_REVIEW_2026-09-27_{FARM,SHELL,COMPUTER}.md`. Snapsho
     never `busy`, resumable), keeps a list of the three measured NVFP4 models (Download / Use this / Remove / Add
     by Hugging Face name), and sets people at once, context per person and GPU memory for conversations
     (Automatic: measured seats capped by what the pool holds; the pool from free memory less the model, ~4 GB,
-    9 GB for OCR and an 8 % margin, never `--gpu-memory-utilization`) under the one Apply, which dry-runs and
+    9 GB for OCR, document search's 1.5 GB while it is not running yet and an 8 % margin, never `--gpu-memory-utilization`) under the one Apply, which dry-runs and
     confirms only a restart. The boot never waits for it: a PLANNED start keeps the farm healthy + `busy`
     "Starting vLLM" and the gate answers 503 `lol_engine_starting`; an unplanned death, Stop and the memory guard
     make it unhealthy. Three missed answers → look; one restart; a second stop in 5 min → Ollama with the reason.
@@ -137,7 +140,15 @@ docs) is `docs/reviews/DOCS_REVIEW_2026-09-27_{FARM,SHELL,COMPUTER}.md`. Snapsho
     (Laya on the CPU, `classify.js` + `pysvc/classify_server.py`, OFF) and **speech to text** (faster-whisper on
     the CPU, `stt.js` + `pysvc/stt_server.py`, OFF), and the **message bus** (`bus.js`, Node stdlib, OFF: an MQTT
     3.1.1 broker :1883, a WebSocket hub :8893 and an OSC relay :9001 sharing one topic space, tied to the farm
-    password — MQTT user `lol`, `?key=`, `/lol/listen <filter> <pw>`; never logs a payload). They bind to `proxy.host`; the Python ones share one
+    password — MQTT user `lol`, `?key=`, `/lol/listen <filter> <pw>`; never logs a payload), and since 2026-10-08
+    **document search** (`embed.js`: llama-server `--embeddings` with ONE pinned EmbeddingGemma 2 GGUF — ggml-org's
+    BF16 conversion of google/embeddinggemma-2, pinned by revision and sha256 — 768 numbers, contract
+    `embeddinggemma-2/768/v1`; port 8894, 8 slots of 2048 tokens, ~1.2 GB of GPU memory; its key in `LLAMA_API_KEY`,
+    never in the argv; `--no-slots`, `--cache-ram 0`, no prompt log, LLAMA_* variables dropped; it reuses the llama.cpp
+    engine's build — llama.cpp >= b11454 — or `llamacpp.binDir`; `enabled: 'auto'` = on with an NVIDIA GPU it can run
+    on; started BEFORE the engine sizes its memory when it is on disk, else once the farm is public; vLLM's Automatic
+    memory keeps 1.5 GB for it while it is on but not running; Ollama's context verdict is keyed on it; outside the
+    seat gate, no seat). They bind to `proxy.host`; the Python ones share one
     shape (own venv, a Bearer key that stays the same across runs — an HMAC of `farm/.lol-secret` and the farm
     password — one job at a time + 429, no body ever logged). **Plugin keys are
     tied to the farm password** (2026-09-27): on an open farm the key rides the snapshot; with a password
@@ -153,7 +164,13 @@ docs) is `docs/reviews/DOCS_REVIEW_2026-09-27_{FARM,SHELL,COMPUTER}.md`. Snapsho
   URL typed**, full Preferences (data folder + move/fresh migration, connection, assistant tools, Home Assistant,
   startup/updates, about). **Adaptive RAG**: whole-document injection (`RAG_FULL_CONTEXT=true`) on farms
   advertising `backend.contextPerSlot ≥ 24576` (or not advertising it), classic top-k (`RAG_TOP_K=8`) below —
-  so a 16k farm can't context-overflow on an attachment; presence heartbeats to the farm (`POST
+  so a 16k farm can't context-overflow on an attachment; **document search on the farm** (2026-10-08,
+  `configBridge.ts` `EMBEDDING_CONTRACTS`): a data folder adopts the farm's contract the first time it meets a farm
+  advertising one this client knows (`DATA_DIR/lol-embedding.json`), then Open WebUI's `openai` embedding engine points
+  at the farm's service; never MiniLM again for that folder (on a farm without it the engine points at
+  `http://127.0.0.1:0/v1`, so an upload fails, nothing is indexed with another model, and a toast says why); a folder
+  MiniLM had indexed is told once to press Reindex (Admin Panel ▸ Settings ▸ Documents) — the app never calls the
+  admin API; presence heartbeats to the farm (`POST
   /lol/client-ping` every 10 s: id/hostname/platform/version/idleSec); Blender/mcpo assistant tools are
   **opt-in** (off by default since v0.1.24; a farm recommendation can enable them for non-explicit users).
   **Three surfaces**, picked by the topbar's segmented control (Open WebUI · LOL Vibe · Computer; the last
@@ -430,10 +447,10 @@ If a task seems to require breaking one of these, **stop and flag it**.
 |---|---|---|
 | Lifecycle | Shell spawns the OWUI sidecar as a child process and supervises it. | Shell = process manager + window. |
 | Config → OWUI | Env vars at **every** launch, made authoritative by `ENABLE_PERSISTENT_CONFIG=false` — repointing the farm restarts the sidecar with new env. **Three exceptions**, all written from the authed webview via OWUI's user‑settings API `POST /api/v1/users/user/settings/update`: switching web search back off, once, on a profile a client up to v0.2.7 turned on (`ui.webSearch` 'always' → null, only while its `lolWebSearchSeeded` marker is there and the value is still 'always'; marked `lolWebSearchUnseeded`) — web search is off by default; the globe button turns it on for a chat; the **date line** (2026‑10‑05: the model otherwise believes it is 2025): `ui.system` = `Today is {{CURRENT_WEEKDAY}} {{CURRENT_DATE}}.`, once per profile and only when the person's system prompt is empty (marked `lolDateLineSeeded` either way, so a prompt they wrote or emptied is never touched; OWUI fills the variables at each message, on chat requests only, not title generation); and the opt‑in Blender tool server (`ui.toolServers` + `ui.tools`). None has a usable env (`DEFAULT_MODEL_PARAMS.system` never reaches a farm model's messages; 0.11's `DEFAULT_INTERFACE_SETTINGS` is missing from 0.10 and comes back when a person empties it). | See gotchas below. |
-| Data | `DATA_DIR` → the user's chosen local folder; default local embeddings; telemetry off. | Enforces invariant #3. |
-| Net out of OWUI | Chat completions to the farm endpoint; plus, when the farm advertises them: web searches, Kokoro TTS requests, and uploaded‑file bytes to the farm OCR extractor; and MCP tool calls to the Computer on 127.0.0.1 (this machine) — which answers the home tools against the Home Assistant a person linked. **Web search v2** (2026-10-05): OWUI's searches go to this app's main on 127.0.0.1 (`POST /web/search` on the MCP listener, OWUI's external-search env); main sends the query to the farm's SearXNG and itself reads the top pages of each search — up to 6 automatic GETs, public internet only (`webSearch.ts` through `io.ts`) — instead of OWUI fetching only the pages the model picks; a page the model still fetches itself (`fetch_url`) is OWUI's own GET. That is native tool calling, OWUI's default; a chat set to Legacy function calling gets main's results too, but OWUI then loads those pages itself (its web loader). When that port is taken, OWUI queries SearXNG directly, as before. | Embeddings always stay local. |
+| Data | `DATA_DIR` → the user's chosen local folder; the vectors are kept there whoever computes them (the farm's document search once the folder adopted it, else OWUI's MiniLM on this computer); telemetry off. | Enforces invariant #3. |
+| Net out of OWUI | Chat completions to the farm endpoint; plus, when the farm advertises them: web searches, Kokoro TTS requests, and uploaded‑file bytes to the farm OCR extractor; and MCP tool calls to the Computer on 127.0.0.1 (this machine) — which answers the home tools against the Home Assistant a person linked. **Web search v2** (2026-10-05): OWUI's searches go to this app's main on 127.0.0.1 (`POST /web/search` on the MCP listener, OWUI's external-search env); main sends the query to the farm's SearXNG and itself reads the top pages of each search — up to 6 automatic GETs, public internet only (`webSearch.ts` through `io.ts`) — instead of OWUI fetching only the pages the model picks; a page the model still fetches itself (`fetch_url`) is OWUI's own GET. That is native tool calling, OWUI's default; a chat set to Legacy function calling gets main's results too, but OWUI then loads those pages itself (its web loader). When that port is taken, OWUI queries SearXNG directly, as before. **Document search** (2026-10-08): once the data folder adopted the farm's contract, the text of each piece of an uploaded document, and of a search, goes to the farm's document search (`RAG_OPENAI_API_BASE_URL`, its own port and key) and the vectors come back. | The vectors are stored only in DATA_DIR; the farm keeps no text and no vector. |
 | Webview | The renderer reads the OWUI origin's `localStorage.token`, validates it with `GET /api/v1/auths/` (drop + reload, ≤4 tries) before revealing the webview, and reads the user's settings once per session to undo the old web‑search seed and write the date line (a failed read writes nothing); a page that loaded while the farm in use was not answering is reloaded once, 500 ms after that farm answers (`reloadIfFarmBack`: OWUI reads the model list only as its page loads, measured on 0.11.4; re-check on a pin bump); the `persist:owui` partition is granted mic/camera/clipboard only. | `renderer/app.js`, `src/main/index.ts`. |
-| Hugging Face cache | Before each start, main repairs a half or damaged MiniLM in huggingface_hub's cache, never OWUI's own files. `repairMiniLm` removes the hub's file list and dangling links, and the snapshots only if the model is still half there; the blobs always stay. While MiniLM is not on disk, main also sends huggingface.co one HEAD (3 s) to choose `HF_HUB_OFFLINE` for that launch. "Whole" (`hfModelState`) copies huggingface_hub 1.33's local lookup and the files MiniLM's loader reads: re-check both on every pin bump. | `configBridge.ts`, `sidecar.ts`. |
+| Hugging Face cache | Before each start of a data folder still on MiniLM (none once it indexes on the farm), main repairs a half or damaged MiniLM in huggingface_hub's cache, never OWUI's own files. `repairMiniLm` removes the hub's file list and dangling links, and the snapshots only if the model is still half there; the blobs always stay. While MiniLM is not on disk, main also sends huggingface.co one HEAD (3 s) to choose `HF_HUB_OFFLINE` for that launch. "Whole" (`hfModelState`) copies huggingface_hub 1.33's local lookup and the files MiniLM's loader reads: re-check both on every pin bump. | `configBridge.ts`, `sidecar.ts`. |
 | Everything else | None. OWUI is a black box. | No DB poking, no template/CSS edits, no internal imports. |
 
 ### Verified OWUI config surface (re‑verify per pinned version; authoritative list = `shell/src/main/configBridge.ts`)
@@ -468,7 +485,17 @@ Connection: `OPENAI_API_BASE_URL` + `OPENAI_API_KEY` (the farm is OpenAI‑compa
   plus, per launch and outside `buildSidecarEnv` (so `repoint`'s env comparison never sees it), `HF_HUB_OFFLINE=1`
   when MiniLM is not on disk, no proxy is set in the environment (`HTTPS_PROXY`/`HTTP_PROXY`/`ALL_PROXY`, either
   case), and huggingface.co does not answer a 3 s HEAD sent through Electron's `net.fetch` (the system proxy);
-  `HF_HUB_ETAG_TIMEOUT=2` stays set beside it.
+  `HF_HUB_ETAG_TIMEOUT=2` stays set beside it. A data folder that indexes on the farm needs only whisper-base cached
+  for `HF_HUB_OFFLINE=1`, and gets no MiniLM repair and no HEAD.
+- **Document search** (when the data folder's contract, `DATA_DIR/lol-embedding.json`, or the farm's advertised
+  `embed.contract` is one this client knows — `configBridge.ts` `EMBEDDING_CONTRACTS`): `RAG_EMBEDDING_ENGINE=openai` ·
+  `RAG_EMBEDDING_MODEL=embeddinggemma-2` · `RAG_OPENAI_API_BASE_URL=<embed.url>/v1` (NEVER unset: OWUI then falls back
+  to the chat address) · `RAG_OPENAI_API_KEY=<embed key>` (fetched through the farm password on a keyed farm) ·
+  `RAG_EMBEDDING_QUERY_PREFIX="task: search result | query: "` · `RAG_EMBEDDING_CONTENT_PREFIX="title: none | text: "`
+  (OWUI 0.11.4 prepends them; no field name) · `RAG_EMBEDDING_BATCH_SIZE=32` · `RAG_EMBEDDING_CONCURRENT_REQUESTS=2` ·
+  `RAG_EMBEDDING_TIMEOUT=300`. A folder with a contract on a farm that does not offer it: the same, with
+  `RAG_OPENAI_API_BASE_URL=http://127.0.0.1:0/v1` (port 0: nothing listens, an upload fails at once) and
+  `RAG_OPENAI_API_KEY=sk-lol-none`. The env changes only with the farm's service or the folder's marker.
 - **With a farm:** `ENABLE_OPENAI_API=true` · `OPENAI_API_BASE_URL=http://<host we reached it at>:<proxyPort>/v1`
   · `OPENAI_API_KEY`=<farm password> or `sk-lol-lan` · `DEFAULT_MODELS`=<the farm's default id, when listed>.
   **Without:** `ENABLE_OPENAI_API=false` (a no‑farm boot must not fall back to api.openai.com).
@@ -504,17 +531,21 @@ Data locality:
 - `DATA_DIR` → user‑chosen local folder (all persistent data lives here: OWUI's, and — in its `lol-client`
   subfolder, the main window's Chromium session — LOL Vibe's history and the Computer's graphs and media;
   File-box outputs in `LOL Studio Projects/`).
-- **Keep default local embeddings** — we set **neither** `RAG_EMBEDDING_ENGINE` **nor**
-  `RAG_EMBEDDING_MODEL`, so OWUI's in‑process default applies (`all-MiniLM-L6-v2`,
-  cached in the default HF_HOME — `~/.cache/huggingface`, deliberately NOT under `DATA_DIR` so a
-  data‑folder move never re‑downloads it; `SENTENCE_TRANSFORMERS_HOME`, `HF_HUB_CACHE`, `HF_HOME` or `XDG_CACHE_HOME`
-  in the inherited environment move it, as `hfHubDir` and `miniLmRoot` read them). The app writes there only to repair
-  MiniLM before a start: a half or damaged copy loses the hub's file list and its dangling links, and its snapshots too
-  while it is still half-downloaded, so Open WebUI's loader fetches it again (~92 MB). The downloaded bytes (`blobs/`)
-  stay. Do **NOT** set `RAG_EMBEDDING_ENGINE=ollama` — that would
-  ship document text to the farm for **embedding**. (Distinct from extraction: with the default‑on farm
-  OCR, an uploaded file's raw bytes DO transit to the trusted‑LAN farm for text extraction; the
-  extracted text then embeds locally.)
+- **Document search: the farm computes the vectors, the laptop keeps them** (owner decision 2026-10-08, replacing
+  "keep default local embeddings"). A document's text MAY be sent to the farm to be turned into vectors: the farm's
+  document search (EmbeddingGemma 2, `farm/src/embed.js`) keeps nothing and logs no text, and the vectors are stored in
+  `DATA_DIR` as before. One model per data folder, for good (`DATA_DIR/lol-embedding.json`, written the first time
+  the folder meets a farm offering a contract this client knows): vectors of two models cannot be searched together,
+  so a folder that adopted the farm's model never falls back to MiniLM (an upload fails on a farm without it, with a
+  toast). Until then a folder stays on OWUI's in‑process default (`all-MiniLM-L6-v2`, on this computer), cached in
+  the default HF_HOME — `~/.cache/huggingface`, deliberately NOT under `DATA_DIR` so a data‑folder move never
+  re‑downloads it; `SENTENCE_TRANSFORMERS_HOME`, `HF_HUB_CACHE`, `HF_HOME` or `XDG_CACHE_HOME` in the inherited
+  environment move it, as `hfHubDir` and `miniLmRoot` read them. For such a folder the app writes there only to
+  repair MiniLM before a start: a half or damaged copy loses the hub's file list and its dangling links, and its
+  snapshots too while it is still half-downloaded, so Open WebUI's loader fetches it again (~92 MB). The downloaded
+  bytes (`blobs/`) stay. Never point the embedding engine anywhere but the farm's document search (never Ollama,
+  never an unset `RAG_OPENAI_API_BASE_URL`, which falls back to the chat address). With the default‑on farm OCR, an
+  uploaded file's raw bytes also go to the farm, for text extraction; nothing is kept there either.
 - **Single worker** (default). Default Chroma is a local SQLite client that is not fork‑safe — never
   raise worker/replica counts in the client.
 
@@ -557,6 +588,7 @@ declarative config; the CLI orchestrates everything from it.
   "external": { "enabled": false, "alias": "assistant", "baseUrl": "http://127.0.0.1:8000/v1",
                 "contextLength": 32768, "parallel": 4 },   // a server the farm does not run; DECLARED values
   "websearch": { "enabled": true }, "ocr": { "enabled": true }, "tts": { "enabled": false },
+  "embed": { "enabled": "auto", "port": 8894 },  // document search: 'auto' = on with an NVIDIA GPU
   "admin": { "token": null }                     // null = a fresh token per `lol up`, printed in the banner
 }
 ```
@@ -571,8 +603,8 @@ CLI commands:
 | `lol up` / `serve` | Probe an external engine; ensure Ollama (start a local one if down); pick the Ollama models (prompt / `--model` / `--no-pick`); pull what's missing; start llama-server if enabled (fall back to Ollama on failure); check vLLM if it is the engine (keep a matching one, else queue its start); size the Ollama context; generate `litellm/config.generated.yaml`; start LiteLLM on loopback + the seat gate on `proxy.port`; start the plugins; start the beacon, `/lol/self` and the admin panel; print the admin token; start vLLM as the job "Starting vLLM". Foreground. |
 | `lol models ls` / `add <id>` / `rm <id>` / `pull` | Manage the Ollama catalog in `models` (then `lol up --no-pick`). |
 | `lol status` | Health of each Ollama host + the proxy + which models are loaded. |
-| `lol down` / `stop` | Stop the proxy + `llama-server` + SearXNG/TTS/OCR + beacon (and any Ollama it started), and the vLLM the farm runs (from the runtime file, else the config; never an operator's vLLM the farm only downloaded a model for). |
-| `lol install` / `setup` | One-time, idempotent bootstrap: Ollama, the LiteLLM venv, every `models` + `preinstall` entry, the SearXNG + OCR venvs, and (only when `llamacpp.enabled`) the llama.cpp build + weights. Never vLLM: the panel's vLLM card installs it. |
+| `lol down` / `stop` | Stop the proxy + `llama-server` + SearXNG/TTS/OCR/document search + beacon (and any Ollama it started), and the vLLM the farm runs (from the runtime file, else the config; never an operator's vLLM the farm only downloaded a model for). |
+| `lol install` / `setup` | One-time, idempotent bootstrap: Ollama, the LiteLLM venv, every `models` + `preinstall` entry, the SearXNG + OCR venvs, document search when it is on (the llama.cpp build + EmbeddingGemma 2, ~0.6 GB), and (only when `llamacpp.enabled`) the llama.cpp build + weights. Never vLLM: the panel's vLLM card installs it. |
 | `lol fleet` / `lol bench` | Every farm on the LAN; load-test N concurrent chats before a workshop. |
 
 Notes:
@@ -804,7 +836,8 @@ LlmOnLan/
   farm/                  # the `lol` CLI (Node) + beacon — the backend, NOT shipped to clients
     bin/lol.js           #   CLI entry
     src/                 #   beacon.js, selfServer.js (+ admin/ panel page, capacity/ the Plan capacity page), snapshot.js, seats.js,
-                         #   plugins/ (registry), pysvc/ (OCR service), extract.js, llamacpp.js/gguf.js, vllm.js,
+                         #   plugins/ (registry), pysvc/ (OCR service), extract.js, embed.js (document search),
+                         #   llamacpp.js/gguf.js, vllm.js,
                          #   litellm.js/ollama.js, configFile.js, commands/ (up/down/install/...)
     contract/            #   snapshot.schema.json — the beacon / GET /lol/self shape; farm + shell tests check it
     vllm/                #   the vLLM scripts the farm drives (serve/stop/install/status.sh, relay.py) — also the
@@ -827,12 +860,13 @@ LlmOnLan/
 
 - **On the device, all under `DATA_DIR`:** every conversation, folder, prompt, document, and RAG vector
   (OWUI's); LOL Vibe's history and the Computer's graphs and media (the main window's session,
-  `DATA_DIR/lol-client`); the Computer's File-box outputs (`DATA_DIR/LOL Studio Projects`). Embeddings are
-  computed locally. Outside DATA_DIR, under userData, only app plumbing: settings, the downloaded engine,
+  `DATA_DIR/lol-client`); the Computer's File-box outputs (`DATA_DIR/LOL Studio Projects`). The vectors are kept
+  here; the farm's document search computes them (MiniLM on this computer for a folder that has not met it yet),
+  and which model a folder uses is written in `DATA_DIR/lol-embedding.json`. Outside DATA_DIR, under userData, only app plumbing: settings, the downloaded engine,
   OWUI's webview token/caches, logs (`logs/boot.log`, `logs/client-data.log`, the Computer's opt-in recordings), and
   — after an upgrade from v0.1.x — the old LOL Vibe copy kept as a backup. Outside both, the machine's Hugging Face
-  cache (`~/.cache/huggingface`, shared by every data folder) holds MiniLM, the search model: no user content. The
-  app repairs a half-downloaded copy there before a start.
+  cache (`~/.cache/huggingface`, shared by every data folder) holds MiniLM, the old search model: no user content.
+  The app repairs a half-downloaded copy there before the start of a folder still on it.
 - **Over the network (all to the trusted‑LAN farm, which stores nothing):** the chat context per
   completion (from OWUI, LOL Vibe, or a Computer Instruction — with an Image box's or a Preview's rendered pixels when wired);
   web‑search queries to the farm's SearXNG — since web search v2 sent by this app's main, which then itself
@@ -842,7 +876,9 @@ LlmOnLan/
   the farm hosts Kokoro (and a Computer Speak box's text, with the farm voice); a Computer Sound box's
   recording, only in **Listen** mode, to be written down by the farm's speech-to-text (never logged or
   kept); and — with the default‑on farm OCR — an uploaded file's (or a Computer Document
-  box's) raw bytes, for text **extraction only** (the extracted text embeds locally); presence heartbeats
+  box's) raw bytes, for text **extraction** (nothing kept); with the farm's **document search**, the text of each
+  piece of a document and of each search, turned into vectors that come back and are kept on this computer (the
+  farm keeps no text and no vector, and its log holds token counts only); presence heartbeats
   (`POST /lol/client-ping` every 10 s: hostname, platform, version, idle seconds).
 - **To third parties a person names:** a Computer **Fetch** box's GET to the address typed in it (nothing
   from the graph is sent with it); an **Open data** box's GETs to data.gouv.fr for the dataset pasted in it; an **Agent** box's GETs, only to hosts a person listed on it; a **Send** box's message to the device typed in it, only once a person
@@ -864,8 +900,9 @@ LlmOnLan/
   (fast-forward only, local work committed first). **Share on the LAN** serves one project read-only to the LAN
   until it is turned off or the app closes. A project's history (`.git`, isomorphic-git) stays in its folder in
   DATA_DIR.
-- **Never sent anywhere:** documents for **embedding** (local model), a Computer Sound box's recording
-  unless its Listen switch is on, and telemetry (off).
+- **Never sent anywhere:** a document's text for indexing to anyone but the farm in use (its document search; never
+  another farm, never past the LAN), a Computer Sound box's recording unless its Listen switch is on, and telemetry
+  (off).
 
 If a feature would move *stored* data off the device or persist anything server‑side, it breaks the
 promise — flag it.
@@ -889,8 +926,9 @@ outside; re‑verify the config surface on each version bump; keep env authorita
 the old web-search-on default, the date line, and the tool server; never the admin API);
 default to local‑only; apply ComfyQ tokens to shell surfaces only.
 
-**Don't:** edit/fork/patch OWUI source; store user data server‑side or send documents to the farm for
-*embedding* (extraction via the farm OCR is the sanctioned exception — nothing is stored); rebrand
+**Don't:** edit/fork/patch OWUI source; store user data server‑side; send document text anywhere but the
+farm's OCR extraction and document search (owner decision 2026-10-08 — the farm keeps nothing and logs no text), or
+mix two embedding models in one data folder; rebrand
 or hide Open WebUI; inject CSS into the OWUI webview; enable OWUI's built‑in local inference; raise
 client worker counts; reimplement features OWUI already has; reuse ComfyQ's multicast port (pick a distinct one).
 

@@ -361,6 +361,22 @@ async function ensureOcr(config) {
     }
 }
 
+// --- 7. Document search ------------------------------------------------------
+// The llama.cpp build and EmbeddingGemma 2 (~0.6 GB + the build), so the first `lol up` starts it before the engine
+// sizes its memory instead of downloading it once the farm is public. 'auto' = on with an NVIDIA GPU (embed.js).
+async function ensureEmbedSearch(config) {
+    const embed = require('../embed');
+    const { detectHardware } = require('../systemInfo');
+    if (!embed.resolveEnabled(config, await detectHardware())) {
+        log.info(`Off${embed.available(config).message ? ` — ${embed.available(config).message}` : ' (no NVIDIA GPU, or embed.enabled:false)'}.`);
+        return;
+    }
+    if (await embed.ensureEmbed(config, (what, pct) => process.stdout.write(`\r${log.paint.grey('[embed]')} ${what} ${pct ?? ''}%   `))) {
+        process.stdout.write('\n');
+        log.ok(`Document search ready (${embed.MODEL.id}) — laptops index their documents on this farm.`);
+    } else log.warn('Document search not set up — `lol up` retries.');
+}
+
 // --- orchestrate ------------------------------------------------------------
 
 async function run() {
@@ -393,6 +409,10 @@ async function run() {
     log.plain('');
     log.info('OCR …');
     await ensureOcr(config);
+
+    log.plain('');
+    log.info('Document search …');
+    await ensureEmbedSearch(config);
 
     log.plain('');
     if (litellmOk) {
