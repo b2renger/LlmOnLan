@@ -6,7 +6,7 @@
 #   Windows: wsl -d Ubuntu --cd <repo>\farm\vllm -e bash ./test_scripts.sh
 D="$(cd "$(dirname "$0")" && pwd)"
 FAKE="$(cd "$D/../test/fake-vllm" && pwd)"
-TESTS="${*:-daemon stopsh interactive devnull guard badfloor crash rewrite managed marker refusals rotation tilde status install stopscope foreign}"
+TESTS="${*:-daemon stopsh interactive devnull guard badfloor crash rewrite managed marker refusals rotation tilde status install stopscope foreign timelimit}"
 ROOT=/tmp/lol-as-root; ROOT2=/tmp/lol-as-root2; LINK=/tmp/lol-as-link; EMPTY=/tmp/lol-as-empty; TH=/tmp/lol-as-home
 mkroot() {   # a root whose vllm and hf are the fakes, with the dist-info folder an install of vLLM 0.30.0 has
   pkill -KILL -f "$1/" 2>/dev/null
@@ -313,6 +313,17 @@ t_foreign() {
   bash "$D/stop.sh" > /dev/null; LOL_VLLM_ROOT="$ROOT2" bash "$D/stop.sh" > /dev/null
   check "both stop when asked at their own root (143)" bash -c "$(declare -f alive); for _ in \$(seq 1 50); do alive $P || alive $P2 || exit 0; sleep 1; done; exit 1"
   wait $P $P2 2>/dev/null
+}
+
+t_timelimit() {
+  echo "a download at the farm's time limit (vllm.js install): install.sh, hf and tee all stop, nothing left recorded"
+  command -v node >/dev/null || { echo "  (skipped: no node)"; return; }
+  # Killing only the farm's child (bash here) left hf and tee downloading, unrecorded (review 2026-10-07; seen here).
+  local J='require(process.argv[1]).install({ platform: "linux", root: process.argv[2], port: 1 }, { steps: "model", repo: "org/Slow", folder: "Slow", timeoutMs: 4000 }).then((r) => { console.log(JSON.stringify(r)); process.exit(0); });'
+  FAKE_HF=slow node -e "$J" "$D/../src/vllm.js" "$ROOT" > "$OUT" 2>&1
+  sleep 1
+  check "it says so: still not done after 4 seconds" grep -qF '"error":"it was still not done after 4 seconds"' "$OUT"
+  check "nothing of it left: install.sh, hf, tee, its pgid file" bash -c "! pgrep -f 'install\.sh org/Slow' && ! pgrep -f '[t]ee $ROOT/logs/download.last' && ! pgrep -fx 'sleep 300' && [ ! -e '$ROOT/run/install.pgid' ]"
 }
 
 for t in $TESTS; do clean; "t_$t"; done

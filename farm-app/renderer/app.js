@@ -299,7 +299,7 @@ async function boot() {
     $('#btn-toggle').addEventListener('click', async () => {
         const s = await window.farm.getFarmState();
         const running = s.status === 'ready' || s.status === 'starting' || s.status === 'restarting';
-        if (running && !confirm('Stop the farm? Everyone connected loses their chat mid-answer.')) return;
+        if (running && !confirm('Stop the farm? Everyone connected loses their chat mid-answer. A farm that serves with vLLM takes about 2 minutes to start again.')) return;
         renderFarmState(await (running ? window.farm.farmStop() : window.farm.farmStart()));
     });
     $('#btn-overlay-action').addEventListener('click', async () => renderFarmState(await window.farm.farmStart()));

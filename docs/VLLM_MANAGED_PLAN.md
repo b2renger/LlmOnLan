@@ -196,7 +196,39 @@ Built in slices, each tested, logged in docs/DEVLOG.md and pushed on the `vllm-m
   left a temporary file that kept the model "partly downloaded" for ever; `install.sh` now clears those files
   once a download ends. Measured: an outside tree-kill of `lol up` stops vLLM cleanly in about 2 s (R1); the Farm
   app's copy over a running `serve.sh` changes nothing for it (R3, A16).
-- **Left:** §11.5 / §9.6 with the owner (a release of the Farm app first).
+- **Review leftovers (2026-10-08).** Every finding of the two reviews read again in full (the fix pass had them cut
+  short) and checked against the code; what was still open is fixed, with what the live test saw. What it changed:
+  - At boot, WSL that gives no answer at all (a slow log on) queues the start instead of serving Ollama for the whole
+    run (`bootDecision`'s `noAnswer`, `unanswered`); the start checks again once the farm is up. A start that finds a
+    vLLM running from its root with these settings, ready and answering, keeps it (`keepRunning`) instead of stopping
+    it to start the same thing. This replaces the second boot check of the review fixes.
+  - Ollama's loaded models leave the GPU before a start found in progress too (the boot's `wait`, a take-over of one
+    still starting), not only before a start the farm spawns.
+  - Automatic memory is sized once the free memory stops rising (`systemInfo.untilSteady`, which llama.cpp's sizing
+    now shares): a vLLM stopped a moment ago (an Apply, a restart, Start after Stop) gives its memory back over a few
+    seconds. The lag itself was not measured here.
+  - The runtime file is never written back once `lol down` removed it; a proxy bounce that lands after it stops the
+    farm, and so does a vLLM that stops once it is gone (the Farm app's Quit in the middle of an Apply used to leave a
+    restarted vLLM behind).
+  - An install or a download at its time limit stops `install.sh`'s whole process group first. Inside WSL, killing
+    wsl.exe already ended it (checked); on native Linux it left `hf` and `tee` downloading, unrecorded (checked with
+    the farm's own code under WSL's Linux, and `test_scripts.sh` `timelimit` fails without the fix).
+  - A GPU no model of the list fits (`gpuFit`: what the smallest model asks of an empty card, with document reading's
+    9 GB while it is on) is said on the vLLM button before any check, and on Windows before anything about WSL; no
+    Install, no Download, no start. The studio's RTX 4070 (12 GB) and 4080 (16 GB) fit none, nor does a 24 GB card
+    (the old rule, weights + 6 GB, let it through and its start failed); a 32 GB card fits only with document reading
+    off, which is said. A PC whose Windows sees no NVIDIA GPU is told so, not to install WSL or a driver it cannot
+    use. The vLLM card opened by a press closes again.
+  - Plain words: the fallback after two stops reads "vLLM stopped working twice in 5 minutes (the second time, it shut
+    down by itself)." (the status goes to the log), and the panel no longer prefixes it with "could not start"; a
+    download's text says its number jumps (the folder fills in large pieces) and its bar always shows how long it
+    has run. The Apply row says that many more people can restart vLLM too; the Farm app's Stop says a vLLM farm
+    takes about 2 minutes to start again.
+  - On Linux the take-over says, before the click, that vLLM then starts with the farm, which the Farm app does at a
+    desktop log-in (R4).
+  - The lifecycle test's last check ignores the vLLMs other test runs start (`/tmp/lol-as-*`, `~/lol-fake-*`).
+  - A DGX Spark checklist for the owner: §11.6.
+- **Left:** §11.5 / §9.6 with the owner (a release of the Farm app first); §11.6 on a Spark.
 
 ## 0. Decisions
 
@@ -555,7 +587,7 @@ Supervision:
      - none: log "vLLM answered slowly", reset the misses;
      - guard: phase 'guard';
      - restart: lastRestartAt=now; runJob('engine','Restarting vLLM after it stopped unexpectedly'), stopping first when a group still runs; engineUp=true once ready;
-     - fallback: reason "vLLM stopped twice in 5 minutes: <explain>".
+     - fallback: reason "vLLM stopped working twice in 5 minutes (the second time, <it shut down by itself | it stopped answering for 30 seconds | it still did not answer>)." The exit status goes to the farm's log only (the live test read "(its process ended (status 0))").
 
 Perf sampler: when engineOf is 'vllm' and phase 'ready', fetchMetrics(metricsUrlFor(vllm.baseUrl)) → vllmSample; totalSlots = seats; poolWarning = poolShortfall(seats, ctx, kvPoolTokens, 'vllm').
 
@@ -760,7 +792,7 @@ Switching to vLLM refuses up front when it is not installed, the model is not do
   - guard: "vLLM was stopped because this computer was running out of memory (<N> GB left; it stops below <M> GB, before the GPU gets stuck at a slow speed). Close what is using the memory, then press Start vLLM."
   - down: "vLLM is not answering. The farm is checking it."
   - the restart job's label: "Restarting vLLM after it stopped unexpectedly".
-  - failed (warnline): "vLLM could not start: <reason>. The farm serves with Ollama for now. Fix the cause, then switch back to vLLM."
+  - failed (warnline): "vLLM could not start: <reason>. The farm serves with Ollama for now. Fix the cause (vLLM's log below says more), then switch back to vLLM."; after a vLLM that stopped working while it served, its own reason in place of "vLLM could not start: <reason>".
 - Rows, all under the one Apply:
   - Name users see (vLLM too): "what appears in the model picker. Renaming takes a few seconds; vLLM keeps running."
   - People served at once (vLLM):
@@ -783,7 +815,7 @@ Switching to vLLM refuses up front when it is not installed, the model is not do
   - Warnlines:
     - seats above the measured number: "More people than measured on this card: when everyone writes at once, replies may slow below a comfortable reading speed."
     - seats × ctx over the pool: "The memory holds only <n> people at <ctx>: past that, vLLM makes people wait. Lower the people or the context, or give it more memory."
-- The Apply row (vLLM): "Changes above apply together. A new context, memory or model restarts vLLM: about 2 minutes during which nobody can chat. People at once, the name and the password apply in a few seconds." When the dry run says restart: "Apply now? vLLM restarts: about 2 minutes during which nobody can chat."
+- The Apply row (vLLM): "Changes above apply together. A new context, memory or model restarts vLLM: about 2 minutes during which nobody can chat. The name, the password and people at once apply in a few seconds, up to a point for people: many more can restart vLLM too, and Apply asks first when it would." When the dry run says restart: "Apply now? vLLM restarts: about 2 minutes during which nobody can chat."
 
 ### 7.2 The vLLM card ("Model · vLLM"). It shows while vLLM is the engine, or after the operator clicked the vLLM button.
 - A checklist: ✓ lines muted, ✗ lines as warnlines, then [Check again].
@@ -800,11 +832,11 @@ Switching to vLLM refuses up front when it is not installed, the model is not do
   - WSL 1: "<Ubuntu> runs on WSL 1, which cannot use the GPU. In PowerShell, run  wsl --set-version <Ubuntu> 2  (a few minutes), then press Check again."
   - the GPU not visible: "<Ubuntu> cannot see the GPU. Install the latest NVIDIA driver for Windows (it also serves WSL), restart the computer, then press Check again."
   - WSL did not answer: "WSL did not answer within a minute. Restart the computer, then press Check again."
-  - Linux without a GPU: "No NVIDIA GPU was found (nvidia-smi does not answer). vLLM needs an NVIDIA GPU and its driver."
+  - no NVIDIA GPU (Linux; on Windows when Windows' own nvidia-smi sees none and WSL is missing or sees none either): "No NVIDIA GPU was found on this computer (nvidia-smi does not answer). vLLM needs one: if this computer has one, install its latest NVIDIA driver, restart the computer, then press Check again; if not, llama.cpp or Ollama is the engine for it."
   - curl: "curl is missing. In a terminal, run  sudo apt install curl , then press Check again."
   - architecture: "vLLM needs a 64-bit Intel, AMD or ARM processor."
   - disk: "Not enough free disk: vLLM and <model> need about <n> GB, and <m> GB are free.<Windows: Ubuntu's disk lives on drive <X>:.> Free some space, then press Check again."
-  - small GPU: "This GPU has <n> GB: too little for any model in the vLLM list (the smallest needs about <m> GB). llama.cpp is the engine for this card."
+  - small GPU (vllm.gpuFit: what the smallest model asks of an empty card, document reading's 9 GB included while it is on; on Windows from the size Windows sees, before anything about WSL): "This GPU has <n> GB: too little for any model in the vLLM list (the smallest needs about <m> GB<, with 9 GB kept for document reading>). llama.cpp or Ollama is the engine for this card.< Turning document reading off would make room for one.>" The vLLM button says it before any check: "Not for this GPU (<n> GB; vLLM's models need about <m> GB): llama.cpp or Ollama is the engine for it. Press to see why."; no older-card warning beside it.
   - an older card (a warning): "This GPU is older than the cards these models were measured on (RTX PRO 6000, DGX Spark): they may not load. If a start fails, llama.cpp is the engine for this card."
   - an older version: "vLLM <v> is installed; this farm was tested with <pin>." [Update vLLM]
   - an install already running: "A download started earlier is still running. Wait for it, or stop it here." [Stop it]
@@ -1043,6 +1075,33 @@ Steps:
 
 ### 11.5 Production (§9.6), then later, at a quiet moment, a reboot test: WSL boots, vLLM takes about 1.5 min, clients show "Starting vLLM" and the farm stays healthy.
 
+### 11.6 On a DGX Spark: what only a real one can confirm (the owner, with the Farm app's Linux arm64 AppImage)
+Read, not run (2026-10-08): `install.sh` is the spike's install that ran on the Spark (uv's own Python 3.12, vLLM 0.30.0
+with `--torch-backend=auto`, the CUDA compiler pins); `status.sh`'s GPU line with no memory numbers parses as unified
+memory, sized from `MemAvailable` with the guard's 8 GB, 4 compile jobs and the 27 GiB cap (unit tests); the clock
+watch runs whatever the engine; the AppImage carries `farm/vllm` (its scripts LF, run through `bash`). On the Spark:
+1. `bash "/home/<you>/.config/LlmOnLan Farm/farm/vllm/status.sh"` prints `arch=aarch64`, a `gpu=NVIDIA GB10, …` line
+   whose memory fields are not numbers, a `cc=` path and `mem_available_kb=`.
+2. The panel's vLLM button, then the check: "GPU: NVIDIA GB10 (119 GB shared with the system).", nothing marked ✗.
+3. With the recipe's `lol-vllm.service` running: the take-over is offered and, clicked, keeps the same process group,
+   writes 58 GB for conversations, 8 people and the 8 GB guard; `sudo systemctl restart lol-vllm` then starts nothing
+   (its journal: "The LlmOnLan farm runs this vLLM now …") and does not loop.
+4. Stop vLLM, then Start, with Automatic memory: farm.log says 8 people and 27 GB for conversations, and the server's
+   environment has `LOL_VLLM_MIN_FREE_GB=8` and `MAX_JOBS=4` (`tr '\0' '\n' < /proc/<its pgid>/environ`). A second
+   Stop and Start gives the same 27 GB (the memory came back before the sizing).
+5. A first start of a model never started there (kernels compile): `free -g` stays above 8 GB available, no `[guard]`
+   line in `vllm.log`.
+6. Under load: no "stuck at a low clock" line on the panel; `nvidia-smi --query-gpu=clocks.sm,power.draw --format=csv -l 2`
+   reads 1,400 MHz or more and 40 W or more.
+7. A Download, then its Stop: `status.sh` shows no `installing=`, and `pgrep -af "hf download"` shows nothing.
+8. Quit the Farm app: no `running=` in `status.sh`, and the memory is back (`free -g`).
+9. A reboot: does the Spark log in to its desktop by itself? Then Launch at login starts the Farm app, and vLLM about
+   2 minutes later. If it does not (headless), nothing starts vLLM after a take-over (R4): keep the recipe (Undo), or
+   run `lol up` as a service of its own.
+10. Optional, about 45 minutes and 33 GB: Install vLLM from the panel into an empty folder; then
+    `<folder>/.venv/bin/python -c "import torch; print(torch.__version__, torch.cuda.get_device_name(0))"` names a
+    `+cu13…` torch and `NVIDIA GB10`.
+
 ## 12. Build order (each slice: tested → DEVLOG → commit and push on the branch)
 1. Scripts: serve.sh (managed mode, the marker, rotation, ~, logged refusals); status.sh; stop.sh (install, group-scoped); install.sh (steps, markers, uv, pgid, the symlink refusal, errors); the start-windows.ps1 exit-0 line. Then §11.2.
 2. Config, engineOf, serverRoute, names, snapshot, contract. Then §11.1 items 1-5.
@@ -1065,7 +1124,7 @@ Steps:
 - R3. A farm-code refresh over a running serve.sh: live step 10, plus the migration check. Measured 2026-10-08: the
   Farm app's `fs.cpSync` rewrote every script under a running serve.sh (open in bash) and relay.py with no error;
   the server kept serving and later stopped cleanly.
-- R4. A headless Linux box (no graphical login) does not get vLLM at boot once its unit is a no-op. Keep the external recipe there, or later run `lol up` as a systemd user service.
+- R4. A headless Linux box (no graphical login) does not get vLLM at boot once its unit is a no-op. Keep the external recipe there, or later run `lol up` as a systemd user service. Since 2026-10-08 the take-over says so on Linux before the click (vLLM then starts with the farm, which the Farm app does at a desktop log-in); whether the Spark logs in by itself is §11.6-9.
 - R5. Strict zod: an older farm refuses a config holding `vllm`. A downgrade needs the backup put back (docs and release notes).
 - R6. The library and FAMILY_ARGS pin vLLM 0.30.0 and NVFP4 checkpoints measured on Blackwell. Older cards get a warning, and a failed start falls back with vLLM's own error quoted. Custom models get generic args.
 - R7. The shared caches (~/.cache/vllm, ~/.cache/flashinfer) during the live test. The keys differ by model, and production's kernels are already cached. Measured 2026-10-08: the test added about 137 MB (three compile entries for the tiny model, in ~/.cache/vllm, ~/.triton, ~/.cache/flashinfer and ~/.cache/huggingface), left in place.

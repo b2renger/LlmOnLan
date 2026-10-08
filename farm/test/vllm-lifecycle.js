@@ -41,6 +41,11 @@
 //  18 an Ollama download (an admin job) does not hide a vLLM that died: seen at once, restarted after the download
 //  19 a fallback whose stop leaves vLLM's port answering: no Ollama beside it; the farm stays on vLLM, stopped
 //  20 at boot, the farm's own vLLM that cannot serve as it is: stopped before Ollama serves
+// The leftovers of that review (2026-10-08):
+//  21 an install or a download at its time limit: install.sh and hf are stopped too, not only wsl.exe (or bash)
+//  22 a start found in progress at boot is waited for, and Ollama's loaded model still leaves the GPU first
+//  23 `lol down` racing the farm: its runtime file gone during a proxy bounce is not written back, and the vLLM it
+//     stops is not restarted: the farm stops as it was asked
 
 const fs = require('fs');
 const os = require('os');
@@ -100,6 +105,8 @@ const touch = (name, on = true) => { guardRoot(); sh(on ? `: > ${q(`${ROOT}/${na
 const killFake = () => { guardRoot(); sh(`pkill -KILL -f ${q(`${ROOT}/.venv/bin/fake_vllm.py`)} || true`); };
 const leftInRoot = () => { guardRoot(); return sh(`pgrep -af ${q(`${ROOT}/`)} | grep -v pgrep || true`).out.trim(); };
 const status = async () => (await V.status(target)).st;
+// A vLLM no test here starts: not this run's root, not another lifecycle run's (~/lol-fake-*), not test_scripts.sh's.
+const notOurs = (f) => f.root !== ROOT && !/^\/tmp\/lol-as-/.test(f.root) && !/\/lol-fake-[\w-]*$/.test(f.root);
 const pgid = async () => { const s = await status(); return s && s.running ? s.running.pgid : null; };
 
 // ---- the farm ----------------------------------------------------------------------------------------------------
@@ -294,7 +301,8 @@ const STEPS = {
         const first = await waitFor(async () => { const x = await self(); return x && x.healthy && x.backend.engine === 'ollama' && chat('fake-renamed'); }, 120000, 'the farm healthy on Ollama');
         check('…the farm says healthy only once Ollama is routed', first.status === 200, `${first.status} ${first.text.slice(0, 160)}`);
         const f = await waitFor(async () => { const x = await state(); return x.vllm.phase === 'failed' && x; }, 120000, 'the fallback to Ollama');
-        check('killed again within 5 minutes: Ollama serves, with why', /stopped twice in 5 minutes/.test(f.vllm.bootError || ''), f.vllm.bootError);
+        // In plain words (the live test read "(the second time, its process ended (status 0))"): the status is for the log.
+        check('killed again within 5 minutes: Ollama serves, with why, in plain words', f.vllm.bootError === 'vLLM stopped working twice in 5 minutes (the second time, it shut down by itself).', f.vllm.bootError);
         const snap = await self();
         check('…the farm healthy, no vLLM left', snap.healthy === true && !(await pgid()));
         const c = await chat('fake-renamed');
@@ -619,6 +627,77 @@ const STEPS = {
             JSON.stringify({ engine: s.backend.engine, pgid: await pgid(), why: s.vllm.bootError }));
         await stopFarm();
     },
+    // ---- the review's leftovers (2026-10-08) ----
+    async 21() {
+        // A download at its time limit (6 hours in the farm, 8 s here): the farm's own child (wsl.exe on Windows) is
+        // killed, and install.sh with hf inside Linux are stopped too, so nothing is left recorded as running.
+        killFake();
+        fakeEnv(['FAKE_HF=slow']);
+        sh(`rm -rf ${q(`${ROOT}/hf/fake-b`)}`);
+        try {
+            const t0 = Date.now();
+            const r = await V.install(target, { steps: 'model', repo: 'fake/fake-b', folder: 'fake-b', timeoutMs: 8000 });
+            await sleep(1000);
+            const s = await status();
+            check(`a download at its time limit (${Math.round((Date.now() - t0) / 1000)} s): said in plain words`, !r.ok && r.kind === 'network' && /^it was still not done after 8 seconds$/.test(r.error || ''), JSON.stringify(r));
+            // Whatever runs with this root in its environment: install.sh, and hf (the fake's `sleep`).
+            const left = sh(`grep -lsaF ${q(`LOL_VLLM_ROOT=${ROOT}`)} /proc/[0-9]*/environ | sed 's|/environ||; s|/proc/||' | while read p; do c=$(tr -c '[:print:]' ' ' < /proc/$p/cmdline 2>/dev/null); [ -n "$c" ] && echo "$p $c"; done || true`).out.trim();
+            check('…and install.sh and its download are stopped with it: nothing recorded as running, nothing left', s && !s.installing && !left, `${JSON.stringify(s && s.installing)} ${left}`);
+        } finally {
+            await V.stopInstall(target);
+            fakeEnv(['FAKE_DELAY=3']);
+        }
+    },
+    async 22() {
+        // The farm crashed while vLLM was starting: the next boot waits for that start (no second one), and the model
+        // Ollama has loaded leaves the GPU first, as for a start of its own.
+        writeConfig();
+        fakeEnv(['FAKE_DELAY=40']);
+        up();
+        await waitFor(self, 120000, 'the panel');
+        await waitFor(async () => { const s = await status(); return s && s.running && !s.running.ready; }, 60000, 'vLLM starting');
+        const starting = await pgid();
+        await crashFarm();
+        fakeOllama.inVram.add('fake-ollama:1b');
+        const mark = fakeOllama.requests.length;
+        up();
+        await waitFor(self, 120000, 'the panel');
+        const s0 = await waitFor(async () => { const x = await state(); return x && x.job && x.job.label === 'Starting vLLM' && x; }, 30000, 'the job').catch(() => ({}));
+        check('the next boot waits for the start in progress: the same process group, the job "Starting vLLM"', (await pgid()) === starting && s0.job && s0.job.label === 'Starting vLLM' && s0.vllm.phase === 'starting',
+            JSON.stringify({ pgid: await pgid(), starting, job: s0.job && s0.job.label, phase: (s0.vllm || {}).phase }));
+        const evicted = await waitFor(() => fakeOllama.requests.slice(mark).includes('POST /api/generate unload fake-ollama:1b'), 30000, 'the eviction').catch(() => false);
+        check('…and Ollama\'s loaded model leaves the GPU first', evicted && !fakeOllama.inVram.has('fake-ollama:1b'), fakeOllama.requests.slice(mark).join(', '));
+        const r = await ready();
+        check('…then it serves: kept, not started again', r.vllm.adopted && (await pgid()) === starting && replyOf(await chat()) === 'fake reply');
+        fakeEnv(['FAKE_DELAY=3']);
+        await stopFarm();
+    },
+    async 23() {
+        // `lol down` (the Farm app's Quit) clears the runtime file first. A proxy bounce at that moment (an Apply, a
+        // rename) used to write the file back, so the farm lived on, and restarted the vLLM `lol down` then stopped:
+        // that vLLM outlived the Quit.
+        writeConfig();
+        fakeEnv(['FAKE_DELAY=3']);
+        await bootReady();
+        const rtFile = path.join(FARM_DIR, '.lol-runtime.json');
+        fs.rmSync(rtFile, { force: true });   // what `lol down` does first
+        const a = await admin('apply', { name: 'fake-23' });
+        const c = farm;
+        const gone = await waitFor(() => c.exitCode !== null || c.signalCode !== null, 60000, 'the farm to stop').catch(() => false);
+        check('a proxy bounce after `lol down` cleared the runtime file: the file is not written back', a && a.ok && !fs.existsSync(rtFile), JSON.stringify({ a, file: fs.existsSync(rtFile) }));
+        check('…and the farm stops as `lol down` asked, once the bounce is done: no vLLM left', gone && !(await pgid()) && !leftInRoot(), `${gone ? 'stopped' : 'still running'} pgid ${await pgid()} ${leftInRoot()}`);
+        if (gone) farm = null; else await stopFarm();
+        // And a vLLM stop alone, with no bounce: `lol down` cleared the file, then stopped vLLM.
+        await bootReady();
+        fs.rmSync(rtFile, { force: true });
+        killFake();   // what the stop looks like from the farm: its serve.sh ends
+        const c2 = farm;
+        const gone2 = await waitFor(() => c2.exitCode !== null || c2.signalCode !== null, 60000, 'the farm to stop').catch(() => false);
+        await sleep(3000);
+        check('a vLLM that stops after `lol down` cleared the runtime file: not restarted, the farm stops', gone2 && !(await pgid()) && !/Restarting vLLM after it stopped unexpectedly/.test(out), `${gone2 ? 'stopped' : 'still running'} pgid ${await pgid()}`);
+        if (gone2) farm = null; else await stopFarm();
+        lolDown();
+    },
 };
 
 // A vLLM started the operator's way (serve.sh with none of the farm's argv, as the old log-on task does), on the fake
@@ -731,7 +810,7 @@ async function main() {
     ROOT = `${home}/lol-fake-a`;
     target = { platform: process.platform, distro, root: ROOT, port: PORTS.vllm };
     // What runs elsewhere on this computer is read before and after, never touched.
-    const foundBefore = ((await V.status(target)).st || { found: [] }).found.filter((f) => f.root !== ROOT);
+    const foundBefore = ((await V.status(target)).st || { found: [] }).found.filter(notOurs);
     console.log(`left alone: ${foundBefore.map((f) => `${f.root} :${f.port} pgid ${f.pgid}`).join(', ') || 'no other vLLM'}`);
     // The take-over writes a marker that makes a root's old launchers do nothing: never in another root than the fake's.
     const markers = () => ['~/lol-vllm', '~/lol-spike', ...foundBefore.map((f) => f.root)].map((r) => `${r}:${sh(`test -e ${r.replace(/^~/, home)}/run/managed-by-farm && echo 1 || echo 0`).out.trim()}`).join(' ');
@@ -752,7 +831,9 @@ async function main() {
         touch('fake-linger', false);
         sh(`pkill -KILL -f ${q(`${ROOT}/`)} || true`);
         await fakeOllama.close();
-        const foundAfter = ((await V.status(target)).st || { found: [] }).found.filter((f) => f.root !== ROOT);
+        // Only the vLLMs no test of this repository starts (review 2026-10-07): farm/vllm/test_scripts.sh, run by another
+        // session meanwhile, starts and stops its own under /tmp/lol-as-*, and other lifecycle runs use ~/lol-fake-*.
+        const foundAfter = ((await V.status(target)).st || { found: [] }).found.filter(notOurs);
         check('every other vLLM on this computer is as it was', JSON.stringify(foundAfter) === JSON.stringify(foundBefore), `${JSON.stringify(foundBefore)} → ${JSON.stringify(foundAfter)}`);
         check(`no other folder got the farm's marker (${markersBefore})`, markers() === markersBefore, markers());
         guardRoot();

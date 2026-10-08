@@ -85,8 +85,14 @@ docs) is `docs/reviews/DOCS_REVIEW_2026-09-27_{FARM,SHELL,COMPUTER}.md`. Snapsho
     file only when its leader runs from their root (WSL reuses pids after a reboot); a start refuses a port another
     program answers on and counts only once `serve.sh` logged it ready; Ollama never loads beside a vLLM whose stop
     failed (the farm stays on vLLM, stopped); the check needs a C compiler (`build-essential`); Install/Download
-    check the disk and leave 10 GB free; the take-over writes llama.cpp off. Tests: `farm/test/vllm-lifecycle.js`
-    (`LOL_VLLM_FAKE=1`, `test/fake-vllm` inside WSL, 20 steps).
+    check the disk and leave 10 GB free; the take-over writes llama.cpp off. The leftovers (2026-10-08): a GPU no
+    model of the list fits (`vllm.gpuFit`, document reading's 9 GB included: an RTX 4070/4080/4090) is said on the
+    vLLM button before any check, on Windows before anything about WSL, and offered nothing; WSL with no answer at
+    boot queues the start (which keeps a server running with these settings, `keepRunning`) instead of Ollama all
+    day; Automatic memory waits until freed memory stops rising (`systemInfo.untilSteady`); the runtime file `lol
+    down` removed is never written back and a vLLM stopping after it is not restarted; an install's time limit stops
+    its whole process group (on Linux `hf` kept downloading). A DGX Spark checklist: the plan's §11.6. Tests:
+    `farm/test/vllm-lifecycle.js` (`LOL_VLLM_FAKE=1`, `test/fake-vllm` inside WSL, 23 steps).
   - **external — config file only, for servers the farm cannot run** (SGLang/TensorRT-LLM/another machine/a vLLM
     run by hand; 2026-09-07). The farm never installs/starts/stops it. Its panel button shows only while the file
     holds an `external` block (a developer wrote it); switching away from it works from the panel. Health = `GET

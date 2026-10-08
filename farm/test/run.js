@@ -3949,6 +3949,27 @@ test('vLLM decisions: at boot, when it stops answering, and an orphan left by a 
     assert.equal(V.bootDecision({ problems: miss, running: run(true), adopt: { ok: true } }).action, 'adopt');
     assert.equal(V.bootDecision({ problems: miss, running: run(false), adopt: { ok: true } }).action, 'wait');
     assert.deepEqual(V.bootDecision({ problems: miss, running: run(true), adopt: { ok: false } }), { action: 'unavailable', reason: miss[0] });
+    // WSL gave no answer at all (a slow log on, review 2026-10-07): the start is queued and checks again once the farm
+    // is up, instead of Ollama for the whole run; an answer that says what is missing still serves with Ollama.
+    const late = ['WSL did not answer within a minute. Restart the computer, then press Check again.'];
+    assert.deepEqual(V.bootDecision({ problems: late, noAnswer: true }), { action: 'start', reason: null });
+    assert.equal(V.bootDecision({ supported: { ok: false }, noAnswer: true }).action, 'unavailable');
+    assert.equal(V.unanswered({ st: null, stError: 'timeout' }), true);
+    assert.equal(V.unanswered({ st: null, wsl: { error: 'timeout' } }), true);
+    assert.equal(V.unanswered({ st: null, wsl: { error: 'no-wsl' } }), false, 'an answer: WSL is missing');
+    assert.equal(V.unanswered({ st: null, wsl: { list: [{ name: 'Ubuntu', version: 1 }] } }), false, 'an answer: WSL 1');
+    assert.equal(V.unanswered({ st: { running: null } }), false);
+    // A start that finds a vLLM running from its root keeps it when it runs with these settings, is ready and
+    // answers; a hung one or one whose port is dead is started again (review 2026-10-07).
+    assert.equal(V.keepRunning({ running: run(true), adopt: { ok: true }, answers: true }), true);
+    assert.equal(V.keepRunning({ running: run(false), adopt: { ok: true }, answers: true }), false, 'not ready: hung');
+    assert.equal(V.keepRunning({ running: run(true), adopt: { ok: true }, answers: false }), false, 'its port is dead');
+    assert.equal(V.keepRunning({ running: run(true), adopt: { ok: false }, answers: true }), false, 'other settings');
+    assert.equal(V.keepRunning({}), false);
+    const upSrc = fs.readFileSync(path.join(__dirname, '..', 'src', 'commands', 'up.js'), 'utf8');
+    assert.ok(upSrc.includes("const d = vllmMod.bootDecision({ supported: vllmSup, problems: pr.problems, running, adopt, noAnswer });"), 'the boot asks it');
+    assert.ok(upSrc.includes('const noAnswer = vllmMod.unanswered(vllmProbe) && !pr.gpuTooSmall;'), 'a GPU too small (seen by Windows before WSL) is an answer: Ollama at once, no queued start');
+    assert.ok(upSrc.includes("if (vllmMod.keepRunning({ running: st.running, adopt: a, answers: await vllmAlive(3000) })) {"), 'and a start');
     const now = 1e9;
     assert.equal(V.downDecision({ guard: true, lastRestartAt: now - 1000, now }), 'guard', 'the memory guard\'s stop is never undone');
     assert.equal(V.downDecision({ running: true, ready: true, portAnswers: true, now }), 'none', 'slow, but it answers');
@@ -4059,7 +4080,16 @@ test('vLLM on this computer: the checklist, every blocking sentence, and the dis
     assert.equal(r.oks[0], 'WSL is installed, with Ubuntu-24.04 on WSL 2.', 'Docker Desktop\'s default distribution is skipped');
     const noGpu = V.parseStatus('home=/home/me\narch=x86_64\ncurl=/usr/bin/curl\n');
     assert.equal(P(win({ st: noGpu })).problems[0], 'Ubuntu cannot see the GPU. Install the latest NVIDIA driver for Windows (it also serves WSL), restart the computer, then press Check again.');
-    assert.equal(P(lin({ st: noGpu })).problems[0], 'No NVIDIA GPU was found (nvidia-smi does not answer). vLLM needs an NVIDIA GPU and its driver.');
+    const NO_NVIDIA = 'No NVIDIA GPU was found on this computer (nvidia-smi does not answer). vLLM needs one: if this computer has one, install its latest NVIDIA driver, restart the computer, then press Check again; if not, llama.cpp or Ollama is the engine for it.';
+    assert.equal(P(lin({ st: noGpu })).problems[0], NO_NVIDIA);
+    // On Windows, what Windows itself sees comes first (review 2026-10-07: a PC with no NVIDIA GPU was told to install
+    // WSL, then the NVIDIA driver): no NVIDIA GPU, where WSL cannot contradict it...
+    const amd = { name: null, gb: null };
+    assert.deepEqual(P(win({ hostGpu: amd, wsl: { error: 'no-wsl' }, st: null })).problems, [NO_NVIDIA]);
+    assert.deepEqual(P(win({ hostGpu: amd, st: noGpu })).problems, [NO_NVIDIA], 'WSL sees none either');
+    // ...but not where it can: a slow nvidia-smi at log on reads the same, and WSL saw the GPU, or did not answer.
+    assert.deepEqual(P(win({ hostGpu: amd })).problems, []);
+    assert.equal(P(win({ hostGpu: amd, wsl: { error: 'timeout' }, st: null })).problems[0], 'WSL did not answer within a minute. Restart the computer, then press Check again.');
     assert.equal(P(lin({ st: { ...status([]), arch: 'armv7l' } })).problems[0], 'vLLM needs a 64-bit Intel, AMD or ARM processor.');
     assert.ok(P(lin({ st: { ...status([]), curl: null } })).problems.includes('curl is missing. In a terminal, run  sudo apt install curl , then press Check again.'));
     assert.ok(P(win({ st: { ...status([]), curl: null } })).problems.includes('curl is missing. Open Ubuntu from the Start menu, run  sudo apt install curl , then press Check again.'), 'Windows: where to type it');
@@ -4070,11 +4100,31 @@ test('vLLM on this computer: the checklist, every blocking sentence, and the dis
     assert.ok(P(win({ st: { ...status([]), cc: null } })).problems.includes('vLLM needs a C compiler to prepare the GPU, and this Ubuntu has none. Open Ubuntu from the Start menu, run  sudo apt install build-essential , then press Check again.'));
     assert.ok(P(lin({ st: { ...status([]), cc: null } })).problems.includes('vLLM needs a C compiler to prepare the GPU, and this computer has none. In a terminal, run  sudo apt install build-essential , then press Check again.'));
     assert.equal(P(lin()).gpuTooSmall, false);
-    const small = V.parseStatus(['home=/home/me', 'arch=x86_64', 'curl=/usr/bin/curl', 'cc=/usr/bin/gcc', 'gpu=NVIDIA GeForce RTX 4070, 12282, 11000, 8.9'].join('\n'));
+    // The studio's smaller cards (owner 2026-10-07: Windows with RTX cards first): no model of the list fits an RTX
+    // 4070 (12 GB) or 4080 (16 GB), with or without document reading's share; the panel says so and offers nothing.
+    const card = (name, mib, cap) => V.parseStatus(['home=/home/me', 'arch=x86_64', 'curl=/usr/bin/curl', 'cc=/usr/bin/gcc', `gpu=${name}, ${mib}, ${mib - 1000}, ${cap}`].join('\n'));
+    const small = card('NVIDIA GeForce RTX 4070', 12282, 8.9);
     r = P(lin({ st: small }));
-    assert.ok(r.problems.includes('This GPU has 12 GB: too little for any model in the vLLM list (the smallest needs about 24 GB). llama.cpp is the engine for this card.'), r.problems.join('|'));
+    assert.deepEqual(r.problems.filter((x) => /too little/.test(x)), ['This GPU has 12 GB: too little for any model in the vLLM list (the smallest needs about 35 GB, with 9 GB kept for document reading). llama.cpp or Ollama is the engine for this card.']);
     assert.equal(r.gpuTooSmall, true, 'nothing to install for: no Install button');
-    assert.deepEqual(r.warnings, ['This GPU is older than the cards these models were measured on (RTX PRO 6000, DGX Spark): they may not load. If a start fails, llama.cpp is the engine for this card.']);
+    assert.deepEqual(r.warnings, [], 'too small says it all: no "older card" warning beside it');
+    const noOcr = { ...c, ocr: { ...c.ocr, enabled: false } };
+    assert.ok(P(lin({ st: card('NVIDIA GeForce RTX 4080', 16376, 8.9) }), noOcr).problems.includes('This GPU has 16 GB: too little for any model in the vLLM list (the smallest needs about 25 GB). llama.cpp or Ollama is the engine for this card.'));
+    // A 24 GB card fits no model either: the old rule (weights + 6 GB) let it through, and its start failed.
+    assert.equal(P(lin({ st: card('NVIDIA GeForce RTX 4090', 24564, 8.9) }), noOcr).gpuTooSmall, true);
+    // A 32 GB card: not beside document reading's share, which is said; without it, it fits.
+    r = P(lin({ st: card('NVIDIA GeForce RTX 5090', 32607, 12.0) }));
+    assert.ok(r.problems.includes('This GPU has 32 GB: too little for any model in the vLLM list (the smallest needs about 35 GB, with 9 GB kept for document reading). llama.cpp or Ollama is the engine for this card. Turning document reading off would make room for one.'), r.problems.join('|'));
+    assert.equal(P(lin({ st: card('NVIDIA GeForce RTX 5090', 32607, 12.0) }), noOcr).gpuTooSmall, false);
+    assert.deepEqual(P(lin({ st: card('NVIDIA A100-SXM4-80GB', 81920, 8.0) })).warnings, ['This GPU is older than the cards these models were measured on (RTX PRO 6000, DGX Spark): they may not load. If a start fails, llama.cpp is the engine for this card.']);
+    // On Windows the size Windows sees is said before anything about WSL, which would be installed for nothing.
+    r = P(win({ hostGpu: { name: 'NVIDIA GeForce RTX 4070', gb: 12 }, wsl: { error: 'no-wsl' }, st: null }));
+    assert.deepEqual(r.problems, ['This GPU has 12 GB: too little for any model in the vLLM list (the smallest needs about 35 GB, with 9 GB kept for document reading). llama.cpp or Ollama is the engine for this card.']);
+    assert.equal(r.gpuTooSmall, true);
+    assert.equal(P(win({ hostGpu: { name: PRO, gb: 96 } })).problems.length, 0, 'a PRO 6000 fits');
+    assert.deepEqual(V.gpuFit(c, 12), { fits: false, needGib: (17.82 + 4 + 1 + 9) / 0.92, ocrGib: 9, fitsWithoutOcr: false });
+    assert.equal(V.gpuFit(c, 119, { unified: true }).fits, true, 'a DGX Spark, its memory guard included');
+    assert.equal(V.gpuFit(c, 0), null);
     const spark = V.parseStatus(['home=/home/me', 'arch=aarch64', 'curl=/usr/bin/curl', 'gpu=NVIDIA GB10, [N/A], [N/A], 12.1', 'mem_total_kb=124991588', 'mem_available_kb=115343360', 'disk_free_kb=3000000000', 'install=/home/me/lol-vllm 0.29.0'].join('\n'));
     r = P(lin({ st: spark }), { ...c, vllm: { ...c.vllm, root: '~/lol-vllm' } });
     assert.ok(r.oks.includes('GPU: NVIDIA GB10 (119 GB shared with the system).') && r.oks.includes('vLLM 0.29.0 is installed (in /home/me/lol-vllm).'), r.oks.join('|'));
@@ -4289,8 +4339,10 @@ test('vLLM plumbing helpers: the distribution\'s disk folder, install steps and 
     assert.equal(V.lxssBasePath(reg, 'docker-desktop'), 'D:\\wsl\\docker', 'the \\\\?\\ prefix goes');
     assert.equal(V.lxssBasePath(reg, 'Debian'), null);
     assert.equal(V.installStepText('vllm', { version: '0.30.0' }), 'downloading vLLM 0.30.0 and its GPU libraries (about 8 GB)');
-    assert.equal(V.installStepText('model', { label: 'Qwen3.6', bytes: 12.34e9, total: 23.4e9 }), 'downloading Qwen3.6 — 12 of 23 GB');
-    assert.equal(V.installStepText('model', { label: 'Qwen3.6', bytes: 1.25e9, total: 2.5e9 }), 'downloading Qwen3.6 — 1.3 of 2.5 GB');
+    // The meter is the folder on disk, which Hugging Face's downloader fills in large pieces, late (the live test):
+    // the text says the number jumps, so a low one does not read as stuck.
+    assert.equal(V.installStepText('model', { label: 'Qwen3.6', bytes: 12.34e9, total: 23.4e9 }), 'downloading Qwen3.6 — 12 of 23 GB on disk so far (files are written in large pieces, so this number jumps)');
+    assert.equal(V.installStepText('model', { label: 'Qwen3.6', bytes: 1.25e9, total: 2.5e9 }), 'downloading Qwen3.6 — 1.3 of 2.5 GB on disk so far (files are written in large pieces, so this number jumps)');
     assert.equal(V.installStepText('cuda-pins'), 'matching the CUDA compiler to the GPU libraries');
     assert.equal(V.downloadFailure({ kind: 'gated' }, 'a/b'), 'Hugging Face asks for an account to download this model. Pick another model.');
     assert.equal(V.downloadFailure({ kind: 'notfound' }, 'a/b'), 'There is no model named a/b on Hugging Face. Check the name.');
@@ -4476,6 +4528,67 @@ test('panel: the engine grid — Ollama, llama.cpp, vLLM, and External only whil
     assert.ok(/return !\(engineOf\(config\) === 'vllm' && loopbackPort\(config\.external\.baseUrl\) === config\.vllm\.port\);/.test(upSrc), 'no External button pointing at the vLLM the farm runs');
 });
 
+test('panel: a GPU vLLM cannot use says so on its button, before any check; its card closes; the take-over on Linux says when vLLM starts (review 2026-10-07)', async () => {
+    const render = loadPanel();
+    const sub = (html) => (/data-engine="vllm"[\s\S]*?<\/button>/.exec(html) || [''])[0];
+    // The studio's RTX 4070 / 4080: what nvidia-smi showed at boot is enough to say it, with no offer to set it up.
+    const small = sub(render(ollamaWithVllm({ probe: null, hostFit: { gb: 12, fits: false, needGb: 35 } })));
+    assert.ok(small.includes('Not for this GPU (12 GB; vLLM&#39;s models need about 35 GB): llama.cpp or Ollama is the engine for it. Press to see why.')
+        || small.includes("Not for this GPU (12 GB; vLLM's models need about 35 GB): llama.cpp or Ollama is the engine for it. Press to see why."), small);
+    assert.ok(!/set up|check this computer/i.test(small), small);
+    assert.ok(sub(render(ollamaWithVllm({ probe: { at: 1, oks: [], problems: ['x'], warnings: [], gpuTooSmall: true }, hostFit: null }))).includes('Not for this GPU: llama.cpp or Ollama is the engine for it.'), 'the check says it too');
+    assert.ok(sub(render(ollamaWithVllm({ probe: null, hostFit: null, noNvidia: true }))).includes('vLLM needs an NVIDIA GPU, and none was found on this computer. Press to check it.'));
+    assert.ok(sub(render(ollamaWithVllm({ probe: null, hostFit: { gb: 96, fits: true, needGb: 35 } }))).includes('Many people at once on a big NVIDIA GPU. Press to check this computer.'), 'a PRO 6000: as before');
+    // The card a press opened closes again (it is remembered in this browser, and showed a small GPU's red list on
+    // every page); not while vLLM is the engine.
+    const card = (html) => (/<h2>Model · vLLM<\/h2>[\s\S]*?(?=<div class="card"><h2>|$)/.exec(html) || [''])[0];
+    const p = loadPanel({ fetch: async () => ({ status: 200, json: async () => ({ ok: true }) }) });
+    const s = ollamaWithVllm({ probe: { at: 1, oks: [], problems: ['This GPU has 12 GB: too little'], warnings: [], gpuTooSmall: true } });
+    assert.equal(card(p(s)), '', 'closed until pressed');
+    p.engineClick(s, 'vllm', { dataset: {} });
+    assert.ok(card(p.el('#app').innerHTML).includes('data-vclose'), 'opened by the press: Close');
+    assert.ok(!card(render(vllmState())).includes('data-vclose'), 'the engine: no Close');
+    assert.ok(fs.readFileSync(path.join(__dirname, '..', 'src', 'admin', 'index.html'), 'utf8').includes("try { localStorage.removeItem('lolVllmOpen'); } catch { /* private window */ }"), 'Close forgets it');
+    // On Linux (a DGX Spark) the take-over makes the boot service a no-op: before the click, the panel says vLLM then
+    // starts with the farm, which the Farm app does at a desktop log-in.
+    const LINUX = 'From then on vLLM starts when the farm starts, not by itself at boot: with the Farm app, that is when someone logs in to the desktop of this computer (Launch at login, in its settings).';
+    const ext = (platform) => adminState({ backend: { engine: 'external', baseUrl: 'http://127.0.0.1:8100/v1' }, vllm: vllmPanel({ takeOver: { root: '/home/me/lol-vllm', running: true, platform } }) });
+    assert.ok(render(ext('linux')).includes(LINUX));
+    assert.ok(!render(ext('win32')).includes(LINUX));
+    const asked = [];
+    const q = loadPanel({ fetch: async () => ({ status: 200, json: async () => ({ ok: true }) }), confirm: (x) => { asked.push(x); return false; } });
+    q(ext('linux')); q.engineClick(ext('linux'), 'vllm', { dataset: {} });
+    assert.ok(asked[0] && asked[0].endsWith(LINUX), asked[0]);
+});
+
+test('free memory is read until it stops rising, before a start sizes against it (review 2026-10-07)', async () => {
+    const { untilSteady } = require('../src/systemInfo');
+    const seq = (xs) => { let i = 0; return async () => xs[Math.min(i++, xs.length - 1)]; };
+    assert.equal(await untilSteady(seq([20, 50, 80, 95, 95.1]), { gapMs: 1 }), 95, 'a vLLM stopped a moment ago gives its memory back');
+    assert.equal(await untilSteady(seq([95, 95]), { gapMs: 1 }), 95, 'steady: one more read');
+    assert.equal(await untilSteady(seq([null]), { gapMs: 1 }), null);
+    assert.equal(await untilSteady(seq([10, 20, 30, 40, 50, 60, 70, 80]), { gapMs: 1, tries: 3 }), 40, 'at most `tries` more reads');
+    const upSrc = fs.readFileSync(path.join(__dirname, '..', 'src', 'commands', 'up.js'), 'utf8');
+    assert.ok(/if \(config\.vllm\.kvCacheGib === 'auto' && vllmProbe\.st\) \{\s+let first = true;\s+await untilSteady\(/.test(upSrc), 'a vLLM start with Automatic memory waits for it');
+    assert.ok(upSrc.includes('const free = await untilSteady(gpuFreeGb);'), 'llama.cpp\'s too, through the same function');
+});
+
+test('`lol down` during a proxy bounce or a vLLM stop: the farm stops as asked, never restarts vLLM nor writes its runtime file back (review 2026-10-07)', () => {
+    const upSrc = fs.readFileSync(path.join(__dirname, '..', 'src', 'commands', 'up.js'), 'utf8');
+    assert.ok(upSrc.includes('if (runtimeWritten && !readRuntime()) return;'), 'writeRuntimeState never writes it back');
+    assert.ok(/function onVllmDown\(why, detail = null\) \{\s+if \(stopping \|\| vllmDownRunning \|\| engineOf\(config\) !== 'vllm'\) return;\s+if \(downAsked\(\)\) return;/.test(upSrc), 'a vLLM that stops after `lol down` is not restarted');
+    assert.ok(upSrc.includes("if (!readRuntime()) { restartingProxy = false; shutdown('lol down'); return false; }"), 'a bounce that lands after `lol down` stops the farm');
+    // ...and the Apply that bounced it, going back to the previous settings, never starts a vLLM (or loads Ollama) on
+    // the farm's way out: it would outlive the farm.
+    assert.ok(/async function startVllm\([\s\S]{0,450}?if \(quitting\(\)\) return quitting\(\);\s+const dl = jobs\.downloading\(\);/.test(upSrc), 'no start while the farm stops');
+    assert.ok(/if \(quitting\(\)\) return quitting\(\);\s+log\.step\(`vLLM: starting /.test(upSrc), 'nor right before the spawn');
+    assert.ok(/async function fallbackToOllama\([^)]*\) \{\s+if \(stopping\) return false;/.test(upSrc), 'no fallback while the farm stops');
+    // Ollama leaves the GPU before a start found in progress too (review 2026-10-07: the waitOnly path skipped it).
+    assert.ok(/await evictOllama\(say\);\s+if \(!waitOnly\) \{/.test(upSrc), 'evicted before the waitOnly branch');
+    // The Farm app's Stop says what a vLLM farm costs (review 2026-10-07).
+    assert.ok(fs.readFileSync(path.join(__dirname, '..', '..', 'farm-app', 'renderer', 'app.js'), 'utf8').includes("confirm('Stop the farm? Everyone connected loses their chat mid-answer. A farm that serves with vLLM takes about 2 minutes to start again.')"));
+});
+
 test('panel: vLLM\'s line for each phase, its hero, and a start that fell back to Ollama (§1.5, §7.1)', () => {
     const render = loadPanel();
     const html = render(vllmState({ adopted: true }));
@@ -4501,7 +4614,14 @@ test('panel: vLLM\'s line for each phase, its hero, and a start that fell back t
     assert.ok(render(vllmState({ phase: 'down' })).includes('vLLM is not answering. The farm is checking it.'));
     // Fell back: Ollama serves, with vLLM's reason, once.
     const failed = render(ollamaWithVllm({ phase: 'failed', bootError: 'vLLM could not start: vLLM ran out of GPU memory while starting. Lower GPU memory for conversations or the context.' }));
-    assert.ok(failed.includes('<div class="warnline">vLLM could not start: vLLM ran out of GPU memory while starting. Lower GPU memory for conversations or the context. The farm serves with Ollama for now. Fix the cause, then switch back to vLLM.</div>'), failed.slice(0, 600));
+    assert.ok(failed.includes('<div class="warnline">vLLM could not start: vLLM ran out of GPU memory while starting. Lower GPU memory for conversations or the context. The farm serves with Ollama for now. Fix the cause (vLLM\'s log below says more), then switch back to vLLM.</div>'), failed.slice(0, 600));
+    const upSrc0 = fs.readFileSync(path.join(__dirname, '..', 'src', 'commands', 'up.js'), 'utf8');
+    // vLLM that stopped working while it served (twice in 5 minutes) is not "could not start", and says it in plain
+    // words (the live test read "(the second time, its process ended (status 0))").
+    const crashed = render(ollamaWithVllm({ phase: 'failed', bootError: 'vLLM stopped working twice in 5 minutes (the second time, it shut down by itself).' }));
+    assert.ok(crashed.includes('<div class="warnline">vLLM stopped working twice in 5 minutes (the second time, it shut down by itself). The farm serves with Ollama for now.'), crashed.slice(0, 600));
+    assert.ok(!crashed.includes('could not start') && !/status \d/.test(crashed));
+    assert.ok(upSrc0.includes("onVllmDown('it shut down by itself', `status ${code}`);") && upSrc0.includes('`vLLM stopped working twice in 5 minutes (the second time, ${why}).`'), 'the farm writes it so; the status goes to its log only');
     assert.ok(failed.includes('<h2>Model · vLLM</h2>'), 'its card stays, for the log');
     assert.ok(!render(adminState({ backend: { engine: 'llama.cpp', alias: 'a', model: 'm', contextLength: 8192, contextPerSlot: 8192, slots: 1 }, vllm: vllmPanel({ bootError: 'x', enabled: false }) })).includes('The farm serves with Ollama for now'), 'only while Ollama serves');
 });
@@ -4615,7 +4735,7 @@ test('panel: vLLM\'s rows, its trade line and the Apply text; Apply asks the far
     // A card and model nobody measured: said, with the estimator (the owner's question (c)).
     const nm = render(vllmState({ measured: null }));
     assert.ok(nm.includes('Not measured on this card with this model: start with fewer people and watch the Performance card. <a class="plan" href="/lol/capacity" target="_blank" rel="noopener">Plan capacity ↗</a> estimates it.'));
-    assert.ok(html.includes('Changes above apply together. A new context, memory or model restarts vLLM: about 2 minutes during which nobody can chat. People at once, the name and the password apply in a few seconds.'));
+    assert.ok(html.includes('Changes above apply together. A new context, memory or model restarts vLLM: about 2 minutes during which nobody can chat. The name, the password and people at once apply in a few seconds, up to a point for people: many more can restart vLLM too, and Apply asks first when it would.'), 'never "people in a few seconds" alone: 48 → 80 restarts vLLM (review 2026-10-07)');
     assert.ok(render(adminState()).includes('Changes above apply together — one restart for all of them.'), 'Ollama keeps its own');
 
     // Apply on vLLM: a dry run first; the confirm only when it restarts; nothing sent when the operator says no.
@@ -4649,6 +4769,8 @@ test('panel: the job bar and the download bar, each with Stop when it can stop (
     assert.ok(bars[0].includes('<b>Starting vLLM</b>') && bars[0].includes('loading the model weights (2 of 3) · 67%') && bars[0].includes('data-cancel="job"'), bars[0]);
     assert.ok(bars[0].includes('running for 50s'));
     assert.ok(bars[1].includes('<b>Downloading Nemotron</b>') && bars[1].includes('data-cancel="download"') && bars[1].includes('<b>12.0 GB</b> of 21.6 GB · 30 MB/s · about 5 min left'), bars[1]);
+    // A vLLM download's bytes can sit still for minutes and jump (the live test): its bar always shows the time it ran.
+    assert.ok(bars[1].includes('about 5 min left · running for 6m'), bars[1]);
     const done = render(vllmState({}, { job: { label: 'Starting vLLM', done: true, ok: false, error: 'Stopped. vLLM is not running: press Start vLLM.', cancellable: false },
         download: { label: 'Downloading Nemotron', done: true, ok: false, error: 'Stopped. Press Download again to go on: the files it finished are kept.', cancellable: false } }));
     assert.ok(done.includes('Stopped. vLLM is not running: press Start vLLM.') && done.includes('Stopped. Press Download again to go on: the files it finished are kept.'));

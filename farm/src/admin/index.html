@@ -337,7 +337,7 @@ function render(s) {
     // On vLLM some changes restart it and some do not: the row says which, and Apply
     // asks the farm first (a dry run) and confirms only a restart.
     + `<div class="row"><span></span><span><div class="meta">${isV
-        ? 'Changes above apply together. A new context, memory or model restarts vLLM: about 2 minutes during which nobody can chat. People at once, the name and the password apply in a few seconds.'
+        ? 'Changes above apply together. A new context, memory or model restarts vLLM: about 2 minutes during which nobody can chat. The name, the password and people at once apply in a few seconds, up to a point for people: many more can restart vLLM too, and Apply asks first when it would.'
         : 'Changes above apply together — one restart for all of them.'}</div></span>`
     + `<span class="badges"><button id="settings-apply"${jobRunning ? ' disabled' : ''}>Apply changes</button></span></div>`
     + `</div>`;
@@ -845,8 +845,10 @@ function barOf(x, slot) {
     if (x.bytesPerSec) bits.push(esc(rateOf(x.bytesPerSec)));
     if (x.etaSec != null) bits.push(esc(etaOf(x.etaSec)));
     // Elapsed is the honest fallback while a phase reports no bytes at all (installing vLLM's libraries, reading
-    // the model index, verifying) - it still proves time is passing.
-    if (!bits.length && x.startedAt) bits.push('running for ' + esc(dur(Math.round((Date.now() - x.startedAt) / 1000))));
+    // the model index, verifying) - it still proves time is passing. A vLLM download always shows it: its bytes are
+    // the folder on disk, which Hugging Face's downloader fills in large pieces, late, so they can sit still for
+    // minutes and then jump (the live test, 2026-10-08).
+    if ((!bits.length || slot === 'download') && x.startedAt) bits.push('running for ' + esc(dur(Math.round((Date.now() - x.startedAt) / 1000))));
   }
   return `<div class="jobbar${x.done ? (x.ok ? ' done' : ' failed') : ''}">`
     + `<div class="jobtop"><b>${esc(x.label)}</b><span>${esc(x.done ? (x.ok ? (x.message || 'done') : (x.error || 'failed')) : x.message)}${running && x.percent != null ? ' · ' + x.percent + '%' : ''}`
@@ -865,6 +867,12 @@ function vllmEngineSub(v) {
   const lead = 'Many people at once on a big NVIDIA GPU.';
   if (!v || v.supported === false) return 'Not available on this computer: vLLM needs an NVIDIA GPU on Linux, or Windows with WSL.';
   if (v.takeOver) return `${lead} The vLLM already on this computer: press to let the farm run it, as it runs now.`;
+  // A GPU no model of the list fits (an RTX 4070 or 4080), said before any check: never an offer to set it up.
+  const fit = v.hostFit;
+  if ((v.probe && v.probe.gpuTooSmall) || (fit && !fit.fits)) {
+    return `Not for this GPU${fit && !fit.fits ? ` (${fit.gb} GB; vLLM's models need about ${fit.needGb} GB)` : ''}: llama.cpp or Ollama is the engine for it. Press to see why.`;
+  }
+  if (!v.probe && v.noNvidia) return 'vLLM needs an NVIDIA GPU, and none was found on this computer. Press to check it.';
   if (!v.probe) return `${lead} Press to check this computer.`;
   if (!v.probe.problems.length) return `${lead} One model; it takes about 2 minutes to start.`;
   return `${lead} Not set up on this computer yet: press to see how.`;
@@ -903,18 +911,24 @@ function engineClick(s, to, b) {
 }
 // "Let the farm run vLLM" (§9.2), from its card or from the vLLM button: what it does, before it does it.
 function takeOverConfirm(t) {
-  return t.running
+  return (t.running
     ? 'Let the farm run the vLLM already on this computer? It keeps the same model, name and settings and keeps running: nobody is interrupted.'
-    : 'Let the farm run the vLLM on this computer? It keeps the same model, name and settings and starts it now: about 2 minutes, during which nobody can chat.';
+    : 'Let the farm run the vLLM on this computer? It keeps the same model, name and settings and starts it now: about 2 minutes, during which nobody can chat.')
+    + (t.platform === 'linux' ? ` ${LINUX_BOOT}` : '');
 }
+// Linux (a DGX Spark): the service that started vLLM at boot starts nothing after a take-over, and the Farm app starts
+// at a desktop log-in only. A box that starts with no one logging in to its desktop must hear it before the click.
+const LINUX_BOOT = 'From then on vLLM starts when the farm starts, not by itself at boot: with the Farm app, that is when someone logs in to the desktop of this computer (Launch at login, in its settings).';
 
 // The line under the Backend title: where vLLM is in its life (§1.5, §7.1).
 function vllmStatusLine(s) {
   const v = s.vllm || {}; const be = s.backend || {};
   if (be.engine !== 'vllm') {
     if (!v.bootError || be.engine !== 'ollama') return '';
+    // A start that failed, or a vLLM that stopped working while it served (twice in 5 minutes): each says its own.
     const why = String(v.bootError).replace(/^vLLM could not start:\s*/, '').replace(/[.\s]+$/, '');
-    return `<div class="warnline">vLLM could not start: ${esc(why)}. The farm serves with Ollama for now. Fix the cause, then switch back to vLLM.</div>`;
+    const what = /^vLLM stopped working/.test(why) ? why : `vLLM could not start: ${why}`;
+    return `<div class="warnline">${esc(what)}. The farm serves with Ollama for now. Fix the cause (vLLM's log below says more), then switch back to vLLM.</div>`;
   }
   const hint = (t) => `<div class="hint">${t}</div>`;
   const warn = (t) => `<div class="warnline">${t}</div>`;
@@ -1059,7 +1073,8 @@ function vllmCard(s, jobRunning) {
   }
   if (v.supported !== false) {
     out.push(`<div class="row"><span></span><span><div class="meta">${v.probe ? `Checked at ${esc(new Date(v.probe.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }))}.` : ''}</div></span>`
-      + `<span class="badges"><button data-vcheck${off(vllmChecking)}>Check again</button></span></div>`);
+      + `<span class="badges"><button data-vcheck${off(vllmChecking)}>Check again</button>`
+      + (vllmOpen && !isV ? '<button data-vclose>Close</button>' : '') + '</span></div>');
   }
   // Install: once the check sees a GPU vLLM can use, and vLLM is not there yet.
   const chosen = (v.library || []).find((e) => e.active) || null;
@@ -1143,7 +1158,7 @@ function takeOverCard(s, jobRunning) {
     ? 'It keeps the same model, name and settings and keeps running: nobody is interrupted.'
     : 'It keeps the same model, name and settings and starts it now: about 2 minutes, during which nobody can chat.';
   return `<div class="card"><h2>vLLM on this computer</h2>`
-    + `<div class="hint">The vLLM this farm routes to runs on this computer, from ${esc(t.root)}. The farm can run it itself: then you change its model, people and context here, and it starts and stops with the farm. ${tail}</div>`
+    + `<div class="hint">The vLLM this farm routes to runs on this computer, from ${esc(t.root)}. The farm can run it itself: then you change its model, people and context here, and it starts and stops with the farm. ${tail}${t.platform === 'linux' ? ` ${LINUX_BOOT}` : ''}</div>`
     + `<div class="row"><span></span><span></span><span class="badges"><button class="start" data-vtake${jobRunning ? ' disabled' : ''}>Let the farm run vLLM</button></span></div></div>`;
 }
 
@@ -1173,6 +1188,13 @@ function wireVllm(s) {
   const v = s.vllm || {};
   const on = (sel, fn) => app.querySelectorAll(sel).forEach((b) => { b.onclick = () => fn(b); });
   on('button[data-vcheck]', () => vllmCheck());
+  // Close the card opened by a press on the vLLM button (it is remembered in this browser): a farm whose GPU is too
+  // small would show its red list on every page otherwise.
+  on('button[data-vclose]', () => {
+    vllmOpen = false;
+    try { localStorage.removeItem('lolVllmOpen'); } catch { /* private window */ }
+    render(s);
+  });
   on('button[data-vinstall]', (b) => post('/lol/admin/vllm/install', {}, b, 'Installing vLLM…'));
   on('button[data-vdl]', (b) => post('/lol/admin/vllm/download', { id: b.dataset.vdl }, b, 'Downloading…'));
   on('button[data-vuse]', (b) => {

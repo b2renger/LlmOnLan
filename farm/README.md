@@ -205,16 +205,24 @@ this computer and says what is missing, in plain words:
   virtual disk that reports up to 1 TB) and the Windows drive that holds it. Install, Update and Download check it
   before they start, and leave 10 GB free beside what they fetch: WSL's disk grows on drive C: and never gives the
   space back.
-- A card smaller than the smallest model in the list (its weights + ~6 GB) is refused; a card older than compute
-  capability 12.0 (Blackwell) gets a warning: the list's NVFP4 checkpoints were measured on Blackwell only.
+- A card no model of the list fits is refused, with llama.cpp or Ollama named as its engine: the smallest model's
+  weights, ~4 GB of vLLM's own, 8 % of the card, 1 GB for conversations, and the 9 GB kept for document reading
+  while that is on (`vllm.ocrReserveGib`) must fit an empty card: about 35 GB with document reading, 25 GB
+  without. So the studio's RTX 4070 (12 GB), 4080 (16 GB) and a 4090 (24 GB) never get an Install or a start;
+  a 32 GB card fits only with document reading off, and the panel says so. On Windows the size Windows itself
+  sees comes first, before anything about WSL, and so does a PC with no NVIDIA GPU at all. A card older than
+  compute capability 12.0 (Blackwell) gets a warning: the list's NVFP4 checkpoints were measured on Blackwell only.
 
 **Install vLLM** (the vLLM card) runs `install.sh` into the vLLM folder (`vllm.root`, default `~/lol-vllm`; an
 existing install in `~/lol-vllm` or `~/lol-spike` is used as it is): `uv` if missing (user-local, no sudo), a
 Python 3.12 environment of uv's own, vLLM 0.30.0 and its GPU libraries (about 8 GB), the CUDA compiler packages
 FlashInfer's kernel build needs, a GPU check, then the chosen model. About 45 minutes on a typical connection. It
 runs in the farm's **download slot**: the farm keeps serving meanwhile, clients do not see it as busy, and Stop
-keeps what was fetched (Install again continues). An install refuses while vLLM runs from that folder.
-`lol install` does not install vLLM.
+keeps what was fetched (Install again continues). An install refuses while vLLM runs from that folder. At its
+time limit (6 hours) the farm stops `install.sh`'s whole process group, its download included (killing only its
+own child left `hf` downloading on Linux). A download's meter is its folder on disk, which Hugging Face's
+downloader fills in large pieces, late: the bar says so and shows how long it has run, so a number that sits low
+for minutes and then jumps does not read as stuck. `lol install` does not install vLLM.
 
 **The models** are a list in the vLLM card: the three NVFP4 checkpoints the spike measured, with the flags it ran
 them with.
@@ -253,7 +261,8 @@ when vLLM would restart):
   capacity link (the owner's question (c)).
 - **Context per person** (`vllm.contextLength`, `--max-model-len`), at most what the model reads.
 - **GPU memory for conversations** (`vllm.kvCacheGib`, `--kv-cache-memory-bytes`). Automatic, worked out at each
-  start: the GPU's free memory, less 8 % of the card, the model's weights, ~4 GB of vLLM's own and 9 GB kept for
+  start, once the free memory stops rising (a vLLM stopped a moment ago, by an Apply or a restart, gives its memory
+  back over a few seconds): the GPU's free memory, less 8 % of the card, the model's weights, ~4 GB of vLLM's own and 9 GB kept for
   document reading (`vllm.ocrReserveGib`, when OCR is on); on a DGX Spark, from what the system has available,
   less the memory guard's 8 GB. Capped at what vLLM's request cap can use, so a small model does not take the
   card. On the PRO 6000 alone that is 52 GB; beside ComfyUI's ~45 GB, about 8 GB (then 10 people at 64k, which
@@ -284,11 +293,16 @@ log-on task, `lol-vllm.service` or a hand, says so and does nothing).
   an Apply that restarts it. `lol down` stops only the farm's own vLLM: the one it serves with, or one its marker
   says it started; never an operator's vLLM in a folder the farm only downloaded a model into. Stop vLLM makes the farm unhealthy
   (clients go to another farm) and does not survive a farm restart: the next start starts vLLM (the owner's
-  question (b)).
+  question (b)). A `lol down` that lands during a proxy bounce (a Quit in the middle of an Apply) stops the farm
+  too: the farm never writes back the runtime file `lol down` removed, and a vLLM that stops once that file is gone
+  is not restarted.
 - A crash of `lol up` or of the Farm app leaves vLLM running, and the next `lol up` keeps it at once when it runs
   with these settings (an Automatic setting accepts what it runs with), waits for one still starting, and
   restarts one launched otherwise. A server that runs with these settings is kept even when the check of this
-  computer misses something (WSL is asked twice before the farm gives up on it). The Farm app's **Share compute with the network** switch restarts the farm and keeps
+  computer misses something. When WSL gives no answer at all at boot (a slow log on), the start is queued instead
+  of serving Ollama for the whole run: it checks again once the farm is up, keeps a server it then finds running
+  with these settings, and serves with Ollama only if that check fails too. Any start that finds such a server
+  ready keeps it rather than restarting it. The Farm app's **Share compute with the network** switch restarts the farm and keeps
   vLLM running. CLI note: a farm that crashed leaves vLLM running until the next `lol up` or `lol down`.
 - At boot, a vLLM the farm started (its marker) that still runs while another engine is chosen (a crash in the
   middle of a switch) is stopped; one without the marker is someone else's and is left alone.

@@ -6,6 +6,84 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-10-08 (03:57) — vLLM run by the farm: the reviews' leftovers, the live test's two notes, the DGX Spark path, small RTX cards
+
+The fix pass (00:49) read the two reviews' 24 findings cut at 9,000 characters each. Every one was read again in
+full and checked against the code at 8efc9fd, on the `vllm-managed` branch ([VLLM_MANAGED_PLAN.md](VLLM_MANAGED_PLAN.md),
+Build status, "Review leftovers", and §11.6). The owner's priority (2026-10-07): the farm on every OS, Windows with
+RTX cards and the DGX Spark first.
+
+- **Fixed by the fix pass, checked again at 8efc9fd:** two engines after a take-over (panel review 1); the switch
+  doc's eaten backslashes (panel 2, lifecycle 5: no control byte left); the C compiler (panel 3); the vLLM button as
+  the take-over, no External button on the farm's own vLLM, the GPU-share sentence (panel 4); the Farm app's Quit and
+  Stop (panel 5, lifecycle 8); document reading's model beside vLLM only (panel 6); Download only once vLLM is
+  installed (panel 7); `lol down` and an operator's vLLM (lifecycle 1); another program on the port (lifecycle 2);
+  pid files per folder (lifecycle 3); the disk (lifecycle 4); no Ollama beside a vLLM that did not stop (lifecycle
+  6); the watch during other jobs (lifecycle 7).
+- **Still open, fixed now:**
+  - **WSL with no answer at boot** (panel 9). The fix pass asked twice, then served Ollama for the whole run. Now the
+    start is queued: it checks again once the farm is up, and falls back only if that check fails too. A GPU too
+    small is an answer, not a silence.
+  - **A start that meets a vLLM already running as it should** (lifecycle 10). It stopped it to start the same thing
+    (2 minutes nobody can chat). Now a start keeps one that runs with these settings, is ready and answers; a hung
+    one, or one whose port is dead, is still started again.
+  - **Ollama during a start found in progress** (lifecycle 11): the boot's wait and a take-over of a vLLM still
+    starting now evict Ollama's loaded models too.
+  - **Automatic memory right after a stop** (lifecycle 12): sized once the free memory stops rising
+    (`systemInfo.untilSteady`, which llama.cpp's sizing now shares). The lag itself was not measured here.
+  - **`lol down` racing the farm** (lifecycle 9). The runtime file `lol down` removed is never written back; a proxy
+    bounce that lands after it stops the farm, and so does a vLLM that stops once it is gone. Nothing starts vLLM
+    or loads Ollama while the farm stops (the Apply's way back to its old settings could have).
+  - **An install or a download at its 6-hour limit** (lifecycle 13). Inside WSL, killing wsl.exe already ended
+    install.sh and hf (seen here). On native Linux, the farm's own code run under WSL's Linux left hf and tee
+    downloading, unrecorded, and the next Download would have run a second one into the same folder. Now the time
+    limit stops install.sh's whole process group first.
+  - **Windows wording** (panel 10): a PC whose Windows sees no NVIDIA GPU is told so, not to install WSL or a driver.
+    The vLLM card opened by a press now has Close (it stayed open in the browser for good).
+  - **Sentences** (panel 8): the Apply row no longer says people at once always apply in seconds (48 → 80 restarts
+    vLLM); the Farm app's Stop says a vLLM farm takes about 2 minutes to start again.
+  - **The lifecycle test's last check** (panel 11) ignores the vLLMs other test runs start (`/tmp/lol-as-*`,
+    `~/lol-fake-*`). Both full runs below had `test_scripts.sh` running beside them, and passed.
+- **The live test's two notes.**
+  - The fallback reason now reads "vLLM stopped working twice in 5 minutes (the second time, it shut down by
+    itself)."; the status goes to the farm's log. The panel no longer puts "vLLM could not start:" in front of it.
+  - The download meter: its text says "… GB on disk so far (files are written in large pieces, so this number
+    jumps)", and a download's bar always shows how long it has run.
+- **Smaller RTX cards on Windows** (the studio's 4070 12 GB and 4080 16 GB).
+  - Before, a card counted as too small under the smallest model's weights + 6 GB, and only once WSL answered: a
+    4070 without WSL was first told to install WSL, and a 24 GB card passed and then failed at its start.
+  - Now `vllm.gpuFit` asks what the smallest model needs on an empty card, with document reading's 9 GB while that
+    is on: about 35 GB with it, 25 GB without. On Windows it uses the size Windows sees, before anything about WSL.
+  - The vLLM button says it before any check: "Not for this GPU (12 GB; vLLM's models need about 35 GB): llama.cpp
+    or Ollama is the engine for it." No Install, no Download, and a switch is refused.
+  - A 32 GB card fits only with document reading off, and the checklist says so.
+- **The DGX Spark path, read, not run.**
+  - What holds: `install.sh` is the spike's install that ran on the Spark (uv's own Python 3.12, so the headers
+    Triton needs; vLLM 0.30.0 with the matching torch; the CUDA compiler pins).
+  - `status.sh`'s GPU line with no memory numbers reads as unified memory, sized from `MemAvailable`, with the 8 GB
+    guard, 4 compile jobs and the 27 GiB cap.
+  - The clock watch runs whatever the engine. The AppImage carries `farm/vllm`, its scripts LF and run through bash.
+  - What was wrong: the time limit above (Linux only), and nothing told a headless Spark that after a take-over vLLM
+    starts with the farm, which the Farm app does at a desktop log-in. The take-over now says it on Linux before
+    the click.
+  - What only a real Spark can confirm: the plan's §11.6, ten checks for the owner.
+- **Left.**
+  - LOL Vibe's own text for a farm that is starting ("Try again in a few seconds") is the client's, unchanged here.
+  - §11.6 on a Spark; §11.5 and §9.6 with the owner; the production Farm app, down since 2026-10-07 20:46, needs
+    opening again.
+- **Tests.**
+  - farm `node test/run.js`: **209** passed (206).
+  - `farm/vllm/test_scripts.sh` (WSL): **112/112** (110). New: `timelimit`.
+  - Lifecycle `LOL_VLLM_FAKE=1 node test/vllm-lifecycle.js`: **161 passed, 0 failed** over 23 steps, twice. The
+    second run is on the final code. New steps: 21, the time limit; 22, a start found in progress; 23, `lol down`
+    racing the farm.
+  - Farm app `npm test`: 8, and `npm run build`. LiteLLM 1.97 `test/litellm-cancel.js`: PASS. The shell is unchanged.
+  - Every fix reverted, alone, fails its test: 15 unit reverts and 5 lifecycle ones. The time limit's revert passes
+    the lifecycle step on Windows, where WSL ends the tree anyway, and fails `timelimit` on Linux.
+- **Production untouched.** Its vLLM answered on 8100 as process group 401, serve.sh its leader, with no marker in
+  `~/lol-spike/run`. The test used ports 4300-4302, 41897 and 8299, `~/lol-fake-a`, `/tmp/lol-as-*` and
+  `/tmp/lol-leftover-root` (removed).
+
 ## 2026-10-08 (02:24) — vLLM run by the farm: the live test on the PRO 6000, beside production
 
 The plan's §11.4 ([VLLM_MANAGED_PLAN.md](VLLM_MANAGED_PLAN.md)), on the `vllm-managed` branch, from 01:00 to 02:07: a

@@ -502,11 +502,29 @@ function applyChange(config, body = {}, { st = null, launch = null, root = confi
 // At boot, with vLLM the engine: serve with the running server at once, wait for one that is starting, restart one
 // launched otherwise, or start one. A server that runs with these settings is kept whatever the check says: a
 // problem there (a GPU nvidia-smi missed once, a slow disk check) would otherwise send the farm to Ollama beside it.
-function bootDecision({ supported: sup = { ok: true }, problems = [], running = null, adopt = null }) {
+// `noAnswer` (unanswered): WSL or status.sh gave no answer at all (Windows still starting at log on, a distribution
+// still booting). The start is queued instead: it checks again once the farm is up, keeps a server it then finds
+// running with these settings (keepRunning), and serves with Ollama only if that check fails too. Falling back here
+// would leave everyone on Ollama for the whole run after one slow log on.
+function bootDecision({ supported: sup = { ok: true }, problems = [], running = null, adopt = null, noAnswer = false }) {
     if (!sup.ok) return { action: 'unavailable', reason: UNSUPPORTED };
     if (running && adopt && adopt.ok) return { action: running.ready ? 'adopt' : 'wait', reason: null };
+    if (noAnswer && !running) return { action: 'start', reason: null };
     if (problems.length) return { action: 'unavailable', reason: problems[0] };
     return { action: running ? 'restart' : 'start', reason: null };
+}
+
+// The check got no answer from this computer's Linux (as opposed to an answer that says what is missing).
+function unanswered(pr) {
+    return !!(pr && !pr.st && (pr.stError || (pr.wsl && pr.wsl.error === 'timeout')));
+}
+
+// A start (Start, a switch, a restart after a stop) meets a vLLM already running from its root: keep it when it runs
+// with these settings, is ready and answers on its port, instead of stopping it to start the same thing again (2
+// minutes nobody can chat). One that is not ready, or whose port is dead (the relay), is stopped and started: a hung
+// server counts as a crash (§5.7).
+function keepRunning({ running = null, adopt = null, answers = false }) {
+    return !!(running && running.ready && adopt && adopt.ok && answers);
 }
 
 // vLLM stopped answering. The memory guard's stop is never undone; a slow server that still answers is fine; a
@@ -668,11 +686,13 @@ function explainFailure(code, lines, ctx = {}) {
     return `vLLM stopped while starting. Its last error: ${clean}`;
 }
 
-// What an install or a download is doing, from install.sh's [lol-step] (§4.3).
+// What an install or a download is doing, from install.sh's [lol-step] (§4.3). The meter is the folder on disk, and
+// Hugging Face's downloader writes a file in large pieces, late (the live test: 0.02 GB for the first 80 s of a 1.5 GB
+// model, then a jump): the text says so, so a low number does not read as stuck (the bar shows the time it has run).
 function installStepText(step, { label = 'the model', version = '', bytes = null, total = null } = {}) {
     if (step === 'model' && bytes != null) {
         const gb = (n) => (n / 1e9 >= 10 ? Math.round(n / 1e9) : Math.round(n / 1e8) / 10);
-        return `downloading ${label} — ${gb(bytes)}${total ? ` of ${gb(total)}` : ''} GB`;
+        return `downloading ${label} — ${gb(bytes)}${total ? ` of ${gb(total)}` : ''} GB on disk so far (files are written in large pieces, so this number jumps)`;
     }
     return {
         uv: 'getting the installer (uv)',
@@ -698,9 +718,35 @@ function downloadFailure(r, repo, button = 'Download') {
 
 // ---- what blocks it on this computer -------------------------------------------------------------------------------
 
+// Can a model of the vLLM list run on a GPU of `gib` GB at all: what the smallest one asks of an EMPTY card (poolGib's
+// sum: its weights, vLLM's own memory, the safety margin, document reading's share while it is on, the memory guard's
+// floor where the GPU shares the system memory, and 1 GB for conversations). → {fits, needGib, ocrGib, fitsWithoutOcr},
+// or null with no list or no size. An RTX 4070 (12 GB) or 4080 (16 GB) fits none: llama.cpp or Ollama is their engine.
+function gpuFit(config, gib, { unified = false } = {}) {
+    const v = config.vllm; const lib = v.library || [];
+    if (!lib.length || !(gib > 0)) return null;
+    const weights = Math.min(...lib.map((e) => e.weightsGib ?? (e.sizeGb || 0) * 1e9 / GIB));
+    const ocrGib = config.ocr && config.ocr.enabled ? v.ocrReserveGib : 0;
+    const floor = unified ? minFreeOf(v.minFreeGb, true) || 0 : 0;
+    const need = (ocr) => (weights + RUNTIME_GIB + 1 + ocr + floor) / (1 - v.marginPct / 100);
+    return { fits: gib >= need(ocrGib), needGib: need(ocrGib), ocrGib, fitsWithoutOcr: gib >= need(0) };
+}
+// The sentence for a GPU no model of the list fits, or null when one does (or its size is unknown).
+function tooSmallText(config, gib, opts) {
+    const f = gpuFit(config, gib, opts);
+    if (!f || f.fits) return null;
+    const ocr = f.ocrGib ? `, with ${r1(f.ocrGib)} GB kept for document reading` : '';
+    const room = f.ocrGib && f.fitsWithoutOcr ? ' Turning document reading off would make room for one.' : '';
+    return `This GPU has ${r1(gib)} GB: too little for any model in the vLLM list (the smallest needs about ${r1(f.needGib)} GB${ocr}). llama.cpp or Ollama is the engine for this card.${room}`;
+}
+const NO_NVIDIA = 'No NVIDIA GPU was found on this computer (nvidia-smi does not answer). vLLM needs one: if this computer has one, install its latest NVIDIA driver, restart the computer, then press Check again; if not, llama.cpp or Ollama is the engine for it.';
+
 // The checklist the panel shows: `oks` (done), `problems` (each blocks a start) and `warnings` (said, not blocking).
 // `probe` = {platform, arch, wsl: {list} | {error: 'no-wsl'|'no-distro'|'timeout'}, distro, st (parseStatus) | null,
-// stError, hostDiskFreeGb, hostDrive}; `entry` = the model to check (the selected one by default).
+// stError, hostDiskFreeGb, hostDrive, hostGpu}; `entry` = the model to check (the selected one by default).
+// `hostGpu` = what Windows itself sees ({name, gb}, name null when its nvidia-smi does not answer; up.js passes
+// detectHardware's): a GPU too small for any model, or no NVIDIA GPU at all, is said before anything about WSL, which
+// would otherwise be installed for nothing.
 function problemsFrom(probe, config, entry = vllmEntry(config)) {
     const oks = []; const problems = []; const warnings = []; let gpuTooSmall = false;
     const done = () => ({ oks, problems, warnings, gpuTooSmall });
@@ -708,9 +754,16 @@ function problemsFrom(probe, config, entry = vllmEntry(config)) {
     if (!sup.ok) { problems.push(UNSUPPORTED); return done(); }
     const win = probe.platform === 'win32';
     const timeout = 'WSL did not answer within a minute. Restart the computer, then press Check again.';
+    const host = win && probe.hostGpu ? probe.hostGpu : null;
+    // Windows' own nvidia-smi saw no NVIDIA GPU: said instead of WSL's advice, but only where WSL cannot contradict it
+    // (missing, or seeing no GPU either), since a slow nvidia-smi at log on reads the same.
+    const noNvidia = !!(host && !host.name);
+    const small = host && host.name && host.gb ? tooSmallText(config, host.gb) : null;
+    if (small) { problems.push(small); gpuTooSmall = true; return done(); }
     let distro = null;
     if (win) {
         const w = probe.wsl || {};
+        if (noNvidia && w.error !== 'timeout' && !(probe.st && probe.st.gpu)) { problems.push(NO_NVIDIA); return done(); }
         if (w.error === 'no-wsl') {
             problems.push('WSL is not installed. vLLM runs on Linux; on Windows it runs inside WSL, which an administrator installs once. Open PowerShell as administrator, run  wsl --install -d Ubuntu , and restart the computer. Then open Ubuntu from the Start menu once, to choose a user name and password, and press Check again.');
             return done();
@@ -735,21 +788,18 @@ function problemsFrom(probe, config, entry = vllmEntry(config)) {
     if (!st.gpu) {
         problems.push(win
             ? `${distro} cannot see the GPU. Install the latest NVIDIA driver for Windows (it also serves WSL), restart the computer, then press Check again.`
-            : 'No NVIDIA GPU was found (nvidia-smi does not answer). vLLM needs an NVIDIA GPU and its driver.');
+            : NO_NVIDIA);
         return done();
     }
     const mem = memOf(st);
     const gpuGb = r1(mem.totalGib || 0);
     oks.push(win ? `${distro} sees the GPU: ${st.gpu.name} (${gpuGb} GB).`
         : mem.unified ? `GPU: ${st.gpu.name} (${gpuGb} GB shared with the system).` : `GPU: ${st.gpu.name} (${gpuGb} GB).`);
-    const lib = config.vllm.library || [];
-    const weights = (e) => e.weightsGib ?? (e.sizeGb || 0) * 1e9 / GIB;
-    const smallest = lib.length ? Math.min(...lib.map(weights)) + RUNTIME_GIB + 2 : 0;
-    if (lib.length && (mem.totalGib || 0) < smallest) {
+    const tooSmall = tooSmallText(config, mem.totalGib || 0, { unified: mem.unified });
+    if (tooSmall) {
         gpuTooSmall = true;   // nothing to install for: the panel offers no Install
-        problems.push(`This GPU has ${gpuGb} GB: too little for any model in the vLLM list (the smallest needs about ${r1(smallest)} GB). llama.cpp is the engine for this card.`);
-    }
-    if (st.gpu.cap != null && st.gpu.cap < 12) {
+        problems.push(tooSmall);
+    } else if (st.gpu.cap != null && st.gpu.cap < 12) {
         warnings.push('This GPU is older than the cards these models were measured on (RTX PRO 6000, DGX Spark): they may not load. If a start fails, llama.cpp is the engine for this card.');
     }
     // What a person types, and where: on Windows in the distribution's own window (the Start menu opens it).
@@ -917,9 +967,9 @@ async function status(t, { roots = '', timeoutMs = 60000 } = {}) {
 // The check of this computer (§4.1), never per panel poll: on Windows WSL's list first, then status.sh (60 s: it
 // boots a stopped distribution) and the host drive. With no root configured it looks in the candidate roots, and
 // asks again from the one an install was found in, so `running` describes that root.
-async function probe(config, { roots = CANDIDATE_ROOTS } = {}) {
+async function probe(config, { roots = CANDIDATE_ROOTS, hostGpu = null } = {}) {
     const platform = process.platform; const arch = process.arch;
-    const out = { at: Date.now(), platform, arch, wsl: null, distro: null, st: null, stError: null, hostDiskFreeGb: null, hostDrive: null };
+    const out = { at: Date.now(), platform, arch, wsl: null, distro: null, st: null, stError: null, hostDiskFreeGb: null, hostDrive: null, hostGpu };
     if (!supported(platform, arch).ok) return out;
     if (platform === 'win32') {
         const w = await wslDistros();
@@ -1092,15 +1142,21 @@ function folderBytes(t, folder) {
 }
 
 // install.sh: `steps` 'venv,model' (Install, Update) or 'model' (Download). Reads its [lol-step] and [lol-error]
-// lines; during the model step it measures the folder every 5 s for the meter. → {ok, kind, error, code}.
-async function install(t, { steps = 'venv,model', repo = null, folder = null, version = null, sizeGb = null } = {}, onProgress = () => {}) {
+// lines; during the model step it measures the folder every 5 s for the meter. At `timeoutMs` it stops install.sh's
+// own process group first (stop.sh install: install.sh, hf and tee), which ends the farm's child too: killing only the
+// child left hf downloading on Linux (bash dies alone, its EXIT trap removes the pid file, and hf and tee carry on,
+// unrecorded: the next Download ran a second one into the same folder; checked inside WSL as native Linux, 2026-10-08).
+// runCmd's own kill, two minutes later, is the backstop. → {ok, kind, error, code}.
+async function install(t, { steps = 'venv,model', repo = null, folder = null, version = null, sizeGb = null, timeoutMs = 6 * 3600e3 } = {}, onProgress = () => {}) {
     let kind = null; let error = null; let timer = null; const tail = [];
     const total = sizeGb ? sizeGb * 1e9 : null;
     const measure = () => { const b = folderBytes(t, folder); if (b != null) onProgress({ step: 'model', bytes: b, total }); };
+    let timedOut = false;
+    const limit = setTimeout(() => { timedOut = true; stopInstall(t); }, timeoutMs);
     const r = await spawnScript(asConfig(t), 'install.sh', {
         LOL_VLLM_ROOT: t.root, LOL_VLLM_STEPS: steps, ...(version ? { LOL_VLLM_VERSION: version } : {}),
     }, {
-        timeoutMs: 6 * 3600e3, distro: t.distro || null, args: repo ? [repo, folder || repo.split('/').pop()] : [],
+        timeoutMs: timeoutMs + 120e3, distro: t.distro || null, args: repo ? [repo, folder || repo.split('/').pop()] : [],
         onLine: (l) => {
             tail.push(l); if (tail.length > 40) tail.shift();
             let m;
@@ -1110,9 +1166,13 @@ async function install(t, { steps = 'venv,model', repo = null, folder = null, ve
             } else if ((m = /^\[lol-error\] (\w+) ?(.*)$/.exec(l))) { kind = m[1]; error = m[2]; }
         },
     });
-    clearInterval(timer);
-    if (r.code === 0) return { ok: true, kind: null, error: null, code: 0 };
-    return { ok: false, kind: kind || (r.timedOut ? 'network' : null), error: error || lastLine(tail.join('\n')) || r.error || `status ${r.code}`, code: r.code };
+    clearInterval(timer); clearTimeout(limit);
+    if (r.code === 0 && !timedOut) return { ok: true, kind: null, error: null, code: 0 };
+    if (timedOut || r.timedOut) {
+        const h = timeoutMs / 3600e3;
+        return { ok: false, kind: 'network', error: `it was still not done after ${h >= 1 ? `${r1(h)} hours` : `${Math.round(timeoutMs / 1000)} seconds`}`, code: null };
+    }
+    return { ok: false, kind, error: error || lastLine(tail.join('\n')) || r.error || `status ${r.code}`, code: r.code };
 }
 
 // A command in the target's Linux, as a direct argv (no shell): through wsl.exe on Windows.
@@ -1136,8 +1196,8 @@ async function removeFolder(t, folder) {
 // The check a take-over is offered from (§9.1): the usual check, then status.sh again at the root a serve.sh on
 // `port` runs from, when that is another root (an operator's ~/lol-spike while nothing is configured, a folder of
 // one's own), so `running` describes that server.
-async function takeOverProbe(config, port) {
-    const pr = await probe(config);
+async function takeOverProbe(config, port, opts = {}) {
+    const pr = await probe(config, opts);
     const f = pr.st && pr.st.found.find((x) => x.port === port);
     if (f && f.root !== pr.st.root && goodRoot(f.root)) {
         const s = await status({ platform: pr.platform, distro: pr.distro, root: f.root, port }, { roots: CANDIDATE_ROOTS });
@@ -1164,7 +1224,7 @@ module.exports = {
     parseStatus, memOf, vllmEntry, folderOf, resolveRoot, facts, peopleFit, measuredFor, seatsAuto, maxNumSeqsAuto, poolGib,
     familyArgs, isGeneric, repoOf, newLibraryEntry, applyChange, ocrFit,
     settingsOf, argvFor, planFor, flagMap, adoptable,
-    bootDecision, downDecision, isOrphan, takeOverPlan, startPhase, logOffset, explainFailure, installStepText, downloadFailure, problemsFrom, diskCheck, baseUrl,
+    bootDecision, unanswered, keepRunning, gpuFit, downDecision, isOrphan, takeOverPlan, startPhase, logOffset, explainFailure, installStepText, downloadFailure, problemsFrom, diskCheck, baseUrl,
     answers, runCmd, spawnScript, wslDistros, lxssBasePath, hostDiskFree, status, probe, targetOf, logFile, readLog,
     start, waitReady, stop, stopInstall, folderBytes, install, removeFolder, takeOverProbe, setMarker,
 };

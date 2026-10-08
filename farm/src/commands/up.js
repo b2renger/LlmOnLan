@@ -22,7 +22,7 @@ const {
 } = require('../litellm');
 const { buildSnapshot, backendInfo } = require('../snapshot');
 const { patchSection, patchConfigFile, readRawConfig, takeOverFile, undoTakeOverFile } = require('../configFile');
-const { detectHardware, gpuLiveStats, gpuFreeGb } = require('../systemInfo');
+const { detectHardware, gpuLiveStats, gpuFreeGb, untilSteady } = require('../systemInfo');
 const perfMod = require('../perf');
 const ggufMod = require('../gguf');
 const fsMod = require('fs');
@@ -717,6 +717,9 @@ async function run(args) {
         config.llamacpp.enabled = false;
     }
     const vllmSup = vllmMod.supported();
+    // What Windows itself sees (its own nvidia-smi, read at boot): the check says "too small" or "no NVIDIA GPU" before
+    // anything about WSL (vllm.problemsFrom).
+    const hostGpu = { name: hw.gpu === 'Unknown GPU' ? null : hw.gpu, gb: hw.vramGb || null };
     let vllmProbe = null;          // the last check (vllm.probe), refreshed after a start, a stop, a download
     let vllmTarget = null;         // {platform, distro, root, port} where it lives (vllm.targetOf)
     let vllmBootError = null;
@@ -749,9 +752,7 @@ async function run(args) {
         if (!vllmSup.ok) why = vllmMod.UNSUPPORTED;
         else {
             log.step('vLLM: checking this computer …');
-            vllmProbe = await vllmMod.probe(config);
-            // WSL can miss one answer (a distribution still booting): ask once more before serving with Ollama.
-            if (!vllmProbe.st) { log.step('vLLM: no answer, checking once more …'); vllmProbe = await vllmMod.probe(config); }
+            vllmProbe = await vllmMod.probe(config, { hostGpu });
             vllmTarget = vllmMod.targetOf(config, vllmProbe);
             const st = vllmProbe.st;
             // A download left running by a farm that crashed: this run tracks none, so stop it (Download goes on
@@ -765,7 +766,9 @@ async function run(args) {
             const mem = st ? vllmMod.memOf(st) : { unified: false };
             const running = st && st.running;
             const adopt = running ? vllmMod.adoptable(config, running, { unified: mem.unified, gpuName: st.gpu && st.gpu.name, root: vllmTarget.root }) : null;
-            const d = vllmMod.bootDecision({ supported: vllmSup, problems: pr.problems, running, adopt });
+            // No answer at all (WSL still starting at log on): the start is queued, and checks again once the farm is up.
+            const noAnswer = vllmMod.unanswered(vllmProbe) && !pr.gpuTooSmall;   // a GPU too small is an answer
+            const d = vllmMod.bootDecision({ supported: vllmSup, problems: pr.problems, running, adopt, noAnswer });
             if (d.action === 'unavailable') {
                 why = d.reason;
                 // The farm's own vLLM (its marker) that runs with other settings leaves the GPU before Ollama loads.
@@ -784,6 +787,7 @@ async function run(args) {
                 log.ok(`vLLM is already running from ${vllmTarget.root} with these settings: kept running (${config.vllm.parallelResolved} people at once).`);
             } else {
                 if (running && !adopt.ok) log.info(`vLLM runs from ${vllmTarget.root} with other settings (${adopt.diff.join(', ')}): it restarts with this farm's.`);
+                if (noAnswer) log.info('vLLM: this computer did not answer the check yet (WSL may still be starting): the start checks again once the farm is up.');
                 vllmBootJob = d.action;
                 setVllmPhase('starting', d.action === 'wait' ? 'starting vLLM' : null);
             }
@@ -846,13 +850,7 @@ async function run(args) {
     async function measureVramFreeGb() {
         // startLlamacpp only runs with no llama-server of ours alive, but one stopped a
         // moment ago may still be handing its memory back: read until it stops rising.
-        let free = await gpuFreeGb();
-        for (let i = 0; free != null && i < 5; i++) {
-            await new Promise((r) => setTimeout(r, 400));
-            const again = await gpuFreeGb();
-            if (again == null || again <= free + 0.25) break;
-            free = again;
-        }
+        const free = await untilSteady(gpuFreeGb);
         if (free == null) return null;
         // The farm's OWN Ollama models are not co-tenants: the pressure eviction frees
         // them for llama.cpp (a switch from Ollama leaves its default loaded for good).
@@ -1258,7 +1256,7 @@ async function run(args) {
         kickBox.fn();
     }
     async function checkVllm() {
-        vllmProbe = await vllmMod.probe(config);
+        vllmProbe = await vllmMod.probe(config, { hostGpu });
         const t = vllmMod.targetOf(config, vllmProbe);
         if (t) vllmTarget = t;
         return vllmProbe;
@@ -1285,7 +1283,7 @@ async function run(args) {
             vllmChild = null;
             if (vllmState.phase !== 'ready') return;
             if (code === 3) return enterGuard(null);
-            onVllmDown(`its process ended (status ${code})`);
+            onVllmDown('it shut down by itself', `status ${code}`);
         });
     }
     // Stop vLLM (vllm.stop: stop.sh, until nothing runs and the port is quiet). `portWait: false` when what answers
@@ -1304,20 +1302,47 @@ async function run(args) {
     // where it can. `waitOnly`: a start found in progress at boot, waited for without spawning. → {ok, message,
     // code, cancelled}.
     async function startVllm(progress = () => {}, { isCancelled = () => false, phase = 'starting', waitOnly = false } = {}) {
+        // Never while the farm stops (a `lol down` met in the middle of an Apply): a vLLM spawned now would outlive it.
+        const quitting = () => (stopping ? { ok: false, message: 'The farm is stopping.' } : null);
+        if (quitting()) return quitting();
         const dl = jobs.downloading();
         if (dl && dl.kind === 'install') return { ok: false, message: 'vLLM is being installed: wait for it, or stop it.' };
         const say = (text, pct = null) => { setVllmPhase(phase, text, pct); progress(text, pct); };
         vllmState.adopted = false; vllmState.poolTokens = null; vllmState.peopleFit = null; vllmState.weightsGib = null;
         let plan = null; let child = null; let fromByte = 0;
+        // Ollama's loaded models leave the GPU first, for a start found in progress too (a farm that crashed while
+        // vLLM started, a take-over of one still starting): a fallback before it left Ollama's default loaded for good.
+        await evictOllama(say);
         if (!waitOnly) {
-            await evictOllama(say);
             say('checking this computer');
             await checkVllm();
             if (vllmProbe.st && vllmProbe.st.running) {
-                say('stopping the vLLM that runs with other settings');
+                const st = vllmProbe.st;
+                const a = vllmMod.adoptable(config, st.running, { unified: vllmMod.memOf(st).unified, gpuName: st.gpu && st.gpu.name, root: vllmTarget.root });
+                // Already running with these settings, ready and answering (a check that missed it at boot): kept.
+                if (vllmMod.keepRunning({ running: st.running, adopt: a, answers: await vllmAlive(3000) })) {
+                    adoptVllm(a.resolved);
+                    vllmBootError = null;
+                    if (liveReady) liveHealth.engineFallbackReason = null;
+                    setEngineUp(true);
+                    log.ok(`vLLM is already running from ${vllmTarget.root} with these settings: kept running (${config.vllm.parallelResolved} people at once).`);
+                    return { ok: true };
+                }
+                say('stopping the vLLM that runs now, to start it again');
                 const s = await stopVllmProcess();
                 if (!s.ok) return { ok: false, message: s.error };
                 await checkVllm();
+            }
+            // Automatic memory is sized against what is free now: a vLLM stopped a moment ago (an Apply, a restart, a
+            // Start after Stop) can still be handing its memory back, under WSL most. Read until it stops rising.
+            if (config.vllm.kvCacheGib === 'auto' && vllmProbe.st) {
+                let first = true;
+                await untilSteady(async () => {
+                    if (!first) await checkVllm();
+                    first = false;
+                    const m = vllmProbe.st && vllmMod.memOf(vllmProbe.st);
+                    return m ? (m.unified ? m.memAvailableGib : m.freeGib) : null;
+                }, { gapMs: 1500 });
             }
             const pr = vllmMod.problemsFrom({ ...vllmProbe, installKind: dl ? dl.kind : null }, config);
             if (pr.problems.length || !vllmTarget) return { ok: false, message: pr.problems[0] || 'This computer did not answer the check.' };
@@ -1330,6 +1355,7 @@ async function run(args) {
                 return { ok: false, portIsOthers: true, message: vllmMod.explainFailure(1, ['relay could not listen'], { root: vllmTarget.root, port: config.vllm.port }) };
             }
             if (!config.vllm.root) { config.vllm.root = plan.root; persist('vllm', { root: plan.root }); }   // used once: remembered
+            if (quitting()) return quitting();
             log.step(`vLLM: starting ${plan.entry.label} from ${plan.root} — ${plan.seats} people at once, ${plan.kvGib} GB for conversations …`);
             say('starting vLLM');
             ({ child, fromByte } = await vllmMod.start(vllmTarget, plan));
@@ -1408,6 +1434,7 @@ async function run(args) {
     // loading Ollama's model beside it (two engines on one GPU). `portIsOthers`: the start found another program
     // on vLLM's port, which keeps answering there and is not vLLM. → true when Ollama serves now.
     async function fallbackToOllama(reason, { portIsOthers = false } = {}) {
+        if (stopping) return false;   // the farm stops: nothing loads into Ollama on its way out
         setEngineUp(false);
         const s = await stopVllmProcess({ portWait: !portIsOthers });
         if (!s.ok) {
@@ -1450,16 +1477,27 @@ async function run(args) {
 
     // vLLM stopped answering, or its process ended (§5.7): look before acting. A server that is running and ready
     // and whose port answers was only slow; the memory guard's stop is never undone; otherwise ONE restart, and a
-    // second stop within 5 minutes falls back to Ollama. In serialize, which downloads never hold.
+    // second stop within 5 minutes falls back to Ollama. In serialize, which downloads never hold. `why` is said to
+    // the operator, in plain words (the fallback's reason); `detail` goes to the farm's log only.
+    // A `lol down` from another shell (the Farm app's Quit) clears the runtime file, then stops vLLM: that stop is
+    // not a crash to restart (a restarted vLLM would outlive the Quit), so the farm stops as it was asked.
     let vllmDownRunning = false;
-    function onVllmDown(why) {
+    const downAsked = () => {
+        if (readRuntime()) return false;
+        log.info('vLLM stopped and the runtime file of this farm is gone: `lol down` ran, so the farm stops too.');
+        shutdown('lol down');
+        return true;
+    };
+    function onVllmDown(why, detail = null) {
         if (stopping || vllmDownRunning || engineOf(config) !== 'vllm') return;
+        if (downAsked()) return;
         vllmDownRunning = true;
-        log.err(`vLLM stopped answering: ${why}.`);
+        log.err(`vLLM stopped answering: ${why}${detail ? ` (${detail})` : ''}.`);
         setVllmPhase('down');
         setEngineUp(false);
         serialize(async () => {
             if (stopping || engineOf(config) !== 'vllm' || vllmState.phase !== 'down') return;   // handled meanwhile
+            if (downAsked()) return;
             const st = vllmTarget ? (await vllmMod.status(vllmTarget)).st : null;
             const decision = vllmMod.downDecision({
                 guard: !!(st && st.guardLine), running: !!(st && st.running), ready: !!(st && st.running && st.running.ready),
@@ -1470,7 +1508,7 @@ async function run(args) {
                 setVllmPhase('ready');
                 setEngineUp(true);
             } else if (decision === 'guard') enterGuard(st.guardLine);
-            else if (decision === 'fallback') await fallbackToOllama(`vLLM stopped twice in 5 minutes (the second time, ${why}).`);
+            else if (decision === 'fallback') await fallbackToOllama(`vLLM stopped working twice in 5 minutes (the second time, ${why}).`);
             else {
                 vllmState.lastRestartAt = Date.now();
                 const r = startVllmJob('Restarting vLLM after it stopped unexpectedly', { phase: 'restarting' });
@@ -1492,9 +1530,9 @@ async function run(args) {
                 if (engineOf(config) === 'vllm' && !vllmJobRunning()) {
                     if (vllmState.phase === 'ready') {
                         if (await vllmAlive(10000)) vllmState.misses = 0;
-                        else if (vllmState.phase === 'ready' && ++vllmState.misses >= 3) onVllmDown('it did not answer for 30 seconds');
+                        else if (vllmState.phase === 'ready' && ++vllmState.misses >= 3) onVllmDown('it stopped answering for 30 seconds');
                         else if (vllmState.phase === 'ready') next = 0;
-                    } else if (vllmState.phase === 'down' && !vllmDownRunning) onVllmDown('it still does not answer');
+                    } else if (vllmState.phase === 'down' && !vllmDownRunning) onVllmDown('it still did not answer');
                 }
             } catch { /* never throw from a timer */ }
             watchVllm(next);
@@ -1962,7 +2000,16 @@ async function run(args) {
     //    otherwise `lol down` from another shell would kill the stale (old) pid and
     //    leave the bounced LiteLLM running.
     const startedAt = Date.now();
-    const writeRuntimeState = () => writeRuntime({
+    // Never written back once `lol down` (another shell, the Farm app's Quit) removed it: that removal is how this
+    // farm learns it was asked to stop (onProxyExit, onVllmDown, restartProxy). A proxy bounce in the middle of a
+    // `lol down` used to write it again, and the farm then lived on and restarted the vLLM `lol down` stopped.
+    let runtimeWritten = false;
+    const writeRuntimeState = () => {
+        if (runtimeWritten && !readRuntime()) return;
+        runtimeWritten = true;
+        writeRuntimeFile();
+    };
+    const writeRuntimeFile = () => writeRuntime({
         litellmPid: child.pid,
         searxngPid: svcById.websearch.pid,
         kokoroPid: svcById.tts.pid,
@@ -2088,6 +2135,9 @@ async function run(args) {
                 if (!readRuntime()) { restartingProxy = false; shutdown('lol down'); }
                 return false;
             }
+            // `lol down` ran during the bounce and killed the LiteLLM it had read (the old one): the new one is not
+            // recorded anywhere (writeRuntimeState does not write the file back), so stop as it asked.
+            if (!readRuntime()) { restartingProxy = false; shutdown('lol down'); return false; }
             if (liveReady) liveHealth.proxyUp = true;   // it answers now: no stale "down" from a probe before the bounce
             return true;
         } finally {
@@ -2767,6 +2817,10 @@ async function run(args) {
     // What an install or a download leaves free on the disk it fills (on Windows, WSL's disk grows on drive C: and
     // never shrinks: a full C: stops Windows itself).
     const DISK_KEEP_GB = 10;
+    function hostFitOf() {
+        const f = hostGpu.name && hostGpu.gb ? vllmMod.gpuFit(config, hostGpu.gb) : null;
+        return f && { gb: hostGpu.gb, fits: f.fits, needGb: Math.ceil(f.needGib) };
+    }
     function vllmAdminState() {
         const v = config.vllm; const e = vllmMod.vllmEntry(config);
         const st = vllmProbe && vllmProbe.st;
@@ -2793,7 +2847,11 @@ async function run(args) {
         const auto = e ? vllmMod.seatsAuto(e, st && st.gpu ? st.gpu.name : null, v.contextLength, vllmMod.peopleFit(pool, v.contextLength, f)) : null;
         return {
             enabled: !!v.enabled, supported: vllmSup.ok,
-            probe: vllmProbe ? { at: vllmProbe.at, oks: pr.oks, problems: pr.problems, warnings: pr.warnings } : null,
+            probe: vllmProbe ? { at: vllmProbe.at, oks: pr.oks, problems: pr.problems, warnings: pr.warnings, gpuTooSmall: pr.gpuTooSmall } : null,
+            // What nvidia-smi showed at boot, before any check: the vLLM button says at once that no model of the list
+            // fits this GPU (an RTX 4070 or 4080), or that no NVIDIA GPU was found, instead of offering to set it up.
+            hostFit: hostFitOf(),
+            noNvidia: !hostGpu.name,
             installed: !!inst, version: inst ? inst.version : null, pinned: v.version,
             root: vllmTarget ? vllmTarget.root : v.root, distro: vllmTarget ? vllmTarget.distro : v.distro, port: v.port,
             hostDrive: vllmProbe ? vllmProbe.hostDrive : null,   // Windows: the drive that holds WSL's disk
@@ -2822,7 +2880,7 @@ async function run(args) {
             venvLink: !!(inst && inst.link),
             installing: !!(st && st.installing),
             // "Let the farm run vLLM" (§9): the offer, then what was done, with Undo while it is possible.
-            takeOver: takeOverOffer ? { root: takeOverOffer.root, running: takeOverOffer.running, distro: takeOverOffer.distro } : null,
+            takeOver: takeOverOffer ? { root: takeOverOffer.root, running: takeOverOffer.running, distro: takeOverOffer.distro, platform: process.platform } : null,
             takenOver: takeOverDone ? { root: takeOverDone.offer.root, platform: process.platform, undo: takeOverUndoable() } : null,
         };
     }
@@ -2847,7 +2905,7 @@ async function run(args) {
     async function detectTakeOver() {
         const port = vllmSup.ok && !takeOverDone ? localExternalPort() : null;
         if (!port) { takeOverOffer = null; return null; }
-        const pr = await vllmMod.takeOverProbe(config, port);
+        const pr = await vllmMod.takeOverProbe(config, port, { hostGpu });
         const plan = vllmMod.takeOverPlan(config, pr.st, port, { answering: await externalAlive(config.external, 3000) });
         takeOverOffer = plan && { ...plan, probe: pr };
         if (plan) log.info(`A vLLM on this computer, from ${plan.root}: the panel offers to let the farm run it.`);
