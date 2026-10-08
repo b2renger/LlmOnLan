@@ -6,6 +6,47 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-10-08 (07:08) — Release client v0.2.9 and Farm app farm-v0.0.43: vLLM run by the farm, Open WebUI booting once
+
+The owner asked on 2026-10-07 at 20:58 to commit and document everything, check the docs against the code, merge into
+`main`, then cut new releases. Windows with RTX cards and the DGX Spark come first. All of that is done.
+- **Merged.** `main` was fast-forwarded to `multiuser-phase0` at `0ecfe3e` before tagging. That branch holds the
+  `vllm-managed` merge (`8a37e6f`) and the docs pass (`dbf8b6b`, `0ecfe3e`).
+- **Gates on the merged tree** (05:28–06:00, then 06:30):
+  - farm `test/run.js` 209/0; LiteLLM cancel PASS; `LOL_VLLM_FAKE=1 test/vllm-lifecycle.js` 161/0 (23 steps);
+    `farm/vllm/test_scripts.sh` under WSL 112/0;
+  - Farm app `npm test` 8/0 and build;
+  - shell build, chat-unit 1839/0, unit 29, lint 0, asar-probe OK;
+  - the chat harness 407/408. The one failure, `p1-stick-bottom` (scroll timing), ran while the docs editor loaded
+    the box. Its phase then passed 3 times out of 3 (49/49). LOL Vibe's scroll code is unchanged in this release.
+- **The docs pass** (06:18): 3 reviewers found 166 findings, one editor applied them, and a verifier's 8 follow-ups
+  were fixed by hand.
+- **Client v0.2.9** (tag `v0.2.9`, commit `927d60b`, CI run 37728007354, 34 min): success, 27 assets, the same set as
+  v0.2.8. That is 5 installers, 5 `owui-sidecar-*` (Open WebUI 0.11.4, unchanged), 5 `dsh-runtime-*`, the blockmaps,
+  and `latest*.yml` saying 0.2.9. Installed clients update themselves. What changes for a person:
+  - Open WebUI opens once: the farm found at the boot is saved, and a page that loaded without its farm reloads once
+    the farm answers;
+  - no per-boot huggingface.co check;
+  - a half-downloaded search model is repaired before the start;
+  - a start without huggingface.co opens the chat in 12–15 s, with a toast;
+  - `logs/boot.log`.
+- **Farm app farm-v0.0.43** (tag `farm-v0.0.43`, commit `8cd6980`, CI run 37728016009): a prerelease, 10 assets
+  (Windows x64, macOS arm64, Linux arm64 AppImage for the Spark). Installed by hand. It brings:
+  - vLLM run by the farm;
+  - the take-over offer for an operator-run vLLM;
+  - Plan capacity;
+  - Quit stopping the farm's vLLM.
+- **`build-llamacpp-arm64`** ran on the push to `main` and rebuilt the same pinned b10670 for the Spark: success.
+- **Release notes:** both pages got a "What's new" written for the people who install them, above CI's own text.
+- **Not done, the owner's:**
+  - install farm-v0.0.43 on the PRO 6000, then press **Let the farm run vLLM** (`docs/PRO6000_VLLM_SWITCH.md` Part 2).
+    Its Farm app has been closed since 2026-10-07 20:46, and vLLM keeps running in WSL.
+  - the rig checks of TEST_SCENARIOS 7e;
+  - the DGX Spark checklist (`docs/VLLM_MANAGED_PLAN.md` §11.6);
+  - whether the panel's Plugins switches should last across a farm restart. Today they don't, so an RTX 5090 keeps
+    vLLM only until the next start;
+  - the embeddings decision (`docs/EMBEDDINGS_STUDY.md`: not now).
+
 ## 2026-10-08 (06:18) — Docs true to the merge: vLLM run by the farm, operators never sent to a file, the v0.2.9 rig list
 
 A docs review of 8a37e6f (the merge of `vllm-managed` into `multiuser-phase0`) listed more than a hundred findings: docs that
