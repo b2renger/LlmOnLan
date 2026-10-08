@@ -36,6 +36,30 @@ export function killTree(pid: number | undefined): Promise<void> {
     });
 }
 
+// Kill ONE process, not its tree, and give it no time to clean up. The share toggle restarts the farm and keeps the
+// vLLM it runs (docs/VLLM_MANAGED_PLAN.md §3.12): on Windows vLLM lives under a wsl.exe child of `lol up`, which a
+// tree-kill would end; on Linux SIGTERM would run `lol up`'s own shutdown, which stops vLLM. reapStaleFarm then ends
+// what `lol up` recorded (LiteLLM, the plugins), and the next `lol up` keeps vLLM running.
+export function killOne(pid: number | undefined): Promise<void> {
+    return new Promise((resolve) => {
+        if (!pid) return resolve();
+        if (process.platform === 'win32') {
+            execFile('taskkill', ['/pid', String(pid), '/F'], () => resolve());
+        } else {
+            try { process.kill(pid, 'SIGKILL'); } catch { /* gone */ }
+            resolve();
+        }
+    });
+}
+
+// The XDG autostart entry that starts the Farm app at a graphical login on Linux, where Electron's login item does
+// nothing (§3.13). `exe` is the AppImage. A quoted Exec argument escapes " ` $ with a backslash, a backslash takes
+// four, and % is doubled (the Desktop Entry spec).
+export function autostartEntry(exe: string): string {
+    const quoted = exe.replace(/\\/g, '\\\\\\\\').replace(/(["`$])/g, '\\$1').replace(/%/g, '%%');
+    return `[Desktop Entry]\nType=Application\nName=LlmOnLan Farm\nExec="${quoted}"\nX-GNOME-Autostart-enabled=true\n`;
+}
+
 export interface HttpResult { status: number; body: string }
 
 // Minimal HTTP GET with timeout. Resolves { status, body }; rejects on error.

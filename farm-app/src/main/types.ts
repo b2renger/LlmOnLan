@@ -22,7 +22,7 @@ export interface SetupProgress {
 }
 
 // The managed `lol up` farm process lifecycle.
-export type FarmStatus = 'idle' | 'starting' | 'ready' | 'restarting' | 'stopped' | 'error';
+export type FarmStatus = 'idle' | 'starting' | 'ready' | 'restarting' | 'stopping' | 'stopped' | 'error';
 
 export interface FarmState {
     status: FarmStatus;

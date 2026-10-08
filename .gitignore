@@ -61,6 +61,7 @@ docs/PAIR-POOLED-NOTES.md
 .DS_Store
 Thumbs.db
 *.log
+!farm/test/fixtures/*.log
 .idea/
 .vscode/
 *.tmp

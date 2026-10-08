@@ -6,16 +6,18 @@
 // Python + Ollama prepended to PATH and $LOL_PYTHON set so the farm's own supervision
 // (LiteLLM, a spawned Ollama, SearXNG/OCR) uses the bundled runtime. Health = the
 // farm's unicast discovery endpoint GET /lol/self returning 200. Bounded crash-restart
-// self-heals a transient failure; killTree on stop reaps LiteLLM's uvicorn tree + any
-// Ollama `lol up` started (the child is its own process group on POSIX).
+// self-heals a transient failure (the dead run's leftovers reaped first). Stop runs
+// `lol down` first, which also stops the vLLM the farm runs; the tree-kill after it is
+// a backstop (docs/VLLM_MANAGED_PLAN.md §3.12).
 
 import { EventEmitter } from 'events';
 import { app } from 'electron';
 import { spawn, ChildProcess } from 'child_process';
+import * as fs from 'fs';
 import * as path from 'path';
 import { farmRoot, lolEntry, bundledPython, pythonDir, ollamaDir } from './paths';
-import { killTree, waitForHttp, httpGetJson } from './util';
-import { reapStaleFarm } from './farmProcess';
+import { killTree, killOne, waitForHttp, httpGetJson } from './util';
+import { reapStaleFarm, lolDown, runtimeFile } from './farmProcess';
 import { appendFarmLog } from './farmLog';
 import { FarmState } from './types';
 
@@ -35,6 +37,11 @@ export class FarmSupervisor extends EventEmitter {
     private state: FarmState = { status: 'idle', adminUrl: null, selfUrl: null, lanUrls: [] };
     // Last time the child produced ANY output — the health-wait's liveness signal.
     private lastActivity = 0;
+    // A `lol up` ran since the last stop: Quit and Stop then run `lol down` even when neither that child nor its
+    // runtime file is left (crash restarts reap the file; a `lol up` that kept vLLM can die before writing one).
+    private ranSinceStop = false;
+    // The stop in progress: a Start waits for it, so it never boots a farm that keeps the vLLM `lol down` is stopping.
+    private stopping: Promise<void> | null = null;
 
     getState(): FarmState { return this.state; }
 
@@ -43,22 +50,10 @@ export class FarmSupervisor extends EventEmitter {
         this.emit('state', this.state);
     }
 
-    private selfUrl(): string { return `http://${HOST}:${SELF_PORT}/lol/self`; }
-    private adminUrl(): string { return `http://${HOST}:${SELF_PORT}/lol/admin`; }
-
-    // Start (or no-op if already ready).
-    async start(): Promise<void> {
-        if (this.state.status === 'ready' && this.child) return;
-        const myGen = ++this.gen;
-
-        // Reap any still-running child before spawning a new one.
-        if (this.child) { const old = this.child; this.child = null; await killTree(old.pid); }
-        if (myGen !== this.gen) return;
-
-        this.setState({ status: 'starting', message: undefined });
-
+    // What `lol up` and `lol down` run with.
+    private env(): NodeJS.ProcessEnv {
         const sep = path.delimiter;
-        const env = {
+        return {
             ...process.env,
             ELECTRON_RUN_AS_NODE: '1',
             LOL_PYTHON: bundledPython(),
@@ -71,6 +66,24 @@ export class FarmSupervisor extends EventEmitter {
             PYTHONUTF8: '1',
             PYTHONIOENCODING: 'utf-8',
         };
+    }
+
+    private selfUrl(): string { return `http://${HOST}:${SELF_PORT}/lol/self`; }
+    private adminUrl(): string { return `http://${HOST}:${SELF_PORT}/lol/admin`; }
+
+    // Start (or no-op if already ready).
+    async start(): Promise<void> {
+        if (this.stopping) await this.stopping;
+        if (this.state.status === 'ready' && this.child) return;
+        const myGen = ++this.gen;
+
+        // Reap any still-running child before spawning a new one.
+        if (this.child) { const old = this.child; this.child = null; await killTree(old.pid); }
+        if (myGen !== this.gen) return;
+
+        this.setState({ status: 'starting', message: undefined });
+
+        const env = this.env();
         // --no-pick → serve the configured catalog (gemma4:12b) with no prompt. (stdin
         // is already ignored so the picker's TTY check would skip too; --no-pick is
         // belt-and-suspenders.)
@@ -85,6 +98,7 @@ export class FarmSupervisor extends EventEmitter {
             stdio: ['ignore', 'pipe', 'pipe'],
         });
         this.child = child;
+        this.ranSinceStop = true;
         this.lastActivity = Date.now();
         child.stdout?.on('data', (d) => this.logChild(d));
         child.stderr?.on('data', (d) => this.logChild(d));
@@ -158,15 +172,32 @@ export class FarmSupervisor extends EventEmitter {
         return false;
     }
 
-    async stop(opts: { keepState?: boolean } = {}): Promise<void> {
+    // Stop the farm (Quit, the Stop button). `lol down` FIRST: it stops LiteLLM, the plugins and the vLLM the farm
+    // runs, and `lol up` then exits by itself. A tree-kill first would cut `lol up`'s own shutdown short and, on
+    // Windows, end the wsl.exe vLLM runs under while vLLM itself lives on; here it is only a backstop. Then the
+    // recorded PIDs are reaped: `lol up`'s plugins spawn detached, so a group-kill can miss them.
+    // `keepEngine` (the share toggle, which starts the farm again at once): vLLM keeps running and the next `lol up`
+    // keeps it (D4). So no `lol down`, and only `lol up` itself is killed (killOne), never its tree.
+    // While it runs the state says 'stopping' (not with keepState: the toggle's restart follows at once), so the
+    // window can say why Quit takes a while (vLLM frees the GPU) and Start waits for it.
+    async stop(opts: { keepState?: boolean; keepEngine?: boolean } = {}): Promise<void> {
+        if (this.stopping) await this.stopping;
+        const run = this.doStop(opts);
+        this.stopping = run;
+        try { await run; } finally { if (this.stopping === run) this.stopping = null; }
+    }
+    private async doStop(opts: { keepState?: boolean; keepEngine?: boolean }): Promise<void> {
         this.gen++;                 // supersede any in-flight start()
         const child = this.child;
         this.child = null;          // null BEFORE killing so the exit event is ignored
-        if (child) await killTree(child.pid);
-        // `lol up`'s plugins spawn detached, so the group-kill above may miss them and its
-        // own graceful teardown can race our SIGKILL — reap any survivors by recorded PID.
+        if (!opts.keepState) this.setState({ status: 'stopping', message: 'Stopping the farm… With vLLM this can take a minute, while it frees the GPU.' });
+        if (!opts.keepEngine && (child || this.ranSinceStop || fs.existsSync(runtimeFile()))) {
+            await lolDown(this.env());
+            this.ranSinceStop = false;
+        }
+        if (child) await (opts.keepEngine ? killOne(child.pid) : killTree(child.pid));
         await reapStaleFarm();
-        if (!opts.keepState) this.setState({ status: 'stopped', adminUrl: null, selfUrl: null });
+        if (!opts.keepState) this.setState({ status: 'stopped', adminUrl: null, selfUrl: null, message: undefined });
     }
 
     // Refresh the LAN addresses from /lol/self (the machine may gain/lose an interface).
@@ -185,7 +216,11 @@ export class FarmSupervisor extends EventEmitter {
             this.crashRestarts++;
             console.warn(`[farm] exited (code ${code}); restart ${this.crashRestarts}/${MAX_CRASH_RESTARTS}`);
             this.setState({ status: 'restarting', message: `Farm restarted (${this.crashRestarts}/${MAX_CRASH_RESTARTS})` });
-            this.start();
+            // What the dead `lol up` recorded can outlive it (its LiteLLM on Windows, its detached plugins) and would
+            // make the next one refuse to start ("Farm already running"): reap it first. vLLM is not among it: the
+            // next `lol up` keeps it running.
+            const gen = this.gen;
+            void reapStaleFarm().then(() => { if (gen === this.gen && !this.child) return this.start(); });
         } else {
             this.setState({ status: 'error', message: `The farm keeps exiting (code ${code}). Check the log.` });
         }

@@ -69,4 +69,19 @@ async function gpuFreeGb() {
     return out && Number.isFinite(mb) && mb >= 0 ? Math.round((mb / 1024) * 10) / 10 : null;
 }
 
-module.exports = { detectHardware, gpuLiveStats, gpuFreeGb };
+// Read free memory until it stops rising: a GPU program stopped a moment ago can still be handing its memory back
+// (the driver lags, under WSL most), and sizing against the first reading leaves the next engine short for its whole
+// run. `read` → GB or null; up to `tries` more reads `gapMs` apart, until one rises by `stepGb` or less. → the last
+// reading (null when there is none).
+async function untilSteady(read, { tries = 5, gapMs = 400, stepGb = 0.25 } = {}) {
+    let free = await read();
+    for (let i = 0; free != null && i < tries; i++) {
+        await new Promise((r) => setTimeout(r, gapMs));
+        const again = await read();
+        if (again == null || again <= free + stepGb) break;
+        free = again;
+    }
+    return free;
+}
+
+module.exports = { detectHardware, gpuLiveStats, gpuFreeGb, untilSteady };

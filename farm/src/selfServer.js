@@ -22,6 +22,15 @@
 //   POST /lol/admin/llamacpp/library/remove → drop one from the library (token)
 //   POST /lol/admin/ollama/pull   → download an Ollama model (token)
 //   POST /lol/admin/ollama/remove → delete an Ollama model (token)
+//   POST /lol/admin/vllm/check|start|stop → the vLLM the farm runs (token)
+//   POST /lol/admin/vllm/install  → install or update vLLM, in the download slot (token)
+//   POST /lol/admin/vllm/download → download a model of its list, {id} (token)
+//   POST /lol/admin/vllm/library/add    → add a model to its list, {repo} or {folder}, {label?} (token)
+//   POST /lol/admin/vllm/library/remove → drop one, {id, deleteFiles?} (token)
+//   GET  /lol/admin/vllm/log?lines=200  → vLLM's own log, its last lines (token)
+//   POST /lol/admin/vllm/take-over[/undo] → let the farm run the vLLM it routes to as an external server, or undo it (token)
+//   POST /lol/admin/job/cancel    → stop the job or the download, {slot} (token)
+//   (vLLM's model, context, memory and people at once go through /lol/admin/apply, with dryRun.)
 //   POST /lol/admin/plugin/<id>/enable|disable → toggle a farm plugin (token)
 //   POST /lol/admin/plugin/recommend → recommend a client plugin, {id,on} (token)
 //
@@ -156,6 +165,10 @@ function startSelfServer({ httpPort, getSnapshot, host = '0.0.0.0', control = nu
                 if (method === 'GET' && pathOnly === '/lol/admin/state') {
                     return sendJson(res, 200, await control.getAdminState());
                 }
+                if (method === 'GET' && pathOnly === '/lol/admin/vllm/log') {
+                    const lines = new URL(req.url || '', 'http://x').searchParams.get('lines');
+                    return sendJson(res, 200, await control.vllmLog(lines));
+                }
                 if (method === 'POST' && pathOnly === '/lol/admin/model/start') {
                     const body = await readJson(req);
                     if (!body) return sendJson(res, 400, { error: 'bad json' });
@@ -197,6 +210,19 @@ function startSelfServer({ httpPort, getSnapshot, host = '0.0.0.0', control = nu
                     '/lol/admin/apply': (b) => control.applyFarmSettings(b),
                     '/lol/admin/ollama/pull': (b) => control.pullOllamaModel(b.id),
                     '/lol/admin/ollama/remove': (b) => control.removeOllamaModel(b.id),
+                    // The vLLM the farm runs: check this computer, start, stop, install it, and its model list.
+                    '/lol/admin/vllm/check': () => control.vllmCheck(),
+                    '/lol/admin/vllm/start': () => control.vllmStart(),
+                    '/lol/admin/vllm/stop': () => control.vllmStop(),
+                    '/lol/admin/vllm/install': () => control.vllmInstall(),
+                    '/lol/admin/vllm/download': (b) => control.vllmDownload(b.id),
+                    '/lol/admin/vllm/library/add': (b) => control.vllmLibraryAdd(b),
+                    '/lol/admin/vllm/library/remove': (b) => control.vllmLibraryRemove(b),
+                    // "Let the farm run vLLM" (a vLLM it routed to as an external server) and its Undo.
+                    '/lol/admin/vllm/take-over': () => control.vllmTakeOver(),
+                    '/lol/admin/vllm/take-over/undo': () => control.vllmUndoTakeOver(),
+                    // Stop what runs in a slot: {slot: 'job' | 'download'}.
+                    '/lol/admin/job/cancel': (b) => control.cancel(b.slot),
                 };
                 if (method === 'POST' && POSTS[pathOnly]) {
                     const body = await readJson(req);

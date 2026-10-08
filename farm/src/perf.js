@@ -162,17 +162,23 @@ function metricsUrlFor(baseUrl) {
     return `${String(baseUrl).replace(/\/+$/, '').replace(/\/v1$/, '')}/metrics`;
 }
 
-// The declared seats x window against the pool the server really allocated. Over it,
-// the seats cannot all hold their full window at once — vLLM queues or preempts the
-// overflow. A warning only: the seats stay external.parallel (owner, 2026-09-07a —
-// refusing people on a pessimistic guess is worse than the queueing it would avoid).
-function poolShortfall(slots, contextLength, poolTokens) {
+// The seats x window against the pool the server really allocated. Over it, the seats
+// cannot all hold their full window at once — vLLM queues or preempts the overflow. A
+// warning only: the seats stay what they are (owner, 2026-09-07a — refusing people on a
+// pessimistic guess is worse than the queueing it would avoid). Plain words, no config
+// key (the panel is for non-technical operators): on the vLLM the farm runs, the panel's
+// own controls fix it; on an external server, that server's own setup does.
+function poolShortfall(slots, contextLength, poolTokens, engine = 'external') {
     if (!(slots > 0) || !(contextLength > 0) || !(poolTokens > 0) || slots * contextLength <= poolTokens) return null;
-    const n = (x) => x.toLocaleString('en-US');
     const fit = Math.floor(poolTokens / contextLength);
-    return `The declared ${slots} seat${slots > 1 ? 's' : ''} × ${n(contextLength)} tokens of context need ${n(slots * contextLength)} tokens of context memory, `
-        + `but the server holds ${n(poolTokens)} — the declared seats can't all hold their full window at once `
-        + `(${fit === 0 ? 'not even one can' : `${fit} can`}). Lower external.parallel or external.contextLength, or give the server more KV cache.`;
+    const ctx = contextLength % 1024 === 0 ? `${contextLength / 1024}k` : `${contextLength.toLocaleString('en-US')} tokens`;
+    const people = fit === 1 ? 'one person' : `${fit} people`;
+    const wait = fit === 0 ? 'not even one person\'s whole conversation fits' : `past ${fit}, people wait`;
+    if (engine === 'vllm') {
+        return `The memory for conversations holds ${people} at ${ctx}, fewer than the ${slots} this farm lets in at once: ${wait}. `
+            + 'Lower People at once or Context per person, or give vLLM more GPU memory for conversations.';
+    }
+    return `The server holds context memory for ${people} at ${ctx}, fewer than the ${slots} this farm lets in at once: ${wait}.`;
 }
 
 // --- VRAM budgeting ------------------------------------------------------------

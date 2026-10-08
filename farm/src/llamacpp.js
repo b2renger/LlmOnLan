@@ -124,8 +124,9 @@ async function ensureLlamacpp(onProgress = () => {}) {
     if (!assets) {
         return {
             ok: false,
-            message: `No prebuilt llama.cpp for ${process.platform}/${process.arch}. ` +
-                     `Install llama.cpp yourself and set llamacpp.binDir to the folder holding llama-server.`,
+            // Plain words: this reaches the panel (D10). README "llama.cpp" says how a developer points the farm at
+            // a llama.cpp built by hand.
+            message: 'Not available on this computer: there is no ready-made llama.cpp for it.',
         };
     }
     fs.mkdirSync(ROOT, { recursive: true });
@@ -278,7 +279,7 @@ const gb = (bytes) => (bytes / 1e9).toFixed(1);
 
 async function ensureModel(config, onProgress = () => {}) {
     const c = config.llamacpp;
-    if (!c.model) return { ok: false, message: 'llamacpp.model is not set (an https URL to a .gguf).' };
+    if (!c.model) return { ok: false, message: 'No model is chosen for llama.cpp: add one to its list, then press Use this.' };
     const parts = shardUrls(c.model);
     let model;
     if (parts) {

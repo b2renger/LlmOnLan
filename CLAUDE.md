@@ -31,8 +31,9 @@ and the version‑specific integration facts in [docs/INTEGRATION_BRIEF.md](docs
 docs) is `docs/reviews/DOCS_REVIEW_2026-09-27_{FARM,SHELL,COMPUTER}.md`. Snapshot:
 
 - **`farm/`** — the `lol` CLI (verified end-to-end: `lol up` → real `/v1/chat/completions`; status/down;
-  beacon + `/lol/self`). **Three engines behind one LiteLLM endpoint, exactly one serving at a time**
-  (owner decisions 2026-08-26/27, 09-07):
+  beacon + `/lol/self`). **Four engines behind one LiteLLM endpoint, exactly one serving at a time**
+  (owner decisions 2026-08-26/27, 09-07, 10-07), resolved by `engineOf` (`litellm.js`: external > vllm > llama.cpp >
+  Ollama); the panel switches between Ollama, llama.cpp and vLLM:
   - **Ollama — the default.** Serves the `models` catalog, default **`gemma4:12b`** (vision-native, also the
     OCR model; its sliding-window attention holds its native 262144 context in ~10 GB). `ollama.contextLength:
     'auto'` MEASURES the largest `num_ctx` that stays fully in VRAM: loads the default at 16k and 32k, takes
@@ -56,16 +57,52 @@ docs) is `docs/reviews/DOCS_REVIEW_2026-09-27_{FARM,SHELL,COMPUTER}.md`. Snapsho
     a crash mid-run gets one restart, a second within 5 min falls back too. While llama.cpp serves, NO local
     Ollama deployment is routed or advertised — the catalog is standby inventory (and the OCR vision model,
     which talks raw Ollama).
-  - **external — opt-in, config file only (2026-09-07).** Routes to an OpenAI-compatible server the operator
-    runs (vLLM/SGLang/TensorRT-LLM) for stacks we can never bundle; outranks llama.cpp. The farm NEVER
-    installs/starts/restarts it. Health = `GET {baseUrl}/models`: unreachable at boot → fallback; dies later →
-    the farm goes unhealthy and clients fail over. `contextLength`/`parallel` are operator DECLARATIONS (no
-    portable endpoint reports them); they size the client RAG gate and the seats. While it serves, the panel's
-    engine, capacity and context controls stand down; the Ollama catalog stays editable as standby edits.
-    Routed as LiteLLM `hosted_vllm/` (2026-10-05), not `openai/`: the OpenAI SDK's per-chunk work held one
-    LiteLLM core full from ~50 streams. On Windows the vLLM recipe is `farm/vllm/` (WSL2, a loopback relay).
-  - A name the operator GAVE the served model (per-model Rename, `modelAlias`, `llamacpp.alias`) survives an
-    engine switch and a fallback (`carryNameAcross`, `engineFallback`), so bound chats keep working. An
+  - **vLLM — opt-in from the panel (`vllm.enabled`), run BY THE FARM** (owner 2026-10-07, replacing the 2026-09-07
+    rule "the farm never installs/starts/restarts an external server" and the 2026-10-06 recipe-plus-autostart;
+    [docs/VLLM_MANAGED_PLAN.md](docs/VLLM_MANAGED_PLAN.md)). For many people on a big NVIDIA GPU (48 at 64k on the
+    PRO 6000): Windows x64 inside WSL2, Linux x64/arm64. `src/vllm.js` (shaped like `llamacpp.js`; pure planning +
+    the process half) drives the scripts in `farm/vllm/` (`serve.sh` with the farm's whole argv in
+    `LOL_VLLM_ARGS_B64`, `stop.sh`, `install.sh`, the read-only `status.sh`; on Windows through `wsl.exe` with a
+    timeout on every call). The panel installs it (the **download slot**: outside the job slot and `serialize`,
+    never `busy`, resumable), keeps a list of the three measured NVFP4 models (Download / Use this / Remove / Add
+    by Hugging Face name), and sets people at once, context per person and GPU memory for conversations
+    (Automatic: measured seats capped by what the pool holds; the pool from free memory less the model, ~4 GB,
+    9 GB for OCR and an 8 % margin, never `--gpu-memory-utilization`) under the one Apply, which dry-runs and
+    confirms only a restart. The boot never waits for it: a PLANNED start keeps the farm healthy + `busy`
+    "Starting vLLM" and the gate answers 503 `lol_engine_starting`; an unplanned death, Stop and the memory guard
+    make it unhealthy. Three missed answers → look; one restart; a second stop in 5 min → Ollama with the reason.
+    Stopped on purpose only (`lol down`, Ctrl-C, the Farm app's Quit/Stop, Stop, a switch, a restarting Apply);
+    a crash of `lol up` or the Farm app leaves it running and the next `lol up` ADOPTS it when its SETTINGS match
+    (D9: Automatic accepts the running value). `<root>/run/managed-by-farm` (serve.sh's marker) makes the old
+    launchers no-ops; the orphan rule stops a marked vLLM at boot when another engine is chosen. **Take-over**
+    (2026-10-07): a farm whose `external` server is a vLLM on this computer from `farm/vllm` is OFFERED "Let the
+    farm run vLLM" (a person clicks; never automatic): `vllm.takeOverPlan` builds the vllm block from what runs
+    (other flags in `extraArgs`), `configFile.takeOverFile` copies `lol.config.json.before-managed-vllm` then
+    swaps the blocks, the marker is written, the server is adopted and LiteLLM NOT restarted (routing equal apart
+    from api_key); Undo until a setting changes or a restart. A farm-v0.0.42 refuses a file with a `vllm` block
+    (strict zod). The review fixes (2026-10-08): `lol down` stops only the farm's own vLLM (the one it serves
+    with, or one carrying its marker), never an operator's in a folder it downloaded into; the scripts own a pid
+    file only when its leader runs from their root (WSL reuses pids after a reboot); a start refuses a port another
+    program answers on and counts only once `serve.sh` logged it ready; Ollama never loads beside a vLLM whose stop
+    failed (the farm stays on vLLM, stopped); the check needs a C compiler (`build-essential`); Install/Download
+    check the disk and leave 10 GB free; the take-over writes llama.cpp off. The leftovers (2026-10-08): a GPU no
+    model of the list fits (`vllm.gpuFit`, document reading's 9 GB included: an RTX 4070/4080/4090) is said on the
+    vLLM button before any check, on Windows before anything about WSL, and offered nothing; WSL with no answer at
+    boot queues the start (which keeps a server running with these settings, `keepRunning`) instead of Ollama all
+    day; Automatic memory waits until freed memory stops rising (`systemInfo.untilSteady`); the runtime file `lol
+    down` removed is never written back and a vLLM stopping after it is not restarted; an install's time limit stops
+    its whole process group (on Linux `hf` kept downloading). A DGX Spark checklist: the plan's §11.6. Tests:
+    `farm/test/vllm-lifecycle.js` (`LOL_VLLM_FAKE=1`, `test/fake-vllm` inside WSL, 23 steps).
+  - **external — config file only, for servers the farm cannot run** (SGLang/TensorRT-LLM/another machine/a vLLM
+    run by hand; 2026-09-07). The farm never installs/starts/stops it. Its panel button shows only while the file
+    holds an `external` block (a developer wrote it); switching away from it works from the panel. Health = `GET
+    {baseUrl}/models`: unreachable at boot → fallback; dies later → the farm goes unhealthy and clients fail over.
+    `contextLength`/`parallel` are operator DECLARATIONS (no portable endpoint reports them); they size the
+    client RAG gate and the seats. Both vLLM routes go through `serverRoute` as LiteLLM `hosted_vllm/`
+    (2026-10-05), not `openai/`: the OpenAI SDK's per-chunk work held one LiteLLM core full from ~50 streams.
+  - A name the operator GAVE the served model (per-model Rename, `modelAlias`, `llamacpp.alias`, `vllm.alias`,
+    `external.alias`) survives an engine switch and a fallback (`carryNameAcross(config, from, to)` over the four
+    engines, `engineFallback`), so bound chats keep working. An
     unnamed default is served under its raw id on Ollama (`gemma4:12b`) and as `llamacpp.alias` on llama.cpp,
     so chats bound to it re-pick after a switch; non-default catalog models are never served under llama.cpp.
   - **Seat gate** (2026-09-04, `proxy.seatGate` default true): the public `proxy.port` is the farm's own
@@ -78,12 +115,12 @@ docs) is `docs/reviews/DOCS_REVIEW_2026-09-27_{FARM,SHELL,COMPUTER}.md`. Snapsho
   - `proxy.masterKey` = the shared **farm password** (LiteLLM `master_key`; panel-settable; clients prompt
     once, verify, remember per farm). Discovery, `/health/liveliness` and the admin token stay separate.
   - **Admin panel** at `http://<box>:41997/lol/admin` (bearer = `admin.token`, or a per-run token printed by
-    `lol up`; the Farm app pins one): the engine switch (llama.cpp ↔ Ollama); the `.gguf` library (add by
+    `lol up`; the Farm app pins one): the engine switch (Ollama, llama.cpp, vLLM, and External only while configured) and the vLLM card (its checklist, Install, the model list, Start/Stop, the log, the take-over offer); the `.gguf` library (add by
     URL — split files too — / Use this, with rollback); the name users see (llama.cpp) or per-model
     **Rename** (Ollama); people served at once, the context window (Automatic on both engines) and the farm
     password under ONE **Apply changes** (one restart), and **Free an idle seat after** (`proxy.seatIdleSec`,
     1–60 min, the workshop setting — alone it applies live, no restart); Ollama download/offer/stop/delete/Make default;
-    plugin toggles and the Blender fleet recommendation; a Performance card (llama.cpp, or an external vLLM) and the clients with
+    plugin toggles and the Blender fleet recommendation; a Performance card (llama.cpp, or a vLLM) and the clients with
     their seats. Long operations run as one job whose progress the panel polls. Everything persists to
     `lol.config.json` (`configFile.js` raw patch — never the schema-parsed config) **except** the plugin
     toggles and the Blender recommendation; Ollama's slot count applies after a farm restart. The header's
@@ -312,8 +349,8 @@ into `DATA_DIR/lol-client`, then a Preferences move + relaunch). When working he
 ## What we are building (four pieces)
 
 1. **`lol` — the farm CLI** (Node, npm‑style). Run on each GPU box (or one box). Reads a
-   declarative `lol.config.json`, brings up the serving engine (Ollama by default; llama.cpp or an
-   operator-run external server opt-in), generates and runs a LiteLLM proxy behind the farm's seat gate
+   declarative `lol.config.json`, brings up the serving engine (Ollama by default; llama.cpp or vLLM opt-in from
+   the panel, vLLM installed, started and stopped by the farm; an external server a developer configures), generates and runs a LiteLLM proxy behind the farm's seat gate
    (one OpenAI‑compatible endpoint, load‑balanced across boxes), hosts the shared plugins and the admin
    panel, and runs a **UDP discovery beacon** (+ unicast `/lol/self`) so clients find the farm
    automatically. This is where models are chosen.
@@ -329,7 +366,12 @@ into `DATA_DIR/lol-client`, then a Preferences move + relaunch). When working he
    are run. **Private by default** (`proxy.host` 127.0.0.1, beacon off) until Settings ▸ Share compute.
    Its Settings drawer holds only app-level things (share-with-LAN → `proxy.host`/`beacon.enabled`, theme,
    launch-at-login, update notifications + Check for updates, the panel access token, logs folder); it
-   deliberately never re-applies model settings at boot, which used to overwrite the panel's.
+   deliberately never re-applies model settings at boot, which used to overwrite the panel's. Its Quit and Stop run
+   `lol down` FIRST (so the vLLM the farm runs stops too), then tree-kill `lol up` as a backstop; the share toggle
+   restarts the farm keeping vLLM (`keepEngine`: only `lol up`'s own pid is killed, never its tree); Quit keeps the
+   window up ("Stopping the farm…", status `stopping`, Start waits) until `lol down` is done; a crash
+   restart reaps the dead run's recorded pids first (`reapStaleFarm`, which never stops vLLM). Launch at login on
+   Linux writes an XDG autostart entry for the AppImage (`farm-app/test/supervisor.test.js` checks all of it).
    Released on `farm-v*` tags as GitHub prereleases (Windows x64, macOS arm64, Linux arm64 AppImage). No
    electron-updater: the app looks for a newer `farm-v*` release (at launch when enabled, or on demand) and
    opens its download page; **installing is manual**.
@@ -482,8 +524,11 @@ declarative config; the CLI orchestrates everything from it.
                 "contextLength": "auto",         // min(native max, VRAM budget); a number pins it (over-size warns)
                 "parallel": 1, "kvUnified": true,// one KV pool shared by the slots; false = hard split
                 "kvCacheType": "q4_0", "mtp": false, "cacheRam": "auto" },   // mtp needs UD-Q2_K_XL+
+  "vllm": { "enabled": false, "root": null,      // OPT-IN from the panel: vLLM run by the farm (in WSL2 on Windows)
+            "port": 8100, "alias": "assistant", "model": "qwen3.6-35b-a3b",   // a library id (3 measured NVFP4)
+            "contextLength": 65536, "parallel": "auto", "kvCacheGib": "auto" },
   "external": { "enabled": false, "alias": "assistant", "baseUrl": "http://127.0.0.1:8000/v1",
-                "contextLength": 32768, "parallel": 4 },   // operator-run vLLM/SGLang; DECLARED values
+                "contextLength": 32768, "parallel": 4 },   // a server the farm does not run; DECLARED values
   "websearch": { "enabled": true }, "ocr": { "enabled": true }, "tts": { "enabled": false },
   "admin": { "token": null }                     // null = a fresh token per `lol up`, printed in the banner
 }
@@ -496,10 +541,10 @@ CLI commands:
 | Command | Does |
 |---|---|
 | `lol init` | Scaffold a `lol.config.json`. |
-| `lol up` / `serve` | Probe an external engine; ensure Ollama (start a local one if down); pick the Ollama models (prompt / `--model` / `--no-pick`); pull what's missing; start llama-server if enabled (fall back to Ollama on failure); size the Ollama context; generate `litellm/config.generated.yaml`; start LiteLLM on loopback + the seat gate on `proxy.port`; start the plugins; start the beacon, `/lol/self` and the admin panel; print the admin token. Foreground. |
+| `lol up` / `serve` | Probe an external engine; ensure Ollama (start a local one if down); pick the Ollama models (prompt / `--model` / `--no-pick`); pull what's missing; start llama-server if enabled (fall back to Ollama on failure); check vLLM if it is the engine (keep a matching one, else queue its start); size the Ollama context; generate `litellm/config.generated.yaml`; start LiteLLM on loopback + the seat gate on `proxy.port`; start the plugins; start the beacon, `/lol/self` and the admin panel; print the admin token; start vLLM as the job "Starting vLLM". Foreground. |
 | `lol models ls` / `add <id>` / `rm <id>` / `pull` | Manage the Ollama catalog in `models` (then `lol up --no-pick`). |
 | `lol status` | Health of each Ollama host + the proxy + which models are loaded. |
-| `lol down` / `stop` | Stop the proxy + `llama-server` + SearXNG/TTS/OCR + beacon (and any Ollama it started). |
+| `lol down` / `stop` | Stop the proxy + `llama-server` + SearXNG/TTS/OCR + beacon (and any Ollama it started), and the vLLM the farm runs (from the runtime file, else the config; never an operator's vLLM the farm only downloaded a model for). |
 | `lol install` / `setup` | One-time, idempotent bootstrap: Ollama, the LiteLLM venv, every `models` + `preinstall` entry, the SearXNG + OCR venvs, and (only when `llamacpp.enabled`) the llama.cpp build + weights. |
 | `lol fleet` / `lol bench` | Every farm on the LAN; load-test N concurrent chats before a workshop. |
 
@@ -730,10 +775,11 @@ LlmOnLan/
   farm/                  # the `lol` CLI (Node) + beacon — the backend, NOT shipped to clients
     bin/lol.js           #   CLI entry
     src/                 #   beacon.js, selfServer.js (+ admin/ panel page), snapshot.js, seats.js,
-                         #   plugins/ (registry), pysvc/ (OCR service), extract.js, llamacpp.js/gguf.js,
+                         #   plugins/ (registry), pysvc/ (OCR service), extract.js, llamacpp.js/gguf.js, vllm.js,
                          #   litellm.js/ollama.js, configFile.js, commands/ (up/down/install/...)
     contract/            #   snapshot.schema.json — the beacon / GET /lol/self shape; farm + shell tests check it
-    vllm/                #   the operator-run vLLM recipe for Windows (WSL2): install/serve/stop + relay.py
+    vllm/                #   the vLLM scripts the farm drives (serve/stop/install/status.sh, relay.py) — also the
+                         #   operator recipe (start-windows.ps1, lol-vllm.service); test/fake-vllm stands in for vLLM
     litellm/             #   generated config.generated.yaml lives here at runtime
     README.md            #   prereqs (Ollama, LiteLLM) + usage + the full config reference
   docs/                  # DEVLOG (dated build log), GETTING_STARTED, RIG_CHECKLIST, LOLCHAT_*, COMPUTER_*,

@@ -10,6 +10,7 @@
 //                  `lol up` alive.
 
 import { app, BrowserWindow, ipcMain, shell, nativeTheme, session, clipboard, WebContents } from 'electron';
+import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import * as url from 'url';
@@ -19,6 +20,7 @@ import { farmInstalled } from './paths';
 import { runSetup, setShareMode, ensurePluginPorts, refreshFarmCodeIfUpdated } from './installer';
 import { reapStaleFarm } from './farmProcess';
 import { FarmSupervisor } from './farmSupervisor';
+import { autostartEntry } from './util';
 import { initUpdateCheck, checkFarmUpdate, setUpdateNotifier } from './updater';
 import { FarmSettings, FarmState, SetupProgress } from './types';
 
@@ -47,6 +49,24 @@ function send(channel: string, payload: unknown): void {
 }
 function pushFarmState(s: FarmState): void { send('farm-state', s); }
 function pushSetupProgress(p: SetupProgress): void { send('setup-progress', p); }
+
+// --- launch at login -----------------------------------------------------------
+
+// Electron's login item works on Windows and macOS. On Linux it does nothing, so there the Farm app writes an XDG
+// autostart entry for its AppImage, which a graphical login runs (docs/VLLM_MANAGED_PLAN.md §3.13). A box with no
+// graphical login keeps `lol up` in a service of its own (farm/README.md).
+function setLoginItem(on: boolean): void {
+    if (process.platform !== 'linux') {
+        try { app.setLoginItemSettings({ openAtLogin: on }); } catch { /* unsupported */ }
+        return;
+    }
+    const file = path.join(process.env.XDG_CONFIG_HOME || path.join(os.homedir(), '.config'), 'autostart', 'llmonlan-farm.desktop');
+    try {
+        if (!on) { fs.rmSync(file, { force: true }); return; }
+        fs.mkdirSync(path.dirname(file), { recursive: true });
+        fs.writeFileSync(file, autostartEntry(process.env.APPIMAGE || process.execPath));
+    } catch (e) { console.warn(`[farm] launch at login: ${(e as Error).message}`); }
+}
 
 // --- theme ------------------------------------------------------------------
 
@@ -88,6 +108,11 @@ function createWindow(): void {
     });
     win.removeMenu();
     win.loadFile(path.join(app.getAppPath(), 'renderer', 'index.html'));
+    // Closing the window quits (except on macOS, where an app outlives its windows): through app.quit(), so the
+    // window stays up and says "Stopping the farm…" while `lol down` stops it (vLLM can take a minute to free the
+    // GPU); app.exit() closes it once that is done.
+    win.on('close', (e) => { if (process.platform !== 'darwin') { e.preventDefault(); app.quit(); } });
+    win.on('closed', () => { win = null; });
 
     // Keep external links (the "Schedule a job" style openExternal, docs, …) in the
     // system browser.
@@ -191,7 +216,7 @@ function registerIpc(): void {
     ipcMain.handle('set-launch-at-login', (_e, on: boolean) => {
         const v = !!on;
         updateSettings({ launchAtLogin: v });
-        try { app.setLoginItemSettings({ openAtLogin: v }); } catch { /* unsupported */ }
+        setLoginItem(v);
         return v;
     });
     ipcMain.handle('set-auto-update', (_e, on: boolean) => {
@@ -209,13 +234,15 @@ function registerIpc(): void {
     // Share the farm's compute with the LAN (default off = fully private: localhost
     // bind + no beacon). Rewrites lol.config.json's beacon/proxy and restarts the
     // farm so the new bind address + beacon take effect (they're read at `lol up` boot).
+    // The engine stays up (keepEngine): a vLLM keeps running and the new `lol up` keeps it,
+    // instead of two minutes of "Starting vLLM" for a change of address.
     ipcMain.handle('set-share-network', async (_e, on: boolean) => {
         const share = !!on;
         updateSettings({ shareWithNetwork: share });
         setShareMode(share);
         const st = supervisor.getState().status;
         if (st === 'ready' || st === 'starting' || st === 'restarting') {
-            await supervisor.stop({ keepState: true });
+            await supervisor.stop({ keepState: true, keepEngine: true });
             await startFarm();
         }
         return { share, farmState: supervisor.getState() };
@@ -237,11 +264,13 @@ function registerIpc(): void {
 
 // --- lifecycle --------------------------------------------------------------
 
-app.on('second-instance', () => { if (win) { if (win.isMinimized()) win.restore(); win.focus(); } });
+app.on('second-instance', () => { if (win && !win.isDestroyed()) { if (win.isMinimized()) win.restore(); win.focus(); } });
 
 app.whenReady().then(() => {
     const settings = loadSettings();
     applyTheme(settings.theme);
+    // Linux: the autostart entry follows the AppImage (an update can move it).
+    if (process.platform === 'linux' && settings.launchAtLogin) setLoginItem(true);
     registerIpc();
     createWindow();
 
@@ -269,13 +298,15 @@ app.whenReady().then(() => {
     app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
 });
 
+// Quit: the farm stops first (`lol down`, vLLM included), the window showing it, then the app exits. A second Quit
+// meanwhile waits for the same stop; app.exit() skips this event and every window's close.
 let quitting = false;
-app.on('before-quit', async (e) => {
+app.on('before-quit', (e) => {
+    e.preventDefault();
     if (quitting) return;
     quitting = true;
-    e.preventDefault();
-    await supervisor.stop();
-    app.exit(0);
+    if (win && !win.isDestroyed()) win.show();
+    void supervisor.stop().finally(() => app.exit(0));
 });
 
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });

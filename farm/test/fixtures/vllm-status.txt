@@ -1,0 +1,46 @@
+home=/home/ateliernum
+arch=x86_64
+root=/tmp/lol-as-root
+distro=Ubuntu
+uv=/home/ateliernum/.local/bin/uv
+curl=/usr/bin/curl
+cc=/usr/bin/gcc
+gpu=NVIDIA RTX PRO 6000 Blackwell Workstation Edition, 97887, 19895, 12.0
+mem_total_kb=98875528
+mem_available_kb=91963788
+disk_free_kb=49437644
+install=/tmp/lol-as-root 0.30.0
+install=/tmp/lol-as-root2 0.30.0
+install=/tmp/lol-as-link 0.30.0
+venv_link=/tmp/lol-as-link
+model=M1 4 vision=1 native=262144 partial=0
+model=M2 4 vision=0 native=32768 partial=1
+running=6843
+env=LOL_VLLM_PORT=46361
+arg=/tmp/lol-as-root/hf/Qwen3.6-35B-A3B-NVFP4
+arg=--uds
+arg=/tmp/lol-as-root/run/vllm.sock
+arg=--served-model-name
+arg=qwen3.6-35b-a3b
+arg=--max-model-len
+arg=65536
+arg=--max-num-seqs
+arg=128
+arg=--kv-cache-memory-bytes
+arg=53687091200
+arg=--kv-cache-dtype
+arg=fp8
+arg=--enable-prefix-caching
+arg=--mamba-cache-mode
+arg=align
+arg=--reasoning-parser
+arg=qwen3
+arg=--enable-auto-tool-choice
+arg=--tool-call-parser
+arg=qwen3_xml
+arg=--override-generation-config
+arg={"max_new_tokens": 32768}
+ready=1
+found=/home/ateliernum/lol-spike 8100 401
+found=/tmp/lol-as-root 46361 6843
+found=/tmp/lol-as-root2 47463 6844

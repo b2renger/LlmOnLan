@@ -20,7 +20,7 @@
 
 /** Normalised farm capabilities (net/farm.mjs capsFromBridge). `present:false` = no farm.
  * @typedef {{ present, id, name, baseUrl, proxyRoot, apiKey, requiresKey, keyMissing, healthy, stale, lastSeen,
- *   defaultModel, models: {id, underlying, default}[], engine: 'ollama'|'llama.cpp'|'external'|null,
+ *   defaultModel, models: {id, underlying, default}[], engine: 'ollama'|'llama.cpp'|'vllm'|'external'|null,
  *   budget: {tokens, advertised, source: 'advertised'|'default'},
  *   seats: {used, slots, clients, idleSec, mine}|null, busy: {label, percent}|null, perf, gpuUtil,
  *   search: {url}|null, tts: {url, voice, model}|null, ocr: {url, key}|null,

@@ -348,7 +348,7 @@ the Computer use a thinking model (Qwen3.6 on vLLM, or qwen3.8). Put back every 
   `curl -i -X PUT http://<farm>:8890/process -H "Authorization: Bearer <old key>" --data-binary @notes.txt` → **401**.
   Restart again: the same `keyId`. Change the password: a new `keyId`.
 - [ ] **7d.16 vLLM on the Windows PRO 6000.** On farm-v0.0.42 (update the Farm app first: an older farm refuses
-  `presencePenalty` and does not start), follow farm/README *Serving with vLLM on Windows (WSL2)*: the vLLM window
+  `presencePenalty` and does not start), follow farm/README *External: a vLLM you run yourself* (*On Windows (WSL2)*): the vLLM window
   prints *ready*, the panel names the external engine with its declared seats and a Performance card, a client chats,
   and **Stop** in LOL Vibe ends a reply at once. Close the vLLM window: `nvidia-smi` is back to the desktop's ~1.5 GB,
   the farm goes unhealthy within 10 s and clients fail over, and it serves again once serve.sh is back, with no farm

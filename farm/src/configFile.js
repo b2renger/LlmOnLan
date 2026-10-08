@@ -62,4 +62,37 @@ function patchSection(configPath, section, patch) {
     });
 }
 
-module.exports = { readRawConfig, patchConfigFile, patchSection };
+// The panel's "Let the farm run vLLM" (docs/VLLM_MANAGED_PLAN.md §9): a vLLM the farm routed to as an external
+// server becomes the vllm engine. A copy of the file comes first (the way back: the panel's Undo, or by hand,
+// PRO6000_VLLM_SWITCH.md Part 2), then the vllm block goes in and the external block out (a farm-v0.0.42 refuses a
+// file with a vllm block, so the copy is also what a downgrade needs). → {ok, backup, error}.
+const BACKUP_SUFFIX = '.before-managed-vllm';
+function takeOverFile(configPath, block) {
+    const backup = configPath + BACKUP_SUFFIX;
+    try { fs.copyFileSync(configPath, backup); } catch (e) { return { ok: false, backup: null, error: String((e && e.code) || e) }; }
+    // One engine on, as a switch writes it: a llama.cpp left on in the file (it served before the external server)
+    // would otherwise start beside vLLM at the next farm start.
+    const r = patchConfigFile(configPath, (raw) => {
+        raw.vllm = { ...(raw.vllm || {}), ...block };
+        delete raw.external;
+        if (raw.llamacpp && raw.llamacpp.enabled) raw.llamacpp = { ...raw.llamacpp, enabled: false };
+        return raw;
+    });
+    return r.ok ? { ok: true, backup, error: null } : { ok: false, backup: null, error: r.error };
+}
+// Undo: the copy goes back, byte for byte (written beside and renamed, like every write here), then away.
+function undoTakeOverFile(configPath) {
+    const backup = configPath + BACKUP_SUFFIX;
+    const tmp = path.join(path.dirname(configPath), `.lol.config.${process.pid}.tmp`);
+    try {
+        fs.writeFileSync(tmp, fs.readFileSync(backup));
+        fs.renameSync(tmp, configPath);
+        fs.unlinkSync(backup);
+        return { ok: true, error: null };
+    } catch (e) {
+        try { fs.unlinkSync(tmp); } catch { /* nothing to clean */ }
+        return { ok: false, error: String((e && e.code) || e) };
+    }
+}
+
+module.exports = { readRawConfig, patchConfigFile, patchSection, takeOverFile, undoTakeOverFile, BACKUP_SUFFIX };
