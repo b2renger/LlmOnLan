@@ -2,7 +2,7 @@
 
 LlmOnLan has **two pieces**:
 
-- **The farm** — the `lol` CLI (or the Farm app) running on one or more **GPU boxes**. It serves the model(s) over the LAN — through **Ollama** by default (`gemma4:12b` with its full **262k context**, vision included), the opt-in **llama.cpp** speed engine, or **vLLM** for many people at once on a big NVIDIA card (Windows with WSL, or Linux such as a DGX Spark; installed and run by the farm), all chosen in the farm's panel — hosts shared **web search** and **document OCR** (and, opt-in, **neural voice**), and **broadcasts itself** so clients find it automatically.
+- **The farm** — the `lol` CLI (or the Farm app) running on one or more **GPU boxes**. It serves the model(s) over the LAN — through **Ollama** by default (`gemma4:12b` with its full **262k context**, vision included), the opt-in **llama.cpp** speed engine, or **vLLM** for many people at once on a big NVIDIA card (Windows with WSL, or Linux such as a DGX Spark; installed and run by the farm), all chosen in the farm's panel — hosts shared **web search**, **document OCR** and **document search** (and, opt-in, **neural voice**), and **broadcasts itself** so clients find it automatically.
 - **The client app** — a desktop app (bundled, unmodified Open WebUI) that people install on their laptops. It **auto-discovers the farm** on the same network — no URL, no config — and keeps all chat data on their own machine.
 
 You set up the farm once per GPU box, and everyone else just installs the client app.
@@ -94,7 +94,8 @@ This installs the CLI's Node deps, then runs `lol install`, which:
 - **fetches the llama.cpp backend** *only if you enabled it* (`llamacpp.enabled: true`) — the pinned
   `llama-server` build + CUDA runtime + `.gguf` weights — so the first `lol up` doesn't stall on it,
 - sets up **shared web search** (SearXNG) — **on by default**, so every client that connects can search the web with zero setup (off in each chat until the globe button turns it on),
-- sets up **shared document OCR** — **on by default**: scanned PDFs and photographed documents become readable + searchable in every client's chat (a small torch-free Python service that reuses the vision model you already serve).
+- sets up **shared document OCR** — **on by default**: scanned PDFs and photographed documents become readable + searchable in every client's chat (a small torch-free Python service that reuses the vision model you already serve),
+- sets up **document search** — **on when the computer has an NVIDIA GPU**: the farm turns the text of the laptops' documents into numbers Open WebUI can search, in any language (EmbeddingGemma 2 on llama.cpp, about 0.6 GB to download and 1.2 GB of GPU memory). The laptops keep what comes back; the farm keeps nothing.
 
 So a fresh install already gives you a working farm with the model downloaded and web search + document OCR ready — no config editing required. (Neural **voice** is the one extra you opt into — see below — because its install is multi-GB.)
 
@@ -122,6 +123,7 @@ The defaults already give you a working farm (model + web search). Change them i
                                                     //   (set enabled:false to turn it off)
   "tts":       { "enabled": false, "port": 8880, "voice": "af_heart", "model": "kokoro" }, // set true to opt in
   "ocr":       { "enabled": true, "port": 8890 },   // ON by default → scanned docs/images readable on every client
+  "embed":     { "enabled": "auto", "port": 8894 }, // document search: "auto" = on with an NVIDIA GPU
   "ollama":    { "hosts": ["http://127.0.0.1:11434"], "numParallel": 2, "keepAlive": "-1",
                  "contextLength": "auto" },         // window for the OLLAMA models — probed per box (a number pins it).
                                                     //   Measured: 65536 spills on a 12 GB card —
@@ -130,7 +132,7 @@ The defaults already give you a working farm (model + web search). Change them i
 }
 ```
 
-**Web search and document OCR are on by default** on the farm (each chat still starts with web search off; the globe button turns it on) — turn any of them on or off in the panel's *Plugins* card (**Enable** / **Disable**); the panel keeps that until the farm restarts (to keep a plugin on or off for good, a developer sets it in the file). **Voice (TTS) is off by default** because its install is multi-GB; turn it on the same way. See the full reference in [`farm/README.md`](../farm/README.md).
+**Web search and document OCR are on by default** on the farm, and **document search** too when it has an NVIDIA GPU (each chat still starts with web search off; the globe button turns it on) — turn any of them on or off in the panel's *Plugins* card (**Enable** / **Disable**); the panel keeps that until the farm restarts (to keep a plugin on or off for good, a developer sets it in the file). **Voice (TTS) is off by default** because its install is multi-GB; turn it on the same way. See the full reference in [`farm/README.md`](../farm/README.md).
 
 ### Run it
 
@@ -143,7 +145,7 @@ On start, `lol up`:
 2. **prompts you to pick which installed Ollama model(s) to serve** (press Enter for the default; or `lol up --model gemma4:12b --no-pick` to skip the prompt),
 3. if llama.cpp is the engine, starts **`llama-server`** (downloading the backend + weights if `lol install` didn't already); if vLLM is, keeps a vLLM already running with the same settings or starts it ("Starting vLLM" in the panel, about 2 minutes, once the farm is up); else sizes the Ollama context,
 4. generates + runs the **LiteLLM proxy** that fronts the serving engine as one endpoint (behind the farm's seat gate),
-5. if enabled, **installs (first run) and starts SearXNG + document OCR + Kokoro voice**,
+5. if enabled, **installs (first run) and starts SearXNG + document OCR + Kokoro voice**; document search starts before step 3 when it is already downloaded (so the engine sizes its memory around it), else here,
 6. starts the **discovery beacon** so clients find it.
 
 > **First run of web search / voice installs them.** SearXNG is small. **Kokoro voice pulls a multi-GB PyTorch build** — expect a few minutes the first time (it auto-detects your GPU: 4070/4090/Blackwell all work, and it falls back to CPU). Everything is auxiliary — if an install fails, the farm still comes up without that feature.
@@ -166,7 +168,7 @@ The banner also prints the **admin panel** URL — `http://<box-ip>:41997/lol/ad
 From any browser on the LAN, that panel is where the farm is run: which **engine** serves (Ollama,
 llama.cpp or vLLM, which the panel installs and starts itself) and which model it loads, the **name users
 see**, **how many people** it serves at once, the **context window**, the farm **password**, the **Ollama
-catalog** (download / offer / delete), the web search / OCR / voice **plugins**, and who is **connected** right
+catalog** (download / offer / delete), the web search / OCR / document search / voice **plugins**, and who is **connected** right
 now. **Plan capacity ↗** (open without the token, at `/lol/capacity`) says which hardware and model serve how
 many people. Everything except the plugin toggles and the Blender recommendation is kept for the next start.
 
@@ -185,7 +187,7 @@ Go to **[the latest release](https://github.com/b2renger/LlmOnLan/releases/lates
 - **macOS** — `LlmOnLan-<version>-mac-arm64.dmg` (Apple Silicon) or `…-mac-x64.dmg` (Intel, macOS 14+). First launch: **right-click → Open → Open** (unsigned-app bypass).
 - **Linux** — `LlmOnLan-<version>-linux-x64.AppImage` (or `-linux-arm64`, e.g. DGX Spark) → `chmod +x`; Ubuntu/Mint may need `sudo apt install libfuse2`.
 
-On **first launch** the app downloads the chat engine (Open WebUI, ~700 MB, from GitHub) once, and Open WebUI's first start downloads the search model it needs to read attached documents (about 92 MB, from huggingface.co). Then it **auto-discovers your farm** on the LAN and drops you into a chat. If huggingface.co does not answer (no internet, or a network that blocks it), chat still opens, and a message says document uploads need one start with internet access: quit and reopen the app once the computer is online. It **auto-updates** itself from GitHub Releases after that.
+On **first launch** the app downloads the chat engine (Open WebUI, ~700 MB, from GitHub) once. Then it **auto-discovers your farm** on the LAN and drops you into a chat. A farm with **document search** (the first farm update after farm-v0.0.43 brings it; on by default with an NVIDIA GPU) indexes your documents, so nothing more is downloaded for them. On an older farm, Open WebUI's first start downloads its own search model instead (about 92 MB, from huggingface.co); if huggingface.co does not answer (no internet, or a network that blocks it), chat still opens, and a message says document uploads need one start with internet access: quit and reopen the app once the computer is online. It **auto-updates** itself from GitHub Releases after that.
 
 ### Option B — run from source (for developers)
 
@@ -223,7 +225,7 @@ with `LOL_ENDPOINT=http://<box-ip>:4000/v1` if discovery isn't available.
 - **Web search** — if the farm hosts it, it's **off by default; the globe button turns it on for a chat** (in Open WebUI 0.11: **Integrations** under the message box ▸ **Web Search**). Then ask something current and it searches + cites pages.
 - **Today's date** — in Open WebUI, the model is told the date by your system prompt (Settings ▸ General ▸ **System Prompt**), which goes with every message; without it, it assumes an older year. If that prompt is empty, the first launch writes `Today is {{CURRENT_WEEKDAY}} {{CURRENT_DATE}}.` there, once; it is yours to edit or empty, and the app never touches it again. If you wrote your own prompt, add `{{CURRENT_DATE}}` to it.
 - **Voice** — click the microphone to talk (allow the mic prompt the first time). Speech-to-text runs **on your laptop** (Whisper; its first use downloads the model, about 150 MB, from huggingface.co, so it needs internet access once); read-aloud uses the farm's **Kokoro** neural voice if enabled, otherwise your OS voices.
-- **Documents** — attach a PDF or a photo of a document and ask about it. Scanned pages and images are OCR'd by the farm's vision model; on farms with a large context window (≥ 24k tokens per chat) answers read the whole document; on smaller ones, the 8 most relevant passages. Uploads need the search model on your laptop (about 92 MB, downloaded once at a start with internet access). Until it is there, the app says so when it opens, and chat works without it.
+- **Documents** — attach a PDF or a photo of a document and ask about it. Scanned pages and images are OCR'd by the farm's vision model; on farms with a large context window (≥ 24k tokens per chat) answers read the whole document; on smaller ones, the 8 most relevant passages. On a farm with **document search**, the farm reads each document for search, in any language (ask in English about a French document), and your laptop keeps the result. The first time a laptop meets such a farm, its documents switch to that model for good, and the app says once how to bring older documents along: in Open WebUI, **Admin Panel ▸ Settings ▸ Documents ▸ Reindex** (next to "Reindex Knowledge and Memory Vectors"); a file attached straight to an older chat is simply attached again. After that, on a farm without document search, uploading a document fails (with a message saying why) rather than mixing two models, and chat works. On an older farm, before any switch, uploads need the search model on your laptop (about 92 MB, downloaded once at a start with internet access); until it is there, the app says so when it opens, and chat works without it.
 - **Where your data lives** — everything sits in one folder on **your** machine (by default
   `…/LlmOnLan/owui-data` in your user app‑data; Settings ⚙ ▸ **Data location** shows it and can move
   it): Open WebUI's chats, documents and RAG vectors; LOL Vibe's conversations and the Computer's graphs
@@ -232,8 +234,9 @@ with `LOL_ENDPOINT=http://<box-ip>:4000/v1` if discovery isn't available.
   (`LOL Studio Projects`). Changing the folder restarts the app: **Move my data** carries all of it,
   **Start fresh** leaves the old folder as it was. Updating from v0.1.x copies your LOL Vibe history
   into that folder once, on the first launch, and keeps the old copy in the app's user-data folder as a
-  backup. With farm OCR on, an uploaded file's bytes transit to the trusted‑LAN farm for text
-  extraction; nothing is stored there.
+  backup. With farm OCR on, an uploaded file's bytes go to the trusted‑LAN farm for text
+  extraction, and with document search, the document's text goes there to be turned into the numbers
+  search uses, which come back to your laptop; the farm keeps nothing of either.
 - **LOL Vibe** — reopens your last chat on launch. Each reply shows tok/s and time to first token.
   A message's icons (hover one to see what it does): **Regenerate**, **Regenerate with…** (**More creative** /
   **More precise**), **Edit**, **Fork from here**, **Delete from here**, **Keep in context** (always sent, even

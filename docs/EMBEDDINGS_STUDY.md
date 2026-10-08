@@ -10,8 +10,8 @@ The owner asked (2026-10-07): "I wonder if [Gemma] embeddings could be interesti
 
 The scripts and raw numbers stayed in the session's scratchpad. This page is the corrected recommendation.
 
-**Decision: none yet; the owner decides.** Until then the client keeps Open WebUI's default all-MiniLM-L6-v2,
-computed on each laptop, never on the farm.
+**Decision (2026-10-08): the farm, with EmbeddingGemma 2** — see "The decision" at the end. Round 1 below
+recommended doing nothing; round 2 measured the farm option, and the owner chose it.
 
 **Short answer: do nothing for now.** On the studio farm (64k per person), Open WebUI reads attached files whole, so the search model hardly matters there. A Gemma model would cost every laptop a 1.27 GB download and uploads about 9 times slower.
 
@@ -93,7 +93,7 @@ Measured on a 16-core desktop limited to 4 threads. Laptops are probably 2 to 3 
 
 ### Staying within the rules
 - **Open WebUI needs only settings**, and the bundled Open WebUI stays unchanged for the 300M model and granite. Our shell needs the small changes listed below. Models sit in each laptop's Hugging Face folder.
-- **Never compute embeddings on the farm.** Ollama, vLLM and llama.cpp could all run these models, but that sends documents off the laptop and breaks the prime directive.
+- **Never compute embeddings on the farm** (round 1's rule, replaced by the owner's decision of 2026-10-08 below). Ollama, vLLM and llama.cpp could all run these models, but that sends documents off the laptop.
 - **One trap:** turning on Open WebUI's "openai" embedding setting without giving it an address points it at the farm.
   - The seat gate answers 404, but the text has already crossed the LAN by then.
   - The guard is never setting that engine, not the gate.
@@ -226,8 +226,8 @@ Measured in the real bundled Open WebUI 0.11.4, uploading a 50-page French docum
 | ten 50-page uploads at once | 6.7 s |
 | a search query | 3 ms |
 
-- **Runs with the farm's current llama.cpp (b10670), DGX Spark included:** EmbeddingGemma 300M and Qwen3-0.6B.
-  EmbeddingGemma 2 needs b11454 or later.
+- **Runs with the farm's llama.cpp of the time (b10670), DGX Spark included:** EmbeddingGemma 300M and Qwen3-0.6B.
+  EmbeddingGemma 2 needs b11454 or later; the farm moved to b11512 the same day (DEVLOG 2026-10-08 21:40).
 - **No seat taken:** it runs on its own plugin port, so it doesn't count against chat seats.
 - **Same vectors whatever the server:** the same model gives the same vectors from the farm's llama.cpp and from the
   laptop's sentence-transformers (cosine ≥ 0.999, measured for EmbeddingGemma 2). A knowledge base built on one
@@ -240,4 +240,28 @@ Measured in the real bundled Open WebUI 0.11.4, uploading a 50-page French docum
   - CLAUDE.md's rule "never send documents to the farm for embedding" would change: the owner's decision.
 
 ### The decision (2026-10-08)
-See the DEVLOG entry of this day for what the owner chose.
+
+**The owner chose the farm, and EmbeddingGemma 2.** Documents are turned into vectors on the farm, the vectors come
+back to the laptop and are kept there as before, and the farm keeps nothing. Built on branch `embed-farm`
+(DEVLOG 2026-10-08):
+- **The rule changed.** A document's text may now be sent to the farm to be turned into vectors: nothing is kept
+  there and nothing is logged (the farm's log holds token counts only). CLAUDE.md says so.
+- **On the farm:** a plugin, *Document search* (`farm/src/embed.js`): llama-server in embedding mode with one pinned
+  model per LOL release, ggml-org's BF16 conversion of google/embeddinggemma-2 (pinned by revision and sha256). Its
+  vectors equal sentence-transformers' float32 ones (cosine 1.0000, measured above). 768 numbers, Google's search
+  prefixes, named by the contract `embeddinggemma-2/768/v1`. On by default when the farm has an NVIDIA GPU; about
+  1.2 GB of its memory (1.05 GB loaded, 1.16 GB at the peak, 8 texts of up to 2048 tokens at once). It needs
+  llama.cpp b11454 or later: the farm's pin moves to an official build in its own branch.
+- **On the laptop:** a data folder adopts the farm's model the first time it meets a farm offering it
+  (`DATA_DIR/lol-embedding.json`), and keeps it for good: on a farm without it, an upload fails with a message
+  rather than being indexed with MiniLM, which would leave the old documents unsearchable. A folder MiniLM had
+  indexed is told once to press **Reindex** (Admin Panel ▸ Settings ▸ Documents); the app never presses it.
+- **No laptop fallback with it** until Open WebUI raises its library pins: 0.11.4 pins transformers 5.5.4, which
+  cannot load EmbeddingGemma 2. When a release can, a laptop could compute the same vectors under the same contract.
+- **What the measurements said, for the record:** EmbeddingGemma 300M scored a little higher on text (0.81 against
+  0.80 in the same language, 0.89 against 0.84 across languages); the owner chose EmbeddingGemma 2.
+- **Checked end to end** (the built Open WebUI 0.11.4 with the shell's env, the plugin alone on scratch ports):
+  a French text's vectors are 768 numbers in the data folder's vector store; a French search and an English one both
+  find the right passage; 200,000 characters (356 pieces) are indexed in 1.4 s; Open WebUI no longer loads MiniLM
+  (healthy at 7–8 s, nothing downloaded from huggingface.co); a made-up word from the document is in no farm file,
+  folder or log afterwards; a MiniLM knowledge base finds nothing after the switch and everything after Reindex.

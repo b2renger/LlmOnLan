@@ -18,6 +18,7 @@ const path = require('path');
 const CATALOG = require('./capacity/catalog.json');
 const MEASURED = require('./capacity/measured.json');
 const { VLLM_LIBRARY, ConfigSchema } = require('./config');
+const { RESERVE_GIB: EMBED_RESERVE_GIB } = require('./embed');
 
 const GIB = 2 ** 30;
 const RUNTIME_GIB = 4;   // vLLM's own use beside weights and pool: production runs 74.9 GiB = 50 pool + 20.37 weights + ~1.4 desktop + ~3
@@ -283,21 +284,22 @@ function maxNumSeqsAuto(seats) {
 }
 
 // GPU memory for conversations, in whole GiB: what is free now, less a margin, the model, vLLM's runtime and the
-// share kept for document reading (Ollama's OCR model); on unified memory, from what the system has available, less
+// share kept for document reading (Ollama's OCR model) and for document search while it is on but not running yet
+// (embed.js: once it runs, its memory is no longer free); on unified memory, from what the system has available, less
 // the memory guard's floor too. `cap` (GiB) keeps a small model from taking the whole card. `personGib` = one
 // person's conversation at the chosen context, when known.
-function poolGib({ totalGib, freeGib, unified = false, memAvailableGib = null, weightsGib = 0, ocrReserveGib = 0, marginPct = 8, minFreeGb = 0, cap = null, personGib = null }) {
+function poolGib({ totalGib, freeGib, unified = false, memAvailableGib = null, weightsGib = 0, ocrReserveGib = 0, embedReserveGib = 0, marginPct = 8, minFreeGb = 0, cap = null, personGib = null }) {
     const marginGib = (marginPct / 100) * (totalGib || 0);
     const base = unified ? memAvailableGib : freeGib;
-    const raw = (base || 0) - marginGib - (unified ? minFreeGb || 0 : 0) - weightsGib - RUNTIME_GIB - ocrReserveGib;
+    const raw = (base || 0) - marginGib - (unified ? minFreeGb || 0 : 0) - weightsGib - RUNTIME_GIB - ocrReserveGib - embedReserveGib;
     let gib = Math.floor(raw);
     const capped = cap != null && gib > cap;
     if (capped) gib = cap;
-    const why = { freeGib: base, weightsGib, ocrReserveGib, marginGib, runtimeGib: RUNTIME_GIB, minFreeGb: unified ? minFreeGb || 0 : 0, unified, capped };
+    const why = { freeGib: base, weightsGib, ocrReserveGib, embedReserveGib, marginGib, runtimeGib: RUNTIME_GIB, minFreeGb: unified ? minFreeGb || 0 : 0, unified, capped };
     const ok = gib >= 1 && (personGib == null || gib >= personGib);
     if (ok) return { gib, why, ok, reason: null };
     const where = unified ? `This computer has ${r1(base || 0)} GB of memory available` : `The GPU has ${r1(base || 0)} GB free`;
-    const after = `the model (${r1(weightsGib)} GB)${ocrReserveGib ? `, document reading (${r1(ocrReserveGib)} GB)` : ''}${unified && minFreeGb ? `, the ${minFreeGb} GB kept so the computer cannot run out` : ''} and a safety margin`;
+    const after = `the model (${r1(weightsGib)} GB)${ocrReserveGib ? `, document reading (${r1(ocrReserveGib)} GB)` : ''}${embedReserveGib ? `, document search (${r1(embedReserveGib)} GB)` : ''}${unified && minFreeGb ? `, the ${minFreeGb} GB kept so the computer cannot run out` : ''} and a safety margin`;
     const need = personGib != null ? `less than one person's conversation needs (${r1(personGib)} GB)` : 'not enough for anyone';
     return {
         gib: Math.max(0, gib), why, ok,
@@ -343,7 +345,9 @@ const minFreeOf = (v, unified) => (v === 'auto' ? (unified ? 8 : null) : v || nu
 
 // Everything a start needs, or why it cannot start. `st` = parseStatus; `mem` = memOf(st) measured just before the
 // start (after Ollama's models were evicted).
-function planFor(config, st, mem = memOf(st), { ocrEnabled = !!(config.ocr && config.ocr.enabled) } = {}) {
+// `embedReserveGib`: up.js passes embed.RESERVE_GIB while document search is on and not running yet (it starts before
+// the engine at a boot, so then its memory is already taken).
+function planFor(config, st, mem = memOf(st), { ocrEnabled = !!(config.ocr && config.ocr.enabled), embedReserveGib = 0 } = {}) {
     const v = config.vllm; const entry = vllmEntry(config);
     if (!entry) return { ok: false, reason: `The model "${v.model}" is not in the vLLM list: pick one there.`, entry: null };
     const root = resolveRoot(config, st);
@@ -356,7 +360,7 @@ function planFor(config, st, mem = memOf(st), { ocrEnabled = !!(config.ocr && co
     const minFreeGb = minFreeOf(v.minFreeGb, mem.unified);
     const poolIn = {
         totalGib: mem.totalGib, freeGib: mem.freeGib, unified: mem.unified, memAvailableGib: mem.memAvailableGib, weightsGib,
-        ocrReserveGib: ocrEnabled ? v.ocrReserveGib : 0, marginPct: v.marginPct, minFreeGb: minFreeGb || 0, personGib: pb ? pb / GIB : null,
+        ocrReserveGib: ocrEnabled ? v.ocrReserveGib : 0, embedReserveGib, marginPct: v.marginPct, minFreeGb: minFreeGb || 0, personGib: pb ? pb / GIB : null,
     };
     const autoKv = v.kvCacheGib === 'auto';
     // The seats need a pool to count people in; the pool's cap needs the seats: uncapped first, then capped.
@@ -729,8 +733,9 @@ function gpuFit(config, gib, { unified = false } = {}) {
     if (!sizes.length || !(gib > 0)) return null;
     const weights = Math.min(...sizes);
     const ocrGib = config.ocr && config.ocr.enabled ? v.ocrReserveGib : 0;
+    const embedGib = config.embed && config.embed.enabled === true ? EMBED_RESERVE_GIB : 0;   // document search, beside it
     const floor = unified ? minFreeOf(v.minFreeGb, true) || 0 : 0;
-    const need = (ocr) => (weights + RUNTIME_GIB + 1 + ocr + floor) / (1 - v.marginPct / 100);
+    const need = (ocr) => (weights + RUNTIME_GIB + 1 + ocr + embedGib + floor) / (1 - v.marginPct / 100);
     return { fits: gib >= need(ocrGib), needGib: need(ocrGib), ocrGib, fitsWithoutOcr: gib >= need(0) };
 }
 // The sentence for a GPU no model of the list fits, or null when one does (or its size is unknown).

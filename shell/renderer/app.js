@@ -1065,10 +1065,11 @@ els.autoScan.addEventListener('change', () => window.lol.setAutoScan(els.autoSca
 els.rescanBtn.addEventListener('click', () => { window.lol.rescan(); toast('Rescanning…'); });
 
 // ---- wire IPC ----
-let toldNotice = '';   // the sidecar's once-per-launch notice (an offline start): toasted once
+let toldNotice = '';   // the sidecar's once-per-launch notice (an offline start, document search): toasted once
 window.lol.onSidecarState((s) => {
   sidecarState = s; if (s.status !== 'ready') loadedWithoutFarm = false;
-  if (s.status === 'ready' && s.notice && s.notice !== toldNotice) { toldNotice = s.notice; toast(s.notice, 16000); }
+  // Long enough to read: ~70 ms a character, 16 to 45 s (the Reindex steps are ~330 characters).
+  if (s.status === 'ready' && s.notice && s.notice !== toldNotice) { toldNotice = s.notice; toast(s.notice, Math.min(45000, Math.max(16000, s.notice.length * 70))); }
   renderSidecar(); if (!els.popover.classList.contains('hidden')) renderPopover();
 });
 window.lol.onFarms((data) => { farmState = data; if (NO_OWUI) publishFarm(); renderPill(); setTimeout(reloadIfFarmBack, 500); if (!els.popover.classList.contains('hidden')) renderPopover(); });

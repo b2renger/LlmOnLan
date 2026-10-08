@@ -6,6 +6,116 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-10-08 (21:57) — Document search on the farm: EmbeddingGemma 2 turns the laptops' documents into vectors (branch `embed-farm`)
+
+**The owner's decision (2026-10-08):** documents are embedded on the farm with google/embeddinggemma-2 (768 numbers,
+Google's search prefixes); the vectors come back to the laptop and are kept there, as today; the farm keeps nothing.
+The privacy rule changes with it: a document's text may be sent to the farm to be turned into vectors (nothing kept,
+nothing logged). Open WebUI stays unmodified (env only). Not merged, not released.
+
+**The farm: a plugin, *Document search*** (`farm/src/embed.js`, `plugins/registry.js`):
+- **One model per LOL release, in the code:** ggml-org's BF16 conversion of google/embeddinggemma-2 (an official
+  conversion with llama.cpp's own `convert_hf_to_gguf.py`), pinned by revision (`bfcd2987…`) and sha256 (checked after
+  the download; a wrong file is deleted). Contract `embeddinggemma-2/768/v1`. No model choice in the panel.
+- **llama-server in embedding mode,** reusing the llama.cpp engine's download and pin (`llamacpp.js`, untouched here)
+  or `llamacpp.binDir`. EmbeddingGemma 2 needs b11454 or later: until the pin bump merges, the plugin says so and
+  stays off. 8 slots of 2048 tokens, `--no-webui`, `--no-slots`, `--cache-ram 0`, default log level. Bound to
+  `proxy.host` on port 8894; outside the seat gate, so no seat.
+- **Its key** is `pluginKey('embed', password)`, like the other plugins (on a farm with a password it leaves the
+  beacon and comes from `/lol/plugin-keys`). **Deviation from the design:** it goes in `LLAMA_API_KEY`, not
+  `--api-key`, so it is not in the process list. The box's own `LLAMA_*` variables are dropped, so nothing can turn on
+  `--log-prompts-dir`.
+- **Advertised** as `embed: {url, key|null, keyId?, model, dims, contract}` (snapshot + contract schema).
+- **On by default, the owner's rule:** `embed.enabled: 'auto'` = on when the box has an NVIDIA GPU and llama.cpp can run
+  there, else off. It costs 1.05 GB of GPU memory loaded and 1.16 GB at its peak (measured on the RTX PRO 6000, b11512).
+  The panel's Plugins card has its toggle and a plain sentence.
+- **GPU memory:**
+  - When its files are on disk, `lol up` starts it before llama.cpp measures the free memory and before Ollama's
+    context probe. Ollama's cached context verdict is keyed on it, so a farm that gains it measures again.
+  - A first download (llama.cpp + 0.6 GB) waits until the farm is public instead; `lol install` downloads it ahead.
+  - vLLM's Automatic memory keeps 1.5 GB for it only while it is on but not running yet. Once it runs, its memory is
+    no longer free; reserving it again would count it twice. On the PRO 6000 that is 52 → 50 GB while it is not running.
+  - vLLM's "too small" check counts it.
+- **Logs:** llama-server writes three lines per text (a slot taking it, a token count, releasing it), about 600 for a
+  50-page document. **Deviation:** the farm's log drops those three (`logSkip`) and keeps every other line.
+- **The rest:** `lol down`, the stale-run reap and the Farm app's reap stop it (`embedPid`). A boot that gives up
+  stops the plugins it started early.
+
+**The client** (`configBridge.ts`, `sidecar.ts`, `farmSelect.ts`, `index.ts`):
+- **When the farm advertises a contract this client knows** (`EMBEDDING_CONTRACTS`), Open WebUI gets:
+  - `RAG_EMBEDDING_ENGINE=openai` and `RAG_EMBEDDING_MODEL=embeddinggemma-2`;
+  - `RAG_OPENAI_API_BASE_URL=<url>/v1`, never unset (Open WebUI would fall back to the chat address);
+  - `RAG_OPENAI_API_KEY`, the plugin's key;
+  - the two prefixes;
+  - batches of 32, 2 at a time, 300 s per file.
+- **The data folder adopts the farm's model for good** the first time it meets it: `DATA_DIR/lol-embedding.json`. It
+  moves with the folder.
+- **Never MiniLM again for that folder.** Read in Open WebUI 0.11.4's source:
+  - With the embedding service unreachable, an upload's indexing fails and the file is marked failed.
+  - `BYPASS_EMBEDDING_AND_RETRIEVAL` would keep uploads working, read whole, but they get no vectors. Later, on a farm
+    with document search, a chat that still carries such a file reads its missing vectors and silently gets nothing.
+  - So the honest choice is the failure. On a farm without the folder's contract, the engine points at
+    `http://127.0.0.1:0/v1`: nothing can listen on port 0, so the upload fails at once and no text leaves.
+  - A toast says why: *This farm does not index documents the way your documents are indexed, so uploading a
+    document fails here…*
+- **The move from MiniLM:** a folder whose vector store already held collections is told once to press **Reindex**
+  (Admin Panel ▸ Settings ▸ Documents, next to *Reindex Knowledge and Memory Vectors*). The app never calls the admin
+  API. Notices now stay on screen 16–45 s, by length.
+- **A check before the switch (an addition):** before a folder adopts the model, one search of the word "ok" must
+  answer from this computer with the key and 768 numbers. Otherwise a firewall closing the farm's port would switch
+  the folder for good and fail every upload; that launch stays on MiniLM instead.
+- **MiniLM:** with the farm's engine, Open WebUI never loads MiniLM. The MiniLM repair, the huggingface.co probe and
+  the offline notice now apply only to folders still on MiniLM; `HF_HUB_OFFLINE` then needs Whisper alone.
+- **No needless restart:** the env changes only with the farm's service or the marker, and a keyed farm's pending key
+  fetch keeps the service Open WebUI already has (`keepPending`, generalised from `keepPendingExtract`).
+
+**Tests:**
+- Farm: `test/run.js` 215/0, 4 new: the argv, the key's place and the log filter; availability and `'auto'`; the key
+  tied to the password, the snapshot entry and the schema; the start order, the Ollama verdict key and vLLM's reserve.
+  With the reserve removed from `poolGib`, or the key left out of the env, they fail.
+- Farm app: `supervisor.test.js` 8/0 (the reap counts `embedPid`).
+- Shell: build; `chat-unit` 1844/0 (5 new: the env, the marker and never-MiniLM, Whisper-only offline, the farm
+  context and keys, the check before the switch); `test:unit` 29/0; `chat-lint` 0. With the folder's marker ignored,
+  2 of them fail. (`chat-scope` is LOL Vibe's phase gate and does not apply.)
+
+**End to end on this box** (scratch ports 18894 and 18181–18185, a scratch data folder and HF_HOME; the owner's farm
+on Ollama, 78 GB free):
+- **The plugin alone,** through the real registry with an official llama.cpp b11512 (`binDir`): it downloaded and
+  checked the model in 51 s, then started; its test search gave 768 numbers. A cached start took 1.6 s.
+- **The built Open WebUI 0.11.4,** launched with `buildSidecarEnv`'s env:
+  - healthy at 7–8 s, and nothing written to the scratch HF_HOME (no MiniLM);
+  - a French text upload: its collection is 768 numbers wide in `vector_db`, with `embedding_config` naming
+    `embeddinggemma-2`;
+  - a French search and an English one both found the cheese passage; a budget question found the budget passage;
+  - 200,000 characters (356 pieces) were indexed in 1.4 s.
+- **A farm without document search, same folder:** the upload is marked failed in 2 ms (`Cannot connect to host
+  127.0.0.1:0`). No request reached the farm, and nothing was downloaded.
+- **A MiniLM folder:** a knowledge base of 384 numbers. After the switch, a search found nothing (HTTP 200, empty: the
+  silent failure). After the three calls the Reindex button makes, every collection is 768 numbers wide and an English
+  question finds the French passage. The test pressed Reindex; the app never does.
+- **Privacy:** a made-up word in the document (*Quorvellisande*) was searched afterwards:
+  - in the worktree's `farm/` (with `.models`), the llama.cpp folder, the plugin's whole unfiltered log, its key file
+    and `%LOCALAPPDATA%\llama.cpp`: not found;
+  - no farm-side file was written during the uploads;
+  - the log holds token counts only;
+  - on the laptop side it is in `uploads/`, `webui.db` and `vector_db`, as expected.
+- **Cleaned up:** every process started here is stopped, and the GPU is back to 78.7 GB free.
+
+**Not done, the owner's:**
+- **The default:** `'auto'` (on with an NVIDIA GPU, ~1.2 GB). `false` in `EmbedSchema` makes it opt-in.
+- **The release, after the llama.cpp pin bump merges** (b11454 or later, from the `llamacpp-next` branch), then:
+  - the rig checks of TEST_SCENARIOS 7f;
+  - the DGX Spark (our arm64 build of the new pin);
+  - a 12 GB card, where Ollama's context gets measured again beside the plugin.
+- **Not covered:**
+  - macOS and Linux x64 farms have no ready-made llama.cpp, so they get no document search, unless a developer sets
+    `llamacpp.binDir`;
+  - a search longer than 2048 tokens (~8000 characters) is refused, so on a farm under 24k tokens per person it finds
+    nothing; 4096 would cost +0.5 GB;
+  - the first LAN start of llama-server may show a Windows Firewall prompt, as the other plugins do;
+  - the plugin and the llama.cpp engine could both download the same build at the same moment, which is not guarded
+    (a `ponytail:` note in `embed.js`).
+
 ## 2026-10-08 (21:40) — llama.cpp moves from b10670 to b11512: EmbeddingGemma 2 needs b11454 or later
 
 **Why.** The owner chose to embed documents on the farm with `google/embeddinggemma-2`. llama.cpp knows its
@@ -97,6 +207,7 @@ the ones the farm fetches. It fails with the pin, the CUDA tag or the workflow p
 
 **Not done:** the merge (it runs `build-llamacpp-arm64`), a farm release, the Spark tarball on a real Spark, and
 the farm's embeddings service itself (another branch).
+
 
 ## 2026-10-08 (14:05) — The clean-state run on the PRO 6000 begins; the vLLM card opened out of sight
 

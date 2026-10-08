@@ -464,6 +464,14 @@ const SttSchema = z.object({
     maxMb: z.number().int().min(1).max(100).default(25),   // the Sound box's own cap
 });
 
+// Document search (owner, 2026-10-08; src/embed.js): the laptops' Open WebUI sends document text here to be turned
+// into vectors (EmbeddingGemma 2 on llama-server) and keeps the vectors; the farm keeps nothing. 'auto' (the default)
+// = on when this computer has an NVIDIA GPU and can run it (it holds ~1.2 GB of the GPU), else off.
+const EmbedSchema = z.object({
+    enabled: z.union([z.literal('auto'), z.boolean()]).default('auto'),
+    port: z.number().int().positive().max(65535).default(8894),
+}).strict();
+
 // The message bus (docs/ECOSYSTEM_PLAN.md §8d, P3b; src/bus.js): an MQTT broker, a WebSocket hub and an
 // OSC relay on one topic space, so boards and Computers on the LAN meet at the farm. Node only, nothing to
 // install. OFF by default: it opens three more ports on the LAN (keyed by the farm password when one is set).
@@ -600,6 +608,7 @@ const ConfigSchema = z.object({
     stt: SttSchema.default({}),
     bus: BusSchema.default({}),
     ocr: OcrSchema.default({}),
+    embed: EmbedSchema.default({}),
     admin: AdminSchema.default({}),
     // Coordinator mode: aggregate LAN peer farms into one balanced endpoint that
     // clients prefer. Also settable per-run via `lol up --coordinator`.

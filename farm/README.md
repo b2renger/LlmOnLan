@@ -67,6 +67,7 @@ the desktop clients auto‑discover it. To change which models are served, open 
 | **Config** | Scaffolds `farm/lol.config.json` from the defaults (named after this host) if none exists. | A config is already there. |
 | **Models** | Pulls every model in `models` **and `preinstall`** on the local Ollama (over its HTTP API), derives `source` models with their `params`, and fetches any `draft` module. | Model already pulled. (`lol up` also pulls anything missing.) |
 | **Web search + OCR** | Builds the SearXNG and document-OCR venvs (both default-on) so the first `lol up` starts instantly. Non-fatal: `lol up` retries. | Already installed. |
+| **Document search** | When it is on (`embed.enabled`: `"auto"` = this computer has an NVIDIA GPU): the pinned llama.cpp build (the same one the llama.cpp engine uses, into `farm/.llamacpp/`) and EmbeddingGemma 2 (~0.6 GB, checked by its sha256) into `farm/.models/`, so the first `lol up` starts it before the engine sizes its memory. Non‑fatal: `lol up` retries. | Build marker matches **and** the model file is there. |
 | **llama.cpp backend** | Only when `llamacpp.enabled`: downloads the pinned `llama-server` build + CUDA runtime into `farm/.llamacpp/` and the `.gguf` weights + vision projector into `farm/.models/` (several GB). Non‑fatal: `lol up` retries. | Build marker matches **and** the weights are cached. |
 
 If an auto‑installer isn't available (no winget/brew/curl, or no Python), `lol install` prints the exact
@@ -222,8 +223,8 @@ this computer and says what is missing, in plain words:
   space back.
 - A card no model of the list fits is refused, with llama.cpp or Ollama named as its engine: the smallest model's
   weights, ~4 GB of vLLM's own, 8 % of the card, 1 GB for conversations, and the 9 GB kept for document reading
-  while that is on (`vllm.ocrReserveGib`) must fit an empty card: about 35 GB with document reading, 25 GB
-  without. So the studio's RTX 4070 (12 GB), 4080 (16 GB) and a 4090 (24 GB) never get an Install or a start;
+  while that is on (`vllm.ocrReserveGib`) and document search's 1.5 GB while it is on must fit an empty card:
+  about 35 GB with document reading, 25 GB without (about 1.6 GB more with document search). So the studio's RTX 4070 (12 GB), 4080 (16 GB) and a 4090 (24 GB) never get an Install or a start;
   a 32 GB card fits only with document reading off, and the panel says so. On Windows the size Windows itself
   sees comes first, before anything about WSL, and so does a PC with no NVIDIA GPU at all. A card older than
   compute capability 12.0 (Blackwell) gets a warning: the list's NVFP4 checkpoints were measured on Blackwell only.
@@ -278,7 +279,8 @@ when vLLM would restart):
 - **GPU memory for conversations** (`vllm.kvCacheGib`, `--kv-cache-memory-bytes`). Automatic, worked out at each
   start, once the free memory stops rising (a vLLM stopped a moment ago, by an Apply or a restart, gives its memory
   back over a few seconds): the GPU's free memory, less 8 % of the card, the model's weights, ~4 GB of vLLM's own and 9 GB kept for
-  document reading (`vllm.ocrReserveGib`, when OCR is on); on a DGX Spark, from what the system has available,
+  document reading (`vllm.ocrReserveGib`, when OCR is on), and 1.5 GB for document search while it is on but not
+  running yet (once it runs, its memory is no longer free); on a DGX Spark, from what the system has available,
   less the memory guard's 8 GB. Capped at what vLLM's request cap can use, so a small model does not take the
   card. On the PRO 6000 alone that is 52 GB; beside ComfyUI's ~45 GB, about 8 GB (then 10 people at 64k, which
   the Automatic people follow). Never `--gpu-memory-utilization`: a fraction of the card's total, and its start-up
@@ -1036,7 +1038,7 @@ says it for an external server.
 
 **What multi-user does *not* mean here.** There are no farm-side accounts and nothing to administer per
 person: each client is a single-user app whose chats, documents and RAG vectors live on that person's own
-machine (the farm stores nothing). "Multi-user" is purely a **capacity** question — plus, if you want the
+machine (the farm stores nothing — its document search computes the vectors and keeps none). "Multi-user" is purely a **capacity** question — plus, if you want the
 box reachable at all, `proxy.host` / `beacon.enabled` (the Farm app's *Share compute with the network*
 toggle). `proxy.masterKey` is the shared **farm password** — see the next section; the desktop client prompts
 for it once per farm and remembers it.
@@ -1053,8 +1055,8 @@ One shared password for everyone (the ComfyQ model — nothing fancy, no account
    "not accepted", never a broken chat.
 
 What it protects: **every `/v1` route** — chat, models, everything the proxy serves (it becomes
-LiteLLM's `master_key`) — and, since 2026-09-27, **the plugins**: the OCR, Classify and speech-to-text
-keys leave the beacon and `/lol/self` (their `key` is `null`), and a client holding the password fetches
+LiteLLM's `master_key`) — and, since 2026-09-27, **the plugins**: the OCR, document search, Classify and
+speech-to-text keys leave the beacon and `/lol/self` (their `key` is `null`), and a client holding the password fetches
 them from `GET /lol/plugin-keys` (`Authorization: Bearer <farm password>`; 401 otherwise, 404 on an open
 farm, where the keys stay in the snapshot as before). A new password takes effect there at once. The keys
 are the same on every run (derived from one secret in `farm/.lol-secret` and the farm password, so a farm
@@ -1207,6 +1209,8 @@ nothing. Shape:
   "ocr": { "enabled": true, "port": 8890, "preprocess": false,   // shared document OCR (ON by default) — omit `model` to
            "format": "markdown",                       // auto-use the served default vision model; markdown|text|…
            "pdfEngine": "auto", "docling": false },    // auto: text layer / vision / hybrid on mixed pages; docling adds office formats
+  "embed": { "enabled": "auto", "port": 8894 },  // document search: the laptops' document text → vectors, nothing kept;
+                                                 //   "auto" = on with an NVIDIA GPU (see Document search above)
   "vllm": { "enabled": false,                  // OPT-IN: vLLM run by the farm (set by the panel; see below)
             "root": null, "distro": null,      // its folder in Linux (null = ~/lol-vllm, or an install found);
                                                //   the WSL distribution (null = WSL's default)
@@ -1304,6 +1308,35 @@ build for Blackwell cards (16 GB+); replace it freely.
   Measured on the dev box's CPU: `small` writes down a 7.4 s clip in 2.1 s. Confucius4-R2T2 (streaming,
   GPU, Linux/vLLM) is not installed: read its weight licence first, then run it yourself. `rm -rf farm/.stt`
   uninstalls it.
+- **Document search (ON with an NVIDIA GPU, 2026-10-08):** turns the text of the laptops' documents into vectors,
+  so Open WebUI can search them in any language (a question in English finds the French document). The laptop's
+  Open WebUI sends the text of each piece of a document (about 1000 characters) and of each search; the vectors go
+  back and are kept on the laptop, in its data folder. **The farm keeps nothing:** no text, no vector, and its log
+  holds token counts only (llama-server's default log level; the farm's log also drops its three lines per text).
+  `"embed": { "enabled": "auto", "port": 8894 }` — `"auto"` = on when this computer has an NVIDIA GPU and llama.cpp
+  can run here, else off; `true`/`false` decide for good, and the panel's plugin toggle decides for this run.
+  - **One model per LOL release**, in the code (`src/embed.js`): **EmbeddingGemma 2**, ggml-org's BF16 conversion of
+    google/embeddinggemma-2 (Apache 2.0, no login), pinned by revision and sha256; 768 numbers per text; Google's
+    search prefixes (`task: search result | query: ` for a search, `title: none | text: ` for a document). The farm
+    advertises it as `embed: {url, key, model, dims, contract}` (contract `embeddinggemma-2/768/v1`); a laptop uses it
+    only when it knows the contract, and a laptop data folder keeps that one model for good (vectors of two models
+    cannot be searched together). There is no model choice in the panel.
+  - **llama-server in embedding mode**, the same pinned build as the llama.cpp engine (it needs b11454 or later; a
+    developer's `llamacpp.binDir` works too): 8 texts at a time, up to 2048 tokens each (a longer one is refused:
+    a search typed longer than ~8000 characters finds nothing on a farm under 24k tokens per person), about
+    **1.2 GB of GPU memory** (1.05 GB loaded, 1.16 GB at its peak on the RTX PRO 6000). Its key (an HMAC like the
+    other plugins', tied to the farm password, fetched from `/lol/plugin-keys` on a farm with one) goes in
+    `LLAMA_API_KEY`, never on the command line; `--no-slots` (nothing shows what a slot holds), `--cache-ram 0`, no
+    web page, no prompt log, and the box's own `LLAMA_*` variables never reach it.
+  - **Memory first:** when it is on disk, `lol up` starts it before llama.cpp measures the free memory and before
+    Ollama's context probe, so both size themselves around it (an Ollama context measured without it is measured
+    again with it). A first download (llama.cpp + 0.6 GB) waits until the farm is public instead. vLLM's Automatic
+    memory keeps 1.5 GB for it while it is on but not running yet; once it runs, its memory is simply not free.
+  - **Its own port, no seat:** the seat gate never sees it; a 50-page document takes about 1.4 s, ten at once
+    6.7 s (measured 2026-10-08).
+  - **Turned off** (or a farm without it): laptops whose data folder uses it cannot add documents there (the upload
+    fails, with a message), rather than index them with another model. `farm/.models/embeddinggemma-2-BF16.gguf` is
+    its only file.
 - **Message bus (OFF by default, 2026-09-27):** an MQTT broker, a WebSocket hub and an OSC relay on one
   topic space, so boards and Computers on the LAN meet at the farm.
   `"bus": { "enabled": true, "mqttPort": 1883, "wsPort": 8893, "oscPort": 9001 }`. Nothing to install. See
@@ -1480,6 +1513,8 @@ build for Blackwell cards (16 GB+); replace it freely.
 3. (Ollama engine) **Pick the model(s) to serve** — interactive from what's installed (Enter = default),
    or `--model` / `--no-pick` / non‑TTY = the config catalog.
 4. Pull any picked (and `preinstall`) model missing on a reachable host; derive `source` models.
+4b. (Document search, when on and already on disk) Start it now, before the engine sizes its memory (step 5's
+   free memory, step 6's probe). Not downloaded yet: it starts once the farm is public, after step 11.
 5. (llama.cpp, if enabled) Ensure the pinned `llama-server` build + CUDA runtime, ensure the `.gguf`
    weights + projector (**downloads several GB on a first run** — normally already done at
    `lol install`), spawn it, and health‑wait `/health`. A start failure here falls back to the Ollama

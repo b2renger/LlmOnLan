@@ -134,6 +134,11 @@ export default (test) => {
     const newer = ctxOf('a newer farm with fields this client does not know');
     const today = ctxOf('Ollama, open, GET /lol/self from the seat holder');
     assert.deepEqual({ ...newer, endpoint: null }, { ...today, endpoint: null }, 'unknown fields change nothing');
+    // Document search (farms after farm-v0.0.43): today's farm offers it with the contract this client knows; an older one does not.
+    // (Read from the source: requiring configBridge here would load it before shell-main stubs Electron.)
+    const bridgeSrc = fs.readFileSync(path.join(SHELL, 'src', 'main', 'configBridge.ts'), 'utf8');
+    assert.ok(today.embed && bridgeSrc.includes(`'${today.embed.contract}': {`), 'today\'s farm: a contract this client knows (EMBEDDING_CONTRACTS)');
+    assert.equal(old.embed, null, 'farm-v0.0.41: none, so a data folder stays on MiniLM');
   });
 
   test('contract: the renderer reads every farm — publishFarm, the capacity line and LOL Vibe\'s caps', () => {

@@ -45,7 +45,78 @@ export interface SidecarEnvInput {
     searxngUrl?: string | null;   // the farm's shared SearXNG → OWUI web search
     tts?: { url: string; voice: string; model: string } | null; // farm Kokoro → OWUI AUDIO_TTS_*
     extract?: { url: string; key: string } | null; // farm lol-extract → OWUI external document loader (OCR)
+    embed?: FarmEmbed | null;  // farm document search → OWUI's embedding engine, when this client knows its contract
     contextPerSlot?: number | null; // farm's per-slot context window (snapshot backend.contextPerSlot) → RAG mode
+}
+
+// ---- document search: which model turns a document's text into vectors (owner, 2026-10-08) ----------------------
+// The farm does it (farm/src/embed.js, EmbeddingGemma 2): Open WebUI sends it the text of each piece of a document,
+// and of a search, and keeps the vectors in DATA_DIR as before; the farm keeps nothing. Vectors of two models cannot
+// be searched together (other numbers, often another size), so a data folder keeps ONE contract for good: written to
+// DATA_DIR/lol-embedding.json the first time the folder meets a farm offering a contract this client knows. Until
+// then it stays on Open WebUI's MiniLM, on this computer; after it, never MiniLM again: on a farm without that
+// contract the engine points nowhere (NO_EMBEDDING_URL), so an upload fails instead of being indexed with another
+// model, and the person is told why (sidecar.ts).
+export interface EmbeddingContract { model: string; dims: number; queryPrefix: string; docPrefix: string }
+export const EMBEDDING_CONTRACTS: Record<string, EmbeddingContract> = {
+    // = farm/src/embed.js MODEL: the prefixes are Google's for search (a query; a text without a title).
+    'embeddinggemma-2/768/v1': { model: 'embeddinggemma-2', dims: 768, queryPrefix: 'task: search result | query: ', docPrefix: 'title: none | text: ' },
+};
+export interface FarmEmbed { url: string; key: string; contract: string }
+export const EMBEDDING_MARKER = 'lol-embedding.json';
+// Port 0: nothing can listen there, so the request fails at once on this computer and no text leaves it. Never left
+// unset: Open WebUI's RAG_OPENAI_API_BASE_URL falls back to the CHAT address, which would send the text to the farm.
+export const NO_EMBEDDING_URL = 'http://127.0.0.1:0/v1';
+
+/** The data folder's contract (its marker), or null while it is still on MiniLM. */
+export function folderContract(dataDir: string): string | null {
+    try {
+        const c = JSON.parse(fs.readFileSync(path.join(dataDir, EMBEDDING_MARKER), 'utf8')).contract;
+        return typeof c === 'string' && c ? c : null;
+    } catch { return null; }
+}
+const farmContract = (embed?: FarmEmbed | null): string | null =>
+    (embed && embed.url && embed.key && EMBEDDING_CONTRACTS[embed.contract] ? embed.contract : null);
+/** The contract this launch indexes with: the folder's, else the farm's when this client knows it (sidecar.ts writes
+ * it then), else null = MiniLM. */
+export function embeddingContract(dataDir: string, embed?: FarmEmbed | null): string | null {
+    return folderContract(dataDir) || farmContract(embed);
+}
+/** The folder indexes with a contract this farm does not offer: uploads fail here rather than mix two models. */
+export function embeddingBlocked(dataDir: string, embed?: FarmEmbed | null): boolean {
+    const c = folderContract(dataDir);
+    return !!c && farmContract(embed) !== c;
+}
+/** Before a folder adopts the farm's model for good: does the service answer from THIS computer, with the key, and
+ * the contract's size? A farm whose firewall blocks its port would otherwise switch the folder and fail every upload.
+ * Sends one search of the word "ok". */
+export async function embedAnswers(embed: FarmEmbed, timeoutMs = 4000,
+    doFetch: (u: string, init: RequestInit) => Promise<{ ok: boolean; json(): Promise<unknown> }> = fetch): Promise<boolean> {
+    const c = EMBEDDING_CONTRACTS[embed.contract];
+    if (!c) return false;
+    try {
+        const r = await doFetch(`${embed.url.replace(/\/+$/, '')}/v1/embeddings`, {
+            method: 'POST', signal: AbortSignal.timeout(timeoutMs),
+            headers: { 'content-type': 'application/json', authorization: `Bearer ${embed.key}` },
+            body: JSON.stringify({ model: c.model, input: [`${c.queryPrefix}ok`] }),
+        });
+        const j = r.ok ? await r.json() as { data?: { embedding?: unknown[] }[] } : null;
+        return !!(j && j.data && j.data[0] && Array.isArray(j.data[0].embedding) && j.data[0].embedding.length === c.dims);
+    } catch { return false; }
+}
+/** Run before each start: the first meeting with a farm offering a known contract writes the folder's marker.
+ * → 'reindex' when MiniLM had indexed documents here (Open WebUI's Chroma holds a collection: they need Reindex once),
+ * 'fresh' when it had none, null when nothing changed. */
+export function adoptEmbedding(dataDir: string, embed?: FarmEmbed | null): 'reindex' | 'fresh' | null {
+    const c = folderContract(dataDir) ? null : farmContract(embed);
+    if (!c) return null;
+    let had = false;
+    try { had = fs.readdirSync(path.join(dataDir, 'vector_db'), { withFileTypes: true }).some((e) => e.isDirectory()); }
+    catch { /* no vector store yet */ }
+    fs.mkdirSync(dataDir, { recursive: true });
+    const marker = { contract: c, since: new Date().toISOString(), before: 'sentence-transformers/all-MiniLM-L6-v2' };
+    fs.writeFileSync(path.join(dataDir, EMBEDDING_MARKER), JSON.stringify(marker, null, 2));
+    return had ? 'reindex' : 'fresh';
 }
 
 // Where Hugging Face keeps its hub cache for a process with this environment — the same order
@@ -111,9 +182,10 @@ const miniLmRoot = (env: NodeJS.ProcessEnv, home: string) => env.SENTENCE_TRANSF
 export function miniLmState(env: NodeJS.ProcessEnv = process.env, home: string = os.homedir()): HfState {
     return hfModelState(miniLmRoot(env, home), MINILM);
 }
-export function hfModelsCached(dataDir: string, env: NodeJS.ProcessEnv = process.env, home: string = os.homedir()): boolean {
+// `miniLm` false: a data folder that indexes on the farm never loads MiniLM, so only Whisper counts.
+export function hfModelsCached(dataDir: string, env: NodeJS.ProcessEnv = process.env, home: string = os.homedir(), miniLm = true): boolean {
     const whisper = env.WHISPER_MODEL_DIR || path.join(dataDir, 'cache', 'whisper', 'models');
-    return miniLmState(env, home) === 'cached' && hfModelState(whisper, WHISPER) === 'cached';
+    return (!miniLm || miniLmState(env, home) === 'cached') && hfModelState(whisper, WHISPER) === 'cached';
 }
 
 // Run before every Open WebUI start (sidecar.ts) on a 'partial' MiniLM, never touching the downloaded
@@ -211,9 +283,8 @@ export function buildSidecarEnv(input: SidecarEnvInput): Record<string, string> 
         // so a no-farm boot can't fall back to OWUI's default api.openai.com.
         ENABLE_OLLAMA_API: 'false',   // never hit Ollama directly; the farm fronts it
 
-        // --- privacy: documents embed LOCALLY (default MiniLM); never to the farm ---
-        // RAG_EMBEDDING_ENGINE is deliberately UNSET → in-process SentenceTransformers.
-        // (Setting it to "ollama"/"openai" would ship document text off-device.)
+        // --- documents: turned into vectors by the farm once this folder adopted its contract (below), else by
+        // Open WebUI's in-process MiniLM (RAG_EMBEDDING_ENGINE unset). Either way the vectors stay in DATA_DIR. ---
 
         // --- documents: answer from the WHOLE document, not top-k chunks ---
         // OWUI's default retrieval sends only the RAG_TOP_K (3!) best-matching
@@ -342,8 +413,26 @@ export function buildSidecarEnv(input: SidecarEnvInput): Record<string, string> 
     // While either is missing the flag stays off so the one-time download works —
     // the etag timeout below then keeps a dead internet from stalling those
     // metadata checks for more than a moment (downloads are unaffected).
-    if (hfModelsCached(input.dataDir)) env.HF_HUB_OFFLINE = '1';
+    const contract = embeddingContract(input.dataDir, input.embed);
+    if (hfModelsCached(input.dataDir, undefined, undefined, !contract)) env.HF_HUB_OFFLINE = '1';
     else env.HF_HUB_ETAG_TIMEOUT = '2';
+
+    // Document search on the farm (see EMBEDDING_CONTRACTS): Open WebUI's OpenAI-style embedding engine at the farm's
+    // service, with the contract's model and prefixes (OWUI 0.11.4 prepends them to the text: no field name is set).
+    // Batches of 32 pieces, two at a time per upload; one file's indexing gives up after 300 s. With the openai
+    // engine Open WebUI never loads MiniLM. The env changes only with the farm's service or the folder's marker.
+    if (contract) {
+        const c = EMBEDDING_CONTRACTS[contract];   // undefined: a contract a newer client wrote; still never MiniLM
+        const here = farmContract(input.embed) === contract;
+        env.RAG_EMBEDDING_ENGINE = 'openai';
+        env.RAG_EMBEDDING_MODEL = c ? c.model : contract;
+        env.RAG_OPENAI_API_BASE_URL = here ? `${input.embed!.url.replace(/\/+$/, '')}/v1` : NO_EMBEDDING_URL;
+        env.RAG_OPENAI_API_KEY = here ? input.embed!.key : 'sk-lol-none';
+        if (c) { env.RAG_EMBEDDING_QUERY_PREFIX = c.queryPrefix; env.RAG_EMBEDDING_CONTENT_PREFIX = c.docPrefix; }
+        env.RAG_EMBEDDING_BATCH_SIZE = '32';
+        env.RAG_EMBEDDING_CONCURRENT_REQUESTS = '2';
+        env.RAG_EMBEDDING_TIMEOUT = '300';
+    }
 
     // Point at the farm. Set ONLY the singular pair (the brief warns against also
     // setting the plural OPENAI_API_BASE_URLS — a config.py bug can reset the
@@ -418,8 +507,8 @@ export function buildSidecarEnv(input: SidecarEnvInput): Record<string, string> 
     // the RAG and vision-transcript goals funnel through this one engine. OWUI does
     // PUT <url>/process itself; the loader requires BOTH a url AND a non-empty key.
     // The raw file transits to the trusted-LAN farm for extraction (that's where the
-    // GPU/vision model is), same trust boundary as SearXNG receiving queries;
-    // embedding still happens locally (RAG_EMBEDDING_ENGINE stays unset). No farm OCR
+    // GPU/vision model is), same trust boundary as SearXNG receiving queries; the
+    // extracted text is then indexed as above (the farm's document search, or MiniLM). No farm OCR
     // → nothing set → OWUI's built-in default extractor, exactly as before.
     if (input.extract && input.extract.url) {
         env.CONTENT_EXTRACTION_ENGINE = 'external';

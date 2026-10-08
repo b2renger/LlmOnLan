@@ -166,12 +166,12 @@ test('reapStaleFarm kills what the runtime file records and never runs `lol down
         const me = process.pid;   // alive, and only recorded: the util stub kills nothing
         const rt = path.join(farmDir, '.lol-runtime.json');
         fs.writeFileSync(rt, JSON.stringify({
-            litellmPid: me, searxngPid: me, kokoroPid: null, extractPid: me, classifyPid: me, sttPid: me, busPid: me, llamacppPid: me, ollamaPids: [me],
+            litellmPid: me, searxngPid: me, kokoroPid: null, extractPid: me, classifyPid: me, sttPid: me, busPid: me, embedPid: me, llamacppPid: me, ollamaPids: [me],
             vllm: { platform: 'win32', distro: 'Ubuntu', root: '/home/me/lol-vllm', port: 8100 },
         }));
         calls.length = 0;
         await reapStaleFarm();
-        assert.equal(calls.filter((c) => c[0] === 'killTree').length, 8, 'LiteLLM, the plugins, llama-server, Ollama');
+        assert.equal(calls.filter((c) => c[0] === 'killTree').length, 9, 'LiteLLM, the plugins (document search\'s llama-server too), llama-server, Ollama');
         assert.ok(!calls.some((c) => c[0] === 'lolDown' || c[0] === 'spawn') && execs === 0, 'no `lol down`, nothing spawned');
         assert.ok(!fs.existsSync(rt), 'the stale record is dropped');
     } finally { childProcess.execFile = realExecFile; }

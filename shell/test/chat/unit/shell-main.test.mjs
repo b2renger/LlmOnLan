@@ -190,9 +190,9 @@ export default (test) => {
     const pending = FS.farmContext({ ...keyed, _host: 'h', proxyPort: 4000, models: [] }, 'pw');
     assert.equal(pending.extract, null);
     const known = { url: 'http://h:8888', key: 'ek' };
-    assert.deepEqual(FS.keepPendingExtract(pending, keyed, known).extract, known);
-    assert.equal(FS.keepPendingExtract(pending, keyed, { url: 'http://other:8888', key: 'x' }).extract, null, 'another address: not kept');
-    assert.equal(FS.keepPendingExtract(pending, { ...keyed, requiresKey: false }, known).extract, null, 'an open farm: nothing pending');
+    assert.deepEqual(FS.keepPending(pending, keyed, { extract: known, embed: null }).extract, known);
+    assert.equal(FS.keepPending(pending, keyed, { extract: { url: 'http://other:8888', key: 'x' }, embed: null }).extract, null, 'another address: not kept');
+    assert.equal(FS.keepPending(pending, { ...keyed, requiresKey: false }, { extract: known, embed: null }).extract, null, 'an open farm: nothing pending');
     // The farm context then carries the fetched OCR key to OWUI.
     const ctx = FS.farmContext({ ...done.farm, _host: 'h', proxyPort: 4000, models: [] }, 'pw');
     assert.deepEqual(ctx.extract, { url: 'http://h:8888', key: 'ek' });
@@ -237,7 +237,7 @@ export default (test) => {
     assert.deepEqual(withKey, {
       endpoint: 'http://10.0.0.5:4000/v1', key: 'pw-new', model: 'gemma4:12b', searxng: 'http://10.0.0.5:8081',
       tts: { url: 'http://10.0.0.5:8880/v1', voice: 'af_heart', model: 'kokoro' },
-      extract: { url: 'http://10.0.0.5:8890', key: 'ocr' }, ctxPerSlot: 16384,
+      extract: { url: 'http://10.0.0.5:8890', key: 'ocr' }, embed: null, ctxPerSlot: 16384,
     });
     assert.equal(FS.sameContext(withKey, FS.farmContext(keyed, 'pw-new')), true);
     assert.equal(FS.sameContext(withKey, FS.farmContext(keyed, 'pw-old')), false,
@@ -249,14 +249,14 @@ export default (test) => {
     const ctx = FS.farmContext(farm({ id: 'k', requiresKey: true, extra: { backend: { contextPerSlot: 32768 } } }), 'pw');
     const saved = FS.persistedContext(ctx);
     assert.deepEqual(Object.keys(saved).sort(), [
-      'lastEndpoint', 'lastFarmCtxPerSlot', 'lastFarmExtract', 'lastFarmKey', 'lastFarmModel', 'lastFarmSearxng', 'lastFarmTts',
+      'lastEndpoint', 'lastFarmCtxPerSlot', 'lastFarmEmbed', 'lastFarmExtract', 'lastFarmKey', 'lastFarmModel', 'lastFarmSearxng', 'lastFarmTts',
     ]);
     assert.equal(saved.lastFarmKey, 'pw');
     assert.equal(saved.lastFarmCtxPerSlot, 32768);
     // index.ts rebuilds "what OWUI runs with" from these on a cold boot; it must compare equal.
     const reboot = {
       endpoint: saved.lastEndpoint, key: saved.lastFarmKey, model: saved.lastFarmModel, searxng: saved.lastFarmSearxng,
-      tts: saved.lastFarmTts, extract: saved.lastFarmExtract, ctxPerSlot: saved.lastFarmCtxPerSlot,
+      tts: saved.lastFarmTts, extract: saved.lastFarmExtract, embed: saved.lastFarmEmbed, ctxPerSlot: saved.lastFarmCtxPerSlot,
     };
     assert.equal(FS.sameContext(JSON.parse(JSON.stringify(reboot)), ctx), true, 'the first beacon after a relaunch is a no-op');
   });
@@ -281,7 +281,7 @@ export default (test) => {
     // A cold boot runs the saved context; the farm's first beacon then changes nothing either.
     const booted = {
       endpoint: settings.lastEndpoint, key: settings.lastFarmKey, model: settings.lastFarmModel, searxng: settings.lastFarmSearxng,
-      tts: settings.lastFarmTts, extract: settings.lastFarmExtract, ctxPerSlot: settings.lastFarmCtxPerSlot,
+      tts: settings.lastFarmTts, extract: settings.lastFarmExtract, embed: settings.lastFarmEmbed, ctxPerSlot: settings.lastFarmCtxPerSlot,
     };
     assert.deepEqual(FS.connectPlan(ctx, booted, settings), { repoint: false, save: null });
     // The farm serves another model: OWUI restarts and the settings follow.
@@ -538,11 +538,127 @@ export default (test) => {
   });
 
   // ---------------------------------------------------------------- SA-1: a crash restart keeps every field
+  // ---------------------------------------------------------------- document search on the farm (owner, 2026-10-08)
+  const EG2 = 'embeddinggemma-2/768/v1';
+  const farmEmbed = { url: 'http://10.0.0.5:8894', key: 'ek', contract: EG2 };
+  const ragEnv = (/** @type {Record<string,string>} */ env) => Object.fromEntries(Object.entries(env).filter(([k]) => /^RAG_(EMBEDDING|OPENAI)_/.test(k) && k !== 'RAG_EMBEDDING_MODEL_AUTO_UPDATE'));
+
+  test('document search: a farm offering a contract this client knows → Open WebUI embeds there, with the model, prefixes and batches', () => {
+    const data = tempDir('emb-env');
+    const env = CB.buildSidecarEnv({ endpoint: 'http://10.0.0.5:4000/v1', dataDir: data, apiKey: 'farm-pw', embed: farmEmbed });
+    assert.deepEqual(ragEnv(env), {
+      RAG_EMBEDDING_ENGINE: 'openai',
+      RAG_EMBEDDING_MODEL: 'embeddinggemma-2',
+      RAG_OPENAI_API_BASE_URL: 'http://10.0.0.5:8894/v1',
+      RAG_OPENAI_API_KEY: 'ek',
+      RAG_EMBEDDING_QUERY_PREFIX: 'task: search result | query: ',
+      RAG_EMBEDDING_CONTENT_PREFIX: 'title: none | text: ',
+      RAG_EMBEDDING_BATCH_SIZE: '32',
+      RAG_EMBEDDING_CONCURRENT_REQUESTS: '2',
+      RAG_EMBEDDING_TIMEOUT: '300',
+    });
+    assert.notEqual(env.RAG_OPENAI_API_BASE_URL, env.OPENAI_API_BASE_URL, 'never the chat address (Open WebUI\'s fallback for an unset one)');
+    assert.notEqual(env.RAG_OPENAI_API_KEY, 'farm-pw', 'the plugin\'s key, never the farm password');
+    // The env changes only with the farm's service: the same farm gives the same env (repoint keeps OWUI running).
+    assert.deepEqual(CB.buildSidecarEnv({ endpoint: 'http://10.0.0.5:4000/v1', dataDir: data, apiKey: 'farm-pw', embed: { ...farmEmbed } }), env);
+    // A farm without it, a contract this client does not know, or no key yet: MiniLM as before (nothing set).
+    for (const embed of [null, { ...farmEmbed, contract: 'other-model/1024/v1' }, { ...farmEmbed, key: '' }]) {
+      assert.deepEqual(ragEnv(CB.buildSidecarEnv({ endpoint: 'http://10.0.0.5:4000/v1', dataDir: tempDir('emb-mini'), embed })), {}, JSON.stringify(embed));
+    }
+  });
+
+  test('document search: a data folder adopts its contract once, and never goes back to MiniLM', () => {
+    const data = tempDir('emb-marker');
+    assert.equal(CB.folderContract(data), null, 'a new folder is on MiniLM');
+    assert.equal(CB.adoptEmbedding(data, null), null, 'a farm without document search changes nothing');
+    assert.equal(CB.folderContract(data), null);
+    assert.equal(CB.adoptEmbedding(data, { ...farmEmbed, contract: 'unknown/1/v1' }), null, 'nor one this client does not know');
+    assert.equal(CB.adoptEmbedding(data, farmEmbed), 'fresh', 'no vectors yet: nothing to reindex');
+    assert.equal(CB.folderContract(data), EG2);
+    assert.equal(JSON.parse(fs.readFileSync(path.join(data, CB.EMBEDDING_MARKER), 'utf8')).contract, EG2, 'kept in DATA_DIR, which moves with the folder');
+    assert.equal(CB.adoptEmbedding(data, farmEmbed), null, 'once');
+    // Back on a farm without it: the engine stays the farm's model, pointed where nothing listens.
+    const env = CB.buildSidecarEnv({ endpoint: 'http://10.0.0.6:4000/v1', dataDir: data, apiKey: 'pw', embed: null });
+    assert.equal(env.RAG_EMBEDDING_ENGINE, 'openai', 'never MiniLM again: mixed vectors would make old documents unsearchable');
+    assert.equal(env.RAG_EMBEDDING_MODEL, 'embeddinggemma-2');
+    assert.equal(env.RAG_OPENAI_API_BASE_URL, CB.NO_EMBEDDING_URL);
+    assert.equal(CB.NO_EMBEDDING_URL, 'http://127.0.0.1:0/v1', 'port 0: no program can listen there, nothing leaves this computer');
+    assert.notEqual(env.RAG_OPENAI_API_KEY, 'pw');
+    assert.equal(CB.embeddingBlocked(data, null), true);
+    assert.equal(CB.embeddingBlocked(data, farmEmbed), false);
+    assert.equal(CB.embeddingBlocked(tempDir('emb-free'), null), false, 'a folder on MiniLM is never blocked');
+    // A contract written by a newer client: still never MiniLM.
+    const newer = tempDir('emb-newer');
+    fs.writeFileSync(path.join(newer, CB.EMBEDDING_MARKER), JSON.stringify({ contract: 'embeddinggemma-3/1024/v1' }));
+    const envNewer = CB.buildSidecarEnv({ endpoint: null, dataDir: newer, embed: farmEmbed });
+    assert.deepEqual([envNewer.RAG_EMBEDDING_ENGINE, envNewer.RAG_EMBEDDING_MODEL, envNewer.RAG_OPENAI_API_BASE_URL], ['openai', 'embeddinggemma-3/1024/v1', CB.NO_EMBEDDING_URL]);
+    // A folder MiniLM had indexed (Chroma keeps a folder per collection) is told to Reindex.
+    const old = tempDir('emb-old');
+    fs.mkdirSync(path.join(old, 'vector_db', '3c9a0f1e-collection'), { recursive: true });
+    fs.writeFileSync(path.join(old, 'vector_db', 'chroma.sqlite3'), '');
+    assert.equal(CB.adoptEmbedding(old, farmEmbed), 'reindex');
+    const empty = tempDir('emb-empty');
+    fs.mkdirSync(path.join(empty, 'vector_db'), { recursive: true });
+    fs.writeFileSync(path.join(empty, 'vector_db', 'chroma.sqlite3'), '');
+    assert.equal(CB.adoptEmbedding(empty, farmEmbed), 'fresh', 'a store with no collection: nothing to reindex');
+  });
+
+  test('document search: a folder on the farm\'s model goes hub-offline on Whisper alone, and skips the MiniLM repair and probe', async () => {
+    const hf = tempDir('emb-hf');
+    const data = tempDir('emb-hfdata');
+    seedHf(path.join(data, 'cache', 'whisper', 'models'), WHISPER);
+    await withEnv({ HF_HOME: hf, HF_HUB_CACHE: undefined, SENTENCE_TRANSFORMERS_HOME: undefined, XDG_CACHE_HOME: undefined, WHISPER_MODEL_DIR: undefined }, () => {
+      assert.equal(CB.buildSidecarEnv({ endpoint: null, dataDir: data }).HF_HUB_OFFLINE, undefined, 'on MiniLM: MiniLM is missing, stay online');
+      CB.adoptEmbedding(data, farmEmbed);
+      assert.equal(CB.buildSidecarEnv({ endpoint: null, dataDir: data }).HF_HUB_OFFLINE, '1', 'on the farm\'s model: Whisper is all it needs');
+    });
+    const src = fs.readFileSync(path.join(SRC, 'sidecar.ts'), 'utf8');
+    assert.ok(/if \(onMiniLm\) \{\s*try \{ const did = repairMiniLm\(\)/.test(src), 'the MiniLM repair only for a folder still on it');
+    assert.ok(/const hubOffline = onMiniLm && miniLmState\(\)/.test(src), 'and the huggingface.co probe');
+    assert.ok(src.indexOf('adoptEmbedding(this.dataDir, embed)') > 0 && src.indexOf('adoptEmbedding(this.dataDir, embed)') < src.indexOf('buildSidecarEnv({ ...this.launchOpts(), embed })'), 'the marker is written before the env is built from it');
+  });
+
+  test('document search: a folder adopts the farm\'s model only once a search answered from this computer, at the right size', async () => {
+    /** @type {any[]} */
+    const seen = [];
+    const fake = (/** @type {number} */ status, /** @type {any} */ body) => async (/** @type {string} */ u, /** @type {any} */ init) => {
+      seen.push({ u, init });
+      return { ok: status === 200, json: async () => body };
+    };
+    const vec = (/** @type {number} */ n) => ({ data: [{ embedding: Array(n).fill(0.01) }] });
+    assert.equal(await CB.embedAnswers(farmEmbed, 1000, fake(200, vec(768))), true);
+    assert.equal(seen[0].u, 'http://10.0.0.5:8894/v1/embeddings');
+    assert.equal(seen[0].init.headers.authorization, 'Bearer ek');
+    assert.deepEqual(JSON.parse(seen[0].init.body), { model: 'embeddinggemma-2', input: ['task: search result | query: ok'] }, 'one search of the word "ok", nothing else');
+    assert.equal(await CB.embedAnswers(farmEmbed, 1000, fake(200, vec(384))), false, 'another size: another model');
+    assert.equal(await CB.embedAnswers(farmEmbed, 1000, fake(401, { error: 'Invalid API Key' })), false, 'a wrong key');
+    assert.equal(await CB.embedAnswers(farmEmbed, 1000, async () => { throw new Error('ECONNREFUSED'); }), false, 'a port a firewall closes');
+    assert.equal(await CB.embedAnswers({ ...farmEmbed, contract: 'unknown/1/v1' }, 1000, fake(200, vec(768))), false);
+    const src = fs.readFileSync(path.join(SRC, 'sidecar.ts'), 'utf8');
+    assert.ok(/if \(embed && !folderContract\(this\.dataDir\) && embeddingContract\(this\.dataDir, embed\) && !\(await embedAnswers\(embed\)\)\)/.test(src), 'asked before the first switch only');
+  });
+
+  test('document search: the farm context carries it, a keyed farm fetches its key, and a pending fetch keeps what OWUI runs', () => {
+    assert.ok(FS.PLUGIN_KEYS.includes('embed'), 'fetched from /lol/plugin-keys with the farm password');
+    const open = farm({ id: 'o', extra: { embed: { url: 'http://10.0.0.5:8894', key: 'ek', model: 'embeddinggemma-2', dims: 768, contract: EG2 } } });
+    assert.deepEqual(FS.farmContext(open, null).embed, farmEmbed);
+    assert.equal(FS.farmContext(farm({ id: 'old' }), null).embed, null, 'an older farm: none');
+    const keyed = farm({ id: 'k', requiresKey: true, extra: { embed: { url: 'http://10.0.0.5:8894', key: null, keyId: 'ab12cd34', contract: EG2 } } });
+    const pending = FS.farmContext(keyed, 'pw');
+    assert.equal(pending.embed, null, 'no key yet');
+    assert.deepEqual(FS.keepPending(pending, keyed, { extract: null, embed: farmEmbed }).embed, farmEmbed, 'the same address: what OWUI runs is kept');
+    assert.equal(FS.keepPending(pending, keyed, { extract: null, embed: { ...farmEmbed, url: 'http://other:8894' } }).embed, null);
+    const got = FS.applyPluginKeys(keyed, 'pw', { sig: FS.applyPluginKeys(keyed, 'pw', undefined, 0).fetchSig, keys: { embed: 'ek' }, retryAt: 0 }, 0);
+    assert.deepEqual(FS.farmContext(got.farm, 'pw').embed, farmEmbed, 'then the fetched key');
+    assert.deepEqual(FS.persistedContext(FS.farmContext(open, null)).lastFarmEmbed, farmEmbed, 'saved for the next cold launch');
+  });
+
   test('SA-1 SidecarSupervisor: a crash restart and a data-folder move relaunch with EVERY field', async () => {
     const opts = {
       endpoint: 'http://10.0.0.5:4000/v1', dataDir: tempDir('sa1'), apiKey: 'pw', defaultModel: 'gemma4:12b',
       searxngUrl: 'http://10.0.0.5:8081', tts: { url: 'http://10.0.0.5:8880/v1', voice: 'af_heart', model: 'kokoro' },
-      extract: { url: 'http://10.0.0.5:8890', key: 'ocr' }, contextPerSlot: 16384,
+      extract: { url: 'http://10.0.0.5:8890', key: 'ocr' },
+      embed: { url: 'http://10.0.0.5:8894', key: 'ek', contract: 'embeddinggemma-2/768/v1' }, contextPerSlot: 16384,
     };
     const sup = new SidecarSupervisor();
     sup.on('state', () => {});
