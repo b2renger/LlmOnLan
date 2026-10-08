@@ -378,12 +378,11 @@ lines only check what happened.
   buttons read Ollama, llama.cpp and vLLM. The header's **Plan capacity ↗** opens the capacity page in the system
   browser, with this box marked. It works with no internet connection.
 - [ ] **7e.2 A card too small.** On a Windows PC with an RTX 4070 or 4080, the **vLLM** button says *Not for this GPU
-  (12 GB; vLLM's models need about 35 GB): llama.cpp or Ollama is the engine for it.* (16 GB on a 4080) before
+  (12 GB; vLLM's models need about 35 GB): llama.cpp or Ollama is the engine for it. Press to see why.* (16 GB on a 4080) before
   anything about WSL.
   Press it: no Install, no Download, and the farm keeps serving. A PC with no NVIDIA GPU is told so, not to install
   WSL.
-- [ ] **7e.3 vLLM from nothing, on Windows.** A Windows PC with a Blackwell RTX card and no WSL (an RTX 5090 fits
-  only with document reading off, and the panel says so; an older card gets a warning: write down whether it
+- [ ] **7e.3 vLLM from nothing, on Windows.** A Windows PC with a Blackwell RTX card and no WSL (an RTX 5090 fits only with document reading off, and the panel says so: turn Document OCR off in the Plugins card, and after a farm restart write down whether vLLM fell back to Ollama, because that switch is not kept;  an older card gets a warning: write down whether it
   starts). Press **vLLM**: the checklist says how to install WSL (an administrator PowerShell, a restart, Ubuntu
   opened once). Do it, then **Check again**: it asks for a C compiler, with the line to run. Do it, **Check again**:
   nothing marked ✗. **Install vLLM** (about 45 minutes): a client chats normally meanwhile. **Download** the model,

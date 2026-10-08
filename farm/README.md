@@ -121,7 +121,7 @@ Knowing which one is serving is the thing to understand before changing models o
 
 | Computer | Ollama | llama.cpp | vLLM |
 |---|---|---|---|
-| Windows x64 + NVIDIA (Farm app) | yes | yes, downloaded by the farm | inside WSL2, on a card of about 35 GB or more (25 GB with document reading off): an RTX PRO 6000 or PRO 5000, not an RTX 4070, 4080 or 4090 |
+| Windows x64 + NVIDIA (Farm app) | yes | yes, downloaded by the farm | inside WSL2, on a card of about 35 GB or more (25 GB with document reading off, but the panel's Plugins switch lasts only until the farm restarts): an RTX PRO 6000 or PRO 5000, not an RTX 4070, 4080 or 4090 |
 | DGX Spark, Linux arm64 (Farm app) | yes | yes, this repository's build | yes: 8 people at 64k on Qwen3.6 |
 | Linux x64 + NVIDIA (this CLI only, no Farm app) | yes | only with a llama-server you build (`llamacpp.binDir`) | yes, with the same size rule |
 | macOS, Apple Silicon (Farm app) | yes | no ready-made build (`llamacpp.binDir`) | no |
@@ -371,7 +371,7 @@ with a `vllm` block**: put the copy back before installing an older Farm app.
 then about 1.5 min). On Linux the app writes `~/.config/autostart/llmonlan-farm.desktop` for its AppImage, which runs only when
 someone logs in to the desktop. A box nobody logs in to (a headless DGX Spark) gets no farm at boot this way,
 and nothing shipped starts one there yet. Start the farm from a terminal (`node bin/lol.js up --no-pick` in a
-checkout's `farm/`, after `./install.sh`) or from a systemd unit of your own; the farm then starts vLLM as usual
+checkout's `farm/`, after `./install.sh`) or from a systemd unit of your own; or keep the operator-run recipe there ([On Linux (DGX Spark)](#on-linux-dgx-spark), `lol-vllm.service`): do not press Let the farm run vLLM, or press Undo; the farm then starts vLLM as usual
 ([VLLM_MANAGED_PLAN.md](../docs/VLLM_MANAGED_PLAN.md) R4; whether a Spark logs in by itself is its §11.6, step 9).
 
 ### Why there is a relay

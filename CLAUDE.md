@@ -234,7 +234,7 @@ docs) is `docs/reviews/DOCS_REVIEW_2026-09-27_{FARM,SHELL,COMPUTER}.md`. Snapsho
   the seconds since launch, goes to `<userData>/logs/boot.log` (1 MB, then `.1`): the timeline a slow-load
   report needs. It holds the states only (`starting`, `ready`, `restarting`, `stopped`, an error, with the farm in
   use). The search-model repair and an offline start are printed to the console, which a packaged client does not
-  keep: the offline start's toast is their only trace.
+  keep: a repair leaves no trace there, and an offline start only its toast.
   **Close means close** (owner decisions 2026-09-04 + 2026-09-10, replacing the keep-warm/tray behavior of
   v0.1.x–v0.1.43): the window's X asks "Quit LlmOnLan?" (Quit/Cancel), then quits EVERYTHING on all
   platforms (mac included — deliberate convention break); cleanup gets 4 s, then the app exits regardless.

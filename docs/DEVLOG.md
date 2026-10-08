@@ -67,6 +67,16 @@ finding was checked against the code first.
   read with gemma4:12b only when it is installed. The review's 7e text stopped half-way through 7e.6: the rest was
   written from its list. The three findings on CLAUDE.md's first line were one change.
 - **Tests:** farm 209/209 (it checks the docs for control characters, and reads the plan); Farm app 8/8.
+- **The verifier's follow-ups (8, text only):**
+  - The Plugins switch lasts only until the farm restarts (`setPlugin` keeps it in memory, as before). So "an RTX 5090
+    fits with document reading off" now says so, in farm/README and TEST_SCENARIOS 7e.3. Making that switch last is a
+    code change for the owner to decide.
+  - The headless Spark can keep the operator-run recipe (README, as in the plan's R4).
+  - The search-model repair leaves no trace in a packaged client (CLAUDE.md).
+  - The panel's people-at-once list stops at 128, and the plan says so.
+  - The plan no longer says the PRO 6000 serves today: its Farm app has been stopped since 2026-10-07 20:46.
+  - The 7e.2 button text is quoted whole, and shell/README says LOL Vibe throughout.
+  - Farm tests 209/209.
 
 ## 2026-10-08 (05:25) — vLLM run by the farm: French Windows without WSL gets the right sentence
 

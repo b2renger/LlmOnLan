@@ -817,7 +817,7 @@ since the Farm app's operators are not technical. Two shapes:
 (a) is a subset of (b), so build (a) first either way.
 
 If managed vLLM is approved (it was, 2026-10-07; this list is the 2026-10-04 proposal, and VLLM_MANAGED_PLAN is what
-was built: the panel installs vLLM, never `lol install`; people at once are Automatic or 1–512):
+was built: the panel installs vLLM, never `lol install`; people at once are Automatic or 1–128 in the panel (up to 512 accepted)):
 
 - **Windows.** Add `vllm` as a fourth engine the farm installs, launches, sizes and supervises, reusing
   the `external` routing path (`litellm.js:195-212`). **The studio's PRO 6000 runs Windows**, so either
@@ -1386,7 +1386,7 @@ The surfaces load a farm differently (from the code, audit §5):
 | RTX A6000 (48 GB) | Computer | Nemotron 3.5 Lightning 4-bit | vLLM | 20–30 | 32k |
 | ~~RTX 4080 / 4070 (16 / 12 GB)~~ | — | — | — | **Not farm capacity** (owner 2026-10-04: booked for 3D/VR/workshops) | — |
 
-User counts are planning estimates assuming ~40 % of connected users generate at once; confirm with `lol bench` once it simulates people (Phase 0.5). The vLLM rows assume a `vllm` engine. The one built (Phase 2, 2026-10-07) is set from the panel's vLLM card, with the three measured models and their flags. The measured counts are in §8. Placeholders in `<angle brackets>` must be filled from the model card / vLLM recipe. Every vLLM row is replaced by the Phase 0.6 measurements once they exist.
+User counts are planning estimates assuming ~40 % of connected users generate at once; confirm with `lol bench` once it simulates people (Phase 0.5). The vLLM rows assume a `vllm` engine. The one built (Phase 2, 2026-10-07) is set from the panel's vLLM card, with the three measured models and their flags. The measured counts are in §8. Placeholders in `<angle brackets>` must be filled from the model card / vLLM recipe. The Phase 0.6 measurements in §8 supersede every vLLM row.
 
 ### 11.2 DGX Spark
 
@@ -1494,7 +1494,8 @@ vllm serve nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4 \
 **The studio's RTX PRO 6000 (`AN-A6000PRO`) runs Windows and is also the dev box.**
 
 - vLLM runs there **inside WSL2**. The spike settled the engine (§4a, §8): vLLM beats llama.cpp 24–40× on this
-  box. It has served vLLM + Qwen3.6 (48 people at 64k) since 2026-10-07: operator-run behind `external` until
+  box. It served vLLM + Qwen3.6 (48 people at 64k) from 2026-10-07 17:48,
+  operator-run behind `external`; its Farm app has been stopped since 20:46 that day (vLLM still runs) until
   farm-v0.0.43's take-over hands it to the farm (docs/PRO6000_VLLM_SWITCH.md Part 2).
 - The templates below are the 2026-10-04 proposal (§11's note): the built engine is set from the panel.
 
@@ -1869,7 +1870,7 @@ These are recommendations, not decisions.
     copy. Before, an existing install kept its first copy forever.
   - **Note for the 3.3 counts:** an agent page's re-checks count as refusals too.
 - **The workshop operator's flow.** `seatIdleSec` now has a panel control, applied live (2026-10-04). Still
-  open: the slots are panel-capped at 16 on Ollama and llama.cpp (vLLM: Automatic, or 1–512), Ollama slots apply
+  open: the slots are panel-capped at 16 on Ollama and llama.cpp (vLLM: Automatic, or 1–128 in the panel; the farm accepts up to 512), Ollama slots apply
   after a restart, and who flips the setting
   before a class, and when.
 - **Slots vs context. BUILT 2026-10-05.** The Backend card's line under the slots and context controls

@@ -29,7 +29,7 @@ src/main/                       (TypeScript → build/ via tsc; Electron main pr
   updater.ts      app self-update (electron-updater, GitHub releases)
   mcpoSupervisor.ts opt-in local Blender assistant-tools server (mcpo)
   dataMigration.ts move the OWUI data folder between locations (lol-client excluded: it moves at the next boot)
-  clientData.ts   the main window's session in DATA_DIR/lol-client (LOL Chat + the Computer): the boot-time
+  clientData.ts   the main window's session in DATA_DIR/lol-client (LOL Vibe + the Computer): the boot-time
                   pending move, the writability fallback, the one-time v0.1.x import (pure fs; unit-tested)
   clientMode.ts   which surface this build ships (OWUI_ENABLED) — gates the whole sidecar lifecycle
   store.ts        shell settings (a hand-rolled userData/shell-settings.json) — incl. the last farm
@@ -45,7 +45,7 @@ src/main/                       (TypeScript → build/ via tsc; Electron main pr
   studio.ts / projectGit.ts  LOL Vibe's IDE: the coding agent (DeepSeek Harness on its own Node) and git per project
 src/preload/index.ts            contextBridge `window.lol` API (no Node in the renderer)
 renderer/                       index.html + app.js (topbar, webview host, prefs); tokens.css (ComfyQ palette)
-  chat/                         LOL Chat: main.mjs + app/ core/ ctx/ net/ render/ state/ ui/ strings/ css/
+  chat/                         LOL Vibe: main.mjs + app/ core/ ctx/ net/ render/ state/ ui/ strings/ css/
                                 (chat/computer, graph, sandbox = the Computer)
 test/                           unit.js, chat-unit.js (+chat/unit), chat-lint.js, chat-scope.js, asar-probe.js,
                                 chat-harness/ (chat-only Electron over CDP), mock-farm.js (+mock/), e2e.js (legacy)
@@ -54,7 +54,7 @@ assets/                         icon.svg / icon.png
 
 The shell's own renderer (`app.js`) is intentionally thin: chrome + the `<webview>` of
 `http://127.0.0.1:<port>` (the local OWUI) + the settings UI; the shell's settings, discovery and the
-sidecar live in the main process. LOL Chat and the Computer (`renderer/chat/`) are the exception: they
+sidecar live in the main process. LOL Vibe and the Computer (`renderer/chat/`) are the exception: they
 keep their state in the renderer's IndexedDB — and the main window runs on
 `session.fromPath(<DATA_DIR>/lol-client)`, so that state lives in the user's data folder with OWUI's
 (owner rule 2026-09-27: all data in DATA_DIR). The OWUI `<webview>` keeps its `persist:owui` partition
@@ -236,10 +236,10 @@ Everyday gates, all dependency-free (Node ≥ 22), none of which starts the app 
 
 ```bash
 npm run test:unit                        # app.js capacity helpers (test/unit.js)
-node test/chat-unit.js                   # LOL Chat + Computer suites, and the compiled main process
+node test/chat-unit.js                   # LOL Vibe + Computer suites, and the compiled main process
                                          #   (chat/unit/shell-main.test.mjs — run `npm run build` first)
 node test/chat-lint.js                   # static rules for renderer/chat/** (every string via t(), tokens only, …)
-node test/chat-scope.js                  # the LOL Chat branch's change set stays in its allowlist
+node test/chat-scope.js                  # the LOL Vibe branch's change set stays in its allowlist
 node test/asar-probe.js                  # ES modules still load from a packed app.asar under the CSP
 node test/chat-harness/run.js --slot N   # chat-only Electron over CDP against a NON-beaconing mock-farm.js
 ```
@@ -262,7 +262,7 @@ retries for ~45 s, then fails with
 `E2E FAIL: no CDP page target after 45s — is electron running with --remote-debugging-port=9222?`
 
 It asserts the chain a user hits: farm discovered → `/v1/models` fetched (the renderer CSP must allow
-the LAN call) → the farm's advertised default preselected → the LOL Chat toggle opens the surface → a
+the LAN call) → the farm's advertised default preselected → the LOL Vibe toggle opens the surface → a
 reply streams to completion with its stats row, fast enough to prove the render path isn't throttling
 the stream. (A still-visible connection overlay only prints a warning — the sidecar isn't needed for
 these assertions.)
