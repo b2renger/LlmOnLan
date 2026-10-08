@@ -5,9 +5,9 @@ discovered LAN farm through OWUI's public config surface, keeps all data on the 
 it in ComfyQ‑styled chrome (topbar · connection screen · preferences).
 
 The main area has **three surfaces**, switched in the topbar: **Open WebUI** (RAG, documents, web
-search, voice), **LOL Chat** (`renderer/chat/`, entry `chat/main.mjs`) — straight to the farm's OpenAI
-endpoint, tok/s + TTFT per reply, a message tree, seat-aware sending, a context meter; no RAG, uploads
-or tools; history in IndexedDB `lol-chat`, in the data folder — and the **Computer** (`renderer/chat/computer/`). The app
+search, voice), **LOL Vibe** (named LOL Chat until 2026-09-27; the code keeps the old name: `renderer/chat/`,
+entry `chat/main.mjs`) — straight to the farm's OpenAI endpoint, tok/s + TTFT per reply, a message tree,
+seat-aware sending, a context meter; no RAG or uploads, and tools only in its IDE (the Project panel's coding agent); history in IndexedDB `lol-chat`, in the data folder — and the **Computer** (`renderer/chat/computer/`). The app
 remembers the last surface (`localStorage['lol:view']`). Which surfaces ship is one constant —
 `src/main/clientMode.ts` `OWUI_ENABLED` (with a matching `NO_OWUI` in `renderer/app.js`; flip both) —
 so an OWUI-free build is a boolean flip, not a fork.
@@ -38,6 +38,11 @@ src/main/                       (TypeScript → build/ via tsc; Electron main pr
   util.ts         free-port, tree-kill, http GET/health-poll
   types.ts        shared types + the renderer IPC contract
   projects.ts / projectsPath.ts / debugLog.ts   the Computer's projects API and debug log
+  mcp.ts          the Computer's MCP server on 127.0.0.1:41995 (also answers OWUI's web search and the home tools)
+  homeAssistant.ts the Home Assistant a person linked: reading, and commands only once a person allowed them
+  io.ts           the GETs main sends for the Computer (Fetch, Open data, an Agent's hosts) and web search's page reads
+  outputs.ts / serial.ts  the Send box's one choke point (armed outputs) and USB serial (+ mic/camera grants)
+  studio.ts / projectGit.ts  LOL Vibe's IDE: the coding agent (DeepSeek Harness on its own Node) and git per project
 src/preload/index.ts            contextBridge `window.lol` API (no Node in the renderer)
 renderer/                       index.html + app.js (topbar, webview host, prefs); tokens.css (ComfyQ palette)
   chat/                         LOL Chat: main.mjs + app/ core/ ctx/ net/ render/ state/ ui/ strings/ css/
@@ -85,9 +90,16 @@ user‑settings API writes (and the auth token/settings reads they need) listed 
 - **Adaptive document answers** — `RAG_FULL_CONTEXT=true` when the farm's per-slot context ≥ 24576 (or
   unknown), else top-k retrieval with `RAG_TOP_K=8`; plus `ENABLE_LOCAL_WEB_FETCH=true` and
   `ENABLE_RETRIEVAL_QUERY_GENERATION=false`.
-- **Boot + closed LAN** — `HF_HUB_OFFLINE=1` once MiniLM (in the HF hub cache) and faster-whisper base
-  (under `DATA_DIR/cache/whisper/models`, where the pinned OWUI puts it) are both on disk; until then
-  `HF_HUB_ETAG_TIMEOUT=2`, so a dead internet cannot stall the boot.
+- **Boot + closed LAN** — `RAG_EMBEDDING_MODEL_AUTO_UPDATE=false`: OWUI no longer asks huggingface.co for MiniLM's
+  latest revision at every boot, a request with no timeout that cost 21 s a boot where the site is silently blocked.
+  `HF_HUB_OFFLINE=1` once MiniLM (in the HF hub cache) and faster-whisper base (under
+  `DATA_DIR/cache/whisper/models`, where the pinned OWUI puts it) are both whole on disk (`hfModelState`: the snapshot
+  `refs/main` names, every file the loader reads, no dangling link); until then `HF_HUB_ETAG_TIMEOUT=2`. Before each
+  start `sidecar.ts` repairs a half or damaged MiniLM (`repairMiniLm`: the hub's file list and dangling links, then
+  the snapshots only if it is still half; never the blobs). While MiniLM is not on disk it asks huggingface.co once
+  (a 3 s HEAD through Electron's `net.fetch`, so the system proxy applies; no probe behind an env proxy). No answer
+  → that launch alone gets `HF_HUB_OFFLINE=1`: the chat opens in ~12 s, and a toast says document uploads need one
+  start online.
 - **Model preselection + capabilities** — `DEFAULT_MODELS` (the farm's advertised default) and
   `DEFAULT_MODEL_METADATA` (vision on; `web_search` when the farm hosts SearXNG).
 - **Farm plugins ride the beacon** — when the farm advertises them: web search (`ENABLE_WEB_SEARCH`, 5
@@ -104,6 +116,12 @@ user‑settings API writes (and the auth token/settings reads they need) listed 
   default-ON upstream and fired after *every* response — exactly while the user types the next one),
   and pin `ENABLE_AUTOCOMPLETE_GENERATION=false` so a pin bump can't silently enable per-keystroke
   completions. Title generation stays ON: once per chat, and it's what names chats in the sidebar.
+- **Task calls without thinking** — `TASK_MODEL_PARAMS={"chat_template_kwargs":{"enable_thinking":false},"think":false,"max_tokens":1000}`:
+  title and web-search-query generation answer without thinking (OWUI 0.11 copies it onto those requests; 0.10.x
+  ignores it). Chats are untouched.
+- **The Computer as a tool server** — `TOOL_SERVER_CONNECTIONS` (type `mcp`, `http://127.0.0.1:41995/mcp`, the
+  per-install bearer) while the Computer's MCP listener holds its port. It is set once at boot, before the first
+  spawn, so it never makes a repoint restart OWUI.
 - **Branding kept** — we never set `WEBUI_NAME`, so OWUI keeps its own name/branding (invariant #2).
 - **Three non‑env exceptions**, all written from the authed webview through OWUI's own supported
   **user‑settings API** (`POST /api/v1/users/user/settings/update`) because none has a working env:
@@ -117,7 +135,8 @@ user‑settings API writes (and the auth token/settings reads they need) listed 
      as off (2.33 vs 2.4 generations per message) and got 17/18 fresh facts; it stays off until a
      check with a whole class searching from one school network.
   2. **The opt‑in Blender tool server** — appended to `ui.toolServers` and selected via a
-     `direct_server:<idx>` entry in `ui.tools` (`TOOL_SERVER_CONNECTIONS` is unsupported upstream).
+     `direct_server:<idx>` entry in `ui.tools` (an env-configured tool server was unreliable upstream for this local
+     helper, issue #18140; the Computer's MCP server, by contrast, is set through `TOOL_SERVER_CONNECTIONS`, above).
      Disabling it also renumbers the other `direct_server:<n>` selections, so a user's own OWUI tool
      servers keep pointing at the right entries.
   3. **The date line** — without it the model believes it is 2025 (it searches for "2025" and calls a
@@ -132,19 +151,27 @@ user‑settings API writes (and the auth token/settings reads they need) listed 
 
 Until v0.1.31 a cold launch booted OWUI **twice**: the boot started the sidecar before the first
 beacon arrived (so model / SearXNG / TTS / OCR were all `null`), then the first beacon differed from
-what we booted with and forced a repoint — which is a full sidecar restart. Two things fixed it:
+what we booted with and forced a repoint — which is a full sidecar restart. What fixed it:
 
 - the **farm context is persisted** alongside `lastEndpoint` (`lastFarmModel` / `lastFarmSearxng` /
   `lastFarmTts` / `lastFarmExtract` / `lastFarmCtxPerSlot` / `lastFarmKey`) and seeds the boot, so an
   unchanged farm *confirms* what we started with instead of contradicting it. The auto-connect and a
-  pinned card go through the same `connectTo()`, which compares and persists the whole context,
-  password included;
+  pinned card go through the same `connectTo()`. There `farmSelect.ts` `connectPlan` decides two things
+  apart: restart OWUI (the context differs from the one it runs) and save (the settings lack this context, password
+  included). A boot that found its farm before OWUI started therefore saves it too; until 2026-10-07 it did not, and
+  every later launch waited up to 4.5 s for discovery or booted OWUI twice;
+- a page OWUI loaded while the farm was not answering lists no model until it is reloaded: `app.js`
+  `reloadIfFarmBack` reloads it once when that farm answers (500 ms after the farm list, so a restart about to
+  happen goes first);
 - `chooseActive()` **stays with last session's farm** at cold boot while it's healthy — the
   load-scatter re-roll used to pick a different box on a multi-farm LAN, guaranteeing a repoint.
   Load-aware spreading still applies to first-ever connects and to failover.
 
 Verifying a change here: watch for `[sidecar] spawning` in the console — a healthy cold launch prints
-it **once**, with no `[sidecar] repoint` before it.
+it **once**, with no `[sidecar] repoint` before it. A packaged client has no console: read
+`<userData>/logs/boot.log` (each OWUI state with the seconds since launch — `starting`, `ready`, `restarting` with the
+farm, `stopped` or an error; 1 MB, then `.1`). A healthy cold launch shows one `starting` and one `ready`. The
+search-model repair and an offline start are not in it (console only).
 
 ## Choosing a farm
 

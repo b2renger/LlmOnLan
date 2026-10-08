@@ -34,6 +34,12 @@ Items that need an owner decision are marked **DECISION**.
 - **The laptop study (4.3)** stays open but is low priority.
 - **The llama.cpp Stop bug** (0.0) goes upstream as an issue (approved).
 
+**Revision 5 (2026-10-07/08, owner request).** Phase 2 is built as an engine the farm runs ("I want the farm
+operator to be able to do everything from the app. No config file etc."). The farm installs, starts, sizes, watches
+and stops vLLM from the panel, on Windows (inside WSL2) and on Linux, the DGX Spark included. This replaces the
+2026-09-07 rule and the Spark's recipe with autostart (decision 10). Design and status:
+[docs/VLLM_MANAGED_PLAN.md](docs/VLLM_MANAGED_PLAN.md). The statuses in §2, §5, §12 and §13 follow.
+
 ---
 
 ## 0. Instructions for the coding agent
@@ -44,7 +50,8 @@ You are working in the LlmOnLan repository (`b2renger/LlmOnLan`). This file is a
 2. **Respect the prime directive in `CLAUDE.md`.** Open WebUI stays vendored, version-pinned and unmodified. All persistent data stays on the client under `DATA_DIR`; the farm stays stateless. OWUI is touched only through **env vars**, plus its **user-settings** REST API for the two things env can't do. **Never the admin API**: with `ENABLE_PERSISTENT_CONFIG=false` its writes vanish at every sidecar restart. Anything OWUI cannot display (queue position, fallback badge) goes in the LOL shell's own chrome.
 3. **Work in the order of section 12**, and don't start an item marked **DECISION** before the owner answers. Keep each item shippable on its own. Farm tests go in `farm/test/run.js` (`npm test` in `farm/`). Shell tests go in `npm run test:unit`, `node test/chat-unit.js`, `test/chat-lint.js` or `test/chat-scope.js`. **Never** the shell's `npm test`: it is the legacy e2e that drives the real app, and it is unsafe on the dev box, which also serves real users.
 4. **Re-check the OWUI facts in §1** whenever the pin moves, and make new env vars degrade gracefully on the 0.10.x sidecars still in the field.
-5. Keys and routes marked `// Phase N` do not exist yet. **The farm's config schema is strict** (zod `.strict()`): an unknown key makes `lol up` refuse to start. Never paste a §11 template into a running farm's `lol.config.json` before its phase ships.
+5. Keys and routes marked `// Phase N` do not exist yet. **The farm's config schema is strict** (zod `.strict()`): an unknown key makes `lol up` refuse to start. Never paste a §11 template into a farm's `lol.config.json`: its keys are proposals, and the `vllm` engine that
+   shipped (Phase 2) takes other ones. The panel sets vLLM.
 6. Numbers marked *measured* come from published benchmarks, mostly single-author posts with different builds; *estimate* means derived. Re-benchmark on real hardware with `lol bench` before trusting user counts, once bench can simulate distinct people (Phase 0).
 7. **The dev box (`AN-A6000PRO`) is also a production farm.**
    - `lol up` reaps the pids in the fixed `farm/.lol-runtime.json`; move it aside first.
@@ -219,7 +226,8 @@ it: unpinned LiteLLM, uncounted VRAM co-tenants, the ungated paths. §4a says wh
   - 2026-09-04: idle people must not hold seats, and a full farm answers **429 rather than silently
     queueing**.
   - 2026-09-04: keep LiteLLM least-busy routing.
-  - 2026-09-07: **the farm never manages an external server**.
+  - 2026-09-07: **the farm never manages an external server**. Replaced for vLLM on 2026-10-07: the farm installs,
+    starts and stops it (Phase 2). `external` stays for servers the farm cannot run.
   - 2026-09-07: slots stay config-derived.
   - 2026-09-16: **local only, never cloud**.
   - 2026-09-27: plugins get a concurrency cap, a 429 and no body logging (ECOSYSTEM_PLAN).
@@ -238,7 +246,7 @@ works) applies to the plan as much as to the code.
 **What "multi-user" means here.** Everyday office use with a handful of people at once, and workshops where
 10–30 people start together. v1's target of "50 concurrent users on one box" is an assumption, not a
 measured need. **No multi-user overload has been recorded yet.** The only multi-user measurement in the
-repo is 3 concurrent users at ~132 tok/s each (`docs/DEVLOG.md:5911-5913`, 2026-07-02). **DECISION:** the
+repo is 3 concurrent users at ~132 tok/s each (DEVLOG 2026-07-02, "Web search on every client + fleet view + workshop tooling"). **DECISION:** the
 real head count per room and per day.
 
 **Owner decision, 2026-10-04: scale up.** The small GPUs are booked for 3D, VR and workshops, so the
@@ -251,7 +259,7 @@ so the levers, in order, are:
 
 1. **KV bytes per token**, which is set by the model's architecture. Hybrid models (Mamba or linear
    attention plus a few attention layers) need a fraction of a dense model's KV: on this box
-   `nemotron-3.5-lightning` holds 1M tokens in ~7 GB (`docs/DEVLOG.md:3639-3641`).
+   `nemotron-3.5-lightning` holds 1M tokens in ~7 GB (DEVLOG 2026-09-07 a).
 2. **An engine that pages and shares KV and batches continuously**, with prefix caching: vLLM's
    strengths, which llama.cpp only partly matches.
 3. **Active parameters per token**, which set decode speed under load: 3B-active MoEs against dense 27B.
@@ -299,7 +307,7 @@ The analysis below (scale out vs scale up) is kept for the record. Scale-out acr
   *can* measure it: one seat admits unlimited parallel streams (`seats.js:62-70`, `bench.js:106`); only
   gate admission is unmeasurable from one IP. **The model is as big a lever as the engine:** a 3B-active
   MoE batches very differently from a dense 27B at IQ2_S, and the dev box already serves
-  `nemotron-3.5-lightning` on Ollama (`docs/DEVLOG.md:3639-3641`).
+  `nemotron-3.5-lightning` on Ollama (DEVLOG 2026-09-07 a).
 
 **What limits the number of people today, cheapest lever first:**
 
@@ -310,7 +318,7 @@ The analysis below (scale out vs scale up) is kept for the record. Scale-out acr
      full-document RAG threshold (24576, `configBridge.ts:91`), which flips every client to top-k RAG and
      **restarts every OWUI**. It also stops the coding agent compacting under "Keep going".
    - **Where Ollama runs as a pre-existing service**, as on the dev box, `numParallel` never reaches the
-     daemon: measured `n_slots = 1` against an advertised 2 (`docs/DEVLOG.md:3624-3633`,
+     daemon: measured `n_slots = 1` against an advertised 2 (DEVLOG 2026-09-07 a,
      `slotsVerified:false`). Changing it means editing the service's environment and restarting the
      shared Ollama.
    - Ollama's slot count applies only after a farm restart.
@@ -351,14 +359,14 @@ Items 2–4 cost days, not weeks. Items 1 and 6 cost about a week each (1: measu
 
 Revision 2 reorders v1 around measurement and the cheapest levers. Effort figures are rough.
 
-| Phase | Outcome | Effort | Status (2026-10-05) |
+| Phase | Outcome | Effort | Status (2026-10-08) |
 | --- | --- | --- | --- |
 | **0. Hardening + measurement** (new) | LiteLLM pinned and cancel proven. The gate checks the password before seating, refuses ungated generation paths, and sends an honest `Retry-After`. Plugin keys are persisted (no more OWUI reboots on farm restart). OCR gets a semaphore. Bench uses distinct source addresses and realistic load. A measured baseline exists: engines, slots, models, prompt cost per OWUI message. | 7–10 days | **Built** (0.0–0.5, 0.7). 0.6 **done on both boxes** (PRO 6000 2026-10-04, Spark 2026-10-06) |
-| 1. Seat gate v2 | Client fixes (1.6). Background-task and search cost (1.4) after measurement. The fair queue (1.2) only if adopted. ~~Identity (1.1)~~: **cut** by the owner. | 1 week core; +1 week with 1.2 | 1.6 and the workshop setting **built**. 1.4 being measured. The fair queue only if refusals are frequent |
-| 2. vLLM engine | **In scope (owner, 2026-10-04).** The spike runs in Phase 0.6. Then a farm engine sized against its GPU co-tenants: on Spark natively, on the Windows PRO 6000 via WSL2. Managed or operator-run is decided from the spike. | 3–4 weeks after the spike | (a) **built**. The PRO 6000 `external` recipe **built** and checked live. Managed on the Spark after its spike |
+| 1. Seat gate v2 | Client fixes (1.6). Background-task and search cost (1.4) after measurement. The fair queue (1.2) only if adopted. ~~Identity (1.1)~~: **cut** by the owner. | 1 week core; +1 week with 1.2 | 1.6 and the workshop setting **built**. 1.4 answered and built (web search off by default, v2; v0.2.8). The fair queue only if refusals are frequent |
+| 2. vLLM engine | **In scope (owner, 2026-10-04).** The spike ran in Phase 0.6. A farm engine sized against its GPU co-tenants: natively on Linux and the Spark, via WSL2 on Windows. **Run by the farm, from the panel (owner, 2026-10-07).** | 3–4 weeks after the spike | (a) **built**: the PRO 6000 serves vLLM through the `external` recipe since 2026-10-07. (b) **built** 2026-10-07/08 and live-tested beside production with a tiny model. Next: farm-v0.0.43, the production take-over, the Spark checklist (VLLM_MANAGED_PLAN §11.5–11.6) |
 | 3. Several big boxes | One endpoint over several Sparks/PRO 6000s as the studio buys them. Scale-out on the small GPUs is **out** (owner). | ~1 week, when a second big box exists | **When a second PRO-class card arrives.** The Spark is not worth fronting with the PRO 6000: 8 seats beside 48–96, at 5× slower prefill (§8) |
 | 4. Distribution and contract | LAN model copy over plain HTTP; a minimal snapshot schema check. | 1–2 weeks | 4.2 **cut**. 4.3 an open study, low priority. 4.4 **built**. 4.1 later |
-| 5. Capacity table (the purchase tool) | Measured people-per-box at 32k/64k/128k for each box × engine × model, in `farm/README.md` and the panel. Roofline estimates, clearly marked, for hardware not owned (the RTX PRO 5000 Blackwell class, a second PRO 6000). | 3–5 days after the spike | **Built**: PRO 6000 and Spark measured; estimates for the PRO 5000/5500 (`docs/spike/ESTIMATES_2026-10-05.md`) |
+| 5. Capacity table (the purchase tool) | Measured people-per-box at 32k/64k/128k for each box × engine × model, in `farm/README.md` and the panel. Roofline estimates, clearly marked, for hardware not owned (the RTX PRO 5000 Blackwell class, a second PRO 6000). | 3–5 days after the spike | **Built**: PRO 6000 and Spark measured; estimates for the PRO 5000/5500 (`docs/spike/ESTIMATES_2026-10-05.md`); the capacity explorer on the farm, `/lol/capacity` (the panel's Plan capacity ↗, 2026-10-07) |
 | Security | ~~Revocation~~ (no identity). ~~TLS~~. | — | Both **cut** |
 | **Total** | Phase 0 with the spike: **~3 weeks**. The vLLM engine: +3–4 weeks. | | |
 
@@ -605,7 +613,7 @@ card already lists clients; it has no revoke button.
 The owner's 2026-09-04 ask was that **idle people** must not hold seats; the 429 was the mechanism
 (`seats.js:1-4`). This queue waits behind **active** people only. The 2026-09-07 decision also says
 "refusing people on a pessimistic guess is worse than the queueing it would avoid"
-(`docs/DEVLOG.md:3638-3639`), which argues for the **engine's own FIFO** over a new gate queue. The engine
+(DEVLOG 2026-09-07 a), which argues for the **engine's own FIFO** over a new gate queue. The engine
 already queues every admitted request.
 
 Options:
@@ -763,18 +771,27 @@ the cancel.
 
 ## 5. Phase 2 — vLLM engine (in scope: owner, 2026-10-04)
 
-> **Status, 2026-10-07: step (b), fully managed, is chosen by the owner** ("I want the farm operator to be able
-> to do everything from the app. No config file etc."). It replaces the 2026-09-07 and 2026-10-06 decisions below.
-> The design, its build order and its status: [docs/VLLM_MANAGED_PLAN.md](docs/VLLM_MANAGED_PLAN.md). Built on the
-> `vllm-managed` branch, 2026-10-07, in four slices, each tested against a fake vLLM inside WSL:
+> **Status, 2026-10-08: step (b), fully managed, is chosen by the owner** ("I want the farm operator to be able
+> to do everything from the app. No config file etc.", 2026-10-07). It replaces the 2026-09-07 rule (step 2 below)
+> and the Spark's recipe with autostart (recommended 2026-10-06, chosen by the owner the morning of 2026-10-07,
+> DEVLOG 10:23; §13 decision 10). The design, its build order and its status:
+> [docs/VLLM_MANAGED_PLAN.md](docs/VLLM_MANAGED_PLAN.md). Built on the `vllm-managed` branch on 2026-10-07/08 and
+> merged into `multiuser-phase0` (8a37e6f), for Farm app farm-v0.0.43:
 > - A: the scripts, the config, the routing and the pure planning;
 > - B: the lifecycle (a boot that never waits, adoption, the watch, the fallback, `lol down`, the download slot);
 > - C: the panel (the engine grid, the vLLM card, Apply with its dry run; no config wording anywhere);
 > - D: the take-over of the operator-run vLLM ("Let the farm run vLLM", Undo), the Farm app's stops, Linux
->   autostart, and the docs (farm/README "vLLM, run by the farm"; docs/PRO6000_VLLM_SWITCH.md Part 2).
+>   autostart, and the docs (farm/README "vLLM, run by the farm"; docs/PRO6000_VLLM_SWITCH.md Part 2);
+> - then two reviews' fixes and their leftovers (2026-10-08). `lol down` stops only the farm's own vLLM. A start
+>   never takes another program's server for vLLM. A C compiler and free disk are checked first. A card too small
+>   (an RTX 4070/4080/4090) is told so before any check. A slow WSL at log on queues the start.
 >
-> Left: the live test with a real vLLM beside production (VLLM_MANAGED_PLAN §11.4), a Farm app release, then the
-> production take-over with the owner (§9.6). The steps (a) and (b) below are history: (b) is what was built.
+> Tested against a stand-in vLLM inside WSL (the lifecycle test, 23 steps). **Live on 2026-10-08**: a real vLLM 0.30
+> with a tiny model, run by a test farm beside production (VLLM_MANAGED_PLAN §11.4, all eleven steps). Left: the
+> Farm app release (farm-v0.0.43), then the production take-over with the owner (§9.6) and a reboot test (§11.5),
+> and the DGX Spark checklist (§11.6), never run on a Spark. Steps (a) and (b) below, and §2.1–2.5, are the
+> 2026-10-04 proposal, kept for the record. What was built is in VLLM_MANAGED_PLAN and farm/README, "vLLM, run by
+> the farm".
 >
 > **Status, 2026-10-04:** step (a) is built (DEVLOG 2026-10-04 14:01).
 > - An external vLLM is detected by its `/metrics`. Its running and waiting counts feed
@@ -788,7 +805,7 @@ the cancel.
 **Step 1, the spike (Phase 0.6).** It picks the model and flags per box, and shows how far llama.cpp
 gets.
 
-**Step 2, managed or operator-run: DECISION from the spike.** On 2026-09-07 the owner decided the farm
+**Step 2, managed or operator-run: ANSWERED (owner, 2026-10-07): managed.** The history: on 2026-09-07 the owner decided the farm
 never installs, starts or restarts an external server, because "half-managing one is worse than not
 managing it". The owner's renewed interest in vLLM (2026-10-04) puts a managed engine back on the table,
 since the Farm app's operators are not technical. Two shapes:
@@ -799,7 +816,8 @@ since the Farm app's operators are not technical. Two shapes:
 
 (a) is a subset of (b), so build (a) first either way.
 
-If managed vLLM is approved:
+If managed vLLM is approved (it was, 2026-10-07; this list is the 2026-10-04 proposal, and VLLM_MANAGED_PLAN is what
+was built: the panel installs vLLM, never `lol install`; people at once are Automatic or 1–512):
 
 - **Windows.** Add `vllm` as a fourth engine the farm installs, launches, sizes and supervises, reusing
   the `external` routing path (`litellm.js:195-212`). **The studio's PRO 6000 runs Windows**, so either
@@ -1097,8 +1115,8 @@ Reading it for a purchase:
 - **Against the owner's class sizes** (usually 20–30, at most 50), with the farm's recipe (50 GiB pool):
   - A full class of 50 fits at **64k** each: 48 strictly, and 61–64 once people are out of step (at the
     pool's edge). The recipe declares 48 seats at 64k (`farm/vllm/`).
-  - A usual class of 20–30 also fits at **128k**, but only if vLLM is started for 128k
-    (`--max-model-len 131072`; the recipe serves 65,536). Even then the margin is thin: 32 against 34–36.
+  - A usual class of 20–30 also fits at **128k**, but only with vLLM set to 128k of context per person (the
+    panel's vLLM settings; the PRO 6000 serves 65,536 today). Even then the margin is thin: 32 against 34–36.
 - **Per person, only the PRO 5000 72 GB comes close to the PRO 6000**, and it also needs a host PC. The
   PRO 5500 costs 93 % of a PRO 6000 for 80–85 % of the people. The 48 GB PRO 5000 is the worst per person
   unless the OCR model lives elsewhere.
@@ -1331,9 +1349,11 @@ KV reference points: Qwen3.8-27B ≈ 75 KB/token at q4_0 (repo-measured 1.2 GB/1
 
 ## 11. Hardware configuration templates
 
-> **Do not paste these into a running farm.** The config schema is strict: every key marked
-> `// Phase N`, and the `vllm` blocks, make `lol up` refuse to start until that phase ships. The user
-> counts below are v1 planning estimates, not measurements; Phase 0.6 replaces them.
+> **Do not paste these into a farm.** They are the 2026-10-04 planning templates. The config schema is strict.
+> The `vllm` engine that shipped (Phase 2) takes other keys (`contextLength`, `parallel`, `kvCacheGib`, a model from
+> its list…), so these blocks make `lol up` refuse to start, and the `// Phase N` keys do not exist. An operator
+> sets vLLM in the panel, never in the file. The user counts below are v1 planning estimates; the measured ones are
+> in §8.
 
 The surfaces load a farm differently (from the code, audit §5):
 
@@ -1366,7 +1386,7 @@ The surfaces load a farm differently (from the code, audit §5):
 | RTX A6000 (48 GB) | Computer | Nemotron 3.5 Lightning 4-bit | vLLM | 20–30 | 32k |
 | ~~RTX 4080 / 4070 (16 / 12 GB)~~ | — | — | — | **Not farm capacity** (owner 2026-10-04: booked for 3D/VR/workshops) | — |
 
-User counts are planning estimates assuming ~40 % of connected users generate at once; confirm with `lol bench` once it simulates people (Phase 0.5). The vLLM rows assume the Phase 2 `vllm` engine, which is a **DECISION**. Until then, run `vllm serve` yourself (on Linux, or in WSL2 on the Windows PRO 6000) and point the `external` block at it. Placeholders in `<angle brackets>` must be filled from the model card / vLLM recipe. Every vLLM row is replaced by the Phase 0.6 measurements once they exist.
+User counts are planning estimates assuming ~40 % of connected users generate at once; confirm with `lol bench` once it simulates people (Phase 0.5). The vLLM rows assume a `vllm` engine. The one built (Phase 2, 2026-10-07) is set from the panel's vLLM card, with the three measured models and their flags. The measured counts are in §8. Placeholders in `<angle brackets>` must be filled from the model card / vLLM recipe. Every vLLM row is replaced by the Phase 0.6 measurements once they exist.
 
 ### 11.2 DGX Spark
 
@@ -1473,11 +1493,10 @@ vllm serve nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4 \
 
 **The studio's RTX PRO 6000 (`AN-A6000PRO`) runs Windows and is also the dev box.**
 
-- These vLLM templates run there only **in WSL2**, operator-run behind `external` today, or managed if
-  Phase 2 is approved.
-- **Start instead with the llama.cpp measurement in Phase 0.6:** `parallel` 8–16, `kvUnified`, the
-  Qwen3.8-27B GGUF with mmproj (shape of §11.4's template).
-- Use vLLM only if that falls short.
+- vLLM runs there **inside WSL2**. The spike settled the engine (§4a, §8): vLLM beats llama.cpp 24–40× on this
+  box. It has served vLLM + Qwen3.6 (48 people at 64k) since 2026-10-07: operator-run behind `external` until
+  farm-v0.0.43's take-over hands it to the farm (docs/PRO6000_VLLM_SWITCH.md Part 2).
+- The templates below are the 2026-10-04 proposal (§11's note): the built engine is set from the panel.
 
 Give vLLM 0.82 (~79 GB), leaving ~17 GB for Ollama's OCR and tasks models, or better, an absolute
 `--kv-cache-memory-bytes`. `gpu_memory_utilization` is a fraction of **total** VRAM, and Ollama loading or
@@ -1551,46 +1570,46 @@ llama.cpp alternative (Windows or before Phase 2), OWUI chat with Qwen3.8-27B:
 
 ## 12. Sequencing, effort and acceptance
 
-**Order** (status 2026-10-05 in the table):
+**Order** (status 2026-10-08 in the table):
 
 1. **Phase 0**: 0.0 pin + cancel, 0.1–0.4 leaks, 0.5 bench, **0.6 the engine × model spike**, 0.7 VRAM
    budget from free memory.
 2. **Phase 5's measured table** (the purchase tool), straight from 0.6.
-3. **Phase 2:** the vLLM engine (step (a) integrated `external`, then (b) managed if chosen), with the
-   model and flags the spike picked.
+3. **Phase 2:** the vLLM engine: (a) integrated `external` (built 2026-10-04), then (b) run by the farm (chosen
+   2026-10-07, built 2026-10-07/08), with the model and flags the spike picked.
 4. **1.6 client fixes**, and slots/model per the measurements.
 5. **The answered DECISIONs (2026-10-04):**
    - the workshop setting for the seat hold (1.2), now;
    - seats near the measured capacity (1.2), after the spike;
    - the web-search cost (1.4), measured first;
    - the OCR reserve (1.5), with Phase 2's sizing.
-6. **Phase 3** once the Spark serves beside the PRO 6000 (two big boxes); 4.4 now; 4.1 later.
+6. **Phase 3** when a second PRO-class card arrives (not for the Spark beside the PRO 6000: §8); 4.4 built; 4.1 later.
    - **Cut:** 1.1, 3.2, 4.2, revocation and TLS.
    - **4.3 (laptop model)** is an open study, low priority: run the harness on a few laptops first.
 
-| Item | Depends on | Effort | Done when | Status (2026-10-05) |
+| Item | Depends on | Effort | Done when | Status (2026-10-08) |
 | --- | --- | --- | --- | --- |
 | 0.0 Pin LiteLLM, prove cancel reaches the engine | — | 1–2 days | LiteLLM pinned in `lol install`; a cancelled stream frees its **engine** slot within 1 s on a test farm | **Built.** Ollama and vLLM stop on every path; llama.cpp misses one (upstream issue) |
 | 0.1–0.4 Password before seat, gated paths, persisted plugin keys, OCR semaphore | — | 3–4 days | A keyless POST gets 401 and no seat; a farm restart no longer restarts connected OWUIs; OCR vision calls are bounded and queued | **Built** |
 | 0.5 Bench with distinct source addresses + realistic load | — | 1–2 days | `lol bench --users 8` holds 8 seats on a test farm | **Built** (`--people`, `--cancel`, `--out`) |
-| 0.6 Engine × model spike | 0.0, 0.5 | ~1–1.5 weeks (vLLM venv in WSL2, Spark access, weights, quality gate) | One row per box × engine × model × context: people at TTFT p95 < 5 s and ≥ 15 tok/s, quality-gate result, VRAM; generations + prompt tokens per OWUI message | PRO 6000 **done**; Spark 2026-10-05; per-OWUI-message cost being measured |
+| 0.6 Engine × model spike | 0.0, 0.5 | ~1–1.5 weeks (vLLM venv in WSL2, Spark access, weights, quality gate) | One row per box × engine × model × context: people at TTFT p95 < 5 s and ≥ 15 tok/s, quality-gate result, VRAM; generations + prompt tokens per OWUI message | **Done** on both boxes (PRO 6000 2026-10-04, Spark 2026-10-06); the cost per OWUI message measured 2026-10-05 (1.4) |
 | 0.7 VRAM budget from free memory / co-tenant reserve | — | 1 day | llama.cpp auto context fits beside a co-tenant | **Built** |
 | 1.6 Client fixes | — | 2–3 days | Computer runs model boxes while holding its own seat on a full farm; a 429 costs no Cap; dsh doesn't self-retry 429 | **Built**; chat harness 406/406 |
 | 3.0 Fleet path (coordinator capacity, static peers, peer-429, failover) | 0.6 | 1 week | A coordinator over N boxes (across subnets) advertises their summed slots; a client off a full farm moves only when idle | When a second PRO-class card arrives (not the Spark: §8) |
-| 1.4 Web search's cost | 0.6 | ½ day | The owner chooses from the measurement | **Measured**: recommend web search off by default (decision 4) |
+| 1.4 Web search's cost | 0.6 | ½ day | The owner chooses from the measurement | **Answered and built**: web search off by default, web search v2 and the date line (released in v0.2.8; decision 4) |
 | ~~1.1 Per-install identity~~ | — | — | — | Cut (owner, 2026-10-04) |
 | 1.2 Workshop setting; fair queue only if needed | 3.3 | ½ day; +1 week for a queue | The seat hold is set live from the panel; a queue only if the 3.3 counts show frequent refusals | Workshop setting **built**; queue not needed so far |
-| 1.5 OCR reserve beside vLLM | 2 | — | vLLM's KV pool leaves the OCR model room | **Built** into the recipe (a 50 GiB pool leaves 19.8 GiB free) |
+| 1.5 OCR reserve beside vLLM | 2 | — | vLLM's KV pool leaves the OCR model room | **Built**: the recipe's 50 GiB pool leaves 19.8 GiB free; the farm's own vLLM keeps 9 GB for document reading in its Automatic memory (`vllm.ocrReserveGib`) and reads documents with gemma4:12b when it is installed |
 | 4.4 Snapshot schema check | — | 1–2 days | A farm unit test fails when `buildSnapshot()` drifts from the schema (the snapshot already has tests, `farm/test/run.js:856`) | **Built** (`farm/contract/`) |
 | 2 (a) vLLM as integrated `external` | 0.6 | 1 week | Seats, Performance card and `capacity.busy/queued` from vLLM's `/metrics` | **Built**, checked live |
 | PRO 6000 `external` recipe (decision 10) | 2 (a) | 2–3 days | vLLM in WSL2 reachable over TCP; a documented recipe | **Built** (`farm/vllm/`) |
-| 2.1–2.3 (b) Managed vLLM on the Spark | 2 (a), the Spark spike | 2 weeks | `lol up` serves the spike's model on a Spark, with fallback working | **Reconsidered:** the recipe on Linux + a systemd unit gives the same 8 seats (owner to decide) |
-| 2.4–2.5 vLLM sizing and metrics | 2.1–2.3 | 1–2 weeks | Beacon `slots` matches vLLM's pool; Performance card live per engine | Metrics part **built** with 2 (a) |
+| 2.1–2.3 (b) vLLM run by the farm (Windows in WSL2, Linux, the DGX Spark) | 2 (a), the spike | 2 weeks | The panel installs vLLM and its models, switches to it and back, sets, starts and stops it, with the fallback working; an operator-run vLLM is taken over with one click | **Built** 2026-10-07/08 (VLLM_MANAGED_PLAN), live-tested beside production with a tiny model. Left: farm-v0.0.43, the production take-over (§9.6, §11.5), the Spark checklist (§11.6). Replaces the 2026-10-07 morning choice of the recipe on the Spark (decision 10) |
+| 2.4–2.5 vLLM sizing and metrics | 2.1–2.3 | 1–2 weeks | Beacon `slots` matches vLLM's pool; Performance card live per engine | **Built**: Automatic seats (measured on this card, never more than the memory holds), Automatic memory from what is free (9 GB kept for document reading), the beacon's `slots` = the seats; the Performance card for the farm's vLLM as for an external one |
 | 3.1 Cache affinity | 3.0 | 1 week | Returning turns hit the prefix cache > 80 % in a two-box test | Later |
 | ~~3.2 Overflow tier~~ | — | — | — | Cut (owner, 2026-10-04) |
 | 3.3 Minimal metrics (429 count, peak seats, TTFT p95) | — | 1–2 days | The panel shows them; no per-install labels | **Built** |
 | 5 Measured capacity table (purchase tool) | 0.6 | 3–5 days | People-per-box at 32k/64k/128k for Spark and PRO 6000, measured; labelled estimates for boxes not owned | **Done**: PRO 6000 and Spark measured; PRO 5000/5500 estimated |
-| 5.1–5.4 Interactive planner (only if the table is too coarse) | 5 table, 4.4 | 2–3 weeks | Golden tests pass on the studio's big boxes; estimates within ±25 % of local measurements | Only if needed |
+| 5.1–5.4 Interactive planner (only if the table is too coarse) | 5 table, 4.4 | 2–3 weeks | Golden tests pass on the studio's big boxes; estimates within ±25 % of local measurements | **Built as the capacity explorer** (2026-10-07): served by the farm at `/lol/capacity` (the panel's Plan capacity ↗), with usage scenarios; read-only, no `lol plan` and no Apply (§8) |
 | 5.5 Planner learns from bench | 5.1–5.4, 0.5 | 3–4 days | Local bench points override catalog points in the panel | Only if needed |
 | 4.1 LAN model sharing (critic: defer) | 4.4 | 1–2 weeks | Second box installs from a peer with verified hashes | Later |
 | ~~Revocation~~, ~~TLS~~ | — | — | — | Cut (owner, 2026-10-04) |
@@ -1600,8 +1619,8 @@ llama.cpp alternative (Windows or before Phase 2), OWUI chat with Qwen3.8-27B:
 **Global acceptance tests** (only meaningful once bench simulates people, Phase 0.5):
 
 - **One PRO 6000 (LLM-only since 2026-10-04) and one Spark**, each with the model the spike picked:
-  50 simulated people (the owner's cap) at 64k each, and 30 (a usual class) at 128k each (vLLM started
-  with `--max-model-len 131072`; the margin there is thin, 34–36), give TTFT
+  50 simulated people (the owner's cap) at 64k each, and 30 (a usual class) at 128k each (the farm's vLLM
+  set to 128k of context per person in the panel; the margin there is thin, 34–36), give TTFT
   p95 < 5 s, ≥ 90 % of users above 15 tok/s, and the quality gate passed. Run it with
   `lol bench --people --users <n>` through the farm's seat gate. The workshop profile (3.4) isn't built;
   the spike's harness (`docs/spike/spike_bench.py`) gives the realistic mix.
@@ -1630,15 +1649,18 @@ llama.cpp alternative (Windows or before Phase 2), OWUI chat with Qwen3.8-27B:
 - **LiteLLM upgrades.** It is pinned at 1.97.0 (Phase 0.0), and `farm/test/litellm-cancel.js` fails if a
   new version stops forwarding a cancel or the thinking keys. Re-run it before any pin bump.
 - **The live dev box.** Every farm experiment on `AN-A6000PRO` risks real users (§0, item 7).
-- **vLLM:** on Spark, arm64 wheels and NVFP4 kernels move fast (pin, keep a Docker fallback). On Windows
-  it only runs in WSL2, with its process-lifetime hazards.
+- **vLLM:** pinned at 0.30.0 (`vllm.version`), installed with uv's own Python 3.12; no Docker fallback was built. On a
+  Spark, arm64 wheels and NVFP4 kernels move fast: the install ran there in the spike, but the farm's own vLLM has
+  not yet (VLLM_MANAGED_PLAN §11.6). On Windows it runs inside WSL2. The farm stops it on purpose through
+  `stop.sh`, and an outside tree-kill of the farm stops it within 2 s (measured 2026-10-08, VLLM_MANAGED_PLAN R1).
 - **Runaways (measured 2026-10-05):** some replies loop until the 64k window is full: ~290 s of a seat,
   then an empty reply (3 of 45 searched chats, and 4 of 36 native-mode follow-ups). **Owner: cap them at the
   farm**, with a value measured never to cut a real answer.
   - **Fixed 2026-10-05 at the root:** Qwen3.6 lacked the `presence_penalty` 1.5 its model card asks for.
     With it, 0 runaways in 1,057 replays; `external.presencePenalty` sets it.
   - **Safety net:** `proxy.maxReplyTokens` 32,768. On Ollama and llama.cpp it is a default for requests that
-    name no limit; on vLLM, serve.sh makes it a ceiling. Details in farm/README.md, "Replies that never
+    name no limit; on vLLM it is a ceiling: the farm passes it to the vLLM it runs (`--override-generation-config`;
+    changing it restarts vLLM), and serve.sh to one an operator runs. Details in farm/README.md, "Replies that never
     end".
 - **Benchmarks:** most §9 numbers are single-author posts with different builds. No source measured
   exactly 10 concurrent users for Qwen3.6 or Lightning. Quality scores are vendor-reported. Local
@@ -1653,7 +1675,7 @@ These are recommendations, not decisions.
    - **Head count, ANSWERED (2026-10-05):** it varies. The owner caps a class at **50**; most of the time it
      is **20–30**. The acceptance test (§12) uses both.
    - **Release (owner, 2026-10-05):** the merge into `main` and the farm-v0.0.42 / client v0.2.8 release
-     wait for the Spark results.
+     wait for the Spark results. Released 2026-10-07 (DEVLOG 11:35).
    - *Critic:* one class on the PRO 6000 first.
 2. **Queue or 429** (1.2). **ANSWERED (2026-10-04): the engine queues, plus a workshop setting.**
    - With vLLM, seats are set near what the card really serves at acceptable speed (from the spike), and
@@ -1719,7 +1741,8 @@ These are recommendations, not decisions.
    - **Left:** a person who wrote their own system prompt gets no date line and 14/18-level quality: the
      docs tell them to add `{{CURRENT_DATE}}`.
 5. **vLLM** (Phase 2). **ANSWERED (2026-10-04): in scope**, overriding the critic's cut.
-   - Still open, decided from the spike: (a) integrated `external` or (b) fully managed.
+   - **ANSWERED (owner, 2026-10-07): (b) fully managed**, operated from the panel with no config file. Built
+     2026-10-07/08 (§5 status; VLLM_MANAGED_PLAN). (a) stays for servers the farm cannot run.
    - The critic's caution stands as a test condition: WSL2 lifetimes on the PRO 6000 must be handled
      (stdin-EOF self-kill), and llama.cpp with a 3B-active MoE is measured beside it.
 6. **OCR reserve** (1.5). **ANSWERED (2026-10-04): reserve ~9 GB for the OCR model on vLLM boxes.**
@@ -1773,9 +1796,8 @@ These are recommendations, not decisions.
      (`ce46b18`; the box is labelled "Think all").
    - **Reading:** titles, search queries and JSON or list extraction are safe with thinking off. The
      Computer's **verdict** and **agent-step** asks need reasoning. On the target model (vLLM + Qwen3.6) the
-     spike's 28-item gate lost nothing, but the Computer's real verdict and agent asks haven't been run both
-     ways yet. **Next:** run them with thinking on and off on the target model, then the owner decides
-     whether verdicts and agent steps keep thinking.
+     spike's 28-item gate lost nothing. The Computer's real verdict and agent asks were then run both ways (the
+     measurement above), and the owner chose: decisions think, the rest stays fast.
 10. **vLLM's shape on each box (Phase 2), from the spike.**
     - **Spark (native Linux):** a managed vLLM engine (2b) is straightforward, with the spike's install
       script and flags.
@@ -1803,6 +1825,11 @@ These are recommendations, not decisions.
         buy little over the operator-run recipe: `farm/vllm/serve.sh` already runs natively on Linux, with no
         WSL relay needed, plus a systemd unit to start it at boot. **Recommendation: use the recipe on the
         Spark; defer the managed engine.** The owner decides.
+      - **Owner, 2026-10-07 morning (DEVLOG 10:23): the recipe with autostart on the Spark** (the `lol-vllm`
+        systemd unit, shipped in farm-v0.0.42). **Superseded the same day** by the owner's request that the
+        farm run vLLM itself, from the app, with no config file (§5 status; VLLM_MANAGED_PLAN D1). The Spark gets
+        the farm's own vLLM like every box. A recipe server already running is taken over with one click. The
+        recipe stays only for a Spark with no desktop log-in (VLLM_MANAGED_PLAN R4, checked in §11.6).
     - Recommendation was: managed on the Spark; on the PRO 6000, first fix the TCP blocker, then `external`
       with the recipe.
 11. **ComfyQ on the PRO 6000 (new).** These are ceiling numbers with ComfyUI stopped. With ComfyUI's
@@ -1842,7 +1869,8 @@ These are recommendations, not decisions.
     copy. Before, an existing install kept its first copy forever.
   - **Note for the 3.3 counts:** an agent page's re-checks count as refusals too.
 - **The workshop operator's flow.** `seatIdleSec` now has a panel control, applied live (2026-10-04). Still
-  open: the slots are panel-capped at 16, Ollama slots apply after a restart, and who flips the setting
+  open: the slots are panel-capped at 16 on Ollama and llama.cpp (vLLM: Automatic, or 1–512), Ollama slots apply
+  after a restart, and who flips the setting
   before a class, and when.
 - **Slots vs context. BUILT 2026-10-05.** The Backend card's line under the slots and context controls
   says, before Apply, three things:
@@ -1855,10 +1883,12 @@ These are recommendations, not decisions.
   Automatic quotes the last measurement or says it isn't known yet, and the external engine shows its
   declared values. A pre-existing probe bug was fixed with it: one Apply that changed the Ollama slots and
   measured Automatic used to file the result under the new count while the daemon still ran the old one.
-- **Thinking control.** It is the biggest demand lever, and unscheduled, for OWUI chats as well as the
-  Computer. Options: a per-alias `chat_template_kwargs` in LiteLLM, or llama-server's reasoning budget.
+- **Thinking control. Answered for structured calls** (decision 9, built 2026-10-05). Titles, search queries and
+  the Computer's lists, JSON and agent steps answer without thinking; its yes/no decisions think; **Think all**
+  turns it on for all of them. OWUI chats keep thinking (owner); a per-chat switch is not scheduled.
 - **Web search `always` + whole-document injection.** **Measured 2026-10-05** (1.4): ~2.5× the GPU work
-  per chat, and native-mode runaways. Recommendation (c) is waiting on the owner.
+  per chat, and native-mode runaways. **Answered and built**: web search off by default (owner, 2026-10-05), web
+  search v2 and the date line in v0.2.8, and the runaways fixed at the root (Qwen3.6's presence penalty; decision 4).
 - **Subnets and shared boxes.** The coordinator needs static peers across subnets. Fleet boxes may be
   people's own workstations, so a farm there competes with their GPU work.
 - **Identity privacy.** Per-request install ids, per-install metric labels and recorded replays would

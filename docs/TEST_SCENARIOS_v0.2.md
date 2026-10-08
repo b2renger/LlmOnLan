@@ -364,6 +364,81 @@ the Computer use a thinking model (Qwen3.6 on vLLM, or qwen3.8). Put back every 
   GPU is latched after an out-of-memory crash: a reboot does not clear it, a cold power drain does (RESULTS.md,
   finding 6). Check that the warning is where an operator setting up a Spark reads it.
 
+## 7e. v0.2.9 and farm-v0.0.43 — vLLM run by the farm, Open WebUI's start (docs/DEVLOG.md, 2026-10-07 to 10-08)
+
+What the tests cannot show: the installed Farm app running vLLM on real RTX cards and on a DGX Spark, the
+production take-over and a reboot, and the installed client on a network that cannot reach huggingface.co.
+Already tested without you: the farm's vLLM against a stand-in vLLM inside WSL (23 steps), and a real vLLM with a
+tiny model, run by a test farm beside production (DEVLOG 2026-10-08, 02:24). Install both apps from the releases.
+Everything an operator does here is in the farm panel (the Farm app's window): no step edits a file. The terminal
+lines only check what happened.
+
+- [ ] **7e.1 The Farm app update.** On a test box first (an Ollama farm), install farm-v0.0.43 over farm-v0.0.42
+  and open it. The panel shows the model, its settings and the password as before. The Backend card's engine
+  buttons read Ollama, llama.cpp and vLLM. The header's **Plan capacity ↗** opens the capacity page in the system
+  browser, with this box marked. It works with no internet connection.
+- [ ] **7e.2 A card too small.** On a Windows PC with an RTX 4070 or 4080, the **vLLM** button says *Not for this GPU
+  (12 GB; vLLM's models need about 35 GB): llama.cpp or Ollama is the engine for it.* (16 GB on a 4080) before
+  anything about WSL.
+  Press it: no Install, no Download, and the farm keeps serving. A PC with no NVIDIA GPU is told so, not to install
+  WSL.
+- [ ] **7e.3 vLLM from nothing, on Windows.** A Windows PC with a Blackwell RTX card and no WSL (an RTX 5090 fits
+  only with document reading off, and the panel says so; an older card gets a warning: write down whether it
+  starts). Press **vLLM**: the checklist says how to install WSL (an administrator PowerShell, a restart, Ubuntu
+  opened once). Do it, then **Check again**: it asks for a C compiler, with the line to run. Do it, **Check again**:
+  nothing marked ✗. **Install vLLM** (about 45 minutes): a client chats normally meanwhile. **Download** the model,
+  then **Stop** it half-way: the list says partly downloaded. **Download** again finishes it. On a French Windows
+  the WSL sentences read right.
+- [ ] **7e.4 Switch to vLLM and back.** Press **vLLM**: the panel says about 2 minutes before it starts. Meanwhile a
+  client's pill reads *<farm> · Switching to vLLM…* and stays on this farm. An Open WebUI chat gets *This farm's
+  model is starting: about 2 minutes. Try again then.* LOL Vibe says the model may be restarting; its sentence says
+  a few seconds, so write down how it reads. Then a chat works, the Performance card shows the seats, LOL Vibe's
+  strip says `vllm`, a scanned PDF is read, and **Stop** in LOL Vibe ends a reply at once. Press **Ollama**: about a
+  minute. The name people see is the same, an open chat keeps working, and `nvidia-smi` shows vLLM's memory freed.
+- [ ] **7e.5 Its settings.** On vLLM (48 people at 64k on the PRO 6000), *People served at once* → **64** ▸ **Apply
+  changes**: no question, done in seconds, and vLLM keeps running (a line warns that 64 is more than measured).
+  → **96**: Apply asks first (vLLM restarts, about 2 minutes: its request cap grows). Cancel. *Context per person*
+  64k → 32k: Apply asks first, then clients see the new context. Put both back to what they were. Automatic says
+  where its number comes from (measured on this card, what the memory holds, or 4 to start with). The line under the
+  rows says how many people the memory holds at that context.
+- [ ] **7e.6 Stop, Start, Quit, Share.** **Stop vLLM**: the farm goes unhealthy and clients move to another farm.
+  **Start vLLM**: back in about 2 minutes, the pill reading *<farm> · Starting vLLM…* meanwhile. The Farm app's
+  **Quit**: the window says *Stopping the farm… With vLLM this can take a minute, while it frees the GPU.*, then
+  `nvidia-smi` is back to the desktop's memory. Open the app again: vLLM starts by itself (about 2 minutes). Settings
+  ▸ **Share compute with the network** off and on: the farm restarts in seconds each time, and vLLM is not restarted
+  (no *Starting vLLM* on clients; `nvidia-smi` shows its memory throughout).
+- [ ] **7e.7 Launch at login.** Farm app Settings ▸ **Launch at login** on, then restart the PC and log in: the Farm
+  app opens, the farm comes up, and vLLM about 2 minutes later; clients show *Starting vLLM* meanwhile and keep the
+  farm. When WSL is slow to answer at log on, the farm checks again once it is up: it should serve with vLLM, not
+  Ollama (write down if the panel says it fell back to Ollama).
+- [ ] **7e.8 The production take-over (PRO 6000).** At a quiet moment, docs/PRO6000_VLLM_SWITCH.md Part 2, steps 1 to
+  5, ticking each check there (the same process group, the copy of the old settings, the marker, a client
+  unchanged). Then, another quiet moment, the reboot test (VLLM_MANAGED_PLAN §11.5): WSL boots, vLLM takes about
+  1.5 minutes, clients show *Starting vLLM*, and the farm stays healthy throughout.
+- [ ] **7e.9 A DGX Spark.** With the Farm app's Linux arm64 AppImage, docs/VLLM_MANAGED_PLAN.md §11.6, steps 1 to 9
+  (10 is optional: a fresh install, about 45 minutes). Write down what step 9 shows: whether the Spark logs in to its
+  desktop by itself after a reboot. If it does not, the farm (and so vLLM) does not start at boot there
+  (farm/README.md, "vLLM, run by the farm", *At login*).
+- [ ] **7e.10 Open WebUI starts once.** On a laptop with v0.2.9 (updated from v0.2.8) that found its farm before:
+  quit and reopen. The chat opens in about 12 s (about 30 s the first time after the laptop restarts).
+  `boot.log` in the app's logs folder (Windows `%APPDATA%\LlmOnLan\logs`, macOS
+  `~/Library/Application Support/LlmOnLan/logs`, Linux `~/.config/LlmOnLan/logs`) ends with one `starting` and one
+  `ready` for that launch, each with the farm's address, and no `restarting`. Then stop the farm and reopen the
+  client: Open WebUI lists no model. Start the farm: a few seconds after the pill turns green, Open WebUI reloads
+  once by itself and lists the farm's model.
+- [ ] **7e.11 No huggingface.co at the first start.** On a laptop with no search model yet (move
+  `models--sentence-transformers--all-MiniLM-L6-v2` aside from `~/.cache/huggingface/hub`, on Windows
+  `%USERPROFILE%\.cache\huggingface\hub`, and put it back afterwards), on a network that reaches the farm but blocks
+  huggingface.co: the chat opens in about 12 s with the message *Document uploads need one
+  start with internet access…*, and a chat works. Back on a network with internet access, quit and reopen: no
+  message, the start takes longer once (about 92 MB), and a PDF attached in Open WebUI is answered.
+- [ ] **7e.12 Behind a proxy.** The same fresh start on a network that reaches the internet only through a proxy set
+  in the system settings (none in the environment): no message, the search model downloads, and uploads work.
+- [ ] **7e.13 A first download cut off.** With no search model, open the client on a network with internet access
+  and cut the network a few seconds into the start (write down what that start does). Reconnect, quit and reopen:
+  the chat opens (a little longer: the model downloads again) and a PDF attached is answered. A next start where
+  huggingface.co does not answer (as in 7e.11) shows no message: the model is on disk now.
+
 ## 8. After testing
 
 - [ ] Everything above is ticked, or each failure is written down with what you saw.

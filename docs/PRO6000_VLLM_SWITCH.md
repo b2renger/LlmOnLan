@@ -7,7 +7,11 @@ and the context are set in the panel, and switching to Ollama or llama.cpp and b
 
 ## Part 1: vLLM as the external engine (done 2026-10-07)
 
-**For the owner, on `AN-A6000PRO`, at a quiet moment you pick.** Before it, the production farm served
+> **History.** This was done on 2026-10-07. It is kept as the record of what Part 2 starts from, and for its
+> rollback. Do not run it again: on this box, go on with [Part 2](#part-2-let-the-farm-run-it); on any other box,
+> the panel's vLLM button does all of it ([farm/README.md, "vLLM, run by the farm"](../farm/README.md#vllm-run-by-the-farm)).
+
+**Done by the owner, on `AN-A6000PRO`.** Before it, the production farm served
 `qwen3.8:latest` on Ollama: 2 people at once, shown to clients as **"Qwen3.8-latest"**. After the switch it
 serves Qwen3.6-35B-A3B on vLLM, the farm's `external` engine: **48 people at 64k each** (measured). The recipe
 behind it is farm/README.md, "External: a vLLM you run yourself". About 15 minutes, with about 5 minutes when
@@ -81,12 +85,12 @@ the panel. It does not fail. When vLLM answers again, a farm that started on vLL
 
 ## Part 2: let the farm run it
 
-**For the owner, at a quiet moment you pick, once a Farm app newer than farm-v0.0.42 (the first with vLLM run by
-the farm) is released.** vLLM itself is not restarted: the same process (process group 401) keeps serving through
+**For the owner, at a quiet moment you pick, once Farm app farm-v0.0.43 (the first with vLLM run by the farm) is
+released.** vLLM itself is not restarted: the same process (process group 401) keeps serving through
 the click. The farm is down only while the Farm app is reinstalled (step 1 to 2, a few minutes): clients go to
 another farm meanwhile, or wait.
 
-1. **Quit the Farm app** (farm-v0.0.42). Its code does not touch vLLM, which keeps running.
+1. **Quit the Farm app** (farm-v0.0.42), if it is open. Its code does not touch vLLM, which keeps running.
 2. **Install the new Farm app** over the old one, and open it. At its first start it copies its farm code into
    `%APPDATA%\LlmOnLan Farm\farm`, `farm\vllm` included, while the log-on task's `serve.sh` runs from there.
 3. **Check that the copy landed:** the panel's Backend card shows a **vLLM** button. If it does not, `farm.log`

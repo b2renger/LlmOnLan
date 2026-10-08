@@ -166,7 +166,7 @@ async function api(path, opts = {}) {
 function tokenPanel(errMsg) {
   app.innerHTML =
     '<div class="token-panel"><h1>lol <span class="lol">farm admin</span></h1>'
-    + '<p class="hint">Enter the admin token printed in the farm\'s startup banner.</p>'
+    + '<p class="hint">Enter the admin token. In the Farm app: Settings ▸ Panel access token (Copy). For a farm started from a terminal: the token printed when it started.</p>'
     + (errMsg ? '<p class="err">' + esc(errMsg) + '</p>' : '')
     + '<input id="tok" type="password" placeholder="admin token" autocomplete="off" />'
     + '<button id="tok-go">Unlock</button>'
@@ -555,7 +555,7 @@ function render(s) {
     ? `<div class="row"><span class="dot"></span><span><div class="mname">Capacity is unverified</div>`
       + `<div class="meta">Ollama on ${esc((cap.unmanagedHosts || []).join(', ') || 'this box')} was already running when the farm started, `
       + `so the farm's concurrency and KV settings never reached it — the ${cap.slots} seat${cap.slots > 1 ? 's' : ''} above `
-      + `${cap.slots > 1 ? 'are' : 'is'} what the config asked for, not what the engine does. `
+      + `${cap.slots > 1 ? 'are' : 'is'} what this farm is set to, not what the engine does. `
       + `Set <b>${esc(cap.ollamaEnvAdvice || '')}</b> on the Ollama service and restart it, or let the farm start Ollama itself.</div></span></div>`
     : '';
   const seatRows = Array.isArray(cap.seats)
@@ -1351,7 +1351,7 @@ async function refresh(force) {
     render(s);
   } catch (e) {
     if (e.unauthorized) { logout('Wrong token.'); return; }
-    app.innerHTML = '<div class="empty">Could not reach the farm control API. Is <code>lol up</code> running? ' + esc(e.message || '') + '</div>';
+    app.innerHTML = '<div class="empty">Could not reach the farm: it may be restarting or stopped. Wait a few seconds; if this stays, start the farm again (in the Farm app: Start the farm). ' + esc(e.message || '') + '</div>';
   }
 }
 

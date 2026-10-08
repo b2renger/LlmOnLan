@@ -34,7 +34,8 @@ words in every text a person reads.
 
 ## Build status
 
-Built in slices, each tested, logged in docs/DEVLOG.md and pushed on the `vllm-managed` branch (§12).
+Built in slices, each tested, logged in docs/DEVLOG.md and pushed on the `vllm-managed` branch (§12), then merged
+into `multiuser-phase0` on 2026-10-08 (8a37e6f). Not released yet: it ships with Farm app farm-v0.0.43.
 - **Slice A (2026-10-07): §12 items 1-3.** The scripts (`serve.sh` run by the farm with its marker, log rotation, `~`,
   logged refusals; `status.sh`; `stop.sh install` and its group-scoped report; `install.sh`'s steps, markers, uv,
   process group, link refusal and download errors; `start-windows.ps1`'s exit-0 line) with §11.2's tests in
@@ -233,7 +234,11 @@ Built in slices, each tested, logged in docs/DEVLOG.md and pushed on the `vllm-m
   (added by its name) is left out of `gpuFit`; the GPU Windows sees is read again at each check while nvidia-smi has
   not answered; the fallback line names vLLM's log only when vLLM ran (`bootErrorRan`), else the checklist; boot step
   0c-ter b) says the queued-start rule; `test_scripts.sh` `timelimit` counts only its own `hf`.
-- **Left:** §11.5 / §9.6 with the owner (a release of the Farm app first); §11.6 on a Spark.
+- **Left:** the release (Farm app farm-v0.0.43, with client v0.2.9); the production Farm app, stopped since
+  2026-10-07 20:46, opened again; then §11.5 / §9.6 with the owner (the take-over, PRO6000_VLLM_SWITCH Part 2, and
+  a reboot test); §11.6 on a Spark, including whether it logs in to its desktop by itself (R4). Never run yet: an
+  Install from the panel into an empty folder on a fresh Windows PC (WSL from scratch, `build-essential`; the live
+  test borrowed production's `.venv`), and a real vLLM run by a farm on native Linux (x86_64 or the Spark).
 
 ## 0. Decisions
 

@@ -6,6 +6,68 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-10-08 (06:18) — Docs true to the merge: vLLM run by the farm, operators never sent to a file, the v0.2.9 rig list
+
+A docs review of 8a37e6f (the merge of `vllm-managed` into `multiuser-phase0`) listed more than a hundred findings: docs that
+still described two engines, `main`, or the operator-run vLLM as the way, and operator docs that sent people to
+`lol.config.json` or a terminal where the panel does it (owner rule, 2026-10-07). A first pass applied most of them
+and stopped before committing; this pass checked that work against the code, kept it, and applied the rest. Each
+finding was checked against the code first.
+- **CLAUDE.md.** The bullets describe `multiuser-phase0`, not `main`, and say what ships as v0.2.9 / farm-v0.0.43.
+  The panel's vLLM rows (name, context per person, Automatic people and memory, Apply's dry run, the download slot).
+  `lol install` never installs vLLM. The contract table gains the Hugging Face cache row (`repairMiniLm`, the probe,
+  re-check on a pin bump) and `reloadIfFarmBack`. The exact env: the per-launch `HF_HUB_OFFLINE` (no probe behind an
+  env proxy, Electron's `net.fetch`), the OCR key fallback `sk-lol-ocr`, the MCP server's name and description.
+  Data locality and the privacy boundary name the HF cache (where it moves, what the app writes there) and the
+  HEAD to huggingface.co. What `boot.log` holds (states only; the repair and an offline start are console only).
+  The repo layout: `farm/src/capacity/`, `farmProcess` (the reap and `lol down`), `farm-app/test/`. The rig list
+  for v0.2.9 / farm-v0.0.43.
+- **farm/README.md.** Three engines, one at a time, chosen in the panel. A table of which engine runs on which
+  computer (Windows + NVIDIA, the Spark, Linux x64 with the CLI only, macOS). Every "llama.cpp only" now says vLLM
+  too (the name users see, Apply, the Performance card, the model choice). The external-server refusal quotes the
+  real text (up.js `externalRefusal`) and says the engine buttons still work. The operator-run recipe sections open
+  with "for a developer": an operator presses the vLLM button. A headless Spark gets no farm at boot (R4). A row for
+  "vLLM could not start". `lol status` does not report vLLM or llama.cpp. The two vLLM test suites under Develop.
+- **farm-app/README.md.** vLLM is not in the first run; what Stop, Quit and Share do to vLLM; the vLLM rows and card;
+  the idle-seat setting; which engines each platform gets, and a Linux x64 row (no build); `npm test`.
+- **docs/GETTING_STARTED.md.** vLLM in the farm bullet, the downloads table, Route A (no Linux x64 build), `lol up`'s
+  steps, the panel's list (with the password and Plan capacity), §4 and §5. Every operator step now goes through
+  the panel: Configure, the plugins, the llama.cpp shapes table, OCR off, sizing, more boxes, the catalog, the
+  closing note, §7. The client's first start downloads the search model; without huggingface.co chat opens and a
+  message says so; Whisper's one download; about 12 s to reopen and where `boot.log` is; add a farm by address from
+  the pill, checked in a browser.
+- **shell/README.md.** LOL Vibe's name; seven `src/main` modules in the tree; the closed-LAN bullet as built (no
+  per-boot revision check, `hfModelState`, the repair, the probe and its toast); `TASK_MODEL_PARAMS` and
+  `TOOL_SERVER_CONNECTIONS`; why the Blender helper is not set through env (issue #18140); `connectPlan` and
+  `reloadIfFarmBack`; `boot.log` to verify a packaged client.
+- **docs/EMBEDDINGS_STUDY.md.** The download fix is done, and described as built (the gentle repair, the probe, the
+  proxy rule); a switch must re-point the MiniLM-specific code and tests.
+- **docs/PRO6000_VLLM_SWITCH.md.** Part 1 marked as history, not to run again; Part 2 waits for farm-v0.0.43, and
+  step 1 holds when the Farm app is already closed.
+- **docs/VLLM_MANAGED_PLAN.md.** Merged, not released; what is left (the release, the production Farm app opened
+  again, the take-over and reboot, the Spark, a fresh-PC install, a real vLLM on native Linux).
+- **docs/RIG_CHECKLIST.md.** Two client items: a laptop that cannot reach huggingface.co (and one behind a system
+  proxy), and a first download cut off.
+- **docs/TEST_SCENARIOS_v0.2.md.** A new section 7e, the v0.2.9 / farm-v0.0.43 rig list (13 checks): the Farm app
+  update and Plan capacity, a card too small, vLLM from nothing on Windows, switch and back, its settings, Stop /
+  Start / Quit / Share, Launch at login, the production take-over and reboot, the Spark (§11.6), Open WebUI starting
+  once, no huggingface.co, a proxy, a download cut off.
+- **multiuser_implementation_plan.md.** Revision 5 (Phase 2 built as an engine the farm runs). §2, §5, §11, §12 and
+  §13 follow: decisions 5 and 10 answered (and the Spark's recipe superseded the same day), 0.6 / 1.4 / 1.5 / 2.x /
+  5.1–5.4 statuses, the 128k test set in the panel, not by a flag, the vLLM risk as it stands (pinned 0.30.0, no
+  Docker fallback, never run on a Spark by the farm), the reply cap the farm passes. The DEVLOG line numbers it
+  quoted pointed at other entries; they now name the entries.
+- **The panel (farm/src/admin/index.html), three texts.** The token prompt says where the Farm app keeps the token.
+  The "could not reach" line no longer asks whether `lol up` runs. "What the config asked for" became "what this
+  farm is set to".
+- **Taken differently from the review, after the code:** `farmProcess` reaps and runs `lol down` (the supervisor
+  spawns `lol up`), so the layout says that. On a switch the clients' pill reads "Switching to vLLM…" (the job's
+  label), "Starting vLLM…" at a start. The panel's people list has no 40 (1, 2, 4, 8, 12, 16, 24, 32, 48, 64, 96,
+  128), so 7e.5 uses 64 (inside the request cap 128: no restart) and 96 (a restart). Beside vLLM, documents are
+  read with gemma4:12b only when it is installed. The review's 7e text stopped half-way through 7e.6: the rest was
+  written from its list. The three findings on CLAUDE.md's first line were one change.
+- **Tests:** farm 209/209 (it checks the docs for control characters, and reads the plan); Farm app 8/8.
+
 ## 2026-10-08 (05:25) — vLLM run by the farm: French Windows without WSL gets the right sentence
 
 The polish's own verifier found a regression. The "WSL is not installed" test expected a straight apostrophe.

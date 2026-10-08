@@ -21,7 +21,9 @@
 > MCP server; v0.2.2 the bus and MCP hardening, lessons 5–6 and "Ask out loud"; v0.2.3 the IDE (LOL Vibe's Project
 > panel + the coding agent, history, LAN share, GitHub), mic and camera, lessons 7–12, the resume banner and a full
 > review of every in-app text with tooltips; v0.2.4 the project server stops following symbolic links out of a project; v0.2.5 the coding agent compacts on small context windows; v0.2.6 agent loops (Keep going until done, schedules, Use the Computer), agent pages and the syntax check; v0.2.7 Home Assistant — ask, command, and agents that act on the home, reviewed by two critics; v0.2.8 + farm-v0.0.42 the multi-user work (multiuser_implementation_plan.md): the seat gate checks the password before a seat and forwards only the routes clients use, Stop reaches the engine, honest waits on every surface, an external vLLM routed through `hosted_vllm/` with its metrics read, a reply limit and Qwen's presence penalty against runaway replies, web search v2 (off by default, the client's search-and-read service, the date line), the Computer's yes/no decisions think, and the vLLM recipe with autostart (docs/DEVLOG.md; the manual rig list is docs/TEST_SCENARIOS_v0.2.md, section 7d).
-> The bullets below describe `main`.
+> The bullets below describe the `multiuser-phase0` branch (2026-10-08), which is ahead of `main` and of the
+> releases above. vLLM run by the farm, the capacity page, Open WebUI booting once and the search-model repair are
+> not released yet. They ship as client v0.2.9 and Farm app farm-v0.0.43.
 
 The full plan is built, released and in multi-user testing; the dated build log with how
 each piece was tested lives in [docs/DEVLOG.md](docs/DEVLOG.md), the rig‑verification state in
@@ -116,12 +118,16 @@ docs) is `docs/reviews/DOCS_REVIEW_2026-09-27_{FARM,SHELL,COMPUTER}.md`. Snapsho
     once, verify, remember per farm). Discovery, `/health/liveliness` and the admin token stay separate.
   - **Admin panel** at `http://<box>:41997/lol/admin` (bearer = `admin.token`, or a per-run token printed by
     `lol up`; the Farm app pins one): the engine switch (Ollama, llama.cpp, vLLM, and External only while configured) and the vLLM card (its checklist, Install, the model list, Start/Stop, the log, the take-over offer); the `.gguf` library (add by
-    URL — split files too — / Use this, with rollback); the name users see (llama.cpp) or per-model
-    **Rename** (Ollama); people served at once, the context window (Automatic on both engines) and the farm
-    password under ONE **Apply changes** (one restart), and **Free an idle seat after** (`proxy.seatIdleSec`,
+    URL — split files too — / Use this, with rollback); the name users see (llama.cpp, vLLM) or per-model
+    **Rename** (Ollama); people served at once, the context window (Automatic on Ollama and llama.cpp; on vLLM the
+    context is a number, and people at once and GPU memory for conversations are Automatic) and the farm
+    password under ONE **Apply changes** (one restart; on vLLM a dry run first, and vLLM restarts only for a new
+    model, context, memory or request cap), and **Free an idle seat after** (`proxy.seatIdleSec`,
     1–60 min, the workshop setting — alone it applies live, no restart); Ollama download/offer/stop/delete/Make default;
     plugin toggles and the Blender fleet recommendation; a Performance card (llama.cpp, or a vLLM) and the clients with
-    their seats. Long operations run as one job whose progress the panel polls. Everything persists to
+    their seats. Long operations run as one job whose progress the panel polls. vLLM's install and model downloads
+    run beside it in a second slot, the download slot, with their own bar and Stop. A Stop of vLLM is not kept: the
+    next farm start starts vLLM again. Everything persists to
     `lol.config.json` (`configFile.js` raw patch — never the schema-parsed config) **except** the plugin
     toggles and the Blender recommendation; Ollama's slot count applies after a farm restart. The header's
     **Plan capacity ↗** opens `/lol/capacity` (2026-10-07, `farm/src/capacity/`, open like `/lol/self`, offline):
@@ -226,7 +232,9 @@ docs) is `docs/reviews/DOCS_REVIEW_2026-09-27_{FARM,SHELL,COMPUTER}.md`. Snapsho
   (all 2026-10-08, measured with the bundled sidecar). A page OWUI loaded while the farm was not answering lists no model until reloaded:
   the renderer reloads it once when that farm answers (`app.js` `reloadIfFarmBack`). Each OWUI state, with
   the seconds since launch, goes to `<userData>/logs/boot.log` (1 MB, then `.1`): the timeline a slow-load
-  report needs.
+  report needs. It holds the states only (`starting`, `ready`, `restarting`, `stopped`, an error, with the farm in
+  use). The search-model repair and an offline start are printed to the console, which a packaged client does not
+  keep: the offline start's toast is their only trace.
   **Close means close** (owner decisions 2026-09-04 + 2026-09-10, replacing the keep-warm/tray behavior of
   v0.1.x–v0.1.43): the window's X asks "Quit LlmOnLan?" (Quit/Cancel), then quits EVERYTHING on all
   platforms (mac included — deliberate convention break); cleanup gets 4 s, then the app exits regardless.
@@ -342,7 +350,12 @@ streamed gemma4 reply); **document‑locality** (a doc embedded into the local C
 discovery across *physical* boxes / broadcast‑blocked Wi‑Fi, the full installer build + a live
 GitHub‑Release auto‑update cycle on mac/win/linux (the upgrade test), the data‑folder move via the
 native dialog, and the v0.1.45 → v0.2.0 upgrade of a profile with LOL Vibe history (the one-time import
-into `DATA_DIR/lol-client`, then a Preferences move + relaunch). When working here, keep honoring the **prime directive** below.
+into `DATA_DIR/lol-client`, then a Preferences move + relaunch); the v0.2.8 / farm-v0.0.42 rig list on installed
+builds (docs/TEST_SCENARIOS_v0.2.md, 7d); and for v0.2.9 / farm-v0.0.43 (TEST_SCENARIOS 7e): vLLM run by the farm
+from the installed Farm app on Windows + RTX (a fresh WSL, a card too small, Launch at login after a reboot) and on
+a DGX Spark ([docs/VLLM_MANAGED_PLAN.md](docs/VLLM_MANAGED_PLAN.md) §11.6, never run on one), the production
+take-over and its reboot test (§9.6, §11.5), and the installed client's first start without huggingface.co (its
+toast) and its repair of a half-downloaded search model. When working here, keep honoring the **prime directive** below.
 
 ---
 
@@ -415,7 +428,8 @@ If a task seems to require breaking one of these, **stop and flag it**.
 | Config → OWUI | Env vars at **every** launch, made authoritative by `ENABLE_PERSISTENT_CONFIG=false` — repointing the farm restarts the sidecar with new env. **Three exceptions**, all written from the authed webview via OWUI's user‑settings API `POST /api/v1/users/user/settings/update`: switching web search back off, once, on a profile a client up to v0.2.7 turned on (`ui.webSearch` 'always' → null, only while its `lolWebSearchSeeded` marker is there and the value is still 'always'; marked `lolWebSearchUnseeded`) — web search is off by default; the globe button turns it on for a chat; the **date line** (2026‑10‑05: the model otherwise believes it is 2025): `ui.system` = `Today is {{CURRENT_WEEKDAY}} {{CURRENT_DATE}}.`, once per profile and only when the person's system prompt is empty (marked `lolDateLineSeeded` either way, so a prompt they wrote or emptied is never touched; OWUI fills the variables at each message, on chat requests only, not title generation); and the opt‑in Blender tool server (`ui.toolServers` + `ui.tools`). None has a usable env (`DEFAULT_MODEL_PARAMS.system` never reaches a farm model's messages; 0.11's `DEFAULT_INTERFACE_SETTINGS` is missing from 0.10 and comes back when a person empties it). | See gotchas below. |
 | Data | `DATA_DIR` → the user's chosen local folder; default local embeddings; telemetry off. | Enforces invariant #3. |
 | Net out of OWUI | Chat completions to the farm endpoint; plus, when the farm advertises them: web searches, Kokoro TTS requests, and uploaded‑file bytes to the farm OCR extractor; and MCP tool calls to the Computer on 127.0.0.1 (this machine) — which answers the home tools against the Home Assistant a person linked. **Web search v2** (2026-10-05): OWUI's searches go to this app's main on 127.0.0.1 (`POST /web/search` on the MCP listener, OWUI's external-search env); main sends the query to the farm's SearXNG and itself reads the top pages of each search — up to 6 automatic GETs, public internet only (`webSearch.ts` through `io.ts`) — instead of OWUI fetching only the pages the model picks; a page the model still fetches itself (`fetch_url`) is OWUI's own GET. That is native tool calling, OWUI's default; a chat set to Legacy function calling gets main's results too, but OWUI then loads those pages itself (its web loader). When that port is taken, OWUI queries SearXNG directly, as before. | Embeddings always stay local. |
-| Webview | The renderer reads the OWUI origin's `localStorage.token`, validates it with `GET /api/v1/auths/` (drop + reload, ≤4 tries) before revealing the webview, and reads the user's settings once per session to undo the old web‑search seed and write the date line (a failed read writes nothing); the `persist:owui` partition is granted mic/camera/clipboard only. | `renderer/app.js`, `src/main/index.ts`. |
+| Webview | The renderer reads the OWUI origin's `localStorage.token`, validates it with `GET /api/v1/auths/` (drop + reload, ≤4 tries) before revealing the webview, and reads the user's settings once per session to undo the old web‑search seed and write the date line (a failed read writes nothing); a page that loaded while the farm in use was not answering is reloaded once, 500 ms after that farm answers (`reloadIfFarmBack`: OWUI reads the model list only as its page loads, measured on 0.11.4; re-check on a pin bump); the `persist:owui` partition is granted mic/camera/clipboard only. | `renderer/app.js`, `src/main/index.ts`. |
+| Hugging Face cache | Before each start, main repairs a half or damaged MiniLM in huggingface_hub's cache, never OWUI's own files. `repairMiniLm` removes the hub's file list and dangling links, and the snapshots only if the model is still half there; the blobs always stay. While MiniLM is not on disk, main also sends huggingface.co one HEAD (3 s) to choose `HF_HUB_OFFLINE` for that launch. "Whole" (`hfModelState`) copies huggingface_hub 1.33's local lookup and the files MiniLM's loader reads: re-check both on every pin bump. | `configBridge.ts`, `sidecar.ts`. |
 | Everything else | None. OWUI is a black box. | No DB poking, no template/CSS edits, no internal imports. |
 
 ### Verified OWUI config surface (re‑verify per pinned version; authoritative list = `shell/src/main/configBridge.ts`)
@@ -447,8 +461,10 @@ Connection: `OPENAI_API_BASE_URL` + `OPENAI_API_KEY` (the farm is OpenAI‑compa
   `RAG_EMBEDDING_MODEL_AUTO_UPDATE=false` (no per-boot huggingface.co revision check; a missing MiniLM is still
   downloaded, and a half-downloaded one is repaired before the start so it is too) · `HF_HUB_OFFLINE=1` when the
   models test as cached (every needed file in the snapshot `refs/main` names), else `HF_HUB_ETAG_TIMEOUT=2` —
-  plus, per launch and outside `buildSidecarEnv`, `HF_HUB_OFFLINE=1` when MiniLM is not on disk and
-  huggingface.co does not answer a 3 s HEAD.
+  plus, per launch and outside `buildSidecarEnv` (so `repoint`'s env comparison never sees it), `HF_HUB_OFFLINE=1`
+  when MiniLM is not on disk, no proxy is set in the environment (`HTTPS_PROXY`/`HTTP_PROXY`/`ALL_PROXY`, either
+  case), and huggingface.co does not answer a 3 s HEAD sent through Electron's `net.fetch` (the system proxy);
+  `HF_HUB_ETAG_TIMEOUT=2` stays set beside it.
 - **With a farm:** `ENABLE_OPENAI_API=true` · `OPENAI_API_BASE_URL=http://<host we reached it at>:<proxyPort>/v1`
   · `OPENAI_API_KEY`=<farm password> or `sk-lol-lan` · `DEFAULT_MODELS`=<the farm's default id, when listed>.
   **Without:** `ENABLE_OPENAI_API=false` (a no‑farm boot must not fall back to api.openai.com).
@@ -461,10 +477,13 @@ Connection: `OPENAI_API_BASE_URL` + `OPENAI_API_KEY` (the farm is OpenAI‑compa
 - **Kokoro** (when advertised): `AUDIO_TTS_ENGINE=openai` · `AUDIO_TTS_OPENAI_API_BASE_URL=<ttsUrl>` ·
   `AUDIO_TTS_OPENAI_API_KEY=sk-lol-tts` · `AUDIO_TTS_MODEL=<ttsModel|kokoro>` · `AUDIO_TTS_VOICE=<ttsVoice|af_heart>`.
 - **OCR** (when advertised): `CONTENT_EXTRACTION_ENGINE=external` · `EXTERNAL_DOCUMENT_LOADER_URL=<extract.url>`
-  · `EXTERNAL_DOCUMENT_LOADER_API_KEY=<extract.key>` (the key fetched through the farm password on a keyed farm).
+  · `EXTERNAL_DOCUMENT_LOADER_API_KEY=<extract.key>` (the key fetched through the farm password on a keyed farm;
+  `sk-lol-ocr` when there is none, because OWUI's loader needs a non-empty key). The URL is sent without trailing slashes.
 - **The Computer's MCP server** (2026-09-27, when its port is free): `TOOL_SERVER_CONNECTIONS=[{type:"mcp",
   url:"http://127.0.0.1:41995/mcp", auth_type:"bearer", key:<per-install mcpToken>, config:{enable:true},
-  info:{id:"lol-computer"}}]` — OWUI 0.11.4's own tool-server setting (config.py), no OWUI change.
+  info:{id:"lol-computer", name:"LlmOnLan Computer", description:"Build and run graphs on the LlmOnLan Computer (this computer only)."}}]`
+  — OWUI 0.11.4's own tool-server setting (config.py), no OWUI change. Set once at boot, before the first spawn, so it
+  never makes `repoint`'s env differ.
 - The supervisor adds `PYTHONUTF8=1`, `PYTHONIOENCODING=utf-8` and otherwise inherits the shell's environment.
 
 - **Gotcha #1 — persisted URLs beat env.** Connection URLs saved via the admin UI go to OWUI's DB
@@ -484,7 +503,11 @@ Data locality:
 - **Keep default local embeddings** — we set **neither** `RAG_EMBEDDING_ENGINE` **nor**
   `RAG_EMBEDDING_MODEL`, so OWUI's in‑process default applies (`all-MiniLM-L6-v2`,
   cached in the default HF_HOME — `~/.cache/huggingface`, deliberately NOT under `DATA_DIR` so a
-  data‑folder move never re‑downloads it). Do **NOT** set `RAG_EMBEDDING_ENGINE=ollama` — that would
+  data‑folder move never re‑downloads it; `SENTENCE_TRANSFORMERS_HOME`, `HF_HUB_CACHE`, `HF_HOME` or `XDG_CACHE_HOME`
+  in the inherited environment move it, as `hfHubDir` and `miniLmRoot` read them). The app writes there only to repair
+  MiniLM before a start: a half or damaged copy loses the hub's file list and its dangling links, and its snapshots too
+  while it is still half-downloaded, so Open WebUI's loader fetches it again (~92 MB). The downloaded bytes (`blobs/`)
+  stay. Do **NOT** set `RAG_EMBEDDING_ENGINE=ollama` — that would
   ship document text to the farm for **embedding**. (Distinct from extraction: with the default‑on farm
   OCR, an uploaded file's raw bytes DO transit to the trusted‑LAN farm for text extraction; the
   extracted text then embeds locally.)
@@ -545,14 +568,14 @@ CLI commands:
 | `lol models ls` / `add <id>` / `rm <id>` / `pull` | Manage the Ollama catalog in `models` (then `lol up --no-pick`). |
 | `lol status` | Health of each Ollama host + the proxy + which models are loaded. |
 | `lol down` / `stop` | Stop the proxy + `llama-server` + SearXNG/TTS/OCR + beacon (and any Ollama it started), and the vLLM the farm runs (from the runtime file, else the config; never an operator's vLLM the farm only downloaded a model for). |
-| `lol install` / `setup` | One-time, idempotent bootstrap: Ollama, the LiteLLM venv, every `models` + `preinstall` entry, the SearXNG + OCR venvs, and (only when `llamacpp.enabled`) the llama.cpp build + weights. |
+| `lol install` / `setup` | One-time, idempotent bootstrap: Ollama, the LiteLLM venv, every `models` + `preinstall` entry, the SearXNG + OCR venvs, and (only when `llamacpp.enabled`) the llama.cpp build + weights. Never vLLM: the panel's vLLM card installs it. |
 | `lol fleet` / `lol bench` | Every farm on the LAN; load-test N concurrent chats before a workshop. |
 
 Notes:
 - The CLI **generates** `litellm/config.generated.yaml` (routing least-busy, `num_retries` 3,
   `allowed_fails` 1, cooldown 60 s — none when no model has a second deployment to fail over to). On Ollama
   each host becomes a deployment of the same `model_name`
-  (e.g. `gemma4:12b`), so LiteLLM load‑balances + fails over; with llama.cpp or external serving, one
+  (e.g. `gemma4:12b`), so LiteLLM load‑balances + fails over; with llama.cpp, vLLM or an external server serving, one
   OpenAI‑compatible deployment (+ coordinator peers) replaces the Ollama catalog. LOL never hand‑edits routing; it's
   derived from `lol.config.json`.
 - Model choice = the admin panel (live), or edit `models` (or `lol models add`) + `lol up`. Clients see the
@@ -766,7 +789,8 @@ LlmOnLan/
     scripts/             #   release.mjs, afterPack.cjs (adapted from ComfyQ)
     electron-builder.yml
   farm-app/              # the operator-facing Farm app (Electron) — installs + supervises `lol`
-    src/main/            #   installer (setup wizard), farmSupervisor, runtimeManager, updater
+    src/main/            #   installer (setup wizard), farmSupervisor + farmProcess (lol down, the reap), runtimeManager, updater
+    test/                #   supervisor.test.js (npm test: lol down before the kill, keepEngine, the reap, the Linux autostart entry)
     renderer/            #   status chrome + Settings + the admin panel in a <webview>
     electron-builder.yml #   ships `../farm` as an extraResource; tags are `farm-v*`
   sidecar/               # packaging of the pinned, UNMODIFIED Open WebUI
@@ -774,7 +798,7 @@ LlmOnLan/
     build-sidecar.*      #   fetches OWUI at the pin + bundles a self-contained executable
   farm/                  # the `lol` CLI (Node) + beacon — the backend, NOT shipped to clients
     bin/lol.js           #   CLI entry
-    src/                 #   beacon.js, selfServer.js (+ admin/ panel page), snapshot.js, seats.js,
+    src/                 #   beacon.js, selfServer.js (+ admin/ panel page, capacity/ the Plan capacity page), snapshot.js, seats.js,
                          #   plugins/ (registry), pysvc/ (OCR service), extract.js, llamacpp.js/gguf.js, vllm.js,
                          #   litellm.js/ollama.js, configFile.js, commands/ (up/down/install/...)
     contract/            #   snapshot.schema.json — the beacon / GET /lol/self shape; farm + shell tests check it
@@ -800,8 +824,10 @@ LlmOnLan/
   (OWUI's); LOL Vibe's history and the Computer's graphs and media (the main window's session,
   `DATA_DIR/lol-client`); the Computer's File-box outputs (`DATA_DIR/LOL Studio Projects`). Embeddings are
   computed locally. Outside DATA_DIR, under userData, only app plumbing: settings, the downloaded engine,
-  OWUI's webview token/caches, logs, and — after an upgrade from v0.1.x — the old LOL Vibe copy kept as a
-  backup.
+  OWUI's webview token/caches, logs (`logs/boot.log`, `logs/client-data.log`, the Computer's opt-in recordings), and
+  — after an upgrade from v0.1.x — the old LOL Vibe copy kept as a backup. Outside both, the machine's Hugging Face
+  cache (`~/.cache/huggingface`, shared by every data folder) holds MiniLM, the search model: no user content. The
+  app repairs a half-downloaded copy there before a start.
 - **Over the network (all to the trusted‑LAN farm, which stores nothing):** the chat context per
   completion (from OWUI, LOL Vibe, or a Computer Instruction — with an Image box's or a Preview's rendered pixels when wired);
   web‑search queries to the farm's SearXNG — since web search v2 sent by this app's main, which then itself
@@ -822,7 +848,9 @@ LlmOnLan/
   LAN, and keeps nothing.
 - **Beyond the farm (no user content):** GitHub, for the app update check and the chat-engine (sidecar)
   download/update check, and the IDE's coding-agent runtime when a person clicks Install; huggingface.co, until
-  MiniLM and whisper-base are cached (then `HF_HUB_OFFLINE=1`). The coding agent itself talks only to the farm's
+  MiniLM and whisper-base are cached (then `HF_HUB_OFFLINE=1`): Open WebUI's downloads and, while MiniLM is not on
+  disk, one HEAD from this app's main before each Open WebUI start (3 s, through the system proxy, none behind an env
+  proxy; nothing about the person) to decide whether that launch starts offline. The coding agent itself talks only to the farm's
   `/v1` (its cloud, web and telemetry rows are off; checked with a netstat watch, 2026-09-28) — and, with **Use the
   Computer** on, to the Computer's MCP server on 127.0.0.1 (this machine).
 - **The IDE's publishing, only on a person's click:** **Push** sends a project's committed files to the https git

@@ -17,7 +17,7 @@ computed on each laptop, never on the farm.
 
 If French knowledge bases, or small farms with French users, become real use, switch everyone once. Try granite-97m first; keep EmbeddingGemma 300M in reserve.
 
-**Separately, worth fixing before v0.2.9:** a first model download that gets interrupted now leaves uploads broken for good (see "Fix first").
+**Separately, fixed before v0.2.9:** a first model download that got interrupted used to leave uploads broken for good (see "Fixed before v0.2.9").
 
 ### What "gemma2 embeddings" is
 - Almost certainly **EmbeddingGemma 2**, which Google released on 6 October 2026. It is Apache 2.0 and needs no login. It is one 1.5 GB file; text uses 270M of its 740M parameters, and the rest is for images, audio and video.
@@ -103,9 +103,18 @@ A first download cut off half-way left every upload broken for good. That is fix
 `sidecar.ts`; DEVLOG 2026-10-08):
 - **"Cached" is judged the way huggingface_hub judges it.** It follows `refs/main` to the one snapshot folder, checks
   every file the loader needs, and treats a dangling link as damage.
-- **A half or damaged MiniLM is removed before Open WebUI starts.** The snapshots and the file list go; the
-  downloaded bytes stay. Open WebUI's loader then fetches the 11 files it needs: about 92 MB, healthy at 22.6 s,
-  and offline-proof afterwards.
+- **A half or damaged MiniLM is repaired before Open WebUI starts, gently.** First the hub's file list and any
+  dangling link go: a whole model damaged only by a dangling link then loads from disk, offline too (healthy at
+  11.3–11.6 s). Only a model still half-downloaded loses its snapshots too. The downloaded bytes always stay. Open
+  WebUI's loader then fetches the 11 files it needs: about 92 MB, healthy at 22.6 s, and offline-proof afterwards.
+- **A closed LAN no longer holds the start.** While MiniLM is not on disk, the app asks huggingface.co once (a 3 s
+  question). With no answer, that launch alone starts offline: the chat opens in about 12 s instead of after the
+  hub's 2 to 8 minutes of retries, and a message says document uploads need one start with internet access. The
+  next start online downloads the model.
+- **The question follows the system proxy, as the hub does.** It goes through Electron's network stack. When a
+  proxy is set in the environment, the app does not ask and the launch stays online. Node's own fetch ignores
+  proxies, so on a proxy-only network every launch would have started offline and MiniLM would never have
+  downloaded.
 - **The first idea did not work.** Turning Open WebUI's own update back on fetched the whole repository (0.94 GB,
   once 196 s, past the 180 s start wait). It also left a dangling link that made the next offline start fail.
   End-to-end tests with the real sidecar rejected it.
@@ -133,14 +142,18 @@ Settings, in `configBridge.ts`. `RAG_EMBEDDING_ENGINE` stays unset.
   - never float16.
 
 Steps:
-1. **The download fixes above:** check the weights file of the new model, and handle a half folder.
+1. **Point the download fixes at the new model:** `configBridge.ts` checks and repairs MiniLM by name (`MINILM`: its
+   folder and the files its loader reads; `miniLmState`, `repairMiniLm`), and the start-up question asks huggingface.co
+   about MiniLM (`hubAnswers`). Give them the new model's folder and file list, measured file by file as for MiniLM,
+   and change the size in the offline-start message ("about 92 MB") in `sidecar.ts`.
 2. **Allow for the first download:** while the weights are missing, wait longer than 3 min and don't offer a Retry that kills the download. The connection screen should say what is downloading and its size.
 3. **Licence:** add the Gemma notice to About and NOTICE.
 4. **Docs:** CLAUDE.md (the embeddings section and the data flow), INTEGRATION_BRIEF, the tutorial, a release note telling people to click Reindex (for granite, old answers are silently wrong until then), and the DEVLOG.
 
 What to test:
 - **Startups:** first start with an empty Hugging Face folder and no token (this PC has a token, which would hide a login failure), an interrupted first start, and an offline second start.
-- **Unit tests** for `hfModelsCached`, including a half folder counting as not downloaded.
+- **Unit tests:** extend the existing `hfModelState` / repair / `hubAnswers` tests in `test/chat/unit/shell-main.test.mjs`
+  to the new model's file list (a half folder counts as partial; leave out each needed file in turn).
 - **French PDF:** on a mock farm under 24,576 tokens per person and on a 64k farm.
 - **An old MiniLM knowledge base**, before and after Reindex, and memories.
 - **Network:** no embedding request reaches the farm.

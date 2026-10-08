@@ -47,6 +47,13 @@ risk; the build itself is implemented (see [DEVLOG.md](DEVLOG.md)).
 - [ ] **Offline boot:** after one mic use (Whisper fetched into `DATA_DIR/cache/whisper/models`), a relaunch
       with the internet unplugged boots with `HF_HUB_OFFLINE=1` (visible in the sidecar env) and no hub
       wait; a fresh data folder boots with `HF_HUB_ETAG_TIMEOUT=2` instead (SA-2).
+- [ ] **A laptop that cannot reach huggingface.co (v0.2.9):** a fresh install on a network that blocks it opens the
+      chat in ~12 s with the toast "Document uploads need one start with internet access…", and chat works; the
+      next start online downloads MiniLM (~92 MB) and uploads work. Same pass on a network that reaches the
+      internet only through a system proxy (none in the environment): MiniLM downloads at the first start.
+- [ ] **A first download cut off half-way (v0.2.9):** pull the cable during the first start's MiniLM download;
+      the next start online repairs it and uploads work, and that start's lines in `logs/boot.log` show one
+      `starting` and one `ready`.
 - [ ] **Chat-engine update on Windows:** Preferences ▸ About ▸ Check for chat-engine update → download →
       Restart to apply → About shows the new version; a failed swap keeps the old engine and retries next
       launch (SA-6).
