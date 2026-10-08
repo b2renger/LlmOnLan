@@ -478,12 +478,45 @@ export default (test) => {
     assert.equal(fs.existsSync(path.join(repo, 'trees')), false, 'the hub\'s file list would refuse the new 11-file snapshot');
     assert.equal(fs.existsSync(path.join(repo, 'blobs', 'x')), true, 'downloaded bytes are kept');
     assert.equal(CB.miniLmState({}, home), 'missing', 'so OWUI\'s loader fetches it again');
+    // A WHOLE snapshot damaged only by a dangling link and the hub's file list (hub 1.33's whole-repository
+    // download): the cheap repair keeps it, so it still loads from disk offline (measured: healthy at 11.3 s).
+    const home3 = tempDir('gentle');
+    const repo3 = path.join(home3, '.cache', 'huggingface', 'hub', MINILM);
+    const snap3 = seedHf(path.dirname(repo3), MINILM);
+    fs.mkdirSync(path.join(repo3, 'trees'), { recursive: true }); fs.writeFileSync(path.join(repo3, 'trees', 'list'), '[]');
+    fs.mkdirSync(path.join(snap3, 'onnx'));
+    let linked = true;
+    try { fs.symlinkSync(path.join(repo3, 'blobs', 'gone'), path.join(snap3, 'onnx', 'model_qint8_arm64.onnx'), 'file'); } catch { linked = false; }
+    if (linked) {
+      assert.equal(CB.miniLmState({}, home3), 'partial');
+      assert.match(String(CB.repairMiniLm({}, home3)), /broken link/);
+      assert.equal(CB.miniLmState({}, home3), 'cached', 'kept, and whole');
+      assert.equal(fs.existsSync(path.join(snap3, 'model.safetensors')), true);
+      assert.equal(fs.existsSync(path.join(repo3, 'trees')), false);
+    }
     // The env never turns OWUI's update back on: a whole-repository download (0.94 GB) is what broke caches.
     const hfHome = tempDir('repenv');
     await withEnv({ HF_HOME: hfHome, HF_HUB_CACHE: undefined, SENTENCE_TRANSFORMERS_HOME: undefined, WHISPER_MODEL_DIR: undefined }, () => {
       seedHf(path.join(hfHome, 'hub'), MINILM, ['config.json']);
       assert.equal(CB.buildSidecarEnv({ endpoint: null, dataDir: tempDir('repdata') }).RAG_EMBEDDING_MODEL_AUTO_UPDATE, 'false');
     });
+  });
+
+  // 2026-10-08: with MiniLM not on disk and huggingface.co silent (a closed LAN), the hub's retries held OWUI's boot
+  // 123-466 s, past the 180 s wait. sidecar.ts asks once with hubAnswers() and starts that launch offline.
+  test('hubAnswers: any HTTP answer is an answer; silence or a closed port is not, within the limit', async () => {
+    const http = await import('node:http');
+    const listen = (/** @type {import('node:http').RequestListener} */ fn) => new Promise((res) => { const s = http.createServer(fn); s.listen(0, '127.0.0.1', () => res(s)); });
+    /** @type {any} */ const ok = await listen((_q, r) => { r.writeHead(404); r.end(); });
+    /** @type {any} */ const mute = await listen(() => { /* never answers */ });
+    try {
+      assert.equal(await CB.hubAnswers(`http://127.0.0.1:${ok.address().port}/x`, 2000), true, 'a 404 still means the site answers');
+      const t0 = Date.now();
+      assert.equal(await CB.hubAnswers(`http://127.0.0.1:${mute.address().port}/x`, 300), false);
+      assert.ok(Date.now() - t0 < 2000, 'gives up at its limit');
+      const closed = ok.address().port; await new Promise((r) => ok.close(r));
+      assert.equal(await CB.hubAnswers(`http://127.0.0.1:${closed}/x`, 2000), false, 'nothing listening');
+    } finally { mute.closeAllConnections?.(); mute.close(); try { ok.close(); } catch { /* closed */ } }
   });
 
   test('decision 9 buildSidecarEnv: OWUI\'s background tasks answer without thinking; chats are untouched', () => {

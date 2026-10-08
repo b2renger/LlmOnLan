@@ -116,17 +116,38 @@ export function hfModelsCached(dataDir: string, env: NodeJS.ProcessEnv = process
     return miniLmState(env, home) === 'cached' && hfModelState(whisper, WHISPER) === 'cached';
 }
 
-// Run before every Open WebUI start (sidecar.ts): a 'partial' MiniLM is removed — its snapshots/ and
-// the hub's file list (trees/), never the downloaded bytes (blobs/, reused) — so OWUI's local lookup
-// misses and its loader fetches the 11 files it needs: ~92 MB, healthy at 22.6 s, then offline-proof
-// (measured 2026-10-08). OWUI's own update would complete it too, but fetches the whole repository
-// (0.94 GB: once 196 s, past the 180 s start wait) and leaves the dangling link above. Returns what
-// it did, for the log; null when there was nothing to do.
+// Run before every Open WebUI start (sidecar.ts) on a 'partial' MiniLM, never touching the downloaded
+// bytes (blobs/, reused). First the cheap repair: the hub's file list (trees/) and any dangling link —
+// a whole snapshot damaged only by hub 1.33's shared blobs then loads from disk, offline too (healthy at
+// 11.3 s with the network dropped). Still partial (a download cut off): the snapshots go, so OWUI's local
+// lookup misses and its loader fetches the files it needs — up to ~92 MB, healthy at 22.7 s, then
+// offline-proof (all measured 2026-10-08). OWUI's own update would complete it too, but fetches the
+// whole repository (0.94 GB: once 196 s, past the 180 s start wait) and leaves the dangling link above.
+// Returns what it did, for the log; null when there was nothing to do.
+// ponytail: the unused whole-repository blobs an old OWUI update left (~0.9 GB) stay in blobs/.
 export function repairMiniLm(env: NodeJS.ProcessEnv = process.env, home: string = os.homedir()): string | null {
     if (miniLmState(env, home) !== 'partial') return null;
     const dir = path.join(miniLmRoot(env, home), MINILM.repo);
-    for (const sub of ['snapshots', 'trees']) fs.rmSync(path.join(dir, sub), { recursive: true, force: true });
-    return `removed a half-downloaded or damaged embedding model (${dir}): Open WebUI downloads it again (~92 MB)`;
+    fs.rmSync(path.join(dir, 'trees'), { recursive: true, force: true });
+    const prune = (d: string): void => {
+        for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+            const p = path.join(d, e.name);
+            if (e.isSymbolicLink() && !fs.existsSync(p)) fs.rmSync(p, { force: true });
+            else if (e.isDirectory()) prune(p);
+        }
+    };
+    try { prune(path.join(dir, 'snapshots')); } catch { /* no snapshots folder */ }
+    if (miniLmState(env, home) === 'cached') return `removed a broken link and the file list of the embedding model (${dir}): it loads from disk`;
+    fs.rmSync(path.join(dir, 'snapshots'), { recursive: true, force: true });
+    return `removed a half-downloaded embedding model (${dir}): Open WebUI downloads it again (up to ~92 MB)`;
+}
+
+// Whether huggingface.co answers within the limit (any HTTP answer counts). Asked before a start only while
+// MiniLM is not on disk (sidecar.ts): where the site does not answer, this launch runs hub-offline.
+export async function hubAnswers(url = 'https://huggingface.co/api/models/sentence-transformers/all-MiniLM-L6-v2',
+    timeoutMs = 3000): Promise<boolean> {
+    try { await fetch(url, { method: 'HEAD', signal: AbortSignal.timeout(timeoutMs) }); return true; }
+    catch { return false; }
 }
 
 // Whole-document RAG needs the whole document to FIT. Below this per-slot context

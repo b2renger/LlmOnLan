@@ -8,7 +8,7 @@
 import { EventEmitter } from 'events';
 import { spawn, ChildProcess } from 'child_process';
 import { resolveSidecarCommand, sidecarExists } from './paths';
-import { buildSidecarEnv, repairMiniLm } from './configBridge';
+import { buildSidecarEnv, hubAnswers, miniLmState, repairMiniLm } from './configBridge';
 import { findFreePort, killTree, waitForHttp } from './util';
 import { SidecarState } from './types';
 
@@ -101,10 +101,19 @@ export class SidecarSupervisor extends EventEmitter {
         // No Open WebUI runs now (the old child is gone): the one moment a broken embedding model can be removed.
         try { const did = repairMiniLm(); if (did) console.log(`[sidecar] ${did}`); }
         catch (e) { console.warn(`[sidecar] could not remove a broken embedding model: ${(e as Error).message}`); }
+        // A MiniLM not on disk can only come from huggingface.co. Where that site does not answer (a closed LAN),
+        // the hub's own retries (5 per file, each up to the system's connect timeout) held the boot 123-466 s, past
+        // the 180 s wait below, so the chat never opened (measured 2026-10-08). Asked once, 3 s: no answer → this
+        // launch runs hub-offline, the chat opens in ~12 s and uploads wait for a start with the network. Per launch,
+        // outside buildSidecarEnv, so repoint()'s comparison never sees it.
+        const hubOffline = miniLmState() !== 'cached' && !(await hubAnswers());
+        if (myGen !== this.gen) return;
+        if (hubOffline) console.log('[sidecar] huggingface.co does not answer and the embedding model is not on disk: starting offline (uploads wait for a start with the network)');
 
         const env = {
             ...process.env,
             ...buildSidecarEnv(this.launchOpts()),
+            ...(hubOffline ? { HF_HUB_OFFLINE: '1' } : {}),
             // OWUI logs Unicode (loguru/rich) → force UTF-8 so it doesn't crash a
             // Windows cp1252 console (same class of bug as LiteLLM's banner).
             PYTHONUTF8: '1',
