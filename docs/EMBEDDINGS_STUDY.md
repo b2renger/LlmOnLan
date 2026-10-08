@@ -158,3 +158,86 @@ What to test:
 - **An old MiniLM knowledge base**, before and after Reindex, and memories.
 - **Network:** no embedding request reaches the farm.
 - **Real laptops:** Windows, an Apple Silicon Mac (MPS), an Intel Mac (torch 2.2.2) and Linux. Measure first start, memory and the time to upload 50 pages.
+
+---
+
+## Round 2 (2026-10-08 afternoon): multilingual, laptop or farm
+
+The owner: "we would need multi language embedding support … server or laptop, help me decide; gemma2 embeddings is new
+and performant, my only worry is that it will be too big for some laptops." Two agents measured it, one per side. The
+scripts and raw results stayed in the session scratchpad (`embeddings/laptop/`, `embeddings/server/`).
+
+### Quality across languages (nDCG@10, 200 questions per cell, ±0.03–0.04)
+
+**Same-language questions** (MIRACL Wikipedia slices):
+
+| model | fr | en | es | de | ar | zh | ja | average |
+|---|---|---|---|---|---|---|---|---|
+| MiniLM (today) | 0.41 | 0.69 | 0.45 | 0.39 | 0.00 | 0.05 | 0.05 | 0.29 |
+| granite-97m-r2 | 0.70 | 0.75 | 0.78 | 0.73 | 0.83 | 0.71 | 0.79 | 0.75 |
+| multilingual-e5-small | 0.69 | 0.75 | 0.81 | 0.74 | 0.87 | 0.68 | 0.81 | 0.76 |
+| **EmbeddingGemma 300M** | 0.76 | 0.80 | 0.82 | 0.80 | 0.86 | 0.78 | 0.82 | **0.81** |
+| EmbeddingGemma 2 | 0.73 | 0.78 | 0.82 | 0.78 | 0.88 | 0.76 | 0.83 | 0.80 |
+| Qwen3-Embedding-0.6B | 0.76 | 0.78 | 0.80 | 0.76 | 0.88 | 0.75 | 0.78 | 0.79 |
+
+**A question in another language, answers in French documents** (Belebele; the international student's case):
+
+| model | en→fr | es→fr | de→fr | ar→fr | zh→fr | ja→fr | average |
+|---|---|---|---|---|---|---|---|
+| MiniLM | 0.55 | 0.24 | 0.28 | 0.02 | 0.03 | 0.02 | 0.19 |
+| granite | 0.82 | 0.81 | 0.78 | 0.61 | 0.70 | 0.67 | 0.73 |
+| e5-small | 0.80 | 0.79 | 0.79 | 0.44 | 0.25 | 0.59 | 0.61 |
+| **EmbeddingGemma 300M** | 0.92 | 0.92 | 0.88 | 0.84 | 0.90 | 0.88 | **0.89** |
+| EmbeddingGemma 2 | 0.87 | 0.87 | 0.84 | 0.80 | 0.83 | 0.84 | 0.84 |
+| Qwen3-0.6B | 0.91 | 0.86 | 0.86 | 0.73 | 0.84 | 0.81 | 0.83 |
+
+French homework (Alloprof): MiniLM 0.29, granite 0.48, e5-small 0.27, **EmbeddingGemma 300M 0.60**, EmbeddingGemma 2 0.47.
+
+**What it says:**
+- MiniLM does not work beyond English.
+- EmbeddingGemma 300M is the best model for us wherever it runs: best on average, and clearly best across
+  languages.
+- EmbeddingGemma 2 is no better on text. It ties in the same language and loses 0.04–0.07 across languages. Its
+  strengths, images and audio in the same space, are not used by Open WebUI.
+
+### On a laptop (4 cores capped to AVX2; real laptops ~1.5–3× slower, an estimate)
+
+Measured in the real bundled Open WebUI 0.11.4, uploading a 50-page French document:
+
+| setting | download | upload time | Open WebUI's memory, peak |
+|---|---|---|---|
+| MiniLM (today) | 91 MB | 3.4 s | 0.80 GB |
+| granite, forced to fp32 | 220 MB | 8.6 s | 1.21 GB |
+| **EmbeddingGemma 300M** | 1.27 GB | **31.8 s** | 1.49 GB |
+| EmbeddingGemma 2 | — | fails: Open WebUI 0.11.4 cannot load it (it pins transformers 5.5.4); no newer release exists | — |
+
+- **Memory is not the problem: time is.** Every upload is embedded, even on a 64k farm that then reads the file
+  whole. So on a weak laptop each 50-page attachment would wait about 1–2.5 minutes, against seconds today.
+- **Intel Macs** (found on the way, to confirm on a real one): their sidecar's torch 2.2.2 is too old for transformers
+  5.5.4. Document uploads probably fail there today, with MiniLM. No in-process model can work there.
+- **Apple Silicon:** Open WebUI uses the Mac's GPU. Not measured.
+
+### On the farm (llama-server with `--embeddings`, the farm's own llama.cpp)
+
+| measure | result |
+|---|---|
+| GPU memory | about 1.1 GB |
+| one 50-page upload | 1.4 s |
+| ten 50-page uploads at once | 6.7 s |
+| a search query | 3 ms |
+
+- **Runs with the farm's current llama.cpp (b10670), DGX Spark included:** EmbeddingGemma 300M and Qwen3-0.6B.
+  EmbeddingGemma 2 needs b11454 or later.
+- **No seat taken:** it runs on its own plugin port, so it doesn't count against chat seats.
+- **Same vectors whatever the server:** the same model gives the same vectors from the farm's llama.cpp and from the
+  laptop's sentence-transformers (cosine ≥ 0.999, measured for EmbeddingGemma 2). A knowledge base built on one
+  can therefore be searched from the other.
+- **What changes:**
+  - Document text chunks and queries go to the farm. Today's OCR already sends the file itself there for
+    extraction. Nothing is stored there, and the vectors stay on the laptop.
+  - Every farm must serve the same model, and the laptop checks it before use.
+  - Indexing needs the farm.
+  - CLAUDE.md's rule "never send documents to the farm for embedding" would change: the owner's decision.
+
+### The decision (2026-10-08)
+See the DEVLOG entry of this day for what the owner chose.
