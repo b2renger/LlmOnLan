@@ -191,8 +191,12 @@ Built in slices, each tested, logged in docs/DEVLOG.md and pushed on the `vllm-m
   - docs/PRO6000_VLLM_SWITCH.md Part 2 had its Windows paths' backslashes eaten (form feed and vertical tab bytes);
     put back, and a test now refuses control characters in the docs.
   - Tests: lifecycle steps 15-20.
-- **Left:** §11.4, the live test with a real vLLM beside production (and A16, the code refresh over a running
-  `serve.sh`, its step 10), then §11.5 / §9.6 with the owner (a release of the Farm app first).
+- **Live test (2026-10-08, §11.4).** A real vLLM 0.30.0 with Qwen3-0.6B, run by a scratch farm beside production,
+  through the admin API: all eleven steps pass (DEVLOG 2026-10-08). It found one bug: a stopped model download
+  left a temporary file that kept the model "partly downloaded" for ever; `install.sh` now clears those files
+  once a download ends. Measured: an outside tree-kill of `lol up` stops vLLM cleanly in about 2 s (R1); the Farm
+  app's copy over a running `serve.sh` changes nothing for it (R3, A16).
+- **Left:** §11.5 / §9.6 with the owner (a release of the Farm app first).
 
 ## 0. Decisions
 
@@ -1055,12 +1059,16 @@ Steps:
   - Quit and Stop stop vLLM on purpose;
   - the share toggle keeps the wsl.exe.
   Only an outside tree-kill (Task Manager) meets it. The worst case is a normal 2-minute start. Live step 5 measures it.
+  Measured 2026-10-08: with its wsl.exe killed, serve.sh gets a hang-up and stops vLLM itself within 2 s (status
+  129), the GPU freed; the next `lol up` starts it again as usual.
 - R2. Quoting through `wsl.exe --cd` with a space, and the env elements. Base64 removes the argv risk; the path with a space is tested (§11.3-13).
-- R3. A farm-code refresh over a running serve.sh: live step 10, plus the migration check.
+- R3. A farm-code refresh over a running serve.sh: live step 10, plus the migration check. Measured 2026-10-08: the
+  Farm app's `fs.cpSync` rewrote every script under a running serve.sh (open in bash) and relay.py with no error;
+  the server kept serving and later stopped cleanly.
 - R4. A headless Linux box (no graphical login) does not get vLLM at boot once its unit is a no-op. Keep the external recipe there, or later run `lol up` as a systemd user service.
 - R5. Strict zod: an older farm refuses a config holding `vllm`. A downgrade needs the backup put back (docs and release notes).
 - R6. The library and FAMILY_ARGS pin vLLM 0.30.0 and NVFP4 checkpoints measured on Blackwell. Older cards get a warning, and a failed start falls back with vLLM's own error quoted. Custom models get generic args.
-- R7. The shared caches (~/.cache/vllm, ~/.cache/flashinfer) during the live test. The keys differ by model, and production's kernels are already cached.
+- R7. The shared caches (~/.cache/vllm, ~/.cache/flashinfer) during the live test. The keys differ by model, and production's kernels are already cached. Measured 2026-10-08: the test added about 137 MB (three compile entries for the tiny model, in ~/.cache/vllm, ~/.triton, ~/.cache/flashinfer and ~/.cache/huggingface), left in place.
 - R8. The live test's GPU headroom is thin (74.9 + up to 9 for OCR + about 5 of 95.6 GiB): hence the 12 GiB guard and kv 2 GiB; --enforce-eager through extraArgs is the fallback.
 - R9. A failed Apply costs two starts (about 4-5 min). The pre-checks and the dry run reduce it, and the operator is warned before every restart.
 - R10. vllm.log: vLLM 0.30 logs no prompts by default and the farm never passes --enable-log-requests, but parser errors can quote output (the panel says so). The log is admin-only, and rotation keeps it under 2 × 50 MB.

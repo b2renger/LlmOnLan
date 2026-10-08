@@ -6,6 +6,139 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-10-08 (02:24) — vLLM run by the farm: the live test on the PRO 6000, beside production
+
+The plan's §11.4 ([VLLM_MANAGED_PLAN.md](VLLM_MANAGED_PLAN.md)), on the `vllm-managed` branch, from 01:00 to 02:07: a
+real vLLM 0.30.0 with a tiny model (Qwen/Qwen3-0.6B), run by a scratch farm from the worktree, beside the production
+farm, and driven through the admin API the panel calls, as an operator would. Every step passes in the end: step 1
+after a fix (the bug below, 05cf321), steps 5, 9 and 10 after a correction to the test driver itself.
+
+- **The setup.**
+  - The scratch farm: the gate on 4300 and LiteLLM 1.97 on 4301, the panel on 41897, 127.0.0.1 only, beacon and
+    every plugin off, a fake Ollama on 4302.
+  - Its vLLM: the folder `/home/ateliernum/lol-test`, whose `.venv` is a link to production's (`~/lol-spike/.venv`,
+    so no install), port 8199, 4 people, 8k of context, 2 GiB for conversations.
+  - Before every step, three guards: 8100 lists Qwen3.6, `~/lol-spike/run/vllm.pgid` is 401 with serve.sh its
+    leader, and the GPU has 12 GiB free. They held at every step; the lowest was 14.6 GiB free.
+- **The steps**, with what the panel said:
+  1. **Add a model** "Qwen/Qwen3-0.6B": in the list. **Download**: 1.5 GB in 169 s, in the download slot. The bar
+     said "checking this computer", then "downloading Qwen3-0.6B — n GB", then "Qwen3-0.6B is downloaded.".
+     - It ended before its meter showed half. So the stop was tried on a second download, after deleting the folder.
+     - **Stop** at 82 s: stopped, and the list said partly downloaded.
+     - **Download again**: done in 126 s, but the list still said partly downloaded. That is the bug below.
+     - After the fix, Download again: 1.1 s (the files were already whole), the stopped attempt's file gone, and
+       the list says downloaded (1.5 GB).
+  2. **The scratch farm** answered 7.1 s after `lol up`, serving the fake Ollama.
+  3. **Check this computer** (0.2 s) listed:
+     - "WSL is installed, with Ubuntu on WSL 2.";
+     - "Ubuntu sees the GPU: NVIDIA RTX PRO 6000 Blackwell Workstation Edition (96 GB).";
+     - "vLLM 0.30.0 is installed (in /home/ateliernum/lol-test).", found through the link;
+     - "153 GB free for vLLM and its models.".
+     No problem, no warning.
+  4. **Switch to vLLM**: ready in 160 s. This was the model's first start, so its kernels compiled.
+     - The panel's line: "starting vLLM" (1 s), "reading the model" (16 s), "loading the model weights (1 of 1)"
+       (25 s), "preparing the GPU (the first start takes a few minutes longer)" (28 s), "capturing GPU graphs"
+       (119 s).
+     - The farm said healthy at every sample.
+     - A chat through the gate: "The capital of France is Paris.".
+     - The Performance card showed 4 slots and 18,720 tokens of conversation memory. Clients saw 4 seats of 8k.
+     - The memory warning said what is true at 2 GiB: "The memory for conversations holds 2 people at 8k, fewer than
+       the 4 this farm lets in at once: past 2, people wait. …".
+     - GPU free: 19.3 GiB before, 14.9 GiB after.
+  5. **`lol up` killed alone** (taskkill /F, no /T).
+     - vLLM kept serving: chats on 8199 60 s and 5 min later, the same process group.
+     - The next `lol up` kept it in 5.1 s: ready, no job.
+     - The first run's direct chats got 404 because the test driver named the farm's model name, not vLLM's own.
+       The step was run again.
+     - **Measured (R1)**: killed WITH /T, the wsl.exe goes and vLLM with it, cleanly. serve.sh got a hang-up and
+       stopped vLLM within 2 s ("vLLM exited (status 129)"), and the GPU was freed. The next `lol up` started it
+       again, ready in about 25 s. An outside tree-kill costs one normal start, as the design assumed.
+  6. **Apply.** The dry runs said a name keeps vLLM running and a context restarts it.
+     - The name "tiny-live": 5.1 s, the same process, and clients see the new name.
+     - 16k of context: one restart in 48 s ("Applied in one restart of vLLM: 16k of context each."). Healthy
+       throughout, and saved for the next start.
+  7. **`kill -9` of the test's EngineCore**, found by its process group (never 401).
+     - Seen in 3 s; one restart; ready 21 s after the kill.
+     - Again within 5 minutes: after 12 s Ollama (the fake) served under vLLM's name.
+     - The panel said "vLLM stopped twice in 5 minutes (the second time, its process ended (status 0)).".
+     - No vLLM was left, and the file still says vLLM.
+  8. **Boot, Stop, Start, `lol down`.**
+     - Boot: the panel answered after 5 s, healthy, with "Starting vLLM". A chat meanwhile got a 503 "This farm's
+       model is starting: about 2 minutes. Try again then.". Ready 24 s after `lol up`.
+     - **Stop**: 4 s. Nothing ran and the farm said unhealthy. A chat got "This farm's model is stopped for now. Try
+       again later.".
+     - **Start**: ready in 22 s.
+     - **`lol down`**: 9 s. Nothing was left, the runtime file was gone, and the GPU was back to 19.2 GiB free
+       (19.3 at the start).
+  9. **The take-over rehearsal.**
+     - The test server was started the operator's way: a hidden wsl.exe running serve.sh, with no farm arguments,
+       from a copy of farm/vllm in a folder named "LlmOnLan Farm". It had LOL_VLLM_MODEL, and the tiny model's
+       arguments after serve.sh's own Qwen3.6 defaults: the last one wins, in vLLM and in the farm's reading. It
+       answered after 39 s.
+     - The scratch farm then routed to it as its external server, and offered "Let the farm run vLLM" at once.
+     - The click took 0.4 s: "The farm now runs vLLM. Nothing was restarted. If this computer started vLLM at log
+       on before, that now only opens the Farm app.".
+       - The same process group and the same LiteLLM process.
+       - The marker was written.
+       - The file was rewritten: the vllm block in, with what the server runs; the external block out; a backup
+         of the old file beside it.
+       - Chats kept working under the same name.
+     - The old log-on script, `start-windows.ps1`, run against that folder (whoami.exe stood in for the Farm app):
+       - on vLLM's port, it found vLLM answering, and serve.sh logged "The LlmOnLan farm runs this vLLM now (its
+         panel starts and stops it): this start does nothing.";
+       - on another port, serve.sh did nothing, and the script said "The farm runs vLLM now: opening the Farm app,
+         which starts it.".
+     - **Undo**: "Back as before: the farm routes to vLLM without running it.". The file came back byte for byte;
+       the backup and the marker were gone; the same server.
+     - `lol down` then left the operator's vLLM running.
+     - Before this, the marker left by steps 4-8 was removed by hand: `lol down` leaves it by design (R12). A first
+       try at 01:40, with the marker still there, found serve.sh doing nothing, as it should.
+  10. **A16, the Farm app's code refresh over a running server.**
+      - `fs.cpSync`, with the Farm app's own options, copied a fresh farm/vllm (each script one line longer) over
+        the folder that server's serve.sh (open in bash) and relay.py came from.
+      - 91 ms, no error, and Linux saw the new bytes. The server kept serving: the same group, a chat.
+      - At the cleanup, that serve.sh still stopped cleanly.
+      - A first try copied identical files and could not show the rewrite: Windows keeps a copied file's time.
+  11. **Cleanup.**
+      - stop.sh of the test folder; nothing left running from it.
+      - `rm -rf /home/ateliernum/lol-test` removed the link only: the vLLM in `~/lol-spike/.venv` is intact.
+      - The fake Ollama, the copy and the scratch farm are gone, and no test port answers.
+- **The bug, fixed in 05cf321: a stopped model download left the model "partly downloaded" for ever.**
+  - huggingface_hub 1.33 (the vLLM venv's) writes each file to a temporary file of its own attempt. It removes that
+    file only when that attempt ends by itself.
+  - A Stop left the file. No later attempt reused it, and status.sh counted it. Switching to vLLM was then refused
+    ("only partly downloaded: press Download to finish it"), with no way out.
+  - Now install.sh clears those files once a download ends.
+  - The fake hf no longer clears them itself: that hid the bug. test_scripts.sh checks Stop, then Download again.
+  - The panel no longer promises that a stopped download continues where it left off. It says what is true: the
+    files it finished are kept.
+- **Seen, not changed:**
+  - The download meter lags. hf_xet keeps much of a file in memory before writing it. In the second download the
+    meter (the folder on disk) said 0.02 GB for the first 80 s, and the first download ended with the meter at
+    0.39 GB of 1.5 GB. The meter is true to the disk, but the bar sits low, then jumps.
+  - The fallback's reason, "(the second time, its process ended (status 0))", is not plain words for an operator.
+  - The test left about 137 MB in the shared Linux caches: three compile entries for the tiny model.
+    - `~/.cache/vllm`: 127 MB. `~/.cache/flashinfer`: 7 MB. `~/.triton`: 3 MB. `~/.cache/huggingface`: 1 MB.
+    - They are keyed by model and harmless. They are left in place: production's own entries live in the same
+      folders, and telling the two apart is not certain.
+- **Tests on the branch after the fix:**
+  - farm `node test/run.js`: 206 passed;
+  - `farm/vllm/test_scripts.sh` (WSL): 110/110 (108 before; the new ones are Stop, then Download again);
+  - lifecycle `LOL_VLLM_FAKE=1 node test/vllm-lifecycle.js`: 153 passed, 0 failed (all 20 steps).
+- **Production untouched.**
+  - The production Farm app (its gate on 4000, its panel on 41997) has been stopped since 2026-10-07 20:46:13, before
+    this test began (slice B's entry: its farm.log ends with no shutdown line). This test never started it: the
+    guard on 4000 compared with that.
+  - Production's vLLM answered on 8100 at every guard, as process group 401 with serve.sh its leader.
+    `~/lol-spike/run` is unchanged since 2026-10-07 17:45, with no marker.
+  - The "LlmOnLan vLLM" task is Ready, last run 2026-10-07 17:45:37. `%APPDATA%\LlmOnLan Farm` is unchanged.
+  - At the end, Qwen3.6 on 8100 answered "The capital of France is Paris.". nvidia-smi showed 76,624 MiB used and
+    19,965 MiB free of 97,887 (19,721 free at the start).
+- **Left:**
+  - the production Farm app, down since 20:46, needs opening again;
+  - §11.5 / §9.6 with the owner: a Farm app release, then the production take-over (PRO6000_VLLM_SWITCH Part 2),
+    and a reboot test.
+
 ## 2026-10-08 (00:49) — vLLM run by the farm: the review fixes
 
 Two reviews of slices A-D (lifecycle and safety; panel and compatibility) found two blockers, seven majors and
