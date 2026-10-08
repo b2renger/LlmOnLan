@@ -722,7 +722,7 @@ function downloadFailure(r, repo, button = 'Download') {
 // sum: its weights, vLLM's own memory, the safety margin, document reading's share while it is on, the memory guard's
 // floor where the GPU shares the system memory, and 1 GB for conversations). → {fits, needGib, ocrGib, fitsWithoutOcr},
 // or null with no list or no size. An RTX 4070 (12 GB) or 4080 (16 GB) fits none: llama.cpp or Ollama is their engine.
-// A model of unknown size (added by its name, not downloaded yet) is left out: counted as 0 GB, it made any card fit.
+// A model whose size the list does not know (one added by its name) is left out: counted as 0 GB, it made any card fit.
 function gpuFit(config, gib, { unified = false } = {}) {
     const v = config.vllm;
     const sizes = (v.library || []).map((e) => e.weightsGib ?? (e.sizeGb > 0 ? e.sizeGb * 1e9 / GIB : null)).filter((w) => w != null);
@@ -761,7 +761,7 @@ function problemsFrom(probe, config, entry = vllmEntry(config)) {
     const sup = supported(probe.platform, probe.arch);
     if (!sup.ok) { problems.push(UNSUPPORTED); return done(); }
     const win = probe.platform === 'win32';
-    const timeout = 'WSL did not answer within a minute. Restart the computer, then press Check again.';
+    const timeout = 'WSL did not answer. Restart the computer, then press Check again.';
     const host = win && probe.hostGpu ? probe.hostGpu : null;
     // Windows' own nvidia-smi saw no NVIDIA GPU: said instead of WSL's advice, but only where WSL cannot contradict it
     // (missing, or seeing no GPU either), since a slow nvidia-smi at log on reads the same.
@@ -944,7 +944,8 @@ function wslAnswer(r) {
     const list = parseWslList(r.out);
     if (list.length) return list;
     const text = `${r.out}\n${r.err}`;
-    if (/is not installed|n'est pas install/i.test(text)) return { error: 'no-wsl' };
+    // French Windows writes n’est with a typographic apostrophe (KernelBase.dll.mui, fr-FR).
+    if (/is not installed|n['’]est pas install/i.test(text)) return { error: 'no-wsl' };
     return /has no installed distributions|aucune distribution install|WSL_E_DEFAULT_DISTRO_NOT_FOUND/i.test(text) ? { error: 'no-distro' } : { error: 'timeout' };
 }
 

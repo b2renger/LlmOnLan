@@ -6,6 +6,19 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-10-08 (05:25) — vLLM run by the farm: French Windows without WSL gets the right sentence
+
+The polish's own verifier found a regression. The "WSL is not installed" test expected a straight apostrophe.
+French Windows' message ("Le Sous-système Windows pour Linux n’est pas installé…", KernelBase.dll.mui) has a
+typographic one. The text then fell through to "no answer", so a French PC without WSL queued its start, fell back,
+and was told to restart the computer, which never helps.
+- **The test** now accepts both apostrophes. A test with Windows' real sentence fails with the old one.
+- **The "no answer" sentence** no longer says "within a minute". It also covers errors that come back at once:
+  "WSL did not answer. Restart the computer, then press Check again."
+- **The unknown-size note:** a model added by its name has no size in the list (the text said "until it is
+  downloaded").
+- **Tests:** farm 209/209; with the old test put back, 208/1.
+
 ## 2026-10-08 (04:53) — vLLM run by the farm: the leftovers verifier's six minors
 
 The verifier of the leftovers (verdict ok on d37164a) listed six small things. Each is fixed on the `vllm-managed`
@@ -23,7 +36,7 @@ a time.
   computer in another language whose WSL prints no code reads as no answer, so its queued start checks again and then
   says WSL did not answer; its words get added when one is met (a `ponytail:` note says so). Test: the decisions
   test, with eleven of wsl.exe's answers.
-- **A model added by its name** has no size until it is downloaded. `gpuFit` counted it as 0 GB, so adding one made
+- **A model added by its name** has no size in the list. `gpuFit` counted it as 0 GB, so adding one made
   a 16 GB card "fit": Install was offered, then the start failed. Now such a model is left out when the farm looks
   for the smallest one. With no size known at all, the answer is unknown and nothing is said. Test: the checklist
   test, an RTX 4080 with a model added by its name.

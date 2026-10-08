@@ -3951,7 +3951,7 @@ test('vLLM decisions: at boot, when it stops answering, and an orphan left by a 
     assert.deepEqual(V.bootDecision({ problems: miss, running: run(true), adopt: { ok: false } }), { action: 'unavailable', reason: miss[0] });
     // WSL gave no answer at all (a slow log on, review 2026-10-07): the start is queued and checks again once the farm
     // is up, instead of Ollama for the whole run; an answer that says what is missing still serves with Ollama.
-    const late = ['WSL did not answer within a minute. Restart the computer, then press Check again.'];
+    const late = ['WSL did not answer. Restart the computer, then press Check again.'];
     assert.deepEqual(V.bootDecision({ problems: late, noAnswer: true }), { action: 'start', reason: null });
     assert.equal(V.bootDecision({ supported: { ok: false }, noAnswer: true }).action, 'unavailable');
     assert.equal(V.unanswered({ st: null, stError: 'timeout' }), true);
@@ -3968,6 +3968,9 @@ test('vLLM decisions: at boot, when it stops answering, and an orphan left by a 
     assert.deepEqual(wsl('Sous-système Windows pour Linux n’a aucune distribution installée.\n'), { error: 'no-distro' });
     assert.deepEqual(wsl('Für das Windows-Subsystem für Linux sind keine Distributionen installiert.\nFehlercode: Wsl/WSL_E_DEFAULT_DISTRO_NOT_FOUND\n'), { error: 'no-distro' }, 'any language: the error code');
     assert.deepEqual(wsl('Windows Subsystem for Linux is not installed.\n'), { error: 'no-wsl' });
+    // French Windows' own sentence (C:\Windows\System32\fr-FR\KernelBase.dll.mui), with its typographic apostrophes:
+    // read as "no answer" it sent a PC without WSL to "restart the computer", which never helps.
+    assert.deepEqual(wsl('Le Sous-système Windows pour Linux n’est pas installé. Vous pouvez effectuer l’installation en exécutant « wsl.exe --install ».\n'), { error: 'no-wsl' });
     for (const out of ['Catastrophic failure\nError code: Wsl/Service/E_UNEXPECTED\n', 'Le service ne peut pas être démarré.\n', '', 'Il n’existe aucune distribution avec le nom fourni.\n']) {
         const a = wsl(out);
         assert.deepEqual(a, { error: 'timeout' }, JSON.stringify(out));
@@ -4095,8 +4098,8 @@ test('vLLM on this computer: the checklist, every blocking sentence, and the dis
     assert.deepEqual(r.oks, ['WSL is installed, with Ubuntu on WSL 2.', `Ubuntu sees the GPU: ${PRO} (96 GB).`, 'Found an existing vLLM in /home/me/lol-vllm: the farm will use it.', '500 GB free for vLLM and its models.']);
     assert.deepEqual(P({ platform: 'darwin', arch: 'arm64' }).problems, [V.UNSUPPORTED]);
     assert.match(P(win({ wsl: { error: 'no-wsl' } })).problems[0], /^WSL is not installed\. .*run {2}wsl --install -d Ubuntu , and restart the computer/);
-    assert.equal(P(win({ wsl: { error: 'timeout' } })).problems[0], 'WSL did not answer within a minute. Restart the computer, then press Check again.');
-    assert.equal(P(win({ st: null })).problems[0], 'WSL did not answer within a minute. Restart the computer, then press Check again.', 'status.sh timed out');
+    assert.equal(P(win({ wsl: { error: 'timeout' } })).problems[0], 'WSL did not answer. Restart the computer, then press Check again.');
+    assert.equal(P(win({ st: null })).problems[0], 'WSL did not answer. Restart the computer, then press Check again.', 'status.sh timed out');
     assert.match(P(win({ wsl: { list: [] } })).problems[0], /^WSL has no Ubuntu yet\./);
     assert.equal(P(win({ wsl: { list: [{ name: 'Ubuntu', version: 1, isDefault: true }] } })).problems[0], 'Ubuntu runs on WSL 1, which cannot use the GPU. In PowerShell, run  wsl --set-version Ubuntu 2  (a few minutes), then press Check again.');
     r = P(win({ wsl: { list: [{ name: 'docker-desktop', version: 2, isDefault: true }, { name: 'Ubuntu-24.04', version: 2, isDefault: false }] } }));
@@ -4112,7 +4115,7 @@ test('vLLM on this computer: the checklist, every blocking sentence, and the dis
     assert.deepEqual(P(win({ hostGpu: amd, st: noGpu })).problems, [NO_NVIDIA], 'WSL sees none either');
     // ...but not where it can: a slow nvidia-smi at log on reads the same, and WSL saw the GPU, or did not answer.
     assert.deepEqual(P(win({ hostGpu: amd })).problems, []);
-    assert.equal(P(win({ hostGpu: amd, wsl: { error: 'timeout' }, st: null })).problems[0], 'WSL did not answer within a minute. Restart the computer, then press Check again.');
+    assert.equal(P(win({ hostGpu: amd, wsl: { error: 'timeout' }, st: null })).problems[0], 'WSL did not answer. Restart the computer, then press Check again.');
     assert.equal(P(lin({ st: { ...status([]), arch: 'armv7l' } })).problems[0], 'vLLM needs a 64-bit Intel, AMD or ARM processor.');
     assert.ok(P(lin({ st: { ...status([]), curl: null } })).problems.includes('curl is missing. In a terminal, run  sudo apt install curl , then press Check again.'));
     assert.ok(P(win({ st: { ...status([]), curl: null } })).problems.includes('curl is missing. Open Ubuntu from the Start menu, run  sudo apt install curl , then press Check again.'), 'Windows: where to type it');
