@@ -8,7 +8,8 @@
 import { EventEmitter } from 'events';
 import { spawn, ChildProcess } from 'child_process';
 import { resolveSidecarCommand, sidecarExists } from './paths';
-import { buildSidecarEnv, hubAnswers, miniLmState, repairMiniLm } from './configBridge';
+import { net } from 'electron';
+import { buildSidecarEnv, envProxy, hubAnswers, miniLmState, repairMiniLm } from './configBridge';
 import { findFreePort, killTree, waitForHttp } from './util';
 import { SidecarState } from './types';
 
@@ -46,6 +47,7 @@ export class SidecarSupervisor extends EventEmitter {
     // child never triggers a spurious restart.
     private gen = 0;
     private crashRestarts = 0;
+    private notice: string | undefined;   // told to the person once this launch is ready (an offline start)
     private state: SidecarState = { status: 'idle', url: null, dataDir: '', endpoint: null };
 
     getState(): SidecarState { return this.state; }
@@ -105,10 +107,15 @@ export class SidecarSupervisor extends EventEmitter {
         // the hub's own retries (5 per file, each up to the system's connect timeout) held the boot 123-466 s, past
         // the 180 s wait below, so the chat never opened (measured 2026-10-08). Asked once, 3 s: no answer → this
         // launch runs hub-offline, the chat opens in ~12 s and uploads wait for a start with the network. Per launch,
-        // outside buildSidecarEnv, so repoint()'s comparison never sees it.
-        const hubOffline = miniLmState() !== 'cached' && !(await hubAnswers());
+        // outside buildSidecarEnv, so repoint()'s comparison never sees it. Probed through Electron's network stack
+        // (the system proxy, which the hub's httpx also reads), and not at all behind an env proxy.
+        const hubOffline = miniLmState() !== 'cached' && !envProxy()
+            && !(await hubAnswers(undefined, undefined, (u, init) => net.fetch(u, init)));
         if (myGen !== this.gen) return;
         if (hubOffline) console.log('[sidecar] huggingface.co does not answer and the embedding model is not on disk: starting offline (uploads wait for a start with the network)');
+        this.notice = hubOffline
+            ? 'Document uploads need one start with internet access: the search model (about 92 MB) is not on this computer yet, and huggingface.co does not answer. Chat works. Quit and reopen LlmOnLan once this computer is online.'
+            : undefined;
 
         const env = {
             ...process.env,
@@ -146,7 +153,7 @@ export class SidecarSupervisor extends EventEmitter {
         if (myGen !== this.gen) return; // a newer start()/stop() superseded us
         if (healthy) {
             this.crashRestarts = 0;
-            this.setState({ status: 'ready', url, message: undefined });
+            this.setState({ status: 'ready', url, message: undefined, notice: this.notice });
             console.log(`[sidecar] ready at ${url} (DATA_DIR=${this.dataDir})`);
         } else {
             this.setState({ status: 'error', url: null, message: 'Open WebUI did not become healthy in time. See logs.' });

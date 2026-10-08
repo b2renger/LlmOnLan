@@ -143,12 +143,19 @@ export function repairMiniLm(env: NodeJS.ProcessEnv = process.env, home: string 
 }
 
 // Whether huggingface.co answers within the limit (any HTTP answer counts). Asked before a start only while
-// MiniLM is not on disk (sidecar.ts): where the site does not answer, this launch runs hub-offline.
+// MiniLM is not on disk (sidecar.ts): where the site does not answer, this launch runs hub-offline. The
+// caller passes a fetch that goes through the proxies the hub itself will use (Electron's net.fetch: the
+// system proxy, as Python's urllib reads it) — Node's own fetch ignores them, and on a proxy-only network
+// every launch would then run offline and MiniLM would never download (measured 2026-10-08).
 export async function hubAnswers(url = 'https://huggingface.co/api/models/sentence-transformers/all-MiniLM-L6-v2',
-    timeoutMs = 3000): Promise<boolean> {
-    try { await fetch(url, { method: 'HEAD', signal: AbortSignal.timeout(timeoutMs) }); return true; }
+    timeoutMs = 3000, doFetch: (u: string, init: RequestInit) => Promise<unknown> = fetch): Promise<boolean> {
+    try { await doFetch(url, { method: 'HEAD', signal: AbortSignal.timeout(timeoutMs) }); return true; }
     catch { return false; }
 }
+// A proxy in the environment: the hub (httpx, trust_env) uses it, and the probe could not see the same
+// path, so no probe — the launch stays online as before.
+export const envProxy = (env: NodeJS.ProcessEnv = process.env): boolean =>
+    ['HTTPS_PROXY', 'https_proxy', 'HTTP_PROXY', 'http_proxy', 'ALL_PROXY', 'all_proxy'].some((k) => !!env[k]);
 
 // Whole-document RAG needs the whole document to FIT. Below this per-slot context
 // the farm can't hold a typical attachment + the answer, so injecting full text

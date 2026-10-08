@@ -6,6 +6,38 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-10-08 (03:10) — The search-model repair, checked end to end twice: a closed LAN, a damaged cache, a proxy
+
+Two end-to-end runs with the real Open WebUI 0.11.4 sidecar (`scratchpad/final/`, `scratchpad/recheck/`)
+checked the 02:02 fix; each found something, fixed in `f130806` and this commit.
+- **A closed LAN held Open WebUI's start for minutes.**
+  - The case: MiniLM not on disk (half-downloaded and repaired, or a fresh install) and huggingface.co silent.
+    The hub's per-file retries (5 per file, each up to the system's connect timeout) took 123 s when the
+    connection was refused and 466 s when it was dropped, both past the app's 180 s wait, so the chat never opened.
+    v0.2.8 started in ~30 s there.
+  - The fix: `sidecar.ts` asks huggingface.co once (a 3 s HEAD) while MiniLM is not on disk. Without an answer,
+    that launch alone gets `HF_HUB_OFFLINE=1`.
+  - Re-measured: healthy at 11.9 s (refused) and 14.9 s (dropped). Uploads wait for a start with the network,
+    and the next online start downloads the model (21.6–23.4 s).
+- **The repair deleted a whole model damaged only by a dangling link.**
+  - That cache came from hub 1.33's whole-repository download. With the snapshot deleted, the model could not load
+    offline.
+  - The fix: `repairMiniLm` first removes the hub's file list and the dangling link. The snapshots go only if the
+    model is still half-downloaded.
+  - Re-measured: kept, healthy at 11.3–11.6 s offline, upload OK.
+- **A proxy-only network would never have downloaded MiniLM.**
+  - Node's fetch ignores proxies; the hub's httpx uses the environment and the system proxy. So the first probe
+    always said "no answer" there.
+  - The fix: the probe now uses Electron's `net.fetch`, which uses the system proxy, and is skipped when a proxy
+    is set in the environment.
+  - Checked in a real Electron 42 main process: huggingface.co answered 200 in 194 ms; a dropped address gave up
+    at 3.0 s and a refused one at 2.0 s.
+- **The person is told.** After an offline start, a toast explains that document uploads need one start with
+  internet access, and that chat works meanwhile.
+- **A healthy cache:** no probe, nothing removed (re-check case 3).
+- **Tests:** shell chat-unit 1839/0 (hubAnswers against local servers and through an injected fetch, envProxy, the
+  gentle repair), unit 29, lint 0, asar-probe OK.
+
 ## 2026-10-08 (02:02) — Gemma embeddings, studied: not now. And a half-downloaded search model no longer breaks uploads
 
 **Question.** The owner asked whether Gemma embeddings could be interesting for us. A workflow answered it: the
@@ -45,7 +77,7 @@ French retrieval sets, a recommendation, and a critic who re-measured. The resul
   - A mutation run on the built code: all 9 mutants caught (each needed file, both "either one" pairs, the
     dangling-link check).
   - The rejected first fix was measured end to end with the real sidecar (cases A–L, `scratchpad/halfdl/`); the
-    adopted repair was measured there too (case G). An end-to-end run of the final code follows.
+    adopted repair was measured there too (case G). The end-to-end runs of the final code are in the next entry.
 
 ## 2026-10-07 (18:36) — Review fixes for the capacity page and the Open WebUI boot; a boot log
 

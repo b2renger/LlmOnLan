@@ -516,6 +516,16 @@ export default (test) => {
       assert.ok(Date.now() - t0 < 2000, 'gives up at its limit');
       const closed = ok.address().port; await new Promise((r) => ok.close(r));
       assert.equal(await CB.hubAnswers(`http://127.0.0.1:${closed}/x`, 2000), false, 'nothing listening');
+      // The probe goes through the fetch it is given (sidecar.ts: Electron's net.fetch, which uses the system
+      // proxy as the hub does) — Node's own fetch ignores proxies, and a proxy-only network then never got MiniLM.
+      /** @type {string[]} */ const seen = [];
+      assert.equal(await CB.hubAnswers('https://hub.example/x', 500, async (/** @type {string} */ u) => { seen.push(u); return {}; }), true);
+      assert.deepEqual(seen, ['https://hub.example/x']);
+      assert.equal(await CB.hubAnswers('https://hub.example/x', 500, async () => { throw new Error('ENOTFOUND'); }), false);
+      // Behind an env proxy (which the hub's httpx uses) there is no probe at all: the launch stays online.
+      assert.equal(CB.envProxy({ HTTPS_PROXY: 'http://proxy:3128' }), true);
+      assert.equal(CB.envProxy({ http_proxy: 'http://proxy:3128' }), true);
+      assert.equal(CB.envProxy({}), false);
     } finally { mute.closeAllConnections?.(); mute.close(); try { ok.close(); } catch { /* closed */ } }
   });
 

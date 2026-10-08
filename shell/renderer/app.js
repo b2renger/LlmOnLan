@@ -1065,7 +1065,12 @@ els.autoScan.addEventListener('change', () => window.lol.setAutoScan(els.autoSca
 els.rescanBtn.addEventListener('click', () => { window.lol.rescan(); toast('Rescanning…'); });
 
 // ---- wire IPC ----
-window.lol.onSidecarState((s) => { sidecarState = s; if (s.status !== 'ready') loadedWithoutFarm = false; renderSidecar(); if (!els.popover.classList.contains('hidden')) renderPopover(); });
+let toldNotice = '';   // the sidecar's once-per-launch notice (an offline start): toasted once
+window.lol.onSidecarState((s) => {
+  sidecarState = s; if (s.status !== 'ready') loadedWithoutFarm = false;
+  if (s.status === 'ready' && s.notice && s.notice !== toldNotice) { toldNotice = s.notice; toast(s.notice, 16000); }
+  renderSidecar(); if (!els.popover.classList.contains('hidden')) renderPopover();
+});
 window.lol.onFarms((data) => { farmState = data; if (NO_OWUI) publishFarm(); renderPill(); setTimeout(reloadIfFarmBack, 500); if (!els.popover.classList.contains('hidden')) renderPopover(); });
 window.lol.getSidecarState().then((s) => { sidecarState = s; renderSidecar(); });
 window.lol.getFarms().then((data) => { farmState = data; renderPill(); });

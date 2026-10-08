@@ -81,6 +81,7 @@ export interface SidecarState {
     dataDir: string;
     endpoint: string | null;   // the farm OpenAI base URL it's pointed at
     message?: string;          // human-readable detail (esp. on error)
+    notice?: string;           // said once when this launch is ready (e.g. it started offline)
 }
 
 export interface ScanRange {
