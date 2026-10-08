@@ -2912,6 +2912,8 @@ async function run(args) {
         const plan = vllmMod.takeOverPlan(config, pr.st, port, { answering: await externalAlive(config.external, 3000) });
         takeOverOffer = plan && { ...plan, probe: pr };
         if (plan) log.info(`A vLLM on this computer, from ${plan.root}: the panel offers to let the farm run it.`);
+        // A check that could not run says why (it was silent on the PRO 6000, 2026-10-08: status.sh was missing).
+        else if (!pr.st && pr.stError) log.warn(`Could not look for a vLLM the farm could run: ${pr.stError}`);
         return takeOverOffer;
     }
     // The routing LiteLLM runs with, its keys aside: a take-over that leaves it the same restarts nothing.

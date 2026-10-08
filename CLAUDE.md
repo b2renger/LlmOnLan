@@ -382,7 +382,13 @@ toast) and its repair of a half-downloaded search model. When working here, keep
    restarts the farm keeping vLLM (`keepEngine`: only `lol up`'s own pid is killed, never its tree); Quit keeps the
    window up ("Stopping the farm…", status `stopping`, Start waits) until `lol down` is done; a crash
    restart reaps the dead run's recorded pids first (`reapStaleFarm`, which never stops vLLM). Launch at login on
-   Linux writes an XDG autostart entry for the AppImage (`farm-app/test/supervisor.test.js` checks all of it).
+   Linux writes an XDG autostart entry for the AppImage (`farm-app/test/supervisor.test.js` checks all of it). An app
+   update copies the farm code into userData FILE BY FILE (`copyTree.ts`, 2026-10-08): a file that differs is moved
+   aside into `farm/.replaced` (allowed while a running vLLM's bash holds it; cleared at the next refresh), then the
+   new one is written, and one failure never stops the rest. Electron 42's `fs.cpSync` deleted first, left a held
+   `serve.sh` "delete pending" and skipped every later file (farm-v0.0.43 on the PRO 6000). A failed refresh is
+   written to `farm.log` and retried at the next launch; a missing `farm/vllm` script is said as such on the panel
+   (`vllm.js` `spawnScript`), never as "WSL did not answer". `farm-app/test/copytree.test.js` runs under Electron.
    Released on `farm-v*` tags as GitHub prereleases (Windows x64, macOS arm64, Linux arm64 AppImage). No
    electron-updater: the app looks for a newer `farm-v*` release (at launch when enabled, or on demand) and
    opens its download page; **installing is manual**.
@@ -787,8 +793,9 @@ LlmOnLan/
     scripts/             #   release.mjs, afterPack.cjs (adapted from ComfyQ)
     electron-builder.yml
   farm-app/              # the operator-facing Farm app (Electron) — installs + supervises `lol`
-    src/main/            #   installer (setup wizard), farmSupervisor + farmProcess (lol down, the reap), runtimeManager, updater
-    test/                #   supervisor.test.js (npm test: lol down before the kill, keepEngine, the reap, the Linux autostart entry)
+    src/main/            #   installer (setup wizard) + copyTree (the update's copy), farmSupervisor + farmProcess (lol down, the reap), runtimeManager, updater
+    test/                #   supervisor.test.js (npm test: lol down before the kill, keepEngine, the reap, the Linux autostart entry),
+                         #   copytree.test.js (the update's copy over a held file, run under Electron's own Node)
     renderer/            #   status chrome + Settings + the admin panel in a <webview>
     electron-builder.yml #   ships `../farm` as an extraResource; tags are `farm-v*`
   sidecar/               # packaging of the pinned, UNMODIFIED Open WebUI

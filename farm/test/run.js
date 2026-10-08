@@ -3857,6 +3857,15 @@ test('vLLM launch: the farm\'s whole argv, its environment, and how a script run
     assert.deepEqual([l.cmd, l.args, l.cwd, l.env], ['bash', ['./status.sh'], '/opt/farm/vllm', { PATH: 'p', LOL_VLLM_ROOT: '/r' }]);
 });
 
+test('vLLM: a script missing from farm/vllm is said as such, before anything starts (the Farm app\'s update stopped half-way)', async () => {
+    const r = await V.spawnScript({}, 'not-a-script.sh');   // resolved without a wsl.exe or a bash
+    assert.equal(r.missing, 'not-a-script.sh');
+    assert.match(r.error, /^A file of the farm is missing \(vllm\/not-a-script\.sh\): its last update did not finish\. Restart the farm/);
+    for (const s of ['serve.sh', 'stop.sh', 'install.sh', 'status.sh']) {
+        assert.ok(fs.existsSync(path.join(__dirname, '..', 'vllm', s)), `farm/vllm/${s} ships`);
+    }
+});
+
 test('vLLM golden adoption: the take-over keeps the server production runs, read from serve.sh and lol-vllm.service themselves (§11.1-7)', () => {
     const running = { pgid: 401, port: 8100, minFreeGb: null, argv: serveShArgv('/home/ateliernum/lol-spike'), ready: true };
     assert.equal(running.argv.length, 23, 'serve.sh\'s ARGS block was read: the model and 22 words');
@@ -4097,6 +4106,11 @@ test('vLLM on this computer: the checklist, every blocking sentence, and the dis
     assert.deepEqual(r.problems, []);
     assert.deepEqual(r.oks, ['WSL is installed, with Ubuntu on WSL 2.', `Ubuntu sees the GPU: ${PRO} (96 GB).`, 'Found an existing vLLM in /home/me/lol-vllm: the farm will use it.', '500 GB free for vLLM and its models.']);
     assert.deepEqual(P({ platform: 'darwin', arch: 'arm64' }).problems, [V.UNSUPPORTED]);
+    // A script missing from farm/vllm (the Farm app's update stopped half-way, PRO 6000, 2026-10-08): said as such,
+    // never "WSL did not answer … restart the computer", and not counted as no answer (which would queue the start).
+    const missingProbe = win({ st: null, missing: true, stError: 'A file of the farm is missing (vllm/status.sh): its last update did not finish. Restart the farm to complete it (in the Farm app: Quit, then open it again).' });
+    assert.deepEqual(P(missingProbe).problems, [missingProbe.stError]);
+    assert.equal(V.unanswered(missingProbe), false);
     assert.match(P(win({ wsl: { error: 'no-wsl' } })).problems[0], /^WSL is not installed\. .*run {2}wsl --install -d Ubuntu , and restart the computer/);
     assert.equal(P(win({ wsl: { error: 'timeout' } })).problems[0], 'WSL did not answer. Restart the computer, then press Check again.');
     assert.equal(P(win({ st: null })).problems[0], 'WSL did not answer. Restart the computer, then press Check again.', 'status.sh timed out');

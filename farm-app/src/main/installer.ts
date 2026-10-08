@@ -26,6 +26,8 @@ import {
 import { loadSettings, updateSettings } from './store';
 import { ensureRuntime } from './runtimeManager';
 import { killTree, findFreePort } from './util';
+import { appendFarmLog } from './farmLog';
+import { copyTree } from './copyTree';
 import { SetupPhase, SetupPhaseId, SetupProgress, DownloadProgress } from './types';
 
 const MODEL_ID = 'gemma4:12b';
@@ -35,7 +37,7 @@ const OLLAMA_BASE = `http://${OLLAMA_HOST}:${OLLAMA_PORT}`;
 
 // Runtime dirs a dev checkout's ../farm may carry — never copy them into the app's
 // writable farm (they're rebuilt on THIS box by `lol install`).
-const FARM_COPY_SKIP = new Set(['.venv', '.searxng', '.extract', '.kokoro', '.git', '.lol-runtime.json', '.lol-id', '.lol-secret', 'lol.config.json']);
+const FARM_COPY_SKIP = new Set(['.venv', '.searxng', '.extract', '.kokoro', '.git', '.lol-runtime.json', '.lol-id', '.lol-secret', 'lol.config.json', '.replaced']);
 
 type Emit = (p: SetupProgress) => void;
 
@@ -80,31 +82,20 @@ function ensureAdminToken(): string {
 
 // --- farm copy + config -----------------------------------------------------
 
+// What a refresh never copies: the on-box runtime/state dirs (a dev checkout's), node_modules/.bin (CLI symlinks the
+// farm never uses — it require()s the packages; re-copying them over an existing tree threw "ENOENT stat
+// .../node_modules/.bin/js-yaml" and blocked every refresh once) and the generated proxy config.
+function farmCopyKeeps(rel: string): boolean {
+    if (FARM_COPY_SKIP.has(rel.split(path.sep)[0])) return false;
+    if (/(^|[\\/])\.bin([\\/]|$)/.test(rel)) return false;
+    return rel.replace(/\\/g, '/') !== 'litellm/config.generated.yaml';
+}
+
 function copyFarm(): void {
     const src = bundledFarmSource();
     if (!fs.existsSync(src)) throw new Error(`Bundled farm code not found at ${src}`);
-    fs.mkdirSync(farmRoot(), { recursive: true });
-    fs.cpSync(src, farmRoot(), {
-        recursive: true,
-        force: true,
-        // Copy symlinks AS symlinks (don't dereference) — belt-and-suspenders against
-        // node_modules symlinks that a dereferencing copy would stat-follow.
-        verbatimSymlinks: true,
-        // Skip the on-box runtime/state dirs (a dev checkout's) + the generated proxy config.
-        filter: (from) => {
-            const rel = path.relative(src, from);
-            if (!rel) return true;
-            const top = rel.split(path.sep)[0];
-            if (FARM_COPY_SKIP.has(top)) return false;
-            // Skip node_modules/.bin — CLI symlinks the farm never uses (it require()s the
-            // packages directly). cpSync throws re-copying them over an existing tree
-            // ("ENOENT stat .../node_modules/.bin/js-yaml"), which was silently blocking every
-            // farm-code refresh on an update (DGX VRAM fix never landed until this).
-            if (/(^|[\\/])\.bin([\\/]|$)/.test(rel)) return false;
-            if (rel.replace(/\\/g, '/') === 'litellm/config.generated.yaml') return false;
-            return true;
-        },
-    });
+    const failed = copyTree(src, farmRoot(), farmCopyKeeps);
+    if (failed.length) throw new Error(`${failed.length} farm file(s) could not be updated: ${failed.slice(0, 6).join(', ')}${failed.length > 6 ? ', …' : ''}`);
 }
 
 // `share` picks the network posture: private (false) binds the proxy, discovery AND
@@ -144,7 +135,12 @@ export function refreshFarmCodeIfUpdated(appVersion: string): void {
         updateSettings({ farmCodeVersion: appVersion });
         console.log(`[farm] refreshed farm code to app v${appVersion}`);
     } catch (e) {
-        console.warn('[farm] code refresh failed:', (e as Error).message);
+        // The console of a packaged app goes nowhere: farm.log is what the operator (and Settings ▸ logs) can read.
+        const msg = `The farm's code could not all be updated to v${appVersion}: ${(e as Error).message}. The farm starts`
+            + ' with the files it has, and the update is tried again at the next start of the Farm app (quitting it stops'
+            + ' the vLLM the farm runs, which frees a file it holds).';
+        console.warn('[farm]', msg);
+        appendFarmLog(`${msg}\n`);
     }
 }
 

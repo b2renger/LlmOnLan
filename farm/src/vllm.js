@@ -516,7 +516,7 @@ function bootDecision({ supported: sup = { ok: true }, problems = [], running = 
 
 // The check got no answer from this computer's Linux (as opposed to an answer that says what is missing).
 function unanswered(pr) {
-    return !!(pr && !pr.st && (pr.stError || (pr.wsl && pr.wsl.error === 'timeout')));
+    return !!(pr && !pr.st && !pr.missing && (pr.stError || (pr.wsl && pr.wsl.error === 'timeout')));
 }
 
 // A start (Start, a switch, a restart after a stop) meets a vLLM already running from its root: keep it when it runs
@@ -791,6 +791,7 @@ function problemsFrom(probe, config, entry = vllmEntry(config)) {
         oks.push(`WSL is installed, with ${distro} on WSL 2.`);
     }
     const st = probe.st;
+    if (!st && probe.missing) { problems.push(probe.stError); return done(); }
     if (!st) { problems.push(win ? timeout : `This computer did not answer the check${probe.stError ? ` (${probe.stError})` : ''}. Press Check again.`); return done(); }
     if (!['x86_64', 'aarch64'].includes(st.arch)) { problems.push('vLLM needs a 64-bit Intel, AMD or ARM processor.'); return done(); }
     if (!st.gpu) {
@@ -923,7 +924,15 @@ function runCmd(cmd, args, { cwd, env, timeoutMs = 60000, onLine = null } = {}) 
     });
 }
 
+// A script of farm/vllm that is not on disk: the Farm app's update of the farm's files did not finish (Electron's
+// copy stopped at a file a running vLLM held, farm-v0.0.43 on the PRO 6000, 2026-10-08). Said as such, never as
+// "WSL did not answer", which sent the operator to restart the computer.
+const missingScript = (script) => `A file of the farm is missing (vllm/${script}): its last update did not finish. `
+    + 'Restart the farm to complete it (in the Farm app: Quit, then open it again).';
 function spawnScript(config, script, env = {}, { timeoutMs = 60000, onLine = null, args = [], distro } = {}) {
+    if (!fs.existsSync(path.join(VLLM_DIR, script))) {
+        return Promise.resolve({ code: null, out: '', err: '', timedOut: false, error: missingScript(script), missing: script });
+    }
     const c = scriptCommand(config, script, env, { args, ...(distro !== undefined ? { distro } : {}) });
     return runCmd(c.cmd, c.args, { cwd: c.cwd, env: c.env, timeoutMs, onLine });
 }
@@ -979,6 +988,7 @@ async function status(t, { roots = '', timeoutMs = 60000 } = {}) {
         LOL_VLLM_ROOT: t.root || '~/lol-vllm', LOL_VLLM_PORT: String(t.port || 8100), ...(roots ? { LOL_VLLM_ROOTS: roots } : {}),
     }, { timeoutMs, distro: t.distro || null });
     if (r.timedOut) return { st: null, error: 'timeout', timedOut: true };
+    if (r.missing) return { st: null, error: r.error, timedOut: false, missing: true };
     if (r.code !== 0 || !/^home=/m.test(r.out)) return { st: null, error: lastLine(r.err || r.out || r.error).slice(0, 200) || `status ${r.code}`, timedOut: false };
     return { st: parseStatus(r.out), error: null, timedOut: false };
 }
@@ -1004,7 +1014,7 @@ async function probe(config, { roots = CANDIDATE_ROOTS, hostGpu = null } = {}) {
         const want = resolveRoot(config, s.st);
         if (want !== s.st.root) s = await at(want);
     }
-    out.st = s.st; out.stError = s.error;
+    out.st = s.st; out.stError = s.error; out.missing = !!s.missing;
     if (s.timedOut && platform === 'win32') out.wsl = { error: 'timeout' };
     if (platform === 'win32') { const h = await hostDiskFree(out.distro); out.hostDiskFreeGb = h.gb; out.hostDrive = h.drive; }
     return out;

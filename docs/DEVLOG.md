@@ -6,6 +6,45 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-10-08 (12:02) — The Farm app's update stopped half-way over a running vLLM: the farm code is now copied file by file
+
+**Found** by the owner's screenshot of farm-v0.0.43 on the PRO 6000: the panel showed the External server with no
+"Let the farm run vLLM" offer.
+- **What happened.** Installing farm-v0.0.43 copied the new farm code over the old with `fs.cpSync`. The copy stopped at
+  `farm/vllm/serve.sh`, the script the running vLLM was started from:
+  - `install.sh`, `lol-vllm.service` and `relay.py` were updated;
+  - `serve.sh` was left "delete pending" (inside WSL it reads `-?????????`, still held by bash on fd 255);
+  - `start-windows.ps1` and `stop.sh` stayed old, and `status.sh` was never copied.
+- **The effects.** The take-over check needs `status.sh`, so it found nothing and logged nothing. The refresh's own
+  error went to a console nobody keeps. `farmCodeVersion` stayed at 0.0.42, so the copy is retried at each launch,
+  and it fails the same way while the old vLLM runs. Chat kept working on External.
+- **The cause, reproduced.** Electron 42's own `fs.cpSync` (Node 24.18, `cpSyncOverrideFile`) deletes a file before
+  writing it. A file another process holds with delete sharing (WSL's bash, or a Node handle in the test) is left
+  "delete pending", the new copy cannot take its name (`EIO, Accès refusé`), and the copy throws. The system's Node
+  24.14 overwrites in place, which is why the overnight test of a copy over a running `serve.sh` passed: it ran
+  outside Electron.
+- **The fix, `farm-app/src/main/copyTree.ts`:**
+  - The farm code is copied file by file, and unchanged files are skipped.
+  - A file that differs is moved aside into `farm/.replaced`, then the new one is written. Windows allows the move
+    while a holder has the file open, and the holder keeps reading its old copy.
+  - One failure never stops the others. The refresh names every failed file in `farm.log` and is retried at the
+    next launch.
+- **The farm side:**
+  - A `farm/vllm` script that is missing is now said as such on the vLLM card ("A file of the farm is missing
+    (vllm/status.sh): its last update did not finish. Restart the farm…"). Before, it read as "WSL did not answer:
+    restart the computer", and was counted as no answer.
+  - The take-over check now logs why it could not look.
+- **Checked:**
+  - `farm-app/test/copytree.test.js` runs under Electron's own Node (it re-runs itself there): a held file is
+    replaced and the holder keeps its old bytes; the PRO 6000's stuck state, made with Electron's own `cpSync`, is
+    reported with every other file still copied, and the next copy completes; unchanged files are left alone.
+  - With the old `cpSync` copy put back, the test fails with the production error (`EIO … vllm\serve.sh`).
+  - With a real WSL bash running a script from `/mnt/c` (`setsid`, as `serve.sh` does), the moved-aside copy updated
+    every file, and the script ran to its end on its old copy.
+  - Farm 210/210 (two new: the missing-script sentence and `unanswered`; `spawnScript` refuses before starting
+    anything). Farm app 8 + 3.
+- **Not done yet:** the release (farm-v0.0.44) and the clean-state run on the PRO 6000 with the owner.
+
 ## 2026-10-08 (07:08) — Release client v0.2.9 and Farm app farm-v0.0.43: vLLM run by the farm, Open WebUI booting once
 
 The owner asked on 2026-10-07 at 20:58 to commit and document everything, check the docs against the code, merge into
