@@ -51,7 +51,7 @@
 // posted. Alone on the server it stops ~1 s after the abort; while another person streams (or
 // anything polls /metrics or /slots more than once a second) it generates to its end. The
 // "while another person streams" trial fails until a pin carries an upstream fix: open PR
-// ggml-org/llama.cpp#29707 (still unfixed in b11406, 2026-10-05; docs/upstream/).
+// ggml-org/llama.cpp#29707 (still unfixed in b11406, 2026-10-05, and in the pinned b11512, 2026-10-08; docs/upstream/).
 
 const http = require('http');
 const net = require('net');

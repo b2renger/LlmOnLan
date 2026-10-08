@@ -175,7 +175,7 @@ dev Electron boot to the welcome screen on the dev box.
 - [ ] **External engine killed mid-run:** stop the operator-run vLLM/SGLang → within one health tick the
       farm goes unhealthy (`healthy:false` in `/lol/self`) and clients fail over; restart it → healthy again.
       The panel offers no slots/context/engine control while external serves (FA-1).
-- [ ] **llama.cpp on the DGX Spark** from the `llamacpp-b10670` tarball (our `build-llamacpp-arm64.yml`):
+- [ ] **llama.cpp on the DGX Spark** from the `llamacpp-b11512` tarball (our `build-llamacpp-arm64.yml`, run on the merge to `main`):
       `lol up` downloads it, llama-server loads on the GB10, the panel reads `llama.cpp · …`.
 - [ ] **An engine switch keeps the served name (FA-2):** rename the Ollama default in the panel (e.g.
       `tutor`), switch to llama.cpp → clients still see `tutor` and an open chat keeps working; switch

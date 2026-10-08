@@ -1,8 +1,10 @@
 # Build llama-server for linux-arm64 + CUDA (the DGX Spark: GB10, sm_121) and
 # publish it on this repo's releases under the tag `llamacpp-<build>`.
 #
-# Why this exists: ggml-org ships no linux-arm64 CUDA prebuilt, and the Spark must
-# work OUT OF THE BOX — no compiler, no Docker, nothing to build on the machine.
+# Why this exists: the Spark must work OUT OF THE BOX — no compiler, no Docker, nothing
+# to build on the machine — and when this was written ggml-org shipped no linux-arm64 CUDA
+# prebuilt. (It has published an Ubuntu arm64 CUDA 13.4 build since 2026-09-14, never tried
+# on a Spark; this one builds the same official source at the pinned tag with CUDA 13.0.)
 # The farm's assetsFor() (farm/src/llamacpp.js) downloads exactly the tarball this
 # workflow produces; if the tarball is absent or broken, `lol up` falls back to the
 # Ollama engine with the reason in the panel, so a failed build here degrades, it
@@ -24,7 +26,7 @@ on:
     branches: [main]
 
 env:
-  LLAMACPP_BUILD: b10670        # keep in lockstep with farm/src/llamacpp.js PINNED_BUILD
+  LLAMACPP_BUILD: b11512        # keep in lockstep with farm/src/llamacpp.js PINNED_BUILD
   CUDA_ARCHS: "121"             # GB10 (DGX Spark) is sm_121; single arch keeps the build ~fast
 
 permissions:
