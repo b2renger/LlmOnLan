@@ -718,11 +718,12 @@ async function run(args) {
     }
     const vllmSup = vllmMod.supported();
     // What Windows itself sees (its own nvidia-smi, read at boot): the check says "too small" or "no NVIDIA GPU" before
-    // anything about WSL (vllm.problemsFrom).
-    const hostGpu = { name: hw.gpu === 'Unknown GPU' ? null : hw.gpu, gb: hw.vramGb || null };
+    // anything about WSL (vllm.problemsFrom). Read again at each check while nvidia-smi has not answered (checkVllm).
+    const hostGpu = vllmMod.hostGpuOf(hw);
     let vllmProbe = null;          // the last check (vllm.probe), refreshed after a start, a stop, a download
     let vllmTarget = null;         // {platform, distro, root, port} where it lives (vllm.targetOf)
     let vllmBootError = null;
+    let vllmBootErrorRan = false;  // that reason came from vLLM running (a start, a crash): its log says more
     let vllmBootJob = null;        // 'start' | 'restart' | 'wait', run once the farm is public
     let vllmChild = null;          // the serve.sh the farm spawned (wsl.exe on Windows), null when adopted or stopped
     let takeOverOffer = null;      // "Let the farm run vLLM" (§9): what the panel offers (vllm.takeOverPlan), or null
@@ -1256,6 +1257,7 @@ async function run(args) {
         kickBox.fn();
     }
     async function checkVllm() {
+        if (!hostGpu.name) Object.assign(hostGpu, vllmMod.hostGpuOf(await detectHardware()));   // nvidia-smi slow at boot
         vllmProbe = await vllmMod.probe(config, { hostGpu });
         const t = vllmMod.targetOf(config, vllmProbe);
         if (t) vllmTarget = t;
@@ -1394,7 +1396,7 @@ async function run(args) {
             const after = (await checkVllm()).st;
             const otherGpuGb = after && after.gpu && after.gpu.totalGib != null && after.gpu.freeGib != null ? after.gpu.totalGib - after.gpu.freeGib : null;
             return {
-                ok: false, code: r.code, portIsOthers,
+                ok: false, code: r.code, portIsOthers, ran: true,
                 message: vllmMod.explainFailure(r.code, r.lines, { root: vllmTarget.root, port: config.vllm.port, label: (vllmMod.vllmEntry(config) || {}).label, otherGpuGb }),
             };
         }
@@ -1432,8 +1434,9 @@ async function run(args) {
     // gate's 502 while the proxy restarts (found by the lifecycle test).
     // vLLM is stopped FIRST: one that does not stop keeps the farm on vLLM, stopped and saying why, rather than
     // loading Ollama's model beside it (two engines on one GPU). `portIsOthers`: the start found another program
-    // on vLLM's port, which keeps answering there and is not vLLM. → true when Ollama serves now.
-    async function fallbackToOllama(reason, { portIsOthers = false } = {}) {
+    // on vLLM's port, which keeps answering there and is not vLLM. `ran`: vLLM ran (its log says more about `reason`),
+    // as opposed to a start that stopped at its check. → true when Ollama serves now.
+    async function fallbackToOllama(reason, { portIsOthers = false, ran = false } = {}) {
         if (stopping) return false;   // the farm stops: nothing loads into Ollama on its way out
         setEngineUp(false);
         const s = await stopVllmProcess({ portWait: !portIsOthers });
@@ -1444,7 +1447,7 @@ async function run(args) {
             writeRuntimeState();
             return false;
         }
-        vllmBootError = reason;
+        vllmBootError = reason; vllmBootErrorRan = ran;
         log.warn(`vLLM: ${reason} Serving with Ollama for now.`);
         logFallbackNames(engineFallback(config, 'vllm'));
         await resolveOllamaContext();
@@ -1470,7 +1473,7 @@ async function run(args) {
                 return { ok: false, error: 'Stopped. vLLM is not running: press Start vLLM.' };
             }
             if (r.code === 3) { enterGuard(null, r.message); return { ok: false, error: r.message }; }
-            if (!(await fallbackToOllama(`vLLM could not start: ${r.message}`, { portIsOthers: !!r.portIsOthers }))) return { ok: false, error: vllmState.text };
+            if (!(await fallbackToOllama(`vLLM could not start: ${r.message}`, { portIsOthers: !!r.portIsOthers, ran: !!r.ran }))) return { ok: false, error: vllmState.text };
             return { ok: false, error: `vLLM could not start: ${r.message} The farm serves with Ollama for now.` };
         }, { cancel: () => stopVllmProcess() });
     }
@@ -1508,7 +1511,7 @@ async function run(args) {
                 setVllmPhase('ready');
                 setEngineUp(true);
             } else if (decision === 'guard') enterGuard(st.guardLine);
-            else if (decision === 'fallback') await fallbackToOllama(`vLLM stopped working twice in 5 minutes (the second time, ${why}).`);
+            else if (decision === 'fallback') await fallbackToOllama(`vLLM stopped working twice in 5 minutes (the second time, ${why}).`, { ran: true });
             else {
                 vllmState.lastRestartAt = Date.now();
                 const r = startVllmJob('Restarting vLLM after it stopped unexpectedly', { phase: 'restarting' });
@@ -2865,7 +2868,7 @@ async function run(args) {
             maxNumSeqs: v.maxNumSeqs, maxNumSeqsResolved: v.maxNumSeqsResolved ?? null,
             kvCacheGib: v.kvCacheGib, kvResolvedGib: v.kvResolvedGib ?? null,
             phase: vllmState.phase, phaseText: vllmState.text, percent: vllmState.percent, adopted: vllmState.adopted,
-            bootError: vllmBootError, poolTokens: vllmState.poolTokens, peopleFit: vllmState.peopleFit, guardLine: vllmState.guardLine,
+            bootError: vllmBootError, bootErrorRan: vllmBootErrorRan, poolTokens: vllmState.poolTokens, peopleFit: vllmState.peopleFit, guardLine: vllmState.guardLine,
             running: vllmState.phase === 'ready' || !!vllmChild,
             measured: e && st && st.gpu ? vllmMod.measuredFor(e, st.gpu.name) : null,
             launchSettings: vllmState.launchSettings,
@@ -3709,7 +3712,7 @@ async function run(args) {
             revert();
             const back = await startVllm(progress);
             if (!back.ok) {
-                if (!(await fallbackToOllama(`${r.message} The previous settings did not come back either: ${back.message}`, { portIsOthers: !!back.portIsOthers }))) return { ok: false, error: vllmState.text };
+                if (!(await fallbackToOllama(`${r.message} The previous settings did not come back either: ${back.message}`, { portIsOthers: !!back.portIsOthers, ran: !!(r.ran || back.ran) }))) return { ok: false, error: vllmState.text };
                 return { ok: false, error: `${r.message} The previous settings did not come back either (${back.message}): the farm serves with Ollama for now.` };
             }
             await restartProxy();

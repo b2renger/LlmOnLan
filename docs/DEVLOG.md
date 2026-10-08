@@ -6,6 +6,47 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-10-08 (04:53) — vLLM run by the farm: the leftovers verifier's six minors
+
+The verifier of the leftovers (verdict ok on d37164a) listed six small things. Each is fixed on the `vllm-managed`
+branch with a test that fails when the fix is taken out: checked in a scratch copy of the tree, one fix reverted at
+a time.
+
+- **The plan's boot rule.** [VLLM_MANAGED_PLAN.md](VLLM_MANAGED_PLAN.md) §5, "Boot, step 0c-ter" b), still said
+  "on timeout or error → unavailable". It now gives d37164a's rule: no answer at all queues the start, which checks
+  again once the farm is up; a GPU too small is an answer. Test: the decisions test reads that step in the plan.
+- **WSL not ready at log on.** When `wsl -l -v` failed without a list, the farm read it as "WSL has no Ubuntu yet".
+  That counts as an answer, so a slow log on served Ollama for the whole run. Now `vllm.wslAnswer` says "no
+  distribution" only when WSL says so: its English or French words (read from this computer's wsl.exe), or its
+  error code `WSL_E_DEFAULT_DISTRO_NOT_FOUND`, which is the same in every language, where WSL prints it. Any other
+  failure is no answer, and the start is queued. WSL's "no distribution with that name" is not counted. The limit: a
+  computer in another language whose WSL prints no code reads as no answer, so its queued start checks again and then
+  says WSL did not answer; its words get added when one is met (a `ponytail:` note says so). Test: the decisions
+  test, with eleven of wsl.exe's answers.
+- **A model added by its name** has no size until it is downloaded. `gpuFit` counted it as 0 GB, so adding one made
+  a 16 GB card "fit": Install was offered, then the start failed. Now such a model is left out when the farm looks
+  for the smallest one. With no size known at all, the answer is unknown and nothing is said. Test: the checklist
+  test, an RTX 4080 with a model added by its name.
+- **nvidia-smi slow at boot.** The farm read the GPU Windows sees once, at boot. A miss said "No NVIDIA GPU" (and hid
+  "too small") for the whole run. Now `checkVllm` (Check again, and every start) reads it again while its name is
+  missing (`vllm.hostGpuOf`). Test: the checklist corrects itself once the GPU is read, and `checkVllm` has the line.
+- **`test_scripts.sh` `timelimit`** counted every `sleep 300` on the computer as this download's `hf`. Now it counts
+  only a `sleep 300` with this test's root in its environment, as lifecycle step 21 does. The test also starts another
+  program's `sleep 300` beside the download. Under WSL, the old check fails with that sleep running and the new one
+  passes. With the time limit's group stop taken out of vllm.js, the new check still fails, on `hf` alone.
+- **The fallback line** said "vLLM's log below says more" even when vLLM never ran: the boot's check, a start that
+  stopped at its check, another program on the port. Now the farm says whether vLLM ran (`bootErrorRan`: a start
+  that reached vLLM, or a crash while it served). The panel names the log only then. Otherwise it says "the
+  checklist on the vLLM card below says what is missing" when the checklist lists a problem, and names nothing when
+  it does not. Tests: the panel test (three cases, and the farm's wiring). Lifecycle steps 5, 16 and 20 check the
+  flag on a real farm.
+
+Tests: farm `node test/run.js` 209 passed (the new checks sit in existing tests); `litellm-cancel.js` PASS;
+`LOL_VLLM_FAKE=1 node test/vllm-lifecycle.js` 161 passed, 0 failed (three checks now also read the flag);
+`test_scripts.sh` under WSL Ubuntu 112 passed, 0 failed; farm-app `npm test` 8 passed, `npm run build` clean. The
+other five fixes, each reverted alone in the scratch copy: run.js 208 passed, 1 failed (the decisions test for the
+plan and WSL, the checklist test for the size and the GPU, the panel test for the line).
+
 ## 2026-10-08 (03:57) — vLLM run by the farm: the reviews' leftovers, the live test's two notes, the DGX Spark path, small RTX cards
 
 The fix pass (00:49) read the two reviews' 24 findings cut at 9,000 characters each. Every one was read again in

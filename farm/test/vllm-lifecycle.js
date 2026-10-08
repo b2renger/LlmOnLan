@@ -302,7 +302,8 @@ const STEPS = {
         check('…the farm says healthy only once Ollama is routed', first.status === 200, `${first.status} ${first.text.slice(0, 160)}`);
         const f = await waitFor(async () => { const x = await state(); return x.vllm.phase === 'failed' && x; }, 120000, 'the fallback to Ollama');
         // In plain words (the live test read "(the second time, its process ended (status 0))"): the status is for the log.
-        check('killed again within 5 minutes: Ollama serves, with why, in plain words', f.vllm.bootError === 'vLLM stopped working twice in 5 minutes (the second time, it shut down by itself).', f.vllm.bootError);
+        // vLLM ran, so the panel points at its log (bootErrorRan).
+        check('killed again within 5 minutes: Ollama serves, with why, in plain words', f.vllm.bootError === 'vLLM stopped working twice in 5 minutes (the second time, it shut down by itself).' && f.vllm.bootErrorRan === true, `${f.vllm.bootError} ran=${f.vllm.bootErrorRan}`);
         const snap = await self();
         check('…the farm healthy, no vLLM left', snap.healthy === true && !(await pgid()));
         const c = await chat('fake-renamed');
@@ -544,8 +545,9 @@ const STEPS = {
             up();
             await waitFor(self, 120000, 'the panel');
             const s = await waitFor(async () => { const x = await state(); return x.vllm.phase === 'failed' && x; }, 120000, 'the start to give up');
-            check('another program on vLLM\'s port: the start says so and starts nothing', /Another program uses port 8299/.test(s.vllm.bootError || '') && !/vLLM: starting Fake A/.test(out) && !(await pgid()),
-                `${s.vllm.bootError} ${out.split('\n').filter((l) => /vLLM/.test(l)).slice(-4).join(' | ')}`);
+            // vLLM never ran: the panel does not point at its log (bootErrorRan false).
+            check('another program on vLLM\'s port: the start says so and starts nothing', /Another program uses port 8299/.test(s.vllm.bootError || '') && s.vllm.bootErrorRan === false && !/vLLM: starting Fake A/.test(out) && !(await pgid()),
+                `${s.vllm.bootError} ran=${s.vllm.bootErrorRan} ${out.split('\n').filter((l) => /vLLM/.test(l)).slice(-4).join(' | ')}`);
             check('…Ollama serves instead, never that program', s.backend.engine === 'ollama' && replyOf(await chat('assistant')) === 'fake ollama reply');
             await stopFarm();
         } finally { await new Promise((r) => other.close(r)); }
@@ -623,8 +625,8 @@ const STEPS = {
         up();
         await waitFor(self, 120000, 'the panel');
         const s = await state();
-        check('…the next boot cannot use it: stopped first, then Ollama serves, saying why', s.backend.engine === 'ollama' && !(await pgid()) && /Fake B is not downloaded yet/.test(s.vllm.bootError || ''),
-            JSON.stringify({ engine: s.backend.engine, pgid: await pgid(), why: s.vllm.bootError }));
+        check('…the next boot cannot use it: stopped first, then Ollama serves, saying why (the checklist\'s words, not the log\'s)', s.backend.engine === 'ollama' && !(await pgid()) && /Fake B is not downloaded yet/.test(s.vllm.bootError || '') && s.vllm.bootErrorRan === false,
+            JSON.stringify({ engine: s.backend.engine, pgid: await pgid(), why: s.vllm.bootError, ran: s.vllm.bootErrorRan }));
         await stopFarm();
     },
     // ---- the review's leftovers (2026-10-08) ----

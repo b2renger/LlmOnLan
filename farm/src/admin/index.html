@@ -928,7 +928,9 @@ function vllmStatusLine(s) {
     // A start that failed, or a vLLM that stopped working while it served (twice in 5 minutes): each says its own.
     const why = String(v.bootError).replace(/^vLLM could not start:\s*/, '').replace(/[.\s]+$/, '');
     const what = /^vLLM stopped working/.test(why) ? why : `vLLM could not start: ${why}`;
-    return `<div class="warnline">${esc(what)}. The farm serves with Ollama for now. Fix the cause (vLLM's log below says more), then switch back to vLLM.</div>`;
+    // Its log says more only when vLLM ran; a start that stopped at the check (or a boot) has the checklist's words.
+    const more = v.bootErrorRan ? " (vLLM's log below says more)" : (v.probe && (v.probe.problems || []).length ? ' (the checklist on the vLLM card below says what is missing)' : '');
+    return `<div class="warnline">${esc(what)}. The farm serves with Ollama for now. Fix the cause${more}, then switch back to vLLM.</div>`;
   }
   const hint = (t) => `<div class="hint">${t}</div>`;
   const warn = (t) => `<div class="warnline">${t}</div>`;

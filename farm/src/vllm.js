@@ -722,10 +722,12 @@ function downloadFailure(r, repo, button = 'Download') {
 // sum: its weights, vLLM's own memory, the safety margin, document reading's share while it is on, the memory guard's
 // floor where the GPU shares the system memory, and 1 GB for conversations). → {fits, needGib, ocrGib, fitsWithoutOcr},
 // or null with no list or no size. An RTX 4070 (12 GB) or 4080 (16 GB) fits none: llama.cpp or Ollama is their engine.
+// A model of unknown size (added by its name, not downloaded yet) is left out: counted as 0 GB, it made any card fit.
 function gpuFit(config, gib, { unified = false } = {}) {
-    const v = config.vllm; const lib = v.library || [];
-    if (!lib.length || !(gib > 0)) return null;
-    const weights = Math.min(...lib.map((e) => e.weightsGib ?? (e.sizeGb || 0) * 1e9 / GIB));
+    const v = config.vllm;
+    const sizes = (v.library || []).map((e) => e.weightsGib ?? (e.sizeGb > 0 ? e.sizeGb * 1e9 / GIB : null)).filter((w) => w != null);
+    if (!sizes.length || !(gib > 0)) return null;
+    const weights = Math.min(...sizes);
     const ocrGib = config.ocr && config.ocr.enabled ? v.ocrReserveGib : 0;
     const floor = unified ? minFreeOf(v.minFreeGb, true) || 0 : 0;
     const need = (ocr) => (weights + RUNTIME_GIB + 1 + ocr + floor) / (1 - v.marginPct / 100);
@@ -738,6 +740,12 @@ function tooSmallText(config, gib, opts) {
     const ocr = f.ocrGib ? `, with ${r1(f.ocrGib)} GB kept for document reading` : '';
     const room = f.ocrGib && f.fitsWithoutOcr ? ' Turning document reading off would make room for one.' : '';
     return `This GPU has ${r1(gib)} GB: too little for any model in the vLLM list (the smallest needs about ${r1(f.needGib)} GB${ocr}). llama.cpp or Ollama is the engine for this card.${room}`;
+}
+// What Windows itself sees of the GPU, from systemInfo.detectHardware's result: {name, gb}, name null when its
+// nvidia-smi did not answer. up.js reads it at boot, and again before each check while the name is missing: nvidia-smi
+// can be slow at log on, and the checklist would say "no NVIDIA GPU" (or miss "too small") for the whole run.
+function hostGpuOf(hw) {
+    return { name: hw.gpu === 'Unknown GPU' ? null : hw.gpu, gb: hw.vramGb || null };
 }
 const NO_NVIDIA = 'No NVIDIA GPU was found on this computer (nvidia-smi does not answer). vLLM needs one: if this computer has one, install its latest NVIDIA driver, restart the computer, then press Check again; if not, llama.cpp or Ollama is the engine for it.';
 
@@ -922,12 +930,22 @@ function spawnScript(config, script, env = {}, { timeoutMs = 60000, onLine = nul
 
 // WSL's distributions, or {error: 'no-wsl' | 'no-distro' | 'timeout'}. `wsl -l -v` lists them without booting the VM.
 async function wslDistros() {
-    const r = await runCmd('wsl.exe', ['-l', '-v'], { timeoutMs: 15000 });
+    return wslAnswer(await runCmd('wsl.exe', ['-l', '-v'], { timeoutMs: 15000 }));
+}
+// What `wsl -l -v` said (runCmd's result; pure, for the tests). 'no-distro' only when WSL says it has none: its
+// English or French words (from wsl.exe 2.x's own strings), or its error code, the same in every language, where it
+// prints one. Any other failure without a list is 'timeout', no answer (unanswered): WSL's service not ready yet at a
+// slow log on reads so, and the start is queued instead of Ollama serving for the whole run. ponytail: another
+// language without the code reads as no answer too (the queued start's check then says WSL did not answer); add its
+// words here when one is met.
+function wslAnswer(r) {
     if (r.timedOut) return { error: 'timeout' };
     if (r.error) return { error: 'no-wsl' };
     const list = parseWslList(r.out);
     if (list.length) return list;
-    return /is not installed|n'est pas install/i.test(`${r.out}\n${r.err}`) ? { error: 'no-wsl' } : { error: 'no-distro' };
+    const text = `${r.out}\n${r.err}`;
+    if (/is not installed|n'est pas install/i.test(text)) return { error: 'no-wsl' };
+    return /has no installed distributions|aucune distribution install|WSL_E_DEFAULT_DISTRO_NOT_FOUND/i.test(text) ? { error: 'no-distro' } : { error: 'timeout' };
 }
 
 // The Windows folder a distribution's virtual disk lives in, from `reg query …\Lxss /s` (pure, for the tests).
@@ -1224,7 +1242,7 @@ module.exports = {
     parseStatus, memOf, vllmEntry, folderOf, resolveRoot, facts, peopleFit, measuredFor, seatsAuto, maxNumSeqsAuto, poolGib,
     familyArgs, isGeneric, repoOf, newLibraryEntry, applyChange, ocrFit,
     settingsOf, argvFor, planFor, flagMap, adoptable,
-    bootDecision, unanswered, keepRunning, gpuFit, downDecision, isOrphan, takeOverPlan, startPhase, logOffset, explainFailure, installStepText, downloadFailure, problemsFrom, diskCheck, baseUrl,
-    answers, runCmd, spawnScript, wslDistros, lxssBasePath, hostDiskFree, status, probe, targetOf, logFile, readLog,
+    bootDecision, unanswered, keepRunning, gpuFit, hostGpuOf, downDecision, isOrphan, takeOverPlan, startPhase, logOffset, explainFailure, installStepText, downloadFailure, problemsFrom, diskCheck, baseUrl,
+    answers, runCmd, spawnScript, wslDistros, wslAnswer, lxssBasePath, hostDiskFree, status, probe, targetOf, logFile, readLog,
     start, waitReady, stop, stopInstall, folderBytes, install, removeFolder, takeOverProbe, setMarker,
 };

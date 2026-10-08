@@ -228,6 +228,11 @@ Built in slices, each tested, logged in docs/DEVLOG.md and pushed on the `vllm-m
     desktop log-in (R4).
   - The lifecycle test's last check ignores the vLLMs other test runs start (`/tmp/lol-as-*`, `~/lol-fake-*`).
   - A DGX Spark checklist for the owner: §11.6.
+- **The leftovers verifier's minors (2026-10-08).** `wsl -l -v` failing without a list is no answer unless WSL says it
+  has no distribution (`wslAnswer`), so a WSL service not ready at log on queues the start; a model of unknown size
+  (added by its name) is left out of `gpuFit`; the GPU Windows sees is read again at each check while nvidia-smi has
+  not answered; the fallback line names vLLM's log only when vLLM ran (`bootErrorRan`), else the checklist; boot step
+  0c-ter b) says the queued-start rule; `test_scripts.sh` `timelimit` counts only its own `hf`.
 - **Left:** §11.5 / §9.6 with the owner (a release of the Farm app first); §11.6 on a Spark.
 
 ## 0. Decisions
@@ -464,7 +469,7 @@ start-windows.ps1: when serve.sh exits 0 before vLLM answers, it logs "The farm 
 
 - supported() → {ok, why}: win32 x64 (through WSL), linux x64 or arm64; else {ok:false, why:'mac'|'platform'}.
 - decodeWsl(buf): UTF-16LE (with or without BOM, detected by NUL bytes), else UTF-8.
-- wslDistros() → [{name, state, version, isDefault}] or {error:'no-wsl'|'no-distro'|'timeout'}, from `wsl.exe -l -v` (15 s). It does not boot the VM. The default is the one marked *; when that is docker-desktop*, the first other WSL 2 distribution.
+- wslDistros() → [{name, state, version, isDefault}] or {error:'no-wsl'|'no-distro'|'timeout'}, from `wsl.exe -l -v` (15 s; `wslAnswer` reads it). 'no-distro' only when WSL says it has no distribution (its English or French words, or its error code `WSL_E_DEFAULT_DISTRO_NOT_FOUND` where it prints one; another language without the code reads as no answer); any other failure without a list is 'timeout', no answer (a WSL service not ready yet at log on). It does not boot the VM. The default is the one marked *; when that is docker-desktop*, the first other WSL 2 distribution.
 - spawnScript(config, script, env, {timeoutMs, onLine, detached}) → {code, out, err, timedOut}.
 - parseStatus(text) → {home, arch, root, distro, uv, curl, gpu:{name,totalGib,freeGib,cap}|null, memTotalGib, memAvailableGib, diskFreeGb, installs:[{root,version,link}], models:[{folder,gb,vision,native,partial}], running:{pgid, port, minFreeGb, managedArgs, argv, ready}|null, found:[{root,port,pgid}], guardLine, installing, managed}.
 - hostDiskFreeGb(distro) (Windows): the distribution's BasePath from `reg query HKCU\Software\Microsoft\Windows\CurrentVersion\Lxss /s /v BasePath` (matched by DistributionName), else the drive of %LOCALAPPDATA%; then fs.statfsSync. Linux: null.
@@ -551,7 +556,7 @@ The DOWNLOAD slot (new; outside serialize, outside busy()):
 Boot, step 0c-ter, after the external probe:
 - a) Orphan rule. When supported, engineOf !== 'vllm', and a root is known (config.vllm.root, or the stale runtime's vllm), run status. If a group runs there AND managed=1, stop it and log "Stopped a vLLM left running from <root>: this farm serves with <engine> now." A group without the marker belongs to someone else and is left alone.
 - b) When engineOf === 'vllm':
-  - probe (on timeout or error → unavailable);
+  - probe. No answer at all (`unanswered`: WSL or status.sh silent, or `wsl -l -v` failing without a list, as at a slow log on) → the start is queued (`bootDecision`'s `noAnswer`) and checks again once the farm is up: it keeps a vLLM it then finds running with these settings (`keepRunning`), and serves with Ollama only if that check fails too. A GPU too small for any model of the list is an answer (Windows sees it before WSL): unavailable at once;
   - problemsFrom for the selected entry (not installed / not downloaded / partial / installing → unavailable);
   - unavailable → engineFallback(config,'vllm') with vllmBootError = the sentence;
   - otherwise bootDecision:
@@ -792,7 +797,7 @@ Switching to vLLM refuses up front when it is not installed, the model is not do
   - guard: "vLLM was stopped because this computer was running out of memory (<N> GB left; it stops below <M> GB, before the GPU gets stuck at a slow speed). Close what is using the memory, then press Start vLLM."
   - down: "vLLM is not answering. The farm is checking it."
   - the restart job's label: "Restarting vLLM after it stopped unexpectedly".
-  - failed (warnline): "vLLM could not start: <reason>. The farm serves with Ollama for now. Fix the cause (vLLM's log below says more), then switch back to vLLM."; after a vLLM that stopped working while it served, its own reason in place of "vLLM could not start: <reason>".
+  - failed (warnline): "vLLM could not start: <reason>. The farm serves with Ollama for now. Fix the cause (vLLM's log below says more), then switch back to vLLM."; after a vLLM that stopped working while it served, its own reason in place of "vLLM could not start: <reason>". The log is named only when vLLM ran (`bootErrorRan`); when it never did (the boot's check, or a start that stopped at its check) the parenthesis reads "(the checklist on the vLLM card below says what is missing)" while the checklist lists a problem, and is left out otherwise.
 - Rows, all under the one Apply:
   - Name users see (vLLM too): "what appears in the model picker. Renaming takes a few seconds; vLLM keeps running."
   - People served at once (vLLM):
@@ -836,7 +841,7 @@ Switching to vLLM refuses up front when it is not installed, the model is not do
   - curl: "curl is missing. In a terminal, run  sudo apt install curl , then press Check again."
   - architecture: "vLLM needs a 64-bit Intel, AMD or ARM processor."
   - disk: "Not enough free disk: vLLM and <model> need about <n> GB, and <m> GB are free.<Windows: Ubuntu's disk lives on drive <X>:.> Free some space, then press Check again."
-  - small GPU (vllm.gpuFit: what the smallest model asks of an empty card, document reading's 9 GB included while it is on; on Windows from the size Windows sees, before anything about WSL): "This GPU has <n> GB: too little for any model in the vLLM list (the smallest needs about <m> GB<, with 9 GB kept for document reading>). llama.cpp or Ollama is the engine for this card.< Turning document reading off would make room for one.>" The vLLM button says it before any check: "Not for this GPU (<n> GB; vLLM's models need about <m> GB): llama.cpp or Ollama is the engine for it. Press to see why."; no older-card warning beside it.
+  - small GPU (vllm.gpuFit: what the smallest model asks of an empty card, document reading's 9 GB included while it is on; a model of unknown size, added by its name and not downloaded, is left out, and with no size known nothing is said; on Windows from the size Windows sees, read again at each check while its nvidia-smi has not answered, before anything about WSL): "This GPU has <n> GB: too little for any model in the vLLM list (the smallest needs about <m> GB<, with 9 GB kept for document reading>). llama.cpp or Ollama is the engine for this card.< Turning document reading off would make room for one.>" The vLLM button says it before any check: "Not for this GPU (<n> GB; vLLM's models need about <m> GB): llama.cpp or Ollama is the engine for it. Press to see why."; no older-card warning beside it.
   - an older card (a warning): "This GPU is older than the cards these models were measured on (RTX PRO 6000, DGX Spark): they may not load. If a start fails, llama.cpp is the engine for this card."
   - an older version: "vLLM <v> is installed; this farm was tested with <pin>." [Update vLLM]
   - an install already running: "A download started earlier is still running. Wait for it, or stop it here." [Stop it]

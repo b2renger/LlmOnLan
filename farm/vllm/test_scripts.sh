@@ -320,10 +320,20 @@ t_timelimit() {
   command -v node >/dev/null || { echo "  (skipped: no node)"; return; }
   # Killing only the farm's child (bash here) left hf and tee downloading, unrecorded (review 2026-10-07; seen here).
   local J='require(process.argv[1]).install({ platform: "linux", root: process.argv[2], port: 1 }, { steps: "model", repo: "org/Slow", folder: "Slow", timeoutMs: 4000 }).then((r) => { console.log(JSON.stringify(r)); process.exit(0); });'
+  # Another program's `sleep 300` on this computer is not this download's hf, and must not fail the test.
+  env -u LOL_VLLM_ROOT sleep 300 & local OTHER=$!
   FAKE_HF=slow node -e "$J" "$D/../src/vllm.js" "$ROOT" > "$OUT" 2>&1
   sleep 1
   check "it says so: still not done after 4 seconds" grep -qF '"error":"it was still not done after 4 seconds"' "$OUT"
-  check "nothing of it left: install.sh, hf, tee, its pgid file" bash -c "! pgrep -f 'install\.sh org/Slow' && ! pgrep -f '[t]ee $ROOT/logs/download.last' && ! pgrep -fx 'sleep 300' && [ ! -e '$ROOT/run/install.pgid' ]"
+  check "nothing of it left: install.sh, hf, tee, its pgid file" download_gone
+  kill "$OTHER"; wait "$OTHER" 2>/dev/null
+}
+download_gone() {   # hf is the fake's `sleep 300`: one with this root in its environment (as lifecycle step 21 looks)
+  ! pgrep -f 'install\.sh org/Slow' > /dev/null && ! pgrep -f "[t]ee $ROOT/logs/download.last" > /dev/null || return 1
+  local p; for p in $(pgrep -fx 'sleep 300'); do
+    tr '\0' '\n' < "/proc/$p/environ" 2>/dev/null | grep -qxF "LOL_VLLM_ROOT=$ROOT" && { echo "    hf still runs: $p"; return 1; }
+  done
+  [ ! -e "$ROOT/run/install.pgid" ]
 }
 
 for t in $TESTS; do clean; "t_$t"; done

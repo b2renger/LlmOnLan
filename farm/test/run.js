@@ -3959,6 +3959,29 @@ test('vLLM decisions: at boot, when it stops answering, and an orphan left by a 
     assert.equal(V.unanswered({ st: null, wsl: { error: 'no-wsl' } }), false, 'an answer: WSL is missing');
     assert.equal(V.unanswered({ st: null, wsl: { list: [{ name: 'Ubuntu', version: 1 }] } }), false, 'an answer: WSL 1');
     assert.equal(V.unanswered({ st: { running: null } }), false);
+    // `wsl -l -v` (runCmd's result): "no distribution" only when WSL says so (English and French as wsl.exe 2.x prints
+    // them, or its error code); any other failure without a list is no answer, so a WSL service not ready yet at a
+    // slow log on queues the start instead of Ollama serving for the whole run (verifier, 2026-10-08).
+    const wsl = (out, code = 1, err = '') => V.wslAnswer({ code, out, err, timedOut: false, error: null });
+    const noDistroEn = "Windows Subsystem for Linux has no installed distributions.\nYou can resolve this by installing a distribution with the instructions below:\n\nUse 'wsl.exe --list --online' to list available distributions\nand 'wsl.exe --install <Distro>' to install.\n";
+    assert.deepEqual(wsl(noDistroEn), { error: 'no-distro' });
+    assert.deepEqual(wsl('Sous-système Windows pour Linux n’a aucune distribution installée.\n'), { error: 'no-distro' });
+    assert.deepEqual(wsl('Für das Windows-Subsystem für Linux sind keine Distributionen installiert.\nFehlercode: Wsl/WSL_E_DEFAULT_DISTRO_NOT_FOUND\n'), { error: 'no-distro' }, 'any language: the error code');
+    assert.deepEqual(wsl('Windows Subsystem for Linux is not installed.\n'), { error: 'no-wsl' });
+    for (const out of ['Catastrophic failure\nError code: Wsl/Service/E_UNEXPECTED\n', 'Le service ne peut pas être démarré.\n', '', 'Il n’existe aucune distribution avec le nom fourni.\n']) {
+        const a = wsl(out);
+        assert.deepEqual(a, { error: 'timeout' }, JSON.stringify(out));
+        assert.equal(V.unanswered({ st: null, wsl: a }), true, 'no answer: the start is queued');
+    }
+    assert.deepEqual(V.wslAnswer({ code: null, out: '', err: '', timedOut: true, error: 'timeout' }), { error: 'timeout' });
+    assert.deepEqual(V.wslAnswer({ code: null, out: '', err: '', timedOut: false, error: 'ENOENT' }), { error: 'no-wsl' });
+    assert.equal(wsl('  NAME      STATE           VERSION\n* Ubuntu    Running         2\n', 0)[0].name, 'Ubuntu');
+    // The plan says the same rule (§5, boot step 0c-ter b).
+    const plan = path.join(__dirname, '..', '..', 'docs', 'VLLM_MANAGED_PLAN.md');
+    if (fs.existsSync(plan)) {   // a farm-only copy (the Farm app ships farm/ alone) has no docs
+        const step = fs.readFileSync(plan, 'utf8').split('Boot, step 0c-ter')[1].split('\n- c)')[0];
+        assert.ok(!/on timeout or error → unavailable/.test(step) && /the start is queued/.test(step) && /too small[^.]*is an answer/.test(step), step);
+    }
     // A start that finds a vLLM running from its root keeps it when it runs with these settings, is ready and
     // answers; a hung one or one whose port is dead is started again (review 2026-10-07).
     assert.equal(V.keepRunning({ running: run(true), adopt: { ok: true }, answers: true }), true);
@@ -4125,6 +4148,27 @@ test('vLLM on this computer: the checklist, every blocking sentence, and the dis
     assert.deepEqual(V.gpuFit(c, 12), { fits: false, needGib: (17.82 + 4 + 1 + 9) / 0.92, ocrGib: 9, fitsWithoutOcr: false });
     assert.equal(V.gpuFit(c, 119, { unified: true }).fits, true, 'a DGX Spark, its memory guard included');
     assert.equal(V.gpuFit(c, 0), null);
+    // A model added by its name has no size until it is downloaded: left out of the smallest, not counted as 0 GB,
+    // which made a 16 GB card "fit" (verifier, 2026-10-08). With no size known at all, nothing is said.
+    const byRepo = V.newLibraryEntry({ repo: 'org/Tiny-Model' }, c.vllm.library).entry;
+    assert.equal(byRepo.sizeGb, null);
+    const withRepo = { ...c, vllm: { ...c.vllm, library: [...c.vllm.library, byRepo] } };
+    assert.deepEqual(V.gpuFit(withRepo, 16), V.gpuFit(c, 16));
+    assert.equal(V.gpuFit(withRepo, 16).fits, false);
+    assert.equal(P(win({ hostGpu: { name: 'NVIDIA GeForce RTX 4080', gb: 16 } }), withRepo).gpuTooSmall, true, 'still too small for the 4080');
+    assert.equal(V.gpuFit({ ...c, vllm: { ...c.vllm, library: [byRepo] } }, 16), null, 'unknown, not "fits"');
+    // Windows' nvidia-smi can be slow at log on: a GPU it missed at boot is read again at each check, and the
+    // checklist (and the vLLM button) correct themselves.
+    assert.deepEqual(V.hostGpuOf({ gpu: 'Unknown GPU', vramGb: 0 }), { name: null, gb: null });
+    const host = V.hostGpuOf({ gpu: 'Unknown GPU', vramGb: 0 });
+    const late4080 = win({ hostGpu: host, wsl: { error: 'no-wsl' }, st: null });
+    assert.match(P(late4080).problems[0], /^No NVIDIA GPU was found/);
+    Object.assign(host, V.hostGpuOf({ gpu: 'NVIDIA GeForce RTX 4080', vramGb: 16 }));
+    assert.match(P(late4080).problems[0], /^This GPU has 16 GB: too little/, 'the same check, once nvidia-smi answered');
+    const upSrc = fs.readFileSync(path.join(__dirname, '..', 'src', 'commands', 'up.js'), 'utf8');
+    const check = upSrc.split('async function checkVllm() {')[1].split('\n    }')[0];
+    assert.ok(check.includes('if (!hostGpu.name) Object.assign(hostGpu, vllmMod.hostGpuOf(await detectHardware()));'), 'checkVllm (Check again, a start) reads it again');
+    assert.ok(upSrc.includes('const hostGpu = vllmMod.hostGpuOf(hw);'));
     const spark = V.parseStatus(['home=/home/me', 'arch=aarch64', 'curl=/usr/bin/curl', 'gpu=NVIDIA GB10, [N/A], [N/A], 12.1', 'mem_total_kb=124991588', 'mem_available_kb=115343360', 'disk_free_kb=3000000000', 'install=/home/me/lol-vllm 0.29.0'].join('\n'));
     r = P(lin({ st: spark }), { ...c, vllm: { ...c.vllm, root: '~/lol-vllm' } });
     assert.ok(r.oks.includes('GPU: NVIDIA GB10 (119 GB shared with the system).') && r.oks.includes('vLLM 0.29.0 is installed (in /home/me/lol-vllm).'), r.oks.join('|'));
@@ -4613,12 +4657,24 @@ test('panel: vLLM\'s line for each phase, its hero, and a start that fell back t
     assert.ok(render(vllmState({ phase: 'guard', phaseText: guard })).includes(`<div class="warnline">${guard}</div>`));
     assert.ok(render(vllmState({ phase: 'down' })).includes('vLLM is not answering. The farm is checking it.'));
     // Fell back: Ollama serves, with vLLM's reason, once.
-    const failed = render(ollamaWithVllm({ phase: 'failed', bootError: 'vLLM could not start: vLLM ran out of GPU memory while starting. Lower GPU memory for conversations or the context.' }));
+    const failed = render(ollamaWithVllm({ phase: 'failed', bootErrorRan: true, bootError: 'vLLM could not start: vLLM ran out of GPU memory while starting. Lower GPU memory for conversations or the context.' }));
     assert.ok(failed.includes('<div class="warnline">vLLM could not start: vLLM ran out of GPU memory while starting. Lower GPU memory for conversations or the context. The farm serves with Ollama for now. Fix the cause (vLLM\'s log below says more), then switch back to vLLM.</div>'), failed.slice(0, 600));
+    // vLLM never ran (the boot's check, or a start that stopped at its check): its log says nothing about it, the
+    // checklist does (verifier, 2026-10-08); with nothing on the checklist, neither is named.
+    const missing = 'vLLM is not installed on this computer yet: press Install vLLM.';
+    const never = render(ollamaWithVllm({ bootError: missing, probe: { at: 1, oks: [], problems: [missing], warnings: [] } }));
+    assert.ok(never.includes(`<div class="warnline">vLLM could not start: ${missing.slice(0, -1)}. The farm serves with Ollama for now. Fix the cause (the checklist on the vLLM card below says what is missing), then switch back to vLLM.</div>`), never.slice(0, 600));
+    assert.ok(!never.includes('log below says more'));
+    const portTaken = render(ollamaWithVllm({ phase: 'failed', bootError: 'vLLM could not start: Another program uses port 8100, maybe a vLLM started outside the farm. Stop it, then press Start vLLM.' }));
+    assert.ok(portTaken.includes('The farm serves with Ollama for now. Fix the cause, then switch back to vLLM.</div>'), portTaken.slice(0, 600));
     const upSrc0 = fs.readFileSync(path.join(__dirname, '..', 'src', 'commands', 'up.js'), 'utf8');
+    // The farm says which: a failure once vLLM ran (its start, a crash while it served), not one at the check.
+    assert.ok(upSrc0.includes('ok: false, code: r.code, portIsOthers, ran: true,') && upSrc0.includes("{ portIsOthers: !!r.portIsOthers, ran: !!r.ran }")
+        && upSrc0.includes('(the second time, ${why}).`, { ran: true });') && upSrc0.includes('vllmBootError = reason; vllmBootErrorRan = ran;')
+        && upSrc0.includes('bootError: vllmBootError, bootErrorRan: vllmBootErrorRan,'));
     // vLLM that stopped working while it served (twice in 5 minutes) is not "could not start", and says it in plain
     // words (the live test read "(the second time, its process ended (status 0))").
-    const crashed = render(ollamaWithVllm({ phase: 'failed', bootError: 'vLLM stopped working twice in 5 minutes (the second time, it shut down by itself).' }));
+    const crashed = render(ollamaWithVllm({ phase: 'failed', bootErrorRan: true, bootError: 'vLLM stopped working twice in 5 minutes (the second time, it shut down by itself).' }));
     assert.ok(crashed.includes('<div class="warnline">vLLM stopped working twice in 5 minutes (the second time, it shut down by itself). The farm serves with Ollama for now.'), crashed.slice(0, 600));
     assert.ok(!crashed.includes('could not start') && !/status \d/.test(crashed));
     assert.ok(upSrc0.includes("onVllmDown('it shut down by itself', `status ${code}`);") && upSrc0.includes('`vLLM stopped working twice in 5 minutes (the second time, ${why}).`'), 'the farm writes it so; the status goes to its log only');
