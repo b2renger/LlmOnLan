@@ -6,6 +6,37 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-10-08 (14:05) — The clean-state run on the PRO 6000 begins; the vLLM card opened out of sight
+
+**The clean-state run** (the owner's choice: a fresh Farm app, and a real vLLM install from the panel). Done from 12:46:
+- **The farm's Quit.** The Farm app was closed normally: its `lol down` stopped LiteLLM, SearXNG and OCR. The
+  operator-run vLLM kept running, as designed, and was then stopped with its own `stop.sh`; the GPU went back to 7 GB.
+  The stuck `serve.sh` disappeared once its holder exited.
+- **The logon task "LlmOnLan vLLM" was removed.** Its definition is saved in `Documents\LlmOnLan-vLLM-task.backup.xml`.
+- **The old data folder was set aside,** renamed `%APPDATA%\LlmOnLan Farm.before-clean-2026-10-08` (90.8 GB, intact).
+- **`~/lol-spike` was parked** as `~/lol-spike.parked-2026-10-08`, so the panel offers a real install.
+- **Farm app farm-v0.0.43 ran its first-run wizard** on the empty folder. It reused the owner's Ollama and its
+  `gemma4:12b`. The farm came up on Ollama, with no External button.
+- **The checklist read:**
+  - WSL 2 with Ubuntu;
+  - the GPU seen;
+  - 119 GB free;
+  - "vLLM is not installed";
+  - Install offered into `~/lol-vllm`.
+
+**The owner: "I cannot click the vLLM button."**
+- **The cause.** The button worked, but the card it opens starts 1,056 px down, below an 835 px window. Rendered
+  offscreen with the farm's token and clicked: the only visible change was a sliver at the bottom.
+- **The fix:** opening the card now scrolls it into view (smooth unless the person prefers reduced motion).
+  Re-rendered against the live farm, the page scrolls 791 px and the card fills the window with Install vLLM in
+  view.
+- **A contradiction on the same screen.** Before vLLM is installed, the checklist said "press Download next to it"
+  for the chosen model, and there is no Download button then. It now says "Install vLLM downloads it too".
+- **The test stub got a real check.** The panel's test stub answers `getElementById` from the rendered HTML and
+  records the scroll. The new test presses vLLM before it is set up, then checks that the card is drawn and
+  scrolled to.
+- **Tests:** farm 211/211.
+
 ## 2026-10-08 (12:02) — The Farm app's update stopped half-way over a running vLLM: the farm code is now copied file by file
 
 **Found** by the owner's screenshot of farm-v0.0.43 on the PRO 6000: the panel showed the External server with no

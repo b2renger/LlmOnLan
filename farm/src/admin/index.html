@@ -1057,7 +1057,7 @@ function vllmCard(s, jobRunning) {
   if (!(be.engine === 'vllm' || vllmOpen || dl || v.bootError)) return '';
   const isV = be.engine === 'vllm';
   const off = (blocked) => (blocked ? ' disabled' : '');
-  const out = [`<div class="card"><h2>Model · vLLM</h2>`,
+  const out = [`<div class="card" id="vllm-card"><h2>Model · vLLM</h2>`,
     `<div class="hint">vLLM is an engine made for serving many people at once on a big NVIDIA GPU. On Windows it runs inside WSL, the Linux that comes with Windows. The farm installs it, starts it and stops it.</div>`];
   // The checklist: what is in place (muted), what blocks it (✗), what is said without blocking (⚠).
   if (v.supported === false) out.push(`<div class="warnline">✗ Not available on this computer: vLLM needs an NVIDIA GPU on Linux, or Windows with WSL.</div>`);
@@ -1168,6 +1168,10 @@ function openVllmCard(s) {
   vllmOpen = true;
   try { localStorage.setItem('lolVllmOpen', '1'); } catch { /* private window */ }
   render(s);
+  // It opens below the Backend card, out of sight in a window of ordinary height: a click on vLLM looked like
+  // nothing happened (the owner, on the PRO 6000, 2026-10-08). Bring it into view.
+  const card = document.getElementById('vllm-card');
+  if (card) card.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
   if (s.vllm && s.vllm.supported !== false && !s.vllm.probe) { vllmAutoChecked = true; vllmCheck(); }
 }
 async function vllmCheck() {

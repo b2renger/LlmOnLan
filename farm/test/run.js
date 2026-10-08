@@ -2113,16 +2113,19 @@ function loadPanel({ fetch: fetchFn = () => new Promise(() => {}), confirm: conf
         }
         return els.get(sel);
     };
-    const document = { querySelector: el, activeElement: null };
+    const scrolled = [];   // what the page scrolled into view (getElementById answers from the rendered HTML)
+    const document = { querySelector: el, activeElement: null,
+        getElementById: (id) => (el('#app').innerHTML.includes(`id="${id}"`) ? { scrollIntoView: () => scrolled.push(id) } : null) };
     const localStorage = { getItem: () => null, setItem() {}, removeItem() {} };
     // eslint-disable-next-line no-new-func
-    const fn = new Function('document', 'localStorage', 'setInterval', 'fetch', 'confirm',
+    const fn = new Function('document', 'localStorage', 'setInterval', 'fetch', 'confirm', 'matchMedia',
         `${m[1]}\n;return { render, switchConfirm: typeof switchConfirm === 'function' ? switchConfirm : () => '', engineClick: typeof engineClick === 'function' ? engineClick : null };`);
-    const out = fn(document, localStorage, () => 0, fetchFn, confirmFn);
+    const out = fn(document, localStorage, () => 0, fetchFn, confirmFn, () => ({ matches: false }));
     const render = (state) => { out.render(state); return el('#app').innerHTML; };
     render.el = el;   // the stubs, for a test that edits a control after render
     render.switchConfirm = out.switchConfirm;
     render.engineClick = out.engineClick;   // an engine button's press (the stubs wire no clicks)
+    render.scrolled = scrolled;
     return render;
 }
 
@@ -3857,6 +3860,16 @@ test('vLLM launch: the farm\'s whole argv, its environment, and how a script run
     assert.deepEqual([l.cmd, l.args, l.cwd, l.env], ['bash', ['./status.sh'], '/opt/farm/vllm', { PATH: 'p', LOL_VLLM_ROOT: '/r' }]);
 });
 
+test('vLLM card: a press on vLLM before it is set up opens its card AND brings it into view (it opened below the Backend card, out of sight: the press looked like it did nothing, PRO 6000 2026-10-08)', () => {
+    const p = loadPanel({ fetch: async () => ({ status: 200, json: async () => ({ ok: true }) }) });
+    const s = ollamaWithVllm({ probe: { at: 1, oks: [], problems: ['vLLM is not installed on this computer yet: press Install vLLM.'], warnings: [], gpuTooSmall: false } });
+    p(s);
+    assert.ok(!p.el('#app').innerHTML.includes('id="vllm-card"'), 'closed before the press');
+    p.engineClick(s, 'vllm', { dataset: {} });
+    assert.ok(p.el('#app').innerHTML.includes('id="vllm-card"'), 'the card is drawn');
+    assert.deepEqual(p.scrolled, ['vllm-card'], 'and scrolled to');
+});
+
 test('vLLM: a script missing from farm/vllm is said as such, before anything starts (the Farm app\'s update stopped half-way)', async () => {
     const r = await V.spawnScript({}, 'not-a-script.sh');   // resolved without a wsl.exe or a bash
     assert.equal(r.missing, 'not-a-script.sh');
@@ -4191,6 +4204,12 @@ test('vLLM on this computer: the checklist, every blocking sentence, and the dis
     assert.ok(r.oks.includes('GPU: NVIDIA GB10 (119 GB shared with the system).') && r.oks.includes('vLLM 0.29.0 is installed (in /home/me/lol-vllm).'), r.oks.join('|'));
     assert.ok(r.warnings.includes('vLLM 0.29.0 is installed; this farm was tested with 0.30.0.'));
     assert.ok(r.problems.includes('Qwen3.6 35B-A3B · NVFP4 is not downloaded yet: press Download next to it.'));
+    // Before vLLM is installed the list has no Download button: Install vLLM brings the model (PRO 6000, 2026-10-08).
+    const bare = V.parseStatus(['home=/home/me', 'arch=x86_64', 'curl=/usr/bin/curl', 'cc=/usr/bin/cc', `gpu=${PRO}, 97887, 90000, 12.0`, 'mem_total_kb=1', 'mem_available_kb=1', 'disk_free_kb=3000000000'].join('\n'));
+    r = P(lin({ st: bare }));
+    assert.ok(r.problems.includes('vLLM is not installed on this computer yet: press Install vLLM.'), r.problems.join('|'));
+    assert.ok(r.problems.includes('Qwen3.6 35B-A3B · NVFP4 is not downloaded yet: Install vLLM downloads it too.'), r.problems.join('|'));
+    assert.ok(!r.problems.some((p) => /press Download next to it/.test(p)));
     const partly = status(['installing=88']);
     partly.models = V.parseStatus('model=Qwen3.6-35B-A3B-NVFP4 2000000 vision=0 native= partial=1').models;
     r = P(lin({ st: partly }));

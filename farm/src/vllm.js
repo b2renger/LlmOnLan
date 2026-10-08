@@ -831,7 +831,8 @@ function problemsFrom(probe, config, entry = vllmEntry(config)) {
     const label = entry ? entry.label : config.vllm.model;
     const m = entry && st.models.find((x) => x.folder === folderOf(entry));
     if (!entry) problems.push(`The model "${config.vllm.model}" is not in the vLLM list: pick one there.`);
-    else if (!m) problems.push(`${label} is not downloaded yet: press Download next to it.`);
+    // Before vLLM is installed the list has no Download button (Install vLLM downloads the chosen model with it).
+    else if (!m) problems.push(inst ? `${label} is not downloaded yet: press Download next to it.` : `${label} is not downloaded yet: Install vLLM downloads it too.`);
     else if (m.partial) problems.push(`${label} is only partly downloaded: press Download to finish it.`);
     const disk = diskCheck(probe, entry, { venv: !inst, distro });
     if (disk.problem) problems.push(disk.problem);
