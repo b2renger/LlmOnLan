@@ -6,6 +6,98 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-10-08 (21:40) — llama.cpp moves from b10670 to b11512: EmbeddingGemma 2 needs b11454 or later
+
+**Why.** The owner chose to embed documents on the farm with `google/embeddinggemma-2`. llama.cpp knows its
+architecture (`gemma-embedding2`, PR #30054) from b11454 on. b10670 refuses the GGUF ("unknown model architecture"),
+and the panel's sentence for that case reads right ("This model's architecture ('gemma-embedding2') is newer than the
+farm's llama.cpp build (b10670)…"), checked on the CPU.
+
+**The pin: b11512**, an official ggml-org release of 2026-10-08 17:39 UTC.
+- It was the newest with its Windows x64 CUDA zip at 19:21 UTC; b11513's zip was still uploading then.
+  b11513 (a CUDA top-k change) is out since, and is not needed. Everything below was measured on b11512.
+- Only official builds: ggml-org's Windows zips, and for the Spark our own CI build of the same tag.
+- `farm/src/llamacpp.js`: `PINNED_BUILD` b11512. The Windows zips are now `cuda-13.4`: ggml-org moved from 13.3
+  on 2026-09-15, and builds this new have no 13.3 zip. `assetsFor(platform, arch)` takes the platform, so a test
+  can check every platform's names.
+- `.github/workflows/build-llamacpp-arm64.yml`: `LLAMACPP_BUILD` b11512. It runs on the merge to `main`, not
+  before. Nothing else changes: `llama-server-impl` is still a static library with `BUILD_SHARED_LIBS=OFF`,
+  ggml's CMake still turns the plain `121` into `121a` (the Blackwell FP4 path), and the default flash-attention
+  kernels are still q4_0, q8_0, f16 and bf16.
+
+**What changed between the two builds (842 commits) that touches the farm.** Read in `common/arg.cpp`,
+`common/common.h`, the server sources, and both binaries' `--help`:
+- **Every flag `argsFor()` passes is still there, with the same parsing and defaults:** `-fa 1`, the cache types,
+  `--spec-type draft-mtp`, `--spec-draft-n-max`, `--cache-reuse`, `--cache-ram`, `--kv-unified`,
+  `--slot-prompt-similarity`, `--mmproj`, `--jinja`, `--metrics`, `--no-webui`, `--alias`.
+- **Removed:** `--mlock`, `--mmap`/`--no-mmap` and `--direct-io` (use `--load-mode`), and `--tensor-read-lazy`
+  (now `--lazy-mode`). The farm passes none of them. One in `llamacpp.extraArgs` now stops llama-server, and the
+  panel reads "llama.cpp did not become healthy — its last error: error: invalid argument: --no-mmap" (checked).
+  README and CLAUDE.md say so.
+- **Reasoning kept in the history is now on by default** (#28174). For Qwen3.8's template this changes nothing.
+  An earlier turn's `reasoning_content` reaches the prompt on b10670 too: 88 tokens on both builds, 76 with
+  `--no-reasoning-preserve` (`/apply-template`, on the CPU). So the farm keeps the default. It only matters for a
+  client that sends reasoning back: the coding agent does; Open WebUI through the farm and LOL Vibe do not.
+- **The same in both:** the `/metrics` names `perf.js` reads, `/health`, the log's level markers, and the
+  "unknown model architecture" and "doesn't contain MTP layers" lines `explainEngineFailure()` quotes. The zip
+  holds the same files, so extracting over b10670 leaves no stale DLL.
+- **New and unused by the farm:** `--moe-cache-mib`, `--spec-draft-sampling`, `--log-jsonl`, and `/v1/systemone`
+  (decision models, Laya among them).
+
+**Measured on the PRO 6000** (driver 596.36). The owner's farm was on Ollama and not busy, and 78.7 GB was free
+before every run; a watchdog stopped a run if the farm turned busy or less than 6 GB stayed free. Only scratch
+loopback ports (18181–18196) and my own processes.
+- **Install:** `ensureLlamacpp()` in the worktree fetched both zips under the new names in 97 s. Their sha256
+  match the release's digests, and the marker reads b11512.
+- **The farm's own path:** config, `argsFor`, `spawnLlamacpp`, `waitForLlamacpp`, `llamacppAlive`, then
+  `fetchMetrics` with `metricsSample`. The farm's argv with the context pinned at 32768, 2 slots, q4_0 KV, the
+  unified pool and the vision projector, on Qwen3.8-27B-UD-IQ2_S. Each build ran the same suite:
+
+| | b10670 | b11512 |
+|---|---|---|
+| healthy after | 4.0 s | 6.1 s |
+| GPU memory | +10,381 MiB | +10,407 MiB |
+| a reply, thinking off | "Paris is the capital of France.", 84.6 tok/s | same answer, 88.0 tok/s |
+| a reply, thinking on | 109.8 tok/s | 111.0 tok/s |
+| a tool call with `--jinja` | `get_weather({"city":"Paris"})`, then an answer from its result | the same |
+| two people at once (400 tokens each) | both at once, TTFT 225 ms, 95.4 tok/s each | both at once, TTFT 250 ms, 94.6 tok/s each |
+| `/slots` | 2 slots, 32768 each | 2 slots, 32768 each |
+| a red picture | "red" | "red" |
+| `/metrics` through `perf.js` | 15 series; 98 tok/s; 38 % of prompt tokens from cache | 15 series; 97 tok/s; 38 % |
+
+- **MTP** on the library's UD-Q2_K_XL (downloaded, hash checked): healthy in 6 s on both builds, +11.5 GB, and
+  thinking replies at 172 tok/s (b10670) and 177 tok/s (b11512). Drafts were accepted at 0.52–1.0 on both, and
+  two people at once ran at 106–119 tok/s on both. MTP on the stripped UD-IQ2_S fails the same way on both builds,
+  and the panel says "This quant has no MTP head…".
+- **EmbeddingGemma 2** (ggml-org's official `embeddinggemma-2-Q8_0.gguf`, 310 MB, hash checked) with `--embeddings`:
+  - `/v1/embeddings` answers with **768 dimensions**, normalised.
+  - It takes +753 MiB on the GPU and is healthy in 1.5 s.
+  - 400 chunks of ~151 tokens in one request: 1.3 s on the GPU, 19.3 s on the CPU.
+  - The same texts on the GPU and on the CPU give vectors with cosine 0.9999.
+  - French–English pair 0.874; against an unrelated sentence 0.689.
+  - For the embeddings work: the server sets the batch to 512 tokens per input, and flash attention is not
+    supported for this architecture on CUDA (it falls back by itself).
+- **The cancel test** (`LOL_CANCEL_ENGINE=llamacpp node test/litellm-cancel.js`, Qwen3.8 IQ2_S): 7 of 8 paths stop.
+  The non-streaming call abandoned while someone else streams still runs to its end: released 19.6 s after the
+  abort, at 2071 tokens. That is the upstream bug of 2026-10-04; PR #29707 is still open. README, the test's header
+  and `docs/upstream/LLAMACPP_NONSTREAM_CANCEL.md` say b11512 has it too.
+
+**Found on the way, not changed:**
+- **`--cache-reuse` does nothing while the vision projector is loaded,** on b10670 too: the log says "cache_reuse
+  is not supported by multimodal, it will be disabled". The default Qwen3.8 runs with its projector, so only the
+  host-RAM cache and exact-prefix reuse work there (38 % from cache in the suite).
+- **ggml-org has published its own Ubuntu arm64 CUDA 13.4 build since 2026-09-14,** with `121a`. It could replace
+  our CI build once tried on a Spark.
+- **After a farm update, the next llama.cpp start downloads ~577 MB.** Offline, it falls back to Ollama, as with
+  every pin bump. The old zips (~537 MB) stay in `farm/.models`.
+
+**Tests:** farm `node test/run.js` 212/212. The new test checks three things: the pin is at least b11454; the
+Windows asset names are the ones ggml-org publishes (CUDA 13.4); and the Spark workflow's build and file name are
+the ones the farm fetches. It fails with the pin, the CUDA tag or the workflow put back to b10670.
+
+**Not done:** the merge (it runs `build-llamacpp-arm64`), a farm release, the Spark tarball on a real Spark, and
+the farm's embeddings service itself (another branch).
+
 ## 2026-10-08 (14:05) — The clean-state run on the PRO 6000 begins; the vLLM card opened out of sight
 
 **The clean-state run** (the owner's choice: a fresh Farm app, and a real vLLM install from the panel). Done from 12:46:

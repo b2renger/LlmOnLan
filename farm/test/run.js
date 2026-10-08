@@ -869,6 +869,27 @@ test('llamacpp knobs can be turned off individually', () => {
     assert.ok(!a.includes('--mmproj'));
 });
 
+test('the pinned llama.cpp knows EmbeddingGemma 2, fetches the asset names ggml-org publishes, and the Spark build follows it', () => {
+    // b11454 is the first official build with the 'gemma-embedding2' architecture (PR #30054):
+    // b10670 refused the GGUF with "unknown model architecture" (measured 2026-10-08).
+    assert.ok(Number(llamacpp.PINNED_BUILD.slice(1)) >= 11454, `${llamacpp.PINNED_BUILD} predates EmbeddingGemma 2`);
+    // The names on ggml-org's release page: since 2026-09-15 its Windows CUDA 13 zips are 13.4 (no 13.3 zip
+    // in a build that new), and the runtime zip carries no build number.
+    const win = llamacpp.assetsFor('win32', 'x64');
+    assert.equal(win.base, `https://github.com/ggml-org/llama.cpp/releases/download/${llamacpp.PINNED_BUILD}`);
+    assert.deepEqual(win.files, [`llama-${llamacpp.PINNED_BUILD}-bin-win-cuda-13.4-x64.zip`, 'cudart-llama-bin-win-cuda-13.4-x64.zip']);
+    // The Spark's tarball is ours, built from the official source at the same tag: the workflow's pin and
+    // file name must be what the farm downloads, or every Spark falls back to Ollama.
+    const spark = llamacpp.assetsFor('linux', 'arm64');
+    assert.equal(spark.base, `https://github.com/b2renger/LlmOnLan/releases/download/llamacpp-${llamacpp.PINNED_BUILD}`);
+    const wf = fs.readFileSync(path.join(__dirname, '..', '..', '.github', 'workflows', 'build-llamacpp-arm64.yml'), 'utf8');
+    const wfBuild = (wf.match(/^\s*LLAMACPP_BUILD:\s*(b\d+)/m) || [])[1];
+    assert.equal(wfBuild, llamacpp.PINNED_BUILD, 'build-llamacpp-arm64.yml LLAMACPP_BUILD in lockstep with PINNED_BUILD');
+    assert.ok(wf.includes('"llama-${LLAMACPP_BUILD}-bin-linux-cuda-arm64.tar.gz"'), 'the workflow uploads the name the farm fetches');
+    assert.deepEqual(spark.files, [`llama-${wfBuild}-bin-linux-cuda-arm64.tar.gz`]);
+    assert.equal(llamacpp.assetsFor('darwin', 'arm64'), null, 'no prebuilt: llamacpp.binDir or the Ollama fallback');
+});
+
 
 // ---- backend visibility + capacity -----------------------------------------
 const { backendInfo, ggufName } = require('../src/snapshot');

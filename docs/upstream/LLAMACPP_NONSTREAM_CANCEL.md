@@ -28,7 +28,7 @@ $ llama-server --version
 version: 0.5.0-dev (build 11406, commit 8216c8462)
 built with Clang 20.1.8 for Windows x86_64
 ```
-Also reproduced on: version: 0.3.0-dev (build 10670, commit d077b4c21), Clang 20.1.8 for Windows x86_64. Both are the official win-cuda release zips (13.4 / 13.3).
+Also reproduced on: version: 0.3.0-dev (build 10670, commit d077b4c21), Clang 20.1.8 for Windows x86_64. Both are the official win-cuda release zips (13.4 / 13.3). Still there in version: 0.6.0-dev (build 11512, commit a11f57ba9), the official win-cuda-13.4 zip, 2026-10-08 (measured with the farm's `farm/test/litellm-cancel.js` on Qwen3.8-27B, not this script: the non-streaming request was released 19.6 s after its client left, at n_tokens 2071).
 
 ### Operating systems
 Windows (Windows 11 Pro 10.0.26200; NVIDIA RTX PRO 6000 Blackwell Workstation Edition 96 GB, driver 596.36)

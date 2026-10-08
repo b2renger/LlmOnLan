@@ -25,17 +25,19 @@ const os = require('os');
 const { spawn, execFileSync } = require('child_process');
 const { downloadGguf, ggufPathFor } = require('./ollama');
 
-// Pinned llama.cpp build. b10670 (2026-08-28) is the first pin that knows the
-// 'qwen4exp' architecture (Qwen3.8-Flash-Next, ggml-org PR #27742, landed
-// 2026-08-27) — the previous pin b10516 refused those GGUFs with "unknown model
-// architecture" AFTER the full 72.5 GB download. Verified against the tag before
-// bumping: the win-cuda-13.3 assets exist under the expected names, and every
-// flag argsFor() passes is still in common/arg.cpp (--spec-type — the MTP
-// activator from PR #22673 — --no-webui, --metrics, --cache-type-k/v, --alias,
-// --jinja, --mmproj). A bump here must ride with LLAMACPP_BUILD in
-// .github/workflows/build-llamacpp-arm64.yml (the Spark tarball).
-const PINNED_BUILD = 'b10670';
-const CUDA_TAG = 'cuda-13.3';   // sm_120/Blackwell needs CUDA >= 12.8; 13.3 covers 40-series too
+// Pinned llama.cpp build: an official ggml-org release (2026-10-08), the newest with its
+// win-x64 CUDA zip when pinned. The farm needs >= b11454, the first build that knows
+// EmbeddingGemma 2 ('gemma-embedding2', PR #30054): b10670 refused it with "unknown model
+// architecture". Checked against b10670 before bumping (DEVLOG 2026-10-08): every flag
+// argsFor() passes is still there with the same parsing and defaults, and the /metrics
+// names perf.js reads, /health and the log lines explainEngineFailure() quotes are the
+// same. Removed upstream, so a llamacpp.extraArgs carrying one now stops llama-server
+// (its "invalid argument" line is quoted on the panel): --mlock, --mmap/--no-mmap and
+// --direct-io (now --load-mode), --tensor-read-lazy (now --lazy-mode). ggml-org's Windows
+// CUDA 13 zips moved from 13.3 to 13.4 on 2026-09-15. A bump here must ride with
+// LLAMACPP_BUILD in .github/workflows/build-llamacpp-arm64.yml (the Spark tarball).
+const PINNED_BUILD = 'b11512';
+const CUDA_TAG = 'cuda-13.4';   // sm_120/Blackwell needs CUDA >= 12.8; 13.4 covers 40-series too
 
 const ROOT = path.join(__dirname, '..', '.llamacpp');
 const BIN_DIR = path.join(ROOT, 'bin');
@@ -47,17 +49,18 @@ function serverBin() {
 }
 
 // Which release assets this platform needs, and from WHERE. Windows/x64 comes from
-// ggml-org's own releases. linux-arm64 — the DGX Spark (GB10, sm_121) — has no
-// upstream prebuilt, so OUR CI builds it (.github/workflows/build-llamacpp-arm64.yml,
-// GitHub's arm64 runners + the CUDA sbsa toolchain) and publishes it on this repo's
+// ggml-org's own releases. linux-arm64 — the DGX Spark (GB10, sm_121) — comes from OUR CI,
+// which builds the official source at the same tag (.github/workflows/build-llamacpp-arm64.yml,
+// GitHub's arm64 runners + the CUDA 13.0 sbsa toolchain) and publishes it on this repo's
 // releases under the `llamacpp-<build>` tag: the Spark installs out of the box, no
-// compiler, no Docker. Anything else: the operator installs llama.cpp themselves and
-// points `llamacpp.binDir` at it — a supported path, and `lol up` falls back to the
-// Ollama engine rather than failing when they have not.
+// compiler, no Docker. (ggml-org has also published an Ubuntu arm64 CUDA 13.4 build
+// since 2026-09-14; it has never been tried on a Spark.) Anything else: the operator
+// installs llama.cpp themselves and points `llamacpp.binDir` at it — a supported path,
+// and `lol up` falls back to the Ollama engine rather than failing when they have not.
 const GGML_BASE = `https://github.com/ggml-org/llama.cpp/releases/download/${PINNED_BUILD}`;
 const OUR_BASE = `https://github.com/b2renger/LlmOnLan/releases/download/llamacpp-${PINNED_BUILD}`;
-function assetsFor() {
-    if (IS_WIN && process.arch === 'x64') {
+function assetsFor(platform = process.platform, arch = process.arch) {
+    if (platform === 'win32' && arch === 'x64') {
         return {
             base: GGML_BASE,
             files: [
@@ -66,7 +69,7 @@ function assetsFor() {
             ],
         };
     }
-    if (process.platform === 'linux' && process.arch === 'arm64') {
+    if (platform === 'linux' && arch === 'arm64') {
         return {
             base: OUR_BASE,
             // Self-contained: llama-server + the CUDA runtime .so it links, RPATH
@@ -415,7 +418,7 @@ function explainEngineFailure(lines) {
 
 module.exports = {
     extract,   // exported for the extraction smoke test — the zipPath regression shipped because nothing exercised this
-    PINNED_BUILD, ROOT, BIN_DIR,
+    PINNED_BUILD, ROOT, BIN_DIR, assetsFor,
     ensureLlamacpp, ensureModel, spawnLlamacpp, waitForLlamacpp, llamacppAlive, fetchMetrics, supported,
     argsFor, baseUrl, installed, installedBuild, serverBin,
     shardUrls, normalizeModelUrl, weightsBytesFor,

@@ -44,7 +44,9 @@ docs) is `docs/reviews/DOCS_REVIEW_2026-09-27_{FARM,SHELL,COMPUTER}.md`. Snapsho
     `OLLAMA_CONTEXT_LENGTH` seed). `kvCacheType` q8_0 and `numParallel` 2 only apply to an Ollama the farm
     starts; otherwise the panel flags capacity as unverified. Routed `keep_alive` MUST be a number — the
     string `'-1'` is refused by Ollama (`time: missing unit in duration`), hence `keepAliveValue()`.
-  - **llama.cpp — opt-in (`llamacpp.enabled`), the speed pick.** `llama-server` build **b10670** serves ONE
+  - **llama.cpp — opt-in (`llamacpp.enabled`), the speed pick.** `llama-server` build **b11512** (official
+    ggml-org, Windows zips on CUDA 13.4; since 2026-10-08, ≥ b11454 for EmbeddingGemma 2; it refuses `--mlock`,
+    `--mmap`, `--direct-io`, `--tensor-read-lazy` in `extraArgs`) serves ONE
     `.gguf` (`llamacpp.model`, default Unsloth Qwen3.8-27B-UD-IQ2_S) as `llamacpp.alias` (`assistant`).
     `contextLength: 'auto'` = min(native max, VRAM budget), both read from the real files (`gguf.js`).
     `kvUnified` (default true) = one KV pool shared by the `parallel` slots: a person alone gets the whole
