@@ -830,6 +830,16 @@ function registerIpc(): void {
         return r;
     });
     ipcMain.handle('lol:home:disarm', () => { home.arm(null); pushHome(); return home.status(); });
+    // The Computer's Home boxes (2026-10-09): reading the devices a person picked is free; a command is checked by the same
+    // rules as a model's, and is a dry run unless the Computer's outputs are armed — read HERE, never taken from the page.
+    ipcMain.handle('lol:home:read', (_e, ids: unknown, hours: unknown) => home.read(ids, hours));
+    ipcMain.handle('lol:home:entities', () => home.entities());
+    ipcMain.handle('lol:home:actions', (_e, id: unknown) => home.actionsOf(id));
+    ipcMain.handle('lol:home:command', async (_e, req: unknown) => {
+        if (!req || typeof req !== 'object') return { code: 'error', text: 'bad arguments', isError: true };
+        const r = req as Record<string, unknown>;
+        return home.command({ entity_id: r.entity_id, action: r.action, data: r.data }, { outputsArmed: outputsArmed() });
+    });
     ipcMain.handle('lol:home:arm', async () => {
         const list = await home.armable();
         if (!list.ok) return { ok: false, message: list.message };
@@ -839,7 +849,7 @@ function registerIpc(): void {
             buttons: ['Allow commands', 'Cancel'], defaultId: 1, cancelId: 1, noLink: true,
             title: 'Allow home commands',
             message: `Let assistants switch these ${list.devices.length} devices of ${list.home}?`,
-            detail: `Home Assistant at ${list.url}. Until LlmOnLan closes, a model in Open WebUI or the IDE's agent may switch exactly these devices:\n\n${armingText(list.devices)}\n\nA switch, a button, a helper, a number, a select, a scene or a script does whatever your home made it do. Never by a model, even now: unlocking or opening a lock, disarming an alarm, sounding a siren, opening a valve, a door, a gate or a garage. At most one command a second per device.`,
+            detail: `Home Assistant at ${list.url}. Until LlmOnLan closes, a model in Open WebUI or the IDE's agent may switch exactly these devices, and so may a Home command box on the Computer while you have armed its outputs:\n\n${armingText(list.devices)}\n\nA switch, a button, a helper, a number, a select, a scene or a script does whatever your home made it do. Never by a model, even now: unlocking or opening a lock, disarming an alarm, sounding a siren, opening a valve, a door, a gate or a garage. At most one command a second per device.`,
         };
         const r = win && !win.isDestroyed() ? await dialog.showMessageBox(win, opts) : await dialog.showMessageBox(opts);
         if (r.response !== 0) return { ok: false, cancelled: true };

@@ -28,7 +28,8 @@ import '../../../renderer/chat/strings/tutorial.en.mjs';
 const SPECS = specMap();
 const PRESETS = new Map(creativePresets().map((p) => [p.id, p]));
 const MINE = ['l01-hello-farm', 'l02-wires', 'l03-labels', 'l04-draw', 'l05-code-counts', 'l06-a-loop-that-stops',
-  'l07-listen-and-speak', 'l08-a-picture-to-a-model', 'l09-act-on-the-world', 'l10-hear-the-world', 'l11-an-agent-with-tools', 'l12-open-data'];
+  'l07-listen-and-speak', 'l08-a-picture-to-a-model', 'l09-act-on-the-world', 'l10-hear-the-world', 'l11-an-agent-with-tools', 'l12-open-data',
+  'l13-read-the-room', 'l14-switch-the-home'];
 
 /** The ONE rail-shaped corner of the canvas (COMPUTER_PLAN §10.1 mechanism 2: bottom-left,
  * ~300 px), in screen px, and the canvas the harness window gives the Computer (1280×860 minus
@@ -130,12 +131,12 @@ const fenced = (lang, code) => `Here you go:\n\n\`\`\`${lang}\n${code}\n\`\`\`\n
 export default (test) => {
   // ---- the shelf ------------------------------------------------------------------------------
 
-  test('the shelf: the Tour then lessons 1–12 in order, each pointing at the next, and the templates', () => {
+  test('the shelf: the Tour then lessons 1–14 in order, each pointing at the next, and the templates', () => {
     assert.deepEqual(LESSONS.map((l) => l.id), ['l00-tour', ...MINE]);
-    assert.deepEqual(LESSONS.map((l) => l.n), [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], 'n is the shelf number');
+    assert.deepEqual(LESSONS.map((l) => l.n), [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14], 'n is the shelf number');
     for (let i = 0; i < LESSONS.length - 1; i++) assert.equal(LESSONS[i].next, LESSONS[i + 1].id, `${LESSONS[i].id} → next`);
     assert.equal(LESSONS[LESSONS.length - 1].next, undefined, 'the last lesson ends the shelf');
-    assert.deepEqual(TEMPLATES.map((x) => x.id), ['research-problematic', 'creative-coding', 'read-the-news', 'analyse-a-dataset', 'ask-a-dataset', 'ask-out-loud', 'talk-to-a-board', 'board-on-wifi']);
+    assert.deepEqual(TEMPLATES.map((x) => x.id), ['research-problematic', 'creative-coding', 'read-the-news', 'analyse-a-dataset', 'ask-a-dataset', 'ask-out-loud', 'talk-to-a-board', 'board-on-wifi', 'morning-briefing', 'comfort-advisor', 'energy-report']);
     for (const id of MINE) assert.equal(lessonById(id).id, id);
     assert.equal(templateById('creative-coding').title, 'Creative coding');
     assert.equal(templateById('nope'), null);
@@ -786,7 +787,7 @@ export default (test) => {
 
   test('templates: the declared cost is the real number of generations, inside the cap, and every box has its inputs', () => {
     for (const tpl of TEMPLATES) {
-      const thinking = tpl.doc.parts.filter((p) => SPECS.get(p.type).thinks);
+      const thinking = tpl.doc.parts.filter((p) => { const s = SPECS.get(p.type); return typeof s.thinksFor === 'function' ? s.thinksFor(p) : s.thinks; });
       // One per thinking box — or a box's most, when it may ask more than once (the Agent: one per step).
       const most = thinking.reduce((n, p) => n + (typeof SPECS.get(p.type).mostGenerations === 'function' ? SPECS.get(p.type).mostGenerations(p) : 1), 0);
       assert.equal(tpl.generations, most, `${tpl.id}: one generation per thinking box (an agent: one per step)`);

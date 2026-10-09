@@ -7,7 +7,8 @@
 // may change or run a graph (critic B1, 2026-09-27: arming is global and a Send box reads its target at run
 // time, so an edit under arming would retarget a live output the person never saw in the arming list).
 // And what only a PERSON may choose stays theirs (critic S1): where a box reads from, which hosts an agent
-// may read, which USB board, and a Sound box's Listen — a model's copy of those is dropped, and it is told.
+// may read, which USB board, a Sound box's Listen, and which home devices a Home box reads or a Home command switches —
+// a model's copy of those is dropped, and it is told.
 
 import { mcpDoor, outputsDoor } from '../projects/bridge.mjs';
 import { EXAMPLES } from './examples/index.mjs';
@@ -57,6 +58,8 @@ function boxTypes() {
 export const PERSON_ONLY = Object.freeze({
   fetch: ['url'], opendata: ['link'], agent: ['hosts'], audio: ['listen'],
   send: ['serialPort', 'serialLabel'], receive: ['serialPort', 'serialLabel'],
+  // The home (docs/HOME_ASSISTANT.md): which devices a Home box reads, and the device, action and details of a Home command.
+  home: ['entities', 'names'], 'home-command': ['entity', 'name', 'action', 'data'],
 });
 
 /** PURE: a model's settings for a box of `type`, without what only a person may set. @param {string} type @param {any} settings */
@@ -70,7 +73,7 @@ export function modelSettings(type, settings) {
   return { kept, left };
 }
 
-const LEFT_NOTE = 'left for a person to set in the Computer (only a person chooses where a box reads from, which web hosts an agent may read, a USB board, and Listen)';
+const LEFT_NOTE = 'left for a person to set in the Computer (only a person chooses where a box reads from, which web hosts an agent may read, a USB board, Listen, and which home devices a box reads or switches)';
 const MUTATING = new Set(['open_graph', 'new_graph', 'add_box', 'connect_boxes', 'set_box', 'run_graph']);
 
 /** Where a new box goes when the model gives no place: right of everything. @param {any} comp */

@@ -79,6 +79,8 @@ import { sendPart } from './send.mjs';
 import { receivePart } from './receive.mjs';
 // P3b: a box that starts runs by itself (a message on the farm's bus, a schedule), only while armed.
 import { triggerPart } from './trigger.mjs';
+// docs/HOME_ASSISTANT.md (2026-10-09): the Home Assistant a person linked — read the devices they picked, switch one.
+import { homeReadPart, homeCommandPart } from './home.mjs';
 // K5 kickoff (addendum KE-2): the ＋ menu is GROUPED, every row says what it does, and it offers
 // PRESETS — a part type plus the settings that make it a named box ("p5.js sketch" is a Preview in
 // p5 mode with starter code). The groups, the glyphs and the plain parts' one-liners are catalogue
@@ -109,7 +111,7 @@ const LEGACY = [fromThread, toThread, render];
  * @returns {PartSpec[]} */
 export function partSpecs() {
   return [textPart, instruction, classifyPart, agentPart, splitPart, repeat, filter, code, collect, preview, speakPart, sendPart, receivePart, triggerPart, file, image,
-    documentPart, audioPart, fetchPart, openDataPart,
+    documentPart, audioPart, fetchPart, openDataPart, homeReadPart, homeCommandPart,
     button, condition, confirm, dialog, toggle, timer,
     sticky, section, title];
 }
@@ -164,6 +166,8 @@ function partMeta() {
     fetch: { group: 'bring', order: 32, glyph: 'URL', desc: t('palette.descFetch') },
     opendata: { group: 'bring', order: 33, glyph: 'FR', desc: t('palette.descOpenData') },
     receive: { group: 'bring', order: 34, glyph: 'IN', desc: t('palette.descReceive') },
+    home: { group: 'bring', order: 36, glyph: '⌂', desc: t('palette.descHome') },
+    'home-command': { group: 'show', order: 897, glyph: '⌂→', desc: t('palette.descHomeCommand') },
     trigger: { group: 'control', order: 620, glyph: '⚡', desc: t('palette.descTrigger') },
     file: { group: 'bring', order: 30, glyph: '⎘', desc: t('palette.descFile') },
     ask: { group: 'think', order: 100, glyph: '✦', desc: t('palette.descAsk') },
@@ -202,6 +206,7 @@ function kwOf(type) {
 const KW = {
   note: 'palette.kwNote', image: 'palette.kwImage', file: 'palette.kwFile',
   document: 'palette.kwDocument', audio: 'palette.kwAudio', fetch: 'palette.kwFetch', opendata: 'palette.kwOpenData', classify: 'palette.kwClassify', agent: 'palette.kwAgent', speak: 'palette.kwSpeak', send: 'palette.kwSend', receive: 'palette.kwReceive', trigger: 'palette.kwTrigger',
+  home: 'palette.kwHome', 'home-command': 'palette.kwHomeCommand',
   ask: 'palette.kwAsk', split: 'palette.kwSplit', filter: 'palette.kwFilter',
   collect: 'palette.kwCollect', repeat: 'palette.kwRepeat',
   preview: 'palette.kwPreview', code: 'palette.kwCode',

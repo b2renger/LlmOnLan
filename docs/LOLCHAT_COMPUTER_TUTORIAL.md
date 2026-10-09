@@ -58,7 +58,7 @@ picks for the most common boxes.
 
 ## The fastest way in: the Learn shelf
 
-The **Learn** shelf in the sidebar holds a tour, twelve lessons and eight templates. A lesson opens as
+The **Learn** shelf in the sidebar holds a tour, fourteen lessons and eleven templates. A lesson opens as
 **your own copy** of a small graph, with a **step rail** docked at the bottom-left of the canvas.
 The rail shows one step at a time and **ticks it when you have really done it**: nothing is typed
 for you, and nothing ticks by accident.
@@ -78,12 +78,15 @@ for you, and nothing ticks by accident.
 | **10. hear the world** | A **Trigger** on a clock runs the graph by itself — only while the outputs are armed and the Computer is on screen, at most one run every few seconds. (On a farm with the message bus, a board's message can start it instead.) | not needed |
 | **11. an agent with tools** | An **Agent** works in steps: code in the sandbox over the readings you wire in, then the answer, with every step under *How it got there*. **Steps at most** is its brake. | one per step |
 | **12. open data** | An **Open data** box reads a data.gouv.fr dataset (a copy ships with the lesson, so it runs offline); code charts a column with data.gouv.fr's counts; a model that can see says what the chart shows, in words. | one per run |
+| **13. read the room** | A **Home** box reads the room's sensors from your Home Assistant (a reading of a studio ships with the lesson, so it runs without a home); a model says how the room feels, and **Speak** says it. | one |
+| **14. switch the home** | A **Home command** box does a dry run first; it acts only once you allow home commands in Preferences **and** arm the outputs; **Panic** makes it a dry run again. No home needed to walk it. | not needed |
 | **Research → problematic** (template) | One topic, five angles of research, one problematic, two design concepts. | about 8 |
 | **Creative coding** (template) | A brief becomes a p5.js sketch you can run, read and edit. | about 1 |
 | **Read the news** (template) | The Hacker News front page, labelled by the model from **your** categories, counted by code, charted as an SVG that answers **your** question. A copy of the page ships with it, so it runs offline too. | about 2 |
 | **Analyse a dataset**, **Ask a dataset** (templates) | A data.gouv.fr dataset read, explained, charted and questioned — the second through an Agent. See [French open data](#french-open-data-the-open-data-box) below. | about 3 · up to 8 |
 | **Ask out loud** (template) | Lesson 7 as a ready graph. | about 1 |
 | **Talk to a board**, **A board on Wi-Fi** (templates) | An Arduino or ESP32 on the USB cable or the farm's message bus, both ways. | no generation (Wi-Fi: the farm's bus) |
+| **Morning briefing**, **Comfort advisor**, **Energy report** (templates) | Your Home Assistant's weather, calendar and room said as a briefing; CO2 and temperature judged by code, a suggestion said, and a fan turned on when the air is stuffy; a plug's day charted by code and described by a model. See [Your home](#your-home-the-home-and-home-command-boxes) below. | about 1 each |
 
 On the rail:
 
@@ -450,7 +453,8 @@ answer you. You watch the graph appear on the Computer.
 
 What it can never do: arm the outputs. A graph with Send boxes stays a dry run, and while you have the
 outputs armed, the model can still read your graphs but cannot change or run one. What only you choose —
-a Fetch address, an Open data link, the web hosts an Agent may read, a USB board, Listen — is left out of
+a Fetch address, an Open data link, the web hosts an Agent may read, a USB board, Listen, the devices a Home box
+reads, a Home command's device and action — is left out of
 what the model sets, and it tells you so. The connection stays on this computer (127.0.0.1): no other
 machine can drive your Computer.
 
@@ -526,6 +530,40 @@ numbers; a model **chooses the column to chart** and code draws it; and for **yo
 writes a small program that the Code box runs over the sample (its answer says how many rows it saw). As in
 *Read the news*, every number you see comes from data.gouv.fr or from the code: a digit a model writes becomes
 **…**. A copy of the festivals list ships with the template, so it also runs offline.
+
+### Your home: the Home and Home command boxes
+
+With a **Home Assistant** linked in **Preferences ▸ Home Assistant** (its address on your network and a long-lived
+token: see [HOME_ASSISTANT.md](HOME_ASSISTANT.md)), two boxes reach it. Nothing goes through a cloud: the app asks the
+address you typed.
+
+**＋ → Bring in → Home** reads the devices and sensors **you** choose: press **Choose…**, search, tick, **Done**. It hands
+on their state now (a number stays a number, with its unit), a weather's **forecast** for the next days, a calendar's
+**events** of the next 24 hours, and with **History (hours)** each one's values over that many past hours (240 at most
+per device; never where people were; 720 device-hours at most in one read, like 4 devices over a week or 30 over a
+day), for a chart. Reading changes nothing in the home, and where the home or its people are (coordinates, places) is
+never in it. With **no home linked** it hands on the copy it holds (a lesson's, a template's or its last reading) and
+its face says so; a linked home that does not answer, or lacks the devices, is an error that tells you to choose.
+
+**＋ → Show → Home command** tells **one** device to do **one** thing, both chosen in the box (**Choose…**, then the
+**Action** list, which holds only what LlmOnLan allows for that kind of device). Its details, such as `{"brightness_pct": 40}`,
+are in its own **With**. What arrives on its arrow is only the signal to act — never the details.
+It is a **dry run** — the box says what it would do — until you do **both**:
+
+1. **Preferences ▸ Home Assistant ▸ Allow commands…**: a dialog of the app lists the devices that may be switched;
+2. **Outputs** in the run bar ▸ **Arm**: its question names every Home command of the graph, device by device, with
+   its details. It cannot be armed while a run is going: a run never turns live half-way.
+
+Panic, a reload or opening another graph makes it a dry run again (what was already switched stays as it is); closing
+the app forgets the allowed devices.
+Never from LlmOnLan, even then: unlocking a lock, disarming an alarm, sounding a siren, opening a valve, a door, a gate
+or a garage. At most one command a second per device and 30 a minute.
+
+**Learn → Templates**: **Morning briefing** (weather, today's calendar and the room → a few spoken sentences),
+**Comfort advisor** (code judges CO2, temperature and humidity, a model turns that into a suggestion that Speak says,
+and only when code says the air is stuffy a Condition lets a Home command turn the fan on) and **Energy report** (a
+power-measuring plug's last 24 hours drawn by code with its peak, average and energy used; a model that can see says
+when the device worked and rested). Each ships a reading, so it runs without a home; press **Choose…** to use yours.
 
 ### A model that works in steps: the Agent box
 

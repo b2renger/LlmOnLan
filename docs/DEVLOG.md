@@ -6,6 +6,65 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-10-09 (11:44) — The Computer reaches the home: Home and Home command boxes, lessons 13–14, three templates (branch `home-tutorials`)
+
+**The owner's ask (2026-10-09):** the office has a Nabu Casa **Home Assistant Green**; look it up, find use cases, and
+make them tutorials on the Computer. Until today a graph could not reach the home at all (the home tools were MCP-only,
+answered in main; the Agent's `fetch` has no token). Design first, in [HOME_ASSISTANT.md](HOME_ASSISTANT.md).
+
+**Research** (sources in HOME_ASSISTANT.md): the Green is Ethernet-only (RK3566, 4 GB, 32 GB eMMC, no Wi-Fi/BT/Zigbee/
+Thread radio): it reaches network devices and Matter over Wi-Fi, and Zigbee/Thread only with a Connect ZBT-2. Every
+install has met.no's `weather.forecast_home`; calendars are one integration away. So the shelf uses what an office most
+likely has: temperature/humidity/CO2, a power-measuring plug, a light, the weather and a calendar. Nabu Casa cloud is
+never used: the LAN address and the long-lived token only.
+
+**Built** (ponytail: main's `homeAssistant.ts` reused, the outputs' arming reused, no dependency):
+- `homeAssistant.ts`: `read(ids, hours)` (the devices a person picked, ≤ 30; `cleanAttrs` = the MCP tools' own
+  no-coordinate filter; a weather's forecast through the read-only `weather.get_forecasts`; a calendar's next 24 h;
+  history ≤ 168 h thinned to 240 points), `entities()` and `actionsOf()` for Choose…, and `commandTool` became
+  `command(a, {outputsArmed?})`: one path for a model and a box, every check unchanged, and for a box a dry run unless
+  the outputs are armed (read in main from `outputs.ts`) AND home commands are allowed. Errors carry a code so a box
+  hands on its saved copy only when no home is linked. IPC `lol:home:read/entities/actions/command`; the native
+  Allow dialog now says Home command boxes may switch the devices too.
+- `graph/parts/home.mjs`: **Home** (*bring*) and **Home command** (*show*), through `bridge.mjs` `homeDoor`. The arming
+  question (`send.mjs` `targetsIn`) names each Home command (its entity id even when a graph names it otherwise); the
+  Outputs control and Panic show with one. `mcp-tools.mjs` `PERSON_ONLY`: a model never sets a Home box's devices nor a
+  Home command's device/action/data.
+- Lessons **13 · read the room** (Home → Instruction → Speak) and **14 · switch the home** (dry run, Allow, Arm, Panic),
+  templates **Morning briefing**, **Comfort advisor** (code decides, a Condition gates the fan's Home command) and
+  **Energy report** (code charts a plug's day; a seeing model describes it), each with a saved reading
+  (`templates/home-readings.mjs`) so they walk with no home; a **?** example for each box.
+
+**Tests:** `npm run build` clean; `node test/chat-unit.js` 1862 passed (35 new in `home-boxes.test.mjs` against the
+compiled main and a fake Home Assistant, and `home-part.test.mjs`; the gate, PERSON_ONLY and the arming list were each
+reverted once and their tests failed); `npm run test:unit` 29; `chat-lint` 0 violations (rule 15: 15 lessons, 11
+templates), its self-test 26/26; `chat-scope --base 3b8c0c1` names the main/preload files (homeAssistant.ts, index.ts,
+preload): outside the old LOL Chat carve-out by nature, as the 2026-09-30 home work was. Harness: `k26-home` (lessons
+13–14 and the three templates walked with no home on the mock farm; arming refused mid-run, which fails with the guard
+removed) and, with `LOL_HARNESS_HA` = the demo home in WSL, the live half: Choose…, a reading with forecast, calendar
+and history, the bed light a dry run until armed AND allowed then on at 30 %, `unlock` refused, Panic. The whole harness: 410 passed, 0 failed.
+Pins moved for the two new boxes and the shelf (c3-landing, k4-shots-kinds via `computer-look.css`'s kind map,
+k5-lessons, k5-palette, h0-selfcheck); `palette-menu.mjs` `reveal` got a 1 px margin (a rounding bug the longer menu
+exposed).
+
+**Security review** (a fresh agent, on the diff against homeAssistant.ts's rules): no blocker; fixed — (1) a template's
+made-up reading could drive a real fan when a linked home lacked the devices or did not answer: the copy is now handed
+on only with no home linked; (2) arming during a run a model started would turn it live half-way: the run bar refuses;
+(3, 5) an arriving object became the command's details (a model could set them through a wired box; a Condition passing
+a reading sent the reading): details are now only the box's own With, shown in the arming question; (4) History could
+overload a Green: ≤ 720 device-hours, one read per 5 s, an 8 MB streamed cap; (6) the arming line puts the entity id
+first and clamps the name; (7) no history of person/device_tracker/zone, no event place; (8) `HIDDEN_ATTRS` compared
+without case, plus `location`, `coordinates`, `entity_picture_local` (the MCP tools gain it too); (9, 10) wording: the
+outputs are armed by the page's own question (the native Allow list is the gate a compromised page cannot pass), and
+Panic does not undo what was switched.
+
+**For the owner to decide:** whether a calendar's event descriptions (kept) are fine to hand to a model; whether the
+templates' made-up studio ids should be replaced by the Green's real ones once it is linked (ids differ per home:
+Choose… covers it).
+
+**For the owner:** the rig checks with the real Green are in HOME_ASSISTANT.md ("Rig checks on the real Green"). Not
+merged, not released.
+
 ## 2026-10-09 (10:59) — The coding agent can no longer change a project's remote or its settings
 
 The test list's review (HUMAN_TESTS.md, decision 6) asked whether `project.json` was protected from the IDE's coding
@@ -62,6 +121,7 @@ only; no code changed.
   refused by the projects API but not by the agent's fence (read from the code, not tested); the vLLM button's "about
   35 GB" may read higher with document search on; whether the ★ tests run on a local build or a pre-release tag.
 - **Checks:** no control character in any doc (the farm test's rule, run by hand); every old open item has one place.
+
 
 ## 2026-10-09 (10:31) — Owner decisions: document search stays on by default; ggml-org's arm64 build to be tried on a Spark; releases wait
 

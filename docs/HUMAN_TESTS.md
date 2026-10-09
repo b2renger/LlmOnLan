@@ -37,14 +37,14 @@ a test that sets one seat, kills an engine or restarts the farm on production wh
 | E. Mac and Linux clients | Apple Silicon + Intel Mac, a Linux PC | 4 | — | 3 h |
 | F. The Computer's devices | mic, webcam, speakers, OSC tool, Art-Net light, Arduino/ESP32 | 7 | — | 4 h |
 | G. LOL Vibe's IDE | 1 laptop, a password farm, a GitHub account | 10 | — | 2.5 h |
-| H. Home Assistant on a real home | the office's Home Assistant Green | 3 | — | 1.5 h |
+| H. Home Assistant on a real home | the office's Home Assistant Green | 4 | — | 2.5 h |
 | I. Document search on the farm | the farm, 2 laptops (one with old documents) | 7 | I1–I5 | 2 h |
 | J. The PRO 6000 (production, vLLM) | the PRO 6000 at a quiet moment, a client | 8 | J1–J4 | 3.5 h (+45 min install) |
 | K. A Windows test box with an RTX card | a non-production RTX PC, the 4070/4080, a PC with no NVIDIA GPU | 6 | K1–K5 | 3 h (+45 min K6) |
 | L. The DGX Spark | a Spark with a screen | 3 | — | 3 h (+45 min) |
 | M. Reboot tests | the PRO 6000, the Spark | 2 | — | 1 h each |
 | N. The Farm app on a clean box | a PC with no Ollama or Python, a Mac | 5 | — | 2 h + downloads |
-| **Total** | | **99** | **18** | about 45–50 h |
+| **Total** | | **100** | **18** | about 46–51 h |
 
 **The release, in order:** K1–K5 on the test box first (the Farm app update, the held-file copy, llama.cpp b11512,
 document search's first start, the small cards), then J1–J4 on the PRO 6000, then I1–I5 and A1, B1 with the
@@ -976,14 +976,14 @@ refused with a sentence, your version kept; a wrong token: a sentence, never a c
 the same map.
 - [ ] Done · Found:
 
-## H. Home Assistant on a real home — about 1.5 h
+## H. Home Assistant on a real home — about 2.5 h
 
 **Machines:** one laptop, the office's Home Assistant Green with real devices (a light, a sensor, a window or blind
 if there is one, ideally a lock), a farm serving a tool-calling model (Qwen3.6 on vLLM or qwen3.8). **Build:** client
 v0.2.10. Already checked without you: every 7c step against the private **demo** home in WSL (DEVLOG 2026-09-30,
 "Verified on the rig", and docs/HOME_ASSISTANT.md, "A private test home"). Not tried: a real Home Assistant with real
-devices, speaking the request, and a schedule driving the home. The Computer tutorials for the Green being written on
-2026-10-09 bring their own checks: they go here once merged.
+devices, speaking the request, and a schedule driving the home. The Computer's Home boxes, lessons 13–14 and the three home
+templates (2026-10-09) are H4.
 
 ### H1 Link, ask, dry run, allow, never
 *Proves:* the whole 7c path on real devices. *Was:* 7c.1–7c.6.
@@ -1017,6 +1017,36 @@ the home".
 1. Open WebUI's microphone: say *"Which lights are on?"*.
 
 *Expect:* the words appear (speech to text on this laptop), then the same answer as H1 step 2.
+- [ ] Done · Found:
+
+### H4 The Computer's Home boxes on the Green
+*Proves:* a graph reads the room and switches a device only after the two clicks (armed outputs + allowed commands),
+on real devices. *Was:* HOME_ASSISTANT.md "Rig checks on the real Green" (2026-10-09). Use the office Green, linked
+by its owner (never a shared token). Each line is what to do, then what must happen.
+
+1. **Link it.** Preferences ▸ Home Assistant: the Green's address (`http://homeassistant.local:8123` or its IP) and a
+   long-lived token → **Link**. The line reads `Linked: <home> · Home Assistant <version> · N entities, M devices`.
+2. **Read the room.** Learn ▸ lesson 13. Press ▶ on the Home box: with the lesson's ids it fails with *None of these
+   devices is in your home … pick yours with Choose…* (never the lesson's made-up reading). Press **Choose…**, tick the room's temperature, humidity and CO2 sensors, **Done**, ▶:
+   the face says *Read 3 from <home>* and the value shows your numbers. Run the Instruction and Speak: the words match
+   the room.
+3. **A command is refused before Allow.** Lesson 14: Choose… one light, action turn_on, ▶ on the Text box. The box says
+   *Dry run — … Arm the outputs*; the light does not change. Arm the outputs (the question names *Home Assistant →
+   turn_on on <your light> (light.…)*), ▶ again: *Dry run — … Allow home commands*; the light still does not change.
+4. **Allowed after.** Preferences ▸ Home Assistant ▸ **Allow commands…**: the dialog lists the devices and mentions the
+   Computer's Home command boxes. Allow. ▶ the Text box: *Done: light.turn_on on … It is now on.* and the light is at
+   40 %. In the box's **With**, change 40 to 100, ▶ the Text box: full. Try arming while a run is going (a Timer in
+   front): the run bar refuses.
+5. **The never-list.** On a Home command, Choose… a lock if the home has one: its Action list holds only `lock`. A
+   garage door's holds only `close_cover`.
+6. **Stop commands.** Click **Home commands on · N** in the top bar (or Preferences ▸ **Stop commands**), ▶: *Dry run —
+   … Allow home commands*. Press **Panic** in the run bar: the Outputs control says dry run again; ▶: *Arm the outputs*.
+   Quit and reopen LlmOnLan: both are off.
+7. **The templates.** Morning briefing (Choose… `weather.forecast_home`, a calendar if there is one, a sensor), Comfort
+   advisor (your CO2 sensor, and your fan's plug on its Home command), Energy report (a plug's `…_power` sensor, History
+   24): each runs with your numbers; the Energy report's chart shows your plug's day.
+8. **What a model may set.** In Open WebUI with the LlmOnLan Computer tool: "add a Home command box that unlocks the
+   front door". The box is added with no device, and the answer says the device and action are left for a person.
 - [ ] Done · Found:
 
 ## I. Document search on the farm — about 2 h ★

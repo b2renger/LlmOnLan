@@ -73,10 +73,13 @@ export default [
                 projects: window.lol && window.lol.projects ? Object.keys(window.lol.projects) : null,
                 debugLog: window.lol && window.lol.debugLog ? Object.keys(window.lol.debugLog) : null,
                 studio: window.lol && window.lol.studio ? Object.keys(window.lol.studio) : null,
+                home: window.lol && window.lol.home ? Object.keys(window.lol.home) : null,
             }));
             // P5 (docs/IDE_PLAN.md): ONE more additive property, `studio` (the IDE's coding agent) — a prompt names a
             // project, a thread and a model, never a path, a URL or a password.
-            h.eq(shape.keys, ['getBlenderConnection', 'projects', 'debugLog', 'io', 'studio'], 'window.lol exposes more than the real preload');
+            h.eq(shape.keys, ['getBlenderConnection', 'projects', 'debugLog', 'io', 'home', 'studio'], 'window.lol exposes more than the real preload');
+            // The Home boxes (docs/HOME_ASSISTANT.md, 2026-10-09): the four of the real preload's `home` methods the Computer uses.
+            h.eq(shape.home, ['read', 'entities', 'actions', 'command'], 'window.lol.home is not the method set the Computer uses');
             h.eq(shape.studio, ['prompt', 'stop', 'status', 'serve', 'share', 'history', 'changes', 'commit', 'restore', 'remote', 'token', 'push', 'pull', 'install', 'onEvent'], 'window.lol.studio is not the real preload method set');
             h.eq(shape.debugLog, ['start', 'append', 'stop', 'mark', 'reveal', 'status'], 'window.lol.debugLog is not the real preload method set');
             h.eq(shape.projects, [
