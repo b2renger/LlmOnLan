@@ -1906,30 +1906,10 @@ checklist of §8.
 
 ## 5. Rig checklist additions (human tests, real machines, real farm)
 
-These are **additions**, kept here because `LOLCHAT_RIG_CHECKLIST.md` is owned by the team that landed
-P2. Ids are `S-R#` so they never collide. Every item names the machine it must run on; "**(C-21)**"
-marks the ones that must be ticked before release, in the inherited convention.
-
-| # | Phase | Test | Pass condition |
-|---|---|---|---|
-| **S-R1** | S0 | **Security review of the projects change set** (a second pair of eyes, not the author): read `projectsPath.ts` and `projects.ts` line by line against §3.8; confirm no `child_process`, no `openExternal`, no renderer-supplied absolute path, no directory deletion, no path from a message body without a click; confirm the two marked regions in `index.ts` are the only main-process change. **(C-21)** | signed off in DEVLOG, by name |
-| **S-R2** | S0 | **Store v2 upgrade on a real profile**: take a copy of a real user profile at DB v1, launch the new client, confirm history intact and the new stores present; then launch **v0.1.45** against the upgraded profile and confirm it degrades to the "history can't be saved" banner rather than losing data. **(C-21)** | both observed, screenshots in DEVLOG |
-| **S-R3** | S0 | **Data folder move**: change the data folder in Preferences while a project exists; the projects root follows; the old folder is left intact; the panel reports the new path. | observed on Windows |
-| **S-R4** | S0 | **U2 — `reveal` / `open`**: click Reveal in Explorer and Copy path on a real project; confirm Explorer opens the folder (not an editor) and the clipboard holds the absolute path. | observed; result recorded (U2) |
-| **S-R5** | S0 | **Windows path hostility, by hand**: create projects named `CON`, `aux.test`, `a.` and a 60-character name; put a file at `lib/sub/deep/one/two.js`; confirm the refusals are legible and nothing lands outside the root. | no escape, messages legible |
-| **S-R6** | S1 | **U3 — map on office hardware**: open a 1,200-node map on a mid-range office laptop (not this box); pan, zoom, edit a node. | interaction stays usable; numbers recorded |
-| **S-R7** | S2 | **O3 — anchor hit rate against the live farm**: run `node shell/test/bench/anchor-hit-rate.mjs --yes-live-farm` **out of office hours** (it takes seats), 20 anchored + 20 whole-file edits over three sketch sizes. **(C-21)** | table recorded in DEVLOG; `kv editPolicy` default revisited in writing |
-| **S-R8** | S2 | **The hang, for real**: ask the live model for a sketch with an infinite loop, run it, and keep typing in the chat. | the client stays responsive; the preview reports the restart |
-| **S-R9** | S2 | **VS Code round trip**: open the project folder in VS Code, edit `sketch.js` and `BRIEF.md` on disk, return to LOL. | disk wins on the brief; the file list shows the edit; an apply over a changed file refuses with `E_CONFLICT`, not a silent overwrite |
-| **S-R10** | S2 | **Vendored libraries on a fresh install**: install the packaged client on a clean machine with **no internet**, run a three.js and a p5 sketch. | both run; nothing is fetched (verified with the network cable out) |
-| **S-R11** | S2 | **Seat etiquette with two people**: a colleague chats on the same farm while a Vary batch of 4 and a repair loop run here. | their replies never stall behind our batch; the ledger shows the truth; Stop works |
-| **S-R12** | S3 | **Vision on the live `gemma4:12b`**: critique a real render, compare two versions, describe a 6-image moodboard. **(C-21)** | findings are about the image; the 3×3 overlay matches what is said; compare reports only agreeing findings |
-| **S-R13** | S3 | **Vision off**: point the farm at a text-only llama.cpp alias (or set the catalogue so `supports_vision` is false) and open every vision surface. | one clear sentence each, no spinner, no dead button; palette and tokens still work |
-| **S-R14** | S3 | **Board truth**: check every pin and note in the three packs against the vendor datasheet, with a second person. **(C-21)** | every unverified fact marked unverified in the UI; no wrong strapping-pin note |
-| **S-R15** | S3 | **Arduino/PlatformIO round trip**: scaffold both targets, open them in the Arduino IDE and in PlatformIO, and build (not flash). | both compile for the selected board |
-| **S-R16** | all | **Offline**: run the whole product with the machine off the internet (LAN farm only). | nothing is fetched; no console error about a blocked request |
-| **S-R17** | all | **Close means close**: with a map, a sketch and a batch running, hit the window's X. | everything stops; no orphan process; the farm shows the seat freed |
-| **S-R18** | all | **Keyboard-only pass** over all four panels with a screen reader on Windows (Narrator). | every panel reachable, every op announced, Escape always means stop-then-close |
+**Moved, 2026-10-09** to [HUMAN_TESTS.md](HUMAN_TESTS.md); none was ever ticked. S-R2 → C5, S-R3 → C6, S-R4 → A7,
+S-R5 → G3, S-R16 and S-R17 → A5, S-R18 → A6. S-R1 (a security review of the projects change set) is a developer's
+check. S-R6–S-R15 tested the map, sketch and board benches (S1–S3), which were never built: the Computer and the IDE
+took their place. The table as written: `git show 3b8c0c1:docs/LOLCHAT_STUDIO_PLAN.md`.
 
 ---
 

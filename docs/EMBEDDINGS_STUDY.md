@@ -150,7 +150,8 @@ Steps:
 3. **Licence:** add the Gemma notice to About and NOTICE.
 4. **Docs:** CLAUDE.md (the embeddings section and the data flow), INTEGRATION_BRIEF, the tutorial, a release note telling people to click Reindex (for granite, old answers are silently wrong until then), and the DEVLOG.
 
-What to test:
+What to test (superseded 2026-10-09: the owner chose the farm instead, below; its person checks are
+[HUMAN_TESTS.md](HUMAN_TESTS.md) session I):
 - **Startups:** first start with an empty Hugging Face folder and no token (this PC has a token, which would hide a login failure), an interrupted first start, and an offline second start.
 - **Unit tests:** extend the existing `hfModelState` / repair / `hubAnswers` tests in `test/chat/unit/shell-main.test.mjs`
   to the new model's file list (a half folder counts as partial; leave out each needed file in turn).

@@ -89,7 +89,7 @@ over a person's pick), and the panel's model line follows the picker. It reaches
    because the bridge fails OPEN. Two Windows traps found on the real runtime: dsh runs hooks through PowerShell, so
    the command needs `&` and `; exit $LASTEXITCODE` (else a parse error or a 2 turned into 1 = "pass"). Verified:
    an outside read refused, the secret never reached the model, an inside read works. Cost: ~0.4 s per file tool on
-   Windows. Not yet run on macOS/Linux (bash -c; the plain command).
+   Windows. Not yet run on macOS/Linux (bash -c; the plain command): [HUMAN_TESTS.md](HUMAN_TESTS.md) E4.
 7. **Later**: the project's own
    `.dsh/skills`, pruning old dsh session logs.
 

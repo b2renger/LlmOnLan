@@ -6,6 +6,48 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-10-09 (10:53) — One list of the human tests: docs/HUMAN_TESTS.md (branch `human-tests`)
+
+The owner: "refactor and aggregate all the human tests we have to do with the client so I can get on to it." Docs
+only; no code changed.
+- **Collected** about 460 person-only items from eleven lists: TEST_SCENARIOS_v0.2.md (113, §1–§8 with 7d, 7e, 7f),
+  RIG_CHECKLIST.md (46 open), LOLCHAT_RIG_CHECKLIST.md (200, none ever ticked), LOLCHAT_STUDIO_PLAN.md §5 (18),
+  LOLCHAT_TESTING.md §4 (5), COMPUTER_PLAN.md §13 (40), COMPUTER_STATUS.md "What only you can check" (13),
+  VLLM_MANAGED_PLAN.md §9.6/§11.5/§11.6 (12), EMBEDDINGS_STUDY.md (6), HOME_ASSISTANT.md "Not tried yet" (3, the
+  file itself left alone while the Home Assistant tutorials are written), IDE_PLAN.md (1), and five new ones from this
+  log's not-done lines (llama.cpp b11512 from the installed Farm app, a 12 GB card beside document search, the Spark's
+  arm64 build and ggml-org's, the update's held-file copy, the clean-state run). Each was checked against this log,
+  the night logs and the code, three of the sources by read-only agents.
+- **Dropped as done** (about 20): the CI installers, the Open WebUI pin bump with no code change, a client on a shared
+  Farm app, Home Assistant on the demo home, a Computer program on the first try, Code on a real graph, the debug
+  log's file, and ten COMPUTER_PLAN items the harness proves.
+- **Dropped as superseded or never shipped** (about 67): LOL Vibe's P3/P4 (images, documents, search, Blender cards,
+  recipes, Read aloud), the history-rollback steps (history moved into the data folder), the per-thread Computer
+  (From/To thread and the rest), "zero `/v1/embeddings`" (document search), the Studio's S1–S3 benches, the
+  laptop-side embedding switch, the Farm app updates to 0.0.39/0.0.42/0.0.43 (now K1), the operator-run vLLM on the
+  PRO 6000, and the production take-over (the clean-state run removed what it would take over).
+- **A developer's, not a person's** (5): `e2e.js`, the ask spine's rung, the strict harness flake, the projects
+  security review, the pinned Open WebUI's `--port`.
+- **Kept** (about 365), merged into **99 tests** in 14 sessions grouped by setup: A–I the client (one laptop and the
+  PRO 6000; a fresh laptop and no internet; upgrades and the data folder; two machines; Mac and Linux; the Computer's
+  devices; the IDE; Home Assistant; document search), J–N the farm side (the PRO 6000; a Windows RTX test box; the
+  Spark; reboots; a clean box). Each test: what it proves, its setup, steps, the expected result, a box and a *Found*
+  line; a time per session (about 45–50 h in all).
+- **18 tests block farm-v0.0.44 + client v0.2.10** (★): A1, B1, C1, C2, I1–I5, J1–J4, K1–K5.
+- **The old lists now point into it:** TEST_SCENARIOS_v0.2.md is a table from each scenario number to its test or
+  to where it was verified; RIG_CHECKLIST.md keeps every ticked line and turns each open one into an arrow (three
+  newly ticked with their evidence); LOLCHAT_RIG_CHECKLIST.md, COMPUTER_PLAN §13, COMPUTER_STATUS's list and
+  LOLCHAT_STUDIO_PLAN §5 became section maps; VLLM_MANAGED_PLAN §9.6/§11.5/§11.6, PRO6000_VLLM_SWITCH Part 2,
+  IDE_PLAN, EMBEDDINGS_STUDY and LOLCHAT_TESTING got a pointer. Each says where the old wording is
+  (`git show 3b8c0c1:<file>`). CLAUDE.md's "Still needs real … verification" paragraph is a two-line pointer.
+- **Found on the way, for the owner** (HUMAN_TESTS.md, "Questions for the owner"): LOL Vibe tells a starting vLLM "a
+  few seconds" while Open WebUI says 2 minutes; the Plugins switches do not last across a farm restart (old checks
+  expected Classify back); the v0.2.9 search-model checks now apply only to folders that never met document search;
+  "≈ 362.7 million" is recorded nowhere; the coding agent's model line does not know Qwen3.6; `project.json` is
+  refused by the projects API but not by the agent's fence (read from the code, not tested); the vLLM button's "about
+  35 GB" may read higher with document search on; whether the ★ tests run on a local build or a pre-release tag.
+- **Checks:** no control character in any doc (the farm test's rule, run by hand); every old open item has one place.
+
 ## 2026-10-09 (10:31) — Owner decisions: document search stays on by default; ggml-org's arm64 build to be tried on a Spark; releases wait
 
 - **Document search's default stays `enabled: 'auto'`** (on with an NVIDIA GPU, ~1.2 GB of its memory). Nothing to

@@ -165,8 +165,9 @@ The dev box runs your live farm and your client, so these never ran on real hard
 5. **The installer path** — packaged app, first run, auto-update. Nothing here was built in a packaged
    build; the module loader was verified inside an `app.asar` by probe only.
 
-The full list with expected results is in [LOLCHAT_RIG_CHECKLIST.md](LOLCHAT_RIG_CHECKLIST.md) (written
-for the older plan — §§ on documents/OCR/search describe cancelled work; ignore those).
+> **2026-10-09:** these five now live in [HUMAN_TESTS.md](HUMAN_TESTS.md): 1 → D1, D6, D15; 2 → A12, D15; 3 → A13
+> (the Image box replaced `Look`); 4 → C5; 5 → B1, C1, E1, E3 (the packaged build was run on 2026-09-28 and installers
+> ship since v0.2.0). LOLCHAT_RIG_CHECKLIST.md is now an index into that list.
 
 ---
 
