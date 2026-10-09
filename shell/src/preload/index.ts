@@ -115,6 +115,12 @@ contextBridge.exposeInMainWorld('lol', {
         link: (url: string, token: string) => ipcRenderer.invoke('lol:home:link', url, token),
         arm: () => ipcRenderer.invoke('lol:home:arm'),
         disarm: () => ipcRenderer.invoke('lol:home:disarm'),
+        // The Computer's Home boxes: read the devices a person picked; list them and their actions for Choose…; one
+        // command (main decides whether it is a dry run).
+        read: (ids: string[], hours: number) => ipcRenderer.invoke('lol:home:read', ids, hours),
+        entities: () => ipcRenderer.invoke('lol:home:entities'),
+        actions: (id: string) => ipcRenderer.invoke('lol:home:actions', id),
+        command: (req: unknown) => ipcRenderer.invoke('lol:home:command', req),
         onState: (fn: (s: unknown) => void) => { ipcRenderer.on('lol:home:state', (_e, s) => fn(s)); },
     },
     // USB serial (P3a-2): main forwards the plugged-in boards when the page asks for one; the page

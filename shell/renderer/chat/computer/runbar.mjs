@@ -371,6 +371,14 @@ export function install(app) {
     const door = outputsDoor();
     if (!door) return;
     if (armed) { armed = await door.arm(false); paint(); return; }
+    // Never arm a run already going (the security review, 2026-10-09): a run a model started while disarmed would turn
+    // live half-way, its Send and Home command boxes acting on what it wired.
+    const live = runner();
+    if (live && typeof live.running === 'function' && live.running()) {
+      const d = /** @type {any} */ (app).dialogs;
+      if (d && typeof d.toast === 'function') d.toast(t('computer.outputsArmBusy'), { kind: 'info' });
+      return;
+    }
     const doc = docNow();
     const list = targetsIn(doc).map((x) => '• ' + x).join('\n');
     const dialogs = /** @type {any} */ (app).dialogs;
@@ -568,7 +576,8 @@ export function install(app) {
     // so on its face (a Trigger-only graph could never be armed; found by the lessons 7–12 build, 2026-09-28).
     // Another graph opened while armed goes back to a dry run.
     const has = (/** @type {string} */ type) => !!doc && Array.isArray(doc.parts) && doc.parts.some((/** @type {any} */ p) => p.type === type);
-    const hasSend = has('send');
+    // A Home command box acts only while armed too (docs/HOME_ASSISTANT.md), so it shows the control and Panic.
+    const hasSend = has('send') || has('home-command');
     if (armed && here !== armedFor) { armed = false; const door = outputsDoor(); if (door) void door.arm(false); }
     outBtn.hidden = !(hasSend || has('trigger'));
     // Panic stays with a Send box whether armed or not: disarming does not turn off the lights a run lit.

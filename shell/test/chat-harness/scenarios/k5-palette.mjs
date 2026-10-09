@@ -66,7 +66,7 @@ export default [
             h.assert(groups.every((/** @type {any} */ g) => g.label && g.label !== g.group), 'each group has a heading a person can read');
             h.assert(rows.every((/** @type {any} */ r) => r.glyph && r.label && r.desc.length > 10), 'every row: a glyph, a name, a one-liner');
             const show = rows.filter((/** @type {any} */ r) => r.group === 'show').map((/** @type {any} */ r) => r.entry);
-            h.eq(show.join(','), 'p5,three,svg,html,markdown,graph,preview,code,speak,send', 'the named boxes lead Show; the generic Preview follows');
+            h.eq(show.join(','), 'p5,three,svg,html,markdown,graph,preview,code,speak,send,home-command', 'the named boxes lead Show; the generic Preview follows');
 
             // The fix pass: Show is below nine Think rows, so the boxes that draw with code — the
             // ones the owner could not find — are ALSO a strip at the top, inside the menu's

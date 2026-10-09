@@ -52,6 +52,7 @@ export const QUICK = Object.freeze(['p5', 'three', 'svg', 'html']);
 const KEYWORDS = {
   note: 'palette.kwNote', image: 'palette.kwImage', file: 'palette.kwFile',
   document: 'palette.kwDocument', audio: 'palette.kwAudio', fetch: 'palette.kwFetch', opendata: 'palette.kwOpenData', classify: 'palette.kwClassify', agent: 'palette.kwAgent', speak: 'palette.kwSpeak', send: 'palette.kwSend', receive: 'palette.kwReceive', trigger: 'palette.kwTrigger',   // K6 kickoff (KF-8)
+  home: 'palette.kwHome', 'home-command': 'palette.kwHomeCommand',
   ask: 'palette.kwAsk', split: 'palette.kwSplit', filter: 'palette.kwFilter',
   collect: 'palette.kwCollect', repeat: 'palette.kwRepeat',
   preview: 'palette.kwPreview', code: 'palette.kwCode',
@@ -151,7 +152,8 @@ export function createPaletteMenu(o) {
   function reveal(/** @type {HTMLElement} */ b) {
     const prev = /** @type {HTMLElement|null} */ (b.previousElementSibling);
     const top = prev && prev.classList.contains('graph-add-group') ? prev.offsetTop : b.offsetTop;
-    const bottom = b.offsetTop + b.offsetHeight;
+    // +1: offsetHeight and clientHeight are rounded, a row is not (64.4 px rows left the last one 0.3 px under the edge).
+    const bottom = b.offsetTop + b.offsetHeight + 1;
     if (top < list.scrollTop) list.scrollTop = top;
     else if (bottom > list.scrollTop + list.clientHeight) list.scrollTop = bottom - list.clientHeight;
   }

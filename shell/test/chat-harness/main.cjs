@@ -171,6 +171,47 @@ function wireIo() {
     return true;
 }
 
+// docs/HOME_ASSISTANT.md (2026-10-09): the Computer's Home boxes, over the REAL homeAssistant.js and outputs.js. A
+// scenario links a home by writing <userData>/home-link.json {url, token} (re-read whenever it changes: a relink, as in
+// Preferences), and stands in for the person's click on main's native "Allow home commands" dialog with
+// <userData>/home-allow.json {"allow": true}. The rest mirrors shell/src/main/index.ts.
+function wireHome() {
+    const HOME_BUILD = path.join(__dirname, '..', '..', 'build', 'main', 'homeAssistant.js');
+    const OUT_BUILD = path.join(__dirname, '..', '..', 'build', 'main', 'outputs.js');
+    if (!fs.existsSync(HOME_BUILD) || !fs.existsSync(OUT_BUILD)) return false;
+    const out = require(OUT_BUILD);
+    const home = require(HOME_BUILD).createHome({ store: { load: () => null, save: () => true } });
+    const read = (name) => { try { return fs.readFileSync(path.join(tmpDir(), name), 'utf8'); } catch { return ''; } };
+    let linkSeen = '';
+    let allowSeen = '';
+    const sync = async () => {
+        const link = read('home-link.json');
+        if (link !== linkSeen) {
+            linkSeen = link;
+            allowSeen = '';
+            const j = link ? JSON.parse(link) : null;
+            await home.setLink(j ? j.url : '', j ? j.token : '');
+        }
+        const allow = read('home-allow.json');
+        if (allow !== allowSeen) {
+            allowSeen = allow;
+            if (allow && JSON.parse(allow).allow) {
+                const l = await home.armable();
+                if (l.ok) home.arm(l.devices, l.generation);
+            } else home.arm(null);
+        }
+    };
+    ipcMain.handle('lol:home:read', async (_e, ids, hours) => { await sync(); return home.read(ids, hours); });
+    ipcMain.handle('lol:home:entities', async () => { await sync(); return home.entities(); });
+    ipcMain.handle('lol:home:actions', async (_e, id) => { await sync(); return home.actionsOf(id); });
+    ipcMain.handle('lol:home:command', async (_e, req) => {
+        await sync();
+        if (!req || typeof req !== 'object') return { code: 'error', text: 'bad arguments', isError: true };
+        return home.command({ entity_id: req.entity_id, action: req.action, data: req.data }, { outputsArmed: out.isArmed() });
+    });
+    return true;
+}
+
 function wireDebugLog() {
     let factory = null;
     try {
@@ -250,7 +291,7 @@ function wireStudio() {
     return true;
 }
 
-function createWindow(hasProjects, hasDebugLog, hasIo, hasStudio) {
+function createWindow(hasProjects, hasDebugLog, hasIo, hasStudio, hasHome) {
     // The same session the shell gives its main window (see the client-session block above).
     const chatSession = clientDir ? session.fromPath(clientDir, { cache: false }) : session.defaultSession;
     clientFacts.sessionPath = chatSession.getStoragePath();
@@ -265,7 +306,7 @@ function createWindow(hasProjects, hasDebugLog, hasIo, hasStudio) {
             backgroundThrottling: false,
             preload: path.join(__dirname, 'preload.cjs'),
             session: chatSession,
-            additionalArguments: [hasProjects && '--lol-projects=1', hasDebugLog && '--lol-debuglog=1', hasIo && '--lol-io=1', hasStudio && '--lol-studio=1'].filter(Boolean),
+            additionalArguments: [hasProjects && '--lol-projects=1', hasDebugLog && '--lol-debuglog=1', hasIo && '--lol-io=1', hasStudio && '--lol-studio=1', hasHome && '--lol-home=1'].filter(Boolean),
         },
     });
     harnessWin = win;
@@ -346,7 +387,7 @@ app.whenReady().then(() => {
     writeJson(path.join(tmpDir(), 'window-opens.json'), windowOpens);
     writeJson(path.join(tmpDir(), 'downloads.json'), downloads);
     writeJson(path.join(tmpDir(), 'shell-calls.json'), shellCalls);
-    createWindow(wireProjects(), wireDebugLog(), wireIo(), wireStudio());
+    createWindow(wireProjects(), wireDebugLog(), wireIo(), wireStudio(), wireHome());
 });
 
 // Nothing here should ever reach the system browser.

@@ -125,6 +125,29 @@ export function outputsDoor() {
 }
 
 /**
+ * The Home boxes' door (src/main/homeAssistant.ts, docs/HOME_ASSISTANT.md): read the devices a person picked, list the
+ * home and a device's actions for Choose…, and one command — which main checks by every rule and keeps a dry run unless
+ * the Computer's outputs are armed AND home commands are allowed. The token stays in main. Every answer is an object
+ * with `ok` (read, entities, actions) or a `code` (command); a rejected invoke becomes {ok:false, code:'offline'}.
+ * null on a shell without it.
+ * @returns {null | {read(ids: string[], hours: number): Promise<any>, entities(): Promise<any>, actions(id: string): Promise<any>, command(req: {entity_id: string, action: string, data?: any}): Promise<any>}}
+ */
+export function homeDoor() {
+  const api = preloadProp('home', ['read', 'entities', 'actions', 'command']);
+  if (!api) return null;
+  /** @param {string} op @param {any[]} args */
+  const call = (op, args) => Promise.resolve().then(() => api[op](...args))
+    .then((r) => (r && typeof r === 'object' ? r : { ok: false, code: 'offline', message: 'no answer from the main process' }),
+      (e) => ({ ok: false, code: 'offline', message: String(e && e.message ? e.message : e) }));
+  return {
+    read: (ids, hours) => call('read', [Array.isArray(ids) ? ids.map(String) : [], Number(hours) || 0]),
+    entities: () => call('entities', []),
+    actions: (id) => call('actions', [String(id || '')]),
+    command: (req) => call('command', [req]),
+  };
+}
+
+/**
  * The Computer's MCP server (src/main/mcp.ts): main carries a tool call to the page, the page answers.
  * null outside the app.
  * @returns {{onCall: (fn: (msg: any) => void) => void, answer: (id: string, out: any) => Promise<any>}|null}

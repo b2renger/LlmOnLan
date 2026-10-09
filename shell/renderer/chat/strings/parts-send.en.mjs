@@ -43,12 +43,13 @@ registerStrings('parts', {
 registerStrings('computer', {
   outputsDry: 'Outputs: dry run',
   outputsLive: 'Outputs: LIVE',
-  outputsDryHint: 'Dry run: Send boxes only show what they would send, and Trigger boxes start no run. Press to arm the outputs.',
-  outputsLiveHint: 'Armed: Send boxes send to devices, and Trigger boxes can start runs by themselves. Press to go back to a dry run.',
+  outputsDryHint: 'Dry run: Send and Home command boxes only show what they would do, and Trigger boxes start no run. Press to arm the outputs.',
+  outputsLiveHint: 'Armed: Send boxes send to devices, Home command boxes switch the home’s devices you allowed, and Trigger boxes can start runs by themselves. Press to go back to a dry run.',
   outputsArmTitle: 'Arm the outputs?',
-  outputsArmBody: 'From now on this graph acts for real: its Send boxes send to real devices, and its Trigger boxes can start runs by themselves while the Computer is on screen.\n{targets}\nDMX is capped at 3 frames a second per universe. That does not limit a fixture\u2019s own strobe channel, or lights driven any other way (OSC, MQTT, WebSocket, HTTP, USB, the farm\u2019s bus): keep strobes off. Panic stops the run and blacks out the lights.\nPress Outputs again to go back to a dry run. Opening another graph, or restarting the app, does that too.',
+  outputsArmBody: 'From now on this graph acts for real: its Send boxes send to real devices, its Home command boxes switch your home’s devices (those you allowed in Preferences ▸ Home Assistant), and its Trigger boxes can start runs by themselves while the Computer is on screen.\n{targets}\nDMX is capped at 3 frames a second per universe. That does not limit a fixture\u2019s own strobe channel, or lights driven any other way (OSC, MQTT, WebSocket, HTTP, USB, the farm\u2019s bus): keep strobes off. Panic stops the run and blacks out the lights.\nPress Outputs again to go back to a dry run. Opening another graph, or restarting the app, does that too.',
   outputsArmOk: 'Arm',
+  outputsArmBusy: 'A run is going: let it end (or press Stop), then arm the outputs. A run never turns live half-way.',
   outputsPanic: 'Panic',
-  outputsPanicHint: 'Stop the run and every output now, send a blackout to every DMX universe a graph lit, and go back to a dry run.',
+  outputsPanicHint: 'Stop the run and every output now, send a blackout to every DMX universe a graph lit, and go back to a dry run. What a Home command already switched stays as it is.',
   outputsPanicked: 'Outputs stopped and back to a dry run. {n} DMX universe(s) blacked out.',
 });

@@ -146,4 +146,21 @@ export const SHOW = [
     ],
     wires: [{ from: 'e_val', to: 'e_send', port: 'in' }],
   },
+  {
+    key: 'home-command',
+    title: 'Home command',
+    what: 'Tells ONE device of your Home Assistant to do ONE thing you choose in the box — turn a light on at 40 %, switch a plug, set a fan — each time something arrives. A dry run until you arm the outputs in the run bar AND allow home commands in Preferences ▸ Home Assistant. Never unlocks a lock, disarms an alarm, sounds a siren, or opens a valve, a door or a garage.',
+    inputs: [['go', 'anything: only the signal to act (the details are the box’s own “With”, which only you set)']],
+    output: 'Text: what was done and the device’s state after, or what would have been done (dry run).',
+    howto: [
+      'Press Choose… and pick a light, then the action turn_on; “With” holds {"brightness_pct": 40}. Press Run all: the box says "Dry run — would do light.turn_on on …".',
+      'To act for real: in Preferences ▸ Home Assistant press Allow commands… (a dialog lists the devices), then press "Outputs: dry run" in the run bar (it lists this box) and Arm. Run again: the light turns on at 40 %.',
+      'Put a Condition before it to act only when something is true (the "Comfort advisor" template turns a fan on when the air is stuffy). At most one command a second per device and 30 a minute. Panic or a reload makes it a dry run again.',
+    ],
+    parts: [
+      { id: 'e_val', type: 'note', x: 0, y: 0, w: 300, h: 150, settings: { text: 'go', locked: false } },
+      { id: 'e_cmd', type: 'home-command', x: 360, y: 0, w: 320, h: 220, settings: { entity: 'light.studio_ceiling', name: 'Studio ceiling', action: 'turn_on', data: '{"brightness_pct": 40}' } },
+    ],
+    wires: [{ from: 'e_val', to: 'e_cmd', port: 'in' }],
+  },
 ];

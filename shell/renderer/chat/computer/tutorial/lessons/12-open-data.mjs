@@ -113,6 +113,7 @@ export default {
       show: { partId: 'p_col' },
     },
   ],
+  next: 'l13-read-the-room',
   demo: {
     p_ask: { kind: 'text', data: 'One value clearly leads, well ahead of all the others. The next few follow at a distance and are close to one another, and the rest trail behind.' },
   },

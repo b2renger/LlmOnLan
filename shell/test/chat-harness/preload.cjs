@@ -34,6 +34,14 @@ if (process.argv.includes('--lol-io=1')) api.io = {
     armed: () => ipcRenderer.invoke('lol:io:armed'),
     panic: () => ipcRenderer.invoke('lol:io:panic'),
 };
+// The Computer's Home boxes (docs/HOME_ASSISTANT.md): the four methods of shell/src/preload/index.ts's `home` the
+// Computer uses (Preferences' link/check/arm/disarm/onState are the shell's own page, not under test here).
+if (process.argv.includes('--lol-home=1')) api.home = {
+    read: (ids, hours) => ipcRenderer.invoke('lol:home:read', ids, hours),
+    entities: () => ipcRenderer.invoke('lol:home:entities'),
+    actions: (id) => ipcRenderer.invoke('lol:home:actions', id),
+    command: (req) => ipcRenderer.invoke('lol:home:command', req),
+};
 // The IDE's coding agent (docs/IDE_PLAN.md), the SAME shape as shell/src/preload/index.ts, present only when
 // main.cjs wired the real runner over the mock dsh (build/main/studio.js exists).
 if (process.argv.includes('--lol-studio=1')) api.studio = {

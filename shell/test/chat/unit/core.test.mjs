@@ -207,7 +207,8 @@ export default (test) => {
     // Critic R2 (N1) added 15: the compact box — a field on one row, 12 px inputs, hint lines
     // without browser margins, the legacy strip, the empty foot — and the Instruction's rows.
     // The think box beside the Cap (2026-10-05) added two: its label and its checkbox.
-    assert.equal(scoped.length, 225, `the graph.css re-scope is ${scoped.length} selectors, not 225`);
+    // The Home boxes (2026-10-09) added three: the device picker's list, its rows and a ticked row.
+    assert.equal(scoped.length, 228, `the graph.css re-scope is ${scoped.length} selectors, not 228`);
     const body = css.replace(/\/\*[\s\S]*?\*\//g, '');
     assert.equal((body.match(/#lolchat /g) || []).length, 0,
       'a `#lolchat ` selector survived the re-scope: that rule paints in the chat and nowhere else');

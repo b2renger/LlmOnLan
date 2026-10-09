@@ -106,12 +106,12 @@ export default (test) => {
     // in", right after Image — twenty-one in the palette, twenty-four loadable.
     assert.deepEqual(partSpecs().map((s) => s.type),
       ['note', 'ask', 'classify', 'agent', 'split', 'repeat', 'filter', 'code', 'collect', 'preview', 'speak', 'send', 'receive', 'trigger', 'file', 'image',
-        'document', 'audio', 'fetch', 'opendata',
+        'document', 'audio', 'fetch', 'opendata', 'home', 'home-command',
         'button', 'condition', 'confirm', 'dialog', 'toggle', 'timer',
         'sticky', 'section', 'title']);
     assert.deepEqual([...specMap().keys()].sort(),
       ['agent', 'ask', 'audio', 'button', 'classify', 'code', 'collect', 'condition', 'confirm', 'dialog', 'document', 'fetch', 'file', 'filter',
-        'from-thread', 'image', 'note', 'opendata', 'preview', 'receive', 'render', 'repeat', 'section', 'send', 'speak', 'split',
+        'from-thread', 'home', 'home-command', 'image', 'note', 'opendata', 'preview', 'receive', 'render', 'repeat', 'section', 'send', 'speak', 'split',
         'sticky', 'timer', 'title', 'to-thread', 'toggle', 'trigger'],
       'a legacy part left specMap() too — a migrated graph would trip part:unknown-type');
     for (const spec of [...specMap().values()]) {

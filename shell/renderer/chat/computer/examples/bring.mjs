@@ -1,6 +1,8 @@
 // @ts-check
 // Box examples — the "Bring in" group (computer/examples/index.mjs says how an example becomes a graph).
 
+import { STUDIO } from '../templates/home-readings.mjs';
+
 const view = { mode: 'markdown' };
 
 export const BRING = [
@@ -187,5 +189,26 @@ export const BRING = [
       { id: 'e_view', type: 'preview', x: 380, y: 260, w: 340, h: 200, settings: view },
     ],
     wires: [{ from: 'e_recv', to: 'e_code', port: 'in' }, { from: 'e_code', to: 'e_view', port: 'content' }],
+  },
+  {
+    key: 'home',
+    title: 'Home',
+    what: 'Reads the devices and sensors of your Home Assistant that YOU choose: their state now (a temperature, the CO2, a plug’s power, a light on or off), a weather’s forecast for the next days, a calendar’s events of the next 24 hours — and, with History, their values over past hours. Reading changes nothing in the home. Without a linked home, it hands on the copy it holds and says so.',
+    inputs: [],
+    output: 'JSON: { home, at, devices: [{ id, name, state, value (a number when it is one), unit, attributes, forecast, events, history }], missing }.',
+    howto: [
+      'Link your Home Assistant once in Preferences ▸ Home Assistant (its address and a long-lived token). Then press Choose… on the box and tick the sensors to read.',
+      'Press Run all: the Code box lists each device with its value and unit. inputs.in[0].devices is the list; find one by its kind, e.g. d.attributes.device_class === "carbon_dioxide".',
+      'History (hours) from 1 to 168 adds each device’s past values (4 devices over a week, 30 over a day), for a chart (the "Energy report" template draws one). A model never gets where the home or a person is: coordinates are left out.',
+    ],
+    parts: [
+      { id: 'e_home', type: 'home', x: 0, y: 0, w: 340, h: 170, settings: { entities: STUDIO.devices.map((d) => d.id), names: Object.fromEntries(STUDIO.devices.map((d) => [d.id, d.name])), hours: 0 }, value: { kind: 'json', data: STUDIO } },
+      {
+        id: 'e_code', type: 'code', x: 400, y: 0, w: 340, h: 200,
+        settings: { code: 'const r = inputs.in[0] || { devices: [] };\nreturn r.devices.map((d) => "- " + d.name + ": " + d.state + (d.unit ? " " + d.unit : "")).join("\\n");', about: 'Lists each device with its value.', folded: false },
+      },
+      { id: 'e_view', type: 'preview', x: 400, y: 260, w: 340, h: 220, settings: view },
+    ],
+    wires: [{ from: 'e_home', to: 'e_code', port: 'in' }, { from: 'e_code', to: 'e_view', port: 'content' }],
   },
 ];

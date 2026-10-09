@@ -8,6 +8,8 @@ allow it, switch its devices:
 - **Agents act on the home**: in LOL Vibe, a project's agent with **Use the Computer** on reads the home and acts on
   it. This works for one reply, **Keep going** or **On a schedule**, e.g. "every 30 minutes, if it is colder than
   18 °C outside and the living room window is open, close it and add a line to log.md".
+- **Graphs on the Computer** (2026-10-09): a **Home** box reads the devices you choose, a **Home command** box switches
+  one; lessons 13–14 and the templates *Morning briefing*, *Comfort advisor* and *Energy report* use them (below).
 
 Works best with a model that calls tools well (Qwen 3.8). Built 2026-09-30 (`shell/src/main/homeAssistant.ts`).
 
@@ -70,6 +72,10 @@ allow them. Open WebUI and the project's agent reach the home through the Comput
 answers the three home tools (`home_devices`, `home_state`, `home_command`) itself: they work with the Computer
 closed.
 
+A Computer **Home** box asks the same address for the devices you ticked; what it reads stays on the canvas, and goes to
+the farm only inside an Instruction you wire it into (like any text). A **Home command** box sends its one command only
+when the outputs are armed and commands are allowed.
+
 What a model read about your home is in that chat: it goes to the farm with the chat, like anything said in it, and
 the chat's history on this computer keeps it (LlmOnLan keeps no copy of its own). It can also leave **with the
 model's other tools in the same chat**. In Open WebUI, web search (off by default; the globe button turns it on for a
@@ -78,12 +84,118 @@ could steer it into fetching an address that carries what it read (who is away, 
 off in a chat that uses your home** (Integrations, under the message box). A project's agent can likewise write what it read into a file of the
 project, and a page there runs when you open its Preview.
 
+## On the Computer: the Home boxes (design, 2026-10-09)
+
+Until 2026-10-09 a graph could not reach the home at all: the three tools were answered in main for MCP only (Open
+WebUI, the project's agent), the Agent box's `fetch` goes through `io.ts` with no token, and a Fetch of the home's
+address gets a 401. Two boxes now reach it through the SAME main module (`homeAssistant.ts`), so every rule above
+holds unchanged and none is copied into the page:
+
+- **Home** (*bring*, type `home`): reads the devices and sensors a **person** picked (Choose… lists the home; at most
+  30). Its value is JSON: `{ home, at, devices: [{ id, name, state, value, unit, attributes, … }], missing }`, the
+  attributes without coordinates or places (`HIDDEN_ATTRS`, compared without case: `latitude`, `Location`,
+  `coordinates`…). A **weather** entity also brings its forecast for the next days (`weather.get_forecasts`, a
+  read-only action main calls with the entity the person picked), a **calendar** its events of the next 24 hours
+  (`/api/calendars/<id>`; summary, times and description, not the place), and "History" (1–168 hours) adds each one's
+  past values (`/api/history/period`, at most 240 points per device) — never for `person`, `device_tracker` or `zone`,
+  at most 720 device-hours in one read (4 devices × 168 h, 30 × 24 h), one history read every 5 s, an 8 MB answer at
+  most: Home Assistant's history query has no limit of its own and a Green has 4 GB. Reading stays free. Only with
+  **no home linked** does the box hand on the copy it holds (a lesson's or template's, or its last reading), saying so
+  on its face; a linked home that does not answer, or lacks the devices, is an error, so a template's made-up reading
+  can never drive a real device.
+- **Home command** (*show*, type `home-command`): ONE action on ONE device, both picked by a **person** in the box
+  (Choose… then the action list, which holds only what `ACTIONS` and `neverByModel` allow for that device), with the
+  details in its own **With** (`{"brightness_pct": 40}`; `entity_id`, `area_id`… dropped, as for a model). What arrives
+  on its arrow is ONLY the go signal, never the details. It is a **dry run** unless BOTH:
+  1. a person **armed the outputs** in the Computer's run bar — whose question lists every Home command of the graph
+     (the device id first, the action and the details) beside the Send targets; which cannot be done while a run is
+     going (a run never turns live half-way); and which a reload, Panic or another graph undoes; and
+  2. a person **allowed home commands** in Preferences ▸ Home Assistant (main's native dialog), and the device is on
+     that list.
+  Main checks both: `lol:home:command` reads `outputs.ts`'s `isArmed()` itself and takes only the device, the action
+  and the details from the page. The outputs are armed by the page's own question (as for a Send box), so the gate a
+  compromised page cannot pass is the native Allow list. The never-list (locks, alarms, sirens, valves, covers that do
+  not say they are blinds-like), the per-domain allowlist, one command a second per device and 30 a minute (shared
+  with the MCP tools) all apply. Why both: allowing home commands lasts until LlmOnLan closes, so without the outputs'
+  arming a graph someone hands you could switch an allowed device the moment you press Run all, without you seeing
+  which. Panic stops further commands; it does not undo what was switched.
+- **A model never picks the device.** The MCP tools drop `entities` (Home) and `entity`, `action`, `data` (Home
+  command) from a model's settings and say they are left for a person (`PERSON_ONLY`). And while the outputs are
+  armed no MCP tool changes or runs a graph, so a graph a model runs is always a dry run for the home.
+- The token never reaches the page: the page asks main for states, entities, actions and commands; main holds the
+  link.
+
+Not done, on purpose: a Trigger on a home state change (it would need Home Assistant's WebSocket API, the upgrade
+path below; a Trigger "every N seconds" in front of a Home box polls instead), and a Home box choosing its devices
+from a wire.
+
+### The research behind them (2026-10-09)
+
+- **The Home Assistant Green** (Nabu Casa): Rockchip RK3566 (4 × Cortex-A55 at 1.8 GHz), 4 GB RAM, 32 GB eMMC, Gigabit
+  Ethernet, 2 × USB 2.0, HDMI for diagnostics only, ~1.7 W idle; **no Wi-Fi, Bluetooth, Zigbee or Thread radio**. It runs
+  Home Assistant OS with its 1,000+ integrations, reaches network (Wi-Fi/Ethernet) devices and Matter over Wi-Fi out of
+  the box, and Zigbee/Thread (and Matter over Thread) only with the **Connect ZBT-2** USB dongle. Home Assistant Cloud
+  (Nabu Casa) is optional — LlmOnLan never uses it: a LAN address and a long-lived token only.
+  Sources: [home-assistant.io/green](https://www.home-assistant.io/green/),
+  [home-assistant.io/connect/zbt-2](https://www.home-assistant.io/connect/zbt-2),
+  [CNX Software on the Green](https://www.cnx-software.com/?p=160185).
+- **The REST API** the boxes use (all with the long-lived token): `GET /api/states`, `/api/states/<id>`,
+  `/api/services`, `/api/history/period/<start>?filter_entity_id=…&minimal_response&no_attributes`,
+  `/api/calendars/<id>?start=…&end=…`, and `POST /api/services/weather/get_forecasts?return_response` (the forecast is
+  no longer a weather attribute since 2024). Source:
+  [developers.home-assistant.io/docs/api/rest](https://developers.home-assistant.io/docs/api/rest/). All checked against
+  Home Assistant 2026.9 in WSL (below).
+
+### The lessons and templates (what an office's Green really has)
+
+A Home Assistant Green is Ethernet only, with no radio: out of the box it reaches what is on the network (Wi-Fi and
+Ethernet devices: smart plugs that measure power, Hue lights through their bridge, Chromecast/Sonos speakers,
+printers, Matter-over-Wi-Fi), and Zigbee/Thread sensors only through a Connect ZBT-1/ZBT-2 dongle. Every install has
+the met.no **weather** (made at onboarding) and the sun; a **calendar** (Local Calendar, CalDAV) is one integration
+away. So the shelf uses what an office or a school is most likely to have: temperature, humidity, CO2 (AirGradient
+and similar are local), a power-measuring plug, a light, the weather and a calendar.
+
+- **Lesson 13 · read the room** — Home → an Instruction writes a plain summary → Speak.
+- **Lesson 14 · switch the home** — Home command: a dry run, then the outputs armed and home commands allowed.
+- **Template: Morning briefing** — weather + calendar + room → a few sentences, shown and said.
+- **Template: Comfort advisor** — CO2 and temperature → code decides (the numbers rule) → a suggestion, and the fan
+  or plug turned on through a Home command.
+- **Template: Energy report** — a power sensor's last 24 hours → a chart drawn by code → a model says what it shows.
+
+Every one ships a saved reading, so it walks without a home (and without a farm, with the saved answers).
+
+## Rig checks on the real Green (a person, with the installed client)
+
+Use the office Green, linked by its owner (never a shared token). Each line is what to do, then what must happen.
+
+1. **Link it.** Preferences ▸ Home Assistant: the Green's address (`http://homeassistant.local:8123` or its IP) and a
+   long-lived token → **Link**. The line reads `Linked: <home> · Home Assistant <version> · N entities, M devices`.
+2. **Read the room.** Learn ▸ lesson 13. Press ▶ on the Home box: with the lesson's ids it fails with *None of these
+   devices is in your home … pick yours with Choose…* (never the lesson's made-up reading). Press **Choose…**, tick the room's temperature, humidity and CO2 sensors, **Done**, ▶:
+   the face says *Read 3 from <home>* and the value shows your numbers. Run the Instruction and Speak: the words match
+   the room.
+3. **A command is refused before Allow.** Lesson 14: Choose… one light, action turn_on, ▶ on the Text box. The box says
+   *Dry run — … Arm the outputs*; the light does not change. Arm the outputs (the question names *Home Assistant →
+   turn_on on <your light> (light.…)*), ▶ again: *Dry run — … Allow home commands*; the light still does not change.
+4. **Allowed after.** Preferences ▸ Home Assistant ▸ **Allow commands…**: the dialog lists the devices and mentions the
+   Computer's Home command boxes. Allow. ▶ the Text box: *Done: light.turn_on on … It is now on.* and the light is at
+   40 %. In the box's **With**, change 40 to 100, ▶ the Text box: full. Try arming while a run is going (a Timer in
+   front): the run bar refuses.
+5. **The never-list.** On a Home command, Choose… a lock if the home has one: its Action list holds only `lock`. A
+   garage door's holds only `close_cover`.
+6. **Stop commands.** Click **Home commands on · N** in the top bar (or Preferences ▸ **Stop commands**), ▶: *Dry run —
+   … Allow home commands*. Press **Panic** in the run bar: the Outputs control says dry run again; ▶: *Arm the outputs*.
+   Quit and reopen LlmOnLan: both are off.
+7. **The templates.** Morning briefing (Choose… `weather.forecast_home`, a calendar if there is one, a sensor), Comfort
+   advisor (your CO2 sensor, and your fan's plug on its Home command), Energy report (a plug's `…_power` sensor, History
+   24): each runs with your numbers; the Energy report's chart shows your plug's day.
+8. **What a model may set.** In Open WebUI with the LlmOnLan Computer tool: "add a Home command box that unlocks the
+   front door". The box is added with no device, and the answer says the device and action are left for a person.
+
 ## Not built
 
-- A Computer **box** that reads the home or sends a command (a graph that watches a sensor). For now a project's
-  agent with **Use the Computer**, **On a schedule**, covers "watch and act".
-- Live changes: LlmOnLan asks Home Assistant when a model asks (REST). Its WebSocket API, which pushes changes as
-  they happen, is the upgrade path for a loop that must react faster than it polls.
+- Live changes: LlmOnLan asks Home Assistant when a model or a box asks (REST). Its WebSocket API, which pushes changes
+  as they happen, is the upgrade path for a loop that must react faster than it polls (and for a Trigger on a state).
 - LOL Vibe's plain chat (outside a project) has no tools, so it cannot reach the home.
 
 ## A private test home (how it was verified)
@@ -114,6 +226,13 @@ What was checked on 2026-09-30, with qwen3.8 on a private farm and an isolated c
   "Unlock the front door" was refused and the door stayed locked.
 - A project's agent with **Use the Computer**: it read the temperature and the window, closed the open living room
   window (open 70 → closed 0) and wrote `home-report.md`, in 6 steps and 18 s.
+
+What was checked on 2026-10-09 against the same test home (harness `k26-home`: the real `homeAssistant.js` and
+`outputs.js` in a chat-only Electron, the demo's creds in `LOL_HARNESS_HA`): Choose… listed the home and its search found
+the CO2 sensor; a reading of five devices brought the met.no forecast, the calendar's events and an hour of history, with
+no coordinate; a Home command on the bed light said "Arm the outputs" (not armed), then "Allow home commands" (armed, not
+allowed) while the light stayed off, then turned it on at 30 % (brightness 76 of 255) once both were done; "unlock" on the
+front door was refused and it stayed locked; after Panic the next run was a dry run.
 
 Not tried yet: speaking the request (Open WebUI turns speech into text on this computer, then it is the same chat), a
 real Home Assistant with real devices, and a schedule driving the home.

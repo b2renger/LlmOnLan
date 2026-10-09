@@ -19,6 +19,7 @@ import { outputsDoor } from '../../projects/bridge.mjs';
 import { writeLine, DEFAULT_BAUD } from '../../net/serial.mjs';
 import { publish } from '../../net/bus.mjs';
 import { boardRow } from './board-picker.mjs';
+import { homeTarget } from './home.mjs';
 import { t } from '../../core/i18n.mjs';
 import '../../strings/parts-send.en.mjs';
 
@@ -87,6 +88,8 @@ export function lineOf(v) {
 export function targetsIn(doc) {
   const out = [];
   for (const p of (doc && Array.isArray(doc.parts) ? doc.parts : [])) {
+    // A Home command acts on the home once the outputs are armed (and home commands allowed): the question names it too.
+    if (p.type === 'home-command') { const line = homeTarget(p); if (line) out.push(line); continue; }
     if (p.type !== 'send') continue;
     const r = requestFor(p.settings || {}, null);
     // A board: its label AND its id (critic S2) — a label is free text; the id is the port a person picked.
