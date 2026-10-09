@@ -6,6 +6,18 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-10-09 (10:31) — Owner decisions: document search stays on by default; ggml-org's arm64 build to be tried on a Spark; releases wait
+
+- **Document search's default stays `enabled: 'auto'`** (on with an NVIDIA GPU, ~1.2 GB of its memory). Nothing to
+  change in the code.
+- **The DGX Spark's llama.cpp:** try ggml-org's own `llama-<build>-bin-ubuntu-cuda-13.4-arm64.tar.gz` (+ its
+  `cudart-…` runtime) on a Spark. If it runs (GB10 seen, a reply, EmbeddingGemma 2 at 768), `assetsFor('linux',
+  'arm64')` points at it like Windows and `build-llamacpp-arm64.yml` goes.
+- **Releases wait:** farm-v0.0.44 + client v0.2.10 (the update copy fix, the vLLM card, llama.cpp b11512, document
+  search) are not cut yet.
+- Started the same morning: Computer tutorials for the office's Home Assistant Green, and one list of every test a
+  person must still do with the client.
+
 ## 2026-10-08 (21:57) — Document search on the farm: EmbeddingGemma 2 turns the laptops' documents into vectors (branch `embed-farm`)
 
 **The owner's decision (2026-10-08):** documents are embedded on the farm with google/embeddinggemma-2 (768 numbers,
