@@ -127,10 +127,43 @@ form = (b"--b\r\nContent-Disposition: form-data; name=\"file\"; filename=\"a.wav
 code = asyncio.run(asgi(ss.app, "/v1/audio/transcriptions", {**KEY, "content-type": "multipart/form-data; boundary=b",
                                                                "content-length": str(len(form))}, form, True))
 check("stt: a client that left -> 499, stopped well before the 20th segment", code == 499 and Whisper.yielded < 10)
+ss.state["model"] = Whisper()
 Whisper.yielded = 0
 code = asyncio.run(asgi(ss.app, "/v1/audio/transcriptions", {**KEY, "content-type": "multipart/form-data; boundary=b"}, form, False))
-check("stt: an upload that does not declare its length (chunked) -> 411, before any read", code == 411 and Whisper.yielded == 0)
+check("stt: an upload that does not declare its length (chunked, as Open WebUI sends) is transcribed", code == 200 and Whisper.yielded == 1)
+Whisper.yielded = 0
+big = (b"--b\r\nContent-Disposition: form-data; name=\"file\"; filename=\"a.wav\"\r\nContent-Type: audio/wav\r\n\r\n"
+       + b"x" * (ss.MAX_BYTES + ss.FORM_SLACK) + b"\r\n--b--\r\n")
+code = asyncio.run(asgi(ss.app, "/v1/audio/transcriptions", {**KEY, "content-type": "multipart/form-data; boundary=b"}, big, False))
+check("stt: a chunked upload over the cap -> 413, nothing transcribed", code == 413 and Whisper.yielded == 0)
 check("stt: nothing left counted as waiting or in flight", ss.waiting["n"] == 0 and not ss.per_client)
+
+# The GPU, and the CPU when the GPU does not load (stt.js asks for cuda on an NVIDIA farm).
+loads = []
+
+
+def fake_whisper(name, device, compute):
+    loads.append((name, device, compute))
+    if device == "cuda" and fail_gpu:
+        raise RuntimeError("Library cublas64_12.dll is not found or cannot be loaded")
+    return object()
+
+
+real_whisper, real_warm, real_libs = ss._whisper, ss._warm, ss._cuda_libs
+ss._whisper, ss._warm, ss._cuda_libs = fake_whisper, (lambda m: None), (lambda: None)
+ss.DEVICE, ss.MODEL, ss.COMPUTE, ss.CPU_MODEL = "cuda", "large-v3-turbo", "float16", "small"
+fail_gpu = False
+_, device, name, fallback = ss._load()
+check("stt: on the GPU, the GPU model in float16", (device, name, fallback) == ("cuda", "large-v3-turbo", None)
+      and loads == [("large-v3-turbo", "cuda", "float16")])
+fail_gpu, loads[:] = True, []
+_, device, name, fallback = ss._load()
+check("stt: a GPU that does not load -> the CPU model in int8, and why", (device, name) == ("cpu", "small")
+      and loads[-1] == ("small", "cpu", "int8") and "cublas" in fallback)
+ss.DEVICE, ss.MODEL, loads[:] = "cpu", "small", []
+_, device, name, fallback = ss._load()
+check("stt: on the CPU, never tries the GPU", loads == [("small", "cpu", "int8")] and fallback is None)
+ss._whisper, ss._warm, ss._cuda_libs = real_whisper, real_warm, real_libs
 
 
 # ---- OCR (server.py): vision calls take turns -----------------------------------------------

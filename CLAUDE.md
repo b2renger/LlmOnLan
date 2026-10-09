@@ -136,8 +136,13 @@ docs) is `docs/reviews/DOCS_REVIEW_2026-09-27_{FARM,SHELL,COMPUTER}.md`. Snapsho
     (`scenarios.js`; the GeForce cards count as one-person boxes; the model served now comes first when it covers).
   - **Plugins** (`plugins/registry.js`): web search (SearXNG, ON), document OCR (`farm/src/pysvc` +
     `extract.js`, ON — hybrid text/vision PDF extraction), Kokoro TTS (OFF), and since 2026-09-27 **Classify**
-    (Laya on the CPU, `classify.js` + `pysvc/classify_server.py`, OFF) and **speech to text** (faster-whisper on
-    the CPU, `stt.js` + `pysvc/stt_server.py`, OFF), and the **message bus** (`bus.js`, Node stdlib, OFF: an MQTT
+    (Laya on the CPU, `classify.js` + `pysvc/classify_server.py`, OFF) and **speech to text** (faster-whisper,
+    `stt.js` + `pysvc/stt_server.py`, OFF; since 2026-10-09 `device: 'auto'` = Whisper large-v3-turbo on the NVIDIA
+    GPU, int8_float16, 1.7 GB, cuBLAS as a pip wheel in its venv, else `small` on the CPU, and a GPU that does not
+    load falls back to the CPU by itself; 2 GB kept out of vLLM's Automatic memory while it is on but not running
+    yet; advertised as `stt {url, key, model}`, read by the Computer's Sound box AND by Open WebUI's microphone and
+    Call mode on the laptops — the farm decides which server and model transcribe; it accepts the chunked uploads
+    Open WebUI sends), and the **message bus** (`bus.js`, Node stdlib, OFF: an MQTT
     3.1.1 broker :1883, a WebSocket hub :8893 and an OSC relay :9001 sharing one topic space, tied to the farm
     password — MQTT user `lol`, `?key=`, `/lol/listen <filter> <pw>`; never logs a payload), and since 2026-10-08
     **document search** (`embed.js`: llama-server `--embeddings` with ONE pinned EmbeddingGemma 2 GGUF — ggml-org's
@@ -453,7 +458,7 @@ If a task seems to require breaking one of these, **stop and flag it**.
 | Lifecycle | Shell spawns the OWUI sidecar as a child process and supervises it. | Shell = process manager + window. |
 | Config → OWUI | Env vars at **every** launch, made authoritative by `ENABLE_PERSISTENT_CONFIG=false` — repointing the farm restarts the sidecar with new env. **Three exceptions**, all written from the authed webview via OWUI's user‑settings API `POST /api/v1/users/user/settings/update`: switching web search back off, once, on a profile a client up to v0.2.7 turned on (`ui.webSearch` 'always' → null, only while its `lolWebSearchSeeded` marker is there and the value is still 'always'; marked `lolWebSearchUnseeded`) — web search is off by default; the globe button turns it on for a chat; the **date line** (2026‑10‑05: the model otherwise believes it is 2025): `ui.system` = `Today is {{CURRENT_WEEKDAY}} {{CURRENT_DATE}}.`, once per profile and only when the person's system prompt is empty (marked `lolDateLineSeeded` either way, so a prompt they wrote or emptied is never touched; OWUI fills the variables at each message, on chat requests only, not title generation); and the opt‑in Blender tool server (`ui.toolServers` + `ui.tools`). None has a usable env (`DEFAULT_MODEL_PARAMS.system` never reaches a farm model's messages; 0.11's `DEFAULT_INTERFACE_SETTINGS` is missing from 0.10 and comes back when a person empties it). | See gotchas below. |
 | Data | `DATA_DIR` → the user's chosen local folder; the vectors are kept there whoever computes them (the farm's document search once the folder adopted it, else OWUI's MiniLM on this computer); telemetry off. | Enforces invariant #3. |
-| Net out of OWUI | Chat completions to the farm endpoint; plus, when the farm advertises them: web searches, Kokoro TTS requests, and uploaded‑file bytes to the farm OCR extractor; and MCP tool calls to the Computer on 127.0.0.1 (this machine) — which answers the home tools against the Home Assistant a person linked. **Web search v2** (2026-10-05): OWUI's searches go to this app's main on 127.0.0.1 (`POST /web/search` on the MCP listener, OWUI's external-search env); main sends the query to the farm's SearXNG and itself reads the top pages of each search — up to 6 automatic GETs, public internet only (`webSearch.ts` through `io.ts`) — instead of OWUI fetching only the pages the model picks; a page the model still fetches itself (`fetch_url`) is OWUI's own GET. That is native tool calling, OWUI's default; a chat set to Legacy function calling gets main's results too, but OWUI then loads those pages itself (its web loader). When that port is taken, OWUI queries SearXNG directly, as before. **Document search** (2026-10-08): once the data folder adopted the farm's contract, the text of each piece of an uploaded document, and of a search, goes to the farm's document search (`RAG_OPENAI_API_BASE_URL`, its own port and key) and the vectors come back. | The vectors are stored only in DATA_DIR; the farm keeps no text and no vector. |
+| Net out of OWUI | Chat completions to the farm endpoint; plus, when the farm advertises them: web searches, Kokoro TTS requests, uploaded‑file bytes to the farm OCR extractor, and (2026-10-09) the microphone's and Call mode's recordings to the farm's speech to text (written down and dropped there; OWUI keeps its copy in `DATA_DIR/cache/audio`, as with its local engine); and MCP tool calls to the Computer on 127.0.0.1 (this machine) — which answers the home tools against the Home Assistant a person linked. **Web search v2** (2026-10-05): OWUI's searches go to this app's main on 127.0.0.1 (`POST /web/search` on the MCP listener, OWUI's external-search env); main sends the query to the farm's SearXNG and itself reads the top pages of each search — up to 6 automatic GETs, public internet only (`webSearch.ts` through `io.ts`) — instead of OWUI fetching only the pages the model picks; a page the model still fetches itself (`fetch_url`) is OWUI's own GET. That is native tool calling, OWUI's default; a chat set to Legacy function calling gets main's results too, but OWUI then loads those pages itself (its web loader). When that port is taken, OWUI queries SearXNG directly, as before. **Document search** (2026-10-08): once the data folder adopted the farm's contract, the text of each piece of an uploaded document, and of a search, goes to the farm's document search (`RAG_OPENAI_API_BASE_URL`, its own port and key) and the vectors come back. | The vectors are stored only in DATA_DIR; the farm keeps no text and no vector. |
 | Webview | The renderer reads the OWUI origin's `localStorage.token`, validates it with `GET /api/v1/auths/` (drop + reload, ≤4 tries) before revealing the webview, and reads the user's settings once per session to undo the old web‑search seed and write the date line (a failed read writes nothing); a page that loaded while the farm in use was not answering is reloaded once, 500 ms after that farm answers (`reloadIfFarmBack`: OWUI reads the model list only as its page loads, measured on 0.11.4; re-check on a pin bump); the `persist:owui` partition is granted mic/camera/clipboard only. | `renderer/app.js`, `src/main/index.ts`. |
 | Hugging Face cache | Before each start of a data folder still on MiniLM (none once it indexes on the farm), main repairs a half or damaged MiniLM in huggingface_hub's cache, never OWUI's own files. `repairMiniLm` removes the hub's file list and dangling links, and the snapshots only if the model is still half there; the blobs always stay. While MiniLM is not on disk, main also sends huggingface.co one HEAD (3 s) to choose `HF_HUB_OFFLINE` for that launch. "Whole" (`hfModelState`) copies huggingface_hub 1.33's local lookup and the files MiniLM's loader reads: re-check both on every pin bump. | `configBridge.ts`, `sidecar.ts`. |
 | Everything else | None. OWUI is a black box. | No DB poking, no template/CSS edits, no internal imports. |
@@ -473,7 +478,9 @@ Connection: `OPENAI_API_BASE_URL` + `OPENAI_API_KEY` (the farm is OpenAI‑compa
   otherwise refuses attaching any LAN/intranet page — matrix‑verified) · `ENABLE_RETRIEVAL_QUERY_GENERATION=false`
   (with files attached OWUI otherwise runs a hidden extra LLM call whose output full‑context mode never uses;
   `ENABLE_SEARCH_QUERY_GENERATION` stays on) · `DEFAULT_MODEL_METADATA={"capabilities":{"vision":true}}`
-  (+ `"web_search":true` with a farm SearXNG) · `AUDIO_STT_ENGINE=''` + `WHISPER_MODEL=base` (local STT) ·
+  (+ `"web_search":true` with a farm SearXNG) · `AUDIO_STT_ENGINE=''` + `WHISPER_MODEL=base` (local STT, unless
+  the farm advertises speech to text, below) · `AUDIO_TTS_SPLIT_ON=punctuation` (OWUI's default, restated: Call mode
+  speaks a streamed reply sentence by sentence) ·
   `AUDIO_TTS_ENGINE=''` · the **TTFT trio** `ENABLE_FOLLOW_UP_GENERATION`/`ENABLE_TAGS_GENERATION`/
   `ENABLE_AUTOCOMPLETE_GENERATION` = `false` (OWUI's background calls would otherwise queue ahead of the user
   on llama‑server's single slot; title generation stays ON) · `TASK_MODEL_PARAMS={"chat_template_kwargs":
@@ -512,6 +519,13 @@ Connection: `OPENAI_API_BASE_URL` + `OPENAI_API_KEY` (the farm is OpenAI‑compa
   (`WEB_LOADER_ENGINE` stays unset): attaching a LAN page keeps working through `ENABLE_LOCAL_WEB_FETCH`.
 - **Kokoro** (when advertised): `AUDIO_TTS_ENGINE=openai` · `AUDIO_TTS_OPENAI_API_BASE_URL=<ttsUrl>` ·
   `AUDIO_TTS_OPENAI_API_KEY=sk-lol-tts` · `AUDIO_TTS_MODEL=<ttsModel|kokoro>` · `AUDIO_TTS_VOICE=<ttsVoice|af_heart>`.
+- **Speech to text** (when advertised with a key, 2026-10-09): `AUDIO_STT_ENGINE=openai` ·
+  `AUDIO_STT_OPENAI_API_BASE_URL=<stt.url>/v1` (OWUI appends `/audio/transcriptions` and trims no slash) ·
+  `AUDIO_STT_OPENAI_API_KEY=<stt.key>` (fetched through the farm password on a keyed farm) ·
+  `AUDIO_STT_MODEL=<stt.model|whisper-1>`. OWUI's Call mode (0.11.4, unmodified) then does the voice mode: the
+  browser ends a phrase after 2 s of silence (hard-coded in its frontend), the recording is written down on the farm,
+  the reply streams and each sentence goes to Kokoro as soon as it is complete; a person can interrupt by speaking
+  only with OWUI's own setting *Allow voice interruption in call* (off by default).
 - **OCR** (when advertised): `CONTENT_EXTRACTION_ENGINE=external` · `EXTERNAL_DOCUMENT_LOADER_URL=<extract.url>`
   · `EXTERNAL_DOCUMENT_LOADER_API_KEY=<extract.key>` (the key fetched through the farm password on a keyed farm;
   `sk-lol-ocr` when there is none, because OWUI's loader needs a non-empty key). The URL is sent without trailing slashes.
@@ -880,7 +894,8 @@ LlmOnLan/
   its default; a chat set to Legacy function calling still has OWUI load the result pages itself); TTS requests when
   the farm hosts Kokoro (and a Computer Speak box's text, with the farm voice); a Computer Sound box's
   recording, only in **Listen** mode, to be written down by the farm's speech-to-text (never logged or
-  kept); and — with the default‑on farm OCR — an uploaded file's (or a Computer Document
+  kept), and — when the farm offers speech to text — every recording of Open WebUI's microphone button and Call
+  mode, written down the same way (Open WebUI's own copy and transcript stay in `DATA_DIR/cache/audio`); and — with the default‑on farm OCR — an uploaded file's (or a Computer Document
   box's) raw bytes, for text **extraction** (nothing kept); with the farm's **document search**, the text of each
   piece of a document and of each search, turned into vectors that come back and are kept on this computer (the
   farm keeps no text and no vector, and its log holds token counts only); presence heartbeats

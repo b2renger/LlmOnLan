@@ -6,6 +6,99 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-10-09 (17:13) — Speech to text on the farm's GPU, and the voice mode is Open WebUI's Call, pointed at the farm
+
+The owner asked (branch `voice-mode`): **A.** the farm's speech to text on its NVIDIA GPU with a better model, the CPU
+kept for farms without one, its GPU memory counted like document search's; **B.** a live voice mode — a person talks,
+the end of each phrase is found, it is transcribed and answered, and the answer is spoken by the farm's Kokoro phrase
+by phrase — checking first what Open WebUI 0.11.4 already does.
+
+**What Open WebUI 0.11.4 already does (read in the bundled sidecar, `open_webui/routers/audio.py`, `config.py`, and the
+built frontend's source maps: `CallOverlay.svelte`, `Chat.svelte`, `utils/index.ts`).** Its **Call** mode (the headphones
+button) is the whole voice mode: the browser listens (an AnalyserNode; any sound above −55 dB is speech), ends the
+phrase after **2 s** without sound (hard-coded, no setting or env), posts the recording to `/api/v1/audio/transcriptions`,
+sends the words as the message, and while the reply streams it cuts it at `. ! ?` and line breaks
+(`AUDIO_TTS_SPLIT_ON=punctuation`, the default; a piece under 4 words or 50 characters joins the next) and asks
+`/api/v1/audio/speech` for each piece at once, playing them in order. Speaking over the answer interrupts it only with
+the person's own setting *Allow voice interruption in call* (off by default: the mic is deaf while it speaks). Its STT
+engine `openai` posts `{AUDIO_STT_OPENAI_API_BASE_URL}/audio/transcriptions` (multipart `file`, `model`, `language`
+only if the person set one; a failure is retried once without `language`) and reads `text`. So nothing had to be built
+in LOL for B: it is configuration. Three facts found on the way: OWUI streams the file **chunked** (aiohttp with an
+async generator, checked by capturing the request), which our service refused with 411; OWUI trims no slash from the
+base URL; and OWUI keeps every recording and its transcript in `DATA_DIR/cache/audio/transcriptions` (never deleted:
+the same with its local engine — on the laptop, inside the data folder).
+
+**Built.**
+- **Farm (`src/stt.js`, `pysvc/stt_server.py`, config `stt.device`/`stt.model` = `'auto'`).** `'auto'` = the GPU with
+  Whisper **large-v3-turbo** (int8_float16) when an NVIDIA GPU is there on Windows or Linux x64, else the CPU with
+  `small` (int8). The CUDA libraries are pip wheels in the service's venv: on Windows **cuBLAS alone** (CTranslate2
+  4.8.2's wheel carries cuDNN's loader; measured: the GPU ran without the 1.1 GB cuDNN wheel), on Linux cuBLAS + cuDNN
+  (faster-whisper's README; not run here). The farm passes their folders (Windows: DLL search, Linux:
+  `LD_LIBRARY_PATH`). The service warms the model on 1 s of silence and, when the GPU does not load, loads `small` on
+  the CPU and says why in `/health` (checked for real: cuBLAS hidden → `{"device":"cpu","fallback":"RuntimeError:
+  Library cublas64_12.dll is not found…"}`). The model downloads into `farm/.stt/models` (so `rm -rf farm/.stt` is a
+  full uninstall) and loads offline when it is there. Pinned **PyAV 18.1.0**: PyAV 19 (out now) drops an argument
+  faster-whisper 1.2.1 passes, so a fresh unpinned install refused every recording. The upload may be chunked: read
+  into memory up to the cap (413 past it, never further), parsed there. A GPU start whose files are on disk comes up
+  before the engine sizes its memory (registry `early`, like document search); Ollama's context cache key gains `|stt`.
+  vLLM's Automatic memory keeps **2 GB** for it while it is on, on the GPU, and not running yet (`up.js`
+  `pluginReserveGib` = document search's + this; the snapshot advertises `stt {url, key, model}`).
+- **Client (`configBridge.ts`, plumbed like `embed` through `farmSelect`/`index`/`sidecar`/`store`).** A farm advertising
+  `stt` with a key → `AUDIO_STT_ENGINE=openai`, `AUDIO_STT_OPENAI_API_BASE_URL=<stt.url>/v1`, its key (fetched through
+  the farm password on a keyed farm, kept while a fetch is pending), `AUDIO_STT_MODEL=<stt.model>` (`whisper-1` from a
+  farm that names none). No farm STT → OWUI's local whisper `base`, as before. `AUDIO_TTS_SPLIT_ON=punctuation`
+  restated. The farm decides the URL and model, so Qwen3-Omni (another branch) is a farm-side change.
+
+**Measured on the RTX PRO 6000 (2026-10-09; French: LibriVox *J'accuse*, English: *Gettysburg Address*; 16 kHz WAV
+clips of exactly 5 s and 30 s; faster-whisper's own `transcribe` with `vad_filter`, median of 3 after a warm run; GPU
+memory = nvidia-smi's used total minus before, peak polled every 100 ms; the GPU otherwise idle):**
+
+| | FR 5 s | FR 30 s | EN 5 s | EN 30 s | GPU memory | errors in FR 30 s |
+|---|---|---|---|---|---|---|
+| GPU large-v3-turbo int8_float16 (**the default**) | 0.17 s | 0.48 s | 0.14 s | 0.42 s | 1.7 GB | 1 (*tâches*) |
+| GPU large-v3-turbo float16 | 0.15 s | 0.43 s | 0.13 s | 0.53 s | 2.7 GB | 1 |
+| GPU large-v3 float16 | 0.38 s | 1.62 s | 0.29 s | 1.07 s | 4.6 GB | 0 |
+| GPU small float16 | 0.18 s | 1.13 s | 0.16 s | 0.62 s | 1.2 GB | ~4 |
+| CPU small int8, 4 threads (**today's**) | 1.90 s | 5.54 s | 1.77 s | 3.62 s | — | ~4 |
+| CPU base int8, 4 threads (the laptop's OWUI) | 0.67 s | 1.67 s | 0.62 s | 1.23 s | — | ~8 |
+| CPU large-v3-turbo int8, 4 threads | 7.1 s | 8.3 s | 6.9 s | 11.1 s | — | 1 |
+
+Turbo writes long French without capitals or punctuation (the 30 s clip, both number formats); the 5 s clips, a
+voice-mode phrase's length, keep them. With another engine holding the GPU at 100 % (a vLLM benchmark ran beside),
+the installed service took 1.3 s for the 5 s clip through HTTP. The farm's own install path (`ensureStt`, Windows):
+39 s with pip's cache, a 1.2 GB venv; the first start downloaded large-v3-turbo in 10 min on this afternoon's slow
+link.
+
+**The voice mode, end to end (method).** The built, unmodified sidecar on scratch ports and a scratch DATA_DIR/HF_HOME,
+with the env the branch's compiled `buildSidecarEnv` gives it; the branch's STT service (GPU); the dev checkout's
+Kokoro (GPU, voice `ff_siwis`); a scratch llama-server with Qwen2.5-1.5B-Instruct (the production model was not
+used). A headless Chrome whose microphone is a WAV (`--use-file-for-fake-audio-capture`: 1.5 s silence, a question
+said by Kokoro, silence) opens `/?call=true` — OWUI's own Call overlay — and the page's `getUserMedia`,
+`MediaRecorder`, `fetch` and `play` are timed. **End of speech → first audio: 2.1–2.5 s** (6 runs, 3 French and
+3 English, GPU idle; median 2.37 s), of which OWUI's end-of-phrase takes 1.55–1.73 s, the transcription round trip
+through OWUI 0.27–0.33 s, the first sentence's text 0.11–0.32 s after the chat request (a 1.5B model; a 35B model adds
+its time to first token), Kokoro's first piece 0.17–0.22 s (5 ms when OWUI had it in its cache). 3.1–3.5 s (3 runs) with the GPU at 100 % under another engine.
+French was transcribed with its accents (*« Bonjour, peux-tu me donner trois idées de desserts faciles pour ce soir ? »*)
+and the answers were spoken in 2–9 pieces. Two rig artefacts, not LOL's: OWUI 0.11.4's first title generation fails
+with `KeyError: 'model'` (harmless), and llama-server's RAM prompt cache stalled a language switch by 14–23 s
+(`--cache-ram 0` removed it).
+
+**Tests.** Farm `node test/run.js` 217 passed (a new test: the GPU/CPU choice, the CUDA wheels per platform, the
+libraries' folders, the model on disk, the reserve in every vLLM plan — 52 → 48 GB on the PRO 6000 with document
+search and speech to text —, the advertised model after a fallback), and `check_services.py` (a chunked upload is
+transcribed, a chunked one over the cap is 413, the GPU load, the CPU fallback with its reason, the CPU never trying
+the GPU). Shell: build, `chat-unit` 1863 passed (a new test: the env from the snapshot, the slash, the local fallback,
+the key pending, the saved context, every start path), `test:unit` 29, lint 0. Each new test fails on the old code.
+
+**Left (vllm.js belongs to the vLLM branch now):** vLLM's Automatic memory counts speech to text through the parameter
+named for document search, so its sentence when memory is short says "document search" for both, and `gpuFit` (the
+"too small for vLLM" line) does not count speech to text: name it there when the vLLM card next changes. The
+Computer's Sound box sends no `model` (vLLM's transcription endpoint takes its served model when none is named).
+**The owner's:** A18–A19 (voice mode with a laptop's mic, a noisy room, French), J9 (the PRO 6000 beside vLLM), K7 (a
+small card, no NVIDIA) in HUMAN_TESTS.md; whether speech to text should be on by default with a GPU like document
+search (it stays off); whether OWUI's 2 s end-of-phrase is good enough in the studio (it cannot be tuned without a
+voice mode of LOL's own).
+
 ## 2026-10-09 (14:36) — Release client v0.2.10 and Farm app farm-v0.0.44: document search on the farm, the home on the Computer
 
 The owner asked at 12:00 for a release to start the human tests on (docs/HUMAN_TESTS.md). Done:

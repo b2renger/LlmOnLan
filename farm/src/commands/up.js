@@ -32,6 +32,7 @@ const { PeerListener } = require('../peerListener');
 const { selectModels } = require('../modelPicker');
 const { makeServices, pluginsSummary } = require('../plugins/registry');
 const embedMod = require('../embed');
+const sttMod = require('../stt');
 const { sendKey: sendBusKey } = require('../bus');
 const { farmId, pluginKey } = require('../identity');
 const { startSelfServer } = require('../selfServer');
@@ -669,6 +670,8 @@ async function run(args) {
         embedMod.resolveEnabled(config, hw);
         log.info(`Document search: ${config.embed.enabled ? 'on' : 'off'} ${log.paint.grey(`(automatic: ${config.embed.enabled ? 'an NVIDIA GPU' : embedMod.available(config).message || 'no NVIDIA GPU'})`)}`);
     }
+    // Speech to text's 'auto': the GPU (Whisper large-v3-turbo) with an NVIDIA GPU, else the CPU ("small"); in memory.
+    sttMod.resolveStt(config, hw);
 
     // 0c. Can this platform run the llama.cpp engine at all? No prebuilt asset and
     //     no binDir means the answer is no (linux-arm64 — the DGX Spark — today), and
@@ -855,6 +858,11 @@ async function run(args) {
     // What vLLM's Automatic memory keeps for Document search: its share while it is on but not running yet (a toggle
     // from the panel, a start that is still downloading), nothing once its memory is taken.
     const embedReserveGib = () => (svcById.embed.enabled(config) && !svcById.embed.up ? embedMod.RESERVE_GIB : 0);
+    // The same for speech to text on the GPU (stt.js RESERVE_GIB). vllm.js has one parameter for the plugins beside it
+    // (`embedReserveGib`, named after the first): it gets both. ponytail: its sentence and gpuFit name document search
+    // only; naming speech to text there waits for the vLLM card's next change.
+    const sttReserveGib = () => (!svcById.stt.up ? sttMod.reserveGib(config) : 0);
+    const pluginReserveGib = () => embedReserveGib() + sttReserveGib();
     // Plugins started before the farm is public go down with a boot that gives up.
     const stopServices = async () => { for (const svc of services) { if (svc.pid) await killTree(svc.pid); } };
 
@@ -1006,7 +1014,8 @@ async function run(args) {
         // fewer people (KV spilling to RAM). The restart sizes the new count on a
         // daemon that runs it.
         // Document search running beside it holds ~1.2 GB of the GPU: a verdict measured without it would not fit with it.
-        const cacheKey = `${def}|${vram ?? '?'}|${oll.numParallel}|${config.ollama.kvCacheType || 'f16'}${svcById.embed.up ? '|embed' : ''}`;
+        // Speech to text on the GPU too (~1.5 GB with large-v3-turbo).
+        const cacheKey = `${def}|${vram ?? '?'}|${oll.numParallel}|${config.ollama.kvCacheType || 'f16'}${svcById.embed.up ? '|embed' : ''}${svcById.stt.up && svcById.stt.ctx.device === 'cuda' ? '|stt' : ''}`;
         let cache = {};
         try { cache = JSON.parse(fsMod.readFileSync(cacheFile, 'utf8')) || {}; } catch { /* first probe */ }
         if (typeof cache[cacheKey] === 'number') {
@@ -1374,7 +1383,7 @@ async function run(args) {
             const pr = vllmMod.problemsFrom({ ...vllmProbe, installKind: dl ? dl.kind : null }, config);
             if (pr.problems.length || !vllmTarget) return { ok: false, message: pr.problems[0] || 'This computer did not answer the check.' };
             if (isCancelled()) return { ok: false, cancelled: true };
-            plan = vllmMod.planFor(config, vllmProbe.st, vllmMod.memOf(vllmProbe.st), { embedReserveGib: embedReserveGib() });
+            plan = vllmMod.planFor(config, vllmProbe.st, vllmMod.memOf(vllmProbe.st), { embedReserveGib: pluginReserveGib() });
             if (!plan.ok) return { ok: false, message: plan.reason };
             // Nothing of this root runs now (stopped just above), so whatever answers on the port is another program's:
             // serve.sh's relay could not listen, and the start must not take that server's answers for its own.
@@ -1727,6 +1736,7 @@ async function run(args) {
         classifyKey: svcById.classify.up ? svcById.classify.ctx.key : null,
         sttUp: svcById.stt.up,                // advertise stt{} so the Computer's Sound box can listen
         sttKey: svcById.stt.up ? svcById.stt.ctx.key : null,
+        sttModel: svcById.stt.up ? svcById.stt.ctx.model || null : null,
         busUp: svcById.bus.up,                // advertise bus{} so boards and Computers meet here
         embedUp: svcById.embed.up,            // advertise embed{} so laptops index their documents here
         embedKey: svcById.embed.up ? svcById.embed.ctx.key : null,
@@ -1916,7 +1926,7 @@ async function run(args) {
         liveHealth[svc.healthKey] = svc.up;
         if (svc.id === 'ocr') liveHealth.extractKey = svc.up ? svc.ctx.key : null;
         if (svc.id === 'classify') liveHealth.classifyKey = svc.up ? svc.ctx.key : null;
-        if (svc.id === 'stt') liveHealth.sttKey = svc.up ? svc.ctx.key : null;
+        if (svc.id === 'stt') { liveHealth.sttKey = svc.up ? svc.ctx.key : null; liveHealth.sttModel = svc.up ? svc.ctx.model || null : null; }
         if (svc.id === 'embed') liveHealth.embedKey = svc.up ? svc.ctx.key : null;
         refreshPluginHealth();
     };
@@ -2725,7 +2735,7 @@ async function run(args) {
         // An explicit memory for conversations can be checked against one person's window now; Automatic is
         // worked out at the start, once the current engine has left the GPU.
         if (config.vllm.kvCacheGib !== 'auto') {
-            const plan = vllmMod.planFor(config, vllmProbe.st, vllmMod.memOf(vllmProbe.st), { embedReserveGib: embedReserveGib() });
+            const plan = vllmMod.planFor(config, vllmProbe.st, vllmMod.memOf(vllmProbe.st), { embedReserveGib: pluginReserveGib() });
             if (!plan.ok) return plan.reason;
         }
         return null;
@@ -2872,7 +2882,7 @@ async function run(args) {
         let autoKvGib = null;
         if (v.kvCacheGib === 'auto' && vllmState.phase === 'ready') autoKvGib = v.kvResolvedGib ?? null;
         else if (mem && e && !st.running) {
-            const p = vllmMod.planFor({ ...config, vllm: { ...v, kvCacheGib: 'auto' } }, st, mem, { embedReserveGib: embedReserveGib() });
+            const p = vllmMod.planFor({ ...config, vllm: { ...v, kvCacheGib: 'auto' } }, st, mem, { embedReserveGib: pluginReserveGib() });
             autoKvGib = p.ok ? p.kvGib : null;
         }
         const pool = vllmState.phase === 'ready' && v.kvResolvedGib != null ? v.kvResolvedGib : (v.kvCacheGib === 'auto' ? autoKvGib : v.kvCacheGib);
@@ -2906,6 +2916,7 @@ async function run(args) {
             cardGib: mem ? gb(mem.totalGib) : null, unified: mem ? !!mem.unified : null,
             ocrReserveGib: config.ocr.enabled ? v.ocrReserveGib : 0,
             embedReserveGib: embedReserveGib(),
+            sttReserveGib: sttReserveGib(),
             minFreeGb: v.minFreeGb === 'auto' ? (mem && mem.unified ? 8 : null) : (v.minFreeGb || null),
             // Install is offered once the check sees a GPU this vLLM can use, big enough for a model of the list, and
             // the tools a start needs; Update when another version is there.

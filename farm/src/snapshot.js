@@ -272,10 +272,11 @@ function buildSnapshot(config, health = {}, callerIp = null) {
         classify: (config.classify?.enabled && health.classifyUp && health.classifyKey)
             ? plug(`http://${svcHost}:${config.classify.port}`, health.classifyKey)
             : null,
-        // Speech to text for the Computer's Sound box (null when off/down): POST {url}/v1/audio/transcriptions,
-        // the OpenAI contract.
+        // Speech to text (null when off/down): POST {url}/v1/audio/transcriptions, the OpenAI contract. The Computer's
+        // Sound box, and Open WebUI's microphone and Call mode on the laptops (their AUDIO_STT_* follow these fields, so
+        // which server transcribes is the farm's choice). `model` = what it loaded (the CPU one after a GPU fallback).
         stt: (config.stt?.enabled && health.sttUp && health.sttKey)
-            ? plug(`http://${svcHost}:${config.stt.port}`, health.sttKey)
+            ? { ...plug(`http://${svcHost}:${config.stt.port}`, health.sttKey), model: health.sttModel || config.stt.model }
             : null,
         // Document search (null when off/down): Open WebUI's embedding engine, POST {url}/v1/embeddings. `contract`
         // names the vectors (model, 768 numbers, the prefixes): a laptop uses it only when it knows that contract, and

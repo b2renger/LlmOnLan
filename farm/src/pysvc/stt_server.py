@@ -1,8 +1,11 @@
 """lol-stt: speech to text on the farm, by the OpenAI transcription contract (docs/ECOSYSTEM_PLAN.md v2 §3.3).
 
-The Computer's Sound box, in Listen mode, sends a recording and gets its words back. faster-whisper
-(the same library and version Open WebUI uses on the client, MIT code and weights) runs on the CPU
-with int8 weights: no torch, a small install, and a model of 75–500 MB depending on `STT_MODEL`.
+The Computer's Sound box, in Listen mode, and Open WebUI on each laptop (its microphone and Call mode)
+send a recording and get its words back. faster-whisper (the same library and version Open WebUI uses on
+the client, MIT code and weights): no torch. On the GPU (STT_DEVICE=cuda) with int8_float16 weights, Whisper
+large-v3-turbo by default; on the CPU with int8 weights, "small" by default. When the GPU does not load
+(a driver too old, the CUDA libraries missing), it loads STT_CPU_MODEL on the CPU instead and /health says
+why (`fallback`).
 
 Why our own wrapper: the same rules as the OCR and Classify services —
   - Authorization: Bearer $STT_API_KEY on every call but /health;
@@ -16,11 +19,14 @@ Contract (OpenAI's POST /v1/audio/transcriptions, the part we use):
   multipart/form-data: file (required), language (optional, e.g. "fr"), model (ignored: one model)
   → 200 {"text": str, "language": str, "duration": float, "ms": int}
     401 bad key · 400 no file · 413 too big · 429 busy (Retry-After) · 503 loading
+  The body may come chunked (Open WebUI streams the file without a length): it is read into memory up
+  to the cap, never further, then parsed there.
 """
 
 import asyncio
 import io
 import os
+import sys
 import threading
 import time
 from collections import defaultdict
@@ -31,6 +37,11 @@ from starlette.formparsers import MultiPartParser
 
 API_KEY = os.environ.get("STT_API_KEY", "")
 MODEL = os.environ.get("STT_MODEL", "base")
+DEVICE = os.environ.get("STT_DEVICE", "cpu")
+COMPUTE = os.environ.get("STT_COMPUTE", "int8_float16" if DEVICE == "cuda" else "int8")
+CPU_MODEL = os.environ.get("STT_CPU_MODEL", "") or MODEL
+MODELS_DIR = os.environ.get("STT_MODELS_DIR") or None
+CUDA_LIBS = [d for d in os.environ.get("STT_CUDA_LIBS", "").split(os.pathsep) if d]
 THREADS = max(1, int(os.environ.get("STT_THREADS", "4")))
 MAX_BYTES = max(1, int(os.environ.get("STT_MAX_MB", "25"))) * 1024 * 1024
 MAX_WAITING = max(0, int(os.environ.get("STT_MAX_WAITING", "4")))
@@ -40,23 +51,60 @@ FORM_SLACK = 64 * 1024   # the multipart envelope around the file
 MultiPartParser.spool_max_size = MAX_BYTES + FORM_SLACK
 
 app = FastAPI(title="lol-stt")
-state = {"model": None, "ready": False, "error": None}
+state = {"model": None, "ready": False, "error": None, "device": None, "name": None, "fallback": None}
 gate = asyncio.Semaphore(1)
 waiting = {"n": 0}
 per_client = defaultdict(int)
 
 
-def _load():
+def _cuda_libs():
+    # The venv's CUDA wheels (stt.js cudaLibDirs). Linux reads LD_LIBRARY_PATH, set by stt.js before the start;
+    # Windows needs the folders in the DLL search before CTranslate2 loads cuBLAS.
+    if sys.platform == "win32":
+        for d in CUDA_LIBS:
+            if os.path.isdir(d):
+                os.add_dll_directory(d)
+        os.environ["PATH"] = os.pathsep.join(CUDA_LIBS + [os.environ.get("PATH", "")])
+
+
+def _whisper(name, device, compute):
     from faster_whisper import WhisperModel
-    return WhisperModel(MODEL, device="cpu", compute_type="int8", cpu_threads=THREADS)
+    kw = dict(device=device, compute_type=compute, cpu_threads=THREADS, download_root=MODELS_DIR)
+    try:   # on disk already: no network call (a farm offline, or huggingface.co silently blocked, would wait)
+        return WhisperModel(name, local_files_only=True, **kw)
+    except FileNotFoundError:   # huggingface_hub's LocalEntryNotFoundError: not downloaded yet
+        return WhisperModel(name, **kw)
+
+
+def _warm(model):
+    # One second of silence through the encoder: a GPU that cannot run it (cuBLAS missing, a driver too old) fails
+    # here, at the start, not at a person's first recording.
+    import numpy as np
+    segments, _ = model.transcribe(np.zeros(16000, dtype=np.float32), language="en")
+    list(segments)
+
+
+def _load():
+    """-> (model, device, name, fallback): the GPU when asked and it works, else the CPU model."""
+    fallback = None
+    if DEVICE == "cuda":
+        try:
+            _cuda_libs()
+            m = _whisper(MODEL, "cuda", COMPUTE)
+            _warm(m)
+            return m, "cuda", MODEL, None
+        except Exception as e:
+            fallback = f"{type(e).__name__}: {e}"[:300]
+    name = CPU_MODEL if DEVICE == "cuda" else MODEL
+    return _whisper(name, "cpu", "int8"), "cpu", name, fallback
 
 
 @app.on_event("startup")
 async def _startup():
     async def load():
         try:
-            state["model"] = await asyncio.to_thread(_load)
-            state["ready"] = True
+            model, device, name, fallback = await asyncio.to_thread(_load)
+            state.update(model=model, device=device, name=name, fallback=fallback, ready=True)
         except Exception as e:
             state["error"] = f"{type(e).__name__}: {e}"
     asyncio.create_task(load())
@@ -65,8 +113,24 @@ async def _startup():
 @app.get("/health")
 async def health():
     if state["ready"]:
-        return {"ready": True, "model": MODEL}
+        return {"ready": True, "model": state["name"], "device": state["device"], "fallback": state["fallback"]}
     return JSONResponse({"ready": False, "error": state["error"]}, status_code=503)
+
+
+async def _body(request: Request, cap: int):
+    """The whole body in memory, or None once it passes `cap` (the rest is never read)."""
+    buf = bytearray()
+    async for chunk in request.stream():
+        buf += chunk
+        if len(buf) > cap:
+            return None
+    return bytes(buf)
+
+
+async def _form(request: Request, body: bytes):
+    async def once():
+        yield body
+    return await MultiPartParser(request.headers, once(), max_files=1, max_fields=4, max_part_size=64 * 1024).parse()
 
 
 def _transcribe(data: bytes, language, cancel: threading.Event):
@@ -91,9 +155,7 @@ async def transcriptions(request: Request):
         declared = int(request.headers.get("content-length") or 0)
     except ValueError:
         declared = 0
-    if declared <= 0:
-        # A chunked upload does not say its size, and would reach the disk spool before any check.
-        return JSONResponse({"detail": "the upload must declare its length"}, status_code=411)
+    # A chunked upload (no length: Open WebUI streams its file) is read below up to the cap, in memory.
     if declared > MAX_BYTES + FORM_SLACK:
         return JSONResponse({"detail": f"at most {MAX_BYTES // (1024 * 1024)} MB"}, status_code=413)
     client = request.client.host if request.client else "?"
@@ -105,10 +167,15 @@ async def transcriptions(request: Request):
     queued = True   # counted in `waiting` until the gate is ours; a cancelled wait must not leak it
     data = b""
     try:
+        body = await _body(request, MAX_BYTES + FORM_SLACK)
+        if body is None:
+            return JSONResponse({"detail": f"at most {MAX_BYTES // (1024 * 1024)} MB"}, status_code=413)
         try:
-            form = await request.form(max_files=1, max_fields=4, max_part_size=64 * 1024)
+            form = await _form(request, body)
         except Exception:
             return JSONResponse({"detail": "the body is not a form"}, status_code=400)
+        finally:
+            del body
         file, language = form.get("file"), form.get("language")
         if file is None or isinstance(file, str):
             return JSONResponse({"detail": "no file"}, status_code=400)

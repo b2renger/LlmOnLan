@@ -53,6 +53,9 @@ export interface FarmSnapshot {
     // Document search on the farm (farms after farm-v0.0.43, owner 2026-10-08): Open WebUI's embedding engine. Used only when this
     // client knows `contract` (configBridge EMBEDDING_CONTRACTS); `key` as for extract.
     embed?: { url: string; key: string | null; keyId?: string; model?: string; dims?: number; contract: string } | null;
+    // Speech to text on the farm: POST {url}/v1/audio/transcriptions → Open WebUI's AUDIO_STT_* (configBridge). `model`
+    // is absent on farm-v0.0.44 and older; `key` as for extract.
+    stt?: { url: string; key: string | null; keyId?: string; model?: string } | null;
     // Serving engine + context geometry (absent on farms older than farm-v0.0.22).
     // contextPerSlot is what ONE chat can actually hold — the client picks
     // whole-document vs top-k RAG from it (configBridge FULL_CONTEXT_MIN_CTX).
@@ -120,6 +123,7 @@ export interface ShellSettings {
     lastFarmTts: { url: string; voice: string; model: string } | null;
     lastFarmExtract: { url: string; key: string } | null;
     lastFarmEmbed: { url: string; key: string; contract: string } | null;
+    lastFarmStt: { url: string; key: string; model: string } | null;
     lastFarmCtxPerSlot: number | null;
     // Per-farm shared passwords (ComfyQ-style), keyed by farm id — entered once
     // in the farm list, verified against the endpoint before being stored.

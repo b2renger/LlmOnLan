@@ -38,7 +38,18 @@
     "ttsModel": { "type": ["string", "null"], "description": "Kokoro's model. Open WebUI's AUDIO_TTS_MODEL (kokoro when null)." },
     "extract": { "$ref": "#/$defs/service", "description": "The OCR loader. Open WebUI's EXTERNAL_DOCUMENT_LOADER_* and the Computer's Document box." },
     "classify": { "$ref": "#/$defs/service", "description": "The Laya service. The Computer's Classify box." },
-    "stt": { "$ref": "#/$defs/service", "description": "Speech to text (POST {url}/v1/audio/transcriptions). The Computer's Sound box, in Listen mode." },
+    "stt": {
+      "type": ["object", "null"],
+      "description": "Speech to text, null when off or down: POST {url}/v1/audio/transcriptions, the OpenAI contract. The Computer's Sound box in Listen mode, and (clients after v0.2.10) Open WebUI's AUDIO_STT_OPENAI_* (configBridge.ts): the farm decides which server and model transcribe. On a farm with a password key is null and keyId names the key fetched from /lol/plugin-keys.",
+      "required": ["url"],
+      "additionalProperties": false,
+      "properties": {
+        "url": { "type": "string", "description": "The service's base URL (no /v1)." },
+        "key": { "type": ["string", "null"], "description": "Its Bearer key; null on a farm with a password." },
+        "keyId": { "type": "string", "description": "The start of the key's sha256, so a client knows when to fetch again." },
+        "model": { "type": "string", "description": "The model a request names (Open WebUI's AUDIO_STT_MODEL); farm-v0.0.44 and older leave it out." }
+      }
+    },
     "embed": {
       "type": ["object", "null"],
       "description": "Document search, null when off or down (farms after farm-v0.0.43): POST {url}/v1/embeddings. Open WebUI's RAG_EMBEDDING_* and RAG_OPENAI_* (configBridge.ts), only when the client knows `contract`; on a farm with a password key is null and keyId names the key fetched from /lol/plugin-keys.",

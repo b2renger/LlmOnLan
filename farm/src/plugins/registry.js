@@ -154,19 +154,25 @@ const DESCRIPTORS = [
         alive: (c) => classify.classifyAlive(c.classify.port, probeHost(c)),
     },
     {
-        // Ecosystem plan v2 §3.3: speech to text for the Computer's Sound box (Listen). CPU, off by default.
+        // Ecosystem plan v2 §3.3: speech to text for the Computer's Sound box (Listen) and Open WebUI's microphone and
+        // Call mode. Off by default. On the GPU (src/stt.js) it starts before the engine sizes its memory when it is all
+        // on disk, as document search; on the CPU, or with a first download ahead, once the farm is public.
         id: 'stt', label: 'Speech to text', logPrefix: 'stt', configKey: 'stt', healthKey: 'sttUp', runsOn: 'farm',
-        late: true,   // started after the farm is public (up.js): a first start downloads the model
+        early: (c) => stt.ready(c),
+        late: (c) => !stt.ready(c),
         enabled: (c) => !!(c.stt && c.stt.enabled),
         port: (c) => c.stt.port,
         makeCtx: (c, rt) => ({ key: rt.pluginKey('stt', farmPassword(c)) }),
-        ensure: () => stt.ensureStt(),
+        ensure: (c) => stt.ensureStt(c),
         spawn: (c, ctx) => stt.spawnStt(c, ctx),
-        stepMessage: (c) => `Speech to text: preparing faster-whisper "${c.stt.model}" on the CPU (port ${c.stt.port}) — first run installs it and downloads the model …`,
+        stepMessage: (c) => `Speech to text: preparing faster-whisper "${c.stt.model}" on the ${c.stt.device === 'cuda' ? 'GPU' : 'CPU'} (port ${c.stt.port}) — first run installs it and downloads the model …`,
         waitReady: async (c, ctx, isDead) => {
             const sx = await stt.waitForStt(c.stt.port, undefined, probeHost(c), isDead);
             if (sx.error) return { ok: false, level: 'warn', message: `Speech to text could not load its model (${sx.error}). Continuing without it.` };
-            if (sx.up) return { ok: true, level: 'ok', message: `Speech to text up (faster-whisper ${c.stt.model}, CPU) — the Computer's Sound box can listen on this farm${firewallNote(c)}.` };
+            ctx.model = sx.model || c.stt.model;   // what the snapshot advertises (the CPU model after a fallback)
+            ctx.device = sx.device;
+            const where = sx.device === 'cuda' ? 'GPU' : sx.fallback ? `CPU: the GPU did not load (${sx.fallback})` : 'CPU';
+            if (sx.up) return { ok: true, level: sx.fallback ? 'warn' : 'ok', message: `Speech to text up (faster-whisper ${ctx.model}, ${where}) — Open WebUI's microphone and the Computer's Sound box transcribe on this farm${firewallNote(c)}.` };
             return { ok: false, level: 'warn', message: `Speech to text did not become ready on port ${c.stt.port} (download or load still running? see the [stt] log). Continuing without it.` };
         },
         alive: (c) => stt.sttAlive(c.stt.port, probeHost(c)),

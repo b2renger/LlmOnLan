@@ -1298,16 +1298,31 @@ build for Blackwell cards (16 GB+); replace it freely.
   everything else, so run `lol bench` with it busy before turning it on for a class. The panel's plugin
   toggles list it (a toggle lasts the session; `classify.enabled` in the config makes it permanent).
   `rm -rf farm/.classify` uninstalls it.
-- **Speech to text (OFF by default, 2026-09-27):** for the Computer's Sound box in **Listen** mode.
-  `"stt": { "enabled": true, "port": 8892, "model": "small", "threads": 4, "maxMb": 25 }`. `lol up` builds
-  `farm/.stt` with **faster-whisper 1.2.1** — the library and version Open WebUI uses on the client (MIT),
-  CPU int8, no torch (~0.3 GB); the model (`small` ≈ 0.5 GB, `base` ≈ 0.15 GB) downloads at the first start.
+- **Speech to text (OFF by default, 2026-09-27; on the GPU and for Open WebUI since 2026-10-09):** for the
+  Computer's Sound box in **Listen** mode, and for **Open WebUI's microphone and Call (voice) mode** on every laptop:
+  a client that sees it sends its recordings here instead of transcribing them on the laptop's CPU.
+  `"stt": { "enabled": true, "port": 8892, "device": "auto", "model": "auto", "threads": 4, "maxMb": 25 }`.
+  `device` `"auto"` = the NVIDIA GPU when this computer has one (Windows or Linux x64; a DGX Spark stays on its
+  CPU: CTranslate2 has no CUDA build for arm64), else the CPU; `"cuda"` or `"cpu"` forces one. `model` `"auto"` =
+  **Whisper large-v3-turbo** on the GPU (int8 weights, float16 math), `small` on the CPU; any faster-whisper name
+  (`base`, `medium`, `large-v3`, …) overrides it. `lol up` builds `farm/.stt` with **faster-whisper 1.2.1**,
+  CTranslate2 4.8.2 and PyAV 18.1.0 (what Open WebUI 0.11.4 runs; PyAV 19 breaks faster-whisper 1.2.1), no torch;
+  on the GPU it adds NVIDIA's cuBLAS wheel (and cuDNN on Linux) to the same venv, never a system install: ~1.2 GB
+  in all on Windows, ~0.3 GB on the CPU. The model downloads at the first start into `farm/.stt/models`
+  (large-v3-turbo ≈ 1.6 GB, small ≈ 0.5 GB). When the GPU does not load (a driver too old, a library missing),
+  the service loads `small` on the CPU instead and the farm's log says why.
+  Measured on the RTX PRO 6000 (2026-10-09, French and English LibriVox clips, median of 3): large-v3-turbo on the
+  GPU writes down 5 s in 0.17 s and 30 s in 0.4–0.5 s, holding 1.7 GB of the GPU; `small` on 4 CPU threads takes
+  1.9 s and 5.5 s; the GPU model makes 1 error in the 30 s French clip where `small` makes ~4 and `base` ~8. With
+  the GPU at 100 % under another engine, the 5 s clip took 1.3 s. vLLM's Automatic memory keeps 2 GB for it while it
+  is on but not running yet; once it runs, its memory is simply not free. A GPU start whose files are all on disk
+  comes up before the engine sizes its memory (like document search).
   Ours (`src/pysvc/stt_server.py`), by the OpenAI contract `POST /v1/audio/transcriptions`, advertised as
-  `stt: {url, key}`: a Bearer key, one transcription at a time, one request per client, 429 +
-  `Retry-After`; the recording is read into memory, transcribed and dropped — never logged or kept.
-  Measured on the dev box's CPU: `small` writes down a 7.4 s clip in 2.1 s. Confucius4-R2T2 (streaming,
-  GPU, Linux/vLLM) is not installed: read its weight licence first, then run it yourself. `rm -rf farm/.stt`
-  uninstalls it.
+  `stt: {url, key, model}`: a Bearer key, one transcription at a time, one request per client, 429 +
+  `Retry-After`; the recording is read into memory (also when it comes chunked, as Open WebUI sends it, up to
+  `maxMb`), transcribed and dropped — never logged or kept. Turning it on or off restarts the clients' Open WebUI
+  once (its speech-to-text settings change). Confucius4-R2T2 (streaming, GPU, Linux/vLLM) is not installed: read
+  its weight licence first, then run it yourself. `rm -rf farm/.stt` uninstalls it, the model included.
 - **Document search (ON with an NVIDIA GPU, 2026-10-08):** turns the text of the laptops' documents into vectors,
   so Open WebUI can search them in any language (a question in English finds the French document). The laptop's
   Open WebUI sends the text of each piece of a document (about 1000 characters) and of each search; the vectors go

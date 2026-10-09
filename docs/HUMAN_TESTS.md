@@ -30,7 +30,7 @@ a test that sets one seat, kills an engine or restarts the farm on production wh
 
 | Session | Setup | Tests | ★ | Time |
 |---|---|---|---|---|
-| A. One laptop + the PRO 6000, installed builds | 1 laptop, the production farm | 17 | A1 | A1 1 h; the rest 7–8 h in several sittings |
+| A. One laptop + the PRO 6000, installed builds | 1 laptop, the production farm | 19 | A1 | A1 1 h; the rest 7–8 h in several sittings |
 | B. A fresh laptop, first install, no internet | a laptop never used, a blocked network, a proxy network | 6 | B1 | 2 h |
 | C. Upgrades and the data folder | a v0.2.9 laptop, the owner's v0.2.7 client, a spare profile, a USB stick | 6 | C1, C2 | 2.5 h |
 | D. Two machines, two farms, other subnets | 2 laptops, a second farm, a guest Wi-Fi | 15 | — | 4 h |
@@ -39,12 +39,12 @@ a test that sets one seat, kills an engine or restarts the farm on production wh
 | G. LOL Vibe's IDE | 1 laptop, a password farm, a GitHub account | 10 | — | 2.5 h |
 | H. Home Assistant on a real home | the office's Home Assistant Green | 4 | — | 2.5 h |
 | I. Document search on the farm | the farm, 2 laptops (one with old documents) | 7 | I1–I5 | 2 h |
-| J. The PRO 6000 (production, vLLM) | the PRO 6000 at a quiet moment, a client | 8 | J1–J4 | 3.5 h (+45 min install) |
-| K. A Windows test box with an RTX card | a non-production RTX PC, the 4070/4080, a PC with no NVIDIA GPU | 6 | K1–K5 | 3 h (+45 min K6) |
+| J. The PRO 6000 (production, vLLM) | the PRO 6000 at a quiet moment, a client | 9 | J1–J4 | 3.5 h (+45 min install) |
+| K. A Windows test box with an RTX card | a non-production RTX PC, the 4070/4080, a PC with no NVIDIA GPU | 7 | K1–K5 | 3 h (+45 min K6) |
 | L. The DGX Spark | a Spark with a screen | 3 | — | 3 h (+45 min) |
 | M. Reboot tests | the PRO 6000, the Spark | 2 | — | 1 h each |
 | N. The Farm app on a clean box | a PC with no Ollama or Python, a Mac | 5 | — | 2 h + downloads |
-| **Total** | | **100** | **18** | about 46–51 h |
+| **Total** | | **104** | **18** | about 46–51 h |
 
 **The release, in order:** K1–K5 on the test box first (the Farm app update, the held-file copy, llama.cpp b11512,
 document search's first start, the small cards), then J1–J4 on the PRO 6000, then I1–I5 and A1, B1 with the
@@ -357,6 +357,38 @@ model writes a working program for Analyse a dataset's question.
 - [ ] A twenty-item fan: no stutter as items land.
 - [ ] A Preview with a sketch: it draws, the canvas pans smoothly with a few dozen boxes.
 - Found:
+
+### A18 Voice mode: a conversation out loud, with the laptop's own microphone
+*Proves:* Open WebUI's Call mode on the farm's speech to text and Kokoro, phrase by phrase, with a real voice and a real
+microphone (the agent's run used a recorded voice through a headless browser: DEVLOG 2026-10-09). *Needs:* the farm
+with **Speech to text** and **Kokoro TTS** on (Plugins), a client on this branch's build, a laptop's built-in mic
+and speakers (then a headset). *Was:* new (owner, 2026-10-09).
+1. Open WebUI ▸ the headphones button (*Call*) beside the message box. Allow the microphone.
+2. In French, at a normal pace: *« Bonjour, peux-tu me donner trois idées de dessert faciles pour ce soir ? »* Stop
+   talking and count the seconds until the first spoken word comes back.
+3. While it answers, say nothing. Then ask a follow-up in English: *"And which one is the quickest?"*
+4. Settings ▸ Interface ▸ **Allow voice interruption in call** on; ask a question and talk over the answer.
+5. Farm panel: turn Speech to text off (the client's Open WebUI restarts once); a call again.
+
+*Expect:* about 2 s of silence ends your phrase (Open WebUI's own rule); your words appear as your message, French
+with its accents; the first words of the answer come back in about 3 s or less after you stop (write the number), then
+the answer goes on sentence by sentence without long gaps. The follow-up is understood in English. With interruption
+on, your voice stops the answer and starts a new turn; with it off (the default), the mic is deaf while it speaks.
+With the farm's speech to text off, calls still work, transcribed on the laptop (slower, rougher French).
+- [ ] Done · Found:
+
+### A19 Voice mode in a noisy room, and with a weak voice
+*Proves:* the end of a phrase is found where people really are. *Needs:* A18's setup, the studio at a busy moment (or
+music at a talking level), a second person. *Was:* new.
+1. A call with music or talk around you: ask two questions, then stay silent for 20 s.
+2. A soft-spoken person, 1 m from the laptop; then with a headset.
+3. Pause mid-sentence for about 1.5 s (*« Je voudrais… une recette de crêpes »*).
+
+*Expect:* write down what happens. Known from Open WebUI's code: any sound above −55 dB counts as speech and the
+phrase ends after 2 s without it, so steady noise can keep a phrase open (no answer until the noise stops) and a
+pause near 2 s splits a sentence in two turns. Nothing here can be tuned without changing Open WebUI: if it fails
+in the studio, say so (the owner then decides on a voice mode of LOL's own, DEVLOG 2026-10-09).
+- [ ] Done · Found:
 
 ## B. A fresh laptop: first install, first start, no internet — about 2 h
 
@@ -1230,6 +1262,19 @@ step 2 works.
 request's own limit wins on Ollama and llama.cpp); vLLM's log names `max_new_tokens` 32768.
 - [ ] Done · Found:
 
+### J9 Speech to text on the GPU beside vLLM
+*Proves:* the farm's speech to text installs and runs on the PRO 6000's GPU from the installed Farm app, and vLLM's
+Automatic memory leaves it room. *Needs:* a quiet moment, vLLM serving, a client laptop. *Was:* new (2026-10-09).
+1. Panel ▸ Plugins ▸ **Speech to text** on (the first start installs ~1.2 GB and downloads Whisper large-v3-turbo,
+   ~1.6 GB). Read farm.log.
+2. From the laptop: Open WebUI's microphone button, say a French sentence; then a call (A18 step 2).
+3. Restart the farm (Stop, Start). Read where *Speech to text up* comes in farm.log, and vLLM's people at once.
+
+*Expect:* farm.log says *Speech to text up (faster-whisper large-v3-turbo, GPU)*; the laptop's words come back in
+well under a second while the GPU is idle (1.3 s was measured with vLLM busy at 100 %); after the restart it comes up
+before vLLM is sized, and vLLM's Automatic memory is about 2 GB smaller than without it (write both numbers).
+- [ ] Done · Found:
+
 ## K. A Windows test box with an RTX card (not production) — about 3 h
 
 **Machine:** a Windows PC with an NVIDIA RTX card that is not the production farm; ideally also the studio's 4070
@@ -1307,6 +1352,18 @@ plugin (a new *Context: auto → N* in farm.log) and chats work. No NVIDIA GPU: 
 *Expect:* WSL steps, then a C compiler, then nothing ✗; the client chats normally during the install; a stopped
 download reads partly downloaded and a second Download finishes it; on a French Windows the WSL sentences read
 right; an older card gets a warning (write down whether it starts).
+- [ ] Done · Found:
+
+### K7 Speech to text on a small card and on a PC with no NVIDIA GPU
+*Proves:* the GPU choice and the CPU fallback from the installed Farm app. *Was:* new (2026-10-09).
+1. The 4070 (12 GB) box: Plugins ▸ **Speech to text** on; a laptop's microphone in Open WebUI.
+2. The PC with no NVIDIA GPU: the same.
+3. On the 4070, an old NVIDIA driver if one is at hand (or rename `farm\.stt\venv\Lib\site-packages\nvidia` and
+   restart the farm).
+
+*Expect:* the 4070 says *GPU* in farm.log, and after a farm restart Ollama's context is measured again with it beside (a new *Context* line);
+the PC without NVIDIA says *CPU* and installs no CUDA library (~0.3 GB); with the library gone the log says *CPU: the
+GPU did not load (…)* and the microphone still works, slower.
 - [ ] Done · Found:
 
 ## L. The DGX Spark — about 3 h (+45 min for the optional fresh install)
