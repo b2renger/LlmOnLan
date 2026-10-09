@@ -2427,7 +2427,8 @@ test('stt plugin: faster-whisper pinned (no torch), bound like the others, key a
     const sttMod = require('../src/stt');
     assert.match(sttMod.depsSignature(), /faster-whisper=1\.2\.1/, 'the version Open WebUI pins');
     const c = defaultConfig();
-    assert.deepEqual([c.stt.enabled, c.stt.port, c.stt.model, c.stt.threads, c.stt.maxMb], [false, 8892, 'small', 4, 25]);
+    assert.deepEqual([c.stt.enabled, c.stt.port, c.stt.device, c.stt.model, c.stt.threads, c.stt.maxMb], [false, 8892, 'auto', 'auto', 4, 25]);
+    sttMod.resolveStt(c, { gpu: 'Unknown GPU' });
     for (const [proxyHost, want] of [['127.0.0.1', '127.0.0.1'], ['0.0.0.0', '0.0.0.0']]) {
         c.proxy.host = proxyHost;
         const calls = [];
@@ -2441,6 +2442,75 @@ test('stt plugin: faster-whisper pinned (no torch), bound like the others, key a
     assert.equal(buildSnapshot(on, { proxyUp: true, hostsUp: 1 }).stt, null, 'not advertised until it is up');
     assert.match(buildSnapshot(on, { proxyUp: true, hostsUp: 1, sttUp: true, sttKey: 'kk' }).stt.url, /:8892$/);
     assert.equal(buildSnapshot(defaultConfig(), { proxyUp: true, hostsUp: 1, sttUp: true, sttKey: 'kk' }).stt, null, 'off in the config: never advertised');
+});
+
+test('stt on the GPU (owner, 2026-10-09): CUDA on an NVIDIA farm with large-v3-turbo, the CPU with "small" otherwise, its libraries from the venv, its GPU memory counted', () => {
+    const sttMod = require('../src/stt');
+    const os = require('os');
+    const NV = { gpu: 'NVIDIA RTX PRO 6000 Blackwell Workstation Edition' };
+    assert.equal(sttMod.cudaPossible(NV, 'win32', 'x64'), true);
+    assert.equal(sttMod.cudaPossible(NV, 'linux', 'x64'), true);
+    assert.equal(sttMod.cudaPossible(NV, 'linux', 'arm64'), false, 'a DGX Spark: the arm64 wheel of CTranslate2 has no CUDA');
+    assert.equal(sttMod.cudaPossible(NV, 'darwin', 'arm64'), false);
+    assert.equal(sttMod.cudaPossible({ gpu: 'Unknown GPU' }, 'win32', 'x64'), false, 'no NVIDIA GPU');
+    const at = (hw, stt = {}, platform = 'win32', arch = 'x64') => { const c = defaultConfig(); Object.assign(c.stt, stt); sttMod.resolveStt(c, hw, platform, arch); return c; };
+    assert.deepEqual([at(NV).stt.device, at(NV).stt.model], ['cuda', 'large-v3-turbo'], 'auto with a GPU');
+    assert.deepEqual([at({ gpu: 'Unknown GPU' }).stt.device, at({ gpu: 'Unknown GPU' }).stt.model], ['cpu', 'small'], 'auto without');
+    assert.deepEqual([at(NV, { device: 'cpu' }).stt.device, at(NV, { device: 'cpu' }).stt.model], ['cpu', 'small'], 'an operator who keeps the GPU for the engine');
+    assert.equal(at(NV, { model: 'medium' }).stt.model, 'medium', 'a model the operator named is kept');
+    // The install: pinned, PyAV below 19 (it broke faster-whisper 1.2.1), the CUDA wheels only for the GPU.
+    assert.match(sttMod.depsSignature('cpu', 'win32'), /av=18\.1\.0/);
+    assert.ok(!/nvidia/.test(sttMod.depsSignature('cpu', 'win32')), 'a CPU farm downloads no CUDA');
+    assert.match(sttMod.depsSignature('cuda', 'win32'), /nvidia-cublas-cu12/);
+    assert.ok(!/cudnn/.test(sttMod.depsSignature('cuda', 'win32')), 'Windows: cuBLAS alone (measured)');
+    assert.match(sttMod.depsSignature('cuda', 'linux'), /nvidia-cudnn-cu12/);
+    assert.notEqual(sttMod.depsSignature('cuda', 'win32'), sttMod.depsSignature('cpu', 'win32'), 'turning the GPU on installs its libraries');
+    // The service is told the device, the model, its number format and the CPU model it falls back to.
+    const c = at(NV, { enabled: true });
+    const calls = [];
+    sttMod.spawnStt(c, { key: 'kk' }, (cmd, args, opts) => { calls.push(opts.env); return { pid: null, on() {} }; });
+    assert.deepEqual([calls[0].STT_DEVICE, calls[0].STT_MODEL, calls[0].STT_COMPUTE, calls[0].STT_CPU_MODEL], ['cuda', 'large-v3-turbo', 'int8_float16', 'small']);
+    assert.equal(calls[0].STT_MODELS_DIR, sttMod.MODELS_DIR, 'the model downloads into farm/.stt: rm -rf is a full uninstall');
+    const cpu = at({ gpu: 'Unknown GPU' }, { enabled: true }); const cpuCalls = [];
+    sttMod.spawnStt(cpu, { key: 'kk' }, (cmd, args, opts) => { cpuCalls.push(opts.env); return { pid: null, on() {} }; });
+    assert.deepEqual([cpuCalls[0].STT_DEVICE, cpuCalls[0].STT_COMPUTE, cpuCalls[0].STT_CUDA_LIBS], ['cpu', 'int8', '']);
+    // The CUDA wheels' folders, on Windows and on Linux.
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'lol-stt-'));
+    try {
+        fs.mkdirSync(path.join(tmp, 'win', 'Lib', 'site-packages', 'nvidia', 'cublas', 'bin'), { recursive: true });
+        assert.deepEqual(sttMod.cudaLibDirs(path.join(tmp, 'win'), 'win32'), [path.join(tmp, 'win', 'Lib', 'site-packages', 'nvidia', 'cublas', 'bin')]);
+        for (const n of ['cublas', 'cudnn']) fs.mkdirSync(path.join(tmp, 'lin', 'lib', 'python3.12', 'site-packages', 'nvidia', n, 'lib'), { recursive: true });
+        assert.equal(sttMod.cudaLibDirs(path.join(tmp, 'lin'), 'linux').length, 2);
+        assert.deepEqual(sttMod.cudaLibDirs(path.join(tmp, 'none'), 'linux'), []);
+        // The model on disk (download_root's layout), which lets a GPU start come before the engine sizes its memory.
+        const snap = path.join(tmp, 'm', 'models--mobiuslabsgmbh--faster-whisper-large-v3-turbo', 'snapshots', 'abc');
+        fs.mkdirSync(snap, { recursive: true });
+        assert.equal(sttMod.modelOnDisk('large-v3-turbo', path.join(tmp, 'm')), false, 'a half download');
+        fs.writeFileSync(path.join(snap, 'model.bin'), 'x');
+        assert.equal(sttMod.modelOnDisk('large-v3-turbo', path.join(tmp, 'm')), true);
+        assert.equal(sttMod.modelOnDisk('small', path.join(tmp, 'm')), false);
+    } finally { fs.rmSync(tmp, { recursive: true, force: true }); }
+    const svc = makeServices().find((s) => s.id === 'stt');
+    assert.equal(svc.isEarly(cpu), false, 'on the CPU it never starts before the engine');
+    assert.equal(svc.isLate(cpu), true);
+    // Its GPU memory: kept out of the Automatic memory of vLLM while it is on, on the GPU, and not running yet.
+    assert.equal(sttMod.reserveGib(c), sttMod.RESERVE_GIB);
+    assert.equal(sttMod.reserveGib(cpu), 0, 'the CPU holds no GPU memory');
+    assert.equal(sttMod.reserveGib(at(NV)), 0, 'off: nothing kept');
+    const up = fs.readFileSync(path.join(__dirname, '..', 'src', 'commands', 'up.js'), 'utf8');
+    assert.ok(up.includes('const sttReserveGib = () => (!svcById.stt.up ? sttMod.reserveGib(config) : 0);'), 'only while it is not running: then its memory is already taken');
+    assert.ok(up.indexOf('sttMod.resolveStt(config, hw);') < up.indexOf('if (!svc.enabled(config) || !svc.isEarly(config)) continue;'), 'resolved before the early plugins start');
+    const st = V.parseStatus(['home=/home/me', 'arch=x86_64', `gpu=${PRO}, 97887, 95272, 12.0`, 'mem_total_kb=98875528', 'mem_available_kb=91993964',
+        'disk_free_kb=600000000', 'install=/home/me/lol-vllm 0.30.0', 'model=Qwen3.6-35B-A3B-NVFP4 22880000 vision=1 native=262144 partial=0'].join('\n'));
+    const v = defaultConfig(); v.vllm.enabled = true;
+    const mem = { unified: false, totalGib: 95.59, freeGib: 93.04 };
+    assert.equal(V.planFor(v, st, mem, { embedReserveGib: 1.5 + sttMod.RESERVE_GIB }).kvGib, 48, 'RTX PRO 6000: 52 → 50 GB with document search, 48 with speech to text too');
+    // Advertised with the model it loaded, which Open WebUI names in its requests.
+    const on = at(NV, { enabled: true });
+    assert.equal(buildSnapshot(on, { proxyUp: true, hostsUp: 1, sttUp: true, sttKey: 'kk', sttModel: 'small' }).stt.model, 'small', 'after a GPU fallback: the CPU model');
+    assert.equal(buildSnapshot(on, { proxyUp: true, hostsUp: 1, sttUp: true, sttKey: 'kk' }).stt.model, 'large-v3-turbo');
+    // What /health says, for the log line of the farm.
+    assert.deepEqual(sttMod.healthInfo({ body: '{"ready":true,"model":"small","device":"cpu","fallback":"RuntimeError: cublas"}' }), { device: 'cpu', model: 'small', fallback: 'RuntimeError: cublas' });
 });
 
 test('classify plugin: pinned CPU install, bound like the others, key in env, advertised only when up (plan v2 §3.2)', () => {
@@ -2581,7 +2651,8 @@ test('document search: started before the engine sizes its memory, and kept out 
     assert.deepEqual([p.kvGib, p.kvWhy.embedReserveGib], [50, 1.5], 'RTX PRO 6000: 52 → 50 GB for conversations');
     assert.ok(V.poolGib({ totalGib: 95.59, freeGib: 20, weightsGib: 20.37, ocrReserveGib: 9, embedReserveGib: 1.5, marginPct: 8 }).reason
         .startsWith('The GPU has 20 GB free. After the model (20 GB), document reading (9 GB), document search (1.5 GB) and a safety margin'));
-    assert.equal((up.match(/vllmMod\.planFor\(/g) || []).length, (up.match(/embedReserveGib: embedReserveGib\(\)/g) || []).length - 1, 'every plan gets it (and the panel shows it)');
+    assert.equal((up.match(/vllmMod\.planFor\(/g) || []).length, (up.match(/\{ embedReserveGib: pluginReserveGib\(\) \}/g) || []).length, 'every plan gets it');
+    assert.ok(up.includes('const pluginReserveGib = () => embedReserveGib() + sttReserveGib();') && up.includes('            embedReserveGib: embedReserveGib(),'), 'with speech to text\'s share; the panel shows its own');
     assert.ok(up.includes('svcById.embed.enabled(config) && !svcById.embed.up ? embedMod.RESERVE_GIB : 0'), 'only while it is not running: then its memory is already taken');
     const fitOff = V.gpuFit(v, 24).needGib;
     v.embed.enabled = true;
@@ -2671,7 +2742,7 @@ test('panel: the password row says what it protects — the plugins too — and 
 test('classify + stt start AFTER the farm is public, and their installs never block the event loop (rig, 2026-09-27)', () => {
     const svcs = makeServices();
     const c = defaultConfig();
-    assert.deepEqual(svcs.filter((s) => s.desc.late === true).map((s) => s.id), ['bus', 'classify', 'stt'], 'the two heavy first starts are late, and the quick bus before them');
+    assert.deepEqual(svcs.filter((s) => s.desc.late === true).map((s) => s.id), ['bus', 'classify'], 'the heavy first start is late, and the quick bus before it');
     assert.deepEqual(svcs.filter((s) => s.isLate(c)).map((s) => s.id), ['bus', 'embed', 'classify', 'stt'], 'document search too while its first download is ahead');
     const upSrc = fs.readFileSync(path.join(__dirname, '..', 'src', 'commands', 'up.js'), 'utf8');
     const boot = upSrc.indexOf('if (!svc.enabled(config) || svc.isLate(config) || svc.isEarly(config)) continue;');

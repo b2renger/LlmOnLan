@@ -95,6 +95,9 @@ export interface FarmContext {
     // The farm's document search → Open WebUI's embedding engine (configBridge decides whether this client uses it:
     // only a contract it knows). Needs a url, a key and a contract.
     embed: { url: string; key: string; contract: string } | null;
+    // The farm's speech to text → Open WebUI's AUDIO_STT_* (its microphone and Call mode). The farm decides the
+    // server and the model (snapshot `stt`): a url, a key and the model name its requests carry.
+    stt: { url: string; key: string; model: string } | null;
     // The context window ONE chat gets (llama.cpp splits --ctx-size across slots; Ollama's
     // num_ctx is already per request) → whole-document vs top-k RAG in configBridge. Null on
     // farms older than farm-v0.0.22 — the bridge then keeps the historic whole-document default.
@@ -113,6 +116,8 @@ export function farmContext(f: DiscoveredFarm, key: string | null): FarmContext 
         tts: f.ttsUrl ? { url: f.ttsUrl, voice: f.ttsVoice || 'af_heart', model: f.ttsModel || 'kokoro' } : null,
         extract: f.extract?.url && f.extract.key ? { url: f.extract.url, key: f.extract.key } : null,
         embed: f.embed?.url && f.embed.key && f.embed.contract ? { url: f.embed.url, key: f.embed.key, contract: f.embed.contract } : null,
+        // A farm up to farm-v0.0.44 names no model: its service ignores the field, Open WebUI needs one.
+        stt: f.stt?.url && f.stt.key ? { url: f.stt.url, key: f.stt.key, model: f.stt.model || 'whisper-1' } : null,
         ctxPerSlot: typeof ctx === 'number' && ctx > 0 ? ctx : null,
     };
 }
@@ -126,12 +131,12 @@ export function sameContext(a: FarmContext | null, b: FarmContext | null): boole
 // already right and the first beacon does not force a second OWUI boot.
 export interface SavedContext {
     lastEndpoint: string; lastFarmKey: string | null; lastFarmModel: string | null; lastFarmSearxng: string | null;
-    lastFarmTts: FarmContext['tts']; lastFarmExtract: FarmContext['extract']; lastFarmEmbed: FarmContext['embed']; lastFarmCtxPerSlot: number | null;
+    lastFarmTts: FarmContext['tts']; lastFarmExtract: FarmContext['extract']; lastFarmEmbed: FarmContext['embed']; lastFarmStt: FarmContext['stt']; lastFarmCtxPerSlot: number | null;
 }
 export function persistedContext(c: FarmContext): SavedContext {
     return {
         lastEndpoint: c.endpoint, lastFarmKey: c.key, lastFarmModel: c.model, lastFarmSearxng: c.searxng,
-        lastFarmTts: c.tts, lastFarmExtract: c.extract, lastFarmEmbed: c.embed, lastFarmCtxPerSlot: c.ctxPerSlot,
+        lastFarmTts: c.tts, lastFarmExtract: c.extract, lastFarmEmbed: c.embed, lastFarmStt: c.stt, lastFarmCtxPerSlot: c.ctxPerSlot,
     };
 }
 
@@ -169,13 +174,13 @@ export function applyPluginKeys<T extends { requiresKey?: boolean }>(f: T, key: 
     return { farm: out as unknown as T, fetchSig: due ? sig : null };
 }
 
-/** While a keyed farm's plugin keys are still being fetched, keep the OCR loader and the document search Open WebUI
- * already has for the SAME address: a pending fetch must not change the launch env, or a cold launch boots
- * Open WebUI three times (release critic R2). `known` = what Open WebUI runs with (or the saved context). */
-export function keepPending<T extends { requiresKey?: boolean; extract?: { url?: string } | null; embed?: { url?: string } | null }>(next: FarmContext, farm: T, known: Pick<FarmContext, 'extract' | 'embed'>): FarmContext {
+/** While a keyed farm's plugin keys are still being fetched, keep the OCR loader, the document search and the speech to
+ * text Open WebUI already has for the SAME address: a pending fetch must not change the launch env, or a cold launch
+ * boots Open WebUI three times (release critic R2). `known` = what Open WebUI runs with (or the saved context). */
+export function keepPending<T extends { requiresKey?: boolean; extract?: { url?: string } | null; embed?: { url?: string } | null; stt?: { url?: string } | null }>(next: FarmContext, farm: T, known: Partial<Pick<FarmContext, 'extract' | 'embed' | 'stt'>>): FarmContext {
     if (!farm.requiresKey) return next;
     const out = { ...next };
-    for (const k of ['extract', 'embed'] as const) {
+    for (const k of ['extract', 'embed', 'stt'] as const) {
         const had = known[k];
         if (!out[k] && farm[k] && farm[k]!.url && had && had.url === farm[k]!.url) (out as Record<string, unknown>)[k] = had;
     }

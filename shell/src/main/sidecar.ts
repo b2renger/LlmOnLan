@@ -9,7 +9,7 @@ import { EventEmitter } from 'events';
 import { spawn, ChildProcess } from 'child_process';
 import { resolveSidecarCommand, sidecarExists } from './paths';
 import { net } from 'electron';
-import { adoptEmbedding, buildSidecarEnv, embedAnswers, embeddingBlocked, embeddingContract, envProxy, FarmEmbed, folderContract, hubAnswers, miniLmState, repairMiniLm } from './configBridge';
+import { adoptEmbedding, buildSidecarEnv, embedAnswers, embeddingBlocked, embeddingContract, envProxy, FarmEmbed, FarmStt, folderContract, hubAnswers, miniLmState, repairMiniLm } from './configBridge';
 import { findFreePort, killTree, waitForHttp } from './util';
 import { SidecarState } from './types';
 
@@ -25,6 +25,7 @@ export interface SidecarStartOpts {
     tts?: { url: string; voice: string; model: string } | null;
     extract?: { url: string; key: string } | null;
     embed?: FarmEmbed | null;
+    stt?: FarmStt | null;
     contextPerSlot?: number | null;
 }
 // Told once when a launch is ready (app.js toasts it). Plain words: the person acts on them.
@@ -44,6 +45,7 @@ export class SidecarSupervisor extends EventEmitter {
     private tts: { url: string; voice: string; model: string } | null = null; // farm Kokoro → OWUI AUDIO_TTS_*
     private extract: { url: string; key: string } | null = null; // farm lol-extract → OWUI external document loader (OCR)
     private embed: FarmEmbed | null = null;         // farm document search → OWUI's embedding engine (configBridge)
+    private stt: FarmStt | null = null;             // farm speech to text → OWUI AUDIO_STT_* (configBridge)
     private contextPerSlot: number | null = null; // farm's per-slot context → whole-doc vs top-k RAG mode
     // Generation token: every start()/stop() bumps it, so an in-flight start()
     // that was superseded (by a repoint/stop/crash-restart) aborts at its awaits
@@ -70,7 +72,7 @@ export class SidecarSupervisor extends EventEmitter {
     private launchOpts(): SidecarStartOpts {
         return {
             endpoint: this.endpoint, dataDir: this.dataDir, apiKey: this.apiKey, defaultModel: this.defaultModel,
-            searxngUrl: this.searxngUrl, tts: this.tts, extract: this.extract, embed: this.embed, contextPerSlot: this.contextPerSlot,
+            searxngUrl: this.searxngUrl, tts: this.tts, extract: this.extract, embed: this.embed, stt: this.stt, contextPerSlot: this.contextPerSlot,
         };
     }
 
@@ -84,6 +86,7 @@ export class SidecarSupervisor extends EventEmitter {
         this.tts = opts.tts ?? null;
         this.extract = opts.extract ?? null;
         this.embed = opts.embed ?? null;
+        this.stt = opts.stt ?? null;
         this.contextPerSlot = opts.contextPerSlot ?? null;
         const myGen = ++this.gen;
 
@@ -207,11 +210,12 @@ export class SidecarSupervisor extends EventEmitter {
     // DEFAULT_MODELS / SEARXNG_QUERY_URL) takes effect — env is authoritative
     // (config-bridge). Model + searxng are in the change check so switching either
     // on the farm (same endpoint) still restarts to re-apply.
-    async repoint(endpoint: string | null, apiKey: string | null = null, defaultModel: string | null = null, searxngUrl: string | null = null, tts: { url: string; voice: string; model: string } | null = null, extract: { url: string; key: string } | null = null, contextPerSlot: number | null = null, embed: FarmEmbed | null = null): Promise<void> {
+    async repoint(endpoint: string | null, apiKey: string | null = null, defaultModel: string | null = null, searxngUrl: string | null = null, tts: { url: string; voice: string; model: string } | null = null, extract: { url: string; key: string } | null = null, contextPerSlot: number | null = null, embed: FarmEmbed | null = null, stt: FarmStt | null = null): Promise<void> {
         if (endpoint === this.endpoint && apiKey === this.apiKey && defaultModel === this.defaultModel
             && searxngUrl === this.searxngUrl && JSON.stringify(tts) === JSON.stringify(this.tts)
             && JSON.stringify(extract) === JSON.stringify(this.extract)
             && JSON.stringify(embed) === JSON.stringify(this.embed)
+            && JSON.stringify(stt) === JSON.stringify(this.stt)
             && contextPerSlot === this.contextPerSlot) return;
         // A restart costs a full OWUI boot (~10-30 s of Python imports), so restart
         // only when the EFFECTIVE launch env differs — not when an input differs.
@@ -219,18 +223,18 @@ export class SidecarSupervisor extends EventEmitter {
         // but not the RAG mode it selects, so the running sidecar is already
         // correct; adopt the new inputs and keep it alive.
         const oldEnv = buildSidecarEnv(this.launchOpts());
-        const newEnv = buildSidecarEnv({ endpoint, dataDir: this.dataDir, apiKey, defaultModel, searxngUrl, tts, extract, embed, contextPerSlot });
+        const newEnv = buildSidecarEnv({ endpoint, dataDir: this.dataDir, apiKey, defaultModel, searxngUrl, tts, extract, embed, stt, contextPerSlot });
         if (this.child && JSON.stringify(oldEnv) === JSON.stringify(newEnv)) {
             this.endpoint = endpoint; this.apiKey = apiKey; this.defaultModel = defaultModel;
-            this.searxngUrl = searxngUrl; this.tts = tts; this.extract = extract; this.embed = embed;
+            this.searxngUrl = searxngUrl; this.tts = tts; this.extract = extract; this.embed = embed; this.stt = stt;
             this.contextPerSlot = contextPerSlot;
             console.log(`[sidecar] repoint: inputs changed but the launch env is identical — keeping the running sidecar (ctx/slot now ${contextPerSlot})`);
             return;
         }
-        console.log(`[sidecar] repoint ${this.endpoint} → ${endpoint} (model ${this.defaultModel} → ${defaultModel}, search ${this.searxngUrl} → ${searxngUrl}, tts ${this.tts?.url} → ${tts?.url}, ocr ${this.extract?.url} → ${extract?.url}, documents ${this.embed?.url} → ${embed?.url}, ctx/slot ${this.contextPerSlot} → ${contextPerSlot})`);
+        console.log(`[sidecar] repoint ${this.endpoint} → ${endpoint} (model ${this.defaultModel} → ${defaultModel}, search ${this.searxngUrl} → ${searxngUrl}, tts ${this.tts?.url} → ${tts?.url}, ocr ${this.extract?.url} → ${extract?.url}, documents ${this.embed?.url} → ${embed?.url}, speech ${this.stt?.url} → ${stt?.url}, ctx/slot ${this.contextPerSlot} → ${contextPerSlot})`);
         this.setState({ status: 'restarting', endpoint });
         await this.stop({ keepState: true });
-        await this.start({ endpoint, dataDir: this.dataDir, apiKey, defaultModel, searxngUrl, tts, extract, embed, contextPerSlot });
+        await this.start({ endpoint, dataDir: this.dataDir, apiKey, defaultModel, searxngUrl, tts, extract, embed, stt, contextPerSlot });
     }
 
     // Move to a new data folder (restart pointing at it).

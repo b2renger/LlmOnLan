@@ -237,7 +237,7 @@ export default (test) => {
     assert.deepEqual(withKey, {
       endpoint: 'http://10.0.0.5:4000/v1', key: 'pw-new', model: 'gemma4:12b', searxng: 'http://10.0.0.5:8081',
       tts: { url: 'http://10.0.0.5:8880/v1', voice: 'af_heart', model: 'kokoro' },
-      extract: { url: 'http://10.0.0.5:8890', key: 'ocr' }, embed: null, ctxPerSlot: 16384,
+      extract: { url: 'http://10.0.0.5:8890', key: 'ocr' }, embed: null, stt: null, ctxPerSlot: 16384,
     });
     assert.equal(FS.sameContext(withKey, FS.farmContext(keyed, 'pw-new')), true);
     assert.equal(FS.sameContext(withKey, FS.farmContext(keyed, 'pw-old')), false,
@@ -249,14 +249,14 @@ export default (test) => {
     const ctx = FS.farmContext(farm({ id: 'k', requiresKey: true, extra: { backend: { contextPerSlot: 32768 } } }), 'pw');
     const saved = FS.persistedContext(ctx);
     assert.deepEqual(Object.keys(saved).sort(), [
-      'lastEndpoint', 'lastFarmCtxPerSlot', 'lastFarmEmbed', 'lastFarmExtract', 'lastFarmKey', 'lastFarmModel', 'lastFarmSearxng', 'lastFarmTts',
+      'lastEndpoint', 'lastFarmCtxPerSlot', 'lastFarmEmbed', 'lastFarmExtract', 'lastFarmKey', 'lastFarmModel', 'lastFarmSearxng', 'lastFarmStt', 'lastFarmTts',
     ]);
     assert.equal(saved.lastFarmKey, 'pw');
     assert.equal(saved.lastFarmCtxPerSlot, 32768);
     // index.ts rebuilds "what OWUI runs with" from these on a cold boot; it must compare equal.
     const reboot = {
       endpoint: saved.lastEndpoint, key: saved.lastFarmKey, model: saved.lastFarmModel, searxng: saved.lastFarmSearxng,
-      tts: saved.lastFarmTts, extract: saved.lastFarmExtract, embed: saved.lastFarmEmbed, ctxPerSlot: saved.lastFarmCtxPerSlot,
+      tts: saved.lastFarmTts, extract: saved.lastFarmExtract, embed: saved.lastFarmEmbed, stt: saved.lastFarmStt, ctxPerSlot: saved.lastFarmCtxPerSlot,
     };
     assert.equal(FS.sameContext(JSON.parse(JSON.stringify(reboot)), ctx), true, 'the first beacon after a relaunch is a no-op');
   });
@@ -281,7 +281,7 @@ export default (test) => {
     // A cold boot runs the saved context; the farm's first beacon then changes nothing either.
     const booted = {
       endpoint: settings.lastEndpoint, key: settings.lastFarmKey, model: settings.lastFarmModel, searxng: settings.lastFarmSearxng,
-      tts: settings.lastFarmTts, extract: settings.lastFarmExtract, embed: settings.lastFarmEmbed, ctxPerSlot: settings.lastFarmCtxPerSlot,
+      tts: settings.lastFarmTts, extract: settings.lastFarmExtract, embed: settings.lastFarmEmbed, stt: settings.lastFarmStt, ctxPerSlot: settings.lastFarmCtxPerSlot,
     };
     assert.deepEqual(FS.connectPlan(ctx, booted, settings), { repoint: false, save: null });
     // The farm serves another model: OWUI restarts and the settings follow.
@@ -537,6 +537,32 @@ export default (test) => {
     assert.equal(env.DEFAULT_MODEL_PARAMS, undefined, 'a chat keeps thinking');
   });
 
+  // ---------------------------------------------------------------- speech to text on the farm (2026-10-09)
+  test('speech to text: a farm advertising stt → OWUI\'s microphone and Call mode transcribe there, with the server and model the farm names', () => {
+    const sttEnv = (/** @type {Record<string,string>} */ env) => Object.fromEntries(Object.entries(env).filter(([k]) => /^AUDIO_STT_/.test(k)));
+    const base = { endpoint: 'http://10.0.0.5:4000/v1', dataDir: tempDir('stt') };
+    // OWUI 0.11.4 posts {base}/audio/transcriptions and trims no slash: the base ends in /v1, once.
+    assert.deepEqual(sttEnv(CB.buildSidecarEnv({ ...base, stt: { url: 'http://10.0.0.5:8892/', key: 'sk', model: 'large-v3-turbo' } })), {
+      AUDIO_STT_ENGINE: 'openai', AUDIO_STT_OPENAI_API_BASE_URL: 'http://10.0.0.5:8892/v1', AUDIO_STT_OPENAI_API_KEY: 'sk', AUDIO_STT_MODEL: 'large-v3-turbo',
+    });
+    assert.deepEqual(sttEnv(CB.buildSidecarEnv({ ...base, stt: null })), { AUDIO_STT_ENGINE: '' }, 'no farm STT: the local faster-whisper, as before');
+    assert.equal(CB.buildSidecarEnv({ ...base, stt: null }).WHISPER_MODEL, 'base');
+    assert.equal(CB.buildSidecarEnv(base).AUDIO_TTS_SPLIT_ON, 'punctuation', 'Call mode speaks a reply sentence by sentence');
+    // From the snapshot: the key is fetched on a farm with a password; a farm up to farm-v0.0.44 names no model.
+    const f = farm({ id: 's', extra: { stt: { url: 'http://h:8892', key: 'sk' } } });
+    assert.deepEqual(FS.farmContext(f, null).stt, { url: 'http://h:8892', key: 'sk', model: 'whisper-1' });
+    assert.deepEqual(FS.farmContext(farm({ id: 's', extra: { stt: { url: 'http://h:8892', key: 'sk', model: 'small' } } }), null).stt.model, 'small');
+    assert.equal(FS.farmContext(farm({ id: 's', extra: { stt: { url: 'http://h:8892', key: null, keyId: 'ab12cd34' } } }), 'pw').stt, null, 'no key yet: not used');
+    assert.deepEqual(FS.persistedContext(FS.farmContext(f, null)).lastFarmStt, { url: 'http://h:8892', key: 'sk', model: 'whisper-1' }, 'a cold launch boots OWUI with it once');
+    const keyed = farm({ id: 'k', requiresKey: true, extra: { stt: { url: 'http://h:8892', key: null, keyId: 'ab12cd34' } } });
+    const known = { url: 'http://h:8892', key: 'sk', model: 'small' };
+    assert.deepEqual(FS.keepPending(FS.farmContext(keyed, 'pw'), keyed, { stt: known }).stt, known, 'a pending key fetch keeps what OWUI runs with');
+    assert.ok(FS.PLUGIN_KEYS.includes('stt'));
+    // Every path that starts OWUI carries it (a crash restart and the repoint read launchOpts).
+    const src = fs.readFileSync(path.join(SRC, 'sidecar.ts'), 'utf8');
+    assert.ok(/embed: this\.embed, stt: this\.stt, contextPerSlot/.test(src) && /JSON\.stringify\(stt\) === JSON\.stringify\(this\.stt\)/.test(src));
+  });
+
   // ---------------------------------------------------------------- SA-1: a crash restart keeps every field
   // ---------------------------------------------------------------- document search on the farm (owner, 2026-10-08)
   const EG2 = 'embeddinggemma-2/768/v1';
@@ -658,7 +684,8 @@ export default (test) => {
       endpoint: 'http://10.0.0.5:4000/v1', dataDir: tempDir('sa1'), apiKey: 'pw', defaultModel: 'gemma4:12b',
       searxngUrl: 'http://10.0.0.5:8081', tts: { url: 'http://10.0.0.5:8880/v1', voice: 'af_heart', model: 'kokoro' },
       extract: { url: 'http://10.0.0.5:8890', key: 'ocr' },
-      embed: { url: 'http://10.0.0.5:8894', key: 'ek', contract: 'embeddinggemma-2/768/v1' }, contextPerSlot: 16384,
+      embed: { url: 'http://10.0.0.5:8894', key: 'ek', contract: 'embeddinggemma-2/768/v1' },
+      stt: { url: 'http://10.0.0.5:8892', key: 'sk', model: 'large-v3-turbo' }, contextPerSlot: 16384,
     };
     const sup = new SidecarSupervisor();
     sup.on('state', () => {});

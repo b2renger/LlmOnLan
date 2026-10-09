@@ -46,8 +46,11 @@ export interface SidecarEnvInput {
     tts?: { url: string; voice: string; model: string } | null; // farm Kokoro → OWUI AUDIO_TTS_*
     extract?: { url: string; key: string } | null; // farm lol-extract → OWUI external document loader (OCR)
     embed?: FarmEmbed | null;  // farm document search → OWUI's embedding engine, when this client knows its contract
+    stt?: FarmStt | null;      // farm speech to text → OWUI AUDIO_STT_* (the microphone and Call mode)
     contextPerSlot?: number | null; // farm's per-slot context window (snapshot backend.contextPerSlot) → RAG mode
 }
+// The farm's speech to text, as its snapshot `stt` advertises it: POST {url}/v1/audio/transcriptions with this key and model.
+export interface FarmStt { url: string; key: string; model: string }
 
 // ---- document search: which model turns a document's text into vectors (owner, 2026-10-08) ----------------------
 // The farm does it (farm/src/embed.js, EmbeddingGemma 2): Open WebUI sends it the text of each piece of a document,
@@ -497,6 +500,23 @@ export function buildSidecarEnv(input: SidecarEnvInput): Record<string, string> 
         env.AUDIO_TTS_OPENAI_API_KEY = 'sk-lol-tts';   // keyless LAN server; OWUI needs a non-empty key
         env.AUDIO_TTS_MODEL = input.tts.model || 'kokoro';
         env.AUDIO_TTS_VOICE = input.tts.voice || 'af_heart';
+    }
+    // Call mode speaks a reply sentence by sentence while it is still being written: OWUI 0.11.4's frontend cuts the
+    // streamed text at . ! ? and line breaks (a piece under 4 words or 50 characters joins the next) and asks
+    // /audio/speech for each piece. 'punctuation' is OWUI's default; restated so a pin bump cannot turn it off.
+    env.AUDIO_TTS_SPLIT_ON = 'punctuation';
+
+    // Speech to text on the farm (2026-10-09): OWUI's microphone and Call mode send each recording to the farm's
+    // service (OpenAI's /audio/transcriptions; OWUI appends that path to the base URL, without trimming a slash),
+    // instead of the local faster-whisper "base" on this CPU. The snapshot's `stt` decides the server and the model,
+    // so another transcriber is a farm-side change. The recording goes to the trusted-LAN farm to be written down and
+    // is dropped there; OWUI keeps its own copy in DATA_DIR/cache/audio, on this computer, as it does with the local
+    // engine. No farm STT → the local engine above, exactly as before.
+    if (input.stt && input.stt.url && input.stt.key) {
+        env.AUDIO_STT_ENGINE = 'openai';
+        env.AUDIO_STT_OPENAI_API_BASE_URL = `${input.stt.url.replace(/\/+$/, '')}/v1`;
+        env.AUDIO_STT_OPENAI_API_KEY = input.stt.key;
+        env.AUDIO_STT_MODEL = input.stt.model;
     }
 
     // Document OCR — the farm hosts one shared "lol-extract" service and advertises

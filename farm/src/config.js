@@ -454,12 +454,14 @@ const ClassifySchema = z.object({
     maxItems: z.number().int().min(1).max(1000).default(200), // items per call
 });
 
-// Speech to text (docs/ECOSYSTEM_PLAN.md v2 §3.3): faster-whisper on the CPU for the Computer's Sound
-// box in Listen mode. OFF by default: it shares the CPU with everything else on the box.
+// Speech to text (docs/ECOSYSTEM_PLAN.md v2 §3.3; src/stt.js): faster-whisper for the Computer's Sound box in
+// Listen mode and for Open WebUI's microphone and Call mode on the laptops. OFF by default. 'auto' = the NVIDIA GPU
+// with Whisper large-v3-turbo when this computer has one, else the CPU with "small" (owner, 2026-10-09).
 const SttSchema = z.object({
     enabled: z.boolean().default(false),
     port: z.number().int().positive().default(8892),
-    model: z.string().default('small'),                    // faster-whisper size: tiny|base|small|medium|…
+    device: z.enum(['auto', 'cuda', 'cpu']).default('auto'),
+    model: z.string().default('auto'),                     // 'auto', or a faster-whisper size: tiny|base|small|medium|large-v3-turbo|…
     threads: z.number().int().min(1).max(64).default(4),
     maxMb: z.number().int().min(1).max(100).default(25),   // the Sound box's own cap
 });
