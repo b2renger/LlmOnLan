@@ -14,17 +14,14 @@
 
 ---
 
-## Build status (2026-10-08) — released: client `v0.2.9` (OWUI `0.11.4`) · Farm app `farm-v0.0.43`
+## Build status (2026-10-09) — released: client `v0.2.10` (OWUI `0.11.4`) · Farm app `farm-v0.0.44`
 
 > v0.2.0 brought LOL Vibe vNext and the Computer (Fetch, Classify, Listen/Speak, Send, a ? on every box); v0.2.1
 > adds USB serial, the farm's message bus + Trigger, Open data (data.gouv.fr), the Agent box and the Computer as an
 > MCP server; v0.2.2 the bus and MCP hardening, lessons 5–6 and "Ask out loud"; v0.2.3 the IDE (LOL Vibe's Project
 > panel + the coding agent, history, LAN share, GitHub), mic and camera, lessons 7–12, the resume banner and a full
-> review of every in-app text with tooltips; v0.2.4 the project server stops following symbolic links out of a project; v0.2.5 the coding agent compacts on small context windows; v0.2.6 agent loops (Keep going until done, schedules, Use the Computer), agent pages and the syntax check; v0.2.7 Home Assistant — ask, command, and agents that act on the home, reviewed by two critics; v0.2.8 + farm-v0.0.42 the multi-user work (multiuser_implementation_plan.md): the seat gate checks the password before a seat and forwards only the routes clients use, Stop reaches the engine, honest waits on every surface, an external vLLM routed through `hosted_vllm/` with its metrics read, a reply limit and Qwen's presence penalty against runaway replies, web search v2 (off by default, the client's search-and-read service, the date line), the Computer's yes/no decisions think, and the vLLM recipe with autostart; v0.2.9 + farm-v0.0.43: vLLM run by the farm (installed, started, stopped, configured and switched from the panel, and the take-over of an operator-run vLLM), the capacity page with usage scenarios, Open WebUI booting once, and the search model's repair and offline start (docs/DEVLOG.md; what a person must still check: docs/HUMAN_TESTS.md).
-> The bullets below describe `main` (= `multiuser-phase0`, 2026-10-08). Branch `embed-farm` (2026-10-08, not merged, not
-> released) adds **document search on the farm** (owner decision 2026-10-08, docs/EMBEDDINGS_STUDY.md "The decision"):
-> the farm turns the laptops' document text into vectors with EmbeddingGemma 2 and keeps nothing; the bullets below
-> include it.
+> review of every in-app text with tooltips; v0.2.4 the project server stops following symbolic links out of a project; v0.2.5 the coding agent compacts on small context windows; v0.2.6 agent loops (Keep going until done, schedules, Use the Computer), agent pages and the syntax check; v0.2.7 Home Assistant — ask, command, and agents that act on the home, reviewed by two critics; v0.2.8 + farm-v0.0.42 the multi-user work (multiuser_implementation_plan.md): the seat gate checks the password before a seat and forwards only the routes clients use, Stop reaches the engine, honest waits on every surface, an external vLLM routed through `hosted_vllm/` with its metrics read, a reply limit and Qwen's presence penalty against runaway replies, web search v2 (off by default, the client's search-and-read service, the date line), the Computer's yes/no decisions think, and the vLLM recipe with autostart; v0.2.9 + farm-v0.0.43: vLLM run by the farm (installed, started, stopped, configured and switched from the panel, and the take-over of an operator-run vLLM), the capacity page with usage scenarios, Open WebUI booting once, and the search model's repair and offline start; v0.2.10 + farm-v0.0.44: document search on the farm (EmbeddingGemma 2, the vectors kept on the laptop), llama.cpp b11512, the Computer's Home and Home command boxes with lessons 13–14 and three home templates, the coding agent kept off a project's `.git/` and `project.json`, and the Farm app's update copied file by file (docs/DEVLOG.md; what a person must still check: docs/HUMAN_TESTS.md).
+> The bullets below describe `main` (= `multiuser-phase0`, 2026-10-09).
 
 The full plan is built, released and in multi-user testing; the dated build log with how
 each piece was tested lives in [docs/DEVLOG.md](docs/DEVLOG.md), what a person must still check in

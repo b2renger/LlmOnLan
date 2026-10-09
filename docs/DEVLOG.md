@@ -6,6 +6,28 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-10-09 (14:36) — Release client v0.2.10 and Farm app farm-v0.0.44: document search on the farm, the home on the Computer
+
+The owner asked at 12:00 for a release to start the human tests on (docs/HUMAN_TESTS.md). Done:
+- **Merged.** `main` was fast-forwarded to `multiuser-phase0` at `edd1352` (the merges of `llamacpp-next`, `embed-farm`,
+  `human-tests` and `home-tutorials`, and the fence fix `932166d`). Gates on that tree: farm `test/run.js` 216/0;
+  shell build, chat-unit 1862/0, unit 29, lint 0; Farm app `npm test` 8 + 3 (copyTree under Electron). The
+  `home-tutorials` branch's own chat harness ran 410/410 (with a live demo Home Assistant).
+- **Client v0.2.10** (tag `v0.2.10`, commit `b42d919`, CI run 37927461198, 34 min): success, 27 assets, the same set as
+  v0.2.9; `latest.yml` says 0.2.10, so installed clients update themselves. It brings document search on the farm
+  (a data folder switches to EmbeddingGemma 2 for good, Reindex told once, an upload on a farm without it fails with a
+  message), the Home and Home command boxes with lessons 13–14 and the Morning briefing / Comfort advisor / Energy
+  report templates, and the coding agent kept off `.git/` and `project.json`.
+- **Farm app farm-v0.0.44** (tag `farm-v0.0.44`, commit `ad6a8a4`, CI run 37927470136): a prerelease, 10 assets (Windows
+  x64, macOS arm64, Linux arm64 AppImage), installed by hand. It brings the document search plugin (on with an NVIDIA
+  GPU), llama.cpp b11512, the update's file-by-file copy, and the vLLM card in view.
+- **`build-llamacpp-arm64`** (CI run 37927450520) ran on the pin bump reaching `main` and published the `llamacpp-b11512`
+  prerelease (`llama-b11512-bin-linux-cuda-arm64.tar.gz`) that a Spark farm downloads.
+- **Release notes:** both pages got a "What's new" for the people who install them, above CI's own text.
+- **Not done, the owner's:** the ★ tests of HUMAN_TESTS.md on these builds (K1–K5, J1–J4, I1–I5, A1, B1, then C1–C2 on
+  the live update feed); trying ggml-org's own arm64 CUDA build on a Spark (DEVLOG 2026-10-09 10:31); the open
+  questions at the end of HUMAN_TESTS.md and of the home entry (11:44).
+
 ## 2026-10-09 (11:44) — The Computer reaches the home: Home and Home command boxes, lessons 13–14, three templates (branch `home-tutorials`)
 
 **The owner's ask (2026-10-09):** the office has a Nabu Casa **Home Assistant Green**; look it up, find use cases, and
