@@ -110,10 +110,7 @@ To try: ＋ → **three.js scene** → **Edit code**, change `0x1f1f23` to `0x20
 **Checked on your farm (afternoon):**
 - **The new instructions on Qwen3.8:** p5 drew 5/5 and three.js 4/5. The one miss was a blank scene with no error; its cause is not pinned down.
 - **gemma4:12b:** no longer served by your farm, so it could not be re-checked.
-- **Live:** not tried on your client yet, because its window was hidden and Live deliberately pauses a hidden window. The harness proves Live with real input. Please try it by hand:
-  1. Open **"Rig check — Qwen3.8 live prompts"**.
-  2. Press **▶ Live** on the three.js box.
-  3. Drag to orbit, scroll to zoom, then drop a wire from a Text box onto the picture.
+- **Live:** not tried on your client yet, because its window was hidden and Live deliberately pauses a hidden window. The harness proves Live with real input. The check by hand is HUMAN_TESTS.md A13.
 
 ## NEW (02:05 on the 25th) — the perf pass you scheduled
 
@@ -384,50 +381,26 @@ paused sandbox, F from anywhere, the wording above) followed on `lolchat/vnext`.
 
 ## What only you can check (it needs the real farm and a real window)
 
-The harness drives the renderer, not the whole client, and this box runs a production farm, so **none
-of this was verified on real hardware**:
+The harness drives the renderer, not the whole client, so these needed a person on real hardware. **Moved,
+2026-10-09:** they are now tests in [HUMAN_TESTS.md](HUMAN_TESTS.md), with the rest of the person-only checks:
 
-1. **A real PDF through the real farm OCR (K6).** Drop a PDF you know on the canvas, wire it into an
-   Instruction, press ▶. Check that the box's text matches the document (a scanned page goes through the
-   farm's vision model, so it can take a minute), and that running again does not ask the farm twice.
-   Only the mock extractor was used here, because this box's farm serves real users. Screenshots:
-   `shell/test/chat-harness/generated/shots/k6-shots-document-{dark,light}.png` and
-   `k6-shots-refused-drop.png`.
-2. **A real drag from Explorer, and a sound you can hear (K6).** The harness drops with synthetic
-   events and plays silent WAVs on purpose. Drag an .mp3 from Explorer, press ▶ Play, and listen; then
-   check an .m4a and a .flac decode (only WAV was decoded here).
-3. **Your bug report, on the real farm (K5).** Press **＋ Add a box**, type `svg`, and add **Write an
-   SVG**. Add an **SVG** box the same way, drag a wire from Write an SVG onto it, and press ▶. The
-   model's SVG should land clean and draw — on Automatic that is the farm's default (Qwen3.8 today);
-   to check gemma4:12b, pick it in the Write an SVG box's Model menu. Do the same with **Write a p5.js sketch → p5.js sketch**. The
-   Write-… prompts were only tested against the mock model, so this is the check that matters.
-4. **The Tour and lesson 1, with the farm on.** Open **Learn** in the library sidebar and walk the Tour,
-   then lesson 1. Check that the rail ticks when you do each step, and that **Show me** points at
-   something you can see. The screenshots I looked at are
-   `shell/test/chat-harness/generated/shots/k5-shots-{dark,light}.png` and `k5-creative-boxes-*.png`.
-5. **The Research → problematic template**: does its shape match your museum graph? Does it run its
-   eight generations on your farm in a time you would accept?
-6. **A real Instruction into a Text box**, the K4 headline. Wire an Instruction's answer
-   into a Text box and read whether the model's markdown report lands legibly: headings, lists, a table.
-   Then click in, edit a line, click out, and re-run: your edit must survive if the box is **locked**
-   and be replaced if it is not.
-7. **A photo through a model that can see** — drop a screenshot on the canvas, wire it into an
-   Instruction, and see whether that box's model reads it. On Automatic it is the farm's default; pick
-   a model the farm lists as able to see (gemma4:12b is one) in the box's Model menu. This is the first
-   time the Computer sends a picture anywhere.
-8. **A three.js or p5 sketch in a Preview box** — whether the snapshot is worth looking at at the size
-   the box gives it, and whether an error names a line you can find.
-9. **The look, on your monitor** — five kinds, five glyphs, in both themes; and whether the sticky's
-   title bar reads as a label or as chrome. The two screenshots I looked at are
-   `shell/test/chat-harness/generated/shots/k4-shots-{dark,light}.png`.
-10. **The segmented control itself** — three buttons, the Open WebUI webview surviving a switch, and the
-   view you were on being remembered across a relaunch. The harness page has no topbar at all.
-11. **Your migrated graphs** — that the ones from the per-thread era still open intact. The Text part
-   replaced the old Note file but kept its type id, so they should; this is the check that proves it.
-12. **A loop on the real farm**, watched with a colleague chatting, to see whether the ceilings and the
-   background priority feel polite from the other seat.
+| # | Check | Now |
+|---|---|---|
+| 1 | A real PDF through the farm's OCR | A13 |
+| 2 | A real drag from Explorer, a sound you can hear (.mp3, .m4a, .flac) | F2 |
+| 3 | Write an SVG / a p5.js sketch on the real farm | A10 |
+| 4 | The Tour and lesson 1, farm on | A14 |
+| 5 | The Research → problematic template | A14 |
+| 6 | A real Instruction into a Text box, locked and not | A13 |
+| 7 | A photo through a model that can see | A13 |
+| 8 | A sketch in a Preview box: the snapshot, an error's line | A10 |
+| 9 | The look on your monitor: kinds, glyphs, both themes | A13 |
+| 10 | The segmented control, the webview surviving a switch, the remembered view | A13 |
+| 11 | Your migrated graphs | A13 |
+| 12 | A loop on the real farm with a colleague chatting | D15 |
 
-[COMPUTER_PLAN.md](COMPUTER_PLAN.md) section 13 is the fuller rig checklist.
+The old wording: `git show 3b8c0c1:docs/COMPUTER_STATUS.md`. [COMPUTER_PLAN.md](COMPUTER_PLAN.md) section 13 (the
+fuller rig checklist) moved the same way.
 
 ## If you want the tail finished
 

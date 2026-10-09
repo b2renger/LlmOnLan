@@ -1847,85 +1847,24 @@ returning preserves the step and the ticks.
 
 ## 13. Rig checklist — what the owner runs in the morning
 
-On the real client, on this box and ideally on a second machine. Items marked **(C)** are the ones no
-automated gate can prove.
+**Moved, 2026-10-09:** the person-only items (marked **(C)** here) are tests in [HUMAN_TESTS.md](HUMAN_TESTS.md). The
+forty items as written: `git show 3b8c0c1:docs/COMPUTER_PLAN.md`.
 
-**§0 — the surface.** *Items 1–4 carry more weight in revision 2: the harness page has no topbar and
-never loads `app.js`, so the segmented control, `aria-pressed`, the webview's survival and the persisted
-choice are **only** provable here (§0.3, K1-U1).*
-1. Launch the client. The topbar shows three segments, `aria-pressed` on Open WebUI. **(C)**
-2. Click **Computer** *while OWUI is still booting*. The canvas appears and **"Starting Open WebUI…"
-   does not cover it**; when the sidecar finishes, the webview does **not** pop over the canvas either.
-   *(§2.2a — this is the bug the `body[data-view]` CSS exists to kill, and launch is when it bites.)* **(C)**
-3. Click **Open WebUI**: still logged in, instant, not re-authenticated. **(C)**
-4. Quit and relaunch: the client comes back on **Computer**. **(C)**
-5. In a `NO_OWUI` build the OWUI segment is absent and the client starts on LOL Chat. **(C)**
-
-**§1 — the library and the migration**
-6. The library lists your old per-thread graphs, titled `From: <chat title>`. Open one: the parts are
-   there; `from-thread` parts carry a `legacy` badge. **(C)**
-7. Delete the chat those graphs came from in LOL Chat. Return to the Computer: **the library copy is
-   still there.** *(This is the destructive bug the migration exists to avoid.)*
-8. New graph → rename → duplicate → delete → reload. The list is right.
-9. Export a graph, import it into a new one: same parts and wires, new ids, no farm address and no key in
-   the file. **(C)**
-
-**§2 — arrow labels (the headline)**
-10. Rebuild your own research graph: one topic note, six labelled arrows, six research Instructions, one
-   convergence Instruction naming them in its prose. **(C)**
-11. Before running the convergence, open **Sent**. Read the assembled prompt: every `##` heading is your
-    own spelling, in first-mention order, the instruction last. **(C)**
-12. Rename one wire. The Sent tab changes live and the box goes `stale`.
-13. Run it. Count the generations in the run bar against what the plan preview predicted.
-14. Run it again unchanged: mostly cached, near-free. **(C)**
-
-**§3 — control flow**
-15. ▶ on a mid-graph box: it and everything downstream run; nothing upstream does.
-16. Press ▶ on a second box while the first is running: it merges, nothing is refused.
-17. Build the lesson-9 fan: one Instruction → three Conditions → three branches. Exactly one continues;
-    the other two wires go grey. **(C)**
-18. A Confirm parks: say no. **Zero generations spent.** Say yes on a second run: the branch continues.
-19. Draw a loop with no gate: it is refused with the Toggle suggestion. Add a Toggle: it is drawn dashed.
-20. With the Toggle **on**, let it run away: it stops at `maxIterations` and names the part. **(C)**
-21. Start a generation in LOL Chat while a graph run is going: **the run yields** and keeps what it paid
-    for. Press Run: it resumes free. **(C)** *(The etiquette item. Do this on the real farm.)*
-22. Kill the app mid-run. Relaunch, open the graph: the resume banner, and Resume re-pays for at most one
-    call. **(C)**
-
-**§4 — images, previews, look**
-23. Drop a screenshot on the canvas, label the wire `screen`, ask *"list every affordance"*. **(C)**
-24. On a farm serving a non-vision model, the same graph says so and sends nothing. **(C)**
-25. Ask for p5.js, preview it, then "Open live". Ask for code that calls `fetch()`: it fails in the
-    sandbox and says why. **(C)**
-26. Toggle the theme. Both look right; the five kind colours are still distinguishable. **(C)**
-
-**§5 — the tutorial**
-27. First run on a fresh profile: the welcome panel, the farm chip telling the truth about discovery. **(C)**
-28. Take the Tour with the farm **off**. It completes.
-29. Do lesson 3 end to end. The ticks appear when you actually do the thing. **(C)**
-30. Do a farm-needing lesson while the farm is busy: the demo answer offer, the honesty badge, the lesson
-    continuing. **(C)**
-31. Leave a lesson halfway, go to LOL Chat, come back: the progress ring and the right step. **(C)**
-
-**§6 — the things that must not have broken**
-32. LOL Chat still works end to end: send, stream, branch, settings, export.
-33. Open WebUI still boots, still chats, still has your history.
-34. `node shell/test/chat-harness/run.js --strict` and `--strict --phase perf` are green on this box.
-
-**§7 — the things revision 2 added**
-35. Import a `.lolgraph.json` you hand-edit to `"lolgraph": 3`. It is **refused** with the "newer
-    version" sentence and nothing appears — not a half-imported graph. **(C)**
-36. Press ▶ on an Instruction in a **freshly imported template**, before running anything else. It pulls
-    its own ancestors and answers, rather than saying "needs an input". *(The §4.2 prologue.)* **(C)**
-37. Run template 7 (**Critique loop**) with the Toggle on. Each round is a **different** critique, the
-    generation meter climbs, and it stops at a named ceiling. *(The `cacheSalt` rule — without it every
-    round returns the identical string for free and nothing ever stops.)* **(C)**
-38. Open a graph with a Dialog, press Run, and **walk away without answering**. Switch to Open WebUI and
-    chat: your chat is not refused, and the graph run has not eaten a seat. **(C)**
-39. Export a graph with **Include results** unticked, open the file: no part values, and **no Dialog
-    answer**. Export it ticked: the values are there and any `demo answer` badge survived both times. **(C)**
-40. Squint at a graph carrying all five kinds. You can tell them apart — by colour **and** the port
-    glyphs (`T ≡ {} ▣ ⎘`) — in dark and in light. **(C)**
+| Items | What | Now |
+|---|---|---|
+| 1–4 | The surface: three segments, Computer while Open WebUI boots, still logged in, relaunch on Computer | A13 |
+| 5 | A `NO_OWUI` build | not shipped |
+| 6 | Old per-thread graphs in the library | A13 |
+| 7 | Deleting the chat a graph came from keeps the library copy | superseded (graphs left the threads at K1) |
+| 8, 12, 13, 15, 16, 18, 19, 28, 32, 33 | Library operations, live Sent tab, counts, ▶ mid-graph, merges, Confirm, gate refusal, the Tour off-farm, LOL Vibe and Open WebUI still work | proven by the harness; A1 and A11 touch them again |
+| 9 | Export / import without farm address or key | A11 |
+| 10, 11, 14 | Your research graph, the Sent tab, a cached re-run | A11 |
+| 17, 20, 22, 35, 36, 39 | Conditions, a runaway Toggle, the resume banner, a newer-version file, ▶ in a fresh template, export without results | A11 |
+| 21, 38 | The run yields to a person's chat; a parked Dialog holds no seat | D15 |
+| 23–26, 40 | A screenshot read, a non-vision model refused, Open live and `fetch()`, both themes, five kinds apart | A13 (24 in A7) |
+| 27, 29–31 | The welcome panel, lesson 3, the demo answer, a lesson resumed | A14 |
+| 34 | The strict harness runs | a developer's check |
+| 37 | The *Critique loop* template | not shipped (no such template) |
 
 ---
 

@@ -85,6 +85,10 @@ the panel. It does not fail. When vLLM answers again, a farm that started on vLL
 
 ## Part 2: let the farm run it
 
+> **Superseded, 2026-10-09.** The owner chose a clean start instead (DEVLOG 2026-10-08 14:05): the operator-run vLLM
+> was stopped, its log-on task removed, and a fresh Farm app installs vLLM from the panel
+> ([HUMAN_TESTS.md](HUMAN_TESTS.md) J1). Nothing is left on this box to take over. The steps stay for the record.
+
 **For the owner, at a quiet moment you pick, once Farm app farm-v0.0.43 (the first with vLLM run by the farm) is
 released.** vLLM itself is not restarted: the same process (process group 401) keeps serving through
 the click. The farm is down only while the Farm app is reinstalled (step 1 to 2, a few minutes): clients go to

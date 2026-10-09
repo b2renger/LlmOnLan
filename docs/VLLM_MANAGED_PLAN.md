@@ -239,6 +239,9 @@ into `multiuser-phase0` on 2026-10-08 (8a37e6f). Not released yet: it ships with
   a reboot test); §11.6 on a Spark, including whether it logs in to its desktop by itself (R4). Never run yet: an
   Install from the panel into an empty folder on a fresh Windows PC (WSL from scratch, `build-essential`; the live
   test borrowed production's `.venv`), and a real vLLM run by a farm on native Linux (x86_64 or the Spark).
+  *(2026-10-09: released as farm-v0.0.43; the take-over on production is superseded by the clean-state run (§9.6);
+  what is left for a person is in [HUMAN_TESTS.md](HUMAN_TESTS.md): J1 (the install from the panel on the PRO 6000),
+  K6 (a fresh Windows PC), L2 (the Spark), M1–M2 (reboots).)*
 
 ## 0. Decisions
 
@@ -953,6 +956,9 @@ Switching to vLLM refuses up front when it is not installed, the model is not do
 - After that, systemd's restarts hit the marker and exit 0 (counted as success, no loop); stop.sh's 143 already counted as success.
 
 ### 9.6 The production steps, at a moment the owner picks:
+> **Superseded, 2026-10-09:** the clean-state run of 2026-10-08 (DEVLOG 14:05) stopped the PRO 6000's operator-run
+> vLLM and removed its log-on task, so there is nothing left to take over there. The take-over itself was rehearsed on
+> that box with a scratch farm (DEVLOG 2026-10-08 02:24, step 9). The steps stay as written, for the record.
 1. Quit Farm app v0.0.42. Its old code does not touch vLLM, which keeps serving.
 2. Install the new release and open it.
 3. Check that the code refresh landed (the farm code is copied over a running serve.sh, R3): the panel shows the vLLM button. If not, farm.log has "code refresh failed"; quit and reopen.
@@ -1085,32 +1091,17 @@ Steps:
 
 ### 11.5 Production (§9.6), then later, at a quiet moment, a reboot test: WSL boots, vLLM takes about 1.5 min, clients show "Starting vLLM" and the farm stays healthy.
 
+The production take-over is superseded (§9.6). The reboot test is [HUMAN_TESTS.md](HUMAN_TESTS.md) **M1** (2026-10-09).
+
 ### 11.6 On a DGX Spark: what only a real one can confirm (the owner, with the Farm app's Linux arm64 AppImage)
 Read, not run (2026-10-08): `install.sh` is the spike's install that ran on the Spark (uv's own Python 3.12, vLLM 0.30.0
 with `--torch-backend=auto`, the CUDA compiler pins); `status.sh`'s GPU line with no memory numbers parses as unified
 memory, sized from `MemAvailable` with the guard's 8 GB, 4 compile jobs and the 27 GiB cap (unit tests); the clock
-watch runs whatever the engine; the AppImage carries `farm/vllm` (its scripts LF, run through `bash`). On the Spark:
-1. `bash "/home/<you>/.config/LlmOnLan Farm/farm/vllm/status.sh"` prints `arch=aarch64`, a `gpu=NVIDIA GB10, …` line
-   whose memory fields are not numbers, a `cc=` path and `mem_available_kb=`.
-2. The panel's vLLM button, then the check: "GPU: NVIDIA GB10 (119 GB shared with the system).", nothing marked ✗.
-3. With the recipe's `lol-vllm.service` running: the take-over is offered and, clicked, keeps the same process group,
-   writes 58 GB for conversations, 8 people and the 8 GB guard; `sudo systemctl restart lol-vllm` then starts nothing
-   (its journal: "The LlmOnLan farm runs this vLLM now …") and does not loop.
-4. Stop vLLM, then Start, with Automatic memory: farm.log says 8 people and 27 GB for conversations, and the server's
-   environment has `LOL_VLLM_MIN_FREE_GB=8` and `MAX_JOBS=4` (`tr '\0' '\n' < /proc/<its pgid>/environ`). A second
-   Stop and Start gives the same 27 GB (the memory came back before the sizing).
-5. A first start of a model never started there (kernels compile): `free -g` stays above 8 GB available, no `[guard]`
-   line in `vllm.log`.
-6. Under load: no "stuck at a low clock" line on the panel; `nvidia-smi --query-gpu=clocks.sm,power.draw --format=csv -l 2`
-   reads 1,400 MHz or more and 40 W or more.
-7. A Download, then its Stop: `status.sh` shows no `installing=`, and `pgrep -af "hf download"` shows nothing.
-8. Quit the Farm app: no `running=` in `status.sh`, and the memory is back (`free -g`).
-9. A reboot: does the Spark log in to its desktop by itself? Then Launch at login starts the Farm app, and vLLM about
-   2 minutes later. If it does not (headless), nothing starts vLLM after a take-over (R4): keep the recipe (Undo), or
-   run `lol up` as a service of its own.
-10. Optional, about 45 minutes and 33 GB: Install vLLM from the panel into an empty folder; then
-    `<folder>/.venv/bin/python -c "import torch; print(torch.__version__, torch.cuda.get_device_name(0))"` names a
-    `+cu13…` torch and `NVIDIA GB10`.
+watch runs whatever the engine; the AppImage carries `farm/vllm` (its scripts LF, run through `bash`). What only a
+Spark can confirm (ten checks: `status.sh`'s lines, the check, the take-over of the recipe's unit, Automatic memory
+and the guard, a first start's compile, the clock under load, a download's Stop, Quit, a reboot, an install into an
+empty folder) is now [HUMAN_TESTS.md](HUMAN_TESTS.md) **L2** and **M2** (2026-10-09). The steps as first written:
+`git show 3b8c0c1:docs/VLLM_MANAGED_PLAN.md`.
 
 ## 12. Build order (each slice: tested → DEVLOG → commit and push on the branch)
 1. Scripts: serve.sh (managed mode, the marker, rotation, ~, logged refusals); status.sh; stop.sh (install, group-scoped); install.sh (steps, markers, uv, pgid, the symlink refusal, errors); the start-windows.ps1 exit-0 line. Then §11.2.

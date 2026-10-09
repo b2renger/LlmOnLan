@@ -20,15 +20,15 @@
 > adds USB serial, the farm's message bus + Trigger, Open data (data.gouv.fr), the Agent box and the Computer as an
 > MCP server; v0.2.2 the bus and MCP hardening, lessons 5–6 and "Ask out loud"; v0.2.3 the IDE (LOL Vibe's Project
 > panel + the coding agent, history, LAN share, GitHub), mic and camera, lessons 7–12, the resume banner and a full
-> review of every in-app text with tooltips; v0.2.4 the project server stops following symbolic links out of a project; v0.2.5 the coding agent compacts on small context windows; v0.2.6 agent loops (Keep going until done, schedules, Use the Computer), agent pages and the syntax check; v0.2.7 Home Assistant — ask, command, and agents that act on the home, reviewed by two critics; v0.2.8 + farm-v0.0.42 the multi-user work (multiuser_implementation_plan.md): the seat gate checks the password before a seat and forwards only the routes clients use, Stop reaches the engine, honest waits on every surface, an external vLLM routed through `hosted_vllm/` with its metrics read, a reply limit and Qwen's presence penalty against runaway replies, web search v2 (off by default, the client's search-and-read service, the date line), the Computer's yes/no decisions think, and the vLLM recipe with autostart; v0.2.9 + farm-v0.0.43: vLLM run by the farm (installed, started, stopped, configured and switched from the panel, and the take-over of an operator-run vLLM), the capacity page with usage scenarios, Open WebUI booting once, and the search model's repair and offline start (docs/DEVLOG.md; the manual rig lists are docs/TEST_SCENARIOS_v0.2.md, sections 7d and 7e).
+> review of every in-app text with tooltips; v0.2.4 the project server stops following symbolic links out of a project; v0.2.5 the coding agent compacts on small context windows; v0.2.6 agent loops (Keep going until done, schedules, Use the Computer), agent pages and the syntax check; v0.2.7 Home Assistant — ask, command, and agents that act on the home, reviewed by two critics; v0.2.8 + farm-v0.0.42 the multi-user work (multiuser_implementation_plan.md): the seat gate checks the password before a seat and forwards only the routes clients use, Stop reaches the engine, honest waits on every surface, an external vLLM routed through `hosted_vllm/` with its metrics read, a reply limit and Qwen's presence penalty against runaway replies, web search v2 (off by default, the client's search-and-read service, the date line), the Computer's yes/no decisions think, and the vLLM recipe with autostart; v0.2.9 + farm-v0.0.43: vLLM run by the farm (installed, started, stopped, configured and switched from the panel, and the take-over of an operator-run vLLM), the capacity page with usage scenarios, Open WebUI booting once, and the search model's repair and offline start (docs/DEVLOG.md; what a person must still check: docs/HUMAN_TESTS.md).
 > The bullets below describe `main` (= `multiuser-phase0`, 2026-10-08). Branch `embed-farm` (2026-10-08, not merged, not
 > released) adds **document search on the farm** (owner decision 2026-10-08, docs/EMBEDDINGS_STUDY.md "The decision"):
 > the farm turns the laptops' document text into vectors with EmbeddingGemma 2 and keeps nothing; the bullets below
 > include it.
 
 The full plan is built, released and in multi-user testing; the dated build log with how
-each piece was tested lives in [docs/DEVLOG.md](docs/DEVLOG.md), the rig‑verification state in
-[docs/RIG_CHECKLIST.md](docs/RIG_CHECKLIST.md) (LOL Vibe and the Computer: [docs/LOLCHAT_RIG_CHECKLIST.md](docs/LOLCHAT_RIG_CHECKLIST.md)),
+each piece was tested lives in [docs/DEVLOG.md](docs/DEVLOG.md), what a person must still check in
+[docs/HUMAN_TESTS.md](docs/HUMAN_TESTS.md) (what was verified on real machines: [docs/RIG_CHECKLIST.md](docs/RIG_CHECKLIST.md)),
 and the version‑specific integration facts in [docs/INTEGRATION_BRIEF.md](docs/INTEGRATION_BRIEF.md)
 (a dated snapshot — the pin has since moved). The last full consistency pass (code ↔ in‑app text ↔ these
 docs) is `docs/reviews/DOCS_REVIEW_2026-09-27_{FARM,SHELL,COMPUTER}.md`. Snapshot:
@@ -363,16 +363,9 @@ streamed gemma4 reply); **document‑locality** (a doc embedded into the local C
 `/v1/embeddings`** to the farm); **load‑balancing + transparent failover** across two Ollama hosts
 (killing one → 10/10 completions still succeed, after tuning the router).
 
-**Still needs real two‑machine / installer verification** (see [docs/RIG_CHECKLIST.md](docs/RIG_CHECKLIST.md)):
-discovery across *physical* boxes / broadcast‑blocked Wi‑Fi, the full installer build + a live
-GitHub‑Release auto‑update cycle on mac/win/linux (the upgrade test), the data‑folder move via the
-native dialog, and the v0.1.45 → v0.2.0 upgrade of a profile with LOL Vibe history (the one-time import
-into `DATA_DIR/lol-client`, then a Preferences move + relaunch); the v0.2.8 / farm-v0.0.42 rig list on installed
-builds (docs/TEST_SCENARIOS_v0.2.md, 7d); and for v0.2.9 / farm-v0.0.43 (TEST_SCENARIOS 7e): vLLM run by the farm
-from the installed Farm app on Windows + RTX (a fresh WSL, a card too small, Launch at login after a reboot) and on
-a DGX Spark ([docs/VLLM_MANAGED_PLAN.md](docs/VLLM_MANAGED_PLAN.md) §11.6, never run on one), the production
-take-over and its reboot test (§9.6, §11.5), and the installed client's first start without huggingface.co (its
-toast) and its repair of a half-downloaded search model. When working here, keep honoring the **prime directive** below.
+**Still needs a person** (two machines, installers, real devices, reboots): one list, grouped by setup, with what blocks
+the next release marked ★ — [docs/HUMAN_TESTS.md](docs/HUMAN_TESTS.md) (2026-10-09; the older lists point into it).
+When working here, keep honoring the **prime directive** below.
 
 ---
 
@@ -846,7 +839,7 @@ LlmOnLan/
                          #   operator recipe (start-windows.ps1, lol-vllm.service); test/fake-vllm stands in for vLLM
     litellm/             #   generated config.generated.yaml lives here at runtime
     README.md            #   prereqs (Ollama, LiteLLM) + usage + the full config reference
-  docs/                  # DEVLOG (dated build log), GETTING_STARTED, RIG_CHECKLIST, LOLCHAT_*, COMPUTER_*,
+  docs/                  # DEVLOG (dated build log), GETTING_STARTED, HUMAN_TESTS, RIG_CHECKLIST, LOLCHAT_*, COMPUTER_*,
                          # reviews/ (critic + consistency reports), …
   .github/workflows/release.yml              # client, on `v*` tags
   .github/workflows/release-farm.yml         # Farm app, on `farm-v*` tags
