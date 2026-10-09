@@ -727,6 +727,17 @@ process.stdin.on('end', () => {
   for (const p of [args.file_path, args.path]) {
     if (typeof p === 'string' && p && !inside(p)) deny('only files inside this project can be read or changed (' + p + ' is outside).');
   }
+  // The project's history and its settings are LlmOnLan's: .git/config holds the remote a person's Push sends to (with
+  // the token kept for its host), project.json the project's settings. Read them, never change them.
+  if (input.tool_name === 'write' || input.tool_name === 'edit') {
+    for (const p of [args.file_path, args.path]) {
+      if (typeof p !== 'string' || !p) continue;
+      const rel = fold(path.relative(root, real(path.resolve(root, p))));
+      if (rel === 'project.json' || rel === '.git' || rel.startsWith('.git' + path.sep)) {
+        deny('the project\\'s history (.git) and its settings (project.json) are kept by LlmOnLan: the agent can read them, not change them.');
+      }
+    }
+  }
   const pat = typeof args.pattern === 'string' ? args.pattern : '';
   if (input.tool_name === 'glob' && (path.isAbsolute(pat) || pat.split(/[\\\\/]/).includes('..'))) {
     deny('a search must stay inside this project (' + pat + ').');

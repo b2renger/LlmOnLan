@@ -185,7 +185,8 @@ docs) is `docs/reviews/DOCS_REVIEW_2026-09-27_{FARM,SHELL,COMPUTER}.md`. Snapsho
   (dsh 0.1.7-rc.2) run by main (`src/main/studio.ts`) over its SDK on its OWN Node (its addon refuses Electron 42),
   with a profile patch written from the current farm: 9 file tools, no shell/web/subagents, no DeepSeek cloud row,
   telemetry off, skills only from `DATA_DIR/skills`; and **the project fence** — a PreToolUse command hook
-  (`FENCE_JS`) that refuses any file tool outside the project, because dsh itself confines writes only (on Windows
+  (`FENCE_JS`) that refuses any file tool outside the project, and a write or edit to `project.json` or `.git/` (the
+  remote a person's Push sends to; 2026-10-09), because dsh itself confines writes only (on Windows
   dsh runs hooks through PowerShell: the command needs `&` and `; exit $LASTEXITCODE`, else it silently passes); and
   **the syntax check** (2026-09-30) — a PostToolUse hook (`CHECK_JS`) after every write/edit that parses the file's
   JavaScript (a .js/.mjs or each inline `<script>` of an .html) with `node:vm`, never running it, and on a SyntaxError

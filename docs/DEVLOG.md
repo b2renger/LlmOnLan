@@ -6,6 +6,21 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-10-09 (10:59) — The coding agent can no longer change a project's remote or its settings
+
+The test list's review (HUMAN_TESTS.md, decision 6) asked whether `project.json` was protected from the IDE's coding
+agent. It was not, and neither was `.git/config`: the fence (`FENCE_JS`, `studio.ts`) only checked that a path stays
+inside the project, and both live inside it. `.git/config` holds the remote a person's **Push** sends to, and the
+token is kept per HOST — so an agent misled by something it read could point `origin` at another repository on
+github.com, and the person's next Push would send the project there with their token.
+
+- **The fix:** the fence refuses a `write` or `edit` whose real path is `project.json` or `.git` / anything under it
+  (case folded on Windows, after `..` and links resolve). Reading both stays allowed; `.gitignore` is the project's
+  own and stays writable.
+- **Tested:** the fence test in `test/chat/unit/studio.test.mjs` gains the cases (an edit of `.git/config`, a write of
+  `project.json`, a `src/../.git/hooks/x` detour, `.GIT` on Windows, a read allowed, `.gitignore` allowed); with the
+  old fence it fails (`the remote cannot be changed: 0 !== 2`). Shell chat-unit 1844/0, chat-lint 0.
+
 ## 2026-10-09 (10:53) — One list of the human tests: docs/HUMAN_TESTS.md (branch `human-tests`)
 
 The owner: "refactor and aggregate all the human tests we have to do with the client so I can get on to it." Docs

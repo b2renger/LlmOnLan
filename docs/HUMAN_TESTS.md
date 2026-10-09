@@ -1422,9 +1422,9 @@ warning but goes on.
 4. **"≈ 362.7 million" (Île-de-France, A9):** no doc or result file records it. Confirm the number.
 5. **The coding agent's model line does not know Qwen3.6**, the model the studio serves: it reads *Nobody has tried
    Qwen3.6 on code edits yet* (G2). Add Qwen3.6 to `projects/models.mjs` after G2?
-6. **`project.json` may not be protected from the coding agent** (read from the code, not tested): the projects API
-   refuses writes to it, but the agent's fence allows any path inside the project. A developer should look before
-   relying on it.
+6. ~~**`project.json` may not be protected from the coding agent**~~ — **fixed 2026-10-09** (DEVLOG 10:59): it was
+   true, and `.git/config` (the remote a person's Push sends to) was open too. The fence now refuses a write or edit
+   to `project.json` or anything under `.git/`; reading stays allowed. Nothing for a person to decide.
 7. **The vLLM button's number on a small card** (K5) was written as *about 35 GB*; with document search on, the
    farm counts its 1.5 GB too, so the sentence may say a little more.
 8. **Candidate builds for the ★ tests:** a local build, or a pre-release tag.

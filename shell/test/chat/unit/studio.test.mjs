@@ -512,6 +512,17 @@ export default (test) => {
     assert.equal(call('glob', { pattern: 'src/**/*.js' }).code, 0);
     assert.equal(call('write', { file_path: 'a.js', content: 'y', sandbox_permissions: 'danger-full-access' }).code, 2, 'no wider rights');
     assert.equal(run(null, 'not json').code, 2, 'unsure: refused');
+    // .git/config holds the remote a person's Push sends to; project.json the project's settings (2026-10-09).
+    const kept = call('edit', { file_path: '.git/config', old_string: 'a', new_string: 'b' });
+    assert.equal(kept.code, 2, 'the remote cannot be changed');
+    assert.match(kept.why, /kept by LlmOnLan/);
+    assert.equal(call('write', { file_path: path.join(project, 'project.json'), content: '{}' }).code, 2, 'nor the settings');
+    assert.equal(call('write', { file_path: 'src/../.git/hooks/x', content: 'y' }).code, 2, 'nor through a detour');
+    assert.equal(call('read', { file_path: '.git/config' }).code, 0, 'reading them stays allowed');
+    assert.equal(call('write', { file_path: '.gitignore', content: 'node_modules' }).code, 0, '.gitignore is the project\'s own');
+    if (process.platform === 'win32') {
+      assert.equal(call('write', { file_path: '.GIT/config', content: 'y' }).code, 2, 'Windows paths ignore case');
+    }
     if (process.platform === 'win32') {
       assert.equal(call('read', { file_path: path.join(project, 'index.html').toUpperCase() }).code, 0, 'Windows paths ignore case');
     }
