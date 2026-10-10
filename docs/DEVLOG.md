@@ -6,6 +6,32 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-10-10 (19:08) — Release client v0.2.11 and Farm app farm-v0.0.45: the voice mode, Gemma 4 and Qwen3-Omni on vLLM
+
+The owner asked to go back to `main` and release so the work can be tested. Done:
+- **Merged.** `main` was fast-forwarded to `multiuser-phase0` at `be3be98` (the `voice-mode` and `vllm-models` merges,
+  and speech to text's own share of vLLM's memory). Gates on that tree: farm `test/run.js` 221/0; shell build,
+  chat-unit 1863/0, unit 29, lint 0; `vllm-models` alone: `LOL_VLLM_FAKE=1 vllm-lifecycle.js` 161/0.
+- **Client v0.2.11** (tag `v0.2.11`, commit `924c53b`, CI run 38067827014, 38 min): success, 27 assets, the same set as
+  v0.2.10; `latest.yml` says 0.2.11. It brings Open WebUI's microphone and Call mode through the farm's speech to text
+  when the farm advertises it (`AUDIO_STT_ENGINE=openai`), and `AUDIO_TTS_SPLIT_ON=punctuation` stated.
+- **Farm app farm-v0.0.45** (tag `farm-v0.0.45`, commit `f882348`, CI run 38067830389): a prerelease, 10 assets. It
+  brings speech to text on the GPU (off by default), Gemma 4 12B and Qwen3-Omni 30B-A3B in vLLM's list (a saved list
+  completes itself), `vllm[audio]` at install, the llama.cpp list before a switch, and speech to text named in vLLM's
+  memory sizing.
+- **`build-llamacpp-arm64`** (CI run 38067823991) ran again because `llamacpp.js` changed (`llamacpp.onDisk`): the same
+  b11512, success.
+- **Release notes:** both pages got a "What's new" above CI's own text.
+- **Looked at, not taken: AirLLM** (github.com/lyogavin/airllm, the owner's question). It streams a model's layers
+  from disk one at a time, so each token reads the whole model from disk: seconds to minutes per token (19.6 s per
+  token for an 8B on a 16 GB Mac mini; 5–35 s for a 70B on NVMe), one person at a time, no OpenAI server. The farm's
+  engines already hold their models in memory; for a laptop farm, llama.cpp / Ollama / MLX with a model sized to the
+  machine (and llama.cpp's `--n-cpu-moe` for a mixture-of-experts model bigger than the card) is the path. Not
+  measured here: an M1 16 GB and an 8 GB RTX laptop would be the first measurements of a laptop farm.
+- **Not done, the owner's:** the tests of HUMAN_TESTS.md on these builds (the voice ones: A18, A19, J9, K7; the vLLM
+  models: J10, J11; the llama.cpp list: K8), and the open questions (speech to text on by default on NVIDIA; Omni as
+  the transcriber; Omni's seats; vLLM on a 16 GB card for Gemma 4).
+
 ## 2026-10-10 (14:59) — Merged `vllm-models` beside the voice work; speech to text gets its own share of vLLM's memory
 
 - **The `vllm-models` agent stopped at its last step** (the account's weekly limit), with its work written but not
