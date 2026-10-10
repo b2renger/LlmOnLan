@@ -39,12 +39,12 @@ a test that sets one seat, kills an engine or restarts the farm on production wh
 | G. LOL Vibe's IDE | 1 laptop, a password farm, a GitHub account | 10 | — | 2.5 h |
 | H. Home Assistant on a real home | the office's Home Assistant Green | 4 | — | 2.5 h |
 | I. Document search on the farm | the farm, 2 laptops (one with old documents) | 7 | I1–I5 | 2 h |
-| J. The PRO 6000 (production, vLLM) | the PRO 6000 at a quiet moment, a client | 8 | J1–J4 | 3.5 h (+45 min install) |
-| K. A Windows test box with an RTX card | a non-production RTX PC, the 4070/4080, a PC with no NVIDIA GPU | 6 | K1–K5 | 3 h (+45 min K6) |
+| J. The PRO 6000 (production, vLLM) | the PRO 6000 at a quiet moment, a client | 10 | J1–J4 | 4.5 h (+45 min install, +1 h for J9's 70 GB) |
+| K. A Windows test box with an RTX card | a non-production RTX PC, the 4070/4080, a PC with no NVIDIA GPU | 7 | K1–K5 | 3.5 h (+45 min K6) |
 | L. The DGX Spark | a Spark with a screen | 3 | — | 3 h (+45 min) |
 | M. Reboot tests | the PRO 6000, the Spark | 2 | — | 1 h each |
 | N. The Farm app on a clean box | a PC with no Ollama or Python, a Mac | 5 | — | 2 h + downloads |
-| **Total** | | **100** | **18** | about 46–51 h |
+| **Total** | | **103** | **18** | about 48–53 h |
 
 **The release, in order:** K1–K5 on the test box first (the Farm app update, the held-file copy, llama.cpp b11512,
 document search's first start, the small cards), then J1–J4 on the PRO 6000, then I1–I5 and A1, B1 with the
@@ -1230,6 +1230,41 @@ step 2 works.
 request's own limit wins on Ollama and llama.cpp); vLLM's log names `max_new_tokens` 32768.
 - [ ] Done · Found:
 
+### J9 Gemma 4 12B and Qwen3-Omni in the vLLM list (branch `vllm-models`)
+*Proves:* the two new models reach a farm whose list was saved before them, download, serve, see a picture, call a
+tool and hear sound, from the panel alone. *Was:* DEVLOG 2026-10-09 "Gemma 4 12B and Qwen3-Omni on vLLM" (measured
+there with a scratch vLLM, never from the panel of an installed Farm app).
+1. On the build with these models, open the vLLM card. Read the list.
+2. If the checklist says *… cannot read sound yet: press Update vLLM*, press **Update vLLM** (vLLM stopped first).
+3. **Download** Gemma 4 12B (9.3 GB). **Use this**; wait for the restart (about 2 min).
+4. In Open WebUI: attach a photo and ask what it shows; ask *"What is the weather in Lyon?"* with web search off.
+5. From the farm box, sound in a message (no client sends one yet):
+   `curl http://127.0.0.1:4000/v1/chat/completions -H "content-type: application/json" -d @msg.json`, where
+   `msg.json` is `{"model":"<the name people see>","messages":[{"role":"user","content":[{"type":"input_audio","input_audio":{"data":"<base64 of a short French WAV>","format":"wav"}},{"type":"text","text":"Transcribe this audio word for word."}]}]}`
+   (add `-H "Authorization: Bearer <farm password>"` on a farm with one). On a farm with no password,
+   `node docs/spike/runs/probe.js http://127.0.0.1:4000/v1 <the name people see> out.json` does steps 4 and 5 at once.
+6. **Download** Qwen3-Omni (70.5 GB: an hour or more), **Use this**, repeat 4 and 5.
+7. Back to Qwen3.6 with **Use this**.
+
+*Expect:* step 1: five models, Gemma 4 12B and Qwen3-Omni included even on a farm whose list an Add, a Remove or a
+take-over saved before (a model removed by hand stays out). Step 3: Automatic says the measured number (Gemma: 16
+people at 32k, 8 at 64k on every turn). Step 4: the picture described; Gemma's thinking shows as thinking; the weather
+question gets an answer (Open WebUI sends the Computer's tools with it, so this is a request with tools), never an
+error. Step 5: the French sentence written back, close to word for word. Step 6: the same with Qwen3-Omni (Automatic:
+20 people at 32k, 10 at 64k; the first message with sound after its start takes several seconds). Write down the
+start times and anything that read wrong.
+- [ ] Done · Found:
+
+### J10 Qwen3-Omni writes down speech (/v1/audio/transcriptions)
+*Proves:* vLLM's own transcription route answers for Qwen3-Omni, for the voice work that may use it later. Not
+reachable through the farm's gate (it forwards only the routes clients use), so it is tried on vLLM's relay.
+1. With Qwen3-Omni serving: `curl http://127.0.0.1:8100/v1/audio/transcriptions -F file=@fr.wav -F model=<its id> -F language=fr`
+   from the farm box (inside WSL on Windows: the relay listens on 127.0.0.1).
+2. The same with an English WAV, and with no `language`.
+
+*Expect:* `{"text": "…"}` with the sentence, in its own language, in well under a second for a short clip (0.12–0.18 s for 7–8 s on 2026-10-09).
+- [ ] Done · Found:
+
 ## K. A Windows test box with an RTX card (not production) — about 3 h
 
 **Machine:** a Windows PC with an NVIDIA RTX card that is not the production farm; ideally also the studio's 4070
@@ -1292,7 +1327,9 @@ where Ollama's context gets measured again beside the plugin").
 
 *Expect:* the button says *Not for this GPU (12 GB; vLLM's models need about 35 GB): llama.cpp or Ollama is the engine
 for it. Press to see why.* (16 GB on the 4080; the number may be a little higher with document search on), before
-anything about WSL; no Install, no Download, the farm keeps serving. Ollama measures its context again beside the
+anything about WSL; no Install, no Download, the farm keeps serving. (From the build with Gemma 4 12B in the vLLM list,
+branch `vllm-models`: the button says *about 26 GB* on both cards; with document reading off, the 4080 is offered vLLM for Gemma 4 12B,
+with room for 2 or 3 people.) Ollama measures its context again beside the
 plugin (a new *Context: auto → N* in farm.log) and chats work. No NVIDIA GPU: told so, not to install WSL.
 - [ ] Done · Found:
 
@@ -1307,6 +1344,21 @@ plugin (a new *Context: auto → N* in farm.log) and chats work. No NVIDIA GPU: 
 *Expect:* WSL steps, then a C compiler, then nothing ✗; the client chats normally during the install; a stopped
 download reads partly downloaded and a second Download finishes it; on a French Windows the WSL sentences read
 right; an older card gets a warning (write down whether it starts).
+- [ ] Done · Found:
+
+### K7 The llama.cpp list before switching (branch `vllm-models`)
+*Proves:* an operator on Ollama (or vLLM) sees and prepares what a switch to llama.cpp would serve, and the farm keeps
+serving meanwhile (owner 2026-10-09).
+1. On Ollama, a client chatting. Panel ▸ Backend ▸ **llama.cpp**.
+2. Read the card. On a model that is not downloaded, press **Use this**; watch the bar and the client.
+3. **Close** the card; press **llama.cpp** again. Press **Switch to llama.cpp**; read the question; confirm.
+4. Switch back to Ollama.
+
+*Expect:* step 1 opens *Model · llama.cpp* in view, with no question and no switch; it says Ollama keeps serving until
+**Switch to llama.cpp**, marks the model it will serve **chosen** and those on this computer **downloaded**. Step 2:
+the bar says *Downloading <model>*, the client keeps chatting, then *llama.cpp will serve <model> when you switch to it.
+Ollama keeps serving until then.* Step 3: the question names that model (and says it downloads it first when it is not
+there); llama.cpp serves it.
 - [ ] Done · Found:
 
 ## L. The DGX Spark — about 3 h (+45 min for the optional fresh install)

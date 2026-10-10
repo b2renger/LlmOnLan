@@ -1,0 +1,99 @@
+{
+ "model": "gemma-4-12b",
+ "base": "http://127.0.0.1:8177/v1",
+ "at": "2026-10-09T14:34:27.412Z",
+ "checks": [
+  {
+   "label": "warm-up",
+   "ok": true,
+   "ttft_s": 0.104,
+   "decode_tps": 96.6,
+   "prompt_tokens": 24,
+   "completion_tokens": 64,
+   "text": "",
+   "reasoning_chars": 201,
+   "tool_calls": []
+  },
+  {
+   "label": "one stream (512 tokens)",
+   "ok": true,
+   "ttft_s": 0.054,
+   "decode_tps": 98.6,
+   "prompt_tokens": 31,
+   "completion_tokens": 512,
+   "text": "",
+   "reasoning_chars": 2156,
+   "tool_calls": []
+  },
+  {
+   "label": "picture",
+   "ok": true,
+   "ttft_s": 0.072,
+   "decode_tps": 94.6,
+   "prompt_tokens": 307,
+   "completion_tokens": 200,
+   "text": "",
+   "reasoning_chars": 647,
+   "tool_calls": []
+  },
+  {
+   "label": "tool call",
+   "ok": true,
+   "ttft_s": 0.058,
+   "decode_tps": 103.5,
+   "prompt_tokens": 71,
+   "completion_tokens": 70,
+   "text": "",
+   "reasoning_chars": 192,
+   "tool_calls": [
+    {
+     "name": "get_weather",
+     "args": "{\"city\": \"Lyon\"}"
+    }
+   ]
+  },
+  {
+   "label": "sound in a message fr.wav",
+   "ok": true,
+   "ttft_s": 0.063,
+   "decode_tps": 99.4,
+   "prompt_tokens": 234,
+   "completion_tokens": 269,
+   "text": "French\nHello, I would like to book the meeting room for Thursday at 3 PM for six people.",
+   "reasoning_chars": 820,
+   "tool_calls": []
+  },
+  {
+   "label": "sound in a message en.wav",
+   "ok": true,
+   "ttft_s": 0.065,
+   "decode_tps": 99.4,
+   "prompt_tokens": 209,
+   "completion_tokens": 247,
+   "text": "Hello. Please order three boxes of blue markers and send the invoice to the design school.\nThe speaker wants to order three boxes of blue markers and have the invoice sent to the design school.",
+   "reasoning_chars": 839,
+   "tool_calls": []
+  },
+  {
+   "label": "transcriptions fr.wav (fr)",
+   "ok": false,
+   "status": 404,
+   "seconds": 0.01,
+   "text": "{\"detail\":\"Not Found\"}"
+  },
+  {
+   "label": "transcriptions en.wav (en)",
+   "ok": false,
+   "status": 404,
+   "seconds": 0.01,
+   "text": "{\"detail\":\"Not Found\"}"
+  },
+  {
+   "label": "transcriptions fr.wav",
+   "ok": false,
+   "status": 404,
+   "seconds": 0.01,
+   "text": "{\"detail\":\"Not Found\"}"
+  }
+ ]
+}

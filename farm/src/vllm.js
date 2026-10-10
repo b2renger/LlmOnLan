@@ -86,7 +86,7 @@ function parseStatus(text) {
         memTotalGib: null, memAvailableGib: null, diskFreeGb: null,
         installs: [], models: [], running: null, found: [], guardLine: null, installing: null, managed: false,
     };
-    const env = {}; const argv = []; const links = new Set(); let ready = false;
+    const env = {}; const argv = []; const links = new Set(); const sound = new Set(); let ready = false;
     const num = (s) => (/^\d+(\.\d+)?$/.test(String(s).trim()) ? Number(s) : null);
     for (const line of String(text || '').split(/\r?\n/)) {
         const i = line.indexOf('=');
@@ -104,6 +104,7 @@ function parseStatus(text) {
         case 'disk_free_kb': out.diskFreeGb = Number(v) * 1024 / 1e9; break;
         case 'install': { const [root, version] = v.split(' '); out.installs.push({ root, version: version || null, link: false }); break; }
         case 'venv_link': links.add(v); break;
+        case 'audio': sound.add(v); break;
         case 'model': {
             const m = /^(\S+) (\d+) vision=([01]) native=(\d*) partial=([01])$/.exec(v);
             if (m) out.models.push({ folder: m[1], gb: Number(m[2]) * 1024 / 1e9, vision: m[3] === '1', native: m[4] ? Number(m[4]) : null, partial: m[5] === '1' });
@@ -120,7 +121,7 @@ function parseStatus(text) {
         default: break;
         }
     }
-    for (const inst of out.installs) inst.link = links.has(inst.root);
+    for (const inst of out.installs) { inst.link = links.has(inst.root); inst.audio = sound.has(inst.root); }
     if (out.running) {
         Object.assign(out.running, {
             port: Number(env.LOL_VLLM_PORT) || 8100,
@@ -169,19 +170,23 @@ function resolveRoot(config, st) {
 // measured models' own flags for their families (the default list's), a generic Qwen3 set, else prefix caching only.
 // ponytail: a family this table does not know gets no thinking or tool parser, and the panel says so; the upgrade
 // path is per-entry args.
+// A message limit (--limit-mm-per-prompt) for a sound the model cannot hear (a Gemma 4 31B) is ignored by vLLM.
 const argsOf = (id) => [...VLLM_LIBRARY.find((e) => e.id === id).args];
 const FAMILY_ARGS = [
+    [/qwen3-?omni/i, () => argsOf('qwen3-omni-30b-a3b')],
     [/qwen3\.[56]|qwen3-?next/i, () => argsOf('qwen3.6-35b-a3b')],
     [/qwen3\.8/i, () => argsOf('qwen3.8-27b-nvfp4')],
     [/nemotron/i, () => argsOf('nemotron-3.5-lightning')],
+    [/gemma-?4/i, () => argsOf('gemma-4-12b')],
     [/qwen3/i, () => ['--enable-prefix-caching', '--reasoning-parser', 'qwen3', '--enable-auto-tool-choice', '--tool-call-parser', 'hermes']],
 ];
 function familyArgs(name) {
     const f = FAMILY_ARGS.find(([rx]) => rx.test(String(name || '')));
     return f ? f[1]() : ['--enable-prefix-caching'];
 }
-// A model with no thinking parser: answers work, tools and thinking may not show (the panel's note).
-const isGeneric = (entry) => !(entry.args || []).includes('--reasoning-parser');
+// A model with neither a thinking nor a tool parser: answers work, tools and thinking may not show (the panel's note).
+// Qwen3-Omni's Instruct does not think: its tool parser is enough.
+const isGeneric = (entry) => !(entry.args || []).some((a) => a === '--reasoning-parser' || a === '--tool-call-parser');
 
 // "owner/name", or a Hugging Face link to it (https://huggingface.co/owner/name, and anything after) → the repo, or
 // null.
@@ -212,6 +217,9 @@ function newLibraryEntry(input = {}, library = [], disk = []) {
     const repo = repoOf(input.repo);
     if (!repo) return { error: 'Give the name of a model on Hugging Face, like nvidia/Qwen3.6-35B-A3B-NVFP4.' };
     if (library.some((e) => e.repo && e.repo.toLowerCase() === repo.toLowerCase())) return { error: `${repo} is already in the list.` };
+    // A built-in model the operator removed, added back by its name: its own entry again, with its measured flags.
+    const builtIn = VLLM_LIBRARY.find((e) => e.repo && e.repo.toLowerCase() === repo.toLowerCase());
+    if (builtIn && !ids.has(builtIn.id)) return { entry: JSON.parse(JSON.stringify({ ...blank, ...builtIn })) };
     const [owner, name] = repo.split('/');
     // Two owners' models of the same name would share a folder: the second one gets its owner's name in front.
     const folder = library.some((e) => folderOf(e) === name) ? `${owner}--${name}` : null;
@@ -227,7 +235,9 @@ function facts(entry) {
     const fp8 = /^fp8/.test(String(flagMap(entry.args || [])['--kv-cache-dtype'] || ''));
     return {
         kvBytesPerToken: m.kv_bytes_per_token_fp8 * (fp8 ? 1 : 2),
-        stateBytes: m.vllm_state_charge_bytes ?? 2 * (m.recurrent_state_bytes || 0),
+        // Plus the sliding-window layers' share, which stops growing past the window (Gemma 4: 168 MB a person;
+        // measured 2026-10-09, 64 people at 30k filled 52 % of a 52 GiB pool).
+        stateBytes: (m.vllm_state_charge_bytes ?? 2 * (m.recurrent_state_bytes || 0)) + (m.kv_constant_bytes_per_request || 0) * (fp8 ? 1 : 2),
         nativeCtx: m.context_native ?? null,
     };
 }
@@ -329,14 +339,21 @@ function settingsOf(config, root = config.vllm.root) {
 
 // The whole `vllm serve` argv after the model (serve.sh adds --uds). The farm owns all of it, as llamacpp.js owns
 // llama-server's.
+// A model's own sampling (its --override-generation-config, Qwen3-Omni's) and the reply cap go in ONE flag: vLLM keeps
+// a repeated flag's last value, so a second one would drop the first.
 function argvFor(entry, s, kvGib, maxNumSeqs) {
+    const own = [...(entry.args || [])];
+    let gen = {};
+    const i = own.indexOf('--override-generation-config');
+    if (i >= 0) { try { gen = JSON.parse(own[i + 1]); } catch { gen = {}; } own.splice(i, 2); }
+    if (s.maxReply) gen = { ...gen, max_new_tokens: s.maxReply };
     return [
         '--served-model-name', s.modelId,
         '--max-model-len', String(s.ctx),
         '--max-num-seqs', String(maxNumSeqs),
         '--kv-cache-memory-bytes', String(Math.round(kvGib * GIB)),
-        ...(entry.args || []),
-        ...(s.maxReply ? ['--override-generation-config', JSON.stringify({ max_new_tokens: s.maxReply })] : []),
+        ...own,
+        ...(Object.keys(gen).length ? ['--override-generation-config', JSON.stringify(gen)] : []),
         ...s.extraArgs,
     ];
 }
@@ -827,6 +844,9 @@ function problemsFrom(probe, config, entry = vllmEntry(config)) {
     if (inst) {
         oks.push(config.vllm.root ? `vLLM ${inst.version} is installed (in ${root}).` : `Found an existing vLLM in ${root}: the farm will use it.`);
         if (inst.version !== config.vllm.version) warnings.push(`vLLM ${inst.version} is installed; this farm was tested with ${config.vllm.version}.`);
+        // An install from before the sound extras (farm-v0.0.44 and earlier): text and pictures work, a message with
+        // sound fails. Update vLLM adds them in a few minutes.
+        else if (entry && entry.audio && !inst.audio) warnings.push(`${entry.label} hears sound in a message, and the vLLM installed here cannot read sound yet: press Update vLLM (a few minutes; text and pictures work meanwhile).`);
     } else {
         problems.push('vLLM is not installed on this computer yet: press Install vLLM.');
     }

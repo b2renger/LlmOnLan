@@ -7,7 +7,7 @@ non-cold requests of one round). Run: python build_measured.py
 import json, glob, os, re, math, sys, csv, datetime as dt
 from collections import defaultdict
 
-REPO = r"C:/Users/ateliernum/Documents/code/LlmOnLan"
+REPO = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", ".."))   # this checkout
 SPIKE = REPO + "/docs/spike"
 RES = SPIKE + "/results"
 OUT = os.path.dirname(os.path.abspath(__file__))
@@ -25,7 +25,8 @@ def r(x, n):
 def parse_label(label):
     box = "pro6000" if label.startswith("pro6000") else "spark"
     engine = "vllm" if "vllm030" in label else "llamacpp"
-    model = "qwen36" if "qwen36" in label else "nemotron" if "nemotron" in label else "qwen38"
+    model = ("qwen36" if "qwen36" in label else "nemotron" if "nemotron" in label else "gemma4" if "gemma4" in label
+             else "omni" if "omni" in label else "qwen38")
     variant = None
     m = re.search(r"-p(8|16)$", label)
     if m:
@@ -161,6 +162,13 @@ for f in files:
 
 # ------------------------------------------------------------------------------------------------ static facts
 POOL_58 = 62277025792
+# Qwen3-Omni's run (2026-10-09): its pool, its page (48 layers x 16 tokens x 1,024 B), its loaded weights and flags.
+OMNI_POOL = 32212254720
+OMNI_PAGE = 48 * 16 * 1024
+OMNI_WEIGHTS = 30.91
+OMNI_SERVER_FLAGS = ("--max-model-len 65536 --max-num-seqs 192 --kv-cache-memory-bytes 32212254720 (30 GiB) --enable-prefix-caching "
+                     "--enable-auto-tool-choice --override-generation-config {\"temperature\":0.6,\"top_p\":0.95,\"top_k\":20,"
+                     "\"max_new_tokens\":32768}")
 VLLM_KV = {  # vLLM 0.30 hybrid paging (ESTIMATES_2026-10-05.md § Method 2; Qwen3.8 page derived, see notes)
     "qwen36": {"page_bytes": 21463040, "block_tokens": 2096, "fixed_blocks_per_request": 6,
                "attn_kv_bytes_per_token": 10240,
@@ -173,6 +181,19 @@ VLLM_KV = {  # vLLM 0.30 hybrid paging (ESTIMATES_2026-10-05.md § Method 2; Qwe
                "page_note": "DERIVED here, not stated in ESTIMATES: 1,568 x 32,768 B. It reproduces floor(58 GiB/page) = 1,212 "
                             "blocks, the start-up line 13.47x at 131,072 (1,212/(84+6)) and ESTIMATES' 46.6 at a 30k conversation "
                             "(1,212/26). Any page in (51,341,323, 51,383,685] B gives the same 1,212."},
+    # 2026-10-09 (the farm's own argv; the GPU shared with Ollama's 17.9 GB, so smaller pools than 58 GiB).
+    "gemma4": {"page_bytes": 524288, "block_tokens": 64, "fixed_blocks_per_request": 325, "pool_bytes": 55834574848,
+               "attn_kv_bytes_per_token": 8192,
+               "page_note": "start-up 'kv cache group sizes [16,16,16,16,16,64]': 8 global layers (1 KV head x 512, K=V stored "
+                            "twice, 1,024 B fp8) in 64-token blocks, 40 sliding-window layers (8 x 256 x 2) in 5 groups of 8 in "
+                            "16-token blocks; every page 64 KiB, a block id spans 8 layers = 512 KiB. A person: ceil(t/64) "
+                            "global blocks + 5 x (1024/16 + 1) = 325 window blocks. Measured: 64 people at ~30.5k filled "
+                            "51.8 % of 106,496 blocks (the formula says 48.2 %). vLLM's start-up line (16.46x at 65,536) "
+                            "ignores the window and is far too low."},
+    "omni": {"page_bytes": OMNI_PAGE, "block_tokens": 16, "fixed_blocks_per_request": 0, "pool_bytes": OMNI_POOL,
+             "attn_kv_bytes_per_token": 49152,
+             "page_note": "the thinker: 48 full-attention layers x 4 KV heads x 128 x 2 (K, V) = 49,152 B a token in fp8, "
+                          "16-token blocks; no recurrent state, no window."},
 }
 MODELS = {
     "qwen36": {"name": "Qwen3.6-35B-A3B", "arch": "hybrid GatedDeltaNet MoE, ~3B active", "vision": True,
@@ -186,6 +207,24 @@ MODELS = {
                  "vllm_weights_gib": 17.82, "disk_gb": 21.58, "gguf_tested": "Q4_K_M (Ollama blob)",
                  "vendor_swe_verified": 52.8,
                  "vllm_flags": "--kv-cache-dtype fp8 --mamba-backend flashinfer --reasoning-parser nemotron_v3 --tool-call-parser qwen3_coder"},
+    "gemma4": {"name": "Gemma 4 12B", "arch": "dense, encoder-free (Unified): 8 global + 40 sliding-window (1,024) layers",
+               "vision": True, "audio": True,
+               "vllm_checkpoint": "unsloth/gemma-4-12b-it-NVFP4 (NVFP4 MLPs, FP8 attention, fp8 KV scales; Triton attention: "
+                                  "heterogeneous head sizes rule out FA4)",
+               "weights_label": "NVFP4/FP8 mixed (unsloth/gemma-4-12b-it-NVFP4)",
+               "vllm_weights_gib": 9.25, "disk_gb": 9.34, "gguf_tested": None, "vendor_swe_verified": None,
+               "vllm_flags": "--kv-cache-dtype fp8 --reasoning-parser gemma4 --tool-call-parser gemma4 "
+                             "--limit-mm-per-prompt {\"image\":4,\"audio\":1,\"video\":0}",
+               "server_flags": "--max-model-len 65536 --max-num-seqs 192 --kv-cache-memory-bytes 55834574848 (52 GiB) "
+                               "--enable-prefix-caching --enable-auto-tool-choice"},
+    "omni": {"name": "Qwen3-Omni-30B-A3B-Instruct (the thinker)", "arch": "MoE (128 experts, 8 active), 48 full-attention layers, "
+                                                                          "audio + vision encoders", "vision": True, "audio": True,
+             "vllm_checkpoint": "Qwen/Qwen3-Omni-30B-A3B-Instruct (BF16, quantized to FP8 by vLLM at load: --quantization fp8)",
+             "weights_label": "FP8 at load (Qwen/Qwen3-Omni-30B-A3B-Instruct, BF16)",
+             "vllm_weights_gib": OMNI_WEIGHTS, "disk_gb": 70.52, "gguf_tested": None, "vendor_swe_verified": None,
+             "vllm_flags": "--quantization fp8 --kv-cache-dtype fp8 --tool-call-parser hermes "
+                           "--limit-mm-per-prompt {\"image\":4,\"audio\":1,\"video\":0}",
+             "server_flags": OMNI_SERVER_FLAGS},
     "qwen38": {"name": "Qwen3.8-27B", "arch": "dense, hybrid attention", "vision": None,
                "vllm_checkpoint": "nvidia/Qwen3.8-27B-NVFP4 (W4A4 dense, native FP4 GEMM via FlashInferCutlassNvFp4LinearKernel)",
                "vllm_weights_gib": 19.92, "disk_gb": 21.95, "gguf_tested": "Q4_K_M (Ollama blob, no mmproj)",
@@ -285,11 +324,12 @@ for cid in sorted(set(bench) | set(quality)):
     runs = sorted(bench.get(cid, []), key=lambda x: x[0] or "")
     cfg = {"id": cid, "box": box, "engine": engine, "model": model, "variant": variant,
            "engine_version": "vLLM 0.30.0 (torch 2.13.0+cu132, FlashInfer 0.6.18.post1)" if engine == "vllm" else "llama.cpp b10670 (the Farm app's build)",
-           "weights": ("NVFP4 (" + MODELS[model]["vllm_checkpoint"] + ")") if engine == "vllm" else "Q4_K_M GGUF",
+           "weights": (MODELS[model].get("weights_label") or ("NVFP4 (" + MODELS[model]["vllm_checkpoint"] + ")")) if engine == "vllm" else "Q4_K_M GGUF",
            "runs": [], "profiles": {}}
     if engine == "vllm":
-        cfg["server_flags"] = ("--max-model-len 131072 --max-num-seqs 192 --kv-cache-memory-bytes 62277025792 --enable-prefix-caching "
-                               "--mamba-cache-mode align --enable-auto-tool-choice " + MODELS[model]["vllm_flags"])
+        cfg["server_flags"] = (MODELS[model]["server_flags"] + " " + MODELS[model]["vllm_flags"]) if "server_flags" in MODELS[model] else (
+            "--max-model-len 131072 --max-num-seqs 192 --kv-cache-memory-bytes 62277025792 --enable-prefix-caching "
+            "--mamba-cache-mode align --enable-auto-tool-choice " + MODELS[model]["vllm_flags"])
     else:
         pool, cap = LLAMA_POOL[(model, variant)]
         cfg["server_flags"] = "--parallel %s --ctx-size %d --n-gpu-layers 999 %s" % (variant[1:], pool, LLAMA_ARGV)
@@ -412,7 +452,8 @@ for cid in sorted(set(bench) | set(quality)):
     if engine == "vllm":
         kvj = kvs.get(cid, {})
         K = VLLM_KV[model]
-        blocks = POOL_58 // K["page_bytes"]
+        pool = K.get("pool_bytes", POOL_58)
+        blocks = pool // K["page_bytes"]
         def per_req(tokens):
             return math.ceil(tokens / K["block_tokens"]) + K["fixed_blocks_per_request"]
         corr = {lab: r(blocks / per_req(t), 1) for lab, t in (("32k", 32768), ("64k", 65536), ("128k", 131072))}
@@ -424,7 +465,7 @@ for cid in sorted(set(bench) | set(quality)):
                 prof_sizes[ctx] = {"tokens": t + 256, "people": r(blocks / per_req(t + 256), 1),
                                    "people_fill_088_093": [r(0.88 * blocks / per_req(t + 256), 1), r(0.93 * blocks / per_req(t + 256), 1)],
                                    "mb_per_person": r(per_req(t + 256) * K["page_bytes"] / 1e6, 1)}
-        cfg["kv"] = {"pool_bytes": POOL_58, "pool_gib": 58.0, "kv_tokens_startup": kvj.get("kv_tokens"),
+        cfg["kv"] = {"pool_bytes": pool, "pool_gib": r(pool / 2**30, 1), "kv_tokens_startup": kvj.get("kv_tokens"),
                      "startup_max_concurrency_131072": (kvj.get("max_concurrency") or {}).get("131072"),
                      "weights_gib": kvj.get("weights_gib"), "cuda_graphs_gib": kvj.get("cuda_graphs_gib"),
                      "blocks": blocks, "block_tokens": K["block_tokens"],

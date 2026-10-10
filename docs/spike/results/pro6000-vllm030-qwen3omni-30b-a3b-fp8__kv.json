@@ -1,0 +1,20 @@
+{
+ "log": "results/logs/pro6000-vllm030-qwen3omni-30b-a3b-fp8.log",
+ "engine": "vllm",
+ "kv_tokens": 655360,
+ "max_concurrency": {
+  "65536": 10.0
+ },
+ "weights_gib": 30.91,
+ "cuda_graphs_gib": 0.45,
+ "people_by_kv": {
+  "32k": 20.0,
+  "64k": 10.0,
+  "128k": 5.0
+ },
+ "people_by_kv_from_concurrency_line": {
+  "32k": 20.0,
+  "64k": 10.0,
+  "128k": 5.0
+ }
+}

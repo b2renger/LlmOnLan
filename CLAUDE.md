@@ -66,8 +66,17 @@ docs) is `docs/reviews/DOCS_REVIEW_2026-09-27_{FARM,SHELL,COMPUTER}.md`. Snapsho
     the process half) drives the scripts in `farm/vllm/` (`serve.sh` with the farm's whole argv in
     `LOL_VLLM_ARGS_B64`, `stop.sh`, `install.sh`, the read-only `status.sh`; on Windows through `wsl.exe` with a
     timeout on every call). The panel installs it (the **download slot**: outside the job slot and `serialize`,
-    never `busy`, resumable), keeps a list of the three measured NVFP4 models (Download / Use this / Remove / Add
-    by Hugging Face name), and sets people at once, context per person and GPU memory for conversations
+    never `busy`, resumable), keeps a list of five models (Download / Use this / Remove / Add by Hugging Face name):
+    the spike's three NVFP4 models and, since 2026-10-09 (branch `vllm-models`), two that hear sound in a
+    chat message (`audio`, the snapshot's `backend.audio`; vLLM's sound extras, `vllm[audio]` in `install.sh`, an
+    older install offered Update vLLM): **Gemma 4 12B** (`unsloth/gemma-4-12b-it-NVFP4`, 9.25 GiB, vLLM's
+    `gemma4` parsers; 16 people at 32k / 8 at 64k on the PRO 6000, every turn) and **Qwen3-Omni 30B-A3B**
+    (`Qwen/Qwen3-Omni-30B-A3B-Instruct`, the thinker only, BF16 made FP8 at load, 30.9 GiB; 20 / 10 people, its memory
+    the limit; `install.sh` writes its processor-only template as `chat_template.jinja` for tool calls, and the route
+    drops `chat_template_kwargs` for a vLLM model with no thinking parser; vLLM's `/v1/audio/transcriptions` answers
+    for it, unrouted). A list saved before
+    a version added models gets them at the next start, except the ids in `vllm.removed` (a Remove of a built-in);
+    and sets people at once, context per person and GPU memory for conversations
     (Automatic: measured seats capped by what the pool holds; the pool from free memory less the model, ~4 GB,
     9 GB for OCR, document search's 1.5 GB while it is not running yet and an 8 % margin, never `--gpu-memory-utilization`) under the one Apply, which dry-runs and
     confirms only a restart. The boot never waits for it: a PLANNED start keeps the farm healthy + `busy`
@@ -88,7 +97,8 @@ docs) is `docs/reviews/DOCS_REVIEW_2026-09-27_{FARM,SHELL,COMPUTER}.md`. Snapsho
     program answers on and counts only once `serve.sh` logged it ready; Ollama never loads beside a vLLM whose stop
     failed (the farm stays on vLLM, stopped); the check needs a C compiler (`build-essential`); Install/Download
     check the disk and leave 10 GB free; the take-over writes llama.cpp off. The leftovers (2026-10-08): a GPU no
-    model of the list fits (`vllm.gpuFit`, document reading's 9 GB included: an RTX 4070/4080/4090) is said on the
+    model of the list fits (`vllm.gpuFit`, document reading's 9 GB included: an RTX 4070/4080/4090; without it,
+    Gemma 4 12B fits a 16 or 24 GB card since 2026-10-09) is said on the
     vLLM button before any check, on Windows before anything about WSL, and offered nothing; WSL with no answer at
     boot queues the start (which keeps a server running with these settings, `keepRunning`) instead of Ollama all
     day; Automatic memory waits until freed memory stops rising (`systemInfo.untilSteady`); the runtime file `lol
@@ -118,7 +128,8 @@ docs) is `docs/reviews/DOCS_REVIEW_2026-09-27_{FARM,SHELL,COMPUTER}.md`. Snapsho
     once, verify, remember per farm). Discovery, `/health/liveliness` and the admin token stay separate.
   - **Admin panel** at `http://<box>:41997/lol/admin` (bearer = `admin.token`, or a per-run token printed by
     `lol up`; the Farm app pins one): the engine switch (Ollama, llama.cpp, vLLM, and External only while configured) and the vLLM card (its checklist, Install, the model list, Start/Stop, the log, the take-over offer); the `.gguf` library (add by
-    URL — split files too — / Use this, with rollback); the name users see (llama.cpp, vLLM) or per-model
+    URL — split files too — / Use this, with rollback; while another engine serves, the llama.cpp button opens that
+    card first and Use this chooses and downloads what the switch will serve, owner 2026-10-09); the name users see (llama.cpp, vLLM) or per-model
     **Rename** (Ollama); people served at once, the context window (Automatic on Ollama and llama.cpp; on vLLM the
     context is a number, and people at once and GPU memory for conversations are Automatic) and the farm
     password under ONE **Apply changes** (one restart; on vLLM a dry run first, and vLLM restarts only for a new

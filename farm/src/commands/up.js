@@ -15,7 +15,7 @@ const ollama = require('../ollama');
 const llamacpp = require('../llamacpp');
 const vllmMod = require('../vllm');
 const proxyApi = require('../proxy');
-const { loadConfig, ConfigSchema } = require('../config');
+const { loadConfig, ConfigSchema, VLLM_LIBRARY } = require('../config');
 const {
     writeLitellmConfig, buildLitellmConfig, servedEntries, ollamaServes, defaultModelEntry,
     carryNameAcross, applyNamePlan, engineFallback, engineOf,
@@ -2306,7 +2306,8 @@ async function run(args) {
                 alias: config.llamacpp.alias,
                 model: config.llamacpp.model,
                 mmproj: config.llamacpp.mmproj,
-                library: config.llamacpp.library || [],
+                // `downloaded`: the panel's list says it, so an operator can prepare a switch from Ollama or vLLM.
+                library: (config.llamacpp.library || []).map((e) => ({ ...e, downloaded: llamacpp.onDisk(e.url) })),
                 contextLength: config.llamacpp.contextLength,        // number, or 'auto'
                 contextResolved: config.llamacpp.contextResolved ?? null, // what actually serves
                 parallel: config.llamacpp.parallel,
@@ -3122,7 +3123,9 @@ async function run(args) {
         const r = vllmMod.newLibraryEntry(body, config.vllm.library || [], st ? st.models : []);
         if (r.error) return { ok: false, error: r.error };
         config.vllm.library = [...(config.vllm.library || []), r.entry];
-        const warn = persist('vllm', { library: config.vllm.library });
+        // A built-in model added back is no longer one the operator removed.
+        config.vllm.removed = (config.vllm.removed || []).filter((id) => id !== r.entry.id);
+        const warn = persist('vllm', { library: config.vllm.library, removed: config.vllm.removed });
         return { ok: true, id: r.entry.id, message: `${r.entry.label} is in the list.${r.entry.repo ? ' Press Download, then Use this.' : ''}${warn || ''}` };
     }
     // Remove one from the list, and with `deleteFiles` its folder too. Never the chosen model, the one running, or
@@ -3144,7 +3147,9 @@ async function run(args) {
             deleted = ' Its files are deleted.';
         }
         config.vllm.library = lib.filter((x) => x !== e);
-        const warn = persist('vllm', { library: config.vllm.library });
+        // A built-in model stays out at the next start, when the list is completed with the built-ins it lacks.
+        if (VLLM_LIBRARY.some((x) => x.id === e.id) && !(config.vllm.removed || []).includes(e.id)) config.vllm.removed = [...(config.vllm.removed || []), e.id];
+        const warn = persist('vllm', { library: config.vllm.library, removed: config.vllm.removed || [] });
         if (body.deleteFiles) await checkVllm().catch(() => null);
         return { ok: true, message: `${e.label} is out of the list.${deleted}${warn || ''}` };
     }
@@ -3204,8 +3209,9 @@ async function run(args) {
     // (`url`), which is what makes "add a model" a real operation and not a config edit.
     // Rolls the config back and reloads the previous weights if the new ones don't come
     // up — a mistyped URL must not leave the farm with no backend.
+    // While another engine serves, it CHOOSES the model a switch to llama.cpp will serve (owner, 2026-10-09): the
+    // download runs now as the job, and the engine that serves keeps serving.
     function setLlamacppModel(sel) {
-        if (!config.llamacpp.enabled) return { ok: false, error: 'The llama.cpp backend is off — switch to it first.' };
         if (busy()) return busyErr();
         const lib = config.llamacpp.library || [];
         let url = null; let mmproj = null; let mtpOk = null; let label = null;
@@ -3221,7 +3227,8 @@ async function run(args) {
         } else {
             return { ok: false, error: 'Choose a model, or give a .gguf URL.' };
         }
-        if (url === config.llamacpp.model) return { ok: true, already: true, model: url };
+        const serving = engineOf(config) === 'llamacpp';
+        if (url === config.llamacpp.model && (serving || llamacpp.onDisk(url))) return { ok: true, already: true, model: url };
 
         const before = { model: config.llamacpp.model, mmproj: config.llamacpp.mmproj, mtp: config.llamacpp.mtp };
         // Guard the one failure this project keeps hitting: MTP on a quant whose head
@@ -3233,6 +3240,16 @@ async function run(args) {
         if (config.llamacpp.mtp && mtpOk === false) {
             patch.mtp = false;
             mtpNote = ' Speculative decoding (MTP) was turned off — this quant has no MTP head.';
+        }
+        if (!serving) {
+            return runJob('model', `Downloading ${label}`, async (progress) => {
+                let got;
+                try { got = await llamacpp.ensureModel({ ...config, llamacpp: { ...config.llamacpp, ...patch } }, progress); }
+                catch (err) { got = { ok: false, message: `Could not download it: ${(err && err.message) || err}` }; }
+                if (!got.ok) return { ok: false, error: `${got.message} Nothing changed.` };
+                const warn = persistLlamacpp(patch);
+                return { ok: true, message: `llama.cpp will serve ${label} when you switch to it. ${ENGINE_NAMES[engineOf(config)].replace(/^the e/, 'The e')} keeps serving until then.${mtpNote}${warn || ''}` };
+            });
         }
         return runJob('model', `Loading ${label}`, async (progress) => {
             const warn = persistLlamacpp(patch);

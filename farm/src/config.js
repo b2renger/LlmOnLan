@@ -357,6 +357,7 @@ const VllmModelSchema = z.object({
     sizeGb: z.number().nullable().default(null),       // the download
     weightsGib: z.number().nullable().default(null),   // vLLM's "Model loading took X GiB"; null = its size on disk
     vision: z.boolean().nullable().default(null),      // null = what the checkpoint says (vision_config)
+    audio: z.boolean().default(false),                 // hears sound in a chat message (and Qwen3-Omni transcribes)
     presencePenalty: z.number().min(-2).max(2).nullable().default(null),   // see external.presencePenalty
     args: z.array(z.string()).default([]),             // this model's `vllm serve` flags (parsers, KV precision)
     catalog: z.string().nullable().default(null),      // its id in src/capacity/catalog.json (memory per person)
@@ -372,6 +373,19 @@ const NEMOTRON_ARGS = ['--kv-cache-dtype', 'fp8', '--enable-prefix-caching', '--
     '--mamba-backend', 'flashinfer', '--reasoning-parser', 'nemotron_v3', '--enable-auto-tool-choice', '--tool-call-parser', 'qwen3_coder'];
 const QWEN38_ARGS = ['--kv-cache-dtype', 'fp8_e4m3', '--enable-prefix-caching', '--mamba-cache-mode', 'align',
     '--reasoning-parser', 'qwen3', '--enable-auto-tool-choice', '--tool-call-parser', 'qwen3_coder'];
+// Gemma 4 (vLLM's own recipe, docs.vllm.ai Google/Gemma4): its thinking and tool-call parsers. The checkpoint's
+// chat template handles tools, so no --chat-template (the recipe's is an older copy of the same).
+const GEMMA4_ARGS = ['--kv-cache-dtype', 'fp8', '--enable-prefix-caching',
+    '--reasoning-parser', 'gemma4', '--enable-auto-tool-choice', '--tool-call-parser', 'gemma4'];
+// Qwen3-Omni: vLLM serves its thinker (text out; the talker that speaks is not served). Qwen publishes it only in
+// BF16 (70 GB), so vLLM quantizes the weights to FP8 as it loads them. Its tools are Hermes-style <tool_call> tags.
+// Sampling: Qwen's own vLLM example (temperature 0.6, top_p 0.95, top_k 20); the checkpoint sets none for the thinker.
+const OMNI_ARGS = ['--quantization', 'fp8', '--kv-cache-dtype', 'fp8', '--enable-prefix-caching',
+    '--enable-auto-tool-choice', '--tool-call-parser', 'hermes',
+    '--override-generation-config', '{"temperature":0.6,"top_p":0.95,"top_k":20}'];
+// What a chat message may carry, for the two that hear sound: 4 pictures, 1 sound, no video (vLLM's recipe; it keeps
+// room for the largest message it allows, and no LlmOnLan surface sends video).
+const MM_LIMIT = ['--limit-mm-per-prompt', '{"image":4,"audio":1,"video":0}'];
 const VLLM_LIBRARY = [
     {
         id: 'qwen3.6-35b-a3b', label: 'Qwen3.6 35B-A3B · NVFP4', repo: 'nvidia/Qwen3.6-35B-A3B-NVFP4',
@@ -390,6 +404,18 @@ const VLLM_LIBRARY = [
         sizeGb: 21.9, weightsGib: 19.92, vision: true, presencePenalty: null, args: QWEN38_ARGS,
         catalog: 'qwen3.8-27b', measured: 'qwen38',
         note: 'The best answers of the three and the fewest people (16 at 32k on an RTX PRO 6000). Too slow on a DGX Spark.',
+    },
+    {
+        id: 'gemma-4-12b', label: 'Gemma 4 12B · NVFP4', repo: 'unsloth/gemma-4-12b-it-NVFP4',
+        sizeGb: 9.3, weightsGib: 9.25, vision: true, audio: true, presencePenalty: null, args: [...GEMMA4_ARGS, ...MM_LIMIT],
+        catalog: 'gemma-4-12b', measured: 'gemma4',
+        note: 'Google’s Gemma 4 12B, the model Ollama serves by default. Sees images and hears sound in a message. Measured: 16 people at 32k, 8 at 64k on an RTX PRO 6000.',
+    },
+    {
+        id: 'qwen3-omni-30b-a3b', label: 'Qwen3-Omni 30B-A3B · FP8', repo: 'Qwen/Qwen3-Omni-30B-A3B-Instruct',
+        sizeGb: 70.5, weightsGib: 30.91, vision: true, audio: true, presencePenalty: null, args: [...OMNI_ARGS, ...MM_LIMIT],
+        catalog: 'qwen3-omni-30b-a3b', measured: 'omni',
+        note: 'Sees images, hears sound in a message and writes down speech; answers in text only. Measured: 20 people at 32k, 10 at 64k on an RTX PRO 6000 (its memory is the limit). A 70 GB download.',
     },
 ];
 
@@ -421,7 +447,13 @@ const VllmSchema = z.object({
     version: z.string().default('0.30.0'),            // the vLLM install.sh installs, measured in docs/spike/RESULTS.md
     extraArgs: z.array(z.string()).default([]),       // appended last; a take-over keeps unknown running flags here
     library: z.array(VllmModelSchema).default(VLLM_LIBRARY),
-}).strict();
+    // The built-in models the operator removed from the list. A list saved by an Add, a Remove or a take-over keeps
+    // the built-ins it had then; a model added to VLLM_LIBRARY in a later version joins it, unless its id is here.
+    removed: z.array(z.string()).default([]),
+}).strict().transform((v) => ({
+    ...v,
+    library: [...v.library, ...VLLM_LIBRARY.filter((e) => !v.removed.includes(e.id) && !v.library.some((x) => x.id === e.id)).map((e) => VllmModelSchema.parse(e))],
+}));
 
 const WebsearchSchema = z.object({
     // One shared SearXNG metasearch instance on this box; clients discover it via

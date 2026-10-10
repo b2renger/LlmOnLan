@@ -7565,6 +7565,14 @@
    "license": "Apache-2.0",
    "checkpoints": [
     {
+     "format": "NVFP4 MLPs + FP8 attention (vLLM)",
+     "repo": "unsloth/gemma-4-12b-it-NVFP4",
+     "disk_gb": 9.34,
+     "disk_gib": 8.7,
+     "loaded_gib_measured": 9.25,
+     "bytes_per_param_avg": 0.781
+    },
+    {
      "format": "GGUF QAT Q4_0 (official)",
      "repo": "google/gemma-4-12B-it-qat-q4_0-gguf",
      "disk_gb": 6.98,
@@ -7589,7 +7597,7 @@
    "engines": {
     "ollama": "the farm's default (CLAUDE.md)",
     "llama_cpp": "mainline",
-    "vllm": "yes (w4a16 QAT checkpoint exists)"
+    "vllm": "MEASURED vLLM 0.30.0 (PRO 6000, 2026-10-09): unsloth/gemma-4-12b-it-NVFP4, Triton attention (head sizes 256/512 rule out FA4)"
    },
    "quality": [
     {
@@ -7816,7 +7824,89 @@
      }
     }
    },
-   "kv_bytes_per_token_bf16": 16384
+   "kv_bytes_per_token_bf16": 16384,
+   "audio": true,
+   "spike_quality": {
+    "gate": "28-item smoke gate (10 code, 7 exact, 11 tool round-trips)",
+    "pro6000_think_on_off": "22/28 (155k tok) / 26/28 (11k)",
+    "source": "repo-results"
+   }
+  },
+  {
+   "id": "qwen3-omni-30b-a3b",
+   "name": "Qwen3-Omni-30B-A3B-Instruct (the thinker)",
+   "vendor": "Alibaba Qwen",
+   "released": "2025-09-22",
+   "role": "measured: hears sound and sees images in a message; writes down speech",
+   "params_total_b": 31.7,
+   "params_active_b": 3.3,
+   "params_note": "the thinker (text out) with its audio and vision encoders, ~31.7B (63.45 GB in BF16 for the Thinking variant, which has no talker); the Instruct repo adds the talker (35.26B, 70.52 GB), which vLLM does not serve",
+   "arch": {
+    "type": "MoE (128 experts, 8 active)",
+    "layers": 48,
+    "attention": "48 full-attention layers",
+    "full_attn_layers": 48,
+    "kv_heads": 4,
+    "head_dim": 128
+   },
+   "kv_bytes_per_token_fp8": 49152,
+   "kv_calc": "48 x 4 x (128+128) x 1 B = 49,152 B",
+   "recurrent_state_bytes": 0,
+   "kv_confidence": "exact from config",
+   "context_native": 65536,
+   "context_max": 65536,
+   "vision": true,
+   "audio": true,
+   "tools": true,
+   "thinking_toggle": "Instruct does not think (a Thinking variant exists)",
+   "license": "Apache-2.0",
+   "checkpoints": [
+    {
+     "format": "FP8 at load (vLLM --quantization fp8 of the BF16 weights)",
+     "repo": "Qwen/Qwen3-Omni-30B-A3B-Instruct",
+     "disk_gb": 70.52,
+     "disk_gib": 65.68,
+     "loaded_gib_measured": 30.91,
+     "bytes_per_param_avg": 1.047
+    },
+    {
+     "format": "BF16",
+     "repo": "Qwen/Qwen3-Omni-30B-A3B-Instruct",
+     "disk_gb": 70.52,
+     "disk_gib": 65.68,
+     "bytes_per_param_avg": 2.0
+    }
+   ],
+   "engines": {
+    "vllm_sm120": "MEASURED vLLM 0.30.0 (PRO 6000, 2026-10-09), the thinker only (no spoken replies); FP8 at load peaks at the FP8 size (quantized layer by layer), /v1/audio/transcriptions answers",
+    "llama_cpp": "ggml-org GGUF exists; not measured"
+   },
+   "quality": [
+    {
+     "benchmark": "GPQA",
+     "score": 69.6,
+     "source": "https://huggingface.co/Qwen/Qwen3-Omni-30B-A3B-Instruct",
+     "vendor_reported": true
+    },
+    {
+     "benchmark": "AIME25",
+     "score": 65.0,
+     "source": "https://huggingface.co/Qwen/Qwen3-Omni-30B-A3B-Instruct",
+     "vendor_reported": true
+    },
+    {
+     "benchmark": "MMLU-Redux",
+     "score": 86.6,
+     "source": "https://huggingface.co/Qwen/Qwen3-Omni-30B-A3B-Instruct",
+     "vendor_reported": true
+    }
+   ],
+   "aggregate_index": {
+    "benchlm_open": null,
+    "note": "not listed",
+    "source": "benchlm-open"
+   },
+   "kv_bytes_per_token_bf16": 98304
   },
   {
    "id": "qwen3-coder-next",

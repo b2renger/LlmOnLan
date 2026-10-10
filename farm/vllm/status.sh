@@ -6,7 +6,8 @@
 #   cc=                                       a C compiler (vLLM builds a small GPU launcher with it at each start)
 #   gpu=<name>, <MiB total>, <MiB free>, <compute capability>   (no line: nvidia-smi sees no GPU)
 #   mem_total_kb= mem_available_kb= disk_free_kb=   (the disk under the root)
-#   install=<root> <vLLM version>             one per root with a vLLM, and venv_link=<root> when its .venv is a link
+#   install=<root> <vLLM version>             one per root with a vLLM, and venv_link=<root> when its .venv is a link,
+#                                             audio=<root> when it has vLLM's sound extras
 #   model=<folder> <kB> vision=<0|1> native=<window> partial=<0|1>   one per folder in <root>/hf
 #   running=<pgid>, then env=LOL_VLLM_…=, arg=<each `vllm serve` argument, the model first>, ready=1
 #   found=<root> <port> <pgid>                every serve.sh running on this computer, from any root
@@ -37,6 +38,8 @@ for r in "$ROOT" "${MORE[@]}"; do
   v=$(ls -d "$r"/.venv/lib/python3*/site-packages/vllm-*.dist-info 2>/dev/null | tail -1); v=${v##*/vllm-}
   echo "install=$r ${v%.dist-info}"
   [ -L "$r/.venv" ] && echo "venv_link=$r"
+  # vLLM's sound extras (install.sh's vllm[audio]): without them a message with sound fails.
+  ls "$r"/.venv/lib/python3*/site-packages/soundfile.py >/dev/null 2>&1 && echo "audio=$r"
 done
 for m in "$ROOT"/hf/*/; do
   [ -d "$m" ] || continue

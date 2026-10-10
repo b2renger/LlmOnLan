@@ -241,23 +241,39 @@ downloader fills in large pieces, late: the bar says so and shows how long it ha
 for minutes and then jumps does not read as stuck. `lol install` does not install vLLM.
 
 **The models** are a list in the vLLM card: the three NVFP4 checkpoints the spike measured, with the flags it ran
-them with.
+them with, and two added on 2026-10-09 that hear sound in a chat message (measured the same way on the PRO 6000,
+[RESULTS.md](../docs/spike/RESULTS.md#gemma-4-12b-and-qwen3-omni-rtx-pro-6000-2026-10-09)).
 
-| Model | Sees images | Measured |
-|---|---|---|
-| Qwen3.6 35B-A3B (the default) | yes | 48 people at 64k on an RTX PRO 6000, 8 on a DGX Spark |
-| Nemotron 3.5 Lightning 30B-A3B | no | 160 at 32k on an RTX PRO 6000, 16 on a DGX Spark |
-| Qwen3.8 27B | yes | 16 at 32k on an RTX PRO 6000; too slow on a Spark |
+| Model | Sees images | Hears sound | Measured (every turn) |
+|---|---|---|---|
+| Qwen3.6 35B-A3B (the default) | yes | no | 48 people at 64k on an RTX PRO 6000, 8 on a DGX Spark |
+| Nemotron 3.5 Lightning 30B-A3B | no | no | 160 at 32k on an RTX PRO 6000, 16 on a DGX Spark |
+| Qwen3.8 27B | yes | no | 16 at 32k on an RTX PRO 6000; too slow on a Spark |
+| Gemma 4 12B (`unsloth/gemma-4-12b-it-NVFP4`, 9.3 GB) | yes | yes | 16 at 32k, 8 at 64k on an RTX PRO 6000 (≥ 64 / ≥ 48 once the first follow-up is past) |
+| Qwen3-Omni 30B-A3B (`Qwen/Qwen3-Omni-30B-A3B-Instruct`, 70.5 GB, FP8 at load) | yes | yes, and writes down speech | 20 at 32k, 10 at 64k on an RTX PRO 6000 in a 30 GiB pool: its memory binds first (~30 / ~14 on a PRO 6000 of its own) |
+
+Gemma 4 12B and Qwen3-Omni read sound only with vLLM's sound extras, which `install.sh` installs since 2026-10-09;
+on an older install the checklist says so, with **Update vLLM**. Qwen3-Omni answers in text only (vLLM serves its
+"thinker", not the "talker" that speaks), and only Qwen publishes it, in BF16: vLLM turns the weights into FP8 as it
+loads them (`--quantization fp8`), 30.9 GiB. Its chat template ships only as `chat_template.json` (the processor's):
+`install.sh` writes it as `chat_template.jinja` after the download too, or every request with tools would get a 400;
+and it does not think, so the farm's route drops the client's thinking switch (`chat_template_kwargs`) for any vLLM
+model with no thinking parser, which its template otherwise turns into a reply that starts a new user turn. vLLM's own
+`/v1/audio/transcriptions` answers for it (not routed through the farm: the seat gate forwards only the routes
+clients use).
 
 **Download** fetches one once vLLM is installed (in the download slot, while vLLM serves another; it uses vLLM's own
 `hf`), **Use this** serves it (vLLM restarts
 with it), **Remove** takes it off the list and, asked again, deletes its files. **Add a model** takes a Hugging
-Face name or link (`owner/name`) and gives it its family's flags (Qwen3.5/3.6, Qwen3.8, Nemotron, other Qwen3);
+Face name or link (`owner/name`) and gives it its family's flags (Qwen3-Omni, Qwen3.5/3.6, Qwen3.8, Nemotron, Gemma 4,
+other Qwen3); a model of the list removed earlier, added back by its name, is its own entry again;
 a model of no known family gets prefix caching only, and the panel says tools and thinking may not show. Folders
 already in `<root>/hf` show as "Also on this computer", with **Add to the list**.
 
 **Switching engines.** The Backend card's buttons are Ollama, llama.cpp and vLLM (and "External server" only while
-the file holds an [`external`](#config--lolconfigjson) block). A switch stops the current engine first, and a stop
+the file holds an [`external`](#config--lolconfigjson) block). The llama.cpp button opens its card first, where the
+model it will serve is chosen and downloaded; that card's **Switch to llama.cpp** switches ([Which model everyone
+gets](#which-model-everyone-gets-llamacpp-path)). A switch stops the current engine first, and a stop
 that fails changes nothing: two engines never share the GPU. Into vLLM it takes about 2 minutes (longer the very
 first time, while it compiles kernels); out of it, about a minute. The name people see moves with the switch
 (`carryNameAcross`), so open chats keep working. A switch to vLLM is refused up front, with the reason, when it is
@@ -762,6 +778,13 @@ This is the model clients auto-select — the one that matters. It is a single `
 2. **Use this** on any entry downloads it (progress is shown per part — a first fetch is several GB
    and several minutes) and reloads llama-server onto it.
 3. **Remove** drops an entry from the list. The one currently serving can't be removed; switch first.
+
+**Before a switch** (owner, 2026-10-09): while Ollama or vLLM serves, the **llama.cpp** button opens this card
+(brought into view) instead of switching. The list shows which model is **chosen** and which are **downloaded**;
+**Use this** makes another one the chosen model and downloads it now, as the panel's job, while the engine that
+serves keeps serving; **Download** fetches the chosen one when it is not on this computer yet. Nothing changes
+for the people connected until **Switch to llama.cpp** at the bottom of the card, whose question names the model
+it loads. **Close** hides the card again.
 
 The library ships with four: the three 12 GB-class Qwen3.8-27B quants measured here, plus an NVFP4+MTP
 build for Blackwell cards (16 GB+), so you can switch between them without hunting for URLs.
@@ -1454,13 +1477,14 @@ build for Blackwell cards (16 GB+); replace it freely.
 - **`vllm`** — vLLM run by the farm ([vLLM, run by the farm](#vllm-run-by-the-farm)). The panel sets every key:
   the engine switch writes `enabled` (exactly one engine flag is true after a switch); Install and the first
   start write `root` (absolute); Apply writes `alias`, `parallel`, `contextLength`, `kvCacheGib` and `model`;
-  the list's Add and Remove write `library`. `root` is a Linux path (`~` allowed, no `..`); `port` is
+  the list's Add and Remove write `library` (and `removed`, the ids of the built-in models taken off it: a list
+  saved before a version added models gets them at the next start, except those). `root` is a Linux path (`~` allowed, no `..`); `port` is
   `serve.sh`'s relay on 127.0.0.1. `parallel`, `maxNumSeqs`, `kvCacheGib` and `minFreeGb` take `"auto"` (the
   rules are in that section) or a number; `ocrReserveGib` (9) is kept for document reading when OCR is on, and
   `marginPct` (8) of the card stays free. `version` is the vLLM `install.sh` installs. `extraArgs` go last on
   `vllm serve` (a take-over keeps there the flags a server ran with that the list's entry does not give). Each
-  `library` entry is `{ id, label, repo, folder, sizeGb, weightsGib, vision, presencePenalty, args, catalog,
-  measured, note }`: `id` (lowercase) is vLLM's `--served-model-name`, `folder` its folder in `<root>/hf`
+  `library` entry is `{ id, label, repo, folder, sizeGb, weightsGib, vision, audio, presencePenalty, args, catalog,
+  measured, note }` (`audio`: it hears sound in a chat message, said in the snapshot's `backend.audio`): `id` (lowercase) is vLLM's `--served-model-name`, `folder` its folder in `<root>/hf`
   (default: the repo's name), `args` its own `vllm serve` flags, `catalog`/`measured` its entries in
   `src/capacity/` (memory per person, people measured). A farm-v0.0.42 or older refuses a file with this block.
 - **`proxy.seatGate`** (default `true`) — the public `proxy.port` is the farm's own listener and

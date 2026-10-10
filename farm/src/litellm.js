@@ -197,7 +197,7 @@ function engineFallback(config, engine) {
 // The route to an OpenAI-compatible server (an external one, or the vLLM the farm runs): one `hosted_vllm/`
 // deployment, plus the coordinator peers that serve the same name. No reply cap here: such a server enforces
 // its own (see buildLitellmConfig).
-function serverRoute(name, servedModel, apiBase, apiKey, { presencePenalty = null, vision = false } = {}, peers = []) {
+function serverRoute(name, servedModel, apiBase, apiKey, { presencePenalty = null, vision = false, dropTemplateKwargs = false } = {}, peers = []) {
     const out = [{
         model_name: name,
         litellm_params: {
@@ -207,6 +207,10 @@ function serverRoute(name, servedModel, apiBase, apiKey, { presencePenalty = nul
             api_key: apiKey,   // keyless servers ignore it
             // A default like replyCap: the request's own presence_penalty wins (config.js says why).
             ...(presencePenalty != null ? { presence_penalty: presencePenalty } : {}),
+            // A model that does not think gets no thinking switch: the client's enable_thinking false made Qwen3-Omni's
+            // template append an empty think block its Instruct model never saw, and it answered "<|im_start|>user"
+            // (measured 2026-10-09: 4 of 11 tool items, and every Computer list or title).
+            ...(dropTemplateKwargs ? { additional_drop_params: ['chat_template_kwargs'] } : {}),
         },
         // Flagging a text-only model as vision makes OWUI offer an image upload that then fails.
         ...(vision ? { model_info: { supports_vision: true } } : {}),
@@ -309,7 +313,7 @@ function buildLitellmConfig(config, peers = []) {
     if (engine === 'vllm') {
         const v = config.vllm; const e = vllmEntry(config) || {};
         model_list.push(...serverRoute(v.alias, v.model, vllmBaseUrl(config), 'sk-lol-vllm',
-            { presencePenalty: e.presencePenalty, vision: e.vision ?? !!v.visionResolved }, peers));
+            { presencePenalty: e.presencePenalty, vision: e.vision ?? !!v.visionResolved, dropTemplateKwargs: !(e.args || []).includes('--reasoning-parser') }, peers));
     }
 
     const lc = config.llamacpp || {};

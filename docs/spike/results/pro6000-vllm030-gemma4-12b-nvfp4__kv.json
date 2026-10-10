@@ -1,0 +1,20 @@
+{
+ "log": "results/logs/pro6000-vllm030-gemma4-12b-nvfp4.log",
+ "engine": "vllm",
+ "kv_tokens": 1078887,
+ "max_concurrency": {
+  "65536": 16.46
+ },
+ "weights_gib": 9.25,
+ "cuda_graphs_gib": 0.43,
+ "people_by_kv": {
+  "32k": 32.93,
+  "64k": 16.46,
+  "128k": 8.23
+ },
+ "people_by_kv_from_concurrency_line": {
+  "32k": 32.92,
+  "64k": 16.46,
+  "128k": 8.23
+ }
+}

@@ -1,6 +1,7 @@
 #!/bin/bash
 # Stand-in for `hf download <repo> --local-dir <dir> ...` (farm/vllm/test_scripts.sh). FAKE_HF picks what happens:
-# ok (default), gated, 404, disk, net, or slow (leaves a .incomplete file and waits, for `stop.sh install`). From the
+# ok (default), proctpl (a model whose chat template is only its processor's, chat_template.json, as Qwen3-Omni;
+# tokcfg=1 gives its tokenizer one too), gated, 404, disk, net, or slow (leaves a .incomplete file and waits, for `stop.sh install`). From the
 # environment, or from <root>/fake.env beside the fake's .venv (a farm passes only its own variables to install.sh).
 here="$(cd "$(dirname "$0")" && pwd)"
 [ -f "$here/../../fake.env" ] && { set -a; . "$here/../../fake.env"; set +a; }
@@ -10,6 +11,9 @@ case "${FAKE_HF:-ok}" in
   ok)    mkdir -p "$dir"; echo '{"max_position_embeddings": 4096}' > "$dir/config.json"   # as hf 1.33: an earlier,
          # stopped attempt's .incomplete file stays (each attempt writes a file of its own; install.sh clears them)
          printf 'Fetching 2 files:  50%%|#####     | 1/2\rFetching 2 files: 100%%|##########| 2/2\n'; exit 0;;
+  proctpl) mkdir -p "$dir"; echo '{"max_position_embeddings": 4096}' > "$dir/config.json"
+         echo '{"chat_template": "{% for m in messages %}{{ m.content }}{% endfor %}"}' > "$dir/chat_template.json"
+         if [ -n "${tokcfg:-}" ]; then echo '{"chat_template": "tok"}'; else echo '{}'; fi > "$dir/tokenizer_config.json"; exit 0;;
   gated) echo "huggingface_hub.errors.GatedRepoError: 401 Client Error. Cannot access gated repo for url https://huggingface.co/x/y."; exit 1;;
   404)   echo "huggingface_hub.errors.RepositoryNotFoundError: 404 Client Error. Repository Not Found for url: https://huggingface.co/x/y."; exit 1;;
   disk)  echo "OSError: [Errno 28] No space left on device"; exit 1;;

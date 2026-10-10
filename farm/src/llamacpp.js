@@ -234,6 +234,12 @@ function shardUrls(url) {
         String(url).replace(SHARD_RX, `-${String(i + 1).padStart(5, '0')}-of-${m[2]}.gguf`));
 }
 
+// Is this .gguf already downloaded (every part of a split one)? The panel's list says so before a switch, and Use
+// this then only chooses it.
+function onDisk(url) {
+    return (shardUrls(url) || [url]).every((u) => { try { return fs.statSync(ggufPathFor(u)).size > 0; } catch { return false; } });
+}
+
 // Shard 1's URL for any pasted part; single-file URLs pass through.
 function normalizeModelUrl(url) {
     const parts = shardUrls(url);
@@ -421,6 +427,6 @@ module.exports = {
     PINNED_BUILD, ROOT, BIN_DIR, assetsFor,
     ensureLlamacpp, ensureModel, spawnLlamacpp, waitForLlamacpp, llamacppAlive, fetchMetrics, supported,
     argsFor, baseUrl, installed, installedBuild, serverBin,
-    shardUrls, normalizeModelUrl, weightsBytesFor,
+    shardUrls, normalizeModelUrl, weightsBytesFor, onDisk,
     explainEngineFailure,
 };
