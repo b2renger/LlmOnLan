@@ -132,7 +132,8 @@
         "slots": { "type": "integer", "description": "People served at once." },
         "slotsVerified": { "type": "boolean", "description": "false when slots is what the config asked for, not what the engine does." },
         "mtp": { "type": "boolean", "description": "llama.cpp multi-token prediction." },
-        "kvCacheType": { "type": ["string", "null"], "description": "Context-memory precision; null when unknown." }
+        "kvCacheType": { "type": ["string", "null"], "description": "Context-memory precision; null when unknown." },
+        "audio": { "type": "boolean", "description": "vLLM only (farm-v0.0.45+): the served model hears sound in a chat message (an input_audio part). No client sends one yet." }
       }
     },
     "capacity": {

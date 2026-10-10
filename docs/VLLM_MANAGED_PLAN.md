@@ -412,10 +412,32 @@ Default library (commands from docs/spike/RESULTS.md "Exact install and launch c
    - catalog 'qwen3.8-27b'; measured 'qwen38'.
    - note 'The best answers of the three and the fewest people (16 at 32k on an RTX PRO 6000). Too slow on a DGX Spark.'
 
+Added 2026-10-09 (owner; measured on the PRO 6000 with the farm's own argv, docs/spike/RESULTS.md "Gemma 4 12B and
+Qwen3-Omni"). Both hear sound in a chat message (`audio: true`, a schema field since then; the snapshot's
+`backend.audio`), which needs vLLM's sound extras: install.sh installs `vllm[audio]`, status.sh says `audio=<root>`
+for an install that has them, and the check warns "… cannot read sound yet: press Update vLLM" when the chosen model
+hears and its install lacks them.
+4. 'gemma-4-12b'
+   - label 'Gemma 4 12B · NVFP4'; repo unsloth/gemma-4-12b-it-NVFP4; sizeGb 9.3; weightsGib 9.25; vision true; audio true; presencePenalty null.
+   - args ['--kv-cache-dtype','fp8','--enable-prefix-caching','--reasoning-parser','gemma4','--enable-auto-tool-choice','--tool-call-parser','gemma4','--limit-mm-per-prompt','{"image":4,"audio":1,"video":0}'].
+   - catalog 'gemma-4-12b' (its 168 MB a person for the sliding-window layers now counted by `facts()`); measured 'gemma4'.
+5. 'qwen3-omni-30b-a3b'
+   - label 'Qwen3-Omni 30B-A3B · FP8'; repo Qwen/Qwen3-Omni-30B-A3B-Instruct (BF16, 70.5 GB; vLLM serves the thinker, text out); weightsGib 30.91 (FP8 at load); vision true; audio true.
+   - args ['--quantization','fp8','--kv-cache-dtype','fp8','--enable-prefix-caching','--enable-auto-tool-choice','--tool-call-parser','hermes','--override-generation-config','{"temperature":0.6,"top_p":0.95,"top_k":20}', + the same message limit].
+   - argvFor merges a model's own --override-generation-config with the reply cap's max_new_tokens into ONE flag (vLLM keeps a repeated flag's last).
+   - catalog 'qwen3-omni-30b-a3b'; measured 'omni'.
+   - install.sh writes `chat_template.jinja` from a processor-only `chat_template.json` (vLLM uses the tokenizer's template for a request with tools); litellm.js `serverRoute` drops `chat_template_kwargs` (`additional_drop_params`) for a vLLM entry with no `--reasoning-parser`.
+
+The list completes itself: a `library` saved by an Add, a Remove or a take-over before a version added models gets
+the built-ins it lacks at the next start, except the ids in `vllm.removed`, which a Remove of a built-in writes and an
+Add of it by name (which restores the built-in entry) clears.
+
 FAMILY_ARGS (vllm.js), for a model the operator adds. It is a regex table matched against the repo or folder name:
+- /qwen3-?omni/i → entry 5's args.
 - /qwen3\.[56]|qwen3-?next/i → entry 1's args.
 - /qwen3\.8/i → entry 3's args.
 - /nemotron/i → entry 2's args.
+- /gemma-?4/i → entry 4's args (vLLM ignores the sound limit for a Gemma 4 26B or 31B, which hears none).
 - /qwen3/i → ['--enable-prefix-caching','--reasoning-parser','qwen3','--enable-auto-tool-choice','--tool-call-parser','hermes'].
 - anything else → ['--enable-prefix-caching'].
 ponytail: a model the table does not know gets no thinking or tool parser, and the panel says so. The upgrade path is per-entry args.

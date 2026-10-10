@@ -216,6 +216,7 @@ t_status() {
   mkdir -p "$ROOT/hf/M1" "$ROOT/hf/M2/.cache/huggingface/download" "$ROOT/hf/notes"
   printf '{"vision_config": {}, "text_config": {"max_position_embeddings": 262144}}' > "$ROOT/hf/M1/config.json"
   printf '{"max_position_embeddings":32768}' > "$ROOT/hf/M2/config.json"; : > "$ROOT/hf/M2/.cache/huggingface/download/x.incomplete"
+  : > "$ROOT/.venv/lib/python3.12/site-packages/soundfile.py"   # vllm[audio]'s; ROOT2 has none
   daemon &
   local P=$!
   LOL_VLLM_ROOT="$ROOT2" LOL_VLLM_PORT="$PORT2" LOL_VLLM_MIN_FREE_GB=1 daemon &
@@ -229,6 +230,7 @@ t_status() {
   check "found= both servers, with their roots and ports" bash -c "grep -qx 'found=$ROOT $PORT $P' '$ST' && grep -qx 'found=$ROOT2 $PORT2 $P2' '$ST'"
   check "install= each root once, with its version" bash -c "[ \$(grep -c '^install=' '$ST') = 3 ] && grep -qx 'install=$ROOT 0.30.0' '$ST' && grep -qx 'install=$ROOT2 0.30.0' '$ST' && grep -qx 'install=$LINK 0.30.0' '$ST'"
   check "venv_link= the linked root only" [ "$(grep '^venv_link=' "$ST")" = "venv_link=$LINK" ]
+  check "audio= the roots with vLLM's sound extras only (ROOT, and LINK, whose venv is ROOT's)" [ "$(grep '^audio=' "$ST" | tr '\n' ' ')" = "audio=$ROOT audio=$LINK " ]
   check "model= a whole one: vision, its window" grep -qE '^model=M1 [0-9]+ vision=1 native=262144 partial=0$' "$ST"
   check "model= a partial one" grep -qE '^model=M2 [0-9]+ vision=0 native=32768 partial=1$' "$ST"
   check "no model= for a folder that is no model; no guard=, installing= or managed=" lacks '^model=notes|^guard=|^installing=|^managed=' "$ST"
@@ -250,6 +252,13 @@ t_install() {
   check "the weights in hf/<the repo's name>, no pgid file left" bash -c "[ -f '$ROOT/hf/Some-Model/config.json' ] && [ ! -e '$ROOT/run/install.pgid' ]"
   LOL_VLLM_STEPS=model bash "$D/install.sh" org/Some-Model my-folder > "$OUT" 2>&1
   check "or in a folder named by the farm" [ -f "$ROOT/hf/my-folder/config.json" ]
+  # Qwen3-Omni's template is only its processor's: the tokenizer gets it as chat_template.jinja (tool calls 400 otherwise).
+  FAKE_HF=proctpl LOL_VLLM_STEPS=model bash "$D/install.sh" org/Omni > "$OUT" 2>&1
+  check "a processor-only chat template: chat_template.jinja written from chat_template.json" bash -c "[ \"\$(cat '$ROOT/hf/Omni/chat_template.jinja')\" = '{% for m in messages %}{{ m.content }}{% endfor %}' ]"
+  echo kept > "$ROOT/hf/Omni/chat_template.jinja"; FAKE_HF=proctpl LOL_VLLM_STEPS=model bash "$D/install.sh" org/Omni > "$OUT" 2>&1
+  check "... never over one already there" [ "$(cat "$ROOT/hf/Omni/chat_template.jinja")" = kept ]
+  FAKE_HF=proctpl tokcfg=1 LOL_VLLM_STEPS=model bash "$D/install.sh" org/Omni2 > "$OUT" 2>&1
+  check "... nor when the tokenizer has its own" [ ! -e "$ROOT/hf/Omni2/chat_template.jinja" ]
   for k in gated:gated 404:notfound disk:disk net:network; do
     FAKE_HF=${k%%:*} LOL_VLLM_STEPS=model bash "$D/install.sh" org/x > "$OUT" 2>&1; rc=$?
     check "hf says ${k%%:*}: [lol-error] ${k##*:}" bash -c "[ $rc != 0 ] && grep -q '^\[lol-error\] ${k##*:} .' '$OUT'"

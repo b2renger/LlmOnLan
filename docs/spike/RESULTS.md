@@ -3,7 +3,9 @@
 Two boxes, the same harness, the same flags:
 - the **RTX PRO 6000** (2026-10-04), the sections from here down to *Not done, and why*;
 - a **DGX Spark** (2026-10-05/06), the section [DGX Spark (GB10)](#dgx-spark-gb10) and
-  [PRO 6000 vs Spark](#pro-6000-vs-spark) at the end.
+  [PRO 6000 vs Spark](#pro-6000-vs-spark) at the end;
+- two more models on the RTX PRO 6000 (2026-10-09), with the farm's own launch and a reduced suite:
+  [Gemma 4 12B and Qwen3-Omni](#gemma-4-12b-and-qwen3-omni-rtx-pro-6000-2026-10-09), the last section.
 
 **Box:** `AN-A6000PRO`: one NVIDIA RTX PRO 6000 Blackwell Workstation Edition, 96 GB (97,887 MiB), sm_120,
 ~1.8 TB/s, driver 596.36 (CUDA 13.2), Windows 11 + WSL2 Ubuntu 26.04 (16 vCPU and 94 GB RAM given to WSL).
@@ -564,3 +566,143 @@ checkpoint, not the box.
    - A farm Spark needs a memory guard and headroom (sizing `--kv-cache-memory-bytes`, never
      `--gpu-memory-utilization`).
    - It also needs a clock check after any crash: under load, clocks.sm should be ≥ 1,400 MHz and power ≥ 40 W.
+
+# Gemma 4 12B and Qwen3-Omni (RTX PRO 6000, 2026-10-09)
+
+Two models added to the farm's vLLM list on the owner's request (2026-10-09), measured with the same harness and pass
+rule as above, on the same box, with three differences:
+
+- **The farm's own launch.** Each server was started by `farm/vllm/serve.sh` with the argv the farm builds
+  (`vllm.js argvFor`, read back in each log's `non-default args`), from a scratch install (`install.sh` with
+  `LOL_VLLM_ROOT=~/lol-vllm-scratch`, vLLM 0.30.0 with its sound extras) on a scratch port; `--max-model-len 65536`
+  (the farm's default context), `--max-num-seqs 192`.
+- **The GPU was shared.** The Ollama app held 17.9–22.9 GB of the card throughout (another person's), so the pools are
+  smaller than the spike's 58 GiB, and every run kept 6 GB or more free (a watchdog stopped the scratch server
+  otherwise; it never had to).
+- **A reduced suite:** chat (1–64 users), follow-ups at 30k and 62k with `--append` (as Open WebUI sends a chat), the
+  28-item quality gate with thinking off and on, and functional checks (one stream, a picture, a tool call, sound in
+  a chat message in French and in English, and `/v1/audio/transcriptions`) by `runs/probe.js` (its media in
+  `runs/media/`). No agent profile, no cold prefill, no Spark.
+
+Results: `results/pro6000-vllm030-gemma4-12b-nvfp4__*` and `results/pro6000-vllm030-qwen3omni-30b-a3b-fp8__*`, the
+functional checks in `results/probes/`, each server's start-up lines in `results/logs/*.log.cmd`.
+
+## Gemma 4 12B · `unsloth/gemma-4-12b-it-NVFP4`
+
+The checkpoint: Unsloth's NVFP4 of Google's Gemma 4 12B (Apache 2.0): NVFP4 MLPs, FP8 attention projections and
+calibrated FP8 KV scales; 9.34 GB on disk, **9.25 GiB loaded**. There is no NVIDIA or Google NVFP4 of the 12B (NVIDIA
+publishes the 26B-A4B and 31B; Google publishes a QAT W4A16 `google/gemma-4-12B-it-qat-w4a16-ct`, slower to batch on
+Blackwell than W4A4). The 12B is the encoder-free "Unified" model (`Gemma4UnifiedForConditionalGeneration`): pictures
+and sound go straight into the decoder.
+
+Flags (vLLM's Gemma 4 recipe): `--kv-cache-dtype fp8 --enable-prefix-caching --reasoning-parser gemma4
+--enable-auto-tool-choice --tool-call-parser gemma4 --limit-mm-per-prompt {"image":4,"audio":1,"video":0}`. The
+checkpoint's own chat template carries the tool protocol (the recipe's `--chat-template` is an older copy of it).
+vLLM picks **Triton attention** (the 256/512 head sizes rule out FA4) and forces `--disable_chunked_mm_input`. Pool
+52 GiB (`--kv-cache-memory-bytes 55834574848`).
+
+| Chat 4k | c=1 | c=8 | c=16 | c=32 | c=64 |
+|---|---|---|---|---|---|
+| decode p10 (tok/s) | 91 | 73 | 52 | 39 | 24 |
+| TTFT p95 every turn / steady (s) | 0.20 | 0.37 / 0.27 | 1.7 / 0.42 | 2.3 / 0.69 | 7.0 / 1.2 |
+
+Follow-ups (`--append`), TTFT p95 (s) / decode p10 (tok/s), per round (`runs/round_stats.py`):
+
+| Follow-up | c=8 | c=16 | c=24 | c=32 | c=48 | c=64 |
+|---|---|---|---|---|---|---|
+| 30k, round 1 (the first after loading) | 0.46 / 70 | 2.6 / 42 | | 5.0 / 22 | 10.7 / 17 | 7.8 / 20 |
+| 30k, round 2 | 0.14 / 71 | 0.26 / 61 | | 0.28 / 35 | 0.40 / 29 | 0.49 / 26 |
+| 62k, round 1 | 1.0 / 61 | 7.4 / 24 | 7.3 / 16 | 13.9 / 12 | 15.4 / 11 | |
+| 62k, round 2 | 0.56 / 63 | 0.58 / 49 | 0.52 / 24 | 0.84 / 22 | 0.68 / 20 | |
+
+**People:** chat **32 / 64** (every turn / steady); follow-ups **16 / ≥ 64 at 32k** and **8 / ≥ 48 at 64k**. Every
+miss is the **first follow-up after the documents loaded** (round 1): its TTFT p50 is 2.9 s at 32 users at 30k and
+7.0 s at 24 at 62k, while round 2 stays under 1 s everywhere. The same shape as Qwen3.6's replace-mode follow-ups
+(finding 10): the first follow-up re-reads part of the history, later ones hit the prefix cache. One user alone:
+**91–92 tok/s**, TTFT 0.20 s on a 4k message; aggregate up to 1,876 tok/s (chat, 64 users).
+
+**Memory per person, measured:** 64 people at ~30.5k filled 51.8 % of the 52 GiB pool, ~450 MB each: 8,192 B a token
+for the 8 global layers plus ~168 MB for the 40 sliding-window layers, whatever the length (the catalog's figures;
+the farm's `facts()` counts the 168 MB since this run). The pool holds **~130 people at 32k and ~79 at 64k**: the
+throughput binds first, as for the MoEs. vLLM's own start-up line (*Maximum concurrency for 65,536 tokens: 16.46x*)
+ignores the sliding window and is 5× too low.
+
+**Quality gate:** thinking off **26/28** (11k tokens: 8/10 code, 7/7 exact, 11/11 tools); thinking on **22/28** (155k
+tokens): all six misses ran out of the 16k budget while thinking, the pattern of the other models.
+
+**Functional:** a picture (a red circle, a blue square, the text "LOL 42") described as *a pink circle and a blue
+square, with the text "LOL 42"*; a tool call `get_weather({"city": "Lyon"})` in 0.17 s; **sound in a message**
+(`input_audio`, 16 kHz WAV) written back word for word in French (*Bonjour, je voudrais réserver la salle de réunion
+pour jeudi à 15h pour six personnes.*) and English, with the request understood; thinking on, the reasoning comes
+apart from the answer (the `gemma4` parser). `/v1/audio/transcriptions`: **404** (Gemma 4 is not a transcription
+model in vLLM 0.30.0; the chat route is its way in).
+
+## Qwen3-Omni 30B-A3B · `Qwen/Qwen3-Omni-30B-A3B-Instruct`, FP8 at load
+
+The checkpoint: Qwen's own Instruct (Apache 2.0), the only first-party one: BF16, 70.5 GB, with the talker that
+speaks (10 % of it), which vLLM does not serve: vLLM 0.30.0 serves the **thinker** (`Qwen3OmniMoeThinkerForConditional
+Generation`: text, pictures, sound and video in; text out). No Qwen or NVIDIA FP8/NVFP4/AWQ exists; the community's
+quantizations were left out (the owner's rule: first-party checkpoints only). So vLLM quantizes the weights to FP8 as
+it loads them (`--quantization fp8`): **30.91 GiB loaded**, and the load never held the BF16 size (samples every 30 s never showed
+more than 35 GB: it quantizes layer by layer).
+
+Flags: `--quantization fp8 --kv-cache-dtype fp8 --enable-prefix-caching --enable-auto-tool-choice --tool-call-parser
+hermes --limit-mm-per-prompt {"image":4,"audio":1,"video":0}` and Qwen's sampling (temperature 0.6, top_p 0.95, top_k
+20, from Qwen's vLLM example: the checkpoint's `generation_config.json` holds only the talker's), merged by the farm
+with the reply cap into one `--override-generation-config`. Pool **30 GiB** (all the shared GPU allowed): 655,360
+tokens, 49,152 B a token (48 full-attention layers × 4 KV heads × 128 × 2), **20 people at 32k and 10 at 64k by
+memory**. On a PRO 6000 of its own, the farm's Automatic pool (~42 GiB beside document reading) holds ~30 and ~14.
+
+Two fixes found here, both in the farm now:
+- **Tools:** Qwen3-Omni's chat template is only its processor's (`chat_template.json`), and vLLM uses the tokenizer's
+  for a request with `tools`: every tool call answered 400 (*default chat template is no longer allowed*).
+  `install.sh` now writes it as `chat_template.jinja`, which the tokenizer reads (transformers 5.19).
+- **The thinking switch:** the client sends `chat_template_kwargs: {"enable_thinking": false}` for titles and the
+  Computer's lists; this template then appends an empty think block the Instruct model never saw, and it answered
+  `<|im_start|>user` (4 of the 11 tool items failed that way). The farm's route to a vLLM model with no thinking
+  parser now drops `chat_template_kwargs` (LiteLLM 1.90 `additional_drop_params`): **28/28** through it.
+
+| Chat 4k | c=1 | c=8 | c=16 | c=32 | c=64 | c=96 | c=128 |
+|---|---|---|---|---|---|---|---|
+| decode p10 (tok/s) | 170 | 79 | 54 | 42 | 26 | 18 | 17 |
+| TTFT p95 every turn / steady (s) | 0.11 | 0.17 | 1.2 / 0.20 | 0.67 / 0.22 | 3.6 / 0.32 | 7.2 / 0.42 | 8.4 / 0.44 |
+
+Follow-ups (`--append`), TTFT p95 (s) / decode p10 (tok/s), round 1 and round 2 alike here (no sliding window, no
+hybrid cache: the first follow-up hits too):
+
+| Follow-up | c=8 | c=10 | c=16 | c=20 | c=24 | c=32 |
+|---|---|---|---|---|---|---|
+| 30k | 0.46 / 51 | | 0.79 / 33 | 0.99 / 29 | | 58 / 5 (over the pool: preempted) |
+| 62k | 0.81 / 34 | 0.96 / 31 | 92 / 3.5 (over the pool) | | 145 / 3.8 | |
+
+**People:** chat **64 / 128**; follow-ups **20 at 32k and 10 at 64k**, every turn and steady alike, **both the pool's
+limit** (the next level spills it and collapses); decode at those levels is still 29–31 tok/s, so a bigger pool carries
+more. One user alone: **170 tok/s**, TTFT 0.10 s on a 4k message (the fastest of the five for one person, an MoE with
+3B active); aggregate up to 2,491 tok/s (chat, 128 users).
+
+**Quality gate** (it does not think): **28/28** (8k tokens) through the farm's route; 23/28 straight to vLLM with the
+thinking switch (above).
+
+**Functional:** the picture: *a red circle, a blue square, and the black text "LOL 42"*; the tool call
+`get_weather({"city": "Lyon"})`; **sound in a message**, French and English, written back word for word (*Bonjour. Je
+voudrais réserver la salle de réunion pour jeudi à quinze heures, pour six personnes.*) and the request understood;
+the same through LiteLLM (the farm's route passes `input_audio` parts unchanged). The first message with sound
+after the start took 8.4 s (the audio encoder's first use), later ones 0.03–0.05 s.
+
+**`/v1/audio/transcriptions` works** for Qwen3-Omni in vLLM 0.30.0 (the thinker is a `SupportsTranscription` model):
+French and English written down word for word in **0.12–0.18 s** for 7–8 s of speech, the language given or not
+(`{"text": "Bonjour, je voudrais réserver la salle de réunion pour jeudi à quinze heures pour six personnes.",
+"usage": {"type": "duration", "seconds": 8}}`). Its feature extractor reads up to 300 s at a time (4.8 M samples at
+16 kHz); longer recordings were not tried. It is vLLM's
+route, not the farm's: the seat gate forwards only the routes clients use, and LiteLLM has no transcription route
+configured for it, so a client reaches it only through a change there (the voice work's call).
+
+## What these two mean for the farm
+
+- **Gemma 4 12B on vLLM** is the small model that sees and hears: 9 GB of weights leave room for many people's
+  memory (~130 at 32k on a PRO 6000), but a dense 12B on Triton attention decodes slower than the 3B-active MoEs
+  under load: **16 people at 32k on every turn** (Qwen3.6: 96), **≥ 64 in steady use**. It is the only model of the
+  list that fits a 16 or 24 GB card (with document reading off) or a 32 GB one (beside it).
+- **Qwen3-Omni** is fast for one person and good on the gate, but its full attention costs 4.8× Qwen3.6's memory a
+  token: **memory binds first** (20 at 32k in 30 GiB, ~30 on a PRO 6000 of its own). It is the one model whose vLLM
+  writes down speech (`/v1/audio/transcriptions`), which a voice mode could use instead of a separate speech-to-text.

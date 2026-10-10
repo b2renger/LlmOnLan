@@ -1,0 +1,78 @@
+{
+ "model": "qwen3-omni-30b-a3b",
+ "base": "http://127.0.0.1:8177/v1",
+ "at": "2026-10-09T16:48:30.305Z",
+ "checks": [
+  {
+   "label": "warm-up",
+   "ok": true,
+   "ttft_s": 0.053,
+   "decode_tps": 179.4,
+   "prompt_tokens": 16,
+   "completion_tokens": 61,
+   "text": "The sea stretched endlessly, a vast expanse of shimmering blue beneath the afternoon sun.  \nGulls cried overhead as waves crashed against the rocky shore, sending sprays of salt into the air.  \nBeneath the surface, sunlight danced through the water, illuminating schools of silver fish.",
+   "reasoning_chars": 0,
+   "tool_calls": []
+  },
+  {
+   "label": "one stream (512 tokens)",
+   "ok": true,
+   "ttft_s": 0.023,
+   "decode_tps": 175.9,
+   "prompt_tokens": 24,
+   "completion_tokens": 346,
+   "text": "A bicycle gear system allows riders to adjust the effort needed to pedal based on terrain, speed, and personal preference. It consists of a front chainring (usually one or two large sprockets near the pedals) and a rear cassette (multiple sprockets of varying sizes on the rear wheel). The system uses a chain to transfer power from the pedals to the rear wheel.\n\nWhen you pedal, the chain moves around the front chainring and the rear sprocket of your choice. The gear ratio—the relationship between the number of teeth on the front chainring and the rear sprocket—determines how much force is required and how far the bike travels per pedal revolution.\n\nLower gears (small front chainring combined with large rear sprocket) make pedaling easier. This is ideal for climbing hills or starting from a ",
+   "reasoning_chars": 0,
+   "tool_calls": []
+  },
+  {
+   "label": "picture",
+   "ok": true,
+   "ttft_s": 0.147,
+   "decode_tps": 178.9,
+   "prompt_tokens": 266,
+   "completion_tokens": 28,
+   "text": "This image contains a red circle, a blue square, and the black text \"LOL 42\" on a white background.",
+   "reasoning_chars": 0,
+   "tool_calls": []
+  },
+  {
+   "label": "tool call",
+   "ok": true,
+   "ttft_s": 0.076,
+   "decode_tps": 357.1,
+   "prompt_tokens": 159,
+   "completion_tokens": 21,
+   "text": "",
+   "reasoning_chars": 0,
+   "tool_calls": [
+    {
+     "name": "get_weather",
+     "args": "{\"city\": \"Lyon\"}"
+    }
+   ]
+  },
+  {
+   "label": "sound in a message fr.wav",
+   "ok": true,
+   "ttft_s": 0.186,
+   "decode_tps": 180.6,
+   "prompt_tokens": 137,
+   "completion_tokens": 45,
+   "text": "Bonjour. Je voudrais réserver la salle de réunion pour jeudi à quinze heures, pour six personnes.\nThe speaker wants to reserve the meeting room for Thursday at three o'clock for six people.",
+   "reasoning_chars": 0,
+   "tool_calls": []
+  },
+  {
+   "label": "sound in a message en.wav",
+   "ok": true,
+   "ttft_s": 0.049,
+   "decode_tps": 179.8,
+   "prompt_tokens": 124,
+   "completion_tokens": 41,
+   "text": "Hello, please order three boxes of blue markers and send the invoice to the design school.\nThe speaker wants three boxes of blue markers to be ordered and the invoice to be sent to the design school.",
+   "reasoning_chars": 0,
+   "tool_calls": []
+  }
+ ]
+}

@@ -15,7 +15,7 @@ const ollama = require('../ollama');
 const llamacpp = require('../llamacpp');
 const vllmMod = require('../vllm');
 const proxyApi = require('../proxy');
-const { loadConfig, ConfigSchema } = require('../config');
+const { loadConfig, ConfigSchema, VLLM_LIBRARY } = require('../config');
 const {
     writeLitellmConfig, buildLitellmConfig, servedEntries, ollamaServes, defaultModelEntry,
     carryNameAcross, applyNamePlan, engineFallback, engineOf,
@@ -858,11 +858,9 @@ async function run(args) {
     // What vLLM's Automatic memory keeps for Document search: its share while it is on but not running yet (a toggle
     // from the panel, a start that is still downloading), nothing once its memory is taken.
     const embedReserveGib = () => (svcById.embed.enabled(config) && !svcById.embed.up ? embedMod.RESERVE_GIB : 0);
-    // The same for speech to text on the GPU (stt.js RESERVE_GIB). vllm.js has one parameter for the plugins beside it
-    // (`embedReserveGib`, named after the first): it gets both. ponytail: its sentence and gpuFit name document search
-    // only; naming speech to text there waits for the vLLM card's next change.
+    // The same for speech to text on the GPU (stt.js reserveGib).
     const sttReserveGib = () => (!svcById.stt.up ? sttMod.reserveGib(config) : 0);
-    const pluginReserveGib = () => embedReserveGib() + sttReserveGib();
+    const pluginReserves = () => ({ embedReserveGib: embedReserveGib(), sttReserveGib: sttReserveGib() });
     // Plugins started before the farm is public go down with a boot that gives up.
     const stopServices = async () => { for (const svc of services) { if (svc.pid) await killTree(svc.pid); } };
 
@@ -1383,7 +1381,7 @@ async function run(args) {
             const pr = vllmMod.problemsFrom({ ...vllmProbe, installKind: dl ? dl.kind : null }, config);
             if (pr.problems.length || !vllmTarget) return { ok: false, message: pr.problems[0] || 'This computer did not answer the check.' };
             if (isCancelled()) return { ok: false, cancelled: true };
-            plan = vllmMod.planFor(config, vllmProbe.st, vllmMod.memOf(vllmProbe.st), { embedReserveGib: pluginReserveGib() });
+            plan = vllmMod.planFor(config, vllmProbe.st, vllmMod.memOf(vllmProbe.st), pluginReserves());
             if (!plan.ok) return { ok: false, message: plan.reason };
             // Nothing of this root runs now (stopped just above), so whatever answers on the port is another program's:
             // serve.sh's relay could not listen, and the start must not take that server's answers for its own.
@@ -2316,7 +2314,8 @@ async function run(args) {
                 alias: config.llamacpp.alias,
                 model: config.llamacpp.model,
                 mmproj: config.llamacpp.mmproj,
-                library: config.llamacpp.library || [],
+                // `downloaded`: the panel's list says it, so an operator can prepare a switch from Ollama or vLLM.
+                library: (config.llamacpp.library || []).map((e) => ({ ...e, downloaded: llamacpp.onDisk(e.url) })),
                 contextLength: config.llamacpp.contextLength,        // number, or 'auto'
                 contextResolved: config.llamacpp.contextResolved ?? null, // what actually serves
                 parallel: config.llamacpp.parallel,
@@ -2735,7 +2734,7 @@ async function run(args) {
         // An explicit memory for conversations can be checked against one person's window now; Automatic is
         // worked out at the start, once the current engine has left the GPU.
         if (config.vllm.kvCacheGib !== 'auto') {
-            const plan = vllmMod.planFor(config, vllmProbe.st, vllmMod.memOf(vllmProbe.st), { embedReserveGib: pluginReserveGib() });
+            const plan = vllmMod.planFor(config, vllmProbe.st, vllmMod.memOf(vllmProbe.st), pluginReserves());
             if (!plan.ok) return plan.reason;
         }
         return null;
@@ -2882,7 +2881,7 @@ async function run(args) {
         let autoKvGib = null;
         if (v.kvCacheGib === 'auto' && vllmState.phase === 'ready') autoKvGib = v.kvResolvedGib ?? null;
         else if (mem && e && !st.running) {
-            const p = vllmMod.planFor({ ...config, vllm: { ...v, kvCacheGib: 'auto' } }, st, mem, { embedReserveGib: pluginReserveGib() });
+            const p = vllmMod.planFor({ ...config, vllm: { ...v, kvCacheGib: 'auto' } }, st, mem, pluginReserves());
             autoKvGib = p.ok ? p.kvGib : null;
         }
         const pool = vllmState.phase === 'ready' && v.kvResolvedGib != null ? v.kvResolvedGib : (v.kvCacheGib === 'auto' ? autoKvGib : v.kvCacheGib);
@@ -3133,7 +3132,9 @@ async function run(args) {
         const r = vllmMod.newLibraryEntry(body, config.vllm.library || [], st ? st.models : []);
         if (r.error) return { ok: false, error: r.error };
         config.vllm.library = [...(config.vllm.library || []), r.entry];
-        const warn = persist('vllm', { library: config.vllm.library });
+        // A built-in model added back is no longer one the operator removed.
+        config.vllm.removed = (config.vllm.removed || []).filter((id) => id !== r.entry.id);
+        const warn = persist('vllm', { library: config.vllm.library, removed: config.vllm.removed });
         return { ok: true, id: r.entry.id, message: `${r.entry.label} is in the list.${r.entry.repo ? ' Press Download, then Use this.' : ''}${warn || ''}` };
     }
     // Remove one from the list, and with `deleteFiles` its folder too. Never the chosen model, the one running, or
@@ -3155,7 +3156,9 @@ async function run(args) {
             deleted = ' Its files are deleted.';
         }
         config.vllm.library = lib.filter((x) => x !== e);
-        const warn = persist('vllm', { library: config.vllm.library });
+        // A built-in model stays out at the next start, when the list is completed with the built-ins it lacks.
+        if (VLLM_LIBRARY.some((x) => x.id === e.id) && !(config.vllm.removed || []).includes(e.id)) config.vllm.removed = [...(config.vllm.removed || []), e.id];
+        const warn = persist('vllm', { library: config.vllm.library, removed: config.vllm.removed || [] });
         if (body.deleteFiles) await checkVllm().catch(() => null);
         return { ok: true, message: `${e.label} is out of the list.${deleted}${warn || ''}` };
     }
@@ -3215,8 +3218,9 @@ async function run(args) {
     // (`url`), which is what makes "add a model" a real operation and not a config edit.
     // Rolls the config back and reloads the previous weights if the new ones don't come
     // up — a mistyped URL must not leave the farm with no backend.
+    // While another engine serves, it CHOOSES the model a switch to llama.cpp will serve (owner, 2026-10-09): the
+    // download runs now as the job, and the engine that serves keeps serving.
     function setLlamacppModel(sel) {
-        if (!config.llamacpp.enabled) return { ok: false, error: 'The llama.cpp backend is off — switch to it first.' };
         if (busy()) return busyErr();
         const lib = config.llamacpp.library || [];
         let url = null; let mmproj = null; let mtpOk = null; let label = null;
@@ -3232,7 +3236,8 @@ async function run(args) {
         } else {
             return { ok: false, error: 'Choose a model, or give a .gguf URL.' };
         }
-        if (url === config.llamacpp.model) return { ok: true, already: true, model: url };
+        const serving = engineOf(config) === 'llamacpp';
+        if (url === config.llamacpp.model && (serving || llamacpp.onDisk(url))) return { ok: true, already: true, model: url };
 
         const before = { model: config.llamacpp.model, mmproj: config.llamacpp.mmproj, mtp: config.llamacpp.mtp };
         // Guard the one failure this project keeps hitting: MTP on a quant whose head
@@ -3244,6 +3249,16 @@ async function run(args) {
         if (config.llamacpp.mtp && mtpOk === false) {
             patch.mtp = false;
             mtpNote = ' Speculative decoding (MTP) was turned off — this quant has no MTP head.';
+        }
+        if (!serving) {
+            return runJob('model', `Downloading ${label}`, async (progress) => {
+                let got;
+                try { got = await llamacpp.ensureModel({ ...config, llamacpp: { ...config.llamacpp, ...patch } }, progress); }
+                catch (err) { got = { ok: false, message: `Could not download it: ${(err && err.message) || err}` }; }
+                if (!got.ok) return { ok: false, error: `${got.message} Nothing changed.` };
+                const warn = persistLlamacpp(patch);
+                return { ok: true, message: `llama.cpp will serve ${label} when you switch to it. ${ENGINE_NAMES[engineOf(config)].replace(/^the e/, 'The e')} keeps serving until then.${mtpNote}${warn || ''}` };
+            });
         }
         return runJob('model', `Loading ${label}`, async (progress) => {
             const warn = persistLlamacpp(patch);

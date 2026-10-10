@@ -6,6 +6,112 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-10-10 (14:59) — Merged `vllm-models` beside the voice work; speech to text gets its own share of vLLM's memory
+
+- **The `vllm-models` agent stopped at its last step** (the account's weekly limit), with its work written but not
+  committed. Checked before committing: farm `test/run.js` 220/0 once the agent's leftover downloads in its worktree
+  were removed (`farm/.models`, `farm/.llamacpp`, 1.8 GB: with EmbeddingGemma 2 on disk, the test that document
+  search starts late while its first download is ahead cannot hold); `LOL_VLLM_FAKE=1 vllm-lifecycle.js` 161/0; shell
+  chat-unit 1862/0. No scratch vLLM left running in WSL; `~/lol-vllm-scratch` gone. Committed as `c504540`.
+- **Merged into `multiuser-phase0`** after `voice-mode`: the code merged by itself; DEVLOG kept both entries;
+  HUMAN_TESTS had both branches' new J9/K7 — the voice ones keep J9 and K7, this branch's become **J10, J11, K8**
+  (107 tests).
+- **The voice work's ponytail, done:** vLLM's memory took speech to text's 2 GB through document search's parameter,
+  so a short-memory sentence named document search only and `gpuFit` (the "too small for vLLM" check) did not count
+  it. `poolGib`/`planFor` now take `sttReserveGib` beside `embedReserveGib`, the sentence names *speech to text (2 GB)*,
+  and `gpuFit` adds `stt.reserveGib(config)` (GPU only). Tests: the PRO 6000 at 48 GB with both, the sentence, the fit
+  with and without it, on the CPU nothing. Gates: farm 221/0; shell build, chat-unit 1863/0, unit 29, lint 0.
+
+## 2026-10-09 (19:01) — The llama.cpp list before a switch; Gemma 4 12B and Qwen3-Omni on vLLM, measured (branch `vllm-models`)
+
+The owner's four asks of the afternoon, in order. Built in the worktree `vllm-models` from `main` at `ad5e53c`; not
+merged, not released.
+
+**1. The llama.cpp list before switching.** On Ollama (or vLLM) the panel showed *Model · llama.cpp* only once
+llama.cpp served, so nobody could see or prepare what a switch would serve. Now the **llama.cpp** button opens that
+card, brought into view (as the vLLM button opens its own), instead of switching: the list marks the model the switch
+will serve **chosen** and those on this computer **downloaded** (`llamacpp.onDisk`, every part of a split file);
+**Use this** makes another one the chosen model and downloads it now as the panel's job (`setLlamacppModel`'s new
+branch: `ensureModel` on the would-be config, then the model persisted; a failed download changes nothing); a chosen
+model not downloaded yet gets **Download**; **Add** works as before; the card says Ollama keeps serving until
+**Switch to llama.cpp** at its bottom, whose question names the model it loads (and that it downloads it first).
+**Close** hides it. While llama.cpp serves, the card is as it was.
+
+**2–3. Two models in the vLLM list** (`config.js` `VLLM_LIBRARY`), chosen against the owner's rule (first-party or
+his named publishers, the pinned vLLM 0.30.0):
+- **Gemma 4 12B** — `unsloth/gemma-4-12b-it-NVFP4` (Apache 2.0, 9.3 GB): NVIDIA publishes NVFP4 only for the 26B-A4B
+  and 31B; Google's own 12B quant is a QAT W4A16 (slower to batch on Blackwell); RedHat's NVFP4 is "preliminary".
+  vLLM's Gemma 4 recipe flags (`--reasoning-parser gemma4 --tool-call-parser gemma4 --enable-auto-tool-choice`, fp8
+  KV, `--limit-mm-per-prompt {"image":4,"audio":1,"video":0}`); no `--chat-template` (the checkpoint's own template
+  carries the tool protocol, newer than the recipe's copy). `vllm.js facts()` now counts its sliding-window layers'
+  168 MB a person (`kv_constant_bytes_per_request`), measured: 64 people at ~30.5k filled 51.8 % of a 52 GiB pool.
+- **Qwen3-Omni 30B-A3B** — `Qwen/Qwen3-Omni-30B-A3B-Instruct` (Apache 2.0): no first-party FP8/NVFP4/AWQ exists, so
+  vLLM quantizes the BF16 weights to FP8 as it loads them (`--quantization fp8`, 30.9 GiB; the load never held the
+  BF16 size). vLLM serves the thinker (text out). Hermes tools; Qwen's sampling merged with the reply cap into ONE
+  `--override-generation-config` (`argvFor`; vLLM keeps a repeated flag's last). Two fixes it needed, both general:
+  `install.sh` writes a processor-only `chat_template.json` as `chat_template.jinja` (vLLM reads the tokenizer's
+  template for requests with tools: every tool call was a 400), and LiteLLM's route to a vLLM model with no thinking
+  parser drops `chat_template_kwargs` (`additional_drop_params`; the client's `enable_thinking: false` made its
+  template append an empty think block and the model answered `<|im_start|>user`: 23/28 → **28/28**).
+- Around them: both carry `audio: true` (a schema field; the snapshot's `backend.audio`, in the contract);
+  `install.sh` installs `vllm[audio]` (vLLM's sound extras); `status.sh` says `audio=<root>`; the check warns *…
+  cannot read sound yet: press Update vLLM* when the chosen model hears and its install lacks them. `FAMILY_ARGS`
+  knows Gemma 4 and Qwen3-Omni; `isGeneric` is "no thinking and no tool parser". **The list completes itself:** a
+  `library` an Add, a Remove or a take-over saved before (production's, after its take-over) gets the new built-ins
+  at the next start, except the ids in the new `vllm.removed`, which a Remove of a built-in writes and an Add of it by
+  name clears (it comes back as the built-in entry). With Gemma the smallest model, `gpuFit` now says *about 25 GB*
+  with document reading (a 4070/4080/4090 still refused beside it; a 16 or 24 GB card fits Gemma with it off; a 32 GB
+  one fits).
+
+**4. Measured on the PRO 6000** (docs/spike/RESULTS.md, last section; `docs/spike/results/*gemma4*`, `*qwen3omni*`,
+`results/probes/`, `runs/probe.js`). The owner's farm was not running and Ollama held 17.7–22.9 GB, so: a SCRATCH
+vLLM (`install.sh` with `LOL_VLLM_ROOT=~/lol-vllm-scratch`, port 8177, never `~/lol-vllm` or 8100), the farm's own
+argv (`argvFor`, read back in each log), a watchdog that would have stopped it if the owner's farm went on vLLM or
+busy or the GPU fell under 6 GB free (it never fired), pools of 52 GiB (Gemma) and 30 GiB (Omni). The reduced suite:
+chat 1–128, follow-ups at 30k/62k with `--append`, the 28-item gate, and the functional checks.
+
+| | Gemma 4 12B | Qwen3-Omni 30B-A3B |
+|---|---|---|
+| Weights loaded | 9.25 GiB | 30.91 GiB (FP8 at load) |
+| One user (4k message) | 91 tok/s, TTFT 0.20 s | 170 tok/s, TTFT 0.10 s |
+| People, chat 4k (every turn / steady) | 32 / 64 | 64 / 128 |
+| People at 32k (every / steady) | 16 / ≥ 64 | 20 / 20 (the 30 GiB pool's limit) |
+| People at 64k | 8 / ≥ 48 | 10 / 10 (the pool's limit) |
+| Quality gate | 26/28 thinking off, 22/28 on (misses: out of the 16k budget) | 28/28 (it does not think) |
+| Picture, tool call | right, right | right, right (after the two fixes) |
+| Sound in a message (FR, EN) | word for word, understood | word for word, understood |
+| `/v1/audio/transcriptions` | 404 (not a transcription model) | **works**: 0.12–0.18 s for 7–8 s, FR and EN |
+
+Gemma's every-turn misses are all the first follow-up after the documents loaded (round 1 TTFT 3–14 s; round 2 under
+1 s everywhere), the hybrid-cache shape of RESULTS finding 10. Omni's limit is its memory (49 KB a token, 4.8×
+Qwen3.6's): ~30 / ~14 people on a PRO 6000 of its own. Both measured configs are in `measured.json`
+(`pro6000/vllm/gemma4`, `/omni`; `build_measured.py` now finds this checkout itself), so Automatic seats use them,
+and the capacity page shows them as measured (`estimator.js` `MEASURED_ONLY`: measured cells only, not fitted into
+the calibration). `catalog.json` gained Gemma's vLLM checkpoint and a Qwen3-Omni entry.
+
+**For the voice work** (not touched here: `stt.js`, the snapshot's stt fields): with Qwen3-Omni serving, vLLM's
+`/v1/audio/transcriptions` writes down French and English accurately in a fraction of a second, but it is vLLM's
+route: the seat gate forwards only the routes clients use, and LiteLLM has no transcription route for it. Routing the
+farm's speech-to-text to it is that work's call; `backend.audio` says the served model hears sound in a chat message.
+
+**Tests:** farm `test/run.js` **220/0** (+4 tests: the llama.cpp card before a switch with its farm side,
+`llamacpp.onDisk`, the two models (flags, families, one generation override, the self-completing list, the route that
+drops the thinking switch), the sound check with Update vLLM; each fails when its change is reverted);
+`LOL_VLLM_FAKE=1 node test/vllm-lifecycle.js` **161/0**; `farm/vllm/test_scripts.sh` under WSL **116/0** (+4 checks: `audio=`, the template
+written, never over one there, not when the tokenizer has one); shell `chat-unit.js farm-contract` **4/0** (the schema's new `backend.audio`). Docs:
+CLAUDE.md, farm/README.md, VLLM_MANAGED_PLAN.md (the default library 4–5, the self-completing list), HUMAN_TESTS.md
+(J10, J11, K8; renumbered at the merge beside the voice branch; K5's numbers on this build), RESULTS.md.
+
+**Cleaned up:** the scratch vLLM stopped, `~/lol-vllm-scratch` (vLLM and both downloads, ~90 GB) removed; nothing of
+the owner's touched (no `~/lol-vllm` exists on this box; the Farm app was not running).
+
+**The owner's calls:** whether a 16 GB card with document reading off should be offered vLLM for Gemma 4 12B (2–3
+people), or `gpuFit` should keep refusing it; whether Omni's Automatic seats should come from its memory alone (the
+measured 20 / 10 are this run's pool's limit, lower than a PRO 6000 of its own holds); whether the voice mode routes
+speech-to-text to Omni's `/v1/audio/transcriptions`. **Human tests:** J10, J11, K8 (HUMAN_TESTS.md).
+
+---
+
 ## 2026-10-09 (17:13) — Speech to text on the farm's GPU, and the voice mode is Open WebUI's Call, pointed at the farm
 
 The owner asked (branch `voice-mode`): **A.** the farm's speech to text on its NVIDIA GPU with a better model, the CPU
@@ -98,6 +204,7 @@ Computer's Sound box sends no `model` (vLLM's transcription endpoint takes its s
 small card, no NVIDIA) in HUMAN_TESTS.md; whether speech to text should be on by default with a GPU like document
 search (it stays off); whether OWUI's 2 s end-of-phrase is good enough in the studio (it cannot be tuned without a
 voice mode of LOL's own).
+
 
 ## 2026-10-09 (14:36) — Release client v0.2.10 and Farm app farm-v0.0.44: document search on the farm, the home on the Computer
 

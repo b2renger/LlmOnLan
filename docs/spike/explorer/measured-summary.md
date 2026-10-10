@@ -1,6 +1,6 @@
 # Measured spike data: headline numbers (for checking measured.json)
 
-Written 2026-10-07T09:05+02:00 from `measured.json` (generated 2026-10-07T09:03:50+02:00) by `write_summary.py`. Sources: `docs/spike/results/*.json` (PRO 6000 run 2026-10-04; DGX Spark run 2026-10-05 13:51 to 2026-10-06 11:37), RESULTS.md / README.md / ESTIMATES_2026-10-05.md (mtime 2026-10-06 17:09-17:12), the Spark guard CSV. Superseded runs excluded.
+Written 2026-10-09T18:58+02:00 from `measured.json` (generated 2026-10-09T18:58:51+02:00) by `write_summary.py`. Sources: `docs/spike/results/*.json` (PRO 6000 run 2026-10-04; DGX Spark run 2026-10-05 13:51 to 2026-10-06 11:37), RESULTS.md / README.md / ESTIMATES_2026-10-05.md (mtime 2026-10-06 17:09-17:12), the Spark guard CSV. Superseded runs excluded.
 
 **Pass rule:** no errors, TTFT p95 < 5 s, per-user decode p10 >= 15 tok/s. People = the largest passing tested level, `every turn / steady`. `≥ N` = N was the top level tested; `< N` = the lowest level tested (N) failed; `0` = one user failed. Follow-ups: every turn = the first follow-up (round 1) and the later one (round 2) both pass; steady = round 2. Follow-up rows use the `--append` run where one exists, as RESULTS.md's headline does.
 

@@ -19,6 +19,7 @@ const CATALOG = require('./capacity/catalog.json');
 const MEASURED = require('./capacity/measured.json');
 const { VLLM_LIBRARY, ConfigSchema } = require('./config');
 const { RESERVE_GIB: EMBED_RESERVE_GIB } = require('./embed');
+const { reserveGib: sttReserveOf } = require('./stt');
 
 const GIB = 2 ** 30;
 const RUNTIME_GIB = 4;   // vLLM's own use beside weights and pool: production runs 74.9 GiB = 50 pool + 20.37 weights + ~1.4 desktop + ~3
@@ -86,7 +87,7 @@ function parseStatus(text) {
         memTotalGib: null, memAvailableGib: null, diskFreeGb: null,
         installs: [], models: [], running: null, found: [], guardLine: null, installing: null, managed: false,
     };
-    const env = {}; const argv = []; const links = new Set(); let ready = false;
+    const env = {}; const argv = []; const links = new Set(); const sound = new Set(); let ready = false;
     const num = (s) => (/^\d+(\.\d+)?$/.test(String(s).trim()) ? Number(s) : null);
     for (const line of String(text || '').split(/\r?\n/)) {
         const i = line.indexOf('=');
@@ -104,6 +105,7 @@ function parseStatus(text) {
         case 'disk_free_kb': out.diskFreeGb = Number(v) * 1024 / 1e9; break;
         case 'install': { const [root, version] = v.split(' '); out.installs.push({ root, version: version || null, link: false }); break; }
         case 'venv_link': links.add(v); break;
+        case 'audio': sound.add(v); break;
         case 'model': {
             const m = /^(\S+) (\d+) vision=([01]) native=(\d*) partial=([01])$/.exec(v);
             if (m) out.models.push({ folder: m[1], gb: Number(m[2]) * 1024 / 1e9, vision: m[3] === '1', native: m[4] ? Number(m[4]) : null, partial: m[5] === '1' });
@@ -120,7 +122,7 @@ function parseStatus(text) {
         default: break;
         }
     }
-    for (const inst of out.installs) inst.link = links.has(inst.root);
+    for (const inst of out.installs) { inst.link = links.has(inst.root); inst.audio = sound.has(inst.root); }
     if (out.running) {
         Object.assign(out.running, {
             port: Number(env.LOL_VLLM_PORT) || 8100,
@@ -169,19 +171,23 @@ function resolveRoot(config, st) {
 // measured models' own flags for their families (the default list's), a generic Qwen3 set, else prefix caching only.
 // ponytail: a family this table does not know gets no thinking or tool parser, and the panel says so; the upgrade
 // path is per-entry args.
+// A message limit (--limit-mm-per-prompt) for a sound the model cannot hear (a Gemma 4 31B) is ignored by vLLM.
 const argsOf = (id) => [...VLLM_LIBRARY.find((e) => e.id === id).args];
 const FAMILY_ARGS = [
+    [/qwen3-?omni/i, () => argsOf('qwen3-omni-30b-a3b')],
     [/qwen3\.[56]|qwen3-?next/i, () => argsOf('qwen3.6-35b-a3b')],
     [/qwen3\.8/i, () => argsOf('qwen3.8-27b-nvfp4')],
     [/nemotron/i, () => argsOf('nemotron-3.5-lightning')],
+    [/gemma-?4/i, () => argsOf('gemma-4-12b')],
     [/qwen3/i, () => ['--enable-prefix-caching', '--reasoning-parser', 'qwen3', '--enable-auto-tool-choice', '--tool-call-parser', 'hermes']],
 ];
 function familyArgs(name) {
     const f = FAMILY_ARGS.find(([rx]) => rx.test(String(name || '')));
     return f ? f[1]() : ['--enable-prefix-caching'];
 }
-// A model with no thinking parser: answers work, tools and thinking may not show (the panel's note).
-const isGeneric = (entry) => !(entry.args || []).includes('--reasoning-parser');
+// A model with neither a thinking nor a tool parser: answers work, tools and thinking may not show (the panel's note).
+// Qwen3-Omni's Instruct does not think: its tool parser is enough.
+const isGeneric = (entry) => !(entry.args || []).some((a) => a === '--reasoning-parser' || a === '--tool-call-parser');
 
 // "owner/name", or a Hugging Face link to it (https://huggingface.co/owner/name, and anything after) → the repo, or
 // null.
@@ -212,6 +218,9 @@ function newLibraryEntry(input = {}, library = [], disk = []) {
     const repo = repoOf(input.repo);
     if (!repo) return { error: 'Give the name of a model on Hugging Face, like nvidia/Qwen3.6-35B-A3B-NVFP4.' };
     if (library.some((e) => e.repo && e.repo.toLowerCase() === repo.toLowerCase())) return { error: `${repo} is already in the list.` };
+    // A built-in model the operator removed, added back by its name: its own entry again, with its measured flags.
+    const builtIn = VLLM_LIBRARY.find((e) => e.repo && e.repo.toLowerCase() === repo.toLowerCase());
+    if (builtIn && !ids.has(builtIn.id)) return { entry: JSON.parse(JSON.stringify({ ...blank, ...builtIn })) };
     const [owner, name] = repo.split('/');
     // Two owners' models of the same name would share a folder: the second one gets its owner's name in front.
     const folder = library.some((e) => folderOf(e) === name) ? `${owner}--${name}` : null;
@@ -227,7 +236,9 @@ function facts(entry) {
     const fp8 = /^fp8/.test(String(flagMap(entry.args || [])['--kv-cache-dtype'] || ''));
     return {
         kvBytesPerToken: m.kv_bytes_per_token_fp8 * (fp8 ? 1 : 2),
-        stateBytes: m.vllm_state_charge_bytes ?? 2 * (m.recurrent_state_bytes || 0),
+        // Plus the sliding-window layers' share, which stops growing past the window (Gemma 4: 168 MB a person;
+        // measured 2026-10-09, 64 people at 30k filled 52 % of a 52 GiB pool).
+        stateBytes: (m.vllm_state_charge_bytes ?? 2 * (m.recurrent_state_bytes || 0)) + (m.kv_constant_bytes_per_request || 0) * (fp8 ? 1 : 2),
         nativeCtx: m.context_native ?? null,
     };
 }
@@ -284,22 +295,22 @@ function maxNumSeqsAuto(seats) {
 }
 
 // GPU memory for conversations, in whole GiB: what is free now, less a margin, the model, vLLM's runtime and the
-// share kept for document reading (Ollama's OCR model) and for document search while it is on but not running yet
-// (embed.js: once it runs, its memory is no longer free); on unified memory, from what the system has available, less
+// share kept for document reading (Ollama's OCR model), and for document search and speech to text on the GPU while
+// they are on but not running yet (embed.js, stt.js: once one runs, its memory is no longer free); on unified memory, from what the system has available, less
 // the memory guard's floor too. `cap` (GiB) keeps a small model from taking the whole card. `personGib` = one
 // person's conversation at the chosen context, when known.
-function poolGib({ totalGib, freeGib, unified = false, memAvailableGib = null, weightsGib = 0, ocrReserveGib = 0, embedReserveGib = 0, marginPct = 8, minFreeGb = 0, cap = null, personGib = null }) {
+function poolGib({ totalGib, freeGib, unified = false, memAvailableGib = null, weightsGib = 0, ocrReserveGib = 0, embedReserveGib = 0, sttReserveGib = 0, marginPct = 8, minFreeGb = 0, cap = null, personGib = null }) {
     const marginGib = (marginPct / 100) * (totalGib || 0);
     const base = unified ? memAvailableGib : freeGib;
-    const raw = (base || 0) - marginGib - (unified ? minFreeGb || 0 : 0) - weightsGib - RUNTIME_GIB - ocrReserveGib - embedReserveGib;
+    const raw = (base || 0) - marginGib - (unified ? minFreeGb || 0 : 0) - weightsGib - RUNTIME_GIB - ocrReserveGib - embedReserveGib - sttReserveGib;
     let gib = Math.floor(raw);
     const capped = cap != null && gib > cap;
     if (capped) gib = cap;
-    const why = { freeGib: base, weightsGib, ocrReserveGib, embedReserveGib, marginGib, runtimeGib: RUNTIME_GIB, minFreeGb: unified ? minFreeGb || 0 : 0, unified, capped };
+    const why = { freeGib: base, weightsGib, ocrReserveGib, embedReserveGib, sttReserveGib, marginGib, runtimeGib: RUNTIME_GIB, minFreeGb: unified ? minFreeGb || 0 : 0, unified, capped };
     const ok = gib >= 1 && (personGib == null || gib >= personGib);
     if (ok) return { gib, why, ok, reason: null };
     const where = unified ? `This computer has ${r1(base || 0)} GB of memory available` : `The GPU has ${r1(base || 0)} GB free`;
-    const after = `the model (${r1(weightsGib)} GB)${ocrReserveGib ? `, document reading (${r1(ocrReserveGib)} GB)` : ''}${embedReserveGib ? `, document search (${r1(embedReserveGib)} GB)` : ''}${unified && minFreeGb ? `, the ${minFreeGb} GB kept so the computer cannot run out` : ''} and a safety margin`;
+    const after = `the model (${r1(weightsGib)} GB)${ocrReserveGib ? `, document reading (${r1(ocrReserveGib)} GB)` : ''}${embedReserveGib ? `, document search (${r1(embedReserveGib)} GB)` : ''}${sttReserveGib ? `, speech to text (${r1(sttReserveGib)} GB)` : ''}${unified && minFreeGb ? `, the ${minFreeGb} GB kept so the computer cannot run out` : ''} and a safety margin`;
     const need = personGib != null ? `less than one person's conversation needs (${r1(personGib)} GB)` : 'not enough for anyone';
     return {
         gib: Math.max(0, gib), why, ok,
@@ -329,14 +340,21 @@ function settingsOf(config, root = config.vllm.root) {
 
 // The whole `vllm serve` argv after the model (serve.sh adds --uds). The farm owns all of it, as llamacpp.js owns
 // llama-server's.
+// A model's own sampling (its --override-generation-config, Qwen3-Omni's) and the reply cap go in ONE flag: vLLM keeps
+// a repeated flag's last value, so a second one would drop the first.
 function argvFor(entry, s, kvGib, maxNumSeqs) {
+    const own = [...(entry.args || [])];
+    let gen = {};
+    const i = own.indexOf('--override-generation-config');
+    if (i >= 0) { try { gen = JSON.parse(own[i + 1]); } catch { gen = {}; } own.splice(i, 2); }
+    if (s.maxReply) gen = { ...gen, max_new_tokens: s.maxReply };
     return [
         '--served-model-name', s.modelId,
         '--max-model-len', String(s.ctx),
         '--max-num-seqs', String(maxNumSeqs),
         '--kv-cache-memory-bytes', String(Math.round(kvGib * GIB)),
-        ...(entry.args || []),
-        ...(s.maxReply ? ['--override-generation-config', JSON.stringify({ max_new_tokens: s.maxReply })] : []),
+        ...own,
+        ...(Object.keys(gen).length ? ['--override-generation-config', JSON.stringify(gen)] : []),
         ...s.extraArgs,
     ];
 }
@@ -345,9 +363,9 @@ const minFreeOf = (v, unified) => (v === 'auto' ? (unified ? 8 : null) : v || nu
 
 // Everything a start needs, or why it cannot start. `st` = parseStatus; `mem` = memOf(st) measured just before the
 // start (after Ollama's models were evicted).
-// `embedReserveGib`: up.js passes embed.RESERVE_GIB while document search is on and not running yet (it starts before
-// the engine at a boot, so then its memory is already taken).
-function planFor(config, st, mem = memOf(st), { ocrEnabled = !!(config.ocr && config.ocr.enabled), embedReserveGib = 0 } = {}) {
+// `embedReserveGib` / `sttReserveGib`: up.js passes embed.RESERVE_GIB / stt.reserveGib while document search / speech to
+// text on the GPU is on and not running yet (each starts before the engine at a boot, so then its memory is taken).
+function planFor(config, st, mem = memOf(st), { ocrEnabled = !!(config.ocr && config.ocr.enabled), embedReserveGib = 0, sttReserveGib = 0 } = {}) {
     const v = config.vllm; const entry = vllmEntry(config);
     if (!entry) return { ok: false, reason: `The model "${v.model}" is not in the vLLM list: pick one there.`, entry: null };
     const root = resolveRoot(config, st);
@@ -360,7 +378,7 @@ function planFor(config, st, mem = memOf(st), { ocrEnabled = !!(config.ocr && co
     const minFreeGb = minFreeOf(v.minFreeGb, mem.unified);
     const poolIn = {
         totalGib: mem.totalGib, freeGib: mem.freeGib, unified: mem.unified, memAvailableGib: mem.memAvailableGib, weightsGib,
-        ocrReserveGib: ocrEnabled ? v.ocrReserveGib : 0, embedReserveGib, marginPct: v.marginPct, minFreeGb: minFreeGb || 0, personGib: pb ? pb / GIB : null,
+        ocrReserveGib: ocrEnabled ? v.ocrReserveGib : 0, embedReserveGib, sttReserveGib, marginPct: v.marginPct, minFreeGb: minFreeGb || 0, personGib: pb ? pb / GIB : null,
     };
     const autoKv = v.kvCacheGib === 'auto';
     // The seats need a pool to count people in; the pool's cap needs the seats: uncapped first, then capped.
@@ -734,8 +752,9 @@ function gpuFit(config, gib, { unified = false } = {}) {
     const weights = Math.min(...sizes);
     const ocrGib = config.ocr && config.ocr.enabled ? v.ocrReserveGib : 0;
     const embedGib = config.embed && config.embed.enabled === true ? EMBED_RESERVE_GIB : 0;   // document search, beside it
+    const sttGib = sttReserveOf(config);   // speech to text on the GPU, beside it
     const floor = unified ? minFreeOf(v.minFreeGb, true) || 0 : 0;
-    const need = (ocr) => (weights + RUNTIME_GIB + 1 + ocr + embedGib + floor) / (1 - v.marginPct / 100);
+    const need = (ocr) => (weights + RUNTIME_GIB + 1 + ocr + embedGib + sttGib + floor) / (1 - v.marginPct / 100);
     return { fits: gib >= need(ocrGib), needGib: need(ocrGib), ocrGib, fitsWithoutOcr: gib >= need(0) };
 }
 // The sentence for a GPU no model of the list fits, or null when one does (or its size is unknown).
@@ -827,6 +846,9 @@ function problemsFrom(probe, config, entry = vllmEntry(config)) {
     if (inst) {
         oks.push(config.vllm.root ? `vLLM ${inst.version} is installed (in ${root}).` : `Found an existing vLLM in ${root}: the farm will use it.`);
         if (inst.version !== config.vllm.version) warnings.push(`vLLM ${inst.version} is installed; this farm was tested with ${config.vllm.version}.`);
+        // An install from before the sound extras (farm-v0.0.44 and earlier): text and pictures work, a message with
+        // sound fails. Update vLLM adds them in a few minutes.
+        else if (entry && entry.audio && !inst.audio) warnings.push(`${entry.label} hears sound in a message, and the vLLM installed here cannot read sound yet: press Update vLLM (a few minutes; text and pictures work meanwhile).`);
     } else {
         problems.push('vLLM is not installed on this computer yet: press Install vLLM.');
     }

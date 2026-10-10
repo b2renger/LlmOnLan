@@ -117,6 +117,9 @@ let vllmOpen = localStorage.getItem('lolVllmOpen') === '1';
 let vllmChecking = false;
 let vllmAutoChecked = false;
 let vllmLogLines = null;
+// The llama.cpp card, opened by the llama.cpp button while another engine serves: the operator sees and prepares what a
+// switch would serve before switching (owner, 2026-10-09).
+let lcOpen = localStorage.getItem('lolLcOpen') === '1';
 
 function toast(msg) {
   const t = $('#toast'); t.textContent = msg; t.classList.add('show');
@@ -416,29 +419,7 @@ function render(s) {
     : '';
 
   // --- the llama.cpp model library ---------------------------------------------
-  // "How do I put a different model on the farm?" had no answer in any UI: the
-  // weights are a URL in a config file. They are a list here, and the list is
-  // additive — any .gguf URL works.
-  const libCard = be.engine === 'llama.cpp'
-    ? `<div class="card"><h2>Model · llama.cpp</h2>`
-      + ((lc.library || []).map((e) => {
-          const active = e.url === lc.model;
-          const meta = [e.sizeGb ? e.sizeGb + ' GB' : '', e.mtp ? 'has MTP head' : '', e.note].filter(Boolean).join(' · ');
-          return `<div class="row"><span class="dot${active ? ' served' : ''}"></span>`
-            + `<span><div class="mname">${esc(e.label)}${active ? ' <span class="badge on">serving</span>' : ''}</div>`
-            + `<div class="meta">${esc(meta)}</div></span>`
-            + `<span class="badges">`
-            + (active ? '' : `<button class="start" data-lcuse="${esc(e.id)}"${jobRunning ? ' disabled' : ''}>Use this</button>`)
-            + (active ? '' : `<button class="stop" data-lcdel="${esc(e.id)}"${jobRunning ? ' disabled' : ''}>Remove</button>`)
-            + `</span></div>`;
-        }).join('') || '<div class="empty">No models in the library.</div>')
-      + `<div class="row"><span></span><span><div class="mname">Add a model</div>`
-      + `<div class="meta">paste the link to a .gguf file — on HuggingFace, the file's <b>download</b> link (…/resolve/main/….gguf). Split models (…-00001-of-00003.gguf) work too: paste any part, all parts are fetched</div></span></span>`
-      + `<span class="badges"><input id="lc-url" type="text" placeholder="https://huggingface.co/…/model.gguf" spellcheck="false" />`
-      + `<button id="lc-add"${jobRunning ? ' disabled' : ''}>Add</button></span></div>`
-      + `<div class="hint">Adding only remembers it. Press <b>Use this</b> to download and serve it — that can take a while on a first use.</div>`
-      + `</div>`
-    : '';
+  const libCard = llamacppCard(s, jobRunning);
 
   // --- Ollama catalog ------------------------------------------------------------
   // STANDBY whenever Ollama is not the engine: llama.cpp OR an external server.
@@ -609,7 +590,12 @@ function render(s) {
   // Stop on either bar (the job, the download).
   app.querySelectorAll('button[data-cancel]').forEach((b) => { b.onclick = () => post('/lol/admin/job/cancel', { slot: b.dataset.cancel }, b, 'Stopping…'); });
   wireVllm(s);
-  app.querySelectorAll('button[data-lcuse]').forEach((b) => { b.onclick = () => post('/lol/admin/llamacpp/model', { id: b.dataset.lcuse }, b, 'Loading the model…'); });
+  const lcServing = be.engine === 'llama.cpp';
+  app.querySelectorAll('button[data-lcuse]').forEach((b) => { b.onclick = () => post('/lol/admin/llamacpp/model', { id: b.dataset.lcuse }, b, lcServing ? 'Loading the model…' : 'Downloading…'); });
+  app.querySelectorAll('button[data-lcswitch]').forEach((b) => { b.onclick = () => { if (confirm(switchConfirm(s, 'llamacpp'))) post('/lol/admin/backend', { engine: 'llamacpp' }, b, 'Switching…'); }; });
+  app.querySelectorAll('button[data-lcclose]').forEach((b) => {
+    b.onclick = () => { lcOpen = false; try { localStorage.removeItem('lolLcOpen'); } catch { /* private window */ } render(s); };
+  });
   app.querySelectorAll('button[data-lcdel]').forEach((b) => { b.onclick = () => post('/lol/admin/llamacpp/library/remove', { id: b.dataset.lcdel }, b, 'Removed'); });
   // Inline rename editor. window.prompt() is NOT supported inside Electron (the
   // Farm app's window) — it throws, which read as "the button does nothing"
@@ -887,7 +873,9 @@ const isLoopback = (url) => /^https?:\/\/(127\.|localhost[:/]|\[::1\])/i.test(St
 function switchConfirm(s, to) {
   const be = s.backend || {}; const name = ENGINE_LABEL[to] || to;
   if (be.engine === 'vllm') return `Switch to ${name}? vLLM stops and ${name} loads its model: about a minute, and anyone connected waits.`;
+  const lc = to === 'llamacpp' ? lcChosen(s) : null;
   const cost = to === 'vllm' ? 'Chat stops for about 2 minutes while vLLM loads the model (longer the very first time, while it prepares the GPU).'
+    : lc ? `llama.cpp loads ${lc.label}${lc.downloaded ? ': about a minute' : `, which it downloads first${lc.sizeGb ? ` (${lc.sizeGb} GB)` : ''}: longer than a minute`}, and anyone connected waits.`
     : `${name} loads its model: about a minute, and anyone connected waits.`;
   // A server on this computer the farm does not run keeps its share of the GPU after the switch (§1.2); when it is a
   // vLLM the farm can run as it is, the way to keep it serving is said too.
@@ -909,6 +897,8 @@ function engineClick(s, to, b) {
   }
   // vLLM not set up here yet: open its card and check this computer, without switching (§7.1).
   if (to === 'vllm' && !vllmUsable(s.vllm)) { openVllmCard(s); return; }
+  // llama.cpp: its card first, with the model the switch will serve and its own Switch button.
+  if (to === 'llamacpp') { openLcCard(s); return; }
   // A switch stops one engine and loads another: downtime for everyone connected, said first.
   if (!confirm(switchConfirm(s, to))) return;
   post('/lol/admin/backend', { engine: to }, b, 'Switching…');
@@ -1052,6 +1042,68 @@ function vllmTrade(s, slots, ctx, kv) {
   return `<div class="hint">${lines}<br>${docs}${agent}</div>` + warns.map((w) => `<div class="warnline">${w}</div>`).join('');
 }
 
+// The model a switch to llama.cpp serves: the library entry of llamacpp.model, else one made from its link.
+function lcChosen(s) {
+  const lc = s.llamacpp || {};
+  if (!lc.model) return null;
+  return (lc.library || []).find((e) => e.url === lc.model) || { label: String(lc.model).split('/').pop(), url: lc.model, downloaded: false };
+}
+
+// The llama.cpp card ("Model · llama.cpp"): while llama.cpp serves, and, before a switch, once the operator pressed
+// the llama.cpp button. Before the switch, Use this CHOOSES the model the switch will serve (and downloads it now, as
+// the job); the engine that serves keeps serving until Switch to llama.cpp.
+function llamacppCard(s, jobRunning) {
+  const lc = s.llamacpp || {}; const be = s.backend || {};
+  const serving = be.engine === 'llama.cpp';
+  if (!(serving || lcOpen)) return '';
+  const now = ENGINE_LABEL[be.engine] || 'Ollama';
+  const off = jobRunning ? ' disabled' : '';
+  const out = ['<div class="card" id="lc-card"><h2>Model · llama.cpp</h2>'];
+  if (!serving) {
+    out.push(`<div class="hint">llama.cpp serves one model, fast, for a few people at once. Choose here the model it will serve: <b>Use this</b> downloads it now, and ${esc(now)} keeps serving meanwhile. Nothing changes for the people connected until you press <b>Switch to llama.cpp</b>.</div>`);
+  }
+  out.push((lc.library || []).map((e) => {
+    const active = e.url === lc.model;
+    const meta = [e.sizeGb ? e.sizeGb + ' GB' : '', e.mtp ? 'has MTP head' : '', e.note].filter(Boolean).join(' · ');
+    const badges = (active ? `<span class="badge on">${serving ? 'serving' : 'chosen'}</span>` : '')
+      + (!serving && e.downloaded ? '<span class="badge">downloaded</span>' : '');
+    // Before a switch, the chosen model not on this computer yet gets Download (the same request downloads it).
+    const use = !active ? `<button class="start" data-lcuse="${esc(e.id)}"${off}>Use this</button>`
+      : !serving && !e.downloaded ? `<button class="start" data-lcuse="${esc(e.id)}"${off}>Download</button>` : '';
+    return `<div class="row"><span class="dot${active && serving ? ' served' : ''}"></span>`
+      + `<span><div class="mname">${esc(e.label)}</div>`
+      + `<div class="meta">${esc(meta)}</div></span>`
+      + `<span class="badges">${badges}${use}`
+      + (active ? '' : `<button class="stop" data-lcdel="${esc(e.id)}"${off}>Remove</button>`)
+      + '</span></div>';
+  }).join('') || '<div class="empty">No models in the library.</div>');
+  out.push('<div class="row"><span></span><span><div class="mname">Add a model</div>'
+    + '<div class="meta">paste the link to a .gguf file — on HuggingFace, the file\'s <b>download</b> link (…/resolve/main/….gguf). Split models (…-00001-of-00003.gguf) work too: paste any part, all parts are fetched</div></span></span>'
+    + '<span class="badges"><input id="lc-url" type="text" placeholder="https://huggingface.co/…/model.gguf" spellcheck="false" />'
+    + `<button id="lc-add"${off}>Add</button></span></div>`);
+  out.push(serving
+    ? '<div class="hint">Adding only remembers it. Press <b>Use this</b> to download and serve it — that can take a while on a first use.</div>'
+    : '<div class="hint">Adding only remembers it. Press <b>Use this</b> to download it and make it the one llama.cpp will serve.</div>');
+  if (!serving) {
+    const chosen = lcChosen(s);
+    out.push(`<div class="row"><span></span><span><div class="mname">Switch to llama.cpp</div>`
+      + `<div class="meta">${chosen ? `It serves ${esc(chosen.label)}.` : 'Choose a model above first.'} ${esc(now)} stops, and anyone connected waits about a minute.</div></span>`
+      + `<span class="badges"><button class="start" data-lcswitch${jobRunning || !chosen || s.llamacppAvailable === false ? ' disabled' : ''}>Switch to llama.cpp</button>`
+      + '<button data-lcclose>Close</button></span></div>');
+  }
+  out.push('</div>');
+  return out.join('');
+}
+
+function openLcCard(s) {
+  lcOpen = true;
+  try { localStorage.setItem('lolLcOpen', '1'); } catch { /* private window */ }
+  render(s);
+  // Below the Backend card, out of sight in a window of ordinary height: brought into view, as the vLLM card is.
+  const card = document.getElementById('lc-card');
+  if (card) card.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+}
+
 // The vLLM card ("Model · vLLM", §7.2): while vLLM is the engine, after the operator pressed the vLLM button, while
 // one of its downloads runs, or after it could not start (its log says why). What this computer has and lacks,
 // Install, the model list, and the engine's own controls (Stop, Start, the log).
@@ -1073,7 +1125,7 @@ function vllmCard(s, jobRunning) {
       out.push(`<div class="warnline">✗ ${esc(t)}${stop}</div>`);
     }
     for (const t of v.probe.warnings || []) {
-      const upd = /this farm was tested with/.test(t) && v.installed ? ` <button class="start" data-vinstall style="min-width:0"${off(!!dl)}>Update vLLM</button>` : '';
+      const upd = /this farm was tested with|cannot read sound yet/.test(t) && v.installed ? ` <button class="start" data-vinstall style="min-width:0"${off(!!dl)}>Update vLLM</button>` : '';
       out.push(`<div class="warnline">⚠ ${esc(t)}${upd}</div>`);
     }
   }

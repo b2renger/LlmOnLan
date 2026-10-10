@@ -1,0 +1,89 @@
+{
+ "model": "qwen3-omni-30b-a3b",
+ "base": "http://127.0.0.1:8177/v1",
+ "at": "2026-10-09T16:12:41.966Z",
+ "checks": [
+  {
+   "label": "warm-up",
+   "ok": true,
+   "ttft_s": 0.23,
+   "decode_tps": 181.4,
+   "prompt_tokens": 16,
+   "completion_tokens": 61,
+   "text": "The sea stretched endlessly, a vast expanse of shimmering blue beneath the afternoon sun.  \nGulls cried overhead as waves crashed against the rocky shore, sending sprays of salt into the air.  \nBeneath the surface, sunlight danced through the water, illuminating schools of silver fish.",
+   "reasoning_chars": 0,
+   "tool_calls": []
+  },
+  {
+   "label": "one stream (512 tokens)",
+   "ok": true,
+   "ttft_s": 0.023,
+   "decode_tps": 176.8,
+   "prompt_tokens": 24,
+   "completion_tokens": 334,
+   "text": "A bicycle gear system allows riders to adjust the effort needed to pedal based on terrain, speed, and personal preference. It consists of a front chainring (attached to the pedals) and multiple rear sprockets (on the rear wheel), connected by a chain. The gear ratio—calculated by dividing the number of teeth on the front chainring by the number of teeth on the rear sprocket—determines how much force is transferred to the rear wheel.\n\nWhen the rider pedals, the chain transfers power from the front chainring to the rear sprocket, turning the rear wheel. Larger front chainrings or smaller rear sprockets increase the gear ratio, making it harder to pedal but allowing faster speeds—ideal for flat terrain or downhill. Smaller front chainrings or larger rear sprockets lower the gear ratio, making",
+   "reasoning_chars": 0,
+   "tool_calls": []
+  },
+  {
+   "label": "picture",
+   "ok": true,
+   "ttft_s": 0.246,
+   "decode_tps": 186.9,
+   "prompt_tokens": 266,
+   "completion_tokens": 23,
+   "text": "This image contains a red circle, a blue square, and the black text \"LOL 42\".",
+   "reasoning_chars": 0,
+   "tool_calls": []
+  },
+  {
+   "label": "tool call",
+   "ok": false,
+   "status": 400,
+   "error": "{\"error\":{\"message\":\"As of transformers v4.44, default chat template is no longer allowed, so you must provide a chat template if the tokenizer does not define one.\",\"type\":\"BadRequestError\",\"param\":null,\"code\":400}}"
+  },
+  {
+   "label": "sound in a message fr.wav",
+   "ok": true,
+   "ttft_s": 8.375,
+   "decode_tps": 179.8,
+   "prompt_tokens": 137,
+   "completion_tokens": 46,
+   "text": "Bonjour. Je voudrais réserver la salle de réunion pour jeudi à quinze heures, pour six personnes.\nThe speaker wants to reserve a meeting room for Thursday at three o'clock PM for six people.",
+   "reasoning_chars": 0,
+   "tool_calls": []
+  },
+  {
+   "label": "sound in a message en.wav",
+   "ok": true,
+   "ttft_s": 0.049,
+   "decode_tps": 180.9,
+   "prompt_tokens": 124,
+   "completion_tokens": 41,
+   "text": "Hello, please order three boxes of blue markers and send the invoice to the design school.\nThe speaker wants three boxes of blue markers to be ordered and the invoice to be sent to the design school.",
+   "reasoning_chars": 0,
+   "tool_calls": []
+  },
+  {
+   "label": "transcriptions fr.wav (fr)",
+   "ok": true,
+   "status": 200,
+   "seconds": 0.18,
+   "text": "{\"text\":\"Bonjour, je voudrais réserver la salle de réunion pour jeudi à quinze heures pour six personnes.\",\"usage\":{\"type\":\"duration\",\"seconds\":8}}"
+  },
+  {
+   "label": "transcriptions en.wav (en)",
+   "ok": true,
+   "status": 200,
+   "seconds": 0.12,
+   "text": "{\"text\":\"Hello, please order three boxes of blue markers and send the invoice to the design school.\",\"usage\":{\"type\":\"duration\",\"seconds\":7}}"
+  },
+  {
+   "label": "transcriptions fr.wav",
+   "ok": true,
+   "status": 200,
+   "seconds": 0.17,
+   "text": "{\"text\":\"Bonjour, je voudrais réserver la salle de réunion pour jeudi à quinze heures pour six personnes.\",\"usage\":{\"type\":\"duration\",\"seconds\":8}}"
+  }
+ ]
+}

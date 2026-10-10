@@ -43,6 +43,9 @@
     'nemotron-3.5-lightning-30b-a3b': { key: 'nemotron', stepMs: 2.9, extraGB: 0.95, effLin: 0.21, effAttn: 0.314, group: 16 },
     'qwen3.8-27b': { key: 'qwen38', stepMs: 2.81, extraGB: 0, effLin: 0.734, effAttn: 0.234, group: 6 },
   };
+  // Measured on the PRO 6000 alone (2026-10-09, RESULTS.md "Gemma 4 12B and Qwen3-Omni"), not fitted into CAL: their
+  // measured cells show as measured; everything else about them (other boxes, other contexts) stays estimated.
+  const MEASURED_ONLY = { 'gemma-4-12b': 'gemma4', 'qwen3-omni-30b-a3b': 'omni' };
   const BOX = { 'rtx-pro-6000-ws': 'pro6000', 'dgx-spark': 'spark' };
   const CTX = { '32k': 30200, '64k': 62000, '128k': 120100 }; // the spike's follow-up context sizes
 
@@ -160,10 +163,10 @@
 
   // ---- Measured lookup (vLLM follow-up profiles, fp8 KV)
   function measuredCell(hwId, m, o) {
-    const mj = DATA.measured, cal = CAL[m.id];
-    if (!mj || !cal || !BOX[hwId] || o.kvDtype !== 'fp8') return null;
+    const mj = DATA.measured, key = CAL[m.id] ? CAL[m.id].key : MEASURED_ONLY[m.id];
+    if (!mj || !key || !BOX[hwId] || o.kvDtype !== 'fp8') return null;
     const ctx = Object.keys(CTX).find(k => Math.abs(o.context - CTX[k]) / CTX[k] <= 0.1);
-    const cfg = ctx && mj.configs.find(c => c.id === BOX[hwId] + '/vllm/' + cal.key);
+    const cfg = ctx && mj.configs.find(c => c.id === BOX[hwId] + '/vllm/' + key);
     const p = cfg && cfg.people['followup_' + ctx];
     if (!p) return null;
     const range = r => (!r ? null : { low: r.pass || 0, high: r.fail ? r.fail - 1 : null, label: r.label, tested: r.tested });
@@ -242,7 +245,7 @@
       res.measured = cell; res.modelPeople = { every: res.peopleEvery, steady: res.peopleSteady };
       res.peopleEvery = cap(cell.every, res.peopleEvery); res.peopleSteady = cap(cell.steady, res.peopleSteady);
       res.people = o.mode === 'steady' ? res.peopleSteady : res.peopleEvery;
-      if ((cell.every && kvCap[1] < cell.every.low) || (cell.steady && kvCap[1] < cell.steady.low)) res.notes.push('Measured with a 58 GiB KV pool; this budget\'s smaller pool caps it by KV.');
+      if ((cell.every && kvCap[1] < cell.every.low) || (cell.steady && kvCap[1] < cell.steady.low)) res.notes.push('Measured with a bigger KV pool; this budget\'s smaller pool caps it by KV.');
       if (cell.singleTps) res.singleUserTps = { low: cell.singleTps, mid: cell.singleTps, high: cell.singleTps };
       if (cell.coldS) res.coldPromptS = { low: cell.coldS, mid: cell.coldS, high: cell.coldS };
       if (lay.block > 16 && cell.every) res.notes.push('In the spike every user had the same context length, so all re-computed the same part of a ' + lay.block +

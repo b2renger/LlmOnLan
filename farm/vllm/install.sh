@@ -52,7 +52,9 @@ if [[ "$STEPS" == *,venv,* ]]; then
   [ -x "$PY" ] || "$UV" venv "$ROOT/.venv" --python 3.12 --seed
   echo "[lol-step] vllm"
   # --torch-backend=auto picks the torch wheel that matches the installed driver (uv >= 0.8).
-  "$UV" pip install --python "$PY" "vllm==$VER" --torch-backend=auto
+  # [audio]: the extras vLLM reads sound with (Gemma 4 12B and Qwen3-Omni hear audio in a chat message, and
+  # Qwen3-Omni answers /v1/audio/transcriptions); without them a request with sound fails.
+  "$UV" pip install --python "$PY" "vllm[audio]==$VER" --torch-backend=auto
   "$UV" pip install --python "$PY" "huggingface_hub[hf_xet]"
   echo "[lol-step] cuda-pins"
   # FlashInfer JIT-compiles kernels with the pip CUDA toolkit. vLLM 0.30.0 resolved nvidia-cuda-nvcc 13.4 next to the
@@ -88,6 +90,18 @@ if [[ "$STEPS" == *,model,* ]]; then
   # ends by itself. A stopped download (stop.sh install) leaves its file, which no later attempt reuses: status.sh would
   # call the model partly downloaded forever, and it holds the disk. Every file is complete here.
   find "$ROOT/hf/$FOLDER" -name '*.incomplete' -delete 2>/dev/null || true
+  # A model whose chat template is only its processor's (chat_template.json: Qwen3-Omni) gets it as
+  # chat_template.jinja too, which the tokenizer reads: vLLM uses the processor's template except for a request with
+  # tools, and then the tokenizer has none ("default chat template is no longer allowed", a 400 on every tool call).
+  "$PY" - "$ROOT/hf/$FOLDER" <<'PY' || true   # a fix, never a reason to fail a finished download
+import json, os, sys
+d = sys.argv[1]
+src, dst, tok = (os.path.join(d, f) for f in ("chat_template.json", "chat_template.jinja", "tokenizer_config.json"))
+if os.path.exists(src) and not os.path.exists(dst) and not (os.path.exists(tok) and json.load(open(tok)).get("chat_template")):
+    with open(dst, "w") as f:
+        f.write(json.load(open(src))["chat_template"])
+    print("wrote chat_template.jinja from chat_template.json")
+PY
 fi
 echo "[lol-step] done"
 echo "Installed. Start it with: bash $(cd "$(dirname "$0")" && pwd)/serve.sh   (weights: $ROOT/hf/$FOLDER)"

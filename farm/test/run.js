@@ -2504,7 +2504,15 @@ test('stt on the GPU (owner, 2026-10-09): CUDA on an NVIDIA farm with large-v3-t
         'disk_free_kb=600000000', 'install=/home/me/lol-vllm 0.30.0', 'model=Qwen3.6-35B-A3B-NVFP4 22880000 vision=1 native=262144 partial=0'].join('\n'));
     const v = defaultConfig(); v.vllm.enabled = true;
     const mem = { unified: false, totalGib: 95.59, freeGib: 93.04 };
-    assert.equal(V.planFor(v, st, mem, { embedReserveGib: 1.5 + sttMod.RESERVE_GIB }).kvGib, 48, 'RTX PRO 6000: 52 → 50 GB with document search, 48 with speech to text too');
+    const both = V.planFor(v, st, mem, { embedReserveGib: 1.5, sttReserveGib: sttMod.RESERVE_GIB });
+    assert.deepEqual([both.kvGib, both.kvWhy.sttReserveGib], [48, sttMod.RESERVE_GIB], 'RTX PRO 6000: 52 → 50 GB with document search, 48 with speech to text too');
+    // Its own share, named in the sentence and counted by the "too small" check (both named document search only).
+    assert.ok(V.poolGib({ totalGib: 95.59, freeGib: 20, weightsGib: 20.37, ocrReserveGib: 9, embedReserveGib: 1.5, sttReserveGib: 2, marginPct: 8 }).reason
+        .includes('document search (1.5 GB), speech to text (2 GB) and a safety margin'));
+    const fitNoStt = V.gpuFit(v, 24).needGib;
+    const vs = { ...v, stt: { ...v.stt, enabled: true, device: 'cuda' } };
+    assert.ok(Math.abs(V.gpuFit(vs, 24).needGib - fitNoStt - sttMod.RESERVE_GIB / (1 - v.vllm.marginPct / 100)) < 1e-9, 'an empty card must hold it beside vLLM too');
+    assert.equal(V.gpuFit({ ...v, stt: { ...v.stt, enabled: true, device: 'cpu' } }, 24).needGib, fitNoStt, 'on the CPU it takes no GPU memory');
     // Advertised with the model it loaded, which Open WebUI names in its requests.
     const on = at(NV, { enabled: true });
     assert.equal(buildSnapshot(on, { proxyUp: true, hostsUp: 1, sttUp: true, sttKey: 'kk', sttModel: 'small' }).stt.model, 'small', 'after a GPU fallback: the CPU model');
@@ -2651,8 +2659,8 @@ test('document search: started before the engine sizes its memory, and kept out 
     assert.deepEqual([p.kvGib, p.kvWhy.embedReserveGib], [50, 1.5], 'RTX PRO 6000: 52 → 50 GB for conversations');
     assert.ok(V.poolGib({ totalGib: 95.59, freeGib: 20, weightsGib: 20.37, ocrReserveGib: 9, embedReserveGib: 1.5, marginPct: 8 }).reason
         .startsWith('The GPU has 20 GB free. After the model (20 GB), document reading (9 GB), document search (1.5 GB) and a safety margin'));
-    assert.equal((up.match(/vllmMod\.planFor\(/g) || []).length, (up.match(/\{ embedReserveGib: pluginReserveGib\(\) \}/g) || []).length, 'every plan gets it');
-    assert.ok(up.includes('const pluginReserveGib = () => embedReserveGib() + sttReserveGib();') && up.includes('            embedReserveGib: embedReserveGib(),'), 'with speech to text\'s share; the panel shows its own');
+    assert.equal((up.match(/vllmMod\.planFor\(/g) || []).length, (up.match(/vllmMod\.planFor\([^\n]*pluginReserves\(\)\)/g) || []).length, 'every plan gets both shares');
+    assert.ok(up.includes('const pluginReserves = () => ({ embedReserveGib: embedReserveGib(), sttReserveGib: sttReserveGib() });') && up.includes('            embedReserveGib: embedReserveGib(),'), 'each its own share; the panel shows them');
     assert.ok(up.includes('svcById.embed.enabled(config) && !svcById.embed.up ? embedMod.RESERVE_GIB : 0'), 'only while it is not running: then its memory is already taken');
     const fitOff = V.gpuFit(v, 24).needGib;
     v.embed.enabled = true;
@@ -3891,12 +3899,14 @@ test('vLLM config: its defaults, the three measured models, and what it refuses 
     const v = defaultConfig().vllm;
     assert.deepEqual(
         { ...v, library: undefined },
-        { enabled: false, root: null, distro: null, port: 8100, alias: 'assistant', model: 'qwen3.6-35b-a3b', contextLength: 65536, parallel: 'auto', maxNumSeqs: 'auto', kvCacheGib: 'auto', ocrReserveGib: 9, marginPct: 8, minFreeGb: 'auto', version: '0.30.0', extraArgs: [], library: undefined },
+        { enabled: false, root: null, distro: null, port: 8100, alias: 'assistant', model: 'qwen3.6-35b-a3b', contextLength: 65536, parallel: 'auto', maxNumSeqs: 'auto', kvCacheGib: 'auto', ocrReserveGib: 9, marginPct: 8, minFreeGb: 'auto', version: '0.30.0', extraArgs: [], library: undefined, removed: [] },
     );
     assert.deepEqual(v.library.map((e) => [e.id, e.repo, e.vision, e.presencePenalty, e.measured]), [
         ['qwen3.6-35b-a3b', 'nvidia/Qwen3.6-35B-A3B-NVFP4', true, 1.5, 'qwen36'],
         ['nemotron-3.5-lightning', 'nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4', false, null, 'nemotron'],
         ['qwen3.8-27b-nvfp4', 'nvidia/Qwen3.8-27B-NVFP4', true, null, 'qwen38'],
+        ['gemma-4-12b', 'unsloth/gemma-4-12b-it-NVFP4', true, null, 'gemma4'],
+        ['qwen3-omni-30b-a3b', 'Qwen/Qwen3-Omni-30B-A3B-Instruct', true, null, 'omni'],
     ]);
     assert.equal(v.library[0].args.join(' '), '--kv-cache-dtype fp8 --enable-prefix-caching --mamba-cache-mode align --reasoning-parser qwen3 --enable-auto-tool-choice --tool-call-parser qwen3_xml', 'the spike\'s flags, as serve.sh runs them');
     assert.ok(defaultConfig().vllm.library[0].args !== v.library[0].args, 'each config gets its own copy of the library');
@@ -3964,7 +3974,7 @@ test('vLLM in the snapshot: the engine, its seats and window, its one name; heal
     const c = defaultConfig();
     Object.assign(c.vllm, { enabled: true, alias: 'Qwen3.6', parallelResolved: 48 });
     const be = backendInfo(c, {});
-    assert.deepEqual(be, { engine: 'vllm', alias: 'Qwen3.6', model: 'Qwen3.6 35B-A3B · NVFP4', contextLength: 65536, contextAuto: false, contextPerSlot: 65536, slots: 48, slotsVerified: true, mtp: false, kvCacheType: 'fp8' });
+    assert.deepEqual(be, { engine: 'vllm', alias: 'Qwen3.6', model: 'Qwen3.6 35B-A3B · NVFP4', contextLength: 65536, contextAuto: false, contextPerSlot: 65536, slots: 48, slotsVerified: true, mtp: false, kvCacheType: 'fp8', audio: false });
     delete c.vllm.parallelResolved;
     assert.equal(backendInfo(c, {}).slots, 4, 'Automatic, before it is worked out');
     c.vllm.parallel = 12;
@@ -4372,28 +4382,31 @@ test('vLLM on this computer: the checklist, every blocking sentence, and the dis
     assert.ok(P(lin({ st: { ...status([]), cc: null } })).problems.includes('vLLM needs a C compiler to prepare the GPU, and this computer has none. In a terminal, run  sudo apt install build-essential , then press Check again.'));
     assert.equal(P(lin()).gpuTooSmall, false);
     // The studio's smaller cards (owner 2026-10-07: Windows with RTX cards first): no model of the list fits an RTX
-    // 4070 (12 GB) or 4080 (16 GB), with or without document reading's share; the panel says so and offers nothing.
+    // 4070 (12 GB), with or without document reading's share, nor a 4080 (16 GB) or 4090 (24 GB) beside it; the panel
+    // says so and offers nothing. The smallest is Gemma 4 12B since 2026-10-09 (9.25 GiB of weights).
     const card = (name, mib, cap) => V.parseStatus(['home=/home/me', 'arch=x86_64', 'curl=/usr/bin/curl', 'cc=/usr/bin/gcc', `gpu=${name}, ${mib}, ${mib - 1000}, ${cap}`].join('\n'));
     const small = card('NVIDIA GeForce RTX 4070', 12282, 8.9);
     r = P(lin({ st: small }));
-    assert.deepEqual(r.problems.filter((x) => /too little/.test(x)), ['This GPU has 12 GB: too little for any model in the vLLM list (the smallest needs about 35 GB, with 9 GB kept for document reading). llama.cpp or Ollama is the engine for this card.']);
+    assert.deepEqual(r.problems.filter((x) => /too little/.test(x)), ['This GPU has 12 GB: too little for any model in the vLLM list (the smallest needs about 25 GB, with 9 GB kept for document reading). llama.cpp or Ollama is the engine for this card.']);
     assert.equal(r.gpuTooSmall, true, 'nothing to install for: no Install button');
     assert.deepEqual(r.warnings, [], 'too small says it all: no "older card" warning beside it');
     const noOcr = { ...c, ocr: { ...c.ocr, enabled: false } };
-    assert.ok(P(lin({ st: card('NVIDIA GeForce RTX 4080', 16376, 8.9) }), noOcr).problems.includes('This GPU has 16 GB: too little for any model in the vLLM list (the smallest needs about 25 GB). llama.cpp or Ollama is the engine for this card.'));
-    // A 24 GB card fits no model either: the old rule (weights + 6 GB) let it through, and its start failed.
-    assert.equal(P(lin({ st: card('NVIDIA GeForce RTX 4090', 24564, 8.9) }), noOcr).gpuTooSmall, true);
-    // A 32 GB card: not beside document reading's share, which is said; without it, it fits.
-    r = P(lin({ st: card('NVIDIA GeForce RTX 5090', 32607, 12.0) }));
-    assert.ok(r.problems.includes('This GPU has 32 GB: too little for any model in the vLLM list (the smallest needs about 35 GB, with 9 GB kept for document reading). llama.cpp or Ollama is the engine for this card. Turning document reading off would make room for one.'), r.problems.join('|'));
-    assert.equal(P(lin({ st: card('NVIDIA GeForce RTX 5090', 32607, 12.0) }), noOcr).gpuTooSmall, false);
+    assert.ok(P(lin({ st: card('NVIDIA GeForce RTX 4070', 12282, 8.9) }), noOcr).problems.includes('This GPU has 12 GB: too little for any model in the vLLM list (the smallest needs about 15 GB). llama.cpp or Ollama is the engine for this card.'));
+    // A 24 GB card: not beside document reading's share, which is said; without it Gemma 4 12B fits (the old rule,
+    // weights + 6 GB, let a 24 GB card through for the 20 GiB models, and its start failed).
+    r = P(lin({ st: card('NVIDIA GeForce RTX 4090', 24564, 8.9) }));
+    assert.ok(r.problems.includes('This GPU has 24 GB: too little for any model in the vLLM list (the smallest needs about 25 GB, with 9 GB kept for document reading). llama.cpp or Ollama is the engine for this card. Turning document reading off would make room for one.'), r.problems.join('|'));
+    assert.equal(P(lin({ st: card('NVIDIA GeForce RTX 4090', 24564, 8.9) }), noOcr).gpuTooSmall, false);
+    assert.equal(P(lin({ st: card('NVIDIA GeForce RTX 4080', 16376, 8.9) })).gpuTooSmall, true, 'a 4080 beside document reading: no');
+    // A 32 GB card fits beside document reading now.
+    assert.equal(P(lin({ st: card('NVIDIA GeForce RTX 5090', 32607, 12.0) })).gpuTooSmall, false);
     assert.deepEqual(P(lin({ st: card('NVIDIA A100-SXM4-80GB', 81920, 8.0) })).warnings, ['This GPU is older than the cards these models were measured on (RTX PRO 6000, DGX Spark): they may not load. If a start fails, llama.cpp is the engine for this card.']);
     // On Windows the size Windows sees is said before anything about WSL, which would be installed for nothing.
     r = P(win({ hostGpu: { name: 'NVIDIA GeForce RTX 4070', gb: 12 }, wsl: { error: 'no-wsl' }, st: null }));
-    assert.deepEqual(r.problems, ['This GPU has 12 GB: too little for any model in the vLLM list (the smallest needs about 35 GB, with 9 GB kept for document reading). llama.cpp or Ollama is the engine for this card.']);
+    assert.deepEqual(r.problems, ['This GPU has 12 GB: too little for any model in the vLLM list (the smallest needs about 25 GB, with 9 GB kept for document reading). llama.cpp or Ollama is the engine for this card.']);
     assert.equal(r.gpuTooSmall, true);
     assert.equal(P(win({ hostGpu: { name: PRO, gb: 96 } })).problems.length, 0, 'a PRO 6000 fits');
-    assert.deepEqual(V.gpuFit(c, 12), { fits: false, needGib: (17.82 + 4 + 1 + 9) / 0.92, ocrGib: 9, fitsWithoutOcr: false });
+    assert.deepEqual(V.gpuFit(c, 12), { fits: false, needGib: (9.25 + 4 + 1 + 9) / 0.92, ocrGib: 9, fitsWithoutOcr: false });
     assert.equal(V.gpuFit(c, 119, { unified: true }).fits, true, 'a DGX Spark, its memory guard included');
     assert.equal(V.gpuFit(c, 0), null);
     // A model added by its name has no size until it is downloaded: left out of the smallest, not counted as 0 GB,
@@ -4737,6 +4750,68 @@ test('the vLLM list: a model added by name or link gets its family\'s flags, a f
     assert.equal(V.newLibraryEntry({ folder: 'Qwen3.6-35B-A3B-NVFP4' }, lib).error, 'Qwen3.6-35B-A3B-NVFP4 is already in the list.');
 });
 
+test('vLLM list, Gemma 4 and Qwen3-Omni (owner 2026-10-09): their flags, their families, one generation override, the list completed with new built-ins', () => {
+    const lib = defaultConfig().vllm.library;
+    const gemma = lib.find((e) => e.id === 'gemma-4-12b');
+    const omni = lib.find((e) => e.id === 'qwen3-omni-30b-a3b');
+    // vLLM's Gemma 4 recipe: its parsers; a message may carry 4 pictures and 1 sound, no video.
+    assert.equal(gemma.args.join(' '), '--kv-cache-dtype fp8 --enable-prefix-caching --reasoning-parser gemma4 --enable-auto-tool-choice --tool-call-parser gemma4 --limit-mm-per-prompt {"image":4,"audio":1,"video":0}');
+    assert.equal(omni.args.join(' '), '--quantization fp8 --kv-cache-dtype fp8 --enable-prefix-caching --enable-auto-tool-choice --tool-call-parser hermes --override-generation-config {"temperature":0.6,"top_p":0.95,"top_k":20} --limit-mm-per-prompt {"image":4,"audio":1,"video":0}');
+    assert.deepEqual([gemma.repo, gemma.vision, gemma.audio, omni.repo, omni.vision, omni.audio], ['unsloth/gemma-4-12b-it-NVFP4', true, true, 'Qwen/Qwen3-Omni-30B-A3B-Instruct', true, true]);
+    assert.ok(!lib.find((e) => e.id === 'qwen3.6-35b-a3b').audio, 'the others hear nothing');
+    // Families: a Gemma 4 or a Qwen3-Omni added by name gets their flags (vLLM ignores the sound limit for a Gemma 4
+    // 31B, which hears none). Omni before the generic Qwen3 set.
+    assert.deepEqual(V.familyArgs('nvidia/Gemma-4-31B-IT-NVFP4'), gemma.args);
+    assert.deepEqual(V.familyArgs('Qwen/Qwen3-Omni-30B-A3B-Thinking'), omni.args);
+    assert.ok(!V.isGeneric(omni) && !V.isGeneric(gemma), 'a tool parser is enough: Omni\'s Instruct does not think');
+    // Omni's sampling and the reply cap in ONE --override-generation-config (vLLM keeps a repeated flag's last).
+    const s = { modelId: 'qwen3-omni-30b-a3b', ctx: 65536, maxReply: 32768, extraArgs: [] };
+    const argv = V.argvFor(omni, s, 40, 64);
+    assert.equal(argv.filter((a) => a === '--override-generation-config').length, 1);
+    assert.deepEqual(JSON.parse(argv[argv.indexOf('--override-generation-config') + 1]), { temperature: 0.6, top_p: 0.95, top_k: 20, max_new_tokens: 32768 });
+    assert.deepEqual(V.flagMap(argv)['--override-generation-config'], { temperature: 0.6, top_p: 0.95, top_k: 20, max_new_tokens: 32768 });
+    assert.equal(V.argvFor(lib[0], { ...s, maxReply: null }, 40, 64).includes('--override-generation-config'), false, 'none when nothing to say');
+    assert.equal(V.argvFor(lib[0], s, 40, 64).join(' ').includes('--override-generation-config {"max_new_tokens":32768}'), true, 'the others as before');
+    // A model with no thinking parser gets no thinking switch: Omni's template turned enable_thinking false into an
+    // empty think block and the Instruct model answered "<|im_start|>user" (measured through LiteLLM 1.90).
+    const route = (model) => { const c = defaultConfig(); c.vllm.enabled = true; c.vllm.model = model; return buildLitellmConfig(c).model_list[0].litellm_params; };
+    assert.deepEqual(route('qwen3-omni-30b-a3b').additional_drop_params, ['chat_template_kwargs']);
+    for (const m of ['qwen3.6-35b-a3b', 'gemma-4-12b', 'nemotron-3.5-lightning']) assert.equal(route(m).additional_drop_params, undefined, m);
+    // A list saved before these models existed (an Add, a Remove, a take-over) gets them at the next start; one the
+    // operator removed stays out; added back by name it is the built-in entry again.
+    const saved = ConfigSchema.parse({ vllm: { library: [lib[0], { id: 'mine', label: 'Mine', folder: 'Mine' }] } }).vllm;
+    assert.deepEqual(saved.library.map((e) => e.id), ['qwen3.6-35b-a3b', 'mine', 'nemotron-3.5-lightning', 'qwen3.8-27b-nvfp4', 'gemma-4-12b', 'qwen3-omni-30b-a3b']);
+    const without = ConfigSchema.parse({ vllm: { library: [lib[0]], removed: ['qwen3-omni-30b-a3b', 'nemotron-3.5-lightning'] } }).vllm;
+    assert.deepEqual(without.library.map((e) => e.id), ['qwen3.6-35b-a3b', 'qwen3.8-27b-nvfp4', 'gemma-4-12b']);
+    const back = V.newLibraryEntry({ repo: 'https://huggingface.co/Qwen/Qwen3-Omni-30B-A3B-Instruct' }, without.library);
+    assert.deepEqual(back.entry, omni, 'its own entry, measured flags included');
+    assert.ok(ConfigSchema.safeParse({ vllm: { library: [...without.library, back.entry] } }).success);
+    const upSrc = fs.readFileSync(path.join(__dirname, '..', 'src', 'commands', 'up.js'), 'utf8');
+    assert.ok(upSrc.includes("persist('vllm', { library: config.vllm.library, removed: config.vllm.removed || [] });"), 'a Remove remembers a built-in');
+    assert.ok(upSrc.includes("config.vllm.removed = (config.vllm.removed || []).filter((id) => id !== r.entry.id);"), 'an Add forgets it');
+});
+
+test('vLLM sound: status.sh says which install has vLLM\'s sound extras; a model that hears gets Update vLLM without them', () => {
+    const st = V.parseStatus(['home=/h', 'root=/h/lol-vllm', 'install=/h/lol-vllm 0.30.0', 'install=/h/other 0.30.0', 'audio=/h/other'].join('\n'));
+    assert.deepEqual(st.installs.map((i) => [i.root, i.audio]), [['/h/lol-vllm', false], ['/h/other', true]]);
+    const c = defaultConfig(); c.vllm.root = '/h/lol-vllm';
+    const probe = (model, audio) => {
+        c.vllm.model = model;
+        const s = V.parseStatus(['home=/h', 'root=/h/lol-vllm', 'arch=x86_64', 'curl=/usr/bin/curl', 'cc=/usr/bin/gcc', 'gpu=NVIDIA RTX PRO 6000 Blackwell Workstation Edition, 97887, 90000, 12.0',
+            'disk_free_kb=500000000', 'install=/h/lol-vllm 0.30.0', ...(audio ? ['audio=/h/lol-vllm'] : [])].join('\n'));
+        return V.problemsFrom({ st: s, at: 1, platform: 'linux' }, c).warnings;
+    };
+    const SOUND = 'Gemma 4 12B · NVFP4 hears sound in a message, and the vLLM installed here cannot read sound yet: press Update vLLM (a few minutes; text and pictures work meanwhile).';
+    assert.ok(probe('gemma-4-12b', false).includes(SOUND));
+    assert.ok(!probe('gemma-4-12b', true).some((w) => /sound/.test(w)), 'with the extras: nothing');
+    assert.ok(!probe('qwen3.6-35b-a3b', false).some((w) => /sound/.test(w)), 'a model that hears nothing: nothing');
+    const p = loadPanel();
+    const html = p(adminState({ backend: { engine: 'vllm', alias: 'a', model: 'a', contextLength: 65536, contextPerSlot: 65536, slots: 8 },
+        vllm: { supported: true, installed: true, probe: { at: 1, oks: [], problems: [], warnings: [SOUND] }, library: [], phase: 'ready' } }));
+    assert.ok(/cannot read sound yet[^<]*<button class="start" data-vinstall/.test(html), 'the warning carries Update vLLM');
+    assert.ok(fs.readFileSync(path.join(__dirname, '..', 'vllm', 'install.sh'), 'utf8').includes('"vllm[audio]==$VER"'), 'install.sh installs them');
+});
+
 test('document reading beside vLLM: its model fits the memory kept for it, or the Performance card says so (§1.4, §7.6)', () => {
     assert.deepEqual(V.ocrFit({ sizeBytes: 7.6e9, reserveGib: 9 }), { gb: 8.1, fits: true }, 'gemma4:12b on disk + 1 GiB');
     assert.deepEqual(V.ocrFit({ sizeBytes: 17.7e9, reserveGib: 9 }), { gb: 17, fits: false }, 'production\'s qwen3.8:latest');
@@ -4857,6 +4932,67 @@ test('panel: a GPU vLLM cannot use says so on its button, before any check; its 
     const q = loadPanel({ fetch: async () => ({ status: 200, json: async () => ({ ok: true }) }), confirm: (x) => { asked.push(x); return false; } });
     q(ext('linux')); q.engineClick(ext('linux'), 'vllm', { dataset: {} });
     assert.ok(asked[0] && asked[0].endsWith(LINUX), asked[0]);
+});
+
+test('panel: the llama.cpp button opens its card before the switch: the list, Use this choosing the model, then Switch (owner 2026-10-09)', async () => {
+    const Q = 'https://huggingface.co/u/Q-GGUF/resolve/main/Q-UD-Q2_K_XL.gguf';
+    const G = 'https://huggingface.co/u/G-GGUF/resolve/main/G-Q4_K_M.gguf';
+    const lib = [
+        { id: 'q', label: 'Qwen UD-Q2_K_XL', url: Q, sizeGb: 11.2, mtp: true, note: '', downloaded: true },
+        { id: 'g', label: 'Gemma Q4_K_M', url: G, sizeGb: 7.1, mtp: false, note: '', downloaded: false },
+    ];
+    const onOllama = adminState({ llamacpp: { enabled: false, running: false, alias: 'assistant', model: Q, library: lib, contextLength: 'auto', contextResolved: null, parallel: 1 } });
+    const card = (html) => (/<div class="card" id="lc-card">[\s\S]*?(?=<div class="card"|$)/.exec(html) || [''])[0];
+    const posts = []; const asked = [];
+    const p = loadPanel({ fetch: async (url, o) => { posts.push([url, o && o.body ? JSON.parse(o.body) : null]); return { status: 200, json: async () => ({ ok: true }) }; }, confirm: (q) => { asked.push(q); return true; } });
+    assert.equal(card(p(onOllama)), '', 'closed on Ollama until the button is pressed');
+    // The button opens the card and brings it into view: no question, no switch yet.
+    p.engineClick(onOllama, 'llamacpp', { dataset: {} });
+    await new Promise((r) => setTimeout(r, 10));
+    assert.deepEqual(asked, [], 'a press asks nothing: it shows what the switch would serve');
+    assert.deepEqual(posts.filter(([u]) => u !== '/lol/admin/state'), [], 'and switches nothing');
+    assert.deepEqual(p.scrolled, ['lc-card'], 'scrolled into view, as the vLLM card is');
+    const c = card(p.el('#app').innerHTML);
+    assert.ok(c.includes('Ollama keeps serving meanwhile. Nothing changes for the people connected until you press <b>Switch to llama.cpp</b>.'), 'says the farm keeps serving until the switch');
+    assert.ok(/Qwen UD-Q2_K_XL<\/div>[\s\S]*?<span class="badge on">chosen<\/span><span class="badge">downloaded<\/span><\/span>/.test(c), 'the chosen one, not "serving"');
+    assert.ok(c.includes('data-lcuse="g"') && c.includes('>Use this</button>'), 'Use this on the other one');
+    assert.ok(c.includes('id="lc-url"') && c.includes('id="lc-add"'), 'Add by link');
+    assert.ok(c.includes('It serves Qwen UD-Q2_K_XL. Ollama stops, and anyone connected waits about a minute.') && c.includes('data-lcswitch') && c.includes('data-lcclose'));
+    // The chosen one not downloaded yet: Download (the same request downloads it).
+    const notYet = adminState({ llamacpp: { ...onOllama.llamacpp, model: G } });
+    const c2 = card(p(notYet));
+    assert.ok(/data-lcuse="g"[^>]*>Download<\/button>/.test(c2), c2);
+    // The switch names the model it loads.
+    assert.equal(p.switchConfirm(notYet, 'llamacpp'), 'Switch to llama.cpp? llama.cpp loads Gemma Q4_K_M, which it downloads first (7.1 GB): longer than a minute, and anyone connected waits.');
+    assert.equal(p.switchConfirm(onOllama, 'llamacpp'), 'Switch to llama.cpp? llama.cpp loads Qwen UD-Q2_K_XL: about a minute, and anyone connected waits.');
+    // While llama.cpp serves: the card as before (serving, no Switch, no Close).
+    const serving = adminState({ backend: { engine: 'llama.cpp', alias: 'assistant', model: 'Q', contextLength: 32768, contextPerSlot: 32768, slots: 1 }, llamacpp: { ...onOllama.llamacpp, enabled: true, running: true } });
+    const c3 = card(loadPanel()(serving));
+    assert.ok(c3.includes('<span class="badge on">serving</span>') && !c3.includes('data-lcswitch') && !c3.includes('keeps serving meanwhile'), c3);
+    // The farm: Use this while another engine serves downloads and chooses (a job), never refused as "switch to it first".
+    const upSrc = fs.readFileSync(path.join(__dirname, '..', 'src', 'commands', 'up.js'), 'utf8');
+    assert.ok(!upSrc.includes('The llama.cpp backend is off'), 'no refusal while llama.cpp is off');
+    assert.ok(/if \(!serving\) \{\s+return runJob\('model', `Downloading \$\{label\}`/.test(upSrc), 'a download job, the engine that serves untouched');
+    assert.ok(upSrc.includes('library: (config.llamacpp.library || []).map((e) => ({ ...e, downloaded: llamacpp.onDisk(e.url) })),'), 'the list says what is downloaded');
+});
+
+test('llamacpp.onDisk: every part of a split .gguf on disk, else false', () => {
+    const lc = require('../src/llamacpp');
+    const { ggufPathFor } = require('../src/ollama');
+    const one = 'https://example.invalid/lol-test-ondisk/a-x9q.gguf';
+    const split = 'https://example.invalid/lol-test-ondisk/b-x9q-00001-of-00002.gguf';
+    const made = [];
+    const put = (u) => { const f = ggufPathFor(u); fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, 'x'); made.push(f); };
+    try {
+        assert.equal(lc.onDisk(one), false);
+        put(one);
+        assert.equal(lc.onDisk(one), true);
+        put(split);
+        assert.equal(lc.onDisk(split), false, 'part 2 missing');
+        put(split.replace('00001-of', '00002-of'));
+        assert.equal(lc.onDisk(split), true);
+        assert.equal(lc.onDisk('not a url'), false);
+    } finally { for (const f of made) fs.rmSync(f, { force: true }); }
 });
 
 test('free memory is read until it stops rising, before a start sizes against it (review 2026-10-07)', async () => {
@@ -5243,14 +5379,14 @@ test('take-over: what it keeps from the server, and when it offers nothing (§9.
     const st = prodStatus(); st.running.argv[0] = '/home/ateliernum/lol-spike/hf/qwen36'; st.models = [{ folder: 'qwen36', gb: 23, partial: false }];
     p = V.takeOverPlan(cp, st, 8100, { answering: true });
     const e = p.block.library.find((x) => x.id === 'qwen3.6-35b-a3b');
-    assert.deepEqual([e.folder, e.presencePenalty, p.block.library.length], ['qwen36', 1.0, 3]);
+    assert.deepEqual([e.folder, e.presencePenalty, p.block.library.length], ['qwen36', 1.0, 5]);
     assert.match(e.note, /Kept as it ran when the farm took it over\.$/);
     assert.equal(toYaml(buildLitellmConfig(loadConfigFrom({ vllm: p.block }))).replace('api_key: sk-lol-vllm', 'api_key: sk-lol-external'), toYaml(buildLitellmConfig(cp)), 'the same routing');
     // A model the list does not have: a new entry with its family's flags.
     const nst = prodStatus(); nst.running.argv = nst.running.argv.map((a) => (a === 'qwen3.6-35b-a3b' ? 'my-qwen' : a));
     const nc = prodExternalConfig(); nc.external.model = 'my-qwen';
     p = V.takeOverPlan(nc, nst, 8100, { answering: true });
-    assert.deepEqual([p.block.model, p.block.library.length, p.block.library[3].id, p.block.library[3].folder, p.block.library[3].vision], ['my-qwen', 4, 'my-qwen', 'Qwen3.6-35B-A3B-NVFP4', true]);
+    assert.deepEqual([p.block.model, p.block.library.length, p.block.library[5].id, p.block.library[5].folder, p.block.library[5].vision], ['my-qwen', 6, 'my-qwen', 'Qwen3.6-35B-A3B-NVFP4', true]);
     // Nothing to offer.
     const none = (why, st2, port = 8100, answering = true, cfg = c) => assert.equal(V.takeOverPlan(cfg, st2, port, { answering }), null, why);
     none('no install in that root', prodStatus({ installs: [] }));
