@@ -372,5 +372,6 @@ export const README = 'One JSON object per line. k = kind, ts = local time, ms =
   + 'log.* (this file), ui.* (what the person did: click, key, edit, drag, wheel, drop, toast, dialog), '
   + 'doc.* (graph opened, edited, selected, panned), run.* (the runner: start, part states, end), '
   + 'http.* (farm requests and answers; no headers, no keys), err.* (uncaught errors, rejections, CSP), '
-  + 'con.* (console), sbx.* (the sandbox guest), bus.* (farm, store, visibility), perf.frame (a frame over 100 ms), '
+  + 'con.* (console), sbx.* (the sandbox guest), bus.* (farm, store, visibility, the Computer shown), '
+  + 'voice.* (a Converse conversation: its events and timings, never its sound), perf.frame (a frame over 100 ms), '
   + 'snap (the whole state), mark (a bug marked by hand: note, screenshot file, state). main.* lines come from the main process.';

@@ -139,6 +139,7 @@ await mock.close();     // destroys open sockets first, so an SSE stream cannot 
 | `mock-slow` | 3 s TTFT, then 20 tok/s for 60 s. |
 | `mock-usage-none` | 100 content deltas and `[DONE]`, **no** usage chunk. |
 | `mock-vision-refuse` | (P3) 400 `this model does not support image input` when any `image_url` part is present. `state.visionRefuseAll` applies that to every model. |
+| `mock-voice` | (Converse, k27) three short French sentences, one every `state.voiceChunkMs` (default 400 ms); the log entry gets `streamEndedAt` when the last is sent. |
 
 **`mock-echo` keys** — one per line, `key: value`, in this order. *Add keys at the end; never rename
 one*, tests parse them:
@@ -161,6 +162,13 @@ must never send one) · `markerDocument` · `markerWebSearch` · `markerBlenderS
 | `GET /mock/warnings` | the warnings the mock has printed (e.g. a missing fixture) |
 | `POST /mock/reset` | clears the log and restores the default state |
 | `GET`/`POST /mock/state` | read / deep-merge the mutable state |
+| `POST /stt/v1/audio/transcriptions` | the farm's speech to text (Bearer `mock-stt-key`): *Mock transcript of <file> (<bytes> bytes).* |
+| `POST /tts/v1/audio/speech` | the farm's voice: 0.3 s of silence, or (with `state.ttsMsPerChar`) a 220 Hz tone as long as the text; `input`, `voice`, `speed` kept on the log entry |
+| `GET /tts/v1/audio/voices` | Kokoro's voice list shape: `{voices: [{id, name}]}` |
+
+The harness's **microphone** is Chromium's fake device playing `chat-harness/mic-fixture.js`'s WAV (1 s of silence,
+1.5 s of a speech-like voice, 2 s of silence, looped; written into each run's userData, `LOL_HARNESS_MIC_WAV`), and its
+**sound is muted** (`LOL_HARNESS_MUTE=1`, Chromium's `--mute-audio`): scenarios play and measure sound, nobody hears it.
 
 A log entry is `{ts, role, method, path, query, headers:{authorization, content-type, x-filename},
 body, model, status, closedEarly}`. `closedEarly:true` means the client walked away mid-stream — that

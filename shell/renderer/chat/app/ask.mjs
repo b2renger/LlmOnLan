@@ -28,8 +28,9 @@
 //     RETURN it as `mode:'prompt'` instead of spending a second seat asking again — and we count it
 //     as a schema failure, so two of them flip the verdict to prompt mode for good.
 //   - THINKING OFF for `json()` only (owner decision 9, 2026-10-04: the spike scored the same or
-//     better with 5-9x fewer tokens). Both rungs send it; `text()` never does, so a prose or code
-//     answer thinks as before. A model that ignores the flag lands in the reasoning trap above,
+//     better with 5-9x fewer tokens). Both rungs send it; `text()` sends it only when its caller
+//     passes `thinking:false` (Converse's spoken replies, K-V5), so a prose or code answer thinks as
+//     before. A model that ignores the flag lands in the reasoning trap above,
 //     exactly as it did. `think: true` sends nothing about thinking (the model's own default): the
 //     Computer's "Think all" box, which the runner passes on every json ask; unset means
 //     DEFAULT_THINK. A yes/no decision (THINKING_TASKS, by `task`) thinks either way (owner,
@@ -40,6 +41,13 @@
 // max_tokens, SEED, temperature, think) in, the same AskResult out, with `cached:true` added. Pass
 // `cache:false` for anything a reader pressed Retry on — a Retry that replays a cached answer is a
 // lie.
+//
+// Converse (docs/COMPUTER_VOICE_PLAN.md K-V5) adds three options to `text()`, each ignored when
+// absent so every other caller sends exactly what it sent before: `onText(contentSoFar)` (the
+// answer as it streams, from startGeneration's `onTail`; it implies `cache:false` — a replayed answer
+// would never stream), `history: [{role, content}]` (messages before the prompt, oldest first; part
+// of the cache key) and `thinking: false` (the same switch `json()` sends; `text()` still never sends
+// it unless asked).
 //
 // Critic R1 (A1, A8, contract K-5). A caller may pass `seed` (a whole number, sent as the request's
 // `seed` and part of the cache key — so a NEW seed is a new generation and the SAME seed on the
@@ -231,15 +239,17 @@ export function createAsk(app) {
    * params the whitelist (PARAM_KEYS) already allows; null means "not set" and is not sent.
    * @param {{model: string|null, system: string|null, prompt: string, images: string[],
    *          maxTokens: number, responseFormat: any, seed?: number|null, temperature?: number|null,
-   *          thinking?: false}} o
+   *          thinking?: false, history?: {role: string, content: string}[]}} o
    */
   function buildBody(o) {
-    const req = draftFromPath(
-      [/** @type {any} */ ({ id: 'ask', role: 'user', content: o.prompt, status: 'done' })],
-      { model: o.model, system: o.system },
-    );
+    // K-V5: the history rows are shaped like the prompt's own, so draftFromPath treats them as it
+    // treats a thread's path; the prompt is last, and a picture rides the prompt.
+    const rows = (o.history || []).map((h, i) => /** @type {any} */ ({ id: `h${i}`, role: h.role, content: h.content, status: 'done' }));
+    rows.push(/** @type {any} */ ({ id: 'ask', role: 'user', content: o.prompt, status: 'done' }));
+    const req = draftFromPath(rows, { model: o.model, system: o.system });
     if (o.images.length) {
-      const blocks = req.messages[0] ? req.messages[0].blocks : null;
+      const last = req.messages[req.messages.length - 1];
+      const blocks = last ? last.blocks : null;
       if (blocks) for (const url of o.images) blocks.push(/** @type {any} */ ({ type: 'image', dataUrl: url }));
     }
     /** @type {any} */ const params = { max_tokens: o.maxTokens };
@@ -310,6 +320,16 @@ export function createAsk(app) {
     const onAbort = () => { abortedBySignal = true; stop('user'); };
     if (o.signal) o.signal.addEventListener('abort', onAbort, { once: true });
 
+    // K-V5: the answer as it streams, each time its visible text grows.
+    let shown = 0;
+    const onTail = typeof o.onText === 'function'
+      ? (/** @type {any} */ s) => {
+        const content = str(s && s.content);
+        if (content.length === shown) return;
+        shown = content.length;
+        try { o.onText(content); } catch (err) { console.error('[lolchat] ask onText threw', err); }
+      }
+      : undefined;
     try {
       totals.posts++;
       generation = startGeneration({
@@ -318,9 +338,10 @@ export function createAsk(app) {
         body: buildBody({
           model, system: o.system, prompt: o.prompt, images: o.images,
           maxTokens: o.maxTokens, responseFormat: o.responseFormat,
-          seed: o.seed, temperature: o.temperature, thinking: o.thinking,
+          seed: o.seed, temperature: o.temperature, thinking: o.thinking, history: o.history,
         }),
         requiresKey: !!c.requiresKey,
+        onTail,
       });
       if (pending) generation.abort(pending);
       const result = await generation.done;
@@ -353,6 +374,11 @@ export function createAsk(app) {
   function normalise(o) {
     const opts = o || {};
     const images = Array.isArray(opts.images) ? opts.images.filter((/** @type {any} */ u) => typeof u === 'string' && u) : [];
+    const onText = typeof opts.onText === 'function' ? opts.onText : null;
+    // K-V5: only real person/bot rows with text; anything else is not history.
+    const history = (Array.isArray(opts.history) ? opts.history : [])
+      .filter((/** @type {any} */ h) => h && (h.role === 'user' || h.role === 'assistant') && typeof h.content === 'string' && h.content.trim())
+      .map((/** @type {any} */ h) => ({ role: h.role, content: h.content }));
     return {
       task: str(opts.task) || 'ask',
       schema: opts.schema || null,
@@ -366,7 +392,12 @@ export function createAsk(app) {
       holder: str(opts.holder) || null,
       signal: opts.signal || null,
       priority: opts.priority === 'background' ? 'background' : 'foreground',
-      cache: opts.cache !== false,
+      // K-V5: a streamed answer is never replayed from the cache — it would arrive without streaming.
+      cache: opts.cache !== false && !onText,
+      onText,
+      history,
+      // K-V5: `text()` turns thinking off only when asked; json() decides its own (`think` below).
+      thinking: opts.thinking === false ? false : undefined,
       // C2 kickoff (§2.6 BH-5): a caller that MEANS to ask the same question twice — the four
       // variants of a Repeat fan-out — says so with a salt. It changes the cache key and nothing
       // else: same prompt, same model, same governor lane, a second real generation.
@@ -422,6 +453,9 @@ export function createAsk(app) {
       seed: o.seed === null || o.seed === undefined ? null : o.seed,
       temperature: o.temperature === null || o.temperature === undefined ? null : o.temperature,
       think: lane === 'json' ? o.think : null,   // text() never sends it, so it never splits text's cache
+      // K-V5, keyed only when present so every other caller's key is unchanged.
+      ...(o.history && o.history.length ? { history: o.history } : {}),
+      ...(lane === 'text' && o.thinking === false ? { thinking: false } : {}),
     });
   }
 

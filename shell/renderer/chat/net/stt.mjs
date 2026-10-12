@@ -23,7 +23,8 @@ export const STT_TIMEOUT_MS = 5 * 60 * 1000;
  * @param {{url: string, key: string|null, bytes: ArrayBuffer|Uint8Array, name: string, mime: string,
  *   language?: string|null, signal?: AbortSignal, timeoutMs?: number}} o
  * @returns {Promise<{text: string, language: string, duration: number, ms: number}
- *   | {error: string, code: 'no-stt'|'unauthorized'|'busy'|'too-big'|'warming'|'unreadable'|'farm'|'aborted'|'timeout'|'network', status?: number}>}
+ *   | {error: string, code: 'no-stt'|'unauthorized'|'busy'|'too-big'|'warming'|'unreadable'|'farm'|'aborted'|'timeout'|'network', status?: number, retryAfter?: number}>}
+ *   `retryAfter` (seconds) rides a `busy` answer: the farm's Retry-After header, 0 when it sent none.
  */
 export async function transcribe(o) {
   if (!o || !o.url) return { error: 'no speech-to-text service', code: 'no-stt' };
@@ -43,7 +44,8 @@ export async function transcribe(o) {
       method: 'POST', headers, body: form, signal: ac.signal,
     });
     if (res.status === 401) return { error: 'unauthorized', code: 'unauthorized', status: 401 };
-    if (res.status === 429) return { error: 'busy', code: 'busy', status: 429 };
+    // Converse (docs/COMPUTER_VOICE_PLAN.md §5.2.4) waits the farm's Retry-After before its one retry.
+    if (res.status === 429) return { error: 'busy', code: 'busy', status: 429, retryAfter: Math.max(0, Number(res.headers && res.headers.get('retry-after')) || 0) };
     if (res.status === 413) return { error: 'too big', code: 'too-big', status: 413 };
     if (res.status === 503) return { error: 'loading', code: 'warming', status: 503 };
     if (res.status === 400) return { error: 'unreadable', code: 'unreadable', status: 400 };

@@ -175,7 +175,8 @@
 #lolcomputer .graph-part[data-type='agent'] .graph-port[data-dir='out'],
 #lolcomputer .graph-part[data-type='home-command'] .graph-port[data-dir='out'],
 #lolcomputer .graph-part[data-type='home-command'] .graph-port[data-port='in'],
-#lolcomputer .graph-part[data-type='agent'] .graph-port[data-port='in'] {
+#lolcomputer .graph-part[data-type='agent'] .graph-port[data-port='in'],
+#lolcomputer .graph-part[data-type='converse'] .graph-port[data-port='persona'] {
   --k: var(--k-text);
   --kg: var(--kg-text);
 }
@@ -199,7 +200,8 @@
 #lolcomputer .graph-part[data-type='trigger'] .graph-port[data-dir='out'],
 #lolcomputer .graph-part[data-type='classify'] .graph-port[data-dir='out'],
 #lolcomputer .graph-part[data-type='classify'] .graph-port[data-port='items'],
-#lolcomputer .graph-part[data-type='classify'] .graph-port[data-port='question'] {
+#lolcomputer .graph-part[data-type='classify'] .graph-port[data-port='question'],
+#lolcomputer .graph-part[data-type='converse'] .graph-port[data-dir='out'] {
   --k: var(--k-json);
   --kg: var(--kg-json);
 }

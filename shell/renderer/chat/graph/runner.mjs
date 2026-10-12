@@ -163,6 +163,18 @@ const NO_JOURNAL = {
   flush: async () => {},
 };
 
+/** A signal that aborts when either does (AbortSignal.any where the platform has it).
+ * @param {AbortSignal} a @param {AbortSignal} b @returns {AbortSignal} */
+function bothSignals(a, b) {
+  const any = /** @type {any} */ (AbortSignal).any;
+  if (typeof any === 'function') return any([a, b]);
+  const ac = new AbortController();
+  const stop = () => ac.abort();
+  if (a.aborted || b.aborted) stop();
+  else { a.addEventListener('abort', stop, { once: true }); b.addEventListener('abort', stop, { once: true }); }
+  return ac.signal;
+}
+
 /** A run's nonce: 32 random bits from the platform's CSPRNG (a Math.random floor where there is
  * none). Only its DIFFERENCE from the last run matters — it is what makes ▶ twice two seeds. */
 function mintNonce() {
@@ -574,7 +586,9 @@ export function createRunner(o) {
         if (typeof given.seed === 'number') meter.seeded = true;
         const res = await fn({
           ...given,
-          signal,
+          // A part's own signal (Converse's turn: the person spoke over the answer) aborts the ask
+          // too; Stop still aborts every one (docs/COMPUTER_VOICE_PLAN.md §15).
+          signal: given.signal ? bothSignals(signal, given.signal) : signal,
           priority: 'background',
           cache: given.cache === undefined ? cache : given.cache,
           cacheSalt: given.cacheSalt === undefined && salt !== null && salt !== undefined

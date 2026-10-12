@@ -105,12 +105,12 @@ export default (test) => {
     // K6 kickoff (LOLCHAT_PLAN 2.6 KF-4): Document (a PDF) and Sound (an audio file) join "bring
     // in", right after Image — twenty-one in the palette, twenty-four loadable.
     assert.deepEqual(partSpecs().map((s) => s.type),
-      ['note', 'ask', 'classify', 'agent', 'split', 'repeat', 'filter', 'code', 'collect', 'preview', 'speak', 'send', 'receive', 'trigger', 'file', 'image',
+      ['note', 'ask', 'classify', 'agent', 'converse', 'split', 'repeat', 'filter', 'code', 'collect', 'preview', 'speak', 'send', 'receive', 'trigger', 'file', 'image',
         'document', 'audio', 'fetch', 'opendata', 'home', 'home-command',
         'button', 'condition', 'confirm', 'dialog', 'toggle', 'timer',
         'sticky', 'section', 'title']);
     assert.deepEqual([...specMap().keys()].sort(),
-      ['agent', 'ask', 'audio', 'button', 'classify', 'code', 'collect', 'condition', 'confirm', 'dialog', 'document', 'fetch', 'file', 'filter',
+      ['agent', 'ask', 'audio', 'button', 'classify', 'code', 'collect', 'condition', 'confirm', 'converse', 'dialog', 'document', 'fetch', 'file', 'filter',
         'from-thread', 'home', 'home-command', 'image', 'note', 'opendata', 'preview', 'receive', 'render', 'repeat', 'section', 'send', 'speak', 'split',
         'sticky', 'timer', 'title', 'to-thread', 'toggle', 'trigger'],
       'a legacy part left specMap() too — a migrated graph would trip part:unknown-type');
@@ -126,12 +126,13 @@ export default (test) => {
     // `thinks` is what the cap counts (BG-5). Ask always generates; Filter does in model mode.
     // Condition declares `thinks` because `mode:'model'` really does spend one generation — and
     // `thinksFor`, so the plan preview does NOT quote one for a free text-mode Condition (§4.6).
-    assert.deepEqual(partSpecs().filter((s) => s.thinks).map((s) => s.type), ['ask', 'agent', 'filter', 'condition']);
+    assert.deepEqual(partSpecs().filter((s) => s.thinks).map((s) => s.type), ['ask', 'agent', 'converse', 'filter', 'condition']);
     assert.equal(typeof specMap().get('condition').thinksFor, 'function');
     assert.equal(specMap().get('condition').thinksFor({ settings: { mode: 'text' } }), false);
     assert.equal(specMap().get('condition').thinksFor({ settings: { mode: 'model' } }), true);
     // §4.2's two scheduler declarations exist and belong to exactly the parts that need them.
-    assert.deepEqual(partSpecs().filter((s) => s.manual).map((s) => s.type), ['button']);
+    // Converse (docs/COMPUTER_VOICE_PLAN.md): a conversation is a person's ● Start, never Run all.
+    assert.deepEqual(partSpecs().filter((s) => s.manual).map((s) => s.type), ['converse', 'button']);
     assert.deepEqual(partSpecs().filter((s) => s.control).map((s) => s.type),
       ['button', 'condition', 'confirm', 'dialog', 'toggle', 'timer']);
     // The parts with no output are the ones that are an END: Preview SHOWS what arrived (§6.5),

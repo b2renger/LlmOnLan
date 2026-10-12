@@ -430,4 +430,21 @@ export default (test) => {
     assert.equal(undone.parts.find((p) => p.id === 'b').state, 'stale', 'undoing a code edit still stales the box');
     assert.equal(undone.parts.find((p) => p.id === 'b').settings.live, true);
   });
+
+  // Converse (docs/COMPUTER_VOICE_PLAN.md K-V7): the face is whatever box is Live.
+  test('send(ev) posts one conversation event to the live guest, and nothing once it has ended', async () => {
+    const { sb, frames, mount } = setup();
+    const h = sb.live({ mount: mount('box'), mode: 'p5', code: 'x', size: { w: 10, h: 10 } });
+    await h.ready;
+    assert.equal(h.send({ type: 'user.level', state: 'hearing', t: 1, level: 0.5 }), true);
+    const sent = frames[0].sent.filter((m) => m.cmd === 'event');
+    assert.equal(sent.length, 1);
+    assert.deepEqual(sent[0].ev, { type: 'user.level', state: 'hearing', t: 1, level: 0.5 });
+    assert.equal(sent[0].tok, frames[0].sent.find((m) => m.cmd === 'boot').tok, 'under the guest\'s own nonce');
+    assert.equal(h.debug().events, 1);
+    h.stop();
+    assert.equal(h.send({ type: 'turn', state: 'listening' }), false, 'a stopped face hears nothing');
+    assert.equal(frames[0].sent.filter((m) => m.cmd === 'event').length, 1);
+    sb.destroy();
+  });
 };

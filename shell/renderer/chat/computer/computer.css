@@ -34,6 +34,8 @@
 /* K4-U3: the Preview family — markdown/SVG bodies, the snapshot tile, "Open live". */
 @import url('../css/computer-preview.css');
 /* K5-U1 owns css/computer-preview.css (above) for the creative boxes' code editor — no new sheet. */
+/* Converse (docs/COMPUTER_VOICE_PLAN.md): the conversation box's face. */
+@import url('../css/computer-converse.css');
 /* K5-U2: the grouped ＋ menu and the first-run offer on an empty canvas. */
 @import url('../css/computer-palette.css');
 /* K5-U3: the Learn shelf and the tutorial step rail. */

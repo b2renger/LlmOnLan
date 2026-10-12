@@ -443,6 +443,7 @@ export function createSandbox(o = {}) {
     let ldropped = 0;
     let lruns = 0;
     let lnext = 0;
+    let lsent = 0;
     let ended = false;
     /** @type {{level: string, text: string}[]} */ let llogs = [];
     /** @type {any[]} */ let lerrs = [];
@@ -636,7 +637,14 @@ export function createSandbox(o = {}) {
       },
       /** @param {(ev: any) => void} fn */
       on(fn) { subs.add(fn); return () => subs.delete(fn); },
-      debug: () => ({ state: lstate, kind: spec.kind, runs: lruns, logs: llogs.length, errors: lerrs.length, framed: !!lframe, size }),
+      /** K-V7 (Converse): one conversation event to the sketch's `lol.on` handlers. Returns false,
+       * and sends nothing, once the guest has ended. @param {any} ev */
+      send(ev) {
+        if (ended || !lframe || !ev || typeof ev !== 'object') return false;
+        lsent++;
+        return lpost('event', { ev });
+      },
+      debug: () => ({ state: lstate, kind: spec.kind, runs: lruns, logs: llogs.length, errors: lerrs.length, framed: !!lframe, size, events: lsent }),
     };
     // The host's record of this guest: the public handle, and the teardown only the host calls
     // (`hide`, `destroy`, a second live guest).
@@ -736,7 +744,7 @@ export function createSandbox(o = {}) {
      *   `mode` is a Preview mode (`three`, `p5`, `html`) or a run kind; `code` is already shaped.
      * @returns {{stop(): void, restart(code?: string|null, opts?: object): Promise<any>,
      *   focus(): void, state(): string, ready: Promise<any>, logs(): any[], errors(): any[],
-     *   snapshot(o?: object): Promise<any>, on(fn: Function): () => void, debug(): object}}
+     *   snapshot(o?: object): Promise<any>, on(fn: Function): () => void, send(ev: object): boolean, debug(): object}}
      */
     live(req) {
       if (liveGuest) liveGuest.end('replaced');

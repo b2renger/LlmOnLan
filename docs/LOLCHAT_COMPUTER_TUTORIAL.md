@@ -58,7 +58,7 @@ picks for the most common boxes.
 
 ## The fastest way in: the Learn shelf
 
-The **Learn** shelf in the sidebar holds a tour, fourteen lessons and eleven templates. A lesson opens as
+The **Learn** shelf in the sidebar holds a tour, fourteen lessons and twelve templates. A lesson opens as
 **your own copy** of a small graph, with a **step rail** docked at the bottom-left of the canvas.
 The rail shows one step at a time and **ticks it when you have really done it**: nothing is typed
 for you, and nothing ticks by accident.
@@ -86,6 +86,7 @@ for you, and nothing ticks by accident.
 | **Analyse a dataset**, **Ask a dataset** (templates) | A data.gouv.fr dataset read, explained, charted and questioned — the second through an Agent. See [French open data](#french-open-data-the-open-data-box) below. | about 3 · up to 8 |
 | **Ask out loud** (template) | Lesson 7 as a ready graph. | about 1 |
 | **Talk to a board**, **A board on Wi-Fi** (templates) | An Arduino or ESP32 on the USB cable or the farm's message bus, both ways. | no generation (Wi-Fi: the farm's bus) |
+| **Voice persona** (template) | Design a voice bot: a persona (a French museum guide), a **Converse** box set to French, a **Voice face** to ▶ Live, and an Instruction that reads the conversation and says how to improve the persona. See [Talking with a voice bot](#talking-with-a-voice-bot-the-converse-box) below. | one per turn (12 at most), and one |
 | **Morning briefing**, **Comfort advisor**, **Energy report** (templates) | Your Home Assistant's weather, calendar and room said as a briefing; CO2 and temperature judged by code, a suggestion said, and a fan turned on when the air is stuffy; a plug's day charted by code and described by a model. See [Your home](#your-home-the-home-and-home-command-boxes) below. | about 1 each |
 
 On the rail:
@@ -410,6 +411,64 @@ to be spoken). **Automatic** uses the farm's voice when there is one. **▶ Say 
 Together with Listen, a graph can hear a question and answer it aloud: Sound (Listen) → Instruction →
 Speak — **Learn → Templates → Ask out loud** is that graph, ready to record into.
 
+### Talking with a voice bot: the Converse box
+
+**＋ → Think → Converse** holds a real spoken conversation with the farm's model — no one behind a curtain:
+you talk, it listens, the farm writes down what you said, the model answers, and the answer is said out
+loud, sentence by sentence, while the model is still writing the next one. It is made for designing voice
+interaction: who the bot is, how it takes turns, how long it makes you wait, and what its face shows.
+
+1. **Its persona.** Wire a Text box into **persona**: who the bot is, its tone, its rules. Nothing wired:
+   a plain persona, and the box says so. The box adds the spoken-style rules itself (a few short sentences,
+   no lists, no markdown, one question at a time) and turns thinking off: a spoken answer must start fast.
+2. **Its face.** Whatever Preview is **▶ Live** is the face: its code hears the conversation with
+   `lol.on(...)`. **＋ → Show → Voice face** is a p5.js sketch that already does — a head that breathes while
+   it listens, grows with your voice, closes its eyes while it thinks and moves its mouth with the voice.
+   Change its code: that is the design work. In a sketch:
+
+   ```js
+   lol.on('*', (e) => { state = e.state; });           // every event: e.type, e.state, e.t (ms)
+   lol.on('user.level', (e) => { level = e.level; });   // your voice, 0..1, 20 times a second
+   lol.on('bot.level', (e) => { mouth = e.level; });    // the bot's voice, 0..1
+   lol.on('bot.sentence', (e) => { said = e.text; });   // the sentence it starts saying
+   // lol.voice = {state, last}: the conversation as last heard
+   ```
+
+   The events: `start`, `listening`, `user.start`, `user.level`, `user.end`, `user.cancel` (a cough),
+   `transcript`, `not.understood`, `thinking`, `bot.text`, `bot.start`, `bot.sentence`, `bot.level`,
+   `bot.end`, `interrupted`, `turn` (with its timings), `error`, `ended`. The state is one of idle,
+   listening, hearing, transcribing, thinking, speaking, ended, error. With no Preview Live the box says
+   *No face*.
+3. **● Start.** Only this button opens the microphone — Run all, the ▶ in the title bar, a Trigger and
+   Open WebUI's tools never do. Allow the microphone, and talk. The box shows **● Microphone on** in red
+   for as long as it is. **■ End** ends the conversation after the sentence being said (pressed twice, at
+   once; anything you say after it is not heard); the run bar's
+   **Stop** cuts it at once; and **leaving the Computer** (or hiding the window) ends it too — it does not
+   pause — and the microphone closes.
+4. **The knobs** are the design material. **End of turn after** (ms of silence): short is an impatient bot
+   that may cut you off, long a patient one that makes you wait. **Sensitivity**: whether a whisper starts a
+   turn. **You can talk over it** (on by default): speaking while it speaks stops it, and what it had said is
+   kept. Under **More**: the model, the farm's voice (`ff_siwis` is Kokoro's French voice; the field lists
+   the farm's voices), speed and pitch, an **added delay** before it answers (latency as a material), **It
+   speaks first**, a **“Not understood” line** (said when nothing usable was heard, for no generation),
+   soft sound cues, and the limits (12 turns, 6 minutes).
+5. **Read the numbers.** Under the last exchange: *heard in* (from the end of your speech to your words
+   written down), *first word* (the model's), and **first sound** — from the end of your speech to the first
+   sound of the answer: the wait you feel. The box's value, when it ends, is the transcript: every turn,
+   what was said (an interrupted answer keeps what was said), and those timings. Wire it into an
+   Instruction — *where did it make the person wait, interrupt them, misunderstand them?* — as the **Voice
+   persona** template does.
+
+What leaves this computer: each of your turns, cut to the speech (16 kHz, a few seconds), to the farm's
+speech to text — written down and dropped, never kept; your words and the last turns to the farm's model;
+each sentence of the answer to the farm's voice (or nothing, with this computer's own voice). Nothing is
+recorded: no take is stored or logged. The conversation's text stays in the box, on this computer.
+
+Use a **headset**: with loudspeakers the bot can hear itself and stop. The box raises its threshold while
+the bot speaks, which is often enough; when it is not, turn off **You can talk over it**. Each answered turn
+is one generation on the toolbar's **Cap**. On a farm whose speech to text runs on a GPU, a turn is written
+down in a fraction of a second; on a CPU farm it takes a second or two, one person at a time.
+
 ### Acting on the world: the Send box
 
 **＋ → Show → Send** hands what arrives to a device. **Send by** picks the transport:
@@ -721,6 +780,10 @@ The view keys — **V**, **H**, **F** and the other zoom keys — work anywhere 
 | The pictures stay home | The farm does not list the Instruction's model as able to see pictures. | Pick a model that can in that box's **Model** menu. |
 | A Send box says **Dry run — would send: …** | The outputs are not armed, so nothing left this computer. That is the default for every graph, and after every restart. | Press **Outputs: dry run** in the run bar, read the list of targets, and arm. |
 | A Trigger never starts a run | A Trigger starts runs only while the outputs are armed and the Computer is on screen; its face says which is missing. | Arm the outputs in the run bar and stay on the Computer. |
+| Converse says *Press ● Start on the box* | A conversation is started only by a person's press on its ● Start — not Run all, not the ▶ in the title bar, not a Trigger, and not a press that waited more than a few seconds behind another run. | Press **● Start** on the box itself. |
+| Converse ends by itself, *you left the Computer* | Switching to LOL Vibe or Open WebUI, or hiding the window, ends the conversation and closes the microphone: it never listens while you are not looking at it. | Come back and press **● Start** again: the transcript so far is the box's value. |
+| The bot stops itself in the middle of its answers | Its own voice, from the loudspeakers, reached the microphone and counted as you talking over it. | Use a headset, lower the volume, lower **Sensitivity**, or turn off **You can talk over it**. |
+| Converse keeps saying it did not understand | Nothing usable was heard: a quiet voice, a noisy room, or the wrong **Language**. | Raise **Sensitivity**, speak closer, or set the **Language** you speak. |
 | A Sound box sends only its name and length | **Listen** is off (a graph someone hands you always opens with it off), or the farm's speech to text is off. | Turn on **Listen** on the box; if the box says the farm cannot listen, ask the farm's operator. |
 | A lesson step will not tick | The rail ticks what you really did, in order, and a change only counts after the step asked for it. | Press **Show me**. If the farm cannot answer, use the saved answer the rail offers. |
 
@@ -736,5 +799,7 @@ To report a bug: press **● Record log**, reproduce it, press **⚑ Mark bug**,
   on), and **a PDF sent to a model as a PDF** (a PDF always goes as text read by the farm).
 - **Boxes inside a Section do not move with it**, and **wires are grey**, not the colour of what
   they carry.
+- **Converse's events sent to the world as they happen** (OSC to TouchDesigner, an LED ring on an ESP32),
+  **speech to text on this computer** instead of the farm, and **several voices in one conversation**: later.
 - **No image, audio or video generation**, **no web search box** (a **Fetch** box reads one address
   you type), **no sub-graphs**, and no editing by several people at once.

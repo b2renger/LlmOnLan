@@ -25,6 +25,11 @@ export const SHOW = [
     'setup() and draw() as in the p5.js editor; createCanvas(400, 300).',
     'Wired from Write a p5.js sketch, the model\'s code shows here; typing in it makes it yours.',
   ]),
+  drawing('voice-face', 'Voice face (p5.js sketch)', 'A p5.js sketch made to be a Converse box\'s face: it listens to the conversation with lol.on(...) — its state, your voice, the bot\'s voice — and draws a head that reacts. Its code is yours to change: that is the design work.', [
+    'Press ▶ Live on this box, then ● Start on a Converse box (the Voice persona template has both). One box is Live at a time: the Live one is the face.',
+    'lol.on(\'user.level\', fn) gives your voice 0..1, \'bot.level\' the bot\'s, \'bot.sentence\' what it says; lol.on(\'*\', fn) every event, with e.state.',
+    'Without Live it draws the head at rest, as a picture.',
+  ]),
   drawing('three', 'three.js scene', 'A three.js scene (r160) drawn in the sandbox. It shows a picture of its first frame; ▶ Live runs it, and lol.orbit(camera) lets you drag the camera.', [
     'Press ▶ on the box to draw it, then ▶ Live and drag to turn around the cube. Build the scene with THREE: a scene, a camera, a renderer, lights and meshes.',
     'Call lol.orbit(camera) right after making the camera, for a camera you can drag in Live.',

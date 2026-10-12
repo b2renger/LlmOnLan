@@ -291,6 +291,9 @@ async function main() {
         const env = { ...process.env };
         delete env.ELECTRON_RUN_AS_NODE;          // VS Code exports it; electron would run as plain node
         env.LOL_HARNESS_NODE = process.execPath;  // the IDE's agent (a mock dsh) runs on a real Node, as dsh does
+        // The fake microphone's sound (Converse, k27): a speech-like loop, written into this run's userData.
+        env.LOL_HARNESS_MIC_WAV = require('./mic-fixture.js').writeMicFixture(path.join(tmp, 'mic-fixture.wav'));
+        env.LOL_HARNESS_MUTE = '1';               // played, decoded and measured, but never heard in the room
         const initialQuery = [
             'farm=mock', 'refreshMs=4000', `proxy=${ports.proxy}`, `keyed=${ports.keyed}`,
             `self=${ports.self}`, `key=${MOCK_KEY}`,

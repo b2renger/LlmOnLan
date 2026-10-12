@@ -79,6 +79,9 @@ const PURE_MODULES = [
     'design/areas.mjs', 'board/select.mjs', 'board/lint.mjs', 'board/scaffold.mjs',
     // Critic R1, Package B: what a wheel, a resize handle, a dropped wire end and Ctrl+C mean.
     'graph/gestures.mjs',
+    // Converse (docs/COMPUTER_VOICE_PLAN.md K-V1): the turn-taking, the turn's sound, the sentence
+    // cutter and the event shape — a conversation is driven in Node through these.
+    'graph/voice.mjs',
 ];
 
 // ---------------------------------------------------------------------------------------------

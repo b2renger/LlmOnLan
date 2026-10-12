@@ -42,6 +42,40 @@ run nor a v0.2.0 installed later picks it up, and nothing warns (LOLCHAT_TESTING
 again, or how to run the dev build isolated). The backup from the 21st is still at
 `%APPDATA%\LlmOnLan-backup-20260921-*`.)*
 
+## NEWEST (12 Oct) — Converse: a real voice loop, with a face (branch `converse`, not merged)
+
+Your ask — *"design students working on voice interaction: the identity of the voice bot, what to show, how the
+feedback between bot and user works … no Wizard of Oz, we want to actually do the thing"* — is the **Converse** box
+([COMPUTER_VOICE_PLAN.md](COMPUTER_VOICE_PLAN.md), with your four answers of 12 Oct).
+
+- **＋ Think ▸ Converse.** **● Start** opens the microphone; it hears when you stop talking (an energy detector every
+  frame: a room calibration, a noise floor that follows the room, an end-of-turn silence and a sensitivity you set), the
+  farm writes the turn down (cut to your speech, a 16 kHz WAV), the model answers with the persona wired into it and the
+  last 8 turns, and the answer is said sentence by sentence while the model writes the next — the farm's Kokoro (the
+  next sentence made while one plays) or this computer's voice. **Talk over it** and it stops (on by default, your
+  answer 2), keeping what it said. **■ End** finishes the sentence; Stop cuts it; leaving the Computer or hiding the
+  window ends it and the microphone closes. The value is the transcript with each turn's timings (your answer 3).
+- **The face is whatever Preview is ▶ Live** (your answer 1): its code hears every event with `lol.on(...)` and
+  `lol.voice`. **＋ Show ▸ Voice face (p5.js sketch)** is a head that breathes while it listens, grows with your voice,
+  closes its eyes while it thinks and moves its mouth with the voice — the code is the design work.
+- **Learn ▸ Templates ▸ Voice persona**: Margot, a museum guide, in French (your answer 4: the app stays English),
+  Converse set to French with Kokoro's `ff_siwis`, the Voice face, and an Instruction that reads the conversation and
+  says where she made you wait, cut you off or misunderstood.
+- **Measured end to end on the PRO 6000** (12 Oct, scratch services beside production: the farm's speech to text on the
+  GPU, the dev checkout's Kokoro, a 3B model on a scratch llama-server; a recorded French voice as the microphone; 3 runs,
+  9 turns): **end of speech → first sound 1.31 s** (median; 1.10–1.41 s) with the default 800 ms end of turn — Open
+  WebUI's Call mode measured 2.1–2.5 s on 9 Oct, most of it its fixed 2 s end of phrase. Writing down: 0.12–0.34 s.
+  Talking over it stopped the voice about 0.35 s after the voice began.
+- **What leaves this computer**: each turn's sound to the farm's speech to text, written down and dropped (never kept or
+  logged; the Record log has `voice.*` events and timings only); the words to the model; each sentence to the farm's
+  voice. Run all, ▶, a Trigger and Open WebUI's tools never open the microphone.
+- Tested: `voice` (26), `converse-part` (23, the consent rules through the box's real `run()` among them), the ask,
+  runner, sandbox, capture additions (unit; each rule taken out once and its test failed); `k27-converse` (harness: a
+  turn reaches the live face in order, the first sentence is heard before the stream ends, an interruption, leaving
+  stops the microphone). A fresh agent reviewed the consent and privacy rules; its five findings are fixed, each with a
+  test (DEVLOG 12 Oct). **Yours to check:** HUMAN_TESTS F8–F11 — a real microphone, loudspeakers against a headset,
+  French with Margot, the microphone light, a class of laptops.
+
 ## NEWEST (5 Oct) — yes/no decisions think, the rest stays fast
 
 - **A yes/no decision thinks.** A **Condition** or a **Filter** that asks the model sends nothing about thinking, whatever the toolbar says (`THINKING_TASKS` in `core/types.mjs`, read only by `app/ask.mjs`). Lists, JSON and agent steps still send `chat_template_kwargs:{enable_thinking:false}` + `think:false`, as owner decision 9 has it. Your call of 5 Oct, from a measurement through the farm's own LiteLLM (vLLM Qwen3.6 and Ollama gemma4:12b, 3 runs per item): Condition questions that need working out were right 20/45 with thinking off and 41/45 on (vLLM; gemma4 36/45 → 38/45); extraction was right 48/48 either way, lists 34/36 off and 36/36 on; agent steps gained 2 of 24 on vLLM at ~12x the time and lost 3 of 24 on gemma4.

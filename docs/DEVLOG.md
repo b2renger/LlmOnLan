@@ -6,6 +6,92 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-10-12 (16:20) — Converse: a real voice loop on the Computer, with a face (branch `converse`)
+
+The owner: *"design students working on voice interaction: the identity of the voice bot, what to show, how the
+feedback between bot and user works. Use the Computer for this. No Wizard of Oz … a POC."* Built from
+[COMPUTER_VOICE_PLAN.md](COMPUTER_VOICE_PLAN.md) and the owner's four answers of 12 Oct (the face is whatever Preview is
+▶ Live; Interruptible on by default; the transcript kept as the box's value; the app stays English, the template
+carries a French persona with `ff_siwis`). Worktree `converse` from `multiuser-phase0` at `27817c1`; not merged, not
+released.
+
+**The plan first** (commit `5ddcdc7`): brought up to date at `27817c1` — the farm's speech to text on the GPU
+(large-v3-turbo int8_float16, ~0.15 s for a 5 s phrase; `small` on the CPU), chunked uploads, PyAV pinned, the snapshot's
+`stt {url, key, model}`, Open WebUI's Call pointed at it (and its fixed 2 s end of phrase), Kokoro's `/audio/voices` and
+`speed` read in its source, lessons 13–14 being the home's, the classroom bottleneck re-measured (still one transcription
+at a time farm-wide). Its new §15 names what the code changes in the contracts; every decision kept.
+
+**Built** (renderer only; nothing in `src/main`, nothing on the farm):
+- `graph/voice.mjs` (pure, in the lint's PURE_MODULES): the energy detector (calibration that waits while the bot speaks,
+  a noise floor learnt only in silence and never from the bot, onset 120 ms back-dated, hysteresis, end-of-turn knob,
+  cough, monologue, the raised barge-in threshold ×4 ≥ 0.07, a stalled frame ≤ 250 ms, `vadQuiet`), the turn's window
+  in the take, mono 16 kHz resampling and the WAV, the sentence cutter (3.5, M., etc., French closing quotes, a comma
+  cut over 160 characters), `speakable`, Whisper's silence phrases compared whole, the event shape, the timings, the
+  history that always alternates.
+- `graph/parts/converse.mjs`: the box (*think*, `manual`, glyph ◖)) and `converse(deps)`, the loop of §5 with every
+  device and door injected; `capture.mjs` `openListening` (the one microphone door: echo cancellation, a meter on the
+  window's AudioContext, takes that overlap so no turn loses its start, close stops every take and track; a window that
+  cannot measure the microphone lets it go at once); `audio.mjs` `audioContext()` and `playBytes`'s `onStart`/`onLevel`;
+  `app/ask.mjs` `onText`/`history`/`thinking` through `normalise()`; `net/stt.mjs` Retry-After; `net/tts.mjs` `speed` and
+  `listVoices`; the sandbox's `event` command with `lol.on(type|'*', fn)`, `lol.voice` and `window.lol` for a live page,
+  the live handle's `send(ev)`; `EV.COMPUTER_SHOWN` (and `app.state.shown`); MCP `run_graph` refuses a Converse box;
+  `voice.*` lines in the Record log from a private bus name; the **Voice face (p5.js sketch)** preset (`presetOf` now takes
+  the most specific match); the ? examples for both; the **Voice persona** template.
+- Changed on the way, each named in the plan's §15: no `volatile` (it would re-run everything after the box at each Run
+  all); the face through `sandboxNow()` (never booting a guest); Button's press registry, plus a 15 s freshness;
+  `meteredAsk` now passes a part's own signal (it used to replace it, so an interrupted answer could not be aborted);
+  the template declares 13 generations (its most), not 1.
+
+**Tested.** Shell build clean; `chat-unit` **1921 passed** (from 1863: `voice` 26, `converse-part` 23 — whole
+conversations on a virtual clock and the consent rules through the box's real `run()` —, and additions to `ask`,
+`graph-runner`, `sandbox-protocol`, `sandbox-live`, `capture`, `core`); `test:unit` 29; `chat-lint` 0 violations, self-test
+26/26; `chat-scope --base 27817c1` clean but for CLAUDE.md (outside the chat scope by nature). Every rule was taken out
+once and its test failed (29 mutations, a scratch script). Harness: **k27-converse** (a speech-like WAV as Chromium's
+fake microphone, `mic-fixture.js`; the mock's voice list, a voice as long as its text, a slow three-sentence model): one
+turn reaches a live p5 face in §4's order, the first sentence goes to the voice before the stream ends, a turn of the
+person's interrupts the bot and is answered, switching to LOL Vibe ends it and every microphone track is `ended`. The
+harness now mutes its sound (`--mute-audio`) and its pinned catalogue lists moved for the new box (c3-landing,
+k4-shots-kinds through `computer-look.css`'s kind map, k5-lessons, k5-palette). Whole harness, on the final code:
+**411 passed, 0 failed** (one earlier run of the k3 phase had `k3-sched` time out; it passed on three reruns).
+
+**Measured end to end on the PRO 6000, beside production** (production's vLLM idle with 48 seats; GPU kept ≥ 11 GB free):
+scratch services on scratch ports — the worktree's `stt_server.py` with large-v3-turbo on the GPU (:8971, a scratch
+venv, the model files copied from the Farm app's cache), the dev checkout's Kokoro v0.5.0 on the GPU (:8981), a scratch
+llama-server b10516 with Qwen2.5-3B-Instruct Q4_K_M (:8961), a tiny `/lol/self` (:42091) — and the harness's Electron
+main as the client (the real renderer and Computer), its microphone a WAV of two French questions said by Kokoro,
+muted. A persona (Margot), Converse in French with `ff_siwis`, the Voice face Live. 3 runs, 9 turns:
+
+| | median | range |
+|---|---|---|
+| end of speech → first sound (the wait a person feels; 800 ms end of turn) | **1.31 s** | 1.10–1.41 s |
+| end of speech → words written down | 1.09 s | 0.94–1.17 s |
+| the speech-to-text request alone (decode, upload, GPU) | 0.27 s | 0.12–0.34 s |
+| model asked → first word (3B) | 18 ms | 17–22 ms |
+
+Open WebUI's Call mode measured 2.1–2.5 s (median 2.37 s) on 9 Oct, 1.55–1.73 s of it its fixed end of phrase. The
+second question, said over the bot's answer, interrupted it in every run: the voice stopped ~0.22 s later than an
+ordinary onset is detected, about 0.35 s after the question began (the raised threshold needs the louder part of the
+word). French was written down with its accents (*« Attends, attends, je voudrais plutôt savoir qui l'a fabriqué. »*). Every scratch
+process stopped after; nothing of the owner's touched.
+
+**Review** (a fresh agent, on the consent and privacy rules and the lint doors). No problem with: Run all, Resume, a
+Trigger, MCP, imports and undo never opening the microphone; every way out reaching `mic.close()`; no sound stored, put
+on the bus, logged or kept; the doors and the invisible characters. Found and fixed, each with a test that failed
+before: (1, major) after ■ End a cough over the last sentence brought the conversation back, deaf to a second End and to
+the time limit, and speech after End was sent to be written down — now anything said after End ends it unheard, End
+twice is now, and the time limit stops hard 30 s after it asks; (2, major) a double click on ● Start, or the ▶ during a
+conversation, merged into the live run and reopened the microphone after End — now a press while the box is busy is not
+a Start, and a run right after the box's own end hands on the transcript; (3) a press its run never reached (Stop, a
+failed box upstream) could be used by a Trigger within 15 s — the host now forgets a run's unreached seed presses; (4) a
+box deleted while the system asked for the microphone went on talking — the stop handle now exists before the
+microphone opens; (5) a sentence still being made when End was pressed was said. Notes kept: a turn whose take cannot be
+decoded is sent whole (decision 6); the Record log holds the conversation's words (its switch now says so) and MCP's
+`read_graph` reads the transcript like any value.
+
+**Not done, the owner's:** HUMAN_TESTS F8 (a real microphone, a quiet and a noisy room, loudspeakers against a headset),
+F9 (French with Margot), F10 (the microphone light: every way to end closes it), F11 (a class of laptops on one farm, GPU
+and CPU speech to text). Releasing waits with farm-v0.0.46 (Model storage, the panel's sections), as the owner said.
+
 ## 2026-10-12 (14:02) — The farm panel: one section per engine, Serve with … inside it, Access for what they share (branch `panel-engines`)
 
 The owner: *"In the farm we should probably have three collapsible with the options for Ollama, Llama.cpp and vllm."*

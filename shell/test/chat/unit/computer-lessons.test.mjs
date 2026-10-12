@@ -136,7 +136,7 @@ export default (test) => {
     assert.deepEqual(LESSONS.map((l) => l.n), [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14], 'n is the shelf number');
     for (let i = 0; i < LESSONS.length - 1; i++) assert.equal(LESSONS[i].next, LESSONS[i + 1].id, `${LESSONS[i].id} → next`);
     assert.equal(LESSONS[LESSONS.length - 1].next, undefined, 'the last lesson ends the shelf');
-    assert.deepEqual(TEMPLATES.map((x) => x.id), ['research-problematic', 'creative-coding', 'read-the-news', 'analyse-a-dataset', 'ask-a-dataset', 'ask-out-loud', 'talk-to-a-board', 'board-on-wifi', 'morning-briefing', 'comfort-advisor', 'energy-report']);
+    assert.deepEqual(TEMPLATES.map((x) => x.id), ['research-problematic', 'creative-coding', 'read-the-news', 'analyse-a-dataset', 'ask-a-dataset', 'ask-out-loud', 'talk-to-a-board', 'board-on-wifi', 'morning-briefing', 'comfort-advisor', 'energy-report', 'voice-persona']);
     for (const id of MINE) assert.equal(lessonById(id).id, id);
     assert.equal(templateById('creative-coding').title, 'Creative coding');
     assert.equal(templateById('nope'), null);

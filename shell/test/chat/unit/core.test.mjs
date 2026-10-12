@@ -56,9 +56,10 @@ export default (test) => {
   });
 
   // ---------------------------------------------------------------- events
-  test('events: EV names are the §3.2 set', () => {
-    assert.deepEqual(Object.keys(EV).sort(), ['BRANCH_SWITCH', 'DRAFT_CHANGE', 'FARM_CHANGE', 'FARM_TICK', 'GOV_CHANGE', 'MESSAGE_PUT',
+  test('events: EV names are the §3.2 set (+ COMPUTER_SHOWN, COMPUTER_VOICE_PLAN K-V10)', () => {
+    assert.deepEqual(Object.keys(EV).sort(), ['BRANCH_SWITCH', 'COMPUTER_SHOWN', 'DRAFT_CHANGE', 'FARM_CHANGE', 'FARM_TICK', 'GOV_CHANGE', 'MESSAGE_PUT',
       'REQUEST_PREVIEW', 'STORE_ERROR', 'STORE_MODE', 'STREAM_END', 'STREAM_START', 'THREADS_CHANGED', 'THREAD_SELECTED', 'VISIBLE']);
+    assert.equal(EV.COMPUTER_SHOWN, 'computer:shown');
     assert.equal(EV.FARM_TICK, 'farm:tick');
     assert.equal(EV.STORE_MODE, 'store:mode');
     assert.ok(Object.isFrozen(EV));

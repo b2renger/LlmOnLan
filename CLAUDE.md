@@ -340,7 +340,20 @@ docs) is `docs/reviews/DOCS_REVIEW_2026-09-27_{FARM,SHELL,COMPUTER}.md`. Snapsho
   `run_code` in the sandbox over the labelled inputs and earlier results, `fetch` on hosts a PERSON listed on the box
   (exact names, through `io.ts`), `laya`, `answer` — JSON mode through the same ask door, one generation per step on
   the Cap (the plan quotes `1–N` via `mostGenerations`); a failed or malformed step is fed back; the answer carries
-  every step and its result; no output tool, never arms), Split, Filter, Collect,
+  every step and its result; no output tool, never arms), **Converse** (2026-10-12, `graph/parts/converse.mjs` + the pure
+  `graph/voice.mjs`, [docs/COMPUTER_VOICE_PLAN.md](docs/COMPUTER_VOICE_PLAN.md): a spoken conversation with the farm's model, for
+  designing voice interaction — a person's **● Start** on THAT box opens the microphone through `capture.mjs`
+  `openListening` (the press is Button's registry plus a 15 s freshness, so a queued or stale press asks again; Run all
+  never runs it, `manual`; the title-bar ▶, a Trigger, a wave from upstream and MCP `run_graph` are refused); an energy
+  detector per animation frame (calibration, a noise floor that follows the room, an end-of-turn silence and a sensitivity
+  a person sets, a raised threshold ×4 ≥ 0.07 while the bot speaks for barge-in); each turn cut out of a MediaRecorder take
+  and sent as a 16 kHz WAV to the farm's speech to text (one retry after its Retry-After); the answer streamed (`app.ask`
+  `onText`, `history` of the last 8 turns, `thinking:false`) and said sentence by sentence by Kokoro (n+1 made while n
+  plays) or `speechSynthesis`; talking over it aborts the ask and the voice; ■ End finishes the sentence, Stop cuts it, and
+  leaving the Computer (`EV.COMPUTER_SHOWN`) or hiding the window ENDS it and closes the microphone. Its events go to
+  whatever Preview is ▶ Live — the face — as `lol.on(type|'*', fn)` / `lol.voice` in the sketch (sandbox `event` command,
+  the live handle's `send`); one generation per answered turn on the Cap (`mostGenerations` = turns at most); the value is
+  the transcript with each turn's timings, never sound), Split, Filter, Collect,
   Repeat (*think*); Preview (+ p5.js/three.js/SVG/HTML/Markdown presets, and since 2026-09-28 **Graph**: node-link
   JSON — graphify's `graph.json` — as a d3-force map by ONE viewer, `sandbox/graph-view.mjs`, which the IDE reuses;
   since 2026-09-27 it hands on a
@@ -369,7 +382,12 @@ docs) is `docs/reviews/DOCS_REVIEW_2026-09-27_{FARM,SHELL,COMPUTER}.md`. Snapsho
   Image's (or a Preview's rendered) pixels inside the Instruction's chat completion to the farm; a Document's PDF bytes to the farm
   OCR for text only; a Classify box's items (text) to the farm's Laya for one forward pass each; a Sound
   box's recording ONLY when a person turns on its **Listen** switch (an imported graph always opens with it off) — to the farm's speech-to-text, written down
-  and dropped (never logged or kept); a **Speak** box's text to the farm's Kokoro when it uses the farm voice
+  and dropped (never logged or kept); a **Converse** box's turns ONLY after a person's ● Start on it and ONLY while the
+  Computer is on screen — each turn's sound (the speech plus 250 ms before and 150 ms after, a 16 kHz WAV) to the farm's
+  speech-to-text, written down and dropped, no take kept or logged (the Record log gets its events and timings as
+  `voice.*`, never sound); its words and the last 8 turns to the model like an Instruction's prompt; each sentence of the
+  answer to the farm's Kokoro (or this computer's voice, which sends nothing); the transcript stays the box's value in
+  DATA_DIR; a **Speak** box's text to the farm's Kokoro when it uses the farm voice
   (its own-computer voice, `speechSynthesis`, sends nothing); a **Fetch** box (2026-09-27) sends ONE GET to the address a person
   typed — run in main (`src/main/io.ts`): http(s), never loopback/link-local/farm ports, ≤ 1 MB text, keeps
   its last copy offline; an **Open data** box sends GETs to www.data.gouv.fr and tabular-api.data.gouv.fr only,
@@ -383,9 +401,11 @@ docs) is `docs/reviews/DOCS_REVIEW_2026-09-27_{FARM,SHELL,COMPUTER}.md`. Snapsho
   [docs/COMPUTER_DEBUG_LOG.md](docs/COMPUTER_DEBUG_LOG.md)). Learn shelf: the tour, lessons 1–12 (5 = code counts,
   the model names; 6 = a loop that stops; 7 listen and speak, 8 a picture to a model, 9 act on the world, 10 hear the
   world, 11 an agent with tools, 12 open data — 2026-09-28, all walkable on the mock farm; 13 read the room, 14 switch the
-  home — 2026-10-09, walkable with no home) and 11 templates (Research a problematic, Creative coding, Read the news, **Analyse a
+  home — 2026-10-09, walkable with no home) and 12 templates (Research a problematic, Creative coding, Read the news, **Analyse a
   dataset**, **Ask a dataset**, **Ask out loud**, **Talk to a board**, **A board on Wi-Fi** — the last five 2026-09-27/28; the board ones generated by `scripts/gen-board-templates.cjs`;
-  **Morning briefing**, **Comfort advisor**, **Energy report** — 2026-10-09, each with a saved reading, `templates/home-readings.mjs`),
+  **Morning briefing**, **Comfort advisor**, **Energy report** — 2026-10-09, each with a saved reading, `templates/home-readings.mjs`;
+  **Voice persona** — 2026-10-12: a French museum guide's persona, Converse in French with Kokoro's `ff_siwis`, the **Voice
+  face** p5 preset to ▶ Live, and an Instruction that reads the transcript),
   and since 2026-09-27 an **MCP server** (`src/main/mcp.ts`, 127.0.0.1:41995,
   a per-install bearer, JSON responses over Streamable HTTP; since 2026-10-05 the same listener, Host check and bearer
   also answer Open WebUI's web search, `POST /web/search` → `src/main/webSearch.ts`): Open WebUI's models list, build and run graphs

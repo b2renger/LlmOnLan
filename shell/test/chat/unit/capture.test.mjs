@@ -3,7 +3,7 @@
 // becomes a File the boxes' own intakes read, the device is let go when the take ends, a refusal says so, and
 // no API means "no device" — never a throw the box cannot word.
 import assert from 'node:assert/strict';
-import { startRecording, openCamera, takeName } from '../../../renderer/chat/graph/parts/capture.mjs';
+import { startRecording, openCamera, takeName, openListening } from '../../../renderer/chat/graph/parts/capture.mjs';
 
 /** A fake stream whose tracks remember being stopped. */
 function stream() {
@@ -106,6 +106,63 @@ export default (test) => {
       assert.equal(drawn.length, 1, 'one frame');
       assert.equal(s.tracks[0].stopped, true, 'the camera light goes off after the capture');
       assert.equal(video.srcObject, null);
+    });
+  });
+
+  // Converse (docs/COMPUTER_VOICE_PLAN.md K-V3): the microphone held for a conversation.
+  test('openListening: asks with echo cancellation, takes become Files, close() stops every track and take', async () => {
+    const s = stream();
+    /** @type {any[]} */ const recorders = [];
+    class Rec extends FakeRecorder {
+      /** @param {any} st @param {any} opts */
+      constructor(st, opts) { super(st, opts); this.stopped = false; recorders.push(this); }
+      stop() { this.stopped = true; if (this.ondataavailable) super.stop(); else if (this.onstop) this.onstop(); }
+    }
+    /** @type {any} */ let asked = null;
+    const ac = {
+      state: 'running',
+      createMediaStreamSource: () => ({ connect() {}, disconnect() { ac.disconnected++; } }),
+      createAnalyser: () => ({ fftSize: 0, getFloatTimeDomainData: (/** @type {Float32Array} */ b) => b.fill(0.5), disconnect() { ac.disconnected++; } }),
+      disconnected: 0,
+    };
+    await withDevices({ navigator: { mediaDevices: { getUserMedia: async (/** @type {any} */ c) => { asked = c; return s; } } }, MediaRecorder: Rec }, async () => {
+      const mic = await openListening({ audioContext: () => ac });
+      assert.deepEqual(asked, { audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+      assert.ok(Math.abs(mic.level() - 0.5) < 1e-6, 'the level is the RMS of the newest block');
+      const at = mic.startTake();
+      assert.equal(typeof at, 'number');
+      const file = await mic.endTake();
+      assert.ok(file instanceof File);
+      assert.equal(await file.text(), 'abcd');
+      assert.match(file.name, /^turn .+\.webm$/);
+      assert.equal(await mic.endTake(), null, 'no take running: nothing');
+      mic.startTake();
+      mic.startTake();
+      assert.equal(recorders[1].stopped, true, 'a new take drops the one running');
+      assert.equal(s.tracks[0].stopped, false, 'the microphone stays open between takes');
+      mic.close();
+      assert.equal(s.tracks[0].stopped, true, 'close() lets the device go');
+      assert.equal(recorders[2].stopped, true, 'and stops the take');
+      assert.equal(ac.disconnected, 2, 'the meter is unplugged');
+      assert.equal(mic.closed(), true);
+      assert.equal(mic.level(), 0, 'a closed microphone reads nothing');
+    });
+  });
+
+  test('openListening: a window that cannot measure the microphone lets it go at once (never open and deaf)', async () => {
+    const s = stream();
+    await withDevices({ navigator: { mediaDevices: { getUserMedia: async () => s } }, MediaRecorder: FakeRecorder }, async () => {
+      await assert.rejects(openListening({ audioContext: () => null }), (/** @type {any} */ e) => e.code === 'no-device');
+      assert.equal(s.tracks[0].stopped, true, 'the device was let go');
+    });
+  });
+
+  test('openListening: a refused or missing microphone is a code the box can word', async () => {
+    await withDevices({ navigator: { mediaDevices: { getUserMedia: async () => { throw Object.assign(new Error('no'), { name: 'NotAllowedError' }); } } }, MediaRecorder: FakeRecorder }, async () => {
+      await assert.rejects(openListening(), (/** @type {any} */ e) => e.code === 'refused');
+    });
+    await withDevices({ navigator: {}, MediaRecorder: undefined }, async () => {
+      await assert.rejects(openListening(), (/** @type {any} */ e) => e.code === 'no-device');
     });
   });
 };
