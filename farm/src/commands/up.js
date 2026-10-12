@@ -1859,6 +1859,13 @@ async function run(args) {
         vllmLibraryRemove: async () => ({ ok: false, error: 'farm still starting' }),
         vllmLog: async () => ({ ok: false, error: 'farm still starting' }),
         cancel: async () => ({ ok: false, error: 'farm still starting' }),
+        storageCheck: async () => ({ ok: false, error: 'farm still starting' }),
+        storageMove: async () => ({ ok: false, error: 'farm still starting' }),
+        storageFinish: async () => ({ ok: false, error: 'farm still starting' }),
+        storageForget: async () => ({ ok: false, error: 'farm still starting' }),
+        storageScan: async () => ({ ok: false, error: 'farm still starting' }),
+        storageUse: async () => ({ ok: false, error: 'farm still starting' }),
+        wslMove: async () => ({ ok: false, error: 'farm still starting' }),
     };
 
     // Connected desktop clients — each shell POSTs /lol/client-ping every ~10 s with
@@ -2930,6 +2937,9 @@ async function run(args) {
             // "Let the farm run vLLM" (§9): the offer, then what was done, with Undo while it is possible.
             takeOver: takeOverOffer ? { root: takeOverOffer.root, running: takeOverOffer.running, distro: takeOverOffer.distro, platform: process.platform } : null,
             takenOver: takeOverDone ? { root: takeOverDone.offer.root, platform: process.platform, undo: takeOverUndoable() } : null,
+            // Windows: WSL's Linux disk, where vLLM and its models live (the card's Move, storage section below).
+            wslDisk: wslDiskInfo ? { distro: wslDiskInfo.distro, folder: wslDiskInfo.folder, gb: wslDiskInfo.bytes == null ? null : Math.round(wslDiskInfo.bytes / 1e8) / 10, drive: wslDiskInfo.drive } : null,
+            wslMoving,
         };
     }
     // Check this computer again (the panel's Check again, and the first open of the vLLM card), and whether a vLLM
@@ -3058,6 +3068,7 @@ async function run(args) {
     // Download a model of the vLLM list, in the download slot (D7): it runs while vLLM serves another model, and
     // a stopped download keeps the files it finished.
     function vllmDownload(id) {
+        if (wslMoving) return { ok: false, error: 'WSL\'s Linux disk is moving: wait for it to finish.' };
         const e = (config.vllm.library || []).find((x) => x.id === id);
         if (!e) return { ok: false, error: 'That model is not in the vLLM list.' };
         if (!e.repo) return { ok: false, error: `${e.label} is a folder on this computer: there is nothing to download.` };
@@ -3090,6 +3101,7 @@ async function run(args) {
     // its files are in use.
     function vllmInstall() {
         if (!vllmSup.ok) return { ok: false, error: vllmMod.UNSUPPORTED };
+        if (wslMoving) return { ok: false, error: 'WSL\'s Linux disk is moving: wait for it to finish.' };
         const runningHere = () => (engineOf(config) === 'vllm' && !['stopped', 'guard', 'failed', null].includes(vllmState.phase))
             || !!(vllmProbe && vllmProbe.st && vllmProbe.st.running);
         const update = !!(vllmProbe && vllmProbe.st && vllmTarget && vllmProbe.st.installs.some((i) => i.root === vllmTarget.root));

@@ -9,7 +9,7 @@
 //                  LAN address, settings + self-update. The FarmSupervisor keeps
 //                  `lol up` alive.
 
-import { app, BrowserWindow, ipcMain, shell, nativeTheme, session, clipboard, WebContents } from 'electron';
+import { app, BrowserWindow, ipcMain, shell, nativeTheme, session, clipboard, dialog, WebContents } from 'electron';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
@@ -260,6 +260,12 @@ function registerIpc(): void {
     });
     ipcMain.handle('copy-text', (_e, text: string) => { clipboard.writeText(String(text ?? '')); return true; });
     ipcMain.handle('open-logs', () => shell.openPath(app.getPath('userData')));
+    // The admin panel's Browse… (Model storage): a folder a person picks, or null. Only the path comes back.
+    ipcMain.handle('choose-folder', async () => {
+        const opts = { title: 'Choose a folder', properties: ['openDirectory', 'createDirectory'] as Array<'openDirectory' | 'createDirectory'> };
+        const r = win ? await dialog.showOpenDialog(win, opts) : await dialog.showOpenDialog(opts);
+        return r.canceled || !r.filePaths[0] ? null : r.filePaths[0];
+    });
 }
 
 // --- lifecycle --------------------------------------------------------------

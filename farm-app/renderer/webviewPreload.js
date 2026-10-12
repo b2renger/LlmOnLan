@@ -18,3 +18,12 @@ try {
     // Non-fatal: if seeding fails the admin page simply prompts for the token.
     console.warn('[webviewPreload] token seed failed:', e && e.message);
 }
+
+// The panel's Browse… button (Model storage): the Farm app's own folder picker. The page gets a path, nothing else; a
+// panel opened in a browser has no Browse and the folder is typed.
+try {
+    const { contextBridge, ipcRenderer } = require('electron');
+    contextBridge.exposeInMainWorld('lolFarmApp', { chooseFolder: () => ipcRenderer.invoke('choose-folder') });
+} catch (e) {
+    console.warn('[webviewPreload] folder picker unavailable:', e && e.message);
+}

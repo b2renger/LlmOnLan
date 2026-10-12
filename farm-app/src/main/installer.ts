@@ -224,10 +224,20 @@ function ollamaVersion(timeoutMs = 3000): Promise<boolean> {
     });
 }
 
+// Where Ollama keeps its models: the folder chosen in the panel's Model storage (lol.config.json `storage`), with the
+// rule of farm/src/storage.js ollamaModelsFor: `storage.ollama`, else <storage.dir>/ollama, else Ollama's own place.
+export function ollamaModelsEnv(configText?: string): Record<string, string> {
+    try {
+        const s = JSON.parse(configText ?? fs.readFileSync(farmConfigFile(), 'utf8')).storage || {};
+        const dir = s.ollama || (s.dir ? path.join(s.dir, 'ollama') : null);
+        return dir ? { OLLAMA_MODELS: dir } : {};
+    } catch { return {}; }
+}
+
 async function startOllama(): Promise<ChildProcess | null> {
     if (await ollamaVersion()) return null; // one's already up (reuse it, don't own it)
     const child = spawn(bundledOllamaBin(), ['serve'], {
-        env: { ...childEnv(), OLLAMA_HOST: `${OLLAMA_HOST}:${OLLAMA_PORT}` },
+        env: { ...childEnv(), ...ollamaModelsEnv(), OLLAMA_HOST: `${OLLAMA_HOST}:${OLLAMA_PORT}` },
         detached: process.platform !== 'win32',
         windowsHide: true,
         stdio: 'ignore',

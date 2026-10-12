@@ -30,6 +30,12 @@
 //   GET  /lol/admin/vllm/log?lines=200  → vLLM's own log, its last lines (token)
 //   POST /lol/admin/vllm/take-over[/undo] → let the farm run the vLLM it routes to as an external server, or undo it (token)
 //   POST /lol/admin/job/cancel    → stop the job or the download, {slot} (token)
+//   POST /lol/admin/storage/check → where the farm keeps its models, measured now (token)
+//   POST /lol/admin/storage/move  → Move here: {dir, dryRun?} — copy, check, switch, then delete the old copies (token)
+//   POST /lol/admin/storage/finish|forget → a move left unfinished: delete the old copies, or forget it (token)
+//   POST /lol/admin/storage/scan  → what a folder already holds, {dir} (token)
+//   POST /lol/admin/storage/use   → use some of it where it is, {gguf: [{path}], vllm: [{path}], ollama: path} (token)
+//   POST /lol/admin/vllm/wsl-move → Windows: move WSL's Linux disk, {folder, dryRun?} (token)
 //   (vLLM's model, context, memory and people at once go through /lol/admin/apply, with dryRun.)
 //   POST /lol/admin/plugin/<id>/enable|disable → toggle a farm plugin (token)
 //   POST /lol/admin/plugin/recommend → recommend a client plugin, {id,on} (token)
@@ -223,6 +229,15 @@ function startSelfServer({ httpPort, getSnapshot, host = '0.0.0.0', control = nu
                     '/lol/admin/vllm/take-over/undo': () => control.vllmUndoTakeOver(),
                     // Stop what runs in a slot: {slot: 'job' | 'download'}.
                     '/lol/admin/job/cancel': (b) => control.cancel(b.slot),
+                    // Where the farm keeps its models (storage.js): the card, Move here, a move left unfinished, and
+                    // "Use the models in this folder".
+                    '/lol/admin/storage/check': () => control.storageCheck(),
+                    '/lol/admin/storage/move': (b) => control.storageMove(b),
+                    '/lol/admin/storage/finish': () => control.storageFinish(),
+                    '/lol/admin/storage/forget': () => control.storageForget(),
+                    '/lol/admin/storage/scan': (b) => control.storageScan(b),
+                    '/lol/admin/storage/use': (b) => control.storageUse(b),
+                    '/lol/admin/vllm/wsl-move': (b) => control.wslMove(b),
                 };
                 if (method === 'POST' && POSTS[pathOnly]) {
                     const body = await readJson(req);
