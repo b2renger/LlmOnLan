@@ -67,8 +67,8 @@ the desktop clients auto‑discover it. To change which models are served, open 
 | **Config** | Scaffolds `farm/lol.config.json` from the defaults (named after this host) if none exists. | A config is already there. |
 | **Models** | Pulls every model in `models` **and `preinstall`** on the local Ollama (over its HTTP API), derives `source` models with their `params`, and fetches any `draft` module. | Model already pulled. (`lol up` also pulls anything missing.) |
 | **Web search + OCR** | Builds the SearXNG and document-OCR venvs (both default-on) so the first `lol up` starts instantly. Non-fatal: `lol up` retries. | Already installed. |
-| **Document search** | When it is on (`embed.enabled`: `"auto"` = this computer has an NVIDIA GPU): the pinned llama.cpp build (the same one the llama.cpp engine uses, into `farm/.llamacpp/`) and EmbeddingGemma 2 (~0.6 GB, checked by its sha256) into `farm/.models/`, so the first `lol up` starts it before the engine sizes its memory. Non‑fatal: `lol up` retries. | Build marker matches **and** the model file is there. |
-| **llama.cpp backend** | Only when `llamacpp.enabled`: downloads the pinned `llama-server` build + CUDA runtime into `farm/.llamacpp/` and the `.gguf` weights + vision projector into `farm/.models/` (several GB). Non‑fatal: `lol up` retries. | Build marker matches **and** the weights are cached. |
+| **Document search** | When it is on (`embed.enabled`: `"auto"` = this computer has an NVIDIA GPU): the pinned llama.cpp build (the same one the llama.cpp engine uses, into `farm/.llamacpp/`) and EmbeddingGemma 2 (~0.6 GB, checked by its sha256) into `farm/.models/` (or the folder chosen under [Model storage](#where-the-models-are-on-disk-model-storage)), so the first `lol up` starts it before the engine sizes its memory. Non‑fatal: `lol up` retries. | Build marker matches **and** the model file is there. |
+| **llama.cpp backend** | Only when `llamacpp.enabled`: downloads the pinned `llama-server` build + CUDA runtime into `farm/.llamacpp/` and the `.gguf` weights + vision projector into `farm/.models/` or the chosen folder (several GB). Non‑fatal: `lol up` retries. | Build marker matches **and** the weights are cached. |
 
 If an auto‑installer isn't available (no winget/brew/curl, or no Python), `lol install` prints the exact
 manual step and you re‑run it — it's **idempotent**, so re‑running only does what's left.
@@ -755,6 +755,50 @@ stand-in for vLLM, not yet on the Spark itself. Below, `<repo>` is your checkout
 `serve.sh` from a terminal works on a Spark too, with the same settings:
 `LOL_VLLM_MIN_FREE_GB=8 MAX_JOBS=4 bash <repo>/farm/vllm/serve.sh --kv-cache-memory-bytes 62277025792 --max-num-seqs 32`.
 
+## Where the models are on disk (Model storage)
+
+The panel's **Model storage** card (owner, 2026-10-12; `src/storage.js`). ONE folder for the whole farm:
+
+- **Keep everything here** — a folder (typed, or **Browse…** in the Farm app). What the farm downloads goes into it from
+  then on: `gguf/` (llama.cpp's `.gguf` files, document search's model, the drafts, the llama.cpp build's archives —
+  instead of `farm/.models`), `speech-to-text/` (instead of `farm/.stt/models`), `ollama/` (the `OLLAMA_MODELS` of an
+  Ollama the farm starts: `lol up`, `lol install`, the Farm app's first-run wizard), and on Linux `vllm/` (vLLM's root for
+  a new install; an existing install keeps its root and its `hf/` becomes a link to `vllm/hf`). Saved as
+  `storage.dir` (null = the farm's own folders: nothing changes for a farm that never sets it).
+- **Move here** copies what is in the old places, never deleting before a checked copy. Each file is written as
+  `<name>.lolmove-part`, flushed to the disk, then renamed; a file already there with another size is replaced only when
+  this move wrote it (someone else's stops the move). The copies are checked (sizes; and the sha256 of Ollama's blobs,
+  named by theirs, and of document search's pinned model, read while copying). A file whose checksum already differs is
+  damaged: it is not copied, it stays where it is, and the message names it. Then, in one step, what holds the files
+  stops (llama.cpp when it loads from them, document search, speech to text, an Ollama the farm runs, vLLM on Linux),
+  what changed meanwhile is copied, everything is checked, the folder is saved, and they start again from it. Only then
+  is each old copy deleted, file by file and only while its copy is there with its size and is not the same file (a
+  link or a junction to it). Free space is checked first (with 10 GB kept free); the folder may not be inside the
+  farm's own files, inside a store, nor hold one; a network share is refused. A hard disk or a USB drive is said
+  (Windows: `Get-PhysicalDisk` by the drive letter; Linux: `/sys/dev/block/<maj:min>`).
+- **A move cut short** (Stop on its bar, the farm stopped, a crash, a power cut) leaves `.lol-storage-move.json` beside
+  `lol.config.json`; the card says so and **Move here** goes on: what was copied is kept, a half-copied file is copied
+  again. After the switch only the old copies are left, and **Finish** deletes them. **Forget it** deletes nothing.
+- **Ollama run by another program** (the Ollama desktop app on Windows or macOS, a service on Linux): the farm cannot
+  restart it with another folder. Its models are copied; then the card says what to set — the app's **Settings ▸ Model
+  location** (the app keeps it in its own database, where it wins over the `OLLAMA_MODELS` variable, and restarts its
+  Ollama when it changes) — and **Finish** deletes the old copy only once Ollama is seen reading the new folder: a copy
+  of one of its manifests goes in under a name nobody uses (`lol-where-check:<random>`) for a moment, and `/api/tags`
+  lists it only when Ollama reads that folder. Where it reads now comes from its own log
+  (`%LOCALAPPDATA%\Ollama\server.log`, `~/.ollama/logs/server.log`), else `OLLAMA_MODELS`, else `~/.ollama/models`,
+  confirmed by every model it lists having its manifest there.
+- **Use the models in this folder** — **Look** lists what a folder holds, each engine's part on its own card: `.gguf`
+  files (split parts grouped, a vision projector next to a model kept with it) become llama.cpp entries by `path`;
+  Hugging Face folders (`config.json` + `*.safetensors`) become vLLM entries by `path` (a Linux path; a Windows folder
+  is `/mnt/<drive>/…`, which loads slower through WSL's drive bridge, and the line says so); an Ollama model folder
+  (`manifests/` + `blobs/`) becomes `storage.ollama`. Nothing is copied; **Remove** never deletes such a file.
+- **WSL's Linux disk** (Windows, the vLLM card): `wsl --manage <distro> --move <folder>` (WSL 2.3+; a rename on the same
+  drive, else a copy then the old file's deletion). The question names the distribution, its size, and that everything
+  in it moves; vLLM stops first and starts again after; Linux paths do not change. WSL keeps a stopped distribution's
+  disk attached while any other one runs (measured, WSL 2.6.3): then the move ends saying so, and the next **Move…**
+  asks to stop all of WSL, naming what runs (`wsl --shutdown`). Its progress is the new file growing; it cannot be
+  stopped halfway.
+
 ## Adding or changing models
 
 **The panel is the normal way.** Open `http://<box>:41997/lol/admin` (the Farm app shows it as its own
@@ -1167,6 +1211,12 @@ get *"the farm is busy"*).
 | `GET /lol/admin/vllm/log?lines=200` | vLLM's own log, its last lines. |
 | `POST /lol/admin/vllm/take-over` · `/vllm/take-over/undo` | Let the farm run the vLLM it routes to as an external server on this computer; undo it (until a setting changes or the farm restarts). |
 | `POST /lol/admin/job/cancel` | `{ slot: "job" \| "download" }` — Stop on either bar. |
+| `POST /lol/admin/storage/check` | Measure where the farm keeps its models now (the Model storage card; otherwise at most once a minute, in the background). |
+| `POST /lol/admin/storage/move` | `{ dir, dryRun? }` — Move here: copy, check, switch, then delete the old copies, in the download slot. `dryRun` answers what moves, the GB to copy, the free space and the drive's kind, and changes nothing. A move left unfinished goes on (the `dir` must be its own). |
+| `POST /lol/admin/storage/finish` · `/storage/forget` | A move left unfinished: delete the old copies whose user reads the new folder (Ollama: checked); or forget it (nothing deleted). |
+| `POST /lol/admin/storage/scan` | `{ dir }` — what a folder holds: `.gguf` files (split parts grouped), Hugging Face model folders, an Ollama model folder. A Linux path (`/…`) is read in vLLM's WSL on Windows. |
+| `POST /lol/admin/storage/use` | `{ gguf?: [{path}], vllm?: [{path}], ollama?: path }` — use some of it where it is (each checked again here). |
+| `POST /lol/admin/vllm/wsl-move` | `{ folder, dryRun?, stopAll? }` — Windows: move WSL's Linux disk (where vLLM lives). `stopAll` only after the question that names every Linux it stops. |
 | `POST /lol/admin/name` · `/slots` · `/context` · `/security` | The single-field forms of Apply (`{ name }`, `{ slots }`, `{ tokens }`, `{ password }` — an empty password removes it). |
 | `POST /lol/admin/llamacpp/model` · `/llamacpp/library/add` · `/llamacpp/library/remove` | Load a library entry or URL; edit the `.gguf` library. |
 | `POST /lol/admin/model/start` · `/model/stop` · `/model/default` · `/model/alias` | Offer / stop / make default / rename an Ollama model (`{ id }`, `{ id, alias }`). |
@@ -1241,9 +1291,15 @@ nothing. Shape:
             "contextLength": 65536, "parallel": "auto", "maxNumSeqs": "auto",
             "kvCacheGib": "auto", "ocrReserveGib": 9, "marginPct": 8, "minFreeGb": "auto",
             "version": "0.30.0", "extraArgs": [], "library": [ /* the three measured NVFP4 models */ ] },
+                                               //   a list entry may be { "path": "/mnt/f/models/x" }: a folder used where it is
+  "storage": { "dir": null,                    // the panel's "Keep everything here": one folder for the farm's models
+               "ollama": null },               //   (null = farm/.models, farm/.stt/models, Ollama's own place);
+                                               //   "ollama" = an Ollama model folder used where it is (see Model storage)
   "coordinator": false                          // aggregate LAN peers into one balanced endpoint
 }
 ```
+A llama.cpp list entry has a `url` (downloaded into the farm's folder) **or** a `path` (a `.gguf` already on this
+computer, used where it is); `llamacpp.model` and `mmproj` take either.
 
 > **Per-model names.** Every downloaded model is advertised under its **checkpoint id** unless you
 > rename it: each served row in the panel's *Models · Ollama* card has a **Rename** button (empty =

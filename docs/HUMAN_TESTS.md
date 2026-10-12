@@ -44,7 +44,8 @@ a test that sets one seat, kills an engine or restarts the farm on production wh
 | L. The DGX Spark | a Spark with a screen | 3 | — | 3 h (+45 min) |
 | M. Reboot tests | the PRO 6000, the Spark | 2 | — | 1 h each |
 | N. The Farm app on a clean box | a PC with no Ollama or Python, a Mac | 5 | — | 2 h + downloads |
-| **Total** | | **107** | **18** | about 49–54 h |
+| O. Model storage on the PRO 6000 | the PRO 6000 at a quiet moment, a client | 5 | — | 2 h |
+| **Total** | | **112** | **18** | about 51–56 h |
 
 **The release, in order:** K1–K5 on the test box first (the Farm app update, the held-file copy, llama.cpp b11512,
 document search's first start, the small cards), then J1–J4 on the PRO 6000, then I1–I5 and A1, B1 with the
@@ -1537,6 +1538,84 @@ plugin process left.
 warning but goes on.
 - [ ] Done · Found:
 
+## O. Model storage on the PRO 6000: the farm's models, Ollama's 127 GB and WSL's disk to F: — about 2 h, at a quiet moment
+
+**Machine:** the RTX PRO 6000 box. **Build:** a Farm app built from `model-storage` (DEVLOG 2026-10-12). **Also:** one
+client laptop to chat during the moves. **Which folder: `F:\LlmOnLan`** for the models and **`F:\WSL\Ubuntu`** for WSL's
+disk. F: is the Samsung 990 PRO (an NVMe SSD, 1.76 TB free). Not D: (a 4 TB hard disk: models load several times
+slower from it, 56 MB/s measured writing a 4 GB file there) nor E: (a USB SSD: unplugging it takes the models away).
+C: had 66 GB free on 2026-10-12. **What moves:** the farm's own model files (`%APPDATA%\LlmOnLan Farm\farm\.models`, and
+`.stt\models` if speech to text ever ran), Ollama's models (`C:\Users\ateliernum\.ollama\models`, 127 GB, run by the
+Ollama desktop app), and Ubuntu's Linux disk (`C:\Users\ateliernum\AppData\Local\wsl\{919701f6-…}\ext4.vhdx`, 421 GB:
+vLLM, its models and the owner's other Linux work). Before O1, write down `C:`'s free space.
+
+### O1 The farm's models and Ollama's copy to F:, with a cut in the middle
+*Proves:* Move here copies, checks, switches, and deletes only after; a cut is finished, never trusted; the farm keeps
+serving while it copies. *Was:* new (the owner's ask, 2026-10-12).
+1. Panel ▸ **Model storage**. Note the lines and their sizes (Ollama's says *run by the Ollama app or a service*).
+2. Type `F:\LlmOnLan` (or **Browse…**) in **Keep everything here**, press **Move here**, and read the question.
+3. Accept. When the bar is around 20 %, press **Stop** on it. Then press **Move here** again.
+4. Around 50 %, quit the Farm app (Quit). Open it again; read the Model storage card; press **Move here**.
+5. Chat from the laptop during the copy.
+
+*Expect:* step 2 lists each store with its size, *127 GB … from C:\Users\ateliernum\.ollama\models*, the space to copy
+and the space free on F:, no hard-disk warning, and the Ollama app's step announced. Step 3: *Stopped. Nothing was
+switched*; step 4: *A move to F:\LlmOnLan did not finish … Move here goes on from where it stopped*, and it does
+(the size to copy is what was left plus the file that was half copied). Chats work during the copy; if llama.cpp
+serves from these files, it stops for about a minute at the switch. At the end the bar says how many GB were freed,
+`%APPDATA%\LlmOnLan Farm\farm\.models` is gone, the card shows `F:\LlmOnLan\gguf`, and the Ollama step is said.
+- [ ] Done · Found:
+
+### O2 Ollama's step, then Finish
+*Proves:* the 127 GB are deleted only once the Ollama app reads the new folder. *Was:* new.
+1. Press **Finish** first, before anything else: it must refuse.
+2. Ollama app (its icon by the clock) ▸ **Settings** ▸ **Model location** ▸ `F:\LlmOnLan\ollama`. Ollama starts again
+   by itself. In a terminal, `ollama list`: every model is there.
+3. Press **Finish**.
+
+*Expect:* step 1: *One step left for Ollama's models …* and `C:\Users\ateliernum\.ollama\models` untouched. Step 3:
+about *127 GB freed*; C: has ~127 GB more free; `ollama list` unchanged; document reading (gemma4:12b) reads a scanned
+PDF from the laptop. If Finish keeps saying the step is left, write down what `%LOCALAPPDATA%\Ollama\server.log` says
+after `OLLAMA_MODELS:` at its last start.
+- [ ] Done · Found:
+
+### O3 Ubuntu's Linux disk to F:
+*Proves:* vLLM works the same after its whole Linux moved; nothing else in Ubuntu is lost. *Was:* new. **Never run by
+the agent on the real Ubuntu** (only on a scratch distribution: the refusals, and *WSL keeps the disk* while another
+Linux runs).
+1. Note what you keep in Ubuntu besides vLLM (other projects). Quit anything running in it, Docker Desktop included.
+2. Panel ▸ vLLM card ▸ **WSL's Linux disk** (*Ubuntu, 421 GB, in C:\Users\…\wsl\{919701f6-…}*). Type `F:\WSL\Ubuntu`,
+   press **Move…** and read the question.
+3. Accept. Watch the bar (the new disk growing). 421 GB NVMe to NVMe: expect about 7–10 minutes.
+4. If it ends with *WSL keeps Ubuntu's disk in use*, press **Move…** again: the question now says all of WSL stops.
+
+*Expect:* the question names Ubuntu, its size, that EVERYTHING in it moves, that WSL stops (all of it when another
+Linux runs, named), that vLLM stops first and starts again. At the end: *Ubuntu's Linux disk is in F:\WSL\Ubuntu now
+(N min)*, vLLM serves again (Performance card), a chat works; `wsl -d Ubuntu` opens with your files;
+`reg query HKCU\Software\Microsoft\Windows\CurrentVersion\Lxss /s` shows `BasePath F:\WSL\Ubuntu`; C: has ~421 GB
+more free. Write down the minutes.
+- [ ] Done · Found:
+
+### O4 Use the models in this folder
+*Proves:* models already on disk are used where they are, nothing copied. *Was:* new.
+1. **Use the models in this folder** ▸ a folder with a .gguf (any, e.g. a copy in `D:\models`) ▸ **Look**. The
+   llama.cpp card opens with what was found. Tick it, **Add the ticked ones**, then **Use this** and **Switch to
+   llama.cpp**; chat. Switch back.
+2. **Look** in `/home/ateliernum/lol-vllm/hf` (a folder of WSL's Linux): the vLLM card lists its models (the ones
+   already in the list say so).
+
+*Expect:* the .gguf serves from its own folder (the llama.cpp line says *On this computer: D:\models*); nothing was
+copied into `F:\LlmOnLan\gguf`; Remove on it never deletes the file.
+- [ ] Done · Found:
+
+### O5 A hard disk and a USB drive are said
+1. Type `D:\LlmOnLan` in Keep everything here and press **Move here**: read the question, then **Cancel**.
+2. The same with `E:\LlmOnLan`.
+
+*Expect:* D: *This folder is on a hard disk: models load from it several times slower…*; E: *…on a USB drive…*.
+Nothing moved.
+- [ ] Done · Found:
+
 ---
 
 # After each session
@@ -1567,6 +1646,13 @@ warning but goes on.
 7. **The vLLM button's number on a small card** (K5) was written as *about 35 GB*; with document search on, the
    farm counts its 1.5 GB too, so the sentence may say a little more.
 8. **Candidate builds for the ★ tests:** a local build, or a pre-release tag.
+9. **Model storage (O).** (a) The farm does not change the Ollama app's model location itself: the app keeps it in its
+   own database, which wins over the `OLLAMA_MODELS` variable, and changing it there restarts the app's Ollama (its
+   source, app/store and app/ui). So the panel says what to set, and Finish checks it. Keep that, or have the farm
+   write it? (b) Moving WSL's disk stops all of WSL when another Linux runs (measured: WSL keeps a stopped
+   distribution's disk while any other runs); the panel asks a second time, naming them. (c) Classify's weights (in
+   the Hugging Face cache) and Kokoro's (in its folder) do not move: small, and not models a person chooses. Move them
+   too?
 
 ---
 
