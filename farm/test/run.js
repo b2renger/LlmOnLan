@@ -5600,6 +5600,36 @@ test('storage: a checksum the farm knows is checked (Ollama\'s blobs, document s
     } finally { fs.rmSync(root, { recursive: true, force: true }); }
 });
 
+test('storage: vLLM\'s weights on Linux — <root>/hf becomes a link to the farm\'s folder, the old one set aside, all of it idempotent', () => {
+    const root = tmpDir('hf');
+    try {
+        const vroot = path.join(root, 'lol-vllm'); const to = path.join(root, 'F', 'vllm', 'hf');
+        writeFile(path.join(vroot, 'hf', 'Qwen', 'config.json'), '{}');
+        writeFile(path.join(to, 'Qwen', 'config.json'), '{}');
+        const r = ST.linkHf(vroot, to);
+        assert.deepEqual([r.ok, r.oldDir], [true, path.join(vroot, 'hf.lolmove-old')]);
+        assert.ok(fs.lstatSync(path.join(vroot, 'hf')).isSymbolicLink(), 'hf is a link now');
+        assert.equal(fs.realpathSync(path.join(vroot, 'hf', 'Qwen')), fs.realpathSync(path.join(to, 'Qwen')), 'the same paths lead to the new folder');
+        assert.ok(fs.existsSync(path.join(vroot, 'hf.lolmove-old', 'Qwen', 'config.json')), 'the old copy is set aside, not deleted');
+        assert.deepEqual(ST.linkHf(vroot, to), { ok: true, error: null, oldDir: path.join(vroot, 'hf.lolmove-old') }, 'again: nothing changes');
+        // A move cut between the rename and the link: the link is made, the old copy found.
+        fs.rmSync(path.join(vroot, 'hf'), { recursive: true, force: true });
+        assert.ok(!fs.existsSync(path.join(vroot, 'hf')) && fs.existsSync(path.join(vroot, 'hf.lolmove-old')));
+        assert.equal(ST.linkHf(vroot, to).oldDir, path.join(vroot, 'hf.lolmove-old'));
+        assert.ok(fs.existsSync(path.join(vroot, 'hf', 'Qwen', 'config.json')));
+        // A second move: the link points at the newer folder.
+        const to2 = path.join(root, 'G', 'vllm', 'hf'); writeFile(path.join(to2, 'Qwen', 'config.json'), '{}');
+        assert.equal(ST.linkHf(vroot, to2).ok, true);
+        assert.equal(fs.realpathSync(path.join(vroot, 'hf')), fs.realpathSync(to2));
+        // A real hf beside a set-aside one from before: refused, nothing touched.
+        fs.rmSync(path.join(vroot, 'hf'), { recursive: true, force: true }); writeFile(path.join(vroot, 'hf', 'x'), 'x');
+        const no = ST.linkHf(vroot, to);
+        assert.equal(no.ok, false);
+        assert.match(no.error, /hf\.lolmove-old is already there/);
+        assert.ok(fs.existsSync(path.join(vroot, 'hf', 'x')));
+    } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});
+
 test('storage: the folders a person may not choose (the farm\'s own files, one store inside another, a network share)', () => {
     const farm = path.join(__dirname, '..');
     const win = process.platform === 'win32';

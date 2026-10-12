@@ -405,6 +405,34 @@ async function pruneEmpty(root) {
     return walk(root);
 }
 
+// Linux, vLLM's weights: <root>/hf becomes a link to `to` (the farm's folder), so every path vLLM, its scripts and the
+// farm use stays the same. A real folder there is renamed <root>/hf.lolmove-old first (its files are deleted later, each
+// only once its copy is checked), and everything is put back as it was when the link cannot be made. Idempotent: a move
+// cut short (even between the rename and the link) is finished by calling it again. → {ok, error, oldDir: where the old
+// copy is now, or null}. On Windows (the tests) the link is a junction.
+function linkHf(root, to) {
+    const hf = path.join(root, 'hf'); const old = `${hf}.lolmove-old`;
+    const real = (p) => { try { return fs.realpathSync(p); } catch { return null; } };
+    const oldDir = () => (fs.existsSync(old) ? old : null);
+    let st = null;
+    try { st = fs.lstatSync(hf); } catch { /* none: never made, or renamed by a run that stopped before the link */ }
+    if (st && st.isSymbolicLink() && real(hf) && real(hf) === real(to)) return { ok: true, error: null, oldDir: oldDir() };
+    if (st && !st.isSymbolicLink() && !st.isDirectory()) return { ok: false, error: `${hf} is not a folder.`, oldDir: null };
+    if (st && st.isDirectory() && fs.existsSync(old)) return { ok: false, error: `${old} is already there: move it away first.`, oldDir: null };
+    const prevLink = st && st.isSymbolicLink() ? fs.readlinkSync(hf) : null;
+    try {
+        if (prevLink != null) fs.unlinkSync(hf);
+        else if (st) fs.renameSync(hf, old);
+    } catch (e) { return { ok: false, error: `${hf} could not be moved aside (${e.code || e.message}).`, oldDir: null }; }
+    try {
+        fs.symlinkSync(to, hf, 'junction');
+    } catch (e) {
+        try { if (prevLink != null) fs.symlinkSync(prevLink, hf, 'junction'); else if (st) fs.renameSync(old, hf); } catch { /* said below */ }
+        return { ok: false, error: `${hf} could not be made to lead to ${to} (${e.code || e.message}); it is back as it was.`, oldDir: null };
+    }
+    return { ok: true, error: null, oldDir: oldDir() };
+}
+
 // ---- the move's journal: what a cut-short move had done, so Move here finishes it ------------------------------------
 
 const journalPath = (configPath) => path.join(path.dirname(configPath), '.lol-storage-move.json');
@@ -594,7 +622,7 @@ module.exports = {
     useStorage, dirsFor, ggufDir, sttDir, ollamaModelsFor, ollamaEnv, ollamaDefaultStore, vllmRootFor,
     norm, inside, realOf, sameFile, checkDir, freeBytes,
     parseWinDisk, linuxDiskKind, mountDevice, diskKind, slowDiskText,
-    listFiles, linkEscapes, digestOf, copyFile, sha256File, bytesToCopy, copyStore, verifyStore, deleteMoved, pruneEmpty,
+    listFiles, linkEscapes, digestOf, copyFile, sha256File, bytesToCopy, copyStore, verifyStore, deleteMoved, pruneEmpty, linkHf,
     journalPath, readJournal, writeJournal, clearJournal,
     manifestRels, storeHasModel, isOllamaStore, ollamaLogFile, ollamaStoreInLog, ollamaStoreFromLog, ollamaReads, modelsInStore,
     scanFolder, wslPathOf,

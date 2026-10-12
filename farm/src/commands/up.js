@@ -2947,7 +2947,7 @@ async function run(args) {
     async function vllmCheck() {
         if (wslMoving) return { ok: false, error: 'WSL\'s Linux disk is moving: the check waits until it is done.' };
         await checkVllm();
-        wslDiskInfo = await vllmMod.wslDisk(vllmTarget && vllmTarget.distro).catch(() => null);
+        wslDiskInfo = await vllmMod.wslDisk(wslDistroNow()).catch(() => null);
         await detectTakeOver();
         return { ok: true, vllm: vllmAdminState() };
     }
@@ -4214,12 +4214,14 @@ async function run(args) {
             }
             config.storage = next;
             storageMod.useStorage(config);
-            if (store('vllm')) {
-                const r = vllmLink(store('vllm'));
-                if (!r.ok) log.warn(`vLLM's models: ${r.error}`);
-            }
             storageMod.writeJournal(configPath, { to: dir, startedAt, stores: plan.stores });
             log.ok(`The farm's models are in ${dir} now.`);
+        }
+        // vLLM's weights (Linux): <root>/hf leads to the new folder, also when a move cut short is finished.
+        if (store('vllm')) {
+            const r = vllmLink(store('vllm'));
+            if (!r.ok) log.warn(`vLLM's models: ${r.error}`);
+            storageMod.writeJournal(configPath, { to: dir, startedAt, stores: plan.stores });
         }
         tell('starting again from the new folder');
         const failed = await startAgain(stopped);
@@ -4275,24 +4277,11 @@ async function run(args) {
         const after = fsMod.existsSync(s.from) ? (await bytesIn(s.from) || 0) : 0;
         return { done: true, freed: Math.max(0, before - after), kept: r.kept };
     }
-    // Linux: <root>/hf becomes a link to the new folder (the old folder renamed beside it until it is deleted), so every
-    // path vLLM, its scripts and the farm use stays the same. Idempotent: a move cut short finishes it.
+    // Linux: <root>/hf leads to the new folder (storage.linkHf), and the old copy is where it says from then on.
     function vllmLink(s) {
-        const hf = pathMod.posix.join(s.root, 'hf');
-        const old = `${hf}.lolmove-old`;
-        try {
-            let st = null;
-            try { st = fsMod.lstatSync(hf); } catch { /* none yet */ }
-            if (st && st.isSymbolicLink()) {
-                if (fsMod.realpathSync(hf) === s.to) return { ok: true };
-                fsMod.unlinkSync(hf);
-            } else if (st && st.isDirectory()) {
-                s.from = old;   // where the old copy is from now on (the journal says so)
-                fsMod.renameSync(hf, old);
-            }
-            fsMod.symlinkSync(s.to, hf, 'junction');
-            return { ok: true };
-        } catch (e) { return { ok: false, error: `${hf} could not be made to lead to ${s.to} (${e.code || e.message}).` }; }
+        const r = storageMod.linkHf(s.root, s.to);
+        if (r.ok && r.oldDir) s.from = r.oldDir;
+        return r;
     }
     async function stopFarmOllama() {
         for (const pid of oll.spawnedPids) { try { await killTree(pid); } catch { /* gone */ } }
