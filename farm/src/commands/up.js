@@ -4662,6 +4662,14 @@ function makeStorage(ctx) {
         const upAgain = async () => { for (let i = 0; i < 60; i++) { if (host && (await ollama.version(host, 1000))) return true; await sleep(1000); } return false; };
         const r = await ollamaApp.setModels(s.to, det, { upAgain });
         if (!r.ok) { notes.push(`${r.error} ${ollamaStepText(s)}`); return false; }
+        // It came back: is it reading the new folder? (An app that cannot reach a folder falls back to its default.)
+        const reads = host ? await storageMod.ollamaReads(host, s.to, tagsOf) : null;
+        if (reads !== true) {
+            const again = await ollamaApp.detect().catch(() => null);
+            if (again && again.ok) await ollamaApp.setModels(s.appBefore, again, { upAgain });
+            notes.push(`The Ollama app did not read ${s.to} after its Model location was set, so it was put back as it was (${s.appBefore || 'its default'}); nothing was deleted. ${ollamaStepText(s)}`);
+            return false;
+        }
         s.appSet = true; save();
         log.ok(`The Ollama app reads its models from ${s.to} now.`);
         return true;
