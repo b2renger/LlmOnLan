@@ -9,6 +9,7 @@
 #   install=<root> <vLLM version>             one per root with a vLLM, and venv_link=<root> when its .venv is a link,
 #                                             audio=<root> when it has vLLM's sound extras
 #   model=<folder> <kB> vision=<0|1> native=<window> partial=<0|1>   one per folder in <root>/hf
+#   pathmodel=<kB> vision= native= partial= <path>   one per folder of LOL_VLLM_PATHS_B64 that holds a model
 #   running=<pgid>, then env=LOL_VLLM_…=, arg=<each `vllm serve` argument, the model first>, ready=1
 #   found=<root> <port> <pgid>                every serve.sh running on this computer, from any root
 #   guard=<the memory guard's last line>  installing=<pgid>  managed=1 (the farm owns the root)
@@ -28,8 +29,9 @@ echo "cc=$(command -v gcc || command -v cc || command -v clang)"
 g=$(nvidia-smi --query-gpu=name,memory.total,memory.free,compute_cap --format=csv,noheader,nounits 2>/dev/null | head -1)
 [ -n "$g" ] && echo "gpu=$g"
 awk '/^MemTotal:/{print "mem_total_kb=" $2} /^MemAvailable:/{print "mem_available_kb=" $2}' /proc/meminfo
-d="$ROOT"; while [ ! -d "$d" ]; do d=$(dirname "$d"); done   # the root may not exist yet
-echo "disk_free_kb=$(df -Pk "$d" | awk 'NR==2{print $4}')"
+# The disk the models go to: hf/ (a link to the farm's model folder after a move), else the root (it may not exist yet).
+d="$ROOT/hf"; while [ ! -d "$d" ]; do d=$(dirname "$d"); done
+echo "disk_free_kb=$(df -Pk "$d/" | awk 'NR==2{print $4}')"
 seen=:
 IFS=: read -ra MORE <<< "${LOL_VLLM_ROOTS:-}"
 for r in "$ROOT" "${MORE[@]}"; do
@@ -50,6 +52,18 @@ for m in "$ROOT"/hf/*/; do
   part=0; { [ -n "$inc" ] || [ ! -f "$c" ]; } && part=1
   echo "model=$(basename "$m") $(du -sk "$m" | cut -f1) vision=$vis native=${nat:-} partial=$part"
 done
+# The list's models by their own folder anywhere in this Linux (LOL_VLLM_PATHS_B64: their paths, NUL-separated, in
+# base64): a line for each that holds a model, the path last.
+if [ -n "${LOL_VLLM_PATHS_B64:-}" ]; then
+  while IFS= read -r -d '' m || [ -n "$m" ]; do
+    c="$m/config.json"; [ -f "$c" ] || continue
+    inc=$(find "$m" -name '*.incomplete' 2>/dev/null | head -1)
+    vis=0; grep -q '"vision_config"' "$c" 2>/dev/null && vis=1
+    nat=$(grep -o '"max_position_embeddings": *[0-9]*' "$c" 2>/dev/null | head -1 | grep -o '[0-9]*$')
+    part=0; [ -n "$inc" ] && part=1
+    echo "pathmodel=$(du -skL "$m" 2>/dev/null | cut -f1) vision=$vis native=${nat:-} partial=$part $m"
+  done < <(printf %s "$LOL_VLLM_PATHS_B64" | base64 -d 2>/dev/null)
+fi
 G=$(cat "$ROOT/run/vllm.pgid" 2>/dev/null)
 if ours "$G" 'serve\.sh'; then
   echo "running=$G"

@@ -71,6 +71,7 @@
   input[type=text] { font: inherit; border-radius: 8px; border: 1px solid var(--border); background: var(--surface2); color: var(--text); padding: 5px 9px; min-width: 190px; }
   input[type=text]:focus { outline: none; border-color: var(--accent2); }
   .badges input[type=text] { min-width: 220px; }
+  .badges button { white-space: nowrap; }
   /* Long jobs (a model download is minutes) need to look like progress, not a hang.
      Sticky, because the operator is usually scrolled down at the card whose button
      STARTED the job (the model library) — a bar that renders off-screen at the top
@@ -120,6 +121,14 @@ let vllmLogLines = null;
 // The llama.cpp card, opened by the llama.cpp button while another engine serves: the operator sees and prepares what a
 // switch would serve before switching (owner, 2026-10-09).
 let lcOpen = localStorage.getItem('lolLcOpen') === '1';
+// Model storage (owner, 2026-10-12): what is typed in its folder fields (kept across the 5 s re-render), the last look
+// in a folder ("Use the models in this folder": each engine's card shows its part) and what is ticked there.
+let stDir = null;          // "Keep everything here" (null = the farm's folder, as it is)
+let stScanDir = '';        // "Use the models in this folder"
+let wslDest = '';          // WSL's Linux disk: where to move it
+let scanResult = null;     // { dir, found: { gguf, vllm, ollama }, truncated }
+const scanPicked = new Set();   // 'gguf:<path>' | 'vllm:<path>'
+let storageChecked = false;
 
 function toast(msg) {
   const t = $('#toast'); t.textContent = msg; t.classList.add('show');
@@ -466,6 +475,7 @@ function render(s) {
     + `<div class="hint">${standby
         ? `<b>Not served right now</b> — one engine at a time, and ${esc(engineName)} is serving. These stay installed for an engine switch, and document reading uses its model from here.`
         : 'These are what this farm serves. The ★ one is what clients auto-select.'}</div>`
+    + ollamaStorageRows(s, jobRunning)
     + rows
     + `<div class="row"><span></span><span><div class="mname">Download a model</div>`
     + `<div class="meta">an Ollama model name, e.g. <b>gemma4:12b</b> or <b>qwen3.8:14b</b> — downloaded to this box and offered to clients while Ollama is the engine</div></span>`
@@ -578,6 +588,7 @@ function render(s) {
     + perfCard
     + libCard
     + ollamaCard
+    + storageCard(s, jobRunning)
     + `<div class="card"><h2>Plugins</h2>${pluginRows}${blenderRow}</div>`
     + `<div class="card"><details id="clients-d"${clientsOpen ? ' open' : ''}><summary><h2>Clients (${clients.length})${capLabel}</h2></summary>${seatRows}${metricsRow}${unverifiedRow}${clientRows}</details></div>`
     + `<div class="card"><h2>This box</h2><div class="health">${healthBits}</div></div>`;
@@ -590,6 +601,7 @@ function render(s) {
   // Stop on either bar (the job, the download).
   app.querySelectorAll('button[data-cancel]').forEach((b) => { b.onclick = () => post('/lol/admin/job/cancel', { slot: b.dataset.cancel }, b, 'Stopping…'); });
   wireVllm(s);
+  wireStorage(s);
   const lcServing = be.engine === 'llama.cpp';
   app.querySelectorAll('button[data-lcuse]').forEach((b) => { b.onclick = () => post('/lol/admin/llamacpp/model', { id: b.dataset.lcuse }, b, lcServing ? 'Loading the model…' : 'Downloading…'); });
   app.querySelectorAll('button[data-lcswitch]').forEach((b) => { b.onclick = () => { if (confirm(switchConfirm(s, 'llamacpp'))) post('/lol/admin/backend', { engine: 'llamacpp' }, b, 'Switching…'); }; });
@@ -1046,7 +1058,7 @@ function vllmTrade(s, slots, ctx, kv) {
 function lcChosen(s) {
   const lc = s.llamacpp || {};
   if (!lc.model) return null;
-  return (lc.library || []).find((e) => e.url === lc.model) || { label: String(lc.model).split('/').pop(), url: lc.model, downloaded: false };
+  return (lc.library || []).find((e) => (e.url || e.path) === lc.model) || { label: String(lc.model).split(/[\\/]/).pop(), url: lc.model, downloaded: false };
 }
 
 // The llama.cpp card ("Model · llama.cpp"): while llama.cpp serves, and, before a switch, once the operator pressed
@@ -1063,22 +1075,25 @@ function llamacppCard(s, jobRunning) {
     out.push(`<div class="hint">llama.cpp serves one model, fast, for a few people at once. Choose here the model it will serve: <b>Use this</b> downloads it now, and ${esc(now)} keeps serving meanwhile. Nothing changes for the people connected until you press <b>Switch to llama.cpp</b>.</div>`);
   }
   out.push((lc.library || []).map((e) => {
-    const active = e.url === lc.model;
+    const active = (e.url || e.path) === lc.model;   // a link, or a file used where it is
     const meta = [e.sizeGb ? e.sizeGb + ' GB' : '', e.mtp ? 'has MTP head' : '', e.note].filter(Boolean).join(' · ');
     const badges = (active ? `<span class="badge on">${serving ? 'serving' : 'chosen'}</span>` : '')
       + (!serving && e.downloaded ? '<span class="badge">downloaded</span>' : '');
-    // Before a switch, the chosen model not on this computer yet gets Download (the same request downloads it).
+    // Before a switch, the chosen model not on this computer yet gets Download (the same request downloads it). A file
+    // used where it is (by path) has nothing to download: when it is gone, the line says so.
     const use = !active ? `<button class="start" data-lcuse="${esc(e.id)}"${off}>Use this</button>`
-      : !serving && !e.downloaded ? `<button class="start" data-lcuse="${esc(e.id)}"${off}>Download</button>` : '';
+      : !serving && !e.downloaded && e.url ? `<button class="start" data-lcuse="${esc(e.id)}"${off}>Download</button>` : '';
+    const gone = e.path && !e.downloaded ? `<div class="warnline">Not found at ${esc(e.path)}: was the file moved or its drive unplugged?</div>` : '';
     return `<div class="row"><span class="dot${active && serving ? ' served' : ''}"></span>`
       + `<span><div class="mname">${esc(e.label)}</div>`
-      + `<div class="meta">${esc(meta)}</div></span>`
+      + `<div class="meta">${esc(meta)}</div>${gone}</span>`
       + `<span class="badges">${badges}${use}`
       + (active ? '' : `<button class="stop" data-lcdel="${esc(e.id)}"${off}>Remove</button>`)
       + '</span></div>';
   }).join('') || '<div class="empty">No models in the library.</div>');
+  out.push(scanRows('gguf', s, jobRunning));
   out.push('<div class="row"><span></span><span><div class="mname">Add a model</div>'
-    + '<div class="meta">paste the link to a .gguf file — on HuggingFace, the file\'s <b>download</b> link (…/resolve/main/….gguf). Split models (…-00001-of-00003.gguf) work too: paste any part, all parts are fetched</div></span></span>'
+    + '<div class="meta">paste the link to a .gguf file — on HuggingFace, the file\'s <b>download</b> link (…/resolve/main/….gguf). Split models (…-00001-of-00003.gguf) work too: paste any part, all parts are fetched. Or the whole path of a .gguf already on this computer (F:\\models\\….gguf): it is used where it is, nothing is copied.</div></span></span>'
     + '<span class="badges"><input id="lc-url" type="text" placeholder="https://huggingface.co/…/model.gguf" spellcheck="false" />'
     + `<button id="lc-add"${off}>Add</button></span></div>`);
   out.push(serving
@@ -1152,7 +1167,8 @@ function vllmCard(s, jobRunning) {
     ].join('');
     const size = e.sizeGb || e.gbOnDisk;
     const meta = [size ? `${size} GB` : '', e.note].filter(Boolean).join(' · ');
-    const files = e.downloaded || e.partial ? (e.gbOnDisk || e.sizeGb || 0) : 0;
+    // A folder used where it is (by path) is the operator's own: Remove never offers to delete it.
+    const files = !e.path && (e.downloaded || e.partial) ? (e.gbOnDisk || e.sizeGb || 0) : 0;
     const btns = [
       // A download uses vLLM's own tools: only once vLLM is installed (Install downloads the chosen model with it).
       !e.downloaded && e.repo && !downloading && v.installed ? `<button class="start" data-vdl="${esc(e.id)}"${off(!!dl)}>Download</button>` : '',
@@ -1168,6 +1184,7 @@ function vllmCard(s, jobRunning) {
     out.push(`<div class="row"><span></span><span><div class="meta">Also on this computer: ${esc(f.folder)}${f.gb != null ? ` (${f.gb} GB)` : ''}</div></span>`
       + `<span class="badges"><button data-vfolder="${esc(f.folder)}">Add to the list</button></span></div>`);
   }
+  out.push(scanRows('vllm', s, jobRunning));
   out.push(`<div class="row"><span></span><span><div class="mname">Add a model</div>`
     + `<div class="meta">the name of a model on Hugging Face (owner/name), made for vLLM. Adding only remembers it: press Download, then Use this.</div></span>`
     + `<span class="badges"><input id="vllm-repo" type="text" placeholder="nvidia/Qwen3.6-35B-A3B-NVFP4" spellcheck="false" /><button id="vllm-add">Add</button></span></div>`);
@@ -1182,6 +1199,7 @@ function vllmCard(s, jobRunning) {
       + (canStart ? `<button class="start" data-vstart${off(jobRunning)}>Start vLLM</button>` : '')
       + `</span></div>`);
   }
+  out.push(wslDiskRow(v, jobRunning, !!dl));
   out.push(`<div class="row"><span></span><span><div class="mname">vLLM's log</div>`
     + `<div class="meta">vLLM's own log, for when something goes wrong. It does not record conversations, but an error line can quote a few words of a reply.</div></span>`
     + `<span class="badges">`
@@ -1193,6 +1211,231 @@ function vllmCard(s, jobRunning) {
   }
   out.push('</div>');
   return out.join('');
+}
+
+// ---- Model storage (owner, 2026-10-12: "point to a folder and say everything goes here, or look in this folder to
+// find models") ------------------------------------------------------------------------------------------------------
+const STORE_BY = { farm: 'run by the farm', other: 'run by the Ollama app or a service' };
+const canBrowse = () => typeof window !== 'undefined' && !!(window.lolFarmApp && window.lolFarmApp.chooseFolder);   // the Farm app's own folder picker
+const browseBtn = (target) => (canBrowse() ? `<button data-stbrowse="${target}" style="min-width:0">Browse…</button>` : '');
+function gbText(n) { return n == null ? '' : n >= 10 ? `${Math.round(n)} GB` : n >= 0.1 ? `${Math.round(n * 10) / 10} GB` : n > 0 ? 'less than 0.1 GB' : 'empty'; }
+
+// The card: where each store is now, "Keep everything here" (Move here), a move left unfinished (Finish, Forget), and
+// "Use the models in this folder" (Look; what it finds is listed on each engine's card).
+function storageCard(s, jobRunning) {
+  const st = s.storage;
+  if (!st) return '';
+  const mv = st.move; const dlBusy = !!(s.download && !s.download.done);
+  const off = (b) => (b ? ' disabled' : '');
+  const out = ['<div class="card" id="storage-card"><h2>Model storage</h2>',
+    `<div class="hint">Where this farm keeps its models. Choose ONE folder for everything it downloads: llama.cpp's models, document search, speech to text and Ollama's models${st.platform === 'linux' ? ', and vLLM\'s' : ''}. An SSD is best: models load from it every time an engine starts.${st.platform === 'win32' ? ' vLLM\'s models live in WSL\'s Linux disk, which moves from the vLLM card.' : ''}</div>`];
+  if (st.missing) out.push(`<div class="warnline">⚠ ${esc(st.missing)}</div>`);
+  if (st.stores == null) out.push('<div class="meta">Measuring the folders…</div>');
+  for (const x of st.stores || []) {
+    const where = x.dir ? esc(x.dir) : (x.guess ? `not found (looked in ${esc(x.guess)})` : 'not found');
+    const bits = [x.bytes != null ? gbText(x.bytes / 1e9) : '', x.id === 'ollama' && x.by ? STORE_BY[x.by] : ''].filter(Boolean).join(' · ');
+    out.push(`<div class="row"><span></span><span><div class="mname">${esc(x.label)}</div><div class="meta">${where}${bits ? ` · ${esc(bits)}` : ''}</div></span><span></span></div>`);
+  }
+  if (st.moving) {
+    out.push('<div class="hint">Moving: the bar at the top of the page says how far. The farm keeps serving until the switch.</div>');
+  } else if (mv) {
+    const left = (mv.left || []).map((x) => x.label).join(', ');
+    out.push(mv.switched
+      ? `<div class="warnline">The farm runs from ${esc(mv.to)}. Old copies are still to delete: ${esc(left || 'none')}.${mv.ollamaStep ? ' Ollama first needs its folder changed (below).' : ''}</div>`
+      : `<div class="warnline">A move to ${esc(mv.to)} did not finish: the farm still runs from the old folders. Move here goes on from where it stopped (what was copied is kept, a file half copied is copied again).</div>`);
+    const step = mv.switched && (mv.left || []).find((x) => x.id === 'ollama' && x.by === 'other');
+    if (step) out.push(`<div class="hint">${esc(ollamaStep(st.platform, step))}${st.platform === 'linux' ? '' : ' Or press Finish: when the farm can, it sets that itself (it quits the Ollama app and opens it again).'}</div>`);
+    out.push(`<div class="row"><span></span><span></span><span class="badges">`
+      + (mv.switched ? `<button class="start" data-stfinish${off(dlBusy)}>Finish</button>`
+        : `<button class="start" data-stmove${off(dlBusy || jobRunning)}>Move here</button>`)
+      + `<button data-stforget${off(dlBusy)}>Forget it</button>`
+      + '</span></div>');
+  }
+  const dir = stDir == null ? (st.dir || '') : stDir;
+  out.push(`<div class="row"><span></span><span><div class="mname">Keep everything here</div>`
+    + `<div class="meta">Move here copies what is in the folders above into this folder, checks every copy, switches, and only then deletes the old copies. The farm keeps serving while it copies; at the switch, what uses the files stops for about a minute.</div></span>`
+    + `<span class="badges"><input id="st-dir" type="text" spellcheck="false" placeholder="${st.platform === 'win32' ? 'F:\\LlmOnLan models' : '/data/llmonlan'}" value="${esc(dir)}" />${browseBtn('st-dir')}`
+    + `<button class="start" data-stmove${off(dlBusy || !!(mv && mv.switched))}>Move here</button></span></div>`);
+  if (st.dir && st.slow) out.push(`<div class="warnline">⚠ ${esc(st.slow)}</div>`);
+  if (st.dir && st.freeBytes != null) out.push(`<div class="meta">${esc(gbText(st.freeBytes / 1e9))} free on that drive.</div>`);
+  out.push(`<div class="row"><span></span><span><div class="mname">Use the models in this folder</div>`
+    + `<div class="meta">Looks for .gguf files (llama.cpp), Hugging Face model folders (vLLM) and an Ollama model folder. You pick what to add; it is used where it is, nothing is copied.${st.platform === 'win32' ? ' A folder of WSL\'s Linux starts with / (like /home/me/models).' : ''}</div></span>`
+    + `<span class="badges"><input id="st-scan" type="text" spellcheck="false" placeholder="${st.platform === 'win32' ? 'D:\\models' : '/data/models'}" value="${esc(stScanDir)}" />${browseBtn('st-scan')}<button data-stscan>Look</button></span></div>`);
+  if (scanResult) {
+    const f = scanResult.found || {};
+    const parts = [
+      f.gguf && f.gguf.length ? `${f.gguf.length} .gguf model${f.gguf.length === 1 ? '' : 's'} (on the llama.cpp card)` : '',
+      f.vllm && f.vllm.length ? `${f.vllm.length} model folder${f.vllm.length === 1 ? '' : 's'} for vLLM (on the vLLM card)` : '',
+      f.ollama && f.ollama.length ? `${f.ollama.length === 1 ? 'an Ollama model folder' : `${f.ollama.length} Ollama model folders`} (on the Ollama card)` : '',
+    ].filter(Boolean);
+    out.push(`<div class="hint">${parts.length ? `In ${esc(scanResult.dir)}: ${esc(parts.join(', '))}.` : `No models found in ${esc(scanResult.dir)}.`}${scanResult.truncated ? ' It holds very many files: the look stopped early; choose a folder closer to the models.' : ''} <button data-stscanclose style="min-width:0">Clear</button></div>`);
+  }
+  out.push('</div>');
+  return out.join('');
+}
+function ollamaStep(platform, x) {
+  return (platform === 'linux'
+    ? `Ollama runs as a service on this computer: give it OLLAMA_MODELS=${x.to} (sudo systemctl edit ollama, then sudo systemctl restart ollama), and let its user read and write that folder (Ollama writes there when it downloads or deletes a model).`
+    : `One step is yours, in the Ollama app (its icon by the clock, then Settings): set Model location to ${x.to}. Ollama starts again by itself.`)
+    + ` Then press Finish: the farm checks that Ollama reads the new folder, and only then deletes the old copy in ${x.from}.`;
+}
+// What a look in a folder found for one engine ('gguf' on the llama.cpp card, 'vllm' on the vLLM card), with ticks.
+// What is already in the list is read from the farm's own state, never from the page's memory.
+const samePath = (a, b) => (/^[A-Za-z]:/.test(String(a || ''))   // Windows: a name in either case is the same
+  ? String(a).toLowerCase() === String(b || '').toLowerCase() : !!a && a === b);
+function scanRows(kind, s, jobRunning) {
+  const lib = kind === 'gguf' ? ((s.llamacpp || {}).library || []) : ((s.vllm || {}).library || []);
+  const list = scanResult && scanResult.found ? (scanResult.found[kind] || []) : [];
+  if (!list.length) return '';
+  const rows = list.map((x) => {
+    const key = `${kind}:${x.path}`;
+    const note = kind === 'gguf'
+      ? [x.gb ? gbText(x.gb) : '', x.parts > 1 ? `${x.parts} parts` : '', x.mmproj ? 'sees images (its projector is next to it)' : ''].filter(Boolean).join(' · ')
+      : [x.gb ? gbText(x.gb) : '', x.vision ? 'sees images' : '', x.slow ? 'on a Windows drive: it loads slower through WSL than from WSL\'s own disk' : ''].filter(Boolean).join(' · ');
+    const why = lib.some((e) => e.path && samePath(e.path, x.path)) ? 'already in the list' : kind === 'gguf' && !x.complete ? 'a part of it is missing' : kind === 'vllm' && !x.usable ? 'not reachable from WSL' : '';
+    return `<div class="row"><span></span><span><div class="mname"><label><input type="checkbox" data-stpick="${esc(key)}"${scanPicked.has(key) ? ' checked' : ''}${why ? ' disabled' : ''} /> ${esc(x.label)}</label></div>`
+      + `<div class="meta">${esc(x.shown || x.path)}${note ? ` · ${esc(note)}` : ''}${why ? ` · ${esc(why)}` : ''}</div></span><span></span></div>`;
+  }).join('');
+  return `<div class="hint">Found in ${esc(scanResult.dir)} — tick what to add; it is used where it is.</div>${rows}`
+    + `<div class="row"><span></span><span></span><span class="badges">${kind === 'gguf' && scanResult.into ? `<button data-stmovein${jobRunning ? ' disabled' : ''}>Move the ticked ones into the farm's folder</button>` : ''}<button class="start" data-stuse="${kind}"${jobRunning ? ' disabled' : ''}>Add the ticked ones</button></span></div>`;
+}
+// The Ollama card: the folder its models are in, and an Ollama model folder found by a look (Use this folder).
+function ollamaStorageRows(s, jobRunning) {
+  const st = s.storage || {};
+  const x = (st.stores || []).find((y) => y.id === 'ollama');
+  const out = [];
+  if (x) out.push(`<div class="meta" style="margin:0 0 6px">Models in ${x.dir ? esc(x.dir) : 'a folder the farm could not find'}${x.by ? ` · Ollama is ${esc(STORE_BY[x.by])}` : ''}.</div>`);
+  const found = scanResult && scanResult.found ? (scanResult.found.ollama || []) : [];
+  for (const o of found) {
+    const names = (o.models || []).slice(0, 6).join(', ') + ((o.models || []).length > 6 ? ', …' : '');
+    out.push(`<div class="row"><span></span><span><div class="mname">Ollama model folder: ${esc(o.path)}</div>`
+      + `<div class="meta">${esc(gbText(o.gb))}${names ? ` · ${esc(names)}` : ''}. Ollama would read its models from there; the models of its folder now stay where they are, not deleted.${st.ollamaBy === 'other' ? ' Ollama is run by the Ollama app here: the farm saves it and says what to set in the app.' : ''}</div></span>`
+      + `<span class="badges">${samePath(st.ollamaFolder, o.path) ? `<span class="badge on">chosen</span>${st.dir ? `<button data-stollamain${jobRunning ? ' disabled' : ''}>Move into the farm's folder</button>` : ''}` : `<button class="start" data-stollama="${esc(o.path)}"${jobRunning ? ' disabled' : ''}>Use this folder</button>`}</span></div>`);
+  }
+  return out.join('');
+}
+// The vLLM card, on Windows: WSL's Linux disk (vLLM and its models are in it) and its Move.
+function wslDiskRow(v, jobRunning, dlBusy) {
+  const w = v.wslDisk;
+  if (!w) return '';
+  const off = jobRunning || dlBusy || v.wslMoving ? ' disabled' : '';
+  return `<div class="row"><span></span><span><div class="mname">WSL's Linux disk</div>`
+    + `<div class="meta">${esc(w.distro)}${w.gb != null ? `, ${esc(gbText(w.gb))}` : ''}, in ${esc(w.folder)}. vLLM and its models are inside it, with everything else kept in ${esc(w.distro)}. To move it to another drive, give an empty folder there.</div></span>`
+    + `<span class="badges"><input id="wsl-dest" type="text" spellcheck="false" placeholder="F:\\WSL\\${esc(w.distro)}" value="${esc(wslDest || (v.storageDir ? `${v.storageDir.replace(/[\\/]+$/, '')}\\wsl\\${w.distro}` : ''))}" />${browseBtn('wsl-dest')}<button data-wslmove${off}>Move…</button></span></div>`;
+}
+// What Move here does, said before it starts (its dry run).
+function moveConfirm(d) {
+  const lines = [`Move the farm's models to ${d.dir}?`, ''];
+  for (const x of d.stores || []) lines.push(`• ${x.label}: ${gbText(x.gb)} from ${x.from}`);
+  if (!(d.stores || []).length) lines.push('Nothing to copy: what the farm downloads from now on goes there.');
+  else lines.push('', `${gbText(d.needGb)} to copy${d.freeGb != null ? `; ${gbText(d.freeGb)} free there` : ''}.${d.resumed ? ' It goes on from where the last move stopped.' : ''}`);
+  if (d.slow) lines.push('', `⚠ ${d.slow}`);
+  lines.push('', 'The farm keeps serving while it copies. At the switch, what uses these files stops for about a minute (a llama.cpp model loads again), then runs from the new folder; each old copy is deleted only after that.');
+  if (d.ollamaStep) {
+    lines.push('', d.ollamaApp
+      ? 'Ollama is run by the Ollama app here: its models are copied and checked first; only then does the farm set the app\'s Model location to the new folder, which quits the Ollama app and opens it again (a few seconds without Ollama). Its old copy is deleted once Ollama is seen reading the new folder.'
+      : 'Ollama is run by the Ollama app (or a service) here: its models are copied and checked first. Do NOT change its Model location before the move says it is done: Ollama would delete there what it does not know yet. Then set it (the panel says how) and press Finish; the old copy is deleted only after that.');
+  }
+  for (const n of d.notes || []) lines.push('', n);
+  return lines.join('\n');
+}
+function wslConfirm(d, dest) {
+  const rate = d.kind === 'hdd' || d.kind === 'usb' ? 0.1 : 1;   // GB/s: an SSD, a hard disk (56 MB/s measured here)
+  const min = d.gb ? Math.max(1, Math.round(d.gb / rate / 60)) : null;
+  return [`Move ${d.distro}'s Linux disk${d.gb != null ? ` (${gbText(d.gb)})` : ''} from ${d.from} to ${dest}?`, '',
+    `EVERYTHING in ${d.distro} moves with it: vLLM and its models, and anything else kept in that Linux (other projects too). Paths inside it do not change.`, '',
+    d.stopAll
+      ? `ALL of WSL stops for the move${d.others && d.others.length ? `: ${d.others.join(', ')} stop too, with what runs in them (start them again after)` : ', because it kept the disk last time'}. vLLM is stopped first and started again after.`
+      : `${d.distro} stops for the move, and WSL gets about a minute to let its disk go. vLLM is stopped first and started again after.`,
+    d.sameDrive ? 'It stays on the same drive: a few seconds.' : `It copies the whole disk: ${min ? `about ${min} minute${min === 1 ? '' : 's'}` : 'a while'}${d.kind === 'hdd' ? ' (a hard disk is slow)' : ''}, and cannot be stopped halfway.`,
+    ...(d.slow ? ['', `⚠ ${d.slow}`] : [])].join('\n');
+}
+function wireStorage(s) {
+  const on = (sel, fn) => app.querySelectorAll(sel).forEach((b) => { b.onclick = () => fn(b); });
+  const inp = (id, set) => { const el = $('#' + id); if (el) el.oninput = () => set(el.value); };
+  inp('st-dir', (x) => { stDir = x; });
+  inp('st-scan', (x) => { stScanDir = x; });
+  inp('wsl-dest', (x) => { wslDest = x; });
+  on('button[data-stbrowse]', async (b) => {
+    let p = null;
+    try { p = await window.lolFarmApp.chooseFolder(); } catch { /* no picker */ }
+    if (!p) return;
+    const id = b.dataset.stbrowse;
+    if (id === 'st-dir') stDir = p; else if (id === 'st-scan') stScanDir = p; else wslDest = p;
+    const el = $('#' + id); if (el) el.value = p;
+  });
+  on('button[data-stmove]', async (b) => {
+    const st = s.storage || {};
+    const dir = (st.move && !st.move.switched ? st.move.to : (stDir == null ? (st.dir || '') : stDir)).trim();
+    if (!dir) { toast('Type a folder, or press Browse.'); return; }
+    let d;
+    try { d = await api('/lol/admin/storage/move', { method: 'POST', body: JSON.stringify({ dir, dryRun: true }) }); }
+    catch (e) { if (e.unauthorized) { logout('Session expired — re-enter the token.'); return; } toast('Error: ' + (e.message || e)); return; }
+    if (d && d.ok === false) { toast(d.error || 'Action failed'); return; }
+    if (!confirm(moveConfirm(d))) return;
+    stDir = null;
+    post('/lol/admin/storage/move', { dir }, b, 'Moving the models…');
+  });
+  on('button[data-stfinish]', (b) => post('/lol/admin/storage/finish', {}, b, 'Finishing…'));
+  on('button[data-stforget]', (b) => { if (confirm('Forget this move? Nothing is deleted: what was not switched stays where it is, and what was already copied stays in the new folder.')) post('/lol/admin/storage/forget', {}, b, 'Forgotten.'); });
+  on('button[data-stscan]', async (b) => {
+    const dir = stScanDir.trim();
+    if (!dir) { toast('Type a folder, or press Browse.'); return; }
+    b.disabled = true; b.textContent = '…';
+    try {
+      const r = await api('/lol/admin/storage/scan', { method: 'POST', body: JSON.stringify({ dir }) });
+      if (r && r.ok === false) { toast(r.error || 'Could not look there.'); return; }
+      scanResult = r; scanPicked.clear();
+      // Each engine's card lists its part: the ones that are not on screen open.
+      if ((r.found.gguf || []).length && !lcOpen) { lcOpen = true; try { localStorage.setItem('lolLcOpen', '1'); } catch { /* private window */ } }
+      if ((r.found.vllm || []).length && !vllmOpen) { vllmOpen = true; try { localStorage.setItem('lolVllmOpen', '1'); } catch { /* private window */ } }
+    } catch (e) { if (e.unauthorized) { logout('Session expired — re-enter the token.'); return; } toast('Error: ' + (e.message || e)); return; }
+    finally { b.disabled = false; b.textContent = 'Look'; }
+    refresh(true);
+  });
+  on('button[data-stscanclose]', () => { scanResult = null; scanPicked.clear(); render(s); });
+  app.querySelectorAll('input[data-stpick]').forEach((c) => { c.onchange = () => { if (c.checked) scanPicked.add(c.dataset.stpick); else scanPicked.delete(c.dataset.stpick); }; });
+  on('button[data-stuse]', async (b) => {
+    const kind = b.dataset.stuse;
+    const paths = [...scanPicked].filter((k) => k.startsWith(kind + ':')).map((k) => ({ path: k.slice(kind.length + 1) }));
+    if (!paths.length) { toast('Tick at least one first.'); return; }
+    await post('/lol/admin/storage/use', { [kind]: paths }, b, 'Added.');
+    for (const k of [...scanPicked]) if (k.startsWith(kind + ':')) scanPicked.delete(k);
+  });
+  on('button[data-stmovein]', (b) => {
+    const paths = [...scanPicked].filter((k) => k.startsWith('gguf:')).map((k) => ({ path: k.slice(5) }));
+    if (!paths.length) { toast('Tick at least one first.'); return; }
+    if (!confirm(`Move ${paths.length} model${paths.length === 1 ? '' : 's'} into ${scanResult.into}? Each is copied there and checked, then DELETED from where it is now (another program that reads it there will not find it any more). The farm lists them from its folder.`)) return;
+    post('/lol/admin/storage/move-in', { gguf: paths }, b, 'Moving into the farm\'s folder…');
+    for (const k of [...scanPicked]) if (k.startsWith('gguf:')) scanPicked.delete(k);
+  });
+  on('button[data-stollamain]', async (b) => {
+    const st = s.storage || {};
+    let d;
+    try { d = await api('/lol/admin/storage/move', { method: 'POST', body: JSON.stringify({ dir: st.dir, moveLent: true, dryRun: true }) }); }
+    catch (e) { if (e.unauthorized) { logout('Session expired — re-enter the token.'); return; } toast('Error: ' + (e.message || e)); return; }
+    if (d && d.ok === false) { toast(d.error || 'Action failed'); return; }
+    if (!confirm(moveConfirm(d))) return;
+    post('/lol/admin/storage/move', { dir: st.dir, moveLent: true }, b, 'Moving the models…');
+  });
+  on('button[data-stollama]', (b) => {
+    if (!confirm(`Let Ollama read its models from ${b.dataset.stollama}? The models of its folder now are not deleted, but Ollama will not list them any more.`)) return;
+    post('/lol/admin/storage/use', { ollama: b.dataset.stollama }, b, 'Saved.');
+  });
+  on('button[data-wslmove]', async (b) => {
+    const el = $('#wsl-dest');
+    const dest = (wslDest || (el ? el.value : '')).trim();
+    if (!dest) { toast('Type an empty folder on the other drive, or press Browse.'); return; }
+    let d;
+    try { d = await api('/lol/admin/vllm/wsl-move', { method: 'POST', body: JSON.stringify({ folder: dest, dryRun: true }) }); }
+    catch (e) { if (e.unauthorized) { logout('Session expired — re-enter the token.'); return; } toast('Error: ' + (e.message || e)); return; }
+    if (d && d.ok === false) { toast(d.error || 'Action failed'); return; }
+    if (d && d.already) { toast(d.message); return; }
+    if (!confirm(wslConfirm(d, dest))) return;
+    post('/lol/admin/vllm/wsl-move', { folder: dest, stopAll: !!d.stopAll, distro: d.distro, others: d.others || [] }, b, 'Moving the Linux disk…');
+  });
+  // The folders are measured when the page opens (then at most once a minute, in the background).
+  if (!storageChecked && s.storage && s.storage.stores == null) { storageChecked = true; api('/lol/admin/storage/check', { method: 'POST', body: '{}' }).then(() => refresh(true)).catch(() => {}); }
 }
 
 // "Let the farm run vLLM" (§9.2): a vLLM on this computer that the farm routes to without running it. The farm

@@ -94,8 +94,8 @@ async function ensureClassify() {
 }
 
 // Spawn <venv python> -m uvicorn classify_server:app, cwd = pysvc, bound where config.proxy.host
-// says (net.serviceHosts). opts = { key }. `spawnFn` is for tests. HF_HOME stays the default
-// (the weights cache is shared with anything else on the box that uses Hugging Face).
+// says (net.serviceHosts). opts = { key }. `spawnFn` is for tests. Laya's weights: in the farm's model folder once one is
+// chosen (<dir>/classify, its own Hugging Face cache: storage.js), else the machine's shared Hugging Face cache.
 function spawnClassify(config, opts, spawnFn = spawn) {
     const bind = serviceHosts(config.proxy && config.proxy.host).bind;
     return spawnFn(venvPython(), ['-m', 'uvicorn', 'classify_server:app', '--host', bind, '--port', String(config.classify.port), '--no-access-log'], {
@@ -108,6 +108,7 @@ function spawnClassify(config, opts, spawnFn = spawn) {
             CLASSIFY_API_KEY: opts.key,
             CLASSIFY_THREADS: String(config.classify.threads),
             CLASSIFY_MAX_ITEMS: String(config.classify.maxItems),
+            ...(require('./storage').classifyCache() ? { HF_HUB_CACHE: require('./storage').classifyCache() } : {}),
             PYTHONUTF8: '1',
             PYTHONIOENCODING: 'utf-8',
         },

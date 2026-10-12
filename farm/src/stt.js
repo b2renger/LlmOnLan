@@ -13,8 +13,8 @@
 // The CUDA libraries come as pip wheels into the venv (cuBLAS; cuDNN too on Linux), never a system install, and
 // the service falls back to the CPU model by itself when the GPU does not load (/health says why).
 //
-// OFF by default. The model downloads at the first start into farm/.stt/models, so `rm -rf farm/.stt` is a full
-// uninstall. Confucius4-R2T2 (streaming, GPU, Linux/vLLM, a NetEase weight licence) is NOT installed here: an
+// OFF by default. The model downloads at the first start into farm/.stt/models (or the farm's model folder, storage.js),
+// so `rm -rf farm/.stt` is a full uninstall. Confucius4-R2T2 (streaming, GPU, Linux/vLLM, a NetEase weight licence) is NOT installed here: an
 // operator who wants it runs it themselves once its licence is read (plan v2 §3.3).
 // Auxiliary: any failure warns and the farm still comes up.
 
@@ -31,7 +31,9 @@ const ROOT = path.join(__dirname, '..', '.stt');        // farm/.stt
 const VENV = path.join(ROOT, 'venv');
 const PYSVC = path.join(__dirname, 'pysvc');
 const MARKER = path.join(ROOT, '.installed');
-const MODELS_DIR = path.join(ROOT, 'models');   // faster-whisper's download_root (a Hugging Face cache layout)
+// faster-whisper's download_root (a Hugging Face cache layout): farm/.stt/models, or <storage.dir>/speech-to-text once the
+// operator chose a folder for the farm's models (storage.js).
+const modelsDir = () => require('./storage').sttDir();
 
 // Pinned to what Open WebUI 0.11.4's sidecar runs: faster-whisper 1.2.1, CTranslate2 4.8.2 (CUDA 12) and PyAV 18.1.0.
 // PyAV 19 dropped the `metadata_errors` argument faster-whisper 1.2.1 passes: an unpinned install from 2026-10 on
@@ -104,7 +106,7 @@ function installed(device = 'cpu') {
 }
 
 // The model is on disk (download_root's Hugging Face layout: models--<org>--faster-whisper-<name>/snapshots/*/model.bin).
-function modelOnDisk(model, root = MODELS_DIR) {
+function modelOnDisk(model, root = modelsDir()) {
     let dirs = [];
     try { dirs = fs.readdirSync(root).filter((d) => d.endsWith(`--faster-whisper-${model}`)); } catch { return false; }
     return dirs.some((d) => {
@@ -179,7 +181,7 @@ function spawnStt(config, opts, spawnFn = spawn) {
             STT_MODEL: String(s.model),
             STT_COMPUTE: COMPUTE[device],
             STT_CPU_MODEL: MODELS.cpu,           // what it loads when the GPU does not
-            STT_MODELS_DIR: MODELS_DIR,
+            STT_MODELS_DIR: modelsDir(),
             STT_CUDA_LIBS: libs.join(path.delimiter),
             ...(libs.length && !IS_WIN ? { LD_LIBRARY_PATH: [...libs, process.env.LD_LIBRARY_PATH].filter(Boolean).join(':') } : {}),
             STT_THREADS: String(s.threads),
@@ -240,5 +242,5 @@ async function sttAlive(port, host = '127.0.0.1') {
 
 module.exports = {
     loadError, healthInfo, ensureStt, spawnStt, waitForStt, sttAlive, depsSignature, FW_VERSION, AV_VERSION, CUDA_DEPS, MODELS,
-    RESERVE_GIB, cudaPossible, resolveStt, reserveGib, modelOnDisk, ready, cudaLibDirs, MODELS_DIR,
+    RESERVE_GIB, cudaPossible, resolveStt, reserveGib, modelOnDisk, ready, cudaLibDirs, modelsDir,
 };

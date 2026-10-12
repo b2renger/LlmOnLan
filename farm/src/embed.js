@@ -103,7 +103,12 @@ async function ensureEmbed(config, onProgress = () => {}) {
         const p = modelPath();
         let size = 0;
         try { size = fs.statSync(p).size; } catch { /* not downloaded yet */ }
-        if (size && size !== MODEL.bytes) fs.rmSync(p, { force: true });   // a different file under its name
+        // A different file under its name (the farm's folder may be one a person chose, with their own files in it): never
+        // deleted. The farm runs without document search and says what to do.
+        if (size && size !== MODEL.bytes) {
+            log.warn(`Document search: ${p} is there and is not its model (another size). The farm leaves that file alone and runs without document search: move it away, then start the farm again.`);
+            return false;
+        }
         if (size !== MODEL.bytes) {
             const got = await downloadGguf(MODEL.url, (pct) => onProgress('document search model', pct));
             if ((await sha256Of(got.path)) !== MODEL.sha256) {

@@ -191,7 +191,8 @@ async function ensureLocalOllamaUp(config) {
         if (await ollama.version(local)) return local;
     }
     try {
-        const child = spawn('ollama', ['serve'], { shell: true, detached: !IS_WIN, windowsHide: true, stdio: 'ignore' });
+        // Its models go where the farm keeps them (storage.js: the folder chosen in the panel), else Ollama's own place.
+        const child = spawn('ollama', ['serve'], { shell: true, detached: !IS_WIN, windowsHide: true, stdio: 'ignore', env: { ...process.env, ...require('../storage').ollamaEnv(config.storage) } });
         child.unref();
     } catch { /* CLI not on this process's PATH yet (fresh install) */ }
     for (let i = 0; i < 12; i++) {
@@ -384,6 +385,10 @@ async function run() {
     log.plain('');
 
     const config = ensureConfig();
+    // The farm's model folder is missing (a drive unplugged, a letter changed): nothing is downloaded into whatever disk
+    // answers to its name now.
+    const missing = require('../storage').missingText();
+    if (missing) { log.err(missing); return 1; }
 
     log.plain('');
     log.info('Ollama …');

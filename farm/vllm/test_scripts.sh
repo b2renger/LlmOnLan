@@ -235,6 +235,16 @@ t_status() {
   check "model= a partial one" grep -qE '^model=M2 [0-9]+ vision=0 native=32768 partial=1$' "$ST"
   check "no model= for a folder that is no model; no guard=, installing= or managed=" lacks '^model=notes|^guard=|^installing=|^managed=' "$ST"
   check "cc= the C compiler vLLM needs at a start (this Linux has one)" grep -qE '^cc=/' "$ST"
+  # Models of the list by their own folder (the farm's "Use the models in this folder"): a path with a space, a missing
+  # one, a folder that is no model; and hf/ as a link to a folder on another disk (the farm's model folder after a move).
+  mkdir -p "$ROOT2/my models/P1" "$ROOT2/notes"
+  printf '{"max_position_embeddings": 8192}' > "$ROOT2/my models/P1/config.json"; head -c 20000 /dev/zero > "$ROOT2/my models/P1/w.safetensors"
+  LOL_VLLM_PATHS_B64="$(b64 "$ROOT2/my models/P1" /nowhere/P2 "$ROOT2/notes")" LOL_VLLM_ROOT="$ROOT" bash "$D/status.sh" > "$ST"
+  check "pathmodel= the one that is there, its path last (with its space)" bash -c "[ \$(grep -c '^pathmodel=' '$ST') = 1 ] && grep -qE '^pathmodel=[0-9]+ vision=0 native=8192 partial=0 $ROOT2/my models/P1$' '$ST'"
+  rm -rf "$ROOT2/movedhf"; mv "$ROOT/hf" "$ROOT2/movedhf"; ln -s "$ROOT2/movedhf" "$ROOT/hf"
+  st
+  check "hf/ a link (a model folder moved): its models still listed" bash -c "grep -qE '^model=M1 [0-9]+ vision=1 native=262144 partial=0$' '$ST'"
+  rm "$ROOT/hf"; mv "$ROOT2/movedhf" "$ROOT/hf"; rm -rf "$ROOT2/my models" "$ROOT2/notes"
   st "$ROOT2"
   check "the other root: its floor in env=" bash -c "grep -qx 'running=$P2' '$ST' && grep -qx 'env=LOL_VLLM_MIN_FREE_GB=1' '$ST'"
   bash "$D/stop.sh" > /dev/null; LOL_VLLM_ROOT="$ROOT2" bash "$D/stop.sh" > /dev/null

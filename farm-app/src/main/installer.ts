@@ -103,17 +103,26 @@ function copyFarm(): void {
 // the beacon OFF (no other machine can reach/use the farm); shared (true) binds
 // 0.0.0.0 + advertises via the beacon. Everything else is left to
 // the farm's zod defaults (SearXNG/OCR on, TTS off, ports, the llamacpp backend).
-// contextLength seeds ollama.contextLength on first run; after that the farm panel owns it.
-function writeFarmConfig(adminToken: string, share: boolean, contextLength: number | 'auto'): void {
-    const config = {
+// contextLength seeds ollama.contextLength on first run; after that the farm panel owns it. A wizard run again (its
+// runtime missing) keeps what the file already says: the panel's settings, and above all `storage` (where the models
+// are: dropping it would point the farm at its emptied old folders).
+export function farmConfigFor(existingText: string | null, adminToken: string, share: boolean, contextLength: number | 'auto'): Record<string, unknown> {
+    let old: Record<string, any> = {};
+    try { old = existingText ? JSON.parse(existingText) || {} : {}; } catch { old = {}; }
+    return {
         name: `${require('os').hostname()} Farm`,
         models: [{ id: MODEL_ID, default: true }],
-        admin: { token: adminToken },
-        beacon: { enabled: share },
-        proxy: { host: share ? '0.0.0.0' : '127.0.0.1' },
         ollama: { contextLength },
+        ...old,
+        admin: { ...(old.admin || {}), token: adminToken },
+        beacon: { ...(old.beacon || {}), enabled: share },
+        proxy: { ...(old.proxy || {}), host: share ? '0.0.0.0' : '127.0.0.1' },
     };
-    fs.writeFileSync(farmConfigFile(), JSON.stringify(config, null, 2) + '\n', 'utf8');
+}
+function writeFarmConfig(adminToken: string, share: boolean, contextLength: number | 'auto'): void {
+    let existing: string | null = null;
+    try { existing = fs.readFileSync(farmConfigFile(), 'utf8'); } catch { /* first run */ }
+    fs.writeFileSync(farmConfigFile(), JSON.stringify(farmConfigFor(existing, adminToken, share, contextLength), null, 2) + '\n', 'utf8');
 }
 
 // The model name and context window used to be written here too. They moved into the
@@ -224,10 +233,25 @@ function ollamaVersion(timeoutMs = 3000): Promise<boolean> {
     });
 }
 
+// Where Ollama keeps its models: the folder chosen in the panel's Model storage (lol.config.json `storage`), with the
+// rule of farm/src/storage.js ollamaEnv: `storage.ollama` (never pruned: a folder the farm did not make), else
+// <storage.dir>/ollama, else Ollama's own place. A storage.dir without its marker (.lol-storage) is a folder gone
+// missing (a drive unplugged): Ollama is not started on it (it would recreate it and download into whatever disk answers
+// to that name now).
+export function ollamaModelsEnv(configText?: string): Record<string, string> {
+    let s: { dir?: string; ollama?: string } = {};
+    try { s = JSON.parse(configText ?? fs.readFileSync(farmConfigFile(), 'utf8')).storage || {}; } catch { return {}; }
+    if (s.dir && !fs.existsSync(path.join(s.dir, '.lol-storage'))) {
+        throw new Error(`The model folder ${s.dir} is missing (is its drive plugged in?). The farm downloads nothing into it and starts nothing from it until it is back; then start the farm again.`);
+    }
+    if (s.ollama) return { OLLAMA_MODELS: s.ollama, OLLAMA_NOPRUNE: '1' };
+    return s.dir ? { OLLAMA_MODELS: path.join(s.dir, 'ollama') } : {};
+}
+
 async function startOllama(): Promise<ChildProcess | null> {
     if (await ollamaVersion()) return null; // one's already up (reuse it, don't own it)
     const child = spawn(bundledOllamaBin(), ['serve'], {
-        env: { ...childEnv(), OLLAMA_HOST: `${OLLAMA_HOST}:${OLLAMA_PORT}` },
+        env: { ...childEnv(), ...ollamaModelsEnv(), OLLAMA_HOST: `${OLLAMA_HOST}:${OLLAMA_PORT}` },
         detached: process.platform !== 'win32',
         windowsHide: true,
         stdio: 'ignore',

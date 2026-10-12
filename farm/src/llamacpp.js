@@ -224,7 +224,13 @@ function argsFor(config, modelPath, mmprojPath) {
 // is the path that can actually serve these.)
 const SHARD_RX = /-(\d{5})-of-(\d{5})\.gguf$/i;
 
-// All sibling URLs (1..N) for a sharded .gguf URL, or null for a single file.
+// A .gguf is named by its download link, or (an entry by path, "Use the models in this folder", 2026-10-12) by its
+// absolute path on this computer: then it is used where it is and never downloaded.
+const isUrl = (ref) => /^https?:\/\//i.test(String(ref || ''));
+// The file on this computer for a link (its place in the farm's model folder) or a path (itself).
+const fileFor = (ref) => (isUrl(ref) ? ggufPathFor(ref) : ref);
+
+// All sibling URLs (1..N) for a sharded .gguf URL (or path: the parts sit next to each other), or null for a single file.
 function shardUrls(url) {
     const m = String(url || '').match(SHARD_RX);
     if (!m) return null;
@@ -237,7 +243,7 @@ function shardUrls(url) {
 // Is this .gguf already downloaded (every part of a split one)? The panel's list says so before a switch, and Use
 // this then only chooses it.
 function onDisk(url) {
-    return (shardUrls(url) || [url]).every((u) => { try { return fs.statSync(ggufPathFor(u)).size > 0; } catch { return false; } });
+    return (shardUrls(url) || [url]).every((u) => { try { return fs.statSync(fileFor(u)).size > 0; } catch { return false; } });
 }
 
 // Shard 1's URL for any pasted part; single-file URLs pass through.
@@ -289,6 +295,15 @@ const gb = (bytes) => (bytes / 1e9).toFixed(1);
 async function ensureModel(config, onProgress = () => {}) {
     const c = config.llamacpp;
     if (!c.model) return { ok: false, message: 'No model is chosen for llama.cpp: add one to its list, then press Use this.' };
+    // A file already on this computer: used where it is, every part of a split one there.
+    if (!isUrl(c.model)) {
+        const first = normalizeModelUrl(c.model);
+        if (!onDisk(first)) return { ok: false, message: `${first} is not there any more (or a part of it is missing): add it again, or pick another model.` };
+        let mmproj = null;
+        if (c.mmproj && !isUrl(c.mmproj)) mmproj = fs.existsSync(c.mmproj) ? c.mmproj : null;
+        else if (c.mmproj) mmproj = (await downloadGguf(c.mmproj, (pct) => onProgress('mmproj', pct))).path;
+        return { ok: true, modelPath: first, mmprojPath: mmproj, cached: true };
+    }
     const parts = shardUrls(c.model);
     let model;
     if (parts) {
@@ -330,7 +345,7 @@ async function ensureModel(config, onProgress = () => {}) {
                 seen ? { bytes: seen, total: total || null } : null));
     }
     let mmproj = null;
-    if (c.mmproj) mmproj = (await downloadGguf(c.mmproj, (pct) => onProgress('mmproj', pct))).path;
+    if (c.mmproj) mmproj = isUrl(c.mmproj) ? (await downloadGguf(c.mmproj, (pct) => onProgress('mmproj', pct))).path : (fs.existsSync(c.mmproj) ? c.mmproj : null);
     return { ok: true, modelPath: model.path, mmprojPath: mmproj, cached: model.cached };
 }
 
@@ -427,6 +442,6 @@ module.exports = {
     PINNED_BUILD, ROOT, BIN_DIR, assetsFor,
     ensureLlamacpp, ensureModel, spawnLlamacpp, waitForLlamacpp, llamacppAlive, fetchMetrics, supported,
     argsFor, baseUrl, installed, installedBuild, serverBin,
-    shardUrls, normalizeModelUrl, weightsBytesFor, onDisk,
+    shardUrls, normalizeModelUrl, weightsBytesFor, onDisk, isUrl, fileFor,
     explainEngineFailure,
 };

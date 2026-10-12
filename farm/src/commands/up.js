@@ -20,7 +20,7 @@ const {
     writeLitellmConfig, buildLitellmConfig, servedEntries, ollamaServes, defaultModelEntry,
     carryNameAcross, applyNamePlan, engineFallback, engineOf,
 } = require('../litellm');
-const { buildSnapshot, backendInfo } = require('../snapshot');
+const { buildSnapshot, backendInfo, ggufName } = require('../snapshot');
 const { patchSection, patchConfigFile, readRawConfig, takeOverFile, undoTakeOverFile } = require('../configFile');
 const { detectHardware, gpuLiveStats, gpuFreeGb, untilSteady } = require('../systemInfo');
 const perfMod = require('../perf');
@@ -33,6 +33,7 @@ const { selectModels } = require('../modelPicker');
 const { makeServices, pluginsSummary } = require('../plugins/registry');
 const embedMod = require('../embed');
 const sttMod = require('../stt');
+const storageMod = require('../storage');
 const { sendKey: sendBusKey } = require('../bus');
 const { farmId, pluginKey } = require('../identity');
 const { startSelfServer } = require('../selfServer');
@@ -122,7 +123,13 @@ function spawnLocalOllama(config, baseUrl) {
         // load), so the env seed is the proven floor; the resolved value rides
         // num_ctx on every routed request, which is what governs served context.
         OLLAMA_CONTEXT_LENGTH: String(typeof config.ollama.contextLength === 'number' ? config.ollama.contextLength : 16384),
+        // Where its models are: the farm's model folder (storage.js), else Ollama's own place.
+        ...storageMod.ollamaEnv(config.storage),
     };
+    // The farm's model folder is missing (a drive unplugged): an Ollama started on it would create it and pull its models
+    // into whatever disk answers to that name now. Not started; said.
+    const missing = env.OLLAMA_MODELS ? storageMod.missingFor(env.OLLAMA_MODELS) : null;
+    if (missing) { log.err(`Ollama is not started: ${missing}`); return null; }
     try {
         const u = new URL(baseUrl);
         env.OLLAMA_HOST = `${u.hostname}:${u.port || 11434}`;
@@ -143,6 +150,8 @@ function spawnLocalOllama(config, baseUrl) {
 }
 
 const sleepMs = (ms) => new Promise((r) => setTimeout(r, ms));
+// Bytes as the panel says them: GB with one decimal, two below 1 GB.
+const GB = (b) => { const g = (b || 0) / 1e9; return g >= 1 ? Math.round(g * 10) / 10 : Math.round(g * 100) / 100; };
 
 // The bearer an external server may want (most local servers are keyless).
 const externalHeaders = (ex) => (ex.apiKey ? { authorization: `Bearer ${ex.apiKey}` } : {});
@@ -359,10 +368,12 @@ function makeJobs({ kick = () => {}, logger = log } = {}) {
         return { ok: true, started: true, job: view(j) };
     }
     // `onSettled` runs once the download is over (done): what records it (the runtime file) records its end too.
-    function runDownload(kind, label, fn, { cancel = null, about = null, onSettled = null } = {}) {
+    // `canCancel()` → a sentence while Stop cannot be honoured (the move's switch), else null.
+    function runDownload(kind, label, fn, { cancel = null, about = null, onSettled = null, canCancel = null } = {}) {
         if (dl && !dl.done) return { ok: false, error: `A download is already running: ${dl.label}.`, download: view(dl) };
         const j = open(kind, label, cancel);
         j.about = about;
+        j.canCancel = canCancel;
         dl = j;
         logger.step(`${label} …`);
         settle(j, label, Promise.resolve().then(() => fn(j.progress, ctl(j)))).then(() => onSettled && onSettled()).catch(() => {});
@@ -374,6 +385,8 @@ function makeJobs({ kick = () => {}, logger = log } = {}) {
         if (!j || j.done) return { ok: false, error: 'Nothing is running there.' };
         if (!j.cancel) return { ok: false, error: `${j.label} cannot be stopped halfway.` };
         if (j.cancelled) return { ok: true, already: true };
+        const no = j.canCancel ? j.canCancel() : null;
+        if (no) return { ok: false, error: no };
         j.cancelled = true;
         j.message = 'stopping …';
         Promise.resolve().then(j.cancel).catch((e) => logger.warn(`Stopping ${j.label}: ${(e && e.message) || e}`));
@@ -457,7 +470,8 @@ async function ensureOllama(config) {
     }
 
     if (!reachable.length) {
-        log.err('No reachable Ollama host. Start Ollama (https://ollama.com) and check ollama.hosts.');
+        // The farm's model folder missing is the reason, when it is: said as such (the farm starts no Ollama on it).
+        log.err(storageMod.missingText() ? `${storageMod.missingText()} The farm cannot start without Ollama.` : 'No reachable Ollama host. Start Ollama (https://ollama.com) and check ollama.hosts.');
         return null;
     }
 
@@ -489,7 +503,7 @@ async function ensureOllama(config) {
     }
     // numParallel: what the daemon runs until the farm restarts (its env applies only
     // at start) — a live slot change writes the config, not this.
-    return { reachable, spawnedPids, unmanagedHosts: alreadyUp, numParallel: config.ollama.numParallel };
+    return { reachable, spawnedPids, spawnedHosts: [...spawnedHosts], unmanagedHosts: alreadyUp, numParallel: config.ollama.numParallel };
 }
 
 async function pullMissing(config, reachable) {
@@ -661,6 +675,8 @@ async function run(args) {
     const { serialize } = jobs;
 
     log.info(`Bringing up ${log.paint.bold(config.name)} …`);
+    // The farm's model folder is missing: said now, and nothing downloads into it or starts from it (storage.js).
+    if (storageMod.missingText()) log.err(storageMod.missingText());
 
     // 0b. Detect hardware FIRST — the llama.cpp VRAM budget needs it before spawn
     //     (it used to be detected only when the snapshot was built, long after).
@@ -908,7 +924,7 @@ async function run(args) {
         try {
             const mp = (lastModelPath && fsMod.existsSync(lastModelPath))
                 ? lastModelPath
-                : (config.llamacpp.model ? ollama.ggufPathFor(llamacpp.normalizeModelUrl(config.llamacpp.model)) : null);
+                : (config.llamacpp.model ? llamacpp.fileFor(llamacpp.normalizeModelUrl(config.llamacpp.model)) : null);
             if (!mp || !fsMod.existsSync(mp)) return null;
             const meta = modelMeta(mp);
             // Split models: shard 1 (what llama-server is pointed at) can be a few
@@ -916,7 +932,7 @@ async function run(args) {
             const weightsGb = llamacpp.weightsBytesFor(mp) / 1e9;
             let mmprojGb = 0;
             if (config.llamacpp.mmproj) {
-                const pp = ollama.ggufPathFor(config.llamacpp.mmproj);
+                const pp = llamacpp.fileFor(config.llamacpp.mmproj);
                 mmprojGb = (pp && fsMod.existsSync(pp)) ? fsMod.statSync(pp).size / 1e9 : 0.8;
             }
             const cfgCtx = config.llamacpp.contextLength;
@@ -1293,6 +1309,12 @@ async function run(args) {
         vllmProbe = await vllmMod.probe(config, { hostGpu });
         const t = vllmMod.targetOf(config, vllmProbe);
         if (t) vllmTarget = t;
+        // The farm's folder is the source of truth (owner, 2026-10-12): with one chosen, the model folders in vLLM's hf/
+        // are its list (a folder dropped in joins it, one deleted leaves it).
+        if (config.storage.dir && !storageMod.missingText() && vllmProbe && vllmProbe.st) {
+            const s = vllmMod.syncFolderEntries(config.vllm.library || [], vllmProbe.st, { keepId: config.vllm.model });
+            if (s.changed) { config.vllm.library = s.library; persist('vllm', { library: s.library }); }
+        }
         return vllmProbe;
     }
     // Keep a server that runs with these settings (D9): what it was launched with becomes this run's numbers.
@@ -1593,7 +1615,8 @@ async function run(args) {
     // into a root someone else's vLLM runs from (an external server's, before the take-over) stops the download only.
     const vllmRuntime = () => {
         const serving = engineOf(config) === 'vllm';
-        return (serving || jobs.downloading()) && vllmTarget
+        const d = jobs.downloading();   // vLLM's own install or download (never a move of the models)
+        return (serving || (d && (d.kind === 'install' || d.kind === 'download'))) && vllmTarget
             ? { platform: vllmTarget.platform, distro: vllmTarget.distro, root: vllmTarget.root, port: vllmTarget.port, serving } : null;
     };
 
@@ -1856,6 +1879,13 @@ async function run(args) {
         vllmLibraryRemove: async () => ({ ok: false, error: 'farm still starting' }),
         vllmLog: async () => ({ ok: false, error: 'farm still starting' }),
         cancel: async () => ({ ok: false, error: 'farm still starting' }),
+        storageCheck: async () => ({ ok: false, error: 'farm still starting' }),
+        storageMove: async () => ({ ok: false, error: 'farm still starting' }),
+        storageFinish: async () => ({ ok: false, error: 'farm still starting' }),
+        storageForget: async () => ({ ok: false, error: 'farm still starting' }),
+        storageScan: async () => ({ ok: false, error: 'farm still starting' }),
+        storageUse: async () => ({ ok: false, error: 'farm still starting' }),
+        wslMove: async () => ({ ok: false, error: 'farm still starting' }),
     };
 
     // Connected desktop clients — each shell POSTs /lol/client-ping every ~10 s with
@@ -2097,13 +2127,14 @@ async function run(args) {
         if (llamacppChild && llamacppChild.pid) await killTree(llamacppChild.pid);
         for (const pid of oll.spawnedPids) await killTree(pid);
         // vLLM is stopped on purpose here (Ctrl-C, SIGTERM): only a crash leaves it for the next farm to adopt.
-        if (vllmTarget && (engineOf(config) === 'vllm' || jobs.downloading())) {
+        const vllmDl = () => { const d = jobs.downloading(); return !!(d && (d.kind === 'install' || d.kind === 'download')); };
+        if (vllmTarget && (engineOf(config) === 'vllm' || vllmDl())) {
             if (engineOf(config) === 'vllm') {
                 log.step('Stopping vLLM (this frees its GPU memory) …');
                 const r = await stopVllmProcess();
                 if (!r.ok) log.err(r.error);
             }
-            if (jobs.downloading()) await vllmMod.stopInstall(vllmTarget);
+            if (vllmDl()) await vllmMod.stopInstall(vllmTarget);
         }
         clearRuntime();
         log.ok('Farm stopped.');
@@ -2315,7 +2346,7 @@ async function run(args) {
                 model: config.llamacpp.model,
                 mmproj: config.llamacpp.mmproj,
                 // `downloaded`: the panel's list says it, so an operator can prepare a switch from Ollama or vLLM.
-                library: (config.llamacpp.library || []).map((e) => ({ ...e, downloaded: llamacpp.onDisk(e.url) })),
+                library: (config.llamacpp.library || []).map((e) => ({ ...e, downloaded: llamacpp.onDisk(e.url || e.path) })),
                 contextLength: config.llamacpp.contextLength,        // number, or 'auto'
                 contextResolved: config.llamacpp.contextResolved ?? null, // what actually serves
                 parallel: config.llamacpp.parallel,
@@ -2373,6 +2404,8 @@ async function run(args) {
             // The vLLM the farm runs (§3.5): its phase and what the last check found. The check itself runs only
             // on request (vllm/check), never per poll.
             vllm: vllmAdminState(),
+            // Where the farm keeps its models (the Model storage card).
+            storage: storageAdminState(),
             externalConfigured: externalConfigured(),
             download: downloadView(),
             // Whether the llama.cpp engine is even possible here, and why it fell
@@ -2870,7 +2903,7 @@ async function run(args) {
         // earlier"; a switch or a start still refuses during an install (vllmRefusal, startVllm).
         const pr = vllmProbe ? vllmMod.problemsFrom({ ...vllmProbe, installKind: dl ? 'download' : null }, config) : null;
         const inst = st && vllmTarget ? st.installs.find((i) => i.root === vllmTarget.root) : null;
-        const onDisk = (x) => st && st.models.find((m) => m.folder === vllmMod.folderOf(x));
+        const onDisk = (x) => vllmMod.diskOf(st, x);
         const gb = (n) => Math.round(n * 10) / 10;
         // What the panel's rows and trade line work with (§7.1): the card, the model's memory per person and its
         // window, what Automatic memory gives (what vLLM runs with, else worked out from the last check; null when
@@ -2901,7 +2934,7 @@ async function run(args) {
                 const m = onDisk(x);
                 return { ...x, downloaded: !!(m && !m.partial), partial: !!(m && m.partial), gbOnDisk: m ? gb(m.gb) : null, active: x.id === v.model, generic: vllmMod.isGeneric(x) };
             }),
-            foundFolders: st ? st.models.filter((m) => !(v.library || []).some((x) => vllmMod.folderOf(x) === m.folder)).map((m) => ({ folder: m.folder, gb: gb(m.gb) })) : [],
+            foundFolders: st ? st.models.filter((m) => m.folder && !(v.library || []).some((x) => !x.path && vllmMod.folderOf(x) === m.folder)).map((m) => ({ folder: m.folder, gb: gb(m.gb) })) : [],
             contextLength: v.contextLength, parallel: v.parallel, parallelResolved: v.parallelResolved ?? null,
             maxNumSeqs: v.maxNumSeqs, maxNumSeqsResolved: v.maxNumSeqsResolved ?? null,
             kvCacheGib: v.kvCacheGib, kvResolvedGib: v.kvResolvedGib ?? null,
@@ -2925,12 +2958,18 @@ async function run(args) {
             // "Let the farm run vLLM" (§9): the offer, then what was done, with Undo while it is possible.
             takeOver: takeOverOffer ? { root: takeOverOffer.root, running: takeOverOffer.running, distro: takeOverOffer.distro, platform: process.platform } : null,
             takenOver: takeOverDone ? { root: takeOverDone.offer.root, platform: process.platform, undo: takeOverUndoable() } : null,
+            // Windows: WSL's Linux disk, where vLLM and its models live (the card's Move, storage section below).
+            wslDisk: wslDiskInfo ? { distro: wslDiskInfo.distro, folder: wslDiskInfo.folder, gb: wslDiskInfo.bytes == null ? null : Math.round(wslDiskInfo.bytes / 1e8) / 10, drive: wslDiskInfo.drive } : null,
+            wslMoving,
+            storageDir: config.storage.dir || null,   // the WSL disk move offers <dir>\wsl\<distro> (one folder for everything)
         };
     }
     // Check this computer again (the panel's Check again, and the first open of the vLLM card), and whether a vLLM
     // the farm routes to as an external server can be taken over.
     async function vllmCheck() {
+        if (wslMoving) return { ok: false, error: 'WSL\'s Linux disk is moving: the check waits until it is done.' };
         await checkVllm();
+        wslDiskInfo = await vllmMod.wslDisk(wslDistroNow()).catch(() => null);
         await detectTakeOver();
         return { ok: true, vllm: vllmAdminState() };
     }
@@ -3051,6 +3090,7 @@ async function run(args) {
     // Download a model of the vLLM list, in the download slot (D7): it runs while vLLM serves another model, and
     // a stopped download keeps the files it finished.
     function vllmDownload(id) {
+        if (wslMoving) return { ok: false, error: 'WSL\'s Linux disk is moving: wait for it to finish.' };
         const e = (config.vllm.library || []).find((x) => x.id === id);
         if (!e) return { ok: false, error: 'That model is not in the vLLM list.' };
         if (!e.repo) return { ok: false, error: `${e.label} is a folder on this computer: there is nothing to download.` };
@@ -3083,6 +3123,7 @@ async function run(args) {
     // its files are in use.
     function vllmInstall() {
         if (!vllmSup.ok) return { ok: false, error: vllmMod.UNSUPPORTED };
+        if (wslMoving) return { ok: false, error: 'WSL\'s Linux disk is moving: wait for it to finish.' };
         const runningHere = () => (engineOf(config) === 'vllm' && !['stopped', 'guard', 'failed', null].includes(vllmState.phase))
             || !!(vllmProbe && vllmProbe.st && vllmProbe.st.running);
         const update = !!(vllmProbe && vllmProbe.st && vllmTarget && vllmProbe.st.installs.some((i) => i.root === vllmTarget.root));
@@ -3148,7 +3189,9 @@ async function run(args) {
         const d = jobs.downloading();
         if (d && d.about === e.id) return { ok: false, error: `${e.label} is being downloaded: stop the download first.` };
         let deleted = '';
-        if (body.deleteFiles) {
+        // A folder used where it is (by path) is the operator's: only its line goes, never its files.
+        if (body.deleteFiles && !e.path) {
+            if (wslMoving) return { ok: false, error: 'WSL\'s Linux disk is moving: delete its files once it is done.' };
             if (!vllmTarget) await checkVllm();
             if (!vllmTarget) return { ok: false, error: 'This computer did not answer the check. Press Check again.' };
             const r = await vllmMod.removeFolder(vllmTarget, vllmMod.folderOf(e));
@@ -3165,6 +3208,7 @@ async function run(args) {
     // vLLM's own log, its last lines (the panel's Show the log).
     async function vllmLog(lines = 200) {
         const n = Math.max(10, Math.min(1000, Math.round(Number(lines)) || 200));
+        if (wslMoving) return { ok: true, lines: ['WSL\'s Linux disk is moving: vLLM\'s log is inside it, readable once the move is done.'] };
         if (!vllmTarget && vllmSup.ok) await checkVllm().catch(() => null);
         if (!vllmTarget) return { ok: true, lines: [] };
         const r = await vllmMod.readLog(vllmTarget, { lastLines: n });
@@ -3176,8 +3220,8 @@ async function run(args) {
         if (!e) return { ok: false, error: 'That model is not in the vLLM list.' };
         if (e.id === config.vllm.model) return { ok: true, already: true, message: `${e.label} is already the one vLLM serves.` };
         const st = vllmProbe && vllmProbe.st;
-        const m = st && st.models.find((f) => f.folder === vllmMod.folderOf(e));
-        if (!m || m.partial) return { ok: false, error: `${e.label} is not downloaded yet: press Download next to it.` };
+        const m = vllmMod.diskOf(st, e);
+        if (!m || m.partial) return { ok: false, error: e.path ? `${e.label} is not in ${e.path} any more.` : `${e.label} is not downloaded yet: press Download next to it.` };
         config.vllm.model = e.id;
         const warn = persist('vllm', { model: e.id });
         return { ok: true, message: `vLLM will serve ${e.label} when you switch to it.${warn || ''}` };
@@ -3227,7 +3271,7 @@ async function run(args) {
         if (sel && sel.id) {
             const e = lib.find((x) => x.id === sel.id);
             if (!e) return { ok: false, error: `Unknown model "${sel.id}".` };
-            url = e.url; mmproj = e.mmproj || null; mtpOk = e.mtp; label = e.label;
+            url = e.url || e.path; mmproj = e.mmproj || null; mtpOk = e.mtp; label = e.label;
         } else if (sel && sel.url) {
             url = String(sel.url).trim();
             if (!URL_RX.test(url)) return { ok: false, error: 'That does not look like a URL.' };
@@ -3251,7 +3295,7 @@ async function run(args) {
             mtpNote = ' Speculative decoding (MTP) was turned off — this quant has no MTP head.';
         }
         if (!serving) {
-            return runJob('model', `Downloading ${label}`, async (progress) => {
+            return runJob('model', `${llamacpp.isUrl(url) ? 'Downloading' : 'Choosing'} ${label}`, async (progress) => {
                 let got;
                 try { got = await llamacpp.ensureModel({ ...config, llamacpp: { ...config.llamacpp, ...patch } }, progress); }
                 catch (err) { got = { ok: false, message: `Could not download it: ${(err && err.message) || err}` }; }
@@ -3291,7 +3335,9 @@ async function run(args) {
     // operator can stage several and switch between them without re-typing URLs.
     function addLibraryModel(entry) {
         const url = String((entry && entry.url) || '').trim();
-        if (!URL_RX.test(url)) return { ok: false, error: 'Give the https URL of a .gguf file.' };
+        // A .gguf already on this computer (its whole path, typed or found by "Use the models in this folder"): used where it is.
+        if (pathMod.isAbsolute(url) && !URL_RX.test(url)) return addLibraryPath(url, { label: entry && entry.label, mmproj: entry && entry.mmproj });
+        if (!URL_RX.test(url)) return { ok: false, error: 'Give the https URL of a .gguf file, or the whole path of one on this computer.' };
         if (!GGUF_URL_RX.test(url)) return { ok: false, error: 'That URL does not end in .gguf — llama.cpp cannot load it.' };
         const lib = (config.llamacpp.library || []).slice();
         if (lib.some((e) => e.url === url)) return { ok: false, error: 'That model is already in the library.' };
@@ -3315,11 +3361,36 @@ async function run(args) {
         return { ok: true, model: item, library: lib, warning: warn || null };
     }
 
+    // An entry by path: a .gguf on this computer, checked there (every part of a split one), served where it is. The
+    // vision projector next to it comes with it (`mmproj`, a path found by the scan), when there is one.
+    function addLibraryPath(p, { label = null, mmproj = null } = {}) {
+        const file = pathMod.resolve(String(p).trim());
+        if (!GGUF_EXT_RX.test(file)) return { ok: false, error: 'That file is not a .gguf: llama.cpp cannot load it.' };
+        const first = llamacpp.normalizeModelUrl(file);
+        if (!llamacpp.onDisk(first)) return { ok: false, error: `${first} is not on this computer${llamacpp.shardUrls(first) ? ' (or a part of it is missing)' : ''}.` };
+        const lib = (config.llamacpp.library || []).slice();
+        if (lib.some((e) => e.path && storageMod.norm(e.path) === storageMod.norm(first))) return { ok: false, error: 'That model is already in the library.' };
+        const proj = mmproj && pathMod.isAbsolute(String(mmproj)) && fsMod.existsSync(String(mmproj)) ? pathMod.resolve(String(mmproj)) : null;
+        const base = ggufName(first);   // the file's name, without .gguf nor a split model's part number
+        const slug = base.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60) || `model-${lib.length + 1}`;
+        let id = slug; let n = 2;
+        while (lib.some((e) => e.id === id)) id = `${slug}-${n++}`;
+        const item = {
+            id, label: String(label || base).slice(0, 80), url: null, path: first, mmproj: proj,
+            sizeGb: Math.round((llamacpp.weightsBytesFor(first) / 1e9) * 10) / 10, mtp: false,
+            note: `On this computer: ${pathMod.dirname(first)}`.slice(0, 200),
+        };
+        lib.push(item);
+        config.llamacpp.library = lib;
+        const warn = persist('llamacpp', { library: lib });
+        return { ok: true, model: item, library: lib, warning: warn || null };
+    }
+
     function removeLibraryModel(id) {
         const lib = (config.llamacpp.library || []).slice();
         const idx = lib.findIndex((e) => e.id === id);
         if (idx < 0) return { ok: true, already: true, library: lib };
-        if (lib[idx].url === config.llamacpp.model) {
+        if ((lib[idx].url || lib[idx].path) === config.llamacpp.model) {
             return { ok: false, error: 'That model is the one being served — switch to another first.', library: lib };
         }
         lib.splice(idx, 1);
@@ -3891,6 +3962,104 @@ async function run(args) {
         });
     }
 
+    // --- Model storage (makeStorage, below): one folder for the farm's models, Move here, Finish, Forget, Look, Use. ---
+    let wslMoving = false;
+    let wslDiskInfo = null;   // the distribution's disk (vllm.wslDisk), read at each check of the vLLM card
+    let wslKeptDisk = null;   // the last move found WSL keeping the disk with nothing else running: the next asks to stop all of WSL
+    function wslDistroNow() { return (vllmTarget && vllmTarget.distro) || config.vllm.distro || (vllmProbe && vllmProbe.distro) || null; }
+    const storageOps = makeStorage({
+        config, configPath, jobs, oll, svcById, bringUp, bringDown, setEngineUp, writeRuntimeState, readOcrInstalled, ollamaCtxNum,
+        stopLlamacpp, startLlamacpp, vllmState, vllmSup, stopEngine, startVllm, fallbackToOllama, addLibraryPath, persist,
+        kick: () => kickBox.fn(),
+        llamacppChild: () => llamacppChild, lastModelPath: () => lastModelPath, vllmTarget: () => vllmTarget,
+        wslMoving: () => wslMoving, wslDistro: wslDistroNow,
+        // An install or a download writing into vLLM's folder (the farm's own, or one the check found running).
+        vllmInstalling: () => { const d = jobs.downloading(); return !!(d && (d.kind === 'install' || d.kind === 'download')) || !!(vllmProbe && vllmProbe.st && vllmProbe.st.installing); },
+        onLlamacppStartFailed: async (r) => {
+            llamacppBootError = r.message;
+            log.warn(`${r.message} Falling back to the OLLAMA engine.`);
+            logFallbackNames(engineFallback(config, 'llamacpp'));
+            if (liveReady) liveHealth.engineUp = null;
+            await restartProxy();
+        },
+    });
+    const { storageAdminState, storageCheck, storageMove, storageFinish, storageForget, storageScan, storageUse, storageMoveIn } = storageOps;
+
+    // ---- WSL's Linux disk (Windows; the vLLM card) -----------------------------------------------------------------------
+    async function wslMove(body = {}) {
+        if (process.platform !== 'win32') return { ok: false, error: 'Only on Windows: on Linux, vLLM\'s models move with Move here.' };
+        const dest = String(body.folder || '').trim();
+        const distro = wslDistroNow();
+        if (!distro) return { ok: false, error: 'Press Check again on the vLLM card first: the farm does not know which WSL Linux holds vLLM yet.' };
+        const disk = await vllmMod.wslDisk(distro);
+        if (!disk) return { ok: false, error: `WSL has no Linux called ${distro}.` };
+        const c = storageMod.checkDir(dest, { stores: [{ id: 'wsl', from: disk.folder, to: dest }] });
+        if (!c.ok) return { ok: false, error: c.error.replace('Some models are', `${distro}'s disk is`) };
+        const net = await storageMod.networkFolder(dest);
+        if (net) return { ok: false, error: net };
+        if (storageMod.norm(dest) === storageMod.norm(disk.folder)) return { ok: true, already: true, message: `${distro}'s disk is already in ${dest}.` };
+        if (fsMod.existsSync(pathMod.win32.join(dest, pathMod.win32.basename(disk.file)))) return { ok: false, error: `${dest} already holds a Linux disk: choose an empty folder.` };
+        const sameDrive = disk.drive && disk.drive === (/^([A-Za-z]):/.exec(dest) || [])[1].toUpperCase();
+        const free = await storageMod.freeBytes(dest);
+        const kind = await storageMod.diskKind(dest);
+        // Which Linux run, from `wsl -l --running -q` (names only: the same in every language).
+        const running = await vllmMod.wslRunning();
+        if (!running) return { ok: false, error: 'WSL did not say which Linux run. Press Move… again in a minute.' };
+        // Another Linux running keeps WSL's machine (and so this disk) busy: then all of WSL stops for the move, which the
+        // panel asks about by name; so does a move that found WSL keeping the disk with nothing else running.
+        const others = running.filter((n) => n !== distro);
+        const stopAll = !!(others.length || (wslKeptDisk && wslKeptDisk === distro));
+        const summary = { distro, from: disk.folder, gb: disk.bytes == null ? null : GB(disk.bytes), freeGb: free == null ? null : GB(free), sameDrive: !!sameDrive, kind, slow: storageMod.slowDiskText(kind), running, others, stopAll };
+        // Without the disk's size there is no space check: refused rather than filling the drive halfway.
+        if (!sameDrive && (disk.bytes == null || free == null)) return { ...summary, ok: false, error: `The farm cannot read the size of ${distro}'s disk or the free space in ${dest}, so it cannot check that it fits there: nothing was moved.` };
+        if (!sameDrive && disk.bytes + storageMod.KEEP_FREE > free) {
+            return { ...summary, ok: false, error: `Not enough free space in ${dest}: ${distro}'s disk is ${GB(disk.bytes)} GB and ${GB(free)} GB are free there (the farm leaves ${GB(storageMod.KEEP_FREE)} GB free beside it).` };
+        }
+        if (body.dryRun) return { ...summary, ok: true, dryRun: true };
+        // The move does what the person answered: the same Linux (and, to stop all of WSL, the same others) as the question.
+        if (body.distro !== distro) return { ok: false, error: `The question was about ${body.distro || 'another Linux'}, and vLLM's Linux is ${distro} now: press Move… again.` };
+        if (busy()) return busyErr();
+        const dl = jobs.downloading();
+        if (dl) return { ok: false, error: `${dl.label} is running, and it may write into WSL: wait for it, or stop it.` };
+        return runJob('wsl', `Moving ${distro}'s Linux disk to ${dest}`, async (progress) => {
+            wslMoving = true;
+            const t0 = Date.now();
+            const wasVllm = engineOf(config) === 'vllm' && !['stopped', 'guard', 'failed', null].includes(vllmState.phase);
+            try {
+                if (wasVllm) {
+                    const r = await stopEngine('vllm', progress);
+                    if (!r.ok) return { ok: false, error: `${r.error} Nothing moved.` };
+                    setEngineUp(false);
+                }
+                if (engineOf(config) === 'vllm') setVllmPhase('stopped', `${distro}'s Linux disk is moving: vLLM starts again once it is done.`);
+                progress(`stopping ${distro}`, null);
+                // stopAll only when the person answered the question that names every Linux it stops (the dry run's).
+                const r = await vllmMod.moveWsl(distro, dest, {
+                    disk, stopAll: body.stopAll === true, others: Array.isArray(body.others) ? body.others.map(String) : [],
+                    onProgress: (bytes, total) => progress(`moving ${distro}'s disk`, total ? (bytes / total) * 100 : null, { bytes, total: total || null }),
+                });
+                wslDiskInfo = await vllmMod.wslDisk(distro);
+                if (engineOf(config) === 'vllm' && !wasVllm) setVllmPhase('stopped');
+                const at = wslDiskInfo && storageMod.norm(wslDiskInfo.folder) === storageMod.norm(dest);
+                let tail = '';
+                if (wasVllm) {
+                    progress('starting vLLM again', null);
+                    const s = await startVllm(progress);
+                    if (!s.ok) { await fallbackToOllama(`vLLM could not start after the move: ${s.message}`, { ran: !!s.ran }); tail = ' vLLM did not start again: the farm serves with Ollama for now.'; }
+                    else tail = ' vLLM runs again.';
+                }
+                await checkVllm().catch(() => null);
+                writeRuntimeState();
+                const min = Math.max(1, Math.round((Date.now() - t0) / 60000));
+                if (r.inUse) wslKeptDisk = distro;
+                if (!r.ok) return { ok: false, error: `${r.error}${at ? '' : ` ${distro}'s disk is still in ${disk.folder}.`}${r.inUse ? ' Press Move… again: all of WSL then stops for the move.' : ''}${tail}` };
+                wslKeptDisk = null;
+                if (!at) return { ok: false, error: `WSL said it moved, but its disk is not in ${dest}.${tail}` };
+                return { ok: true, message: `${distro}'s Linux disk is in ${dest} now (${min} min).${r.shutdown ? ' All of WSL was stopped for it: start again what you use in it.' : ''}${tail}` };
+            } finally { wslMoving = false; }
+        });
+    }
+
     // Serialize mutations (jobs.serialize): the admin page's client-side `busy` flag doesn't
     // bind a second browser tab, another device sharing the token, or a curl script, and two
     // overlapping restarts share `restartingProxy` — one's finally clears it while the other is
@@ -3937,6 +4106,16 @@ async function run(args) {
         vllmTakeOver: () => (busy() ? busyErr() : serialize(() => vllmTakeOverRun())),
         vllmUndoTakeOver: () => (busy() ? busyErr() : serialize(() => vllmUndoTakeOver())),
         cancel: (slot) => (slot === 'download' ? cancelDownload() : jobs.cancel('job')),
+        // Model storage (storage.js): the card's check, Move here (and its dry run), Finish, Forget; "Use the models in
+        // this folder" (look, then add); WSL's Linux disk on the vLLM card.
+        storageCheck,
+        storageMove,
+        storageFinish,
+        storageForget: () => storageForget(),
+        storageScan,
+        storageUse: (b) => (busy() ? busyErr() : storageUse(b)),
+        storageMoveIn,
+        wslMove,
     });
     engineDownBox.fn = onEngineDown;   // serialize + liveHealth exist now — arm supervision
     // vLLM: watched from now on, and the start the boot queued runs as the job everyone sees (D5).
@@ -3955,8 +4134,888 @@ async function run(args) {
     return new Promise(() => {});
 }
 
+// --- Model storage (owner, 2026-10-12: "I need to be able to move or place the model at a specific place on disk";
+// storage.js) -----------------------------------------------------------------------------------------------------
+// ONE folder for the whole farm. Move here copies what is in the old places (llama.cpp's .gguf files, document
+// search's model, the drafts, speech to text's models, Ollama's models, and on Linux vLLM's weights) in the download
+// slot while the farm keeps serving; then, in serialize, what holds the files stops, what changed meanwhile is copied,
+// every copy is checked, the folder is saved, and they start again from it; only then are the old copies deleted, each
+// store only once what uses it runs from the new folder (Ollama: once it is seen reading it). Use the models in this
+// folder adds what a folder already holds, where it is. On Windows, WSL's Linux disk moves from the vLLM card.
+// `run` makes it with the farm's live state and its controls (ctx); the tests make it with scratch folders and stubs.
+function makeStorage(ctx) {
+    const {
+        config, configPath, jobs, oll, svcById, bringUp, bringDown, setEngineUp, writeRuntimeState, readOcrInstalled, ollamaCtxNum,
+        stopLlamacpp, startLlamacpp, onLlamacppStartFailed, vllmState, vllmSup, stopEngine, startVllm, fallbackToOllama,
+        addLibraryPath, persist, kick,
+    } = ctx;
+    const { serialize, busy } = jobs;
+    const ollama = ctx.ollama || require('../ollama');
+    const log = ctx.log || require('../log');
+    const killTree = ctx.killTree || require('../proc').killTree;
+    const isOllamaPid = ctx.isOllamaPid || ((pid) => require('../proc').isOllamaProcess(pid));
+    const ollamaApp = ctx.ollamaApp || require('../ollamaApp');
+    const sleep = ctx.sleep || sleepMs;
+    const spawnOllama = ctx.spawnOllama || ((h) => spawnLocalOllama(config, h));
+    // Where an Ollama reads by default, and what the Ollama app's log says (the tests point both at scratch folders).
+    const ollamaDefaultStore = ctx.ollamaDefaultStore || (() => storageMod.ollamaDefaultStore());
+    const ollamaStoreFromLog = ctx.ollamaStoreFromLog || (() => storageMod.ollamaStoreFromLog());
+    // vLLM's weights (Linux) and whether an install or a download writes into them now (the tests give scratch ones).
+    const vllmHf = ctx.vllmHf || vllmHfNow;
+    const vllmInstalling = ctx.vllmInstalling || (() => false);
+    const storageCache = { at: 0, data: null, busy: false };
+    let switching = false;   // the switch itself: Stop is refused while it runs (it cannot be undone halfway)
+    // Two folders are the same only when both are set: an empty setting is never "the folder the farm runs from" (norm('')
+    // is the working folder).
+    const sameDir = (a, b) => !!(a && b) && storageMod.norm(a) === storageMod.norm(b);
+    const there = (p) => fsMod.promises.access(p).then(() => true, () => false);
+    const moving = () => { const dl = jobs.downloading(); return !!(dl && dl.kind === 'move'); };
+    const localOllamaHost = () => (oll.reachable || []).filter(isLocalHost)[0] || null;
+    // Who runs the Ollama on this computer: the farm (it started it), another program (the Ollama app, a service), or
+    // nobody (null: only Ollamas on other computers, or none answered at the start).
+    function ollamaRunBy() {
+        const h = localOllamaHost();
+        if (!h) return null;
+        return (oll.spawnedHosts || []).includes(h) ? 'farm' : 'other';
+    }
+    // The folder an Ollama the farm starts reads (its OLLAMA_MODELS), for these settings.
+    const ollamaLaunchDir = (s) => storageMod.ollamaModelsFor(s) || ollamaDefaultStore();
+    // /api/tags: the model names, or null when Ollama does not answer (storage.ollamaReads tells "none" from "no answer").
+    async function tagsOf(host) {
+        try {
+            const r = await ollama.request('GET', host, '/api/tags', { timeoutMs: 8000 });
+            return r.status === 200 && r.json && Array.isArray(r.json.models) ? r.json.models.map((m) => m.name).filter(Boolean) : null;
+        } catch { return null; }
+    }
+    // The folder the Ollama on this computer reads its models from: of what the farm set, what its own log says, its
+    // OLLAMA_MODELS and its default place, the first that holds every model it lists. → {by, host, dir | null, guess,
+    // names, empty, noAnswer} (empty: it lists nothing and its folder holds nothing yet; noAnswer: /api/tags did not
+    // answer, so nothing is guessed).
+    async function ollamaStoreNow() {
+        const by = ollamaRunBy();
+        if (!by) return null;
+        const host = localOllamaHost();
+        const listed = await tagsOf(host);
+        const names = listed || [];
+        const cands = [...new Set([
+            by === 'farm' ? storageMod.ollamaModelsFor(config.storage) : null,
+            by === 'other' ? await ollamaStoreFromLog() : null,
+            ollamaDefaultStore(),
+        ].filter(Boolean))];
+        let dir = null;
+        if (listed) {
+            for (const d of cands) {
+                if (!(await storageMod.isOllamaStoreAsync(d))) continue;
+                let all = true;
+                for (const n of names) if (!(await storageMod.storeHasModelAsync(d, n))) { all = false; break; }
+                if (all) { dir = d; break; }
+            }
+        }
+        return { by, host, dir, guess: cands[0], names, empty: !!listed && !dir && !names.length, noAnswer: !listed };
+    }
+    // Linux: vLLM's weights (<root>/hf, a link to the farm's folder once moved), and where they go for `dir`. Windows:
+    // they are in WSL's disk.
+    function vllmHfNow(dir = null) {
+        if (process.platform !== 'linux') return null;
+        const root0 = config.vllm.root || (ctx.vllmTarget() && ctx.vllmTarget().root);
+        if (!root0) return null;
+        const root = root0.replace(/^~(?=\/|$)/, os.homedir());
+        const hf = pathMod.posix.join(root, 'hf');
+        let real;
+        try { real = fsMod.realpathSync(hf); } catch { return null; }
+        const vr = dir ? storageMod.vllmRootFor({ dir }) : null;
+        return { root, hf, real, to: vr ? pathMod.posix.join(vr, 'hf') : null };
+    }
+    // The model folders in vLLM's hf/ that are the farm's (its list's downloads): only those move.
+    const vllmFolders = () => (config.vllm.library || []).filter((e) => !e.path).map((e) => vllmMod.folderOf(e)).filter(Boolean);
+    const bytesIn = async (dir, only = null) => { try { return (await storageMod.listFiles(dir, { only })).reduce((a, f) => a + (f.size || 0), 0); } catch { return null; } };
+    // document search's model is pinned by its sha256 (embed.js): its copy is checked by it.
+    const pinnedSums = () => ({ [pathMod.basename(ollama.ggufPathFor(embedMod.MODEL.url))]: embedMod.MODEL.sha256 });
+    const digestFor = (id) => (rel) => storageMod.digestOf(id, rel, pinnedSums());
+    const isManifest = (rel) => /^manifests(-v2)?$/.test(rel.split(/[\\/]/)[0]);
+    // Classify's model in the machine's shared Hugging Face cache (only Laya's own repo there is the farm's).
+    const layaShared = () => pathMod.join(storageMod.hfHubDir(), storageMod.LAYA_REPO);
+
+    // The folder is the source of truth (owner, 2026-10-12): with a folder chosen, a .gguf a person drops into its gguf/
+    // is in the llama.cpp list without an Add, and an entry by path in it whose file is gone leaves the list (never the
+    // model served). Models by link, and those elsewhere added with Look, are left alone.
+    async function syncFolderModels() {
+        if (!config.storage.dir || storageMod.missingText()) return false;
+        const gdir = storageMod.dirsFor(config.storage).gguf;
+        if (!(await there(gdir))) return false;
+        const found = (await storageMod.scanFolder(gdir, { maxDepth: 0 })).gguf.filter((g) => g.complete);
+        const fileOf = (e) => (e.path ? e.path : e.url ? llamacpp.fileFor(llamacpp.normalizeModelUrl(e.url)) : null);
+        let changed = false;
+        for (const g of found) {
+            if ((config.llamacpp.library || []).some((e) => sameDir(fileOf(e), g.path))) continue;
+            const r = addLibraryPath(g.path, { mmproj: g.mmproj });
+            if (r.ok) changed = true;
+        }
+        const lib = config.llamacpp.library || [];
+        const kept = lib.filter((e) => !(e.path && storageMod.inside(e.path, gdir) && !llamacpp.onDisk(e.path) && e.path !== config.llamacpp.model));
+        if (kept.length !== lib.length) { config.llamacpp.library = kept; persist('llamacpp', { library: kept }); changed = true; }
+        return changed;
+    }
+
+    // What the Model storage card shows: each store, where it is and its size, the folder's drive (a hard disk or a USB
+    // drive is said), a folder gone missing, a move left unfinished. Measured in the background at most once a minute,
+    // never per poll, and off the event loop (a sleeping USB disk must not hold the seat gate).
+    async function computeStorage() {
+        await storageMod.recheckMissing();
+        const dirs = storageMod.dirsFor(config.storage);
+        const ol = await ollamaStoreNow();
+        const hf = vllmHf();
+        const stores = [
+            { id: 'gguf', label: storageMod.LABEL.gguf, dir: dirs.gguf, bytes: await bytesIn(dirs.gguf) },
+            { id: 'stt', label: storageMod.LABEL.stt, dir: dirs.stt, bytes: await bytesIn(dirs.stt) },
+        ];
+        const cdir = dirs.classify || layaShared();
+        if (await there(cdir)) stores.push({ id: 'classify', label: storageMod.LABEL.classify, dir: cdir, bytes: await bytesIn(cdir) });
+        if (await there(dirs.kokoro)) stores.push({ id: 'kokoro', label: storageMod.LABEL.kokoro, dir: dirs.kokoro, bytes: await bytesIn(dirs.kokoro) });
+        if (ol) stores.push({ id: 'ollama', label: storageMod.LABEL.ollama, dir: ol.dir, guess: ol.guess, by: ol.by, bytes: ol.dir ? await bytesIn(ol.dir, storageMod.OLLAMA_PARTS) : null, models: ol.names.length, lent: sameDir(ol.dir, config.storage.ollama) });
+        if (hf) stores.push({ id: 'vllm', label: storageMod.LABEL.vllm, dir: hf.real, bytes: await bytesIn(hf.real, vllmFolders()) });
+        const dir = config.storage.dir;
+        const kind = dir ? await storageMod.diskKind(dir) : null;
+        await syncFolderModels().catch((e) => log.warn(`Model storage: ${e.message}`));
+        return { at: Date.now(), stores, kind, slow: storageMod.slowDiskText(kind), freeBytes: dir ? await storageMod.freeBytes(dir) : null };
+    }
+    function refreshStorage(force = false) {
+        if (storageCache.busy || (!force && Date.now() - storageCache.at < 60000)) return storageCache.pending || Promise.resolve();
+        storageCache.busy = true;
+        storageCache.pending = computeStorage()
+            .then((d) => { storageCache.data = d; storageCache.at = Date.now(); })
+            .catch((e) => log.warn(`Model storage: ${e.message}`))
+            .finally(() => { storageCache.busy = false; });
+        return storageCache.pending;
+    }
+    function storageAdminState() {
+        refreshStorage();
+        const j = storageMod.readJournal(configPath);
+        return {
+            ...(storageCache.data || { stores: null, kind: null, slow: null, freeBytes: null }),
+            dir: config.storage.dir || null, ollamaFolder: config.storage.ollama || null, platform: process.platform,
+            ollamaBy: ollamaRunBy(), missing: storageMod.missingText(),
+            // A move that did not finish: Move here goes on (copying), or Finish deletes the old copies (switched: the
+            // journal says so, written right after the farm saved the new folder).
+            move: j ? {
+                to: j.to, startedAt: j.startedAt, switched: !!j.switched,
+                left: (j.stores || []).filter((s) => !s.done).map((s) => ({ id: s.id, label: storageMod.LABEL[s.id], from: s.from, to: s.to, by: s.by || null, appSet: !!s.appSet })),
+                ollamaStep: (j.stores || []).some((s) => s.id === 'ollama' && s.by === 'other' && !s.done),
+            } : null,
+            moving: moving(),
+        };
+    }
+    async function storageCheck() {
+        await refreshStorage(true);
+        return { ok: true, storage: storageAdminState() };
+    }
+
+    // What a move to `dir` concerns: each store whose folder changes and that holds something; from a move cut short,
+    // the stores it planned, as planned (who runs Ollama is never read again: Finish checks it is the same). Only the
+    // store's own files move: an Ollama folder's blobs/ and manifests/, vLLM's model folders of the list, Laya's repo in a
+    // shared Hugging Face cache; what else is there is named and left where it is. A folder lent with "Use this folder"
+    // moves only on `moveLent` (the panel's own button). → {stores: [{id, from, to, by?, root?, only?, aside?}], notes,
+    // resumed, switched, startedAt, keepOllama (what a farm-started Ollama keeps reading when its models do not move)}
+    // or {error}.
+    async function planMove(dir, { moveLent = false } = {}) {
+        const j = storageMod.readJournal(configPath);
+        if (j && sameDir(j.to, dir)) {
+            return { stores: j.stores.filter((s) => !s.done), notes: [], resumed: true, switched: !!j.switched, startedAt: j.startedAt, keepOllama: j.keepOllama || null };
+        }
+        const to = storageMod.dirsFor({ dir });
+        const cur = storageMod.dirsFor(config.storage);
+        const stores = []; const notes = [];
+        for (const id of ['gguf', 'stt', 'kokoro']) {
+            if (!sameDir(cur[id], to[id]) && (await there(cur[id]))) stores.push({ id, from: cur[id], to: to[id] });
+        }
+        if (cur.classify) {
+            if (!sameDir(cur.classify, to.classify) && (await there(cur.classify))) stores.push({ id: 'classify', from: cur.classify, to: to.classify });
+        } else if (await there(layaShared())) {
+            stores.push({ id: 'classify', from: layaShared(), to: pathMod.join(to.classify, storageMod.LAYA_REPO) });
+        }
+        const ol = await ollamaStoreNow();
+        if (ol && ol.noAnswer) return { error: 'Ollama did not answer, so the farm cannot tell which folder its models are in. Nothing was changed: try again in a minute.' };
+        const olTo = pathMod.join(dir, storageMod.SUB.ollama);
+        const lent = config.storage.ollama;
+        if (ol && ol.dir && sameDir(ol.dir, lent) && !moveLent) {
+            notes.push(`Ollama's models stay in ${lent}, the folder chosen with Use this folder (the Ollama card offers to move them in).`);
+        } else if (ol && ol.dir && !sameDir(ol.dir, olTo)) {
+            stores.push({ id: 'ollama', from: ol.dir, to: olTo, by: ol.by, only: storageMod.OLLAMA_PARTS });
+            const others = await storageMod.othersIn(ol.dir, storageMod.OLLAMA_PARTS);
+            if (others.length) notes.push(`Left where it is in ${ol.dir} (not Ollama's): ${others.join(', ')}.`);
+        } else if (ol && !ol.dir && !ol.empty) {
+            notes.push(`Ollama's models stay where they are: the farm could not find the folder Ollama reads them from${ol.guess ? ` (not ${ol.guess})` : ''}.`);
+        }
+        // Ollama's models do not move (not found, lent, or no Ollama of this computer answered): an Ollama the farm starts
+        // keeps reading the folder it reads now, at the switch and at every start after (storage.ollama).
+        let keepOllama = null;
+        if (!stores.some((s) => s.id === 'ollama')) {
+            const now = lent || ollamaLaunchDir(config.storage);
+            if (!sameDir(now, olTo) && (await storageMod.modelsInStore(now)).length) keepOllama = now;
+        }
+        const hf = vllmHf(dir);
+        if (hf) {
+            const mine = vllmFolders();
+            if (!hf.to) notes.push('vLLM\'s models stay where they are: vLLM needs a folder whose names hold only letters, digits, dots, dashes and underscores.');
+            else if (!sameDir(hf.real, hf.to)) {
+                if (vllmInstalling()) return { error: 'vLLM is being installed, or a model downloaded into its folder: wait for it (or stop it), then press Move here.' };
+                let isLink = false;
+                try { isLink = fsMod.lstatSync(hf.hf).isSymbolicLink(); } catch { /* checked by vllmHf */ }
+                const others = await storageMod.othersIn(hf.real, mine);
+                if (!isLink && others.length) {
+                    notes.push(`vLLM's models stay in ${hf.hf}: it also holds ${others.join(', ')}, which are not models of the vLLM list. Move those out of it, then press Move here again.`);
+                } else {
+                    const present = [];
+                    for (const f of mine) if (await there(pathMod.join(hf.real, f))) present.push(f);
+                    stores.push({ id: 'vllm', from: hf.real, to: hf.to, root: hf.root, only: present, aside: !isLink });
+                    if (others.length) notes.push(`Left where it is in ${hf.real} (not models of the vLLM list): ${others.join(', ')}.`);
+                }
+            }
+        }
+        return { stores, notes, resumed: false, switched: false, startedAt: null, keepOllama };
+    }
+    // What a person must do in Ollama when the farm cannot set it (Ollama a service, or an app it cannot change): steps.
+    function ollamaStepText(s) {
+        const app = process.platform === 'linux'
+            ? `Ollama runs as a service on this computer: give it OLLAMA_MODELS=${s.to} (sudo systemctl edit ollama, then sudo systemctl restart ollama), and let its user read and write that folder (Ollama writes there when it downloads or deletes a model).`
+            : `In the Ollama app (its icon by the clock, then Settings), set Model location to ${s.to}. Ollama starts again by itself.`;
+        return `${app} Then press Finish here: the farm checks that Ollama reads the new folder, and only then deletes the old copy in ${s.from}.`;
+    }
+
+    // Move here (and its dry run, which changes nothing: what moves, how much, the free space, the drive's kind).
+    async function storageMove(body = {}) {
+        const typed = String(body.dir || '').trim();
+        const j = storageMod.readJournal(configPath);
+        if (j && typed && !sameDir(typed, j.to)) {
+            return { ok: false, error: `A move to ${j.to} did not finish: press Move here to finish it (or Forget it) before choosing another folder.` };
+        }
+        if (moving()) return { ok: false, error: 'The models are moving already: the bar at the top says how far.' };
+        const dir = j ? j.to : typed;
+        const net = typed || dir ? await storageMod.networkFolder(dir) : null;
+        if (net) return { ok: false, error: net };
+        const plan = await planMove(dir, { moveLent: body.moveLent === true });
+        if (plan.error) return { ok: false, error: plan.error };
+        const check = storageMod.checkDir(dir, { stores: plan.stores });
+        if (!check.ok) return { ok: false, error: check.error };
+        let need = 0; const sizes = {};
+        for (const s of plan.stores) {
+            const files = await storageMod.listFiles(s.from, { only: s.only }).catch(() => []);
+            sizes[s.id] = files.reduce((a, f) => a + (f.size || 0), 0);
+            need += await storageMod.bytesToCopy(s.from, s.to, files);
+        }
+        const free = await storageMod.freeBytes(dir);
+        const kind = await storageMod.diskKind(dir);
+        const olOther = plan.stores.find((s) => s.id === 'ollama' && s.by === 'other');
+        const app = olOther ? await ollamaApp.detect().catch(() => null) : null;
+        const summary = {
+            dir, stores: plan.stores.map((s) => ({ id: s.id, label: storageMod.LABEL[s.id], from: s.from, to: s.to, by: s.by || null, gb: GB(sizes[s.id]) })),
+            needGb: GB(need), freeGb: free == null ? null : GB(free), kind, slow: storageMod.slowDiskText(kind), notes: plan.notes, resumed: plan.resumed,
+            ollamaStep: !!olOther, ollamaApp: !!(app && app.ok),
+        };
+        if (free != null && need + storageMod.KEEP_FREE > free) {
+            return { ...summary, ok: false, error: `Not enough free space in ${dir}: the models need ${GB(need)} GB more and ${GB(free)} GB are free (the farm leaves ${GB(storageMod.KEEP_FREE)} GB free beside them). Free some space, or choose another drive.` };
+        }
+        if (body.dryRun) return { ...summary, ok: true, dryRun: true };
+        if (ctx.wslMoving()) return { ok: false, error: 'WSL\'s Linux disk is moving: wait for it to finish.' };
+        try { fsMod.mkdirSync(dir, { recursive: true }); } catch (e) { return { ok: false, error: `The farm cannot create ${dir} (${e.code || e.message}). Choose another folder.` }; }
+        const r = jobs.runDownload('move', `Moving the models to ${dir}`, (progress, ctl) => moveRun(dir, plan, progress, ctl), {
+            cancel: () => {}, canCancel: () => (switching ? 'The switch is running and cannot be stopped halfway: it takes about a minute.' : null), onSettled: () => refreshStorage(true),
+        });
+        return r.ok ? r : { ok: false, error: `${r.error} Wait for it to finish, then press Move here.` };
+    }
+
+    const STOPPED = 'Stopped. Nothing was switched: the farm runs from the old folders. Press Move here again to go on (what was copied is kept).';
+    async function moveRun(dir, plan, progress, ctl) {
+        const journal = { to: dir, startedAt: plan.startedAt || Date.now(), switched: !!plan.switched, keepOllama: plan.keepOllama || null, stores: plan.stores };
+        for (const s of plan.stores) if (!s.written) s.written = {};
+        const save = () => storageMod.writeJournal(configPath, journal);
+        save();
+        const files = {}; const hashed = {}; const damaged = {};
+        let total = 0; let done = 0;
+        for (const s of plan.stores) {
+            files[s.id] = await storageMod.listFiles(s.from, { only: s.only });
+            hashed[s.id] = new Set(); damaged[s.id] = new Set();
+            total += await storageMod.bytesToCopy(s.from, s.to, files[s.id]);
+        }
+        const tell = (what) => progress(what, total ? (done / total) * 100 : null, total ? { bytes: done, total } : null);
+        // A move cut short after the switch (the journal says so): the farm runs from the new folder already, and copying
+        // again could put an older file over a newer one there. Only the old copies are left to delete (Finish).
+        if (!journal.switched) {
+            try {
+                for (const s of plan.stores) {
+                    const label = storageMod.LABEL[s.id].replace(/^\w/, (c) => c.toLowerCase());
+                    const r = await storageMod.copyStore(s.from, s.to, files[s.id], {
+                        onBytes: (n) => { done += n; tell(`copying ${label}`); }, isCancelled: ctl.cancelled, digestFor: digestFor(s.id),
+                        written: s.written, onCopied: (rel, sha) => { s.written[rel] = sha; save(); },
+                    });
+                    for (const x of r.hashed) hashed[s.id].add(x);
+                    for (const x of r.damaged) damaged[s.id].add(x);
+                }
+            } catch (e) {
+                if (e.code === 'STOPPED') return { ok: false, error: STOPPED };
+                return { ok: false, error: `${e.message} The farm runs from the old folders; nothing was deleted.` };
+            }
+            if (ctl.cancelled()) return { ok: false, error: STOPPED };
+        }
+        return serialize(() => switchRun(dir, plan, files, hashed, tell, journal, damaged, ctl));
+    }
+
+    // In the farm's config, what pointed into a folder that moves points to the same place in the new one: llama.cpp's
+    // model and projector, the entries by path of the llama.cpp list and (Linux) of the vLLM list. → {llamacpp, vllm}:
+    // the changed sections (the raw patch), or null.
+    function movedPaths(stores) {
+        const to = (p) => {
+            if (!p || /^https?:/i.test(p)) return null;
+            for (const s of stores) if (s.id !== 'ollama' && storageMod.inside(p, s.from)) return pathMod.join(s.to, pathMod.relative(s.from, p));
+            return null;
+        };
+        const lc = {}; const lib = (config.llamacpp.library || []).map((e) => {
+            const p = to(e.path); const m = to(e.mmproj);
+            return p || m ? { ...e, ...(p ? { path: p } : {}), ...(m ? { mmproj: m } : {}) } : e;
+        });
+        if (lib.some((e, i) => e !== config.llamacpp.library[i])) lc.library = lib;
+        if (to(config.llamacpp.model)) lc.model = to(config.llamacpp.model);
+        if (to(config.llamacpp.mmproj)) lc.mmproj = to(config.llamacpp.mmproj);
+        const vl = {}; const vlib = (config.vllm.library || []).map((e) => {
+            const p = e.path && process.platform === 'linux' ? stores.filter((s) => s.id === 'vllm' && storageMod.inside(e.path, s.from)).map((s) => pathMod.posix.join(s.to, pathMod.posix.relative(s.from, e.path)))[0] : null;
+            return p ? { ...e, path: p } : e;
+        });
+        if (vlib.some((e, i) => e !== config.vllm.library[i])) vl.library = vlib;
+        return { llamacpp: Object.keys(lc).length ? lc : null, vllm: Object.keys(vl).length ? vl : null };
+    }
+
+    // The switch (in serialize): stop what holds the files, copy what changed meanwhile, check every copy, save the folder
+    // (and its marker, and what pointed into the old folders), start again from it; point the Ollama app at the new folder;
+    // then delete each old copy whose user runs from the new one. `damaged`: per store, the files whose checksum already
+    // differs: never copied, left where they are, listed.
+    async function switchRun(dir, plan, files, hashed, tell, journal, damaged = {}, ctl = { cancelled: () => false }) {
+        if (ctl.cancelled()) return { ok: false, error: STOPPED };
+        for (const s of plan.stores) { if (!damaged[s.id]) damaged[s.id] = new Set(); if (!hashed[s.id]) hashed[s.id] = new Set(); if (!s.written) s.written = {}; }
+        const store = (id) => plan.stores.find((s) => s.id === id && !s.done);
+        const save = () => storageMod.writeJournal(configPath, journal);
+        const notes = [...plan.notes];
+        const stopped = [];
+        const vllmRuns = () => engineOf(config) === 'vllm' && ['ready', 'down'].includes(vllmState.phase);
+        const switchedHere = !journal.switched;
+        if (!journal.switched) {
+            const ol = store('ollama');
+            const byNow = ollamaRunBy();
+            if (ol && ol.by !== byNow) {
+                return { ok: false, error: `Ollama is not run by the same program as when this move began, so nothing was switched or deleted: press Forget it, then Move here again.` };
+            }
+            switching = true;
+            try {
+                const prev = { ...config.storage };
+                const next = { dir, ollama: plan.keepOllama || null };
+                // An Ollama the farm runs restarts on its new folder only when its models moved there (or it had none).
+                const ollamaEnvChanges = byNow === 'farm' && !sameDir(ollamaLaunchDir(next), ollamaLaunchDir(prev));
+                tell('stopping what uses these files');
+                // llama.cpp only when it loads from a folder that moves (a model used where it is, by path, keeps serving).
+                const lcFiles = [ctx.lastModelPath(), config.llamacpp.mmproj && llamacpp.fileFor(config.llamacpp.mmproj)].filter(Boolean);
+                if (ctx.llamacppChild() && plan.stores.some((s) => lcFiles.some((f) => storageMod.inside(f, s.from)))) { await stopLlamacpp(); stopped.push('llamacpp'); setEngineUp(false); }
+                for (const [id, svc] of [['gguf', 'embed'], ['stt', 'stt'], ['classify', 'classify'], ['kokoro', 'tts']]) {
+                    if (store(id) && svcById[svc] && svcById[svc].pid) { await bringDown(svcById[svc]); stopped.push(svc); }
+                }
+                if ((ol && ol.by === 'farm') || ollamaEnvChanges) {
+                    if (ollamaServes(config)) setEngineUp(false);   // clients go elsewhere for the few seconds it is down
+                    await stopFarmOllama(); stopped.push('ollama');
+                }
+                if (store('vllm') && vllmRuns()) {
+                    const r = await stopEngine('vllm', () => {});
+                    if (!r.ok) { await startAgain(stopped); return { ok: false, error: `${r.error} Nothing was switched: the farm runs from the old folders.` }; }
+                    stopped.push('vllm'); setEngineUp(false);
+                }
+                // What changed while the farm kept serving (a download, a pull; the Ollama app pointed at the new folder too
+                // early, which deletes there what no manifest names yet): copied now, then every copy checked. An Ollama
+                // another program runs keeps running: its copy is checked again at Finish too.
+                tell('copying what changed meanwhile');
+                const problems = [];
+                try {
+                    for (const s of plan.stores) {
+                        files[s.id] = await storageMod.listFiles(s.from, { only: s.only });
+                        const r = await storageMod.copyStore(s.from, s.to, files[s.id], { digestFor: digestFor(s.id), written: s.written, onCopied: (rel, sha) => { s.written[rel] = sha; save(); } });
+                        for (const x of r.hashed) hashed[s.id].add(x);
+                        for (const x of r.damaged) damaged[s.id].add(x);
+                    }
+                    tell('checking the copies');
+                    for (const s of plan.stores) {
+                        const v = await storageMod.verifyStore(s.from, s.to, files[s.id].filter((f) => !damaged[s.id].has(f.rel)), { digestFor: digestFor(s.id), hashed: hashed[s.id] });
+                        problems.push(...v.problems);
+                    }
+                } catch (e) { problems.push(e.message); }
+                if (problems.length) {
+                    await startAgain(stopped);
+                    return { ok: false, error: `The copies are not all right, so nothing was switched: the farm runs from the old folders and nothing was deleted. ${problems.slice(0, 3).join(' ')}${problems.length > 3 ? ` (and ${problems.length - 3} more)` : ''}` };
+                }
+                // The folder's marker, then the config (the folder, what pointed into the old folders), both on the disk
+                // before anything is deleted.
+                const moved = movedPaths(plan.stores);
+                let saved;
+                try { storageMod.writeMarker(dir); } catch (e) { saved = { ok: false, error: e.code || e.message }; }
+                if (!saved) {
+                    saved = patchConfigFile(configPath, (raw) => {
+                        const s = { ...(raw.storage || {}), dir };
+                        if (next.ollama) s.ollama = next.ollama; else delete s.ollama;
+                        raw.storage = s;
+                        if (moved.llamacpp) raw.llamacpp = { ...(raw.llamacpp || {}), ...moved.llamacpp };
+                        if (moved.vllm) raw.vllm = { ...(raw.vllm || {}), ...moved.vllm };
+                        return raw;
+                    });
+                }
+                if (!saved.ok) {
+                    await startAgain(stopped);
+                    return { ok: false, error: `The farm could not save the new folder (${saved.error}), so nothing was switched: it runs from the old folders and nothing was deleted.` };
+                }
+                config.storage = next;
+                if (moved.llamacpp) Object.assign(config.llamacpp, moved.llamacpp);
+                if (moved.vllm) Object.assign(config.vllm, moved.vllm);
+                storageMod.useStorage(config);
+                journal.switched = true;
+                save();
+                log.ok(`The farm's models are in ${dir} now.`);
+            } finally { switching = false; }
+        }
+        // vLLM's weights (Linux): <root>/hf leads to the new folder, only to a checked copy (checked above, or again now
+        // when the switch was made by a run that was cut).
+        const v = store('vllm');
+        let vOk = !!v;
+        if (v && !switchedHere && !storageMod.hfLinked(v.root, v.to)) {
+            const chk = await storageMod.verifyStore(v.from, v.to, await storageMod.listFiles(v.from, { only: v.only }));
+            if (!chk.ok) { vOk = false; notes.push(`vLLM's models: its copy is not all right, so ${pathMod.join(v.root, 'hf')} was not changed. ${chk.problems.slice(0, 3).join(' ')}`); }
+        }
+        if (vOk) {
+            const r = await linkVllm(v, stopped, vllmRuns);
+            if (!r.ok) notes.push(`vLLM's models: ${r.error}`);
+            if (r.leftover) notes.push(`${r.leftover} is left from an earlier move: the farm did not delete it (look in it, and delete it if you do not want it).`);
+            save();
+        }
+        tell('starting again from the new folder');
+        const failed = await startAgain(stopped);
+        // The Ollama app: pointed at the new folder now that its copy is checked (it is restarted for it).
+        const olS = store('ollama');
+        if (olS && olS.by === 'other' && !olS.appSet) { await pointOllamaApp(olS, save, tell, notes); }
+        if (ctl.cancelled()) {
+            save();
+            return { ok: true, message: `The farm's models are in ${dir}. Stopped before the old copies were deleted: they are kept, press Finish to delete them.` };
+        }
+        // The old copies: deleted store by store, once what uses it runs from the new folder.
+        tell('deleting the old copies');
+        let freed = 0; const kept = [];
+        for (const s of plan.stores) {
+            if (s.done) continue;
+            const users = { gguf: ['llamacpp', 'embed'], stt: ['stt'], classify: ['classify'], kokoro: ['tts'], ollama: ['ollama'], vllm: ['vllm'] }[s.id] || [];
+            if (users.some((u) => failed.includes(u))) { notes.push(`${storageMod.LABEL[s.id]}: the old copy in ${s.from} is kept until what uses them starts from the new folder (press Finish then).`); continue; }
+            const r = await finishStore(s, { hashed: hashed[s.id], damaged: damaged[s.id] });
+            freed += r.freed || 0;
+            if (r.note) notes.push(r.note);
+            if (r.kept) kept.push(r.kept);
+            if (r.done) s.done = true;
+            save();
+        }
+        const left = plan.stores.filter((s) => !s.done);
+        if (left.length) save(); else storageMod.clearJournal(configPath);
+        refreshStorage(true);
+        writeRuntimeState();
+        kick();
+        const moved = plan.stores.map((s) => storageMod.LABEL[s.id]).join(', ');
+        const bad = plan.stores.flatMap((s) => [...damaged[s.id]].map((rel) => pathMod.join(s.from, rel)));
+        if (bad.length) notes.push(`Not copied because they are damaged already (their checksum differs), and left where they are: ${bad.join(', ')}. The farm downloads document search's model again when it needs it; an Ollama model with a damaged file needs downloading again.`);
+        return {
+            ok: true,
+            message: `The farm's models are in ${dir}${moved ? ` (${moved})` : ''}.${freed ? ` ${GB(freed)} GB freed in the old folders.` : ''}`
+                + `${kept.length ? ` ${kept.join(' ')}` : ''}${notes.length ? ` ${notes.join(' ')}` : ''}`,
+        };
+    }
+    // vLLM's link (Linux): only to a checked copy, and never renaming <root>/hf under a running vLLM: it is stopped first
+    // (and started again by the caller's startAgain, or here). A hf.lolmove-old this move did not make is a leftover of an
+    // earlier one: said, never taken for the old copy. → {ok, error, leftover}.
+    async function linkVllm(s, stopped = null, vllmRuns = () => false) {
+        if (storageMod.hfLinked(s.root, s.to)) return vllmLink(s);
+        let stoppedHere = false;
+        if (vllmRuns() && !(stopped && stopped.includes('vllm'))) {
+            const r = await stopEngine('vllm', () => {});
+            if (!r.ok) return { ok: false, error: `${r.error} Its link was not changed.` };
+            setEngineUp(false);
+            if (stopped) stopped.push('vllm'); else stoppedHere = true;
+        }
+        const r = vllmLink(s);
+        if (stoppedHere) await startAgain(['vllm']);
+        return r;
+    }
+    function vllmLink(s) {
+        const hf = pathMod.join(s.root, 'hf');
+        const old = `${hf}.lolmove-old`;
+        const r = storageMod.linkHf(s.root, s.to);
+        if (!r.ok || !r.oldDir) return r;
+        // This move set <root>/hf aside (a real folder, `aside` in the plan): its old copy is there from now on.
+        if (s.aside && !sameDir(s.from, old)) { s.from = old; return r; }
+        if (sameDir(s.from, old)) return r;
+        return { ...r, leftover: old };
+    }
+    // The Ollama app reads the new folder: the farm sets its Model location (the old value kept in the journal first,
+    // and put back on a failure); when it cannot, the person's step is said. → true when the app was pointed there.
+    async function pointOllamaApp(s, save, tell, notes) {
+        const det = await ollamaApp.detect().catch((e) => ({ ok: false, why: e.message }));
+        if (!det.ok) return false;   // the person's step is said by finishStore (it checks the folder first)
+        tell('pointing the Ollama app at the new folder (it restarts)');
+        if (s.appBefore == null) { s.appBefore = det.before; save(); }
+        const host = localOllamaHost();
+        const upAgain = async () => { for (let i = 0; i < 60; i++) { if (host && (await ollama.version(host, 1000))) return true; await sleep(1000); } return false; };
+        const r = await ollamaApp.setModels(s.to, det, { upAgain });
+        if (!r.ok) { notes.push(r.error); return false; }
+        // It came back: is it reading the new folder? (An app that cannot reach a folder falls back to its default.)
+        const reads = host ? await storageMod.ollamaReads(host, s.to, tagsOf) : null;
+        if (reads !== true) {
+            const again = await ollamaApp.detect().catch(() => null);
+            if (again && again.ok) await ollamaApp.setModels(s.appBefore, again, { upAgain });
+            notes.push(`The Ollama app did not read ${s.to} after its Model location was set, so it was put back as it was (${s.appBefore || 'its default'}); nothing was deleted.`);
+            return false;
+        }
+        s.appSet = true; save();
+        log.ok(`The Ollama app reads its models from ${s.to} now.`);
+        return true;
+    }
+    // Delete one store's old copy, when what uses it reads the new folder and its copy checks out: → {done, freed, kept
+    // (words), note}. Nothing is deleted on any doubt. For Ollama: the same program as at the start (the Ollama app's
+    // own log, where it is readable, naming the new folder), seen reading the new folder, what is missing there copied
+    // again (a blob its startup pruned, a model pulled into the old folder since), every blob checked by its sha256
+    // (`hashed`: those checked moments ago by the same run), and an old manifest only when its copy is the same bytes
+    // and every blob it names is there and checked.
+    async function finishStore(s, opts = {}) {
+        try { return await finishStoreNow(s, opts); }
+        catch (e) { return { done: false, note: `${storageMod.LABEL[s.id]}: ${e.message} Nothing was deleted.` }; }
+    }
+    async function finishStoreNow(s, { hashed = null, damaged = new Set() } = {}) {
+        const label = storageMod.LABEL[s.id];
+        const rf = storageMod.realOf(s.from); const rt = storageMod.realOf(s.to);
+        if (storageMod.inside(rf, rt) || storageMod.inside(rt, rf)) return { done: false, note: `${label}: ${s.from} and ${s.to} are one folder (or one holds the other) now, so nothing was deleted.` };
+        const only = s.only || (s.id === 'ollama' ? storageMod.OLLAMA_PARTS : null);
+        let keep = new Set();
+        let files = await storageMod.listFiles(s.from, { only });
+        const h = hashed || new Set();
+        if (s.id === 'ollama') {
+            const by = ollamaRunBy();
+            if (by !== s.by) {
+                return { done: false, note: s.by === 'other'
+                    ? `Ollama's old copy in ${s.from} is kept: the Ollama answering now is ${by === 'farm' ? 'the farm\'s own, not the Ollama app' : 'not the one this move was for'}, so the farm cannot tell whether the app reads the new folder. Open the Ollama app, start the farm again, then press Finish.`
+                    : `Ollama's old copy in ${s.from} is kept: the Ollama answering now is not the farm's own, so the farm cannot tell whether it reads the new folder. Press Finish once the farm runs its Ollama again.` };
+            }
+            if (s.by === 'other') {
+                const logged = await ollamaStoreFromLog();
+                if (logged && !sameDir(logged, s.to)) return { done: false, note: `One step left for Ollama's models (copied to ${s.to}; the Ollama app's log says it reads ${logged}): ${ollamaStepText(s)}` };
+            }
+            const host = localOllamaHost();
+            const readsNew = host ? await storageMod.ollamaReads(host, s.to, tagsOf) : null;
+            if (readsNew !== true) {
+                return { done: false, note: s.by === 'other' ? `One step left for Ollama's models (copied to ${s.to}): ${ollamaStepText(s)}`
+                    : `Ollama's old copy in ${s.from} is kept: the farm could not see Ollama read the new folder. Press Finish to try again.` };
+            }
+            const r0 = await storageMod.copyStore(s.from, s.to, files, { digestFor: digestFor('ollama'), written: s.written || {}, onlyMissing: true });
+            for (const x of r0.damaged) damaged.add(x);
+            const v = await storageMod.verifyStore(s.from, s.to, files.filter((f) => !damaged.has(f.rel) && !isManifest(f.rel)), { digestFor: digestFor('ollama'), hashed: h });
+            if (!v.ok) return { done: false, note: `Ollama's old copy in ${s.from} is kept, nothing deleted: its copy is not all right. ${v.problems.slice(0, 3).join(' ')}` };
+            keep = await storageMod.ollamaKeep(s.from, s.to, files, h);
+        } else {
+            if (s.id === 'vllm' && !storageMod.hfLinked(s.root, s.to)) return { done: false, note: `vLLM's old copy in ${s.from} is kept: ${pathMod.join(s.root, 'hf')} does not lead to the new folder yet. Press Finish to make it.` };
+            const own = storageMod.dirsFor(config.storage)[s.id];
+            const usesTo = s.id === 'vllm' || !!(own && storageMod.inside(s.to, own));
+            if (!usesTo) return { done: false, note: `${label}: the farm does not use ${s.to} yet.` };
+            // What has a copy is checked (a file without one is simply kept); what was deleted from the folder since is not
+            // brought back (the folder is the source of truth).
+            const withCopy = [];
+            for (const f of files) if (!damaged.has(f.rel) && (await there(pathMod.join(s.to, f.rel)))) withCopy.push(f);
+            const v = await storageMod.verifyStore(s.from, s.to, withCopy, { digestFor: digestFor(s.id), hashed: h });
+            if (!v.ok) return { done: false, note: `${label}: the old copy in ${s.from} is kept, nothing deleted: its copy is not all right. ${v.problems.slice(0, 3).join(' ')}` };
+        }
+        const before = (await bytesIn(s.from, only)) || 0;
+        const r = await storageMod.deleteMoved(s.from, s.to, { only, keep });
+        if (r.refused) return { done: false, note: `${label}: ${r.refused}` };
+        const after = (await bytesIn(s.from, only)) || 0;
+        const words = [];
+        const n = (k, x) => `${k} file${k === 1 ? '' : 's'} in ${x}`;
+        if (r.kept > 0) words.push(`Kept because their copy differs${s.id === 'ollama' ? ' (or a model they belong to is not whole in the new folder)' : ''}: ${n(r.kept, s.from)}.`);
+        if (r.notCopied - damaged.size > 0) words.push(`Kept because they were not copied: ${n(r.notCopied - damaged.size, s.from)}.`);
+        const note = r.busy ? `${n(r.busy, s.from)} could not be deleted (in use): press Finish later to delete them.` : null;
+        return { done: !r.busy, freed: Math.max(0, before - after), kept: words.join(' ') || null, note };
+    }
+    async function stopFarmOllama() {
+        for (const pid of oll.spawnedPids) {
+            // The number the farm recorded may be another program's by now (its Ollama died, the number was given again).
+            if (!(await isOllamaPid(pid))) { log.warn(`The Ollama the farm started (process ${pid}) is gone, and that number belongs to another program now: left alone.`); continue; }
+            try { await killTree(pid); } catch { /* gone */ }
+        }
+        oll.spawnedPids = [];
+        for (const h of oll.spawnedHosts || []) {
+            for (let i = 0; i < 60 && (await ollama.version(h, 1000)); i++) await sleep(250);
+        }
+    }
+    async function startFarmOllama() {
+        for (const h of oll.spawnedHosts || []) {
+            const pid = spawnOllama(h);
+            if (pid) oll.spawnedPids.push(pid);
+            let v = null;
+            for (let i = 0; i < 40 && !v; i++) { await sleep(750); v = await ollama.version(h); }
+            if (!v) return false;
+        }
+        await readOcrInstalled();
+        // Its default model, loaded again at the size it serves (the restart unloaded it).
+        if (ollamaServes(config)) {
+            const def = (config.models.find((m) => m.default) || config.models[0] || {}).id;
+            if (def) for (const h of oll.spawnedHosts || []) ollama.warmModel(h, def, config.ollama.keepAlive, ollamaCtxNum()).catch(() => {});
+        }
+        return true;
+    }
+    // Start again what the switch stopped, from wherever the folders are now. → the ones that did not come back.
+    async function startAgain(stopped) {
+        const failed = [];
+        if (stopped.includes('ollama')) {
+            if (await startFarmOllama()) { if (ollamaServes(config)) setEngineUp(null); }
+            else { failed.push('ollama'); log.err('Ollama did not start again.'); }
+        }
+        for (const svc of ['embed', 'stt', 'classify', 'tts']) if (stopped.includes(svc) && svcById[svc] && !(await bringUp(svcById[svc]))) failed.push(svc);
+        if (stopped.includes('llamacpp')) {
+            const r = await startLlamacpp(() => {});
+            if (r.ok) setEngineUp(true);
+            else {
+                failed.push('llamacpp');
+                await onLlamacppStartFailed(r);
+            }
+        }
+        if (stopped.includes('vllm')) {
+            const r = await startVllm(() => {});
+            if (!r.ok) { failed.push('vllm'); await fallbackToOllama(`vLLM could not start: ${r.message}`, { ran: !!r.ran }); }
+        }
+        writeRuntimeState();
+        kick();
+        return failed;
+    }
+
+    // Finish: what a switched move left (vLLM's link, the Ollama app's folder, the old copies), each checked first.
+    function storageFinish() {
+        const j = storageMod.readJournal(configPath);
+        if (!j) return { ok: true, already: true, message: 'Nothing is left to finish.' };
+        if (!j.switched) return storageMove({ dir: j.to });   // the copy did not finish
+        if (moving()) return { ok: false, error: 'The models are moving: the bar at the top says how far.' };
+        const r = jobs.runDownload('move', 'Finishing the move of the models', async (progress, ctl) => {
+            const tell = (what) => progress(what, null);
+            const save = () => storageMod.writeJournal(configPath, j);
+            let freed = 0; const notes = []; const kept = [];
+            // vLLM's link, when a cut (or a failure) left it unmade: only to a checked copy, vLLM stopped for it.
+            const v = j.stores.find((s) => s.id === 'vllm' && !s.done);
+            if (v && !storageMod.hfLinked(v.root, v.to)) {
+                tell('checking vLLM\'s copy');
+                const chk = await storageMod.verifyStore(v.from, v.to, await storageMod.listFiles(v.from, { only: v.only }));
+                if (!chk.ok) notes.push(`vLLM's models: its copy is not all right, so ${pathMod.join(v.root, 'hf')} was not changed. ${chk.problems.slice(0, 3).join(' ')}`);
+                else {
+                    const lr = await serialize(() => linkVllm(v, null, () => engineOf(config) === 'vllm' && ['ready', 'down'].includes(vllmState.phase)));
+                    if (!lr.ok) notes.push(`vLLM's models: ${lr.error}`);
+                    if (lr.leftover) notes.push(`${lr.leftover} is left from an earlier move: the farm did not delete it.`);
+                    save();
+                }
+            }
+            for (const s of j.stores) {
+                if (s.done) continue;
+                if (ctl.cancelled()) { notes.push('Stopped: what is left stays for the next Finish.'); break; }
+                // The Ollama app not reading the new folder yet: the farm points it there (it restarts), then checks.
+                if (s.id === 'ollama' && s.by === 'other' && !s.appSet && ollamaRunBy() === 'other') {
+                    const host = localOllamaHost();
+                    if (host && (await storageMod.ollamaReads(host, s.to, tagsOf)) === false) await pointOllamaApp(s, save, tell, notes);
+                }
+                tell(`checking and deleting the old copy of ${storageMod.LABEL[s.id].replace(/^\w/, (c) => c.toLowerCase())}`);
+                const f = await finishStore(s);
+                freed += f.freed || 0;
+                if (f.note) notes.push(f.note);
+                if (f.kept) kept.push(f.kept);
+                if (f.done) s.done = true;
+                save();
+            }
+            if (j.stores.some((s) => !s.done)) save(); else storageMod.clearJournal(configPath);
+            if (notes.length && !freed) return { ok: false, error: notes.join(' ') };
+            return { ok: true, message: `${freed ? `${GB(freed)} GB freed in the old folders.` : 'Done.'}${kept.length ? ` ${kept.join(' ')}` : ''}${notes.length ? ` ${notes.join(' ')}` : ''}` };
+        }, { cancel: () => {}, onSettled: () => refreshStorage(true) });
+        return r.ok ? r : { ok: false, error: `${r.error} Wait for it to finish, then press Finish.` };
+    }
+    // Forget a move left unfinished, deleting nothing. Before the switch: the farm keeps its models where they were, and
+    // what was copied stays in the new folder. After it (an Ollama another program runs that was never pointed at the
+    // new folder): that Ollama keeps reading its old folder, and its copy stays in the new one.
+    function storageForget() {
+        const j = storageMod.readJournal(configPath);
+        if (!j) return { ok: true, already: true };
+        if (moving()) return { ok: false, error: 'The move is running: press Stop on its bar first.' };
+        storageMod.clearJournal(configPath);
+        refreshStorage(true);
+        if (!j.switched) {
+            return { ok: true, message: `Forgotten. The farm keeps its models where they were; what was copied stays in ${j.to} (delete it there if you do not want it).` };
+        }
+        const left = (j.stores || []).filter((s) => !s.done);
+        return { ok: true, message: `Forgotten. Nothing was deleted: ${left.map((s) => `${storageMod.LABEL[s.id]} stay in ${s.from}, and their copy in ${s.to}`).join('; ') || 'nothing was left'}.` };
+    }
+
+    // "Use the models in this folder": what a folder holds (.gguf files for llama.cpp, Hugging Face model folders for vLLM,
+    // an Ollama model folder). On Windows a Linux path (/home/…) is read in vLLM's WSL through \\wsl.localhost. What is
+    // the farm's own folder is not offered (it is in the lists already); a folder on another computer is refused.
+    function hostPathOf(p) {   // a path as this computer reads it (a Linux path on Windows → its WSL share)
+        if (process.platform !== 'win32' || !String(p).startsWith('/')) return p;
+        const m = /^\/mnt\/([a-z])(\/.*)?$/i.exec(p);
+        if (m) return `${m[1].toUpperCase()}:\\${(m[2] || '').split('/').filter(Boolean).join('\\')}`;
+        const d = ctx.wslDistro();
+        return d ? pathMod.win32.join(`\\\\wsl.localhost\\${d}`, ...p.split('/').filter(Boolean)) : null;
+    }
+    function linuxPathOf(hostPath, typed) {   // a folder found by a scan, as vLLM (in WSL on Windows) sees it
+        if (process.platform !== 'win32') return hostPath;
+        if (typed && typed.startsWith('/')) {
+            const share = hostPathOf(typed);
+            const rel = pathMod.win32.relative(share, hostPath);
+            return [typed.replace(/\/+$/, ''), ...rel.split('\\').filter(Boolean)].join('/');
+        }
+        return storageMod.wslPathOf(hostPath);
+    }
+    const ownGguf = (p) => storageMod.inside(p, storageMod.dirsFor(config.storage).gguf);
+    async function storageScan(body = {}) {
+        const typed = String(body.dir || '').trim();
+        if (!typed) return { ok: false, error: 'Type a folder, or press Browse.' };
+        const linuxTyped = typed.startsWith('/') && process.platform === 'win32';
+        if (linuxTyped && ctx.wslMoving()) return { ok: false, error: 'WSL\'s Linux disk is moving: look in it once it is done.' };
+        const dir = hostPathOf(typed);
+        if (!dir) return { ok: false, error: 'To look in a folder of WSL\'s Linux, press vLLM first (it checks WSL), then Look again.' };
+        if (!linuxTyped) { const net = await storageMod.networkFolder(dir); if (net) return { ok: false, error: net }; }
+        if (!pathMod.isAbsolute(dir) && !/^\\\\/.test(dir)) return { ok: false, error: 'Give the whole folder, starting with its drive (or with / for a folder of WSL\'s Linux).' };
+        let st = null;
+        try { st = await fsMod.promises.stat(dir); } catch { /* checked below */ }
+        if (!st || !st.isDirectory()) return { ok: false, error: `${typed} is not a folder on this computer.` };
+        const f = await storageMod.scanFolder(dir);
+        const lc = config.llamacpp.library || []; const vl = config.vllm.library || [];
+        const inLc = (p) => lc.some((e) => e.path && storageMod.norm(e.path) === storageMod.norm(p));
+        const into = !!config.storage.dir && !storageMod.missingText();   // a folder chosen: what is elsewhere can move in
+        const gguf = linuxTyped ? [] : f.gguf.filter((g) => !ownGguf(g.path)).map((g) => ({ path: g.path, label: g.label, gb: GB(g.bytes), parts: g.parts, complete: g.complete, mmproj: g.mmproj, added: inLc(g.path), canMoveIn: into && g.complete }));
+        const vllm = vllmSup.ok ? f.hf.map((h) => {
+            const p = linuxPathOf(h.path, linuxTyped ? typed : null);
+            return { path: p, shown: h.path, label: h.label, gb: GB(h.bytes), vision: h.vision, slow: process.platform === 'win32' && /^\/mnt\/[a-z]\//.test(p || ''), added: vl.some((e) => e.path === p), usable: !!p };
+        }) : [];
+        const olNow = (storageCache.data && (storageCache.data.stores || []).find((x) => x.id === 'ollama')) || null;
+        const ollamaFound = linuxTyped ? [] : f.ollama.filter((o) => !(config.storage.dir && sameDir(o.path, pathMod.join(config.storage.dir, storageMod.SUB.ollama))))
+            .map((o) => ({ path: o.path, models: o.models, gb: GB(o.bytes), inUse: sameDir(config.storage.ollama, o.path) || !!(olNow && sameDir(olNow.dir, o.path)) }));
+        return { ok: true, dir: typed, found: { gguf, vllm, ollama: ollamaFound }, truncated: f.truncated, ollamaBy: ollamaRunBy(), into: into ? config.storage.dir : null };
+    }
+    // Add what the person picked from a scan, each checked again here (never taken on the page's word). Not while the
+    // models move, and never a file on another computer.
+    async function storageUse(body = {}) {
+        if (moving()) return { ok: false, error: 'The models are moving: add these once the move is done.' };
+        const added = []; const errors = [];
+        for (const g of Array.isArray(body.gguf) ? body.gguf.slice(0, 50) : []) {
+            const p = String((g && g.path) || g || '');
+            if (!pathMod.isAbsolute(p)) { errors.push(`${p}: not a file of this computer.`); continue; }
+            const net = await storageMod.networkFolder(p);
+            if (net) { errors.push(`${p}: ${net}`); continue; }
+            if (ownGguf(p)) { errors.push(`${p} is in the farm's own folder: it is in the list already.`); continue; }
+            // Its vision projector: the one the scan finds next to it (one mmproj*.gguf in its folder).
+            const near = (await storageMod.scanFolder(pathMod.dirname(p), { maxDepth: 0 })).gguf.find((x) => storageMod.norm(x.path) === storageMod.norm(llamacpp.normalizeModelUrl(p)));
+            const r = addLibraryPath(p, { mmproj: near ? near.mmproj : null });
+            if (r.ok) added.push(r.model.label); else errors.push(r.error);
+        }
+        for (const v of Array.isArray(body.vllm) ? body.vllm.slice(0, 50) : []) {
+            const p = String((v && v.path) || v || '');
+            const hostDir = hostPathOf(p);
+            const near = hostDir ? (await storageMod.scanFolder(hostDir, { maxDepth: 0 })).hf[0] : null;
+            if (!near) { errors.push(`${p}: no model there (a config.json and .safetensors files).`); continue; }
+            const slow = process.platform === 'win32' && /^\/mnt\/[a-z]\//.test(p);
+            const r = vllmMod.newLibraryEntry({ path: p, found: near, note: slow ? `On drive ${p[5].toUpperCase()}: of Windows: it loads slower through WSL than from WSL's own disk.` : `On this computer: ${p}` }, config.vllm.library || []);
+            if (r.error) { errors.push(r.error); continue; }
+            config.vllm.library = [...(config.vllm.library || []), r.entry];
+            const warn = persist('vllm', { library: config.vllm.library });
+            if (warn) errors.push(warn.trim());
+            added.push(r.entry.label);
+        }
+        let ollamaMsg = '';
+        if (body.ollama) {
+            const p = pathMod.resolve(String(body.ollama));
+            const net = await storageMod.networkFolder(p);
+            if (net) errors.push(net);
+            else if (!storageMod.isOllamaStore(p)) errors.push(`${p} is not an Ollama model folder (it has no manifests and blobs).`);
+            else {
+                const r = await useOllamaFolder(p);
+                if (r.ok) ollamaMsg = r.message; else errors.push(r.error);
+            }
+        }
+        if (added.length) refreshStorage(true);
+        if (!added.length && !ollamaMsg) return { ok: false, error: errors.join(' ') || 'Nothing was picked.' };
+        return { ok: true, message: `${added.length ? `Added: ${added.join(', ')}. Press Use this to serve one.` : ''}${ollamaMsg ? ` ${ollamaMsg}` : ''}${errors.length ? ` Not added: ${errors.join(' ')}` : ''}`.trim() };
+    }
+    // "Move into the farm's folder" (owner, 2026-10-12: the folder is the source of truth; a model found elsewhere is
+    // offered to move in): .gguf files (every part, and the projector next to it) are copied into the folder's gguf/,
+    // checked, the list's entry (if any) points at the copy, and only then are the originals deleted. In the download
+    // slot, while the farm keeps serving; a model llama.cpp serves from there is moved after a switch, never under it.
+    async function storageMoveIn(body = {}) {
+        if (!config.storage.dir || storageMod.missingText()) return { ok: false, error: storageMod.missingText() || 'Choose the farm\'s folder first (Keep everything here, Move here).' };
+        if (moving()) return { ok: false, error: 'The models are moving already: wait for the bar to finish.' };
+        const picked = (Array.isArray(body.gguf) ? body.gguf : []).map((g) => String((g && g.path) || g || '')).filter(Boolean).slice(0, 20);
+        if (!picked.length) return { ok: false, error: 'Nothing was picked.' };
+        const gdir = storageMod.dirsFor(config.storage).gguf;
+        const items = [];
+        for (const p of picked) {
+            if (!pathMod.isAbsolute(p) || ownGguf(p)) return { ok: false, error: `${p}: not a model to move in.` };
+            const net = await storageMod.networkFolder(p);
+            if (net) return { ok: false, error: `${p}: ${net}` };
+            const first = llamacpp.normalizeModelUrl(p);
+            if (!llamacpp.onDisk(first)) return { ok: false, error: `${first} is not on this computer (or a part of it is missing).` };
+            if (sameDir(llamacpp.fileFor(config.llamacpp.model || ''), first) && ctx.llamacppChild()) return { ok: false, error: `${pathMod.basename(first)} is the model llama.cpp serves: switch to another one first, then move it in.` };
+            const near = (await storageMod.scanFolder(pathMod.dirname(first), { maxDepth: 0 })).gguf.find((x) => sameDir(x.path, first));
+            const names = [...(llamacpp.shardUrls(first) || [first]), ...(near && near.mmproj ? [near.mmproj] : [])].map((x) => pathMod.basename(x));
+            items.push({ from: pathMod.dirname(first), first, names, mmproj: near ? near.mmproj : null });
+        }
+        return jobs.runDownload('move', `Moving ${items.length} model${items.length === 1 ? '' : 's'} into ${gdir}`, async (progress, ctl) => {
+            const done = [];
+            for (const it of items) {
+                const files = (await storageMod.listFiles(it.from)).filter((f) => it.names.includes(f.rel));
+                try {
+                    await storageMod.copyStore(it.from, gdir, files, { isCancelled: ctl.cancelled, onBytes: () => progress(`copying ${pathMod.basename(it.first)}`, null) });
+                } catch (e) { return { ok: false, error: `${e.code === 'STOPPED' ? 'Stopped.' : e.message} Nothing was deleted.` }; }
+                const v = await storageMod.verifyStore(it.from, gdir, files);
+                if (!v.ok) return { ok: false, error: `The copy is not all right, so nothing was deleted. ${v.problems.slice(0, 2).join(' ')}` };
+                // The list follows: an entry by path to the original now points at the copy.
+                const to = (p) => (p && sameDir(pathMod.dirname(llamacpp.normalizeModelUrl(p)), it.from) && it.names.includes(pathMod.basename(p)) ? pathMod.join(gdir, pathMod.basename(p)) : null);
+                const lib = (config.llamacpp.library || []).map((e) => (to(e.path) || to(e.mmproj) ? { ...e, ...(to(e.path) ? { path: to(e.path) } : {}), ...(to(e.mmproj) ? { mmproj: to(e.mmproj) } : {}) } : e));
+                config.llamacpp.library = lib;
+                const patch = { library: lib };
+                if (to(config.llamacpp.model)) { config.llamacpp.model = to(config.llamacpp.model); patch.model = config.llamacpp.model; }
+                if (to(config.llamacpp.mmproj)) { config.llamacpp.mmproj = to(config.llamacpp.mmproj); patch.mmproj = config.llamacpp.mmproj; }
+                const saved = patchSection(configPath, 'llamacpp', patch);
+                if (!saved.ok) return { ok: false, error: `The farm could not save the list (${saved.error}), so the originals were not deleted.` };
+                for (const f of files) {
+                    try { await fsMod.promises.unlink(pathMod.join(it.from, f.rel)); } catch { /* in use: kept, said below */ }
+                }
+                done.push(pathMod.basename(it.first));
+            }
+            await syncFolderModels().catch(() => {});
+            return { ok: true, message: `Moved into ${gdir}: ${done.join(', ')}. They are in the llama.cpp list.` };
+        }, { cancel: () => {}, onSettled: () => refreshStorage(true) });
+    }
+    // An Ollama model folder used where it is: kept for an Ollama the farm starts (restarted with it now, and never
+    // pruned there); for one another program runs, the person points it there (nothing is moved or deleted).
+    async function useOllamaFolder(p) {
+        const saved = patchSection(configPath, 'storage', { ollama: p });
+        if (!saved.ok) return { ok: false, error: `The farm could not save it (${saved.error}).` };
+        config.storage = { ...config.storage, ollama: p };
+        storageMod.useStorage(config);
+        const by = ollamaRunBy();
+        if (by === 'farm') {
+            if (busy()) return { ok: true, message: `Ollama reads ${p} from its next start.` };
+            await serialize(async () => { await stopFarmOllama(); await startFarmOllama(); });
+            writeRuntimeState();
+            return { ok: true, message: `Ollama now reads its models from ${p}. The models of its old folder are not deleted.` };
+        }
+        if (by === 'other') return { ok: true, message: `Saved. Ollama is run by another program here: ${ollamaStepText({ to: p, from: 'its old folder' }).replace(/ Then press Finish.*$/, '')}` };
+        return { ok: true, message: `Saved: an Ollama the farm starts reads ${p}.` };
+    }
+
+    return {
+        storageAdminState, storageCheck, storageMove, storageFinish, storageForget, storageScan, storageUse, storageMoveIn,
+        refreshStorage, planMove, moveRun, switchRun, finishStore, ollamaStoreNow, ollamaRunBy, syncFolderModels,
+    };
+}
+
 // makeRateMeter/pullPhase/makePerfSampler/seatIdleChange/autoLlamacppContext are exported for
 // the tests: each encodes judgements that are easy to break silently (a negative rate after a
 // restart, a raw digest leaking into the UI, a non-vLLM read as one, a seat hold out
 // of range, a "nothing fits" read as "unknown") and none is reachable through `run`.
-module.exports = { run, resolveOcrModel, makeRateMeter, makeJobs, pullPhase, makePerfSampler, seatIdleChange, autoLlamacppContext };
+module.exports = { run, resolveOcrModel, makeRateMeter, makeJobs, makeStorage, pullPhase, makePerfSampler, seatIdleChange, autoLlamacppContext };
