@@ -5569,8 +5569,15 @@ test('storage: a checksum the farm knows is checked (Ollama\'s blobs, document s
         assert.equal(ST.digestOf('gguf', 'embeddinggemma-2-BF16.gguf', { 'embeddinggemma-2-BF16.gguf': 'abc' }), 'abc');
         const files = await ST.listFiles(from);
         const digestFor = (rel) => ST.digestOf('ollama', rel);
-        await assert.rejects(ST.copyStore(from, to, files, { digestFor }), /does not match its checksum/);
-        assert.ok(!fs.existsSync(path.join(to, 'blobs', `sha256-${'0'.repeat(64)}`)), 'a damaged file never lands');
+        // A file damaged already (its checksum differs): never copied, left where it is, listed — the rest moves.
+        const r0 = await ST.copyStore(from, to, files, { digestFor });
+        assert.deepEqual(r0.damaged, [path.join('blobs', `sha256-${'0'.repeat(64)}`)]);
+        assert.ok(!fs.existsSync(path.join(to, 'blobs', `sha256-${'0'.repeat(64)}`)) && !fs.existsSync(path.join(to, 'blobs', `sha256-${'0'.repeat(64)}${ST.PART}`)), 'a damaged file never lands');
+        const kept = await ST.deleteMoved(from, to);
+        assert.ok(fs.existsSync(path.join(from, 'blobs', `sha256-${'0'.repeat(64)}`)) && kept.kept === 1, 'and is never deleted: it has no copy');
+        // Put back as it was for the rest.
+        for (const f of await ST.listFiles(to)) if (!fs.existsSync(path.join(from, f.rel))) { fs.mkdirSync(path.dirname(path.join(from, f.rel)), { recursive: true }); fs.copyFileSync(path.join(to, f.rel), path.join(from, f.rel)); }
+        fs.rmSync(to, { recursive: true, force: true });
         fs.rmSync(path.join(from, 'blobs', `sha256-${'0'.repeat(64)}`));
         const files2 = await ST.listFiles(from);
         const r = await ST.copyStore(from, to, files2, { digestFor });

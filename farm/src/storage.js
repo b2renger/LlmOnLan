@@ -267,7 +267,7 @@ async function copyFile(src, dst, { onBytes = () => {}, isCancelled = () => fals
         if (size != null && pos !== size) throw new Error(`${src} changed while it was copied (${pos} bytes read, ${size} expected).`);
         if (h) {
             const got = h.digest('hex');
-            if (got !== digest) throw Object.assign(new Error(`${src} does not match its checksum: the file may be damaged. Nothing was moved.`), { code: 'DIGEST' });
+            if (got !== digest) throw Object.assign(new Error(`${src} does not match its checksum: the file is damaged.`), { code: 'DIGEST' });
         }
         await fsp.rename(tmp, dst);
         await syncDir(path.dirname(dst));
@@ -318,9 +318,10 @@ async function bytesToCopy(from, to, files) {
 // Copy a store: what is already in `to` with its size is kept (checked in verifyStore); a file there with another size is
 // replaced only when this move wrote it (modified since `since`, the move's start: the original changed meanwhile, an
 // Ollama manifest re-written by a pull); a file of someone else's under the same name stops the move, never overwritten.
-// → {copied: n, hashed: Set(rel) of files whose checksum was checked while copying}.
+// A file whose checksum is known and differs is damaged already: not copied, left where it is (never deleted, since it
+// has no copy), and listed. → {copied: n, hashed: Set(rel) checked while copying, damaged: [rel]}.
 async function copyStore(from, to, files, { onBytes = () => {}, isCancelled = () => false, digestFor = () => null, since = 0 } = {}) {
-    const hashed = new Set();
+    const hashed = new Set(); const damaged = [];
     let copied = 0;
     for (const f of files) {
         if (isCancelled()) throw cancelled();
@@ -339,11 +340,12 @@ async function copyStore(from, to, files, { onBytes = () => {}, isCancelled = ()
             throw new Error(`${dst} is already there and differs from ${src}: move it away or delete it, then press Move here again.`);
         }
         const digest = digestFor(f.rel);
-        await copyFile(src, dst, { onBytes, isCancelled, digest, size: f.size });
+        try { await copyFile(src, dst, { onBytes, isCancelled, digest, size: f.size }); }
+        catch (e) { if (e.code !== 'DIGEST') throw e; damaged.push(f.rel); continue; }
         if (digest) hashed.add(f.rel);
         copied++;
     }
-    return { copied, hashed };
+    return { copied, hashed, damaged };
 }
 
 // Every file of `from` (as listed) is in `to` with its size; a file with a known checksum whose copy was not checked while

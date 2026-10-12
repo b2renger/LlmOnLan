@@ -3950,7 +3950,7 @@ async function run(args) {
     let wslDiskInfo = null;   // the distribution's disk (vllm.wslDisk), read at each check of the vLLM card
     let wslKeptDisk = null;   // the last move found WSL keeping the disk with nothing else running: the next asks to stop all of WSL
     const storageCache = { at: 0, data: null, busy: false };
-    const GB = (b) => Math.round(((b || 0) / 1e9) * 10) / 10;
+    const GB = (b) => { const g = (b || 0) / 1e9; return g >= 1 ? Math.round(g * 10) / 10 : Math.round(g * 100) / 100; };
     const localOllamaHost = () => (oll.reachable || []).filter(isLocalHost)[0] || null;
     // Who runs the Ollama on this computer: the farm (it started it), another program (the Ollama app, a service), or
     // nobody (null: only Ollamas on other computers, or none answered at the start).
@@ -4050,7 +4050,11 @@ async function run(args) {
     // the stores it planned. → {stores: [{id, from, to, by?, root?}], notes, resumed, startedAt}.
     async function planMove(dir) {
         const j = storageMod.readJournal(configPath);
-        if (j && storageMod.norm(j.to) === storageMod.norm(dir)) return { stores: j.stores.filter((s) => !s.done), notes: [], resumed: true, startedAt: j.startedAt };
+        // Who runs Ollama is read again: a farm that crashed leaves its Ollama running, and this run did not start it.
+        if (j && storageMod.norm(j.to) === storageMod.norm(dir)) {
+            const by = ollamaRunBy();
+            return { stores: j.stores.filter((s) => !s.done).map((s) => (s.id === 'ollama' && by ? { ...s, by } : s)), notes: [], resumed: true, startedAt: j.startedAt };
+        }
         const to = storageMod.dirsFor({ dir });
         const cur = storageMod.dirsFor(config.storage);
         const stores = []; const notes = [];
@@ -4115,11 +4119,11 @@ async function run(args) {
         const startedAt = plan.startedAt || Date.now();
         storageMod.writeJournal(configPath, { to: dir, startedAt, stores: plan.stores });
         const switchedAlready = storageMod.norm(config.storage.dir || '') === storageMod.norm(dir);
-        const files = {}; const hashed = {};
+        const files = {}; const hashed = {}; const damaged = {};
         let total = 0; let done = 0;
         for (const s of plan.stores) {
             files[s.id] = await storageMod.listFiles(s.from);
-            hashed[s.id] = new Set();
+            hashed[s.id] = new Set(); damaged[s.id] = new Set();
             total += await storageMod.bytesToCopy(s.from, s.to, files[s.id]);
         }
         const tell = (what) => progress(what, total ? (done / total) * 100 : null, total ? { bytes: done, total } : null);
@@ -4133,6 +4137,7 @@ async function run(args) {
                         onBytes: (n) => { done += n; tell(`copying ${label}`); }, isCancelled: ctl.cancelled, digestFor: digestFor(s.id), since: startedAt,
                     });
                     for (const x of r.hashed) hashed[s.id].add(x);
+                    for (const x of r.damaged) damaged[s.id].add(x);
                 }
             } catch (e) {
                 if (e.code === 'STOPPED') return { ok: false, error: 'Stopped. Nothing was switched: the farm runs from the old folders. Press Move here again to go on (what was copied is kept).' };
@@ -4140,12 +4145,14 @@ async function run(args) {
             }
             if (ctl.cancelled()) return { ok: false, error: 'Stopped. Nothing was switched: the farm runs from the old folders. Press Move here again to go on (what was copied is kept).' };
         }
-        return serialize(() => switchRun(dir, plan, files, hashed, tell, startedAt, switchedAlready));
+        return serialize(() => switchRun(dir, plan, files, hashed, tell, startedAt, switchedAlready, damaged));
     }
 
     // The switch (in serialize): stop what holds the files, copy what changed meanwhile, check every copy, save the folder,
     // start again from it; then delete each old copy whose user runs from the new one.
-    async function switchRun(dir, plan, files, hashed, tell, startedAt, switchedAlready) {
+    // `damaged`: per store, the files whose checksum already differs: never copied, left where they are, listed.
+    async function switchRun(dir, plan, files, hashed, tell, startedAt, switchedAlready, damaged = {}) {
+        for (const s of plan.stores) if (!damaged[s.id]) damaged[s.id] = new Set();
         const prev = { ...config.storage };
         const next = { dir, ollama: null };
         const store = (id) => plan.stores.find((s) => s.id === id);
@@ -4180,11 +4187,12 @@ async function run(args) {
                     files[s.id] = await storageMod.listFiles(s.from);
                     const r = await storageMod.copyStore(s.from, s.to, files[s.id], { digestFor: digestFor(s.id), since: startedAt });
                     for (const x of r.hashed) hashed[s.id].add(x);
+                    for (const x of r.damaged) damaged[s.id].add(x);
                 }
                 tell('checking the copies');
                 for (const s of plan.stores) {
                     if (s.id === 'ollama' && s.by === 'other') continue;
-                    const v = await storageMod.verifyStore(s.from, s.to, files[s.id], { digestFor: digestFor(s.id), hashed: hashed[s.id] });
+                    const v = await storageMod.verifyStore(s.from, s.to, files[s.id].filter((f) => !damaged[s.id].has(f.rel)), { digestFor: digestFor(s.id), hashed: hashed[s.id] });
                     problems.push(...v.problems);
                 }
             } catch (e) { problems.push(e.message); }
@@ -4223,7 +4231,8 @@ async function run(args) {
             if (!r.done) { if (r.note) notes.push(r.note); continue; }
             s.done = true;
             freed += r.freed;
-            if (r.kept) kept.push(`${r.kept} file${r.kept === 1 ? '' : 's'} in ${s.from}`);
+            const keptN = r.kept - damaged[s.id].size;   // the damaged ones are said below
+            if (keptN > 0) kept.push(`${keptN} file${keptN === 1 ? '' : 's'} in ${s.from}`);
         }
         const left = plan.stores.filter((s) => !s.done);
         if (left.length) storageMod.writeJournal(configPath, { to: dir, startedAt, stores: plan.stores });
@@ -4232,6 +4241,8 @@ async function run(args) {
         writeRuntimeState();
         kickBox.fn();
         const moved = plan.stores.map((s) => storageMod.LABEL[s.id]).join(', ');
+        const bad = plan.stores.flatMap((s) => [...damaged[s.id]].map((rel) => pathMod.join(s.from, rel)));
+        if (bad.length) notes.push(`Not copied because they are damaged already (their checksum differs), and left where they are: ${bad.join(', ')}. The farm downloads document search's model again when it needs it; an Ollama model with a damaged file needs downloading again.`);
         return {
             ok: true,
             message: `The farm's models are in ${dir}${moved ? ` (${moved})` : ''}.${freed ? ` ${GB(freed)} GB freed in the old folders.` : ''}`
