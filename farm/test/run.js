@@ -5765,11 +5765,18 @@ test('WSL\'s Linux disk: where it is, and its move (terminate, then all of WSL o
     assert.equal(V.moveAnswer(fr('ERROR_SHARING_VIOLATION')).kind, 'in-use');
     assert.equal(V.moveAnswer({ code: 0, out: 'L’opération a réussi.', err: '' }).kind, 'ok');
     assert.equal(V.moveAnswer({ code: 1, out: '', err: 'something else', timedOut: false }).kind, 'error');
-    // The move: terminate; WSL keeps the disk → `wsl --shutdown` (every distribution: the panel asked first) → moved.
+    // The move: terminate; WSL keeps the disk (as it does while another Linux runs, measured): without the person's yes to
+    // stopping all of WSL, it waits 90 s for WSL to let go, then says so; nothing else is stopped.
     const disk = { distro: 'Ubuntu', folder: 'C:\\w', file: 'C:\\w\\ext4.vhdx', bytes: 10, drive: 'C' };
+    const calls0 = []; let waited = 0;
+    const r0 = await V.moveWsl('Ubuntu', 'F:\\WSL\\Ubuntu', { disk, wait: async (ms) => { waited += ms; },
+        run: async (cmd, args) => { calls0.push(args.join(' ')); return args.includes('--move') ? fr('ERROR_SHARING_VIOLATION') : { code: 0, out: '', err: '' }; } });
+    assert.deepEqual([r0.ok, r0.inUse, r0.shutdown, calls0.includes('--shutdown'), waited], [false, true, false, false, 90000]);
+    assert.match(r0.error, /keeps Ubuntu's disk in use while another Linux runs/);
+    // With that yes (stopAll): `wsl --shutdown` once, then moved.
     const calls = []; const answers = [fr('ERROR_SHARING_VIOLATION'), fr('ERROR_SHARING_VIOLATION'), { code: 0, out: '', err: '' }];
     const run = async (cmd, args) => { calls.push(args.join(' ')); return args.includes('--move') ? answers.shift() : { code: 0, out: '', err: '' }; };
-    const r = await V.moveWsl('Ubuntu', 'F:\\WSL\\Ubuntu', { run, wait: async () => {}, disk });
+    const r = await V.moveWsl('Ubuntu', 'F:\\WSL\\Ubuntu', { run, wait: async () => {}, disk, stopAll: true });
     assert.deepEqual([r.ok, r.shutdown], [true, true]);
     assert.deepEqual(calls, ['--terminate Ubuntu', '--manage Ubuntu --move F:\\WSL\\Ubuntu', '--shutdown', '--manage Ubuntu --move F:\\WSL\\Ubuntu', '--manage Ubuntu --move F:\\WSL\\Ubuntu']);
     // Moved at once (nothing else kept WSL up): no shutdown.

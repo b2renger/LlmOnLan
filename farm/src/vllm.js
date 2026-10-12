@@ -1066,17 +1066,19 @@ function moveAnswer(r) {
     if (/ERROR_(FILE|ALREADY)_EXISTS|WSL_E_DISTRO_PATH_IN_USE|already in use/i.test(text)) return { kind: 'exists', text: lastLine(text) };
     return { kind: 'error', text: lastLine(text) || r.error || `status ${r.code}` };
 }
-// Move a distribution's disk into `dest` (a Windows folder). Its processes stop first (`wsl --terminate`); when WSL still
-// holds the disk, all of WSL stops (`wsl --shutdown`, every distribution: the panel's question says so before). The new
-// file is measured every 2 s for `onProgress(bytes, total)`. Not cancellable: WSL's own copy runs to its end. → {ok,
-// error, folder, shutdown}. `run` and `wait` are for the tests.
-async function moveWsl(distro, dest, { onProgress = () => {}, run = runCmd, wait = sleep, disk = null, everyMs = 2000 } = {}) {
+// Move a distribution's disk into `dest` (a Windows folder). Its processes stop first (`wsl --terminate`), and WSL's
+// machine is given 90 s to let the disk go (it stops by itself a minute after its last Linux stopped). Only with
+// `stopAll` (a second question to the person, naming every Linux that runs) does all of WSL stop (`wsl --shutdown`):
+// otherwise a disk WSL keeps ends the move with {inUse: true} and nothing else stopped. The new file is measured every
+// 2 s for `onProgress(bytes, total)`. Not cancellable: WSL's own copy runs to its end. → {ok, error, inUse, shutdown}.
+// `run` and `wait` are for the tests.
+async function moveWsl(distro, dest, { onProgress = () => {}, run = runCmd, wait = sleep, disk = null, everyMs = 2000, stopAll = false } = {}) {
     const d = disk || (await wslDisk(distro));
     if (!d) return { ok: false, error: `WSL has no distribution called ${distro}.` };
     const target = path.win32.join(dest, path.win32.basename(d.file));
     let shutdown = false; let waited = 0;
     await run('wsl.exe', ['--terminate', distro], { timeoutMs: 60000 });
-    for (let attempt = 0; attempt < 12; attempt++) {
+    for (let attempt = 0; attempt < 16; attempt++) {
         const tick = setInterval(() => { try { onProgress(fs.statSync(target).size, d.bytes); } catch { /* not created yet */ } }, everyMs);
         if (tick.unref) tick.unref();
         let r;
@@ -1085,8 +1087,12 @@ async function moveWsl(distro, dest, { onProgress = () => {}, run = runCmd, wait
         if (a.kind === 'ok') return { ok: true, error: null, folder: dest, shutdown };
         if (a.kind === 'running') { await run('wsl.exe', ['--terminate', distro], { timeoutMs: 60000 }); await wait(3000); continue; }
         if (a.kind === 'in-use') {
-            if (!shutdown) { await run('wsl.exe', ['--shutdown'], { timeoutMs: 120000 }); shutdown = true; await wait(5000); continue; }
-            if (waited >= 60000) return { ok: false, error: 'WSL still uses its disk after it stopped. Restart the computer, then press Move again.', shutdown };
+            if (stopAll && !shutdown) { await run('wsl.exe', ['--shutdown'], { timeoutMs: 120000 }); shutdown = true; waited = 0; await wait(5000); continue; }
+            if (waited >= 90000) {
+                return shutdown
+                    ? { ok: false, error: 'WSL still uses its disk after it stopped. Restart the computer, then press Move again.', shutdown }
+                    : { ok: false, inUse: true, error: `WSL keeps ${distro}'s disk in use while another Linux runs, or for about a minute after the last one stopped.`, shutdown };
+            }
             await wait(10000); waited += 10000; continue;
         }
         return { ok: false, error: a.kind === 'exists' ? `That folder already holds another Linux disk: choose an empty folder. (${a.text})` : `WSL could not move it: ${a.text}`, shutdown };

@@ -3948,6 +3948,7 @@ async function run(args) {
     // folder adds what a folder already holds, where it is. On Windows, WSL's Linux disk moves from the vLLM card.
     let wslMoving = false;
     let wslDiskInfo = null;   // the distribution's disk (vllm.wslDisk), read at each check of the vLLM card
+    let wslKeptDisk = null;   // the last move found WSL keeping the disk with nothing else running: the next asks to stop all of WSL
     const storageCache = { at: 0, data: null, busy: false };
     const GB = (b) => Math.round(((b || 0) / 1e9) * 10) / 10;
     const localOllamaHost = () => (oll.reachable || []).filter(isLocalHost)[0] || null;
@@ -4478,7 +4479,11 @@ async function run(args) {
         const kind = await storageMod.diskKind(dest);
         const list = await vllmMod.wslDistros();
         const running = Array.isArray(list) ? list.filter((d) => /running|en cours/i.test(d.state)).map((d) => d.name) : [];
-        const summary = { distro, from: disk.folder, gb: disk.bytes == null ? null : GB(disk.bytes), freeGb: free == null ? null : GB(free), sameDrive: !!sameDrive, kind, slow: storageMod.slowDiskText(kind), running };
+        // Another Linux running keeps WSL's machine (and so this disk) busy: then all of WSL stops for the move, which the
+        // panel asks about by name; so does a move that found WSL keeping the disk with nothing else running.
+        const others = running.filter((n) => n !== distro);
+        const stopAll = !!(others.length || (wslKeptDisk && wslKeptDisk === distro));
+        const summary = { distro, from: disk.folder, gb: disk.bytes == null ? null : GB(disk.bytes), freeGb: free == null ? null : GB(free), sameDrive: !!sameDrive, kind, slow: storageMod.slowDiskText(kind), running, others, stopAll };
         if (!sameDrive && disk.bytes != null && free != null && disk.bytes + storageMod.KEEP_FREE > free) {
             return { ...summary, ok: false, error: `Not enough free space in ${dest}: ${distro}'s disk is ${GB(disk.bytes)} GB and ${GB(free)} GB are free there (the farm leaves ${GB(storageMod.KEEP_FREE)} GB free beside it).` };
         }
@@ -4498,8 +4503,9 @@ async function run(args) {
                 }
                 if (engineOf(config) === 'vllm') setVllmPhase('stopped', `${distro}'s Linux disk is moving: vLLM starts again once it is done.`);
                 progress(`stopping ${distro}`, null);
+                // stopAll only when the person answered the question that names every Linux it stops (the dry run's).
                 const r = await vllmMod.moveWsl(distro, dest, {
-                    disk,
+                    disk, stopAll: body.stopAll === true,
                     onProgress: (bytes, total) => progress(`moving ${distro}'s disk`, total ? (bytes / total) * 100 : null, { bytes, total: total || null }),
                 });
                 wslDiskInfo = await vllmMod.wslDisk(distro);
@@ -4515,7 +4521,9 @@ async function run(args) {
                 await checkVllm().catch(() => null);
                 writeRuntimeState();
                 const min = Math.max(1, Math.round((Date.now() - t0) / 60000));
-                if (!r.ok) return { ok: false, error: `${r.error}${at ? '' : ` ${distro}'s disk is still in ${disk.folder}.`}${tail}` };
+                if (r.inUse) wslKeptDisk = distro;
+                if (!r.ok) return { ok: false, error: `${r.error}${at ? '' : ` ${distro}'s disk is still in ${disk.folder}.`}${r.inUse ? ' Press Move… again: all of WSL then stops for the move.' : ''}${tail}` };
+                wslKeptDisk = null;
                 if (!at) return { ok: false, error: `WSL said it moved, but its disk is not in ${dest}.${tail}` };
                 return { ok: true, message: `${distro}'s Linux disk is in ${dest} now (${min} min).${r.shutdown ? ' All of WSL was stopped for it: start again what you use in it.' : ''}${tail}` };
             } finally { wslMoving = false; }

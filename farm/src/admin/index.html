@@ -1331,7 +1331,9 @@ function wslConfirm(d, dest) {
   const min = d.gb ? Math.max(1, Math.round(d.gb / rate / 60)) : null;
   return [`Move ${d.distro}'s Linux disk${d.gb != null ? ` (${gbText(d.gb)})` : ''} from ${d.from} to ${dest}?`, '',
     `EVERYTHING in ${d.distro} moves with it: vLLM and its models, and anything else kept in that Linux (other projects too). Paths inside it do not change.`, '',
-    `WSL stops for the move${d.running && d.running.length ? `: ${d.running.join(', ')} stop, with what runs in them, and all of WSL may stop if it keeps the disk` : ''}. vLLM is stopped first and started again after.`,
+    d.stopAll
+      ? `ALL of WSL stops for the move${d.others && d.others.length ? `: ${d.others.join(', ')} stop too, with what runs in them (start them again after)` : ', because it kept the disk last time'}. vLLM is stopped first and started again after.`
+      : `${d.distro} stops for the move, and WSL gets about a minute to let its disk go. vLLM is stopped first and started again after.`,
     d.sameDrive ? 'It stays on the same drive: a few seconds.' : `It copies the whole disk: ${min ? `about ${min} minute${min === 1 ? '' : 's'}` : 'a while'}${d.kind === 'hdd' ? ' (a hard disk is slow)' : ''}, and cannot be stopped halfway.`,
     ...(d.slow ? ['', `⚠ ${d.slow}`] : [])].join('\n');
 }
@@ -1401,7 +1403,7 @@ function wireStorage(s) {
     if (d && d.ok === false) { toast(d.error || 'Action failed'); return; }
     if (d && d.already) { toast(d.message); return; }
     if (!confirm(wslConfirm(d, dest))) return;
-    post('/lol/admin/vllm/wsl-move', { folder: dest }, b, 'Moving the Linux disk…');
+    post('/lol/admin/vllm/wsl-move', { folder: dest, stopAll: !!d.stopAll }, b, 'Moving the Linux disk…');
   });
   // The folders are measured when the page opens (then at most once a minute, in the background).
   if (!storageChecked && s.storage && s.storage.stores == null) { storageChecked = true; api('/lol/admin/storage/check', { method: 'POST', body: '{}' }).then(() => refresh(true)).catch(() => {}); }
