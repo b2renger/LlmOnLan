@@ -13,6 +13,9 @@ const { app, BrowserWindow, ipcMain, session, shell } = require('electron');
 // test pattern for the camera — and no permission prompt, so ● Record and Take a picture run for real (k23).
 app.commandLine.appendSwitch('use-fake-device-for-media-stream');
 app.commandLine.appendSwitch('use-fake-ui-for-media-stream');
+// Converse (docs/COMPUTER_VOICE_PLAN.md §11): the fake microphone plays a WAV instead of its tone — run.js writes a
+// speech-like loop (chat-harness/mic-fixture.js) and names it here. Chromium loops the file.
+if (process.env.LOL_HARNESS_MIC_WAV) app.commandLine.appendSwitch('use-file-for-fake-audio-capture', process.env.LOL_HARNESS_MIC_WAV);
 const path = require('path');
 const fs = require('fs');
 const { pathToFileURL } = require('url');

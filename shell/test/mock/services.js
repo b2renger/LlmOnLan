@@ -63,17 +63,31 @@ function readBytes(req, limit = 64 * 1024 * 1024) {
 
 /**
  * The farm's voice (Kokoro) by OpenAI's speech contract: POST /v1/audio/speech {model, voice, input} → sound.
- * The mock answers a 0.3 s, 8 kHz, 16-bit mono WAV of silence (a real, decodable sound) whatever it is asked.
+ * The mock answers a 0.3 s, 8 kHz, 16-bit mono WAV of silence (a real, decodable sound) whatever it is asked —
+ * unless `state.ttsMsPerChar` is set (Converse, k27): then a quiet 220 Hz tone as long as the text says
+ * (that many ms a character), so a person can speak over it. The request's `input`, `voice` and `speed`
+ * are kept on its log entry.
  */
-async function ttsMock(req, res) {
-    await readBytes(req);
-    const samples = 2400;
+async function ttsMock(req, res, store, entry) {
+    const raw = await readBytes(req);
+    let body = null;
+    try { body = JSON.parse(raw.toString('utf8')); } catch { body = null; }
+    if (entry && body) { entry.input = String(body.input || ''); entry.voice = body.voice || null; entry.speed = body.speed === undefined ? null : body.speed; }
+    const perChar = Number(store && store.state && store.state.ttsMsPerChar) || 0;
+    const rate = 8000;
+    const samples = perChar > 0 ? Math.max(rate / 10, Math.round(String((body && body.input) || '').length * perChar * rate / 1000)) : 2400;
     const b = Buffer.alloc(44 + samples * 2);
     b.write('RIFF', 0); b.writeUInt32LE(36 + samples * 2, 4); b.write('WAVE', 8); b.write('fmt ', 12);
-    b.writeUInt32LE(16, 16); b.writeUInt16LE(1, 20); b.writeUInt16LE(1, 22); b.writeUInt32LE(8000, 24);
-    b.writeUInt32LE(16000, 28); b.writeUInt16LE(2, 32); b.writeUInt16LE(16, 34); b.write('data', 36); b.writeUInt32LE(samples * 2, 40);
+    b.writeUInt32LE(16, 16); b.writeUInt16LE(1, 20); b.writeUInt16LE(1, 22); b.writeUInt32LE(rate, 24);
+    b.writeUInt32LE(rate * 2, 28); b.writeUInt16LE(2, 32); b.writeUInt16LE(16, 34); b.write('data', 36); b.writeUInt32LE(samples * 2, 40);
+    if (perChar > 0) for (let i = 0; i < samples; i++) b.writeInt16LE(Math.round(6000 * Math.sin(2 * Math.PI * 220 * i / rate)), 44 + i * 2);
     res.writeHead(200, { 'content-type': 'audio/wav', 'access-control-allow-origin': '*' });
     res.end(b);
+}
+
+/** Kokoro's voice list (GET /v1/audio/voices, Kokoro-FastAPI v0.5's shape): what Converse's Farm voice offers. */
+function ttsVoicesMock(res) {
+    return json(res, 200, { voices: ['af_heart', 'ff_siwis', 'bm_george'].map((id) => ({ id, name: id })) });
 }
 
 /**
@@ -192,8 +206,9 @@ function createServicesHandler({ store, snapshotFn, role }) {
         // Control traffic is deliberately NOT logged: a test that asserts on the log would
         // otherwise see its own h.mock.log() call.
         const isControl = pathOnly.startsWith('/mock/');
+        let logged = null;
         if (!isControl) {
-            store.push({
+            logged = store.push({
                 role, method, path: pathOnly,
                 query: q.toString(),
                 headers: {
@@ -251,7 +266,8 @@ function createServicesHandler({ store, snapshotFn, role }) {
         if (pathOnly === '/ocr/process' && method === 'PUT') return ocrProcess(req, res, store);
         if (pathOnly === '/classify/classify' && method === 'POST') return classifyMock(req, res, store);
         if (pathOnly === '/stt/v1/audio/transcriptions' && method === 'POST') return sttMock(req, res, store);
-        if (pathOnly === '/tts/v1/audio/speech' && method === 'POST') return ttsMock(req, res);
+        if (pathOnly === '/tts/v1/audio/speech' && method === 'POST') return ttsMock(req, res, store, logged);
+        if (pathOnly === '/tts/v1/audio/voices' && method === 'GET') return ttsVoicesMock(res);
 
         return json(res, 404, { ok: false, error: `no mock route for ${method} ${pathOnly}` });
     };
