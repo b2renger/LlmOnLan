@@ -178,7 +178,7 @@ registerStrings('computer', {
   // ---- K7 (addendum KG): the debug-log switch, computer/recorder.mjs --------------------------
   recOff: 'Record log',
   recOn: 'Recording · {n} events',
-  recOffHint: 'Record what you do here, every run and every error, into a log file in the LlmOnLan logs folder on this computer — to hand over with a bug report. It starts with what happened just before you pressed it, and keeps recording after a restart until you press it again. What you type and what is sent to the farm go in the file; passwords and keys never do. While it records, press Mark bug when something goes wrong.',
+  recOffHint: 'Record what you do here, every run and every error, into a log file in the LlmOnLan logs folder on this computer — to hand over with a bug report. It starts with what happened just before you pressed it, and keeps recording after a restart until you press it again. What you type and what is sent to the farm go in the file — a Converse box’s written-down words too, never its sound; passwords and keys never do. While it records, press Mark bug when something goes wrong.',
   recOnHint: 'Recording to {name}. Press to stop. When something goes wrong, press Mark bug.',
   recStarting: 'Starting…',
   recMark: 'Mark bug',

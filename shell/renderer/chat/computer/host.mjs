@@ -29,7 +29,7 @@ import { createRunner } from '../graph/runner.mjs';
 // the debug door from hour one, so the door and the units' files land together (§11 K3).
 import { readRuns, resumable, settleCrashed } from '../graph/journal.mjs';
 import { pending as pendingParks, cancelAll as cancelParks } from '../graph/parts/control-bus.mjs';
-import { clearPresses } from '../graph/parts/button.mjs';
+import { clearPresses, consumePress } from '../graph/parts/button.mjs';
 import { createCanvas } from '../graph/canvas.mjs';
 import { exampleByKey, exampleKeyOf } from './examples/index.mjs';
 import { createDocStore, SAVE_DEBOUNCE_MS } from './docstore.mjs';
@@ -438,6 +438,10 @@ export function createHost(app, els) {
     // A refused run activates nothing, so it consumes no press. Same rule as above: the
     // authorisation dies with the wave it was for, rather than waiting to open a gate by itself.
     if (report && report.cycle) clearPresses();
+    // And a press its run never reached (Stop, a failed box upstream) dies with that run too: a Trigger
+    // or a ▶ a moment later must not find it — above all a Converse box's, which opens the microphone
+    // (docs/COMPUTER_VOICE_PLAN.md, review 2026-10-12, 3).
+    for (const seed of Array.isArray(o.seeds) ? o.seeds : []) consumePress(String(seed));
     canvas.setRunning({ running: false, progress: null });
     if (report) {
       // Critic S1-1: ONE sentence per run, the same one the run bar shows (runbar.mjs outcomeOf).

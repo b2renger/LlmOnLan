@@ -63,6 +63,8 @@ export const TAKE_MAX_MS = 20000;
 const GAP = { 'user.level': 50, 'bot.level': 50, 'bot.text': 100 };
 /** A local voice's word boundary is a pulse decaying over this (§5.3). */
 const PULSE_MS = 150;
+/** The time limit is graceful; this long after it, it is not. */
+const HARD_STOP_MS = 30000;
 /** A cue blip lasts this long; the detector treats it as the bot's sound. */
 const CUE_MS = 130;
 /** A press on ● Start opens the microphone only if the run it starts reaches the box this soon: a press
@@ -73,8 +75,24 @@ const pressedAt = new Map();
 /** The face's press: noted in Button's registry (so the host's clearPresses forgets it) and timed.
  * @param {string} id */
 export function pressStart(id) {
+  if (busy.has(String(id))) return;      // a double click, or a press during the conversation: not a second Start
   notePress(id);
   pressedAt.set(String(id), Date.now());
+}
+/** Boxes whose conversation is starting or running (run() entry to exit). */
+const busy = new Set();
+/** partId -> when its last conversation ended: a run that follows at once is the ▶ or a click that
+ * merged into the live run, not a person asking for another conversation. */
+const endedAt = new Map();
+/** A run within this of the box's own end hands on that conversation instead of refusing. */
+const REQUEUE_MS = 3000;
+/** The run's end, whatever ended it: no press noted meanwhile survives it (review 2026-10-12, 2).
+ * @param {string} id */
+function settled(id) {
+  busy.delete(id);
+  consumePress(id);
+  pressedAt.delete(id);
+  endedAt.set(id, Date.now());
 }
 /** Consume a press if there is one AND it is fresh. @param {string} id @returns {boolean} */
 export function freshPress(id) {
@@ -163,7 +181,7 @@ export function liveFace(app) {
  *   watch: (onHidden: () => void) => (() => void),
  *   shownNow: () => boolean,
  *   onChange: (snap: any) => void,
- *   onSession: (end: (() => void)|null) => void,
+ *   onSession: (handles: {end: () => void, stop: () => void}|null) => void,
  * }} o
  * @returns {Promise<{value: any, bar: boolean}>}
  */
@@ -250,7 +268,8 @@ export async function converse(o) {
   /** ■ End and the limits: finish the sentence being said, then stop (§5.2.9).
    * @param {string} why @param {string} note */
   function requestEnd(why, note) {
-    if (closed || endWhy) return;
+    if (closed) return;
+    if (endWhy) { finish(endWhy, endNote); return; }   // asked twice: now (review 2026-10-12, 1)
     endWhy = why;
     endNote = note;
     if (cur && cur.started && !cur.done) {
@@ -349,7 +368,7 @@ export async function converse(o) {
         const item = /** @type {any} */ (queue.shift());
         if (o.voice === 'farm') {
           const got = await item.ready;
-          if (signal.aborted || closed) break;
+          if (signal.aborted || closed || turn.stopAfter) break;
           if (!got || 'error' in got) {
             if (got && got.code === 'aborted') break;
             turn.ttsFailed = String((got && got.error) || '');
@@ -520,6 +539,8 @@ export async function converse(o) {
     if (said) record(turn, said, true);
     else if (turn.user) carry = joinWords(turn.user, carry);
     cur = null;
+    // ■ End was pressed while it spoke: speaking over it does not bring the conversation back.
+    if (endWhy) finish(endWhy, endNote);
   }
 
   // ---- hearing (§5.2.3–5) -------------------------------------------------------------------------------
@@ -543,6 +564,7 @@ export async function converse(o) {
     cur = turn;
     const file = await job.file;
     if (closed) return;
+    if (endWhy) { finish(endWhy, endNote); return; }   // ended while the take was handed over: not sent
     if (!file) { if (cur === turn) { problem(t('parts.converseNoSound'), 'stt'); backToListening(); } return; }
     let sound = await soundOf(job, file);
     if (closed) return;
@@ -610,7 +632,9 @@ export async function converse(o) {
   function tick() {
     if (closed) return;
     const now = o.now();
-    if (now - t0 >= k.maxMinutes * 60000) requestEnd('limit', t('parts.converseEndedLimitMinutes', { n: k.maxMinutes }));
+    // The time limit asks once (the sentence being said is finished); 30 s later it is a hard stop.
+    if (!endWhy && now - t0 >= k.maxMinutes * 60000) requestEnd('limit', t('parts.converseEndedLimitMinutes', { n: k.maxMinutes }));
+    if (now - t0 >= k.maxMinutes * 60000 + HARD_STOP_MS) finish('limit', t('parts.converseEndedLimitMinutes', { n: k.maxMinutes }));
     if (closed) return;
     const level = Number(mic.level()) || 0;
     const botLoud = out.playing || now - out.lastSoundEnd < VAD.botTailMs;
@@ -624,6 +648,11 @@ export async function converse(o) {
     }
     // Bounded memory: while nobody speaks, a take never grows past TAKE_MAX_MS.
     if (vad.phase === 'silence' && !accepted && vad.above === 0 && now - mic.takeStart() > TAKE_MAX_MS) mic.startTake();
+    if (r.ev === 'start' && endWhy) {
+      // ■ End (or a limit) was asked: whatever is said now is not a turn — it ends here, unheard.
+      finish(endWhy, endNote);
+      return;
+    }
     if (r.ev === 'start') {
       // Free to speak: nothing in hand, or the last words are only being written down (the person
       // went on talking). Over the bot, thinking or speaking, only when it is interruptible.
@@ -656,11 +685,17 @@ export async function converse(o) {
   }
   const offWatch = o.watch(() => finish('hidden', t('parts.converseEndedHidden')));
   o.signal.addEventListener('abort', onStop, { once: true });
+  // ■ End, and the box deleted under it, work from now on — also while the system asks for the microphone.
+  o.onSession({ end: () => requestEnd('end', t('parts.converseEndedEnd')), stop: () => finish('stop', t('parts.converseEndedStop')) });
+  changed();
   try {
     mic = await o.listen();
   } catch (err) {
     offWatch();
     o.signal.removeEventListener('abort', onStop);
+    o.onSession(null);
+    snap.running = false;
+    changed();
     const code = err && /** @type {any} */ (err).code;
     throw partFail(code === 'refused' ? t('parts.converseMicRefused') : t('parts.converseNoMic'), 'part');
   }
@@ -676,8 +711,6 @@ export async function converse(o) {
       try { mic.close(); } catch { /* already */ }
       if (!closed) finish(o.signal.aborted ? 'stop' : 'hidden', o.signal.aborted ? t('parts.converseEndedStop') : t('parts.converseEndedHidden'));
     } else {
-      // ■ End finishes the sentence; `stop` (the box deleted under it) ends it now.
-      o.onSession({ end: () => requestEnd('end', t('parts.converseEndedEnd')), stop: () => finish('stop', t('parts.converseEndedStop')) });
       snap.mic = true;
       mic.startTake();
       setState('listening');
@@ -859,7 +892,7 @@ export const conversePart = /** @type {any} */ ({
     start.dataset.part = id;
     start.textContent = t('parts.converseStart');
     start.title = t('parts.converseStartHint');
-    start.addEventListener('click', () => { pressStart(id); });
+    start.addEventListener('click', () => { pressStart(id); start.disabled = true; });
     const end = /** @type {HTMLButtonElement} */ (make('button', 'graph-part-control graph-converse-end'));
     end.type = 'button';
     end.dataset.action = 'end';
@@ -961,6 +994,7 @@ export const conversePart = /** @type {any} */ ({
       setText(stateText, t(/** @type {any} */ (STATE_KEY)[stateName] || STATE_KEY.idle));
       micOn.hidden = !(s && s.mic);
       start.hidden = running;
+      start.disabled = busy.has(id);
       end.hidden = !running;
       const level = s ? Math.max(Number(s.level) || 0, Number(s.botLevel) || 0) : 0;
       /** @type {any} */ (meterFill).style.transform = `scaleX(${(running ? level : 0).toFixed(3)})`;
@@ -1046,51 +1080,70 @@ export const conversePart = /** @type {any} */ ({
     const id = String(input.part.id);
     // Decision 7: only a person's ● Start on this box opens the microphone. Run all never gets here
     // (manual); the title-bar ▶, a Trigger, an MCP run_graph and a wave from upstream carry no press.
-    if (!freshPress(id)) throw partFail(t('parts.converseNoPress'), 'part');
-    const app = input.app;
-    const farm = app && app.farm && typeof app.farm.get === 'function' ? app.farm.get() : null;
-    const stt = farm && farm.stt && farm.stt.url ? farm.stt : null;
-    if (!stt) throw partFail(t('parts.converseNoStt'), 'part');
-    const k = knobs(input.part.settings);
-    const tts = farm && farm.tts && farm.tts.url ? farm.tts : null;
-    const g = /** @type {any} */ (globalThis);
-    const localVoice = !!g.speechSynthesis && typeof g.SpeechSynthesisUtterance === 'function';
-    const voice = voiceFor(k.voice, !!tts, localVoice);
-    if (!voice) throw partFail(k.voice === 'farm' ? t('parts.converseNoFarmVoice') : t('parts.converseNoVoice'), 'part');
-    if (!input.ask || typeof input.ask.text !== 'function') throw partFail(t('parts.errNoFarm'), 'no-farm');
-    const persona = ((input.inputs && input.inputs.persona) || []).map(textOf).join('\n').trim() || t('parts.converseDefaultPersona');
-    const bus = app && app.bus;
-    const out = await converse({
-      knobs: k,
-      persona,
-      voice,
-      stt: { url: String(stt.url), key: stt.key || null },
-      tts,
-      signal: input.signal,
-      listen: () => openListening({ echoCancellation: true, audioContext }),
-      transcribe,
-      synth: speakOnFarm,
-      play: (bytes, signal, opts) => playBytes(bytes, signal, opts),
-      sayLocal: sayLocally,
-      ask: (o) => /** @type {any} */ (input.ask).text(o),
-      decode: decodeTake,
-      face: (ev) => { const f = liveFace(app); if (f && typeof f.send === 'function') f.send(ev); },
-      announce: (ev) => { if (bus && typeof bus.emit === 'function') bus.emit(VOICE_BUS, { partId: id, ...ev }); },
-      cue: blip,
-      now: clock,
-      wallNow: () => Date.now(),
-      frame,
-      sleep,
-      watch: (onHidden) => {
-        if (!bus || typeof bus.on !== 'function') return () => {};
-        const a = bus.on(EV.COMPUTER_SHOWN, (/** @type {any} */ p) => { if (p && p.shown === false) onHidden(); });
-        const b = bus.on(EV.VISIBLE, (/** @type {any} */ p) => { if (p && p.pageVisible === false) onHidden(); });
-        return () => { a(); b(); };
-      },
-      shownNow: () => !!(app && app.state && app.state.shown !== false && app.state.pageVisible !== false),
-      onChange: (snap) => publish(id, snap),
-      onSession: (handles) => { const s = sessions.get(id) || {}; sessions.set(id, { ...s, end: handles }); },
-    });
-    return out;
+    if (!freshPress(id)) {
+      // The ▶ in the title bar (or a click) that merged into this box's own live run re-runs it the moment the
+      // conversation ends: that hands on the conversation, it never opens the microphone again.
+      const ended = endedAt.get(id);
+      if (ended && Date.now() - ended < REQUEUE_MS && input.part && input.part.value && input.part.value.kind === 'json') {
+        return { value: input.part.value, bar: false };
+      }
+      throw partFail(t('parts.converseNoPress'), 'part');
+    }
+    busy.add(id);
+    publish(id, { ...((sessions.get(id) || {}).snap || {}), state: 'idle', running: true, mic: false });
+    try {
+      return await converseRun(input, id);
+    } finally {
+      settled(id);
+    }
   },
 });
+
+/** The conversation behind one ● Start (run(), once the press is checked). @param {any} input @param {string} id */
+async function converseRun(input, id) {
+  const app = input.app;
+  const farm = app && app.farm && typeof app.farm.get === 'function' ? app.farm.get() : null;
+  const stt = farm && farm.stt && farm.stt.url ? farm.stt : null;
+  if (!stt) throw partFail(t('parts.converseNoStt'), 'part');
+  const k = knobs(input.part.settings);
+  const tts = farm && farm.tts && farm.tts.url ? farm.tts : null;
+  const g = /** @type {any} */ (globalThis);
+  const localVoice = !!g.speechSynthesis && typeof g.SpeechSynthesisUtterance === 'function';
+  const voice = voiceFor(k.voice, !!tts, localVoice);
+  if (!voice) throw partFail(k.voice === 'farm' ? t('parts.converseNoFarmVoice') : t('parts.converseNoVoice'), 'part');
+  if (!input.ask || typeof input.ask.text !== 'function') throw partFail(t('parts.errNoFarm'), 'no-farm');
+  const persona = ((input.inputs && input.inputs.persona) || []).map(textOf).join('\n').trim() || t('parts.converseDefaultPersona');
+  const bus = app && app.bus;
+  const out = await converse({
+    knobs: k,
+    persona,
+    voice,
+    stt: { url: String(stt.url), key: stt.key || null },
+    tts,
+    signal: input.signal,
+    listen: () => openListening({ echoCancellation: true, audioContext }),
+    transcribe,
+    synth: speakOnFarm,
+    play: (bytes, signal, opts) => playBytes(bytes, signal, opts),
+    sayLocal: sayLocally,
+    ask: (o) => /** @type {any} */ (input.ask).text(o),
+    decode: decodeTake,
+    face: (ev) => { const f = liveFace(app); if (f && typeof f.send === 'function') f.send(ev); },
+    announce: (ev) => { if (bus && typeof bus.emit === 'function') bus.emit(VOICE_BUS, { partId: id, ...ev }); },
+    cue: blip,
+    now: clock,
+    wallNow: () => Date.now(),
+    frame,
+    sleep,
+    watch: (onHidden) => {
+      if (!bus || typeof bus.on !== 'function') return () => {};
+      const a = bus.on(EV.COMPUTER_SHOWN, (/** @type {any} */ p) => { if (p && p.shown === false) onHidden(); });
+      const b = bus.on(EV.VISIBLE, (/** @type {any} */ p) => { if (p && p.pageVisible === false) onHidden(); });
+      return () => { a(); b(); };
+    },
+    shownNow: () => !!(app && app.state && app.state.shown !== false && app.state.pageVisible !== false),
+    onChange: (snap) => publish(id, snap),
+    onSession: (handles) => { const s = sessions.get(id) || {}; sessions.set(id, { ...s, end: handles }); },
+  });
+  return out;
+}

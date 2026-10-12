@@ -29,7 +29,7 @@ const macrotask = () => new Promise((r) => setImmediate(r));
  * One fake world on a virtual clock.
  * @param {{settings?: any, level?: (t: number, w: any) => number, voice?: 'farm'|'local',
  *   stt?: (n: number, req: any) => {ms?: number, out: any}, answer?: (n: number, req: any) => string[],
- *   firstMs?: number, chunkMs?: number, sayMs?: number, capped?: number, micFails?: string, shown?: boolean}} [o]
+ *   firstMs?: number, chunkMs?: number, sayMs?: number, synthMs?: number, capped?: number, micFails?: string, shown?: boolean}} [o]
  */
 function world(o = {}) {
   /** @type {any} */ const w = {
@@ -79,7 +79,7 @@ function world(o = {}) {
     },
     synth: (/** @type {any} */ req) => {
       w.synths.push({ text: req.text, at: w.t, speed: req.speed, voice: req.voice });
-      return after(50, { bytes: { text: req.text } }, req.signal, { error: 'aborted', code: 'aborted' });
+      return after(o.synthMs ?? 50, { bytes: { text: req.text } }, req.signal, { error: 'aborted', code: 'aborted' });
     },
     play: (/** @type {any} */ bytes, /** @type {AbortSignal} */ signal, /** @type {any} */ h) => {
       w.plays.push({ text: bytes.text, at: w.t });
@@ -290,6 +290,51 @@ export default (test) => {
     assert.ok(b.playAborted >= 1, 'Stop cut the voice');
     assert.equal(b.mic.closed, true);
     assert.equal(b.result.value.data.why, 'stop', 'an abort still returns what was said');
+  });
+
+  // Review 2026-10-12, 1 and 5: once ■ End (or a limit) is asked, nothing brings the conversation back.
+  test('converse: after ■ End, a cough over the last sentence ends it — nothing more is written down, and End twice is now', async () => {
+    const long = 'Une première phrase qui dure un bon moment. ';
+    const w = world({ level: speech([[1000, 2000], [3600, 3800, 0.4]]), answer: () => [long, 'Une deuxième phrase. '], chunkMs: 10, sayMs: 60 });
+    w.start();
+    await w.until(() => w.of('bot.sentence').length === 1);
+    w.endFn.end();                         // finish the sentence, then stop
+    await w.until(() => w.over, 8000);     // the cough at 3.6 s, over the sentence
+    assert.equal(w.of('ended')[0].why, 'end');
+    assert.equal(w.mic.closed, true);
+    assert.equal(w.stts.length, 1, 'nothing said after End was sent to be written down');
+    assert.ok(w.t < 4500, `it ended at the cough, not minutes later: ${Math.round(w.t)}`);
+
+    const b = world({ level: speech([[1000, 2000]]), answer: () => [long, 'Une deuxième phrase. '], chunkMs: 10, sayMs: 60 });
+    b.start();
+    await b.until(() => b.of('bot.sentence').length === 1);
+    b.endFn.end();
+    b.endFn.end();                         // pressed again: now
+    await b.until(() => b.over, 200);
+    assert.equal(b.of('ended')[0].why, 'end');
+    assert.ok(b.playAborted >= 1, 'the second End cut the sentence');
+  });
+
+  test('converse: ■ End while the next sentence is still being made: that sentence is not said', async () => {
+    const w = world({ level: speech([[1000, 2000]]), answer: () => ['Un. ', 'Deux phrases encore. ', 'Trois.'], chunkMs: 40, sayMs: 20, synthMs: 300 });
+    w.start();
+    await w.until(() => w.of('bot.sentence').length === 1);
+    const first = w.plays[0].at;
+    await w.until(() => w.t > first + 100);   // "Un." said (80 ms); "Deux…" still being made (300 ms)
+    assert.equal(w.plays.length, 1);
+    w.endFn.end();
+    await w.finished();
+    assert.equal(w.plays.length, 1, 'the sentence that had not started is not said after End');
+    assert.equal(w.of('ended')[0].why, 'end');
+  });
+
+  test('converse: the time limit finishes the sentence, and 30 s later stops whatever is going on', async () => {
+    const w = world({ level: speech([[1000, 2000]]), settings: { maxMinutes: 1 }, answer: () => [`${'très '.repeat(200)}long. `], chunkMs: 10, sayMs: 100 });
+    w.start();
+    await w.until(() => w.over, 200000);
+    assert.equal(w.of('ended')[0].why, 'limit');
+    assert.ok(w.t >= 90000 && w.t < 92000, `a hard stop 30 s after the minute: ${Math.round(w.t)}`);
+    assert.equal(w.mic.closed, true);
   });
 
   test('converse: leaving the Computer (or hiding the window) ends it at once and closes the microphone', async () => {
@@ -506,6 +551,66 @@ export default (test) => {
         assert.equal(out.value.data.why, 'stop');
         assert.equal(r.env.tracks[0].stopped, true, 'the microphone closed with the box');
       } finally { /** @type {any} */ (globalThis).document = savedDoc; }
+    } finally { r.restore(); clearPresses(); }
+  });
+
+  // Review 2026-10-12, 2: a double click on ● Start, or the ▶ during the conversation, never opens the microphone again.
+  test('consent: a second press while the conversation runs is not a Start; a run right after its end hands on the transcript', async () => {
+    clearPresses();
+    const r = realRun();
+    try {
+      pressStart('c5');
+      const run = /** @type {any} */ (conversePart).run(r.input('c5'));
+      run.catch(() => {});
+      for (let i = 0; i < 200 && !r.env.gum; i++) await new Promise((res) => setTimeout(res, 5));
+      pressStart('c5');                                  // the double click, while it starts
+      assert.equal(freshPress('c5'), false, 'not noted while the box is busy');
+      pressStart('c5');
+      r.bus.emit(EV.COMPUTER_SHOWN, { shown: false });
+      const out = await run;
+      assert.equal(out.value.data.why, 'hidden');
+      assert.equal(r.env.gum, 1);
+      // The runner re-runs a box ▶ was pressed on mid-run: it hands on the conversation, no microphone.
+      const again = await /** @type {any} */ (conversePart).run({ ...r.input('c5'), part: { id: 'c5', type: 'converse', settings: { voice: 'local' }, value: out.value } });
+      assert.equal(again.value, out.value);
+      assert.equal(again.bar, false);
+      assert.equal(r.env.gum, 1, 'the microphone was not opened again');
+      // …but only right after its own end.
+      const realNow = Date.now;
+      Date.now = () => realNow() + 10000;
+      try {
+        await assert.rejects(/** @type {any} */ (conversePart).run({ ...r.input('c5'), part: { id: 'c5', type: 'converse', settings: {}, value: out.value } }), /only a person opens the microphone/);
+      } finally { Date.now = realNow; }
+    } finally { r.restore(); clearPresses(); }
+  });
+
+  // Review 2026-10-12, 4.
+  test('consent: a box deleted while the system asks for the microphone never starts talking', async () => {
+    clearPresses();
+    const r = realRun();
+    /** @type {(v: any) => void} */ let grant = () => {};
+    const g = /** @type {any} */ (globalThis);
+    g.navigator.mediaDevices.getUserMedia = () => new Promise((resolve) => { r.env.gum++; grant = () => resolve({ getTracks: () => r.env.tracks }); });
+    try {
+      /** @type {any[]} */ let parts = [{ id: 'c6', type: 'converse' }];
+      /** @type {any} */ (r.app).host = { session: { doc: () => ({ parts, wires: [] }), sandboxNow: () => null } };
+      const doc = g.__chatTestDom.createDocument();
+      const savedDoc = g.document;
+      g.document = doc;
+      try {
+        const ctx = { app: r.app, part: { id: 'c6', type: 'converse', settings: {} }, update() {}, commit() {} };
+        const face = /** @type {any} */ (conversePart).render(doc.createElement('div'), ctx.part, ctx);
+        pressStart('c6');
+        const run = /** @type {any} */ (conversePart).run(r.input('c6'));
+        run.catch(() => {});
+        for (let i = 0; i < 200 && !r.env.gum; i++) await new Promise((res) => setTimeout(res, 5));
+        parts = [];
+        face.destroy();                                   // deleted while the permission is pending
+        grant(undefined);
+        const out = await run;
+        assert.equal(out.value.data.why, 'stop');
+        assert.equal(r.env.tracks[0].stopped, true, 'the microphone it was then given is let go at once');
+      } finally { g.document = savedDoc; }
     } finally { r.restore(); clearPresses(); }
   });
 
