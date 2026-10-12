@@ -30,15 +30,16 @@ function farmVersion() {
 const GGUF_EXT = new RegExp(String.raw`\.gguf$`, 'i');
 
 // The GGUF's basename, so a client card can show the real weights even though
-// every box shares an alias like "assistant". Falls back to a generic label when
-// `model` is unset or not a URL (an operator can point llamacpp.model at a path).
+// every box shares an alias like "assistant". `model` is a link, or the path of a .gguf
+// already on this computer (an entry by path); a generic label when unset.
 function ggufName(url) {
     if (!url) return 'llama.cpp';
-    try {
-        const base = decodeURIComponent(new URL(url).pathname.split('/').pop() || '');
-        // A split model's basename carries its shard index — not part of the name.
-        return base.replace(GGUF_EXT, '').replace(/-\d{5}-of-\d{5}$/, '') || 'llama.cpp';
-    } catch { return 'llama.cpp'; }   // not a URL — keep the generic label
+    let base = '';
+    if (/^https?:\/\//i.test(String(url))) {
+        try { base = decodeURIComponent(new URL(url).pathname.split('/').pop() || ''); } catch { /* the generic label */ }
+    } else base = String(url).split(/[\\/]/).pop() || '';   // a path on this computer
+    // A split model's basename carries its shard index — not part of the name.
+    return base.replace(GGUF_EXT, '').replace(/-\d{5}-of-\d{5}$/, '') || 'llama.cpp';
 }
 
 // The single advertised model when a non-Ollama engine serves, or null on Ollama (same precedence as the

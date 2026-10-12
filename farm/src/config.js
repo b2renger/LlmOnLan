@@ -144,6 +144,22 @@ const OllamaSchema = z.object({
     contextLength: z.union([z.literal('auto'), z.number().int().positive()]).default('auto'),
 }).strict();
 
+// A file or folder on this computer: an absolute path, as this computer writes one (no NUL, no line break).
+const AbsPath = z.string().max(1024).refine((p) => path.isAbsolute(p) && !/[\0\r\n]/.test(p), 'an absolute path on this computer');
+// A .gguf the farm downloads (its link) or one already on this computer (its absolute path).
+const GgufRef = z.union([z.string().url(), AbsPath]);
+
+// Model storage (owner, 2026-10-12): ONE folder for the whole farm. `dir` = "Keep everything here": what the farm
+// downloads goes into it (storage.js: gguf/ for llama.cpp, document search and drafts; speech-to-text/; ollama/ for an
+// Ollama the farm starts; vllm/ on Linux), and the panel's Move here moves what is in the old places. null = the farm's
+// own folders (farm/.models, farm/.stt/models, Ollama's own place), so nothing changes for a farm that never sets it.
+// `ollama` = Ollama's models when they live somewhere else than <dir>/ollama: an Ollama model folder found by "Use the
+// models in this folder", used where it is. Both are set by the panel only.
+const StorageSchema = z.object({
+    dir: AbsPath.nullable().default(null),
+    ollama: AbsPath.nullable().default(null),
+}).strict();
+
 // llama.cpp (`llama-server`) as an ALTERNATIVE backend to Ollama, opt-in per farm.
 //
 // The reason it exists is speculative decoding on a 12 GB card. Measured on the
@@ -181,11 +197,13 @@ const LlamacppSchema = z.object({
     // 12 GB card with real headroom (~9 GB with q4_0 KV @16k), where Q2_K_XL's
     // ~10.6 GB left none for the desktop. The trade: Unsloth strips the MTP head
     // below UD-Q2_K_XL, so `mtp` MUST stay false with this quant (see below).
-    model: z.string().url().nullable().default(
+    // Or the absolute path of a .gguf already on this computer (a library entry by `path`, "Use the models in this
+    // folder", owner 2026-10-12): served in place, never copied.
+    model: GgufRef.nullable().default(
         'https://huggingface.co/unsloth/Qwen3.8-27B-GGUF/resolve/main/Qwen3.8-27B-UD-IQ2_S.gguf'
     ),
     // Vision projector. Qwen3.8 is multimodal; without this it is text-only.
-    mmproj: z.string().url().nullable().default(
+    mmproj: GgufRef.nullable().default(
         'https://huggingface.co/unsloth/Qwen3.8-27B-GGUF/resolve/main/mmproj-F16.gguf'
     ),
     // The MODEL LIBRARY the operator picks from in the admin panel: every entry is a
@@ -201,12 +219,13 @@ const LlamacppSchema = z.object({
     library: z.array(z.object({
         id: z.string(),                              // stable key (also the radio value in the panel)
         label: z.string(),                           // what the operator reads
-        url: z.string().url(),
-        mmproj: z.string().url().nullable().default(null),   // vision projector, if the model is multimodal
+        url: z.string().url().nullable().default(null),      // where it downloads from, or
+        path: AbsPath.nullable().default(null),      // a .gguf already on this computer, used where it is (one of the two)
+        mmproj: GgufRef.nullable().default(null),    // vision projector, if the model is multimodal (a link or a path)
         sizeGb: z.number().nullable().default(null),         // download + resident size, for the VRAM hint
         mtp: z.boolean().default(false),             // quant still has its MTP head → llamacpp.mtp may be on
         note: z.string().default(''),
-    }).strict()).default([
+    }).strict().refine((e) => !!(e.url || e.path), 'a model needs a link (url) or a file (path)')).default([
         {
             id: 'qwen3.8-27b-ud-iq2_s',
             label: 'Qwen3.8 27B · UD-IQ2_S',
@@ -354,6 +373,9 @@ const VllmModelSchema = z.object({
     label: z.string(),
     repo: z.string().regex(/^[A-Za-z0-9][\w.-]*\/[\w.-]+$/).nullable().default(null),   // null = a folder already on disk
     folder: z.string().regex(/^[\w.-]+$/).nullable().default(null),   // under <root>/hf; null = the repo's name
+    // Or a model folder anywhere in vLLM's Linux, used where it is ("Use the models in this folder", 2026-10-12): an
+    // absolute Linux path (a Windows drive is /mnt/<letter>/…). The farm never downloads into it nor deletes it.
+    path: z.string().regex(/^(\/[^/\0\r\n"'\\$`]+)+$/).refine((p) => !/(^|\/)\.\.?(\/|$)/.test(p), 'no . or .. in the path').nullable().default(null),
     sizeGb: z.number().nullable().default(null),       // the download
     weightsGib: z.number().nullable().default(null),   // vLLM's "Model loading took X GiB"; null = its size on disk
     vision: z.boolean().nullable().default(null),      // null = what the checkpoint says (vision_config)
@@ -643,6 +665,7 @@ const ConfigSchema = z.object({
     bus: BusSchema.default({}),
     ocr: OcrSchema.default({}),
     embed: EmbedSchema.default({}),
+    storage: StorageSchema.default({}),
     admin: AdminSchema.default({}),
     // Coordinator mode: aggregate LAN peer farms into one balanced endpoint that
     // clients prefer. Also settable per-run via `lol up --coordinator`.
@@ -705,6 +728,8 @@ function loadConfig(explicit) {
         err.code = 'BAD_CONFIG';
         throw err;
     }
+    // Where the farm's model files are (storage.dir): every command that loads the config uses the same folders.
+    require('./storage').useStorage(parsed.data);
     return { config: parsed.data, path: p };
 }
 

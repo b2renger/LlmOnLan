@@ -2470,7 +2470,7 @@ test('stt on the GPU (owner, 2026-10-09): CUDA on an NVIDIA farm with large-v3-t
     const calls = [];
     sttMod.spawnStt(c, { key: 'kk' }, (cmd, args, opts) => { calls.push(opts.env); return { pid: null, on() {} }; });
     assert.deepEqual([calls[0].STT_DEVICE, calls[0].STT_MODEL, calls[0].STT_COMPUTE, calls[0].STT_CPU_MODEL], ['cuda', 'large-v3-turbo', 'int8_float16', 'small']);
-    assert.equal(calls[0].STT_MODELS_DIR, sttMod.MODELS_DIR, 'the model downloads into farm/.stt: rm -rf is a full uninstall');
+    assert.equal(calls[0].STT_MODELS_DIR, sttMod.modelsDir(), 'the model downloads into farm/.stt (or the farm\'s model folder): rm -rf is a full uninstall');
     const cpu = at({ gpu: 'Unknown GPU' }, { enabled: true }); const cpuCalls = [];
     sttMod.spawnStt(cpu, { key: 'kk' }, (cmd, args, opts) => { cpuCalls.push(opts.env); return { pid: null, on() {} }; });
     assert.deepEqual([cpuCalls[0].STT_DEVICE, cpuCalls[0].STT_COMPUTE, cpuCalls[0].STT_CUDA_LIBS], ['cpu', 'int8', '']);

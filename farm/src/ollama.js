@@ -334,10 +334,11 @@ function createModel(baseUrl, name, from, parameters = {}, timeoutMs = 10 * 60 *
     });
 }
 
-// Where separate draft/MTP modules are cached. Gitignored; safe to delete (it is
-// re-downloaded on the next install/up).
+// Where separate draft/MTP modules are cached — and every .gguf the farm downloads (llama.cpp's models, document
+// search's, the llama.cpp build's archives): farm/.models, or <storage.dir>/gguf once the operator chose a folder for
+// the farm's models (storage.js). Safe to delete (re-downloaded on the next install/up).
 function draftDir() {
-    return path.join(__dirname, '..', '.models');
+    return require('./storage').ggufDir();
 }
 
 // Local path a draft URL caches to. Stable, so a second run is a no-op.

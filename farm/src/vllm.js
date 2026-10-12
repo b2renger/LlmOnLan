@@ -20,6 +20,7 @@ const MEASURED = require('./capacity/measured.json');
 const { VLLM_LIBRARY, ConfigSchema } = require('./config');
 const { RESERVE_GIB: EMBED_RESERVE_GIB } = require('./embed');
 const { reserveGib: sttReserveOf } = require('./stt');
+const { vllmRootFor } = require('./storage');
 
 const GIB = 2 ** 30;
 const RUNTIME_GIB = 4;   // vLLM's own use beside weights and pool: production runs 74.9 GiB = 50 pool + 20.37 weights + ~1.4 desktop + ~3
@@ -111,6 +112,11 @@ function parseStatus(text) {
             if (m) out.models.push({ folder: m[1], gb: Number(m[2]) * 1024 / 1e9, vision: m[3] === '1', native: m[4] ? Number(m[4]) : null, partial: m[5] === '1' });
             break;
         }
+        case 'pathmodel': {   // a model of the list by its path: the path last (it may hold spaces)
+            const m = /^(\d+) vision=([01]) native=(\d*) partial=([01]) (\/.*)$/.exec(v);
+            if (m) out.models.push({ folder: null, path: m[5], gb: Number(m[1]) * 1024 / 1e9, vision: m[2] === '1', native: m[3] ? Number(m[3]) : null, partial: m[4] === '1' });
+            break;
+        }
         case 'running': out.running = { pgid: Number(v) }; break;
         case 'env': { const j = v.indexOf('='); if (j > 0) env[v.slice(0, j)] = v.slice(j + 1); break; }
         case 'arg': argv.push(v); break;
@@ -151,18 +157,25 @@ function vllmEntry(config) {
 }
 
 const folderOf = (entry) => (entry ? entry.folder || (entry.repo ? entry.repo.split('/').pop() : entry.id) : null);
+// Where vLLM loads a model from: its folder in <root>/hf, or the folder it has anywhere else in this Linux (an entry by
+// `path`, "Use the models in this folder").
+const modelDir = (entry, root) => (entry.path ? entry.path : `${root}/hf/${folderOf(entry)}`);
+// What status.sh found of a model of the list on disk (a model= or a pathmodel= line), or undefined.
+const diskOf = (st, entry) => (st && entry ? (st.models || []).find((m) => (entry.path ? m.path === entry.path : !m.path && m.folder === folderOf(entry))) : undefined);
 
 function rootPath(p, home) { return home && p.startsWith('~') ? home + p.slice(1) : p; }
 
 // Where vLLM lives: the configured root; else the first install found in ~/lol-vllm, then ~/lol-spike (where this
 // project's spike installed it); else ~/lol-vllm.
+// With a folder for the farm's models (storage.dir, a Linux path), a new install goes into <it>/vllm instead of
+// ~/lol-vllm; an existing install stays where it is (the panel's Move here moves its weights, its hf folder).
 function resolveRoot(config, st) {
     const home = st && st.home;
     if (config.vllm.root) return rootPath(config.vllm.root, home);
     for (const c of ['~/lol-vllm', '~/lol-spike']) {
         if (st && st.installs.some((i) => i.root === rootPath(c, home))) return rootPath(c, home);
     }
-    return rootPath('~/lol-vllm', home);
+    return vllmRootFor(config.storage || {}) || rootPath('~/lol-vllm', home);
 }
 
 // ---- the model list: a model the operator adds (§4.4) -----------------------------------------------------------
@@ -207,7 +220,17 @@ function newLibraryEntry(input = {}, library = [], disk = []) {
         return id;
     };
     const label = (fallback) => String(input.label || fallback).replace(/[\r\n\t]/g, ' ').trim().slice(0, 80) || fallback;
-    const blank = { repo: null, folder: null, sizeGb: null, weightsGib: null, vision: null, presencePenalty: null, catalog: null, measured: null, note: '' };
+    const blank = { repo: null, folder: null, path: null, sizeGb: null, weightsGib: null, vision: null, presencePenalty: null, catalog: null, measured: null, note: '' };
+    // A model folder anywhere in vLLM's Linux, used where it is: its absolute Linux path (`found` = what the scan saw of
+    // it: its size, whether it sees images).
+    if (input.path != null) {
+        const p = String(input.path).trim().replace(/\/+$/, '');
+        if (!PATH_RX.test(p) || /(^|\/)\.\.?(\/|$)/.test(p)) return { error: 'That is not a model folder.' };
+        if (library.some((e) => e.path === p)) return { error: `${p} is already in the list.` };
+        const name = p.split('/').pop();
+        const f = input.found || {};
+        return { entry: { ...blank, id: idFor(name), label: label(name), path: p, sizeGb: f.bytes ? r1(f.bytes / 1e9) : null, vision: f.vision == null ? null : !!f.vision, args: familyArgs(name), note: String(input.note || '').slice(0, 200) } };
+    }
     if (input.folder != null) {
         const folder = String(input.folder).trim();
         if (!FOLDER_RX.test(folder) || /^\.+$/.test(folder)) return { error: 'That is not a model folder.' };
@@ -326,7 +349,7 @@ function settingsOf(config, root = config.vllm.root) {
     const v = config.vllm; const e = vllmEntry(config);
     return {
         modelId: v.model,
-        modelPath: root && e ? `${root}/hf/${folderOf(e)}` : null,
+        modelPath: root && e ? modelDir(e, root) : null,
         ctx: v.contextLength,
         seats: v.parallel,
         maxNumSeqs: v.maxNumSeqs,
@@ -369,10 +392,10 @@ function planFor(config, st, mem = memOf(st), { ocrEnabled = !!(config.ocr && co
     const v = config.vllm; const entry = vllmEntry(config);
     if (!entry) return { ok: false, reason: `The model "${v.model}" is not in the vLLM list: pick one there.`, entry: null };
     const root = resolveRoot(config, st);
-    const folderPath = `${root}/hf/${folderOf(entry)}`;
+    const folderPath = modelDir(entry, root);
     const s = settingsOf(config, root);
     const f = facts(entry);
-    const onDisk = st && st.models.find((m) => m.folder === folderOf(entry));
+    const onDisk = diskOf(st, entry);
     const weightsGib = entry.weightsGib ?? (onDisk ? onDisk.gb * 1e9 / GIB : (entry.sizeGb || 0) * 1e9 / GIB);
     const pb = personBytes(s.ctx, f);
     const minFreeGb = minFreeOf(v.minFreeGb, mem.unified);
@@ -470,14 +493,14 @@ function applyChange(config, body = {}, { st = null, launch = null, root = confi
     if (body.model != null && body.model !== v.model) {
         const e = (v.library || []).find((x) => x.id === body.model);
         if (!e) return { error: 'That model is not in the vLLM list.' };
-        const m = st && st.models.find((f) => f.folder === folderOf(e));
-        if (!m || m.partial) return { error: `${e.label} is not downloaded yet: press Download next to it.` };
+        const m = diskOf(st, e);
+        if (!m || m.partial) return { error: e.path ? `${e.label} is not in ${e.path} any more.` : `${e.label} is not downloaded yet: press Download next to it.` };
         patch.model = e.id;
     }
     const entry = vllmEntry({ vllm: { ...v, ...patch } });
     if (body.context != null) {
         const ctx = Math.round(Number(body.context));
-        const disk = st && entry && st.models.find((f) => f.folder === folderOf(entry));
+        const disk = diskOf(st, entry);
         const native = facts(entry).nativeCtx || (disk && disk.native) || null;
         if (!Number.isFinite(ctx) || ctx < 4096 || (native && ctx > native)) {
             return { error: `Context per person must be between 4096 and ${native ? `${native} tokens (this model's maximum)` : 'the model\'s maximum'}.` };
@@ -485,7 +508,7 @@ function applyChange(config, body = {}, { st = null, launch = null, root = confi
         if (ctx !== v.contextLength) patch.contextLength = ctx;
     } else if ('model' in patch) {
         // Another model with the same context per person: vLLM refuses a context longer than the model reads.
-        const disk = st && st.models.find((f) => f.folder === folderOf(entry));
+        const disk = diskOf(st, entry);
         const native = facts(entry).nativeCtx || (disk && disk.native) || null;
         if (native && v.contextLength > native) return { error: `${entry.label} reads at most ${native} tokens: choose a context per person of ${native} or less with it.` };
     }
@@ -856,8 +879,9 @@ function problemsFrom(probe, config, entry = vllmEntry(config)) {
     // download nobody here started, does.
     if (st.installing && probe.installKind !== 'download') problems.push('A download started earlier is still running. Wait for it, or stop it here.');
     const label = entry ? entry.label : config.vllm.model;
-    const m = entry && st.models.find((x) => x.folder === folderOf(entry));
+    const m = diskOf(st, entry);
     if (!entry) problems.push(`The model "${config.vllm.model}" is not in the vLLM list: pick one there.`);
+    else if (!m && entry.path) problems.push(`${label} is not in ${entry.path} any more: add its folder again, or pick another model.`);
     // Before vLLM is installed the list has no Download button (Install vLLM downloads the chosen model with it).
     else if (!m) problems.push(inst ? `${label} is not downloaded yet: press Download next to it.` : `${label} is not downloaded yet: Install vLLM downloads it too.`);
     else if (m.partial) problems.push(`${label} is only partly downloaded: press Download to finish it.`);
@@ -873,7 +897,7 @@ function problemsFrom(probe, config, entry = vllmEntry(config)) {
 // grows on drive C: and never gives the space back, and a full C: stops Windows itself. → {need, free, problem}.
 function diskCheck(probe, entry, { venv = false, keepGb = 0, button = 'Check', distro = null } = {}) {
     const st = (probe && probe.st) || {};
-    const m = entry && (st.models || []).find((x) => x.folder === folderOf(entry));
+    const m = diskOf(st, entry);
     const model = entry && !(m && !m.partial) ? Math.max(0, (entry.sizeGb || 0) - (m ? m.gb : 0)) : 0;
     const need = (venv ? 10 : 0) + model;
     const free = Math.min(st.diskFreeGb ?? Infinity, (probe && probe.hostDiskFreeGb) ?? Infinity);
@@ -903,6 +927,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const CANDIDATE_ROOTS = '~/lol-vllm:~/lol-spike';   // ponytail: the second is where this project's spike installed vLLM
 const ROOT_RX = /^(\/[\w.-]+)+$/;
 const FOLDER_RX = /^[\w.-]+$/;
+const PATH_RX = /^(\/[^/\0\r\n"'\\$`]+)+$/;   // a model folder by its path (config.js VllmModelSchema.path)
 const lastLine = (s) => String(s || '').split(/\r\n|\r|\n/).map((l) => l.trim()).filter(Boolean).pop() || '';
 const asConfig = (t) => ({ vllm: { distro: t.distro || null } });
 
@@ -998,6 +1023,77 @@ function lxssBasePath(regOut, distro) {
     return name === distro && base ? base : null;
 }
 
+// ---- WSL's Linux disk: where it is, and moving it (owner, 2026-10-12: "Move WSL disk to D: as well as the models") ----
+// A distribution's whole Linux is one virtual disk (ext4.vhdx) in a Windows folder; `wsl --manage <d> --move <folder>`
+// (WSL 2.3+) moves it: a rename on the same drive, else a copy then the old file's deletion (MoveFileEx, WSL's
+// LxssUserSession.cpp: the old file is deleted only once the copy succeeded), and WSL's registry then points at the new
+// folder. Linux paths inside do not change, so vLLM is found where it was. WSL refuses while the distribution runs
+// (WSL_E_DISTRO_NOT_STOPPED) and while its disk is still attached to WSL's virtual machine, which `wsl --terminate`
+// does not undo while another distribution keeps that machine up (ERROR_SHARING_VIOLATION, measured with WSL 2.6.3,
+// 2026-10-12): then only `wsl --shutdown`, which stops every distribution, lets it go.
+
+const LXSS_KEY = 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Lxss';
+// Every distribution of `reg query …\Lxss /s` (pure): [{name, folder, vhd}].
+function lxssEntries(regOut) {
+    const out = []; let cur = null;
+    for (const line of String(regOut || '').split(/\r?\n/)) {
+        if (/^HKEY_/.test(line)) { cur = {}; out.push(cur); continue; }
+        const m = /^\s+(DistributionName|BasePath|VhdFileName)\s+REG_\w+\s+(.*?)\s*$/.exec(line);
+        if (m && cur) cur[m[1]] = m[1] === 'BasePath' ? m[2].replace(/^\\\\\?\\/, '') : m[2];
+    }
+    return out.filter((e) => e.DistributionName && e.BasePath).map((e) => ({ name: e.DistributionName, folder: e.BasePath, vhd: e.VhdFileName || 'ext4.vhdx' }));
+}
+const driveOf = (p) => ((/^([A-Za-z]):/.exec(String(p || '')) || [])[1] || '').toUpperCase() || null;
+// Where a distribution's disk is now: {distro, folder, file, bytes, drive} (bytes null when unreadable), or null.
+async function wslDisk(distro) {
+    if (process.platform !== 'win32' || !distro) return null;
+    const r = await runCmd('reg', ['query', LXSS_KEY, '/s'], { timeoutMs: 10000 });
+    const e = lxssEntries(r.out).find((x) => x.name === distro);
+    if (!e) return null;
+    const file = path.win32.join(e.folder, e.vhd);
+    let bytes = null;
+    try { bytes = fs.statSync(file).size; } catch { /* WSL holds it open: size unknown */ }
+    return { distro, folder: e.folder, file, bytes, drive: driveOf(e.folder) };
+}
+// What `wsl --manage <d> --move` answered (pure): ok | running (the distribution runs) | in-use (its disk is still
+// attached to WSL's machine) | exists (the folder holds another distribution) | error.
+function moveAnswer(r) {
+    if (r.code === 0 && !r.timedOut && !r.error) return { kind: 'ok', text: '' };
+    const text = `${r.out || ''}\n${r.err || ''}`;
+    if (r.timedOut) return { kind: 'error', text: 'it was still not done after 6 hours' };
+    if (/ERROR_SHARING_VIOLATION/.test(text)) return { kind: 'in-use', text: lastLine(text) };
+    if (/WSL_E_DISTRO_NOT_STOPPED/.test(text)) return { kind: 'running', text: lastLine(text) };
+    if (/ERROR_(FILE|ALREADY)_EXISTS|WSL_E_DISTRO_PATH_IN_USE|already in use/i.test(text)) return { kind: 'exists', text: lastLine(text) };
+    return { kind: 'error', text: lastLine(text) || r.error || `status ${r.code}` };
+}
+// Move a distribution's disk into `dest` (a Windows folder). Its processes stop first (`wsl --terminate`); when WSL still
+// holds the disk, all of WSL stops (`wsl --shutdown`, every distribution: the panel's question says so before). The new
+// file is measured every 2 s for `onProgress(bytes, total)`. Not cancellable: WSL's own copy runs to its end. → {ok,
+// error, folder, shutdown}. `run` and `wait` are for the tests.
+async function moveWsl(distro, dest, { onProgress = () => {}, run = runCmd, wait = sleep, disk = null, everyMs = 2000 } = {}) {
+    const d = disk || (await wslDisk(distro));
+    if (!d) return { ok: false, error: `WSL has no distribution called ${distro}.` };
+    const target = path.win32.join(dest, path.win32.basename(d.file));
+    let shutdown = false; let waited = 0;
+    await run('wsl.exe', ['--terminate', distro], { timeoutMs: 60000 });
+    for (let attempt = 0; attempt < 12; attempt++) {
+        const tick = setInterval(() => { try { onProgress(fs.statSync(target).size, d.bytes); } catch { /* not created yet */ } }, everyMs);
+        if (tick.unref) tick.unref();
+        let r;
+        try { r = await run('wsl.exe', ['--manage', distro, '--move', dest], { timeoutMs: 6 * 3600e3 }); } finally { clearInterval(tick); }
+        const a = moveAnswer(r);
+        if (a.kind === 'ok') return { ok: true, error: null, folder: dest, shutdown };
+        if (a.kind === 'running') { await run('wsl.exe', ['--terminate', distro], { timeoutMs: 60000 }); await wait(3000); continue; }
+        if (a.kind === 'in-use') {
+            if (!shutdown) { await run('wsl.exe', ['--shutdown'], { timeoutMs: 120000 }); shutdown = true; await wait(5000); continue; }
+            if (waited >= 60000) return { ok: false, error: 'WSL still uses its disk after it stopped. Restart the computer, then press Move again.', shutdown };
+            await wait(10000); waited += 10000; continue;
+        }
+        return { ok: false, error: a.kind === 'exists' ? `That folder already holds another Linux disk: choose an empty folder. (${a.text})` : `WSL could not move it: ${a.text}`, shutdown };
+    }
+    return { ok: false, error: 'WSL kept restarting the distribution during the move. Close what uses it, then press Move again.', shutdown };
+}
+
 // Free space on the Windows drive that holds the distribution: WSL's own `df` reports its virtual disk (up to 1 TB),
 // not what drive C: has left. Linux: nothing to add.
 async function hostDiskFree(distro) {
@@ -1011,9 +1107,11 @@ async function hostDiskFree(distro) {
 }
 
 // status.sh for one target → {st (parseStatus) | null, error, timedOut}.
-async function status(t, { roots = '', timeoutMs = 60000 } = {}) {
+// `paths` = the folders of the list's entries by path (status.sh says whether each is there, as pathmodel= lines).
+async function status(t, { roots = '', paths = [], timeoutMs = 60000 } = {}) {
     const r = await spawnScript(asConfig(t), 'status.sh', {
         LOL_VLLM_ROOT: t.root || '~/lol-vllm', LOL_VLLM_PORT: String(t.port || 8100), ...(roots ? { LOL_VLLM_ROOTS: roots } : {}),
+        ...(paths.length ? { LOL_VLLM_PATHS_B64: Buffer.from(paths.join('\0'), 'utf8').toString('base64') } : {}),
     }, { timeoutMs, distro: t.distro || null });
     if (r.timedOut) return { st: null, error: 'timeout', timedOut: true };
     if (r.missing) return { st: null, error: r.error, timedOut: false, missing: true };
@@ -1036,7 +1134,8 @@ async function probe(config, { roots = CANDIDATE_ROOTS, hostGpu = null } = {}) {
         const d = w.find((x) => x.name === out.distro);
         if (!d || d.version !== 2) return out;
     }
-    const at = (root) => status({ platform, distro: out.distro, root, port: config.vllm.port }, { roots });
+    const paths = (config.vllm.library || []).map((e) => e.path).filter(Boolean);
+    const at = (root) => status({ platform, distro: out.distro, root, port: config.vllm.port }, { roots, paths });
     let s = await at(config.vllm.root || '~/lol-vllm');
     if (s.st && !config.vllm.root) {
         const want = resolveRoot(config, s.st);
@@ -1278,10 +1377,11 @@ async function setMarker(t, on) {
 module.exports = {
     GIB, VLLM_DIR, UNSUPPORTED, CANDIDATE_ROOTS,
     supported, decodeWsl, parseWslList, defaultDistro, scriptCommand,
-    parseStatus, memOf, vllmEntry, folderOf, resolveRoot, facts, peopleFit, measuredFor, seatsAuto, maxNumSeqsAuto, poolGib,
+    parseStatus, memOf, vllmEntry, folderOf, modelDir, diskOf, resolveRoot, facts, peopleFit, measuredFor, seatsAuto, maxNumSeqsAuto, poolGib,
     familyArgs, isGeneric, repoOf, newLibraryEntry, applyChange, ocrFit,
     settingsOf, argvFor, planFor, flagMap, adoptable,
     bootDecision, unanswered, keepRunning, gpuFit, hostGpuOf, downDecision, isOrphan, takeOverPlan, startPhase, logOffset, explainFailure, installStepText, downloadFailure, problemsFrom, diskCheck, baseUrl,
     answers, runCmd, spawnScript, wslDistros, wslAnswer, lxssBasePath, hostDiskFree, status, probe, targetOf, logFile, readLog,
     start, waitReady, stop, stopInstall, folderBytes, install, removeFolder, takeOverProbe, setMarker,
+    lxssEntries, wslDisk, moveAnswer, moveWsl,
 };
