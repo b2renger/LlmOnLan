@@ -1,0 +1,155 @@
+/* computer-converse.css — the Converse box's face (docs/COMPUTER_VOICE_PLAN.md §6): the state with
+   its dot, the microphone in red while it is open, a level meter, the last exchange, the last turn's
+   numbers, ● Start / ■ End, and the knobs. Tokens only (lint rule 3); every element given a
+   `display` carries its own [hidden] rule. */
+
+#lolcomputer .graph-converse {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 0;
+  overflow-y: auto;
+  font-size: 12px;
+}
+
+#lolcomputer .graph-converse-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+#lolcomputer .graph-converse-dot {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--grey);
+}
+#lolcomputer .graph-converse-host[data-voice='listening'] .graph-converse-dot,
+#lolcomputer .graph-converse-host[data-voice='hearing'] .graph-converse-dot {
+  background: var(--green);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--green) 30%, transparent);
+}
+#lolcomputer .graph-converse-host[data-voice='transcribing'] .graph-converse-dot,
+#lolcomputer .graph-converse-host[data-voice='thinking'] .graph-converse-dot {
+  background: var(--amber);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--amber) 30%, transparent);
+}
+#lolcomputer .graph-converse-host[data-voice='speaking'] .graph-converse-dot {
+  background: var(--accent-hover);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-hover) 30%, transparent);
+}
+#lolcomputer .graph-converse-host[data-voice='error'] .graph-converse-dot { background: var(--danger); }
+
+#lolcomputer .graph-converse-state {
+  font-weight: 600;
+  color: var(--text);
+}
+
+/* The microphone is on: said in red, in words, never only a colour. */
+#lolcomputer .graph-converse-mic {
+  margin-left: auto;
+  font-weight: 600;
+  color: var(--danger);
+}
+#lolcomputer .graph-converse-mic[hidden] { display: none; }
+
+#lolcomputer .graph-converse-meter {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+#lolcomputer .graph-converse-meter-fill {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: var(--green);
+  transform-origin: left center;
+  transform: scaleX(0);
+}
+
+#lolcomputer .graph-converse-buttons { display: flex; gap: 6px; }
+#lolcomputer .graph-converse-start,
+#lolcomputer .graph-converse-end {
+  flex: 1 1 auto;
+  padding: 6px 10px;
+  font: inherit;
+  font-weight: 600;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  cursor: pointer;
+}
+#lolcomputer .graph-converse-start:hover,
+#lolcomputer .graph-converse-end:hover { filter: brightness(1.08); }
+#lolcomputer .graph-converse-start {
+  background: var(--accent);
+  color: var(--on-accent);
+  border-color: var(--accent);
+}
+#lolcomputer .graph-converse-end { color: var(--danger); }
+#lolcomputer .graph-converse-start[hidden],
+#lolcomputer .graph-converse-end[hidden] { display: none; }
+
+#lolcomputer .graph-converse-line {
+  margin: 0;
+  color: var(--text);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+#lolcomputer .graph-converse-bot { color: var(--muted); }
+#lolcomputer .graph-converse-line[hidden] { display: none; }
+
+#lolcomputer .graph-converse-times,
+#lolcomputer .graph-converse-note,
+#lolcomputer .graph-converse-noface {
+  margin: 0;
+  font-size: 11px;
+  color: var(--muted);
+}
+#lolcomputer .graph-converse-wait { color: var(--text); }
+#lolcomputer .graph-converse-note { color: var(--amber); }
+#lolcomputer .graph-converse-times[hidden],
+#lolcomputer .graph-converse-note[hidden],
+#lolcomputer .graph-converse-noface[hidden] { display: none; }
+
+#lolcomputer .graph-converse-slider {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 2px 8px;
+}
+#lolcomputer .graph-converse-slider .graph-part-field-label { grid-column: 1 / -1; }
+#lolcomputer .graph-converse-range { width: 100%; accent-color: var(--accent-hover); }
+#lolcomputer .graph-converse-range-value {
+  min-width: 3.5em;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+
+#lolcomputer .graph-converse-more {
+  align-self: flex-start;
+  padding: 2px 0;
+  font: inherit;
+  font-size: 12px;
+  color: var(--muted);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+#lolcomputer .graph-converse-more:hover { color: var(--text); }
+#lolcomputer .graph-converse-more-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-left: 8px;
+  border-left: 1px solid var(--border);
+}
+#lolcomputer .graph-converse-more-body[hidden] { display: none; }

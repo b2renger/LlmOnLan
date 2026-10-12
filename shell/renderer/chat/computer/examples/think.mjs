@@ -173,6 +173,25 @@ export const THINK = [
     ],
   },
   {
+    key: 'converse',
+    title: 'Converse',
+    needsFarm: 'one with Speech to text on, and a voice (the farm\'s or this computer\'s); every answered turn is a generation.',
+    what: 'A spoken conversation with the farm\'s model. ● Start opens the microphone: it hears when you stop talking, the farm writes down what you said, the model answers out loud sentence by sentence, and it stops when you talk over it. The Preview that is ▶ Live is its face.',
+    inputs: [['persona', 'text: who the bot is and how it speaks (optional)']],
+    output: 'JSON: the conversation, every turn with how long you waited for its first sound.',
+    howto: [
+      'Press ▶ Live on the Voice face, then ● Start here, allow the microphone, and talk. ■ End stops it; leaving the Computer ends it too.',
+      'Turn the knobs: End of turn after (patient or impatient), You can talk over it, an Added delay under More. Start again and compare the "first sound" times.',
+      'Wire it into an Instruction: "Where did the bot make me wait?" A headset keeps the bot from hearing itself.',
+    ],
+    parts: [
+      { id: 'e_persona', type: 'note', x: 0, y: 0, w: 300, h: 200, settings: { text: 'You are Nova, a calm guide in a design studio. You answer in two short sentences and ask one question back.', locked: false } },
+      { id: 'e_conv', type: 'converse', x: 340, y: 0, w: 340, h: 420, settings: {} },
+      { id: 'e_face', type: 'preview', x: 720, y: 0, w: 380, h: 520, settings: preset('voice-face') },
+    ],
+    wires: [{ from: 'e_persona', to: 'e_conv', port: 'persona' }],
+  },
+  {
     key: 'split',
     title: 'Split',
     what: 'Cuts text into a list of items. A box after it that takes text (an Instruction) runs once PER ITEM; Collect, Filter, Code and Classify take the whole list. No model, no farm.',

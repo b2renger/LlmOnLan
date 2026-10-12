@@ -21,8 +21,9 @@
 
 export const PROTOCOL_VERSION = 1;
 
-/** Host -> guest. */
-export const CMDS = Object.freeze(['boot', 'libs', 'run', 'compute', 'params', 'snapshot', 'stop', 'ping', 'dispose']);
+/** Host -> guest. `event` (K-V2, Converse): one conversation event for the sketch's `lol.on`
+ * handlers; a guest whose sketch registered none does nothing with it. */
+export const CMDS = Object.freeze(['boot', 'libs', 'run', 'compute', 'params', 'snapshot', 'stop', 'ping', 'dispose', 'event']);
 
 /** Guest -> host. `release` (K-9, the LIVE guest only): the person pressed Escape inside a live
  * sketch, which hands the keyboard back to the canvas. The guest cannot move the focus out of its

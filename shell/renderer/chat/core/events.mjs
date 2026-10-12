@@ -15,6 +15,10 @@ export const EV = Object.freeze({
   FARM_CHANGE: 'farm:change',         // {caps, prev, changed: string[]} — only when a caps field changed
   FARM_TICK: 'farm:tick',             // {caps, now} — on EVERY __lolChatRefresh call (wall-clock rules run here)
   VISIBLE: 'ui:visible',              // {visible, pageVisible}
+  // {shown} — the Computer surface itself was shown or left (computer/main.mjs, on every change).
+  // VISIBLE cannot say it: `visible` stays true while a run executes (computer/visible.mjs). A
+  // conversation ends on {shown:false} (docs/COMPUTER_VOICE_PLAN.md K-V10).
+  COMPUTER_SHOWN: 'computer:shown',
   // {threadId, created?}  threadId null = no thread / empty view; created:true ONLY from
   // controller.newThread() - a thread nobody has used yet (the model picker writes a held pick
   // onto one of those and never onto a thread the reader merely opened).

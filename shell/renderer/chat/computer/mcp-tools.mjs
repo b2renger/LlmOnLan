@@ -74,6 +74,8 @@ export function modelSettings(type, settings) {
 }
 
 const LEFT_NOTE = 'left for a person to set in the Computer (only a person chooses where a box reads from, which web hosts an agent may read, a USB board, Listen, and which home devices a box reads or switches)';
+/** What a model is told when it asks to run a Converse box. */
+export const CONVERSE_NOTE = 'A conversation is started by a person, with ● Start on the box: only a person opens the microphone.';
 const MUTATING = new Set(['open_graph', 'new_graph', 'add_box', 'connect_boxes', 'set_box', 'run_graph']);
 
 /** Where a new box goes when the model gives no place: right of everything. @param {any} comp */
@@ -162,6 +164,9 @@ export async function runTool(name, args) {
     case 'run_graph': {
       if (!comp.docId()) return no('No graph is open. Use open_graph or new_graph.');
       if (a.from && !comp.doc().parts.some((/** @type {any} */ p) => p.id === a.from)) return no(`No box ${a.from} in the open graph.`);
+      // docs/COMPUTER_VOICE_PLAN.md K-V8: a model never starts a conversation (the box refuses
+      // anyway: only a person's ● Start opens the microphone).
+      if (a.from && comp.doc().parts.some((/** @type {any} */ p) => p.id === a.from && p.type === 'converse')) return no(CONVERSE_NOTE);
       await comp.run(a.from ? { mode: 'from', seeds: [String(a.from)] } : {});
       const until = Date.now() + RUN_WAIT_MS;
       while (comp.running() && Date.now() < until) await new Promise((r) => setTimeout(r, 250));

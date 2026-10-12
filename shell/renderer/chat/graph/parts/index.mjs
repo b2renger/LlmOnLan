@@ -73,6 +73,8 @@ import { classifyPart } from './classify.mjs';
 import { agentPart } from './agent.mjs';
 // Ecosystem plan v2 §3.3: says what arrives, with the farm's voice or this computer's.
 import { speakPart } from './speak.mjs';
+// docs/COMPUTER_VOICE_PLAN.md (2026-10-12): a spoken conversation, started only by a person's ● Start.
+import { conversePart } from './converse.mjs';
 // Ecosystem plan v2 §3.5, P3a: outputs to the world, through ONE choke point in main.
 import { sendPart } from './send.mjs';
 // P3a-2: what a board says over USB, coming into a graph.
@@ -110,7 +112,7 @@ const LEGACY = [fromThread, toThread, render];
  * `spec.order`, so this array is the reading order and `order` is the drawn one.
  * @returns {PartSpec[]} */
 export function partSpecs() {
-  return [textPart, instruction, classifyPart, agentPart, splitPart, repeat, filter, code, collect, preview, speakPart, sendPart, receivePart, triggerPart, file, image,
+  return [textPart, instruction, classifyPart, agentPart, conversePart, splitPart, repeat, filter, code, collect, preview, speakPart, sendPart, receivePart, triggerPart, file, image,
     documentPart, audioPart, fetchPart, openDataPart, homeReadPart, homeCommandPart,
     button, condition, confirm, dialog, toggle, timer,
     sticky, section, title];
@@ -173,6 +175,7 @@ function partMeta() {
     ask: { group: 'think', order: 100, glyph: '✦', desc: t('palette.descAsk') },
     classify: { group: 'think', order: 250, glyph: 'A|B', desc: t('palette.descClassify') },
     agent: { group: 'think', order: 260, glyph: '⟳', desc: t('palette.descAgent') },
+    converse: { group: 'think', order: 270, glyph: '◖))', desc: t('palette.descConverse') },
     split: { group: 'think', order: 300, glyph: '⋔', desc: t('palette.descSplit') },
     filter: { group: 'think', order: 310, glyph: '▽', desc: t('palette.descFilter') },
     collect: { group: 'think', order: 320, glyph: '⊕', desc: t('palette.descCollect') },
@@ -205,7 +208,7 @@ function kwOf(type) {
 /** Each plain part's search-words key (strings/palette.en.mjs). */
 const KW = {
   note: 'palette.kwNote', image: 'palette.kwImage', file: 'palette.kwFile',
-  document: 'palette.kwDocument', audio: 'palette.kwAudio', fetch: 'palette.kwFetch', opendata: 'palette.kwOpenData', classify: 'palette.kwClassify', agent: 'palette.kwAgent', speak: 'palette.kwSpeak', send: 'palette.kwSend', receive: 'palette.kwReceive', trigger: 'palette.kwTrigger',
+  document: 'palette.kwDocument', audio: 'palette.kwAudio', fetch: 'palette.kwFetch', opendata: 'palette.kwOpenData', classify: 'palette.kwClassify', agent: 'palette.kwAgent', converse: 'palette.kwConverse', speak: 'palette.kwSpeak', send: 'palette.kwSend', receive: 'palette.kwReceive', trigger: 'palette.kwTrigger',
   home: 'palette.kwHome', 'home-command': 'palette.kwHomeCommand',
   ask: 'palette.kwAsk', split: 'palette.kwSplit', filter: 'palette.kwFilter',
   collect: 'palette.kwCollect', repeat: 'palette.kwRepeat',

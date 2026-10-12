@@ -31,6 +31,7 @@
 // wires the host, runner, bus and dialogs once they exist.
 
 import { EV } from '../core/events.mjs';
+import { VOICE_BUS } from '../graph/voice.mjs';
 import { debugLogDoor } from '../projects/bridge.mjs';
 import {
   README, clip, clockOf, describeTarget, docDelta, fmtArgs, frameOf, isEditable, isSecretField,
@@ -716,6 +717,20 @@ export function installDevlog(o = {}) {
       bus.on(EV.VISIBLE, (/** @type {any} */ p) => log('bus.visible', { visible: p && p.visible, pageVisible: p && p.pageVisible }));
       bus.on(EV.STORE_MODE, (/** @type {any} */ p) => log('bus.store', { mode: p }));
       bus.on(EV.STORE_ERROR, (/** @type {any} */ p) => log('err.store', { op: p && p.op, error: scrub(p && p.error) }));
+      // Converse (docs/COMPUTER_VOICE_PLAN.md §15.10): the conversation's events and timings, never
+      // its sound — the box never puts sound on the bus. Levels and the streaming text are counted,
+      // and the counts ride the `voice.ended` line.
+      bus.on(EV.COMPUTER_SHOWN, (/** @type {any} */ p) => log('bus.shown', { shown: !!(p && p.shown) }));
+      /** @type {Record<string, number>} */ let voiceCounts = {};
+      bus.on(VOICE_BUS, (/** @type {any} */ p) => {
+        if (!p || typeof p.type !== 'string') return;
+        if (p.type === 'user.level' || p.type === 'bot.level' || p.type === 'bot.text') { voiceCounts[p.type] = (voiceCounts[p.type] || 0) + 1; return; }
+        /** @type {Record<string, any>} */ const line = { part: p.partId, state: p.state, t: p.t };
+        for (const key of ['why', 'code', 'speechMs', 'index', 'ms']) if (p[key] !== undefined) line[key] = p[key];
+        for (const key of ['text', 'said', 'user', 'bot', 'message', 'persona']) if (typeof p[key] === 'string') line[key] = clip(p[key], 300);
+        if (p.type === 'ended') { line.counts = voiceCounts; voiceCounts = {}; }
+        log(`voice.${p.type}`, line);
+      });
     }
 
     // What the person was TOLD: every toast, and every question a dialog asked with its answer.

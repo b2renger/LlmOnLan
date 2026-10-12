@@ -35,6 +35,8 @@ export const CREATIVE_PRESET_IDS = Object.freeze([
   'p5', 'three', 'svg', 'html', 'markdown', 'graph',
   'write-p5', 'write-three', 'write-svg', 'write-html',
   'describe-image', 'write-code', 'write-laya',
+  // docs/COMPUTER_VOICE_PLAN.md (2026-10-12): a p5 face for a Converse box (§4's sketch, grown).
+  'voice-face',
 ]);
 
 /** The answer shape of "Write a Laya question": what a Classify box's `question` port reads. */
@@ -145,6 +147,49 @@ export const STARTER = Object.freeze({
     '    <li>Wire an Instruction into this box to let the model write the page</li>',
     '  </ul>',
     '</div>',
+  ].join('\n'),
+  // docs/COMPUTER_VOICE_PLAN.md §4: a face for a Converse box. It listens with lol.on(...) — the
+  // conversation's state, your voice and the bot's — and draws a head that breathes while it
+  // listens, closes its eyes while it thinks and moves its mouth with the voice. Without Live (or
+  // with no conversation) it draws the head at rest.
+  'voice-face': [
+    '// A face for a Converse box. Press Live on this box, then Start on Converse.',
+    '// lol.on(...) hears the conversation: its state, your voice, the bot\'s voice.',
+    "let state = 'idle';",
+    'let you = 0;     // your voice, 0..1',
+    'let mouth = 0;   // the bot\'s voice, 0..1',
+    "let said = '';   // the sentence being said",
+    '',
+    "lol.on('*', (e) => { state = e.state; });",
+    "lol.on('user.level', (e) => { you = e.level; });",
+    "lol.on('bot.level', (e) => { mouth = e.level; });",
+    "lol.on('bot.sentence', (e) => { said = e.text; });",
+    "lol.on('listening', () => { said = ''; mouth = 0; });",
+    '',
+    'function setup() {',
+    '  createCanvas(400, 300);',
+    '  noStroke();',
+    '  textAlign(CENTER, CENTER);',
+    '}',
+    '',
+    'function draw() {',
+    '  background(24, 24, 27);',
+    "  const busy = state === 'thinking' || state === 'transcribing';",
+    "  const breath = state === 'listening' ? 6 * sin(frameCount / 20) : 0;",
+    '  const r = 140 + breath + 120 * you;',
+    '  fill(busy ? 113 : 228, busy ? 113 : 228, busy ? 122 : 231);',
+    '  circle(width / 2, height / 2 - 10, r);',
+    '  fill(24, 24, 27);',
+    "  const eye = state === 'thinking' ? 2 : 14;",
+    '  ellipse(width / 2 - 28, height / 2 - 30, 12, eye);',
+    '  ellipse(width / 2 + 28, height / 2 - 30, 12, eye);',
+    '  rect(width / 2 - 24, height / 2 + 10, 48, 3 + 40 * mouth, 6);',
+    '  fill(161, 161, 170);',
+    '  textSize(12);',
+    '  text(state, width / 2, height - 36);',
+    '  textSize(11);',
+    '  text(said.slice(0, 60), width / 2, height - 16);',
+    '}',
   ].join('\n'),
   markdown: [
     '# A markdown view',
@@ -275,6 +320,16 @@ export function creativePresets() {
       keywords: ['laya', 'classify', 'question', 'options', 'categories', 'topics', 'prompt'],
       settings: { instruction: t('parts.writeLayaAsk'), shape: 'json', schema: LAYA_QUESTION_SCHEMA }, match: { schema: LAYA_QUESTION_SCHEMA },
     },
+    {
+      // docs/COMPUTER_VOICE_PLAN.md: a p5 sketch that is a Converse box's face. It matches on its own code
+      // (edit it and it is a plain p5.js sketch, as describe-image does with its question); a box
+      // matching two presets takes the one with more keys (presetOf).
+      id: 'voice-face', type: 'preview', group: 'show', order: 815, glyph: '◖',
+      label: t('parts.creativeVoiceFaceLabel'), title: t('parts.creativeVoiceFaceLabel'), desc: t('parts.creativeVoiceFaceDesc'),
+      keywords: ['voice', 'face', 'conversation', 'converse', 'avatar', 'bot', 'character', 'p5js', 'lol.on'],
+      settings: { mode: 'p5', source: /** @type {any} */ (STARTER)['voice-face'], w: 400, h: 300, locked: false },
+      match: { mode: 'p5', source: /** @type {any} */ (STARTER)['voice-face'] }, size: { w: 380, h: 520 },
+    },
   ].map((p) => /** @type {PartPreset} */ (/** @type {any} */ (p)));
 }
 
@@ -288,12 +343,16 @@ export function creativePresets() {
 export function presetOf(part, presets) {
   if (!part || typeof part !== 'object') return null;
   const s = part.settings && typeof part.settings === 'object' ? part.settings : {};
+  // The most specific match wins (2026-10-12): a Voice face is a p5 box whose code is the face's, so
+  // it matches `{mode}` and `{mode, source}`, and it is the face. Ties keep the list's order.
+  /** @type {string|null} */ let best = null;
+  let most = 0;
   for (const p of presets || creativePresets()) {
     if (p.type !== part.type) continue;
     const keys = Object.keys(p.match || {});
-    if (keys.length && keys.every((k) => /** @type {any} */ (s)[k] === /** @type {any} */ (p.match)[k])) return p.id;
+    if (keys.length > most && keys.every((k) => /** @type {any} */ (s)[k] === /** @type {any} */ (p.match)[k])) { best = p.id; most = keys.length; }
   }
-  return null;
+  return best;
 }
 
 /** The box title for a part placed as a preset, or null (PartSpec.titleOf, KE-2).

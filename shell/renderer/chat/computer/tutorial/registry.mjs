@@ -14,7 +14,8 @@
 // lesson per capability built since) 7 listen and speak · 8 a picture to a model · 9 act on the world (Send, armed)
 // · 10 hear the world (Trigger) · 11 an agent with tools · 12 open data · then (2026-10-09, docs/HOME_ASSISTANT.md) 13 read
 // the room (the Home box) · 14 switch the home (Home command), with the Morning briefing, Comfort advisor and Energy
-// report templates. §10.3's "many in, many out" is taught by
+// report templates; then (2026-10-12, docs/COMPUTER_VOICE_PLAN.md §10) the Voice persona template. §10.3's
+// "many in, many out" is taught by
 // the Research → problematic template.
 // computer-lessons.test.mjs walks every lesson to its last tick, with and without the farm.
 
@@ -44,6 +45,7 @@ import askOutLoud from '../templates/ask-out-loud.mjs';
 import morningBriefing from '../templates/morning-briefing.mjs';
 import comfortAdvisor from '../templates/comfort-advisor.mjs';
 import energyReport from '../templates/energy-report.mjs';
+import voicePersona from '../templates/voice-persona.mjs';
 
 /** @typedef {import('../../core/types.mjs').Lesson} Lesson */
 /** @typedef {import('../../core/types.mjs').Template} Template */
@@ -52,7 +54,7 @@ import energyReport from '../templates/energy-report.mjs';
 export const LESSONS = Object.freeze(/** @type {any[]} */ ([tour, l01, l02, l03, l04, l05, l06, l07, l08, l09, l10, l11, l12, l13, l14]));
 
 /** @type {readonly Template[]} */
-export const TEMPLATES = Object.freeze(/** @type {any[]} */ ([researchProblematic, creativeCoding, readTheNews, analyseADataset, askADataset, askOutLoud, talkToABoard, boardOnWifi, morningBriefing, comfortAdvisor, energyReport]));
+export const TEMPLATES = Object.freeze(/** @type {any[]} */ ([researchProblematic, creativeCoding, readTheNews, analyseADataset, askADataset, askOutLoud, talkToABoard, boardOnWifi, morningBriefing, comfortAdvisor, energyReport, voicePersona]));
 
 /** @param {string} id @returns {Lesson|null} */
 export function lessonById(id) {

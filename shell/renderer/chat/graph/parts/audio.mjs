@@ -178,6 +178,9 @@ let cached = { fileId: '', buffer: /** @type {any} */ (null) };
 let plays = 0;
 
 /** @returns {any} the window's AudioContext, made on first use; null where there is none */
+export function audioContext() { return audioCtx(); }
+
+/** @returns {any} */
 function audioCtx() {
   if (sharedCtx) return sharedCtx;
   const g = /** @type {any} */ (globalThis);
@@ -191,24 +194,55 @@ function audioCtx() {
  * Play encoded sound bytes (a WAV or an MP3 the farm's voice made) through the window's ONE
  * AudioContext — the same Web Audio path as the Sound box, so nothing here makes an <audio>
  * element (lint). Resolves when the sound ends, or at once when `signal` aborts (the sound stops).
+ * `opts.onStart()` is called as the sound starts, and `opts.onLevel(rms)` once per animation frame
+ * while it plays, from an AnalyserNode between the source and the speakers (Converse's mouth,
+ * plan K-V4). Without `opts` nothing changes for the Speak box.
  * @param {ArrayBuffer} bytes @param {AbortSignal} [signal]
+ * @param {{onStart?: () => void, onLevel?: (rms: number) => void}} [opts]
  * @returns {Promise<{ok: true, seconds: number}|{ok: false, error: string}>}
  */
-export async function playBytes(bytes, signal) {
+export async function playBytes(bytes, signal, opts) {
   const ac = audioCtx();
   if (!ac) return { ok: false, error: t('parts.audioNoPlayer') };
   let buffer = null;
   try { buffer = await ac.decodeAudioData(bytes.slice(0)); } catch { return { ok: false, error: t('parts.audioUndecodable', { name: 'voice' }) }; }
   try { if (ac.state === 'suspended' && typeof ac.resume === 'function') await ac.resume(); } catch { /* keep going */ }
   if (signal && signal.aborted) return { ok: true, seconds: 0 };   // Stop came while decoding: say nothing
+  const onLevel = opts && typeof opts.onLevel === 'function' ? opts.onLevel : null;
   return new Promise((resolve) => {
     const src = ac.createBufferSource();
     src.buffer = buffer;
-    src.connect(ac.destination);
-    const done = () => resolve({ ok: true, seconds: Number(buffer.duration) || 0 });
+    /** @type {any} */ let meter = null;
+    let frame = 0;
+    if (onLevel && typeof ac.createAnalyser === 'function') {
+      meter = ac.createAnalyser();
+      meter.fftSize = 1024;
+      src.connect(meter);
+      meter.connect(ac.destination);
+    } else src.connect(ac.destination);
+    let over = false;
+    const block = meter ? new Float32Array(meter.fftSize) : null;
+    const measure = () => {
+      if (over || !meter || !block) return;
+      meter.getFloatTimeDomainData(block);
+      let sum = 0;
+      for (let i = 0; i < block.length; i++) sum += block[i] * block[i];
+      try { /** @type {any} */ (onLevel)(Math.sqrt(sum / block.length)); } catch { /* a listener's problem */ }
+      frame = nextFrame(measure);
+    };
+    const done = () => {
+      if (over) return;
+      over = true;
+      cancelFrame(frame);
+      if (meter) { try { meter.disconnect(); } catch { /* gone */ } }
+      if (onLevel) { try { onLevel(0); } catch { /* a listener's problem */ } }
+      resolve({ ok: true, seconds: Number(buffer.duration) || 0 });
+    };
     src.onended = done;
     if (signal) signal.addEventListener('abort', () => { try { src.stop(); } catch { /* ended */ } done(); }, { once: true });
     src.start();
+    if (opts && typeof opts.onStart === 'function') { try { opts.onStart(); } catch { /* a listener's problem */ } }
+    if (meter) frame = nextFrame(measure);
   });
 }
 

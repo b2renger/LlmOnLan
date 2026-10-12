@@ -20,7 +20,7 @@
 
   // ---- protocol (mirrors sandbox/protocol.mjs; this file cannot import - default-src 'none') ---
   var V = 1;
-  var CMDS = ['boot', 'libs', 'run', 'compute', 'params', 'snapshot', 'stop', 'ping', 'dispose'];
+  var CMDS = ['boot', 'libs', 'run', 'compute', 'params', 'snapshot', 'stop', 'ping', 'dispose', 'event'];
   var RUN_KINDS = ['canvas', 'dom', 'three', 'p5', 'svg'];
   var tok = null;
   var root = document.getElementById('root');
@@ -177,6 +177,41 @@
     return _addDoc.call(document, type, fn, o);
   };
 
+  // VOICE-EVENTS BEGIN
+  // Converse's events (docs/COMPUTER_VOICE_PLAN.md K-V2): the host posts `{cmd:'event', ev}` and a
+  // sketch listens with `lol.on(type, fn)` or `lol.on('*', fn)` (each returns an off function).
+  // Handlers run in the order they were registered, each in its own try/catch, so a throwing
+  // handler is a runtime error on the box and never a dead guest. `lol.voice` is `{state, last}`:
+  // the conversation as last heard, kept across a re-run; a re-run (reset) forgets the handlers,
+  // because the sketch registers them again. Pure: Node runs these lines in sandbox-protocol.test.mjs.
+  function voiceBus(onError) {
+    var handlers = [];
+    var voice = { state: 'idle', last: null };
+    return {
+      voice: voice,
+      on: function (type, fn) {
+        if (typeof type !== 'string' || !type || typeof fn !== 'function') return function () {};
+        var h = { type: type, fn: fn };
+        handlers.push(h);
+        return function () { var i = handlers.indexOf(h); if (i >= 0) handlers.splice(i, 1); };
+      },
+      deliver: function (ev) {
+        if (!ev || typeof ev !== 'object' || Array.isArray(ev) || typeof ev.type !== 'string' || !ev.type || ev.type.length > 64) return false;
+        if (typeof ev.state === 'string') voice.state = ev.state;
+        voice.last = ev;
+        var list = handlers.slice();
+        for (var i = 0; i < list.length; i++) {
+          if (list[i].type !== ev.type && list[i].type !== '*') continue;
+          try { list[i].fn(ev); } catch (e) { onError(e); }
+        }
+        return true;
+      },
+      reset: function () { handlers = []; }
+    };
+  }
+  // VOICE-EVENTS END
+  var voiceEvents = voiceBus(function (e) { report('runtime', e); });
+
   // Bumped by every reset, so a run still waiting for its frame size (whenSized) is dropped when a
   // stop, a dispose or the next run arrives first.
   var runSeq = 0;
@@ -199,6 +234,7 @@
     for (i = 0; i < audios.length; i++) { try { audios[i].close(); } catch (e) { /* gone */ } }
     rafs = []; timers = []; workers = []; listeners = []; audios = []; sketches = [];
     params = {}; onParams = [];
+    voiceEvents.reset();
     try { root.replaceChildren(); } catch (e) { root.textContent = ''; }
     styleEl.textContent = '';
     logsLeft = limits.maxLogs; errsLeft = limits.maxErrors;
@@ -602,7 +638,9 @@
       live: liveMode,
       log: function () { console.log.apply(console, arguments); },
       onParams: function (fn) { if (typeof fn === 'function') onParams.push(fn); },
-      orbit: function (camera, opts) { return makeOrbit(camera, opts); }
+      orbit: function (camera, opts) { return makeOrbit(camera, opts); },
+      on: voiceEvents.on,
+      voice: voiceEvents.voice
     };
   }
 
@@ -651,6 +689,9 @@
       styleEl.textContent = String(msg.css || '');
       params = msg.params && typeof msg.params === 'object' ? msg.params : {};
       var api = makeApi(kind);
+      // A live web page's own <script>s run as page scripts, outside the sketch function that
+      // receives `lol`: they reach it as `window.lol` (Converse's face, K-V2).
+      if (liveMode) window.lol = api;
       var code = String(msg.code || '');
       var value;
       // Live: the frame is on screen and animates by itself, so nothing is recorded for an early
@@ -802,6 +843,7 @@
       send('libsDone', { results: results });
       return;
     }
+    if (cmd === 'event') { voiceEvents.deliver(msg.ev); return; }
     if (cmd === 'compute') { doCompute(msg); return; }
     if (cmd === 'run') { doRun(msg); return; }
     if (cmd === 'snapshot') { doSnapshot(msg); }

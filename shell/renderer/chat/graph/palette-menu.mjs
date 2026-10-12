@@ -51,7 +51,7 @@ export const QUICK = Object.freeze(['p5', 'three', 'svg', 'html']);
 /** A plain part's search-words key (strings/palette.en.mjs). A part type with no row has none. */
 const KEYWORDS = {
   note: 'palette.kwNote', image: 'palette.kwImage', file: 'palette.kwFile',
-  document: 'palette.kwDocument', audio: 'palette.kwAudio', fetch: 'palette.kwFetch', opendata: 'palette.kwOpenData', classify: 'palette.kwClassify', agent: 'palette.kwAgent', speak: 'palette.kwSpeak', send: 'palette.kwSend', receive: 'palette.kwReceive', trigger: 'palette.kwTrigger',   // K6 kickoff (KF-8)
+  document: 'palette.kwDocument', audio: 'palette.kwAudio', fetch: 'palette.kwFetch', opendata: 'palette.kwOpenData', classify: 'palette.kwClassify', agent: 'palette.kwAgent', converse: 'palette.kwConverse', speak: 'palette.kwSpeak', send: 'palette.kwSend', receive: 'palette.kwReceive', trigger: 'palette.kwTrigger',   // K6 kickoff (KF-8)
   home: 'palette.kwHome', 'home-command': 'palette.kwHomeCommand',
   ask: 'palette.kwAsk', split: 'palette.kwSplit', filter: 'palette.kwFilter',
   collect: 'palette.kwCollect', repeat: 'palette.kwRepeat',

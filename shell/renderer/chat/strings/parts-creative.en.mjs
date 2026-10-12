@@ -15,6 +15,8 @@
 import { registerStrings } from '../core/i18n.mjs';
 
 registerStrings('parts', {
+  creativeVoiceFaceLabel: 'Voice face (p5.js sketch)',
+  creativeVoiceFaceDesc: 'A p5 sketch that is a Converse box’s face: press ▶ Live, then ● Start. It breathes while it listens, closes its eyes while it thinks, and moves its mouth with the voice — edit it to design your own.',
   // the Show group: boxes with their own code editor
   creativeP5Label: 'p5.js sketch',
   creativeP5Desc: 'Draw and animate with p5.js code. Starts with a bouncing ball you can change; press ▶ Live and hold the mouse down: it follows the pointer.',
