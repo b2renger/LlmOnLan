@@ -211,6 +211,23 @@ function repoOf(input) {
 
 // A new entry of the list, from {repo} (a name or a link) or {folder} (a folder already in <root>/hf, `disk` =
 // parseStatus's models), with an optional label. Adding only remembers it: nothing downloads. → {entry} | {error}.
+// The farm's folder is the source of truth (owner, 2026-10-12): with one chosen, a model folder in vLLM's hf/ (status.sh's
+// model= lines; on Linux hf/ is in the farm's folder) that the list does not name joins it by its folder name, and an
+// entry by folder whose folder is gone leaves it (never a downloadable one, nor `keepId`, the chosen model). Pure.
+// → {library, changed}.
+function syncFolderEntries(library, st, { keepId = null } = {}) {
+    const disk = ((st && st.models) || []).filter((m) => m.folder && !m.path && !m.partial);
+    let lib = (library || []).slice(); let changed = false;
+    for (const m of disk) {
+        if (lib.some((e) => !e.path && folderOf(e) === m.folder)) continue;
+        const r = newLibraryEntry({ folder: m.folder }, lib, disk);
+        if (r.entry) { lib.push(r.entry); changed = true; }
+    }
+    const gone = lib.filter((e) => e.folder && !e.repo && !e.path && e.id !== keepId && !disk.some((m) => m.folder === e.folder));
+    if (gone.length) { lib = lib.filter((e) => !gone.includes(e)); changed = true; }
+    return { library: lib, changed };
+}
+
 function newLibraryEntry(input = {}, library = [], disk = []) {
     const ids = new Set(library.map((e) => e.id));
     const idFor = (name) => {
@@ -1055,6 +1072,19 @@ async function wslDisk(distro) {
     try { bytes = fs.statSync(file).size; } catch { /* WSL holds it open: size unknown */ }
     return { distro, folder: e.folder, file, bytes, drive: driveOf(e.folder) };
 }
+// The Linux that run now, from `wsl -l --running -q` (names only, one per line, UTF-16): the same in every language,
+// unlike the STATE column of `wsl -l -v` ("Running", "En cours d'exécution", …). → [names], or null (no answer).
+function parseWslNames(buf) { return decodeWsl(buf).split(/\r?\n/).map((l) => l.replace(/\0/g, '').trim()).filter(Boolean); }
+async function wslRunning({ run = runCmd } = {}) {
+    const r = await run('wsl.exe', ['-l', '--running', '-q'], { timeoutMs: 15000 });
+    if (r.timedOut || r.error) return null;
+    return r.code === 0 ? parseWslNames(r.out) : [];   // WSL answers non-zero when none runs
+}
+// Does this WSL know `wsl --manage <distro> --move`? Its help lists the option by name in every language.
+async function wslCanMove({ run = runCmd } = {}) {
+    const r = await run('wsl.exe', ['--help'], { timeoutMs: 15000 });
+    return /--move\b/.test(`${r.out || ''}\n${r.err || ''}`);
+}
 // What `wsl --manage <d> --move` answered (pure): ok | running (the distribution runs) | in-use (its disk is still
 // attached to WSL's machine) | exists (the folder holds another distribution) | error.
 function moveAnswer(r) {
@@ -1072,9 +1102,12 @@ function moveAnswer(r) {
 // otherwise a disk WSL keeps ends the move with {inUse: true} and nothing else stopped. The new file is measured every
 // 2 s for `onProgress(bytes, total)`. Not cancellable: WSL's own copy runs to its end. → {ok, error, inUse, shutdown}.
 // `run` and `wait` are for the tests.
-async function moveWsl(distro, dest, { onProgress = () => {}, run = runCmd, wait = sleep, disk = null, everyMs = 2000, stopAll = false } = {}) {
+// `others`: the other Linux the person agreed to stop (the question named them); all of WSL stops only while no other
+// one has started since, else the move ends and asks again. WSL must know `--manage --move` (2.3+), checked first.
+async function moveWsl(distro, dest, { onProgress = () => {}, run = runCmd, wait = sleep, disk = null, everyMs = 2000, stopAll = false, others = [] } = {}) {
     const d = disk || (await wslDisk(distro));
     if (!d) return { ok: false, error: `WSL has no distribution called ${distro}.` };
+    if (!(await wslCanMove({ run }))) return { ok: false, error: 'This WSL cannot move a Linux disk (it needs WSL 2.3 or later): update WSL (wsl --update), then press Move again. Nothing was stopped.' };
     const target = path.win32.join(dest, path.win32.basename(d.file));
     let shutdown = false; let waited = 0;
     await run('wsl.exe', ['--terminate', distro], { timeoutMs: 60000 });
@@ -1087,7 +1120,14 @@ async function moveWsl(distro, dest, { onProgress = () => {}, run = runCmd, wait
         if (a.kind === 'ok') return { ok: true, error: null, folder: dest, shutdown };
         if (a.kind === 'running') { await run('wsl.exe', ['--terminate', distro], { timeoutMs: 60000 }); await wait(3000); continue; }
         if (a.kind === 'in-use') {
-            if (stopAll && !shutdown) { await run('wsl.exe', ['--shutdown'], { timeoutMs: 120000 }); shutdown = true; waited = 0; await wait(5000); continue; }
+            if (stopAll && !shutdown) {
+                const now = await wslRunning({ run });
+                const extra = (now || []).filter((n) => n !== distro && !others.includes(n));
+                if (!now || extra.length) {
+                    return { ok: false, error: now ? `${extra.join(', ')} started since you answered, and stopping all of WSL would stop ${extra.length === 1 ? 'it' : 'them'} too: press Move… again (it asks again, naming them).` : 'WSL did not say which Linux run: press Move… again.', shutdown };
+                }
+                await run('wsl.exe', ['--shutdown'], { timeoutMs: 120000 }); shutdown = true; waited = 0; await wait(5000); continue;
+            }
             if (waited >= 90000) {
                 return shutdown
                     ? { ok: false, error: 'WSL still uses its disk after it stopped. Restart the computer, then press Move again.', shutdown }
@@ -1384,10 +1424,10 @@ module.exports = {
     GIB, VLLM_DIR, UNSUPPORTED, CANDIDATE_ROOTS,
     supported, decodeWsl, parseWslList, defaultDistro, scriptCommand,
     parseStatus, memOf, vllmEntry, folderOf, modelDir, diskOf, resolveRoot, facts, peopleFit, measuredFor, seatsAuto, maxNumSeqsAuto, poolGib,
-    familyArgs, isGeneric, repoOf, newLibraryEntry, applyChange, ocrFit,
+    familyArgs, isGeneric, repoOf, newLibraryEntry, syncFolderEntries, applyChange, ocrFit,
     settingsOf, argvFor, planFor, flagMap, adoptable,
     bootDecision, unanswered, keepRunning, gpuFit, hostGpuOf, downDecision, isOrphan, takeOverPlan, startPhase, logOffset, explainFailure, installStepText, downloadFailure, problemsFrom, diskCheck, baseUrl,
     answers, runCmd, spawnScript, wslDistros, wslAnswer, lxssBasePath, hostDiskFree, status, probe, targetOf, logFile, readLog,
     start, waitReady, stop, stopInstall, folderBytes, install, removeFolder, takeOverProbe, setMarker,
-    lxssEntries, wslDisk, moveAnswer, moveWsl,
+    lxssEntries, wslDisk, moveAnswer, moveWsl, parseWslNames, wslRunning, wslCanMove,
 };

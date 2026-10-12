@@ -38,8 +38,12 @@ function patchConfigFile(configPath, mutate) {
     catch (e) { return { ok: false, error: String((e && e.message) || e) }; }
     const tmp = path.join(path.dirname(configPath), `.lol.config.${process.pid}.tmp`);
     try {
-        fs.writeFileSync(tmp, JSON.stringify(next, null, 2) + '\n', 'utf8');
+        // Flushed to the disk before the rename: a move of the models deletes the old copies right after saving the
+        // new folder here, and a power cut must not bring back a file that names the old one.
+        const fd = fs.openSync(tmp, 'w');
+        try { fs.writeSync(fd, JSON.stringify(next, null, 2) + '\n'); fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
         fs.renameSync(tmp, configPath);
+        if (process.platform !== 'win32') { try { const d = fs.openSync(path.dirname(configPath), 'r'); try { fs.fsyncSync(d); } finally { fs.closeSync(d); } } catch { /* best effort */ } }
         return { ok: true };
     } catch (e) {
         try { fs.unlinkSync(tmp); } catch { /* nothing to clean */ }

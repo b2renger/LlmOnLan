@@ -5,9 +5,15 @@
 // one subfolder per store (SUB):
 //   gguf/            llama.cpp's .gguf files, document search's model, drafts (instead of farm/.models)
 //   speech-to-text/  faster-whisper's models (instead of farm/.stt/models)
+//   classify/        Classify's Laya weights (a Hugging Face cache; instead of the machine's shared ~/.cache/huggingface)
+//   kokoro/          the voice's model (v1_0/kokoro-v1_0.pth and its config.json; instead of farm/.kokoro/src/api/src/models)
 //   ollama/          OLLAMA_MODELS for an Ollama the farm starts (instead of Ollama's own ~/.ollama/models)
 //   vllm/            on Linux: vLLM's root for a new install, and hf/ for the weights of an existing one
-// null = the farm's own folders, so nothing changes for a farm that never sets it.
+//   wsl/             on Windows: what the vLLM card offers for WSL's Linux disk (vLLM and its weights live in it)
+// null = the farm's own folders, so nothing changes for a farm that never sets it. The folder is the source of truth
+// (owner, 2026-10-12): what is in it is what the farm has. `<dir>/.lol-storage` (MARKER) is written at the switch: a
+// farm that finds storage.dir set and no marker says the folder is missing (a USB drive unplugged, a letter changed)
+// and downloads nothing into it, instead of filling whatever disk now answers to that name.
 //
 // The move (the panel's Move here) never deletes before a verified copy: every file is copied to `<name>.lolmove-part`,
 // flushed to the disk, then renamed; the copies are checked (sizes, and the checksum of a file whose sha256 is known:
@@ -27,12 +33,24 @@ const crypto = require('crypto');
 const { execFile } = require('child_process');
 
 const FARM_DIR = path.join(__dirname, '..');
-const DEFAULT = { gguf: path.join(FARM_DIR, '.models'), stt: path.join(FARM_DIR, '.stt', 'models') };
-const SUB = { gguf: 'gguf', stt: 'speech-to-text', ollama: 'ollama', vllm: 'vllm' };
+const DEFAULT = {
+    gguf: path.join(FARM_DIR, '.models'), stt: path.join(FARM_DIR, '.stt', 'models'),
+    kokoro: path.join(FARM_DIR, '.kokoro', 'src', 'api', 'src', 'models'),   // Kokoro-FastAPI's MODEL_DIR in its own source
+};
+// Classify's weights: Laya's one Hugging Face repo (laya 0.3.20 loads convaiinnovations/laya by snapshot_download; its
+// encoder and tokenizer are inside it). In the machine's shared cache only THAT repo's folder is the farm's.
+const LAYA_REPO = 'models--convaiinnovations--laya';
+// Ollama's model folder: only these are Ollama's (Ollama 0.34 writes blobs/ and manifests/; manifests-v2/ is read
+// when there). Anything else a person keeps in that folder (another app's checkpoints) is never copied nor deleted.
+const OLLAMA_PARTS = ['blobs', 'manifests', 'manifests-v2'];
+const MARKER = '.lol-storage';
+const SUB = { gguf: 'gguf', stt: 'speech-to-text', classify: 'classify', kokoro: 'kokoro', ollama: 'ollama', vllm: 'vllm', wsl: 'wsl' };
 // What a person reads for each store (the panel, the move's messages).
 const LABEL = {
     gguf: 'Model files for llama.cpp, document search and drafts',
     stt: 'Speech to text\'s models',
+    classify: 'Classify\'s model',
+    kokoro: 'The voice\'s model',
     ollama: 'Ollama\'s models',
     vllm: 'vLLM\'s models',
 };
@@ -43,24 +61,71 @@ const CANARY = 'lol-where-check';         // the model name of the check "which 
 
 // ---- where things are -----------------------------------------------------------------------------------------------
 
-let cur = { dir: null, ollama: null };
-// config.loadConfig calls it, so every command uses the same folders; up.js again after a move.
+let cur = { dir: null, ollama: null, missing: null };
+// config.loadConfig calls it, so every command uses the same folders; up.js again after a move. A folder set but
+// without its marker is said missing (read once here; the panel's measure reads it again in the background).
 function useStorage(config) {
     const s = (config && config.storage) || {};
-    cur = { dir: s.dir || null, ollama: s.ollama || null };
+    cur = { dir: s.dir || null, ollama: s.ollama || null, missing: null };
+    if (cur.dir && !hasMarker(cur.dir)) cur.missing = missingSentence(cur.dir);
     return cur;
 }
 function dirsFor(s = cur) {
     return {
         gguf: s.dir ? path.join(s.dir, SUB.gguf) : DEFAULT.gguf,
         stt: s.dir ? path.join(s.dir, SUB.stt) : DEFAULT.stt,
+        classify: s.dir ? path.join(s.dir, SUB.classify) : null,   // null: the machine's shared Hugging Face cache
+        kokoro: s.dir ? path.join(s.dir, SUB.kokoro) : DEFAULT.kokoro,
     };
 }
 const ggufDir = () => dirsFor().gguf;
 const sttDir = () => dirsFor().stt;
+const classifyCache = () => dirsFor().classify;   // the classify service's HF_HUB_CACHE, or null
+const kokoroModels = () => dirsFor().kokoro;      // the voice's MODEL_DIR
+// The machine's shared Hugging Face cache (huggingface_hub's own rule).
+function hfHubDir(env = process.env, home = os.homedir()) {
+    if (env.HF_HUB_CACHE) return env.HF_HUB_CACHE;
+    if (env.HF_HOME) return path.join(env.HF_HOME, 'hub');
+    return path.join(env.XDG_CACHE_HOME || path.join(home, '.cache'), 'huggingface', 'hub');
+}
 // OLLAMA_MODELS for an Ollama the farm starts; null = Ollama's own place (its OLLAMA_MODELS, else ~/.ollama/models).
 function ollamaModelsFor(s = cur) { return s.ollama || (s.dir ? path.join(s.dir, SUB.ollama) : null); }
-function ollamaEnv(s = cur) { const d = ollamaModelsFor(s); return d ? { OLLAMA_MODELS: d } : {}; }
+// A folder kept by `storage.ollama` (one a person lent with "Use this folder", or the one the farm's Ollama read when a
+// move left Ollama's models where they were) is not the farm's: Ollama's startup prune never deletes in it.
+function ollamaEnv(s = cur) {
+    if (s.ollama) return { OLLAMA_MODELS: s.ollama, OLLAMA_NOPRUNE: '1' };
+    return s.dir ? { OLLAMA_MODELS: path.join(s.dir, SUB.ollama) } : {};
+}
+
+// ---- the folder's marker: is the folder there? ----------------------------------------------------------------------
+function hasMarker(dir) { try { return fs.statSync(path.join(dir, MARKER)).isFile(); } catch { return false; } }
+async function hasMarkerAsync(dir) { try { return (await fsp.stat(path.join(dir, MARKER))).isFile(); } catch { return false; } }
+function missingSentence(dir) {
+    return `The model folder ${dir} is missing (is its drive plugged in?). The farm downloads nothing into it and starts nothing from it until it is back; then start the farm again.`;
+}
+// What to say when the folder is missing, or null. Every download into it and every start from it asks first.
+function missingText(s = cur) { return s.dir && s.missing ? s.missing : null; }
+// Is `p` in the farm's folder while that folder is missing? (a download there would fill whatever disk answers now)
+function missingFor(p, s = cur) { return missingText(s) && inside(p, s.dir) ? s.missing : null; }
+// Read again in the background (the panel's measure): a drive plugged back in is seen without a restart of the panel.
+async function recheckMissing() {
+    if (cur.dir) cur.missing = (await hasMarkerAsync(cur.dir)) ? null : missingSentence(cur.dir);
+    return cur.missing;
+}
+// Written at the switch, flushed to the disk: from then on the folder is the farm's.
+function writeMarker(dir) {
+    fs.mkdirSync(dir, { recursive: true });   // the folder was checked and written to just before (the switch)
+    writeDurable(path.join(dir, MARKER), JSON.stringify({ what: 'LlmOnLan farm model folder', since: new Date().toISOString() }) + '\n');
+}
+// A file written so that a power cut leaves the old one or the new one, never a half: a temp file flushed to the disk,
+// renamed over, and (Linux) the folder flushed too.
+function writeDurable(p, text) {
+    const tmp = `${p}.${process.pid}.tmp`;
+    const fd = fs.openSync(tmp, 'w');
+    try { fs.writeSync(fd, text); fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
+    fs.renameSync(tmp, p);
+    if (process.platform !== 'win32') { try { const d = fs.openSync(path.dirname(p), 'r'); try { fs.fsyncSync(d); } finally { fs.closeSync(d); } } catch { /* best effort */ } }
+}
 function ollamaDefaultStore(env = process.env, home = os.homedir()) { return env.OLLAMA_MODELS || path.join(home, '.ollama', 'models'); }
 // Linux: where vLLM's weights go (<dir>/vllm/hf), and its root for a new install (<dir>/vllm). null without a folder,
 // or with one vLLM's scripts cannot take (vllm.js ROOT_RX: letters, digits, . _ - in every name).
@@ -106,6 +171,8 @@ function checkDir(dir, { stores = [], farmDir = FARM_DIR, platform = process.pla
     if (/[\0\r\n]/.test(d)) return { ok: false, error: 'That is not a folder.' };
     if (win && /^\\\\/.test(d)) return { ok: false, error: 'That folder is on another computer of the network: models load from it far too slowly. Choose a folder on a drive of this computer.' };
     if (win ? !/^[A-Za-z]:[\\/]/.test(d) : !d.startsWith('/')) return { ok: false, error: win ? 'Give the whole folder, starting with its drive, like F:\\LlmOnLan models.' : 'Give the whole folder, starting with /, like /data/llmonlan.' };
+    // Windows drops a dot or a space at the end of a name: "F:\models." would be another folder than the one typed.
+    if (win && d.split(/[\\/]/).slice(1).some((c) => c && c !== '.' && c !== '..' && /[. ]$/.test(c))) return { ok: false, error: 'A folder name cannot end with a dot or a space on Windows. Choose another name.' };
     const real = realOf(d);
     if (inside(real, realOf(farmDir), win) || inside(d, farmDir, win)) return { ok: false, error: 'That folder is inside the farm\'s own files, which an update replaces. Choose another one.' };
     for (const s of stores) {
@@ -118,15 +185,54 @@ function checkDir(dir, { stores = [], farmDir = FARM_DIR, platform = process.pla
     return { ok: true, error: null };
 }
 
-// Free bytes on the drive of `dir` (its deepest existing folder), or null.
-function freeBytes(dir) {
+// Free bytes on the drive of `dir` (its deepest existing folder), or null. Async: a sleeping USB disk must not hold
+// the event loop the seat gate runs on.
+async function freeBytes(dir) {
     let at = path.resolve(dir);
     for (;;) {
-        try { const s = fs.statfsSync(at); return s.bavail * s.bsize; } catch { /* not there yet */ }
+        try { const s = await fsp.statfs(at); return s.bavail * s.bsize; } catch { /* not there yet */ }
         const up = path.dirname(at);
         if (up === at) return null;
         at = up;
     }
+}
+
+// A folder on another computer (a network share, a mapped network drive): models load from it far too slowly, and
+// the move's checks cannot trust it. → the sentence, or null. Windows: a UNC path, or a drive whose type is 4
+// (Win32_LogicalDisk.DriveType, "network"); Linux: the mount's file system (nfs, cifs/smb, sshfs).
+const NET_FS = /^(nfs4?|cifs|smb3?|smbfs|fuse\.sshfs|afs|ceph|glusterfs|fuse\.glusterfs)$/;
+// The file system type of the mount that holds `p`, from /proc/self/mountinfo (pure): the field after " - ".
+function mountFsType(mountinfo, p) {
+    let best = null;
+    for (const line of String(mountinfo || '').split('\n')) {
+        const f = line.split(' ');
+        if (f.length < 5) continue;
+        const mnt = f[4].replace(/\\040/g, ' ');
+        const dash = f.indexOf('-', 6);
+        if ((p === mnt || p.startsWith(mnt.endsWith('/') ? mnt : mnt + '/')) && (!best || mnt.length > best.mnt.length)) best = { mnt, fs: dash > 0 ? f[dash + 1] : null };
+    }
+    return best ? best.fs : null;
+}
+const netCache = new Map();
+async function networkFolder(dir, { platform = process.platform, run = execText, mountinfo = null } = {}) {
+    const d = String(dir || '');
+    const say = 'That folder is on another computer of the network: models load from it far too slowly. Choose a folder on a drive of this computer.';
+    if (platform === 'win32') {
+        if (/^[\\/]{2}/.test(d)) return /^[\\/]{2}wsl(\.localhost|\$)[\\/]/i.test(d) ? null : say;   // WSL's own share is this computer
+        const m = /^([A-Za-z]):/.exec(d);
+        if (!m) return null;
+        const letter = m[1].toUpperCase();
+        if (!netCache.has(letter)) {
+            const r = await run('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', `(Get-CimInstance Win32_LogicalDisk -Filter "DeviceID='${letter}:'").DriveType`], 30000);
+            if (!r.ok) return null;
+            netCache.set(letter, String(r.out).trim() === '4');
+        }
+        return netCache.get(letter) ? say : null;
+    }
+    if (platform !== 'linux') return null;
+    let mi = mountinfo;
+    if (mi == null) { try { mi = await fsp.readFile('/proc/self/mountinfo', 'utf8'); } catch { return null; } }
+    return NET_FS.test(mountFsType(mi, process.platform === 'linux' ? realOf(d) : d) || '') ? say : null;
 }
 
 // ---- which kind of disk ---------------------------------------------------------------------------------------------
@@ -199,23 +305,31 @@ function execText(cmd, args, timeoutMs) {
 // ---- the files of a store -------------------------------------------------------------------------------------------
 
 // Every file under `root`: [{rel, size}], or [{rel, link}] for a symbolic link (recreated as it is, Hugging Face's
-// caches use relative ones). An unfinished download (.part) or copy (.lolmove-part) is left out. Never follows a link.
-async function listFiles(root) {
+// caches use relative ones). An unfinished download (.part, Ollama's -partial blobs of a pull in progress) or copy
+// (.lolmove-part) is left out. Never follows a link. `only`: the names at the top of `root` that are the store's (an
+// Ollama folder's blobs/ and manifests/, vLLM's model folders): nothing else there is listed, so nothing else moves.
+const UNFINISHED = /(\.part|-partial(-\d+)?)$/i;
+async function listFiles(root, { only = null } = {}) {
     const out = [];
     const walk = async (rel) => {
         let entries;
         try { entries = await fsp.readdir(path.join(root, rel), { withFileTypes: true }); }
         catch (e) { if (e.code === 'ENOENT' && !rel) return; throw e; }
         for (const e of entries) {
+            if (!rel && only && !only.includes(e.name)) continue;
             const r = rel ? path.join(rel, e.name) : e.name;
             if (e.isSymbolicLink()) { out.push({ rel: r, link: await fsp.readlink(path.join(root, r)) }); continue; }
             if (e.isDirectory()) { await walk(r); continue; }
-            if (!e.isFile() || /\.part$/i.test(e.name) || e.name.endsWith(PART)) continue;
+            if (!e.isFile() || UNFINISHED.test(e.name) || e.name.endsWith(PART)) continue;
             out.push({ rel: r, size: (await fsp.stat(path.join(root, r))).size });
         }
     };
     await walk('');
     return out;
+}
+// What else is at the top of `root` beside the store's own names (`only`): left where it is, and said so.
+async function othersIn(root, only) {
+    try { return (await fsp.readdir(root)).filter((n) => !only.includes(n)).sort(); } catch { return []; }
 }
 // A link that points outside its store (or anywhere, when absolute) cannot be recreated as it is.
 function linkEscapes(rel, link) {
@@ -238,11 +352,12 @@ function digestOf(storeId, rel, pinned = {}) {
 const cancelled = () => Object.assign(new Error('Stopped.'), { code: 'STOPPED' });
 
 // Copy one file through `<dst>.lolmove-part`: flushed to the disk, its size checked, its checksum when one is expected,
-// then renamed into place. → the sha256 it read (hex), when asked.
+// then renamed into place. → the sha256 of the bytes copied (hex), kept in the journal: the switch then checks a copy
+// by its size and that sum instead of reading 127 GB again while Ollama is stopped.
 async function copyFile(src, dst, { onBytes = () => {}, isCancelled = () => false, digest = null, size = null } = {}) {
     const tmp = dst + PART;
     await fsp.mkdir(path.dirname(dst), { recursive: true });
-    const h = digest ? crypto.createHash('sha256') : null;
+    const h = crypto.createHash('sha256');
     const r = await fsp.open(src, 'r');
     let w = null;
     try {
@@ -253,7 +368,7 @@ async function copyFile(src, dst, { onBytes = () => {}, isCancelled = () => fals
             if (isCancelled()) throw cancelled();
             const { bytesRead } = await r.read(buf, 0, CHUNK, pos);
             if (!bytesRead) break;
-            if (h) h.update(buf.subarray(0, bytesRead));
+            h.update(buf.subarray(0, bytesRead));
             let off = 0;
             while (off < bytesRead) {
                 const { bytesWritten } = await w.write(buf, off, bytesRead - off, pos + off);
@@ -265,13 +380,11 @@ async function copyFile(src, dst, { onBytes = () => {}, isCancelled = () => fals
         await w.sync();
         await w.close(); w = null;
         if (size != null && pos !== size) throw new Error(`${src} changed while it was copied (${pos} bytes read, ${size} expected).`);
-        if (h) {
-            const got = h.digest('hex');
-            if (got !== digest) throw Object.assign(new Error(`${src} does not match its checksum: the file is damaged.`), { code: 'DIGEST' });
-        }
+        const got = h.digest('hex');
+        if (digest && got !== digest) throw Object.assign(new Error(`${src} does not match its checksum: the file is damaged.`), { code: 'DIGEST' });
         await fsp.rename(tmp, dst);
         await syncDir(path.dirname(dst));
-        return h ? digest : null;
+        return got;
     } catch (e) {
         if (w) await w.close().catch(() => {});
         await fsp.rm(tmp, { force: true }).catch(() => {});
@@ -315,12 +428,34 @@ async function bytesToCopy(from, to, files) {
     return n;
 }
 
-// Copy a store: what is already in `to` with its size is kept (checked in verifyStore); a file there with another size is
-// replaced only when this move wrote it (modified since `since`, the move's start: the original changed meanwhile, an
-// Ollama manifest re-written by a pull); a file of someone else's under the same name stops the move, never overwritten.
-// A file whose checksum is known and differs is damaged already: not copied, left where it is (never deleted, since it
-// has no copy), and listed. → {copied: n, hashed: Set(rel) checked while copying, damaged: [rel]}.
-async function copyStore(from, to, files, { onBytes = () => {}, isCancelled = () => false, digestFor = () => null, since = 0 } = {}) {
+// Small files (an Ollama manifest, a config.json) are compared byte for byte: Ollama's manifests have a fixed length,
+// so an updated one is often the same size as the old.
+const SMALL = 1024 * 1024;
+async function sameBytes(a, b) {
+    try {
+        const [x, y] = await Promise.all([fsp.readFile(a), fsp.readFile(b)]);
+        return x.equals(y);
+    } catch { return false; }
+}
+// The same link object under two names (a folder reached twice through a link): deleting one deletes the other.
+function sameEntry(a, b) {
+    try {
+        const x = fs.lstatSync(a, { bigint: true }); const y = fs.lstatSync(b, { bigint: true });
+        return x.dev === y.dev && x.ino === y.ino && x.ino !== 0n;
+    } catch { return false; }
+}
+
+// Copy a store. `written` = {rel: sha256} of the files THIS move wrote into `to` (kept in its journal); `onCopied(rel,
+// sha)` records one more. A file already in `to`:
+//  - one this move wrote: kept when it has the original's size and the original did not change after it was copied (a
+//    small file is compared byte for byte); otherwise copied again (a manifest re-written by a pull);
+//  - one this move did not write (another program's, or left by a move that was forgotten): it counts as the copy only
+//    when its bytes are the original's (the sum its name says, or the sha256 of both); otherwise the move stops and says
+//    so, never writing over it.
+// `onlyMissing` (Finish): only what is missing is copied; what is there is judged by verifyStore, never replaced.
+// A file whose checksum is known and differs is damaged already: not copied, left where it is, listed.
+// → {copied, hashed: Set(rel) whose copy's checksum is known good, damaged: [rel]}.
+async function copyStore(from, to, files, { onBytes = () => {}, isCancelled = () => false, digestFor = () => null, written = {}, onCopied = () => {}, onlyMissing = false } = {}) {
     const hashed = new Set(); const damaged = [];
     let copied = 0;
     for (const f of files) {
@@ -335,33 +470,49 @@ async function copyStore(from, to, files, { onBytes = () => {}, isCancelled = ()
             await fsp.symlink(f.link, dst);
             continue;
         }
-        if (d && d.isFile() && d.size === f.size) continue;
-        if (d && !(d.isFile() && d.mtimeMs >= since)) {
-            throw new Error(`${dst} is already there and differs from ${src}: move it away or delete it, then press Move here again.`);
-        }
         const digest = digestFor(f.rel);
-        try { await copyFile(src, dst, { onBytes, isCancelled, digest, size: f.size }); }
+        if (d) {
+            const differs = new Error(`${dst} is already there and differs from ${src}: move it away or delete it, then press Move here again.`);
+            if (!d.isFile()) throw differs;
+            if (onlyMissing) continue;
+            if (written[f.rel] !== undefined) {
+                const srcNow = await statOrNull(src);
+                const fresh = d.size === f.size && srcNow && srcNow.mtimeMs <= d.mtimeMs && (f.size >= SMALL || (await sameBytes(src, dst)));
+                if (fresh) { if (digest && written[f.rel] === digest) hashed.add(f.rel); continue; }
+            } else {
+                if (d.size !== f.size) throw differs;
+                const want = digest || (await sha256File(src, { isCancelled }));
+                if ((await sha256File(dst, { isCancelled })) !== want) throw differs;
+                onCopied(f.rel, want);
+                if (digest) hashed.add(f.rel);
+                continue;
+            }
+        }
+        let sha;
+        try { sha = await copyFile(src, dst, { onBytes, isCancelled, digest, size: f.size }); }
         catch (e) { if (e.code !== 'DIGEST') throw e; damaged.push(f.rel); continue; }
+        onCopied(f.rel, sha);
         if (digest) hashed.add(f.rel);
         copied++;
     }
     return { copied, hashed, damaged };
 }
 
-// Every file of `from` (as listed) is in `to` with its size; a file with a known checksum whose copy was not checked while
-// copying (an earlier run of the move did it) is read again and checked. → {ok, problems: [plain words]}.
+// Every file of `from` (as listed) is in `to`: its size, a small file byte for byte, a file with a known checksum read
+// again unless its copy was checked already (`hashed`), and never the same file under two names. → {ok, problems}.
 async function verifyStore(from, to, files, { digestFor = () => null, hashed = new Set(), isCancelled = () => false, onBytes = () => {} } = {}) {
     const problems = [];
     for (const f of files) {
-        const dst = path.join(to, f.rel);
+        const src = path.join(from, f.rel); const dst = path.join(to, f.rel);
         const d = await statOrNull(dst);
         if (f.link != null) {
-            if (!(d && d.isSymbolicLink() && (await fsp.readlink(dst)) === f.link)) problems.push(`${dst} is missing.`);
+            if (!(d && d.isSymbolicLink() && (await fsp.readlink(dst)) === f.link) || sameEntry(src, dst)) problems.push(`${dst} is missing.`);
             continue;
         }
         if (!(d && d.isFile())) { problems.push(`${dst} is missing.`); continue; }
         if (d.size !== f.size) { problems.push(`${dst} is ${d.size} bytes, not ${f.size}.`); continue; }
-        if (sameFile(path.join(from, f.rel), dst)) { problems.push(`${dst} is the same file as ${path.join(from, f.rel)}: the two folders are one.`); continue; }
+        if (sameFile(src, dst)) { problems.push(`${dst} is the same file as ${src}: the two folders are one.`); continue; }
+        if (f.size < SMALL && !(await sameBytes(src, dst))) { problems.push(`${dst} differs from ${src}.`); continue; }
         const digest = digestFor(f.rel);
         if (digest && !hashed.has(f.rel)) {
             const got = await sha256File(dst, { isCancelled, onBytes });
@@ -372,23 +523,63 @@ async function verifyStore(from, to, files, { digestFor = () => null, hashed = n
     return { ok: !problems.length, problems };
 }
 
-// Delete the old copy: each file only while its copy is in `to` with the same size (and the same link) and is not the
-// same file; the rest is kept and counted. Then the folders emptied, `from` itself too. → {deleted, kept, keptBytes}.
-async function deleteMoved(from, to) {
-    let deleted = 0; let kept = 0; let keptBytes = 0;
-    const files = await listFiles(from);
+// Finish, for Ollama's folder: an old manifest is deleted only when its copy has the same bytes and every blob it names
+// is in `to` and checked (`verified`, by its sha256); a manifest kept keeps every blob it names in `from` too, so the old
+// folder stays whole for it (a model with a damaged blob, one updated in the new folder meanwhile). A manifest the farm
+// cannot read keeps every blob. → Set(rel) never deleted.
+async function ollamaKeep(from, to, files, verified) {
+    const keep = new Set();
+    const blobRel = (dig) => path.join('blobs', dig.replace(':', '-'));
+    let allBlobs = false;
     for (const f of files) {
+        const top = f.rel.split(/[\\/]/)[0];
+        if (!/^manifests(-v2)?$/.test(top) || f.link != null || path.basename(f.rel).startsWith('.')) continue;
+        let digests = null;
+        try {
+            const j = JSON.parse(await fsp.readFile(path.join(from, f.rel), 'utf8'));
+            digests = [j.config, ...(Array.isArray(j.layers) ? j.layers : [])].filter(Boolean).map((l) => String(l.digest || ''));
+            if (!digests.length || digests.some((x) => !/^sha256:[0-9a-f]{64}$/.test(x))) digests = null;
+        } catch { /* not a manifest the farm can read */ }
+        const whole = digests && digests.every((x) => verified.has(blobRel(x)) && fs.existsSync(path.join(to, blobRel(x))));
+        if (whole && (await sameBytes(path.join(from, f.rel), path.join(to, f.rel)))) continue;
+        keep.add(f.rel);
+        if (!digests) allBlobs = true;
+        else for (const x of digests) keep.add(blobRel(x));
+    }
+    if (allBlobs) for (const f of files) if (f.rel.split(/[\\/]/)[0] === 'blobs') keep.add(f.rel);
+    return keep;
+}
+
+// Delete the old copy: each file only while its copy is in `to` with the same size (and the same link) and is not the
+// same file, and never one of `keep`; `only` = the store's names at the top of `from` (nothing else there is touched).
+// Nothing at all when the two folders are one, or one holds the other, through any link. Then the folders emptied, and
+// `from` itself once empty. → {deleted, kept (a copy that differs, or kept on purpose), notCopied (no copy at all),
+// busy (could not be deleted: in use), keptBytes, refused (why nothing was deleted)}.
+async function deleteMoved(from, to, { only = null, keep = new Set() } = {}) {
+    const res = { deleted: 0, kept: 0, notCopied: 0, busy: 0, keptBytes: 0, refused: null };
+    const rf = realOf(from); const rt = realOf(to);
+    if (inside(rf, rt) || inside(rt, rf)) {
+        res.refused = `${from} and ${to} are one folder (or one holds the other), so nothing was deleted.`;
+        return res;
+    }
+    for (const f of await listFiles(from, { only })) {
         const src = path.join(from, f.rel); const dst = path.join(to, f.rel);
         const d = await statOrNull(dst);
+        const bytes = f.size || 0;
+        if (keep.has(f.rel)) { res.kept++; res.keptBytes += bytes; continue; }
+        if (!d) { res.notCopied++; res.keptBytes += bytes; continue; }
         const good = f.link != null
-            ? !!(d && d.isSymbolicLink() && (await fsp.readlink(dst)) === f.link)
-            : !!(d && d.isFile() && d.size === f.size && !sameFile(src, dst));
-        if (!good) { kept++; keptBytes += f.size || 0; continue; }
-        try { await fsp.unlink(src); deleted++; } catch { kept++; keptBytes += f.size || 0; }   // still open (Windows): kept
+            ? d.isSymbolicLink() && (await fsp.readlink(dst)) === f.link && !sameEntry(src, dst)
+            : d.isFile() && d.size === f.size && !sameFile(src, dst);
+        if (!good) { res.kept++; res.keptBytes += bytes; continue; }
+        try { await fsp.unlink(src); res.deleted++; }
+        catch (e) { if (e.code === 'ENOENT') res.deleted++; else { res.busy++; res.keptBytes += bytes; } }   // in use (Windows): kept, Finish tries again
     }
-    await pruneEmpty(from);
-    return { deleted, kept, keptBytes };
+    if (only) { for (const top of only) await pruneEmpty(path.join(from, top)); await fsp.rmdir(from).catch(() => {}); }
+    else await pruneEmpty(from);
+    return res;
 }
+
 // Remove the empty folders under `root`, then `root` if empty. Never a folder with a file left in it.
 async function pruneEmpty(root) {
     const walk = async (dir) => {
@@ -408,15 +599,22 @@ async function pruneEmpty(root) {
 // Linux, vLLM's weights: <root>/hf becomes a link to `to` (the farm's folder), so every path vLLM, its scripts and the
 // farm use stays the same. A real folder there is renamed <root>/hf.lolmove-old first (its files are deleted later, each
 // only once its copy is checked), and everything is put back as it was when the link cannot be made. Idempotent: a move
-// cut short (even between the rename and the link) is finished by calling it again. → {ok, error, oldDir: where the old
-// copy is now, or null}. On Windows (the tests) the link is a junction.
+// cut short (even between the rename and the link) is finished by calling it again. Never a link to a folder that is not
+// there: then a <root>/hf a cut left missing comes back from hf.lolmove-old. → {ok, error, oldDir: hf.lolmove-old when it
+// is there (the caller tells this move's from a leftover of an earlier one), or null}. On Windows (the tests) a junction.
 function linkHf(root, to) {
     const hf = path.join(root, 'hf'); const old = `${hf}.lolmove-old`;
-    const real = (p) => { try { return fs.realpathSync(p); } catch { return null; } };
     const oldDir = () => (fs.existsSync(old) ? old : null);
     let st = null;
     try { st = fs.lstatSync(hf); } catch { /* none: never made, or renamed by a run that stopped before the link */ }
-    if (st && st.isSymbolicLink() && real(hf) && real(hf) === real(to)) return { ok: true, error: null, oldDir: oldDir() };
+    let toIsDir = false;
+    try { toIsDir = fs.statSync(to).isDirectory(); } catch { /* not there */ }
+    if (!toIsDir) {
+        let back = false;
+        if (!st && fs.existsSync(old)) { try { fs.renameSync(old, hf); back = true; } catch { /* said below */ } }
+        return { ok: false, error: `${to} is not there, so ${hf} was not changed${back ? ` (it is back from ${old})` : ''}.`, oldDir: null };
+    }
+    if (hfLinked(root, to)) return { ok: true, error: null, oldDir: oldDir() };
     if (st && !st.isSymbolicLink() && !st.isDirectory()) return { ok: false, error: `${hf} is not a folder.`, oldDir: null };
     if (st && st.isDirectory() && fs.existsSync(old)) return { ok: false, error: `${old} is already there: move it away first.`, oldDir: null };
     const prevLink = st && st.isSymbolicLink() ? fs.readlinkSync(hf) : null;
@@ -432,16 +630,19 @@ function linkHf(root, to) {
     }
     return { ok: true, error: null, oldDir: oldDir() };
 }
+// Does <root>/hf already lead to `to` (a link)?
+function hfLinked(root, to) {
+    const hf = path.join(root, 'hf');
+    try { return fs.lstatSync(hf).isSymbolicLink() && fs.realpathSync(hf) === fs.realpathSync(to); } catch { return false; }
+}
 
 // ---- the move's journal: what a cut-short move had done, so Move here finishes it ------------------------------------
+// {to, startedAt, switched (the farm's config names `to`, written right after it is saved), stores: [{id, from, to, by?,
+// root?, only?, written: {rel: sha256} of what this move wrote, done?}]}. Flushed to the disk at each write.
 
 const journalPath = (configPath) => path.join(path.dirname(configPath), '.lol-storage-move.json');
 function readJournal(configPath) { try { return JSON.parse(fs.readFileSync(journalPath(configPath), 'utf8')); } catch { return null; } }
-function writeJournal(configPath, j) {
-    const p = journalPath(configPath); const tmp = `${p}.${process.pid}.tmp`;
-    fs.writeFileSync(tmp, JSON.stringify(j, null, 2) + '\n', 'utf8');
-    fs.renameSync(tmp, p);
-}
+function writeJournal(configPath, j) { writeDurable(journalPath(configPath), JSON.stringify(j, null, 2) + '\n'); }
 function clearJournal(configPath) { try { fs.unlinkSync(journalPath(configPath)); } catch { /* none */ } }
 
 // ---- Ollama's model folder ------------------------------------------------------------------------------------------
@@ -463,6 +664,10 @@ function manifestRels(name) {
 }
 function storeHasModel(store, name) { return manifestRels(name).some((r) => fs.existsSync(path.join(store, r))); }
 const isOllamaStore = (dir) => fs.existsSync(path.join(dir, 'blobs')) && (fs.existsSync(path.join(dir, 'manifests')) || fs.existsSync(path.join(dir, 'manifests-v2')));
+// The same two, off the event loop (the panel's measure: a USB disk waking up must not hold the seat gate).
+const there = (p) => fsp.access(p).then(() => true, () => false);
+async function storeHasModelAsync(store, name) { for (const r of manifestRels(name)) if (await there(path.join(store, r))) return true; return false; }
+async function isOllamaStoreAsync(dir) { return (await there(path.join(dir, 'blobs'))) && ((await there(path.join(dir, 'manifests'))) || (await there(path.join(dir, 'manifests-v2')))); }
 
 // The folder the Ollama app's server says it uses, from its own log (its "server config" line at each start): Windows
 // %LOCALAPPDATA%\Ollama\server.log, macOS ~/.ollama/logs/server.log. null when there is none.
@@ -618,12 +823,13 @@ function wslPathOf(winPath) {
 }
 
 module.exports = {
-    FARM_DIR, DEFAULT, SUB, LABEL, PART, KEEP_FREE, CANARY,
-    useStorage, dirsFor, ggufDir, sttDir, ollamaModelsFor, ollamaEnv, ollamaDefaultStore, vllmRootFor,
-    norm, inside, realOf, sameFile, checkDir, freeBytes,
+    FARM_DIR, DEFAULT, SUB, LABEL, PART, KEEP_FREE, CANARY, LAYA_REPO, OLLAMA_PARTS, MARKER, SMALL,
+    useStorage, dirsFor, ggufDir, sttDir, classifyCache, kokoroModels, hfHubDir, ollamaModelsFor, ollamaEnv, ollamaDefaultStore, vllmRootFor,
+    hasMarker, missingText, missingFor, recheckMissing, writeMarker, writeDurable,
+    norm, inside, realOf, sameFile, sameEntry, sameBytes, checkDir, freeBytes, networkFolder, mountFsType,
     parseWinDisk, linuxDiskKind, mountDevice, diskKind, slowDiskText,
-    listFiles, linkEscapes, digestOf, copyFile, sha256File, bytesToCopy, copyStore, verifyStore, deleteMoved, pruneEmpty, linkHf,
+    listFiles, othersIn, linkEscapes, digestOf, copyFile, sha256File, bytesToCopy, copyStore, verifyStore, ollamaKeep, deleteMoved, pruneEmpty, linkHf, hfLinked,
     journalPath, readJournal, writeJournal, clearJournal,
-    manifestRels, storeHasModel, isOllamaStore, ollamaLogFile, ollamaStoreInLog, ollamaStoreFromLog, ollamaReads, modelsInStore,
+    manifestRels, storeHasModel, isOllamaStore, storeHasModelAsync, isOllamaStoreAsync, ollamaLogFile, ollamaStoreInLog, ollamaStoreFromLog, ollamaReads, modelsInStore,
     scanFolder, wslPathOf,
 };

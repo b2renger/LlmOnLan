@@ -385,6 +385,10 @@ async function run() {
     log.plain('');
 
     const config = ensureConfig();
+    // The farm's model folder is missing (a drive unplugged, a letter changed): nothing is downloaded into whatever disk
+    // answers to its name now.
+    const missing = require('../storage').missingText();
+    if (missing) { log.err(missing); return 1; }
 
     log.plain('');
     log.info('Ollama …');

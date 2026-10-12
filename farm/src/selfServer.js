@@ -35,6 +35,7 @@
 //   POST /lol/admin/storage/finish|forget → a move left unfinished: delete the old copies, or forget it (token)
 //   POST /lol/admin/storage/scan  → what a folder already holds, {dir} (token)
 //   POST /lol/admin/storage/use   → use some of it where it is, {gguf: [{path}], vllm: [{path}], ollama: path} (token)
+//   POST /lol/admin/storage/move-in → move .gguf models found elsewhere into the farm's folder, {gguf: [{path}]} (token)
 //   POST /lol/admin/vllm/wsl-move → Windows: move WSL's Linux disk, {folder, dryRun?} (token)
 //   (vLLM's model, context, memory and people at once go through /lol/admin/apply, with dryRun.)
 //   POST /lol/admin/plugin/<id>/enable|disable → toggle a farm plugin (token)
@@ -237,6 +238,7 @@ function startSelfServer({ httpPort, getSnapshot, host = '0.0.0.0', control = nu
                     '/lol/admin/storage/forget': () => control.storageForget(),
                     '/lol/admin/storage/scan': (b) => control.storageScan(b),
                     '/lol/admin/storage/use': (b) => control.storageUse(b),
+                    '/lol/admin/storage/move-in': (b) => control.storageMoveIn(b),
                     '/lol/admin/vllm/wsl-move': (b) => control.wslMove(b),
                 };
                 if (method === 'POST' && POSTS[pathOnly]) {

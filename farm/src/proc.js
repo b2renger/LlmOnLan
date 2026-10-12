@@ -51,6 +51,28 @@ function killTree(pid) {
     });
 }
 
+// The program a pid runs now ("ollama.exe", "ollama"), or null when it cannot be told. A pid the farm recorded may
+// belong to another program by now (its Ollama died and the number was given again): read before killing it.
+function processName(pid, { platform = process.platform, run = execFile } = {}) {
+    return new Promise((resolve) => {
+        if (!pid || !isAlive(pid)) return resolve(null);
+        if (platform === 'linux') { try { return resolve(fs.readFileSync(`/proc/${pid}/comm`, 'utf8').trim() || null); } catch { return resolve(null); } }
+        const [cmd, args] = platform === 'win32'
+            ? ['tasklist', ['/FI', `PID eq ${pid}`, '/FO', 'CSV', '/NH']]
+            : ['ps', ['-p', String(pid), '-o', 'comm=']];
+        run(cmd, args, { windowsHide: true, timeout: 10000 }, (err, out) => {
+            if (err) return resolve(null);
+            const t = String(out || '').trim();
+            resolve(platform === 'win32' ? ((/^"([^"]+)"/.exec(t) || [])[1] || null) : (path.basename(t) || null));
+        });
+    });
+}
+// Is `pid` an Ollama? Unknown counts as yes (the farm's own record, as before); another program's name, no.
+async function isOllamaProcess(pid, opts) {
+    const n = await processName(pid, opts);
+    return n == null ? isAlive(pid) : /ollama/i.test(n);
+}
+
 // ---- spawning the proxy ----------------------------------------------------
 
 // Resolve how to invoke a command. A path-like command (contains a separator or
@@ -121,6 +143,8 @@ module.exports = {
     clearRuntime,
     isAlive,
     killTree,
+    processName,
+    isOllamaProcess,
     resolveSpawn,
     venvLitellmPath,
     resolveLitellmCommand,

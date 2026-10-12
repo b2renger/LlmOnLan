@@ -186,6 +186,32 @@ test('the Linux autostart entry runs the AppImage, its path quoted as the Deskto
     assert.ok(/'autostart', 'llmonlan-farm\.desktop'/.test(src) && /process\.env\.APPIMAGE/.test(src));
 });
 
+test('the wizard run again keeps the farm\'s config (its model folder above all); Ollama never starts on a folder gone missing (review m2, M4, M5)', () => {
+    const cfg = path.join(farmDir, 'lol.config.json');
+    stub('paths', {
+        farmRoot: () => farmDir, lolEntry: () => path.join(farmDir, 'bin', 'lol.js'), farmConfigFile: () => cfg, bundledFarmSource: () => farmDir,
+        bundledPython: () => 'python', bundledOllamaBin: () => 'ollama', pythonDir: () => farmDir, ollamaDir: () => farmDir,
+    });
+    stub('store', { loadSettings: () => ({}), updateSettings: () => {} });
+    stub('runtimeManager', { ensureRuntime: async () => {} });
+    stub('copyTree', { copyTree: () => [] });
+    const { farmConfigFor, ollamaModelsEnv } = fresh('installer');
+    const before = JSON.stringify({ name: 'Studio', storage: { dir: 'F:\\LLM' }, models: [{ id: 'qwen3:8b', default: true }], proxy: { host: '0.0.0.0', port: 4100 }, admin: { token: 'old' } });
+    const c = farmConfigFor(before, 'tok', false, 'auto');
+    assert.deepEqual(c.storage, { dir: 'F:\\LLM' }, 'the model folder stays');
+    assert.deepEqual([c.name, c.models[0].id, c.proxy.port, c.proxy.host, c.admin.token, c.beacon.enabled], ['Studio', 'qwen3:8b', 4100, '127.0.0.1', 'tok', false], 'the panel\'s settings stay; only what the wizard sets changes');
+    assert.equal(farmConfigFor(null, 'tok', true, 8192).ollama.contextLength, 8192, 'a first run as before');
+    // Ollama's folder: the farm's (with its marker), one lent (never pruned), one gone missing (refused, said).
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lol-farmapp-store-'));
+    try {
+        assert.throws(() => ollamaModelsEnv(JSON.stringify({ storage: { dir } })), /is missing \(is its drive plugged in\?\)/);
+        fs.writeFileSync(path.join(dir, '.lol-storage'), '{}');
+        assert.deepEqual(ollamaModelsEnv(JSON.stringify({ storage: { dir } })), { OLLAMA_MODELS: path.join(dir, 'ollama') });
+        assert.deepEqual(ollamaModelsEnv(JSON.stringify({ storage: { dir, ollama: 'E:\\ollama' } })), { OLLAMA_MODELS: 'E:\\ollama', OLLAMA_NOPRUNE: '1' });
+        assert.deepEqual(ollamaModelsEnv(JSON.stringify({})), {});
+    } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
 (async () => {
     try {
         for (const { name, fn } of tests) {

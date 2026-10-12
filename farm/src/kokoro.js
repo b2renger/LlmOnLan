@@ -37,7 +37,19 @@ const IS_WIN = process.platform === 'win32';
 const ROOT = path.join(__dirname, '..', '.kokoro');
 const SRC = path.join(ROOT, 'src');
 const VENV = path.join(ROOT, 'venv');
-const MODEL_PTH = path.join(SRC, 'api', 'src', 'models', 'v1_0', 'kokoro-v1_0.pth');
+// The voice's model folder (storage.js): the farm's folder once one is chosen (<dir>/kokoro, outside the source a tag bump
+// replaces), else Kokoro-FastAPI's own src/models. It holds v1_0/kokoro-v1_0.pth (downloaded) and v1_0/config.json (in
+// the source, copied beside the weights when the folder is the farm's).
+const SRC_MODELS = path.join(SRC, 'api', 'src', 'models');
+const modelsDir = () => require('./storage').kokoroModels();
+const modelPth = () => path.join(modelsDir(), 'v1_0', 'kokoro-v1_0.pth');
+function configBeside() {
+    const want = path.join(modelsDir(), 'v1_0', 'config.json');
+    const src = path.join(SRC_MODELS, 'v1_0', 'config.json');
+    if (path.resolve(want) === path.resolve(src) || fs.existsSync(want) || !fs.existsSync(src)) return;
+    fs.mkdirSync(path.dirname(want), { recursive: true });
+    fs.copyFileSync(src, want);
+}
 const TAG_FILE = path.join(ROOT, '.installed-tag'); // tag actually pip-installed
 const SRC_TAG_FILE = path.join(ROOT, '.src-tag');   // tag actually extracted in src/
 const BACKEND_FILE = path.join(ROOT, '.backend');   // 'gpu' | 'cpu' chosen at install
@@ -71,7 +83,9 @@ async function download(url, dest) {
     const res = await fetch(url, { redirect: 'follow' });
     if (!res.ok) throw new Error(`HTTP ${res.status} downloading ${url}`);
     fs.mkdirSync(path.dirname(dest), { recursive: true });
-    fs.writeFileSync(dest, Buffer.from(await res.arrayBuffer()));
+    // Beside, then renamed: a cut never leaves a half model under its name (a start would take it for the model).
+    fs.writeFileSync(dest + '.part', Buffer.from(await res.arrayBuffer()));
+    fs.renameSync(dest + '.part', dest);
 }
 
 // Installed AND matching the pin: venv + source + model all present, and what was
@@ -79,7 +93,6 @@ async function download(url, dest) {
 function installed() {
     return fs.existsSync(venvPython())
         && fs.existsSync(path.join(SRC, 'api', 'src', 'main.py'))
-        && fs.existsSync(MODEL_PTH)
         && readTrim(TAG_FILE) === PINNED_TAG;
 }
 
@@ -97,6 +110,17 @@ function currentBackend() {
 // when the farm should come up WITHOUT TTS.
 async function ensureKokoro() {
     if (installed()) {
+        // The weights only (a farm folder chosen, or a first start after a tag bump): downloaded, nothing reinstalled.
+        try {
+            configBeside();
+            if (!fs.existsSync(modelPth())) {
+                log.step('Downloading the Kokoro voice model (~312MB) …');
+                await download(MODEL_URL, modelPth());
+            }
+        } catch (e) {
+            log.warn(`The Kokoro voice model could not be downloaded (${e.message}) — the farm will run WITHOUT voice output.`);
+            return false;
+        }
         // Re-verify GPU/CPU each run — a box that lost CUDA (driver update/rollback)
         // falls back to CPU instead of USE_GPU=true hard-failing synthesis.
         const b = currentBackend();
@@ -154,9 +178,10 @@ async function ensureKokoro() {
         sh(`"${vpy}" -m pip install -q -e "${SRC}"`, { cwd: SRC });
 
         // 5. Model weights (~312MB) — voices already ship in the tarball.
-        if (!fs.existsSync(MODEL_PTH)) {
+        configBeside();
+        if (!fs.existsSync(modelPth())) {
             log.step('Downloading the Kokoro voice model (~312MB) …');
-            await download(MODEL_URL, MODEL_PTH);
+            await download(MODEL_URL, modelPth());
         }
 
         // 6. Confirm CUDA actually engages (driver may be too old for cu128) → pick
@@ -203,7 +228,7 @@ function spawnKokoro(config, { spawnFn = spawn, espeak } = {}) {
             API_LOG_LEVEL: 'WARNING',
             PROJECT_ROOT: SRC,
             PYTHONPATH: `${SRC}${path.delimiter}${path.join(SRC, 'api')}`,
-            MODEL_DIR: 'src/models',
+            MODEL_DIR: require('./storage').dirsFor().kokoro === SRC_MODELS ? 'src/models' : modelsDir(),
             VOICES_DIR: 'src/voices/v1_0',
             WEB_PLAYER_PATH: path.join(SRC, 'web'),
             ...(esp ? { PHONEMIZER_ESPEAK_LIBRARY: esp } : {}),

@@ -20,6 +20,11 @@ const stt = require('../stt');
 const bus = require('../bus');
 const embed = require('../embed');
 const { serviceHosts } = require('../net');
+const storage = require('../storage');
+
+// Where each service keeps its models (storage.js): none starts from the farm's model folder while that folder is missing
+// (a drive unplugged), or it would download its models into whatever disk answers to that name now.
+const MODELS_IN = { embed: () => storage.ggufDir(), stt: () => storage.sttDir(), classify: () => storage.classifyCache(), tts: () => storage.kokoroModels() };
 
 // Where the farm's own health checks reach a plugin: the plugins bind where
 // config.proxy.host says (LAN, loopback, or one specific address), so a probe at a
@@ -208,6 +213,9 @@ class FarmService {
         const log = runtime.log;
         try { this.ctx = this.desc.makeCtx ? await this.desc.makeCtx(config, runtime) : {}; }
         catch { this.ctx = {}; }
+        const where = MODELS_IN[this.desc.id] && MODELS_IN[this.desc.id]();
+        const missing = where ? storage.missingFor(where) : null;
+        if (missing) { this.up = false; return { ok: false, level: 'err', message: `${this.label}: ${missing}` }; }
         if (this.desc.stepMessage) log.step(this.desc.stepMessage(config, this.ctx));
         let ensured = false;
         try { ensured = await this.desc.ensure(config, this.ctx); } catch { ensured = false; }
