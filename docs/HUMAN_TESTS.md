@@ -45,10 +45,11 @@ a test that sets one seat, kills an engine or restarts the farm on production wh
 | M. Reboot tests | the PRO 6000, the Spark | 2 | — | 1 h each |
 | N. The Farm app on a clean box | a PC with no Ollama or Python, a Mac | 5 | — | 2 h + downloads |
 | O. Model storage on the PRO 6000 | the PRO 6000 at a quiet moment, a client | 5 | — | 2 h 30 |
-| **Total** | | **112** | **18** | about 51–56 h |
+| P. The panel's engine sections | any farm, the Farm app | 1 | P1 | 15 min |
+| **Total** | | **113** | **19** | about 51–56 h |
 
 **The release, in order:** K1–K5 on the test box first (the Farm app update, the held-file copy, llama.cpp b11512,
-document search's first start, the small cards), then J1–J4 on the PRO 6000, then I1–I5 and A1, B1 with the
+document search's first start, the small cards), then P1 and J1–J4 on the PRO 6000 (once `panel-engines` is merged), then I1–I5 and A1, B1 with the
 candidate client, then C1–C2 right after publishing.
 
 ---
@@ -1172,28 +1173,28 @@ app farm-v0.0.43 on Ollama, the old operator-run vLLM stopped, its logon task re
 **Build:** farm-v0.0.44 (the vLLM card scrolls into view; the update's file-by-file copy; llama.cpp b11512; document
 search). **Also:** one client laptop on v0.2.10 beside it. Put back every setting a test changes.
 
-### J1 ★ The vLLM card opens in view, and installs from nothing
+### J1 ★ The vLLM section opens, and installs from nothing
 *Proves:* an operator can install vLLM from the panel alone (the owner's "I cannot click the vLLM button").
 *Was:* the clean-state run (DEVLOG 2026-10-08 14:05), 7e.3 on this box.
-1. Panel ▸ Backend ▸ **vLLM**.
+1. Panel ▸ open the **vLLM** section (its line).
 2. Read the checklist. Press **Install vLLM** (about 45 min). Meanwhile chat from the laptop.
 3. When it is installed, **Download** the model if the list says it is not there yet.
 
-*Expect:* step 1 scrolls the vLLM card into the window, Install vLLM in view; the checklist says *Install vLLM
+*Expect:* step 1 opens the section where it is and checks this computer, Install vLLM in it; the checklist says *Install vLLM
 downloads it too* (no Download button promised before the install); nothing marked ✗; the laptop chats normally
 during the install; the list ends with the model downloaded.
 - [ ] Done · Found:
 
 ### J2 ★ Switch to vLLM and back, seen from a client
 *Proves:* a switch keeps clients on this farm and tells them the truth. *Was:* 7e.4.
-1. Press **vLLM**. The panel says about 2 minutes.
+1. Press **Serve with vLLM** (the vLLM section). The panel says about 2 minutes.
 2. Meanwhile on the laptop: look at the pill; send a message in Open WebUI; send one in LOL Vibe.
 3. Once ready: chat in Open WebUI; attach a scanned PDF; in LOL Vibe ask for a long answer and press **Stop**.
-4. Press **Ollama** (about a minute). Keep an Open WebUI chat open through it.
+4. Press **Serve with Ollama** (the Ollama section; about a minute). Keep an Open WebUI chat open through it.
 
 *Expect:* the pill reads *<farm> · Switching to vLLM…* and stays on this farm; Open WebUI gets *This farm's model is
 starting: about 2 minutes. Try again then.*; LOL Vibe says the model may be restarting and to try again in a few
-seconds (**known mismatch, owner's call:** write down how it reads); once ready the Performance card shows the
+seconds (**known mismatch, owner's call:** write down how it reads); once ready Performance (vLLM section) shows the
 seats, LOL Vibe's strip says `vllm`, the PDF is read, Stop ends the reply at once. Back on Ollama: the same name
 people see, the open chat keeps working, `nvidia-smi` shows vLLM's memory freed.
 - [ ] Done · Found:
@@ -1213,10 +1214,10 @@ rows says how many people the memory holds at that context.
 
 ### J4 ★ Document search beside vLLM
 *Proves:* both fit on one GPU, and uploads do not slow chat much. *Was:* 7f.7.
-1. vLLM the engine, Document search on. Read the vLLM card's *GPU memory for conversations*.
+1. vLLM the engine, Document search on. Read the vLLM section's *GPU memory for conversations*.
 2. Ten laptops (or ten Open WebUI windows on several laptops) upload a 50-page PDF at once while two people chat.
 
-*Expect:* the card says *1.5 GB for document search* only while document search is not running yet. Write down the
+*Expect:* the section says *1.5 GB for document search* only while document search is not running yet. Write down the
 upload times and whether chat slows.
 - [ ] Done · Found:
 
@@ -1280,7 +1281,7 @@ before vLLM is sized, and vLLM's Automatic memory is about 2 GB smaller than wit
 *Proves:* the two new models reach a farm whose list was saved before them, download, serve, see a picture, call a
 tool and hear sound, from the panel alone. *Was:* DEVLOG 2026-10-09 "Gemma 4 12B and Qwen3-Omni on vLLM" (measured
 there with a scratch vLLM, never from the panel of an installed Farm app).
-1. On the build with these models, open the vLLM card. Read the list.
+1. On the build with these models, open the vLLM section. Read the list.
 2. If the checklist says *… cannot read sound yet: press Update vLLM*, press **Update vLLM** (vLLM stopped first).
 3. **Download** Gemma 4 12B (9.3 GB). **Use this**; wait for the restart (about 2 min).
 4. In Open WebUI: attach a photo and ask what it shows; ask *"What is the weather in Lyon?"* with web search off.
@@ -1322,8 +1323,8 @@ farm-v0.0.44 candidate. **Also:** a client laptop on v0.2.10.
 1. On an Ollama farm with a password and a renamed model, note the panel. Install farm-v0.0.44 over it; open it.
 2. Press **Plan capacity ↗** with the network cable out.
 
-*Expect:* the panel shows the model, its settings and the password as before; engine buttons Ollama, llama.cpp,
-vLLM; **Document search** appears in Plugins, on (NVIDIA); farm.log has no "code refresh failed"; Plan capacity opens
+*Expect:* the panel shows the model, its settings and the password as before; the sections Ollama, llama.cpp,
+vLLM (the serving one open; engine buttons on a build before `panel-engines`); **Document search** appears in Plugins, on (NVIDIA); farm.log has no "code refresh failed"; Plan capacity opens
 in the system browser with this box marked, offline. On a farm that came from farm-v0.0.41 or older: the first line
 of `farm\.searxng\settings.yml` says *lol-settings v4* (or later), its `secret_key` is unchanged, a search on
 `http://127.0.0.1:8888` names Swisscows beside some results and no Yandex (7d.9).
@@ -1339,18 +1340,18 @@ of `farm\.searxng\settings.yml` says *lol-settings v4* (or later), its `secret_k
 
 *Expect:* the new panel opens; farm.log names no failed file; `farm\vllm\status.sh` exists and every `farm\vllm`
 script is the new one; the old serve.sh sits in `farm\.replaced` (as `N-serve.sh`) and is gone after the next
-launch; the vLLM card never says *A file of the farm is missing*.
+launch; the vLLM section never says *A file of the farm is missing*.
 - [ ] Done · Found:
 
 ### K3 ★ llama.cpp b11512 from the installed Farm app
 *Proves:* the pin bump works outside the dev box. *Was:* new (DEVLOG 2026-10-08 21:40, "Not done: … a farm release").
-1. Backend ▸ **llama.cpp** (default model). Time the first start (it downloads about 577 MB of llama.cpp, then the
+1. llama.cpp section ▸ **Serve with llama.cpp** (default model). Time the first start (it downloads about 577 MB of llama.cpp, then the
    model if it is not there).
-2. A reply from a client; a picture in Open WebUI; the Performance card.
+2. A reply from a client; a picture in Open WebUI; Performance (llama.cpp section).
 3. Rename the model (e.g. `tutor`), switch to Ollama, then back.
 4. Optional: unplug the network, restart the farm.
 
-*Expect:* healthy, the panel reads `llama.cpp · …`; a reply, the picture described, the Performance card filled; the
+*Expect:* healthy, the panel reads `llama.cpp · …`; a reply, the picture described, Performance filled; the
 name `tutor` stays across both switches and an open chat keeps working (RIG FA-2); offline, it falls back to Ollama
 with the reason on the panel.
 - [ ] Done · Found:
@@ -1367,21 +1368,21 @@ first start = the llama.cpp download + about 0.6 GB. No NVIDIA: off.
 ### K5 ★ A 12 GB and a 16 GB card
 *Proves:* small RTX cards are told the truth and keep working. *Was:* 7e.2, and DEVLOG 2026-10-08 21:57 ("a 12 GB card,
 where Ollama's context gets measured again beside the plugin").
-1. On the 4070 (12 GB): look at the **vLLM** button before pressing anything; press it.
+1. On the 4070 (12 GB): read the **vLLM** section's line before opening it; open it.
 2. Restart the farm on Ollama with Document search on; read the context line.
-3. The same on the 4080 (16 GB). On the PC with no NVIDIA GPU, press vLLM.
+3. The same on the 4080 (16 GB). On the PC with no NVIDIA GPU, open the vLLM section.
 
-*Expect:* the button says *Not for this GPU (12 GB; vLLM's models need about 35 GB): llama.cpp or Ollama is the engine
-for it. Press to see why.* (16 GB on the 4080; the number may be a little higher with document search on), before
+*Expect:* the line says *not for this GPU · 12 GB; vLLM's models need about 35 GB: llama.cpp or Ollama is the engine
+for it* (16 GB on the 4080; the number may be a little higher with document search on), before
 anything about WSL; no Install, no Download, the farm keeps serving. (From the build with Gemma 4 12B in the vLLM list,
-branch `vllm-models`: the button says *about 26 GB* on both cards; with document reading off, the 4080 is offered vLLM for Gemma 4 12B,
+branch `vllm-models`: the line says *about 26 GB* on both cards; with document reading off, the 4080 is offered vLLM for Gemma 4 12B,
 with room for 2 or 3 people.) Ollama measures its context again beside the
 plugin (a new *Context: auto → N* in farm.log) and chats work. No NVIDIA GPU: told so, not to install WSL.
 - [ ] Done · Found:
 
 ### K6 vLLM from nothing on a Blackwell PC without WSL
 *Proves:* the whole install path on a fresh Windows. *Was:* 7e.3 (never run: VLLM_MANAGED_PLAN, "Never run yet").
-1. Press **vLLM**: follow the checklist (an administrator PowerShell, a restart, Ubuntu opened once). **Check again**.
+1. Open the **vLLM** section: follow the checklist (an administrator PowerShell, a restart, Ubuntu opened once). **Check again**.
 2. Install the C compiler with the line it gives. **Check again**.
 3. **Install vLLM** (about 45 min) while a client chats. **Download** the model, **Stop** it half-way, Download again.
 4. An RTX 5090 (32 GB): turn Document OCR off in Plugins first; after a farm restart write down whether vLLM fell
@@ -1407,13 +1408,13 @@ GPU did not load (…)* and the microphone still works, slower.
 ### K8 The llama.cpp list before switching (branch `vllm-models`)
 *Proves:* an operator on Ollama (or vLLM) sees and prepares what a switch to llama.cpp would serve, and the farm keeps
 serving meanwhile (owner 2026-10-09).
-1. On Ollama, a client chatting. Panel ▸ Backend ▸ **llama.cpp**.
-2. Read the card. On a model that is not downloaded, press **Use this**; watch the bar and the client.
-3. **Close** the card; press **llama.cpp** again. Press **Switch to llama.cpp**; read the question; confirm.
+1. On Ollama, a client chatting. Panel ▸ open the **llama.cpp** section (its line).
+2. Read it. On a model that is not downloaded, press **Use this**; watch the bar and the client.
+3. Close the section (its line); open it again. Press **Serve with llama.cpp**; read the question; confirm.
 4. Switch back to Ollama.
 
-*Expect:* step 1 opens *Model · llama.cpp* in view, with no question and no switch; it says Ollama keeps serving until
-**Switch to llama.cpp**, marks the model it will serve **chosen** and those on this computer **downloaded**. Step 2:
+*Expect:* step 1 opens the section, with no question and no switch; its line read *standby · <model> chosen*; it says
+Ollama keeps serving until **Serve with llama.cpp**, marks the model it will serve **chosen** and those on this computer **downloaded**. Step 2:
 the bar says *Downloading <model>*, the client keeps chatting, then *llama.cpp will serve <model> when you switch to it.
 Ollama keeps serving until then.* Step 3: the question names that model (and says it downloads it first when it is not
 there); llama.cpp serves it.
@@ -1435,7 +1436,7 @@ of it never run on a Spark.
 *Proves:* the plan's §11.6 (VLLM_MANAGED_PLAN). *Was:* 7e.9, 7d.17, 7d.18.
 1. `bash "/home/<you>/.config/LlmOnLan Farm/farm/vllm/status.sh"`: `arch=aarch64`, a `gpu=NVIDIA GB10, …` line whose
    memory fields are not numbers, a `cc=` path, `mem_available_kb=`.
-2. The panel's vLLM button, then the check: *GPU: NVIDIA GB10 (119 GB shared with the system).*, nothing ✗.
+2. Open the panel's vLLM section, then the check: *GPU: NVIDIA GB10 (119 GB shared with the system).*, nothing ✗.
 3. Optional, only if the operator recipe runs (`lol-vllm.service`, farm/README "External"): the take-over is offered;
    clicked, it keeps the same process group, writes 58 GB for conversations, 8 people and the 8 GB guard;
    `sudo systemctl restart lol-vllm` starts nothing (journal: *The LlmOnLan farm runs this vLLM now …*), no loop.
@@ -1457,7 +1458,7 @@ of it never run on a Spark.
 ### L3 llama.cpp and document search on the Spark
 *Proves:* the arm64 llama.cpp of the new pin, and ggml-org's own build as a replacement (owner, 2026-10-09). *Was:*
 RIG_CHECKLIST "llama.cpp on the DGX Spark"; DEVLOG 2026-10-08 21:57 "the DGX Spark (our arm64 build of the new pin)".
-1. Backend ▸ llama.cpp: the farm downloads the `llamacpp-b11512` tarball (our CI build, after the merge to `main`).
+1. llama.cpp section ▸ Serve with llama.cpp: the farm downloads the `llamacpp-b11512` tarball (our CI build, after the merge to `main`).
    A reply.
 2. Plugins ▸ Document search: on; a client uploads a document (I3).
 3. ggml-org's `llama-b11512-bin-ubuntu-cuda-13.4-arm64.tar.gz` + its `cudart-…`, set as `llamacpp.binDir` (a
@@ -1593,7 +1594,7 @@ down what `%LOCALAPPDATA%\Ollama\server.log` says after `OLLAMA_MODELS:` at its 
 the agent on the real Ubuntu** (only on a scratch distribution: the refusals, and *WSL keeps the disk* while another
 Linux runs).
 1. Note what you keep in Ubuntu besides vLLM (other projects). Quit anything running in it, Docker Desktop included.
-2. Panel ▸ vLLM card ▸ **WSL's Linux disk** (*Ubuntu, 421 GB, in C:\Users\…\wsl\{919701f6-…}*). The folder offered is
+2. Panel ▸ vLLM section ▸ **WSL's Linux disk** (*Ubuntu, 421 GB, in C:\Users\…\wsl\{919701f6-…}*). The folder offered is
    `F:\LlmOnLan\wsl\Ubuntu`; keep it. Press **Move…** and read the question.
 3. Accept. Watch the bar (the new disk growing). 421 GB NVMe to NVMe: expect about 7–10 minutes.
 4. If it ends with *WSL keeps Ubuntu's disk in use*, press **Move…** again: the question now says all of WSL stops,
@@ -1601,7 +1602,7 @@ Linux runs).
 
 *Expect:* the question names Ubuntu, its size, that EVERYTHING in it moves, that WSL stops (all of it when another
 Linux runs, named), that vLLM stops first and starts again. At the end: *Ubuntu's Linux disk is in F:\LlmOnLan\wsl\Ubuntu
-now (N min)*, vLLM serves again (Performance card), a chat works; `wsl -d Ubuntu` opens with your files;
+now (N min)*, vLLM serves again (its Performance), a chat works; `wsl -d Ubuntu` opens with your files;
 `reg query HKCU\Software\Microsoft\Windows\CurrentVersion\Lxss /s` shows that `BasePath`; C: has ~421 GB more free.
 Write down the minutes.
 - [ ] Done · Found:
@@ -1612,10 +1613,10 @@ a click. *Was:* new (owner 2026-10-12: "the folder is the source of truth").
 1. Copy any `.gguf` (e.g. a small one) into `F:\LlmOnLan\gguf`. Within a minute (or press the card's measure) it is in
    the llama.cpp list, without an Add. Delete it from the folder: within a minute it leaves the list.
 2. **Use the models in this folder** ▸ a folder with a .gguf (e.g. a copy in `D:\models`) ▸ **Look**. The llama.cpp
-   card opens with what was found. Tick it, **Add the ticked ones**, then **Use this** and **Switch to llama.cpp**;
+   section opens with what was found. Tick it, **Add the ticked ones**, then **Use this** and **Serve with llama.cpp**;
    chat. Switch back.
 3. **Look** in `D:\models` again, tick it, **Move the ticked ones into the farm's folder**, read the question, accept.
-4. **Look** in `/home/ateliernum/lol-vllm/hf` (a folder of WSL's Linux): the vLLM card lists its models (the ones
+4. **Look** in `/home/ateliernum/lol-vllm/hf` (a folder of WSL's Linux): the vLLM section lists its models (the ones
    already in the list say so).
 
 *Expect:* step 1 as said. Step 2: the .gguf serves from its own folder (*On this computer: D:\models*); nothing was
@@ -1632,6 +1633,25 @@ points there, once (not twice). Step 4: nothing new for the models already in th
 *Expect:* D: *This folder is on a hard disk: models load from it several times slower…*; E: *…on a USB drive…*.
 Nothing moved. Step 3: *The model folder F:\LlmOnLan is missing (is its drive plugged in?)…* on the card and in the
 log; no Ollama started by the farm, nothing downloaded; after renaming it back everything serves again.
+- [ ] Done · Found:
+
+## P. The panel's engine sections (branch `panel-engines`) — 15 min, any farm
+
+### P1 ★ One section per engine, the switch inside it
+*Proves:* the panel's new layout keeps every control and the switch, and remembers what a person opened (owner
+2026-10-12). *Was:* new (scratch panel on a stub farm, DEVLOG 2026-10-12 "One section per engine").
+1. Open the panel in the Farm app (a farm on Ollama). Read the lines Ollama, llama.cpp, vLLM without opening them.
+2. Open llama.cpp and vLLM by their lines; wait 15 s (three refreshes). Then Tab to a section's line and wait again.
+3. In Access, *Free an idle seat after* → 2 min ▸ **Apply changes**. Put it back the same way.
+4. Press **Serve with llama.cpp** (or vLLM), read the question, **Cancel**.
+5. In a browser on the farm box, open `http://127.0.0.1:41997/lol/admin` (the token: Farm app ▸ Settings ▸ Panel access
+   token), open the llama.cpp section, then reload the tab (F5). (Not the Farm app's window: closing it quits the farm.)
+
+*Expect:* step 1: Ollama open, its line *serving · N models · <default> default*; the others closed, each line with its
+state (*standby · <model> chosen*, *not for this GPU …*, *cannot run on this computer*). Step 2: both stay open through
+the refreshes; opening vLLM checks this computer once (*Checked at …*); the keyboard focus stays on the line. Step 3:
+*Applied at once, no restart*. Step 4: the same question as the old engine buttons asked; Cancel changes nothing. Step
+5: the llama.cpp section still open after the reload. After a real switch (J2), the new engine's section opens by itself.
 - [ ] Done · Found:
 
 ---
@@ -1661,7 +1681,7 @@ log; no Ollama started by the farm, nothing downloaded; after renaming it back e
 6. ~~**`project.json` may not be protected from the coding agent**~~ — **fixed 2026-10-09** (DEVLOG 10:59): it was
    true, and `.git/config` (the remote a person's Push sends to) was open too. The fence now refuses a write or edit
    to `project.json` or anything under `.git/`; reading stays allowed. Nothing for a person to decide.
-7. **The vLLM button's number on a small card** (K5) was written as *about 35 GB*; with document search on, the
+7. **The vLLM line's number on a small card** (K5) was written as *about 35 GB*; with document search on, the
    farm counts its 1.5 GB too, so the sentence may say a little more.
 8. **Candidate builds for the ★ tests:** a local build, or a pre-release tag.
 9. **Model storage (O)** — answered by the owner, 2026-10-12: (a) the farm sets the Ollama app's Model location itself
